@@ -1,0 +1,319 @@
+diff --git a/index.html b/index.html
+index 48073f5..2e9a62c 100644
+--- a/index.html
++++ b/index.html
+@@ -7012,6 +7012,14 @@
+     📷 전표 촬영
+   </button>
+ 
++  <button
++    type="button"
++    class="secondary-button limestone-slip-library-button"
++    id="openLimestoneSlipLibraryButton"
++  >
++    🖼️ 사진 선택
++  </button>
++
+   <button
+     type="button"
+     class="primary-button limestone-add-button"
+@@ -7034,8 +7042,15 @@
+     hidden
+   />
+ 
++  <input
++    type="file"
++    id="limestoneSlipLibraryInput"
++    accept="image/*"
++    hidden
++  />
++
+   <small class="limestone-slip-camera-guide">
+-    총중량 · 공차중량 · 실중량 줄까지 전표 전체가 보이게 촬영하세요.
++    촬영하거나 보관함에서 선택할 때 총중량 · 공차중량 · 실중량 줄까지 전표 전체가 보여야 합니다.
+   </small>
+ 
+ </div>
+diff --git a/script.js b/script.js
+index a727bf3..6aef8d5 100644
+--- a/script.js
++++ b/script.js
+@@ -208246,6 +208246,9 @@ let limestoneSlipOcrResult =
+ let limestoneSlipRegistrationPending =
+   false;
+ 
++let limestoneSlipImageSelectionSource =
++  "camera";
++
+ 
+ 
+   /* =====================================================
+@@ -208264,6 +208267,16 @@ let limestoneSlipRegistrationPending =
+           "limestoneSlipCameraInput"
+         ),
+ 
++      libraryButton:
++        document.getElementById(
++          "openLimestoneSlipLibraryButton"
++        ),
++
++      libraryInput:
++        document.getElementById(
++          "limestoneSlipLibraryInput"
++        ),
++
+       panel:
+         document.getElementById(
+           "limestoneSlipCapturePanel"
+@@ -209109,6 +209122,10 @@ function closeLimestoneSlipCapturePanel() {
+     false;
+ 
+ 
++  limestoneSlipImageSelectionSource =
++    "camera";
++
++
+   if (
+     elements.panel
+   ) {
+@@ -209171,6 +209188,22 @@ function closeLimestoneSlipCapturePanel() {
+     elements.cameraInput.value =
+       "";
+   }
++
++
++  if (
++    elements.libraryInput
++  ) {
++    elements.libraryInput.value =
++      "";
++  }
++
++
++  if (
++    elements.retakeButton
++  ) {
++    elements.retakeButton.textContent =
++      "재촬영";
++  }
+ }
+ 
+   /* =====================================================
+@@ -209213,9 +209246,87 @@ function closeLimestoneSlipCapturePanel() {
+       "";
+ 
+ 
++    limestoneSlipImageSelectionSource =
++      "camera";
++
++
++    if (
++      elements.retakeButton
++    ) {
++      elements.retakeButton.textContent =
++        "재촬영";
++    }
++
++
+     elements.cameraInput.click();
+   }
+ 
++
++/* =====================================================
++  사진 보관함 열기
++====================================================== */
++
++function openLimestoneSlipLibrary() {
++  const elements =
++    getLimestoneSlipCaptureElements();
++
++
++  if (
++    !isLimestoneSlipMobileScreen()
++  ) {
++    showLimestoneSlipCameraMessage(
++      "사진 선택은 모바일에서만 사용할 수 있습니다."
++    );
++
++    return;
++  }
++
++
++  if (
++    !elements.libraryInput
++  ) {
++    showLimestoneSlipCameraMessage(
++      "사진 보관함 입력창을 찾을 수 없습니다."
++    );
++
++    return;
++  }
++
++
++  elements.libraryInput.value =
++    "";
++
++
++  limestoneSlipImageSelectionSource =
++    "library";
++
++
++  if (
++    elements.retakeButton
++  ) {
++    elements.retakeButton.textContent =
++      "다른 사진";
++  }
++
++
++  elements.libraryInput.click();
++}
++
++
++function reopenLimestoneSlipImageSource() {
++  if (
++    limestoneSlipImageSelectionSource ===
++      "library"
++  ) {
++    openLimestoneSlipLibrary();
++
++    return;
++  }
++
++
++  openLimestoneSlipCamera();
++}
++
+ /* =====================================================
+   진행 중인 OCR 요청 취소
+ ====================================================== */
+@@ -209913,6 +210024,13 @@ async function handleLimestoneSlipImageSelected(
+     event.currentTarget;
+ 
+ 
++  limestoneSlipImageSelectionSource =
++    cameraInput?.id ===
++      "limestoneSlipLibraryInput"
++        ? "library"
++        : "camera";
++
++
+   const imageFile =
+     cameraInput
+       .files?.[0] ||
+@@ -209966,6 +210084,17 @@ async function handleLimestoneSlipImageSelected(
+     getLimestoneSlipCaptureElements();
+ 
+ 
++  if (
++    elements.retakeButton
++  ) {
++    elements.retakeButton.textContent =
++      limestoneSlipImageSelectionSource ===
++        "library"
++          ? "다른 사진"
++          : "재촬영";
++  }
++
++
+   if (
+     !elements.panel ||
+     !elements.previewImage ||
+@@ -210180,6 +210309,27 @@ function initializeLimestoneSlipCameraPicker() {
+   );
+ 
+ 
++  /*
++    사진 보관함 선택
++  */
++
++  if (
++    elements.libraryButton &&
++    elements.libraryInput
++  ) {
++    elements.libraryButton.addEventListener(
++      "click",
++      openLimestoneSlipLibrary
++    );
++
++
++    elements.libraryInput.addEventListener(
++      "change",
++      handleLimestoneSlipImageSelected
++    );
++  }
++
++
+   /*
+     확인창 닫기
+   */
+@@ -210203,7 +210353,7 @@ function initializeLimestoneSlipCameraPicker() {
+   ) {
+     elements.retakeButton.addEventListener(
+       "click",
+-      openLimestoneSlipCamera
++      reopenLimestoneSlipImageSource
+     );
+   }
+ 
+@@ -210296,4 +210446,4 @@ function initializeLimestoneSlipCameraPicker() {
+   } else {
+     initializeLimestoneSlipCameraPicker();
+   }
+-})();
+\ No newline at end of file
++})();
+diff --git a/style.css b/style.css
+index 4e9af55..f796f47 100644
+--- a/style.css
++++ b/style.css
+@@ -93021,4 +93021,47 @@ body.is-auxiliary-material-expanded
+     min-height: 40px !important;
+   }
+ 
+-}
+\ No newline at end of file
++}
++
++/* =========================================================
++  석회석 전표 사진 보관함 선택
++
++  - PC에서는 기존 화면 유지
++  - 모바일에서 촬영 · 사진 선택 · 수동 입력을 함께 표시
++========================================================= */
++
++#efficiencyTeamModal
++#efficiencyLimestoneView
++.limestone-slip-library-button {
++  display: none !important;
++}
++
++
++@media screen and (max-width: 768px) {
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-heading-actions {
++    grid-template-columns:
++      repeat(
++        4,
++        minmax(0, 1fr)
++      ) !important;
++  }
++
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-slip-library-button {
++    display: inline-flex !important;
++
++    align-items: center;
++    justify-content: center;
++
++    border-color: #0f7580;
++
++    background: #0f7580;
++    color: #ffffff;
++  }
++
++}

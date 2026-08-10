@@ -1,0 +1,56 @@
+석회석 전표 사진 보관함 선택 기능
+==================================
+
+기준 GitHub 커밋:
+4a55b65 (2026-08-10 18:38 KST)
+
+수정 대상:
+- index.html
+- script.js
+- style.css
+
+수정하지 않는 파일:
+- functions/api/limestone-slip-ocr.js
+  현재 GitHub 최신본에 2026-08-10 18:18 실중량 판독 보강이 이미 포함되어 있습니다.
+
+적용:
+
+1. limestone-gallery-upload.patch 파일을 프로젝트 최상위 폴더에 둡니다.
+
+2. PowerShell에서 먼저 적용 가능 여부만 확인합니다.
+
+git apply --check .\limestone-gallery-upload.patch
+
+3. 위 명령에 출력이 없으면 적용합니다.
+
+git apply .\limestone-gallery-upload.patch
+
+4. 검사합니다.
+
+node --check .\script.js
+
+git diff --check -- .\index.html .\script.js .\style.css
+
+git diff --stat -- .\index.html .\script.js .\style.css
+
+정상 기준:
+- node --check 출력 없음
+- git diff --check 출력 없음
+- index.html, script.js, style.css 세 파일만 이번 기능에 의해 변경
+
+아직 커밋하지 말고 모바일에서 다음 순서로 시험합니다.
+
+효율팀 → 석회석 입고 현황 → 사진 선택
+→ 보관함의 전표사진 선택
+→ 실중량 확인
+→ 1호기 또는 2호기 등록
+
+보관함에서 연 사진은 촬영 사진과 동일하게 다음 흐름을 사용합니다.
+- JPEG 방향·크기 보정
+- OCR 실중량 판독
+- 판독값 직접 수정
+- 1·2호기 입고기록 등록
+- 전표사진 약 24시간 비공개 보관 후 자동 폐기
+
+보관함에서 들어온 사진의 하단 버튼은 "다른 사진"으로 표시되고,
+촬영에서 들어온 사진은 기존처럼 "재촬영"으로 표시됩니다.
