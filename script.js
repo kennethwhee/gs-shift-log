@@ -208246,6 +208246,9 @@ let limestoneSlipOcrResult =
 let limestoneSlipRegistrationPending =
   false;
 
+let limestoneSlipImageSelectionSource =
+  "camera";
+
 
 
   /* =====================================================
@@ -208262,6 +208265,16 @@ let limestoneSlipRegistrationPending =
       cameraInput:
         document.getElementById(
           "limestoneSlipCameraInput"
+        ),
+
+      libraryButton:
+        document.getElementById(
+          "openLimestoneSlipLibraryButton"
+        ),
+
+      libraryInput:
+        document.getElementById(
+          "limestoneSlipLibraryInput"
         ),
 
       panel:
@@ -209109,6 +209122,10 @@ function closeLimestoneSlipCapturePanel() {
     false;
 
 
+  limestoneSlipImageSelectionSource =
+    "camera";
+
+
   if (
     elements.panel
   ) {
@@ -209171,6 +209188,22 @@ function closeLimestoneSlipCapturePanel() {
     elements.cameraInput.value =
       "";
   }
+
+
+  if (
+    elements.libraryInput
+  ) {
+    elements.libraryInput.value =
+      "";
+  }
+
+
+  if (
+    elements.retakeButton
+  ) {
+    elements.retakeButton.textContent =
+      "재촬영";
+  }
 }
 
   /* =====================================================
@@ -209213,8 +209246,86 @@ function closeLimestoneSlipCapturePanel() {
       "";
 
 
+    limestoneSlipImageSelectionSource =
+      "camera";
+
+
+    if (
+      elements.retakeButton
+    ) {
+      elements.retakeButton.textContent =
+        "재촬영";
+    }
+
+
     elements.cameraInput.click();
   }
+
+
+/* =====================================================
+  사진 보관함 열기
+====================================================== */
+
+function openLimestoneSlipLibrary() {
+  const elements =
+    getLimestoneSlipCaptureElements();
+
+
+  if (
+    !isLimestoneSlipMobileScreen()
+  ) {
+    showLimestoneSlipCameraMessage(
+      "사진 선택은 모바일에서만 사용할 수 있습니다."
+    );
+
+    return;
+  }
+
+
+  if (
+    !elements.libraryInput
+  ) {
+    showLimestoneSlipCameraMessage(
+      "사진 보관함 입력창을 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  elements.libraryInput.value =
+    "";
+
+
+  limestoneSlipImageSelectionSource =
+    "library";
+
+
+  if (
+    elements.retakeButton
+  ) {
+    elements.retakeButton.textContent =
+      "다른 사진";
+  }
+
+
+  elements.libraryInput.click();
+}
+
+
+function reopenLimestoneSlipImageSource() {
+  if (
+    limestoneSlipImageSelectionSource ===
+      "library"
+  ) {
+    openLimestoneSlipLibrary();
+
+    return;
+  }
+
+
+  openLimestoneSlipCamera();
+}
 
 /* =====================================================
   진행 중인 OCR 요청 취소
@@ -209913,6 +210024,13 @@ async function handleLimestoneSlipImageSelected(
     event.currentTarget;
 
 
+  limestoneSlipImageSelectionSource =
+    cameraInput?.id ===
+      "limestoneSlipLibraryInput"
+        ? "library"
+        : "camera";
+
+
   const imageFile =
     cameraInput
       .files?.[0] ||
@@ -209964,6 +210082,17 @@ async function handleLimestoneSlipImageSelected(
 
   const elements =
     getLimestoneSlipCaptureElements();
+
+
+  if (
+    elements.retakeButton
+  ) {
+    elements.retakeButton.textContent =
+      limestoneSlipImageSelectionSource ===
+        "library"
+          ? "다른 사진"
+          : "재촬영";
+  }
 
 
   if (
@@ -210181,6 +210310,27 @@ function initializeLimestoneSlipCameraPicker() {
 
 
   /*
+    사진 보관함 선택
+  */
+
+  if (
+    elements.libraryButton &&
+    elements.libraryInput
+  ) {
+    elements.libraryButton.addEventListener(
+      "click",
+      openLimestoneSlipLibrary
+    );
+
+
+    elements.libraryInput.addEventListener(
+      "change",
+      handleLimestoneSlipImageSelected
+    );
+  }
+
+
+  /*
     확인창 닫기
   */
 
@@ -210203,7 +210353,7 @@ function initializeLimestoneSlipCameraPicker() {
   ) {
     elements.retakeButton.addEventListener(
       "click",
-      openLimestoneSlipCamera
+      reopenLimestoneSlipImageSource
     );
   }
 

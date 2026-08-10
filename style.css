@@ -93022,3 +93022,46 @@ body.is-auxiliary-material-expanded
   }
 
 }
+
+/* =========================================================
+  석회석 전표 사진 보관함 선택
+
+  - PC에서는 기존 화면 유지
+  - 모바일에서 촬영 · 사진 선택 · 수동 입력을 함께 표시
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-slip-library-button {
+  display: none !important;
+}
+
+
+@media screen and (max-width: 768px) {
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-heading-actions {
+    grid-template-columns:
+      repeat(
+        4,
+        minmax(0, 1fr)
+      ) !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-library-button {
+    display: inline-flex !important;
+
+    align-items: center;
+    justify-content: center;
+
+    border-color: #0f7580;
+
+    background: #0f7580;
+    color: #ffffff;
+  }
+
+}
