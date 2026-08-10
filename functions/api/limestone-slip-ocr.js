@@ -1,6 +1,5 @@
 "use strict";
 
-
 /* =========================================================
   석회석 전표사진 OCR API
 
@@ -13,28 +12,25 @@
   바인딩:
   - DB                    : 기존 D1
   - AI                    : Workers AI
-  - LIMESTONE_SLIPS  : 비공개 R2
+  - LIMESTONE_SLIP_BUCKET 또는 LIMESTONE_SLIPS : 비공개 R2
 ========================================================= */
 
 const OCR_MODEL =
   "@cf/moondream/moondream3.1-9B-A2B";
 
-
 const MAX_IMAGE_BYTES =
   4 * 1024 * 1024;
-
 
 const MIN_QUANTITY_KG =
   1000;
 
-
 const MAX_QUANTITY_KG =
   100000;
 
-
 /*
-  실중량과
-  총중량 - 공차중량의 허용 차이
+  계근대 표시 단위와 OCR 반올림 오차를 고려한 허용값.
+  인쇄된 실중량과 총중량 - 공차중량의 차이가 이 값을
+  초과하면 자동 확정하지 않는다.
 */
 const WEIGHT_DIFFERENCE_TOLERANCE_KG =
   100;
@@ -565,8 +561,8 @@ function parseWeightNumber(
 
 
   /*
-    30,920 또는 30.920처럼
-    세 자리 구분자로 보이는 경우
+    30,920 또는 30.920처럼 세 자리 구분자로 보이는 경우는
+    구분자를 제거한다. 그 밖의 마침표는 소수점으로 유지한다.
   */
   if (
     /^-?\d{1,3}(?:[,.]\d{3})+$/.test(
@@ -683,9 +679,7 @@ function extractLabeledWeight(
       match[1],
       match[2] ||
         "kg"
-    ].join(
-      " "
-    )
+    ].join(" ")
   );
 }
 
@@ -697,23 +691,6 @@ function extractWeightField(
   labelPattern,
   visiblePropertyNames = []
 ) {
-  const visibleValue =
-    getFirstObjectValue(
-      answerObject,
-      visiblePropertyNames
-    );
-
-
-  if (
-    normalizeBoolean(
-      visibleValue
-    ) ===
-      false
-  ) {
-    return null;
-  }
-
-
   const objectValue =
     getFirstObjectValue(
       answerObject,
@@ -732,6 +709,29 @@ function extractWeightField(
       null
   ) {
     return objectWeight;
+  }
+
+
+  /*
+    모델이 숫자는 정확히 반환하면서 visible 플래그만 false로
+    잘못 표시하는 경우가 있다. 유효한 숫자를 먼저 사용하고,
+    숫자가 없을 때만 visible=false를 적용한다.
+  */
+
+  const visibleValue =
+    getFirstObjectValue(
+      answerObject,
+      visiblePropertyNames
+    );
+
+
+  if (
+    normalizeBoolean(
+      visibleValue
+    ) ===
+      false
+  ) {
+    return null;
   }
 
 
@@ -861,7 +861,9 @@ function parseOcrAnswer(
       [
         "netKg",
         "quantityKg",
-        "netWeightKg"
+        "netWeightKg",
+        "printedValue",
+        "netPrintedValue"
       ],
       "(?:실\\s*중\\s*량|순\\s*중\\s*량|net(?:\\s*weight)?)",
       [
@@ -916,6 +918,17 @@ function parseOcrAnswer(
       "medium";
 
 
+  const allWeightsAgree =
+    netKg !==
+      null &&
+    hasGrossAndTare &&
+    Math.abs(
+      netKg -
+      differenceKg
+    ) <=
+      WEIGHT_DIFFERENCE_TOLERANCE_KG;
+
+
   let quantityKg =
     null;
 
@@ -948,6 +961,20 @@ function parseOcrAnswer(
   ) {
     reasonCode =
       "weight_mismatch";
+
+  } else if (
+    allWeightsAgree
+  ) {
+    /*
+      세 값이 산식으로 서로 검증되면 모델의 confidence 누락이나
+      low 표기만으로 정확한 실중량을 버리지 않는다.
+    */
+
+    quantityKg =
+      netKg;
+
+    recognitionSource =
+      "printed_net";
 
   } else if (
     !confidenceIsUsable &&
@@ -1016,7 +1043,12 @@ function parseOcrAnswer(
     recognitionSource ===
       "gross_minus_tare"
         ? "medium"
-        : confidence;
+        : (
+            allWeightsAgree &&
+            !confidenceIsUsable
+              ? "medium"
+              : confidence
+          );
 
 
   const recognition = {
@@ -1027,8 +1059,9 @@ function parseOcrAnswer(
     tareKg,
 
     /*
-      netKg는 전표에 직접 인쇄된 값이다.
-      quantityKg는 검증 후 사용할 최종값이다.
+      netKg는 전표에 직접 인쇄되어 AI가 읽은 값이다.
+      quantityKg는 검증 후 실제로 사용할 최종값이며,
+      총중량 - 공차중량으로 계산된 값일 수도 있다.
     */
     netKg,
 
@@ -1131,8 +1164,9 @@ export async function onRequestPost(
 
     /*
       기존 배포 환경과 새 이름을 모두 지원한다.
+      Cloudflare 대시보드의 R2 바인딩 이름이 어느 쪽이든
+      별도 설정 변경 없이 같은 버킷을 사용할 수 있다.
     */
-
     const slipBucket =
       context.env
         .LIMESTONE_SLIP_BUCKET ||
@@ -1329,31 +1363,20 @@ export async function onRequestPost(
               imageDataUri,
 
             question: `
-이 이미지는 한국어 석회석 계근 전표입니다.
+Focus only on the small, narrow Korean weighing receipt in this photo. Ignore all larger background documents.
 
-전표에서 아래 세 항목을 각각 읽으세요.
-- 총중량 또는 총 중 량: grossKg
-- 공차중량, 공차 중량 또는 차중량: tareKg
-- 실중량, 실 중 량, 순중량 또는 NET WEIGHT: netKg
+Find the printed number on the row labelled "실중량", "실 중 량", "순중량", or "NET WEIGHT". This is the actual/net weight and is usually the third of three consecutive rows ending in kg.
+The Korean label may contain spaces, be faint, or be partly covered by a punched hole. Use the row position to locate it, but do not return the gross-weight or tare-weight row.
+Do not use dates, times, vehicle numbers, phone numbers, registration numbers, or numbers from the papers behind the receipt.
+Treat both comma and dot as thousands separators: 30,920 kg and 30.920 kg both mean 30920 kg.
+If the actual-weight row cannot be identified, return null. Do not guess.
 
-각 값은 반드시 해당 라벨과 같은 행 또는 바로 인접한 칸에 인쇄된 중량만 사용하세요.
-날짜, 차량번호, 사업자번호, 전표번호 및 그 밖의 숫자는 절대 중량으로 사용하지 마세요.
-값은 kg 단위 정수로 반환하고 쉼표는 제거하세요. 예: 30,920 kg는 30920입니다.
-톤 단위로만 인쇄되어 있다면 kg으로 변환하세요.
-
-netKg가 보이지 않더라도 계산하거나 추측하지 마세요.
-총중량과 공차중량의 차이는 서버가 별도로 검증합니다.
-
-라벨 또는 값이 흐리거나 사진 밖에 있으면 해당 값은 null로 반환하세요.
-fullSlipVisible은 총중량·공차중량·실중량 영역이 사진 안에 보일 때만 true입니다.
-confidence는 세 중량 항목의 판독 신뢰도를 high, medium, low 중 하나로 반환하세요.
-
-설명이나 Markdown 없이 반드시 아래 키를 가진 JSON 한 줄만 반환하세요.
-{"grossKg":52340,"tareKg":21420,"netKg":30920,"printedValue":"30,920 kg","grossVisible":true,"tareVisible":true,"netVisible":true,"fullSlipVisible":true,"confidence":"high"}
+Return exactly one JSON line with no Markdown:
+{"quantityKg":30920,"printedValue":"30,920 kg","confidence":"high"}
             `.trim(),
 
             reasoning:
-              false,
+              true,
 
             temperature:
               0,
@@ -1396,10 +1419,126 @@ confidence는 세 중량 항목의 판독 신뢰도를 high, medium, low 중 하
       );
 
 
-    const recognition =
+    let recognition =
       parseOcrAnswer(
         answerText
       );
+
+
+    let fallbackAnswerText =
+      "";
+
+
+    /*
+      첫 질문에서 한글 라벨을 놓친 경우 한 번만 다시 시도한다.
+      두 번째 질문은 라벨 판독보다 연속된 세 개의 kg 행과
+      총중량 - 공차중량 = 실중량 관계에 집중한다.
+    */
+
+    if (
+      !recognition.recognized
+    ) {
+      try {
+        const fallbackAiResult =
+          await context.env.AI.run(
+            OCR_MODEL,
+            {
+              task:
+                "query",
+
+              image:
+                imageDataUri,
+
+              question: `
+Look closely at the small, narrow Korean weighing receipt in this photo. Ignore the larger background documents.
+
+Find the three consecutive weight rows whose printed values end in kg. They normally appear in this order:
+1. gross weight, labelled "총중량" or similar
+2. tare weight, labelled "공차중량", "공차량" or similar
+3. net/actual weight, labelled "실중량", "실 중 량" or similar
+
+The Korean label may contain spaces, be faint, or be partly covered by a punched hole. In that case, use the row order and verify that grossKg - tareKg equals quantityKg within 100 kg.
+Do not use dates, times, vehicle numbers, phone numbers, registration numbers, or numbers from the larger papers behind the receipt.
+Treat both comma and dot as thousands separators: 30,920 kg and 30.920 kg both mean 30920 kg.
+If the three rows cannot be read consistently, return null values. Do not guess.
+
+Return exactly one JSON line with no Markdown:
+{"grossKg":44620,"tareKg":13700,"quantityKg":30920,"printedValue":"30,920 kg","confidence":"medium"}
+              `.trim(),
+
+              reasoning:
+                true,
+
+              temperature:
+                0,
+
+              max_tokens:
+                260,
+
+              stream:
+                false
+            }
+          );
+
+
+        fallbackAnswerText =
+          normalizeText(
+            fallbackAiResult?.answer ??
+            fallbackAiResult?.response ??
+            ""
+          );
+
+
+        const fallbackRecognition =
+          parseOcrAnswer(
+            fallbackAnswerText
+          );
+
+
+        if (
+          fallbackRecognition.recognized
+        ) {
+          recognition =
+            fallbackRecognition;
+        }
+
+      } catch (
+        fallbackError
+      ) {
+        console.warn(
+          "[Limestone Slip OCR] fallback query failed:",
+          fallbackError
+        );
+      }
+    }
+
+
+    if (
+      !recognition.recognized
+    ) {
+      console.warn(
+        "[Limestone Slip OCR] weight not recognized:",
+        JSON.stringify({
+          reasonCode:
+            recognition.reasonCode,
+
+          confidence:
+            recognition.confidence,
+
+          primaryAnswer:
+            answerText.slice(
+              0,
+              600
+            ),
+
+          fallbackAnswer:
+            fallbackAnswerText.slice(
+              0,
+              600
+            )
+        })
+      );
+    }
 
 
     const uploadedAt =
@@ -1413,70 +1552,70 @@ confidence는 세 중량 항목의 판독 신뢰도를 high, medium, low 중 하
 
 
     await slipBucket.put(
-      objectKey,
-      imageBuffer,
-      {
-        httpMetadata: {
-          contentType:
-            "image/jpeg",
+        objectKey,
+        imageBuffer,
+        {
+          httpMetadata: {
+            contentType:
+              "image/jpeg",
 
-          cacheControl:
-            "private, no-store"
-        },
+            cacheControl:
+              "private, no-store"
+          },
 
-        customMetadata: {
-          employeeNo:
-            authentication.user
-              .employeeNo,
+          customMetadata: {
+            employeeNo:
+              authentication.user
+                .employeeNo,
 
-          uploadedAt:
-            uploadedAt.toISOString(),
+            uploadedAt:
+              uploadedAt.toISOString(),
 
-          grossKg:
-            recognition.grossKg ===
-              null
-                ? ""
-                : String(
-                    recognition.grossKg
-                  ),
+            grossKg:
+              recognition.grossKg ===
+                null
+                  ? ""
+                  : String(
+                      recognition.grossKg
+                    ),
 
-          tareKg:
-            recognition.tareKg ===
-              null
-                ? ""
-                : String(
-                    recognition.tareKg
-                  ),
+            tareKg:
+              recognition.tareKg ===
+                null
+                  ? ""
+                  : String(
+                      recognition.tareKg
+                    ),
 
-          netKg:
-            recognition.netKg ===
-              null
-                ? ""
-                : String(
-                    recognition.netKg
-                  ),
+            netKg:
+              recognition.netKg ===
+                null
+                  ? ""
+                  : String(
+                      recognition.netKg
+                    ),
 
-          quantityKg:
-            recognition.quantityKg ===
-              null
-                ? ""
-                : String(
-                    recognition.quantityKg
-                  ),
+            quantityKg:
+              recognition.quantityKg ===
+                null
+                  ? ""
+                  : String(
+                      recognition.quantityKg
+                    ),
 
-          confidence:
-            recognition.confidence,
+            confidence:
+              recognition.confidence,
 
-          recognitionSource:
-            recognition.recognitionSource ||
-            "",
+            recognitionSource:
+              recognition.recognitionSource ||
+              "",
 
-          reasonCode:
-            recognition.reasonCode ||
-            ""
+            reasonCode:
+              recognition.reasonCode ||
+              ""
+          }
         }
-      }
-    );
+      );
 
 
     return jsonResponse(
