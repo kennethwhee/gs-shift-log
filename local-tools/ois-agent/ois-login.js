@@ -6955,7 +6955,11 @@ async function collectOisLegacyLogApprovalValues(
   - steam_status
   - logsheet_approval
 
-  일곱 요청 유형을 번갈아 확인한다.
+  중요:
+  - 기존에는 7개 유형을 각각 HTTP 조회했다.
+  - 이제 7개 유형의 우선순위를 한 번에 서버로 전달한다.
+  - 따라서 대기 상태의 Cloudflare 요청은
+    폴링 1회당 HTTP 1회만 발생한다.
 ========================================================= */
 
 async function getNextOisAgentRequest(
@@ -6981,6 +6985,23 @@ async function getNextOisAgentRequest(
     requestTypes.length;
 
 
+  /*
+    이번 폴링에서 확인할 유형 순서.
+
+    예:
+    startIndex = 2 이면
+
+    auxiliary_materials
+    turbine_gear_pinion
+    silo_level
+    steam_status
+    logsheet_approval
+    water_environment
+    limestone_stock
+  */
+  const orderedRequestTypes = [];
+
+
   for (
     let offset = 0;
     offset <
@@ -6988,56 +7009,95 @@ async function getNextOisAgentRequest(
     offset +=
       1
   ) {
-    const requestTypeIndex =
-      (
-        startIndex +
-        offset
-      ) %
-      requestTypes.length;
-
-
-    const requestType =
+    orderedRequestTypes.push(
       requestTypes[
-        requestTypeIndex
-      ];
-
-
-    const result =
-      await requestOisAgentApi(
-        config,
-
-        getOisAgentApiUrl(
-          config,
-          {
-            action:
-              "next",
-
-            requestType,
-
-            _:
-              Date.now()
-          }
-        )
-      );
-
-
-    if (
-      result.item
-    ) {
-      getNextOisAgentRequest
-        .nextTypeIndex =
         (
-          requestTypeIndex +
-          1
+          startIndex +
+          offset
         ) %
-        requestTypes.length;
-
-
-      return result.item;
-    }
+        requestTypes.length
+      ]
+    );
   }
 
 
+  /*
+    서버에 7종류를 한 번에 전달한다.
+
+    기존:
+    7개 유형 × 각각 HTTP GET
+
+    변경:
+    7개 유형 목록 × HTTP GET 1회
+  */
+  const result =
+    await requestOisAgentApi(
+      config,
+
+      getOisAgentApiUrl(
+        config,
+        {
+          action:
+            "next",
+
+          requestTypes:
+            orderedRequestTypes.join(
+              ","
+            ),
+
+          _:
+            Date.now()
+        }
+      )
+    );
+
+
+  if (
+    result.item
+  ) {
+    /*
+      실제로 가져온 요청 유형의 다음 유형부터
+      다음 폴링의 우선순위를 시작한다.
+
+      한 종류의 대량 요청이 있어도
+      다른 종류가 계속 뒤로 밀리지 않도록 한다.
+    */
+    const claimedRequestType =
+      getOisAgentRequestType(
+        result.item
+      );
+
+
+    const claimedRequestTypeIndex =
+      requestTypes.indexOf(
+        claimedRequestType
+      );
+
+
+    getNextOisAgentRequest
+      .nextTypeIndex =
+      claimedRequestTypeIndex >=
+        0
+        ? (
+            claimedRequestTypeIndex +
+            1
+          ) %
+          requestTypes.length
+        : (
+            startIndex +
+            1
+          ) %
+          requestTypes.length;
+
+
+    return result.item;
+  }
+
+
+  /*
+    요청이 하나도 없더라도
+    다음 폴링의 시작 유형을 한 칸 이동한다.
+  */
   getNextOisAgentRequest
     .nextTypeIndex =
     (

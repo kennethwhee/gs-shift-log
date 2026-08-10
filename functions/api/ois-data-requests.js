@@ -753,6 +753,17 @@ async function authenticateOisAgent(
   - logsheet_approval
 ========================================================= */
 
+const OIS_REQUEST_TYPES = [
+  "limestone_stock",
+  "water_environment",
+  "turbine_gear_pinion",
+  "auxiliary_materials",
+  "silo_level",
+  "steam_status",
+  "logsheet_approval"
+];
+
+
 function normalizeRequestType(
   value
 ) {
@@ -767,19 +778,80 @@ function normalizeRequestType(
       );
 
 
-  return [
-    "limestone_stock",
-    "water_environment",
-    "turbine_gear_pinion",
-    "auxiliary_materials",
-    "silo_level",
-    "steam_status",
-    "logsheet_approval"
-  ].includes(
+  return OIS_REQUEST_TYPES.includes(
     requestType
   )
     ? requestType
     : DEFAULT_REQUEST_TYPE;
+}
+
+
+/* =========================================================
+  에이전트 통합 조회용 요청 유형 목록 정리
+
+  예:
+  water_environment,limestone_stock,silo_level
+
+  - 지원 유형만 허용
+  - 중복 제거
+  - 전달된 순서는 그대로 유지
+========================================================= */
+
+function normalizeRequestTypeList(
+  value
+) {
+  const requestTypes = [];
+
+
+  const seenRequestTypes =
+    new Set();
+
+
+  String(
+    value ||
+    ""
+  )
+    .split(
+      ","
+    )
+    .forEach(
+      rawRequestType => {
+        const requestType =
+          normalizeText(
+            rawRequestType
+          )
+            .toLowerCase()
+            .replace(
+              /[\s-]+/g,
+              "_"
+            );
+
+
+        if (
+          !OIS_REQUEST_TYPES.includes(
+            requestType
+          ) ||
+          seenRequestTypes.has(
+            requestType
+          )
+        ) {
+          return;
+        }
+
+
+        seenRequestTypes.add(
+          requestType
+        );
+
+
+        requestTypes.push(
+          requestType
+        );
+      }
+    );
+
+
+  return requestTypes;
 }
 
 /* =========================================================
@@ -6439,9 +6511,23 @@ async function handleUserGet(
   });
 }
 
-
 /* =========================================================
   회사 PC가 다음 요청 가져오기
+
+  지원 방식:
+
+  1) 새 통합 조회
+     ?action=next
+     &requestTypes=water_environment,limestone_stock,...
+
+     → 한 번의 HTTP 요청으로
+       전달된 순서대로 7개 유형의 대기열을 확인한다.
+
+  2) 기존 단일 유형 조회
+     ?action=next
+     &requestType=limestone_stock
+
+     → 구버전 에이전트와의 호환을 유지한다.
 ========================================================= */
 
 async function handleAgentNextRequest(
@@ -6466,12 +6552,48 @@ async function handleAgentNextRequest(
   );
 
 
-  const requestType =
-    normalizeRequestType(
+  const requestedTypeOrder =
+    normalizeRequestTypeList(
+      requestUrl.searchParams.get(
+        "requestTypes"
+      )
+    );
+
+
+  const legacyRequestTypeText =
+    normalizeText(
       requestUrl.searchParams.get(
         "requestType"
       )
     );
+
+
+  const requestTypes =
+    requestedTypeOrder.length >
+      0
+      ? requestedTypeOrder
+      : legacyRequestTypeText
+        ? [
+            normalizeRequestType(
+              legacyRequestTypeText
+            )
+          ]
+        : [
+            ...OIS_REQUEST_TYPES
+          ];
+
+
+  /*
+    requestTypes 순서를 문자열 위치로 사용한다.
+
+    예:
+    ,water_environment,limestone_stock,silo_level,
+
+    SQLite instr() 결과가 작은 유형을 먼저 선택하므로
+    에이전트가 보내 준 순환 우선순위를 그대로 보존할 수 있다.
+  */
+  const requestTypeOrderKey =
+    `,${requestTypes.join(",")},`;
 
 
   /*
@@ -6495,15 +6617,26 @@ async function handleAgentNextRequest(
 
           WHERE
             status = 'pending'
-            AND request_type = ?
+
+            AND instr(
+              ?,
+              ',' || request_type || ','
+            ) >
+              0
 
           ORDER BY
+            instr(
+              ?,
+              ',' || request_type || ','
+            ) ASC,
+
             requested_at ASC
 
           LIMIT 1
         `)
         .bind(
-          requestType
+          requestTypeOrderKey,
+          requestTypeOrderKey
         )
         .first();
 
@@ -6517,6 +6650,9 @@ async function handleAgentNextRequest(
 
         item:
           null,
+
+        checkedRequestTypes:
+          requestTypes,
 
         message:
           "처리할 OIS 요청이 없습니다."
@@ -6602,7 +6738,10 @@ async function handleAgentNextRequest(
         true,
 
       item:
-        claimedRequest
+        claimedRequest,
+
+      checkedRequestTypes:
+        requestTypes
     });
   }
 
@@ -6613,6 +6752,9 @@ async function handleAgentNextRequest(
 
     item:
       null,
+
+    checkedRequestTypes:
+      requestTypes,
 
     message:
       "다른 OIS 연동 프로그램이 요청을 먼저 처리했습니다."
