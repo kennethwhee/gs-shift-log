@@ -91748,93 +91748,520 @@ button[aria-pressed="true"] {
   color: #ffffff;
 }
 
-
 /* =====================================================
-  컴팩트 보기
+  기본 보기 · 컴팩트 보기
+
+  기본 화면:
+  1호기 표 다음에 2호기 표를 세로로 표시한다.
 ===================================================== */
 
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table {
-  min-width: 1440px !important;
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout {
+  --auxiliary-split-columns:
+    minmax(104px, 0.82fr)
+    minmax(82px, 0.66fr)
+    minmax(122px, 1fr)
+    minmax(112px, 0.92fr)
+    minmax(114px, 0.95fr)
+    minmax(108px, 0.9fr)
+    minmax(108px, 0.9fr)
+    minmax(82px, 0.66fr)
+    minmax(118px, 0.98fr)
+    minmax(180px, 1.45fr);
+
+  display: block;
+  width: 100%;
+  min-width: 1220px !important;
+  table-layout: auto;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+colgroup,
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+thead {
+  display: none;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+tbody {
+  display: block;
+  width: 100%;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+tbody tr {
+  display: grid;
+  width: 100%;
+  grid-template-columns:
+    var(--auxiliary-split-columns);
 }
 
 
+/* 호기 제목 */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-unit-heading {
+  position: sticky;
+  z-index: 12;
+  top: 0;
+  min-height: 46px;
+  grid-template-columns: 1fr;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-unit-heading th {
+  display: flex;
+  min-height: 46px;
+  padding: 8px 15px;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-right: 0;
+  border-bottom: 1px solid #c9d8e9;
+  box-shadow:
+    0 4px 10px
+    rgba(40, 67, 98, 0.08);
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-unit-heading.is-unit-one th {
+  background:
+    linear-gradient(
+      90deg,
+      #e8f2ff 0%,
+      #f4f8ff 100%
+    );
+
+  color: #1b62af;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-unit-heading.is-unit-two th {
+  border-top: 2px solid #9bc7ae;
+
+  background:
+    linear-gradient(
+      90deg,
+      #e8f8ef 0%,
+      #f3fbf6 100%
+    );
+
+  color: #27754c;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-split-unit-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 9px;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-split-unit-title strong {
+  font-size: 17px;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-split-unit-title span {
+  color: #66788e;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-split-unit-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border: 1px solid rgba(87, 119, 154, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #5a6d84;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+
+/* 열 제목 */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-column-heading {
+  position: sticky;
+  z-index: 11;
+  top: 46px;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-column-heading th {
+  display: flex;
+  min-height: 64px;
+  padding: 8px 7px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #f3f7fc;
+  color: #304963;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.25;
+  white-space: normal;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-column-heading.is-unit-one th {
+  background: #f0f6ff;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-column-heading.is-unit-two th {
+  background: #f0faf5;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-column-heading th.is-date {
+  position: sticky;
+  z-index: 14;
+  left: 0;
+  border-right: 2px solid #9fb4cc;
+  background: #e8eff7;
+  box-shadow:
+    4px 0 8px
+    rgba(42, 67, 96, 0.08);
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-column-heading small {
+  display: block;
+  margin-top: 4px;
+  color: #73849a;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+
+/* 자료 행 */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row td {
+  display: flex;
+  min-width: 0;
+  min-height: 52px;
+  height: auto;
+  padding: 10px 8px;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  color: #293d56;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row.is-unit-one:nth-child(even) td {
+  background: #f7faff;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row.is-unit-two td {
+  background: #fbfefc;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row.is-unit-two:nth-child(even) td {
+  background: #f5fbf7;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row td:nth-child(9) {
+  border-right-width: 1px;
+  border-right-color: #e2e9f2;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row td.is-date {
+  position: sticky;
+  z-index: 6;
+  left: 0;
+  border-right: 2px solid #9fb4cc;
+  background: #edf3fa;
+  box-shadow:
+    4px 0 8px
+    rgba(42, 67, 96, 0.07);
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row.is-unit-two td.is-date {
+  background: #edf7f1;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row td.is-date strong {
+  color: #294d77;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row td.is-remarks {
+  justify-content: flex-start;
+  padding-right: 12px;
+  padding-left: 12px;
+  color: #5e6b7d;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row:hover td {
+  background: #eaf3ff;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row.is-unit-two:hover td {
+  background: #e8f7ee;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row:hover td.is-date {
+  background: #dce9f7;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row.is-unit-two:hover td.is-date {
+  background: #dcefe4;
+}
+
+
+/* 고정 밀도와 수정 입력칸 */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table td.is-fixed-density {
+  background: #fff9e9 !important;
+  box-shadow:
+    inset 0 -3px 0
+    #e8b33f;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table td.is-value-edit-cell {
+  padding: 5px !important;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-value-input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 7px;
+  border: 1px solid #9db7d2;
+  border-radius: 7px;
+  outline: 0;
+  background: #ffffff;
+  color: #203a56;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-value-input:focus {
+  border-color: #176bc4;
+  box-shadow:
+    0 0 0 3px
+    rgba(23, 107, 196, 0.14);
+}
+
+
+/* 컴팩트 보기에서도 글씨는 읽을 수 있는 크기로 유지 */
+
 #efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table
+.auxiliary-material-sheet-table.is-split-layout {
+  --auxiliary-split-columns:
+    minmax(94px, 0.78fr)
+    minmax(76px, 0.62fr)
+    minmax(110px, 0.94fr)
+    minmax(102px, 0.88fr)
+    minmax(104px, 0.9fr)
+    minmax(98px, 0.85fr)
+    minmax(100px, 0.85fr)
+    minmax(76px, 0.62fr)
+    minmax(108px, 0.92fr)
+    minmax(158px, 1.3fr);
+
+  min-width: 1090px !important;
+}
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-unit-heading,
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-unit-heading th {
+  min-height: 42px;
+}
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-column-heading {
+  top: 42px;
+}
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-column-heading th {
+  min-height: 58px;
+  font-size: 11px;
+}
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row td {
+  min-height: 44px;
+  padding: 7px 6px;
+  font-size: 12.5px;
+}
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row td.is-date strong,
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-data-row td.is-remarks {
+  font-size: 12px;
+}
+
+
+/* 크게 보기에서 컴팩트 상태가 유지된 경우 */
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table.is-combined-layout {
+  min-width: 1660px !important;
+}
+
+#efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table.is-combined-layout
 col.is-date {
-  width: 88px !important;
+  width: 92px !important;
 }
 
-
 #efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table
+.auxiliary-material-sheet-table.is-combined-layout
 col:not(.is-date):not(.is-remarks) {
-  width: 75px !important;
+  width: 87px !important;
 }
 
-
 #efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table
+.auxiliary-material-sheet-table.is-combined-layout
 col.is-remarks {
-  width: 150px !important;
+  width: 176px !important;
 }
 
-
 #efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table th,
-
+.auxiliary-material-sheet-table.is-combined-layout th,
 #efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table td {
-  padding: 5px 4px !important;
+.auxiliary-material-sheet-table.is-combined-layout td {
+  padding: 6px 5px !important;
 }
 
-
 #efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table.is-combined-layout
 .auxiliary-material-unit-heading th {
-  height: 34px !important;
-
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
+  height: 38px !important;
 }
 
-
 #efficiencyAuxiliaryMaterialsView.is-compact-view
+.auxiliary-material-sheet-table.is-combined-layout
 .auxiliary-material-column-heading th {
-  top: 34px !important;
-
-  height: 52px !important;
-
-  font-size: 10px !important;
-  line-height: 1.2 !important;
-}
-
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table thead small {
-  margin-top: 2px !important;
-
-  font-size: 8px !important;
-}
-
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table tbody td {
-  height: 34px !important;
-
+  top: 38px !important;
+  height: 58px !important;
   font-size: 11px !important;
 }
 
-
 #efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table
-tbody td.is-date strong,
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table
-tbody td.is-remarks {
-  font-size: 10px !important;
+.auxiliary-material-sheet-table.is-combined-layout tbody td {
+  height: 38px !important;
+  font-size: 12px !important;
 }
 
+
+@media screen and (max-width: 700px) {
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-split-layout {
+    --auxiliary-split-columns:
+      92px
+      74px
+      108px
+      100px
+      104px
+      98px
+      100px
+      74px
+      108px
+      154px;
+
+    min-width: 1012px !important;
+  }
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-split-layout
+  .auxiliary-material-split-data-row td {
+    min-height: 48px;
+    font-size: 13px;
+  }
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-split-unit-title strong {
+    font-size: 15px;
+  }
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-split-unit-count {
+    font-size: 10px;
+  }
+}
 
 /* =====================================================
   크게 보기
