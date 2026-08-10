@@ -91124,3 +91124,548 @@ td.is-date {
   }
 
 }
+
+/* =========================================================
+  석회석 입고 현황 모바일 컴팩트 최종본
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  /* 효율팀 상단 */
+
+  #efficiencyTeamModal
+  .efficiency-team-modal__header {
+    min-height: 42px !important;
+    padding: 5px 9px !important;
+  }
+
+  #efficiencyTeamModal
+  .efficiency-team-modal__header
+  .modal-header__title {
+    font-size: 16px !important;
+  }
+
+  #efficiencyTeamModal
+  .efficiency-team-modal__header
+  .modal-close-button {
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 20px !important;
+  }
+
+  #efficiencyTeamModal
+  .efficiency-team-modal__body {
+    gap: 4px !important;
+    padding: 5px !important;
+  }
+
+
+  /* 효율팀 메뉴 5개 한 줄 */
+
+  #efficiencyTeamModal
+  .efficiency-team-tabs {
+    grid-template-columns:
+      repeat(5, minmax(0, 1fr)) !important;
+
+    gap: 2px !important;
+    min-height: 0 !important;
+    padding: 2px !important;
+  }
+
+  #efficiencyTeamModal
+  .efficiency-team-tab {
+    min-width: 0 !important;
+    min-height: 38px !important;
+    padding: 2px !important;
+
+    font-size: 9px !important;
+    line-height: 1.1 !important;
+    letter-spacing: -0.03em !important;
+
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+
+
+  /* 제목과 기능 버튼 한 줄 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-view-heading {
+    display: grid !important;
+
+    grid-template-columns:
+      max-content
+      minmax(0, 1fr) !important;
+
+    align-items: center !important;
+    gap: 5px !important;
+
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 5px 6px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-view-heading h3 {
+    margin: 0 !important;
+
+    font-size: 14px !important;
+    line-height: 1.15 !important;
+    letter-spacing: -0.04em !important;
+
+    white-space: nowrap !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-heading-actions {
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    grid-template-columns:
+      repeat(3, minmax(0, 1fr)) !important;
+
+    gap: 3px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-heading-actions button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 32px !important;
+
+    padding: 0 3px !important;
+    border-radius: 7px !important;
+
+    font-size: 9px !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-add-button {
+    grid-column: auto !important;
+  }
+
+
+  /* 대시보드 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-dashboard {
+    gap: 5px !important;
+    padding: 0 5px 6px !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+
+  /* 날짜 이동 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-day-query-card {
+    margin: 0 !important;
+    padding: 4px !important;
+    border-radius: 8px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-day-navigation {
+    grid-template-columns:
+      30px
+      minmax(0, 1fr)
+      30px
+      66px !important;
+
+    gap: 3px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-day-arrow-button,
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-current-day-button,
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-open-period-button {
+    height: 32px !important;
+    min-height: 32px !important;
+    border-radius: 7px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-day-arrow-button {
+    width: 30px !important;
+    min-width: 30px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-open-period-button {
+    grid-column: auto !important;
+
+    width: 66px !important;
+    min-width: 66px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    font-size: 9px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-current-day-button strong {
+    font-size: 12px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-today-badge {
+    min-height: 18px !important;
+    padding: 0 5px !important;
+    font-size: 8px !important;
+  }
+
+
+  /* 합계 카드 4개 한 줄 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-summary-grid {
+    grid-template-columns:
+      repeat(4, minmax(0, 1fr)) !important;
+
+    gap: 3px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-summary-card {
+    min-width: 0 !important;
+    min-height: 58px !important;
+
+    padding: 6px 5px !important;
+    border-radius: 8px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-summary-card > span {
+    min-height: 0 !important;
+    margin-bottom: 5px !important;
+
+    font-size: 8.5px !important;
+    line-height: 1.1 !important;
+    letter-spacing: -0.04em !important;
+
+    white-space: nowrap !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-summary-card > strong {
+    font-size: clamp(16px, 4.8vw, 19px) !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-summary-card > small {
+    margin-left: 2px !important;
+    font-size: 7px !important;
+  }
+
+
+  /* 표 제목 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-section-card {
+    border-radius: 8px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-section-header {
+    min-height: 35px !important;
+    padding: 5px 8px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-section-header h4 {
+    font-size: 13px !important;
+    line-height: 1.15 !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-section-count {
+    min-width: 30px !important;
+    min-height: 20px !important;
+
+    padding: 0 5px !important;
+    font-size: 8px !important;
+  }
+
+
+  /* 표 공통 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-table {
+    width: 100% !important;
+    min-width: 0 !important;
+
+    table-layout: fixed !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-table th {
+    height: 27px !important;
+    padding: 3px !important;
+
+    font-size: 9px !important;
+    line-height: 1.1 !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-table td {
+    height: 38px !important;
+    min-height: 0 !important;
+
+    padding: 5px 3px !important;
+
+    font-size: 10px !important;
+    line-height: 1.15 !important;
+
+    white-space: nowrap !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-empty-table-row td {
+    white-space: normal !important;
+  }
+
+
+  /* 일별표: 일자·1호기·2호기 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-group-summary-card
+  .limestone-table-wrap {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: 112px !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-daily-summary-table th:nth-child(n + 4),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-daily-summary-table td:nth-child(n + 4) {
+    display: none !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-daily-summary-table th:nth-child(1),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-daily-summary-table td:nth-child(1) {
+    width: 46% !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-daily-summary-table th:nth-child(2),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-daily-summary-table td:nth-child(2),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-daily-summary-table th:nth-child(3),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-daily-summary-table td:nth-child(3) {
+    width: 27% !important;
+  }
+
+
+  /* 상세표: 현재 보이는 5개 열만 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-history-card {
+    display: block !important;
+
+    flex: 0 0 auto !important;
+
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-scroll {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: 150px !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table {
+    width: 100% !important;
+    min-width: 0 !important;
+
+    table-layout: fixed !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table th:nth-child(n + 6),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table td:nth-child(n + 6) {
+    display: none !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table th:nth-child(1),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table td:nth-child(1) {
+    width: 27% !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table th:nth-child(2),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table td:nth-child(2) {
+    width: 14% !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table th:nth-child(3),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table td:nth-child(3) {
+    width: 12% !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table th:nth-child(4),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table td:nth-child(4) {
+    width: 23% !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table th:nth-child(5),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table td:nth-child(5) {
+    width: 24% !important;
+  }
+
+
+  /* 입고 현황 / 사용량 계산 */
+
+  #efficiencyTeamModal
+  .limestone-subview-menu {
+    gap: 4px !important;
+    padding: 5px 7px !important;
+  }
+
+  #efficiencyTeamModal
+  .limestone-subview-menu__button {
+    min-height: 32px !important;
+    padding: 0 8px !important;
+    font-size: 10px !important;
+  }
+
+
+  /* 하단 닫기 */
+
+  #efficiencyTeamModal
+  .efficiency-team-modal__footer {
+    min-height: 40px !important;
+    padding: 4px 7px !important;
+  }
+
+  #efficiencyTeamModal
+  #closeEfficiencyTeamModalFooterButton {
+    min-height: 30px !important;
+    font-size: 10px !important;
+  }
+}
+
+
+/* 매우 좁은 휴대폰 */
+
+@media screen and (max-width: 390px) {
+
+  #efficiencyTeamModal
+  .efficiency-team-tab {
+    font-size: 8px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-view-heading h3 {
+    font-size: 13px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-heading-actions button {
+    padding: 0 2px !important;
+    font-size: 8px !important;
+  }
+}
