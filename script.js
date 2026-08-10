@@ -196995,25 +196995,9 @@ function render() {
       sales:
         document.getElementById(
           "efficiencyMorningMeetingAutoSteamSales"
-        ),
-
-      unitProduction:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoSteamProductionUnits"
-        ),
-
-      totalProduction:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoSteamProductionTotal"
-        ),
-
-      salesRate:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoSteamSalesRate"
         )
     };
   }
-
 
   /* =====================================================
     문자열·숫자·날짜
@@ -197234,38 +197218,6 @@ function render() {
     return unit
       ? `${formattedValue} ${unit}`
       : formattedValue;
-  }
-
-
-  function formatRate(
-    value
-  ) {
-    const numericValue =
-      normalizeNumber(
-        value
-      );
-
-
-    if (
-      numericValue ===
-      null
-    ) {
-      return "-";
-    }
-
-
-    return `${
-      numericValue.toLocaleString(
-        "ko-KR",
-        {
-          minimumFractionDigits:
-            0,
-
-          maximumFractionDigits:
-            3
-        }
-      )
-    }%`;
   }
 
 
@@ -198586,35 +198538,23 @@ function render() {
             ).toLowerCase();
 
 
-          const hasCompleteValues = [
-            state.steamStatus
-              ?.steamSales,
+          const hasCompleteValue =
+            normalizeNumber(
+              state.steamStatus
+                ?.steamSales
+            ) !==
+              null;
 
-            state.steamStatus
-              ?.unitOneProduction,
 
-            state.steamStatus
-              ?.unitTwoProduction,
-
-            state.steamStatus
-              ?.totalProduction,
-
-            state.steamStatus
-              ?.salesRate
-          ].every(
-            value => {
-              return normalizeNumber(
-                value
-              ) !==
-                null;
-            }
-          );
-
+          /*
+            선택한 날짜와 동일한 증기 판매량이
+            이미 복원되어 있으면 신규 요청하지 않는다.
+          */
 
           if (
             resultDate ===
               targetDate &&
-            hasCompleteValues
+            hasCompleteValue
           ) {
             renderSteamStatus();
 
@@ -198622,6 +198562,11 @@ function render() {
             return;
           }
 
+
+          /*
+            같은 날짜의 요청이 이미 처리 중이면
+            중복 요청하지 않는다.
+          */
 
           if (
             requestDate ===
@@ -198646,7 +198591,6 @@ function render() {
         300
       );
   }
-
 
   /* =====================================================
     이벤트 연결

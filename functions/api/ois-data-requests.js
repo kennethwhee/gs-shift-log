@@ -747,6 +747,7 @@ async function authenticateOisAgent(
   - limestone_stock
   - water_environment
   - turbine_gear_pinion
+  - auxiliary_materials
   - silo_level
   - steam_status
   - logsheet_approval
@@ -770,6 +771,7 @@ function normalizeRequestType(
     "limestone_stock",
     "water_environment",
     "turbine_gear_pinion",
+    "auxiliary_materials",
     "silo_level",
     "steam_status",
     "logsheet_approval"
@@ -3488,6 +3490,1160 @@ async function handleLimestoneUsageHistoryGet(
 }
 
 /* =========================================================
+  부재료 일별 자료 D1 테이블
+
+  한 행:
+  - 날짜 1일
+  - 호기 1개
+
+  저장 항목:
+  - Limestone 입고·재고·사용량
+  - Lime Slurry 합산 유량·밀도·Lime Powder
+  - Ammonia
+  - SOx / NOx
+========================================================= */
+
+async function ensureAuxiliaryMaterialDailyTable(
+  database
+) {
+  await database
+    .prepare(`
+      CREATE TABLE IF NOT EXISTS auxiliary_material_daily (
+        id TEXT PRIMARY KEY,
+        record_date TEXT NOT NULL,
+        unit_no INTEGER NOT NULL,
+
+        limestone_start_stock REAL,
+        limestone_receipt_ton REAL,
+        limestone_end_stock REAL,
+        limestone_usage_tpd REAL,
+
+        lime_slurry_flow_m3h REAL,
+        lime_slurry_density_kgm3 REAL,
+        lime_powder_tpd REAL,
+
+        ammonia_flow_m3h REAL,
+        ammonia_m3d REAL,
+
+        sox_ppm REAL,
+        nox_ppm REAL,
+
+        sample_count INTEGER NOT NULL DEFAULT 0,
+        is_complete INTEGER NOT NULL DEFAULT 0,
+
+        source_tags_json TEXT NOT NULL DEFAULT '{}',
+        raw_result_json TEXT NOT NULL DEFAULT '{}',
+
+        ois_request_id TEXT NOT NULL DEFAULT '',
+        ois_collected_at TEXT NOT NULL DEFAULT '',
+        agent_id TEXT NOT NULL DEFAULT '',
+
+        created_by_id TEXT NOT NULL DEFAULT '',
+        created_by_name TEXT NOT NULL DEFAULT '',
+        updated_by_id TEXT NOT NULL DEFAULT '',
+        updated_by_name TEXT NOT NULL DEFAULT '',
+
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        revision INTEGER NOT NULL DEFAULT 1,
+
+        UNIQUE(record_date, unit_no)
+      )
+    `)
+    .run();
+
+
+  await database
+    .prepare(`
+      CREATE INDEX IF NOT EXISTS
+        idx_auxiliary_material_daily_date
+
+      ON auxiliary_material_daily (
+        record_date,
+        unit_no
+      )
+    `)
+    .run();
+}
+
+
+function normalizeAuxiliaryMaterialNumber(
+  value,
+  decimalPlaces = 6
+) {
+  if (
+    value ===
+      null ||
+    value ===
+      undefined ||
+    String(
+      value
+    ).trim() ===
+      ""
+  ) {
+    return null;
+  }
+
+
+  const numericValue =
+    Number(
+      value
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    return null;
+  }
+
+
+  const multiplier =
+    10 **
+    decimalPlaces;
+
+
+  return Math.round(
+    numericValue *
+    multiplier
+  ) /
+  multiplier;
+}
+
+
+function calculateLimePowderTonPerDay(
+  totalSlurryFlow,
+  density
+) {
+  const flowValue =
+    normalizeAuxiliaryMaterialNumber(
+      totalSlurryFlow
+    );
+
+
+  const densityValue =
+    normalizeAuxiliaryMaterialNumber(
+      density
+    );
+
+
+  if (
+    flowValue ===
+      null ||
+    densityValue ===
+      null ||
+    flowValue <=
+      0 ||
+    densityValue <=
+      1000
+  ) {
+    return null;
+  }
+
+
+  /*
+    기존 부재료 엑셀과 같은 계산식
+
+    (A+B+C) × 밀도
+    × (밀도-1000)/(1102-1000)
+    × 15% × 24시간 ÷ 1000
+  */
+  return normalizeAuxiliaryMaterialNumber(
+    flowValue *
+    densityValue *
+    (
+      densityValue -
+      1000
+    ) /
+    (
+      1102 -
+      1000
+    ) *
+    0.15 *
+    24 /
+    1000
+  );
+}
+
+
+function convertAuxiliaryMaterialRow(
+  row
+) {
+  if (
+    !row
+  ) {
+    return null;
+  }
+
+
+  let sourceTags = {};
+
+
+  try {
+    sourceTags =
+      JSON.parse(
+        normalizeText(
+          row.source_tags_json
+        ) ||
+        "{}"
+      );
+
+  } catch {
+    sourceTags = {};
+  }
+
+
+  return {
+    id:
+      normalizeText(
+        row.id
+      ),
+
+    recordDate:
+      normalizeText(
+        row.record_date
+      ),
+
+    unitNo:
+      Number(
+        row.unit_no
+      ),
+
+    limestoneStartStock:
+      normalizeAuxiliaryMaterialNumber(
+        row.limestone_start_stock
+      ),
+
+    limestoneReceiptTon:
+      normalizeAuxiliaryMaterialNumber(
+        row.limestone_receipt_ton
+      ),
+
+    limestoneEndStock:
+      normalizeAuxiliaryMaterialNumber(
+        row.limestone_end_stock
+      ),
+
+    limestoneUsageTpd:
+      normalizeAuxiliaryMaterialNumber(
+        row.limestone_usage_tpd
+      ),
+
+    limeSlurryFlowM3h:
+      normalizeAuxiliaryMaterialNumber(
+        row.lime_slurry_flow_m3h
+      ),
+
+    limeSlurryDensityKgm3:
+      normalizeAuxiliaryMaterialNumber(
+        row.lime_slurry_density_kgm3
+      ),
+
+    limePowderTpd:
+      normalizeAuxiliaryMaterialNumber(
+        row.lime_powder_tpd
+      ),
+
+    ammoniaFlowM3h:
+      normalizeAuxiliaryMaterialNumber(
+        row.ammonia_flow_m3h
+      ),
+
+    ammoniaM3d:
+      normalizeAuxiliaryMaterialNumber(
+        row.ammonia_m3d
+      ),
+
+    soxPpm:
+      normalizeAuxiliaryMaterialNumber(
+        row.sox_ppm
+      ),
+
+    noxPpm:
+      normalizeAuxiliaryMaterialNumber(
+        row.nox_ppm
+      ),
+
+    sampleCount:
+      Number(
+        row.sample_count
+      ) ||
+      0,
+
+    isComplete:
+      Number(
+        row.is_complete
+      ) ===
+      1,
+
+    sourceTags,
+
+    oisRequestId:
+      normalizeText(
+        row.ois_request_id
+      ),
+
+    oisCollectedAt:
+      normalizeText(
+        row.ois_collected_at
+      ),
+
+    agentId:
+      normalizeText(
+        row.agent_id
+      ),
+
+    updatedAt:
+      normalizeText(
+        row.updated_at
+      ),
+
+    revision:
+      Number(
+        row.revision
+      ) ||
+      1
+  };
+}
+
+
+async function saveAuxiliaryMaterialDailyRecords(
+  database,
+  options
+) {
+  await ensureAuxiliaryMaterialDailyTable(
+    database
+  );
+
+
+  const requestItem =
+    options?.requestItem ||
+    {};
+
+
+  const rawResult =
+    options?.rawResult &&
+    typeof options.rawResult ===
+      "object" &&
+    !Array.isArray(
+      options.rawResult
+    )
+      ? options.rawResult
+      : {};
+
+
+  const recordDate =
+    normalizeText(
+      rawResult.targetDate ||
+      requestItem.targetDate
+    );
+
+
+  if (
+    !isValidIsoDate(
+      recordDate
+    )
+  ) {
+    throw new Error(
+      "부재료 저장 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  const receiptByUnit =
+    await loadLimestoneReceiptQuantitiesByUnit(
+      database,
+      recordDate
+    );
+
+
+  const requestedById =
+    normalizeEmployeeNo(
+      requestItem.requestedById
+    );
+
+
+  const requestedByName =
+    normalizeText(
+      requestItem.requestedByName
+    );
+
+
+  const agentId =
+    normalizeText(
+      options?.agentId ||
+      requestItem.agentId
+    );
+
+
+  const collectedAt =
+    normalizeText(
+      rawResult.collectedAt
+    );
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  const unitDefinitions = [
+    {
+      unitNo:
+        1,
+
+      result:
+        rawResult.unitOne ||
+        rawResult.unit1 ||
+        {}
+    },
+
+    {
+      unitNo:
+        2,
+
+      result:
+        rawResult.unitTwo ||
+        rawResult.unit2 ||
+        {}
+    }
+  ];
+
+
+  const savedItems = [];
+
+
+  for (
+    const unitDefinition of
+    unitDefinitions
+  ) {
+    const unitNo =
+      unitDefinition.unitNo;
+
+
+    const result =
+      unitDefinition.result;
+
+
+    const startStock =
+      normalizeAuxiliaryMaterialNumber(
+        result.startStock
+      );
+
+
+    const endStock =
+      normalizeAuxiliaryMaterialNumber(
+        result.endStock
+      );
+
+
+    const receiptQuantity =
+      normalizeAuxiliaryMaterialNumber(
+        receiptByUnit[
+          unitNo
+        ] ||
+        0
+      );
+
+
+    const limestoneUsage =
+      startStock !==
+        null &&
+      endStock !==
+        null &&
+      receiptQuantity !==
+        null
+        ? normalizeLimestoneUsageNumber(
+            startStock +
+            receiptQuantity -
+            endStock
+          )
+        : null;
+
+
+    const totalSlurryFlow =
+      normalizeAuxiliaryMaterialNumber(
+        result.limeSlurryFlowM3h
+      );
+
+
+    const density =
+      normalizeAuxiliaryMaterialNumber(
+        result.limeSlurryDensityKgm3
+      );
+
+
+    const limePowder =
+      calculateLimePowderTonPerDay(
+        totalSlurryFlow,
+        density
+      );
+
+
+    const ammoniaFlow =
+      normalizeAuxiliaryMaterialNumber(
+        result.ammoniaFlowM3h
+      );
+
+
+    const ammoniaM3d =
+      ammoniaFlow !==
+        null
+        ? normalizeAuxiliaryMaterialNumber(
+            ammoniaFlow *
+            24
+          )
+        : null;
+
+
+    const soxPpm =
+      normalizeAuxiliaryMaterialNumber(
+        result.soxPpm
+      );
+
+
+    const noxPpm =
+      normalizeAuxiliaryMaterialNumber(
+        result.noxPpm
+      );
+
+
+    const sampleCount =
+      Math.max(
+        0,
+        Math.min(
+          24,
+          Number(
+            result.sampleCount
+          ) ||
+          0
+        )
+      );
+
+
+    const isComplete =
+      sampleCount >=
+        24 &&
+      limestoneUsage !==
+        null &&
+      limePowder !==
+        null &&
+      ammoniaM3d !==
+        null &&
+      soxPpm !==
+        null &&
+      noxPpm !==
+        null;
+
+
+    await database
+      .prepare(`
+        INSERT INTO auxiliary_material_daily (
+          id,
+          record_date,
+          unit_no,
+
+          limestone_start_stock,
+          limestone_receipt_ton,
+          limestone_end_stock,
+          limestone_usage_tpd,
+
+          lime_slurry_flow_m3h,
+          lime_slurry_density_kgm3,
+          lime_powder_tpd,
+
+          ammonia_flow_m3h,
+          ammonia_m3d,
+
+          sox_ppm,
+          nox_ppm,
+
+          sample_count,
+          is_complete,
+
+          source_tags_json,
+          raw_result_json,
+
+          ois_request_id,
+          ois_collected_at,
+          agent_id,
+
+          created_by_id,
+          created_by_name,
+          updated_by_id,
+          updated_by_name,
+
+          created_at,
+          updated_at,
+          revision
+        )
+        VALUES (
+          ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, ?,
+          ?, ?,
+          ?, ?,
+          ?, ?,
+          ?, ?,
+          ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, 1
+        )
+
+        ON CONFLICT (
+          record_date,
+          unit_no
+        )
+        DO UPDATE SET
+          limestone_start_stock = excluded.limestone_start_stock,
+          limestone_receipt_ton = excluded.limestone_receipt_ton,
+          limestone_end_stock = excluded.limestone_end_stock,
+          limestone_usage_tpd = excluded.limestone_usage_tpd,
+          lime_slurry_flow_m3h = excluded.lime_slurry_flow_m3h,
+          lime_slurry_density_kgm3 = excluded.lime_slurry_density_kgm3,
+          lime_powder_tpd = excluded.lime_powder_tpd,
+          ammonia_flow_m3h = excluded.ammonia_flow_m3h,
+          ammonia_m3d = excluded.ammonia_m3d,
+          sox_ppm = excluded.sox_ppm,
+          nox_ppm = excluded.nox_ppm,
+          sample_count = excluded.sample_count,
+          is_complete = excluded.is_complete,
+          source_tags_json = excluded.source_tags_json,
+          raw_result_json = excluded.raw_result_json,
+          ois_request_id = excluded.ois_request_id,
+          ois_collected_at = excluded.ois_collected_at,
+          agent_id = excluded.agent_id,
+          updated_by_id = excluded.updated_by_id,
+          updated_by_name = excluded.updated_by_name,
+          updated_at = excluded.updated_at,
+          revision = auxiliary_material_daily.revision + 1
+      `)
+      .bind(
+        crypto.randomUUID(),
+        recordDate,
+        unitNo,
+
+        startStock,
+        receiptQuantity,
+        endStock,
+        limestoneUsage,
+
+        totalSlurryFlow,
+        density,
+        limePowder,
+
+        ammoniaFlow,
+        ammoniaM3d,
+
+        soxPpm,
+        noxPpm,
+
+        sampleCount,
+        isComplete
+          ? 1
+          : 0,
+
+        JSON.stringify(
+          result.tags ||
+          {}
+        ),
+        JSON.stringify(
+          result
+        ),
+
+        normalizeText(
+          requestItem.id
+        ),
+        collectedAt,
+        agentId,
+
+        requestedById,
+        requestedByName,
+        requestedById,
+        requestedByName,
+
+        now,
+        now
+      )
+      .run();
+
+
+    const savedRow =
+      await database
+        .prepare(`
+          SELECT *
+          FROM auxiliary_material_daily
+          WHERE record_date = ?
+            AND unit_no = ?
+          LIMIT 1
+        `)
+        .bind(
+          recordDate,
+          unitNo
+        )
+        .first();
+
+
+    savedItems.push(
+      convertAuxiliaryMaterialRow(
+        savedRow
+      )
+    );
+  }
+
+
+  return savedItems.filter(
+    Boolean
+  );
+}
+
+
+async function handleAuxiliaryMaterialHistoryGet(
+  context,
+  requestUrl
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const startDate =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "startDate"
+      )
+    );
+
+
+  const endDate =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "endDate"
+      )
+    );
+
+
+  const dayCount =
+    getLimestoneUsageBatchDayCount(
+      startDate,
+      endDate
+    );
+
+
+  if (
+    dayCount <
+      1 ||
+    dayCount >
+      366
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "부재료 조회 기간은 1일 이상 366일 이하로 선택해 주세요."
+      },
+      400
+    );
+  }
+
+
+  await ensureAuxiliaryMaterialDailyTable(
+    context.env.DB
+  );
+
+
+  const queryResult =
+    await context.env.DB
+      .prepare(`
+        SELECT *
+        FROM auxiliary_material_daily
+        WHERE record_date >= ?
+          AND record_date <= ?
+        ORDER BY record_date DESC,
+                 unit_no ASC
+      `)
+      .bind(
+        startDate,
+        endDate
+      )
+      .all();
+
+
+  const records =
+    (
+      Array.isArray(
+        queryResult.results
+      )
+        ? queryResult.results
+        : []
+    )
+      .map(
+        convertAuxiliaryMaterialRow
+      )
+      .filter(
+        Boolean
+      );
+
+
+  const savedDateCount =
+    new Set(
+      records.map(
+        item => item.recordDate
+      )
+    ).size;
+
+
+  return jsonResponse({
+    ok:
+      true,
+
+    range: {
+      startDate,
+      endDate,
+      dayCount
+    },
+
+    summary: {
+      savedDateCount,
+      missingDateCount:
+        Math.max(
+          0,
+          dayCount -
+          savedDateCount
+        ),
+      completeRecordCount:
+        records.filter(
+          item => item.isComplete
+        ).length,
+      recordCount:
+        records.length
+    },
+
+    items:
+      records
+  });
+}
+
+
+async function createAuxiliaryMaterialBatchRequest(
+  context,
+  body
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const startDate =
+    normalizeText(
+      body.startDate ||
+      body.start_date
+    );
+
+
+  const endDate =
+    normalizeText(
+      body.endDate ||
+      body.end_date
+    );
+
+
+  const forceRefresh =
+    body.forceRefresh ===
+      true;
+
+
+  const dates =
+    createLimestoneUsageBatchDates(
+      startDate,
+      endDate
+    );
+
+
+  if (
+    dates.length <
+      1 ||
+    dates.length >
+      62
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "부재료 OIS 조회 기간은 한 번에 1일 이상 62일 이하로 선택해 주세요."
+      },
+      400
+    );
+  }
+
+
+  await ensureAuxiliaryMaterialDailyTable(
+    context.env.DB
+  );
+
+
+  await expireOldRequests(
+    context.env.DB
+  );
+
+
+  const user =
+    authentication.user;
+
+
+  const items = [];
+
+
+  let createdCount =
+    0;
+
+
+  let reusedCount =
+    0;
+
+
+  let savedCount =
+    0;
+
+
+  const baseTime =
+    Date.now();
+
+
+  for (
+    let dateIndex = 0;
+    dateIndex <
+      dates.length;
+    dateIndex +=
+      1
+  ) {
+    const targetDate =
+      dates[
+        dateIndex
+      ];
+
+
+    const savedRow =
+      await context.env.DB
+        .prepare(`
+          SELECT
+            COUNT(*) AS record_count,
+            COALESCE(
+              SUM(is_complete),
+              0
+            ) AS complete_count
+          FROM auxiliary_material_daily
+          WHERE record_date = ?
+        `)
+        .bind(
+          targetDate
+        )
+        .first();
+
+
+    if (
+      !forceRefresh &&
+      Number(
+        savedRow?.record_count
+      ) >=
+        2 &&
+      Number(
+        savedRow?.complete_count
+      ) >=
+        2
+    ) {
+      savedCount +=
+        1;
+
+
+      items.push({
+        targetDate,
+        disposition:
+          "saved"
+      });
+
+
+      continue;
+    }
+
+
+    const activeRow =
+      await context.env.DB
+        .prepare(`
+          SELECT *
+          FROM ois_data_requests
+          WHERE request_type = 'auxiliary_materials'
+            AND target_date = ?
+            AND status IN ('pending', 'processing')
+          ORDER BY requested_at DESC
+          LIMIT 1
+        `)
+        .bind(
+          targetDate
+        )
+        .first();
+
+
+    if (
+      activeRow
+    ) {
+      reusedCount +=
+        1;
+
+
+      items.push({
+        ...convertRequestRow(
+          activeRow
+        ),
+        disposition:
+          "reused"
+      });
+
+
+      continue;
+    }
+
+
+    const requestId =
+      crypto.randomUUID();
+
+
+    const requestedAt =
+      new Date(
+        baseTime +
+        dateIndex
+      ).toISOString();
+
+
+    const expiresAt =
+      new Date(
+        baseTime +
+        72 *
+        60 *
+        60 *
+        1000 +
+        dateIndex
+      ).toISOString();
+
+
+    await context.env.DB
+      .prepare(`
+        INSERT INTO ois_data_requests (
+          id,
+          request_type,
+          target_date,
+          status,
+          requested_by_id,
+          requested_by_name,
+          requested_at,
+          started_at,
+          completed_at,
+          agent_id,
+          result_json,
+          error_message,
+          expires_at,
+          updated_at
+        )
+        VALUES (
+          ?,
+          'auxiliary_materials',
+          ?,
+          'pending',
+          ?,
+          ?,
+          ?,
+          NULL,
+          NULL,
+          '',
+          NULL,
+          '',
+          ?,
+          ?
+        )
+      `)
+      .bind(
+        requestId,
+        targetDate,
+        user.employeeNo,
+        user.name,
+        requestedAt,
+        expiresAt,
+        requestedAt
+      )
+      .run();
+
+
+    createdCount +=
+      1;
+
+
+    items.push({
+      id:
+        requestId,
+      requestType:
+        "auxiliary_materials",
+      targetDate,
+      status:
+        "pending",
+      disposition:
+        "created"
+    });
+  }
+
+
+  return jsonResponse(
+    {
+      ok:
+        true,
+
+      range: {
+        startDate,
+        endDate,
+        dayCount:
+          dates.length
+      },
+
+      createdCount,
+      reusedCount,
+      savedCount,
+      items,
+
+      message:
+        `${dates.length}일 중 ${createdCount}일의 부재료 OIS 조회를 등록했습니다.`
+    },
+    createdCount >
+      0
+      ? 201
+      : 200
+  );
+}
+
+
+
+
+/* =========================================================
   업무일지 사용자 상태 조회
 
   GET /api/ois-data-requests?id=...
@@ -3793,6 +4949,19 @@ export async function onRequestGet(
           "_"
         );
 
+
+/*
+  저장된 부재료 일별 자료
+*/
+if (
+  action ===
+    "materials_history"
+) {
+  return await handleAuxiliaryMaterialHistoryGet(
+    context,
+    requestUrl
+  );
+}
 
     /*
       저장된 날짜별 사용량
@@ -5204,9 +6373,11 @@ async function completeAgentRequest(
   let normalizedResult;
 
 
-  let limestoneUsageRecords = [];
+let limestoneUsageRecords = [];
 
-  let oisLegacySaveResult =
+let auxiliaryMaterialRecords = [];
+
+let oisLegacySaveResult =
   null;
 
 
@@ -5278,6 +6449,36 @@ limestoneUsageRecords =
         ""
     }
   );      
+
+} else if (
+  existingRequest.requestType ===
+    "auxiliary_materials"
+) {
+  normalizedResult =
+    body.result &&
+    typeof body.result ===
+      "object" &&
+    !Array.isArray(
+      body.result
+    )
+      ? body.result
+      : {};
+
+
+  auxiliaryMaterialRecords =
+    await saveAuxiliaryMaterialDailyRecords(
+      context.env.DB,
+      {
+        requestItem:
+          existingRequest,
+
+        rawResult:
+          normalizedResult,
+
+        agentId:
+          authentication.agentId
+      }
+    );
 
 } else if (
   existingRequest.requestType ===
@@ -5397,11 +6598,15 @@ return jsonResponse({
     usageRecords:
       limestoneUsageRecords,
 
+    auxiliaryMaterialRecords,
+
     oisLegacySaveResult
   },
 
   usageRecords:
     limestoneUsageRecords,
+
+  auxiliaryMaterialRecords,
 
   oisLegacySaveResult,
 
@@ -5410,9 +6615,12 @@ return jsonResponse({
       "limestone_stock"
       ? "OIS 조회 결과와 석회석 사용량을 저장했습니다."
       : existingRequest.requestType ===
-          "logsheet_approval"
-        ? "OIS 과거 업무일지를 D1에 저장했습니다."
-        : "OIS 조회 결과를 저장했습니다."
+          "auxiliary_materials"
+        ? "OIS 부재료 일별 자료를 D1에 저장했습니다."
+        : existingRequest.requestType ===
+            "logsheet_approval"
+          ? "OIS 과거 업무일지를 D1에 저장했습니다."
+          : "OIS 조회 결과를 저장했습니다."
 });
 }
 
@@ -5607,6 +6815,19 @@ export async function onRequestPost(
         body
       );
     }
+
+/*
+  부재료 기간 OIS 조회
+*/
+if (
+  action ===
+    "create_materials_batch"
+) {
+  return await createAuxiliaryMaterialBatchRequest(
+    context,
+    body
+  );
+}
 
 
     /*
