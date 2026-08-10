@@ -91926,3 +91926,285 @@ body.is-auxiliary-material-expanded
     border-radius: 0 !important;
   }
 }
+
+/* =========================================================
+  부재료 PC 일반 보기 가독성 보정
+========================================================= */
+
+@media screen and (min-width: 1200px) {
+
+  /* 부재료 화면에서만 일반 모달 확대 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyTeamModal:has(
+    #efficiencyAuxiliaryMaterialsView.is-active
+  ) {
+    padding: 14px;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyTeamModal:has(
+    #efficiencyAuxiliaryMaterialsView.is-active
+  )
+  .efficiency-team-panel {
+    width: min(1740px, calc(100vw - 28px));
+    max-width: 1740px;
+
+    height: min(940px, calc(100dvh - 28px));
+    max-height: calc(100dvh - 28px);
+  }
+
+
+  /* 효율팀 상단·하단 축소 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyTeamModal:has(
+    #efficiencyAuxiliaryMaterialsView.is-active
+  )
+  .efficiency-team-modal__header {
+    min-height: 58px;
+    padding: 10px 18px;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyTeamModal:has(
+    #efficiencyAuxiliaryMaterialsView.is-active
+  )
+  .efficiency-team-modal__footer {
+    min-height: 48px;
+    padding: 7px 16px;
+  }
+
+
+  /* 왼쪽 메뉴 폭과 바깥 여백 축소 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyTeamModal:has(
+    #efficiencyAuxiliaryMaterialsView.is-active
+  )
+  .efficiency-team-modal__body {
+    grid-template-columns:
+      164px
+      minmax(0, 1fr);
+
+    gap: 10px;
+    padding: 10px;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyTeamModal:has(
+    #efficiencyAuxiliaryMaterialsView.is-active
+  )
+  .efficiency-team-tabs {
+    gap: 5px;
+    padding: 7px;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyTeamModal:has(
+    #efficiencyAuxiliaryMaterialsView.is-active
+  )
+  .efficiency-team-tab {
+    min-height: 42px;
+    padding: 0 10px;
+
+    font-size: 12px;
+  }
+
+
+  /* 부재료 제목 영역 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-heading {
+    min-height: 62px;
+    margin-bottom: 8px;
+    padding: 9px 16px;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-heading h3 {
+    font-size: 22px;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-heading p {
+    margin-top: 4px;
+
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+
+  /* 조회 조건 영역 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-query-card {
+    grid-template-columns:
+      minmax(250px, 0.65fr)
+      minmax(0, 1.35fr);
+
+    gap: 8px 12px;
+
+    margin-bottom: 9px;
+    padding: 10px 12px;
+
+    border-radius: 12px;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation {
+    grid-template-columns:
+      38px
+      minmax(160px, 1fr)
+      38px;
+
+    gap: 7px;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation
+  > button {
+    width: 38px;
+    height: 38px;
+
+    border-radius: 8px;
+    font-size: 23px;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-query-card
+  input[type="month"],
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-query-card
+  input[type="date"] {
+    height: 38px;
+    border-radius: 8px;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-period-fields
+  button {
+    min-height: 38px;
+    padding: 0 12px;
+
+    border-radius: 8px;
+    font-size: 12px;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-force-refresh,
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-status {
+    min-height: 30px;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-status {
+    padding: 6px 10px;
+
+    border-radius: 8px;
+    font-size: 12px;
+  }
+
+
+  /* 엑셀 업로드 영역 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-excel-import {
+    gap: 12px;
+
+    margin-bottom: 9px;
+    padding: 9px 12px;
+
+    border-radius: 12px;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-excel-import__description
+  > p {
+    margin-top: 3px;
+    line-height: 1.3;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  #importAuxiliaryMaterialExcelButton {
+    min-height: 36px;
+    padding: 0 14px;
+
+    border-radius: 8px;
+    font-size: 12px;
+  }
+
+
+  /* 표 제목과 버튼을 한 줄로 배치 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-card
+  > header {
+    padding: 10px 14px;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-toolbar {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+
+  /* 남은 세로 공간을 표가 전부 사용 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-card {
+    display: flex;
+    min-height: 260px;
+
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-wrap {
+    min-height: 0;
+    max-height: none;
+
+    flex: 1 1 auto;
+  }
+}
