@@ -99087,3 +99087,30 @@ body.is-auxiliary-material-expanded
   outline-offset:
     2px;
 }
+
+/* =========================================================
+  부재료 축소 화면 열 너비 최종 보정
+
+  - 비고 열 축소
+  - 확보된 공간을 나머지 열에 고르게 배분
+  - 크게 보기·모바일은 기존 너비 유지
+========================================================= */
+
+@media screen and (min-width: 1200px) {
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-split-layout {
+    --auxiliary-split-columns:
+      minmax(104px, 0.90fr)  /* 날짜 */
+      minmax(82px, 0.72fr)   /* SOx */
+      minmax(122px, 1.08fr)  /* Limestone 사용량 */
+      minmax(112px, 1.00fr)  /* Limestone 입고량 */
+      minmax(114px, 1.02fr)  /* Lime Slurry 유량 */
+      minmax(108px, 0.97fr)  /* Slurry 밀도 */
+      minmax(108px, 0.97fr)  /* Lime Powder */
+      minmax(82px, 0.72fr)   /* NOx */
+      minmax(118px, 1.04fr)  /* Ammonia 실사용량 */
+      minmax(100px, 0.72fr); /* 비고 */
+  }
+}
