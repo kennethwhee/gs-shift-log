@@ -98467,15 +98467,48 @@ body.is-limestone-manual-entry-open {
 효율팀 메뉴 색상 디자인
 =================================================== */
 
-/* PC 메뉴 폭 */
+/* ===================================================
+PC 메뉴 폭
+
+일반 화면은 210px,
+부재료 축소 화면은 기존 164px을 사용한다.
+=================================================== */
 @media (min-width: 769px) {
+  #efficiencyTeamModal
   .efficiency-team-modal__body {
-    grid-template-columns: 210px minmax(0, 1fr);
+    grid-template-columns:
+      210px
+      minmax(0, 1fr);
   }
 
+  #efficiencyTeamModal
   .efficiency-team-tabs {
-    flex: 0 0 210px;
-    width: 210px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+
+    flex:
+      0
+      1
+      auto;
+  }
+
+  #efficiencyTeamModal
+  .efficiency-team-workspace {
+    min-width: 0;
+  }
+}
+
+/* 부재료 축소 화면의 기존 164px 메뉴 폭 유지 */
+@media (min-width: 1200px) {
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyTeamModal:has(
+    #efficiencyAuxiliaryMaterialsView.is-active
+  )
+  .efficiency-team-modal__body {
+    grid-template-columns:
+      164px
+      minmax(0, 1fr);
   }
 }
 
@@ -98498,6 +98531,7 @@ body.is-limestone-manual-entry-open {
   column-gap: 9px;
 
   width: 100%;
+  min-width: 0;
   min-height: 56px;
   margin: 0;
   padding: 10px 11px;
@@ -98512,6 +98546,7 @@ body.is-limestone-manual-entry-open {
   white-space: normal;
 
   cursor: pointer;
+
   transition:
     transform 0.16s ease,
     border-color 0.16s ease,
@@ -98527,11 +98562,13 @@ body.is-limestone-manual-entry-open {
 
   width: 23px;
   height: 23px;
+
   color: inherit;
 }
 
 .efficiency-team-tab__icon svg {
   display: block;
+
   width: 100%;
   height: 100%;
 
@@ -98550,9 +98587,12 @@ body.is-limestone-manual-entry-open {
 
 .efficiency-team-tab__label small {
   display: block;
+
   margin-top: 2px;
+
   font-size: 11px;
   font-weight: 650;
+
   opacity: 0.82;
 }
 
@@ -98564,12 +98604,13 @@ body.is-limestone-manual-entry-open {
 
 /* 선택된 메뉴 */
 .efficiency-team-tabs
-  > .efficiency-team-tab:is(
-    .is-active,
-    .active,
-    [aria-selected="true"]
-  ) {
+> .efficiency-team-tab:is(
+  .is-active,
+  .active,
+  [aria-selected="true"]
+) {
   border-width: 2px;
+
   box-shadow:
     0 4px 12px rgba(15, 23, 42, 0.12),
     inset 3px 0 0 currentColor;
@@ -98643,7 +98684,10 @@ body.is-limestone-manual-entry-open {
 ARM ROLL BOX: 연밤색
 --------------------------------------------------- */
 #efficiencyArmRollTab {
-  grid-template-columns: 23px minmax(0, 1fr) auto;
+  grid-template-columns:
+    23px
+    minmax(0, 1fr)
+    auto;
 
   color: #684b2e !important;
   background: #f2e9df !important;
@@ -98653,6 +98697,7 @@ ARM ROLL BOX: 연밤색
 /* ARM ROLL 경고 배지 */
 #armRollBoxTabAlertBadge {
   position: static !important;
+
   justify-self: end;
 
   min-width: 20px;
@@ -98660,6 +98705,7 @@ ARM ROLL BOX: 연밤색
   padding: 0 5px;
 
   border-radius: 999px;
+
   background: #dc2626;
   color: #ffffff;
 
@@ -98681,6 +98727,7 @@ ARM ROLL BOX: 연밤색
 
   .efficiency-team-tabs {
     flex-basis: auto;
+
     width: 100%;
     padding: 8px;
     gap: 8px;
