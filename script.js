@@ -183541,7 +183541,7 @@ function ensureSiloPreviewCard() {
   }
 
   const layoutVersion =
-    "morning-summary-3x2-no-solar-v3";
+    "morning-summary-3x2-combined-power-v4";
 
   let bottomGrid =
     document.getElementById(
@@ -183566,10 +183566,10 @@ function ensureSiloPreviewCard() {
 
   /*
     기존 전력 + 태양광 묶음과
-    태양광 표시 카드만 제거한다.
+    별도 태양광 카드는 제거한다.
 
-    태양광 계산값과 Excel 반영 데이터는
-    기존 일일 DATA 결과에 그대로 유지한다.
+    태양광 값은 전력 현황 카드 안에
+    함께 표시한다.
   */
 
   document
@@ -183708,6 +183708,9 @@ function ensureSiloPreviewCard() {
 
   /*
     전력 현황
+
+    전력 3개 + 태양광 3개를
+    하나의 카드에 표시한다.
   */
 
   ensureCard(
@@ -183736,7 +183739,7 @@ function ensureSiloPreviewCard() {
 
       <div class="efficiency-morning-meeting-auto-card__body">
         <div class="efficiency-morning-meeting-auto-row">
-          <span>발전량 / ECMS</span>
+          <span>발전량</span>
 
           <strong id="efficiencyMorningMeetingAutoDailyGeneratorEcmsGen1">
             -
@@ -183744,7 +183747,7 @@ function ensureSiloPreviewCard() {
         </div>
 
         <div class="efficiency-morning-meeting-auto-row">
-          <span>수전량 / I-Smart</span>
+          <span>수전량</span>
 
           <strong id="efficiencyMorningMeetingAutoDailyIsmartReception">
             -
@@ -183752,9 +183755,33 @@ function ensureSiloPreviewCard() {
         </div>
 
         <div class="efficiency-morning-meeting-auto-row is-emphasis">
-          <span>송전량 / ePower</span>
+          <span>송전량</span>
 
           <strong id="efficiencyMorningMeetingAutoDailyEpowerTransmission">
+            -
+          </strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row is-group-start">
+          <span>태양광 발전량</span>
+
+          <strong id="efficiencyMorningMeetingAutoDailySolarGeneration">
+            -
+          </strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>태양광 월간 누적</span>
+
+          <strong id="efficiencyMorningMeetingAutoSolarMonthlyCumulative">
+            -
+          </strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row is-emphasis">
+          <span>태양광 년간 누적</span>
+
+          <strong id="efficiencyMorningMeetingAutoSolarYearlyCumulative">
             -
           </strong>
         </div>
@@ -202942,6 +202969,24 @@ function getElements() {
       );
 
 
+    const solarMonthlyCumulative =
+      normalizeNumber(
+        result?.solarMonthlyCumulative ??
+        result?.solarCumulative
+          ?.month
+          ?.total
+      );
+
+
+    const solarYearlyCumulative =
+      normalizeNumber(
+        result?.solarYearlyCumulative ??
+        result?.solarCumulative
+          ?.year
+          ?.total
+      );
+
+
     const generatorEcmsGen1 =
       normalizeNumber(
         result?.generatorEcmsGen1
@@ -203147,6 +203192,32 @@ function getElements() {
           ? "-"
           : formatAmount(
               solarDailyGeneration,
+              "kWh"
+            );
+    }
+
+
+    if (
+      elements.solarMonthlyCumulative
+    ) {
+      elements.solarMonthlyCumulative.textContent =
+        hideValues
+          ? "-"
+          : formatAmount(
+              solarMonthlyCumulative,
+              "kWh"
+            );
+    }
+
+
+    if (
+      elements.solarYearlyCumulative
+    ) {
+      elements.solarYearlyCumulative.textContent =
+        hideValues
+          ? "-"
+          : formatAmount(
+              solarYearlyCumulative,
               "kWh"
             );
     }
@@ -213945,7 +214016,7 @@ function initializeLimestoneSlipCameraPicker() {
         "limestone",
 
       label:
-        "석회석 재고",
+        "석회석 현황",
 
       statusId:
         "efficiencyMorningMeetingAutoLimestoneStatus",

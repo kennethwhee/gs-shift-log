@@ -88563,8 +88563,8 @@ input {
   둘째 줄:
   전력 현황 | 증기 생산·판매 | 유기성 고형연료
 
-  태양광 현황 카드는 표시하지 않는다.
-  둘째 줄 카드는 내용 높이만 사용한다.
+  전력 카드 안에 태양광 3개 항목을 통합한다.
+  여섯 카드의 너비와 높이를 동일하게 맞춘다.
 ========================================================= */
 
 .efficiency-morning-meeting-auto-bottom-grid {
@@ -88580,9 +88580,15 @@ input {
     "silo smp weather"
     "power steam organic";
 
+  grid-template-rows:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
   grid-column: 1 / -1;
 
-  align-items: start;
+  align-items: stretch;
 
   gap: 9px;
 
@@ -88593,6 +88599,8 @@ input {
 .efficiency-morning-meeting-auto-bottom-grid
   > * {
   min-width: 0;
+
+  height: 100% !important;
 }
 
 
@@ -88626,30 +88634,39 @@ input {
 }
 
 
-/* 둘째 줄 카드 높이 강제 확장 해제 */
+.efficiency-morning-meeting-auto-bottom-grid
+  > .efficiency-morning-meeting-auto-card {
+  display: flex;
 
-#efficiencyMorningMeetingAutoDailyPowerCard,
-#efficiencyMorningMeetingAutoSteamCard,
-#efficiencyMorningMeetingAutoDailySludgeCard {
-  align-self: start;
-
-  height: auto !important;
+  flex-direction: column;
 }
 
 
-#efficiencyMorningMeetingAutoSteamCard
-  > .efficiency-morning-meeting-auto-card__body,
-#efficiencyMorningMeetingAutoDailySludgeCard
+.efficiency-morning-meeting-auto-bottom-grid
+  > .efficiency-morning-meeting-auto-card
+  > .efficiency-morning-meeting-auto-card__header {
+  min-height: 58px;
+}
+
+
+.efficiency-morning-meeting-auto-bottom-grid
+  > .efficiency-morning-meeting-auto-card
   > .efficiency-morning-meeting-auto-card__body {
-  flex: 0 0 auto;
-
-  height: auto;
-
-  justify-content: flex-start !important;
+  flex: 1 1 auto;
 }
 
 
-/* 증기 판매량 저압·고압 2분할 행 */
+/* 전력값과 태양광값 사이 구분 */
+
+#efficiencyMorningMeetingAutoDailyPowerCard
+  .efficiency-morning-meeting-auto-row.is-group-start {
+  margin-top: 4px;
+
+  border-top: 1px solid #dfe7f0;
+}
+
+
+/* 증기 판매량 저압·고압 2분할 */
 
 .efficiency-morning-meeting-auto-dual-row {
   display: grid;
@@ -88725,7 +88742,7 @@ input {
 }
 
 
-/* 카드별 색상 */
+/* SILO LEVEL */
 
 .efficiency-morning-meeting-auto-card.is-silo-level::before {
   background: #5d8fc8;
@@ -88738,6 +88755,8 @@ input {
 }
 
 
+/* 증기 생산·판매 */
+
 .efficiency-morning-meeting-auto-card.is-steam-status::before {
   background: #7a68c7;
 }
@@ -88749,7 +88768,7 @@ input {
 }
 
 
-/* 태블릿: 2열 */
+/* 태블릿: 2열, 모든 카드 동일 크기 */
 
 @media (max-width: 1050px) {
   .efficiency-morning-meeting-auto-bottom-grid {
@@ -88763,11 +88782,17 @@ input {
       "silo smp"
       "weather power"
       "steam organic";
+
+    grid-template-rows:
+      repeat(
+        3,
+        minmax(0, 1fr)
+      );
   }
 }
 
 
-/* 모바일: 1열 */
+/* 모바일: 1열, 모든 카드 동일 크기 */
 
 @media (max-width: 700px) {
   .efficiency-morning-meeting-auto-bottom-grid {
@@ -88781,6 +88806,12 @@ input {
       "power"
       "steam"
       "organic";
+
+    grid-template-rows:
+      repeat(
+        6,
+        minmax(0, 1fr)
+      );
 
     gap: 7px;
   }
