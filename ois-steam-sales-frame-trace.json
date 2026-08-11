@@ -1,6 +1,6 @@
 {
   "source": "OIS 일별 증기 판매량",
-  "capturedAt": "2026-08-11T02:42:08.454Z",
+  "capturedAt": "2026-08-11T03:25:30.139Z",
   "frames": [
     {
       "index": 0,
@@ -48,7 +48,7 @@
     },
     {
       "index": 2,
-      "name": "main_17864161060660_8319965651960874",
+      "name": "main_17864187063970_8320844461098194",
       "url": "http://ois.gspoge.com/jsp/oi/oija/OIJA08000M",
       "titleLength": 0,
       "bodyInnerTextLength": 93,

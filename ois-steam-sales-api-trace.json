@@ -1,0 +1,861 @@
+{
+  "source": "OIS 일별 증기 판매량 API 구조 진단",
+  "capturedAt": "2026-08-11T03:25:31.732Z",
+  "targetDate": "2026-08-09",
+  "valuesMasked": true,
+  "privacy": "실제 판매량 숫자·원본 요청·원본 응답·인증정보 미저장",
+  "queryError": "",
+  "queryState": {
+    "inputMonthMatched": true,
+    "allOptionSelected": true
+  },
+  "controlStructure": {
+    "controls": [
+      {
+        "tag": "SELECT",
+        "type": "",
+        "id": "",
+        "name": "",
+        "className": "editable",
+        "title": "",
+        "ariaLabel": "",
+        "text": "<text:9>",
+        "valueKind": "number",
+        "optionCount": 1,
+        "hasAllOption": false,
+        "rectangle": {
+          "left": 89,
+          "top": 43,
+          "width": 150,
+          "height": 20
+        }
+      },
+      {
+        "tag": "SELECT",
+        "type": "",
+        "id": "",
+        "name": "",
+        "className": "editable",
+        "title": "",
+        "ariaLabel": "",
+        "text": "<text:11>",
+        "valueKind": "text",
+        "optionCount": 3,
+        "hasAllOption": true,
+        "rectangle": {
+          "left": 465,
+          "top": 43,
+          "width": 100,
+          "height": 20
+        }
+      },
+      {
+        "tag": "INPUT",
+        "type": "text",
+        "id": "",
+        "name": "",
+        "className": "tf-input editable",
+        "title": "",
+        "ariaLabel": "",
+        "text": "",
+        "valueKind": "year-month",
+        "optionCount": 0,
+        "hasAllOption": false,
+        "rectangle": {
+          "left": 742,
+          "top": 43,
+          "width": 74,
+          "height": 20
+        }
+      }
+    ],
+    "canvases": [
+      {
+        "id": "gridvp_vp",
+        "className": "",
+        "width": 1003,
+        "height": 517,
+        "rectangle": {
+          "left": 20,
+          "top": 109,
+          "width": 1003,
+          "height": 517
+        },
+        "parentTag": "DIV",
+        "parentId": "gridvp",
+        "parentClassName": ""
+      },
+      {
+        "id": "grid_tabStrip",
+        "className": "",
+        "width": 1002,
+        "height": 18,
+        "rectangle": {
+          "left": 0,
+          "top": 0,
+          "width": 0,
+          "height": 0
+        },
+        "parentTag": "DIV",
+        "parentId": "",
+        "parentClassName": ""
+      }
+    ],
+    "scriptPathnames": [
+      "/js/tossplatform/js/gc.spread.sheets.all.10.1.0.min.js",
+      "/js/tossplatform/js/TossPlatform.5.1.1.min.js",
+      "/js/tossplatform/js/Common.js",
+      "/js/tossplatform/js/Consts.js",
+      "/js/tossplatform/js/Config.js",
+      "/js/tossplatform/js/UserModule.js",
+      "/js/biz/oi/Common.js",
+      "/js/biz/oi/Consts.js",
+      "/js/tossplatform/js/ko.js",
+      "/js/biz/oi/ko.js",
+      "/js/tossplatform/js/Init.5.1.1.min.js"
+    ],
+    "globalCandidates": [
+      {
+        "name": "__TossArgument",
+        "type": "string",
+        "constructor": "String"
+      },
+      {
+        "name": "Toss",
+        "type": "object",
+        "constructor": "Object"
+      },
+      {
+        "name": "grid",
+        "type": "object",
+        "constructor": "aI"
+      }
+    ]
+  },
+  "responseCount": 1,
+  "responses": [
+    {
+      "pathname": "/ajax/data",
+      "framePathnames": [
+        "/jsp/oi/oija/OIJA08000M",
+        "/jsp/login/main"
+      ],
+      "status": 200,
+      "resourceType": "xhr",
+      "requestContentKind": "form-urlencoded",
+      "responseContentKind": "json",
+      "command": "oi.LogSheetService.listProcSteam",
+      "parameterKeys": [
+        "tossdata",
+        "cmd"
+      ],
+      "requestTargetMonthFieldCount": 1,
+      "selectItems": [
+        {
+          "keys": [
+            "schepow_stat_code",
+            "steam",
+            "yearmon",
+            "rowstatus"
+          ],
+          "fields": [
+            {
+              "key": "schepow_stat_code",
+              "kind": "number"
+            },
+            {
+              "key": "steam",
+              "kind": "text",
+              "length": 3
+            },
+            {
+              "key": "yearmon",
+              "kind": "target-month"
+            },
+            {
+              "key": "rowstatus",
+              "kind": "text",
+              "length": 1
+            }
+          ]
+        }
+      ],
+      "responseLength": 4128,
+      "responseTooLarge": false,
+      "bodyReadState": "complete",
+      "isJson": true,
+      "responseStructure": {
+        "topLevelType": "object",
+        "topLevelKeys": [
+          "result"
+        ],
+        "arrays": [
+          {
+            "path": "$.result",
+            "rowCount": 31,
+            "inspectedRowCount": 31,
+            "unionKeys": [
+              "entry_date",
+              "product",
+              "over_ton",
+              "over_cal",
+              "use_ton",
+              "use_cal",
+              "buy_ton"
+            ],
+            "fieldProfiles": [
+              {
+                "key": "entry_date",
+                "counts": {
+                  "date": 27,
+                  "target-date": 3,
+                  "known-label": 1
+                },
+                "knownLabels": [
+                  "합계"
+                ]
+              },
+              {
+                "key": "product",
+                "counts": {
+                  "known-label": 31
+                },
+                "knownLabels": [
+                  "8Bar",
+                  "34Bar",
+                  "소계"
+                ]
+              },
+              {
+                "key": "over_ton",
+                "counts": {
+                  "number": 31
+                },
+                "knownLabels": []
+              },
+              {
+                "key": "over_cal",
+                "counts": {
+                  "number": 31
+                },
+                "knownLabels": []
+              },
+              {
+                "key": "use_ton",
+                "counts": {
+                  "number": 31
+                },
+                "knownLabels": []
+              },
+              {
+                "key": "use_cal",
+                "counts": {
+                  "number": 31
+                },
+                "knownLabels": []
+              },
+              {
+                "key": "buy_ton",
+                "counts": {
+                  "empty": 31
+                },
+                "knownLabels": []
+              }
+            ],
+            "targetDateRowIndexes": [
+              24,
+              25,
+              26
+            ],
+            "subtotalRowIndexes": [
+              2,
+              5,
+              8,
+              11,
+              14,
+              17,
+              20,
+              23,
+              26,
+              29,
+              30
+            ],
+            "firstRows": [
+              {
+                "index": 0,
+                "targetDateFields": [],
+                "targetMonthFields": [],
+                "labelFields": [
+                  {
+                    "key": "product",
+                    "label": "8Bar"
+                  }
+                ],
+                "numericFields": [
+                  "over_ton",
+                  "over_cal",
+                  "use_ton",
+                  "use_cal"
+                ],
+                "textFields": [
+                  "entry_date"
+                ],
+                "emptyFields": [
+                  "buy_ton"
+                ]
+              },
+              {
+                "index": 1,
+                "targetDateFields": [],
+                "targetMonthFields": [],
+                "labelFields": [
+                  {
+                    "key": "product",
+                    "label": "34Bar"
+                  }
+                ],
+                "numericFields": [
+                  "over_ton",
+                  "over_cal",
+                  "use_ton",
+                  "use_cal"
+                ],
+                "textFields": [
+                  "entry_date"
+                ],
+                "emptyFields": [
+                  "buy_ton"
+                ]
+              },
+              {
+                "index": 2,
+                "targetDateFields": [],
+                "targetMonthFields": [],
+                "labelFields": [
+                  {
+                    "key": "product",
+                    "label": "소계"
+                  }
+                ],
+                "numericFields": [
+                  "over_ton",
+                  "over_cal",
+                  "use_ton",
+                  "use_cal"
+                ],
+                "textFields": [
+                  "entry_date"
+                ],
+                "emptyFields": [
+                  "buy_ton"
+                ]
+              },
+              {
+                "index": 3,
+                "targetDateFields": [],
+                "targetMonthFields": [],
+                "labelFields": [
+                  {
+                    "key": "product",
+                    "label": "8Bar"
+                  }
+                ],
+                "numericFields": [
+                  "over_ton",
+                  "over_cal",
+                  "use_ton",
+                  "use_cal"
+                ],
+                "textFields": [
+                  "entry_date"
+                ],
+                "emptyFields": [
+                  "buy_ton"
+                ]
+              },
+              {
+                "index": 4,
+                "targetDateFields": [],
+                "targetMonthFields": [],
+                "labelFields": [
+                  {
+                    "key": "product",
+                    "label": "34Bar"
+                  }
+                ],
+                "numericFields": [
+                  "over_ton",
+                  "over_cal",
+                  "use_ton",
+                  "use_cal"
+                ],
+                "textFields": [
+                  "entry_date"
+                ],
+                "emptyFields": [
+                  "buy_ton"
+                ]
+              },
+              {
+                "index": 5,
+                "targetDateFields": [],
+                "targetMonthFields": [],
+                "labelFields": [
+                  {
+                    "key": "product",
+                    "label": "소계"
+                  }
+                ],
+                "numericFields": [
+                  "over_ton",
+                  "over_cal",
+                  "use_ton",
+                  "use_cal"
+                ],
+                "textFields": [
+                  "entry_date"
+                ],
+                "emptyFields": [
+                  "buy_ton"
+                ]
+              }
+            ],
+            "targetWindows": [
+              {
+                "startIndex": 24,
+                "rows": [
+                  {
+                    "index": 23,
+                    "targetDateFields": [],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "소계"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [
+                      "entry_date"
+                    ],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  },
+                  {
+                    "index": 24,
+                    "targetDateFields": [
+                      "entry_date"
+                    ],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "8Bar"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  },
+                  {
+                    "index": 25,
+                    "targetDateFields": [
+                      "entry_date"
+                    ],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "34Bar"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  },
+                  {
+                    "index": 26,
+                    "targetDateFields": [
+                      "entry_date"
+                    ],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "소계"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  },
+                  {
+                    "index": 27,
+                    "targetDateFields": [],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "8Bar"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [
+                      "entry_date"
+                    ],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  },
+                  {
+                    "index": 28,
+                    "targetDateFields": [],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "34Bar"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [
+                      "entry_date"
+                    ],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  }
+                ]
+              },
+              {
+                "startIndex": 25,
+                "rows": [
+                  {
+                    "index": 24,
+                    "targetDateFields": [
+                      "entry_date"
+                    ],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "8Bar"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  },
+                  {
+                    "index": 25,
+                    "targetDateFields": [
+                      "entry_date"
+                    ],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "34Bar"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  },
+                  {
+                    "index": 26,
+                    "targetDateFields": [
+                      "entry_date"
+                    ],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "소계"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  },
+                  {
+                    "index": 27,
+                    "targetDateFields": [],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "8Bar"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [
+                      "entry_date"
+                    ],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  },
+                  {
+                    "index": 28,
+                    "targetDateFields": [],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "34Bar"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [
+                      "entry_date"
+                    ],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  },
+                  {
+                    "index": 29,
+                    "targetDateFields": [],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "소계"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [
+                      "entry_date"
+                    ],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  }
+                ]
+              },
+              {
+                "startIndex": 26,
+                "rows": [
+                  {
+                    "index": 25,
+                    "targetDateFields": [
+                      "entry_date"
+                    ],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "34Bar"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  },
+                  {
+                    "index": 26,
+                    "targetDateFields": [
+                      "entry_date"
+                    ],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "소계"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  },
+                  {
+                    "index": 27,
+                    "targetDateFields": [],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "8Bar"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [
+                      "entry_date"
+                    ],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  },
+                  {
+                    "index": 28,
+                    "targetDateFields": [],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "34Bar"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [
+                      "entry_date"
+                    ],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  },
+                  {
+                    "index": 29,
+                    "targetDateFields": [],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "product",
+                        "label": "소계"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [
+                      "entry_date"
+                    ],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  },
+                  {
+                    "index": 30,
+                    "targetDateFields": [],
+                    "targetMonthFields": [],
+                    "labelFields": [
+                      {
+                        "key": "entry_date",
+                        "label": "합계"
+                      },
+                      {
+                        "key": "product",
+                        "label": "소계"
+                      }
+                    ],
+                    "numericFields": [
+                      "over_ton",
+                      "over_cal",
+                      "use_ton",
+                      "use_cal"
+                    ],
+                    "textFields": [],
+                    "emptyFields": [
+                      "buy_ton"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
