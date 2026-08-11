@@ -5149,6 +5149,10 @@ async function updateAuxiliaryMaterialManualRecords(
   }
 
 
+  /* =====================================================
+    날짜 + 호기 중복 검사
+  ====================================================== */
+
   const targetKeys =
     new Set();
 
@@ -5197,25 +5201,41 @@ async function updateAuxiliaryMaterialManualRecords(
   const dates =
     items
       .map(
-        item => item.recordDate
+        item =>
+          item.recordDate
       )
       .sort();
 
+
+  const firstDate =
+    dates[0];
+
+
+  const lastDate =
+    dates[
+      dates.length -
+      1
+    ];
+
+
+  /* =====================================================
+    현재 부재료 자료 조회
+  ====================================================== */
 
   const existingResult =
     await database
       .prepare(`
         SELECT *
+
         FROM auxiliary_material_daily
-        WHERE record_date >= ?
+
+        WHERE
+          record_date >= ?
           AND record_date <= ?
       `)
       .bind(
-        dates[0],
-        dates[
-          dates.length -
-          1
-        ]
+        firstDate,
+        lastDate
       )
       .all();
 
@@ -5230,12 +5250,24 @@ async function updateAuxiliaryMaterialManualRecords(
           : []
       ).map(
         row => [
-          `${normalizeText(row.record_date)}:${Number(row.unit_no)}`,
+          (
+            `${normalizeText(
+              row.record_date
+            )}:` +
+            `${Number(
+              row.unit_no
+            )}`
+          ),
+
           row
         ]
       )
     );
 
+
+  /* =====================================================
+    수정 대상 존재 / revision 검사
+  ====================================================== */
 
   for (
     const item of
@@ -5295,79 +5327,170 @@ async function updateAuxiliaryMaterialManualRecords(
 
 
   const statements =
-    items.map(
-      item => {
-        const values =
-          item.values;
+    [];
 
 
-        const ammoniaFlowM3h =
-          values.ammoniaM3d ===
-            null
-            ? null
-            : normalizeAuxiliaryMaterialNumber(
-                values.ammoniaM3d /
-                24
-              );
+  let limestoneSyncTargetCount =
+    0;
 
 
-        const isComplete =
-          values.limestoneUsageTpd !==
-            null &&
-          values.limePowderTpd !==
-            null &&
-          values.ammoniaM3d !==
-            null &&
-          values.soxPpm !==
-            null &&
-          values.noxPpm !==
-            null;
+  /* =====================================================
+    날짜·호기별 수정 SQL 생성
+  ====================================================== */
+
+  for (
+    const item of
+    items
+  ) {
+    const values =
+      item.values;
 
 
-        return database
+    const ammoniaFlowM3h =
+      values.ammoniaM3d ===
+        null
+        ? null
+        : normalizeAuxiliaryMaterialNumber(
+            values.ammoniaM3d /
+            24
+          );
+
+
+    const isComplete =
+      values.limestoneUsageTpd !==
+        null &&
+      values.limePowderTpd !==
+        null &&
+      values.ammoniaM3d !==
+        null &&
+      values.soxPpm !==
+        null &&
+      values.noxPpm !==
+        null;
+
+
+    /* ===================================================
+      1. 부재료 일별 현황 수정
+
+      수정 가능:
+      - SOx
+      - Limestone 사용량
+      - Limestone 입고량
+      - Lime Slurry 유량
+      - Slurry 밀도
+      - Lime Powder
+      - NOx
+      - Ammonia
+    ==================================================== */
+
+    statements.push(
+      database
+        .prepare(`
+          UPDATE auxiliary_material_daily
+
+          SET
+            limestone_receipt_ton = ?,
+            limestone_usage_tpd = ?,
+
+            lime_slurry_flow_m3h = ?,
+            lime_slurry_density_kgm3 = ?,
+            lime_powder_tpd = ?,
+
+            ammonia_flow_m3h = ?,
+            ammonia_m3d = ?,
+
+            sox_ppm = ?,
+            nox_ppm = ?,
+
+            is_complete = ?,
+
+            updated_by_id = ?,
+            updated_by_name = ?,
+            updated_at = ?,
+
+            revision =
+              revision + 1
+
+          WHERE
+            record_date = ?
+            AND unit_no = ?
+        `)
+        .bind(
+          values.limestoneReceiptTon,
+          values.limestoneUsageTpd,
+
+          values.limeSlurryFlowM3h,
+          values.limeSlurryDensityKgm3,
+          values.limePowderTpd,
+
+          ammoniaFlowM3h,
+          values.ammoniaM3d,
+
+          values.soxPpm,
+          values.noxPpm,
+
+          isComplete
+            ? 1
+            : 0,
+
+          user.employeeNo,
+          user.name,
+          now,
+
+          item.recordDate,
+          item.unitNo
+        )
+    );
+
+
+    /* ===================================================
+      2. Limestone 원본 사용량 양방향 동기화
+
+      2026-08-10 이후만 적용한다.
+
+      부재료에서 수정한:
+      - Limestone 입고량
+      - Limestone 사용량
+
+      을 limestone_usage_records에도 동일하게 저장한다.
+
+      시작/종료 재고는 건드리지 않는다.
+    ==================================================== */
+
+    if (
+      item.recordDate >=
+        AUXILIARY_MATERIAL_OIS_START_DATE
+    ) {
+      limestoneSyncTargetCount +=
+        1;
+
+
+      statements.push(
+        database
           .prepare(`
-            UPDATE auxiliary_material_daily
+            UPDATE limestone_usage_records
+
             SET
-              limestone_receipt_ton = ?,
-              limestone_usage_tpd = ?,
+              receipt_quantity = ?,
+              usage_quantity = ?,
 
-              lime_slurry_flow_m3h = ?,
-              lime_slurry_density_kgm3 = ?,
-              lime_powder_tpd = ?,
-
-              ammonia_flow_m3h = ?,
-              ammonia_m3d = ?,
-
-              sox_ppm = ?,
-              nox_ppm = ?,
-
-              is_complete = ?,
+              calculation_mode =
+                'manual',
 
               updated_by_id = ?,
               updated_by_name = ?,
               updated_at = ?,
-              revision = revision + 1
 
-            WHERE record_date = ?
+              revision =
+                revision + 1
+
+            WHERE
+              usage_date = ?
               AND unit_no = ?
           `)
           .bind(
             values.limestoneReceiptTon,
             values.limestoneUsageTpd,
-
-            values.limeSlurryFlowM3h,
-            values.limeSlurryDensityKgm3,
-            values.limePowderTpd,
-
-            ammoniaFlowM3h,
-            values.ammoniaM3d,
-
-            values.soxPpm,
-            values.noxPpm,
-
-            isComplete
-              ? 1
-              : 0,
 
             user.employeeNo,
             user.name,
@@ -5375,32 +5498,46 @@ async function updateAuxiliaryMaterialManualRecords(
 
             item.recordDate,
             item.unitNo
-          );
-      }
-    );
+          )
+      );
+    }
+  }
 
+
+  /* =====================================================
+    D1 일괄 저장
+
+    부재료 + 석회석 원본을
+    같은 batch로 처리한다.
+  ====================================================== */
 
   await database.batch(
     statements
   );
 
 
+  /* =====================================================
+    수정 결과 다시 조회
+  ====================================================== */
+
   const updatedResult =
     await database
       .prepare(`
         SELECT *
+
         FROM auxiliary_material_daily
-        WHERE record_date >= ?
+
+        WHERE
+          record_date >= ?
           AND record_date <= ?
-        ORDER BY record_date DESC,
-                 unit_no ASC
+
+        ORDER BY
+          record_date DESC,
+          unit_no ASC
       `)
       .bind(
-        dates[0],
-        dates[
-          dates.length -
-          1
-        ]
+        firstDate,
+        lastDate
       )
       .all();
 
@@ -5414,9 +5551,17 @@ async function updateAuxiliaryMaterialManualRecords(
         : []
     )
       .filter(
-        row => targetKeys.has(
-          `${normalizeText(row.record_date)}:${Number(row.unit_no)}`
-        )
+        row =>
+          targetKeys.has(
+            (
+              `${normalizeText(
+                row.record_date
+              )}:` +
+              `${Number(
+                row.unit_no
+              )}`
+            )
+          )
       )
       .map(
         convertAuxiliaryMaterialRow
@@ -5424,6 +5569,68 @@ async function updateAuxiliaryMaterialManualRecords(
       .filter(
         Boolean
       );
+
+
+  /* =====================================================
+    실제 Limestone 원본 동기화 결과 확인
+  ====================================================== */
+
+  let limestoneSyncedCount =
+    0;
+
+
+  if (
+    limestoneSyncTargetCount >
+      0
+  ) {
+    const limestoneResult =
+      await database
+        .prepare(`
+          SELECT
+            usage_date,
+            unit_no
+
+          FROM limestone_usage_records
+
+          WHERE
+            usage_date >= ?
+            AND usage_date <= ?
+        `)
+        .bind(
+          firstDate,
+          lastDate
+        )
+        .all();
+
+
+    limestoneSyncedCount =
+      (
+        Array.isArray(
+          limestoneResult.results
+        )
+          ? limestoneResult.results
+          : []
+      )
+        .filter(
+          row => {
+            const key =
+              (
+                `${normalizeText(
+                  row.usage_date
+                )}:` +
+                `${Number(
+                  row.unit_no
+                )}`
+              );
+
+
+            return targetKeys.has(
+              key
+            );
+          }
+        )
+        .length;
+  }
 
 
   return jsonResponse({
@@ -5436,8 +5643,18 @@ async function updateAuxiliaryMaterialManualRecords(
     updatedRecordCount:
       updatedItems.length,
 
+    limestoneSyncedCount,
+
     message:
-      `${updatedItems.length}건의 부재료 수치를 수정했습니다.`
+      limestoneSyncedCount >
+        0
+        ? (
+            `${updatedItems.length}건의 부재료 수치를 수정했습니다. ` +
+            `Limestone ${limestoneSyncedCount}건도 동기화했습니다.`
+          )
+        : (
+            `${updatedItems.length}건의 부재료 수치를 수정했습니다.`
+          )
   });
 }
 
