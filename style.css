@@ -88562,9 +88562,6 @@ input {
 
   둘째 줄:
   전력+태양광 | 증기 생산·판매 | 유기성 고형연료
-
-  그 아래:
-  1·2호기 온도 전체 폭
 ========================================================= */
 
 .efficiency-morning-meeting-auto-bottom-grid {
@@ -88613,7 +88610,7 @@ input {
 }
 
 
-/* 둘째 줄 왼쪽: 전력 + 태양광 */
+/* 둘째 줄 왼쪽 */
 
 .efficiency-morning-meeting-auto-power-stack {
   display: grid;
@@ -88652,10 +88649,93 @@ input {
 
 
 /* =====================================================
-  PC 카드 높이 맞춤
+  증기 판매량 저압·고압 2분할 행
+===================================================== */
+
+.efficiency-morning-meeting-auto-dual-row {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  min-height: 27px;
+
+  border-bottom:
+    1px dashed
+    #e8edf3;
+}
+
+
+.efficiency-morning-meeting-auto-dual-row
+  > div {
+  display: flex;
+
+  min-width: 0;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 6px;
+}
+
+
+.efficiency-morning-meeting-auto-dual-row
+  > div:first-child {
+  padding-right: 9px;
+
+  border-right:
+    1px solid
+    #e2e7ef;
+}
+
+
+.efficiency-morning-meeting-auto-dual-row
+  > div:last-child {
+  padding-left: 9px;
+}
+
+
+.efficiency-morning-meeting-auto-dual-row
+  > div
+  > span {
+  min-width: 0;
+
+  overflow: hidden;
+
+  color: #63758a;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.efficiency-morning-meeting-auto-dual-row
+  > div
+  > strong {
+  flex: 0 0 auto;
+
+  color: #1f3552;
+
+  font-size: 11px;
+  font-weight: 800;
+
+  text-align: right;
+  white-space: nowrap;
+}
+
+
+/* =====================================================
+  PC 카드 높이 및 내부 간격
 ===================================================== */
 
 @media (min-width: 1051px) {
+
   .efficiency-morning-meeting-auto-bottom-grid
     > .efficiency-morning-meeting-auto-card {
     display: flex;
@@ -88668,12 +88748,31 @@ input {
 
   #efficiencyMorningMeetingAutoSiloCard
     > .efficiency-morning-meeting-auto-card__body,
+
   #efficiencyMorningMeetingAutoSteamCard
     > .efficiency-morning-meeting-auto-card__body,
+
   #efficiencyMorningMeetingAutoDailySludgeCard
     > .efficiency-morning-meeting-auto-card__body {
     flex: 1 1 auto;
+  }
 
+
+  /* SILO 두 항목은 위에서부터 자연스럽게 연속 배치 */
+
+  #efficiencyMorningMeetingAutoSiloCard
+    > .efficiency-morning-meeting-auto-card__body {
+    justify-content: flex-start;
+  }
+
+
+  /* 둘째 줄 두 카드는 전체 높이에 맞춰 균형 배치 */
+
+  #efficiencyMorningMeetingAutoSteamCard
+    > .efficiency-morning-meeting-auto-card__body,
+
+  #efficiencyMorningMeetingAutoDailySludgeCard
+    > .efficiency-morning-meeting-auto-card__body {
     justify-content: space-between;
   }
 }
@@ -88710,6 +88809,7 @@ input {
 ===================================================== */
 
 @media (max-width: 1050px) {
+
   .efficiency-morning-meeting-auto-bottom-grid {
     grid-template-columns:
       repeat(
@@ -88737,6 +88837,7 @@ input {
 ===================================================== */
 
 @media (max-width: 700px) {
+
   .efficiency-morning-meeting-auto-bottom-grid {
     grid-template-columns:
       minmax(0, 1fr);
