@@ -162584,6 +162584,39 @@ function refreshReportDate() {
   }
 }
 
+/* =====================================================
+  주말 모드 해제 시 평일 교대파트 화면 복원
+
+  forceReload:
+  - 주말 기간의 기준일을 제거
+  - 평일 기준일을 다시 계산
+  - 평일 D/S·N/S 업무일지를 다시 조회
+===================================================== */
+
+window.refreshEfficiencyMorningMeetingShiftPart =
+  function refreshEfficiencyMorningMeetingShiftPart(
+    options = {}
+  ) {
+    const state =
+      getState();
+
+
+    if (
+      options.forceReload ===
+        true
+    ) {
+      state.shiftPart.reportDate =
+        "";
+
+
+      state.shiftPart.loadedDate =
+        "";
+    }
+
+
+    refreshReportDate();
+  };
+
   function clearSelection() {
     const state =
       getState();
@@ -202017,52 +202050,59 @@ function render() {
   }
 }
 
-  /* =====================================================
-    주말 모드 변경
-  ====================================================== */
+/* =====================================================
+  주말 모드 변경
+====================================================== */
 
-  function handleModeChange() {
-    const state =
-      getState();
-
-
-    const elements =
-      getElements();
+function handleModeChange(
+  event
+) {
+  const state =
+    getState();
 
 
-    state.weekendMode.enabled =
-      Boolean(
-        elements.checkbox?.checked
-      );
+  /*
+    실제로 변경된 체크박스의 값을 직접 사용한다.
+  */
+
+  const changedCheckbox =
+    event?.currentTarget instanceof
+      HTMLInputElement
+      ? event.currentTarget
+      : getElements().checkbox;
 
 
-    /*
-      체크 해제 시 날짜값 자체는 유지한다.
-
-      다시 주말을 체크했을 때
-      사용자가 직전에 선택했던 기간을
-      다시 사용할 수 있게 하기 위함이다.
-    */
-
-    render();
+  state.weekendMode.enabled =
+    changedCheckbox?.checked ===
+      true;
 
 
-    /*
-      평일 모드로 돌아오면
-      기존 교대파트 날짜 표시 함수에게
-      다시 화면을 맡긴다.
-    */
+  /*
+    제목·안내문·기간 선택창을
+    평일 또는 주말 상태로 즉시 변경한다.
+  */
 
-    if (
-      !state.weekendMode.enabled &&
-      typeof window
-        .refreshEfficiencyMorningMeetingShiftPart ===
-        "function"
-    ) {
-      window
-        .refreshEfficiencyMorningMeetingShiftPart();
-    }
+  render();
+
+
+  /*
+    주말 체크를 해제하면
+    평일 기준일과 D/S·N/S 업무를 다시 불러온다.
+  */
+
+  if (
+    !state.weekendMode.enabled &&
+    typeof window
+      .refreshEfficiencyMorningMeetingShiftPart ===
+      "function"
+  ) {
+    window
+      .refreshEfficiencyMorningMeetingShiftPart({
+        forceReload:
+          true
+      });
   }
+}
 
 
   /* =====================================================
