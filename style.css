@@ -93613,3 +93613,845 @@ body.is-auxiliary-material-expanded
     font-size: 10px;
   }
 }
+
+/* =========================================================
+  부재료 PC 엑셀 등록 버튼 컴팩트화
+
+  PC:
+  시작일 | 종료일 | 저장 자료 보기 |
+  OIS 조회·D1 저장 | 엑셀 등록
+
+  기존 EXCEL IMPORT 큰 카드는 숨김
+
+  모바일:
+  기존 모니터링 전용 화면 유지
+========================================================= */
+
+@media screen and (min-width: 769px) {
+
+  /* =====================================================
+    조회 버튼 영역을 5열로 확장
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields {
+    grid-template-columns:
+      minmax(130px, 1fr)
+      minmax(130px, 1fr)
+      auto
+      auto
+      auto !important;
+
+    gap: 8px !important;
+  }
+
+
+  /* =====================================================
+    기존 EXCEL IMPORT 독립 카드 제거
+
+    파일 input은 DOM에 그대로 있으므로
+    엑셀 기능 자체는 유지된다.
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-excel-import {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    상단 엑셀 등록 버튼
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  #importAuxiliaryMaterialExcelButton.auxiliary-material-excel-inline-button:hover {
+    width: auto !important;
+    min-width: 88px !important;
+
+    height: 44px !important;
+    min-height: 44px !important;
+
+    margin: 0 !important;
+    padding: 0 14px !important;
+
+    border: 1px solid #23824d !important;
+    border-radius: 10px !important;
+
+    background: #2e9d5d !important;
+    color: #ffffff !important;
+
+    font-size: 12px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+
+    box-shadow:
+      0 4px 10px
+      rgba(46, 157, 93, 0.15) !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  #importAuxiliaryMaterialExcelButton
+  .auxiliary-material-excel-inline-button:hover {
+    background: #278b52 !important;
+  }
+}
+
+
+/* =========================================================
+  안전장치
+
+  PC에서 모바일 폭으로 줄였을 경우에도
+  이동된 엑셀 등록 버튼이 나타나지 않게 한다.
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-excel-inline-button {
+    display: none !important;
+  }
+}
+
+/* =========================================================
+  부재료 PC Slurry 밀도 설정 한 줄 컴팩트화
+========================================================= */
+
+@media screen and (min-width: 769px) {
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting {
+    display: grid !important;
+
+    grid-template-columns:
+      140px
+      minmax(0, 1fr)
+      minmax(210px, 300px) !important;
+
+    align-items: center !important;
+    gap: 10px !important;
+
+    min-height: 54px !important;
+
+    margin-bottom: 8px !important;
+    padding: 8px 12px !important;
+
+    border-radius: 10px !important;
+  }
+
+
+  /* =====================================================
+    왼쪽 제목
+
+    FIXED SLURRY DENSITY / 설명 문구는 숨기고
+    "Slurry 밀도 고정값"만 남긴다.
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting__description {
+    display: block !important;
+
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting__description
+  > span,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting__description
+  > p {
+    display: none !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting__description
+  > strong {
+    display: block !important;
+
+    margin: 0 !important;
+
+    color: #34445a !important;
+
+    font-size: 12px !important;
+    font-weight: 900 !important;
+    line-height: 1.25 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    적용일 | 1호기 | 2호기 | 저장
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting__fields {
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(190px, 1.1fr)
+      minmax(145px, 0.8fr)
+      minmax(145px, 0.8fr)
+      auto !important;
+
+    align-items: center !important;
+    gap: 8px !important;
+
+    width: 100% !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  /* 각 라벨도 세로가 아니라 한 줄 */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting__fields
+  > label {
+    display: grid !important;
+
+    grid-template-columns:
+      auto
+      minmax(0, 1fr) !important;
+
+    align-items: center !important;
+    gap: 6px !important;
+
+    min-width: 0 !important;
+
+    margin: 0 !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting__fields
+  > label
+  > span:first-child {
+    color: #667488 !important;
+
+    font-size: 10px !important;
+    font-weight: 850 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    입력창
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  #auxiliaryMaterialDensityEffectiveDate,
+
+  #efficiencyAuxiliaryMaterialsView
+  #auxiliaryMaterialUnitOneFixedDensity,
+
+  #efficiencyAuxiliaryMaterialsView
+  #auxiliaryMaterialUnitTwoFixedDensity {
+    height: 34px !important;
+    min-height: 34px !important;
+
+    margin: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+
+    border-radius: 7px !important;
+
+    font-size: 11px !important;
+    font-weight: 800 !important;
+  }
+
+
+  /* =====================================================
+    밀도값 + kg/m³
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-input-wrap {
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(72px, 1fr)
+      auto !important;
+
+    align-items: center !important;
+    gap: 5px !important;
+
+    min-width: 0 !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-input-wrap
+  > small {
+    color: #7a8798 !important;
+
+    font-size: 9px !important;
+    font-weight: 750 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    저장 버튼
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  #saveAuxiliaryMaterialFixedDensityButton {
+    height: 34px !important;
+    min-height: 34px !important;
+
+    margin: 0 !important;
+    padding: 0 12px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 10px !important;
+    font-weight: 900 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    오른쪽 상태
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting__status {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 6px 8px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 9px !important;
+    font-weight: 750 !important;
+    line-height: 1.3 !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+}
+
+/* =========================================================
+  부재료 PC 조회 조건 최종 컴팩트화
+
+  조회 월 | 시작일 | 종료일 |
+  저장자료 | OIS 저장 | 엑셀 등록
+
+  아래 한 줄:
+  강제갱신 체크 | 조회 상태
+========================================================= */
+
+@media screen and (min-width: 1200px) {
+
+  /* =====================================================
+    조회 조건 카드 전체
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-query-card {
+    grid-template-columns:
+      230px
+      minmax(0, 1fr) !important;
+
+    align-items: end !important;
+
+    gap:
+      5px
+      10px !important;
+
+    margin-bottom:
+      7px !important;
+
+    padding:
+      7px
+      10px !important;
+
+    border-radius:
+      10px !important;
+
+    box-shadow:
+      0 3px 10px
+      rgba(31, 54, 88, 0.045) !important;
+  }
+
+
+  /* =====================================================
+    조회 월
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation {
+    grid-template-columns:
+      34px
+      minmax(145px, 1fr)
+      34px !important;
+
+    align-items: end !important;
+
+    gap:
+      5px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation
+  > button {
+    width:
+      34px !important;
+
+    height:
+      34px !important;
+
+    border-radius:
+      7px !important;
+
+    font-size:
+      21px !important;
+  }
+
+
+  /* =====================================================
+    라벨
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-query-card
+  label {
+    gap:
+      3px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-query-card
+  label
+  > span {
+    font-size:
+      10px !important;
+
+    line-height:
+      1.2 !important;
+  }
+
+
+  /* =====================================================
+    월 / 날짜 입력칸
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-query-card
+  input[type="month"],
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-query-card
+  input[type="date"] {
+    height:
+      34px !important;
+
+    min-height:
+      34px !important;
+
+    padding:
+      0
+      8px !important;
+
+    border-radius:
+      7px !important;
+
+    font-size:
+      11px !important;
+  }
+
+
+  /* =====================================================
+    시작일 | 종료일 | 버튼 3개
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields {
+    grid-template-columns:
+      minmax(118px, 0.8fr)
+      minmax(118px, 0.8fr)
+      auto
+      auto
+      auto !important;
+
+    align-items:
+      end !important;
+
+    gap:
+      6px !important;
+  }
+
+
+  /* =====================================================
+    조회 버튼 공통
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-period-fields
+  button {
+    height:
+      34px !important;
+
+    min-height:
+      34px !important;
+
+    padding:
+      0
+      11px !important;
+
+    border-radius:
+      7px !important;
+
+    font-size:
+      10px !important;
+  }
+
+
+  /* 엑셀 등록 버튼도 같은 높이 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  #importAuxiliaryMaterialExcelButton.auxiliary-material-excel-inline-button {
+    height:
+      34px !important;
+
+    min-height:
+      34px !important;
+
+    padding:
+      0
+      11px !important;
+
+    border-radius:
+      7px !important;
+
+    font-size:
+      10px !important;
+  }
+
+
+  /* =====================================================
+    강제 갱신 체크
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-force-refresh {
+    min-height:
+      25px !important;
+
+    gap:
+      6px !important;
+
+    padding:
+      0
+      2px !important;
+
+    font-size:
+      10px !important;
+
+    line-height:
+      1.2 !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-force-refresh
+  input {
+    width:
+      14px !important;
+
+    height:
+      14px !important;
+  }
+
+
+  /* =====================================================
+    조회 결과 상태
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-status {
+    min-height:
+      25px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      4px
+      8px !important;
+
+    border-radius:
+      7px !important;
+
+    font-size:
+      10px !important;
+
+    line-height:
+      1.25 !important;
+  }
+}
+
+/* =========================================================
+  부재료 PC DAILY MATERIAL DATA 헤더 컴팩트화
+
+  변경 전:
+  DAILY MATERIAL DATA
+  날짜별 1·2호기 부재료 현황
+
+  변경 후:
+  DAILY MATERIAL DATA | 날짜별 1·2호기 부재료 현황
+========================================================= */
+
+@media screen and (min-width: 1200px) {
+
+  /* =====================================================
+    표 상단 전체 높이 축소
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-card
+  > header {
+    min-height: 42px !important;
+
+    padding:
+      5px
+      10px !important;
+
+    gap:
+      10px !important;
+  }
+
+
+  /* =====================================================
+    DAILY MATERIAL DATA + 한글 제목을 한 줄로
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-card
+  > header
+  > div:first-child {
+    display: flex !important;
+
+    min-width: 0 !important;
+
+    align-items: baseline !important;
+
+    gap:
+      8px !important;
+  }
+
+
+  /* DAILY MATERIAL DATA */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-card
+  > header
+  > div:first-child
+  > span {
+    flex:
+      0 0 auto !important;
+
+    margin:
+      0 !important;
+
+    color:
+      #1f5fae !important;
+
+    font-size:
+      9px !important;
+
+    font-weight:
+      900 !important;
+
+    line-height:
+      1 !important;
+
+    letter-spacing:
+      0.08em !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  /* 제목 사이 구분선 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-card
+  > header
+  > div:first-child
+  > span::after {
+    content:
+      "|";
+
+    margin-left:
+      8px;
+
+    color:
+      #c1ccda;
+  }
+
+
+  /* 날짜별 1·2호기 부재료 현황 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-card
+  h4 {
+    min-width:
+      0 !important;
+
+    margin:
+      0 !important;
+
+    font-size:
+      14px !important;
+
+    font-weight:
+      900 !important;
+
+    line-height:
+      1.2 !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  /* =====================================================
+    오른쪽 전체 도구 영역
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-toolbar {
+    flex:
+      0 0 auto !important;
+
+    align-items:
+      center !important;
+
+    gap:
+      6px !important;
+  }
+
+
+  /* =====================================================
+    저장일수 / 건수
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-counts {
+    gap:
+      5px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-count {
+    min-height:
+      25px !important;
+
+    padding:
+      0
+      7px !important;
+
+    gap:
+      4px !important;
+
+    font-size:
+      9px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  #auxiliaryMaterialRowCount {
+    font-size:
+      10px !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  /* =====================================================
+    수치 수정 / 컴팩트 보기 / 크게 보기
+
+    세 버튼을 모두 조금 더 작게
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-toolbar
+  button {
+    height:
+      28px !important;
+
+    min-height:
+      28px !important;
+
+    padding:
+      0
+      9px !important;
+
+    border-radius:
+      7px !important;
+
+    font-size:
+      9px !important;
+
+    font-weight:
+      900 !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-view-actions {
+    gap:
+      4px !important;
+  }
+}

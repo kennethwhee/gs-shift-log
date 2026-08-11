@@ -1,0 +1,25 @@
+GS Shift Log 부재료 Limestone 사용량 연동
+
+기준
+- limestone-ocr-weight-crop-fix-v2 패치가 적용된 script.js
+- 변경 파일: script.js 1개
+
+적용 내용
+- 2026-08-09까지 기존 부재료 엑셀 업로드 Limestone 사용량 유지
+- 2026-08-10부터 석회석 화면에 저장된 1·2호기 사용량 자동 조회
+- PC 표·평균 카드·모바일 모니터에 Limestone 사용량 표시
+- 자동 연동 구간은 부재료 수치 수정 모드에서 읽기 전용
+
+프로젝트 최상위에서 실행
+
+1. 충돌 검사
+git apply --check -- ".\limestone-material-usage-link\limestone-material-usage-link.patch"
+
+2. 실제 적용
+git apply -- ".\limestone-material-usage-link\limestone-material-usage-link.patch"
+
+3. 검사
+node --check .\script.js
+git diff --check -- .\script.js
+
+검사 결과가 아무 출력 없이 끝나면 정상입니다.

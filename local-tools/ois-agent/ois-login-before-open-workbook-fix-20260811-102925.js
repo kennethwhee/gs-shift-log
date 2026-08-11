@@ -535,6 +535,18 @@ const DATAPARC_STEAM_PRODUCTION_DEFINITIONS = [
 ];
 
 
+const DATAPARC_ADDIN_PATH =
+  process.env.DATAPARC_ADDIN_PATH ||
+  path.join(
+    process.env["ProgramFiles(x86)"] ||
+      "C:\\Program Files (x86)",
+
+    "Capstone",
+    "PARCView",
+    "DataPARC_AddIn.xla"
+  );
+
+
 const DATAPARC_STEAM_RESULT_MARKER =
   "__DATAPARC_STEAM_RESULT__";
 
@@ -7137,35 +7149,28 @@ if (
 /* =========================================================
   DataPARC 증기 생산량 자동 조회
 
-  열린 월간 적산 Excel에서 증기 누적값을 직접 읽는다.
-
-  - 새 통합문서·임시 시트를 만들지 않는다.
-  - DataPARC 수식 입력·재계산을 하지 않는다.
-  - 사용자가 연 Excel을 저장·종료하지 않는다.
+  현재 사용 중인 Excel의 DataPARC 연결을 재사용한다.
+  조회용 임시 통합문서만 만들고 닫으며,
+  사용자가 연 Excel은 종료하지 않는다.
 ========================================================= */
 
-const DATAPARC_STEAM_OPEN_WORKBOOK_POWERSHELL_SCRIPT =
+const DATAPARC_STEAM_POWERSHELL_SCRIPT =
   String.raw`
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-[Console]::OutputEncoding = [Text.Encoding]::UTF8
-$OutputEncoding = [Text.Encoding]::UTF8
+[Console]::OutputEncoding =
+  [Text.Encoding]::UTF8
+
+$OutputEncoding =
+  [Text.Encoding]::UTF8
 
 $excel = $null
-$workbooks = $null
+$originalWorkbook = $null
 $workbook = $null
-$worksheets = $null
 $worksheet = $null
-$usedRange = $null
-$usedRows = $null
-$usedColumns = $null
-$headerRange = $null
-$dateRange = $null
-$unitOneStartCell = $null
-$unitOneEndCell = $null
-$unitTwoStartCell = $null
-$unitTwoEndCell = $null
+$queryRange = $null
+$cells = @()
 
 $stageMarker = "__DATAPARC_STEAM_STAGE__"
 
@@ -7181,292 +7186,29 @@ function Write-DataParcStage {
   [Console]::Out.Flush()
 }
 
-function Test-ExcelTimestamp {
-  param(
-    $Value,
-    [datetime]$Target,
-    [bool]$Date1904
-  )
-
-  if (
-    $null -eq $Value -or
-    $Value -is [bool] -or
-    $Value -is [Runtime.InteropServices.ErrorWrapper]
-  ) {
-    return $false
-  }
-
-  if (
-    $Value -is [datetime]
-  ) {
-    return (
-      [Math]::Abs(
-        (
-          $Value -
-          $Target
-        ).TotalSeconds
-      ) -le 1
-    )
-  }
-
-  if (
-    $Value -isnot [string]
-  ) {
-    try {
-      $numericValue =
-        [Convert]::ToDouble(
-          $Value,
-          [Globalization.CultureInfo]::InvariantCulture
-        )
-
-      $expectedSerial =
-        $Target.ToOADate()
-
-      if (
-        $Date1904
-      ) {
-        $expectedSerial -=
-          1462
-      }
-
-      return (
-        [Math]::Abs(
-          $numericValue -
-          $expectedSerial
-        ) -le
-          (
-            1.0 /
-            86400.0
-          )
-      )
-    }
-    catch {
-      return $false
-    }
-  }
-
-  $text =
-    $Value.Trim()
-
-  $formats =
-    [string[]]@(
-      "yyyy-MM-dd HH:mm:ss",
-      "yyyy-MM-dd HH:mm",
-      "yyyy-MM-dd",
-      "yyyy/M/d HH:mm:ss",
-      "yyyy/M/d HH:mm",
-      "yyyy/M/d",
-      "M/d/yyyy HH:mm:ss",
-      "M/d/yyyy HH:mm",
-      "M/d/yyyy"
-    )
-
-  $parsedValue =
-    [datetime]::MinValue
-
-  if (
-    [datetime]::TryParseExact(
-      $text,
-      $formats,
-      [Globalization.CultureInfo]::InvariantCulture,
-      [Globalization.DateTimeStyles]::AllowWhiteSpaces,
-      [ref]$parsedValue
-    )
-  ) {
-    return (
-      [Math]::Abs(
-        (
-          $parsedValue -
-          $Target
-        ).TotalSeconds
-      ) -le 1
-    )
-  }
-
-  return $false
-}
-
-function Get-FiniteExcelNumber {
-  param(
-    $Value,
-    [string]$Label
-  )
-
-  if (
-    $null -eq $Value -or
-    $Value -is [bool] -or
-    $Value -is [Runtime.InteropServices.ErrorWrapper]
-  ) {
-    throw (
-      $Label +
-      "이 비어 있거나 Excel 오류값입니다."
-    )
-  }
-
-  try {
-    $numericValue =
-      [Convert]::ToDouble(
-        $Value,
-        [Globalization.CultureInfo]::InvariantCulture
-      )
-  }
-  catch {
-    throw (
-      $Label +
-      "을 숫자로 읽지 못했습니다."
-    )
-  }
-
-  if (
-    [double]::IsNaN(
-      $numericValue
-    ) -or
-    [double]::IsInfinity(
-      $numericValue
-    )
-  ) {
-    throw (
-      $Label +
-      "이 올바른 숫자가 아닙니다."
-    )
-  }
-
-  return $numericValue
-}
-
-function ConvertTo-ExcelColumnName {
-  param(
-    [int]$ColumnNumber
-  )
-
-  $columnName =
-    ""
-
-  $remaining =
-    $ColumnNumber
-
-  while (
-    $remaining -gt 0
-  ) {
-    $remaining -=
-      1
-
-    $columnName =
-      [char](
-        65 +
-        (
-          $remaining %
-          26
-        )
-      ) +
-      $columnName
-
-    $remaining =
-      [Math]::Floor(
-        $remaining /
-        26
-      )
-  }
-
-  return $columnName
-}
-
-function Get-ExcelAddress {
-  param(
-    [int]$RowNumber,
-    [int]$ColumnNumber
-  )
-
-  return (
-    (
-      ConvertTo-ExcelColumnName -ColumnNumber $ColumnNumber
-    ) +
-    [string]$RowNumber
-  )
-}
-
 try {
   Write-DataParcStage(
     "PowerShell 조회 시작"
   )
 
-  $targetDate =
-    $env:GS_STEAM_TARGET_DATE
+  $targetDate = $env:GS_STEAM_TARGET_DATE
+  $nextDate = $env:GS_STEAM_NEXT_DATE
+  $unitOneTag = $env:GS_STEAM_UNIT_ONE_TAG
+  $unitTwoTag = $env:GS_STEAM_UNIT_TWO_TAG
+  $resultMarker = $env:GS_STEAM_RESULT_MARKER
 
-  $nextDate =
-    $env:GS_STEAM_NEXT_DATE
-
-  $unitOneTag =
-    $env:GS_STEAM_UNIT_ONE_TAG
-
-  $unitTwoTag =
-    $env:GS_STEAM_UNIT_TWO_TAG
-
-  $resultMarker =
-    $env:GS_STEAM_RESULT_MARKER
-
-  foreach (
-    $dateValue in
-      @(
-        $targetDate,
-        $nextDate
-      )
-  ) {
-    if (
-      $dateValue -notmatch
-        '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-    ) {
-      throw (
-        "Invalid DataPARC query date: " +
-        $dateValue
-      )
+  foreach ($dateValue in @($targetDate, $nextDate)) {
+    if ($dateValue -notmatch '^\d{4}-\d{2}-\d{2}$') {
+      throw "Invalid DataPARC query date: $dateValue"
     }
   }
 
   if (
-    [string]::IsNullOrWhiteSpace(
-      $unitOneTag
-    ) -or
-    [string]::IsNullOrWhiteSpace(
-      $unitTwoTag
-    )
+    [string]::IsNullOrWhiteSpace($unitOneTag) -or
+    [string]::IsNullOrWhiteSpace($unitTwoTag)
   ) {
     throw "DataPARC steam production tag is empty."
   }
-
-  $targetDateValue =
-    [datetime]::ParseExact(
-      $targetDate,
-      "yyyy-MM-dd",
-      [Globalization.CultureInfo]::InvariantCulture
-    )
-
-  $nextDateValue =
-    [datetime]::ParseExact(
-      $nextDate,
-      "yyyy-MM-dd",
-      [Globalization.CultureInfo]::InvariantCulture
-    )
-
-  if (
-    $nextDateValue -ne
-      $targetDateValue.AddDays(
-        1
-      )
-  ) {
-    throw "DataPARC 종료 날짜가 시작 날짜의 다음 날이 아닙니다."
-  }
-
-  $expectedWorkbookBaseName =
-    (
-      $targetDateValue.ToString(
-        "yy.MM",
-        [Globalization.CultureInfo]::InvariantCulture
-      ) +
-      "-일일DATA관리"
-    ).Normalize(
-      [Text.NormalizationForm]::FormC
-    )
 
   Write-DataParcStage(
     "실행 중인 Excel 연결 시도"
@@ -7480,688 +7222,244 @@ try {
   }
   catch {
     throw (
-      "실행 중인 Excel을 찾지 못했습니다. " +
-      $expectedWorkbookBaseName +
-      ".xlsx를 먼저 열어 주세요."
+      "Active Excel session was not found. " +
+      "Open Excel with the DataPARC add-in and retry."
     )
   }
 
-  if (
-    $null -eq $excel
-  ) {
-    throw "실행 중인 Excel 연결 결과가 비어 있습니다."
+  if ($null -eq $excel) {
+    throw "Active Excel session was not returned."
   }
 
   Write-DataParcStage(
     "실행 중인 Excel 연결 완료"
   )
 
-  $workbooks =
-    $excel.Workbooks
+  $originalWorkbook =
+    $excel.ActiveWorkbook
 
-  $openWorkbookNames =
-    @()
+  if ($null -eq $originalWorkbook) {
+    throw "Active Excel workbook was not returned."
+  }
 
   Write-DataParcStage(
-    "열린 적산 통합문서 찾기"
+    "조회용 임시 통합문서 생성 시작"
+  )
+
+  $workbook =
+    $excel.Workbooks.Add()
+
+  $worksheet =
+    $workbook.Worksheets.Item(1)
+
+  $worksheet.EnableCalculation =
+    $false
+
+  $queryRange =
+    $worksheet.Range("A1:B2")
+
+  $queryRange.ColumnWidth =
+    24
+
+  Write-DataParcStage(
+    "조회용 임시 통합문서 생성 완료"
+  )
+
+  $cells = @(
+    $worksheet.Range("A1"),
+    $worksheet.Range("B1"),
+    $worksheet.Range("A2"),
+    $worksheet.Range("B2")
+  )
+
+  $formulas = @(
+    '=fnAtTimeArray("' + $unitOneTag + '","' + $targetDate + ' 00:00:00","State","Value")',
+    '=fnAtTimeArray("' + $unitOneTag + '","' + $nextDate + ' 00:00:00","State","Value")',
+    '=fnAtTimeArray("' + $unitTwoTag + '","' + $targetDate + ' 00:00:00","State","Value")',
+    '=fnAtTimeArray("' + $unitTwoTag + '","' + $nextDate + ' 00:00:00","State","Value")'
+  )
+
+  Write-DataParcStage(
+    "DataPARC 수식 4개 입력 시작"
   )
 
   for (
-    $workbookIndex = 1;
-    $workbookIndex -le
-      [int]$workbooks.Count;
-    $workbookIndex += 1
+    $index = 0;
+    $index -lt $cells.Count;
+    $index += 1
   ) {
-    $candidateWorkbook =
-      $null
-
-    try {
-      $candidateWorkbook =
-        $workbooks.Item(
-          $workbookIndex
-        )
-
-      $candidateName =
-        [string]$candidateWorkbook.Name
-
-      $openWorkbookNames +=
-        $candidateName
-
-      $candidateBaseName =
-        (
-          [IO.Path]::GetFileNameWithoutExtension(
-            $candidateName
-          )
-        ).Normalize(
-          [Text.NormalizationForm]::FormC
-        )
-
-      if (
-        $candidateBaseName -ieq
-          $expectedWorkbookBaseName
-      ) {
-        if (
-          $null -ne $workbook
-        ) {
-          throw (
-            "같은 월의 적산 통합문서가 두 개 이상 열려 있습니다: " +
-            $expectedWorkbookBaseName
-          )
-        }
-
-        $workbook =
-          $candidateWorkbook
-
-        $candidateWorkbook =
-          $null
-      }
-    }
-    finally {
-      if (
-        $null -ne $candidateWorkbook
-      ) {
-        try {
-          [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject(
-            $candidateWorkbook
-          )
-        }
-        catch {
-        }
-      }
-    }
-  }
-
-  if (
-    $null -eq $workbook
-  ) {
-    $openWorkbookText =
-      if (
-        $openWorkbookNames.Count -gt 0
-      ) {
-        $openWorkbookNames -join ", "
-      }
-      else {
-        "없음"
-      }
-
-    throw (
-      "열려 있는 " +
-      $expectedWorkbookBaseName +
-      ".xlsx 적산파일을 찾지 못했습니다. " +
-      "현재 Excel 파일: " +
-      $openWorkbookText +
-      ". 별도 Excel 창에서 열었다면 한 창만 남기고 다시 확인해 주세요."
-    )
-  }
-
-  $workbookName =
-    [string]$workbook.Name
-
-  Write-DataParcStage(
-    "적산 통합문서 연결 완료 · " +
-    $workbookName
-  )
-
-  $worksheets =
-    $workbook.Worksheets
-
-  try {
-    $worksheet =
-      $worksheets.Item(
-        "Data Normalize (2)"
-      )
-  }
-  catch {
-    throw (
-      $workbookName +
-      "에서 Data Normalize (2) 시트를 찾지 못했습니다."
-    )
+    $cells[$index].Formula =
+      $formulas[$index]
   }
 
   Write-DataParcStage(
-    "Data Normalize (2) 시트 확인 완료"
+    "DataPARC 수식 4개 입력 완료"
   )
 
-  $usedRange =
-    $worksheet.UsedRange
-
-  $usedRows =
-    $usedRange.Rows
-
-  $usedColumns =
-    $usedRange.Columns
-
-  $rowCount =
-    [int]$usedRows.Count
-
-  $columnCount =
-    [int]$usedColumns.Count
-
-  $firstRow =
-    [int]$usedRange.Row
-
-  $firstColumn =
-    [int]$usedRange.Column
-
-  if (
-    $rowCount -lt 2 -or
-    $columnCount -lt 2
-  ) {
-    throw "Data Normalize (2) 시트의 자료 범위가 비어 있습니다."
-  }
-
-  $lastRow =
-    $firstRow +
-    $rowCount -
-    1
-
-  $lastColumn =
-    $firstColumn +
-    $columnCount -
-    1
-
-  $headerStartRow =
-    $firstRow
-
-  $headerEndRow =
-    [Math]::Min(
-      $firstRow +
-        17,
-      $lastRow
-    )
-
-  $headerRangeAddress =
-    (
-      ConvertTo-ExcelColumnName -ColumnNumber $firstColumn
-    ) +
-    [string]$headerStartRow +
-    ":" +
-    (
-      ConvertTo-ExcelColumnName -ColumnNumber $lastColumn
-    ) +
-    [string]$headerEndRow
-
-  $headerRange =
-    $worksheet.Range(
-      $headerRangeAddress
-    )
-
-  $headerValues =
-    $headerRange.Value2
-
-  $headerRangeFirstRow =
-    [int]$headerRange.Row
-
-  $headerRangeFirstColumn =
-    [int]$headerRange.Column
-
-  if (
-    $headerValues -isnot [array] -or
-    $headerValues.Rank -ne 2
-  ) {
-    throw "Data Normalize (2) 헤더 범위를 읽지 못했습니다."
-  }
-
-  $headerRowLower =
-    $headerValues.GetLowerBound(
-      0
-    )
-
-  $headerRowUpper =
-    $headerValues.GetUpperBound(
-      0
-    )
-
-  $headerColumnLower =
-    $headerValues.GetLowerBound(
-      1
-    )
-
-  $headerColumnUpper =
-    $headerValues.GetUpperBound(
-      1
-    )
-
-  $unitOneTagMatches =
-    @()
-
-  $unitTwoTagMatches =
-    @()
-
-  $dateHeaderMatches =
-    @()
-
-  for (
-    $arrayRow = $headerRowLower;
-    $arrayRow -le $headerRowUpper;
-    $arrayRow += 1
-  ) {
-    for (
-      $arrayColumn = $headerColumnLower;
-      $arrayColumn -le $headerColumnUpper;
-      $arrayColumn += 1
-    ) {
-      $cellText =
-        [string](
-          $headerValues[
-            $arrayRow,
-            $arrayColumn
-          ]
-        )
-
-      $sheetRow =
-        $headerRangeFirstRow +
-        (
-          $arrayRow -
-          $headerRowLower
-        )
-
-      $sheetColumn =
-        $headerRangeFirstColumn +
-        (
-          $arrayColumn -
-          $headerColumnLower
-        )
-
-      if (
-        $cellText -ceq
-          $unitOneTag
-      ) {
-        $unitOneTagMatches +=
-          [pscustomobject]@{
-            RowNumber =
-              $sheetRow
-
-            ColumnNumber =
-              $sheetColumn
-          }
-      }
-
-      if (
-        $cellText -ceq
-          $unitTwoTag
-      ) {
-        $unitTwoTagMatches +=
-          [pscustomobject]@{
-            RowNumber =
-              $sheetRow
-
-            ColumnNumber =
-              $sheetColumn
-          }
-      }
-
-      if (
-        $cellText -eq
-          "Tag Name"
-      ) {
-        $dateHeaderMatches +=
-          [pscustomobject]@{
-            RowNumber =
-              $sheetRow
-
-            ColumnNumber =
-              $sheetColumn
-          }
-      }
-    }
-  }
-
-  if (
-    $unitOneTagMatches.Count -ne 1
-  ) {
-    throw (
-      "1호기 Main Steam TAG를 헤더에서 정확히 한 곳 찾지 못했습니다. " +
-      "확인 건수: " +
-      $unitOneTagMatches.Count
-    )
-  }
-
-  if (
-    $unitTwoTagMatches.Count -ne 1
-  ) {
-    throw (
-      "2호기 Main Steam TAG를 헤더에서 정확히 한 곳 찾지 못했습니다. " +
-      "확인 건수: " +
-      $unitTwoTagMatches.Count
-    )
-  }
-
-  if (
-    $dateHeaderMatches.Count -ne 1
-  ) {
-    throw (
-      "날짜축 기준인 Tag Name 헤더를 정확히 한 곳 찾지 못했습니다. " +
-      "확인 건수: " +
-      $dateHeaderMatches.Count
-    )
-  }
-
-  $unitOneTagPosition =
-    $unitOneTagMatches[0]
-
-  $unitTwoTagPosition =
-    $unitTwoTagMatches[0]
-
-  $dateHeaderPosition =
-    $dateHeaderMatches[0]
-
-  if (
-    $unitOneTagPosition.RowNumber -ne
-      $unitTwoTagPosition.RowNumber -or
-    $unitOneTagPosition.RowNumber -ne
-      $dateHeaderPosition.RowNumber
-  ) {
-    throw "Main Steam TAG와 Tag Name이 같은 헤더 행에 있지 않습니다."
-  }
-
-  $unitOneTagColumnNumber =
-    [int]$unitOneTagPosition.ColumnNumber
-
-  $unitTwoTagColumnNumber =
-    [int]$unitTwoTagPosition.ColumnNumber
-
-  $dateColumnNumber =
-    [int]$dateHeaderPosition.ColumnNumber
-
-  $unitOneTagAddress =
-    Get-ExcelAddress -RowNumber (
-      [int]$unitOneTagPosition.RowNumber
-    ) -ColumnNumber $unitOneTagColumnNumber
-
-  $unitTwoTagAddress =
-    Get-ExcelAddress -RowNumber (
-      [int]$unitTwoTagPosition.RowNumber
-    ) -ColumnNumber $unitTwoTagColumnNumber
+  $worksheet.EnableCalculation =
+    $true
 
   Write-DataParcStage(
-    "Main Steam TAG 위치 확인 · " +
-    $unitOneTagAddress +
-    " / " +
-    $unitTwoTagAddress
+    "조회 범위 1회 계산 시작"
   )
 
-  $dateStartRow =
-    [int]$dateHeaderPosition.RowNumber +
-    1
+  $queryRange.Calculate()
 
-  if (
-    $dateStartRow -gt $lastRow
-  ) {
-    throw "Tag Name 아래에 날짜 자료가 없습니다."
-  }
+  Write-DataParcStage(
+    "조회 범위 1회 계산 반환"
+  )
 
-  $dateColumnName =
-    ConvertTo-ExcelColumnName -ColumnNumber $dateColumnNumber
+  $deadline =
+    (Get-Date).AddSeconds(25)
 
-  $dateRangeAddress =
-    $dateColumnName +
-    [string]$dateStartRow +
-    ":" +
-    $dateColumnName +
-    [string]$lastRow
+  $values =
+    $null
 
-  $dateRange =
-    $worksheet.Range(
-      $dateRangeAddress
-    )
+  do {
+    Start-Sleep -Milliseconds 400
 
-  $dateValues =
-    $dateRange.Value2
+    $candidateValues = @()
+    $allValuesReady = $true
 
-  $dateRangeFirstRow =
-    [int]$dateRange.Row
+    foreach ($cell in $cells) {
+      $displayText =
+        [string]$cell.Text
 
-  if (
-    $dateValues -isnot [array] -or
-    $dateValues.Rank -ne 2
-  ) {
-    throw "날짜축 범위를 읽지 못했습니다."
-  }
+      $rawValue =
+        $cell.Value2
 
-  $dateRowLower =
-    $dateValues.GetLowerBound(
-      0
-    )
+      if (
+        $null -eq $rawValue -or
+        $rawValue -is [bool] -or
+        [string]::IsNullOrWhiteSpace($displayText) -or
+        $displayText.StartsWith("#")
+      ) {
+        $allValuesReady = $false
+        break
+      }
 
-  $dateRowUpper =
-    $dateValues.GetUpperBound(
-      0
-    )
+      try {
+        $numericValue =
+          [Convert]::ToDouble(
+            $rawValue,
+            [Globalization.CultureInfo]::InvariantCulture
+          )
+      }
+      catch {
+        $allValuesReady = $false
+        break
+      }
 
-  $dateColumnLower =
-    $dateValues.GetLowerBound(
-      1
-    )
+      if (
+        [double]::IsNaN($numericValue) -or
+        [double]::IsInfinity($numericValue)
+      ) {
+        $allValuesReady = $false
+        break
+      }
 
-  $date1904 =
-    [bool]$workbook.Date1904
-
-  $targetDateRows =
-    @()
-
-  $nextDateRows =
-    @()
-
-  for (
-    $arrayRow = $dateRowLower;
-    $arrayRow -le $dateRowUpper;
-    $arrayRow += 1
-  ) {
-    $candidateDateValue =
-      $dateValues[
-        $arrayRow,
-        $dateColumnLower
-      ]
-
-    if (
-      $null -eq $candidateDateValue -or
-      (
-        $candidateDateValue -is [string] -and
-        [string]::IsNullOrWhiteSpace(
-          $candidateDateValue
-        )
-      )
-    ) {
-      continue
-    }
-
-    $sheetRow =
-      $dateRangeFirstRow +
-      (
-        $arrayRow -
-        $dateRowLower
-      )
-
-    if (
-      Test-ExcelTimestamp -Value $candidateDateValue -Target $targetDateValue -Date1904 $date1904
-    ) {
-      $targetDateRows +=
-        $sheetRow
+      $candidateValues +=
+        $numericValue
     }
 
     if (
-      Test-ExcelTimestamp -Value $candidateDateValue -Target $nextDateValue -Date1904 $date1904
+      $allValuesReady -and
+      $candidateValues.Count -eq 4
     ) {
-      $nextDateRows +=
-        $sheetRow
+      $values =
+        $candidateValues
     }
   }
+  while (
+    $null -eq $values -and
+    (Get-Date) -lt $deadline
+  )
 
-  if (
-    $targetDateRows.Count -ne 1
-  ) {
+  if ($null -eq $values) {
+    $cellStates =
+      for (
+        $index = 0;
+        $index -lt $cells.Count;
+        $index += 1
+      ) {
+        "{0}={1}" -f
+          $cells[$index].Address(
+            $false,
+            $false
+          ),
+          [string]$cells[$index].Text
+      }
+
     throw (
-      $targetDate +
-      " 날짜 행을 정확히 한 곳 찾지 못했습니다. " +
-      "확인 건수: " +
-      $targetDateRows.Count +
-      ". 적산 Excel에서 Get Data가 완료됐는지 확인해 주세요."
+      "DataPARC values were not returned within 25 seconds. " +
+      ($cellStates -join ", ")
     )
   }
 
-  if (
-    $nextDateRows.Count -ne 1
-  ) {
-    throw (
-      $nextDate +
-      " 날짜 행을 정확히 한 곳 찾지 못했습니다. " +
-      "확인 건수: " +
-      $nextDateRows.Count +
-      ". 적산 Excel에서 Get Data가 완료됐는지 확인해 주세요."
+  Write-DataParcStage(
+    "DataPARC 누적값 4개 확인 완료"
+  )
+
+  $result = [ordered]@{
+    targetDate = $targetDate
+    nextDate = $nextDate
+    dataParcAddIn = "active Excel session"
+    dataParcHost = [bool](
+      Get-Process -Name "CTCExcelAddIn.PARCviewHost" -ErrorAction SilentlyContinue
     )
+    unitOneStartValue = $values[0]
+    unitOneEndValue = $values[1]
+    unitTwoStartValue = $values[2]
+    unitTwoEndValue = $values[3]
   }
-
-  $targetRowNumber =
-    [int]$targetDateRows[0]
-
-  $nextRowNumber =
-    [int]$nextDateRows[0]
-
-  $targetDateAddress =
-    Get-ExcelAddress -RowNumber $targetRowNumber -ColumnNumber $dateColumnNumber
-
-  $nextDateAddress =
-    Get-ExcelAddress -RowNumber $nextRowNumber -ColumnNumber $dateColumnNumber
-
-  Write-DataParcStage(
-    "날짜 행 위치 확인 · " +
-    $targetDateAddress +
-    " / " +
-    $nextDateAddress
-  )
-
-  $unitOneStartAddress =
-    Get-ExcelAddress -RowNumber $targetRowNumber -ColumnNumber $unitOneTagColumnNumber
-
-  $unitOneEndAddress =
-    Get-ExcelAddress -RowNumber $nextRowNumber -ColumnNumber $unitOneTagColumnNumber
-
-  $unitTwoStartAddress =
-    Get-ExcelAddress -RowNumber $targetRowNumber -ColumnNumber $unitTwoTagColumnNumber
-
-  $unitTwoEndAddress =
-    Get-ExcelAddress -RowNumber $nextRowNumber -ColumnNumber $unitTwoTagColumnNumber
-
-  $unitOneStartCell =
-    $worksheet.Range(
-      $unitOneStartAddress
-    )
-
-  $unitOneEndCell =
-    $worksheet.Range(
-      $unitOneEndAddress
-    )
-
-  $unitTwoStartCell =
-    $worksheet.Range(
-      $unitTwoStartAddress
-    )
-
-  $unitTwoEndCell =
-    $worksheet.Range(
-      $unitTwoEndAddress
-    )
-
-  $unitOneStartValue =
-    Get-FiniteExcelNumber -Value $unitOneStartCell.Value2 -Label "1호기 시작 누적값"
-
-  $unitOneEndValue =
-    Get-FiniteExcelNumber -Value $unitOneEndCell.Value2 -Label "1호기 종료 누적값"
-
-  $unitTwoStartValue =
-    Get-FiniteExcelNumber -Value $unitTwoStartCell.Value2 -Label "2호기 시작 누적값"
-
-  $unitTwoEndValue =
-    Get-FiniteExcelNumber -Value $unitTwoEndCell.Value2 -Label "2호기 종료 누적값"
-
-  Write-DataParcStage(
-    "적산 누적값 4개 읽기 완료"
-  )
-
-  $result =
-    [ordered]@{
-      targetDate =
-        $targetDate
-
-      nextDate =
-        $nextDate
-
-      dataParcAddIn =
-        "open workbook / Data Normalize (2)"
-
-      dataParcHost =
-        [bool](
-          Get-Process -Name "CTCExcelAddIn.PARCviewHost" -ErrorAction SilentlyContinue
-        )
-
-      workbook =
-        $workbookName
-
-      worksheet =
-        "Data Normalize (2)"
-
-      layout =
-        "tags-in-row"
-
-      targetDateCell =
-        $targetDateAddress
-
-      nextDateCell =
-        $nextDateAddress
-
-      unitOneTagCell =
-        $unitOneTagAddress
-
-      unitTwoTagCell =
-        $unitTwoTagAddress
-
-      unitOneStartValue =
-        $unitOneStartValue
-
-      unitOneEndValue =
-        $unitOneEndValue
-
-      unitTwoStartValue =
-        $unitTwoStartValue
-
-      unitTwoEndValue =
-        $unitTwoEndValue
-    }
 
   [Console]::WriteLine(
     $resultMarker +
-    (
-      $result |
-        ConvertTo-Json -Compress -Depth 4
-    )
+    ($result | ConvertTo-Json -Compress -Depth 4)
   )
 
   [Console]::Out.Flush()
 }
 finally {
-  foreach (
-    $comObject in
-      @(
-        $unitTwoEndCell,
-        $unitTwoStartCell,
-        $unitOneEndCell,
-        $unitOneStartCell,
-        $dateRange,
-        $headerRange,
-        $usedColumns,
-        $usedRows,
-        $usedRange,
-        $worksheet,
-        $worksheets,
-        $workbook,
-        $workbooks,
-        $excel
+  if ($worksheet) {
+    try {
+      $worksheet.EnableCalculation =
+        $false
+    }
+    catch {
+    }
+  }
+
+  if ($queryRange) {
+    try {
+      $queryRange.ClearContents()
+    }
+    catch {
+    }
+  }
+
+  if ($workbook) {
+    try {
+      $workbook.Close(
+        $false
       )
-  ) {
-    if (
-      $null -ne $comObject
-    ) {
+    }
+    catch {
+    }
+  }
+
+  foreach ($comObject in @(
+    $cells[3],
+    $cells[2],
+    $cells[1],
+    $cells[0],
+    $queryRange,
+    $worksheet,
+    $workbook,
+    $originalWorkbook,
+    $excel
+  )) {
+    if ($null -ne $comObject) {
       try {
         [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject(
           $comObject
@@ -8198,90 +7496,52 @@ function runDataParcSteamPowerShell(
 
 
       /*
-        Windows 명령줄 길이 제한을 피하기 위해
-        UTF-8 BOM 임시 PowerShell 파일로 실행한다.
+        PowerShell 스크립트 전체를 UTF-16LE Base64로 변환하여
+        하나의 명령으로 전달한다.
       */
 
-      const temporaryDirectory =
-        process.env.TEMP ||
-        process.env.TMP ||
-        __dirname;
+      const encodedCommand =
+        Buffer
+          .from(
+            DATAPARC_STEAM_POWERSHELL_SCRIPT,
+            "utf16le"
+          )
+          .toString(
+            "base64"
+          );
 
 
-      const powerShellScriptPath =
-        path.join(
-          temporaryDirectory,
+      const childProcess =
+        spawn(
+          powerShellPath,
 
           [
-            "gs-shift-dataparc-steam",
-            process.pid,
-            Date.now(),
-            Math.random()
-              .toString(16)
-              .slice(2)
-          ].join("-") +
-            ".ps1"
-        );
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-STA",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-EncodedCommand",
+            encodedCommand
+          ],
 
+          {
+            windowsHide:
+              true,
 
-      fs.writeFileSync(
-        powerShellScriptPath,
-        `\uFEFF${DATAPARC_STEAM_OPEN_WORKBOOK_POWERSHELL_SCRIPT}`,
-        "utf8"
-      );
-
-
-      let childProcess;
-
-
-      try {
-        childProcess =
-          spawn(
-            powerShellPath,
-
-            [
-              "-NoLogo",
-              "-NoProfile",
-              "-NonInteractive",
-              "-STA",
-              "-ExecutionPolicy",
-              "Bypass",
-              "-File",
-              powerShellScriptPath
+            stdio: [
+              "ignore",
+              "pipe",
+              "pipe"
             ],
 
-            {
-              windowsHide:
-                true,
-
-              stdio: [
-                "ignore",
-                "pipe",
-                "pipe"
-              ],
-
-              env: {
-                ...process.env,
-                ...environment
-              }
+            env: {
+              ...process.env,
+              ...environment
             }
-          );
-
-      } catch (
-        error
-      ) {
-        try {
-          fs.unlinkSync(
-            powerShellScriptPath
-          );
-        } catch (
-          cleanupError
-        ) {
-        }
-
-
-        throw error;
-      }
+          }
+        );
 
 
       let standardOutput =
@@ -8306,34 +7566,6 @@ function runDataParcSteamPowerShell(
 
       let cleanupTimeoutId =
         null;
-
-
-      let isPowerShellScriptRemoved =
-        false;
-
-
-      const removePowerShellScript =
-        () => {
-          if (
-            isPowerShellScriptRemoved
-          ) {
-            return;
-          }
-
-
-          isPowerShellScriptRemoved =
-            true;
-
-
-          try {
-            fs.unlinkSync(
-              powerShellScriptPath
-            );
-          } catch (
-            error
-          ) {
-          }
-        };
 
 
       const resultMarker =
@@ -8609,9 +7841,6 @@ function runDataParcSteamPowerShell(
       childProcess.on(
         "error",
         error => {
-          removePowerShellScript();
-
-
           stopChildProcess();
 
 
@@ -8632,9 +7861,6 @@ function runDataParcSteamPowerShell(
       childProcess.on(
         "close",
         exitCode => {
-          removePowerShellScript();
-
-
           if (
             cleanupTimeoutId
           ) {
@@ -8829,6 +8055,9 @@ async function collectDataParcSteamProductionValues(
 
   const standardOutput =
     await runDataParcSteamPowerShell({
+      GS_DATAPARC_ADDIN_PATH:
+        DATAPARC_ADDIN_PATH,
+
       GS_STEAM_TARGET_DATE:
         targetDate,
 

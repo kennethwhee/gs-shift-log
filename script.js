@@ -86736,6 +86736,374 @@ const auxiliaryMaterialHistoryState = {
 };
 
 
+const AUXILIARY_MATERIAL_LIMESTONE_LINK_START_DATE =
+  "2026-08-10";
+
+
+/* =====================================================
+  부재료 Limestone 사용량 연동 숫자 확인
+===================================================== */
+
+function parseAuxiliaryMaterialLinkedLimestoneNumber(
+  value
+) {
+  if (
+    value ===
+      null ||
+    value ===
+      undefined ||
+    String(
+      value
+    ).trim() ===
+      ""
+  ) {
+    return null;
+  }
+
+
+  const numericValue =
+    Number(
+      value
+    );
+
+
+  return Number.isFinite(
+    numericValue
+  )
+    ? numericValue
+    : null;
+}
+
+
+/* =====================================================
+  부재료 자료 + 석회석 저장 사용량 병합
+
+  - 2026-08-09까지: 기존 엑셀 업로드값 유지
+  - 2026-08-10부터: 석회석 화면 D1 저장값 사용
+===================================================== */
+
+function mergeAuxiliaryMaterialLimestoneUsageHistory(
+  materialItems,
+  limestoneHistoryItems,
+  options =
+    {}
+) {
+  const sourceItems =
+    Array.isArray(
+      materialItems
+    )
+      ? materialItems
+      : [];
+
+
+  if (
+    options.linkedResponseLoaded !==
+      true
+  ) {
+    return sourceItems;
+  }
+
+
+  const mergedItems =
+    sourceItems.map(
+      item => {
+        const recordDate =
+          String(
+            item?.recordDate ||
+            ""
+          ).trim();
+
+
+        if (
+          !isValidAuxiliaryMaterialIsoDate(
+            recordDate
+          ) ||
+          recordDate <
+            AUXILIARY_MATERIAL_LIMESTONE_LINK_START_DATE
+        ) {
+          return item;
+        }
+
+
+        return {
+          ...item,
+
+          limestoneUsageTpd:
+            null,
+
+          limestoneUsageLinked:
+            true
+        };
+      }
+    );
+
+
+  const itemIndexByDateAndUnit =
+    new Map();
+
+
+  mergedItems.forEach(
+    (
+      item,
+      index
+    ) => {
+      const recordDate =
+        String(
+          item?.recordDate ||
+          ""
+        ).trim();
+
+
+      const unitNo =
+        Number(
+          item?.unitNo
+        );
+
+
+      if (
+        isValidAuxiliaryMaterialIsoDate(
+          recordDate
+        ) &&
+        [
+          1,
+          2
+        ].includes(
+          unitNo
+        )
+      ) {
+        itemIndexByDateAndUnit.set(
+          `${recordDate}:${unitNo}`,
+          index
+        );
+      }
+    }
+  );
+
+
+  (
+    Array.isArray(
+      limestoneHistoryItems
+    )
+      ? limestoneHistoryItems
+      : []
+  ).forEach(
+    historyItem => {
+      const recordDate =
+        String(
+          historyItem?.usageDate ||
+          ""
+        ).trim();
+
+
+      if (
+        !isValidAuxiliaryMaterialIsoDate(
+          recordDate
+        ) ||
+        recordDate <
+          AUXILIARY_MATERIAL_LIMESTONE_LINK_START_DATE
+      ) {
+        return;
+      }
+
+
+      [
+        {
+          unitNo:
+            1,
+
+          value:
+            historyItem?.unitOneUsage
+        },
+
+        {
+          unitNo:
+            2,
+
+          value:
+            historyItem?.unitTwoUsage
+        }
+      ].forEach(
+        unitItem => {
+          const limestoneUsageTpd =
+            parseAuxiliaryMaterialLinkedLimestoneNumber(
+              unitItem.value
+            );
+
+
+          if (
+            limestoneUsageTpd ===
+              null
+          ) {
+            return;
+          }
+
+
+          const key =
+            `${recordDate}:${unitItem.unitNo}`;
+
+
+          const existingIndex =
+            itemIndexByDateAndUnit.get(
+              key
+            );
+
+
+          if (
+            existingIndex !==
+              undefined
+          ) {
+            mergedItems[
+              existingIndex
+            ] = {
+              ...mergedItems[
+                existingIndex
+              ],
+
+              limestoneUsageTpd,
+
+              limestoneUsageLinked:
+                true
+            };
+
+
+            return;
+          }
+
+
+          itemIndexByDateAndUnit.set(
+            key,
+            mergedItems.length
+          );
+
+
+          mergedItems.push({
+            recordDate,
+
+            unitNo:
+              unitItem.unitNo,
+
+            limestoneUsageTpd,
+
+            limestoneUsageLinked:
+              true,
+
+            revision:
+              0,
+
+            remarks:
+              ""
+          });
+        }
+      );
+    }
+  );
+
+
+  return mergedItems;
+}
+
+
+/* =====================================================
+  석회석 화면의 기간 저장 사용량 불러오기
+===================================================== */
+
+async function loadAuxiliaryMaterialLinkedLimestoneUsage(
+  range,
+  headers
+) {
+  if (
+    range.endDate <
+      AUXILIARY_MATERIAL_LIMESTONE_LINK_START_DATE
+  ) {
+    return {
+      loaded:
+        false,
+
+      items: []
+    };
+  }
+
+
+  const startDate =
+    range.startDate <
+      AUXILIARY_MATERIAL_LIMESTONE_LINK_START_DATE
+      ? AUXILIARY_MATERIAL_LIMESTONE_LINK_START_DATE
+      : range.startDate;
+
+
+  const query =
+    new URLSearchParams({
+      action:
+        "usage_history",
+
+      startDate,
+
+      endDate:
+        range.endDate,
+
+      _:
+        String(
+          Date.now()
+        )
+    });
+
+
+  try {
+    const response =
+      await fetch(
+        (
+          "/api/ois-data-requests?" +
+          query.toString()
+        ),
+        {
+          method:
+            "GET",
+
+          headers,
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    const result =
+      await readAuxiliaryMaterialJsonResponse(
+        response
+      );
+
+
+    return {
+      loaded:
+        true,
+
+      items:
+        Array.isArray(
+          result.items
+        )
+          ? result.items
+          : []
+    };
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "부재료 Limestone 사용량 연동 실패:",
+      error
+    );
+
+
+    return {
+      loaded:
+        false,
+
+      items: []
+    };
+  }
+}
+
+
 const auxiliaryMaterialValueEditState = {
   isEditing:
     false,
@@ -87154,11 +87522,21 @@ function renderAuxiliaryMaterialValueCell(
     );
 
 
+  const isLinkedLimestoneUsage =
+    field.key ===
+      "limestoneUsageTpd" &&
+    recordDate >=
+      AUXILIARY_MATERIAL_LIMESTONE_LINK_START_DATE;
+
+
   const cellClasses = [
     field.cssClass,
     unitClass,
     isFixedDensity
       ? "is-fixed-density"
+      : "",
+    isLinkedLimestoneUsage
+      ? "is-linked-limestone-usage"
       : ""
   ]
     .filter(
@@ -87169,23 +87547,26 @@ function renderAuxiliaryMaterialValueCell(
     );
 
 
-  const fixedTitle =
+  const cellTitle =
     isFixedDensity
       ? `${unitNo}호기 Slurry 밀도 고정값 적용 중`
-      : "";
+      : isLinkedLimestoneUsage
+        ? "석회석 화면에 저장된 사용량 자동 연동"
+        : "";
 
 
   if (
     !auxiliaryMaterialValueEditState
       .isEditing ||
-    !item
+    !item ||
+    isLinkedLimestoneUsage
   ) {
     return `
       <td
         class="${cellClasses}"
-        ${fixedTitle
+        ${cellTitle
           ? `title="${escapeAuxiliaryMaterialHtml(
-              fixedTitle
+              cellTitle
             )}"`
           : ""}
       >
@@ -87212,9 +87593,9 @@ function renderAuxiliaryMaterialValueCell(
   return `
     <td
       class="${cellClasses} is-value-edit-cell"
-      ${fixedTitle
+      ${cellTitle
         ? `title="${escapeAuxiliaryMaterialHtml(
-            fixedTitle
+            cellTitle
           )}"`
         : ""}
     >
@@ -88111,6 +88492,23 @@ function renderAuxiliaryMaterialMobileMonitor() {
 
 
   const metrics = [
+    {
+      key:
+        "limestoneUsageTpd",
+
+      label:
+        "Limestone",
+
+      unit:
+        "t/d",
+
+      decimalPlaces:
+        2,
+
+      cssClass:
+        "is-limestone-usage"
+    },
+
     {
       key:
         "limePowderTpd",
@@ -90269,22 +90667,32 @@ async function loadAuxiliaryMaterialHistory(
           };
 
 
-    const response =
-      await fetch(
-        (
-          "/api/ois-data-requests?" +
-          query.toString()
+    const [
+      response,
+      linkedLimestoneUsage
+    ] =
+      await Promise.all([
+        fetch(
+          (
+            "/api/ois-data-requests?" +
+            query.toString()
+          ),
+          {
+            method:
+              "GET",
+
+            headers,
+
+            cache:
+              "no-store"
+          }
         ),
-        {
-          method:
-            "GET",
 
-          headers,
-
-          cache:
-            "no-store"
-        }
-      );
+        loadAuxiliaryMaterialLinkedLimestoneUsage(
+          range,
+          headers
+        )
+      ]);
 
 
     const result =
@@ -90294,11 +90702,14 @@ async function loadAuxiliaryMaterialHistory(
 
 
     auxiliaryMaterialHistoryState.items =
-      Array.isArray(
-        result.items
-      )
-        ? result.items
-        : [];
+      mergeAuxiliaryMaterialLimestoneUsageHistory(
+        result.items,
+        linkedLimestoneUsage.items,
+        {
+          linkedResponseLoaded:
+            linkedLimestoneUsage.loaded
+        }
+      );
 
 
     auxiliaryMaterialHistoryState.summary =
@@ -90572,11 +90983,20 @@ function setAuxiliaryMaterialExcelImportButtonState(
         .isRunning;
 
 
+    /*
+      PC 상단 컴팩트 버튼 이름 유지
+
+      대기:
+      엑셀 등록
+
+      처리 중:
+      엑셀 저장 중...
+    */
     elements.excelImportButton.textContent =
       auxiliaryMaterialExcelImportState
         .isRunning
         ? "엑셀 저장 중..."
-        : "엑셀 업로드";
+        : "엑셀 등록";
   }
 
 
@@ -91811,6 +92231,83 @@ async function handleAuxiliaryMaterialExcelFileSelection(
   }
 }
 
+/* =========================================================
+  부재료 PC 상단 엑셀 등록 버튼 배치
+
+  PC:
+  저장 자료 보기 | OIS 조회·D1 저장 | 엑셀 등록
+
+  모바일:
+  기존 모니터링 전용 화면 유지
+========================================================= */
+
+function prepareAuxiliaryMaterialPcCompactControls() {
+  /*
+    모바일은 현재 만든
+    모니터링 전용 화면을 그대로 유지한다.
+  */
+  if (
+    typeof isAuxiliaryMaterialMobileMonitorMode ===
+      "function" &&
+    isAuxiliaryMaterialMobileMonitorMode()
+  ) {
+    return;
+  }
+
+
+  const view =
+    document.getElementById(
+      "efficiencyAuxiliaryMaterialsView"
+    );
+
+
+  const excelButton =
+    document.getElementById(
+      "importAuxiliaryMaterialExcelButton"
+    );
+
+
+  const queryButton =
+    getAuxiliaryMaterialElements()
+      ?.queryButton;
+
+
+  if (
+    !view ||
+    !excelButton ||
+    !queryButton
+  ) {
+    return;
+  }
+
+
+  /*
+    OIS 조회 버튼과 같은 부모로 이동한다.
+
+    결과:
+    저장 자료 보기
+    OIS 조회 · D1 저장
+    엑셀 등록
+  */
+  queryButton.insertAdjacentElement(
+    "afterend",
+    excelButton
+  );
+
+
+  excelButton.classList.add(
+    "auxiliary-material-excel-inline-button"
+  );
+
+
+  excelButton.textContent =
+    "엑셀 등록";
+
+
+  view.classList.add(
+    "is-pc-compact-controls"
+  );
+}
 
 /* =====================================================
   엑셀 업로드 이벤트 연결
@@ -91819,6 +92316,7 @@ async function handleAuxiliaryMaterialExcelFileSelection(
 function initializeAuxiliaryMaterialExcelImportControls() {
   const elements =
     getAuxiliaryMaterialElements();
+    prepareAuxiliaryMaterialPcCompactControls();
 
 
   if (
