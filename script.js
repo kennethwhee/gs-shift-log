@@ -215689,7 +215689,7 @@ function initializeLimestoneSlipCameraPicker() {
     "efficiency-morning-meeting-output";
 
   const PICKER_ID =
-    "efficiency-morning-meeting-output";
+    "morning-meeting-output";
 
   let directoryHandle =
     null;
