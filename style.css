@@ -95079,3 +95079,44 @@ body.is-auxiliary-material-expanded
     font-size: 10px !important;
   }
 }
+
+/* =========================================================
+  부재료 최종 보정
+  1) 제목 아래 설명 문구 제거
+  2) 크게 보기 버튼 파란색 강조
+========================================================= */
+
+/* 제목 아래 설명 문구 제거 */
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-heading p {
+  display: none !important;
+}
+
+
+/* 크게 보기 버튼만 파란색으로 강조 */
+#efficiencyAuxiliaryMaterialsView
+#toggleAuxiliaryMaterialExpandedButton {
+  border-color: #176bc4 !important;
+  background: #eaf3ff !important;
+  color: #176bc4 !important;
+
+  box-shadow:
+    0 4px 10px
+    rgba(23, 107, 196, 0.16) !important;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+#toggleAuxiliaryMaterialExpandedButton:hover {
+  border-color: #176bc4 !important;
+  background: #176bc4 !important;
+  color: #ffffff !important;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+#toggleAuxiliaryMaterialExpandedButton[aria-pressed="true"] {
+  border-color: #176bc4 !important;
+  background: #176bc4 !important;
+  color: #ffffff !important;
+}

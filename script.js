@@ -90820,9 +90820,6 @@ function initializeAuxiliaryMaterialHistoryControls() {
   }
 
 
-  prepareAuxiliaryMaterialMobileMonitorOnlyLayout();
-
-
   const today =
     formatAuxiliaryMaterialIsoDate(
       new Date()
@@ -90847,8 +90844,6 @@ function initializeAuxiliaryMaterialHistoryControls() {
 
   /*
     저장 자료 보기 버튼
-
-    PC에서는 기존 기능 그대로 유지한다.
   */
   elements.loadButton.addEventListener(
     "click",
@@ -90867,30 +90862,26 @@ function initializeAuxiliaryMaterialHistoryControls() {
 
   /*
     부재료 메뉴를 열면
-    선택 기간의 저장자료를 바로 불러온다.
-
-    모바일에서는 현재 선택 월의 기간만 사용한다.
+    저장자료를 바로 불러오고
+    PC에서는 크게 보기로 먼저 연다.
   */
   elements.tab?.addEventListener(
     "click",
     () => {
       if (
-        isAuxiliaryMaterialMobileMonitorMode()
+        window.matchMedia(
+          "(min-width: 769px)"
+        ).matches &&
+        typeof setAuxiliaryMaterialExpandedView ===
+          "function"
       ) {
-        applyAuxiliaryMaterialMonthRange(
-          elements.monthInput?.value ||
-          getCurrentAuxiliaryMaterialMonthValue()
+        window.requestAnimationFrame(
+          () => {
+            setAuxiliaryMaterialExpandedView(
+              true
+            );
+          }
         );
-
-
-        auxiliaryMaterialValueEditState.isEditing =
-          false;
-
-        auxiliaryMaterialValueEditState.isSaving =
-          false;
-
-
-        updateAuxiliaryMaterialValueEditButtons();
       }
 
 
