@@ -145665,177 +145665,73 @@ function setMorningMeetingRichInlineStringCellValue(
 
   /* ===================================================
     기존 값 제거
+
+    inlineStr 방식은 글꼴 묶음이 여러 개일 때
+    일부 Excel 환경에서 마지막 묶음만 표시된다.
+
+    원본 엑셀과 동일한 sharedStrings 방식으로 저장한다.
   ==================================================== */
 
-  [
-    "f",
-    "v",
-    "is"
-  ].forEach(
-    childName => {
-      getMorningMeetingDirectXmlChildren(
-        cellElement,
-        childName
-      )
-        .forEach(
-          childElement => {
-            childElement.remove();
-          }
-        );
-    }
-  );
+  while (
+    cellElement.firstChild
+  ) {
+    cellElement.removeChild(
+      cellElement.firstChild
+    );
+  }
 
 
-  cellElement.setAttribute(
-    "t",
-    "inlineStr"
-  );
+  if (
+    !stringValue
+  ) {
+    cellElement.removeAttribute(
+      "t"
+    );
 
 
-  const spreadsheetNamespace =
-    cellElement.namespaceURI ||
-    MAIN_XML_NAMESPACE;
+    return {
+      found:
+        true,
+
+      written:
+        true,
+
+      address,
+
+      value:
+        stringValue
+    };
+  }
 
 
-  const inlineStringElement =
-    worksheetDocument
-      .createElementNS(
-        spreadsheetNamespace,
-        "is"
-      );
-
-
-  /* ===================================================
-    기존 오전회의 공용 글꼴 분리 함수 사용
-  ==================================================== */
-
-  const runs =
-    splitMorningMeetingFontRuns(
+  const sharedStringIndex =
+    appendMorningMeetingSharedString(
       stringValue
     );
 
 
-  runs.forEach(
-    run => {
-      const runElement =
-        worksheetDocument
-          .createElementNS(
-            spreadsheetNamespace,
-            "r"
-          );
-
-
-      const runProperties =
-        worksheetDocument
-          .createElementNS(
-            spreadsheetNamespace,
-            "rPr"
-          );
-
-
-      const fontElement =
-        worksheetDocument
-          .createElementNS(
-            spreadsheetNamespace,
-            "rFont"
-          );
-
-
-      fontElement.setAttribute(
-        "val",
-        run.isHangul
-          ? "Batang"
-          : "Times New Roman"
-      );
-
-
-      runProperties.appendChild(
-        fontElement
-      );
-
-
-      const charsetElement =
-        worksheetDocument
-          .createElementNS(
-            spreadsheetNamespace,
-            "charset"
-          );
-
-
-      charsetElement.setAttribute(
-        "val",
-        run.isHangul
-          ? "129"
-          : "0"
-      );
-
-
-      runProperties.appendChild(
-        charsetElement
-      );
-
-
-      const familyElement =
-        worksheetDocument
-          .createElementNS(
-            spreadsheetNamespace,
-            "family"
-          );
-
-
-      familyElement.setAttribute(
-        "val",
-        "1"
-      );
-
-
-      runProperties.appendChild(
-        familyElement
-      );
-
-
-      const textElement =
-        worksheetDocument
-          .createElementNS(
-            spreadsheetNamespace,
-            "t"
-          );
-
-
-      /*
-        공백과 줄바꿈 보존
-      */
-
-      textElement.setAttributeNS(
-        "http://www.w3.org/XML/1998/namespace",
-        "xml:space",
-        "preserve"
-      );
-
-
-      textElement.textContent =
-        run.text;
-
-
-      runElement.appendChild(
-        runProperties
-      );
-
-
-      runElement.appendChild(
-        textElement
-      );
-
-
-      inlineStringElement.appendChild(
-        runElement
-      );
-    }
+  cellElement.setAttribute(
+    "t",
+    "s"
   );
 
 
+  const valueElement =
+    worksheetDocument
+      .createElementNS(
+        MAIN_XML_NAMESPACE,
+        "v"
+      );
+
+
+  valueElement.textContent =
+    String(
+      sharedStringIndex
+    );
+
+
   cellElement.appendChild(
-    inlineStringElement
+    valueElement
   );
 
 

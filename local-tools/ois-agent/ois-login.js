@@ -7669,6 +7669,441 @@ function Test-ExcelTimestamp {
   return $false
 }
 
+function Read-XlsxZipEntryText {
+  param(
+    $Archive,
+    [string]$EntryName
+  )
+
+  $entry =
+    $Archive.GetEntry(
+      $EntryName.Replace(
+        "\",
+        "/"
+      )
+    )
+
+  if (
+    $null -eq $entry
+  ) {
+    throw (
+      "Excel 내부 파일을 찾지 못했습니다: " +
+      $EntryName
+    )
+  }
+
+  $stream =
+    $null
+
+  $reader =
+    $null
+
+  try {
+    $stream =
+      $entry.Open()
+
+    $reader =
+      [System.IO.StreamReader]::new(
+        $stream,
+        [Text.Encoding]::UTF8,
+        $true
+      )
+
+    return $reader.ReadToEnd()
+  }
+  finally {
+    if (
+      $null -ne $reader
+    ) {
+      $reader.Dispose()
+    }
+
+    if (
+      $null -ne $stream
+    ) {
+      $stream.Dispose()
+    }
+  }
+}
+
+function Read-SolarHistoryWorkbookValues {
+  param(
+    [string]$WorkbookPath,
+    [datetime]$MonthDate
+  )
+
+  if (
+    !(
+      Test-Path -LiteralPath $WorkbookPath -PathType Leaf
+    )
+  ) {
+    throw (
+      "태양광 누적 계산용 파일을 찾지 못했습니다: " +
+      $WorkbookPath
+    )
+  }
+
+  [void][Reflection.Assembly]::LoadWithPartialName(
+    "System.IO.Compression"
+  )
+
+  [void][Reflection.Assembly]::LoadWithPartialName(
+    "System.IO.Compression.FileSystem"
+  )
+
+  $archive =
+    $null
+
+  try {
+    $archive =
+      [System.IO.Compression.ZipFile]::OpenRead(
+        $WorkbookPath
+      )
+
+    [xml]$workbookDocument =
+      Read-XlsxZipEntryText -Archive $archive -EntryName "xl/workbook.xml"
+
+    $workbookNamespaces =
+      [System.Xml.XmlNamespaceManager]::new(
+        $workbookDocument.NameTable
+      )
+
+    $workbookNamespaces.AddNamespace(
+      "x",
+      "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    )
+
+    $workbookNamespaces.AddNamespace(
+      "r",
+      "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    )
+
+    $plantSheet =
+      $workbookDocument.SelectSingleNode(
+        "//x:sheets/x:sheet[@name='Plant']",
+        $workbookNamespaces
+      )
+
+    if (
+      $null -eq $plantSheet
+    ) {
+      throw "통합문서에서 Plant 시트를 찾지 못했습니다."
+    }
+
+    $relationshipId =
+      $plantSheet.GetAttribute(
+        "id",
+        "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+      )
+
+    [xml]$relationshipDocument =
+      Read-XlsxZipEntryText -Archive $archive -EntryName "xl/_rels/workbook.xml.rels"
+
+    $relationshipNamespaces =
+      [System.Xml.XmlNamespaceManager]::new(
+        $relationshipDocument.NameTable
+      )
+
+    $relationshipNamespaces.AddNamespace(
+      "p",
+      "http://schemas.openxmlformats.org/package/2006/relationships"
+    )
+
+    $relationship =
+      $relationshipDocument.SelectSingleNode(
+        (
+          "//p:Relationship[@Id='" +
+          $relationshipId +
+          "']"
+        ),
+        $relationshipNamespaces
+      )
+
+    if (
+      $null -eq $relationship
+    ) {
+      throw "Plant 시트의 내부 경로를 찾지 못했습니다."
+    }
+
+    $sheetEntryName =
+      [string]$relationship.GetAttribute(
+        "Target"
+      )
+
+    $sheetEntryName =
+      $sheetEntryName.Replace(
+        "\",
+        "/"
+      ).TrimStart(
+        [char]"/"
+      )
+
+    if (
+      !$sheetEntryName.StartsWith(
+        "xl/"
+      )
+    ) {
+      $sheetEntryName =
+        "xl/" +
+        $sheetEntryName
+    }
+
+    [xml]$plantDocument =
+      Read-XlsxZipEntryText -Archive $archive -EntryName $sheetEntryName
+
+    $plantNamespaces =
+      [System.Xml.XmlNamespaceManager]::new(
+        $plantDocument.NameTable
+      )
+
+    $plantNamespaces.AddNamespace(
+      "x",
+      "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    )
+
+    $values =
+      [ordered]@{}
+
+    $daysInMonth =
+      [datetime]::DaysInMonth(
+        $MonthDate.Year,
+        $MonthDate.Month
+      )
+
+    for (
+      $day = 1;
+      $day -le $daysInMonth;
+      $day += 1
+    ) {
+      $columnName =
+        ConvertTo-ExcelColumnName -ColumnNumber (
+          5 +
+          $day
+        )
+
+      $address =
+        $columnName +
+        "55"
+
+      $cell =
+        $plantDocument.SelectSingleNode(
+          (
+            "//x:sheetData/x:row/x:c[@r='" +
+            $address +
+            "']"
+          ),
+          $plantNamespaces
+        )
+
+      $dateKey =
+        (
+          Get-Date -Year $MonthDate.Year -Month $MonthDate.Month -Day $day
+        ).ToString(
+          "yyyy-MM-dd",
+          [Globalization.CultureInfo]::InvariantCulture
+        )
+
+      if (
+        $null -eq $cell
+      ) {
+        $values[$dateKey] =
+          $null
+
+        continue
+      }
+
+      if (
+        [string]$cell.GetAttribute(
+          "t"
+        ) -eq
+          "e"
+      ) {
+        throw (
+          "태양광 값이 Excel 오류입니다: Plant!" +
+          $address
+        )
+      }
+
+      $valueNode =
+        $cell.SelectSingleNode(
+          "*[local-name()='v']"
+        )
+
+      if (
+        $null -eq $valueNode -or
+        [string]::IsNullOrWhiteSpace(
+          [string]$valueNode.InnerText
+        )
+      ) {
+        $values[$dateKey] =
+          $null
+
+        continue
+      }
+
+      $numericValue =
+        Get-FiniteExcelNumber -Value $valueNode.InnerText -Label (
+          "태양광 일일 발전량 (" +
+          $dateKey +
+          ", Plant!" +
+          $address +
+          ")"
+        )
+
+      if (
+        $numericValue -lt 0
+      ) {
+        throw (
+          "태양광 일일 발전량이 0보다 작습니다: " +
+          $dateKey
+        )
+      }
+
+      $values[$dateKey] =
+        [double]$numericValue
+    }
+
+    return ,$values
+  }
+  finally {
+    if (
+      $null -ne $archive
+    ) {
+      $archive.Dispose()
+    }
+  }
+}
+
+function Resolve-SolarHistoryWorkbookPath {
+  param(
+    [string]$CurrentWorkbookFullName,
+    [datetime]$MonthDate
+  )
+
+  $currentDirectory =
+    Split-Path -Parent $CurrentWorkbookFullName
+
+  $parentDirectory =
+    Split-Path -Parent $currentDirectory
+
+  $fileName =
+    $MonthDate.ToString(
+      "yy.MM",
+      [Globalization.CultureInfo]::InvariantCulture
+    ) +
+    "-일일DATA관리.xlsx"
+
+  $candidates =
+    @(
+      (
+        Join-Path -Path $currentDirectory -ChildPath $fileName
+      ),
+
+      (
+        Join-Path -Path (
+          Join-Path -Path $parentDirectory -ChildPath (
+            [string]$MonthDate.Year
+          )
+        ) -ChildPath $fileName
+      )
+    ) |
+      Select-Object -Unique
+
+  foreach (
+    $candidate in
+      $candidates
+  ) {
+    if (
+      Test-Path -LiteralPath $candidate -PathType Leaf
+    ) {
+      return $candidate
+    }
+  }
+
+  return $candidates[0]
+}
+
+function Get-SolarCumulativeRangeResult {
+  param(
+    $DailyValues,
+    [datetime]$StartDate,
+    [datetime]$EndDate
+  )
+
+  $total =
+    0.0
+
+  $missingDates =
+    @()
+
+  for (
+    $cursor = $StartDate.Date;
+    $cursor -le $EndDate.Date;
+    $cursor =
+      $cursor.AddDays(
+        1
+      )
+  ) {
+    $dateKey =
+      $cursor.ToString(
+        "yyyy-MM-dd",
+        [Globalization.CultureInfo]::InvariantCulture
+      )
+
+    if (
+      !$DailyValues.Contains(
+        $dateKey
+      ) -or
+      $null -eq $DailyValues[$dateKey]
+    ) {
+      $missingDates +=
+        $dateKey
+
+      continue
+    }
+
+    $total +=
+      [double]$DailyValues[$dateKey]
+  }
+
+  $complete =
+    $missingDates.Count -eq
+      0
+
+  return [ordered]@{
+    startDate =
+      $StartDate.ToString(
+        "yyyy-MM-dd",
+        [Globalization.CultureInfo]::InvariantCulture
+      )
+
+    endDate =
+      $EndDate.ToString(
+        "yyyy-MM-dd",
+        [Globalization.CultureInfo]::InvariantCulture
+      )
+
+    complete =
+      $complete
+
+    total =
+      if (
+        $complete
+      ) {
+        [Math]::Round(
+          $total,
+          3
+        )
+      }
+      else {
+        $null
+      }
+
+    missingDates =
+      $missingDates
+  }
+}
+
 try {
   Write-DailyDataStage -Message (
     "월간 일일DATA관리 Excel 조회 시작"

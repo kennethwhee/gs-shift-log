@@ -3958,46 +3958,60 @@
       "
     >
 
-      <!-- ===================================================
-        메뉴
-      ==================================================== -->
 <!-- ===================================================
-  효율팀 메뉴
+효율팀 메뉴
 ==================================================== -->
 <nav
   class="efficiency-team-tabs"
   role="tablist"
   aria-label="효율팀 메뉴"
 >
+  <!-- 일일업무현황 -->
+  <button
+    type="button"
+    class="efficiency-team-tab"
+    id="efficiencyDailyWorkTab"
+    data-efficiency-tab="daily-work"
+    role="tab"
+    aria-selected="false"
+    aria-controls="efficiencyDailyWorkView"
+    tabindex="0"
+  >
+    <span class="efficiency-team-tab__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <path d="M8 4H6a2 2 0 0 0-2 2v14h16V6a2 2 0 0 0-2-2h-2" />
+        <path d="M9 3h6v4H9zM8 11h8M8 15h8" />
+      </svg>
+    </span>
 
-<!-- 일일업무현황 -->
-<button
-  type="button"
-  class="efficiency-team-tab"
-  id="efficiencyDailyWorkTab"
-  data-efficiency-tab="daily-work"
-  role="tab"
-  aria-selected="false"
-  aria-controls="efficiencyDailyWorkView"
-  tabindex="0"
->
-  일일업무현황(준비중)
-</button>
+    <span class="efficiency-team-tab__label">
+      일일업무현황
+      <small>(준비중)</small>
+    </span>
+  </button>
 
-<!-- ===================================================
-  오전회의 취합
-==================================================== -->
-<button
-  type="button"
-  class="efficiency-team-tab"
-  id="efficiencyMorningMeetingTab"
-  data-efficiency-tab="morning-meeting"
-  role="tab"
-  aria-selected="false"
-  aria-controls="efficiencyMorningMeetingView"
->
-  오전회의 취합(개선중)
-</button>
+  <!-- 오전회의자료 -->
+  <button
+    type="button"
+    class="efficiency-team-tab"
+    id="efficiencyMorningMeetingTab"
+    data-efficiency-tab="morning-meeting"
+    role="tab"
+    aria-selected="false"
+    aria-controls="efficiencyMorningMeetingView"
+  >
+    <span class="efficiency-team-tab__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <path d="M7 3v3M17 3v3M4 9h16" />
+        <rect x="4" y="5" width="16" height="16" rx="2" />
+        <path d="M8 13h3M8 17h8M15 13h1" />
+      </svg>
+    </span>
+
+    <span class="efficiency-team-tab__label">
+      오전회의자료
+    </span>
+  </button>
 
   <!-- 석회석 -->
   <button
@@ -4009,44 +4023,69 @@
     aria-selected="false"
     aria-controls="efficiencyLimestoneView"
   >
-    석회석
+    <span class="efficiency-team-tab__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <path d="M4 18 8.5 8.5 13 5l6.5 8.5L20 18z" />
+        <path d="m8.5 8.5 4 3.5L19.5 13.5" />
+      </svg>
+    </span>
+
+    <span class="efficiency-team-tab__label">
+      석회석
+    </span>
   </button>
 
-<!-- 부재료 -->
-<button
-  type="button"
-  class="efficiency-team-tab"
-  id="efficiencyAuxiliaryMaterialsTab"
-  data-efficiency-tab="auxiliary-materials"
-  role="tab"
-  aria-selected="false"
-  aria-controls="efficiencyAuxiliaryMaterialsView" 
->
-  부재료
-</button>  
-
-<!-- ARM ROLL BOX -->
-<button
-  type="button"
-  class="efficiency-team-tab"
-  id="efficiencyArmRollTab"
-  data-efficiency-tab="arm-roll"
-  role="tab"
-  aria-selected="false"
-  aria-controls="efficiencyArmRollView"
->
-  <span>ARM ROLL BOX</span>
-
-  <strong
-    class="arm-roll-box-tab-alert-badge"
-    id="armRollBoxTabAlertBadge"
-    aria-label="70% 이상 BOX 개수"
-    hidden
+  <!-- 부재료 -->
+  <button
+    type="button"
+    class="efficiency-team-tab"
+    id="efficiencyAuxiliaryMaterialsTab"
+    data-efficiency-tab="auxiliary-materials"
+    role="tab"
+    aria-selected="false"
+    aria-controls="efficiencyAuxiliaryMaterialsView"
   >
-    0
-  </strong>
-</button>
+    <span class="efficiency-team-tab__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <path d="M9 3h6M10 3v6l-5 8a2.5 2.5 0 0 0 2.2 4h9.6A2.5 2.5 0 0 0 19 17l-5-8V3" />
+        <path d="M7.5 16h9" />
+      </svg>
+    </span>
 
+    <span class="efficiency-team-tab__label">
+      부재료
+    </span>
+  </button>
+
+  <!-- ARM ROLL BOX -->
+  <button
+    type="button"
+    class="efficiency-team-tab"
+    id="efficiencyArmRollTab"
+    data-efficiency-tab="arm-roll"
+    role="tab"
+    aria-selected="false"
+    aria-controls="efficiencyArmRollView"
+  >
+    <span class="efficiency-team-tab__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <path d="M4 7h16v13H4zM3 4h18v3H3zM9 11h6" />
+      </svg>
+    </span>
+
+    <span class="efficiency-team-tab__label">
+      ARM ROLL BOX
+    </span>
+
+    <strong
+      class="arm-roll-box-tab-alert-badge"
+      id="armRollBoxTabAlertBadge"
+      aria-label="70% 이상 BOX 개수"
+      hidden
+    >
+      0
+    </strong>
+  </button>
 </nav>
 
 
