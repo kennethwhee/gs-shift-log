@@ -141255,55 +141255,96 @@ function replaceMorningMeetingCellText(
   }
 
 
-  /* =====================================================
-    파일 다운로드
-  ====================================================== */
+/* =====================================================
+  파일 다운로드
+====================================================== */
 
-  function downloadMorningMeetingWorkbook(
-    blob,
-    fileName
+async function downloadMorningMeetingWorkbook(
+  blob,
+  fileName
+) {
+  if (
+    !(blob instanceof Blob)
   ) {
-    const objectUrl =
-      URL.createObjectURL(
-        blob
-      );
-
-
-    const downloadLink =
-      document.createElement(
-        "a"
-      );
-
-
-    downloadLink.href =
-      objectUrl;
-
-
-    downloadLink.download =
-      fileName;
-
-
-    document.body.appendChild(
-      downloadLink
-    );
-
-
-    downloadLink.click();
-
-
-    downloadLink.remove();
-
-
-    window.setTimeout(
-      () => {
-        URL.revokeObjectURL(
-          objectUrl
-        );
-      },
-
-      1000
+    throw new Error(
+      "다운로드할 오전회의 엑셀 파일을 만들지 못했습니다."
     );
   }
+
+  try {
+    const folderResult =
+      await window
+        .saveMorningMeetingWorkbookToOutputFolder?.(
+          blob,
+          fileName
+        );
+
+    if (
+      folderResult?.saved
+    ) {
+      return folderResult;
+    }
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "설정 폴더 저장 실패 · 기본 다운로드로 전환:",
+      error
+    );
+
+    window
+      .markMorningMeetingOutputFolderFallback?.(
+        error?.message ||
+        "설정 폴더에 저장하지 못했습니다."
+      );
+  }
+
+  const objectUrl =
+    URL.createObjectURL(
+      blob
+    );
+
+  const downloadLink =
+    document.createElement(
+      "a"
+    );
+
+  downloadLink.href =
+    objectUrl;
+
+  downloadLink.download =
+    fileName;
+
+  document.body.appendChild(
+    downloadLink
+  );
+
+  downloadLink.click();
+  downloadLink.remove();
+
+  window.setTimeout(
+    () => {
+      URL.revokeObjectURL(
+        objectUrl
+      );
+    },
+    1000
+  );
+
+  return {
+    saved:
+      true,
+
+    method:
+      "download",
+
+    fileName,
+
+    folderName:
+      ""
+  };
+}
 
 /* =========================================================
   오전회의 취합 - 팀별 행 자동 재배치
@@ -156453,6 +156494,15 @@ const gearPinionForWorkbook =
 
 
   try {
+    /*
+      저장 폴더가 기억되어 있다면
+      엑셀 생성 전에 쓰기 권한을 확인한다.
+    */
+
+    await window
+      .prepareMorningMeetingOutputFolderPermission?.();
+
+
     /* ===================================================
       기준 XLSX 열기
     ==================================================== */
@@ -156975,10 +157025,23 @@ console.log(
       )}.xlsx`;
 
 
-    downloadMorningMeetingWorkbook(
-      resultBlob,
-      outputFileName
-    );
+    const downloadResult =
+      await downloadMorningMeetingWorkbook(
+        resultBlob,
+        outputFileName
+      );
+
+
+    const completedFileName =
+      downloadResult?.fileName ||
+      outputFileName;
+
+
+    const completedSaveLocation =
+      downloadResult?.method ===
+        "folder"
+        ? `${downloadResult.folderName} 폴더`
+        : "기본 다운로드";
 
 
     /* ===================================================
@@ -157001,7 +157064,7 @@ console.log(
 
 
 elements.message.textContent =
-  `${outputFileName} 생성 완료 · ` +
+  `${completedFileName} 생성 완료 · ${completedSaveLocation} · ` +
   `교대파트 ${shiftPartResult.selectedCount}건 · ` +
   `연료설비 ${fuelResult.selectedCount}건 · ` +
   `TM 설비운영 ${tmResult.operationCount}건 · ` +
@@ -183727,14 +183790,8 @@ function ensureSiloPreviewCard() {
           <small id="efficiencyMorningMeetingAutoDailyPowerDate">
             -
           </small>
-
-          <span
-            class="efficiency-morning-meeting-auto-card__badge"
-            id="efficiencyMorningMeetingAutoDailyPowerStatus"
-          >
-            조회 대기
-          </span>
         </div>
+
       </header>
 
       <div class="efficiency-morning-meeting-auto-card__body">
@@ -183812,12 +183869,6 @@ function ensureSiloPreviewCard() {
             -
           </small>
 
-          <span
-            class="efficiency-morning-meeting-auto-card__badge"
-            id="efficiencyMorningMeetingAutoSteamStatus"
-          >
-            조회 대기
-          </span>
         </div>
       </header>
 
@@ -183892,12 +183943,6 @@ function ensureSiloPreviewCard() {
             -
           </small>
 
-          <span
-            class="efficiency-morning-meeting-auto-card__badge"
-            id="efficiencyMorningMeetingAutoDailySludgeStatus"
-          >
-            조회 대기
-          </span>
         </div>
       </header>
 
@@ -213980,16 +214025,6 @@ function initializeLimestoneSlipCameraPicker() {
     null;
 
 
-  const loadDailyData =
-    () => {
-      return window
-        .loadEfficiencyMorningMeetingDailyData?.({
-          forceRefresh:
-            true
-        });
-    };
-
-
   const retryItems = [
     {
       key:
@@ -214074,62 +214109,6 @@ function initializeLimestoneSlipCameraPicker() {
               forceRefresh:
                 true
             })
-    },
-
-    {
-      key:
-        "daily-power",
-
-      label:
-        "전력 현황",
-
-      statusId:
-        "efficiencyMorningMeetingAutoDailyPowerStatus",
-
-      load:
-        loadDailyData
-    },
-
-    {
-      key:
-        "solar-status",
-
-      label:
-        "태양광 현황",
-
-      statusId:
-        "efficiencyMorningMeetingAutoSolarStatus",
-
-      load:
-        loadDailyData
-    },
-
-    {
-      key:
-        "steam-status",
-
-      label:
-        "증기 현황",
-
-      statusId:
-        "efficiencyMorningMeetingAutoSteamStatus",
-
-      load:
-        loadDailyData
-    },
-
-    {
-      key:
-        "organic-fuel",
-
-      label:
-        "유기성고형연료",
-
-      statusId:
-        "efficiencyMorningMeetingAutoDailySludgeStatus",
-
-      load:
-        loadDailyData
     }
   ];
 
@@ -214575,5 +214554,1808 @@ function initializeLimestoneSlipCameraPicker() {
 
   } else {
     initialize();
+  }
+})();
+
+/* =========================================================
+  오전회의 취합 - 업무일지 폴더 설정·자동 불러오기
+========================================================= */
+
+(function initializeMorningMeetingInputFolder() {
+  "use strict";
+
+  if (
+    window.__morningMeetingInputFolderInstalled
+  ) {
+    return;
+  }
+
+  window.__morningMeetingInputFolderInstalled =
+    true;
+
+  const DB_NAME =
+    "gs-shift-log-file-system-handles";
+
+  const STORE_NAME =
+    "directory-handles";
+
+  const HANDLE_KEY =
+    "efficiency-morning-meeting-input";
+
+  const FILE_TYPES = [
+    [
+      "template",
+      "일일발전현황",
+      "efficiencyMorningMeetingTemplateFile"
+    ],
+    [
+      "coal",
+      "운탄일지",
+      "efficiencyMorningMeetingCoalLogFile"
+    ],
+    [
+      "safety",
+      "안전팀",
+      "efficiencyMorningMeetingSafetyFile"
+    ],
+    [
+      "environment",
+      "환경팀",
+      "efficiencyMorningMeetingEnvironmentFile"
+    ],
+    [
+      "mechanical",
+      "기계팀",
+      "efficiencyMorningMeetingMechanicalFile"
+    ],
+    [
+      "electrical",
+      "전기제어팀",
+      "efficiencyMorningMeetingElectricalFile"
+    ]
+  ];
+
+  let directoryHandle =
+    null;
+
+
+  function getElements() {
+    return {
+      selectButton:
+        document.getElementById(
+          "selectEfficiencyMorningMeetingInputFolderButton"
+        ),
+
+      loadButton:
+        document.getElementById(
+          "loadEfficiencyMorningMeetingInputFolderButton"
+        ),
+
+      status:
+        document.getElementById(
+          "efficiencyMorningMeetingInputFolderStatus"
+        ),
+
+      message:
+        document.getElementById(
+          "efficiencyMorningMeetingMessage"
+        ),
+
+      error:
+        document.getElementById(
+          "efficiencyMorningMeetingError"
+        )
+    };
+  }
+
+
+  function normalize(
+    value
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .normalize(
+        "NFKC"
+      )
+      .toLowerCase()
+      .replace(
+        /[\s·ㆍ_()\[\]{}-]+/g,
+        ""
+      );
+  }
+
+
+  function showError(
+    message
+  ) {
+    const {
+      error
+    } =
+      getElements();
+
+    if (
+      !error
+    ) {
+      return;
+    }
+
+    error.textContent =
+      String(
+        message ||
+        "폴더를 확인해 주세요."
+      );
+
+    error.hidden =
+      false;
+  }
+
+
+  function hideError() {
+    const {
+      error
+    } =
+      getElements();
+
+    if (
+      !error
+    ) {
+      return;
+    }
+
+    error.textContent =
+      "";
+
+    error.hidden =
+      true;
+  }
+
+
+  function setMessage(
+    message
+  ) {
+    const {
+      message:
+        target
+    } =
+      getElements();
+
+    if (
+      target
+    ) {
+      target.textContent =
+        String(
+          message ||
+          ""
+        );
+    }
+  }
+
+
+  function openDatabase() {
+    return new Promise(
+      (
+        resolve,
+        reject
+      ) => {
+        const request =
+          indexedDB.open(
+            DB_NAME,
+            1
+          );
+
+        request.onupgradeneeded =
+          () => {
+            if (
+              !request.result
+                .objectStoreNames
+                .contains(
+                  STORE_NAME
+                )
+            ) {
+              request.result
+                .createObjectStore(
+                  STORE_NAME
+                );
+            }
+          };
+
+        request.onsuccess =
+          () => {
+            resolve(
+              request.result
+            );
+          };
+
+        request.onerror =
+          () => {
+            reject(
+              request.error
+            );
+          };
+      }
+    );
+  }
+
+
+  async function readStoredHandle() {
+    let database;
+
+    try {
+      database =
+        await openDatabase();
+
+      return await new Promise(
+        (
+          resolve,
+          reject
+        ) => {
+          const request =
+            database
+              .transaction(
+                STORE_NAME,
+                "readonly"
+              )
+              .objectStore(
+                STORE_NAME
+              )
+              .get(
+                HANDLE_KEY
+              );
+
+          request.onsuccess =
+            () => {
+              resolve(
+                request.result ||
+                null
+              );
+            };
+
+          request.onerror =
+            () => {
+              reject(
+                request.error
+              );
+            };
+        }
+      );
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "오전회의 폴더 정보 불러오기 실패:",
+        error
+      );
+
+      return null;
+
+    } finally {
+      database?.close();
+    }
+  }
+
+
+  async function storeHandle(
+    handle
+  ) {
+    const database =
+      await openDatabase();
+
+    try {
+      await new Promise(
+        (
+          resolve,
+          reject
+        ) => {
+          const transaction =
+            database.transaction(
+              STORE_NAME,
+              "readwrite"
+            );
+
+          transaction
+            .objectStore(
+              STORE_NAME
+            )
+            .put(
+              handle,
+              HANDLE_KEY
+            );
+
+          transaction.oncomplete =
+            resolve;
+
+          transaction.onerror =
+            () => {
+              reject(
+                transaction.error
+              );
+            };
+        }
+      );
+
+    } finally {
+      database.close();
+    }
+  }
+
+
+  async function verifyReadPermission(
+    handle
+  ) {
+    if (
+      await handle.queryPermission() ===
+      "granted"
+    ) {
+      return true;
+    }
+
+    return await handle.requestPermission() ===
+      "granted";
+  }
+
+
+  function renderFolderStatus(
+    detail =
+      ""
+  ) {
+    const {
+      loadButton,
+      status
+    } =
+      getElements();
+
+    if (
+      loadButton
+    ) {
+      loadButton.disabled =
+        !directoryHandle;
+    }
+
+    if (
+      !status
+    ) {
+      return;
+    }
+
+    status.textContent =
+      directoryHandle
+        ? `${directoryHandle.name}${detail}`
+        : "폴더 미설정";
+
+    status.title =
+      directoryHandle
+        ? `불러오기 폴더: ${directoryHandle.name}`
+        : "불러오기 폴더가 설정되지 않았습니다.";
+  }
+
+
+  async function listXlsxFiles(
+    handle
+  ) {
+    const files =
+      [];
+
+    for await (
+      const entry
+      of handle.values()
+    ) {
+      const name =
+        String(
+          entry.name ||
+          ""
+        ).toLowerCase();
+
+      if (
+        entry.kind !==
+          "file" ||
+        !name.endsWith(
+          ".xlsx"
+        ) ||
+        name.startsWith(
+          "~$"
+        )
+      ) {
+        continue;
+      }
+
+      files.push(
+        await entry.getFile()
+      );
+    }
+
+    return files;
+  }
+
+
+  function workbookSearchText(
+    workbook,
+    fileName
+  ) {
+    const parts = [
+      fileName,
+      ...workbook.SheetNames
+    ];
+
+    workbook.SheetNames.forEach(
+      sheetName => {
+        const rows =
+          XLSX.utils.sheet_to_json(
+            workbook.Sheets[
+              sheetName
+            ],
+            {
+              header:
+                1,
+
+              defval:
+                "",
+
+              raw:
+                false,
+
+              blankrows:
+                false
+            }
+          );
+
+        rows
+          .slice(
+            0,
+            180
+          )
+          .forEach(
+            row => {
+              parts.push(
+                (
+                  Array.isArray(
+                    row
+                  )
+                    ? row.slice(
+                        0,
+                        40
+                      )
+                    : []
+                ).join(
+                  " "
+                )
+              );
+            }
+          );
+      }
+    );
+
+    return normalize(
+      parts.join(
+        " "
+      )
+    );
+  }
+
+
+  async function inspectFile(
+    file
+  ) {
+    const workbook =
+      XLSX.read(
+        await file.arrayBuffer(),
+        {
+          type:
+            "array",
+
+          cellFormula:
+            true,
+
+          cellDates:
+            false
+        }
+      );
+
+    const fileName =
+      normalize(
+        file.name
+      );
+
+    const content =
+      workbookSearchText(
+        workbook,
+        file.name
+      );
+
+    const scores = {
+      template:
+        0,
+
+      coal:
+        0,
+
+      safety:
+        0,
+
+      environment:
+        0,
+
+      mechanical:
+        0,
+
+      electrical:
+        0
+    };
+
+    if (
+      fileName.includes(
+        "일일발전"
+      )
+    ) {
+      scores.template +=
+        500;
+    }
+
+    if (
+      content.includes(
+        "일일발전운전현황"
+      ) ||
+      content.includes(
+        "일일발전운영현황"
+      )
+    ) {
+      scores.template +=
+        400;
+    }
+
+    if (
+      fileName.includes(
+        "운탄"
+      )
+    ) {
+      scores.coal +=
+        500;
+    }
+
+    if (
+      content.includes(
+        "연료설비운전일지"
+      )
+    ) {
+      scores.coal +=
+        600;
+    }
+
+    const teamRules = [
+      [
+        "safety",
+        [
+          "안전팀"
+        ]
+      ],
+      [
+        "environment",
+        [
+          "환경팀"
+        ]
+      ],
+      [
+        "mechanical",
+        [
+          "기계팀"
+        ]
+      ],
+      [
+        "electrical",
+        [
+          "전기제어팀",
+          "전기제어"
+        ]
+      ]
+    ];
+
+    let matchedTeamCount =
+      0;
+
+    teamRules.forEach(
+      ([
+        key,
+        names
+      ]) => {
+        if (
+          names.some(
+            name => {
+              return fileName.includes(
+                normalize(
+                  name
+                )
+              );
+            }
+          )
+        ) {
+          scores[
+            key
+          ] +=
+            500;
+        }
+
+        if (
+          names.some(
+            name => {
+              return content.includes(
+                normalize(
+                  name
+                )
+              );
+            }
+          )
+        ) {
+          scores[
+            key
+          ] +=
+            120;
+
+          matchedTeamCount +=
+            1;
+        }
+      }
+    );
+
+    if (
+      matchedTeamCount >=
+        3 &&
+      content.includes(
+        "설비운영팀"
+      )
+    ) {
+      scores.template +=
+        350;
+    }
+
+    const [
+      type,
+      score
+    ] =
+      Object.entries(
+        scores
+      )
+        .sort(
+          (
+            first,
+            second
+          ) => {
+            return (
+              second[1] -
+              first[1]
+            );
+          }
+        )[0];
+
+    return {
+      file,
+
+      type:
+        score >
+          0
+          ? type
+          : "",
+
+      score
+    };
+  }
+
+
+  function applyFileToInput(
+    inputId,
+    file
+  ) {
+    const input =
+      document.getElementById(
+        inputId
+      );
+
+    if (
+      !input ||
+      !file
+    ) {
+      return;
+    }
+
+    const transfer =
+      new DataTransfer();
+
+    transfer.items.add(
+      file
+    );
+
+    input.files =
+      transfer.files;
+
+    input.dispatchEvent(
+      new Event(
+        "change",
+        {
+          bubbles:
+            true
+        }
+      )
+    );
+  }
+
+
+  async function chooseFolder() {
+    hideError();
+
+    try {
+      directoryHandle =
+        await window.showDirectoryPicker({
+          id:
+            "efficiency-morning-meeting-input",
+
+          mode:
+            "read"
+        });
+
+      await storeHandle(
+        directoryHandle
+      );
+
+      renderFolderStatus();
+
+      setMessage(
+        `${directoryHandle.name} 폴더가 설정되었습니다.`
+      );
+
+    } catch (
+      error
+    ) {
+      if (
+        error?.name ===
+        "AbortError"
+      ) {
+        return;
+      }
+
+      console.error(
+        "오전회의 폴더 설정 실패:",
+        error
+      );
+
+      showError(
+        "불러오기 폴더를 설정하지 못했습니다."
+      );
+    }
+  }
+
+
+  async function loadFolder() {
+    const {
+      loadButton,
+      status
+    } =
+      getElements();
+
+    if (
+      !directoryHandle
+    ) {
+      showError(
+        "먼저 경로를 설정해 주세요."
+      );
+
+      return;
+    }
+
+    const originalText =
+      loadButton?.textContent ||
+      "불러오기";
+
+    if (
+      loadButton
+    ) {
+      loadButton.disabled =
+        true;
+
+      loadButton.textContent =
+        "확인 중";
+    }
+
+    if (
+      status
+    ) {
+      status.textContent =
+        "파일 확인 중";
+    }
+
+    hideError();
+
+    try {
+      if (
+        !await verifyReadPermission(
+          directoryHandle
+        )
+      ) {
+        throw new Error(
+          "선택한 폴더를 읽을 권한이 없습니다."
+        );
+      }
+
+      if (
+        typeof XLSX ===
+        "undefined"
+      ) {
+        throw new Error(
+          "엑셀 분석 라이브러리를 불러오지 못했습니다."
+        );
+      }
+
+      const xlsxFiles =
+        await listXlsxFiles(
+          directoryHandle
+        );
+
+      if (
+        !xlsxFiles.length
+      ) {
+        throw new Error(
+          "선택한 폴더에 XLSX 파일이 없습니다."
+        );
+      }
+
+      const inspected =
+        [];
+
+      for (
+        const file
+        of xlsxFiles
+      ) {
+        try {
+          inspected.push(
+            await inspectFile(
+              file
+            )
+          );
+
+        } catch (
+          error
+        ) {
+          console.warn(
+            `${file.name} 파일 분류 실패:`,
+            error
+          );
+        }
+      }
+
+      const selected =
+        {};
+
+      FILE_TYPES.forEach(
+        ([
+          key
+        ]) => {
+          const candidates =
+            inspected
+              .filter(
+                item => {
+                  return item.type ===
+                    key;
+                }
+              )
+              .sort(
+                (
+                  first,
+                  second
+                ) => {
+                  return (
+                    second.score -
+                      first.score ||
+                    Number(
+                      second.file
+                        .lastModified ||
+                      0
+                    ) -
+                      Number(
+                        first.file
+                          .lastModified ||
+                        0
+                      )
+                  );
+                }
+              );
+
+          selected[
+            key
+          ] =
+            candidates[0]
+              ?.file ||
+            null;
+        }
+      );
+
+      const missing =
+        FILE_TYPES.filter(
+          ([
+            key
+          ]) => {
+            return !selected[
+              key
+            ];
+          }
+        );
+
+      if (
+        missing.length
+      ) {
+        throw new Error(
+          `찾지 못한 자료: ${missing
+            .map(
+              ([
+                ,
+                label
+              ]) => {
+                return label;
+              }
+            )
+            .join(
+              ", "
+            )}`
+        );
+      }
+
+      const state =
+        window
+          .efficiencyMorningMeetingUploadState ||
+        {};
+
+      state.analysis =
+        {};
+
+      state.coalLogFiles =
+        [];
+
+      state.coalLogFile =
+        null;
+
+      state.coalSelection =
+        null;
+
+      state.coalAnalysisResults =
+        [];
+
+      window.efficiencyMorningMeetingUploadState =
+        state;
+
+      FILE_TYPES.forEach(
+        ([
+          key,
+          ,
+          inputId
+        ]) => {
+          applyFileToInput(
+            inputId,
+            selected[
+              key
+            ]
+          );
+        }
+      );
+
+      renderFolderStatus(
+        " · 6개"
+      );
+
+      if (
+        status
+      ) {
+        status.title =
+          FILE_TYPES.map(
+            ([
+              key,
+              label
+            ]) => {
+              return (
+                `${label}: ` +
+                `${selected[key].name}`
+              );
+            }
+          ).join(
+            "\n"
+          );
+      }
+
+      setMessage(
+        "지정 폴더에서 오전회의 자료 6개를 불러왔습니다. 자료 분석을 눌러주세요."
+      );
+
+      window
+        .updateEfficiencyMorningMeetingUploadSummary
+        ?.();
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "오전회의 폴더 불러오기 실패:",
+        error
+      );
+
+      showError(
+        error?.message ||
+        "업무일지를 불러오지 못했습니다."
+      );
+
+      renderFolderStatus();
+
+    } finally {
+      if (
+        loadButton
+      ) {
+        loadButton.disabled =
+          !directoryHandle;
+
+        loadButton.textContent =
+          originalText;
+      }
+    }
+  }
+
+
+  async function initialize() {
+    const {
+      selectButton,
+      loadButton
+    } =
+      getElements();
+
+    if (
+      !selectButton ||
+      !loadButton
+    ) {
+      return;
+    }
+
+    if (
+      typeof window.showDirectoryPicker !==
+        "function" ||
+      typeof window.indexedDB ===
+        "undefined"
+    ) {
+      selectButton.disabled =
+        true;
+
+      loadButton.disabled =
+        true;
+
+      selectButton.title =
+        "현재 브라우저는 폴더 선택을 지원하지 않습니다.";
+
+      return;
+    }
+
+    directoryHandle =
+      await readStoredHandle();
+
+    renderFolderStatus();
+
+    selectButton.addEventListener(
+      "click",
+      chooseFolder
+    );
+
+    loadButton.addEventListener(
+      "click",
+      loadFolder
+    );
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    void initialize();
+  }
+})();
+
+/* =========================================================
+  오전회의 취합 - 최종 엑셀 저장 위치 설정
+========================================================= */
+
+(function initializeMorningMeetingOutputFolder() {
+  "use strict";
+
+  if (
+    window.__morningMeetingOutputFolderInstalled
+  ) {
+    return;
+  }
+
+  window.__morningMeetingOutputFolderInstalled =
+    true;
+
+  const DB_NAME =
+    "gs-shift-log-file-system-handles";
+
+  const STORE_NAME =
+    "directory-handles";
+
+  const HANDLE_KEY =
+    "efficiency-morning-meeting-output";
+
+  const PICKER_ID =
+    "efficiency-morning-meeting-output";
+
+  let directoryHandle =
+    null;
+
+  let permissionWarning =
+    false;
+
+
+  function getButton() {
+    return document.getElementById(
+      "selectEfficiencyMorningMeetingOutputFolderButton"
+    );
+  }
+
+
+  function getMessage() {
+    return document.getElementById(
+      "efficiencyMorningMeetingMessage"
+    );
+  }
+
+
+  function openDatabase() {
+    return new Promise(
+      (
+        resolve,
+        reject
+      ) => {
+        const request =
+          window.indexedDB.open(
+            DB_NAME,
+            1
+          );
+
+        request.onupgradeneeded =
+          () => {
+            if (
+              !request.result
+                .objectStoreNames
+                .contains(
+                  STORE_NAME
+                )
+            ) {
+              request.result
+                .createObjectStore(
+                  STORE_NAME
+                );
+            }
+          };
+
+        request.onsuccess =
+          () => {
+            resolve(
+              request.result
+            );
+          };
+
+        request.onerror =
+          () => {
+            reject(
+              request.error
+            );
+          };
+      }
+    );
+  }
+
+
+  async function readStoredHandle() {
+    let database;
+
+    try {
+      database =
+        await openDatabase();
+
+      return await new Promise(
+        (
+          resolve,
+          reject
+        ) => {
+          const request =
+            database
+              .transaction(
+                STORE_NAME,
+                "readonly"
+              )
+              .objectStore(
+                STORE_NAME
+              )
+              .get(
+                HANDLE_KEY
+              );
+
+          request.onsuccess =
+            () => {
+              resolve(
+                request.result ||
+                null
+              );
+            };
+
+          request.onerror =
+            () => {
+              reject(
+                request.error
+              );
+            };
+        }
+      );
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "저장 폴더 정보 불러오기 실패:",
+        error
+      );
+
+      return null;
+
+    } finally {
+      database?.close();
+    }
+  }
+
+
+  async function storeHandle(
+    handle
+  ) {
+    const database =
+      await openDatabase();
+
+    try {
+      await new Promise(
+        (
+          resolve,
+          reject
+        ) => {
+          const transaction =
+            database.transaction(
+              STORE_NAME,
+              "readwrite"
+            );
+
+          transaction
+            .objectStore(
+              STORE_NAME
+            )
+            .put(
+              handle,
+              HANDLE_KEY
+            );
+
+          transaction.oncomplete =
+            resolve;
+
+          transaction.onerror =
+            () => {
+              reject(
+                transaction.error
+              );
+            };
+        }
+      );
+
+    } finally {
+      database.close();
+    }
+  }
+
+
+  async function hasWritePermission(
+    handle,
+    allowRequest
+  ) {
+    if (
+      !handle ||
+      typeof handle.queryPermission !==
+        "function"
+    ) {
+      return false;
+    }
+
+    const options = {
+      mode:
+        "readwrite"
+    };
+
+    const currentPermission =
+      await handle.queryPermission(
+        options
+      );
+
+    if (
+      currentPermission ===
+        "granted"
+    ) {
+      return true;
+    }
+
+    if (
+      allowRequest &&
+      typeof handle.requestPermission ===
+        "function"
+    ) {
+      return (
+        await handle.requestPermission(
+          options
+        )
+      ) === "granted";
+    }
+
+    return false;
+  }
+
+
+  function renderButton(
+    detail =
+      ""
+  ) {
+    const button =
+      getButton();
+
+    if (
+      !button
+    ) {
+      return;
+    }
+
+    button.classList.toggle(
+      "is-selected",
+      Boolean(
+        directoryHandle
+      )
+    );
+
+    button.classList.toggle(
+      "has-permission-warning",
+      Boolean(
+        directoryHandle
+      ) &&
+      permissionWarning
+    );
+
+    if (
+      !directoryHandle
+    ) {
+      button.textContent =
+        "저장 위치";
+
+      button.title =
+        "최종 엑셀 저장 위치를 설정합니다.";
+
+      return;
+    }
+
+    button.textContent =
+      permissionWarning
+        ? "저장 위치 !"
+        : "저장 위치 ✓";
+
+    button.title =
+      permissionWarning
+        ? (
+            `저장 폴더: ${directoryHandle.name} · ` +
+            (
+              detail ||
+              "권한 확인이 필요합니다. 저장 위치를 다시 선택해 주세요."
+            )
+          )
+        : `저장 폴더: ${directoryHandle.name}`;
+  }
+
+
+  async function chooseFolder() {
+    try {
+      const selectedHandle =
+        await window.showDirectoryPicker({
+          id:
+            PICKER_ID,
+
+          mode:
+            "readwrite"
+        });
+
+      if (
+        !await hasWritePermission(
+          selectedHandle,
+          true
+        )
+      ) {
+        throw new Error(
+          "선택한 폴더의 저장 권한을 허용해 주세요."
+        );
+      }
+
+      directoryHandle =
+        selectedHandle;
+
+      permissionWarning =
+        false;
+
+      renderButton();
+
+      try {
+        await storeHandle(
+          directoryHandle
+        );
+
+      } catch (
+        error
+      ) {
+        console.warn(
+          "저장 폴더 기억 실패:",
+          error
+        );
+      }
+
+      const message =
+        getMessage();
+
+      if (
+        message
+      ) {
+        message.textContent =
+          `${directoryHandle.name} 폴더를 최종 엑셀 저장 위치로 설정했습니다.`;
+      }
+
+    } catch (
+      error
+    ) {
+      if (
+        error?.name ===
+          "AbortError"
+      ) {
+        return;
+      }
+
+      console.error(
+        "저장 폴더 설정 실패:",
+        error
+      );
+
+      permissionWarning =
+        Boolean(
+          directoryHandle
+        );
+
+      renderButton(
+        error?.message
+      );
+
+      if (
+        typeof showToast ===
+          "function"
+      ) {
+        showToast(
+          error?.message ||
+          "저장 위치를 설정하지 못했습니다."
+        );
+      }
+    }
+  }
+
+
+  async function getAvailableFileName(
+    handle,
+    requestedFileName
+  ) {
+    const safeFileName =
+      String(
+        requestedFileName ||
+        "오전회의.xlsx"
+      )
+        .replace(
+          /[\\/:*?"<>|]/g,
+          "_"
+        )
+        .trim() ||
+      "오전회의.xlsx";
+
+    const dotIndex =
+      safeFileName.lastIndexOf(
+        "."
+      );
+
+    const baseName =
+      dotIndex >
+        0
+        ? safeFileName.slice(
+            0,
+            dotIndex
+          )
+        : safeFileName;
+
+    const extension =
+      dotIndex >
+        0
+        ? safeFileName.slice(
+            dotIndex
+          )
+        : "";
+
+    const existingNames =
+      new Set();
+
+    for await (
+      const [
+        name,
+        entry
+      ]
+      of handle.entries()
+    ) {
+      if (
+        entry.kind ===
+          "file"
+      ) {
+        existingNames.add(
+          String(
+            name
+          ).toLocaleLowerCase(
+            "ko-KR"
+          )
+        );
+      }
+    }
+
+    for (
+      let index = 0;
+      index < 10000;
+      index += 1
+    ) {
+      const candidateName =
+        index ===
+          0
+          ? `${baseName}${extension}`
+          : `${baseName} (${index})${extension}`;
+
+      if (
+        !existingNames.has(
+          candidateName
+            .toLocaleLowerCase(
+              "ko-KR"
+            )
+        )
+      ) {
+        return candidateName;
+      }
+    }
+
+    throw new Error(
+      "중복되지 않는 파일명을 만들지 못했습니다."
+    );
+  }
+
+
+  window
+    .prepareMorningMeetingOutputFolderPermission =
+    async function prepareMorningMeetingOutputFolderPermission() {
+      if (
+        !directoryHandle
+      ) {
+        return false;
+      }
+
+      try {
+        const granted =
+          await hasWritePermission(
+            directoryHandle,
+            true
+          );
+
+        permissionWarning =
+          !granted;
+
+        renderButton();
+
+        return granted;
+
+      } catch (
+        error
+      ) {
+        console.warn(
+          "저장 폴더 권한 확인 실패:",
+          error
+        );
+
+        permissionWarning =
+          true;
+
+        renderButton(
+          error?.message
+        );
+
+        return false;
+      }
+    };
+
+
+  window
+    .saveMorningMeetingWorkbookToOutputFolder =
+    async function saveMorningMeetingWorkbookToOutputFolder(
+      blob,
+      fileName
+    ) {
+      if (
+        !directoryHandle
+      ) {
+        return {
+          saved:
+            false,
+
+          reason:
+            "folder-not-selected"
+        };
+      }
+
+      if (
+        !await hasWritePermission(
+          directoryHandle,
+          false
+        )
+      ) {
+        permissionWarning =
+          true;
+
+        renderButton();
+
+        return {
+          saved:
+            false,
+
+          reason:
+            "permission-not-granted"
+        };
+      }
+
+      const finalFileName =
+        await getAvailableFileName(
+          directoryHandle,
+          fileName
+        );
+
+      const fileHandle =
+        await directoryHandle
+          .getFileHandle(
+            finalFileName,
+            {
+              create:
+                true
+            }
+          );
+
+      const writable =
+        await fileHandle
+          .createWritable();
+
+      await writable.write(
+        blob
+      );
+
+      await writable.close();
+
+      permissionWarning =
+        false;
+
+      renderButton();
+
+      return {
+        saved:
+          true,
+
+        method:
+          "folder",
+
+        fileName:
+          finalFileName,
+
+        folderName:
+          directoryHandle.name
+      };
+    };
+
+
+  window
+    .markMorningMeetingOutputFolderFallback =
+    function markMorningMeetingOutputFolderFallback(
+      detail
+    ) {
+      if (
+        !directoryHandle
+      ) {
+        return;
+      }
+
+      permissionWarning =
+        true;
+
+      renderButton(
+        detail ||
+        "기본 다운로드로 저장했습니다."
+      );
+    };
+
+
+  async function initialize() {
+    const button =
+      getButton();
+
+    if (
+      !button
+    ) {
+      return;
+    }
+
+    if (
+      typeof window.showDirectoryPicker !==
+        "function" ||
+      typeof window.indexedDB ===
+        "undefined"
+    ) {
+      button.disabled =
+        true;
+
+      button.title =
+        "현재 브라우저는 저장 폴더 설정을 지원하지 않습니다. 기본 다운로드를 사용합니다.";
+
+      return;
+    }
+
+    button.addEventListener(
+      "click",
+      chooseFolder
+    );
+
+    const storedHandle =
+      await readStoredHandle();
+
+    if (
+      !directoryHandle
+    ) {
+      directoryHandle =
+        storedHandle;
+    }
+
+    permissionWarning =
+      false;
+
+    renderButton();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    void initialize();
   }
 })();
