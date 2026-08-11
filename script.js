@@ -212652,29 +212652,64 @@ async function prepareLimestoneSlipImage(
 
 
     /*
-      두 번째 OCR 사진은 넓은 크롭 안에서 중량표가 놓이는 중앙부를
-      한 번 더 확대한다. 서버는 이 타이트 크롭을 먼저 읽고,
-      실패하면 오른쪽 여백이 넉넉한 위의 넓은 크롭으로 재판독한다.
+      첫 판독용 사진은 원본에서 중량 3행의 시간·숫자 열만
+      직접 한 번 잘라 확대한다. 기존 방식은 넓은 OCR Canvas를
+      다시 잘라 제목·날짜·차량번호·오른쪽 성적서까지 포함했고,
+      두 번 리샘플링되어 작은 Vision 모델의 숫자 집중도를
+      떨어뜨렸다.
+
+      넓은 ocrBlob은 그대로 두어 촬영 위치가 달라졌을 때의
+      재판독용 안전망으로 사용한다.
     */
 
+    const tightCropStartXRatio =
+      isPortraitImage
+        ? 0.36
+        : 0.30;
+
+    const tightCropStartYRatio =
+      isPortraitImage
+        ? 0.28
+        : 0.25;
+
+    const tightCropWidthRatio =
+      isPortraitImage
+        ? 0.34
+        : 0.50;
+
+    const tightCropHeightRatio =
+      isPortraitImage
+        ? 0.23
+        : 0.35;
+
     const tightCropStartX =
-      Math.round(
-        ocrTargetWidth *
-          0.08
+      Math.max(
+        0,
+        Math.round(
+          originalWidth *
+            tightCropStartXRatio
+        )
       );
 
     const tightCropStartY =
-      Math.round(
-        ocrTargetHeight *
-          0.12
+      Math.max(
+        0,
+        Math.round(
+          originalHeight *
+            tightCropStartYRatio
+        )
       );
 
     const tightCropWidth =
       Math.max(
         1,
         Math.round(
-          ocrTargetWidth *
-            0.88
+          Math.min(
+            originalWidth -
+              tightCropStartX,
+            originalWidth *
+              tightCropWidthRatio
+          )
         )
       );
 
@@ -212682,14 +212717,18 @@ async function prepareLimestoneSlipImage(
       Math.max(
         1,
         Math.round(
-          ocrTargetHeight *
-            0.78
+          Math.min(
+            originalHeight -
+              tightCropStartY,
+            originalHeight *
+              tightCropHeightRatio
+          )
         )
       );
 
     const tightResizeRatio =
       Math.min(
-        2,
+        4,
         maximumOcrImageSide /
           Math.max(
             tightCropWidth,
@@ -212762,24 +212801,89 @@ async function prepareLimestoneSlipImage(
       "high";
 
     tightDrawingContext.drawImage(
-      ocrCanvas,
+      decodedImage.source,
       tightCropStartX,
       tightCropStartY,
-      Math.min(
-        tightCropWidth,
-        ocrTargetWidth -
-          tightCropStartX
-      ),
-      Math.min(
-        tightCropHeight,
-        ocrTargetHeight -
-          tightCropStartY
-      ),
+      tightCropWidth,
+      tightCropHeight,
       0,
       0,
       tightTargetWidth,
       tightTargetHeight
     );
+
+    /*
+      중량표 전용 크롭에도 회색조·대비 보정을 한 번만 적용한다.
+      픽셀 접근이 제한되면 컬러 확대본을 그대로 사용한다.
+    */
+
+    try {
+      const tightImageData =
+        tightDrawingContext.getImageData(
+          0,
+          0,
+          tightTargetWidth,
+          tightTargetHeight
+        );
+
+      const tightPixels =
+        tightImageData.data;
+
+
+      for (
+        let pixelIndex = 0;
+        pixelIndex < tightPixels.length;
+        pixelIndex += 4
+      ) {
+        const grayscaleValue =
+          tightPixels[pixelIndex] *
+            0.299 +
+          tightPixels[pixelIndex + 1] *
+            0.587 +
+          tightPixels[pixelIndex + 2] *
+            0.114;
+
+        const adjustedValue =
+          Math.max(
+            0,
+            Math.min(
+              255,
+              Math.round(
+                128 +
+                (
+                  grayscaleValue -
+                  128
+                ) *
+                  1.25
+              )
+            )
+          );
+
+        tightPixels[pixelIndex] =
+          adjustedValue;
+
+        tightPixels[pixelIndex + 1] =
+          adjustedValue;
+
+        tightPixels[pixelIndex + 2] =
+          adjustedValue;
+      }
+
+
+      tightDrawingContext.putImageData(
+        tightImageData,
+        0,
+        0
+      );
+
+    } catch (
+      enhancementError
+    ) {
+      console.warn(
+        "[Limestone Slip] Tight OCR image enhancement skipped:",
+        enhancementError
+      );
+    }
 
     const ocrTightBlob =
       await createLimestoneSlipJpegBlob(
@@ -213722,6 +213826,12 @@ async function requestLimestoneSlipOcr(
             ""
           ).trim(),
 
+        diagnosticCode:
+          String(
+            result.diagnosticCode ||
+            ""
+          ).trim(),
+
         slipImageKey:
           String(
             result.slipImageKey ||
@@ -213735,6 +213845,27 @@ async function requestLimestoneSlipOcr(
       );
 
 
+      const diagnosticCode =
+        String(
+          result.diagnosticCode ||
+          ""
+        ).trim();
+
+      const diagnosticMessage =
+        diagnosticCode
+          ? ` 분석코드 ${diagnosticCode}.`
+          : "";
+
+      const nextActionMessage =
+        String(
+          result.reasonCode ||
+          ""
+        ).trim() ===
+          "no_weight_candidates"
+            ? " 이 화면을 보내주시거나 아래 칸에 실중량을 직접 입력해 주세요."
+            : " 아래 칸에 실중량을 직접 입력하거나 전표 전체를 다시 촬영해 주세요.";
+
+
       setLimestoneSlipStatus(
         elements.statusMessage,
         String(
@@ -213744,7 +213875,8 @@ async function requestLimestoneSlipOcr(
           formatLimestoneSlipOcrEvidence(
             result
           ) +
-          " 아래 칸에 실중량을 직접 입력하거나 전표 전체를 다시 촬영해 주세요.",
+          diagnosticMessage +
+          nextActionMessage,
         "is-error"
       );
 

@@ -71,6 +71,88 @@ function normalizeText(
 }
 
 
+function getAiAnswerText(
+  aiResult
+) {
+  if (
+    typeof aiResult ===
+      "string"
+  ) {
+    return normalizeText(
+      aiResult
+    );
+  }
+
+
+  const directCandidates = [
+    aiResult?.answer,
+    aiResult?.response,
+    aiResult?.output_text,
+    aiResult?.text,
+    aiResult?.result?.answer,
+    aiResult?.result?.response,
+    aiResult?.result?.output_text,
+    aiResult?.result?.text
+  ];
+
+
+  for (
+    const candidate of directCandidates
+  ) {
+    if (
+      typeof candidate !==
+        "string"
+    ) {
+      continue;
+    }
+
+
+    const answerText =
+      normalizeText(
+        candidate
+      );
+
+
+    if (
+      answerText
+    ) {
+      return answerText;
+    }
+  }
+
+
+  const contentItems =
+    Array.isArray(
+      aiResult?.content
+    )
+      ? aiResult.content
+      : Array.isArray(
+          aiResult?.result?.content
+        )
+        ? aiResult.result.content
+        : [];
+
+
+  return contentItems
+    .map(
+      item =>
+        normalizeText(
+          typeof item ===
+            "string"
+              ? item
+              : item?.text
+        )
+    )
+    .filter(
+      Boolean
+    )
+    .join(
+      "\n"
+    )
+    .trim();
+}
+
+
 /* =========================================================
   로그인 세션 확인
 ========================================================= */
@@ -422,7 +504,7 @@ function extractLooseOcrWeightField(
       answerText
     ).match(
       new RegExp(
-        `(?:["']?)(?:${aliasPattern})(?:["']?)\\s*[:=]\\s*(?:["']?)\\s*(-?\\d{1,3}(?:[\\s,.]\\d{3})+|-?\\d{4,6})(?:\\s*(?:kg|㎏))?`,
+        `(?:["']?)(?:${aliasPattern})(?:["']?)\\s*(?::|=|\\||-{1,2}|→)\\s*(?:["'*_~]\\s*)*(-?\\d{1,3}(?:[\\s,.]\\d{3})+|-?\\d{4,6})(?:\\s*(?:kg|㎏))?`,
         "i"
       )
     );
@@ -449,7 +531,10 @@ function extractLooseOcrObject(
         "totalWeightKg",
         "gross",
         "row1Kg",
-        "row1"
+        "row1",
+        "gross[\\s_-]*kg",
+        "gross[\\s_-]*weight",
+        "row[\\s_-]*1(?:[\\s_-]*kg)?"
       ]
     },
     {
@@ -462,7 +547,10 @@ function extractLooseOcrObject(
         "emptyWeightKg",
         "tare",
         "row2Kg",
-        "row2"
+        "row2",
+        "tare[\\s_-]*kg",
+        "tare[\\s_-]*weight",
+        "row[\\s_-]*2(?:[\\s_-]*kg)?"
       ]
     },
     {
@@ -475,7 +563,10 @@ function extractLooseOcrObject(
         "quantityKg",
         "net",
         "row3Kg",
-        "row3"
+        "row3",
+        "net[\\s_-]*kg",
+        "net[\\s_-]*weight",
+        "row[\\s_-]*3(?:[\\s_-]*kg)?"
       ]
     }
   ];
@@ -941,6 +1032,172 @@ function extractRawKgWeightSequence(
 }
 
 
+function extractRawWeightCandidateSequence(
+  answerText
+) {
+  const weights = [];
+
+  const normalizedAnswer =
+    normalizeText(
+      answerText
+    );
+
+  /*
+    모델이 kg나 ROW 라벨 없이 숫자 세 줄, 문장, Markdown 표로
+    반환해도 4~6자리 중량 후보를 복구한다. 날짜·시간 등이 함께
+    섞여도 최종 확정은 gross - tare ≈ net 산식 검증을 반드시
+    통과해야 한다.
+  */
+  const weightPattern =
+    /(?:^|[^\d])(-?\d{1,3}(?:[,.]\d{3})+|-?\d{4,6})(?!\d)/g;
+
+
+  for (
+    const match of normalizedAnswer.matchAll(
+      weightPattern
+    )
+  ) {
+    const weightKg =
+      normalizeWeightKg(
+        match[1]
+      );
+
+
+    if (
+      weightKg !==
+        null
+    ) {
+      weights.push(
+        weightKg
+      );
+    }
+  }
+
+
+  return weights;
+}
+
+
+function describeOcrAnswerFormat(
+  answerText
+) {
+  const normalizedAnswer =
+    normalizeText(
+      answerText
+    );
+
+
+  if (
+    !normalizedAnswer
+  ) {
+    return "empty";
+  }
+
+
+  if (
+    extractJsonObject(
+      normalizedAnswer
+    )
+  ) {
+    return "json";
+  }
+
+
+  if (
+    /row[\s_-]*[123]/i.test(
+      normalizedAnswer
+    )
+  ) {
+    return /\|/.test(
+      normalizedAnswer
+    )
+      ? "row_table"
+      : "row_text";
+  }
+
+
+  if (
+    /(?:kg|㎏)/i.test(
+      normalizedAnswer
+    )
+  ) {
+    return "kg_text";
+  }
+
+
+  if (
+    extractRawWeightCandidateSequence(
+      normalizedAnswer
+    ).length
+  ) {
+    return "numeric_text";
+  }
+
+
+  return "other";
+}
+
+
+function hasSafeUnlabeledWeightContext(
+  answerText
+) {
+  const normalizedAnswer =
+    normalizeText(
+      answerText
+    );
+
+
+  if (
+    /(?:\b(?:gross|tare|net|weight)\b|\brow[\s_-]*[123]\b|총\s*중\s*량|공\s*차\s*중\s*량|실\s*중\s*량|순\s*중\s*량|kg|㎏)/i.test(
+      normalizedAnswer
+    )
+  ) {
+    return true;
+  }
+
+
+  const lines =
+    normalizedAnswer
+      .split(
+        /\r?\n/
+      )
+      .map(
+        line =>
+          line.trim()
+      )
+      .filter(
+        Boolean
+      );
+
+  const bareWeightLinePattern =
+    /^\s*(?:[-*•|]\s*)?(?:[*_~]\s*)*(-?\d{1,3}(?:[,.]\d{3})+|-?\d{4,6})(?:\s*(?:kg|㎏))?(?:\s*[*_~|])*\s*$/i;
+
+  const bareWeightLineCount =
+    lines.filter(
+      line =>
+        bareWeightLinePattern.test(
+          line
+        )
+    ).length;
+
+  const otherLinesAreMetadata =
+    lines.every(
+      line =>
+        bareWeightLinePattern.test(
+          line
+        ) ||
+        /^(?:```(?:text)?|```|confidence\s*[:=].*)$/i.test(
+          line
+        )
+    );
+
+
+  return bareWeightLineCount ===
+    3 &&
+    otherLinesAreMetadata;
+}
+
+
 function findValidatedWeightTriple(
   weights
 ) {
@@ -1025,10 +1282,40 @@ function extractValidatedWeightTriple(
   }
 
 
-  return findValidatedWeightTriple(
-    extractRawKgWeightSequence(
+  const rawKgTriple =
+    findValidatedWeightTriple(
+      extractRawKgWeightSequence(
+        answerText
+      )
+    );
+
+
+  if (
+    rawKgTriple
+  ) {
+    return rawKgTriple;
+  }
+
+
+  const rawWeightCandidates =
+    extractRawWeightCandidateSequence(
+      answerText
+    );
+
+
+  if (
+    rawWeightCandidates.length !==
+      3 ||
+    !hasSafeUnlabeledWeightContext(
       answerText
     )
+  ) {
+    return null;
+  }
+
+
+  return findValidatedWeightTriple(
+    rawWeightCandidates
   );
 }
 
@@ -1158,6 +1445,12 @@ function getRecognitionMessage(
 
     case "net_weight_not_visible":
       return "사진에서 실중량 줄을 확인하지 못했습니다. 실중량까지 전표 전체가 나오도록 다시 촬영해 주세요.";
+
+    case "no_weight_candidates":
+      return "사진은 정상적으로 전송됐지만 AI가 중량 숫자를 읽지 못했습니다. 아래 분석코드를 확인해 주세요.";
+
+    case "ocr_conflict":
+      return "두 번의 AI 판독값이 서로 달라 실중량을 자동 확정하지 않았습니다. 전표와 분석코드를 확인해 주세요.";
 
     case "insufficient_weight_fields":
       return "실중량 또는 총중량·공차중량을 모두 확인하지 못했습니다. 전표 전체를 다시 촬영하거나 직접 입력해 주세요.";
@@ -1444,18 +1737,21 @@ function parseOcrAnswer(
 
   } else if (
     fullSlipVisible ===
-      false ||
-    (
-      netKg ===
-        null &&
-      grossKg ===
-        null &&
-      tareKg ===
-        null
-    )
+      false
   ) {
     reasonCode =
       "net_weight_not_visible";
+
+  } else if (
+    netKg ===
+      null &&
+    grossKg ===
+      null &&
+    tareKg ===
+      null
+  ) {
+    reasonCode =
+      "no_weight_candidates";
 
   } else {
     reasonCode =
@@ -1658,6 +1954,107 @@ function mergeOcrRecognitions(
   primaryRecognition,
   fallbackRecognition
 ) {
+  const primaryEvidenceKg =
+    normalizeWeightKg(
+      primaryRecognition.netKg ??
+      primaryRecognition.quantityKg
+    );
+
+  const fallbackEvidenceKg =
+    normalizeWeightKg(
+      fallbackRecognition.netKg ??
+      fallbackRecognition.quantityKg
+    );
+
+
+  if (
+    primaryEvidenceKg !==
+      null &&
+    fallbackEvidenceKg !==
+      null &&
+    Math.abs(
+      primaryEvidenceKg -
+      fallbackEvidenceKg
+    ) >
+      WEIGHT_DIFFERENCE_TOLERANCE_KG
+  ) {
+    const primaryHasValidatedTriple =
+      primaryRecognition.recognitionSource ===
+        "validated_three_rows";
+
+    const fallbackHasValidatedTriple =
+      fallbackRecognition.recognitionSource ===
+        "validated_three_rows";
+
+
+    /*
+      한쪽만 세 중량 산식 검증을 통과했다면 그 판독을 사용한다.
+      두 쪽의 증거 수준이 같거나 둘 다 단일 실중량이면 어느 한쪽도
+      임의 선택하지 않고 충돌로 차단한다.
+    */
+    if (
+      primaryHasValidatedTriple !==
+        fallbackHasValidatedTriple
+    ) {
+      return primaryHasValidatedTriple
+        ? primaryRecognition
+        : fallbackRecognition;
+    }
+
+
+    const conflictRecognition = {
+      recognized:
+        false,
+
+      grossKg:
+        primaryRecognition.grossKg ===
+          fallbackRecognition.grossKg
+            ? primaryRecognition.grossKg
+            : null,
+
+      tareKg:
+        primaryRecognition.tareKg ===
+          fallbackRecognition.tareKg
+            ? primaryRecognition.tareKg
+            : null,
+
+      netKg:
+        null,
+
+      quantityKg:
+        null,
+
+      quantityTon:
+        null,
+
+      printedValue:
+        "",
+
+      confidence:
+        "low",
+
+      fullSlipVisible:
+        null,
+
+      recognitionSource:
+        null,
+
+      reasonCode:
+        "ocr_conflict"
+    };
+
+
+    return {
+      ...conflictRecognition,
+
+      message:
+        getRecognitionMessage(
+          conflictRecognition
+        )
+    };
+  }
+
+
   const candidates = [
     primaryRecognition,
     fallbackRecognition,
@@ -2053,7 +2450,7 @@ export async function onRequestPost(
               ocrTightImageDataUri,
 
             question: `
-This image is an enlarged crop of the upper part of a Korean weighing receipt.
+This image is a tight crop of the weight-table band on a Korean weighing receipt.
 Read the three consecutive printed weight values ending in kg, from top to bottom.
 They are normally gross weight, tare weight, and net/actual weight in that order.
 
@@ -2107,10 +2504,13 @@ confidence must be high, medium, or low.
 
 
     const answerText =
-      normalizeText(
-        aiResult?.answer ??
-        aiResult?.response ??
-        ""
+      getAiAnswerText(
+        aiResult
+      );
+
+    const primaryAnswerFormat =
+      describeOcrAnswerFormat(
+        answerText
       );
 
 
@@ -2140,13 +2540,16 @@ confidence must be high, medium, or low.
 
 
     /*
-      첫 질문에서 세 중량을 모두 확정하지 못한 경우 한 번만
-      숫자 전사 방식으로 다시 시도한다. 두 시도에서 각각 읽은
-      일부 값도 버리지 않고 합친 뒤 산식으로 최종 검증한다.
+      첫 질문에서 세 중량을 모두 확정하지 못했거나 실중량 한 값만
+      읽은 경우, 넓은 크롭을 숫자 전사 방식으로 한 번 더 읽는다.
+      두 시도에서 각각 읽은 일부 값도 버리지 않고 합친 뒤 산식으로
+      최종 검증한다.
     */
 
     if (
-      !recognition.recognized
+      !recognition.recognized ||
+      recognition.recognitionSource ===
+        "printed_net"
     ) {
       try {
         const fallbackAiResult =
@@ -2165,15 +2568,11 @@ The Korean labels do not need to be readable. Copy digits only from the receipt.
 Comma and dot can both be thousands separators.
 Do not calculate missing values and do not guess unreadable digits.
 
-Return exactly four plain-text lines and nothing else:
-ROW1=44300
-ROW2=13700
-ROW3=30600
-CONFIDENCE=high
-
-Replace each example number with the digits visibly printed on that row, without commas or dots.
-Use NULL when that exact row is unreadable. Keep all four lines.
-CONFIDENCE must be high, medium, or low.
+Return exactly four plain-text lines and nothing else.
+Use the labels ROW1, ROW2, ROW3, and CONFIDENCE in that order.
+After each ROW label write an equals sign followed only by the visible integer digits without separators, or NULL when that row is unreadable.
+After CONFIDENCE write an equals sign followed by high, medium, or low.
+Do not include any sample or placeholder numbers.
               `.trim(),
 
               reasoning:
@@ -2192,10 +2591,8 @@ CONFIDENCE must be high, medium, or low.
 
 
         fallbackAnswerText =
-          normalizeText(
-            fallbackAiResult?.answer ??
-            fallbackAiResult?.response ??
-              ""
+          getAiAnswerText(
+            fallbackAiResult
           );
 
 
@@ -2229,6 +2626,19 @@ CONFIDENCE must be high, medium, or low.
     }
 
 
+    const fallbackAnswerFormat =
+      describeOcrAnswerFormat(
+        fallbackAnswerText
+      );
+
+    const diagnosticCode = [
+      `P-${primaryAnswerFormat}-${Math.min(answerText.length, 9999)}`,
+      `F-${fallbackAnswerFormat}-${Math.min(fallbackAnswerText.length, 9999)}`
+    ].join(
+      "/"
+    );
+
+
     if (
       !recognition.recognized
     ) {
@@ -2247,6 +2657,17 @@ CONFIDENCE must be high, medium, or low.
 
             answerLength:
               answerText.length,
+
+            answerFormat:
+              primaryAnswerFormat,
+
+            candidateWeightsKg:
+              extractRawWeightCandidateSequence(
+                answerText
+              ).slice(
+                0,
+                10
+              ),
 
             grossKg:
               primaryRecognition.grossKg,
@@ -2269,6 +2690,17 @@ CONFIDENCE must be high, medium, or low.
 
                   answerLength:
                     fallbackAnswerText.length,
+
+                  answerFormat:
+                    fallbackAnswerFormat,
+
+                  candidateWeightsKg:
+                    extractRawWeightCandidateSequence(
+                      fallbackAnswerText
+                    ).slice(
+                      0,
+                      10
+                    ),
 
                   grossKg:
                     fallbackRecognition.grossKg,
@@ -2402,6 +2834,11 @@ CONFIDENCE must be high, medium, or low.
 
         reasonCode:
           recognition.reasonCode,
+
+        diagnosticCode:
+          recognition.recognized
+            ? ""
+            : diagnosticCode,
 
         slipImageKey:
           objectKey,
