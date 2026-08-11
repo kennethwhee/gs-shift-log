@@ -99003,89 +99003,20 @@ ARM ROLL BOX: 연밤색
 }
 
 /* =========================================================
-부재료 크게 보기 전용 X 닫기 버튼
+  부재료 표
+  Ammonia 일사용량과 비고 사이 경계선
 ========================================================= */
 
-/* 일반 화면에서는 기존 효율팀 닫기 버튼을 사용한다. */
 #efficiencyAuxiliaryMaterialsView
-#closeAuxiliaryMaterialExpandedButton {
-  display: none !important;
-}
+.auxiliary-material-sheet-table
+th.is-ammonia,
 
-
-/* 크게 보기 상태에서만 축소하기 버튼 오른쪽에 표시 */
-body.is-auxiliary-material-expanded
-#auxiliaryMaterialTableCard.is-expanded-view
-#closeAuxiliaryMaterialExpandedButton {
-  display: inline-flex !important;
-
-  flex:
-    0
-    0
-    32px !important;
-
-  width: 32px !important;
-  min-width: 32px !important;
-  max-width: 32px !important;
-
-  height: 32px !important;
-  min-height: 32px !important;
-  max-height: 32px !important;
-
-  margin-left: 2px !important;
-  padding: 0 !important;
-
-  align-items: center;
-  justify-content: center;
-
-  border: 1px solid #d7dee8 !important;
-  border-radius: 7px !important;
-
-  background: #ffffff !important;
-  color: #778292 !important;
-
-  box-shadow:
-    0 1px 3px
-    rgba(15, 23, 42, 0.08) !important;
-
-  font-size: 21px !important;
-  font-weight: 400 !important;
-  line-height: 1 !important;
-
-  cursor: pointer;
-}
-
-
-/* X 세로 위치 보정 */
-body.is-auxiliary-material-expanded
-#closeAuxiliaryMaterialExpandedButton
-span {
-  display: block;
-
-  transform:
-    translateY(-1px);
-}
-
-
-/* 마우스를 올리면 연한 빨간색 */
-body.is-auxiliary-material-expanded
-#closeAuxiliaryMaterialExpandedButton:hover {
-  border-color: #efadb5 !important;
-
-  background: #fff1f2 !important;
-  color: #c33d4b !important;
-}
-
-
-/* 키보드 선택 표시 */
-body.is-auxiliary-material-expanded
-#closeAuxiliaryMaterialExpandedButton:focus-visible {
-  outline:
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+td.is-ammonia {
+  border-right:
     2px solid
-    #5b9ee8;
-
-  outline-offset:
-    2px;
+    #9fb4cc !important;
 }
 
 /* =========================================================

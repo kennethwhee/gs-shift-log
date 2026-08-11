@@ -95247,7 +95247,7 @@ function updateAuxiliaryMaterialExpandedButton(
 
   icon.textContent =
     isExpanded
-      ? "↙"
+      ? "×"
       : "⛶";
 
 
@@ -95275,7 +95275,6 @@ function updateAuxiliaryMaterialExpandedButton(
       ? "원래 화면 크기로 돌아가기"
       : "부재료 표를 화면 전체로 보기";
 }
-
 
 /* =====================================================
   크게 보기 전환
@@ -95440,18 +95439,11 @@ function initializeAuxiliaryMaterialTableViewControls() {
     getAuxiliaryMaterialTableViewElements();
 
 
-  const expandedCloseButton =
-    document.getElementById(
-      "closeAuxiliaryMaterialExpandedButton"
-    );
-
-
   if (
     !view ||
     !card ||
     !compactButton ||
-    !expandedButton ||
-    !expandedCloseButton
+    !expandedButton
   ) {
     return;
   }
@@ -95493,23 +95485,6 @@ function initializeAuxiliaryMaterialTableViewControls() {
       setAuxiliaryMaterialExpandedView(
         !auxiliaryMaterialTableViewState
           .isExpanded
-      );
-    }
-  );
-
-
-  /*
-    크게 보기 화면의 X 버튼
-
-    축소하기 버튼과 동일하게
-    크게 보기 상태만 해제한다.
-  */
-
-  expandedCloseButton.addEventListener(
-    "click",
-    () => {
-      setAuxiliaryMaterialExpandedView(
-        false
       );
     }
   );
