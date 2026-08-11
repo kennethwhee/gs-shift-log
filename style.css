@@ -85613,39 +85613,165 @@ td.is-total {
   white-space: nowrap;
 }
 
+/* =========================================================
+  카드 헤더 컴팩트 통일
+
+  왼쪽:
+  영문 분류
+  한글 제목
+
+  오른쪽:
+  날짜·시간 | 상태 | 조회 버튼
+========================================================= */
+
+.efficiency-morning-meeting-auto-card__header {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  align-items: center;
+
+  gap: 6px;
+
+  box-sizing: border-box;
+
+  min-height: 44px !important;
+
+  padding:
+    6px
+    9px
+    5px
+    11px !important;
+
+  border-bottom: 1px solid #e7edf4;
+
+  background: #ffffff;
+}
+
+
+.efficiency-morning-meeting-auto-card__header
+  > div:first-child {
+  min-width: 0;
+
+  overflow: hidden;
+}
+
+
+.efficiency-morning-meeting-auto-card__header
+  > div:first-child
+  > span {
+  display: block;
+
+  margin-bottom: 1px;
+
+  color: #6d7d90;
+
+  font-size: 8px;
+  font-weight: 800;
+
+  letter-spacing: 0.09em;
+
+  white-space: nowrap;
+}
+
+
+.efficiency-morning-meeting-auto-card__header
+  > div:first-child
+  > strong {
+  display: block;
+
+  overflow: hidden;
+
+  color: #23354d;
+
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 
 /* =========================================================
-  날짜 + 상태
+  날짜·시간 + 상태 + 버튼 한 줄 배치
 ========================================================= */
 
 .efficiency-morning-meeting-auto-card__meta {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
 
-  gap: 3px;
+  flex-flow:
+    row
+    nowrap;
+
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 4px;
+
+  min-width: 0;
 
   flex: 0 0 auto;
 }
 
 
-.efficiency-morning-meeting-auto-card__meta small {
+.efficiency-morning-meeting-auto-card__meta
+  > small {
+  flex: 0 0 auto;
+
   color: #738398;
 
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
+
   white-space: nowrap;
 }
 
 
+/* 석회석도 동일한 가로 구조 유지 */
+
+.efficiency-morning-meeting-limestone-date-state {
+  width: auto;
+
+  flex: 0 0 auto;
+
+  align-items: center;
+}
+
+
+/* 상태 + 개별조회 버튼 묶음 */
+
+.efficiency-morning-meeting-auto-card__status-actions {
+  flex: 0 0 auto;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 4px;
+}
+
+
+/* =========================================================
+  상태 배지
+========================================================= */
+
 .efficiency-morning-meeting-auto-card__badge {
   display: inline-flex;
+
+  flex: 0 0 auto;
+
   align-items: center;
   justify-content: center;
 
   min-height: 20px;
 
-  padding: 3px 7px;
+  padding:
+    3px
+    7px;
 
   border: 1px solid #d8e1eb;
   border-radius: 999px;
@@ -85657,9 +85783,44 @@ td.is-total {
   font-size: 9px;
   font-weight: 800;
   line-height: 1;
+
   white-space: nowrap;
 }
 
+
+/* =========================================================
+  모바일
+
+  대부분 한 줄을 유지하고,
+  폭이 부족한 경우에만 우측 영역 내부에서 줄바꿈
+========================================================= */
+
+@media (max-width: 700px) {
+  .efficiency-morning-meeting-auto-card__header {
+    min-height: 42px !important;
+
+    padding:
+      5px
+      8px
+      4px
+      10px !important;
+  }
+
+
+  .efficiency-morning-meeting-auto-card__meta {
+    flex-wrap: wrap;
+
+    gap:
+      2px
+      3px;
+  }
+
+
+  .efficiency-morning-meeting-auto-card__meta
+    > small {
+    font-size: 8px;
+  }
+}
 
 /* =========================================================
   상태별 배지
