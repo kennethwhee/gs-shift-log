@@ -88555,20 +88555,34 @@ input {
 }
 
 /* =========================================================
-  오전회의 자동수치 하단 2열
+  오전회의 자동수치 하단 요약 배치
 
-  왼쪽: Silo Level
-  오른쪽: 증기 현황
+  첫째 줄:
+  SILO LEVEL | SMP | 신북 날씨
+
+  둘째 줄:
+  전력+태양광 | 증기 생산·판매 | 유기성 고형연료
+
+  그 아래:
+  1·2호기 온도 전체 폭
 ========================================================= */
 
 .efficiency-morning-meeting-auto-bottom-grid {
   display: grid;
 
   grid-template-columns:
-    minmax(0, 1fr)
-    minmax(0, 1fr);
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  grid-template-areas:
+    "silo smp weather"
+    "power steam organic";
 
   grid-column: 1 / -1;
+
+  align-items: start;
 
   gap: 9px;
 
@@ -88577,10 +88591,67 @@ input {
 
 
 .efficiency-morning-meeting-auto-bottom-grid
+  > * {
+  min-width: 0;
+}
+
+
+/* 첫째 줄 */
+
+#efficiencyMorningMeetingAutoSiloCard {
+  grid-area: silo;
+}
+
+
+#efficiencyMorningMeetingAutoSmpCard {
+  grid-area: smp;
+}
+
+
+#efficiencyMorningMeetingAutoWeatherCard {
+  grid-area: weather;
+}
+
+
+/* 둘째 줄 왼쪽: 전력 + 태양광 */
+
+.efficiency-morning-meeting-auto-power-stack {
+  display: grid;
+
+  grid-area: power;
+
+  grid-template-columns:
+    minmax(0, 1fr);
+
+  align-self: start;
+
+  gap: 9px;
+
+  min-width: 0;
+}
+
+
+.efficiency-morning-meeting-auto-power-stack
   > .efficiency-morning-meeting-auto-card {
   min-width: 0;
 }
 
+
+/* 둘째 줄 가운데 */
+
+#efficiencyMorningMeetingAutoSteamCard {
+  grid-area: steam;
+}
+
+
+/* 둘째 줄 오른쪽 */
+
+#efficiencyMorningMeetingAutoDailySludgeCard {
+  grid-area: organic;
+}
+
+
+/* SILO LEVEL 색상 */
 
 .efficiency-morning-meeting-auto-card.is-silo-level::before {
   background: #5d8fc8;
@@ -88593,6 +88664,8 @@ input {
 }
 
 
+/* 증기 생산·판매 색상 */
+
 .efficiency-morning-meeting-auto-card.is-steam-status::before {
   background: #7a68c7;
 }
@@ -88604,12 +88677,48 @@ input {
 }
 
 
-/* 모바일에서는 위아래로 표시 */
+/* =====================================================
+  태블릿: 2열
+===================================================== */
+
+@media (max-width: 1050px) {
+  .efficiency-morning-meeting-auto-bottom-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+
+    grid-template-areas:
+      "silo smp"
+      "weather power"
+      "steam organic";
+  }
+}
+
+
+/* =====================================================
+  모바일: 1열
+===================================================== */
 
 @media (max-width: 700px) {
   .efficiency-morning-meeting-auto-bottom-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns:
+      minmax(0, 1fr);
 
+    grid-template-areas:
+      "silo"
+      "smp"
+      "weather"
+      "power"
+      "steam"
+      "organic";
+
+    gap: 7px;
+  }
+
+
+  .efficiency-morning-meeting-auto-power-stack {
     gap: 7px;
   }
 }
