@@ -92234,8 +92234,7 @@ async function handleAuxiliaryMaterialExcelFileSelection(
 
 function prepareAuxiliaryMaterialPcCompactControls() {
   /*
-    모바일은 모니터링 전용 레이아웃을
-    그대로 유지한다.
+    모바일은 기존 모니터링 전용 화면 유지
   */
   if (
     typeof isAuxiliaryMaterialMobileMonitorMode ===
@@ -92268,6 +92267,18 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     );
 
 
+  const queryCard =
+    periodFields?.closest(
+      ".auxiliary-material-query-card"
+    );
+
+
+  const monthNavigation =
+    queryCard?.querySelector(
+      ".auxiliary-material-month-navigation"
+    );
+
+
   const densityPanel =
     view?.querySelector(
       ".auxiliary-material-density-setting"
@@ -92279,15 +92290,63 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     !queryButton ||
     !excelButton ||
     !periodFields ||
+    !queryCard ||
+    !monthNavigation ||
     !densityPanel
   ) {
     return;
   }
 
 
-  /*
-    OIS 버튼 뒤에 엑셀 등록 버튼 배치
-  */
+  /* =====================================================
+    제목 아래 설명 문구 완전 제거
+  ====================================================== */
+
+  const headingDescription =
+    view.querySelector(
+      ".auxiliary-material-heading > div > p"
+    );
+
+
+  if (
+    headingDescription
+  ) {
+    headingDescription.hidden =
+      true;
+
+
+    headingDescription.style.setProperty(
+      "display",
+      "none",
+      "important"
+    );
+  }
+
+
+  /* =====================================================
+    조회 월을 시작일과 같은 줄로 이동
+
+    최종 순서:
+
+    조회 월
+    시작일
+    종료일
+    저장 자료 보기
+    OIS 조회 · D1 저장
+    엑셀 등록
+    Slurry 밀도
+  ====================================================== */
+
+  periodFields.insertAdjacentElement(
+    "afterbegin",
+    monthNavigation
+  );
+
+
+  /* =====================================================
+    엑셀 등록
+  ====================================================== */
+
   queryButton.insertAdjacentElement(
     "afterend",
     excelButton
@@ -92303,22 +92362,14 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     "엑셀 등록";
 
 
-  /*
-    엑셀 등록 버튼 바로 오른쪽에
-    Slurry 밀도 설정 전체를 이동한다.
+  /* =====================================================
+    Slurry 밀도 설정을 엑셀 등록 바로 뒤로 이동
+  ====================================================== */
 
-    기존 input ID와 저장 이벤트는 그대로 유지하므로
-    기능 자체에는 영향이 없다.
-  */
-  if (
-    densityPanel.parentElement !==
-      periodFields
-  ) {
-    excelButton.insertAdjacentElement(
-      "afterend",
-      densityPanel
-    );
-  }
+  excelButton.insertAdjacentElement(
+    "afterend",
+    densityPanel
+  );
 
 
   densityPanel.classList.add(
@@ -92326,9 +92377,7 @@ function prepareAuxiliaryMaterialPcCompactControls() {
   );
 
 
-  /*
-    PC 상단에서는 제목을 짧게 표시
-  */
+  /* 제목 단축 */
   const densityTitle =
     densityPanel.querySelector(
       ".auxiliary-material-density-setting__description > strong"
@@ -210004,22 +210053,58 @@ async function prepareLimestoneSlipImage(
       originalHeight >=
         originalWidth;
 
+    /*
+      기존 좌상단 72% 크롭은 현장 사진에서 중량 숫자와 kg가
+      오른쪽 경계에 너무 가까워지는 경우가 있었다. 영수증 전체와
+      오른쪽 여백을 함께 포함하도록 시작점과 범위를 넓힌다.
+    */
+
+    const cropStartXRatio =
+      isPortraitImage
+        ? 0.02
+        : 0.01;
+
+    const cropStartYRatio =
+      0.01;
+
     const cropWidthRatio =
       isPortraitImage
-        ? 0.72
-        : 0.62;
+        ? 0.88
+        : 0.80;
 
     const cropHeightRatio =
       isPortraitImage
-        ? 0.56
-        : 0.82;
+        ? 0.68
+        : 0.92;
+
+    const cropStartX =
+      Math.max(
+        0,
+        Math.round(
+          originalWidth *
+            cropStartXRatio
+        )
+      );
+
+    const cropStartY =
+      Math.max(
+        0,
+        Math.round(
+          originalHeight *
+            cropStartYRatio
+        )
+      );
 
     const cropWidth =
       Math.max(
         1,
         Math.round(
-          originalWidth *
-            cropWidthRatio
+          Math.min(
+            originalWidth -
+              cropStartX,
+            originalWidth *
+              cropWidthRatio
+          )
         )
       );
 
@@ -210027,8 +210112,12 @@ async function prepareLimestoneSlipImage(
       Math.max(
         1,
         Math.round(
-          originalHeight *
-            cropHeightRatio
+          Math.min(
+            originalHeight -
+              cropStartY,
+            originalHeight *
+              cropHeightRatio
+          )
         )
       );
 
@@ -210111,8 +210200,8 @@ async function prepareLimestoneSlipImage(
 
     ocrDrawingContext.drawImage(
       decodedImage.source,
-      0,
-      0,
+      cropStartX,
+      cropStartY,
       cropWidth,
       cropHeight,
       0,
@@ -210204,16 +210293,161 @@ async function prepareLimestoneSlipImage(
       );
 
 
+    /*
+      두 번째 OCR 사진은 넓은 크롭 안에서 중량표가 놓이는 중앙부를
+      한 번 더 확대한다. 서버는 이 타이트 크롭을 먼저 읽고,
+      실패하면 오른쪽 여백이 넉넉한 위의 넓은 크롭으로 재판독한다.
+    */
+
+    const tightCropStartX =
+      Math.round(
+        ocrTargetWidth *
+          0.08
+      );
+
+    const tightCropStartY =
+      Math.round(
+        ocrTargetHeight *
+          0.12
+      );
+
+    const tightCropWidth =
+      Math.max(
+        1,
+        Math.round(
+          ocrTargetWidth *
+            0.88
+        )
+      );
+
+    const tightCropHeight =
+      Math.max(
+        1,
+        Math.round(
+          ocrTargetHeight *
+            0.78
+        )
+      );
+
+    const tightResizeRatio =
+      Math.min(
+        2,
+        maximumOcrImageSide /
+          Math.max(
+            tightCropWidth,
+            tightCropHeight
+          )
+      );
+
+    const tightTargetWidth =
+      Math.max(
+        1,
+        Math.round(
+          tightCropWidth *
+            tightResizeRatio
+        )
+      );
+
+    const tightTargetHeight =
+      Math.max(
+        1,
+        Math.round(
+          tightCropHeight *
+            tightResizeRatio
+        )
+      );
+
+    const tightCanvas =
+      document.createElement(
+        "canvas"
+      );
+
+    tightCanvas.width =
+      tightTargetWidth;
+
+    tightCanvas.height =
+      tightTargetHeight;
+
+    const tightDrawingContext =
+      tightCanvas.getContext(
+        "2d",
+        {
+          alpha:
+            false
+        }
+      );
+
+
+    if (
+      !tightDrawingContext
+    ) {
+      throw new Error(
+        "전표 중량표 정밀 확대 화면을 만들지 못했습니다."
+      );
+    }
+
+
+    tightDrawingContext.fillStyle =
+      "#ffffff";
+
+    tightDrawingContext.fillRect(
+      0,
+      0,
+      tightTargetWidth,
+      tightTargetHeight
+    );
+
+    tightDrawingContext.imageSmoothingEnabled =
+      true;
+
+    tightDrawingContext.imageSmoothingQuality =
+      "high";
+
+    tightDrawingContext.drawImage(
+      ocrCanvas,
+      tightCropStartX,
+      tightCropStartY,
+      Math.min(
+        tightCropWidth,
+        ocrTargetWidth -
+          tightCropStartX
+      ),
+      Math.min(
+        tightCropHeight,
+        ocrTargetHeight -
+          tightCropStartY
+      ),
+      0,
+      0,
+      tightTargetWidth,
+      tightTargetHeight
+    );
+
+    const ocrTightBlob =
+      await createLimestoneSlipJpegBlob(
+        tightCanvas,
+        0.95
+      );
+
+
     return {
       previewBlob,
 
       ocrBlob,
 
+      ocrTightBlob,
+
       ocrWidth:
         ocrTargetWidth,
 
       ocrHeight:
-        ocrTargetHeight
+        ocrTargetHeight,
+
+      ocrTightWidth:
+        tightTargetWidth,
+
+      ocrTightHeight:
+        tightTargetHeight
     };
 
   } finally {
@@ -210904,6 +211138,7 @@ async function requestLimestoneSlipOcr(
   elements,
   preparedImageBlob,
   ocrImageBlob,
+  ocrTightImageBlob,
   preparationSequence
 ) {
   const sessionToken =
@@ -210963,6 +211198,13 @@ async function requestLimestoneSlipOcr(
   );
 
 
+  formData.append(
+    "ocrImageTight",
+    ocrTightImageBlob,
+    "limestone-slip-ocr-tight-crop.jpg"
+  );
+
+
   const preparedKilobytes =
     Math.max(
       1,
@@ -210983,6 +211225,16 @@ async function requestLimestoneSlipOcr(
     );
 
 
+  const ocrTightKilobytes =
+    Math.max(
+      1,
+      Math.round(
+        ocrTightImageBlob.size /
+          1024
+      )
+    );
+
+
   elements.panel.setAttribute(
     "aria-busy",
     "true"
@@ -210991,7 +211243,7 @@ async function requestLimestoneSlipOcr(
 
   setLimestoneSlipStatus(
     elements.statusMessage,
-    `사진 준비 완료 (원본 ${preparedKilobytes.toLocaleString("ko-KR")} KB · 중량표 확대 ${ocrKilobytes.toLocaleString("ko-KR")} KB) · 실중량을 분석하고 있습니다.`
+    `사진 준비 완료 (원본 ${preparedKilobytes.toLocaleString("ko-KR")} KB · 중량표 확대 ${ocrKilobytes.toLocaleString("ko-KR")} / ${ocrTightKilobytes.toLocaleString("ko-KR")} KB) · 실중량을 분석하고 있습니다.`
   );
 
 
@@ -211803,6 +212055,7 @@ await requestLimestoneSlipOcr(
   elements,
   preparedImages.previewBlob,
   preparedImages.ocrBlob,
+  preparedImages.ocrTightBlob,
   preparationSequence
 );
 

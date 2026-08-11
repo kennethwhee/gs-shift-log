@@ -95487,3 +95487,551 @@ body.is-auxiliary-material-expanded
     margin-top: 5px !important;
   }
 }
+
+/* =========================================================
+  부재료 PC 상단 완전 통합 최종 보정
+
+  조회 월 | 시작일 | 종료일 |
+  저장자료 | OIS 저장 | 엑셀 등록 |
+  Slurry 밀도 설정
+========================================================= */
+
+@media screen and (min-width: 1200px) {
+
+  /* =====================================================
+    Query Card 자체를 한 열 구조로 재설정
+
+    month navigation을 period-fields 안으로 옮겼기 때문에
+    기존 좌/우 2열 구조를 사용하지 않는다.
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-query-card {
+    display: grid !important;
+
+    grid-template-columns:
+      1fr !important;
+
+    gap:
+      4px !important;
+
+    padding:
+      6px
+      8px !important;
+
+    margin-bottom:
+      5px !important;
+  }
+
+
+  /* =====================================================
+    첫 번째 줄 전체
+
+    1 조회 월
+    2 시작일
+    3 종료일
+    4 저장 자료 보기
+    5 OIS 조회
+    6 엑셀 등록
+    7 Slurry
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields {
+    display: grid !important;
+
+    grid-template-columns:
+      174px
+      160px
+      160px
+      auto
+      auto
+      auto
+      minmax(430px, 1fr) !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    align-items:
+      end !important;
+
+    justify-content:
+      stretch !important;
+
+    gap:
+      5px !important;
+
+    grid-column:
+      1 / -1 !important;
+  }
+
+
+  /* =====================================================
+    조회 월
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields
+  > .auxiliary-material-month-navigation {
+    display: grid !important;
+
+    grid-template-columns:
+      28px
+      112px
+      28px !important;
+
+    width:
+      174px !important;
+
+    min-width:
+      174px !important;
+
+    gap:
+      3px !important;
+
+    align-items:
+      end !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation
+  > button {
+    width:
+      28px !important;
+
+    height:
+      30px !important;
+
+    min-height:
+      30px !important;
+
+    padding:
+      0 !important;
+
+    border-radius:
+      6px !important;
+
+    font-size:
+      17px !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation
+  label {
+    width:
+      112px !important;
+
+    min-width:
+      112px !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation
+  input[type="month"] {
+    width:
+      112px !important;
+
+    min-width:
+      112px !important;
+
+    height:
+      30px !important;
+
+    min-height:
+      30px !important;
+
+    padding:
+      0
+      5px !important;
+
+    font-size:
+      9px !important;
+  }
+
+
+  /* =====================================================
+    시작일 / 종료일
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields
+  > label {
+    width:
+      160px !important;
+
+    min-width:
+      160px !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields
+  > label
+  input[type="date"] {
+    width:
+      160px !important;
+
+    min-width:
+      160px !important;
+
+    height:
+      30px !important;
+
+    min-height:
+      30px !important;
+
+    padding:
+      0
+      6px !important;
+
+    font-size:
+      9px !important;
+  }
+
+
+  /* =====================================================
+    상단 버튼들
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields
+  > button {
+    height:
+      30px !important;
+
+    min-height:
+      30px !important;
+
+    padding:
+      0
+      9px !important;
+
+    border-radius:
+      6px !important;
+
+    font-size:
+      8px !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  /* =====================================================
+    Slurry 전체
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline {
+    display:
+      flex !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    min-height:
+      30px !important;
+
+    align-items:
+      center !important;
+
+    justify-content:
+      flex-start !important;
+
+    gap:
+      5px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0
+      0
+      0
+      7px !important;
+
+    border:
+      0 !important;
+
+    border-left:
+      1px solid
+      #d6e0eb !important;
+
+    border-radius:
+      0 !important;
+
+    background:
+      transparent !important;
+
+    box-shadow:
+      none !important;
+  }
+
+
+  /* Slurry 밀도 */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__description {
+    display:
+      block !important;
+
+    flex:
+      0 0 auto !important;
+
+    width:
+      auto !important;
+
+    margin:
+      0 !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__description
+  > strong {
+    margin:
+      0 !important;
+
+    font-size:
+      8px !important;
+
+    line-height:
+      30px !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__description
+  > span,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__description
+  > p {
+    display:
+      none !important;
+  }
+
+
+  /* =====================================================
+    적용일 / 1호기 / 2호기 / 저장
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__fields {
+    display:
+      flex !important;
+
+    flex:
+      0 0 auto !important;
+
+    width:
+      auto !important;
+
+    min-width:
+      0 !important;
+
+    align-items:
+      center !important;
+
+    gap:
+      5px !important;
+
+    margin:
+      0 !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__fields
+  > label {
+    display:
+      flex !important;
+
+    width:
+      auto !important;
+
+    min-width:
+      0 !important;
+
+    align-items:
+      center !important;
+
+    gap:
+      3px !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__fields
+  > label
+  > span:first-child {
+    font-size:
+      7px !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  /* 적용 시작일 */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  #auxiliaryMaterialDensityEffectiveDate {
+    width:
+      92px !important;
+
+    min-width:
+      92px !important;
+
+    height:
+      30px !important;
+
+    min-height:
+      30px !important;
+
+    padding:
+      0
+      4px !important;
+
+    font-size:
+      8px !important;
+  }
+
+
+  /* 1호기 / 2호기 */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  #auxiliaryMaterialUnitOneFixedDensity,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  #auxiliaryMaterialUnitTwoFixedDensity {
+    width:
+      58px !important;
+
+    min-width:
+      58px !important;
+
+    height:
+      30px !important;
+
+    min-height:
+      30px !important;
+
+    padding:
+      0
+      4px !important;
+
+    font-size:
+      8px !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-input-wrap
+  > small {
+    font-size:
+      6px !important;
+  }
+
+
+  /* 저장 */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  #saveAuxiliaryMaterialFixedDensityButton {
+    height:
+      30px !important;
+
+    min-height:
+      30px !important;
+
+    padding:
+      0
+      7px !important;
+
+    border-radius:
+      6px !important;
+
+    font-size:
+      7px !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  /* 정상 상태 문구는 공간 절약을 위해 숨김 */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__status {
+    display:
+      none !important;
+  }
+
+
+  /* =====================================================
+    두 번째 줄
+
+    강제 갱신 | 저장 상태
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-force-refresh {
+    grid-column:
+      1 !important;
+
+    margin:
+      0 !important;
+
+    min-height:
+      22px !important;
+
+    padding:
+      0
+      2px !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-status {
+    grid-column:
+      1 !important;
+
+    width:
+      100% !important;
+
+    min-height:
+      22px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      3px
+      7px !important;
+  }
+}

@@ -394,6 +394,139 @@ function extractJsonObject(
 }
 
 
+/* =========================================================
+  비엄격 AI 응답에서 중량 필드 복구
+
+  작은 Vision 모델은 JSON을 요청해도 다음처럼 반환할 수 있다.
+
+  - { "row1Kg": 44,300 }
+  - ROW1=44300
+  - grossKg: "44.300"
+
+  첫 번째 형식은 유효한 JSON이 아니므로 JSON.parse만 사용하면
+  화면에 보이는 숫자까지 모두 null로 버려진다. 키 뒤의 값만
+  제한적으로 복구하고 최종 확정은 기존 중량 산식 검증에 맡긴다.
+========================================================= */
+
+function extractLooseOcrWeightField(
+  answerText,
+  aliases
+) {
+  const aliasPattern =
+    aliases.join(
+      "|"
+    );
+
+  const match =
+    normalizeText(
+      answerText
+    ).match(
+      new RegExp(
+        `(?:["']?)(?:${aliasPattern})(?:["']?)\\s*[:=]\\s*(?:["']?)\\s*(-?\\d{1,3}(?:[\\s,.]\\d{3})+|-?\\d{4,6})(?:\\s*(?:kg|㎏))?`,
+        "i"
+      )
+    );
+
+
+  return match?.[1] ||
+    undefined;
+}
+
+
+function extractLooseOcrObject(
+  answerText
+) {
+  const looseObject = {};
+
+  const fieldDefinitions = [
+    {
+      name:
+        "grossKg",
+
+      aliases: [
+        "grossKg",
+        "grossWeightKg",
+        "totalWeightKg",
+        "gross",
+        "row1Kg",
+        "row1"
+      ]
+    },
+    {
+      name:
+        "tareKg",
+
+      aliases: [
+        "tareKg",
+        "tareWeightKg",
+        "emptyWeightKg",
+        "tare",
+        "row2Kg",
+        "row2"
+      ]
+    },
+    {
+      name:
+        "netKg",
+
+      aliases: [
+        "netKg",
+        "netWeightKg",
+        "quantityKg",
+        "net",
+        "row3Kg",
+        "row3"
+      ]
+    }
+  ];
+
+
+  for (
+    const fieldDefinition of fieldDefinitions
+  ) {
+    const value =
+      extractLooseOcrWeightField(
+        answerText,
+        fieldDefinition.aliases
+      );
+
+
+    if (
+      value !==
+        undefined
+    ) {
+      looseObject[
+        fieldDefinition.name
+      ] = value;
+    }
+  }
+
+
+  const confidenceMatch =
+    normalizeText(
+      answerText
+    ).match(
+      /(?:["']?confidence["']?)\s*[:=]\s*(?:["']?)(high|medium|low)/i
+    );
+
+
+  if (
+    confidenceMatch
+  ) {
+    looseObject.confidence =
+      confidenceMatch[1]
+        .toLowerCase();
+  }
+
+
+  return Object.keys(
+    looseObject
+  ).length
+    ? looseObject
+    : null;
+}
+
+
 function normalizeBoolean(
   value
 ) {
@@ -1038,10 +1171,31 @@ function getRecognitionMessage(
 function parseOcrAnswer(
   answerText
 ) {
-  const answerObject =
+  const strictAnswerObject =
     extractJsonObject(
       answerText
     );
+
+  const looseAnswerObject =
+    extractLooseOcrObject(
+      answerText
+    );
+
+  const answerObject =
+    strictAnswerObject ||
+    looseAnswerObject
+      ? {
+          ...(
+            strictAnswerObject ||
+            {}
+          ),
+
+          ...(
+            looseAnswerObject ||
+            {}
+          )
+        }
+      : null;
 
 
   const confidence =
@@ -1716,6 +1870,11 @@ export async function onRequestPost(
         "ocrImage"
       );
 
+    const ocrTightImageCandidate =
+      formData.get(
+        "ocrImageTight"
+      );
+
 
     if (
       !imageFile ||
@@ -1742,6 +1901,13 @@ export async function onRequestPost(
         ? ocrImageCandidate
         : imageFile;
 
+    const ocrTightImageFile =
+      ocrTightImageCandidate &&
+      typeof ocrTightImageCandidate.arrayBuffer ===
+        "function"
+        ? ocrTightImageCandidate
+        : ocrImageFile;
+
 
     if (
       normalizeText(
@@ -1750,6 +1916,10 @@ export async function onRequestPost(
         "image/jpeg" ||
       normalizeText(
         ocrImageFile.type
+      ).toLowerCase() !==
+        "image/jpeg" ||
+      normalizeText(
+        ocrTightImageFile.type
       ).toLowerCase() !==
         "image/jpeg"
     ) {
@@ -1775,6 +1945,15 @@ export async function onRequestPost(
         ? imageBuffer
         : await ocrImageFile.arrayBuffer();
 
+    const ocrTightImageBuffer =
+      ocrTightImageFile ===
+        imageFile
+        ? imageBuffer
+        : ocrTightImageFile ===
+            ocrImageFile
+          ? ocrImageBuffer
+          : await ocrTightImageFile.arrayBuffer();
+
 
     const imageBytes =
       new Uint8Array(
@@ -1789,11 +1968,24 @@ export async function onRequestPost(
             ocrImageBuffer
           );
 
+    const ocrTightImageBytes =
+      ocrTightImageBuffer ===
+        imageBuffer
+        ? imageBytes
+        : ocrTightImageBuffer ===
+            ocrImageBuffer
+          ? ocrImageBytes
+          : new Uint8Array(
+              ocrTightImageBuffer
+            );
+
 
     if (
       imageBytes.byteLength <
         1 ||
       ocrImageBytes.byteLength <
+        1 ||
+      ocrTightImageBytes.byteLength <
         1
     ) {
       return jsonResponse(
@@ -1813,6 +2005,8 @@ export async function onRequestPost(
       imageBytes.byteLength >
         MAX_IMAGE_BYTES ||
       ocrImageBytes.byteLength >
+        MAX_IMAGE_BYTES ||
+      ocrTightImageBytes.byteLength >
         MAX_IMAGE_BYTES
     ) {
       return jsonResponse(
@@ -1828,11 +2022,20 @@ export async function onRequestPost(
     }
 
 
-    const imageDataUri =
+    const ocrImageDataUri =
       "data:image/jpeg;base64," +
       bytesToBase64(
         ocrImageBytes
       );
+
+    const ocrTightImageDataUri =
+      ocrTightImageBytes ===
+        ocrImageBytes
+        ? ocrImageDataUri
+        : "data:image/jpeg;base64," +
+          bytesToBase64(
+            ocrTightImageBytes
+          );
 
 
     let aiResult;
@@ -1847,7 +2050,7 @@ export async function onRequestPost(
               "query",
 
             image:
-              imageDataUri,
+              ocrTightImageDataUri,
 
             question: `
 This image is an enlarged crop of the upper part of a Korean weighing receipt.
@@ -1856,7 +2059,8 @@ They are normally gross weight, tare weight, and net/actual weight in that order
 
 Copy the digits that are visibly printed. Do not require the Korean labels to be readable.
 Ignore dates, times, vehicle numbers, phone numbers, registration numbers, handwritten numbers, and numbers on background papers.
-Comma and dot can both be thousands separators.
+  Comma and dot can both be thousands separators in the image.
+  In the JSON response use plain integer digits without separators.
 Do not copy example values and do not guess an unreadable digit.
 
 Return one JSON object only, with these exact keys:
@@ -1953,20 +2157,23 @@ confidence must be high, medium, or low.
                 "query",
 
               image:
-                imageDataUri,
+                ocrImageDataUri,
 
               question: `
-Read the three printed weight rows on the enlarged Korean weighing receipt by position, from top to bottom.
+Read the three printed weight rows on this wider crop of a Korean weighing receipt by position, from top to bottom.
 The Korean labels do not need to be readable. Copy digits only from the receipt. Ignore all other numbers, dates, times, handwriting, vehicle numbers, phone numbers, and background papers.
 Comma and dot can both be thousands separators.
 Do not calculate missing values and do not guess unreadable digits.
 
-Return one JSON object only with these exact keys:
-row1Kg, row2Kg, row3Kg, confidence
+Return exactly four plain-text lines and nothing else:
+ROW1=44300
+ROW2=13700
+ROW3=30600
+CONFIDENCE=high
 
-row1Kg is the top weight row, row2Kg is the middle weight row, and row3Kg is the bottom weight row.
-Each row value must be an integer in kg, or null when that exact row is unreadable. Keep the three row positions even when one row is null.
-confidence must be high, medium, or low.
+Replace each example number with the digits visibly printed on that row, without commas or dots.
+Use NULL when that exact row is unreadable. Keep all four lines.
+CONFIDENCE must be high, medium, or low.
               `.trim(),
 
               reasoning:
