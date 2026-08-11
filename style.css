@@ -98679,3 +98679,169 @@ body.is-limestone-manual-entry-open {
       9px;
   }
 }
+
+/* =========================================================
+  석회석 사용량 모바일 모니터링 전용 최종본
+
+  모바일 사용량 계산:
+  - 입고 현황 화면과 입력 도구가 섞여 보이지 않도록 hidden 보장
+  - 저장된 일일·기간 사용량 조회만 허용
+  - 재고 입력·OIS 실행·기간 계산 및 저장 실행 숨김
+
+  PC:
+  - 기존 기능과 디자인 유지
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  /* =====================================================
+    하위 화면 hidden 상태 강제 보장
+
+    후반 모바일 display 규칙이 hidden을 덮어쓰지 못하게 한다.
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-heading-actions[hidden],
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneDashboard[hidden],
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneUsageCalculatorView[hidden] {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    사용량 계산의 쓰기 동작 숨김
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  #loadLimestoneUsageOisButton,
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  #runLimestoneUsageBatchButton,
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  #limestoneUsageBatchStatusBadge,
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  #limestoneUsagePeriodStatus {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    모바일 석회석 기록은 조회만 허용
+
+    PC에서는 모든 로그인 직원에게 표시하되,
+    모바일에서는 수정·삭제 동작을 숨긴다.
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-row-actions {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    시작·종료 재고를 일반 조회 수치처럼 표시
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-number-input {
+    border-color: transparent !important;
+
+    background: transparent !important;
+
+    box-shadow: none !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-number-input
+  input[readonly] {
+    pointer-events: none !important;
+
+    cursor: default !important;
+
+    border: 0 !important;
+
+    outline: 0 !important;
+
+    background: transparent !important;
+
+    color: #314a65 !important;
+
+    box-shadow: none !important;
+
+    font-weight: 900 !important;
+
+    caret-color: transparent !important;
+
+    -webkit-text-fill-color: #314a65 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-number-input
+  input[readonly]::placeholder {
+    color: #9aa6b4 !important;
+
+    opacity: 1 !important;
+
+    -webkit-text-fill-color: #9aa6b4 !important;
+  }
+
+
+  /* =====================================================
+    기간 필터는 조회용으로 유지
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-batch-header {
+    min-height: 56px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-batch-controls {
+    grid-template-columns:
+      minmax(0, 1fr)
+      auto
+      minmax(0, 1fr) !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-batch-presets {
+    grid-column: 1 / -1 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-ois-help {
+    margin-top: 8px !important;
+
+    border-color: #d8e3ef !important;
+
+    background: #f7fafd !important;
+
+    color: #60748b !important;
+  }
+}

@@ -1,6 +1,23 @@
 "use strict";
 
 /* =========================================================
+  석회석 사용량 모바일 모니터링 모드
+
+  모바일:
+  - 저장된 사용량 조회만 허용
+  - 재고 입력, OIS 실행, 기간 계산·저장 실행 차단
+
+  PC:
+  - 기존 관리 기능 그대로 유지
+========================================================= */
+
+function isLimestoneUsageMobileMonitorMode() {
+  return window.matchMedia(
+    "(max-width: 768px)"
+  ).matches;
+}
+
+/* =========================================================
   석회석 사용량 계산 소메뉴 최종본
 
   화면:
@@ -66,7 +83,13 @@
     },
 
     isLoading:
-      false
+      false,
+
+    receiptRequestToken:
+      0,
+
+    dateRequestToken:
+      0
   };
 
 
@@ -753,14 +776,6 @@ function formatLimestoneUsageNumber(
   ====================================================== */
 
   async function loadLimestoneUsageReceiptQuantities() {
-    if (
-      limestoneUsageState
-        .isLoading
-    ) {
-      return;
-    }
-
-
     const {
       refreshReceiptButton,
       dateInput
@@ -791,6 +806,17 @@ function formatLimestoneUsageNumber(
 
       return;
     }
+
+
+    const requestToken =
+      limestoneUsageState
+        .receiptRequestToken +
+      1;
+
+
+    limestoneUsageState
+      .receiptRequestToken =
+      requestToken;
 
 
     limestoneUsageState
@@ -983,6 +1009,23 @@ function formatLimestoneUsageNumber(
       );
 
 
+      if (
+        requestToken !==
+          limestoneUsageState
+            .receiptRequestToken ||
+        selectedDate !==
+          limestoneUsageState
+            .selectedDate ||
+        selectedDate !==
+          String(
+            dateInput?.value ||
+            ""
+          ).trim()
+      ) {
+        return;
+      }
+
+
       limestoneUsageState
         .receiptByUnit = {
           1:
@@ -1044,6 +1087,23 @@ function formatLimestoneUsageNumber(
     } catch (
       error
     ) {
+      if (
+        requestToken !==
+          limestoneUsageState
+            .receiptRequestToken ||
+        selectedDate !==
+          limestoneUsageState
+            .selectedDate ||
+        selectedDate !==
+          String(
+            dateInput?.value ||
+            ""
+          ).trim()
+      ) {
+        return;
+      }
+
+
       console.error(
         "석회석 사용량용 입고량 조회 실패:",
         error
@@ -1071,20 +1131,26 @@ function formatLimestoneUsageNumber(
       );
 
     } finally {
-      limestoneUsageState
-        .isLoading =
-        false;
-
-
       if (
-        refreshReceiptButton
+        requestToken ===
+          limestoneUsageState
+            .receiptRequestToken
       ) {
-        refreshReceiptButton.disabled =
+        limestoneUsageState
+          .isLoading =
           false;
 
 
-        refreshReceiptButton.textContent =
-          "입고량 새로고침";
+        if (
+          refreshReceiptButton
+        ) {
+          refreshReceiptButton.disabled =
+            false;
+
+
+          refreshReceiptButton.textContent =
+            "입고량 새로고침";
+        }
       }
     }
   }
@@ -1113,6 +1179,13 @@ function formatLimestoneUsageNumber(
     if (
       !parsedDate
     ) {
+      setLimestoneUsageStatus(
+        "error",
+        "날짜 확인 필요",
+        "사용량을 조회할 날짜를 선택해 주세요."
+      );
+
+
       return;
     }
 
@@ -1121,6 +1194,17 @@ function formatLimestoneUsageNumber(
       formatLimestoneUsageDate(
         parsedDate
       );
+
+
+    const dateRequestToken =
+      limestoneUsageState
+        .dateRequestToken +
+      1;
+
+
+    limestoneUsageState
+      .dateRequestToken =
+      dateRequestToken;
 
 
     const {
@@ -1191,6 +1275,18 @@ if (
   await loadLimestoneUsageReceiptQuantities();
 
 
+  if (
+    dateRequestToken !==
+      limestoneUsageState
+        .dateRequestToken ||
+    normalizedDate !==
+      limestoneUsageState
+        .selectedDate
+  ) {
+    return;
+  }
+
+
   /*
     2. D1에 저장된 계산 결과가 있으면
        시작·종료 재고와 사용량 자동 복원
@@ -1205,7 +1301,22 @@ if (
         normalizedDate,
         {
           silentWhenMissing:
-            true
+            true,
+
+          requireActiveUsageDate:
+            true,
+
+          isCurrentUsageRequest:
+            () => {
+              return (
+                dateRequestToken ===
+                  limestoneUsageState
+                    .dateRequestToken &&
+                normalizedDate ===
+                  limestoneUsageState
+                    .selectedDate
+              );
+            }
         }
       );
   }
@@ -111782,8 +111893,14 @@ function setLimestoneLoading(
   /* =====================================================
     현재 사용자의 관리 권한
 
-    화면에서 버튼을 숨기기 위한 보조 판정이다.
-    실제 권한은 서버에서 다시 확인한다.
+    PC:
+    - 로그인한 모든 직원에게 수정·삭제 버튼 표시
+
+    모바일:
+    - CSS에서 수정·삭제 버튼 숨김
+
+    실제 로그인 여부와 수정·삭제 권한은
+    서버에서 다시 확인한다.
   ====================================================== */
 
   function canCurrentUserManageLimestoneReceipt(
@@ -111803,65 +111920,7 @@ function setLimestoneLoading(
     }
 
 
-    const currentEmployeeNo =
-      String(
-        currentUser.employeeNo ||
-        currentUser.employee_no ||
-        currentUser.employeeId ||
-        currentUser.employee_id ||
-        ""
-      ).trim();
-
-
-    const createdEmployeeNo =
-      String(
-        receipt.createdById ||
-        receipt.created_by_id ||
-        ""
-      ).trim();
-
-
-    if (
-      currentEmployeeNo &&
-      currentEmployeeNo ===
-        createdEmployeeNo
-    ) {
-      return true;
-    }
-
-
-    if (
-      typeof isCurrentUserSuperAdmin ===
-        "function" &&
-      isCurrentUserSuperAdmin()
-    ) {
-      return true;
-    }
-
-
-    const role =
-      String(
-        currentUser.role ||
-        currentUser.userRole ||
-        currentUser.user_role ||
-        ""
-      )
-        .trim()
-        .toLowerCase()
-        .replace(
-          /[\s-]+/g,
-          "_"
-        );
-
-
-    return [
-      "admin",
-      "leader",
-      "super_admin",
-      "superadmin"
-    ].includes(
-      role
-    );
+    return true;
   }
 
 
@@ -171065,7 +171124,13 @@ async function loadSavedLimestoneUsageRecords(
 ) {
   const {
     silentWhenMissing =
-      false
+      false,
+
+    requireActiveUsageDate =
+      false,
+
+    isCurrentUsageRequest =
+      null
   } =
     options;
 
@@ -171141,6 +171206,33 @@ async function loadSavedLimestoneUsageRecords(
     )
       ? result.items
       : [];
+
+
+  const activeUsageDate =
+    String(
+      document.getElementById(
+        "limestoneUsageDate"
+      )?.value ||
+      ""
+    ).trim();
+
+
+  if (
+    typeof isCurrentUsageRequest ===
+      "function" &&
+    !isCurrentUsageRequest()
+  ) {
+    return false;
+  }
+
+
+  if (
+    requireActiveUsageDate &&
+    activeUsageDate !==
+      targetDate
+  ) {
+    return false;
+  }
 
 
   const unitOne =
@@ -171866,6 +171958,13 @@ async function loadSavedLimestoneUsageRecords(
   ====================================================== */
 
   async function loadLimestoneOisStock() {
+    if (
+      isLimestoneUsageMobileMonitorMode()
+    ) {
+      return;
+    }
+
+
     const {
       dateInput,
       loadButton
@@ -181672,6 +181771,13 @@ async function pollLimestoneUsageBatch(
   ====================================================== */
 
   async function runLimestoneUsageBatch() {
+    if (
+      isLimestoneUsageMobileMonitorMode()
+    ) {
+      return;
+    }
+
+
     const {
       startDateInput,
       endDateInput,
@@ -183924,6 +184030,10 @@ async function restoreLimestoneUsageBatch() {
     };
 
 
+    const isMobileMonitorMode =
+      isLimestoneUsageMobileMonitorMode();
+
+
     if (
       statusElement
     ) {
@@ -183943,10 +184053,15 @@ async function restoreLimestoneUsageBatch() {
       descriptionElement
     ) {
       descriptionElement.textContent =
-        startDate &&
-        endDate
-          ? `${startDate} ~ ${endDate} · 기간 계산 및 저장 결과`
-          : "필요할 때 펼쳐 기간 계산과 저장 내역을 확인합니다.";
+        isMobileMonitorMode
+          ? startDate &&
+            endDate
+            ? `${startDate} ~ ${endDate} · 저장 결과 조회`
+            : "저장된 기간별 사용량을 조회합니다."
+          : startDate &&
+              endDate
+            ? `${startDate} ~ ${endDate} · 기간 계산 및 저장 결과`
+            : "필요할 때 펼쳐 기간 계산과 저장 내역을 확인합니다.";
     }
 
 
@@ -215714,5 +215829,419 @@ function initializeLimestoneSlipCameraPicker() {
 
   } else {
     initializeLimestoneSlipCameraPicker();
+  }
+})();
+
+/* =========================================================
+  석회석 사용량 모바일 모니터링 전용 화면
+
+  유지:
+  - 날짜 이동·선택
+  - 입고량 새로고침
+  - 저장된 일일·기간 사용량 조회
+
+  제한:
+  - 시작·종료 재고 직접 입력
+  - OIS 조회 요청
+  - 기간 전체 계산 및 저장
+========================================================= */
+
+(function installLimestoneUsageMobileMonitorOnlyMode() {
+  if (
+    window
+      .__limestoneUsageMobileMonitorOnlyModeInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window
+    .__limestoneUsageMobileMonitorOnlyModeInstalled =
+    true;
+
+
+  const mobileMediaQuery =
+    window.matchMedia(
+      "(max-width: 768px)"
+    );
+
+
+  let mobileMediaQueryBound =
+    false;
+
+
+  const stockInputIds = [
+    "limestoneUsageUnitOneStartStock",
+    "limestoneUsageUnitOneEndStock",
+    "limestoneUsageUnitTwoStartStock",
+    "limestoneUsageUnitTwoEndStock"
+  ];
+
+
+  function rememberLimestoneMonitorText(
+    element
+  ) {
+    if (
+      !element ||
+      Object.prototype.hasOwnProperty.call(
+        element.dataset,
+        "limestoneMonitorOriginalText"
+      )
+    ) {
+      return;
+    }
+
+
+    element.dataset
+      .limestoneMonitorOriginalText =
+      String(
+        element.textContent ||
+        ""
+      ).trim();
+  }
+
+
+  function setLimestoneMonitorText(
+    element,
+    mobileText,
+    isMobileMonitorMode
+  ) {
+    if (
+      !element
+    ) {
+      return;
+    }
+
+
+    rememberLimestoneMonitorText(
+      element
+    );
+
+
+    const nextText =
+      isMobileMonitorMode
+        ? mobileText
+        : element.dataset
+            .limestoneMonitorOriginalText ||
+          "";
+
+
+    if (
+      String(
+        element.textContent ||
+        ""
+      ).trim() !==
+      nextText
+    ) {
+      element.textContent =
+        nextText;
+    }
+  }
+
+
+  function applyLimestoneUsageMobileMonitorOnlyMode() {
+    const usageView =
+      document.getElementById(
+        "limestoneUsageCalculatorView"
+      );
+
+
+    if (
+      !usageView
+    ) {
+      return;
+    }
+
+
+    const isMobileMonitorMode =
+      mobileMediaQuery.matches;
+
+
+    usageView.classList.toggle(
+      "is-mobile-monitor-only",
+      isMobileMonitorMode
+    );
+
+
+    usageView.dataset
+      .limestoneMobileMode =
+      isMobileMonitorMode
+        ? "monitor"
+        : "manage";
+
+
+    stockInputIds.forEach(
+      inputId => {
+        const input =
+          document.getElementById(
+            inputId
+          );
+
+
+        if (
+          !(input instanceof
+            HTMLInputElement)
+        ) {
+          return;
+        }
+
+
+        if (
+          !Object.prototype.hasOwnProperty.call(
+            input.dataset,
+            "limestoneMonitorOriginalPlaceholder"
+          )
+        ) {
+          input.dataset
+            .limestoneMonitorOriginalPlaceholder =
+            input.getAttribute(
+              "placeholder"
+            ) ||
+            "";
+        }
+
+
+        input.readOnly =
+          isMobileMonitorMode;
+
+
+        if (
+          isMobileMonitorMode
+        ) {
+          input.setAttribute(
+            "aria-readonly",
+            "true"
+          );
+
+
+          input.setAttribute(
+            "tabindex",
+            "-1"
+          );
+
+
+          input.placeholder =
+            "-";
+
+        } else {
+          input.removeAttribute(
+            "aria-readonly"
+          );
+
+
+          input.removeAttribute(
+            "tabindex"
+          );
+
+
+          input.placeholder =
+            input.dataset
+              .limestoneMonitorOriginalPlaceholder ||
+            "";
+        }
+      }
+    );
+
+
+    setLimestoneMonitorText(
+      usageView.querySelector(
+        ".limestone-usage-ois-help"
+      ),
+      "모바일에서는 저장된 사용량을 조회만 할 수 있습니다. OIS 조회·재고 입력·기간 계산 및 저장은 PC에서 진행합니다.",
+      isMobileMonitorMode
+    );
+
+
+    const batchHeader =
+      document.querySelector(
+        "#limestoneUsageBatchPanel .limestone-usage-batch-header"
+      );
+
+
+    setLimestoneMonitorText(
+      batchHeader?.querySelector(
+        "span"
+      ),
+      "PERIOD HISTORY FILTER",
+      isMobileMonitorMode
+    );
+
+
+    setLimestoneMonitorText(
+      batchHeader?.querySelector(
+        "h4"
+      ),
+      "조회 기간 선택",
+      isMobileMonitorMode
+    );
+
+
+    setLimestoneMonitorText(
+      batchHeader?.querySelector(
+        "p"
+      ),
+      "저장된 기간별 사용량을 조회할 날짜 범위입니다.",
+      isMobileMonitorMode
+    );
+
+
+    const periodTitle =
+      document.querySelector(
+        "#limestoneUsagePeriodAccordion .limestone-usage-period-toggle__title"
+      );
+
+
+    setLimestoneMonitorText(
+      periodTitle?.querySelector(
+        "span"
+      ),
+      "PERIOD HISTORY",
+      isMobileMonitorMode
+    );
+
+
+    setLimestoneMonitorText(
+      periodTitle?.querySelector(
+        "strong"
+      ),
+      "기간 사용량 내역",
+      isMobileMonitorMode
+    );
+
+
+    const periodDescription =
+      document.getElementById(
+        "limestoneUsagePeriodDescription"
+      );
+
+
+    const periodStartDate =
+      String(
+        document.getElementById(
+          "limestoneUsageBatchStartDate"
+        )?.value ||
+        ""
+      ).trim();
+
+
+    const periodEndDate =
+      String(
+        document.getElementById(
+          "limestoneUsageBatchEndDate"
+        )?.value ||
+        ""
+      ).trim();
+
+
+    if (
+      periodDescription
+    ) {
+      const nextPeriodDescription =
+        isMobileMonitorMode
+          ? periodStartDate &&
+            periodEndDate
+            ? `${periodStartDate} ~ ${periodEndDate} · 저장 결과 조회`
+            : "저장된 기간별 사용량을 조회합니다."
+          : periodStartDate &&
+              periodEndDate
+            ? `${periodStartDate} ~ ${periodEndDate} · 기간 계산 및 저장 결과`
+            : "필요할 때 펼쳐 기간 계산과 저장 내역을 확인합니다.";
+
+
+      if (
+        String(
+          periodDescription.textContent ||
+          ""
+        ).trim() !==
+        nextPeriodDescription
+      ) {
+        periodDescription.textContent =
+          nextPeriodDescription;
+      }
+    }
+  }
+
+
+  function initializeLimestoneUsageMobileMonitorOnlyMode() {
+    applyLimestoneUsageMobileMonitorOnlyMode();
+
+
+    const limestoneView =
+      document.getElementById(
+        "efficiencyLimestoneView"
+      );
+
+
+    if (
+      limestoneView &&
+      limestoneView.dataset
+        .limestoneMobileMonitorObserved !==
+        "true"
+    ) {
+      const observer =
+        new MutationObserver(
+          mutationList => {
+            if (
+              mutationList.some(
+                mutation =>
+                  mutation.type ===
+                    "childList"
+              )
+            ) {
+              applyLimestoneUsageMobileMonitorOnlyMode();
+            }
+          }
+        );
+
+
+      observer.observe(
+        limestoneView,
+        {
+          childList:
+            true,
+
+          subtree:
+            true
+        }
+      );
+
+
+      limestoneView.dataset
+        .limestoneMobileMonitorObserved =
+        "true";
+    }
+
+
+    if (
+      !mobileMediaQueryBound
+    ) {
+      mobileMediaQuery.addEventListener(
+        "change",
+        applyLimestoneUsageMobileMonitorOnlyMode
+      );
+
+
+      mobileMediaQueryBound =
+        true;
+    }
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeLimestoneUsageMobileMonitorOnlyMode,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initializeLimestoneUsageMobileMonitorOnlyMode();
   }
 })();

@@ -16,8 +16,7 @@
   권한:
   - 모든 로그인 사용자 조회 가능
   - 모든 로그인 사용자 신규 등록 가능
-  - 작성자는 본인 기록 수정·삭제 가능
-  - 관리자·최고관리자는 전체 수정·삭제 가능
+  - 모든 로그인 사용자 수정·삭제 가능
 
   집계:
   - 전체 입고량
@@ -845,24 +844,18 @@ async function findReceiptById(
 /* =========================================================
   수정·삭제 권한
 
-  - 작성자 본인
-  - 관리자
-  - 최고관리자
+  - 모든 로그인 사용자
+  - 실제 로그인 세션은 각 PUT·DELETE 시작에서 검증
 ========================================================= */
 
 function canManageReceipt(
   receipt,
   user
 ) {
-  return (
-    user.isAdmin ===
-      true ||
+  return Boolean(
     normalizeEmployeeNo(
-      receipt.createdById
-    ) ===
-      normalizeEmployeeNo(
-        user.employeeNo
-      )
+      user?.employeeNo
+    )
   );
 }
 
@@ -2860,7 +2853,7 @@ export async function onRequestPut(
             false,
 
           message:
-            "본인이 등록한 기록만 수정할 수 있습니다."
+            "로그인한 사용자만 기록을 수정할 수 있습니다."
         },
         403
       );
@@ -3171,7 +3164,7 @@ export async function onRequestDelete(
             false,
 
           message:
-            "본인이 등록한 기록만 삭제할 수 있습니다."
+            "로그인한 사용자만 기록을 삭제할 수 있습니다."
         },
         403
       );
