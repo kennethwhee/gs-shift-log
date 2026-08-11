@@ -148083,14 +148083,13 @@ function buildMorningMeetingFuelAreaRows(
   운탄일지 최종 엑셀 문구
 
   주말:
-  2026-08-05
-  → 8/5 내용
+  1) 8/5 업무내용
 
   평일:
-  → 내용만
+  1) 업무내용
 
   공통:
-  - 앞 번호 없음
+  - 선택한 순서대로 번호 재부여
   - 대괄호 없음
 ===================================================== */
 
@@ -148122,11 +148121,16 @@ if (
 }
 
 
+const itemNumber =
+  itemIndex +
+  1;
+
+
 const firstLine =
   isWeekendMode &&
   shortDate
-    ? `${shortDate} ${mainText}`
-    : mainText;
+    ? `${itemNumber}) ${shortDate} ${mainText}`
+    : `${itemNumber}) ${mainText}`;
 
 
 const outputText = [
