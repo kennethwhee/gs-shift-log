@@ -204161,23 +204161,50 @@ function render() {
         : {};
 
 
-    const schemaVersion =
-      Number(
-        rawResult.schemaVersion
-      );
+const schemaVersion =
+  Number(
+    rawResult.schemaVersion
+  );
 
 
-    if (
-      !Number.isFinite(
-        schemaVersion
-      ) ||
-      schemaVersion <
-        2
-    ) {
-      throw new Error(
-        "이전 증기자료입니다. 자동자료 다시 조회를 눌러 월간 일일DATA를 갱신해 주세요."
-      );
+const usesLegacySchema =
+  !Number.isFinite(
+    schemaVersion
+  ) ||
+  schemaVersion <
+    2;
+
+
+/*
+  이전 형식의 저장자료라도
+  필수 숫자·조회일·계산 결과가 모두 정상이라면
+  현재 형식으로 호환하여 사용한다.
+
+  실제 값이 누락되거나 계산이 맞지 않으면
+  아래 requireNumber 및 계산 검증에서 차단된다.
+*/
+if (
+  usesLegacySchema
+) {
+  console.warn(
+    "이전 형식의 일일 DATA 응답을 실제 값 검증 후 호환 처리합니다.",
+    {
+      requestId:
+        normalizeText(
+          requestItem?.id
+        ),
+
+      expectedDate,
+
+      receivedSchemaVersion:
+        Number.isFinite(
+          schemaVersion
+        )
+          ? schemaVersion
+          : null
     }
+  );
+}
 
 
     function requireNumber(
