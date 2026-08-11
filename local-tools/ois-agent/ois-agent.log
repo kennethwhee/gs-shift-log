@@ -9519,3 +9519,507 @@ OIS 증기 현황 요청 처리 실패: Error: #< CLIXML <Objs Version="1.1.0.1"
     at Socket.emit (node:events:509:28)
     at Pipe.<anonymous> (node:net:351:12)
 오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-d51c4e80-69b9-4482-ba25-03b1fc0501d6.png
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: c77117f5-0d93-4bf2-bce5-8f98447f5d51
+조회일: 2026-08-09
+------------------------------------------
+운영정보 메뉴를 클릭했습니다.
+LOG SHEET 메뉴를 클릭했습니다.
+TAG별 LOG 조회 메뉴를 클릭했습니다.
+OIS TAG별 LOG 조회 화면을 열었습니다.
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-09
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-09',
+  targetTag: '003ETH01CW201XQ01',
+  value: 677.859,
+  valueField: 'hd_24',
+  tag: '003ETH01CW201XQ01',
+  sourceDate: '20260809',
+  itemName: 'FLY ASH SILO MICRO CELL WEIGHT',
+  unit: ''
+}
+OIS TAG별 LOG 조회조건 · EBF20CW201 · 2026-08-09
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-09',
+  targetTag: 'EBF20CW201',
+  value: 17,
+  valueField: 'hd_24',
+  tag: 'EBF20CW201',
+  sourceDate: '20260809',
+  itemName: 'FHS BIO STOR SILO WEIGHT',
+  unit: ''
+}
+OIS Silo Level 조회 완료 · 2026-08-09 · Fly Ash 677.859 · Bio Storage 17
+OIS Silo Level 조회가 완료되었습니다.
+┌────────────────────────┬─────────────────────┐
+│ (index)                │ Values              │
+├────────────────────────┼─────────────────────┤
+│ 조회일                 │ '2026-08-09'        │
+│ 조회 기준              │ '24시'              │
+│ Fly Ash Silo Level     │ 677.859             │
+│ Bio Storage Silo Level │ 17                  │
+│ Fly Ash TAG            │ '003ETH01CW201XQ01' │
+│ Bio Storage TAG        │ 'EBF20CW201'        │
+│ Fly Ash 단위           │ ''                  │
+│ Bio Storage 단위       │ ''                  │
+└────────────────────────┴─────────────────────┘
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: e9704903-e76f-4309-a149-2d324ab19715
+조회일: 2026-08-08
+------------------------------------------
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-08
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-08',
+  targetTag: '003ETH01CW201XQ01',
+  value: 630.19,
+  valueField: 'hd_24',
+  tag: '003ETH01CW201XQ01',
+  sourceDate: '20260808',
+  itemName: 'FLY ASH SILO MICRO CELL WEIGHT',
+  unit: ''
+}
+OIS TAG별 LOG 조회조건 · EBF20CW201 · 2026-08-08
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-08',
+  targetTag: 'EBF20CW201',
+  value: 371,
+  valueField: 'hd_24',
+  tag: 'EBF20CW201',
+  sourceDate: '20260808',
+  itemName: 'FHS BIO STOR SILO WEIGHT',
+  unit: ''
+}
+OIS Silo Level 조회 완료 · 2026-08-08 · Fly Ash 630.19 · Bio Storage 371
+OIS Silo Level 조회가 완료되었습니다.
+┌────────────────────────┬─────────────────────┐
+│ (index)                │ Values              │
+├────────────────────────┼─────────────────────┤
+│ 조회일                 │ '2026-08-08'        │
+│ 조회 기준              │ '24시'              │
+│ Fly Ash Silo Level     │ 630.19              │
+│ Bio Storage Silo Level │ 371                 │
+│ Fly Ash TAG            │ '003ETH01CW201XQ01' │
+│ Bio Storage TAG        │ 'EBF20CW201'        │
+│ Fly Ash 단위           │ ''                  │
+│ Bio Storage 단위       │ ''                  │
+└────────────────────────┴─────────────────────┘
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: 2e2f2bb4-9278-4e2e-b374-9ca519a6fb93
+조회일: 2026-08-09
+------------------------------------------
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-09
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-09',
+  targetTag: '003ETH01CW201XQ01',
+  value: 677.859,
+  valueField: 'hd_24',
+  tag: '003ETH01CW201XQ01',
+  sourceDate: '20260809',
+  itemName: 'FLY ASH SILO MICRO CELL WEIGHT',
+  unit: ''
+}
+OIS TAG별 LOG 조회조건 · EBF20CW201 · 2026-08-09
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-09',
+  targetTag: 'EBF20CW201',
+  value: 17,
+  valueField: 'hd_24',
+  tag: 'EBF20CW201',
+  sourceDate: '20260809',
+  itemName: 'FHS BIO STOR SILO WEIGHT',
+  unit: ''
+}
+OIS Silo Level 조회 완료 · 2026-08-09 · Fly Ash 677.859 · Bio Storage 17
+OIS Silo Level 조회가 완료되었습니다.
+┌────────────────────────┬─────────────────────┐
+│ (index)                │ Values              │
+├────────────────────────┼─────────────────────┤
+│ 조회일                 │ '2026-08-09'        │
+│ 조회 기준              │ '24시'              │
+│ Fly Ash Silo Level     │ 677.859             │
+│ Bio Storage Silo Level │ 17                  │
+│ Fly Ash TAG            │ '003ETH01CW201XQ01' │
+│ Bio Storage TAG        │ 'EBF20CW201'        │
+│ Fly Ash 단위           │ ''                  │
+│ Bio Storage 단위       │ ''                  │
+└────────────────────────┴─────────────────────┘
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: f6ecf0b6-4b9f-4451-946a-7327738a3df0
+조회일: 2026-08-09
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/08/09로 변경합니다.
+OIS 수처리 현황 요청 처리 실패: Error: 2026년 08월 09일 조회 결과가 화면에 표시되지 않았습니다.
+    at setOisEnvironmentDate (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:5709:9)
+    at async collectOisWaterTreatmentValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6010:3)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9055:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:14442:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-f6ecf0b6-4b9f-4451-946a-7327738a3df0.png
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: 165fe08f-9082-4520-b442-d4a81e982d45
+조회일: 2026-08-09
+------------------------------------------
+운영정보 메뉴를 클릭했습니다.
+LOG SHEET 메뉴를 클릭했습니다.
+TAG별 LOG 조회 메뉴를 클릭했습니다.
+OIS TAG별 LOG 조회 화면을 열었습니다.
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-09
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-09',
+  targetTag: '003ETH01CW201XQ01',
+  value: 677.859,
+  valueField: 'hd_24',
+  tag: '003ETH01CW201XQ01',
+  sourceDate: '20260809',
+  itemName: 'FLY ASH SILO MICRO CELL WEIGHT',
+  unit: ''
+}
+OIS TAG별 LOG 조회조건 · EBF20CW201 · 2026-08-09
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-09',
+  targetTag: 'EBF20CW201',
+  value: 17,
+  valueField: 'hd_24',
+  tag: 'EBF20CW201',
+  sourceDate: '20260809',
+  itemName: 'FHS BIO STOR SILO WEIGHT',
+  unit: ''
+}
+OIS Silo Level 조회 완료 · 2026-08-09 · Fly Ash 677.859 · Bio Storage 17
+OIS Silo Level 조회가 완료되었습니다.
+┌────────────────────────┬─────────────────────┐
+│ (index)                │ Values              │
+├────────────────────────┼─────────────────────┤
+│ 조회일                 │ '2026-08-09'        │
+│ 조회 기준              │ '24시'              │
+│ Fly Ash Silo Level     │ 677.859             │
+│ Bio Storage Silo Level │ 17                  │
+│ Fly Ash TAG            │ '003ETH01CW201XQ01' │
+│ Bio Storage TAG        │ 'EBF20CW201'        │
+│ Fly Ash 단위           │ ''                  │
+│ Bio Storage 단위       │ ''                  │
+└────────────────────────┴─────────────────────┘
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: 8cab2fa4-302f-4ef4-9167-93ab0085e948
+조회일: 2026-08-09
+------------------------------------------
+DataPARC 증기생산량 조회 시작 · 2026-08-09 00:00 · 2026-08-10 00:00
+OIS 증기 현황 요청 처리 실패: Error: #< CLIXML <Objs Version="1.1.0.1" xmlns="http://schemas.microsoft.com/powershell/2004/04"><S S="Error">DataPARC values were not returned within 60 seconds. A1=FALSE, B1=, A2=, B2=_x000D__x000A_</S><S S="Error">위치 줄:173 문자:5_x000D__x000A_</S><S S="Error">+ throw (_x000D__x000A_</S><S S="Error">+ ~~~~~~~_x000D__x000A_</S><S S="Error"> + CategoryInfo : OperationStopped: (DataPARC values..., B1=, A2=, B2=:String) [], RuntimeException_x000D__x000A_</S><S S="Error"> + FullyQualifiedErrorId : DataPARC values were not returned within 60 seconds. A1=FALSE, B1=, A2=, B2=_x000D__x000A_</S><S S="Error"> _x000D__x000A_</S></Objs>
+    at ChildProcess.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:7688:15)
+    at ChildProcess.emit (node:events:509:28)
+    at maybeClose (node:internal/child_process:1124:16)
+    at Socket.<anonymous> (node:internal/child_process:481:11)
+    at Socket.emit (node:events:509:28)
+    at Pipe.<anonymous> (node:net:351:12)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-8cab2fa4-302f-4ef4-9167-93ab0085e948.png
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: 9d8572a3-79ad-473d-a5ce-d02b32cf3d4c
+조회일: 2026-08-09
+------------------------------------------
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-09
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-09',
+  targetTag: '003ETH01CW201XQ01',
+  value: 677.859,
+  valueField: 'hd_24',
+  tag: '003ETH01CW201XQ01',
+  sourceDate: '20260809',
+  itemName: 'FLY ASH SILO MICRO CELL WEIGHT',
+  unit: ''
+}
+OIS TAG별 LOG 조회조건 · EBF20CW201 · 2026-08-09
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-09',
+  targetTag: 'EBF20CW201',
+  value: 17,
+  valueField: 'hd_24',
+  tag: 'EBF20CW201',
+  sourceDate: '20260809',
+  itemName: 'FHS BIO STOR SILO WEIGHT',
+  unit: ''
+}
+OIS Silo Level 조회 완료 · 2026-08-09 · Fly Ash 677.859 · Bio Storage 17
+OIS Silo Level 조회가 완료되었습니다.
+┌────────────────────────┬─────────────────────┐
+│ (index)                │ Values              │
+├────────────────────────┼─────────────────────┤
+│ 조회일                 │ '2026-08-09'        │
+│ 조회 기준              │ '24시'              │
+│ Fly Ash Silo Level     │ 677.859             │
+│ Bio Storage Silo Level │ 17                  │
+│ Fly Ash TAG            │ '003ETH01CW201XQ01' │
+│ Bio Storage TAG        │ 'EBF20CW201'        │
+│ Fly Ash 단위           │ ''                  │
+│ Bio Storage 단위       │ ''                  │
+└────────────────────────┴─────────────────────┘
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: 96ca08ef-8df5-4ed5-8325-123c2cb92960
+조회일: 2026-08-09
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/08/09로 변경합니다.
+2026년 08월 09일 환경자료 조회가 완료되었습니다.
+OIS 환경일지 재계산 버튼을 클릭했습니다.
+OIS "장자산단" 행 셀: [ '장자산단', '10,550.000', '저장율(%)', '89.940', '80.094', '93.986' ]
+OIS "저장량" 행 셀: [
+  '동두천',     '0.000',
+  '10,550.000', '2,694.000',
+  '9,048.600',  '저장량(m3)',
+  '3,597.586',  '8,810.310',
+  '5,639.158'
+]
+OIS "저장율" 행 셀: [ '장자산단', '10,550.000', '저장율(%)', '89.940', '80.094', '93.986' ]
+OIS "순수사용량" 행 셀: [
+  'B',         '62.000',
+  '47.00',     '49.990',
+  '94.80',     '총량',
+  '2,267.000', '순수사용량',
+  '총합',      '0',
+  '0',         '0',
+  '0'
+]
+OIS 수처리 최종 추출값: {
+  source: 'OIS 일일 운전일지(환경)',
+  sourceDate: '',
+  collectedAt: '2026-08-11T02:42:16.098Z',
+  rawWaterInflow: 10550,
+  demiProduction: 2267,
+  pureWaterUsage: 1092,
+  rawWaterTankAmount: 3597.586,
+  rawWaterTankRate: 89.94,
+  filteredWaterTankAmount: 8810.31,
+  filteredWaterTankRate: 80.094,
+  demiWaterTankAmount: 5639.158,
+  demiWaterTankRate: 93.986
+}
+OIS 수처리 결과 JSON 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-water-values.json
+OIS 수처리 현황 조회가 완료되었습니다.
+┌──────────────────────┬──────────┐
+│ (index)              │ Values   │
+├──────────────────────┼──────────┤
+│ 장자산단 원수 유입량 │ 10550    │
+│ 원수 TANK 저장량     │ 3597.586 │
+│ 원수 TANK 저장율     │ 89.94    │
+│ 여과수 TANK 저장량   │ 8810.31  │
+│ 여과수 TANK 저장율   │ 80.094   │
+│ 순수 TANK 저장량     │ 5639.158 │
+│ 순수 TANK 저장율     │ 93.986   │
+│ 순수 생산량          │ 2267     │
+│ 순수 사용량          │ 1092     │
+└──────────────────────┴──────────┘
+업무일지 요청 확인 실패: fetch failed
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: cc6d51dd-b3ba-4f92-bbac-a00d360e58fe
+조회일: 2026-08-10
+------------------------------------------
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: 98da856e-fd7c-4203-8ea2-249cc3f9f8f9
+조회일: 2026-08-11
+------------------------------------------
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: 85c2bac8-1d4a-425e-8669-9efba9d2dc10
+조회일: 2026-08-09
+------------------------------------------
+TAG별 LOG 조회 메뉴를 클릭했습니다.
+OIS TAG별 LOG 조회 화면을 열었습니다.
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-09
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-09',
+  targetTag: '003ETH01CW201XQ01',
+  value: 677.859,
+  valueField: 'hd_24',
+  tag: '003ETH01CW201XQ01',
+  sourceDate: '20260809',
+  itemName: 'FLY ASH SILO MICRO CELL WEIGHT',
+  unit: ''
+}
+OIS TAG별 LOG 조회조건 · EBF20CW201 · 2026-08-09
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-09',
+  targetTag: 'EBF20CW201',
+  value: 17,
+  valueField: 'hd_24',
+  tag: 'EBF20CW201',
+  sourceDate: '20260809',
+  itemName: 'FHS BIO STOR SILO WEIGHT',
+  unit: ''
+}
+OIS Silo Level 조회 완료 · 2026-08-09 · Fly Ash 677.859 · Bio Storage 17
+OIS Silo Level 조회가 완료되었습니다.
+┌────────────────────────┬─────────────────────┐
+│ (index)                │ Values              │
+├────────────────────────┼─────────────────────┤
+│ 조회일                 │ '2026-08-09'        │
+│ 조회 기준              │ '24시'              │
+│ Fly Ash Silo Level     │ 677.859             │
+│ Bio Storage Silo Level │ 17                  │
+│ Fly Ash TAG            │ '003ETH01CW201XQ01' │
+│ Bio Storage TAG        │ 'EBF20CW201'        │
+│ Fly Ash 단위           │ ''                  │
+│ Bio Storage 단위       │ ''                  │
+└────────────────────────┴─────────────────────┘
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: e5c51dd0-d1d4-4d74-9cfa-4c163107da5b
+조회일: 2026-08-09
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/08/09로 변경합니다.
+2026년 08월 09일 환경자료 조회가 완료되었습니다.
+OIS 환경일지 재계산 버튼을 클릭했습니다.
+OIS "장자산단" 행 셀: [ '장자산단', '10,550.000', '저장율(%)', '89.940', '80.094', '93.986' ]
+OIS "저장량" 행 셀: [
+  '동두천',     '0.000',
+  '10,550.000', '2,694.000',
+  '9,048.600',  '저장량(m3)',
+  '3,597.586',  '8,810.310',
+  '5,639.158'
+]
+OIS "저장율" 행 셀: [ '장자산단', '10,550.000', '저장율(%)', '89.940', '80.094', '93.986' ]
+OIS "순수사용량" 행 셀: [
+  'B',         '62.000',
+  '47.00',     '49.990',
+  '94.80',     '총량',
+  '2,267.000', '순수사용량',
+  '총합',      '0',
+  '0',         '0',
+  '0'
+]
+OIS 수처리 최종 추출값: {
+  source: 'OIS 일일 운전일지(환경)',
+  sourceDate: '',
+  collectedAt: '2026-08-11T03:25:40.268Z',
+  rawWaterInflow: 10550,
+  demiProduction: 2267,
+  pureWaterUsage: 1092,
+  rawWaterTankAmount: 3597.586,
+  rawWaterTankRate: 89.94,
+  filteredWaterTankAmount: 8810.31,
+  filteredWaterTankRate: 80.094,
+  demiWaterTankAmount: 5639.158,
+  demiWaterTankRate: 93.986
+}
+OIS 수처리 결과 JSON 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-water-values.json
+OIS 수처리 현황 조회가 완료되었습니다.
+┌──────────────────────┬──────────┐
+│ (index)              │ Values   │
+├──────────────────────┼──────────┤
+│ 장자산단 원수 유입량 │ 10550    │
+│ 원수 TANK 저장량     │ 3597.586 │
+│ 원수 TANK 저장율     │ 89.94    │
+│ 여과수 TANK 저장량   │ 8810.31  │
+│ 여과수 TANK 저장율   │ 80.094   │
+│ 순수 TANK 저장량     │ 5639.158 │
+│ 순수 TANK 저장율     │ 93.986   │
+│ 순수 생산량          │ 2267     │
+│ 순수 사용량          │ 1092     │
+└──────────────────────┴──────────┘
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: 087d6860-13c7-467b-ac31-5c8891cac31b
+조회일: 2026-08-09
+------------------------------------------
+OIS 기준일을 2026/08/09로 변경합니다.
+2026년 08월 09일 환경자료 조회가 완료되었습니다.
+OIS 환경일지 재계산 버튼을 클릭했습니다.
+OIS "장자산단" 행 셀: [ '장자산단', '10,550.000', '저장율(%)', '89.940', '80.094', '93.986' ]
+OIS "저장량" 행 셀: [
+  '동두천',     '0.000',
+  '10,550.000', '2,694.000',
+  '9,048.600',  '저장량(m3)',
+  '3,597.586',  '8,810.310',
+  '5,639.158'
+]
+OIS "저장율" 행 셀: [ '장자산단', '10,550.000', '저장율(%)', '89.940', '80.094', '93.986' ]
+OIS "순수사용량" 행 셀: [
+  'B',         '62.000',
+  '47.00',     '49.990',
+  '94.80',     '총량',
+  '2,267.000', '순수사용량',
+  '총합',      '0',
+  '0',         '0',
+  '0'
+]
+OIS 수처리 최종 추출값: {
+  source: 'OIS 일일 운전일지(환경)',
+  sourceDate: '',
+  collectedAt: '2026-08-11T04:10:55.753Z',
+  rawWaterInflow: 10550,
+  demiProduction: 2267,
+  pureWaterUsage: 1092,
+  rawWaterTankAmount: 3597.586,
+  rawWaterTankRate: 89.94,
+  filteredWaterTankAmount: 8810.31,
+  filteredWaterTankRate: 80.094,
+  demiWaterTankAmount: 5639.158,
+  demiWaterTankRate: 93.986
+}
+OIS 수처리 결과 JSON 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-water-values.json
+OIS 수처리 현황 조회가 완료되었습니다.
+┌──────────────────────┬──────────┐
+│ (index)              │ Values   │
+├──────────────────────┼──────────┤
+│ 장자산단 원수 유입량 │ 10550    │
+│ 원수 TANK 저장량     │ 3597.586 │
+│ 원수 TANK 저장율     │ 89.94    │
+│ 여과수 TANK 저장량   │ 8810.31  │
+│ 여과수 TANK 저장율   │ 80.094   │
+│ 순수 TANK 저장량     │ 5639.158 │
+│ 순수 TANK 저장율     │ 93.986   │
+│ 순수 생산량          │ 2267     │
+│ 순수 사용량          │ 1092     │
+└──────────────────────┴──────────┘
