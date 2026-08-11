@@ -90594,6 +90594,2317 @@ async function readAuxiliaryMaterialJsonResponse(
   return result;
 }
 
+/* =========================================================
+  부재료 엑셀 보관용 선택 월 정보
+
+  예:
+  월 선택 = 2026-08
+
+  결과:
+  - 2026-08-01 ~ 2026-08-31
+  - 시트명: 2026.08
+  - 파일명용: 2026-08
+
+  현재 월인 경우에는
+  미래 날짜를 조회하지 않기 위해 오늘까지만 가져온다.
+========================================================= */
+
+function getAuxiliaryMaterialArchiveDownloadContext() {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  const monthValue =
+    String(
+      elements.monthInput?.value ||
+      getCurrentAuxiliaryMaterialMonthValue()
+    ).trim();
+
+
+  const match =
+    monthValue.match(
+      /^(\d{4})-(\d{2})$/
+    );
+
+
+  if (
+    !match
+  ) {
+    throw new Error(
+      "엑셀로 저장할 조회 월을 확인할 수 없습니다."
+    );
+  }
+
+
+  const year =
+    Number(
+      match[1]
+    );
+
+
+  const month =
+    Number(
+      match[2]
+    );
+
+
+  const range =
+    getAuxiliaryMaterialMonthRange(
+      monthValue
+    );
+
+
+  if (
+    !range
+  ) {
+    throw new Error(
+      "선택한 월의 부재료 자료를 조회할 수 없습니다."
+    );
+  }
+
+
+  /*
+    해당 달 전체 일수
+
+    예:
+    2026년 8월 → 31일
+  */
+  const calendarDayCount =
+    new Date(
+      year,
+      month,
+      0
+    ).getDate();
+
+
+  /*
+    실제 조회기간 일수
+
+    과거 월:
+    전체 일수
+
+    현재 월:
+    오늘까지
+  */
+  const startDate =
+    new Date(
+      `${range.startDate}T00:00:00`
+    );
+
+
+  const endDate =
+    new Date(
+      `${range.endDate}T00:00:00`
+    );
+
+
+  const requestedDayCount =
+    Math.floor(
+      (
+        endDate.getTime() -
+        startDate.getTime()
+      ) /
+      86400000
+    ) +
+    1;
+
+
+  return {
+    monthValue,
+
+    year,
+
+    month,
+
+    monthText:
+      String(
+        month
+      ).padStart(
+        2,
+        "0"
+      ),
+
+    /*
+      원본 엑셀 시트명
+      예: 2026.08
+    */
+    sheetName:
+      `${year}.${String(
+        month
+      ).padStart(
+        2,
+        "0"
+      )}`,
+
+    startDate:
+      range.startDate,
+
+    endDate:
+      range.endDate,
+
+    calendarDayCount,
+
+    requestedDayCount
+  };
+}
+
+
+/* =========================================================
+  부재료 엑셀 보관용 D1 월간 자료 조회
+
+  화면의 시작일/종료일을 사용하지 않고
+  상단의 "조회 월"을 기준으로 직접 조회한다.
+
+  이유:
+  사용자가 기간 입력을 임의 변경했더라도
+  엑셀 보관본은 반드시 선택 월 기준으로 생성하기 위함.
+========================================================= */
+
+async function fetchAuxiliaryMaterialArchiveMonthData() {
+  const context =
+    getAuxiliaryMaterialArchiveDownloadContext();
+
+
+  const query =
+    new URLSearchParams({
+      action:
+        "materials_history",
+
+      startDate:
+        context.startDate,
+
+      endDate:
+        context.endDate,
+
+      _:
+        String(
+          Date.now()
+        )
+    });
+
+
+  const headers =
+    typeof getShiftLogAuthHeaders ===
+      "function"
+      ? getShiftLogAuthHeaders()
+      : {
+          Accept:
+            "application/json"
+        };
+
+
+  const response =
+    await fetch(
+      (
+        "/api/ois-data-requests?" +
+        query.toString()
+      ),
+      {
+        method:
+          "GET",
+
+        headers,
+
+        cache:
+          "no-store"
+      }
+    );
+
+
+  const result =
+    await readAuxiliaryMaterialJsonResponse(
+      response
+    );
+
+
+  const items =
+    Array.isArray(
+      result.items
+    )
+      ? result.items
+      : [];
+
+
+  const summary =
+    result.summary &&
+    typeof result.summary ===
+      "object"
+      ? result.summary
+      : {};
+
+
+  return {
+    ...context,
+
+    items,
+
+    summary,
+
+    savedDateCount:
+      Number(
+        summary.savedDateCount ||
+        0
+      )
+  };
+}
+
+/* =========================================================
+  부재료 보관 엑셀 날짜 → Excel 일련번호
+
+  예:
+  2026-08-01
+
+  원본 엑셀 A열의 날짜 형식을 그대로 유지하기 위해
+  문자 날짜가 아니라 Excel 날짜 숫자로 입력한다.
+========================================================= */
+
+function createAuxiliaryMaterialArchiveExcelDateSerial(
+  isoDate
+) {
+  if (
+    !isValidAuxiliaryMaterialIsoDate(
+      isoDate
+    )
+  ) {
+    return null;
+  }
+
+
+  const [
+    year,
+    month,
+    day
+  ] =
+    isoDate
+      .split(
+        "-"
+      )
+      .map(
+        Number
+      );
+
+
+  return (
+    Math.floor(
+      Date.UTC(
+        year,
+        month - 1,
+        day
+      ) /
+      86400000
+    ) +
+    25569
+  );
+}
+
+
+/* =========================================================
+  부재료 보관 엑셀 숫자값 정리
+
+  null / 빈값:
+  → 엑셀 빈칸
+
+  0:
+  → 실제 숫자 0 유지
+========================================================= */
+
+function normalizeAuxiliaryMaterialArchiveNumber(
+  value
+) {
+  if (
+    value ===
+      null ||
+    value ===
+      undefined ||
+    String(
+      value
+    ).trim() ===
+      ""
+  ) {
+    return null;
+  }
+
+
+  const numericValue =
+    Number(
+      value
+    );
+
+
+  return Number.isFinite(
+    numericValue
+  )
+    ? numericValue
+    : null;
+}
+
+
+/* =========================================================
+  날짜별 1·2호기 비고 합치기
+========================================================= */
+
+function createAuxiliaryMaterialArchiveRemarks(
+  unitOne,
+  unitTwo
+) {
+  const unitOneRemarks =
+    String(
+      unitOne?.remarks ??
+      ""
+    ).trim();
+
+
+  const unitTwoRemarks =
+    String(
+      unitTwo?.remarks ??
+      ""
+    ).trim();
+
+
+  if (
+    unitOneRemarks &&
+    unitTwoRemarks &&
+    unitOneRemarks !==
+      unitTwoRemarks
+  ) {
+    return (
+      `1호기: ${unitOneRemarks} / ` +
+      `2호기: ${unitTwoRemarks}`
+    );
+  }
+
+
+  return (
+    unitOneRemarks ||
+    unitTwoRemarks ||
+    ""
+  );
+}
+
+
+/* =========================================================
+  D1 월간 자료 → 원본 엑셀 A:R 행 구조 변환
+
+  원본 양식:
+
+  A   일자
+
+  B   1호기 SOx
+  C   1호기 Limestone 사용량
+  D   1호기 Limestone 입고량
+  E   1호기 Lime Slurry 유량
+  F   1호기 Slurry 밀도
+  G   1호기 Lime Powder
+  H   1호기 NOx
+  I   1호기 Ammonia
+
+  J   2호기 SOx
+  K   2호기 Limestone 사용량
+  L   2호기 Limestone 입고량
+  M   2호기 Lime Slurry 유량
+  N   2호기 Slurry 밀도
+  O   2호기 Lime Powder
+  P   2호기 NOx
+  Q   2호기 Ammonia
+
+  R   비고
+
+  중요:
+  - 4행 = 해당 월 1일
+  - 5행 = 2일
+  - ...
+  - 저장되지 않은 날짜 B:R은 빈칸
+========================================================= */
+
+function createAuxiliaryMaterialArchiveRows(
+  archiveData
+) {
+  if (
+    !archiveData ||
+    !Number.isInteger(
+      archiveData.year
+    ) ||
+    !Number.isInteger(
+      archiveData.month
+    )
+  ) {
+    throw new Error(
+      "부재료 엑셀 변환용 월 정보를 확인할 수 없습니다."
+    );
+  }
+
+
+  const items =
+    Array.isArray(
+      archiveData.items
+    )
+      ? archiveData.items
+      : [];
+
+
+  /*
+    날짜별 1호기 / 2호기 묶기
+  */
+  const rowsByDate =
+    new Map();
+
+
+  items.forEach(
+    item => {
+      const recordDate =
+        String(
+          item?.recordDate ||
+          ""
+        ).trim();
+
+
+      const unitNo =
+        Number(
+          item?.unitNo
+        );
+
+
+      if (
+        !isValidAuxiliaryMaterialIsoDate(
+          recordDate
+        ) ||
+        ![
+          1,
+          2
+        ].includes(
+          unitNo
+        )
+      ) {
+        return;
+      }
+
+
+      /*
+        선택한 월의 자료만 사용한다.
+      */
+      if (
+        recordDate.slice(
+          0,
+          7
+        ) !==
+          archiveData.monthValue
+      ) {
+        return;
+      }
+
+
+      if (
+        !rowsByDate.has(
+          recordDate
+        )
+      ) {
+        rowsByDate.set(
+          recordDate,
+          {
+            unitOne:
+              null,
+
+            unitTwo:
+              null
+          }
+        );
+      }
+
+
+      const row =
+        rowsByDate.get(
+          recordDate
+        );
+
+
+      if (
+        unitNo ===
+          1
+      ) {
+        row.unitOne =
+          item;
+
+      } else {
+        row.unitTwo =
+          item;
+      }
+    }
+  );
+
+
+  const rows =
+    [];
+
+
+  /*
+    저장된 날짜만 만드는 것이 아니라
+    해당 월 1일 ~ 말일까지 전부 만든다.
+
+    이유:
+    원본 템플릿에 들어 있던 기존 값이나 수식을
+    반드시 지우고 D1 확정값만 남기기 위함.
+  */
+  for (
+    let day =
+      1;
+    day <=
+      archiveData.calendarDayCount;
+    day +=
+      1
+  ) {
+    const recordDate =
+      (
+        `${archiveData.year}-` +
+        `${String(
+          archiveData.month
+        ).padStart(
+          2,
+          "0"
+        )}-` +
+        `${String(
+          day
+        ).padStart(
+          2,
+          "0"
+        )}`
+      );
+
+
+    const source =
+      rowsByDate.get(
+        recordDate
+      ) || {
+        unitOne:
+          null,
+
+        unitTwo:
+          null
+      };
+
+
+    const unitOne =
+      source.unitOne;
+
+
+    const unitTwo =
+      source.unitTwo;
+
+
+    /*
+      원본 엑셀 기준
+
+      4행 = 1일
+      5행 = 2일
+      ...
+    */
+    const excelRowNumber =
+      day +
+      3;
+
+
+    const values = [
+      /*
+        A
+      */
+      createAuxiliaryMaterialArchiveExcelDateSerial(
+        recordDate
+      ),
+
+
+      /*
+        B:I
+        1호기
+      */
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitOne?.soxPpm
+      ),
+
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitOne?.limestoneUsageTpd
+      ),
+
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitOne?.limestoneReceiptTon
+      ),
+
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitOne?.limeSlurryFlowM3h
+      ),
+
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitOne?.limeSlurryDensityKgm3
+      ),
+
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitOne?.limePowderTpd
+      ),
+
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitOne?.noxPpm
+      ),
+
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitOne?.ammoniaM3d
+      ),
+
+
+      /*
+        J:Q
+        2호기
+      */
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitTwo?.soxPpm
+      ),
+
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitTwo?.limestoneUsageTpd
+      ),
+
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitTwo?.limestoneReceiptTon
+      ),
+
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitTwo?.limeSlurryFlowM3h
+      ),
+
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitTwo?.limeSlurryDensityKgm3
+      ),
+
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitTwo?.limePowderTpd
+      ),
+
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitTwo?.noxPpm
+      ),
+
+      normalizeAuxiliaryMaterialArchiveNumber(
+        unitTwo?.ammoniaM3d
+      ),
+
+
+      /*
+        R
+      */
+      createAuxiliaryMaterialArchiveRemarks(
+        unitOne,
+        unitTwo
+      )
+    ];
+
+
+    rows.push({
+      recordDate,
+
+      day,
+
+      excelRowNumber,
+
+      unitOne,
+
+      unitTwo,
+
+      values
+    });
+  }
+
+
+  return rows;
+}
+
+/* =========================================================
+  부재료 보관 엑셀 XML Namespace
+========================================================= */
+
+const AUXILIARY_MATERIAL_ARCHIVE_MAIN_XML_NAMESPACE =
+  "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+
+const AUXILIARY_MATERIAL_ARCHIVE_OFFICE_RELATIONSHIP_NAMESPACE =
+  "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+
+
+const AUXILIARY_MATERIAL_ARCHIVE_PACKAGE_RELATIONSHIP_NAMESPACE =
+  "http://schemas.openxmlformats.org/package/2006/relationships";
+
+
+/* =========================================================
+  부재료 보관 엑셀 XML 파싱
+========================================================= */
+
+function parseAuxiliaryMaterialArchiveXml(
+  xmlText,
+  description
+) {
+  const documentObject =
+    new DOMParser()
+      .parseFromString(
+        xmlText,
+        "application/xml"
+      );
+
+
+  if (
+    documentObject.querySelector(
+      "parsererror"
+    )
+  ) {
+    throw new Error(
+      `${description} XML을 읽지 못했습니다.`
+    );
+  }
+
+
+  return documentObject;
+}
+
+
+/* =========================================================
+  XLSX 내부 상대 경로 정규화
+
+  예:
+  xl + worksheets/sheet1.xml
+  → xl/worksheets/sheet1.xml
+========================================================= */
+
+function normalizeAuxiliaryMaterialArchiveZipPath(
+  basePath,
+  targetPath
+) {
+  if (
+    String(
+      targetPath ||
+      ""
+    ).startsWith(
+      "/"
+    )
+  ) {
+    return String(
+      targetPath
+    ).replace(
+      /^\/+/,
+      ""
+    );
+  }
+
+
+  const parts =
+    `${basePath}/${targetPath}`
+      .split(
+        "/"
+      );
+
+
+  const normalizedParts =
+    [];
+
+
+  parts.forEach(
+    part => {
+      if (
+        !part ||
+        part ===
+          "."
+      ) {
+        return;
+      }
+
+
+      if (
+        part ===
+          ".."
+      ) {
+        normalizedParts.pop();
+
+        return;
+      }
+
+
+      normalizedParts.push(
+        part
+      );
+    }
+  );
+
+
+  return normalizedParts.join(
+    "/"
+  );
+}
+
+
+/* =========================================================
+  선택 월의 실제 worksheet XML 경로 찾기
+
+  중요:
+  sheet1.xml 같은 파일명을 하드코딩하지 않는다.
+
+  예:
+  sheetName = 2026.08
+
+  workbook.xml:
+  2026.08 → rId1
+
+  workbook.xml.rels:
+  rId1 → worksheets/sheet1.xml
+========================================================= */
+
+async function findAuxiliaryMaterialArchiveWorksheetPath(
+  zip,
+  sheetName
+) {
+  const workbookFile =
+    zip.file(
+      "xl/workbook.xml"
+    );
+
+
+  const relationshipFile =
+    zip.file(
+      "xl/_rels/workbook.xml.rels"
+    );
+
+
+  if (
+    !workbookFile ||
+    !relationshipFile
+  ) {
+    throw new Error(
+      "부재료 보관 엑셀의 통합문서 구조를 찾지 못했습니다."
+    );
+  }
+
+
+  const workbookDocument =
+    parseAuxiliaryMaterialArchiveXml(
+      await workbookFile.async(
+        "string"
+      ),
+      "부재료 통합문서"
+    );
+
+
+  const relationshipDocument =
+    parseAuxiliaryMaterialArchiveXml(
+      await relationshipFile.async(
+        "string"
+      ),
+      "부재료 통합문서 관계"
+    );
+
+
+  const sheets =
+    Array.from(
+      workbookDocument
+        .getElementsByTagNameNS(
+          AUXILIARY_MATERIAL_ARCHIVE_MAIN_XML_NAMESPACE,
+          "sheet"
+        )
+    );
+
+
+  const targetSheet =
+    sheets.find(
+      sheet =>
+        String(
+          sheet.getAttribute(
+            "name"
+          ) ||
+          ""
+        ).trim() ===
+          sheetName
+    );
+
+
+  if (
+    !targetSheet
+  ) {
+    throw new Error(
+      `원본 부재료 엑셀에서 '${sheetName}' 시트를 찾지 못했습니다.`
+    );
+  }
+
+
+  const relationshipId =
+    targetSheet.getAttributeNS(
+      AUXILIARY_MATERIAL_ARCHIVE_OFFICE_RELATIONSHIP_NAMESPACE,
+      "id"
+    );
+
+
+  if (
+    !relationshipId
+  ) {
+    throw new Error(
+      `${sheetName} 시트의 연결 정보를 찾지 못했습니다.`
+    );
+  }
+
+
+  const relationships =
+    Array.from(
+      relationshipDocument
+        .getElementsByTagNameNS(
+          AUXILIARY_MATERIAL_ARCHIVE_PACKAGE_RELATIONSHIP_NAMESPACE,
+          "Relationship"
+        )
+    );
+
+
+  const targetRelationship =
+    relationships.find(
+      relationship =>
+        relationship.getAttribute(
+          "Id"
+        ) ===
+          relationshipId
+    );
+
+
+  if (
+    !targetRelationship
+  ) {
+    throw new Error(
+      `${sheetName} 시트의 XML 파일 연결 정보를 찾지 못했습니다.`
+    );
+  }
+
+
+  const targetPath =
+    String(
+      targetRelationship.getAttribute(
+        "Target"
+      ) ||
+      ""
+    ).trim();
+
+
+  if (
+    !targetPath
+  ) {
+    throw new Error(
+      `${sheetName} 시트 XML 경로를 확인하지 못했습니다.`
+    );
+  }
+
+
+  return normalizeAuxiliaryMaterialArchiveZipPath(
+    "xl",
+    targetPath
+  );
+}
+
+
+/* =========================================================
+  셀 자식 데이터 제거
+
+  중요:
+  <c r="B4" s="11">의
+  r / s 같은 셀 주소와 스타일 속성은 유지한다.
+
+  제거 대상:
+  - f  수식
+  - v  값
+  - is inline string
+
+  따라서:
+  색상 / 테두리 / 숫자서식 / 정렬은 그대로 보존된다.
+========================================================= */
+
+function clearAuxiliaryMaterialArchiveCellContent(
+  cell
+) {
+  if (
+    !cell
+  ) {
+    return;
+  }
+
+
+  Array.from(
+    cell.childNodes
+  ).forEach(
+    child => {
+      if (
+        child.nodeType !==
+          1
+      ) {
+        return;
+      }
+
+
+      if (
+        [
+          "f",
+          "v",
+          "is"
+        ].includes(
+          child.localName
+        )
+      ) {
+        child.remove();
+      }
+    }
+  );
+
+
+  /*
+    shared string / inline string 등의
+    기존 데이터 형식도 제거한다.
+  */
+  cell.removeAttribute(
+    "t"
+  );
+}
+
+
+/* =========================================================
+  특정 셀 찾기
+
+  예:
+  B4
+  Q34
+========================================================= */
+
+function findAuxiliaryMaterialArchiveCell(
+  worksheetDocument,
+  cellReference
+) {
+  const cells =
+    Array.from(
+      worksheetDocument
+        .getElementsByTagNameNS(
+          AUXILIARY_MATERIAL_ARCHIVE_MAIN_XML_NAMESPACE,
+          "c"
+        )
+    );
+
+
+  return (
+    cells.find(
+      cell =>
+        String(
+          cell.getAttribute(
+            "r"
+          ) ||
+          ""
+        ).toUpperCase() ===
+        String(
+          cellReference ||
+          ""
+        ).toUpperCase()
+    ) ||
+    null
+  );
+}
+
+
+/* =========================================================
+  숫자 셀 입력
+
+  기존 스타일은 유지하고
+  기존 수식은 제거한 뒤 D1 확정 숫자를 직접 넣는다.
+========================================================= */
+
+function setAuxiliaryMaterialArchiveNumericCell(
+  worksheetDocument,
+  cellReference,
+  value
+) {
+  const cell =
+    findAuxiliaryMaterialArchiveCell(
+      worksheetDocument,
+      cellReference
+    );
+
+
+  if (
+    !cell
+  ) {
+    throw new Error(
+      `원본 부재료 엑셀에서 ${cellReference} 셀을 찾지 못했습니다.`
+    );
+  }
+
+
+  clearAuxiliaryMaterialArchiveCellContent(
+    cell
+  );
+
+
+  if (
+    value ===
+      null ||
+    value ===
+      undefined ||
+    value ===
+      ""
+  ) {
+    /*
+      값을 넣지 않는다.
+
+      <c r="B20" s="11"/>
+      형태로 남기므로 서식은 유지되고
+      화면에는 빈칸으로 표시된다.
+    */
+    return;
+  }
+
+
+  const numericValue =
+    Number(
+      value
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    return;
+  }
+
+
+  const valueElement =
+    worksheetDocument
+      .createElementNS(
+        AUXILIARY_MATERIAL_ARCHIVE_MAIN_XML_NAMESPACE,
+        "v"
+      );
+
+
+  valueElement.textContent =
+    String(
+      numericValue
+    );
+
+
+  cell.appendChild(
+    valueElement
+  );
+}
+
+
+/* =========================================================
+  문자열 셀 입력
+
+  비고는 sharedStrings.xml을 수정하지 않고
+  inlineStr 형식으로 직접 저장한다.
+
+  → 기존 workbook의 sharedStrings 구조와 충돌하지 않음
+========================================================= */
+
+function setAuxiliaryMaterialArchiveTextCell(
+  worksheetDocument,
+  cellReference,
+  value
+) {
+  const cell =
+    findAuxiliaryMaterialArchiveCell(
+      worksheetDocument,
+      cellReference
+    );
+
+
+  if (
+    !cell
+  ) {
+    throw new Error(
+      `원본 부재료 엑셀에서 ${cellReference} 셀을 찾지 못했습니다.`
+    );
+  }
+
+
+  clearAuxiliaryMaterialArchiveCellContent(
+    cell
+  );
+
+
+  const text =
+    String(
+      value ??
+      ""
+    );
+
+
+  if (
+    !text
+  ) {
+    return;
+  }
+
+
+  cell.setAttribute(
+    "t",
+    "inlineStr"
+  );
+
+
+  const inlineString =
+    worksheetDocument
+      .createElementNS(
+        AUXILIARY_MATERIAL_ARCHIVE_MAIN_XML_NAMESPACE,
+        "is"
+      );
+
+
+  const textElement =
+    worksheetDocument
+      .createElementNS(
+        AUXILIARY_MATERIAL_ARCHIVE_MAIN_XML_NAMESPACE,
+        "t"
+      );
+
+
+  /*
+    앞뒤 공백도 혹시 있다면 그대로 보존한다.
+  */
+  textElement.setAttributeNS(
+    "http://www.w3.org/XML/1998/namespace",
+    "xml:space",
+    "preserve"
+  );
+
+
+  textElement.textContent =
+    text;
+
+
+  inlineString.appendChild(
+    textElement
+  );
+
+
+  cell.appendChild(
+    inlineString
+  );
+}
+
+
+/* =========================================================
+  Excel 열 문자
+
+  0 → A
+  1 → B
+  ...
+  17 → R
+========================================================= */
+
+function getAuxiliaryMaterialArchiveExcelColumn(
+  columnIndex
+) {
+  let index =
+    Number(
+      columnIndex
+    );
+
+
+  if (
+    !Number.isInteger(
+      index
+    ) ||
+    index <
+      0
+  ) {
+    throw new Error(
+      "엑셀 열 번호가 올바르지 않습니다."
+    );
+  }
+
+
+  let columnName =
+    "";
+
+
+  index +=
+    1;
+
+
+  while (
+    index >
+      0
+  ) {
+    const remainder =
+      (
+        index -
+        1
+      ) %
+      26;
+
+
+    columnName =
+      String.fromCharCode(
+        65 +
+        remainder
+      ) +
+      columnName;
+
+
+    index =
+      Math.floor(
+        (
+          index -
+          1
+        ) /
+        26
+      );
+  }
+
+
+  return columnName;
+}
+
+
+/* =========================================================
+  A:R 한 행을 실제 worksheet에 반영
+
+  values 배열:
+  0  → A
+  1  → B
+  ...
+  17 → R
+========================================================= */
+
+function applyAuxiliaryMaterialArchiveRowToWorksheet(
+  worksheetDocument,
+  archiveRow
+) {
+  if (
+    !archiveRow ||
+    !Array.isArray(
+      archiveRow.values
+    ) ||
+    archiveRow.values.length !==
+      18
+  ) {
+    throw new Error(
+      "부재료 보관 엑셀 행 자료 구조가 올바르지 않습니다."
+    );
+  }
+
+
+  const excelRowNumber =
+    Number(
+      archiveRow.excelRowNumber
+    );
+
+
+  if (
+    !Number.isInteger(
+      excelRowNumber
+    ) ||
+    excelRowNumber <
+      1
+  ) {
+    throw new Error(
+      "부재료 보관 엑셀 행 번호가 올바르지 않습니다."
+    );
+  }
+
+
+  archiveRow.values.forEach(
+    (
+      value,
+      columnIndex
+    ) => {
+      const column =
+        getAuxiliaryMaterialArchiveExcelColumn(
+          columnIndex
+        );
+
+
+      const cellReference =
+        `${column}${excelRowNumber}`;
+
+
+      /*
+        R열 = 비고
+      */
+      if (
+        column ===
+          "R"
+      ) {
+        setAuxiliaryMaterialArchiveTextCell(
+          worksheetDocument,
+          cellReference,
+          value
+        );
+
+
+        return;
+      }
+
+
+      /*
+        A:Q = 날짜 또는 숫자
+      */
+      setAuxiliaryMaterialArchiveNumericCell(
+        worksheetDocument,
+        cellReference,
+        value
+      );
+    }
+  );
+}
+
+/* =========================================================
+  XLSX Content Types Namespace
+========================================================= */
+
+const AUXILIARY_MATERIAL_ARCHIVE_CONTENT_TYPES_NAMESPACE =
+  "http://schemas.openxmlformats.org/package/2006/content-types";
+
+
+/* =========================================================
+  오래된 calcChain 제거
+
+  선택 월 A:R의 기존 수식을 D1 확정값으로 바꾸므로
+  기존 계산 체인이 남아 있지 않게 정리한다.
+========================================================= */
+
+async function removeAuxiliaryMaterialArchiveCalcChain(
+  zip
+) {
+  /*
+    실제 calcChain 파일 제거
+  */
+  zip.remove(
+    "xl/calcChain.xml"
+  );
+
+
+  /* =====================================================
+    workbook.xml.rels에서 calcChain 연결 제거
+  ====================================================== */
+
+  const relationshipPath =
+    "xl/_rels/workbook.xml.rels";
+
+
+  const relationshipFile =
+    zip.file(
+      relationshipPath
+    );
+
+
+  if (
+    relationshipFile
+  ) {
+    const relationshipDocument =
+      parseAuxiliaryMaterialArchiveXml(
+        await relationshipFile.async(
+          "string"
+        ),
+        "부재료 통합문서 관계"
+      );
+
+
+    const relationships =
+      Array.from(
+        relationshipDocument
+          .getElementsByTagNameNS(
+            AUXILIARY_MATERIAL_ARCHIVE_PACKAGE_RELATIONSHIP_NAMESPACE,
+            "Relationship"
+          )
+      );
+
+
+    relationships.forEach(
+      relationship => {
+        const type =
+          String(
+            relationship.getAttribute(
+              "Type"
+            ) ||
+            ""
+          );
+
+
+        if (
+          type.endsWith(
+            "/calcChain"
+          )
+        ) {
+          relationship.remove();
+        }
+      }
+    );
+
+
+    zip.file(
+      relationshipPath,
+
+      new XMLSerializer()
+        .serializeToString(
+          relationshipDocument
+        )
+    );
+  }
+
+
+  /* =====================================================
+    [Content_Types].xml에서 calcChain 등록 제거
+  ====================================================== */
+
+  const contentTypesPath =
+    "[Content_Types].xml";
+
+
+  const contentTypesFile =
+    zip.file(
+      contentTypesPath
+    );
+
+
+  if (
+    contentTypesFile
+  ) {
+    const contentTypesDocument =
+      parseAuxiliaryMaterialArchiveXml(
+        await contentTypesFile.async(
+          "string"
+        ),
+        "부재료 콘텐츠 형식"
+      );
+
+
+    const overrides =
+      Array.from(
+        contentTypesDocument
+          .getElementsByTagNameNS(
+            AUXILIARY_MATERIAL_ARCHIVE_CONTENT_TYPES_NAMESPACE,
+            "Override"
+          )
+      );
+
+
+    overrides.forEach(
+      override => {
+        const partName =
+          String(
+            override.getAttribute(
+              "PartName"
+            ) ||
+            ""
+          );
+
+
+        if (
+          partName ===
+            "/xl/calcChain.xml"
+        ) {
+          override.remove();
+        }
+      }
+    );
+
+
+    zip.file(
+      contentTypesPath,
+
+      new XMLSerializer()
+        .serializeToString(
+          contentTypesDocument
+        )
+    );
+  }
+}
+
+
+/* =========================================================
+  Excel 재계산 설정
+
+  선택 월의 A:R은 확정값이지만
+  원본 파일의 다른 시트/영역에는 수식이 남아 있을 수 있다.
+
+  Excel에서 파일을 열 때
+  필요한 나머지 수식을 다시 계산하게 한다.
+========================================================= */
+
+async function prepareAuxiliaryMaterialArchiveRecalculation(
+  zip
+) {
+  const workbookPath =
+    "xl/workbook.xml";
+
+
+  const workbookFile =
+    zip.file(
+      workbookPath
+    );
+
+
+  if (
+    !workbookFile
+  ) {
+    throw new Error(
+      "부재료 보관 엑셀의 workbook.xml을 찾지 못했습니다."
+    );
+  }
+
+
+  const workbookDocument =
+    parseAuxiliaryMaterialArchiveXml(
+      await workbookFile.async(
+        "string"
+      ),
+      "부재료 통합문서"
+    );
+
+
+  const workbookRoot =
+    workbookDocument
+      .documentElement;
+
+
+  let calcPr =
+    workbookDocument
+      .getElementsByTagNameNS(
+        AUXILIARY_MATERIAL_ARCHIVE_MAIN_XML_NAMESPACE,
+        "calcPr"
+      )[0];
+
+
+  if (
+    !calcPr
+  ) {
+    calcPr =
+      workbookDocument
+        .createElementNS(
+          AUXILIARY_MATERIAL_ARCHIVE_MAIN_XML_NAMESPACE,
+          "calcPr"
+        );
+
+
+    const extList =
+      workbookDocument
+        .getElementsByTagNameNS(
+          AUXILIARY_MATERIAL_ARCHIVE_MAIN_XML_NAMESPACE,
+          "extLst"
+        )[0];
+
+
+    workbookRoot.insertBefore(
+      calcPr,
+      extList ||
+      null
+    );
+  }
+
+
+  calcPr.setAttribute(
+    "calcMode",
+    "auto"
+  );
+
+
+  calcPr.setAttribute(
+    "fullCalcOnLoad",
+    "1"
+  );
+
+
+  calcPr.setAttribute(
+    "forceFullCalc",
+    "1"
+  );
+
+
+  calcPr.setAttribute(
+    "calcId",
+    "0"
+  );
+
+
+  zip.file(
+    workbookPath,
+
+    new XMLSerializer()
+      .serializeToString(
+        workbookDocument
+      )
+  );
+}
+
+
+/* =========================================================
+  부재료 월간 보관용 XLSX 생성
+
+  처리 순서:
+
+  1. 현재 조회 월 확인
+  2. 해당 월 D1 저장자료 조회
+  3. 원본 XLSX 템플릿 로드
+  4. 선택 월 시트 검색
+  5. A:R에 D1 확정값 직접 입력
+  6. 기존 서식 / 병합 / 열너비 / 차트 등 유지
+  7. 오래된 calcChain 제거
+  8. XLSX Blob 생성
+
+  여기서는 다운로드하지 않는다.
+  다음 단계에서 버튼과 연결한다.
+========================================================= */
+
+async function createAuxiliaryMaterialArchiveWorkbook() {
+  if (
+    typeof JSZip ===
+      "undefined"
+  ) {
+    throw new Error(
+      "JSZip 라이브러리를 불러오지 못했습니다."
+    );
+  }
+
+
+  /* =====================================================
+    선택 월 D1 자료
+  ====================================================== */
+
+  const archiveData =
+    await fetchAuxiliaryMaterialArchiveMonthData();
+
+
+  const archiveRows =
+    createAuxiliaryMaterialArchiveRows(
+      archiveData
+    );
+
+
+  /* =====================================================
+    원본 템플릿 다운로드
+  ====================================================== */
+
+  const templateResponse =
+    await fetch(
+      "/assets/templates/auxiliary-material-archive-template.xlsx",
+      {
+        method:
+          "GET",
+
+        cache:
+          "no-store"
+      }
+    );
+
+
+  if (
+    !templateResponse.ok
+  ) {
+    throw new Error(
+      (
+        "부재료 보관용 원본 엑셀을 불러오지 못했습니다. " +
+        `(${templateResponse.status})`
+      )
+    );
+  }
+
+
+  const templateBuffer =
+    await templateResponse
+      .arrayBuffer();
+
+
+  /* =====================================================
+    XLSX 열기
+  ====================================================== */
+
+  const zip =
+    await JSZip.loadAsync(
+      templateBuffer
+    );
+
+
+  /* =====================================================
+    선택 월 시트 찾기
+
+    예:
+    2026-08
+    → 2026.08
+  ====================================================== */
+
+  const worksheetPath =
+    await findAuxiliaryMaterialArchiveWorksheetPath(
+      zip,
+      archiveData.sheetName
+    );
+
+
+  const worksheetFile =
+    zip.file(
+      worksheetPath
+    );
+
+
+  if (
+    !worksheetFile
+  ) {
+    throw new Error(
+      `${archiveData.sheetName} 시트 파일을 열지 못했습니다.`
+    );
+  }
+
+
+  const worksheetDocument =
+    parseAuxiliaryMaterialArchiveXml(
+      await worksheetFile.async(
+        "string"
+      ),
+      `${archiveData.sheetName} 부재료 시트`
+    );
+
+
+  /* =====================================================
+    D1 확정값 A:R 반영
+
+    월의 모든 날짜를 순회하므로
+    저장되지 않은 날짜의 기존 값/수식도 빈칸으로 정리된다.
+  ====================================================== */
+
+  archiveRows.forEach(
+    archiveRow => {
+      applyAuxiliaryMaterialArchiveRowToWorksheet(
+        worksheetDocument,
+        archiveRow
+      );
+    }
+  );
+
+
+  /* =====================================================
+    수정된 시트 XML 저장
+  ====================================================== */
+
+  zip.file(
+    worksheetPath,
+
+    new XMLSerializer()
+      .serializeToString(
+        worksheetDocument
+      )
+  );
+
+
+  /* =====================================================
+    계산 관련 정리
+  ====================================================== */
+
+  await removeAuxiliaryMaterialArchiveCalcChain(
+    zip
+  );
+
+
+  await prepareAuxiliaryMaterialArchiveRecalculation(
+    zip
+  );
+
+
+  /* =====================================================
+    최종 XLSX Blob 생성
+  ====================================================== */
+
+  const blob =
+    await zip.generateAsync(
+      {
+        type:
+          "blob",
+
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+
+        compression:
+          "DEFLATE",
+
+        compressionOptions: {
+          level:
+            6
+        }
+      }
+    );
+
+
+  /* =====================================================
+    파일명
+
+    예:
+    #1, 2 BLR 부재료 사용량 변화 비교_2026_08월_보관본.xlsx
+  ====================================================== */
+
+  const fileName =
+    (
+      "#1, 2 BLR 부재료 사용량 변화 비교_" +
+      `${archiveData.year}_` +
+      `${archiveData.monthText}월_보관본.xlsx`
+    );
+
+
+  return {
+    blob,
+
+    fileName,
+
+    archiveData,
+
+    archiveRows,
+
+    savedDateCount:
+      archiveData.savedDateCount,
+
+    calendarDayCount:
+      archiveData.calendarDayCount
+  };
+}
+
+/* =========================================================
+  부재료 보관 엑셀 다운로드 버튼 상태
+========================================================= */
+
+function setAuxiliaryMaterialArchiveDownloadButtonState(
+  isRunning
+) {
+  const button =
+    document.getElementById(
+      "downloadAuxiliaryMaterialExcelButton"
+    );
+
+
+  if (
+    !button
+  ) {
+    return;
+  }
+
+
+  const running =
+    isRunning ===
+      true;
+
+
+  button.disabled =
+    running;
+
+
+  button.textContent =
+    running
+      ? "엑셀 생성 중..."
+      : "엑셀 다운로드";
+
+
+  button.title =
+    running
+      ? "부재료 보관용 엑셀을 생성하고 있습니다."
+      : "선택한 월의 D1 부재료 자료를 원본 양식으로 다운로드";
+}
+
+
+/* =========================================================
+  부재료 보관 XLSX 실제 다운로드
+========================================================= */
+
+function downloadAuxiliaryMaterialArchiveBlob(
+  blob,
+  fileName
+) {
+  if (
+    !(blob instanceof Blob)
+  ) {
+    throw new Error(
+      "다운로드할 부재료 엑셀 파일을 만들지 못했습니다."
+    );
+  }
+
+
+  const objectUrl =
+    URL.createObjectURL(
+      blob
+    );
+
+
+  const downloadLink =
+    document.createElement(
+      "a"
+    );
+
+
+  downloadLink.href =
+    objectUrl;
+
+
+  downloadLink.download =
+    fileName;
+
+
+  downloadLink.style.display =
+    "none";
+
+
+  document.body.appendChild(
+    downloadLink
+  );
+
+
+  downloadLink.click();
+
+
+  downloadLink.remove();
+
+
+  window.setTimeout(
+    () => {
+      URL.revokeObjectURL(
+        objectUrl
+      );
+    },
+    1000
+  );
+}
+
+
+/* =========================================================
+  부재료 보관 엑셀 다운로드 실행
+========================================================= */
+
+async function handleAuxiliaryMaterialArchiveDownload() {
+  const button =
+    document.getElementById(
+      "downloadAuxiliaryMaterialExcelButton"
+    );
+
+
+  if (
+    !button ||
+    button.disabled
+  ) {
+    return;
+  }
+
+
+  /*
+    모바일 부재료 화면은
+    모니터링 전용이므로 다운로드하지 않는다.
+  */
+  if (
+    typeof isAuxiliaryMaterialMobileMonitorMode ===
+      "function" &&
+    isAuxiliaryMaterialMobileMonitorMode()
+  ) {
+    return;
+  }
+
+
+  setAuxiliaryMaterialArchiveDownloadButtonState(
+    true
+  );
+
+
+  try {
+    const result =
+      await createAuxiliaryMaterialArchiveWorkbook();
+
+
+    downloadAuxiliaryMaterialArchiveBlob(
+      result.blob,
+      result.fileName
+    );
+
+
+    const monthLabel =
+      (
+        `${result.archiveData.year}년 ` +
+        `${result.archiveData.month}월`
+      );
+
+
+    const savedDateCount =
+      Number.isFinite(
+        Number(
+          result.savedDateCount
+        )
+      )
+        ? Number(
+            result.savedDateCount
+          )
+        : 0;
+
+
+    const calendarDayCount =
+      Number.isFinite(
+        Number(
+          result.calendarDayCount
+        )
+      )
+        ? Number(
+            result.calendarDayCount
+          )
+        : 0;
+
+
+    const message =
+      (
+        `${monthLabel} 부재료 보관용 엑셀을 다운로드했습니다. ` +
+        `D1 저장 ${savedDateCount}/${calendarDayCount}일`
+      );
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message
+      );
+
+    } else {
+      window.alert(
+        message
+      );
+    }
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "부재료 보관 엑셀 다운로드 오류:",
+      error
+    );
+
+
+    const message =
+      (
+        error instanceof Error &&
+        error.message
+      )
+        ? error.message
+        : "부재료 보관용 엑셀을 생성하지 못했습니다.";
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message
+      );
+
+    } else {
+      window.alert(
+        message
+      );
+    }
+
+  } finally {
+    setAuxiliaryMaterialArchiveDownloadButtonState(
+      false
+    );
+  }
+}
+
+
+/* =========================================================
+  부재료 보관 엑셀 다운로드 초기화
+========================================================= */
+
+function initializeAuxiliaryMaterialArchiveDownloadControls() {
+  /*
+    모바일에서는 다운로드 버튼을 만들지 않는다.
+  */
+  if (
+    typeof isAuxiliaryMaterialMobileMonitorMode ===
+      "function" &&
+    isAuxiliaryMaterialMobileMonitorMode()
+  ) {
+    return;
+  }
+
+
+  /*
+    다운로드 버튼이 아직 생성되지 않았다면
+    PC 상단 컴팩트 영역부터 준비한다.
+  */
+  if (
+    typeof prepareAuxiliaryMaterialPcCompactControls ===
+      "function"
+  ) {
+    prepareAuxiliaryMaterialPcCompactControls();
+  }
+
+
+  const button =
+    document.getElementById(
+      "downloadAuxiliaryMaterialExcelButton"
+    );
+
+
+  if (
+    !button
+  ) {
+    return;
+  }
+
+
+  /*
+    이벤트 중복 연결 방지
+  */
+  if (
+    button.dataset
+      .auxiliaryMaterialArchiveBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  button.addEventListener(
+    "click",
+    () => {
+      handleAuxiliaryMaterialArchiveDownload();
+    }
+  );
+
+
+  button.dataset
+    .auxiliaryMaterialArchiveBound =
+    "true";
+
+
+  /*
+    앞 단계에서 임시 disabled 처리했던 것을 해제
+  */
+  button.disabled =
+    false;
+
+
+  button.textContent =
+    "엑셀 다운로드";
+
+
+  button.title =
+    "선택한 월의 D1 부재료 자료를 원본 양식으로 다운로드";
+}
+
+
+/* =========================================================
+  부재료 보관 엑셀 다운로드 초기 실행
+========================================================= */
+
+if (
+  document.readyState ===
+    "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeAuxiliaryMaterialArchiveDownloadControls,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  initializeAuxiliaryMaterialArchiveDownloadControls();
+}
 
 /* =====================================================
   D1 부재료 저장자료 불러오기
@@ -92299,7 +94610,7 @@ function prepareAuxiliaryMaterialPcCompactControls() {
 
 
   /* =====================================================
-    제목 아래 설명 문구 완전 제거
+    제목 아래 설명 제거
   ====================================================== */
 
   const headingDescription =
@@ -92324,17 +94635,7 @@ function prepareAuxiliaryMaterialPcCompactControls() {
 
 
   /* =====================================================
-    조회 월을 시작일과 같은 줄로 이동
-
-    최종 순서:
-
-    조회 월
-    시작일
-    종료일
-    저장 자료 보기
-    OIS 조회 · D1 저장
-    엑셀 등록
-    Slurry 밀도
+    조회 월을 같은 줄로 이동
   ====================================================== */
 
   periodFields.insertAdjacentElement(
@@ -92363,10 +94664,68 @@ function prepareAuxiliaryMaterialPcCompactControls() {
 
 
   /* =====================================================
-    Slurry 밀도 설정을 엑셀 등록 바로 뒤로 이동
+    엑셀 다운로드 버튼 생성
+
+    다음 단계에서 실제 다운로드 기능을 연결한다.
   ====================================================== */
 
+  let downloadButton =
+    document.getElementById(
+      "downloadAuxiliaryMaterialExcelButton"
+    );
+
+
+  if (
+    !downloadButton
+  ) {
+    downloadButton =
+      document.createElement(
+        "button"
+      );
+
+
+    downloadButton.type =
+      "button";
+
+
+    downloadButton.id =
+      "downloadAuxiliaryMaterialExcelButton";
+
+
+    downloadButton.className =
+      "auxiliary-material-excel-download-button";
+
+
+    downloadButton.textContent =
+      "엑셀 다운로드";
+
+
+    /*
+      실제 다운로드 로직 연결 전까지
+      클릭되지 않도록 잠시 비활성화한다.
+    */
+    downloadButton.disabled =
+      true;
+
+
+    downloadButton.title =
+      "다운로드 기능 준비 중";
+  }
+
+
   excelButton.insertAdjacentElement(
+    "afterend",
+    downloadButton
+  );
+
+
+  /* =====================================================
+    Slurry 밀도
+
+    엑셀 다운로드 버튼 바로 오른쪽
+  ====================================================== */
+
+  downloadButton.insertAdjacentElement(
     "afterend",
     densityPanel
   );
@@ -92377,7 +94736,6 @@ function prepareAuxiliaryMaterialPcCompactControls() {
   );
 
 
-  /* 제목 단축 */
   const densityTitle =
     densityPanel.querySelector(
       ".auxiliary-material-density-setting__description > strong"

@@ -9061,575 +9061,55 @@ async function collectDataParcSteamProductionValues(
 async function openOisSteamDailySales(
   page
 ) {
-  const saveSalesFrameTrace =
-    diagnostics => {
-      const tracePath =
-        path.join(
-          process.cwd(),
-          "ois-steam-sales-frame-trace.json"
-        );
-
-
-      try {
-        fs.writeFileSync(
-          tracePath,
-          JSON.stringify(
-            {
-              source:
-                "OIS 일별 증기 판매량",
-
-              capturedAt:
-                new Date()
-                  .toISOString(),
-
-              frames:
-                diagnostics
-            },
-            null,
-            2
-          ),
-          "utf8"
-        );
-
-
-        console.log(
-          "OIS 증기 판매량 프레임 진단 저장:",
-          tracePath
-        );
-
-      } catch (
-        error
-      ) {
-        console.warn(
-          "OIS 증기 판매량 프레임 진단 저장 실패:",
-          error
-        );
-      }
-    };
-
-
   const findSalesFrame =
     async (
       timeoutMilliseconds =
-        OIS_QUERY_TIMEOUT,
-
-      saveTrace =
-        false
+        OIS_QUERY_TIMEOUT
     ) => {
       const startedAt =
         Date.now();
-
-
-      let fallbackFrame =
-        null;
-
-
-      let fallbackDetectedAt =
-        0;
-
-
-      let latestDiagnostics =
-        [];
 
       while (
         Date.now() -
           startedAt <
         timeoutMilliseconds
       ) {
-        const currentDiagnostics =
-          [];
-
-
-        const frames =
-          page.frames();
-
-
         for (
-          let frameIndex = 0;
-          frameIndex <
-            frames.length;
-          frameIndex +=
-            1
+          const frame of
+          page.frames()
         ) {
-          const frame =
-            frames[
-              frameIndex
-            ];
-
-
-          const snapshot =
-            await frame.evaluate(
-              () => {
-                const normalizeText =
-                  value => {
-                    return String(
-                      value ??
-                      ""
-                    )
-                      .replace(
-                        /\u00a0/g,
-                        " "
-                      )
-                      .replace(
-                        /[\u200b-\u200d\u2060\ufeff]/g,
-                        ""
-                      )
-                      .replace(
-                        /\s+/g,
-                        " "
-                      )
-                      .trim();
-                  };
-
-
-                const bodyInnerText =
-                  normalizeText(
-                    document.body
-                      ?.innerText
-                  );
-
-
-                const bodyClone =
-                  document.body
-                    ?.cloneNode(
-                      true
-                    );
-
-
-                if (
-                  bodyClone
-                ) {
-                  for (
-                    const excludedElement of
-                    bodyClone.querySelectorAll(
-                      "script, style, noscript, template"
-                    )
-                  ) {
-                    excludedElement
-                      .remove();
-                  }
-                }
-
-
-                const bodyTextContent =
-                  normalizeText(
-                    bodyClone
-                      ?.textContent
-                  );
-
-
-                const cells = [
-                  ...document.querySelectorAll(
-                    "th, td"
-                  )
-                ];
-
-
-                const cellText =
-                  normalizeText(
-                    cells
-                      .map(
-                        cell => {
-                          return [
-                            cell.textContent,
-                            cell.getAttribute(
-                              "data-text"
-                            ),
-                            cell.getAttribute(
-                              "data-value"
-                            ),
-                            cell.getAttribute(
-                              "aria-label"
-                            ),
-                            cell.getAttribute(
-                              "title"
-                            )
-                          ]
-                            .filter(
-                              Boolean
-                            )
-                            .join(
-                              " "
-                            );
-                        }
-                      )
-                      .join(
-                        " "
-                      )
-                  );
-
-
-                const visibleControls = [
-                  ...document.querySelectorAll(
-                    [
-                      'input:not([type="hidden"]):not([type="password"])',
-                      "select",
-                      "button"
-                    ].join(
-                      ","
-                    )
-                  )
-                ].filter(
-                  element => {
-                    const rectangle =
-                      element
-                        .getBoundingClientRect();
-
-
-                    const style =
-                      window.getComputedStyle(
-                        element
-                      );
-
-
-                    return (
-                      rectangle.width >
-                        0 &&
-                      rectangle.height >
-                        0 &&
-                      style.display !==
-                        "none" &&
-                      style.visibility !==
-                        "hidden"
-                    );
-                  }
-                );
-
-
-                const controlText =
-                  normalizeText(
-                    visibleControls
-                      .map(
-                        element => {
-                          const optionText =
-                            element.tagName ===
-                              "SELECT"
-                                ? [
-                                    ...element.options
-                                  ]
-                                    .map(
-                                      option => {
-                                        return option
-                                          .textContent;
-                                      }
-                                    )
-                                    .join(
-                                      " "
-                                    )
-                                : "";
-
-
-                          return [
-                            element.textContent,
-                            element.value,
-                            optionText,
-                            element.getAttribute(
-                              "aria-label"
-                            ),
-                            element.getAttribute(
-                              "title"
-                            )
-                          ]
-                            .filter(
-                              Boolean
-                            )
-                            .join(
-                              " "
-                            );
-                        }
-                      )
-                      .join(
-                        " "
-                      )
-                  );
-
-
-                const attributeText =
-                  normalizeText(
-                    [
-                      ...document.querySelectorAll(
-                        [
-                          "[aria-label]",
-                          "[title]",
-                          "[data-text]",
-                          "[data-value]",
-                          "[alt]"
-                        ].join(
-                          ","
-                        )
-                      )
-                    ]
-                      .map(
-                        element => {
-                          return [
-                            element.getAttribute(
-                              "aria-label"
-                            ),
-                            element.getAttribute(
-                              "title"
-                            ),
-                            element.getAttribute(
-                              "data-text"
-                            ),
-                            element.getAttribute(
-                              "data-value"
-                            ),
-                            element.getAttribute(
-                              "alt"
-                            )
-                          ]
-                            .filter(
-                              Boolean
-                            )
-                            .join(
-                              " "
-                            );
-                        }
-                      )
-                      .join(
-                        " "
-                      )
-                  );
-
-
-                const searchableText =
-                  [
-                    document.title,
-                    bodyInnerText,
-                    bodyTextContent,
-                    cellText,
-                    controlText,
-                    attributeText
-                  ]
-                    .filter(
-                      Boolean
-                    )
-                    .join(
-                      " "
-                    )
-                    .replace(
-                      /[\s\u200b-\u200d\u2060\ufeff]+/g,
-                      ""
-                    );
-
-
-                return {
-                  titleLength:
-                    normalizeText(
-                      document.title
-                    ).length,
-
-                  bodyInnerTextLength:
-                    bodyInnerText.length,
-
-                  bodyTextContentLength:
-                    bodyTextContent.length,
-
-                  cellTextLength:
-                    cellText.length,
-
-                  controlTextLength:
-                    controlText.length,
-
-                  visibleControlCount:
-                    visibleControls.length,
-
-                  tableCount:
-                    document.querySelectorAll(
-                      "table"
-                    ).length,
-
-                  rowCount:
-                    document.querySelectorAll(
-                      "tr"
-                    ).length,
-
-                  cellCount:
-                    cells.length,
-
-                  canvasCount:
-                    document.querySelectorAll(
-                      "canvas"
-                    ).length,
-
-                  iframeCount:
-                    document.querySelectorAll(
-                      "iframe, frame"
-                    ).length,
-
-                  gridRoleCount:
-                    document.querySelectorAll(
-                      '[role="grid"], [role="table"]'
-                    ).length,
-
-                  hasSalesTitle:
-                    searchableText.includes(
-                      "일별증기판매량"
-                    ),
-
-                  hasBasisMonth:
-                    searchableText.includes(
-                      "기준년월"
-                    ) ||
-                    /\d{4}[/-]\d{2}/.test(
-                      controlText
-                    ),
-
-                  hasSteamCategory:
-                    searchableText.includes(
-                      "증기구분"
-                    ),
-
-                  hasSteamUsage:
-                    searchableText.includes(
-                      "증기사용량"
-                    ),
-
-                  hasSubtotal:
-                    searchableText.includes(
-                      "소계"
-                    )
-                };
-              }
-            ).catch(
-              error => {
-                return {
-                  error:
-                    normalizeOisAgentText(
-                      error?.message ||
-                      error
-                    )
-                };
-              }
-            );
-
-
-          const rawFrameUrl =
+          const bodyText =
             normalizeOisAgentText(
-              frame.url()
+              await frame
+                .locator("body")
+                .innerText()
+                .catch(() => "")
             );
 
+          const compactBodyText =
+            bodyText.replace(
+              /\s+/g,
+              ""
+            );
 
-          const safeFrameUrl =
-            (() => {
-              if (
-                !/^https?:/i.test(
-                  rawFrameUrl
-                )
-              ) {
-                return rawFrameUrl
-                  .split(
-                    /[?#]/
-                  )[0];
-              }
+          /*
+            OIS 화면은 제목/조회조건과 결과표가
+            서로 다른 프레임으로 나뉠 수 있다.
 
-
-              try {
-                const parsedUrl =
-                  new URL(
-                    rawFrameUrl
-                  );
-
-
-                return (
-                  parsedUrl.origin +
-                  parsedUrl.pathname
-                );
-
-              } catch {
-                return rawFrameUrl
-                  .split(
-                    /[?#]/
-                  )[0];
-              }
-            })();
-
-
-          const diagnostics = {
-            index:
-              frameIndex,
-
-            name:
-              normalizeOisAgentText(
-                frame.name()
-              ),
-
-            url:
-              safeFrameUrl,
-
-            ...snapshot
-          };
-
-
-          currentDiagnostics.push(
-            diagnostics
-          );
-
+            실제 판매량 값이 있는 결과표 프레임은
+            "증기구분"과 "증기사용량"으로 판별한다.
+          */
 
           if (
-            snapshot?.hasSteamUsage &&
-            (
-              snapshot.hasSteamCategory ||
-              snapshot.hasSubtotal
+            compactBodyText.includes(
+              "증기구분"
+            ) &&
+            compactBodyText.includes(
+              "증기사용량"
             )
           ) {
-            if (
-              saveTrace
-            ) {
-              saveSalesFrameTrace(
-                currentDiagnostics
-              );
-            }
-
-
             return frame;
           }
-
-
-          if (
-            !fallbackFrame &&
-            snapshot?.hasSalesTitle &&
-            snapshot?.hasBasisMonth &&
-            snapshot?.hasSteamCategory
-          ) {
-            fallbackFrame =
-              frame;
-
-
-            fallbackDetectedAt =
-              Date.now();
-          }
-        }
-
-
-        latestDiagnostics =
-          currentDiagnostics;
-
-
-        /*
-          결과표가 전용 그리드 또는 canvas로 그려지면
-          표 머리글이 일반 body.innerText에 없을 수 있다.
-
-          이 경우 제목·기준년월·증기구분이 있는
-          조회조건 프레임을 화면 진입 확인용으로 사용한다.
-        */
-
-        if (
-          fallbackFrame &&
-          Date.now() -
-            fallbackDetectedAt >=
-              1500
-        ) {
-          if (
-            saveTrace
-          ) {
-            saveSalesFrameTrace(
-              latestDiagnostics
-            );
-          }
-
-
-          return fallbackFrame;
         }
 
         await page.waitForTimeout(
@@ -9637,23 +9117,12 @@ async function openOisSteamDailySales(
         );
       }
 
-
-      if (
-        saveTrace
-      ) {
-        saveSalesFrameTrace(
-          latestDiagnostics
-        );
-      }
-
-
       return null;
     };
 
   const existingFrame =
     await findSalesFrame(
-      1500,
-      true
+      1500
     );
 
   if (
@@ -9805,8 +9274,7 @@ async function openOisSteamDailySales(
 
   const salesFrame =
     await findSalesFrame(
-      OIS_QUERY_TIMEOUT,
-      true
+      OIS_QUERY_TIMEOUT
     );
 
   if (
@@ -10589,41 +10057,6 @@ async function collectOisSteamStatusValues(
       " · "
     )
   );
-
-
-  /*
-    정상 완료 시 임시 프레임 진단 파일은 제거한다.
-
-    판매량 화면 또는 소계 추출에 실패한 경우에만
-    원인 확인용 파일을 남긴다.
-  */
-
-  const salesFrameTracePath =
-    path.join(
-      process.cwd(),
-      "ois-steam-sales-frame-trace.json"
-    );
-
-
-  if (
-    fs.existsSync(
-      salesFrameTracePath
-    )
-  ) {
-    try {
-      fs.unlinkSync(
-        salesFrameTracePath
-      );
-
-    } catch (
-      error
-    ) {
-      console.warn(
-        "OIS 증기 판매량 임시 진단 파일 제거 실패:",
-        error
-      );
-    }
-  }
 
 
   return result;

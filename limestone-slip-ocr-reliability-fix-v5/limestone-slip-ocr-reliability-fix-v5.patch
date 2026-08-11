@@ -1,0 +1,1071 @@
+diff --git a/functions/api/limestone-slip-ocr.js b/functions/api/limestone-slip-ocr.js
+index 9c96ffe..b5435e7 100644
+--- a/functions/api/limestone-slip-ocr.js
++++ b/functions/api/limestone-slip-ocr.js
+@@ -61,14 +61,96 @@ function jsonResponse(
+ }
+ 
+ 
+-function normalizeText(
+-  value
+-) {
++function normalizeText(
++  value
++) {
+   return String(
+     value ??
+     ""
+-  ).trim();
+-}
++  ).trim();
++}
++
++
++function getAiAnswerText(
++  aiResult
++) {
++  if (
++    typeof aiResult ===
++      "string"
++  ) {
++    return normalizeText(
++      aiResult
++    );
++  }
++
++
++  const directCandidates = [
++    aiResult?.answer,
++    aiResult?.response,
++    aiResult?.output_text,
++    aiResult?.text,
++    aiResult?.result?.answer,
++    aiResult?.result?.response,
++    aiResult?.result?.output_text,
++    aiResult?.result?.text
++  ];
++
++
++  for (
++    const candidate of directCandidates
++  ) {
++    if (
++      typeof candidate !==
++        "string"
++    ) {
++      continue;
++    }
++
++
++    const answerText =
++      normalizeText(
++        candidate
++      );
++
++
++    if (
++      answerText
++    ) {
++      return answerText;
++    }
++  }
++
++
++  const contentItems =
++    Array.isArray(
++      aiResult?.content
++    )
++      ? aiResult.content
++      : Array.isArray(
++          aiResult?.result?.content
++        )
++        ? aiResult.result.content
++        : [];
++
++
++  return contentItems
++    .map(
++      item =>
++        normalizeText(
++          typeof item ===
++            "string"
++              ? item
++              : item?.text
++        )
++    )
++    .filter(
++      Boolean
++    )
++    .join(
++      "\n"
++    )
++    .trim();
++}
+ 
+ 
+ /* =========================================================
+@@ -422,7 +504,7 @@ function extractLooseOcrWeightField(
+       answerText
+     ).match(
+       new RegExp(
+-        `(?:["']?)(?:${aliasPattern})(?:["']?)\\s*[:=]\\s*(?:["']?)\\s*(-?\\d{1,3}(?:[\\s,.]\\d{3})+|-?\\d{4,6})(?:\\s*(?:kg|㎏))?`,
++        `(?:["']?)(?:${aliasPattern})(?:["']?)\\s*(?::|=|\\||-{1,2}|→)\\s*(?:["'*_~]\\s*)*(-?\\d{1,3}(?:[\\s,.]\\d{3})+|-?\\d{4,6})(?:\\s*(?:kg|㎏))?`,
+         "i"
+       )
+     );
+@@ -449,7 +531,10 @@ function extractLooseOcrObject(
+         "totalWeightKg",
+         "gross",
+         "row1Kg",
+-        "row1"
++        "row1",
++        "gross[\\s_-]*kg",
++        "gross[\\s_-]*weight",
++        "row[\\s_-]*1(?:[\\s_-]*kg)?"
+       ]
+     },
+     {
+@@ -462,7 +547,10 @@ function extractLooseOcrObject(
+         "emptyWeightKg",
+         "tare",
+         "row2Kg",
+-        "row2"
++        "row2",
++        "tare[\\s_-]*kg",
++        "tare[\\s_-]*weight",
++        "row[\\s_-]*2(?:[\\s_-]*kg)?"
+       ]
+     },
+     {
+@@ -475,7 +563,10 @@ function extractLooseOcrObject(
+         "quantityKg",
+         "net",
+         "row3Kg",
+-        "row3"
++        "row3",
++        "net[\\s_-]*kg",
++        "net[\\s_-]*weight",
++        "row[\\s_-]*3(?:[\\s_-]*kg)?"
+       ]
+     }
+   ];
+@@ -901,9 +992,9 @@ function normalizeWeightSequence(
+ }
+ 
+ 
+-function extractRawKgWeightSequence(
+-  answerText
+-) {
++function extractRawKgWeightSequence(
++  answerText
++) {
+   const weights = [];
+ 
+   const normalizedAnswer =
+@@ -937,8 +1028,174 @@ function extractRawKgWeightSequence(
+   }
+ 
+ 
+-  return weights;
+-}
++  return weights;
++}
++
++
++function extractRawWeightCandidateSequence(
++  answerText
++) {
++  const weights = [];
++
++  const normalizedAnswer =
++    normalizeText(
++      answerText
++    );
++
++  /*
++    모델이 kg나 ROW 라벨 없이 숫자 세 줄, 문장, Markdown 표로
++    반환해도 4~6자리 중량 후보를 복구한다. 날짜·시간 등이 함께
++    섞여도 최종 확정은 gross - tare ≈ net 산식 검증을 반드시
++    통과해야 한다.
++  */
++  const weightPattern =
++    /(?:^|[^\d])(-?\d{1,3}(?:[,.]\d{3})+|-?\d{4,6})(?!\d)/g;
++
++
++  for (
++    const match of normalizedAnswer.matchAll(
++      weightPattern
++    )
++  ) {
++    const weightKg =
++      normalizeWeightKg(
++        match[1]
++      );
++
++
++    if (
++      weightKg !==
++        null
++    ) {
++      weights.push(
++        weightKg
++      );
++    }
++  }
++
++
++  return weights;
++}
++
++
++function describeOcrAnswerFormat(
++  answerText
++) {
++  const normalizedAnswer =
++    normalizeText(
++      answerText
++    );
++
++
++  if (
++    !normalizedAnswer
++  ) {
++    return "empty";
++  }
++
++
++  if (
++    extractJsonObject(
++      normalizedAnswer
++    )
++  ) {
++    return "json";
++  }
++
++
++  if (
++    /row[\s_-]*[123]/i.test(
++      normalizedAnswer
++    )
++  ) {
++    return /\|/.test(
++      normalizedAnswer
++    )
++      ? "row_table"
++      : "row_text";
++  }
++
++
++  if (
++    /(?:kg|㎏)/i.test(
++      normalizedAnswer
++    )
++  ) {
++    return "kg_text";
++  }
++
++
++  if (
++    extractRawWeightCandidateSequence(
++      normalizedAnswer
++    ).length
++  ) {
++    return "numeric_text";
++  }
++
++
++  return "other";
++}
++
++
++function hasSafeUnlabeledWeightContext(
++  answerText
++) {
++  const normalizedAnswer =
++    normalizeText(
++      answerText
++    );
++
++
++  if (
++    /(?:\b(?:gross|tare|net|weight)\b|\brow[\s_-]*[123]\b|총\s*중\s*량|공\s*차\s*중\s*량|실\s*중\s*량|순\s*중\s*량|kg|㎏)/i.test(
++      normalizedAnswer
++    )
++  ) {
++    return true;
++  }
++
++
++  const lines =
++    normalizedAnswer
++      .split(
++        /\r?\n/
++      )
++      .map(
++        line =>
++          line.trim()
++      )
++      .filter(
++        Boolean
++      );
++
++  const bareWeightLinePattern =
++    /^\s*(?:[-*•|]\s*)?(?:[*_~]\s*)*(-?\d{1,3}(?:[,.]\d{3})+|-?\d{4,6})(?:\s*(?:kg|㎏))?(?:\s*[*_~|])*\s*$/i;
++
++  const bareWeightLineCount =
++    lines.filter(
++      line =>
++        bareWeightLinePattern.test(
++          line
++        )
++    ).length;
++
++  const otherLinesAreMetadata =
++    lines.every(
++      line =>
++        bareWeightLinePattern.test(
++          line
++        ) ||
++        /^(?:```(?:text)?|```|confidence\s*[:=].*)$/i.test(
++          line
++        )
++    );
++
++
++  return bareWeightLineCount ===
++    3 &&
++    otherLinesAreMetadata;
++}
+ 
+ 
+ function findValidatedWeightTriple(
+@@ -1018,19 +1275,49 @@ function extractValidatedWeightTriple(
+     );
+ 
+ 
+-  if (
+-    objectTriple
+-  ) {
+-    return objectTriple;
+-  }
+-
+-
+-  return findValidatedWeightTriple(
+-    extractRawKgWeightSequence(
+-      answerText
+-    )
+-  );
+-}
++  if (
++    objectTriple
++  ) {
++    return objectTriple;
++  }
++
++
++  const rawKgTriple =
++    findValidatedWeightTriple(
++      extractRawKgWeightSequence(
++        answerText
++      )
++    );
++
++
++  if (
++    rawKgTriple
++  ) {
++    return rawKgTriple;
++  }
++
++
++  const rawWeightCandidates =
++    extractRawWeightCandidateSequence(
++      answerText
++    );
++
++
++  if (
++    rawWeightCandidates.length !==
++      3 ||
++    !hasSafeUnlabeledWeightContext(
++      answerText
++    )
++  ) {
++    return null;
++  }
++
++
++  return findValidatedWeightTriple(
++    rawWeightCandidates
++  );
++}
+ 
+ 
+ function extractLabeledWeight(
+@@ -1156,11 +1443,17 @@ function getRecognitionMessage(
+     case "low_confidence":
+       return "전표 글자가 흐리거나 일부 가려져 실중량을 확정하지 못했습니다. 선명하게 다시 촬영하거나 직접 입력해 주세요.";
+ 
+-    case "net_weight_not_visible":
+-      return "사진에서 실중량 줄을 확인하지 못했습니다. 실중량까지 전표 전체가 나오도록 다시 촬영해 주세요.";
+-
+-    case "insufficient_weight_fields":
+-      return "실중량 또는 총중량·공차중량을 모두 확인하지 못했습니다. 전표 전체를 다시 촬영하거나 직접 입력해 주세요.";
++    case "net_weight_not_visible":
++      return "사진에서 실중량 줄을 확인하지 못했습니다. 실중량까지 전표 전체가 나오도록 다시 촬영해 주세요.";
++
++    case "no_weight_candidates":
++      return "사진은 정상적으로 전송됐지만 AI가 중량 숫자를 읽지 못했습니다. 아래 분석코드를 확인해 주세요.";
++
++    case "ocr_conflict":
++      return "두 번의 AI 판독값이 서로 달라 실중량을 자동 확정하지 않았습니다. 전표와 분석코드를 확인해 주세요.";
++
++    case "insufficient_weight_fields":
++      return "실중량 또는 총중량·공차중량을 모두 확인하지 못했습니다. 전표 전체를 다시 촬영하거나 직접 입력해 주세요.";
+ 
+     default:
+       return "실중량을 정확히 인식하지 못했습니다. 전표를 확인해 직접 입력해 주세요.";
+@@ -1442,22 +1735,25 @@ function parseOcrAnswer(
+     reasonCode =
+       "low_confidence";
+ 
+-  } else if (
+-    fullSlipVisible ===
+-      false ||
+-    (
+-      netKg ===
+-        null &&
+-      grossKg ===
+-        null &&
+-      tareKg ===
+-        null
+-    )
+-  ) {
+-    reasonCode =
+-      "net_weight_not_visible";
+-
+-  } else {
++  } else if (
++    fullSlipVisible ===
++      false
++  ) {
++    reasonCode =
++      "net_weight_not_visible";
++
++  } else if (
++    netKg ===
++      null &&
++    grossKg ===
++      null &&
++    tareKg ===
++      null
++  ) {
++    reasonCode =
++      "no_weight_candidates";
++
++  } else {
+     reasonCode =
+       "insufficient_weight_fields";
+   }
+@@ -1654,11 +1950,112 @@ function createMergedOcrRecognition(
+ }
+ 
+ 
+-function mergeOcrRecognitions(
+-  primaryRecognition,
+-  fallbackRecognition
+-) {
+-  const candidates = [
++function mergeOcrRecognitions(
++  primaryRecognition,
++  fallbackRecognition
++) {
++  const primaryEvidenceKg =
++    normalizeWeightKg(
++      primaryRecognition.netKg ??
++      primaryRecognition.quantityKg
++    );
++
++  const fallbackEvidenceKg =
++    normalizeWeightKg(
++      fallbackRecognition.netKg ??
++      fallbackRecognition.quantityKg
++    );
++
++
++  if (
++    primaryEvidenceKg !==
++      null &&
++    fallbackEvidenceKg !==
++      null &&
++    Math.abs(
++      primaryEvidenceKg -
++      fallbackEvidenceKg
++    ) >
++      WEIGHT_DIFFERENCE_TOLERANCE_KG
++  ) {
++    const primaryHasValidatedTriple =
++      primaryRecognition.recognitionSource ===
++        "validated_three_rows";
++
++    const fallbackHasValidatedTriple =
++      fallbackRecognition.recognitionSource ===
++        "validated_three_rows";
++
++
++    /*
++      한쪽만 세 중량 산식 검증을 통과했다면 그 판독을 사용한다.
++      두 쪽의 증거 수준이 같거나 둘 다 단일 실중량이면 어느 한쪽도
++      임의 선택하지 않고 충돌로 차단한다.
++    */
++    if (
++      primaryHasValidatedTriple !==
++        fallbackHasValidatedTriple
++    ) {
++      return primaryHasValidatedTriple
++        ? primaryRecognition
++        : fallbackRecognition;
++    }
++
++
++    const conflictRecognition = {
++      recognized:
++        false,
++
++      grossKg:
++        primaryRecognition.grossKg ===
++          fallbackRecognition.grossKg
++            ? primaryRecognition.grossKg
++            : null,
++
++      tareKg:
++        primaryRecognition.tareKg ===
++          fallbackRecognition.tareKg
++            ? primaryRecognition.tareKg
++            : null,
++
++      netKg:
++        null,
++
++      quantityKg:
++        null,
++
++      quantityTon:
++        null,
++
++      printedValue:
++        "",
++
++      confidence:
++        "low",
++
++      fullSlipVisible:
++        null,
++
++      recognitionSource:
++        null,
++
++      reasonCode:
++        "ocr_conflict"
++    };
++
++
++    return {
++      ...conflictRecognition,
++
++      message:
++        getRecognitionMessage(
++          conflictRecognition
++        )
++    };
++  }
++
++
++  const candidates = [
+     primaryRecognition,
+     fallbackRecognition,
+     createMergedOcrRecognition(
+@@ -2053,8 +2450,8 @@ export async function onRequestPost(
+               ocrTightImageDataUri,
+ 
+             question: `
+-This image is an enlarged crop of the upper part of a Korean weighing receipt.
+-Read the three consecutive printed weight values ending in kg, from top to bottom.
++This image is a tight crop of the weight-table band on a Korean weighing receipt.
++Read the three consecutive printed weight values ending in kg, from top to bottom.
+ They are normally gross weight, tare weight, and net/actual weight in that order.
+ 
+ Copy the digits that are visibly printed. Do not require the Korean labels to be readable.
+@@ -2106,12 +2503,15 @@ confidence must be high, medium, or low.
+     }
+ 
+ 
+-    const answerText =
+-      normalizeText(
+-        aiResult?.answer ??
+-        aiResult?.response ??
+-        ""
+-      );
++    const answerText =
++      getAiAnswerText(
++        aiResult
++      );
++
++    const primaryAnswerFormat =
++      describeOcrAnswerFormat(
++        answerText
++      );
+ 
+ 
+     let recognition =
+@@ -2140,13 +2540,16 @@ confidence must be high, medium, or low.
+ 
+ 
+     /*
+-      첫 질문에서 세 중량을 모두 확정하지 못한 경우 한 번만
+-      숫자 전사 방식으로 다시 시도한다. 두 시도에서 각각 읽은
+-      일부 값도 버리지 않고 합친 뒤 산식으로 최종 검증한다.
++      첫 질문에서 세 중량을 모두 확정하지 못했거나 실중량 한 값만
++      읽은 경우, 넓은 크롭을 숫자 전사 방식으로 한 번 더 읽는다.
++      두 시도에서 각각 읽은 일부 값도 버리지 않고 합친 뒤 산식으로
++      최종 검증한다.
+     */
+ 
+     if (
+-      !recognition.recognized
++      !recognition.recognized ||
++      recognition.recognitionSource ===
++        "printed_net"
+     ) {
+       try {
+         const fallbackAiResult =
+@@ -2165,15 +2568,11 @@ The Korean labels do not need to be readable. Copy digits only from the receipt.
+ Comma and dot can both be thousands separators.
+ Do not calculate missing values and do not guess unreadable digits.
+ 
+-Return exactly four plain-text lines and nothing else:
+-ROW1=44300
+-ROW2=13700
+-ROW3=30600
+-CONFIDENCE=high
+-
+-Replace each example number with the digits visibly printed on that row, without commas or dots.
+-Use NULL when that exact row is unreadable. Keep all four lines.
+-CONFIDENCE must be high, medium, or low.
++Return exactly four plain-text lines and nothing else.
++Use the labels ROW1, ROW2, ROW3, and CONFIDENCE in that order.
++After each ROW label write an equals sign followed only by the visible integer digits without separators, or NULL when that row is unreadable.
++After CONFIDENCE write an equals sign followed by high, medium, or low.
++Do not include any sample or placeholder numbers.
+               `.trim(),
+ 
+               reasoning:
+@@ -2191,12 +2590,10 @@ CONFIDENCE must be high, medium, or low.
+           );
+ 
+ 
+-        fallbackAnswerText =
+-          normalizeText(
+-            fallbackAiResult?.answer ??
+-            fallbackAiResult?.response ??
+-              ""
+-          );
++        fallbackAnswerText =
++          getAiAnswerText(
++            fallbackAiResult
++          );
+ 
+ 
+         fallbackFinishReason =
+@@ -2226,7 +2623,20 @@ CONFIDENCE must be high, medium, or low.
+           fallbackError
+         );
+       }
+-    }
++    }
++
++
++    const fallbackAnswerFormat =
++      describeOcrAnswerFormat(
++        fallbackAnswerText
++      );
++
++    const diagnosticCode = [
++      `P-${primaryAnswerFormat}-${Math.min(answerText.length, 9999)}`,
++      `F-${fallbackAnswerFormat}-${Math.min(fallbackAnswerText.length, 9999)}`
++    ].join(
++      "/"
++    );
+ 
+ 
+     if (
+@@ -2241,12 +2651,23 @@ CONFIDENCE must be high, medium, or low.
+           confidence:
+             recognition.confidence,
+ 
+-          primary: {
+-            finishReason:
+-              primaryFinishReason,
+-
+-            answerLength:
+-              answerText.length,
++          primary: {
++            finishReason:
++              primaryFinishReason,
++
++            answerLength:
++              answerText.length,
++
++            answerFormat:
++              primaryAnswerFormat,
++
++            candidateWeightsKg:
++              extractRawWeightCandidateSequence(
++                answerText
++              ).slice(
++                0,
++                10
++              ),
+ 
+             grossKg:
+               primaryRecognition.grossKg,
+@@ -2267,8 +2688,19 @@ CONFIDENCE must be high, medium, or low.
+                   finishReason:
+                     fallbackFinishReason,
+ 
+-                  answerLength:
+-                    fallbackAnswerText.length,
++                  answerLength:
++                    fallbackAnswerText.length,
++
++                  answerFormat:
++                    fallbackAnswerFormat,
++
++                  candidateWeightsKg:
++                    extractRawWeightCandidateSequence(
++                      fallbackAnswerText
++                    ).slice(
++                      0,
++                      10
++                    ),
+ 
+                   grossKg:
+                     fallbackRecognition.grossKg,
+@@ -2400,10 +2832,15 @@ CONFIDENCE must be high, medium, or low.
+         recognitionSource:
+           recognition.recognitionSource,
+ 
+-        reasonCode:
+-          recognition.reasonCode,
+-
+-        slipImageKey:
++        reasonCode:
++          recognition.reasonCode,
++
++        diagnosticCode:
++          recognition.recognized
++            ? ""
++            : diagnosticCode,
++
++        slipImageKey:
+           objectKey,
+ 
+         message:
+diff --git a/index.html b/index.html
+index 2ce41b9..41caa8e 100644
+--- a/index.html
++++ b/index.html
+@@ -57,7 +57,7 @@
+   기존 업무일지 JavaScript
+ ====================================================== -->
+ <script
+-  src="script.js?v=20260811-limestone-slip-ocr-v4"
++  src="script.js?v=20260811-limestone-slip-ocr-v5"
+   defer
+ ></script>
+ 
+diff --git a/script.js b/script.js
+index cdae04e..0fd13fc 100644
+--- a/script.js
++++ b/script.js
+@@ -209708,29 +209708,64 @@ async function prepareLimestoneSlipImage(
+ 
+ 
+     /*
+-      두 번째 OCR 사진은 넓은 크롭 안에서 중량표가 놓이는 중앙부를
+-      한 번 더 확대한다. 서버는 이 타이트 크롭을 먼저 읽고,
+-      실패하면 오른쪽 여백이 넉넉한 위의 넓은 크롭으로 재판독한다.
++      첫 판독용 사진은 원본에서 중량 3행의 시간·숫자 열만
++      직접 한 번 잘라 확대한다. 기존 방식은 넓은 OCR Canvas를
++      다시 잘라 제목·날짜·차량번호·오른쪽 성적서까지 포함했고,
++      두 번 리샘플링되어 작은 Vision 모델의 숫자 집중도를
++      떨어뜨렸다.
++
++      넓은 ocrBlob은 그대로 두어 촬영 위치가 달라졌을 때의
++      재판독용 안전망으로 사용한다.
+     */
+ 
++    const tightCropStartXRatio =
++      isPortraitImage
++        ? 0.36
++        : 0.30;
++
++    const tightCropStartYRatio =
++      isPortraitImage
++        ? 0.28
++        : 0.25;
++
++    const tightCropWidthRatio =
++      isPortraitImage
++        ? 0.34
++        : 0.50;
++
++    const tightCropHeightRatio =
++      isPortraitImage
++        ? 0.23
++        : 0.35;
++
+     const tightCropStartX =
+-      Math.round(
+-        ocrTargetWidth *
+-          0.08
++      Math.max(
++        0,
++        Math.round(
++          originalWidth *
++            tightCropStartXRatio
++        )
+       );
+ 
+     const tightCropStartY =
+-      Math.round(
+-        ocrTargetHeight *
+-          0.12
++      Math.max(
++        0,
++        Math.round(
++          originalHeight *
++            tightCropStartYRatio
++        )
+       );
+ 
+     const tightCropWidth =
+       Math.max(
+         1,
+         Math.round(
+-          ocrTargetWidth *
+-            0.88
++          Math.min(
++            originalWidth -
++              tightCropStartX,
++            originalWidth *
++              tightCropWidthRatio
++          )
+         )
+       );
+ 
+@@ -209738,14 +209773,18 @@ async function prepareLimestoneSlipImage(
+       Math.max(
+         1,
+         Math.round(
+-          ocrTargetHeight *
+-            0.78
++          Math.min(
++            originalHeight -
++              tightCropStartY,
++            originalHeight *
++              tightCropHeightRatio
++          )
+         )
+       );
+ 
+     const tightResizeRatio =
+       Math.min(
+-        2,
++        4,
+         maximumOcrImageSide /
+           Math.max(
+             tightCropWidth,
+@@ -209818,25 +209857,90 @@ async function prepareLimestoneSlipImage(
+       "high";
+ 
+     tightDrawingContext.drawImage(
+-      ocrCanvas,
++      decodedImage.source,
+       tightCropStartX,
+       tightCropStartY,
+-      Math.min(
+-        tightCropWidth,
+-        ocrTargetWidth -
+-          tightCropStartX
+-      ),
+-      Math.min(
+-        tightCropHeight,
+-        ocrTargetHeight -
+-          tightCropStartY
+-      ),
++      tightCropWidth,
++      tightCropHeight,
+       0,
+       0,
+       tightTargetWidth,
+       tightTargetHeight
+     );
+ 
++    /*
++      중량표 전용 크롭에도 회색조·대비 보정을 한 번만 적용한다.
++      픽셀 접근이 제한되면 컬러 확대본을 그대로 사용한다.
++    */
++
++    try {
++      const tightImageData =
++        tightDrawingContext.getImageData(
++          0,
++          0,
++          tightTargetWidth,
++          tightTargetHeight
++        );
++
++      const tightPixels =
++        tightImageData.data;
++
++
++      for (
++        let pixelIndex = 0;
++        pixelIndex < tightPixels.length;
++        pixelIndex += 4
++      ) {
++        const grayscaleValue =
++          tightPixels[pixelIndex] *
++            0.299 +
++          tightPixels[pixelIndex + 1] *
++            0.587 +
++          tightPixels[pixelIndex + 2] *
++            0.114;
++
++        const adjustedValue =
++          Math.max(
++            0,
++            Math.min(
++              255,
++              Math.round(
++                128 +
++                (
++                  grayscaleValue -
++                  128
++                ) *
++                  1.25
++              )
++            )
++          );
++
++        tightPixels[pixelIndex] =
++          adjustedValue;
++
++        tightPixels[pixelIndex + 1] =
++          adjustedValue;
++
++        tightPixels[pixelIndex + 2] =
++          adjustedValue;
++      }
++
++
++      tightDrawingContext.putImageData(
++        tightImageData,
++        0,
++        0
++      );
++
++    } catch (
++      enhancementError
++    ) {
++      console.warn(
++        "[Limestone Slip] Tight OCR image enhancement skipped:",
++        enhancementError
++      );
++    }
++
+     const ocrTightBlob =
+       await createLimestoneSlipJpegBlob(
+         tightCanvas,
+@@ -210772,11 +210876,17 @@ async function requestLimestoneSlipOcr(
+             result.netKg
+           ),
+ 
+-        reasonCode:
+-          String(
+-            result.reasonCode ||
+-            ""
+-          ).trim(),
++        reasonCode:
++          String(
++            result.reasonCode ||
++            ""
++          ).trim(),
++
++        diagnosticCode:
++          String(
++            result.diagnosticCode ||
++            ""
++          ).trim(),
+ 
+         slipImageKey:
+           String(
+@@ -210786,23 +210896,45 @@ async function requestLimestoneSlipOcr(
+       };
+ 
+ 
+-      enableLimestoneSlipManualInput(
+-        elements
+-      );
+-
+-
+-      setLimestoneSlipStatus(
++      enableLimestoneSlipManualInput(
++        elements
++      );
++
++
++      const diagnosticCode =
++        String(
++          result.diagnosticCode ||
++          ""
++        ).trim();
++
++      const diagnosticMessage =
++        diagnosticCode
++          ? ` 분석코드 ${diagnosticCode}.`
++          : "";
++
++      const nextActionMessage =
++        String(
++          result.reasonCode ||
++          ""
++        ).trim() ===
++          "no_weight_candidates"
++            ? " 이 화면을 보내주시거나 아래 칸에 실중량을 직접 입력해 주세요."
++            : " 아래 칸에 실중량을 직접 입력하거나 전표 전체를 다시 촬영해 주세요.";
++
++
++      setLimestoneSlipStatus(
+         elements.statusMessage,
+         String(
+           result.message ||
+           "실중량을 정확히 인식하지 못했습니다."
+         ).trim() +
+-          formatLimestoneSlipOcrEvidence(
+-            result
+-          ) +
+-          " 아래 칸에 실중량을 직접 입력하거나 전표 전체를 다시 촬영해 주세요.",
+-        "is-error"
+-      );
++          formatLimestoneSlipOcrEvidence(
++            result
++          ) +
++          diagnosticMessage +
++          nextActionMessage,
++        "is-error"
++      );
+ 
+ 
+       return result;
