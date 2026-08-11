@@ -96108,3 +96108,226 @@ body.is-auxiliary-material-expanded
       #ffffff !important;
   }
 }
+
+/* =========================================================
+  부재료 PC 상단 입력 컨트롤 규격 통일
+
+  조회 월 / 시작일 / 종료일
+  - 라벨 위치 통일
+  - 높이 34px 통일
+  - 날짜 입력 폭 통일
+  - 월 이동 버튼 균형 조정
+========================================================= */
+
+@media screen and (min-width: 1200px) {
+
+  /* =====================================================
+    공통 라벨
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields
+  label {
+    display: flex !important;
+
+    flex-direction: column !important;
+    align-items: stretch !important;
+
+    gap: 4px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields
+  label
+  > span:first-child {
+    display: block !important;
+
+    min-height: 12px !important;
+
+    margin: 0 !important;
+    padding: 0 2px !important;
+
+    color: #52647a !important;
+
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    line-height: 12px !important;
+
+    text-align: left !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    조회 월 전체
+
+    32 + 122 + 32 + gap
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-period-fields
+  > .auxiliary-material-month-navigation {
+    display: grid !important;
+
+    grid-template-columns:
+      32px
+      122px
+      32px !important;
+
+    flex: 0 0 194px !important;
+
+    width: 194px !important;
+    min-width: 194px !important;
+
+    align-items: end !important;
+
+    gap: 4px !important;
+
+    overflow: visible !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation
+  label {
+    width: 122px !important;
+    min-width: 122px !important;
+  }
+
+
+  /* 월 이동 좌/우 */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation
+  > button {
+    width: 32px !important;
+    min-width: 32px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border-radius: 7px !important;
+
+    font-size: 18px !important;
+    line-height: 1 !important;
+  }
+
+
+  /* 월 선택 */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation
+  input[type="month"] {
+    width: 122px !important;
+    min-width: 122px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+
+    box-sizing: border-box !important;
+
+    margin: 0 !important;
+    padding: 0 8px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 10px !important;
+    font-weight: 850 !important;
+  }
+
+
+  /* =====================================================
+    시작일 / 종료일
+
+    두 칸 완전히 같은 크기
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields
+  > label:not(
+    .auxiliary-material-month-navigation label
+  ) {
+    flex: 0 0 165px !important;
+
+    width: 165px !important;
+    min-width: 165px !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields
+  input[type="date"] {
+    width: 165px !important;
+    min-width: 165px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+
+    box-sizing: border-box !important;
+
+    margin: 0 !important;
+    padding: 0 9px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 10px !important;
+    font-weight: 850 !important;
+
+    line-height: 34px !important;
+  }
+
+
+  /* =====================================================
+    상단 버튼도 입력칸과 같은 높이
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields
+  > button,
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  #importAuxiliaryMaterialExcelButton,
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  #downloadAuxiliaryMaterialExcelButton {
+    height: 34px !important;
+    min-height: 34px !important;
+
+    box-sizing: border-box !important;
+
+    margin: 0 !important;
+
+    padding:
+      0
+      10px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 9px !important;
+    font-weight: 900 !important;
+
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    줄 전체 하단 기준 정렬
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields {
+    align-items: flex-end !important;
+
+    column-gap: 6px !important;
+  }
+}
