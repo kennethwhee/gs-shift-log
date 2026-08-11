@@ -92916,9 +92916,9 @@ body.is-auxiliary-material-expanded
     display: flex !important;
 
     width: 100% !important;
-    height: clamp(135px, 22dvh, 200px) !important;
-    min-height: 135px !important;
-    max-height: 200px !important;
+    height: clamp(220px, 38dvh, 300px) !important;
+    min-height: 220px !important;
+    max-height: 300px !important;
 
     flex: 0 0 auto !important;
 
@@ -96329,5 +96329,805 @@ body.is-auxiliary-material-expanded
     align-items: flex-end !important;
 
     column-gap: 6px !important;
+  }
+}
+
+/* =========================================================
+  석회석 PC 컴팩트 디자인 최종 보정 1차
+
+  - 상단 제목/버튼 압축
+  - 입고 현황/사용량 계산 탭 정돈
+  - 날짜 조회바 컴팩트화
+  - 요약 카드 한 줄형
+  - DAILY SUMMARY / RECEIPT HISTORY 헤더 압축
+  - 표 행 높이 축소
+
+  모바일은 기존 디자인 유지
+========================================================= */
+
+@media screen and (min-width: 769px) {
+
+  /* =====================================================
+    석회석 화면 전체
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView {
+    background:
+      #f7f9fc !important;
+  }
+
+
+  /* =====================================================
+    상단 제목
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-view-heading {
+    display:
+      flex !important;
+
+    min-height:
+      64px !important;
+
+    align-items:
+      center !important;
+
+    justify-content:
+      space-between !important;
+
+    gap:
+      14px !important;
+
+    padding:
+      9px
+      14px !important;
+
+    border-bottom:
+      1px solid
+      #e1e8f0 !important;
+
+    background:
+      #ffffff !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-view-heading
+  > div:first-child {
+    flex:
+      1 1 auto !important;
+
+    min-width:
+      0 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-view-heading
+  > div:first-child
+  > span {
+    font-size:
+      9px !important;
+
+    line-height:
+      1 !important;
+
+    letter-spacing:
+      0.13em !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-view-heading
+  h3 {
+    margin:
+      3px
+      0
+      0 !important;
+
+    font-size:
+      20px !important;
+
+    line-height:
+      1.15 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-view-description {
+    margin:
+      2px
+      0
+      0 !important;
+
+    font-size:
+      10px !important;
+
+    line-height:
+      1.25 !important;
+  }
+
+
+  /* =====================================================
+    상단 작업 버튼
+
+    새로고침
+    업무일지 최신화
+    입고 기록
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-heading-actions {
+    display:
+      flex !important;
+
+    flex:
+      0 0 auto !important;
+
+    flex-wrap:
+      nowrap !important;
+
+    align-items:
+      center !important;
+
+    gap:
+      6px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-heading-actions
+  button {
+    height:
+      34px !important;
+
+    min-height:
+      34px !important;
+
+    padding:
+      0
+      12px !important;
+
+    border-radius:
+      8px !important;
+
+    font-size:
+      10px !important;
+
+    font-weight:
+      900 !important;
+  }
+
+
+  /* 입고 기록 버튼은 확실하게 보이도록 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #openLimestoneReceiptEditorButton {
+    min-width:
+      96px !important;
+
+    border:
+      1px solid
+      #1f5fae !important;
+
+    background:
+      #1f5fae !important;
+
+    color:
+      #ffffff !important;
+
+    font-size:
+      10px !important;
+
+    text-indent:
+      0 !important;
+
+    box-shadow:
+      0 4px 10px
+      rgba(
+        31,
+        95,
+        174,
+        0.18
+      ) !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #openLimestoneReceiptEditorButton:hover {
+    background:
+      #194f91 !important;
+  }
+
+
+  /* =====================================================
+    입고 현황 / 사용량 계산
+
+    넓은 띠 형태 대신
+    짧은 메뉴처럼 정돈
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-subview-menu {
+    display:
+      flex !important;
+
+    width:
+      auto !important;
+
+    min-height:
+      42px !important;
+
+    align-items:
+      center !important;
+
+    justify-content:
+      flex-start !important;
+
+    gap:
+      5px !important;
+
+    padding:
+      5px
+      12px !important;
+
+    border:
+      0 !important;
+
+    border-bottom:
+      1px solid
+      #e4eaf1 !important;
+
+    background:
+      #ffffff !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-subview-menu__button {
+    width:
+      112px !important;
+
+    min-height:
+      32px !important;
+
+    padding:
+      0
+      12px !important;
+
+    border-radius:
+      7px !important;
+
+    font-size:
+      10px !important;
+
+    font-weight:
+      900 !important;
+  }
+
+
+  /* =====================================================
+    대시보드 내부 여백
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-dashboard {
+    gap:
+      8px !important;
+
+    padding:
+      10px
+      12px !important;
+  }
+
+
+  /* =====================================================
+    날짜 조회 영역
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-day-query-card {
+    min-height:
+      50px !important;
+
+    padding:
+      7px
+      10px !important;
+
+    border-radius:
+      10px !important;
+
+    background:
+      #f9fbfd !important;
+
+    box-shadow:
+      none !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-day-navigation {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      34px
+      220px
+      34px
+      auto !important;
+
+    width:
+      max-content !important;
+
+    max-width:
+      100% !important;
+
+    align-items:
+      center !important;
+
+    justify-content:
+      center !important;
+
+    gap:
+      6px !important;
+
+    margin:
+      0
+      auto !important;
+  }
+
+
+  /* 이전 / 다음 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-day-arrow-button {
+    width:
+      34px !important;
+
+    height:
+      34px !important;
+
+    min-height:
+      34px !important;
+
+    padding:
+      0 !important;
+
+    border-radius:
+      7px !important;
+
+    font-size:
+      21px !important;
+  }
+
+
+  /* 날짜 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-current-day-button {
+    width:
+      220px !important;
+
+    min-width:
+      220px !important;
+
+    height:
+      34px !important;
+
+    min-height:
+      34px !important;
+
+    padding:
+      0
+      13px !important;
+
+    border-radius:
+      7px !important;
+
+    background:
+      #ffffff !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-current-day-button
+  strong {
+    font-size:
+      13px !important;
+  }
+
+
+  /* 기간 조회 */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-open-period-button {
+    height:
+      34px !important;
+
+    min-height:
+      34px !important;
+
+    padding:
+      0
+      13px !important;
+
+    border-radius:
+      7px !important;
+
+    font-size:
+      10px !important;
+  }
+
+
+  /* =====================================================
+    4개 요약 카드
+
+    기존 큰 카드 →
+    한 줄 정보 카드 형태
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-summary-grid {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      repeat(
+        4,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+
+    gap:
+      8px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-summary-card {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      )
+      auto
+      auto !important;
+
+    min-height:
+      58px !important;
+
+    align-items:
+      center !important;
+
+    column-gap:
+      5px !important;
+
+    padding:
+      8px
+      12px !important;
+
+    border-radius:
+      10px !important;
+
+    box-shadow:
+      none !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-summary-card
+  > span {
+    min-width:
+      0 !important;
+
+    color:
+      #657388 !important;
+
+    font-size:
+      10px !important;
+
+    font-weight:
+      850 !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-summary-card
+  > strong {
+    margin:
+      0 !important;
+
+    font-size:
+      23px !important;
+
+    font-weight:
+      900 !important;
+
+    line-height:
+      1 !important;
+
+    font-variant-numeric:
+      tabular-nums !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-summary-card
+  > small {
+    margin:
+      0 !important;
+
+    font-size:
+      8px !important;
+
+    font-weight:
+      800 !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  /* =====================================================
+    DAILY SUMMARY / RECEIPT HISTORY 카드
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-section-card {
+    border-radius:
+      10px !important;
+
+    box-shadow:
+      none !important;
+  }
+
+
+  /* =====================================================
+    섹션 제목
+
+    변경 전:
+    DAILY SUMMARY
+    일별 입고량
+
+    변경 후:
+    DAILY SUMMARY | 일별 입고량
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-section-header {
+    min-height:
+      44px !important;
+
+    padding:
+      6px
+      11px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-section-header
+  > div {
+    display:
+      flex !important;
+
+    align-items:
+      baseline !important;
+
+    gap:
+      7px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-section-header
+  > div
+  > span {
+    margin:
+      0 !important;
+
+    font-size:
+      8px !important;
+
+    font-weight:
+      900 !important;
+
+    letter-spacing:
+      0.11em !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-section-header
+  > div
+  > span::after {
+    content:
+      "|";
+
+    margin-left:
+      7px;
+
+    color:
+      #c3ccd8;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-section-header
+  h4 {
+    margin:
+      0 !important;
+
+    font-size:
+      14px !important;
+
+    line-height:
+      1.2 !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-section-count {
+    min-height:
+      22px !important;
+
+    padding:
+      0
+      8px !important;
+
+    font-size:
+      9px !important;
+  }
+
+
+  /* =====================================================
+    일별 입고량 표
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-daily-summary-table
+  th {
+    height:
+      34px !important;
+
+    padding:
+      5px
+      8px !important;
+
+    font-size:
+      10px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-daily-summary-table
+  td {
+    height:
+      36px !important;
+
+    padding:
+      6px
+      8px !important;
+
+    font-size:
+      11px !important;
+  }
+
+
+  /* =====================================================
+    입고기록 상세
+
+    기존보다 더 많은 행을 한 화면에 표시
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-scroll {
+    height:
+      clamp(
+        210px,
+        31vh,
+        290px
+      ) !important;
+
+    min-height:
+      210px !important;
+
+    max-height:
+      290px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  thead
+  th {
+    height:
+      34px !important;
+
+    padding:
+      5px
+      7px !important;
+
+    font-size:
+      10px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  tbody
+  tr {
+    min-height:
+      34px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  td {
+    min-height:
+      34px !important;
+
+    padding-top:
+      6px !important;
+
+    padding-bottom:
+      6px !important;
+
+    font-size:
+      10px !important;
   }
 }

@@ -1,0 +1,30 @@
+diff --git a/index.html b/index.html
+index 41caa8e..2f8c3be 100644
+--- a/index.html
++++ b/index.html
+@@ -23,7 +23,7 @@
+   ====================================================== -->
+   <link
+     rel="stylesheet"
+-    href="style.css?v=20260810-limestone-slip-final"
++    href="style.css?v=20260811-limestone-slip-preview-large1"
+   >
+ 
+ 
+diff --git a/style.css b/style.css
+index 50267f2..11f266b 100644
+--- a/style.css
++++ b/style.css
+@@ -92916,9 +92916,9 @@ body.is-auxiliary-material-expanded
+     display: flex !important;
+ 
+     width: 100% !important;
+-    height: clamp(135px, 22dvh, 200px) !important;
+-    min-height: 135px !important;
+-    max-height: 200px !important;
++    height: clamp(220px, 38dvh, 300px) !important;
++    min-height: 220px !important;
++    max-height: 300px !important;
+ 
+     flex: 0 0 auto !important;
+ 
