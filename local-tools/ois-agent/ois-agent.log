@@ -10036,3 +10036,278 @@ OIS Edge 브라우저 세션을 시작합니다.
 OIS 로그인이 완료되었습니다.
 OIS Edge 브라우저 세션이 준비되었습니다.
 업무일지의 OIS 요청을 기다립니다.
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: fc598f8a-ec97-4862-bf58-d2532b5d9868
+조회일: 2026-08-10
+------------------------------------------
+월간 일일DATA관리 Excel 조회 시작 · 2026-08-10
+OIS 증기 현황 요청 처리 실패: Error: ��ġ C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-159720-1786433560170-cecafe8b7bfe4.ps1:71 ����:6 + ) + ~ �Ŀ� �ݴ� ')'�� �����ϴ�. ��ġ C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-159720-1786433560170-cecafe8b7bfe4.ps1:54 ����:30 + function Normalize-ExcelText { + ~ �� ���� �Ǵ� ���� ���ǿ� �ݴ� '}'�� �����ϴ�. ��ġ C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-159720-1786433560170-cecafe8b7bfe4.ps1:76 ����:3 + ) + ~ �� �Ǵ� ������ ����ġ ���� ')' ��ū�Դϴ�. ��ġ C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-159720-1786433560170-cecafe8b7bfe4.ps1:77 ����:1 + } + ~ �� �Ǵ� ������ ����ġ ���� '}' ��ū�Դϴ�. + CategoryInfo : ParserError: (:) [], ParentContainsErrorRecordException + FullyQualifiedErrorId : MissingEndParenthesisInExpression 마지막 단계: PowerShell 실행 직후
+    at ChildProcess.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9641:15)
+    at ChildProcess.emit (node:events:509:28)
+    at maybeClose (node:internal/child_process:1124:16)
+    at Socket.<anonymous> (node:internal/child_process:481:11)
+    at Socket.emit (node:events:509:28)
+    at Pipe.<anonymous> (node:net:351:12)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-fc598f8a-ec97-4862-bf58-d2532b5d9868.png
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: a501131d-a145-48ca-8672-829ba9f43f09
+조회일: 2026-08-10
+------------------------------------------
+운영정보 메뉴를 클릭했습니다.
+LOG SHEET 메뉴를 클릭했습니다.
+TAG별 LOG 조회 메뉴를 클릭했습니다.
+OIS TAG별 LOG 조회 화면을 열었습니다.
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-10
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-10',
+  targetTag: '003ETH01CW201XQ01',
+  value: 595.278,
+  valueField: 'hd_24',
+  tag: '003ETH01CW201XQ01',
+  sourceDate: '20260810',
+  itemName: 'FLY ASH SILO MICRO CELL WEIGHT',
+  unit: ''
+}
+OIS TAG별 LOG 조회조건 · EBF20CW201 · 2026-08-10
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-10',
+  targetTag: 'EBF20CW201',
+  value: 283,
+  valueField: 'hd_24',
+  tag: 'EBF20CW201',
+  sourceDate: '20260810',
+  itemName: 'FHS BIO STOR SILO WEIGHT',
+  unit: ''
+}
+OIS Silo Level 조회 완료 · 2026-08-10 · Fly Ash 595.278 · Bio Storage 283
+OIS Silo Level 조회가 완료되었습니다.
+┌────────────────────────┬─────────────────────┐
+│ (index)                │ Values              │
+├────────────────────────┼─────────────────────┤
+│ 조회일                 │ '2026-08-10'        │
+│ 조회 기준              │ '24시'              │
+│ Fly Ash Silo Level     │ 595.278             │
+│ Bio Storage Silo Level │ 283                 │
+│ Fly Ash TAG            │ '003ETH01CW201XQ01' │
+│ Bio Storage TAG        │ 'EBF20CW201'        │
+│ Fly Ash 단위           │ ''                  │
+│ Bio Storage 단위       │ ''                  │
+└────────────────────────┴─────────────────────┘
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: 75643e98-ad47-4207-9ba4-3cb87ed6b05c
+조회일: 2026-08-10
+------------------------------------------
+월간 일일DATA관리 Excel 조회 시작 · 2026-08-10
+OIS 증기 현황 요청 처리 실패: Error: ��ġ C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-159720-1786433602902-2f7d4542043938.ps1:71 ����:6 + ) + ~ �Ŀ� �ݴ� ')'�� �����ϴ�. ��ġ C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-159720-1786433602902-2f7d4542043938.ps1:54 ����:30 + function Normalize-ExcelText { + ~ �� ���� �Ǵ� ���� ���ǿ� �ݴ� '}'�� �����ϴ�. ��ġ C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-159720-1786433602902-2f7d4542043938.ps1:76 ����:3 + ) + ~ �� �Ǵ� ������ ����ġ ���� ')' ��ū�Դϴ�. ��ġ C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-159720-1786433602902-2f7d4542043938.ps1:77 ����:1 + } + ~ �� �Ǵ� ������ ����ġ ���� '}' ��ū�Դϴ�. + CategoryInfo : ParserError: (:) [], ParentContainsErrorRecordException + FullyQualifiedErrorId : MissingEndParenthesisInExpression 마지막 단계: PowerShell 실행 직후
+    at ChildProcess.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9641:15)
+    at ChildProcess.emit (node:events:509:28)
+    at maybeClose (node:internal/child_process:1124:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:306:5)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-75643e98-ad47-4207-9ba4-3cb87ed6b05c.png
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: 727982c8-1c8c-4bd6-bf12-a138acacd9da
+조회일: 2026-08-10
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/08/10로 변경합니다.
+2026년 08월 10일 환경자료 조회가 완료되었습니다.
+OIS 환경일지 재계산 버튼을 클릭했습니다.
+OIS "장자산단" 행 셀: [ '장자산단', '8,143.000', '저장율(%)', '69.945', '92.184', '93.099' ]
+OIS "저장량" 행 셀: [
+  '동두천',    '0.000',
+  '8,143.000', '1,981.000',
+  '5,631.800', '저장량(m3)',
+  '2,797.807', '10,140.240',
+  '5,585.941'
+]
+OIS "저장율" 행 셀: [ '장자산단', '8,143.000', '저장율(%)', '69.945', '92.184', '93.099' ]
+OIS "순수사용량" 행 셀: [
+  'B',         '112.000',
+  '47.00',     '50.000',
+  '95.52',     '총량',
+  '1,560.000', '순수사용량',
+  '총합',      '0',
+  '0',         '0',
+  '0'
+]
+OIS 수처리 최종 추출값: {
+  source: 'OIS 일일 운전일지(환경)',
+  sourceDate: '',
+  collectedAt: '2026-08-11T07:33:38.422Z',
+  rawWaterInflow: 8143,
+  demiProduction: 1560,
+  pureWaterUsage: 1613,
+  rawWaterTankAmount: 2797.807,
+  rawWaterTankRate: 69.945,
+  filteredWaterTankAmount: 10140.24,
+  filteredWaterTankRate: 92.184,
+  demiWaterTankAmount: 5585.941,
+  demiWaterTankRate: 93.099
+}
+OIS 수처리 결과 JSON 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-water-values.json
+OIS 수처리 현황 조회가 완료되었습니다.
+┌──────────────────────┬──────────┐
+│ (index)              │ Values   │
+├──────────────────────┼──────────┤
+│ 장자산단 원수 유입량 │ 8143     │
+│ 원수 TANK 저장량     │ 2797.807 │
+│ 원수 TANK 저장율     │ 69.945   │
+│ 여과수 TANK 저장량   │ 10140.24 │
+│ 여과수 TANK 저장율   │ 92.184   │
+│ 순수 TANK 저장량     │ 5585.941 │
+│ 순수 TANK 저장율     │ 93.099   │
+│ 순수 생산량          │ 1560     │
+│ 순수 사용량          │ 1613     │
+└──────────────────────┴──────────┘
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: ace129d8-99e1-4854-b955-dd4b8fee5f13
+조회일: 2026-08-10
+------------------------------------------
+운영정보 메뉴를 클릭했습니다.
+LOG SHEET 메뉴를 클릭했습니다.
+TAG별 LOG 조회 메뉴를 클릭했습니다.
+OIS TAG별 LOG 조회 화면을 열었습니다.
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-10
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-10',
+  targetTag: '003ETH01CW201XQ01',
+  value: 595.278,
+  valueField: 'hd_24',
+  tag: '003ETH01CW201XQ01',
+  sourceDate: '20260810',
+  itemName: 'FLY ASH SILO MICRO CELL WEIGHT',
+  unit: ''
+}
+OIS TAG별 LOG 조회조건 · EBF20CW201 · 2026-08-10
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-10',
+  targetTag: 'EBF20CW201',
+  value: 283,
+  valueField: 'hd_24',
+  tag: 'EBF20CW201',
+  sourceDate: '20260810',
+  itemName: 'FHS BIO STOR SILO WEIGHT',
+  unit: ''
+}
+OIS Silo Level 조회 완료 · 2026-08-10 · Fly Ash 595.278 · Bio Storage 283
+OIS Silo Level 조회가 완료되었습니다.
+┌────────────────────────┬─────────────────────┐
+│ (index)                │ Values              │
+├────────────────────────┼─────────────────────┤
+│ 조회일                 │ '2026-08-10'        │
+│ 조회 기준              │ '24시'              │
+│ Fly Ash Silo Level     │ 595.278             │
+│ Bio Storage Silo Level │ 283                 │
+│ Fly Ash TAG            │ '003ETH01CW201XQ01' │
+│ Bio Storage TAG        │ 'EBF20CW201'        │
+│ Fly Ash 단위           │ ''                  │
+│ Bio Storage 단위       │ ''                  │
+└────────────────────────┴─────────────────────┘
+
+------------------------------------------
+증기 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: 061c02e5-bff2-46cd-81d4-202700eb5d78
+조회일: 2026-08-10
+------------------------------------------
+월간 일일DATA관리 Excel 조회 시작 · 2026-08-10
+OIS 증기 현황 요청 처리 실패: Error: ��ġ C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-159720-1786433634695-cf60465daf1a88.ps1:71 ����:6 + ) + ~ �Ŀ� �ݴ� ')'�� �����ϴ�. ��ġ C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-159720-1786433634695-cf60465daf1a88.ps1:54 ����:30 + function Normalize-ExcelText { + ~ �� ���� �Ǵ� ���� ���ǿ� �ݴ� '}'�� �����ϴ�. ��ġ C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-159720-1786433634695-cf60465daf1a88.ps1:76 ����:3 + ) + ~ �� �Ǵ� ������ ����ġ ���� ')' ��ū�Դϴ�. ��ġ C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-159720-1786433634695-cf60465daf1a88.ps1:77 ����:1 + } + ~ �� �Ǵ� ������ ����ġ ���� '}' ��ū�Դϴ�. + CategoryInfo : ParserError: (:) [], ParentContainsErrorRecordException + FullyQualifiedErrorId : MissingEndParenthesisInExpression 마지막 단계: PowerShell 실행 직후
+    at ChildProcess.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9641:15)
+    at ChildProcess.emit (node:events:509:28)
+    at maybeClose (node:internal/child_process:1124:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:306:5)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-061c02e5-bff2-46cd-81d4-202700eb5d78.png
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: d64fd4b6-ea64-4aa1-8916-83a45e95334f
+조회일: 2026-08-10
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/08/10로 변경합니다.
+2026년 08월 10일 환경자료 조회가 완료되었습니다.
+OIS 환경일지 재계산 버튼을 클릭했습니다.
+OIS "장자산단" 행 셀: [ '장자산단', '8,143.000', '저장율(%)', '69.945', '92.184', '93.099' ]
+OIS "저장량" 행 셀: [
+  '동두천',    '0.000',
+  '8,143.000', '1,981.000',
+  '5,631.800', '저장량(m3)',
+  '2,797.807', '10,140.240',
+  '5,585.941'
+]
+OIS "저장율" 행 셀: [ '장자산단', '8,143.000', '저장율(%)', '69.945', '92.184', '93.099' ]
+OIS "순수사용량" 행 셀: [
+  'B',         '112.000',
+  '47.00',     '50.000',
+  '95.52',     '총량',
+  '1,560.000', '순수사용량',
+  '총합',      '0',
+  '0',         '0',
+  '0'
+]
+OIS 수처리 최종 추출값: {
+  source: 'OIS 일일 운전일지(환경)',
+  sourceDate: '',
+  collectedAt: '2026-08-11T07:34:06.323Z',
+  rawWaterInflow: 8143,
+  demiProduction: 1560,
+  pureWaterUsage: 1613,
+  rawWaterTankAmount: 2797.807,
+  rawWaterTankRate: 69.945,
+  filteredWaterTankAmount: 10140.24,
+  filteredWaterTankRate: 92.184,
+  demiWaterTankAmount: 5585.941,
+  demiWaterTankRate: 93.099
+}
+OIS 수처리 결과 JSON 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-water-values.json
+OIS 수처리 현황 조회가 완료되었습니다.
+┌──────────────────────┬──────────┐
+│ (index)              │ Values   │
+├──────────────────────┼──────────┤
+│ 장자산단 원수 유입량 │ 8143     │
+│ 원수 TANK 저장량     │ 2797.807 │
+│ 원수 TANK 저장율     │ 69.945   │
+│ 여과수 TANK 저장량   │ 10140.24 │
+│ 여과수 TANK 저장율   │ 92.184   │
+│ 순수 TANK 저장량     │ 5585.941 │
+│ 순수 TANK 저장율     │ 93.099   │
+│ 순수 생산량          │ 1560     │
+│ 순수 사용량          │ 1613     │
+└──────────────────────┴──────────┘
+OIS 에이전트 로컬 설정을 불러왔습니다.
+확인된 설정: OIS_ID, OIS_PASSWORD, OIS_AGENT_KEY, OIS_AGENT_ID, SHIFT_LOG_BASE_URL, NODE_USE_SYSTEM_CA
+==========================================
+GS Shift Log OIS 연동 프로그램
+==========================================
+업무일지 주소: https://gs-shift-log.pages.dev
+에이전트 ID: CCR-OIS-PC-01
+OIS 요청 확인 주기: 5초
+지원 요청: 석회석 재고 · 수처리 현황 · Gear Wheel / Pinion
+OIS Edge 브라우저 세션을 시작합니다.
+OIS 로그인이 완료되었습니다.
+OIS Edge 브라우저 세션이 준비되었습니다.
+업무일지의 OIS 요청을 기다립니다.

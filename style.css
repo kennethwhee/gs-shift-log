@@ -58985,16 +58985,6 @@ and (
   white-space: nowrap;
 }
 
-
-#efficiencyTeamModal
-.limestone-import-button {
-  border-color: #b9cce3;
-
-  background: #eef5fc;
-  color: #1f5fae;
-}
-
-
 /* =========================================================
   석회석 대시보드
 ========================================================= */
@@ -59948,167 +59938,6 @@ select {
   font-weight: 700;
 }
 
-
-/* =========================================================
-  업무일지 가져오기
-========================================================= */
-
-#efficiencyTeamModal
-.limestone-import-panel {
-  width: 100%;
-
-  padding: 15px;
-
-  border: 1px solid #d8c695;
-  border-radius: 12px;
-
-  background: #fffdf7;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-header {
-  display: flex;
-
-  align-items: flex-start;
-  justify-content: space-between;
-
-  gap: 15px;
-
-  margin-bottom: 12px;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-header span {
-  display: block;
-
-  margin-bottom: 3px;
-
-  color: #a3680d;
-
-  font-size: 8px;
-  font-weight: 900;
-
-  letter-spacing: 0.14em;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-header h4 {
-  margin: 0;
-
-  color: #3d3a2f;
-
-  font-size: 14px;
-  font-weight: 900;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-header p {
-  margin: 4px 0 0;
-
-  color: #85765e;
-
-  font-size: 9px;
-  font-weight: 600;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-header > strong {
-  display: inline-flex;
-
-  min-width: 44px;
-  min-height: 25px;
-
-  align-items: center;
-  justify-content: center;
-
-  padding: 0 8px;
-
-  border-radius: 999px;
-
-  background: #fff1d4;
-  color: #9c620d;
-
-  font-size: 10px;
-  font-weight: 900;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-candidate-list {
-  display: flex;
-
-  flex-direction: column;
-
-  gap: 6px;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-candidate {
-  display: grid;
-
-  grid-template-columns:
-    30px
-    95px
-    65px
-    85px
-    minmax(0, 1fr);
-
-  align-items: center;
-
-  gap: 8px;
-
-  min-height: 42px;
-
-  padding: 7px 9px;
-
-  border: 1px solid #eadfc3;
-  border-radius: 8px;
-
-  background: #ffffff;
-
-  color: #4f4a3d;
-
-  font-size: 10px;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-candidate input {
-  width: 15px;
-  height: 15px;
-
-  margin: 0;
-
-  accent-color: #b87412;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-actions {
-  display: flex;
-
-  justify-content: flex-end;
-
-  gap: 7px;
-
-  margin-top: 12px;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-actions button {
-  min-height: 36px;
-
-  font-size: 10px;
-}
-
-
 /* =========================================================
   중간 PC
 ========================================================= */
@@ -60340,15 +60169,10 @@ select {
     padding: 9px 11px;
   }
 
-
-  #efficiencyTeamModal
-  .limestone-editor-panel,
-
-  #efficiencyTeamModal
-  .limestone-import-panel {
-    padding: 11px;
-  }
-
+#efficiencyTeamModal
+.limestone-editor-panel {
+  padding: 11px;
+}
 
   #efficiencyTeamModal
   .limestone-editor-form {
@@ -60378,24 +60202,6 @@ select {
   #efficiencyTeamModal
   .limestone-editor-actions button {
     width: 100%;
-  }
-
-
-  #efficiencyTeamModal
-  .limestone-import-candidate {
-    grid-template-columns:
-      28px
-      80px
-      55px
-      minmax(0, 1fr);
-  }
-
-
-  #efficiencyTeamModal
-  .limestone-import-candidate
-  .limestone-import-source {
-    grid-column:
-      2 / -1;
   }
 
 }
@@ -60438,229 +60244,6 @@ select {
   }
 
 }
-
-/* =========================================================
-  석회석 업무일지 가져오기 상태
-
-  이미 등록된 항목:
-  - 선택 불가
-  - 회색 처리
-========================================================= */
-
-#efficiencyTeamModal
-.limestone-import-candidate.is-imported {
-  border-color:
-    #d7dde5;
-
-  background:
-    #f4f6f8;
-
-  color:
-    #8a94a2;
-
-  opacity:
-    0.7;
-
-  cursor:
-    default;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-candidate.is-imported
-strong,
-
-#efficiencyTeamModal
-.limestone-import-candidate.is-imported
-.limestone-quantity-value {
-  color:
-    #7c8795;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-candidate
-input:disabled {
-  cursor:
-    not-allowed;
-
-  opacity:
-    0.55;
-}
-
-/* =========================================================
-  석회석 조회·가져오기 분리 및 상세기록 스크롤
-========================================================= */
-
-
-/* =========================================================
-  가져오기 전용 기간
-========================================================= */
-
-#efficiencyTeamModal
-.limestone-import-range-panel {
-  margin-bottom:
-    12px;
-
-  padding:
-    12px;
-
-  border:
-    1px solid #e3d7b8;
-
-  border-radius:
-    10px;
-
-  background:
-    #fffaf0;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-range-heading {
-  display:
-    flex;
-
-  align-items:
-    center;
-
-  justify-content:
-    space-between;
-
-  margin-bottom:
-    9px;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-range-heading strong {
-  display:
-    block;
-
-  color:
-    #654c25;
-
-  font-size:
-    11px;
-
-  font-weight:
-    900;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-range-heading small {
-  display:
-    block;
-
-  margin-top:
-    2px;
-
-  color:
-    #927b58;
-
-  font-size:
-    8px;
-
-  font-weight:
-    650;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-range-form {
-  display:
-    grid;
-
-  grid-template-columns:
-    minmax(
-      140px,
-      1fr
-    )
-    minmax(
-      140px,
-      1fr
-    )
-    120px
-    110px;
-
-  align-items:
-    end;
-
-  gap:
-    8px;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-range-form
-.form-field {
-  gap:
-    4px;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-range-form
-input,
-
-#efficiencyTeamModal
-.limestone-import-range-form
-select {
-  min-height:
-    36px;
-
-  font-size:
-    10px;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-search-button {
-  min-height:
-    36px;
-
-  padding:
-    0 10px;
-
-  font-size:
-    10px;
-
-  white-space:
-    nowrap;
-}
-
-
-#efficiencyTeamModal
-.limestone-import-empty-message {
-  padding:
-    28px 14px;
-
-  border:
-    1px dashed #dfd4ba;
-
-  border-radius:
-    9px;
-
-  background:
-    #ffffff;
-
-  color:
-    #8a795e;
-
-  font-size:
-    10px;
-
-  font-weight:
-    650;
-
-  line-height:
-    1.6;
-
-  text-align:
-    center;
-}
-
 
 /* =========================================================
   석회석 화면 세로 영역
@@ -60751,56 +60334,12 @@ thead th {
 }
 
 
-/* =========================================================
-  태블릿
-========================================================= */
-
-@media screen and (max-width: 980px) {
-
-  #efficiencyTeamModal
-  .limestone-import-range-form {
-    grid-template-columns:
-      repeat(
-        2,
-        minmax(
-          0,
-          1fr
-        )
-      );
-  }
-
-
-  #efficiencyTeamModal
-  .limestone-import-search-button {
-    grid-column:
-      1 / -1;
-
-    width:
-      100%;
-  }
-
-}
-
 
 /* =========================================================
   모바일
 ========================================================= */
 
 @media screen and (max-width: 768px) {
-
-  #efficiencyTeamModal
-  .limestone-import-range-form {
-    grid-template-columns:
-      1fr;
-  }
-
-
-  #efficiencyTeamModal
-  .limestone-import-search-button {
-    grid-column:
-      auto;
-  }
-
 
   #efficiencyTeamModal
   .limestone-section-card:has(
@@ -74886,15 +74425,12 @@ textarea.efficiency-daily-work-line-source[
   ====================================================== */
 
   #efficiencyLimestoneView
-  .limestone-heading-actions,
+.limestone-heading-actions,
 
-  #efficiencyLimestoneView
-  .limestone-import-panel,
-
-  #efficiencyLimestoneView
-  .limestone-editor-panel {
-    display: none !important;
-  }
+#efficiencyLimestoneView
+.limestone-editor-panel {
+  display: none !important;
+}
 
 
   #efficiencyLimestoneView
@@ -90499,18 +90035,6 @@ td.is-date {
     white-space: nowrap !important;
   }
 
-
-  /* 모바일에서는 업무일지 최신화 제거 */
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  .limestone-import-button,
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  .limestone-import-panel {
-    display: none !important;
-  }
 
 
   /* 모바일 전표 촬영 버튼 */

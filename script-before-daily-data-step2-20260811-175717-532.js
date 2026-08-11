@@ -108107,6 +108107,10 @@ function getLimestoneReceiptElements() {
       업무일지 가져오기
     ==================================================== */
 
+    importPanel:
+      document.getElementById(
+        "limestoneImportPanel"
+      )
   };
 }
 
@@ -108934,6 +108938,7 @@ async function setLimestoneDayQuery(
   closeLimestonePeriodSearchPanel();
 
 
+  closeLimestoneImportPanel();
 
 
   updateLimestonePeriodDisplay();
@@ -109066,6 +109071,7 @@ function openLimestonePeriodSearchPanel() {
   closeLimestoneReceiptEditor();
 
 
+  closeLimestoneImportPanel();
 
 
   /*
@@ -109278,6 +109284,7 @@ async function applyLimestonePeriodSearch() {
   updateLimestonePeriodDisplay();
 
 
+  closeLimestoneImportPanel();
 
 
   await loadLimestoneReceipts();
@@ -113914,6 +113921,7 @@ function openLimestoneManualEntryModal() {
   */
   closeLimestoneReceiptEditor();
 
+  closeLimestoneImportPanel();
 
   closeLimestonePeriodSearchPanel();
 
@@ -114204,7 +114212,7 @@ function getLimestoneManualEntryQuantity() {
       receiptUnitInput,
       receiptQuantityInput,
       receiptNoteInput,
-
+      importPanel
     } =
       getLimestoneReceiptElements();
 
@@ -114221,7 +114229,15 @@ function getLimestoneManualEntryQuantity() {
     }
 
 
-resetLimestoneReceiptEditor();
+    if (
+      importPanel
+    ) {
+      importPanel.hidden =
+        true;
+    }
+
+
+    resetLimestoneReceiptEditor();
 
 
     if (
@@ -115158,6 +115174,3206 @@ async function saveLimestoneManualEntry(
   }
 
   /* =====================================================
+    업무일지 석회석 입고내역 가져오기
+
+    대상:
+    - BCO1 → 1호기
+    - BCO2 → 2호기
+    - 결재완료·저장완료 업무일지
+
+    인식:
+    - Limestone 입고
+    - 석회석 입고
+    - ton / t / 톤
+  ====================================================== */
+
+  limestoneReceiptState
+    .importCandidates =
+    [];
+
+
+/* =====================================================
+  업무일지 가져오기 요소
+
+  상단 입고현황 조회 조건과
+  가져오기 조건을 완전히 분리한다.
+===================================================== */
+
+function getLimestoneImportElements() {
+  return {
+    importButton:
+      document.getElementById(
+        "importLimestoneFromShiftLogsButton"
+      ),
+
+    panel:
+      document.getElementById(
+        "limestoneImportPanel"
+      ),
+
+    count:
+      document.getElementById(
+        "limestoneImportCandidateCount"
+      ),
+
+    list:
+      document.getElementById(
+        "limestoneImportCandidateList"
+      ),
+
+    cancelButton:
+      document.getElementById(
+        "cancelLimestoneImportButton"
+      ),
+
+    applyButton:
+      document.getElementById(
+        "applyLimestoneImportButton"
+      ),
+
+    searchButton:
+      document.getElementById(
+        "searchLimestoneImportCandidatesButton"
+      ),
+
+    /*
+      가져오기 전용 기간
+    */
+    startDateInput:
+      document.getElementById(
+        "limestoneImportStartDate"
+      ),
+
+    endDateInput:
+      document.getElementById(
+        "limestoneImportEndDate"
+      ),
+
+    unitFilter:
+      document.getElementById(
+        "limestoneImportUnitFilter"
+      )
+  };
+}
+
+/* =====================================================
+  업무일지 가져오기 기본 기간
+
+  기본:
+  - 오늘 포함 최근 7일
+  - 전체 호기
+===================================================== */
+
+function setDefaultLimestoneImportDateRange() {
+  const {
+    startDateInput,
+    endDateInput,
+    unitFilter
+  } =
+    getLimestoneImportElements();
+
+
+  if (
+    !startDateInput ||
+    !endDateInput
+  ) {
+    return;
+  }
+
+
+  const today =
+    new Date();
+
+
+  const sevenDaysAgo =
+    new Date(
+      today
+    );
+
+
+  sevenDaysAgo.setDate(
+    sevenDaysAgo.getDate() -
+    6
+  );
+
+
+  /*
+    이미 사용자가 날짜를 선택했다면 유지한다.
+  */
+  if (
+    !isValidLimestoneDate(
+      startDateInput.value
+    )
+  ) {
+    startDateInput.value =
+      formatLimestoneDate(
+        sevenDaysAgo
+      );
+  }
+
+
+  if (
+    !isValidLimestoneDate(
+      endDateInput.value
+    )
+  ) {
+    endDateInput.value =
+      formatLimestoneDate(
+        today
+      );
+  }
+
+
+  if (
+    unitFilter &&
+    ![
+      "",
+      "1",
+      "2"
+    ].includes(
+      unitFilter.value
+    )
+  ) {
+    unitFilter.value =
+      "";
+  }
+}
+
+  /* =====================================================
+    날짜 더하기
+
+    YYYY-MM-DD → 지정 날짜만큼 이동
+  ====================================================== */
+
+  function addLimestoneIsoDateDays(
+    dateValue,
+    dayCount
+  ) {
+    const parsedDate =
+      new Date(
+        `${dateValue}T00:00:00`
+      );
+
+
+    if (
+      Number.isNaN(
+        parsedDate.getTime()
+      )
+    ) {
+      return "";
+    }
+
+
+    parsedDate.setDate(
+      parsedDate.getDate() +
+      Number(
+        dayCount ||
+        0
+      )
+    );
+
+
+    return formatLimestoneDate(
+      parsedDate
+    );
+  }
+
+
+  /* =====================================================
+    보직 정리
+  ====================================================== */
+
+  function normalizeLimestoneImportRole(
+    value
+  ) {
+    if (
+      typeof normalizeMemberLogRole ===
+        "function"
+    ) {
+      return normalizeMemberLogRole(
+        value
+      );
+    }
+
+
+    return String(
+      value ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+  }
+
+
+/* =====================================================
+  석회석 가져오기 가능 업무일지 판정
+
+  신규 업무일지:
+  - BCO1·BCO2
+  - 결재완료·저장완료만 사용
+
+  과거 업무일지:
+  - BCO1·BCO2
+  - legacy 자료는 과거 확정자료로 처리
+===================================================== */
+
+function isLimestoneLegacySourceLog(
+  log
+) {
+  if (
+    typeof isReadOnlyLegacyShiftLog ===
+      "function"
+  ) {
+    return isReadOnlyLegacyShiftLog(
+      log
+    );
+  }
+
+
+  const source =
+    String(
+      log?.source ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  return (
+    source ===
+      "legacy" ||
+    source.startsWith(
+      "legacy-"
+    )
+  );
+}
+
+
+function normalizeLimestoneImportStatus(
+  value
+) {
+  if (
+    typeof normalizeShiftLogApprovalStatus ===
+      "function"
+  ) {
+    return normalizeShiftLogApprovalStatus(
+      value
+    );
+  }
+
+
+  return String(
+    value ||
+    ""
+  ).trim();
+}
+
+
+/* =====================================================
+  효율팀 석회석 입고기록 연동 대상 업무일지
+
+  대상 보직:
+  - BCO1 → 1호기 상위 보직
+  - BO1  → 1호기 하위 보직
+  - BCO2 → 2호기 상위 보직
+  - BO2  → 2호기 하위 보직
+
+  신규 공용 업무일지:
+  - D1에 저장된 상태라면 모두 사용
+  - 임시저장
+  - 결재요청
+  - 결재완료
+  - 저장완료
+
+  과거 업무일지:
+  - 기존 확정자료로 사용
+===================================================== */
+
+function isLimestoneImportableLog(
+  log
+) {
+  if (
+    !log ||
+    typeof log !==
+      "object"
+  ) {
+    return false;
+  }
+
+
+  const role =
+    normalizeLimestoneImportRole(
+      log.role
+    );
+
+
+  const allowedRoles = [
+    "BCO1",
+    "BO1",
+    "BCO2",
+    "BO2"
+  ];
+
+
+  if (
+    !allowedRoles.includes(
+      role
+    )
+  ) {
+    return false;
+  }
+
+
+  /*
+    과거 업무일지는 기존 저장자료이므로
+    현재 상태값과 관계없이 후보로 사용한다.
+  */
+  if (
+    isLimestoneLegacySourceLog(
+      log
+    )
+  ) {
+    return true;
+  }
+
+
+  const status =
+    normalizeLimestoneImportStatus(
+      log.status
+    );
+
+
+  /*
+    서버 D1에 저장된 업무일지만 조회되므로
+    아래 네 상태를 모두 연동 대상으로 사용한다.
+  */
+  const savedStatuses = [
+    "임시저장",
+    "결재요청",
+    "결재완료",
+    "저장완료",
+
+    /*
+      기존 화면 상태명 호환
+    */
+    "작성중",
+    "작성완료"
+  ];
+
+
+  return savedStatuses.includes(
+    status
+  );
+}
+
+/* =====================================================
+  신규·과거 업무일지 통합 중복 방지
+
+  우선순위:
+  1. 신규 공용 업무일지
+  2. 과거 legacy 업무일지
+
+  같은 날짜·근무·보직의 자료가 양쪽에 있으면
+  신규 공용 업무일지를 사용한다.
+===================================================== */
+
+function createLimestoneStableHash(
+  value
+) {
+  const sourceText =
+    String(
+      value ||
+      ""
+    );
+
+
+  let hash =
+    0x811c9dc5;
+
+
+  for (
+    let index = 0;
+    index <
+      sourceText.length;
+    index +=
+      1
+  ) {
+    hash ^=
+      sourceText.charCodeAt(
+        index
+      );
+
+
+    hash =
+      Math.imul(
+        hash,
+        0x01000193
+      );
+  }
+
+
+  return (
+    hash >>>
+    0
+  )
+    .toString(
+      16
+    )
+    .padStart(
+      8,
+      "0"
+    );
+}
+
+
+function createLimestoneSourceLogGroupKey(
+  log
+) {
+  return [
+    String(
+      log?.date ||
+      ""
+    ).trim(),
+
+    String(
+      log?.shift ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replaceAll(
+        "/",
+        ""
+      ),
+
+    normalizeLimestoneImportRole(
+      log?.role
+    )
+  ].join(
+    "||"
+  );
+}
+
+
+function createLimestoneSourceLogId(
+  log
+) {
+  const storedId =
+    String(
+      log?.id ||
+      log?.legacyDiaryId ||
+      log?.legacy_diary_id ||
+      ""
+    ).trim();
+
+
+  if (
+    storedId
+  ) {
+    return storedId;
+  }
+
+
+  /*
+    ID가 없는 예외적인 과거자료는
+    날짜·근무·보직·작성자·내용으로
+    항상 같은 임시 ID를 만든다.
+  */
+  const entryFingerprint =
+    collectLimestoneLogEntries(
+      log
+    )
+      .map(
+        item => {
+          return [
+            item.entry?.time,
+            item.entry?.category,
+            item.entry?.tag,
+            item.entry?.content
+          ]
+            .map(
+              value => {
+                return String(
+                  value ||
+                  ""
+                )
+                  .replace(
+                    /\s+/g,
+                    " "
+                  )
+                  .trim();
+              }
+            )
+            .join(
+              "|"
+            );
+        }
+      )
+      .join(
+        "||"
+      );
+
+
+  const fingerprint = [
+    log?.date,
+    log?.shift,
+    log?.role,
+    log?.author,
+    entryFingerprint
+  ].join(
+    "||"
+  );
+
+
+  return [
+    "limestone-source",
+    String(
+      log?.date ||
+      "unknown-date"
+    ),
+    String(
+      log?.shift ||
+      "unknown-shift"
+    ),
+    normalizeLimestoneImportRole(
+      log?.role
+    ) ||
+    "unknown-role",
+    createLimestoneStableHash(
+      fingerprint
+    )
+  ].join(
+    "-"
+  );
+}
+
+
+function createLimestoneReceiptBusinessKey(
+  receipt
+) {
+  const quantity =
+    normalizeLimestoneQuantity(
+      receipt?.quantityTon
+    );
+
+
+  return [
+    String(
+      receipt?.receiptDate ||
+      ""
+    ).trim(),
+
+    String(
+      receipt?.receiptTime ||
+      ""
+    ).trim(),
+
+    String(
+      Number(
+        receipt?.unitNo
+      ) ||
+      ""
+    ),
+
+    quantity.toFixed(
+      2
+    )
+  ].join(
+    "||"
+  );
+}
+
+
+function deduplicateLimestoneSourceLogs(
+  sharedLogs,
+  legacyLogs
+) {
+  const logMap =
+    new Map();
+
+
+  /*
+    신규 자료를 먼저 넣는다.
+  */
+  (
+    Array.isArray(
+      sharedLogs
+    )
+      ? sharedLogs
+      : []
+  )
+    .filter(
+      isLimestoneImportableLog
+    )
+    .forEach(
+      log => {
+        const groupKey =
+          createLimestoneSourceLogGroupKey(
+            log
+          );
+
+
+        if (
+          groupKey
+        ) {
+          logMap.set(
+            groupKey,
+            log
+          );
+        }
+      }
+    );
+
+
+  /*
+    동일 그룹의 신규 자료가 없을 때만
+    과거 자료를 넣는다.
+  */
+  (
+    Array.isArray(
+      legacyLogs
+    )
+      ? legacyLogs
+      : []
+  )
+    .filter(
+      isLimestoneImportableLog
+    )
+    .forEach(
+      log => {
+        const groupKey =
+          createLimestoneSourceLogGroupKey(
+            log
+          );
+
+
+        if (
+          groupKey &&
+          !logMap.has(
+            groupKey
+          )
+        ) {
+          logMap.set(
+            groupKey,
+            log
+          );
+        }
+      }
+    );
+
+
+  return [
+    ...logMap.values()
+  ];
+}
+
+
+  /* =====================================================
+    업무일지 항목 수집
+
+    새 구조:
+    - tmEntries
+    - handoverEntries
+    - remarkEntries
+
+    기존 호환:
+    - entries
+
+    같은 항목이 여러 배열에 있으면 한 번만 사용한다.
+  ====================================================== */
+
+  function collectLimestoneLogEntries(
+    log
+  ) {
+    const collectedEntries =
+      [];
+
+
+    const seenEntryKeys =
+      new Set();
+
+
+    const collections = [
+      {
+        name:
+          "entries",
+
+        items:
+          log?.entries
+      },
+
+      {
+        name:
+          "tmEntries",
+
+        items:
+          log?.tmEntries
+      },
+
+      {
+        name:
+          "handoverEntries",
+
+        items:
+          log?.handoverEntries
+      },
+
+      {
+        name:
+          "remarkEntries",
+
+        items:
+          log?.remarkEntries
+      }
+    ];
+
+
+    collections.forEach(
+      collection => {
+        const items =
+          Array.isArray(
+            collection.items
+          )
+            ? collection.items
+            : [];
+
+
+        items.forEach(
+          (
+            rawEntry,
+            entryIndex
+          ) => {
+            const entry =
+              rawEntry &&
+              typeof rawEntry ===
+                "object" &&
+              !Array.isArray(
+                rawEntry
+              )
+                ? rawEntry
+                : {
+                    content:
+                      String(
+                        rawEntry ||
+                        ""
+                      )
+                  };
+
+
+            const content =
+              String(
+                entry.content ||
+                entry.text ||
+                ""
+              )
+                .replace(
+                  /\r\n?/g,
+                  "\n"
+                )
+                .trim();
+
+
+            if (
+              !content
+            ) {
+              return;
+            }
+
+
+            const entryId =
+              String(
+                entry.id ||
+                ""
+              ).trim();
+
+
+            const entryKey =
+              entryId
+                ? `id:${entryId}`
+                : [
+                    "content",
+
+                    String(
+                      entry.time ||
+                      ""
+                    ).trim(),
+
+                    String(
+                      entry.tag ||
+                      ""
+                    ).trim(),
+
+                    content
+                      .replace(
+                        /\s+/g,
+                        " "
+                      )
+                      .toUpperCase()
+                  ].join(
+                    "||"
+                  );
+
+
+            if (
+              seenEntryKeys.has(
+                entryKey
+              )
+            ) {
+              return;
+            }
+
+
+            seenEntryKeys.add(
+              entryKey
+            );
+
+
+            collectedEntries.push({
+              entry,
+
+              entryIndex,
+
+              collectionName:
+                collection.name
+            });
+          }
+        );
+      }
+    );
+
+
+    return collectedEntries;
+  }
+
+
+  /* =====================================================
+    문자열에서 마지막 시간 찾기
+
+    예:
+    14:45 Limestone 입고
+
+    결과:
+    14:45
+  ====================================================== */
+
+  function findLastLimestoneTime(
+    value
+  ) {
+    const timeMatches = [
+      ...String(
+        value ||
+        ""
+      ).matchAll(
+        /(?:^|[^\d])([01]\d|2[0-3]):([0-5]\d)(?!\d)/g
+      )
+    ];
+
+
+    if (
+      timeMatches.length ===
+        0
+    ) {
+      return "";
+    }
+
+
+    const lastMatch =
+      timeMatches[
+        timeMatches.length -
+        1
+      ];
+
+
+    return [
+      lastMatch[1],
+      lastMatch[2]
+    ].join(
+      ":"
+    );
+  }
+
+
+/* =========================================================
+  업무일지 석회석 입고 문구 분석 최종본
+
+  단위가 없는 숫자도 ton으로 처리한다.
+
+  인식 예:
+  - 21:30 Limestone 입고(30.34)
+  - Limestone 입고 (30.34 ton)
+  - Limestone 입고 30.34 t
+  - 석회석 입고량 30.34톤
+  - 석회석 반입 : 30.34
+  - 30.34 ton Limestone 입고
+
+  제외 예:
+  - Limestone 입고 예정
+  - 석회석 입고 계획
+  - 석회석 입고 취소
+========================================================= */
+
+function extractLimestoneReceiptsFromEntry(
+  entry
+) {
+  const content =
+    String(
+      entry?.content ||
+      entry?.text ||
+      ""
+    )
+      .replace(
+        /\r\n?/g,
+        "\n"
+      )
+      .trim();
+
+
+  if (
+    !content
+  ) {
+    return [];
+  }
+
+
+  const entryTime =
+    findLastLimestoneTime(
+      entry?.time
+    );
+
+
+  const result =
+    [];
+
+
+  const lines =
+    content
+      .split(
+        "\n"
+      )
+      .map(
+        line => {
+          return line.trim();
+        }
+      )
+      .filter(
+        Boolean
+      );
+
+
+  lines.forEach(
+    (
+      line,
+      lineIndex
+    ) => {
+      /*
+        지원 형식
+
+        Limestone 입고(30.34)
+        Limestone 입고 30.34
+        Limestone 입고 30.34ton
+        석회석 입고량 30.34톤
+        석회석 입고 완료 (30.34)
+        30.34t Limestone 입고
+      */
+      const patterns = [
+        /(?:lime\s*stone|석회석)[^\r\n]{0,60}?입고(?:\s*(?:량|완료))?[^0-9\r\n]{0,30}?(\d{1,3}(?:[.,]\d{1,2})?)(?:\s*(?:tons?|t|톤))?(?![:\d.])/gi,
+
+        /(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:tons?|t|톤)[^\r\n]{0,50}?(?:lime\s*stone|석회석)[^\r\n]{0,30}?입고(?:\s*(?:량|완료))?/gi
+      ];
+
+
+      const lineItems =
+        new Map();
+
+
+      patterns.forEach(
+        pattern => {
+          let quantityMatch;
+
+
+          while (
+            (
+              quantityMatch =
+                pattern.exec(
+                  line
+                )
+            ) !==
+            null
+          ) {
+            const receiptTime =
+              findLastLimestoneTime(
+                line.slice(
+                  0,
+                  quantityMatch.index
+                )
+              ) ||
+
+              findLastLimestoneTime(
+                line
+              ) ||
+
+              entryTime;
+
+
+            if (
+              !receiptTime
+            ) {
+              continue;
+            }
+
+
+            const quantityTon =
+              Number(
+                normalizeLimestoneQuantity(
+                  String(
+                    quantityMatch[1] ||
+                    ""
+                  ).replace(
+                    ",",
+                    "."
+                  )
+                )
+              );
+
+
+            if (
+              !Number.isFinite(
+                quantityTon
+              ) ||
+
+              quantityTon <
+                0.01 ||
+
+              quantityTon >
+                999.99
+            ) {
+              continue;
+            }
+
+
+            const itemKey = [
+              receiptTime,
+              quantityTon.toFixed(
+                2
+              )
+            ].join(
+              "||"
+            );
+
+
+            if (
+              lineItems.has(
+                itemKey
+              )
+            ) {
+              continue;
+            }
+
+
+            lineItems.set(
+              itemKey,
+              {
+                receiptTime,
+
+                quantityTon,
+
+                sourceText:
+                  line
+              }
+            );
+          }
+        }
+      );
+
+
+      [
+        ...lineItems.values()
+      ].forEach(
+        (
+          item,
+          matchIndex
+        ) => {
+          result.push({
+            ...item,
+
+            lineIndex,
+
+            matchIndex
+          });
+        }
+      );
+    }
+  );
+
+
+  return result;
+}
+
+
+  /* =====================================================
+    실제 입고일 계산
+
+    업무일지 N/S 기준일:
+    19:00 ~ 다음 날 07:00
+
+    N/S의 00:00~06:59:
+    실제 달력 날짜는 업무일지 기준일의 다음 날짜
+  ====================================================== */
+
+  function getLimestoneActualReceiptDate(
+    workDate,
+    shift,
+    receiptTime
+  ) {
+    const normalizedDate =
+      String(
+        workDate ||
+        ""
+      ).trim();
+
+
+    const normalizedShift =
+      String(
+        shift ||
+        ""
+      )
+        .trim()
+        .toUpperCase()
+        .replace(
+          /[^A-Z]/g,
+          ""
+        );
+
+
+    const receiptHour =
+      Number(
+        String(
+          receiptTime ||
+          ""
+        ).slice(
+          0,
+          2
+        )
+      );
+
+
+    const isNightShift =
+      [
+        "NS",
+        "N"
+      ].includes(
+        normalizedShift
+      );
+
+
+    if (
+      isNightShift &&
+      receiptHour >=
+        0 &&
+      receiptHour <
+        7
+    ) {
+      return addLimestoneIsoDateDays(
+        normalizedDate,
+        1
+      );
+    }
+
+
+    return normalizedDate;
+  }
+
+
+/* =====================================================
+  가져오기 기간의 기존 석회석 기록 조회
+
+  중요:
+  - 상단 입고현황 화면은 변경하지 않는다.
+  - limestoneReceiptState도 변경하지 않는다.
+  - 가져오기 후보 중복 확인에만 사용한다.
+===================================================== */
+
+async function loadExistingLimestoneReceiptsForImport(
+  startDate,
+  endDate,
+  unitNo = null
+) {
+  const requestUrl =
+    new URL(
+      LIMESTONE_RECEIPTS_API_URL,
+      window.location.origin
+    );
+
+
+  requestUrl.searchParams.set(
+    "startDate",
+    startDate
+  );
+
+
+  requestUrl.searchParams.set(
+    "endDate",
+    endDate
+  );
+
+
+  if (
+    unitNo === 1 ||
+    unitNo === 2
+  ) {
+    requestUrl.searchParams.set(
+      "unitNo",
+      String(
+        unitNo
+      )
+    );
+  }
+
+
+  const result =
+    await requestLimestoneApi(
+      requestUrl.toString(),
+      {
+        method:
+          "GET",
+
+        headers:
+          getLimestoneApiHeaders()
+      }
+    );
+
+
+  return Array.isArray(
+    result.items
+  )
+    ? result.items
+    : [];
+}
+
+/* =====================================================
+  효율팀 석회석 입고기록 후보 조회 최종본
+
+  대상 보직:
+  - BCO1 → 1호기 상위
+  - BO1  → 1호기 하위
+  - BCO2 → 2호기 상위
+  - BO2  → 2호기 하위
+
+  중복 우선순위:
+  - BCO1 > BO1
+  - BCO2 > BO2
+
+  중복 기준:
+  - 실제 입고일
+  - 입고시간
+  - 호기
+  - 입고량
+===================================================== */
+
+async function loadLimestoneImportCandidates() {
+  const {
+    startDateInput,
+    endDateInput,
+    unitFilter
+  } = getLimestoneImportElements();
+
+
+  const startDate =
+    String(
+      startDateInput?.value ||
+      ""
+    ).trim();
+
+
+  const endDate =
+    String(
+      endDateInput?.value ||
+      ""
+    ).trim();
+
+
+  const selectedUnitNo =
+    Number(
+      unitFilter?.value ||
+      0
+    ) ||
+    null;
+
+
+  if (
+    !isValidLimestoneDate(
+      startDate
+    ) ||
+    !isValidLimestoneDate(
+      endDate
+    )
+  ) {
+    throw new Error(
+      "가져오기 시작일과 종료일을 확인해 주세요."
+    );
+  }
+
+
+  if (
+    startDate >
+      endDate
+  ) {
+    throw new Error(
+      "가져오기 시작일은 종료일보다 늦을 수 없습니다."
+    );
+  }
+
+
+  /* ===================================================
+    보직별 호기
+  ==================================================== */
+
+  const roleToUnit = {
+    BCO1:
+      1,
+
+    BO1:
+      1,
+
+    BCO2:
+      2,
+
+    BO2:
+      2
+  };
+
+
+  /* ===================================================
+    보직별 우선순위
+
+    숫자가 클수록 우선한다.
+  ==================================================== */
+
+  const rolePriority = {
+    BCO1:
+      20,
+
+    BO1:
+      10,
+
+    BCO2:
+      20,
+
+    BO2:
+      10
+  };
+
+
+  const getRolePriority = (
+    role
+  ) => {
+    const normalizedRole =
+      normalizeLimestoneImportRole(
+        role
+      );
+
+
+    return Number(
+      rolePriority[
+        normalizedRole
+      ] ||
+      0
+    );
+  };
+
+
+  /*
+    N/S 00:00~06:59 입고는
+    전날 N/S 업무일지에 저장되어 있다.
+  */
+  const shiftLogStartDate =
+    addLimestoneIsoDateDays(
+      startDate,
+      -1
+    );
+
+
+  if (
+    typeof loadSharedShiftLogsFromServer !==
+      "function"
+  ) {
+    throw new Error(
+      "신규 공용 업무일지 조회 기능을 찾을 수 없습니다."
+    );
+  }
+
+
+  const searchParams =
+    new URLSearchParams({
+      from:
+        shiftLogStartDate,
+
+      to:
+        endDate
+    });
+
+
+  /* ===================================================
+    기존 기록과 업무일지를 함께 조회
+
+    1. 기존 석회석 입고기록
+    2. 신규 공용 업무일지
+    3. 과거 업무일지
+  ==================================================== */
+
+  const [
+    existingReceipts,
+    sourceResults
+  ] =
+    await Promise.all([
+      loadExistingLimestoneReceiptsForImport(
+        startDate,
+        endDate,
+        selectedUnitNo
+      ),
+
+      Promise.allSettled([
+        loadSharedShiftLogsFromServer(
+          `?${searchParams.toString()}`
+        ),
+
+        typeof loadLegacyLogsForSearchRange ===
+          "function"
+          ? loadLegacyLogsForSearchRange(
+              shiftLogStartDate,
+              endDate
+            )
+          : Promise.resolve(
+              []
+            )
+      ])
+    ]);
+
+
+  const sharedResult =
+    sourceResults[0];
+
+
+  const legacyResult =
+    sourceResults[1];
+
+
+  const sharedLogs =
+    sharedResult.status ===
+      "fulfilled" &&
+    Array.isArray(
+      sharedResult.value
+    )
+      ? sharedResult.value
+      : [];
+
+
+  const legacyLogs =
+    legacyResult.status ===
+      "fulfilled" &&
+    Array.isArray(
+      legacyResult.value
+    )
+      ? legacyResult.value
+      : [];
+
+
+  if (
+    sharedResult.status ===
+      "rejected"
+  ) {
+    console.error(
+      "신규 석회석 업무일지 조회 실패:",
+      sharedResult.reason
+    );
+  }
+
+
+  if (
+    legacyResult.status ===
+      "rejected"
+  ) {
+    console.error(
+      "과거 석회석 업무일지 조회 실패:",
+      legacyResult.reason
+    );
+  }
+
+
+  if (
+    sharedResult.status ===
+      "rejected" &&
+    legacyResult.status ===
+      "rejected"
+  ) {
+    throw new Error(
+      "신규·과거 업무일지를 모두 불러오지 못했습니다."
+    );
+  }
+
+
+  const sourceLogs =
+    deduplicateLimestoneSourceLogs(
+      sharedLogs,
+      legacyLogs
+    );
+
+
+  /* ===================================================
+    기존 석회석 기록을 실제 입고 단위로 분류
+  ==================================================== */
+
+  const existingByBusinessKey =
+    new Map();
+
+
+  for (
+    const receipt of existingReceipts
+  ) {
+    const businessKey =
+      createLimestoneReceiptBusinessKey(
+        receipt
+      );
+
+
+    if (
+      !businessKey
+    ) {
+      continue;
+    }
+
+
+    const currentItems =
+      existingByBusinessKey.get(
+        businessKey
+      ) ||
+      [];
+
+
+    currentItems.push(
+      receipt
+    );
+
+
+    existingByBusinessKey.set(
+      businessKey,
+      currentItems
+    );
+  }
+
+
+  /* ===================================================
+    출처 종류 우선순위
+
+    신규 공용 업무일지 > 과거 업무일지
+  ==================================================== */
+
+  const sourceKindPriority = {
+    shared:
+      2,
+
+    legacy:
+      1
+  };
+
+
+  /* ===================================================
+    같은 실제 입고 건의 후보 비교
+
+    우선순위:
+    1. 상위 보직
+    2. 신규 공용 업무일지
+    3. 최근 수정 업무일지
+  ==================================================== */
+
+  const shouldReplaceCandidate = (
+    currentCandidate,
+    nextCandidate
+  ) => {
+    if (
+      !currentCandidate
+    ) {
+      return true;
+    }
+
+
+    const roleDifference =
+      getRolePriority(
+        nextCandidate.sourceRole
+      ) -
+      getRolePriority(
+        currentCandidate.sourceRole
+      );
+
+
+    if (
+      roleDifference !==
+        0
+    ) {
+      return roleDifference >
+        0;
+    }
+
+
+    const sourceDifference =
+      Number(
+        sourceKindPriority[
+          nextCandidate.sourceKind
+        ] ||
+        0
+      ) -
+      Number(
+        sourceKindPriority[
+          currentCandidate.sourceKind
+        ] ||
+        0
+      );
+
+
+    if (
+      sourceDifference !==
+        0
+    ) {
+      return sourceDifference >
+        0;
+    }
+
+
+    return (
+      String(
+        nextCandidate.sourceUpdatedAt ||
+        ""
+      ) >
+      String(
+        currentCandidate.sourceUpdatedAt ||
+        ""
+      )
+    );
+  };
+
+
+  /* ===================================================
+    업무일지에서 석회석 후보 추출
+  ==================================================== */
+
+  const candidateMap =
+    new Map();
+
+
+  for (
+    const log of sourceLogs
+  ) {
+    const sourceRole =
+      normalizeLimestoneImportRole(
+        log?.role
+      );
+
+
+    const unitNo =
+      roleToUnit[
+        sourceRole
+      ];
+
+
+    if (
+      !unitNo
+    ) {
+      continue;
+    }
+
+
+    if (
+      selectedUnitNo &&
+      unitNo !==
+        selectedUnitNo
+    ) {
+      continue;
+    }
+
+
+    const sourceLogId =
+      createLimestoneSourceLogId(
+        log
+      );
+
+
+    if (
+      !sourceLogId
+    ) {
+      continue;
+    }
+
+
+    const isLegacySource =
+      isLimestoneLegacySourceLog(
+        log
+      );
+
+
+    const sourceStatus =
+      isLegacySource
+        ? "과거 업무일지"
+        : normalizeLimestoneImportStatus(
+            log?.status
+          );
+
+
+    const sourceKind =
+      isLegacySource
+        ? "legacy"
+        : "shared";
+
+
+    const sourceUpdatedAt =
+      String(
+        log?.updatedAt ||
+        log?.createdAt ||
+        ""
+      ).trim();
+
+
+    const logEntries =
+      collectLimestoneLogEntries(
+        log
+      );
+
+
+    for (
+      const {
+        entry,
+        entryIndex,
+        collectionName
+      } of logEntries
+    ) {
+      const extractedItems =
+        extractLimestoneReceiptsFromEntry(
+          entry
+        );
+
+
+      for (
+        const extractedItem of extractedItems
+      ) {
+        const receiptDate =
+          getLimestoneActualReceiptDate(
+            log?.date,
+            log?.shift,
+            extractedItem.receiptTime
+          );
+
+
+        /*
+          실제 입고일이 조회 기간 안에 있는 자료만 사용한다.
+        */
+        if (
+          receiptDate <
+            startDate ||
+          receiptDate >
+            endDate
+        ) {
+          continue;
+        }
+
+
+        const entryId =
+          String(
+            entry?.id ||
+            ""
+          ).trim();
+
+
+        const entryFingerprint = [
+          collectionName,
+          entryIndex,
+          entry?.time,
+          entry?.tag,
+          entry?.content
+        ].join(
+          "||"
+        );
+
+
+        const baseEntryId =
+          entryId ||
+          [
+            collectionName,
+
+            createLimestoneStableHash(
+              entryFingerprint
+            )
+          ].join(
+            "-"
+          );
+
+
+        const sourceEntryId = [
+          baseEntryId,
+          "limestone",
+          extractedItem.lineIndex,
+          extractedItem.matchIndex
+        ].join(
+          "-"
+        );
+
+
+        const sourceKey = [
+          sourceLogId,
+          sourceEntryId
+        ].join(
+          "||"
+        );
+
+
+        const candidate = {
+          receiptDate,
+
+          receiptTime:
+            extractedItem.receiptTime,
+
+          unitNo,
+
+          quantityTon:
+            extractedItem.quantityTon,
+
+          note:
+            "",
+
+          sourceLogId,
+
+          sourceEntryId,
+
+          sourceKey,
+
+          sourceRole,
+
+          sourceAuthor:
+            String(
+              log?.author ||
+              ""
+            ).trim(),
+
+          sourceText:
+            String(
+              extractedItem.sourceText ||
+              ""
+            ).slice(
+              0,
+              1000
+            ),
+
+          sourceStatus,
+
+          sourceKind,
+
+          sourceUpdatedAt
+        };
+
+
+        const businessKey =
+          createLimestoneReceiptBusinessKey(
+            candidate
+          );
+
+
+        if (
+          !businessKey
+        ) {
+          continue;
+        }
+
+
+        candidate.businessKey =
+          businessKey;
+
+
+        const currentCandidate =
+          candidateMap.get(
+            businessKey
+          );
+
+
+        /*
+          동일 입고 건이 여러 보직에 있으면
+          상위 보직 후보로 교체한다.
+        */
+        if (
+          shouldReplaceCandidate(
+            currentCandidate,
+            candidate
+          )
+        ) {
+          candidateMap.set(
+            businessKey,
+            candidate
+          );
+        }
+      }
+    }
+  }
+
+
+  const candidates = [
+    ...candidateMap.values()
+  ];
+
+
+  /* ===================================================
+    기존 등록 여부 판정
+
+    기존 하위 보직 기록만 있고
+    상위 보직 후보가 새로 발견되면
+    상위 후보는 선택할 수 있게 유지한다.
+  ==================================================== */
+
+  for (
+    const candidate of candidates
+  ) {
+    const existingItems =
+      existingByBusinessKey.get(
+        candidate.businessKey
+      ) ||
+      [];
+
+
+    const candidatePriority =
+      getRolePriority(
+        candidate.sourceRole
+      );
+
+
+    /*
+      완전히 같은 업무일지 원본이 이미 등록됨
+    */
+    const sameSourceExists =
+      existingItems.some(
+        item => {
+          return (
+            String(
+              item?.sourceKey ||
+              ""
+            ).trim() ===
+            candidate.sourceKey
+          );
+        }
+      );
+
+
+    /*
+      사용자가 직접 등록한 수기 기록은 유지하고
+      같은 입고 건을 중복 등록하지 않는다.
+    */
+    const manualExists =
+      existingItems.some(
+        item => {
+          return (
+            String(
+              item?.sourceType ||
+              ""
+            )
+              .trim()
+              .toLowerCase() ===
+            "manual"
+          );
+        }
+      );
+
+
+    /*
+      이미 같은 보직 또는 상위 보직 기록이 있으면
+      등록 완료로 처리한다.
+    */
+    const sameOrHigherRoleExists =
+      existingItems.some(
+        item => {
+          const sourceType =
+            String(
+              item?.sourceType ||
+              ""
+            )
+              .trim()
+              .toLowerCase();
+
+
+          return (
+            sourceType ===
+              "shift_log" &&
+
+            getRolePriority(
+              item?.sourceRole
+            ) >=
+              candidatePriority
+          );
+        }
+      );
+
+
+    /*
+      기존 하위 보직 기록 확인
+
+      예:
+      기존 BO1 기록이 있고
+      새 BCO1 후보가 발견된 경우
+    */
+    const lowerRoleItem =
+      existingItems.find(
+        item => {
+          const sourceType =
+            String(
+              item?.sourceType ||
+              ""
+            )
+              .trim()
+              .toLowerCase();
+
+
+          const existingPriority =
+            getRolePriority(
+              item?.sourceRole
+            );
+
+
+          return (
+            sourceType ===
+              "shift_log" &&
+
+            existingPriority >
+              0 &&
+
+            existingPriority <
+              candidatePriority
+          );
+        }
+      ) ||
+      null;
+
+
+    candidate.alreadyImported =
+      sameSourceExists ||
+      manualExists ||
+      sameOrHigherRoleExists;
+
+
+    candidate.replacesLowerRole =
+      !candidate.alreadyImported &&
+      Boolean(
+        lowerRoleItem
+      );
+
+
+    candidate.replacedSourceRole =
+      candidate.replacesLowerRole
+        ? String(
+            lowerRoleItem?.sourceRole ||
+            ""
+          ).trim()
+        : "";
+  }
+
+
+  /* ===================================================
+    최신 입고 순서로 정렬
+  ==================================================== */
+
+  return candidates.sort(
+    (
+      firstItem,
+      secondItem
+    ) => {
+      const firstKey = [
+        firstItem.receiptDate,
+        firstItem.receiptTime,
+        firstItem.unitNo
+      ].join(
+        " "
+      );
+
+
+      const secondKey = [
+        secondItem.receiptDate,
+        secondItem.receiptTime,
+        secondItem.unitNo
+      ].join(
+        " "
+      );
+
+
+      return secondKey.localeCompare(
+        firstKey
+      );
+    }
+  );
+}
+
+/* =====================================================
+  석회석 업무일지 연동 후보 목록 출력 최종본
+
+  표시 구분:
+  - 신규 반영
+  - 하위 보직 → 상위 보직 교체
+  - 이미 등록됨
+
+  대상 보직:
+  - BCO1
+  - BO1
+  - BCO2
+  - BO2
+===================================================== */
+
+function renderLimestoneImportCandidates(
+  candidates
+) {
+  const {
+    count,
+    list,
+    applyButton
+  } =
+    getLimestoneImportElements();
+
+
+  const safeCandidates =
+    Array.isArray(
+      candidates
+    )
+      ? candidates
+      : [];
+
+
+  /* ===================================================
+    후보 상태별 건수
+  ==================================================== */
+
+  const importedCount =
+    safeCandidates.filter(
+      candidate => {
+        return (
+          candidate
+            ?.alreadyImported ===
+          true
+        );
+      }
+    ).length;
+
+
+  const replacementCount =
+    safeCandidates.filter(
+      candidate => {
+        return (
+          candidate
+            ?.alreadyImported !==
+            true &&
+
+          candidate
+            ?.replacesLowerRole ===
+            true
+        );
+      }
+    ).length;
+
+
+  const newCount =
+    safeCandidates.filter(
+      candidate => {
+        return (
+          candidate
+            ?.alreadyImported !==
+            true &&
+
+          candidate
+            ?.replacesLowerRole !==
+            true
+        );
+      }
+    ).length;
+
+
+  const availableCount =
+    newCount +
+    replacementCount;
+
+
+  /* ===================================================
+    상단 건수 표시
+  ==================================================== */
+
+  if (
+    count
+  ) {
+    const countParts = [];
+
+
+    if (
+      newCount >
+        0
+    ) {
+      countParts.push(
+        `신규 ${newCount}건`
+      );
+    }
+
+
+    if (
+      replacementCount >
+        0
+    ) {
+      countParts.push(
+        `상위 보직 교체 ${replacementCount}건`
+      );
+    }
+
+
+    if (
+      importedCount >
+        0
+    ) {
+      countParts.push(
+        `등록됨 ${importedCount}건`
+      );
+    }
+
+
+    count.textContent =
+      countParts.length
+        ? countParts.join(
+            " · "
+          )
+        : "0건";
+  }
+
+
+  /* ===================================================
+    실행 버튼 상태와 문구
+  ==================================================== */
+
+  if (
+    applyButton
+  ) {
+    applyButton.disabled =
+      availableCount ===
+      0;
+
+
+    applyButton.textContent =
+      replacementCount >
+        0
+        ? "선택 기록 최신화"
+        : "선택 기록 추가";
+  }
+
+
+  if (
+    !list
+  ) {
+    return;
+  }
+
+
+  /* ===================================================
+    조회 결과 없음
+  ==================================================== */
+
+  if (
+    safeCandidates.length ===
+      0
+  ) {
+    list.innerHTML = `
+      <div class="limestone-empty-table-row">
+
+        선택한 기간의 BCO1·BO1·BCO2·BO2 업무일지에서
+        석회석 입고내역을 찾지 못했습니다.
+
+      </div>
+    `;
+
+
+    return;
+  }
+
+
+  /* ===================================================
+    후보 목록
+  ==================================================== */
+
+  list.innerHTML =
+    safeCandidates
+      .map(
+        candidate => {
+          const isImported =
+            candidate
+              ?.alreadyImported ===
+            true;
+
+
+          const isReplacement =
+            !isImported &&
+
+            candidate
+              ?.replacesLowerRole ===
+              true;
+
+
+          const sourceRole =
+            String(
+              candidate
+                ?.sourceRole ||
+              ""
+            ).trim();
+
+
+          const replacedSourceRole =
+            String(
+              candidate
+                ?.replacedSourceRole ||
+              ""
+            ).trim();
+
+
+          /* =============================================
+            처리 상태 표시
+          ============================================== */
+
+          const processingLabel =
+            isImported
+              ? "이미 등록됨"
+              : (
+                  isReplacement
+                    ? (
+                        `${replacedSourceRole || "하위 보직"}` +
+                        ` → ${sourceRole} 교체`
+                      )
+                    : "신규 반영"
+                );
+
+
+          const sourceLabel = [
+            sourceRole,
+
+            candidate
+              ?.sourceAuthor ||
+              "작성자 미상",
+
+            candidate
+              ?.sourceStatus,
+
+            processingLabel
+          ]
+            .filter(
+              Boolean
+            )
+            .join(
+              " · "
+            );
+
+
+          return `
+            <label
+              class="
+                limestone-import-candidate
+                ${
+                  isImported
+                    ? "is-imported"
+                    : ""
+                }
+              "
+              title="${escapeLimestoneHtml(
+                candidate
+                  ?.sourceText ||
+                ""
+              )}"
+            >
+
+              <input
+                type="checkbox"
+                data-limestone-import-key="${escapeLimestoneHtml(
+                  candidate
+                    ?.sourceKey ||
+                  ""
+                )}"
+                ${
+                  isImported
+                    ? "disabled"
+                    : "checked"
+                }
+              />
+
+
+              <span>
+                ${escapeLimestoneHtml(
+                  candidate
+                    ?.receiptDate ||
+                  ""
+                )}
+                <br />
+
+                ${escapeLimestoneHtml(
+                  candidate
+                    ?.receiptTime ||
+                  ""
+                )}
+              </span>
+
+
+              <strong>
+                ${Number(
+                  candidate
+                    ?.unitNo
+                )}호기
+              </strong>
+
+
+              <strong
+                class="limestone-quantity-value"
+              >
+                ${formatLimestoneQuantity(
+                  candidate
+                    ?.quantityTon
+                )} t
+              </strong>
+
+
+              <span class="limestone-import-source">
+                ${escapeLimestoneHtml(
+                  sourceLabel
+                )}
+              </span>
+
+            </label>
+          `;
+        }
+      )
+      .join(
+        ""
+      );
+}
+
+/* =====================================================
+  업무일지 석회석 입고기록 최신화 패널 열기
+
+  처리:
+  - 직접 입고기록 편집창 닫기
+  - 기본 최신화 기간 설정
+  - 기존 후보 목록 초기화
+  - 최신화 대상 조회 전 안내 표시
+===================================================== */
+
+function openLimestoneImportPanel() {
+  const {
+    panel,
+    count,
+    list,
+    applyButton,
+    startDateInput
+  } =
+    getLimestoneImportElements();
+
+
+  if (
+    !panel ||
+    !list
+  ) {
+    showLimestoneToast(
+      "석회석 업무일지 최신화 화면을 찾을 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  closeLimestoneReceiptEditor();
+
+
+  setDefaultLimestoneImportDateRange();
+
+
+  limestoneReceiptState
+    .importCandidates =
+    [];
+
+
+  if (
+    count
+  ) {
+    count.textContent =
+      "0건";
+  }
+
+
+  if (
+    applyButton
+  ) {
+    applyButton.disabled =
+      true;
+
+
+    applyButton.textContent =
+      "선택 기록 최신화";
+  }
+
+
+  list.innerHTML = `
+    <div class="limestone-import-empty-message">
+
+      최신화 기간을 선택한 후
+      최신화 대상 조회 버튼을 눌러주세요.
+
+    </div>
+  `;
+
+
+  panel.hidden =
+    false;
+
+
+  panel.removeAttribute(
+    "hidden"
+  );
+
+
+  window.requestAnimationFrame(
+    () => {
+      panel.scrollIntoView({
+        behavior:
+          "smooth",
+
+        block:
+          "nearest"
+      });
+
+
+      startDateInput?.focus();
+    }
+  );
+}
+
+
+/* =====================================================
+  설정한 최신화 기간으로 업무일지 후보 조회
+
+  조회:
+  - BCO1
+  - BO1
+  - BCO2
+  - BO2
+
+  우선순위:
+  - BCO1 > BO1
+  - BCO2 > BO2
+===================================================== */
+
+async function searchLimestoneImportCandidates() {
+  const {
+    importButton,
+    searchButton,
+    count,
+    list,
+    applyButton,
+    startDateInput,
+    endDateInput
+  } =
+    getLimestoneImportElements();
+
+
+  const startDate =
+    String(
+      startDateInput?.value ||
+      ""
+    ).trim();
+
+
+  const endDate =
+    String(
+      endDateInput?.value ||
+      ""
+    ).trim();
+
+
+  /* ===================================================
+    날짜 확인
+  ==================================================== */
+
+  if (
+    !isValidLimestoneDate(
+      startDate
+    ) ||
+    !isValidLimestoneDate(
+      endDate
+    )
+  ) {
+    showLimestoneToast(
+      "최신화 시작일과 종료일을 선택해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  if (
+    startDate >
+    endDate
+  ) {
+    showLimestoneToast(
+      "최신화 시작일은 종료일보다 늦을 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  /* ===================================================
+    기존 후보 초기화
+  ==================================================== */
+
+  limestoneReceiptState
+    .importCandidates =
+    [];
+
+
+  if (
+    count
+  ) {
+    count.textContent =
+      "조회 중";
+  }
+
+
+  if (
+    applyButton
+  ) {
+    applyButton.disabled =
+      true;
+  }
+
+
+  if (
+    searchButton
+  ) {
+    searchButton.disabled =
+      true;
+
+
+    searchButton.textContent =
+      "조회 중...";
+  }
+
+
+  if (
+    importButton
+  ) {
+    importButton.disabled =
+      true;
+  }
+
+
+  if (
+    list
+  ) {
+    list.innerHTML = `
+      <div class="limestone-loading">
+
+        ${escapeLimestoneHtml(
+          `${startDate} ~ ${endDate}`
+        )}
+
+        업무일지에서 석회석 입고기록을 확인하고 있습니다.
+
+      </div>
+    `;
+  }
+
+
+  try {
+    const candidates =
+      await loadLimestoneImportCandidates();
+
+
+    limestoneReceiptState
+      .importCandidates =
+      candidates;
+
+
+    renderLimestoneImportCandidates(
+      candidates
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "석회석 업무일지 최신화 대상 조회 실패:",
+      error
+    );
+
+
+    if (
+      count
+    ) {
+      count.textContent =
+        "0건";
+    }
+
+
+    if (
+      list
+    ) {
+      list.innerHTML = `
+        <div class="limestone-import-empty-message">
+
+          ${escapeLimestoneHtml(
+            error.message ||
+            "업무일지 석회석 입고기록을 불러오지 못했습니다."
+          )}
+
+        </div>
+      `;
+    }
+
+
+    showLimestoneToast(
+      error.message ||
+      "업무일지 석회석 입고기록을 불러오지 못했습니다."
+    );
+
+  } finally {
+    if (
+      searchButton
+    ) {
+      searchButton.disabled =
+        false;
+
+
+      searchButton.textContent =
+        "최신화 대상 조회";
+    }
+
+
+    if (
+      importButton
+    ) {
+      importButton.disabled =
+        false;
+    }
+  }
+}
+
+  /* =====================================================
+    가져오기 패널 닫기
+  ====================================================== */
+
+  function closeLimestoneImportPanel() {
+    const {
+      panel,
+      list,
+      count
+    } =
+      getLimestoneImportElements();
+
+
+    if (
+      panel
+    ) {
+      panel.hidden =
+        true;
+    }
+
+
+    if (
+      list
+    ) {
+      list.innerHTML =
+        "";
+    }
+
+
+    if (
+      count
+    ) {
+      count.textContent =
+        "0건";
+    }
+
+
+    limestoneReceiptState
+      .importCandidates =
+      [];
+  }
+
+
+/* =====================================================
+  선택한 업무일지 석회석 입고기록 최신화 최종본
+
+  처리:
+  - 체크한 후보만 전송
+  - 이미 등록된 항목 제외
+  - 신규 기록 등록
+  - BO1 → BCO1 교체
+  - BO2 → BCO2 교체
+  - 처리 후 석회석 현황 재조회
+===================================================== */
+
+async function applyLimestoneImportCandidates() {
+  const {
+    list,
+    applyButton
+  } =
+    getLimestoneImportElements();
+
+
+  if (
+    !list
+  ) {
+    showLimestoneToast(
+      "석회석 가져오기 후보 목록을 찾을 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  /* ===================================================
+    화면에서 체크된 후보 키
+  ==================================================== */
+
+  const selectedSourceKeys =
+    new Set(
+      [
+        ...list.querySelectorAll(
+          'input[data-limestone-import-key]:checked:not(:disabled)'
+        )
+      ]
+        .map(
+          checkbox => {
+            return String(
+              checkbox.dataset
+                .limestoneImportKey ||
+              ""
+            ).trim();
+          }
+        )
+        .filter(
+          Boolean
+        )
+    );
+
+
+  const importCandidates =
+    Array.isArray(
+      limestoneReceiptState
+        .importCandidates
+    )
+      ? limestoneReceiptState
+          .importCandidates
+      : [];
+
+
+  /* ===================================================
+    실제 최신화할 후보
+
+    이미 등록 완료된 항목은 제외한다.
+  ==================================================== */
+
+  const selectedCandidates =
+    importCandidates.filter(
+      candidate => {
+        const sourceKey =
+          String(
+            candidate
+              ?.sourceKey ||
+            ""
+          ).trim();
+
+
+        return (
+          candidate
+            ?.alreadyImported !==
+            true &&
+
+          sourceKey &&
+
+          selectedSourceKeys.has(
+            sourceKey
+          )
+        );
+      }
+    );
+
+
+  if (
+    selectedCandidates.length ===
+      0
+  ) {
+    showLimestoneToast(
+      "최신화할 석회석 입고기록을 선택해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  /* ===================================================
+    상위 보직 교체 대상
+  ==================================================== */
+
+  const replacementCandidates =
+    selectedCandidates.filter(
+      candidate => {
+        return (
+          candidate
+            ?.replacesLowerRole ===
+          true
+        );
+      }
+    );
+
+
+  /* ===================================================
+    하위 보직 기록 교체 확인
+  ==================================================== */
+
+  if (
+    replacementCandidates.length >
+      0
+  ) {
+    const replacementSummary =
+      replacementCandidates
+        .map(
+          candidate => {
+            const previousRole =
+              String(
+                candidate
+                  ?.replacedSourceRole ||
+                "하위 보직"
+              ).trim();
+
+
+            const nextRole =
+              String(
+                candidate
+                  ?.sourceRole ||
+                "상위 보직"
+              ).trim();
+
+
+            return (
+              `${candidate.receiptDate} ` +
+              `${candidate.receiptTime} ` +
+              `${candidate.unitNo}호기: ` +
+              `${previousRole} → ${nextRole}`
+            );
+          }
+        )
+        .join(
+          "\n"
+        );
+
+
+    const shouldContinue =
+      window.confirm(
+        [
+          "하위 보직의 기존 석회석 기록을 상위 보직 기록으로 교체합니다.",
+          "",
+          replacementSummary,
+          "",
+          "계속하시겠습니까?"
+        ].join(
+          "\n"
+        )
+      );
+
+
+    if (
+      !shouldContinue
+    ) {
+      return;
+    }
+  }
+
+
+  const originalButtonText =
+    String(
+      applyButton
+        ?.textContent ||
+      "선택 기록 최신화"
+    ).trim();
+
+
+  if (
+    applyButton
+  ) {
+    applyButton.disabled =
+      true;
+
+
+    applyButton.textContent =
+      "최신화 중...";
+  }
+
+
+  try {
+    /* =================================================
+      효율팀 석회석 API에 전송
+    ================================================= */
+
+    const result =
+      await requestLimestoneApi(
+        LIMESTONE_RECEIPTS_API_URL,
+        {
+          method:
+            "POST",
+
+          headers:
+            getLimestoneApiHeaders({
+              "Content-Type":
+                "application/json"
+            }),
+
+          body:
+            JSON.stringify({
+              action:
+                "bulk_import",
+
+              items:
+                selectedCandidates.map(
+                  candidate => {
+                    return {
+                      receiptDate:
+                        String(
+                          candidate
+                            ?.receiptDate ||
+                          ""
+                        ).trim(),
+
+                      receiptTime:
+                        String(
+                          candidate
+                            ?.receiptTime ||
+                          ""
+                        ).trim(),
+
+                      unitNo:
+                        Number(
+                          candidate
+                            ?.unitNo
+                        ),
+
+                      quantityTon:
+                        Number(
+                          candidate
+                            ?.quantityTon
+                        ),
+
+                      note:
+                        String(
+                          candidate
+                            ?.note ||
+                          ""
+                        ).trim(),
+
+                      sourceLogId:
+                        String(
+                          candidate
+                            ?.sourceLogId ||
+                          ""
+                        ).trim(),
+
+                      sourceEntryId:
+                        String(
+                          candidate
+                            ?.sourceEntryId ||
+                          ""
+                        ).trim(),
+
+                      sourceKey:
+                        String(
+                          candidate
+                            ?.sourceKey ||
+                          ""
+                        ).trim(),
+
+                      sourceRole:
+                        String(
+                          candidate
+                            ?.sourceRole ||
+                          ""
+                        ).trim(),
+
+                      sourceAuthor:
+                        String(
+                          candidate
+                            ?.sourceAuthor ||
+                          ""
+                        ).trim(),
+
+                      sourceText:
+                        String(
+                          candidate
+                            ?.sourceText ||
+                          ""
+                        ).trim()
+                    };
+                  }
+                )
+            })
+        }
+      );
+
+
+    /* =================================================
+      가져오기 패널 닫기
+    ================================================= */
+
+    closeLimestoneImportPanel();
+
+
+    /* =================================================
+      현재 상단 조회 조건으로 석회석 현황 갱신
+    ================================================= */
+
+    await loadLimestoneReceipts();
+
+
+    showLimestoneToast(
+      result.message ||
+      `석회석 입고기록 ${selectedCandidates.length}건을 최신화했습니다.`
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "석회석 업무일지 최신화 실패:",
+      error
+    );
+
+
+    showLimestoneToast(
+      error.message ||
+      "선택한 석회석 입고기록을 최신화하지 못했습니다."
+    );
+
+  } finally {
+    if (
+      applyButton
+    ) {
+      applyButton.disabled =
+        false;
+
+
+      applyButton.textContent =
+        originalButtonText;
+    }
+  }
+}
+
+
+/* =====================================================
   석회석 입고 현황 이벤트 연결 최종본
 
   기본:
@@ -115174,7 +118390,11 @@ function bindLimestoneReceiptEvents() {
     getLimestoneReceiptElements();
 
 
-const {
+  const importElements =
+    getLimestoneImportElements();
+
+
+  const {
     limestoneTab,
     refreshButton,
     openEditorButton,
@@ -115201,7 +118421,22 @@ const {
     elements;
 
 
-if (
+  const {
+    importButton,
+
+    searchButton:
+      searchImportButton,
+
+    cancelButton:
+      cancelImportButton,
+
+    applyButton:
+      applyImportButton
+  } =
+    importElements;
+
+
+  if (
     !limestoneTab ||
     !elements.view
   ) {
@@ -115426,6 +118661,7 @@ openEditorButton?.addEventListener(
     /*
       다른 석회석 입력 패널은 닫는다.
     */
+    closeLimestoneImportPanel();
 
     closeLimestonePeriodSearchPanel();
 
@@ -115652,6 +118888,41 @@ document.addEventListener(
   receiptTableBody?.addEventListener(
     "click",
     handleLimestoneReceiptTableClick
+  );
+
+
+  /* ===================================================
+    업무일지에서 가져오기
+  ==================================================== */
+
+  importButton?.addEventListener(
+    "click",
+    () => {
+      closeLimestoneReceiptEditor();
+
+      closeLimestonePeriodSearchPanel();
+
+
+      openLimestoneImportPanel();
+    }
+  );
+
+
+  searchImportButton?.addEventListener(
+    "click",
+    searchLimestoneImportCandidates
+  );
+
+
+  cancelImportButton?.addEventListener(
+    "click",
+    closeLimestoneImportPanel
+  );
+
+
+  applyImportButton?.addEventListener(
+    "click",
+    applyLimestoneImportCandidates
   );
 
 
@@ -183627,10 +186898,8 @@ function ensureSiloPreviewCard() {
   /*
     자동수치 미리보기 하단 2열
 
-    - 기존 OIS Silo Level
-    - 월간 일일DATA관리 Excel 미리보기
-
-    모바일에서는 기존 CSS에 따라 한 열로 쌓인다.
+    왼쪽: Silo Level
+    오른쪽: 증기 현황
   */
 
   let bottomGrid =
@@ -183660,75 +186929,34 @@ function ensureSiloPreviewCard() {
   }
 
 
-  function ensureCard(
-    id,
-    className,
-    html,
-    options =
-      {}
-  ) {
-    let targetCard =
-      document.getElementById(
-        id
+  /*
+    왼쪽 Silo Level 카드
+  */
+
+  let card =
+    document.getElementById(
+      "efficiencyMorningMeetingAutoSiloCard"
+    );
+
+
+  if (!card) {
+    card =
+      document.createElement(
+        "article"
       );
 
 
-    if (!targetCard) {
-      targetCard =
-        document.createElement(
-          "article"
-        );
+    card.id =
+      "efficiencyMorningMeetingAutoSiloCard";
 
 
-      targetCard.id =
-        id;
+    card.className = [
+      "efficiency-morning-meeting-auto-card",
+      "is-silo-level"
+    ].join(" ");
 
 
-      targetCard.className = [
-        "efficiency-morning-meeting-auto-card",
-        className
-      ]
-        .filter(
-          Boolean
-        )
-        .join(
-          " "
-        );
-
-
-      targetCard.innerHTML =
-        html;
-    }
-
-
-    if (
-      targetCard.parentElement !==
-        bottomGrid
-    ) {
-      bottomGrid.appendChild(
-        targetCard
-      );
-    }
-
-
-    if (
-      options.fullWidth ===
-        true
-    ) {
-      targetCard.style.gridColumn =
-        "1 / -1";
-    }
-
-
-    return targetCard;
-  }
-
-
-  const card =
-    ensureCard(
-      "efficiencyMorningMeetingAutoSiloCard",
-      "is-silo-level",
-      `
+    card.innerHTML = `
       <header
         class="
           efficiency-morning-meeting-auto-card__header
@@ -183831,14 +187059,51 @@ function ensureSiloPreviewCard() {
           </strong>
         </div>
       </div>
-      `
+    `;
+
+
+    bottomGrid.appendChild(
+      card
+    );
+
+  } else if (
+    card.parentElement !==
+      bottomGrid
+  ) {
+    bottomGrid.appendChild(
+      card
+    );
+  }
+
+
+  /*
+    오른쪽 증기 현황 카드
+  */
+
+  let steamCard =
+    document.getElementById(
+      "efficiencyMorningMeetingAutoSteamCard"
     );
 
 
-  ensureCard(
-    "efficiencyMorningMeetingAutoDailyPowerCard",
-    "is-silo-level",
-    `
+  if (!steamCard) {
+    steamCard =
+      document.createElement(
+        "article"
+      );
+
+
+    steamCard.id =
+      "efficiencyMorningMeetingAutoSteamCard";
+
+
+    steamCard.className = [
+      "efficiency-morning-meeting-auto-card",
+      "is-steam-status"
+    ].join(" ");
+
+
+    steamCard.innerHTML = `
       <header
         class="
           efficiency-morning-meeting-auto-card__header
@@ -183846,81 +187111,11 @@ function ensureSiloPreviewCard() {
       >
         <div>
           <span>
-            DAILY POWER
+            STEAM STATUS
           </span>
 
           <strong>
-            전력 현황
-          </strong>
-        </div>
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-card__meta
-          "
-        >
-          <small
-            id="efficiencyMorningMeetingAutoDailyPowerDate"
-          >
-            -
-          </small>
-
-          <span
-            class="
-              efficiency-morning-meeting-auto-card__badge
-            "
-            id="efficiencyMorningMeetingAutoDailyPowerStatus"
-          >
-            조회 대기
-          </span>
-        </div>
-      </header>
-
-      <div
-        class="
-          efficiency-morning-meeting-auto-card__body
-        "
-      >
-        <div class="efficiency-morning-meeting-auto-row">
-          <span>태양광 일일 발전량</span>
-          <strong id="efficiencyMorningMeetingAutoDailySolarGeneration">-</strong>
-        </div>
-
-        <div class="efficiency-morning-meeting-auto-row">
-          <span>발전량 / ECMS gen1</span>
-          <strong id="efficiencyMorningMeetingAutoDailyGeneratorEcmsGen1">-</strong>
-        </div>
-
-        <div class="efficiency-morning-meeting-auto-row">
-          <span>수전량 / I-Smart</span>
-          <strong id="efficiencyMorningMeetingAutoDailyIsmartReception">-</strong>
-        </div>
-
-        <div class="efficiency-morning-meeting-auto-row is-emphasis">
-          <span>송전량 / ePower</span>
-          <strong id="efficiencyMorningMeetingAutoDailyEpowerTransmission">-</strong>
-        </div>
-      </div>
-    `
-  );
-
-
-  ensureCard(
-    "efficiencyMorningMeetingAutoSteamCard",
-    "is-steam-status",
-    `
-      <header
-        class="
-          efficiency-morning-meeting-auto-card__header
-        "
-      >
-        <div>
-          <span>
-            STEAM PRODUCTION · SALES
-          </span>
-
-          <strong>
-            증기 생산·판매
+            증기 현황
           </strong>
         </div>
 
@@ -183959,63 +187154,11 @@ function ensureSiloPreviewCard() {
           "
         >
           <span>
-            저압증기 판매량
-          </span>
-
-          <strong
-            id="efficiencyMorningMeetingAutoDailySteamSalesLowPressure"
-          >
-            -
-          </strong>
-        </div>
-
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-row
-          "
-        >
-          <span>
-            고압증기 판매량
-          </span>
-
-          <strong
-            id="efficiencyMorningMeetingAutoDailySteamSalesHighPressure"
-          >
-            -
-          </strong>
-        </div>
-
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-row
-            is-emphasis
-          "
-        >
-          <span>
-            총 증기 판매량
+            증기 판매량
           </span>
 
           <strong
             id="efficiencyMorningMeetingAutoSteamSales"
-          >
-            -
-          </strong>
-        </div>
-
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-row
-          "
-        >
-          <span>
-            시간당 평균 판매량
-          </span>
-
-          <strong
-            id="efficiencyMorningMeetingAutoDailyAverageSteamSales"
           >
             -
           </strong>
@@ -184073,97 +187216,21 @@ function ensureSiloPreviewCard() {
           </strong>
         </div>
       </div>
-    `,
-    {
-      fullWidth:
-        true
-    }
-  );
+    `;
 
 
-  ensureCard(
-    "efficiencyMorningMeetingAutoDailySludgeCard",
-    "is-limestone",
-    `
-      <header class="efficiency-morning-meeting-auto-card__header">
-        <div>
-          <span>SEWAGE SLUDGE</span>
-          <strong>하수슬러지 입고</strong>
-        </div>
+    bottomGrid.appendChild(
+      steamCard
+    );
 
-        <div class="efficiency-morning-meeting-auto-card__meta">
-          <small id="efficiencyMorningMeetingAutoDailySludgeDate">-</small>
-          <span
-            class="efficiency-morning-meeting-auto-card__badge"
-            id="efficiencyMorningMeetingAutoDailySludgeStatus"
-          >조회 대기</span>
-        </div>
-      </header>
-
-      <div class="efficiency-morning-meeting-auto-card__body">
-        <div id="efficiencyMorningMeetingAutoDailySludgeEntries">
-          <div class="efficiency-morning-meeting-auto-row">
-            <span>입고 내역</span>
-            <strong>-</strong>
-          </div>
-        </div>
-
-        <div class="efficiency-morning-meeting-auto-row is-emphasis">
-          <span>총 입고량</span>
-          <strong id="efficiencyMorningMeetingAutoDailySludgeTotal">-</strong>
-        </div>
-
-        <div class="efficiency-morning-meeting-auto-row">
-          <span>입고 차량</span>
-          <strong id="efficiencyMorningMeetingAutoDailySludgeTruckCount">-</strong>
-        </div>
-      </div>
-    `
-  );
-
-
-  ensureCard(
-    "efficiencyMorningMeetingAutoDailyOrganicCard",
-    "is-water",
-    `
-      <header class="efficiency-morning-meeting-auto-card__header">
-        <div>
-          <span>ORGANIC SILO</span>
-          <strong>유기성 사일로</strong>
-        </div>
-
-        <div class="efficiency-morning-meeting-auto-card__meta">
-          <small id="efficiencyMorningMeetingAutoDailyOrganicDate">-</small>
-          <span
-            class="efficiency-morning-meeting-auto-card__badge"
-            id="efficiencyMorningMeetingAutoDailyOrganicStatus"
-          >조회 대기</span>
-        </div>
-      </header>
-
-      <div class="efficiency-morning-meeting-auto-card__body">
-        <div class="efficiency-morning-meeting-auto-row">
-          <span>Day Silo</span>
-          <strong id="efficiencyMorningMeetingAutoDailyOrganicDaySilo">-</strong>
-        </div>
-
-        <div class="efficiency-morning-meeting-auto-row">
-          <span>Storage Silo A</span>
-          <strong id="efficiencyMorningMeetingAutoDailyOrganicStorageSiloA">-</strong>
-        </div>
-
-        <div class="efficiency-morning-meeting-auto-row">
-          <span>Storage Silo B</span>
-          <strong id="efficiencyMorningMeetingAutoDailyOrganicStorageSiloB">-</strong>
-        </div>
-
-        <div class="efficiency-morning-meeting-auto-row is-emphasis">
-          <span>총 재고량</span>
-          <strong id="efficiencyMorningMeetingAutoDailyOrganicSiloTotal">-</strong>
-        </div>
-      </div>
-    `
-  );
+  } else if (
+    steamCard.parentElement !==
+      bottomGrid
+  ) {
+    bottomGrid.appendChild(
+      steamCard
+    );
+  }
 
   return card;
 }
@@ -184172,7 +187239,6 @@ function ensureSiloPreviewCard() {
   /* =====================================================
     상태 배지
   ====================================================== */
-
 
   function setStatusBadge(
     status,
@@ -184801,11 +187867,11 @@ function renderSiloPreview() {
     */
 
     loadButton.textContent =
-      "자동자료 다시 조회";
+      "OIS 자동자료 다시 조회";
 
 
     loadButton.title =
-      "OIS 자동자료와 월간 일일DATA관리 Excel 자료를 다시 조회합니다.";
+      "수처리 현황과 Gear Wheel / Pinion OIS 자료를 다시 조회합니다.";
   }
 
 
@@ -202404,17 +205470,18 @@ function render() {
 
 /* =========================================================
   오전회의 취합
-  월간 일일DATA관리 Excel 요청·복원·미리보기
+  증기 현황 OIS 요청·복원·미리보기
 
-  내부 호환 요청형:
-  - requestType: steam_status 유지
+  요청:
+  - requestType: steam_status
+  - 기준일: 공용 기준일 그대로
 
-  실제 자료원:
-  - Plant 수기·계산 완료값
-  - Data Normalize (2) 유기성 Silo 값
-
-  OIS 일별 증기 판매량과 DataPARC 증기 누적차는
-  이 섹션에서 사용하지 않는다.
+  표시:
+  - 증기 판매량
+  - 1호기 증기생산량
+  - 2호기 증기생산량
+  - 총 증기생산량
+  - 판매율
 ========================================================= */
 
 (function installEfficiencyMorningMeetingSteamStatusClient() {
@@ -202540,43 +205607,9 @@ function render() {
           "efficiencyMorningMeetingAutoSteamCard"
         ),
 
-      cards: [
-        "efficiencyMorningMeetingAutoDailyPowerCard",
-        "efficiencyMorningMeetingAutoSteamCard",
-        "efficiencyMorningMeetingAutoDailySludgeCard",
-        "efficiencyMorningMeetingAutoDailyOrganicCard"
-      ]
-        .map(
-          id => {
-            return document.getElementById(
-              id
-            );
-          }
-        )
-        .filter(
-          Boolean
-        ),
-
       date:
         document.getElementById(
           "efficiencyMorningMeetingAutoSteamDate"
-        ),
-
-      dates: [
-        "efficiencyMorningMeetingAutoDailyPowerDate",
-        "efficiencyMorningMeetingAutoSteamDate",
-        "efficiencyMorningMeetingAutoDailySludgeDate",
-        "efficiencyMorningMeetingAutoDailyOrganicDate"
-      ]
-        .map(
-          id => {
-            return document.getElementById(
-              id
-            );
-          }
-        )
-        .filter(
-          Boolean
         ),
 
       status:
@@ -202584,61 +205617,9 @@ function render() {
           "efficiencyMorningMeetingAutoSteamStatus"
         ),
 
-      statuses: [
-        "efficiencyMorningMeetingAutoDailyPowerStatus",
-        "efficiencyMorningMeetingAutoSteamStatus",
-        "efficiencyMorningMeetingAutoDailySludgeStatus",
-        "efficiencyMorningMeetingAutoDailyOrganicStatus"
-      ]
-        .map(
-          id => {
-            return document.getElementById(
-              id
-            );
-          }
-        )
-        .filter(
-          Boolean
-        ),
-
-      solarDailyGeneration:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailySolarGeneration"
-        ),
-
-      generatorEcmsGen1:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyGeneratorEcmsGen1"
-        ),
-
-      ismartReception:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyIsmartReception"
-        ),
-
-      epowerTransmission:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyEpowerTransmission"
-        ),
-
-      steamSalesLowPressure:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailySteamSalesLowPressure"
-        ),
-
-      steamSalesHighPressure:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailySteamSalesHighPressure"
-        ),
-
       sales:
         document.getElementById(
           "efficiencyMorningMeetingAutoSteamSales"
-        ),
-
-      averageSteamSales:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyAverageSteamSales"
         ),
 
       unitProduction:
@@ -202654,41 +205635,6 @@ function render() {
       salesRate:
         document.getElementById(
           "efficiencyMorningMeetingAutoSteamSalesRate"
-        ),
-
-      sludgeEntries:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailySludgeEntries"
-        ),
-
-      sludgeTruckCount:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailySludgeTruckCount"
-        ),
-
-      sludgeTotal:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailySludgeTotal"
-        ),
-
-      organicDaySilo:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyOrganicDaySilo"
-        ),
-
-      organicStorageSiloA:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyOrganicStorageSiloA"
-        ),
-
-      organicStorageSiloB:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyOrganicStorageSiloB"
-        ),
-
-      organicSiloTotal:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyOrganicSiloTotal"
         )
     };
   }
@@ -202724,7 +205670,7 @@ function render() {
 
     if (
       normalizedValue ===
-        ""
+      ""
     ) {
       return null;
     }
@@ -202739,7 +205685,11 @@ function render() {
     return Number.isFinite(
       numericValue
     )
-      ? numericValue
+      ? Math.round(
+          numericValue *
+          1000
+        ) /
+        1000
       : null;
   }
 
@@ -202804,14 +205754,14 @@ function render() {
 
 
   /* =====================================================
-    일일 DATA 조회 기준일
+    증기 현황 조회 기준일
 
     공용 기준일과 동일하다.
 
     예:
     8월 8일 오전회의
     → 공용 기준일 8월 7일
-    → 일일 DATA 조회일 8월 7일
+    → 증기 현황 조회일 8월 7일
   ====================================================== */
 
   function resolveTargetDate() {
@@ -202876,9 +205826,7 @@ function render() {
   function formatAmount(
     value,
     unit =
-      "ton",
-    options =
-      {}
+      "ton"
   ) {
     const numericValue =
       normalizeNumber(
@@ -202894,31 +205842,15 @@ function render() {
     }
 
 
-    const minimumFractionDigits =
-      Number.isInteger(
-        options.minimumFractionDigits
-      )
-        ? options.minimumFractionDigits
-        : 0;
-
-
-    const maximumFractionDigits =
-      Number.isInteger(
-        options.maximumFractionDigits
-      )
-        ? options.maximumFractionDigits
-        : 3;
-
-
     const formattedValue =
       numericValue.toLocaleString(
         "ko-KR",
         {
           minimumFractionDigits:
-            minimumFractionDigits,
+            0,
 
           maximumFractionDigits:
-            maximumFractionDigits
+            3
         }
       );
 
@@ -202926,40 +205858,6 @@ function render() {
     return unit
       ? `${formattedValue} ${unit}`
       : formattedValue;
-  }
-
-
-  function formatAverageSteamSales(
-    value
-  ) {
-    return formatAmount(
-      value,
-      "t/h",
-      {
-        minimumFractionDigits:
-          1,
-
-        maximumFractionDigits:
-          1
-      }
-    );
-  }
-
-
-  function formatOrganicSilo(
-    value
-  ) {
-    return formatAmount(
-      value,
-      "ton",
-      {
-        minimumFractionDigits:
-          6,
-
-        maximumFractionDigits:
-          6
-      }
-    );
   }
 
   function formatRate(
@@ -202991,68 +205889,7 @@ function render() {
         }
       )
     }%`;
-  }
-
-
-  function isCompleteDailyDataResult(
-    result
-  ) {
-    if (
-      !result ||
-      typeof result !==
-        "object" ||
-      Number(
-        result.schemaVersion
-      ) <
-        2 ||
-      !Array.isArray(
-        result.sludgeEntries
-      ) ||
-      result.sludgeEntries.length <
-        10
-    ) {
-      return false;
-    }
-
-
-    return [
-      result.solarDailyGeneration ??
-        result.solarDaily,
-
-      result.generatorEcmsGen1,
-
-      result.ismartReception ??
-        result.electricityReceived,
-
-      result.epowerTransmission ??
-        result.electricityTransmitted,
-
-      result.steamSalesLowPressure,
-      result.steamSalesHighPressure,
-      result.steamSales,
-      result.averageSteamSales,
-      result.unitOneProduction,
-      result.unitTwoProduction,
-      result.totalProduction,
-      result.salesRate,
-      result.sludgeTruckCount,
-      result.sludgeTotal,
-      result.organicDaySilo ??
-        result.organicDaySiloLevel,
-      result.organicStorageSiloA ??
-        result.organicStorageSiloALevel,
-      result.organicStorageSiloB ??
-        result.organicStorageSiloBLevel,
-      result.organicSiloTotal
-    ].every(
-      value => {
-        return normalizeNumber(
-          value
-        ) !==
-          null;
-      }
-    );
-  }
+  }  
 
   /* =====================================================
     상태 배지
@@ -203062,52 +205899,58 @@ function render() {
     status,
     label
   ) {
-    getElements()
-      .statuses
-      .forEach(
-        statusElement => {
-          statusElement.classList.remove(
-            "is-loading",
-            "is-complete",
-            "is-error"
-          );
+    const statusElement =
+      getElements()
+        .status;
 
 
-          if (
-            status ===
-              "loading"
-          ) {
-            statusElement.classList.add(
-              "is-loading"
-            );
-
-          } else if (
-            status ===
-              "complete"
-          ) {
-            statusElement.classList.add(
-              "is-complete"
-            );
-
-          } else if (
-            status ===
-              "error"
-          ) {
-            statusElement.classList.add(
-              "is-error"
-            );
-          }
+    if (
+      !statusElement
+    ) {
+      return;
+    }
 
 
-          statusElement.textContent =
-            label;
-        }
+    statusElement.classList.remove(
+      "is-loading",
+      "is-complete",
+      "is-error"
+    );
+
+
+    if (
+      status ===
+      "loading"
+    ) {
+      statusElement.classList.add(
+        "is-loading"
       );
+
+    } else if (
+      status ===
+      "complete"
+    ) {
+      statusElement.classList.add(
+        "is-complete"
+      );
+
+    } else if (
+      status ===
+      "error"
+    ) {
+      statusElement.classList.add(
+        "is-error"
+      );
+    }
+
+
+    statusElement.textContent =
+      label;
   }
 
 
   /* =====================================================
-    월간 일일DATA 미리보기 출력
+    증기 현황 미리보기 출력
   ====================================================== */
 
   function renderSteamStatus() {
@@ -203157,54 +206000,9 @@ function render() {
       ).toLowerCase();
 
 
-    const solarDailyGeneration =
-      normalizeNumber(
-        result?.solarDailyGeneration ??
-        result?.solarDaily
-      );
-
-
-    const generatorEcmsGen1 =
-      normalizeNumber(
-        result?.generatorEcmsGen1
-      );
-
-
-    const ismartReception =
-      normalizeNumber(
-        result?.ismartReception ??
-        result?.electricityReceived
-      );
-
-
-    const epowerTransmission =
-      normalizeNumber(
-        result?.epowerTransmission ??
-        result?.electricityTransmitted
-      );
-
-
-    const steamSalesLowPressure =
-      normalizeNumber(
-        result?.steamSalesLowPressure
-      );
-
-
-    const steamSalesHighPressure =
-      normalizeNumber(
-        result?.steamSalesHighPressure
-      );
-
-
     const steamSales =
       normalizeNumber(
         result?.steamSales
-      );
-
-
-    const averageSteamSales =
-      normalizeNumber(
-        result?.averageSteamSales
       );
 
 
@@ -203232,49 +206030,18 @@ function render() {
       );
 
 
-    const sludgeTruckCount =
-      normalizeNumber(
-        result?.sludgeTruckCount
-      );
-
-
-    const sludgeTotal =
-      normalizeNumber(
-        result?.sludgeTotal
-      );
-
-
-    const organicDaySilo =
-      normalizeNumber(
-        result?.organicDaySilo ??
-        result?.organicDaySiloLevel
-      );
-
-
-    const organicStorageSiloA =
-      normalizeNumber(
-        result?.organicStorageSiloA ??
-        result?.organicStorageSiloALevel
-      );
-
-
-    const organicStorageSiloB =
-      normalizeNumber(
-        result?.organicStorageSiloB ??
-        result?.organicStorageSiloBLevel
-      );
-
-
-    const organicSiloTotal =
-      normalizeNumber(
-        result?.organicSiloTotal
-      );
-
-
-    const hasCompleteValues =
-      isCompleteDailyDataResult(
-        result
-      );
+    const hasCompleteValues = [
+      steamSales,
+      unitOneProduction,
+      unitTwoProduction,
+      totalProduction,
+      salesRate
+    ].every(
+      value => {
+        return value !==
+          null;
+      }
+    );
 
 
     const hasDateMismatch =
@@ -203290,14 +206057,14 @@ function render() {
       날짜
     ==================================================== */
 
-    elements.dates.forEach(
-      dateElement => {
-        dateElement.textContent =
+    if (
+      elements.date
+    ) {
+      elements.date.textContent =
         resultDate
-          ? `${resultDate} · 일일DATA`
+          ? `${resultDate} · 01~24시`
           : "-";
-      }
-    );
+    }
 
 
     /* ===================================================
@@ -203358,89 +206125,8 @@ function render() {
 
 
     /* ===================================================
-      전력 현황
+      증기 판매량
     ==================================================== */
-
-    if (
-      elements.solarDailyGeneration
-    ) {
-      elements.solarDailyGeneration.textContent =
-        hideValues
-          ? "-"
-          : formatAmount(
-              solarDailyGeneration,
-              "kWh"
-            );
-    }
-
-
-    if (
-      elements.generatorEcmsGen1
-    ) {
-      elements.generatorEcmsGen1.textContent =
-        hideValues
-          ? "-"
-          : formatAmount(
-              generatorEcmsGen1,
-              "kWh"
-            );
-    }
-
-
-    if (
-      elements.ismartReception
-    ) {
-      elements.ismartReception.textContent =
-        hideValues
-          ? "-"
-          : formatAmount(
-              ismartReception,
-              "kWh"
-            );
-    }
-
-
-    if (
-      elements.epowerTransmission
-    ) {
-      elements.epowerTransmission.textContent =
-        hideValues
-          ? "-"
-          : formatAmount(
-              epowerTransmission,
-              "kWh"
-            );
-    }
-
-
-    /* ===================================================
-      증기 생산·판매
-    ==================================================== */
-
-    if (
-      elements.steamSalesLowPressure
-    ) {
-      elements.steamSalesLowPressure.textContent =
-        hideValues
-          ? "-"
-          : formatAmount(
-              steamSalesLowPressure,
-              "ton"
-            );
-    }
-
-
-    if (
-      elements.steamSalesHighPressure
-    ) {
-      elements.steamSalesHighPressure.textContent =
-        hideValues
-          ? "-"
-          : formatAmount(
-              steamSalesHighPressure,
-              "ton"
-            );
-    }
 
     if (
       elements.sales
@@ -203451,18 +206137,6 @@ function render() {
           : formatAmount(
               steamSales,
               "ton"
-            );
-    }
-
-
-    if (
-      elements.averageSteamSales
-    ) {
-      elements.averageSteamSales.textContent =
-        hideValues
-          ? "-"
-          : formatAverageSteamSales(
-              averageSteamSales
             );
     }
 
@@ -203526,199 +206200,6 @@ function render() {
     }
 
 
-    /* ===================================================
-      하수슬러지
-    ==================================================== */
-
-    if (
-      elements.sludgeEntries
-    ) {
-      elements.sludgeEntries.replaceChildren();
-
-
-      const visibleEntries =
-        hideValues
-          ? []
-          : result.sludgeEntries.filter(
-              item => {
-                const amount =
-                  normalizeNumber(
-                    item?.amount
-                  );
-
-
-                return amount !==
-                    null &&
-                  amount >
-                    0;
-              }
-            );
-
-
-      const entriesToRender =
-        visibleEntries.length >
-          0
-          ? visibleEntries
-          : [
-              null
-            ];
-
-
-      entriesToRender.forEach(
-        item => {
-          const row =
-            document.createElement(
-              "div"
-            );
-
-
-          row.className =
-            "efficiency-morning-meeting-auto-row";
-
-
-          const labelElement =
-            document.createElement(
-              "span"
-            );
-
-
-          const valueElement =
-            document.createElement(
-              "strong"
-            );
-
-
-          if (
-            item
-          ) {
-            const sequence =
-              Number(
-                item.sequence
-              ) ||
-              0;
-
-
-            labelElement.textContent =
-              `${sequence}번째 입고량`;
-
-
-            valueElement.textContent =
-              formatAmount(
-                item.amount,
-                "ton"
-              );
-
-
-            row.title =
-              normalizeText(
-                item.cell
-              );
-
-          } else {
-            labelElement.textContent =
-              "입고 내역";
-
-
-            valueElement.textContent =
-              "-";
-          }
-
-
-          row.append(
-            labelElement,
-            valueElement
-          );
-
-
-          elements.sludgeEntries.appendChild(
-            row
-          );
-        }
-      );
-    }
-
-
-    if (
-      elements.sludgeTotal
-    ) {
-      elements.sludgeTotal.textContent =
-        hideValues
-          ? "-"
-          : formatAmount(
-              sludgeTotal,
-              "ton"
-            );
-    }
-
-
-    if (
-      elements.sludgeTruckCount
-    ) {
-      elements.sludgeTruckCount.textContent =
-        hideValues
-          ? "-"
-          : `${sludgeTruckCount.toLocaleString(
-              "ko-KR",
-              {
-                maximumFractionDigits:
-                  0
-              }
-            )}대`;
-    }
-
-
-    /* ===================================================
-      유기성 사일로
-    ==================================================== */
-
-    if (
-      elements.organicDaySilo
-    ) {
-      elements.organicDaySilo.textContent =
-        hideValues
-          ? "-"
-          : formatOrganicSilo(
-              organicDaySilo
-            );
-    }
-
-
-    if (
-      elements.organicStorageSiloA
-    ) {
-      elements.organicStorageSiloA.textContent =
-        hideValues
-          ? "-"
-          : formatOrganicSilo(
-              organicStorageSiloA
-            );
-    }
-
-
-    if (
-      elements.organicStorageSiloB
-    ) {
-      elements.organicStorageSiloB.textContent =
-        hideValues
-          ? "-"
-          : formatOrganicSilo(
-              organicStorageSiloB
-            );
-    }
-
-
-    if (
-      elements.organicSiloTotal
-    ) {
-      elements.organicSiloTotal.textContent =
-        hideValues
-          ? "-"
-          : formatOrganicSilo(
-              organicSiloTotal
-            );
-    }
-
-
     /*
       조회 실패 원인은 카드에 마우스를 올리면
       확인할 수 있다.
@@ -203730,29 +206211,13 @@ function render() {
       );
 
 
-    const sourceTitle =
+    elements.card.title =
       errorMessage ||
-      [
-        resultDate,
-        normalizeText(
-          result?.workbook
-        ) ||
-          "월간 일일DATA관리 Excel"
-      ]
-        .filter(
-          Boolean
-        )
-        .join(
-          " · "
-        );
-
-
-    elements.cards.forEach(
-      targetCard => {
-        targetCard.title =
-          sourceTitle;
-      }
-    );
+      (
+        resultDate
+          ? `${resultDate} OIS 판매량 · DataPARC 생산량`
+          : "OIS 판매량 · DataPARC 생산량"
+      );
   }
 
   /* =====================================================
@@ -203804,7 +206269,7 @@ function render() {
 
       } catch {
         throw new Error(
-          "일일 DATA 서버 응답 형식이 올바르지 않습니다."
+          "증기 현황 OIS 서버 응답 형식이 올바르지 않습니다."
         );
       }
     }
@@ -203819,7 +206284,7 @@ function render() {
         result.message ||
         result.error ||
         fallbackMessage ||
-        `일일 DATA 요청에 실패했습니다. (HTTP ${response.status})`
+        `증기 현황 OIS 요청에 실패했습니다. (HTTP ${response.status})`
       );
     }
 
@@ -203829,11 +206294,11 @@ function render() {
 
 
   /* =====================================================
-    일일 DATA 요청 생성
+    증기 현황 요청 생성
 
     forceRefresh false:
     - D1에 완료자료가 있으면 즉시 재사용
-    - 없으면 회사 PC 신규 요청
+    - 없으면 OIS 신규 요청
 
     forceRefresh true:
     - 저장자료를 사용하지 않고 다시 조회
@@ -203894,7 +206359,7 @@ function render() {
     const result =
       await readApiResponse(
         response,
-        "월간 일일DATA Excel 조회 요청을 만들지 못했습니다."
+        "증기 현황 OIS 조회 요청을 만들지 못했습니다."
       );
 
 
@@ -203924,7 +206389,7 @@ function render() {
     ) {
       throw new Error(
         [
-          `일일 DATA 요청이 ${returnedRequestType}(으)로 잘못 저장되었습니다.`,
+          `증기 현황 요청이 ${returnedRequestType}(으)로 잘못 저장되었습니다.`,
 
           "ois-data-requests.js의 normalizeRequestType()에 steam_status 적용 여부를 확인해 주세요."
         ].join(
@@ -203939,7 +206404,7 @@ function render() {
 
 
   /* =====================================================
-    일일 DATA 요청 상태 확인
+    증기 현황 요청 상태 확인
   ====================================================== */
 
   async function getSteamStatusRequest(
@@ -203990,7 +206455,7 @@ function render() {
 
     return await readApiResponse(
       response,
-      "일일 DATA 요청 상태를 확인하지 못했습니다."
+      "증기 현황 OIS 요청 상태를 확인하지 못했습니다."
     );
   }
 
@@ -204010,7 +206475,7 @@ function render() {
 
 
   /* =====================================================
-    회사 PC Excel 처리 완료 대기
+    OIS 회사 PC 처리 완료 대기
   ====================================================== */
 
   async function waitForCompletion(
@@ -204055,7 +206520,7 @@ function render() {
         !requestItem
       ) {
         throw new Error(
-          "일일 DATA 요청을 찾을 수 없습니다."
+          "증기 현황 OIS 요청을 찾을 수 없습니다."
         );
       }
 
@@ -204107,7 +206572,7 @@ function render() {
             requestItem.errorMessage ||
             requestItem.error_message
           ) ||
-          `${targetDate} 월간 일일DATA Excel 조회에 실패했습니다.`
+          `${targetDate} 증기 현황 OIS 조회에 실패했습니다.`
         );
       }
 
@@ -204119,20 +206584,20 @@ function render() {
 
 
     throw new Error(
-      `${targetDate} 월간 일일DATA Excel 조회 응답 시간이 초과되었습니다.`
+      `${targetDate} 증기 현황 OIS 조회 응답 시간이 초과되었습니다.`
     );
   }
 
 
   /* =====================================================
-    일일 DATA 결과 검증
+    증기 현황 결과 검증
   ====================================================== */
 
   function normalizeSteamStatusResult(
     requestItem,
     expectedDate
   ) {
-    const rawResult =
+    const result =
       requestItem?.result &&
       typeof requestItem.result ===
         "object" &&
@@ -204143,208 +206608,65 @@ function render() {
         : {};
 
 
-    const schemaVersion =
-      Number(
-        rawResult.schemaVersion
-      );
-
-
-    if (
-      !Number.isFinite(
-        schemaVersion
-      ) ||
-      schemaVersion <
-        2
-    ) {
-      throw new Error(
-        "이전 증기자료입니다. 자동자료 다시 조회를 눌러 월간 일일DATA를 갱신해 주세요."
-      );
-    }
-
-
-    function requireNumber(
-      value,
-      label
-    ) {
-      const numericValue =
-        normalizeNumber(
-          value
-        );
-
-
-      if (
-        numericValue ===
-          null
-      ) {
-        throw new Error(
-          `${label} 값을 확인하지 못했습니다.`
-        );
-      }
-
-
-      return numericValue;
-    }
-
-
-    function roundNumber(
-      value,
-      fractionDigits =
-        3
-    ) {
-      const multiplier =
-        10 **
-        fractionDigits;
-
-
-      return Math.round(
-        value *
-        multiplier
-      ) /
-        multiplier;
-    }
-
-
-    const solarDailyGeneration =
-      requireNumber(
-        rawResult.solarDailyGeneration ??
-          rawResult.solarDaily,
-        "태양광 일일 발전량"
-      );
-
-
-    const generatorEcmsGen1 =
-      requireNumber(
-        rawResult.generatorEcmsGen1,
-        "발전량 / ECMS gen1"
-      );
-
-
-    const ismartReception =
-      requireNumber(
-        rawResult.ismartReception ??
-          rawResult.electricityReceived,
-        "수전량 / I-Smart"
-      );
-
-
-    const epowerTransmission =
-      requireNumber(
-        rawResult.epowerTransmission ??
-          rawResult.electricityTransmitted,
-        "송전량 / ePower"
-      );
-
-
-    const steamSalesLowPressure =
-      requireNumber(
-        rawResult.steamSalesLowPressure,
-        "저압증기 판매량"
-      );
-
-
-    const steamSalesHighPressure =
-      requireNumber(
-        rawResult.steamSalesHighPressure,
-        "고압증기 판매량"
-      );
-
-
     const steamSales =
-      requireNumber(
-        rawResult.steamSales ??
-          rawResult.steam_sales,
-        "총 증기 판매량"
-      );
-
-
-    const averageSteamSales =
-      requireNumber(
-        rawResult.averageSteamSales,
-        "시간당 평균 증기 판매량"
+      normalizeNumber(
+        result.steamSales ??
+        result.steam_sales
       );
 
 
     const unitOneProduction =
-      requireNumber(
-        rawResult.unitOneProduction ??
-          rawResult.unit_one_production,
-        "1호기 증기생산량"
+      normalizeNumber(
+        result.unitOneProduction ??
+        result.unit_one_production
       );
 
 
     const unitTwoProduction =
-      requireNumber(
-        rawResult.unitTwoProduction ??
-          rawResult.unit_two_production,
-        "2호기 증기생산량"
+      normalizeNumber(
+        result.unitTwoProduction ??
+        result.unit_two_production
       );
 
 
     const totalProduction =
-      requireNumber(
-        rawResult.totalProduction ??
-          rawResult.total_production,
-        "총 증기생산량"
+      normalizeNumber(
+        result.totalProduction ??
+        result.total_production
       );
 
 
     const salesRate =
-      requireNumber(
-        rawResult.salesRate ??
-          rawResult.sales_rate,
-        "증기 판매율"
+      normalizeNumber(
+        result.salesRate ??
+        result.sales_rate
       );
 
 
-    const sludgeTruckCount =
-      requireNumber(
-        rawResult.sludgeTruckCount,
-        "하수슬러지 입고 차량"
+    if (
+      [
+        steamSales,
+        unitOneProduction,
+        unitTwoProduction,
+        totalProduction,
+        salesRate
+      ].some(
+        value => {
+          return value ===
+            null;
+        }
+      )
+    ) {
+      throw new Error(
+        "증기 판매량·1호기 생산량·2호기 생산량·총생산량·판매율 중 일부를 확인하지 못했습니다."
       );
-
-
-    const sludgeTotal =
-      requireNumber(
-        rawResult.sludgeTotal,
-        "하수슬러지 총 입고량"
-      );
-
-
-    const organicDaySilo =
-      requireNumber(
-        rawResult.organicDaySilo ??
-          rawResult.organicDaySiloLevel,
-        "유기성 Day Silo"
-      );
-
-
-    const organicStorageSiloA =
-      requireNumber(
-        rawResult.organicStorageSiloA ??
-          rawResult.organicStorageSiloALevel,
-        "유기성 Storage Silo A"
-      );
-
-
-    const organicStorageSiloB =
-      requireNumber(
-        rawResult.organicStorageSiloB ??
-          rawResult.organicStorageSiloBLevel,
-        "유기성 Storage Silo B"
-      );
-
-
-    const organicSiloTotal =
-      requireNumber(
-        rawResult.organicSiloTotal,
-        "유기성 사일로 총 재고량"
-      );
+    }
 
 
     const sourceDate =
       normalizeText(
-        rawResult.sourceDate ||
-        rawResult.targetDate ||
+        result.sourceDate ||
+        result.targetDate ||
         requestItem.targetDate
       );
 
@@ -204356,8 +206678,10 @@ function render() {
     ) {
       throw new Error(
         [
-          "월간 일일DATA 조회 날짜가 다릅니다.",
+          "증기 현황 조회 날짜가 다릅니다.",
+
           `요청일: ${expectedDate}`,
+
           `조회 결과: ${sourceDate}`
         ].join(
           " "
@@ -204366,54 +206690,54 @@ function render() {
     }
 
 
-    const calculatedSteamSales =
-      roundNumber(
-        steamSalesLowPressure +
-        steamSalesHighPressure
-      );
+    /*
+      1·2호기 생산량 합계 검증
+    */
 
-
-    const calculatedTotalProduction =
-      roundNumber(
-        unitOneProduction +
-        unitTwoProduction
-      );
-
-
-    const calculatedAverageSteamSales =
-      roundNumber(
-        steamSales /
-        24
-      );
-
-
-    const calculatedSalesRate =
-      totalProduction >
-        0
-        ? roundNumber(
-            steamSales /
-            totalProduction *
-            100
-          )
-        : null;
+    const calculatedTotal =
+      Math.round(
+        (
+          unitOneProduction +
+          unitTwoProduction
+        ) *
+          1000
+      ) /
+        1000;
 
 
     if (
       Math.abs(
-        calculatedSteamSales -
-        steamSales
-      ) >
-        0.001 ||
-      Math.abs(
-        calculatedTotalProduction -
+        calculatedTotal -
         totalProduction
       ) >
-        0.001 ||
-      Math.abs(
-        calculatedAverageSteamSales -
-        averageSteamSales
-      ) >
-        0.001 ||
+        0.001
+    ) {
+      throw new Error(
+        "1·2호기 증기생산량 합계가 총 증기생산량과 일치하지 않습니다."
+      );
+    }
+
+
+    /*
+      판매율 계산 검증
+    */
+
+    const calculatedSalesRate =
+      totalProduction >
+        0
+        ? Math.round(
+            (
+              steamSales /
+              totalProduction *
+              100
+            ) *
+              1000
+          ) /
+            1000
+        : null;
+
+
+    if (
       calculatedSalesRate ===
         null ||
       Math.abs(
@@ -204423,158 +206747,17 @@ function render() {
         0.001
     ) {
       throw new Error(
-        "증기 생산·판매 계산값이 월간 일일DATA 결과와 일치하지 않습니다."
-      );
-    }
-
-
-    const sludgeEntries =
-      Array.isArray(
-        rawResult.sludgeEntries
-      )
-        ? rawResult.sludgeEntries
-            .slice(
-              0,
-              10
-            )
-            .map(
-              (
-                item,
-                index
-              ) => {
-                const rawAmount =
-                  item?.amount;
-
-
-                return {
-                  sequence:
-                    index +
-                    1,
-
-                  amount:
-                    rawAmount ===
-                        null ||
-                      rawAmount ===
-                        undefined ||
-                      normalizeText(
-                        rawAmount
-                      ) ===
-                        ""
-                      ? null
-                      : requireNumber(
-                          rawAmount,
-                          `${index + 1}번째 하수슬러지 입고량`
-                        ),
-
-                  cell:
-                    normalizeText(
-                      item?.cell
-                    )
-                };
-              }
-            )
-        : [];
-
-
-    while (
-      sludgeEntries.length <
-        10
-    ) {
-      sludgeEntries.push({
-        sequence:
-          sludgeEntries.length +
-          1,
-
-        amount:
-          null,
-
-        cell:
-          ""
-      });
-    }
-
-
-    const calculatedSludgeTruckCount =
-      sludgeEntries.filter(
-        item => {
-          return Number.isFinite(
-            item.amount
-          ) &&
-            item.amount >
-              0;
-        }
-      ).length;
-
-
-    const calculatedSludgeTotal =
-      roundNumber(
-        sludgeEntries.reduce(
-          (
-            sum,
-            item
-          ) => {
-            return sum +
-              (
-                Number.isFinite(
-                  item.amount
-                )
-                  ? item.amount
-                  : 0
-              );
-          },
-          0
-        )
-      );
-
-
-    if (
-      sludgeTruckCount !==
-        calculatedSludgeTruckCount ||
-      Math.abs(
-        sludgeTotal -
-        calculatedSludgeTotal
-      ) >
-        0.001
-    ) {
-      throw new Error(
-        "하수슬러지 입고 차량 수 또는 총 입고량이 상세내역과 일치하지 않습니다."
-      );
-    }
-
-
-    const calculatedOrganicSiloTotal =
-      roundNumber(
-        organicDaySilo +
-        organicStorageSiloA +
-        organicStorageSiloB,
-        6
-      );
-
-
-    if (
-      Math.abs(
-        calculatedOrganicSiloTotal -
-        organicSiloTotal
-      ) >
-        0.00001
-    ) {
-      throw new Error(
-        "유기성 사일로 3개 값과 총 재고량이 일치하지 않습니다."
+        "증기 판매율 계산값이 조회 결과와 일치하지 않습니다."
       );
     }
 
 
     return {
-      ...rawResult,
-
-      schemaVersion:
-        2,
-
       source:
         normalizeText(
-          rawResult.source
+          result.source
         ) ||
-        "월간 일일DATA관리 Excel",
+        "DataPARC / OIS 일별 증기 판매량",
 
       targetDate:
         expectedDate,
@@ -204585,72 +206768,69 @@ function render() {
 
       outputInterval:
         normalizeText(
-          rawResult.outputInterval
+          result.outputInterval
         ) ||
-        "대상일 일일값",
+        "일 누적값 차이",
 
       hourRange:
         normalizeText(
-          rawResult.hourRange
+          result.hourRange
         ) ||
-        "00:00~24:00",
+        "00:00~다음날 00:00",
 
       hourCount:
         normalizeNumber(
-          rawResult.hourCount
+          result.hourCount
         ) ??
         24,
 
-      generatorEcmsGen1,
-      ismartReception,
-      electricityReceived:
-        ismartReception,
-      epowerTransmission,
-      electricityTransmitted:
-        epowerTransmission,
-      solarDailyGeneration,
-      solarDaily:
-        solarDailyGeneration,
-      steamSalesLowPressure,
-      steamSalesHighPressure,
+      unit:
+        normalizeText(
+          result.unit
+        ) ||
+        "ton",
+
+      salesUnit:
+        normalizeText(
+          result.salesUnit ??
+          result.sales_unit
+        ) ||
+        "TON",
+
       steamSales,
-      averageSteamSales,
+
       unitOneProduction,
+
       unitTwoProduction,
+
       totalProduction,
+
       salesRate,
-      sludgeEntries,
-      sludgeTruckCount,
-      sludgeTotal,
-      organicDaySilo,
-      organicDaySiloLevel:
-        organicDaySilo,
-      organicStorageSiloA,
-      organicStorageSiloALevel:
-        organicStorageSiloA,
-      organicStorageSiloB,
-      organicStorageSiloBLevel:
-        organicStorageSiloB,
-      organicSiloTotal,
 
       collectedAt:
         normalizeText(
-          rawResult.collectedAt ||
+          result.collectedAt ||
           requestItem.completedAt
         ),
 
       agentId:
         normalizeText(
           requestItem.agentId
-        )
+        ),
+
+      unitOne:
+        result.unitOne ||
+        null,
+
+      unitTwo:
+        result.unitTwo ||
+        null
     };
   }
-
 
   /* =====================================================
     완료 결과를 공용 상태와 화면에 반영
   ====================================================== */
-
 
   function applySteamStatusResult(
     requestItem,
@@ -204719,7 +206899,7 @@ function render() {
 
 
     console.log(
-      "오전회의 일일 DATA 조회 완료:",
+      "오전회의 증기 현황 조회 완료:",
       state.steamStatus
     );
 
@@ -204729,10 +206909,23 @@ function render() {
         "efficiencyMorningMeetingSteamStatusLoaded",
         {
           detail: {
-            ...result,
-
             targetDate:
-              expectedDate
+              expectedDate,
+
+            steamSales:
+              result.steamSales,
+
+            unitOneProduction:
+              result.unitOneProduction,
+
+            unitTwoProduction:
+              result.unitTwoProduction,
+
+            totalProduction:
+              result.totalProduction,
+
+            salesRate:
+              result.salesRate
           }
         }
       )
@@ -204746,7 +206939,7 @@ function render() {
   }
 
   /* =====================================================
-    일일 DATA 초기화
+    증기 현황 초기화
   ====================================================== */
 
   function resetSteamStatus(
@@ -204815,7 +207008,7 @@ function render() {
 
 
   /* =====================================================
-    공용 기준일과 일일 DATA 조회일 동기화
+    공용 기준일과 증기 조회일 동기화
   ====================================================== */
 
   function synchronizeTargetDate() {
@@ -204882,13 +207075,13 @@ function render() {
 
 
   /* =====================================================
-    일일 DATA 실제 조회
+    증기 현황 실제 조회
 
     forceRefresh false:
     저장된 D1 완료 요청을 우선 복원
 
     forceRefresh true:
-    사용자가 버튼을 눌러 회사 PC 신규 조회
+    사용자가 버튼을 눌러 OIS 신규 조회
   ====================================================== */
 
   async function loadSteamStatus(
@@ -204910,7 +207103,7 @@ function render() {
       !targetDate
     ) {
       console.warn(
-        "일일 DATA 조회 기준일을 확인하지 못했습니다."
+        "증기 현황 조회 기준일을 확인하지 못했습니다."
       );
 
 
@@ -204931,10 +207124,29 @@ function render() {
       );
 
 
-    const hasExistingValues =
-      isCompleteDailyDataResult(
-        state.steamStatus
-      );
+    const hasExistingValues = [
+      state.steamStatus
+        ?.steamSales,
+
+      state.steamStatus
+        ?.unitOneProduction,
+
+      state.steamStatus
+        ?.unitTwoProduction,
+
+      state.steamStatus
+        ?.totalProduction,
+
+      state.steamStatus
+        ?.salesRate
+    ].every(
+      value => {
+        return normalizeNumber(
+          value
+        ) !==
+          null;
+      }
+    );
 
 
     /*
@@ -205031,7 +207243,7 @@ function render() {
         !requestItem?.id
       ) {
         throw new Error(
-          "생성된 일일 DATA 요청 ID를 확인할 수 없습니다."
+          "생성된 증기 현황 OIS 요청 ID를 확인할 수 없습니다."
         );
       }
 
@@ -205148,7 +207360,7 @@ function render() {
         error instanceof
           Error
           ? error.message
-          : "월간 일일DATA Excel 자료를 불러오지 못했습니다.";
+          : "증기 판매량 OIS 자료를 불러오지 못했습니다.";
 
 
       state.steamStatusError =
@@ -205165,7 +207377,7 @@ function render() {
 
 
       console.error(
-        "오전회의 일일 DATA 조회 실패:",
+        "오전회의 증기 판매량 조회 실패:",
         error
       );
 
@@ -205174,7 +207386,7 @@ function render() {
 
 
       /*
-        일일 DATA 조회 실패는
+        증기 판매량 조회 실패는
         오전회의 엑셀 생성을 막지 않는다.
       */
 
@@ -205188,7 +207400,7 @@ function render() {
     전날·오늘·다음날 버튼을 눌렀을 때만 실행한다.
 
     페이지를 처음 열거나 교대파트를 불러왔다는
-    이유만으로 회사 PC 신규 요청을 만들지는 않는다.
+    이유만으로 OIS 신규 요청을 만들지는 않는다.
   ====================================================== */
 
   function scheduleAutomaticLoad() {
@@ -205253,15 +207465,34 @@ function render() {
             ).toLowerCase();
 
 
-          const hasCompleteValues =
-            isCompleteDailyDataResult(
-              state.steamStatus
-            );
+          const hasCompleteValues = [
+            state.steamStatus
+              ?.steamSales,
+
+            state.steamStatus
+              ?.unitOneProduction,
+
+            state.steamStatus
+              ?.unitTwoProduction,
+
+            state.steamStatus
+              ?.totalProduction,
+
+            state.steamStatus
+              ?.salesRate
+          ].every(
+            value => {
+              return normalizeNumber(
+                value
+              ) !==
+                null;
+            }
+          );
 
 
           /*
-            선택한 날짜와 동일한 일일 DATA 전체 값이
-            복원되어 있으면 신규 요청하지 않는다.
+            선택한 날짜와 동일한 증기 현황 다섯 값이
+            모두 복원되어 있으면 신규 요청하지 않는다.
           */
 
           if (
@@ -205331,7 +207562,7 @@ function render() {
       자동 수치 불러오기 버튼
 
       사용자가 직접 누른 경우에는
-      회사 PC의 열린 월간 Excel에서 새로 조회한다.
+      OIS에서 새로 조회한다.
     */
 
     elements.loadButton.addEventListener(
@@ -205396,7 +207627,7 @@ function render() {
       공용 기준일 변경 감지
 
       날짜만 동기화하며,
-      여기서는 신규 요청을 자동 생성하지 않는다.
+      여기서는 OIS 요청을 자동 생성하지 않는다.
     */
 
     const panelObserver =
@@ -205500,21 +207731,6 @@ function render() {
     renderSteamStatus;
 
 
-  window
-    .loadEfficiencyMorningMeetingDailyData =
-    loadSteamStatus;
-
-
-  window
-    .resetEfficiencyMorningMeetingDailyData =
-    resetSteamStatus;
-
-
-  window
-    .renderEfficiencyMorningMeetingDailyData =
-    renderSteamStatus;
-
-
   if (
     document.readyState ===
     "loading"
@@ -205532,7 +207748,6 @@ function render() {
     initialize();
   }
 })();
-
 
 (function initializeEfficiencyMorningMeetingSmpPrice() {
   "use strict";

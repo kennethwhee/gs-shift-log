@@ -1,0 +1,561 @@
+function ensureSiloPreviewCard() {
+  const grid =
+    document.querySelector(
+      "#efficiencyMorningMeetingAutoPreview " +
+      ".efficiency-morning-meeting-auto-preview__grid"
+    );
+
+
+  if (!grid) {
+    return null;
+  }
+
+
+  /*
+    자동수치 미리보기 하단 2열
+
+    - 기존 OIS Silo Level
+    - 월간 일일DATA관리 Excel 미리보기
+
+    모바일에서는 기존 CSS에 따라 한 열로 쌓인다.
+  */
+
+  let bottomGrid =
+    document.getElementById(
+      "efficiencyMorningMeetingAutoBottomGrid"
+    );
+
+
+  if (!bottomGrid) {
+    bottomGrid =
+      document.createElement(
+        "div"
+      );
+
+
+    bottomGrid.id =
+      "efficiencyMorningMeetingAutoBottomGrid";
+
+
+    bottomGrid.className =
+      "efficiency-morning-meeting-auto-bottom-grid";
+
+
+    grid.appendChild(
+      bottomGrid
+    );
+  }
+
+
+  function ensureCard(
+    id,
+    className,
+    html,
+    options =
+      {}
+  ) {
+    let targetCard =
+      document.getElementById(
+        id
+      );
+
+
+    if (!targetCard) {
+      targetCard =
+        document.createElement(
+          "article"
+        );
+
+
+      targetCard.id =
+        id;
+
+
+      targetCard.className = [
+        "efficiency-morning-meeting-auto-card",
+        className
+      ]
+        .filter(
+          Boolean
+        )
+        .join(
+          " "
+        );
+
+
+      targetCard.innerHTML =
+        html;
+    }
+
+
+    if (
+      targetCard.parentElement !==
+        bottomGrid
+    ) {
+      bottomGrid.appendChild(
+        targetCard
+      );
+    }
+
+
+    if (
+      options.fullWidth ===
+        true
+    ) {
+      targetCard.style.gridColumn =
+        "1 / -1";
+    }
+
+
+    return targetCard;
+  }
+
+
+  const card =
+    ensureCard(
+      "efficiencyMorningMeetingAutoSiloCard",
+      "is-silo-level",
+      `
+      <header
+        class="
+          efficiency-morning-meeting-auto-card__header
+        "
+      >
+        <div>
+          <span>
+            SILO LEVEL
+          </span>
+
+          <strong>
+            Silo Level(준비중)
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-card__meta
+          "
+        >
+          <small
+            id="efficiencyMorningMeetingAutoSiloDate"
+          >
+            -
+          </small>
+
+          <span
+            class="
+              efficiency-morning-meeting-auto-card__badge
+            "
+            id="efficiencyMorningMeetingAutoSiloStatus"
+          >
+            조회 대기
+          </span>
+        </div>
+      </header>
+
+
+      <div
+        class="
+          efficiency-morning-meeting-auto-card__body
+        "
+      >
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+          "
+        >
+          <span>
+            Fly Ash Silo Level
+
+            <small
+              style="
+                display: block;
+                margin-top: 2px;
+                font-size: 9px;
+                font-weight: 700;
+                opacity: 0.68;
+              "
+            >
+              003ETH01CW201XQ01
+            </small>
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoFlyAshSiloLevel"
+          >
+            -
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+            is-emphasis
+          "
+        >
+          <span>
+            Bio Storage Silo Level
+
+            <small
+              style="
+                display: block;
+                margin-top: 2px;
+                font-size: 9px;
+                font-weight: 700;
+                opacity: 0.68;
+              "
+            >
+              EBF20CW201
+            </small>
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoBioStorageSiloLevel"
+          >
+            -
+          </strong>
+        </div>
+      </div>
+      `
+    );
+
+
+  ensureCard(
+    "efficiencyMorningMeetingAutoDailyPowerCard",
+    "is-silo-level",
+    `
+      <header
+        class="
+          efficiency-morning-meeting-auto-card__header
+        "
+      >
+        <div>
+          <span>
+            DAILY POWER
+          </span>
+
+          <strong>
+            전력 현황
+          </strong>
+        </div>
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-card__meta
+          "
+        >
+          <small
+            id="efficiencyMorningMeetingAutoDailyPowerDate"
+          >
+            -
+          </small>
+
+          <span
+            class="
+              efficiency-morning-meeting-auto-card__badge
+            "
+            id="efficiencyMorningMeetingAutoDailyPowerStatus"
+          >
+            조회 대기
+          </span>
+        </div>
+      </header>
+
+      <div
+        class="
+          efficiency-morning-meeting-auto-card__body
+        "
+      >
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>태양광 일일 발전량</span>
+          <strong id="efficiencyMorningMeetingAutoDailySolarGeneration">-</strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>발전량 / ECMS gen1</span>
+          <strong id="efficiencyMorningMeetingAutoDailyGeneratorEcmsGen1">-</strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>수전량 / I-Smart</span>
+          <strong id="efficiencyMorningMeetingAutoDailyIsmartReception">-</strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row is-emphasis">
+          <span>송전량 / ePower</span>
+          <strong id="efficiencyMorningMeetingAutoDailyEpowerTransmission">-</strong>
+        </div>
+      </div>
+    `
+  );
+
+
+  ensureCard(
+    "efficiencyMorningMeetingAutoSteamCard",
+    "is-steam-status",
+    `
+      <header
+        class="
+          efficiency-morning-meeting-auto-card__header
+        "
+      >
+        <div>
+          <span>
+            STEAM PRODUCTION · SALES
+          </span>
+
+          <strong>
+            증기 생산·판매
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-card__meta
+          "
+        >
+          <small
+            id="efficiencyMorningMeetingAutoSteamDate"
+          >
+            -
+          </small>
+
+          <span
+            class="
+              efficiency-morning-meeting-auto-card__badge
+            "
+            id="efficiencyMorningMeetingAutoSteamStatus"
+          >
+            조회 대기
+          </span>
+        </div>
+      </header>
+
+
+      <div
+        class="
+          efficiency-morning-meeting-auto-card__body
+        "
+      >
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+          "
+        >
+          <span>
+            저압증기 판매량
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoDailySteamSalesLowPressure"
+          >
+            -
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+          "
+        >
+          <span>
+            고압증기 판매량
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoDailySteamSalesHighPressure"
+          >
+            -
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+            is-emphasis
+          "
+        >
+          <span>
+            총 증기 판매량
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoSteamSales"
+          >
+            -
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+          "
+        >
+          <span>
+            시간당 평균 판매량
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoDailyAverageSteamSales"
+          >
+            -
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+          "
+        >
+          <span>
+            생산량 1 / 2호기
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoSteamProductionUnits"
+          >
+            - / -
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+            is-emphasis
+          "
+        >
+          <span>
+            총 증기생산량
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoSteamProductionTotal"
+          >
+            -
+          </strong>
+        </div>
+
+
+        <div
+          class="
+            efficiency-morning-meeting-auto-row
+          "
+        >
+          <span>
+            판매율
+          </span>
+
+          <strong
+            id="efficiencyMorningMeetingAutoSteamSalesRate"
+          >
+            -
+          </strong>
+        </div>
+      </div>
+    `,
+    {
+      fullWidth:
+        true
+    }
+  );
+
+
+  ensureCard(
+    "efficiencyMorningMeetingAutoDailySludgeCard",
+    "is-limestone",
+    `
+      <header class="efficiency-morning-meeting-auto-card__header">
+        <div>
+          <span>SEWAGE SLUDGE</span>
+          <strong>하수슬러지 입고</strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-card__meta">
+          <small id="efficiencyMorningMeetingAutoDailySludgeDate">-</small>
+          <span
+            class="efficiency-morning-meeting-auto-card__badge"
+            id="efficiencyMorningMeetingAutoDailySludgeStatus"
+          >조회 대기</span>
+        </div>
+      </header>
+
+      <div class="efficiency-morning-meeting-auto-card__body">
+        <div id="efficiencyMorningMeetingAutoDailySludgeEntries">
+          <div class="efficiency-morning-meeting-auto-row">
+            <span>입고 내역</span>
+            <strong>-</strong>
+          </div>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row is-emphasis">
+          <span>총 입고량</span>
+          <strong id="efficiencyMorningMeetingAutoDailySludgeTotal">-</strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>입고 차량</span>
+          <strong id="efficiencyMorningMeetingAutoDailySludgeTruckCount">-</strong>
+        </div>
+      </div>
+    `
+  );
+
+
+  ensureCard(
+    "efficiencyMorningMeetingAutoDailyOrganicCard",
+    "is-water",
+    `
+      <header class="efficiency-morning-meeting-auto-card__header">
+        <div>
+          <span>ORGANIC SILO</span>
+          <strong>유기성 사일로</strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-card__meta">
+          <small id="efficiencyMorningMeetingAutoDailyOrganicDate">-</small>
+          <span
+            class="efficiency-morning-meeting-auto-card__badge"
+            id="efficiencyMorningMeetingAutoDailyOrganicStatus"
+          >조회 대기</span>
+        </div>
+      </header>
+
+      <div class="efficiency-morning-meeting-auto-card__body">
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>Day Silo</span>
+          <strong id="efficiencyMorningMeetingAutoDailyOrganicDaySilo">-</strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>Storage Silo A</span>
+          <strong id="efficiencyMorningMeetingAutoDailyOrganicStorageSiloA">-</strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>Storage Silo B</span>
+          <strong id="efficiencyMorningMeetingAutoDailyOrganicStorageSiloB">-</strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row is-emphasis">
+          <span>총 재고량</span>
+          <strong id="efficiencyMorningMeetingAutoDailyOrganicSiloTotal">-</strong>
+        </div>
+      </div>
+    `
+  );
+
+  return card;
+}
+
+
+  /* =====================================================
+    상태 배지
+  ====================================================== */

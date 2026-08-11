@@ -7315,7 +7315,7 @@ if (
     requestType ===
       "steam_status"
   ) {
-    return "일일 DATA 현황";
+    return "증기 현황";
   }
 
 
@@ -7406,21 +7406,18 @@ function Normalize-ExcelText {
     return ""
   }
 
-  $normalizedText =
+  return (
     [regex]::Replace(
       [string]$Value,
       '\s+',
       ' '
     )
-
-  $normalizedText =
-    $normalizedText.Trim()
-
-  return $normalizedText.Normalize(
-    [Text.NormalizationForm]::FormC
+      .Trim()
+      .Normalize(
+        [Text.NormalizationForm]::FormC
+      )
   )
 }
-
 
 function ConvertTo-ExcelColumnName {
   param(
@@ -9402,7 +9399,7 @@ function runDataParcSteamPowerShell(
             finish(
               new Error(
                 [
-                  "월간 일일DATA관리 Excel 조회가 45초를 초과해 중단되었습니다.",
+                  "DataPARC 증기생산량 조회가 45초를 초과해 중단되었습니다.",
                   `마지막 단계: ${lastStage}`
                 ].join(
                   " "
@@ -15854,13 +15851,6 @@ async function loginOis() {
         );
 
 
-      const requestSourceLabel =
-        requestType ===
-          "steam_status"
-          ? "Excel"
-          : "OIS";
-
-
       const targetDate =
         normalizeOisAgentText(
           requestItem.targetDate ||
@@ -15995,7 +15985,7 @@ async function loginOis() {
 
 
         console.log(
-          `${requestSourceLabel} ${requestLabel} 조회가 완료되었습니다.`
+          `OIS ${requestLabel} 조회가 완료되었습니다.`
         );
 
 
@@ -16008,7 +15998,7 @@ async function loginOis() {
         error
       ) {
         console.error(
-          `${requestSourceLabel} ${requestLabel} 요청 처리 실패:`,
+          `OIS ${requestLabel} 요청 처리 실패:`,
           error
         );
 

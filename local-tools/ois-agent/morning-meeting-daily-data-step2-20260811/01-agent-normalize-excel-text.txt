@@ -1,0 +1,26 @@
+function Normalize-ExcelText {
+  param(
+    $Value
+  )
+
+  if (
+    $null -eq $Value -or
+    $Value -is [Runtime.InteropServices.ErrorWrapper]
+  ) {
+    return ""
+  }
+
+  $normalizedText =
+    [regex]::Replace(
+      [string]$Value,
+      '\s+',
+      ' '
+    )
+
+  $normalizedText =
+    $normalizedText.Trim()
+
+  return $normalizedText.Normalize(
+    [Text.NormalizationForm]::FormC
+  )
+}

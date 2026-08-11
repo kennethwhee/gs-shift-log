@@ -1,0 +1,3130 @@
+/* =========================================================
+  오전회의 취합
+  월간 일일DATA관리 Excel 요청·복원·미리보기
+
+  내부 호환 요청형:
+  - requestType: steam_status 유지
+
+  실제 자료원:
+  - Plant 수기·계산 완료값
+  - Data Normalize (2) 유기성 Silo 값
+
+  OIS 일별 증기 판매량과 DataPARC 증기 누적차는
+  이 섹션에서 사용하지 않는다.
+========================================================= */
+
+(function installEfficiencyMorningMeetingSteamStatusClient() {
+  "use strict";
+
+
+  if (
+    window
+      .__efficiencyMorningMeetingSteamStatusClientInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__efficiencyMorningMeetingSteamStatusClientInstalled =
+    true;
+
+
+  const OIS_REQUEST_API_URL =
+    "/api/ois-data-requests";
+
+
+  const REQUEST_TYPE =
+    "steam_status";
+
+
+  const POLL_INTERVAL =
+    1500;
+
+
+  const MAXIMUM_WAIT =
+    10 *
+    60 *
+    1000;
+
+
+  let activeRunToken =
+    0;
+
+
+  let initializationAttempt =
+    0;
+
+
+  let autoLoadTimerId =
+    null;
+
+
+  /* =====================================================
+    오전회의 공용 상태
+  ====================================================== */
+
+  function getState() {
+    if (
+      !window
+        .efficiencyMorningMeetingUploadState
+    ) {
+      window.efficiencyMorningMeetingUploadState = {
+        files:
+          {},
+
+        analysis:
+          {}
+      };
+    }
+
+
+    return window
+      .efficiencyMorningMeetingUploadState;
+  }
+
+
+  /* =====================================================
+    화면 요소
+  ====================================================== */
+
+  function getElements() {
+    return {
+      panel:
+        document.getElementById(
+          "efficiencyMorningMeetingWaterPanel"
+        ),
+
+      loadButton:
+        document.getElementById(
+          "loadEfficiencyMorningMeetingWaterButton"
+        ),
+
+      resetButton:
+        document.getElementById(
+          "resetEfficiencyMorningMeetingButton"
+        ),
+
+      previousButton:
+        document.getElementById(
+          "efficiencyMorningMeetingLimestonePreviousButton"
+        ),
+
+      todayButton:
+        document.getElementById(
+          "efficiencyMorningMeetingLimestoneTodayButton"
+        ),
+
+      nextButton:
+        document.getElementById(
+          "efficiencyMorningMeetingLimestoneNextButton"
+        ),
+
+      shiftDate:
+        document.getElementById(
+          "efficiencyMorningMeetingShiftDate"
+        ),
+
+      waterDate:
+        document.getElementById(
+          "efficiencyMorningMeetingWaterDate"
+        ),
+
+      card:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamCard"
+        ),
+
+      cards: [
+        "efficiencyMorningMeetingAutoDailyPowerCard",
+        "efficiencyMorningMeetingAutoSteamCard",
+        "efficiencyMorningMeetingAutoDailySludgeCard",
+        "efficiencyMorningMeetingAutoDailyOrganicCard"
+      ]
+        .map(
+          id => {
+            return document.getElementById(
+              id
+            );
+          }
+        )
+        .filter(
+          Boolean
+        ),
+
+      date:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamDate"
+        ),
+
+      dates: [
+        "efficiencyMorningMeetingAutoDailyPowerDate",
+        "efficiencyMorningMeetingAutoSteamDate",
+        "efficiencyMorningMeetingAutoDailySludgeDate",
+        "efficiencyMorningMeetingAutoDailyOrganicDate"
+      ]
+        .map(
+          id => {
+            return document.getElementById(
+              id
+            );
+          }
+        )
+        .filter(
+          Boolean
+        ),
+
+      status:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamStatus"
+        ),
+
+      statuses: [
+        "efficiencyMorningMeetingAutoDailyPowerStatus",
+        "efficiencyMorningMeetingAutoSteamStatus",
+        "efficiencyMorningMeetingAutoDailySludgeStatus",
+        "efficiencyMorningMeetingAutoDailyOrganicStatus"
+      ]
+        .map(
+          id => {
+            return document.getElementById(
+              id
+            );
+          }
+        )
+        .filter(
+          Boolean
+        ),
+
+      solarDailyGeneration:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoDailySolarGeneration"
+        ),
+
+      generatorEcmsGen1:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoDailyGeneratorEcmsGen1"
+        ),
+
+      ismartReception:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoDailyIsmartReception"
+        ),
+
+      epowerTransmission:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoDailyEpowerTransmission"
+        ),
+
+      steamSalesLowPressure:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoDailySteamSalesLowPressure"
+        ),
+
+      steamSalesHighPressure:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoDailySteamSalesHighPressure"
+        ),
+
+      sales:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamSales"
+        ),
+
+      averageSteamSales:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoDailyAverageSteamSales"
+        ),
+
+      unitProduction:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamProductionUnits"
+        ),
+
+      totalProduction:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamProductionTotal"
+        ),
+
+      salesRate:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoSteamSalesRate"
+        ),
+
+      sludgeEntries:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoDailySludgeEntries"
+        ),
+
+      sludgeTruckCount:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoDailySludgeTruckCount"
+        ),
+
+      sludgeTotal:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoDailySludgeTotal"
+        ),
+
+      organicDaySilo:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoDailyOrganicDaySilo"
+        ),
+
+      organicStorageSiloA:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoDailyOrganicStorageSiloA"
+        ),
+
+      organicStorageSiloB:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoDailyOrganicStorageSiloB"
+        ),
+
+      organicSiloTotal:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoDailyOrganicSiloTotal"
+        )
+    };
+  }
+
+  /* =====================================================
+    문자열·숫자·날짜
+  ====================================================== */
+
+  function normalizeText(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    ).trim();
+  }
+
+
+  function normalizeNumber(
+    value
+  ) {
+    const normalizedValue =
+      String(
+        value ??
+        ""
+      )
+        .replaceAll(
+          ",",
+          ""
+        )
+        .trim();
+
+
+    if (
+      normalizedValue ===
+        ""
+    ) {
+      return null;
+    }
+
+
+    const numericValue =
+      Number(
+        normalizedValue
+      );
+
+
+    return Number.isFinite(
+      numericValue
+    )
+      ? numericValue
+      : null;
+  }
+
+
+  function isValidDate(
+    value
+  ) {
+    const normalizedDate =
+      normalizeText(
+        value
+      );
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        normalizedDate
+      )
+    ) {
+      return false;
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${normalizedDate}T00:00:00.000Z`
+      );
+
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+      parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        normalizedDate
+    );
+  }
+
+
+  function extractDateFromText(
+    value
+  ) {
+    const matchedDate =
+      normalizeText(
+        value
+      ).match(
+        /\d{4}-\d{2}-\d{2}/
+      )?.[0] ||
+      "";
+
+
+    return isValidDate(
+      matchedDate
+    )
+      ? matchedDate
+      : "";
+  }
+
+
+  /* =====================================================
+    일일 DATA 조회 기준일
+
+    공용 기준일과 동일하다.
+
+    예:
+    8월 8일 오전회의
+    → 공용 기준일 8월 7일
+    → 일일 DATA 조회일 8월 7일
+  ====================================================== */
+
+  function resolveTargetDate() {
+    const state =
+      getState();
+
+
+    const elements =
+      getElements();
+
+
+    const candidates = [
+      elements.panel
+        ?.dataset
+        .morningMeetingAutoBaseDate,
+
+      state.shiftPart
+        ?.reportDate,
+
+      state.shiftPart
+        ?.loadedDate,
+
+      state.waterTreatment
+        ?.sourceDate,
+
+      state.waterTreatment
+        ?.targetDate,
+
+      elements.panel
+        ?.dataset
+        .waterTargetDate,
+
+      extractDateFromText(
+        elements.waterDate
+          ?.textContent
+      ),
+
+      extractDateFromText(
+        elements.shiftDate
+          ?.textContent
+      )
+    ];
+
+
+    return (
+      candidates
+        .map(
+          normalizeText
+        )
+        .find(
+          isValidDate
+        ) ||
+      ""
+    );
+  }
+
+
+  /* =====================================================
+    화면 숫자 표시
+  ====================================================== */
+
+  function formatAmount(
+    value,
+    unit =
+      "ton",
+    options =
+      {}
+  ) {
+    const numericValue =
+      normalizeNumber(
+        value
+      );
+
+
+    if (
+      numericValue ===
+      null
+    ) {
+      return "-";
+    }
+
+
+    const minimumFractionDigits =
+      Number.isInteger(
+        options.minimumFractionDigits
+      )
+        ? options.minimumFractionDigits
+        : 0;
+
+
+    const maximumFractionDigits =
+      Number.isInteger(
+        options.maximumFractionDigits
+      )
+        ? options.maximumFractionDigits
+        : 3;
+
+
+    const formattedValue =
+      numericValue.toLocaleString(
+        "ko-KR",
+        {
+          minimumFractionDigits:
+            minimumFractionDigits,
+
+          maximumFractionDigits:
+            maximumFractionDigits
+        }
+      );
+
+
+    return unit
+      ? `${formattedValue} ${unit}`
+      : formattedValue;
+  }
+
+
+  function formatAverageSteamSales(
+    value
+  ) {
+    return formatAmount(
+      value,
+      "t/h",
+      {
+        minimumFractionDigits:
+          1,
+
+        maximumFractionDigits:
+          1
+      }
+    );
+  }
+
+
+  function formatOrganicSilo(
+    value
+  ) {
+    return formatAmount(
+      value,
+      "ton",
+      {
+        minimumFractionDigits:
+          6,
+
+        maximumFractionDigits:
+          6
+      }
+    );
+  }
+
+  function formatRate(
+    value
+  ) {
+    const numericValue =
+      normalizeNumber(
+        value
+      );
+
+
+    if (
+      numericValue ===
+      null
+    ) {
+      return "-";
+    }
+
+
+    return `${
+      numericValue.toLocaleString(
+        "ko-KR",
+        {
+          minimumFractionDigits:
+            0,
+
+          maximumFractionDigits:
+            3
+        }
+      )
+    }%`;
+  }
+
+
+  function isCompleteDailyDataResult(
+    result
+  ) {
+    if (
+      !result ||
+      typeof result !==
+        "object" ||
+      Number(
+        result.schemaVersion
+      ) <
+        2 ||
+      !Array.isArray(
+        result.sludgeEntries
+      ) ||
+      result.sludgeEntries.length <
+        10
+    ) {
+      return false;
+    }
+
+
+    return [
+      result.solarDailyGeneration ??
+        result.solarDaily,
+
+      result.generatorEcmsGen1,
+
+      result.ismartReception ??
+        result.electricityReceived,
+
+      result.epowerTransmission ??
+        result.electricityTransmitted,
+
+      result.steamSalesLowPressure,
+      result.steamSalesHighPressure,
+      result.steamSales,
+      result.averageSteamSales,
+      result.unitOneProduction,
+      result.unitTwoProduction,
+      result.totalProduction,
+      result.salesRate,
+      result.sludgeTruckCount,
+      result.sludgeTotal,
+      result.organicDaySilo ??
+        result.organicDaySiloLevel,
+      result.organicStorageSiloA ??
+        result.organicStorageSiloALevel,
+      result.organicStorageSiloB ??
+        result.organicStorageSiloBLevel,
+      result.organicSiloTotal
+    ].every(
+      value => {
+        return normalizeNumber(
+          value
+        ) !==
+          null;
+      }
+    );
+  }
+
+  /* =====================================================
+    상태 배지
+  ====================================================== */
+
+  function setStatusBadge(
+    status,
+    label
+  ) {
+    getElements()
+      .statuses
+      .forEach(
+        statusElement => {
+          statusElement.classList.remove(
+            "is-loading",
+            "is-complete",
+            "is-error"
+          );
+
+
+          if (
+            status ===
+              "loading"
+          ) {
+            statusElement.classList.add(
+              "is-loading"
+            );
+
+          } else if (
+            status ===
+              "complete"
+          ) {
+            statusElement.classList.add(
+              "is-complete"
+            );
+
+          } else if (
+            status ===
+              "error"
+          ) {
+            statusElement.classList.add(
+              "is-error"
+            );
+          }
+
+
+          statusElement.textContent =
+            label;
+        }
+      );
+  }
+
+
+  /* =====================================================
+    월간 일일DATA 미리보기 출력
+  ====================================================== */
+
+  function renderSteamStatus() {
+    const elements =
+      getElements();
+
+
+    if (
+      !elements.card
+    ) {
+      return;
+    }
+
+
+    const state =
+      getState();
+
+
+    const result =
+      state.steamStatus &&
+      typeof state.steamStatus ===
+        "object"
+        ? state.steamStatus
+        : null;
+
+
+    const currentTargetDate =
+      resolveTargetDate();
+
+
+    const resultDate =
+      normalizeText(
+        result?.sourceDate ||
+        result?.targetDate ||
+        elements.panel
+          ?.dataset
+          .steamStatusTargetDate ||
+        currentTargetDate
+      );
+
+
+    const requestStatus =
+      normalizeText(
+        elements.panel
+          ?.dataset
+          .steamStatusStatus
+      ).toLowerCase();
+
+
+    const solarDailyGeneration =
+      normalizeNumber(
+        result?.solarDailyGeneration ??
+        result?.solarDaily
+      );
+
+
+    const generatorEcmsGen1 =
+      normalizeNumber(
+        result?.generatorEcmsGen1
+      );
+
+
+    const ismartReception =
+      normalizeNumber(
+        result?.ismartReception ??
+        result?.electricityReceived
+      );
+
+
+    const epowerTransmission =
+      normalizeNumber(
+        result?.epowerTransmission ??
+        result?.electricityTransmitted
+      );
+
+
+    const steamSalesLowPressure =
+      normalizeNumber(
+        result?.steamSalesLowPressure
+      );
+
+
+    const steamSalesHighPressure =
+      normalizeNumber(
+        result?.steamSalesHighPressure
+      );
+
+
+    const steamSales =
+      normalizeNumber(
+        result?.steamSales
+      );
+
+
+    const averageSteamSales =
+      normalizeNumber(
+        result?.averageSteamSales
+      );
+
+
+    const unitOneProduction =
+      normalizeNumber(
+        result?.unitOneProduction
+      );
+
+
+    const unitTwoProduction =
+      normalizeNumber(
+        result?.unitTwoProduction
+      );
+
+
+    const totalProduction =
+      normalizeNumber(
+        result?.totalProduction
+      );
+
+
+    const salesRate =
+      normalizeNumber(
+        result?.salesRate
+      );
+
+
+    const sludgeTruckCount =
+      normalizeNumber(
+        result?.sludgeTruckCount
+      );
+
+
+    const sludgeTotal =
+      normalizeNumber(
+        result?.sludgeTotal
+      );
+
+
+    const organicDaySilo =
+      normalizeNumber(
+        result?.organicDaySilo ??
+        result?.organicDaySiloLevel
+      );
+
+
+    const organicStorageSiloA =
+      normalizeNumber(
+        result?.organicStorageSiloA ??
+        result?.organicStorageSiloALevel
+      );
+
+
+    const organicStorageSiloB =
+      normalizeNumber(
+        result?.organicStorageSiloB ??
+        result?.organicStorageSiloBLevel
+      );
+
+
+    const organicSiloTotal =
+      normalizeNumber(
+        result?.organicSiloTotal
+      );
+
+
+    const hasCompleteValues =
+      isCompleteDailyDataResult(
+        result
+      );
+
+
+    const hasDateMismatch =
+      Boolean(
+        currentTargetDate &&
+        resultDate &&
+        currentTargetDate !==
+          resultDate
+      );
+
+
+    /* ===================================================
+      날짜
+    ==================================================== */
+
+    elements.dates.forEach(
+      dateElement => {
+        dateElement.textContent =
+        resultDate
+          ? `${resultDate} · 일일DATA`
+          : "-";
+      }
+    );
+
+
+    /* ===================================================
+      상태
+    ==================================================== */
+
+    if (
+      hasDateMismatch
+    ) {
+      setStatusBadge(
+        "error",
+        "날짜 확인"
+      );
+
+    } else if (
+      [
+        "loading",
+        "pending",
+        "processing"
+      ].includes(
+        requestStatus
+      )
+    ) {
+      setStatusBadge(
+        "loading",
+        "조회 중"
+      );
+
+    } else if (
+      requestStatus ===
+        "error" ||
+      state.steamStatusError
+    ) {
+      setStatusBadge(
+        "error",
+        "조회 실패"
+      );
+
+    } else if (
+      hasCompleteValues
+    ) {
+      setStatusBadge(
+        "complete",
+        "조회 완료"
+      );
+
+    } else {
+      setStatusBadge(
+        "idle",
+        "조회 대기"
+      );
+    }
+
+
+    const hideValues =
+      hasDateMismatch ||
+      !hasCompleteValues;
+
+
+    /* ===================================================
+      전력 현황
+    ==================================================== */
+
+    if (
+      elements.solarDailyGeneration
+    ) {
+      elements.solarDailyGeneration.textContent =
+        hideValues
+          ? "-"
+          : formatAmount(
+              solarDailyGeneration,
+              "kWh"
+            );
+    }
+
+
+    if (
+      elements.generatorEcmsGen1
+    ) {
+      elements.generatorEcmsGen1.textContent =
+        hideValues
+          ? "-"
+          : formatAmount(
+              generatorEcmsGen1,
+              "kWh"
+            );
+    }
+
+
+    if (
+      elements.ismartReception
+    ) {
+      elements.ismartReception.textContent =
+        hideValues
+          ? "-"
+          : formatAmount(
+              ismartReception,
+              "kWh"
+            );
+    }
+
+
+    if (
+      elements.epowerTransmission
+    ) {
+      elements.epowerTransmission.textContent =
+        hideValues
+          ? "-"
+          : formatAmount(
+              epowerTransmission,
+              "kWh"
+            );
+    }
+
+
+    /* ===================================================
+      증기 생산·판매
+    ==================================================== */
+
+    if (
+      elements.steamSalesLowPressure
+    ) {
+      elements.steamSalesLowPressure.textContent =
+        hideValues
+          ? "-"
+          : formatAmount(
+              steamSalesLowPressure,
+              "ton"
+            );
+    }
+
+
+    if (
+      elements.steamSalesHighPressure
+    ) {
+      elements.steamSalesHighPressure.textContent =
+        hideValues
+          ? "-"
+          : formatAmount(
+              steamSalesHighPressure,
+              "ton"
+            );
+    }
+
+    if (
+      elements.sales
+    ) {
+      elements.sales.textContent =
+        hideValues
+          ? "-"
+          : formatAmount(
+              steamSales,
+              "ton"
+            );
+    }
+
+
+    if (
+      elements.averageSteamSales
+    ) {
+      elements.averageSteamSales.textContent =
+        hideValues
+          ? "-"
+          : formatAverageSteamSales(
+              averageSteamSales
+            );
+    }
+
+
+    /* ===================================================
+      1·2호기 생산량
+    ==================================================== */
+
+    if (
+      elements.unitProduction
+    ) {
+      elements.unitProduction.textContent =
+        hideValues
+          ? "- / -"
+          : [
+              formatAmount(
+                unitOneProduction,
+                ""
+              ),
+
+              formatAmount(
+                unitTwoProduction,
+                "ton"
+              )
+            ].join(
+              " / "
+            );
+    }
+
+
+    /* ===================================================
+      총생산량
+    ==================================================== */
+
+    if (
+      elements.totalProduction
+    ) {
+      elements.totalProduction.textContent =
+        hideValues
+          ? "-"
+          : formatAmount(
+              totalProduction,
+              "ton"
+            );
+    }
+
+
+    /* ===================================================
+      판매율
+    ==================================================== */
+
+    if (
+      elements.salesRate
+    ) {
+      elements.salesRate.textContent =
+        hideValues
+          ? "-"
+          : formatRate(
+              salesRate
+            );
+    }
+
+
+    /* ===================================================
+      하수슬러지
+    ==================================================== */
+
+    if (
+      elements.sludgeEntries
+    ) {
+      elements.sludgeEntries.replaceChildren();
+
+
+      const visibleEntries =
+        hideValues
+          ? []
+          : result.sludgeEntries.filter(
+              item => {
+                const amount =
+                  normalizeNumber(
+                    item?.amount
+                  );
+
+
+                return amount !==
+                    null &&
+                  amount >
+                    0;
+              }
+            );
+
+
+      const entriesToRender =
+        visibleEntries.length >
+          0
+          ? visibleEntries
+          : [
+              null
+            ];
+
+
+      entriesToRender.forEach(
+        item => {
+          const row =
+            document.createElement(
+              "div"
+            );
+
+
+          row.className =
+            "efficiency-morning-meeting-auto-row";
+
+
+          const labelElement =
+            document.createElement(
+              "span"
+            );
+
+
+          const valueElement =
+            document.createElement(
+              "strong"
+            );
+
+
+          if (
+            item
+          ) {
+            const sequence =
+              Number(
+                item.sequence
+              ) ||
+              0;
+
+
+            labelElement.textContent =
+              `${sequence}번째 입고량`;
+
+
+            valueElement.textContent =
+              formatAmount(
+                item.amount,
+                "ton"
+              );
+
+
+            row.title =
+              normalizeText(
+                item.cell
+              );
+
+          } else {
+            labelElement.textContent =
+              "입고 내역";
+
+
+            valueElement.textContent =
+              "-";
+          }
+
+
+          row.append(
+            labelElement,
+            valueElement
+          );
+
+
+          elements.sludgeEntries.appendChild(
+            row
+          );
+        }
+      );
+    }
+
+
+    if (
+      elements.sludgeTotal
+    ) {
+      elements.sludgeTotal.textContent =
+        hideValues
+          ? "-"
+          : formatAmount(
+              sludgeTotal,
+              "ton"
+            );
+    }
+
+
+    if (
+      elements.sludgeTruckCount
+    ) {
+      elements.sludgeTruckCount.textContent =
+        hideValues
+          ? "-"
+          : `${sludgeTruckCount.toLocaleString(
+              "ko-KR",
+              {
+                maximumFractionDigits:
+                  0
+              }
+            )}대`;
+    }
+
+
+    /* ===================================================
+      유기성 사일로
+    ==================================================== */
+
+    if (
+      elements.organicDaySilo
+    ) {
+      elements.organicDaySilo.textContent =
+        hideValues
+          ? "-"
+          : formatOrganicSilo(
+              organicDaySilo
+            );
+    }
+
+
+    if (
+      elements.organicStorageSiloA
+    ) {
+      elements.organicStorageSiloA.textContent =
+        hideValues
+          ? "-"
+          : formatOrganicSilo(
+              organicStorageSiloA
+            );
+    }
+
+
+    if (
+      elements.organicStorageSiloB
+    ) {
+      elements.organicStorageSiloB.textContent =
+        hideValues
+          ? "-"
+          : formatOrganicSilo(
+              organicStorageSiloB
+            );
+    }
+
+
+    if (
+      elements.organicSiloTotal
+    ) {
+      elements.organicSiloTotal.textContent =
+        hideValues
+          ? "-"
+          : formatOrganicSilo(
+              organicSiloTotal
+            );
+    }
+
+
+    /*
+      조회 실패 원인은 카드에 마우스를 올리면
+      확인할 수 있다.
+    */
+
+    const errorMessage =
+      normalizeText(
+        state.steamStatusError
+      );
+
+
+    const sourceTitle =
+      errorMessage ||
+      [
+        resultDate,
+        normalizeText(
+          result?.workbook
+        ) ||
+          "월간 일일DATA관리 Excel"
+      ]
+        .filter(
+          Boolean
+        )
+        .join(
+          " · "
+        );
+
+
+    elements.cards.forEach(
+      targetCard => {
+        targetCard.title =
+          sourceTitle;
+      }
+    );
+  }
+
+  /* =====================================================
+    즉시·지연 미리보기 갱신
+  ====================================================== */
+
+  function scheduleRender() {
+    [
+      0,
+      200,
+      500,
+      1000,
+      2000
+    ].forEach(
+      delay => {
+        window.setTimeout(
+          renderSteamStatus,
+          delay
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    API 응답 읽기
+  ====================================================== */
+
+  async function readApiResponse(
+    response,
+    fallbackMessage
+  ) {
+    const responseText =
+      await response.text();
+
+
+    let result =
+      {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        throw new Error(
+          "일일 DATA 서버 응답 형식이 올바르지 않습니다."
+        );
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        fallbackMessage ||
+        `일일 DATA 요청에 실패했습니다. (HTTP ${response.status})`
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    일일 DATA 요청 생성
+
+    forceRefresh false:
+    - D1에 완료자료가 있으면 즉시 재사용
+    - 없으면 회사 PC 신규 요청
+
+    forceRefresh true:
+    - 저장자료를 사용하지 않고 다시 조회
+  ====================================================== */
+
+  async function createSteamStatusRequest(
+    targetDate,
+    options =
+      {}
+  ) {
+    const {
+      forceRefresh =
+        false
+    } =
+      options;
+
+
+    const response =
+      await fetch(
+        OIS_REQUEST_API_URL,
+        {
+          method:
+            "POST",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  Accept:
+                    "application/json",
+
+                  "Content-Type":
+                    "application/json"
+                },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              requestType:
+                REQUEST_TYPE,
+
+              targetDate,
+
+              forceRefresh:
+                forceRefresh ===
+                true
+            })
+        }
+      );
+
+
+    const result =
+      await readApiResponse(
+        response,
+        "월간 일일DATA Excel 조회 요청을 만들지 못했습니다."
+      );
+
+
+    /*
+      서버에 steam_status가 누락된 경우
+      limestone_stock으로 변환되는 문제를 막는다.
+    */
+
+    const returnedRequestType =
+      normalizeText(
+        result?.item
+          ?.requestType ||
+        result?.item
+          ?.request_type
+      )
+        .toLowerCase()
+        .replace(
+          /[\s-]+/g,
+          "_"
+        );
+
+
+    if (
+      returnedRequestType &&
+      returnedRequestType !==
+        REQUEST_TYPE
+    ) {
+      throw new Error(
+        [
+          `일일 DATA 요청이 ${returnedRequestType}(으)로 잘못 저장되었습니다.`,
+
+          "ois-data-requests.js의 normalizeRequestType()에 steam_status 적용 여부를 확인해 주세요."
+        ].join(
+          " "
+        )
+      );
+    }
+
+
+    return result;
+  }
+
+
+  /* =====================================================
+    일일 DATA 요청 상태 확인
+  ====================================================== */
+
+  async function getSteamStatusRequest(
+    requestId
+  ) {
+    const requestUrl =
+      new URL(
+        OIS_REQUEST_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "id",
+      requestId
+    );
+
+
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                },
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    return await readApiResponse(
+      response,
+      "일일 DATA 요청 상태를 확인하지 못했습니다."
+    );
+  }
+
+
+  function wait(
+    milliseconds
+  ) {
+    return new Promise(
+      resolve => {
+        window.setTimeout(
+          resolve,
+          milliseconds
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    회사 PC Excel 처리 완료 대기
+  ====================================================== */
+
+  async function waitForCompletion(
+    requestId,
+    targetDate,
+    runToken
+  ) {
+    const startedAt =
+      Date.now();
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    while (
+      Date.now() -
+        startedAt <
+      MAXIMUM_WAIT
+    ) {
+      if (
+        runToken !==
+        activeRunToken
+      ) {
+        return null;
+      }
+
+
+      const requestResult =
+        await getSteamStatusRequest(
+          requestId
+        );
+
+
+      const requestItem =
+        requestResult.item;
+
+
+      if (
+        !requestItem
+      ) {
+        throw new Error(
+          "일일 DATA 요청을 찾을 수 없습니다."
+        );
+      }
+
+
+      const status =
+        normalizeText(
+          requestItem.status
+        ).toLowerCase();
+
+
+      if (
+        panel
+      ) {
+        panel.dataset
+          .steamStatusStatus =
+          status ||
+          "loading";
+
+
+        if (
+          requestItem.agentId
+        ) {
+          panel.dataset
+            .steamStatusAgentId =
+            normalizeText(
+              requestItem.agentId
+            );
+        }
+      }
+
+
+      renderSteamStatus();
+
+
+      if (
+        status ===
+        "complete"
+      ) {
+        return requestItem;
+      }
+
+
+      if (
+        status ===
+        "failed"
+      ) {
+        throw new Error(
+          normalizeText(
+            requestItem.errorMessage ||
+            requestItem.error_message
+          ) ||
+          `${targetDate} 월간 일일DATA Excel 조회에 실패했습니다.`
+        );
+      }
+
+
+      await wait(
+        POLL_INTERVAL
+      );
+    }
+
+
+    throw new Error(
+      `${targetDate} 월간 일일DATA Excel 조회 응답 시간이 초과되었습니다.`
+    );
+  }
+
+
+  /* =====================================================
+    일일 DATA 결과 검증
+  ====================================================== */
+
+  function normalizeSteamStatusResult(
+    requestItem,
+    expectedDate
+  ) {
+    const rawResult =
+      requestItem?.result &&
+      typeof requestItem.result ===
+        "object" &&
+      !Array.isArray(
+        requestItem.result
+      )
+        ? requestItem.result
+        : {};
+
+
+    const schemaVersion =
+      Number(
+        rawResult.schemaVersion
+      );
+
+
+    if (
+      !Number.isFinite(
+        schemaVersion
+      ) ||
+      schemaVersion <
+        2
+    ) {
+      throw new Error(
+        "이전 증기자료입니다. 자동자료 다시 조회를 눌러 월간 일일DATA를 갱신해 주세요."
+      );
+    }
+
+
+    function requireNumber(
+      value,
+      label
+    ) {
+      const numericValue =
+        normalizeNumber(
+          value
+        );
+
+
+      if (
+        numericValue ===
+          null
+      ) {
+        throw new Error(
+          `${label} 값을 확인하지 못했습니다.`
+        );
+      }
+
+
+      return numericValue;
+    }
+
+
+    function roundNumber(
+      value,
+      fractionDigits =
+        3
+    ) {
+      const multiplier =
+        10 **
+        fractionDigits;
+
+
+      return Math.round(
+        value *
+        multiplier
+      ) /
+        multiplier;
+    }
+
+
+    const solarDailyGeneration =
+      requireNumber(
+        rawResult.solarDailyGeneration ??
+          rawResult.solarDaily,
+        "태양광 일일 발전량"
+      );
+
+
+    const generatorEcmsGen1 =
+      requireNumber(
+        rawResult.generatorEcmsGen1,
+        "발전량 / ECMS gen1"
+      );
+
+
+    const ismartReception =
+      requireNumber(
+        rawResult.ismartReception ??
+          rawResult.electricityReceived,
+        "수전량 / I-Smart"
+      );
+
+
+    const epowerTransmission =
+      requireNumber(
+        rawResult.epowerTransmission ??
+          rawResult.electricityTransmitted,
+        "송전량 / ePower"
+      );
+
+
+    const steamSalesLowPressure =
+      requireNumber(
+        rawResult.steamSalesLowPressure,
+        "저압증기 판매량"
+      );
+
+
+    const steamSalesHighPressure =
+      requireNumber(
+        rawResult.steamSalesHighPressure,
+        "고압증기 판매량"
+      );
+
+
+    const steamSales =
+      requireNumber(
+        rawResult.steamSales ??
+          rawResult.steam_sales,
+        "총 증기 판매량"
+      );
+
+
+    const averageSteamSales =
+      requireNumber(
+        rawResult.averageSteamSales,
+        "시간당 평균 증기 판매량"
+      );
+
+
+    const unitOneProduction =
+      requireNumber(
+        rawResult.unitOneProduction ??
+          rawResult.unit_one_production,
+        "1호기 증기생산량"
+      );
+
+
+    const unitTwoProduction =
+      requireNumber(
+        rawResult.unitTwoProduction ??
+          rawResult.unit_two_production,
+        "2호기 증기생산량"
+      );
+
+
+    const totalProduction =
+      requireNumber(
+        rawResult.totalProduction ??
+          rawResult.total_production,
+        "총 증기생산량"
+      );
+
+
+    const salesRate =
+      requireNumber(
+        rawResult.salesRate ??
+          rawResult.sales_rate,
+        "증기 판매율"
+      );
+
+
+    const sludgeTruckCount =
+      requireNumber(
+        rawResult.sludgeTruckCount,
+        "하수슬러지 입고 차량"
+      );
+
+
+    const sludgeTotal =
+      requireNumber(
+        rawResult.sludgeTotal,
+        "하수슬러지 총 입고량"
+      );
+
+
+    const organicDaySilo =
+      requireNumber(
+        rawResult.organicDaySilo ??
+          rawResult.organicDaySiloLevel,
+        "유기성 Day Silo"
+      );
+
+
+    const organicStorageSiloA =
+      requireNumber(
+        rawResult.organicStorageSiloA ??
+          rawResult.organicStorageSiloALevel,
+        "유기성 Storage Silo A"
+      );
+
+
+    const organicStorageSiloB =
+      requireNumber(
+        rawResult.organicStorageSiloB ??
+          rawResult.organicStorageSiloBLevel,
+        "유기성 Storage Silo B"
+      );
+
+
+    const organicSiloTotal =
+      requireNumber(
+        rawResult.organicSiloTotal,
+        "유기성 사일로 총 재고량"
+      );
+
+
+    const sourceDate =
+      normalizeText(
+        rawResult.sourceDate ||
+        rawResult.targetDate ||
+        requestItem.targetDate
+      );
+
+
+    if (
+      sourceDate &&
+      sourceDate !==
+        expectedDate
+    ) {
+      throw new Error(
+        [
+          "월간 일일DATA 조회 날짜가 다릅니다.",
+          `요청일: ${expectedDate}`,
+          `조회 결과: ${sourceDate}`
+        ].join(
+          " "
+        )
+      );
+    }
+
+
+    const calculatedSteamSales =
+      roundNumber(
+        steamSalesLowPressure +
+        steamSalesHighPressure
+      );
+
+
+    const calculatedTotalProduction =
+      roundNumber(
+        unitOneProduction +
+        unitTwoProduction
+      );
+
+
+    const calculatedAverageSteamSales =
+      roundNumber(
+        steamSales /
+        24
+      );
+
+
+    const calculatedSalesRate =
+      totalProduction >
+        0
+        ? roundNumber(
+            steamSales /
+            totalProduction *
+            100
+          )
+        : null;
+
+
+    if (
+      Math.abs(
+        calculatedSteamSales -
+        steamSales
+      ) >
+        0.001 ||
+      Math.abs(
+        calculatedTotalProduction -
+        totalProduction
+      ) >
+        0.001 ||
+      Math.abs(
+        calculatedAverageSteamSales -
+        averageSteamSales
+      ) >
+        0.001 ||
+      calculatedSalesRate ===
+        null ||
+      Math.abs(
+        calculatedSalesRate -
+        salesRate
+      ) >
+        0.001
+    ) {
+      throw new Error(
+        "증기 생산·판매 계산값이 월간 일일DATA 결과와 일치하지 않습니다."
+      );
+    }
+
+
+    const sludgeEntries =
+      Array.isArray(
+        rawResult.sludgeEntries
+      )
+        ? rawResult.sludgeEntries
+            .slice(
+              0,
+              10
+            )
+            .map(
+              (
+                item,
+                index
+              ) => {
+                const rawAmount =
+                  item?.amount;
+
+
+                return {
+                  sequence:
+                    index +
+                    1,
+
+                  amount:
+                    rawAmount ===
+                        null ||
+                      rawAmount ===
+                        undefined ||
+                      normalizeText(
+                        rawAmount
+                      ) ===
+                        ""
+                      ? null
+                      : requireNumber(
+                          rawAmount,
+                          `${index + 1}번째 하수슬러지 입고량`
+                        ),
+
+                  cell:
+                    normalizeText(
+                      item?.cell
+                    )
+                };
+              }
+            )
+        : [];
+
+
+    while (
+      sludgeEntries.length <
+        10
+    ) {
+      sludgeEntries.push({
+        sequence:
+          sludgeEntries.length +
+          1,
+
+        amount:
+          null,
+
+        cell:
+          ""
+      });
+    }
+
+
+    const calculatedSludgeTruckCount =
+      sludgeEntries.filter(
+        item => {
+          return Number.isFinite(
+            item.amount
+          ) &&
+            item.amount >
+              0;
+        }
+      ).length;
+
+
+    const calculatedSludgeTotal =
+      roundNumber(
+        sludgeEntries.reduce(
+          (
+            sum,
+            item
+          ) => {
+            return sum +
+              (
+                Number.isFinite(
+                  item.amount
+                )
+                  ? item.amount
+                  : 0
+              );
+          },
+          0
+        )
+      );
+
+
+    if (
+      sludgeTruckCount !==
+        calculatedSludgeTruckCount ||
+      Math.abs(
+        sludgeTotal -
+        calculatedSludgeTotal
+      ) >
+        0.001
+    ) {
+      throw new Error(
+        "하수슬러지 입고 차량 수 또는 총 입고량이 상세내역과 일치하지 않습니다."
+      );
+    }
+
+
+    const calculatedOrganicSiloTotal =
+      roundNumber(
+        organicDaySilo +
+        organicStorageSiloA +
+        organicStorageSiloB,
+        6
+      );
+
+
+    if (
+      Math.abs(
+        calculatedOrganicSiloTotal -
+        organicSiloTotal
+      ) >
+        0.00001
+    ) {
+      throw new Error(
+        "유기성 사일로 3개 값과 총 재고량이 일치하지 않습니다."
+      );
+    }
+
+
+    return {
+      ...rawResult,
+
+      schemaVersion:
+        2,
+
+      source:
+        normalizeText(
+          rawResult.source
+        ) ||
+        "월간 일일DATA관리 Excel",
+
+      targetDate:
+        expectedDate,
+
+      sourceDate:
+        sourceDate ||
+        expectedDate,
+
+      outputInterval:
+        normalizeText(
+          rawResult.outputInterval
+        ) ||
+        "대상일 일일값",
+
+      hourRange:
+        normalizeText(
+          rawResult.hourRange
+        ) ||
+        "00:00~24:00",
+
+      hourCount:
+        normalizeNumber(
+          rawResult.hourCount
+        ) ??
+        24,
+
+      generatorEcmsGen1,
+      ismartReception,
+      electricityReceived:
+        ismartReception,
+      epowerTransmission,
+      electricityTransmitted:
+        epowerTransmission,
+      solarDailyGeneration,
+      solarDaily:
+        solarDailyGeneration,
+      steamSalesLowPressure,
+      steamSalesHighPressure,
+      steamSales,
+      averageSteamSales,
+      unitOneProduction,
+      unitTwoProduction,
+      totalProduction,
+      salesRate,
+      sludgeEntries,
+      sludgeTruckCount,
+      sludgeTotal,
+      organicDaySilo,
+      organicDaySiloLevel:
+        organicDaySilo,
+      organicStorageSiloA,
+      organicStorageSiloALevel:
+        organicStorageSiloA,
+      organicStorageSiloB,
+      organicStorageSiloBLevel:
+        organicStorageSiloB,
+      organicSiloTotal,
+
+      collectedAt:
+        normalizeText(
+          rawResult.collectedAt ||
+          requestItem.completedAt
+        ),
+
+      agentId:
+        normalizeText(
+          requestItem.agentId
+        )
+    };
+  }
+
+
+  /* =====================================================
+    완료 결과를 공용 상태와 화면에 반영
+  ====================================================== */
+
+
+  function applySteamStatusResult(
+    requestItem,
+    expectedDate
+  ) {
+    const result =
+      normalizeSteamStatusResult(
+        requestItem,
+        expectedDate
+      );
+
+
+    const state =
+      getState();
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    state.steamStatus = {
+      ...result,
+
+      requestId:
+        normalizeText(
+          requestItem.id
+        )
+    };
+
+
+    delete state
+      .steamStatusError;
+
+
+    if (
+      panel
+    ) {
+      panel.dataset
+        .steamStatusStatus =
+        "complete";
+
+
+      panel.dataset
+        .steamStatusTargetDate =
+        expectedDate;
+
+
+      panel.dataset
+        .steamStatusRequestId =
+        normalizeText(
+          requestItem.id
+        );
+
+
+      panel.dataset
+        .steamStatusCollectedAt =
+        result.collectedAt;
+
+
+      panel.dataset
+        .steamStatusAgentId =
+        result.agentId;
+    }
+
+
+    console.log(
+      "오전회의 일일 DATA 조회 완료:",
+      state.steamStatus
+    );
+
+
+    document.dispatchEvent(
+      new CustomEvent(
+        "efficiencyMorningMeetingSteamStatusLoaded",
+        {
+          detail: {
+            ...result,
+
+            targetDate:
+              expectedDate
+          }
+        }
+      )
+    );
+
+
+    renderSteamStatus();
+
+
+    return result;
+  }
+
+  /* =====================================================
+    일일 DATA 초기화
+  ====================================================== */
+
+  function resetSteamStatus(
+    options =
+      {}
+  ) {
+    const {
+      keepTargetDate =
+        false
+    } =
+      options;
+
+
+    activeRunToken +=
+      1;
+
+
+    const state =
+      getState();
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    delete state
+      .steamStatus;
+
+
+    delete state
+      .steamStatusError;
+
+
+    if (
+      panel
+    ) {
+      delete panel.dataset
+        .steamStatusStatus;
+
+
+      delete panel.dataset
+        .steamStatusRequestId;
+
+
+      delete panel.dataset
+        .steamStatusCollectedAt;
+
+
+      delete panel.dataset
+        .steamStatusAgentId;
+
+
+      if (
+        !keepTargetDate
+      ) {
+        delete panel.dataset
+          .steamStatusTargetDate;
+      }
+    }
+
+
+    renderSteamStatus();
+  }
+
+
+  /* =====================================================
+    공용 기준일과 일일 DATA 조회일 동기화
+  ====================================================== */
+
+  function synchronizeTargetDate() {
+    const targetDate =
+      resolveTargetDate();
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    const state =
+      getState();
+
+
+    const previousDate =
+      normalizeText(
+        state.steamStatus
+          ?.sourceDate ||
+        state.steamStatus
+          ?.targetDate ||
+        panel?.dataset
+          .steamStatusTargetDate
+      );
+
+
+    if (
+      previousDate &&
+      targetDate &&
+      previousDate !==
+        targetDate
+    ) {
+      resetSteamStatus({
+        keepTargetDate:
+          true
+      });
+    }
+
+
+    if (
+      panel
+    ) {
+      if (
+        targetDate
+      ) {
+        panel.dataset
+          .steamStatusTargetDate =
+          targetDate;
+
+      } else {
+        delete panel.dataset
+          .steamStatusTargetDate;
+      }
+    }
+
+
+    renderSteamStatus();
+
+
+    return targetDate;
+  }
+
+
+  /* =====================================================
+    일일 DATA 실제 조회
+
+    forceRefresh false:
+    저장된 D1 완료 요청을 우선 복원
+
+    forceRefresh true:
+    사용자가 버튼을 눌러 회사 PC 신규 조회
+  ====================================================== */
+
+  async function loadSteamStatus(
+    options =
+      {}
+  ) {
+    const {
+      forceRefresh =
+        false
+    } =
+      options;
+
+
+    const targetDate =
+      synchronizeTargetDate();
+
+
+    if (
+      !targetDate
+    ) {
+      console.warn(
+        "일일 DATA 조회 기준일을 확인하지 못했습니다."
+      );
+
+
+      return null;
+    }
+
+
+    const state =
+      getState();
+
+
+    const existingDate =
+      normalizeText(
+        state.steamStatus
+          ?.sourceDate ||
+        state.steamStatus
+          ?.targetDate
+      );
+
+
+    const hasExistingValues =
+      isCompleteDailyDataResult(
+        state.steamStatus
+      );
+
+
+    /*
+      현재 날짜의 정상 값이 이미 있으면
+      중복 요청하지 않는다.
+    */
+
+    if (
+      forceRefresh !==
+        true &&
+      existingDate ===
+        targetDate &&
+      hasExistingValues
+    ) {
+      renderSteamStatus();
+
+
+      return state
+        .steamStatus;
+    }
+
+
+    const runToken =
+      activeRunToken +
+      1;
+
+
+    activeRunToken =
+      runToken;
+
+
+    delete state
+      .steamStatus;
+
+
+    delete state
+      .steamStatusError;
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    if (
+      panel
+    ) {
+      panel.dataset
+        .steamStatusStatus =
+        "loading";
+
+
+      panel.dataset
+        .steamStatusTargetDate =
+        targetDate;
+
+
+      delete panel.dataset
+        .steamStatusRequestId;
+
+
+      delete panel.dataset
+        .steamStatusCollectedAt;
+
+
+      delete panel.dataset
+        .steamStatusAgentId;
+    }
+
+
+    renderSteamStatus();
+
+
+    try {
+      /*
+        1. 요청 생성
+      */
+
+      const createResult =
+        await createSteamStatusRequest(
+          targetDate,
+          {
+            forceRefresh
+          }
+        );
+
+
+      const requestItem =
+        createResult.item;
+
+
+      if (
+        !requestItem?.id
+      ) {
+        throw new Error(
+          "생성된 일일 DATA 요청 ID를 확인할 수 없습니다."
+        );
+      }
+
+
+      if (
+        runToken !==
+        activeRunToken
+      ) {
+        return null;
+      }
+
+
+      /*
+        2. 요청 ID와 현재 상태 저장
+      */
+
+      if (
+        panel
+      ) {
+        panel.dataset
+          .steamStatusRequestId =
+          normalizeText(
+            requestItem.id
+          );
+
+
+        panel.dataset
+          .steamStatusTargetDate =
+          targetDate;
+
+
+        panel.dataset
+          .steamStatusStatus =
+          normalizeText(
+            requestItem.status
+          ).toLowerCase() ||
+          "loading";
+
+
+        if (
+          requestItem.agentId
+        ) {
+          panel.dataset
+            .steamStatusAgentId =
+            normalizeText(
+              requestItem.agentId
+            );
+        }
+      }
+
+
+      renderSteamStatus();
+
+
+      /*
+        3. 저장된 완료 요청이면 바로 사용
+      */
+
+      let completedItem =
+        requestItem;
+
+
+      if (
+        normalizeText(
+          requestItem.status
+        ).toLowerCase() !==
+        "complete"
+      ) {
+        /*
+          4. 미완료 상태면 회사 PC 처리 대기
+        */
+
+        completedItem =
+          await waitForCompletion(
+            normalizeText(
+              requestItem.id
+            ),
+            targetDate,
+            runToken
+          );
+      }
+
+
+      if (
+        !completedItem ||
+        runToken !==
+          activeRunToken
+      ) {
+        return null;
+      }
+
+
+      /*
+        5. 완료 결과 반영
+      */
+
+      return applySteamStatusResult(
+        completedItem,
+        targetDate
+      );
+
+    } catch (
+      error
+    ) {
+      if (
+        runToken !==
+        activeRunToken
+      ) {
+        return null;
+      }
+
+
+      const errorMessage =
+        error instanceof
+          Error
+          ? error.message
+          : "월간 일일DATA Excel 자료를 불러오지 못했습니다.";
+
+
+      state.steamStatusError =
+        errorMessage;
+
+
+      if (
+        panel
+      ) {
+        panel.dataset
+          .steamStatusStatus =
+          "error";
+      }
+
+
+      console.error(
+        "오전회의 일일 DATA 조회 실패:",
+        error
+      );
+
+
+      renderSteamStatus();
+
+
+      /*
+        일일 DATA 조회 실패는
+        오전회의 엑셀 생성을 막지 않는다.
+      */
+
+      return null;
+    }
+  }
+
+  /* =====================================================
+    공용 날짜 이동 후 저장값 복원·신규 조회
+
+    전날·오늘·다음날 버튼을 눌렀을 때만 실행한다.
+
+    페이지를 처음 열거나 교대파트를 불러왔다는
+    이유만으로 회사 PC 신규 요청을 만들지는 않는다.
+  ====================================================== */
+
+  function scheduleAutomaticLoad() {
+    if (
+      autoLoadTimerId !==
+      null
+    ) {
+      window.clearTimeout(
+        autoLoadTimerId
+      );
+    }
+
+
+    autoLoadTimerId =
+      window.setTimeout(
+        () => {
+          autoLoadTimerId =
+            null;
+
+
+          const targetDate =
+            synchronizeTargetDate();
+
+
+          if (
+            !targetDate
+          ) {
+            return;
+          }
+
+
+          const state =
+            getState();
+
+
+          const {
+            panel
+          } =
+            getElements();
+
+
+          const resultDate =
+            normalizeText(
+              state.steamStatus
+                ?.sourceDate ||
+              state.steamStatus
+                ?.targetDate
+            );
+
+
+          const requestDate =
+            normalizeText(
+              panel?.dataset
+                .steamStatusTargetDate
+            );
+
+
+          const requestStatus =
+            normalizeText(
+              panel?.dataset
+                .steamStatusStatus
+            ).toLowerCase();
+
+
+          const hasCompleteValues =
+            isCompleteDailyDataResult(
+              state.steamStatus
+            );
+
+
+          /*
+            선택한 날짜와 동일한 일일 DATA 전체 값이
+            복원되어 있으면 신규 요청하지 않는다.
+          */
+
+          if (
+            resultDate ===
+              targetDate &&
+            hasCompleteValues
+          ) {
+            renderSteamStatus();
+
+
+            return;
+          }
+
+
+          /*
+            같은 날짜의 요청이 이미 처리 중이면
+            중복 요청하지 않는다.
+          */
+
+          if (
+            requestDate ===
+              targetDate &&
+            [
+              "loading",
+              "pending",
+              "processing"
+            ].includes(
+              requestStatus
+            )
+          ) {
+            return;
+          }
+
+
+          void loadSteamStatus({
+            forceRefresh:
+              false
+          });
+        },
+        300
+      );
+  }
+
+  /* =====================================================
+    이벤트 연결
+  ====================================================== */
+
+  function bindEvents() {
+    const elements =
+      getElements();
+
+
+    if (
+      !elements.panel ||
+      !elements.loadButton ||
+      !elements.card ||
+      elements.loadButton
+        .dataset
+        .steamStatusOisBound ===
+        "true"
+    ) {
+      return false;
+    }
+
+
+    /*
+      자동 수치 불러오기 버튼
+
+      사용자가 직접 누른 경우에는
+      회사 PC의 열린 월간 Excel에서 새로 조회한다.
+    */
+
+    elements.loadButton.addEventListener(
+      "click",
+      () => {
+        void loadSteamStatus({
+          forceRefresh:
+            true
+        });
+      }
+    );
+
+
+    /*
+      전체 초기화
+    */
+
+    elements.resetButton
+      ?.addEventListener(
+        "click",
+        () => {
+          resetSteamStatus();
+        }
+      );
+
+
+    /*
+      전날·오늘·다음날 이동 시
+      D1 저장값을 먼저 확인한다.
+    */
+
+    [
+      elements.previousButton,
+      elements.todayButton,
+      elements.nextButton
+    ]
+      .filter(
+        Boolean
+      )
+      .forEach(
+        button => {
+          button.addEventListener(
+            "click",
+            () => {
+              window.setTimeout(
+                scheduleAutomaticLoad,
+                0
+              );
+            }
+          );
+        }
+      );
+
+
+    document.addEventListener(
+      "efficiencyMorningMeetingSteamStatusLoaded",
+      scheduleRender
+    );
+
+
+    /*
+      공용 기준일 변경 감지
+
+      날짜만 동기화하며,
+      여기서는 신규 요청을 자동 생성하지 않는다.
+    */
+
+    const panelObserver =
+      new MutationObserver(
+        mutations => {
+          const baseDateChanged =
+            mutations.some(
+              mutation => {
+                return (
+                  mutation.type ===
+                    "attributes" &&
+                  mutation.attributeName ===
+                    "data-morning-meeting-auto-base-date"
+                );
+              }
+            );
+
+
+          if (
+            baseDateChanged
+          ) {
+            synchronizeTargetDate();
+
+            scheduleRender();
+          }
+        }
+      );
+
+
+    panelObserver.observe(
+      elements.panel,
+      {
+        attributes:
+          true,
+
+        attributeFilter: [
+          "data-morning-meeting-auto-base-date"
+        ]
+      }
+    );
+
+
+    elements.loadButton.dataset
+      .steamStatusOisBound =
+      "true";
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initialize() {
+    if (
+      !bindEvents()
+    ) {
+      initializationAttempt +=
+        1;
+
+
+      if (
+        initializationAttempt <
+        80
+      ) {
+        window.setTimeout(
+          initialize,
+          250
+        );
+      }
+
+
+      return;
+    }
+
+
+    synchronizeTargetDate();
+
+    scheduleRender();
+  }
+
+
+  /* =====================================================
+    외부 사용
+  ====================================================== */
+
+  window
+    .loadEfficiencyMorningMeetingSteamStatus =
+    loadSteamStatus;
+
+
+  window
+    .resetEfficiencyMorningMeetingSteamStatus =
+    resetSteamStatus;
+
+
+  window
+    .renderEfficiencyMorningMeetingSteamStatus =
+    renderSteamStatus;
+
+
+  window
+    .loadEfficiencyMorningMeetingDailyData =
+    loadSteamStatus;
+
+
+  window
+    .resetEfficiencyMorningMeetingDailyData =
+    resetSteamStatus;
+
+
+  window
+    .renderEfficiencyMorningMeetingDailyData =
+    renderSteamStatus;
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();

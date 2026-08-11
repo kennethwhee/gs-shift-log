@@ -1,0 +1,1112 @@
+diff --git a/functions/api/limestone-receipts.js b/functions/api/limestone-receipts.js
+index 42a5529..9e01ed0 100644
+--- a/functions/api/limestone-receipts.js
++++ b/functions/api/limestone-receipts.js
+@@ -16,8 +16,7 @@
+   권한:
+   - 모든 로그인 사용자 조회 가능
+   - 모든 로그인 사용자 신규 등록 가능
+-  - 작성자는 본인 기록 수정·삭제 가능
+-  - 관리자·최고관리자는 전체 수정·삭제 가능
++  - 모든 로그인 사용자 수정·삭제 가능
+ 
+   집계:
+   - 전체 입고량
+@@ -845,24 +844,18 @@ async function findReceiptById(
+ /* =========================================================
+   수정·삭제 권한
+ 
+-  - 작성자 본인
+-  - 관리자
+-  - 최고관리자
++  - 모든 로그인 사용자
++  - 실제 로그인 세션은 각 PUT·DELETE 시작에서 검증
+ ========================================================= */
+ 
+ function canManageReceipt(
+   receipt,
+   user
+ ) {
+-  return (
+-    user.isAdmin ===
+-      true ||
++  return Boolean(
+     normalizeEmployeeNo(
+-      receipt.createdById
+-    ) ===
+-      normalizeEmployeeNo(
+-        user.employeeNo
+-      )
++      user?.employeeNo
++    )
+   );
+ }
+ 
+@@ -2860,7 +2853,7 @@ export async function onRequestPut(
+             false,
+ 
+           message:
+-            "본인이 등록한 기록만 수정할 수 있습니다."
++            "로그인한 사용자만 기록을 수정할 수 있습니다."
+         },
+         403
+       );
+@@ -3171,7 +3164,7 @@ export async function onRequestDelete(
+             false,
+ 
+           message:
+-            "본인이 등록한 기록만 삭제할 수 있습니다."
++            "로그인한 사용자만 기록을 삭제할 수 있습니다."
+         },
+         403
+       );
+@@ -3296,4 +3289,4 @@ export async function onRequestDelete(
+       500
+     );
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/index.html b/index.html
+index e664fa4..28bdaa7 100644
+--- a/index.html
++++ b/index.html
+@@ -23,7 +23,7 @@
+   ====================================================== -->
+   <link
+     rel="stylesheet"
+-    href="style.css?v=20260811-limestone-manual-entry1"
++    href="style.css?v=20260811-limestone-mobile-monitor2"
+   >
+ 
+ 
+@@ -57,7 +57,7 @@
+   기존 업무일지 JavaScript
+ ====================================================== -->
+ <script
+-  src="script.js?v=20260811-limestone-manual-entry1"
++  src="script.js?v=20260811-limestone-mobile-monitor2"
+   defer
+ ></script>
+ 
+diff --git a/script.js b/script.js
+index dc2626f..a0de553 100644
+--- a/script.js
++++ b/script.js
+@@ -1,5 +1,22 @@
+ "use strict";
+ 
++/* =========================================================
++  석회석 사용량 모바일 모니터링 모드
++
++  모바일:
++  - 저장된 사용량 조회만 허용
++  - 재고 입력, OIS 실행, 기간 계산·저장 실행 차단
++
++  PC:
++  - 기존 관리 기능 그대로 유지
++========================================================= */
++
++function isLimestoneUsageMobileMonitorMode() {
++  return window.matchMedia(
++    "(max-width: 768px)"
++  ).matches;
++}
++
+ /* =========================================================
+   석회석 사용량 계산 소메뉴 최종본
+ 
+@@ -66,7 +83,13 @@
+     },
+ 
+     isLoading:
+-      false
++      false,
++
++    receiptRequestToken:
++      0,
++
++    dateRequestToken:
++      0
+   };
+ 
+ 
+@@ -753,14 +776,6 @@ function formatLimestoneUsageNumber(
+   ====================================================== */
+ 
+   async function loadLimestoneUsageReceiptQuantities() {
+-    if (
+-      limestoneUsageState
+-        .isLoading
+-    ) {
+-      return;
+-    }
+-
+-
+     const {
+       refreshReceiptButton,
+       dateInput
+@@ -793,6 +808,17 @@ function formatLimestoneUsageNumber(
+     }
+ 
+ 
++    const requestToken =
++      limestoneUsageState
++        .receiptRequestToken +
++      1;
++
++
++    limestoneUsageState
++      .receiptRequestToken =
++      requestToken;
++
++
+     limestoneUsageState
+       .selectedDate =
+       selectedDate;
+@@ -983,6 +1009,23 @@ function formatLimestoneUsageNumber(
+       );
+ 
+ 
++      if (
++        requestToken !==
++          limestoneUsageState
++            .receiptRequestToken ||
++        selectedDate !==
++          limestoneUsageState
++            .selectedDate ||
++        selectedDate !==
++          String(
++            dateInput?.value ||
++            ""
++          ).trim()
++      ) {
++        return;
++      }
++
++
+       limestoneUsageState
+         .receiptByUnit = {
+           1:
+@@ -1044,6 +1087,23 @@ function formatLimestoneUsageNumber(
+     } catch (
+       error
+     ) {
++      if (
++        requestToken !==
++          limestoneUsageState
++            .receiptRequestToken ||
++        selectedDate !==
++          limestoneUsageState
++            .selectedDate ||
++        selectedDate !==
++          String(
++            dateInput?.value ||
++            ""
++          ).trim()
++      ) {
++        return;
++      }
++
++
+       console.error(
+         "석회석 사용량용 입고량 조회 실패:",
+         error
+@@ -1071,20 +1131,26 @@ function formatLimestoneUsageNumber(
+       );
+ 
+     } finally {
+-      limestoneUsageState
+-        .isLoading =
+-        false;
+-
+-
+       if (
+-        refreshReceiptButton
++        requestToken ===
++          limestoneUsageState
++            .receiptRequestToken
+       ) {
+-        refreshReceiptButton.disabled =
++        limestoneUsageState
++          .isLoading =
+           false;
+ 
+ 
+-        refreshReceiptButton.textContent =
+-          "입고량 새로고침";
++        if (
++          refreshReceiptButton
++        ) {
++          refreshReceiptButton.disabled =
++            false;
++
++
++          refreshReceiptButton.textContent =
++            "입고량 새로고침";
++        }
+       }
+     }
+   }
+@@ -1113,6 +1179,13 @@ function formatLimestoneUsageNumber(
+     if (
+       !parsedDate
+     ) {
++      setLimestoneUsageStatus(
++        "error",
++        "날짜 확인 필요",
++        "사용량을 조회할 날짜를 선택해 주세요."
++      );
++
++
+       return;
+     }
+ 
+@@ -1123,6 +1196,17 @@ function formatLimestoneUsageNumber(
+       );
+ 
+ 
++    const dateRequestToken =
++      limestoneUsageState
++        .dateRequestToken +
++      1;
++
++
++    limestoneUsageState
++      .dateRequestToken =
++      dateRequestToken;
++
++
+     const {
+       dateInput,
+       unitOneStartStock,
+@@ -1191,6 +1275,18 @@ if (
+   await loadLimestoneUsageReceiptQuantities();
+ 
+ 
++  if (
++    dateRequestToken !==
++      limestoneUsageState
++        .dateRequestToken ||
++    normalizedDate !==
++      limestoneUsageState
++        .selectedDate
++  ) {
++    return;
++  }
++
++
+   /*
+     2. D1에 저장된 계산 결과가 있으면
+        시작·종료 재고와 사용량 자동 복원
+@@ -1205,7 +1301,22 @@ if (
+         normalizedDate,
+         {
+           silentWhenMissing:
+-            true
++            true,
++
++          requireActiveUsageDate:
++            true,
++
++          isCurrentUsageRequest:
++            () => {
++              return (
++                dateRequestToken ===
++                  limestoneUsageState
++                    .dateRequestToken &&
++                normalizedDate ===
++                  limestoneUsageState
++                    .selectedDate
++              );
++            }
+         }
+       );
+   }
+@@ -111782,8 +111893,14 @@ function setLimestoneLoading(
+   /* =====================================================
+     현재 사용자의 관리 권한
+ 
+-    화면에서 버튼을 숨기기 위한 보조 판정이다.
+-    실제 권한은 서버에서 다시 확인한다.
++    PC:
++    - 로그인한 모든 직원에게 수정·삭제 버튼 표시
++
++    모바일:
++    - CSS에서 수정·삭제 버튼 숨김
++
++    실제 로그인 여부와 수정·삭제 권한은
++    서버에서 다시 확인한다.
+   ====================================================== */
+ 
+   function canCurrentUserManageLimestoneReceipt(
+@@ -111803,65 +111920,7 @@ function setLimestoneLoading(
+     }
+ 
+ 
+-    const currentEmployeeNo =
+-      String(
+-        currentUser.employeeNo ||
+-        currentUser.employee_no ||
+-        currentUser.employeeId ||
+-        currentUser.employee_id ||
+-        ""
+-      ).trim();
+-
+-
+-    const createdEmployeeNo =
+-      String(
+-        receipt.createdById ||
+-        receipt.created_by_id ||
+-        ""
+-      ).trim();
+-
+-
+-    if (
+-      currentEmployeeNo &&
+-      currentEmployeeNo ===
+-        createdEmployeeNo
+-    ) {
+-      return true;
+-    }
+-
+-
+-    if (
+-      typeof isCurrentUserSuperAdmin ===
+-        "function" &&
+-      isCurrentUserSuperAdmin()
+-    ) {
+-      return true;
+-    }
+-
+-
+-    const role =
+-      String(
+-        currentUser.role ||
+-        currentUser.userRole ||
+-        currentUser.user_role ||
+-        ""
+-      )
+-        .trim()
+-        .toLowerCase()
+-        .replace(
+-          /[\s-]+/g,
+-          "_"
+-        );
+-
+-
+-    return [
+-      "admin",
+-      "leader",
+-      "super_admin",
+-      "superadmin"
+-    ].includes(
+-      role
+-    );
++    return true;
+   }
+ 
+ 
+@@ -171022,7 +171081,13 @@ async function loadSavedLimestoneUsageRecords(
+ ) {
+   const {
+     silentWhenMissing =
+-      false
++      false,
++
++    requireActiveUsageDate =
++      false,
++
++    isCurrentUsageRequest =
++      null
+   } =
+     options;
+ 
+@@ -171100,6 +171165,33 @@ async function loadSavedLimestoneUsageRecords(
+       : [];
+ 
+ 
++  const activeUsageDate =
++    String(
++      document.getElementById(
++        "limestoneUsageDate"
++      )?.value ||
++      ""
++    ).trim();
++
++
++  if (
++    typeof isCurrentUsageRequest ===
++      "function" &&
++    !isCurrentUsageRequest()
++  ) {
++    return false;
++  }
++
++
++  if (
++    requireActiveUsageDate &&
++    activeUsageDate !==
++      targetDate
++  ) {
++    return false;
++  }
++
++
+   const unitOne =
+     items.find(
+       item => {
+@@ -171823,6 +171915,13 @@ async function loadSavedLimestoneUsageRecords(
+   ====================================================== */
+ 
+   async function loadLimestoneOisStock() {
++    if (
++      isLimestoneUsageMobileMonitorMode()
++    ) {
++      return;
++    }
++
++
+     const {
+       dateInput,
+       loadButton
+@@ -181629,6 +181728,13 @@ async function pollLimestoneUsageBatch(
+   ====================================================== */
+ 
+   async function runLimestoneUsageBatch() {
++    if (
++      isLimestoneUsageMobileMonitorMode()
++    ) {
++      return;
++    }
++
++
+     const {
+       startDateInput,
+       endDateInput,
+@@ -183881,6 +183987,10 @@ async function restoreLimestoneUsageBatch() {
+     };
+ 
+ 
++    const isMobileMonitorMode =
++      isLimestoneUsageMobileMonitorMode();
++
++
+     if (
+       statusElement
+     ) {
+@@ -183900,10 +184010,15 @@ async function restoreLimestoneUsageBatch() {
+       descriptionElement
+     ) {
+       descriptionElement.textContent =
+-        startDate &&
+-        endDate
+-          ? `${startDate} ~ ${endDate} · 기간 계산 및 저장 결과`
+-          : "필요할 때 펼쳐 기간 계산과 저장 내역을 확인합니다.";
++        isMobileMonitorMode
++          ? startDate &&
++            endDate
++            ? `${startDate} ~ ${endDate} · 저장 결과 조회`
++            : "저장된 기간별 사용량을 조회합니다."
++          : startDate &&
++              endDate
++            ? `${startDate} ~ ${endDate} · 기간 계산 및 저장 결과`
++            : "필요할 때 펼쳐 기간 계산과 저장 내역을 확인합니다.";
+     }
+ 
+ 
+@@ -215673,3 +215788,417 @@ function initializeLimestoneSlipCameraPicker() {
+     initializeLimestoneSlipCameraPicker();
+   }
+ })();
++
++/* =========================================================
++  석회석 사용량 모바일 모니터링 전용 화면
++
++  유지:
++  - 날짜 이동·선택
++  - 입고량 새로고침
++  - 저장된 일일·기간 사용량 조회
++
++  제한:
++  - 시작·종료 재고 직접 입력
++  - OIS 조회 요청
++  - 기간 전체 계산 및 저장
++========================================================= */
++
++(function installLimestoneUsageMobileMonitorOnlyMode() {
++  if (
++    window
++      .__limestoneUsageMobileMonitorOnlyModeInstalled ===
++      true
++  ) {
++    return;
++  }
++
++
++  window
++    .__limestoneUsageMobileMonitorOnlyModeInstalled =
++    true;
++
++
++  const mobileMediaQuery =
++    window.matchMedia(
++      "(max-width: 768px)"
++    );
++
++
++  let mobileMediaQueryBound =
++    false;
++
++
++  const stockInputIds = [
++    "limestoneUsageUnitOneStartStock",
++    "limestoneUsageUnitOneEndStock",
++    "limestoneUsageUnitTwoStartStock",
++    "limestoneUsageUnitTwoEndStock"
++  ];
++
++
++  function rememberLimestoneMonitorText(
++    element
++  ) {
++    if (
++      !element ||
++      Object.prototype.hasOwnProperty.call(
++        element.dataset,
++        "limestoneMonitorOriginalText"
++      )
++    ) {
++      return;
++    }
++
++
++    element.dataset
++      .limestoneMonitorOriginalText =
++      String(
++        element.textContent ||
++        ""
++      ).trim();
++  }
++
++
++  function setLimestoneMonitorText(
++    element,
++    mobileText,
++    isMobileMonitorMode
++  ) {
++    if (
++      !element
++    ) {
++      return;
++    }
++
++
++    rememberLimestoneMonitorText(
++      element
++    );
++
++
++    const nextText =
++      isMobileMonitorMode
++        ? mobileText
++        : element.dataset
++            .limestoneMonitorOriginalText ||
++          "";
++
++
++    if (
++      String(
++        element.textContent ||
++        ""
++      ).trim() !==
++      nextText
++    ) {
++      element.textContent =
++        nextText;
++    }
++  }
++
++
++  function applyLimestoneUsageMobileMonitorOnlyMode() {
++    const usageView =
++      document.getElementById(
++        "limestoneUsageCalculatorView"
++      );
++
++
++    if (
++      !usageView
++    ) {
++      return;
++    }
++
++
++    const isMobileMonitorMode =
++      mobileMediaQuery.matches;
++
++
++    usageView.classList.toggle(
++      "is-mobile-monitor-only",
++      isMobileMonitorMode
++    );
++
++
++    usageView.dataset
++      .limestoneMobileMode =
++      isMobileMonitorMode
++        ? "monitor"
++        : "manage";
++
++
++    stockInputIds.forEach(
++      inputId => {
++        const input =
++          document.getElementById(
++            inputId
++          );
++
++
++        if (
++          !(input instanceof
++            HTMLInputElement)
++        ) {
++          return;
++        }
++
++
++        if (
++          !Object.prototype.hasOwnProperty.call(
++            input.dataset,
++            "limestoneMonitorOriginalPlaceholder"
++          )
++        ) {
++          input.dataset
++            .limestoneMonitorOriginalPlaceholder =
++            input.getAttribute(
++              "placeholder"
++            ) ||
++            "";
++        }
++
++
++        input.readOnly =
++          isMobileMonitorMode;
++
++
++        if (
++          isMobileMonitorMode
++        ) {
++          input.setAttribute(
++            "aria-readonly",
++            "true"
++          );
++
++
++          input.setAttribute(
++            "tabindex",
++            "-1"
++          );
++
++
++          input.placeholder =
++            "-";
++
++        } else {
++          input.removeAttribute(
++            "aria-readonly"
++          );
++
++
++          input.removeAttribute(
++            "tabindex"
++          );
++
++
++          input.placeholder =
++            input.dataset
++              .limestoneMonitorOriginalPlaceholder ||
++            "";
++        }
++      }
++    );
++
++
++    setLimestoneMonitorText(
++      usageView.querySelector(
++        ".limestone-usage-ois-help"
++      ),
++      "모바일에서는 저장된 사용량을 조회만 할 수 있습니다. OIS 조회·재고 입력·기간 계산 및 저장은 PC에서 진행합니다.",
++      isMobileMonitorMode
++    );
++
++
++    const batchHeader =
++      document.querySelector(
++        "#limestoneUsageBatchPanel .limestone-usage-batch-header"
++      );
++
++
++    setLimestoneMonitorText(
++      batchHeader?.querySelector(
++        "span"
++      ),
++      "PERIOD HISTORY FILTER",
++      isMobileMonitorMode
++    );
++
++
++    setLimestoneMonitorText(
++      batchHeader?.querySelector(
++        "h4"
++      ),
++      "조회 기간 선택",
++      isMobileMonitorMode
++    );
++
++
++    setLimestoneMonitorText(
++      batchHeader?.querySelector(
++        "p"
++      ),
++      "저장된 기간별 사용량을 조회할 날짜 범위입니다.",
++      isMobileMonitorMode
++    );
++
++
++    const periodTitle =
++      document.querySelector(
++        "#limestoneUsagePeriodAccordion .limestone-usage-period-toggle__title"
++      );
++
++
++    setLimestoneMonitorText(
++      periodTitle?.querySelector(
++        "span"
++      ),
++      "PERIOD HISTORY",
++      isMobileMonitorMode
++    );
++
++
++    setLimestoneMonitorText(
++      periodTitle?.querySelector(
++        "strong"
++      ),
++      "기간 사용량 내역",
++      isMobileMonitorMode
++    );
++
++
++    const periodDescription =
++      document.getElementById(
++        "limestoneUsagePeriodDescription"
++      );
++
++
++    const periodStartDate =
++      String(
++        document.getElementById(
++          "limestoneUsageBatchStartDate"
++        )?.value ||
++        ""
++      ).trim();
++
++
++    const periodEndDate =
++      String(
++        document.getElementById(
++          "limestoneUsageBatchEndDate"
++        )?.value ||
++        ""
++      ).trim();
++
++
++    if (
++      periodDescription
++    ) {
++      const nextPeriodDescription =
++        isMobileMonitorMode
++          ? periodStartDate &&
++            periodEndDate
++            ? `${periodStartDate} ~ ${periodEndDate} · 저장 결과 조회`
++            : "저장된 기간별 사용량을 조회합니다."
++          : periodStartDate &&
++              periodEndDate
++            ? `${periodStartDate} ~ ${periodEndDate} · 기간 계산 및 저장 결과`
++            : "필요할 때 펼쳐 기간 계산과 저장 내역을 확인합니다.";
++
++
++      if (
++        String(
++          periodDescription.textContent ||
++          ""
++        ).trim() !==
++        nextPeriodDescription
++      ) {
++        periodDescription.textContent =
++          nextPeriodDescription;
++      }
++    }
++  }
++
++
++  function initializeLimestoneUsageMobileMonitorOnlyMode() {
++    applyLimestoneUsageMobileMonitorOnlyMode();
++
++
++    const limestoneView =
++      document.getElementById(
++        "efficiencyLimestoneView"
++      );
++
++
++    if (
++      limestoneView &&
++      limestoneView.dataset
++        .limestoneMobileMonitorObserved !==
++        "true"
++    ) {
++      const observer =
++        new MutationObserver(
++          mutationList => {
++            if (
++              mutationList.some(
++                mutation =>
++                  mutation.type ===
++                    "childList"
++              )
++            ) {
++              applyLimestoneUsageMobileMonitorOnlyMode();
++            }
++          }
++        );
++
++
++      observer.observe(
++        limestoneView,
++        {
++          childList:
++            true,
++
++          subtree:
++            true
++        }
++      );
++
++
++      limestoneView.dataset
++        .limestoneMobileMonitorObserved =
++        "true";
++    }
++
++
++    if (
++      !mobileMediaQueryBound
++    ) {
++      mobileMediaQuery.addEventListener(
++        "change",
++        applyLimestoneUsageMobileMonitorOnlyMode
++      );
++
++
++      mobileMediaQueryBound =
++        true;
++    }
++  }
++
++
++  if (
++    document.readyState ===
++      "loading"
++  ) {
++    document.addEventListener(
++      "DOMContentLoaded",
++      initializeLimestoneUsageMobileMonitorOnlyMode,
++      {
++        once:
++          true
++      }
++    );
++
++  } else {
++    initializeLimestoneUsageMobileMonitorOnlyMode();
++  }
++})();
+diff --git a/style.css b/style.css
+index 9546df2..659c2ce 100644
+--- a/style.css
++++ b/style.css
+@@ -98678,4 +98678,170 @@ body.is-limestone-manual-entry-open {
+       12px
+       9px;
+   }
+-}
+\ No newline at end of file
++}
++
++/* =========================================================
++  석회석 사용량 모바일 모니터링 전용 최종본
++
++  모바일 사용량 계산:
++  - 입고 현황 화면과 입력 도구가 섞여 보이지 않도록 hidden 보장
++  - 저장된 일일·기간 사용량 조회만 허용
++  - 재고 입력·OIS 실행·기간 계산 및 저장 실행 숨김
++
++  PC:
++  - 기존 기능과 디자인 유지
++========================================================= */
++
++@media screen and (max-width: 768px) {
++
++  /* =====================================================
++    하위 화면 hidden 상태 강제 보장
++
++    후반 모바일 display 규칙이 hidden을 덮어쓰지 못하게 한다.
++  ====================================================== */
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-heading-actions[hidden],
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  #limestoneDashboard[hidden],
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  #limestoneUsageCalculatorView[hidden] {
++    display: none !important;
++  }
++
++
++  /* =====================================================
++    사용량 계산의 쓰기 동작 숨김
++  ====================================================== */
++
++  #efficiencyTeamModal
++  #limestoneUsageCalculatorView
++  #loadLimestoneUsageOisButton,
++
++  #efficiencyTeamModal
++  #limestoneUsageCalculatorView
++  #runLimestoneUsageBatchButton,
++
++  #efficiencyTeamModal
++  #limestoneUsageCalculatorView
++  #limestoneUsageBatchStatusBadge,
++
++  #efficiencyTeamModal
++  #limestoneUsageCalculatorView
++  #limestoneUsagePeriodStatus {
++    display: none !important;
++  }
++
++
++  /* =====================================================
++    모바일 석회석 기록은 조회만 허용
++
++    PC에서는 모든 로그인 직원에게 표시하되,
++    모바일에서는 수정·삭제 동작을 숨긴다.
++  ====================================================== */
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-row-actions {
++    display: none !important;
++  }
++
++
++  /* =====================================================
++    시작·종료 재고를 일반 조회 수치처럼 표시
++  ====================================================== */
++
++  #efficiencyTeamModal
++  #limestoneUsageCalculatorView
++  .limestone-usage-number-input {
++    border-color: transparent !important;
++
++    background: transparent !important;
++
++    box-shadow: none !important;
++  }
++
++
++  #efficiencyTeamModal
++  #limestoneUsageCalculatorView
++  .limestone-usage-number-input
++  input[readonly] {
++    pointer-events: none !important;
++
++    cursor: default !important;
++
++    border: 0 !important;
++
++    outline: 0 !important;
++
++    background: transparent !important;
++
++    color: #314a65 !important;
++
++    box-shadow: none !important;
++
++    font-weight: 900 !important;
++
++    caret-color: transparent !important;
++
++    -webkit-text-fill-color: #314a65 !important;
++  }
++
++
++  #efficiencyTeamModal
++  #limestoneUsageCalculatorView
++  .limestone-usage-number-input
++  input[readonly]::placeholder {
++    color: #9aa6b4 !important;
++
++    opacity: 1 !important;
++
++    -webkit-text-fill-color: #9aa6b4 !important;
++  }
++
++
++  /* =====================================================
++    기간 필터는 조회용으로 유지
++  ====================================================== */
++
++  #efficiencyTeamModal
++  #limestoneUsageCalculatorView
++  .limestone-usage-batch-header {
++    min-height: 56px !important;
++  }
++
++
++  #efficiencyTeamModal
++  #limestoneUsageCalculatorView
++  .limestone-usage-batch-controls {
++    grid-template-columns:
++      minmax(0, 1fr)
++      auto
++      minmax(0, 1fr) !important;
++  }
++
++
++  #efficiencyTeamModal
++  #limestoneUsageCalculatorView
++  .limestone-usage-batch-presets {
++    grid-column: 1 / -1 !important;
++  }
++
++
++  #efficiencyTeamModal
++  #limestoneUsageCalculatorView
++  .limestone-usage-ois-help {
++    margin-top: 8px !important;
++
++    border-color: #d8e3ef !important;
++
++    background: #f7fafd !important;
++
++    color: #60748b !important;
++  }
++}
