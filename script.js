@@ -92234,8 +92234,8 @@ async function handleAuxiliaryMaterialExcelFileSelection(
 
 function prepareAuxiliaryMaterialPcCompactControls() {
   /*
-    모바일은 현재 만든
-    모니터링 전용 화면을 그대로 유지한다.
+    모바일은 모니터링 전용 레이아웃을
+    그대로 유지한다.
   */
   if (
     typeof isAuxiliaryMaterialMobileMonitorMode ===
@@ -92246,39 +92246,47 @@ function prepareAuxiliaryMaterialPcCompactControls() {
   }
 
 
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
   const view =
-    document.getElementById(
-      "efficiencyAuxiliaryMaterialsView"
-    );
-
-
-  const excelButton =
-    document.getElementById(
-      "importAuxiliaryMaterialExcelButton"
-    );
+    elements?.view;
 
 
   const queryButton =
-    getAuxiliaryMaterialElements()
-      ?.queryButton;
+    elements?.queryButton;
+
+
+  const excelButton =
+    elements?.excelImportButton;
+
+
+  const periodFields =
+    queryButton?.closest(
+      ".auxiliary-material-period-fields"
+    );
+
+
+  const densityPanel =
+    view?.querySelector(
+      ".auxiliary-material-density-setting"
+    );
 
 
   if (
     !view ||
+    !queryButton ||
     !excelButton ||
-    !queryButton
+    !periodFields ||
+    !densityPanel
   ) {
     return;
   }
 
 
   /*
-    OIS 조회 버튼과 같은 부모로 이동한다.
-
-    결과:
-    저장 자료 보기
-    OIS 조회 · D1 저장
-    엑셀 등록
+    OIS 버튼 뒤에 엑셀 등록 버튼 배치
   */
   queryButton.insertAdjacentElement(
     "afterend",
@@ -92293,6 +92301,46 @@ function prepareAuxiliaryMaterialPcCompactControls() {
 
   excelButton.textContent =
     "엑셀 등록";
+
+
+  /*
+    엑셀 등록 버튼 바로 오른쪽에
+    Slurry 밀도 설정 전체를 이동한다.
+
+    기존 input ID와 저장 이벤트는 그대로 유지하므로
+    기능 자체에는 영향이 없다.
+  */
+  if (
+    densityPanel.parentElement !==
+      periodFields
+  ) {
+    excelButton.insertAdjacentElement(
+      "afterend",
+      densityPanel
+    );
+  }
+
+
+  densityPanel.classList.add(
+    "auxiliary-material-density-setting--inline"
+  );
+
+
+  /*
+    PC 상단에서는 제목을 짧게 표시
+  */
+  const densityTitle =
+    densityPanel.querySelector(
+      ".auxiliary-material-density-setting__description > strong"
+    );
+
+
+  if (
+    densityTitle
+  ) {
+    densityTitle.textContent =
+      "Slurry 밀도";
+  }
 
 
   view.classList.add(

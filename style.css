@@ -95120,3 +95120,370 @@ body.is-auxiliary-material-expanded
   background: #176bc4 !important;
   color: #ffffff !important;
 }
+
+/* =========================================================
+  부재료 PC 최종 상단 통합
+
+  시작일 | 종료일 | 저장자료 | OIS | 엑셀 등록 |
+  Slurry 밀도 | 적용일 | 1호기 | 2호기 | 저장
+
+  기존 Slurry 독립 행 제거
+========================================================= */
+
+@media screen and (min-width: 1200px) {
+
+  /* =====================================================
+    설명 문구 완전 제거
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  > .auxiliary-material-heading
+  > div
+  > p {
+    display: none !important;
+
+    height: 0 !important;
+    min-height: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: hidden !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-heading {
+    margin-bottom: 3px !important;
+    padding-bottom: 3px !important;
+  }
+
+
+  /* =====================================================
+    시작일 ~ Slurry까지 한 줄
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields {
+    display: grid !important;
+
+    grid-template-columns:
+      155px
+      155px
+      auto
+      auto
+      auto
+      minmax(470px, 1fr) !important;
+
+    align-items: end !important;
+
+    gap: 5px !important;
+
+    width: 100% !important;
+  }
+
+
+  /* 시작일 / 종료일 */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields
+  > label {
+    width: 155px !important;
+    min-width: 155px !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields
+  > label
+  input[type="date"] {
+    width: 155px !important;
+    min-width: 155px !important;
+
+    height: 32px !important;
+    min-height: 32px !important;
+  }
+
+
+  /* =====================================================
+    상단으로 이동한 Slurry 영역
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 32px !important;
+
+    align-items: end !important;
+
+    gap: 7px !important;
+
+    margin: 0 !important;
+    padding: 0 0 0 8px !important;
+
+    border: 0 !important;
+    border-left: 1px solid #d8e2ee !important;
+    border-radius: 0 !important;
+
+    background: transparent !important;
+
+    box-shadow: none !important;
+  }
+
+
+  /* =====================================================
+    Slurry 제목
+
+    FIXED SLURRY DENSITY와 긴 설명은 숨기고
+    "Slurry 밀도"만 표시
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__description {
+    display: flex !important;
+
+    flex: 0 0 auto !important;
+
+    align-items: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__description
+  > span,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__description
+  > p {
+    display: none !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__description
+  > strong {
+    margin: 0 !important;
+
+    color: #34455c !important;
+
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    line-height: 32px !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    적용일 / 1호기 / 2호기 / 저장
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__fields {
+    display: flex !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+
+    flex: 0 0 auto !important;
+
+    align-items: end !important;
+
+    gap: 6px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__fields
+  > label {
+    display: flex !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+
+    flex: 0 0 auto !important;
+
+    align-items: center !important;
+
+    gap: 4px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  /* 라벨 */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__fields
+  > label
+  > span:first-child {
+    color: #66758a !important;
+
+    font-size: 8px !important;
+    font-weight: 850 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* 적용 시작일 */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  #auxiliaryMaterialDensityEffectiveDate {
+    width: 105px !important;
+    min-width: 105px !important;
+
+    height: 32px !important;
+    min-height: 32px !important;
+
+    padding: 0 5px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 9px !important;
+  }
+
+
+  /* =====================================================
+    1호기 / 2호기 밀도
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-input-wrap {
+    display: flex !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+
+    align-items: center !important;
+
+    gap: 2px !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  #auxiliaryMaterialUnitOneFixedDensity,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  #auxiliaryMaterialUnitTwoFixedDensity {
+    width: 66px !important;
+    min-width: 66px !important;
+
+    height: 32px !important;
+    min-height: 32px !important;
+
+    padding: 0 5px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 9px !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-input-wrap
+  > small {
+    color: #78869a !important;
+
+    font-size: 7px !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    저장 버튼
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  #saveAuxiliaryMaterialFixedDensityButton {
+    height: 32px !important;
+    min-height: 32px !important;
+
+    margin: 0 !important;
+
+    padding: 0 8px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 8px !important;
+    font-weight: 900 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    평상시 상태 문구는 공간 절약을 위해 숨김
+
+    오류 발생 시에만 표시
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__status {
+    display: none !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline
+  .auxiliary-material-density-setting__status[data-status="error"] {
+    display: block !important;
+
+    min-width: 80px !important;
+    max-width: 120px !important;
+
+    padding: 3px 5px !important;
+
+    color: #c83b32 !important;
+
+    font-size: 7px !important;
+
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+}
+
+
+/* =========================================================
+  769 ~ 1199px 안전장치
+
+  폭이 부족하면 Slurry만 다음 줄로 내려간다.
+========================================================= */
+
+@media screen and (min-width: 769px) and (max-width: 1199px) {
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting--inline {
+    grid-column: 1 / -1 !important;
+
+    width: 100% !important;
+
+    margin-top: 5px !important;
+  }
+}

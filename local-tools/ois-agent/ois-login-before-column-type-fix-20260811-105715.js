@@ -7339,10 +7339,10 @@ function ConvertTo-ExcelColumnName {
     [int]$ColumnNumber
   )
 
-  [string]$columnName =
+  $columnName =
     ""
 
-  [int]$remaining =
+  $remaining =
     $ColumnNumber
 
   while (
@@ -7351,26 +7351,18 @@ function ConvertTo-ExcelColumnName {
     $remaining -=
       1
 
-    [int]$letterCode =
-      65 +
-      (
-        $remaining %
-        26
-      )
-
-    [string]$letter =
-      [char](
-        [int](
-          $letterCode
-        )
-      )
-
     $columnName =
-      $letter +
+      [char](
+        65 +
+        (
+          $remaining %
+          26
+        )
+      ) +
       $columnName
 
     $remaining =
-      [int][Math]::Floor(
+      [Math]::Floor(
         $remaining /
         26
       )
