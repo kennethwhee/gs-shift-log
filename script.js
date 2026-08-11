@@ -213963,17 +213963,21 @@ function initializeLimestoneSlipCameraPicker() {
 
 /* =========================================================
   오전회의 자동 수치 미리보기
-  일괄조회 + 실패 카드 개별 다시 조회
+  일괄조회 + OIS 카드 개별조회 + 실패 카드 다시 조회
 ========================================================= */
 
 (function installMorningMeetingAutoRetryButtons() {
   "use strict";
 
-  if (window.__morningMeetingAutoRetryButtonsInstalled === true) {
+  if (
+    window.__morningMeetingAutoRetryButtonsInstalled ===
+    true
+  ) {
     return;
   }
 
-  window.__morningMeetingAutoRetryButtonsInstalled = true;
+  window.__morningMeetingAutoRetryButtonsInstalled =
+    true;
 
   const BULK_BUTTON_ID =
     "loadEfficiencyMorningMeetingWaterButton";
@@ -213981,211 +213985,375 @@ function initializeLimestoneSlipCameraPicker() {
   const BULK_BUTTON_LABEL =
     "OIS 자료 일괄조회";
 
-  let syncTimerId = null;
+  let syncTimerId =
+    null;
 
-  const loadDailyData = () => {
-    return window.loadEfficiencyMorningMeetingDailyData?.({
-      forceRefresh: true
-    });
-  };
+
+  const loadDailyData =
+    () => {
+      return window
+        .loadEfficiencyMorningMeetingDailyData?.({
+          forceRefresh:
+            true
+        });
+    };
+
 
   const retryItems = [
     {
-      key: "water",
-      label: "수처리 현황",
-      statusId: "efficiencyMorningMeetingAutoWaterStatus",
-      load: () =>
-        window.loadEfficiencyMorningMeetingWaterTreatment?.({
-          forceRefresh: true
-        })
+      key:
+        "water",
+
+      label:
+        "수처리 현황",
+
+      statusId:
+        "efficiencyMorningMeetingAutoWaterStatus",
+
+      alwaysVisible:
+        true,
+
+      load:
+        () =>
+          window
+            .loadEfficiencyMorningMeetingWaterTreatment?.({
+              forceRefresh:
+                true
+            })
     },
+
     {
-      key: "limestone",
-      label: "석회석 재고",
-      statusId: "efficiencyMorningMeetingAutoLimestoneStatus",
-      load: () =>
-        window.loadLimestoneOisStock?.()
+      key:
+        "limestone",
+
+      label:
+        "석회석 재고",
+
+      statusId:
+        "efficiencyMorningMeetingAutoLimestoneStatus",
+
+      alwaysVisible:
+        true,
+
+      load:
+        () =>
+          window
+            .loadLimestoneOisStock?.()
     },
+
     {
-      key: "gear-pinion",
-      label: "Gear Wheel / Pinion",
-      statusId: "efficiencyMorningMeetingAutoGearPinionStatus",
-      load: () =>
-        window.loadEfficiencyMorningMeetingGearPinion?.({
-          forceRefresh: true
-        })
+      key:
+        "gear-pinion",
+
+      label:
+        "Gear Wheel / Pinion",
+
+      statusId:
+        "efficiencyMorningMeetingAutoGearPinionStatus",
+
+      alwaysVisible:
+        true,
+
+      load:
+        () =>
+          window
+            .loadEfficiencyMorningMeetingGearPinion?.({
+              forceRefresh:
+                true
+            })
     },
+
     {
-      key: "silo-level",
-      label: "Silo Level",
-      statusId: "efficiencyMorningMeetingAutoSiloStatus",
-      load: () =>
-        window.loadEfficiencyMorningMeetingSiloLevel?.({
-          forceRefresh: true
-        })
+      key:
+        "silo-level",
+
+      label:
+        "Silo Level",
+
+      statusId:
+        "efficiencyMorningMeetingAutoSiloStatus",
+
+      alwaysVisible:
+        true,
+
+      load:
+        () =>
+          window
+            .loadEfficiencyMorningMeetingSiloLevel?.({
+              forceRefresh:
+                true
+            })
     },
+
     {
-      key: "daily-power",
-      label: "전력 현황",
-      statusId: "efficiencyMorningMeetingAutoDailyPowerStatus",
-      load: loadDailyData
+      key:
+        "daily-power",
+
+      label:
+        "전력 현황",
+
+      statusId:
+        "efficiencyMorningMeetingAutoDailyPowerStatus",
+
+      load:
+        loadDailyData
     },
+
     {
-      key: "solar-status",
-      label: "태양광 현황",
-      statusId: "efficiencyMorningMeetingAutoSolarStatus",
-      load: loadDailyData
+      key:
+        "solar-status",
+
+      label:
+        "태양광 현황",
+
+      statusId:
+        "efficiencyMorningMeetingAutoSolarStatus",
+
+      load:
+        loadDailyData
     },
+
     {
-      key: "steam-status",
-      label: "증기 현황",
-      statusId: "efficiencyMorningMeetingAutoSteamStatus",
-      load: loadDailyData
+      key:
+        "steam-status",
+
+      label:
+        "증기 현황",
+
+      statusId:
+        "efficiencyMorningMeetingAutoSteamStatus",
+
+      load:
+        loadDailyData
     },
+
     {
-      key: "organic-fuel",
-      label: "유기성고형연료",
-      statusId: "efficiencyMorningMeetingAutoDailySludgeStatus",
-      load: loadDailyData
+      key:
+        "organic-fuel",
+
+      label:
+        "유기성고형연료",
+
+      statusId:
+        "efficiencyMorningMeetingAutoDailySludgeStatus",
+
+      load:
+        loadDailyData
     }
   ];
 
-  function isRetryable(statusElement) {
+
+  function isRetryable(
+    statusElement
+  ) {
     if (
-      !statusElement?.classList.contains(
-        "is-error"
-      )
+      !statusElement
+        ?.classList
+        .contains(
+          "is-error"
+        )
     ) {
       return false;
     }
 
+
     const statusText =
       String(
-        statusElement.textContent || ""
+        statusElement.textContent ||
+        ""
       )
-        .replace(/\s+/g, " ")
+        .replace(
+          /\s+/g,
+          " "
+        )
         .trim();
 
+
     return (
-      statusText.includes("실패") ||
-      statusText.includes("갱신 필요")
+      statusText.includes(
+        "실패"
+      ) ||
+      statusText.includes(
+        "갱신 필요"
+      )
     );
   }
+
+
+  function getIdleButtonLabel(
+    item
+  ) {
+    return item.alwaysVisible
+      ? "개별조회"
+      : "다시 조회";
+  }
+
 
   async function retryItem(
     item,
     button
   ) {
-    if (button.disabled) {
+    if (
+      button.disabled
+    ) {
       return;
     }
 
-    button.disabled = true;
-    button.textContent = "조회 중";
+
+    button.dataset
+      .individualLookupRunning =
+      "true";
+
+
+    button.disabled =
+      true;
+
+    button.textContent =
+      "조회 중";
+
 
     try {
       const result =
         item.load();
 
+
       if (
         result &&
-        typeof result.then === "function"
+        typeof result.then ===
+          "function"
       ) {
         await result;
       }
 
-    } catch (error) {
+    } catch (
+      error
+    ) {
       console.error(
-        `${item.label} 개별 재조회 실패:`,
+        `${item.label} 개별 조회 실패:`,
         error
       );
 
-      if (typeof showToast === "function") {
+
+      if (
+        typeof showToast ===
+          "function"
+      ) {
         showToast(
           error?.message ||
-          `${item.label}을 다시 조회하지 못했습니다.`
+          `${item.label}을 조회하지 못했습니다.`
         );
       }
 
     } finally {
-      button.disabled = false;
-      button.textContent = "다시 조회";
+      delete button.dataset
+        .individualLookupRunning;
+
+
+      button.disabled =
+        false;
+
+      button.textContent =
+        getIdleButtonLabel(
+          item
+        );
+
 
       scheduleSync();
     }
   }
 
-  function ensureRetryButton(item) {
+
+  function ensureRetryButton(
+    item
+  ) {
     const statusElement =
       document.getElementById(
         item.statusId
       );
 
-    if (!statusElement) {
+
+    if (
+      !statusElement
+    ) {
       return;
     }
+
 
     let actionRow =
       statusElement.closest(
         ".efficiency-morning-meeting-auto-card__status-actions"
       );
 
-    if (!actionRow) {
+
+    if (
+      !actionRow
+    ) {
       actionRow =
         document.createElement(
           "div"
         );
 
+
       actionRow.className =
         "efficiency-morning-meeting-auto-card__status-actions";
 
-      statusElement.parentElement
+
+      statusElement
+        .parentElement
         ?.insertBefore(
           actionRow,
           statusElement
         );
+
 
       actionRow.appendChild(
         statusElement
       );
     }
 
+
     const buttonId =
       `efficiencyMorningMeetingAutoRetry-${item.key}`;
+
 
     let button =
       document.getElementById(
         buttonId
       );
 
-    if (!button) {
+
+    const idleLabel =
+      getIdleButtonLabel(
+        item
+      );
+
+
+    if (
+      !button
+    ) {
       button =
         document.createElement(
           "button"
         );
 
-      button.type = "button";
-      button.id = buttonId;
+
+      button.type =
+        "button";
+
+      button.id =
+        buttonId;
 
       button.className =
         "efficiency-morning-meeting-auto-card__retry-button";
 
-      button.textContent =
-        "다시 조회";
-
-      button.title =
-        `${item.label}만 다시 조회합니다.`;
-
-      button.setAttribute(
-        "aria-label",
-        `${item.label} 다시 조회`
-      );
 
       button.addEventListener(
         "click",
+
         event => {
           event.preventDefault();
           event.stopPropagation();
+
 
           void retryItem(
             item,
@@ -214194,16 +214362,79 @@ function initializeLimestoneSlipCameraPicker() {
         }
       );
 
+
       actionRow.appendChild(
         button
       );
     }
 
+
+    const isLookupRunning =
+      button.dataset
+        .individualLookupRunning ===
+      "true";
+
+
+    const isStatusLoading =
+      statusElement
+        .classList
+        .contains(
+          "is-loading"
+        );
+
+
+    const shouldDisable =
+      isLookupRunning ||
+      isStatusLoading;
+
+
+    if (
+      button.disabled !==
+      shouldDisable
+    ) {
+      button.disabled =
+        shouldDisable;
+    }
+
+
+    const nextButtonLabel =
+      shouldDisable
+        ? "조회 중"
+        : idleLabel;
+
+
+    if (
+      button.textContent !==
+      nextButtonLabel
+    ) {
+      button.textContent =
+        nextButtonLabel;
+    }
+
+
+    button.title =
+      item.alwaysVisible
+        ? `${item.label}만 개별 조회합니다.`
+        : `${item.label}만 다시 조회합니다.`;
+
+
+    button.setAttribute(
+      "aria-label",
+
+      item.alwaysVisible
+        ? `${item.label} 개별조회`
+        : `${item.label} 다시 조회`
+    );
+
+
     button.hidden =
+      item.alwaysVisible !==
+        true &&
       !isRetryable(
         statusElement
       );
   }
+
 
   function syncBulkButton() {
     const button =
@@ -214211,26 +214442,29 @@ function initializeLimestoneSlipCameraPicker() {
         BULK_BUTTON_ID
       );
 
-    if (!button) {
+
+    if (
+      !button
+    ) {
       return;
     }
+
 
     button.title =
       "수처리·석회석·Gear/Pinion·Silo Level·일일 DATA를 한 번에 조회합니다.";
 
-    /*
-      수처리 조회가 완료되면서 버튼 문구를
-      수처리 전용 문구로 바꾸더라도 다시 복원한다.
-    */
 
-    if (!button.disabled) {
+    if (
+      !button.disabled
+    ) {
       button.textContent =
         BULK_BUTTON_LABEL;
     }
 
+
     /*
-      기존 일괄조회에서 빠져 있던
-      석회석 OIS 조회 추가
+      기존 일괄조회에
+      석회석 조회 연결 유지
     */
 
     if (
@@ -214240,11 +214474,13 @@ function initializeLimestoneSlipCameraPicker() {
     ) {
       button.addEventListener(
         "click",
+
         () => {
           void window
             .loadLimestoneOisStock?.();
         }
       );
+
 
       button.dataset
         .limestoneBulkLookupBound =
@@ -214252,20 +214488,29 @@ function initializeLimestoneSlipCameraPicker() {
     }
   }
 
+
   function syncAll() {
-    syncTimerId = null;
+    syncTimerId =
+      null;
+
 
     syncBulkButton();
+
 
     retryItems.forEach(
       ensureRetryButton
     );
   }
 
+
   function scheduleSync() {
-    if (syncTimerId !== null) {
+    if (
+      syncTimerId !==
+      null
+    ) {
       return;
     }
+
 
     syncTimerId =
       window.setTimeout(
@@ -214274,48 +214519,66 @@ function initializeLimestoneSlipCameraPicker() {
       );
   }
 
+
   function initialize() {
     const preview =
       document.getElementById(
         "efficiencyMorningMeetingAutoPreview"
       );
 
-    if (!preview) {
+
+    if (
+      !preview
+    ) {
       return;
     }
 
+
     syncAll();
+
 
     const observer =
       new MutationObserver(
         scheduleSync
       );
 
+
     observer.observe(
       preview,
+
       {
-        attributes: true,
+        attributes:
+          true,
 
         attributeFilter: [
           "class",
           "disabled"
         ],
 
-        childList: true,
-        characterData: true,
-        subtree: true
+        childList:
+          true,
+
+        characterData:
+          true,
+
+        subtree:
+          true
       }
     );
   }
 
+
   if (
-    document.readyState === "loading"
+    document.readyState ===
+      "loading"
   ) {
     document.addEventListener(
       "DOMContentLoaded",
       initialize,
+
       {
-        once: true
+        once:
+          true
       }
     );
 
