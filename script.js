@@ -183541,7 +183541,7 @@ function ensureSiloPreviewCard() {
   }
 
   const layoutVersion =
-    "morning-summary-3x2-solar-v2";
+    "morning-summary-3x2-no-solar-v3";
 
   let bottomGrid =
     document.getElementById(
@@ -183565,39 +183565,24 @@ function ensureSiloPreviewCard() {
     layoutVersion;
 
   /*
-    전력현황 + 태양광 현황을
-    같은 열에 위아래로 배치한다.
+    기존 전력 + 태양광 묶음과
+    태양광 표시 카드만 제거한다.
+
+    태양광 계산값과 Excel 반영 데이터는
+    기존 일일 DATA 결과에 그대로 유지한다.
   */
 
-  let powerStack =
-    document.getElementById(
+  document
+    .getElementById(
       "efficiencyMorningMeetingAutoPowerStack"
-    );
+    )
+    ?.remove();
 
-  if (
-    powerStack &&
-    powerStack.dataset.morningLayoutVersion !==
-      layoutVersion
-  ) {
-    powerStack.remove();
-    powerStack = null;
-  }
-
-  if (!powerStack) {
-    powerStack =
-      document.createElement("div");
-
-    powerStack.id =
-      "efficiencyMorningMeetingAutoPowerStack";
-
-    powerStack.className =
-      "efficiency-morning-meeting-auto-power-stack";
-
-    powerStack.dataset.morningLayoutVersion =
-      layoutVersion;
-
-    bottomGrid.appendChild(powerStack);
-  }
+  document
+    .getElementById(
+      "efficiencyMorningMeetingAutoSolarCard"
+    )
+    ?.remove();
 
   function ensureCard(
     id,
@@ -183723,7 +183708,6 @@ function ensureSiloPreviewCard() {
 
   /*
     전력 현황
-    태양광 항목은 별도 카드로 분리한다.
   */
 
   ensureCard(
@@ -183775,73 +183759,7 @@ function ensureSiloPreviewCard() {
           </strong>
         </div>
       </div>
-    `,
-    powerStack
-  );
-
-  /*
-    태양광 현황
-  */
-
-  ensureCard(
-    "efficiencyMorningMeetingAutoSolarCard",
-    "is-solar-status",
     `
-      <header class="efficiency-morning-meeting-auto-card__header">
-        <div>
-          <span>SOLAR POWER</span>
-          <strong>태양광 현황</strong>
-        </div>
-
-        <div class="efficiency-morning-meeting-auto-card__meta">
-          <small id="efficiencyMorningMeetingAutoSolarDate">
-            -
-          </small>
-
-          <span
-            class="efficiency-morning-meeting-auto-card__badge"
-            id="efficiencyMorningMeetingAutoSolarStatus"
-          >
-            조회 대기
-          </span>
-        </div>
-      </header>
-
-      <div class="efficiency-morning-meeting-auto-card__body">
-        <div class="efficiency-morning-meeting-auto-row">
-          <span>태양광 일일 발전량</span>
-
-          <strong id="efficiencyMorningMeetingAutoDailySolarGeneration">
-            -
-          </strong>
-        </div>
-
-        <div class="efficiency-morning-meeting-auto-row">
-          <span>주간 누적 발전량</span>
-
-          <strong id="efficiencyMorningMeetingAutoSolarWeeklyCumulative">
-            -
-          </strong>
-        </div>
-
-        <div class="efficiency-morning-meeting-auto-row">
-          <span>월간 누적 발전량</span>
-
-          <strong id="efficiencyMorningMeetingAutoSolarMonthlyCumulative">
-            -
-          </strong>
-        </div>
-
-        <div class="efficiency-morning-meeting-auto-row is-emphasis">
-          <span>연간 누적 발전량</span>
-
-          <strong id="efficiencyMorningMeetingAutoSolarYearlyCumulative">
-            -
-          </strong>
-        </div>
-      </div>
-    `,
-    powerStack
   );
 
   /*
