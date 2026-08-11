@@ -183791,6 +183791,10 @@ function ensureSiloPreviewCard() {
 
   /*
     증기 생산·판매
+
+    저압과 고압을 각각 한 줄로 표시한다.
+    전체 6행으로 구성하여
+    전력·유기성 카드와 높이를 맞춘다.
   */
 
   ensureCard(
@@ -183818,22 +183822,20 @@ function ensureSiloPreviewCard() {
       </header>
 
       <div class="efficiency-morning-meeting-auto-card__body">
-        <div class="efficiency-morning-meeting-auto-dual-row">
-          <div>
-            <span>저압</span>
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>저압</span>
 
-            <strong id="efficiencyMorningMeetingAutoDailySteamSalesLowPressure">
-              -
-            </strong>
-          </div>
+          <strong id="efficiencyMorningMeetingAutoDailySteamSalesLowPressure">
+            -
+          </strong>
+        </div>
 
-          <div>
-            <span>고압</span>
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>고압</span>
 
-            <strong id="efficiencyMorningMeetingAutoDailySteamSalesHighPressure">
-              -
-            </strong>
-          </div>
+          <strong id="efficiencyMorningMeetingAutoDailySteamSalesHighPressure">
+            -
+          </strong>
         </div>
 
         <div class="efficiency-morning-meeting-auto-row is-emphasis">

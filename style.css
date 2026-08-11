@@ -88563,8 +88563,8 @@ input {
   둘째 줄:
   전력 현황 | 증기 생산·판매 | 유기성 고형연료
 
-  전력 카드 안에 태양광 3개 항목을 통합한다.
-  여섯 카드의 너비와 높이를 동일하게 맞춘다.
+  각 줄의 카드끼리만 높이를 맞춘다.
+  첫째 줄과 둘째 줄의 높이는 서로 독립적으로 계산한다.
 ========================================================= */
 
 .efficiency-morning-meeting-auto-bottom-grid {
@@ -88580,11 +88580,16 @@ input {
     "silo smp weather"
     "power steam organic";
 
+  /*
+    기존 repeat(2, minmax(0, 1fr))를 제거한다.
+
+    상단행은 상단 내용 높이,
+    하단행은 하단 내용 높이로 계산된다.
+  */
+
   grid-template-rows:
-    repeat(
-      2,
-      minmax(0, 1fr)
-    );
+    auto
+    auto;
 
   grid-column: 1 / -1;
 
@@ -88599,8 +88604,6 @@ input {
 .efficiency-morning-meeting-auto-bottom-grid
   > * {
   min-width: 0;
-
-  height: 100% !important;
 }
 
 
@@ -88634,111 +88637,54 @@ input {
 }
 
 
+/* 같은 행에 있는 카드의 외곽 높이만 맞춘다. */
+
 .efficiency-morning-meeting-auto-bottom-grid
   > .efficiency-morning-meeting-auto-card {
   display: flex;
 
   flex-direction: column;
+
+  align-self: stretch;
+
+  height: auto !important;
 }
 
+
+/* 여섯 카드의 헤더 높이 통일 */
 
 .efficiency-morning-meeting-auto-bottom-grid
   > .efficiency-morning-meeting-auto-card
   > .efficiency-morning-meeting-auto-card__header {
+  box-sizing: border-box;
+
   min-height: 58px;
 }
 
 
+/*
+  카드 본문은 항목 간격을 억지로 늘리지 않는다.
+  남는 공간은 카드 아래쪽에만 남는다.
+*/
+
 .efficiency-morning-meeting-auto-bottom-grid
   > .efficiency-morning-meeting-auto-card
   > .efficiency-morning-meeting-auto-card__body {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+
+  height: auto;
+
+  justify-content: flex-start !important;
 }
 
 
-/* 전력값과 태양광값 사이 구분 */
+/* 전력·태양광 및 유기성 항목 사이 구분 */
 
-#efficiencyMorningMeetingAutoDailyPowerCard
+.efficiency-morning-meeting-auto-bottom-grid
   .efficiency-morning-meeting-auto-row.is-group-start {
   margin-top: 4px;
 
   border-top: 1px solid #dfe7f0;
-}
-
-
-/* 증기 판매량 저압·고압 2분할 */
-
-.efficiency-morning-meeting-auto-dual-row {
-  display: grid;
-
-  grid-template-columns:
-    repeat(
-      2,
-      minmax(0, 1fr)
-    );
-
-  min-height: 27px;
-
-  border-bottom: 1px dashed #e8edf3;
-}
-
-
-.efficiency-morning-meeting-auto-dual-row
-  > div {
-  display: flex;
-
-  min-width: 0;
-
-  align-items: center;
-  justify-content: space-between;
-
-  gap: 6px;
-}
-
-
-.efficiency-morning-meeting-auto-dual-row
-  > div:first-child {
-  padding-right: 9px;
-
-  border-right: 1px solid #e2e7ef;
-}
-
-
-.efficiency-morning-meeting-auto-dual-row
-  > div:last-child {
-  padding-left: 9px;
-}
-
-
-.efficiency-morning-meeting-auto-dual-row
-  > div
-  > span {
-  min-width: 0;
-
-  overflow: hidden;
-
-  color: #63758a;
-
-  font-size: 10px;
-  font-weight: 700;
-
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-
-.efficiency-morning-meeting-auto-dual-row
-  > div
-  > strong {
-  flex: 0 0 auto;
-
-  color: #1f3552;
-
-  font-size: 11px;
-  font-weight: 800;
-
-  text-align: right;
-  white-space: nowrap;
 }
 
 
@@ -88768,7 +88714,12 @@ input {
 }
 
 
-/* 태블릿: 2열, 모든 카드 동일 크기 */
+/* =====================================================
+  태블릿: 2열
+
+  같은 가로줄에 배치된 카드끼리만
+  높이를 맞춘다.
+===================================================== */
 
 @media (max-width: 1050px) {
   .efficiency-morning-meeting-auto-bottom-grid {
@@ -88786,13 +88737,17 @@ input {
     grid-template-rows:
       repeat(
         3,
-        minmax(0, 1fr)
+        auto
       );
   }
 }
 
 
-/* 모바일: 1열, 모든 카드 동일 크기 */
+/* =====================================================
+  모바일: 1열
+
+  각 카드가 자신의 내용 높이만 사용한다.
+===================================================== */
 
 @media (max-width: 700px) {
   .efficiency-morning-meeting-auto-bottom-grid {
@@ -88810,15 +88765,10 @@ input {
     grid-template-rows:
       repeat(
         6,
-        minmax(0, 1fr)
+        auto
       );
 
     gap: 7px;
-  }
-
-
-  .efficiency-morning-meeting-auto-dual-row {
-    min-height: 25px;
   }
 }
 
