@@ -168089,7 +168089,7 @@ async function loadSavedLimestoneUsageRecords(
     loadButton
   ) {
     loadButton.textContent =
-      "OIS 재고 다시 불러오기";
+      "운영정보 데이터 불러오기";
   }
 
 
@@ -168851,7 +168851,7 @@ async function loadSavedLimestoneUsageRecords(
         loadButton
       ) {
         loadButton.textContent =
-          "OIS 재고 다시 불러오기";
+          "운영정보 데이터 불러오기";
       }
 
     } catch (
@@ -174916,12 +174916,12 @@ async function createGearPinionRequest(
 
     try {
       const createResult =
-  await createGearPinionRequest(
-    targetDate,
-    {
-      forceRefresh
-    }
-  );
+        await createGearPinionRequest(
+       targetDate,
+       {
+         forceRefresh
+       }
+     );
 
 
       const requestItem =
@@ -214137,21 +214137,21 @@ function initializeLimestoneSlipCameraPicker() {
       load: loadDailyData
     },
     {
+      key: "solar-status",
+      label: "태양광 현황",
+      statusId: "efficiencyMorningMeetingAutoSolarStatus",
+      load: loadDailyData
+    },
+    {
       key: "steam-status",
       label: "증기 현황",
       statusId: "efficiencyMorningMeetingAutoSteamStatus",
       load: loadDailyData
     },
     {
-      key: "daily-sludge",
-      label: "하수슬러지 입고",
+      key: "organic-fuel",
+      label: "유기성고형연료",
       statusId: "efficiencyMorningMeetingAutoDailySludgeStatus",
-      load: loadDailyData
-    },
-    {
-      key: "daily-organic",
-      label: "유기성 사일로",
-      statusId: "efficiencyMorningMeetingAutoDailyOrganicStatus",
       load: loadDailyData
     }
   ];
