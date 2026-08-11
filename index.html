@@ -23,7 +23,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260811-limestone-receipt-mobile-manage2"
+    href="style.css?v=20260811-limestone-manual-entry1"
   >
 
 
@@ -57,7 +57,7 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 <script
-  src="script.js?v=20260811-limestone-slip-ocr-v5"
+  src="script.js?v=20260811-limestone-manual-entry1"
   defer
 ></script>
 
@@ -7226,6 +7226,168 @@
     등록된 전표사진은 비공개로 약 24시간 보관된 후
     자동 폐기됩니다.
   </p>
+
+</section>
+
+<!-- =================================================
+  석회석 수동 입고 입력창
+
+  모바일:
+  - 실중량만 입력
+  - 1호기 / 2호기 등록
+
+  PC:
+  - 기존 입고 기록 입력창 유지
+================================================== -->
+<section
+  class="limestone-manual-entry-modal"
+  id="limestoneManualEntryModal"
+  aria-hidden="true"
+  hidden
+>
+
+  <div
+    class="limestone-manual-entry-modal__dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="limestoneManualEntryTitle"
+  >
+
+    <!-- =================================================
+      상단
+    ================================================== -->
+    <header class="limestone-manual-entry-modal__header">
+
+      <div>
+
+        <span class="limestone-manual-entry-modal__eyebrow">
+          LIMESTONE MANUAL
+        </span>
+
+        <h3
+          class="limestone-manual-entry-modal__title"
+          id="limestoneManualEntryTitle"
+        >
+          실중량 직접 입력
+        </h3>
+
+      </div>
+
+
+      <button
+        type="button"
+        class="limestone-manual-entry-modal__close"
+        id="closeLimestoneManualEntryModalButton"
+        aria-label="수동 입력창 닫기"
+      >
+        ×
+      </button>
+
+    </header>
+
+
+    <!-- =================================================
+      입력
+    ================================================== -->
+    <div class="limestone-manual-entry-modal__body">
+
+      <p class="limestone-manual-entry-modal__description">
+        실중량을 입력한 뒤 등록할 호기를 선택해 주세요.
+      </p>
+
+
+      <label
+        class="limestone-manual-entry-modal__field-label"
+        for="limestoneManualEntryWeightInput"
+      >
+        실중량
+      </label>
+
+
+      <div class="limestone-manual-entry-modal__input-wrap">
+
+        <input
+          type="number"
+          class="limestone-manual-entry-modal__input"
+          id="limestoneManualEntryWeightInput"
+          min="0.01"
+          max="999.99"
+          step="0.01"
+          inputmode="decimal"
+          autocomplete="off"
+          placeholder="0.00"
+        />
+
+
+        <div class="limestone-manual-entry-modal__unit">
+          ton
+        </div>
+
+      </div>
+
+
+      <p class="limestone-manual-entry-modal__helper">
+        0.01 ~ 999.99 ton
+      </p>
+
+
+      <p
+        class="limestone-manual-entry-modal__error"
+        id="limestoneManualEntryError"
+        role="alert"
+      >
+      </p>
+
+
+      <!-- =================================================
+        호기 선택 즉시 등록
+      ================================================== -->
+      <div class="limestone-manual-entry-modal__actions">
+
+        <button
+          type="button"
+          class="
+            limestone-manual-entry-modal__action
+            limestone-manual-entry-modal__action--unit1
+          "
+          id="submitLimestoneManualEntryUnit1Button"
+        >
+          1호기 등록
+        </button>
+
+
+        <button
+          type="button"
+          class="
+            limestone-manual-entry-modal__action
+            limestone-manual-entry-modal__action--unit2
+          "
+          id="submitLimestoneManualEntryUnit2Button"
+        >
+          2호기 등록
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <!-- =================================================
+      하단
+    ================================================== -->
+    <footer class="limestone-manual-entry-modal__footer">
+
+      <button
+        type="button"
+        class="limestone-manual-entry-modal__cancel"
+        id="cancelLimestoneManualEntryButton"
+      >
+        취소
+      </button>
+
+    </footer>
+
+  </div>
 
 </section>
 

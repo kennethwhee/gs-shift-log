@@ -113753,6 +113753,316 @@ async function loadLimestoneReceipts() {
   }
 }
 
+/* =========================================================
+  석회석 수동입력 팝업 요소
+========================================================= */
+
+function getLimestoneManualEntryElements() {
+  return {
+    modal:
+      document.getElementById(
+        "limestoneManualEntryModal"
+      ),
+
+    dialog:
+      document.querySelector(
+        `
+          #limestoneManualEntryModal
+          .limestone-manual-entry-modal__dialog
+        `
+      ),
+
+    closeButton:
+      document.getElementById(
+        "closeLimestoneManualEntryModalButton"
+      ),
+
+    cancelButton:
+      document.getElementById(
+        "cancelLimestoneManualEntryButton"
+      ),
+
+    quantityInput:
+      document.getElementById(
+        "limestoneManualEntryWeightInput"
+      ),
+
+    unitOneButton:
+      document.getElementById(
+        "submitLimestoneManualEntryUnit1Button"
+      ),
+
+    unitTwoButton:
+      document.getElementById(
+        "submitLimestoneManualEntryUnit2Button"
+      ),
+
+    error:
+      document.getElementById(
+        "limestoneManualEntryError"
+      )
+  };
+}
+
+
+/* =========================================================
+  석회석 수동입력 오류 문구
+========================================================= */
+
+function showLimestoneManualEntryError(
+  message
+) {
+  const {
+    error
+  } =
+    getLimestoneManualEntryElements();
+
+
+  if (
+    !error
+  ) {
+    return;
+  }
+
+
+  error.textContent =
+    String(
+      message ||
+      ""
+    );
+
+
+  error.hidden =
+    !message;
+}
+
+
+/* =========================================================
+  석회석 수동입력 팝업 열기
+========================================================= */
+
+function openLimestoneManualEntryModal() {
+  const {
+    modal,
+    quantityInput
+  } =
+    getLimestoneManualEntryElements();
+
+
+  if (
+    !modal
+  ) {
+    showLimestoneToast(
+      "석회석 수동 입력창을 찾을 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  /*
+    기존 석회석 입력 패널과
+    기간 조회 패널은 닫는다.
+  */
+  closeLimestoneReceiptEditor();
+
+  closeLimestoneImportPanel();
+
+  closeLimestonePeriodSearchPanel();
+
+
+  /*
+    이전 입력값 초기화
+  */
+  if (
+    quantityInput
+  ) {
+    quantityInput.value =
+      "";
+  }
+
+
+  showLimestoneManualEntryError(
+    ""
+  );
+
+
+  modal.hidden =
+    false;
+
+
+  modal.removeAttribute(
+    "hidden"
+  );
+
+
+  modal.setAttribute(
+    "aria-hidden",
+    "false"
+  );
+
+
+  /*
+    모바일에서 뒤 화면이 움직이지 않도록 한다.
+  */
+  document.body.classList.add(
+    "is-limestone-manual-entry-open"
+  );
+
+
+  window.requestAnimationFrame(
+    () => {
+      quantityInput?.focus();
+    }
+  );
+}
+
+
+/* =========================================================
+  석회석 수동입력 팝업 닫기
+========================================================= */
+
+function closeLimestoneManualEntryModal() {
+  const {
+    modal,
+    quantityInput
+  } =
+    getLimestoneManualEntryElements();
+
+
+  if (
+    !modal
+  ) {
+    return;
+  }
+
+
+  modal.hidden =
+    true;
+
+
+  modal.setAttribute(
+    "hidden",
+    ""
+  );
+
+
+  modal.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+
+  document.body.classList.remove(
+    "is-limestone-manual-entry-open"
+  );
+
+
+  if (
+    quantityInput
+  ) {
+    quantityInput.value =
+      "";
+  }
+
+
+  showLimestoneManualEntryError(
+    ""
+  );
+}
+
+
+/* =========================================================
+  석회석 수동입력 실중량 읽기
+
+  정상:
+  숫자 반환
+
+  오류:
+  null 반환
+========================================================= */
+
+function getLimestoneManualEntryQuantity() {
+  const {
+    quantityInput
+  } =
+    getLimestoneManualEntryElements();
+
+
+  const rawValue =
+    String(
+      quantityInput?.value ??
+      ""
+    )
+      .replaceAll(
+        ",",
+        ""
+      )
+      .trim();
+
+
+  if (
+    !rawValue
+  ) {
+    showLimestoneManualEntryError(
+      "실중량을 입력해 주세요."
+    );
+
+
+    quantityInput?.focus();
+
+
+    return null;
+  }
+
+
+  const quantityTon =
+    Number(
+      rawValue
+    );
+
+
+  if (
+    !Number.isFinite(
+      quantityTon
+    ) ||
+    quantityTon <
+      0.01 ||
+    quantityTon >
+      999.99
+  ) {
+    showLimestoneManualEntryError(
+      "실중량은 0.01 ~ 999.99 ton 범위로 입력해 주세요."
+    );
+
+
+    quantityInput?.focus();
+
+    quantityInput?.select();
+
+
+    return null;
+  }
+
+
+  showLimestoneManualEntryError(
+    ""
+  );
+
+
+  /*
+    소수 둘째 자리까지만 사용
+  */
+  return (
+    Math.round(
+      quantityTon *
+      100
+    ) /
+    100
+  );
+}
+
   /* =====================================================
     입력창 초기화
   ====================================================== */
@@ -114323,6 +114633,289 @@ async function loadLimestoneReceipts() {
     }
   }
 
+/* =========================================================
+  모바일 석회석 수동입력 실제 저장
+
+  날짜:
+  - 현재 입고현황에서 선택한 날짜
+
+  시간:
+  - 등록 버튼을 누른 현재 시각
+
+  입력:
+  - 실중량만 직접 입력
+
+  호기:
+  - 1호기 등록 / 2호기 등록 버튼으로 결정
+========================================================= */
+
+async function saveLimestoneManualEntry(
+  requestedUnitNo
+) {
+  const unitNo =
+    Number(
+      requestedUnitNo
+    );
+
+
+  /* =====================================================
+    호기 확인
+  ====================================================== */
+
+  if (
+    ![
+      1,
+      2
+    ].includes(
+      unitNo
+    )
+  ) {
+    showLimestoneManualEntryError(
+      "등록할 호기를 확인할 수 없습니다."
+    );
+
+
+    return;
+  }
+
+
+  /* =====================================================
+    실중량
+  ====================================================== */
+
+  const quantityTon =
+    getLimestoneManualEntryQuantity();
+
+
+  if (
+    quantityTon ===
+      null
+  ) {
+    return;
+  }
+
+
+  const {
+    unitOneButton,
+    unitTwoButton
+  } =
+    getLimestoneManualEntryElements();
+
+
+  /*
+    현재 화면에서 선택한 날짜를 사용한다.
+
+    혹시 선택일이 정상적이지 않으면
+    오늘 날짜를 사용한다.
+  */
+  const receiptDate =
+    isValidLimestoneDate(
+      limestoneReceiptState
+        .selectedDay
+    )
+      ? limestoneReceiptState
+          .selectedDay
+      : getLimestoneToday();
+
+
+  /*
+    시간은 사용자가 등록 버튼을 누른 시점
+  */
+  const receiptTime =
+    getLimestoneCurrentTime();
+
+
+  const receipt = {
+    receiptDate,
+
+    receiptTime,
+
+    unitNo,
+
+    quantityTon,
+
+    /*
+      모바일 간편 입력에서는
+      비고를 받지 않는다.
+    */
+    note:
+      ""
+  };
+
+
+  const targetButton =
+    unitNo ===
+      1
+      ? unitOneButton
+      : unitTwoButton;
+
+
+  const originalUnitOneText =
+    String(
+      unitOneButton?.textContent ||
+      "1호기 등록"
+    ).trim();
+
+
+  const originalUnitTwoText =
+    String(
+      unitTwoButton?.textContent ||
+      "2호기 등록"
+    ).trim();
+
+
+  /* =====================================================
+    중복 클릭 방지
+  ====================================================== */
+
+  if (
+    unitOneButton
+  ) {
+    unitOneButton.disabled =
+      true;
+  }
+
+
+  if (
+    unitTwoButton
+  ) {
+    unitTwoButton.disabled =
+      true;
+  }
+
+
+  if (
+    targetButton
+  ) {
+    targetButton.textContent =
+      "등록 중...";
+  }
+
+
+  showLimestoneManualEntryError(
+    ""
+  );
+
+
+  try {
+    /* =================================================
+      기존 석회석 입고기록 API 그대로 사용
+    ================================================= */
+
+    const result =
+      await requestLimestoneApi(
+        LIMESTONE_RECEIPTS_API_URL,
+        {
+          method:
+            "POST",
+
+          headers:
+            getLimestoneApiHeaders({
+              "Content-Type":
+                "application/json"
+            }),
+
+          body:
+            JSON.stringify(
+              receipt
+            )
+        }
+      );
+
+
+    /* =================================================
+      저장 성공
+    ================================================= */
+
+    closeLimestoneManualEntryModal();
+
+
+    /*
+      현재 입고현황 즉시 갱신
+
+      따라서:
+      - 전체 입고량
+      - 호기별 입고량
+      - 입고 횟수
+      - 일별 입고량
+      - 입고기록 상세
+
+      모두 바로 반영된다.
+    */
+    await loadLimestoneReceipts();
+
+
+    showLimestoneToast(
+      result.message ||
+      (
+        `${unitNo}호기 석회석 ` +
+        `${formatLimestoneQuantity(
+          quantityTon
+        )} ton을 등록했습니다.`
+      )
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "석회석 모바일 수동입력 저장 실패:",
+      error
+    );
+
+
+    /*
+      서버 충돌이 발생했으면
+      최신 자료를 다시 불러온다.
+    */
+    if (
+      error.status ===
+        409
+    ) {
+      await loadLimestoneReceipts();
+    }
+
+
+    /*
+      팝업은 닫지 않는다.
+
+      사용자가 입력값을 확인하고
+      다시 등록할 수 있게 한다.
+    */
+    showLimestoneManualEntryError(
+      error.message ||
+      "석회석 입고기록을 저장하지 못했습니다."
+    );
+
+  } finally {
+    /* =================================================
+      버튼 원상복구
+    ================================================= */
+
+    if (
+      unitOneButton
+    ) {
+      unitOneButton.disabled =
+        false;
+
+
+      unitOneButton.textContent =
+        originalUnitOneText;
+    }
+
+
+    if (
+      unitTwoButton
+    ) {
+      unitTwoButton.disabled =
+        false;
+
+
+      unitTwoButton.textContent =
+        originalUnitTwoText;
+    }
+  }
+}
 
   /* =====================================================
     기록 찾기
@@ -117995,22 +118588,230 @@ function bindLimestoneReceiptEvents() {
   );
 
 
-  /* ===================================================
-    직접 입고기록 등록
-  ==================================================== */
+/* ===================================================
+  직접 입고기록 등록
 
-  openEditorButton?.addEventListener(
+  PC:
+  - 기존 입고기록 입력창
+
+  모바일:
+  - 실중량만 입력하는 간편 팝업
+==================================================== */
+
+openEditorButton?.addEventListener(
+  "click",
+  event => {
+    event.preventDefault();
+
+
+    /*
+      다른 석회석 입력 패널은 닫는다.
+    */
+    closeLimestoneImportPanel();
+
+    closeLimestonePeriodSearchPanel();
+
+
+    const isMobile =
+      window.matchMedia(
+        "(max-width: 768px)"
+      ).matches;
+
+
+    if (
+      isMobile
+    ) {
+      /*
+        혹시 PC용 기존 입력창이 열려 있다면
+        먼저 닫고 모바일 간편 입력창을 연다.
+      */
+      closeLimestoneReceiptEditor();
+
+
+      openLimestoneManualEntryModal();
+
+
+      return;
+    }
+
+
+    /*
+      PC에서는 새 모바일 팝업이 열려 있지 않도록 한 뒤
+      기존 입고기록 입력창을 그대로 사용한다.
+    */
+    closeLimestoneManualEntryModal();
+
+
+    openLimestoneReceiptEditor();
+  }
+);
+
+/* ===================================================
+  모바일 수동입력 팝업 닫기 이벤트
+
+  지원:
+  - 우측 상단 X
+  - 취소
+  - 팝업 바깥 영역
+  - ESC
+==================================================== */
+
+const {
+  modal:
+    manualEntryModal,
+
+  closeButton:
+    manualEntryCloseButton,
+
+  cancelButton:
+    manualEntryCancelButton,
+
+  quantityInput:
+    manualEntryQuantityInput
+} =
+  getLimestoneManualEntryElements();
+
+
+/* ===================================================
+  X 버튼
+==================================================== */
+
+manualEntryCloseButton
+  ?.addEventListener(
     "click",
-    () => {
-      closeLimestoneImportPanel();
-
-      closeLimestonePeriodSearchPanel();
+    event => {
+      event.preventDefault();
 
 
-      openLimestoneReceiptEditor();
+      closeLimestoneManualEntryModal();
     }
   );
 
+
+/* ===================================================
+  취소 버튼
+==================================================== */
+
+manualEntryCancelButton
+  ?.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+
+
+      closeLimestoneManualEntryModal();
+    }
+  );
+
+
+/* ===================================================
+  어두운 바깥 영역 클릭
+
+  dialog 내부를 누른 경우에는 닫히지 않는다.
+==================================================== */
+
+manualEntryModal
+  ?.addEventListener(
+    "click",
+    event => {
+      if (
+        event.target !==
+          manualEntryModal
+      ) {
+        return;
+      }
+
+
+      closeLimestoneManualEntryModal();
+    }
+  );
+
+
+/* ===================================================
+  값을 다시 입력하기 시작하면
+  이전 오류 문구는 바로 제거
+==================================================== */
+
+manualEntryQuantityInput
+  ?.addEventListener(
+    "input",
+    () => {
+      showLimestoneManualEntryError(
+        ""
+      );
+    }
+  );
+
+/* ===================================================
+  1호기 / 2호기 실제 등록
+==================================================== */
+
+const {
+  unitOneButton:
+    manualEntryUnitOneButton,
+
+  unitTwoButton:
+    manualEntryUnitTwoButton
+} =
+  getLimestoneManualEntryElements();
+
+
+manualEntryUnitOneButton
+  ?.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+
+
+      saveLimestoneManualEntry(
+        1
+      );
+    }
+  );
+
+
+manualEntryUnitTwoButton
+  ?.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+
+
+      saveLimestoneManualEntry(
+        2
+      );
+    }
+  );
+
+/* ===================================================
+  ESC
+
+  새 수동입력 팝업이 열려 있을 때는
+  바깥 효율팀 모달까지 같이 닫히지 않게 한다.
+==================================================== */
+
+document.addEventListener(
+  "keydown",
+  event => {
+    if (
+      event.key !==
+        "Escape" ||
+      !manualEntryModal ||
+      manualEntryModal.hidden
+    ) {
+      return;
+    }
+
+
+    event.preventDefault();
+
+    event.stopImmediatePropagation();
+
+
+    closeLimestoneManualEntryModal();
+  },
+  true
+);
 
   closeEditorButton?.addEventListener(
     "click",
@@ -214082,6 +214883,7 @@ async function requestLimestoneSlipOcr(
     }
   }
 }
+
 
 /* =====================================================
   확인된 실중량 → 석회석 입고기록 등록
