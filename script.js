@@ -91659,6 +91659,90 @@ function clearAuxiliaryMaterialArchiveCellContent(
   );
 }
 
+/* =========================================================
+  부재료 보관 엑셀 기존 데이터 영역 완전 초기화
+
+  B4:R35의 기존 값 / 수식 / 문자열을 모두 제거한다.
+
+  중요:
+  - 셀 자체는 삭제하지 않는다.
+  - style 속성은 유지한다.
+  - 따라서 색상 / 테두리 / 숫자형식 / 정렬은 그대로 유지
+  - 공유수식 master / follower를 전부 함께 제거하므로
+    Excel 복구 경고가 발생하지 않는다.
+
+  A열 날짜는 원본 양식을 유지하고,
+  실제 월 날짜는 이후 D1 자료로 다시 덮어쓴다.
+========================================================= */
+
+function clearAuxiliaryMaterialArchiveTemplateDataArea(
+  worksheetDocument
+) {
+  const startColumnIndex =
+    1; // B
+
+
+  const endColumnIndex =
+    17; // R
+
+
+  const startRow =
+    4;
+
+
+  const endRow =
+    35;
+
+
+  for (
+    let rowNumber =
+      startRow;
+    rowNumber <=
+      endRow;
+    rowNumber +=
+      1
+  ) {
+    for (
+      let columnIndex =
+        startColumnIndex;
+      columnIndex <=
+        endColumnIndex;
+      columnIndex +=
+        1
+    ) {
+      const column =
+        getAuxiliaryMaterialArchiveExcelColumn(
+          columnIndex
+        );
+
+
+      const cellReference =
+        `${column}${rowNumber}`;
+
+
+      const cell =
+        findAuxiliaryMaterialArchiveCell(
+          worksheetDocument,
+          cellReference
+        );
+
+
+      /*
+        원본에 셀이 실제로 존재하는 경우만 정리
+      */
+      if (
+        !cell
+      ) {
+        continue;
+      }
+
+
+      clearAuxiliaryMaterialArchiveCellContent(
+        cell
+      );
+    }
+  }
+}
 
 /* =========================================================
   특정 셀 찾기
@@ -92455,6 +92539,13 @@ async function createAuxiliaryMaterialArchiveWorkbook() {
       `${archiveData.sheetName} 부재료 시트`
     );
 
+      /*
+    원본 B4:R35에 남아 있는
+    기존 공유수식과 캐시값을 먼저 전부 제거한다.
+  */
+  clearAuxiliaryMaterialArchiveTemplateDataArea(
+    worksheetDocument
+  );
 
   /* =====================================================
     D1 확정값 A:R 반영
