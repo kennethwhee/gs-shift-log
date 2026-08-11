@@ -86442,6 +86442,111 @@ function moveAuxiliaryMaterialMonth(
   );
 }
 
+/* =========================================================
+  부재료 모바일 모니터링 모드 판정
+========================================================= */
+
+function isAuxiliaryMaterialMobileMonitorMode() {
+  return window.matchMedia(
+    "(max-width: 768px)"
+  ).matches;
+}
+
+
+/* =========================================================
+  부재료 모바일 모니터링 전용 화면 준비
+========================================================= */
+
+function prepareAuxiliaryMaterialMobileMonitorOnlyLayout() {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  if (
+    !elements.view
+  ) {
+    return;
+  }
+
+
+  /*
+    Slurry 밀도 고정값 설정 영역의
+    가장 가까운 공통 부모를 찾는다.
+  */
+  const densityControls = [
+    elements.densityEffectiveDateInput,
+    elements.unitOneFixedDensityInput,
+    elements.unitTwoFixedDensityInput,
+    elements.fixedDensitySaveButton,
+    elements.fixedDensityStatus
+  ].filter(
+    Boolean
+  );
+
+
+  if (
+    densityControls.length >=
+      2
+  ) {
+    let densityPanel =
+      densityControls[0]
+        .parentElement;
+
+
+    while (
+      densityPanel &&
+      densityPanel !==
+        elements.view &&
+      !densityControls.every(
+        control =>
+          densityPanel.contains(
+            control
+          )
+      )
+    ) {
+      densityPanel =
+        densityPanel.parentElement;
+    }
+
+
+    if (
+      densityPanel &&
+      densityPanel !==
+        elements.view
+    ) {
+      densityPanel.classList.add(
+        "auxiliary-material-mobile-admin-panel"
+      );
+    }
+  }
+
+
+  /*
+    기존 기간 평균 요약 카드는
+    PC 관리화면에는 그대로 두고
+    모바일에서만 숨긴다.
+  */
+  [
+    elements.savedDays,
+    elements.limestoneAverage,
+    elements.limePowderAverage,
+    elements.ammoniaAverage
+  ]
+    .filter(
+      Boolean
+    )
+    .forEach(
+      valueElement => {
+        valueElement
+          .closest(
+            "article"
+          )
+          ?.classList.add(
+            "auxiliary-material-mobile-desktop-summary"
+          );
+      }
+    );
+}
 
 /* =====================================================
   부재료 날짜 제어 초기화
@@ -86480,6 +86585,27 @@ function initializeAuxiliaryMaterialDateControls() {
     getCurrentAuxiliaryMaterialMonthValue();
 
 
+  function loadSelectedMonthOnMobile() {
+    if (
+      !isAuxiliaryMaterialMobileMonitorMode() ||
+      typeof loadAuxiliaryMaterialHistory !==
+        "function"
+    ) {
+      return;
+    }
+
+
+    loadAuxiliaryMaterialHistory()
+      .catch(
+        () => {
+          /*
+            오류 문구는 조회 함수 내부에서 표시한다.
+          */
+        }
+      );
+  }
+
+
   /*
     월 선택창에서 미래 월 선택 방지
   */
@@ -86498,13 +86624,27 @@ function initializeAuxiliaryMaterialDateControls() {
 
   /*
     월 선택창 변경
+
+    PC:
+    - 기존처럼 기간만 변경
+
+    모바일:
+    - 기간 변경 후 D1 저장자료 자동 조회
   */
   elements.monthInput.addEventListener(
     "change",
     () => {
-      applyAuxiliaryMaterialMonthRange(
-        elements.monthInput.value
-      );
+      const applied =
+        applyAuxiliaryMaterialMonthRange(
+          elements.monthInput.value
+        );
+
+
+      if (
+        applied
+      ) {
+        loadSelectedMonthOnMobile();
+      }
     }
   );
 
@@ -86520,6 +86660,9 @@ function initializeAuxiliaryMaterialDateControls() {
         moveAuxiliaryMaterialMonth(
           -1
         );
+
+
+        loadSelectedMonthOnMobile();
       }
     );
 
@@ -86535,6 +86678,9 @@ function initializeAuxiliaryMaterialDateControls() {
         moveAuxiliaryMaterialMonth(
           1
         );
+
+
+        loadSelectedMonthOnMobile();
       }
     );
 
@@ -86545,7 +86691,6 @@ function initializeAuxiliaryMaterialDateControls() {
     .auxiliaryMaterialDateBound =
     "true";
 }
-
 
 /* =====================================================
   초기 실행
@@ -87800,6 +87945,468 @@ function renderAuxiliaryMaterialHistory() {
   }
 }
 
+function renderAuxiliaryMaterialMobileMonitor() {
+  const elements =
+    getAuxiliaryMaterialElements();
+
+
+  if (
+    !elements.tableBody
+  ) {
+    return;
+  }
+
+
+  const tableWrap =
+    elements.tableBody.closest(
+      ".auxiliary-material-table-wrap"
+    );
+
+
+  if (
+    !tableWrap
+  ) {
+    return;
+  }
+
+
+  let monitor =
+    document.getElementById(
+      "auxiliaryMaterialMobileMonitor"
+    );
+
+
+  if (
+    !monitor
+  ) {
+    monitor =
+      document.createElement(
+        "div"
+      );
+
+
+    monitor.id =
+      "auxiliaryMaterialMobileMonitor";
+
+
+    monitor.className =
+      "auxiliary-material-mobile-monitor";
+
+
+    tableWrap.insertAdjacentElement(
+      "beforebegin",
+      monitor
+    );
+  }
+
+
+  const rowsByDate =
+    new Map();
+
+
+  const items =
+    Array.isArray(
+      auxiliaryMaterialHistoryState.items
+    )
+      ? auxiliaryMaterialHistoryState.items
+      : [];
+
+
+  items.forEach(
+    item => {
+      const recordDate =
+        String(
+          item?.recordDate ||
+          ""
+        ).trim();
+
+
+      const unitNo =
+        Number(
+          item?.unitNo
+        );
+
+
+      if (
+        !isValidAuxiliaryMaterialIsoDate(
+          recordDate
+        ) ||
+        ![
+          1,
+          2
+        ].includes(
+          unitNo
+        )
+      ) {
+        return;
+      }
+
+
+      if (
+        !rowsByDate.has(
+          recordDate
+        )
+      ) {
+        rowsByDate.set(
+          recordDate,
+          {
+            recordDate,
+            unitOne:
+              null,
+            unitTwo:
+              null
+          }
+        );
+      }
+
+
+      const row =
+        rowsByDate.get(
+          recordDate
+        );
+
+
+      if (
+        unitNo ===
+          1
+      ) {
+        row.unitOne =
+          item;
+
+      } else {
+        row.unitTwo =
+          item;
+      }
+    }
+  );
+
+
+  const rows =
+    Array.from(
+      rowsByDate.values()
+    ).sort(
+      (
+        first,
+        second
+      ) =>
+        second.recordDate.localeCompare(
+          first.recordDate
+        )
+    );
+
+
+  if (
+    rows.length <
+      1
+  ) {
+    monitor.innerHTML = `
+      <div class="auxiliary-material-mobile-empty">
+        선택한 월의 저장된 부재료 자료가 없습니다.
+      </div>
+    `;
+
+
+    return;
+  }
+
+
+  const metrics = [
+    {
+      key:
+        "limePowderTpd",
+
+      label:
+        "Lime Powder",
+
+      unit:
+        "t/d",
+
+      decimalPlaces:
+        2,
+
+      cssClass:
+        "is-lime-powder"
+    },
+
+    {
+      key:
+        "ammoniaM3d",
+
+      label:
+        "Ammonia",
+
+      unit:
+        "m³/d",
+
+      decimalPlaces:
+        3,
+
+      cssClass:
+        "is-ammonia"
+    },
+
+    {
+      key:
+        "soxPpm",
+
+      label:
+        "SOx",
+
+      unit:
+        "ppm",
+
+      decimalPlaces:
+        2,
+
+      cssClass:
+        "is-sox"
+    },
+
+    {
+      key:
+        "noxPpm",
+
+      label:
+        "NOx",
+
+      unit:
+        "ppm",
+
+      decimalPlaces:
+        2,
+
+      cssClass:
+        "is-nox"
+    }
+  ];
+
+
+  const weekdayNames = [
+    "일",
+    "월",
+    "화",
+    "수",
+    "목",
+    "금",
+    "토"
+  ];
+
+
+  function formatMobileDate(
+    recordDate
+  ) {
+    const date =
+      new Date(
+        `${recordDate}T00:00:00`
+      );
+
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return {
+        title:
+          recordDate,
+
+        weekday:
+          ""
+      };
+    }
+
+
+    return {
+      title:
+        `${date.getMonth() + 1}월 ${date.getDate()}일`,
+
+      weekday:
+        `${weekdayNames[date.getDay()]}요일`
+    };
+  }
+
+
+  function formatMobileValue(
+    item,
+    metric
+  ) {
+    return formatAuxiliaryMaterialDisplayNumber(
+      item?.[
+        metric.key
+      ],
+      metric.decimalPlaces
+    );
+  }
+
+
+  function getRemarks(
+    row
+  ) {
+    const unitOneRemarks =
+      String(
+        row.unitOne?.remarks ??
+        ""
+      ).trim();
+
+
+    const unitTwoRemarks =
+      String(
+        row.unitTwo?.remarks ??
+        ""
+      ).trim();
+
+
+    if (
+      unitOneRemarks &&
+      unitTwoRemarks &&
+      unitOneRemarks !==
+        unitTwoRemarks
+    ) {
+      return (
+        `1호기: ${unitOneRemarks} / ` +
+        `2호기: ${unitTwoRemarks}`
+      );
+    }
+
+
+    return (
+      unitOneRemarks ||
+      unitTwoRemarks
+    );
+  }
+
+
+  monitor.innerHTML =
+    rows
+      .map(
+        row => {
+          const dateLabel =
+            formatMobileDate(
+              row.recordDate
+            );
+
+
+          const remarks =
+            getRemarks(
+              row
+            );
+
+
+          const metricRows =
+            metrics
+              .map(
+                metric => `
+                  <div
+                    class="auxiliary-material-mobile-metric-row ${metric.cssClass}"
+                  >
+                    <div class="auxiliary-material-mobile-metric-label">
+                      <strong>
+                        ${escapeAuxiliaryMaterialHtml(
+                          metric.label
+                        )}
+                      </strong>
+
+                      <small>
+                        ${escapeAuxiliaryMaterialHtml(
+                          metric.unit
+                        )}
+                      </small>
+                    </div>
+
+                    <strong class="auxiliary-material-mobile-value is-unit-one">
+                      ${escapeAuxiliaryMaterialHtml(
+                        formatMobileValue(
+                          row.unitOne,
+                          metric
+                        )
+                      )}
+                    </strong>
+
+                    <strong class="auxiliary-material-mobile-value is-unit-two">
+                      ${escapeAuxiliaryMaterialHtml(
+                        formatMobileValue(
+                          row.unitTwo,
+                          metric
+                        )
+                      )}
+                    </strong>
+                  </div>
+                `
+              )
+              .join(
+                ""
+              );
+
+
+          return `
+            <article
+              class="auxiliary-material-mobile-day-card"
+              data-record-date="${escapeAuxiliaryMaterialHtml(
+                row.recordDate
+              )}"
+            >
+              <header class="auxiliary-material-mobile-day-card__header">
+                <div>
+                  <strong>
+                    ${escapeAuxiliaryMaterialHtml(
+                      dateLabel.title
+                    )}
+                  </strong>
+
+                  <span>
+                    ${escapeAuxiliaryMaterialHtml(
+                      dateLabel.weekday
+                    )}
+                  </span>
+                </div>
+
+                <span class="auxiliary-material-mobile-saved-badge">
+                  D1 저장
+                </span>
+              </header>
+
+              <div class="auxiliary-material-mobile-metric-head">
+                <span>
+                  항목
+                </span>
+
+                <strong>
+                  1호기
+                </strong>
+
+                <strong>
+                  2호기
+                </strong>
+              </div>
+
+              <div class="auxiliary-material-mobile-metric-list">
+                ${metricRows}
+              </div>
+
+              ${remarks
+                ? `
+                    <div class="auxiliary-material-mobile-remarks">
+                      <span>
+                        비고
+                      </span>
+
+                      <strong>
+                        ${escapeAuxiliaryMaterialHtml(
+                          remarks
+                        )}
+                      </strong>
+                    </div>
+                  `
+                : ""}
+            </article>
+          `;
+        }
+      )
+      .join(
+        ""
+      );
+}
+
 /* =========================================================
   Slurry 밀도 고정값 화면 표시
 ========================================================= */
@@ -88365,6 +88972,38 @@ function setAuxiliaryMaterialValueEditMode(
     Boolean(
       isEditing
     );
+
+
+  /*
+    모바일 부재료 화면은 모니터링 전용이다.
+    수정 모드 진입 자체를 막는다.
+  */
+  if (
+    nextState &&
+    isAuxiliaryMaterialMobileMonitorMode()
+  ) {
+    auxiliaryMaterialValueEditState.isEditing =
+      false;
+
+    auxiliaryMaterialValueEditState.isSaving =
+      false;
+
+
+    updateAuxiliaryMaterialValueEditButtons();
+
+
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        "모바일에서는 저장된 부재료 결과만 확인할 수 있습니다."
+      );
+    }
+
+
+    return;
+  }
 
 
   if (
@@ -89006,9 +89645,29 @@ function initializeAuxiliaryMaterialValueEditControls() {
   }
 
 
+  prepareAuxiliaryMaterialMobileMonitorOnlyLayout();
+
+
   elements.editValuesButton?.addEventListener(
     "click",
     () => {
+      if (
+        isAuxiliaryMaterialMobileMonitorMode()
+      ) {
+        if (
+          typeof showToast ===
+            "function"
+        ) {
+          showToast(
+            "모바일 부재료 화면은 모니터링 전용입니다."
+          );
+        }
+
+
+        return;
+      }
+
+
       if (
         auxiliaryMaterialValueEditState
           .isEditing
@@ -89036,19 +89695,56 @@ function initializeAuxiliaryMaterialValueEditControls() {
 
   elements.fixedDensitySaveButton?.addEventListener(
     "click",
-    saveAuxiliaryMaterialFixedDensity
+    () => {
+      if (
+        isAuxiliaryMaterialMobileMonitorMode()
+      ) {
+        if (
+          typeof showToast ===
+            "function"
+        ) {
+          showToast(
+            "모바일 부재료 화면은 모니터링 전용입니다."
+          );
+        }
+
+
+        return;
+      }
+
+
+      saveAuxiliaryMaterialFixedDensity();
+    }
   );
 
 
   elements.tableBody?.addEventListener(
     "input",
-    handleAuxiliaryMaterialValueInput
+    event => {
+      if (
+        isAuxiliaryMaterialMobileMonitorMode()
+      ) {
+        return;
+      }
+
+
+      handleAuxiliaryMaterialValueInput(
+        event
+      );
+    }
   );
 
 
   document.addEventListener(
     "keydown",
     event => {
+      if (
+        isAuxiliaryMaterialMobileMonitorMode()
+      ) {
+        return;
+      }
+
+
       if (
         event.key ===
           "Escape" &&
@@ -89073,11 +89769,21 @@ function initializeAuxiliaryMaterialValueEditControls() {
     "true";
 
 
+  if (
+    isAuxiliaryMaterialMobileMonitorMode()
+  ) {
+    auxiliaryMaterialValueEditState.isEditing =
+      false;
+
+    auxiliaryMaterialValueEditState.isSaving =
+      false;
+  }
+
+
   updateAuxiliaryMaterialValueEditButtons();
 
   renderAuxiliaryMaterialFixedDensitySettings();
 }
-
 
 if (
   document.readyState ===
@@ -89419,7 +90125,7 @@ if (
     renderAuxiliaryMaterialHistory;
 
 
-  renderAuxiliaryMaterialHistory =
+renderAuxiliaryMaterialHistory =
     function renderAuxiliaryMaterialHistoryWithUnitAverages() {
 
       upgradeAverageSummaryMarkup();
@@ -89427,6 +90133,8 @@ if (
       originalRenderAuxiliaryMaterialHistory();
 
       renderUnitAverageSummary();
+
+      renderAuxiliaryMaterialMobileMonitor();
     };
 
 
@@ -89701,6 +90409,9 @@ function initializeAuxiliaryMaterialHistoryControls() {
   }
 
 
+  prepareAuxiliaryMaterialMobileMonitorOnlyLayout();
+
+
   const today =
     formatAuxiliaryMaterialIsoDate(
       new Date()
@@ -89725,6 +90436,8 @@ function initializeAuxiliaryMaterialHistoryControls() {
 
   /*
     저장 자료 보기 버튼
+
+    PC에서는 기존 기능 그대로 유지한다.
   */
   elements.loadButton.addEventListener(
     "click",
@@ -89744,10 +90457,32 @@ function initializeAuxiliaryMaterialHistoryControls() {
   /*
     부재료 메뉴를 열면
     선택 기간의 저장자료를 바로 불러온다.
+
+    모바일에서는 현재 선택 월의 기간만 사용한다.
   */
   elements.tab?.addEventListener(
     "click",
     () => {
+      if (
+        isAuxiliaryMaterialMobileMonitorMode()
+      ) {
+        applyAuxiliaryMaterialMonthRange(
+          elements.monthInput?.value ||
+          getCurrentAuxiliaryMaterialMonthValue()
+        );
+
+
+        auxiliaryMaterialValueEditState.isEditing =
+          false;
+
+        auxiliaryMaterialValueEditState.isSaving =
+          false;
+
+
+        updateAuxiliaryMaterialValueEditButtons();
+      }
+
+
       loadAuxiliaryMaterialHistory()
         .catch(
           () => {
@@ -89766,7 +90501,6 @@ function initializeAuxiliaryMaterialHistoryControls() {
     .auxiliaryMaterialHistoryBound =
     "true";
 }
-
 
 /* =====================================================
   초기 실행

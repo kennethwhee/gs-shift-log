@@ -74090,16 +74090,16 @@ textarea.efficiency-daily-work-line-source[
   }
 
 
-  #nightPatrolButton
-  .night-patrol-header-button__label {
-    color: #2470b7 !important;
+#nightPatrolButton
+.night-patrol-header-button__label {
+  color: #2470b7 !important;
 
-    font-size: 13px !important;
-    font-weight: 900 !important;
-    line-height: 1.2 !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
 
-    white-space: nowrap !important;
-  }
+  white-space: nowrap !important;
+}
 
 
   /*
@@ -93064,4 +93064,552 @@ body.is-auxiliary-material-expanded
     color: #ffffff;
   }
 
+}
+
+/* =========================================================
+  부재료 모바일 모니터링 전용 최종본
+
+  모바일:
+  - 현재 월 D1 저장자료 자동 조회
+  - 월 이동만 허용
+  - Lime Powder / Ammonia / SOx / NOx 카드 표시
+  - OIS 조회·D1 저장·엑셀 등록·수치 수정·밀도 설정 숨김
+
+  PC:
+  - 기존 관리 기능 그대로 유지
+========================================================= */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-mobile-monitor {
+  display: none;
+}
+
+
+@media screen and (max-width: 768px) {
+
+  /* =====================================================
+    제목
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-heading {
+    margin-bottom: 8px !important;
+    padding: 0 2px !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-heading h3 {
+    font-size: 18px !important;
+    line-height: 1.25 !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-heading p {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    조회 월만 남긴다.
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-query-card {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 7px !important;
+
+    margin-bottom: 8px !important;
+    padding: 9px !important;
+
+    border-radius: 12px !important;
+    box-shadow: none !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation {
+    grid-template-columns:
+      36px
+      minmax(0, 1fr)
+      36px !important;
+
+    align-items: center !important;
+    gap: 7px !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation
+  > button {
+    width: 36px !important;
+    height: 38px !important;
+
+    border-radius: 9px !important;
+    font-size: 22px !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation
+  label {
+    gap: 0 !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation
+  label
+  > span {
+    display: none !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-query-card
+  input[type="month"] {
+    height: 38px !important;
+    min-height: 38px !important;
+
+    padding: 0 9px !important;
+
+    border-radius: 9px !important;
+
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    text-align: center !important;
+  }
+
+
+  /* =====================================================
+    모바일에서는 관리 기능 전부 숨김
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-period-fields,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-force-refresh,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-excel-import,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-admin-panel,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-desktop-summary,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-view-actions,
+
+  #efficiencyAuxiliaryMaterialsView
+  #editAuxiliaryMaterialValuesButton,
+
+  #efficiencyAuxiliaryMaterialsView
+  #cancelAuxiliaryMaterialValuesButton,
+
+  #efficiencyAuxiliaryMaterialsView
+  #auxiliaryMaterialDensityEffectiveDate,
+
+  #efficiencyAuxiliaryMaterialsView
+  #auxiliaryMaterialUnitOneFixedDensity,
+
+  #efficiencyAuxiliaryMaterialsView
+  #auxiliaryMaterialUnitTwoFixedDensity,
+
+  #efficiencyAuxiliaryMaterialsView
+  #saveAuxiliaryMaterialFixedDensityButton,
+
+  #efficiencyAuxiliaryMaterialsView
+  #auxiliaryMaterialFixedDensityStatus {
+    display: none !important;
+  }
+
+
+  /*
+    네 개의 기존 요약 article이 같은 부모 안에 있으면
+    그 빈 요약 영역도 함께 제거한다.
+  */
+  #efficiencyAuxiliaryMaterialsView
+  *:has(
+    > article.auxiliary-material-mobile-desktop-summary
+  ) {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    조회 상태는 작게 유지
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-status {
+    grid-column: 1 !important;
+
+    width: 100% !important;
+    min-height: 31px !important;
+
+    margin: 0 !important;
+    padding: 6px 9px !important;
+
+    border-radius: 8px !important;
+
+    font-size: 10px !important;
+    line-height: 1.35 !important;
+  }
+
+
+  /* =====================================================
+    기존 PC 표 영역은 모바일에서 숨김
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-card {
+    min-height: 0 !important;
+
+    overflow: visible !important;
+
+    border: 0 !important;
+    border-radius: 0 !important;
+
+    background: transparent !important;
+
+    box-shadow: none !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-card
+  > header,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-table-wrap,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-empty-state {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    모바일 결과 목록
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-monitor {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+
+    flex-direction: column !important;
+    gap: 8px !important;
+
+    margin: 0 !important;
+    padding: 0 0 4px !important;
+  }
+
+
+  /* =====================================================
+    날짜 카드
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-day-card {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+
+    border: 1px solid #d8e3ef;
+    border-radius: 12px;
+
+    background: #ffffff;
+
+    box-shadow:
+      0 3px 10px
+      rgba(31, 54, 88, 0.045);
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-day-card__header {
+    display: flex;
+    min-height: 38px;
+
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+
+    padding: 7px 10px;
+
+    border-bottom: 1px solid #e5ebf2;
+    background: #f8fafc;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-day-card__header
+  > div {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    min-width: 0;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-day-card__header
+  > div
+  > strong {
+    color: #172033;
+
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-day-card__header
+  > div
+  > span {
+    color: #7a8798;
+
+    font-size: 9px;
+    font-weight: 800;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-saved-badge {
+    display: inline-flex;
+    min-height: 20px;
+
+    align-items: center;
+    justify-content: center;
+
+    padding: 0 7px;
+
+    border: 1px solid #b9ddc8;
+    border-radius: 999px;
+
+    background: #edf9f2;
+    color: #21804d;
+
+    font-size: 8px;
+    font-weight: 900;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+
+  /* =====================================================
+    항목 | 1호기 | 2호기
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-metric-head,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-metric-row {
+    display: grid;
+    grid-template-columns:
+      minmax(0, 1fr)
+      72px
+      72px;
+
+    align-items: center;
+    column-gap: 4px;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-metric-head {
+    min-height: 27px;
+    padding: 4px 9px;
+
+    border-bottom: 1px solid #e7edf4;
+    background: #ffffff;
+
+    color: #7a8798;
+
+    font-size: 8px;
+    font-weight: 900;
+    text-align: center;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-metric-head
+  > span {
+    text-align: left;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-metric-list {
+    display: block;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-metric-row {
+    min-height: 31px;
+    padding: 5px 9px;
+
+    border-bottom: 1px solid #eef2f6;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-metric-row:last-child {
+    border-bottom: 0;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-metric-label {
+    display: flex;
+    min-width: 0;
+
+    align-items: baseline;
+    gap: 5px;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-metric-label
+  > strong {
+    overflow: hidden;
+
+    color: #35445a;
+
+    font-size: 10px;
+    font-weight: 850;
+    line-height: 1.25;
+
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-metric-label
+  > small {
+    flex: 0 0 auto;
+
+    color: #8b96a5;
+
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-value {
+    display: block;
+
+    color: #24364e;
+
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1.2;
+    text-align: right;
+
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-value.is-unit-two {
+    color: #236a4a;
+  }
+
+
+  /* =====================================================
+    비고
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-remarks {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 6px;
+
+    padding: 6px 9px;
+
+    border-top: 1px solid #e8edf3;
+    background: #fbfcfd;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-remarks
+  > span {
+    color: #8a94a3;
+
+    font-size: 8px;
+    font-weight: 900;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-remarks
+  > strong {
+    min-width: 0;
+
+    color: #5d697a;
+
+    font-size: 9px;
+    font-weight: 750;
+    line-height: 1.35;
+
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+
+  /* =====================================================
+    저장 자료 없음
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-empty {
+    padding: 32px 14px;
+
+    border: 1px solid #dbe4ee;
+    border-radius: 12px;
+
+    background: #ffffff;
+    color: #7c8898;
+
+    font-size: 11px;
+    font-weight: 750;
+    text-align: center;
+  }
+}
+
+
+@media screen and (max-width: 390px) {
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-metric-head,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-metric-row {
+    grid-template-columns:
+      minmax(0, 1fr)
+      64px
+      64px;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-mobile-value {
+    font-size: 10px;
+  }
 }

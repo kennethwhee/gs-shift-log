@@ -1,0 +1,51 @@
+석회석 전표 실중량 OCR 확대·산식 검증 수정
+=============================================
+
+기준 상태
+- 최신 배포 커밋 daaffe5 이후에 적용
+- 변경 파일은 아래 2개뿐입니다.
+  1) script.js
+  2) functions/api/limestone-slip-ocr.js
+
+변경 내용
+- 촬영·보관함 사진에서 중량표 영역을 자동 확대하여 OCR에 별도 전송
+- 전체 사진은 기존대로 미리보기 및 R2 보관용으로 유지
+- 총중량·공차중량·실중량의 세 연속 kg 숫자를 우선 판독
+- JSON 배열, 중첩 JSON, 일반 문장 응답도 처리
+- 두 번의 부분 판독값을 합쳐 총중량 - 공차중량 = 실중량으로 검증
+- 프롬프트의 이전 전표 예제 숫자를 제거하여 잘못된 값 복사 방지
+- AI 호출은 기존과 동일하게 최대 2회
+
+1. 압축 해제
+프로젝트 최상위 폴더에 압축을 풀어 아래 파일이 보이게 합니다.
+
+  .\limestone-ocr-weight-crop-fix\limestone-ocr-weight-crop-fix.patch
+
+2. 적용 가능 여부 확인
+
+  git apply --check .\limestone-ocr-weight-crop-fix\limestone-ocr-weight-crop-fix.patch
+
+아무 출력이 없으면 정상입니다.
+
+3. 실제 적용
+
+  git apply .\limestone-ocr-weight-crop-fix\limestone-ocr-weight-crop-fix.patch
+
+4. 문법·공백 검사
+
+  node --check .\script.js
+
+  node --check .\functions\api\limestone-slip-ocr.js
+
+  git diff --check -- `
+    .\script.js `
+    .\functions\api\limestone-slip-ocr.js
+
+  git diff --stat -- `
+    .\script.js `
+    .\functions\api\limestone-slip-ocr.js
+
+주의
+- 검사 결과를 확인하기 전에는 git add, commit, push를 하지 않습니다.
+- index.html, style.css 및 캐시 버전은 변경하지 않습니다.
+- 기존 OIS 관련 미커밋 파일과 오류 이미지는 이번 변경에 포함하지 않습니다.

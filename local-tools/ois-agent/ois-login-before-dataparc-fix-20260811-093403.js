@@ -551,12 +551,8 @@ const DATAPARC_STEAM_RESULT_MARKER =
   "__DATAPARC_STEAM_RESULT__";
 
 
-const DATAPARC_STEAM_STAGE_MARKER =
-  "__DATAPARC_STEAM_STAGE__";
-
-
 const DATAPARC_STEAM_PROCESS_TIMEOUT =
-  45000;
+  120000;
 
 /* =========================================================
   DataPARC Tag Browser 통신 진단
@@ -6959,7 +6955,11 @@ async function collectOisLegacyLogApprovalValues(
   - steam_status
   - logsheet_approval
 
-  일곱 요청 유형을 번갈아 확인한다.
+  중요:
+  - 기존에는 7개 유형을 각각 HTTP 조회했다.
+  - 이제 7개 유형의 우선순위를 한 번에 서버로 전달한다.
+  - 따라서 대기 상태의 Cloudflare 요청은
+    폴링 1회당 HTTP 1회만 발생한다.
 ========================================================= */
 
 async function getNextOisAgentRequest(
@@ -6985,6 +6985,23 @@ async function getNextOisAgentRequest(
     requestTypes.length;
 
 
+  /*
+    이번 폴링에서 확인할 유형 순서.
+
+    예:
+    startIndex = 2 이면
+
+    auxiliary_materials
+    turbine_gear_pinion
+    silo_level
+    steam_status
+    logsheet_approval
+    water_environment
+    limestone_stock
+  */
+  const orderedRequestTypes = [];
+
+
   for (
     let offset = 0;
     offset <
@@ -6992,56 +7009,95 @@ async function getNextOisAgentRequest(
     offset +=
       1
   ) {
-    const requestTypeIndex =
-      (
-        startIndex +
-        offset
-      ) %
-      requestTypes.length;
-
-
-    const requestType =
+    orderedRequestTypes.push(
       requestTypes[
-        requestTypeIndex
-      ];
-
-
-    const result =
-      await requestOisAgentApi(
-        config,
-
-        getOisAgentApiUrl(
-          config,
-          {
-            action:
-              "next",
-
-            requestType,
-
-            _:
-              Date.now()
-          }
-        )
-      );
-
-
-    if (
-      result.item
-    ) {
-      getNextOisAgentRequest
-        .nextTypeIndex =
         (
-          requestTypeIndex +
-          1
+          startIndex +
+          offset
         ) %
-        requestTypes.length;
-
-
-      return result.item;
-    }
+        requestTypes.length
+      ]
+    );
   }
 
 
+  /*
+    서버에 7종류를 한 번에 전달한다.
+
+    기존:
+    7개 유형 × 각각 HTTP GET
+
+    변경:
+    7개 유형 목록 × HTTP GET 1회
+  */
+  const result =
+    await requestOisAgentApi(
+      config,
+
+      getOisAgentApiUrl(
+        config,
+        {
+          action:
+            "next",
+
+          requestTypes:
+            orderedRequestTypes.join(
+              ","
+            ),
+
+          _:
+            Date.now()
+        }
+      )
+    );
+
+
+  if (
+    result.item
+  ) {
+    /*
+      실제로 가져온 요청 유형의 다음 유형부터
+      다음 폴링의 우선순위를 시작한다.
+
+      한 종류의 대량 요청이 있어도
+      다른 종류가 계속 뒤로 밀리지 않도록 한다.
+    */
+    const claimedRequestType =
+      getOisAgentRequestType(
+        result.item
+      );
+
+
+    const claimedRequestTypeIndex =
+      requestTypes.indexOf(
+        claimedRequestType
+      );
+
+
+    getNextOisAgentRequest
+      .nextTypeIndex =
+      claimedRequestTypeIndex >=
+        0
+        ? (
+            claimedRequestTypeIndex +
+            1
+          ) %
+          requestTypes.length
+        : (
+            startIndex +
+            1
+          ) %
+          requestTypes.length;
+
+
+    return result.item;
+  }
+
+
+  /*
+    요청이 하나도 없더라도
+    다음 폴링의 시작 유형을 한 칸 이동한다.
+  */
   getNextOisAgentRequest
     .nextTypeIndex =
     (
@@ -7169,28 +7225,9 @@ $excel = $null
 $originalWorkbook = $null
 $workbook = $null
 $worksheet = $null
-$queryRange = $null
 $cells = @()
 
-$stageMarker = "__DATAPARC_STEAM_STAGE__"
-
-function Write-DataParcStage {
-  param(
-    [string]$Message
-  )
-
-  [Console]::WriteLine(
-    $stageMarker + $Message
-  )
-
-  [Console]::Out.Flush()
-}
-
 try {
-  Write-DataParcStage(
-    "PowerShell 조회 시작"
-  )
-
   $targetDate = $env:GS_STEAM_TARGET_DATE
   $nextDate = $env:GS_STEAM_NEXT_DATE
   $unitOneTag = $env:GS_STEAM_UNIT_ONE_TAG
@@ -7210,10 +7247,6 @@ try {
     throw "DataPARC steam production tag is empty."
   }
 
-  Write-DataParcStage(
-    "실행 중인 Excel 연결 시도"
-  )
-
   try {
     $excel =
       [Runtime.InteropServices.Marshal]::GetActiveObject(
@@ -7231,39 +7264,14 @@ try {
     throw "Active Excel session was not returned."
   }
 
-  Write-DataParcStage(
-    "실행 중인 Excel 연결 완료"
-  )
-
   $originalWorkbook =
     $excel.ActiveWorkbook
-
-  if ($null -eq $originalWorkbook) {
-    throw "Active Excel workbook was not returned."
-  }
-
-  Write-DataParcStage(
-    "조회용 임시 통합문서 생성 시작"
-  )
 
   $workbook =
     $excel.Workbooks.Add()
 
   $worksheet =
     $workbook.Worksheets.Item(1)
-
-  $worksheet.EnableCalculation =
-    $false
-
-  $queryRange =
-    $worksheet.Range("A1:B2")
-
-  $queryRange.ColumnWidth =
-    24
-
-  Write-DataParcStage(
-    "조회용 임시 통합문서 생성 완료"
-  )
 
   $cells = @(
     $worksheet.Range("A1"),
@@ -7279,10 +7287,6 @@ try {
     '=fnAtTimeArray("' + $unitTwoTag + '","' + $nextDate + ' 00:00:00","State","Value")'
   )
 
-  Write-DataParcStage(
-    "DataPARC 수식 4개 입력 시작"
-  )
-
   for (
     $index = 0;
     $index -lt $cells.Count;
@@ -7292,31 +7296,20 @@ try {
       $formulas[$index]
   }
 
-  Write-DataParcStage(
-    "DataPARC 수식 4개 입력 완료"
-  )
-
-  $worksheet.EnableCalculation =
-    $true
-
-  Write-DataParcStage(
-    "조회 범위 1회 계산 시작"
-  )
-
-  $queryRange.Calculate()
-
-  Write-DataParcStage(
-    "조회 범위 1회 계산 반환"
-  )
-
   $deadline =
-    (Get-Date).AddSeconds(25)
+    (Get-Date).AddSeconds(60)
 
   $values =
     $null
 
   do {
-    Start-Sleep -Milliseconds 400
+    foreach ($cell in $cells) {
+      $cell.Calculate()
+    }
+
+    $excel.Calculate()
+
+    Start-Sleep -Milliseconds 500
 
     $candidateValues = @()
     $allValuesReady = $true
@@ -7391,14 +7384,10 @@ try {
       }
 
     throw (
-      "DataPARC values were not returned within 25 seconds. " +
+      "DataPARC values were not returned within 60 seconds. " +
       ($cellStates -join ", ")
     )
   }
-
-  Write-DataParcStage(
-    "DataPARC 누적값 4개 확인 완료"
-  )
 
   $result = [ordered]@{
     targetDate = $targetDate
@@ -7417,27 +7406,8 @@ try {
     $resultMarker +
     ($result | ConvertTo-Json -Compress -Depth 4)
   )
-
-  [Console]::Out.Flush()
 }
 finally {
-  if ($worksheet) {
-    try {
-      $worksheet.EnableCalculation =
-        $false
-    }
-    catch {
-    }
-  }
-
-  if ($queryRange) {
-    try {
-      $queryRange.ClearContents()
-    }
-    catch {
-    }
-  }
-
   if ($workbook) {
     try {
       $workbook.Close(
@@ -7448,12 +7418,19 @@ finally {
     }
   }
 
+  if ($originalWorkbook) {
+    try {
+      $originalWorkbook.Activate()
+    }
+    catch {
+    }
+  }
+
   foreach ($comObject in @(
     $cells[3],
     $cells[2],
     $cells[1],
     $cells[0],
-    $queryRange,
     $worksheet,
     $workbook,
     $originalWorkbook,
@@ -7469,6 +7446,9 @@ finally {
       }
     }
   }
+
+  [GC]::Collect()
+  [GC]::WaitForPendingFinalizers()
 }
 `;
 
@@ -7556,92 +7536,6 @@ function runDataParcSteamPowerShell(
         false;
 
 
-      let stdoutLineBuffer =
-        "";
-
-
-      let lastStage =
-        "PowerShell 실행 직후";
-
-
-      let cleanupTimeoutId =
-        null;
-
-
-      const resultMarker =
-        normalizeOisAgentText(
-          environment
-            .GS_STEAM_RESULT_MARKER
-        );
-
-
-      const stopChildProcess =
-        () => {
-          if (
-            childProcess.exitCode !==
-              null ||
-            childProcess.signalCode !==
-              null
-          ) {
-            return;
-          }
-
-
-          try {
-            childProcess.kill(
-              "SIGKILL"
-            );
-          } catch (
-            error
-          ) {
-          }
-
-
-          if (
-            process.platform ===
-              "win32" &&
-            Number.isInteger(
-              childProcess.pid
-            )
-          ) {
-            try {
-              const taskKillProcess =
-                spawn(
-                  path.join(
-                    systemRoot,
-                    "System32",
-                    "taskkill.exe"
-                  ),
-
-                  [
-                    "/PID",
-                    String(
-                      childProcess.pid
-                    ),
-                    "/T",
-                    "/F"
-                  ],
-
-                  {
-                    windowsHide:
-                      true,
-
-                    stdio:
-                      "ignore"
-                  }
-                );
-
-
-              taskKillProcess.unref();
-
-            } catch (
-              error
-            ) {
-            }
-          }
-        };
-
-
       const finish = (
         error,
         value
@@ -7660,20 +7554,6 @@ function runDataParcSteamPowerShell(
         clearTimeout(
           timeoutId
         );
-
-
-        if (
-          error &&
-          cleanupTimeoutId
-        ) {
-          clearTimeout(
-            cleanupTimeoutId
-          );
-
-
-          cleanupTimeoutId =
-            null;
-        }
 
 
         if (
@@ -7697,17 +7577,12 @@ function runDataParcSteamPowerShell(
       const timeoutId =
         setTimeout(
           () => {
-            stopChildProcess();
+            childProcess.kill();
 
 
             finish(
               new Error(
-                [
-                  "DataPARC 증기생산량 조회가 45초를 초과해 중단되었습니다.",
-                  `마지막 단계: ${lastStage}`
-                ].join(
-                  " "
-                )
+                "DataPARC 증기생산량 조회 프로그램의 응답 시간이 초과되었습니다."
               )
             );
           },
@@ -7728,103 +7603,11 @@ function runDataParcSteamPowerShell(
         );
 
 
-      const handleStandardOutputLine =
-        line => {
-          const normalizedLine =
-            String(
-              line ||
-              ""
-            )
-              .trim();
-
-
-          if (
-            !normalizedLine
-          ) {
-            return;
-          }
-
-
-          if (
-            normalizedLine.startsWith(
-              DATAPARC_STEAM_STAGE_MARKER
-            )
-          ) {
-            lastStage =
-              normalizedLine
-                .slice(
-                  DATAPARC_STEAM_STAGE_MARKER.length
-                )
-                .trim() ||
-              lastStage;
-
-
-            console.log(
-              `DataPARC 진행 · ${lastStage}`
-            );
-
-
-            return;
-          }
-
-
-          if (
-            resultMarker &&
-            normalizedLine.startsWith(
-              resultMarker
-            )
-          ) {
-            cleanupTimeoutId =
-              setTimeout(
-                () => {
-                  stopChildProcess();
-                },
-
-                3000
-              );
-
-
-            cleanupTimeoutId.unref?.();
-
-
-            finish(
-              null,
-              normalizedLine
-            );
-          }
-        };
-
-
       childProcess.stdout.on(
         "data",
         chunk => {
           standardOutput +=
             chunk;
-
-
-          stdoutLineBuffer +=
-            chunk;
-
-
-          const lines =
-            stdoutLineBuffer.split(
-              /\r?\n/
-            );
-
-
-          stdoutLineBuffer =
-            lines.pop() ||
-            "";
-
-
-          for (
-            const line of
-            lines
-          ) {
-            handleStandardOutputLine(
-              line
-            );
-          }
         }
       );
 
@@ -7841,17 +7624,9 @@ function runDataParcSteamPowerShell(
       childProcess.on(
         "error",
         error => {
-          stopChildProcess();
-
-
           finish(
             new Error(
-              [
-                `Windows PowerShell을 실행하지 못했습니다: ${error.message}`,
-                `마지막 단계: ${lastStage}`
-              ].join(
-                " "
-              )
+              `Windows PowerShell을 실행하지 못했습니다: ${error.message}`
             )
           );
         }
@@ -7861,39 +7636,6 @@ function runDataParcSteamPowerShell(
       childProcess.on(
         "close",
         exitCode => {
-          if (
-            cleanupTimeoutId
-          ) {
-            clearTimeout(
-              cleanupTimeoutId
-            );
-
-
-            cleanupTimeoutId =
-              null;
-          }
-
-
-          if (
-            stdoutLineBuffer
-          ) {
-            handleStandardOutputLine(
-              stdoutLineBuffer
-            );
-
-
-            stdoutLineBuffer =
-              "";
-          }
-
-
-          if (
-            isSettled
-          ) {
-            return;
-          }
-
-
           const errorText =
             normalizeOisAgentText(
               standardError
@@ -7903,6 +7645,13 @@ function runDataParcSteamPowerShell(
           const outputText =
             normalizeOisAgentText(
               standardOutput
+            );
+
+
+          const resultMarker =
+            normalizeOisAgentText(
+              environment
+                .GS_STEAM_RESULT_MARKER
             );
 
 
@@ -7937,16 +7686,10 @@ function runDataParcSteamPowerShell(
 
             finish(
               new Error(
+                detailText ||
                 [
-                  detailText ||
-                    [
-                      "DataPARC 조회 결과가 출력되지 않았습니다.",
-                      `종료 코드: ${exitCode}`
-                    ].join(
-                      " "
-                    ),
-
-                  `마지막 단계: ${lastStage}`
+                  "DataPARC 조회 결과가 출력되지 않았습니다.",
+                  `종료 코드: ${exitCode}`
                 ].join(
                   " "
                 )

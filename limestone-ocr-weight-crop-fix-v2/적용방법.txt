@@ -1,0 +1,58 @@
+석회석 전표 OCR 중량표 확대 판독 수정 v2
+
+이 수정본은 script(20260810-231356).js 기준으로 다시 제작되었습니다.
+기존 limestone-ocr-weight-crop-fix 패치는 더 이상 사용하지 마세요.
+
+변경 파일
+- script.js
+- functions/api/limestone-slip-ocr.js
+
+1. 프로젝트 최상위로 이동
+
+Set-Location 'C:\Users\GSENR\Desktop\gs-shift-log'
+
+2. 새 압축파일 찾기 및 풀기
+
+$ocrZip = Get-ChildItem "$env:USERPROFILE\Downloads" `
+  -Filter "limestone-ocr-weight-crop-fix-v2*.zip" |
+  Sort-Object LastWriteTime -Descending |
+  Select-Object -First 1
+
+Expand-Archive `
+  -LiteralPath $ocrZip.FullName `
+  -DestinationPath (Get-Location) `
+  -Force
+
+3. 패치 파일 확인
+
+Test-Path `
+  .\limestone-ocr-weight-crop-fix-v2\limestone-ocr-weight-crop-fix-v2.patch
+
+True가 나오면 다음 단계로 진행합니다.
+
+4. 충돌 검사
+
+git apply --check -- `
+  .\limestone-ocr-weight-crop-fix-v2\limestone-ocr-weight-crop-fix-v2.patch
+
+아무 출력이 없으면 정상입니다.
+
+5. 실제 적용
+
+git apply -- `
+  .\limestone-ocr-weight-crop-fix-v2\limestone-ocr-weight-crop-fix-v2.patch
+
+6. 문법 및 변경 검사
+
+node --check .\script.js
+node --check .\functions\api\limestone-slip-ocr.js
+
+git diff --check -- `
+  .\script.js `
+  .\functions\api\limestone-slip-ocr.js
+
+git diff --stat -- `
+  .\script.js `
+  .\functions\api\limestone-slip-ocr.js
+
+검사 결과를 확인하기 전에는 커밋하거나 푸시하지 마세요.
