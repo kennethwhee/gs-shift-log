@@ -95501,41 +95501,16 @@ function initializeAuxiliaryMaterialTableViewControls() {
   /*
     크게 보기 화면의 X 버튼
 
-    1. 크게 보기 상태를 먼저 해제한다.
-    2. 기존 효율팀 닫기 버튼을 클릭하여
-       기존 닫기 동작을 그대로 재사용한다.
+    축소하기 버튼과 동일하게
+    크게 보기 상태만 해제한다.
   */
 
   expandedCloseButton.addEventListener(
     "click",
     () => {
-      if (
-        auxiliaryMaterialValueEditState
-          .isEditing
-      ) {
-        showToast(
-          "수치 수정을 저장하거나 취소한 뒤 닫아 주세요."
-        );
-
-        return;
-      }
-
-
       setAuxiliaryMaterialExpandedView(
         false
       );
-
-
-      const modalCloseButton =
-        document.getElementById(
-          "closeEfficiencyTeamModalButton"
-        ) ||
-        document.getElementById(
-          "closeEfficiencyTeamModalFooterButton"
-        );
-
-
-      modalCloseButton?.click();
     }
   );
 
