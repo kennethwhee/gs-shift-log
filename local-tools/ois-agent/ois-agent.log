@@ -10311,3 +10311,18 @@ OIS Edge 브라우저 세션을 시작합니다.
 OIS 로그인이 완료되었습니다.
 OIS Edge 브라우저 세션이 준비되었습니다.
 업무일지의 OIS 요청을 기다립니다.
+
+------------------------------------------
+일일 DATA 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: a2e3d55d-86c2-454d-a71b-e3d32acd5c01
+조회일: 2026-08-10
+------------------------------------------
+월간 일일DATA관리 Excel 조회 시작 · 2026-08-10
+DataPARC 진행 · 월간 일일DATA관리 Excel 조회 시작
+Excel 일일 DATA 현황 요청 처리 실패: Error: 일일DATA관리 조회 정의를 읽지 못했습니다. 위치 C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-179228-1786440030292-ed8dced797756.ps1:380 문자:5 + throw "일일DATA관리 조회 정의를 읽지 못했습니다." + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ + CategoryInfo : OperationStopped: (일일DATA관리 조회 정의를 읽지 못했습니다.:String) [], RuntimeException + FullyQualifiedErrorId : 일일DATA관리 조회 정의를 읽지 못했습니다. 마지막 단계: 월간 일일DATA관리 Excel 조회 시작
+    at ChildProcess.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9644:15)
+    at ChildProcess.emit (node:events:509:28)
+    at maybeClose (node:internal/child_process:1124:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:306:5)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-a2e3d55d-86c2-454d-a71b-e3d32acd5c01.png

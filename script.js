@@ -87643,9 +87643,11 @@ function renderAuxiliaryMaterialValueCell(
   const cellClasses = [
     field.cssClass,
     unitClass,
+
     isFixedDensity
       ? "is-fixed-density"
       : "",
+
     isLinkedLimestoneUsage
       ? "is-linked-limestone-usage"
       : ""
@@ -87662,15 +87664,17 @@ function renderAuxiliaryMaterialValueCell(
     isFixedDensity
       ? `${unitNo}호기 Slurry 밀도 고정값 적용 중`
       : isLinkedLimestoneUsage
-        ? "석회석 화면에 저장된 사용량 자동 연동"
+        ? "석회석 화면 연동값 · 수동 수정 가능"
         : "";
 
 
+  /*
+    일반 표시 모드
+  */
   if (
     !auxiliaryMaterialValueEditState
       .isEditing ||
-    !item ||
-    isLinkedLimestoneUsage
+    !item
   ) {
     return `
       <td
@@ -87692,6 +87696,13 @@ function renderAuxiliaryMaterialValueCell(
   }
 
 
+  /*
+    수정 모드
+
+    중요:
+    Limestone 사용량을 포함하여
+    모든 부재료 수치에 입력칸을 만든다.
+  */
   const inputValue =
     formatAuxiliaryMaterialEditInputValue(
       item?.[
@@ -87714,24 +87725,32 @@ function renderAuxiliaryMaterialValueCell(
         type="text"
         inputmode="decimal"
         class="auxiliary-material-value-input"
+
         data-record-date="${escapeAuxiliaryMaterialHtml(
           recordDate
         )}"
+
         data-unit-no="${unitNo}"
+
         data-field="${escapeAuxiliaryMaterialHtml(
           field.key
         )}"
+
         data-original-value="${escapeAuxiliaryMaterialHtml(
           inputValue
         )}"
+
         data-step="${escapeAuxiliaryMaterialHtml(
           field.step
         )}"
+
         value="${escapeAuxiliaryMaterialHtml(
           inputValue
         )}"
+
         placeholder="-"
         autocomplete="off"
+
         aria-label="${escapeAuxiliaryMaterialHtml(
           `${recordDate} ${unitNo}호기 ${field.label}`
         )}"
@@ -87739,7 +87758,6 @@ function renderAuxiliaryMaterialValueCell(
     </td>
   `;
 }
-
 
 /* =====================================================
   부재료 항목 평균 계산

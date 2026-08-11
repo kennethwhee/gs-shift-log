@@ -1232,6 +1232,10 @@ async function saveLimestoneUsageRecords(
   }
 
 
+  /*
+    실제 석회석 입고기록 기준으로
+    1·2호기 입고량을 다시 계산한다.
+  */
   const receiptByUnit =
     await loadLimestoneReceiptQuantitiesByUnit(
       database,
@@ -1280,6 +1284,28 @@ async function saveLimestoneUsageRecords(
   const timestamp =
     new Date()
       .toISOString();
+
+
+  /*
+    2026-08-10부터는
+    석회석 관리와 부재료 관리가 연동된다.
+  */
+  const shouldSyncAuxiliaryMaterial =
+    usageDate >=
+      "2026-08-10";
+
+
+  /*
+    부재료 테이블이 없는 환경에서도
+    안전하게 연동할 수 있도록 준비한다.
+  */
+  if (
+    shouldSyncAuxiliaryMaterial
+  ) {
+    await ensureAuxiliaryMaterialDailyTable(
+      database
+    );
+  }
 
 
   const unitDefinitions = [
@@ -1356,6 +1382,10 @@ async function saveLimestoneUsageRecords(
     }
 
 
+    /*
+      사용량 =
+      전일 재고 + 당일 입고량 - 24시 재고
+    */
     const usageQuantity =
       normalizeLimestoneUsageNumber(
         startStock +
@@ -1383,6 +1413,10 @@ async function saveLimestoneUsageRecords(
       unitDefinition
         .defaultTag;
 
+
+    /* =====================================================
+      1. 석회석 사용량 원본 저장
+    ====================================================== */
 
     await database
       .prepare(`
@@ -1447,6 +1481,7 @@ async function saveLimestoneUsageRecords(
           usage_date,
           unit_no
         )
+
         DO UPDATE SET
           start_stock =
             excluded.start_stock,
@@ -1521,6 +1556,71 @@ async function saveLimestoneUsageRecords(
         timestamp
       )
       .run();
+
+
+    /* =====================================================
+      2. 부재료 일별 현황 동기화
+
+      중요:
+      부재료 행이 이미 존재하는 경우에만 갱신한다.
+
+      여기서 신규 부재료 행을 만들지는 않는다.
+
+      동기화:
+      - 시작 재고
+      - 입고량
+      - 종료 재고
+      - Limestone 사용량
+
+      그 외:
+      - SOx
+      - NOx
+      - Slurry
+      - Lime Powder
+      - Ammonia
+
+      기존 값을 그대로 유지한다.
+    ====================================================== */
+
+    if (
+      shouldSyncAuxiliaryMaterial
+    ) {
+      await database
+        .prepare(`
+          UPDATE auxiliary_material_daily
+
+          SET
+            limestone_start_stock = ?,
+            limestone_receipt_ton = ?,
+            limestone_end_stock = ?,
+            limestone_usage_tpd = ?,
+
+            updated_by_id = ?,
+            updated_by_name = ?,
+            updated_at = ?,
+
+            revision =
+              revision + 1
+
+          WHERE
+            record_date = ?
+            AND unit_no = ?
+        `)
+        .bind(
+          startStock,
+          receiptQuantity,
+          endStock,
+          usageQuantity,
+
+          requestedById,
+          requestedByName,
+          timestamp,
+
+          usageDate,
+          unitNo
+        )
+        .run();
+    }
   }
 
 
@@ -1529,7 +1629,6 @@ async function saveLimestoneUsageRecords(
     usageDate
   );
 }
-
 
 /* =========================================================
   석회석 OIS 결과 검증
