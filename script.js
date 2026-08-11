@@ -157234,15 +157234,21 @@ function applyMorningMeetingWeekendSupplementTables(
   };
 }
 
-/* =========================================================
-  오전회의 최종 엑셀 직접 입력 셀 바탕색
-========================================================= */
-
 async function applyMorningMeetingManualInputCellFills(
   zip,
   worksheetDocument,
   options = {}
 ) {
+  /*
+    options는 기존 호출부 호환을 위해 유지한다.
+
+    이제 평일 / 주말 여부와 관계없이
+    사용자가 지정한 고정 직접입력 영역만
+    연한 노란색으로 남긴다.
+  */
+  void options;
+
+
   const stylesFile =
     zip.file(
       "xl/styles.xml"
@@ -157304,66 +157310,96 @@ async function applyMorningMeetingManualInputCellFills(
   };
 
 
-  const inputFillRgb =
+  /* =====================================================
+    직접 입력 연한 노란색
+
+    업로드한 바탕색 변경본 기준:
+    #FFFFC0
+
+    XLSX ARGB:
+    FFFFFFC0
+  ====================================================== */
+
+  const manualInputFillRgb =
     "FFFFFFC0";
 
 
-  const fillElements =
-    directChildren(
-      fillsElement,
-      "fill"
-    );
+  /* =====================================================
+    기존 연한 노란색 Fill ID 모두 찾기
+  ====================================================== */
+
+  const yellowFillIds =
+    new Set();
 
 
-  let inputFillId =
-    fillElements.findIndex(
-      fillElement => {
-        const patternFill =
-          directChildren(
-            fillElement,
-            "patternFill"
-          )[0];
+  directChildren(
+    fillsElement,
+    "fill"
+  ).forEach(
+    (
+      fillElement,
+      fillIndex
+    ) => {
+      const patternFill =
+        directChildren(
+          fillElement,
+          "patternFill"
+        )[0];
 
 
-        const foregroundColor =
-          patternFill
-            ? directChildren(
-                patternFill,
-                "fgColor"
-              )[0]
-            : null;
+      const foregroundColor =
+        patternFill
+          ? directChildren(
+              patternFill,
+              "fgColor"
+            )[0]
+          : null;
 
 
-        const rgb =
-          String(
-            foregroundColor
-              ?.getAttribute(
-                "rgb"
-              ) ||
-            ""
-          ).toUpperCase();
-
-
-        return (
-          patternFill
+      const rgb =
+        String(
+          foregroundColor
             ?.getAttribute(
-              "patternType"
-            ) ===
-              "solid" &&
-          (
-            rgb ===
-              inputFillRgb ||
-            rgb ===
-              "FFFFC0"
-          )
+              "rgb"
+            ) ||
+          ""
+        ).toUpperCase();
+
+
+      if (
+        patternFill
+          ?.getAttribute(
+            "patternType"
+          ) ===
+            "solid" &&
+        (
+          rgb ===
+            manualInputFillRgb ||
+          rgb ===
+            "FFFFC0"
+        )
+      ) {
+        yellowFillIds.add(
+          fillIndex
         );
       }
-    );
+    }
+  );
+
+
+  /* =====================================================
+    연한 노란색 Fill이 없으면 생성
+  ====================================================== */
+
+  let manualInputFillId =
+    [
+      ...yellowFillIds
+    ][0];
 
 
   if (
-    inputFillId <
-      0
+    manualInputFillId ===
+      undefined
   ) {
     const fillElement =
       stylesDocument
@@ -157381,6 +157417,12 @@ async function applyMorningMeetingManualInputCellFills(
         );
 
 
+    patternFill.setAttribute(
+      "patternType",
+      "solid"
+    );
+
+
     const foregroundColor =
       stylesDocument
         .createElementNS(
@@ -157389,24 +157431,18 @@ async function applyMorningMeetingManualInputCellFills(
         );
 
 
+    foregroundColor.setAttribute(
+      "rgb",
+      manualInputFillRgb
+    );
+
+
     const backgroundColor =
       stylesDocument
         .createElementNS(
           MAIN_XML_NAMESPACE,
           "bgColor"
         );
-
-
-    patternFill.setAttribute(
-      "patternType",
-      "solid"
-    );
-
-
-    foregroundColor.setAttribute(
-      "rgb",
-      inputFillRgb
-    );
 
 
     backgroundColor.setAttribute(
@@ -157435,8 +157471,17 @@ async function applyMorningMeetingManualInputCellFills(
     );
 
 
-    inputFillId =
-      fillElements.length;
+    manualInputFillId =
+      directChildren(
+        fillsElement,
+        "fill"
+      ).length -
+      1;
+
+
+    yellowFillIds.add(
+      manualInputFillId
+    );
   }
 
 
@@ -157451,187 +157496,79 @@ async function applyMorningMeetingManualInputCellFills(
   );
 
 
-  const getColumnName =
-    columnNumber => {
-      let number =
-        Number(
-          columnNumber
-        );
+  /* =====================================================
+    셀 스타일 복제 캐시
 
+    같은 스타일을 여러 번 복제하지 않는다.
+  ====================================================== */
 
-      let result =
-        "";
-
-
-      while (
-        number >
-          0
-      ) {
-        const remainder =
-          (
-            number -
-            1
-          ) %
-          26;
-
-
-        result =
-          String.fromCharCode(
-            65 +
-            remainder
-          ) +
-          result;
-
-
-        number =
-          Math.floor(
-            (
-              number -
-              1
-            ) /
-            26
-          );
-      }
-
-
-      return result;
-    };
-
-
-  const parseRange =
-    rangeReference => {
-      const match =
-        String(
-          rangeReference ||
-          ""
-        )
-          .replaceAll(
-            " ",
-            ""
-          )
-          .toUpperCase()
-          .match(
-            /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/
-          );
-
-
-      if (
-        !match
-      ) {
-        throw new Error(
-          `직접 입력 셀 범위 ${rangeReference}을 확인해 주세요.`
-        );
-      }
-
-
-      return {
-        startColumn:
-          getMorningMeetingColumnNumber(
-            match[1]
-          ),
-
-        startRow:
-          Number(
-            match[2]
-          ),
-
-        endColumn:
-          getMorningMeetingColumnNumber(
-            match[3] ||
-            match[1]
-          ),
-
-        endRow:
-          Number(
-            match[4] ||
-            match[2]
-          )
-      };
-    };
-
-
-  /*
-    기존 글꼴·테두리·정렬·숫자 형식은 유지하고
-    Fill 속성만 바꾼 새 스타일을 만든다.
-  */
-
-  const styleIndexCache =
+  const styleCache =
     new Map();
 
 
-  const getStyleIndexWithFill = (
-    baseStyleIndex,
-    fillId
-  ) => {
-    const normalizedBaseStyleIndex =
-      Number.isInteger(
-        baseStyleIndex
-      ) &&
-      baseStyleIndex >=
-        0
-        ? baseStyleIndex
-        : 0;
-
-
-    const cacheKey =
-      `${normalizedBaseStyleIndex}:${fillId}`;
-
-
-    if (
-      styleIndexCache.has(
-        cacheKey
-      )
-    ) {
-      return styleIndexCache.get(
-        cacheKey
-      );
-    }
-
-
-    const styleElements =
+  function getStyleElement(
+    styleId
+  ) {
+    return (
       directChildren(
         cellXfsElement,
         "xf"
-      );
-
-
-    const baseStyle =
-      styleElements[
-        normalizedBaseStyleIndex
+      )[
+        Number(
+          styleId
+        ) || 0
       ] ||
-      styleElements[0];
+      directChildren(
+        cellXfsElement,
+        "xf"
+      )[0] ||
+      null
+    );
+  }
+
+
+  function createStyleWithFill(
+    sourceStyleId,
+    fillId
+  ) {
+    const safeSourceStyleId =
+      Number(
+        sourceStyleId
+      ) || 0;
+
+
+    const cacheKey =
+      `${safeSourceStyleId}|${fillId}`;
 
 
     if (
-      !baseStyle
+      styleCache.has(
+        cacheKey
+      )
     ) {
-      throw new Error(
-        "기준 취합본의 기본 셀 스타일을 찾지 못했습니다."
+      return styleCache.get(
+        cacheKey
       );
     }
 
 
-    if (
-      Number(
-        baseStyle.getAttribute(
-          "fillId"
-        ) ||
-        0
-      ) ===
-        fillId
-    ) {
-      styleIndexCache.set(
-        cacheKey,
-        normalizedBaseStyleIndex
+    const sourceStyle =
+      getStyleElement(
+        safeSourceStyleId
       );
 
 
-      return normalizedBaseStyleIndex;
+    if (
+      !sourceStyle
+    ) {
+      throw new Error(
+        "엑셀 셀 스타일을 복제하지 못했습니다."
+      );
     }
 
 
     const clonedStyle =
-      baseStyle.cloneNode(
+      sourceStyle.cloneNode(
         true
       );
 
@@ -157644,24 +157581,19 @@ async function applyMorningMeetingManualInputCellFills(
     );
 
 
-    if (
-      fillId ===
-        0
-    ) {
-      clonedStyle.removeAttribute(
-        "applyFill"
-      );
+    /*
+      fillId 0:
+      바탕색 없음
 
-    } else {
-      clonedStyle.setAttribute(
-        "applyFill",
-        "1"
-      );
-    }
+      연노랑 fillId:
+      연한 노란색 적용
 
-
-    const newStyleIndex =
-      styleElements.length;
+      둘 다 명시적으로 적용한다.
+    */
+    clonedStyle.setAttribute(
+      "applyFill",
+      "1"
+    );
 
 
     cellXfsElement.appendChild(
@@ -157669,278 +157601,389 @@ async function applyMorningMeetingManualInputCellFills(
     );
 
 
-    styleIndexCache.set(
-      cacheKey,
-      newStyleIndex
+    const createdStyleId =
+      directChildren(
+        cellXfsElement,
+        "xf"
+      ).length -
+      1;
+
+
+    cellXfsElement.setAttribute(
+      "count",
+      String(
+        directChildren(
+          cellXfsElement,
+          "xf"
+        ).length
+      )
     );
 
 
-    return newStyleIndex;
-  };
+    styleCache.set(
+      cacheKey,
+      createdStyleId
+    );
 
 
-  let appliedCellCount =
+    return createdStyleId;
+  }
+
+
+  /* =====================================================
+    1. 현재 워크시트의 기존 연한 노란색 전부 제거
+
+    중요:
+    - 값 유지
+    - 수식 유지
+    - 테두리 유지
+    - 숫자 형식 유지
+    - 글꼴 유지
+    - 정렬 유지
+
+    fillId만 0인 복제 스타일로 변경한다.
+  ====================================================== */
+
+  let clearedCount =
     0;
 
 
-  const applyFillToRange = (
-    rangeReference,
-    fillId
-  ) => {
-    const range =
-      parseRange(
-        rangeReference
-      );
+  const worksheetCells =
+    Array.from(
+      worksheetDocument
+        .getElementsByTagNameNS(
+          MAIN_XML_NAMESPACE,
+          "c"
+        )
+    );
 
 
-    for (
-      let rowNumber =
-        range.startRow;
-
-      rowNumber <=
-        range.endRow;
-
-      rowNumber +=
-        1
-    ) {
-      for (
-        let columnNumber =
-          range.startColumn;
-
-        columnNumber <=
-          range.endColumn;
-
-        columnNumber +=
-          1
-      ) {
-        const address =
-          `${getColumnName(
-            columnNumber
-          )}${rowNumber}`;
-
-
-        const cellElement =
-          findMorningMeetingWorksheetCellByAddress(
-            worksheetDocument,
-            address
-          );
-
-
-        if (
-          !cellElement
-        ) {
-          throw new Error(
-            `직접 입력 셀 ${address}을 찾지 못했습니다.`
-          );
-        }
-
-
-        const baseStyleIndex =
-          Number(
-            cellElement.getAttribute(
-              "s"
-            ) ||
-            0
-          );
-
-
-        const newStyleIndex =
-          getStyleIndexWithFill(
-            baseStyleIndex,
-            fillId
-          );
-
-
-        cellElement.setAttribute(
-          "s",
-          String(
-            newStyleIndex
-          )
+  worksheetCells.forEach(
+    cellElement => {
+      const styleId =
+        Number(
+          cellElement.getAttribute(
+            "s"
+          ) ||
+          0
         );
 
 
-        appliedCellCount +=
-          1;
-      }
-    }
-  };
-
-
-  /*
-    평일·주말 공통 직접 입력 셀
-
-    I열 구간은 I7:K8까지만 노란색이다.
-    I9:K9, I10:K10은 포함하지 않는다.
-  */
-
-const yellowRanges = [
-  "E7:F8",
-  "I7:K8",
-  "N7:T8",
-  "X7:Y9",
-  "Z7:AB8",
-  "AE7:AF9",
-  "AK7:AM9",
-
-  "AD11:AF11",
-  "AJ11:AL11",
-
-  "AE13:AG13",
-  "AH13:AH14",
-
-  "X14",
-  "Z14:AA14",
-  "AC14",
-
-  "H18:L18",
-  "M18:U18",
-  "V18:Y18"
-];
-
-
-  const weekendSupplementResult =
-    options.weekendSupplementResult &&
-    typeof options.weekendSupplementResult ===
-      "object"
-      ? options.weekendSupplementResult
-      : {};
-
-
-  /*
-    주말 Bio 날짜별 값 입력칸
-
-    전력단가 칸은 추가하지 않는다.
-  */
-
-  if (
-    options.isWeekendMode ===
-      true
-  ) {
-    const holidayCount =
-      Number(
-        weekendSupplementResult
-          .holidayCount ||
-        0
-      );
-
-
-    if (
-      holidayCount <
-        1 ||
-      holidayCount >
-        4
-    ) {
-      throw new Error(
-        "주말 직접 입력 셀의 날짜 수를 확인하지 못했습니다."
-      );
-    }
-
-
-    /*
-      첨부한 기존 2일 주말 양식을 복원한 경우
-    */
-
-    if (
-      weekendSupplementResult
-        .restored ===
-        true &&
-      holidayCount ===
-        2
-    ) {
-      yellowRanges.push(
-        "AI26:AO29"
-      );
-
-    } else {
-      /*
-        자동 생성한 1~4일 주말표
-
-        표의 첫 3열:
-        #1 BLR / #2 BLR / Average / Total
-
-        그다음 열부터 날짜별 직접 입력칸이다.
-      */
-
-      const tableStartColumnNumber =
-        getMorningMeetingColumnNumber(
-          String(
-            weekendSupplementResult
-              .tableStartColumn ||
-            ""
-          )
-            .trim()
-            .toUpperCase()
+      const styleElement =
+        getStyleElement(
+          styleId
         );
 
 
       if (
-        !tableStartColumnNumber
+        !styleElement
       ) {
-        throw new Error(
-          "주말 Bio 보조표의 시작 열을 확인하지 못했습니다."
-        );
+        return;
       }
 
 
-      const firstInputColumn =
-        getColumnName(
-          tableStartColumnNumber +
-          3
+      const fillId =
+        Number(
+          styleElement.getAttribute(
+            "fillId"
+          ) ||
+          0
         );
 
 
-      yellowRanges.push(
-        `${firstInputColumn}26:AO29`
+      if (
+        !yellowFillIds.has(
+          fillId
+        )
+      ) {
+        return;
+      }
+
+
+      const clearStyleId =
+        createStyleWithFill(
+          styleId,
+          0
+        );
+
+
+      cellElement.setAttribute(
+        "s",
+        String(
+          clearStyleId
+        )
       );
+
+
+      clearedCount +=
+        1;
     }
+  );
+
+
+  /* =====================================================
+    Excel 열 문자 ↔ 숫자
+  ====================================================== */
+
+  function columnNameToNumber(
+    columnName
+  ) {
+    return String(
+      columnName ||
+      ""
+    )
+      .toUpperCase()
+      .split(
+        ""
+      )
+      .reduce(
+        (
+          result,
+          character
+        ) => {
+          return (
+            result *
+              26 +
+            character.charCodeAt(
+              0
+            ) -
+            64
+          );
+        },
+        0
+      );
   }
 
 
-  yellowRanges.forEach(
-    rangeReference => {
-      applyFillToRange(
-        rangeReference,
-        inputFillId
+  function columnNumberToName(
+    columnNumber
+  ) {
+    let number =
+      Number(
+        columnNumber
       );
-    }
-  );
 
 
-  /*
-    명시적 예외
+    let name =
+      "";
 
-    어떤 기준 엑셀을 올려도
-    I9:K9, I10:K10은 바탕색 없음으로 확정한다.
-  */
 
-const noFillRanges = [
-  "I9:K9",
-  "I10:K10",
-
-  "N14:Q14",
-  "AB21:AC22"
-];
-
-  noFillRanges.forEach(
-    rangeReference => {
-      applyFillToRange(
-        rangeReference,
+    while (
+      number >
         0
+    ) {
+      const remainder =
+        (
+          number -
+          1
+        ) %
+        26;
+
+
+      name =
+        String.fromCharCode(
+          65 +
+          remainder
+        ) +
+        name;
+
+
+      number =
+        Math.floor(
+          (
+            number -
+            1
+          ) /
+          26
+        );
+    }
+
+
+    return name;
+  }
+
+
+  /* =====================================================
+    범위 → 셀 주소 목록
+
+    예:
+    I7:K8
+  ====================================================== */
+
+  function expandCellRange(
+    rangeText
+  ) {
+    const match =
+      String(
+        rangeText ||
+        ""
+      )
+        .trim()
+        .toUpperCase()
+        .match(
+          /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/
+        );
+
+
+    if (
+      !match
+    ) {
+      return [];
+    }
+
+
+    const startColumn =
+      columnNameToNumber(
+        match[1]
       );
+
+
+    const startRow =
+      Number(
+        match[2]
+      );
+
+
+    const endColumn =
+      columnNameToNumber(
+        match[3]
+      );
+
+
+    const endRow =
+      Number(
+        match[4]
+      );
+
+
+    const addresses =
+      [];
+
+
+    for (
+      let row =
+        startRow;
+      row <=
+        endRow;
+      row +=
+        1
+    ) {
+      for (
+        let column =
+          startColumn;
+        column <=
+          endColumn;
+        column +=
+          1
+      ) {
+        addresses.push(
+          `${columnNumberToName(
+            column
+          )}${row}`
+        );
+      }
+    }
+
+
+    return addresses;
+  }
+
+
+  /* =====================================================
+    2. 최종적으로 연한 노란색을 남길 구역
+
+    업로드한
+    "일일발전운전현황_08.12(바탕색 변경).xlsx"
+    기준
+
+    이곳만 사용자가 직접 입력한다.
+  ====================================================== */
+
+  const manualInputRanges = [
+    "I7:K8",
+
+    "N7:T8",
+
+    "X7:AB8",
+
+    "X9:Y9",
+
+    "AE7:AF9"
+  ];
+
+
+  const manualInputAddresses =
+    manualInputRanges.flatMap(
+      expandCellRange
+    );
+
+
+  let appliedCount =
+    0;
+
+
+  const missingAddresses =
+    [];
+
+
+  manualInputAddresses.forEach(
+    address => {
+      const cellElement =
+        findMorningMeetingWorksheetCellByAddress(
+          worksheetDocument,
+          address
+        );
+
+
+      if (
+        !cellElement
+      ) {
+        missingAddresses.push(
+          address
+        );
+
+
+        return;
+      }
+
+
+      /*
+        1단계에서 이미 바탕색을 제거했으므로
+        현재 style을 기준으로 연노랑 버전을 만든다.
+      */
+      const baseStyleId =
+        Number(
+          cellElement.getAttribute(
+            "s"
+          ) ||
+          0
+        );
+
+
+      const yellowStyleId =
+        createStyleWithFill(
+          baseStyleId,
+          manualInputFillId
+        );
+
+
+      cellElement.setAttribute(
+        "s",
+        String(
+          yellowStyleId
+        )
+      );
+
+
+      appliedCount +=
+        1;
     }
   );
 
 
-  cellXfsElement.setAttribute(
-    "count",
-    String(
-      directChildren(
-        cellXfsElement,
-        "xf"
-      ).length
-    )
-  );
-
+  /* =====================================================
+    수정된 styles.xml 저장
+  ====================================================== */
 
   zip.file(
     "xl/styles.xml",
@@ -157956,14 +157999,14 @@ const noFillRanges = [
     applied:
       true,
 
-    color:
-      "#FFFFC0",
+    clearedCount,
 
-    appliedCellCount,
+    appliedCount,
 
-    yellowRanges,
+    ranges:
+      manualInputRanges,
 
-    noFillRanges
+    missingAddresses
   };
 }
 
