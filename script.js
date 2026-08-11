@@ -183680,7 +183680,7 @@ function ensureSiloPreviewCard() {
             Fly Ash Silo Level
 
             <small class="efficiency-morning-meeting-auto-tag">
-              003ETH01CW201XQ01
+              (003ETH01CW201XQ01)
             </small>
           </span>
 
@@ -183694,7 +183694,7 @@ function ensureSiloPreviewCard() {
             Bio Storage Silo Level
 
             <small class="efficiency-morning-meeting-auto-tag">
-              EBF20CW201
+              (EBF20CW201)
             </small>
           </span>
 
