@@ -88582,7 +88582,7 @@ input {
 
   grid-column: 1 / -1;
 
-  align-items: start;
+  align-items: stretch;
 
   gap: 9px;
 
@@ -88623,7 +88623,7 @@ input {
   grid-template-columns:
     minmax(0, 1fr);
 
-  align-self: start;
+  align-self: stretch;
 
   gap: 9px;
 
@@ -88648,6 +88648,34 @@ input {
 
 #efficiencyMorningMeetingAutoDailySludgeCard {
   grid-area: organic;
+}
+
+
+/* =====================================================
+  PC 카드 높이 맞춤
+===================================================== */
+
+@media (min-width: 1051px) {
+  .efficiency-morning-meeting-auto-bottom-grid
+    > .efficiency-morning-meeting-auto-card {
+    display: flex;
+
+    flex-direction: column;
+
+    height: 100%;
+  }
+
+
+  #efficiencyMorningMeetingAutoSiloCard
+    > .efficiency-morning-meeting-auto-card__body,
+  #efficiencyMorningMeetingAutoSteamCard
+    > .efficiency-morning-meeting-auto-card__body,
+  #efficiencyMorningMeetingAutoDailySludgeCard
+    > .efficiency-morning-meeting-auto-card__body {
+    flex: 1 1 auto;
+
+    justify-content: space-between;
+  }
 }
 
 
@@ -88693,6 +88721,13 @@ input {
       "silo smp"
       "weather power"
       "steam organic";
+
+    align-items: start;
+  }
+
+
+  .efficiency-morning-meeting-auto-power-stack {
+    align-self: start;
   }
 }
 
