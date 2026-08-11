@@ -1,0 +1,176 @@
+diff --git a/functions/api/limestone-slip-ocr.js b/functions/api/limestone-slip-ocr.js
+index 377ab79..4e9cc0f 100644
+--- a/functions/api/limestone-slip-ocr.js
++++ b/functions/api/limestone-slip-ocr.js
+@@ -1082,7 +1082,10 @@ function parseOcrAnswer(
+       [
+         "grossKg",
+         "grossWeightKg",
+-        "totalWeightKg"
++        "totalWeightKg",
++        "row1Kg",
++        "firstRowKg",
++        "weightRow1Kg"
+       ],
+       "(?:총\\s*중\\s*량|gross(?:\\s*weight)?)",
+       [
+@@ -1099,7 +1102,10 @@ function parseOcrAnswer(
+       [
+         "tareKg",
+         "tareWeightKg",
+-        "emptyWeightKg"
++        "emptyWeightKg",
++        "row2Kg",
++        "secondRowKg",
++        "weightRow2Kg"
+       ],
+       "(?:공\\s*차\\s*중\\s*량|차\\s*중\\s*량|tare(?:\\s*weight)?)",
+       [
+@@ -1118,7 +1124,10 @@ function parseOcrAnswer(
+         "quantityKg",
+         "netWeightKg",
+         "printedValue",
+-        "netPrintedValue"
++        "netPrintedValue",
++        "row3Kg",
++        "thirdRowKg",
++        "weightRow3Kg"
+       ],
+       "(?:실\\s*중\\s*량|순\\s*중\\s*량|net(?:\\s*weight)?)",
+       [
+@@ -1243,9 +1252,7 @@ function parseOcrAnswer(
+       netKg;
+ 
+     recognitionSource =
+-      validatedTriple
+-        ? "validated_three_rows"
+-        : "printed_net";
++      "validated_three_rows";
+ 
+   } else if (
+     netKg !==
+@@ -1949,15 +1956,16 @@ confidence must be high, medium, or low.
+                 imageDataUri,
+ 
+               question: `
+-Transcribe every printed number immediately followed by kg on the enlarged Korean weighing receipt, in top-to-bottom order.
+-Copy digits only from the receipt. Ignore all other numbers, Korean labels, dates, times, handwriting, vehicle numbers, phone numbers, and background papers.
++Read the three printed weight rows on the enlarged Korean weighing receipt by position, from top to bottom.
++The Korean labels do not need to be readable. Copy digits only from the receipt. Ignore all other numbers, dates, times, handwriting, vehicle numbers, phone numbers, and background papers.
+ Comma and dot can both be thousands separators.
+ Do not calculate missing values and do not guess unreadable digits.
+ 
+ Return one JSON object only with these exact keys:
+-weightsTopToBottomKg, confidence
++row1Kg, row2Kg, row3Kg, confidence
+ 
+-weightsTopToBottomKg must be an array of the visible integer kg values in top-to-bottom order.
++row1Kg is the top weight row, row2Kg is the middle weight row, and row3Kg is the bottom weight row.
++Each row value must be an integer in kg, or null when that exact row is unreadable. Keep the three row positions even when one row is null.
+ confidence must be high, medium, or low.
+               `.trim(),
+ 
+diff --git a/index.html b/index.html
+index b3d7504..aac7f7d 100644
+--- a/index.html
++++ b/index.html
+@@ -57,7 +57,7 @@
+   기존 업무일지 JavaScript
+ ====================================================== -->
+ <script
+-  src="script.js?v=20260810-limestone-slip-final"
++  src="script.js?v=20260811-limestone-slip-ocr-v3"
+   defer
+ ></script>
+ 
+diff --git a/script.js b/script.js
+index 7ced47d..d328bfe 100644
+--- a/script.js
++++ b/script.js
+@@ -210311,6 +210311,54 @@ function cancelLimestoneSlipOcrRequest() {
+ }
+ 
+ 
++/* =====================================================
++  OCR 부분 인식값 안내
++====================================================== */
++
++function formatLimestoneSlipOcrEvidence(
++  result
++) {
++  const evidenceItems = [
++    [
++      "총중량",
++      result?.grossKg
++    ],
++
++    [
++      "공차중량",
++      result?.tareKg
++    ],
++
++    [
++      "실중량",
++      result?.netKg
++    ]
++  ]
++    .map(
++      ([label, value]) => {
++        const quantityKg =
++          parseLimestoneSlipQuantityKg(
++            value
++          );
++
++
++        return quantityKg ===
++          null
++            ? null
++            : `${label} ${quantityKg.toLocaleString("ko-KR")} kg`;
++      }
++    )
++    .filter(
++      Boolean
++    );
++
++
++  return evidenceItems.length
++    ? ` 읽은 값: ${evidenceItems.join(" · ")}.`
++    : "";
++}
++
++
+ /* =====================================================
+   보정된 전표사진 → OCR API
+ ====================================================== */
+@@ -210506,6 +210554,21 @@ async function requestLimestoneSlipOcr(
+         recognized:
+           false,
+ 
++        grossKg:
++          parseLimestoneSlipQuantityKg(
++            result.grossKg
++          ),
++
++        tareKg:
++          parseLimestoneSlipQuantityKg(
++            result.tareKg
++          ),
++
++        netKg:
++          parseLimestoneSlipQuantityKg(
++            result.netKg
++          ),
++
+         reasonCode:
+           String(
+             result.reasonCode ||
+@@ -210531,6 +210594,9 @@ async function requestLimestoneSlipOcr(
+           result.message ||
+           "실중량을 정확히 인식하지 못했습니다."
+         ).trim() +
++          formatLimestoneSlipOcrEvidence(
++            result
++          ) +
+           " 아래 칸에 실중량을 직접 입력하거나 전표 전체를 다시 촬영해 주세요.",
+         "is-error"
+       );

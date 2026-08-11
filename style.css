@@ -94455,3 +94455,627 @@ body.is-auxiliary-material-expanded
       4px !important;
   }
 }
+
+/* =========================================================
+  부재료 PC 초컴팩트 2차 보정
+
+  1. 부재료 설명 문구 잘림 해결
+  2. 조회 날짜 / Slurry 고정값 입력칸 폭 축소
+  3. 날짜별 자료 행 높이 대폭 축소
+
+  모바일 / 크게보기에는 적용하지 않음
+========================================================= */
+
+@media screen and (min-width: 1200px) {
+
+  /* =====================================================
+    1. 부재료 제목 + 설명
+
+    설명:
+    기존 부재료 엑셀과 동일한 열 순서로
+    날짜별 1·2호기 자료를 확인합니다.
+
+    문구가 잘리지 않도록 높이를 자동으로 둔다.
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-heading {
+    position: relative !important;
+    z-index: 2 !important;
+
+    min-height: 0 !important;
+    height: auto !important;
+
+    margin: 0 0 5px !important;
+    padding: 5px 10px 6px !important;
+
+    overflow: visible !important;
+
+    background: #ffffff !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-heading h3 {
+    margin: 0 !important;
+
+    font-size: 20px !important;
+    line-height: 1.2 !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-heading p {
+    display: block !important;
+
+    margin: 2px 0 0 !important;
+
+    color: #748195 !important;
+
+    font-size: 10px !important;
+    font-weight: 650 !important;
+    line-height: 1.25 !important;
+
+    white-space: nowrap !important;
+    overflow: visible !important;
+  }
+
+
+  /* =====================================================
+    2. 조회 조건
+
+    조회 월 자체도 너무 넓게 사용하지 않는다.
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-query-card {
+    grid-template-columns:
+      200px
+      minmax(0, 1fr) !important;
+
+    gap:
+      4px
+      8px !important;
+
+    margin-bottom: 5px !important;
+
+    padding:
+      6px
+      8px !important;
+  }
+
+
+  /* 조회 월 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation {
+    grid-template-columns:
+      30px
+      132px
+      30px !important;
+
+    justify-content: start !important;
+
+    gap: 4px !important;
+
+    width: max-content !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation
+  > button {
+    width: 30px !important;
+    height: 32px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 19px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation
+  label {
+    width: 132px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-query-card
+  input[type="month"] {
+    width: 132px !important;
+
+    height: 32px !important;
+    min-height: 32px !important;
+
+    font-size: 10px !important;
+  }
+
+
+  /* =====================================================
+    시작일 / 종료일
+
+    현재처럼 남는 공간을 두 날짜가 모두 먹지 않고
+    필요한 폭만 사용한다.
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields {
+    grid-template-columns:
+      190px
+      190px
+      auto
+      auto
+      auto !important;
+
+    justify-content: start !important;
+    align-items: end !important;
+
+    gap: 5px !important;
+
+    width: 100% !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-period-fields
+  > label {
+    width: 190px !important;
+    min-width: 190px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-query-card
+  input[type="date"] {
+    width: 190px !important;
+
+    height: 32px !important;
+    min-height: 32px !important;
+
+    padding:
+      0
+      7px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 10px !important;
+  }
+
+
+  /* 조회 관련 버튼 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-period-fields
+  button,
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  #importAuxiliaryMaterialExcelButton.auxiliary-material-excel-inline-button {
+    height: 32px !important;
+    min-height: 32px !important;
+
+    padding:
+      0
+      10px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 9px !important;
+  }
+
+
+  /* =====================================================
+    3. Slurry 밀도 고정값
+
+    제목 |
+    적용일 |
+    1호기 |
+    2호기 |
+    저장 |
+    상태
+
+    필요한 크기만 사용한다.
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting {
+    grid-template-columns:
+      118px
+      auto
+      minmax(180px, 1fr) !important;
+
+    align-items: center !important;
+
+    gap: 8px !important;
+
+    min-height: 42px !important;
+
+    margin-bottom: 5px !important;
+
+    padding:
+      4px
+      8px !important;
+  }
+
+
+  /* 제목 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting__description
+  > strong {
+    font-size: 11px !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* 입력부를 grid 대신 내용 폭 기준 flex로 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting__fields {
+    display: flex !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+
+    flex: 0 0 auto !important;
+
+    align-items: center !important;
+
+    gap: 8px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting__fields
+  > label {
+    display: flex !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+
+    flex: 0 0 auto !important;
+
+    align-items: center !important;
+
+    gap: 5px !important;
+
+    margin: 0 !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting__fields
+  > label
+  > span:first-child {
+    font-size: 9px !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* 적용 시작일 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  #auxiliaryMaterialDensityEffectiveDate {
+    width: 118px !important;
+    min-width: 118px !important;
+
+    height: 30px !important;
+    min-height: 30px !important;
+
+    padding:
+      0
+      6px !important;
+
+    font-size: 10px !important;
+  }
+
+
+  /* 1호기 / 2호기 밀도값 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-input-wrap {
+    display: flex !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+
+    grid-template-columns: none !important;
+
+    align-items: center !important;
+
+    gap: 4px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  #auxiliaryMaterialUnitOneFixedDensity,
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  #auxiliaryMaterialUnitTwoFixedDensity {
+    width: 96px !important;
+    min-width: 96px !important;
+
+    height: 30px !important;
+    min-height: 30px !important;
+
+    padding:
+      0
+      6px !important;
+
+    font-size: 10px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-input-wrap
+  > small {
+    font-size: 8px !important;
+  }
+
+
+  /* 고정값 저장 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  #saveAuxiliaryMaterialFixedDensityButton {
+    height: 30px !important;
+    min-height: 30px !important;
+
+    padding:
+      0
+      9px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 9px !important;
+  }
+
+
+  /* 상태 메시지는 남은 공간 사용 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-density-setting__status {
+    min-width: 0 !important;
+
+    padding:
+      4px
+      6px !important;
+
+    font-size: 8px !important;
+    line-height: 1.2 !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+
+  /* =====================================================
+    4. 날짜별 부재료 표
+
+    1호기 제목:
+    46px → 34px
+
+    열 제목:
+    64px → 44px
+
+    자료 행:
+    52px → 34px
+  ====================================================== */
+
+
+  /* 1호기 / 2호기 제목 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-split-layout
+  .auxiliary-material-split-unit-heading,
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-split-layout
+  .auxiliary-material-split-unit-heading
+  th {
+    min-height: 34px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-split-layout
+  .auxiliary-material-split-unit-heading
+  th {
+    padding:
+      4px
+      10px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-split-unit-title
+  strong {
+    font-size: 14px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-split-unit-title
+  span {
+    font-size: 9px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-split-unit-count {
+    padding:
+      2px
+      7px !important;
+
+    font-size: 8px !important;
+  }
+
+
+  /* =====================================================
+    열 제목
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-split-layout
+  .auxiliary-material-split-column-heading {
+    top: 34px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-split-layout
+  .auxiliary-material-split-column-heading
+  th {
+    min-height: 44px !important;
+
+    padding:
+      4px
+      5px !important;
+
+    font-size: 10px !important;
+    line-height: 1.15 !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-split-layout
+  .auxiliary-material-split-column-heading
+  small {
+    margin-top: 2px !important;
+
+    font-size: 8px !important;
+    line-height: 1 !important;
+  }
+
+
+  /* =====================================================
+    실제 날짜별 수치 행
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-split-layout
+  .auxiliary-material-split-data-row
+  td {
+    min-height: 34px !important;
+    height: auto !important;
+
+    padding:
+      4px
+      6px !important;
+
+    font-size: 11px !important;
+    line-height: 1.15 !important;
+  }
+
+
+  /* 날짜 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-split-layout
+  .auxiliary-material-split-data-row
+  td.is-date
+  strong {
+    font-size: 10px !important;
+  }
+
+
+  /* 비고 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-split-layout
+  .auxiliary-material-split-data-row
+  td.is-remarks {
+    padding-right: 7px !important;
+    padding-left: 7px !important;
+
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+  }
+
+
+  /* =====================================================
+    수치 수정 모드에서도 행이 과도하게 커지지 않게
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table
+  td.is-value-edit-cell {
+    padding: 2px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-value-input {
+    height: 29px !important;
+
+    padding:
+      0
+      5px !important;
+
+    font-size: 10px !important;
+  }
+
+
+  /* =====================================================
+    컴팩트 보기 버튼을 누르면 한 단계 더 압축
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView.is-compact-view
+  .auxiliary-material-sheet-table.is-split-layout
+  .auxiliary-material-split-data-row
+  td {
+    min-height: 30px !important;
+
+    padding:
+      3px
+      5px !important;
+
+    font-size: 10px !important;
+  }
+}
