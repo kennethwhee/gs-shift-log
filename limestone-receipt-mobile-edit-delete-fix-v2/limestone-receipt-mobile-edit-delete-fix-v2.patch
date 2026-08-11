@@ -1,0 +1,148 @@
+diff --git a/index.html b/index.html
+index 75c5276e196a2b0936aebb00389339a2d9115ab5..48800f99dc562297ae944e57ce643028d7fb8b6f 100644
+--- a/index.html
++++ b/index.html
+@@ -23,7 +23,7 @@
+   ====================================================== -->
+   <link
+     rel="stylesheet"
+-    href="style.css?v=20260811-limestone-slip-preview-large1"
++    href="style.css?v=20260811-limestone-receipt-mobile-manage2"
+   >
+ 
+ 
+diff --git a/style.css b/style.css
+index eac9e888a7745249203f7544b027d75494bdbc66..d3aca615245c3463f74760f146f46f053a572426 100644
+--- a/style.css
++++ b/style.css
+@@ -97819,6 +97819,122 @@ body.is-auxiliary-material-expanded
+ }
+ 
+ 
++/* =========================================================
++  석회석 입고기록 모바일 수정·삭제 최종본 v2
++
++  - 일자 · 시간 · 호기 · 입고량 · 관리 5열
++  - 기존 수정(PUT) · 삭제(DELETE) 기능을 모바일에 노출
++  - 당일 누적은 위쪽 일별 입고량 표에서 확인
++========================================================= */
++
++@media screen and (max-width: 768px) {
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-receipt-table th:nth-child(5),
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-receipt-table td:nth-child(5) {
++    display: none !important;
++  }
++
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-receipt-table th:nth-child(8),
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-receipt-table td:nth-child(8) {
++    display: table-cell !important;
++    width: 27% !important;
++
++    padding-right: 3px !important;
++    padding-left: 3px !important;
++  }
++
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-receipt-table th:nth-child(1),
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-receipt-table td:nth-child(1) {
++    width: 27% !important;
++  }
++
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-receipt-table th:nth-child(2),
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-receipt-table td:nth-child(2) {
++    width: 13% !important;
++  }
++
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-receipt-table th:nth-child(3),
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-receipt-table td:nth-child(3) {
++    width: 11% !important;
++  }
++
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-receipt-table th:nth-child(4),
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-receipt-table td:nth-child(4) {
++    width: 22% !important;
++  }
++
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-row-actions {
++    display: flex !important;
++    flex-flow: row nowrap !important;
++
++    width: 100% !important;
++    gap: 2px !important;
++  }
++
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-edit-button,
++
++  #efficiencyTeamModal
++  #efficiencyLimestoneView
++  .limestone-delete-button {
++    flex: 1 1 0 !important;
++
++    width: auto !important;
++    min-width: 0 !important;
++    height: 30px !important;
++    min-height: 30px !important;
++
++    padding: 0 3px !important;
++    border-radius: 5px !important;
++
++    font-size: 9px !important;
++    font-weight: 800 !important;
++    line-height: 1 !important;
++
++    touch-action: manipulation;
++  }
++}
++
++
+ /* =========================================================
+   아주 좁은 모바일
+ 
+@@ -97857,4 +97973,4 @@ body.is-auxiliary-material-expanded
+     font-size:
+       7px !important;
+   }
+-}
+\ No newline at end of file
++}
+

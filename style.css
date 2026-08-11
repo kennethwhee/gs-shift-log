@@ -97820,6 +97820,122 @@ body.is-auxiliary-material-expanded
 
 
 /* =========================================================
+  석회석 입고기록 모바일 수정·삭제 최종본 v2
+
+  - 일자 · 시간 · 호기 · 입고량 · 관리 5열
+  - 기존 수정(PUT) · 삭제(DELETE) 기능을 모바일에 노출
+  - 당일 누적은 위쪽 일별 입고량 표에서 확인
+========================================================= */
+
+@media screen and (max-width: 768px) {
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table th:nth-child(5),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table td:nth-child(5) {
+    display: none !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table th:nth-child(8),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table td:nth-child(8) {
+    display: table-cell !important;
+    width: 27% !important;
+
+    padding-right: 3px !important;
+    padding-left: 3px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table th:nth-child(1),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table td:nth-child(1) {
+    width: 27% !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table th:nth-child(2),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table td:nth-child(2) {
+    width: 13% !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table th:nth-child(3),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table td:nth-child(3) {
+    width: 11% !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table th:nth-child(4),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table td:nth-child(4) {
+    width: 22% !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-row-actions {
+    display: flex !important;
+    flex-flow: row nowrap !important;
+
+    width: 100% !important;
+    gap: 2px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-edit-button,
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-delete-button {
+    flex: 1 1 0 !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+    height: 30px !important;
+    min-height: 30px !important;
+
+    padding: 0 3px !important;
+    border-radius: 5px !important;
+
+    font-size: 9px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+
+    touch-action: manipulation;
+  }
+}
+
+
+/* =========================================================
   아주 좁은 모바일
 
   구조는 그대로 유지하면서
