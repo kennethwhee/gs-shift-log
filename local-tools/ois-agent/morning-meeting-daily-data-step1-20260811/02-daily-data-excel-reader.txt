@@ -1,0 +1,1761 @@
+const DATAPARC_STEAM_OPEN_WORKBOOK_POWERSHELL_SCRIPT =
+  String.raw`
+$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+$OutputEncoding = [Text.Encoding]::UTF8
+
+$excel = $null
+$workbooks = $null
+$workbook = $null
+$worksheets = $null
+$plantWorksheet = $null
+$dataWorksheet = $null
+$usedRange = $null
+$usedRows = $null
+$usedColumns = $null
+$headerRange = $null
+$dateRange = $null
+
+$stageMarker = "__DAILY_DATA_WORKBOOK_STAGE__"
+
+function Write-DailyDataStage {
+  param(
+    [string]$Message
+  )
+
+  [Console]::WriteLine(
+    $stageMarker + $Message
+  )
+
+  [Console]::Out.Flush()
+}
+
+function Release-ExcelComObject {
+  param(
+    $Value
+  )
+
+  if (
+    $null -eq $Value
+  ) {
+    return
+  }
+
+  try {
+    [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject(
+      $Value
+    )
+  }
+  catch {
+  }
+}
+
+function Normalize-ExcelText {
+  param(
+    $Value
+  )
+
+  if (
+    $null -eq $Value -or
+    $Value -is [Runtime.InteropServices.ErrorWrapper]
+  ) {
+    return ""
+  }
+
+  return (
+    [regex]::Replace(
+      [string]$Value,
+      '\s+',
+      ' '
+    )
+      .Trim()
+      .Normalize(
+        [Text.NormalizationForm]::FormC
+      )
+  )
+}
+
+function ConvertTo-ExcelColumnName {
+  param(
+    [int]$ColumnNumber
+  )
+
+  [string]$columnName =
+    ""
+
+  [int]$remaining =
+    $ColumnNumber
+
+  while (
+    $remaining -gt 0
+  ) {
+    $remaining -=
+      1
+
+    $columnName =
+      [char](
+        65 +
+        (
+          $remaining %
+          26
+        )
+      ) +
+      $columnName
+
+    $remaining =
+      [int][Math]::Floor(
+        $remaining /
+        26
+      )
+  }
+
+  return $columnName
+}
+
+function Get-ExcelAddress {
+  param(
+    [int]$RowNumber,
+    [int]$ColumnNumber
+  )
+
+  return (
+    (
+      ConvertTo-ExcelColumnName -ColumnNumber $ColumnNumber
+    ) +
+    [string]$RowNumber
+  )
+}
+
+function Read-ExcelCellValue {
+  param(
+    $Worksheet,
+    [string]$Address
+  )
+
+  $cell =
+    $null
+
+  try {
+    $cell =
+      $Worksheet.Range(
+        $Address
+      )
+
+    return $cell.Value2
+  }
+  finally {
+    Release-ExcelComObject -Value $cell
+  }
+}
+
+function Get-FiniteExcelNumber {
+  param(
+    $Value,
+    [string]$Label,
+    [bool]$AllowBlank = $false
+  )
+
+  if (
+    $null -eq $Value -or
+    $Value -is [Runtime.InteropServices.ErrorWrapper] -or
+    (
+      $Value -is [string] -and
+      [string]::IsNullOrWhiteSpace(
+        $Value
+      )
+    )
+  ) {
+    if (
+      $AllowBlank
+    ) {
+      return $null
+    }
+
+    throw (
+      $Label +
+      "이 비어 있거나 Excel 오류값입니다."
+    )
+  }
+
+  if (
+    $Value -is [bool]
+  ) {
+    throw (
+      $Label +
+      "을 숫자로 읽지 못했습니다."
+    )
+  }
+
+  try {
+    $numericValue =
+      [Convert]::ToDouble(
+        $Value,
+        [Globalization.CultureInfo]::InvariantCulture
+      )
+  }
+  catch {
+    throw (
+      $Label +
+      "을 숫자로 읽지 못했습니다."
+    )
+  }
+
+  if (
+    [double]::IsNaN(
+      $numericValue
+    ) -or
+    [double]::IsInfinity(
+      $numericValue
+    )
+  ) {
+    throw (
+      $Label +
+      "이 올바른 숫자가 아닙니다."
+    )
+  }
+
+  return $numericValue
+}
+
+function Test-ExcelTimestamp {
+  param(
+    $Value,
+    [datetime]$Target,
+    [bool]$Date1904
+  )
+
+  if (
+    $null -eq $Value -or
+    $Value -is [bool] -or
+    $Value -is [Runtime.InteropServices.ErrorWrapper]
+  ) {
+    return $false
+  }
+
+  if (
+    $Value -is [datetime]
+  ) {
+    return (
+      [Math]::Abs(
+        (
+          $Value -
+          $Target
+        ).TotalSeconds
+      ) -le 1
+    )
+  }
+
+  if (
+    $Value -isnot [string]
+  ) {
+    try {
+      $numericValue =
+        [Convert]::ToDouble(
+          $Value,
+          [Globalization.CultureInfo]::InvariantCulture
+        )
+
+      $expectedSerial =
+        $Target.ToOADate()
+
+      if (
+        $Date1904
+      ) {
+        $expectedSerial -=
+          1462
+      }
+
+      return (
+        [Math]::Abs(
+          $numericValue -
+          $expectedSerial
+        ) -le
+          (
+            1.0 /
+            86400.0
+          )
+      )
+    }
+    catch {
+      return $false
+    }
+  }
+
+  $text =
+    $Value.Trim()
+
+  $formats =
+    [string[]]@(
+      "yyyy-MM-dd HH:mm:ss",
+      "yyyy-MM-dd HH:mm",
+      "yyyy-MM-dd",
+      "yyyy/M/d HH:mm:ss",
+      "yyyy/M/d HH:mm",
+      "yyyy/M/d",
+      "M/d/yyyy HH:mm:ss",
+      "M/d/yyyy HH:mm",
+      "M/d/yyyy"
+    )
+
+  $parsedValue =
+    [datetime]::MinValue
+
+  if (
+    [datetime]::TryParseExact(
+      $text,
+      $formats,
+      [Globalization.CultureInfo]::InvariantCulture,
+      [Globalization.DateTimeStyles]::AllowWhiteSpaces,
+      [ref]$parsedValue
+    )
+  ) {
+    return (
+      [Math]::Abs(
+        (
+          $parsedValue -
+          $Target
+        ).TotalSeconds
+      ) -le 1
+    )
+  }
+
+  return $false
+}
+
+try {
+  Write-DailyDataStage -Message (
+    "월간 일일DATA관리 Excel 조회 시작"
+  )
+
+  $targetDate =
+    $env:GS_STEAM_TARGET_DATE
+
+  $resultMarker =
+    $env:GS_STEAM_RESULT_MARKER
+
+  if (
+    $targetDate -notmatch
+      '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+  ) {
+    throw (
+      "일일DATA관리 조회 날짜가 올바르지 않습니다: " +
+      $targetDate
+    )
+  }
+
+  $targetDateValue =
+    [datetime]::ParseExact(
+      $targetDate,
+      "yyyy-MM-dd",
+      [Globalization.CultureInfo]::InvariantCulture
+    )
+
+  $fieldDefinitions =
+    @(
+      $env:GS_DAILY_FIELDS_JSON |
+        ConvertFrom-Json
+    )
+
+  $sludgeDefinitions =
+    @(
+      $env:GS_DAILY_SLUDGE_JSON |
+        ConvertFrom-Json
+    )
+
+  $organicDefinitions =
+    @(
+      $env:GS_DAILY_ORGANIC_JSON |
+        ConvertFrom-Json
+    )
+
+  if (
+    $fieldDefinitions.Count -lt 1 -or
+    $sludgeDefinitions.Count -ne 10 -or
+    $organicDefinitions.Count -ne 3
+  ) {
+    throw "일일DATA관리 조회 정의를 읽지 못했습니다."
+  }
+
+  $expectedWorkbookName =
+    (
+      $targetDateValue.ToString(
+        "yy.MM",
+        [Globalization.CultureInfo]::InvariantCulture
+      ) +
+      "-일일DATA관리.xlsx"
+    ).Normalize(
+      [Text.NormalizationForm]::FormC
+    )
+
+  $expectedMonthText =
+    $targetDateValue.ToString(
+      "yyyy년 MM월",
+      [Globalization.CultureInfo]::InvariantCulture
+    )
+
+  Write-DailyDataStage -Message (
+    "실행 중인 Excel 연결 시도"
+  )
+
+  try {
+    $excel =
+      [Runtime.InteropServices.Marshal]::GetActiveObject(
+        "Excel.Application"
+      )
+  }
+  catch {
+    throw (
+      "실행 중인 Excel을 찾지 못했습니다. " +
+      $expectedWorkbookName +
+      "를 먼저 열어 주세요."
+    )
+  }
+
+  if (
+    $null -eq $excel
+  ) {
+    throw "실행 중인 Excel 연결 결과가 비어 있습니다."
+  }
+
+  Write-DailyDataStage -Message (
+    "실행 중인 Excel 연결 완료"
+  )
+
+  $workbooks =
+    $excel.Workbooks
+
+  $openWorkbookNames =
+    @()
+
+  Write-DailyDataStage -Message (
+    "대상 월 통합문서 찾기 · " +
+    $expectedWorkbookName
+  )
+
+  for (
+    $workbookIndex = 1;
+    $workbookIndex -le
+      [int]$workbooks.Count;
+    $workbookIndex += 1
+  ) {
+    $candidateWorkbook =
+      $null
+
+    try {
+      $candidateWorkbook =
+        $workbooks.Item(
+          $workbookIndex
+        )
+
+      $candidateName =
+        [string]$candidateWorkbook.Name
+
+      $openWorkbookNames +=
+        $candidateName
+
+      $normalizedCandidateName =
+        $candidateName.Normalize(
+          [Text.NormalizationForm]::FormC
+        )
+
+      if (
+        $normalizedCandidateName -ieq
+          $expectedWorkbookName
+      ) {
+        if (
+          $null -ne $workbook
+        ) {
+          throw (
+            "같은 이름의 대상 월 통합문서가 두 개 이상 열려 있습니다: " +
+            $expectedWorkbookName
+          )
+        }
+
+        $workbook =
+          $candidateWorkbook
+
+        $candidateWorkbook =
+          $null
+      }
+    }
+    finally {
+      Release-ExcelComObject -Value $candidateWorkbook
+    }
+  }
+
+  if (
+    $null -eq $workbook
+  ) {
+    $openWorkbookText =
+      if (
+        $openWorkbookNames.Count -gt 0
+      ) {
+        $openWorkbookNames -join ", "
+      }
+      else {
+        "없음"
+      }
+
+    $excelProcessCount =
+      @(
+        Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue
+      ).Count
+
+    $multipleInstanceHelp =
+      if (
+        $excelProcessCount -gt 1
+      ) {
+        " Excel이 여러 창으로 따로 실행 중입니다. 대상 파일이 있는 Excel 창만 남기고 다시 확인해 주세요."
+      }
+      else {
+        ""
+      }
+
+    throw (
+      "조회일 " +
+      $targetDate +
+      "에 필요한 " +
+      $expectedWorkbookName +
+      "를 찾지 못했습니다. 현재 열린 파일: " +
+      $openWorkbookText +
+      "." +
+      $multipleInstanceHelp
+    )
+  }
+
+  $workbookName =
+    [string]$workbook.Name
+
+  $workbookFullName =
+    try {
+      [string]$workbook.FullName
+    }
+    catch {
+      ""
+    }
+
+  $workbookSaved =
+    try {
+      [bool]$workbook.Saved
+    }
+    catch {
+      $false
+    }
+
+  $workbookReadOnly =
+    try {
+      [bool]$workbook.ReadOnly
+    }
+    catch {
+      $false
+    }
+
+  Write-DailyDataStage -Message (
+    "대상 월 통합문서 연결 완료 · " +
+    $workbookName
+  )
+
+  $worksheets =
+    $workbook.Worksheets
+
+  try {
+    $plantWorksheet =
+      $worksheets.Item(
+        "Plant"
+      )
+  }
+  catch {
+    throw (
+      $workbookName +
+      "에서 Plant 시트를 찾지 못했습니다."
+    )
+  }
+
+  $actualMonthText =
+    Normalize-ExcelText -Value (
+      Read-ExcelCellValue -Worksheet $plantWorksheet -Address "F4"
+    )
+
+  if (
+    $actualMonthText -ne
+      $expectedMonthText
+  ) {
+    throw (
+      $workbookName +
+      "의 Plant!F4 월 표시가 조회일과 다릅니다. 기대값: " +
+      $expectedMonthText +
+      ", 실제값: " +
+      $actualMonthText
+    )
+  }
+
+  $targetDay =
+    [int]$targetDateValue.Day
+
+  $expectedDayColumn =
+    5 +
+    $targetDay
+
+  $dayMatches =
+    @()
+
+  for (
+    $columnNumber = 6;
+    $columnNumber -le 36;
+    $columnNumber += 1
+  ) {
+    $dayAddress =
+      Get-ExcelAddress -RowNumber 5 -ColumnNumber $columnNumber
+
+    $dayValue =
+      Read-ExcelCellValue -Worksheet $plantWorksheet -Address $dayAddress
+
+    try {
+      $numericDay =
+        [Convert]::ToDouble(
+          $dayValue,
+          [Globalization.CultureInfo]::InvariantCulture
+        )
+
+      if (
+        [Math]::Abs(
+          $numericDay -
+          $targetDay
+        ) -le 0.000001
+      ) {
+        $dayMatches +=
+          $columnNumber
+      }
+    }
+    catch {
+    }
+  }
+
+  if (
+    $dayMatches.Count -ne 1
+  ) {
+    throw (
+      $workbookName +
+      "의 Plant!F5:AJ5에서 " +
+      $targetDay +
+      "일을 정확히 한 곳 찾지 못했습니다. 확인 건수: " +
+      $dayMatches.Count
+    )
+  }
+
+  $targetColumnNumber =
+    [int]$dayMatches[0]
+
+  if (
+    $targetColumnNumber -ne
+      $expectedDayColumn
+  ) {
+    throw (
+      $workbookName +
+      "의 Plant 5행 날짜 배열이 올바르지 않습니다. " +
+      $targetDay +
+      "일 기대 열: " +
+      (
+        ConvertTo-ExcelColumnName -ColumnNumber $expectedDayColumn
+      ) +
+      ", 실제 열: " +
+      (
+        ConvertTo-ExcelColumnName -ColumnNumber $targetColumnNumber
+      )
+    )
+  }
+
+  $targetColumnName =
+    ConvertTo-ExcelColumnName -ColumnNumber $targetColumnNumber
+
+  $targetDayCell =
+    $targetColumnName +
+    "5"
+
+  Write-DailyDataStage -Message (
+    "Plant 조회일 열 확인 · " +
+    $targetDate +
+    " · " +
+    $targetDayCell
+  )
+
+  $calculationDeadline =
+    [datetime]::UtcNow.AddSeconds(
+      15
+    )
+
+  while (
+    [datetime]::UtcNow -lt
+      $calculationDeadline
+  ) {
+    $calculationState =
+      try {
+        [int]$excel.CalculationState
+      }
+      catch {
+        0
+      }
+
+    if (
+      $calculationState -eq 0
+    ) {
+      break
+    }
+
+    Start-Sleep -Milliseconds 250
+  }
+
+  $finalCalculationState =
+    try {
+      [int]$excel.CalculationState
+    }
+    catch {
+      0
+    }
+
+  if (
+    $finalCalculationState -ne 0
+  ) {
+    throw "Excel 계산이 완료되지 않아 값을 읽지 않았습니다. 계산 완료 후 다시 조회해 주세요."
+  }
+
+  $manualValues =
+    [ordered]@{}
+
+  $cellMap =
+    [ordered]@{}
+
+  foreach (
+    $definition in
+      $fieldDefinitions
+  ) {
+    $rowNumber =
+      [int]$definition.row
+
+    $resultKey =
+      [string]$definition.resultKey
+
+    $expectedLabel =
+      Normalize-ExcelText -Value (
+        $definition.label
+      )
+
+    $labelAddress =
+      "C" +
+      [string]$rowNumber
+
+    $actualLabel =
+      Normalize-ExcelText -Value (
+        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $labelAddress
+      )
+
+    if (
+      $actualLabel -ne
+        $expectedLabel
+    ) {
+      throw (
+        $workbookName +
+        "의 Plant!" +
+        $labelAddress +
+        " 항목명이 다릅니다. 기대값: " +
+        $expectedLabel +
+        ", 실제값: " +
+        $actualLabel
+      )
+    }
+
+    $valueAddress =
+      $targetColumnName +
+      [string]$rowNumber
+
+    $numericValue =
+      Get-FiniteExcelNumber -Value (
+        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $valueAddress
+      ) -Label (
+        $expectedLabel +
+        " (Plant!" +
+        $valueAddress +
+        ")"
+      )
+
+    if (
+      $numericValue -lt 0
+    ) {
+      throw (
+        $expectedLabel +
+        " 값이 0보다 작습니다: " +
+        $numericValue +
+        " (Plant!" +
+        $valueAddress +
+        ")"
+      )
+    }
+
+    $manualValues[$resultKey] =
+      $numericValue
+
+    $cellMap[$resultKey] =
+      "Plant!" +
+      $valueAddress
+  }
+
+  $sludgeEntries =
+    @()
+
+  $sludgeTruckCount =
+    0
+
+  $sludgeTotal =
+    0.0
+
+  foreach (
+    $definition in
+      $sludgeDefinitions
+  ) {
+    $sequence =
+      [int]$definition.sequence
+
+    $rowNumber =
+      [int]$definition.row
+
+    $expectedLabel =
+      Normalize-ExcelText -Value (
+        $definition.label
+      )
+
+    $labelAddress =
+      "C" +
+      [string]$rowNumber
+
+    $actualLabel =
+      Normalize-ExcelText -Value (
+        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $labelAddress
+      )
+
+    if (
+      $actualLabel -ne
+        $expectedLabel
+    ) {
+      throw (
+        $workbookName +
+        "의 Plant!" +
+        $labelAddress +
+        " 항목명이 다릅니다. 기대값: " +
+        $expectedLabel +
+        ", 실제값: " +
+        $actualLabel
+      )
+    }
+
+    $valueAddress =
+      $targetColumnName +
+      [string]$rowNumber
+
+    $amount =
+      Get-FiniteExcelNumber -Value (
+        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $valueAddress
+      ) -Label (
+        $expectedLabel +
+        " (Plant!" +
+        $valueAddress +
+        ")"
+      ) -AllowBlank $true
+
+    if (
+      $null -ne $amount -and
+      $amount -lt 0
+    ) {
+      throw (
+        $expectedLabel +
+        " 값이 0보다 작습니다: " +
+        $amount +
+        " (Plant!" +
+        $valueAddress +
+        ")"
+      )
+    }
+
+    if (
+      $null -ne $amount
+    ) {
+      $sludgeTotal +=
+        $amount
+
+      if (
+        $amount -gt 0
+      ) {
+        $sludgeTruckCount +=
+          1
+      }
+    }
+
+    $sludgeEntries +=
+      [ordered]@{
+        sequence =
+          $sequence
+
+        amount =
+          $amount
+
+        cell =
+          "Plant!" +
+          $valueAddress
+      }
+  }
+
+  $plantOrganicValues =
+    [ordered]@{}
+
+  foreach (
+    $definition in
+      $organicDefinitions
+  ) {
+    $rowNumber =
+      [int]$definition.row
+
+    $resultKey =
+      [string]$definition.resultKey
+
+    $expectedLabel =
+      Normalize-ExcelText -Value (
+        $definition.label
+      )
+
+    $labelAddress =
+      "C" +
+      [string]$rowNumber
+
+    $actualLabel =
+      Normalize-ExcelText -Value (
+        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $labelAddress
+      )
+
+    if (
+      $actualLabel -ne
+        $expectedLabel
+    ) {
+      throw (
+        $workbookName +
+        "의 Plant!" +
+        $labelAddress +
+        " 항목명이 다릅니다. 기대값: " +
+        $expectedLabel +
+        ", 실제값: " +
+        $actualLabel
+      )
+    }
+
+    $valueAddress =
+      $targetColumnName +
+      [string]$rowNumber
+
+    $plantValue =
+      Get-FiniteExcelNumber -Value (
+        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $valueAddress
+      ) -Label (
+        $expectedLabel +
+        " (Plant!" +
+        $valueAddress +
+        ")"
+      )
+
+    if (
+      $plantValue -lt 0
+    ) {
+      throw (
+        $expectedLabel +
+        " 값이 0보다 작습니다: " +
+        $plantValue
+      )
+    }
+
+    $plantOrganicValues[$resultKey] =
+      $plantValue
+
+    $cellMap[$resultKey + "Plant"] =
+      "Plant!" +
+      $valueAddress
+  }
+
+  $organicTotalAddress =
+    $targetColumnName +
+    "287"
+
+  $organicTotalLabel =
+    Normalize-ExcelText -Value (
+      Read-ExcelCellValue -Worksheet $plantWorksheet -Address "C287"
+    )
+
+  if (
+    $organicTotalLabel -ne
+      "총 재고량 *Day Silo + Storage Silo"
+  ) {
+    throw (
+      $workbookName +
+      "의 Plant!C287 항목명이 다릅니다. 실제값: " +
+      $organicTotalLabel
+    )
+  }
+
+  $plantOrganicTotal =
+    Get-FiniteExcelNumber -Value (
+      Read-ExcelCellValue -Worksheet $plantWorksheet -Address $organicTotalAddress
+    ) -Label (
+      "유기성 Silo 총 재고량 (Plant!" +
+      $organicTotalAddress +
+      ")"
+    )
+
+  if (
+    $plantOrganicTotal -lt 0
+  ) {
+    throw "유기성 Silo 총 재고량이 0보다 작습니다."
+  }
+
+  try {
+    $dataWorksheet =
+      $worksheets.Item(
+        "Data Normalize (2)"
+      )
+  }
+  catch {
+    throw (
+      $workbookName +
+      "에서 Data Normalize (2) 시트를 찾지 못했습니다."
+    )
+  }
+
+  Write-DailyDataStage -Message (
+    "DataPARC 유기성 Silo TAG 위치 확인"
+  )
+
+  $usedRange =
+    $dataWorksheet.UsedRange
+
+  $usedRows =
+    $usedRange.Rows
+
+  $usedColumns =
+    $usedRange.Columns
+
+  $rowCount =
+    [int]$usedRows.Count
+
+  $columnCount =
+    [int]$usedColumns.Count
+
+  $firstRow =
+    [int]$usedRange.Row
+
+  $firstColumn =
+    [int]$usedRange.Column
+
+  $lastRow =
+    $firstRow +
+    $rowCount -
+    1
+
+  $lastColumn =
+    $firstColumn +
+    $columnCount -
+    1
+
+  if (
+    $rowCount -lt 2 -or
+    $columnCount -lt 2
+  ) {
+    throw "Data Normalize (2) 시트의 자료 범위가 비어 있습니다."
+  }
+
+  $headerEndRow =
+    [Math]::Min(
+      $firstRow +
+        17,
+      $lastRow
+    )
+
+  $headerRangeAddress =
+    (
+      ConvertTo-ExcelColumnName -ColumnNumber $firstColumn
+    ) +
+    [string]$firstRow +
+    ":" +
+    (
+      ConvertTo-ExcelColumnName -ColumnNumber $lastColumn
+    ) +
+    [string]$headerEndRow
+
+  $headerRange =
+    $dataWorksheet.Range(
+      $headerRangeAddress
+    )
+
+  $headerValues =
+    $headerRange.Value2
+
+  if (
+    $headerValues -isnot [array] -or
+    $headerValues.Rank -ne 2
+  ) {
+    throw "Data Normalize (2) 헤더 범위를 읽지 못했습니다."
+  }
+
+  $headerFirstRow =
+    [int]$headerRange.Row
+
+  $headerFirstColumn =
+    [int]$headerRange.Column
+
+  $headerRowLower =
+    $headerValues.GetLowerBound(
+      0
+    )
+
+  $headerRowUpper =
+    $headerValues.GetUpperBound(
+      0
+    )
+
+  $headerColumnLower =
+    $headerValues.GetLowerBound(
+      1
+    )
+
+  $headerColumnUpper =
+    $headerValues.GetUpperBound(
+      1
+    )
+
+  $dateHeaderMatches =
+    @()
+
+  $tagMatches =
+    @{}
+
+  foreach (
+    $definition in
+      $organicDefinitions
+  ) {
+    $tagMatches[
+      [string]$definition.resultKey
+    ] =
+      @()
+  }
+
+  for (
+    $arrayRow = $headerRowLower;
+    $arrayRow -le $headerRowUpper;
+    $arrayRow += 1
+  ) {
+    for (
+      $arrayColumn = $headerColumnLower;
+      $arrayColumn -le $headerColumnUpper;
+      $arrayColumn += 1
+    ) {
+      $cellText =
+        [string](
+          $headerValues[
+            $arrayRow,
+            $arrayColumn
+          ]
+        )
+
+      $sheetRow =
+        $headerFirstRow +
+        (
+          $arrayRow -
+          $headerRowLower
+        )
+
+      $sheetColumn =
+        $headerFirstColumn +
+        (
+          $arrayColumn -
+          $headerColumnLower
+        )
+
+      if (
+        $cellText -eq
+          "Tag Name"
+      ) {
+        $dateHeaderMatches +=
+          [pscustomobject]@{
+            RowNumber =
+              $sheetRow
+
+            ColumnNumber =
+              $sheetColumn
+          }
+      }
+
+      foreach (
+        $definition in
+          $organicDefinitions
+      ) {
+        if (
+          $cellText -ceq
+            [string]$definition.tag
+        ) {
+          $resultKey =
+            [string]$definition.resultKey
+
+          $tagMatches[$resultKey] +=
+            [pscustomobject]@{
+              RowNumber =
+                $sheetRow
+
+              ColumnNumber =
+                $sheetColumn
+            }
+        }
+      }
+    }
+  }
+
+  if (
+    $dateHeaderMatches.Count -ne 1
+  ) {
+    throw (
+      "Data Normalize (2)의 Tag Name 헤더를 정확히 한 곳 찾지 못했습니다. 확인 건수: " +
+      $dateHeaderMatches.Count
+    )
+  }
+
+  $dateHeaderPosition =
+    $dateHeaderMatches[0]
+
+  $tagPositions =
+    @{}
+
+  foreach (
+    $definition in
+      $organicDefinitions
+  ) {
+    $resultKey =
+      [string]$definition.resultKey
+
+    $matches =
+      @(
+        $tagMatches[$resultKey]
+      )
+
+    if (
+      $matches.Count -ne 1
+    ) {
+      throw (
+        [string]$definition.tag +
+        " TAG를 정확히 한 곳 찾지 못했습니다. 확인 건수: " +
+        $matches.Count
+      )
+    }
+
+    if (
+      [int]$matches[0].RowNumber -ne
+        [int]$dateHeaderPosition.RowNumber
+    ) {
+      throw (
+        [string]$definition.tag +
+        " TAG와 Tag Name이 같은 헤더 행에 있지 않습니다."
+      )
+    }
+
+    $tagPositions[$resultKey] =
+      $matches[0]
+  }
+
+  $dateColumnNumber =
+    [int]$dateHeaderPosition.ColumnNumber
+
+  $dateStartRow =
+    [int]$dateHeaderPosition.RowNumber +
+    1
+
+  $dateColumnName =
+    ConvertTo-ExcelColumnName -ColumnNumber $dateColumnNumber
+
+  $dateRangeAddress =
+    $dateColumnName +
+    [string]$dateStartRow +
+    ":" +
+    $dateColumnName +
+    [string]$lastRow
+
+  $dateRange =
+    $dataWorksheet.Range(
+      $dateRangeAddress
+    )
+
+  $dateValues =
+    $dateRange.Value2
+
+  if (
+    $dateValues -isnot [array] -or
+    $dateValues.Rank -ne 2
+  ) {
+    throw "Data Normalize (2)의 날짜축 범위를 읽지 못했습니다."
+  }
+
+  $dateRowLower =
+    $dateValues.GetLowerBound(
+      0
+    )
+
+  $dateRowUpper =
+    $dateValues.GetUpperBound(
+      0
+    )
+
+  $dateColumnLower =
+    $dateValues.GetLowerBound(
+      1
+    )
+
+  $dateRangeFirstRow =
+    [int]$dateRange.Row
+
+  $date1904 =
+    [bool]$workbook.Date1904
+
+  $targetDateRows =
+    @()
+
+  for (
+    $arrayRow = $dateRowLower;
+    $arrayRow -le $dateRowUpper;
+    $arrayRow += 1
+  ) {
+    $candidateDateValue =
+      $dateValues[
+        $arrayRow,
+        $dateColumnLower
+      ]
+
+    if (
+      Test-ExcelTimestamp -Value $candidateDateValue -Target $targetDateValue -Date1904 $date1904
+    ) {
+      $targetDateRows +=
+        (
+          $dateRangeFirstRow +
+          (
+            $arrayRow -
+            $dateRowLower
+          )
+        )
+    }
+  }
+
+  if (
+    $targetDateRows.Count -ne 1
+  ) {
+    throw (
+      "Data Normalize (2)에서 " +
+      $targetDate +
+      " 날짜 행을 정확히 한 곳 찾지 못했습니다. 확인 건수: " +
+      $targetDateRows.Count +
+      ". DataPARC Get Data 완료 여부를 확인해 주세요."
+    )
+  }
+
+  $dataTargetRow =
+    [int]$targetDateRows[0]
+
+  $dataDateCell =
+    Get-ExcelAddress -RowNumber $dataTargetRow -ColumnNumber $dateColumnNumber
+
+  $organicValues =
+    [ordered]@{}
+
+  $organicMetadata =
+    [ordered]@{}
+
+  foreach (
+    $definition in
+      $organicDefinitions
+  ) {
+    $resultKey =
+      [string]$definition.resultKey
+
+    $tagPosition =
+      $tagPositions[$resultKey]
+
+    $tagColumnNumber =
+      [int]$tagPosition.ColumnNumber
+
+    $tagCell =
+      Get-ExcelAddress -RowNumber (
+        [int]$tagPosition.RowNumber
+      ) -ColumnNumber $tagColumnNumber
+
+    $valueCell =
+      Get-ExcelAddress -RowNumber $dataTargetRow -ColumnNumber $tagColumnNumber
+
+    $dataValue =
+      Get-FiniteExcelNumber -Value (
+        Read-ExcelCellValue -Worksheet $dataWorksheet -Address $valueCell
+      ) -Label (
+        [string]$definition.label +
+        " DataPARC 값 (Data Normalize (2)!" +
+        $valueCell +
+        ")"
+      )
+
+    if (
+      $dataValue -lt 0
+    ) {
+      throw (
+        [string]$definition.label +
+        " DataPARC 값이 0보다 작습니다: " +
+        $dataValue
+      )
+    }
+
+    $plantValue =
+      [double]$plantOrganicValues[$resultKey]
+
+    if (
+      [Math]::Abs(
+        $dataValue -
+        $plantValue
+      ) -gt 0.001
+    ) {
+      throw (
+        [string]$definition.label +
+        "의 Plant 값과 DataPARC 값이 다릅니다. Plant: " +
+        $plantValue +
+        ", DataPARC: " +
+        $dataValue
+      )
+    }
+
+    $organicValues[$resultKey] =
+      $dataValue
+
+    $organicMetadata[$resultKey] =
+      [ordered]@{
+        tag =
+          [string]$definition.tag
+
+        tagCell =
+          "Data Normalize (2)!" +
+          $tagCell
+
+        valueCell =
+          "Data Normalize (2)!" +
+          $valueCell
+
+        plantCell =
+          $cellMap[$resultKey + "Plant"]
+
+        plantValue =
+          $plantValue
+
+        dataParcValue =
+          $dataValue
+      }
+  }
+
+  $organicSiloTotal =
+    [double]$organicValues.organicDaySilo +
+    [double]$organicValues.organicStorageSiloA +
+    [double]$organicValues.organicStorageSiloB
+
+  if (
+    [Math]::Abs(
+      $organicSiloTotal -
+      $plantOrganicTotal
+    ) -gt 0.001
+  ) {
+    throw (
+      "유기성 Silo 3개 합계와 Plant 총 재고량이 다릅니다. 3개 합계: " +
+      $organicSiloTotal +
+      ", Plant!" +
+      $organicTotalAddress +
+      ": " +
+      $plantOrganicTotal
+    )
+  }
+
+  $unitOneProduction =
+    [double]$manualValues.unitOneProduction
+
+  $unitTwoProduction =
+    [double]$manualValues.unitTwoProduction
+
+  $totalProduction =
+    $unitOneProduction +
+    $unitTwoProduction
+
+  $steamSalesLowPressure =
+    [double]$manualValues.steamSalesLowPressure
+
+  $steamSalesHighPressure =
+    [double]$manualValues.steamSalesHighPressure
+
+  $steamSales =
+    $steamSalesLowPressure +
+    $steamSalesHighPressure
+
+  $averageSteamSales =
+    $steamSales /
+    24
+
+  $salesRate =
+    if (
+      $totalProduction -gt 0
+    ) {
+      $steamSales /
+      $totalProduction *
+      100
+    }
+    else {
+      $null
+    }
+
+  $result =
+    [ordered]@{
+      schemaVersion =
+        2
+
+      source =
+        "월간 일일DATA관리 Excel"
+
+      productionSource =
+        "Plant 수기·계산 완료값"
+
+      salesSource =
+        "Plant 저압·고압증기 수기값"
+
+      organicSiloSource =
+        "DataPARC / Data Normalize (2)"
+
+      targetDate =
+        $targetDate
+
+      sourceDate =
+        $targetDate
+
+      workbook =
+        $workbookName
+
+      workbookFullName =
+        $workbookFullName
+
+      workbookSaved =
+        $workbookSaved
+
+      workbookReadOnly =
+        $workbookReadOnly
+
+      expectedWorkbook =
+        $expectedWorkbookName
+
+      plantWorksheet =
+        "Plant"
+
+      dataParcWorksheet =
+        "Data Normalize (2)"
+
+      monthCell =
+        "Plant!F4"
+
+      monthText =
+        $actualMonthText
+
+      dayCell =
+        "Plant!" +
+        $targetDayCell
+
+      targetColumn =
+        $targetColumnName
+
+      dataParcDateCell =
+        "Data Normalize (2)!" +
+        $dataDateCell
+
+      cellMap =
+        $cellMap
+
+      unit =
+        "ton"
+
+      salesUnit =
+        "ton"
+
+      hourCount =
+        24
+
+      outputInterval =
+        "대상일 일일값"
+
+      hourRange =
+        "00:00~24:00"
+
+      generatorEcmsGen1 =
+        [double]$manualValues.generatorEcmsGen1
+
+      ismartReception =
+        [double]$manualValues.ismartReception
+
+      electricityReceived =
+        [double]$manualValues.ismartReception
+
+      epowerTransmission =
+        [double]$manualValues.epowerTransmission
+
+      electricityTransmitted =
+        [double]$manualValues.epowerTransmission
+
+      solarDailyGeneration =
+        [double]$manualValues.solarDailyGeneration
+
+      solarDaily =
+        [double]$manualValues.solarDailyGeneration
+
+      steamSalesLowPressure =
+        $steamSalesLowPressure
+
+      steamSalesHighPressure =
+        $steamSalesHighPressure
+
+      steamSales =
+        $steamSales
+
+      averageSteamSales =
+        $averageSteamSales
+
+      unitOneProduction =
+        $unitOneProduction
+
+      unitTwoProduction =
+        $unitTwoProduction
+
+      totalProduction =
+        $totalProduction
+
+      salesRate =
+        $salesRate
+
+      unitOne =
+        [ordered]@{
+          source =
+            "Plant 수기·계산 완료값"
+
+          unit =
+            1
+
+          valueCell =
+            $cellMap.unitOneProduction
+
+          productionTotal =
+            $unitOneProduction
+
+          startValue =
+            $null
+
+          endValue =
+            $null
+        }
+
+      unitTwo =
+        [ordered]@{
+          source =
+            "Plant 수기·계산 완료값"
+
+          unit =
+            2
+
+          valueCell =
+            $cellMap.unitTwoProduction
+
+          productionTotal =
+            $unitTwoProduction
+
+          startValue =
+            $null
+
+          endValue =
+            $null
+        }
+
+      sludgeEntries =
+        $sludgeEntries
+
+      sludgeTruckCount =
+        $sludgeTruckCount
+
+      sludgeTotal =
+        $sludgeTotal
+
+      organicDaySilo =
+        [double]$organicValues.organicDaySilo
+
+      organicDaySiloLevel =
+        [double]$organicValues.organicDaySilo
+
+      organicStorageSiloA =
+        [double]$organicValues.organicStorageSiloA
+
+      organicStorageSiloALevel =
+        [double]$organicValues.organicStorageSiloA
+
+      organicStorageSiloB =
+        [double]$organicValues.organicStorageSiloB
+
+      organicStorageSiloBLevel =
+        [double]$organicValues.organicStorageSiloB
+
+      organicSiloTotal =
+        $organicSiloTotal
+
+      organicSiloMetadata =
+        $organicMetadata
+
+      dataParcHost =
+        [bool](
+          Get-Process -Name "CTCExcelAddIn.PARCviewHost" -ErrorAction SilentlyContinue
+        )
+
+      collectedAt =
+        [datetime]::UtcNow.ToString(
+          "o",
+          [Globalization.CultureInfo]::InvariantCulture
+        )
+    }
+
+  Write-DailyDataStage -Message (
+    "월간 일일DATA관리 값 읽기 완료"
+  )
+
+  [Console]::WriteLine(
+    $resultMarker +
+    (
+      $result |
+        ConvertTo-Json -Compress -Depth 8
+    )
+  )
+
+  [Console]::Out.Flush()
+}
+finally {
+  foreach (
+    $comObject in
+      @(
+        $dateRange,
+        $headerRange,
+        $usedColumns,
+        $usedRows,
+        $usedRange,
+        $dataWorksheet,
+        $plantWorksheet,
+        $worksheets,
+        $workbook,
+        $workbooks,
+        $excel
+      )
+  ) {
+    Release-ExcelComObject -Value $comObject
+  }
+}
+`;

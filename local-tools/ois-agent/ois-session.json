@@ -5,14 +5,14 @@
       "value": "wheekeun.lee",
       "domain": "ois.gspoge.com",
       "path": "/",
-      "expires": 1787012940,
+      "expires": 1787036219,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "JSESSIONID",
-      "value": "EC34BD75BDE7DADB9CEF667A7406A7FD",
+      "value": "ECB1C0AEFE2F1BF88AE9FF7ED3AF87D9",
       "domain": "ois.gspoge.com",
       "path": "/",
       "expires": -1,

@@ -502,245 +502,49 @@ const OIS_SILO_LEVEL_DEFINITIONS = [
 ];
 
 /* =========================================================
-  오전회의 월간 일일DATA관리 Excel 조회 정의
+  오전회의 증기 생산량 DataPARC 조회 정의
 
-  대상 통합문서:
-  - 조회 대상일 기준 yy.MM-일일DATA관리.xlsx
-  - Plant!F4 = yyyy년 MM월
-  - Plant!F5:AJ5 = 1~31일
+  대상일의 일 생산량:
+  다음 날 00:00 누적값 - 대상일 00:00 누적값
 
-  수기·계산 완료값:
-  - 1·2호기 증기생산량
-  - 태양광 일일 발전량
-  - 발전량 / 수전량 / 송전량
-  - 저압·고압 증기 판매량
-  - 하수슬러지 1~10번째 입고량
-
-  DataPARC 자동값:
-  - 유기성 Day Silo
-  - 유기성 Storage Silo A
-  - 유기성 Storage Silo B
-
-  기존 steam_status 요청형과 호환 필드를 유지한다.
+  Silo Level과 증기 판매량은 기존 OIS 조회를 유지한다.
 ========================================================= */
 
-const DAILY_DATA_WORKBOOK_FIELD_DEFINITIONS = [
+const DATAPARC_STEAM_PRODUCTION_DEFINITIONS = [
   {
-    resultKey:
-      "unitOneProduction",
-
-    label:
-      "#1 CFBC BLR(Totalizer)",
-
-    row:
-      51,
-
     unit:
-      "ton"
+      1,
+
+    resultKey:
+      "unitOne",
+
+    tag:
+      "GSPOGE.ABB_DCS.106LBA01CF901-TOTAL/PLOT"
   },
 
   {
-    resultKey:
-      "unitTwoProduction",
-
-    label:
-      "#2 CFBC BLR(Totalizer)",
-
-    row:
-      52,
-
     unit:
-      "ton"
-  },
+      2,
 
-  {
     resultKey:
-      "solarDailyGeneration",
+      "unitTwo",
 
-    label:
-      "태양광 일일 발전량",
-
-    row:
-      55,
-
-    unit:
-      "kWh"
-  },
-
-  {
-    resultKey:
-      "generatorEcmsGen1",
-
-    label:
-      "발전량 (Generator) / ECMS gen1",
-
-    row:
-      56,
-
-    unit:
-      "kWh"
-  },
-
-  {
-    resultKey:
-      "ismartReception",
-
-    label:
-      "수전량 (I-Smart)",
-
-    row:
-      58,
-
-    unit:
-      "kWh"
-  },
-
-  {
-    resultKey:
-      "epowerTransmission",
-
-    label:
-      "송전량 (ePower)",
-
-    row:
-      63,
-
-    unit:
-      "kWh"
-  },
-
-  {
-    resultKey:
-      "steamSalesLowPressure",
-
-    label:
-      "저압증기(Totalizer) * Aux BLR로 STM Service시 Aux BLR Data 이용",
-
-    row:
-      72,
-
-    unit:
-      "ton"
-  },
-
-  {
-    resultKey:
-      "steamSalesHighPressure",
-
-    label:
-      "고압증기",
-
-    row:
-      73,
-
-    unit:
-      "ton"
+    tag:
+      "GSPOGE.ABB_DCS.206LBA01CF901-TOTAL/PLOT"
   }
 ];
 
-
-const DAILY_DATA_WORKBOOK_SLUDGE_DEFINITIONS =
-  Array.from(
-    {
-      length:
-        10
-    },
-
-    (
-      unusedValue,
-      index
-    ) => {
-      const sequence =
-        index +
-        1;
-
-
-      return {
-        sequence,
-
-        row:
-          287 +
-          sequence,
-
-        label:
-          `${sequence}번째 입고량`
-      };
-    }
-  );
-
-
-const DAILY_DATA_WORKBOOK_ORGANIC_SILO_DEFINITIONS = [
-  {
-    resultKey:
-      "organicDaySilo",
-
-    label:
-      "Day Silo 재고량",
-
-    row:
-      286,
-
-    tag:
-      "GSPOGE.ABB_DCS.104SDF01CW001XQ01/PLOT"
-  },
-
-  {
-    resultKey:
-      "organicStorageSiloA",
-
-    label:
-      "Storage Silo A 재고량",
-
-    row:
-      284,
-
-    tag:
-      "GSPOGE.ABB_DCS.003SDF01CW001XQ01/PLOT"
-  },
-
-  {
-    resultKey:
-      "organicStorageSiloB",
-
-    label:
-      "Storage Silo B 재고량",
-
-    row:
-      285,
-
-    tag:
-      "GSPOGE.ABB_DCS.003SDF02CW001XQ01/PLOT"
-  }
-];
-
-
-const DAILY_DATA_WORKBOOK_RESULT_MARKER =
-  "__DAILY_DATA_WORKBOOK_RESULT__";
-
-
-const DAILY_DATA_WORKBOOK_STAGE_MARKER =
-  "__DAILY_DATA_WORKBOOK_STAGE__";
-
-
-const DAILY_DATA_WORKBOOK_PROCESS_TIMEOUT =
-  45000;
-
-
-/*
-  기존 검증 완료된 PowerShell 실행기의 내부 이름을
-  1단계에서 그대로 재사용하기 위한 호환 별칭이다.
-*/
 
 const DATAPARC_STEAM_RESULT_MARKER =
-  DAILY_DATA_WORKBOOK_RESULT_MARKER;
+  "__DATAPARC_STEAM_RESULT__";
 
 
 const DATAPARC_STEAM_STAGE_MARKER =
-  DAILY_DATA_WORKBOOK_STAGE_MARKER;
+  "__DATAPARC_STEAM_STAGE__";
 
 
 const DATAPARC_STEAM_PROCESS_TIMEOUT =
-  DAILY_DATA_WORKBOOK_PROCESS_TIMEOUT;
+  45000;
 
 /* =========================================================
   DataPARC Tag Browser 통신 진단
@@ -7352,17 +7156,20 @@ $excel = $null
 $workbooks = $null
 $workbook = $null
 $worksheets = $null
-$plantWorksheet = $null
-$dataWorksheet = $null
+$worksheet = $null
 $usedRange = $null
 $usedRows = $null
 $usedColumns = $null
 $headerRange = $null
 $dateRange = $null
+$unitOneStartCell = $null
+$unitOneEndCell = $null
+$unitTwoStartCell = $null
+$unitTwoEndCell = $null
 
-$stageMarker = "__DAILY_DATA_WORKBOOK_STAGE__"
+$stageMarker = "__DATAPARC_STEAM_STAGE__"
 
-function Write-DailyDataStage {
+function Write-DataParcStage {
   param(
     [string]$Message
   )
@@ -7372,193 +7179,6 @@ function Write-DailyDataStage {
   )
 
   [Console]::Out.Flush()
-}
-
-function Release-ExcelComObject {
-  param(
-    $Value
-  )
-
-  if (
-    $null -eq $Value
-  ) {
-    return
-  }
-
-  try {
-    [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject(
-      $Value
-    )
-  }
-  catch {
-  }
-}
-
-function Normalize-ExcelText {
-  param(
-    $Value
-  )
-
-  if (
-    $null -eq $Value -or
-    $Value -is [Runtime.InteropServices.ErrorWrapper]
-  ) {
-    return ""
-  }
-
-  return (
-    [regex]::Replace(
-      [string]$Value,
-      '\s+',
-      ' '
-    )
-      .Trim()
-      .Normalize(
-        [Text.NormalizationForm]::FormC
-      )
-  )
-}
-
-function ConvertTo-ExcelColumnName {
-  param(
-    [int]$ColumnNumber
-  )
-
-  [string]$columnName =
-    ""
-
-  [int]$remaining =
-    $ColumnNumber
-
-  while (
-    $remaining -gt 0
-  ) {
-    $remaining -=
-      1
-
-    $columnName =
-      [char](
-        65 +
-        (
-          $remaining %
-          26
-        )
-      ) +
-      $columnName
-
-    $remaining =
-      [int][Math]::Floor(
-        $remaining /
-        26
-      )
-  }
-
-  return $columnName
-}
-
-function Get-ExcelAddress {
-  param(
-    [int]$RowNumber,
-    [int]$ColumnNumber
-  )
-
-  return (
-    (
-      ConvertTo-ExcelColumnName -ColumnNumber $ColumnNumber
-    ) +
-    [string]$RowNumber
-  )
-}
-
-function Read-ExcelCellValue {
-  param(
-    $Worksheet,
-    [string]$Address
-  )
-
-  $cell =
-    $null
-
-  try {
-    $cell =
-      $Worksheet.Range(
-        $Address
-      )
-
-    return $cell.Value2
-  }
-  finally {
-    Release-ExcelComObject -Value $cell
-  }
-}
-
-function Get-FiniteExcelNumber {
-  param(
-    $Value,
-    [string]$Label,
-    [bool]$AllowBlank = $false
-  )
-
-  if (
-    $null -eq $Value -or
-    $Value -is [Runtime.InteropServices.ErrorWrapper] -or
-    (
-      $Value -is [string] -and
-      [string]::IsNullOrWhiteSpace(
-        $Value
-      )
-    )
-  ) {
-    if (
-      $AllowBlank
-    ) {
-      return $null
-    }
-
-    throw (
-      $Label +
-      "이 비어 있거나 Excel 오류값입니다."
-    )
-  }
-
-  if (
-    $Value -is [bool]
-  ) {
-    throw (
-      $Label +
-      "을 숫자로 읽지 못했습니다."
-    )
-  }
-
-  try {
-    $numericValue =
-      [Convert]::ToDouble(
-        $Value,
-        [Globalization.CultureInfo]::InvariantCulture
-      )
-  }
-  catch {
-    throw (
-      $Label +
-      "을 숫자로 읽지 못했습니다."
-    )
-  }
-
-  if (
-    [double]::IsNaN(
-      $numericValue
-    ) -or
-    [double]::IsInfinity(
-      $numericValue
-    )
-  ) {
-    throw (
-      $Label +
-      "이 올바른 숫자가 아닙니다."
-    )
-  }
-
-  return $numericValue
 }
 
 function Test-ExcelTimestamp {
@@ -7666,25 +7286,160 @@ function Test-ExcelTimestamp {
   return $false
 }
 
+function Get-FiniteExcelNumber {
+  param(
+    $Value,
+    [string]$Label
+  )
+
+  if (
+    $null -eq $Value -or
+    $Value -is [bool] -or
+    $Value -is [Runtime.InteropServices.ErrorWrapper]
+  ) {
+    throw (
+      $Label +
+      "이 비어 있거나 Excel 오류값입니다."
+    )
+  }
+
+  try {
+    $numericValue =
+      [Convert]::ToDouble(
+        $Value,
+        [Globalization.CultureInfo]::InvariantCulture
+      )
+  }
+  catch {
+    throw (
+      $Label +
+      "을 숫자로 읽지 못했습니다."
+    )
+  }
+
+  if (
+    [double]::IsNaN(
+      $numericValue
+    ) -or
+    [double]::IsInfinity(
+      $numericValue
+    )
+  ) {
+    throw (
+      $Label +
+      "이 올바른 숫자가 아닙니다."
+    )
+  }
+
+  return $numericValue
+}
+
+function ConvertTo-ExcelColumnName {
+  param(
+    [int]$ColumnNumber
+  )
+
+  [string]$columnName =
+    ""
+
+  [int]$remaining =
+    $ColumnNumber
+
+  while (
+    $remaining -gt 0
+  ) {
+    $remaining -=
+      1
+
+    [int]$letterCode =
+      65 +
+      (
+        $remaining %
+        26
+      )
+
+    [string]$letter =
+      [char](
+        [int](
+          $letterCode
+        )
+      )
+
+    $columnName =
+      $letter +
+      $columnName
+
+    $remaining =
+      [int][Math]::Floor(
+        $remaining /
+        26
+      )
+  }
+
+  return $columnName
+}
+
+function Get-ExcelAddress {
+  param(
+    [int]$RowNumber,
+    [int]$ColumnNumber
+  )
+
+  return (
+    (
+      ConvertTo-ExcelColumnName -ColumnNumber $ColumnNumber
+    ) +
+    [string]$RowNumber
+  )
+}
+
 try {
-  Write-DailyDataStage -Message (
-    "월간 일일DATA관리 Excel 조회 시작"
+  Write-DataParcStage(
+    "PowerShell 조회 시작"
   )
 
   $targetDate =
     $env:GS_STEAM_TARGET_DATE
 
+  $nextDate =
+    $env:GS_STEAM_NEXT_DATE
+
+  $unitOneTag =
+    $env:GS_STEAM_UNIT_ONE_TAG
+
+  $unitTwoTag =
+    $env:GS_STEAM_UNIT_TWO_TAG
+
   $resultMarker =
     $env:GS_STEAM_RESULT_MARKER
 
-  if (
-    $targetDate -notmatch
-      '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+  foreach (
+    $dateValue in
+      @(
+        $targetDate,
+        $nextDate
+      )
   ) {
-    throw (
-      "일일DATA관리 조회 날짜가 올바르지 않습니다: " +
-      $targetDate
+    if (
+      $dateValue -notmatch
+        '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+    ) {
+      throw (
+        "Invalid DataPARC query date: " +
+        $dateValue
+      )
+    }
+  }
+
+  if (
+    [string]::IsNullOrWhiteSpace(
+      $unitOneTag
+    ) -or
+    [string]::IsNullOrWhiteSpace(
+      $unitTwoTag
     )
+  ) {
+    throw "DataPARC steam production tag is empty."
   }
 
   $targetDateValue =
@@ -7694,50 +7449,34 @@ try {
       [Globalization.CultureInfo]::InvariantCulture
     )
 
-  $fieldDefinitions =
-    @(
-      $env:GS_DAILY_FIELDS_JSON |
-        ConvertFrom-Json
-    )
-
-  $sludgeDefinitions =
-    @(
-      $env:GS_DAILY_SLUDGE_JSON |
-        ConvertFrom-Json
-    )
-
-  $organicDefinitions =
-    @(
-      $env:GS_DAILY_ORGANIC_JSON |
-        ConvertFrom-Json
+  $nextDateValue =
+    [datetime]::ParseExact(
+      $nextDate,
+      "yyyy-MM-dd",
+      [Globalization.CultureInfo]::InvariantCulture
     )
 
   if (
-    $fieldDefinitions.Count -lt 1 -or
-    $sludgeDefinitions.Count -ne 10 -or
-    $organicDefinitions.Count -ne 3
+    $nextDateValue -ne
+      $targetDateValue.AddDays(
+        1
+      )
   ) {
-    throw "일일DATA관리 조회 정의를 읽지 못했습니다."
+    throw "DataPARC 종료 날짜가 시작 날짜의 다음 날이 아닙니다."
   }
 
-  $expectedWorkbookName =
+  $expectedWorkbookBaseName =
     (
       $targetDateValue.ToString(
         "yy.MM",
         [Globalization.CultureInfo]::InvariantCulture
       ) +
-      "-일일DATA관리.xlsx"
+      "-일일DATA관리"
     ).Normalize(
       [Text.NormalizationForm]::FormC
     )
 
-  $expectedMonthText =
-    $targetDateValue.ToString(
-      "yyyy년 MM월",
-      [Globalization.CultureInfo]::InvariantCulture
-    )
-
-  Write-DailyDataStage -Message (
+  Write-DataParcStage(
     "실행 중인 Excel 연결 시도"
   )
 
@@ -7750,8 +7489,8 @@ try {
   catch {
     throw (
       "실행 중인 Excel을 찾지 못했습니다. " +
-      $expectedWorkbookName +
-      "를 먼저 열어 주세요."
+      $expectedWorkbookBaseName +
+      ".xlsx를 먼저 열어 주세요."
     )
   }
 
@@ -7761,7 +7500,7 @@ try {
     throw "실행 중인 Excel 연결 결과가 비어 있습니다."
   }
 
-  Write-DailyDataStage -Message (
+  Write-DataParcStage(
     "실행 중인 Excel 연결 완료"
   )
 
@@ -7771,9 +7510,8 @@ try {
   $openWorkbookNames =
     @()
 
-  Write-DailyDataStage -Message (
-    "대상 월 통합문서 찾기 · " +
-    $expectedWorkbookName
+  Write-DataParcStage(
+    "열린 적산 통합문서 찾기"
   )
 
   for (
@@ -7797,21 +7535,25 @@ try {
       $openWorkbookNames +=
         $candidateName
 
-      $normalizedCandidateName =
-        $candidateName.Normalize(
+      $candidateBaseName =
+        (
+          [IO.Path]::GetFileNameWithoutExtension(
+            $candidateName
+          )
+        ).Normalize(
           [Text.NormalizationForm]::FormC
         )
 
       if (
-        $normalizedCandidateName -ieq
-          $expectedWorkbookName
+        $candidateBaseName -ieq
+          $expectedWorkbookBaseName
       ) {
         if (
           $null -ne $workbook
         ) {
           throw (
-            "같은 이름의 대상 월 통합문서가 두 개 이상 열려 있습니다: " +
-            $expectedWorkbookName
+            "같은 월의 적산 통합문서가 두 개 이상 열려 있습니다: " +
+            $expectedWorkbookBaseName
           )
         }
 
@@ -7823,7 +7565,17 @@ try {
       }
     }
     finally {
-      Release-ExcelComObject -Value $candidateWorkbook
+      if (
+        $null -ne $candidateWorkbook
+      ) {
+        try {
+          [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject(
+            $candidateWorkbook
+          )
+        }
+        catch {
+        }
+      }
     }
   }
 
@@ -7840,62 +7592,21 @@ try {
         "없음"
       }
 
-    $excelProcessCount =
-      @(
-        Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue
-      ).Count
-
-    $multipleInstanceHelp =
-      if (
-        $excelProcessCount -gt 1
-      ) {
-        " Excel이 여러 창으로 따로 실행 중입니다. 대상 파일이 있는 Excel 창만 남기고 다시 확인해 주세요."
-      }
-      else {
-        ""
-      }
-
     throw (
-      "조회일 " +
-      $targetDate +
-      "에 필요한 " +
-      $expectedWorkbookName +
-      "를 찾지 못했습니다. 현재 열린 파일: " +
+      "열려 있는 " +
+      $expectedWorkbookBaseName +
+      ".xlsx 적산파일을 찾지 못했습니다. " +
+      "현재 Excel 파일: " +
       $openWorkbookText +
-      "." +
-      $multipleInstanceHelp
+      ". 별도 Excel 창에서 열었다면 한 창만 남기고 다시 확인해 주세요."
     )
   }
 
   $workbookName =
     [string]$workbook.Name
 
-  $workbookFullName =
-    try {
-      [string]$workbook.FullName
-    }
-    catch {
-      ""
-    }
-
-  $workbookSaved =
-    try {
-      [bool]$workbook.Saved
-    }
-    catch {
-      $false
-    }
-
-  $workbookReadOnly =
-    try {
-      [bool]$workbook.ReadOnly
-    }
-    catch {
-      $false
-    }
-
-  Write-DailyDataStage -Message (
-    "대상 월 통합문서 연결 완료 · " +
+  Write-DataParcStage(
+    "적산 통합문서 연결 완료 · " +
     $workbookName
   )
 
@@ -7903,461 +7614,7 @@ try {
     $workbook.Worksheets
 
   try {
-    $plantWorksheet =
-      $worksheets.Item(
-        "Plant"
-      )
-  }
-  catch {
-    throw (
-      $workbookName +
-      "에서 Plant 시트를 찾지 못했습니다."
-    )
-  }
-
-  $actualMonthText =
-    Normalize-ExcelText -Value (
-      Read-ExcelCellValue -Worksheet $plantWorksheet -Address "F4"
-    )
-
-  if (
-    $actualMonthText -ne
-      $expectedMonthText
-  ) {
-    throw (
-      $workbookName +
-      "의 Plant!F4 월 표시가 조회일과 다릅니다. 기대값: " +
-      $expectedMonthText +
-      ", 실제값: " +
-      $actualMonthText
-    )
-  }
-
-  $targetDay =
-    [int]$targetDateValue.Day
-
-  $expectedDayColumn =
-    5 +
-    $targetDay
-
-  $dayMatches =
-    @()
-
-  for (
-    $columnNumber = 6;
-    $columnNumber -le 36;
-    $columnNumber += 1
-  ) {
-    $dayAddress =
-      Get-ExcelAddress -RowNumber 5 -ColumnNumber $columnNumber
-
-    $dayValue =
-      Read-ExcelCellValue -Worksheet $plantWorksheet -Address $dayAddress
-
-    try {
-      $numericDay =
-        [Convert]::ToDouble(
-          $dayValue,
-          [Globalization.CultureInfo]::InvariantCulture
-        )
-
-      if (
-        [Math]::Abs(
-          $numericDay -
-          $targetDay
-        ) -le 0.000001
-      ) {
-        $dayMatches +=
-          $columnNumber
-      }
-    }
-    catch {
-    }
-  }
-
-  if (
-    $dayMatches.Count -ne 1
-  ) {
-    throw (
-      $workbookName +
-      "의 Plant!F5:AJ5에서 " +
-      $targetDay +
-      "일을 정확히 한 곳 찾지 못했습니다. 확인 건수: " +
-      $dayMatches.Count
-    )
-  }
-
-  $targetColumnNumber =
-    [int]$dayMatches[0]
-
-  if (
-    $targetColumnNumber -ne
-      $expectedDayColumn
-  ) {
-    throw (
-      $workbookName +
-      "의 Plant 5행 날짜 배열이 올바르지 않습니다. " +
-      $targetDay +
-      "일 기대 열: " +
-      (
-        ConvertTo-ExcelColumnName -ColumnNumber $expectedDayColumn
-      ) +
-      ", 실제 열: " +
-      (
-        ConvertTo-ExcelColumnName -ColumnNumber $targetColumnNumber
-      )
-    )
-  }
-
-  $targetColumnName =
-    ConvertTo-ExcelColumnName -ColumnNumber $targetColumnNumber
-
-  $targetDayCell =
-    $targetColumnName +
-    "5"
-
-  Write-DailyDataStage -Message (
-    "Plant 조회일 열 확인 · " +
-    $targetDate +
-    " · " +
-    $targetDayCell
-  )
-
-  $calculationDeadline =
-    [datetime]::UtcNow.AddSeconds(
-      15
-    )
-
-  while (
-    [datetime]::UtcNow -lt
-      $calculationDeadline
-  ) {
-    $calculationState =
-      try {
-        [int]$excel.CalculationState
-      }
-      catch {
-        0
-      }
-
-    if (
-      $calculationState -eq 0
-    ) {
-      break
-    }
-
-    Start-Sleep -Milliseconds 250
-  }
-
-  $finalCalculationState =
-    try {
-      [int]$excel.CalculationState
-    }
-    catch {
-      0
-    }
-
-  if (
-    $finalCalculationState -ne 0
-  ) {
-    throw "Excel 계산이 완료되지 않아 값을 읽지 않았습니다. 계산 완료 후 다시 조회해 주세요."
-  }
-
-  $manualValues =
-    [ordered]@{}
-
-  $cellMap =
-    [ordered]@{}
-
-  foreach (
-    $definition in
-      $fieldDefinitions
-  ) {
-    $rowNumber =
-      [int]$definition.row
-
-    $resultKey =
-      [string]$definition.resultKey
-
-    $expectedLabel =
-      Normalize-ExcelText -Value (
-        $definition.label
-      )
-
-    $labelAddress =
-      "C" +
-      [string]$rowNumber
-
-    $actualLabel =
-      Normalize-ExcelText -Value (
-        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $labelAddress
-      )
-
-    if (
-      $actualLabel -ne
-        $expectedLabel
-    ) {
-      throw (
-        $workbookName +
-        "의 Plant!" +
-        $labelAddress +
-        " 항목명이 다릅니다. 기대값: " +
-        $expectedLabel +
-        ", 실제값: " +
-        $actualLabel
-      )
-    }
-
-    $valueAddress =
-      $targetColumnName +
-      [string]$rowNumber
-
-    $numericValue =
-      Get-FiniteExcelNumber -Value (
-        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $valueAddress
-      ) -Label (
-        $expectedLabel +
-        " (Plant!" +
-        $valueAddress +
-        ")"
-      )
-
-    if (
-      $numericValue -lt 0
-    ) {
-      throw (
-        $expectedLabel +
-        " 값이 0보다 작습니다: " +
-        $numericValue +
-        " (Plant!" +
-        $valueAddress +
-        ")"
-      )
-    }
-
-    $manualValues[$resultKey] =
-      $numericValue
-
-    $cellMap[$resultKey] =
-      "Plant!" +
-      $valueAddress
-  }
-
-  $sludgeEntries =
-    @()
-
-  $sludgeTruckCount =
-    0
-
-  $sludgeTotal =
-    0.0
-
-  foreach (
-    $definition in
-      $sludgeDefinitions
-  ) {
-    $sequence =
-      [int]$definition.sequence
-
-    $rowNumber =
-      [int]$definition.row
-
-    $expectedLabel =
-      Normalize-ExcelText -Value (
-        $definition.label
-      )
-
-    $labelAddress =
-      "C" +
-      [string]$rowNumber
-
-    $actualLabel =
-      Normalize-ExcelText -Value (
-        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $labelAddress
-      )
-
-    if (
-      $actualLabel -ne
-        $expectedLabel
-    ) {
-      throw (
-        $workbookName +
-        "의 Plant!" +
-        $labelAddress +
-        " 항목명이 다릅니다. 기대값: " +
-        $expectedLabel +
-        ", 실제값: " +
-        $actualLabel
-      )
-    }
-
-    $valueAddress =
-      $targetColumnName +
-      [string]$rowNumber
-
-    $amount =
-      Get-FiniteExcelNumber -Value (
-        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $valueAddress
-      ) -Label (
-        $expectedLabel +
-        " (Plant!" +
-        $valueAddress +
-        ")"
-      ) -AllowBlank $true
-
-    if (
-      $null -ne $amount -and
-      $amount -lt 0
-    ) {
-      throw (
-        $expectedLabel +
-        " 값이 0보다 작습니다: " +
-        $amount +
-        " (Plant!" +
-        $valueAddress +
-        ")"
-      )
-    }
-
-    if (
-      $null -ne $amount
-    ) {
-      $sludgeTotal +=
-        $amount
-
-      if (
-        $amount -gt 0
-      ) {
-        $sludgeTruckCount +=
-          1
-      }
-    }
-
-    $sludgeEntries +=
-      [ordered]@{
-        sequence =
-          $sequence
-
-        amount =
-          $amount
-
-        cell =
-          "Plant!" +
-          $valueAddress
-      }
-  }
-
-  $plantOrganicValues =
-    [ordered]@{}
-
-  foreach (
-    $definition in
-      $organicDefinitions
-  ) {
-    $rowNumber =
-      [int]$definition.row
-
-    $resultKey =
-      [string]$definition.resultKey
-
-    $expectedLabel =
-      Normalize-ExcelText -Value (
-        $definition.label
-      )
-
-    $labelAddress =
-      "C" +
-      [string]$rowNumber
-
-    $actualLabel =
-      Normalize-ExcelText -Value (
-        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $labelAddress
-      )
-
-    if (
-      $actualLabel -ne
-        $expectedLabel
-    ) {
-      throw (
-        $workbookName +
-        "의 Plant!" +
-        $labelAddress +
-        " 항목명이 다릅니다. 기대값: " +
-        $expectedLabel +
-        ", 실제값: " +
-        $actualLabel
-      )
-    }
-
-    $valueAddress =
-      $targetColumnName +
-      [string]$rowNumber
-
-    $plantValue =
-      Get-FiniteExcelNumber -Value (
-        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $valueAddress
-      ) -Label (
-        $expectedLabel +
-        " (Plant!" +
-        $valueAddress +
-        ")"
-      )
-
-    if (
-      $plantValue -lt 0
-    ) {
-      throw (
-        $expectedLabel +
-        " 값이 0보다 작습니다: " +
-        $plantValue
-      )
-    }
-
-    $plantOrganicValues[$resultKey] =
-      $plantValue
-
-    $cellMap[$resultKey + "Plant"] =
-      "Plant!" +
-      $valueAddress
-  }
-
-  $organicTotalAddress =
-    $targetColumnName +
-    "287"
-
-  $organicTotalLabel =
-    Normalize-ExcelText -Value (
-      Read-ExcelCellValue -Worksheet $plantWorksheet -Address "C287"
-    )
-
-  if (
-    $organicTotalLabel -ne
-      "총 재고량 *Day Silo + Storage Silo"
-  ) {
-    throw (
-      $workbookName +
-      "의 Plant!C287 항목명이 다릅니다. 실제값: " +
-      $organicTotalLabel
-    )
-  }
-
-  $plantOrganicTotal =
-    Get-FiniteExcelNumber -Value (
-      Read-ExcelCellValue -Worksheet $plantWorksheet -Address $organicTotalAddress
-    ) -Label (
-      "유기성 Silo 총 재고량 (Plant!" +
-      $organicTotalAddress +
-      ")"
-    )
-
-  if (
-    $plantOrganicTotal -lt 0
-  ) {
-    throw "유기성 Silo 총 재고량이 0보다 작습니다."
-  }
-
-  try {
-    $dataWorksheet =
+    $worksheet =
       $worksheets.Item(
         "Data Normalize (2)"
       )
@@ -8369,12 +7626,12 @@ try {
     )
   }
 
-  Write-DailyDataStage -Message (
-    "DataPARC 유기성 Silo TAG 위치 확인"
+  Write-DataParcStage(
+    "Data Normalize (2) 시트 확인 완료"
   )
 
   $usedRange =
-    $dataWorksheet.UsedRange
+    $worksheet.UsedRange
 
   $usedRows =
     $usedRange.Rows
@@ -8394,6 +7651,13 @@ try {
   $firstColumn =
     [int]$usedRange.Column
 
+  if (
+    $rowCount -lt 2 -or
+    $columnCount -lt 2
+  ) {
+    throw "Data Normalize (2) 시트의 자료 범위가 비어 있습니다."
+  }
+
   $lastRow =
     $firstRow +
     $rowCount -
@@ -8404,12 +7668,8 @@ try {
     $columnCount -
     1
 
-  if (
-    $rowCount -lt 2 -or
-    $columnCount -lt 2
-  ) {
-    throw "Data Normalize (2) 시트의 자료 범위가 비어 있습니다."
-  }
+  $headerStartRow =
+    $firstRow
 
   $headerEndRow =
     [Math]::Min(
@@ -8422,7 +7682,7 @@ try {
     (
       ConvertTo-ExcelColumnName -ColumnNumber $firstColumn
     ) +
-    [string]$firstRow +
+    [string]$headerStartRow +
     ":" +
     (
       ConvertTo-ExcelColumnName -ColumnNumber $lastColumn
@@ -8430,12 +7690,18 @@ try {
     [string]$headerEndRow
 
   $headerRange =
-    $dataWorksheet.Range(
+    $worksheet.Range(
       $headerRangeAddress
     )
 
   $headerValues =
     $headerRange.Value2
+
+  $headerRangeFirstRow =
+    [int]$headerRange.Row
+
+  $headerRangeFirstColumn =
+    [int]$headerRange.Column
 
   if (
     $headerValues -isnot [array] -or
@@ -8443,12 +7709,6 @@ try {
   ) {
     throw "Data Normalize (2) 헤더 범위를 읽지 못했습니다."
   }
-
-  $headerFirstRow =
-    [int]$headerRange.Row
-
-  $headerFirstColumn =
-    [int]$headerRange.Column
 
   $headerRowLower =
     $headerValues.GetLowerBound(
@@ -8470,21 +7730,14 @@ try {
       1
     )
 
-  $dateHeaderMatches =
+  $unitOneTagMatches =
     @()
 
-  $tagMatches =
-    @{}
+  $unitTwoTagMatches =
+    @()
 
-  foreach (
-    $definition in
-      $organicDefinitions
-  ) {
-    $tagMatches[
-      [string]$definition.resultKey
-    ] =
-      @()
-  }
+  $dateHeaderMatches =
+    @()
 
   for (
     $arrayRow = $headerRowLower;
@@ -8505,18 +7758,46 @@ try {
         )
 
       $sheetRow =
-        $headerFirstRow +
+        $headerRangeFirstRow +
         (
           $arrayRow -
           $headerRowLower
         )
 
       $sheetColumn =
-        $headerFirstColumn +
+        $headerRangeFirstColumn +
         (
           $arrayColumn -
           $headerColumnLower
         )
+
+      if (
+        $cellText -ceq
+          $unitOneTag
+      ) {
+        $unitOneTagMatches +=
+          [pscustomobject]@{
+            RowNumber =
+              $sheetRow
+
+            ColumnNumber =
+              $sheetColumn
+          }
+      }
+
+      if (
+        $cellText -ceq
+          $unitTwoTag
+      ) {
+        $unitTwoTagMatches +=
+          [pscustomobject]@{
+            RowNumber =
+              $sheetRow
+
+            ColumnNumber =
+              $sheetColumn
+          }
+      }
 
       if (
         $cellText -eq
@@ -8531,88 +7812,92 @@ try {
               $sheetColumn
           }
       }
-
-      foreach (
-        $definition in
-          $organicDefinitions
-      ) {
-        if (
-          $cellText -ceq
-            [string]$definition.tag
-        ) {
-          $resultKey =
-            [string]$definition.resultKey
-
-          $tagMatches[$resultKey] +=
-            [pscustomobject]@{
-              RowNumber =
-                $sheetRow
-
-              ColumnNumber =
-                $sheetColumn
-            }
-        }
-      }
     }
+  }
+
+  if (
+    $unitOneTagMatches.Count -ne 1
+  ) {
+    throw (
+      "1호기 Main Steam TAG를 헤더에서 정확히 한 곳 찾지 못했습니다. " +
+      "확인 건수: " +
+      $unitOneTagMatches.Count
+    )
+  }
+
+  if (
+    $unitTwoTagMatches.Count -ne 1
+  ) {
+    throw (
+      "2호기 Main Steam TAG를 헤더에서 정확히 한 곳 찾지 못했습니다. " +
+      "확인 건수: " +
+      $unitTwoTagMatches.Count
+    )
   }
 
   if (
     $dateHeaderMatches.Count -ne 1
   ) {
     throw (
-      "Data Normalize (2)의 Tag Name 헤더를 정확히 한 곳 찾지 못했습니다. 확인 건수: " +
+      "날짜축 기준인 Tag Name 헤더를 정확히 한 곳 찾지 못했습니다. " +
+      "확인 건수: " +
       $dateHeaderMatches.Count
     )
   }
 
+  $unitOneTagPosition =
+    $unitOneTagMatches[0]
+
+  $unitTwoTagPosition =
+    $unitTwoTagMatches[0]
+
   $dateHeaderPosition =
     $dateHeaderMatches[0]
 
-  $tagPositions =
-    @{}
-
-  foreach (
-    $definition in
-      $organicDefinitions
+  if (
+    $unitOneTagPosition.RowNumber -ne
+      $unitTwoTagPosition.RowNumber -or
+    $unitOneTagPosition.RowNumber -ne
+      $dateHeaderPosition.RowNumber
   ) {
-    $resultKey =
-      [string]$definition.resultKey
-
-    $matches =
-      @(
-        $tagMatches[$resultKey]
-      )
-
-    if (
-      $matches.Count -ne 1
-    ) {
-      throw (
-        [string]$definition.tag +
-        " TAG를 정확히 한 곳 찾지 못했습니다. 확인 건수: " +
-        $matches.Count
-      )
-    }
-
-    if (
-      [int]$matches[0].RowNumber -ne
-        [int]$dateHeaderPosition.RowNumber
-    ) {
-      throw (
-        [string]$definition.tag +
-        " TAG와 Tag Name이 같은 헤더 행에 있지 않습니다."
-      )
-    }
-
-    $tagPositions[$resultKey] =
-      $matches[0]
+    throw "Main Steam TAG와 Tag Name이 같은 헤더 행에 있지 않습니다."
   }
+
+  $unitOneTagColumnNumber =
+    [int]$unitOneTagPosition.ColumnNumber
+
+  $unitTwoTagColumnNumber =
+    [int]$unitTwoTagPosition.ColumnNumber
 
   $dateColumnNumber =
     [int]$dateHeaderPosition.ColumnNumber
 
+  $unitOneTagAddress =
+    Get-ExcelAddress -RowNumber (
+      [int]$unitOneTagPosition.RowNumber
+    ) -ColumnNumber $unitOneTagColumnNumber
+
+  $unitTwoTagAddress =
+    Get-ExcelAddress -RowNumber (
+      [int]$unitTwoTagPosition.RowNumber
+    ) -ColumnNumber $unitTwoTagColumnNumber
+
+  Write-DataParcStage(
+    "Main Steam TAG 위치 확인 · " +
+    $unitOneTagAddress +
+    " / " +
+    $unitTwoTagAddress
+  )
+
   $dateStartRow =
     [int]$dateHeaderPosition.RowNumber +
     1
+
+  if (
+    $dateStartRow -gt $lastRow
+  ) {
+    throw "Tag Name 아래에 날짜 자료가 없습니다."
+  }
 
   $dateColumnName =
     ConvertTo-ExcelColumnName -ColumnNumber $dateColumnNumber
@@ -8625,18 +7910,21 @@ try {
     [string]$lastRow
 
   $dateRange =
-    $dataWorksheet.Range(
+    $worksheet.Range(
       $dateRangeAddress
     )
 
   $dateValues =
     $dateRange.Value2
 
+  $dateRangeFirstRow =
+    [int]$dateRange.Row
+
   if (
     $dateValues -isnot [array] -or
     $dateValues.Rank -ne 2
   ) {
-    throw "Data Normalize (2)의 날짜축 범위를 읽지 못했습니다."
+    throw "날짜축 범위를 읽지 못했습니다."
   }
 
   $dateRowLower =
@@ -8654,13 +7942,13 @@ try {
       1
     )
 
-  $dateRangeFirstRow =
-    [int]$dateRange.Row
-
   $date1904 =
     [bool]$workbook.Date1904
 
   $targetDateRows =
+    @()
+
+  $nextDateRows =
     @()
 
   for (
@@ -8675,16 +7963,36 @@ try {
       ]
 
     if (
+      $null -eq $candidateDateValue -or
+      (
+        $candidateDateValue -is [string] -and
+        [string]::IsNullOrWhiteSpace(
+          $candidateDateValue
+        )
+      )
+    ) {
+      continue
+    }
+
+    $sheetRow =
+      $dateRangeFirstRow +
+      (
+        $arrayRow -
+        $dateRowLower
+      )
+
+    if (
       Test-ExcelTimestamp -Value $candidateDateValue -Target $targetDateValue -Date1904 $date1904
     ) {
       $targetDateRows +=
-        (
-          $dateRangeFirstRow +
-          (
-            $arrayRow -
-            $dateRowLower
-          )
-        )
+        $sheetRow
+    }
+
+    if (
+      Test-ExcelTimestamp -Value $candidateDateValue -Target $nextDateValue -Date1904 $date1904
+    ) {
+      $nextDateRows +=
+        $sheetRow
     }
   }
 
@@ -8692,389 +8000,148 @@ try {
     $targetDateRows.Count -ne 1
   ) {
     throw (
-      "Data Normalize (2)에서 " +
       $targetDate +
-      " 날짜 행을 정확히 한 곳 찾지 못했습니다. 확인 건수: " +
+      " 날짜 행을 정확히 한 곳 찾지 못했습니다. " +
+      "확인 건수: " +
       $targetDateRows.Count +
-      ". DataPARC Get Data 완료 여부를 확인해 주세요."
+      ". 적산 Excel에서 Get Data가 완료됐는지 확인해 주세요."
     )
   }
-
-  $dataTargetRow =
-    [int]$targetDateRows[0]
-
-  $dataDateCell =
-    Get-ExcelAddress -RowNumber $dataTargetRow -ColumnNumber $dateColumnNumber
-
-  $organicValues =
-    [ordered]@{}
-
-  $organicMetadata =
-    [ordered]@{}
-
-  foreach (
-    $definition in
-      $organicDefinitions
-  ) {
-    $resultKey =
-      [string]$definition.resultKey
-
-    $tagPosition =
-      $tagPositions[$resultKey]
-
-    $tagColumnNumber =
-      [int]$tagPosition.ColumnNumber
-
-    $tagCell =
-      Get-ExcelAddress -RowNumber (
-        [int]$tagPosition.RowNumber
-      ) -ColumnNumber $tagColumnNumber
-
-    $valueCell =
-      Get-ExcelAddress -RowNumber $dataTargetRow -ColumnNumber $tagColumnNumber
-
-    $dataValue =
-      Get-FiniteExcelNumber -Value (
-        Read-ExcelCellValue -Worksheet $dataWorksheet -Address $valueCell
-      ) -Label (
-        [string]$definition.label +
-        " DataPARC 값 (Data Normalize (2)!" +
-        $valueCell +
-        ")"
-      )
-
-    if (
-      $dataValue -lt 0
-    ) {
-      throw (
-        [string]$definition.label +
-        " DataPARC 값이 0보다 작습니다: " +
-        $dataValue
-      )
-    }
-
-    $plantValue =
-      [double]$plantOrganicValues[$resultKey]
-
-    if (
-      [Math]::Abs(
-        $dataValue -
-        $plantValue
-      ) -gt 0.001
-    ) {
-      throw (
-        [string]$definition.label +
-        "의 Plant 값과 DataPARC 값이 다릅니다. Plant: " +
-        $plantValue +
-        ", DataPARC: " +
-        $dataValue
-      )
-    }
-
-    $organicValues[$resultKey] =
-      $dataValue
-
-    $organicMetadata[$resultKey] =
-      [ordered]@{
-        tag =
-          [string]$definition.tag
-
-        tagCell =
-          "Data Normalize (2)!" +
-          $tagCell
-
-        valueCell =
-          "Data Normalize (2)!" +
-          $valueCell
-
-        plantCell =
-          $cellMap[$resultKey + "Plant"]
-
-        plantValue =
-          $plantValue
-
-        dataParcValue =
-          $dataValue
-      }
-  }
-
-  $organicSiloTotal =
-    [double]$organicValues.organicDaySilo +
-    [double]$organicValues.organicStorageSiloA +
-    [double]$organicValues.organicStorageSiloB
 
   if (
-    [Math]::Abs(
-      $organicSiloTotal -
-      $plantOrganicTotal
-    ) -gt 0.001
+    $nextDateRows.Count -ne 1
   ) {
     throw (
-      "유기성 Silo 3개 합계와 Plant 총 재고량이 다릅니다. 3개 합계: " +
-      $organicSiloTotal +
-      ", Plant!" +
-      $organicTotalAddress +
-      ": " +
-      $plantOrganicTotal
+      $nextDate +
+      " 날짜 행을 정확히 한 곳 찾지 못했습니다. " +
+      "확인 건수: " +
+      $nextDateRows.Count +
+      ". 적산 Excel에서 Get Data가 완료됐는지 확인해 주세요."
     )
   }
 
-  $unitOneProduction =
-    [double]$manualValues.unitOneProduction
+  $targetRowNumber =
+    [int]$targetDateRows[0]
 
-  $unitTwoProduction =
-    [double]$manualValues.unitTwoProduction
+  $nextRowNumber =
+    [int]$nextDateRows[0]
 
-  $totalProduction =
-    $unitOneProduction +
-    $unitTwoProduction
+  $targetDateAddress =
+    Get-ExcelAddress -RowNumber $targetRowNumber -ColumnNumber $dateColumnNumber
 
-  $steamSalesLowPressure =
-    [double]$manualValues.steamSalesLowPressure
+  $nextDateAddress =
+    Get-ExcelAddress -RowNumber $nextRowNumber -ColumnNumber $dateColumnNumber
 
-  $steamSalesHighPressure =
-    [double]$manualValues.steamSalesHighPressure
+  Write-DataParcStage(
+    "날짜 행 위치 확인 · " +
+    $targetDateAddress +
+    " / " +
+    $nextDateAddress
+  )
 
-  $steamSales =
-    $steamSalesLowPressure +
-    $steamSalesHighPressure
+  $unitOneStartAddress =
+    Get-ExcelAddress -RowNumber $targetRowNumber -ColumnNumber $unitOneTagColumnNumber
 
-  $averageSteamSales =
-    $steamSales /
-    24
+  $unitOneEndAddress =
+    Get-ExcelAddress -RowNumber $nextRowNumber -ColumnNumber $unitOneTagColumnNumber
 
-  $salesRate =
-    if (
-      $totalProduction -gt 0
-    ) {
-      $steamSales /
-      $totalProduction *
-      100
-    }
-    else {
-      $null
-    }
+  $unitTwoStartAddress =
+    Get-ExcelAddress -RowNumber $targetRowNumber -ColumnNumber $unitTwoTagColumnNumber
+
+  $unitTwoEndAddress =
+    Get-ExcelAddress -RowNumber $nextRowNumber -ColumnNumber $unitTwoTagColumnNumber
+
+  $unitOneStartCell =
+    $worksheet.Range(
+      $unitOneStartAddress
+    )
+
+  $unitOneEndCell =
+    $worksheet.Range(
+      $unitOneEndAddress
+    )
+
+  $unitTwoStartCell =
+    $worksheet.Range(
+      $unitTwoStartAddress
+    )
+
+  $unitTwoEndCell =
+    $worksheet.Range(
+      $unitTwoEndAddress
+    )
+
+  $unitOneStartValue =
+    Get-FiniteExcelNumber -Value $unitOneStartCell.Value2 -Label "1호기 시작 누적값"
+
+  $unitOneEndValue =
+    Get-FiniteExcelNumber -Value $unitOneEndCell.Value2 -Label "1호기 종료 누적값"
+
+  $unitTwoStartValue =
+    Get-FiniteExcelNumber -Value $unitTwoStartCell.Value2 -Label "2호기 시작 누적값"
+
+  $unitTwoEndValue =
+    Get-FiniteExcelNumber -Value $unitTwoEndCell.Value2 -Label "2호기 종료 누적값"
+
+  Write-DataParcStage(
+    "적산 누적값 4개 읽기 완료"
+  )
 
   $result =
     [ordered]@{
-      schemaVersion =
-        2
-
-      source =
-        "월간 일일DATA관리 Excel"
-
-      productionSource =
-        "Plant 수기·계산 완료값"
-
-      salesSource =
-        "Plant 저압·고압증기 수기값"
-
-      organicSiloSource =
-        "DataPARC / Data Normalize (2)"
-
       targetDate =
         $targetDate
 
-      sourceDate =
-        $targetDate
+      nextDate =
+        $nextDate
 
-      workbook =
-        $workbookName
-
-      workbookFullName =
-        $workbookFullName
-
-      workbookSaved =
-        $workbookSaved
-
-      workbookReadOnly =
-        $workbookReadOnly
-
-      expectedWorkbook =
-        $expectedWorkbookName
-
-      plantWorksheet =
-        "Plant"
-
-      dataParcWorksheet =
-        "Data Normalize (2)"
-
-      monthCell =
-        "Plant!F4"
-
-      monthText =
-        $actualMonthText
-
-      dayCell =
-        "Plant!" +
-        $targetDayCell
-
-      targetColumn =
-        $targetColumnName
-
-      dataParcDateCell =
-        "Data Normalize (2)!" +
-        $dataDateCell
-
-      cellMap =
-        $cellMap
-
-      unit =
-        "ton"
-
-      salesUnit =
-        "ton"
-
-      hourCount =
-        24
-
-      outputInterval =
-        "대상일 일일값"
-
-      hourRange =
-        "00:00~24:00"
-
-      generatorEcmsGen1 =
-        [double]$manualValues.generatorEcmsGen1
-
-      ismartReception =
-        [double]$manualValues.ismartReception
-
-      electricityReceived =
-        [double]$manualValues.ismartReception
-
-      epowerTransmission =
-        [double]$manualValues.epowerTransmission
-
-      electricityTransmitted =
-        [double]$manualValues.epowerTransmission
-
-      solarDailyGeneration =
-        [double]$manualValues.solarDailyGeneration
-
-      solarDaily =
-        [double]$manualValues.solarDailyGeneration
-
-      steamSalesLowPressure =
-        $steamSalesLowPressure
-
-      steamSalesHighPressure =
-        $steamSalesHighPressure
-
-      steamSales =
-        $steamSales
-
-      averageSteamSales =
-        $averageSteamSales
-
-      unitOneProduction =
-        $unitOneProduction
-
-      unitTwoProduction =
-        $unitTwoProduction
-
-      totalProduction =
-        $totalProduction
-
-      salesRate =
-        $salesRate
-
-      unitOne =
-        [ordered]@{
-          source =
-            "Plant 수기·계산 완료값"
-
-          unit =
-            1
-
-          valueCell =
-            $cellMap.unitOneProduction
-
-          productionTotal =
-            $unitOneProduction
-
-          startValue =
-            $null
-
-          endValue =
-            $null
-        }
-
-      unitTwo =
-        [ordered]@{
-          source =
-            "Plant 수기·계산 완료값"
-
-          unit =
-            2
-
-          valueCell =
-            $cellMap.unitTwoProduction
-
-          productionTotal =
-            $unitTwoProduction
-
-          startValue =
-            $null
-
-          endValue =
-            $null
-        }
-
-      sludgeEntries =
-        $sludgeEntries
-
-      sludgeTruckCount =
-        $sludgeTruckCount
-
-      sludgeTotal =
-        $sludgeTotal
-
-      organicDaySilo =
-        [double]$organicValues.organicDaySilo
-
-      organicDaySiloLevel =
-        [double]$organicValues.organicDaySilo
-
-      organicStorageSiloA =
-        [double]$organicValues.organicStorageSiloA
-
-      organicStorageSiloALevel =
-        [double]$organicValues.organicStorageSiloA
-
-      organicStorageSiloB =
-        [double]$organicValues.organicStorageSiloB
-
-      organicStorageSiloBLevel =
-        [double]$organicValues.organicStorageSiloB
-
-      organicSiloTotal =
-        $organicSiloTotal
-
-      organicSiloMetadata =
-        $organicMetadata
+      dataParcAddIn =
+        "open workbook / Data Normalize (2)"
 
       dataParcHost =
         [bool](
           Get-Process -Name "CTCExcelAddIn.PARCviewHost" -ErrorAction SilentlyContinue
         )
 
-      collectedAt =
-        [datetime]::UtcNow.ToString(
-          "o",
-          [Globalization.CultureInfo]::InvariantCulture
-        )
-    }
+      workbook =
+        $workbookName
 
-  Write-DailyDataStage -Message (
-    "월간 일일DATA관리 값 읽기 완료"
-  )
+      worksheet =
+        "Data Normalize (2)"
+
+      layout =
+        "tags-in-row"
+
+      targetDateCell =
+        $targetDateAddress
+
+      nextDateCell =
+        $nextDateAddress
+
+      unitOneTagCell =
+        $unitOneTagAddress
+
+      unitTwoTagCell =
+        $unitTwoTagAddress
+
+      unitOneStartValue =
+        $unitOneStartValue
+
+      unitOneEndValue =
+        $unitOneEndValue
+
+      unitTwoStartValue =
+        $unitTwoStartValue
+
+      unitTwoEndValue =
+        $unitTwoEndValue
+    }
 
   [Console]::WriteLine(
     $resultMarker +
     (
       $result |
-        ConvertTo-Json -Compress -Depth 8
+        ConvertTo-Json -Compress -Depth 4
     )
   )
 
@@ -9084,20 +8151,33 @@ finally {
   foreach (
     $comObject in
       @(
+        $unitTwoEndCell,
+        $unitTwoStartCell,
+        $unitOneEndCell,
+        $unitOneStartCell,
         $dateRange,
         $headerRange,
         $usedColumns,
         $usedRows,
         $usedRange,
-        $dataWorksheet,
-        $plantWorksheet,
+        $worksheet,
         $worksheets,
         $workbook,
         $workbooks,
         $excel
       )
   ) {
-    Release-ExcelComObject -Value $comObject
+    if (
+      $null -ne $comObject
+    ) {
+      try {
+        [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject(
+          $comObject
+        )
+      }
+      catch {
+      }
+    }
   }
 }
 `;
@@ -9671,7 +8751,7 @@ function runDataParcSteamPowerShell(
 }
 
 
-function parseDailyDataWorkbookNumber(
+function parseDataParcSteamNumber(
   value,
   label
 ) {
@@ -9712,25 +8792,7 @@ function parseDailyDataWorkbookNumber(
 }
 
 
-function roundDailyDataNumber(
-  value,
-  fractionDigits =
-    3
-) {
-  const multiplier =
-    10 **
-    fractionDigits;
-
-
-  return Math.round(
-    value *
-    multiplier
-  ) /
-    multiplier;
-}
-
-
-async function collectDailyDataWorkbookValues(
+async function collectDataParcSteamProductionValues(
   targetDate
 ) {
   if (
@@ -9739,15 +8801,34 @@ async function collectDailyDataWorkbookValues(
     )
   ) {
     throw new Error(
-      "월간 일일DATA관리 조회 날짜가 올바르지 않습니다."
+      "DataPARC 증기생산량 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  const nextDate =
+    addOisAgentDateDays(
+      targetDate,
+      1
+    );
+
+
+  if (
+    !isValidOisAgentDate(
+      nextDate
+    )
+  ) {
+    throw new Error(
+      "DataPARC 증기생산량 종료 날짜를 계산하지 못했습니다."
     );
   }
 
 
   console.log(
     [
-      "월간 일일DATA관리 Excel 조회 시작",
-      targetDate
+      "DataPARC 증기생산량 조회 시작",
+      `${targetDate} 00:00`,
+      `${nextDate} 00:00`
     ].join(
       " · "
     )
@@ -9759,23 +8840,19 @@ async function collectDailyDataWorkbookValues(
       GS_STEAM_TARGET_DATE:
         targetDate,
 
+      GS_STEAM_NEXT_DATE:
+        nextDate,
+
+      GS_STEAM_UNIT_ONE_TAG:
+        DATAPARC_STEAM_PRODUCTION_DEFINITIONS[0]
+          .tag,
+
+      GS_STEAM_UNIT_TWO_TAG:
+        DATAPARC_STEAM_PRODUCTION_DEFINITIONS[1]
+          .tag,
+
       GS_STEAM_RESULT_MARKER:
-        DAILY_DATA_WORKBOOK_RESULT_MARKER,
-
-      GS_DAILY_FIELDS_JSON:
-        JSON.stringify(
-          DAILY_DATA_WORKBOOK_FIELD_DEFINITIONS
-        ),
-
-      GS_DAILY_SLUDGE_JSON:
-        JSON.stringify(
-          DAILY_DATA_WORKBOOK_SLUDGE_DEFINITIONS
-        ),
-
-      GS_DAILY_ORGANIC_JSON:
-        JSON.stringify(
-          DAILY_DATA_WORKBOOK_ORGANIC_SILO_DEFINITIONS
-        )
+        DATAPARC_STEAM_RESULT_MARKER
     });
 
 
@@ -9793,7 +8870,7 @@ async function collectDailyDataWorkbookValues(
       .find(
         line => {
           return line.startsWith(
-            DAILY_DATA_WORKBOOK_RESULT_MARKER
+            DATAPARC_STEAM_RESULT_MARKER
           );
         }
       );
@@ -9803,7 +8880,7 @@ async function collectDailyDataWorkbookValues(
     !resultLine
   ) {
     throw new Error(
-      "월간 일일DATA관리 조회 결과 JSON을 확인하지 못했습니다."
+      "DataPARC 증기생산량 결과 JSON을 확인하지 못했습니다."
     );
   }
 
@@ -9815,7 +8892,7 @@ async function collectDailyDataWorkbookValues(
     capturedResult =
       JSON.parse(
         resultLine.slice(
-          DAILY_DATA_WORKBOOK_RESULT_MARKER.length
+          DATAPARC_STEAM_RESULT_MARKER.length
         )
       );
 
@@ -9823,114 +8900,3554 @@ async function collectDailyDataWorkbookValues(
     error
   ) {
     throw new Error(
-      `월간 일일DATA관리 조회 결과를 해석하지 못했습니다: ${error.message}`
+      `DataPARC 증기생산량 결과를 해석하지 못했습니다: ${error.message}`
     );
   }
 
 
   if (
-    Number(
-      capturedResult.schemaVersion
-    ) !==
-      2
-  ) {
-    throw new Error(
-      "월간 일일DATA관리 조회 결과 버전이 올바르지 않습니다."
-    );
-  }
-
-
-  if (
-    normalizeOisAgentText(
-      capturedResult.targetDate
-    ) !==
+    capturedResult.targetDate !==
       targetDate ||
-    normalizeOisAgentText(
-      capturedResult.sourceDate
-    ) !==
-      targetDate
+    capturedResult.nextDate !==
+      nextDate
   ) {
     throw new Error(
-      "월간 일일DATA관리 조회 날짜와 결과 날짜가 일치하지 않습니다."
+      "DataPARC 증기생산량 조회 날짜와 결과 날짜가 일치하지 않습니다."
     );
   }
 
 
-  const expectedWorkbook =
-    `${targetDate.slice(
-      2,
-      4
-    )}.${targetDate.slice(
-      5,
-      7
-    )}-일일DATA관리.xlsx`;
+  const capturedUnits = {};
 
 
-  if (
-    normalizeOisAgentText(
-      capturedResult.workbook
-    ).normalize(
-      "NFC"
-    ).toLowerCase() !==
-      expectedWorkbook
-        .normalize(
-          "NFC"
-        )
-        .toLowerCase()
+  for (
+    const definition of
+    DATAPARC_STEAM_PRODUCTION_DEFINITIONS
   ) {
-    throw new Error(
-      `조회 대상 월 통합문서가 다릅니다. 기대값: ${expectedWorkbook}, 실제값: ${capturedResult.workbook || "없음"}`
-    );
+    const startValue =
+      parseDataParcSteamNumber(
+        capturedResult[
+          `${definition.resultKey}StartValue`
+        ],
+
+        `${definition.unit}호기 시작 누적값`
+      );
+
+
+    const endValue =
+      parseDataParcSteamNumber(
+        capturedResult[
+          `${definition.resultKey}EndValue`
+        ],
+
+        `${definition.unit}호기 종료 누적값`
+      );
+
+
+    if (
+      endValue <
+        startValue
+    ) {
+      throw new Error(
+        `${definition.unit}호기 증기 누적값이 감소했습니다. 시작 ${startValue}, 종료 ${endValue}`
+      );
+    }
+
+
+    const productionTotal =
+      Math.round(
+        (
+          endValue -
+          startValue
+        ) *
+          1000
+      ) /
+      1000;
+
+
+    capturedUnits[
+      definition.resultKey
+    ] = {
+      source:
+        "DataPARC",
+
+      unit:
+        definition.unit,
+
+      tag:
+        definition.tag,
+
+      startTime:
+        `${targetDate} 00:00:00`,
+
+      endTime:
+        `${nextDate} 00:00:00`,
+
+      startValue,
+
+      endValue,
+
+      calculation:
+        "endValue - startValue",
+
+      productionTotal
+    };
   }
-
-
-  const unitOneProduction =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.unitOneProduction,
-        "1호기 증기생산량"
-      )
-    );
-
-
-  const unitTwoProduction =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.unitTwoProduction,
-        "2호기 증기생산량"
-      )
-    );
-
-
-  const steamSalesLowPressure =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.steamSalesLowPressure,
-        "저압증기 판매량"
-      )
-    );
-
-
-  const steamSalesHighPressure =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.steamSalesHighPressure,
-        "고압증기 판매량"
-      )
-    );
 
 
   const totalProduction =
-    roundDailyDataNumber(
-      unitOneProduction +
-      unitTwoProduction
+    Math.round(
+      (
+        capturedUnits.unitOne
+          .productionTotal +
+        capturedUnits.unitTwo
+          .productionTotal
+      ) *
+        1000
+    ) /
+    1000;
+
+
+  const result = {
+    source:
+      "DataPARC",
+
+    targetDate,
+
+    nextDate,
+
+    dataParcAddIn:
+      normalizeOisAgentText(
+        capturedResult.dataParcAddIn
+      ),
+
+    dataParcHost:
+      capturedResult.dataParcHost ===
+        true,
+
+    unitOne:
+      capturedUnits.unitOne,
+
+    unitTwo:
+      capturedUnits.unitTwo,
+
+    totalProduction
+  };
+
+
+  console.log(
+    [
+      "DataPARC 증기생산량 조회 완료",
+      targetDate,
+      `1호기 ${result.unitOne.productionTotal} ton`,
+      `2호기 ${result.unitTwo.productionTotal} ton`,
+      `합계 ${result.totalProduction} ton`
+    ].join(
+      " · "
+    )
+  );
+
+
+  return result;
+}
+
+/* =========================================================
+  OIS 일별 증기 판매량 화면 열기
+
+  경로:
+  운영정보 → LOG SHEET → 일별 증기 판매량
+========================================================= */
+
+async function openOisSteamDailySales(
+  page
+) {
+  const saveSalesFrameTrace =
+    diagnostics => {
+      const tracePath =
+        path.join(
+          process.cwd(),
+          "ois-steam-sales-frame-trace.json"
+        );
+
+
+      try {
+        fs.writeFileSync(
+          tracePath,
+          JSON.stringify(
+            {
+              source:
+                "OIS 일별 증기 판매량",
+
+              capturedAt:
+                new Date()
+                  .toISOString(),
+
+              frames:
+                diagnostics
+            },
+            null,
+            2
+          ),
+          "utf8"
+        );
+
+
+        console.log(
+          "OIS 증기 판매량 프레임 진단 저장:",
+          tracePath
+        );
+
+      } catch (
+        error
+      ) {
+        console.warn(
+          "OIS 증기 판매량 프레임 진단 저장 실패:",
+          error
+        );
+      }
+    };
+
+
+  const findSalesFrame =
+    async (
+      timeoutMilliseconds =
+        OIS_QUERY_TIMEOUT,
+
+      saveTrace =
+        false
+    ) => {
+      const startedAt =
+        Date.now();
+
+
+      let fallbackFrame =
+        null;
+
+
+      let fallbackDetectedAt =
+        0;
+
+
+      let latestDiagnostics =
+        [];
+
+      while (
+        Date.now() -
+          startedAt <
+        timeoutMilliseconds
+      ) {
+        const currentDiagnostics =
+          [];
+
+
+        const frames =
+          page.frames();
+
+
+        for (
+          let frameIndex = 0;
+          frameIndex <
+            frames.length;
+          frameIndex +=
+            1
+        ) {
+          const frame =
+            frames[
+              frameIndex
+            ];
+
+
+          const snapshot =
+            await frame.evaluate(
+              () => {
+                const normalizeText =
+                  value => {
+                    return String(
+                      value ??
+                      ""
+                    )
+                      .replace(
+                        /\u00a0/g,
+                        " "
+                      )
+                      .replace(
+                        /[\u200b-\u200d\u2060\ufeff]/g,
+                        ""
+                      )
+                      .replace(
+                        /\s+/g,
+                        " "
+                      )
+                      .trim();
+                  };
+
+
+                const bodyInnerText =
+                  normalizeText(
+                    document.body
+                      ?.innerText
+                  );
+
+
+                const bodyClone =
+                  document.body
+                    ?.cloneNode(
+                      true
+                    );
+
+
+                if (
+                  bodyClone
+                ) {
+                  for (
+                    const excludedElement of
+                    bodyClone.querySelectorAll(
+                      "script, style, noscript, template"
+                    )
+                  ) {
+                    excludedElement
+                      .remove();
+                  }
+                }
+
+
+                const bodyTextContent =
+                  normalizeText(
+                    bodyClone
+                      ?.textContent
+                  );
+
+
+                const cells = [
+                  ...document.querySelectorAll(
+                    "th, td"
+                  )
+                ];
+
+
+                const cellText =
+                  normalizeText(
+                    cells
+                      .map(
+                        cell => {
+                          return [
+                            cell.textContent,
+                            cell.getAttribute(
+                              "data-text"
+                            ),
+                            cell.getAttribute(
+                              "data-value"
+                            ),
+                            cell.getAttribute(
+                              "aria-label"
+                            ),
+                            cell.getAttribute(
+                              "title"
+                            )
+                          ]
+                            .filter(
+                              Boolean
+                            )
+                            .join(
+                              " "
+                            );
+                        }
+                      )
+                      .join(
+                        " "
+                      )
+                  );
+
+
+                const visibleControls = [
+                  ...document.querySelectorAll(
+                    [
+                      'input:not([type="hidden"]):not([type="password"])',
+                      "select",
+                      "button"
+                    ].join(
+                      ","
+                    )
+                  )
+                ].filter(
+                  element => {
+                    const rectangle =
+                      element
+                        .getBoundingClientRect();
+
+
+                    const style =
+                      window.getComputedStyle(
+                        element
+                      );
+
+
+                    return (
+                      rectangle.width >
+                        0 &&
+                      rectangle.height >
+                        0 &&
+                      style.display !==
+                        "none" &&
+                      style.visibility !==
+                        "hidden"
+                    );
+                  }
+                );
+
+
+                const controlText =
+                  normalizeText(
+                    visibleControls
+                      .map(
+                        element => {
+                          const optionText =
+                            element.tagName ===
+                              "SELECT"
+                                ? [
+                                    ...element.options
+                                  ]
+                                    .map(
+                                      option => {
+                                        return option
+                                          .textContent;
+                                      }
+                                    )
+                                    .join(
+                                      " "
+                                    )
+                                : "";
+
+
+                          return [
+                            element.textContent,
+                            element.value,
+                            optionText,
+                            element.getAttribute(
+                              "aria-label"
+                            ),
+                            element.getAttribute(
+                              "title"
+                            )
+                          ]
+                            .filter(
+                              Boolean
+                            )
+                            .join(
+                              " "
+                            );
+                        }
+                      )
+                      .join(
+                        " "
+                      )
+                  );
+
+
+                const attributeText =
+                  normalizeText(
+                    [
+                      ...document.querySelectorAll(
+                        [
+                          "[aria-label]",
+                          "[title]",
+                          "[data-text]",
+                          "[data-value]",
+                          "[alt]"
+                        ].join(
+                          ","
+                        )
+                      )
+                    ]
+                      .map(
+                        element => {
+                          return [
+                            element.getAttribute(
+                              "aria-label"
+                            ),
+                            element.getAttribute(
+                              "title"
+                            ),
+                            element.getAttribute(
+                              "data-text"
+                            ),
+                            element.getAttribute(
+                              "data-value"
+                            ),
+                            element.getAttribute(
+                              "alt"
+                            )
+                          ]
+                            .filter(
+                              Boolean
+                            )
+                            .join(
+                              " "
+                            );
+                        }
+                      )
+                      .join(
+                        " "
+                      )
+                  );
+
+
+                const searchableText =
+                  [
+                    document.title,
+                    bodyInnerText,
+                    bodyTextContent,
+                    cellText,
+                    controlText,
+                    attributeText
+                  ]
+                    .filter(
+                      Boolean
+                    )
+                    .join(
+                      " "
+                    )
+                    .replace(
+                      /[\s\u200b-\u200d\u2060\ufeff]+/g,
+                      ""
+                    );
+
+
+                return {
+                  titleLength:
+                    normalizeText(
+                      document.title
+                    ).length,
+
+                  bodyInnerTextLength:
+                    bodyInnerText.length,
+
+                  bodyTextContentLength:
+                    bodyTextContent.length,
+
+                  cellTextLength:
+                    cellText.length,
+
+                  controlTextLength:
+                    controlText.length,
+
+                  visibleControlCount:
+                    visibleControls.length,
+
+                  tableCount:
+                    document.querySelectorAll(
+                      "table"
+                    ).length,
+
+                  rowCount:
+                    document.querySelectorAll(
+                      "tr"
+                    ).length,
+
+                  cellCount:
+                    cells.length,
+
+                  canvasCount:
+                    document.querySelectorAll(
+                      "canvas"
+                    ).length,
+
+                  iframeCount:
+                    document.querySelectorAll(
+                      "iframe, frame"
+                    ).length,
+
+                  gridRoleCount:
+                    document.querySelectorAll(
+                      '[role="grid"], [role="table"]'
+                    ).length,
+
+                  hasSalesTitle:
+                    searchableText.includes(
+                      "일별증기판매량"
+                    ),
+
+                  hasBasisMonth:
+                    searchableText.includes(
+                      "기준년월"
+                    ) ||
+                    /\d{4}[/-]\d{2}/.test(
+                      controlText
+                    ),
+
+                  hasSteamCategory:
+                    searchableText.includes(
+                      "증기구분"
+                    ),
+
+                  hasSteamUsage:
+                    searchableText.includes(
+                      "증기사용량"
+                    ),
+
+                  hasSubtotal:
+                    searchableText.includes(
+                      "소계"
+                    )
+                };
+              }
+            ).catch(
+              error => {
+                return {
+                  error:
+                    normalizeOisAgentText(
+                      error?.message ||
+                      error
+                    )
+                };
+              }
+            );
+
+
+          const rawFrameUrl =
+            normalizeOisAgentText(
+              frame.url()
+            );
+
+
+          const safeFrameUrl =
+            (() => {
+              if (
+                !/^https?:/i.test(
+                  rawFrameUrl
+                )
+              ) {
+                return rawFrameUrl
+                  .split(
+                    /[?#]/
+                  )[0];
+              }
+
+
+              try {
+                const parsedUrl =
+                  new URL(
+                    rawFrameUrl
+                  );
+
+
+                return (
+                  parsedUrl.origin +
+                  parsedUrl.pathname
+                );
+
+              } catch {
+                return rawFrameUrl
+                  .split(
+                    /[?#]/
+                  )[0];
+              }
+            })();
+
+
+          const diagnostics = {
+            index:
+              frameIndex,
+
+            name:
+              normalizeOisAgentText(
+                frame.name()
+              ),
+
+            url:
+              safeFrameUrl,
+
+            ...snapshot
+          };
+
+
+          currentDiagnostics.push(
+            diagnostics
+          );
+
+
+          if (
+            snapshot?.hasSteamUsage &&
+            (
+              snapshot.hasSteamCategory ||
+              snapshot.hasSubtotal
+            )
+          ) {
+            if (
+              saveTrace
+            ) {
+              saveSalesFrameTrace(
+                currentDiagnostics
+              );
+            }
+
+
+            return frame;
+          }
+
+
+          if (
+            !fallbackFrame &&
+            snapshot?.hasSalesTitle &&
+            snapshot?.hasBasisMonth &&
+            snapshot?.hasSteamCategory
+          ) {
+            fallbackFrame =
+              frame;
+
+
+            fallbackDetectedAt =
+              Date.now();
+          }
+        }
+
+
+        latestDiagnostics =
+          currentDiagnostics;
+
+
+        /*
+          결과표가 전용 그리드 또는 canvas로 그려지면
+          표 머리글이 일반 body.innerText에 없을 수 있다.
+
+          이 경우 제목·기준년월·증기구분이 있는
+          조회조건 프레임을 화면 진입 확인용으로 사용한다.
+        */
+
+        if (
+          fallbackFrame &&
+          Date.now() -
+            fallbackDetectedAt >=
+              1500
+        ) {
+          if (
+            saveTrace
+          ) {
+            saveSalesFrameTrace(
+              latestDiagnostics
+            );
+          }
+
+
+          return fallbackFrame;
+        }
+
+        await page.waitForTimeout(
+          250
+        );
+      }
+
+
+      if (
+        saveTrace
+      ) {
+        saveSalesFrameTrace(
+          latestDiagnostics
+        );
+      }
+
+
+      return null;
+    };
+
+  const existingFrame =
+    await findSalesFrame(
+      1500,
+      true
+    );
+
+  if (
+    existingFrame
+  ) {
+    return existingFrame;
+  }
+
+  let menuFrame =
+    await findOisNavigationFrame(
+      page,
+      OIS_QUERY_TIMEOUT
+    );
+
+  if (
+    !menuFrame
+  ) {
+    throw new Error(
+      "OIS 왼쪽 메뉴 영역을 찾지 못했습니다."
+    );
+  }
+
+  const menuNames = [
+    "일별 증기 판매량",
+    "일별증기판매량"
+  ];
+
+  let salesMenu =
+    await findVisibleOisNavigationItem(
+      menuFrame,
+      menuNames,
+      1000
+    );
+
+  /*
+    메뉴가 안 보이면 운영정보를 먼저 연다.
+  */
+
+  if (
+    !salesMenu
+  ) {
+    const operationMenu =
+      await findVisibleOisNavigationItem(
+        menuFrame,
+        "운영정보",
+        1500
+      );
+
+    if (
+      operationMenu
+    ) {
+      await clickOisNavigationItem(
+        menuFrame,
+        "운영정보",
+        "운영정보"
+      );
+
+      menuFrame =
+        await findOisNavigationFrame(
+          page,
+          OIS_QUERY_TIMEOUT
+        );
+    }
+  }
+
+  if (
+    !menuFrame
+  ) {
+    throw new Error(
+      "운영정보 메뉴를 연 뒤 왼쪽 메뉴를 찾지 못했습니다."
+    );
+  }
+
+  salesMenu =
+    await findVisibleOisNavigationItem(
+      menuFrame,
+      menuNames,
+      1000
+    );
+
+  /*
+    그래도 안 보이면 LOG SHEET을 연다.
+  */
+
+  if (
+    !salesMenu
+  ) {
+    const logSheetMenu =
+      await findVisibleOisNavigationItem(
+        menuFrame,
+        "LOG SHEET",
+        3000
+      );
+
+    if (
+      logSheetMenu
+    ) {
+      await clickOisNavigationItem(
+        menuFrame,
+        "LOG SHEET",
+        "LOG SHEET"
+      );
+
+      menuFrame =
+        await findOisNavigationFrame(
+          page,
+          OIS_QUERY_TIMEOUT
+        );
+    }
+  }
+
+  if (
+    !menuFrame
+  ) {
+    throw new Error(
+      "LOG SHEET 메뉴를 연 뒤 왼쪽 메뉴를 찾지 못했습니다."
+    );
+  }
+
+  salesMenu =
+    await findVisibleOisNavigationItem(
+      menuFrame,
+      menuNames,
+      10000
+    );
+
+  if (
+    !salesMenu
+  ) {
+    throw new Error(
+      "OIS의 일별 증기 판매량 메뉴를 찾지 못했습니다."
+    );
+  }
+
+  const clicked =
+    await clickOisNavigationItem(
+      menuFrame,
+      menuNames,
+      "일별 증기 판매량"
+    );
+
+  if (
+    !clicked
+  ) {
+    throw new Error(
+      "OIS의 일별 증기 판매량 메뉴를 클릭하지 못했습니다."
+    );
+  }
+
+  const salesFrame =
+    await findSalesFrame(
+      OIS_QUERY_TIMEOUT,
+      true
+    );
+
+  if (
+    !salesFrame
+  ) {
+    throw new Error(
+      "OIS 일별 증기 판매량 화면이 열리지 않았습니다."
+    );
+  }
+
+  console.log(
+    "OIS 일별 증기 판매량 화면을 열었습니다."
+  );
+
+  return salesFrame;
+}
+
+/* =========================================================
+  선택일의 증기사용량 TON 소계 읽기
+
+  예:
+  2026/08/07
+  → 소계
+  → 증기사용량 TON
+  → 589.43
+========================================================= */
+
+async function readOisSteamDailySalesTotalFromDom(
+  frame,
+  targetDate
+) {
+  if (
+    !isValidOisAgentDate(
+      targetDate
+    )
+  ) {
+    throw new Error(
+      "증기 판매량 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  const targetSlashDate =
+    targetDate.replace(
+      /-/g,
+      "/"
     );
 
 
+  const startedAt =
+    Date.now();
+
+
+  while (
+    Date.now() -
+      startedAt <
+    OIS_QUERY_TIMEOUT
+  ) {
+    const captured =
+      await frame.evaluate(
+        targetDateText => {
+          const normalizeText =
+            value => {
+              return String(
+                value ?? ""
+              )
+                .replace(
+                  /\u00a0/g,
+                  " "
+                )
+                .replace(
+                  /\s+/g,
+                  " "
+                )
+                .trim();
+            };
+
+
+          const normalizeDateText =
+            value => {
+              return normalizeText(
+                value
+              )
+                .replace(
+                  /[.-]/g,
+                  "/"
+                )
+                .replace(
+                  /\s+/g,
+                  ""
+                );
+            };
+
+
+          const parseNumber =
+            value => {
+              const normalizedValue =
+                normalizeText(
+                  value
+                ).replace(
+                  /,/g,
+                  ""
+                );
+
+
+              if (
+                !/^-?\d+(?:\.\d+)?$/.test(
+                  normalizedValue
+                )
+              ) {
+                return null;
+              }
+
+
+              const numericValue =
+                Number(
+                  normalizedValue
+                );
+
+
+              return Number.isFinite(
+                numericValue
+              )
+                ? numericValue
+                : null;
+            };
+
+
+          const isVisible =
+            element => {
+              const rectangle =
+                element
+                  .getBoundingClientRect();
+
+
+              const style =
+                window.getComputedStyle(
+                  element
+                );
+
+
+              return (
+                rectangle.width > 0 &&
+                rectangle.height > 0 &&
+                style.display !==
+                  "none" &&
+                style.visibility !==
+                  "hidden"
+              );
+            };
+
+
+          const getCellText =
+            cell => {
+              const values = [
+                cell.innerText,
+                cell.getAttribute(
+                  "data-value"
+                ),
+                cell.getAttribute(
+                  "data-text"
+                )
+              ];
+
+
+              for (
+                const input of
+                cell.querySelectorAll(
+                  "input, textarea, select"
+                )
+              ) {
+                values.push(
+                  input.value
+                );
+              }
+
+
+              return normalizeText(
+                values
+                  .filter(Boolean)
+                  .join(" ")
+              );
+            };
+
+
+          const allVisibleCells = [
+            ...document.querySelectorAll(
+              "th, td"
+            )
+          ].filter(
+            isVisible
+          );
+
+
+          /*
+            증기사용량 영역 안의 TON 열 위치를 찾는다.
+          */
+
+          const usageHeaders =
+            allVisibleCells.filter(
+              cell => {
+                return getCellText(
+                  cell
+                ) ===
+                  "증기사용량";
+              }
+            );
+
+
+          let usageTonCenterX =
+            null;
+
+
+          for (
+            const usageHeader of
+            usageHeaders
+          ) {
+            const usageRectangle =
+              usageHeader
+                .getBoundingClientRect();
+
+
+            const tonHeaders =
+              allVisibleCells.filter(
+                cell => {
+                  if (
+                    getCellText(
+                      cell
+                    ) !==
+                      "TON"
+                  ) {
+                    return false;
+                  }
+
+
+                  const rectangle =
+                    cell
+                      .getBoundingClientRect();
+
+
+                  const centerX =
+                    rectangle.left +
+                    rectangle.width /
+                      2;
+
+
+                  return (
+                    centerX >=
+                      usageRectangle.left -
+                        2 &&
+                    centerX <=
+                      usageRectangle.right +
+                        2
+                  );
+                }
+              );
+
+
+            if (
+              tonHeaders.length >
+                0
+            ) {
+              const rectangle =
+                tonHeaders[0]
+                  .getBoundingClientRect();
+
+
+              usageTonCenterX =
+                rectangle.left +
+                rectangle.width /
+                  2;
+
+
+              break;
+            }
+
+
+            usageTonCenterX =
+              usageRectangle.left +
+              usageRectangle.width /
+                4;
+          }
+
+
+          /*
+            날짜 셀이 8bar·34bar·소계 행에 걸쳐
+            병합되어 있으므로 날짜를 이어서 기억한다.
+          */
+
+          for (
+            const table of
+            document.querySelectorAll(
+              "table"
+            )
+          ) {
+            if (
+              !isVisible(
+                table
+              )
+            ) {
+              continue;
+            }
+
+
+            let activeDate =
+              "";
+
+
+            const rows = [
+              ...table.querySelectorAll(
+                "tr"
+              )
+            ];
+
+
+            for (
+              const row of
+              rows
+            ) {
+              if (
+                !isVisible(
+                  row
+                )
+              ) {
+                continue;
+              }
+
+
+              const cells = [
+                ...row.children
+              ].filter(
+                element => {
+                  return (
+                    element.tagName ===
+                      "TH" ||
+                    element.tagName ===
+                      "TD"
+                  );
+                }
+              );
+
+
+              const cellItems =
+                cells.map(
+                  cell => {
+                    const rectangle =
+                      cell
+                        .getBoundingClientRect();
+
+
+                    const text =
+                      getCellText(
+                        cell
+                      );
+
+
+                    return {
+                      text,
+
+                      value:
+                        parseNumber(
+                          text
+                        ),
+
+                      centerX:
+                        rectangle.left +
+                        rectangle.width /
+                          2
+                    };
+                  }
+                );
+
+
+              const rowDate =
+                cellItems
+                  .map(
+                    item => {
+                      return normalizeDateText(
+                        item.text
+                      );
+                    }
+                  )
+                  .find(
+                    text => {
+                      return /^\d{4}\/\d{2}\/\d{2}$/.test(
+                        text
+                      );
+                    }
+                  );
+
+
+              if (
+                rowDate
+              ) {
+                activeDate =
+                  rowDate;
+              }
+
+
+              if (
+                activeDate !==
+                  targetDateText
+              ) {
+                continue;
+              }
+
+
+              const isSubtotalRow =
+                cellItems.some(
+                  item => {
+                    return item.text ===
+                      "소계";
+                  }
+                );
+
+
+              if (
+                !isSubtotalRow
+              ) {
+                continue;
+              }
+
+
+              const numericItems =
+                cellItems.filter(
+                  item => {
+                    return item.value !==
+                      null;
+                  }
+                );
+
+
+              if (
+                numericItems.length ===
+                  0
+              ) {
+                return {
+                  error:
+                    `${targetDateText} 소계 행에 숫자가 없습니다.`
+                };
+              }
+
+
+              let targetItem =
+                null;
+
+
+              /*
+                증기사용량 TON 열과 가로 위치가
+                가장 가까운 숫자를 선택한다.
+              */
+
+              if (
+                usageTonCenterX !==
+                  null
+              ) {
+                targetItem =
+                  numericItems
+                    .slice()
+                    .sort(
+                      (
+                        left,
+                        right
+                      ) => {
+                        return (
+                          Math.abs(
+                            left.centerX -
+                              usageTonCenterX
+                          ) -
+                          Math.abs(
+                            right.centerX -
+                              usageTonCenterX
+                          )
+                        );
+                      }
+                    )[0] ||
+                  null;
+              }
+
+
+              /*
+                열 위치를 확인하지 못한 경우에는
+                소계 행의 가장 오른쪽 숫자를 사용한다.
+              */
+
+              if (
+                !targetItem
+              ) {
+                targetItem =
+                  numericItems[
+                    numericItems.length -
+                      1
+                  ];
+              }
+
+
+              return {
+                value:
+                  targetItem.value,
+
+                subtotalCells:
+                  cellItems.map(
+                    item => {
+                      return item.text;
+                    }
+                  )
+              };
+            }
+          }
+
+
+          return null;
+        },
+
+        targetSlashDate
+      );
+
+
+    if (
+      captured?.error
+    ) {
+      throw new Error(
+        captured.error
+      );
+    }
+
+
+    if (
+      captured &&
+      captured.value !==
+        null &&
+      Number.isFinite(
+        Number(
+          captured.value
+        )
+      )
+    ) {
+      const salesTotal =
+        Math.round(
+          Number(
+            captured.value
+          ) *
+            1000
+        ) /
+        1000;
+
+
+      console.log(
+        "OIS 일별 증기 판매량 소계 확인:",
+        {
+          targetDate,
+
+          salesTotal,
+
+          subtotalCells:
+            captured.subtotalCells
+        }
+      );
+
+
+      return salesTotal;
+    }
+
+
+    await frame.page()
+      .waitForTimeout(
+        300
+      );
+  }
+
+
+  throw new Error(
+    `${targetSlashDate} 일별 증기 판매량 소계를 찾지 못했습니다.`
+  );
+}
+
+/* =========================================================
+  OIS 일별 증기 판매량 기준년월 설정
+
+  월 경계에서도 대상일의 월을 정확히 조회한다.
+========================================================= */
+
+async function setOisSteamDailySalesBasisMonth(
+  frame,
+  targetDate
+) {
+  const targetMonth =
+    targetDate.slice(0, 7);
+
+  const targetSlashMonth =
+    targetMonth.replace("-", "/");
+
+  const inputs =
+    frame.locator(
+      'input:not([type="hidden"])'
+    );
+
+  const inputCount =
+    await inputs.count();
+
+  let bestInput = null;
+  let bestScore = -1;
+
+  for (
+    let index = 0;
+    index < inputCount;
+    index += 1
+  ) {
+    const input =
+      inputs.nth(index);
+
+    const information =
+      await input.evaluate(
+        element => {
+          return {
+            type:
+              String(
+                element.type || ""
+              ).toLowerCase(),
+
+            value:
+              String(
+                element.value || ""
+              ).trim(),
+
+            identity:
+              [
+                element.id,
+                element.name,
+                element.title,
+                element.placeholder,
+                element.getAttribute(
+                  "aria-label"
+                )
+              ]
+                .filter(Boolean)
+                .join(" ")
+          };
+        }
+      );
+
+    if (
+      [
+        "button",
+        "submit",
+        "checkbox",
+        "radio",
+        "password"
+      ].includes(
+        information.type
+      )
+    ) {
+      continue;
+    }
+
+    const isVisible =
+      await input
+        .isVisible()
+        .catch(() => false);
+
+    if (!isVisible) {
+      continue;
+    }
+
+    let score = 5;
+
+    if (
+      information.type === "month"
+    ) {
+      score += 30;
+    }
+
+    if (
+      /^\d{4}[/-]\d{2}$/.test(
+        information.value
+      )
+    ) {
+      score += 25;
+    }
+
+    if (
+      /기준년월|년월|year.?month|yyyymm/i.test(
+        information.identity
+      )
+    ) {
+      score += 20;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestInput = input;
+    }
+  }
+
+  if (
+    !bestInput ||
+    bestScore < 20
+  ) {
+    throw new Error(
+      "OIS 일별 증기 판매량 기준년월 입력칸을 찾지 못했습니다."
+    );
+  }
+
+  const inputType =
+    String(
+      await bestInput
+        .getAttribute("type")
+        .catch(() => "") ||
+      ""
+    ).toLowerCase();
+
+  const inputValue =
+    inputType === "month"
+      ? targetMonth
+      : targetSlashMonth;
+
+  await bestInput.evaluate(
+    (
+      element,
+      value
+    ) => {
+      const valueSetter =
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )?.set;
+
+      if (valueSetter) {
+        valueSetter.call(
+          element,
+          value
+        );
+      } else {
+        element.value = value;
+      }
+
+      for (
+        const eventName of
+        [
+          "input",
+          "change",
+          "blur"
+        ]
+      ) {
+        element.dispatchEvent(
+          new Event(
+            eventName,
+            {
+              bubbles: true
+            }
+          )
+        );
+      }
+    },
+    inputValue
+  );
+
+  const confirmedValue =
+    String(
+      await bestInput
+        .inputValue()
+        .catch(() => "")
+    )
+      .trim()
+      .replace("-", "/");
+
+  if (
+    confirmedValue !==
+      targetSlashMonth
+  ) {
+    throw new Error(
+      "OIS 일별 증기 판매량 기준년월 값이 입력 후 일치하지 않습니다."
+    );
+  }
+
+  console.log(
+    "OIS 일별 증기 판매량 기준년월 설정:",
+    targetSlashMonth
+  );
+
+  return true;
+}
+
+
+/* =========================================================
+  OIS 판매량 API 진단값 분류
+
+  실제 숫자와 일반 문자열은 저장하지 않는다.
+========================================================= */
+
+function classifyOisSteamSalesTraceValue(
+  value,
+  targetDate
+) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return {
+      kind: "empty"
+    };
+  }
+
+  if (Array.isArray(value)) {
+    return {
+      kind: "array",
+      length: value.length
+    };
+  }
+
+  if (typeof value === "object") {
+    return {
+      kind: "object",
+      keyCount: Object.keys(value).length
+    };
+  }
+
+  if (typeof value === "boolean") {
+    return {
+      kind: "boolean"
+    };
+  }
+
+  const targetCompactDate =
+    targetDate.replace(/-/g, "");
+
+  const targetCompactMonth =
+    targetCompactDate.slice(0, 6);
+
+  if (typeof value === "number") {
+    if (
+      Number.isInteger(value) &&
+      String(value) ===
+        targetCompactDate
+    ) {
+      return {
+        kind: "target-date"
+      };
+    }
+
+    return {
+      kind: "number"
+    };
+  }
+
+  const text =
+    String(value)
+      .replace(/\u00a0/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  if (!text) {
+    return {
+      kind: "empty"
+    };
+  }
+
+  const digits =
+    text.replace(/[^0-9]/g, "");
+
+  if (
+    digits === targetCompactDate
+  ) {
+    return {
+      kind: "target-date"
+    };
+  }
+
+  if (
+    digits === targetCompactMonth &&
+    /^\d{4}[./-]?\d{2}$/.test(text)
+  ) {
+    return {
+      kind: "target-month"
+    };
+  }
+
+  const knownLabels =
+    new Map([
+      ["소계", "소계"],
+      ["합계", "합계"],
+      ["8bar", "8Bar"],
+      ["34bar", "34Bar"],
+      ["ton", "TON"],
+      ["mcal", "MCal"],
+      ["전체", "전체"],
+      ["일자", "일자"],
+      ["증기구분", "증기구분"],
+      ["증기사용량", "증기사용량"],
+      ["증기사용량ton", "증기사용량 TON"],
+      ["증기사용량mcal", "증기사용량 MCal"],
+      ["증기소과량", "증기소과량"],
+      ["증기소과량ton", "증기소과량 TON"],
+      ["증기소과량mcal", "증기소과량 MCal"],
+      ["증기소파량", "증기소파량"],
+      ["증기소파량ton", "증기소파량 TON"],
+      ["증기소파량mcal", "증기소파량 MCal"]
+    ]);
+
+  const compactLabel =
+    text
+      .replace(/\s+/g, "")
+      .toLowerCase();
+
+  if (knownLabels.has(compactLabel)) {
+    return {
+      kind: "known-label",
+      label:
+        knownLabels.get(compactLabel)
+    };
+  }
+
+  if (
+    /^-?[\d,]+(?:\.\d+)?$/.test(text)
+  ) {
+    return {
+      kind: "number"
+    };
+  }
+
+  if (
+    /^\d{4}[./-]\d{2}(?:[./-]\d{2})?$/.test(
+      text
+    )
+  ) {
+    return {
+      kind: "date"
+    };
+  }
+
+  return {
+    kind: "text",
+    length: text.length
+  };
+}
+
+
+function sanitizeOisSteamSalesTraceIdentifier(
+  value,
+  fallback = "<masked-identifier>"
+) {
+  const text =
+    String(value ?? "").trim();
+
+  if (
+    /^[A-Za-z0-9_.$:\-\u3131-\u318e\uac00-\ud7a3]{1,128}$/u.test(
+      text
+    )
+  ) {
+    return text;
+  }
+
+  return fallback;
+}
+
+
+function describeOisSteamSalesTraceRows(
+  rows,
+  targetDate
+) {
+  const limitedRows =
+    rows.slice(0, 200);
+
+  const unionKeys = [
+    ...new Set(
+      limitedRows.flatMap(
+        row => {
+          return row &&
+            typeof row === "object" &&
+            !Array.isArray(row)
+              ? Object.keys(row)
+              : [];
+        }
+      )
+    )
+  ];
+
+  const fieldProfiles =
+    unionKeys.map(
+      key => {
+        const counts = {};
+        const labels = new Set();
+
+        for (const row of limitedRows) {
+          const classification =
+            classifyOisSteamSalesTraceValue(
+              row?.[key],
+              targetDate
+            );
+
+          counts[classification.kind] =
+            (
+              counts[classification.kind] ||
+              0
+            ) + 1;
+
+          if (classification.label) {
+            labels.add(
+              classification.label
+            );
+          }
+        }
+
+        return {
+          key:
+            sanitizeOisSteamSalesTraceIdentifier(
+              key
+            ),
+          counts,
+          knownLabels: [...labels]
+        };
+      }
+    );
+
+  const rowSignatures =
+    limitedRows.map(
+      (
+        row,
+        index
+      ) => {
+        if (
+          !row ||
+          typeof row !== "object" ||
+          Array.isArray(row)
+        ) {
+          return {
+            index,
+            rowKind:
+              classifyOisSteamSalesTraceValue(
+                row,
+                targetDate
+              ).kind
+          };
+        }
+
+        const signature = {
+          index,
+          targetDateFields: [],
+          targetMonthFields: [],
+          labelFields: [],
+          numericFields: [],
+          textFields: [],
+          emptyFields: []
+        };
+
+        for (
+          const [
+            key,
+            value
+          ] of
+          Object.entries(row)
+        ) {
+          const classification =
+            classifyOisSteamSalesTraceValue(
+              value,
+              targetDate
+            );
+
+          if (
+            classification.kind ===
+              "target-date"
+          ) {
+            signature
+              .targetDateFields
+              .push(
+                sanitizeOisSteamSalesTraceIdentifier(
+                  key
+                )
+              );
+          } else if (
+            classification.kind ===
+              "target-month"
+          ) {
+            signature
+              .targetMonthFields
+              .push(
+                sanitizeOisSteamSalesTraceIdentifier(
+                  key
+                )
+              );
+          } else if (
+            classification.kind ===
+              "known-label"
+          ) {
+            signature
+              .labelFields
+              .push({
+                key:
+                  sanitizeOisSteamSalesTraceIdentifier(
+                    key
+                  ),
+                label:
+                  classification.label
+              });
+          } else if (
+            classification.kind ===
+              "number"
+          ) {
+            signature
+              .numericFields
+              .push(
+                sanitizeOisSteamSalesTraceIdentifier(
+                  key
+                )
+              );
+          } else if (
+            classification.kind ===
+              "text" ||
+            classification.kind ===
+              "date"
+          ) {
+            signature
+              .textFields
+              .push(
+                sanitizeOisSteamSalesTraceIdentifier(
+                  key
+                )
+              );
+          } else if (
+            classification.kind ===
+              "empty"
+          ) {
+            signature
+              .emptyFields
+              .push(
+                sanitizeOisSteamSalesTraceIdentifier(
+                  key
+                )
+              );
+          }
+        }
+
+        return signature;
+      }
+    );
+
+  const targetDateRowIndexes =
+    rowSignatures
+      .filter(
+        row => {
+          return (
+            row.targetDateFields ||
+            []
+          ).length > 0;
+        }
+      )
+      .map(row => row.index);
+
+  const subtotalRowIndexes =
+    rowSignatures
+      .filter(
+        row => {
+          return (
+            row.labelFields ||
+            []
+          ).some(
+            field => {
+              return field.label === "소계";
+            }
+          );
+        }
+      )
+      .map(row => row.index);
+
+  const targetWindows =
+    targetDateRowIndexes
+      .slice(0, 5)
+      .map(
+        startIndex => {
+          return {
+            startIndex,
+            rows:
+              rowSignatures.slice(
+                Math.max(
+                  0,
+                  startIndex - 1
+                ),
+                Math.min(
+                  rowSignatures.length,
+                  startIndex + 5
+                )
+              )
+          };
+        }
+      );
+
+  return {
+    rowCount: rows.length,
+    inspectedRowCount:
+      limitedRows.length,
+    unionKeys:
+      unionKeys.map(
+        key => {
+          return sanitizeOisSteamSalesTraceIdentifier(
+            key
+          );
+        }
+      ),
+    fieldProfiles,
+    targetDateRowIndexes,
+    subtotalRowIndexes,
+    firstRows:
+      rowSignatures.slice(0, 6),
+    targetWindows
+  };
+}
+
+
+function describeOisSteamSalesTraceJson(
+  responseData,
+  targetDate
+) {
+  const arrays = [];
+  const visited = new Set();
+
+  const visit = (
+    value,
+    pathText,
+    depth
+  ) => {
+    if (
+      value === null ||
+      value === undefined ||
+      depth > 4 ||
+      arrays.length >= 20
+    ) {
+      return;
+    }
+
+    if (typeof value === "object") {
+      if (visited.has(value)) {
+        return;
+      }
+
+      visited.add(value);
+    }
+
+    if (Array.isArray(value)) {
+      arrays.push({
+        path: pathText,
+        ...describeOisSteamSalesTraceRows(
+          value,
+          targetDate
+        )
+      });
+
+      for (
+        let index = 0;
+        index < Math.min(value.length, 3);
+        index += 1
+      ) {
+        visit(
+          value[index],
+          `${pathText}[${index}]`,
+          depth + 1
+        );
+      }
+
+      return;
+    }
+
+    if (typeof value === "object") {
+      for (
+        const [
+          key,
+          childValue
+        ] of
+        Object.entries(value)
+      ) {
+        visit(
+          childValue,
+          `${pathText}.${key}`,
+          depth + 1
+        );
+      }
+    }
+  };
+
+  visit(responseData, "$", 0);
+
+  return {
+    topLevelType:
+      Array.isArray(responseData)
+        ? "array"
+        : typeof responseData,
+
+    topLevelKeys:
+      responseData &&
+      typeof responseData === "object" &&
+      !Array.isArray(responseData)
+        ? Object.keys(responseData)
+            .map(
+              key => {
+                return sanitizeOisSteamSalesTraceIdentifier(
+                  key
+                );
+              }
+            )
+        : [],
+
+    arrays
+  };
+}
+
+
+/* =========================================================
+  선택일의 증기사용량 TON 소계 API 조회
+
+  OIS 화면은 TossPlatform 캔버스 그리드이므로
+  조회 버튼이 호출하는 listProcSteam 응답을 읽는다.
+
+  응답 기준:
+  - entry_date = 대상일
+  - product = 소계
+  - use_ton = 증기사용량 TON
+========================================================= */
+
+async function readOisSteamDailySalesTotal(
+  frame,
+  targetDate
+) {
+  if (
+    !isValidOisAgentDate(
+      targetDate
+    )
+  ) {
+    throw new Error(
+      "증기 판매량 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  const page =
+    frame.page();
+
+
+  const targetCompactDate =
+    targetDate.replace(
+      /-/g,
+      ""
+    );
+
+
+  await setOisSteamDailySalesBasisMonth(
+    frame,
+    targetDate
+  );
+
+
+  const allOptionSelected =
+    await selectOisOptionByLabel(
+      frame,
+      "전체",
+      false
+    );
+
+
+  if (
+    !allOptionSelected
+  ) {
+    throw new Error(
+      "OIS 일별 증기 판매량의 증기구분 전체 항목을 찾지 못했습니다."
+    );
+  }
+
+
+  /*
+    조건 변경 통신이 끝난 뒤
+    조회 버튼의 listProcSteam 응답만 기다린다.
+  */
+
+  await page.waitForTimeout(
+    300
+  );
+
+
+  const isSteamSalesResponse =
+    response => {
+      try {
+        const request =
+          response.request();
+
+
+        if (
+          String(
+            request.method() ||
+              ""
+          ).toUpperCase() !==
+            "POST"
+        ) {
+          return false;
+        }
+
+
+        const pathname =
+          new URL(
+            response.url()
+          ).pathname;
+
+
+        if (
+          !/^\/ajax\/data\/?$/.test(
+            pathname
+          )
+        ) {
+          return false;
+        }
+
+
+        const parameters =
+          new URLSearchParams(
+            request.postData() ||
+              ""
+          );
+
+
+        if (
+          parameters.get(
+            "cmd"
+          ) !==
+            "oi.LogSheetService.listProcSteam"
+        ) {
+          return false;
+        }
+
+
+        let tossData =
+          null;
+
+
+        try {
+          tossData =
+            JSON.parse(
+              parameters.get(
+                "tossdata"
+              ) ||
+                "{}"
+            );
+
+        } catch {
+          return false;
+        }
+
+
+        const selectItems =
+          Array.isArray(
+            tossData?.select
+          )
+            ? tossData.select
+            : [];
+
+
+        const targetCompactMonth =
+          targetCompactDate.slice(
+            0,
+            6
+          );
+
+
+        return selectItems.some(
+          item => {
+            const requestMonth =
+              normalizeOisAgentText(
+                item?.yearmon
+              ).replace(
+                /[^0-9]/g,
+                ""
+              );
+
+
+            return (
+              requestMonth ===
+                targetCompactMonth
+            );
+          }
+        );
+
+      } catch {
+        return false;
+      }
+    };
+
+
+  const [
+    salesResponse
+  ] =
+    await Promise.all([
+      page.waitForResponse(
+        isSteamSalesResponse,
+        {
+          timeout:
+            OIS_QUERY_TIMEOUT
+        }
+      ),
+
+      clickOisLogSheetSearchButton(
+        frame
+      )
+    ]);
+
+
+  if (
+    !salesResponse.ok()
+  ) {
+    throw new Error(
+      `OIS 일별 증기 판매량 API 응답 오류: HTTP ${salesResponse.status()}`
+    );
+  }
+
+
+  let responseText =
+    "";
+
+
+  let bodyTimeoutId =
+    null;
+
+
+  try {
+    responseText =
+      await Promise.race([
+        salesResponse.text(),
+
+        new Promise(
+          (
+            resolve,
+            reject
+          ) => {
+            bodyTimeoutId =
+              setTimeout(
+                () => {
+                  reject(
+                    new Error(
+                      "steam-sales-response-body-timeout"
+                    )
+                  );
+                },
+                Math.min(
+                  Number(
+                    OIS_QUERY_TIMEOUT
+                  ) ||
+                    30000,
+                  15000
+                )
+              );
+          }
+        )
+      ]);
+
+  } catch (
+    error
+  ) {
+    if (
+      error?.message ===
+        "steam-sales-response-body-timeout"
+    ) {
+      throw new Error(
+        "OIS 일별 증기 판매량 API 응답 본문을 기다리는 시간이 초과되었습니다."
+      );
+    }
+
+
+    throw new Error(
+      "OIS 일별 증기 판매량 API 응답 본문을 읽지 못했습니다."
+    );
+
+  } finally {
+    if (
+      bodyTimeoutId
+    ) {
+      clearTimeout(
+        bodyTimeoutId
+      );
+    }
+  }
+
+
+  let responseData =
+    null;
+
+
+  try {
+    responseData =
+      JSON.parse(
+        responseText
+      );
+
+  } catch {
+    throw new Error(
+      "OIS 일별 증기 판매량 API 응답을 JSON으로 읽지 못했습니다."
+    );
+  }
+
+
+  const rows =
+    responseData?.result;
+
+
+  if (
+    !Array.isArray(
+      rows
+    )
+  ) {
+    throw new Error(
+      "OIS 일별 증기 판매량 API 응답에 result 배열이 없습니다."
+    );
+  }
+
+
+  const subtotalRows =
+    rows.filter(
+      row => {
+        if (
+          !row ||
+          typeof row !==
+            "object" ||
+          Array.isArray(
+            row
+          )
+        ) {
+          return false;
+        }
+
+
+        const entryDate =
+          normalizeOisAgentText(
+            row.entry_date
+          ).replace(
+            /[^0-9]/g,
+            ""
+          );
+
+
+        const product =
+          normalizeOisAgentText(
+            row.product
+          );
+
+
+        return (
+          entryDate ===
+            targetCompactDate &&
+          product ===
+            "소계"
+        );
+      }
+    );
+
+
+  if (
+    subtotalRows.length !==
+      1
+  ) {
+    throw new Error(
+      `${targetDate.replace(/-/g, "/")} 일별 증기 판매량 소계 행이 ${subtotalRows.length}개 확인되었습니다.`
+    );
+  }
+
+
+  const salesTotal =
+    parseOisAgentNumber(
+      subtotalRows[0]
+        .use_ton
+    );
+
+
+  if (
+    salesTotal ===
+      null
+  ) {
+    throw new Error(
+      `${targetDate.replace(/-/g, "/")} 일별 증기 판매량 소계의 증기사용량 TON 값이 올바르지 않습니다.`
+    );
+  }
+
+
+  console.log(
+    [
+      "OIS 일별 증기 판매량 조회 완료",
+      targetDate,
+      `소계 ${salesTotal} ton`
+    ].join(
+      " · "
+    )
+  );
+
+
+  return salesTotal;
+}
+
+
+/* =========================================================
+  OIS 일별 증기 판매량 API 구조 진단
+
+  실사용 조회에는 호출하지 않는다.
+  화면 구조 변경 시 숫자를 마스킹한 진단에만 사용한다.
+========================================================= */
+
+async function diagnoseOisSteamDailySalesApiStructure(
+  frame,
+  targetDate
+) {
+  if (
+    !isValidOisAgentDate(targetDate)
+  ) {
+    throw new Error(
+      "증기 판매량 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+  const page = frame.page();
+
+  const controlStructure =
+    await frame.evaluate(
+      () => {
+        const normalizeText =
+          value => {
+            return String(value ?? "")
+              .replace(/\s+/g, " ")
+              .trim();
+          };
+
+        const isVisible =
+          element => {
+            const rectangle =
+              element.getBoundingClientRect();
+
+            const style =
+              window.getComputedStyle(element);
+
+            return (
+              rectangle.width > 0 &&
+              rectangle.height > 0 &&
+              style.display !== "none" &&
+              style.visibility !== "hidden"
+            );
+          };
+
+        const safeLabel =
+          value => {
+            const text =
+              normalizeText(value);
+
+            if (!text) {
+              return "";
+            }
+
+            const compactText =
+              text.replace(/\s+/g, "");
+
+            const allowedLabels =
+              new Set([
+                "조회",
+                "SEARCH",
+                "기준년월",
+                "증기구분",
+                "전체"
+              ]);
+
+            return allowedLabels.has(
+              compactText.toUpperCase()
+            )
+              ? compactText.slice(0, 20)
+              : `<text:${text.length}>`;
+          };
+
+        const controls = [
+          ...document.querySelectorAll(
+            [
+              'input:not([type="hidden"]):not([type="password"])',
+              "select",
+              "button",
+              'a[role="button"]'
+            ].join(",")
+          )
+        ]
+          .filter(isVisible)
+          .map(
+            element => {
+              const rectangle =
+                element.getBoundingClientRect();
+
+              const rawValue =
+                "value" in element
+                  ? String(element.value || "")
+                  : "";
+
+              let valueKind = "empty";
+
+              if (
+                /^\d{4}[/-]\d{2}$/.test(
+                  rawValue
+                )
+              ) {
+                valueKind = "year-month";
+              } else if (rawValue) {
+                valueKind =
+                  /^-?[\d,]+(?:\.\d+)?$/.test(
+                    rawValue
+                  )
+                    ? "number"
+                    : "text";
+              }
+
+              return {
+                tag: element.tagName,
+                type:
+                  normalizeText(
+                    element.getAttribute("type")
+                  ),
+                id:
+                  normalizeText(element.id),
+                name:
+                  normalizeText(
+                    element.getAttribute("name")
+                  ),
+                className:
+                  normalizeText(
+                    element.className
+                  ).slice(0, 160),
+                title:
+                  safeLabel(
+                    element.getAttribute("title")
+                  ),
+                ariaLabel:
+                  safeLabel(
+                    element.getAttribute(
+                      "aria-label"
+                    )
+                  ),
+                text:
+                  safeLabel(element.textContent),
+                valueKind,
+                optionCount:
+                  element.tagName === "SELECT"
+                    ? element.options.length
+                    : 0,
+                hasAllOption:
+                  element.tagName === "SELECT"
+                    ? [
+                        ...element.options
+                      ].some(
+                        option => {
+                          return normalizeText(
+                            option.textContent
+                          ) === "전체";
+                        }
+                      )
+                    : false,
+                rectangle: {
+                  left:
+                    Math.round(rectangle.left),
+                  top:
+                    Math.round(rectangle.top),
+                  width:
+                    Math.round(rectangle.width),
+                  height:
+                    Math.round(rectangle.height)
+                }
+              };
+            }
+          );
+
+        const canvases = [
+          ...document.querySelectorAll("canvas")
+        ].map(
+          canvas => {
+            const rectangle =
+              canvas.getBoundingClientRect();
+
+            return {
+              id: normalizeText(canvas.id),
+              className:
+                normalizeText(
+                  canvas.className
+                ).slice(0, 160),
+              width: canvas.width,
+              height: canvas.height,
+              rectangle: {
+                left:
+                  Math.round(rectangle.left),
+                top:
+                  Math.round(rectangle.top),
+                width:
+                  Math.round(rectangle.width),
+                height:
+                  Math.round(rectangle.height)
+              },
+              parentTag:
+                normalizeText(
+                  canvas.parentElement?.tagName
+                ),
+              parentId:
+                normalizeText(
+                  canvas.parentElement?.id
+                ),
+              parentClassName:
+                normalizeText(
+                  canvas.parentElement?.className
+                ).slice(0, 160)
+            };
+          }
+        );
+
+        const scriptPathnames = [
+          ...document.querySelectorAll(
+            "script[src]"
+          )
+        ]
+          .map(
+            script => {
+              try {
+                return new URL(
+                  script.src,
+                  location.href
+                ).pathname;
+              } catch {
+                return "";
+              }
+            }
+          )
+          .filter(Boolean);
+
+        const globalCandidates =
+          Object.keys(window)
+            .filter(
+              name => {
+                return /toss|grid|sheet|dataset|data.?set|canvas/i.test(
+                  name
+                );
+              }
+            )
+            .slice(0, 60)
+            .map(
+              name => {
+                try {
+                  const value = window[name];
+
+                  return {
+                    name,
+                    type: typeof value,
+                    constructor:
+                      normalizeText(
+                        value?.constructor?.name
+                      )
+                  };
+                } catch {
+                  return {
+                    name,
+                    type: "unreadable",
+                    constructor: ""
+                  };
+                }
+              }
+            );
+
+        return {
+          controls,
+          canvases,
+          scriptPathnames,
+          globalCandidates
+        };
+      }
+    );
+
+  const responseDiagnostics = [];
+  const pendingResponseTasks = new Set();
+  const maximumResponseCount = 12;
+  let processedResponseCount = 0;
+  let lastCapturedResponseAt = 0;
+
+  const describeSelectItem =
+    item => {
+      if (
+        !item ||
+        typeof item !== "object" ||
+        Array.isArray(item)
+      ) {
+        return {
+          kind:
+            classifyOisSteamSalesTraceValue(
+              item,
+              targetDate
+            ).kind
+        };
+      }
+
+      return {
+        keys:
+          Object.keys(item)
+            .map(
+              key => {
+                return sanitizeOisSteamSalesTraceIdentifier(
+                  key
+                );
+              }
+            ),
+        fields:
+          Object.entries(item)
+            .map(
+              ([
+                key,
+                value
+              ]) => {
+                return {
+                  key:
+                    sanitizeOisSteamSalesTraceIdentifier(
+                      key
+                    ),
+                  ...classifyOisSteamSalesTraceValue(
+                    value,
+                    targetDate
+                  )
+                };
+              }
+            )
+      };
+    };
+
+  const processResponse =
+    async response => {
+      const request =
+        response.request();
+
+      const responseUrl =
+        String(response.url() || "");
+
+      let safePathname = "";
+
+      try {
+        safePathname =
+          new URL(responseUrl).pathname;
+      } catch {
+        safePathname =
+          responseUrl.split(/[?#]/)[0];
+      }
+
+      if (
+        !/^\/ajax\/data\/?$/.test(
+          safePathname
+        ) ||
+        String(
+          request.method() || ""
+        ).toUpperCase() !== "POST"
+      ) {
+        return;
+      }
+
+      if (
+        processedResponseCount >=
+          maximumResponseCount
+      ) {
+        return;
+      }
+
+      processedResponseCount += 1;
+
+      const framePathnames = [];
+
+      try {
+        let currentFrame =
+          request.frame();
+
+        for (
+          let depth = 0;
+          currentFrame && depth < 6;
+          depth += 1
+        ) {
+          const frameUrl =
+            String(
+              currentFrame.url() || ""
+            );
+
+          try {
+            framePathnames.push(
+              /^https?:/i.test(frameUrl)
+                ? new URL(frameUrl).pathname
+                : frameUrl.split(/[?#]/)[0]
+            );
+          } catch {
+            framePathnames.push(
+              "<unreadable-frame-path>"
+            );
+          }
+
+          currentFrame =
+            currentFrame.parentFrame();
+        }
+      } catch {
+        framePathnames.push(
+          "<unavailable-frame>"
+        );
+      }
+
+      const requestHeaders =
+        request.headers();
+
+      const requestContentType =
+        normalizeOisAgentText(
+          requestHeaders[
+            "content-type"
+          ]
+        ).toLowerCase();
+
+      const postData =
+        String(
+          request.postData() || ""
+        );
+
+      const isFormEncoded =
+        requestContentType.includes(
+          "application/x-www-form-urlencoded"
+        ) ||
+        /^(?:tossdata|cmd)=/i.test(
+          postData
+        );
+
+      const parameters =
+        isFormEncoded
+          ? new URLSearchParams(postData)
+          : new URLSearchParams();
+
+      let tossData = {};
+
+      try {
+        const tossDataText =
+          parameters.get("tossdata") ||
+          "";
+
+        tossData =
+          tossDataText.length <=
+            1048576
+              ? JSON.parse(
+                  tossDataText || "{}"
+                )
+              : {};
+      } catch {
+        tossData = {};
+      }
+
+      let responseText = "";
+      let bodyReadState = "complete";
+      let bodyTimeoutId = null;
+
+      try {
+        const bodyTimeoutMilliseconds =
+          Math.min(
+            Number(OIS_QUERY_TIMEOUT) ||
+              30000,
+            15000
+          );
+
+        responseText =
+          await Promise.race([
+            response.text(),
+            new Promise(
+              (
+                resolve,
+                reject
+              ) => {
+                bodyTimeoutId =
+                  setTimeout(
+                    () => {
+                      reject(
+                        new Error(
+                          "response-body-timeout"
+                        )
+                      );
+                    },
+                    bodyTimeoutMilliseconds
+                  );
+              }
+            )
+          ]);
+      } catch (error) {
+        bodyReadState =
+          error?.message ===
+            "response-body-timeout"
+              ? "timeout"
+              : "failed";
+
+        responseText = "";
+      } finally {
+        if (bodyTimeoutId) {
+          clearTimeout(bodyTimeoutId);
+        }
+      }
+
+      let responseData = null;
+      let isJson = false;
+      const responseTooLarge =
+        responseText.length > 5242880;
+
+      if (!responseTooLarge) {
+        try {
+          responseData =
+            JSON.parse(responseText);
+          isJson = true;
+        } catch {
+          responseData = null;
+        }
+      }
+
+      const selectItems =
+        Array.isArray(tossData?.select)
+          ? tossData.select.map(
+              describeSelectItem
+            )
+          : [];
+
+      const requestTargetMonthFieldCount =
+        selectItems.reduce(
+          (
+            count,
+            item
+          ) => {
+            return count +
+              (
+                item.fields || []
+              ).filter(
+                field => {
+                  return field.kind ===
+                    "target-month";
+                }
+              ).length;
+          },
+          0
+        );
+
+      const rawCommand =
+        parameters.get("cmd") || "";
+
+      const responseContentType =
+        normalizeOisAgentText(
+          response.headers()[
+            "content-type"
+          ]
+        ).toLowerCase();
+
+      responseDiagnostics.push({
+        pathname: safePathname,
+        framePathnames,
+        status: response.status(),
+        resourceType:
+          request.resourceType(),
+        requestContentKind:
+          isFormEncoded
+            ? "form-urlencoded"
+            : requestContentType.includes(
+                "application/json"
+              )
+              ? "json"
+              : "other",
+        responseContentKind:
+          responseContentType.includes(
+            "json"
+          )
+            ? "json"
+            : responseContentType.includes(
+                "text"
+              )
+              ? "text"
+              : "other",
+        command:
+          sanitizeOisSteamSalesTraceIdentifier(
+            rawCommand,
+            rawCommand
+              ? "<masked-command>"
+              : ""
+          ),
+        parameterKeys:
+          [...parameters.keys()]
+            .slice(0, 20)
+            .map(
+              key => {
+                return sanitizeOisSteamSalesTraceIdentifier(
+                  key,
+                  "<masked-parameter>"
+                );
+              }
+            ),
+        requestTargetMonthFieldCount,
+        selectItems,
+        responseLength:
+          responseText.length,
+        responseTooLarge,
+        bodyReadState,
+        isJson,
+        responseStructure:
+          isJson
+            ? describeOisSteamSalesTraceJson(
+                responseData,
+                targetDate
+              )
+            : null
+      });
+
+      lastCapturedResponseAt =
+        Date.now();
+    };
+
+  const handleResponse =
+    response => {
+      const task =
+        processResponse(response)
+          .catch(
+            () => {
+              responseDiagnostics.push({
+                traceError:
+                  "response-processing-failed"
+              });
+            }
+          )
+          .finally(
+            () => {
+              pendingResponseTasks.delete(
+                task
+              );
+            }
+          );
+
+      pendingResponseTasks.add(task);
+    };
+
+  let queryError = "";
+  let inputMonthMatched = false;
+  let allOptionSelected = false;
+  let responseListenerAttached = false;
+
+  try {
+    inputMonthMatched =
+      Boolean(
+        await setOisSteamDailySalesBasisMonth(
+          frame,
+          targetDate
+        )
+      );
+
+    allOptionSelected =
+      Boolean(
+        await selectOisOptionByLabel(
+          frame,
+          "전체",
+          false
+        )
+      );
+
+    if (!allOptionSelected) {
+      throw new Error(
+        "steam-sales-all-option-not-found"
+      );
+    }
+
+    /*
+      조회조건 변경 자체의 보조 통신이 끝난 뒤
+      실제 조회 클릭 응답만 감시한다.
+    */
+    await page.waitForTimeout(300);
+
+    page.on(
+      "response",
+      handleResponse
+    );
+
+    responseListenerAttached = true;
+
+    await clickOisLogSheetSearchButton(
+      frame
+    );
+
+    const responseWaitStartedAt =
+      Date.now();
+
+    while (
+      Date.now() - responseWaitStartedAt <
+        (
+          Number(OIS_QUERY_TIMEOUT) ||
+          30000
+        )
+    ) {
+      const hasSalesDataCandidate =
+        responseDiagnostics.some(
+          item => {
+            return (
+              item.responseStructure
+                ?.arrays ||
+              []
+            ).some(
+              array => {
+                const hasTargetDate =
+                  (
+                    array.targetDateRowIndexes ||
+                    []
+                  ).length > 0;
+
+                const hasSubtotal =
+                  (
+                    array.subtotalRowIndexes ||
+                    []
+                  ).length > 0;
+
+                const hasKnownSalesLabel =
+                  (
+                    array.fieldProfiles ||
+                    []
+                  ).some(
+                    profile => {
+                      return (
+                        profile.knownLabels ||
+                        []
+                      ).some(
+                        label => {
+                          return [
+                            "소계",
+                            "8Bar",
+                            "34Bar",
+                            "증기사용량",
+                            "증기사용량 TON"
+                          ].includes(label);
+                        }
+                      );
+                    }
+                  );
+
+                return (
+                  array.rowCount > 0 &&
+                  (
+                    hasTargetDate ||
+                    hasSubtotal ||
+                    hasKnownSalesLabel
+                  )
+                );
+              }
+            );
+          }
+        );
+
+      if (
+        hasSalesDataCandidate &&
+        lastCapturedResponseAt > 0 &&
+        Date.now() - lastCapturedResponseAt >=
+          750
+      ) {
+        break;
+      }
+
+      await page.waitForTimeout(250);
+    }
+  } catch (error) {
+    const errorMessage =
+      normalizeOisAgentText(
+        error?.message || ""
+      );
+
+    queryError =
+      errorMessage.includes(
+        "기준년월"
+      )
+        ? "basis-month-failed"
+        : errorMessage ===
+            "steam-sales-all-option-not-found"
+          ? "all-option-not-found"
+          : errorMessage.includes(
+              "조회 버튼"
+            )
+            ? "search-button-not-found"
+            : "query-failed";
+
+    await page.waitForTimeout(1500);
+  } finally {
+    if (responseListenerAttached) {
+      page.off(
+        "response",
+        handleResponse
+      );
+    }
+
+    await Promise.allSettled(
+      [...pendingResponseTasks]
+    );
+  }
+
+  const capturedResponseCount =
+    responseDiagnostics.filter(
+      item => {
+        return Boolean(
+          item.command ||
+          item.responseStructure
+        );
+      }
+    ).length;
+
+  const tracePath =
+    path.join(
+      process.cwd(),
+      "ois-steam-sales-api-trace.json"
+    );
+
+  fs.writeFileSync(
+    tracePath,
+    JSON.stringify(
+      {
+        source:
+          "OIS 일별 증기 판매량 API 구조 진단",
+        capturedAt:
+          new Date().toISOString(),
+        targetDate,
+        valuesMasked: true,
+        privacy:
+          "실제 판매량 숫자·원본 요청·원본 응답·인증정보 미저장",
+        queryError,
+        queryState: {
+          inputMonthMatched,
+          allOptionSelected
+        },
+        controlStructure,
+        responseCount:
+          capturedResponseCount,
+        responses:
+          responseDiagnostics
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+
+  console.log(
+    "OIS 증기 판매량 API 구조 진단 저장:",
+    tracePath
+  );
+
+  if (capturedResponseCount === 0) {
+    throw new Error(
+      [
+        "OIS 증기 판매량 API 응답을 찾지 못했습니다.",
+        queryError ||
+          "조회 버튼과 프레임 구조를 진단 파일에서 확인해 주세요."
+      ].join(" ")
+    );
+  }
+
+  throw new Error(
+    "OIS 증기 판매량 API 구조 진단이 완료되었습니다. 진단 JSON을 확인해 주세요."
+  );
+}
+
+
+/* =========================================================
+  오전회의 증기 현황 수집
+
+  생산량:
+  - DataPARC 1·2호기 누적값 차이
+
+  판매량:
+  - OIS 일별 증기 판매량 선택일 소계
+  - 증기사용량 TON
+========================================================= */
+
+async function collectOisSteamStatusValues(
+  page,
+  config,
+  targetDate
+) {
+  if (
+    !isValidOisAgentDate(
+      targetDate
+    )
+  ) {
+    throw new Error(
+      "증기 현황 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  await ensureOisAgentLoggedIn(
+    page,
+    config
+  );
+
+
+  /*
+    1·2호기 증기생산량은 DataPARC에서 조회한다.
+
+    다음 날 00:00 누적값 - 대상일 00:00 누적값
+  */
+
+  const productionResult =
+    await collectDataParcSteamProductionValues(
+      targetDate
+    );
+
+
+  const unitOne =
+    productionResult.unitOne;
+
+
+  const unitTwo =
+    productionResult.unitTwo;
+
+
+  if (
+    !unitOne ||
+    !unitTwo
+  ) {
+    throw new Error(
+      "1·2호기 증기생산량을 모두 확인하지 못했습니다."
+    );
+  }
+
+
+  const totalProduction =
+    Math.round(
+      (
+        unitOne.productionTotal +
+        unitTwo.productionTotal
+      ) *
+        1000
+    ) /
+    1000;
+
+
+  /*
+    일별 증기 판매량 조회
+  */
+
+  const salesFrame =
+    await openOisSteamDailySales(
+      page
+    );
+
+
+  /*
+    대상 기준년월·전체 조건을 설정한 뒤
+    판매량 API 응답에서 선택일 소계를 읽는다.
+  */
+
   const steamSales =
-    roundDailyDataNumber(
-      steamSalesLowPressure +
-      steamSalesHighPressure
+    await readOisSteamDailySalesTotal(
+      salesFrame,
+      targetDate
     );
 
 
@@ -9944,320 +12461,38 @@ async function collectDailyDataWorkbookValues(
   }
 
 
-  const averageSteamSales =
-    roundDailyDataNumber(
-      steamSales /
-      24
-    );
-
-
   const salesRate =
-    roundDailyDataNumber(
-      steamSales /
-      totalProduction *
-      100
-    );
-
-
-  const generatorEcmsGen1 =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.generatorEcmsGen1,
-        "발전량 (Generator) / ECMS gen1"
-      )
-    );
-
-
-  const ismartReception =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.ismartReception ??
-          capturedResult.electricityReceived,
-        "수전량 (I-Smart)"
-      )
-    );
-
-
-  const epowerTransmission =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.epowerTransmission ??
-          capturedResult.electricityTransmitted,
-        "송전량 (ePower)"
-      )
-    );
-
-
-  const solarDailyGeneration =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.solarDailyGeneration ??
-          capturedResult.solarDaily,
-        "태양광 일일 발전량"
-      )
-    );
-
-
-  const organicDaySilo =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.organicDaySilo ??
-          capturedResult.organicDaySiloLevel,
-        "유기성 Day Silo"
-      ),
-      6
-    );
-
-
-  const organicStorageSiloA =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.organicStorageSiloA ??
-          capturedResult.organicStorageSiloALevel,
-        "유기성 Storage Silo A"
-      ),
-      6
-    );
-
-
-  const organicStorageSiloB =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.organicStorageSiloB ??
-          capturedResult.organicStorageSiloBLevel,
-        "유기성 Storage Silo B"
-      ),
-      6
-    );
-
-
-  const organicSiloTotal =
-    roundDailyDataNumber(
-      organicDaySilo +
-      organicStorageSiloA +
-      organicStorageSiloB,
-      6
-    );
-
-
-  const sludgeEntries =
-    Array.isArray(
-      capturedResult.sludgeEntries
-    )
-      ? capturedResult.sludgeEntries
-          .slice(
-            0,
-            10
-          )
-          .map(
-            (
-              item,
-              index
-            ) => {
-              const rawAmount =
-                item?.amount;
-
-
-              const amount =
-                rawAmount ===
-                    null ||
-                  rawAmount ===
-                    undefined ||
-                  normalizeOisAgentText(
-                    rawAmount
-                  ) ===
-                    ""
-                  ? null
-                  : roundDailyDataNumber(
-                      parseDailyDataWorkbookNumber(
-                        rawAmount,
-                        `${index + 1}번째 하수슬러지 입고량`
-                      )
-                    );
-
-
-              return {
-                sequence:
-                  index +
-                  1,
-
-                amount,
-
-                cell:
-                  normalizeOisAgentText(
-                    item?.cell
-                  )
-              };
-            }
-          )
-      : [];
-
-
-  while (
-    sludgeEntries.length <
-      10
-  ) {
-    sludgeEntries.push({
-      sequence:
-        sludgeEntries.length +
-        1,
-
-      amount:
-        null,
-
-      cell:
-        ""
-    });
-  }
-
-
-  const calculatedSludgeTruckCount =
-    sludgeEntries.filter(
-      item => {
-        return (
-          Number.isFinite(
-            item.amount
-          ) &&
-          item.amount >
-            0
-        );
-      }
-    ).length;
-
-
-  const calculatedSludgeTotal =
-    roundDailyDataNumber(
-      sludgeEntries.reduce(
-        (
-          sum,
-          item
-        ) => {
-          return sum +
-            (
-              Number.isFinite(
-                item.amount
-              )
-                ? item.amount
-                : 0
-            );
-        },
-        0
-      )
-    );
-
-
-  const capturedSludgeTruckCount =
-    Number(
-      capturedResult.sludgeTruckCount
-    );
-
-
-  const capturedSludgeTotal =
-    Number(
-      capturedResult.sludgeTotal
-    );
-
-
-  if (
-    capturedSludgeTruckCount !==
-      calculatedSludgeTruckCount ||
-    !Number.isFinite(
-      capturedSludgeTotal
-    ) ||
-    Math.abs(
-      capturedSludgeTotal -
-      calculatedSludgeTotal
-    ) >
-      0.001
-  ) {
-    throw new Error(
-      "하수슬러지 입고 차량 수 또는 총 입고량 계산값이 일치하지 않습니다."
-    );
-  }
+    Math.round(
+      (
+        steamSales /
+        totalProduction *
+        100
+      ) *
+        1000
+    ) /
+    1000;
 
 
   const result = {
-    schemaVersion:
-      2,
-
     source:
-      "월간 일일DATA관리 Excel",
+      "DataPARC / OIS 일별 증기 판매량",
 
     productionSource:
-      "Plant 수기·계산 완료값",
+      "DataPARC",
 
     salesSource:
-      "Plant 저압·고압증기 수기값",
-
-    organicSiloSource:
-      "DataPARC / Data Normalize (2)",
+      "OIS 일별 증기 판매량",
 
     targetDate,
 
     sourceDate:
       targetDate,
 
-    workbook:
-      normalizeOisAgentText(
-        capturedResult.workbook
-      ),
-
-    workbookFullName:
-      normalizeOisAgentText(
-        capturedResult.workbookFullName
-      ),
-
-    workbookSaved:
-      capturedResult.workbookSaved ===
-        true,
-
-    workbookReadOnly:
-      capturedResult.workbookReadOnly ===
-        true,
-
-    plantWorksheet:
-      "Plant",
-
-    dataParcWorksheet:
-      "Data Normalize (2)",
-
-    monthCell:
-      normalizeOisAgentText(
-        capturedResult.monthCell
-      ),
-
-    monthText:
-      normalizeOisAgentText(
-        capturedResult.monthText
-      ),
-
-    dayCell:
-      normalizeOisAgentText(
-        capturedResult.dayCell
-      ),
-
-    targetColumn:
-      normalizeOisAgentText(
-        capturedResult.targetColumn
-      ),
-
-    dataParcDateCell:
-      normalizeOisAgentText(
-        capturedResult.dataParcDateCell
-      ),
-
-    cellMap:
-      capturedResult.cellMap &&
-      typeof capturedResult.cellMap ===
-        "object"
-        ? capturedResult.cellMap
-        : {},
-
     outputInterval:
-      "대상일 일일값",
+      "일 누적값 차이",
 
     hourRange:
-      "00:00~24:00",
+      "00:00~다음날 00:00",
 
     hourCount:
       24,
@@ -10266,183 +12501,107 @@ async function collectDailyDataWorkbookValues(
       "ton",
 
     salesUnit:
-      "ton",
-
-    generatorEcmsGen1,
-
-    ismartReception,
-
-    electricityReceived:
-      ismartReception,
-
-    epowerTransmission,
-
-    electricityTransmitted:
-      epowerTransmission,
-
-    solarDailyGeneration,
-
-    solarDaily:
-      solarDailyGeneration,
-
-    steamSalesLowPressure,
-
-    steamSalesHighPressure,
+      "TON",
 
     steamSales,
 
-    averageSteamSales,
+    unitOneProduction:
+      unitOne.productionTotal,
 
-    unitOneProduction,
-
-    unitTwoProduction,
+    unitTwoProduction:
+      unitTwo.productionTotal,
 
     totalProduction,
 
     salesRate,
 
-    unitOne: {
-      source:
-        "Plant 수기·계산 완료값",
-
-      unit:
-        1,
-
-      valueCell:
-        normalizeOisAgentText(
-          capturedResult.unitOne
-            ?.valueCell
-        ),
-
-      productionTotal:
-        unitOneProduction,
-
-      startValue:
-        null,
-
-      endValue:
-        null
-    },
-
-    unitTwo: {
-      source:
-        "Plant 수기·계산 완료값",
-
-      unit:
-        2,
-
-      valueCell:
-        normalizeOisAgentText(
-          capturedResult.unitTwo
-            ?.valueCell
-        ),
-
-      productionTotal:
-        unitTwoProduction,
-
-      startValue:
-        null,
-
-      endValue:
-        null
-    },
-
-    sludgeEntries,
-
-    sludgeTruckCount:
-      calculatedSludgeTruckCount,
-
-    sludgeTotal:
-      calculatedSludgeTotal,
-
-    organicDaySilo,
-
-    organicDaySiloLevel:
-      organicDaySilo,
-
-    organicStorageSiloA,
-
-    organicStorageSiloALevel:
-      organicStorageSiloA,
-
-    organicStorageSiloB,
-
-    organicStorageSiloBLevel:
-      organicStorageSiloB,
-
-    organicSiloTotal,
-
-    organicSiloMetadata:
-      capturedResult.organicSiloMetadata &&
-      typeof capturedResult.organicSiloMetadata ===
-        "object"
-        ? capturedResult.organicSiloMetadata
-        : {},
-
-    dataParcHost:
-      capturedResult.dataParcHost ===
-        true,
-
-    collectedAt:
-      normalizeOisAgentText(
-        capturedResult.collectedAt
-      ) ||
-      new Date()
-        .toISOString(),
-
     productionComplete:
       true,
 
     salesComplete:
-      true
+      true,
+
+    complete:
+      true,
+
+    unitOne,
+
+    unitTwo,
+
+    productionNextDate:
+      productionResult.nextDate,
+
+    collectedAt:
+      new Date()
+        .toISOString()
   };
 
 
   console.log(
     [
-      "월간 일일DATA관리 Excel 조회 완료",
+      "증기 현황 조회 완료",
       targetDate,
-      result.workbook,
-      `열 ${result.targetColumn}`,
+      `판매 ${result.steamSales} ton`,
       `1호기 ${result.unitOneProduction} ton`,
       `2호기 ${result.unitTwoProduction} ton`,
-      `저압 ${result.steamSalesLowPressure} ton`,
-      `고압 ${result.steamSalesHighPressure} ton`,
-      `판매합계 ${result.steamSales} ton`,
-      `하수슬러지 ${result.sludgeTruckCount}대 / ${result.sludgeTotal} ton`
+      `총생산 ${result.totalProduction} ton`,
+      `판매율 ${result.salesRate}%`
     ].join(
       " · "
     )
   );
 
 
-  return result;
-}
+  /*
+    정상 완료 시 임시 프레임 진단 파일은 제거한다.
 
-/* =========================================================
-  오전회의 일일DATA 현황 수집
+    판매량 화면 또는 소계 추출에 실패한 경우에만
+    원인 확인용 파일을 남긴다.
+  */
 
-  기존 요청형:
-  - steam_status 유지
-
-  변경된 자료원:
-  - 생산량: Plant 51·52행
-  - 판매량: Plant 72·73행 저압·고압 합계
-  - 발전·수전·송전·태양광: Plant 수기값
-  - 하수슬러지: Plant 288~297행
-  - 유기성 Silo 3개: Data Normalize (2) DataPARC 값
-
-  OIS 일별 증기 판매량 조회는 사용하지 않는다.
-========================================================= */
-
-async function collectOisSteamStatusValues(
-  page,
-  config,
-  targetDate
-) {
-  return await collectDailyDataWorkbookValues(
-    targetDate
+  const steamSalesTracePaths = [
+    "ois-steam-sales-frame-trace.json",
+    "ois-steam-sales-api-trace.json"
+  ].map(
+    fileName => {
+      return path.join(
+        process.cwd(),
+        fileName
+      );
+    }
   );
+
+
+  for (
+    const tracePath of
+    steamSalesTracePaths
+  ) {
+    if (
+      !fs.existsSync(
+        tracePath
+      )
+    ) {
+      continue;
+    }
+
+
+    try {
+      fs.unlinkSync(
+        tracePath
+      );
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "OIS 증기 판매량 임시 진단 파일 제거 실패:",
+        error
+      );
+    }
+  }
+
+
+  return result;
 }
 
 /* =========================================================
@@ -10706,92 +12865,43 @@ function printOisAgentRequestResult(
       "조회일":
         result.targetDate,
 
-      "월간 파일":
-        result.workbook,
-
-      "Plant 조회 열":
-        result.targetColumn,
-
-      "발전량(ECMS gen1)":
-        result.generatorEcmsGen1,
-
-      "수전량(I-Smart)":
-        result.ismartReception,
-
-      "송전량(ePower)":
-        result.epowerTransmission,
-
-      "태양광 일일 발전량":
-        result.solarDailyGeneration,
-
-      "저압증기":
-        result.steamSalesLowPressure,
-
-      "고압증기":
-        result.steamSalesHighPressure,
-
-      "총 증기 판매량":
+      "증기 판매량(OIS)":
         result.steamSales,
 
-      "시간당 평균 판매량":
-        result.averageSteamSales,
-
-      "1호기 증기생산량":
+      "1호기 생산량(DataPARC)":
         result.unitOneProduction,
 
-      "2호기 증기생산량":
+      "2호기 생산량(DataPARC)":
         result.unitTwoProduction,
 
-      "총 증기생산량":
+      "총 생산량":
         result.totalProduction,
 
       "판매율":
         result.salesRate,
 
-      "하수슬러지 차량":
-        result.sludgeTruckCount,
+      "1호기 시작 누적값":
+        result.unitOne
+          ?.startValue,
 
-      "하수슬러지 총 입고량":
-        result.sludgeTotal,
+      "1호기 종료 누적값":
+        result.unitOne
+          ?.endValue,
 
-      "유기성 Day Silo":
-        result.organicDaySilo,
+      "2호기 시작 누적값":
+        result.unitTwo
+          ?.startValue,
 
-      "유기성 Storage Silo A":
-        result.organicStorageSiloA,
-
-      "유기성 Storage Silo B":
-        result.organicStorageSiloB,
-
-      "유기성 Silo 합계":
-        result.organicSiloTotal
+      "2호기 종료 누적값":
+        result.unitTwo
+          ?.endValue
     });
-
-
-    console.table(
-      Array.isArray(
-        result.sludgeEntries
-      )
-        ? result.sludgeEntries.map(
-            item => {
-              return {
-                "입고 순번":
-                  item.sequence,
-
-                "입고량(ton)":
-                  item.amount,
-
-                "원본 셀":
-                  item.cell
-              };
-            }
-          )
-        : []
-    );
 
 
     return;
   }
+
+
 
   if (
     requestType ===

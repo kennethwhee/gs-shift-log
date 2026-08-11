@@ -1,0 +1,774 @@
+function parseDailyDataWorkbookNumber(
+  value,
+  label
+) {
+  if (
+    value ===
+      null ||
+    value ===
+      undefined ||
+    normalizeOisAgentText(
+      value
+    ) ===
+      ""
+  ) {
+    throw new Error(
+      `${label}이 비어 있습니다.`
+    );
+  }
+
+
+  const numericValue =
+    Number(
+      value
+    );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    throw new Error(
+      `${label}이 올바른 숫자가 아닙니다.`
+    );
+  }
+
+
+  return numericValue;
+}
+
+
+function roundDailyDataNumber(
+  value,
+  fractionDigits =
+    3
+) {
+  const multiplier =
+    10 **
+    fractionDigits;
+
+
+  return Math.round(
+    value *
+    multiplier
+  ) /
+    multiplier;
+}
+
+
+async function collectDailyDataWorkbookValues(
+  targetDate
+) {
+  if (
+    !isValidOisAgentDate(
+      targetDate
+    )
+  ) {
+    throw new Error(
+      "월간 일일DATA관리 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  console.log(
+    [
+      "월간 일일DATA관리 Excel 조회 시작",
+      targetDate
+    ].join(
+      " · "
+    )
+  );
+
+
+  const standardOutput =
+    await runDataParcSteamPowerShell({
+      GS_STEAM_TARGET_DATE:
+        targetDate,
+
+      GS_STEAM_RESULT_MARKER:
+        DAILY_DATA_WORKBOOK_RESULT_MARKER,
+
+      GS_DAILY_FIELDS_JSON:
+        JSON.stringify(
+          DAILY_DATA_WORKBOOK_FIELD_DEFINITIONS
+        ),
+
+      GS_DAILY_SLUDGE_JSON:
+        JSON.stringify(
+          DAILY_DATA_WORKBOOK_SLUDGE_DEFINITIONS
+        ),
+
+      GS_DAILY_ORGANIC_JSON:
+        JSON.stringify(
+          DAILY_DATA_WORKBOOK_ORGANIC_SILO_DEFINITIONS
+        )
+    });
+
+
+  const resultLine =
+    standardOutput
+      .split(
+        /\r?\n/
+      )
+      .map(
+        line => {
+          return line.trim();
+        }
+      )
+      .reverse()
+      .find(
+        line => {
+          return line.startsWith(
+            DAILY_DATA_WORKBOOK_RESULT_MARKER
+          );
+        }
+      );
+
+
+  if (
+    !resultLine
+  ) {
+    throw new Error(
+      "월간 일일DATA관리 조회 결과 JSON을 확인하지 못했습니다."
+    );
+  }
+
+
+  let capturedResult;
+
+
+  try {
+    capturedResult =
+      JSON.parse(
+        resultLine.slice(
+          DAILY_DATA_WORKBOOK_RESULT_MARKER.length
+        )
+      );
+
+  } catch (
+    error
+  ) {
+    throw new Error(
+      `월간 일일DATA관리 조회 결과를 해석하지 못했습니다: ${error.message}`
+    );
+  }
+
+
+  if (
+    Number(
+      capturedResult.schemaVersion
+    ) !==
+      2
+  ) {
+    throw new Error(
+      "월간 일일DATA관리 조회 결과 버전이 올바르지 않습니다."
+    );
+  }
+
+
+  if (
+    normalizeOisAgentText(
+      capturedResult.targetDate
+    ) !==
+      targetDate ||
+    normalizeOisAgentText(
+      capturedResult.sourceDate
+    ) !==
+      targetDate
+  ) {
+    throw new Error(
+      "월간 일일DATA관리 조회 날짜와 결과 날짜가 일치하지 않습니다."
+    );
+  }
+
+
+  const expectedWorkbook =
+    `${targetDate.slice(
+      2,
+      4
+    )}.${targetDate.slice(
+      5,
+      7
+    )}-일일DATA관리.xlsx`;
+
+
+  if (
+    normalizeOisAgentText(
+      capturedResult.workbook
+    ).normalize(
+      "NFC"
+    ).toLowerCase() !==
+      expectedWorkbook
+        .normalize(
+          "NFC"
+        )
+        .toLowerCase()
+  ) {
+    throw new Error(
+      `조회 대상 월 통합문서가 다릅니다. 기대값: ${expectedWorkbook}, 실제값: ${capturedResult.workbook || "없음"}`
+    );
+  }
+
+
+  const unitOneProduction =
+    roundDailyDataNumber(
+      parseDailyDataWorkbookNumber(
+        capturedResult.unitOneProduction,
+        "1호기 증기생산량"
+      )
+    );
+
+
+  const unitTwoProduction =
+    roundDailyDataNumber(
+      parseDailyDataWorkbookNumber(
+        capturedResult.unitTwoProduction,
+        "2호기 증기생산량"
+      )
+    );
+
+
+  const steamSalesLowPressure =
+    roundDailyDataNumber(
+      parseDailyDataWorkbookNumber(
+        capturedResult.steamSalesLowPressure,
+        "저압증기 판매량"
+      )
+    );
+
+
+  const steamSalesHighPressure =
+    roundDailyDataNumber(
+      parseDailyDataWorkbookNumber(
+        capturedResult.steamSalesHighPressure,
+        "고압증기 판매량"
+      )
+    );
+
+
+  const totalProduction =
+    roundDailyDataNumber(
+      unitOneProduction +
+      unitTwoProduction
+    );
+
+
+  const steamSales =
+    roundDailyDataNumber(
+      steamSalesLowPressure +
+      steamSalesHighPressure
+    );
+
+
+  if (
+    totalProduction <=
+      0
+  ) {
+    throw new Error(
+      "총 증기생산량이 0 이하이므로 판매율을 계산할 수 없습니다."
+    );
+  }
+
+
+  const averageSteamSales =
+    roundDailyDataNumber(
+      steamSales /
+      24
+    );
+
+
+  const salesRate =
+    roundDailyDataNumber(
+      steamSales /
+      totalProduction *
+      100
+    );
+
+
+  const generatorEcmsGen1 =
+    roundDailyDataNumber(
+      parseDailyDataWorkbookNumber(
+        capturedResult.generatorEcmsGen1,
+        "발전량 (Generator) / ECMS gen1"
+      )
+    );
+
+
+  const ismartReception =
+    roundDailyDataNumber(
+      parseDailyDataWorkbookNumber(
+        capturedResult.ismartReception ??
+          capturedResult.electricityReceived,
+        "수전량 (I-Smart)"
+      )
+    );
+
+
+  const epowerTransmission =
+    roundDailyDataNumber(
+      parseDailyDataWorkbookNumber(
+        capturedResult.epowerTransmission ??
+          capturedResult.electricityTransmitted,
+        "송전량 (ePower)"
+      )
+    );
+
+
+  const solarDailyGeneration =
+    roundDailyDataNumber(
+      parseDailyDataWorkbookNumber(
+        capturedResult.solarDailyGeneration ??
+          capturedResult.solarDaily,
+        "태양광 일일 발전량"
+      )
+    );
+
+
+  const organicDaySilo =
+    roundDailyDataNumber(
+      parseDailyDataWorkbookNumber(
+        capturedResult.organicDaySilo ??
+          capturedResult.organicDaySiloLevel,
+        "유기성 Day Silo"
+      ),
+      6
+    );
+
+
+  const organicStorageSiloA =
+    roundDailyDataNumber(
+      parseDailyDataWorkbookNumber(
+        capturedResult.organicStorageSiloA ??
+          capturedResult.organicStorageSiloALevel,
+        "유기성 Storage Silo A"
+      ),
+      6
+    );
+
+
+  const organicStorageSiloB =
+    roundDailyDataNumber(
+      parseDailyDataWorkbookNumber(
+        capturedResult.organicStorageSiloB ??
+          capturedResult.organicStorageSiloBLevel,
+        "유기성 Storage Silo B"
+      ),
+      6
+    );
+
+
+  const organicSiloTotal =
+    roundDailyDataNumber(
+      organicDaySilo +
+      organicStorageSiloA +
+      organicStorageSiloB,
+      6
+    );
+
+
+  const sludgeEntries =
+    Array.isArray(
+      capturedResult.sludgeEntries
+    )
+      ? capturedResult.sludgeEntries
+          .slice(
+            0,
+            10
+          )
+          .map(
+            (
+              item,
+              index
+            ) => {
+              const rawAmount =
+                item?.amount;
+
+
+              const amount =
+                rawAmount ===
+                    null ||
+                  rawAmount ===
+                    undefined ||
+                  normalizeOisAgentText(
+                    rawAmount
+                  ) ===
+                    ""
+                  ? null
+                  : roundDailyDataNumber(
+                      parseDailyDataWorkbookNumber(
+                        rawAmount,
+                        `${index + 1}번째 하수슬러지 입고량`
+                      )
+                    );
+
+
+              return {
+                sequence:
+                  index +
+                  1,
+
+                amount,
+
+                cell:
+                  normalizeOisAgentText(
+                    item?.cell
+                  )
+              };
+            }
+          )
+      : [];
+
+
+  while (
+    sludgeEntries.length <
+      10
+  ) {
+    sludgeEntries.push({
+      sequence:
+        sludgeEntries.length +
+        1,
+
+      amount:
+        null,
+
+      cell:
+        ""
+    });
+  }
+
+
+  const calculatedSludgeTruckCount =
+    sludgeEntries.filter(
+      item => {
+        return (
+          Number.isFinite(
+            item.amount
+          ) &&
+          item.amount >
+            0
+        );
+      }
+    ).length;
+
+
+  const calculatedSludgeTotal =
+    roundDailyDataNumber(
+      sludgeEntries.reduce(
+        (
+          sum,
+          item
+        ) => {
+          return sum +
+            (
+              Number.isFinite(
+                item.amount
+              )
+                ? item.amount
+                : 0
+            );
+        },
+        0
+      )
+    );
+
+
+  const capturedSludgeTruckCount =
+    Number(
+      capturedResult.sludgeTruckCount
+    );
+
+
+  const capturedSludgeTotal =
+    Number(
+      capturedResult.sludgeTotal
+    );
+
+
+  if (
+    capturedSludgeTruckCount !==
+      calculatedSludgeTruckCount ||
+    !Number.isFinite(
+      capturedSludgeTotal
+    ) ||
+    Math.abs(
+      capturedSludgeTotal -
+      calculatedSludgeTotal
+    ) >
+      0.001
+  ) {
+    throw new Error(
+      "하수슬러지 입고 차량 수 또는 총 입고량 계산값이 일치하지 않습니다."
+    );
+  }
+
+
+  const result = {
+    schemaVersion:
+      2,
+
+    source:
+      "월간 일일DATA관리 Excel",
+
+    productionSource:
+      "Plant 수기·계산 완료값",
+
+    salesSource:
+      "Plant 저압·고압증기 수기값",
+
+    organicSiloSource:
+      "DataPARC / Data Normalize (2)",
+
+    targetDate,
+
+    sourceDate:
+      targetDate,
+
+    workbook:
+      normalizeOisAgentText(
+        capturedResult.workbook
+      ),
+
+    workbookFullName:
+      normalizeOisAgentText(
+        capturedResult.workbookFullName
+      ),
+
+    workbookSaved:
+      capturedResult.workbookSaved ===
+        true,
+
+    workbookReadOnly:
+      capturedResult.workbookReadOnly ===
+        true,
+
+    plantWorksheet:
+      "Plant",
+
+    dataParcWorksheet:
+      "Data Normalize (2)",
+
+    monthCell:
+      normalizeOisAgentText(
+        capturedResult.monthCell
+      ),
+
+    monthText:
+      normalizeOisAgentText(
+        capturedResult.monthText
+      ),
+
+    dayCell:
+      normalizeOisAgentText(
+        capturedResult.dayCell
+      ),
+
+    targetColumn:
+      normalizeOisAgentText(
+        capturedResult.targetColumn
+      ),
+
+    dataParcDateCell:
+      normalizeOisAgentText(
+        capturedResult.dataParcDateCell
+      ),
+
+    cellMap:
+      capturedResult.cellMap &&
+      typeof capturedResult.cellMap ===
+        "object"
+        ? capturedResult.cellMap
+        : {},
+
+    outputInterval:
+      "대상일 일일값",
+
+    hourRange:
+      "00:00~24:00",
+
+    hourCount:
+      24,
+
+    unit:
+      "ton",
+
+    salesUnit:
+      "ton",
+
+    generatorEcmsGen1,
+
+    ismartReception,
+
+    electricityReceived:
+      ismartReception,
+
+    epowerTransmission,
+
+    electricityTransmitted:
+      epowerTransmission,
+
+    solarDailyGeneration,
+
+    solarDaily:
+      solarDailyGeneration,
+
+    steamSalesLowPressure,
+
+    steamSalesHighPressure,
+
+    steamSales,
+
+    averageSteamSales,
+
+    unitOneProduction,
+
+    unitTwoProduction,
+
+    totalProduction,
+
+    salesRate,
+
+    unitOne: {
+      source:
+        "Plant 수기·계산 완료값",
+
+      unit:
+        1,
+
+      valueCell:
+        normalizeOisAgentText(
+          capturedResult.unitOne
+            ?.valueCell
+        ),
+
+      productionTotal:
+        unitOneProduction,
+
+      startValue:
+        null,
+
+      endValue:
+        null
+    },
+
+    unitTwo: {
+      source:
+        "Plant 수기·계산 완료값",
+
+      unit:
+        2,
+
+      valueCell:
+        normalizeOisAgentText(
+          capturedResult.unitTwo
+            ?.valueCell
+        ),
+
+      productionTotal:
+        unitTwoProduction,
+
+      startValue:
+        null,
+
+      endValue:
+        null
+    },
+
+    sludgeEntries,
+
+    sludgeTruckCount:
+      calculatedSludgeTruckCount,
+
+    sludgeTotal:
+      calculatedSludgeTotal,
+
+    organicDaySilo,
+
+    organicDaySiloLevel:
+      organicDaySilo,
+
+    organicStorageSiloA,
+
+    organicStorageSiloALevel:
+      organicStorageSiloA,
+
+    organicStorageSiloB,
+
+    organicStorageSiloBLevel:
+      organicStorageSiloB,
+
+    organicSiloTotal,
+
+    organicSiloMetadata:
+      capturedResult.organicSiloMetadata &&
+      typeof capturedResult.organicSiloMetadata ===
+        "object"
+        ? capturedResult.organicSiloMetadata
+        : {},
+
+    dataParcHost:
+      capturedResult.dataParcHost ===
+        true,
+
+    collectedAt:
+      normalizeOisAgentText(
+        capturedResult.collectedAt
+      ) ||
+      new Date()
+        .toISOString(),
+
+    productionComplete:
+      true,
+
+    salesComplete:
+      true
+  };
+
+
+  console.log(
+    [
+      "월간 일일DATA관리 Excel 조회 완료",
+      targetDate,
+      result.workbook,
+      `열 ${result.targetColumn}`,
+      `1호기 ${result.unitOneProduction} ton`,
+      `2호기 ${result.unitTwoProduction} ton`,
+      `저압 ${result.steamSalesLowPressure} ton`,
+      `고압 ${result.steamSalesHighPressure} ton`,
+      `판매합계 ${result.steamSales} ton`,
+      `하수슬러지 ${result.sludgeTruckCount}대 / ${result.sludgeTotal} ton`
+    ].join(
+      " · "
+    )
+  );
+
+
+  return result;
+}
+
+/* =========================================================
+  오전회의 일일DATA 현황 수집
+
+  기존 요청형:
+  - steam_status 유지
+
+  변경된 자료원:
+  - 생산량: Plant 51·52행
+  - 판매량: Plant 72·73행 저압·고압 합계
+  - 발전·수전·송전·태양광: Plant 수기값
+  - 하수슬러지: Plant 288~297행
+  - 유기성 Silo 3개: Data Normalize (2) DataPARC 값
+
+  OIS 일별 증기 판매량 조회는 사용하지 않는다.
+========================================================= */
+
+async function collectOisSteamStatusValues(
+  page,
+  config,
+  targetDate
+) {
+  return await collectDailyDataWorkbookValues(
+    targetDate
+  );
+}
+

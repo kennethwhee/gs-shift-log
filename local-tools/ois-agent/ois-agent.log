@@ -10023,3 +10023,16 @@ OIS 수처리 현황 조회가 완료되었습니다.
 │ 순수 생산량          │ 2267     │
 │ 순수 사용량          │ 1092     │
 └──────────────────────┴──────────┘
+OIS 에이전트 로컬 설정을 불러왔습니다.
+확인된 설정: OIS_ID, OIS_PASSWORD, OIS_AGENT_KEY, OIS_AGENT_ID, SHIFT_LOG_BASE_URL, NODE_USE_SYSTEM_CA
+==========================================
+GS Shift Log OIS 연동 프로그램
+==========================================
+업무일지 주소: https://gs-shift-log.pages.dev
+에이전트 ID: CCR-OIS-PC-01
+OIS 요청 확인 주기: 5초
+지원 요청: 석회석 재고 · 수처리 현황 · Gear Wheel / Pinion
+OIS Edge 브라우저 세션을 시작합니다.
+OIS 로그인이 완료되었습니다.
+OIS Edge 브라우저 세션이 준비되었습니다.
+업무일지의 OIS 요청을 기다립니다.

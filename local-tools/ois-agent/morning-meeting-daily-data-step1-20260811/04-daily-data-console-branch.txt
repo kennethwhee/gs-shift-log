@@ -1,0 +1,95 @@
+  if (
+    requestType ===
+      "steam_status"
+  ) {
+    console.table({
+      "조회일":
+        result.targetDate,
+
+      "월간 파일":
+        result.workbook,
+
+      "Plant 조회 열":
+        result.targetColumn,
+
+      "발전량(ECMS gen1)":
+        result.generatorEcmsGen1,
+
+      "수전량(I-Smart)":
+        result.ismartReception,
+
+      "송전량(ePower)":
+        result.epowerTransmission,
+
+      "태양광 일일 발전량":
+        result.solarDailyGeneration,
+
+      "저압증기":
+        result.steamSalesLowPressure,
+
+      "고압증기":
+        result.steamSalesHighPressure,
+
+      "총 증기 판매량":
+        result.steamSales,
+
+      "시간당 평균 판매량":
+        result.averageSteamSales,
+
+      "1호기 증기생산량":
+        result.unitOneProduction,
+
+      "2호기 증기생산량":
+        result.unitTwoProduction,
+
+      "총 증기생산량":
+        result.totalProduction,
+
+      "판매율":
+        result.salesRate,
+
+      "하수슬러지 차량":
+        result.sludgeTruckCount,
+
+      "하수슬러지 총 입고량":
+        result.sludgeTotal,
+
+      "유기성 Day Silo":
+        result.organicDaySilo,
+
+      "유기성 Storage Silo A":
+        result.organicStorageSiloA,
+
+      "유기성 Storage Silo B":
+        result.organicStorageSiloB,
+
+      "유기성 Silo 합계":
+        result.organicSiloTotal
+    });
+
+
+    console.table(
+      Array.isArray(
+        result.sludgeEntries
+      )
+        ? result.sludgeEntries.map(
+            item => {
+              return {
+                "입고 순번":
+                  item.sequence,
+
+                "입고량(ton)":
+                  item.amount,
+
+                "원본 셀":
+                  item.cell
+              };
+            }
+          )
+        : []
+    );
+
+
+    return;
+  }
+

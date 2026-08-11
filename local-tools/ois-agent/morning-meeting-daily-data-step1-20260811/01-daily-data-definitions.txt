@@ -1,0 +1,240 @@
+/* =========================================================
+  오전회의 월간 일일DATA관리 Excel 조회 정의
+
+  대상 통합문서:
+  - 조회 대상일 기준 yy.MM-일일DATA관리.xlsx
+  - Plant!F4 = yyyy년 MM월
+  - Plant!F5:AJ5 = 1~31일
+
+  수기·계산 완료값:
+  - 1·2호기 증기생산량
+  - 태양광 일일 발전량
+  - 발전량 / 수전량 / 송전량
+  - 저압·고압 증기 판매량
+  - 하수슬러지 1~10번째 입고량
+
+  DataPARC 자동값:
+  - 유기성 Day Silo
+  - 유기성 Storage Silo A
+  - 유기성 Storage Silo B
+
+  기존 steam_status 요청형과 호환 필드를 유지한다.
+========================================================= */
+
+const DAILY_DATA_WORKBOOK_FIELD_DEFINITIONS = [
+  {
+    resultKey:
+      "unitOneProduction",
+
+    label:
+      "#1 CFBC BLR(Totalizer)",
+
+    row:
+      51,
+
+    unit:
+      "ton"
+  },
+
+  {
+    resultKey:
+      "unitTwoProduction",
+
+    label:
+      "#2 CFBC BLR(Totalizer)",
+
+    row:
+      52,
+
+    unit:
+      "ton"
+  },
+
+  {
+    resultKey:
+      "solarDailyGeneration",
+
+    label:
+      "태양광 일일 발전량",
+
+    row:
+      55,
+
+    unit:
+      "kWh"
+  },
+
+  {
+    resultKey:
+      "generatorEcmsGen1",
+
+    label:
+      "발전량 (Generator) / ECMS gen1",
+
+    row:
+      56,
+
+    unit:
+      "kWh"
+  },
+
+  {
+    resultKey:
+      "ismartReception",
+
+    label:
+      "수전량 (I-Smart)",
+
+    row:
+      58,
+
+    unit:
+      "kWh"
+  },
+
+  {
+    resultKey:
+      "epowerTransmission",
+
+    label:
+      "송전량 (ePower)",
+
+    row:
+      63,
+
+    unit:
+      "kWh"
+  },
+
+  {
+    resultKey:
+      "steamSalesLowPressure",
+
+    label:
+      "저압증기(Totalizer) * Aux BLR로 STM Service시 Aux BLR Data 이용",
+
+    row:
+      72,
+
+    unit:
+      "ton"
+  },
+
+  {
+    resultKey:
+      "steamSalesHighPressure",
+
+    label:
+      "고압증기",
+
+    row:
+      73,
+
+    unit:
+      "ton"
+  }
+];
+
+
+const DAILY_DATA_WORKBOOK_SLUDGE_DEFINITIONS =
+  Array.from(
+    {
+      length:
+        10
+    },
+
+    (
+      unusedValue,
+      index
+    ) => {
+      const sequence =
+        index +
+        1;
+
+
+      return {
+        sequence,
+
+        row:
+          287 +
+          sequence,
+
+        label:
+          `${sequence}번째 입고량`
+      };
+    }
+  );
+
+
+const DAILY_DATA_WORKBOOK_ORGANIC_SILO_DEFINITIONS = [
+  {
+    resultKey:
+      "organicDaySilo",
+
+    label:
+      "Day Silo 재고량",
+
+    row:
+      286,
+
+    tag:
+      "GSPOGE.ABB_DCS.104SDF01CW001XQ01/PLOT"
+  },
+
+  {
+    resultKey:
+      "organicStorageSiloA",
+
+    label:
+      "Storage Silo A 재고량",
+
+    row:
+      284,
+
+    tag:
+      "GSPOGE.ABB_DCS.003SDF01CW001XQ01/PLOT"
+  },
+
+  {
+    resultKey:
+      "organicStorageSiloB",
+
+    label:
+      "Storage Silo B 재고량",
+
+    row:
+      285,
+
+    tag:
+      "GSPOGE.ABB_DCS.003SDF02CW001XQ01/PLOT"
+  }
+];
+
+
+const DAILY_DATA_WORKBOOK_RESULT_MARKER =
+  "__DAILY_DATA_WORKBOOK_RESULT__";
+
+
+const DAILY_DATA_WORKBOOK_STAGE_MARKER =
+  "__DAILY_DATA_WORKBOOK_STAGE__";
+
+
+const DAILY_DATA_WORKBOOK_PROCESS_TIMEOUT =
+  45000;
+
+
+/*
+  기존 검증 완료된 PowerShell 실행기의 내부 이름을
+  1단계에서 그대로 재사용하기 위한 호환 별칭이다.
+*/
+
+const DATAPARC_STEAM_RESULT_MARKER =
+  DAILY_DATA_WORKBOOK_RESULT_MARKER;
+
+
+const DATAPARC_STEAM_STAGE_MARKER =
+  DAILY_DATA_WORKBOOK_STAGE_MARKER;
+
+
+const DATAPARC_STEAM_PROCESS_TIMEOUT =
+  DAILY_DATA_WORKBOOK_PROCESS_TIMEOUT;
