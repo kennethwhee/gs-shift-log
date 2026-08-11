@@ -4811,6 +4811,56 @@
     </label>
 
 
+    <!-- =================================================
+      주말 취합 기간
+
+      주말 체크 시에만 표시된다.
+      교대파트 업무와 TM 취합에 사용한다.
+    ================================================== -->
+
+    <div
+      class="efficiency-morning-meeting-weekend-range"
+      id="efficiencyMorningMeetingWeekendRange"
+      hidden
+    >
+
+      <label>
+
+        <span>
+          시작일
+        </span>
+
+        <input
+          type="date"
+          id="efficiencyMorningMeetingWeekendStartDate"
+          autocomplete="off"
+        />
+
+      </label>
+
+
+      <span class="efficiency-morning-meeting-weekend-range__separator">
+        ~
+      </span>
+
+
+      <label>
+
+        <span>
+          종료일
+        </span>
+
+        <input
+          type="date"
+          id="efficiencyMorningMeetingWeekendEndDate"
+          autocomplete="off"
+        />
+
+      </label>
+
+    </div>
+
+
     <small
       class="efficiency-morning-meeting-weekend-status"
       id="efficiencyMorningMeetingWeekendStatus"
@@ -5350,60 +5400,6 @@
 
 
       <div class="efficiency-morning-meeting-shift-panel__tools">
-
-        <!-- =================================================
-  주말 취합 기간
-
-  주말 체크 시에만 표시된다.
-
-  주의:
-  이 날짜는 교대파트 업무/TM 취합용이다.
-
-  수처리·석회석·온도·Gear/Pinion 등의
-  자동 수치 기준일과는 별개이다.
-================================================== -->
-
-<div
-  class="efficiency-morning-meeting-weekend-range"
-  id="efficiencyMorningMeetingWeekendRange"
-  hidden
->
-
-  <label>
-
-    <span>
-      시작일
-    </span>
-
-    <input
-      type="date"
-      id="efficiencyMorningMeetingWeekendStartDate"
-      autocomplete="off"
-    />
-
-  </label>
-
-
-  <span class="efficiency-morning-meeting-weekend-range__separator">
-    ~
-  </span>
-
-
-  <label>
-
-    <span>
-      종료일
-    </span>
-
-    <input
-      type="date"
-      id="efficiencyMorningMeetingWeekendEndDate"
-      autocomplete="off"
-    />
-
-  </label>
-
-</div>
 
         <strong id="efficiencyMorningMeetingShiftDate">
           기준 일자 확인 전
@@ -8969,61 +8965,72 @@
 
     </div>
 
-
-    <div
-      class="auxiliary-material-table-view-actions"
-      role="group"
-      aria-label="부재료 수치 수정 및 표 보기 방식"
-    >
-
-      <button
-        type="button"
-        class="is-edit-values"
-        id="editAuxiliaryMaterialValuesButton"
-        aria-pressed="false"
-        title="현재 표의 수치를 직접 수정"
-      >
-        수치 수정
-      </button>
+<div
+  class="auxiliary-material-table-view-actions"
+  role="group"
+  aria-label="부재료 수치 수정, 표 보기 방식 및 창 닫기"
+>
+  <button
+    type="button"
+    class="is-edit-values"
+    id="editAuxiliaryMaterialValuesButton"
+    aria-pressed="false"
+    title="현재 표의 수치를 직접 수정"
+  >
+    수치 수정
+  </button>
 
 
-      <button
-        type="button"
-        class="is-cancel-edit"
-        id="cancelAuxiliaryMaterialValuesButton"
-        title="수치 수정 취소"
-        hidden
-      >
-        취소
-      </button>
+  <button
+    type="button"
+    class="is-cancel-edit"
+    id="cancelAuxiliaryMaterialValuesButton"
+    title="수치 수정 취소"
+    hidden
+  >
+    취소
+  </button>
 
 
-      <button
-        type="button"
-        id="toggleAuxiliaryMaterialCompactButton"
-        aria-pressed="false"
-        title="열과 행 간격을 줄여 더 많은 자료 보기"
-      >
-        컴팩트 보기
-      </button>
+  <button
+    type="button"
+    id="toggleAuxiliaryMaterialCompactButton"
+    aria-pressed="false"
+    title="열과 행 간격을 줄여 더 많은 자료 보기"
+  >
+    컴팩트 보기
+  </button>
 
 
-      <button
-        type="button"
-        class="is-expand"
-        id="toggleAuxiliaryMaterialExpandedButton"
-        aria-controls="auxiliaryMaterialTableCard"
-        aria-pressed="false"
-        title="부재료 표를 화면 전체로 보기"
-      >
-        <span aria-hidden="true">
-          ⛶
-        </span>
+  <button
+    type="button"
+    class="is-expand"
+    id="toggleAuxiliaryMaterialExpandedButton"
+    aria-controls="auxiliaryMaterialTableCard"
+    aria-pressed="false"
+    title="부재료 표를 화면 전체로 보기"
+  >
+    <span aria-hidden="true">
+      ⛶
+    </span>
 
-        크게 보기
-      </button>
+    크게 보기
+  </button>
 
-    </div>
+
+  <button
+    type="button"
+    class="is-expanded-close"
+    id="closeAuxiliaryMaterialExpandedButton"
+    aria-controls="efficiencyTeamModal"
+    aria-label="효율팀 창 닫기"
+    title="효율팀 창 닫기"
+  >
+    <span aria-hidden="true">
+      ×
+    </span>
+  </button>
+</div>
 
   </div>
 

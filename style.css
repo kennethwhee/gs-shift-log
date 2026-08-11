@@ -98742,3 +98742,236 @@ ARM ROLL BOX: 연밤색
     min-height: 54px;
   }
 }
+
+/* =========================================================
+  오전회의 취합
+  주말 기간을 상단 체크박스 옆에 표시
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+.efficiency-morning-meeting-heading {
+  padding-right: 475px !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-heading
+>
+.efficiency-morning-meeting-mode
+.efficiency-morning-meeting-weekend-range {
+  flex: 0 0 auto !important;
+
+  width: auto !important;
+
+  align-items: flex-end !important;
+  flex-wrap: nowrap !important;
+
+  gap: 5px !important;
+
+  margin: 0 !important;
+  padding: 5px 7px !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-heading
+>
+.efficiency-morning-meeting-mode
+.efficiency-morning-meeting-weekend-range label {
+  flex: 0 0 auto !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-heading
+>
+.efficiency-morning-meeting-mode
+.efficiency-morning-meeting-weekend-range input {
+  width: 118px !important;
+}
+
+
+@media (max-width: 900px) {
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView.is-weekend-mode
+  .efficiency-morning-meeting-heading {
+    padding-right: 14px !important;
+    padding-bottom: 76px !important;
+  }
+
+}
+
+
+@media (max-width: 640px) {
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-heading,
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView.is-weekend-mode
+  .efficiency-morning-meeting-heading {
+    padding-right: 14px !important;
+    padding-bottom: 14px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-heading
+  >
+  .efficiency-morning-meeting-mode {
+    position: static !important;
+
+    width: 100% !important;
+
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+
+    margin-top: 14px !important;
+
+    transform: none !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-weekend-check {
+    order: 1;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-weekend-status {
+    order: 2;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-heading
+  >
+  .efficiency-morning-meeting-mode
+  .efficiency-morning-meeting-weekend-range {
+    order: 3;
+
+    width: 100% !important;
+
+    margin-top: 2px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-heading
+  >
+  .efficiency-morning-meeting-mode
+  .efficiency-morning-meeting-weekend-range label {
+    flex: 1 1 0 !important;
+
+    min-width: 0 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-heading
+  >
+  .efficiency-morning-meeting-mode
+  .efficiency-morning-meeting-weekend-range input {
+    width: 100% !important;
+  }
+
+}
+
+/* =========================================================
+부재료 크게 보기 전용 X 닫기 버튼
+========================================================= */
+
+/* 일반 화면에서는 기존 효율팀 닫기 버튼을 사용한다. */
+#efficiencyAuxiliaryMaterialsView
+#closeAuxiliaryMaterialExpandedButton {
+  display: none !important;
+}
+
+
+/* 크게 보기 상태에서만 축소하기 버튼 오른쪽에 표시 */
+body.is-auxiliary-material-expanded
+#auxiliaryMaterialTableCard.is-expanded-view
+#closeAuxiliaryMaterialExpandedButton {
+  display: inline-flex !important;
+
+  flex:
+    0
+    0
+    32px !important;
+
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+
+  margin-left: 2px !important;
+  padding: 0 !important;
+
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid #d7dee8 !important;
+  border-radius: 7px !important;
+
+  background: #ffffff !important;
+  color: #778292 !important;
+
+  box-shadow:
+    0 1px 3px
+    rgba(15, 23, 42, 0.08) !important;
+
+  font-size: 21px !important;
+  font-weight: 400 !important;
+  line-height: 1 !important;
+
+  cursor: pointer;
+}
+
+
+/* X 세로 위치 보정 */
+body.is-auxiliary-material-expanded
+#closeAuxiliaryMaterialExpandedButton
+span {
+  display: block;
+
+  transform:
+    translateY(-1px);
+}
+
+
+/* 마우스를 올리면 연한 빨간색 */
+body.is-auxiliary-material-expanded
+#closeAuxiliaryMaterialExpandedButton:hover {
+  border-color: #efadb5 !important;
+
+  background: #fff1f2 !important;
+  color: #c33d4b !important;
+}
+
+
+/* 키보드 선택 표시 */
+body.is-auxiliary-material-expanded
+#closeAuxiliaryMaterialExpandedButton:focus-visible {
+  outline:
+    2px solid
+    #5b9ee8;
+
+  outline-offset:
+    2px;
+}

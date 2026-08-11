@@ -8036,13 +8036,12 @@ function Get-SolarCumulativeRangeResult {
   $missingDates =
     @()
 
-  for (
-    $cursor = $StartDate.Date;
-    $cursor -le $EndDate.Date;
-    $cursor =
-      $cursor.AddDays(
-        1
-      )
+  $cursor =
+    $StartDate.Date
+
+  while (
+    $cursor -le
+      $EndDate.Date
   ) {
     $dateKey =
       $cursor.ToString(
@@ -8058,17 +8057,34 @@ function Get-SolarCumulativeRangeResult {
     ) {
       $missingDates +=
         $dateKey
-
-      continue
+    }
+    else {
+      $total +=
+        [double]$DailyValues[$dateKey]
     }
 
-    $total +=
-      [double]$DailyValues[$dateKey]
+    $cursor =
+      $cursor.AddDays(
+        1
+      )
   }
 
   $complete =
     $missingDates.Count -eq
       0
+
+  $resultTotal =
+    $null
+
+  if (
+    $complete
+  ) {
+    $resultTotal =
+      [Math]::Round(
+        $total,
+        3
+      )
+  }
 
   return [ordered]@{
     startDate =
@@ -8087,20 +8103,279 @@ function Get-SolarCumulativeRangeResult {
       $complete
 
     total =
-      if (
-        $complete
-      ) {
-        [Math]::Round(
-          $total,
-          3
-        )
-      }
-      else {
-        $null
-      }
+      $resultTotal
 
     missingDates =
       $missingDates
+  }
+}
+
+function Get-SolarCumulativeWorkbookResult {
+  param(
+    $PlantWorksheet,
+    [string]$WorkbookFullName,
+    [datetime]$TargetDateValue,
+    [string]$TargetDate,
+    [double]$ExpectedDailyValue
+  )
+
+  $dailyValues =
+    [ordered]@{}
+
+  $sourceWorkbooks =
+    @(
+      $WorkbookFullName
+    )
+
+  $missingWorkbooks =
+    @()
+
+  $historyErrors =
+    @()
+
+  $day =
+    1
+
+  while (
+    $day -le
+      $TargetDateValue.Day
+  ) {
+    $columnName =
+      ConvertTo-ExcelColumnName -ColumnNumber (
+        5 +
+        $day
+      )
+
+    $address =
+      $columnName +
+      "55"
+
+    $dateValue =
+      Get-Date -Year $TargetDateValue.Year -Month $TargetDateValue.Month -Day $day
+
+    $dateKey =
+      $dateValue.ToString(
+        "yyyy-MM-dd",
+        [Globalization.CultureInfo]::InvariantCulture
+      )
+
+    try {
+      $solarValue =
+        Get-FiniteExcelNumber -Value (
+          Read-ExcelCellValue -Worksheet $PlantWorksheet -Address $address
+        ) -Label (
+          "태양광 일일 발전량 (" +
+          $dateKey +
+          ", Plant!" +
+          $address +
+          ")"
+        )
+
+      if (
+        $solarValue -lt 0
+      ) {
+        throw (
+          "태양광 일일 발전량이 0보다 작습니다: " +
+          $dateKey
+        )
+      }
+
+      $dailyValues[$dateKey] =
+        [double]$solarValue
+    }
+    catch {
+      $dailyValues[$dateKey] =
+        $null
+
+      $historyErrors +=
+        $_.Exception.Message
+    }
+
+    $day +=
+      1
+  }
+
+  $weekOffset =
+    (
+      [int]$TargetDateValue.DayOfWeek +
+      6
+    ) %
+    7
+
+  $weekStart =
+    $TargetDateValue.AddDays(
+      -$weekOffset
+    ).Date
+
+  $monthStart =
+    Get-Date -Year $TargetDateValue.Year -Month $TargetDateValue.Month -Day 1
+
+  $yearStart =
+    Get-Date -Year $TargetDateValue.Year -Month 1 -Day 1
+
+  $requiredMonths =
+    [ordered]@{}
+
+  $monthCursor =
+    $yearStart
+
+  while (
+    $monthCursor -lt
+      $monthStart
+  ) {
+    $monthKey =
+      $monthCursor.ToString(
+        "yyyy-MM",
+        [Globalization.CultureInfo]::InvariantCulture
+      )
+
+    $requiredMonths[$monthKey] =
+      $monthCursor
+
+    $monthCursor =
+      $monthCursor.AddMonths(
+        1
+      )
+  }
+
+  if (
+    $weekStart -lt
+      $monthStart
+  ) {
+    $weekMonthStart =
+      Get-Date -Year $weekStart.Year -Month $weekStart.Month -Day 1
+
+    $weekMonthKey =
+      $weekMonthStart.ToString(
+        "yyyy-MM",
+        [Globalization.CultureInfo]::InvariantCulture
+      )
+
+    $requiredMonths[$weekMonthKey] =
+      $weekMonthStart
+  }
+
+  if (
+    [string]::IsNullOrWhiteSpace(
+      $WorkbookFullName
+    )
+  ) {
+    $historyErrors +=
+      "현재 통합문서의 저장 경로를 확인하지 못했습니다."
+  }
+  else {
+    foreach (
+      $monthEntry in
+        $requiredMonths.GetEnumerator()
+    ) {
+      $monthDate =
+        [datetime]$monthEntry.Value
+
+      $historyWorkbookPath =
+        Resolve-SolarHistoryWorkbookPath -CurrentWorkbookFullName $WorkbookFullName -MonthDate $monthDate
+
+      if (
+        !(
+          Test-Path -LiteralPath $historyWorkbookPath -PathType Leaf
+        )
+      ) {
+        $missingWorkbooks +=
+          $historyWorkbookPath
+
+        $historyErrors +=
+          (
+            "태양광 누적 계산용 파일을 찾지 못했습니다: " +
+            $historyWorkbookPath
+          )
+
+        continue
+      }
+
+      try {
+        $historyValues =
+          Read-SolarHistoryWorkbookValues -WorkbookPath $historyWorkbookPath -MonthDate $monthDate
+
+        foreach (
+          $historyEntry in
+            $historyValues.GetEnumerator()
+        ) {
+          $dailyValues[$historyEntry.Key] =
+            $historyEntry.Value
+        }
+
+        $sourceWorkbooks +=
+          $historyWorkbookPath
+      }
+      catch {
+        $historyErrors +=
+          (
+            [System.IO.Path]::GetFileName(
+              $historyWorkbookPath
+            ) +
+            ": " +
+            $_.Exception.Message
+          )
+      }
+    }
+  }
+
+  $weeklyResult =
+    Get-SolarCumulativeRangeResult -DailyValues $dailyValues -StartDate $weekStart -EndDate $TargetDateValue
+
+  $monthlyResult =
+    Get-SolarCumulativeRangeResult -DailyValues $dailyValues -StartDate $monthStart -EndDate $TargetDateValue
+
+  $yearlyResult =
+    Get-SolarCumulativeRangeResult -DailyValues $dailyValues -StartDate $yearStart -EndDate $TargetDateValue
+
+  $targetSolarValue =
+    $dailyValues[$TargetDate]
+
+  if (
+    $null -eq $targetSolarValue -or
+    [Math]::Abs(
+      [double]$targetSolarValue -
+      $ExpectedDailyValue
+    ) -gt 0.001
+  ) {
+    throw "태양광 일일값과 누적 계산의 조회일 값이 일치하지 않습니다."
+  }
+
+  return [ordered]@{
+    source =
+      "Plant!55 태양광 일일 발전량"
+
+    week =
+      $weeklyResult
+
+    month =
+      $monthlyResult
+
+    year =
+      $yearlyResult
+
+    sourceWorkbooks =
+      @(
+        $sourceWorkbooks |
+          Where-Object {
+            ![string]::IsNullOrWhiteSpace(
+              [string]$_
+            )
+          } |
+          Select-Object -Unique
+      )
+
+    missingWorkbooks =
+      @(
+        $missingWorkbooks |
+          Select-Object -Unique
+      )
+
+    errors =
+      @(
+        $historyErrors |
+          Select-Object -Unique
+      )
   }
 }
 
@@ -8581,289 +8856,30 @@ try {
       $valueAddress
   }
 
-  /* =====================================================
-    태양광 누적 발전량
-
-    주간:
-    - 월요일부터 조회일까지
-
-    월간:
-    - 해당 월 1일부터 조회일까지
-
-    연간:
-    - 해당 연도 1월 1일부터 조회일까지
-
-    현재 월:
-    - 열려 있는 Excel 값을 직접 읽는다.
-    - 저장 전 수정값도 반영한다.
-
-    이전 월:
-    - 같은 폴더의 yy.MM-일일DATA관리.xlsx를
-      읽기 전용으로 확인한다.
-    - Excel에서 추가로 열거나 저장하지 않는다.
-  ====================================================== */
-
   Write-DailyDataStage -Message (
     "태양광 누적 발전량 계산 시작"
   )
 
-  $solarDailyValues =
-    [ordered]@{}
+  $solarCumulativeParameters =
+    @{
+      PlantWorksheet =
+        $plantWorksheet
 
-  $solarSourceWorkbooks =
-    @(
-      $workbookFullName
-    )
+      WorkbookFullName =
+        $workbookFullName
 
-  $solarMissingWorkbooks =
-    @()
+      TargetDateValue =
+        $targetDateValue
 
-  $solarHistoryErrors =
-    @()
+      TargetDate =
+        $targetDate
 
-  /*
-    현재 월 1일부터 조회일까지는
-    열려 있는 Excel의 Plant 55행에서 읽는다.
-  */
-
-  for (
-    $day = 1;
-    $day -le $targetDay;
-    $day += 1
-  ) {
-    $columnName =
-      ConvertTo-ExcelColumnName -ColumnNumber (
-        5 +
-        $day
-      )
-
-    $address =
-      $columnName +
-      "55"
-
-    $dateValue =
-      Get-Date `
-        -Year $targetDateValue.Year `
-        -Month $targetDateValue.Month `
-        -Day $day
-
-    $dateKey =
-      $dateValue.ToString(
-        "yyyy-MM-dd",
-        [Globalization.CultureInfo]::InvariantCulture
-      )
-
-    try {
-      $solarValue =
-        Get-FiniteExcelNumber -Value (
-          Read-ExcelCellValue `
-            -Worksheet $plantWorksheet `
-            -Address $address
-        ) -Label (
-          "태양광 일일 발전량 (" +
-          $dateKey +
-          ", Plant!" +
-          $address +
-          ")"
-        )
-
-      if (
-        $solarValue -lt 0
-      ) {
-        throw (
-          "태양광 일일 발전량이 0보다 작습니다: " +
-          $dateKey
-        )
-      }
-
-      $solarDailyValues[$dateKey] =
-        [double]$solarValue
-    }
-    catch {
-      $solarDailyValues[$dateKey] =
-        $null
-
-      $solarHistoryErrors +=
-        $_.Exception.Message
-    }
-  }
-
-  /*
-    월요일 시작 주간 범위
-  */
-
-  $weekOffset =
-    (
-      [int]$targetDateValue.DayOfWeek +
-      6
-    ) %
-    7
-
-  $solarWeekStart =
-    $targetDateValue.AddDays(
-      -$weekOffset
-    ).Date
-
-  $solarMonthStart =
-    Get-Date `
-      -Year $targetDateValue.Year `
-      -Month $targetDateValue.Month `
-      -Day 1
-
-  $solarYearStart =
-    Get-Date `
-      -Year $targetDateValue.Year `
-      -Month 1 `
-      -Day 1
-
-  /*
-    연간 누적에 필요한 이전 월 파일과
-    주간 시작일이 이전 달인 경우의 파일을 모은다.
-  */
-
-  $requiredSolarMonths =
-    [ordered]@{}
-
-  for (
-    $monthCursor = $solarYearStart;
-    $monthCursor -lt $solarMonthStart;
-    $monthCursor =
-      $monthCursor.AddMonths(
-        1
-      )
-  ) {
-    $monthKey =
-      $monthCursor.ToString(
-        "yyyy-MM",
-        [Globalization.CultureInfo]::InvariantCulture
-      )
-
-    $requiredSolarMonths[$monthKey] =
-      $monthCursor
-  }
-
-  if (
-    $solarWeekStart -lt
-      $solarMonthStart
-  ) {
-    $weekMonthStart =
-      Get-Date `
-        -Year $solarWeekStart.Year `
-        -Month $solarWeekStart.Month `
-        -Day 1
-
-    $weekMonthKey =
-      $weekMonthStart.ToString(
-        "yyyy-MM",
-        [Globalization.CultureInfo]::InvariantCulture
-      )
-
-    $requiredSolarMonths[$weekMonthKey] =
-      $weekMonthStart
-  }
-
-  /*
-    이전 월 통합문서는 OpenXML 방식으로 읽는다.
-  */
-
-  foreach (
-    $monthEntry in
-      $requiredSolarMonths.GetEnumerator()
-  ) {
-    $monthDate =
-      [datetime]$monthEntry.Value
-
-    $historyWorkbookPath =
-      Resolve-SolarHistoryWorkbookPath `
-        -CurrentWorkbookFullName $workbookFullName `
-        -MonthDate $monthDate
-
-    if (
-      !(
-        Test-Path `
-          -LiteralPath $historyWorkbookPath `
-          -PathType Leaf
-      )
-    ) {
-      $solarMissingWorkbooks +=
-        $historyWorkbookPath
-
-      $solarHistoryErrors +=
-        (
-          "태양광 누적 계산용 파일을 찾지 못했습니다: " +
-          $historyWorkbookPath
-        )
-
-      continue
+      ExpectedDailyValue =
+        [double]$manualValues.solarDailyGeneration
     }
 
-    try {
-      $historyValues =
-        Read-SolarHistoryWorkbookValues `
-          -WorkbookPath $historyWorkbookPath `
-          -MonthDate $monthDate
-
-      foreach (
-        $historyEntry in
-          $historyValues.GetEnumerator()
-      ) {
-        $solarDailyValues[$historyEntry.Key] =
-          $historyEntry.Value
-      }
-
-      $solarSourceWorkbooks +=
-        $historyWorkbookPath
-    }
-    catch {
-      $solarHistoryErrors +=
-        (
-          [System.IO.Path]::GetFileName(
-            $historyWorkbookPath
-          ) +
-          ": " +
-          $_.Exception.Message
-        )
-    }
-  }
-
-  /*
-    주간·월간·연간 합계
-  */
-
-  $solarWeeklyResult =
-    Get-SolarCumulativeRangeResult `
-      -DailyValues $solarDailyValues `
-      -StartDate $solarWeekStart `
-      -EndDate $targetDateValue
-
-  $solarMonthlyResult =
-    Get-SolarCumulativeRangeResult `
-      -DailyValues $solarDailyValues `
-      -StartDate $solarMonthStart `
-      -EndDate $targetDateValue
-
-  $solarYearlyResult =
-    Get-SolarCumulativeRangeResult `
-      -DailyValues $solarDailyValues `
-      -StartDate $solarYearStart `
-      -EndDate $targetDateValue
-
-  /*
-    조회일의 일일값이 기존 조회값과 같은지 검증한다.
-  */
-
-  $targetSolarValue =
-    $solarDailyValues[$targetDate]
-
-  if (
-    $null -eq $targetSolarValue -or
-    [Math]::Abs(
-      [double]$targetSolarValue -
-      [double]$manualValues.solarDailyGeneration
-    ) -gt 0.001
-  ) {
-    throw "태양광 일일값과 누적 계산의 조회일 값이 일치하지 않습니다."
-  }
+  $solarCumulativeResult =
+    Get-SolarCumulativeWorkbookResult @solarCumulativeParameters
 
   Write-DailyDataStage -Message (
     "태양광 누적 발전량 계산 완료"
@@ -9680,6 +9696,18 @@ try {
 
       solarDaily =
         [double]$manualValues.solarDailyGeneration
+
+      solarWeeklyCumulative =
+        $solarCumulativeResult.week.total
+
+      solarMonthlyCumulative =
+        $solarCumulativeResult.month.total
+
+      solarYearlyCumulative =
+        $solarCumulativeResult.year.total
+
+      solarCumulative =
+        $solarCumulativeResult
 
       steamSalesLowPressure =
         $steamSalesLowPressure
