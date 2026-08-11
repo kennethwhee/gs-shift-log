@@ -210810,6 +210810,54 @@ function cancelLimestoneSlipOcrRequest() {
 
 
 /* =====================================================
+  OCR 부분 인식값 안내
+====================================================== */
+
+function formatLimestoneSlipOcrEvidence(
+  result
+) {
+  const evidenceItems = [
+    [
+      "총중량",
+      result?.grossKg
+    ],
+
+    [
+      "공차중량",
+      result?.tareKg
+    ],
+
+    [
+      "실중량",
+      result?.netKg
+    ]
+  ]
+    .map(
+      ([label, value]) => {
+        const quantityKg =
+          parseLimestoneSlipQuantityKg(
+            value
+          );
+
+
+        return quantityKg ===
+          null
+            ? null
+            : `${label} ${quantityKg.toLocaleString("ko-KR")} kg`;
+      }
+    )
+    .filter(
+      Boolean
+    );
+
+
+  return evidenceItems.length
+    ? ` 읽은 값: ${evidenceItems.join(" · ")}.`
+    : "";
+}
+
+
+/* =====================================================
   보정된 전표사진 → OCR API
 ====================================================== */
 
@@ -211004,6 +211052,21 @@ async function requestLimestoneSlipOcr(
         recognized:
           false,
 
+        grossKg:
+          parseLimestoneSlipQuantityKg(
+            result.grossKg
+          ),
+
+        tareKg:
+          parseLimestoneSlipQuantityKg(
+            result.tareKg
+          ),
+
+        netKg:
+          parseLimestoneSlipQuantityKg(
+            result.netKg
+          ),
+
         reasonCode:
           String(
             result.reasonCode ||
@@ -211029,6 +211092,9 @@ async function requestLimestoneSlipOcr(
           result.message ||
           "실중량을 정확히 인식하지 못했습니다."
         ).trim() +
+          formatLimestoneSlipOcrEvidence(
+            result
+          ) +
           " 아래 칸에 실중량을 직접 입력하거나 전표 전체를 다시 촬영해 주세요.",
         "is-error"
       );

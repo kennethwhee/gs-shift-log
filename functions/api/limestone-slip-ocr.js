@@ -1082,7 +1082,10 @@ function parseOcrAnswer(
       [
         "grossKg",
         "grossWeightKg",
-        "totalWeightKg"
+        "totalWeightKg",
+        "row1Kg",
+        "firstRowKg",
+        "weightRow1Kg"
       ],
       "(?:총\\s*중\\s*량|gross(?:\\s*weight)?)",
       [
@@ -1099,7 +1102,10 @@ function parseOcrAnswer(
       [
         "tareKg",
         "tareWeightKg",
-        "emptyWeightKg"
+        "emptyWeightKg",
+        "row2Kg",
+        "secondRowKg",
+        "weightRow2Kg"
       ],
       "(?:공\\s*차\\s*중\\s*량|차\\s*중\\s*량|tare(?:\\s*weight)?)",
       [
@@ -1118,7 +1124,10 @@ function parseOcrAnswer(
         "quantityKg",
         "netWeightKg",
         "printedValue",
-        "netPrintedValue"
+        "netPrintedValue",
+        "row3Kg",
+        "thirdRowKg",
+        "weightRow3Kg"
       ],
       "(?:실\\s*중\\s*량|순\\s*중\\s*량|net(?:\\s*weight)?)",
       [
@@ -1243,9 +1252,7 @@ function parseOcrAnswer(
       netKg;
 
     recognitionSource =
-      validatedTriple
-        ? "validated_three_rows"
-        : "printed_net";
+      "validated_three_rows";
 
   } else if (
     netKg !==
@@ -1949,15 +1956,16 @@ confidence must be high, medium, or low.
                 imageDataUri,
 
               question: `
-Transcribe every printed number immediately followed by kg on the enlarged Korean weighing receipt, in top-to-bottom order.
-Copy digits only from the receipt. Ignore all other numbers, Korean labels, dates, times, handwriting, vehicle numbers, phone numbers, and background papers.
+Read the three printed weight rows on the enlarged Korean weighing receipt by position, from top to bottom.
+The Korean labels do not need to be readable. Copy digits only from the receipt. Ignore all other numbers, dates, times, handwriting, vehicle numbers, phone numbers, and background papers.
 Comma and dot can both be thousands separators.
 Do not calculate missing values and do not guess unreadable digits.
 
 Return one JSON object only with these exact keys:
-weightsTopToBottomKg, confidence
+row1Kg, row2Kg, row3Kg, confidence
 
-weightsTopToBottomKg must be an array of the visible integer kg values in top-to-bottom order.
+row1Kg is the top weight row, row2Kg is the middle weight row, and row3Kg is the bottom weight row.
+Each row value must be an integer in kg, or null when that exact row is unreadable. Keep the three row positions even when one row is null.
 confidence must be high, medium, or low.
               `.trim(),
 
