@@ -174916,9 +174916,12 @@ async function createGearPinionRequest(
 
     try {
       const createResult =
-        await createGearPinionRequest(
-          targetDate
-        );
+  await createGearPinionRequest(
+    targetDate,
+    {
+      forceRefresh
+    }
+  );
 
 
       const requestItem =
@@ -183634,154 +183637,157 @@ function renderPreview() {
   ====================================================== */
 
 function ensureSiloPreviewCard() {
-  const grid =
-    document.querySelector(
-      "#efficiencyMorningMeetingAutoPreview " +
-      ".efficiency-morning-meeting-auto-preview__grid"
-    );
-
+  const grid = document.querySelector(
+    "#efficiencyMorningMeetingAutoPreview " +
+    ".efficiency-morning-meeting-auto-preview__grid"
+  );
 
   if (!grid) {
     return null;
   }
 
-
-  /*
-    자동수치 미리보기 하단 2열
-
-    - 기존 OIS Silo Level
-    - 월간 일일DATA관리 Excel 미리보기
-
-    모바일에서는 기존 CSS에 따라 한 열로 쌓인다.
-  */
+  const layoutVersion =
+    "morning-summary-3x2-solar-v2";
 
   let bottomGrid =
     document.getElementById(
       "efficiencyMorningMeetingAutoBottomGrid"
     );
 
-
   if (!bottomGrid) {
     bottomGrid =
-      document.createElement(
-        "div"
-      );
-
+      document.createElement("div");
 
     bottomGrid.id =
       "efficiencyMorningMeetingAutoBottomGrid";
 
-
     bottomGrid.className =
       "efficiency-morning-meeting-auto-bottom-grid";
 
-
-    grid.appendChild(
-      bottomGrid
-    );
+    grid.appendChild(bottomGrid);
   }
 
+  bottomGrid.dataset.morningLayoutVersion =
+    layoutVersion;
+
+  /*
+    전력현황 + 태양광 현황을
+    같은 열에 위아래로 배치한다.
+  */
+
+  let powerStack =
+    document.getElementById(
+      "efficiencyMorningMeetingAutoPowerStack"
+    );
+
+  if (
+    powerStack &&
+    powerStack.dataset.morningLayoutVersion !==
+      layoutVersion
+  ) {
+    powerStack.remove();
+    powerStack = null;
+  }
+
+  if (!powerStack) {
+    powerStack =
+      document.createElement("div");
+
+    powerStack.id =
+      "efficiencyMorningMeetingAutoPowerStack";
+
+    powerStack.className =
+      "efficiency-morning-meeting-auto-power-stack";
+
+    powerStack.dataset.morningLayoutVersion =
+      layoutVersion;
+
+    bottomGrid.appendChild(powerStack);
+  }
 
   function ensureCard(
     id,
     className,
     html,
-    options =
-      {}
+    parent = bottomGrid
   ) {
     let targetCard =
-      document.getElementById(
-        id
-      );
+      document.getElementById(id);
 
+    if (
+      targetCard &&
+      targetCard.dataset.morningLayoutVersion !==
+        layoutVersion
+    ) {
+      targetCard.remove();
+      targetCard = null;
+    }
 
     if (!targetCard) {
       targetCard =
-        document.createElement(
-          "article"
-        );
+        document.createElement("article");
 
-
-      targetCard.id =
-        id;
-
+      targetCard.id = id;
 
       targetCard.className = [
         "efficiency-morning-meeting-auto-card",
         className
       ]
-        .filter(
-          Boolean
-        )
-        .join(
-          " "
-        );
+        .filter(Boolean)
+        .join(" ");
 
+      targetCard.dataset.morningLayoutVersion =
+        layoutVersion;
 
-      targetCard.innerHTML =
-        html;
+      targetCard.innerHTML = html;
     }
-
 
     if (
       targetCard.parentElement !==
-        bottomGrid
+      parent
     ) {
-      bottomGrid.appendChild(
-        targetCard
-      );
+      parent.appendChild(targetCard);
     }
 
-
-    if (
-      options.fullWidth ===
-        true
-    ) {
-      targetCard.style.gridColumn =
-        "1 / -1";
-    }
-
+    targetCard.style.removeProperty(
+      "grid-column"
+    );
 
     return targetCard;
   }
 
+  /*
+    기존 유기성 사일로 단독 카드는 제거한다.
+    값은 유기성 고형연료 카드에 통합한다.
+  */
 
-  const card =
-    ensureCard(
-      "efficiencyMorningMeetingAutoSiloCard",
-      "is-silo-level",
-      `
-      <header
-        class="
-          efficiency-morning-meeting-auto-card__header
-        "
-      >
+  document
+    .getElementById(
+      "efficiencyMorningMeetingAutoDailyOrganicCard"
+    )
+    ?.remove();
+
+  /*
+    SILO LEVEL
+  */
+
+  const card = ensureCard(
+    "efficiencyMorningMeetingAutoSiloCard",
+    "is-silo-level",
+    `
+      <header class="efficiency-morning-meeting-auto-card__header">
         <div>
-          <span>
-            SILO LEVEL
-          </span>
-
-          <strong>
-            Silo Level(준비중)
-          </strong>
+          <span>OIS DATA</span>
+          <strong>SILO LEVEL (운영정보)</strong>
         </div>
 
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-card__meta
-          "
-        >
-          <small
-            id="efficiencyMorningMeetingAutoSiloDate"
-          >
+        <div class="efficiency-morning-meeting-auto-card__meta">
+          <small id="efficiencyMorningMeetingAutoSiloDate">
             -
           </small>
 
           <span
-            class="
-              efficiency-morning-meeting-auto-card__badge
-            "
+            class="efficiency-morning-meeting-auto-card__badge"
             id="efficiencyMorningMeetingAutoSiloStatus"
           >
             조회 대기
@@ -183789,108 +183795,60 @@ function ensureSiloPreviewCard() {
         </div>
       </header>
 
-
-      <div
-        class="
-          efficiency-morning-meeting-auto-card__body
-        "
-      >
-        <div
-          class="
-            efficiency-morning-meeting-auto-row
-          "
-        >
+      <div class="efficiency-morning-meeting-auto-card__body">
+        <div class="efficiency-morning-meeting-auto-row">
           <span>
             Fly Ash Silo Level
 
-            <small
-              style="
-                display: block;
-                margin-top: 2px;
-                font-size: 9px;
-                font-weight: 700;
-                opacity: 0.68;
-              "
-            >
+            <small class="efficiency-morning-meeting-auto-tag">
               003ETH01CW201XQ01
             </small>
           </span>
 
-          <strong
-            id="efficiencyMorningMeetingAutoFlyAshSiloLevel"
-          >
+          <strong id="efficiencyMorningMeetingAutoFlyAshSiloLevel">
             -
           </strong>
         </div>
 
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-row
-            is-emphasis
-          "
-        >
+        <div class="efficiency-morning-meeting-auto-row is-emphasis">
           <span>
             Bio Storage Silo Level
 
-            <small
-              style="
-                display: block;
-                margin-top: 2px;
-                font-size: 9px;
-                font-weight: 700;
-                opacity: 0.68;
-              "
-            >
+            <small class="efficiency-morning-meeting-auto-tag">
               EBF20CW201
             </small>
           </span>
 
-          <strong
-            id="efficiencyMorningMeetingAutoBioStorageSiloLevel"
-          >
+          <strong id="efficiencyMorningMeetingAutoBioStorageSiloLevel">
             -
           </strong>
         </div>
       </div>
-      `
-    );
+    `
+  );
 
+  /*
+    전력 현황
+    태양광 항목은 별도 카드로 분리한다.
+  */
 
   ensureCard(
     "efficiencyMorningMeetingAutoDailyPowerCard",
-    "is-silo-level",
+    "is-daily-power",
     `
-      <header
-        class="
-          efficiency-morning-meeting-auto-card__header
-        "
-      >
+      <header class="efficiency-morning-meeting-auto-card__header">
         <div>
-          <span>
-            DAILY POWER
-          </span>
-
-          <strong>
-            전력 현황
-          </strong>
+          <span>DAILY POWER</span>
+          <strong>전력 현황</strong>
         </div>
 
-        <div
-          class="
-            efficiency-morning-meeting-auto-card__meta
-          "
-        >
-          <small
-            id="efficiencyMorningMeetingAutoDailyPowerDate"
-          >
+        <div class="efficiency-morning-meeting-auto-card__meta">
+          <small id="efficiencyMorningMeetingAutoDailyPowerDate">
             -
           </small>
 
           <span
-            class="
-              efficiency-morning-meeting-auto-card__badge
-            "
+            class="efficiency-morning-meeting-auto-card__badge"
             id="efficiencyMorningMeetingAutoDailyPowerStatus"
           >
             조회 대기
@@ -183898,70 +183856,121 @@ function ensureSiloPreviewCard() {
         </div>
       </header>
 
-      <div
-        class="
-          efficiency-morning-meeting-auto-card__body
-        "
-      >
+      <div class="efficiency-morning-meeting-auto-card__body">
         <div class="efficiency-morning-meeting-auto-row">
-          <span>태양광 일일 발전량</span>
-          <strong id="efficiencyMorningMeetingAutoDailySolarGeneration">-</strong>
-        </div>
+          <span>발전량 / ECMS</span>
 
-        <div class="efficiency-morning-meeting-auto-row">
-          <span>발전량 / ECMS gen1</span>
-          <strong id="efficiencyMorningMeetingAutoDailyGeneratorEcmsGen1">-</strong>
+          <strong id="efficiencyMorningMeetingAutoDailyGeneratorEcmsGen1">
+            -
+          </strong>
         </div>
 
         <div class="efficiency-morning-meeting-auto-row">
           <span>수전량 / I-Smart</span>
-          <strong id="efficiencyMorningMeetingAutoDailyIsmartReception">-</strong>
+
+          <strong id="efficiencyMorningMeetingAutoDailyIsmartReception">
+            -
+          </strong>
         </div>
 
         <div class="efficiency-morning-meeting-auto-row is-emphasis">
           <span>송전량 / ePower</span>
-          <strong id="efficiencyMorningMeetingAutoDailyEpowerTransmission">-</strong>
+
+          <strong id="efficiencyMorningMeetingAutoDailyEpowerTransmission">
+            -
+          </strong>
         </div>
       </div>
-    `
+    `,
+    powerStack
   );
 
+  /*
+    태양광 현황
+  */
+
+  ensureCard(
+    "efficiencyMorningMeetingAutoSolarCard",
+    "is-solar-status",
+    `
+      <header class="efficiency-morning-meeting-auto-card__header">
+        <div>
+          <span>SOLAR POWER</span>
+          <strong>태양광 현황</strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-card__meta">
+          <small id="efficiencyMorningMeetingAutoSolarDate">
+            -
+          </small>
+
+          <span
+            class="efficiency-morning-meeting-auto-card__badge"
+            id="efficiencyMorningMeetingAutoSolarStatus"
+          >
+            조회 대기
+          </span>
+        </div>
+      </header>
+
+      <div class="efficiency-morning-meeting-auto-card__body">
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>태양광 일일 발전량</span>
+
+          <strong id="efficiencyMorningMeetingAutoDailySolarGeneration">
+            -
+          </strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>주간 누적 발전량</span>
+
+          <strong id="efficiencyMorningMeetingAutoSolarWeeklyCumulative">
+            -
+          </strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>월간 누적 발전량</span>
+
+          <strong id="efficiencyMorningMeetingAutoSolarMonthlyCumulative">
+            -
+          </strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row is-emphasis">
+          <span>연간 누적 발전량</span>
+
+          <strong id="efficiencyMorningMeetingAutoSolarYearlyCumulative">
+            -
+          </strong>
+        </div>
+      </div>
+    `,
+    powerStack
+  );
+
+  /*
+    증기 생산·판매
+  */
 
   ensureCard(
     "efficiencyMorningMeetingAutoSteamCard",
     "is-steam-status",
     `
-      <header
-        class="
-          efficiency-morning-meeting-auto-card__header
-        "
-      >
+      <header class="efficiency-morning-meeting-auto-card__header">
         <div>
-          <span>
-            STEAM PRODUCTION · SALES
-          </span>
-
-          <strong>
-            증기 생산·판매
-          </strong>
+          <span>STEAM PRODUCTION · SALES</span>
+          <strong>증기 생산·판매</strong>
         </div>
 
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-card__meta
-          "
-        >
-          <small
-            id="efficiencyMorningMeetingAutoSteamDate"
-          >
+        <div class="efficiency-morning-meeting-auto-card__meta">
+          <small id="efficiencyMorningMeetingAutoSteamDate">
             -
           </small>
 
           <span
-            class="
-              efficiency-morning-meeting-auto-card__badge
-            "
+            class="efficiency-morning-meeting-auto-card__badge"
             id="efficiencyMorningMeetingAutoSteamStatus"
           >
             조회 대기
@@ -183969,223 +183978,156 @@ function ensureSiloPreviewCard() {
         </div>
       </header>
 
-
-      <div
-        class="
-          efficiency-morning-meeting-auto-card__body
-        "
-      >
-        <div
-          class="
-            efficiency-morning-meeting-auto-row
-          "
-        >
-          <span>
-            저압증기 판매량
-          </span>
-
-          <strong
-            id="efficiencyMorningMeetingAutoDailySteamSalesLowPressure"
-          >
-            -
-          </strong>
-        </div>
-
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-row
-          "
-        >
-          <span>
-            고압증기 판매량
-          </span>
-
-          <strong
-            id="efficiencyMorningMeetingAutoDailySteamSalesHighPressure"
-          >
-            -
-          </strong>
-        </div>
-
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-row
-            is-emphasis
-          "
-        >
-          <span>
-            총 증기 판매량
-          </span>
-
-          <strong
-            id="efficiencyMorningMeetingAutoSteamSales"
-          >
-            -
-          </strong>
-        </div>
-
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-row
-          "
-        >
-          <span>
-            시간당 평균 판매량
-          </span>
-
-          <strong
-            id="efficiencyMorningMeetingAutoDailyAverageSteamSales"
-          >
-            -
-          </strong>
-        </div>
-
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-row
-          "
-        >
-          <span>
-            생산량 1 / 2호기
-          </span>
-
-          <strong
-            id="efficiencyMorningMeetingAutoSteamProductionUnits"
-          >
-            - / -
-          </strong>
-        </div>
-
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-row
-            is-emphasis
-          "
-        >
-          <span>
-            총 증기생산량
-          </span>
-
-          <strong
-            id="efficiencyMorningMeetingAutoSteamProductionTotal"
-          >
-            -
-          </strong>
-        </div>
-
-
-        <div
-          class="
-            efficiency-morning-meeting-auto-row
-          "
-        >
-          <span>
-            판매율
-          </span>
-
-          <strong
-            id="efficiencyMorningMeetingAutoSteamSalesRate"
-          >
-            -
-          </strong>
-        </div>
-      </div>
-    `,
-    {
-      fullWidth:
-        true
-    }
-  );
-
-
-  ensureCard(
-    "efficiencyMorningMeetingAutoDailySludgeCard",
-    "is-limestone",
-    `
-      <header class="efficiency-morning-meeting-auto-card__header">
-        <div>
-          <span>SEWAGE SLUDGE</span>
-          <strong>하수슬러지 입고</strong>
-        </div>
-
-        <div class="efficiency-morning-meeting-auto-card__meta">
-          <small id="efficiencyMorningMeetingAutoDailySludgeDate">-</small>
-          <span
-            class="efficiency-morning-meeting-auto-card__badge"
-            id="efficiencyMorningMeetingAutoDailySludgeStatus"
-          >조회 대기</span>
-        </div>
-      </header>
-
       <div class="efficiency-morning-meeting-auto-card__body">
-        <div id="efficiencyMorningMeetingAutoDailySludgeEntries">
-          <div class="efficiency-morning-meeting-auto-row">
-            <span>입고 내역</span>
-            <strong>-</strong>
+        <div class="efficiency-morning-meeting-auto-dual-row">
+          <div>
+            <span>저압</span>
+
+            <strong id="efficiencyMorningMeetingAutoDailySteamSalesLowPressure">
+              -
+            </strong>
+          </div>
+
+          <div>
+            <span>고압</span>
+
+            <strong id="efficiencyMorningMeetingAutoDailySteamSalesHighPressure">
+              -
+            </strong>
           </div>
         </div>
 
         <div class="efficiency-morning-meeting-auto-row is-emphasis">
-          <span>총 입고량</span>
-          <strong id="efficiencyMorningMeetingAutoDailySludgeTotal">-</strong>
+          <span>총 증기 판매량</span>
+
+          <strong id="efficiencyMorningMeetingAutoSteamSales">
+            -
+          </strong>
         </div>
 
         <div class="efficiency-morning-meeting-auto-row">
-          <span>입고 차량</span>
-          <strong id="efficiencyMorningMeetingAutoDailySludgeTruckCount">-</strong>
+          <span>증기 생산량 1호기</span>
+
+          <strong id="efficiencyMorningMeetingAutoSteamProductionUnitOne">
+            -
+          </strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>증기 생산량 2호기</span>
+
+          <strong id="efficiencyMorningMeetingAutoSteamProductionUnitTwo">
+            -
+          </strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row is-emphasis">
+          <span>총 증기 생산량</span>
+
+          <strong id="efficiencyMorningMeetingAutoSteamProductionTotal">
+            -
+          </strong>
         </div>
       </div>
     `
   );
 
+  /*
+    유기성 고형연료
+  */
 
   ensureCard(
-    "efficiencyMorningMeetingAutoDailyOrganicCard",
-    "is-water",
+    "efficiencyMorningMeetingAutoDailySludgeCard",
+    "is-organic-fuel",
     `
       <header class="efficiency-morning-meeting-auto-card__header">
         <div>
-          <span>ORGANIC SILO</span>
-          <strong>유기성 사일로</strong>
+          <span>ORGANIC SOLID FUEL</span>
+          <strong>유기성 고형연료</strong>
         </div>
 
         <div class="efficiency-morning-meeting-auto-card__meta">
-          <small id="efficiencyMorningMeetingAutoDailyOrganicDate">-</small>
+          <small id="efficiencyMorningMeetingAutoDailySludgeDate">
+            -
+          </small>
+
           <span
             class="efficiency-morning-meeting-auto-card__badge"
-            id="efficiencyMorningMeetingAutoDailyOrganicStatus"
-          >조회 대기</span>
+            id="efficiencyMorningMeetingAutoDailySludgeStatus"
+          >
+            조회 대기
+          </span>
         </div>
       </header>
 
       <div class="efficiency-morning-meeting-auto-card__body">
+        <div class="efficiency-morning-meeting-auto-row is-emphasis">
+          <span>총 입고량</span>
+
+          <strong id="efficiencyMorningMeetingAutoDailySludgeTotal">
+            -
+          </strong>
+        </div>
+
         <div class="efficiency-morning-meeting-auto-row">
+          <span>입고 차량</span>
+
+          <strong id="efficiencyMorningMeetingAutoDailySludgeTruckCount">
+            -
+          </strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row is-group-start">
           <span>Day Silo</span>
-          <strong id="efficiencyMorningMeetingAutoDailyOrganicDaySilo">-</strong>
+
+          <strong id="efficiencyMorningMeetingAutoDailyOrganicDaySilo">
+            -
+          </strong>
         </div>
 
         <div class="efficiency-morning-meeting-auto-row">
-          <span>Storage Silo A</span>
-          <strong id="efficiencyMorningMeetingAutoDailyOrganicStorageSiloA">-</strong>
+          <span>Storage A</span>
+
+          <strong id="efficiencyMorningMeetingAutoDailyOrganicStorageSiloA">
+            -
+          </strong>
         </div>
 
         <div class="efficiency-morning-meeting-auto-row">
-          <span>Storage Silo B</span>
-          <strong id="efficiencyMorningMeetingAutoDailyOrganicStorageSiloB">-</strong>
+          <span>Storage B</span>
+
+          <strong id="efficiencyMorningMeetingAutoDailyOrganicStorageSiloB">
+            -
+          </strong>
         </div>
 
         <div class="efficiency-morning-meeting-auto-row is-emphasis">
           <span>총 재고량</span>
-          <strong id="efficiencyMorningMeetingAutoDailyOrganicSiloTotal">-</strong>
+
+          <strong id="efficiencyMorningMeetingAutoDailyOrganicSiloTotal">
+            -
+          </strong>
         </div>
       </div>
     `
   );
+
+  /*
+    1·2호기 온도 카드를
+    자동수치 카드 전체 아래로 이동한다.
+  */
+
+  const boilerCard = grid.querySelector(
+    ".efficiency-morning-meeting-boiler-card"
+  );
+
+  if (
+    boilerCard &&
+    grid.lastElementChild !==
+      boilerCard
+  ) {
+    grid.appendChild(boilerCard);
+  }
 
   return card;
 }
@@ -202511,209 +202453,211 @@ function render() {
   }
 
 
-  /* =====================================================
-    화면 요소
-  ====================================================== */
+/* =====================================================
+  화면 요소
+====================================================== */
 
-  function getElements() {
-    return {
-      panel:
-        document.getElementById(
-          "efficiencyMorningMeetingWaterPanel"
-        ),
+function getElements() {
+  return {
+    panel:
+      document.getElementById(
+        "efficiencyMorningMeetingWaterPanel"
+      ),
 
-      loadButton:
-        document.getElementById(
-          "loadEfficiencyMorningMeetingWaterButton"
-        ),
+    loadButton:
+      document.getElementById(
+        "loadEfficiencyMorningMeetingWaterButton"
+      ),
 
-      resetButton:
-        document.getElementById(
-          "resetEfficiencyMorningMeetingButton"
-        ),
+    resetButton:
+      document.getElementById(
+        "resetEfficiencyMorningMeetingButton"
+      ),
 
-      previousButton:
-        document.getElementById(
-          "efficiencyMorningMeetingLimestonePreviousButton"
-        ),
+    previousButton:
+      document.getElementById(
+        "efficiencyMorningMeetingLimestonePreviousButton"
+      ),
 
-      todayButton:
-        document.getElementById(
-          "efficiencyMorningMeetingLimestoneTodayButton"
-        ),
+    todayButton:
+      document.getElementById(
+        "efficiencyMorningMeetingLimestoneTodayButton"
+      ),
 
-      nextButton:
-        document.getElementById(
-          "efficiencyMorningMeetingLimestoneNextButton"
-        ),
+    nextButton:
+      document.getElementById(
+        "efficiencyMorningMeetingLimestoneNextButton"
+      ),
 
-      shiftDate:
-        document.getElementById(
-          "efficiencyMorningMeetingShiftDate"
-        ),
+    shiftDate:
+      document.getElementById(
+        "efficiencyMorningMeetingShiftDate"
+      ),
 
-      waterDate:
-        document.getElementById(
-          "efficiencyMorningMeetingWaterDate"
-        ),
+    waterDate:
+      document.getElementById(
+        "efficiencyMorningMeetingWaterDate"
+      ),
 
-      card:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoSteamCard"
-        ),
+    card:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoSteamCard"
+      ),
 
-      cards: [
-        "efficiencyMorningMeetingAutoDailyPowerCard",
-        "efficiencyMorningMeetingAutoSteamCard",
-        "efficiencyMorningMeetingAutoDailySludgeCard",
-        "efficiencyMorningMeetingAutoDailyOrganicCard"
-      ]
-        .map(
-          id => {
-            return document.getElementById(
-              id
-            );
-          }
-        )
-        .filter(
-          Boolean
-        ),
+    cards: [
+      "efficiencyMorningMeetingAutoDailyPowerCard",
+      "efficiencyMorningMeetingAutoSolarCard",
+      "efficiencyMorningMeetingAutoSteamCard",
+      "efficiencyMorningMeetingAutoDailySludgeCard"
+    ]
+      .map(
+        id =>
+          document.getElementById(
+            id
+          )
+      )
+      .filter(
+        Boolean
+      ),
 
-      date:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoSteamDate"
-        ),
+    date:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoSteamDate"
+      ),
 
-      dates: [
-        "efficiencyMorningMeetingAutoDailyPowerDate",
-        "efficiencyMorningMeetingAutoSteamDate",
-        "efficiencyMorningMeetingAutoDailySludgeDate",
-        "efficiencyMorningMeetingAutoDailyOrganicDate"
-      ]
-        .map(
-          id => {
-            return document.getElementById(
-              id
-            );
-          }
-        )
-        .filter(
-          Boolean
-        ),
+    dates: [
+      "efficiencyMorningMeetingAutoDailyPowerDate",
+      "efficiencyMorningMeetingAutoSolarDate",
+      "efficiencyMorningMeetingAutoSteamDate",
+      "efficiencyMorningMeetingAutoDailySludgeDate"
+    ]
+      .map(
+        id =>
+          document.getElementById(
+            id
+          )
+      )
+      .filter(
+        Boolean
+      ),
 
-      status:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoSteamStatus"
-        ),
+    status:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoSteamStatus"
+      ),
 
-      statuses: [
-        "efficiencyMorningMeetingAutoDailyPowerStatus",
-        "efficiencyMorningMeetingAutoSteamStatus",
-        "efficiencyMorningMeetingAutoDailySludgeStatus",
-        "efficiencyMorningMeetingAutoDailyOrganicStatus"
-      ]
-        .map(
-          id => {
-            return document.getElementById(
-              id
-            );
-          }
-        )
-        .filter(
-          Boolean
-        ),
+    statuses: [
+      "efficiencyMorningMeetingAutoDailyPowerStatus",
+      "efficiencyMorningMeetingAutoSolarStatus",
+      "efficiencyMorningMeetingAutoSteamStatus",
+      "efficiencyMorningMeetingAutoDailySludgeStatus"
+    ]
+      .map(
+        id =>
+          document.getElementById(
+            id
+          )
+      )
+      .filter(
+        Boolean
+      ),
 
-      solarDailyGeneration:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailySolarGeneration"
-        ),
+    solarDailyGeneration:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoDailySolarGeneration"
+      ),
 
-      generatorEcmsGen1:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyGeneratorEcmsGen1"
-        ),
+    solarWeeklyCumulative:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoSolarWeeklyCumulative"
+      ),
 
-      ismartReception:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyIsmartReception"
-        ),
+    solarMonthlyCumulative:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoSolarMonthlyCumulative"
+      ),
 
-      epowerTransmission:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyEpowerTransmission"
-        ),
+    solarYearlyCumulative:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoSolarYearlyCumulative"
+      ),
 
-      steamSalesLowPressure:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailySteamSalesLowPressure"
-        ),
+    generatorEcmsGen1:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoDailyGeneratorEcmsGen1"
+      ),
 
-      steamSalesHighPressure:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailySteamSalesHighPressure"
-        ),
+    ismartReception:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoDailyIsmartReception"
+      ),
 
-      sales:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoSteamSales"
-        ),
+    epowerTransmission:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoDailyEpowerTransmission"
+      ),
 
-      averageSteamSales:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyAverageSteamSales"
-        ),
+    steamSalesLowPressure:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoDailySteamSalesLowPressure"
+      ),
 
-      unitProduction:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoSteamProductionUnits"
-        ),
+    steamSalesHighPressure:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoDailySteamSalesHighPressure"
+      ),
 
-      totalProduction:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoSteamProductionTotal"
-        ),
+    sales:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoSteamSales"
+      ),
 
-      salesRate:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoSteamSalesRate"
-        ),
+    unitOneProduction:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoSteamProductionUnitOne"
+      ),
 
-      sludgeEntries:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailySludgeEntries"
-        ),
+    unitTwoProduction:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoSteamProductionUnitTwo"
+      ),
 
-      sludgeTruckCount:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailySludgeTruckCount"
-        ),
+    totalProduction:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoSteamProductionTotal"
+      ),
 
-      sludgeTotal:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailySludgeTotal"
-        ),
+    sludgeTruckCount:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoDailySludgeTruckCount"
+      ),
 
-      organicDaySilo:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyOrganicDaySilo"
-        ),
+    sludgeTotal:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoDailySludgeTotal"
+      ),
 
-      organicStorageSiloA:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyOrganicStorageSiloA"
-        ),
+    organicDaySilo:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoDailyOrganicDaySilo"
+      ),
 
-      organicStorageSiloB:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyOrganicStorageSiloB"
-        ),
+    organicStorageSiloA:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoDailyOrganicStorageSiloA"
+      ),
 
-      organicSiloTotal:
-        document.getElementById(
-          "efficiencyMorningMeetingAutoDailyOrganicSiloTotal"
-        )
-    };
-  }
+    organicStorageSiloB:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoDailyOrganicStorageSiloB"
+      ),
+
+    organicSiloTotal:
+      document.getElementById(
+        "efficiencyMorningMeetingAutoDailyOrganicSiloTotal"
+      )
+  };
+}
 
   /* =====================================================
     문자열·숫자·날짜
@@ -203489,30 +203433,35 @@ function render() {
     }
 
 
-    /* ===================================================
-      1·2호기 생산량
-    ==================================================== */
 
-    if (
-      elements.unitProduction
-    ) {
-      elements.unitProduction.textContent =
-        hideValues
-          ? "- / -"
-          : [
-              formatAmount(
-                unitOneProduction,
-                ""
-              ),
+/* ===================================================
+  1·2호기 생산량
+==================================================== */
 
-              formatAmount(
-                unitTwoProduction,
-                "ton"
-              )
-            ].join(
-              " / "
-            );
-    }
+if (
+  elements.unitOneProduction
+) {
+  elements.unitOneProduction.textContent =
+    hideValues
+      ? "-"
+      : formatAmount(
+          unitOneProduction,
+          "ton"
+        );
+}
+
+
+if (
+  elements.unitTwoProduction
+) {
+  elements.unitTwoProduction.textContent =
+    hideValues
+      ? "-"
+      : formatAmount(
+          unitTwoProduction,
+          "ton"
+        );
+}
 
 
     /* ===================================================
@@ -207917,139 +207866,168 @@ function ensureStyle() {
   );
 }
 
-  function ensureCard() {
-    const bottomGrid =
-      byId(
-        "efficiencyMorningMeetingAutoBottomGrid"
-      );
+function ensureCard() {
+  const bottomGrid =
+    byId(
+      "efficiencyMorningMeetingAutoBottomGrid"
+    );
 
-    if (
-      !bottomGrid
-    ) {
-      return null;
-    }
-
-    ensureStyle();
-
-    let card =
-      byId(
-        "efficiencyMorningMeetingAutoWeatherCard"
-      );
-
-    if (
-      !card
-    ) {
-      card =
-        document.createElement(
-          "article"
-        );
-
-      card.id =
-        "efficiencyMorningMeetingAutoWeatherCard";
-
-      card.className =
-        "efficiency-morning-meeting-auto-card " +
-        "is-meeting-weather";
-
-      card.innerHTML = `
-        <header class="efficiency-morning-meeting-auto-card__header">
-          <div>
-            <span>
-              WEATHER · SINBUK
-            </span>
-
-            <strong>
-              신북 날씨
-            </strong>
-          </div>
-
-          <div class="efficiency-morning-meeting-auto-card__meta">
-            <small id="efficiencyMorningMeetingAutoWeatherDate">
-              -
-            </small>
-
-            <button
-              type="button"
-              class="efficiency-morning-meeting-auto-card__badge"
-              id="efficiencyMorningMeetingAutoWeatherRefreshButton"
-              title="기상청 날씨누리의 회의일 오전 9시 날씨 다시 조회"
-            >
-              다시 조회
-            </button>
-          </div>
-        </header>
-
-        <div class="efficiency-morning-meeting-auto-card__body">
-          <div class="efficiency-morning-meeting-auto-row">
-            <span>
-              날씨 상태
-            </span>
-
-            <strong id="efficiencyMorningMeetingAutoWeatherCondition">
-              조회 대기
-            </strong>
-          </div>
-
-          <div class="efficiency-morning-meeting-auto-row">
-            <span>
-              기온
-            </span>
-
-            <strong id="efficiencyMorningMeetingAutoWeatherTemperature">
-              -
-            </strong>
-          </div>
-
-          <div class="efficiency-morning-meeting-auto-row is-emphasis">
-            <span>
-              습도
-            </span>
-
-            <strong id="efficiencyMorningMeetingAutoWeatherHumidity">
-              -
-            </strong>
-          </div>
-        </div>
-      `;
-
-      bottomGrid.appendChild(
-        card
-      );
-    }
-
-
-    /*
-      SMP 카드 바로 다음에 배치
-    */
-
-    const smpCard =
-      byId(
-        "efficiencyMorningMeetingAutoSmpCard"
-      );
-
-    if (
-      smpCard?.parentElement ===
-        bottomGrid &&
-      smpCard.nextElementSibling !==
-        card
-    ) {
-      smpCard.insertAdjacentElement(
-        "afterend",
-        card
-      );
-
-    } else if (
-      card.parentElement !==
-        bottomGrid
-    ) {
-      bottomGrid.appendChild(
-        card
-      );
-    }
-
-    return card;
+  if (
+    !bottomGrid
+  ) {
+    return null;
   }
 
+  ensureStyle();
+
+  const layoutVersion =
+    "weather-four-rows-v1";
+
+  let card =
+    byId(
+      "efficiencyMorningMeetingAutoWeatherCard"
+    );
+
+  /*
+    기존 3행 날씨 카드가 남아 있으면
+    새 4행 카드로 다시 생성한다.
+  */
+
+  if (
+    card &&
+    card.dataset.weatherLayoutVersion !==
+      layoutVersion
+  ) {
+    card.remove();
+    card = null;
+  }
+
+  if (
+    !card
+  ) {
+    card =
+      document.createElement(
+        "article"
+      );
+
+    card.id =
+      "efficiencyMorningMeetingAutoWeatherCard";
+
+    card.className =
+      "efficiency-morning-meeting-auto-card " +
+      "is-meeting-weather";
+
+    card.dataset.weatherLayoutVersion =
+      layoutVersion;
+
+    card.innerHTML = `
+      <header class="efficiency-morning-meeting-auto-card__header">
+        <div>
+          <span>
+            WEATHER · SINBUK
+          </span>
+
+          <strong>
+            신북 날씨
+          </strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-card__meta">
+          <small id="efficiencyMorningMeetingAutoWeatherDate">
+            -
+          </small>
+
+          <button
+            type="button"
+            class="efficiency-morning-meeting-auto-card__badge"
+            id="efficiencyMorningMeetingAutoWeatherRefreshButton"
+            title="기상청 날씨누리의 회의일 오전 9시 날씨 다시 조회"
+          >
+            다시 조회
+          </button>
+        </div>
+      </header>
+
+      <div class="efficiency-morning-meeting-auto-card__body">
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>
+            상태
+          </span>
+
+          <strong id="efficiencyMorningMeetingAutoWeatherCondition">
+            조회 대기
+          </strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>
+            기온
+          </span>
+
+          <strong id="efficiencyMorningMeetingAutoWeatherTemperature">
+            -
+          </strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row">
+          <span>
+            최저 / 최고
+          </span>
+
+          <strong id="efficiencyMorningMeetingAutoWeatherMinMax">
+            -
+          </strong>
+        </div>
+
+        <div class="efficiency-morning-meeting-auto-row is-emphasis">
+          <span>
+            습도
+          </span>
+
+          <strong id="efficiencyMorningMeetingAutoWeatherHumidity">
+            -
+          </strong>
+        </div>
+      </div>
+    `;
+
+    bottomGrid.appendChild(
+      card
+    );
+  }
+
+  /*
+    상단 조회 카드 순서:
+    SILO LEVEL → SMP → 신북 날씨
+  */
+
+  const smpCard =
+    byId(
+      "efficiencyMorningMeetingAutoSmpCard"
+    );
+
+  if (
+    smpCard?.parentElement ===
+      bottomGrid &&
+    smpCard.nextElementSibling !==
+      card
+  ) {
+    smpCard.insertAdjacentElement(
+      "afterend",
+      card
+    );
+
+  } else if (
+    card.parentElement !==
+      bottomGrid
+  ) {
+    bottomGrid.appendChild(
+      card
+    );
+  }
+
+  return card;
+}
 
   function setValue(
     id,
@@ -208099,274 +208077,288 @@ function ensureStyle() {
   }
 
 
-  function render() {
-    const card =
-      ensureCard();
+function render() {
+  const card =
+    ensureCard();
 
-    if (
-      !card
-    ) {
-      return;
-    }
+  if (
+    !card
+  ) {
+    return;
+  }
 
-    const meetingDate =
-      getMeetingDate();
+  const meetingDate =
+    getMeetingDate();
 
-    const dateElement =
-      byId(
-        "efficiencyMorningMeetingAutoWeatherDate"
-      );
+  const dateElement =
+    byId(
+      "efficiencyMorningMeetingAutoWeatherDate"
+    );
 
-    if (
-      dateElement
-    ) {
-      dateElement.textContent =
-        isIsoDate(
-          meetingDate
-        )
-          ? `${shortDate(meetingDate)} · ${FORECAST_HOUR}`
-          : "-";
-    }
-
-    if (
-      !isIsoDate(
+  if (
+    dateElement
+  ) {
+    dateElement.textContent =
+      isIsoDate(
         meetingDate
       )
-    ) {
-      setValue(
-        "efficiencyMorningMeetingAutoWeatherCondition",
-        "조회 대기"
-      );
+        ? `${shortDate(meetingDate)} · ${FORECAST_HOUR}`
+        : "-";
+  }
 
-      setValue(
-        "efficiencyMorningMeetingAutoWeatherTemperature",
-        "-"
-      );
+  /*
+    조회 대기·조회 중·조회 실패 상태를
+    날씨 4개 항목에 함께 반영한다.
+  */
 
-      setValue(
-        "efficiencyMorningMeetingAutoWeatherHumidity",
-        "-"
-      );
+  function setWaitingValues(
+    conditionText,
+    color = "",
+    title = ""
+  ) {
+    setValue(
+      "efficiencyMorningMeetingAutoWeatherCondition",
+      conditionText,
+      title,
+      color
+    );
 
-      syncState(
-        "",
-        null
-      );
-
-      return;
-    }
-
-    const item =
-      weatherByDate.get(
-        meetingDate
-      ) ||
-      null;
-
-    const status =
-      statusByDate.get(
-        meetingDate
-      ) ||
-      "idle";
-
-    const errorMessage =
-      errorByDate.get(
-        meetingDate
-      ) ||
-      "";
-
-    const loading =
-      status ===
-      "loading";
-
-    const refreshButton =
-      byId(
-        "efficiencyMorningMeetingAutoWeatherRefreshButton"
-      );
-
-    if (
-      refreshButton
-    ) {
-      refreshButton.disabled =
-        loading;
-
-      refreshButton.textContent =
-        loading
-          ? "조회 중"
-          : "다시 조회";
-    }
-
-
-    if (
-      item &&
-      status ===
-        "complete"
-    ) {
-      const meetingTemperature =
-        Math.round(
-          item.temperature
+    [
+      "efficiencyMorningMeetingAutoWeatherTemperature",
+      "efficiencyMorningMeetingAutoWeatherMinMax",
+      "efficiencyMorningMeetingAutoWeatherHumidity"
+    ].forEach(
+      id => {
+        setValue(
+          id,
+          conditionText ===
+            "조회 중"
+            ? "조회 중"
+            : "-",
+          title,
+          color
         );
+      }
+    );
+  }
 
-      const minimumTemperature =
-        Math.round(
-          item.minimumTemperature
-        );
+  if (
+    !isIsoDate(
+      meetingDate
+    )
+  ) {
+    setWaitingValues(
+      "조회 대기"
+    );
 
-      const maximumTemperature =
-        Math.round(
-          item.maximumTemperature
-        );
+    syncState(
+      "",
+      null
+    );
 
-      const temperatureText =
-        `${meetingTemperature} ` +
-        `(${minimumTemperature}/${maximumTemperature}℃)`;
+    return;
+  }
 
-      const temperatureTitle =
-        `${meetingDate} ${FORECAST_HOUR} 기온 ` +
-        `${meetingTemperature}℃ · ` +
-        `최저 ${minimumTemperature}℃ · ` +
-        `최고 ${maximumTemperature}℃`;
+  const item =
+    weatherByDate.get(
+      meetingDate
+    ) ||
+    null;
 
-      const humidityText =
-        `${Math.round(
-          item.humidity
-        )} %`;
+  const status =
+    statusByDate.get(
+      meetingDate
+    ) ||
+    "idle";
 
+  const errorMessage =
+    errorByDate.get(
+      meetingDate
+    ) ||
+    "";
 
-      setValue(
-        "efficiencyMorningMeetingAutoWeatherCondition",
-        item.condition,
-        `${meetingDate} ${FORECAST_HOUR} ` +
-        `${item.sourceCondition || item.condition}`
-      );
+  const loading =
+    status ===
+    "loading";
 
-      setValue(
-        "efficiencyMorningMeetingAutoWeatherTemperature",
-        temperatureText,
-        temperatureTitle
-      );
+  const refreshButton =
+    byId(
+      "efficiencyMorningMeetingAutoWeatherRefreshButton"
+    );
 
-      setValue(
-        "efficiencyMorningMeetingAutoWeatherHumidity",
-        humidityText,
-        `${meetingDate} ${FORECAST_HOUR} 습도 ${humidityText}`
-      );
+  if (
+    refreshButton
+  ) {
+    refreshButton.disabled =
+      loading;
 
-      card.title =
-        `기상청 날씨누리 · ` +
-        `${meetingDate} ${FORECAST_HOUR} · ` +
-        `${item.condition} · ` +
-        `${temperatureText} · ` +
-        `습도 ${humidityText}`;
-
-      syncState(
-        meetingDate,
-        item
-      );
-
-      return;
-    }
-
-
-    if (
+    refreshButton.textContent =
       loading
-    ) {
-      setValue(
-        "efficiencyMorningMeetingAutoWeatherCondition",
-        "조회 중",
-        `${meetingDate} ${FORECAST_HOUR} 날씨누리 조회 중`,
-        "#64748b"
+        ? "조회 중"
+        : "다시 조회";
+  }
+
+  /*
+    조회 완료
+  */
+
+  if (
+    item &&
+    status ===
+      "complete"
+  ) {
+    const meetingTemperature =
+      Math.round(
+        item.temperature
       );
 
-      setValue(
-        "efficiencyMorningMeetingAutoWeatherTemperature",
-        "조회 중",
-        "",
-        "#64748b"
+    const minimumTemperature =
+      Math.round(
+        item.minimumTemperature
       );
 
-      setValue(
-        "efficiencyMorningMeetingAutoWeatherHumidity",
-        "조회 중",
-        "",
-        "#64748b"
+    const maximumTemperature =
+      Math.round(
+        item.maximumTemperature
       );
 
-      card.title =
-        `${meetingDate} ${FORECAST_HOUR} ` +
-        "신북면 날씨누리 조회 중";
+    const temperatureText =
+      `${meetingTemperature}℃`;
 
-      syncState(
-        meetingDate,
-        null
-      );
+    const minMaxText =
+      `${minimumTemperature} / ` +
+      `${maximumTemperature}℃`;
 
-      return;
-    }
+    const humidityText =
+      `${Math.round(
+        item.humidity
+      )} %`;
 
+    const temperatureTitle =
+      `${meetingDate} ${FORECAST_HOUR} 기온 ` +
+      `${meetingTemperature}℃`;
 
-    if (
-      status ===
-        "error"
-    ) {
-      setValue(
-        "efficiencyMorningMeetingAutoWeatherCondition",
-        "조회 실패",
-        errorMessage,
-        "#b45309"
-      );
-
-      setValue(
-        "efficiencyMorningMeetingAutoWeatherTemperature",
-        "-",
-        errorMessage
-      );
-
-      setValue(
-        "efficiencyMorningMeetingAutoWeatherHumidity",
-        "-",
-        errorMessage
-      );
-
-      card.title =
-        errorMessage ||
-        `${meetingDate} 날씨누리 조회 실패`;
-
-      syncState(
-        meetingDate,
-        null,
-        errorMessage
-      );
-
-      return;
-    }
-
+    const minMaxTitle =
+      `${meetingDate} 최저 ` +
+      `${minimumTemperature}℃ · 최고 ` +
+      `${maximumTemperature}℃`;
 
     setValue(
       "efficiencyMorningMeetingAutoWeatherCondition",
-      "조회 대기",
-      `${meetingDate} ${FORECAST_HOUR} 날씨누리 조회 대기`,
-      "#7c8799"
+      item.condition,
+      `${meetingDate} ${FORECAST_HOUR} ` +
+      `${item.sourceCondition || item.condition}`
     );
 
     setValue(
       "efficiencyMorningMeetingAutoWeatherTemperature",
-      "-"
+      temperatureText,
+      temperatureTitle
+    );
+
+    setValue(
+      "efficiencyMorningMeetingAutoWeatherMinMax",
+      minMaxText,
+      minMaxTitle
     );
 
     setValue(
       "efficiencyMorningMeetingAutoWeatherHumidity",
-      "-"
+      humidityText,
+      `${meetingDate} ${FORECAST_HOUR} 습도 ${humidityText}`
+    );
+
+    card.title =
+      `기상청 날씨누리 · ` +
+      `${meetingDate} ${FORECAST_HOUR} · ` +
+      `${item.condition} · ` +
+      `${temperatureText} · ` +
+      `최저/최고 ${minMaxText} · ` +
+      `습도 ${humidityText}`;
+
+    syncState(
+      meetingDate,
+      item
+    );
+
+    return;
+  }
+
+  /*
+    조회 중
+  */
+
+  if (
+    loading
+  ) {
+    const loadingTitle =
+      `${meetingDate} ${FORECAST_HOUR} ` +
+      "날씨누리 조회 중";
+
+    setWaitingValues(
+      "조회 중",
+      "#64748b",
+      loadingTitle
     );
 
     card.title =
       `${meetingDate} ${FORECAST_HOUR} ` +
-      "신북면 날씨누리 조회 대기";
+      "신북면 날씨누리 조회 중";
 
     syncState(
       meetingDate,
       null
     );
+
+    return;
   }
+
+  /*
+    조회 실패
+  */
+
+  if (
+    status ===
+      "error"
+  ) {
+    setWaitingValues(
+      "조회 실패",
+      "#b45309",
+      errorMessage
+    );
+
+    card.title =
+      errorMessage ||
+      `${meetingDate} 날씨누리 조회 실패`;
+
+    syncState(
+      meetingDate,
+      null,
+      errorMessage
+    );
+
+    return;
+  }
+
+  /*
+    조회 대기
+  */
+
+  setWaitingValues(
+    "조회 대기",
+    "#7c8799",
+    `${meetingDate} ${FORECAST_HOUR} 날씨누리 조회 대기`
+  );
+
+  card.title =
+    `${meetingDate} ${FORECAST_HOUR} ` +
+    "신북면 날씨누리 조회 대기";
+
+  syncState(
+    meetingDate,
+    null
+  );
+}
 
 
   function normalizeApiItem(
@@ -214072,5 +214064,368 @@ function initializeLimestoneSlipCameraPicker() {
 
   } else {
     initializeLimestoneUsageMobileMonitorOnlyMode();
+  }
+})();
+
+/* =========================================================
+  오전회의 자동 수치 미리보기
+  일괄조회 + 실패 카드 개별 다시 조회
+========================================================= */
+
+(function installMorningMeetingAutoRetryButtons() {
+  "use strict";
+
+  if (window.__morningMeetingAutoRetryButtonsInstalled === true) {
+    return;
+  }
+
+  window.__morningMeetingAutoRetryButtonsInstalled = true;
+
+  const BULK_BUTTON_ID =
+    "loadEfficiencyMorningMeetingWaterButton";
+
+  const BULK_BUTTON_LABEL =
+    "OIS 자료 일괄조회";
+
+  let syncTimerId = null;
+
+  const loadDailyData = () => {
+    return window.loadEfficiencyMorningMeetingDailyData?.({
+      forceRefresh: true
+    });
+  };
+
+  const retryItems = [
+    {
+      key: "water",
+      label: "수처리 현황",
+      statusId: "efficiencyMorningMeetingAutoWaterStatus",
+      load: () =>
+        window.loadEfficiencyMorningMeetingWaterTreatment?.({
+          forceRefresh: true
+        })
+    },
+    {
+      key: "limestone",
+      label: "석회석 재고",
+      statusId: "efficiencyMorningMeetingAutoLimestoneStatus",
+      load: () =>
+        window.loadLimestoneOisStock?.()
+    },
+    {
+      key: "gear-pinion",
+      label: "Gear Wheel / Pinion",
+      statusId: "efficiencyMorningMeetingAutoGearPinionStatus",
+      load: () =>
+        window.loadEfficiencyMorningMeetingGearPinion?.({
+          forceRefresh: true
+        })
+    },
+    {
+      key: "silo-level",
+      label: "Silo Level",
+      statusId: "efficiencyMorningMeetingAutoSiloStatus",
+      load: () =>
+        window.loadEfficiencyMorningMeetingSiloLevel?.({
+          forceRefresh: true
+        })
+    },
+    {
+      key: "daily-power",
+      label: "전력 현황",
+      statusId: "efficiencyMorningMeetingAutoDailyPowerStatus",
+      load: loadDailyData
+    },
+    {
+      key: "steam-status",
+      label: "증기 현황",
+      statusId: "efficiencyMorningMeetingAutoSteamStatus",
+      load: loadDailyData
+    },
+    {
+      key: "daily-sludge",
+      label: "하수슬러지 입고",
+      statusId: "efficiencyMorningMeetingAutoDailySludgeStatus",
+      load: loadDailyData
+    },
+    {
+      key: "daily-organic",
+      label: "유기성 사일로",
+      statusId: "efficiencyMorningMeetingAutoDailyOrganicStatus",
+      load: loadDailyData
+    }
+  ];
+
+  function isRetryable(statusElement) {
+    if (
+      !statusElement?.classList.contains(
+        "is-error"
+      )
+    ) {
+      return false;
+    }
+
+    const statusText =
+      String(
+        statusElement.textContent || ""
+      )
+        .replace(/\s+/g, " ")
+        .trim();
+
+    return (
+      statusText.includes("실패") ||
+      statusText.includes("갱신 필요")
+    );
+  }
+
+  async function retryItem(
+    item,
+    button
+  ) {
+    if (button.disabled) {
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = "조회 중";
+
+    try {
+      const result =
+        item.load();
+
+      if (
+        result &&
+        typeof result.then === "function"
+      ) {
+        await result;
+      }
+
+    } catch (error) {
+      console.error(
+        `${item.label} 개별 재조회 실패:`,
+        error
+      );
+
+      if (typeof showToast === "function") {
+        showToast(
+          error?.message ||
+          `${item.label}을 다시 조회하지 못했습니다.`
+        );
+      }
+
+    } finally {
+      button.disabled = false;
+      button.textContent = "다시 조회";
+
+      scheduleSync();
+    }
+  }
+
+  function ensureRetryButton(item) {
+    const statusElement =
+      document.getElementById(
+        item.statusId
+      );
+
+    if (!statusElement) {
+      return;
+    }
+
+    let actionRow =
+      statusElement.closest(
+        ".efficiency-morning-meeting-auto-card__status-actions"
+      );
+
+    if (!actionRow) {
+      actionRow =
+        document.createElement(
+          "div"
+        );
+
+      actionRow.className =
+        "efficiency-morning-meeting-auto-card__status-actions";
+
+      statusElement.parentElement
+        ?.insertBefore(
+          actionRow,
+          statusElement
+        );
+
+      actionRow.appendChild(
+        statusElement
+      );
+    }
+
+    const buttonId =
+      `efficiencyMorningMeetingAutoRetry-${item.key}`;
+
+    let button =
+      document.getElementById(
+        buttonId
+      );
+
+    if (!button) {
+      button =
+        document.createElement(
+          "button"
+        );
+
+      button.type = "button";
+      button.id = buttonId;
+
+      button.className =
+        "efficiency-morning-meeting-auto-card__retry-button";
+
+      button.textContent =
+        "다시 조회";
+
+      button.title =
+        `${item.label}만 다시 조회합니다.`;
+
+      button.setAttribute(
+        "aria-label",
+        `${item.label} 다시 조회`
+      );
+
+      button.addEventListener(
+        "click",
+        event => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          void retryItem(
+            item,
+            button
+          );
+        }
+      );
+
+      actionRow.appendChild(
+        button
+      );
+    }
+
+    button.hidden =
+      !isRetryable(
+        statusElement
+      );
+  }
+
+  function syncBulkButton() {
+    const button =
+      document.getElementById(
+        BULK_BUTTON_ID
+      );
+
+    if (!button) {
+      return;
+    }
+
+    button.title =
+      "수처리·석회석·Gear/Pinion·Silo Level·일일 DATA를 한 번에 조회합니다.";
+
+    /*
+      수처리 조회가 완료되면서 버튼 문구를
+      수처리 전용 문구로 바꾸더라도 다시 복원한다.
+    */
+
+    if (!button.disabled) {
+      button.textContent =
+        BULK_BUTTON_LABEL;
+    }
+
+    /*
+      기존 일괄조회에서 빠져 있던
+      석회석 OIS 조회 추가
+    */
+
+    if (
+      button.dataset
+        .limestoneBulkLookupBound !==
+      "true"
+    ) {
+      button.addEventListener(
+        "click",
+        () => {
+          void window
+            .loadLimestoneOisStock?.();
+        }
+      );
+
+      button.dataset
+        .limestoneBulkLookupBound =
+        "true";
+    }
+  }
+
+  function syncAll() {
+    syncTimerId = null;
+
+    syncBulkButton();
+
+    retryItems.forEach(
+      ensureRetryButton
+    );
+  }
+
+  function scheduleSync() {
+    if (syncTimerId !== null) {
+      return;
+    }
+
+    syncTimerId =
+      window.setTimeout(
+        syncAll,
+        0
+      );
+  }
+
+  function initialize() {
+    const preview =
+      document.getElementById(
+        "efficiencyMorningMeetingAutoPreview"
+      );
+
+    if (!preview) {
+      return;
+    }
+
+    syncAll();
+
+    const observer =
+      new MutationObserver(
+        scheduleSync
+      );
+
+    observer.observe(
+      preview,
+      {
+        attributes: true,
+
+        attributeFilter: [
+          "class",
+          "disabled"
+        ],
+
+        childList: true,
+        characterData: true,
+        subtree: true
+      }
+    );
+  }
+
+  if (
+    document.readyState === "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once: true
+      }
+    );
+
+  } else {
+    initialize();
   }
 })();
