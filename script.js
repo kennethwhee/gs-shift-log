@@ -209256,7 +209256,8 @@ async function decodeLimestoneSlipImage(
 ====================================================== */
 
 function createLimestoneSlipJpegBlob(
-  canvas
+  canvas,
+  quality = 0.86
 ) {
   return new Promise(
     function convertLimestoneSlipCanvas(
@@ -209286,7 +209287,7 @@ function createLimestoneSlipJpegBlob(
         },
 
         "image/jpeg",
-        0.86
+        quality
       );
     }
   );
@@ -209296,9 +209297,10 @@ function createLimestoneSlipJpegBlob(
 /* =====================================================
   OCR용 사진 축소 · 방향 보정
 
-  - 긴 변 최대 1,600px
-  - JPEG 품질 86%
-  - 투명 배경은 흰색으로 처리
+  - 미리보기·보관용 전체 사진: 긴 변 최대 1,600px
+  - OCR용 확대본: 사진 왼쪽 위 중량표 영역을 최대 2,000px로 확대
+  - OCR용 확대본은 흑백·대비 보정 후 JPEG 품질 95%
+  - 전체 사진은 R2 보관용으로 그대로 유지
 ====================================================== */
 
 async function prepareLimestoneSlipImage(
@@ -209306,6 +209308,9 @@ async function prepareLimestoneSlipImage(
 ) {
   const maximumImageSide =
     1600;
+
+  const maximumOcrImageSide =
+    2000;
 
 
   let decodedImage =
@@ -209441,9 +209446,238 @@ async function prepareLimestoneSlipImage(
     );
 
 
-    return await createLimestoneSlipJpegBlob(
-      canvas
+    const previewBlob =
+      await createLimestoneSlipJpegBlob(
+        canvas,
+        0.86
+      );
+
+
+    /*
+      현장 전표사진은 좁은 계량표를 큰 성적서의 왼쪽 위에
+      놓고 촬영하는 형태가 일정하다. 전체 사진만 모델에 보내면
+      작은 중량 숫자가 다시 축소되므로, 총중량·공차중량·실중량
+      표가 있는 왼쪽 위 영역을 별도의 OCR 확대본으로 만든다.
+
+      원본 전체는 previewBlob으로 보관하고, 이 확대본은 OCR에만
+      사용하므로 사진 보관 범위나 미리보기는 바뀌지 않는다.
+    */
+
+    const isPortraitImage =
+      originalHeight >=
+        originalWidth;
+
+    const cropWidthRatio =
+      isPortraitImage
+        ? 0.72
+        : 0.62;
+
+    const cropHeightRatio =
+      isPortraitImage
+        ? 0.56
+        : 0.82;
+
+    const cropWidth =
+      Math.max(
+        1,
+        Math.round(
+          originalWidth *
+            cropWidthRatio
+        )
+      );
+
+    const cropHeight =
+      Math.max(
+        1,
+        Math.round(
+          originalHeight *
+            cropHeightRatio
+        )
+      );
+
+    const ocrResizeRatio =
+      Math.min(
+        4,
+        maximumOcrImageSide /
+          Math.max(
+            cropWidth,
+            cropHeight
+          )
+      );
+
+    const ocrTargetWidth =
+      Math.max(
+        1,
+        Math.round(
+          cropWidth *
+            ocrResizeRatio
+        )
+      );
+
+    const ocrTargetHeight =
+      Math.max(
+        1,
+        Math.round(
+          cropHeight *
+            ocrResizeRatio
+        )
+      );
+
+    const ocrCanvas =
+      document.createElement(
+        "canvas"
+      );
+
+    ocrCanvas.width =
+      ocrTargetWidth;
+
+    ocrCanvas.height =
+      ocrTargetHeight;
+
+    const ocrDrawingContext =
+      ocrCanvas.getContext(
+        "2d",
+        {
+          alpha:
+            false,
+
+          willReadFrequently:
+            true
+        }
+      );
+
+
+    if (
+      !ocrDrawingContext
+    ) {
+      throw new Error(
+        "전표 중량표 확대 화면을 만들지 못했습니다."
+      );
+    }
+
+
+    ocrDrawingContext.fillStyle =
+      "#ffffff";
+
+    ocrDrawingContext.fillRect(
+      0,
+      0,
+      ocrTargetWidth,
+      ocrTargetHeight
     );
+
+    ocrDrawingContext.imageSmoothingEnabled =
+      true;
+
+    ocrDrawingContext.imageSmoothingQuality =
+      "high";
+
+    ocrDrawingContext.drawImage(
+      decodedImage.source,
+      0,
+      0,
+      cropWidth,
+      cropHeight,
+      0,
+      0,
+      ocrTargetWidth,
+      ocrTargetHeight
+    );
+
+
+    /*
+      iPhone 사진의 조명·그림자 차이를 줄이면서 작은 숫자 획을
+      보존한다. 보안 제한 등으로 픽셀 접근이 실패하면 컬러 확대본을
+      그대로 사용하도록 안전하게 되돌아간다.
+    */
+
+    try {
+      const ocrImageData =
+        ocrDrawingContext.getImageData(
+          0,
+          0,
+          ocrTargetWidth,
+          ocrTargetHeight
+        );
+
+      const pixels =
+        ocrImageData.data;
+
+
+      for (
+        let pixelIndex = 0;
+        pixelIndex < pixels.length;
+        pixelIndex += 4
+      ) {
+        const grayscaleValue =
+          pixels[pixelIndex] *
+            0.299 +
+          pixels[pixelIndex + 1] *
+            0.587 +
+          pixels[pixelIndex + 2] *
+            0.114;
+
+        const adjustedValue =
+          Math.max(
+            0,
+            Math.min(
+              255,
+              Math.round(
+                128 +
+                (
+                  grayscaleValue -
+                  128
+                ) *
+                  1.18
+              )
+            )
+          );
+
+        pixels[pixelIndex] =
+          adjustedValue;
+
+        pixels[pixelIndex + 1] =
+          adjustedValue;
+
+        pixels[pixelIndex + 2] =
+          adjustedValue;
+      }
+
+
+      ocrDrawingContext.putImageData(
+        ocrImageData,
+        0,
+        0
+      );
+
+    } catch (
+      enhancementError
+    ) {
+      console.warn(
+        "[Limestone Slip] OCR image enhancement skipped:",
+        enhancementError
+      );
+    }
+
+
+    const ocrBlob =
+      await createLimestoneSlipJpegBlob(
+        ocrCanvas,
+        0.95
+      );
+
+
+    return {
+      previewBlob,
+
+      ocrBlob,
+
+      ocrWidth:
+        ocrTargetWidth,
+
+      ocrHeight:
+        ocrTargetHeight
+    };
 
   } finally {
     if (
@@ -210084,6 +210318,7 @@ function cancelLimestoneSlipOcrRequest() {
 async function requestLimestoneSlipOcr(
   elements,
   preparedImageBlob,
+  ocrImageBlob,
   preparationSequence
 ) {
   const sessionToken =
@@ -210136,11 +210371,28 @@ async function requestLimestoneSlipOcr(
   );
 
 
+  formData.append(
+    "ocrImage",
+    ocrImageBlob,
+    "limestone-slip-ocr-crop.jpg"
+  );
+
+
   const preparedKilobytes =
     Math.max(
       1,
       Math.round(
         preparedImageBlob.size /
+          1024
+      )
+    );
+
+
+  const ocrKilobytes =
+    Math.max(
+      1,
+      Math.round(
+        ocrImageBlob.size /
           1024
       )
     );
@@ -210154,7 +210406,7 @@ async function requestLimestoneSlipOcr(
 
   setLimestoneSlipStatus(
     elements.statusMessage,
-    `사진 준비 완료 (${preparedKilobytes.toLocaleString("ko-KR")} KB) · 실중량을 분석하고 있습니다.`
+    `사진 준비 완료 (원본 ${preparedKilobytes.toLocaleString("ko-KR")} KB · 중량표 확대 ${ocrKilobytes.toLocaleString("ko-KR")} KB) · 실중량을 분석하고 있습니다.`
   );
 
 
@@ -210915,7 +211167,7 @@ limestoneSlipOcrResult =
 
 
   try {
-    const preparedImageBlob =
+    const preparedImages =
       await prepareLimestoneSlipImage(
         imageFile
       );
@@ -210935,18 +211187,19 @@ limestoneSlipOcrResult =
 
 
     limestoneSlipPreparedImageBlob =
-      preparedImageBlob;
+      preparedImages.previewBlob;
 
 
     showLimestoneSlipPreparedPreview(
       elements,
-      preparedImageBlob
+      preparedImages.previewBlob
     );
 
 
 await requestLimestoneSlipOcr(
   elements,
-  preparedImageBlob,
+  preparedImages.previewBlob,
+  preparedImages.ocrBlob,
   preparationSequence
 );
 

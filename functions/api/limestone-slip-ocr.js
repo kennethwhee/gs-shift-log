@@ -511,6 +511,73 @@ function getFirstObjectValue(
 }
 
 
+function getFirstObjectValueDeep(
+  source,
+  propertyNames,
+  depth = 0
+) {
+  const directValue =
+    getFirstObjectValue(
+      source,
+      propertyNames
+    );
+
+
+  if (
+    directValue !==
+      undefined
+  ) {
+    return directValue;
+  }
+
+
+  if (
+    !source ||
+    typeof source !==
+      "object" ||
+    depth >=
+      3
+  ) {
+    return undefined;
+  }
+
+
+  for (
+    const nestedValue of Object.values(
+      source
+    )
+  ) {
+    if (
+      !nestedValue ||
+      typeof nestedValue !==
+        "object"
+    ) {
+      continue;
+    }
+
+
+    const foundValue =
+      getFirstObjectValueDeep(
+        nestedValue,
+        propertyNames,
+        depth +
+          1
+      );
+
+
+    if (
+      foundValue !==
+        undefined
+    ) {
+      return foundValue;
+    }
+  }
+
+
+  return undefined;
+}
+
+
 function parseWeightNumber(
   value
 ) {
@@ -652,6 +719,187 @@ function normalizeWeightKg(
 }
 
 
+function normalizeWeightSequence(
+  source
+) {
+  if (
+    !Array.isArray(
+      source
+    )
+  ) {
+    return [];
+  }
+
+
+  return source
+    .map(
+      item => {
+        if (
+          item &&
+          typeof item ===
+            "object"
+        ) {
+          return normalizeWeightKg(
+            getFirstObjectValueDeep(
+              item,
+              [
+                "kg",
+                "valueKg",
+                "weightKg",
+                "value",
+                "weight",
+                "printedValue"
+              ]
+            )
+          );
+        }
+
+
+        return normalizeWeightKg(
+          item
+        );
+      }
+    )
+    .filter(
+      weightKg =>
+        weightKg !==
+          null
+    );
+}
+
+
+function extractRawKgWeightSequence(
+  answerText
+) {
+  const weights = [];
+
+  const normalizedAnswer =
+    normalizeText(
+      answerText
+    );
+
+  const weightPattern =
+    /(-?\d{1,3}(?:[,.]\d{3})+|-?\d{4,6})\s*(?:kg|㎏)/gi;
+
+
+  for (
+    const match of normalizedAnswer.matchAll(
+      weightPattern
+    )
+  ) {
+    const weightKg =
+      normalizeWeightKg(
+        `${match[1]} kg`
+      );
+
+
+    if (
+      weightKg !==
+        null
+    ) {
+      weights.push(
+        weightKg
+      );
+    }
+  }
+
+
+  return weights;
+}
+
+
+function findValidatedWeightTriple(
+  weights
+) {
+  for (
+    let index = 0;
+    index <=
+      weights.length -
+        3;
+    index +=
+      1
+  ) {
+    const grossKg =
+      weights[index];
+
+    const tareKg =
+      weights[index +
+        1];
+
+    const netKg =
+      weights[index +
+        2];
+
+    const calculatedNetKg =
+      grossKg -
+      tareKg;
+
+
+    if (
+      grossKg >
+        tareKg &&
+      calculatedNetKg >=
+        MIN_QUANTITY_KG &&
+      calculatedNetKg <=
+        MAX_QUANTITY_KG &&
+      Math.abs(
+        calculatedNetKg -
+        netKg
+      ) <=
+        WEIGHT_DIFFERENCE_TOLERANCE_KG
+    ) {
+      return {
+        grossKg,
+        tareKg,
+        netKg
+      };
+    }
+  }
+
+
+  return null;
+}
+
+
+function extractValidatedWeightTriple(
+  answerText,
+  answerObject
+) {
+  const objectSequence =
+    normalizeWeightSequence(
+      getFirstObjectValueDeep(
+        answerObject,
+        [
+          "weightsTopToBottomKg",
+          "weightsKg",
+          "weightValuesKg",
+          "weightRows",
+          "weights"
+        ]
+      )
+    );
+
+  const objectTriple =
+    findValidatedWeightTriple(
+      objectSequence
+    );
+
+
+  if (
+    objectTriple
+  ) {
+    return objectTriple;
+  }
+
+
+  return findValidatedWeightTriple(
+    extractRawKgWeightSequence(
+      answerText
+    )
+  );
+}
+
+
 function extractLabeledWeight(
   answerText,
   labelPattern
@@ -692,7 +940,7 @@ function extractWeightField(
   visiblePropertyNames = []
 ) {
   const objectValue =
-    getFirstObjectValue(
+    getFirstObjectValueDeep(
       answerObject,
       propertyNames
     );
@@ -719,7 +967,7 @@ function extractWeightField(
   */
 
   const visibleValue =
-    getFirstObjectValue(
+    getFirstObjectValueDeep(
       answerObject,
       visiblePropertyNames
     );
@@ -798,7 +1046,7 @@ function parseOcrAnswer(
 
   const confidence =
     normalizeConfidence(
-      getFirstObjectValue(
+      getFirstObjectValueDeep(
         answerObject,
         [
           "confidence",
@@ -810,7 +1058,7 @@ function parseOcrAnswer(
 
   const fullSlipVisible =
     normalizeBoolean(
-      getFirstObjectValue(
+      getFirstObjectValueDeep(
         answerObject,
         [
           "fullSlipVisible",
@@ -820,7 +1068,14 @@ function parseOcrAnswer(
     );
 
 
-  const grossKg =
+  const validatedTriple =
+    extractValidatedWeightTriple(
+      answerText,
+      answerObject
+    );
+
+
+  let grossKg =
     extractWeightField(
       answerText,
       answerObject,
@@ -837,7 +1092,7 @@ function parseOcrAnswer(
     );
 
 
-  const tareKg =
+  let tareKg =
     extractWeightField(
       answerText,
       answerObject,
@@ -854,7 +1109,7 @@ function parseOcrAnswer(
     );
 
 
-  const netKg =
+  let netKg =
     extractWeightField(
       answerText,
       answerObject,
@@ -873,9 +1128,23 @@ function parseOcrAnswer(
     );
 
 
+  if (
+    validatedTriple
+  ) {
+    grossKg =
+      validatedTriple.grossKg;
+
+    tareKg =
+      validatedTriple.tareKg;
+
+    netKg =
+      validatedTriple.netKg;
+  }
+
+
   const printedValue =
     normalizeText(
-      getFirstObjectValue(
+      getFirstObjectValueDeep(
         answerObject,
         [
           "printedValue",
@@ -974,22 +1243,14 @@ function parseOcrAnswer(
       netKg;
 
     recognitionSource =
-      "printed_net";
-
-  } else if (
-    !confidenceIsUsable &&
-    (
-      netKg !==
-        null ||
-      hasGrossAndTare
-    )
-  ) {
-    reasonCode =
-      "low_confidence";
+      validatedTriple
+        ? "validated_three_rows"
+        : "printed_net";
 
   } else if (
     netKg !==
-      null
+      null &&
+    confidenceIsUsable
   ) {
     quantityKg =
       netKg;
@@ -1012,6 +1273,13 @@ function parseOcrAnswer(
   ) {
     reasonCode =
       "invalid_weight_range";
+
+  } else if (
+    netKg !==
+      null
+  ) {
+    reasonCode =
+      "low_confidence";
 
   } else if (
     fullSlipVisible ===
@@ -1040,15 +1308,15 @@ function parseOcrAnswer(
 
 
   const finalConfidence =
-    recognitionSource ===
-      "gross_minus_tare"
+    recognized &&
+    !confidenceIsUsable &&
+    (
+      recognitionSource ===
+        "gross_minus_tare" ||
+      allWeightsAgree
+    )
         ? "medium"
-        : (
-            allWeightsAgree &&
-            !confidenceIsUsable
-              ? "medium"
-              : confidence
-          );
+        : confidence;
 
 
   const recognition = {
@@ -1104,6 +1372,183 @@ function parseOcrAnswer(
         recognition
       )
   };
+}
+
+
+function getRecognitionEvidenceScore(
+  recognition
+) {
+  let score =
+    recognition.recognized
+      ? 100
+      : 0;
+
+
+  for (
+    const fieldName of [
+      "grossKg",
+      "tareKg",
+      "netKg"
+    ]
+  ) {
+    if (
+      recognition[fieldName] !==
+        null
+    ) {
+      score +=
+        10;
+    }
+  }
+
+
+  if (
+    recognition.recognitionSource ===
+      "validated_three_rows"
+  ) {
+    score +=
+      40;
+
+  } else if (
+    recognition.recognitionSource ===
+      "gross_minus_tare"
+  ) {
+    score +=
+      25;
+
+  } else if (
+    recognition.recognitionSource ===
+      "printed_net"
+  ) {
+    score +=
+      15;
+  }
+
+
+  if (
+    recognition.confidence ===
+      "high"
+  ) {
+    score +=
+      3;
+
+  } else if (
+    recognition.confidence ===
+      "medium"
+  ) {
+    score +=
+      2;
+  }
+
+
+  return score;
+}
+
+
+function createMergedOcrRecognition(
+  preferredRecognition,
+  secondaryRecognition
+) {
+  const mergedObject = {
+    grossKg:
+      preferredRecognition.grossKg ??
+      secondaryRecognition.grossKg,
+
+    tareKg:
+      preferredRecognition.tareKg ??
+      secondaryRecognition.tareKg,
+
+    netKg:
+      preferredRecognition.netKg ??
+      secondaryRecognition.netKg,
+
+    printedValue:
+      preferredRecognition.printedValue ||
+      secondaryRecognition.printedValue ||
+      "",
+
+    confidence:
+      [
+        preferredRecognition.confidence,
+        secondaryRecognition.confidence
+      ].includes(
+        "high"
+      )
+        ? "high"
+        : [
+            preferredRecognition.confidence,
+            secondaryRecognition.confidence
+          ].includes(
+            "medium"
+          )
+          ? "medium"
+          : "low"
+  };
+
+
+  return parseOcrAnswer(
+    JSON.stringify(
+      mergedObject
+    )
+  );
+}
+
+
+function mergeOcrRecognitions(
+  primaryRecognition,
+  fallbackRecognition
+) {
+  const candidates = [
+    primaryRecognition,
+    fallbackRecognition,
+    createMergedOcrRecognition(
+      primaryRecognition,
+      fallbackRecognition
+    ),
+    createMergedOcrRecognition(
+      fallbackRecognition,
+      primaryRecognition
+    )
+  ];
+
+
+  if (
+    primaryRecognition.netKg !==
+      null &&
+    fallbackRecognition.netKg !==
+      null &&
+    Math.abs(
+      primaryRecognition.netKg -
+      fallbackRecognition.netKg
+    ) <=
+      WEIGHT_DIFFERENCE_TOLERANCE_KG
+  ) {
+    candidates.push(
+      parseOcrAnswer(
+        JSON.stringify({
+          netKg:
+            primaryRecognition.netKg,
+
+          confidence:
+            "medium"
+        })
+      )
+    );
+  }
+
+
+  return candidates
+    .sort(
+      (
+        left,
+        right
+      ) =>
+        getRecognitionEvidenceScore(
+          right
+        ) -
+        getRecognitionEvidenceScore(
+          left
+        )
+    )[0];
 }
 
 
@@ -1259,6 +1704,11 @@ export async function onRequestPost(
         "image"
       );
 
+    const ocrImageCandidate =
+      formData.get(
+        "ocrImage"
+      );
+
 
     if (
       !imageFile ||
@@ -1278,9 +1728,21 @@ export async function onRequestPost(
     }
 
 
+    const ocrImageFile =
+      ocrImageCandidate &&
+      typeof ocrImageCandidate.arrayBuffer ===
+        "function"
+        ? ocrImageCandidate
+        : imageFile;
+
+
     if (
       normalizeText(
         imageFile.type
+      ).toLowerCase() !==
+        "image/jpeg" ||
+      normalizeText(
+        ocrImageFile.type
       ).toLowerCase() !==
         "image/jpeg"
     ) {
@@ -1300,15 +1762,31 @@ export async function onRequestPost(
     const imageBuffer =
       await imageFile.arrayBuffer();
 
+    const ocrImageBuffer =
+      ocrImageFile ===
+        imageFile
+        ? imageBuffer
+        : await ocrImageFile.arrayBuffer();
+
 
     const imageBytes =
       new Uint8Array(
         imageBuffer
       );
 
+    const ocrImageBytes =
+      ocrImageBuffer ===
+        imageBuffer
+        ? imageBytes
+        : new Uint8Array(
+            ocrImageBuffer
+          );
+
 
     if (
       imageBytes.byteLength <
+        1 ||
+      ocrImageBytes.byteLength <
         1
     ) {
       return jsonResponse(
@@ -1326,6 +1804,8 @@ export async function onRequestPost(
 
     if (
       imageBytes.byteLength >
+        MAX_IMAGE_BYTES ||
+      ocrImageBytes.byteLength >
         MAX_IMAGE_BYTES
     ) {
       return jsonResponse(
@@ -1344,7 +1824,7 @@ export async function onRequestPost(
     const imageDataUri =
       "data:image/jpeg;base64," +
       bytesToBase64(
-        imageBytes
+        ocrImageBytes
       );
 
 
@@ -1363,26 +1843,30 @@ export async function onRequestPost(
               imageDataUri,
 
             question: `
-Focus only on the small, narrow Korean weighing receipt in this photo. Ignore all larger background documents.
+This image is an enlarged crop of the upper part of a Korean weighing receipt.
+Read the three consecutive printed weight values ending in kg, from top to bottom.
+They are normally gross weight, tare weight, and net/actual weight in that order.
 
-Find the printed number on the row labelled "실중량", "실 중 량", "순중량", or "NET WEIGHT". This is the actual/net weight and is usually the third of three consecutive rows ending in kg.
-The Korean label may contain spaces, be faint, or be partly covered by a punched hole. Use the row position to locate it, but do not return the gross-weight or tare-weight row.
-Do not use dates, times, vehicle numbers, phone numbers, registration numbers, or numbers from the papers behind the receipt.
-Treat both comma and dot as thousands separators: 30,920 kg and 30.920 kg both mean 30920 kg.
-If the actual-weight row cannot be identified, return null. Do not guess.
+Copy the digits that are visibly printed. Do not require the Korean labels to be readable.
+Ignore dates, times, vehicle numbers, phone numbers, registration numbers, handwritten numbers, and numbers on background papers.
+Comma and dot can both be thousands separators.
+Do not copy example values and do not guess an unreadable digit.
 
-Return exactly one JSON line with no Markdown:
-{"quantityKg":30920,"printedValue":"30,920 kg","confidence":"high"}
+Return one JSON object only, with these exact keys:
+grossKg, tareKg, netKg, confidence
+
+Each weight must be an integer in kg copied from the image, or null when unreadable.
+confidence must be high, medium, or low.
             `.trim(),
 
             reasoning:
-              true,
+              false,
 
             temperature:
               0,
 
             max_tokens:
-              260,
+              220,
 
             stream:
               false
@@ -1424,15 +1908,30 @@ Return exactly one JSON line with no Markdown:
         answerText
       );
 
+    const primaryRecognition =
+      recognition;
+
+    const primaryFinishReason =
+      normalizeText(
+        aiResult?.finish_reason ??
+        aiResult?.finishReason
+      );
+
 
     let fallbackAnswerText =
       "";
 
+    let fallbackFinishReason =
+      "";
+
+    let fallbackRecognition =
+      null;
+
 
     /*
-      첫 질문에서 한글 라벨을 놓친 경우 한 번만 다시 시도한다.
-      두 번째 질문은 라벨 판독보다 연속된 세 개의 kg 행과
-      총중량 - 공차중량 = 실중량 관계에 집중한다.
+      첫 질문에서 세 중량을 모두 확정하지 못한 경우 한 번만
+      숫자 전사 방식으로 다시 시도한다. 두 시도에서 각각 읽은
+      일부 값도 버리지 않고 합친 뒤 산식으로 최종 검증한다.
     */
 
     if (
@@ -1450,30 +1949,26 @@ Return exactly one JSON line with no Markdown:
                 imageDataUri,
 
               question: `
-Look closely at the small, narrow Korean weighing receipt in this photo. Ignore the larger background documents.
+Transcribe every printed number immediately followed by kg on the enlarged Korean weighing receipt, in top-to-bottom order.
+Copy digits only from the receipt. Ignore all other numbers, Korean labels, dates, times, handwriting, vehicle numbers, phone numbers, and background papers.
+Comma and dot can both be thousands separators.
+Do not calculate missing values and do not guess unreadable digits.
 
-Find the three consecutive weight rows whose printed values end in kg. They normally appear in this order:
-1. gross weight, labelled "총중량" or similar
-2. tare weight, labelled "공차중량", "공차량" or similar
-3. net/actual weight, labelled "실중량", "실 중 량" or similar
+Return one JSON object only with these exact keys:
+weightsTopToBottomKg, confidence
 
-The Korean label may contain spaces, be faint, or be partly covered by a punched hole. In that case, use the row order and verify that grossKg - tareKg equals quantityKg within 100 kg.
-Do not use dates, times, vehicle numbers, phone numbers, registration numbers, or numbers from the larger papers behind the receipt.
-Treat both comma and dot as thousands separators: 30,920 kg and 30.920 kg both mean 30920 kg.
-If the three rows cannot be read consistently, return null values. Do not guess.
-
-Return exactly one JSON line with no Markdown:
-{"grossKg":44620,"tareKg":13700,"quantityKg":30920,"printedValue":"30,920 kg","confidence":"medium"}
+weightsTopToBottomKg must be an array of the visible integer kg values in top-to-bottom order.
+confidence must be high, medium, or low.
               `.trim(),
 
               reasoning:
-                true,
+                false,
 
               temperature:
                 0,
 
               max_tokens:
-                260,
+                220,
 
               stream:
                 false
@@ -1485,22 +1980,28 @@ Return exactly one JSON line with no Markdown:
           normalizeText(
             fallbackAiResult?.answer ??
             fallbackAiResult?.response ??
-            ""
+              ""
           );
 
 
-        const fallbackRecognition =
+        fallbackFinishReason =
+          normalizeText(
+            fallbackAiResult?.finish_reason ??
+            fallbackAiResult?.finishReason
+          );
+
+
+        fallbackRecognition =
           parseOcrAnswer(
             fallbackAnswerText
           );
 
 
-        if (
-          fallbackRecognition.recognized
-        ) {
-          recognition =
-            fallbackRecognition;
-        }
+        recognition =
+          mergeOcrRecognitions(
+            recognition,
+            fallbackRecognition
+          );
 
       } catch (
         fallbackError
@@ -1525,17 +2026,48 @@ Return exactly one JSON line with no Markdown:
           confidence:
             recognition.confidence,
 
-          primaryAnswer:
-            answerText.slice(
-              0,
-              600
-            ),
+          primary: {
+            finishReason:
+              primaryFinishReason,
 
-          fallbackAnswer:
-            fallbackAnswerText.slice(
-              0,
-              600
-            )
+            answerLength:
+              answerText.length,
+
+            grossKg:
+              primaryRecognition.grossKg,
+
+            tareKg:
+              primaryRecognition.tareKg,
+
+            netKg:
+              primaryRecognition.netKg,
+
+            reasonCode:
+              primaryRecognition.reasonCode
+          },
+
+          fallback:
+            fallbackRecognition
+              ? {
+                  finishReason:
+                    fallbackFinishReason,
+
+                  answerLength:
+                    fallbackAnswerText.length,
+
+                  grossKg:
+                    fallbackRecognition.grossKg,
+
+                  tareKg:
+                    fallbackRecognition.tareKg,
+
+                  netKg:
+                    fallbackRecognition.netKg,
+
+                  reasonCode:
+                    fallbackRecognition.reasonCode
+                }
+              : null
         })
       );
     }
