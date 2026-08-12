@@ -94794,6 +94794,16 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     elements?.queryButton;
 
 
+  const forceRefreshInput =
+    elements?.forceRefreshInput;
+
+
+  const forceRefreshLabel =
+    forceRefreshInput?.closest(
+      ".auxiliary-material-force-refresh"
+    );
+
+
   const excelButton =
     elements?.excelImportButton;
 
@@ -94870,6 +94880,46 @@ function prepareAuxiliaryMaterialPcCompactControls() {
 
 
     headingDescription.style.setProperty(
+      "display",
+      "none",
+      "important"
+    );
+  }
+
+
+  /* =====================================================
+    저장자료 강제 재조회 기능 비활성화
+
+    저장자료는 재사용하고 없는 날짜만 OIS에서 조회한다.
+    실수로 전체 기간을 다시 조회하는 상황을 막는다.
+  ====================================================== */
+
+  if (
+    forceRefreshInput
+  ) {
+    forceRefreshInput.checked =
+      false;
+
+
+    forceRefreshInput.disabled =
+      true;
+
+
+    forceRefreshInput.setAttribute(
+      "aria-disabled",
+      "true"
+    );
+  }
+
+
+  if (
+    forceRefreshLabel
+  ) {
+    forceRefreshLabel.hidden =
+      true;
+
+
+    forceRefreshLabel.style.setProperty(
       "display",
       "none",
       "important"
@@ -95607,7 +95657,6 @@ function initializeAuxiliaryMaterialTableViewControls() {
   if (
     !view ||
     !card ||
-    !compactButton ||
     !expandedButton
   ) {
     return;
@@ -95623,24 +95672,33 @@ function initializeAuxiliaryMaterialTableViewControls() {
   }
 
 
-  setAuxiliaryMaterialCompactView(
-    false
+  /*
+    컴팩트 보기 기능 제거
+
+    - 컴팩트 상태 해제
+    - 컴팩트 보기 버튼 삭제
+    - 기본 보기 상태 유지
+  */
+
+  auxiliaryMaterialTableViewState
+    .isCompact =
+    false;
+
+
+  view.classList.remove(
+    "is-compact-view"
   );
 
+
+  compactButton?.remove();
+
+
+  /*
+    크게 보기 기능은 그대로 유지
+  */
 
   setAuxiliaryMaterialExpandedView(
     false
-  );
-
-
-  compactButton.addEventListener(
-    "click",
-    () => {
-      setAuxiliaryMaterialCompactView(
-        !auxiliaryMaterialTableViewState
-          .isCompact
-      );
-    }
   );
 
 
