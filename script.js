@@ -88127,19 +88127,19 @@ function renderAuxiliaryMaterialHistory() {
 
     [
       "is-limestone-usage",
-      "Limestone<br />사용량",
+      "Limestone 사용량",
       "t/d"
     ],
 
     [
       "is-limestone-receipt",
-      "Limestone<br />입고량",
+      "Limestone 입고량",
       "t"
     ],
 
     [
       "is-slurry-flow",
-      "Lime Slurry<br />유량",
+      "Lime Slurry 유량",
       "m³/h"
     ],
 
@@ -88163,7 +88163,7 @@ function renderAuxiliaryMaterialHistory() {
 
     [
       "is-ammonia",
-      "Ammonia<br />일사용량",
+      "Ammonia 일사용량",
       "m³/d"
     ]
   ];
@@ -138765,8 +138765,48 @@ async function analyzeAllMorningMeetingFiles() {
       미리보기 출력
     ==================================================== */
 
+    /* ===================================================
+      미리보기 출력
+    ==================================================== */
+
     renderMorningMeetingAnalysisPreview(
       analysisResults
+    );
+
+
+    /* ===================================================
+      자료 분석 완료 후 일일 DATA 불러오기
+
+      한 번의 조회 결과로:
+      - 전력 현황
+      - 증기 생산·판매
+      - 유기성 고형연료
+      세 카드를 함께 채운다.
+    ==================================================== */
+
+    window.setTimeout(
+      () => {
+        if (
+          typeof window
+            .loadEfficiencyMorningMeetingDailyData !==
+            "function"
+        ) {
+          console.warn(
+            "오전회의 일일 DATA 조회 함수를 확인하지 못했습니다."
+          );
+
+
+          return;
+        }
+
+
+        void window
+          .loadEfficiencyMorningMeetingDailyData({
+            forceRefresh:
+              true
+          });
+      },
+      300
     );
 
 
@@ -214598,286 +214638,229 @@ function initializeLimestoneSlipCameraPicker() {
 })();
 
 /* =========================================================
-  오전회의 취합 - 업무일지 폴더 설정·자동 불러오기
+  오전회의 취합 - 자료별 폴더 설정·자동 불러오기
+
+  - 6개 자료의 폴더를 각각 기억한다.
+  - 각 폴더에서 가장 최근 XLSX 파일 1개를 불러온다.
+  - 기존 선택·드롭 처리 흐름을 그대로 사용한다.
 ========================================================= */
 
-(function initializeMorningMeetingInputFolder() {
+(function initializeMorningMeetingInputFolders() {
   "use strict";
 
-  if (
-    window.__morningMeetingInputFolderInstalled
-  ) {
-    return;
-  }
+  if (window.__morningMeetingInputFolderInstalled) return;
+  window.__morningMeetingInputFolderInstalled = true;
 
-  window.__morningMeetingInputFolderInstalled =
-    true;
-
-  const DB_NAME =
-    "gs-shift-log-file-system-handles";
-
-  const STORE_NAME =
-    "directory-handles";
-
-  const HANDLE_KEY =
-    "efficiency-morning-meeting-input";
+  const DB_NAME = "gs-shift-log-file-system-handles";
+  const STORE_NAME = "directory-handles";
 
   const FILE_TYPES = [
-    [
-      "template",
-      "일일발전현황",
-      "efficiencyMorningMeetingTemplateFile"
-    ],
-    [
-      "coal",
-      "운탄일지",
-      "efficiencyMorningMeetingCoalLogFile"
-    ],
-    [
-      "safety",
-      "안전팀",
-      "efficiencyMorningMeetingSafetyFile"
-    ],
-    [
-      "environment",
-      "환경팀",
-      "efficiencyMorningMeetingEnvironmentFile"
-    ],
-    [
-      "mechanical",
-      "기계팀",
-      "efficiencyMorningMeetingMechanicalFile"
-    ],
-    [
-      "electrical",
-      "전기제어팀",
-      "efficiencyMorningMeetingElectricalFile"
-    ]
+    {
+      key: "template",
+      label: "일일발전현황",
+      inputId: "efficiencyMorningMeetingTemplateFile",
+      cardSelector: "#efficiencyMorningMeetingTemplateCard",
+      pickerId: "mm-input-template",
+      handleKey: "efficiency-morning-meeting-input-template"
+    },
+    {
+      key: "coal",
+      label: "운탄일지",
+      inputId: "efficiencyMorningMeetingCoalLogFile",
+      cardSelector: "#efficiencyMorningMeetingCoalLogCard",
+      pickerId: "mm-input-coal",
+      handleKey: "efficiency-morning-meeting-input-coal"
+    },
+    {
+      key: "safety",
+      label: "안전팀",
+      inputId: "efficiencyMorningMeetingSafetyFile",
+      cardSelector: '[data-morning-meeting-team-card="safety"]',
+      pickerId: "mm-input-safety",
+      handleKey: "efficiency-morning-meeting-input-safety"
+    },
+    {
+      key: "environment",
+      label: "환경팀",
+      inputId: "efficiencyMorningMeetingEnvironmentFile",
+      cardSelector: '[data-morning-meeting-team-card="environment"]',
+      pickerId: "mm-input-environment",
+      handleKey: "efficiency-morning-meeting-input-environment"
+    },
+    {
+      key: "mechanical",
+      label: "기계팀",
+      inputId: "efficiencyMorningMeetingMechanicalFile",
+      cardSelector: '[data-morning-meeting-team-card="mechanical"]',
+      pickerId: "mm-input-mechanical",
+      handleKey: "efficiency-morning-meeting-input-mechanical"
+    },
+    {
+      key: "electrical",
+      label: "전기제어팀",
+      inputId: "efficiencyMorningMeetingElectricalFile",
+      cardSelector: '[data-morning-meeting-team-card="electrical"]',
+      pickerId: "mm-input-electrical",
+      handleKey: "efficiency-morning-meeting-input-electrical"
+    }
   ];
 
-  let directoryHandle =
-    null;
+  const handles = new Map();
+  const permissions = new Map();
+  let loading = false;
 
-
-  function getElements() {
+  function elements() {
     return {
-      selectButton:
-        document.getElementById(
-          "selectEfficiencyMorningMeetingInputFolderButton"
-        ),
-
-      loadButton:
-        document.getElementById(
-          "loadEfficiencyMorningMeetingInputFolderButton"
-        ),
-
-      status:
-        document.getElementById(
-          "efficiencyMorningMeetingInputFolderStatus"
-        ),
-
-      message:
-        document.getElementById(
-          "efficiencyMorningMeetingMessage"
-        ),
-
-      error:
-        document.getElementById(
-          "efficiencyMorningMeetingError"
-        )
+      oldSelect: document.getElementById(
+        "selectEfficiencyMorningMeetingInputFolderButton"
+      ),
+      load: document.getElementById(
+        "loadEfficiencyMorningMeetingInputFolderButton"
+      ),
+      status: document.getElementById(
+        "efficiencyMorningMeetingInputFolderStatus"
+      ),
+      message: document.getElementById(
+        "efficiencyMorningMeetingMessage"
+      ),
+      error: document.getElementById(
+        "efficiencyMorningMeetingError"
+      )
     };
   }
 
-
-  function normalize(
-    value
-  ) {
-    return String(
-      value ||
-      ""
-    )
-      .normalize(
-        "NFKC"
-      )
-      .toLowerCase()
-      .replace(
-        /[\s·ㆍ_()\[\]{}-]+/g,
-        ""
-      );
+  function setMessage(text) {
+    const target = elements().message;
+    if (target) target.textContent = String(text || "");
   }
-
-
-  function showError(
-    message
-  ) {
-    const {
-      error
-    } =
-      getElements();
-
-    if (
-      !error
-    ) {
-      return;
-    }
-
-    error.textContent =
-      String(
-        message ||
-        "폴더를 확인해 주세요."
-      );
-
-    error.hidden =
-      false;
-  }
-
 
   function hideError() {
-    const {
-      error
-    } =
-      getElements();
+    const target = elements().error;
+    if (!target) return;
 
-    if (
-      !error
-    ) {
-      return;
-    }
-
-    error.textContent =
-      "";
-
-    error.hidden =
-      true;
+    target.textContent = "";
+    target.hidden = true;
   }
 
+  function showError(text) {
+    const target = elements().error;
+    if (!target) return;
 
-  function setMessage(
-    message
-  ) {
-    const {
-      message:
-        target
-    } =
-      getElements();
+    target.textContent = String(
+      text || "폴더를 확인해 주세요."
+    );
 
-    if (
-      target
-    ) {
-      target.textContent =
-        String(
-          message ||
-          ""
-        );
-    }
+    target.hidden = false;
   }
-
 
   function openDatabase() {
-    return new Promise(
-      (
-        resolve,
-        reject
-      ) => {
-        const request =
-          indexedDB.open(
-            DB_NAME,
-            1
-          );
+    return new Promise((resolve, reject) => {
+      const request =
+        indexedDB.open(
+          DB_NAME,
+          1
+        );
 
-        request.onupgradeneeded =
-          () => {
-            if (
-              !request.result
-                .objectStoreNames
-                .contains(
-                  STORE_NAME
-                )
-            ) {
-              request.result
-                .createObjectStore(
-                  STORE_NAME
-                );
-            }
-          };
-
-        request.onsuccess =
-          () => {
-            resolve(
-              request.result
+      request.onupgradeneeded = () => {
+        if (
+          !request.result
+            .objectStoreNames
+            .contains(
+              STORE_NAME
+            )
+        ) {
+          request.result
+            .createObjectStore(
+              STORE_NAME
             );
-          };
+        }
+      };
 
-        request.onerror =
-          () => {
-            reject(
-              request.error
-            );
-          };
-      }
-    );
+      request.onsuccess = () => {
+        resolve(
+          request.result
+        );
+      };
+
+      request.onerror = () => {
+        reject(
+          request.error
+        );
+      };
+    });
   }
 
-
-  async function readStoredHandle() {
+  async function readStoredHandles() {
     let database;
 
     try {
       database =
         await openDatabase();
 
-      return await new Promise(
-        (
-          resolve,
-          reject
-        ) => {
-          const request =
-            database
-              .transaction(
-                STORE_NAME,
-                "readonly"
-              )
-              .objectStore(
-                STORE_NAME
-              )
-              .get(
-                HANDLE_KEY
-              );
+      const store =
+        database
+          .transaction(
+            STORE_NAME,
+            "readonly"
+          )
+          .objectStore(
+            STORE_NAME
+          );
 
-          request.onsuccess =
-            () => {
-              resolve(
-                request.result ||
-                null
-              );
-            };
+      await Promise.all(
+        FILE_TYPES.map(
+          config => {
+            return new Promise(
+              (
+                resolve,
+                reject
+              ) => {
+                const request =
+                  store.get(
+                    config.handleKey
+                  );
 
-          request.onerror =
-            () => {
-              reject(
-                request.error
-              );
-            };
-        }
+                request.onsuccess =
+                  () => {
+                    if (
+                      request.result
+                    ) {
+                      handles.set(
+                        config.key,
+                        request.result
+                      );
+                    }
+
+                    resolve();
+                  };
+
+                request.onerror =
+                  () => {
+                    reject(
+                      request.error
+                    );
+                  };
+              }
+            );
+          }
+        )
       );
 
     } catch (
       error
     ) {
       console.warn(
-        "오전회의 폴더 정보 불러오기 실패:",
+        "오전회의 자료별 폴더 복원 실패:",
         error
       );
-
-      return null;
 
     } finally {
       database?.close();
     }
   }
 
-
   async function storeHandle(
+    config,
     handle
   ) {
     const database =
@@ -214901,7 +214884,7 @@ function initializeLimestoneSlipCameraPicker() {
             )
             .put(
               handle,
-              HANDLE_KEY
+              config.handleKey
             );
 
           transaction.oncomplete =
@@ -214921,58 +214904,409 @@ function initializeLimestoneSlipCameraPicker() {
     }
   }
 
-
-  async function verifyReadPermission(
+  async function queryPermission(
     handle
   ) {
     if (
-      await handle.queryPermission() ===
-      "granted"
+      !handle ||
+      typeof handle.queryPermission !==
+        "function"
+    ) {
+      return "denied";
+    }
+
+    try {
+      return await handle.queryPermission({
+        mode:
+          "read"
+      });
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "폴더 읽기 권한 확인 실패:",
+        error
+      );
+
+      return "prompt";
+    }
+  }
+
+  async function requestPermission(
+    handle
+  ) {
+    if (
+      await queryPermission(
+        handle
+      ) === "granted"
     ) {
       return true;
     }
 
-    return await handle.requestPermission() ===
-      "granted";
-  }
-
-
-  function renderFolderStatus(
-    detail =
-      ""
-  ) {
-    const {
-      loadButton,
-      status
-    } =
-      getElements();
-
     if (
-      loadButton
+      typeof handle?.requestPermission !==
+        "function"
     ) {
-      loadButton.disabled =
-        !directoryHandle;
+      return false;
     }
 
+    return (
+      await handle.requestPermission({
+        mode:
+          "read"
+      })
+    ) === "granted";
+  }
+
+  function folderButton(
+    config
+  ) {
+    return document.querySelector(
+      `[data-morning-meeting-folder-button="${config.key}"]`
+    );
+  }
+
+  function folderName(
+    config
+  ) {
+    return document.querySelector(
+      `[data-morning-meeting-folder-name="${config.key}"]`
+    );
+  }
+
+  function installFolderControl(
+    config
+  ) {
+    const card =
+      document.querySelector(
+        config.cardSelector
+      );
+
     if (
-      !status
+      !card
     ) {
       return;
     }
 
-    status.textContent =
-      directoryHandle
-        ? `${directoryHandle.name}${detail}`
-        : "폴더 미설정";
+    let shell =
+      card.closest(
+        ".efficiency-morning-meeting-upload-shell"
+      );
 
-    status.title =
-      directoryHandle
-        ? `불러오기 폴더: ${directoryHandle.name}`
-        : "불러오기 폴더가 설정되지 않았습니다.";
+    if (
+      !shell
+    ) {
+      shell =
+        document.createElement(
+          "div"
+        );
+
+      shell.className =
+        "efficiency-morning-meeting-upload-shell";
+
+      card.parentNode.insertBefore(
+        shell,
+        card
+      );
+
+      shell.appendChild(
+        card
+      );
+    }
+
+    if (
+      shell.querySelector(
+        `[data-morning-meeting-folder-row="${config.key}"]`
+      )
+    ) {
+      return;
+    }
+
+    const row =
+      document.createElement(
+        "div"
+      );
+
+    row.className =
+      "efficiency-morning-meeting-folder-row";
+
+    row.dataset
+      .morningMeetingFolderRow =
+      config.key;
+
+    const button =
+      document.createElement(
+        "button"
+      );
+
+    button.type =
+      "button";
+
+    button.className =
+      "efficiency-morning-meeting-folder-button";
+
+    button.dataset
+      .morningMeetingFolderButton =
+      config.key;
+
+    button.textContent =
+      "폴더 설정";
+
+    button.addEventListener(
+      "click",
+      () => {
+        void chooseOrAuthorizeFolder(
+          config
+        );
+      }
+    );
+
+    const name =
+      document.createElement(
+        "span"
+      );
+
+    name.className =
+      "efficiency-morning-meeting-folder-name";
+
+    name.dataset
+      .morningMeetingFolderName =
+      config.key;
+
+    name.textContent =
+      "폴더 미설정";
+
+    row.append(
+      button,
+      name
+    );
+
+    shell.appendChild(
+      row
+    );
   }
 
+  function renderFolder(
+    config
+  ) {
+    const handle =
+      handles.get(
+        config.key
+      );
 
-  async function listXlsxFiles(
+    const permission =
+      permissions.get(
+        config.key
+      ) ||
+      "prompt";
+
+    const button =
+      folderButton(
+        config
+      );
+
+    const name =
+      folderName(
+        config
+      );
+
+    if (
+      button
+    ) {
+      button.disabled =
+        loading;
+
+      button.classList.toggle(
+        "is-selected",
+        Boolean(
+          handle
+        ) &&
+        permission ===
+          "granted"
+      );
+
+      button.classList.toggle(
+        "has-permission-warning",
+        Boolean(
+          handle
+        ) &&
+        permission !==
+          "granted"
+      );
+
+      button.textContent =
+        !handle
+          ? "폴더 설정"
+          : permission ===
+              "granted"
+            ? "폴더 변경"
+            : "다시 설정";
+
+      button.title =
+        !handle
+          ? `${config.label} 자료 폴더를 설정합니다.`
+          : permission ===
+              "granted"
+            ? `${config.label}: ${handle.name}`
+            : `${handle.name} 폴더를 다시 선택해 권한을 연결합니다.`;
+    }
+
+    if (
+      name
+    ) {
+      name.textContent =
+        handle
+          ? handle.name
+          : "폴더 미설정";
+
+      name.title =
+        handle
+          ? `${config.label} 폴더: ${handle.name}`
+          : `${config.label} 폴더가 설정되지 않았습니다.`;
+
+      name.classList.toggle(
+        "has-permission-warning",
+        Boolean(
+          handle
+        ) &&
+        permission !==
+          "granted"
+      );
+    }
+  }
+
+  function render() {
+    const {
+      load,
+      status
+    } =
+      elements();
+
+    const count =
+      FILE_TYPES.filter(
+        config => {
+          return handles.has(
+            config.key
+          );
+        }
+      ).length;
+
+    if (
+      load
+    ) {
+      load.disabled =
+        loading ||
+        count ===
+          0;
+
+      load.textContent =
+        loading
+          ? "불러오는 중"
+          : "6개 불러오기";
+
+      load.title =
+        count ===
+          0
+          ? "먼저 각 카드에서 폴더를 설정해 주세요."
+          : `설정된 ${count}개 폴더에서 최신 엑셀 파일을 불러옵니다.`;
+    }
+
+    if (
+      status
+    ) {
+      status.textContent =
+        `폴더 ${count} / 6`;
+
+      status.title =
+        FILE_TYPES.map(
+          config => {
+            return (
+              `${config.label}: ` +
+              `${handles.get(config.key)?.name || "미설정"}`
+            );
+          }
+        ).join(
+          "\n"
+        );
+    }
+
+    FILE_TYPES.forEach(
+      renderFolder
+    );
+  }
+
+  async function chooseOrAuthorizeFolder(
+    config
+  ) {
+    hideError();
+
+    try {
+      const selected =
+        await window.showDirectoryPicker({
+          id:
+            config.pickerId,
+
+          mode:
+            "read"
+        });
+
+      handles.set(
+        config.key,
+        selected
+      );
+
+      permissions.set(
+        config.key,
+        "granted"
+      );
+
+      render();
+
+      try {
+        await storeHandle(
+          config,
+          selected
+        );
+
+      } catch (
+        error
+      ) {
+        console.warn(
+          `${config.label} 폴더 기억 실패:`,
+          error
+        );
+      }
+
+      setMessage(
+        `${config.label}: ${selected.name} 폴더가 설정되었습니다.`
+      );
+
+    } catch (
+      error
+    ) {
+      if (
+        error?.name ===
+          "AbortError"
+      ) {
+        return;
+      }
+
+      console.error(
+        `${config.label} 폴더 설정 실패:`,
+        error
+      );
+
+      showError(
+        error?.message ||
+        `${config.label} 폴더를 설정하지 못했습니다.`
+      );
+
+      render();
+    }
+  }
+
+  async function latestXlsx(
     handle
   ) {
     const files =
@@ -215006,296 +215340,104 @@ function initializeLimestoneSlipCameraPicker() {
       );
     }
 
-    return files;
-  }
-
-
-  function workbookSearchText(
-    workbook,
-    fileName
-  ) {
-    const parts = [
-      fileName,
-      ...workbook.SheetNames
-    ];
-
-    workbook.SheetNames.forEach(
-      sheetName => {
-        const rows =
-          XLSX.utils.sheet_to_json(
-            workbook.Sheets[
-              sheetName
-            ],
-            {
-              header:
-                1,
-
-              defval:
-                "",
-
-              raw:
-                false,
-
-              blankrows:
-                false
-            }
-          );
-
-        rows
-          .slice(
-            0,
-            180
+    files.sort(
+      (
+        first,
+        second
+      ) => {
+        return (
+          Number(
+            second.lastModified ||
+            0
+          ) -
+            Number(
+              first.lastModified ||
+              0
+            ) ||
+          String(
+            second.name ||
+            ""
+          ).localeCompare(
+            String(
+              first.name ||
+              ""
+            ),
+            "ko-KR"
           )
-          .forEach(
-            row => {
-              parts.push(
-                (
-                  Array.isArray(
-                    row
-                  )
-                    ? row.slice(
-                        0,
-                        40
-                      )
-                    : []
-                ).join(
-                  " "
-                )
-              );
-            }
-          );
+        );
       }
     );
 
-    return normalize(
-      parts.join(
-        " "
-      )
-    );
+    return files[
+      0
+    ] ||
+    null;
   }
 
-
-  async function inspectFile(
-    file
+  function prepareState(
+    selectedFiles
   ) {
-    const workbook =
-      XLSX.read(
-        await file.arrayBuffer(),
-        {
-          type:
-            "array",
+    const state =
+      window
+        .efficiencyMorningMeetingUploadState ||
+      {
+        files:
+          {},
 
-          cellFormula:
-            true,
-
-          cellDates:
-            false
-        }
-      );
-
-    const fileName =
-      normalize(
-        file.name
-      );
-
-    const content =
-      workbookSearchText(
-        workbook,
-        file.name
-      );
-
-    const scores = {
-      template:
-        0,
-
-      coal:
-        0,
-
-      safety:
-        0,
-
-      environment:
-        0,
-
-      mechanical:
-        0,
-
-      electrical:
-        0
-    };
+        analysis:
+          {}
+      };
 
     if (
-      fileName.includes(
-        "일일발전"
-      )
+      !state.files ||
+      typeof state.files !==
+        "object"
     ) {
-      scores.template +=
-        500;
+      state.files =
+        {};
     }
+
+    state.analysis =
+      {};
 
     if (
-      content.includes(
-        "일일발전운전현황"
-      ) ||
-      content.includes(
-        "일일발전운영현황"
+      selectedFiles.has(
+        "coal"
       )
     ) {
-      scores.template +=
-        400;
+      state.coalLogFiles =
+        [];
+
+      state.coalLogFile =
+        null;
+
+      state.coalSelection =
+        null;
+
+      state.coalAnalysisResults =
+        [];
     }
 
-    if (
-      fileName.includes(
-        "운탄"
-      )
-    ) {
-      scores.coal +=
-        500;
-    }
-
-    if (
-      content.includes(
-        "연료설비운전일지"
-      )
-    ) {
-      scores.coal +=
-        600;
-    }
-
-    const teamRules = [
-      [
-        "safety",
-        [
-          "안전팀"
-        ]
-      ],
-      [
-        "environment",
-        [
-          "환경팀"
-        ]
-      ],
-      [
-        "mechanical",
-        [
-          "기계팀"
-        ]
-      ],
-      [
-        "electrical",
-        [
-          "전기제어팀",
-          "전기제어"
-        ]
-      ]
-    ];
-
-    let matchedTeamCount =
-      0;
-
-    teamRules.forEach(
-      ([
-        key,
-        names
-      ]) => {
-        if (
-          names.some(
-            name => {
-              return fileName.includes(
-                normalize(
-                  name
-                )
-              );
-            }
-          )
-        ) {
-          scores[
-            key
-          ] +=
-            500;
-        }
-
-        if (
-          names.some(
-            name => {
-              return content.includes(
-                normalize(
-                  name
-                )
-              );
-            }
-          )
-        ) {
-          scores[
-            key
-          ] +=
-            120;
-
-          matchedTeamCount +=
-            1;
-        }
-      }
-    );
-
-    if (
-      matchedTeamCount >=
-        3 &&
-      content.includes(
-        "설비운영팀"
-      )
-    ) {
-      scores.template +=
-        350;
-    }
-
-    const [
-      type,
-      score
-    ] =
-      Object.entries(
-        scores
-      )
-        .sort(
-          (
-            first,
-            second
-          ) => {
-            return (
-              second[1] -
-              first[1]
-            );
-          }
-        )[0];
-
-    return {
-      file,
-
-      type:
-        score >
-          0
-          ? type
-          : "",
-
-      score
-    };
+    window.efficiencyMorningMeetingUploadState =
+      state;
   }
 
-
-  function applyFileToInput(
-    inputId,
+  function applyFile(
+    config,
     file
   ) {
     const input =
       document.getElementById(
-        inputId
+        config.inputId
       );
 
     if (
       !input ||
       !file
     ) {
-      return;
+      throw new Error(
+        `${config.label} 파일 입력칸을 찾지 못했습니다.`
+      );
     }
 
     const transfer =
@@ -215304,6 +215446,9 @@ function initializeLimestoneSlipCameraPicker() {
     transfer.items.add(
       file
     );
+
+    input.value =
+      "";
 
     input.files =
       transfer.files;
@@ -215319,299 +215464,169 @@ function initializeLimestoneSlipCameraPicker() {
     );
   }
 
-
-  async function chooseFolder() {
-    hideError();
-
-    try {
-      directoryHandle =
-        await window.showDirectoryPicker({
-          id:
-            "efficiency-morning-meeting-input",
-
-          mode:
-            "read"
-        });
-
-      await storeHandle(
-        directoryHandle
-      );
-
-      renderFolderStatus();
-
-      setMessage(
-        `${directoryHandle.name} 폴더가 설정되었습니다.`
-      );
-
-    } catch (
-      error
-    ) {
-      if (
-        error?.name ===
-        "AbortError"
-      ) {
-        return;
-      }
-
-      console.error(
-        "오전회의 폴더 설정 실패:",
-        error
-      );
-
-      showError(
-        "불러오기 폴더를 설정하지 못했습니다."
-      );
-    }
-  }
-
-
-  async function loadFolder() {
-    const {
-      loadButton,
-      status
-    } =
-      getElements();
-
+  async function loadFolders() {
     if (
-      !directoryHandle
+      loading
     ) {
-      showError(
-        "먼저 경로를 설정해 주세요."
-      );
-
       return;
     }
 
-    const originalText =
-      loadButton?.textContent ||
-      "불러오기";
-
-    if (
-      loadButton
-    ) {
-      loadButton.disabled =
-        true;
-
-      loadButton.textContent =
-        "확인 중";
-    }
-
-    if (
-      status
-    ) {
-      status.textContent =
-        "파일 확인 중";
-    }
+    loading =
+      true;
 
     hideError();
+    render();
+
+    const selectedFiles =
+      new Map();
+
+    const failures =
+      [];
 
     try {
-      if (
-        !await verifyReadPermission(
-          directoryHandle
-        )
-      ) {
-        throw new Error(
-          "선택한 폴더를 읽을 권한이 없습니다."
-        );
-      }
-
-      if (
-        typeof XLSX ===
-        "undefined"
-      ) {
-        throw new Error(
-          "엑셀 분석 라이브러리를 불러오지 못했습니다."
-        );
-      }
-
-      const xlsxFiles =
-        await listXlsxFiles(
-          directoryHandle
-        );
-
-      if (
-        !xlsxFiles.length
-      ) {
-        throw new Error(
-          "선택한 폴더에 XLSX 파일이 없습니다."
-        );
-      }
-
-      const inspected =
-        [];
-
       for (
-        const file
-        of xlsxFiles
+        const config
+        of FILE_TYPES
       ) {
+        const handle =
+          handles.get(
+            config.key
+          );
+
+        if (
+          !handle
+        ) {
+          failures.push(
+            `${config.label}(폴더 미설정)`
+          );
+
+          continue;
+        }
+
         try {
-          inspected.push(
-            await inspectFile(
-              file
-            )
+          const granted =
+            await requestPermission(
+              handle
+            );
+
+          permissions.set(
+            config.key,
+            granted
+              ? "granted"
+              : "denied"
+          );
+
+          if (
+            !granted
+          ) {
+            failures.push(
+              `${config.label}(권한 필요)`
+            );
+
+            continue;
+          }
+
+          const file =
+            await latestXlsx(
+              handle
+            );
+
+          if (
+            !file
+          ) {
+            failures.push(
+              `${config.label}(XLSX 없음)`
+            );
+
+            continue;
+          }
+
+          selectedFiles.set(
+            config.key,
+            file
           );
 
         } catch (
           error
         ) {
           console.warn(
-            `${file.name} 파일 분류 실패:`,
+            `${config.label} 자동 불러오기 실패:`,
             error
           );
+
+          permissions.set(
+            config.key,
+            await queryPermission(
+              handle
+            )
+          );
+
+          failures.push(
+            `${config.label}(${error?.message || "확인 실패"})`
+          );
         }
       }
 
-      const selected =
-        {};
-
-      FILE_TYPES.forEach(
-        ([
-          key
-        ]) => {
-          const candidates =
-            inspected
-              .filter(
-                item => {
-                  return item.type ===
-                    key;
-                }
-              )
-              .sort(
-                (
-                  first,
-                  second
-                ) => {
-                  return (
-                    second.score -
-                      first.score ||
-                    Number(
-                      second.file
-                        .lastModified ||
-                      0
-                    ) -
-                      Number(
-                        first.file
-                          .lastModified ||
-                        0
-                      )
-                  );
-                }
-              );
-
-          selected[
-            key
-          ] =
-            candidates[0]
-              ?.file ||
-            null;
-        }
-      );
-
-      const missing =
-        FILE_TYPES.filter(
-          ([
-            key
-          ]) => {
-            return !selected[
-              key
-            ];
-          }
-        );
-
       if (
-        missing.length
+        selectedFiles.size ===
+          0
       ) {
         throw new Error(
-          `찾지 못한 자료: ${missing
-            .map(
-              ([
-                ,
-                label
-              ]) => {
-                return label;
-              }
-            )
-            .join(
-              ", "
-            )}`
+          failures.length
+            ? `불러올 자료가 없습니다. ${failures.join(", ")}`
+            : "불러올 자료가 없습니다."
         );
       }
 
-      const state =
-        window
-          .efficiencyMorningMeetingUploadState ||
-        {};
-
-      state.analysis =
-        {};
-
-      state.coalLogFiles =
-        [];
-
-      state.coalLogFile =
-        null;
-
-      state.coalSelection =
-        null;
-
-      state.coalAnalysisResults =
-        [];
-
-      window.efficiencyMorningMeetingUploadState =
-        state;
+      prepareState(
+        selectedFiles
+      );
 
       FILE_TYPES.forEach(
-        ([
-          key,
-          ,
-          inputId
-        ]) => {
-          applyFileToInput(
-            inputId,
-            selected[
-              key
-            ]
-          );
+        config => {
+          const file =
+            selectedFiles.get(
+              config.key
+            );
+
+          if (
+            file
+          ) {
+            applyFile(
+              config,
+              file
+            );
+          }
         }
-      );
-
-      renderFolderStatus(
-        " · 6개"
-      );
-
-      if (
-        status
-      ) {
-        status.title =
-          FILE_TYPES.map(
-            ([
-              key,
-              label
-            ]) => {
-              return (
-                `${label}: ` +
-                `${selected[key].name}`
-              );
-            }
-          ).join(
-            "\n"
-          );
-      }
-
-      setMessage(
-        "지정 폴더에서 오전회의 자료 6개를 불러왔습니다. 자료 분석을 눌러주세요."
       );
 
       window
         .updateEfficiencyMorningMeetingUploadSummary
         ?.();
 
+      if (
+        failures.length ===
+          0
+      ) {
+        setMessage(
+          "각 폴더에서 오전회의 자료 6개를 불러왔습니다. 자료 분석을 눌러주세요."
+        );
+
+      } else {
+        setMessage(
+          `${selectedFiles.size}개 불러오기 완료 · 확인 필요: ${failures.join(", ")}`
+        );
+
+        showError(
+          `일부 자료를 불러오지 못했습니다: ${failures.join(", ")}`
+        );
+      }
+
     } catch (
       error
     ) {
       console.error(
-        "오전회의 폴더 불러오기 실패:",
+        "오전회의 자료별 폴더 불러오기 실패:",
         error
       );
 
@@ -215620,35 +215635,37 @@ function initializeLimestoneSlipCameraPicker() {
         "업무일지를 불러오지 못했습니다."
       );
 
-      renderFolderStatus();
-
     } finally {
-      if (
-        loadButton
-      ) {
-        loadButton.disabled =
-          !directoryHandle;
+      loading =
+        false;
 
-        loadButton.textContent =
-          originalText;
-      }
+      render();
     }
   }
 
-
   async function initialize() {
     const {
-      selectButton,
-      loadButton
+      oldSelect,
+      load
     } =
-      getElements();
+      elements();
 
     if (
-      !selectButton ||
-      !loadButton
+      !load
     ) {
       return;
     }
+
+    /*
+      기존 한 폴더용 버튼 대신
+      카드별 폴더 버튼을 만든다.
+    */
+
+    oldSelect?.remove();
+
+    FILE_TYPES.forEach(
+      installFolderControl
+    );
 
     if (
       typeof window.showDirectoryPicker !==
@@ -215656,34 +215673,67 @@ function initializeLimestoneSlipCameraPicker() {
       typeof window.indexedDB ===
         "undefined"
     ) {
-      selectButton.disabled =
+      load.disabled =
         true;
 
-      loadButton.disabled =
-        true;
+      load.title =
+        "현재 브라우저는 폴더 자동 불러오기를 지원하지 않습니다.";
 
-      selectButton.title =
-        "현재 브라우저는 폴더 선택을 지원하지 않습니다.";
+      FILE_TYPES.forEach(
+        config => {
+          const button =
+            folderButton(
+              config
+            );
+
+          if (
+            !button
+          ) {
+            return;
+          }
+
+          button.disabled =
+            true;
+
+          button.title =
+            "현재 브라우저는 폴더 선택을 지원하지 않습니다.";
+        }
+      );
 
       return;
     }
 
-    directoryHandle =
-      await readStoredHandle();
+    await readStoredHandles();
 
-    renderFolderStatus();
+    await Promise.all(
+      FILE_TYPES.map(
+        async config => {
+          const handle =
+            handles.get(
+              config.key
+            );
 
-    selectButton.addEventListener(
-      "click",
-      chooseFolder
+          if (
+            handle
+          ) {
+            permissions.set(
+              config.key,
+              await queryPermission(
+                handle
+              )
+            );
+          }
+        }
+      )
     );
 
-    loadButton.addEventListener(
+    render();
+
+    load.addEventListener(
       "click",
-      loadFolder
+      loadFolders
     );
   }
-
 
   if (
     document.readyState ===

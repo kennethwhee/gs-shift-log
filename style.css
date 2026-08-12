@@ -99554,3 +99554,46 @@ button:disabled {
     font-size: 10px;
   }
 }
+
+/* =========================================================
+  부재료 표 머리글 한 줄 표시 최종 보정
+========================================================= */
+
+/* 기본 크게 보기 머리글 */
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-column-heading
+th > span,
+
+/* 축소 화면 머리글 */
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-column-heading
+th:not(.is-date):not(.is-remarks) > span {
+  display: block;
+
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: 1.15 !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* 단위는 항목명 아래줄에 유지 */
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-column-heading
+th > small,
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table.is-split-layout
+.auxiliary-material-split-column-heading
+th > small {
+  display: block;
+
+  margin-top: 3px !important;
+
+  font-size: 9px !important;
+  line-height: 1 !important;
+
+  white-space: nowrap !important;
+}
