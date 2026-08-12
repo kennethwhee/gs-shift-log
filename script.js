@@ -95276,18 +95276,14 @@ if (
 }
 
 /* =====================================================
-  부재료 표 보기 전환
+  부재료 표 크게 보기 전환
 
-  - 컴팩트 보기
   - 화면 크게 보기
   - Esc 키로 크게 보기 종료
   - 전환 전 스크롤 위치 유지
 ===================================================== */
 
 const auxiliaryMaterialTableViewState = {
-  isCompact:
-    false,
-
   isExpanded:
     false
 };
@@ -95299,10 +95295,12 @@ function getAuxiliaryMaterialTableViewElements() {
       "efficiencyAuxiliaryMaterialsView"
     );
 
+
   const card =
     document.getElementById(
       "auxiliaryMaterialTableCard"
     );
+
 
   return {
     view,
@@ -95315,18 +95313,12 @@ function getAuxiliaryMaterialTableViewElements() {
       ) ||
       null,
 
-    compactButton:
-      document.getElementById(
-        "toggleAuxiliaryMaterialCompactButton"
-      ),
-
     expandedButton:
       document.getElementById(
         "toggleAuxiliaryMaterialExpandedButton"
       )
   };
 }
-
 
 /* =====================================================
   표 스크롤 위치 복원
@@ -95354,84 +95346,6 @@ function restoreAuxiliaryMaterialTableScroll(
     }
   );
 }
-
-
-/* =====================================================
-  컴팩트 보기 전환
-===================================================== */
-
-function setAuxiliaryMaterialCompactView(
-  isCompact
-) {
-  const {
-    view,
-    tableWrap,
-    compactButton
-  } =
-    getAuxiliaryMaterialTableViewElements();
-
-
-  if (
-    !view ||
-    !compactButton
-  ) {
-    return;
-  }
-
-
-  const nextState =
-    Boolean(
-      isCompact
-    );
-
-
-  const scrollLeft =
-    tableWrap?.scrollLeft ||
-    0;
-
-  const scrollTop =
-    tableWrap?.scrollTop ||
-    0;
-
-
-  auxiliaryMaterialTableViewState
-    .isCompact =
-    nextState;
-
-
-  view.classList.toggle(
-    "is-compact-view",
-    nextState
-  );
-
-
-  compactButton.setAttribute(
-    "aria-pressed",
-    String(
-      nextState
-    )
-  );
-
-
-  compactButton.textContent =
-    nextState
-      ? "기본 보기"
-      : "컴팩트 보기";
-
-
-  compactButton.title =
-    nextState
-      ? "기본 크기와 간격으로 돌아가기"
-      : "열과 행 간격을 줄여 더 많은 자료 보기";
-
-
-  restoreAuxiliaryMaterialTableScroll(
-    tableWrap,
-    scrollLeft,
-    scrollTop
-  );
-}
-
 
 /* =====================================================
   크게 보기 버튼 문구
@@ -95639,16 +95553,14 @@ function handleAuxiliaryMaterialExpandedEscape(
   );
 }
 
-
 /* =====================================================
-  부재료 표 보기 버튼 초기화
+  부재료 표 크게 보기 버튼 초기화
 ===================================================== */
 
 function initializeAuxiliaryMaterialTableViewControls() {
   const {
     view,
     card,
-    compactButton,
     expandedButton
   } =
     getAuxiliaryMaterialTableViewElements();
@@ -95673,34 +95585,17 @@ function initializeAuxiliaryMaterialTableViewControls() {
 
 
   /*
-    컴팩트 보기 기능 제거
-
-    - 컴팩트 상태 해제
-    - 컴팩트 보기 버튼 삭제
-    - 기본 보기 상태 유지
-  */
-
-  auxiliaryMaterialTableViewState
-    .isCompact =
-    false;
-
-
-  view.classList.remove(
-    "is-compact-view"
-  );
-
-
-  compactButton?.remove();
-
-
-  /*
-    크게 보기 기능은 그대로 유지
+    처음 열 때는 기본 크기로 시작한다.
   */
 
   setAuxiliaryMaterialExpandedView(
     false
   );
 
+
+  /*
+    크게 보기·축소하기 전환
+  */
 
   expandedButton.addEventListener(
     "click",
@@ -95712,6 +95607,10 @@ function initializeAuxiliaryMaterialTableViewControls() {
     }
   );
 
+
+  /*
+    크게 보기 상태에서 Esc로 종료
+  */
 
   document.addEventListener(
     "keydown",
