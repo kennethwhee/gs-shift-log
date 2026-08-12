@@ -94766,85 +94766,48 @@ async function handleAuxiliaryMaterialExcelFileSelection(
 ========================================================= */
 
 function prepareAuxiliaryMaterialPcCompactControls() {
-  /*
-    모바일은 기존 모니터링 전용 화면 유지
-  */
+  /* 모바일은 기존 모니터링 전용 화면 유지 */
   if (
-    typeof isAuxiliaryMaterialMobileMonitorMode ===
-      "function" &&
+    typeof isAuxiliaryMaterialMobileMonitorMode === "function" &&
     isAuxiliaryMaterialMobileMonitorMode()
   ) {
     return;
   }
 
+  const elements = getAuxiliaryMaterialElements();
+  const view = elements?.view;
+  const loadButton = elements?.loadButton;
+  const queryButton = elements?.queryButton;
+  const excelButton = elements?.excelImportButton;
+  const status = elements?.status;
 
-  const elements =
-    getAuxiliaryMaterialElements();
+  const forceRefreshInput = elements?.forceRefreshInput;
+  const forceRefreshLabel = forceRefreshInput?.closest(
+    ".auxiliary-material-force-refresh"
+  );
 
+  const startDateLabel = elements?.startDateInput?.closest("label");
+  const endDateLabel = elements?.endDateInput?.closest("label");
 
-  const view =
-    elements?.view;
+  const periodFields = queryButton?.closest(
+    ".auxiliary-material-period-fields"
+  );
 
+  const queryCard = periodFields?.closest(
+    ".auxiliary-material-query-card"
+  );
 
-  const loadButton =
-    elements?.loadButton;
+  const monthNavigation = queryCard?.querySelector(
+    ".auxiliary-material-month-navigation"
+  );
 
+  const densityPanel = view?.querySelector(
+    ".auxiliary-material-density-setting"
+  );
 
-  const queryButton =
-    elements?.queryButton;
-
-
-  const forceRefreshInput =
-    elements?.forceRefreshInput;
-
-
-  const forceRefreshLabel =
-    forceRefreshInput?.closest(
-      ".auxiliary-material-force-refresh"
-    );
-
-
-  const excelButton =
-    elements?.excelImportButton;
-
-
-  const startDateLabel =
-    elements?.startDateInput
-      ?.closest(
-        "label"
-      );
-
-
-  const endDateLabel =
-    elements?.endDateInput
-      ?.closest(
-        "label"
-      );
-
-
-  const periodFields =
-    queryButton?.closest(
-      ".auxiliary-material-period-fields"
-    );
-
-
-  const queryCard =
-    periodFields?.closest(
-      ".auxiliary-material-query-card"
-    );
-
-
-  const monthNavigation =
-    queryCard?.querySelector(
-      ".auxiliary-material-month-navigation"
-    );
-
-
-  const densityPanel =
-    view?.querySelector(
-      ".auxiliary-material-density-setting"
-    );
-
+  const excelImportPanel = view?.querySelector(
+    ".auxiliary-material-excel-import"
+  );
 
   if (
     !view ||
@@ -94861,23 +94824,13 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     return;
   }
 
+  /* 제목 아래 설명 제거 */
+  const headingDescription = view.querySelector(
+    ".auxiliary-material-heading > div > p"
+  );
 
-  /* =====================================================
-    제목 아래 설명 제거
-  ====================================================== */
-
-  const headingDescription =
-    view.querySelector(
-      ".auxiliary-material-heading > div > p"
-    );
-
-
-  if (
-    headingDescription
-  ) {
-    headingDescription.hidden =
-      true;
-
+  if (headingDescription) {
+    headingDescription.hidden = true;
 
     headingDescription.style.setProperty(
       "display",
@@ -94886,24 +94839,10 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     );
   }
 
-
-  /* =====================================================
-    저장자료 강제 재조회 기능 비활성화
-
-    저장자료는 재사용하고 없는 날짜만 OIS에서 조회한다.
-    실수로 전체 기간을 다시 조회하는 상황을 막는다.
-  ====================================================== */
-
-  if (
-    forceRefreshInput
-  ) {
-    forceRefreshInput.checked =
-      false;
-
-
-    forceRefreshInput.disabled =
-      true;
-
+  /* 저장된 날짜 강제 재조회 기능 비활성화 */
+  if (forceRefreshInput) {
+    forceRefreshInput.checked = false;
+    forceRefreshInput.disabled = true;
 
     forceRefreshInput.setAttribute(
       "aria-disabled",
@@ -94911,13 +94850,8 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     );
   }
 
-
-  if (
-    forceRefreshLabel
-  ) {
-    forceRefreshLabel.hidden =
-      true;
-
+  if (forceRefreshLabel) {
+    forceRefreshLabel.hidden = true;
 
     forceRefreshLabel.style.setProperty(
       "display",
@@ -94926,95 +94860,47 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     );
   }
 
-
-  /* =====================================================
-    엑셀 등록 버튼
-  ====================================================== */
-
+  /* 엑셀 등록 버튼 */
   excelButton.classList.add(
     "auxiliary-material-excel-inline-button"
   );
 
+  excelButton.textContent = "엑셀 등록";
 
-  excelButton.textContent =
-    "엑셀 등록";
+  /* 엑셀 다운로드 버튼 */
+  let downloadButton = document.getElementById(
+    "downloadAuxiliaryMaterialExcelButton"
+  );
 
+  if (!downloadButton) {
+    downloadButton = document.createElement("button");
 
-  /* =====================================================
-    엑셀 다운로드 버튼
-  ====================================================== */
-
-  let downloadButton =
-    document.getElementById(
-      "downloadAuxiliaryMaterialExcelButton"
-    );
-
-
-  if (
-    !downloadButton
-  ) {
-    downloadButton =
-      document.createElement(
-        "button"
-      );
-
-
-    downloadButton.type =
-      "button";
-
-
+    downloadButton.type = "button";
     downloadButton.id =
       "downloadAuxiliaryMaterialExcelButton";
-
 
     downloadButton.className =
       "auxiliary-material-excel-download-button";
 
-
-    downloadButton.textContent =
-      "엑셀 다운로드";
-
-
-    /*
-      다운로드 초기화 함수가 이벤트를 연결한 뒤
-      자동으로 활성화한다.
-    */
-    downloadButton.disabled =
-      true;
-
-
-    downloadButton.title =
-      "다운로드 기능 준비 중";
+    downloadButton.textContent = "엑셀 다운로드";
+    downloadButton.disabled = true;
+    downloadButton.title = "다운로드 기능 준비 중";
   }
-
 
   downloadButton.classList.add(
     "auxiliary-material-excel-download-button"
   );
 
+  /* 조회 범위와 자료 작업을 묶는 PC 전용 그룹 */
+  let queryGroup = periodFields.querySelector(
+    ".auxiliary-material-pc-query-group"
+  );
 
-  /* =====================================================
-    조회·자료 작업 묶음 생성
-  ====================================================== */
-
-  let queryGroup =
-    periodFields.querySelector(
-      ".auxiliary-material-pc-query-group"
-    );
-
-
-  if (
-    !queryGroup
-  ) {
-    queryGroup =
-      document.createElement(
-        "div"
-      );
-
+  if (!queryGroup) {
+    queryGroup = document.createElement("div");
 
     queryGroup.className =
       "auxiliary-material-pc-query-group";
-
 
     queryGroup.setAttribute(
       "aria-label",
@@ -95022,31 +94908,15 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     );
   }
 
+  let rangeControls = queryGroup.querySelector(
+    ".auxiliary-material-pc-range-controls"
+  );
 
-  /* =====================================================
-    조회 범위 묶음
-
-    조회 월 | 시작일 | 종료일
-  ====================================================== */
-
-  let rangeControls =
-    queryGroup.querySelector(
-      ".auxiliary-material-pc-range-controls"
-    );
-
-
-  if (
-    !rangeControls
-  ) {
-    rangeControls =
-      document.createElement(
-        "div"
-      );
-
+  if (!rangeControls) {
+    rangeControls = document.createElement("div");
 
     rangeControls.className =
       "auxiliary-material-pc-range-controls";
-
 
     rangeControls.setAttribute(
       "aria-label",
@@ -95054,46 +94924,27 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     );
   }
 
-
   rangeControls.append(
     monthNavigation,
     startDateLabel,
     endDateLabel
   );
 
+  let actionControls = queryGroup.querySelector(
+    ".auxiliary-material-pc-action-controls"
+  );
 
-  /* =====================================================
-    자료 작업 묶음
-
-    저장 자료 보기 | OIS 조회·D1 저장 |
-    엑셀 등록 | 엑셀 다운로드
-  ====================================================== */
-
-  let actionControls =
-    queryGroup.querySelector(
-      ".auxiliary-material-pc-action-controls"
-    );
-
-
-  if (
-    !actionControls
-  ) {
-    actionControls =
-      document.createElement(
-        "div"
-      );
-
+  if (!actionControls) {
+    actionControls = document.createElement("div");
 
     actionControls.className =
       "auxiliary-material-pc-action-controls";
-
 
     actionControls.setAttribute(
       "aria-label",
       "자료 작업"
     );
   }
-
 
   actionControls.append(
     loadButton,
@@ -95102,92 +94953,84 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     downloadButton
   );
 
-
   queryGroup.append(
     rangeControls,
     actionControls
   );
 
-
-  /* =====================================================
-    Slurry 밀도 고정값 영역
-  ====================================================== */
-
-  /*
-    과거 inline 배치가 남아 있으면 grouped 규칙과 충돌한다.
-    PC에서는 grouped 배치 하나만 사용한다.
-  */
+  /* Slurry 밀도 고정값을 엑셀 다운로드 오른쪽에 배치 */
   densityPanel.classList.remove(
     "auxiliary-material-density-setting--inline"
   );
 
-
   densityPanel.classList.add(
     "auxiliary-material-density-setting--grouped"
   );
-
 
   densityPanel.setAttribute(
     "aria-label",
     "Slurry 밀도 고정값"
   );
 
+  const densityTitle = densityPanel.querySelector(
+    ".auxiliary-material-density-setting__description > strong"
+  );
 
-  const densityTitle =
-    densityPanel.querySelector(
-      ".auxiliary-material-density-setting__description > strong"
-    );
-
-
-  if (
-    densityTitle
-  ) {
-    densityTitle.textContent =
-      "Slurry 밀도 고정값";
+  if (densityTitle) {
+    densityTitle.textContent = "Slurry 밀도 고정값";
   }
 
-
-  /* =====================================================
-    상단 최종 배치
-
-    조회 범위 | 자료 작업 | Slurry 밀도 고정값
-
-    Slurry 영역도 queryGroup 안으로 이동시켜
-    엑셀 다운로드 오른쪽의 남는 공간을 사용한다.
-  ====================================================== */
-
-  queryGroup.append(
-    densityPanel
-  );
-
-
-  periodFields.append(
-    queryGroup
-  );
-
+  queryGroup.append(densityPanel);
+  periodFields.append(queryGroup);
 
   queryCard.classList.add(
     "auxiliary-material-query-card--grouped"
   );
 
-
   periodFields.classList.add(
     "auxiliary-material-period-fields--grouped"
   );
 
-
-  /*
-    compact와 grouped를 동시에 적용하면
-    화면 배율에 따라 서로 다른 grid 규칙이 겹친다.
-  */
   view.classList.remove(
     "is-pc-compact-controls"
   );
 
-
   view.classList.add(
     "is-pc-grouped-controls"
   );
+
+  /* 저장 상태와 기존 엑셀 등록 안내를 같은 행으로 이동 */
+  let statusRow = queryCard.querySelector(
+    ".auxiliary-material-pc-status-row"
+  );
+
+  if (!statusRow) {
+    statusRow = document.createElement("div");
+
+    statusRow.className =
+      "auxiliary-material-pc-status-row";
+
+    statusRow.setAttribute(
+      "aria-label",
+      "저장 상태 및 기존 엑셀 자료 등록"
+    );
+  }
+
+  if (status) {
+    statusRow.append(status);
+  }
+
+  if (excelImportPanel) {
+    excelImportPanel.classList.add(
+      "auxiliary-material-excel-import--compact"
+    );
+
+    statusRow.append(excelImportPanel);
+  }
+
+  if (statusRow.childElementCount > 0) {
+    queryCard.append(statusRow);
+  }
 }
 
 /* =====================================================
