@@ -215,9 +215,15 @@ function loadOisAgentLocalEnvironment() {
     );
 
 
+  /*
+    Excel 전용 요청은 OIS 로그인이 필요하지 않다.
+
+    프로그램 시작과 요청 대기에는 에이전트 인증키만
+    필수로 사용하고, OIS 계정은 실제 OIS 요청이
+    들어왔을 때 별도로 확인한다.
+  */
+
   const requiredKeys = [
-    "OIS_ID",
-    "OIS_PASSWORD",
     "OIS_AGENT_KEY"
   ];
 
@@ -6467,22 +6473,42 @@ function getOisAgentConfig() {
     DEFAULT_SHIFT_LOG_BASE_URL;
 
 
-  if (
-    !userId
-  ) {
-    throw new Error(
-      "OIS_ID 환경변수가 설정되지 않았습니다."
-    );
-  }
+  const requestedAgentMode =
+    normalizeOisAgentText(
+      process.env.OIS_AGENT_MODE
+    )
+      .toLowerCase()
+      .replace(
+        /[\s-]+/g,
+        "_"
+      );
 
 
-  if (
-    !password
-  ) {
-    throw new Error(
-      "OIS_PASSWORD 환경변수가 설정되지 않았습니다."
+  const hasOisLoginCredentials =
+    Boolean(
+      userId &&
+      password
     );
-  }
+
+
+  const agentMode =
+    [
+      "excel",
+      "excel_only"
+    ].includes(
+      requestedAgentMode
+    )
+      ? "excel"
+      : [
+          "hybrid",
+          "ois"
+        ].includes(
+          requestedAgentMode
+        )
+        ? "hybrid"
+        : hasOisLoginCredentials
+          ? "hybrid"
+          : "excel";
 
 
   if (
@@ -6490,6 +6516,23 @@ function getOisAgentConfig() {
   ) {
     throw new Error(
       "OIS_AGENT_KEY 환경변수가 설정되지 않았습니다."
+    );
+  }
+
+
+  if (
+    agentMode ===
+      "hybrid" &&
+    !hasOisLoginCredentials
+  ) {
+    throw new Error(
+      [
+        "OIS + Excel 연동 모드에는 OIS 계정 설정이 필요합니다.",
+        "OIS_ID와 OIS_PASSWORD를 설정하거나,",
+        "집 PC에서는 OIS_AGENT_MODE=excel을 사용해 주세요."
+      ].join(
+        "\n"
+      )
     );
   }
 
@@ -6503,12 +6546,63 @@ function getOisAgentConfig() {
 
     agentId,
 
+    agentMode,
+
     shiftLogBaseUrl:
       shiftLogBaseUrl.replace(
         /\/+$/,
         ""
       )
   };
+}
+
+/* =========================================================
+  OIS 브라우저를 실제로 사용할 때만 계정 확인
+========================================================= */
+
+function assertOisLoginCredentials(
+  config
+) {
+  const missingKeys = [];
+
+
+  if (
+    !normalizeOisAgentText(
+      config?.userId
+    )
+  ) {
+    missingKeys.push(
+      "OIS_ID"
+    );
+  }
+
+
+  if (
+    !String(
+      config?.password ||
+      ""
+    )
+  ) {
+    missingKeys.push(
+      "OIS_PASSWORD"
+    );
+  }
+
+
+  if (
+    missingKeys.length >
+      0
+  ) {
+    throw new Error(
+      [
+        "OIS 조회 요청을 처리하려면 OIS 계정 설정이 필요합니다.",
+        `누락 항목: ${missingKeys.join(", ")}`,
+        "일일 DATA Excel 요청은 이 설정 없이도 처리됩니다."
+      ].join(
+        "\n"
+      )
+    );
+  }
 }
 
 
@@ -7140,24 +7234,46 @@ async function collectOisLegacyLogApprovalValues(
   - auxiliary_materials
   - turbine_gear_pinion
   - silo_level
+  - daily_data_excel
   - steam_status
   - logsheet_approval
 
-  일곱 요청 유형을 번갈아 확인한다.
+  daily_data_excel:
+  - 현재 Excel 전용 요청
+
+  steam_status:
+  - 배포 전 생성된 기존 요청 호환용
+
+  여덟 요청 유형을 번갈아 확인한다.
 ========================================================= */
 
 async function getNextOisAgentRequest(
   config
 ) {
-  const requestTypes = [
+  const excelRequestTypes = [
+    "daily_data_excel",
+    "steam_status"
+  ];
+
+
+  const oisRequestTypes = [
     "water_environment",
     "limestone_stock",
     "auxiliary_materials",
     "turbine_gear_pinion",
     "silo_level",
-    "steam_status",
     "logsheet_approval"
   ];
+
+
+  const requestTypes =
+    config.agentMode ===
+      "excel"
+      ? excelRequestTypes
+      : [
+          ...oisRequestTypes,
+          ...excelRequestTypes
+        ];
 
 
   const startIndex =
@@ -7265,6 +7381,31 @@ function getOisAgentRequestType(
 }
 
 /* =========================================================
+  OIS 브라우저가 필요 없는 Excel 전용 요청
+
+  steam_status는 기존 배포본이 만든 대기 요청을
+  계속 처리하기 위한 호환 유형이다.
+========================================================= */
+
+function isDailyDataExcelRequestType(
+  requestType
+) {
+  const normalizedRequestType =
+    normalizeOisAgentText(
+      requestType
+    )
+      .toLowerCase();
+
+
+  return [
+    "daily_data_excel",
+    "steam_status"
+  ].includes(
+    normalizedRequestType
+  );
+}
+
+/* =========================================================
   요청 유형 표시 이름
 ========================================================= */
 
@@ -7312,8 +7453,9 @@ if (
 
 
   if (
-    requestType ===
-      "steam_status"
+    isDailyDataExcelRequestType(
+      requestType
+    )
   ) {
     return "일일 DATA 현황";
   }
@@ -11176,8 +11318,9 @@ async function collectDailyDataWorkbookValues(
 /* =========================================================
   오전회의 일일DATA 현황 수집
 
-  기존 요청형:
-  - steam_status 유지
+  요청형:
+  - daily_data_excel: 현재 요청
+  - steam_status: 기존 요청 호환
 
   변경된 자료원:
   - 생산량: Plant 51·52행
@@ -11283,8 +11426,9 @@ if (
 
 
   if (
-    requestType ===
-      "steam_status"
+    isDailyDataExcelRequestType(
+      requestType
+    )
   ) {
     return await collectOisSteamStatusValues(
       page,
@@ -11453,8 +11597,9 @@ function printOisAgentRequestResult(
 
 
   if (
-    requestType ===
-      "steam_status"
+    isDailyDataExcelRequestType(
+      requestType
+    )
   ) {
     console.table({
       "조회일":
@@ -16003,12 +16148,13 @@ async function ensureOisAgentBrowserSession(
 }
 
 /* =========================================================
-  OIS 상시 연동 에이전트
+  OIS · 일일 DATA Excel 상시 연동 에이전트
 
   지원 요청:
   - 석회석 재고
   - 수처리 현황
   - Gear Wheel / Pinion
+  - 일일 DATA Excel
 ========================================================= */
 
 async function loginOis() {
@@ -16022,7 +16168,7 @@ async function loginOis() {
 
 
   console.log(
-    "GS Shift Log OIS 연동 프로그램"
+    "GS Shift Log OIS · Excel 연동 프로그램"
   );
 
 
@@ -16044,14 +16190,26 @@ async function loginOis() {
 
 
   console.log(
-    "OIS 요청 확인 주기:",
+    "연동 모드:",
+    config.agentMode ===
+      "excel"
+      ? "Excel 전용"
+      : "OIS + Excel"
+  );
+
+
+  console.log(
+    "요청 확인 주기:",
     `${OIS_AGENT_POLL_INTERVAL / 1000}초`
   );
 
 
   console.log(
     "지원 요청:",
-    "석회석 재고 · 수처리 현황 · Gear Wheel / Pinion"
+    config.agentMode ===
+      "excel"
+      ? "일일 DATA Excel"
+      : "석회석 재고 · 수처리 현황 · Gear Wheel / Pinion · 일일 DATA Excel"
   );
 
 
@@ -16215,6 +16373,16 @@ async function loginOis() {
 
 
   async function createBrowserSession() {
+    /*
+      여기까지 들어왔다는 것은 실제 OIS 자료 요청이다.
+      Excel 전용 요청은 이 함수를 호출하지 않는다.
+    */
+
+    assertOisLoginCredentials(
+      config
+    );
+
+
     console.log(
       "OIS Edge 브라우저 세션을 시작합니다."
     );
@@ -16499,12 +16667,8 @@ async function loginOis() {
 
 
   try {
-    browserSession =
-      await createBrowserSession();
-
-
     console.log(
-      "업무일지의 OIS 요청을 기다립니다."
+      "업무일지의 OIS · Excel 요청을 기다립니다."
     );
 
 
@@ -16543,41 +16707,15 @@ async function loginOis() {
 
 
       /*
-        요청이 없더라도 Edge가 닫혀 있으면
-        다음 요청 전에 자동으로 복구한다.
+        요청이 없을 때는 OIS Edge를 열거나 복구하지 않는다.
+
+        실제 OIS 요청이 들어왔을 때만 브라우저 세션을
+        지연 생성하므로, 집에서도 Excel 전용 요청을
+        OIS 로그인 없이 처리할 수 있다.
       */
       if (
         !requestItem
       ) {
-        if (
-          !isBrowserSessionUsable(
-            browserSession
-          )
-        ) {
-          try {
-            await ensureBrowserSession(
-              "대기 중 브라우저 종료 감지"
-            );
-
-          } catch (
-            recoveryError
-          ) {
-            console.error(
-              "OIS 브라우저 자동 복구 실패:",
-              recoveryError
-            );
-
-
-            await waitOisAgent(
-              OIS_AGENT_ERROR_RETRY_INTERVAL
-            );
-
-
-            continue;
-          }
-        }
-
-
         await waitOisAgent(
           OIS_AGENT_POLL_INTERVAL
         );
@@ -16605,11 +16743,16 @@ async function loginOis() {
         );
 
 
+      const requestNeedsOisBrowser =
+        !isDailyDataExcelRequestType(
+          requestType
+        );
+
+
       const requestSourceLabel =
-        requestType ===
-          "steam_status"
-          ? "Excel"
-          : "OIS";
+        requestNeedsOisBrowser
+          ? "OIS"
+          : "Excel";
 
 
       const targetDate =
@@ -16658,67 +16801,89 @@ async function loginOis() {
 
 
       try {
-        await ensureBrowserSession(
-          `${requestLabel} 요청 처리 전`
-        );
-
-
         let result;
 
 
-        try {
-          result =
-            await collectOisAgentRequestResult(
-              browserSession.page,
-              config,
-              requestItem
-            );
-
-        } catch (
-          firstError
+        if (
+          !requestNeedsOisBrowser
         ) {
           /*
-            브라우저 종료 오류인 경우
-            Edge를 새로 열고 같은 요청을 한 번 재시도한다.
+            Excel 전용 요청:
+            OIS Edge 및 로그인 없이 열린 통합문서만 읽는다.
           */
-          if (
-            !isBrowserClosedError(
-              firstError
-            ) &&
-            isBrowserSessionUsable(
-              browserSession
-            )
-          ) {
-            throw firstError;
-          }
-
-
-          console.warn(
-            `OIS ${requestLabel} 처리 중 브라우저 종료를 감지했습니다. 자동 복구 후 1회 재시도합니다.`
-          );
-
-
-          await closeBrowserSession(
-            browserSession,
-            false
-          );
-
-
-          browserSession =
-            null;
-
-
-          await ensureBrowserSession(
-            `${requestLabel} 처리 중 브라우저 종료`
-          );
-
 
           result =
             await collectOisAgentRequestResult(
-              browserSession.page,
+              null,
               config,
               requestItem
             );
+
+        } else {
+          /*
+            실제 OIS 요청:
+            이 시점에만 브라우저를 지연 생성·로그인한다.
+          */
+
+          await ensureBrowserSession(
+            `${requestLabel} 요청 처리 전`
+          );
+
+
+          try {
+            result =
+              await collectOisAgentRequestResult(
+                browserSession.page,
+                config,
+                requestItem
+              );
+
+          } catch (
+            firstError
+          ) {
+            /*
+              브라우저 종료 오류인 경우
+              Edge를 새로 열고 같은 요청을 한 번 재시도한다.
+            */
+            if (
+              !isBrowserClosedError(
+                firstError
+              ) &&
+              isBrowserSessionUsable(
+                browserSession
+              )
+            ) {
+              throw firstError;
+            }
+
+
+            console.warn(
+              `OIS ${requestLabel} 처리 중 브라우저 종료를 감지했습니다. 자동 복구 후 1회 재시도합니다.`
+            );
+
+
+            await closeBrowserSession(
+              browserSession,
+              false
+            );
+
+
+            browserSession =
+              null;
+
+
+            await ensureBrowserSession(
+              `${requestLabel} 처리 중 브라우저 종료`
+            );
+
+
+            result =
+              await collectOisAgentRequestResult(
+                browserSession.page,
+                config,
+                requestItem
+              );
+          }
         }
 
 
@@ -16730,6 +16895,7 @@ async function loginOis() {
 
 
         if (
+          requestNeedsOisBrowser &&
           isBrowserSessionUsable(
             browserSession
           )
@@ -16769,11 +16935,15 @@ async function loginOis() {
           다음 요청 전에 바로 복구한다.
         */
         if (
-          isBrowserClosedError(
-            error
-          ) ||
-          !isBrowserSessionUsable(
-            browserSession
+          requestNeedsOisBrowser &&
+          browserSession &&
+          (
+            isBrowserClosedError(
+              error
+            ) ||
+            !isBrowserSessionUsable(
+              browserSession
+            )
           )
         ) {
           try {
@@ -16797,6 +16967,7 @@ async function loginOis() {
 
 
         if (
+          requestNeedsOisBrowser &&
           isBrowserSessionUsable(
             browserSession
           )
@@ -16817,7 +16988,9 @@ async function loginOis() {
             screenshotPath
           );
 
-        } else {
+        } else if (
+          requestNeedsOisBrowser
+        ) {
           console.error(
             "오류 화면 저장 생략: 사용할 수 있는 OIS 페이지가 없습니다."
           );

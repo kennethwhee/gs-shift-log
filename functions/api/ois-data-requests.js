@@ -749,6 +749,7 @@ async function authenticateOisAgent(
   - turbine_gear_pinion
   - auxiliary_materials
   - silo_level
+  - daily_data_excel
   - steam_status
   - logsheet_approval
 ========================================================= */
@@ -759,6 +760,7 @@ const OIS_REQUEST_TYPES = [
   "turbine_gear_pinion",
   "auxiliary_materials",
   "silo_level",
+  "daily_data_excel",
   "steam_status",
   "logsheet_approval"
 ];

@@ -94784,12 +94784,30 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     elements?.view;
 
 
+  const loadButton =
+    elements?.loadButton;
+
+
   const queryButton =
     elements?.queryButton;
 
 
   const excelButton =
     elements?.excelImportButton;
+
+
+  const startDateLabel =
+    elements?.startDateInput
+      ?.closest(
+        "label"
+      );
+
+
+  const endDateLabel =
+    elements?.endDateInput
+      ?.closest(
+        "label"
+      );
 
 
   const periodFields =
@@ -94818,8 +94836,11 @@ function prepareAuxiliaryMaterialPcCompactControls() {
 
   if (
     !view ||
+    !loadButton ||
     !queryButton ||
     !excelButton ||
+    !startDateLabel ||
+    !endDateLabel ||
     !periodFields ||
     !queryCard ||
     !monthNavigation ||
@@ -94855,24 +94876,8 @@ function prepareAuxiliaryMaterialPcCompactControls() {
 
 
   /* =====================================================
-    조회 월을 같은 줄로 이동
+    엑셀 등록 버튼
   ====================================================== */
-
-  periodFields.insertAdjacentElement(
-    "afterbegin",
-    monthNavigation
-  );
-
-
-  /* =====================================================
-    엑셀 등록
-  ====================================================== */
-
-  queryButton.insertAdjacentElement(
-    "afterend",
-    excelButton
-  );
-
 
   excelButton.classList.add(
     "auxiliary-material-excel-inline-button"
@@ -94884,9 +94889,7 @@ function prepareAuxiliaryMaterialPcCompactControls() {
 
 
   /* =====================================================
-    엑셀 다운로드 버튼 생성
-
-    다음 단계에서 실제 다운로드 기능을 연결한다.
+    엑셀 다운로드 버튼
   ====================================================== */
 
   let downloadButton =
@@ -94921,8 +94924,8 @@ function prepareAuxiliaryMaterialPcCompactControls() {
 
 
     /*
-      실제 다운로드 로직 연결 전까지
-      클릭되지 않도록 잠시 비활성화한다.
+      다운로드 초기화 함수가 이벤트를 연결한 뒤
+      자동으로 활성화한다.
     */
     downloadButton.disabled =
       true;
@@ -94933,26 +94936,140 @@ function prepareAuxiliaryMaterialPcCompactControls() {
   }
 
 
-  excelButton.insertAdjacentElement(
-    "afterend",
-    downloadButton
+  downloadButton.classList.add(
+    "auxiliary-material-excel-download-button"
   );
 
 
   /* =====================================================
-    Slurry 밀도
-
-    엑셀 다운로드 버튼 바로 오른쪽
+    조회·자료 작업 묶음 생성
   ====================================================== */
 
-  downloadButton.insertAdjacentElement(
-    "afterend",
-    densityPanel
+  let queryGroup =
+    periodFields.querySelector(
+      ".auxiliary-material-pc-query-group"
+    );
+
+
+  if (
+    !queryGroup
+  ) {
+    queryGroup =
+      document.createElement(
+        "div"
+      );
+
+
+    queryGroup.className =
+      "auxiliary-material-pc-query-group";
+
+
+    queryGroup.setAttribute(
+      "aria-label",
+      "조회 범위 및 자료 작업"
+    );
+  }
+
+
+  /* =====================================================
+    조회 범위 묶음
+
+    조회 월 | 시작일 | 종료일
+  ====================================================== */
+
+  let rangeControls =
+    queryGroup.querySelector(
+      ".auxiliary-material-pc-range-controls"
+    );
+
+
+  if (
+    !rangeControls
+  ) {
+    rangeControls =
+      document.createElement(
+        "div"
+      );
+
+
+    rangeControls.className =
+      "auxiliary-material-pc-range-controls";
+
+
+    rangeControls.setAttribute(
+      "aria-label",
+      "조회 범위"
+    );
+  }
+
+
+  rangeControls.append(
+    monthNavigation,
+    startDateLabel,
+    endDateLabel
   );
 
 
+  /* =====================================================
+    자료 작업 묶음
+
+    저장 자료 보기 | OIS 조회·D1 저장 |
+    엑셀 등록 | 엑셀 다운로드
+  ====================================================== */
+
+  let actionControls =
+    queryGroup.querySelector(
+      ".auxiliary-material-pc-action-controls"
+    );
+
+
+  if (
+    !actionControls
+  ) {
+    actionControls =
+      document.createElement(
+        "div"
+      );
+
+
+    actionControls.className =
+      "auxiliary-material-pc-action-controls";
+
+
+    actionControls.setAttribute(
+      "aria-label",
+      "자료 작업"
+    );
+  }
+
+
+  actionControls.append(
+    loadButton,
+    queryButton,
+    excelButton,
+    downloadButton
+  );
+
+
+  queryGroup.append(
+    rangeControls,
+    actionControls
+  );
+
+
+  /* =====================================================
+    Slurry 밀도 고정값 영역
+  ====================================================== */
+
   densityPanel.classList.add(
-    "auxiliary-material-density-setting--inline"
+    "auxiliary-material-density-setting--inline",
+    "auxiliary-material-density-setting--grouped"
+  );
+
+
+  densityPanel.setAttribute(
+    "aria-label",
+    "Slurry 밀도 고정값"
   );
 
 
@@ -94966,12 +95083,35 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     densityTitle
   ) {
     densityTitle.textContent =
-      "Slurry 밀도";
+      "Slurry 밀도 고정값";
   }
 
 
+  /* =====================================================
+    상단 최종 배치
+
+    [조회 범위 + 자료 작업] [Slurry 밀도 고정값]
+  ====================================================== */
+
+  periodFields.append(
+    queryGroup,
+    densityPanel
+  );
+
+
+  queryCard.classList.add(
+    "auxiliary-material-query-card--grouped"
+  );
+
+
+  periodFields.classList.add(
+    "auxiliary-material-period-fields--grouped"
+  );
+
+
   view.classList.add(
-    "is-pc-compact-controls"
+    "is-pc-compact-controls",
+    "is-pc-grouped-controls"
   );
 }
 
@@ -202336,8 +202476,8 @@ function handleModeChange(
   오전회의 취합
   월간 일일DATA관리 Excel 요청·복원·미리보기
 
-  내부 호환 요청형:
-  - requestType: steam_status 유지
+  Excel 전용 요청형:
+  - requestType: daily_data_excel
 
   실제 자료원:
   - Plant 수기·계산 완료값
@@ -202370,7 +202510,7 @@ function handleModeChange(
 
 
   const REQUEST_TYPE =
-    "steam_status";
+    "daily_data_excel";
 
 
   const POLL_INTERVAL =
@@ -214705,29 +214845,51 @@ function initializeLimestoneSlipCameraPicker() {
     }
   ];
 
-  const handles = new Map();
-  const permissions = new Map();
-  let loading = false;
+const handles = new Map();
+const permissions = new Map();
 
-  function elements() {
-    return {
-      oldSelect: document.getElementById(
+let loading = false;
+let replayingAnalysisClick = false;
+
+
+function elements() {
+  return {
+    oldSelect:
+      document.getElementById(
         "selectEfficiencyMorningMeetingInputFolderButton"
       ),
-      load: document.getElementById(
+
+    load:
+      document.getElementById(
         "loadEfficiencyMorningMeetingInputFolderButton"
       ),
-      status: document.getElementById(
+
+    status:
+      document.getElementById(
         "efficiencyMorningMeetingInputFolderStatus"
       ),
-      message: document.getElementById(
+
+    analyze:
+      document.getElementById(
+        "analyzeEfficiencyMorningMeetingButton"
+      ),
+
+    reset:
+      document.getElementById(
+        "resetEfficiencyMorningMeetingButton"
+      ),
+
+    message:
+      document.getElementById(
         "efficiencyMorningMeetingMessage"
       ),
-      error: document.getElementById(
+
+    error:
+      document.getElementById(
         "efficiencyMorningMeetingError"
       )
-    };
-  }
+  };
+}
 
   function setMessage(text) {
     const target = elements().message;
@@ -215176,65 +215338,119 @@ function initializeLimestoneSlipCameraPicker() {
     }
   }
 
-  function render() {
-    const {
-      load,
-      status
-    } =
-      elements();
-
-    const count =
-      FILE_TYPES.filter(
-        config => {
-          return handles.has(
-            config.key
-          );
-        }
-      ).length;
-
-    if (
-      load
-    ) {
-      load.disabled =
-        loading ||
-        count ===
-          0;
-
-      load.textContent =
-        loading
-          ? "불러오는 중"
-          : "6개 불러오기";
-
-      load.title =
-        count ===
-          0
-          ? "먼저 각 카드에서 폴더를 설정해 주세요."
-          : `설정된 ${count}개 폴더에서 최신 엑셀 파일을 불러옵니다.`;
-    }
-
-    if (
-      status
-    ) {
-      status.textContent =
-        `폴더 ${count} / 6`;
-
-      status.title =
-        FILE_TYPES.map(
-          config => {
-            return (
-              `${config.label}: ` +
-              `${handles.get(config.key)?.name || "미설정"}`
-            );
-          }
-        ).join(
-          "\n"
+function render() {
+  const configuredCount =
+    FILE_TYPES.filter(
+      config => {
+        return handles.has(
+          config.key
         );
-    }
+      }
+    ).length;
 
-    FILE_TYPES.forEach(
-      renderFolder
-    );
+  const {
+    analyze
+  } =
+    elements();
+
+  if (
+    analyze
+  ) {
+    const hasAttachedFile =
+      hasAttachedMorningMeetingFile();
+
+    analyze.disabled =
+      loading ||
+      (
+        !hasAttachedFile &&
+        configuredCount ===
+          0
+      );
+
+    if (
+      loading
+    ) {
+      analyze.textContent =
+        "파일 불러오는 중...";
+
+    } else if (
+      analyze.textContent ===
+        "파일 불러오는 중..."
+    ) {
+      analyze.textContent =
+        "자료 분석";
+    }
   }
+
+  FILE_TYPES.forEach(
+    renderFolder
+  );
+}
+
+
+function hasAttachedMorningMeetingFile() {
+  const state =
+    window
+      .efficiencyMorningMeetingUploadState ||
+    {};
+
+  return Boolean(
+    state.templateFile ||
+
+    state.coalLogFile ||
+
+    (
+      Array.isArray(
+        state.coalLogFiles
+      ) &&
+      state.coalLogFiles.length >
+        0
+    ) ||
+
+    [
+      "safety",
+      "environment",
+      "mechanical",
+      "electrical"
+    ].some(
+      teamKey => {
+        return Boolean(
+          state.files?.[
+            teamKey
+          ]
+        );
+      }
+    )
+  );
+}
+
+
+function removeLegacyFolderTools() {
+  const {
+    oldSelect,
+    load,
+    status
+  } =
+    elements();
+
+  oldSelect?.remove();
+  load?.remove();
+  status?.remove();
+
+  document
+    .querySelectorAll(
+      ".efficiency-morning-meeting-folder-tools__buttons"
+    )
+    .forEach(
+      container => {
+        if (
+          !container.children.length
+        ) {
+          container.remove();
+        }
+      }
+    );
+}
 
   async function chooseOrAuthorizeFolder(
     config
@@ -215464,120 +215680,121 @@ function initializeLimestoneSlipCameraPicker() {
     );
   }
 
-  async function loadFolders() {
-    if (
-      loading
-    ) {
-      return;
-    }
+async function loadFoldersBeforeAnalysis() {
+  if (
+    loading
+  ) {
+    return {
+      canContinue:
+        false,
 
-    loading =
-      true;
+      loadedCount:
+        0,
 
-    hideError();
-    render();
+      failures:
+        []
+    };
+  }
 
-    const selectedFiles =
-      new Map();
+  loading =
+    true;
 
-    const failures =
-      [];
+  hideError();
+  render();
 
-    try {
-      for (
-        const config
-        of FILE_TYPES
-      ) {
-        const handle =
-          handles.get(
+  const selectedFiles =
+    new Map();
+
+  const failures =
+    [];
+
+  try {
+    const configuredTypes =
+      FILE_TYPES.filter(
+        config => {
+          return handles.has(
             config.key
           );
+        }
+      );
+
+    for (
+      const config
+      of configuredTypes
+    ) {
+      const handle =
+        handles.get(
+          config.key
+        );
+
+      try {
+        const granted =
+          await requestPermission(
+            handle
+          );
+
+        permissions.set(
+          config.key,
+          granted
+            ? "granted"
+            : "denied"
+        );
 
         if (
-          !handle
+          !granted
         ) {
           failures.push(
-            `${config.label}(폴더 미설정)`
+            `${config.label}(권한 필요)`
           );
 
           continue;
         }
 
-        try {
-          const granted =
-            await requestPermission(
-              handle
-            );
-
-          permissions.set(
-            config.key,
-            granted
-              ? "granted"
-              : "denied"
+        const file =
+          await latestXlsx(
+            handle
           );
 
-          if (
-            !granted
-          ) {
-            failures.push(
-              `${config.label}(권한 필요)`
-            );
-
-            continue;
-          }
-
-          const file =
-            await latestXlsx(
-              handle
-            );
-
-          if (
-            !file
-          ) {
-            failures.push(
-              `${config.label}(XLSX 없음)`
-            );
-
-            continue;
-          }
-
-          selectedFiles.set(
-            config.key,
-            file
-          );
-
-        } catch (
-          error
+        if (
+          !file
         ) {
-          console.warn(
-            `${config.label} 자동 불러오기 실패:`,
-            error
-          );
-
-          permissions.set(
-            config.key,
-            await queryPermission(
-              handle
-            )
-          );
-
           failures.push(
-            `${config.label}(${error?.message || "확인 실패"})`
+            `${config.label}(XLSX 없음)`
           );
-        }
-      }
 
-      if (
-        selectedFiles.size ===
-          0
+          continue;
+        }
+
+        selectedFiles.set(
+          config.key,
+          file
+        );
+
+      } catch (
+        error
       ) {
-        throw new Error(
-          failures.length
-            ? `불러올 자료가 없습니다. ${failures.join(", ")}`
-            : "불러올 자료가 없습니다."
+        console.warn(
+          `${config.label} 자동 불러오기 실패:`,
+          error
+        );
+
+        permissions.set(
+          config.key,
+          await queryPermission(
+            handle
+          )
+        );
+
+        failures.push(
+          `${config.label}(${error?.message || "확인 실패"})`
         );
       }
+    }
 
+    if (
+      selectedFiles.size >
+        0
+    ) {
       prepareState(
         selectedFiles
       );
@@ -215603,137 +215820,267 @@ function initializeLimestoneSlipCameraPicker() {
       window
         .updateEfficiencyMorningMeetingUploadSummary
         ?.();
+    }
 
-      if (
-        failures.length ===
-          0
-      ) {
-        setMessage(
-          "각 폴더에서 오전회의 자료 6개를 불러왔습니다. 자료 분석을 눌러주세요."
-        );
+    const canContinue =
+      hasAttachedMorningMeetingFile();
 
-      } else {
-        setMessage(
-          `${selectedFiles.size}개 불러오기 완료 · 확인 필요: ${failures.join(", ")}`
-        );
-
-        showError(
-          `일부 자료를 불러오지 못했습니다: ${failures.join(", ")}`
-        );
-      }
-
-    } catch (
-      error
+    if (
+      !canContinue
     ) {
-      console.error(
-        "오전회의 자료별 폴더 불러오기 실패:",
-        error
-      );
+      const detail =
+        failures.length
+          ? ` ${failures.join(", ")}`
+          : "";
 
       showError(
+        `분석할 파일을 불러오지 못했습니다.${detail}`
+      );
+    }
+
+    return {
+      canContinue,
+
+      loadedCount:
+        selectedFiles.size,
+
+      failures
+    };
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "오전회의 자료별 폴더 불러오기 실패:",
+      error
+    );
+
+    showError(
+      error?.message ||
+      "업무일지를 불러오지 못했습니다."
+    );
+
+    return {
+      canContinue:
+        hasAttachedMorningMeetingFile(),
+
+      loadedCount:
+        selectedFiles.size,
+
+      failures: [
         error?.message ||
-        "업무일지를 불러오지 못했습니다."
-      );
+        "확인 실패"
+      ]
+    };
 
-    } finally {
-      loading =
-        false;
-
-      render();
-    }
-  }
-
-  async function initialize() {
-    const {
-      oldSelect,
-      load
-    } =
-      elements();
-
-    if (
-      !load
-    ) {
-      return;
-    }
-
-    /*
-      기존 한 폴더용 버튼 대신
-      카드별 폴더 버튼을 만든다.
-    */
-
-    oldSelect?.remove();
-
-    FILE_TYPES.forEach(
-      installFolderControl
-    );
-
-    if (
-      typeof window.showDirectoryPicker !==
-        "function" ||
-      typeof window.indexedDB ===
-        "undefined"
-    ) {
-      load.disabled =
-        true;
-
-      load.title =
-        "현재 브라우저는 폴더 자동 불러오기를 지원하지 않습니다.";
-
-      FILE_TYPES.forEach(
-        config => {
-          const button =
-            folderButton(
-              config
-            );
-
-          if (
-            !button
-          ) {
-            return;
-          }
-
-          button.disabled =
-            true;
-
-          button.title =
-            "현재 브라우저는 폴더 선택을 지원하지 않습니다.";
-        }
-      );
-
-      return;
-    }
-
-    await readStoredHandles();
-
-    await Promise.all(
-      FILE_TYPES.map(
-        async config => {
-          const handle =
-            handles.get(
-              config.key
-            );
-
-          if (
-            handle
-          ) {
-            permissions.set(
-              config.key,
-              await queryPermission(
-                handle
-              )
-            );
-          }
-        }
-      )
-    );
+  } finally {
+    loading =
+      false;
 
     render();
+  }
+}
 
-    load.addEventListener(
-      "click",
-      loadFolders
+
+async function handleAnalysisClickCapture(
+  event
+) {
+  /*
+    자동 불러오기 완료 후 재실행한 클릭은
+    기존 분석 기능으로 그대로 넘긴다.
+  */
+
+  if (
+    replayingAnalysisClick
+  ) {
+    replayingAnalysisClick =
+      false;
+
+    return;
+  }
+
+  /*
+    설정된 폴더가 없으면
+    기존 수동 첨부 방식으로 분석한다.
+  */
+
+  if (
+    handles.size ===
+      0
+  ) {
+    return;
+  }
+
+  /*
+    기존 분석 기능들이 먼저 실행되지 않도록
+    최초 클릭만 잠시 중단한다.
+  */
+
+  event.preventDefault();
+  event.stopImmediatePropagation();
+
+  if (
+    loading
+  ) {
+    return;
+  }
+
+  const result =
+    await loadFoldersBeforeAnalysis();
+
+  if (
+    !result.canContinue
+  ) {
+    return;
+  }
+
+  const {
+    analyze
+  } =
+    elements();
+
+  if (
+    !analyze
+  ) {
+    return;
+  }
+
+  /*
+    파일 적용 완료 후
+    기존 자료 분석 클릭을 한 번만 재실행한다.
+  */
+
+  replayingAnalysisClick =
+    true;
+
+  analyze.disabled =
+    false;
+
+  analyze.click();
+
+  if (
+    result.failures.length >
+      0
+  ) {
+    window.setTimeout(
+      () => {
+        showError(
+          `일부 폴더를 확인해 주세요: ${result.failures.join(", ")}`
+        );
+      },
+      0
     );
   }
+}
+
+async function initialize() {
+  const {
+    analyze,
+    reset
+  } =
+    elements();
+
+  if (
+    !analyze
+  ) {
+    return;
+  }
+
+  /*
+    상단의 다음 두 표시를 제거한다.
+
+    - 6개 불러오기
+    - 폴더 0/6
+  */
+
+  removeLegacyFolderTools();
+
+  FILE_TYPES.forEach(
+    installFolderControl
+  );
+
+  if (
+    typeof window.showDirectoryPicker !==
+      "function" ||
+    typeof window.indexedDB ===
+      "undefined"
+  ) {
+    FILE_TYPES.forEach(
+      config => {
+        const button =
+          folderButton(
+            config
+          );
+
+        if (
+          !button
+        ) {
+          return;
+        }
+
+        button.disabled =
+          true;
+
+        button.title =
+          "현재 브라우저는 폴더 선택을 지원하지 않습니다.";
+      }
+    );
+
+    return;
+  }
+
+  await readStoredHandles();
+
+  await Promise.all(
+    FILE_TYPES.map(
+      async config => {
+        const handle =
+          handles.get(
+            config.key
+          );
+
+        if (
+          handle
+        ) {
+          permissions.set(
+            config.key,
+            await queryPermission(
+              handle
+            )
+          );
+        }
+      }
+    )
+  );
+
+  render();
+
+  /*
+    기존 분석 이벤트보다 먼저 실행하기 위해
+    캡처 단계에 연결한다.
+  */
+
+  analyze.addEventListener(
+    "click",
+    handleAnalysisClickCapture,
+    true
+  );
+
+  /*
+    초기화해도 폴더 설정은 유지하며
+    자료 분석 버튼을 다시 활성화한다.
+  */
+
+  reset?.addEventListener(
+    "click",
+    () => {
+      window.setTimeout(
+        render,
+        0
+      );
+    }
+  );
+}
 
   if (
     document.readyState ===
