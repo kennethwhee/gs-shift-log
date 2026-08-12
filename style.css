@@ -100903,3 +100903,52 @@ th > small {
     width: 100% !important;
   }
 }
+
+/* =========================================================
+  부재료 PC 상단 폭·정렬 추가 보정
+
+  - 저장 상태: 문구 길이만큼만 표시
+  - 엑셀 등록 카드: 최대 720px만 사용
+  - Slurry 밀도: 엑셀 다운로드 버튼과 같은 줄 하단 정렬
+========================================================= */
+
+@media screen and (min-width: 769px) {
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-status {
+    justify-self: start !important;
+
+    width: fit-content !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-excel-import {
+    width: min(720px, 100%) !important;
+    max-width: 720px !important;
+
+    align-self: flex-start !important;
+    justify-self: start !important;
+  }
+}
+
+
+@media screen and (min-width: 1491px) {
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-query-group
+  > .auxiliary-material-density-setting--grouped {
+    align-self: flex-end !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+
+    margin: 0 !important;
+    padding: 0 0 0 10px !important;
+  }
+}
