@@ -100968,3 +100968,170 @@ th > small {
     letter-spacing: 0.06em !important;
   }
 }
+
+/* =========================================================
+  부재료 PC 제목·저장상태·엑셀 등록 최종 통합
+
+  - 제목 아래 가로선 제거
+  - 저장 상태 오른쪽에 기존 엑셀 등록 안내 배치
+  - 큰 엑셀 등록 카드를 작은 상태 칩으로 축소
+========================================================= */
+
+@media screen and (min-width: 769px) {
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-heading {
+    border-bottom: 0 !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-status-row {
+    box-sizing: border-box !important;
+    display: flex !important;
+
+    grid-column: 1 / -1 !important;
+
+    width: fit-content !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    align-items: center !important;
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-status-row
+  > .auxiliary-material-status {
+    flex: 0 0 auto !important;
+
+    width: fit-content !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    margin: 0 !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-status-row
+  > .auxiliary-material-excel-import--compact {
+    box-sizing: border-box !important;
+    display: inline-flex !important;
+
+    flex: 0 1 auto !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 390px !important;
+    min-height: 25px !important;
+
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+
+    margin: 0 !important;
+    padding: 3px 8px !important;
+
+    border: 1px solid #b9dfc5 !important;
+    border-radius: 7px !important;
+
+    background: #f1faf4 !important;
+    box-shadow: none !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-excel-import--compact
+  .auxiliary-material-excel-import__description {
+    display: flex !important;
+    flex: 0 0 auto !important;
+    align-items: center !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-excel-import--compact
+  .auxiliary-material-excel-import__description
+  > span,
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-excel-import--compact
+  .auxiliary-material-excel-import__description
+  > p {
+    display: none !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-excel-import--compact
+  .auxiliary-material-excel-import__description
+  > strong {
+    margin: 0 !important;
+
+    color: #247440 !important;
+
+    font-size: 10px !important;
+    font-weight: 900 !important;
+    line-height: 1.2 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-excel-import--compact
+  .auxiliary-material-excel-import__actions {
+    display: flex !important;
+    flex: 0 1 auto !important;
+    align-items: center !important;
+
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 0 0 8px !important;
+
+    border-left: 1px solid #cce8d5 !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-excel-import--compact
+  #auxiliaryMaterialExcelFileName {
+    display: block !important;
+
+    max-width: 130px !important;
+    overflow: hidden !important;
+
+    color: #667b6e !important;
+
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+}
