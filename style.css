@@ -99267,28 +99267,21 @@ td.is-ammonia {
 }
 
 /* =========================================================
-  오전회의 취합 - 폴더 설정 버튼 컴팩트 디자인
+  오전회의 취합 - 자료별 폴더 설정 컴팩트 디자인
 ========================================================= */
 
 #efficiencyMorningMeetingView
 .efficiency-morning-meeting-folder-tools {
-  display: grid;
-
-  grid-template-columns:
-    auto
-    minmax(
-      72px,
-      140px
-    )
-    auto;
+  display: flex;
+  flex: 0 0 auto;
 
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 
-  gap: 7px;
+  gap: 6px;
 
   min-width: 0;
-
-  flex: 0 1 auto;
 }
 
 
@@ -99299,6 +99292,8 @@ td.is-ammonia {
   align-items: center;
 
   gap: 4px;
+
+  min-width: 0;
 }
 
 
@@ -99312,17 +99307,18 @@ button {
   align-items: center;
   justify-content: center;
 
-  min-width: 0;
-  height: 28px;
-  padding: 0 9px;
+  min-width: 92px;
+  height: 30px;
+  padding: 0 10px;
 
-  border: 1px solid #bdcad8;
+  border: 1px solid #9fbee2;
   border-radius: 7px;
 
-  background: #ffffff;
+  background: #edf5ff;
 
-  color: #53677d;
+  color: #2866ad;
 
+  font-family: inherit;
   font-size: 10px;
   font-weight: 850;
   line-height: 1;
@@ -99341,40 +99337,219 @@ button {
 #efficiencyMorningMeetingView
 .efficiency-morning-meeting-folder-tools__buttons
 button:hover:not(:disabled) {
-  border-color: #8fb3dc;
+  border-color: #6e9ed5;
 
-  background: #f5f9fe;
-
-  color: #2e65a6;
+  background: #e3f0ff;
 }
 
 
 #efficiencyMorningMeetingView
 .efficiency-morning-meeting-folder-tools__buttons
 button:active:not(:disabled) {
-  transform: translateY(
-    1px
-  );
+  transform: translateY(1px);
 }
 
 
 #efficiencyMorningMeetingView
 .efficiency-morning-meeting-folder-tools__buttons
-button:focus-visible {
-  outline: 2px solid rgba(
-    47,
-    112,
-    194,
-    0.24
-  );
+button:disabled {
+  border-color: #d8e0e8;
 
-  outline-offset: 2px;
+  background: #f1f4f7;
+
+  color: #9ba8b5;
+
+  cursor: not-allowed;
 }
 
 
 #efficiencyMorningMeetingView
-#loadEfficiencyMorningMeetingInputFolderButton:not(:disabled) {
-  border-color: #a9c8ed;
+#efficiencyMorningMeetingInputFolderStatus {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-width: 72px;
+  height: 30px;
+  margin: 0;
+  padding: 0 9px;
+
+  border: 1px solid #d2dce7;
+  border-radius: 999px;
+
+  background: #f7f9fc;
+
+  color: #66798d;
+
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingUploadCount {
+  min-width: 52px !important;
+  height: 30px !important;
+  padding: 0 10px !important;
+
+  font-size: 10px !important;
+}
+
+
+/* =========================================================
+  카드 아래 자료별 폴더 줄
+========================================================= */
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-upload-shell {
+  display: grid;
+
+  grid-template-rows:
+    minmax(
+      80px,
+      1fr
+    )
+    auto;
+
+  min-width: 0;
+  height: 100%;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-upload-shell
+>
+.efficiency-morning-meeting-upload-card {
+  min-height: 80px !important;
+  height: auto !important;
+
+  border-radius:
+    10px
+    10px
+    0
+    0 !important;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-upload-shell
+>
+.efficiency-morning-meeting-upload-card:hover {
+  box-shadow: none !important;
+
+  transform: none !important;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-folder-row {
+  box-sizing: border-box;
+
+  display: grid;
+
+  grid-template-columns:
+    auto
+    minmax(
+      0,
+      1fr
+    );
+
+  align-items: center;
+
+  gap: 7px;
+
+  min-width: 0;
+  min-height: 31px;
+  padding: 4px 8px;
+
+  border: 1px solid #d7e2ed;
+  border-top: 0;
+  border-radius:
+    0
+    0
+    10px
+    10px;
+
+  background: #f7f9fc;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-upload-shell:has(
+  >
+  .efficiency-morning-meeting-upload-card:hover
+)
+>
+.efficiency-morning-meeting-folder-row {
+  border-color: #6b9ed9;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-upload-shell:has(
+  >
+  .efficiency-morning-meeting-upload-card.is-selected
+)
+>
+.efficiency-morning-meeting-folder-row,
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-upload-shell:has(
+  >
+  .efficiency-morning-meeting-upload-card.is-complete
+)
+>
+.efficiency-morning-meeting-folder-row {
+  border-color: #9dceb1;
+
+  background: #f3fbf6;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-folder-button {
+  appearance: none;
+
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-width: 58px;
+  height: 22px;
+  padding: 0 7px;
+
+  border: 1px solid #bccbd9;
+  border-radius: 6px;
+
+  background: #ffffff;
+
+  color: #5d7186;
+
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 850;
+  line-height: 1;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-folder-button:hover:not(:disabled) {
+  border-color: #7ea7d5;
 
   background: #edf5ff;
 
@@ -99383,31 +99558,56 @@ button:focus-visible {
 
 
 #efficiencyMorningMeetingView
-.efficiency-morning-meeting-folder-tools__buttons
-button:disabled {
-  border-color: #d9e1e9;
+.efficiency-morning-meeting-folder-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
 
-  background: #f2f5f8;
 
-  color: #a3aeba;
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-folder-button.is-selected {
+  border-color: #9abbe1;
+
+  background: #eaf4ff;
+
+  color: #2866ad;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-folder-button.has-permission-warning {
+  border-color: #dfad65;
+
+  background: #fff5e3;
+
+  color: #a66413;
+}
+
+
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-folder-button:disabled {
+  border-color: #dbe2e9;
+
+  background: #f0f3f6;
+
+  color: #a4aeba;
 
   cursor: not-allowed;
 }
 
 
 #efficiencyMorningMeetingView
-#efficiencyMorningMeetingInputFolderStatus {
+.efficiency-morning-meeting-folder-name {
   display: block;
 
   min-width: 0;
-  max-width: 140px;
 
   overflow: hidden;
 
-  color: #7a8999;
+  color: #77889a;
 
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1.2;
 
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -99415,12 +99615,8 @@ button:disabled {
 
 
 #efficiencyMorningMeetingView
-#efficiencyMorningMeetingUploadCount {
-  min-width: 48px;
-  height: 28px;
-  padding: 0 9px;
-
-  font-size: 10px;
+.efficiency-morning-meeting-folder-name.has-permission-warning {
+  color: #a86a1b;
 }
 
 
@@ -99492,12 +99688,14 @@ button:disabled {
 
   #efficiencyMorningMeetingView
   .efficiency-morning-meeting-folder-tools {
+    display: grid;
+
     grid-template-columns:
-      auto
       minmax(
         0,
         1fr
       )
+      auto
       auto;
 
     width: 100%;
@@ -99505,9 +99703,17 @@ button:disabled {
 
 
   #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-folder-tools__buttons {
+    width: 100%;
+  }
+
+
+  #efficiencyMorningMeetingView
   .efficiency-morning-meeting-folder-tools__buttons
   button {
-    height: 27px;
+    width: 100%;
+    min-width: 0;
+    height: 28px;
     padding: 0 8px;
 
     font-size: 9px;
@@ -99516,7 +99722,9 @@ button:disabled {
 
   #efficiencyMorningMeetingView
   #efficiencyMorningMeetingInputFolderStatus {
-    max-width: none;
+    min-width: 66px;
+    height: 28px;
+    padding: 0 8px;
 
     font-size: 9px;
   }
@@ -99524,18 +99732,57 @@ button:disabled {
 
   #efficiencyMorningMeetingView
   #efficiencyMorningMeetingUploadCount {
-    min-width: 44px;
-    height: 27px;
-    padding: 0 7px;
+    min-width: 44px !important;
+    height: 28px !important;
+    padding: 0 7px !important;
 
-    font-size: 9px;
+    font-size: 9px !important;
   }
 
 
-  /*
-    하단 버튼 4개를
-    모바일에서 2 × 2로 배치한다.
-  */
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-upload-shell {
+    grid-template-rows:
+      minmax(
+        68px,
+        1fr
+      )
+      auto;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-upload-shell
+  >
+  .efficiency-morning-meeting-upload-card {
+    min-height: 68px !important;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-folder-row {
+    min-height: 29px;
+    padding: 3px 7px;
+
+    gap: 6px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-folder-button {
+    min-width: 54px;
+    height: 22px;
+    padding: 0 6px;
+
+    font-size: 8px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-folder-name {
+    font-size: 8px;
+  }
+
 
   #efficiencyMorningMeetingView
   .efficiency-morning-meeting-actions__buttons
