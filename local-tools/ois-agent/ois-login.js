@@ -6665,49 +6665,130 @@ async function requestOisAgentApi(
   requestUrl,
   options = {}
 ) {
-  const response =
-    await fetch(
-      requestUrl,
-      {
-        method:
-          options.method ||
-          "GET",
+  const timeoutMilliseconds =
+    Math.max(
+      1000,
 
-        headers: {
-          Accept:
-            "application/json",
-
-          "X-OIS-Agent-Key":
-            config.agentKey,
-
-          "X-OIS-Agent-Id":
-            config.agentId,
-
-          ...(
-            options.body
-              ? {
-                  "Content-Type":
-                    "application/json"
-                }
-              : {}
-          )
-        },
-
-        cache:
-          "no-store",
-
-        body:
-          options.body
-            ? JSON.stringify(
-                options.body
-              )
-            : undefined
-      }
+      Number(
+        options.timeoutMilliseconds
+      ) ||
+      OIS_QUERY_TIMEOUT
     );
 
 
-  const responseText =
-    await response.text();
+  const abortController =
+    new AbortController();
+
+
+  const timeoutId =
+    setTimeout(
+      () => {
+        abortController.abort();
+      },
+
+      timeoutMilliseconds
+    );
+
+
+  /*
+    타이머만 남아서 Node 프로그램 종료를
+    방해하지 않도록 처리한다.
+  */
+  timeoutId.unref?.();
+
+
+  let response;
+  let responseText = "";
+
+
+  try {
+    response =
+      await fetch(
+        requestUrl,
+        {
+          method:
+            options.method ||
+            "GET",
+
+          headers: {
+            Accept:
+              "application/json",
+
+            "X-OIS-Agent-Key":
+              config.agentKey,
+
+            "X-OIS-Agent-Id":
+              config.agentId,
+
+            ...(
+              options.body
+                ? {
+                    "Content-Type":
+                      "application/json"
+                  }
+                : {}
+            )
+          },
+
+          cache:
+            "no-store",
+
+          signal:
+            abortController.signal,
+
+          body:
+            options.body
+              ? JSON.stringify(
+                  options.body
+                )
+              : undefined
+        }
+      );
+
+
+    /*
+      응답 본문을 읽는 시간도
+      전체 제한시간에 포함한다.
+    */
+    responseText =
+      await response.text();
+
+  } catch (
+    error
+  ) {
+    if (
+      abortController.signal
+        .aborted ||
+      error?.name ===
+        "AbortError"
+    ) {
+      const timeoutError =
+        new Error(
+          (
+            "업무일지 OIS API 응답 시간이 " +
+            `${Math.ceil(
+              timeoutMilliseconds /
+              1000
+            )}초를 초과했습니다.`
+          )
+        );
+
+
+      timeoutError.code =
+        "OIS_AGENT_API_TIMEOUT";
+
+
+      throw timeoutError;
+    }
+
+
+    throw error;
+
+  } finally {
+    clearTimeout(
+      timeoutId
+    );
+  }
 
 
   let result = {};
@@ -6717,15 +6798,53 @@ async function requestOisAgentApi(
     responseText.trim()
   ) {
     try {
-      result =
+      const parsedResult =
         JSON.parse(
           responseText
         );
 
-    } catch {
-      throw new Error(
-        "업무일지 OIS API 응답이 JSON 형식이 아닙니다."
-      );
+
+      if (
+        parsedResult &&
+        typeof parsedResult ===
+          "object" &&
+        !Array.isArray(
+          parsedResult
+        )
+      ) {
+        result =
+          parsedResult;
+
+      } else if (
+        response.ok
+      ) {
+        throw new Error(
+          "업무일지 OIS API 응답 객체가 올바르지 않습니다."
+        );
+      }
+
+    } catch (
+      error
+    ) {
+      /*
+        Cloudflare 한도 초과 등의 오류에서는
+        JSON 대신 HTML이 반환될 수 있다.
+
+        HTTP 오류 응답이면 아래에서 상태 코드로 처리하고,
+        정상 응답인데 JSON이 아니면 형식 오류로 처리한다.
+      */
+      if (
+        response.ok
+      ) {
+        throw (
+          error instanceof
+            Error
+            ? error
+            : new Error(
+                "업무일지 OIS API 응답이 JSON 형식이 아닙니다."
+              )
+        );
+      }
     }
   }
 
@@ -6735,11 +6854,49 @@ async function requestOisAgentApi(
     result.ok ===
       false
   ) {
-    throw new Error(
-      result.message ||
-      result.error ||
-      `업무일지 OIS API 요청 실패 (HTTP ${response.status})`
-    );
+    const requestError =
+      new Error(
+        result.message ||
+        result.error ||
+        (
+          "업무일지 OIS API 요청 실패 " +
+          `(HTTP ${response.status})`
+        )
+      );
+
+
+    /*
+      호출부에서 401·429·서버 오류 등을
+      구분할 수 있도록 상태 코드를 보존한다.
+    */
+    requestError.status =
+      response.status;
+
+
+    const retryAfterText =
+      String(
+        response.headers.get(
+          "Retry-After"
+        ) ||
+        ""
+      ).trim();
+
+
+    if (
+      /^\d+$/.test(
+        retryAfterText
+      )
+    ) {
+      requestError
+        .retryAfterMilliseconds =
+        Number(
+          retryAfterText
+        ) *
+        1000;
+    }
+
+
+    throw requestError;
   }
 
 

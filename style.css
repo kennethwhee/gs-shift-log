@@ -102502,3 +102502,308 @@ body:not(.is-auxiliary-material-expanded)
   font-size: 10px !important;
   font-weight: 700;
 }
+
+/* =========================================================
+  효율팀 - 오전회의취합 분리형 메뉴
+
+  [오전회의취합 본문] [펼침 버튼]
+        [자동수치 기록]
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingMenuGroup {
+  box-sizing: border-box;
+  display: flex;
+
+  width: 100%;
+  min-width: 0;
+
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* 상위 메뉴와 화살표를 서로 다른 버튼으로 배치 */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingMenuGroup
+.efficiency-team-parent-row {
+  box-sizing: border-box;
+  display: grid;
+
+  width: 100%;
+  min-width: 0;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    32px;
+
+  gap: 4px;
+}
+
+/* 오전회의취합 본문 버튼 */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingMenuGroup
+#efficiencyMorningMeetingTab {
+  box-sizing: border-box !important;
+  display: grid !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 48px !important;
+
+  grid-template-columns:
+    18px
+    minmax(0, 1fr) !important;
+
+  align-items: center !important;
+  column-gap: 6px !important;
+
+  margin: 0 !important;
+  padding: 0 7px !important;
+
+  border: 1px solid #8fc5ef !important;
+  border-radius: 9px !important;
+
+  background: #dcedff !important;
+  color: #165b8c !important;
+
+  font-size: 11px !important;
+  font-weight: 850 !important;
+  line-height: 1.15 !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+
+  box-shadow:
+    inset 3px 0 0 #55a7e5 !important;
+}
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingMenuGroup
+#efficiencyMorningMeetingTab
+.efficiency-team-tab__icon {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingMenuGroup
+#efficiencyMorningMeetingTab
+.efficiency-team-tab__label {
+  overflow: hidden;
+
+  text-overflow: clip;
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingMenuGroup
+#efficiencyMorningMeetingTab:hover {
+  background: #d2e8ff !important;
+  border-color: #69afe3 !important;
+}
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingMenuGroup
+#efficiencyMorningMeetingTab:is(
+  .is-active,
+  .is-parent-active,
+  .active,
+  [aria-selected="true"]
+) {
+  background: #c9e3ff !important;
+  border-color: #4199d8 !important;
+
+  box-shadow:
+    inset 3px 0 0 #2486ca,
+    0 3px 9px rgba(53, 132, 191, 0.18) !important;
+}
+
+/* 오른쪽 독립 펼침 버튼 */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingSubmenuToggle {
+  box-sizing: border-box;
+  display: inline-flex;
+
+  width: 32px;
+  min-width: 32px;
+  height: 48px;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0;
+
+  border: 1px solid #8fc5ef;
+  border-radius: 9px;
+
+  background: #e7f3ff;
+  color: #226b9f;
+
+  cursor: pointer;
+
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingSubmenuToggle:hover {
+  border-color: #69afe3;
+  background: #d8ebff;
+}
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingSubmenuToggle:focus-visible {
+  outline: 0;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(65, 153, 216, 0.18);
+}
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingSubmenuToggle svg {
+  display: block;
+
+  width: 16px;
+  height: 16px;
+
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+
+  transition:
+    transform 0.18s ease;
+}
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingMenuGroup.is-submenu-open
+#efficiencyMorningMeetingSubmenuToggle {
+  border-color: #4199d8;
+  background: #cfe7ff;
+}
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingMenuGroup.is-submenu-open
+#efficiencyMorningMeetingSubmenuToggle svg {
+  transform: rotate(180deg);
+}
+
+/* 하위메뉴 */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingSubmenu[hidden] {
+  display: none !important;
+}
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingSubmenu {
+  box-sizing: border-box;
+  display: block;
+
+  width: calc(100% - 18px);
+  min-width: 0;
+
+  margin: 0 0 0 18px;
+}
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTab {
+  box-sizing: border-box !important;
+  display: grid !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 36px !important;
+
+  grid-template-columns:
+    16px
+    minmax(0, 1fr) !important;
+
+  align-items: center !important;
+  column-gap: 6px !important;
+
+  margin: 0 !important;
+  padding: 0 8px !important;
+
+  border: 1px solid #c4d9ed !important;
+  border-left: 3px solid #74adde !important;
+  border-radius: 8px !important;
+
+  background: #f5f9fd !important;
+  color: #315d83 !important;
+
+  font-size: 11px !important;
+  font-weight: 750 !important;
+  line-height: 1.15 !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+
+  box-shadow: none !important;
+}
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTab
+.efficiency-team-subtab__icon {
+  display: flex;
+
+  width: 16px;
+  height: 16px;
+
+  align-items: center;
+  justify-content: center;
+}
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTab
+.efficiency-team-subtab__icon svg {
+  display: block;
+
+  width: 16px;
+  height: 16px;
+
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTab:hover {
+  border-color: #91bde2 !important;
+  border-left-color: #438fcf !important;
+  background: #eaf4fd !important;
+}
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTab:is(
+  .is-active,
+  .active,
+  [aria-selected="true"]
+) {
+  border-color: #70abe0 !important;
+  border-left-color: #1976c8 !important;
+  background: #dcedff !important;
+  color: #155b94 !important;
+
+  box-shadow:
+    0 2px 7px
+    rgba(47, 112, 166, 0.13) !important;
+}
+
+/* 모바일에서는 오전회의 메뉴 그룹 전체를 숨김 */
+
+@media screen and (max-width: 768px) {
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingMenuGroup {
+    display: none !important;
+  }
+}
