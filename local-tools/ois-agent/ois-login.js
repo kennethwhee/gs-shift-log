@@ -286,11 +286,11 @@ const OIS_REQUEST_API_PATH =
 
 
 const OIS_AGENT_POLL_INTERVAL =
-  5000;
+  15000;
 
 
 const OIS_AGENT_ERROR_RETRY_INTERVAL =
-  10000;
+  60000;
 
 
 const OIS_QUERY_TIMEOUT =
@@ -7285,63 +7285,96 @@ async function getNextOisAgentRequest(
     requestTypes.length;
 
 
-  for (
-    let offset = 0;
-    offset <
-      requestTypes.length;
-    offset +=
-      1
-  ) {
-    const requestTypeIndex =
+  /*
+    요청 유형의 우선순위를 매번 한 칸씩 순환한다.
+
+    중요:
+    기존처럼 요청 유형마다 API를 별도로 호출하지 않고,
+    모든 요청 유형을 한 번의 API 요청으로 전달한다.
+  */
+  const orderedRequestTypes =
+    requestTypes.map(
       (
-        startIndex +
+        requestType,
         offset
-      ) %
-      requestTypes.length;
+      ) => {
+        return requestTypes[
+          (
+            startIndex +
+            offset
+          ) %
+          requestTypes.length
+        ];
+      }
+    );
 
 
-    const requestType =
-      requestTypes[
-        requestTypeIndex
-      ];
+  const result =
+    await requestOisAgentApi(
+      config,
 
-
-    const result =
-      await requestOisAgentApi(
+      getOisAgentApiUrl(
         config,
+        {
+          action:
+            "next",
 
-        getOisAgentApiUrl(
-          config,
-          {
-            action:
-              "next",
+          requestTypes:
+            orderedRequestTypes.join(
+              ","
+            ),
 
-            requestType,
+          _:
+            Date.now()
+        }
+      )
+    );
 
-            _:
-              Date.now()
-          }
-        )
+
+  /*
+    요청을 가져온 경우에는
+    해당 요청 유형 다음 순서부터 조회한다.
+  */
+  if (
+    result.item
+  ) {
+    const claimedRequestType =
+      normalizeOisAgentText(
+        result.item.requestType ||
+        result.item.request_type
       );
 
 
-    if (
-      result.item
-    ) {
-      getNextOisAgentRequest
-        .nextTypeIndex =
-        (
-          requestTypeIndex +
-          1
-        ) %
-        requestTypes.length;
+    const claimedRequestTypeIndex =
+      requestTypes.indexOf(
+        claimedRequestType
+      );
 
 
-      return result.item;
-    }
+    getNextOisAgentRequest
+      .nextTypeIndex =
+      claimedRequestTypeIndex >=
+        0
+        ? (
+            claimedRequestTypeIndex +
+            1
+          ) %
+          requestTypes.length
+        : (
+            startIndex +
+            1
+          ) %
+          requestTypes.length;
+
+
+    return result.item;
   }
 
 
+  /*
+    대기 요청이 없어도 다음 조회에서는
+    우선순위를 한 칸 이동한다.
+  */
   getNextOisAgentRequest
     .nextTypeIndex =
     (

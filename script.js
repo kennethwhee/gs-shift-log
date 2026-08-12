@@ -218288,3 +218288,2770 @@ async function initialize() {
   }
 
   })();
+
+/* =========================================================
+  오전회의취합 · 자동수치 기록
+
+  조회 원칙:
+  - 저장된 완료 자료만 GET 조회
+  - 신규 OIS 요청 생성 없음
+  - 탭 최초 진입·월 이동·새로고침 때만 조회
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingAutoHistory() {
+  "use strict";
+
+  if (window.__efficiencyMorningMeetingAutoHistoryInstalled === true) {
+    return;
+  }
+
+  window.__efficiencyMorningMeetingAutoHistoryInstalled = true;
+
+  const API_URL =
+    "/api/ois-data-requests";
+
+  const SMP_STORAGE_KEY =
+    "gs-shift-log:morning-meeting:smp-manual-overrides:v1";
+
+  const state = {
+    month:
+      getCurrentMonth(),
+
+    loading:
+      false,
+
+    requestSequence:
+      0,
+
+    initialized:
+      false,
+
+    cache:
+      new Map()
+  };
+
+
+  /* =====================================================
+    화면 요소
+  ====================================================== */
+
+  function getElements() {
+    return {
+      view:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoHistoryView"
+        ),
+
+      previousButton:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoHistoryPreviousMonthButton"
+        ),
+
+      nextButton:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoHistoryNextMonthButton"
+        ),
+
+      monthLabel:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoHistoryMonthLabel"
+        ),
+
+      refreshButton:
+        document.getElementById(
+          "refreshEfficiencyMorningMeetingAutoHistoryButton"
+        ),
+
+      recordCount:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoHistoryRecordCount"
+        ),
+
+      table:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoHistoryTable"
+        ),
+
+      tableHead:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoHistoryTableHead"
+        ),
+
+      tableBody:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoHistoryTableBody"
+        ),
+
+      status:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoHistoryStatus"
+        ),
+
+      loading:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoHistoryLoading"
+        ),
+
+      empty:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoHistoryEmptyState"
+        ),
+
+      error:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoHistoryError"
+        )
+    };
+  }
+
+
+  /* =====================================================
+    공통 값 정리
+  ====================================================== */
+
+  function normalizeText(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    ).trim();
+  }
+
+
+  function numberOrNull(
+    value
+  ) {
+    const normalizedValue =
+      normalizeText(
+        value
+      ).replaceAll(
+        ",",
+        ""
+      );
+
+
+    if (
+      normalizedValue ===
+      ""
+    ) {
+      return null;
+    }
+
+
+    const numericValue =
+      Number(
+        normalizedValue
+      );
+
+
+    return Number.isFinite(
+      numericValue
+    )
+      ? numericValue
+      : null;
+  }
+
+
+  function firstNumber(
+    ...values
+  ) {
+    for (
+      const value of values
+    ) {
+      const numericValue =
+        numberOrNull(
+          value
+        );
+
+
+      if (
+        numericValue !==
+        null
+      ) {
+        return numericValue;
+      }
+    }
+
+
+    return null;
+  }
+
+
+  /*
+    두 값이 모두 있어야 합계를 반환한다.
+
+    증기 저압·고압 중 한쪽만 있거나
+    1·2호기 중 한쪽만 있을 때
+    부분값을 총량으로 오인하지 않게 한다.
+  */
+
+  function sumCompleteNumbers(
+    ...values
+  ) {
+    const numericValues =
+      values.map(
+        numberOrNull
+      );
+
+
+    if (
+      numericValues.length ===
+        0 ||
+      numericValues.some(
+        value =>
+          value ===
+          null
+      )
+    ) {
+      return null;
+    }
+
+
+    return numericValues.reduce(
+      (
+        total,
+        value
+      ) =>
+        total +
+        value,
+      0
+    );
+  }
+
+
+  /* =====================================================
+    날짜
+  ====================================================== */
+
+  function isIsoDate(
+    value
+  ) {
+    const dateText =
+      normalizeText(
+        value
+      );
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        dateText
+      )
+    ) {
+      return false;
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${dateText}T00:00:00.000Z`
+      );
+
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+      parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        dateText
+    );
+  }
+
+
+  function getCurrentMonth() {
+    const now =
+      new Date();
+
+
+    return [
+      now.getFullYear(),
+
+      String(
+        now.getMonth() +
+        1
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      "-"
+    );
+  }
+
+
+  function getMonthRange(
+    monthValue
+  ) {
+    const match =
+      /^(\d{4})-(\d{2})$/.exec(
+        normalizeText(
+          monthValue
+        )
+      );
+
+
+    if (
+      !match
+    ) {
+      throw new Error(
+        "자동수치 기록 조회 월을 확인하지 못했습니다."
+      );
+    }
+
+
+    const year =
+      Number(
+        match[1]
+      );
+
+
+    const month =
+      Number(
+        match[2]
+      );
+
+
+    if (
+      month <
+        1 ||
+      month >
+        12
+    ) {
+      throw new Error(
+        "자동수치 기록 조회 월을 확인하지 못했습니다."
+      );
+    }
+
+
+    const lastDay =
+      new Date(
+        Date.UTC(
+          year,
+          month,
+          0
+        )
+      ).getUTCDate();
+
+
+    const monthText =
+      String(
+        month
+      ).padStart(
+        2,
+        "0"
+      );
+
+
+    return {
+      startDate:
+        `${year}-${monthText}-01`,
+
+      endDate:
+        `${year}-${monthText}-${String(
+          lastDay
+        ).padStart(
+          2,
+          "0"
+        )}`
+    };
+  }
+
+
+  function shiftMonth(
+    monthValue,
+    amount
+  ) {
+    const [
+      year,
+      month
+    ] =
+      normalizeText(
+        monthValue
+      )
+        .split(
+          "-"
+        )
+        .map(
+          Number
+        );
+
+
+    const shiftedDate =
+      new Date(
+        Date.UTC(
+          year,
+          month -
+            1 +
+            Number(
+              amount ||
+              0
+            ),
+          1
+        )
+      );
+
+
+    return [
+      shiftedDate.getUTCFullYear(),
+
+      String(
+        shiftedDate.getUTCMonth() +
+        1
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      "-"
+    );
+  }
+
+
+  function addDateDays(
+    dateValue,
+    amount
+  ) {
+    if (
+      !isIsoDate(
+        dateValue
+      )
+    ) {
+      return "";
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${dateValue}T00:00:00.000Z`
+      );
+
+
+    parsedDate.setUTCDate(
+      parsedDate.getUTCDate() +
+      Number(
+        amount ||
+        0
+      )
+    );
+
+
+    return parsedDate
+      .toISOString()
+      .slice(
+        0,
+        10
+      );
+  }
+
+
+  function formatMonthLabel(
+    monthValue
+  ) {
+    const [
+      year,
+      month
+    ] =
+      normalizeText(
+        monthValue
+      ).split(
+        "-"
+      );
+
+
+    return `${year}년 ${Number(
+      month
+    )}월`;
+  }
+
+
+  function formatDateCell(
+    dateValue
+  ) {
+    const parsedDate =
+      new Date(
+        `${dateValue}T00:00:00.000Z`
+      );
+
+
+    return {
+      shortDate:
+        dateValue
+          .slice(
+            5
+          )
+          .replace(
+            "-",
+            "."
+          ),
+
+      weekday: [
+        "일",
+        "월",
+        "화",
+        "수",
+        "목",
+        "금",
+        "토"
+      ][
+        parsedDate.getUTCDay()
+      ]
+    };
+  }
+
+
+  /* =====================================================
+    숫자 표시
+  ====================================================== */
+
+  function formatNumber(
+    value,
+    options = {}
+  ) {
+    const numericValue =
+      numberOrNull(
+        value
+      );
+
+
+    if (
+      numericValue ===
+      null
+    ) {
+      return "";
+    }
+
+
+    return numericValue.toLocaleString(
+      "ko-KR",
+      {
+        minimumFractionDigits:
+          Number.isInteger(
+            options.minimumFractionDigits
+          )
+            ? options.minimumFractionDigits
+            : 0,
+
+        maximumFractionDigits:
+          Number.isInteger(
+            options.maximumFractionDigits
+          )
+            ? options.maximumFractionDigits
+            : 3
+      }
+    );
+  }
+
+
+  function formatAmount(
+    value,
+    unit,
+    options = {}
+  ) {
+    const formattedValue =
+      formatNumber(
+        value,
+        options
+      );
+
+
+    if (
+      !formattedValue
+    ) {
+      return "";
+    }
+
+
+    const normalizedUnit =
+      normalizeText(
+        unit
+      );
+
+
+    return normalizedUnit
+      ? `${formattedValue} ${normalizedUnit}`
+      : formattedValue;
+  }
+
+
+  /* =====================================================
+    저장 이력 API
+
+    허용된 네트워크 요청:
+    1. completed_history
+    2. usage_history
+
+    POST 요청이나 SMP 조회는 실행하지 않는다.
+  ====================================================== */
+
+  function buildHistoryUrl(
+    action,
+    range
+  ) {
+    const searchParameters =
+      new URLSearchParams({
+        action,
+
+        startDate:
+          range.startDate,
+
+        endDate:
+          range.endDate
+      });
+
+
+    return `${API_URL}?${searchParameters.toString()}`;
+  }
+
+
+  async function readApiResponse(
+    response,
+    label
+  ) {
+    let payload =
+      null;
+
+
+    try {
+      payload =
+        await response.json();
+
+    } catch {
+      throw new Error(
+        `${label} 응답 형식을 확인하지 못했습니다.`
+      );
+    }
+
+
+    if (
+      !response.ok ||
+      payload?.ok !==
+        true
+    ) {
+      throw new Error(
+        normalizeText(
+          payload?.message
+        ) ||
+        `${label}을 불러오지 못했습니다.`
+      );
+    }
+
+
+    return payload;
+  }
+
+
+  async function fetchSavedHistory(
+    monthValue
+  ) {
+    const range =
+      getMonthRange(
+        monthValue
+      );
+
+
+    const headers =
+      typeof getShiftLogAuthHeaders ===
+      "function"
+        ? getShiftLogAuthHeaders()
+        : {
+            Accept:
+              "application/json"
+          };
+
+
+    const requestOptions = {
+      method:
+        "GET",
+
+      headers,
+
+      cache:
+        "no-store"
+    };
+
+
+    const [
+      completedResponse,
+      limestoneResponse
+    ] =
+      await Promise.all([
+        fetch(
+          buildHistoryUrl(
+            "completed_history",
+            range
+          ),
+          requestOptions
+        ),
+
+        fetch(
+          buildHistoryUrl(
+            "usage_history",
+            range
+          ),
+          requestOptions
+        )
+      ]);
+
+
+    const [
+      completedPayload,
+      limestonePayload
+    ] =
+      await Promise.all([
+        readApiResponse(
+          completedResponse,
+          "저장된 자동수치"
+        ),
+
+        readApiResponse(
+          limestoneResponse,
+          "저장된 석회석 사용량"
+        )
+      ]);
+
+
+    return {
+      completedPayload,
+      limestonePayload
+    };
+  }
+
+
+  /* =====================================================
+    저장된 SMP 읽기
+
+    서버 SMP API를 호출하지 않는다.
+
+    - 현재 화면 메모리
+    - 사용자가 수동 저장한 localStorage
+
+    최소·최대·평균 3개가 모두 있는 경우만 사용한다.
+  ====================================================== */
+
+  function normalizeSmpItem(
+    item
+  ) {
+    if (
+      !item ||
+      typeof item !==
+        "object" ||
+      Array.isArray(
+        item
+      )
+    ) {
+      return null;
+    }
+
+
+    const maximum =
+      firstNumber(
+        item.maximum,
+        item.max
+      );
+
+
+    const minimum =
+      firstNumber(
+        item.minimum,
+        item.min
+      );
+
+
+    const weightedAverage =
+      firstNumber(
+        item.weightedAverage,
+        item.average,
+        item.avg
+      );
+
+
+    if (
+      maximum ===
+        null ||
+      minimum ===
+        null ||
+      weightedAverage ===
+        null
+    ) {
+      return null;
+    }
+
+
+    return {
+      maximum,
+      minimum,
+      weightedAverage
+    };
+  }
+
+
+  function readLocalSmpByDate() {
+    const savedItems =
+      new Map();
+
+
+    const memoryItems =
+      window
+        .efficiencyMorningMeetingUploadState
+        ?.smpPriceByDate;
+
+
+    if (
+      memoryItems &&
+      typeof memoryItems ===
+        "object" &&
+      !Array.isArray(
+        memoryItems
+      )
+    ) {
+      Object.entries(
+        memoryItems
+      ).forEach(
+        ([
+          dateValue,
+          item
+        ]) => {
+          const normalizedItem =
+            normalizeSmpItem(
+              item
+            );
+
+
+          if (
+            isIsoDate(
+              dateValue
+            ) &&
+            normalizedItem
+          ) {
+            savedItems.set(
+              dateValue,
+              normalizedItem
+            );
+          }
+        }
+      );
+    }
+
+
+    try {
+      const storedItems =
+        JSON.parse(
+          localStorage.getItem(
+            SMP_STORAGE_KEY
+          ) ||
+          "{}"
+        );
+
+
+      if (
+        storedItems &&
+        typeof storedItems ===
+          "object" &&
+        !Array.isArray(
+          storedItems
+        )
+      ) {
+        Object.entries(
+          storedItems
+        ).forEach(
+          ([
+            dateValue,
+            item
+          ]) => {
+            const normalizedItem =
+              normalizeSmpItem(
+                item
+              );
+
+
+            if (
+              isIsoDate(
+                dateValue
+              ) &&
+              normalizedItem
+            ) {
+              savedItems.set(
+                dateValue,
+                normalizedItem
+              );
+            }
+          }
+        );
+      }
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "저장된 SMP 수동값을 읽지 못했습니다.",
+        error
+      );
+    }
+
+
+    return savedItems;
+  }
+
+
+  /* =====================================================
+    저장 자료를 날짜별 행으로 병합
+  ====================================================== */
+
+  function mergeSavedRows(
+    payloads,
+    monthValue
+  ) {
+    const range =
+      getMonthRange(
+        monthValue
+      );
+
+
+    const rowsByDate =
+      new Map();
+
+
+    const ensureRow =
+      dateValue => {
+        if (
+          !rowsByDate.has(
+            dateValue
+          )
+        ) {
+          rowsByDate.set(
+            dateValue,
+            {
+              date:
+                dateValue,
+
+              water:
+                null,
+
+              limestone:
+                null,
+
+              gearPinion:
+                null,
+
+              silo:
+                null,
+
+              dailyData:
+                null,
+
+              smp:
+                null,
+
+              smpDate:
+                ""
+            }
+          );
+        }
+
+
+        return rowsByDate.get(
+          dateValue
+        );
+      };
+
+
+    const isDateInRange =
+      dateValue =>
+        isIsoDate(
+          dateValue
+        ) &&
+        dateValue >=
+          range.startDate &&
+        dateValue <=
+          range.endDate;
+
+
+    const completedItems =
+      Array.isArray(
+        payloads
+          ?.completedPayload
+          ?.items
+      )
+        ? payloads
+            .completedPayload
+            .items
+        : [];
+
+
+    completedItems.forEach(
+      item => {
+        const dateValue =
+          normalizeText(
+            item?.targetDate
+          );
+
+
+        const result =
+          item?.result;
+
+
+        if (
+          !isDateInRange(
+            dateValue
+          ) ||
+          normalizeText(
+            item?.status
+          ).toLowerCase() !==
+            "complete" ||
+          !result ||
+          typeof result !==
+            "object" ||
+          Array.isArray(
+            result
+          )
+        ) {
+          return;
+        }
+
+
+        const requestType =
+          normalizeText(
+            item.requestType ||
+            item.sourceRequestType
+          );
+
+
+        let targetField =
+          "";
+
+
+        switch (
+          requestType
+        ) {
+          case "water_environment":
+            targetField =
+              "water";
+            break;
+
+          case "turbine_gear_pinion":
+            targetField =
+              "gearPinion";
+            break;
+
+          case "silo_level":
+            targetField =
+              "silo";
+            break;
+
+          case "daily_data_excel":
+          case "steam_status":
+            targetField =
+              "dailyData";
+            break;
+
+          default:
+            return;
+        }
+
+
+        const row =
+          ensureRow(
+            dateValue
+          );
+
+
+        if (
+          !row[
+            targetField
+          ]
+        ) {
+          row[
+            targetField
+          ] =
+            result;
+        }
+      }
+    );
+
+
+    const limestoneItems =
+      Array.isArray(
+        payloads
+          ?.limestonePayload
+          ?.items
+      )
+        ? payloads
+            .limestonePayload
+            .items
+        : [];
+
+
+    limestoneItems.forEach(
+      item => {
+        const dateValue =
+          normalizeText(
+            item?.usageDate
+          );
+
+
+        const unitOneUsage =
+          numberOrNull(
+            item?.unitOneUsage
+          );
+
+
+        const unitTwoUsage =
+          numberOrNull(
+            item?.unitTwoUsage
+          );
+
+
+        if (
+          !isDateInRange(
+            dateValue
+          ) ||
+          normalizeText(
+            item?.status
+          ).toLowerCase() ===
+            "missing" ||
+          (
+            unitOneUsage ===
+              null &&
+            unitTwoUsage ===
+              null
+          )
+        ) {
+          return;
+        }
+
+
+        ensureRow(
+          dateValue
+        ).limestone = {
+          ...item,
+
+          unitOneUsage,
+
+          unitTwoUsage
+        };
+      }
+    );
+
+
+    const smpByDate =
+      readLocalSmpByDate();
+
+
+    /*
+      자동수치 기준일의 다음 날이 회의일이므로
+      SMP는 행 날짜 + 1일 자료를 연결한다.
+
+      SMP 값만 존재하는 날짜는
+      새로운 행으로 만들지 않는다.
+    */
+
+    return [
+      ...rowsByDate.values()
+    ]
+      .map(
+        row => {
+          const smpDate =
+            addDateDays(
+              row.date,
+              1
+            );
+
+
+          return {
+            ...row,
+
+            smpDate,
+
+            smp:
+              smpByDate.get(
+                smpDate
+              ) ||
+              null
+          };
+        }
+      )
+      .sort(
+        (
+          firstRow,
+          secondRow
+        ) =>
+          secondRow
+            .date
+            .localeCompare(
+              firstRow.date
+            )
+      );
+  }
+
+
+  /* =====================================================
+    수처리 표시
+  ====================================================== */
+
+  function getWaterText(
+    water
+  ) {
+    if (
+      !water
+    ) {
+      return "";
+    }
+
+
+    const rawWaterInflow =
+      numberOrNull(
+        water.rawWaterInflow
+      );
+
+
+    const demiProduction =
+      numberOrNull(
+        water.demiProduction
+      );
+
+
+    const pureWaterUsage =
+      numberOrNull(
+        water.pureWaterUsage
+      );
+
+
+    let recoveryRate =
+      firstNumber(
+        water.recoveryRate,
+        water.waterRecoveryRate
+      );
+
+
+    if (
+      recoveryRate ===
+        null &&
+      demiProduction !==
+        null &&
+      demiProduction >
+        0 &&
+      pureWaterUsage !==
+        null
+    ) {
+      recoveryRate =
+        (
+          demiProduction -
+          pureWaterUsage
+        ) /
+        demiProduction *
+        100;
+    }
+
+
+    if (
+      rawWaterInflow ===
+        null &&
+      demiProduction ===
+        null &&
+      recoveryRate ===
+        null
+    ) {
+      return "";
+    }
+
+
+    return [
+      formatNumber(
+        rawWaterInflow,
+        {
+          maximumFractionDigits:
+            2
+        }
+      ) ||
+        "-",
+
+      formatNumber(
+        demiProduction,
+        {
+          maximumFractionDigits:
+            2
+        }
+      ) ||
+        "-",
+
+      recoveryRate ===
+        null
+        ? "-"
+        : `${formatNumber(
+            recoveryRate,
+            {
+              minimumFractionDigits:
+                1,
+
+              maximumFractionDigits:
+                1
+            }
+          )}%`
+    ].join(
+      " / "
+    );
+  }
+
+
+  /* =====================================================
+    Gear / Pinion 표시
+  ====================================================== */
+
+  function getGearPinionText(
+    item
+  ) {
+    if (
+      !item
+    ) {
+      return "";
+    }
+
+
+    const gearWheel =
+      numberOrNull(
+        item.gearWheel
+      );
+
+
+    const pinion =
+      numberOrNull(
+        item.pinion
+      );
+
+
+    if (
+      gearWheel ===
+        null &&
+      pinion ===
+        null
+    ) {
+      return "";
+    }
+
+
+    const options = {
+      minimumFractionDigits:
+        3,
+
+      maximumFractionDigits:
+        3
+    };
+
+
+    return [
+      formatNumber(
+        gearWheel,
+        options
+      ) ||
+        "-",
+
+      formatNumber(
+        pinion,
+        options
+      ) ||
+        "-"
+    ].join(
+      " / "
+    );
+  }
+
+
+  /* =====================================================
+    증기 표시
+  ====================================================== */
+
+  function getSteamSales(
+    item
+  ) {
+    if (
+      !item
+    ) {
+      return null;
+    }
+
+
+    return firstNumber(
+      item.steamSales,
+      item.steam_sales,
+
+      sumCompleteNumbers(
+        item.steamSalesLowPressure,
+        item.steamSalesHighPressure
+      )
+    );
+  }
+
+
+  function getSteamProduction(
+    item
+  ) {
+    if (
+      !item
+    ) {
+      return null;
+    }
+
+
+    return firstNumber(
+      item.totalProduction,
+      item.total_production,
+
+      sumCompleteNumbers(
+        item.unitOneProduction,
+        item.unitTwoProduction
+      )
+    );
+  }
+
+
+  /* =====================================================
+    유기성 고형연료 표시
+  ====================================================== */
+
+  function getOrganicText(
+    item
+  ) {
+    if (
+      !item
+    ) {
+      return "";
+    }
+
+
+    const receivedAmount =
+      numberOrNull(
+        item.sludgeTotal
+      );
+
+
+    const storedAmount =
+      numberOrNull(
+        item.organicSiloTotal
+      );
+
+
+    if (
+      receivedAmount ===
+        null &&
+      storedAmount ===
+        null
+    ) {
+      return "";
+    }
+
+
+    return [
+      `입고 ${
+        formatAmount(
+          receivedAmount,
+          "ton",
+          {
+            maximumFractionDigits:
+              3
+          }
+        ) ||
+        "-"
+      }`,
+
+      `재고 ${
+        formatAmount(
+          storedAmount,
+          "ton",
+          {
+            maximumFractionDigits:
+              6
+          }
+        ) ||
+        "-"
+      }`
+    ].join(
+      " / "
+    );
+  }
+
+
+  /* =====================================================
+    표 머리글
+  ====================================================== */
+
+  function renderTableHead() {
+    const {
+      tableHead
+    } =
+      getElements();
+
+
+    if (
+      !tableHead
+    ) {
+      return;
+    }
+
+
+    tableHead.innerHTML = `
+      <tr>
+        <th
+          rowspan="2"
+          class="is-date is-history-date"
+        >
+          일자
+        </th>
+
+        <th
+          class="is-history-group is-water"
+        >
+          수처리
+        </th>
+
+        <th
+          colspan="2"
+          class="is-history-group is-limestone"
+        >
+          석회석
+        </th>
+
+        <th
+          rowspan="2"
+          class="is-history-group is-history-metric is-gear-pinion"
+        >
+          <span>
+            Gear / Pinion
+          </span>
+
+          <small>
+            Gear · Pinion
+          </small>
+        </th>
+
+        <th
+          colspan="2"
+          class="is-history-group is-silo is-silo-level"
+        >
+          Silo Level
+        </th>
+
+        <th
+          colspan="3"
+          class="is-history-group is-smp"
+        >
+          전력단가
+        </th>
+
+        <th
+          colspan="2"
+          class="is-history-group is-steam"
+        >
+          증기
+        </th>
+
+        <th
+          rowspan="2"
+          class="is-history-group is-history-metric is-power"
+        >
+          <span>
+            전력
+          </span>
+
+          <small>
+            발전량 · kWh
+          </small>
+        </th>
+
+        <th
+          rowspan="2"
+          class="is-history-group is-history-metric is-organic is-organic-fuel"
+        >
+          <span>
+            유기성 고형연료
+          </span>
+
+          <small>
+            입고 · 재고
+          </small>
+        </th>
+      </tr>
+
+
+      <tr>
+        <th
+          class="is-history-metric is-water"
+        >
+          <span>
+            원수 유입 · 순수 생산 · 회수율
+          </span>
+
+          <small>
+            m³/d · m³ · %
+          </small>
+        </th>
+
+        <th
+          class="is-history-metric is-limestone"
+        >
+          <span>
+            1호기
+          </span>
+
+          <small>
+            ton
+          </small>
+        </th>
+
+        <th
+          class="is-history-metric is-limestone"
+        >
+          <span>
+            2호기
+          </span>
+
+          <small>
+            ton
+          </small>
+        </th>
+
+        <th
+          class="is-history-metric is-silo is-silo-level"
+        >
+          <span>
+            Fly Ash
+          </span>
+
+          <small>
+            24시
+          </small>
+        </th>
+
+        <th
+          class="is-history-metric is-silo is-silo-level"
+        >
+          <span>
+            Bio
+          </span>
+
+          <small>
+            24시
+          </small>
+        </th>
+
+        <th
+          class="is-history-metric is-smp"
+        >
+          <span>
+            최소
+          </span>
+
+          <small>
+            원/kWh
+          </small>
+        </th>
+
+        <th
+          class="is-history-metric is-smp"
+        >
+          <span>
+            최대
+          </span>
+
+          <small>
+            원/kWh
+          </small>
+        </th>
+
+        <th
+          class="is-history-metric is-smp"
+        >
+          <span>
+            평균
+          </span>
+
+          <small>
+            원/kWh
+          </small>
+        </th>
+
+        <th
+          class="is-history-metric is-steam"
+        >
+          <span>
+            판매
+          </span>
+
+          <small>
+            ton
+          </small>
+        </th>
+
+        <th
+          class="is-history-metric is-steam"
+        >
+          <span>
+            생산
+          </span>
+
+          <small>
+            ton
+          </small>
+        </th>
+      </tr>
+    `;
+  }
+
+
+  /* =====================================================
+    값 셀 생성
+  ====================================================== */
+
+  function createValueCell(
+    value,
+    className,
+    title = ""
+  ) {
+    const cell =
+      document.createElement(
+        "td"
+      );
+
+
+    cell.className =
+      `is-history-value ${className}`;
+
+
+    const normalizedValue =
+      normalizeText(
+        value
+      );
+
+
+    if (
+      normalizedValue
+    ) {
+      cell.textContent =
+        normalizedValue;
+
+    } else {
+      cell.textContent =
+        "-";
+
+
+      cell.classList.add(
+        "is-missing"
+      );
+    }
+
+
+    if (
+      title
+    ) {
+      cell.title =
+        title;
+    }
+
+
+    return cell;
+  }
+
+
+  /* =====================================================
+    날짜별 행 출력
+  ====================================================== */
+
+  function renderRows(
+    rows
+  ) {
+    const {
+      tableBody
+    } =
+      getElements();
+
+
+    if (
+      !tableBody
+    ) {
+      return;
+    }
+
+
+    tableBody.replaceChildren();
+
+
+    rows.forEach(
+      row => {
+        const tableRow =
+          document.createElement(
+            "tr"
+          );
+
+
+        const dateCell =
+          document.createElement(
+            "td"
+          );
+
+
+        const formattedDate =
+          formatDateCell(
+            row.date
+          );
+
+
+        dateCell.className =
+          "is-date is-history-date";
+
+
+        const dateStrong =
+          document.createElement(
+            "strong"
+          );
+
+
+        const weekdaySmall =
+          document.createElement(
+            "small"
+          );
+
+
+        dateStrong.textContent =
+          formattedDate.shortDate;
+
+
+        weekdaySmall.textContent =
+          formattedDate.weekday;
+
+
+        dateCell.append(
+          dateStrong,
+          weekdaySmall
+        );
+
+
+        const limestone =
+          row.limestone;
+
+
+        const silo =
+          row.silo;
+
+
+        const dailyData =
+          row.dailyData;
+
+
+        const smp =
+          row.smp;
+
+
+        tableRow.append(
+          dateCell,
+
+
+          /*
+            수처리
+          */
+
+          createValueCell(
+            getWaterText(
+              row.water
+            ),
+            "is-water",
+            "원수 유입 / 순수 생산 / 회수율"
+          ),
+
+
+          /*
+            석회석 1호기
+          */
+
+          createValueCell(
+            formatAmount(
+              limestone?.unitOneUsage,
+              "ton",
+              {
+                minimumFractionDigits:
+                  2,
+
+                maximumFractionDigits:
+                  2
+              }
+            ),
+            "is-limestone"
+          ),
+
+
+          /*
+            석회석 2호기
+          */
+
+          createValueCell(
+            formatAmount(
+              limestone?.unitTwoUsage,
+              "ton",
+              {
+                minimumFractionDigits:
+                  2,
+
+                maximumFractionDigits:
+                  2
+              }
+            ),
+            "is-limestone"
+          ),
+
+
+          /*
+            Gear / Pinion
+          */
+
+          createValueCell(
+            getGearPinionText(
+              row.gearPinion
+            ),
+            "is-gear-pinion",
+            "Gear Wheel / Pinion"
+          ),
+
+
+          /*
+            Fly Ash Silo Level
+          */
+
+          createValueCell(
+            formatAmount(
+              silo?.flyAshSiloLevel,
+              silo?.flyAshUnit,
+              {
+                minimumFractionDigits:
+                  3,
+
+                maximumFractionDigits:
+                  3
+              }
+            ),
+            "is-silo is-silo-level"
+          ),
+
+
+          /*
+            Bio Storage Silo Level
+          */
+
+          createValueCell(
+            formatAmount(
+              silo?.bioStorageSiloLevel,
+              silo?.bioStorageUnit,
+              {
+                minimumFractionDigits:
+                  3,
+
+                maximumFractionDigits:
+                  3
+              }
+            ),
+            "is-silo is-silo-level"
+          ),
+
+
+          /*
+            SMP 최소
+          */
+
+          createValueCell(
+            formatNumber(
+              smp?.minimum,
+              {
+                minimumFractionDigits:
+                  2,
+
+                maximumFractionDigits:
+                  2
+              }
+            ),
+            "is-smp",
+            row.smpDate
+              ? `${row.smpDate} 회의일 SMP`
+              : ""
+          ),
+
+
+          /*
+            SMP 최대
+          */
+
+          createValueCell(
+            formatNumber(
+              smp?.maximum,
+              {
+                minimumFractionDigits:
+                  2,
+
+                maximumFractionDigits:
+                  2
+              }
+            ),
+            "is-smp",
+            row.smpDate
+              ? `${row.smpDate} 회의일 SMP`
+              : ""
+          ),
+
+
+          /*
+            SMP 평균
+          */
+
+          createValueCell(
+            formatNumber(
+              smp?.weightedAverage,
+              {
+                minimumFractionDigits:
+                  2,
+
+                maximumFractionDigits:
+                  2
+              }
+            ),
+            "is-smp",
+            row.smpDate
+              ? `${row.smpDate} 회의일 SMP`
+              : ""
+          ),
+
+
+          /*
+            증기 판매
+          */
+
+          createValueCell(
+            formatAmount(
+              getSteamSales(
+                dailyData
+              ),
+              "ton",
+              {
+                maximumFractionDigits:
+                  3
+              }
+            ),
+            "is-steam"
+          ),
+
+
+          /*
+            증기 생산
+          */
+
+          createValueCell(
+            formatAmount(
+              getSteamProduction(
+                dailyData
+              ),
+              "ton",
+              {
+                maximumFractionDigits:
+                  3
+              }
+            ),
+            "is-steam"
+          ),
+
+
+          /*
+            발전량
+          */
+
+          createValueCell(
+            formatAmount(
+              dailyData
+                ?.generatorEcmsGen1,
+              "kWh",
+              {
+                maximumFractionDigits:
+                  3
+              }
+            ),
+            "is-power"
+          ),
+
+
+          /*
+            유기성 고형연료
+          */
+
+          createValueCell(
+            getOrganicText(
+              dailyData
+            ),
+            "is-organic is-organic-fuel",
+            "총 입고량 / 총 재고량"
+          )
+        );
+
+
+        tableBody.appendChild(
+          tableRow
+        );
+      }
+    );
+  }
+
+
+  /* =====================================================
+    월 버튼 상태
+  ====================================================== */
+
+  function updateMonthControls() {
+    const elements =
+      getElements();
+
+
+    if (
+      elements.monthLabel
+    ) {
+      elements.monthLabel.textContent =
+        formatMonthLabel(
+          state.month
+        );
+    }
+
+
+    if (
+      elements.previousButton
+    ) {
+      elements.previousButton.disabled =
+        state.loading;
+    }
+
+
+    if (
+      elements.nextButton
+    ) {
+      elements.nextButton.disabled =
+        state.loading;
+    }
+
+
+    if (
+      elements.refreshButton
+    ) {
+      elements.refreshButton.disabled =
+        state.loading;
+
+
+      elements.refreshButton.setAttribute(
+        "aria-busy",
+        state.loading
+          ? "true"
+          : "false"
+      );
+    }
+  }
+
+
+  /* =====================================================
+    로딩·빈 목록·오류·정상 상태
+  ====================================================== */
+
+  function renderScreen(
+    screenState,
+    rows = [],
+    message = ""
+  ) {
+    const elements =
+      getElements();
+
+
+    const isLoading =
+      screenState ===
+      "loading";
+
+
+    const isEmpty =
+      screenState ===
+      "empty";
+
+
+    const isError =
+      screenState ===
+      "error";
+
+
+    const isReady =
+      screenState ===
+      "ready";
+
+
+    if (
+      elements.loading
+    ) {
+      elements.loading.hidden =
+        !isLoading;
+    }
+
+
+    if (
+      elements.empty
+    ) {
+      elements.empty.hidden =
+        !isEmpty;
+    }
+
+
+    if (
+      elements.error
+    ) {
+      elements.error.hidden =
+        !isError;
+
+
+      if (
+        isError
+      ) {
+        elements.error.textContent =
+          message ||
+          "자동수치 기록을 불러오지 못했습니다.";
+      }
+    }
+
+
+    if (
+      elements.table
+    ) {
+      elements.table.hidden =
+        !isReady;
+    }
+
+
+    const savedDateCount =
+      isReady
+        ? rows.length
+        : 0;
+
+
+    if (
+      elements.recordCount
+    ) {
+      elements.recordCount.textContent =
+        `${savedDateCount}일`;
+    }
+
+
+    if (
+      elements.status
+    ) {
+      elements.status.textContent =
+        isLoading
+          ? "저장 자료 불러오는 중"
+          : isError
+            ? "조회 실패"
+            : isEmpty
+              ? "저장된 날짜 없음"
+              : `저장된 날짜 ${savedDateCount}일`;
+    }
+
+
+    if (
+      isReady
+    ) {
+      renderRows(
+        rows
+      );
+
+    } else if (
+      elements.tableBody
+    ) {
+      elements.tableBody.replaceChildren();
+    }
+
+
+    updateMonthControls();
+  }
+
+
+  function renderPayloads(
+    payloads,
+    monthValue
+  ) {
+    const rows =
+      mergeSavedRows(
+        payloads,
+        monthValue
+      );
+
+
+    renderScreen(
+      rows.length >
+        0
+        ? "ready"
+        : "empty",
+      rows
+    );
+  }
+
+
+  /* =====================================================
+    월간 저장 이력 조회
+  ====================================================== */
+
+  async function loadMonth(
+    options = {}
+  ) {
+    if (
+      !initialize()
+    ) {
+      return;
+    }
+
+
+    const forceRefresh =
+      options.forceRefresh ===
+      true;
+
+
+    const monthValue =
+      state.month;
+
+
+    /*
+      같은 월 재진입은 서버를 다시 조회하지 않고
+      화면 캐시를 사용한다.
+    */
+
+    if (
+      !forceRefresh &&
+      state.cache.has(
+        monthValue
+      )
+    ) {
+      renderPayloads(
+        state.cache.get(
+          monthValue
+        ),
+        monthValue
+      );
+
+
+      return;
+    }
+
+
+    if (
+      state.loading
+    ) {
+      return;
+    }
+
+
+    const requestSequence =
+      state.requestSequence +
+      1;
+
+
+    state.requestSequence =
+      requestSequence;
+
+
+    state.loading =
+      true;
+
+
+    renderScreen(
+      "loading"
+    );
+
+
+    try {
+      const payloads =
+        await fetchSavedHistory(
+          monthValue
+        );
+
+
+      if (
+        requestSequence !==
+        state.requestSequence
+      ) {
+        return;
+      }
+
+
+      state.cache.set(
+        monthValue,
+        payloads
+      );
+
+
+      state.loading =
+        false;
+
+
+      renderPayloads(
+        payloads,
+        monthValue
+      );
+
+    } catch (
+      error
+    ) {
+      if (
+        requestSequence !==
+        state.requestSequence
+      ) {
+        return;
+      }
+
+
+      state.loading =
+        false;
+
+
+      console.error(
+        "오전회의 자동수치 기록 조회 오류:",
+        error
+      );
+
+
+      renderScreen(
+        "error",
+        [],
+        error instanceof
+          Error
+          ? error.message
+          : "자동수치 기록을 불러오지 못했습니다."
+      );
+    }
+  }
+
+
+  /* =====================================================
+    월 이동
+  ====================================================== */
+
+  function changeMonth(
+    amount
+  ) {
+    if (
+      state.loading
+    ) {
+      return;
+    }
+
+
+    state.month =
+      shiftMonth(
+        state.month,
+        amount
+      );
+
+
+    updateMonthControls();
+
+
+    void loadMonth();
+  }
+
+
+  /* =====================================================
+    버튼 연결
+  ====================================================== */
+
+  function bindEvents() {
+    const elements =
+      getElements();
+
+
+    elements
+      .previousButton
+      ?.addEventListener(
+        "click",
+        () => {
+          changeMonth(
+            -1
+          );
+        }
+      );
+
+
+    elements
+      .nextButton
+      ?.addEventListener(
+        "click",
+        () => {
+          changeMonth(
+            1
+          );
+        }
+      );
+
+
+    elements
+      .refreshButton
+      ?.addEventListener(
+        "click",
+        () => {
+          void loadMonth({
+            forceRefresh:
+              true
+          });
+        }
+      );
+  }
+
+
+  /* =====================================================
+    화면 초기화
+
+    DOMContentLoaded 시 자동조회하지 않는다.
+    자동수치 기록 탭이 실제로 열릴 때만 실행한다.
+  ====================================================== */
+
+  function initialize() {
+    const elements =
+      getElements();
+
+
+    if (
+      !elements.view ||
+      !elements.table ||
+      !elements.tableHead ||
+      !elements.tableBody
+    ) {
+      return false;
+    }
+
+
+    if (
+      !state.initialized
+    ) {
+      state.initialized =
+        true;
+
+
+      bindEvents();
+
+
+      renderTableHead();
+    }
+
+
+    updateMonthControls();
+
+
+    return true;
+  }
+
+
+  /* =====================================================
+    자동수치 기록 탭 열기
+  ====================================================== */
+
+  function openView() {
+    if (
+      !initialize()
+    ) {
+      return;
+    }
+
+
+    /*
+      이미 읽은 월이면 화면 캐시만 다시 표시한다.
+    */
+
+    if (
+      state.cache.has(
+        state.month
+      )
+    ) {
+      renderPayloads(
+        state.cache.get(
+          state.month
+        ),
+        state.month
+      );
+
+
+      return;
+    }
+
+
+    void loadMonth();
+  }
+
+
+  /* =====================================================
+    외부 공개
+  ====================================================== */
+
+  window
+    .openEfficiencyMorningMeetingAutoHistoryView =
+    openView;
+
+
+  window
+    .refreshEfficiencyMorningMeetingAutoHistory =
+    () =>
+      loadMonth({
+        forceRefresh:
+          true
+      });
+})();
+
+/* =========================================================
+  효율팀 - 오전회의취합 하위메뉴 펼침·접힘
+
+  - 오전회의취합 본문 버튼과 독립 작동
+  - 화살표를 눌렀을 때만 하위메뉴 표시
+  - 효율팀 팝업을 열 때마다 기본 접힘
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingSubmenu() {
+  function bindEfficiencyMorningMeetingSubmenu() {
+    const openButton =
+      document.getElementById(
+        "efficiencyTeamButton"
+      );
+
+    const group =
+      document.getElementById(
+        "efficiencyMorningMeetingMenuGroup"
+      );
+
+    const toggleButton =
+      document.getElementById(
+        "efficiencyMorningMeetingSubmenuToggle"
+      );
+
+    const submenu =
+      document.getElementById(
+        "efficiencyMorningMeetingSubmenu"
+      );
+
+    const submenuTab =
+      document.getElementById(
+        "efficiencyMorningMeetingAutoHistoryTab"
+      );
+
+    if (
+      !group ||
+      !toggleButton ||
+      !submenu
+    ) {
+      return;
+    }
+
+    if (
+      toggleButton.dataset
+        .efficiencySubmenuBound ===
+        "true"
+    ) {
+      return;
+    }
+
+    function setSubmenuExpanded(
+      shouldExpand
+    ) {
+      const isExpanded =
+        Boolean(
+          shouldExpand
+        );
+
+      submenu.hidden =
+        !isExpanded;
+
+      submenu.setAttribute(
+        "aria-hidden",
+        String(
+          !isExpanded
+        )
+      );
+
+      group.classList.toggle(
+        "is-submenu-open",
+        isExpanded
+      );
+
+      toggleButton.setAttribute(
+        "aria-expanded",
+        String(
+          isExpanded
+        )
+      );
+
+      toggleButton.setAttribute(
+        "aria-label",
+        isExpanded
+          ? "자동수치 기록 메뉴 접기"
+          : "자동수치 기록 메뉴 펼치기"
+      );
+
+      toggleButton.title =
+        isExpanded
+          ? "하위메뉴 접기"
+          : "하위메뉴 펼치기";
+
+      if (submenuTab) {
+        submenuTab.tabIndex =
+          isExpanded
+            ? 0
+            : -1;
+      }
+    }
+
+    toggleButton.addEventListener(
+      "click",
+      event => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const isExpanded =
+          toggleButton.getAttribute(
+            "aria-expanded"
+          ) ===
+          "true";
+
+        setSubmenuExpanded(
+          !isExpanded
+        );
+      }
+    );
+
+    /*
+      효율팀 팝업을 다시 열면
+      하위메뉴를 접힌 상태로 초기화
+    */
+    openButton?.addEventListener(
+      "click",
+      () => {
+        setSubmenuExpanded(
+          false
+        );
+      }
+    );
+
+    toggleButton.dataset
+      .efficiencySubmenuBound =
+      "true";
+
+    setSubmenuExpanded(
+      false
+    );
+  }
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      bindEfficiencyMorningMeetingSubmenu,
+      {
+        once: true
+      }
+    );
+  } else {
+    bindEfficiencyMorningMeetingSubmenu();
+  }
+})();
