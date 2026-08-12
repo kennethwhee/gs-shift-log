@@ -95061,8 +95061,16 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     Slurry 밀도 고정값 영역
   ====================================================== */
 
+  /*
+    과거 inline 배치가 남아 있으면 grouped 규칙과 충돌한다.
+    PC에서는 grouped 배치 하나만 사용한다.
+  */
+  densityPanel.classList.remove(
+    "auxiliary-material-density-setting--inline"
+  );
+
+
   densityPanel.classList.add(
-    "auxiliary-material-density-setting--inline",
     "auxiliary-material-density-setting--grouped"
   );
 
@@ -95109,8 +95117,16 @@ function prepareAuxiliaryMaterialPcCompactControls() {
   );
 
 
+  /*
+    compact와 grouped를 동시에 적용하면
+    화면 배율에 따라 서로 다른 grid 규칙이 겹친다.
+  */
+  view.classList.remove(
+    "is-pc-compact-controls"
+  );
+
+
   view.classList.add(
-    "is-pc-compact-controls",
     "is-pc-grouped-controls"
   );
 }
