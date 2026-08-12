@@ -137903,12 +137903,434 @@ window.updateEfficiencyMorningMeetingUploadSummary =
   }
 
 
+  function normalizeMorningMeetingAnalysisDate(
+    value
+  ) {
+    const text =
+      String(
+        value ||
+        ""
+      );
+
+
+    let match =
+      text.match(
+        /(20\d{2})[.\-/년\s]+(\d{1,2})[.\-/월\s]+(\d{1,2})/
+      );
+
+
+    if (
+      !match
+    ) {
+      const compactFullDate =
+        text.match(
+          /(?:^|[^0-9])(20\d{2})([01]\d)([0-3]\d)(?=[^0-9]|$)/
+        );
+
+
+      if (
+        compactFullDate
+      ) {
+        match =
+          compactFullDate;
+      }
+    }
+
+
+    if (
+      !match
+    ) {
+      const compactShortDate =
+        text.match(
+          /(?:^|[^0-9])(\d{2})([01]\d)([0-3]\d)(?=[^0-9]|$)/
+        );
+
+
+      if (
+        compactShortDate
+      ) {
+        match = [
+          compactShortDate[0],
+          `20${compactShortDate[1]}`,
+          compactShortDate[2],
+          compactShortDate[3]
+        ];
+      }
+    }
+
+
+    if (
+      !match
+    ) {
+      const separatedShortDate =
+        text.match(
+          /(?:^|[^0-9])(\d{2})[.\/_-](\d{1,2})[.\/_-](\d{1,2})(?=[^0-9]|$)/
+        );
+
+
+      if (
+        separatedShortDate
+      ) {
+        match = [
+          separatedShortDate[0],
+          `20${separatedShortDate[1]}`,
+          separatedShortDate[2],
+          separatedShortDate[3]
+        ];
+      }
+    }
+
+
+    if (
+      !match
+    ) {
+      const selectedYear =
+        String(
+          (
+            typeof window
+              .getEfficiencyMorningMeetingWorkDate ===
+              "function"
+              ? window
+                  .getEfficiencyMorningMeetingWorkDate()
+              : window
+                  .efficiencyMorningMeetingUploadState
+                  ?.workDate
+          ) ||
+          ""
+        ).slice(
+          0,
+          4
+        );
+
+
+      const yearlessMatch =
+        text.match(
+          /(?:^|[^0-9])(\d{1,2})[.\/_-](\d{1,2})(?=[^0-9]|$)/
+        ) ||
+        text.match(
+          /(?:^|[^0-9])(\d{1,2})\s*월\s*(\d{1,2})\s*일(?=[^0-9]|$)/
+        ) ||
+        text.match(
+          /(?:^|[^0-9])([01]\d)([0-3]\d)(?=[^0-9]|$)/
+        );
+
+
+      if (
+        /^20\d{2}$/.test(
+          selectedYear
+        ) &&
+        yearlessMatch
+      ) {
+        match = [
+          yearlessMatch[0],
+          selectedYear,
+          yearlessMatch[1],
+          yearlessMatch[2]
+        ];
+      }
+    }
+
+
+    if (
+      !match
+    ) {
+      return "";
+    }
+
+
+    const normalizedDate = [
+      match[1],
+
+      String(
+        match[2]
+      ).padStart(
+        2,
+        "0"
+      ),
+
+      String(
+        match[3]
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      "-"
+    );
+
+
+    const parsedDate =
+      new Date(
+        `${normalizedDate}T00:00:00.000Z`
+      );
+
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+      parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        normalizedDate
+    )
+      ? normalizedDate
+      : "";
+  }
+
+
+  function getMorningMeetingSelectedWorkDate() {
+    const state =
+      window
+        .efficiencyMorningMeetingUploadState ||
+      {};
+
+
+    const candidates = [
+      typeof window
+        .getEfficiencyMorningMeetingWorkDate ===
+        "function"
+        ? window
+            .getEfficiencyMorningMeetingWorkDate()
+        : "",
+
+      state.workDate,
+
+      document
+        .getElementById(
+          "efficiencyMorningMeetingWorkDatePicker"
+        )
+        ?.value
+    ];
+
+
+    return (
+      candidates
+        .map(
+          normalizeMorningMeetingAnalysisDate
+        )
+        .find(
+          Boolean
+        ) ||
+      ""
+    );
+  }
+
+
   /* =====================================================
     사용할 시트 선택
 
     기계팀 파일처럼 날짜별 시트가 여러 개면
-    가장 최근 날짜의 시트를 선택한다.
+    최상단 업무내용 기준일과 일치하는 시트를 선택한다.
+
+    날짜가 없는 단일 양식만
+    기존 방식대로 내용이 있는 마지막 시트를 사용한다.
   ====================================================== */
+
+  function selectMorningMeetingSourceSheet(
+    workbook,
+    teamKey
+  ) {
+    const targetDate =
+      getMorningMeetingSelectedWorkDate();
+
+
+    const candidates =
+      workbook.SheetNames
+        .map(
+          (
+            sheetName,
+            sheetIndex
+          ) => {
+            const worksheet =
+              workbook.Sheets[
+                sheetName
+              ];
+
+
+            const rows =
+              convertMorningMeetingSheetToRows(
+                worksheet
+              );
+
+
+            const meaningfulRows =
+              rows.filter(
+                row => {
+                  return Boolean(
+                    normalizeMorningMeetingSearchText(
+                      row
+                    )
+                  );
+                }
+              );
+
+
+            const contentReportDate =
+              extractMorningMeetingReportDate(
+                rows
+              );
+
+
+            const normalizedReportDate =
+              normalizeMorningMeetingAnalysisDate(
+                contentReportDate
+              ) ||
+              normalizeMorningMeetingAnalysisDate(
+                sheetName
+              );
+
+
+            const reportDate =
+              normalizedReportDate
+                ? normalizedReportDate.replaceAll(
+                    "-",
+                    "."
+                  )
+                : contentReportDate;
+
+
+            return {
+              sheetName,
+              sheetIndex,
+              worksheet,
+              rows,
+              reportDate,
+              meaningfulCount:
+                meaningfulRows.length
+            };
+          }
+        )
+        .filter(
+          item => {
+            return item
+              .meaningfulCount >
+              0;
+          }
+        );
+
+
+    if (
+      candidates.length ===
+      0
+    ) {
+      throw new Error(
+        "내용이 있는 엑셀 시트를 찾지 못했습니다."
+      );
+    }
+
+
+    const matchingCandidates =
+      targetDate
+        ? candidates.filter(
+            item => {
+              return normalizeMorningMeetingAnalysisDate(
+                item.reportDate
+              ) ===
+                targetDate;
+            }
+          )
+        : [];
+
+
+    if (
+      matchingCandidates.length >
+        0
+    ) {
+      matchingCandidates.sort(
+        (
+          first,
+          second
+        ) => {
+          return (
+            second.sheetIndex -
+            first.sheetIndex
+          );
+        }
+      );
+
+
+      return matchingCandidates[
+        0
+      ];
+    }
+
+
+    const datedCandidates =
+      candidates.filter(
+        item => {
+          return Boolean(
+            normalizeMorningMeetingAnalysisDate(
+              item.reportDate
+            )
+          );
+        }
+      );
+
+
+    if (
+      targetDate &&
+      datedCandidates.length >
+        0
+    ) {
+      throw new Error(
+        `${TEAM_CONFIG[teamKey]?.name || "팀 자료"}에서 ${targetDate} 업무내용 시트를 찾지 못했습니다.`
+      );
+    }
+
+
+    candidates.sort(
+      (
+        first,
+        second
+      ) => {
+        const dateDifference =
+          getMorningMeetingDateNumber(
+            second.reportDate
+          ) -
+          getMorningMeetingDateNumber(
+            first.reportDate
+          );
+
+
+        if (
+          dateDifference !==
+          0
+        ) {
+          return dateDifference;
+        }
+
+
+        return (
+          second.sheetIndex -
+          first.sheetIndex
+        );
+      }
+    );
+
+
+    /*
+      날짜를 확인할 수 없는 단일 양식은
+      기존 방식대로 내용이 있는 마지막 시트를 사용한다.
+    */
+
+    return candidates[
+      0
+    ];
+  }
+
+
+
+
+/* =====================================================
+   사용할 시트 선택
+
+    기계팀 파일처럼 날짜별 시트가 여러 개면
+    가장 최근 날짜의 시트를 선택한다.
+====================================================== */
 
   function selectMorningMeetingSourceSheet(
     workbook,
@@ -139957,15 +140379,6 @@ function updateMorningMeetingCreateButton() {
     );
 
 
-  const expectedMeetingDate =
-    hasExpectedPreviousDate
-      ? addIsoDateDays(
-          expectedPreviousDate,
-          1
-        )
-      : "";
-
-
   /* ===================================================
     1. 수처리 9개 값
   ==================================================== */
@@ -140279,13 +140692,13 @@ function updateMorningMeetingCreateButton() {
 
   const hasCorrectGearPinionDate =
     Boolean(
-      expectedMeetingDate
+      expectedPreviousDate
     ) &&
     isValidIsoDate(
       gearPinionDate
     ) &&
     gearPinionDate ===
-      expectedMeetingDate;
+      expectedPreviousDate;
 
 
 /* ===================================================
@@ -140496,9 +140909,10 @@ if (
 window.updateEfficiencyMorningMeetingCreateButton =
   updateMorningMeetingCreateButton;
 
-  /* =====================================================
+
+/* =====================================================
     날짜 처리
-  ====================================================== */
+====================================================== */
 
   function parseMorningMeetingReportDate(
     value
@@ -157994,24 +158408,8 @@ function getAnalyzedReportDate() {
 
 
   /* =====================================================
-    주말 취합
-
-    주말 모드에서는 종료일이
-    자동수치의 "전일 기준일"이다.
-
-    예:
-    금 08-07
-    토 08-08
-    일 08-09
-
-    월요일 회의:
-    자동수치 기준일 = 08-09
-
-    따라서:
-    수처리      → 08-09
-    석회석      → 08-09
-    BO1·BO2 온도 → 08-09 N/S
-    Gear/Pinion → 08-10 조회
+    주말 취합:
+    주말 기간의 종료일을 기본 기준일로 사용
   ====================================================== */
 
   let weekendMode =
@@ -158072,10 +158470,31 @@ function getAnalyzedReportDate() {
 
 
   /* =====================================================
-    평일 기존 방식
+    평일 최우선:
+    최상단 업무내용 기준일
+  ====================================================== */
 
-    1순위:
-    팀별 엑셀 분석 결과 날짜
+  const selectedWorkDate =
+    normalizeReportDate(
+      typeof window
+        .getEfficiencyMorningMeetingWorkDate ===
+        "function"
+        ? window
+            .getEfficiencyMorningMeetingWorkDate()
+        : state.workDate
+    );
+
+
+  if (
+    selectedWorkDate
+  ) {
+    return selectedWorkDate;
+  }
+
+
+  /* =====================================================
+    기존 대체 기준 1:
+    팀별 엑셀 분석 날짜
   ====================================================== */
 
   const analysisResults =
@@ -158104,7 +158523,7 @@ function getAnalyzedReportDate() {
 
 
   /* =====================================================
-    2순위:
+    기존 대체 기준 2:
     메인 업무일지 선택 날짜
   ====================================================== */
 
@@ -158144,7 +158563,7 @@ function getAnalyzedReportDate() {
 
 
   /* =====================================================
-    3순위:
+    기존 대체 기준 3:
     현재 근무 기준 날짜
   ====================================================== */
 
@@ -158182,7 +158601,7 @@ function getAnalyzedReportDate() {
 
         String(
           contextDate.getDate()
-      ).padStart(
+        ).padStart(
           2,
           "0"
         )
@@ -158234,9 +158653,7 @@ function getAnalyzedReportDate() {
   );
 }
 
-
-
-  async function requestShiftLogs(
+async function requestShiftLogs(
     date,
     shift
   ) {
@@ -216866,3 +217283,861 @@ async function initialize() {
     void initialize();
   }
 })();
+
+/* =========================================================
+  오전회의 취합 - 업무내용 기준일 통합 제어
+
+  날짜 역할:
+  1. 업무내용 기준일
+     - 기본 오늘
+     - 자료 분석·폴더 파일 선택 기준
+
+  2. 주말 취합 기간
+     - 교대파트·TM·운탄 업무 범위
+     - 기간 완성 시 교대파트 자동 조회
+
+  3. 자동 수치 기준일
+     - 평일 기본값: 업무내용 기준일
+     - 주말 기본값: 종료일
+     - 자동 수치 영역에서 별도 변경 가능
+========================================================= */
+
+(function initializeEfficiencyMorningMeetingWorkDate() {
+  "use strict";
+
+
+  if (
+    window
+      .__efficiencyMorningMeetingWorkDateInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window
+    .__efficiencyMorningMeetingWorkDateInstalled =
+    true;
+
+
+  let weekendSyncTimerId =
+    null;
+
+
+  function isValidDate(
+    value
+  ) {
+    const normalizedDate =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        normalizedDate
+      )
+    ) {
+      return false;
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${normalizedDate}T00:00:00.000Z`
+      );
+
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+      parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        normalizedDate
+    );
+  }
+
+
+  function getTodayDate() {
+    const now =
+      new Date();
+
+
+    return [
+      now.getFullYear(),
+
+      String(
+        now.getMonth() +
+        1
+      ).padStart(
+        2,
+        "0"
+      ),
+
+      String(
+        now.getDate()
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      "-"
+    );
+  }
+
+
+  function addDateDays(
+    dateValue,
+    dayCount
+  ) {
+    if (
+      !isValidDate(
+        dateValue
+      )
+    ) {
+      return "";
+    }
+
+
+    const parsedDate =
+      new Date(
+        `${dateValue}T00:00:00.000Z`
+      );
+
+
+    parsedDate.setUTCDate(
+      parsedDate.getUTCDate() +
+      Number(
+        dayCount ||
+        0
+      )
+    );
+
+
+    return parsedDate
+      .toISOString()
+      .slice(
+        0,
+        10
+      );
+  }
+
+
+  function formatShortDate(
+    dateValue
+  ) {
+    return isValidDate(
+      dateValue
+    )
+      ? dateValue
+          .slice(
+            2
+          )
+          .replaceAll(
+            "-",
+            "."
+          )
+      : "-";
+  }
+
+
+  function formatLongDate(
+    dateValue
+  ) {
+    if (
+      !isValidDate(
+        dateValue
+      )
+    ) {
+      return "날짜를 선택해 주세요.";
+    }
+
+
+    const [
+      year,
+      month,
+      day
+    ] =
+      dateValue.split(
+        "-"
+      );
+
+
+    return `${year}년 ${Number(month)}월 ${Number(day)}일 업무내용을 분석합니다.`;
+  }
+
+
+  function getState() {
+    if (
+      !window
+        .efficiencyMorningMeetingUploadState
+    ) {
+      window
+        .efficiencyMorningMeetingUploadState = {
+          files:
+            {},
+
+          analysis:
+            {}
+        };
+    }
+
+
+    return window
+      .efficiencyMorningMeetingUploadState;
+  }
+
+
+  function getElements() {
+    const byId = id =>
+      document.getElementById(
+        id
+      );
+
+
+    return {
+      control:
+        byId(
+          "efficiencyMorningMeetingWorkDateControl"
+        ),
+
+      previousButton:
+        byId(
+          "efficiencyMorningMeetingWorkDatePreviousButton"
+        ),
+
+      picker:
+        byId(
+          "efficiencyMorningMeetingWorkDatePicker"
+        ),
+
+      text:
+        byId(
+          "efficiencyMorningMeetingWorkDateText"
+        ),
+
+      nextButton:
+        byId(
+          "efficiencyMorningMeetingWorkDateNextButton"
+        ),
+
+      todayButton:
+        byId(
+          "efficiencyMorningMeetingWorkDateTodayButton"
+        ),
+
+      status:
+        byId(
+          "efficiencyMorningMeetingWorkDateStatus"
+        ),
+
+      weekendCheckbox:
+        byId(
+          "efficiencyMorningMeetingWeekendMode"
+        ),
+
+      weekendStartDate:
+        byId(
+          "efficiencyMorningMeetingWeekendStartDate"
+        ),
+
+      weekendEndDate:
+        byId(
+          "efficiencyMorningMeetingWeekendEndDate"
+        )
+    };
+  }
+
+
+  function getWeekendMode() {
+    const state =
+      getState();
+
+
+    let mode =
+      null;
+
+
+    if (
+      typeof window
+        .getEfficiencyMorningMeetingWeekendMode ===
+        "function"
+    ) {
+      try {
+        mode =
+          window
+            .getEfficiencyMorningMeetingWeekendMode();
+
+      } catch (
+        error
+      ) {
+        console.warn(
+          "오전회의 주말 기간 확인 실패:",
+          error
+        );
+      }
+    }
+
+
+    if (
+      !mode ||
+      typeof mode !==
+        "object"
+    ) {
+      mode =
+        state.weekendMode &&
+        typeof state.weekendMode ===
+          "object"
+          ? state.weekendMode
+          : {};
+    }
+
+
+    return {
+      enabled:
+        mode.enabled ===
+          true,
+
+      startDate:
+        isValidDate(
+          mode.startDate
+        )
+          ? mode.startDate
+          : "",
+
+      endDate:
+        isValidDate(
+          mode.endDate
+        )
+          ? mode.endDate
+          : ""
+    };
+  }
+
+
+  function render() {
+    const state =
+      getState();
+
+
+    const elements =
+      getElements();
+
+
+    const workDate =
+      isValidDate(
+        state.workDate
+      )
+        ? state.workDate
+        : getTodayDate();
+
+
+    state.workDate =
+      workDate;
+
+
+    if (
+      elements.picker &&
+      elements.picker.value !==
+        workDate
+    ) {
+      elements.picker.value =
+        workDate;
+    }
+
+
+    if (
+      elements.text
+    ) {
+      elements.text.textContent =
+        formatShortDate(
+          workDate
+        );
+    }
+
+
+    if (
+      elements.status
+    ) {
+      elements.status.textContent =
+        formatLongDate(
+          workDate
+        );
+    }
+
+
+    if (
+      elements.control
+    ) {
+      elements.control.dataset
+        .workDate =
+        workDate;
+    }
+
+
+    elements.todayButton
+      ?.classList.toggle(
+        "is-current-date",
+        workDate ===
+          getTodayDate()
+      );
+  }
+
+
+  function getDefaultAutoDate() {
+    const state =
+      getState();
+
+
+    const weekendMode =
+      getWeekendMode();
+
+
+    if (
+      weekendMode.enabled &&
+      weekendMode.endDate
+    ) {
+      return weekendMode.endDate;
+    }
+
+
+    return isValidDate(
+      state.workDate
+    )
+      ? state.workDate
+      : getTodayDate();
+  }
+
+
+  function applyDefaultAutoDate(
+    options = {}
+  ) {
+    const autoDate =
+      getDefaultAutoDate();
+
+
+    if (
+      !isValidDate(
+        autoDate
+      )
+    ) {
+      return;
+    }
+
+
+    if (
+      typeof window
+        .setEfficiencyMorningMeetingAutoBaseDate ===
+        "function"
+    ) {
+      window
+        .setEfficiencyMorningMeetingAutoBaseDate(
+          autoDate,
+          {
+            load:
+              options.load ===
+              true
+          }
+        );
+
+      return;
+    }
+
+
+    const panel =
+      document.getElementById(
+        "efficiencyMorningMeetingWaterPanel"
+      );
+
+
+    if (
+      panel
+    ) {
+      panel.dataset
+        .morningMeetingAutoBaseDate =
+        autoDate;
+    }
+  }
+
+
+  function refreshShiftPart() {
+    if (
+      typeof window
+        .refreshEfficiencyMorningMeetingShiftPart !==
+        "function"
+    ) {
+      return;
+    }
+
+
+    window
+      .refreshEfficiencyMorningMeetingShiftPart({
+        forceReload:
+          true
+      });
+  }
+
+
+  function setWorkDate(
+    requestedDate,
+    options = {}
+  ) {
+    const normalizedDate =
+      String(
+        requestedDate ||
+        ""
+      ).trim();
+
+
+    if (
+      !isValidDate(
+        normalizedDate
+      )
+    ) {
+      return false;
+    }
+
+
+    const state =
+      getState();
+
+
+    const changed =
+      state.workDate !==
+        normalizedDate;
+
+
+    state.workDate =
+      normalizedDate;
+
+
+    render();
+
+
+    if (
+      options.syncAuto !==
+        false
+    ) {
+      applyDefaultAutoDate({
+        load:
+          options.loadAuto ===
+          true
+      });
+    }
+
+
+    const weekendMode =
+      getWeekendMode();
+
+
+    if (
+      options.refreshShift !==
+        false &&
+      !weekendMode.enabled
+    ) {
+      window.setTimeout(
+        refreshShiftPart,
+        0
+      );
+    }
+
+
+    if (
+      changed ||
+      options.forceEvent ===
+        true
+    ) {
+      document.dispatchEvent(
+        new CustomEvent(
+          "efficiencyMorningMeetingWorkDateChanged",
+          {
+            detail: {
+              workDate:
+                normalizedDate
+            }
+          }
+        )
+      );
+    }
+
+
+    return true;
+  }
+
+
+  function synchronizeWeekendRange() {
+    weekendSyncTimerId =
+      null;
+
+
+    const weekendMode =
+      getWeekendMode();
+
+
+    if (
+      !weekendMode.enabled
+    ) {
+      applyDefaultAutoDate({
+        load:
+          true
+      });
+
+      return;
+    }
+
+
+    if (
+      !weekendMode.startDate ||
+      !weekendMode.endDate ||
+      weekendMode.startDate >
+        weekendMode.endDate
+    ) {
+      return;
+    }
+
+
+    applyDefaultAutoDate({
+      load:
+        true
+    });
+
+
+    refreshShiftPart();
+  }
+
+
+  function queueWeekendSynchronization() {
+    window.clearTimeout(
+      weekendSyncTimerId
+    );
+
+
+    weekendSyncTimerId =
+      window.setTimeout(
+        synchronizeWeekendRange,
+        50
+      );
+  }
+
+
+  function bindEvents() {
+    const elements =
+      getElements();
+
+
+    if (
+      !elements.control ||
+      elements.control.dataset
+        .workDateBound ===
+        "true"
+    ) {
+      return false;
+    }
+
+
+    elements.previousButton
+      ?.addEventListener(
+        "click",
+        () => {
+          setWorkDate(
+            addDateDays(
+              getState()
+                .workDate,
+              -1
+            ),
+            {
+              loadAuto:
+                true
+            }
+          );
+        }
+      );
+
+
+    elements.nextButton
+      ?.addEventListener(
+        "click",
+        () => {
+          setWorkDate(
+            addDateDays(
+              getState()
+                .workDate,
+              1
+            ),
+            {
+              loadAuto:
+                true
+            }
+          );
+        }
+      );
+
+
+    elements.todayButton
+      ?.addEventListener(
+        "click",
+        () => {
+          setWorkDate(
+            getTodayDate(),
+            {
+              loadAuto:
+                true
+            }
+          );
+        }
+      );
+
+
+    elements.picker
+      ?.addEventListener(
+        "change",
+        event => {
+          const selectedDate =
+            String(
+              event.currentTarget
+                ?.value ||
+              ""
+            ).trim();
+
+
+          if (
+            !setWorkDate(
+              selectedDate,
+              {
+                loadAuto:
+                  true
+              }
+            )
+          ) {
+            event.currentTarget.value =
+              getState()
+                .workDate;
+          }
+        }
+      );
+
+
+    elements.weekendCheckbox
+      ?.addEventListener(
+        "change",
+        queueWeekendSynchronization
+      );
+
+
+    elements.weekendStartDate
+      ?.addEventListener(
+        "change",
+        queueWeekendSynchronization
+      );
+
+
+    elements.weekendEndDate
+      ?.addEventListener(
+        "change",
+        queueWeekendSynchronization
+      );
+
+
+    elements.control.dataset
+      .workDateBound =
+      "true";
+
+
+    return true;
+  }
+
+
+  window.getEfficiencyMorningMeetingWorkDate =
+    function getEfficiencyMorningMeetingWorkDate() {
+      const workDate =
+        getState()
+          .workDate;
+
+
+      return isValidDate(
+        workDate
+      )
+        ? workDate
+        : getTodayDate();
+    };
+
+
+  window.setEfficiencyMorningMeetingWorkDate =
+    setWorkDate;
+
+
+  function initialize() {
+    if (
+      !bindEvents()
+    ) {
+      return;
+    }
+
+
+    const state =
+      getState();
+
+
+    state.workDate =
+      isValidDate(
+        state.workDate
+      )
+        ? state.workDate
+        : getTodayDate();
+
+
+    render();
+
+
+    applyDefaultAutoDate({
+      load:
+        false
+    });
+
+
+    const weekendMode =
+      getWeekendMode();
+
+
+    if (
+      weekendMode.enabled &&
+      weekendMode.startDate &&
+      weekendMode.endDate
+    ) {
+      queueWeekendSynchronization();
+
+    } else if (
+      !weekendMode.enabled
+    ) {
+      window.setTimeout(
+        refreshShiftPart,
+        100
+      );
+    }
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+
+  })();

@@ -85977,6 +85977,41 @@ td.is-total {
 
 
 /* =========================================================
+  석회석 재고
+
+  입고량·사용량보다 보조 정보로 작고 연하게 표시
+========================================================= */
+
+.efficiency-morning-meeting-auto-card.is-limestone
+  .efficiency-morning-meeting-auto-card__body
+  > .efficiency-morning-meeting-auto-row {
+  min-height: 22px;
+}
+
+
+.efficiency-morning-meeting-auto-card.is-limestone
+  .efficiency-morning-meeting-auto-card__body
+  > .efficiency-morning-meeting-auto-row
+  > span {
+  color: #7a8796;
+
+  font-size: 9px;
+  font-weight: 700;
+}
+
+
+.efficiency-morning-meeting-auto-card.is-limestone
+  .efficiency-morning-meeting-auto-card__body
+  > .efficiency-morning-meeting-auto-row
+  > strong {
+  color: #647387;
+
+  font-size: 9px;
+  font-weight: 700;
+}
+
+
+/* =========================================================
   석회석 입고량 · 사용량
   1호기 / 2호기 비교표
 ========================================================= */
@@ -86036,15 +86071,15 @@ td.is-total {
   background: #eaf2fc;
   color: #35649b;
 
-  font-size: 8px;
-  font-weight: 900;
+  font-size: 10px;
+  font-weight: 800;
   line-height: 1;
 }
 
 
 .efficiency-morning-meeting-auto-card.is-limestone
   .efficiency-morning-meeting-limestone-quantity-table__row {
-  min-height: 20px;
+  min-height: 24px;
 }
 
 
@@ -86057,8 +86092,8 @@ td.is-total {
 
   color: #63758a;
 
-  font-size: 9px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 900;
 
   white-space: nowrap;
 }
@@ -86073,7 +86108,7 @@ td.is-total {
   justify-content: center;
 
   min-width: 0;
-  min-height: 20px;
+  min-height: 24px;
 
   padding: 0 3px;
 
@@ -86082,7 +86117,7 @@ td.is-total {
   background: #f4f7fb;
   color: #213955;
 
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 900;
   line-height: 1;
 

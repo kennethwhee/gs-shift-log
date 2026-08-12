@@ -4760,7 +4760,7 @@
   "
 >
 
-  <div>
+  <div class="efficiency-morning-meeting-heading__copy">
 
     <span>
       MORNING MEETING REPORT
@@ -4778,109 +4778,199 @@
   </div>
 
 
-  <!-- =================================================
-    주말 취합 모드
-  ================================================== -->
+  <div class="efficiency-morning-meeting-heading__controls">
 
-  <div class="efficiency-morning-meeting-mode">
+    <!-- =================================================
+      업무내용 기준일
 
-    <label
-      class="efficiency-morning-meeting-weekend-check"
-      for="efficiencyMorningMeetingWeekendMode"
-      title="금·토·일 또는 연휴 기간의 업무를 함께 취합합니다."
+      - 기본값: 오늘
+      - 자료 분석과 폴더 파일 선택의 기준
+    ================================================== -->
+
+    <section
+      class="efficiency-morning-meeting-work-date"
+      id="efficiencyMorningMeetingWorkDateControl"
+      aria-labelledby="efficiencyMorningMeetingWorkDateLabel"
     >
 
-      <input
-        type="checkbox"
-        id="efficiencyMorningMeetingWeekendMode"
-      />
+      <div class="efficiency-morning-meeting-work-date__heading">
+
+        <span>
+          WORK DATE
+        </span>
+
+        <strong id="efficiencyMorningMeetingWorkDateLabel">
+          업무내용 기준일
+        </strong>
+
+      </div>
 
 
-      <span
-        class="efficiency-morning-meeting-weekend-check__box"
-        aria-hidden="true"
-      >
-        ✓
-      </span>
+      <div class="efficiency-morning-meeting-work-date__nav">
+
+        <button
+          type="button"
+          id="efficiencyMorningMeetingWorkDatePreviousButton"
+          aria-label="업무내용 기준일 하루 전"
+          title="업무내용 기준일을 하루 전으로 이동"
+        >
+          ‹
+        </button>
 
 
-      <span class="efficiency-morning-meeting-weekend-check__text">
-        주말
-      </span>
+        <label
+          class="efficiency-morning-meeting-work-date__picker"
+          for="efficiencyMorningMeetingWorkDatePicker"
+          title="업무내용 기준일 선택"
+        >
 
-    </label>
+          <span id="efficiencyMorningMeetingWorkDateText">
+            날짜 확인 중
+          </span>
+
+          <input
+            type="date"
+            id="efficiencyMorningMeetingWorkDatePicker"
+            aria-label="업무내용 기준일 선택"
+            autocomplete="off"
+          />
+
+        </label>
+
+
+        <button
+          type="button"
+          id="efficiencyMorningMeetingWorkDateNextButton"
+          aria-label="업무내용 기준일 하루 뒤"
+          title="업무내용 기준일을 하루 뒤로 이동"
+        >
+          ›
+        </button>
+
+
+        <button
+          type="button"
+          class="is-today"
+          id="efficiencyMorningMeetingWorkDateTodayButton"
+          title="업무내용 기준일을 오늘로 이동"
+        >
+          오늘
+        </button>
+
+      </div>
+
+
+      <small id="efficiencyMorningMeetingWorkDateStatus">
+        오늘 자료를 분석합니다.
+      </small>
+
+    </section>
 
 
     <!-- =================================================
-      주말 취합 기간
-
-      주말 체크 시에만 표시된다.
-      교대파트 업무와 TM 취합에 사용한다.
+      주말 취합 모드
     ================================================== -->
 
-    <div
-      class="efficiency-morning-meeting-weekend-range"
-      id="efficiencyMorningMeetingWeekendRange"
-      hidden
-    >
+    <div class="efficiency-morning-meeting-mode">
 
-      <label>
-
-        <span>
-          시작일
-        </span>
+      <label
+        class="efficiency-morning-meeting-weekend-check"
+        for="efficiencyMorningMeetingWeekendMode"
+        title="금·토·일 또는 연휴 기간의 업무를 함께 취합합니다."
+      >
 
         <input
-          type="date"
-          id="efficiencyMorningMeetingWeekendStartDate"
-          autocomplete="off"
+          type="checkbox"
+          id="efficiencyMorningMeetingWeekendMode"
         />
+
+
+        <span
+          class="efficiency-morning-meeting-weekend-check__box"
+          aria-hidden="true"
+        >
+          ✓
+        </span>
+
+
+        <span class="efficiency-morning-meeting-weekend-check__text">
+          주말
+        </span>
 
       </label>
 
 
-      <span class="efficiency-morning-meeting-weekend-range__separator">
-        ~
-      </span>
+      <!-- =================================================
+        주말 취합 기간
+
+        주말 체크 시에만 표시된다.
+        교대파트 업무·TM·운탄일지 취합에 사용한다.
+      ================================================== -->
+
+      <div
+        class="efficiency-morning-meeting-weekend-range"
+        id="efficiencyMorningMeetingWeekendRange"
+        hidden
+      >
+
+        <label>
+
+          <span>
+            시작일
+          </span>
+
+          <input
+            type="date"
+            id="efficiencyMorningMeetingWeekendStartDate"
+            autocomplete="off"
+          />
+
+        </label>
 
 
-      <label>
-
-        <span>
-          종료일
+        <span class="efficiency-morning-meeting-weekend-range__separator">
+          ~
         </span>
 
-        <input
-          type="date"
-          id="efficiencyMorningMeetingWeekendEndDate"
-          autocomplete="off"
-        />
 
-      </label>
+        <label>
+
+          <span>
+            종료일
+          </span>
+
+          <input
+            type="date"
+            id="efficiencyMorningMeetingWeekendEndDate"
+            autocomplete="off"
+          />
+
+        </label>
+
+      </div>
+
+
+      <small
+        class="efficiency-morning-meeting-weekend-status"
+        id="efficiencyMorningMeetingWeekendStatus"
+      >
+        평일 취합
+      </small>
 
     </div>
-
-
-    <small
-      class="efficiency-morning-meeting-weekend-status"
-      id="efficiencyMorningMeetingWeekendStatus"
-    >
-      평일 취합
-    </small>
 
   </div>
 
 </header>
 
 
-
-  <!-- =================================================
+<!-- =================================================
     2. 팀별 자료 첨부
 
     PC:
     일일발전현황 | 운탄일지 | 안전팀
     환경팀       | 기계팀   | 전기제어팀
-  ================================================== -->
+================================================== -->
 
   <section class="efficiency-morning-meeting-panel">
 
