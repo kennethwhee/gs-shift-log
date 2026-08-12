@@ -100952,3 +100952,19 @@ th > small {
     padding: 0 0 0 10px !important;
   }
 }
+
+/* =========================================================
+  오전회의 업무 기준일 숫자 크기 보정
+========================================================= */
+
+@media screen and (min-width: 769px) {
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  #efficiencyMorningMeetingWorkDateText {
+    font-size: 16px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    letter-spacing: 0.06em !important;
+  }
+}
