@@ -174813,7 +174813,7 @@ function resolveWaterSourceDate() {
   );
 }
 
-  /* =====================================================
+/* =====================================================
     Gear / Pinion 조회일
 
     수처리 기준일 + 1일
@@ -174821,20 +174821,15 @@ function resolveWaterSourceDate() {
     예:
     수처리 2026-08-06
     Gear / Pinion 2026-08-07
-  ====================================================== */
+====================================================== */
 
-  function resolveGearPinionTargetDate() {
-    const waterSourceDate =
-      resolveWaterSourceDate();
+function resolveGearPinionTargetDate() {
+  const waterSourceDate =
+    resolveWaterSourceDate();
 
 
-    return waterSourceDate
-      ? addDateDays(
-          waterSourceDate,
-          1
-        )
-      : "";
-  }
+  return waterSourceDate;
+}
 
 
   /* =====================================================
@@ -175847,12 +175842,34 @@ async function createGearPinionRequest(
 
 
     return true;
-  }
+}
 
 
-  /* =====================================================
+
+/* =====================================================
+    최상단 업무내용 기준일과 주말 기간에서
+    자동 수치 날짜를 안전하게 동기화할 수 있도록 공개한다.
+====================================================== */
+
+  window.getEfficiencyMorningMeetingAutoBaseDate =
+    resolveCommonBaseDate;
+
+
+  window.setEfficiencyMorningMeetingAutoBaseDate =
+    function setEfficiencyMorningMeetingAutoBaseDate(
+      requestedDate,
+      options = {}
+    ) {
+      applyCommonBaseDate(
+        requestedDate,
+        options
+      );
+    };
+
+
+/* =====================================================
     초기화
-  ====================================================== */
+====================================================== */
 
   function initialize() {
     if (
@@ -188019,19 +188036,23 @@ function resolveCommonBaseDate() {
     getState();
 
 
-  /* ===================================================
-    오늘의 전날
-
-    예:
-    오늘 2026-08-08
-    → 2026-08-07
-  ==================================================== */
-
-  const yesterday =
-    addDateDays(
-      getTodayDate(),
-      -1
-    );
+  const defaultDate =
+    String(
+      (
+        typeof window
+          .getEfficiencyMorningMeetingWorkDate ===
+          "function"
+          ? window
+              .getEfficiencyMorningMeetingWorkDate()
+          : state.workDate
+      ) ||
+      document
+        .getElementById(
+          "efficiencyMorningMeetingWorkDatePicker"
+        )
+        ?.value ||
+      getTodayDate()
+    ).trim();
 
 
   const candidates = [
@@ -188046,9 +188067,16 @@ function resolveCommonBaseDate() {
 
 
     /*
-      2. 교대파트 업무일지 기준일
+      2. 최상단 업무내용 기준일
+    */
 
-      오전회의 대상일의 전날
+    defaultDate,
+
+
+    /*
+      3. 교대파트 업무일지 기준일
+
+      최상단 업무내용 기준일 또는 주말 종료일
     */
 
     state.shiftPart
@@ -188056,7 +188084,7 @@ function resolveCommonBaseDate() {
 
 
     /*
-      3. 실제 불러온 교대파트 날짜
+      4. 실제 불러온 교대파트 날짜
     */
 
     state.shiftPart
@@ -188064,9 +188092,9 @@ function resolveCommonBaseDate() {
 
 
     /*
-      4. 완료된 수처리 조회 결과
+      5. 완료된 수처리 조회 결과
 
-      수처리 역시 오전회의 전날 자료
+      수처리 역시 자동 수치 기준일 자료
     */
 
     state.waterTreatment
@@ -188078,16 +188106,10 @@ function resolveCommonBaseDate() {
 
 
     /*
-      5. 아무 오전회의 자료도 없는 경우
-
-      기존:
-      오늘
-
-      변경:
-      어제
+      6. 아무 오전회의 자료도 없는 경우
     */
 
-    yesterday
+    getTodayDate()
   ];
 
 
@@ -188104,7 +188126,7 @@ function resolveCommonBaseDate() {
       .find(
         isValidDate
       ) ||
-    yesterday
+    getTodayDate()
   );
 }
 
@@ -188140,10 +188162,7 @@ function renderCommonDates(
 
 
   const gearDate =
-    addDateDays(
-      baseDate,
-      1
-    );
+    baseDate;
 
 
   /* ===================================================
@@ -188224,62 +188243,62 @@ function renderCommonDates(
     );
 
 
-if (
-  elements.previousButton
-) {
-  elements.previousButton.textContent =
-    "‹ 전날";
+  if (
+    elements.previousButton
+  ) {
+    elements.previousButton.textContent =
+      "‹ 전날";
 
-  elements.previousButton.title =
-    `${previousDate} 자료 조회`;
+    elements.previousButton.title =
+      `${previousDate} 자료 조회`;
+  }
+
+
+  if (
+    elements.todayButton
+  ) {
+    const isActualToday =
+      baseDate ===
+        actualTodayDate;
+
+
+    elements.todayButton.textContent =
+      isActualToday
+        ? `오늘 ${formatMorningMeetingShortDate(
+            baseDate
+          )}`
+        : `기준일 ${formatMorningMeetingShortDate(
+            baseDate
+          )}`;
+
+
+    /*
+      가운데 버튼 기능 자체는 그대로:
+      클릭하면 실제 오늘로 이동
+    */
+
+    elements.todayButton.title =
+      isActualToday
+        ? `${baseDate} 오늘 자료`
+        : `현재 기준일 ${baseDate} · 클릭하면 오늘 ${actualTodayDate}로 이동`;
+  }
+
+
+  if (
+    elements.nextButton
+  ) {
+    elements.nextButton.textContent =
+      "다음날 ›";
+
+    elements.nextButton.title =
+      `${nextDate} 자료 조회`;
+  }
 }
 
 
-if (
-  elements.todayButton
-) {
-  const isActualToday =
-    baseDate ===
-      actualTodayDate;
-
-
-  elements.todayButton.textContent =
-    isActualToday
-      ? `오늘 ${formatMorningMeetingShortDate(
-          baseDate
-        )}`
-      : `기준일 ${formatMorningMeetingShortDate(
-          baseDate
-        )}`;
-
-
-  /*
-    가운데 버튼 기능 자체는 그대로:
-    클릭하면 실제 오늘로 이동
-  */
-
-  elements.todayButton.title =
-    isActualToday
-      ? `${baseDate} 오늘 자료`
-      : `현재 기준일 ${baseDate} · 클릭하면 오늘 ${actualTodayDate}로 이동`;
-}
-
-
-if (
-  elements.nextButton
-) {
-  elements.nextButton.textContent =
-    "다음날 ›";
-
-  elements.nextButton.title =
-    `${nextDate} 자료 조회`;
-}
-}
-
-
-  /* =====================================================
+/* =====================================================
     자동 미리보기 재갱신
-  ====================================================== */
+====================================================== */
 
   function refreshMorningMeetingPreview() {
     [
@@ -191778,7 +191797,7 @@ function loadCache() {
   }
 
 
-  /* =====================================================
+/* =====================================================
     날짜별 저장값 복원
 
     baseDate:
@@ -191786,7 +191805,7 @@ function loadCache() {
 
     Gear:
     baseDate + 1일
-  ====================================================== */
+====================================================== */
 
   function restoreAutoData(
     baseDate
@@ -191814,10 +191833,7 @@ function loadCache() {
 
 
     const gearDate =
-      addDateDays(
-        normalizedBaseDate,
-        1
-      );
+      normalizedBaseDate;
 
 
     const cache =
@@ -192019,12 +192035,11 @@ function loadCache() {
     };
   }
 
-
-  /* =====================================================
+/* =====================================================
     조회 완료 이벤트
 
     각 자료가 끝나는 즉시 저장한다.
-  ====================================================== */
+====================================================== */
 
   document.addEventListener(
     "efficiencyMorningMeetingWaterLoaded",

@@ -100459,3 +100459,437 @@ th > small {
     flex: 0 0 auto;
   }
 }
+
+/* =========================================================
+  오전회의 취합 - 업무내용 기준일·주말 기간 상단 재구성
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-heading {
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(260px, 1fr)
+    minmax(450px, 560px) !important;
+
+  align-items: center !important;
+  gap: 18px !important;
+
+  padding: 18px 20px !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-heading__copy {
+  min-width: 0;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-heading__controls {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-work-date {
+  box-sizing: border-box;
+  display: grid;
+
+  grid-template-columns:
+    auto
+    minmax(0, 1fr);
+
+  grid-template-areas:
+    "heading navigation"
+    "status status";
+
+  align-items: center;
+  gap: 7px 12px;
+
+  min-width: 0;
+  padding: 10px 12px 8px;
+
+  border: 1px solid #c7d8e8;
+  border-radius: 10px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #ffffff 0%,
+      #f6faff 100%
+    );
+
+  box-shadow:
+    0 2px 8px
+    rgba(39, 86, 125, 0.06);
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-work-date__heading {
+  grid-area: heading;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 92px;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-work-date__heading > span {
+  color: #7590aa;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.08em;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-work-date__heading > strong {
+  color: #314f6a;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-work-date__nav {
+  grid-area: navigation;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-work-date__nav > button,
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-work-date__picker {
+  appearance: none;
+  -webkit-appearance: none;
+
+  box-sizing: border-box;
+  display: inline-flex;
+  height: 34px;
+  min-height: 34px;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0 10px;
+
+  border: 1px solid #c6d5e3;
+  border-radius: 0;
+
+  background: #ffffff;
+  color: #43627e;
+
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1;
+
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingWorkDatePreviousButton {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+  border-radius: 8px 0 0 8px;
+  font-size: 18px;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-work-date__picker {
+  position: relative;
+  min-width: 108px;
+  margin-left: -1px;
+
+  background: #eaf4fd;
+  color: #1f6399;
+
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-work-date__picker > input {
+  position: absolute;
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingWorkDateNextButton {
+  width: 34px;
+  min-width: 34px;
+  margin-left: -1px;
+  padding: 0;
+  border-radius: 0 8px 8px 0;
+  font-size: 18px;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingWorkDateTodayButton {
+  min-width: 50px;
+  margin-left: 7px;
+  border-radius: 8px;
+
+  border-color: #9ebbd5;
+  color: #2d6b9d;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingWorkDateTodayButton.is-current-date {
+  border-color: #7da9cf;
+  background: #deefff;
+  color: #155d93;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-work-date__nav > button:hover,
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-work-date__picker:hover {
+  position: relative;
+  z-index: 2;
+  border-color: #75a3cb;
+  background: #f1f8fe;
+  color: #155d93;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingWorkDateStatus {
+  grid-area: status;
+  display: block;
+
+  min-width: 0;
+  overflow: hidden;
+
+  color: #71869a;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-heading__controls
+> .efficiency-morning-meeting-mode {
+  position: static !important;
+  inset: auto !important;
+
+  box-sizing: border-box !important;
+  display: flex !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 30px !important;
+
+  align-items: flex-end !important;
+  justify-content: flex-end !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  gap: 7px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-heading__controls
+.efficiency-morning-meeting-weekend-range {
+  order: 1 !important;
+  flex: 0 0 auto !important;
+
+  width: auto !important;
+  margin: 0 !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-heading__controls
+.efficiency-morning-meeting-weekend-check {
+  order: 2 !important;
+  flex: 0 0 auto !important;
+  align-self: flex-end !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView
+.efficiency-morning-meeting-heading__controls
+.efficiency-morning-meeting-weekend-status {
+  order: 3 !important;
+  flex: 0 0 auto !important;
+  align-self: center !important;
+}
+
+
+@media (max-width: 1100px) {
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-heading {
+    grid-template-columns:
+      minmax(0, 1fr) !important;
+
+    align-items: stretch !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-heading__controls {
+    width: 100%;
+  }
+}
+
+
+@media (max-width: 700px) {
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-heading {
+    gap: 12px !important;
+    padding: 14px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-work-date {
+    grid-template-columns:
+      minmax(0, 1fr);
+
+    grid-template-areas:
+      "heading"
+      "navigation"
+      "status";
+
+    gap: 7px;
+    padding: 10px;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-work-date__heading {
+    flex-direction: row;
+    align-items: center;
+    gap: 7px;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-work-date__nav {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-work-date__picker {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  #efficiencyMorningMeetingWorkDateTodayButton {
+    flex: 0 0 auto;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-heading__controls
+  > .efficiency-morning-meeting-mode {
+    align-items: center !important;
+    justify-content: flex-start !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-heading__controls
+  .efficiency-morning-meeting-weekend-range {
+    order: 3 !important;
+    width: 100% !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-heading__controls
+  .efficiency-morning-meeting-weekend-range label {
+    flex: 1 1 0 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-heading__controls
+  .efficiency-morning-meeting-weekend-range input {
+    width: 100% !important;
+  }
+}
