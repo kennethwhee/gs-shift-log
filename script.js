@@ -87278,6 +87278,23 @@ const AUXILIARY_MATERIAL_EDIT_FIELDS = [
 
   {
     key:
+      "limePowderTpd",
+
+    cssClass:
+      "is-lime-powder",
+
+    label:
+      "Lime Powder",
+
+    decimalPlaces:
+      2,
+
+    step:
+      "0.01"
+  },
+
+  {
+    key:
       "limeSlurryFlowM3h",
 
     cssClass:
@@ -87317,23 +87334,6 @@ const AUXILIARY_MATERIAL_EDIT_FIELDS = [
 
     maximum:
       2000
-  },
-
-  {
-    key:
-      "limePowderTpd",
-
-    cssClass:
-      "is-lime-powder",
-
-    label:
-      "Lime Powder",
-
-    decimalPlaces:
-      2,
-
-    step:
-      "0.01"
   },
 
   {
@@ -88105,7 +88105,7 @@ function renderAuxiliaryMaterialHistory() {
     }
   );
 
-  const rows =
+const rows =
     Array.from(
       rowsByDate.values()
     ).sort(
@@ -88118,55 +88118,7 @@ function renderAuxiliaryMaterialHistory() {
         )
     );
 
-  const splitColumns = [
-    [
-      "is-sox",
-      "SOx",
-      "ppm"
-    ],
 
-    [
-      "is-limestone-usage",
-      "Limestone 사용량",
-      "t/d"
-    ],
-
-    [
-      "is-limestone-receipt",
-      "Limestone 입고량",
-      "t"
-    ],
-
-    [
-      "is-slurry-flow",
-      "Lime Slurry 유량",
-      "m³/h"
-    ],
-
-    [
-      "is-density",
-      "Slurry 밀도",
-      "kg/m³"
-    ],
-
-    [
-      "is-lime-powder",
-      "Lime Powder",
-      "t/d"
-    ],
-
-    [
-      "is-nox",
-      "NOx",
-      "ppm"
-    ],
-
-    [
-      "is-ammonia",
-      "Ammonia 일사용량",
-      "m³/d"
-    ]
-  ];
 
   function renderUnitCells(
     item,
@@ -88454,6 +88406,56 @@ function renderAuxiliaryMaterialHistory() {
       `${rows.length}일`;
   }
 }
+
+const splitColumns = [
+  [
+    "is-sox",
+    "SOx",
+    "ppm"
+  ],
+
+  [
+    "is-limestone-usage",
+    "Limestone 사용량",
+    "t/d"
+  ],
+
+  [
+    "is-limestone-receipt",
+    "Limestone 입고량",
+    "t"
+  ],
+
+  [
+    "is-lime-powder",
+    "Lime Powder",
+    "t/d"
+  ],
+
+  [
+    "is-slurry-flow",
+    "Lime Slurry 유량",
+    "m³/h"
+  ],
+
+  [
+    "is-density",
+    "Slurry 밀도",
+    "kg/m³"
+  ],
+
+  [
+    "is-nox",
+    "NOx",
+    "ppm"
+  ],
+
+  [
+    "is-ammonia",
+    "Ammonia 일사용량",
+    "m³/d"
+  ]
+];
 
 function renderAuxiliaryMaterialMobileMonitor() {
   const elements =
@@ -95098,12 +95100,19 @@ function prepareAuxiliaryMaterialPcCompactControls() {
   /* =====================================================
     상단 최종 배치
 
-    [조회 범위 + 자료 작업] [Slurry 밀도 고정값]
+    조회 범위 | 자료 작업 | Slurry 밀도 고정값
+
+    Slurry 영역도 queryGroup 안으로 이동시켜
+    엑셀 다운로드 오른쪽의 남는 공간을 사용한다.
   ====================================================== */
 
-  periodFields.append(
-    queryGroup,
+  queryGroup.append(
     densityPanel
+  );
+
+
+  periodFields.append(
+    queryGroup
   );
 
 
@@ -188686,7 +188695,9 @@ function syncMorningMeetingSiloToCommonDate(
   1. 공용 날짜 저장
   2. 석회석 기존 기능 날짜 변경
   3. 저장된 수처리/Gear 값 즉시 복원
-  4. 저장값이 없는 자료만 OIS 신규 조회
+  4. load:true가 명시된 경우에만 없는 자료를 OIS 신규 조회
+
+  기본 날짜 이동은 저장자료 복원까지만 수행한다.
 
   석회석은 기존 D1 날짜별 복원을 그대로 사용한다.
 ===================================================== */
@@ -188697,7 +188708,7 @@ function applyCommonBaseDate(
 ) {
   const {
     load =
-      true
+      false
   } = options;
 
 
@@ -217920,7 +217931,7 @@ async function initialize() {
     ) {
       applyDefaultAutoDate({
         load:
-          true
+          false
       });
 
       return;
@@ -217939,7 +217950,7 @@ async function initialize() {
 
     applyDefaultAutoDate({
       load:
-        true
+        false
     });
 
 
@@ -217988,7 +217999,7 @@ async function initialize() {
             ),
             {
               loadAuto:
-                true
+                false
             }
           );
         }
@@ -218007,7 +218018,7 @@ async function initialize() {
             ),
             {
               loadAuto:
-                true
+                false
             }
           );
         }
@@ -218022,7 +218033,7 @@ async function initialize() {
             getTodayDate(),
             {
               loadAuto:
-                true
+                false
             }
           );
         }
@@ -218046,7 +218057,7 @@ async function initialize() {
               selectedDate,
               {
                 loadAuto:
-                  true
+                  false
               }
             )
           ) {
