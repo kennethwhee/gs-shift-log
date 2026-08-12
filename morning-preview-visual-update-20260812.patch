@@ -1,0 +1,450 @@
+diff --git a/index.html b/index.html
+--- a/index.html
++++ b/index.html
+@@ -6371,39 +6371,78 @@
+ 
+     </div>
+ 
+ 
+     <div
+-      class="efficiency-morning-meeting-auto-row"
++      class="efficiency-morning-meeting-limestone-quantity-table"
++      aria-label="호기별 석회석 입고량 및 사용량"
+     >
+ 
+-      <span>
+-        입고량 1 / 2호기
+-      </span>
++      <div
++        class="efficiency-morning-meeting-limestone-quantity-table__head"
++        aria-hidden="true"
++      >
+ 
+-      <strong
++        <span></span>
++
++        <strong>
++          1호기
++        </strong>
++
++        <strong>
++          2호기
++        </strong>
++
++      </div>
++
++
++      <div
++        class="efficiency-morning-meeting-limestone-quantity-table__row"
+         id="efficiencyMorningMeetingAutoLimestoneReceipt"
+       >
+-        - / -
+-      </strong>
+ 
+-    </div>
++        <span>
++          입고량
++        </span>
+ 
++        <strong
++          id="efficiencyMorningMeetingAutoLimestoneReceiptUnitOne"
++        >
++          -
++        </strong>
+ 
+-    <div
+-      class="efficiency-morning-meeting-auto-row"
+-    >
++        <strong
++          id="efficiencyMorningMeetingAutoLimestoneReceiptUnitTwo"
++        >
++          -
++        </strong>
+ 
+-      <span>
+-        사용량 1 / 2호기
+-      </span>
++      </div>
+ 
+-      <strong
++
++      <div
++        class="efficiency-morning-meeting-limestone-quantity-table__row"
+         id="efficiencyMorningMeetingAutoLimestoneUsage"
+       >
+-        - / -
+-      </strong>
++
++        <span>
++          사용량
++        </span>
++
++        <strong
++          id="efficiencyMorningMeetingAutoLimestoneUsageUnitOne"
++        >
++          -
++        </strong>
++
++        <strong
++          id="efficiencyMorningMeetingAutoLimestoneUsageUnitTwo"
++        >
++          -
++        </strong>
++
++      </div>
+ 
+     </div>
+ 
+   </div>
+ 
+diff --git a/script.js b/script.js
+--- a/script.js
++++ b/script.js
+@@ -181671,15 +181671,35 @@
+       limestoneReceipt:
+         document.getElementById(
+           "efficiencyMorningMeetingAutoLimestoneReceipt"
+         ),
+ 
++      limestoneReceiptUnitOne:
++        document.getElementById(
++          "efficiencyMorningMeetingAutoLimestoneReceiptUnitOne"
++        ),
++
++      limestoneReceiptUnitTwo:
++        document.getElementById(
++          "efficiencyMorningMeetingAutoLimestoneReceiptUnitTwo"
++        ),
++
+       limestoneUsage:
+         document.getElementById(
+           "efficiencyMorningMeetingAutoLimestoneUsage"
+         ),
+ 
++      limestoneUsageUnitOne:
++        document.getElementById(
++          "efficiencyMorningMeetingAutoLimestoneUsageUnitOne"
++        ),
++
++      limestoneUsageUnitTwo:
++        document.getElementById(
++          "efficiencyMorningMeetingAutoLimestoneUsageUnitTwo"
++        ),
++
+ 
+       /* ===============================================
+         Gear / Pinion
+       ================================================ */
+ 
+@@ -182960,48 +182980,98 @@
+           )}`
+         : "- → -"
+     );
+ 
+ 
+-    const hasReceipt =
++    const unitOneReceiptText =
+       data.unitOneReceipt !==
+-        null &&
+-      data.unitTwoReceipt !==
+-        null;
++        null
++        ? `${formatLimestoneNumber(
++            data.unitOneReceipt
++          )} t`
++        : "-";
+ 
+ 
+-    setText(
+-      elements.limestoneReceipt,
++    const unitTwoReceiptText =
++      data.unitTwoReceipt !==
++        null
++        ? `${formatLimestoneNumber(
++            data.unitTwoReceipt
++          )} t`
++        : "-";
+ 
+-      hasReceipt
+-        ? `${formatLimestoneNumber(
+-            data.unitOneReceipt
+-          )} / ${formatLimestoneNumber(
+-            data.unitTwoReceipt
+-          )} t`
+-        : "- / -"
+-    );
+ 
++    const hasReceiptColumns =
++      elements.limestoneReceiptUnitOne &&
++      elements.limestoneReceiptUnitTwo;
+ 
+-    const hasUsage =
+-      data.unitOneUsage !==
+-        null &&
+-      data.unitTwoUsage !==
+-        null;
+ 
++    if (
++      hasReceiptColumns
++    ) {
++      setText(
++        elements.limestoneReceiptUnitOne,
++        unitOneReceiptText
++      );
+ 
+-    setText(
+-      elements.limestoneUsage,
+ 
+-      hasUsage
++      setText(
++        elements.limestoneReceiptUnitTwo,
++        unitTwoReceiptText
++      );
++
++    } else {
++      setText(
++        elements.limestoneReceipt,
++        `${unitOneReceiptText} / ${unitTwoReceiptText}`
++      );
++    }
++
++
++    const unitOneUsageText =
++      data.unitOneUsage !==
++        null
+         ? `${formatLimestoneNumber(
+             data.unitOneUsage
+-          )} / ${formatLimestoneNumber(
++          )} t`
++        : "-";
++
++
++    const unitTwoUsageText =
++      data.unitTwoUsage !==
++        null
++        ? `${formatLimestoneNumber(
+             data.unitTwoUsage
+           )} t`
+-        : "- / -"
+-    );
++        : "-";
++
++
++    const hasUsageColumns =
++      elements.limestoneUsageUnitOne &&
++      elements.limestoneUsageUnitTwo;
++
++
++    if (
++      hasUsageColumns
++    ) {
++      setText(
++        elements.limestoneUsageUnitOne,
++        unitOneUsageText
++      );
++
++
++      setText(
++        elements.limestoneUsageUnitTwo,
++        unitTwoUsageText
++      );
++
++    } else {
++      setText(
++        elements.limestoneUsage,
++        `${unitOneUsageText} / ${unitTwoUsageText}`
++      );
++    }
+   }
+ 
+ 
+   /* =====================================================
+     Gear / Pinion 미리보기 출력
+@@ -183963,11 +184033,11 @@
+           <strong id="efficiencyMorningMeetingAutoFlyAshSiloLevel">
+             -
+           </strong>
+         </div>
+ 
+-        <div class="efficiency-morning-meeting-auto-row is-emphasis">
++        <div class="efficiency-morning-meeting-auto-row">
+           <span>
+             Bio Storage Silo Level
+ 
+             <small class="efficiency-morning-meeting-auto-tag">
+               (EBF20CW201)
+@@ -208029,11 +208099,11 @@
+   }
+ 
+   ensureStyle();
+ 
+   const layoutVersion =
+-    "weather-four-rows-v1";
++    "weather-four-rows-v2";
+ 
+   let card =
+     byId(
+       "efficiencyMorningMeetingAutoWeatherCard"
+     );
+@@ -208107,11 +208177,11 @@
+           <strong id="efficiencyMorningMeetingAutoWeatherCondition">
+             조회 대기
+           </strong>
+         </div>
+ 
+-        <div class="efficiency-morning-meeting-auto-row">
++        <div class="efficiency-morning-meeting-auto-row is-emphasis">
+           <span>
+             기온
+           </span>
+ 
+           <strong id="efficiencyMorningMeetingAutoWeatherTemperature">
+@@ -208127,11 +208197,11 @@
+           <strong id="efficiencyMorningMeetingAutoWeatherMinMax">
+             -
+           </strong>
+         </div>
+ 
+-        <div class="efficiency-morning-meeting-auto-row is-emphasis">
++        <div class="efficiency-morning-meeting-auto-row">
+           <span>
+             습도
+           </span>
+ 
+           <strong id="efficiencyMorningMeetingAutoWeatherHumidity">
+diff --git a/style.css b/style.css
+--- a/style.css
++++ b/style.css
+@@ -85974,10 +85974,132 @@
+   .efficiency-morning-meeting-auto-card__body {
+   background: #fffdf9;
+ }
+ 
+ 
++/* =========================================================
++  석회석 입고량 · 사용량
++  1호기 / 2호기 비교표
++========================================================= */
++
++.efficiency-morning-meeting-auto-card.is-limestone
++  .efficiency-morning-meeting-limestone-quantity-table {
++  display: grid;
++
++  gap: 2px;
++
++  margin: 3px -1px 0;
++  padding: 3px;
++
++  border: 1px solid #e1eaf4;
++  border-radius: 7px;
++
++  background: #fbfdff;
++}
++
++
++.efficiency-morning-meeting-auto-card.is-limestone
++  .efficiency-morning-meeting-limestone-quantity-table__head,
++
++.efficiency-morning-meeting-auto-card.is-limestone
++  .efficiency-morning-meeting-limestone-quantity-table__row {
++  display: grid;
++
++  grid-template-columns:
++    minmax(48px, 0.78fr)
++    repeat(2, minmax(0, 1fr));
++
++  align-items: center;
++
++  gap: 3px;
++}
++
++
++.efficiency-morning-meeting-auto-card.is-limestone
++  .efficiency-morning-meeting-limestone-quantity-table__head {
++  min-height: 15px;
++}
++
++
++.efficiency-morning-meeting-auto-card.is-limestone
++  .efficiency-morning-meeting-limestone-quantity-table__head
++  > strong {
++  display: flex;
++
++  align-items: center;
++  justify-content: center;
++
++  min-width: 0;
++  min-height: 15px;
++
++  border-radius: 5px;
++
++  background: #eaf2fc;
++  color: #35649b;
++
++  font-size: 8px;
++  font-weight: 900;
++  line-height: 1;
++}
++
++
++.efficiency-morning-meeting-auto-card.is-limestone
++  .efficiency-morning-meeting-limestone-quantity-table__row {
++  min-height: 20px;
++}
++
++
++.efficiency-morning-meeting-auto-card.is-limestone
++  .efficiency-morning-meeting-limestone-quantity-table__row
++  > span {
++  min-width: 0;
++
++  padding-left: 3px;
++
++  color: #63758a;
++
++  font-size: 9px;
++  font-weight: 800;
++
++  white-space: nowrap;
++}
++
++
++.efficiency-morning-meeting-auto-card.is-limestone
++  .efficiency-morning-meeting-limestone-quantity-table__row
++  > strong {
++  display: flex;
++
++  align-items: center;
++  justify-content: center;
++
++  min-width: 0;
++  min-height: 20px;
++
++  padding: 0 3px;
++
++  border-radius: 5px;
++
++  background: #f4f7fb;
++  color: #213955;
++
++  font-size: 10px;
++  font-weight: 900;
++  line-height: 1;
++
++  text-align: center;
++  white-space: nowrap;
++}
++
++
++.efficiency-morning-meeting-auto-card.is-limestone
++  .efficiency-morning-meeting-limestone-quantity-table__row
++  > strong:last-child {
++  background: #f2f6fb;
++}
++
++
+ .efficiency-morning-meeting-auto-card.is-gear-pinion
+   .efficiency-morning-meeting-auto-card__body {
+   background: #fcfcff;
+ }
+ 

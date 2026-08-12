@@ -181673,9 +181673,29 @@ async function restoreLimestoneUsageBatch() {
           "efficiencyMorningMeetingAutoLimestoneReceipt"
         ),
 
+      limestoneReceiptUnitOne:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoLimestoneReceiptUnitOne"
+        ),
+
+      limestoneReceiptUnitTwo:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoLimestoneReceiptUnitTwo"
+        ),
+
       limestoneUsage:
         document.getElementById(
           "efficiencyMorningMeetingAutoLimestoneUsage"
+        ),
+
+      limestoneUsageUnitOne:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoLimestoneUsageUnitOne"
+        ),
+
+      limestoneUsageUnitTwo:
+        document.getElementById(
+          "efficiencyMorningMeetingAutoLimestoneUsageUnitTwo"
         ),
 
 
@@ -182962,44 +182982,94 @@ function getBoilerData() {
     );
 
 
-    const hasReceipt =
+    const unitOneReceiptText =
       data.unitOneReceipt !==
-        null &&
-      data.unitTwoReceipt !==
-        null;
-
-
-    setText(
-      elements.limestoneReceipt,
-
-      hasReceipt
+        null
         ? `${formatLimestoneNumber(
             data.unitOneReceipt
-          )} / ${formatLimestoneNumber(
+          )} t`
+        : "-";
+
+
+    const unitTwoReceiptText =
+      data.unitTwoReceipt !==
+        null
+        ? `${formatLimestoneNumber(
             data.unitTwoReceipt
           )} t`
-        : "- / -"
-    );
+        : "-";
 
 
-    const hasUsage =
+    const hasReceiptColumns =
+      elements.limestoneReceiptUnitOne &&
+      elements.limestoneReceiptUnitTwo;
+
+
+    if (
+      hasReceiptColumns
+    ) {
+      setText(
+        elements.limestoneReceiptUnitOne,
+        unitOneReceiptText
+      );
+
+
+      setText(
+        elements.limestoneReceiptUnitTwo,
+        unitTwoReceiptText
+      );
+
+    } else {
+      setText(
+        elements.limestoneReceipt,
+        `${unitOneReceiptText} / ${unitTwoReceiptText}`
+      );
+    }
+
+
+    const unitOneUsageText =
       data.unitOneUsage !==
-        null &&
-      data.unitTwoUsage !==
-        null;
-
-
-    setText(
-      elements.limestoneUsage,
-
-      hasUsage
+        null
         ? `${formatLimestoneNumber(
             data.unitOneUsage
-          )} / ${formatLimestoneNumber(
+          )} t`
+        : "-";
+
+
+    const unitTwoUsageText =
+      data.unitTwoUsage !==
+        null
+        ? `${formatLimestoneNumber(
             data.unitTwoUsage
           )} t`
-        : "- / -"
-    );
+        : "-";
+
+
+    const hasUsageColumns =
+      elements.limestoneUsageUnitOne &&
+      elements.limestoneUsageUnitTwo;
+
+
+    if (
+      hasUsageColumns
+    ) {
+      setText(
+        elements.limestoneUsageUnitOne,
+        unitOneUsageText
+      );
+
+
+      setText(
+        elements.limestoneUsageUnitTwo,
+        unitTwoUsageText
+      );
+
+    } else {
+      setText(
+        elements.limestoneUsage,
+        `${unitOneUsageText} / ${unitTwoUsageText}`
+      );
+    }
   }
 
 
@@ -183965,7 +184035,7 @@ function ensureSiloPreviewCard() {
           </strong>
         </div>
 
-        <div class="efficiency-morning-meeting-auto-row is-emphasis">
+        <div class="efficiency-morning-meeting-auto-row">
           <span>
             Bio Storage Silo Level
 
@@ -208031,7 +208101,7 @@ function ensureCard() {
   ensureStyle();
 
   const layoutVersion =
-    "weather-four-rows-v1";
+    "weather-four-rows-v2";
 
   let card =
     byId(
@@ -208109,7 +208179,7 @@ function ensureCard() {
           </strong>
         </div>
 
-        <div class="efficiency-morning-meeting-auto-row">
+        <div class="efficiency-morning-meeting-auto-row is-emphasis">
           <span>
             기온
           </span>
@@ -208129,7 +208199,7 @@ function ensureCard() {
           </strong>
         </div>
 
-        <div class="efficiency-morning-meeting-auto-row is-emphasis">
+        <div class="efficiency-morning-meeting-auto-row">
           <span>
             습도
           </span>
