@@ -86022,7 +86022,7 @@ td.is-total {
 
   gap: 2px;
 
-  margin: 3px -1px 0;
+  margin: 4px -1px 0;
   padding: 3px;
 
   border: 1px solid #e1eaf4;
@@ -86051,7 +86051,7 @@ td.is-total {
 
 .efficiency-morning-meeting-auto-card.is-limestone
   .efficiency-morning-meeting-limestone-quantity-table__head {
-  min-height: 15px;
+  min-height: 17px;
 }
 
 
@@ -86064,7 +86064,7 @@ td.is-total {
   justify-content: center;
 
   min-width: 0;
-  min-height: 15px;
+  min-height: 17px;
 
   border-radius: 5px;
 
@@ -86079,7 +86079,7 @@ td.is-total {
 
 .efficiency-morning-meeting-auto-card.is-limestone
   .efficiency-morning-meeting-limestone-quantity-table__row {
-  min-height: 24px;
+  min-height: 29px;
 }
 
 
@@ -86108,7 +86108,7 @@ td.is-total {
   justify-content: center;
 
   min-width: 0;
-  min-height: 24px;
+  min-height: 29px;
 
   padding: 0 3px;
 
@@ -100519,27 +100519,28 @@ th > small {
   display: grid;
 
   grid-template-columns:
-    auto
-    minmax(0, 1fr);
+    minmax(134px, 1fr)
+    auto;
 
   grid-template-areas:
     "heading navigation"
-    "status status";
+    "status navigation";
 
   align-items: center;
-  gap: 7px 12px;
+  gap: 4px 14px;
 
   min-width: 0;
-  padding: 10px 12px 8px;
+  min-height: 72px;
+  padding: 10px 12px;
 
   border: 1px solid #c7d8e8;
   border-radius: 10px;
 
   background:
     linear-gradient(
-      180deg,
+      135deg,
       #ffffff 0%,
-      #f6faff 100%
+      #f7fbff 100%
     );
 
   box-shadow:
@@ -100555,7 +100556,7 @@ th > small {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  min-width: 92px;
+  min-width: 0;
 }
 
 
@@ -100586,9 +100587,12 @@ th > small {
 .efficiency-morning-meeting-work-date__nav {
   grid-area: navigation;
   display: flex;
-  align-items: stretch;
-  justify-content: flex-end;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
+  padding: 0 14px;
+  border-left: 1px solid #e1eaf3;
 }
 
 
@@ -100604,8 +100608,8 @@ th > small {
 
   box-sizing: border-box;
   display: inline-flex;
-  height: 34px;
-  min-height: 34px;
+  height: 36px;
+  min-height: 36px;
 
   align-items: center;
   justify-content: center;
@@ -100633,11 +100637,11 @@ th > small {
 #efficiencyTeamModal
 #efficiencyMorningMeetingView
 #efficiencyMorningMeetingWorkDatePreviousButton {
-  width: 34px;
-  min-width: 34px;
+  width: 36px;
+  min-width: 36px;
   padding: 0;
   border-radius: 8px 0 0 8px;
-  font-size: 18px;
+  font-size: 17px;
 }
 
 
@@ -100645,7 +100649,8 @@ th > small {
 #efficiencyMorningMeetingView
 .efficiency-morning-meeting-work-date__picker {
   position: relative;
-  min-width: 108px;
+  width: 116px;
+  min-width: 116px;
   margin-left: -1px;
 
   background: #eaf4fd;
@@ -100677,20 +100682,21 @@ th > small {
 #efficiencyTeamModal
 #efficiencyMorningMeetingView
 #efficiencyMorningMeetingWorkDateNextButton {
-  width: 34px;
-  min-width: 34px;
+  width: 36px;
+  min-width: 36px;
   margin-left: -1px;
   padding: 0;
   border-radius: 0 8px 8px 0;
-  font-size: 18px;
+  font-size: 17px;
 }
 
 
 #efficiencyTeamModal
 #efficiencyMorningMeetingView
 #efficiencyMorningMeetingWorkDateTodayButton {
-  min-width: 50px;
-  margin-left: 7px;
+  width: 52px;
+  min-width: 52px;
+  margin-left: 8px;
   border-radius: 8px;
 
   border-color: #9ebbd5;
@@ -100884,7 +100890,10 @@ th > small {
   #efficiencyMorningMeetingView
   .efficiency-morning-meeting-work-date__nav {
     width: 100%;
+    align-self: auto;
     justify-content: stretch;
+    padding: 0;
+    border-left: 0;
   }
 
 
@@ -100892,6 +100901,7 @@ th > small {
   #efficiencyMorningMeetingView
   .efficiency-morning-meeting-work-date__picker {
     flex: 1 1 auto;
+    width: auto;
     min-width: 0;
   }
 
