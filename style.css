@@ -92123,119 +92123,6 @@ tbody tr {
     rgba(23, 107, 196, 0.14);
 }
 
-
-/* 컴팩트 보기에서도 글씨는 읽을 수 있는 크기로 유지 */
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-split-layout {
-  --auxiliary-split-columns:
-    minmax(94px, 0.78fr)
-    minmax(76px, 0.62fr)
-    minmax(110px, 0.94fr)
-    minmax(102px, 0.88fr)
-    minmax(104px, 0.9fr)
-    minmax(98px, 0.85fr)
-    minmax(100px, 0.85fr)
-    minmax(76px, 0.62fr)
-    minmax(108px, 0.92fr)
-    minmax(158px, 1.3fr);
-
-  min-width: 1090px !important;
-}
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-split-layout
-.auxiliary-material-split-unit-heading,
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-split-layout
-.auxiliary-material-split-unit-heading th {
-  min-height: 42px;
-}
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-split-layout
-.auxiliary-material-split-column-heading {
-  top: 42px;
-}
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-split-layout
-.auxiliary-material-split-column-heading th {
-  min-height: 58px;
-  font-size: 11px;
-}
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-split-layout
-.auxiliary-material-split-data-row td {
-  min-height: 44px;
-  padding: 7px 6px;
-  font-size: 12.5px;
-}
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-split-layout
-.auxiliary-material-split-data-row td.is-date strong,
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-split-layout
-.auxiliary-material-split-data-row td.is-remarks {
-  font-size: 12px;
-}
-
-
-/* 크게 보기에서 컴팩트 상태가 유지된 경우 */
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-combined-layout {
-  min-width: 1660px !important;
-}
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-combined-layout
-col.is-date {
-  width: 92px !important;
-}
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-combined-layout
-col:not(.is-date):not(.is-remarks) {
-  width: 87px !important;
-}
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-combined-layout
-col.is-remarks {
-  width: 176px !important;
-}
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-combined-layout th,
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-combined-layout td {
-  padding: 6px 5px !important;
-}
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-combined-layout
-.auxiliary-material-unit-heading th {
-  height: 38px !important;
-}
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-combined-layout
-.auxiliary-material-column-heading th {
-  top: 38px !important;
-  height: 58px !important;
-  font-size: 11px !important;
-}
-
-#efficiencyAuxiliaryMaterialsView.is-compact-view
-.auxiliary-material-sheet-table.is-combined-layout tbody td {
-  height: 38px !important;
-  font-size: 12px !important;
-}
-
-
 @media screen and (max-width: 700px) {
 
   #efficiencyAuxiliaryMaterialsView
@@ -92255,6 +92142,7 @@ col.is-remarks {
     min-width: 1012px !important;
   }
 
+
   #efficiencyAuxiliaryMaterialsView
   .auxiliary-material-sheet-table.is-split-layout
   .auxiliary-material-split-data-row td {
@@ -92262,10 +92150,12 @@ col.is-remarks {
     font-size: 13px;
   }
 
+
   #efficiencyAuxiliaryMaterialsView
   .auxiliary-material-split-unit-title strong {
     font-size: 15px;
   }
+
 
   #efficiencyAuxiliaryMaterialsView
   .auxiliary-material-split-unit-count {
@@ -95045,7 +94935,6 @@ body.is-auxiliary-material-expanded
     line-height: 1.2 !important;
   }
 
-
   /* =====================================================
     수치 수정 모드에서도 행이 과도하게 커지지 않게
   ====================================================== */
@@ -95065,25 +94954,6 @@ body.is-auxiliary-material-expanded
 
     padding:
       0
-      5px !important;
-
-    font-size: 10px !important;
-  }
-
-
-  /* =====================================================
-    컴팩트 보기 버튼을 누르면 한 단계 더 압축
-  ====================================================== */
-
-  body:not(.is-auxiliary-material-expanded)
-  #efficiencyAuxiliaryMaterialsView.is-compact-view
-  .auxiliary-material-sheet-table.is-split-layout
-  .auxiliary-material-split-data-row
-  td {
-    min-height: 30px !important;
-
-    padding:
-      3px
       5px !important;
 
     font-size: 10px !important;
@@ -96123,7 +95993,7 @@ body.is-auxiliary-material-expanded
   부재료 PC 상단 조작부 최종 정리
 
   1행: 조회 월 · 시작일 · 종료일 · 자료 작업 · Slurry 밀도
-  2행: 강제 갱신 · 조회 상태
+  2행: 저장자료 조회 상태
 
   compact / inline 규칙과 분리하여
   화면 배율이 달라도 겹치지 않도록 한다.
@@ -96145,7 +96015,7 @@ body.is-auxiliary-material-expanded
     min-height: 52px !important;
     height: auto !important;
 
-    margin: 0 0 8px !important;
+    margin: 0 0 10px !important;
     padding: 6px 10px !important;
 
     overflow: visible !important;
@@ -96182,6 +96052,11 @@ body.is-auxiliary-material-expanded
     box-sizing: border-box !important;
     display: grid !important;
 
+    position: relative !important;
+    z-index: 1 !important;
+
+    clear: both !important;
+
     grid-template-columns:
       max-content
       minmax(0, 1fr) !important;
@@ -96192,7 +96067,7 @@ body.is-auxiliary-material-expanded
     width: 100% !important;
     min-width: 0 !important;
 
-    margin-bottom: 6px !important;
+    margin: 10px 0 6px !important;
     padding: 8px 10px !important;
 
     border-radius: 11px !important;
@@ -96748,20 +96623,12 @@ body.is-auxiliary-material-expanded
 
 
   /* =====================================================
-    2행: 강제 갱신 + 조회 상태
+    강제 갱신은 제거하고 저장자료 조회 상태만 표시
   ====================================================== */
 
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-force-refresh {
-    grid-column: 1 !important;
-
-    min-height: 22px !important;
-
-    margin: 0 !important;
-    padding: 0 2px !important;
-
-    font-size: 10px !important;
-    white-space: nowrap !important;
+    display: none !important;
   }
 
 
@@ -96769,7 +96636,7 @@ body.is-auxiliary-material-expanded
   .auxiliary-material-status {
     box-sizing: border-box !important;
 
-    grid-column: 2 !important;
+    grid-column: 1 / -1 !important;
 
     width: 100% !important;
     min-width: 0 !important;
