@@ -96122,9 +96122,8 @@ body.is-auxiliary-material-expanded
 /* =========================================================
   부재료 PC 상단 조작부 최종 정리
 
-  1행: 조회 월 · 시작일 · 종료일 · 자료 작업
-  2행: Slurry 밀도 고정값
-  3행: 강제 갱신 · 조회 상태
+  1행: 조회 월 · 시작일 · 종료일 · 자료 작업 · Slurry 밀도
+  2행: 강제 갱신 · 조회 상태
 
   compact / inline 규칙과 분리하여
   화면 배율이 달라도 겹치지 않도록 한다.
@@ -96138,11 +96137,18 @@ body.is-auxiliary-material-expanded
 
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-heading {
-    min-height: 0 !important;
+    box-sizing: border-box !important;
+
+    position: relative !important;
+    z-index: 2 !important;
+
+    min-height: 52px !important;
     height: auto !important;
 
-    margin: 0 0 6px !important;
-    padding: 8px 12px !important;
+    margin: 0 0 8px !important;
+    padding: 6px 10px !important;
+
+    overflow: visible !important;
   }
 
 
@@ -96156,8 +96162,8 @@ body.is-auxiliary-material-expanded
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-heading h3 {
     margin: 0 !important;
-    font-size: 20px !important;
-    line-height: 1.15 !important;
+    font-size: 18px !important;
+    line-height: 1.25 !important;
   }
 
 
@@ -96212,7 +96218,7 @@ body.is-auxiliary-material-expanded
 
 
   /* =====================================================
-    1행: 조회 범위 + 자료 작업
+    1행: 조회 범위 + 자료 작업 + Slurry 밀도
   ====================================================== */
 
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
@@ -96224,7 +96230,7 @@ body.is-auxiliary-material-expanded
     align-items: flex-end !important;
     justify-content: flex-start !important;
 
-    gap: 7px 12px !important;
+    gap: 7px 10px !important;
 
     width: 100% !important;
     min-width: 0 !important;
@@ -96366,10 +96372,16 @@ body.is-auxiliary-material-expanded
 
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-pc-range-controls > label {
-    flex: 0 0 142px !important;
+    position: static !important;
 
-    width: 142px !important;
-    min-width: 142px !important;
+    flex: 0 0 132px !important;
+
+    width: 132px !important;
+    min-width: 132px !important;
+    max-width: 132px !important;
+
+    inset: auto !important;
+    transform: none !important;
   }
 
 
@@ -96377,19 +96389,27 @@ body.is-auxiliary-material-expanded
   .auxiliary-material-pc-range-controls input[type="date"] {
     box-sizing: border-box !important;
 
-    width: 142px !important;
-    min-width: 142px !important;
+    position: static !important;
+    display: block !important;
+    flex: none !important;
+
+    width: 132px !important;
+    min-width: 132px !important;
+    max-width: 132px !important;
 
     height: 34px !important;
     min-height: 34px !important;
 
     margin: 0 !important;
-    padding: 0 8px !important;
+    padding: 0 6px !important;
 
     border-radius: 7px !important;
 
-    font-size: 11px !important;
+    font-size: 10px !important;
     font-weight: 850 !important;
+
+    inset: auto !important;
+    transform: none !important;
   }
 
 
@@ -96474,7 +96494,7 @@ body.is-auxiliary-material-expanded
 
 
   /* =====================================================
-    2행: Slurry 밀도 고정값
+    엑셀 다운로드 오른쪽: Slurry 밀도 고정값
   ====================================================== */
 
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
@@ -96482,24 +96502,26 @@ body.is-auxiliary-material-expanded
     box-sizing: border-box !important;
     display: flex !important;
 
+    flex: 1 1 560px !important;
     flex-flow: row wrap !important;
 
     align-items: center !important;
     justify-content: flex-start !important;
 
-    gap: 6px 12px !important;
+    gap: 6px 10px !important;
 
-    width: 100% !important;
-    min-width: 0 !important;
-    min-height: 48px !important;
+    width: auto !important;
+    min-width: 500px !important;
+    min-height: 34px !important;
 
     margin: 0 !important;
-    padding: 7px 10px !important;
+    padding: 0 0 0 10px !important;
 
-    border: 1px solid #d7e4f1 !important;
-    border-radius: 9px !important;
+    border: 0 !important;
+    border-left: 1px solid #d7e4f1 !important;
+    border-radius: 0 !important;
 
-    background: #f6f9fd !important;
+    background: transparent !important;
 
     box-shadow: none !important;
   }
@@ -96541,7 +96563,7 @@ body.is-auxiliary-material-expanded
 
     color: #38526f !important;
 
-    font-size: 10px !important;
+    font-size: 9px !important;
     font-weight: 900 !important;
     line-height: 34px !important;
 
@@ -96554,7 +96576,7 @@ body.is-auxiliary-material-expanded
   .auxiliary-material-density-setting__fields {
     display: flex !important;
 
-    flex: 1 1 auto !important;
+    flex: 1 1 430px !important;
     flex-wrap: wrap !important;
 
     width: auto !important;
@@ -96563,7 +96585,7 @@ body.is-auxiliary-material-expanded
     align-items: center !important;
     justify-content: flex-start !important;
 
-    gap: 6px !important;
+    gap: 5px !important;
 
     margin: 0 !important;
     padding: 0 !important;
@@ -96614,8 +96636,11 @@ body.is-auxiliary-material-expanded
   #auxiliaryMaterialDensityEffectiveDate {
     box-sizing: border-box !important;
 
-    width: 112px !important;
-    min-width: 112px !important;
+    position: static !important;
+
+    width: 106px !important;
+    min-width: 106px !important;
+    max-width: 106px !important;
 
     height: 34px !important;
     min-height: 34px !important;
@@ -96626,6 +96651,9 @@ body.is-auxiliary-material-expanded
     border-radius: 7px !important;
 
     font-size: 10px !important;
+
+    inset: auto !important;
+    transform: none !important;
   }
 
 
@@ -96651,8 +96679,8 @@ body.is-auxiliary-material-expanded
   #auxiliaryMaterialUnitTwoFixedDensity {
     box-sizing: border-box !important;
 
-    width: 66px !important;
-    min-width: 66px !important;
+    width: 60px !important;
+    min-width: 60px !important;
 
     height: 34px !important;
     min-height: 34px !important;
@@ -96685,7 +96713,7 @@ body.is-auxiliary-material-expanded
     flex: 0 0 auto !important;
 
     width: auto !important;
-    min-width: 72px !important;
+    min-width: 68px !important;
 
     height: 34px !important;
     min-height: 34px !important;
@@ -96720,7 +96748,7 @@ body.is-auxiliary-material-expanded
 
 
   /* =====================================================
-    3행: 강제 갱신 + 조회 상태
+    2행: 강제 갱신 + 조회 상태
   ====================================================== */
 
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
@@ -96752,6 +96780,24 @@ body.is-auxiliary-material-expanded
 
     font-size: 10px !important;
     line-height: 1.35 !important;
+  }
+}
+
+
+/* 중간 폭에서는 Slurry 영역만 다음 줄로 이동 */
+@media screen and (min-width: 769px) and (max-width: 1490px) {
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-density-setting--grouped {
+    flex: 1 1 100% !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    padding: 7px 0 0 !important;
+
+    border-left: 0 !important;
+    border-top: 1px solid #d7e4f1 !important;
   }
 }
 
