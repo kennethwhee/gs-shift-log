@@ -3990,67 +3990,103 @@
     </span>
   </button>
 
-  <!-- 오전회의취합 -->
-  <button
-    type="button"
-    class="efficiency-team-tab"
-    id="efficiencyMorningMeetingTab"
-    data-efficiency-tab="morning-meeting"
-    role="tab"
-    aria-selected="false"
-    aria-controls="efficiencyMorningMeetingView"
-  >
-    <span
-      class="efficiency-team-tab__icon"
-      aria-hidden="true"
-    >
-      <svg viewBox="0 0 24 24">
-        <path d="M7 3v3M17 3v3M4 9h16" />
-        <rect
-          x="4"
-          y="5"
-          width="16"
-          height="16"
-          rx="2"
-        />
-        <path d="M8 13h3M8 17h8M15 13h1" />
-      </svg>
-    </span>
+  
+  <!-- 오전회의취합 메뉴 그룹 -->
+<div
+  class="efficiency-team-menu-group"
+  id="efficiencyMorningMeetingMenuGroup"
+>
+  <div class="efficiency-team-parent-row">
 
-    <span class="efficiency-team-tab__label">
-      오전회의취합
-    </span>
-  </button>
-
-
-  <!-- 오전회의취합 소메뉴: 자동수치 기록 -->
-  <button
-    type="button"
-    class="
-      efficiency-team-tab
-      efficiency-team-subtab
-    "
-    id="efficiencyMorningMeetingAutoHistoryTab"
-    data-efficiency-tab="morning-meeting-auto-history"
-    role="tab"
-    aria-selected="false"
-    aria-controls="efficiencyMorningMeetingAutoHistoryView"
-    tabindex="-1"
-  >
-    <span
+    <!-- 오전회의취합 화면 이동 버튼 -->
+    <button
+      type="button"
       class="
-        efficiency-team-tab__icon
-        efficiency-team-subtab__branch
+        efficiency-team-tab
+        efficiency-team-parent-tab
       "
-      aria-hidden="true"
+      id="efficiencyMorningMeetingTab"
+      data-efficiency-tab="morning-meeting"
+      role="tab"
+      aria-selected="false"
+      aria-controls="efficiencyMorningMeetingView"
     >
-      └
-    </span>
+      <span
+        class="efficiency-team-tab__icon"
+        aria-hidden="true"
+      >
+        <svg viewBox="0 0 24 24">
+          <path d="M7 3v3M17 3v3M4 9h16" />
+          <rect
+            x="4"
+            y="5"
+            width="16"
+            height="16"
+            rx="2"
+          />
+          <path d="M8 13h3M8 17h8M15 13h1" />
+        </svg>
+      </span>
 
-    <span class="efficiency-team-tab__label">
-      자동수치 기록
-    </span>
-  </button>
+      <span class="efficiency-team-tab__label">
+        오전회의취합
+      </span>
+    </button>
+
+    <!-- 하위메뉴 펼치기 버튼 -->
+    <button
+      type="button"
+      class="efficiency-team-submenu-toggle"
+      id="efficiencyMorningMeetingSubmenuToggle"
+      aria-label="자동수치 기록 메뉴 펼치기"
+      aria-controls="efficiencyMorningMeetingSubmenu"
+      aria-expanded="false"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <path d="m7 9 5 5 5-5" />
+      </svg>
+    </button>
+
+  </div>
+
+  <!-- 기본 상태는 접힘 -->
+  <div
+    class="efficiency-team-submenu"
+    id="efficiencyMorningMeetingSubmenu"
+    hidden
+  >
+    <button
+      type="button"
+      class="
+        efficiency-team-tab
+        efficiency-team-subtab
+      "
+      id="efficiencyMorningMeetingAutoHistoryTab"
+      data-efficiency-tab="morning-meeting-auto-history"
+      role="tab"
+      aria-selected="false"
+      aria-controls="efficiencyMorningMeetingAutoHistoryView"
+      tabindex="-1"
+    >
+      <span
+        class="efficiency-team-subtab__icon"
+        aria-hidden="true"
+      >
+        <svg viewBox="0 0 24 24">
+          <path d="M4 12a8 8 0 1 0 2.34-5.66L4 8" />
+          <path d="M4 4v4h4M12 8v5l3 2" />
+        </svg>
+      </span>
+
+      <span class="efficiency-team-tab__label">
+        자동수치 기록
+      </span>
+    </button>
+  </div>
+</div>
 
   <!-- 석회석 -->
   <button
