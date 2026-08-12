@@ -85560,9 +85560,15 @@ function switchEfficiencyTeamView(
   const validViews =
     new Set([
       "daily-work",
+
       "morning-meeting",
+
+      "morning-meeting-auto-history",
+
       "limestone",
+
       "auxiliary-materials",
+
       "arm-roll"
     ]);
 
@@ -85582,23 +85588,56 @@ function switchEfficiencyTeamView(
       : "";
 
 
+  const isMorningMeetingSubView =
+    selectedView ===
+    "morning-meeting-auto-history";
+
+
+  /* ===================================================
+    메뉴 선택 상태
+  ==================================================== */
+
   tabs.forEach(
     (
       tab,
       tabIndex
     ) => {
+      const tabView =
+        tab.dataset
+          .efficiencyTab;
+
+
       const isSelected =
         Boolean(
           selectedView
         ) &&
-        tab.dataset
-          .efficiencyTab ===
+        tabView ===
           selectedView;
+
+
+      /*
+        자동수치 기록을 보고 있을 때
+        상위 오전회의취합 메뉴도 연결 상태로 표시한다.
+
+        실제 선택 메뉴는 자동수치 기록 하나이므로
+        aria-selected는 소메뉴에만 적용한다.
+      */
+
+      const isParentActive =
+        isMorningMeetingSubView &&
+        tabView ===
+          "morning-meeting";
 
 
       tab.classList.toggle(
         "is-active",
         isSelected
+      );
+
+
+      tab.classList.toggle(
+        "is-parent-active",
+        isParentActive
       );
 
 
@@ -85622,6 +85661,10 @@ function switchEfficiencyTeamView(
     }
   );
 
+
+  /* ===================================================
+    선택 화면만 표시
+  ==================================================== */
 
   views.forEach(
     view => {
@@ -85655,11 +85698,10 @@ function switchEfficiencyTeamView(
 
 
   /*
-    모바일 석회석 메뉴는 항상 입고 현황부터 연다.
-
-    PC에서 사용량 계산 화면을 보고 있던 상태는
-    그대로 유지하고, 모바일 진입만 안정화한다.
+    모바일 석회석 메뉴는 항상
+    입고 현황부터 연다.
   */
+
   if (
     selectedView ===
       "limestone" &&
@@ -85692,6 +85734,25 @@ function switchEfficiencyTeamView(
   ) {
     selectedViewElement.scrollTop =
       0;
+  }
+
+
+  /*
+    자동수치 기록 화면을 열었을 때만
+    저장된 목록을 읽는다.
+
+    OIS 신규 조회는 실행하지 않는다.
+  */
+
+  if (
+    selectedView ===
+      "morning-meeting-auto-history" &&
+    typeof window
+      .openEfficiencyMorningMeetingAutoHistoryView ===
+      "function"
+  ) {
+    window
+      .openEfficiencyMorningMeetingAutoHistoryView();
   }
 
 
@@ -88006,24 +88067,19 @@ function readAuxiliaryMaterialDateRange() {
 ===================================================== */
 
 function renderAuxiliaryMaterialHistory() {
-  const elements =
-    getAuxiliaryMaterialElements();
+  const elements = getAuxiliaryMaterialElements();
 
-  if (
-    !elements.tableBody
-  ) {
+  if (!elements.tableBody) {
     return;
   }
 
-  const table =
-    elements.tableBody.closest(
-      ".auxiliary-material-sheet-table"
-    );
+  const table = elements.tableBody.closest(
+    ".auxiliary-material-sheet-table"
+  );
 
-  const isExpanded =
-    document.body.classList.contains(
-      "is-auxiliary-material-expanded"
-    );
+  const isExpanded = document.body.classList.contains(
+    "is-auxiliary-material-expanded"
+  );
 
   table?.classList.toggle(
     "is-split-layout",
@@ -88035,90 +88091,132 @@ function renderAuxiliaryMaterialHistory() {
     isExpanded
   );
 
-  const items =
-    Array.isArray(
-      auxiliaryMaterialHistoryState.items
-    )
-      ? auxiliaryMaterialHistoryState.items
-      : [];
+  const items = Array.isArray(
+    auxiliaryMaterialHistoryState.items
+  )
+    ? auxiliaryMaterialHistoryState.items
+    : [];
 
-  const rowsByDate =
-    new Map();
+  const rowsByDate = new Map();
 
-  items.forEach(
-    item => {
-      const recordDate =
-        String(
-          item?.recordDate ||
-          ""
-        ).trim();
+  items.forEach(item => {
+    const recordDate = String(
+      item?.recordDate || ""
+    ).trim();
 
-      const unitNo =
-        Number(
-          item?.unitNo
-        );
-
-      if (
-        !isValidAuxiliaryMaterialIsoDate(
-          recordDate
-        ) ||
-        (
-          unitNo !== 1 &&
-          unitNo !== 2
-        )
-      ) {
-        return;
-      }
-
-      if (
-        !rowsByDate.has(
-          recordDate
-        )
-      ) {
-        rowsByDate.set(
-          recordDate,
-          {
-            recordDate,
-            unitOne:
-              null,
-            unitTwo:
-              null
-          }
-        );
-      }
-
-      const row =
-        rowsByDate.get(
-          recordDate
-        );
-
-      if (
-        unitNo === 1
-      ) {
-        row.unitOne =
-          item;
-
-      } else {
-        row.unitTwo =
-          item;
-      }
-    }
-  );
-
-const rows =
-    Array.from(
-      rowsByDate.values()
-    ).sort(
-      (
-        first,
-        second
-      ) =>
-        second.recordDate.localeCompare(
-          first.recordDate
-        )
+    const unitNo = Number(
+      item?.unitNo
     );
 
+    if (
+      !isValidAuxiliaryMaterialIsoDate(
+        recordDate
+      ) ||
+      (
+        unitNo !== 1 &&
+        unitNo !== 2
+      )
+    ) {
+      return;
+    }
 
+    if (!rowsByDate.has(recordDate)) {
+      rowsByDate.set(
+        recordDate,
+        {
+          recordDate,
+          unitOne: null,
+          unitTwo: null
+        }
+      );
+    }
+
+    const row = rowsByDate.get(
+      recordDate
+    );
+
+    if (unitNo === 1) {
+      row.unitOne = item;
+    } else {
+      row.unitTwo = item;
+    }
+  });
+
+  const rows = Array.from(
+    rowsByDate.values()
+  ).sort(
+    (first, second) =>
+      second.recordDate.localeCompare(
+        first.recordDate
+      )
+  );
+
+  /*
+    화면 표시 순서만 지정합니다.
+    엑셀 가져오기·다운로드 열 순서는 바꾸지 않습니다.
+  */
+  const displayFieldKeys = [
+    "soxPpm",
+    "limestoneUsageTpd",
+    "limestoneReceiptTon",
+    "limePowderTpd",
+    "limeSlurryFlowM3h",
+    "limeSlurryDensityKgm3",
+    "noxPpm",
+    "ammoniaM3d"
+  ];
+
+  const displayFields = displayFieldKeys
+    .map(fieldKey =>
+      AUXILIARY_MATERIAL_EDIT_FIELDS.find(
+        field =>
+          field.key === fieldKey
+      )
+    )
+    .filter(Boolean);
+
+  const splitColumns = [
+    [
+      "is-sox",
+      "SOx",
+      "ppm"
+    ],
+    [
+      "is-limestone-usage",
+      "Limestone 사용량",
+      "t/d"
+    ],
+    [
+      "is-limestone-receipt",
+      "Limestone 입고량",
+      "t"
+    ],
+    [
+      "is-lime-powder",
+      "Lime Powder",
+      "t/d"
+    ],
+    [
+      "is-slurry-flow",
+      "Lime Slurry 유량",
+      "m³/h"
+    ],
+    [
+      "is-density",
+      "Slurry 밀도",
+      "kg/m³"
+    ],
+    [
+      "is-nox",
+      "NOx",
+      "ppm"
+    ],
+    [
+      "is-ammonia",
+      "Ammonia 일사용량",
+      "m³/d"
+    ]
+  ];
 
   function renderUnitCells(
     item,
@@ -88126,42 +88224,32 @@ const rows =
     recordDate,
     unitNo
   ) {
-    return AUXILIARY_MATERIAL_EDIT_FIELDS
-      .map(
-        field =>
-          renderAuxiliaryMaterialValueCell(
-            item,
-            field,
-            unitClass,
-            recordDate,
-            unitNo
-          )
+    return displayFields
+      .map(field =>
+        renderAuxiliaryMaterialValueCell(
+          item,
+          field,
+          unitClass,
+          recordDate,
+          unitNo
+        )
       )
-      .join(
-        ""
-      );
+      .join("");
   }
 
-  function getCombinedRemarks(
-    row
-  ) {
-    const unitOneRemarks =
-      String(
-        row.unitOne?.remarks ??
-        ""
-      ).trim();
+  function getCombinedRemarks(row) {
+    const unitOneRemarks = String(
+      row.unitOne?.remarks ?? ""
+    ).trim();
 
-    const unitTwoRemarks =
-      String(
-        row.unitTwo?.remarks ??
-        ""
-      ).trim();
+    const unitTwoRemarks = String(
+      row.unitTwo?.remarks ?? ""
+    ).trim();
 
     if (
       unitOneRemarks &&
       unitTwoRemarks &&
-      unitOneRemarks !==
-        unitTwoRemarks
+      unitOneRemarks !== unitTwoRemarks
     ) {
       return (
         `1호기: ${unitOneRemarks} / ` +
@@ -88175,33 +88263,91 @@ const rows =
     );
   }
 
+  function renderRemarksCell({
+    recordDate,
+    unitNos,
+    remarks,
+    hasRecord,
+    ariaLabel
+  }) {
+    const normalizedRemarks = String(
+      remarks ?? ""
+    ).trim();
+
+    if (
+      !auxiliaryMaterialValueEditState
+        .isEditing ||
+      !hasRecord
+    ) {
+      return `
+        <td class="is-remarks">
+          ${
+            normalizedRemarks
+              ? escapeAuxiliaryMaterialHtml(
+                  normalizedRemarks
+                )
+              : "-"
+          }
+        </td>
+      `;
+    }
+
+    return `
+      <td class="is-remarks is-remarks-edit-cell">
+        <input
+          type="text"
+          class="auxiliary-material-remarks-input"
+
+          data-record-date="${escapeAuxiliaryMaterialHtml(
+            recordDate
+          )}"
+
+          data-unit-nos="${escapeAuxiliaryMaterialHtml(
+            unitNos.join(",")
+          )}"
+
+          data-original-value="${escapeAuxiliaryMaterialHtml(
+            normalizedRemarks
+          )}"
+
+          value="${escapeAuxiliaryMaterialHtml(
+            normalizedRemarks
+          )}"
+
+          maxlength="1000"
+          placeholder="비고 입력"
+          autocomplete="off"
+
+          aria-label="${escapeAuxiliaryMaterialHtml(
+            ariaLabel
+          )}"
+        />
+      </td>
+    `;
+  }
+
   function renderSplitColumnHeading(
     unitClass
   ) {
-    const valueHeadings =
-      splitColumns
-        .map(
-          (
-            [
-              cssClass,
-              label,
-              unit
-            ]
-          ) => `
-            <th class="${cssClass}">
-              <span>
-                ${label}
-              </span>
+    const valueHeadings = splitColumns
+      .map(
+        ([
+          cssClass,
+          label,
+          unit
+        ]) => `
+          <th class="${cssClass}">
+            <span>
+              ${label}
+            </span>
 
-              <small>
-                ${unit}
-              </small>
-            </th>
-          `
-        )
-        .join(
-          ""
-        );
+            <small>
+              ${unit}
+            </small>
+          </th>
+        `
+      )
+      .join("");
 
     return `
       <tr
@@ -88229,60 +88375,64 @@ const rows =
         ? "unitOne"
         : "unitTwo";
 
-    const unitRows =
-      rows
-        .map(
-          row => {
-            const item =
-              row[
-                itemKey
-              ];
+    const unitRows = rows
+      .map(row => {
+        const item = row[itemKey];
 
-            const remarks =
-              String(
-                item?.remarks ??
-                ""
-              ).trim();
+        const remarks = String(
+          item?.remarks ?? ""
+        ).trim();
 
-            return `
-              <tr
-                class="auxiliary-material-split-data-row ${unitClass} ${auxiliaryMaterialValueEditState.isEditing
-                  ? "is-value-editing"
-                  : ""}"
-                data-record-date="${escapeAuxiliaryMaterialHtml(
+        return `
+          <tr
+            class="auxiliary-material-split-data-row ${unitClass} ${
+              auxiliaryMaterialValueEditState
+                .isEditing
+                ? "is-value-editing"
+                : ""
+            }"
+
+            data-record-date="${escapeAuxiliaryMaterialHtml(
+              row.recordDate
+            )}"
+
+            data-unit-no="${unitNo}"
+          >
+            <td class="is-date">
+              <strong>
+                ${escapeAuxiliaryMaterialHtml(
                   row.recordDate
-                )}"
-                data-unit-no="${unitNo}"
-              >
-                <td class="is-date">
-                  <strong>
-                    ${escapeAuxiliaryMaterialHtml(
-                      row.recordDate
-                    )}
-                  </strong>
-                </td>
-
-                ${renderUnitCells(
-                  item,
-                  unitClass,
-                  row.recordDate,
-                  unitNo
                 )}
+              </strong>
+            </td>
 
-                <td class="is-remarks">
-                  ${remarks
-                    ? escapeAuxiliaryMaterialHtml(
-                        remarks
-                      )
-                    : "-"}
-                </td>
-              </tr>
-            `;
-          }
-        )
-        .join(
-          ""
-        );
+            ${renderUnitCells(
+              item,
+              unitClass,
+              row.recordDate,
+              unitNo
+            )}
+
+            ${renderRemarksCell({
+              recordDate:
+                row.recordDate,
+
+              unitNos: [
+                unitNo
+              ],
+
+              remarks,
+
+              hasRecord:
+                Boolean(item),
+
+              ariaLabel:
+                `${row.recordDate} ${unitNo}호기 비고`
+            })}
+          </tr>
+        `;
+      })
+      .join("");
 
     return `
       <tr
@@ -88315,58 +88465,76 @@ const rows =
 
   function renderCombinedRows() {
     return rows
-      .map(
-        row => {
-          const remarks =
-            getCombinedRemarks(
-              row
-            );
+      .map(row => {
+        const remarks =
+          getCombinedRemarks(row);
 
-          return `
-            <tr
-              class="${auxiliaryMaterialValueEditState.isEditing
+        const unitNos = [
+          ...(row.unitOne
+            ? [1]
+            : []),
+
+          ...(row.unitTwo
+            ? [2]
+            : [])
+        ];
+
+        return `
+          <tr
+            class="${
+              auxiliaryMaterialValueEditState
+                .isEditing
                 ? "is-value-editing"
-                : ""}"
-              data-record-date="${escapeAuxiliaryMaterialHtml(
-                row.recordDate
-              )}"
-            >
-              <td class="is-date">
-                <strong>
-                  ${escapeAuxiliaryMaterialHtml(
-                    row.recordDate
-                  )}
-                </strong>
-              </td>
+                : ""
+            }"
 
-              ${renderUnitCells(
-                row.unitOne,
-                "is-unit-one",
+            data-record-date="${escapeAuxiliaryMaterialHtml(
+              row.recordDate
+            )}"
+          >
+            <td class="is-date">
+              <strong>
+                ${escapeAuxiliaryMaterialHtml(
+                  row.recordDate
+                )}
+              </strong>
+            </td>
+
+            ${renderUnitCells(
+              row.unitOne,
+              "is-unit-one",
+              row.recordDate,
+              1
+            )}
+
+            ${renderUnitCells(
+              row.unitTwo,
+              "is-unit-two",
+              row.recordDate,
+              2
+            )}
+
+            ${renderRemarksCell({
+              recordDate:
                 row.recordDate,
-                1
-              )}
 
-              ${renderUnitCells(
-                row.unitTwo,
-                "is-unit-two",
-                row.recordDate,
-                2
-              )}
+              unitNos,
 
-              <td class="is-remarks">
-                ${remarks
-                  ? escapeAuxiliaryMaterialHtml(
-                      remarks
-                    )
-                  : "-"}
-              </td>
-            </tr>
-          `;
-        }
-      )
-      .join(
-        ""
-      );
+              remarks,
+
+              hasRecord:
+                Boolean(
+                  row.unitOne ||
+                  row.unitTwo
+                ),
+
+              ariaLabel:
+                `${row.recordDate} 공통 비고`
+            })}
+          </tr>
+        `;
+      })
+      .join("");
   }
 
   elements.tableBody.innerHTML =
@@ -88385,23 +88553,17 @@ const rows =
             )
           );
 
-  if (
-    elements.emptyState
-  ) {
+  if (elements.emptyState) {
     elements.emptyState.hidden =
       rows.length > 0;
   }
 
-  if (
-    elements.rowCount
-  ) {
+  if (elements.rowCount) {
     elements.rowCount.textContent =
       `${rows.length}건`;
   }
 
-  if (
-    elements.savedDays
-  ) {
+  if (elements.savedDays) {
     elements.savedDays.textContent =
       `${rows.length}일`;
   }
@@ -89280,162 +89442,301 @@ function areAuxiliaryMaterialEditNumbersEqual(
     0.0000001;
 }
 
-
 function collectAuxiliaryMaterialChangedRecords() {
-  const grouped =
-    new Map();
+  const grouped = new Map();
 
+  const historyItems = Array.isArray(
+    auxiliaryMaterialHistoryState.items
+  )
+    ? auxiliaryMaterialHistoryState.items
+    : [];
+
+  function getOriginalItem(
+    recordDate,
+    unitNo
+  ) {
+    return (
+      historyItems.find(
+        item =>
+          item.recordDate ===
+            recordDate &&
+          Number(item.unitNo) ===
+            Number(unitNo)
+      ) ||
+      null
+    );
+  }
+
+  function ensureGroup(
+    recordDate,
+    unitNo
+  ) {
+    const key =
+      `${recordDate}:${unitNo}`;
+
+    if (grouped.has(key)) {
+      return grouped.get(key);
+    }
+
+    const originalItem =
+      getOriginalItem(
+        recordDate,
+        unitNo
+      );
+
+    if (!originalItem) {
+      return null;
+    }
+
+    const originalRemarks =
+      String(
+        originalItem.remarks ??
+        ""
+      ).trim();
+
+    const group = {
+      recordDate,
+      unitNo,
+
+      revision:
+        Number(
+          originalItem.revision
+        ) ||
+        0,
+
+      values:
+        Object.fromEntries(
+          AUXILIARY_MATERIAL_EDIT_FIELDS.map(
+            field => [
+              field.key,
+              originalItem[field.key] ??
+                null
+            ]
+          )
+        ),
+
+      remarks:
+        originalRemarks,
+
+      originalRemarks,
+
+      changed:
+        false
+    };
+
+    grouped.set(
+      key,
+      group
+    );
+
+    return group;
+  }
 
   document
     .querySelectorAll(
       "#auxiliaryMaterialTableBody .auxiliary-material-value-input"
     )
-    .forEach(
-      input => {
-        const recordDate =
-          String(
-            input.dataset
-              .recordDate ||
-            ""
-          );
+    .forEach(input => {
+      const recordDate =
+        String(
+          input.dataset.recordDate ||
+          ""
+        );
 
+      const unitNo =
+        Number(
+          input.dataset.unitNo
+        );
 
-        const unitNo =
-          Number(
-            input.dataset
-              .unitNo
-          );
+      const fieldKey =
+        String(
+          input.dataset.field ||
+          ""
+        );
 
+      const field =
+        AUXILIARY_MATERIAL_EDIT_FIELDS.find(
+          definition =>
+            definition.key ===
+            fieldKey
+        );
 
-        const fieldKey =
-          String(
-            input.dataset
-              .field ||
-            ""
-          );
-
-
-        const field =
-          AUXILIARY_MATERIAL_EDIT_FIELDS.find(
-            definition =>
-              definition.key ===
-                fieldKey
-          );
-
-
-        if (
-          !field ||
-          !isValidAuxiliaryMaterialIsoDate(
-            recordDate
-          ) ||
-          !(
-            unitNo ===
-              1 ||
-            unitNo ===
-              2
-          )
-        ) {
-          return;
-        }
-
-
-        const label =
-          `${recordDate} ${unitNo}호기 ${field.label}`;
-
-
-        const value =
-          parseAuxiliaryMaterialEditNumber(
-            input.value,
-            field,
-            label
-          );
-
-
-        const originalValue =
-          parseAuxiliaryMaterialEditNumber(
-            input.dataset
-              .originalValue,
-            field,
-            label
-          );
-
-
-        const key =
-          `${recordDate}:${unitNo}`;
-
-
-        if (
-          !grouped.has(
-            key
-          )
-        ) {
-          const originalItem =
-            auxiliaryMaterialHistoryState
-              .items
-              .find(
-                item =>
-                  item.recordDate ===
-                    recordDate &&
-                  Number(
-                    item.unitNo
-                  ) ===
-                    unitNo
-              );
-
-
-          grouped.set(
-            key,
-            {
-              recordDate,
-              unitNo,
-
-              revision:
-                Number(
-                  originalItem?.revision
-                ) ||
-                0,
-
-              values: {},
-
-              changed:
-                false
-            }
-          );
-        }
-
-
-        const group =
-          grouped.get(
-            key
-          );
-
-
-        group.values[
-          fieldKey
-        ] =
-          value;
-
-
-        if (
-          !areAuxiliaryMaterialEditNumbersEqual(
-            value,
-            originalValue
-          )
-        ) {
-          group.changed =
-            true;
-        }
+      if (
+        !field ||
+        !isValidAuxiliaryMaterialIsoDate(
+          recordDate
+        ) ||
+        ![
+          1,
+          2
+        ].includes(
+          unitNo
+        )
+      ) {
+        return;
       }
-    );
 
+      const label =
+        `${recordDate} ${unitNo}호기 ${field.label}`;
+
+      const value =
+        parseAuxiliaryMaterialEditNumber(
+          input.value,
+          field,
+          label
+        );
+
+      const originalValue =
+        parseAuxiliaryMaterialEditNumber(
+          input.dataset.originalValue,
+          field,
+          label
+        );
+
+      const group =
+        ensureGroup(
+          recordDate,
+          unitNo
+        );
+
+      if (!group) {
+        return;
+      }
+
+      group.values[fieldKey] =
+        value;
+
+      if (
+        !areAuxiliaryMaterialEditNumbersEqual(
+          value,
+          originalValue
+        )
+      ) {
+        group.changed =
+          true;
+      }
+    });
+
+  document
+    .querySelectorAll(
+      "#auxiliaryMaterialTableBody .auxiliary-material-remarks-input"
+    )
+    .forEach(input => {
+      const recordDate =
+        String(
+          input.dataset.recordDate ||
+          ""
+        );
+
+      const unitNos =
+        Array.from(
+          new Set(
+            String(
+              input.dataset.unitNos ||
+              ""
+            )
+              .split(",")
+              .map(
+                value =>
+                  Number(value)
+              )
+              .filter(
+                unitNo =>
+                  [
+                    1,
+                    2
+                  ].includes(
+                    unitNo
+                  )
+              )
+          )
+        );
+
+      if (
+        !isValidAuxiliaryMaterialIsoDate(
+          recordDate
+        ) ||
+        unitNos.length < 1
+      ) {
+        return;
+      }
+
+      const remarks =
+        String(
+          input.value ??
+          ""
+        ).trim();
+
+      const originalDisplayValue =
+        String(
+          input.dataset.originalValue ??
+          ""
+        ).trim();
+
+      if (
+        remarks.length >
+        1000
+      ) {
+        throw new Error(
+          `${recordDate} 비고는 1,000자 이하로 입력해 주세요.`
+        );
+      }
+
+      /*
+        크게보기에서 서로 다른 두 호기의 비고를
+        합쳐 표시했더라도 사용자가 입력값을
+        바꾸지 않았다면 기존 비고를 보존합니다.
+      */
+      if (
+        remarks ===
+        originalDisplayValue
+      ) {
+        return;
+      }
+
+      unitNos.forEach(
+        unitNo => {
+          const group =
+            ensureGroup(
+              recordDate,
+              unitNo
+            );
+
+          if (!group) {
+            return;
+          }
+
+          group.remarks =
+            remarks;
+
+          if (
+            remarks !==
+            group.originalRemarks
+          ) {
+            group.changed =
+              true;
+          }
+        }
+      );
+    });
 
   return Array.from(
     grouped.values()
-  ).filter(
-    item =>
-      item.changed ===
+  )
+    .filter(
+      item =>
+        item.changed ===
         true
-  );
+    )
+    .map(item => {
+      const {
+        originalRemarks,
+        changed,
+        ...record
+      } = item;
+
+      return record;
+    });
 }
 
 /* =========================================================

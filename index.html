@@ -3990,7 +3990,7 @@
     </span>
   </button>
 
-  <!-- 오전회의자료 -->
+  <!-- 오전회의취합 -->
   <button
     type="button"
     class="efficiency-team-tab"
@@ -4000,16 +4000,55 @@
     aria-selected="false"
     aria-controls="efficiencyMorningMeetingView"
   >
-    <span class="efficiency-team-tab__icon" aria-hidden="true">
+    <span
+      class="efficiency-team-tab__icon"
+      aria-hidden="true"
+    >
       <svg viewBox="0 0 24 24">
         <path d="M7 3v3M17 3v3M4 9h16" />
-        <rect x="4" y="5" width="16" height="16" rx="2" />
+        <rect
+          x="4"
+          y="5"
+          width="16"
+          height="16"
+          rx="2"
+        />
         <path d="M8 13h3M8 17h8M15 13h1" />
       </svg>
     </span>
 
     <span class="efficiency-team-tab__label">
-      오전회의자료
+      오전회의취합
+    </span>
+  </button>
+
+
+  <!-- 오전회의취합 소메뉴: 자동수치 기록 -->
+  <button
+    type="button"
+    class="
+      efficiency-team-tab
+      efficiency-team-subtab
+    "
+    id="efficiencyMorningMeetingAutoHistoryTab"
+    data-efficiency-tab="morning-meeting-auto-history"
+    role="tab"
+    aria-selected="false"
+    aria-controls="efficiencyMorningMeetingAutoHistoryView"
+    tabindex="-1"
+  >
+    <span
+      class="
+        efficiency-team-tab__icon
+        efficiency-team-subtab__branch
+      "
+      aria-hidden="true"
+    >
+      └
+    </span>
+
+    <span class="efficiency-team-tab__label">
+      자동수치 기록
     </span>
   </button>
 
@@ -7142,6 +7181,275 @@
   </div>
 
 </footer>
+
+</article>
+
+<!-- =================================================
+  오전회의취합 소메뉴
+  자동수치 기록
+================================================== -->
+
+<article
+  class="
+    efficiency-team-view
+    efficiency-morning-meeting-auto-history-view
+  "
+  id="efficiencyMorningMeetingAutoHistoryView"
+  data-efficiency-view="morning-meeting-auto-history"
+  role="tabpanel"
+  aria-labelledby="efficiencyMorningMeetingAutoHistoryTab"
+  aria-hidden="true"
+  hidden
+>
+
+  <!-- =================================================
+    상단
+  ================================================== -->
+
+  <header
+    class="
+      efficiency-team-view__heading
+      efficiency-morning-meeting-auto-history-heading
+    "
+  >
+
+    <div>
+
+      <span>
+        AUTO DATA HISTORY
+      </span>
+
+      <h3>
+        자동수치 기록
+      </h3>
+
+      <p>
+        저장된 날짜의 오전회의 자동 수치를
+        일별 목록으로 확인합니다.
+      </p>
+
+    </div>
+
+
+    <div
+      class="
+        efficiency-morning-meeting-auto-history-heading__status
+      "
+    >
+
+      <span>
+        저장일
+      </span>
+
+      <strong
+        id="efficiencyMorningMeetingAutoHistoryRecordCount"
+        aria-live="polite"
+      >
+        0일
+      </strong>
+
+    </div>
+
+  </header>
+
+
+  <!-- =================================================
+    조회 월 이동
+  ================================================== -->
+
+  <section
+    class="efficiency-morning-meeting-auto-history-toolbar"
+    aria-label="자동수치 기록 조회 월"
+  >
+
+    <div
+      class="efficiency-morning-meeting-auto-history-month-nav"
+    >
+
+      <button
+        type="button"
+        id="efficiencyMorningMeetingAutoHistoryPreviousMonthButton"
+        aria-label="이전 달 기록 보기"
+        title="이전 달"
+      >
+        ‹
+      </button>
+
+
+      <strong
+        id="efficiencyMorningMeetingAutoHistoryMonthLabel"
+      >
+        -
+      </strong>
+
+
+      <button
+        type="button"
+        id="efficiencyMorningMeetingAutoHistoryNextMonthButton"
+        aria-label="다음 달 기록 보기"
+        title="다음 달"
+      >
+        ›
+      </button>
+
+    </div>
+
+
+    <button
+      type="button"
+      class="secondary-button"
+      id="refreshEfficiencyMorningMeetingAutoHistoryButton"
+    >
+      목록 새로고침
+    </button>
+
+  </section>
+
+
+  <!-- =================================================
+    날짜별 자동수치 기록표
+
+    - 가로: 자동수치 항목
+    - 세로: 저장된 날짜
+    - 저장 기록이 없는 날짜는 표시하지 않음
+  ================================================== -->
+
+  <section
+    class="efficiency-morning-meeting-auto-history-table-card"
+    aria-labelledby="efficiencyMorningMeetingAutoHistoryTableTitle"
+  >
+
+    <header
+      class="
+        efficiency-morning-meeting-auto-history-table-card__header
+      "
+    >
+
+      <div>
+
+        <span>
+          DAILY SAVED DATA
+        </span>
+
+        <h4
+          id="efficiencyMorningMeetingAutoHistoryTableTitle"
+        >
+          일별 저장 기록
+        </h4>
+
+        <p
+          id="efficiencyMorningMeetingAutoHistoryTableDescription"
+        >
+          자동수치 저장 기록이 있는 날짜만 표시됩니다.
+        </p>
+
+      </div>
+
+
+      <span
+        class="
+          efficiency-morning-meeting-auto-history-table-status
+        "
+        id="efficiencyMorningMeetingAutoHistoryStatus"
+        aria-live="polite"
+      >
+        기록 확인 전
+      </span>
+
+    </header>
+
+
+    <div
+      class="efficiency-morning-meeting-auto-history-table-wrap"
+      tabindex="0"
+    >
+
+      <table
+        class="efficiency-morning-meeting-auto-history-table"
+        id="efficiencyMorningMeetingAutoHistoryTable"
+        aria-label="날짜별 오전회의 자동수치 저장 기록"
+        aria-describedby="
+          efficiencyMorningMeetingAutoHistoryTableDescription
+        "
+      >
+
+        <!--
+          다음 script.js 함수 단계에서
+          실제 저장 항목에 맞는 2단 머리글을 생성합니다.
+        -->
+
+        <thead
+          id="efficiencyMorningMeetingAutoHistoryTableHead"
+        >
+
+          <tr>
+
+            <th scope="col">
+              일자
+            </th>
+
+          </tr>
+
+        </thead>
+
+
+        <tbody
+          id="efficiencyMorningMeetingAutoHistoryTableBody"
+        >
+        </tbody>
+
+      </table>
+
+    </div>
+
+
+    <!-- =================================================
+      불러오는 중
+    ================================================== -->
+
+    <div
+      class="efficiency-morning-meeting-auto-history-loading"
+      id="efficiencyMorningMeetingAutoHistoryLoading"
+      role="status"
+      hidden
+    >
+      저장된 자동수치 기록을 불러오는 중입니다.
+    </div>
+
+
+    <!-- =================================================
+      저장 기록 없음
+    ================================================== -->
+
+    <div
+      class="efficiency-morning-meeting-auto-history-empty"
+      id="efficiencyMorningMeetingAutoHistoryEmptyState"
+    >
+
+      <strong>
+        저장된 자동수치 기록이 없습니다.
+      </strong>
+
+      <p>
+        이 달에 저장된 날짜가 생기면 목록에 표시됩니다.
+      </p>
+
+    </div>
+
+
+    <!-- =================================================
+      오류
+    ================================================== -->
+
+    <p
+      class="efficiency-morning-meeting-auto-history-error"
+      id="efficiencyMorningMeetingAutoHistoryError"
+      role="alert"
+      hidden
+    >
+    </p>
+
+  </section>
 
 </article>
 

@@ -5001,9 +5001,26 @@ function normalizeAuxiliaryMaterialManualRecord(
       : {};
 
 
+  const remarks =
+    normalizeText(
+      rawItem?.remarks
+    );
+
+
+  if (
+    remarks.length >
+      1000
+  ) {
+    throw new Error(
+      `${prefix} 비고는 1,000자 이하로 입력해 주세요.`
+    );
+  }
+
+
   return {
     recordDate,
     unitNo,
+    remarks,
 
     expectedRevision:
       Math.max(
@@ -5130,7 +5147,45 @@ async function updateAuxiliaryMaterialManualRecords(
   try {
     items =
       rawItems.map(
-        normalizeAuxiliaryMaterialManualRecord
+        (
+          rawItem,
+          itemIndex
+        ) => {
+          const normalizedItem =
+            normalizeAuxiliaryMaterialManualRecord(
+              rawItem,
+              itemIndex
+            );
+
+
+          const remarks =
+            normalizeText(
+              rawItem?.remarks
+            );
+
+
+          if (
+            remarks.length >
+              1000
+          ) {
+            throw new Error(
+              `${normalizedItem.recordDate} ${normalizedItem.unitNo}호기 비고는 1,000자 이하로 입력해 주세요.`
+            );
+          }
+
+
+          return {
+            ...normalizedItem,
+            remarks,
+
+            remarksProvided:
+              Object.prototype.hasOwnProperty.call(
+                rawItem ||
+                  {},
+                "remarks"
+              )
+          };
+        }
       );
 
   } catch (
@@ -5150,10 +5205,6 @@ async function updateAuxiliaryMaterialManualRecords(
     );
   }
 
-
-  /* =====================================================
-    날짜 + 호기 중복 검사
-  ====================================================== */
 
   const targetKeys =
     new Set();
@@ -5220,10 +5271,6 @@ async function updateAuxiliaryMaterialManualRecords(
     ];
 
 
-  /* =====================================================
-    현재 부재료 자료 조회
-  ====================================================== */
-
   const existingResult =
     await database
       .prepare(`
@@ -5266,10 +5313,6 @@ async function updateAuxiliaryMaterialManualRecords(
       )
     );
 
-
-  /* =====================================================
-    수정 대상 존재 / revision 검사
-  ====================================================== */
 
   for (
     const item of
@@ -5316,6 +5359,86 @@ async function updateAuxiliaryMaterialManualRecords(
         409
       );
     }
+
+
+    /*
+      구버전 화면이 비고를 전송하지 않은 경우
+      기존 비고를 그대로 보존한다.
+    */
+    if (
+      !item.remarksProvided
+    ) {
+      item.remarks =
+        normalizeText(
+          existing.remarks
+        );
+    }
+  }
+
+
+  function normalizeComparableNumber(
+    value
+  ) {
+    if (
+      value ===
+        null ||
+      value ===
+        undefined ||
+      String(
+        value
+      ).trim() ===
+        ""
+    ) {
+      return null;
+    }
+
+
+    const numericValue =
+      Number(
+        value
+      );
+
+
+    return Number.isFinite(
+      numericValue
+    )
+      ? numericValue
+      : null;
+  }
+
+
+  function areComparableNumbersEqual(
+    first,
+    second
+  ) {
+    const firstNumber =
+      normalizeComparableNumber(
+        first
+      );
+
+
+    const secondNumber =
+      normalizeComparableNumber(
+        second
+      );
+
+
+    if (
+      firstNumber ===
+        null ||
+      secondNumber ===
+        null
+    ) {
+      return firstNumber ===
+        secondNumber;
+    }
+
+
+    return Math.abs(
+      firstNumber -
+      secondNumber
+    ) <
+      0.0000001;
   }
 
 
@@ -5332,13 +5455,9 @@ async function updateAuxiliaryMaterialManualRecords(
     [];
 
 
-  let limestoneSyncTargetCount =
-    0;
+  const limestoneSyncTargetKeys =
+    new Set();
 
-
-  /* =====================================================
-    날짜·호기별 수정 SQL 생성
-  ====================================================== */
 
   for (
     const item of
@@ -5346,6 +5465,16 @@ async function updateAuxiliaryMaterialManualRecords(
   ) {
     const values =
       item.values;
+
+
+    const key =
+      `${item.recordDate}:${item.unitNo}`;
+
+
+    const existing =
+      existingByKey.get(
+        key
+      );
 
 
     const ammoniaFlowM3h =
@@ -5371,20 +5500,9 @@ async function updateAuxiliaryMaterialManualRecords(
         null;
 
 
-    /* ===================================================
-      1. 부재료 일별 현황 수정
-
-      수정 가능:
-      - SOx
-      - Limestone 사용량
-      - Limestone 입고량
-      - Lime Slurry 유량
-      - Slurry 밀도
-      - Lime Powder
-      - NOx
-      - Ammonia
-    ==================================================== */
-
+    /*
+      부재료 일별 현황의 수치와 비고를 저장한다.
+    */
     statements.push(
       database
         .prepare(`
@@ -5404,6 +5522,7 @@ async function updateAuxiliaryMaterialManualRecords(
             sox_ppm = ?,
             nox_ppm = ?,
 
+            remarks = ?,
             is_complete = ?,
 
             updated_by_id = ?,
@@ -5431,6 +5550,8 @@ async function updateAuxiliaryMaterialManualRecords(
           values.soxPpm,
           values.noxPpm,
 
+          item.remarks,
+
           isComplete
             ? 1
             : 0,
@@ -5445,26 +5566,32 @@ async function updateAuxiliaryMaterialManualRecords(
     );
 
 
-    /* ===================================================
-      2. Limestone 원본 사용량 양방향 동기화
+    /*
+      Limestone 입고량 또는 사용량이 실제 변경된 경우만
+      석회석 원본 자료에 양방향으로 동기화한다.
 
-      2026-08-10 이후만 적용한다.
+      비고·SOx·NOx 등의 수정만으로 Limestone 자료가
+      수동값으로 변경되는 것을 방지한다.
+    */
+    const limestoneValuesChanged =
+      !areComparableNumbersEqual(
+        values.limestoneReceiptTon,
+        existing?.limestone_receipt_ton
+      ) ||
+      !areComparableNumbersEqual(
+        values.limestoneUsageTpd,
+        existing?.limestone_usage_tpd
+      );
 
-      부재료에서 수정한:
-      - Limestone 입고량
-      - Limestone 사용량
-
-      을 limestone_usage_records에도 동일하게 저장한다.
-
-      시작/종료 재고는 건드리지 않는다.
-    ==================================================== */
 
     if (
       item.recordDate >=
-        AUXILIARY_MATERIAL_OIS_START_DATE
+        AUXILIARY_MATERIAL_OIS_START_DATE &&
+      limestoneValuesChanged
     ) {
-      limestoneSyncTargetCount +=
-        1;
+      limestoneSyncTargetKeys.add(
+        key
+      );
 
 
       statements.push(
@@ -5506,21 +5633,10 @@ async function updateAuxiliaryMaterialManualRecords(
   }
 
 
-  /* =====================================================
-    D1 일괄 저장
-
-    부재료 + 석회석 원본을
-    같은 batch로 처리한다.
-  ====================================================== */
-
   await database.batch(
     statements
   );
 
-
-  /* =====================================================
-    수정 결과 다시 조회
-  ====================================================== */
 
   const updatedResult =
     await database
@@ -5573,16 +5689,12 @@ async function updateAuxiliaryMaterialManualRecords(
       );
 
 
-  /* =====================================================
-    실제 Limestone 원본 동기화 결과 확인
-  ====================================================== */
-
   let limestoneSyncedCount =
     0;
 
 
   if (
-    limestoneSyncTargetCount >
+    limestoneSyncTargetKeys.size >
       0
   ) {
     const limestoneResult =
@@ -5614,8 +5726,8 @@ async function updateAuxiliaryMaterialManualRecords(
           : []
       )
         .filter(
-          row => {
-            const key =
+          row =>
+            limestoneSyncTargetKeys.has(
               (
                 `${normalizeText(
                   row.usage_date
@@ -5623,13 +5735,8 @@ async function updateAuxiliaryMaterialManualRecords(
                 `${Number(
                   row.unit_no
                 )}`
-              );
-
-
-            return targetKeys.has(
-              key
-            );
-          }
+              )
+            )
         )
         .length;
   }
@@ -5651,11 +5758,11 @@ async function updateAuxiliaryMaterialManualRecords(
       limestoneSyncedCount >
         0
         ? (
-            `${updatedItems.length}건의 부재료 수치를 수정했습니다. ` +
+            `${updatedItems.length}건의 부재료 자료를 수정했습니다. ` +
             `Limestone ${limestoneSyncedCount}건도 동기화했습니다.`
           )
         : (
-            `${updatedItems.length}건의 부재료 수치를 수정했습니다.`
+            `${updatedItems.length}건의 부재료 자료를 수정했습니다.`
           )
   });
 }
@@ -7080,6 +7187,309 @@ async function handleAgentNextRequest(
 }
 
 /* =========================================================
+  저장된 자동수치 기간 조회
+
+  - 완료된 DB 자료만 조회한다.
+  - 새로운 OIS 요청을 생성하지 않는다.
+  - 같은 날짜와 자료 종류가 여러 개면 최신 자료만 반환한다.
+
+  GET:
+  /api/ois-data-requests
+    ?action=completed_history
+    &startDate=2026-08-01
+    &endDate=2026-08-31
+========================================================= */
+
+async function handleCompletedHistoryGet(
+  context,
+  requestUrl
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const startDate =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "startDate"
+      )
+    );
+
+
+  const endDate =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "endDate"
+      )
+    );
+
+
+  if (
+    !isValidIsoDate(
+      startDate
+    ) ||
+    !isValidIsoDate(
+      endDate
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "자동수치 조회 시작일과 종료일을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const dayCount =
+    getLimestoneUsageBatchDayCount(
+      startDate,
+      endDate
+    );
+
+
+  if (
+    dayCount <
+      1
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "자동수치 조회 시작일은 종료일보다 늦을 수 없습니다."
+      },
+      400
+    );
+  }
+
+
+  if (
+    dayCount >
+      366
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "자동수치 이력은 한 번에 최대 366일까지 조회할 수 있습니다."
+      },
+      400
+    );
+  }
+
+
+  /*
+    이 SELECT문은 저장된 완료 자료만 읽는다.
+
+    INSERT, UPDATE 또는 OIS 작업 생성 로직은
+    이 함수에서 실행하지 않는다.
+  */
+  const queryResult =
+    await context.env.DB
+      .prepare(`
+        SELECT
+          *
+
+        FROM ois_data_requests
+
+        WHERE
+          target_date >= ?
+          AND target_date <= ?
+          AND status = 'complete'
+          AND request_type IN (
+            'water_environment',
+            'turbine_gear_pinion',
+            'silo_level',
+            'daily_data_excel',
+            'steam_status'
+          )
+          AND result_json IS NOT NULL
+          AND TRIM(
+            result_json
+          ) <> ''
+
+        ORDER BY
+          target_date DESC,
+
+          CASE request_type
+            WHEN 'daily_data_excel' THEN 0
+            WHEN 'steam_status' THEN 1
+            ELSE 0
+          END ASC,
+
+          request_type ASC,
+
+          COALESCE(
+            completed_at,
+            updated_at,
+            requested_at,
+            ''
+          ) DESC,
+
+          requested_at DESC,
+          id DESC
+      `)
+      .bind(
+        startDate,
+        endDate
+      )
+      .all();
+
+
+  const rows =
+    Array.isArray(
+      queryResult.results
+    )
+      ? queryResult.results
+      : [];
+
+
+  /*
+    날짜 + 자료 종류별로 가장 최신 자료 하나만 남긴다.
+  */
+  const savedKeys =
+    new Set();
+
+
+  const savedDates =
+    new Set();
+
+
+  const items =
+    [];
+
+
+  rows.forEach(
+    row => {
+      const convertedItem =
+        convertRequestRow(
+          row
+        );
+
+
+      if (
+        !convertedItem ||
+        !isValidIsoDate(
+          convertedItem.targetDate
+        ) ||
+        !convertedItem.result ||
+        typeof convertedItem.result !==
+          "object" ||
+        Array.isArray(
+          convertedItem.result
+        )
+      ) {
+        return;
+      }
+
+
+      /*
+        기존 steam_status 자료도
+        현재 daily_data_excel 자료로 함께 취급한다.
+      */
+      const requestType =
+        convertedItem.requestType ===
+          "steam_status"
+          ? "daily_data_excel"
+          : convertedItem.requestType;
+
+
+      const savedKey =
+        [
+          convertedItem.targetDate,
+          requestType
+        ].join(
+          ":"
+        );
+
+
+      if (
+        savedKeys.has(
+          savedKey
+        )
+      ) {
+        return;
+      }
+
+
+      savedKeys.add(
+        savedKey
+      );
+
+
+      savedDates.add(
+        convertedItem.targetDate
+      );
+
+
+      items.push({
+        id:
+          convertedItem.id,
+
+        requestType,
+
+        sourceRequestType:
+          convertedItem.requestType,
+
+        targetDate:
+          convertedItem.targetDate,
+
+        status:
+          "complete",
+
+        result:
+          convertedItem.result,
+
+        completedAt:
+          convertedItem.completedAt,
+
+        updatedAt:
+          convertedItem.updatedAt
+      });
+    }
+  );
+
+
+  return jsonResponse({
+    ok:
+      true,
+
+    range: {
+      startDate,
+      endDate,
+      dayCount
+    },
+
+    summary: {
+      savedDateCount:
+        savedDates.size,
+
+      savedItemCount:
+        items.length
+    },
+
+    items
+  });
+}
+
+/* =========================================================
   GET 분기
 ========================================================= */
 
@@ -7121,6 +7531,19 @@ export async function onRequestGet(
           "_"
         );
 
+
+/*
+  저장된 자동수치 기간 조회
+*/
+if (
+  action ===
+    "completed_history"
+) {
+  return await handleCompletedHistoryGet(
+    context,
+    requestUrl
+  );
+}
 
 /*
   저장된 부재료 일별 자료
