@@ -175847,27 +175847,6 @@ async function createGearPinionRequest(
 
 
 /* =====================================================
-    최상단 업무내용 기준일과 주말 기간에서
-    자동 수치 날짜를 안전하게 동기화할 수 있도록 공개한다.
-====================================================== */
-
-  window.getEfficiencyMorningMeetingAutoBaseDate =
-    resolveCommonBaseDate;
-
-
-  window.setEfficiencyMorningMeetingAutoBaseDate =
-    function setEfficiencyMorningMeetingAutoBaseDate(
-      requestedDate,
-      options = {}
-    ) {
-      applyCommonBaseDate(
-        requestedDate,
-        options
-      );
-    };
-
-
-/* =====================================================
     초기화
 ====================================================== */
 
@@ -189300,6 +189279,31 @@ document.addEventListener(
 
     return true;
   }
+
+
+  /* =====================================================
+    최상단 업무내용 기준일과 주말 기간에서
+    자동 수치 날짜를 안전하게 동기화할 수 있도록 공개한다.
+
+    중요:
+    resolveCommonBaseDate와 applyCommonBaseDate가 선언된
+    현재 날짜 이동 IIFE 안에서만 연결해야 한다.
+  ====================================================== */
+
+  window.getEfficiencyMorningMeetingAutoBaseDate =
+    resolveCommonBaseDate;
+
+
+  window.setEfficiencyMorningMeetingAutoBaseDate =
+    function setEfficiencyMorningMeetingAutoBaseDate(
+      requestedDate,
+      options = {}
+    ) {
+      applyCommonBaseDate(
+        requestedDate,
+        options
+      );
+    };
 
 
   /* =====================================================

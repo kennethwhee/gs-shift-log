@@ -100467,16 +100467,24 @@ th > small {
 #efficiencyTeamModal
 #efficiencyMorningMeetingView
 .efficiency-morning-meeting-heading {
+  flex: 0 0 auto !important;
+
   display: grid !important;
 
   grid-template-columns:
     minmax(260px, 1fr)
-    minmax(450px, 560px) !important;
+    minmax(570px, 640px) !important;
 
   align-items: center !important;
   gap: 18px !important;
 
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+
   padding: 18px 20px !important;
+
+  overflow: visible !important;
 }
 
 
@@ -100490,9 +100498,17 @@ th > small {
 #efficiencyTeamModal
 #efficiencyMorningMeetingView
 .efficiency-morning-meeting-heading__controls {
-  display: grid;
-  min-width: 0;
-  gap: 8px;
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(360px, 1fr)
+    auto;
+
+  align-items: center !important;
+  gap: 10px !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
 }
 
 
@@ -100735,14 +100751,14 @@ th > small {
   box-sizing: border-box !important;
   display: flex !important;
 
-  width: 100% !important;
+  width: auto !important;
   min-width: 0 !important;
-  min-height: 30px !important;
+  min-height: 34px !important;
 
-  align-items: flex-end !important;
+  align-items: center !important;
   justify-content: flex-end !important;
   flex-direction: row !important;
-  flex-wrap: wrap !important;
+  flex-wrap: nowrap !important;
   gap: 7px !important;
 
   margin: 0 !important;
@@ -100782,7 +100798,26 @@ th > small {
 }
 
 
-@media (max-width: 1100px) {
+/* 주말 기간이 열리면 두 컨트롤을 안전하게 두 줄로 배치 */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+.efficiency-morning-meeting-heading__controls {
+  grid-template-columns:
+    minmax(0, 1fr) !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+.efficiency-morning-meeting-heading__controls
+> .efficiency-morning-meeting-mode {
+  width: 100% !important;
+  flex-wrap: wrap !important;
+}
+
+
+@media (max-width: 950px) {
 
   #efficiencyTeamModal
   #efficiencyMorningMeetingView
@@ -100809,6 +100844,14 @@ th > small {
   .efficiency-morning-meeting-heading {
     gap: 12px !important;
     padding: 14px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-heading__controls {
+    grid-template-columns:
+      minmax(0, 1fr) !important;
   }
 
 
@@ -100864,8 +100907,10 @@ th > small {
   #efficiencyMorningMeetingView
   .efficiency-morning-meeting-heading__controls
   > .efficiency-morning-meeting-mode {
+    width: 100% !important;
     align-items: center !important;
     justify-content: flex-start !important;
+    flex-wrap: wrap !important;
   }
 
 
