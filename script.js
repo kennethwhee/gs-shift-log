@@ -163418,6 +163418,39 @@ window.refreshEfficiencyMorningMeetingShiftPart =
     });
   };
 
+function clearSelection() {
+  const state =
+    getState();
+
+
+  state.shiftPart.selectedIds =
+    new Set();
+
+
+  state.shiftPart.text =
+    "";
+
+
+  const {
+    textarea
+  } =
+    getElements();
+
+
+  if (
+    textarea
+  ) {
+    textarea.value =
+      "";
+  }
+
+
+  renderAllLists();
+
+
+  updateSelectedText();
+} 
+  
 /* =====================================================
   교대파트 업무 선택 전체 초기화
 
@@ -219918,7 +219951,7 @@ function mergeSavedRows(
     }
   );
 
-const overrideItems =
+const overridePayloadItems =
   Array.isArray(
     payloads
       ?.overridePayload
@@ -219934,7 +219967,7 @@ const overrideByDate =
   new Map();
 
 
-overrideItems.forEach(
+overridePayloadItems.forEach(
   item => {
     const recordDate =
       normalizeText(
@@ -220708,6 +220741,64 @@ function renderTableHead() {
   `;
 }
 
+function createValueCell(
+  value,
+  className = "",
+  title = ""
+) {
+  const cell =
+    document.createElement(
+      "td"
+    );
+
+  cell.className = [
+    "is-history-value",
+    normalizeText(
+      className
+    )
+  ]
+    .filter(
+      Boolean
+    )
+    .join(
+      " "
+    );
+
+  const normalizedValue =
+    normalizeText(
+      value
+    );
+
+  if (
+    normalizedValue
+  ) {
+    cell.textContent =
+      normalizedValue;
+
+  } else {
+    cell.textContent =
+      "-";
+
+    cell.classList.add(
+      "is-missing"
+    );
+  }
+
+  const normalizedTitle =
+    normalizeText(
+      title
+    );
+
+  if (
+    normalizedTitle
+  ) {
+    cell.title =
+      normalizedTitle;
+  }
+
+  return cell;
+}
+
 /* =====================================================
     값 셀 생성
 ====================================================== */
@@ -220937,6 +221028,365 @@ function createEditableValueCell(
       input.dataset
         .originalValue =
         originalValue;
+
+      input.setAttribute(
+        "aria-label",
+        `${row.date} ${
+          labelText ||
+          shortLabel ||
+          fieldName
+        }`
+      );
+
+      input.setAttribute(
+        "enterkeyhint",
+        "done"
+      );
+
+      if (
+        hasDraftValue
+      ) {
+        input.classList.add(
+          "is-changed"
+        );
+      }
+
+      control.appendChild(
+        input
+      );
+
+      editor.appendChild(
+        control
+      );
+    }
+  );
+
+  cell.appendChild(
+    editor
+  );
+
+  return cell;
+}
+
+function normalizeHistoryEditValue(
+  value
+) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return null;
+  }
+
+  if (
+    typeof value === "number"
+  ) {
+    return Number.isFinite(
+      value
+    )
+      ? value
+      : String(
+          value
+        );
+  }
+
+  const text =
+    String(
+      value
+    ).trim();
+
+  if (
+    text === ""
+  ) {
+    return null;
+  }
+
+  const isPlainNumber =
+    /^[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:[eE][+-]?\d+)?$/.test(
+      text
+    );
+
+  const isCommaNumber =
+    /^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(
+      text
+    );
+
+  if (
+    isPlainNumber ||
+    isCommaNumber
+  ) {
+    const numericValue =
+      Number(
+        text.replaceAll(
+          ",",
+          ""
+        )
+      );
+
+    if (
+      Number.isFinite(
+        numericValue
+      )
+    ) {
+      return numericValue;
+    }
+  }
+
+  return text;
+}
+
+
+function createEditableValueCell(
+  options = {}
+) {
+  const row =
+    options.row;
+
+  const displayValue =
+    normalizeText(
+      options.displayValue
+    );
+
+  const className =
+    normalizeText(
+      options.className
+    );
+
+  const title =
+    normalizeText(
+      options.title
+    );
+
+  const inputDefinitions =
+    Array.isArray(
+      options.inputs
+    )
+      ? options.inputs.filter(
+          item =>
+            item &&
+            typeof item ===
+              "object" &&
+            !Array.isArray(
+              item
+            ) &&
+            normalizeText(
+              item.fieldName
+            )
+        )
+      : [];
+
+  const isMobile =
+    window.matchMedia(
+      "(max-width: 768px)"
+    ).matches;
+
+  /*
+    일반 보기 또는 모바일에서는
+    기존 표시 셀을 그대로 사용한다.
+  */
+  if (
+    !state.editing ||
+    isMobile ||
+    !row ||
+    !isIsoDate(
+      row.date
+    ) ||
+    inputDefinitions.length < 1
+  ) {
+    return createValueCell(
+      displayValue,
+      className,
+      title
+    );
+  }
+
+  const cell =
+    document.createElement(
+      "td"
+    );
+
+  cell.className = [
+    "is-history-value",
+    className,
+    "is-auto-history-edit-cell"
+  ]
+    .filter(
+      Boolean
+    )
+    .join(
+      " "
+    );
+
+  if (
+    title
+  ) {
+    cell.title =
+      title;
+  }
+
+  const editor =
+    document.createElement(
+      "div"
+    );
+
+  editor.className =
+    inputDefinitions.length > 1
+      ? "auto-history-cell-editor is-multiple"
+      : "auto-history-cell-editor is-single";
+
+  /*
+    drafts는 현재 구조에 맞춰
+    날짜별 평면 객체로 유지한다.
+  */
+  const dateDraft =
+    state.drafts instanceof Map
+      ? state.drafts.get(
+          row.date
+        )
+      : null;
+
+  const isDraftObject =
+    dateDraft &&
+    typeof dateDraft ===
+      "object" &&
+    !Array.isArray(
+      dateDraft
+    );
+
+  inputDefinitions.forEach(
+    definition => {
+      const fieldName =
+        normalizeText(
+          definition.fieldName
+        );
+
+      const labelText =
+        normalizeText(
+          definition.label
+        );
+
+      const shortLabel =
+        normalizeText(
+          definition.shortLabel
+        );
+
+      const originalValue =
+        normalizeHistoryEditValue(
+          definition.value
+        );
+
+      const hasDraftValue =
+        Boolean(
+          isDraftObject &&
+          Object.prototype
+            .hasOwnProperty.call(
+              dateDraft,
+              fieldName
+            )
+        );
+
+      const currentValue =
+        hasDraftValue
+          ? normalizeHistoryEditValue(
+              dateDraft[
+                fieldName
+              ]
+            )
+          : originalValue;
+
+      const control =
+        document.createElement(
+          "label"
+        );
+
+      control.className =
+        "auto-history-input-control";
+
+      if (
+        shortLabel
+      ) {
+        const label =
+          document.createElement(
+            "span"
+          );
+
+        label.className =
+          "auto-history-input-label";
+
+        label.textContent =
+          shortLabel;
+
+        control.appendChild(
+          label
+        );
+      }
+
+      const input =
+        document.createElement(
+          "input"
+        );
+
+      input.type =
+        "text";
+
+      input.inputMode =
+        "text";
+
+      input.autocomplete =
+        "off";
+
+      input.spellcheck =
+        false;
+
+      input.maxLength =
+        100;
+
+      input.className =
+        "auto-history-value-input";
+
+      input.value =
+        currentValue === null
+          ? ""
+          : String(
+              currentValue
+            );
+
+      input.placeholder =
+        "-";
+
+      input.disabled =
+        state.saving;
+
+      input.dataset
+        .autoHistoryDate =
+        row.date;
+
+      input.dataset
+        .autoHistoryField =
+        fieldName;
+
+      /*
+        다음 입력 감지 단계에서 사용한다.
+        JSON으로 저장해 따옴표가 포함된 텍스트도
+        안전하게 비교한다.
+      */
+      input.dataset
+        .originalValueJson =
+        JSON.stringify(
+          originalValue
+        );
+
+      /*
+        현재 숫자 전용 감지 코드와의
+        임시 호환용이다.
+      */
+      input.dataset
+        .originalValue =
+        originalValue === null
+          ? ""
+          : String(
+              originalValue
+            );
 
       input.setAttribute(
         "aria-label",
