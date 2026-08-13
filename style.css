@@ -105790,3 +105790,349 @@ input {
     color: #154f87 !important;
   }
 }
+
+/* =========================================================
+  오전회의 · 주말 취합 기간만 표시
+
+  평일:
+  [업무내용 기준일] [주말 체크]
+
+  주말:
+  [시작일 ~ 종료일] [주말 체크]
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+.efficiency-morning-meeting-heading {
+  padding:
+    18px
+    20px !important;
+}
+
+
+/*
+  주말 모드에서는 업무내용 기준일을 숨긴다.
+
+  요소를 삭제하지 않으므로 기존 날짜 계산과
+  평일 복귀 기능은 그대로 유지된다.
+*/
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+#efficiencyMorningMeetingWorkDateControl {
+  display:
+    none !important;
+}
+
+
+/*
+  기간 선택 영역이 기준일 자리를 사용한다.
+*/
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+.efficiency-morning-meeting-heading__controls {
+  display:
+    grid !important;
+
+  grid-template-columns:
+    minmax(
+      0,
+      1fr
+    ) !important;
+
+  width:
+    100% !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+.efficiency-morning-meeting-heading__controls
+>
+.efficiency-morning-meeting-mode {
+  display:
+    flex !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    flex-end !important;
+
+  flex-direction:
+    row !important;
+
+  flex-wrap:
+    nowrap !important;
+
+  gap:
+    8px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+}
+
+
+/*
+  시작일·종료일
+*/
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+#efficiencyMorningMeetingWeekendRange {
+  order:
+    1 !important;
+
+  box-sizing:
+    border-box !important;
+
+  display:
+    flex !important;
+
+  flex:
+    1 1 auto !important;
+
+  width:
+    auto !important;
+
+  min-width:
+    0 !important;
+
+  min-height:
+    58px !important;
+
+  align-items:
+    flex-end !important;
+
+  justify-content:
+    center !important;
+
+  flex-wrap:
+    nowrap !important;
+
+  gap:
+    7px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    8px
+    10px !important;
+
+  border:
+    1px solid
+    #c7d8e8 !important;
+
+  border-radius:
+    10px !important;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #f7fbff 100%
+    ) !important;
+
+  box-shadow:
+    0
+    2px
+    8px
+    rgba(
+      39,
+      86,
+      125,
+      0.06
+    ) !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+#efficiencyMorningMeetingWeekendRange[hidden] {
+  display:
+    none !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+#efficiencyMorningMeetingWeekendRange
+label {
+  display:
+    flex !important;
+
+  flex:
+    1 1 0 !important;
+
+  flex-direction:
+    column !important;
+
+  gap:
+    4px !important;
+
+  min-width:
+    0 !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+#efficiencyMorningMeetingWeekendRange
+label
+span {
+  color:
+    #6d8296 !important;
+
+  font-size:
+    9px !important;
+
+  font-weight:
+    900 !important;
+
+  line-height:
+    1 !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+#efficiencyMorningMeetingWeekendRange
+input {
+  box-sizing:
+    border-box !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  height:
+    34px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0
+    9px !important;
+
+  border:
+    1px solid
+    #bfcfdf !important;
+
+  border-radius:
+    7px !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #29445e !important;
+
+  font-size:
+    11px !important;
+
+  font-weight:
+    800 !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+#efficiencyMorningMeetingWeekendRange
+.efficiency-morning-meeting-weekend-range__separator {
+  flex:
+    0 0 auto !important;
+
+  padding:
+    0
+    1px
+    10px !important;
+
+  color:
+    #7b8fa3 !important;
+}
+
+
+/*
+  주말 체크는 기간 오른쪽에 유지한다.
+  체크 해제 시 평일 기준일 화면으로 돌아간다.
+*/
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+.efficiency-morning-meeting-weekend-check {
+  order:
+    2 !important;
+
+  flex:
+    0 0 auto !important;
+
+  align-self:
+    center !important;
+
+  min-height:
+    34px !important;
+
+  margin:
+    0 !important;
+}
+
+
+/*
+  '주말 취합' 상태 문구는 체크박스와 중복이므로 숨긴다.
+*/
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+#efficiencyMorningMeetingWeekendStatus {
+  display:
+    none !important;
+}
+
+
+@media screen and (max-width: 950px) {
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView.is-weekend-mode
+  .efficiency-morning-meeting-heading__controls
+  >
+  .efficiency-morning-meeting-mode {
+    align-items:
+      stretch !important;
+
+    flex-wrap:
+      wrap !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView.is-weekend-mode
+  #efficiencyMorningMeetingWeekendRange {
+    flex:
+      1 1 100% !important;
+
+    width:
+      100% !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView.is-weekend-mode
+  .efficiency-morning-meeting-weekend-check {
+    margin-left:
+      auto !important;
+  }
+}
