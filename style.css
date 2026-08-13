@@ -105208,3 +105208,834 @@ body:not(.is-auxiliary-material-expanded)
     font-size: 13px !important;
   }
 }
+
+/* =========================================================
+  부재료 날짜 중심 조회 + 1·2호기 통합 초컴팩트 표
+========================================================= */
+
+#efficiencyAuxiliaryMaterialsView
+#auxiliaryMaterialMonth[hidden],
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-period-date-field[hidden] {
+  display: none !important;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-period-mode {
+  box-sizing: border-box;
+
+  display: inline-flex !important;
+
+  min-height: 34px;
+
+  align-items: center !important;
+  justify-content: center !important;
+  flex-direction: row !important;
+
+  gap: 6px !important;
+
+  padding: 0 9px !important;
+
+  border: 1px solid #c9d7e9;
+  border-radius: 7px;
+
+  background: #ffffff;
+
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-period-mode
+input {
+  width: 15px !important;
+  height: 15px !important;
+  min-height: 0 !important;
+
+  margin: 0 !important;
+
+  accent-color: #176bc4;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-period-mode
+> span {
+  min-height: 0 !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+
+@media screen and (min-width: 769px) {
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-month-navigation
+  #auxiliaryMaterialQueryDate {
+    box-sizing: border-box !important;
+
+    width: 124px !important;
+    min-width: 124px !important;
+    max-width: 124px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+
+    padding: 0 6px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 10px !important;
+    font-weight: 850 !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-range-controls
+  > .auxiliary-material-period-mode {
+    flex: 0 0 82px !important;
+
+    width: 82px !important;
+    min-width: 82px !important;
+    max-width: 82px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+  }
+
+
+  /*
+    1·2호기 전체 수치를
+    가로 스크롤 없이 화면 안에 배치
+  */
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout {
+    width: 100% !important;
+    min-width: 0 !important;
+
+    table-layout: fixed !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  col.is-date {
+    width: 5.8% !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  col.is-sox,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  col.is-nox {
+    width: 4.1% !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  col.is-limestone-usage {
+    width: 6.4% !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  col.is-limestone-receipt,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  col.is-ammonia {
+    width: 6% !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  col.is-lime-powder {
+    width: 5.3% !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  col.is-slurry-flow {
+    width: 5.8% !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  col.is-density {
+    width: 5.5% !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  col.is-remarks {
+    width: 7.8% !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  th,
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  td {
+    padding: 3px 2px !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  .auxiliary-material-unit-heading
+  th {
+    height: 28px !important;
+
+    padding-block: 3px !important;
+
+    font-size:
+      clamp(
+        9px,
+        0.72vw,
+        11px
+      ) !important;
+
+    line-height: 1 !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  .auxiliary-material-column-heading
+  th {
+    top: 28px !important;
+
+    height: 43px !important;
+
+    font-size:
+      clamp(
+        7px,
+        0.64vw,
+        10px
+      ) !important;
+
+    line-height: 1.08 !important;
+
+    white-space: normal !important;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  thead
+  small {
+    margin-top: 1px !important;
+
+    font-size:
+      clamp(
+        6px,
+        0.5vw,
+        8px
+      ) !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  tbody
+  td {
+    height: 31px !important;
+
+    font-size:
+      clamp(
+        8px,
+        0.7vw,
+        11px
+      ) !important;
+
+    line-height: 1 !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  tbody
+  td.is-date
+  strong {
+    font-size:
+      clamp(
+        8px,
+        0.68vw,
+        10px
+      ) !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table.is-combined-layout
+  tbody
+  td.is-remarks {
+    overflow: hidden;
+
+    padding-inline: 4px !important;
+
+    font-size:
+      clamp(
+        7px,
+        0.6vw,
+        9px
+      ) !important;
+
+    text-overflow: ellipsis;
+    white-space: nowrap !important;
+  }
+}
+
+
+@media screen and (max-width: 768px) {
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-month-navigation
+  #auxiliaryMaterialQueryDate {
+    width: 100% !important;
+
+    height: 38px !important;
+    min-height: 38px !important;
+
+    padding: 0 9px !important;
+
+    border-radius: 9px !important;
+
+    font-size: 12px !important;
+    font-weight: 900 !important;
+    text-align: center !important;
+  }
+}
+
+/* 부재료 축소 화면: 오전회의자료 문구 겹침 방지 */
+@media screen and (min-width: 1200px) {
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyTeamModal:has(
+    #efficiencyAuxiliaryMaterialsView.is-active
+  )
+  .efficiency-team-tabs {
+    padding-right: 4px !important;
+    padding-left: 4px !important;
+  }
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyTeamModal:has(
+    #efficiencyAuxiliaryMaterialsView.is-active
+  )
+  .efficiency-team-tabs
+  > .efficiency-morning-meeting-menu
+  > #efficiencyMorningMeetingTab {
+    grid-template-columns: 23px minmax(0, 1fr) !important;
+    column-gap: 7px !important;
+    padding-right: 7px !important;
+    padding-left: 7px !important;
+    overflow: hidden !important;
+  }
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyTeamModal:has(
+    #efficiencyAuxiliaryMaterialsView.is-active
+  )
+  .efficiency-morning-meeting-menu
+  #efficiencyMorningMeetingTab
+  .efficiency-team-tab__label {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    font-size: 12px !important;
+    letter-spacing: -0.04em !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* =========================================================
+  오전회의 SMP · 조회 성공값 D1 저장
+========================================================= */
+
+(function installEfficiencyMorningMeetingSmpD1Save() {
+  "use strict";
+
+  if (
+    window.__efficiencyMorningMeetingSmpD1SaveInstalled ===
+      true
+  ) {
+    return;
+  }
+
+  window.__efficiencyMorningMeetingSmpD1SaveInstalled =
+    true;
+
+  const API_URL =
+    "/api/ois-data-requests";
+
+  const STORAGE_KEY =
+    "gs-shift-log:morning-meeting:smp-manual-overrides:v1";
+
+  const clean =
+    value =>
+      String(
+        value ??
+        ""
+      ).trim();
+
+
+  function isIsoDate(
+    value
+  ) {
+    const dateText =
+      clean(
+        value
+      );
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        dateText
+      )
+    ) {
+      return false;
+    }
+
+    const parsedDate =
+      new Date(
+        `${dateText}T00:00:00.000Z`
+      );
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+      parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        dateText
+    );
+  }
+
+
+  function addDays(
+    dateValue,
+    amount
+  ) {
+    if (
+      !isIsoDate(
+        dateValue
+      )
+    ) {
+      return "";
+    }
+
+    const parsedDate =
+      new Date(
+        `${dateValue}T00:00:00.000Z`
+      );
+
+    parsedDate.setUTCDate(
+      parsedDate.getUTCDate() +
+      amount
+    );
+
+    return parsedDate
+      .toISOString()
+      .slice(
+        0,
+        10
+      );
+  }
+
+
+  function numberOrNull(
+    value
+  ) {
+    const numberText =
+      clean(
+        value
+      ).replace(
+        /,/g,
+        ""
+      );
+
+    if (
+      !numberText
+    ) {
+      return null;
+    }
+
+    const numberValue =
+      Number(
+        numberText
+      );
+
+    return Number.isFinite(
+      numberValue
+    )
+      ? numberValue
+      : null;
+  }
+
+
+  function normalizeItem(
+    item
+  ) {
+    const targetDate =
+      clean(
+        item?.sourceDate ||
+        item?.targetDate
+      );
+
+    const maximum =
+      numberOrNull(
+        item?.maximum
+      );
+
+    const minimum =
+      numberOrNull(
+        item?.minimum
+      );
+
+    const weightedAverage =
+      numberOrNull(
+        item?.weightedAverage
+      );
+
+    if (
+      !isIsoDate(
+        targetDate
+      ) ||
+      maximum ===
+        null ||
+      minimum ===
+        null ||
+      weightedAverage ===
+        null
+    ) {
+      return null;
+    }
+
+    return {
+      ...item,
+
+      sourceDate:
+        targetDate,
+
+      targetDate,
+
+      maximum,
+      minimum,
+      weightedAverage,
+
+      unit:
+        "원/kWh",
+
+      isManual:
+        item?.isManual ===
+          true
+    };
+  }
+
+
+  function applyAndStore(
+    item
+  ) {
+    const normalizedItem =
+      normalizeItem(
+        item
+      );
+
+    if (
+      !normalizedItem
+    ) {
+      return null;
+    }
+
+    const state =
+      window
+        .efficiencyMorningMeetingUploadState ||
+      (
+        window
+          .efficiencyMorningMeetingUploadState =
+          {}
+      );
+
+    state.smpPriceByDate =
+      state.smpPriceByDate ||
+      {};
+
+    state.smpPriceStatusByDate =
+      state.smpPriceStatusByDate ||
+      {};
+
+    state.smpPriceErrorByDate =
+      state.smpPriceErrorByDate ||
+      {};
+
+    state.smpPriceByDate[
+      normalizedItem.targetDate
+    ] =
+      normalizedItem;
+
+    state.smpPriceStatusByDate[
+      normalizedItem.targetDate
+    ] =
+      "complete";
+
+    state.smpPriceErrorByDate[
+      normalizedItem.targetDate
+    ] =
+      "";
+
+    /*
+      D1 저장 완료 전에 새로고침해도
+      현재 브라우저에서는 즉시 복원한다.
+    */
+    try {
+      const parsedItems =
+        JSON.parse(
+          localStorage.getItem(
+            STORAGE_KEY
+          ) ||
+          "{}"
+        );
+
+      const storedItems =
+        parsedItems &&
+        typeof parsedItems ===
+          "object" &&
+        !Array.isArray(
+          parsedItems
+        )
+          ? parsedItems
+          : {};
+
+      storedItems[
+        normalizedItem.targetDate
+      ] = {
+        ...normalizedItem,
+
+        storedAt:
+          new Date()
+            .toISOString()
+      };
+
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(
+          storedItems
+        )
+      );
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "SMP 로컬 보조 저장 실패:",
+        error
+      );
+    }
+
+    window
+      .renderEfficiencyMorningMeetingSmpPrice
+      ?.();
+
+    return normalizedItem;
+  }
+
+
+  async function sendSaveRequest(
+    recordDate,
+    values,
+    expectedRevision
+  ) {
+    const response =
+      await fetch(
+        `${API_URL}?action=save_morning_meeting_auto_history_override`,
+        {
+          method:
+            "POST",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  Accept:
+                    "application/json",
+
+                  "Content-Type":
+                    "application/json"
+                },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              action:
+                "save_morning_meeting_auto_history_override",
+
+              targetDate:
+                recordDate,
+
+              expectedRevision,
+
+              values
+            })
+        }
+      );
+
+    let payload;
+
+    try {
+      payload =
+        await response.json();
+
+    } catch {
+      payload =
+        null;
+    }
+
+    return {
+      response,
+      payload
+    };
+  }
+
+
+  async function persistItem(
+    rawItem
+  ) {
+    const item =
+      applyAndStore(
+        rawItem
+      );
+
+    if (
+      !item
+    ) {
+      return;
+    }
+
+    /*
+      SMP 날짜의 전날이
+      자동수치 기록의 기준일이다.
+    */
+    const recordDate =
+      addDays(
+        item.targetDate,
+        -1
+      );
+
+    const values = {
+      smpMinimum:
+        item.minimum,
+
+      smpMaximum:
+        item.maximum,
+
+      smpWeightedAverage:
+        item.weightedAverage
+    };
+
+    try {
+      let result =
+        await sendSaveRequest(
+          recordDate,
+          values,
+          0
+        );
+
+      /*
+        같은 날짜에 다른 자동수치가 이미 저장된 경우
+        최신 revision으로 한 번 재시도한다.
+      */
+      if (
+        result.response.status ===
+          409
+      ) {
+        const currentRevision =
+          Number(
+            result.payload
+              ?.currentItem
+              ?.revision
+          );
+
+        if (
+          Number.isInteger(
+            currentRevision
+          ) &&
+          currentRevision >
+            0
+        ) {
+          result =
+            await sendSaveRequest(
+              recordDate,
+              values,
+              currentRevision
+            );
+        }
+      }
+
+      if (
+        !result.response.ok ||
+        result.payload?.ok !==
+          true
+      ) {
+        throw new Error(
+          clean(
+            result.payload?.message
+          ) ||
+          `${recordDate} SMP D1 저장 실패`
+        );
+      }
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "오전회의 SMP D1 저장 실패:",
+        error
+      );
+
+      window.showToast?.(
+        "SMP는 표시했지만 D1 저장에 실패했습니다.",
+        3000
+      );
+    }
+  }
+
+
+  document.addEventListener(
+    "efficiencyMorningMeetingSmpPriceLoaded",
+    event => {
+      void persistItem(
+        event.detail
+      );
+    }
+  );
+})();

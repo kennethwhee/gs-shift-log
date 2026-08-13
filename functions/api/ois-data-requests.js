@@ -6991,268 +6991,213 @@ async function ensureMorningMeetingAutoHistoryOverridesTable(
 function normalizeMorningMeetingAutoHistoryOverrideValues(
   rawValues
 ) {
-  const source =
-    rawValues &&
-    typeof rawValues ===
-      "object" &&
-    !Array.isArray(
-      rawValues
-    )
-      ? rawValues
-      : {};
+  const allowedFieldNames = [
+    "waterRawWaterInflow",
+    "waterDemiProduction",
+    "waterPureWaterUsage",
 
+    "limestoneUnitOneUsage",
+    "limestoneUnitTwoUsage",
 
-  const fields = [
-    {
-      key:
-        "rawWaterInflow",
+    "gearWheel",
+    "pinion",
 
-      label:
-        "원수 유입"
-    },
+    "flyAshSiloLevel",
+    "bioStorageSiloLevel",
 
-    {
-      key:
-        "demiProduction",
+    "smpMinimum",
+    "smpMaximum",
+    "smpWeightedAverage",
 
-      label:
-        "순수 생산"
-    },
+    "steamSales",
+    "steamProduction",
 
-    {
-      key:
-        "pureWaterUsage",
+    "powerProduction",
+    "powerSales",
+    "powerSolar",
 
-      label:
-        "순수 사용"
-    },
-
-    {
-      key:
-        "limestoneUnitOneUsage",
-
-      label:
-        "석회석 1호기 사용량"
-    },
-
-    {
-      key:
-        "limestoneUnitTwoUsage",
-
-      label:
-        "석회석 2호기 사용량"
-    },
-
-    {
-      key:
-        "gearWheel",
-
-      label:
-        "Gear 값"
-    },
-
-    {
-      key:
-        "pinion",
-
-      label:
-        "Pinion 값"
-    },
-
-    {
-      key:
-        "flyAshSiloLevel",
-
-      label:
-        "Fly Ash Silo Level"
-    },
-
-    {
-      key:
-        "bioStorageSiloLevel",
-
-      label:
-        "Bio Storage Silo Level"
-    },
-
-    {
-      key:
-        "smpMinimum",
-
-      label:
-        "전력단가 최소값"
-    },
-
-    {
-      key:
-        "smpMaximum",
-
-      label:
-        "전력단가 최대값"
-    },
-
-    {
-      key:
-        "smpWeightedAverage",
-
-      label:
-        "전력단가 평균값"
-    },
-
-    {
-      key:
-        "steamSales",
-
-      label:
-        "증기 판매량"
-    },
-
-    {
-      key:
-        "steamProduction",
-
-      label:
-        "증기 생산량"
-    },
-
-    {
-      key:
-        "powerProduction",
-
-      label:
-        "전력 생산량"
-    },
-
-    {
-      key:
-        "powerSales",
-
-      label:
-        "전력 판매량"
-    },
-
-    {
-      key:
-        "solarGeneration",
-
-      label:
-        "태양광 발전량"
-    },
-
-    {
-      key:
-        "organicReceived",
-
-      label:
-        "유기성 고형연료 입고량"
-    },
-
-    {
-      key:
-        "organicStored",
-
-      label:
-        "유기성 고형연료 재고량"
-    }
+    "organicReceivedAmount",
+    "organicStoredAmount"
   ];
 
+  const maximumNumber =
+    1000000000000;
 
-  const normalizedValues =
-    {};
+  const maximumTextLength =
+    100;
 
+  const plainNumberPattern =
+    /^[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:[eE][+-]?\d+)?$/;
 
-  for (
-    const field of
-    fields
+  const commaNumberPattern =
+    /^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/;
+
+  if (
+    rawValues === null ||
+    typeof rawValues !==
+      "object" ||
+    Array.isArray(
+      rawValues
+    )
   ) {
-    if (
-      !Object.prototype.hasOwnProperty.call(
-        source,
-        field.key
-      )
-    ) {
-      continue;
-    }
-
-
-    const rawValue =
-      source[
-        field.key
-      ];
-
-
-    if (
-      rawValue ===
-        null ||
-      rawValue ===
-        undefined ||
-      normalizeText(
-        rawValue
-      ) ===
-        ""
-    ) {
-      normalizedValues[
-        field.key
-      ] =
-        null;
-
-
-      continue;
-    }
-
-
-    const numericText =
-      normalizeText(
-        rawValue
-      ).replace(
-        /,/g,
-        ""
-      );
-
-
-    const numericValue =
-      Number(
-        numericText
-      );
-
-
-    if (
-      !Number.isFinite(
-        numericValue
-      )
-    ) {
-      throw new Error(
-        `${field.label} 값을 숫자로 입력해 주세요.`
-      );
-    }
-
-
-    if (
-      numericValue <
-        0
-    ) {
-      throw new Error(
-        `${field.label} 값은 0보다 작을 수 없습니다.`
-      );
-    }
-
-
-    if (
-      numericValue >
-        1000000000000
-    ) {
-      throw new Error(
-        `${field.label} 값이 지나치게 큽니다.`
-      );
-    }
-
-
-    normalizedValues[
-      field.key
-    ] =
-      numericValue;
+    throw new Error(
+      "자동수치 수정값 형식을 확인해 주세요."
+    );
   }
 
+  const normalizedValues = {};
+
+  const normalizeNumber = (
+    value,
+    fieldName
+  ) => {
+    if (
+      !Number.isFinite(
+        value
+      ) ||
+      value < 0 ||
+      value >
+        maximumNumber
+    ) {
+      throw new Error(
+        `${fieldName} 값은 0 이상 1조 이하의 숫자로 입력해 주세요.`
+      );
+    }
+
+    /*
+      -0은 일반 0으로 저장한다.
+    */
+    return Object.is(
+      value,
+      -0
+    )
+      ? 0
+      : value;
+  };
+
+  allowedFieldNames.forEach(
+    fieldName => {
+      if (
+        !Object.prototype
+          .hasOwnProperty.call(
+            rawValues,
+            fieldName
+          )
+      ) {
+        return;
+      }
+
+      const rawValue =
+        rawValues[
+          fieldName
+        ];
+
+      /*
+        빈 입력은 명시적 null 수정값이다.
+      */
+      if (
+        rawValue === null ||
+        rawValue === undefined
+      ) {
+        normalizedValues[
+          fieldName
+        ] =
+          null;
+
+        return;
+      }
+
+      if (
+        typeof rawValue ===
+          "number"
+      ) {
+        normalizedValues[
+          fieldName
+        ] =
+          normalizeNumber(
+            rawValue,
+            fieldName
+          );
+
+        return;
+      }
+
+      /*
+        boolean, 객체, 배열은
+        문자열로 강제 변환하지 않는다.
+      */
+      if (
+        typeof rawValue !==
+          "string"
+      ) {
+        throw new Error(
+          `${fieldName} 수정값 형식을 확인해 주세요.`
+        );
+      }
+
+      const text =
+        rawValue.trim();
+
+      if (
+        text === ""
+      ) {
+        normalizedValues[
+          fieldName
+        ] =
+          null;
+
+        return;
+      }
+
+      if (
+        text.length >
+          maximumTextLength
+      ) {
+        throw new Error(
+          `${fieldName} 수정값은 100자 이하로 입력해 주세요.`
+        );
+      }
+
+      const isNumericText =
+        plainNumberPattern.test(
+          text
+        ) ||
+        commaNumberPattern.test(
+          text
+        );
+
+      /*
+        숫자 형식이 아니면
+        "정비중", "조회불가" 같은 문구로 저장한다.
+      */
+      if (
+        !isNumericText
+      ) {
+        normalizedValues[
+          fieldName
+        ] =
+          text;
+
+        return;
+      }
+
+      const numericValue =
+        Number(
+          text.replace(
+            /,/g,
+            ""
+          )
+        );
+
+      normalizedValues[
+        fieldName
+      ] =
+        normalizeNumber(
+          numericValue,
+          fieldName
+        );
+    }
+  );
 
   return normalizedValues;
 }
@@ -7948,443 +7893,6 @@ async function handleMorningMeetingAutoHistoryOverridesGet(
     },
 
     items
-  });
-}
-
-/* =========================================================
-  오전회의 자동수치 수정값 저장
-
-  - 원본 OIS 완료자료는 수정하지 않는다.
-  - 날짜별 수정값만 별도 테이블에 저장한다.
-  - revision으로 동시 수정 충돌을 방지한다.
-========================================================= */
-
-async function saveMorningMeetingAutoHistoryOverrides(
-  context,
-  body
-) {
-  const authentication =
-    await getAuthenticatedUser(
-      context
-    );
-
-  if (
-    authentication.error
-  ) {
-    return authentication.error;
-  }
-
-
-  const rawItems =
-    Array.isArray(
-      body.items
-    )
-      ? body.items
-      : [];
-
-
-  if (
-    rawItems.length <
-      1 ||
-    rawItems.length >
-      366
-  ) {
-    return jsonResponse(
-      {
-        ok:
-          false,
-
-        message:
-          "자동수치 수정자료는 한 번에 1건 이상 366건 이하로 저장해 주세요."
-      },
-      400
-    );
-  }
-
-
-  const normalizedItems = [];
-  const targetDates =
-    new Set();
-
-
-  try {
-    for (
-      let index = 0;
-      index < rawItems.length;
-      index += 1
-    ) {
-      const rawItem =
-        rawItems[index] ||
-        {};
-
-
-      const recordDate =
-        normalizeText(
-          rawItem.recordDate
-        );
-
-
-      if (
-        !isValidIsoDate(
-          recordDate
-        )
-      ) {
-        throw new Error(
-          `${index + 1}번째 자동수치 수정자료의 날짜를 확인해 주세요.`
-        );
-      }
-
-
-      if (
-        targetDates.has(
-          recordDate
-        )
-      ) {
-        throw new Error(
-          `${recordDate} 수정자료가 중복되었습니다.`
-        );
-      }
-
-
-      const rawRevision =
-        rawItem.revision;
-
-
-      const expectedRevision =
-        rawRevision ===
-          undefined ||
-        rawRevision ===
-          null ||
-        String(
-          rawRevision
-        ).trim() ===
-          ""
-          ? 0
-          : Number(
-              rawRevision
-            );
-
-
-      if (
-        !Number.isInteger(
-          expectedRevision
-        ) ||
-        expectedRevision <
-          0
-      ) {
-        throw new Error(
-          `${recordDate} 수정자료의 revision 값을 확인해 주세요.`
-        );
-      }
-
-
-      const values =
-        normalizeMorningMeetingAutoHistoryOverrideValues(
-          rawItem.values
-        );
-
-
-      if (
-        !values ||
-        typeof values !==
-          "object" ||
-        Array.isArray(
-          values
-        ) ||
-        Object.keys(
-          values
-        ).length <
-          1
-      ) {
-        throw new Error(
-          `${recordDate}에 저장할 수정값이 없습니다.`
-        );
-      }
-
-
-      targetDates.add(
-        recordDate
-      );
-
-
-      normalizedItems.push({
-        recordDate,
-        expectedRevision,
-        values
-      });
-    }
-
-  } catch (
-    error
-  ) {
-    return jsonResponse(
-      {
-        ok:
-          false,
-
-        message:
-          error instanceof Error
-            ? error.message
-            : "자동수치 수정값을 확인해 주세요."
-      },
-      400
-    );
-  }
-
-
-  normalizedItems.sort(
-    (
-      first,
-      second
-    ) =>
-      first.recordDate.localeCompare(
-        second.recordDate
-      )
-  );
-
-
-  const firstDate =
-    normalizedItems[0]
-      .recordDate;
-
-
-  const lastDate =
-    normalizedItems[
-      normalizedItems.length -
-      1
-    ].recordDate;
-
-
-  const dayCount =
-    getLimestoneUsageBatchDayCount(
-      firstDate,
-      lastDate
-    );
-
-
-  if (
-    dayCount <
-      1 ||
-    dayCount >
-      366
-  ) {
-    return jsonResponse(
-      {
-        ok:
-          false,
-
-        message:
-          "자동수치 수정값은 최대 366일 범위까지 저장할 수 있습니다."
-      },
-      400
-    );
-  }
-
-
-  const database =
-    context.env.DB;
-
-
-  await ensureMorningMeetingAutoHistoryOverridesTable(
-    database
-  );
-
-
-  const existingItems =
-    await findMorningMeetingAutoHistoryOverrides(
-      database,
-      firstDate,
-      lastDate
-    );
-
-
-  const existingByDate =
-    new Map(
-      existingItems.map(
-        item => [
-          item.recordDate,
-          item
-        ]
-      )
-    );
-
-
-  for (
-    const item of
-    normalizedItems
-  ) {
-    const existing =
-      existingByDate.get(
-        item.recordDate
-      );
-
-
-    if (
-      existing
-    ) {
-      if (
-        Number(
-          existing.revision
-        ) !==
-          item.expectedRevision
-      ) {
-        return jsonResponse(
-          {
-            ok:
-              false,
-
-            message:
-              `${item.recordDate} 자동수치가 다른 사용자에 의해 변경되었습니다. 다시 조회한 뒤 수정해 주세요.`
-          },
-          409
-        );
-      }
-
-
-      /*
-        이번에 변경한 필드만 기존 수정값에 합친다.
-        앞서 저장한 다른 수정값은 유지한다.
-      */
-      item.values = {
-        ...existing.values,
-        ...item.values
-      };
-
-      continue;
-    }
-
-
-    if (
-      item.expectedRevision >
-        0
-    ) {
-      return jsonResponse(
-        {
-          ok:
-            false,
-
-          message:
-            `${item.recordDate} 자동수치 수정자료가 변경되었거나 삭제되었습니다. 다시 조회해 주세요.`
-        },
-        409
-      );
-    }
-  }
-
-
-  const user =
-    authentication.user;
-
-
-  const now =
-    new Date()
-      .toISOString();
-
-
-  const statements =
-    normalizedItems.map(
-      item =>
-        database
-          .prepare(`
-            INSERT INTO morning_meeting_auto_history_overrides (
-              record_date,
-              values_json,
-
-              created_by_id,
-              created_by_name,
-              updated_by_id,
-              updated_by_name,
-
-              created_at,
-              updated_at,
-              revision
-            )
-            VALUES (
-              ?,
-              ?,
-
-              ?,
-              ?,
-              ?,
-              ?,
-
-              ?,
-              ?,
-              1
-            )
-
-            ON CONFLICT (
-              record_date
-            )
-            DO UPDATE SET
-              values_json =
-                excluded.values_json,
-
-              updated_by_id =
-                excluded.updated_by_id,
-
-              updated_by_name =
-                excluded.updated_by_name,
-
-              updated_at =
-                excluded.updated_at,
-
-              revision =
-                morning_meeting_auto_history_overrides.revision +
-                1
-          `)
-          .bind(
-            item.recordDate,
-
-            JSON.stringify(
-              item.values
-            ),
-
-            user.employeeNo,
-            user.name,
-            user.employeeNo,
-            user.name,
-
-            now,
-            now
-          )
-    );
-
-
-  await database.batch(
-    statements
-  );
-
-
-  const savedItems =
-    (
-      await findMorningMeetingAutoHistoryOverrides(
-        database,
-        firstDate,
-        lastDate
-      )
-    ).filter(
-      item =>
-        targetDates.has(
-          item.recordDate
-        )
-    );
-
-
-  return jsonResponse({
-    ok:
-      true,
-
-    message:
-      "자동수치 수정값을 저장했습니다.",
-
-    summary: {
-      savedDateCount:
-        savedItems.length
-    },
-
-    items:
-      savedItems
   });
 }
 

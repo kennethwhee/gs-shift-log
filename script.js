@@ -1232,127 +1232,212 @@ function loadMorningMeetingLegacyLogsOnce(
   return requestPromise;
 }
 
-  async function setLimestoneUsageDate(requestedDate, options = {}) {
-    const {
-      load = false,
-      restoreSaved = true
-    } = options;
+async function setLimestoneUsageDate(
+  requestedDate,
+  options = {}
+) {
+  const {
+    load = false,
+    restoreSaved = true
+  } = options;
 
-    const parsedDate = parseLimestoneUsageDate(requestedDate);
+  const parsedDate =
+    parseLimestoneUsageDate(
+      requestedDate
+    );
 
-    if (!parsedDate) {
+  if (!parsedDate) {
+    setLimestoneUsageStatus(
+      "error",
+      "날짜 확인 필요",
+      "사용량을 조회할 날짜를 선택해 주세요."
+    );
+
+    return;
+  }
+
+  const normalizedDate =
+    formatLimestoneUsageDate(
+      parsedDate
+    );
+
+  const dateRequestToken =
+    limestoneUsageState.dateRequestToken + 1;
+
+  limestoneUsageState.dateRequestToken =
+    dateRequestToken;
+
+  const isCurrentDateRequest = () => {
+    return (
+      dateRequestToken ===
+        limestoneUsageState.dateRequestToken &&
+      normalizedDate ===
+        limestoneUsageState.selectedDate
+    );
+  };
+
+  const renderAutoPreview = () => {
+    if (
+      typeof window
+        .renderEfficiencyMorningMeetingAutoPreview ===
+        "function"
+    ) {
+      window
+        .renderEfficiencyMorningMeetingAutoPreview();
+    }
+  };
+
+  const {
+    dateInput,
+    unitOneStartStock,
+    unitOneEndStock,
+    unitTwoStartStock,
+    unitTwoEndStock
+  } = getLimestoneUsageElements();
+
+  limestoneUsageState.selectedDate =
+    normalizedDate;
+
+  limestoneUsageState.loadedDate =
+    "";
+
+  limestoneUsageState.receiptByUnit = {
+    1: 0,
+    2: 0
+  };
+
+  if (dateInput) {
+    dateInput.value =
+      normalizedDate;
+  }
+
+  /*
+    날짜가 바뀌면 이전 날짜 값을 먼저 제거한다.
+  */
+  [
+    unitOneStartStock,
+    unitOneEndStock,
+    unitTwoStartStock,
+    unitTwoEndStock
+  ]
+    .filter(Boolean)
+    .forEach(input => {
+      input.value = "";
+    });
+
+  renderLimestoneUsageCalculation();
+
+  /*
+    load=true인 기존 호출에서만
+    입고기록을 새로 조회한다.
+
+    날짜 버튼 이동은 load=false이므로
+    이 조회를 실행하지 않는다.
+  */
+  if (load) {
+    await loadLimestoneUsageReceiptQuantities();
+  }
+
+  if (!isCurrentDateRequest()) {
+    return;
+  }
+
+  let restored =
+    false;
+
+  const canRestoreSaved =
+    (restoreSaved || load) &&
+    typeof window
+      .loadSavedLimestoneUsageRecords ===
+      "function";
+
+  if (canRestoreSaved) {
+    /*
+      날짜 change에 연결된 다른 처리가 끝난 뒤
+      D1 저장값 복원 상태를 표시한다.
+    */
+    if (!load) {
+      await Promise.resolve();
+
+      if (!isCurrentDateRequest()) {
+        return;
+      }
+
+      setLimestoneUsageStatus(
+        "restoring",
+        "저장값 불러오는 중",
+        `${normalizedDate} D1 저장 기록을 확인하고 있습니다.`
+      );
+
+      renderAutoPreview();
+    }
+
+    try {
+      restored =
+        await window
+          .loadSavedLimestoneUsageRecords(
+            normalizedDate,
+            {
+              silentWhenMissing:
+                true,
+
+              requireActiveUsageDate:
+                true,
+
+              isCurrentUsageRequest:
+                isCurrentDateRequest
+            }
+          );
+
+    } catch (error) {
+      if (!isCurrentDateRequest()) {
+        return;
+      }
+
+      limestoneUsageState.loadedDate =
+        normalizedDate;
+
       setLimestoneUsageStatus(
         "error",
-        "날짜 확인 필요",
-        "사용량을 조회할 날짜를 선택해 주세요."
+        "저장값 불러오기 실패",
+        error?.message ||
+          `${normalizedDate} 저장 기록을 확인하지 못했습니다.`
+      );
+
+      renderAutoPreview();
+
+      console.error(
+        "석회석 D1 저장값 복원 실패:",
+        error
       );
 
       return;
-    }
-
-    const normalizedDate = formatLimestoneUsageDate(parsedDate);
-    const dateRequestToken =
-      limestoneUsageState.dateRequestToken + 1;
-
-    limestoneUsageState.dateRequestToken = dateRequestToken;
-
-    const {
-      dateInput,
-      unitOneStartStock,
-      unitOneEndStock,
-      unitTwoStartStock,
-      unitTwoEndStock
-    } = getLimestoneUsageElements();
-
-    limestoneUsageState.selectedDate = normalizedDate;
-    limestoneUsageState.loadedDate = "";
-    limestoneUsageState.receiptByUnit = {
-      1: 0,
-      2: 0
-    };
-
-    if (dateInput) {
-      dateInput.value = normalizedDate;
-    }
-
-    /*
-      날짜가 바뀌면 이전 날짜의 재고값을 지운다.
-    */
-    [
-      unitOneStartStock,
-      unitOneEndStock,
-      unitTwoStartStock,
-      unitTwoEndStock
-    ]
-      .filter(Boolean)
-      .forEach(input => {
-        input.value = "";
-      });
-
-    renderLimestoneUsageCalculation();
-
-    /*
-      load = true일 때만 입고기록을 새로 조회한다.
-
-      모바일 날짜 이동의 기본 동작은
-      D1에 이미 저장된 사용량을 불러오는 것이다.
-    */
-    if (load) {
-      await loadLimestoneUsageReceiptQuantities();
-    }
-
-    if (
-      dateRequestToken !== limestoneUsageState.dateRequestToken ||
-      normalizedDate !== limestoneUsageState.selectedDate
-    ) {
-      return;
-    }
-
-    let restored = false;
-
-    if (
-      (restoreSaved || load) &&
-      typeof window.loadSavedLimestoneUsageRecords === "function"
-    ) {
-      restored = await window.loadSavedLimestoneUsageRecords(
-        normalizedDate,
-        {
-          silentWhenMissing: true,
-          requireActiveUsageDate: true,
-
-          isCurrentUsageRequest: () => {
-            return (
-              dateRequestToken ===
-                limestoneUsageState.dateRequestToken &&
-              normalizedDate ===
-                limestoneUsageState.selectedDate
-            );
-          }
-        }
-      );
-    }
-
-    if (
-      dateRequestToken !== limestoneUsageState.dateRequestToken ||
-      normalizedDate !== limestoneUsageState.selectedDate
-    ) {
-      return;
-    }
-
-    limestoneUsageState.loadedDate = normalizedDate;
-
-    if (restored) {
-      return;
-    }
-
-    if (!load) {
-      setLimestoneUsageStatus(
-        "idle",
-        "저장된 사용량 없음",
-        `${normalizedDate}은 아직 저장된 계산 결과가 없습니다.`
-      );
     }
   }
+
+  if (!isCurrentDateRequest()) {
+    return;
+  }
+
+  limestoneUsageState.loadedDate =
+    normalizedDate;
+
+  if (restored) {
+    renderAutoPreview();
+
+    return;
+  }
+
+  if (!load) {
+    setLimestoneUsageStatus(
+      "idle",
+      "저장된 사용량 없음",
+      `${normalizedDate}은 아직 저장된 계산 결과가 없습니다.`
+    );
+
+    renderAutoPreview();
+  }
+}
 
 /* =====================================================
   소메뉴 전환
@@ -182943,190 +183028,206 @@ function getExpectedPreviousDate() {
   }
 
 
-  /* =====================================================
+/* =====================================================
     석회석 데이터
 
     기존 계산 화면에서 직접 읽는다.
-  ====================================================== */
+====================================================== */
 
-  function getLimestoneData() {
-    const elements =
-      getElements();
-
-
-    const date =
-      normalizeText(
-        elements
-          .limestoneSourceDate
-          ?.value
-      );
+function getLimestoneData() {
+  const elements =
+    getElements();
 
 
-    const unitOneStart =
-      parseNumber(
-        elements
-          .limestoneUnitOneStart
-          ?.value
-      );
+  const date =
+    normalizeText(
+      elements
+        .limestoneSourceDate
+        ?.value
+    );
 
 
-    const unitOneReceipt =
-      parseNumber(
-        elements
-          .limestoneUnitOneReceipt
-          ?.textContent
-      );
+  const unitOneStart =
+    parseNumber(
+      elements
+        .limestoneUnitOneStart
+        ?.value
+    );
 
 
-    const unitOneEnd =
-      parseNumber(
-        elements
-          .limestoneUnitOneEnd
-          ?.value
-      );
+  const unitOneReceipt =
+    parseNumber(
+      elements
+        .limestoneUnitOneReceipt
+        ?.textContent
+    );
 
 
-    const unitOneUsage =
-      parseNumber(
-        elements
-          .limestoneUnitOneUsage
-          ?.textContent
-      );
+  const unitOneEnd =
+    parseNumber(
+      elements
+        .limestoneUnitOneEnd
+        ?.value
+    );
 
 
-    const unitTwoStart =
-      parseNumber(
-        elements
-          .limestoneUnitTwoStart
-          ?.value
-      );
+  const unitOneUsage =
+    parseNumber(
+      elements
+        .limestoneUnitOneUsage
+        ?.textContent
+    );
 
 
-    const unitTwoReceipt =
-      parseNumber(
-        elements
-          .limestoneUnitTwoReceipt
-          ?.textContent
-      );
+  const unitTwoStart =
+    parseNumber(
+      elements
+        .limestoneUnitTwoStart
+        ?.value
+    );
 
 
-    const unitTwoEnd =
-      parseNumber(
-        elements
-          .limestoneUnitTwoEnd
-          ?.value
-      );
+  const unitTwoReceipt =
+    parseNumber(
+      elements
+        .limestoneUnitTwoReceipt
+        ?.textContent
+    );
 
 
-    const unitTwoUsage =
-      parseNumber(
-        elements
-          .limestoneUnitTwoUsage
-          ?.textContent
-      );
+  const unitTwoEnd =
+    parseNumber(
+      elements
+        .limestoneUnitTwoEnd
+        ?.value
+    );
 
 
-    const rawStatus =
-      normalizeText(
-        elements
-          .limestoneSourceView
-          ?.dataset
-          .limestoneUsageStatus
-      ).toLowerCase();
+  const unitTwoUsage =
+    parseNumber(
+      elements
+        .limestoneUnitTwoUsage
+        ?.textContent
+    );
 
 
-    const requiredValues = [
-      unitOneStart,
-      unitOneReceipt,
-      unitOneEnd,
-      unitOneUsage,
-      unitTwoStart,
-      unitTwoReceipt,
-      unitTwoEnd,
-      unitTwoUsage
-    ];
+  const rawStatus =
+    normalizeText(
+      elements
+        .limestoneSourceView
+        ?.dataset
+        .limestoneUsageStatus
+    ).toLowerCase();
 
 
-    const hasCompleteValues =
-      requiredValues.every(
-        value => {
-          return value !==
-            null;
-        }
-      );
+  /*
+    D1 저장값을 복원하고 있는 상태
+
+    실제 OIS 조회 중인 loading과 구분한다.
+  */
+  const isRestoringSaved =
+    rawStatus ===
+      "restoring";
 
 
-    const expectedDate =
-      getExpectedPreviousDate();
+  const requiredValues = [
+    unitOneStart,
+    unitOneReceipt,
+    unitOneEnd,
+    unitOneUsage,
+    unitTwoStart,
+    unitTwoReceipt,
+    unitTwoEnd,
+    unitTwoUsage
+  ];
 
 
-    const hasDateMismatch =
-      Boolean(
-        expectedDate &&
-        date &&
-        expectedDate !==
-          date
-      );
+  const hasCompleteValues =
+    requiredValues.every(
+      value => {
+        return value !==
+          null;
+      }
+    );
 
 
-    let status =
-      "idle";
+  const expectedDate =
+    getExpectedPreviousDate();
 
 
-    if (
-      rawStatus ===
-        "error" ||
-      hasDateMismatch
-    ) {
-      status =
-        "error";
-
-    } else if (
-      rawStatus ===
-        "loading"
-    ) {
-      status =
-        "loading";
-
-    } else if (
-      hasCompleteValues
-    ) {
-      status =
-        "complete";
-    }
+  const hasDateMismatch =
+    Boolean(
+      expectedDate &&
+      date &&
+      expectedDate !==
+        date
+    );
 
 
-    return {
-      status,
+  let status =
+    "idle";
 
-      hasDateMismatch,
 
-      expectedDate,
+  if (
+    rawStatus ===
+      "error" ||
+    hasDateMismatch
+  ) {
+    status =
+      "error";
 
-      date,
+  } else if (
+    rawStatus ===
+      "loading" ||
+    isRestoringSaved
+  ) {
+    /*
+      자동수치 전체 상태에서는
+      저장값 복원도 진행 중으로 처리한다.
+    */
+    status =
+      "loading";
 
-      unitOneStart,
-
-      unitOneReceipt,
-
-      unitOneEnd,
-
-      unitOneUsage,
-
-      unitTwoStart,
-
-      unitTwoReceipt,
-
-      unitTwoEnd,
-
-      unitTwoUsage
-    };
+  } else if (
+    hasCompleteValues
+  ) {
+    status =
+      "complete";
   }
 
 
-  /* =====================================================
+  return {
+    status,
+
+    isRestoringSaved,
+
+    hasDateMismatch,
+
+    expectedDate,
+
+    date,
+
+    unitOneStart,
+
+    unitOneReceipt,
+
+    unitOneEnd,
+
+    unitOneUsage,
+
+    unitTwoStart,
+
+    unitTwoReceipt,
+
+    unitTwoEnd,
+
+    unitTwoUsage
+  };
+}
+
+/* =====================================================
     Gear Wheel / Pinion 데이터
-  ====================================================== */
+====================================================== */
 
   function getGearPinionData() {
     const state =
@@ -183523,206 +183624,208 @@ function getBoilerData() {
   }
 
 
-  /* =====================================================
+/* =====================================================
     석회석 미리보기 출력
-  ====================================================== */
+====================================================== */
 
-  function renderLimestonePreview(
-    data
+function renderLimestonePreview(
+  data
+) {
+  const elements =
+    getElements();
+
+
+  setText(
+    elements.limestoneDate,
+    data.date ||
+    "-"
+  );
+
+
+  if (
+    data.hasDateMismatch
   ) {
-    const elements =
-      getElements();
-
-
-    setText(
-      elements.limestoneDate,
-      data.date ||
-      "-"
+    setBadge(
+      elements.limestoneStatus,
+      "error",
+      "날짜 확인"
     );
 
-
-    if (
-      data.hasDateMismatch
-    ) {
-      setBadge(
-        elements.limestoneStatus,
-        "error",
-        "날짜 확인"
-      );
-
-    } else if (
-      data.status ===
-        "complete"
-    ) {
-      setBadge(
-        elements.limestoneStatus,
-        "complete",
-        "계산 완료"
-      );
-
-    } else if (
-      data.status ===
-        "loading"
-    ) {
-      setBadge(
-        elements.limestoneStatus,
-        "loading",
-        "조회 중"
-      );
-
-    } else if (
-      data.status ===
-        "error"
-    ) {
-      setBadge(
-        elements.limestoneStatus,
-        "error",
-        "조회 실패"
-      );
-
-    } else {
-      setBadge(
-        elements.limestoneStatus,
-        "idle",
-        "계산 대기"
-      );
-    }
-
-
-    const hasUnitOneStock =
-      data.unitOneStart !==
-        null &&
-      data.unitOneEnd !==
-        null;
-
-
-    setText(
-      elements.limestoneUnitOneStock,
-
-      hasUnitOneStock
-        ? `${formatLimestoneNumber(
-            data.unitOneStart
-          )} → ${formatLimestoneNumber(
-            data.unitOneEnd
-          )}`
-        : "- → -"
+  } else if (
+    data.status ===
+      "complete"
+  ) {
+    setBadge(
+      elements.limestoneStatus,
+      "complete",
+      "계산 완료"
     );
 
+  } else if (
+    data.status ===
+      "loading"
+  ) {
+    setBadge(
+      elements.limestoneStatus,
+      "loading",
 
-    const hasUnitTwoStock =
-      data.unitTwoStart !==
-        null &&
-      data.unitTwoEnd !==
-        null;
-
-
-    setText(
-      elements.limestoneUnitTwoStock,
-
-      hasUnitTwoStock
-        ? `${formatLimestoneNumber(
-            data.unitTwoStart
-          )} → ${formatLimestoneNumber(
-            data.unitTwoEnd
-          )}`
-        : "- → -"
+      data.isRestoringSaved
+        ? "저장값 불러오는 중"
+        : "조회 중"
     );
 
+  } else if (
+    data.status ===
+      "error"
+  ) {
+    setBadge(
+      elements.limestoneStatus,
+      "error",
+      "조회 실패"
+    );
 
-    const unitOneReceiptText =
-      data.unitOneReceipt !==
-        null
-        ? `${formatLimestoneNumber(
-            data.unitOneReceipt
-          )} t`
-        : "-";
-
-
-    const unitTwoReceiptText =
-      data.unitTwoReceipt !==
-        null
-        ? `${formatLimestoneNumber(
-            data.unitTwoReceipt
-          )} t`
-        : "-";
-
-
-    const hasReceiptColumns =
-      elements.limestoneReceiptUnitOne &&
-      elements.limestoneReceiptUnitTwo;
-
-
-    if (
-      hasReceiptColumns
-    ) {
-      setText(
-        elements.limestoneReceiptUnitOne,
-        unitOneReceiptText
-      );
-
-
-      setText(
-        elements.limestoneReceiptUnitTwo,
-        unitTwoReceiptText
-      );
-
-    } else {
-      setText(
-        elements.limestoneReceipt,
-        `${unitOneReceiptText} / ${unitTwoReceiptText}`
-      );
-    }
-
-
-    const unitOneUsageText =
-      data.unitOneUsage !==
-        null
-        ? `${formatLimestoneNumber(
-            data.unitOneUsage
-          )} t`
-        : "-";
-
-
-    const unitTwoUsageText =
-      data.unitTwoUsage !==
-        null
-        ? `${formatLimestoneNumber(
-            data.unitTwoUsage
-          )} t`
-        : "-";
-
-
-    const hasUsageColumns =
-      elements.limestoneUsageUnitOne &&
-      elements.limestoneUsageUnitTwo;
-
-
-    if (
-      hasUsageColumns
-    ) {
-      setText(
-        elements.limestoneUsageUnitOne,
-        unitOneUsageText
-      );
-
-
-      setText(
-        elements.limestoneUsageUnitTwo,
-        unitTwoUsageText
-      );
-
-    } else {
-      setText(
-        elements.limestoneUsage,
-        `${unitOneUsageText} / ${unitTwoUsageText}`
-      );
-    }
+  } else {
+    setBadge(
+      elements.limestoneStatus,
+      "idle",
+      "계산 대기"
+    );
   }
 
 
-  /* =====================================================
+  const hasUnitOneStock =
+    data.unitOneStart !==
+      null &&
+    data.unitOneEnd !==
+      null;
+
+
+  setText(
+    elements.limestoneUnitOneStock,
+
+    hasUnitOneStock
+      ? `${formatLimestoneNumber(
+          data.unitOneStart
+        )} → ${formatLimestoneNumber(
+          data.unitOneEnd
+        )}`
+      : "- → -"
+  );
+
+
+  const hasUnitTwoStock =
+    data.unitTwoStart !==
+      null &&
+    data.unitTwoEnd !==
+      null;
+
+
+  setText(
+    elements.limestoneUnitTwoStock,
+
+    hasUnitTwoStock
+      ? `${formatLimestoneNumber(
+          data.unitTwoStart
+        )} → ${formatLimestoneNumber(
+          data.unitTwoEnd
+        )}`
+      : "- → -"
+  );
+
+
+  const unitOneReceiptText =
+    data.unitOneReceipt !==
+      null
+      ? `${formatLimestoneNumber(
+          data.unitOneReceipt
+        )} t`
+      : "-";
+
+
+  const unitTwoReceiptText =
+    data.unitTwoReceipt !==
+      null
+      ? `${formatLimestoneNumber(
+          data.unitTwoReceipt
+        )} t`
+      : "-";
+
+
+  const hasReceiptColumns =
+    elements.limestoneReceiptUnitOne &&
+    elements.limestoneReceiptUnitTwo;
+
+
+  if (
+    hasReceiptColumns
+  ) {
+    setText(
+      elements.limestoneReceiptUnitOne,
+      unitOneReceiptText
+    );
+
+
+    setText(
+      elements.limestoneReceiptUnitTwo,
+      unitTwoReceiptText
+    );
+
+  } else {
+    setText(
+      elements.limestoneReceipt,
+      `${unitOneReceiptText} / ${unitTwoReceiptText}`
+    );
+  }
+
+
+  const unitOneUsageText =
+    data.unitOneUsage !==
+      null
+      ? `${formatLimestoneNumber(
+          data.unitOneUsage
+        )} t`
+      : "-";
+
+
+  const unitTwoUsageText =
+    data.unitTwoUsage !==
+      null
+      ? `${formatLimestoneNumber(
+          data.unitTwoUsage
+        )} t`
+      : "-";
+
+
+  const hasUsageColumns =
+    elements.limestoneUsageUnitOne &&
+    elements.limestoneUsageUnitTwo;
+
+
+  if (
+    hasUsageColumns
+  ) {
+    setText(
+      elements.limestoneUsageUnitOne,
+      unitOneUsageText
+    );
+
+
+    setText(
+      elements.limestoneUsageUnitTwo,
+      unitTwoUsageText
+    );
+
+  } else {
+    setText(
+      elements.limestoneUsage,
+      `${unitOneUsageText} / ${unitTwoUsageText}`
+    );
+  }
+}
+
+/* =====================================================
     Gear / Pinion 미리보기 출력
-  ====================================================== */
+====================================================== */
 
   function renderGearPinionPreview(
     data
@@ -210182,9 +210285,13 @@ async function load(
         "원/kWh",
 
       source:
-        "수동 수정",
+        clean(
+          value.source
+        ) ||
+        "저장값",
 
       isManual:
+        value.isManual ===
         true
     };
   }
@@ -211077,47 +211184,15 @@ container.style.flexShrink = "0";
   }
 
 
-  function removeDisplayedOverrides() {
-    const displayedDates =
-      getDisplayedDates();
+function removeDisplayedOverrides() {
+  /*
+    다시 조회가 성공하기 전에는
+    기존 SMP 저장값을 삭제하지 않는다.
 
-    if (
-      displayedDates.length ===
-        0
-    ) {
-      return;
-    }
-
-    const state =
-      getState();
-
-    const overrides =
-      readOverrides();
-
-    displayedDates.forEach(
-      targetDate => {
-        delete overrides[
-          targetDate
-        ];
-
-        delete state.smpPriceByDate[
-          targetDate
-        ];
-
-        delete state.smpPriceStatusByDate[
-          targetDate
-        ];
-
-        delete state.smpPriceErrorByDate[
-          targetDate
-        ];
-      }
-    );
-
-    writeOverrides(
-      overrides
-    );
-  }
+    조회 성공값은 하단 D1 저장 보강 코드에서
+    기존 값을 교체한다.
+  */
+}
 
 
   function bindEvents() {
@@ -219073,7 +219148,7 @@ async function fetchSavedHistory(
 
   const headers =
     typeof getShiftLogAuthHeaders ===
-    "function"
+      "function"
       ? getShiftLogAuthHeaders()
       : {
           Accept:
@@ -219094,8 +219169,7 @@ async function fetchSavedHistory(
 
   const [
     completedResponse,
-    limestoneResponse,
-    overrideResponse
+    limestoneResponse
   ] =
     await Promise.all([
       fetch(
@@ -219112,22 +219186,13 @@ async function fetchSavedHistory(
           range
         ),
         requestOptions
-      ),
-
-      fetch(
-        buildHistoryUrl(
-          "morning_meeting_auto_history_overrides",
-          range
-        ),
-        requestOptions
       )
     ]);
 
 
   const [
     completedPayload,
-    limestonePayload,
-    overridePayload
+    limestonePayload
   ] =
     await Promise.all([
       readApiResponse(
@@ -219138,19 +219203,13 @@ async function fetchSavedHistory(
       readApiResponse(
         limestoneResponse,
         "저장된 석회석 사용량"
-      ),
-
-      readApiResponse(
-        overrideResponse,
-        "저장된 자동수치 수정값"
       )
     ]);
 
 
   return {
     completedPayload,
-    limestonePayload,
-    overridePayload
+    limestonePayload
   };
 }
 
@@ -219552,13 +219611,16 @@ function applyMorningMeetingAutoHistoryOverride(
 
   nextRow
     .morningMeetingAutoHistoryOverride = {
-      recordDate:
-        normalizeText(
-          overrideItem?.recordDate
-        ) ||
-        normalizeText(
-          row?.date
-        ),
+    recordDate:
+      normalizeText(
+        overrideItem?.recordDate
+      ) ||
+      normalizeText(
+        overrideItem?.targetDate
+      ) ||
+      normalizeText(
+        row?.date
+      ),
 
       revision:
         Number.isInteger(
@@ -219880,7 +219942,13 @@ function mergeSavedRows(
   );
 
   /*
-    D1에 저장된 날짜별 수동 수정값
+    completed_history 응답에 포함된 날짜별 수정값
+
+    서버가 같은 응답에 overrides를 포함하므로
+    별도의 수정값 조회 요청은 보내지 않는다.
+
+    수정값만 존재하는 날짜는 새 행으로 만들지 않고
+    기존 자동수치 행에만 마지막으로 적용한다.
   */
   const overrideItems =
     Array.isArray(
@@ -219893,19 +219961,35 @@ function mergeSavedRows(
           .overrides
       : [];
 
+
+  const overrideByDate =
+    new Map();
+
+
   overrideItems.forEach(
     item => {
-      const dateValue =
+      /*
+        현재 서버는 targetDate를 사용한다.
+
+        이전 응답과의 호환을 위해
+        recordDate도 함께 허용한다.
+      */
+      const recordDate =
         normalizeText(
           item?.targetDate
+        ) ||
+        normalizeText(
+          item?.recordDate
         );
+
 
       const values =
         item?.values;
 
+
       if (
         !isDateInRange(
-          dateValue
+          recordDate
         ) ||
         !isObject(
           values
@@ -219914,173 +219998,103 @@ function mergeSavedRows(
         return;
       }
 
-      const revisionValue =
-        Number(
-          item?.revision
-        );
 
-      const row =
-        ensureRow(
-          dateValue
-        );
-
-      row.override = {
-        ...item,
-
-        targetDate:
-          dateValue,
-
-        values: {
-          ...values
-        },
-
-        revision:
-          Number.isInteger(
-            revisionValue
-          ) &&
-          revisionValue > 0
-            ? revisionValue
-            : 1
-      };
-
-      row.overrideRevision =
-        row.override.revision;
-
-      row.hasOverride =
-        true;
-    }
-  );
-
-const overridePayloadItems =
-  Array.isArray(
-    payloads
-      ?.overridePayload
-      ?.items
-  )
-    ? payloads
-        .overridePayload
-        .items
-    : [];
-
-
-const overrideByDate =
-  new Map();
-
-
-overridePayloadItems.forEach(
-  item => {
-    const recordDate =
-      normalizeText(
-        item?.recordDate
-      );
-
-
-    const values =
-      item?.values;
-
-
-    if (
-      !isDateInRange(
-        recordDate
-      ) ||
-      !values ||
-      typeof values !==
-        "object" ||
-      Array.isArray(
-        values
-      )
-    ) {
-      return;
-    }
-
-
-    if (
-      overrideByDate.has(
-        recordDate
-      )
-    ) {
-      console.warn(
-        "같은 날짜의 자동수치 수정값이 중복되었습니다.",
-        recordDate
-      );
-    }
-
-
-    overrideByDate.set(
-      recordDate,
-      item
-    );
-  }
-);
-
-
-const smpByDate =
-  readLocalSmpByDate();
-
-
-/*
-  자동수치 기준일의 다음 날이 회의일이므로
-  SMP는 행 날짜 + 1일 자료를 연결한다.
-
-  수정값은 원본 자료와 로컬 SMP를 연결한 뒤
-  마지막에 적용한다.
-
-  수정값만 존재하는 날짜는
-  새로운 행으로 만들지 않는다.
-*/
-
-return [
-  ...rowsByDate.values()
-]
-  .map(
-    row => {
-      const smpDate =
-        addDateDays(
-          row.date,
-          1
-        );
-
-
-      const rowWithSmp = {
-        ...row,
-
-        smpDate,
-
-        smp:
-          smpByDate.get(
-            smpDate
-          ) ||
-          null
-      };
-
-
-      const overrideItem =
-        overrideByDate.get(
-          row.date
-        );
-
-
-      return overrideItem
-        ? applyMorningMeetingAutoHistoryOverride(
-            rowWithSmp,
-            overrideItem
-          )
-        : rowWithSmp;
-    }
-  )
-  .sort(
-    (
-      firstRow,
-      secondRow
-    ) =>
-      secondRow
-        .date
-        .localeCompare(
-          firstRow.date
+      if (
+        overrideByDate.has(
+          recordDate
         )
-  );
-}
+      ) {
+        console.warn(
+          "같은 날짜의 자동수치 수정값이 중복되었습니다.",
+          recordDate
+        );
+      }
 
+
+      overrideByDate.set(
+        recordDate,
+        {
+          ...item,
+
+          targetDate:
+            recordDate,
+
+          recordDate,
+
+          values: {
+            ...values
+          }
+        }
+      );
+    }
+  );
+
+
+  const smpByDate =
+    readLocalSmpByDate();
+
+
+  /*
+    자동수치 기준일의 다음 날이 회의일이므로
+    SMP는 행 날짜 + 1일 자료를 연결한다.
+
+    수정값은 원본 자료와 로컬 SMP를 연결한 뒤
+    마지막에 적용한다.
+
+    수정값만 존재하는 날짜는
+    새로운 행으로 만들지 않는다.
+  */
+  return [
+    ...rowsByDate.values()
+  ]
+    .map(
+      row => {
+        const smpDate =
+          addDateDays(
+            row.date,
+            1
+          );
+
+
+        const rowWithSmp = {
+          ...row,
+
+          smpDate,
+
+          smp:
+            smpByDate.get(
+              smpDate
+            ) ||
+            null
+        };
+
+
+        const overrideItem =
+          overrideByDate.get(
+            row.date
+          );
+
+
+        return overrideItem
+          ? applyMorningMeetingAutoHistoryOverride(
+              rowWithSmp,
+              overrideItem
+            )
+          : rowWithSmp;
+      }
+    )
+    .sort(
+      (
+        firstRow,
+        secondRow
+      ) =>
+        secondRow
+          .date
+          .localeCompare(
+            firstRow.date
+          )
+    );
+}
 
 /* =====================================================
   수처리 표시값
@@ -220799,275 +220813,6 @@ function createValueCell(
   return cell;
 }
 
-/* =====================================================
-    값 셀 생성
-====================================================== */
-
-function createEditableValueCell(
-  options = {}
-) {
-  const row =
-    options.row;
-
-  const displayValue =
-    normalizeText(
-      options.displayValue
-    );
-
-  const className =
-    normalizeText(
-      options.className
-    );
-
-  const title =
-    normalizeText(
-      options.title
-    );
-
-  const inputDefinitions =
-    Array.isArray(
-      options.inputs
-    )
-      ? options.inputs.filter(
-          item =>
-            item &&
-            typeof item ===
-              "object" &&
-            !Array.isArray(
-              item
-            ) &&
-            normalizeText(
-              item.fieldName
-            )
-        )
-      : [];
-
-  const isMobile =
-    window.matchMedia(
-      "(max-width: 768px)"
-    ).matches;
-
-  /*
-    일반 보기 또는 모바일에서는
-    기존 표시 셀을 그대로 사용한다.
-  */
-  if (
-    !state.editing ||
-    isMobile ||
-    !row ||
-    !isIsoDate(
-      row.date
-    ) ||
-    inputDefinitions.length < 1
-  ) {
-    return createValueCell(
-      displayValue,
-      className,
-      title
-    );
-  }
-
-  const cell =
-    document.createElement(
-      "td"
-    );
-
-  cell.className = [
-    "is-history-value",
-    className,
-    "is-auto-history-edit-cell"
-  ]
-    .filter(
-      Boolean
-    )
-    .join(
-      " "
-    );
-
-  if (
-    title
-  ) {
-    cell.title =
-      title;
-  }
-
-  const editor =
-    document.createElement(
-      "div"
-    );
-
-  editor.className =
-    inputDefinitions.length > 1
-      ? "auto-history-cell-editor is-multiple"
-      : "auto-history-cell-editor is-single";
-
-  const dateDraft =
-    state.drafts instanceof Map
-      ? state.drafts.get(
-          row.date
-        )
-      : null;
-
-  inputDefinitions.forEach(
-    definition => {
-      const fieldName =
-        normalizeText(
-          definition.fieldName
-        );
-
-      const labelText =
-        normalizeText(
-          definition.label
-        );
-
-      const shortLabel =
-        normalizeText(
-          definition.shortLabel
-        );
-
-      const numericValue =
-        numberOrNull(
-          definition.value
-        );
-
-      const originalValue =
-        numericValue === null
-          ? ""
-          : String(
-              numericValue
-            );
-
-      const hasDraftValue =
-        dateDraft &&
-        typeof dateDraft ===
-          "object" &&
-        !Array.isArray(
-          dateDraft
-        ) &&
-        Object.prototype.hasOwnProperty.call(
-          dateDraft,
-          fieldName
-        );
-
-      const inputValue =
-        hasDraftValue
-          ? normalizeText(
-              dateDraft[
-                fieldName
-              ]
-            )
-          : originalValue;
-
-      const control =
-        document.createElement(
-          "label"
-        );
-
-      control.className =
-        "auto-history-input-control";
-
-      if (
-        shortLabel
-      ) {
-        const label =
-          document.createElement(
-            "span"
-          );
-
-        label.className =
-          "auto-history-input-label";
-
-        label.textContent =
-          shortLabel;
-
-        control.appendChild(
-          label
-        );
-      }
-
-      const input =
-        document.createElement(
-          "input"
-        );
-
-      input.type =
-        "text";
-
-      input.inputMode =
-        "decimal";
-
-      input.autocomplete =
-        "off";
-
-      input.spellcheck =
-        false;
-
-      input.maxLength =
-        24;
-
-      input.className =
-        "auto-history-value-input";
-
-      input.value =
-        inputValue;
-
-      input.placeholder =
-        "-";
-
-      input.disabled =
-        state.saving;
-
-      input.dataset
-        .autoHistoryDate =
-        row.date;
-
-      input.dataset
-        .autoHistoryField =
-        fieldName;
-
-      input.dataset
-        .originalValue =
-        originalValue;
-
-      input.setAttribute(
-        "aria-label",
-        `${row.date} ${
-          labelText ||
-          shortLabel ||
-          fieldName
-        }`
-      );
-
-      input.setAttribute(
-        "enterkeyhint",
-        "done"
-      );
-
-      if (
-        hasDraftValue
-      ) {
-        input.classList.add(
-          "is-changed"
-        );
-      }
-
-      control.appendChild(
-        input
-      );
-
-      editor.appendChild(
-        control
-      );
-    }
-  );
-
-  cell.appendChild(
-    editor
-  );
-
-  return cell;
-}
-
 function normalizeHistoryEditValue(
   value
 ) {
@@ -221542,16 +221287,13 @@ function renderRows(
   } =
     getElements();
 
-
   if (
     !tableBody
   ) {
     return;
   }
 
-
   tableBody.replaceChildren();
-
 
   rows.forEach(
     row => {
@@ -221560,131 +221302,178 @@ function renderRows(
           "tr"
         );
 
-
       tableRow.dataset.recordDate =
         row.date;
-
 
       const dateCell =
         document.createElement(
           "td"
         );
 
-
       const formattedDate =
         formatDateCell(
           row.date
         );
 
-
       dateCell.className =
         "is-date is-history-date";
-
 
       const dateStrong =
         document.createElement(
           "strong"
         );
 
-
       const weekdaySmall =
         document.createElement(
           "small"
         );
 
-
       dateStrong.textContent =
         formattedDate.shortDate;
 
-
       weekdaySmall.textContent =
         formattedDate.weekday;
-
 
       dateCell.append(
         dateStrong,
         weekdaySmall
       );
 
-
       const waterValues =
         getWaterValues(
           row.water
         );
 
-
       const limestone =
         row.limestone;
-
 
       const gearPinion =
         row.gearPinion;
 
-
       const silo =
         row.silo;
 
-
       const dailyData =
         row.dailyData;
-
 
       const powerValues =
         getPowerValues(
           dailyData
         );
 
-
       const smp =
         row.smp;
 
-
-      const displayValue = (
+      /*
+        저장된 수정값이 있으면
+        원본보다 우선해서 사용한다.
+      */
+      const readValue = (
         key,
-        sourceValue,
+        sourceValue
+      ) =>
+        getMorningMeetingAutoHistoryValue(
+          row,
+          key,
+          sourceValue
+        );
+
+      const formatValue = (
+        value,
         options = {}
       ) =>
         formatMorningMeetingAutoHistoryDisplayValue(
-          getMorningMeetingAutoHistoryValue(
-            row,
-            key,
-            sourceValue
-          ),
+          value,
           options
         );
 
+      /*
+        한 개 수치를 사용하는 일반 셀
+      */
+      const createSingleHistoryCell = ({
+        key,
+        sourceValue,
+        className,
+        title = "",
+        label = "",
+        displayOptions = {}
+      }) => {
+        const effectiveValue =
+          readValue(
+            key,
+            sourceValue
+          );
+
+        return createEditableValueCell({
+          row,
+
+          displayValue:
+            formatValue(
+              effectiveValue,
+              displayOptions
+            ),
+
+          className,
+
+          title,
+
+          inputs: [
+            {
+              fieldName:
+                key,
+
+              label:
+                label ||
+                title ||
+                key,
+
+              value:
+                effectiveValue
+            }
+          ]
+        });
+      };
+
+      /*
+        Gear / Pinion 결합 셀
+      */
+      const gearWheelValue =
+        readValue(
+          "gearWheel",
+          gearPinion?.gearWheel
+        );
+
+      const pinionValue =
+        readValue(
+          "pinion",
+          gearPinion?.pinion
+        );
+
+      const gearNumberOptions = {
+        minimumFractionDigits:
+          3,
+
+        maximumFractionDigits:
+          3
+      };
 
       const gearWheelText =
-        displayValue(
-          "gearWheel",
-          gearPinion?.gearWheel,
+        formatValue(
+          gearWheelValue,
           {
-            numberOptions: {
-              minimumFractionDigits:
-                3,
-
-              maximumFractionDigits:
-                3
-            }
+            numberOptions:
+              gearNumberOptions
           }
         );
-
 
       const pinionText =
-        displayValue(
-          "pinion",
-          gearPinion?.pinion,
+        formatValue(
+          pinionValue,
           {
-            numberOptions: {
-              minimumFractionDigits:
-                3,
-
-              maximumFractionDigits:
-                3
-            }
+            numberOptions:
+              gearNumberOptions
           }
         );
-
 
       const gearPinionText =
         gearWheelText ||
@@ -221700,11 +221489,24 @@ function renderRows(
             )
           : "";
 
+      /*
+        유기성 고형연료 결합 셀
+      */
+      const organicReceivedValue =
+        readValue(
+          "organicReceivedAmount",
+          dailyData?.sludgeTotal
+        );
+
+      const organicStoredValue =
+        readValue(
+          "organicStoredAmount",
+          dailyData?.organicSiloTotal
+        );
 
       const organicReceivedText =
-        displayValue(
-          "organicReceivedAmount",
-          dailyData?.sludgeTotal,
+        formatValue(
+          organicReceivedValue,
           {
             unit:
               "ton",
@@ -221716,11 +221518,9 @@ function renderRows(
           }
         );
 
-
       const organicStoredText =
-        displayValue(
-          "organicStoredAmount",
-          dailyData?.organicSiloTotal,
+        formatValue(
+          organicStoredValue,
           {
             unit:
               "ton",
@@ -221731,7 +221531,6 @@ function renderRows(
             }
           }
         );
-
 
       const organicText =
         organicReceivedText ||
@@ -221751,342 +221550,535 @@ function renderRows(
             )
           : "";
 
+      const smpTitle =
+        row.smpDate
+          ? `${row.smpDate} 회의일 SMP`
+          : "";
 
       tableRow.append(
         dateCell,
 
+        /*
+          수처리
+        */
 
-        /* 원수 유입 */
-
-        createValueCell(
-          displayValue(
+        createSingleHistoryCell({
+          key:
             "waterRawWaterInflow",
+
+          sourceValue:
             waterValues.rawWaterInflow,
-            {
-              numberOptions: {
-                maximumFractionDigits:
-                  2
-              }
+
+          className:
+            "is-water",
+
+          title:
+            "원수 유입",
+
+          label:
+            "원수 유입",
+
+          displayOptions: {
+            numberOptions: {
+              maximumFractionDigits:
+                2
             }
-          ),
-          "is-water",
-          "원수 유입"
-        ),
+          }
+        }),
 
-
-        /* 순수 생산 */
-
-        createValueCell(
-          displayValue(
+        createSingleHistoryCell({
+          key:
             "waterDemiProduction",
+
+          sourceValue:
             waterValues.demiProduction,
-            {
-              numberOptions: {
-                maximumFractionDigits:
-                  2
-              }
+
+          className:
+            "is-water",
+
+          title:
+            "순수 생산",
+
+          label:
+            "순수 생산",
+
+          displayOptions: {
+            numberOptions: {
+              maximumFractionDigits:
+                2
             }
-          ),
-          "is-water",
-          "순수 생산"
-        ),
+          }
+        }),
 
-
-        /* 순수 사용 */
-
-        createValueCell(
-          displayValue(
+        createSingleHistoryCell({
+          key:
             "waterPureWaterUsage",
+
+          sourceValue:
             waterValues.pureWaterUsage,
-            {
-              numberOptions: {
-                maximumFractionDigits:
-                  2
-              }
+
+          className:
+            "is-water",
+
+          title:
+            "순수 사용",
+
+          label:
+            "순수 사용",
+
+          displayOptions: {
+            numberOptions: {
+              maximumFractionDigits:
+                2
             }
-          ),
-          "is-water",
-          "순수 사용"
-        ),
+          }
+        }),
 
+        /*
+          석회석
+        */
 
-        /* 석회석 1호기 */
-
-        createValueCell(
-          displayValue(
+        createSingleHistoryCell({
+          key:
             "limestoneUnitOneUsage",
+
+          sourceValue:
             limestone?.unitOneUsage,
-            {
-              unit:
-                "ton",
 
-              numberOptions: {
-                minimumFractionDigits:
-                  2,
+          className:
+            "is-limestone",
 
-                maximumFractionDigits:
-                  2
-              }
+          title:
+            "석회석 1호기",
+
+          label:
+            "석회석 1호기",
+
+          displayOptions: {
+            unit:
+              "ton",
+
+            numberOptions: {
+              minimumFractionDigits:
+                2,
+
+              maximumFractionDigits:
+                2
             }
-          ),
-          "is-limestone"
-        ),
+          }
+        }),
 
-
-        /* 석회석 2호기 */
-
-        createValueCell(
-          displayValue(
+        createSingleHistoryCell({
+          key:
             "limestoneUnitTwoUsage",
+
+          sourceValue:
             limestone?.unitTwoUsage,
-            {
-              unit:
-                "ton",
 
-              numberOptions: {
-                minimumFractionDigits:
-                  2,
+          className:
+            "is-limestone",
 
-                maximumFractionDigits:
-                  2
-              }
+          title:
+            "석회석 2호기",
+
+          label:
+            "석회석 2호기",
+
+          displayOptions: {
+            unit:
+              "ton",
+
+            numberOptions: {
+              minimumFractionDigits:
+                2,
+
+              maximumFractionDigits:
+                2
             }
-          ),
-          "is-limestone"
-        ),
+          }
+        }),
 
+        /*
+          Gear / Pinion
+        */
 
-        /* Gear / Pinion */
+        createEditableValueCell({
+          row,
 
-        createValueCell(
-          gearPinionText,
-          "is-gear-pinion",
-          "Gear Wheel / Pinion"
-        ),
+          displayValue:
+            gearPinionText,
 
+          className:
+            "is-gear-pinion",
 
-        /* Fly Ash Silo Level */
+          title:
+            "Gear Wheel / Pinion",
 
-        createValueCell(
-          displayValue(
+          inputs: [
+            {
+              fieldName:
+                "gearWheel",
+
+              label:
+                "Gear Wheel",
+
+              shortLabel:
+                "G",
+
+              value:
+                gearWheelValue
+            },
+
+            {
+              fieldName:
+                "pinion",
+
+              label:
+                "Pinion",
+
+              shortLabel:
+                "P",
+
+              value:
+                pinionValue
+            }
+          ]
+        }),
+
+        /*
+          Silo Level
+        */
+
+        createSingleHistoryCell({
+          key:
             "flyAshSiloLevel",
+
+          sourceValue:
             silo?.flyAshSiloLevel,
-            {
-              unit:
-                silo?.flyAshUnit,
 
-              numberOptions: {
-                minimumFractionDigits:
-                  3,
+          className:
+            "is-silo is-silo-level",
 
-                maximumFractionDigits:
-                  3
-              }
+          title:
+            "Fly Ash Silo Level",
+
+          label:
+            "Fly Ash Silo Level",
+
+          displayOptions: {
+            unit:
+              silo?.flyAshUnit,
+
+            numberOptions: {
+              minimumFractionDigits:
+                3,
+
+              maximumFractionDigits:
+                3
             }
-          ),
-          "is-silo is-silo-level"
-        ),
+          }
+        }),
 
-
-        /* Bio Storage Silo Level */
-
-        createValueCell(
-          displayValue(
+        createSingleHistoryCell({
+          key:
             "bioStorageSiloLevel",
+
+          sourceValue:
             silo?.bioStorageSiloLevel,
-            {
-              unit:
-                silo?.bioStorageUnit,
 
-              numberOptions: {
-                minimumFractionDigits:
-                  3,
+          className:
+            "is-silo is-silo-level",
 
-                maximumFractionDigits:
-                  3
-              }
+          title:
+            "Bio Storage Silo Level",
+
+          label:
+            "Bio Storage Silo Level",
+
+          displayOptions: {
+            unit:
+              silo?.bioStorageUnit,
+
+            numberOptions: {
+              minimumFractionDigits:
+                3,
+
+              maximumFractionDigits:
+                3
             }
-          ),
-          "is-silo is-silo-level"
-        ),
+          }
+        }),
 
+        /*
+          SMP
+        */
 
-        /* SMP 최소 */
-
-        createValueCell(
-          displayValue(
+        createSingleHistoryCell({
+          key:
             "smpMinimum",
+
+          sourceValue:
             smp?.minimum,
-            {
-              numberOptions: {
-                minimumFractionDigits:
-                  2,
 
-                maximumFractionDigits:
-                  2
-              }
+          className:
+            "is-smp",
+
+          title:
+            smpTitle,
+
+          label:
+            "SMP 최소",
+
+          displayOptions: {
+            numberOptions: {
+              minimumFractionDigits:
+                2,
+
+              maximumFractionDigits:
+                2
             }
-          ),
-          "is-smp",
-          row.smpDate
-            ? `${row.smpDate} 회의일 SMP`
-            : ""
-        ),
+          }
+        }),
 
-
-        /* SMP 최대 */
-
-        createValueCell(
-          displayValue(
+        createSingleHistoryCell({
+          key:
             "smpMaximum",
+
+          sourceValue:
             smp?.maximum,
-            {
-              numberOptions: {
-                minimumFractionDigits:
-                  2,
 
-                maximumFractionDigits:
-                  2
-              }
+          className:
+            "is-smp",
+
+          title:
+            smpTitle,
+
+          label:
+            "SMP 최대",
+
+          displayOptions: {
+            numberOptions: {
+              minimumFractionDigits:
+                2,
+
+              maximumFractionDigits:
+                2
             }
-          ),
-          "is-smp",
-          row.smpDate
-            ? `${row.smpDate} 회의일 SMP`
-            : ""
-        ),
+          }
+        }),
 
-
-        /* SMP 평균 */
-
-        createValueCell(
-          displayValue(
+        createSingleHistoryCell({
+          key:
             "smpWeightedAverage",
+
+          sourceValue:
             smp?.weightedAverage,
-            {
-              numberOptions: {
-                minimumFractionDigits:
-                  2,
 
-                maximumFractionDigits:
-                  2
-              }
+          className:
+            "is-smp",
+
+          title:
+            smpTitle,
+
+          label:
+            "SMP 평균",
+
+          displayOptions: {
+            numberOptions: {
+              minimumFractionDigits:
+                2,
+
+              maximumFractionDigits:
+                2
             }
-          ),
-          "is-smp",
-          row.smpDate
-            ? `${row.smpDate} 회의일 SMP`
-            : ""
-        ),
+          }
+        }),
 
+        /*
+          증기
+        */
 
-        /* 증기 판매 */
-
-        createValueCell(
-          displayValue(
+        createSingleHistoryCell({
+          key:
             "steamSales",
+
+          sourceValue:
             getSteamSales(
               dailyData
             ),
-            {
-              unit:
-                "ton",
 
-              numberOptions: {
-                maximumFractionDigits:
-                  3
-              }
+          className:
+            "is-steam",
+
+          title:
+            "증기 판매",
+
+          label:
+            "증기 판매",
+
+          displayOptions: {
+            unit:
+              "ton",
+
+            numberOptions: {
+              maximumFractionDigits:
+                3
             }
-          ),
-          "is-steam"
-        ),
+          }
+        }),
 
-
-        /* 증기 생산 */
-
-        createValueCell(
-          displayValue(
+        createSingleHistoryCell({
+          key:
             "steamProduction",
+
+          sourceValue:
             getSteamProduction(
               dailyData
             ),
-            {
-              unit:
-                "ton",
 
-              numberOptions: {
-                maximumFractionDigits:
-                  3
-              }
+          className:
+            "is-steam",
+
+          title:
+            "증기 생산",
+
+          label:
+            "증기 생산",
+
+          displayOptions: {
+            unit:
+              "ton",
+
+            numberOptions: {
+              maximumFractionDigits:
+                3
             }
-          ),
-          "is-steam"
-        ),
+          }
+        }),
 
+        /*
+          전력량
+        */
 
-        /* 전력 생산 */
-
-        createValueCell(
-          displayValue(
+        createSingleHistoryCell({
+          key:
             "powerProduction",
+
+          sourceValue:
             powerValues.production,
-            {
-              numberOptions: {
-                maximumFractionDigits:
-                  3
-              }
+
+          className:
+            "is-power",
+
+          title:
+            "전력 생산량",
+
+          label:
+            "전력 생산",
+
+          displayOptions: {
+            numberOptions: {
+              maximumFractionDigits:
+                3
             }
-          ),
-          "is-power",
-          "전력 생산량"
-        ),
+          }
+        }),
 
-
-        /* 전력 판매 */
-
-        createValueCell(
-          displayValue(
+        createSingleHistoryCell({
+          key:
             "powerSales",
+
+          sourceValue:
             powerValues.sales,
-            {
-              numberOptions: {
-                maximumFractionDigits:
-                  3
-              }
+
+          className:
+            "is-power",
+
+          title:
+            "전력 판매량",
+
+          label:
+            "전력 판매",
+
+          displayOptions: {
+            numberOptions: {
+              maximumFractionDigits:
+                3
             }
-          ),
-          "is-power",
-          "전력 판매량"
-        ),
+          }
+        }),
 
-
-        /* 태양광 발전 */
-
-        createValueCell(
-          displayValue(
+        createSingleHistoryCell({
+          key:
             "powerSolar",
+
+          sourceValue:
             powerValues.solar,
-            {
-              numberOptions: {
-                maximumFractionDigits:
-                  3
-              }
+
+          className:
+            "is-power",
+
+          title:
+            "태양광 발전량",
+
+          label:
+            "태양광 발전",
+
+          displayOptions: {
+            numberOptions: {
+              maximumFractionDigits:
+                3
             }
-          ),
-          "is-power",
-          "태양광 발전량"
-        ),
+          }
+        }),
 
+        /*
+          유기성 고형연료
+        */
 
-        /* 유기성 고형연료 */
+        createEditableValueCell({
+          row,
 
-        createValueCell(
-          organicText,
-          "is-organic is-organic-fuel",
-          "총 입고량 / 총 재고량"
-        )
+          displayValue:
+            organicText,
+
+          className:
+            "is-organic is-organic-fuel",
+
+          title:
+            "총 입고량 / 총 재고량",
+
+          inputs: [
+            {
+              fieldName:
+                "organicReceivedAmount",
+
+              label:
+                "유기성 고형연료 입고량",
+
+              shortLabel:
+                "입고",
+
+              value:
+                organicReceivedValue
+            },
+
+            {
+              fieldName:
+                "organicStoredAmount",
+
+              label:
+                "유기성 고형연료 재고량",
+
+              shortLabel:
+                "재고",
+
+              value:
+                organicStoredValue
+            }
+          ]
+        })
       );
-
 
       tableBody.appendChild(
         tableRow
@@ -222478,6 +222470,8 @@ function renderPayloads(
   );
 }
 
+
+
   /* =====================================================
     월간 저장 이력 조회
   ====================================================== */
@@ -222611,6 +222605,567 @@ function renderPayloads(
     }
   }
 
+async function saveMorningMeetingAutoHistoryDrafts() {
+  if (
+    state.saving ||
+    !state.editing ||
+    !(state.drafts instanceof Map) ||
+    state.drafts.size < 1
+  ) {
+    return;
+  }
+
+  const elements =
+    getElements();
+
+  const showMessage = (
+    message
+  ) => {
+    if (
+      typeof window.showToast ===
+        "function"
+    ) {
+      window.showToast(
+        message,
+        2200
+      );
+
+    } else {
+      window.alert(
+        message
+      );
+    }
+  };
+
+  /*
+    저장 도중 입력값이 바뀌지 않도록
+    현재 변경사항을 복사한다.
+  */
+  const pendingItems =
+    [
+      ...state.drafts.entries()
+    ].map(
+      ([
+        targetDate,
+        values
+      ]) => ({
+        targetDate,
+
+        values: {
+          ...values
+        }
+      })
+    );
+
+  /*
+    서버 요청 전에 모든 변경사항을 검사한다.
+  */
+  try {
+    pendingItems.forEach(
+      item => {
+        if (
+          !isIsoDate(
+            item.targetDate
+          )
+        ) {
+          throw new Error(
+            "수정할 날짜를 확인할 수 없습니다."
+          );
+        }
+
+        const rowExists =
+          state.rows.some(
+            row =>
+              row?.date ===
+              item.targetDate
+          );
+
+        if (
+          !rowExists
+        ) {
+          throw new Error(
+            `${item.targetDate} 원본 자료를 찾지 못했습니다.`
+          );
+        }
+
+        if (
+          !item.values ||
+          typeof item.values !==
+            "object" ||
+          Array.isArray(
+            item.values
+          ) ||
+          Object.keys(
+            item.values
+          ).length < 1
+        ) {
+          throw new Error(
+            `${item.targetDate} 변경값을 확인해 주세요.`
+          );
+        }
+
+        Object.entries(
+          item.values
+        ).forEach(
+          ([
+            key,
+            value
+          ]) => {
+            if (
+              !Object.prototype
+                .hasOwnProperty.call(
+                  MORNING_MEETING_AUTO_HISTORY_OVERRIDE_TARGETS,
+                  key
+                )
+            ) {
+              throw new Error(
+                `저장할 수 없는 자동수치 항목입니다: ${key}`
+              );
+            }
+
+            if (
+              value === null
+            ) {
+              return;
+            }
+
+            if (
+              typeof value ===
+                "number"
+            ) {
+              if (
+                !Number.isFinite(
+                  value
+                )
+              ) {
+                throw new Error(
+                  `${item.targetDate} 수치 형식을 확인해 주세요.`
+                );
+              }
+
+              return;
+            }
+
+            if (
+              typeof value ===
+                "string"
+            ) {
+              if (
+                value.length > 100
+              ) {
+                throw new Error(
+                  "자동수치 수정값은 100자 이하로 입력해 주세요."
+                );
+              }
+
+              return;
+            }
+
+            throw new Error(
+              `${item.targetDate} 수정값 형식을 확인해 주세요.`
+            );
+          }
+        );
+      }
+    );
+
+  } catch (
+    error
+  ) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "자동수치 수정값을 확인해 주세요.";
+
+    if (
+      elements.status
+    ) {
+      elements.status.textContent =
+        message;
+    }
+
+    showMessage(
+      message
+    );
+
+    return;
+  }
+
+  state.saving =
+    true;
+
+  /*
+    입력칸을 다시 렌더링해
+    저장 중 실제로 비활성화한다.
+  */
+  renderRows(
+    state.rows
+  );
+
+  updateMonthControls();
+
+  try {
+    for (
+      const pendingItem of
+      pendingItems
+    ) {
+      const {
+        targetDate,
+        values
+      } =
+        pendingItem;
+
+      const rowIndex =
+        state.rows.findIndex(
+          row =>
+            row?.date ===
+            targetDate
+        );
+
+      if (
+        rowIndex < 0
+      ) {
+        throw new Error(
+          `${targetDate} 원본 자료를 찾지 못했습니다.`
+        );
+      }
+
+      const row =
+        state.rows[
+          rowIndex
+        ];
+
+      /*
+        completed_history 응답에 포함된
+        현재 D1 수정값 revision을 우선 사용한다.
+
+        충돌 응답을 화면에 적용한 경우에는
+        별도 보관된 revision을 예비값으로 사용한다.
+      */
+      const revisionValue =
+        Number(
+          row?.override
+            ?.revision ??
+          row?.overrideRevision ??
+          row
+            ?.morningMeetingAutoHistoryOverride
+            ?.revision ??
+          0
+        );
+
+      const expectedRevision =
+        Number.isInteger(
+          revisionValue
+        ) &&
+        revisionValue >= 0
+          ? revisionValue
+          : 0;
+
+      const response =
+        await fetch(
+          `${API_URL}?action=save_morning_meeting_auto_history_override`,
+          {
+            method:
+              "POST",
+
+            headers:
+              typeof getShiftLogAuthHeaders ===
+                "function"
+                ? getShiftLogAuthHeaders({
+                    "Content-Type":
+                      "application/json"
+                  })
+                : {
+                    Accept:
+                      "application/json",
+
+                    "Content-Type":
+                      "application/json"
+                  },
+
+            cache:
+              "no-store",
+
+            body:
+              JSON.stringify({
+                action:
+                  "save_morning_meeting_auto_history_override",
+
+                targetDate,
+
+                expectedRevision,
+
+                values
+              })
+          }
+        );
+
+      let payload;
+
+      try {
+        payload =
+          await response.json();
+
+      } catch {
+        throw new Error(
+          `${targetDate} 저장 응답을 확인하지 못했습니다.`
+        );
+      }
+
+      if (
+        !response.ok ||
+        payload?.ok !==
+          true
+      ) {
+        let currentItemApplied =
+          false;
+
+        /*
+          동시 수정 충돌이면 서버 최신값과
+          revision을 현재 행에 적용한다.
+
+          사용자가 입력한 draft는 삭제하지 않는다.
+        */
+        if (
+          response.status ===
+            409 &&
+          payload?.currentItem &&
+          typeof payload.currentItem ===
+            "object" &&
+          !Array.isArray(
+            payload.currentItem
+          )
+        ) {
+          const currentItem =
+            payload.currentItem;
+
+          const currentDate =
+            normalizeText(
+              currentItem.recordDate ||
+              currentItem.targetDate
+            );
+
+          const currentRevision =
+            Number(
+              currentItem.revision
+            );
+
+          if (
+            currentDate ===
+              targetDate &&
+            currentItem.values &&
+            typeof currentItem.values ===
+              "object" &&
+            !Array.isArray(
+              currentItem.values
+            ) &&
+            Number.isInteger(
+              currentRevision
+            ) &&
+            currentRevision >= 1
+          ) {
+            state.rows[
+              rowIndex
+            ] =
+              applyMorningMeetingAutoHistoryOverride(
+                row,
+                {
+                  ...currentItem,
+
+                  recordDate:
+                    currentDate
+                }
+              );
+
+            state.cache.delete(
+              state.month
+            );
+
+            currentItemApplied =
+              true;
+          }
+        }
+
+        const requestError =
+          new Error(
+            normalizeText(
+              payload?.message
+            ) ||
+            `${targetDate} 수정값을 저장하지 못했습니다.`
+          );
+
+        requestError.shouldRefresh =
+          response.status ===
+            409 &&
+          !currentItemApplied;
+
+        throw requestError;
+      }
+
+      const savedItem =
+        payload.item;
+
+      if (
+        !savedItem ||
+        typeof savedItem !==
+          "object" ||
+        Array.isArray(
+          savedItem
+        )
+      ) {
+        throw new Error(
+          `${targetDate} 저장 결과를 확인하지 못했습니다.`
+        );
+      }
+
+      const savedDate =
+        normalizeText(
+          savedItem.recordDate ||
+          savedItem.targetDate
+        );
+
+      const savedRevision =
+        Number(
+          savedItem.revision
+        );
+
+      if (
+        savedDate !==
+          targetDate ||
+        !savedItem.values ||
+        typeof savedItem.values !==
+          "object" ||
+        Array.isArray(
+          savedItem.values
+        ) ||
+        !Number.isInteger(
+          savedRevision
+        ) ||
+        savedRevision < 1
+      ) {
+        throw new Error(
+          `${targetDate} 저장 결과가 올바르지 않습니다.`
+        );
+      }
+
+      /*
+        성공한 날짜는 즉시 현재 행에 적용하고
+        draft에서 제거한다.
+      */
+      state.rows[
+        rowIndex
+      ] =
+        applyMorningMeetingAutoHistoryOverride(
+          state.rows[
+            rowIndex
+          ],
+          {
+            ...savedItem,
+
+            recordDate:
+              savedDate
+          }
+        );
+
+      state.drafts.delete(
+        targetDate
+      );
+
+      state.cache.delete(
+        state.month
+      );
+    }
+
+    /*
+      모든 날짜가 저장된 경우에만
+      수정 모드를 종료한다.
+    */
+    state.saving =
+      false;
+
+    state.editing =
+      false;
+
+    state.drafts.clear();
+
+    state.cache.delete(
+      state.month
+    );
+
+    renderRows(
+      state.rows
+    );
+
+    updateMonthControls();
+
+    showMessage(
+      "자동수치 수정값을 저장했습니다."
+    );
+
+    /*
+      별도 저장 자료만 다시 GET 조회한다.
+      신규 OIS 요청은 생성하지 않는다.
+    */
+    await loadMonth({
+      forceRefresh:
+        true
+    });
+
+  } catch (
+    error
+  ) {
+    state.saving =
+      false;
+
+    state.editing =
+      true;
+
+    /*
+      성공하지 않은 날짜의 draft는 그대로 두고
+      수정 입력 화면으로 돌아간다.
+    */
+    renderRows(
+      state.rows
+    );
+
+    updateMonthControls();
+
+    if (
+      error?.shouldRefresh ===
+        true
+    ) {
+      state.cache.delete(
+        state.month
+      );
+
+      await loadMonth({
+        forceRefresh:
+          true
+      });
+    }
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : "자동수치 수정값을 저장하지 못했습니다.";
+
+    if (
+      elements.status
+    ) {
+      elements.status.textContent =
+        message;
+    }
+
+    console.error(
+      "오전회의 자동수치 수정 저장 오류:",
+      error
+    );
+
+    showMessage(
+      message
+    );
+  }
+}
 
 /* =====================================================
   월 이동
@@ -222780,180 +223335,264 @@ function bindEvents() {
       }
     );
 
-  /*
-    변경값 저장
+/*
+  변경값 저장
 
-    실제 POST 처리는 다음 단계의
-    saveMorningMeetingAutoHistoryDrafts 함수에서 실행한다.
-  */
-  elements
-    .saveButton
-    ?.addEventListener(
-      "click",
-      () => {
-        if (
-          !state.editing ||
-          state.loading ||
-          state.saving ||
-          state.drafts.size < 1
-        ) {
-          return;
-        }
-
-        void saveMorningMeetingAutoHistoryDrafts();
+  저장 함수는 다음 단계에서 연결한다.
+*/
+elements
+  .saveButton
+  ?.addEventListener(
+    "click",
+    () => {
+      if (
+        !state.editing ||
+        state.loading ||
+        state.saving ||
+        state.drafts.size < 1
+      ) {
+        return;
       }
-    );
 
-  /*
-    표 입력값 변경 감지
-
-    원래 값과 달라진 칸만 drafts에 보관한다.
-    입력만으로 서버 요청은 발생하지 않는다.
-  */
-  elements
-    .tableBody
-    ?.addEventListener(
-      "input",
-      event => {
-        if (
-          !state.editing ||
-          state.saving
-        ) {
-          return;
-        }
-
-        const input =
-          event.target
-            ?.closest
-            ?.(
-              "input[data-auto-history-date][data-auto-history-field]"
-            );
+      /*
+        아직 저장 함수가 들어가기 전에도
+        ReferenceError가 발생하지 않게 한다.
+      */
+      if (
+        typeof saveMorningMeetingAutoHistoryDrafts !==
+          "function"
+      ) {
+        console.warn(
+          "자동수치 수정 저장 함수가 아직 연결되지 않았습니다."
+        );
 
         if (
-          !input
+          elements.status
         ) {
-          return;
+          elements.status.textContent =
+            "저장 기능 연결 준비 중";
         }
 
-        const dateValue =
-          normalizeText(
-            input.dataset
-              .autoHistoryDate
+        return;
+      }
+
+      void saveMorningMeetingAutoHistoryDrafts();
+    }
+  );
+
+/*
+  표 입력값 변경 감지
+
+  - 빈칸: null
+  - 정상 숫자: number
+  - 일반 문구: string
+  - 입력만으로 서버 요청은 발생하지 않는다.
+*/
+elements
+  .tableBody
+  ?.addEventListener(
+    "input",
+    event => {
+      if (
+        !state.editing ||
+        state.saving
+      ) {
+        return;
+      }
+
+      const input =
+        event.target
+          ?.closest
+          ?.(
+            "input[data-auto-history-date][data-auto-history-field]"
           );
 
-        const fieldName =
-          normalizeText(
-            input.dataset
-              .autoHistoryField
-          );
+      if (
+        !input
+      ) {
+        return;
+      }
 
-        if (
-          !isIsoDate(
-            dateValue
-          ) ||
-          !fieldName
-        ) {
-          return;
-        }
+      const dateValue =
+        normalizeText(
+          input.dataset
+            .autoHistoryDate
+        );
 
-        const currentText =
-          normalizeText(
-            input.value
-          ).replaceAll(
-            ",",
-            ""
-          );
+      const fieldName =
+        normalizeText(
+          input.dataset
+            .autoHistoryField
+        );
 
-        const originalText =
-          normalizeText(
-            input.dataset
-              .originalValue
-          ).replaceAll(
-            ",",
-            ""
-          );
+      if (
+        !isIsoDate(
+          dateValue
+        ) ||
+        !fieldName
+      ) {
+        return;
+      }
 
-        const currentNumber =
-          currentText ===
-            ""
-            ? null
-            : Number(
-                currentText
-              );
+      const currentText =
+        String(
+          input.value ??
+          ""
+        ).trim();
 
-        const originalNumber =
-          originalText ===
-            ""
-            ? null
-            : Number(
-                originalText
-              );
+      /*
+        maxlength 속성 외에도
+        스크립트에서 한 번 더 검사한다.
+      */
+      if (
+        currentText.length > 100
+      ) {
+        input.classList.add(
+          "is-invalid"
+        );
 
-        const isSameValue =
-          (
-            currentNumber ===
-              null &&
-            originalNumber ===
-              null
-          ) ||
-          (
-            Number.isFinite(
-              currentNumber
-            ) &&
-            Number.isFinite(
-              originalNumber
-            ) &&
-            currentNumber ===
-              originalNumber
-          );
-
-        const nextDraft = {
-          ...(
-            state.drafts.get(
-              dateValue
-            ) ||
-            {}
-          )
-        };
-
-        if (
-          isSameValue
-        ) {
-          delete nextDraft[
-            fieldName
-          ];
-
-        } else {
-          nextDraft[
-            fieldName
-          ] =
-            input.value;
-        }
-
-        if (
-          Object.keys(
-            nextDraft
-          ).length < 1
-        ) {
-          state.drafts.delete(
-            dateValue
-          );
-
-        } else {
-          state.drafts.set(
-            dateValue,
-            nextDraft
-          );
-        }
-
-        input.classList.toggle(
-          "is-changed",
-          !isSameValue
+        input.setCustomValidity(
+          "수정값은 100자 이하로 입력해 주세요."
         );
 
         updateMonthControls();
+
+        return;
       }
-    );
+
+      let originalValue;
+
+      const originalValueJson =
+        input.dataset
+          .originalValueJson;
+
+      /*
+        새 입력칸은 JSON 원본값을 사용한다.
+        구 입력칸이 남아 있으면 기존 속성으로 보완한다.
+      */
+      if (
+        typeof originalValueJson ===
+          "string" &&
+        originalValueJson !== ""
+      ) {
+        try {
+          originalValue =
+            normalizeHistoryEditValue(
+              JSON.parse(
+                originalValueJson
+              )
+            );
+
+        } catch (
+          error
+        ) {
+          console.error(
+            "자동수치 원본값을 읽지 못했습니다.",
+            error
+          );
+
+          input.classList.add(
+            "is-invalid"
+          );
+
+          input.setCustomValidity(
+            "자동수치 원본값을 확인할 수 없습니다."
+          );
+
+          updateMonthControls();
+
+          return;
+        }
+
+      } else {
+        originalValue =
+          normalizeHistoryEditValue(
+            input.dataset
+              .originalValue
+          );
+      }
+
+      const currentValue =
+        normalizeHistoryEditValue(
+          input.value
+        );
+
+      /*
+        normalizeHistoryEditValue 결과는
+        number, string, null 중 하나이므로
+        단순 비교로 원래 값인지 확인할 수 있다.
+      */
+      const isSameValue =
+        currentValue ===
+        originalValue;
+
+      const previousDraft =
+        state.drafts.get(
+          dateValue
+        );
+
+      const nextDraft =
+        previousDraft &&
+        typeof previousDraft ===
+          "object" &&
+        !Array.isArray(
+          previousDraft
+        )
+          ? {
+              ...previousDraft
+            }
+          : {};
+
+      if (
+        isSameValue
+      ) {
+        delete nextDraft[
+          fieldName
+        ];
+
+      } else {
+        /*
+          빈칸으로 수정한 경우에도
+          null 값을 변경사항으로 유지한다.
+        */
+        nextDraft[
+          fieldName
+        ] =
+          currentValue;
+      }
+
+      if (
+        Object.keys(
+          nextDraft
+        ).length < 1
+      ) {
+        state.drafts.delete(
+          dateValue
+        );
+
+      } else {
+        state.drafts.set(
+          dateValue,
+          nextDraft
+        );
+      }
+
+      input.classList.remove(
+        "is-invalid"
+      );
+
+      input.setCustomValidity(
+        ""
+      );
+
+      input.classList.toggle(
+        "is-changed",
+        !isSameValue
+      );
+
+      updateMonthControls();
+    }
+  );
 
   elements.view.dataset
     .autoHistoryEventsBound =
@@ -223772,4 +224411,1260 @@ function initialize() {
   } else {
     initializeEfficiencyTeamMobileMonitorOnlyPolicy();
   }
+})();
+
+/* =========================================================
+  부재료: 날짜 중심 조회 + 1·2호기 통합표
+========================================================= */
+(function installAuxiliaryMaterialDailyView() {
+  "use strict";
+
+  if (window.__auxiliaryMaterialDailyViewInstalled) return;
+  window.__auxiliaryMaterialDailyViewInstalled = true;
+
+  const originalGetElements = getAuxiliaryMaterialElements;
+  const originalRender = renderAuxiliaryMaterialHistory;
+  const originalLoad = loadAuxiliaryMaterialHistory;
+  const originalSetOisButtonState =
+    setAuxiliaryMaterialOisQueryButtonState;
+
+  let nextRangePurpose = "display";
+
+  getAuxiliaryMaterialElements =
+    function getAuxiliaryMaterialDailyElements() {
+      return {
+        ...originalGetElements(),
+
+        queryDateInput:
+          document.getElementById(
+            "auxiliaryMaterialQueryDate"
+          ),
+
+        periodModeInput:
+          document.getElementById(
+            "auxiliaryMaterialPeriodMode"
+          )
+      };
+    };
+
+  function localIso(date) {
+    return [
+      date.getFullYear(),
+
+      String(
+        date.getMonth() + 1
+      ).padStart(2, "0"),
+
+      String(
+        date.getDate()
+      ).padStart(2, "0")
+    ].join("-");
+  }
+
+  function moveDate(value, amount) {
+    const date =
+      new Date(
+        `${value}T12:00:00`
+      );
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return "";
+    }
+
+    date.setDate(
+      date.getDate() + amount
+    );
+
+    return localIso(date);
+  }
+
+  function validateRange(
+    startDate,
+    endDate
+  ) {
+    const today =
+      localIso(
+        new Date()
+      );
+
+    if (
+      !isValidAuxiliaryMaterialIsoDate(
+        startDate
+      ) ||
+      !isValidAuxiliaryMaterialIsoDate(
+        endDate
+      )
+    ) {
+      throw new Error(
+        "부재료 조회 날짜를 확인해 주세요."
+      );
+    }
+
+    if (
+      startDate >
+      endDate
+    ) {
+      throw new Error(
+        "시작일은 종료일보다 늦을 수 없습니다."
+      );
+    }
+
+    if (
+      endDate >
+      today
+    ) {
+      throw new Error(
+        "종료일은 오늘보다 늦을 수 없습니다."
+      );
+    }
+
+    const dayCount =
+      Math.floor(
+        (
+          new Date(
+            `${endDate}T00:00:00`
+          ) -
+          new Date(
+            `${startDate}T00:00:00`
+          )
+        ) /
+        86400000
+      ) + 1;
+
+    if (
+      dayCount < 1 ||
+      dayCount > 366
+    ) {
+      throw new Error(
+        "조회 기간은 1일 이상 366일 이하로 선택해 주세요."
+      );
+    }
+
+    return {
+      startDate,
+      endDate,
+      dayCount
+    };
+  }
+
+  function getDisplayRange() {
+    const elements =
+      getAuxiliaryMaterialElements();
+
+    if (
+      elements.periodModeInput
+        ?.checked
+    ) {
+      return validateRange(
+        elements.startDateInput
+          ?.value || "",
+
+        elements.endDateInput
+          ?.value || ""
+      );
+    }
+
+    const endDate =
+      elements.queryDateInput
+        ?.value || "";
+
+    return validateRange(
+      moveDate(
+        endDate,
+        -6
+      ),
+      endDate
+    );
+  }
+
+  function getOisRange() {
+    const elements =
+      getAuxiliaryMaterialElements();
+
+    if (
+      elements.periodModeInput
+        ?.checked
+    ) {
+      return validateRange(
+        elements.startDateInput
+          ?.value || "",
+
+        elements.endDateInput
+          ?.value || ""
+      );
+    }
+
+    const targetDate =
+      elements.queryDateInput
+        ?.value || "";
+
+    return validateRange(
+      targetDate,
+      targetDate
+    );
+  }
+
+  /*
+    저장자료 표:
+    기본 최근 7일
+
+    OIS:
+    기본 선택일 하루
+  */
+  readAuxiliaryMaterialDateRange =
+    function readAuxiliaryMaterialDailyRange() {
+      if (
+        nextRangePurpose ===
+        "ois"
+      ) {
+        nextRangePurpose =
+          "display";
+
+        return getOisRange();
+      }
+
+      return getDisplayRange();
+    };
+
+  isAuxiliaryMaterialOisRangeStillSelected =
+    function isDailyRangeSelected() {
+      try {
+        const range =
+          getOisRange();
+
+        return (
+          range.startDate ===
+            auxiliaryMaterialOisQueryState
+              .startDate &&
+          range.endDate ===
+            auxiliaryMaterialOisQueryState
+              .endDate
+        );
+
+      } catch {
+        return false;
+      }
+    };
+
+  /*
+    일반 화면도 크게 보기와 동일하게
+    1·2호기 통합표로 출력
+  */
+  renderAuxiliaryMaterialHistory =
+    function renderCombinedAuxiliaryHistory() {
+      const hadExpandedClass =
+        document.body
+          .classList
+          .contains(
+            "is-auxiliary-material-expanded"
+          );
+
+      if (
+        !hadExpandedClass
+      ) {
+        document.body
+          .classList
+          .add(
+            "is-auxiliary-material-expanded"
+          );
+      }
+
+      originalRender();
+
+      if (
+        !hadExpandedClass
+      ) {
+        document.body
+          .classList
+          .remove(
+            "is-auxiliary-material-expanded"
+          );
+      }
+
+      const table =
+        document.querySelector(
+          ".auxiliary-material-sheet-table"
+        );
+
+      table?.classList.remove(
+        "is-split-layout"
+      );
+
+      table?.classList.add(
+        "is-combined-layout"
+      );
+    };
+
+  /*
+    저장자료를 불러온 뒤
+    최근 Slurry 밀도도 다시 표시
+  */
+  loadAuxiliaryMaterialHistory =
+    async function loadDailyAuxiliaryHistory(
+      ...args
+    ) {
+      const result =
+        await originalLoad(
+          ...args
+        );
+
+      renderAuxiliaryMaterialFixedDensitySettings();
+
+      return result;
+    };
+
+  setAuxiliaryMaterialOisQueryButtonState =
+    function setDailyOisButtonState(
+      isRunning
+    ) {
+      originalSetOisButtonState(
+        isRunning
+      );
+
+      const elements =
+        getAuxiliaryMaterialElements();
+
+      if (
+        !elements.queryButton
+      ) {
+        return;
+      }
+
+      elements.queryButton.textContent =
+        isRunning
+          ? "OIS 조회 · 저장 중..."
+          : elements
+              .periodModeInput
+              ?.checked
+            ? "기간 OIS 조회 · 저장"
+            : "선택일 OIS 조회 · 저장";
+    };
+
+  function initializeDailyControls() {
+    const elements =
+      getAuxiliaryMaterialElements();
+
+    const view =
+      elements.view;
+
+    const navigation =
+      view?.querySelector(
+        ".auxiliary-material-month-navigation"
+      );
+
+    if (
+      !view ||
+      !navigation ||
+      !elements.monthInput
+    ) {
+      return;
+    }
+
+    const today =
+      localIso(
+        new Date()
+      );
+
+    /*
+      완료된 일일자료 기준으로
+      기본값은 전일
+    */
+    const defaultDate =
+      moveDate(
+        today,
+        -1
+      ) || today;
+
+    const monthLabel =
+      elements.monthInput
+        .closest(
+          "label"
+        );
+
+    const title =
+      monthLabel?.querySelector(
+        "span"
+      );
+
+    const heading =
+      view.querySelector(
+        ".auxiliary-material-heading h3"
+      );
+
+    /*
+      기존 월 입력은 엑셀 다운로드용으로 유지
+    */
+    elements.monthInput.hidden =
+      true;
+
+    elements.monthInput.tabIndex =
+      -1;
+
+    if (title) {
+      title.textContent =
+        "기준일";
+    }
+
+    if (heading) {
+      heading.textContent =
+        "부재료 일별 관리";
+    }
+
+    /*
+      기준일 입력 생성
+    */
+    let queryDateInput =
+      document.getElementById(
+        "auxiliaryMaterialQueryDate"
+      );
+
+    if (
+      !queryDateInput
+    ) {
+      queryDateInput =
+        document.createElement(
+          "input"
+        );
+
+      queryDateInput.type =
+        "date";
+
+      queryDateInput.id =
+        "auxiliaryMaterialQueryDate";
+
+      monthLabel?.insertBefore(
+        queryDateInput,
+        elements.monthInput
+      );
+    }
+
+    /*
+      기간지정 체크박스 생성
+    */
+    let periodModeInput =
+      document.getElementById(
+        "auxiliaryMaterialPeriodMode"
+      );
+
+    if (
+      !periodModeInput
+    ) {
+      const periodLabel =
+        document.createElement(
+          "label"
+        );
+
+      periodLabel.id =
+        "auxiliaryMaterialPeriodModeLabel";
+
+      periodLabel.className =
+        "auxiliary-material-period-mode";
+
+      periodLabel.innerHTML =
+        (
+          '<input type="checkbox" ' +
+          'id="auxiliaryMaterialPeriodMode">' +
+          "<span>기간지정</span>"
+        );
+
+      const rangeControls =
+        view.querySelector(
+          ".auxiliary-material-pc-range-controls"
+        ) ||
+        view.querySelector(
+          ".auxiliary-material-period-fields"
+        );
+
+      const firstDateLabel =
+        elements.startDateInput
+          ?.closest(
+            "label"
+          );
+
+      rangeControls?.insertBefore(
+        periodLabel,
+        firstDateLabel || null
+      );
+
+      periodModeInput =
+        periodLabel.querySelector(
+          "input"
+        );
+    }
+
+    const startLabel =
+      elements.startDateInput
+        ?.closest(
+          "label"
+        );
+
+    const endLabel =
+      elements.endDateInput
+        ?.closest(
+          "label"
+        );
+
+    [
+      startLabel,
+      endLabel
+    ].forEach(
+      label => {
+        label?.classList.add(
+          "auxiliary-material-period-date-field"
+        );
+      }
+    );
+
+    function loadVisibleRange() {
+      loadAuxiliaryMaterialHistory()
+        .catch(
+          () => {}
+        );
+    }
+
+    function applyDate(
+      value,
+      shouldLoad = false
+    ) {
+      const dateValue =
+        (
+          isValidAuxiliaryMaterialIsoDate(
+            value
+          ) &&
+          value <= today
+        )
+          ? value
+          : defaultDate;
+
+      queryDateInput.value =
+        dateValue;
+
+      queryDateInput.max =
+        today;
+
+      /*
+        월별 엑셀 다운로드용 내부 월
+      */
+      elements.monthInput.value =
+        dateValue.slice(
+          0,
+          7
+        );
+
+      if (
+        !periodModeInput.checked
+      ) {
+        elements.startDateInput.value =
+          moveDate(
+            dateValue,
+            -6
+          );
+
+        elements.endDateInput.value =
+          dateValue;
+
+        setAuxiliaryMaterialStatus(
+          (
+            `${elements.startDateInput.value}` +
+            ` ~ ${dateValue} 최근 7일 표시 · ` +
+            `OIS는 ${dateValue} 하루만 조회`
+          ),
+          "idle"
+        );
+      }
+
+      nextButton.disabled =
+        dateValue >= today;
+
+      if (
+        shouldLoad
+      ) {
+        loadVisibleRange();
+      }
+    }
+
+    function updatePeriodMode() {
+      const isPeriod =
+        periodModeInput.checked;
+
+      [
+        startLabel,
+        endLabel
+      ].forEach(
+        label => {
+          if (label) {
+            label.hidden =
+              !isPeriod;
+          }
+        }
+      );
+
+      if (
+        elements.loadButton
+      ) {
+        elements.loadButton.textContent =
+          isPeriod
+            ? "기간 저장자료 보기"
+            : "최근 7일 보기";
+      }
+
+      if (
+        !isPeriod
+      ) {
+        applyDate(
+          queryDateInput.value ||
+          defaultDate
+        );
+
+      } else {
+        setAuxiliaryMaterialStatus(
+          "기간지정 모드입니다. 시작일과 종료일을 선택하세요.",
+          "idle"
+        );
+      }
+
+      setAuxiliaryMaterialOisQueryButtonState(
+        auxiliaryMaterialOisQueryState
+          .isRunning
+      );
+    }
+
+    /*
+      기존 월 단위 이동 이벤트 제거 후
+      하루 이동 이벤트로 교체
+    */
+    const oldPreviousButton =
+      elements.previousMonthButton;
+
+    const oldNextButton =
+      elements.nextMonthButton;
+
+    const previousButton =
+      oldPreviousButton.cloneNode(
+        true
+      );
+
+    const nextButton =
+      oldNextButton.cloneNode(
+        true
+      );
+
+    previousButton.title =
+      "이전 날짜";
+
+    previousButton.setAttribute(
+      "aria-label",
+      "이전 날짜"
+    );
+
+    nextButton.title =
+      "다음 날짜";
+
+    nextButton.setAttribute(
+      "aria-label",
+      "다음 날짜"
+    );
+
+    oldPreviousButton.replaceWith(
+      previousButton
+    );
+
+    oldNextButton.replaceWith(
+      nextButton
+    );
+
+    queryDateInput.addEventListener(
+      "change",
+      () => {
+        applyDate(
+          queryDateInput.value,
+          true
+        );
+      }
+    );
+
+    previousButton.addEventListener(
+      "click",
+      () => {
+        applyDate(
+          moveDate(
+            queryDateInput.value,
+            -1
+          ),
+          true
+        );
+      }
+    );
+
+    nextButton.addEventListener(
+      "click",
+      () => {
+        applyDate(
+          moveDate(
+            queryDateInput.value,
+            1
+          ),
+          true
+        );
+      }
+    );
+
+    periodModeInput.addEventListener(
+      "change",
+      updatePeriodMode
+    );
+
+    elements.endDateInput
+      ?.addEventListener(
+        "change",
+        () => {
+          if (
+            periodModeInput.checked &&
+            elements.endDateInput.value
+          ) {
+            queryDateInput.value =
+              elements.endDateInput.value;
+
+            elements.monthInput.value =
+              elements.endDateInput
+                .value
+                .slice(
+                  0,
+                  7
+                );
+          }
+        }
+      );
+
+    /*
+      OIS 버튼을 누른 경우에만
+      하루 또는 명시적 기간 범위를 사용
+    */
+    elements.queryButton
+      ?.addEventListener(
+        "click",
+        () => {
+          nextRangePurpose =
+            "ois";
+        },
+        true
+      );
+
+    /*
+      부재료 메뉴를 열 때
+      크게 보기가 아닌 컴팩트 통합표로 시작
+    */
+    elements.tab
+      ?.addEventListener(
+        "click",
+        () => {
+          window.requestAnimationFrame(
+            () => {
+              setAuxiliaryMaterialExpandedView(
+                false
+              );
+            }
+          );
+        }
+      );
+
+    applyDate(
+      defaultDate
+    );
+
+    updatePeriodMode();
+
+    renderAuxiliaryMaterialHistory();
+  }
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeDailyControls,
+      {
+        once: true
+      }
+    );
+
+  } else {
+    initializeDailyControls();
+  }
+})();
+
+/* =========================================================
+  오전회의 SMP · 조회 성공값 D1 저장
+========================================================= */
+
+(function installEfficiencyMorningMeetingSmpD1Save() {
+  "use strict";
+
+  if (
+    window.__efficiencyMorningMeetingSmpD1SaveInstalled ===
+      true
+  ) {
+    return;
+  }
+
+  window.__efficiencyMorningMeetingSmpD1SaveInstalled =
+    true;
+
+  const API_URL =
+    "/api/ois-data-requests";
+
+  const STORAGE_KEY =
+    "gs-shift-log:morning-meeting:smp-manual-overrides:v1";
+
+  const clean =
+    value =>
+      String(
+        value ??
+        ""
+      ).trim();
+
+
+  function isIsoDate(
+    value
+  ) {
+    const dateText =
+      clean(
+        value
+      );
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        dateText
+      )
+    ) {
+      return false;
+    }
+
+    const parsedDate =
+      new Date(
+        `${dateText}T00:00:00.000Z`
+      );
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+      parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        dateText
+    );
+  }
+
+
+  function addDays(
+    dateValue,
+    amount
+  ) {
+    if (
+      !isIsoDate(
+        dateValue
+      )
+    ) {
+      return "";
+    }
+
+    const parsedDate =
+      new Date(
+        `${dateValue}T00:00:00.000Z`
+      );
+
+    parsedDate.setUTCDate(
+      parsedDate.getUTCDate() +
+      amount
+    );
+
+    return parsedDate
+      .toISOString()
+      .slice(
+        0,
+        10
+      );
+  }
+
+
+  function numberOrNull(
+    value
+  ) {
+    const numberText =
+      clean(
+        value
+      ).replace(
+        /,/g,
+        ""
+      );
+
+    if (
+      !numberText
+    ) {
+      return null;
+    }
+
+    const numberValue =
+      Number(
+        numberText
+      );
+
+    return Number.isFinite(
+      numberValue
+    )
+      ? numberValue
+      : null;
+  }
+
+
+  function normalizeItem(
+    item
+  ) {
+    const targetDate =
+      clean(
+        item?.sourceDate ||
+        item?.targetDate
+      );
+
+    const maximum =
+      numberOrNull(
+        item?.maximum
+      );
+
+    const minimum =
+      numberOrNull(
+        item?.minimum
+      );
+
+    const weightedAverage =
+      numberOrNull(
+        item?.weightedAverage
+      );
+
+    if (
+      !isIsoDate(
+        targetDate
+      ) ||
+      maximum ===
+        null ||
+      minimum ===
+        null ||
+      weightedAverage ===
+        null
+    ) {
+      return null;
+    }
+
+    return {
+      ...item,
+
+      sourceDate:
+        targetDate,
+
+      targetDate,
+
+      maximum,
+      minimum,
+      weightedAverage,
+
+      unit:
+        "원/kWh",
+
+      isManual:
+        item?.isManual ===
+          true
+    };
+  }
+
+
+  function applyAndStore(
+    item
+  ) {
+    const normalizedItem =
+      normalizeItem(
+        item
+      );
+
+    if (
+      !normalizedItem
+    ) {
+      return null;
+    }
+
+    const state =
+      window
+        .efficiencyMorningMeetingUploadState ||
+      (
+        window
+          .efficiencyMorningMeetingUploadState =
+          {}
+      );
+
+    state.smpPriceByDate =
+      state.smpPriceByDate ||
+      {};
+
+    state.smpPriceStatusByDate =
+      state.smpPriceStatusByDate ||
+      {};
+
+    state.smpPriceErrorByDate =
+      state.smpPriceErrorByDate ||
+      {};
+
+    state.smpPriceByDate[
+      normalizedItem.targetDate
+    ] =
+      normalizedItem;
+
+    state.smpPriceStatusByDate[
+      normalizedItem.targetDate
+    ] =
+      "complete";
+
+    state.smpPriceErrorByDate[
+      normalizedItem.targetDate
+    ] =
+      "";
+
+    /*
+      D1 저장 완료 전에 새로고침해도
+      현재 브라우저에서는 즉시 복원한다.
+    */
+    try {
+      const parsedItems =
+        JSON.parse(
+          localStorage.getItem(
+            STORAGE_KEY
+          ) ||
+          "{}"
+        );
+
+      const storedItems =
+        parsedItems &&
+        typeof parsedItems ===
+          "object" &&
+        !Array.isArray(
+          parsedItems
+        )
+          ? parsedItems
+          : {};
+
+      storedItems[
+        normalizedItem.targetDate
+      ] = {
+        ...normalizedItem,
+
+        storedAt:
+          new Date()
+            .toISOString()
+      };
+
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(
+          storedItems
+        )
+      );
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "SMP 로컬 보조 저장 실패:",
+        error
+      );
+    }
+
+    window
+      .renderEfficiencyMorningMeetingSmpPrice
+      ?.();
+
+    return normalizedItem;
+  }
+
+
+  async function sendSaveRequest(
+    recordDate,
+    values,
+    expectedRevision
+  ) {
+    const response =
+      await fetch(
+        `${API_URL}?action=save_morning_meeting_auto_history_override`,
+        {
+          method:
+            "POST",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  Accept:
+                    "application/json",
+
+                  "Content-Type":
+                    "application/json"
+                },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              action:
+                "save_morning_meeting_auto_history_override",
+
+              targetDate:
+                recordDate,
+
+              expectedRevision,
+
+              values
+            })
+        }
+      );
+
+    let payload;
+
+    try {
+      payload =
+        await response.json();
+
+    } catch {
+      payload =
+        null;
+    }
+
+    return {
+      response,
+      payload
+    };
+  }
+
+
+  async function persistItem(
+    rawItem
+  ) {
+    const item =
+      applyAndStore(
+        rawItem
+      );
+
+    if (
+      !item
+    ) {
+      return;
+    }
+
+    /*
+      SMP 날짜의 전날이
+      자동수치 기록의 기준일이다.
+    */
+    const recordDate =
+      addDays(
+        item.targetDate,
+        -1
+      );
+
+    const values = {
+      smpMinimum:
+        item.minimum,
+
+      smpMaximum:
+        item.maximum,
+
+      smpWeightedAverage:
+        item.weightedAverage
+    };
+
+    try {
+      let result =
+        await sendSaveRequest(
+          recordDate,
+          values,
+          0
+        );
+
+      /*
+        같은 날짜에 다른 자동수치가 이미 저장된 경우
+        최신 revision으로 한 번 재시도한다.
+      */
+      if (
+        result.response.status ===
+          409
+      ) {
+        const currentRevision =
+          Number(
+            result.payload
+              ?.currentItem
+              ?.revision
+          );
+
+        if (
+          Number.isInteger(
+            currentRevision
+          ) &&
+          currentRevision >
+            0
+        ) {
+          result =
+            await sendSaveRequest(
+              recordDate,
+              values,
+              currentRevision
+            );
+        }
+      }
+
+      if (
+        !result.response.ok ||
+        result.payload?.ok !==
+          true
+      ) {
+        throw new Error(
+          clean(
+            result.payload?.message
+          ) ||
+          `${recordDate} SMP D1 저장 실패`
+        );
+      }
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "오전회의 SMP D1 저장 실패:",
+        error
+      );
+
+      window.showToast?.(
+        "SMP는 표시했지만 D1 저장에 실패했습니다.",
+        3000
+      );
+    }
+  }
+
+
+  document.addEventListener(
+    "efficiencyMorningMeetingSmpPriceLoaded",
+    event => {
+      void persistItem(
+        event.detail
+      );
+    }
+  );
 })();
