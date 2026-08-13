@@ -4952,7 +4952,6 @@ function normalizeAuxiliaryMaterialManualValue(
   );
 }
 
-
 function normalizeAuxiliaryMaterialManualRecord(
   rawItem,
   itemIndex
@@ -4962,22 +4961,18 @@ function normalizeAuxiliaryMaterialManualRecord(
       rawItem?.recordDate
     );
 
-
   const unitNo =
     Number(
       rawItem?.unitNo
     );
-
 
   if (
     !isValidIsoDate(
       recordDate
     ) ||
     !(
-      unitNo ===
-        1 ||
-      unitNo ===
-        2
+      unitNo === 1 ||
+      unitNo === 2
     )
   ) {
     throw new Error(
@@ -4985,10 +4980,8 @@ function normalizeAuxiliaryMaterialManualRecord(
     );
   }
 
-
   const prefix =
     `${recordDate} ${unitNo}호기`;
-
 
   const values =
     rawItem?.values &&
@@ -5000,27 +4993,25 @@ function normalizeAuxiliaryMaterialManualRecord(
       ? rawItem.values
       : {};
 
-
+  /*
+    비고 정리 및 길이 검증
+  */
   const remarks =
     normalizeText(
       rawItem?.remarks
     );
 
-
   if (
-    remarks.length >
-      1000
+    remarks.length > 1000
   ) {
     throw new Error(
       `${prefix} 비고는 1,000자 이하로 입력해 주세요.`
     );
   }
 
-
   return {
     recordDate,
     unitNo,
-    remarks,
 
     expectedRevision:
       Math.max(
@@ -5030,6 +5021,8 @@ function normalizeAuxiliaryMaterialManualRecord(
         ) ||
         0
       ),
+
+    remarks,
 
     values: {
       soxPpm:
@@ -5097,42 +5090,21 @@ function normalizeAuxiliaryMaterialManualRecord(
   날짜·호기별 부재료 수치 수동 수정
 ========================================================= */
 
-async function updateAuxiliaryMaterialManualRecords(
-  context,
-  body
-) {
-  const authentication =
-    await getAuthenticatedUser(
-      context
-    );
+async function updateAuxiliaryMaterialManualRecords(context, body) {
+  const authentication = await getAuthenticatedUser(context);
 
-
-  if (
-    authentication.error
-  ) {
+  if (authentication.error) {
     return authentication.error;
   }
 
+  const rawItems = Array.isArray(body.items)
+    ? body.items
+    : [];
 
-  const rawItems =
-    Array.isArray(
-      body.items
-    )
-      ? body.items
-      : [];
-
-
-  if (
-    rawItems.length <
-      1 ||
-    rawItems.length >
-      732
-  ) {
+  if (rawItems.length < 1 || rawItems.length > 732) {
     return jsonResponse(
       {
-        ok:
-          false,
-
+        ok: false,
         message:
           "부재료 수정자료는 한 번에 1건 이상 732건 이하로 저장해 주세요."
       },
@@ -5140,62 +5112,43 @@ async function updateAuxiliaryMaterialManualRecords(
     );
   }
 
-
   let items;
 
-
   try {
-    items =
-      rawItems.map(
-        (
+    items = rawItems.map((rawItem, itemIndex) => {
+      const normalizedItem =
+        normalizeAuxiliaryMaterialManualRecord(
           rawItem,
           itemIndex
-        ) => {
-          const normalizedItem =
-            normalizeAuxiliaryMaterialManualRecord(
-              rawItem,
-              itemIndex
-            );
+        );
 
+      const remarks = normalizeText(rawItem?.remarks);
 
-          const remarks =
-            normalizeText(
-              rawItem?.remarks
-            );
+      if (remarks.length > 1000) {
+        throw new Error(
+          `${normalizedItem.recordDate} ${normalizedItem.unitNo}호기 비고는 1,000자 이하로 입력해 주세요.`
+        );
+      }
 
+      return {
+        ...normalizedItem,
+        remarks,
 
-          if (
-            remarks.length >
-              1000
-          ) {
-            throw new Error(
-              `${normalizedItem.recordDate} ${normalizedItem.unitNo}호기 비고는 1,000자 이하로 입력해 주세요.`
-            );
-          }
-
-
-          return {
-            ...normalizedItem,
-            remarks,
-
-            remarksProvided:
-              Object.prototype.hasOwnProperty.call(
-                rawItem ||
-                  {},
-                "remarks"
-              )
-          };
-        }
-      );
-
-  } catch (
-    error
-  ) {
+        /*
+          이전 화면처럼 remarks 자체를 보내지 않는 요청이면
+          기존 비고를 보존하기 위한 구분값
+        */
+        remarksProvided:
+          Object.prototype.hasOwnProperty.call(
+            rawItem || {},
+            "remarks"
+          )
+      };
+    });
+  } catch (error) {
     return jsonResponse(
       {
-        ok:
-          false,
-
+        ok: false,
         message:
           error instanceof Error
             ? error.message
@@ -5205,29 +5158,15 @@ async function updateAuxiliaryMaterialManualRecords(
     );
   }
 
+  const targetKeys = new Set();
 
-  const targetKeys =
-    new Set();
+  for (const item of items) {
+    const key = `${item.recordDate}:${item.unitNo}`;
 
-
-  for (
-    const item of
-    items
-  ) {
-    const key =
-      `${item.recordDate}:${item.unitNo}`;
-
-
-    if (
-      targetKeys.has(
-        key
-      )
-    ) {
+    if (targetKeys.has(key)) {
       return jsonResponse(
         {
-          ok:
-            false,
-
+          ok: false,
           message:
             `${item.recordDate} ${item.unitNo}호기 수정자료가 중복되었습니다.`
         },
@@ -5235,103 +5174,57 @@ async function updateAuxiliaryMaterialManualRecords(
       );
     }
 
-
-    targetKeys.add(
-      key
-    );
+    targetKeys.add(key);
   }
 
+  const database = context.env.DB;
 
-  const database =
-    context.env.DB;
+  await ensureAuxiliaryMaterialDailyTable(database);
 
+  const dates = items
+    .map(item => item.recordDate)
+    .sort();
 
-  await ensureAuxiliaryMaterialDailyTable(
-    database
+  const firstDate = dates[0];
+  const lastDate = dates[dates.length - 1];
+
+  const existingResult = await database
+    .prepare(`
+      SELECT *
+
+      FROM auxiliary_material_daily
+
+      WHERE
+        record_date >= ?
+        AND record_date <= ?
+    `)
+    .bind(
+      firstDate,
+      lastDate
+    )
+    .all();
+
+  const existingRows = Array.isArray(
+    existingResult.results
+  )
+    ? existingResult.results
+    : [];
+
+  const existingByKey = new Map(
+    existingRows.map(row => [
+      `${normalizeText(row.record_date)}:${Number(row.unit_no)}`,
+      row
+    ])
   );
 
+  for (const item of items) {
+    const key = `${item.recordDate}:${item.unitNo}`;
+    const existing = existingByKey.get(key);
 
-  const dates =
-    items
-      .map(
-        item =>
-          item.recordDate
-      )
-      .sort();
-
-
-  const firstDate =
-    dates[0];
-
-
-  const lastDate =
-    dates[
-      dates.length -
-      1
-    ];
-
-
-  const existingResult =
-    await database
-      .prepare(`
-        SELECT *
-
-        FROM auxiliary_material_daily
-
-        WHERE
-          record_date >= ?
-          AND record_date <= ?
-      `)
-      .bind(
-        firstDate,
-        lastDate
-      )
-      .all();
-
-
-  const existingByKey =
-    new Map(
-      (
-        Array.isArray(
-          existingResult.results
-        )
-          ? existingResult.results
-          : []
-      ).map(
-        row => [
-          (
-            `${normalizeText(
-              row.record_date
-            )}:` +
-            `${Number(
-              row.unit_no
-            )}`
-          ),
-
-          row
-        ]
-      )
-    );
-
-
-  for (
-    const item of
-    items
-  ) {
-    const existing =
-      existingByKey.get(
-        `${item.recordDate}:${item.unitNo}`
-      );
-
-
-    if (
-      !existing
-    ) {
+    if (!existing) {
       return jsonResponse(
         {
-          ok:
-            false,
-
+          ok: false,
           message:
             `${item.recordDate} ${item.unitNo}호기 저장자료가 없어 수정할 수 없습니다.`
         },
@@ -5339,20 +5232,13 @@ async function updateAuxiliaryMaterialManualRecords(
       );
     }
 
-
     if (
-      item.expectedRevision >
-        0 &&
-      Number(
-        existing.revision
-      ) !==
-        item.expectedRevision
+      item.expectedRevision > 0 &&
+      Number(existing.revision) !== item.expectedRevision
     ) {
       return jsonResponse(
         {
-          ok:
-            false,
-
+          ok: false,
           message:
             `${item.recordDate} ${item.unitNo}호기 자료가 다른 사용자에 의해 변경되었습니다. 다시 조회한 뒤 수정해 주세요.`
         },
@@ -5360,149 +5246,74 @@ async function updateAuxiliaryMaterialManualRecords(
       );
     }
 
-
     /*
-      구버전 화면이 비고를 전송하지 않은 경우
-      기존 비고를 그대로 보존한다.
+      구버전 화면이 비고를 보내지 않은 경우에는
+      기존 비고를 그대로 유지
     */
-    if (
-      !item.remarksProvided
-    ) {
-      item.remarks =
-        normalizeText(
-          existing.remarks
-        );
+    if (!item.remarksProvided) {
+      item.remarks = normalizeText(existing.remarks);
     }
   }
 
-
-  function normalizeComparableNumber(
-    value
-  ) {
+  function normalizeComparableNumber(value) {
     if (
-      value ===
-        null ||
-      value ===
-        undefined ||
-      String(
-        value
-      ).trim() ===
-        ""
+      value === null ||
+      value === undefined ||
+      String(value).trim() === ""
     ) {
       return null;
     }
 
+    const numericValue = Number(value);
 
-    const numericValue =
-      Number(
-        value
-      );
-
-
-    return Number.isFinite(
-      numericValue
-    )
+    return Number.isFinite(numericValue)
       ? numericValue
       : null;
   }
 
-
-  function areComparableNumbersEqual(
-    first,
-    second
-  ) {
+  function areComparableNumbersEqual(first, second) {
     const firstNumber =
-      normalizeComparableNumber(
-        first
-      );
-
+      normalizeComparableNumber(first);
 
     const secondNumber =
-      normalizeComparableNumber(
-        second
-      );
-
+      normalizeComparableNumber(second);
 
     if (
-      firstNumber ===
-        null ||
-      secondNumber ===
-        null
+      firstNumber === null ||
+      secondNumber === null
     ) {
-      return firstNumber ===
-        secondNumber;
+      return firstNumber === secondNumber;
     }
 
-
-    return Math.abs(
-      firstNumber -
-      secondNumber
-    ) <
+    return Math.abs(firstNumber - secondNumber) <
       0.0000001;
   }
 
+  const user = authentication.user;
+  const now = new Date().toISOString();
 
-  const user =
-    authentication.user;
+  const statements = [];
+  const limestoneSyncTargetKeys = new Set();
 
-
-  const now =
-    new Date()
-      .toISOString();
-
-
-  const statements =
-    [];
-
-
-  const limestoneSyncTargetKeys =
-    new Set();
-
-
-  for (
-    const item of
-    items
-  ) {
-    const values =
-      item.values;
-
-
-    const key =
-      `${item.recordDate}:${item.unitNo}`;
-
-
-    const existing =
-      existingByKey.get(
-        key
-      );
-
+  for (const item of items) {
+    const values = item.values;
+    const key = `${item.recordDate}:${item.unitNo}`;
+    const existing = existingByKey.get(key);
 
     const ammoniaFlowM3h =
-      values.ammoniaM3d ===
-        null
+      values.ammoniaM3d === null
         ? null
         : normalizeAuxiliaryMaterialNumber(
-            values.ammoniaM3d /
-            24
+            values.ammoniaM3d / 24
           );
 
-
     const isComplete =
-      values.limestoneUsageTpd !==
-        null &&
-      values.limePowderTpd !==
-        null &&
-      values.ammoniaM3d !==
-        null &&
-      values.soxPpm !==
-        null &&
-      values.noxPpm !==
-        null;
+      values.limestoneUsageTpd !== null &&
+      values.limePowderTpd !== null &&
+      values.ammoniaM3d !== null &&
+      values.soxPpm !== null &&
+      values.noxPpm !== null;
 
-
-    /*
-      부재료 일별 현황의 수치와 비고를 저장한다.
-    */
     statements.push(
       database
         .prepare(`
@@ -5529,8 +5340,7 @@ async function updateAuxiliaryMaterialManualRecords(
             updated_by_name = ?,
             updated_at = ?,
 
-            revision =
-              revision + 1
+            revision = revision + 1
 
           WHERE
             record_date = ?
@@ -5551,10 +5361,7 @@ async function updateAuxiliaryMaterialManualRecords(
           values.noxPpm,
 
           item.remarks,
-
-          isComplete
-            ? 1
-            : 0,
+          isComplete ? 1 : 0,
 
           user.employeeNo,
           user.name,
@@ -5565,13 +5372,9 @@ async function updateAuxiliaryMaterialManualRecords(
         )
     );
 
-
     /*
-      Limestone 입고량 또는 사용량이 실제 변경된 경우만
-      석회석 원본 자료에 양방향으로 동기화한다.
-
-      비고·SOx·NOx 등의 수정만으로 Limestone 자료가
-      수동값으로 변경되는 것을 방지한다.
+      비고만 수정했을 때 Limestone 원본까지
+      불필요하게 수정되지 않도록 실제 변경 여부 확인
     */
     const limestoneValuesChanged =
       !areComparableNumbersEqual(
@@ -5583,16 +5386,12 @@ async function updateAuxiliaryMaterialManualRecords(
         existing?.limestone_usage_tpd
       );
 
-
     if (
       item.recordDate >=
         AUXILIARY_MATERIAL_OIS_START_DATE &&
       limestoneValuesChanged
     ) {
-      limestoneSyncTargetKeys.add(
-        key
-      );
-
+      limestoneSyncTargetKeys.add(key);
 
       statements.push(
         database
@@ -5603,15 +5402,13 @@ async function updateAuxiliaryMaterialManualRecords(
               receipt_quantity = ?,
               usage_quantity = ?,
 
-              calculation_mode =
-                'manual',
+              calculation_mode = 'manual',
 
               updated_by_id = ?,
               updated_by_name = ?,
               updated_at = ?,
 
-              revision =
-                revision + 1
+              revision = revision + 1
 
             WHERE
               usage_date = ?
@@ -5632,26 +5429,57 @@ async function updateAuxiliaryMaterialManualRecords(
     }
   }
 
+  await database.batch(statements);
 
-  await database.batch(
-    statements
-  );
+  const updatedResult = await database
+    .prepare(`
+      SELECT *
 
+      FROM auxiliary_material_daily
 
-  const updatedResult =
-    await database
+      WHERE
+        record_date >= ?
+        AND record_date <= ?
+
+      ORDER BY
+        record_date DESC,
+        unit_no ASC
+    `)
+    .bind(
+      firstDate,
+      lastDate
+    )
+    .all();
+
+  const updatedItems = (
+    Array.isArray(updatedResult.results)
+      ? updatedResult.results
+      : []
+  )
+    .filter(row => {
+      const key =
+        `${normalizeText(row.record_date)}:` +
+        `${Number(row.unit_no)}`;
+
+      return targetKeys.has(key);
+    })
+    .map(convertAuxiliaryMaterialRow)
+    .filter(Boolean);
+
+  let limestoneSyncedCount = 0;
+
+  if (limestoneSyncTargetKeys.size > 0) {
+    const limestoneResult = await database
       .prepare(`
-        SELECT *
+        SELECT
+          usage_date,
+          unit_no
 
-        FROM auxiliary_material_daily
+        FROM limestone_usage_records
 
         WHERE
-          record_date >= ?
-          AND record_date <= ?
-
-        ORDER BY
-          record_date DESC,
-          unit_no ASC
+          usage_date >= ?
+          AND usage_date <= ?
       `)
       .bind(
         firstDate,
@@ -5659,111 +5487,33 @@ async function updateAuxiliaryMaterialManualRecords(
       )
       .all();
 
-
-  const updatedItems =
-    (
-      Array.isArray(
-        updatedResult.results
-      )
-        ? updatedResult.results
+    limestoneSyncedCount = (
+      Array.isArray(limestoneResult.results)
+        ? limestoneResult.results
         : []
-    )
-      .filter(
-        row =>
-          targetKeys.has(
-            (
-              `${normalizeText(
-                row.record_date
-              )}:` +
-              `${Number(
-                row.unit_no
-              )}`
-            )
-          )
-      )
-      .map(
-        convertAuxiliaryMaterialRow
-      )
-      .filter(
-        Boolean
-      );
+    ).filter(row => {
+      const key =
+        `${normalizeText(row.usage_date)}:` +
+        `${Number(row.unit_no)}`;
 
-
-  let limestoneSyncedCount =
-    0;
-
-
-  if (
-    limestoneSyncTargetKeys.size >
-      0
-  ) {
-    const limestoneResult =
-      await database
-        .prepare(`
-          SELECT
-            usage_date,
-            unit_no
-
-          FROM limestone_usage_records
-
-          WHERE
-            usage_date >= ?
-            AND usage_date <= ?
-        `)
-        .bind(
-          firstDate,
-          lastDate
-        )
-        .all();
-
-
-    limestoneSyncedCount =
-      (
-        Array.isArray(
-          limestoneResult.results
-        )
-          ? limestoneResult.results
-          : []
-      )
-        .filter(
-          row =>
-            limestoneSyncTargetKeys.has(
-              (
-                `${normalizeText(
-                  row.usage_date
-                )}:` +
-                `${Number(
-                  row.unit_no
-                )}`
-              )
-            )
-        )
-        .length;
+      return limestoneSyncTargetKeys.has(key);
+    }).length;
   }
 
-
   return jsonResponse({
-    ok:
-      true,
+    ok: true,
 
-    items:
-      updatedItems,
-
-    updatedRecordCount:
-      updatedItems.length,
-
+    items: updatedItems,
+    updatedRecordCount: updatedItems.length,
     limestoneSyncedCount,
 
     message:
-      limestoneSyncedCount >
-        0
+      limestoneSyncedCount > 0
         ? (
             `${updatedItems.length}건의 부재료 자료를 수정했습니다. ` +
             `Limestone ${limestoneSyncedCount}건도 동기화했습니다.`
           )
-        : (
-            `${updatedItems.length}건의 부재료 자료를 수정했습니다.`
-          )
+        : `${updatedItems.length}건의 부재료 자료를 수정했습니다.`
   });
 }
 
@@ -7187,20 +6937,894 @@ async function handleAgentNextRequest(
 }
 
 /* =========================================================
-  저장된 자동수치 기간 조회
+  오전회의 자동수치 수동 보정값 테이블
 
-  - 완료된 DB 자료만 조회한다.
-  - 새로운 OIS 요청을 생성하지 않는다.
-  - 같은 날짜와 자료 종류가 여러 개면 최신 자료만 반환한다.
+  - OIS 원본 자료는 변경하지 않는다.
+  - 날짜별 수동 보정값만 JSON으로 저장한다.
+  - revision으로 동시 수정 충돌을 방지한다.
+========================================================= */
+
+async function ensureMorningMeetingAutoHistoryOverridesTable(
+  database
+) {
+  await database
+    .prepare(`
+      CREATE TABLE IF NOT EXISTS
+        morning_meeting_auto_history_overrides (
+          target_date TEXT PRIMARY KEY,
+
+          values_json TEXT NOT NULL
+            DEFAULT '{}',
+
+          created_by_id TEXT NOT NULL
+            DEFAULT '',
+
+          created_by_name TEXT NOT NULL
+            DEFAULT '',
+
+          created_at TEXT NOT NULL,
+
+          updated_by_id TEXT NOT NULL
+            DEFAULT '',
+
+          updated_by_name TEXT NOT NULL
+            DEFAULT '',
+
+          updated_at TEXT NOT NULL,
+
+          revision INTEGER NOT NULL
+            DEFAULT 1
+        )
+    `)
+    .run();
+}
+
+/* =========================================================
+  오전회의 자동수치 수동 보정값 정리
+
+  - 허용된 19개 수치만 저장한다.
+  - 빈칸은 null로 저장한다.
+  - 쉼표가 포함된 숫자도 허용한다.
+  - 음수나 비정상적으로 큰 값은 차단한다.
+========================================================= */
+
+function normalizeMorningMeetingAutoHistoryOverrideValues(
+  rawValues
+) {
+  const source =
+    rawValues &&
+    typeof rawValues ===
+      "object" &&
+    !Array.isArray(
+      rawValues
+    )
+      ? rawValues
+      : {};
+
+
+  const fields = [
+    {
+      key:
+        "rawWaterInflow",
+
+      label:
+        "원수 유입"
+    },
+
+    {
+      key:
+        "demiProduction",
+
+      label:
+        "순수 생산"
+    },
+
+    {
+      key:
+        "pureWaterUsage",
+
+      label:
+        "순수 사용"
+    },
+
+    {
+      key:
+        "limestoneUnitOneUsage",
+
+      label:
+        "석회석 1호기 사용량"
+    },
+
+    {
+      key:
+        "limestoneUnitTwoUsage",
+
+      label:
+        "석회석 2호기 사용량"
+    },
+
+    {
+      key:
+        "gearWheel",
+
+      label:
+        "Gear 값"
+    },
+
+    {
+      key:
+        "pinion",
+
+      label:
+        "Pinion 값"
+    },
+
+    {
+      key:
+        "flyAshSiloLevel",
+
+      label:
+        "Fly Ash Silo Level"
+    },
+
+    {
+      key:
+        "bioStorageSiloLevel",
+
+      label:
+        "Bio Storage Silo Level"
+    },
+
+    {
+      key:
+        "smpMinimum",
+
+      label:
+        "전력단가 최소값"
+    },
+
+    {
+      key:
+        "smpMaximum",
+
+      label:
+        "전력단가 최대값"
+    },
+
+    {
+      key:
+        "smpWeightedAverage",
+
+      label:
+        "전력단가 평균값"
+    },
+
+    {
+      key:
+        "steamSales",
+
+      label:
+        "증기 판매량"
+    },
+
+    {
+      key:
+        "steamProduction",
+
+      label:
+        "증기 생산량"
+    },
+
+    {
+      key:
+        "powerProduction",
+
+      label:
+        "전력 생산량"
+    },
+
+    {
+      key:
+        "powerSales",
+
+      label:
+        "전력 판매량"
+    },
+
+    {
+      key:
+        "solarGeneration",
+
+      label:
+        "태양광 발전량"
+    },
+
+    {
+      key:
+        "organicReceived",
+
+      label:
+        "유기성 고형연료 입고량"
+    },
+
+    {
+      key:
+        "organicStored",
+
+      label:
+        "유기성 고형연료 재고량"
+    }
+  ];
+
+
+  const normalizedValues =
+    {};
+
+
+  for (
+    const field of
+    fields
+  ) {
+    if (
+      !Object.prototype.hasOwnProperty.call(
+        source,
+        field.key
+      )
+    ) {
+      continue;
+    }
+
+
+    const rawValue =
+      source[
+        field.key
+      ];
+
+
+    if (
+      rawValue ===
+        null ||
+      rawValue ===
+        undefined ||
+      normalizeText(
+        rawValue
+      ) ===
+        ""
+    ) {
+      normalizedValues[
+        field.key
+      ] =
+        null;
+
+
+      continue;
+    }
+
+
+    const numericText =
+      normalizeText(
+        rawValue
+      ).replace(
+        /,/g,
+        ""
+      );
+
+
+    const numericValue =
+      Number(
+        numericText
+      );
+
+
+    if (
+      !Number.isFinite(
+        numericValue
+      )
+    ) {
+      throw new Error(
+        `${field.label} 값을 숫자로 입력해 주세요.`
+      );
+    }
+
+
+    if (
+      numericValue <
+        0
+    ) {
+      throw new Error(
+        `${field.label} 값은 0보다 작을 수 없습니다.`
+      );
+    }
+
+
+    if (
+      numericValue >
+        1000000000000
+    ) {
+      throw new Error(
+        `${field.label} 값이 지나치게 큽니다.`
+      );
+    }
+
+
+    normalizedValues[
+      field.key
+    ] =
+      numericValue;
+  }
+
+
+  return normalizedValues;
+}
+
+/* =========================================================
+  오전회의 자동수치 수동 보정 DB 행 → API 응답
+
+  - 손상된 날짜나 JSON 행은 제외한다.
+  - 한 건의 오류가 월 전체 조회를 막지 않게 한다.
+========================================================= */
+
+function convertMorningMeetingAutoHistoryOverrideRow(
+  row
+) {
+  if (
+    !row
+  ) {
+    return null;
+  }
+
+
+  const targetDate =
+    normalizeText(
+      row.target_date
+    );
+
+
+  if (
+    !isValidIsoDate(
+      targetDate
+    )
+  ) {
+    return null;
+  }
+
+
+  let rawValues;
+
+
+  try {
+    const valuesText =
+      normalizeText(
+        row.values_json
+      );
+
+
+    rawValues =
+      valuesText
+        ? JSON.parse(
+            valuesText
+          )
+        : {};
+
+  } catch {
+    return null;
+  }
+
+
+  let values;
+
+
+  try {
+    values =
+      normalizeMorningMeetingAutoHistoryOverrideValues(
+        rawValues
+      );
+
+  } catch {
+    return null;
+  }
+
+
+  const revisionValue =
+    Number(
+      row.revision
+    );
+
+
+  return {
+    targetDate,
+
+    values,
+
+    createdById:
+      normalizeText(
+        row.created_by_id
+      ),
+
+    createdByName:
+      normalizeText(
+        row.created_by_name
+      ),
+
+    createdAt:
+      normalizeText(
+        row.created_at
+      ),
+
+    updatedById:
+      normalizeText(
+        row.updated_by_id
+      ),
+
+    updatedByName:
+      normalizeText(
+        row.updated_by_name
+      ),
+
+    updatedAt:
+      normalizeText(
+        row.updated_at
+      ),
+
+    revision:
+      Number.isInteger(
+        revisionValue
+      ) &&
+      revisionValue >
+        0
+        ? revisionValue
+        : 1
+  };
+}
+
+
+
+/* =========================================================
+  오전회의 자동수치 수동 보정값 기간 조회
+
+  - 기존 completed_history 요청 내부에서 사용한다.
+  - 브라우저의 API 요청 횟수는 증가하지 않는다.
+========================================================= */
+
+async function findMorningMeetingAutoHistoryOverrides(
+  database,
+  startDate,
+  endDate
+) {
+  if (
+    !isValidIsoDate(
+      startDate
+    ) ||
+    !isValidIsoDate(
+      endDate
+    ) ||
+    startDate >
+      endDate
+  ) {
+    return [];
+  }
+
+
+  await ensureMorningMeetingAutoHistoryOverridesTable(
+    database
+  );
+
+
+  const queryResult =
+    await database
+      .prepare(`
+        SELECT
+          *
+
+        FROM
+          morning_meeting_auto_history_overrides
+
+        WHERE
+          target_date >= ?
+          AND target_date <= ?
+
+        ORDER BY
+          target_date DESC
+      `)
+      .bind(
+        startDate,
+        endDate
+      )
+      .all();
+
+
+  return (
+    Array.isArray(
+      queryResult.results
+    )
+      ? queryResult.results
+      : []
+  )
+    .map(
+      convertMorningMeetingAutoHistoryOverrideRow
+    )
+    .filter(
+      Boolean
+    );
+}
+
+async function saveMorningMeetingAutoHistoryOverride(
+  context,
+  body
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+  const targetDate =
+    normalizeText(
+      body.targetDate ||
+      body.target_date
+    );
+
+  if (
+    !isValidIsoDate(
+      targetDate
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "수정할 자동수치 날짜를 확인해 주세요."
+      },
+      400
+    );
+  }
+
+  let normalizedValues;
+
+  try {
+    normalizedValues =
+      normalizeMorningMeetingAutoHistoryOverrideValues(
+        body.values
+      );
+
+  } catch (
+    error
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+
+        message:
+          error instanceof Error
+            ? error.message
+            : "수정할 자동수치 값을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+  if (
+    Object.keys(
+      normalizedValues
+    ).length < 1
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "변경된 자동수치가 없습니다."
+      },
+      400
+    );
+  }
+
+  const expectedRevision =
+    Number(
+      body.expectedRevision ??
+      body.revision ??
+      0
+    );
+
+  if (
+    !Number.isInteger(
+      expectedRevision
+    ) ||
+    expectedRevision < 0
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "자동수치 수정 버전을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+  const database =
+    context.env.DB;
+
+  await ensureMorningMeetingAutoHistoryOverridesTable(
+    database
+  );
+
+  const existingRow =
+    await database
+      .prepare(`
+        SELECT
+          *
+
+        FROM morning_meeting_auto_history_overrides
+
+        WHERE
+          target_date = ?
+
+        LIMIT 1
+      `)
+      .bind(
+        targetDate
+      )
+      .first();
+
+  const existingItem =
+    convertMorningMeetingAutoHistoryOverrideRow(
+      existingRow
+    );
+
+  const currentRevision =
+    existingRow
+      ? (
+          Number.isInteger(
+            Number(
+              existingRow.revision
+            )
+          ) &&
+          Number(
+            existingRow.revision
+          ) > 0
+            ? Number(
+                existingRow.revision
+              )
+            : 1
+        )
+      : 0;
+
+  if (
+    expectedRevision !==
+      currentRevision
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+
+        currentItem:
+          existingItem,
+
+        message:
+          "다른 사용자가 먼저 수정했습니다. 최신 자료를 다시 확인해 주세요."
+      },
+      409
+    );
+  }
+
+  /*
+    기존에 수정했던 다른 항목은 유지하고
+    이번에 바뀐 항목만 덮어쓴다.
+  */
+  const mergedValues = {
+    ...(
+      existingItem?.values &&
+      typeof existingItem.values ===
+        "object" &&
+      !Array.isArray(
+        existingItem.values
+      )
+        ? existingItem.values
+        : {}
+    ),
+
+    ...normalizedValues
+  };
+
+  const valuesJson =
+    JSON.stringify(
+      mergedValues
+    );
+
+  const user =
+    authentication.user;
+
+  const now =
+    new Date()
+      .toISOString();
+
+  let writeResult;
+
+  if (
+    existingRow
+  ) {
+    writeResult =
+      await database
+        .prepare(`
+          UPDATE
+            morning_meeting_auto_history_overrides
+
+          SET
+            values_json = ?,
+
+            updated_by_id = ?,
+            updated_by_name = ?,
+            updated_at = ?,
+
+            revision =
+              revision + 1
+
+          WHERE
+            target_date = ?
+            AND revision = ?
+        `)
+        .bind(
+          valuesJson,
+
+          user.employeeNo,
+          user.name,
+          now,
+
+          targetDate,
+          currentRevision
+        )
+        .run();
+
+  } else {
+    writeResult =
+      await database
+        .prepare(`
+          INSERT OR IGNORE INTO
+            morning_meeting_auto_history_overrides (
+              target_date,
+              values_json,
+
+              created_by_id,
+              created_by_name,
+              created_at,
+
+              updated_by_id,
+              updated_by_name,
+              updated_at,
+
+              revision
+            )
+
+          VALUES (
+            ?,
+            ?,
+
+            ?,
+            ?,
+            ?,
+
+            ?,
+            ?,
+            ?,
+
+            1
+          )
+        `)
+        .bind(
+          targetDate,
+          valuesJson,
+
+          user.employeeNo,
+          user.name,
+          now,
+
+          user.employeeNo,
+          user.name,
+          now
+        )
+        .run();
+  }
+
+  if (
+    Number(
+      writeResult?.meta?.changes
+    ) !== 1
+  ) {
+    const latestRow =
+      await database
+        .prepare(`
+          SELECT
+            *
+
+          FROM morning_meeting_auto_history_overrides
+
+          WHERE
+            target_date = ?
+
+          LIMIT 1
+        `)
+        .bind(
+          targetDate
+        )
+        .first();
+
+    return jsonResponse(
+      {
+        ok: false,
+
+        currentItem:
+          convertMorningMeetingAutoHistoryOverrideRow(
+            latestRow
+          ),
+
+        message:
+          "다른 사용자가 먼저 수정했습니다. 최신 자료를 다시 확인해 주세요."
+      },
+      409
+    );
+  }
+
+  const savedRow =
+    await database
+      .prepare(`
+        SELECT
+          *
+
+        FROM morning_meeting_auto_history_overrides
+
+        WHERE
+          target_date = ?
+
+        LIMIT 1
+      `)
+      .bind(
+        targetDate
+      )
+      .first();
+
+  const savedItem =
+    convertMorningMeetingAutoHistoryOverrideRow(
+      savedRow
+    );
+
+  if (
+    !savedItem
+  ) {
+    throw new Error(
+      "저장된 자동수치 수정값을 확인하지 못했습니다."
+    );
+  }
+
+  return jsonResponse({
+    ok: true,
+
+    item:
+      savedItem,
+
+    message:
+      `${targetDate} 자동수치 수정값을 저장했습니다.`
+  });
+}
+
+/* =========================================================
+  오전회의 자동수치 수정값 기간 조회
 
   GET:
   /api/ois-data-requests
-    ?action=completed_history
+    ?action=morning_meeting_auto_history_overrides
     &startDate=2026-08-01
     &endDate=2026-08-31
+
+  저장된 수정값만 조회하며
+  새로운 OIS 요청은 생성하지 않는다.
 ========================================================= */
 
-async function handleCompletedHistoryGet(
+async function handleMorningMeetingAutoHistoryOverridesGet(
   context,
   requestUrl
 ) {
@@ -7247,7 +7871,7 @@ async function handleCompletedHistoryGet(
           false,
 
         message:
-          "자동수치 조회 시작일과 종료일을 확인해 주세요."
+          "자동수치 수정값 조회 시작일과 종료일을 확인해 주세요."
       },
       400
     );
@@ -7271,7 +7895,7 @@ async function handleCompletedHistoryGet(
           false,
 
         message:
-          "자동수치 조회 시작일은 종료일보다 늦을 수 없습니다."
+          "자동수치 수정값 조회 시작일은 종료일보다 늦을 수 없습니다."
       },
       400
     );
@@ -7288,18 +7912,580 @@ async function handleCompletedHistoryGet(
           false,
 
         message:
-          "자동수치 이력은 한 번에 최대 366일까지 조회할 수 있습니다."
+          "자동수치 수정값은 한 번에 최대 366일까지 조회할 수 있습니다."
       },
       400
     );
   }
 
 
-  /*
-    이 SELECT문은 저장된 완료 자료만 읽는다.
+  await ensureMorningMeetingAutoHistoryOverridesTable(
+    context.env.DB
+  );
 
-    INSERT, UPDATE 또는 OIS 작업 생성 로직은
-    이 함수에서 실행하지 않는다.
+
+  const items =
+    await findMorningMeetingAutoHistoryOverrides(
+      context.env.DB,
+      startDate,
+      endDate
+    );
+
+
+  return jsonResponse({
+    ok:
+      true,
+
+    range: {
+      startDate,
+      endDate,
+      dayCount
+    },
+
+    summary: {
+      savedDateCount:
+        items.length
+    },
+
+    items
+  });
+}
+
+/* =========================================================
+  오전회의 자동수치 수정값 저장
+
+  - 원본 OIS 완료자료는 수정하지 않는다.
+  - 날짜별 수정값만 별도 테이블에 저장한다.
+  - revision으로 동시 수정 충돌을 방지한다.
+========================================================= */
+
+async function saveMorningMeetingAutoHistoryOverrides(
+  context,
+  body
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const rawItems =
+    Array.isArray(
+      body.items
+    )
+      ? body.items
+      : [];
+
+
+  if (
+    rawItems.length <
+      1 ||
+    rawItems.length >
+      366
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "자동수치 수정자료는 한 번에 1건 이상 366건 이하로 저장해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const normalizedItems = [];
+  const targetDates =
+    new Set();
+
+
+  try {
+    for (
+      let index = 0;
+      index < rawItems.length;
+      index += 1
+    ) {
+      const rawItem =
+        rawItems[index] ||
+        {};
+
+
+      const recordDate =
+        normalizeText(
+          rawItem.recordDate
+        );
+
+
+      if (
+        !isValidIsoDate(
+          recordDate
+        )
+      ) {
+        throw new Error(
+          `${index + 1}번째 자동수치 수정자료의 날짜를 확인해 주세요.`
+        );
+      }
+
+
+      if (
+        targetDates.has(
+          recordDate
+        )
+      ) {
+        throw new Error(
+          `${recordDate} 수정자료가 중복되었습니다.`
+        );
+      }
+
+
+      const rawRevision =
+        rawItem.revision;
+
+
+      const expectedRevision =
+        rawRevision ===
+          undefined ||
+        rawRevision ===
+          null ||
+        String(
+          rawRevision
+        ).trim() ===
+          ""
+          ? 0
+          : Number(
+              rawRevision
+            );
+
+
+      if (
+        !Number.isInteger(
+          expectedRevision
+        ) ||
+        expectedRevision <
+          0
+      ) {
+        throw new Error(
+          `${recordDate} 수정자료의 revision 값을 확인해 주세요.`
+        );
+      }
+
+
+      const values =
+        normalizeMorningMeetingAutoHistoryOverrideValues(
+          rawItem.values
+        );
+
+
+      if (
+        !values ||
+        typeof values !==
+          "object" ||
+        Array.isArray(
+          values
+        ) ||
+        Object.keys(
+          values
+        ).length <
+          1
+      ) {
+        throw new Error(
+          `${recordDate}에 저장할 수정값이 없습니다.`
+        );
+      }
+
+
+      targetDates.add(
+        recordDate
+      );
+
+
+      normalizedItems.push({
+        recordDate,
+        expectedRevision,
+        values
+      });
+    }
+
+  } catch (
+    error
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          error instanceof Error
+            ? error.message
+            : "자동수치 수정값을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  normalizedItems.sort(
+    (
+      first,
+      second
+    ) =>
+      first.recordDate.localeCompare(
+        second.recordDate
+      )
+  );
+
+
+  const firstDate =
+    normalizedItems[0]
+      .recordDate;
+
+
+  const lastDate =
+    normalizedItems[
+      normalizedItems.length -
+      1
+    ].recordDate;
+
+
+  const dayCount =
+    getLimestoneUsageBatchDayCount(
+      firstDate,
+      lastDate
+    );
+
+
+  if (
+    dayCount <
+      1 ||
+    dayCount >
+      366
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "자동수치 수정값은 최대 366일 범위까지 저장할 수 있습니다."
+      },
+      400
+    );
+  }
+
+
+  const database =
+    context.env.DB;
+
+
+  await ensureMorningMeetingAutoHistoryOverridesTable(
+    database
+  );
+
+
+  const existingItems =
+    await findMorningMeetingAutoHistoryOverrides(
+      database,
+      firstDate,
+      lastDate
+    );
+
+
+  const existingByDate =
+    new Map(
+      existingItems.map(
+        item => [
+          item.recordDate,
+          item
+        ]
+      )
+    );
+
+
+  for (
+    const item of
+    normalizedItems
+  ) {
+    const existing =
+      existingByDate.get(
+        item.recordDate
+      );
+
+
+    if (
+      existing
+    ) {
+      if (
+        Number(
+          existing.revision
+        ) !==
+          item.expectedRevision
+      ) {
+        return jsonResponse(
+          {
+            ok:
+              false,
+
+            message:
+              `${item.recordDate} 자동수치가 다른 사용자에 의해 변경되었습니다. 다시 조회한 뒤 수정해 주세요.`
+          },
+          409
+        );
+      }
+
+
+      /*
+        이번에 변경한 필드만 기존 수정값에 합친다.
+        앞서 저장한 다른 수정값은 유지한다.
+      */
+      item.values = {
+        ...existing.values,
+        ...item.values
+      };
+
+      continue;
+    }
+
+
+    if (
+      item.expectedRevision >
+        0
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+
+          message:
+            `${item.recordDate} 자동수치 수정자료가 변경되었거나 삭제되었습니다. 다시 조회해 주세요.`
+        },
+        409
+      );
+    }
+  }
+
+
+  const user =
+    authentication.user;
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  const statements =
+    normalizedItems.map(
+      item =>
+        database
+          .prepare(`
+            INSERT INTO morning_meeting_auto_history_overrides (
+              record_date,
+              values_json,
+
+              created_by_id,
+              created_by_name,
+              updated_by_id,
+              updated_by_name,
+
+              created_at,
+              updated_at,
+              revision
+            )
+            VALUES (
+              ?,
+              ?,
+
+              ?,
+              ?,
+              ?,
+              ?,
+
+              ?,
+              ?,
+              1
+            )
+
+            ON CONFLICT (
+              record_date
+            )
+            DO UPDATE SET
+              values_json =
+                excluded.values_json,
+
+              updated_by_id =
+                excluded.updated_by_id,
+
+              updated_by_name =
+                excluded.updated_by_name,
+
+              updated_at =
+                excluded.updated_at,
+
+              revision =
+                morning_meeting_auto_history_overrides.revision +
+                1
+          `)
+          .bind(
+            item.recordDate,
+
+            JSON.stringify(
+              item.values
+            ),
+
+            user.employeeNo,
+            user.name,
+            user.employeeNo,
+            user.name,
+
+            now,
+            now
+          )
+    );
+
+
+  await database.batch(
+    statements
+  );
+
+
+  const savedItems =
+    (
+      await findMorningMeetingAutoHistoryOverrides(
+        database,
+        firstDate,
+        lastDate
+      )
+    ).filter(
+      item =>
+        targetDates.has(
+          item.recordDate
+        )
+    );
+
+
+  return jsonResponse({
+    ok:
+      true,
+
+    message:
+      "자동수치 수정값을 저장했습니다.",
+
+    summary: {
+      savedDateCount:
+        savedItems.length
+    },
+
+    items:
+      savedItems
+  });
+}
+
+/* =========================================================
+  저장된 자동수치 기간 조회
+
+  - 완료된 DB 자료만 조회한다.
+  - 새로운 OIS 요청을 생성하지 않는다.
+  - 같은 날짜와 자료 종류가 여러 개면 최신 자료만 반환한다.
+
+  GET:
+  /api/ois-data-requests
+    ?action=completed_history
+    &startDate=2026-08-01
+    &endDate=2026-08-31
+========================================================= */
+
+async function handleCompletedHistoryGet(
+  context,
+  requestUrl
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+  const startDate =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "startDate"
+      )
+    );
+
+  const endDate =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "endDate"
+      )
+    );
+
+  if (
+    !isValidIsoDate(
+      startDate
+    ) ||
+    !isValidIsoDate(
+      endDate
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "자동수치 조회 시작일과 종료일을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+  const dayCount =
+    getLimestoneUsageBatchDayCount(
+      startDate,
+      endDate
+    );
+
+  if (
+    dayCount < 1
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "자동수치 조회 시작일은 종료일보다 늦을 수 없습니다."
+      },
+      400
+    );
+  }
+
+  if (
+    dayCount > 366
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "자동수치 이력은 한 번에 최대 366일까지 조회할 수 있습니다."
+      },
+      400
+    );
+  }
+
+  /*
+    저장이 완료된 기존 자동수치만 읽는다.
+
+    새로운 OIS 요청 생성이나
+    자동 재조회는 실행하지 않는다.
   */
   const queryResult =
     await context.env.DB
@@ -7352,7 +8538,6 @@ async function handleCompletedHistoryGet(
       )
       .all();
 
-
   const rows =
     Array.isArray(
       queryResult.results
@@ -7360,21 +8545,18 @@ async function handleCompletedHistoryGet(
       ? queryResult.results
       : [];
 
-
   /*
-    날짜 + 자료 종류별로 가장 최신 자료 하나만 남긴다.
+    날짜와 자료 종류가 같은 자료는
+    가장 최신 자료 하나만 남긴다.
   */
   const savedKeys =
     new Set();
 
-
   const savedDates =
     new Set();
 
-
   const items =
     [];
-
 
   rows.forEach(
     row => {
@@ -7382,7 +8564,6 @@ async function handleCompletedHistoryGet(
         convertRequestRow(
           row
         );
-
 
       if (
         !convertedItem ||
@@ -7399,17 +8580,15 @@ async function handleCompletedHistoryGet(
         return;
       }
 
-
       /*
         기존 steam_status 자료도
-        현재 daily_data_excel 자료로 함께 취급한다.
+        현재 daily_data_excel 자료로 취급한다.
       */
       const requestType =
         convertedItem.requestType ===
           "steam_status"
           ? "daily_data_excel"
           : convertedItem.requestType;
-
 
       const savedKey =
         [
@@ -7419,7 +8598,6 @@ async function handleCompletedHistoryGet(
           ":"
         );
 
-
       if (
         savedKeys.has(
           savedKey
@@ -7428,16 +8606,13 @@ async function handleCompletedHistoryGet(
         return;
       }
 
-
       savedKeys.add(
         savedKey
       );
 
-
       savedDates.add(
         convertedItem.targetDate
       );
-
 
       items.push({
         id:
@@ -7466,6 +8641,18 @@ async function handleCompletedHistoryGet(
     }
   );
 
+  /*
+    날짜별 수동 수정값을 같은 응답에 포함한다.
+
+    브라우저에서 별도의 조회 요청을
+    추가로 보내지 않기 위한 구조다.
+  */
+  const overrides =
+    await findMorningMeetingAutoHistoryOverrides(
+      context.env.DB,
+      startDate,
+      endDate
+    );
 
   return jsonResponse({
     ok:
@@ -7482,10 +8669,15 @@ async function handleCompletedHistoryGet(
         savedDates.size,
 
       savedItemCount:
-        items.length
+        items.length,
+
+      overrideCount:
+        overrides.length
     },
 
-    items
+    items,
+
+    overrides
   });
 }
 
@@ -7531,6 +8723,18 @@ export async function onRequestGet(
           "_"
         );
 
+/*
+  오전회의 자동수치 수정값 기간 조회
+*/
+if (
+  action ===
+    "morning_meeting_auto_history_overrides"
+) {
+  return await handleMorningMeetingAutoHistoryOverridesGet(
+    context,
+    requestUrl
+  );
+}
 
 /*
   저장된 자동수치 기간 조회
@@ -9408,6 +10612,22 @@ export async function onRequestPost(
         body
       );
     }
+
+/*
+  오전회의 자동수치 수동 수정값 저장
+
+  - PC 수정 저장 버튼을 눌렀을 때만 실행
+  - 새로운 OIS 조회는 생성하지 않음
+*/
+if (
+  action ===
+    "save_morning_meeting_auto_history_override"
+) {
+  return await saveMorningMeetingAutoHistoryOverride(
+    context,
+    body
+  );
+}
 
 /*
   부재료 날짜·호기별 수치 수정
