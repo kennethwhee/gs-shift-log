@@ -105581,3 +105581,212 @@ input {
     letter-spacing: -0.2px !important;
   }
 }
+
+/* =========================================================
+  자동수치 기록 수정 화면 보정
+  - 작업 버튼 높이 통일
+  - 편집 입력칸을 표 안에 맞춤
+========================================================= */
+
+@media screen and (min-width: 769px) {
+
+  /* 새로고침 · 수정 · 저장 · 취소 버튼 묶음 */
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingAutoHistoryView
+  .efficiency-morning-meeting-auto-history-edit-actions {
+    display: flex !important;
+    flex: 0 0 auto !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+
+  /* 모든 작업 버튼 크기 통일 */
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingAutoHistoryView
+  .efficiency-morning-meeting-auto-history-edit-actions
+  > button {
+    box-sizing: border-box !important;
+
+    width: auto !important;
+    height: 30px !important;
+    min-width: 0 !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+
+    margin: 0 !important;
+    padding: 0 10px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 10px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingAutoHistoryView
+  .efficiency-morning-meeting-auto-history-edit-actions
+  > button[hidden] {
+    display: none !important;
+  }
+
+
+  /* 편집 중인 표 셀 */
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingAutoHistoryTable
+  td.is-auto-history-edit-cell {
+    padding: 2px !important;
+
+    overflow: hidden !important;
+    white-space: normal !important;
+  }
+
+
+  /* 입력칸 묶음 */
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingAutoHistoryTable
+  .auto-history-cell-editor {
+    box-sizing: border-box !important;
+
+    display: grid !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    align-items: center !important;
+
+    gap: 2px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  /* 입력값이 한 개인 셀 */
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingAutoHistoryTable
+  .auto-history-cell-editor.is-single {
+    grid-template-columns:
+      minmax(0, 1fr) !important;
+  }
+
+
+  /* Gear/Pinion, 입고/재고처럼 입력값이 두 개인 셀 */
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingAutoHistoryTable
+  .auto-history-cell-editor.is-multiple {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      ) !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingAutoHistoryTable
+  .auto-history-input-control {
+    box-sizing: border-box !important;
+
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    align-items: center !important;
+
+    gap: 1px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: hidden !important;
+  }
+
+
+  /* G/P, 입고/재고 표시 */
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingAutoHistoryTable
+  .auto-history-input-label {
+    display: block !important;
+    flex: 0 0 auto !important;
+
+    margin: 0 !important;
+
+    color: #52677f !important;
+
+    font-size: 7px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* 실제 숫자 입력칸 */
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingAutoHistoryTable
+  .auto-history-value-input {
+    box-sizing: border-box !important;
+
+    display: block !important;
+    flex: 1 1 0 !important;
+
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    height: 22px !important;
+    min-height: 22px !important;
+    max-height: 22px !important;
+
+    margin: 0 !important;
+    padding: 0 2px !important;
+
+    border: 1px solid #b8c9dc !important;
+    border-radius: 4px !important;
+
+    background: #ffffff !important;
+    color: #24364f !important;
+
+    box-shadow: none !important;
+    outline: none !important;
+
+    font-family: inherit !important;
+    font-size: 8.5px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+
+    text-align: center !important;
+    font-variant-numeric: tabular-nums !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingAutoHistoryTable
+  .auto-history-value-input:focus {
+    border-color: #2f72c7 !important;
+
+    box-shadow:
+      inset 0 0 0 1px
+      rgba(47, 114, 199, 0.18) !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingAutoHistoryTable
+  .auto-history-value-input.is-changed {
+    border-color: #4d8ed8 !important;
+
+    background: #eef6ff !important;
+    color: #154f87 !important;
+  }
+}
