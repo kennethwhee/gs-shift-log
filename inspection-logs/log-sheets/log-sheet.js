@@ -710,82 +710,333 @@
       : "";
   }
 
-  function applyCellStyle(
-    tableCell,
-    workbookCell
+function applyCellStyle(
+  tableCell,
+  workbookCell
+) {
+  const style =
+    workbookCell?.s;
+
+
+  if (
+    !style ||
+    typeof style !==
+      "object"
   ) {
-    const style =
-      workbookCell?.s;
-
-    if (
-      !style ||
-      typeof style !== "object"
-    ) {
-      return;
-    }
-
-    const fillColor =
-      colorToCss(
-        style.fill?.fgColor
-      );
-
-    const fontColor =
-      colorToCss(
-        style.font?.color
-      );
-
-    if (fillColor) {
-      tableCell.style.backgroundColor =
-        fillColor;
-    }
-
-    if (fontColor) {
-      tableCell.style.color =
-        fontColor;
-    }
-
-    if (style.font?.bold) {
-      tableCell.style.fontWeight =
-        "800";
-    }
-
-    if (style.font?.italic) {
-      tableCell.style.fontStyle =
-        "italic";
-    }
-
-    const horizontal =
-      normalizeText(
-        style.alignment?.horizontal
-      );
-
-    if (
-      [
-        "left",
-        "center",
-        "right"
-      ].includes(horizontal)
-    ) {
-      tableCell.style.textAlign =
-        horizontal;
-    }
-
-    const vertical =
-      normalizeText(
-        style.alignment?.vertical
-      );
-
-    if (
-      [
-        "top",
-        "middle",
-        "bottom"
-      ].includes(vertical)
-    ) {
-      tableCell.style.verticalAlign =
-        vertical;
-    }
+    return;
   }
+
+
+  /* =====================================================
+    배경색
+  ====================================================== */
+
+  const fillColor =
+    colorToCss(
+      style.fill?.fgColor
+    );
+
+
+  if (
+    fillColor
+  ) {
+    tableCell.style
+      .backgroundColor =
+      fillColor;
+  }
+
+
+  /* =====================================================
+    글꼴
+  ====================================================== */
+
+  const fontColor =
+    colorToCss(
+      style.font?.color
+    );
+
+
+  if (
+    fontColor
+  ) {
+    tableCell.style.color =
+      fontColor;
+  }
+
+
+  if (
+    style.font?.bold
+  ) {
+    tableCell.style
+      .fontWeight =
+      "700";
+  }
+
+
+  if (
+    style.font?.italic
+  ) {
+    tableCell.style
+      .fontStyle =
+      "italic";
+  }
+
+
+  const fontSizePt =
+    Number(
+      style.font?.sz
+    );
+
+
+  if (
+    Number.isFinite(
+      fontSizePt
+    ) &&
+    fontSizePt >
+      0
+  ) {
+    /*
+      Excel font size는 pt 단위.
+
+      브라우저 px 변환:
+      1pt = 96 / 72px
+    */
+    const fontSizePx =
+      fontSizePt *
+      96 /
+      72;
+
+
+    tableCell.style
+      .fontSize =
+      `${fontSizePx}px`;
+
+
+    /*
+      print CSS에서 사용할
+      원본 Excel 글자크기도 기억한다.
+    */
+    tableCell.style
+      .setProperty(
+        "--excel-font-size",
+        `${fontSizePx}px`
+      );
+  }
+
+
+  const fontName =
+    normalizeText(
+      style.font?.name
+    );
+
+
+  if (
+    fontName
+  ) {
+    tableCell.style
+      .fontFamily =
+      `"${fontName}", "Malgun Gothic", sans-serif`;
+  }
+
+
+  /* =====================================================
+    정렬
+  ====================================================== */
+
+  const horizontal =
+    normalizeText(
+      style.alignment
+        ?.horizontal
+    );
+
+
+  if (
+    [
+      "left",
+      "center",
+      "right"
+    ].includes(
+      horizontal
+    )
+  ) {
+    tableCell.style
+      .textAlign =
+      horizontal;
+  }
+
+
+  const vertical =
+    normalizeText(
+      style.alignment
+        ?.vertical
+    );
+
+
+  if (
+    [
+      "top",
+      "middle",
+      "bottom"
+    ].includes(
+      vertical
+    )
+  ) {
+    tableCell.style
+      .verticalAlign =
+      vertical;
+  }
+
+
+  if (
+    style.alignment
+      ?.wrapText ===
+      true
+  ) {
+    tableCell.style
+      .whiteSpace =
+      "pre-wrap";
+  }
+
+
+  /* =====================================================
+    Excel 테두리
+
+    PDF 원본처럼:
+    - 실선
+    - 점선
+    - 파선
+    - 굵은선
+
+    을 최대한 그대로 표현한다.
+  ====================================================== */
+
+  const convertBorderStyle =
+    border => {
+      const borderStyle =
+        normalizeText(
+          border?.style
+        );
+
+
+      const borderColor =
+        colorToCss(
+          border?.color
+        ) ||
+        "#000000";
+
+
+      if (
+        !borderStyle
+      ) {
+        return "";
+      }
+
+
+      switch (
+        borderStyle
+      ) {
+        case "hair":
+        case "dotted":
+          return (
+            `1px dotted ${borderColor}`
+          );
+
+
+        case "dashDot":
+        case "dashDotDot":
+        case "dashed":
+          return (
+            `1px dashed ${borderColor}`
+          );
+
+
+        case "medium":
+        case "mediumDashed":
+        case "mediumDashDot":
+        case "mediumDashDotDot":
+          return (
+            `2px solid ${borderColor}`
+          );
+
+
+        case "thick":
+          return (
+            `3px solid ${borderColor}`
+          );
+
+
+        case "double":
+          return (
+            `3px double ${borderColor}`
+          );
+
+
+        default:
+          return (
+            `1px solid ${borderColor}`
+          );
+      }
+    };
+
+
+  const borders = {
+    top:
+      convertBorderStyle(
+        style.border?.top
+      ),
+
+    right:
+      convertBorderStyle(
+        style.border?.right
+      ),
+
+    bottom:
+      convertBorderStyle(
+        style.border?.bottom
+      ),
+
+    left:
+      convertBorderStyle(
+        style.border?.left
+      )
+  };
+
+
+  if (
+    borders.top
+  ) {
+    tableCell.style
+      .borderTop =
+      borders.top;
+  }
+
+
+  if (
+    borders.right
+  ) {
+    tableCell.style
+      .borderRight =
+      borders.right;
+  }
+
+
+  if (
+    borders.bottom
+  ) {
+    tableCell.style
+      .borderBottom =
+      borders.bottom;
+  }
+
+
+  if (
+    borders.left
+  ) {
+    tableCell.style
+      .borderLeft =
+      borders.left;
+  }
+}
 
   function createEditorControl(
     sheet,
@@ -2567,269 +2818,462 @@ function renderLoggingItemList() {
     }
   }
 
-  function renderGrid() {
-    const sheet =
-      state.workbook?.Sheets?.[
-        state.sheetConfig.sheetName
-      ];
+function renderGrid() {
+  const sheet =
+    state.workbook?.Sheets?.[
+      state.sheetConfig
+        .sheetName
+    ];
 
-    if (!sheet) {
-      throw new Error(
-        `엑셀 시트를 찾을 수 없습니다: ${state.sheetConfig.sheetName}`
-      );
-    }
 
-    const renderRange =
-      parseRange(
-        state.sheetConfig.renderRange ||
-        sheet["!ref"]
-      );
+  if (
+    !sheet
+  ) {
+    throw new Error(
+      `엑셀 시트를 찾을 수 없습니다: ${state.sheetConfig.sheetName}`
+    );
+  }
 
-    const editable =
-      getEditableAddresses(
-        state.sheetConfig
-      );
 
-    const {
-      anchorMap,
-      slaveAddresses
-    } = getMergeAnchorMap(
+  const renderRange =
+    parseRange(
+      state.sheetConfig
+        .renderRange ||
+      sheet["!ref"]
+    );
+
+
+  const editable =
+    getEditableAddresses(
+      state.sheetConfig
+    );
+
+
+  const {
+    anchorMap,
+    slaveAddresses
+  } =
+    getMergeAnchorMap(
       sheet
     );
 
-    const table =
-      document.createElement(
-        "table"
-      );
 
-    table.className =
-      "log-sheet-table";
-
-    table.setAttribute(
-      "aria-label",
-      state.sheetConfig.title
+  const table =
+    document.createElement(
+      "table"
     );
 
-    const columnGroup =
+
+  table.className =
+    "log-sheet-table";
+
+
+  table.setAttribute(
+    "aria-label",
+    state.sheetConfig.title
+  );
+
+
+  /* =====================================================
+    Excel 원본 열 너비
+  ====================================================== */
+
+  const columnGroup =
+    document.createElement(
+      "colgroup"
+    );
+
+
+  for (
+    let column =
+      renderRange.s.c;
+
+    column <=
+      renderRange.e.c;
+
+    column +=
+      1
+  ) {
+    const col =
       document.createElement(
-        "colgroup"
+        "col"
       );
 
-    for (
-      let column = renderRange.s.c;
-      column <= renderRange.e.c;
-      column += 1
+
+    const columnInfo =
+      sheet["!cols"]?.[
+        column
+      ];
+
+
+    let widthPx =
+      Number(
+        columnInfo?.wpx
+      );
+
+
+    if (
+      !Number.isFinite(
+        widthPx
+      ) ||
+      widthPx <=
+        0
     ) {
-      const col =
-        document.createElement(
-          "col"
+      const widthChars =
+        Number(
+          columnInfo?.wch
         );
 
-      const columnInfo =
-        sheet["!cols"]?.[column];
 
-      const width =
-        Math.max(
-          28,
-          Math.min(
-            150,
-            Number(
-              columnInfo?.wpx
-            ) ||
-            Number(
-              columnInfo?.wch
-            ) * 7 ||
-            54
-          )
-        );
+      if (
+        Number.isFinite(
+          widthChars
+        ) &&
+        widthChars >
+          0
+      ) {
+        /*
+          Excel 문자폭 → 브라우저 px
+        */
+        widthPx =
+          widthChars *
+          7.2 +
+          5;
 
-      col.style.width =
-        `${width}px`;
-
-      columnGroup.appendChild(
-        col
-      );
+      } else {
+        widthPx =
+          54;
+      }
     }
 
-    table.appendChild(
-      columnGroup
-    );
 
-    const tableBody =
-      document.createElement(
-        "tbody"
+    /*
+      예전처럼 150px에서 잘라버리지 않는다.
+
+      원본 Excel의 상대적인 열 폭을
+      그대로 살린다.
+    */
+    widthPx =
+      Math.max(
+        6,
+        widthPx
       );
 
-    for (
-      let row = renderRange.s.r;
-      row <= renderRange.e.r;
-      row += 1
+
+    col.style.width =
+      `${widthPx}px`;
+
+
+    col.style
+      .minWidth =
+      `${widthPx}px`;
+
+
+    columnGroup
+      .appendChild(
+        col
+      );
+  }
+
+
+  table.appendChild(
+    columnGroup
+  );
+
+
+  const tableBody =
+    document.createElement(
+      "tbody"
+    );
+
+
+  /* =====================================================
+    Excel 원본 행 높이
+  ====================================================== */
+
+  for (
+    let row =
+      renderRange.s.r;
+
+    row <=
+      renderRange.e.r;
+
+    row +=
+      1
+  ) {
+    const tableRow =
+      document.createElement(
+        "tr"
+      );
+
+
+    tableRow.dataset
+      .excelRow =
+      String(
+        row + 1
+      );
+
+
+    const rowInfo =
+      sheet["!rows"]?.[
+        row
+      ];
+
+
+    let rowHeight =
+      Number(
+        rowInfo?.hpx
+      );
+
+
+    if (
+      !Number.isFinite(
+        rowHeight
+      ) ||
+      rowHeight <=
+        0
     ) {
-      const tableRow =
-        document.createElement(
-          "tr"
+      const rowHeightPt =
+        Number(
+          rowInfo?.hpt
         );
 
-      const rowInfo =
-        sheet["!rows"]?.[row];
 
-      const rowHeight =
-        Math.max(
-          18,
-          Math.min(
-            86,
-            Number(
-              rowInfo?.hpx
-            ) ||
-            Number(
-              rowInfo?.hpt
-            ) * 1.333 ||
-            22
-          )
-        );
-
-      tableRow.style.height =
-        `${rowHeight}px`;
-
-      for (
-        let column = renderRange.s.c;
-        column <= renderRange.e.c;
-        column += 1
+      if (
+        Number.isFinite(
+          rowHeightPt
+        ) &&
+        rowHeightPt >
+          0
       ) {
-        const address =
-          XLSX.utils.encode_cell({
-            r: row,
-            c: column
+        rowHeight =
+          rowHeightPt *
+          96 /
+          72;
+
+      } else {
+        /*
+          Excel 기본 행높이
+          약 15pt
+        */
+        rowHeight =
+          20;
+      }
+    }
+
+
+    /*
+      기존 18~86px 제한 제거.
+    */
+    rowHeight =
+      Math.max(
+        4,
+        rowHeight
+      );
+
+
+    tableRow.style.height =
+      `${rowHeight}px`;
+
+
+    tableRow.dataset
+      .excelOriginalHeight =
+      String(
+        rowHeight
+      );
+
+
+    for (
+      let column =
+        renderRange.s.c;
+
+      column <=
+        renderRange.e.c;
+
+      column +=
+        1
+    ) {
+      const address =
+        XLSX.utils
+          .encode_cell({
+            r:
+              row,
+
+            c:
+              column
           });
 
-        if (
-          slaveAddresses.has(
-            address
-          )
-        ) {
-          continue;
-        }
 
-        const cell =
-          document.createElement(
-            "td"
-          );
+      if (
+        slaveAddresses.has(
+          address
+        )
+      ) {
+        continue;
+      }
 
-        cell.dataset.cellAddress =
-          address;
 
-        const merge =
-          anchorMap.get(address);
-
-        if (merge) {
-          cell.colSpan =
-            merge.e.c -
-            merge.s.c +
-            1;
-
-          cell.rowSpan =
-            merge.e.r -
-            merge.s.r +
-            1;
-        }
-
-        const workbookCell =
-          sheet[address];
-
-        applyCellStyle(
-          cell,
-          workbookCell
+      const cell =
+        document.createElement(
+          "td"
         );
 
-        if (
-          editable.has(address)
-        ) {
-          cell.classList.add(
-            "is-editable"
-          );
 
-          if (
-            Object.prototype.hasOwnProperty.call(
+      cell.dataset
+        .cellAddress =
+        address;
+
+
+      const merge =
+        anchorMap.get(
+          address
+        );
+
+
+      if (
+        merge
+      ) {
+        cell.colSpan =
+          merge.e.c -
+          merge.s.c +
+          1;
+
+
+        cell.rowSpan =
+          merge.e.r -
+          merge.s.r +
+          1;
+      }
+
+
+      const workbookCell =
+        sheet[
+          address
+        ];
+
+
+      applyCellStyle(
+        cell,
+        workbookCell
+      );
+
+
+      if (
+        editable.has(
+          address
+        )
+      ) {
+        cell.classList.add(
+          "is-editable"
+        );
+
+
+        if (
+          Object.prototype
+            .hasOwnProperty
+            .call(
               state.values,
               address
             ) &&
-            state.values[address] !==
-              state.loadedValues[address]
-          ) {
-            cell.classList.add(
-              "is-changed"
-            );
-          }
-
-          const editor =
-            createEditorControl(
-              sheet,
-              state.sheetConfig,
+          state.values[
+            address
+          ] !==
+            state.loadedValues[
               address
-            );
-
-          const printValue =
-            document.createElement(
-              "span"
-            );
-
-          printValue.className =
-            "log-sheet-cell-print-value";
-
-          printValue.textContent =
-            editor.value;
-
-          cell.append(
-            editor,
-            printValue
-          );
-
-        } else {
-          const value =
-            document.createElement(
-              "span"
-            );
-
-          value.className =
-            "log-sheet-cell-value";
-
-          value.textContent =
-            getCellDisplayValue(
-              sheet,
-              address
-            );
-
-          cell.appendChild(
-            value
+            ]
+        ) {
+          cell.classList.add(
+            "is-changed"
           );
         }
 
-        tableRow.appendChild(
-          cell
+
+        const editor =
+          createEditorControl(
+            sheet,
+            state.sheetConfig,
+            address
+          );
+
+
+        const printValue =
+          document.createElement(
+            "span"
+          );
+
+
+        printValue.className =
+          "log-sheet-cell-print-value";
+
+
+        printValue.textContent =
+          editor.value;
+
+
+        cell.append(
+          editor,
+          printValue
+        );
+
+      } else {
+        const value =
+          document.createElement(
+            "span"
+          );
+
+
+        value.className =
+          "log-sheet-cell-value";
+
+
+        value.textContent =
+          getCellDisplayValue(
+            sheet,
+            address
+          );
+
+
+        cell.appendChild(
+          value
         );
       }
 
-      tableBody.appendChild(
-        tableRow
-      );
+
+      tableRow
+        .appendChild(
+          cell
+        );
     }
 
-    table.appendChild(
-      tableBody
-    );
 
-    elements.grid.replaceChildren(
+    tableBody
+      .appendChild(
+        tableRow
+      );
+  }
+
+
+  table.appendChild(
+    tableBody
+  );
+
+
+  elements.grid
+    .replaceChildren(
       table
     );
 
-    elements.gridShell.hidden =
-      false;
 
-    elements.previewButton.disabled =
-      false;
+  elements.gridShell.hidden =
+    false;
 
-    updatePrintHeading();
-  }
+
+  elements.previewButton.disabled =
+    false;
+
+
+  updatePrintHeading();
+}
 
   function renderAuxiliaryControls() {
     const addresses =
@@ -6210,18 +6654,20 @@ function installIntegratedControlFixedPageStyles(
   previewDocument
 ) {
   if (
-    previewDocument.getElementById(
-      "logSheetFixedExcelPageStyle"
-    )
+    previewDocument
+      .getElementById(
+        "logSheetFixedExcelPageStyle"
+      )
   ) {
     return;
   }
 
 
   const style =
-    previewDocument.createElement(
-      "style"
-    );
+    previewDocument
+      .createElement(
+        "style"
+      );
 
 
   style.id =
@@ -6232,6 +6678,13 @@ function installIntegratedControlFixedPageStyles(
     @page {
       size: A4 landscape;
       margin: 0;
+    }
+
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
     }
 
 
@@ -6265,6 +6718,10 @@ function installIntegratedControlFixedPageStyles(
     }
 
 
+    /* ===================================================
+      실제 A4 가로 한 장
+    ==================================================== */
+
     .log-sheet-fixed-print-page {
       position: relative;
 
@@ -6287,7 +6744,12 @@ function installIntegratedControlFixedPageStyles(
 
       box-shadow:
         0 5px 22px
-        rgba(15, 23, 42, 0.18);
+        rgba(
+          15,
+          23,
+          42,
+          0.18
+        );
     }
 
 
@@ -6309,7 +6771,8 @@ function installIntegratedControlFixedPageStyles(
 
       width: max-content;
 
-      transform-origin: top left;
+      transform-origin:
+        top left;
     }
 
 
@@ -6330,9 +6793,97 @@ function installIntegratedControlFixedPageStyles(
 
       margin: 0 !important;
 
+      border-collapse:
+        collapse !important;
+
+      table-layout:
+        fixed !important;
+
       zoom: 1 !important;
+
+      box-shadow:
+        none !important;
     }
 
+
+    /* ===================================================
+      Excel 셀 스타일 유지
+
+      기존 print CSS의
+      font-size:9px 강제를 무효화한다.
+    ==================================================== */
+
+    .log-sheet-fixed-print-page
+    .log-sheet-table td {
+      min-width: 0 !important;
+
+      height: auto !important;
+      min-height: 0 !important;
+
+      padding:
+        0
+        2px !important;
+
+      color:
+        #000000 !important;
+
+      font-size:
+        var(
+          --excel-font-size,
+          9px
+        ) !important;
+
+      line-height:
+        1.05 !important;
+
+      box-shadow:
+        none !important;
+
+      overflow:
+        hidden !important;
+
+      print-color-adjust:
+        exact !important;
+
+      -webkit-print-color-adjust:
+        exact !important;
+    }
+
+
+    .log-sheet-fixed-print-page
+    .log-sheet-cell-value {
+      display: block !important;
+
+      width: 100%;
+
+      overflow:
+        hidden !important;
+
+      white-space:
+        pre-wrap;
+
+      line-height:
+        inherit;
+    }
+
+
+    .log-sheet-fixed-print-page
+    .log-sheet-cell-editor {
+      display:
+        none !important;
+    }
+
+
+    .log-sheet-fixed-print-page
+    .log-sheet-cell-print-value {
+      display:
+        block !important;
+    }
+
+
+    /* ===================================================
+      페이지 footer
+    ==================================================== */
 
     .log-sheet-fixed-print-page__footer {
       position: absolute;
@@ -6341,7 +6892,7 @@ function installIntegratedControlFixedPageStyles(
         var(--excel-page-margin-right);
 
       bottom:
-        2mm;
+        1.5mm;
 
       left:
         var(--excel-page-margin-left);
@@ -6351,101 +6902,148 @@ function installIntegratedControlFixedPageStyles(
       align-items: center;
       justify-content: space-between;
 
-      color: #444444;
+      color: #333333;
 
-      font-size: 7px;
-      line-height: 1;
+      font-family:
+        "Malgun Gothic",
+        sans-serif;
+
+      font-size:
+        6px;
+
+      line-height:
+        1;
     }
 
+
+    /* ===================================================
+      실제 인쇄
+    ==================================================== */
 
     @media print {
 
       html,
       body {
-        width: 100% !important;
+        width: 297mm !important;
 
         margin: 0 !important;
         padding: 0 !important;
 
-        background: #ffffff !important;
+        background:
+          #ffffff !important;
       }
 
 
       .log-sheet-preview-window__toolbar {
-        display: none !important;
+        display:
+          none !important;
       }
 
 
       body.has-integrated-control-fixed-pages
       .log-sheet-preview-window__root {
-        width: 100% !important;
+        width:
+          297mm !important;
 
-        margin: 0 !important;
-        padding: 0 !important;
+        min-width:
+          297mm !important;
+
+        margin:
+          0 !important;
+
+        padding:
+          0 !important;
       }
 
 
       .log-sheet-fixed-print-pages {
-        display: block !important;
+        display:
+          block !important;
 
-        width: 100% !important;
+        width:
+          297mm !important;
 
-        margin: 0 !important;
-        padding: 0 !important;
+        margin:
+          0 !important;
 
-        gap: 0 !important;
+        padding:
+          0 !important;
+
+        gap:
+          0 !important;
       }
 
 
       .log-sheet-fixed-print-page {
-        width: 297mm !important;
-        height: 210mm !important;
+        width:
+          297mm !important;
 
-        margin: 0 !important;
+        height:
+          210mm !important;
 
-        box-shadow: none !important;
+        margin:
+          0 !important;
 
-        break-after: page !important;
-        page-break-after: always !important;
+        overflow:
+          hidden !important;
+
+        box-shadow:
+          none !important;
+
+        break-after:
+          page !important;
+
+        page-break-after:
+          always !important;
       }
 
 
       .log-sheet-fixed-print-page:last-child {
-        break-after: auto !important;
-        page-break-after: auto !important;
+        break-after:
+          auto !important;
+
+        page-break-after:
+          auto !important;
       }
 
 
       /*
-        이전 방식의 행 단위 page-break는
-        고정 페이지 내부에서는 사용하지 않는다.
+        우리가 이미 페이지별 DOM으로
+        나누었기 때문에 기존 row page-break는 제거
       */
 
       .log-sheet-fixed-print-page
       tr.is-excel-print-break {
-        break-after: auto !important;
-        page-break-after: auto !important;
+        break-after:
+          auto !important;
+
+        page-break-after:
+          auto !important;
       }
 
 
       /*
-        기존 print CSS의 zoom 값도 제거하고
-        JS가 계산한 페이지별 transform만 사용한다.
+        Excel의 48% / 50% / 54%를
+        브라우저에서 다시 적용하지 않는다.
+
+        실제 크기는 JS가
+        A4 너비에 맞춰 계산한다.
       */
 
       .log-sheet-fixed-print-page
       .log-sheet-table {
-        zoom: 1 !important;
+        zoom:
+          1 !important;
       }
     }
   `;
 
 
-  previewDocument.head.appendChild(
-    style
-  );
+  previewDocument.head
+    .appendChild(
+      style
+    );
 }
-
 
 /* =========================================================
   각 A4 페이지 안에 표 비율 맞춤
@@ -6493,50 +7091,30 @@ function fitIntegratedControlFixedPages(
     previewWindow?.document;
 
 
-  if (!previewDocument) {
+  if (
+    !previewDocument
+  ) {
     return;
   }
 
 
   const pages = [
-    ...previewDocument.querySelectorAll(
-      ".log-sheet-fixed-print-page"
-    )
+    ...previewDocument
+      .querySelectorAll(
+        ".log-sheet-fixed-print-page"
+      )
   ];
 
 
-  if (!pages.length) {
+  if (
+    !pages.length
+  ) {
     return;
   }
 
 
   const pageRanges =
     getIntegratedControlFixedPageRanges();
-
-
-  /*
-    Excel 원본 인쇄 배율
-
-    config:
-    TGO  48
-    BCO1 50
-    BCO2 54
-  */
-
-  const configuredScale =
-    Math.max(
-      0.05,
-      Math.min(
-        1,
-        Number(
-          state.sheetConfig
-            ?.print
-            ?.scale ||
-          100
-        ) /
-        100
-      )
-    );
 
 
   pages.forEach(
@@ -6557,9 +7135,10 @@ function fitIntegratedControlFixedPages(
 
 
       const table =
-        scaledContent?.querySelector(
-          ".log-sheet-table"
-        );
+        scaledContent
+          ?.querySelector(
+            ".log-sheet-table"
+          );
 
 
       if (
@@ -6578,56 +7157,65 @@ function fitIntegratedControlFixedPages(
       ];
 
 
-      if (!rows.length) {
+      if (
+        !rows.length
+      ) {
         return;
       }
 
 
       /* ===================================================
-        이전 맞춤 결과 초기화
+        1. 이전 계산 초기화
       ==================================================== */
 
-      scaledContent.style.transform =
+      scaledContent.style
+        .transform =
         "none";
+
+
+      scaledContent.style
+        .transformOrigin =
+        "top left";
 
 
       rows.forEach(
         row => {
           /*
-            최초 실행 시
-            renderGrid가 만든 원래 inline 높이를 기억한다.
+            renderGrid에서 저장한
+            Excel 원본 행 높이
           */
 
+          const originalHeight =
+            Number(
+              row.dataset
+                .excelOriginalHeight
+            );
+
+
           if (
-            row.dataset
-              .fixedPrintOriginalHeight ===
-            undefined
+            Number.isFinite(
+              originalHeight
+            ) &&
+            originalHeight >
+              0
           ) {
-            row.dataset
-              .fixedPrintOriginalHeight =
-              row.style.height ||
-              "";
+            row.style.height =
+              `${originalHeight}px`;
           }
-
-
-          row.style.height =
-            row.dataset
-              .fixedPrintOriginalHeight ||
-            "";
-
-
-          delete row.dataset
-            .fixedPrintFilledHeight;
         }
       );
 
 
       /*
-        브라우저에 초기 높이 재계산을 요청한다.
+        브라우저 layout 재계산
       */
 
       void table.offsetHeight;
 
+
+      /* ===================================================
+        2. 사용할 A4 영역
+      ==================================================== */
 
       const availableWidth =
         Math.max(
@@ -6643,95 +7231,82 @@ function fitIntegratedControlFixedPages(
         );
 
 
+      const tableRect =
+        table.getBoundingClientRect();
+
+
       const naturalWidth =
         Math.max(
           1,
-          table.scrollWidth,
-          table.getBoundingClientRect()
-            .width
+          tableRect.width,
+          table.scrollWidth
         );
 
 
-      /*
-        Excel 배율을 기본값으로 한다.
+      /* ===================================================
+        3. 가로 크기
 
-        혹시 브라우저 계산 오차 때문에
-        가로가 A4를 넘는 경우에만
-        아주 조금 더 축소한다.
-      */
+        중요:
+        Excel의 48% / 50% / 54%는
+        여기서 사용하지 않는다.
 
-      const widthFitScale =
+        브라우저 HTML 표 자체를
+        현재 A4 인쇄영역 가로폭에
+        정확하게 맞춘다.
+      ==================================================== */
+
+      let pageScale =
         availableWidth /
         naturalWidth;
 
 
-      const baseScale =
+      /*
+        브라우저 측정 오차 안전범위.
+
+        원본이 아주 좁더라도
+        지나치게 확대하지 않는다.
+      */
+
+      pageScale =
         Math.max(
-          0.05,
+          0.25,
           Math.min(
-            configuredScale,
-            widthFitScale
+            1.5,
+            pageScale
           )
         );
-
-
-      /*
-        실제 각 행의 자연 높이
-      */
-
-      const rowNaturalHeights =
-        rows.map(
-          row =>
-            Math.max(
-              1,
-              row.getBoundingClientRect()
-                .height
-            )
-        );
-
-
-      const naturalHeight =
-        Math.max(
-          1,
-          table.scrollHeight,
-          rowNaturalHeights.reduce(
-            (
-              total,
-              height
-            ) =>
-              total +
-              height,
-            0
-          )
-        );
-
-
-      /*
-        현재 Excel 배율로 출력했을 때
-        A4 안에서 사용할 수 있는
-        원본 좌표계 기준 높이
-      */
-
-      const targetNaturalHeight =
-        availableHeight /
-        baseScale;
 
 
       /* ===================================================
-        제목부는 그대로 유지
+        4. 세로 목표 높이
 
-        첫 페이지:
-        제목 / Shift / 헤더 등이 있으므로 4행 유지
-
-        2페이지 이후:
-        첫 표 헤더 1행 유지
+        transform 적용 전 좌표계에서
+        어느 높이가 되어야
+        A4 세로를 정확히 채우는지 계산
       ==================================================== */
 
-      const fixedHeaderRowCount =
+      const targetNaturalHeight =
+        availableHeight /
+        pageScale;
+
+
+      /*
+        첫 페이지의 1~6행은
+        제목 / Shift / 날짜 / 컬럼 헤더.
+
+        여기까지는 원본 높이를
+        가능한 그대로 유지한다.
+
+        2페이지 이후 첫 행은
+        ITEM / TAG / RATING / UNIT /
+        시간 헤더이므로 유지한다.
+      */
+
+      const fixedHeaderCount =
         pageIndex ===
           0
           ? Math.min(
-              4,
+              6,
               rows.length
             )
           : Math.min(
@@ -6740,162 +7315,225 @@ function fitIntegratedControlFixedPages(
             );
 
 
-      const stretchRows =
+      const headerRows =
         rows.slice(
-          fixedHeaderRowCount
+          0,
+          fixedHeaderCount
         );
 
 
-      const stretchHeights =
-        rowNaturalHeights.slice(
-          fixedHeaderRowCount
+      const dataRows =
+        rows.slice(
+          fixedHeaderCount
         );
 
 
-      const stretchNaturalHeight =
-        stretchHeights.reduce(
+      const getRowHeight =
+        row => {
+          const height =
+            row.getBoundingClientRect()
+              .height;
+
+
+          return Math.max(
+            1,
+            height
+          );
+        };
+
+
+      const headerHeight =
+        headerRows.reduce(
           (
             total,
-            height
+            row
           ) =>
             total +
-            height,
+            getRowHeight(
+              row
+            ),
           0
         );
 
 
-      const remainingNaturalHeight =
-        targetNaturalHeight -
-        naturalHeight;
-
-
-      let fillFactor =
-        1;
-
-
-      /* ===================================================
-        아래쪽 공간이 남는 경우
-
-        데이터 행 높이에만
-        남은 공간을 골고루 배분
-      ==================================================== */
-
-      if (
-        remainingNaturalHeight >
-          1 &&
-        stretchRows.length >
-          0 &&
-        stretchNaturalHeight >
-          0
-      ) {
-        fillFactor =
-          (
-            stretchNaturalHeight +
-            remainingNaturalHeight
-          ) /
-          stretchNaturalHeight;
-
-
-        stretchRows.forEach(
-          (
-            row,
-            index
-          ) => {
-            const originalHeight =
-              stretchHeights[
-                index
-              ] ||
-              1;
-
-
-            const filledHeight =
-              Math.max(
-                originalHeight,
-                originalHeight *
-                fillFactor
-              );
-
-
-            row.style.height =
-              `${filledHeight}px`;
-
-
-            row.dataset
-              .fixedPrintFilledHeight =
-              filledHeight.toFixed(
-                2
-              );
-          }
+      const originalDataHeights =
+        dataRows.map(
+          getRowHeight
         );
 
 
-        /*
-          행 높이를 적용한 뒤
-          다시 한번 layout 계산
-        */
-
-        void table.offsetHeight;
-
-
-        /*
-          브라우저 border 계산 차이로
-          몇 px 정도 남는 공간이 생기면
-          마지막 데이터 행에 추가한다.
-        */
-
-        const filledNaturalHeight =
-          Math.max(
-            table.scrollHeight,
-            table.getBoundingClientRect()
-              .height
+      const dataNaturalHeight =
+        originalDataHeights
+          .reduce(
+            (
+              total,
+              height
+            ) =>
+              total +
+              height,
+            0
           );
 
 
-        const finalRemaining =
+      /*
+        A4에서 실제 Logging 행들이
+        사용할 목표 높이.
+      */
+
+      const targetDataHeight =
+        Math.max(
+          1,
           targetNaturalHeight -
-          filledNaturalHeight;
+          headerHeight
+        );
+
+
+      /* ===================================================
+        5. 남는 공간을 데이터 행에 분배
+
+        이 값은 1보다 클 수도 있고
+        1보다 작을 수도 있다.
+
+        즉:
+        - 페이지가 비면 행 확대
+        - 페이지가 넘치면 행 축소
+
+        해서 항상 A4 세로를
+        최대한 채운다.
+      ==================================================== */
+
+      let rowFactor =
+        dataNaturalHeight >
+          0
+          ? targetDataHeight /
+            dataNaturalHeight
+          : 1;
+
+
+      /*
+        너무 비정상적으로 납작하거나
+        거대해지는 것만 방지한다.
+
+        TGO 3페이지처럼 행이 적은 경우는
+        충분히 크게 확장 가능.
+      */
+
+      rowFactor =
+        Math.max(
+          0.42,
+          Math.min(
+            4.5,
+            rowFactor
+          )
+        );
+
+
+      dataRows.forEach(
+        (
+          row,
+          index
+        ) => {
+          const originalHeight =
+            originalDataHeights[
+              index
+            ] ||
+            1;
+
+
+          const newHeight =
+            Math.max(
+              5,
+              originalHeight *
+              rowFactor
+            );
+
+
+          row.style.height =
+            `${newHeight}px`;
+
+
+          row.dataset
+            .fixedPrintFilledHeight =
+            newHeight.toFixed(
+              2
+            );
+        }
+      );
+
+
+      /*
+        높이 적용 후 다시 계산
+      */
+
+      void table.offsetHeight;
+
+
+      /* ===================================================
+        6. 마지막 미세 보정
+
+        table border / rowspan 때문에
+        1~수 px 정도 오차가 생길 수 있으므로
+        마지막 데이터 행에서 맞춘다.
+      ==================================================== */
+
+      if (
+        dataRows.length >
+          0
+      ) {
+        const currentHeight =
+          table.getBoundingClientRect()
+            .height;
+
+
+        const targetHeight =
+          targetNaturalHeight;
+
+
+        const remaining =
+          targetHeight -
+          currentHeight;
 
 
         if (
-          finalRemaining >
-            1 &&
-          stretchRows.length >
-            0
+          Math.abs(
+            remaining
+          ) >
+            0.5
         ) {
           const lastRow =
-            stretchRows[
-              stretchRows.length -
+            dataRows[
+              dataRows.length -
               1
             ];
 
 
           const currentLastHeight =
-            Math.max(
-              1,
+            getRowHeight(
               lastRow
-                .getBoundingClientRect()
-                .height
+            );
+
+
+          const correctedHeight =
+            Math.max(
+              5,
+              currentLastHeight +
+              remaining
             );
 
 
           lastRow.style.height =
-            `${
-              currentLastHeight +
-              finalRemaining
-            }px`;
+            `${correctedHeight}px`;
         }
       }
 
 
       /* ===================================================
-        최종 Excel 배율 적용
-
-        가로 글씨·열 너비·테두리 비율은
-        원본 Excel 배율 그대로 유지한다.
+        7. 최종 A4 가로 확대 적용
       ==================================================== */
 
-      scaledContent.style.transform =
-        `scale(${baseScale})`;
+      scaledContent.style
+        .transform =
+        `scale(${pageScale})`;
 
 
       scaledContent.style
@@ -6903,14 +7541,16 @@ function fitIntegratedControlFixedPages(
         "top left";
 
 
-      page.dataset.printScale =
-        baseScale.toFixed(
+      page.dataset
+        .printScale =
+        pageScale.toFixed(
           4
         );
 
 
-      page.dataset.rowFillFactor =
-        fillFactor.toFixed(
+      page.dataset
+        .rowFillFactor =
+        rowFactor.toFixed(
           4
         );
 
@@ -6922,7 +7562,9 @@ function fitIntegratedControlFixedPages(
         null;
 
 
-      if (range) {
+      if (
+        range
+      ) {
         page.dataset
           .excelStartRow =
           String(
