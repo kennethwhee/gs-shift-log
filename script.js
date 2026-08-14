@@ -138782,127 +138782,6 @@ window.updateEfficiencyMorningMeetingUploadSummary =
 
 
 /* =====================================================
-   사용할 시트 선택
-
-    기계팀 파일처럼 날짜별 시트가 여러 개면
-    가장 최근 날짜의 시트를 선택한다.
-====================================================== */
-
-  function selectMorningMeetingSourceSheet(
-    workbook,
-    teamKey
-  ) {
-    const candidates =
-      workbook.SheetNames
-        .map(
-          (
-            sheetName,
-            sheetIndex
-          ) => {
-            const worksheet =
-              workbook.Sheets[
-                sheetName
-              ];
-
-
-            const rows =
-              convertMorningMeetingSheetToRows(
-                worksheet
-              );
-
-
-            const meaningfulRows =
-              rows.filter(
-                row => {
-                  return Boolean(
-                    normalizeMorningMeetingSearchText(
-                      row
-                    )
-                  );
-                }
-              );
-
-
-            const reportDate =
-              extractMorningMeetingReportDate(
-                rows
-              );
-
-
-            return {
-              sheetName,
-              sheetIndex,
-              worksheet,
-              rows,
-              reportDate,
-              meaningfulCount:
-                meaningfulRows.length
-            };
-          }
-        )
-        .filter(
-          item => {
-            return item
-              .meaningfulCount >
-              0;
-          }
-        );
-
-
-    if (
-      candidates.length ===
-      0
-    ) {
-      throw new Error(
-        "내용이 있는 엑셀 시트를 찾지 못했습니다."
-      );
-    }
-
-
-    candidates.sort(
-      (
-        first,
-        second
-      ) => {
-        const dateDifference =
-          getMorningMeetingDateNumber(
-            second.reportDate
-          ) -
-          getMorningMeetingDateNumber(
-            first.reportDate
-          );
-
-
-        if (
-          dateDifference !==
-          0
-        ) {
-          return dateDifference;
-        }
-
-
-        return (
-          second.sheetIndex -
-          first.sheetIndex
-        );
-      }
-    );
-
-
-    /*
-      기계팀은 날짜별 시트가 여러 개 있으므로
-      가장 최근 시트를 사용한다.
-
-      다른 팀도 내용이 있는 최신 시트를 사용한다.
-    */
-
-    return candidates[
-      0
-    ];
-  }
-
-
-  /* =====================================================
     행 검색
   ====================================================== */
 
@@ -218682,8 +218561,8 @@ async function handleAnalysisClickCapture(
   event
 ) {
   /*
-    자동 불러오기 완료 후 재실행한 클릭은
-    기존 분석 기능으로 그대로 넘긴다.
+    폴더 자동 불러오기 완료 후
+    재실행한 클릭은 기존 분석기로 넘긴다.
   */
 
   if (
@@ -218692,12 +218571,39 @@ async function handleAnalysisClickCapture(
     replayingAnalysisClick =
       false;
 
+
     return;
   }
 
+
   /*
-    설정된 폴더가 없으면
-    기존 수동 첨부 방식으로 분석한다.
+    중요:
+
+    사용자가 이미 파일을 직접 첨부했다면
+    그 파일이 현재 분석 대상이다.
+
+    [자료 분석]을 눌렀다는 이유만으로
+    설정 폴더의 최신 파일로 다시 덮어쓰지 않는다.
+
+    예:
+    업무내용 기준일 = 2026-08-13
+    사용자가 13일 파일을 직접 첨부
+
+    → 그대로 13일 파일 분석
+    → 폴더의 최신 14일 파일로 변경하지 않음
+  */
+
+  if (
+    hasAttachedMorningMeetingFile()
+  ) {
+    return;
+  }
+
+
+  /*
+    직접 첨부된 파일이 없고
+    설정된 폴더도 없으면
+    기존 분석 기능으로 그대로 넘긴다.
   */
 
   if (
@@ -218707,13 +218613,17 @@ async function handleAnalysisClickCapture(
     return;
   }
 
+
   /*
-    기존 분석 기능들이 먼저 실행되지 않도록
-    최초 클릭만 잠시 중단한다.
+    여기부터는 첨부파일이 하나도 없는 경우다.
+
+    폴더 자동 불러오기가 끝날 때까지
+    최초 분석 클릭을 잠시 중단한다.
   */
 
   event.preventDefault();
   event.stopImmediatePropagation();
+
 
   if (
     loading
@@ -218721,8 +218631,10 @@ async function handleAnalysisClickCapture(
     return;
   }
 
+
   const result =
     await loadFoldersBeforeAnalysis();
+
 
   if (
     !result.canContinue
@@ -218730,16 +218642,19 @@ async function handleAnalysisClickCapture(
     return;
   }
 
+
   const {
     analyze
   } =
     elements();
+
 
   if (
     !analyze
   ) {
     return;
   }
+
 
   /*
     파일 적용 완료 후
@@ -218749,10 +218664,13 @@ async function handleAnalysisClickCapture(
   replayingAnalysisClick =
     true;
 
+
   analyze.disabled =
     false;
 
+
   analyze.click();
+
 
   if (
     result.failures.length >
