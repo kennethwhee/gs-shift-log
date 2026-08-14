@@ -101846,7 +101846,7 @@ body:not(.is-auxiliary-material-expanded)
 }
 
 /* =========================================================
-  오전회의취합 - 자동수치 기록표 18열 최종 컴팩트
+  오전회의취합 - 자동수치 기록표 21열 최종 컴팩트
 
   - 일반 PC에서는 최대한 한 화면에 표시
   - 좁은 화면에서만 가로 스크롤
@@ -102113,13 +102113,13 @@ h4 {
 
 
 /* =========================================================
-  18열 표 전체 크기
+  21열 표 전체 크기
 ========================================================= */
 
 #efficiencyTeamModal
 #efficiencyMorningMeetingAutoHistoryTable {
   width: 100% !important;
-  min-width: 1020px !important;
+  min-width: 1170px !important;
   max-width: none !important;
 
   table-layout: fixed !important;
@@ -102136,8 +102136,8 @@ h4 {
 
   총합:
   64 + 156 + 98 + 78 + 104
-  + 144 + 104 + 156 + 116
-  = 1020px
+  + 144 + 150 + 104 + 156 + 116
+  = 1170px
 ========================================================= */
 
 #efficiencyTeamModal
@@ -102218,6 +102218,15 @@ thead
 tr:first-child
 th.is-organic-fuel {
   width: 116px !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTable
+thead
+tr:first-child
+th.is-weather {
+  width: 150px !important;
 }
 
 
@@ -102362,6 +102371,84 @@ td.is-organic-fuel {
   line-height: 1.05 !important;
 
   white-space: normal;
+}
+
+
+/* =========================================================
+  신북 날씨 3열
+
+  - 상태 · 기온(현재/최저/최고) · 습도
+  - 기존 파란 계열과 겹치지 않는 옅은 청록 그룹
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTable
+thead
+tr:first-child
+th.is-weather {
+  background: #e3f4f2 !important;
+  color: #245f62 !important;
+
+  box-shadow:
+    inset 2px 0 0
+    #73b6b1;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTable
+thead
+tr:nth-child(2)
+th.is-weather {
+  background: #f0f9f8 !important;
+  color: #4b6f72 !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTable
+tbody
+td.is-weather {
+  background: #fbfefd !important;
+  color: #315f62;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTable
+tbody
+td.is-weather-temperature {
+  font-size: 8.4px !important;
+  line-height: 1.05 !important;
+  letter-spacing: -0.035em;
+  white-space: normal !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTable
+tbody
+tr:nth-child(even)
+td.is-weather {
+  background: #f5fbfa !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTable
+tbody
+tr:hover
+td.is-weather {
+  background: #eaf7f5 !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTable
+tbody
+td.is-weather.is-missing {
+  background: #f8fbfb !important;
+  color: #98aaa9;
 }
 
 
@@ -103686,7 +103773,7 @@ body:not(.is-auxiliary-material-expanded)
 
   #efficiencyMorningMeetingAutoHistoryView.is-mobile-monitor-only
     .efficiency-morning-meeting-auto-history-table {
-    min-width: 980px !important;
+    min-width: 1170px !important;
     font-size: 8px !important;
   }
 

@@ -219213,6 +219213,9 @@ async function initialize() {
   const API_URL =
     "/api/ois-data-requests";
 
+  const WEATHER_HISTORY_API_URL =
+    "/api/weather-forecast";
+
   const SMP_STORAGE_KEY =
     "gs-shift-log:morning-meeting:smp-manual-overrides:v1";
 
@@ -219813,6 +219816,7 @@ async function initialize() {
     허용된 네트워크 요청:
     1. completed_history
     2. usage_history
+    3. weather history
 
     POST 요청이나 SMP 조회는 실행하지 않는다.
   ====================================================== */
@@ -219834,6 +219838,26 @@ async function initialize() {
 
 
     return `${API_URL}?${searchParameters.toString()}`;
+  }
+
+
+  function buildWeatherHistoryUrl(
+    range
+  ) {
+    const searchParameters =
+      new URLSearchParams({
+        action:
+          "history",
+
+        startDate:
+          range.startDate,
+
+        endDate:
+          range.endDate
+      });
+
+
+    return `${WEATHER_HISTORY_API_URL}?${searchParameters.toString()}`;
   }
 
 
@@ -219874,6 +219898,160 @@ async function initialize() {
   }
 
 
+  function normalizeWeatherHistoryItem(
+    item,
+    expectedRange
+  ) {
+    if (
+      !item ||
+      typeof item !==
+        "object" ||
+      Array.isArray(
+        item
+      )
+    ) {
+      throw new Error(
+        "저장된 신북 날씨 항목 형식을 확인하지 못했습니다."
+      );
+    }
+
+
+    const meetingDate =
+      normalizeText(
+        item.forecastDate ||
+        item.sourceDate ||
+        item.targetDate
+      );
+
+
+    const condition =
+      normalizeText(
+        item.condition
+      );
+
+
+    const temperature =
+      numberOrNull(
+        item.temperature
+      );
+
+
+    const minimumTemperature =
+      numberOrNull(
+        item.minimumTemperature
+      );
+
+
+    const maximumTemperature =
+      numberOrNull(
+        item.maximumTemperature
+      );
+
+
+    const humidity =
+      numberOrNull(
+        item.humidity
+      );
+
+
+    if (
+      !isIsoDate(
+        meetingDate
+      ) ||
+      meetingDate <
+        expectedRange.startDate ||
+      meetingDate >
+        expectedRange.endDate ||
+      !condition ||
+      temperature ===
+        null ||
+      minimumTemperature ===
+        null ||
+      maximumTemperature ===
+        null ||
+      humidity ===
+        null
+    ) {
+      throw new Error(
+        `${meetingDate || "날짜 미확인"} 저장 날씨 자료가 올바르지 않습니다.`
+      );
+    }
+
+
+    return {
+      ...item,
+
+      forecastDate:
+        meetingDate,
+
+      sourceDate:
+        meetingDate,
+
+      targetDate:
+        meetingDate,
+
+      condition,
+      temperature,
+      minimumTemperature,
+      maximumTemperature,
+      humidity
+    };
+  }
+
+
+  async function readWeatherHistoryResponse(
+    response,
+    expectedRange
+  ) {
+    const payload =
+      await readApiResponse(
+        response,
+        "저장된 신북 날씨"
+      );
+
+
+    const responseStartDate =
+      normalizeText(
+        payload?.range?.startDate
+      );
+
+
+    const responseEndDate =
+      normalizeText(
+        payload?.range?.endDate
+      );
+
+
+    if (
+      responseStartDate !==
+        expectedRange.startDate ||
+      responseEndDate !==
+        expectedRange.endDate ||
+      !Array.isArray(
+        payload?.items
+      )
+    ) {
+      throw new Error(
+        "저장된 신북 날씨 응답 형식을 확인하지 못했습니다."
+      );
+    }
+
+
+    return {
+      ...payload,
+
+      items:
+        payload.items.map(
+          item =>
+            normalizeWeatherHistoryItem(
+              item,
+              expectedRange
+            )
+        )
+    };
+  }
+
+
 async function fetchSavedHistory(
   monthValue
 ) {
@@ -219881,6 +220059,21 @@ async function fetchSavedHistory(
     getMonthRange(
       monthValue
     );
+
+
+  const weatherRange = {
+    startDate:
+      addDateDays(
+        range.startDate,
+        1
+      ),
+
+    endDate:
+      addDateDays(
+        range.endDate,
+        1
+      )
+  };
 
 
   const headers =
@@ -219906,7 +220099,8 @@ async function fetchSavedHistory(
 
   const [
     completedResponse,
-    limestoneResponse
+    limestoneResponse,
+    weatherResponse
   ] =
     await Promise.all([
       fetch(
@@ -219923,13 +220117,21 @@ async function fetchSavedHistory(
           range
         ),
         requestOptions
+      ),
+
+      fetch(
+        buildWeatherHistoryUrl(
+          weatherRange
+        ),
+        requestOptions
       )
     ]);
 
 
   const [
     completedPayload,
-    limestonePayload
+    limestonePayload,
+    weatherPayload
   ] =
     await Promise.all([
       readApiResponse(
@@ -219940,13 +220142,19 @@ async function fetchSavedHistory(
       readApiResponse(
         limestoneResponse,
         "저장된 석회석 사용량"
+      ),
+
+      readWeatherHistoryResponse(
+        weatherResponse,
+        weatherRange
       )
     ]);
 
 
   return {
     completedPayload,
-    limestonePayload
+    limestonePayload,
+    weatherPayload
   };
 }
 
@@ -220442,6 +220650,12 @@ function mergeSavedRows(
             smpDate:
               "",
 
+            weather:
+              null,
+
+            weatherDate:
+              "",
+
             override:
               null,
 
@@ -220679,6 +220893,57 @@ function mergeSavedRows(
   );
 
   /*
+    저장된 신북 날씨
+
+    날씨의 forecast/source/target 날짜는
+    모두 오전회의일 기준으로 정규화되어 있다.
+
+    날씨만 저장된 날짜는 새 행으로 만들지 않고,
+    기존 자동수치 행의 다음 날 회의일에 연결한다.
+  */
+  const weatherItems =
+    Array.isArray(
+      payloads
+        ?.weatherPayload
+        ?.items
+    )
+      ? payloads
+          .weatherPayload
+          .items
+      : [];
+
+
+  const weatherByMeetingDate =
+    new Map();
+
+
+  weatherItems.forEach(
+    item => {
+      const meetingDate =
+        normalizeText(
+          item?.forecastDate ||
+          item?.sourceDate ||
+          item?.targetDate
+        );
+
+
+      if (
+        !isIsoDate(
+          meetingDate
+        )
+      ) {
+        return;
+      }
+
+
+      weatherByMeetingDate.set(
+        meetingDate,
+        item
+      );
+    }
+  );
+
+  /*
     completed_history 응답에 포함된 날짜별 수정값
 
     서버가 같은 응답에 overrides를 포함하므로
@@ -220793,6 +221058,13 @@ function mergeSavedRows(
           );
 
 
+        const weatherDate =
+          addDateDays(
+            row.date,
+            1
+          );
+
+
         const rowWithSmp = {
           ...row,
 
@@ -220801,6 +221073,14 @@ function mergeSavedRows(
           smp:
             smpByDate.get(
               smpDate
+            ) ||
+            null,
+
+          weatherDate,
+
+          weather:
+            weatherByMeetingDate.get(
+              weatherDate
             ) ||
             null
         };
@@ -221250,6 +221530,13 @@ function renderTableHead() {
       </th>
 
       <th
+        colspan="3"
+        class="is-history-group is-weather"
+      >
+        신북 날씨
+      </th>
+
+      <th
         colspan="2"
         class="is-history-group is-steam"
       >
@@ -221420,6 +221707,45 @@ function renderTableHead() {
 
         <small>
           원/kWh
+        </small>
+      </th>
+
+
+      <!-- 신북 날씨 -->
+
+      <th
+        class="is-history-metric is-weather"
+      >
+        <span>
+          상태
+        </span>
+
+        <small>
+          09시
+        </small>
+      </th>
+
+      <th
+        class="is-history-metric is-weather"
+      >
+        <span>
+          기온
+        </span>
+
+        <small>
+          현재 · 최저/최고 ℃
+        </small>
+      </th>
+
+      <th
+        class="is-history-metric is-weather"
+      >
+        <span>
+          습도
+        </span>
+
+        <small>
+          %
         </small>
       </th>
 
@@ -222101,6 +222427,9 @@ function renderRows(
       const smp =
         row.smp;
 
+      const weather =
+        row.weather;
+
       /*
         저장된 수정값이 있으면
         원본보다 우선해서 사용한다.
@@ -222290,6 +222619,84 @@ function renderRows(
       const smpTitle =
         row.smpDate
           ? `${row.smpDate} 회의일 SMP`
+          : "";
+
+      const weatherTitle =
+        row.weatherDate
+          ? `${row.weatherDate} 회의일 ${
+              normalizeText(
+                weather?.forecastHour
+              ) ||
+              "09:00"
+            } 신북면 날씨`
+          : "";
+
+      const formatWeatherTemperature =
+        value => {
+          return formatNumber(
+            value,
+            {
+              maximumFractionDigits:
+                1
+            }
+          );
+        };
+
+      const weatherTemperature =
+        formatWeatherTemperature(
+          weather?.temperature
+        );
+
+      const weatherMinimumTemperature =
+        formatWeatherTemperature(
+          weather?.minimumTemperature
+        );
+
+      const weatherMaximumTemperature =
+        formatWeatherTemperature(
+          weather?.maximumTemperature
+        );
+
+      const weatherTemperatureText =
+        weatherTemperature ||
+        weatherMinimumTemperature ||
+        weatherMaximumTemperature
+          ? [
+              weatherTemperature
+                ? `${weatherTemperature}℃`
+                : "-",
+
+              [
+                weatherMinimumTemperature ||
+                  "-",
+
+                weatherMaximumTemperature ||
+                  "-"
+              ].join(
+                "/"
+              ) +
+                (
+                  weatherMaximumTemperature
+                    ? "℃"
+                    : ""
+                )
+            ].join(
+              " · "
+            )
+          : "";
+
+      const weatherHumidity =
+        formatNumber(
+          weather?.humidity,
+          {
+            maximumFractionDigits:
+              1
+          }
+        );
+
+      const weatherHumidityText =
+        weatherHumidity
+          ? `${weatherHumidity}%`
           : "";
 
       tableRow.append(
@@ -222630,6 +223037,31 @@ function renderRows(
             }
           }
         }),
+
+        /*
+          신북 날씨
+
+          저장 날씨는 읽기 전용이므로
+          수정 셀을 만들지 않는다.
+        */
+
+        createValueCell(
+          weather?.condition,
+          "is-weather is-weather-condition",
+          weatherTitle
+        ),
+
+        createValueCell(
+          weatherTemperatureText,
+          "is-weather is-weather-temperature",
+          weatherTitle
+        ),
+
+        createValueCell(
+          weatherHumidityText,
+          "is-weather is-weather-humidity",
+          weatherTitle
+        ),
 
         /*
           증기

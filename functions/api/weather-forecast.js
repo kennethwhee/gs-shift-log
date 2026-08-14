@@ -47,6 +47,10 @@ const D1_TABLE_NAME =
   "morning_meeting_weather_forecasts";
 
 
+const MAXIMUM_HISTORY_RANGE_DAYS =
+  366;
+
+
 /* =========================================================
   JSON 응답
 ========================================================= */
@@ -124,6 +128,60 @@ function isValidIsoDate(
         10
       ) ===
       normalizedValue
+  );
+}
+
+
+function getInclusiveDateRangeDayCount(
+  startDate,
+  endDate
+) {
+  if (
+    !isValidIsoDate(
+      startDate
+    ) ||
+    !isValidIsoDate(
+      endDate
+    )
+  ) {
+    return null;
+  }
+
+
+  const startTime =
+    Date.parse(
+      `${startDate}T00:00:00.000Z`
+    );
+
+
+  const endTime =
+    Date.parse(
+      `${endDate}T00:00:00.000Z`
+    );
+
+
+  if (
+    endTime <
+      startTime
+  ) {
+    return null;
+  }
+
+
+  return (
+    Math.floor(
+      (
+        endTime -
+        startTime
+      ) /
+      (
+        24 *
+        60 *
+        60 *
+        1000
+      )
+    ) +
+    1
   );
 }
 
@@ -965,6 +1023,53 @@ async function getStoredWeatherForecast(
 }
 
 
+async function getStoredWeatherForecastHistory(
+  database,
+  startDate,
+  endDate
+) {
+  const queryResult =
+    await database
+      .prepare(`
+        SELECT
+          *
+
+        FROM ${D1_TABLE_NAME}
+
+        WHERE forecast_date >= ?
+          AND forecast_date <= ?
+          AND forecast_hour = ?
+          AND location_code = ?
+
+        ORDER BY forecast_date ASC
+      `)
+      .bind(
+        startDate,
+        endDate,
+        FORECAST_TIME,
+        LOCATION_CODE
+      )
+      .all();
+
+
+  const rows =
+    Array.isArray(
+      queryResult?.results
+    )
+      ? queryResult.results
+      : [];
+
+
+  return rows
+    .map(
+      normalizeStoredWeatherForecast
+    )
+    .filter(
+      Boolean
+    );
+}
+
+
 async function saveWeatherForecast(
   database,
   item
@@ -1228,6 +1333,180 @@ async function fetchWeatherNuriForecast(
 
 
 /* =========================================================
+  GET /api/weather-forecast?action=history
+    &startDate=YYYY-MM-DD
+    &endDate=YYYY-MM-DD
+
+  저장된 D1 자료만 조회한다.
+  날씨누리 외부 요청은 실행하지 않는다.
+========================================================= */
+
+async function handleStoredWeatherForecastHistoryGet(
+  context,
+  requestUrl
+) {
+  const startDate =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "startDate"
+      )
+    );
+
+
+  const endDate =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "endDate"
+      )
+    );
+
+
+  if (
+    !isValidIsoDate(
+      startDate
+    ) ||
+    !isValidIsoDate(
+      endDate
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "날씨 이력 조회 시작일과 종료일을 YYYY-MM-DD 형식으로 입력해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const dayCount =
+    getInclusiveDateRangeDayCount(
+      startDate,
+      endDate
+    );
+
+
+  if (
+    dayCount ===
+      null
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "날씨 이력 조회 종료일은 시작일보다 빠를 수 없습니다."
+      },
+      400
+    );
+  }
+
+
+  if (
+    dayCount >
+      MAXIMUM_HISTORY_RANGE_DAYS
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          `날씨 이력은 한 번에 최대 ${MAXIMUM_HISTORY_RANGE_DAYS}일까지 조회할 수 있습니다.`
+      },
+      400
+    );
+  }
+
+
+  if (
+    !context.env.DB
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "날씨 저장용 D1 바인딩 DB가 등록되지 않았습니다."
+      },
+      500
+    );
+  }
+
+
+  try {
+    await ensureWeatherForecastTable(
+      context.env.DB
+    );
+
+
+    const items =
+      await getStoredWeatherForecastHistory(
+        context.env.DB,
+        startDate,
+        endDate
+      );
+
+
+    return jsonResponse({
+      ok:
+        true,
+
+      range: {
+        startDate,
+        endDate,
+        dayCount,
+        forecastHour:
+          FORECAST_TIME,
+        locationCode:
+          LOCATION_CODE
+      },
+
+      summary: {
+        requestedDayCount:
+          dayCount,
+        storedItemCount:
+          items.length,
+        missingDayCount:
+          Math.max(
+            0,
+            dayCount -
+              items.length
+          )
+      },
+
+      items
+    });
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "신북 날씨 D1 이력 조회 실패:",
+      error
+    );
+
+
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "저장된 신북 날씨 이력을 불러오지 못했습니다."
+      },
+      500
+    );
+  }
+}
+
+
+/* =========================================================
   GET /api/weather-forecast?date=YYYY-MM-DD
 ========================================================= */
 
@@ -1238,6 +1517,25 @@ export async function onRequestGet(
     new URL(
       context.request.url
     );
+
+
+  const action =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "action"
+      )
+    ).toLowerCase();
+
+
+  if (
+    action ===
+      "history"
+  ) {
+    return await handleStoredWeatherForecastHistoryGet(
+      context,
+      requestUrl
+    );
+  }
 
 
   const targetDate =
