@@ -216060,117 +216060,333 @@ function elements() {
     );
   }
 
-  function installFolderControl(
-    config
+function installFolderControl(
+  config
+) {
+  const card =
+    document.querySelector(
+      config.cardSelector
+    );
+
+  if (
+    !card
   ) {
-    const card =
-      document.querySelector(
-        config.cardSelector
-      );
+    return;
+  }
 
-    if (
-      !card
-    ) {
-      return;
-    }
+  /*
+    일일발전현황·운탄일지의
+    상단 선택·드롭 파일창을
+    각자 지정된 폴더에서 연다.
+  */
+  const usesStoredFolderFilePicker =
+    config.key ===
+      "template" ||
+    config.key ===
+      "coal";
 
-    let shell =
-      card.closest(
-        ".efficiency-morning-meeting-upload-shell"
-      );
+  if (
+    usesStoredFolderFilePicker &&
+    card.dataset
+      .morningMeetingStoredFolderFilePickerBound !==
+        "true"
+  ) {
+    card.dataset
+      .morningMeetingStoredFolderFilePickerBound =
+        "true";
 
-    if (
-      !shell
-    ) {
-      shell =
-        document.createElement(
-          "div"
-        );
+    card.addEventListener(
+      "click",
+      event => {
+        const input =
+          document.getElementById(
+            config.inputId
+          );
 
-      shell.className =
-        "efficiency-morning-meeting-upload-shell";
+        /*
+          미지원 브라우저에서는
+          기존 파일 선택창을 그대로 사용한다.
+        */
+        if (
+          !input ||
+          typeof window.showOpenFilePicker !==
+            "function"
+        ) {
+          return;
+        }
 
-      card.parentNode.insertBefore(
-        shell,
-        card
-      );
+        /*
+          코드에서 input.click()을 실행한 경우에는
+          기존 동작을 방해하지 않는다.
+        */
+        if (
+          event.target ===
+            input
+        ) {
+          return;
+        }
 
-      shell.appendChild(
-        card
-      );
-    }
+        if (
+          typeof event.button ===
+            "number" &&
+          event.button !==
+            0
+        ) {
+          return;
+        }
 
-    if (
-      shell.querySelector(
-        `[data-morning-meeting-folder-row="${config.key}"]`
-      )
-    ) {
-      return;
-    }
+        /*
+          label 기본 선택창과 새 선택창이
+          동시에 열리지 않도록 막는다.
+        */
+        event.preventDefault();
 
-    const row =
+        hideError();
+
+        const currentHandle =
+          handles.get(
+            config.key
+          );
+
+        const pickerOptions = {
+          id:
+            `${config.pickerId}-file`,
+
+          multiple:
+            Boolean(
+              input.multiple
+            ),
+
+          types: [
+            {
+              description:
+                "Excel 통합 문서",
+
+              accept: {
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
+                  ".xlsx"
+                ]
+              }
+            }
+          ],
+
+          excludeAcceptAllOption:
+            true
+        };
+
+        /*
+          일일발전현황은 일일발전현황 폴더,
+          운탄일지는 운탄일지 폴더에서 시작한다.
+        */
+        if (
+          currentHandle?.kind ===
+            "directory"
+        ) {
+          pickerOptions.startIn =
+            currentHandle;
+        }
+
+        let pickerRequest;
+
+        try {
+          pickerRequest =
+            window.showOpenFilePicker(
+              pickerOptions
+            );
+
+        } catch (
+          error
+        ) {
+          console.error(
+            `${config.label} 파일 선택창 열기 실패:`,
+            error
+          );
+
+          showError(
+            error?.message ||
+            `${config.label} 파일 선택창을 열지 못했습니다.`
+          );
+
+          return;
+        }
+
+        void pickerRequest
+          .then(
+            fileHandles => {
+              return Promise.all(
+                Array.from(
+                  fileHandles ||
+                  []
+                ).map(
+                  fileHandle => {
+                    return fileHandle.getFile();
+                  }
+                )
+              );
+            }
+          )
+          .then(
+            selectedFiles => {
+              if (
+                selectedFiles.length ===
+                  0
+              ) {
+                return;
+              }
+
+              const transfer =
+                new DataTransfer();
+
+              selectedFiles.forEach(
+                file => {
+                  transfer.items.add(
+                    file
+                  );
+                }
+              );
+
+              input.value =
+                "";
+
+              input.files =
+                transfer.files;
+
+              /*
+                기존 템플릿·운탄일지 처리 함수로
+                선택한 파일을 그대로 전달한다.
+              */
+              input.dispatchEvent(
+                new Event(
+                  "change",
+                  {
+                    bubbles:
+                      true
+                  }
+                )
+              );
+            }
+          )
+          .catch(
+            error => {
+              if (
+                error?.name ===
+                  "AbortError"
+              ) {
+                return;
+              }
+
+              console.error(
+                `${config.label} 파일 선택 실패:`,
+                error
+              );
+
+              showError(
+                error?.message ||
+                `${config.label} 파일을 선택하지 못했습니다.`
+              );
+            }
+          );
+      }
+    );
+  }
+
+  let shell =
+    card.closest(
+      ".efficiency-morning-meeting-upload-shell"
+    );
+
+  if (
+    !shell
+  ) {
+    shell =
       document.createElement(
         "div"
       );
 
-    row.className =
-      "efficiency-morning-meeting-folder-row";
+    shell.className =
+      "efficiency-morning-meeting-upload-shell";
 
-    row.dataset
-      .morningMeetingFolderRow =
-      config.key;
-
-    const button =
-      document.createElement(
-        "button"
-      );
-
-    button.type =
-      "button";
-
-    button.className =
-      "efficiency-morning-meeting-folder-button";
-
-    button.dataset
-      .morningMeetingFolderButton =
-      config.key;
-
-    button.textContent =
-      "폴더 설정";
-
-    button.addEventListener(
-      "click",
-      () => {
-        void chooseOrAuthorizeFolder(
-          config
-        );
-      }
-    );
-
-    const name =
-      document.createElement(
-        "span"
-      );
-
-    name.className =
-      "efficiency-morning-meeting-folder-name";
-
-    name.dataset
-      .morningMeetingFolderName =
-      config.key;
-
-    name.textContent =
-      "폴더 미설정";
-
-    row.append(
-      button,
-      name
+    card.parentNode.insertBefore(
+      shell,
+      card
     );
 
     shell.appendChild(
-      row
+      card
     );
   }
+
+  if (
+    shell.querySelector(
+      `[data-morning-meeting-folder-row="${config.key}"]`
+    )
+  ) {
+    return;
+  }
+
+  const row =
+    document.createElement(
+      "div"
+    );
+
+  row.className =
+    "efficiency-morning-meeting-folder-row";
+
+  row.dataset
+    .morningMeetingFolderRow =
+    config.key;
+
+  const button =
+    document.createElement(
+      "button"
+    );
+
+  button.type =
+    "button";
+
+  button.className =
+    "efficiency-morning-meeting-folder-button";
+
+  button.dataset
+    .morningMeetingFolderButton =
+    config.key;
+
+  button.textContent =
+    "폴더 설정";
+
+  button.addEventListener(
+    "click",
+    () => {
+      void chooseOrAuthorizeFolder(
+        config
+      );
+    }
+  );
+
+  const name =
+    document.createElement(
+      "span"
+    );
+
+  name.className =
+    "efficiency-morning-meeting-folder-name";
+
+  name.dataset
+    .morningMeetingFolderName =
+    config.key;
+
+  name.textContent =
+    "폴더 미설정";
+
+  row.append(
+    button,
+    name
+  );
+
+  shell.appendChild(
+    row
+  );
+}
 
   function renderFolder(
     config
