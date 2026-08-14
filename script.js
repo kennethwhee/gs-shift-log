@@ -1155,83 +1155,6 @@ function formatLimestoneUsageNumber(
     }
   }
 
-/* =====================================================
-  오전회의 과거 업무일지 중복 요청 방지
-
-  - 같은 날짜의 D/S·N/S가 하나의 요청을 공유
-  - 요청 완료 후 캐시를 제거하여 다음 수동 조회는 새로 실행
-===================================================== */
-
-const morningMeetingLegacyLogsInFlight =
-  new Map();
-
-
-function loadMorningMeetingLegacyLogsOnce(
-  searchDate
-) {
-  const normalizedDate =
-    normalizeText(
-      searchDate
-    );
-
-
-  if (
-    !normalizedDate
-  ) {
-    return Promise.resolve(
-      []
-    );
-  }
-
-
-  const existingPromise =
-    morningMeetingLegacyLogsInFlight.get(
-      normalizedDate
-    );
-
-
-  if (
-    existingPromise
-  ) {
-    return existingPromise;
-  }
-
-
-  const requestPromise =
-    (
-      typeof loadLegacyLogsForSearchDate ===
-        "function"
-        ? loadLegacyLogsForSearchDate(
-            normalizedDate
-          )
-        : Promise.resolve(
-            []
-          )
-    ).finally(
-      () => {
-        if (
-          morningMeetingLegacyLogsInFlight.get(
-            normalizedDate
-          ) ===
-            requestPromise
-        ) {
-          morningMeetingLegacyLogsInFlight.delete(
-            normalizedDate
-          );
-        }
-      }
-    );
-
-
-  morningMeetingLegacyLogsInFlight.set(
-    normalizedDate,
-    requestPromise
-  );
-
-
-  return requestPromise;
-}
-
 async function setLimestoneUsageDate(
   requestedDate,
   options = {}
@@ -139870,39 +139793,60 @@ async function analyzeAllMorningMeetingFiles() {
 
 
     /* ===================================================
-      자료 분석 완료 후 일일 DATA 불러오기
+      자료 분석 완료 후 외부 저장자료 불러오기
 
-      한 번의 조회 결과로:
-      - 전력 현황
-      - 증기 생산·판매
-      - 유기성 고형연료
-      세 카드를 함께 채운다.
+      - 월간 일일 DATA Excel
+      - 저장된 신북 날씨
     ==================================================== */
 
     window.setTimeout(
       () => {
+        const dailyDataLoader =
+          window
+            .loadEfficiencyMorningMeetingDailyData;
+
+
         if (
-          typeof window
-            .loadEfficiencyMorningMeetingDailyData !==
+          typeof dailyDataLoader ===
             "function"
         ) {
-          console.warn(
-            "오전회의 일일 DATA 조회 함수를 확인하지 못했습니다."
-          );
-
-
-          return;
-        }
-
-
-        void window
-          .loadEfficiencyMorningMeetingDailyData({
+          void dailyDataLoader({
             forceRefresh:
               false,
 
             userInitiated:
               true
           });
+
+        } else {
+          console.warn(
+            "오전회의 일일 DATA 조회 함수를 확인하지 못했습니다."
+          );
+        }
+
+
+        const weatherLoader =
+          window
+            .loadEfficiencyMorningMeetingWeather;
+
+
+        if (
+          typeof weatherLoader ===
+            "function"
+        ) {
+          void weatherLoader({
+            forceRefresh:
+              false,
+
+            userInitiated:
+              true
+          });
+
+        } else {
+          console.warn(
+            "오전회의 신북 날씨 조회 함수를 확인하지 못했습니다."
+          );
+        }
       },
       300
     );
@@ -159193,6 +159137,84 @@ function getAnalyzedReportDate() {
     "-"
   );
 }
+
+/* =====================================================
+  오전회의 과거 업무일지 중복 요청 방지
+
+  - 같은 날짜의 D/S·N/S가 하나의 요청을 공유
+  - 요청 완료 후 캐시를 제거하여 다음 수동 조회는 새로 실행
+===================================================== */
+
+const morningMeetingLegacyLogsInFlight =
+  new Map();
+
+
+function loadMorningMeetingLegacyLogsOnce(
+  searchDate
+) {
+  const normalizedDate =
+    normalizeText(
+      searchDate
+    );
+
+
+  if (
+    !normalizedDate
+  ) {
+    return Promise.resolve(
+      []
+    );
+  }
+
+
+  const existingPromise =
+    morningMeetingLegacyLogsInFlight.get(
+      normalizedDate
+    );
+
+
+  if (
+    existingPromise
+  ) {
+    return existingPromise;
+  }
+
+
+  const requestPromise =
+    (
+      typeof loadLegacyLogsForSearchDate ===
+        "function"
+        ? loadLegacyLogsForSearchDate(
+            normalizedDate
+          )
+        : Promise.resolve(
+            []
+          )
+    ).finally(
+      () => {
+        if (
+          morningMeetingLegacyLogsInFlight.get(
+            normalizedDate
+          ) ===
+            requestPromise
+        ) {
+          morningMeetingLegacyLogsInFlight.delete(
+            normalizedDate
+          );
+        }
+      }
+    );
+
+
+  morningMeetingLegacyLogsInFlight.set(
+    normalizedDate,
+    requestPromise
+  );
+
+
+  return requestPromise;
+}
+
 
 async function requestShiftLogs(
     date,
@@ -185174,6 +185196,13 @@ function ensureSiloPreviewCard() {
           <small id="efficiencyMorningMeetingAutoDailyPowerDate">
             -
           </small>
+
+          <span
+            class="efficiency-morning-meeting-auto-card__badge"
+            id="efficiencyMorningMeetingAutoDailyPowerStatus"
+          >
+            조회 대기
+          </span>
         </div>
 
       </header>
@@ -185253,6 +185282,12 @@ function ensureSiloPreviewCard() {
             -
           </small>
 
+          <span
+            class="efficiency-morning-meeting-auto-card__badge"
+            id="efficiencyMorningMeetingAutoSteamStatus"
+          >
+            조회 대기
+          </span>
         </div>
       </header>
 
@@ -185327,6 +185362,12 @@ function ensureSiloPreviewCard() {
             -
           </small>
 
+          <span
+            class="efficiency-morning-meeting-auto-card__badge"
+            id="efficiencyMorningMeetingAutoDailySludgeStatus"
+          >
+            조회 대기
+          </span>
         </div>
       </header>
 
@@ -209810,6 +209851,10 @@ async function load(
     options.forceRefresh ===
     true;
 
+  const userInitiated =
+    options.userInitiated ===
+    true;
+
   const meetingDate =
     getMeetingDate();
 
@@ -209817,12 +209862,14 @@ async function load(
     날짜 변경·초기 진입·초기화에서는
     저장된 브라우저 캐시만 표시한다.
 
-    날씨 API는 [다시 조회] 버튼을 눌러
-    forceRefresh:true가 전달될 때만 호출한다.
+    [자료 분석] 또는 [다시 조회]처럼
+    사용자가 시작한 경우에만 API를 호출한다.
   */
   if (
     forceRefresh !==
-    true
+      true &&
+    userInitiated !==
+      true
   ) {
     render();
 

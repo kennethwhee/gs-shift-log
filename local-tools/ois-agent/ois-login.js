@@ -8740,22 +8740,16 @@ try {
     )
 
   $fieldDefinitions =
-    @(
-      $env:GS_DAILY_FIELDS_JSON |
-        ConvertFrom-Json
-    )
+    $env:GS_DAILY_FIELDS_JSON |
+      ConvertFrom-Json
 
   $sludgeDefinitions =
-    @(
-      $env:GS_DAILY_SLUDGE_JSON |
-        ConvertFrom-Json
-    )
+    $env:GS_DAILY_SLUDGE_JSON |
+      ConvertFrom-Json
 
   $organicDefinitions =
-    @(
-      $env:GS_DAILY_ORGANIC_JSON |
-        ConvertFrom-Json
-    )
+    $env:GS_DAILY_ORGANIC_JSON |
+      ConvertFrom-Json
 
   if (
     $fieldDefinitions.Count -lt 1 -or
