@@ -1703,3 +1703,316 @@
   }
 
 }
+
+/* =========================================================
+  Log Sheet 사이드바 메뉴
+
+  - 기존 점검일지 메뉴와 시각적으로 분리
+  - 통합 제어실/현장 계층 메뉴 지원
+  - 사이드바 접기 시 함께 숨김
+========================================================= */
+
+.inspection-sidebar-log-sheet {
+  display: grid;
+
+  gap: 7px;
+
+  padding: 8px;
+
+  border:
+    1px solid
+    #b9cee2;
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #f7fbff 0%,
+      #eef6fd 100%
+    );
+
+  box-shadow:
+    0 4px 14px
+    rgba(
+      24,
+      50,
+      78,
+      0.055
+    );
+}
+
+
+/* Log Sheet 제목 */
+
+.inspection-sidebar-log-sheet__title {
+  display: grid;
+
+  gap: 2px;
+
+  padding:
+    4px
+    5px
+    7px;
+
+  border-bottom:
+    1px solid
+    #d4e2ef;
+}
+
+
+.inspection-sidebar-log-sheet__title span {
+  color: #2f73b5;
+
+  font-size: 8px;
+  font-weight: 950;
+  line-height: 1;
+
+  letter-spacing: 0.13em;
+}
+
+
+.inspection-sidebar-log-sheet__title strong {
+  color: #173c60;
+
+  font-size: 14px;
+  font-weight: 950;
+  line-height: 1.3;
+}
+
+
+/* 통합 제어실·현장 그룹 */
+
+.inspection-sidebar-sheet-group,
+.inspection-sidebar-sheet-branch {
+  overflow: hidden;
+
+  border:
+    1px solid
+    #d3dfeb;
+
+  border-radius: 8px;
+
+  background: #ffffff;
+}
+
+
+.inspection-sidebar-sheet-group > summary,
+.inspection-sidebar-sheet-branch > summary {
+  display: flex;
+
+  min-height: 38px;
+
+  align-items: center;
+
+  gap: 7px;
+
+  padding:
+    0
+    9px;
+
+  list-style: none;
+
+  color: #2d4c68;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.35;
+
+  cursor: pointer;
+
+  user-select: none;
+}
+
+
+.inspection-sidebar-sheet-group
+  > summary::-webkit-details-marker,
+.inspection-sidebar-sheet-branch
+  > summary::-webkit-details-marker {
+  display: none;
+}
+
+
+/* 그룹 화살표 */
+
+.inspection-sidebar-sheet-group
+  > summary::before,
+.inspection-sidebar-sheet-branch
+  > summary::before {
+  content: "▸";
+
+  flex:
+    0
+    0
+    auto;
+
+  color: #4c7ba8;
+
+  font-size: 10px;
+
+  transition:
+    transform
+    0.16s
+    ease;
+}
+
+
+.inspection-sidebar-sheet-group[open]
+  > summary::before,
+.inspection-sidebar-sheet-branch[open]
+  > summary::before {
+  transform:
+    rotate(
+      90deg
+    );
+}
+
+
+/* 메뉴 목록 */
+
+.inspection-sidebar-sheet-branches,
+.inspection-sidebar-sheet-menu,
+.inspection-sidebar-sheet-direct {
+  display: grid;
+
+  gap: 4px;
+}
+
+
+.inspection-sidebar-sheet-branches,
+.inspection-sidebar-sheet-menu {
+  padding: 5px;
+
+  border-top:
+    1px solid
+    #e2eaf2;
+
+  background: #f7fafc;
+}
+
+
+/* 야간·주간 하위 그룹 */
+
+.inspection-sidebar-sheet-branch {
+  box-shadow: none;
+}
+
+
+.inspection-sidebar-sheet-branch
+  > summary {
+  min-height: 32px;
+
+  padding:
+    0
+    8px;
+
+  font-size: 10px;
+}
+
+
+.inspection-sidebar-sheet-branch
+  .inspection-sidebar-sheet-menu {
+  padding: 4px;
+}
+
+
+/* Log Sheet 선택 버튼 */
+
+.inspection-sidebar-sheet-menu button,
+.inspection-sidebar-sheet-direct button {
+  box-sizing: border-box;
+
+  width: 100%;
+
+  min-height: 32px;
+
+  padding:
+    7px
+    9px;
+
+  border: 0;
+
+  border-radius: 6px;
+
+  background: transparent;
+
+  color: #536b82;
+
+  font: inherit;
+
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1.35;
+
+  text-align: left;
+
+  word-break: keep-all;
+
+  cursor: pointer;
+}
+
+
+/* Elec·고압 Aux 직접 메뉴 */
+
+.inspection-sidebar-sheet-direct button {
+  border:
+    1px solid
+    #d5e1ec;
+
+  background: #ffffff;
+
+  color: #314f69;
+}
+
+
+/* 마우스 올림 */
+
+.inspection-sidebar-sheet-menu
+  button:hover,
+.inspection-sidebar-sheet-direct
+  button:hover {
+  background: #e4f1fd;
+
+  color: #245f98;
+}
+
+
+/* 현재 선택 메뉴 */
+
+.inspection-sidebar-sheet-menu
+  button.is-active,
+.inspection-sidebar-sheet-direct
+  button.is-active {
+  border-color: #2f73b5;
+
+  background: #2f73b5;
+
+  color: #ffffff;
+}
+
+
+/* 사이드바를 접으면 Log Sheet 메뉴도 숨긴다. */
+
+.inspection-sidebar.is-collapsed
+  > .inspection-sidebar-log-sheet {
+  display: none !important;
+}
+
+
+/* 모바일에서는 메뉴 폭을 강제로 늘리지 않는다. */
+
+@media (max-width: 680px) {
+
+  .inspection-sidebar-log-sheet {
+    width: 100%;
+
+    box-sizing: border-box;
+  }
+
+
+  .inspection-sidebar-sheet-group
+    > summary {
+    min-height: 36px;
+  }
+
+}

@@ -23,7 +23,7 @@
   const ROLE_MODAL_ID = "inspectionRoleTodayModal";
   const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
   const PAGE_URL =
-    "inspection-logs/inspection-logs.html?v=20260814-sidebar-rail1";
+    "inspection-logs/inspection-logs.html?v=20260814-log-sheet1";
 
   const ROLE_ORDER = [
     "파트장",

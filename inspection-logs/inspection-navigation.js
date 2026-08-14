@@ -158,7 +158,9 @@ function initializeInspectionWorkspaceNavigation() {
   sidebar.innerHTML = `
     <div class="inspection-sidebar__intro">
       <strong>점검일지 메뉴</strong>
-      <span>점검주기와 등록된 점검일지를 선택합니다.</span>
+      <span>
+        점검주기와 등록된 점검일지를 선택합니다.
+      </span>
     </div>
 
     <details class="inspection-sidebar-group">
@@ -271,6 +273,139 @@ function initializeInspectionWorkspaceNavigation() {
         </span>
       </div>
     </details>
+
+    <!-- ===================================================
+      Log Sheet
+    ==================================================== -->
+
+    <section
+      class="inspection-sidebar-log-sheet"
+      aria-labelledby="inspectionSidebarLogSheetTitle"
+    >
+      <div class="inspection-sidebar-log-sheet__title">
+        <span>WORK LOG</span>
+
+        <strong id="inspectionSidebarLogSheetTitle">
+          Log Sheet
+        </strong>
+      </div>
+
+      <!-- 통합 제어실 Log Sheet -->
+      <details class="inspection-sidebar-sheet-group">
+        <summary>
+          통합 제어실 Log Sheet
+        </summary>
+
+        <div class="inspection-sidebar-sheet-menu">
+          <button
+            type="button"
+            data-inspection-sidebar-log="log-sheet-integrated-tgo"
+          >
+            TGO
+          </button>
+
+          <button
+            type="button"
+            data-inspection-sidebar-log="log-sheet-integrated-bco1"
+          >
+            BCO1
+          </button>
+
+          <button
+            type="button"
+            data-inspection-sidebar-log="log-sheet-integrated-bco2"
+          >
+            BCO2
+          </button>
+        </div>
+      </details>
+
+      <!-- 현장 Log Sheet -->
+      <details class="inspection-sidebar-sheet-group">
+        <summary>
+          현장 Log Sheet
+        </summary>
+
+        <div class="inspection-sidebar-sheet-branches">
+          <!-- 야간 -->
+          <details class="inspection-sidebar-sheet-branch">
+            <summary>
+              야간
+            </summary>
+
+            <div class="inspection-sidebar-sheet-menu">
+              <button
+                type="button"
+                data-inspection-sidebar-log="log-sheet-field-night-leader-to"
+              >
+                파트장·TO 야간
+              </button>
+
+              <button
+                type="button"
+                data-inspection-sidebar-log="log-sheet-field-night-bo12"
+              >
+                BO1·2 야간
+              </button>
+            </div>
+          </details>
+
+          <!-- 주간 -->
+          <details class="inspection-sidebar-sheet-branch">
+            <summary>
+              주간
+            </summary>
+
+            <div class="inspection-sidebar-sheet-menu">
+              <button
+                type="button"
+                data-inspection-sidebar-log="log-sheet-field-day-to"
+              >
+                TO
+              </button>
+
+              <button
+                type="button"
+                data-inspection-sidebar-log="log-sheet-field-day-bo1"
+              >
+                BO1
+              </button>
+
+              <button
+                type="button"
+                data-inspection-sidebar-log="log-sheet-field-day-bo2"
+              >
+                BO2
+              </button>
+            </div>
+          </details>
+        </div>
+      </details>
+
+      <!-- 단독 Log Sheet -->
+      <div class="inspection-sidebar-sheet-direct">
+        <button
+          type="button"
+          data-inspection-sidebar-log="log-sheet-electrical"
+        >
+          Elec. Log Sheet
+        </button>
+
+        <button
+          type="button"
+          data-inspection-sidebar-log="log-sheet-aux-control-room"
+        >
+          고압 Aux BLR 제어실
+        </button>
+
+        <button
+          type="button"
+          data-inspection-sidebar-log="log-sheet-aux-field"
+        >
+          고압 Aux BLR 현장
+        </button>
+      </div>
+    </section>
   `;
 
 

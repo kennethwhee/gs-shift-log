@@ -27,7 +27,7 @@
 
   <link
     rel="stylesheet"
-    href="inspection-navigation.css?v=20260814-sidebar-rail1"
+    href="inspection-navigation.css?v=20260814-log-sheet1"
   >
 
   <link
@@ -47,7 +47,7 @@
   ></script>
 
   <script
-    src="inspection-navigation.js?v=20260814-sidebar-rail1"
+    src="inspection-navigation.js?v=20260814-log-sheet1"
     defer
   ></script>
 
@@ -273,104 +273,382 @@
       주간점검일지
       월간점검일지
     ====================================================== -->
-   <nav aria-label="점검일지 분류" class="inspection-log-tabs">
-    <button aria-selected="true" class="inspection-log-tab is-active" data-inspection-category="daily" type="button">
-     일일점검일지
-    </button>
-    <button aria-selected="false" class="inspection-log-tab" data-inspection-category="weekly" type="button">
-     주간점검일지
-    </button>
-    <button aria-selected="false" class="inspection-log-tab" data-inspection-category="monthly" type="button">
-     월간점검일지
-    </button>
-   </nav>
-   <section class="inspection-log-list" id="inspectionLogList">
-    <!-- 일일점검일지 -->
-    <button class="inspection-log-card" data-inspection-category-item="daily" data-inspection-log="night-patrol" data-inspection-path="daily/night-patrol/night-patrol.html?v=20260803-6" type="button">
-     <span class="inspection-log-card__icon">
+
+   <nav
+  aria-label="점검일지 분류"
+  class="inspection-log-tabs"
+>
+  <button
+    type="button"
+    class="inspection-log-tab is-active"
+    data-inspection-category="daily"
+    aria-selected="true"
+  >
+    일일점검일지
+  </button>
+
+  <button
+    type="button"
+    class="inspection-log-tab"
+    data-inspection-category="weekly"
+    aria-selected="false"
+  >
+    주간점검일지
+  </button>
+
+  <button
+    type="button"
+    class="inspection-log-tab"
+    data-inspection-category="monthly"
+    aria-selected="false"
+  >
+    월간점검일지
+  </button>
+
+  <!-- 왼쪽 Log Sheet 메뉴 연결용 숨김 분류 -->
+  <button
+    type="button"
+    class="inspection-log-tab"
+    data-inspection-category="log-sheet"
+    aria-selected="false"
+    hidden
+  >
+    Log Sheet
+  </button>
+</nav>
+
+<section
+  class="inspection-log-list"
+  id="inspectionLogList"
+>
+  <!-- 일일점검일지 -->
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-category-item="daily"
+    data-inspection-log="night-patrol"
+    data-inspection-path="daily/night-patrol/night-patrol.html?v=20260803-6"
+  >
+    <span class="inspection-log-card__icon">
       🌙
-     </span>
-     <span class="inspection-log-card__text">
+    </span>
+
+    <span class="inspection-log-card__text">
       <strong>
-       야간 순찰 점검일지
+        야간 순찰 점검일지
       </strong>
+
       <small>
-       야간 현장 순찰 및 이상 유무 기록
+        야간 현장 순찰 및 이상 유무 기록
       </small>
-     </span>
-     <span aria-hidden="true" class="inspection-log-card__arrow">
+    </span>
+
+    <span
+      class="inspection-log-card__arrow"
+      aria-hidden="true"
+    >
       &rsaquo;
-     </span>
-    </button>
-    <!-- 주간점검일지 -->
-    <button class="inspection-log-card" data-inspection-category-item="weekly" data-inspection-log="high-pressure-gas" data-inspection-path="weekly/high-pressure-gas/high-pressure-gas.html?v=20260804-1" hidden="" type="button">
-     <span class="inspection-log-card__icon">
+    </span>
+  </button>
+
+  <!-- 주간점검일지 -->
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-category-item="weekly"
+    data-inspection-log="high-pressure-gas"
+    data-inspection-path="weekly/high-pressure-gas/high-pressure-gas.html?v=20260804-1"
+    hidden
+  >
+    <span class="inspection-log-card__icon">
       🧯
-     </span>
-     <span class="inspection-log-card__text">
+    </span>
+
+    <span class="inspection-log-card__text">
       <strong>
-       고압가스 저장시설 주간점검표
+        고압가스 저장시설 주간점검표
       </strong>
+
       <small>
-       매주 일요일 D/S &middot; CO2 저장시설 점검
+        매주 일요일 D/S &middot; CO2 저장시설 점검
       </small>
-     </span>
-     <span aria-hidden="true" class="inspection-log-card__arrow">
+    </span>
+
+    <span
+      class="inspection-log-card__arrow"
+      aria-hidden="true"
+    >
       &rsaquo;
-     </span>
-    </button>
-    <!-- =====================================================
-  LNG 주간점검 일지
-====================================================== -->
-    <button class="inspection-log-card" data-inspection-category-item="weekly" data-inspection-log="lng-weekly" data-inspection-path="weekly/lng-weekly/lng-weekly.html?v=20260803-1" type="button">
-     <span class="inspection-log-card__icon">
+    </span>
+  </button>
+
+  <!-- LNG 주간점검 일지 -->
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-category-item="weekly"
+    data-inspection-log="lng-weekly"
+    data-inspection-path="weekly/lng-weekly/lng-weekly.html?v=20260803-1"
+    hidden
+  >
+    <span class="inspection-log-card__icon">
       🔥
-     </span>
-     <span class="inspection-log-card__text">
+    </span>
+
+    <span class="inspection-log-card__text">
       <strong>
-       LNG System 주간점검 일지
+        LNG System 주간점검 일지
       </strong>
+
       <small>
-       매주 일요일 D/S &middot; LNG 설비 주간점검
+        매주 일요일 D/S &middot; LNG 설비 주간점검
       </small>
-     </span>
-     <span class="inspection-log-card__arrow">
+    </span>
+
+    <span
+      class="inspection-log-card__arrow"
+      aria-hidden="true"
+    >
       &rsaquo;
-     </span>
-    </button>
-    <!-- Soot Blower 주간점검일지 -->
-    <button class="inspection-log-card" data-inspection-category-item="weekly" data-inspection-log="soot-blower-weekly" data-inspection-path="weekly/soot-blower/soot-blower-weekly.html?v=20260804-1" hidden="" type="button">
-     <span class="inspection-log-card__icon">
+    </span>
+  </button>
+
+  <!-- Soot Blower 주간점검일지 -->
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-category-item="weekly"
+    data-inspection-log="soot-blower-weekly"
+    data-inspection-path="weekly/soot-blower/soot-blower-weekly.html?v=20260804-1"
+    hidden
+  >
+    <span class="inspection-log-card__icon">
       ♨️
-     </span>
-     <span class="inspection-log-card__text">
+    </span>
+
+    <span class="inspection-log-card__text">
       <strong>
-       Soot Blower 주간점검일지
+        Soot Blower 주간점검일지
       </strong>
+
       <small>
-       매주 월요일 N/S &middot; 1&middot;2호기 Soot Blower 점검
+        매주 월요일 N/S &middot; 1&middot;2호기 Soot Blower 점검
       </small>
-     </span>
-     <span aria-hidden="true" class="inspection-log-card__arrow">
+    </span>
+
+    <span
+      class="inspection-log-card__arrow"
+      aria-hidden="true"
+    >
       &rsaquo;
-     </span>
-    </button>
-    <div class="inspection-log-empty" hidden="" id="inspectionLogEmpty">
-     등록된 점검일지가 없습니다.
-    </div>
-   </section>
-   <section class="inspection-log-viewer" hidden="" id="inspectionLogViewer">
-    <div class="inspection-log-viewer__header">
-     <button id="inspectionLogBackButton" type="button">
+    </span>
+  </button>
+
+  <!-- =====================================================
+    Log Sheet 공통 편집 화면 연결 레지스트리
+    실제 왼쪽 메뉴는 다음 단계에서 생성
+  ====================================================== -->
+
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-category-item="log-sheet"
+    data-inspection-log="log-sheet-integrated-tgo"
+    data-inspection-path="log-sheets/log-sheet.html?type=integrated-tgo"
+    hidden
+  >
+    <span class="inspection-log-card__text">
+      <strong>
+        통합 제어실 Log Sheet · TGO
+      </strong>
+    </span>
+  </button>
+
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-category-item="log-sheet"
+    data-inspection-log="log-sheet-integrated-bco1"
+    data-inspection-path="log-sheets/log-sheet.html?type=integrated-bco1"
+    hidden
+  >
+    <span class="inspection-log-card__text">
+      <strong>
+        통합 제어실 Log Sheet · BCO1
+      </strong>
+    </span>
+  </button>
+
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-category-item="log-sheet"
+    data-inspection-log="log-sheet-integrated-bco2"
+    data-inspection-path="log-sheets/log-sheet.html?type=integrated-bco2"
+    hidden
+  >
+    <span class="inspection-log-card__text">
+      <strong>
+        통합 제어실 Log Sheet · BCO2
+      </strong>
+    </span>
+  </button>
+
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-category-item="log-sheet"
+    data-inspection-log="log-sheet-field-night-leader-to"
+    data-inspection-path="log-sheets/log-sheet.html?type=field-night-leader-to"
+    hidden
+  >
+    <span class="inspection-log-card__text">
+      <strong>
+        현장 Log Sheet · 파트장·TO 야간
+      </strong>
+    </span>
+  </button>
+
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-category-item="log-sheet"
+    data-inspection-log="log-sheet-field-night-bo12"
+    data-inspection-path="log-sheets/log-sheet.html?type=field-night-bo12"
+    hidden
+  >
+    <span class="inspection-log-card__text">
+      <strong>
+        현장 Log Sheet · BO1·2 야간
+      </strong>
+    </span>
+  </button>
+
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-category-item="log-sheet"
+    data-inspection-log="log-sheet-field-day-to"
+    data-inspection-path="log-sheets/log-sheet.html?type=field-day-to"
+    hidden
+  >
+    <span class="inspection-log-card__text">
+      <strong>
+        현장 Log Sheet · TO 주간
+      </strong>
+    </span>
+  </button>
+
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-category-item="log-sheet"
+    data-inspection-log="log-sheet-field-day-bo1"
+    data-inspection-path="log-sheets/log-sheet.html?type=field-day-bo1"
+    hidden
+  >
+    <span class="inspection-log-card__text">
+      <strong>
+        현장 Log Sheet · BO1 주간
+      </strong>
+    </span>
+  </button>
+
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-category-item="log-sheet"
+    data-inspection-log="log-sheet-field-day-bo2"
+    data-inspection-path="log-sheets/log-sheet.html?type=field-day-bo2"
+    hidden
+  >
+    <span class="inspection-log-card__text">
+      <strong>
+        현장 Log Sheet · BO2 주간
+      </strong>
+    </span>
+  </button>
+
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-category-item="log-sheet"
+    data-inspection-log="log-sheet-electrical"
+    data-inspection-path="log-sheets/log-sheet.html?type=electrical"
+    hidden
+  >
+    <span class="inspection-log-card__text">
+      <strong>
+        Elec. Log Sheet
+      </strong>
+    </span>
+  </button>
+
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-category-item="log-sheet"
+    data-inspection-log="log-sheet-aux-control-room"
+    data-inspection-path="log-sheets/log-sheet.html?type=aux-control-room"
+    hidden
+  >
+    <span class="inspection-log-card__text">
+      <strong>
+        고압 Aux BLR 제어실 Log Sheet
+      </strong>
+    </span>
+  </button>
+
+  <button
+    type="button"
+    class="inspection-log-card"
+    data-inspection-category-item="log-sheet"
+    data-inspection-log="log-sheet-aux-field"
+    data-inspection-path="log-sheets/log-sheet.html?type=aux-field"
+    hidden
+  >
+    <span class="inspection-log-card__text">
+      <strong>
+        고압 Aux BLR 현장 Log Sheet
+      </strong>
+    </span>
+  </button>
+
+  <div
+    class="inspection-log-empty"
+    id="inspectionLogEmpty"
+    hidden
+  >
+    등록된 점검일지가 없습니다.
+  </div>
+</section>
+
+<section
+  class="inspection-log-viewer"
+  id="inspectionLogViewer"
+  hidden
+>
+  <div class="inspection-log-viewer__header">
+    <button
+      type="button"
+      id="inspectionLogBackButton"
+    >
       &larr; 목록
-     </button>
-     <strong id="inspectionLogViewerTitle">
+    </button>
+
+    <strong id="inspectionLogViewerTitle">
       점검일지
-     </strong>
-    </div>
-    <iframe allow="fullscreen" allowfullscreen="" id="inspectionLogFrame" src="about:blank" title="점검일지 화면">
-    </iframe>
-   </section>
+    </strong>
+  </div>
+
+  <iframe
+    id="inspectionLogFrame"
+    src="about:blank"
+    title="점검일지 화면"
+    allow="fullscreen"
+    allowfullscreen
+  ></iframe>
+</section>
 </main>
  </body>
 </html>

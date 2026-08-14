@@ -1,0 +1,2337 @@
+/* =========================================================
+  Log Sheet 공용 저장 API
+
+  GET  /api/inspection-log-sheets
+  POST /api/inspection-log-sheets
+
+  핵심 규칙:
+  - 로그인한 사용자만 조회·저장
+  - 템플릿·시트·일자·근무·팀별 1건
+  - 수정 가능한 셀은 서버 화이트리스트로 제한
+  - 한 번의 POST로 전체 sparse values 저장
+  - revision 동시 수정 충돌 방지
+  - 저장할 때마다 수정 이력 보관
+  - 폴링·자동 저장 없음
+========================================================= */
+
+const MAX_VALUES_JSON_BYTES =
+  500000;
+
+const MAX_CELL_COUNT =
+  5000;
+
+const MAX_CELL_TEXT_LENGTH =
+  4000;
+
+const MAX_HISTORY_RESULTS =
+  100;
+
+/*
+  5개 원본 Excel의 12개 표시 시트.
+
+  allowedRanges는 사용자가 입력할 수 있는 영역만 나열한다.
+  제목·항목·단위·시간 등 양식 고정 셀은 포함하지 않는다.
+*/
+const SHEET_DEFINITIONS =
+  Object.freeze({
+    "integrated-tgo": {
+      templateKey:
+        "integrated-control",
+      worksheetName:
+        "TGO",
+      allowedRanges: [
+        "R3",
+        "T3",
+        "R4",
+        "T4",
+        "S5",
+        "J7:U54",
+        "J58:U103",
+        "J108:J119",
+        "P108:P119"
+      ]
+    },
+
+    "integrated-bco1": {
+      templateKey:
+        "integrated-control",
+      worksheetName:
+        "BCO1",
+      allowedRanges: [
+        "R3",
+        "T3",
+        "R4",
+        "T4",
+        "R5",
+        "J7:U37",
+        "J41:U85"
+      ]
+    },
+
+    "integrated-bco2": {
+      templateKey:
+        "integrated-control",
+      worksheetName:
+        "BCO2",
+      allowedRanges: [
+        "R3",
+        "T3",
+        "R4",
+        "T4",
+        "R5",
+        "J7:U46",
+        "J50:U85"
+      ]
+    },
+
+    "field-night-leader-to": {
+      templateKey:
+        "field",
+      worksheetName:
+        "파트장&TO (야간)",
+      allowedRanges: [
+        "B4",
+        "M2",
+        "M3",
+        "J7:M35",
+        "J37:M69",
+        "J71:M105",
+        "G108:G112",
+        "K108:K112",
+        "M108:M112"
+      ]
+    },
+
+    "field-night-bo12": {
+      templateKey:
+        "field",
+      worksheetName:
+        "BO1&2 Night",
+      allowedRanges: [
+        "B4",
+        "N2",
+        "P2",
+        "N3",
+        "P3",
+        "J7:Q34",
+        "J36:K40",
+        "P36:Q40",
+        "J42:Q68",
+        "H70:H77",
+        "O70:O77",
+        "J79:Q118"
+      ]
+    },
+
+    "field-day-to": {
+      templateKey:
+        "field",
+      worksheetName:
+        "TO (주간)",
+      allowedRanges: [
+        "B4",
+        "M2",
+        "M3",
+        "J7:M35",
+        "J37:M69",
+        "J71:M105"
+      ]
+    },
+
+    "field-day-bo1": {
+      templateKey:
+        "field",
+      worksheetName:
+        "BO1",
+      allowedRanges: [
+        "B4",
+        "M2",
+        "M3",
+        "J7:M34",
+        "J36:M73",
+        "J75:M88"
+      ]
+    },
+
+    "field-day-bo2": {
+      templateKey:
+        "field",
+      worksheetName:
+        "BO2",
+      allowedRanges: [
+        "B4",
+        "M2",
+        "M3",
+        "J7:M32",
+        "J34:M69",
+        "J71:M83"
+      ]
+    },
+
+    "electrical-main": {
+      templateKey:
+        "electrical",
+      worksheetName:
+        "전기 Sheet",
+      allowedRanges: [
+        "R2",
+        "R3",
+        "O5",
+        "S5",
+        "J10:J47",
+        "M10:M47",
+        "P10:P47",
+        "S10:S47"
+      ]
+    },
+
+    "electrical-patrol": {
+      templateKey:
+        "electrical",
+      worksheetName:
+        "야간 순찰 점검일지 양식",
+      allowedRanges: [
+        "P2",
+        "G3",
+        "H3",
+        "G4",
+        "G6:H28",
+        "B30"
+      ]
+    },
+
+    "aux-control-room": {
+      templateKey:
+        "aux-boiler-control-room",
+      worksheetName:
+        "고압보조보일러 제어실",
+      allowedRanges: [
+        "A6",
+        "P4",
+        "R4",
+        "P5",
+        "R5",
+        "H10:S41",
+        "H45:S85"
+      ]
+    },
+
+    "aux-field": {
+      templateKey:
+        "aux-boiler-field",
+      worksheetName:
+        "Aux Local",
+      allowedRanges: [
+        "A4",
+        "N2",
+        "P2",
+        "N3",
+        "P3",
+        "G8:N46",
+        "P9:R46"
+      ]
+    }
+  });
+
+/* 구형/간소화 URL 키도 동일한 시트로 정규화한다. */
+const SHEET_KEY_ALIASES =
+  Object.freeze({
+    tgo:
+      "integrated-tgo",
+    bco1:
+      "integrated-bco1",
+    bco2:
+      "integrated-bco2",
+    "field-night-chief-to":
+      "field-night-leader-to",
+    "field-night-part-leader-to":
+      "field-night-leader-to",
+    "field-night-bo1-bo2":
+      "field-night-bo12",
+    "field-day-boiler1":
+      "field-day-bo1",
+    "field-day-boiler2":
+      "field-day-bo2",
+    electrical:
+      "electrical-main",
+    "elec-main":
+      "electrical-main",
+    "elec-patrol":
+      "electrical-patrol",
+    "aux-control":
+      "aux-control-room",
+    "aux-boiler-control-room":
+      "aux-control-room",
+    "aux-boiler-field":
+      "aux-field",
+    "aux-field":
+      "aux-field"
+  });
+
+/*
+  전기 야간 순찰의 랜덤 선택 결과.
+
+  해당 셀은 사용자 입력값과 분리한 generatedValues로만
+  저장하여 일반 편집에서 랜덤 결과를 바꾸지 못하게 한다.
+*/
+const GENERATED_VALUE_RANGES =
+  Object.freeze({
+    "electrical-patrol": [
+      "D6",
+      "D12",
+      "D18",
+      "D24",
+      "F6:F28"
+    ]
+  });
+
+const ELECTRICAL_PATROL_GENERATED_CELLS =
+  Object.freeze([
+    "D6",
+    "D12",
+    "D18",
+    "D24",
+    ...Array.from(
+      {
+        length: 23
+      },
+      (
+        _unused,
+        index
+      ) => {
+        return `F${index + 6}`;
+      }
+    )
+  ]);
+
+
+function jsonResponse(
+  data,
+  status = 200
+) {
+  return Response.json(
+    data,
+    {
+      status,
+      headers: {
+        "Cache-Control":
+          "no-store"
+      }
+    }
+  );
+}
+
+
+function normalizeText(
+  value
+) {
+  return String(
+    value ??
+    ""
+  ).trim();
+}
+
+
+function normalizeEmployeeNo(
+  value
+) {
+  return normalizeText(
+    value
+  ).replace(
+    /\s+/g,
+    ""
+  );
+}
+
+
+function getBearerToken(
+  request
+) {
+  const authorization =
+    normalizeText(
+      request.headers.get(
+        "Authorization"
+      )
+    );
+
+  const match =
+    authorization.match(
+      /^Bearer\s+(.+)$/i
+    );
+
+  return normalizeText(
+    match?.[1]
+  );
+}
+
+
+function bytesToHex(
+  bytes
+) {
+  return [
+    ...bytes
+  ]
+    .map(
+      byte => {
+        return byte
+          .toString(
+            16
+          )
+          .padStart(
+            2,
+            "0"
+          );
+      }
+    )
+    .join("");
+}
+
+
+async function hashSessionToken(
+  token
+) {
+  const digest =
+    await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(
+        token
+      )
+    );
+
+  return bytesToHex(
+    new Uint8Array(
+      digest
+    )
+  );
+}
+
+
+async function getAuthenticatedUser(
+  context
+) {
+  const database =
+    context.env.DB;
+
+  if (
+    !database
+  ) {
+    return {
+      error:
+        jsonResponse(
+          {
+            ok: false,
+            message:
+              "D1 바인딩 DB가 등록되지 않았습니다."
+          },
+          500
+        )
+    };
+  }
+
+  const token =
+    getBearerToken(
+      context.request
+    );
+
+  if (
+    !token
+  ) {
+    return {
+      error:
+        jsonResponse(
+          {
+            ok: false,
+            message:
+              "로그인이 필요합니다."
+          },
+          401
+        )
+    };
+  }
+
+  const tokenHash =
+    await hashSessionToken(
+      token
+    );
+
+  const session =
+    await database
+      .prepare(`
+        SELECT
+          session.employee_no,
+          session.expires_at,
+          user.name,
+          user.role,
+          user.is_active,
+          employee.position
+        FROM shift_log_sessions AS session
+        INNER JOIN users AS user
+          ON user.employee_no =
+             session.employee_no
+        LEFT JOIN employees AS employee
+          ON employee.employee_no =
+             session.employee_no
+        WHERE session.token_hash = ?
+        LIMIT 1
+      `)
+      .bind(
+        tokenHash
+      )
+      .first();
+
+  const now =
+    new Date();
+
+  const expiresAt =
+    new Date(
+      session?.expires_at ||
+      0
+    );
+
+  if (
+    !session ||
+    Number(
+      session.is_active
+    ) !==
+      1 ||
+    Number.isNaN(
+      expiresAt.getTime()
+    ) ||
+    expiresAt <=
+      now
+  ) {
+    await database
+      .prepare(`
+        DELETE FROM shift_log_sessions
+        WHERE token_hash = ?
+      `)
+      .bind(
+        tokenHash
+      )
+      .run();
+
+    return {
+      error:
+        jsonResponse(
+          {
+            ok: false,
+            message:
+              "로그인 세션이 만료되었습니다. 다시 로그인해 주세요."
+          },
+          401
+        )
+    };
+  }
+
+  await database
+    .prepare(`
+      UPDATE shift_log_sessions
+      SET last_used_at = ?
+      WHERE token_hash = ?
+    `)
+    .bind(
+      now.toISOString(),
+      tokenHash
+    )
+    .run();
+
+  return {
+    user: {
+      employeeNo:
+        normalizeEmployeeNo(
+          session.employee_no
+        ),
+      name:
+        normalizeText(
+          session.name
+        ),
+      role:
+        normalizeText(
+          session.role
+        ),
+      position:
+        normalizeText(
+          session.position
+        )
+    }
+  };
+}
+
+
+async function ensureSchema(
+  database
+) {
+  await database
+    .prepare(`
+      CREATE TABLE IF NOT EXISTS
+        inspection_log_sheet_records (
+          id TEXT PRIMARY KEY,
+          template_key TEXT NOT NULL,
+          sheet_key TEXT NOT NULL,
+          log_date TEXT NOT NULL,
+          shift TEXT NOT NULL DEFAULT 'ALL',
+          team TEXT NOT NULL DEFAULT '',
+          values_json TEXT NOT NULL DEFAULT '{}',
+          generated_values_json TEXT NOT NULL DEFAULT '{}',
+          revision INTEGER NOT NULL DEFAULT 1,
+          created_by_id TEXT NOT NULL,
+          created_by_name TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_by_id TEXT NOT NULL,
+          updated_by_name TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+    `)
+    .run();
+
+  /* 이미 생성된 초기 테이블에도 랜덤 결과 칸을 추가한다. */
+  const tableInfoResult =
+    await database
+      .prepare(`
+        PRAGMA table_info(
+          inspection_log_sheet_records
+        )
+      `)
+      .all();
+
+  const existingColumns =
+    new Set(
+      (
+        Array.isArray(
+          tableInfoResult.results
+        )
+          ? tableInfoResult.results
+          : []
+      )
+        .map(
+          column => {
+            return normalizeText(
+              column?.name
+            );
+          }
+        )
+        .filter(
+          Boolean
+        )
+    );
+
+  if (
+    !existingColumns.has(
+      "generated_values_json"
+    )
+  ) {
+    try {
+      await database
+        .prepare(`
+          ALTER TABLE
+            inspection_log_sheet_records
+          ADD COLUMN
+            generated_values_json
+            TEXT NOT NULL DEFAULT '{}'
+        `)
+        .run();
+
+    } catch (
+      error
+    ) {
+      const errorMessage =
+        String(
+          error?.message ||
+          error ||
+          ""
+        ).toLowerCase();
+
+      if (
+        !errorMessage.includes(
+          "duplicate column"
+        )
+      ) {
+        throw error;
+      }
+    }
+  }
+
+  await database
+    .prepare(`
+      CREATE UNIQUE INDEX IF NOT EXISTS
+        idx_inspection_log_sheet_identity
+      ON inspection_log_sheet_records (
+        template_key,
+        sheet_key,
+        log_date,
+        shift,
+        team
+      )
+    `)
+    .run();
+
+  await database
+    .prepare(`
+      CREATE INDEX IF NOT EXISTS
+        idx_inspection_log_sheet_date
+      ON inspection_log_sheet_records (
+        log_date DESC,
+        sheet_key
+      )
+    `)
+    .run();
+
+  await database
+    .prepare(`
+      CREATE TABLE IF NOT EXISTS
+        inspection_log_sheet_history (
+          history_id TEXT PRIMARY KEY,
+          record_id TEXT NOT NULL,
+          revision INTEGER NOT NULL,
+          action TEXT NOT NULL,
+          snapshot_json TEXT NOT NULL,
+          changed_by_id TEXT NOT NULL,
+          changed_by_name TEXT NOT NULL,
+          changed_at TEXT NOT NULL
+        )
+    `)
+    .run();
+
+  await database
+    .prepare(`
+      CREATE INDEX IF NOT EXISTS
+        idx_inspection_log_sheet_history_record
+      ON inspection_log_sheet_history (
+        record_id,
+        revision DESC
+      )
+    `)
+    .run();
+}
+
+
+function isValidIsoDate(
+  value
+) {
+  const date =
+    normalizeText(
+      value
+    );
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      date
+    )
+  ) {
+    return false;
+  }
+
+  const parsedDate =
+    new Date(
+      `${date}T00:00:00.000Z`
+    );
+
+  return (
+    !Number.isNaN(
+      parsedDate.getTime()
+    ) &&
+    parsedDate
+      .toISOString()
+      .slice(
+        0,
+        10
+      ) ===
+      date
+  );
+}
+
+
+function normalizeSheetKey(
+  value
+) {
+  const rawKey =
+    normalizeText(
+      value
+    ).toLowerCase();
+
+  const sheetKey =
+    SHEET_KEY_ALIASES[
+      rawKey
+    ] ||
+    rawKey;
+
+  return SHEET_DEFINITIONS[
+    sheetKey
+  ]
+    ? sheetKey
+    : "";
+}
+
+
+function normalizeIdentityPart(
+  value,
+  fallback = "",
+  maximumLength = 30
+) {
+  const text =
+    normalizeText(
+      value
+    ) ||
+    fallback;
+
+  if (
+    text.length >
+      maximumLength ||
+    /[\u0000-\u001f\u007f]/.test(
+      text
+    )
+  ) {
+    return "";
+  }
+
+  return text;
+}
+
+
+function columnLettersToNumber(
+  letters
+) {
+  return [
+    ...letters
+  ].reduce(
+    (
+      total,
+      letter
+    ) => {
+      return (
+        total *
+          26 +
+        letter.charCodeAt(
+          0
+        ) -
+          64
+      );
+    },
+    0
+  );
+}
+
+
+function parseCellAddress(
+  value
+) {
+  const address =
+    normalizeText(
+      value
+    )
+      .replace(
+        /\$/g,
+        ""
+      )
+      .toUpperCase();
+
+  const match =
+    address.match(
+      /^([A-Z]{1,3})([1-9]\d{0,5})$/
+    );
+
+  if (
+    !match
+  ) {
+    return null;
+  }
+
+  return {
+    address,
+    column:
+      columnLettersToNumber(
+        match[1]
+      ),
+    row:
+      Number(
+        match[2]
+      )
+  };
+}
+
+
+function parseRange(
+  value
+) {
+  const [
+    startText,
+    endText
+  ] =
+    normalizeText(
+      value
+    ).split(":");
+
+  const start =
+    parseCellAddress(
+      startText
+    );
+
+  const end =
+    parseCellAddress(
+      endText ||
+      startText
+    );
+
+  if (
+    !start ||
+    !end
+  ) {
+    return null;
+  }
+
+  return {
+    firstColumn:
+      Math.min(
+        start.column,
+        end.column
+      ),
+    lastColumn:
+      Math.max(
+        start.column,
+        end.column
+      ),
+    firstRow:
+      Math.min(
+        start.row,
+        end.row
+      ),
+    lastRow:
+      Math.max(
+        start.row,
+        end.row
+      )
+  };
+}
+
+
+function isAllowedCellAddress(
+  sheetKey,
+  address
+) {
+  const cell =
+    parseCellAddress(
+      address
+    );
+
+  const definition =
+    SHEET_DEFINITIONS[
+      sheetKey
+    ];
+
+  if (
+    !cell ||
+    !definition
+  ) {
+    return false;
+  }
+
+  return definition.allowedRanges.some(
+    rangeText => {
+      const range =
+        parseRange(
+          rangeText
+        );
+
+      return Boolean(
+        range &&
+        cell.column >=
+          range.firstColumn &&
+        cell.column <=
+          range.lastColumn &&
+        cell.row >=
+          range.firstRow &&
+        cell.row <=
+          range.lastRow
+      );
+    }
+  );
+}
+
+
+function normalizeCellValue(
+  value
+) {
+  if (
+    value ===
+      null
+  ) {
+    return "";
+  }
+
+  if (
+    typeof value ===
+      "number"
+  ) {
+    return Number.isFinite(
+      value
+    )
+      ? value
+      : undefined;
+  }
+
+  if (
+    typeof value ===
+      "boolean"
+  ) {
+    return value;
+  }
+
+  if (
+    typeof value !==
+      "string" ||
+    value.length >
+      MAX_CELL_TEXT_LENGTH
+  ) {
+    return undefined;
+  }
+
+  return value
+    .replace(
+      /\r\n/g,
+      "\n"
+    )
+    .replace(
+      /\r/g,
+      "\n"
+    );
+}
+
+
+function validateValues(
+  sheetKey,
+  rawValues
+) {
+  if (
+    !rawValues ||
+    typeof rawValues !==
+      "object" ||
+    Array.isArray(
+      rawValues
+    )
+  ) {
+    return {
+      error:
+        "Log Sheet 셀 데이터 형식이 올바르지 않습니다."
+    };
+  }
+
+  const entries =
+    Object.entries(
+      rawValues
+    );
+
+  if (
+    entries.length >
+      MAX_CELL_COUNT
+  ) {
+    return {
+      error:
+        `한 번에 저장할 수 있는 셀은 ${MAX_CELL_COUNT}개입니다.`
+    };
+  }
+
+  const values = {};
+
+  for (
+    const [
+      rawAddress,
+      rawValue
+    ] of entries
+  ) {
+    const cell =
+      parseCellAddress(
+        rawAddress
+      );
+
+    if (
+      !cell ||
+      !isAllowedCellAddress(
+        sheetKey,
+        cell.address
+      )
+    ) {
+      return {
+        error:
+          `수정할 수 없는 셀입니다: ${normalizeText(rawAddress) || "(주소 없음)"}`
+      };
+    }
+
+    const value =
+      normalizeCellValue(
+        rawValue
+      );
+
+    if (
+      value ===
+        undefined
+    ) {
+      return {
+        error:
+          `셀 값 형식을 확인해 주세요: ${cell.address}`
+      };
+    }
+
+    values[
+      cell.address
+    ] =
+      value;
+  }
+
+  const valuesJson =
+    JSON.stringify(
+      values
+    );
+
+  if (
+    new TextEncoder()
+      .encode(
+        valuesJson
+      )
+      .byteLength >
+      MAX_VALUES_JSON_BYTES
+  ) {
+    return {
+      error:
+        "Log Sheet 입력 데이터가 너무 큽니다."
+    };
+  }
+
+  return {
+    values,
+    valuesJson
+  };
+}
+
+
+function validateGeneratedValues(
+  sheetKey,
+  rawValues,
+  provided
+) {
+  if (
+    !provided
+  ) {
+    return {
+      provided: false,
+      values: {},
+      valuesJson:
+        "{}"
+    };
+  }
+
+  if (
+    !rawValues ||
+    typeof rawValues !==
+      "object" ||
+    Array.isArray(
+      rawValues
+    )
+  ) {
+    return {
+      error:
+        "Log Sheet 자동 생성 값 형식이 올바르지 않습니다."
+    };
+  }
+
+  const allowedRanges =
+    GENERATED_VALUE_RANGES[
+      sheetKey
+    ] ||
+    [];
+
+  const entries =
+    Object.entries(
+      rawValues
+    );
+
+  if (
+    sheetKey ===
+      "electrical-patrol" &&
+    entries.length !==
+      ELECTRICAL_PATROL_GENERATED_CELLS.length
+  ) {
+    return {
+      error:
+        "전기 야간 순찰의 자동 선택 결과 27개를 모두 저장해 주세요."
+    };
+  }
+
+  if (
+    entries.length >
+      MAX_CELL_COUNT
+  ) {
+    return {
+      error:
+        `한 번에 저장할 수 있는 자동 생성 셀은 ${MAX_CELL_COUNT}개입니다.`
+    };
+  }
+
+  const values = {};
+
+  for (
+    const [
+      rawAddress,
+      rawValue
+    ] of entries
+  ) {
+    const cell =
+      parseCellAddress(
+        rawAddress
+      );
+
+    const allowed =
+      Boolean(
+        cell &&
+        allowedRanges.some(
+          rangeText => {
+            const range =
+              parseRange(
+                rangeText
+              );
+
+            return Boolean(
+              range &&
+              cell.column >=
+                range.firstColumn &&
+              cell.column <=
+                range.lastColumn &&
+              cell.row >=
+                range.firstRow &&
+              cell.row <=
+                range.lastRow
+            );
+          }
+        )
+      );
+
+    if (
+      !allowed
+    ) {
+      return {
+        error:
+          `저장할 수 없는 자동 생성 셀입니다: ${normalizeText(rawAddress) || "(주소 없음)"}`
+      };
+    }
+
+    const value =
+      normalizeCellValue(
+        rawValue
+      );
+
+    if (
+      value ===
+        undefined
+    ) {
+      return {
+        error:
+          `자동 생성 셀 값을 확인해 주세요: ${cell.address}`
+      };
+    }
+
+    values[
+      cell.address
+    ] =
+      value;
+  }
+
+  const valuesJson =
+    JSON.stringify(
+      values
+    );
+
+  if (
+    new TextEncoder()
+      .encode(
+        valuesJson
+      )
+      .byteLength >
+      MAX_VALUES_JSON_BYTES
+  ) {
+    return {
+      error:
+        "Log Sheet 자동 생성 데이터가 너무 큽니다."
+    };
+  }
+
+  return {
+    provided: true,
+    values,
+    valuesJson
+  };
+}
+
+
+function parseJsonObject(
+  value
+) {
+  try {
+    const parsed =
+      JSON.parse(
+        normalizeText(
+          value
+        ) ||
+        "{}"
+      );
+
+    return (
+      parsed &&
+      typeof parsed ===
+        "object" &&
+      !Array.isArray(
+        parsed
+      )
+    )
+      ? parsed
+      : {};
+
+  } catch {
+    return {};
+  }
+}
+
+
+function convertRowToRecord(
+  row
+) {
+  if (
+    !row
+  ) {
+    return null;
+  }
+
+  const revision =
+    Number(
+      row.revision
+    ) ||
+    1;
+
+  return {
+    id:
+      normalizeText(
+        row.id
+      ),
+    templateKey:
+      normalizeText(
+        row.template_key
+      ),
+    sheetKey:
+      normalizeText(
+        row.sheet_key
+      ),
+    logDate:
+      normalizeText(
+        row.log_date
+      ),
+    shift:
+      normalizeText(
+        row.shift
+      ),
+    team:
+      normalizeText(
+        row.team
+      ),
+    values:
+      parseJsonObject(
+        row.values_json
+      ),
+    generatedValues:
+      parseJsonObject(
+        row.generated_values_json
+      ),
+    revision,
+    serverRevision:
+      revision,
+    createdById:
+      normalizeEmployeeNo(
+        row.created_by_id
+      ),
+    createdByName:
+      normalizeText(
+        row.created_by_name
+      ),
+    createdAt:
+      normalizeText(
+        row.created_at
+      ),
+    updatedById:
+      normalizeEmployeeNo(
+        row.updated_by_id
+      ),
+    updatedByName:
+      normalizeText(
+        row.updated_by_name
+      ),
+    updatedAt:
+      normalizeText(
+        row.updated_at
+      ),
+    source:
+      "shared-d1"
+  };
+}
+
+
+function createSheetResponseDefinition(
+  sheetKey
+) {
+  const definition =
+    SHEET_DEFINITIONS[
+      sheetKey
+    ];
+
+  return {
+    key:
+      sheetKey,
+    templateKey:
+      definition.templateKey,
+    worksheetName:
+      definition.worksheetName,
+    allowedRanges: [
+      ...definition.allowedRanges
+    ],
+    generatedSnapshotRanges: [
+      ...(
+        GENERATED_VALUE_RANGES[
+          sheetKey
+        ] ||
+        []
+      )
+    ]
+  };
+}
+
+
+async function findRecordById(
+  database,
+  id
+) {
+  const row =
+    await database
+      .prepare(`
+        SELECT *
+        FROM inspection_log_sheet_records
+        WHERE id = ?
+        LIMIT 1
+      `)
+      .bind(
+        id
+      )
+      .first();
+
+  return convertRowToRecord(
+    row
+  );
+}
+
+
+async function findRecordByIdentity(
+  database,
+  identity
+) {
+  const row =
+    await database
+      .prepare(`
+        SELECT *
+        FROM inspection_log_sheet_records
+        WHERE
+          template_key = ? AND
+          sheet_key = ? AND
+          log_date = ? AND
+          shift = ? AND
+          team = ?
+        LIMIT 1
+      `)
+      .bind(
+        identity.templateKey,
+        identity.sheetKey,
+        identity.logDate,
+        identity.shift,
+        identity.team
+      )
+      .first();
+
+  return convertRowToRecord(
+    row
+  );
+}
+
+
+async function getHistory(
+  database,
+  recordId,
+  includeSnapshots
+) {
+  if (
+    !recordId
+  ) {
+    return [];
+  }
+
+  const snapshotColumn =
+    includeSnapshots
+      ? ", snapshot_json"
+      : "";
+
+  const result =
+    await database
+      .prepare(`
+        SELECT
+          history_id,
+          record_id,
+          revision,
+          action,
+          changed_by_id,
+          changed_by_name,
+          changed_at
+          ${snapshotColumn}
+        FROM inspection_log_sheet_history
+        WHERE record_id = ?
+        ORDER BY revision DESC
+        LIMIT ${MAX_HISTORY_RESULTS}
+      `)
+      .bind(
+        recordId
+      )
+      .all();
+
+  return (
+    Array.isArray(
+      result.results
+    )
+      ? result.results
+      : []
+  ).map(
+    row => {
+      const historyItem = {
+        historyId:
+          normalizeText(
+            row.history_id
+          ),
+        recordId:
+          normalizeText(
+            row.record_id
+          ),
+        revision:
+          Number(
+            row.revision
+          ) ||
+          1,
+        action:
+          normalizeText(
+            row.action
+          ),
+        changedById:
+          normalizeEmployeeNo(
+            row.changed_by_id
+          ),
+        changedByName:
+          normalizeText(
+            row.changed_by_name
+          ),
+        changedAt:
+          normalizeText(
+            row.changed_at
+          )
+      };
+
+      if (
+        includeSnapshots
+      ) {
+        historyItem.snapshot =
+          parseJsonObject(
+            row.snapshot_json
+          );
+      }
+
+      return historyItem;
+    }
+  );
+}
+
+
+async function appendHistory(
+  database,
+  record,
+  action,
+  user
+) {
+  await database
+    .prepare(`
+      INSERT INTO
+        inspection_log_sheet_history (
+          history_id,
+          record_id,
+          revision,
+          action,
+          snapshot_json,
+          changed_by_id,
+          changed_by_name,
+          changed_at
+        )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    .bind(
+      crypto.randomUUID(),
+      record.id,
+      record.revision,
+      action,
+      JSON.stringify(
+        record
+      ),
+      user.employeeNo,
+      user.name,
+      new Date().toISOString()
+    )
+    .run();
+}
+
+
+function createConflictResponse(
+  currentRecord
+) {
+  return jsonResponse(
+    {
+      ok: false,
+      conflict: true,
+      message:
+        "다른 사용자가 먼저 Log Sheet를 수정했습니다. 최신 내용을 다시 불러와 주세요.",
+      currentRecord
+    },
+    409
+  );
+}
+
+
+function validateIdentity(
+  source
+) {
+  const sheetKey =
+    normalizeSheetKey(
+      source.sheetKey ||
+      source.type
+    );
+
+  if (
+    !sheetKey
+  ) {
+    return {
+      error:
+        "Log Sheet 종류를 확인해 주세요."
+    };
+  }
+
+  const definition =
+    SHEET_DEFINITIONS[
+      sheetKey
+    ];
+
+  const suppliedTemplateKey =
+    normalizeText(
+      source.templateKey
+    );
+
+  if (
+    suppliedTemplateKey &&
+    suppliedTemplateKey !==
+      definition.templateKey
+  ) {
+    return {
+      error:
+        "Log Sheet 템플릿과 시트 정보가 일치하지 않습니다."
+    };
+  }
+
+  const logDate =
+    normalizeText(
+      source.logDate ||
+      source.date
+    );
+
+  if (
+    !isValidIsoDate(
+      logDate
+    )
+  ) {
+    return {
+      error:
+        "Log Sheet 작성일을 확인해 주세요."
+    };
+  }
+
+  const shift =
+    normalizeIdentityPart(
+      source.shift,
+      "ALL"
+    );
+
+  const team =
+    normalizeIdentityPart(
+      source.team,
+      ""
+    );
+
+  if (
+    !shift ||
+    source.team &&
+    !team
+  ) {
+    return {
+      error:
+        "Log Sheet 근무 또는 팀 정보를 확인해 주세요."
+    };
+  }
+
+  return {
+    identity: {
+      templateKey:
+        definition.templateKey,
+      sheetKey,
+      logDate,
+      shift,
+      team
+    }
+  };
+}
+
+
+export async function onRequestGet(
+  context
+) {
+  try {
+    const authentication =
+      await getAuthenticatedUser(
+        context
+      );
+
+    if (
+      authentication.error
+    ) {
+      return authentication.error;
+    }
+
+    await ensureSchema(
+      context.env.DB
+    );
+
+    const requestUrl =
+      new URL(
+        context.request.url
+      );
+
+    const id =
+      normalizeText(
+        requestUrl.searchParams.get(
+          "id"
+        )
+      );
+
+    const historyRequested =
+      requestUrl.searchParams.get(
+        "history"
+      ) ===
+        "1";
+
+    let record =
+      null;
+
+    let sheetKey =
+      "";
+
+    if (
+      id
+    ) {
+      record =
+        await findRecordById(
+          context.env.DB,
+          id
+        );
+
+      if (
+        !record
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            message:
+              "저장된 Log Sheet를 찾을 수 없습니다."
+          },
+          404
+        );
+      }
+
+      sheetKey =
+        normalizeSheetKey(
+          record.sheetKey
+        );
+
+    } else {
+      const validation =
+        validateIdentity({
+          sheetKey:
+            requestUrl.searchParams.get(
+              "sheetKey"
+            ) ||
+            requestUrl.searchParams.get(
+              "type"
+            ),
+          templateKey:
+            requestUrl.searchParams.get(
+              "templateKey"
+            ),
+          logDate:
+            requestUrl.searchParams.get(
+              "logDate"
+            ) ||
+            requestUrl.searchParams.get(
+              "date"
+            ),
+          shift:
+            requestUrl.searchParams.get(
+              "shift"
+            ),
+          team:
+            requestUrl.searchParams.get(
+              "team"
+            )
+        });
+
+      if (
+        validation.error
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            message:
+              validation.error
+          },
+          400
+        );
+      }
+
+      sheetKey =
+        validation.identity.sheetKey;
+
+      record =
+        await findRecordByIdentity(
+          context.env.DB,
+          validation.identity
+        );
+    }
+
+    const history =
+      await getHistory(
+        context.env.DB,
+        record?.id,
+        historyRequested
+      );
+
+    return jsonResponse({
+      ok: true,
+      record,
+      history,
+      sheet:
+        createSheetResponseDefinition(
+          sheetKey
+        )
+    });
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "Log Sheet 조회 오류:",
+      error
+    );
+
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Log Sheet를 불러오는 중 오류가 발생했습니다."
+      },
+      500
+    );
+  }
+}
+
+
+export async function onRequestPost(
+  context
+) {
+  try {
+    const authentication =
+      await getAuthenticatedUser(
+        context
+      );
+
+    if (
+      authentication.error
+    ) {
+      return authentication.error;
+    }
+
+    const user =
+      authentication.user;
+
+    await ensureSchema(
+      context.env.DB
+    );
+
+    let body;
+
+    try {
+      body =
+        await context.request.json();
+
+    } catch {
+      return jsonResponse(
+        {
+          ok: false,
+          message:
+            "저장 요청 데이터 형식이 올바르지 않습니다."
+        },
+        400
+      );
+    }
+
+    const source =
+      body?.record &&
+      typeof body.record ===
+        "object"
+        ? {
+            ...body,
+            ...body.record
+          }
+        : body;
+
+    const identityValidation =
+      validateIdentity(
+        source ||
+        {}
+      );
+
+    if (
+      identityValidation.error
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          message:
+            identityValidation.error
+        },
+        400
+      );
+    }
+
+    const identity =
+      identityValidation.identity;
+
+    const valuesValidation =
+      validateValues(
+        identity.sheetKey,
+        source.values ||
+        source.cells
+      );
+
+    if (
+      valuesValidation.error
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          message:
+            valuesValidation.error
+        },
+        400
+      );
+    }
+
+    const generatedValuesProvided =
+      Object.prototype.hasOwnProperty.call(
+        source,
+        "generatedValues"
+      );
+
+    const generatedValuesValidation =
+      validateGeneratedValues(
+        identity.sheetKey,
+        source.generatedValues,
+        generatedValuesProvided
+      );
+
+    if (
+      generatedValuesValidation.error
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          message:
+            generatedValuesValidation.error
+        },
+        400
+      );
+    }
+
+    const expectedRevisionInput =
+      body?.expectedRevision ??
+      source.expectedRevision ??
+      source.revision ??
+      source.serverRevision ??
+      0;
+
+    const expectedRevision =
+      Number(
+        expectedRevisionInput
+      );
+
+    if (
+      !Number.isInteger(
+        expectedRevision
+      ) ||
+      expectedRevision <
+        0
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          message:
+            "Log Sheet revision을 확인해 주세요."
+        },
+        400
+      );
+    }
+
+    const suppliedId =
+      normalizeText(
+        source.id
+      );
+
+    let existingRecord =
+      suppliedId
+        ? await findRecordById(
+            context.env.DB,
+            suppliedId
+          )
+        : null;
+
+    if (
+      existingRecord &&
+      (
+        existingRecord.templateKey !==
+          identity.templateKey ||
+        existingRecord.sheetKey !==
+          identity.sheetKey ||
+        existingRecord.logDate !==
+          identity.logDate ||
+        existingRecord.shift !==
+          identity.shift ||
+        existingRecord.team !==
+          identity.team
+      )
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          message:
+            "저장된 Log Sheet의 일자·근무·팀 정보는 변경할 수 없습니다."
+        },
+        400
+      );
+    }
+
+    if (
+      !existingRecord
+    ) {
+      existingRecord =
+        await findRecordByIdentity(
+          context.env.DB,
+          identity
+        );
+    }
+
+    if (
+      identity.sheetKey ===
+        "electrical-patrol"
+    ) {
+      if (
+        !existingRecord &&
+        !generatedValuesValidation.provided
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            message:
+              "전기 야간 순찰의 자동 선택 결과를 함께 저장해 주세요."
+          },
+          400
+        );
+      }
+
+      if (
+        existingRecord
+      ) {
+        const previousPart =
+          existingRecord.values?.P2 ??
+          3;
+
+        const incomingPart =
+          valuesValidation.values.P2 ??
+          3;
+
+        if (
+          String(
+            previousPart
+          ) !==
+            String(
+              incomingPart
+            ) &&
+          !generatedValuesValidation.provided
+        ) {
+          return jsonResponse(
+            {
+              ok: false,
+              message:
+                "파트를 바꾸면 새로 선택된 순찰자·순찰구역 결과를 함께 저장해야 합니다."
+            },
+            400
+          );
+        }
+      }
+    }
+
+    const now =
+      new Date().toISOString();
+
+    if (
+      !existingRecord
+    ) {
+      if (
+        Number.isFinite(
+          expectedRevision
+        ) &&
+        expectedRevision >
+          0
+      ) {
+        return createConflictResponse(
+          null
+        );
+      }
+
+      const id =
+        `inspection-log-sheet-${crypto.randomUUID()}`;
+
+      try {
+        await context.env.DB
+          .prepare(`
+            INSERT INTO
+              inspection_log_sheet_records (
+                id,
+                template_key,
+                sheet_key,
+                log_date,
+                shift,
+                team,
+                values_json,
+                generated_values_json,
+                revision,
+                created_by_id,
+                created_by_name,
+                created_at,
+                updated_by_id,
+                updated_by_name,
+                updated_at
+              )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+          `)
+          .bind(
+            id,
+            identity.templateKey,
+            identity.sheetKey,
+            identity.logDate,
+            identity.shift,
+            identity.team,
+            valuesValidation.valuesJson,
+            generatedValuesValidation.valuesJson,
+            user.employeeNo,
+            user.name,
+            now,
+            user.employeeNo,
+            user.name,
+            now
+          )
+          .run();
+
+      } catch (
+        error
+      ) {
+        if (
+          /UNIQUE constraint failed/i.test(
+            String(
+              error
+            )
+          )
+        ) {
+          const currentRecord =
+            await findRecordByIdentity(
+              context.env.DB,
+              identity
+            );
+
+          return createConflictResponse(
+            currentRecord
+          );
+        }
+
+        throw error;
+      }
+
+      const savedRecord =
+        await findRecordById(
+          context.env.DB,
+          id
+        );
+
+      await appendHistory(
+        context.env.DB,
+        savedRecord,
+        "생성",
+        user
+      );
+
+      return jsonResponse(
+        {
+          ok: true,
+          created: true,
+          record:
+            savedRecord,
+          history:
+            await getHistory(
+              context.env.DB,
+              id,
+              false
+            ),
+          sheet:
+            createSheetResponseDefinition(
+              identity.sheetKey
+            )
+        },
+        201
+      );
+    }
+
+    if (
+      !Number.isInteger(
+        expectedRevision
+      ) ||
+      expectedRevision <
+        1 ||
+      expectedRevision !==
+        existingRecord.revision
+    ) {
+      return createConflictResponse(
+        existingRecord
+      );
+    }
+
+    const updateResult =
+      /*
+        generatedValues가 요청에 없으면 기존 랜덤 결과를 그대로 보존한다.
+        P2를 바꾸는 경우는 클라이언트가 새 generatedValues를 함께 보낸다.
+      */
+      await context.env.DB
+        .prepare(`
+          UPDATE inspection_log_sheet_records
+          SET
+            values_json = ?,
+            generated_values_json = ?,
+            revision = revision + 1,
+            updated_by_id = ?,
+            updated_by_name = ?,
+            updated_at = ?
+          WHERE
+            id = ? AND
+            revision = ?
+        `)
+        .bind(
+          valuesValidation.valuesJson,
+          generatedValuesValidation.provided
+            ? generatedValuesValidation.valuesJson
+            : JSON.stringify(
+                existingRecord.generatedValues ||
+                {}
+              ),
+          user.employeeNo,
+          user.name,
+          now,
+          existingRecord.id,
+          expectedRevision
+        )
+        .run();
+
+    if (
+      Number(
+        updateResult?.meta?.changes ||
+        0
+      ) !==
+        1
+    ) {
+      return createConflictResponse(
+        await findRecordById(
+          context.env.DB,
+          existingRecord.id
+        )
+      );
+    }
+
+    const savedRecord =
+      await findRecordById(
+        context.env.DB,
+        existingRecord.id
+      );
+
+    await appendHistory(
+      context.env.DB,
+      savedRecord,
+      "수정",
+      user
+    );
+
+    return jsonResponse({
+      ok: true,
+      created: false,
+      record:
+        savedRecord,
+      history:
+        await getHistory(
+          context.env.DB,
+          savedRecord.id,
+          false
+        ),
+      sheet:
+        createSheetResponseDefinition(
+          identity.sheetKey
+        )
+    });
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "Log Sheet 저장 오류:",
+      error
+    );
+
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Log Sheet를 저장하는 중 오류가 발생했습니다."
+      },
+      500
+    );
+  }
+}

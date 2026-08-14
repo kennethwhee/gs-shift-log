@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>Log Sheet</title>
+
+  <link
+    rel="stylesheet"
+    href="log-sheet.css?v=20260814-log-sheet1"
+  >
+
+  <script
+    src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"
+    defer
+  ></script>
+
+  <script
+    src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
+    defer
+  ></script>
+
+  <script
+    src="log-sheet-config.js?v=20260814-log-sheet1"
+    defer
+  ></script>
+
+  <script
+    src="log-sheet.js?v=20260814-log-sheet1"
+    defer
+  ></script>
+</head>
+
+<body>
+  <main
+    class="log-sheet-app"
+    id="logSheetApp"
+  >
+    <header class="log-sheet-toolbar screen-only">
+      <div class="log-sheet-toolbar__heading">
+        <p>INSPECTION LOG SHEET</p>
+
+        <h1 id="logSheetTitle">
+          Log Sheet
+        </h1>
+
+        <span id="logSheetDescription">
+          엑셀 양식을 준비하고 있습니다.
+        </span>
+      </div>
+
+      <div class="log-sheet-toolbar__controls">
+        <label>
+          <span>작성일</span>
+
+          <input
+            type="date"
+            id="logSheetDate"
+          >
+        </label>
+
+        <label>
+          <span>근무</span>
+
+          <select id="logSheetShift">
+            <option value="D/S">D/S</option>
+            <option value="N/S">N/S</option>
+          </select>
+        </label>
+
+        <label>
+          <span>근무조</span>
+
+          <select id="logSheetTeam">
+            <option value="1">1조</option>
+            <option value="2">2조</option>
+            <option value="3">3조</option>
+            <option value="4">4조</option>
+          </select>
+        </label>
+
+        <div
+          class="log-sheet-toolbar__auxiliary"
+          id="logSheetAuxiliaryControls"
+          hidden
+        ></div>
+
+        <button
+          type="button"
+          class="is-secondary"
+          id="logSheetLoadButton"
+        >
+          저장자료 불러오기
+        </button>
+
+        <button
+          type="button"
+          class="is-primary"
+          id="logSheetSaveButton"
+        >
+          저장
+        </button>
+
+        <button
+          type="button"
+          class="is-secondary"
+          id="logSheetHistoryButton"
+        >
+          수정 이력
+        </button>
+
+        <button
+          type="button"
+          class="is-excel"
+          id="logSheetDownloadButton"
+        >
+          엑셀 다운로드
+        </button>
+
+        <button
+          type="button"
+          class="is-print"
+          id="logSheetPrintButton"
+        >
+          바로 인쇄
+        </button>
+      </div>
+    </header>
+
+    <section
+      class="log-sheet-state screen-only"
+      aria-live="polite"
+    >
+      <span
+        class="log-sheet-state__badge is-idle"
+        id="logSheetStateBadge"
+      >
+        준비 중
+      </span>
+
+      <p id="logSheetStateText">
+        원본 엑셀 양식을 불러오고 있습니다.
+      </p>
+
+      <small id="logSheetRevisionText">
+        저장 기록 없음
+      </small>
+    </section>
+
+    <nav
+      class="log-sheet-tabs screen-only"
+      id="logSheetTabs"
+      aria-label="Log Sheet 시트 선택"
+      hidden
+    ></nav>
+
+    <section class="log-sheet-document">
+      <header class="log-sheet-print-heading print-only">
+        <strong id="logSheetPrintTitle">Log Sheet</strong>
+        <span id="logSheetPrintMeta"></span>
+      </header>
+
+      <div
+        class="log-sheet-loading"
+        id="logSheetLoading"
+      >
+        <span aria-hidden="true"></span>
+        엑셀 양식을 불러오고 있습니다.
+      </div>
+
+      <div
+        class="log-sheet-grid-shell"
+        id="logSheetGridShell"
+        hidden
+      >
+        <div
+          class="log-sheet-grid"
+          id="logSheetGrid"
+        ></div>
+      </div>
+    </section>
+  </main>
+
+  <dialog
+    class="log-sheet-history-dialog"
+    id="logSheetHistoryDialog"
+  >
+    <header>
+      <div>
+        <p>REVISION HISTORY</p>
+        <strong>수정 이력</strong>
+      </div>
+
+      <button
+        type="button"
+        id="logSheetHistoryCloseButton"
+        aria-label="수정 이력 닫기"
+      >
+        ×
+      </button>
+    </header>
+
+    <div
+      class="log-sheet-history-list"
+      id="logSheetHistoryList"
+    >
+      저장된 수정 이력이 없습니다.
+    </div>
+  </dialog>
+</body>
+
+</html>
