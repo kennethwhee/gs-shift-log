@@ -86877,7 +86877,6 @@ function initializeAuxiliaryMaterialDateControls() {
   const elements =
     getAuxiliaryMaterialElements();
 
-
   if (
     !elements.view ||
     !elements.monthInput ||
@@ -86887,91 +86886,50 @@ function initializeAuxiliaryMaterialDateControls() {
     return;
   }
 
-
-  /*
-    이벤트 중복 연결 방지
-  */
   if (
     elements
       .monthInput
       .dataset
       .auxiliaryMaterialDateBound ===
-      "true"
+        "true"
   ) {
     return;
   }
 
-
   const currentMonthValue =
     getCurrentAuxiliaryMaterialMonthValue();
 
-
-  function loadSelectedMonthOnMobile() {
-    if (
-      !isAuxiliaryMaterialMobileMonitorMode() ||
-      typeof loadAuxiliaryMaterialHistory !==
-        "function"
-    ) {
-      return;
-    }
-
-
-    loadAuxiliaryMaterialHistory()
-      .catch(
-        () => {
-          /*
-            오류 문구는 조회 함수 내부에서 표시한다.
-          */
-        }
-      );
-  }
-
-
   /*
-    월 선택창에서 미래 월 선택 방지
+    미래 월 선택 방지
   */
   elements.monthInput.max =
     currentMonthValue;
 
-
   /*
-    최초 실행 시 현재 월 적용
+    최초 날짜 범위만 설정한다.
+    서버 조회는 하지 않는다.
   */
   applyAuxiliaryMaterialMonthRange(
     elements.monthInput.value ||
     currentMonthValue
   );
 
-
   /*
-    월 선택창 변경
-
-    PC:
-    - 기존처럼 기간만 변경
-
-    모바일:
-    - 기간 변경 후 D1 저장자료 자동 조회
+    월을 직접 변경해도
+    날짜 범위만 변경한다.
   */
   elements.monthInput.addEventListener(
     "change",
     () => {
-      const applied =
-        applyAuxiliaryMaterialMonthRange(
-          elements.monthInput.value
-        );
-
-
-      if (
-        applied
-      ) {
-        loadSelectedMonthOnMobile();
-      }
+      applyAuxiliaryMaterialMonthRange(
+        elements.monthInput.value
+      );
     }
   );
 
-
   /*
-    이전 달 이동
+    이전 달 이동도
+    날짜 범위만 변경한다.
   */
   elements
     .previousMonthButton
@@ -86981,15 +86939,12 @@ function initializeAuxiliaryMaterialDateControls() {
         moveAuxiliaryMaterialMonth(
           -1
         );
-
-
-        loadSelectedMonthOnMobile();
       }
     );
 
-
   /*
-    다음 달 이동
+    다음 달 이동도
+    날짜 범위만 변경한다.
   */
   elements
     .nextMonthButton
@@ -86999,18 +86954,14 @@ function initializeAuxiliaryMaterialDateControls() {
         moveAuxiliaryMaterialMonth(
           1
         );
-
-
-        loadSelectedMonthOnMobile();
       }
     );
-
 
   elements
     .monthInput
     .dataset
     .auxiliaryMaterialDateBound =
-    "true";
+      "true";
 }
 
 /* =====================================================
@@ -87034,16 +86985,6 @@ if (
   initializeAuxiliaryMaterialDateControls();
 }
 
-/* =========================================================
-  효율팀 - 부재료 D1 저장자료 조회
-
-  기능:
-  - 기간 입력값 검사
-  - D1 저장자료 조회
-  - 날짜별 1·2호기 표 표시
-  - 저장일수 및 기간 평균 표시
-========================================================= */
-
 /* =====================================================
   부재료 저장자료 화면 상태
 ===================================================== */
@@ -87053,8 +86994,38 @@ const auxiliaryMaterialHistoryState = {
 
   summary: {},
 
-  fixedDensitySettings: []
+  fixedDensitySettings: [],
+
+  /*
+    같은 조회 범위로 부재료 메뉴를 다시 열 때
+    불필요한 D1 조회를 반복하지 않기 위한 상태
+  */
+  loadedRangeKey: "",
+
+  loadingRangeKey: "",
+
+  /*
+    날짜를 빠르게 이동했을 때
+    이전 응답이 최신 화면을 덮지 않도록 구분
+  */
+  loadSequence: 0
 };
+
+
+function getAuxiliaryMaterialHistoryRangeKey(
+  range
+) {
+  return (
+    `${String(
+      range?.startDate ||
+      ""
+    )}|` +
+    `${String(
+      range?.endDate ||
+      ""
+    )}`
+  );
+}
 
 
 const AUXILIARY_MATERIAL_LIMESTONE_LINK_START_DATE =
@@ -93711,21 +93682,39 @@ if (
 ===================================================== */
 
 async function loadAuxiliaryMaterialHistory(
-  options =
-    {}
+  options = {}
 ) {
   const elements =
     getAuxiliaryMaterialElements();
-
 
   const isSilent =
     options.silent ===
       true;
 
-
   const range =
     readAuxiliaryMaterialDateRange();
 
+  const rangeKey =
+    getAuxiliaryMaterialHistoryRangeKey(
+      range
+    );
+
+  /*
+    날짜를 빠르게 이동했을 때
+    이전 요청의 응답이 최신 화면을 덮지 않도록 구분
+  */
+  const loadSequence =
+    auxiliaryMaterialHistoryState
+      .loadSequence +
+    1;
+
+  auxiliaryMaterialHistoryState
+    .loadSequence =
+    loadSequence;
+
+  auxiliaryMaterialHistoryState
+    .loadingRangeKey =
+    rangeKey;
 
   if (
     elements.loadButton &&
@@ -93734,7 +93723,6 @@ async function loadAuxiliaryMaterialHistory(
     elements.loadButton.disabled =
       true;
   }
-
 
   if (
     !isSilent
@@ -93747,7 +93735,6 @@ async function loadAuxiliaryMaterialHistory(
       "loading"
     );
   }
-
 
   try {
     const query =
@@ -93767,7 +93754,6 @@ async function loadAuxiliaryMaterialHistory(
           )
       });
 
-
     const headers =
       typeof getShiftLogAuthHeaders ===
         "function"
@@ -93776,7 +93762,6 @@ async function loadAuxiliaryMaterialHistory(
             Accept:
               "application/json"
           };
-
 
     const [
       response,
@@ -93805,12 +93790,22 @@ async function loadAuxiliaryMaterialHistory(
         )
       ]);
 
-
     const result =
       await readAuxiliaryMaterialJsonResponse(
         response
       );
 
+    /*
+      이미 더 새로운 날짜 요청이 시작됐다면
+      이번 응답은 화면에 반영하지 않는다.
+    */
+    if (
+      loadSequence !==
+      auxiliaryMaterialHistoryState
+        .loadSequence
+    ) {
+      return result;
+    }
 
     auxiliaryMaterialHistoryState.items =
       mergeAuxiliaryMaterialLimestoneUsageHistory(
@@ -93822,24 +93817,28 @@ async function loadAuxiliaryMaterialHistory(
         }
       );
 
-
     auxiliaryMaterialHistoryState.summary =
       result.summary &&
-        typeof result.summary ===
+      typeof result.summary ===
         "object"
         ? result.summary
         : {};
 
+    /*
+      정상적으로 불러온 날짜 범위 저장
+      같은 범위로 메뉴에 재진입할 때 사용
+    */
+    auxiliaryMaterialHistoryState
+      .loadedRangeKey =
+      rangeKey;
 
     renderAuxiliaryMaterialHistory();
 
-
     /*
       저장자료를 불러온 뒤
-      최근 Slurry 밀도를 고정값 입력칸에 표시한다.
+      최근 Slurry 밀도도 다시 표시
     */
     renderAuxiliaryMaterialFixedDensitySettings();
-
 
     if (
       !isSilent
@@ -93860,7 +93859,6 @@ async function loadAuxiliaryMaterialHistory(
       );
     }
 
-
     return result;
 
   } catch (
@@ -93872,7 +93870,6 @@ async function loadAuxiliaryMaterialHistory(
         ? error.message
         : "부재료 저장자료를 불러오지 못했습니다.";
 
-
     if (
       !isSilent
     ) {
@@ -93880,7 +93877,6 @@ async function loadAuxiliaryMaterialHistory(
         message,
         "error"
       );
-
 
       if (
         typeof showToast ===
@@ -93892,10 +93888,22 @@ async function loadAuxiliaryMaterialHistory(
       }
     }
 
-
     throw error;
 
   } finally {
+    if (
+      loadSequence ===
+        auxiliaryMaterialHistoryState
+          .loadSequence &&
+      auxiliaryMaterialHistoryState
+        .loadingRangeKey ===
+          rangeKey
+    ) {
+      auxiliaryMaterialHistoryState
+        .loadingRangeKey =
+        "";
+    }
+
     if (
       elements.loadButton &&
       !isSilent
@@ -93906,7 +93914,6 @@ async function loadAuxiliaryMaterialHistory(
   }
 }
 
-
 /* =====================================================
   부재료 저장자료 조회 이벤트 연결
 ===================================================== */
@@ -93915,7 +93922,6 @@ function initializeAuxiliaryMaterialHistoryControls() {
   const elements =
     getAuxiliaryMaterialElements();
 
-
   if (
     !elements.view ||
     !elements.loadButton
@@ -93923,26 +93929,20 @@ function initializeAuxiliaryMaterialHistoryControls() {
     return;
   }
 
-
-  /*
-    이벤트 중복 연결 방지
-  */
   if (
     elements
       .loadButton
       .dataset
       .auxiliaryMaterialHistoryBound ===
-      "true"
+        "true"
   ) {
     return;
   }
-
 
   const today =
     formatAuxiliaryMaterialIsoDate(
       new Date()
     );
-
 
   if (
     elements.startDateInput
@@ -93951,7 +93951,6 @@ function initializeAuxiliaryMaterialHistoryControls() {
       today;
   }
 
-
   if (
     elements.endDateInput
   ) {
@@ -93959,9 +93958,9 @@ function initializeAuxiliaryMaterialHistoryControls() {
       today;
   }
 
-
   /*
-    저장 자료 보기 버튼
+    저장자료 조회는 사용자가
+    버튼을 직접 눌렀을 때만 실행한다.
   */
   elements.loadButton.addEventListener(
     "click",
@@ -93970,56 +93969,18 @@ function initializeAuxiliaryMaterialHistoryControls() {
         .catch(
           () => {
             /*
-              오류 문구는 함수 내부에서 표시한다.
+              오류 표시는 조회 함수가 담당한다.
             */
           }
         );
     }
   );
-
-
-  /*
-    부재료 메뉴를 열면
-    저장자료를 바로 불러오고
-    PC에서는 크게 보기로 먼저 연다.
-  */
-  elements.tab?.addEventListener(
-    "click",
-    () => {
-      if (
-        window.matchMedia(
-          "(min-width: 769px)"
-        ).matches &&
-        typeof setAuxiliaryMaterialExpandedView ===
-          "function"
-      ) {
-        window.requestAnimationFrame(
-          () => {
-            setAuxiliaryMaterialExpandedView(
-              true
-            );
-          }
-        );
-      }
-
-
-      loadAuxiliaryMaterialHistory()
-        .catch(
-          () => {
-            /*
-              오류 문구는 함수 내부에서 표시한다.
-            */
-          }
-        );
-    }
-  );
-
 
   elements
     .loadButton
     .dataset
     .auxiliaryMaterialHistoryBound =
-    "true";
+      "true";
 }
 
 /* =====================================================
@@ -95351,48 +95312,79 @@ async function handleAuxiliaryMaterialExcelFileSelection(
 ========================================================= */
 
 function prepareAuxiliaryMaterialPcCompactControls() {
-  /* 모바일은 기존 모니터링 전용 화면 유지 */
+  /*
+    모바일은 기존 모니터링 전용 화면 유지
+  */
   if (
-    typeof isAuxiliaryMaterialMobileMonitorMode === "function" &&
+    typeof isAuxiliaryMaterialMobileMonitorMode ===
+      "function" &&
     isAuxiliaryMaterialMobileMonitorMode()
   ) {
     return;
   }
 
-  const elements = getAuxiliaryMaterialElements();
-  const view = elements?.view;
-  const loadButton = elements?.loadButton;
-  const queryButton = elements?.queryButton;
-  const excelButton = elements?.excelImportButton;
-  const status = elements?.status;
+  const elements =
+    getAuxiliaryMaterialElements();
 
-  const forceRefreshInput = elements?.forceRefreshInput;
-  const forceRefreshLabel = forceRefreshInput?.closest(
-    ".auxiliary-material-force-refresh"
-  );
+  const view =
+    elements?.view;
 
-  const startDateLabel = elements?.startDateInput?.closest("label");
-  const endDateLabel = elements?.endDateInput?.closest("label");
+  const loadButton =
+    elements?.loadButton;
 
-  const periodFields = queryButton?.closest(
-    ".auxiliary-material-period-fields"
-  );
+  const queryButton =
+    elements?.queryButton;
 
-  const queryCard = periodFields?.closest(
-    ".auxiliary-material-query-card"
-  );
+  const excelButton =
+    elements?.excelImportButton;
 
-  const monthNavigation = queryCard?.querySelector(
-    ".auxiliary-material-month-navigation"
-  );
+  const status =
+    elements?.status;
 
-  const densityPanel = view?.querySelector(
-    ".auxiliary-material-density-setting"
-  );
+  const forceRefreshInput =
+    elements?.forceRefreshInput;
 
-  const excelImportPanel = view?.querySelector(
-    ".auxiliary-material-excel-import"
-  );
+  const forceRefreshLabel =
+    forceRefreshInput?.closest(
+      ".auxiliary-material-force-refresh"
+    );
+
+  const startDateLabel =
+    elements?.startDateInput
+      ?.closest(
+        "label"
+      );
+
+  const endDateLabel =
+    elements?.endDateInput
+      ?.closest(
+        "label"
+      );
+
+  const periodFields =
+    queryButton?.closest(
+      ".auxiliary-material-period-fields"
+    );
+
+  const queryCard =
+    periodFields?.closest(
+      ".auxiliary-material-query-card"
+    );
+
+  const monthNavigation =
+    queryCard?.querySelector(
+      ".auxiliary-material-month-navigation"
+    );
+
+  const densityPanel =
+    view?.querySelector(
+      ".auxiliary-material-density-setting"
+    );
+
+  const excelImportPanel =
+    view?.querySelector(
+      ".auxiliary-material-excel-import"
+    );
 
   if (
     !view ||
@@ -95409,13 +95401,19 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     return;
   }
 
-  /* 제목 아래 설명 제거 */
-  const headingDescription = view.querySelector(
-    ".auxiliary-material-heading > div > p"
-  );
+  /*
+    제목 아래 설명 제거
+  */
+  const headingDescription =
+    view.querySelector(
+      ".auxiliary-material-heading > div > p"
+    );
 
-  if (headingDescription) {
-    headingDescription.hidden = true;
+  if (
+    headingDescription
+  ) {
+    headingDescription.hidden =
+      true;
 
     headingDescription.style.setProperty(
       "display",
@@ -95424,10 +95422,17 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     );
   }
 
-  /* 저장된 날짜 강제 재조회 기능 비활성화 */
-  if (forceRefreshInput) {
-    forceRefreshInput.checked = false;
-    forceRefreshInput.disabled = true;
+  /*
+    저장된 날짜 강제 재조회 기능 비활성화
+  */
+  if (
+    forceRefreshInput
+  ) {
+    forceRefreshInput.checked =
+      false;
+
+    forceRefreshInput.disabled =
+      true;
 
     forceRefreshInput.setAttribute(
       "aria-disabled",
@@ -95435,8 +95440,11 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     );
   }
 
-  if (forceRefreshLabel) {
-    forceRefreshLabel.hidden = true;
+  if (
+    forceRefreshLabel
+  ) {
+    forceRefreshLabel.hidden =
+      true;
 
     forceRefreshLabel.style.setProperty(
       "display",
@@ -95445,44 +95453,70 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     );
   }
 
-  /* 엑셀 등록 버튼 */
+  /*
+    엑셀 등록 버튼
+  */
   excelButton.classList.add(
     "auxiliary-material-excel-inline-button"
   );
 
-  excelButton.textContent = "엑셀 등록";
+  excelButton.textContent =
+    "엑셀 등록";
 
-  /* 엑셀 다운로드 버튼 */
-  let downloadButton = document.getElementById(
-    "downloadAuxiliaryMaterialExcelButton"
-  );
+  /*
+    엑셀 다운로드 버튼
+  */
+  let downloadButton =
+    document.getElementById(
+      "downloadAuxiliaryMaterialExcelButton"
+    );
 
-  if (!downloadButton) {
-    downloadButton = document.createElement("button");
+  if (
+    !downloadButton
+  ) {
+    downloadButton =
+      document.createElement(
+        "button"
+      );
 
-    downloadButton.type = "button";
+    downloadButton.type =
+      "button";
+
     downloadButton.id =
       "downloadAuxiliaryMaterialExcelButton";
 
     downloadButton.className =
       "auxiliary-material-excel-download-button";
 
-    downloadButton.textContent = "엑셀 다운로드";
-    downloadButton.disabled = true;
-    downloadButton.title = "다운로드 기능 준비 중";
+    downloadButton.textContent =
+      "엑셀 다운로드";
+
+    downloadButton.disabled =
+      true;
+
+    downloadButton.title =
+      "다운로드 기능 준비 중";
   }
 
   downloadButton.classList.add(
     "auxiliary-material-excel-download-button"
   );
 
-  /* 조회 범위와 자료 작업을 묶는 PC 전용 그룹 */
-  let queryGroup = periodFields.querySelector(
-    ".auxiliary-material-pc-query-group"
-  );
+  /*
+    조회 범위와 자료 작업을 묶는 PC 전용 그룹
+  */
+  let queryGroup =
+    periodFields.querySelector(
+      ".auxiliary-material-pc-query-group"
+    );
 
-  if (!queryGroup) {
-    queryGroup = document.createElement("div");
+  if (
+    !queryGroup
+  ) {
+    queryGroup =
+      document.createElement(
+        "div"
+      );
 
     queryGroup.className =
       "auxiliary-material-pc-query-group";
@@ -95493,12 +95527,18 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     );
   }
 
-  let rangeControls = queryGroup.querySelector(
-    ".auxiliary-material-pc-range-controls"
-  );
+  let rangeControls =
+    queryGroup.querySelector(
+      ".auxiliary-material-pc-range-controls"
+    );
 
-  if (!rangeControls) {
-    rangeControls = document.createElement("div");
+  if (
+    !rangeControls
+  ) {
+    rangeControls =
+      document.createElement(
+        "div"
+      );
 
     rangeControls.className =
       "auxiliary-material-pc-range-controls";
@@ -95509,18 +95549,44 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     );
   }
 
+  /*
+    기간지정 체크박스가 이미 생성돼 있으면
+    기준일과 시작일 사이에 다시 배치
+  */
+  const periodModeLabel =
+    document.getElementById(
+      "auxiliaryMaterialPeriodModeLabel"
+    );
+
   rangeControls.append(
-    monthNavigation,
+    monthNavigation
+  );
+
+  if (
+    periodModeLabel
+  ) {
+    rangeControls.append(
+      periodModeLabel
+    );
+  }
+
+  rangeControls.append(
     startDateLabel,
     endDateLabel
   );
 
-  let actionControls = queryGroup.querySelector(
-    ".auxiliary-material-pc-action-controls"
-  );
+  let actionControls =
+    queryGroup.querySelector(
+      ".auxiliary-material-pc-action-controls"
+    );
 
-  if (!actionControls) {
-    actionControls = document.createElement("div");
+  if (
+    !actionControls
+  ) {
+    actionControls =
+      document.createElement(
+        "div"
+      );
 
     actionControls.className =
       "auxiliary-material-pc-action-controls";
@@ -95531,19 +95597,10 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     );
   }
 
-  actionControls.append(
-    loadButton,
-    queryButton,
-    excelButton,
-    downloadButton
-  );
-
-  queryGroup.append(
-    rangeControls,
-    actionControls
-  );
-
-  /* Slurry 밀도 고정값을 엑셀 다운로드 오른쪽에 배치 */
+  /*
+    Slurry 밀도 고정값을
+    엑셀 다운로드 바로 오른쪽에 배치
+  */
   densityPanel.classList.remove(
     "auxiliary-material-density-setting--inline"
   );
@@ -95557,16 +95614,38 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     "Slurry 밀도 고정값"
   );
 
-  const densityTitle = densityPanel.querySelector(
-    ".auxiliary-material-density-setting__description > strong"
-  );
+  const densityTitle =
+    densityPanel.querySelector(
+      ".auxiliary-material-density-setting__description > strong"
+    );
 
-  if (densityTitle) {
-    densityTitle.textContent = "Slurry 밀도 고정값";
+  if (
+    densityTitle
+  ) {
+    densityTitle.textContent =
+      "Slurry 밀도 고정값";
   }
 
-  queryGroup.append(densityPanel);
-  periodFields.append(queryGroup);
+  /*
+    실제 DOM 순서:
+    저장자료 → OIS → 엑셀 등록 → 엑셀 다운로드 → Slurry
+  */
+  actionControls.append(
+    loadButton,
+    queryButton,
+    excelButton,
+    downloadButton,
+    densityPanel
+  );
+
+  queryGroup.append(
+    rangeControls,
+    actionControls
+  );
+
+  periodFields.append(
+    queryGroup
+  );
 
   queryCard.classList.add(
     "auxiliary-material-query-card--grouped"
@@ -95584,13 +95663,22 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     "is-pc-grouped-controls"
   );
 
-  /* 저장 상태와 기존 엑셀 등록 안내를 같은 행으로 이동 */
-  let statusRow = queryCard.querySelector(
-    ".auxiliary-material-pc-status-row"
-  );
+  /*
+    저장 상태와 기존 엑셀 등록 안내를
+    같은 상태 행으로 이동
+  */
+  let statusRow =
+    queryCard.querySelector(
+      ".auxiliary-material-pc-status-row"
+    );
 
-  if (!statusRow) {
-    statusRow = document.createElement("div");
+  if (
+    !statusRow
+  ) {
+    statusRow =
+      document.createElement(
+        "div"
+      );
 
     statusRow.className =
       "auxiliary-material-pc-status-row";
@@ -95601,20 +95689,33 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     );
   }
 
-  if (status) {
-    statusRow.append(status);
+  if (
+    status
+  ) {
+    statusRow.append(
+      status
+    );
   }
 
-  if (excelImportPanel) {
+  if (
+    excelImportPanel
+  ) {
     excelImportPanel.classList.add(
       "auxiliary-material-excel-import--compact"
     );
 
-    statusRow.append(excelImportPanel);
+    statusRow.append(
+      excelImportPanel
+    );
   }
 
-  if (statusRow.childElementCount > 0) {
-    queryCard.append(statusRow);
+  if (
+    statusRow.childElementCount >
+      0
+  ) {
+    queryCard.append(
+      statusRow
+    );
   }
 }
 
@@ -96441,187 +96542,23 @@ function isAuxiliaryMaterialOisRangeStillSelected() {
 
 
 function scheduleAuxiliaryMaterialOisPolling() {
-  if (
-    !auxiliaryMaterialOisQueryState
-      .isRunning
-  ) {
-    return;
-  }
-
-  auxiliaryMaterialOisQueryState.timer =
-    window.setTimeout(
-      pollAuxiliaryMaterialOisProgress,
-      2000
-    );
+  /*
+    부재료 OIS 진행 상태는
+    자동으로 반복 확인하지 않는다.
+  */
+  stopAuxiliaryMaterialOisPolling();
 }
 
 
 async function pollAuxiliaryMaterialOisProgress() {
-  if (
-    !auxiliaryMaterialOisQueryState
-      .isRunning
-  ) {
-    return;
-  }
-
-  auxiliaryMaterialOisQueryState.pollCount += 1;
-
-  if (
-    !isAuxiliaryMaterialOisRangeStillSelected()
-  ) {
-    stopAuxiliaryMaterialOisPolling();
-
-    setAuxiliaryMaterialStatus(
-      "조회 기간이 변경되었습니다. 새 기간은 OIS 조회 버튼을 다시 눌러 주세요.",
-      "idle"
-    );
-
-    return;
-  }
-
-  try {
-    await refreshAuxiliaryMaterialOisStatusSlice();
-
-    let historyResult = null;
-
-    try {
-      historyResult =
-        await loadAuxiliaryMaterialHistory({
-          silent: true
-        });
-
-    } catch (historyError) {
-      console.warn(
-        "부재료 OIS 진행 중 저장자료 갱신 실패:",
-        historyError
-      );
-    }
-
-    const counts =
-      getAuxiliaryMaterialOisProgressCounts();
-
-    const savedDateCount =
-      Number(
-        historyResult?.summary
-          ?.savedDateCount ||
-        0
-      );
-
-    if (
-      historyResult &&
-      counts.finished >=
-        counts.total &&
-      counts.total > 0
-    ) {
-      stopAuxiliaryMaterialOisPolling();
-
-      if (
-        counts.failed > 0
-      ) {
-        setAuxiliaryMaterialStatus(
-          (
-            "부재료 조회가 일부 완료되었습니다. " +
-            `저장 ${savedDateCount}/${counts.total}일 · ` +
-            `실패 ${counts.failed}일`
-          ),
-          "error"
-        );
-
-      } else {
-        setAuxiliaryMaterialStatus(
-          (
-            "부재료 조회와 D1 저장이 완료되었습니다. " +
-            `${savedDateCount}일 저장`
-          ),
-          "complete"
-        );
-
-        if (
-          typeof showToast ===
-          "function"
-        ) {
-          showToast(
-            "부재료 OIS 조회와 D1 저장이 완료되었습니다."
-          );
-        }
-      }
-
-      return;
-    }
-
-    if (
-      auxiliaryMaterialOisQueryState
-        .pollCount >=
-      auxiliaryMaterialOisQueryState
-        .maxPollCount
-    ) {
-      stopAuxiliaryMaterialOisPolling();
-
-      setAuxiliaryMaterialStatus(
-        (
-          `현재 ${savedDateCount}/${counts.total}일이 저장되었습니다. ` +
-          "나머지 날짜도 계속 조회 중입니다."
-        ),
-        "loading"
-      );
-
-      return;
-    }
-
-    setAuxiliaryMaterialStatus(
-      (
-        "OIS 조회 · D1 저장 중 " +
-        `(${counts.complete}/${counts.total}일 완료` +
-        `${
-          counts.processing > 0
-            ? ` · ${counts.processing}일 처리 중`
-            : ""
-        }` +
-        `${
-          counts.failed > 0
-            ? ` · ${counts.failed}일 실패`
-            : ""
-        })`
-      ),
-      "loading"
-    );
-
-  } catch (error) {
-    console.warn(
-      "부재료 OIS 진행 상태 확인 실패:",
-      error
-    );
-
-    if (
-      auxiliaryMaterialOisQueryState
-        .pollCount >=
-      auxiliaryMaterialOisQueryState
-        .maxPollCount
-    ) {
-      stopAuxiliaryMaterialOisPolling();
-
-      setAuxiliaryMaterialStatus(
-        "부재료 자료는 계속 조회 중입니다. 잠시 후 저장 자료 보기를 눌러 확인해 주세요.",
-        "loading"
-      );
-
-      return;
-    }
-
-    setAuxiliaryMaterialStatus(
-      "OIS 조회 · D1 저장 진행 상황을 확인하고 있습니다.",
-      "loading"
-    );
-  }
-
-  scheduleAuxiliaryMaterialOisPolling();
+  /*
+    저장자료 확인은 사용자가
+    보기 버튼을 눌렀을 때만 실행한다.
+  */
+  stopAuxiliaryMaterialOisPolling();
 }
 
-
 async function createAuxiliaryMaterialOisQuery() {
-  const elements =
-    getAuxiliaryMaterialElements();
-
   try {
     const range =
       readAuxiliaryMaterialDateRange();
@@ -96634,6 +96571,10 @@ async function createAuxiliaryMaterialOisQuery() {
       );
     }
 
+    /*
+      이전 실행에서 남아 있을 수 있는
+      자동 확인 타이머를 먼저 제거한다.
+    */
     stopAuxiliaryMaterialOisPolling();
 
     Object.assign(
@@ -96652,7 +96593,9 @@ async function createAuxiliaryMaterialOisQuery() {
           range.dayCount,
 
         requestItems: [],
-        isRunning: true
+
+        isRunning:
+          true
       }
     );
 
@@ -96661,7 +96604,10 @@ async function createAuxiliaryMaterialOisQuery() {
     );
 
     setAuxiliaryMaterialStatus(
-      `${range.startDate} ~ ${range.endDate} OIS 조회를 등록하고 있습니다.`,
+      (
+        `${range.startDate} ~ ${range.endDate} ` +
+        "저장 여부를 확인하고 있습니다."
+      ),
       "loading"
     );
 
@@ -96701,11 +96647,12 @@ async function createAuxiliaryMaterialOisQuery() {
               endDate:
                 range.endDate,
 
+              /*
+                저장 완료 날짜는
+                강제로 다시 조회하지 않는다.
+              */
               forceRefresh:
-                elements
-                  .forceRefreshInput
-                  ?.checked ===
-                true
+                false
             })
         }
       );
@@ -96713,6 +96660,30 @@ async function createAuxiliaryMaterialOisQuery() {
     const result =
       await readAuxiliaryMaterialOisJsonResponse(
         response
+      );
+
+    const createdCount =
+      Math.max(
+        0,
+        Number(
+          result.createdCount
+        ) || 0
+      );
+
+    const reusedCount =
+      Math.max(
+        0,
+        Number(
+          result.reusedCount
+        ) || 0
+      );
+
+    const savedCount =
+      Math.max(
+        0,
+        Number(
+          result.savedCount
+        ) || 0
       );
 
     auxiliaryMaterialOisQueryState
@@ -96735,62 +96706,65 @@ async function createAuxiliaryMaterialOisQuery() {
         normalizeAuxiliaryMaterialOisRequestItem
       );
 
-    let historyResult = null;
-
-    try {
-      historyResult =
-        await loadAuxiliaryMaterialHistory({
-          silent: true
-        });
-
-    } catch (historyError) {
-      console.warn(
-        "부재료 OIS 등록 후 저장자료 첫 조회 실패:",
-        historyError
-      );
-    }
-
-    const counts =
-      getAuxiliaryMaterialOisProgressCounts();
-
-    const savedDateCount =
-      Number(
-        historyResult?.summary
-          ?.savedDateCount ||
-        0
-      );
+    /*
+      등록 응답까지만 확인한다.
+      이후 상태 폴링과 저장자료 GET은 하지 않는다.
+    */
+    stopAuxiliaryMaterialOisPolling();
 
     if (
-      historyResult &&
-      counts.finished >=
-        counts.total &&
-      counts.total > 0
+      createdCount < 1 &&
+      reusedCount < 1
     ) {
-      stopAuxiliaryMaterialOisPolling();
-
       setAuxiliaryMaterialStatus(
         (
-          "선택 기간의 부재료 자료가 이미 저장되어 있습니다. " +
-          `${savedDateCount}일`
+          `선택 범위 ${savedCount}일은 ` +
+          "모두 저장자료를 사용합니다. " +
+          "새 OIS 요청은 없습니다."
         ),
         "complete"
       );
 
-      return;
+      return result;
     }
+
+    const viewButtonText =
+      range.dayCount > 1
+        ? "기간 저장자료 보기"
+        : "최근 7일 보기";
 
     setAuxiliaryMaterialStatus(
       (
-        `${
-          result.message ||
-          "부재료 OIS 조회를 등록했습니다."
-        } ` +
-        "완료되는 날짜부터 표에 바로 표시됩니다."
+        `저장자료 ${savedCount}일 제외 · ` +
+        `신규 OIS ${createdCount}일 · ` +
+        `이미 진행 중 ${reusedCount}일. ` +
+        "자동 진행 확인은 하지 않습니다. " +
+        `완료 후 '${viewButtonText}'를 눌러 확인하세요.`
       ),
-      "loading"
+      "idle"
     );
 
-    scheduleAuxiliaryMaterialOisPolling();
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      if (
+        createdCount > 0
+      ) {
+        showToast(
+          `부재료 OIS ${createdCount}일을 등록했습니다.`
+        );
+
+      } else if (
+        reusedCount > 0
+      ) {
+        showToast(
+          `이미 진행 중인 OIS 요청 ${reusedCount}일을 사용합니다.`
+        );
+      }
+    }
+
+    return result;
 
   } catch (error) {
     stopAuxiliaryMaterialOisPolling();
@@ -96807,15 +96781,16 @@ async function createAuxiliaryMaterialOisQuery() {
 
     if (
       typeof showToast ===
-      "function"
+        "function"
     ) {
       showToast(
         message
       );
     }
+
+    return null;
   }
 }
-
 
 function initializeAuxiliaryMaterialOisQueryControls() {
   const elements =
@@ -224430,17 +224405,34 @@ function initialize() {
 (function installAuxiliaryMaterialDailyView() {
   "use strict";
 
-  if (window.__auxiliaryMaterialDailyViewInstalled) return;
-  window.__auxiliaryMaterialDailyViewInstalled = true;
+  if (
+    window.__auxiliaryMaterialDailyViewInstalled
+  ) {
+    return;
+  }
 
-  const originalGetElements = getAuxiliaryMaterialElements;
-  const originalRender = renderAuxiliaryMaterialHistory;
-  const originalLoad = loadAuxiliaryMaterialHistory;
+  window.__auxiliaryMaterialDailyViewInstalled =
+    true;
+
+  const originalGetElements =
+    getAuxiliaryMaterialElements;
+
+  const originalRender =
+    renderAuxiliaryMaterialHistory;
+
+  const originalLoad =
+    loadAuxiliaryMaterialHistory;
+
   const originalSetOisButtonState =
     setAuxiliaryMaterialOisQueryButtonState;
 
-  let nextRangePurpose = "display";
+  let nextRangePurpose =
+    "display";
 
+  /*
+    새로 생성하는 기준일·기간지정 요소를
+    기존 요소 조회 함수에 포함
+  */
   getAuxiliaryMaterialElements =
     function getAuxiliaryMaterialDailyElements() {
       return {
@@ -224458,21 +224450,41 @@ function initialize() {
       };
     };
 
-  function localIso(date) {
+  /*
+    로컬 날짜를 YYYY-MM-DD로 변환
+  */
+  function localIso(
+    date
+  ) {
     return [
       date.getFullYear(),
 
       String(
-        date.getMonth() + 1
-      ).padStart(2, "0"),
+        date.getMonth() +
+          1
+      ).padStart(
+        2,
+        "0"
+      ),
 
       String(
         date.getDate()
-      ).padStart(2, "0")
-    ].join("-");
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      "-"
+    );
   }
 
-  function moveDate(value, amount) {
+  /*
+    날짜를 하루 단위로 이동
+  */
+  function moveDate(
+    value,
+    amount
+  ) {
     const date =
       new Date(
         `${value}T12:00:00`
@@ -224487,12 +224499,18 @@ function initialize() {
     }
 
     date.setDate(
-      date.getDate() + amount
+      date.getDate() +
+        amount
     );
 
-    return localIso(date);
+    return localIso(
+      date
+    );
   }
 
+  /*
+    조회 범위 검사
+  */
   function validateRange(
     startDate,
     endDate
@@ -224544,11 +224562,14 @@ function initialize() {
           )
         ) /
         86400000
-      ) + 1;
+      ) +
+      1;
 
     if (
-      dayCount < 1 ||
-      dayCount > 366
+      dayCount <
+        1 ||
+      dayCount >
+        366
     ) {
       throw new Error(
         "조회 기간은 1일 이상 366일 이하로 선택해 주세요."
@@ -224562,56 +224583,42 @@ function initialize() {
     };
   }
 
+  /*
+    화면에 표시할 저장자료 범위
+
+    기본:
+    선택한 기준일 하루
+
+    기간지정:
+    사용자가 선택한 시작일~종료일
+  */
   function getDisplayRange() {
     const elements =
       getAuxiliaryMaterialElements();
 
     if (
-      elements.periodModeInput
+      elements
+        .periodModeInput
         ?.checked
     ) {
       return validateRange(
-        elements.startDateInput
-          ?.value || "",
+        elements
+          .startDateInput
+          ?.value ||
+          "",
 
-        elements.endDateInput
-          ?.value || ""
-      );
-    }
-
-    const endDate =
-      elements.queryDateInput
-        ?.value || "";
-
-    return validateRange(
-      moveDate(
-        endDate,
-        -6
-      ),
-      endDate
-    );
-  }
-
-  function getOisRange() {
-    const elements =
-      getAuxiliaryMaterialElements();
-
-    if (
-      elements.periodModeInput
-        ?.checked
-    ) {
-      return validateRange(
-        elements.startDateInput
-          ?.value || "",
-
-        elements.endDateInput
-          ?.value || ""
+        elements
+          .endDateInput
+          ?.value ||
+          ""
       );
     }
 
     const targetDate =
-      elements.queryDateInput
-        ?.value || "";
+      elements
+        .queryDateInput
+        ?.value ||
+        "";
 
     return validateRange(
       targetDate,
@@ -224620,17 +224627,58 @@ function initialize() {
   }
 
   /*
-    저장자료 표:
-    기본 최근 7일
+    OIS 조회 범위
 
-    OIS:
-    기본 선택일 하루
+    OIS 버튼을 직접 눌렀을 때만 사용
+  */
+  function getOisRange() {
+    const elements =
+      getAuxiliaryMaterialElements();
+
+    if (
+      elements
+        .periodModeInput
+        ?.checked
+    ) {
+      return validateRange(
+        elements
+          .startDateInput
+          ?.value ||
+          "",
+
+        elements
+          .endDateInput
+          ?.value ||
+          ""
+      );
+    }
+
+    const targetDate =
+      elements
+        .queryDateInput
+        ?.value ||
+        "";
+
+    return validateRange(
+      targetDate,
+      targetDate
+    );
+  }
+
+  /*
+    저장자료 조회와 OIS 조회 범위를 분리
+
+    평소 날짜 이동:
+    D1 저장자료만 조회
+
+    OIS 버튼 클릭:
+    명시적으로 OIS 범위 사용
   */
   readAuxiliaryMaterialDateRange =
     function readAuxiliaryMaterialDailyRange() {
       if (
         nextRangePurpose ===
-        "ois"
+          "ois"
       ) {
         nextRangePurpose =
           "display";
@@ -224641,6 +224689,9 @@ function initialize() {
       return getDisplayRange();
     };
 
+  /*
+    OIS 조회 중 사용자가 날짜를 바꿨는지 확인
+  */
   isAuxiliaryMaterialOisRangeStillSelected =
     function isDailyRangeSelected() {
       try {
@@ -224662,8 +224713,7 @@ function initialize() {
     };
 
   /*
-    일반 화면도 크게 보기와 동일하게
-    1·2호기 통합표로 출력
+    일반 화면도 1·2호기 통합표로 출력
   */
   renderAuxiliaryMaterialHistory =
     function renderCombinedAuxiliaryHistory() {
@@ -224711,8 +224761,8 @@ function initialize() {
     };
 
   /*
-    저장자료를 불러온 뒤
-    최근 Slurry 밀도도 다시 표시
+    저장자료 조회 후
+    Slurry 밀도 고정값도 다시 표시
   */
   loadAuxiliaryMaterialHistory =
     async function loadDailyAuxiliaryHistory(
@@ -224728,6 +224778,9 @@ function initialize() {
       return result;
     };
 
+  /*
+    OIS 버튼 문구를 현재 모드에 맞게 변경
+  */
   setAuxiliaryMaterialOisQueryButtonState =
     function setDailyOisButtonState(
       isRunning
@@ -224781,14 +224834,10 @@ function initialize() {
       );
 
     /*
-      완료된 일일자료 기준으로
-      기본값은 전일
+      기본 기준일은 오늘
     */
     const defaultDate =
-      moveDate(
-        today,
-        -1
-      ) || today;
+      today;
 
     const monthLabel =
       elements.monthInput
@@ -224807,7 +224856,8 @@ function initialize() {
       );
 
     /*
-      기존 월 입력은 엑셀 다운로드용으로 유지
+      기존 월 입력은
+      엑셀 다운로드 내부 기준으로 유지하되 화면에서는 숨김
     */
     elements.monthInput.hidden =
       true;
@@ -224815,12 +224865,16 @@ function initialize() {
     elements.monthInput.tabIndex =
       -1;
 
-    if (title) {
+    if (
+      title
+    ) {
       title.textContent =
         "기준일";
     }
 
-    if (heading) {
+    if (
+      heading
+    ) {
       heading.textContent =
         "부재료 일별 관리";
     }
@@ -224891,14 +224945,16 @@ function initialize() {
         );
 
       const firstDateLabel =
-        elements.startDateInput
+        elements
+          .startDateInput
           ?.closest(
             "label"
           );
 
       rangeControls?.insertBefore(
         periodLabel,
-        firstDateLabel || null
+        firstDateLabel ||
+          null
       );
 
       periodModeInput =
@@ -224908,13 +224964,15 @@ function initialize() {
     }
 
     const startLabel =
-      elements.startDateInput
+      elements
+        .startDateInput
         ?.closest(
           "label"
         );
 
     const endLabel =
-      elements.endDateInput
+      elements
+        .endDateInput
         ?.closest(
           "label"
         );
@@ -224930,16 +224988,26 @@ function initialize() {
       }
     );
 
+    /*
+      저장된 D1 자료만 불러온다.
+      OIS 신규조회는 실행하지 않는다.
+    */
     function loadVisibleRange() {
       loadAuxiliaryMaterialHistory()
         .catch(
-          () => {}
+          () => {
+            /*
+              오류 문구는 조회 함수 내부에서 표시
+            */
+          }
         );
     }
 
+    /*
+      기준일 적용
+    */
     function applyDate(
-      value,
-      shouldLoad = false
+      value
     ) {
       const dateValue =
         (
@@ -224991,13 +225059,15 @@ function initialize() {
       nextButton.disabled =
         dateValue >= today;
 
-      if (
-        shouldLoad
-      ) {
-        loadVisibleRange();
-      }
+      /*
+        날짜 변경만 수행한다.
+        저장자료 및 OIS 자동 조회는 하지 않는다.
+      */
     }
 
+    /*
+      기간지정 상태 표시
+    */
     function updatePeriodMode() {
       const isPeriod =
         periodModeInput.checked;
@@ -225007,7 +225077,9 @@ function initialize() {
         endLabel
       ].forEach(
         label => {
-          if (label) {
+          if (
+            label
+          ) {
             label.hidden =
               !isPeriod;
           }
@@ -225020,7 +225092,7 @@ function initialize() {
         elements.loadButton.textContent =
           isPeriod
             ? "기간 저장자료 보기"
-            : "최근 7일 보기";
+            : "선택일 저장자료 보기";
       }
 
       if (
@@ -225028,7 +225100,7 @@ function initialize() {
       ) {
         applyDate(
           queryDateInput.value ||
-          defaultDate
+            defaultDate
         );
 
       } else {
@@ -225045,7 +225117,7 @@ function initialize() {
     }
 
     /*
-      기존 월 단위 이동 이벤트 제거 후
+      기존 월 이동 이벤트를 제거하고
       하루 이동 이벤트로 교체
     */
     const oldPreviousButton =
@@ -225053,6 +225125,13 @@ function initialize() {
 
     const oldNextButton =
       elements.nextMonthButton;
+
+    if (
+      !oldPreviousButton ||
+      !oldNextButton
+    ) {
+      return;
+    }
 
     const previousButton =
       oldPreviousButton.cloneNode(
@@ -225088,12 +225167,14 @@ function initialize() {
       nextButton
     );
 
+    /*
+      달력에서 직접 날짜 변경
+    */
     queryDateInput.addEventListener(
       "change",
       () => {
         applyDate(
-          queryDateInput.value,
-          true
+          queryDateInput.value
         );
       }
     );
@@ -225105,8 +225186,7 @@ function initialize() {
           moveDate(
             queryDateInput.value,
             -1
-          ),
-          true
+          )
         );
       }
     );
@@ -225118,8 +225198,7 @@ function initialize() {
           moveDate(
             queryDateInput.value,
             1
-          ),
-          true
+          )
         );
       }
     );
@@ -225129,6 +225208,10 @@ function initialize() {
       updatePeriodMode
     );
 
+    /*
+      기간 종료일을 바꾸면
+      내부 월별 엑셀 기준도 종료일에 맞춤
+    */
     elements.endDateInput
       ?.addEventListener(
         "change",
@@ -225141,7 +225224,8 @@ function initialize() {
               elements.endDateInput.value;
 
             elements.monthInput.value =
-              elements.endDateInput
+              elements
+                .endDateInput
                 .value
                 .slice(
                   0,
@@ -225152,8 +225236,8 @@ function initialize() {
       );
 
     /*
-      OIS 버튼을 누른 경우에만
-      하루 또는 명시적 기간 범위를 사용
+      OIS 버튼을 직접 눌렀을 때만
+      OIS 조회 범위로 전환
     */
     elements.queryButton
       ?.addEventListener(
@@ -225166,27 +225250,41 @@ function initialize() {
       );
 
     /*
-      부재료 메뉴를 열 때
-      크게 보기가 아닌 컴팩트 통합표로 시작
+      부재료 메뉴를 다시 열 때
+      확대 상태인 경우에만 컴팩트 상태로 복귀
+
+      이미 컴팩트 상태라면 재렌더링하지 않는다.
     */
     elements.tab
       ?.addEventListener(
         "click",
         () => {
-          window.requestAnimationFrame(
-            () => {
-              setAuxiliaryMaterialExpandedView(
-                false
-              );
-            }
-          );
+          if (
+            auxiliaryMaterialTableViewState
+              .isExpanded
+          ) {
+            window.requestAnimationFrame(
+              () => {
+                setAuxiliaryMaterialExpandedView(
+                  false
+                );
+              }
+            );
+          }
         }
       );
 
+    /*
+      오늘 날짜로 초기화
+    */
     applyDate(
       defaultDate
     );
 
+    /*
+      기본은 기간지정 해제:
+      시작일·종료일 숨김
+    */
     updatePeriodMode();
 
     renderAuxiliaryMaterialHistory();
@@ -225194,13 +225292,14 @@ function initialize() {
 
   if (
     document.readyState ===
-    "loading"
+      "loading"
   ) {
     document.addEventListener(
       "DOMContentLoaded",
       initializeDailyControls,
       {
-        once: true
+        once:
+          true
       }
     );
 

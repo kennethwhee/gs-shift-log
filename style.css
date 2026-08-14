@@ -95992,23 +95992,19 @@ body.is-auxiliary-material-expanded
 /* =========================================================
   부재료 PC 상단 조작부 최종 정리
 
-  1행: 조회 월 · 시작일 · 종료일 · 자료 작업 · Slurry 밀도
-  2행: 저장자료 조회 상태
-
-  compact / inline 규칙과 분리하여
-  화면 배율이 달라도 겹치지 않도록 한다.
+  - 기준일/기간지정/자료 작업 통합
+  - Slurry 밀도는 엑셀 다운로드 바로 오른쪽
+  - 보이는 입력과 버튼 높이 34px
+  - 기간지정 해제 시 시작일/종료일 완전 숨김
+  - 모바일은 기존 모니터링 화면 유지
 ========================================================= */
 
 @media screen and (min-width: 769px) {
 
-  /* =====================================================
-    제목
-  ====================================================== */
-
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-heading {
     box-sizing: border-box !important;
-
     position: relative !important;
     z-index: 2 !important;
 
@@ -96022,39 +96018,40 @@ body.is-auxiliary-material-expanded
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-heading span {
     margin-bottom: 2px !important;
+
     font-size: 9px !important;
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-heading h3 {
     margin: 0 !important;
+
     font-size: 18px !important;
     line-height: 1.25 !important;
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-heading p {
     display: none !important;
   }
 
 
-  /* =====================================================
-    조회 카드 전체
-  ====================================================== */
-
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-query-card--grouped {
     box-sizing: border-box !important;
-    display: grid !important;
-
     position: relative !important;
     z-index: 1 !important;
 
+    display: grid !important;
     clear: both !important;
 
     grid-template-columns:
@@ -96062,6 +96059,7 @@ body.is-auxiliary-material-expanded
       minmax(0, 1fr) !important;
 
     align-items: center !important;
+
     gap: 6px 10px !important;
 
     width: 100% !important;
@@ -96074,9 +96072,11 @@ body.is-auxiliary-material-expanded
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-period-fields--grouped {
     box-sizing: border-box !important;
+
     display: grid !important;
 
     grid-template-columns:
@@ -96085,6 +96085,7 @@ body.is-auxiliary-material-expanded
     grid-column: 1 / -1 !important;
 
     align-items: stretch !important;
+
     gap: 7px !important;
 
     width: 100% !important;
@@ -96092,26 +96093,29 @@ body.is-auxiliary-material-expanded
   }
 
 
-  /* =====================================================
-    1행: 조회 범위 + 자료 작업 + Slurry 밀도
-  ====================================================== */
-
+  /*
+    기준일·기간지정 | 자료 작업·Slurry
+  */
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-pc-query-group {
     box-sizing: border-box !important;
-    display: flex !important;
 
-    flex-flow: row wrap !important;
-    align-items: flex-end !important;
-    justify-content: flex-start !important;
+    display: grid !important;
 
-    gap: 7px 10px !important;
+    grid-template-columns:
+      max-content
+      minmax(0, 1fr) !important;
+
+    align-items: end !important;
+
+    gap: 6px !important;
 
     width: 100% !important;
     min-width: 0 !important;
 
     margin: 0 !important;
-    padding: 8px 10px !important;
+    padding: 6px 8px !important;
 
     border: 1px solid #dce5ef !important;
     border-radius: 9px !important;
@@ -96120,6 +96124,7 @@ body.is-auxiliary-material-expanded
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-pc-range-controls {
     display: flex !important;
@@ -96128,17 +96133,25 @@ body.is-auxiliary-material-expanded
     flex-wrap: nowrap !important;
 
     align-items: flex-end !important;
-    gap: 6px !important;
+
+    gap: 4px !important;
 
     min-width: 0 !important;
   }
 
 
+  /*
+    기준일과 기간 날짜 라벨
+  */
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-range-controls > label,
+  .auxiliary-material-pc-range-controls
+  .auxiliary-material-month-navigation label,
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-month-navigation label {
+  .auxiliary-material-pc-range-controls
+  > .auxiliary-material-period-date-field:not([hidden]) {
     display: flex !important;
 
     flex-direction: column !important;
@@ -96151,9 +96164,31 @@ body.is-auxiliary-material-expanded
   }
 
 
+  /*
+    기간지정 해제 시 시작일·종료일 완전 숨김
+
+    기존의 direct label display:flex 규칙보다
+    강하게 적용되도록 선택자를 구체화
+  */
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-pc-range-controls
-  label > span:first-child {
+  > .auxiliary-material-period-date-field[hidden] {
+    display: none !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-range-controls
+  .auxiliary-material-month-navigation
+  label > span:first-child,
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-range-controls
+  > .auxiliary-material-period-date-field
+  > span:first-child {
     display: block !important;
 
     min-height: 12px !important;
@@ -96171,35 +96206,41 @@ body.is-auxiliary-material-expanded
   }
 
 
-  /* 조회 월 */
-
+  /*
+    < | 기준일 | >
+  */
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-pc-range-controls
   .auxiliary-material-month-navigation {
     display: grid !important;
 
     grid-template-columns:
-      30px
-      124px
-      30px !important;
+      27px
+      110px
+      27px !important;
 
-    flex: 0 0 192px !important;
+    flex: 0 0 170px !important;
 
-    width: 192px !important;
-    min-width: 192px !important;
+    width: 170px !important;
+    min-width: 170px !important;
 
     align-items: end !important;
-    gap: 4px !important;
+
+    gap: 3px !important;
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-pc-range-controls
   .auxiliary-material-month-navigation > button {
+    box-sizing: border-box !important;
+
     align-self: end !important;
 
-    width: 30px !important;
-    min-width: 30px !important;
+    width: 27px !important;
+    min-width: 27px !important;
 
     height: 34px !important;
     min-height: 34px !important;
@@ -96209,78 +96250,132 @@ body.is-auxiliary-material-expanded
 
     border-radius: 7px !important;
 
-    font-size: 18px !important;
+    font-size: 17px !important;
     line-height: 1 !important;
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-pc-range-controls
   .auxiliary-material-month-navigation label,
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-pc-range-controls
-  .auxiliary-material-month-navigation input[type="month"] {
-    width: 124px !important;
-    min-width: 124px !important;
+  .auxiliary-material-month-navigation
+  #auxiliaryMaterialQueryDate {
+    width: 110px !important;
+    min-width: 110px !important;
+    max-width: 110px !important;
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-range-controls input[type="month"] {
+  .auxiliary-material-pc-range-controls
+  .auxiliary-material-month-navigation
+  #auxiliaryMaterialQueryDate {
     box-sizing: border-box !important;
 
     height: 34px !important;
     min-height: 34px !important;
 
     margin: 0 !important;
-    padding: 0 8px !important;
+    padding: 0 5px !important;
 
     border-radius: 7px !important;
 
-    font-size: 11px !important;
+    font-size: 9px !important;
     font-weight: 850 !important;
   }
 
 
-  /* 시작일 / 종료일 */
-
+  /*
+    기간지정 체크박스
+  */
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-range-controls > label {
-    position: static !important;
+  .auxiliary-material-pc-range-controls
+  > .auxiliary-material-period-mode {
+    box-sizing: border-box !important;
 
-    flex: 0 0 132px !important;
+    display: inline-flex !important;
 
-    width: 132px !important;
-    min-width: 132px !important;
-    max-width: 132px !important;
+    flex: 0 0 74px !important;
+    flex-direction: row !important;
 
-    inset: auto !important;
-    transform: none !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    width: 74px !important;
+    min-width: 74px !important;
+    max-width: 74px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+
+    gap: 3px !important;
+
+    margin: 0 !important;
+    padding: 0 5px !important;
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-range-controls input[type="date"] {
+  .auxiliary-material-pc-range-controls
+  > .auxiliary-material-period-mode > span {
+    min-height: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    font-size: 9px !important;
+    line-height: 1 !important;
+  }
+
+
+  /*
+    기간 시작일·종료일
+  */
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-range-controls
+  > .auxiliary-material-period-date-field:not([hidden]),
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-range-controls
+  > .auxiliary-material-period-date-field:not([hidden])
+  input[type="date"] {
+    flex: 0 0 112px !important;
+
+    width: 112px !important;
+    min-width: 112px !important;
+    max-width: 112px !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-range-controls
+  > .auxiliary-material-period-date-field:not([hidden])
+  input[type="date"] {
     box-sizing: border-box !important;
 
     position: static !important;
     display: block !important;
-    flex: none !important;
-
-    width: 132px !important;
-    min-width: 132px !important;
-    max-width: 132px !important;
 
     height: 34px !important;
     min-height: 34px !important;
 
     margin: 0 !important;
-    padding: 0 6px !important;
+    padding: 0 5px !important;
 
     border-radius: 7px !important;
 
-    font-size: 10px !important;
+    font-size: 9px !important;
     font-weight: 850 !important;
 
     inset: auto !important;
@@ -96288,24 +96383,27 @@ body.is-auxiliary-material-expanded
   }
 
 
-  /* 자료 작업 버튼 */
-
+  /*
+    저장자료/OIS/엑셀/Slurry 작업 영역
+  */
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-pc-action-controls {
     display: flex !important;
 
-    flex: 0 1 auto !important;
-    flex-wrap: wrap !important;
+    flex: 1 1 auto !important;
+    flex-wrap: nowrap !important;
 
     align-items: flex-end !important;
     justify-content: flex-start !important;
 
-    gap: 5px !important;
+    gap: 4px !important;
 
     min-width: 0 !important;
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-pc-action-controls > button {
     box-sizing: border-box !important;
@@ -96318,11 +96416,11 @@ body.is-auxiliary-material-expanded
     min-height: 34px !important;
 
     margin: 0 !important;
-    padding: 0 10px !important;
+    padding: 0 7px !important;
 
     border-radius: 7px !important;
 
-    font-size: 10px !important;
+    font-size: 9px !important;
     font-weight: 900 !important;
     line-height: 1 !important;
 
@@ -96330,27 +96428,46 @@ body.is-auxiliary-material-expanded
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  #loadAuxiliaryMaterialHistoryButton {
-    min-width: 86px !important;
+  .auxiliary-material-pc-action-controls
+  > #loadAuxiliaryMaterialHistoryButton {
+    min-width: 80px !important;
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  #queryAuxiliaryMaterialOisButton {
-    min-width: 114px !important;
+  .auxiliary-material-pc-action-controls
+  > #queryAuxiliaryMaterialOisButton {
+    min-width: 108px !important;
   }
 
 
+  /*
+    구형 inline 규칙의 30px보다
+    높은 우선순위로 엑셀 등록 버튼을 34px로 고정
+  */
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  #importAuxiliaryMaterialExcelButton {
-    min-width: 72px !important;
+  .auxiliary-material-pc-action-controls
+  > #importAuxiliaryMaterialExcelButton
+    .auxiliary-material-excel-inline-button {
+    min-width: 64px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+
+    margin: 0 !important;
+    padding: 0 7px !important;
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  #downloadAuxiliaryMaterialExcelButton {
-    min-width: 90px !important;
+  .auxiliary-material-pc-action-controls
+  > #downloadAuxiliaryMaterialExcelButton {
+    min-width: 82px !important;
 
     border: 1px solid #b9c8dc !important;
 
@@ -96361,38 +96478,47 @@ body.is-auxiliary-material-expanded
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  #downloadAuxiliaryMaterialExcelButton:hover:not(:disabled) {
+  .auxiliary-material-pc-action-controls
+  > #downloadAuxiliaryMaterialExcelButton:hover:not(:disabled) {
     border-color: #7e9bbe !important;
+
     background: #f4f7fb !important;
   }
 
 
-  /* =====================================================
-    엑셀 다운로드 오른쪽: Slurry 밀도 고정값
-  ====================================================== */
-
+  /*
+    엑셀 다운로드 바로 오른쪽 Slurry 밀도
+  */
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped {
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped {
     box-sizing: border-box !important;
+    position: relative !important;
+
     display: flex !important;
 
-    flex: 1 1 560px !important;
-    flex-flow: row wrap !important;
+    flex: 1 1 455px !important;
+    flex-flow: row nowrap !important;
 
     align-items: center !important;
     justify-content: flex-start !important;
 
-    gap: 6px 10px !important;
+    gap: 4px !important;
 
     width: auto !important;
-    min-width: 500px !important;
+    min-width: 455px !important;
+
+    height: 34px !important;
     min-height: 34px !important;
 
     margin: 0 !important;
-    padding: 0 0 0 10px !important;
+    padding: 0 0 0 6px !important;
 
     border: 0 !important;
+    border-top: 0 !important;
     border-left: 1px solid #d7e4f1 !important;
     border-radius: 0 !important;
 
@@ -96402,8 +96528,10 @@ body.is-auxiliary-material-expanded
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
   .auxiliary-material-density-setting__description {
     display: flex !important;
 
@@ -96418,19 +96546,25 @@ body.is-auxiliary-material-expanded
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
   .auxiliary-material-density-setting__description > span,
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
   .auxiliary-material-density-setting__description > p {
     display: none !important;
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
   .auxiliary-material-density-setting__description > strong {
     display: block !important;
 
@@ -96438,7 +96572,7 @@ body.is-auxiliary-material-expanded
 
     color: #38526f !important;
 
-    font-size: 9px !important;
+    font-size: 8px !important;
     font-weight: 900 !important;
     line-height: 34px !important;
 
@@ -96446,49 +96580,55 @@ body.is-auxiliary-material-expanded
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
   .auxiliary-material-density-setting__fields {
     display: flex !important;
 
-    flex: 1 1 430px !important;
-    flex-wrap: wrap !important;
-
-    width: auto !important;
-    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    flex-wrap: nowrap !important;
 
     align-items: center !important;
     justify-content: flex-start !important;
 
-    gap: 5px !important;
-
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
-  .auxiliary-material-density-setting__fields > label {
-    display: flex !important;
-
-    flex: 0 0 auto !important;
+    gap: 3px !important;
 
     width: auto !important;
     min-width: 0 !important;
 
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
+  .auxiliary-material-density-setting__fields > label {
+    display: flex !important;
+
+    flex: 0 0 auto !important;
     flex-direction: row !important;
+
     align-items: center !important;
 
-    gap: 4px !important;
+    gap: 2px !important;
+
+    width: auto !important;
+    min-width: 0 !important;
 
     margin: 0 !important;
     padding: 0 !important;
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
   .auxiliary-material-density-setting__fields
   > label > span:first-child {
     min-height: 0 !important;
@@ -96498,7 +96638,7 @@ body.is-auxiliary-material-expanded
 
     color: #66758a !important;
 
-    font-size: 9px !important;
+    font-size: 8px !important;
     font-weight: 850 !important;
     line-height: 1 !important;
 
@@ -96506,73 +96646,140 @@ body.is-auxiliary-material-expanded
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
   #auxiliaryMaterialDensityEffectiveDate {
     box-sizing: border-box !important;
-
     position: static !important;
 
-    width: 106px !important;
-    min-width: 106px !important;
-    max-width: 106px !important;
+    width: 90px !important;
+    min-width: 90px !important;
+    max-width: 90px !important;
 
     height: 34px !important;
     min-height: 34px !important;
 
     margin: 0 !important;
-    padding: 0 6px !important;
+    padding: 0 4px !important;
 
     border-radius: 7px !important;
 
-    font-size: 10px !important;
+    font-size: 9px !important;
 
     inset: auto !important;
     transform: none !important;
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
   .auxiliary-material-density-input-wrap {
     display: flex !important;
 
+    align-items: center !important;
+
+    gap: 2px !important;
+
     width: auto !important;
     min-width: 0 !important;
-
-    align-items: center !important;
-    gap: 3px !important;
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
   #auxiliaryMaterialUnitOneFixedDensity,
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
   #auxiliaryMaterialUnitTwoFixedDensity {
     box-sizing: border-box !important;
 
-    width: 60px !important;
-    min-width: 60px !important;
+    width: 50px !important;
+    min-width: 50px !important;
 
     height: 34px !important;
     min-height: 34px !important;
 
     margin: 0 !important;
-    padding: 0 6px !important;
+    padding: 0 4px !important;
 
     border-radius: 7px !important;
 
-    font-size: 10px !important;
+    font-size: 9px !important;
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
   .auxiliary-material-density-input-wrap > small {
     color: #78869a !important;
+
+    font-size: 7px !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
+  #saveAuxiliaryMaterialFixedDensityButton {
+    box-sizing: border-box !important;
+
+    flex: 0 0 auto !important;
+
+    width: auto !important;
+    min-width: 58px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+
+    margin: 0 !important;
+    padding: 0 5px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 8px !important;
+    font-weight: 900 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
+  .auxiliary-material-density-setting__status {
+    display: none !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
+  .auxiliary-material-density-setting__status[data-status="error"] {
+    position: absolute !important;
+
+    top: 36px !important;
+    right: 0 !important;
+    z-index: 3 !important;
+
+    display: block !important;
+
+    color: #c83b32 !important;
 
     font-size: 8px !important;
 
@@ -96580,58 +96787,14 @@ body.is-auxiliary-material-expanded
   }
 
 
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
-  #saveAuxiliaryMaterialFixedDensityButton {
-    box-sizing: border-box !important;
-
-    flex: 0 0 auto !important;
-
-    width: auto !important;
-    min-width: 68px !important;
-
-    height: 34px !important;
-    min-height: 34px !important;
-
-    margin: 0 !important;
-    padding: 0 9px !important;
-
-    border-radius: 7px !important;
-
-    font-size: 9px !important;
-    font-weight: 900 !important;
-
-    white-space: nowrap !important;
-  }
-
-
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
-  .auxiliary-material-density-setting__status {
-    display: none !important;
-  }
-
-
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
-  .auxiliary-material-density-setting__status[data-status="error"] {
-    display: block !important;
-
-    color: #c83b32 !important;
-    font-size: 9px !important;
-  }
-
-
-  /* =====================================================
-    강제 갱신은 제거하고 저장자료 조회 상태만 표시
-  ====================================================== */
-
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-force-refresh {
     display: none !important;
   }
 
 
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-status {
     box-sizing: border-box !important;
@@ -96651,46 +96814,19 @@ body.is-auxiliary-material-expanded
 }
 
 
-/* 중간 폭에서는 Slurry 영역만 다음 줄로 이동 */
-@media screen and (min-width: 769px) and (max-width: 1490px) {
+/*
+  좁은 PC에서는 조회 범위와 자료 작업만 두 줄로 분리
 
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped {
-    flex: 1 1 100% !important;
+  Slurry는 actionControls 안에서
+  엑셀 다운로드 바로 오른쪽에 유지
+*/
+@media screen and (min-width: 769px) and (max-width: 1349px) {
 
-    width: 100% !important;
-    min-width: 0 !important;
-
-    padding: 7px 0 0 !important;
-
-    border-left: 0 !important;
-    border-top: 1px solid #d7e4f1 !important;
-  }
-}
-
-
-/* 좁은 PC / 높은 화면 배율 */
-@media screen and (min-width: 769px) and (max-width: 1040px) {
-
+  body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-pc-query-group {
-    align-items: stretch !important;
-  }
-
-
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-range-controls,
-
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-action-controls {
-    flex: 1 1 100% !important;
-  }
-
-
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-density-setting--grouped
-  .auxiliary-material-density-setting__description {
-    flex: 1 1 100% !important;
+    grid-template-columns:
+      minmax(0, 1fr) !important;
   }
 }
 
@@ -106134,5 +106270,56 @@ input {
   .efficiency-morning-meeting-weekend-check {
     margin-left:
       auto !important;
+  }
+}
+
+/* =========================================================
+  오전회의 주말 기간 크기 축소
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+#efficiencyMorningMeetingWeekendRange {
+  flex:
+    0 1 480px !important;
+
+  width:
+    480px !important;
+
+  max-width:
+    480px !important;
+
+  min-height:
+    54px !important;
+
+  padding:
+    6px
+    8px !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingView.is-weekend-mode
+#efficiencyMorningMeetingWeekendRange
+input {
+  height:
+    32px !important;
+
+  padding:
+    0
+    8px !important;
+}
+
+
+@media screen and (max-width: 700px) {
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingView.is-weekend-mode
+  #efficiencyMorningMeetingWeekendRange {
+    width:
+      100% !important;
+
+    max-width:
+      none !important;
   }
 }
