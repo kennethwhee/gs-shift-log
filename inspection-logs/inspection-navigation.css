@@ -2016,3 +2016,47 @@
   }
 
 }
+
+/* =========================================================
+  Log Sheet 최상위 메뉴 접기·펼치기
+========================================================= */
+
+.inspection-sidebar-log-sheet
+  > .inspection-sidebar-log-sheet__title {
+  position: relative;
+
+  padding-right: 45px;
+
+  list-style: none;
+
+  cursor: pointer;
+  user-select: none;
+}
+
+.inspection-sidebar-log-sheet
+  > .inspection-sidebar-log-sheet__title::-webkit-details-marker {
+  display: none;
+}
+
+.inspection-sidebar-log-sheet
+  > .inspection-sidebar-log-sheet__title::after {
+  content: "접기";
+
+  position: absolute;
+
+  top: 50%;
+  right: 5px;
+
+  transform: translateY(-50%);
+
+  color: #4c7ba8;
+
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.inspection-sidebar-log-sheet:not([open])
+  > .inspection-sidebar-log-sheet__title::after {
+  content: "열기";
+}

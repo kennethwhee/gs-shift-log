@@ -278,17 +278,17 @@ function initializeInspectionWorkspaceNavigation() {
       Log Sheet
     ==================================================== -->
 
-    <section
-      class="inspection-sidebar-log-sheet"
-      aria-labelledby="inspectionSidebarLogSheetTitle"
-    >
-      <div class="inspection-sidebar-log-sheet__title">
-        <span>WORK LOG</span>
-
-        <strong id="inspectionSidebarLogSheetTitle">
-          Log Sheet
-        </strong>
-      </div>
+<details
+  class="inspection-sidebar-log-sheet"
+  aria-labelledby="inspectionSidebarLogSheetTitle"
+  open
+>
+  <summary class="inspection-sidebar-log-sheet__title">
+    <span>WORK LOG</span>
+    <strong id="inspectionSidebarLogSheetTitle">
+      Log Sheet
+    </strong>
+  </summary>
 
       <!-- 통합 제어실 Log Sheet -->
       <details class="inspection-sidebar-sheet-group">
@@ -404,8 +404,8 @@ function initializeInspectionWorkspaceNavigation() {
         >
           고압 Aux BLR 현장
         </button>
-      </div>
-    </section>
+            </div>
+    </details>
   `;
 
 
