@@ -1340,168 +1340,366 @@
 
 /* =========================================================
   점검일지 최상위 메뉴 접기·펼치기
+
+  펼친 상태:
+  - 안내 문구 숨김
+  - 상단 박스 높이 축소
+  - 접기 버튼 축소
+
+  접힌 상태:
+  - 기존 44px 레일 유지
 ========================================================= */
 
+
+/* =====================================================
+  펼친 상태의 소개 박스
+====================================================== */
+
+.inspection-sidebar__intro {
+  display: flex;
+
+  box-sizing: border-box;
+
+  min-height: 44px;
+
+  align-items: center;
+
+  padding:
+    8px
+    10px;
+
+  border-radius: 10px;
+
+  box-shadow:
+    0
+    2px
+    8px
+    rgba(
+      24,
+      50,
+      78,
+      0.045
+    );
+}
+
+
+.inspection-sidebar__intro > strong {
+  display: flex;
+
+  min-height: 24px;
+
+  align-items: center;
+
+  padding-right: 58px;
+
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+
 /*
-  버튼은 사이드바의 직접 자식이지만
-  점검일지 메뉴 소개 카드 우측에 배치한다.
+  설명 문구는 숨겨서
+  소개 박스를 한 줄로 유지한다.
 */
 
-.inspection-sidebar__intro strong {
-  padding-right: 64px;
+.inspection-sidebar__intro > span {
+  display: none;
 }
+
+
+/* =====================================================
+  접기·열기 버튼
+====================================================== */
 
 .inspection-sidebar-toggle {
   position: absolute;
+
   z-index: 3;
-  top: 8px;
+
+  top: 9px;
   right: 8px;
 
+
   display: inline-flex;
+
   box-sizing: border-box;
-  width: 58px;
-  min-width: 58px;
-  height: 30px;
-  min-height: 30px;
+
+  width: 50px;
+  min-width: 50px;
+
+  height: 26px;
+  min-height: 26px;
+
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 0 7px;
 
-  border: 1px solid #c9d7e5;
-  border-radius: 8px;
+  gap: 3px;
 
-  background: #f7fafd;
-  color: #29445e;
+  padding:
+    0
+    6px;
+
+
+  border:
+    1px
+    solid
+    #c9d7e5;
+
+  border-radius: 7px;
+
+
+  background:
+    #f7fafd;
+
+  color:
+    #29445e;
+
 
   font: inherit;
+
   cursor: pointer;
 
+
   transition:
-    border-color 0.16s ease,
-    background-color 0.16s ease,
-    color 0.16s ease;
+    border-color
+    0.16s
+    ease,
+
+    background-color
+    0.16s
+    ease,
+
+    color
+    0.16s
+    ease;
 }
+
 
 .inspection-sidebar-toggle:hover {
-  border-color: #8fb4d8;
-  background: #eaf4ff;
-  color: #245f98;
+  border-color:
+    #8fb4d8;
+
+  background:
+    #eaf4ff;
+
+  color:
+    #245f98;
 }
 
+
 .inspection-sidebar-toggle:focus-visible {
-  outline: 3px solid rgba(47, 115, 181, 0.2);
-  outline-offset: 2px;
+  outline:
+    2px
+    solid
+    rgba(
+      47,
+      115,
+      181,
+      0.24
+    );
+
+  outline-offset:
+    2px;
 }
+
 
 .inspection-sidebar-toggle__icon {
   display: inline-flex;
-  width: 10px;
+
+  width: 8px;
+
   align-items: center;
   justify-content: center;
 
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 800;
   line-height: 1;
 }
 
+
 .inspection-sidebar-toggle__label {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 900;
   line-height: 1;
+
   white-space: nowrap;
 }
 
 
-/*
-  접힌 상태:
-  메뉴 전체를 없애지 않고 열기 버튼만 남긴다.
-*/
+/* =====================================================
+  접힌 상태
+
+  기존 크기를 유지하여
+  열기 버튼과 달력 확장 동작이 흔들리지 않게 한다.
+====================================================== */
 
 .inspection-workspace.is-sidebar-collapsed {
   grid-template-columns:
     44px
-    minmax(0, 1fr) !important;
+    minmax(
+      0,
+      1fr
+    ) !important;
 
-  gap: 8px !important;
+  gap:
+    8px !important;
 }
+
 
 .inspection-workspace.is-sidebar-collapsed
   > .inspection-sidebar {
-  display: grid !important;
-  width: 44px;
+  display:
+    grid !important;
+
+  width:
+    44px;
 }
+
 
 .inspection-sidebar.is-collapsed
   > .inspection-sidebar__intro {
-  box-sizing: border-box;
-  width: 44px;
-  min-height: 44px;
-  padding: 4px;
+  box-sizing:
+    border-box;
+
+  display:
+    flex;
+
+  width:
+    44px;
+
+  min-height:
+    44px;
+
+  padding:
+    4px;
+
+  border-radius:
+    10px;
 }
+
 
 .inspection-sidebar.is-collapsed
   > .inspection-sidebar__intro
   > strong,
+
 .inspection-sidebar.is-collapsed
   > .inspection-sidebar__intro
   > span,
+
 .inspection-sidebar.is-collapsed
   > .inspection-sidebar-group {
-  display: none !important;
+  display:
+    none !important;
 }
+
 
 .inspection-sidebar.is-collapsed
   > .inspection-sidebar-toggle {
-  top: 4px;
-  right: 4px;
+  top:
+    4px;
 
-  width: 36px;
-  min-width: 36px;
-  height: 36px;
-  min-height: 36px;
-  padding: 0;
+  right:
+    4px;
 
-  border-color: transparent;
-  background: #edf5fd;
-  box-shadow: none;
+
+  width:
+    36px;
+
+  min-width:
+    36px;
+
+  height:
+    36px;
+
+  min-height:
+    36px;
+
+
+  padding:
+    0;
+
+
+  border-color:
+    transparent;
+
+  background:
+    #edf5fd;
+
+  box-shadow:
+    none;
 }
+
+
+.inspection-sidebar.is-collapsed
+  > .inspection-sidebar-toggle
+  > .inspection-sidebar-toggle__icon {
+  width:
+    auto;
+
+  font-size:
+    18px;
+}
+
 
 .inspection-sidebar.is-collapsed
   > .inspection-sidebar-toggle
   > .inspection-sidebar-toggle__label {
-  display: none;
+  display:
+    none;
 }
+
 
 .inspection-workspace.is-sidebar-collapsed
   > .inspection-workspace__content {
-  width: 100%;
-  max-width: none;
+  width:
+    100%;
+
+  max-width:
+    none;
 }
 
 
-/*
-  모바일에서도 열기 버튼이 사라지지 않도록 유지한다.
-*/
+/* =====================================================
+  모바일 보정
+====================================================== */
 
 @media (max-width: 680px) {
+
   .inspection-sidebar {
-    position: relative;
+    position:
+      relative;
   }
+
 
   .inspection-sidebar__intro {
-    display: block !important;
-    min-height: 46px;
-    padding: 12px;
+    display:
+      flex !important;
+
+    min-height:
+      44px;
+
+    align-items:
+      center;
+
+    padding:
+      8px
+      10px;
   }
 
+
   .inspection-sidebar__intro > span {
-    display: none;
+    display:
+      none;
   }
+
 
   .inspection-workspace.is-sidebar-collapsed
     > .inspection-sidebar {
-    width: 44px;
-    margin-bottom: 8px;
+    width:
+      44px;
+
+    margin-bottom:
+      8px;
   }
+
 }
