@@ -105765,3 +105765,16 @@ input {
     border-color: #d5c38a !important;
   }
 }
+
+/* =========================================================
+  부재료 PC 고정값 저장·상태 박스 간격 보정
+========================================================= */
+
+@media screen and (min-width: 769px) {
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-pc-status-row {
+    padding: 0 0 0 6px !important;
+  }
+}
