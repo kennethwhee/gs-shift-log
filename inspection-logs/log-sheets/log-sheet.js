@@ -5470,6 +5470,180 @@ function applyAddedLoggingItemsToPreview() {
   );
 }
 
+/* =========================================================
+  통합 제어실 Log Sheet · Excel 원본 인쇄 설정
+
+  첨부 원본:
+  - TGO  : A1:V120 / 48% / 54, 104행 뒤 페이지 구분
+  - BCO1 : A1:U85  / 50% / 38행 뒤 페이지 구분
+  - BCO2 : A1:U86  / 54% / 47행 뒤 페이지 구분
+========================================================= */
+
+function getIntegratedControlPrintProfile() {
+  switch (
+    state.sheetConfig?.key
+  ) {
+    case "integrated-tgo":
+      return {
+        breakAfterRows: [
+          54,
+          104
+        ],
+
+        marginTopMm:
+          9,
+
+        marginRightMm:
+          6,
+
+        marginBottomMm:
+          9,
+
+        marginLeftMm:
+          6,
+
+        horizontalCentered:
+          true
+      };
+
+
+    case "integrated-bco1":
+      return {
+        breakAfterRows: [
+          38
+        ],
+
+        marginTopMm:
+          9,
+
+        marginRightMm:
+          8,
+
+        marginBottomMm:
+          4,
+
+        marginLeftMm:
+          13,
+
+        horizontalCentered:
+          false
+      };
+
+
+    case "integrated-bco2":
+      return {
+        breakAfterRows: [
+          47
+        ],
+
+        marginTopMm:
+          9,
+
+        marginRightMm:
+          8,
+
+        marginBottomMm:
+          4,
+
+        marginLeftMm:
+          13,
+
+        horizontalCentered:
+          false
+      };
+
+
+    default:
+      return {
+        breakAfterRows:
+          [],
+
+        marginTopMm:
+          7,
+
+        marginRightMm:
+          7,
+
+        marginBottomMm:
+          7,
+
+        marginLeftMm:
+          7,
+
+        horizontalCentered:
+          false
+      };
+  }
+}
+
+
+function applyExcelPrintBreaks(
+  previewGrid
+) {
+  const profile =
+    getIntegratedControlPrintProfile();
+
+
+  const table =
+    previewGrid.querySelector(
+      ".log-sheet-table"
+    );
+
+
+  if (!table) {
+    return;
+  }
+
+
+  const rows = [
+    ...table.querySelectorAll(
+      "tbody > tr"
+    )
+  ];
+
+
+  const renderRange =
+    parseRange(
+      state.sheetConfig?.renderRange ||
+      "A1:A1"
+    );
+
+
+  const firstExcelRow =
+    renderRange.s.r +
+    1;
+
+
+  rows.forEach(
+    row => {
+      row.classList.remove(
+        "is-excel-print-break"
+      );
+    }
+  );
+
+
+  (
+    profile.breakAfterRows ||
+    []
+  ).forEach(
+    excelRow => {
+      const rowIndex =
+        excelRow -
+        firstExcelRow;
+
+
+      const targetRow =
+        rows[rowIndex];
+
+
+      targetRow?.classList.add(
+        "is-excel-print-break"
+      );
+    }
+  );
+}
+
 function cloneGridForPreviewWindow() {
   /*
     기본 Grid는 화면 초기화 과정에서 이미 만들어져 있다.
@@ -5621,6 +5795,11 @@ function cloneGridForPreviewWindow() {
   );
 
 
+  applyExcelPrintBreaks(
+    previewGrid
+  );
+
+
   return previewGrid;
 }
 
@@ -5672,6 +5851,40 @@ function openLogSheetPreviewWindow(options = {}) {
 
   const title =
     `${state.sheetConfig?.title || "Log Sheet"} · 미리보기`;
+
+  const printProfile =
+    getIntegratedControlPrintProfile();
+
+
+  const configuredScale =
+    Number(
+      state.sheetConfig
+        ?.print
+        ?.scale ||
+      100
+    );
+
+
+  const printScale =
+    Math.max(
+      10,
+      Math.min(
+        100,
+        configuredScale
+      )
+    ) /
+    100;
+
+
+  const printOrientation =
+    state.sheetConfig
+      ?.print
+      ?.orientation ===
+      "portrait"
+        ? "portrait"
+        : "landscape";
+
+
 
 
   const previewDocument =
@@ -5789,6 +6002,7 @@ function openLogSheetPreviewWindow(options = {}) {
 
     body {
       overflow: auto;
+      background: #eef2f6;
     }
 
     .log-sheet-preview-window__toolbar {
@@ -5822,15 +6036,25 @@ function openLogSheetPreviewWindow(options = {}) {
     .log-sheet-preview-window__root {
       width: max-content;
       min-width: 100%;
-      padding: 12px;
+      padding: 16px;
       box-sizing: border-box;
     }
 
     .log-sheet-preview-window__root
     .log-sheet-grid-shell {
       display: block !important;
+      width: max-content !important;
       max-height: none !important;
       overflow: visible !important;
+      background: #ffffff;
+      box-shadow: 0 8px 30px rgba(22, 42, 65, 0.14);
+    }
+
+    .log-sheet-preview-window__root
+    .log-sheet-grid {
+      width: max-content !important;
+      min-width: 0 !important;
+      padding: 0 !important;
     }
 
     .log-sheet-preview-window__loading {
@@ -5841,13 +6065,119 @@ function openLogSheetPreviewWindow(options = {}) {
       font-weight: 700;
     }
 
+
+    @page {
+      size: A4 ${printOrientation};
+
+      margin:
+        ${printProfile.marginTopMm}mm
+        ${printProfile.marginRightMm}mm
+        ${printProfile.marginBottomMm}mm
+        ${printProfile.marginLeftMm}mm;
+    }
+
+
     @media print {
+      html,
+      body {
+        width: auto !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+      }
+
       .log-sheet-preview-window__toolbar {
         display: none !important;
       }
 
       .log-sheet-preview-window__root {
-        padding: 0;
+        display: block !important;
+        width: auto !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      .log-sheet-preview-window__root
+      .log-sheet-grid-shell {
+        width: max-content !important;
+        height: auto !important;
+        min-height: 0 !important;
+        margin:
+          0
+          ${printProfile.horizontalCentered ? "auto" : "0"}
+          0
+          ${printProfile.horizontalCentered ? "auto" : "0"} !important;
+        overflow: visible !important;
+        background: #ffffff !important;
+        box-shadow: none !important;
+      }
+
+      .log-sheet-preview-window__root
+      .log-sheet-grid {
+        width: max-content !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      .log-sheet-preview-window__root
+      .log-sheet-table {
+        width: max-content !important;
+        max-width: none !important;
+
+        margin: 0 !important;
+
+        border-collapse: collapse !important;
+
+        box-shadow: none !important;
+
+        zoom: ${printScale};
+      }
+
+      .log-sheet-preview-window__root
+      .log-sheet-table tr {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+
+      .log-sheet-preview-window__root
+      .log-sheet-table
+      tr.is-excel-print-break {
+        break-after: page !important;
+        page-break-after: always !important;
+      }
+
+      .log-sheet-preview-window__root
+      .log-sheet-table td {
+        min-width: 24px !important;
+        height: 22px;
+        padding: 2px 4px !important;
+
+        border-color: #000000 !important;
+
+        color: #000000 !important;
+
+        font-size: 9px !important;
+        line-height: 1.18 !important;
+
+        box-shadow: none !important;
+
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+
+      .log-sheet-preview-window__root
+      .log-sheet-table td.is-editable,
+      .log-sheet-preview-window__root
+      .log-sheet-table td.is-changed {
+        background: inherit !important;
+      }
+
+      .log-sheet-preview-window__root
+      .log-sheet-cell-value {
+        overflow: visible !important;
       }
     }
   `;
