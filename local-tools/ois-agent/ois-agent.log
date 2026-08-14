@@ -10326,3 +10326,1497 @@ Excel 일일 DATA 현황 요청 처리 실패: Error: 일일DATA관리 조회 �
     at maybeClose (node:internal/child_process:1124:16)
     at ChildProcess._handle.onexit (node:internal/child_process:306:5)
 오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-a2e3d55d-86c2-454d-a71b-e3d32acd5c01.png
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 05a5cc3c-4ba1-4204-81d7-c8741e5e2043
+조회일: 2026-08-11
+------------------------------------------
+운영정보 메뉴를 클릭했습니다.
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS 석회석 재고 요청 처리 실패: Error: 103HRJ01CW201XQ01의 전일 또는 24시 재고값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:13227:17)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-05a5cc3c-4ba1-4204-81d7-c8741e5e2043.png
+
+------------------------------------------
+일일 DATA 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: f3e2beb2-8ea6-48d2-a46d-e4999a202b39
+조회일: 2026-08-10
+------------------------------------------
+월간 일일DATA관리 Excel 조회 시작 · 2026-08-10
+DataPARC 진행 · 월간 일일DATA관리 Excel 조회 시작
+Excel 일일 DATA 현황 요청 처리 실패: Error: 일일DATA관리 조회 정의를 읽지 못했습니다. 위치 C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-179228-1786441432954-5993a1a2da3ae.ps1:380 문자:5 + throw "일일DATA관리 조회 정의를 읽지 못했습니다." + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ + CategoryInfo : OperationStopped: (일일DATA관리 조회 정의를 읽지 못했습니다.:String) [], RuntimeException + FullyQualifiedErrorId : 일일DATA관리 조회 정의를 읽지 못했습니다. 마지막 단계: 월간 일일DATA관리 Excel 조회 시작
+    at ChildProcess.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9644:15)
+    at ChildProcess.emit (node:events:509:28)
+    at maybeClose (node:internal/child_process:1124:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:306:5)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-f3e2beb2-8ea6-48d2-a46d-e4999a202b39.png
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: eb707083-c889-49a7-b1fe-73787b459f7b
+조회일: 2026-08-11
+------------------------------------------
+OIS 석회석 재고 요청 처리 실패: Error: 103HRJ01CW201XQ01의 전일 또는 24시 재고값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:13227:17)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-eb707083-c889-49a7-b1fe-73787b459f7b.png
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: cc9fcdd4-0b10-4bb9-be58-00472e44bf8f
+조회일: 2026-08-11
+------------------------------------------
+OIS 석회석 재고 요청 처리 실패: Error: 103HRJ01CW201XQ01가 포함된 OIS LOG SHEET 응답을 받지 못했습니다.
+    at Timeout.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:13306:15)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-cc9fcdd4-0b10-4bb9-be58-00472e44bf8f.png
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 32eaa4d0-ee02-49df-af1e-853d272f049b
+조회일: 2026-08-11
+------------------------------------------
+OIS 로그인이 완료되었습니다.
+운영정보 메뉴를 클릭했습니다.
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 361.182,
+  endStock: 352.999,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-11 · 전일 361.182 ton · 24시 352.999 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 337.874,
+  endStock: 363.413,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-11 · 전일 337.874 ton · 24시 363.413 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 361.182 │
+│ 1호기 종료 재고 │ 352.999 │
+│ 2호기 시작 재고 │ 337.874 │
+│ 2호기 종료 재고 │ 363.413 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: acaf2f4a-3120-435f-b1bf-033b9c07bff1
+조회일: 2026-08-11
+------------------------------------------
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 863abc59-b60b-47a1-8043-87a134f7eb6f
+조회일: 2026-08-11
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 361.182,
+  endStock: 352.999,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-11 · 전일 361.182 ton · 24시 352.999 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 337.874,
+  endStock: 363.413,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-11 · 전일 337.874 ton · 24시 363.413 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 361.182 │
+│ 1호기 종료 재고 │ 352.999 │
+│ 2호기 시작 재고 │ 337.874 │
+│ 2호기 종료 재고 │ 363.413 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+일일 DATA 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: 895ee109-dfd5-4d23-bae8-20d27748b008
+조회일: 2026-08-11
+------------------------------------------
+월간 일일DATA관리 Excel 조회 시작 · 2026-08-11
+DataPARC 진행 · 월간 일일DATA관리 Excel 조회 시작
+Excel 일일 DATA 현황 요청 처리 실패: Error: 일일DATA관리 조회 정의를 읽지 못했습니다. 위치 C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-179228-1786472286649-7f367d965091f.ps1:380 문자:5 + throw "일일DATA관리 조회 정의를 읽지 못했습니다." + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ + CategoryInfo : OperationStopped: (일일DATA관리 조회 정의를 읽지 못했습니다.:String) [], RuntimeException + FullyQualifiedErrorId : 일일DATA관리 조회 정의를 읽지 못했습니다. 마지막 단계: 월간 일일DATA관리 Excel 조회 시작
+    at ChildProcess.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9644:15)
+    at ChildProcess.emit (node:events:509:28)
+    at maybeClose (node:internal/child_process:1124:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:306:5)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-895ee109-dfd5-4d23-bae8-20d27748b008.png
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: 5daf776b-0d66-49f7-b49a-a1bab7574735
+조회일: 2026-08-11
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+OIS 수처리 현황 요청 처리 실패: Error: 일일 운전일지(환경) 화면이 열리지 않았습니다.
+    at openOisEnvironmentDailyLog (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:4559:11)
+    at async setOisEnvironmentDate (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:5539:5)
+    at async collectOisWaterTreatmentValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6198:3)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:10477:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:15920:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-5daf776b-0d66-49f7-b49a-a1bab7574735.png
+
+------------------------------------------
+Gear Wheel / Pinion 조회 요청을 받았습니다.
+요청 유형: turbine_gear_pinion
+요청 ID: 11581465-4ab4-4a4c-86f2-02aecd5b5098
+조회일: 2026-08-12
+------------------------------------------
+OIS 로그인이 완료되었습니다.
+운영정보 메뉴를 클릭했습니다.
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS TGO 전일 자료 확인: {
+  label: 'Gear Wheel',
+  tag: 'MAD11FG905-ZE01_V2',
+  itemName: 'HP TBN ROTOR AXIAL POSITION',
+  value: 0.762,
+  field: 'decimal_pnt'
+}
+OIS TGO 전일 자료 확인: {
+  label: 'Pinion',
+  tag: 'MAD41FY905-ZE01_V2',
+  itemName: 'CASINLG PINL T-SIDE VIB',
+  value: 1.957,
+  field: 'decimal_pnt'
+}
+OIS TGO 조회 완료 · 2026-08-12 · Gear Wheel 0.762 · Pinion 1.957
+OIS Gear Wheel / Pinion 조회가 완료되었습니다.
+┌────────────────┬──────────────────────┐
+│ (index)        │ Values               │
+├────────────────┼──────────────────────┤
+│ 조회일         │ '2026-08-12'         │
+│ 조회 열        │ '전일'               │
+│ Gear Wheel     │ 0.762                │
+│ Pinion         │ 1.957                │
+│ Gear Wheel TAG │ 'MAD11FG905-ZE01_V2' │
+│ Pinion TAG     │ 'MAD41FY905-ZE01_V2' │
+└────────────────┴──────────────────────┘
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: 24c11caf-a8dc-4d15-84c7-a05bb0777b4a
+조회일: 2026-08-11
+------------------------------------------
+TAG별 LOG 조회 메뉴를 클릭했습니다.
+OIS TAG별 LOG 조회 화면을 열었습니다.
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-11
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-11',
+  targetTag: '003ETH01CW201XQ01',
+  value: 547.61,
+  valueField: 'hd_24',
+  tag: '003ETH01CW201XQ01',
+  sourceDate: '20260811',
+  itemName: 'FLY ASH SILO MICRO CELL WEIGHT',
+  unit: ''
+}
+OIS TAG별 LOG 조회조건 · EBF20CW201 · 2026-08-11
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-11',
+  targetTag: 'EBF20CW201',
+  value: 371,
+  valueField: 'hd_24',
+  tag: 'EBF20CW201',
+  sourceDate: '20260811',
+  itemName: 'FHS BIO STOR SILO WEIGHT',
+  unit: ''
+}
+OIS Silo Level 조회 완료 · 2026-08-11 · Fly Ash 547.61 · Bio Storage 371
+OIS Silo Level 조회가 완료되었습니다.
+┌────────────────────────┬─────────────────────┐
+│ (index)                │ Values              │
+├────────────────────────┼─────────────────────┤
+│ 조회일                 │ '2026-08-11'        │
+│ 조회 기준              │ '24시'              │
+│ Fly Ash Silo Level     │ 547.61              │
+│ Bio Storage Silo Level │ 371                 │
+│ Fly Ash TAG            │ '003ETH01CW201XQ01' │
+│ Bio Storage TAG        │ 'EBF20CW201'        │
+│ Fly Ash 단위           │ ''                  │
+│ Bio Storage 단위       │ ''                  │
+└────────────────────────┴─────────────────────┘
+
+------------------------------------------
+일일 DATA 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: bfef43e8-67e9-4e45-9669-bee78fdadea0
+조회일: 2026-08-10
+------------------------------------------
+월간 일일DATA관리 Excel 조회 시작 · 2026-08-10
+DataPARC 진행 · 월간 일일DATA관리 Excel 조회 시작
+Excel 일일 DATA 현황 요청 처리 실패: Error: 일일DATA관리 조회 정의를 읽지 못했습니다. 위치 C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-179228-1786472346918-b27f0b29b588a.ps1:380 문자:5 + throw "일일DATA관리 조회 정의를 읽지 못했습니다." + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ + CategoryInfo : OperationStopped: (일일DATA관리 조회 정의를 읽지 못했습니다.:String) [], RuntimeException + FullyQualifiedErrorId : 일일DATA관리 조회 정의를 읽지 못했습니다. 마지막 단계: 월간 일일DATA관리 Excel 조회 시작
+    at ChildProcess.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9644:15)
+    at ChildProcess.emit (node:events:509:28)
+    at maybeClose (node:internal/child_process:1124:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:306:5)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-bfef43e8-67e9-4e45-9669-bee78fdadea0.png
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: ee246cb4-d56a-46e1-8828-8e6b944a4324
+조회일: 2026-08-11
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/08/11로 변경합니다.
+2026년 08월 11일 환경자료 조회가 완료되었습니다.
+OIS 환경일지 재계산 버튼을 클릭했습니다.
+OIS "장자산단" 행 셀: [ '장자산단', '9,197.000', '저장율(%)', '80.211', '85.010', '96.898' ]
+OIS "저장량" 행 셀: [
+  '동두천',    '0.000',
+  '9,197.000', '3,194.000',
+  '6,381.400', '저장량(m3)',
+  '3,208.459', '9,351.150',
+  '5,813.894'
+]
+OIS "저장율" 행 셀: [ '장자산단', '9,197.000', '저장율(%)', '80.211', '85.010', '96.898' ]
+OIS "순수사용량" 행 셀: [
+  'B',         '93.000',
+  '47.00',     '49.990',
+  '94.46',     '총량',
+  '2,275.000', '순수사용량',
+  '총합',      '0',
+  '1',         '0',
+  '0'
+]
+OIS 수처리 최종 추출값: {
+  source: 'OIS 일일 운전일지(환경)',
+  sourceDate: '',
+  collectedAt: '2026-08-11T18:19:18.636Z',
+  rawWaterInflow: 9197,
+  demiProduction: 2275,
+  pureWaterUsage: 2047,
+  rawWaterTankAmount: 3208.459,
+  rawWaterTankRate: 80.211,
+  filteredWaterTankAmount: 9351.15,
+  filteredWaterTankRate: 85.01,
+  demiWaterTankAmount: 5813.894,
+  demiWaterTankRate: 96.898
+}
+OIS 수처리 결과 JSON 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-water-values.json
+OIS 수처리 현황 조회가 완료되었습니다.
+┌──────────────────────┬──────────┐
+│ (index)              │ Values   │
+├──────────────────────┼──────────┤
+│ 장자산단 원수 유입량 │ 9197     │
+│ 원수 TANK 저장량     │ 3208.459 │
+│ 원수 TANK 저장율     │ 80.211   │
+│ 여과수 TANK 저장량   │ 9351.15  │
+│ 여과수 TANK 저장율   │ 85.01    │
+│ 순수 TANK 저장량     │ 5813.894 │
+│ 순수 TANK 저장율     │ 96.898   │
+│ 순수 생산량          │ 2275     │
+│ 순수 사용량          │ 2047     │
+└──────────────────────┴──────────┘
+
+------------------------------------------
+일일 DATA 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: ad1a06db-35a7-4919-b767-d1eddb7b19bd
+조회일: 2026-08-11
+------------------------------------------
+월간 일일DATA관리 Excel 조회 시작 · 2026-08-11
+DataPARC 진행 · 월간 일일DATA관리 Excel 조회 시작
+Excel 일일 DATA 현황 요청 처리 실패: Error: 일일DATA관리 조회 정의를 읽지 못했습니다. 위치 C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-179228-1786472360096-cf48700402c06.ps1:380 문자:5 + throw "일일DATA관리 조회 정의를 읽지 못했습니다." + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ + CategoryInfo : OperationStopped: (일일DATA관리 조회 정의를 읽지 못했습니다.:String) [], RuntimeException + FullyQualifiedErrorId : 일일DATA관리 조회 정의를 읽지 못했습니다. 마지막 단계: 월간 일일DATA관리 Excel 조회 시작
+    at ChildProcess.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9644:15)
+    at ChildProcess.emit (node:events:509:28)
+    at maybeClose (node:internal/child_process:1124:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:306:5)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-ad1a06db-35a7-4919-b767-d1eddb7b19bd.png
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 3fe11628-839c-43ae-bb2a-b3508f4667ef
+조회일: 2026-08-01
+------------------------------------------
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 366.389,
+  endStock: 361.182,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-01 · 전일 366.389 ton · 24시 361.182 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 378.043,
+  endStock: 361.182,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-01 · 전일 378.043 ton · 24시 361.182 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 366.389 │
+│ 1호기 종료 재고 │ 361.182 │
+│ 2호기 시작 재고 │ 378.043 │
+│ 2호기 종료 재고 │ 361.182 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 538ee1f0-1c44-4036-9020-77e8cfc98695
+조회일: 2026-08-02
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 361.182,
+  endStock: 357.214,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-02 · 전일 361.182 ton · 24시 357.214 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 361.182,
+  endStock: 364.901,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-02 · 전일 361.182 ton · 24시 364.901 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 361.182 │
+│ 1호기 종료 재고 │ 357.214 │
+│ 2호기 시작 재고 │ 361.182 │
+│ 2호기 종료 재고 │ 364.901 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 078c42e5-7f8f-4afb-b840-0da86ea54a0f
+조회일: 2026-08-03
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 357.214,
+  endStock: 340.849,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-03 · 전일 357.214 ton · 24시 340.849 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 364.901,
+  endStock: 359.446,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-03 · 전일 364.901 ton · 24시 359.446 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 357.214 │
+│ 1호기 종료 재고 │ 340.849 │
+│ 2호기 시작 재고 │ 364.901 │
+│ 2호기 종료 재고 │ 359.446 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: b750f799-823f-47d0-8005-957798c6b41f
+조회일: 2026-08-04
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 340.849,
+  endStock: 331.179,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-04 · 전일 340.849 ton · 24시 331.179 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 359.446,
+  endStock: 311.591,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-04 · 전일 359.446 ton · 24시 311.591 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 340.849 │
+│ 1호기 종료 재고 │ 331.179 │
+│ 2호기 시작 재고 │ 359.446 │
+│ 2호기 종료 재고 │ 311.591 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 63b10d75-2ec4-4374-8dab-d9ff3eea6ebd
+조회일: 2026-08-05
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 331.179,
+  endStock: 353.743,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-05 · 전일 331.179 ton · 24시 353.743 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 311.591,
+  endStock: 320.269,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-05 · 전일 311.591 ton · 24시 320.269 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 331.179 │
+│ 1호기 종료 재고 │ 353.743 │
+│ 2호기 시작 재고 │ 311.591 │
+│ 2호기 종료 재고 │ 320.269 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 6dd944e7-ffdf-44d8-ba8c-fc5093ec2274
+조회일: 2026-08-06
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 353.743,
+  endStock: 374.819,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-06 · 전일 353.743 ton · 24시 374.819 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 320.269,
+  endStock: 346.552,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-06 · 전일 320.269 ton · 24시 346.552 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 353.743 │
+│ 1호기 종료 재고 │ 374.819 │
+│ 2호기 시작 재고 │ 320.269 │
+│ 2호기 종료 재고 │ 346.552 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 730c66f9-8f0c-4598-85c4-64e6c1aff9a3
+조회일: 2026-08-07
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 374.819,
+  endStock: 335.89,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-07 · 전일 374.819 ton · 24시 335.89 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 346.552,
+  endStock: 361.43,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-07 · 전일 346.552 ton · 24시 361.43 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 374.819 │
+│ 1호기 종료 재고 │ 335.89  │
+│ 2호기 시작 재고 │ 346.552 │
+│ 2호기 종료 재고 │ 361.43  │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: e656db8f-c271-4261-97bf-caca5be9d093
+조회일: 2026-08-08
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 335.89,
+  endStock: 326.716,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-08 · 전일 335.89 ton · 24시 326.716 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 361.43,
+  endStock: 322.997,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-08 · 전일 361.43 ton · 24시 322.997 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 335.89  │
+│ 1호기 종료 재고 │ 326.716 │
+│ 2호기 시작 재고 │ 361.43  │
+│ 2호기 종료 재고 │ 322.997 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 7035c067-c7e5-438e-b23f-0699f7d33c26
+조회일: 2026-08-09
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 326.716,
+  endStock: 365.645,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-09 · 전일 326.716 ton · 24시 365.645 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 322.997,
+  endStock: 347.048,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-09 · 전일 322.997 ton · 24시 347.048 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 326.716 │
+│ 1호기 종료 재고 │ 365.645 │
+│ 2호기 시작 재고 │ 322.997 │
+│ 2호기 종료 재고 │ 347.048 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 72d4d0ee-33d0-49a9-812f-a7d6e0d06d99
+조회일: 2026-08-10
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 365.645,
+  endStock: 361.182,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-10 · 전일 365.645 ton · 24시 361.182 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 347.048,
+  endStock: 337.874,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-10 · 전일 347.048 ton · 24시 337.874 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 365.645 │
+│ 1호기 종료 재고 │ 361.182 │
+│ 2호기 시작 재고 │ 347.048 │
+│ 2호기 종료 재고 │ 337.874 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: e1b04d45-f071-4225-b036-a8df547c8c55
+조회일: 2026-08-11
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 361.182,
+  endStock: 352.999,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-11 · 전일 361.182 ton · 24시 352.999 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 337.874,
+  endStock: 363.413,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-11 · 전일 337.874 ton · 24시 363.413 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 361.182 │
+│ 1호기 종료 재고 │ 352.999 │
+│ 2호기 시작 재고 │ 337.874 │
+│ 2호기 종료 재고 │ 363.413 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: ddcd0a3f-8a09-4a16-ae09-b23d2ba47b9a
+조회일: 2026-08-01
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 366.389,
+  endStock: 361.182,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-01 · 전일 366.389 ton · 24시 361.182 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 378.043,
+  endStock: 361.182,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-01 · 전일 378.043 ton · 24시 361.182 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 366.389 │
+│ 1호기 종료 재고 │ 361.182 │
+│ 2호기 시작 재고 │ 378.043 │
+│ 2호기 종료 재고 │ 361.182 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: d38bdd45-753b-476d-9dbf-145f300d8cb9
+조회일: 2026-08-02
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 361.182,
+  endStock: 357.214,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-02 · 전일 361.182 ton · 24시 357.214 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 361.182,
+  endStock: 364.901,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-02 · 전일 361.182 ton · 24시 364.901 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 361.182 │
+│ 1호기 종료 재고 │ 357.214 │
+│ 2호기 시작 재고 │ 361.182 │
+│ 2호기 종료 재고 │ 364.901 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: e834a8cb-5cc1-45ae-91ea-46871f45da64
+조회일: 2026-08-03
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 357.214,
+  endStock: 340.849,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-03 · 전일 357.214 ton · 24시 340.849 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 364.901,
+  endStock: 359.446,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-03 · 전일 364.901 ton · 24시 359.446 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 357.214 │
+│ 1호기 종료 재고 │ 340.849 │
+│ 2호기 시작 재고 │ 364.901 │
+│ 2호기 종료 재고 │ 359.446 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 1c96c8cc-fcf6-40df-a2fa-f77a534bc19e
+조회일: 2026-08-04
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 340.849,
+  endStock: 331.179,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-04 · 전일 340.849 ton · 24시 331.179 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 359.446,
+  endStock: 311.591,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-04 · 전일 359.446 ton · 24시 311.591 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 340.849 │
+│ 1호기 종료 재고 │ 331.179 │
+│ 2호기 시작 재고 │ 359.446 │
+│ 2호기 종료 재고 │ 311.591 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 4b471569-bd39-40ea-8469-4722ecb593fd
+조회일: 2026-08-05
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 331.179,
+  endStock: 353.743,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-05 · 전일 331.179 ton · 24시 353.743 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 311.591,
+  endStock: 320.269,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-05 · 전일 311.591 ton · 24시 320.269 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 331.179 │
+│ 1호기 종료 재고 │ 353.743 │
+│ 2호기 시작 재고 │ 311.591 │
+│ 2호기 종료 재고 │ 320.269 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: f84977c3-dc61-48a0-a868-8374581efb7a
+조회일: 2026-08-06
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 353.743,
+  endStock: 374.819,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-06 · 전일 353.743 ton · 24시 374.819 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 320.269,
+  endStock: 346.552,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-06 · 전일 320.269 ton · 24시 346.552 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 353.743 │
+│ 1호기 종료 재고 │ 374.819 │
+│ 2호기 시작 재고 │ 320.269 │
+│ 2호기 종료 재고 │ 346.552 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: c9ce7b70-6e50-48f9-93f6-2cc7a6ef48b1
+조회일: 2026-08-07
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 374.819,
+  endStock: 335.89,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-07 · 전일 374.819 ton · 24시 335.89 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 346.552,
+  endStock: 361.43,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-07 · 전일 346.552 ton · 24시 361.43 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 374.819 │
+│ 1호기 종료 재고 │ 335.89  │
+│ 2호기 시작 재고 │ 346.552 │
+│ 2호기 종료 재고 │ 361.43  │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: fe068ffd-56f6-453a-8241-d19bd07c077f
+조회일: 2026-08-08
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 335.89,
+  endStock: 326.716,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-08 · 전일 335.89 ton · 24시 326.716 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 361.43,
+  endStock: 322.997,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-08 · 전일 361.43 ton · 24시 322.997 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 335.89  │
+│ 1호기 종료 재고 │ 326.716 │
+│ 2호기 시작 재고 │ 361.43  │
+│ 2호기 종료 재고 │ 322.997 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 229fcc1a-ffa1-473e-803d-a575f7dd5918
+조회일: 2026-08-09
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 326.716,
+  endStock: 365.645,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-09 · 전일 326.716 ton · 24시 365.645 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 322.997,
+  endStock: 347.048,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-09 · 전일 322.997 ton · 24시 347.048 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 326.716 │
+│ 1호기 종료 재고 │ 365.645 │
+│ 2호기 시작 재고 │ 322.997 │
+│ 2호기 종료 재고 │ 347.048 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: e1070eb5-5bb5-440e-8b0a-2d9e319c9b72
+조회일: 2026-08-10
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 365.645,
+  endStock: 361.182,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-10 · 전일 365.645 ton · 24시 361.182 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 347.048,
+  endStock: 337.874,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-10 · 전일 347.048 ton · 24시 337.874 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 365.645 │
+│ 1호기 종료 재고 │ 361.182 │
+│ 2호기 시작 재고 │ 347.048 │
+│ 2호기 종료 재고 │ 337.874 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 0d39e330-875a-4d2b-8a02-de52f58d438f
+조회일: 2026-08-11
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 361.182,
+  endStock: 352.999,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-11 · 전일 361.182 ton · 24시 352.999 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 337.874,
+  endStock: 363.413,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-11 · 전일 337.874 ton · 24시 363.413 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 361.182 │
+│ 1호기 종료 재고 │ 352.999 │
+│ 2호기 시작 재고 │ 337.874 │
+│ 2호기 종료 재고 │ 363.413 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 314019d0-b4bf-4b9c-bdd8-ddee53d21ccf
+조회일: 2026-08-11
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 361.182,
+  endStock: 352.999,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-11 · 전일 361.182 ton · 24시 352.999 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 337.874,
+  endStock: 363.413,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-11 · 전일 337.874 ton · 24시 363.413 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 361.182 │
+│ 1호기 종료 재고 │ 352.999 │
+│ 2호기 시작 재고 │ 337.874 │
+│ 2호기 종료 재고 │ 363.413 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+일일 DATA 현황 조회 요청을 받았습니다.
+요청 유형: steam_status
+요청 ID: e80f159d-5b16-4c61-97af-ea87eae2e002
+조회일: 2026-08-11
+------------------------------------------
+월간 일일DATA관리 Excel 조회 시작 · 2026-08-11
+DataPARC 진행 · 월간 일일DATA관리 Excel 조회 시작
+Excel 일일 DATA 현황 요청 처리 실패: Error: 일일DATA관리 조회 정의를 읽지 못했습니다. 위치 C:\Users\GSENR\AppData\Local\Temp\gs-shift-dataparc-steam-179228-1786491053955-3694ce9747162.ps1:380 문자:5 + throw "일일DATA관리 조회 정의를 읽지 못했습니다." + ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ + CategoryInfo : OperationStopped: (일일DATA관리 조회 정의를 읽지 못했습니다.:String) [], RuntimeException + FullyQualifiedErrorId : 일일DATA관리 조회 정의를 읽지 못했습니다. 마지막 단계: 월간 일일DATA관리 Excel 조회 시작
+    at ChildProcess.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:9644:15)
+    at ChildProcess.emit (node:events:509:28)
+    at maybeClose (node:internal/child_process:1124:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:306:5)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-e80f159d-5b16-4c61-97af-ea87eae2e002.png
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: a67252d9-5731-48fe-a95f-0082c0056151
+조회일: 2026-08-12
+------------------------------------------
+OIS 석회석 재고 요청 처리 실패: response.text: Protocol error (Network.getResponseBody): No resource with given identifier found
+Response body is not available for a response that was navigated away from. Read response.body() before triggering any navigation.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:13148:30) {
+  log: [],
+  name: 'Error'
+}
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-a67252d9-5731-48fe-a95f-0082c0056151.png
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 0ae90e61-2237-4c3f-a457-168e1a7b5dc0
+조회일: 2026-08-12
+------------------------------------------
+OIS 로그인이 완료되었습니다.
+운영정보 메뉴를 클릭했습니다.
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS 석회석 재고 요청 처리 실패: Error: 103HRJ01CW201XQ01의 전일 또는 24시 재고값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:13227:17)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at process.processImmediate (node:internal/timers:472:9)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-0ae90e61-2237-4c3f-a457-168e1a7b5dc0.png
+
+------------------------------------------
+Gear Wheel / Pinion 조회 요청을 받았습니다.
+요청 유형: turbine_gear_pinion
+요청 ID: 9608ee09-b095-4b55-a777-4bef56b8f995
+조회일: 2026-08-13
+------------------------------------------
+OIS Gear Wheel / Pinion 요청 처리 실패: Error: Gear Wheel의 전일 값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:13607:19)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-9608ee09-b095-4b55-a777-4bef56b8f995.png
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: faa25309-e235-420e-9d97-dde4d035eb0e
+조회일: 2026-08-12
+------------------------------------------
+TAG별 LOG 조회 메뉴를 클릭했습니다.
+OIS TAG별 LOG 조회 화면을 열었습니다.
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-12
+OIS Silo Level 요청 처리 실패: Error: 003ETH01CW201XQ01의 2026-08-12 24시 값을 읽지 못했습니다.
+    at Timeout.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:3240:15)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-faa25309-e235-420e-9d97-dde4d035eb0e.png
+OIS 에이전트 로컬 설정을 불러왔습니다.
+확인된 설정: OIS_ID, OIS_PASSWORD, OIS_AGENT_KEY, OIS_AGENT_ID, SHIFT_LOG_BASE_URL, NODE_USE_SYSTEM_CA
+==========================================
+GS Shift Log OIS 연동 프로그램
+==========================================
+업무일지 주소: https://gs-shift-log.pages.dev
+에이전트 ID: CCR-OIS-PC-01
+OIS 요청 확인 주기: 5초
+지원 요청: 석회석 재고 · 수처리 현황 · Gear Wheel / Pinion
+OIS Edge 브라우저 세션을 시작합니다.
+OIS 로그인이 완료되었습니다.
+OIS Edge 브라우저 세션이 준비되었습니다.
+업무일지의 OIS 요청을 기다립니다.
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 9be1d5d2-89c2-4172-86b1-4fc870dcc5da
+조회일: 2026-08-12
+------------------------------------------
+운영정보 메뉴를 클릭했습니다.
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS 석회석 재고 요청 처리 실패: Error: 103HRJ01CW201XQ01의 전일 또는 24시 재고값이 올바르지 않습니다.
+    at _Page.handleResponse (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:13227:17)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-9be1d5d2-89c2-4172-86b1-4fc870dcc5da.png
+업무일지 요청 확인 실패: fetch failed
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: f9b73c87-658a-424a-a6b5-fc13ca462bca
+조회일: 2026-08-12
+------------------------------------------
+OIS 석회석 재고 요청 처리 실패: Error: 103HRJ01CW201XQ01가 포함된 OIS LOG SHEET 응답을 받지 못했습니다.
+    at Timeout.<anonymous> (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:13306:15)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-f9b73c87-658a-424a-a6b5-fc13ca462bca.png
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: 95c97681-0917-478a-a6e0-0cb10b89da7b
+조회일: 2026-08-12
+------------------------------------------
+OIS 로그인이 완료되었습니다.
+운영정보 메뉴를 클릭했습니다.
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: b691ab72-ee75-425e-8c88-9e7354fb850d
+조회일: 2026-08-13
+------------------------------------------
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: a36609c7-9c4e-452d-ac12-bd71472c0c55
+조회일: 2026-08-12
+------------------------------------------
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 352.999,
+  endStock: 342.089,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-08-12 · 전일 352.999 ton · 24시 342.089 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 363.413,
+  endStock: 321.013,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-08-12 · 전일 363.413 ton · 24시 321.013 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 352.999 │
+│ 1호기 종료 재고 │ 342.089 │
+│ 2호기 시작 재고 │ 363.413 │
+│ 2호기 종료 재고 │ 321.013 │
+└─────────────────┴─────────┘
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: 534e92ab-2929-4bbe-b09e-52c8f31e4725
+조회일: 2026-08-12
+------------------------------------------
+TAG별 LOG 조회 메뉴를 클릭했습니다.
+OIS TAG별 LOG 조회 화면을 열었습니다.
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-08-12
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-12',
+  targetTag: '003ETH01CW201XQ01',
+  value: 410.647,
+  valueField: 'hd_24',
+  tag: '003ETH01CW201XQ01',
+  sourceDate: '20260812',
+  itemName: 'FLY ASH SILO MICRO CELL WEIGHT',
+  unit: ''
+}
+OIS TAG별 LOG 조회조건 · EBF20CW201 · 2026-08-12
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-08-12',
+  targetTag: 'EBF20CW201',
+  value: 327,
+  valueField: 'hd_24',
+  tag: 'EBF20CW201',
+  sourceDate: '20260812',
+  itemName: 'FHS BIO STOR SILO WEIGHT',
+  unit: ''
+}
+OIS Silo Level 조회 완료 · 2026-08-12 · Fly Ash 410.647 · Bio Storage 327
+OIS Silo Level 조회가 완료되었습니다.
+┌────────────────────────┬─────────────────────┐
+│ (index)                │ Values              │
+├────────────────────────┼─────────────────────┤
+│ 조회일                 │ '2026-08-12'        │
+│ 조회 기준              │ '24시'              │
+│ Fly Ash Silo Level     │ 410.647             │
+│ Bio Storage Silo Level │ 327                 │
+│ Fly Ash TAG            │ '003ETH01CW201XQ01' │
+│ Bio Storage TAG        │ 'EBF20CW201'        │
+│ Fly Ash 단위           │ ''                  │
+│ Bio Storage 단위       │ ''                  │
+└────────────────────────┴─────────────────────┘
+업무일지 요청 확인 실패: fetch failed
+업무일지 요청 확인 실패: fetch failed
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: 095ea50b-ebbd-4fcf-bd67-305fdeb6f90c
+조회일: 2026-08-12
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+OIS 수처리 현황 요청 처리 실패: Error: 일일 운전일지(환경) 화면이 열리지 않았습니다.
+    at openOisEnvironmentDailyLog (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:4559:11)
+    at async setOisEnvironmentDate (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:5539:5)
+    at async collectOisWaterTreatmentValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6198:3)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:10477:12)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:15920:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-095ea50b-ebbd-4fcf-bd67-305fdeb6f90c.png
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: 831c75cd-f4e1-4034-b237-aeed8d77d75a
+조회일: 2026-08-12
+------------------------------------------
+OIS 로그인이 완료되었습니다.
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/08/12로 변경합니다.
+2026년 08월 12일 환경자료 조회가 완료되었습니다.
+OIS 환경일지 재계산 버튼을 클릭했습니다.
+OIS "장자산단" 행 셀: [ '장자산단', '8,737.000', '저장율(%)', '71.187', '95.650', '93.497' ]
+OIS "저장량" 행 셀: [
+  '동두천',    '0.000',
+  '8,737.000', '2,132.000',
+  '5,795.600', '저장량(m3)',
+  '2,847.483', '10,521.490',
+  '5,609.847'
+]
+OIS "저장율" 행 셀: [ '장자산단', '8,737.000', '저장율(%)', '71.187', '95.650', '93.497' ]
+OIS "순수사용량" 행 셀: [
+  'B',         '97.000',
+  '46.90',     '48.590',
+  '96.13',     '총량',
+  '1,691.000', '순수사용량',
+  '총합',      '0',
+  '1',         '0',
+  '0'
+]
+OIS 수처리 최종 추출값: {
+  source: 'OIS 일일 운전일지(환경)',
+  sourceDate: '',
+  collectedAt: '2026-08-13T09:14:27.501Z',
+  rawWaterInflow: 8737,
+  demiProduction: 1691,
+  pureWaterUsage: 1896,
+  rawWaterTankAmount: 2847.483,
+  rawWaterTankRate: 71.187,
+  filteredWaterTankAmount: 10521.49,
+  filteredWaterTankRate: 95.65,
+  demiWaterTankAmount: 5609.847,
+  demiWaterTankRate: 93.497
+}
+OIS 수처리 결과 JSON 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-water-values.json
+OIS 수처리 현황 조회가 완료되었습니다.
+┌──────────────────────┬──────────┐
+│ (index)              │ Values   │
+├──────────────────────┼──────────┤
+│ 장자산단 원수 유입량 │ 8737     │
+│ 원수 TANK 저장량     │ 2847.483 │
+│ 원수 TANK 저장율     │ 71.187   │
+│ 여과수 TANK 저장량   │ 10521.49 │
+│ 여과수 TANK 저장율   │ 95.65    │
+│ 순수 TANK 저장량     │ 5609.847 │
+│ 순수 TANK 저장율     │ 93.497   │
+│ 순수 생산량          │ 1691     │
+│ 순수 사용량          │ 1896     │
+└──────────────────────┴──────────┘
+OIS 에이전트 로컬 설정을 불러왔습니다.
+확인된 설정: OIS_ID, OIS_PASSWORD, OIS_AGENT_KEY, OIS_AGENT_ID, SHIFT_LOG_BASE_URL, NODE_USE_SYSTEM_CA
+==========================================
+GS Shift Log OIS 연동 프로그램
+==========================================
+업무일지 주소: https://gs-shift-log.pages.dev
+에이전트 ID: CCR-OIS-PC-01
+OIS 요청 확인 주기: 5초
+지원 요청: 석회석 재고 · 수처리 현황 · Gear Wheel / Pinion
+OIS Edge 브라우저 세션을 시작합니다.
+OIS 로그인이 완료되었습니다.
+OIS Edge 브라우저 세션이 준비되었습니다.
+업무일지의 OIS 요청을 기다립니다.
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: cc6188e2-534f-4114-bd46-03f71066e045
+조회일: 2026-08-13
+------------------------------------------
+운영정보 메뉴를 클릭했습니다.
+OIS 부재료 일별 자료 요청 처리 실패: Error: 운영정보 메뉴를 연 뒤 왼쪽 메뉴를 다시 찾지 못했습니다.
+    at openOisLogSheetLookup (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:11528:15)
+    at async queryOisAuxiliaryMaterialUnit (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:14391:5)
+    at async collectOisAuxiliaryMaterialValues (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:14625:7)
+    at async collectOisAgentRequestResult (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:10500:10)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:15920:13)
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-agent-error-cc6188e2-534f-4114-bd46-03f71066e045.png
+업무일지 요청 확인 실패: fetch failed
+
+------------------------------------------
+부재료 일별 자료 조회 요청을 받았습니다.
+요청 유형: auxiliary_materials
+요청 ID: 5c1a9dad-2dcb-4f9b-a9d1-42d5b39eed99
+조회일: 2026-08-13
+------------------------------------------
+OIS 로그인이 완료되었습니다.
+운영정보 메뉴를 클릭했습니다.
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS 부재료 일별 자료 조회가 완료되었습니다.
+OIS 에이전트 로컬 설정을 불러왔습니다.
+확인된 설정: OIS_ID, OIS_PASSWORD, OIS_AGENT_KEY, OIS_AGENT_ID, SHIFT_LOG_BASE_URL, NODE_USE_SYSTEM_CA, OIS_AGENT_MODE
+==========================================
+GS Shift Log OIS · Excel 연동 프로그램
+==========================================
+업무일지 주소: https://gs-shift-log.pages.dev
+에이전트 ID: CCR-OIS-PC-01
+연동 모드: Excel 전용
+요청 확인 주기: 15초
+지원 요청: 일일 DATA Excel
+업무일지의 OIS · Excel 요청을 기다립니다.
+OIS 에이전트 로컬 설정을 불러왔습니다.
+확인된 설정: OIS_ID, OIS_PASSWORD, OIS_AGENT_KEY, OIS_AGENT_ID, SHIFT_LOG_BASE_URL, NODE_USE_SYSTEM_CA, OIS_AGENT_MODE
+==========================================
+GS Shift Log OIS · Excel 연동 프로그램
+==========================================
+업무일지 주소: https://gs-shift-log.pages.dev
+에이전트 ID: CCR-OIS-PC-01
+연동 모드: OIS + Excel
+요청 확인 주기: 15초
+지원 요청: 석회석 재고 · 수처리 현황 · Gear Wheel / Pinion · 일일 DATA Excel
+업무일지의 OIS · Excel 요청을 기다립니다.
+OIS 에이전트 로컬 설정을 불러왔습니다.
+확인된 설정: OIS_ID, OIS_PASSWORD, OIS_AGENT_KEY, OIS_AGENT_ID, SHIFT_LOG_BASE_URL, NODE_USE_SYSTEM_CA, OIS_AGENT_MODE
+==========================================
+GS Shift Log OIS · Excel 연동 프로그램
+==========================================
+업무일지 주소: https://gs-shift-log.pages.dev
+에이전트 ID: CCR-OIS-PC-01
+연동 모드: OIS + Excel
+요청 확인 주기: 15초
+지원 요청: 석회석 재고 · 수처리 현황 · Gear Wheel / Pinion · 일일 DATA Excel
+업무일지의 OIS · Excel 요청을 기다립니다.
