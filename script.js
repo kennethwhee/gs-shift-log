@@ -174778,9 +174778,81 @@ async function waitForCompletion(
   ?.addEventListener(
     "click",
     () => {
+      const targetDate =
+        synchronizeTargetDate();
+
+
+      const state =
+        getState();
+
+
+      const result =
+        state.waterTreatment;
+
+
+      const resultDate =
+        normalizeText(
+          result?.sourceDate ||
+          result?.targetDate
+        );
+
+
+      const hasCompleteValues = [
+        result?.rawWaterInflow,
+        result?.demiProduction,
+        result?.pureWaterUsage,
+        result?.rawWaterTankAmount,
+        result?.rawWaterTankRate,
+        result?.filteredWaterTankAmount,
+        result?.filteredWaterTankRate,
+        result?.demiWaterTankAmount,
+        result?.demiWaterTankRate
+      ].every(
+        value =>
+          normalizeNumber(
+            value
+          ) !==
+          null
+      );
+
+
+      const isComplete =
+        Boolean(
+          targetDate &&
+          resultDate ===
+            targetDate &&
+          hasCompleteValues
+        );
+
+
+      const requestStatus =
+        normalizeText(
+          elements.panel
+            ?.dataset
+            .waterStatus
+        ).toLowerCase();
+
+
+      const isLoading = [
+        "loading",
+        "pending",
+        "processing"
+      ].includes(
+        requestStatus
+      );
+
+
+      if (
+        isComplete ||
+        isLoading
+      ) {
+        return;
+      }
+
+
       void loadWaterTreatment({
         forceRefresh:
-          true
+          false
       });
     }
   );
@@ -176220,9 +176292,74 @@ async function createGearPinionRequest(
     elements.loadButton.addEventListener(
   "click",
   () => {
+    const targetDate =
+      synchronizeTargetDate();
+
+
+    const state =
+      getState();
+
+
+    const result =
+      state.gearPinion;
+
+
+    const resultDate =
+      normalizeText(
+        result?.targetDate ||
+        result?.sourceDate
+      );
+
+
+    const hasCompleteValues = [
+      result?.gearWheel,
+      result?.pinion
+    ].every(
+      value =>
+        normalizeNumber(
+          value
+        ) !==
+        null
+    );
+
+
+    const isComplete =
+      Boolean(
+        targetDate &&
+        resultDate ===
+          targetDate &&
+        hasCompleteValues
+      );
+
+
+    const requestStatus =
+      normalizeText(
+        elements.panel
+          ?.dataset
+          .gearPinionStatus
+      ).toLowerCase();
+
+
+    const isLoading = [
+      "loading",
+      "pending",
+      "processing"
+    ].includes(
+      requestStatus
+    );
+
+
+    if (
+      isComplete ||
+      isLoading
+    ) {
+      return;
+    }
+
+
     void loadGearPinion({
       forceRefresh:
-        true
+        false
     });
   }
 );
@@ -177884,9 +178021,74 @@ async function loadSiloLevel(
     elements.loadButton.addEventListener(
       "click",
       () => {
+        const targetDate =
+          synchronizeTargetDate();
+
+
+        const state =
+          getState();
+
+
+        const result =
+          state.siloLevel;
+
+
+        const resultDate =
+          normalizeText(
+            result?.sourceDate ||
+            result?.targetDate
+          );
+
+
+        const hasCompleteValues = [
+          result?.flyAshSiloLevel,
+          result?.bioStorageSiloLevel
+        ].every(
+          value =>
+            normalizeNumber(
+              value
+            ) !==
+            null
+        );
+
+
+        const isComplete =
+          Boolean(
+            targetDate &&
+            resultDate ===
+              targetDate &&
+            hasCompleteValues
+          );
+
+
+        const requestStatus =
+          normalizeText(
+            elements.panel
+              ?.dataset
+              .siloLevelStatus
+          ).toLowerCase();
+
+
+        const isLoading = [
+          "loading",
+          "pending",
+          "processing"
+        ].includes(
+          requestStatus
+        );
+
+
+        if (
+          isComplete ||
+          isLoading
+        ) {
+          return;
+        }
+
+
         void loadSiloLevel({
           forceRefresh:
-            true
+            false
         });
       }
     );
@@ -206021,6 +206223,9 @@ if (
   ) {
     const {
       forceRefresh =
+        false,
+
+      userInitiated =
         false
     } =
       options;
@@ -206396,9 +206601,62 @@ function scheduleAutomaticLoad() {
     elements.loadButton.addEventListener(
       "click",
       () => {
+        const state =
+          getState();
+
+
+        const targetDate =
+          resolveTargetDate();
+
+
+        const existingDate =
+          normalizeText(
+            state.steamStatus
+              ?.sourceDate ||
+            state.steamStatus
+              ?.targetDate
+          );
+
+
+        const isComplete =
+          Boolean(
+            targetDate &&
+            existingDate ===
+              targetDate &&
+            isCompleteDailyDataResult(
+              state.steamStatus
+            )
+          );
+
+
+        const requestStatus =
+          normalizeText(
+            elements.panel
+              ?.dataset
+              .steamStatusStatus
+          ).toLowerCase();
+
+
+        const isLoading = [
+          "loading",
+          "pending",
+          "processing"
+        ].includes(
+          requestStatus
+        );
+
+
+        if (
+          isComplete ||
+          isLoading
+        ) {
+          return;
+        }
+
+
         void loadSteamStatus({
           forceRefresh:
-            true,
+            false,
 
           userInitiated:
             true
@@ -215564,7 +215822,7 @@ function initializeLimestoneSlipCameraPicker() {
 
 
     button.title =
-      "수처리·석회석·Gear/Pinion·Silo Level·일일 DATA를 한 번에 조회합니다.";
+      "조회 완료·조회 중 자료는 건너뛰고 미완료 자료만 조회합니다.";
 
 
     if (
@@ -215588,8 +215846,83 @@ function initializeLimestoneSlipCameraPicker() {
       button.addEventListener(
         "click",
 
-        () => {
-          void window
+        async () => {
+          const statusElement =
+            document.getElementById(
+              "efficiencyMorningMeetingAutoLimestoneStatus"
+            );
+
+
+          if (
+            statusElement?.classList.contains(
+              "is-complete"
+            ) ||
+            statusElement?.classList.contains(
+              "is-loading"
+            )
+          ) {
+            return;
+          }
+
+
+          const targetDate =
+            String(
+              document.getElementById(
+                "limestoneUsageDate"
+              )?.value ||
+              ""
+            ).trim();
+
+
+          let restored =
+            false;
+
+
+          if (
+            /^\d{4}-\d{2}-\d{2}$/.test(
+              targetDate
+            ) &&
+            typeof window
+              .loadSavedLimestoneUsageRecords ===
+              "function"
+          ) {
+            try {
+              restored =
+                await window
+                  .loadSavedLimestoneUsageRecords(
+                    targetDate,
+                    {
+                      silentWhenMissing:
+                        true,
+
+                      requireActiveUsageDate:
+                        true
+                    }
+                  );
+
+            } catch (
+              error
+            ) {
+              console.warn(
+                "석회석 저장자료 확인 실패 → OIS 신규 조회:",
+                error
+              );
+            }
+          }
+
+
+          if (
+            restored
+          ) {
+            window
+              .renderEfficiencyMorningMeetingAutoPreview?.();
+
+
+            return;
+          }
+
+
+          await window
             .loadLimestoneOisStock?.();
         }
       );
