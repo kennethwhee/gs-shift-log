@@ -210169,10 +210169,13 @@ async function load(
 
   /*
     날짜 변경·초기 진입·초기화에서는
-    저장된 브라우저 캐시만 표시한다.
+    서버에 이미 저장된 D1 날씨를 먼저 확인한다.
+
+    저장된 자료가 없으면
+    날씨누리 신규 조회는 실행하지 않는다.
 
     [자료 분석] 또는 [다시 조회]처럼
-    사용자가 시작한 경우에만 API를 호출한다.
+    사용자가 시작한 경우에만 일반 조회를 실행한다.
   */
   if (
     forceRefresh !==
@@ -210182,14 +210185,221 @@ async function load(
   ) {
     render();
 
-    return (
+
+    const cachedItem =
       weatherByDate.get(
         meetingDate
       ) ||
-      null
-    );
-  }
+      null;
 
+
+    if (
+      cachedItem
+    ) {
+      statusByDate.set(
+        meetingDate,
+        "complete"
+      );
+
+      errorByDate.set(
+        meetingDate,
+        ""
+      );
+
+      render();
+
+      return cachedItem;
+    }
+
+
+    if (
+      !isIsoDate(
+        meetingDate
+      )
+    ) {
+      return null;
+    }
+
+
+    const restoreSequence =
+      requestSequence;
+
+
+    try {
+      const requestUrl =
+        new URL(
+          API_URL,
+          window.location.origin
+        );
+
+
+      requestUrl.searchParams.set(
+        "action",
+        "history"
+      );
+
+      requestUrl.searchParams.set(
+        "startDate",
+        meetingDate
+      );
+
+      requestUrl.searchParams.set(
+        "endDate",
+        meetingDate
+      );
+
+
+      const response =
+        await fetch(
+          requestUrl.toString(),
+          {
+            method:
+              "GET",
+
+            headers:
+              typeof getShiftLogAuthHeaders ===
+                "function"
+                ? getShiftLogAuthHeaders()
+                : {
+                    Accept:
+                      "application/json"
+                  },
+
+            cache:
+              "no-store"
+          }
+        );
+
+
+      let result =
+        null;
+
+
+      try {
+        result =
+          await response.json();
+
+      } catch {
+        result =
+          null;
+      }
+
+
+      if (
+        restoreSequence !==
+          requestSequence ||
+        getMeetingDate() !==
+          meetingDate
+      ) {
+        return null;
+      }
+
+
+      if (
+        !response.ok ||
+        result?.ok !==
+          true
+      ) {
+        throw new Error(
+          clean(
+            result?.message
+          ) ||
+          "저장된 신북 날씨를 불러오지 못했습니다."
+        );
+      }
+
+
+      const sourceItem =
+        Array.isArray(
+          result?.items
+        )
+          ? (
+              result.items.find(
+                item =>
+                  clean(
+                    item?.sourceDate ||
+                    item?.targetDate
+                  ) ===
+                    meetingDate
+              ) ||
+              null
+            )
+          : null;
+
+
+      if (
+        !sourceItem
+      ) {
+        return null;
+      }
+
+
+      const item =
+        normalizeApiItem(
+          sourceItem,
+          meetingDate
+        );
+
+
+      weatherByDate.set(
+        meetingDate,
+        item
+      );
+
+      statusByDate.set(
+        meetingDate,
+        "complete"
+      );
+
+      errorByDate.set(
+        meetingDate,
+        ""
+      );
+
+
+      render();
+
+
+      document.dispatchEvent(
+        new CustomEvent(
+          "efficiencyMorningMeetingWeatherLoaded",
+          {
+            detail:
+              item
+          }
+        )
+      );
+
+
+      console.log(
+        `오전회의 ${meetingDate} 저장 날씨 즉시 복원`
+      );
+
+
+      return item;
+
+    } catch (
+      error
+    ) {
+      if (
+        restoreSequence !==
+          requestSequence ||
+        getMeetingDate() !==
+          meetingDate
+      ) {
+        return null;
+      }
+
+
+      console.error(
+        "오전회의 저장 신북 날씨 복원 실패:",
+        error
+      );
+
+
+      return null;
+    }
+  }
 
   /*
     이전 날짜 요청이 남아 있으면 중단
