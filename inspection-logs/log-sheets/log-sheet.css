@@ -974,3 +974,212 @@ button {
 
   overflow-y: auto;
 }
+
+/* =========================================================
+  Logging 항목 수정
+========================================================= */
+
+.log-sheet-item-row.is-editing {
+  min-height: 58px;
+
+  background: #f7fbff;
+}
+
+
+.log-sheet-item-row.is-editing
+  > input {
+  box-sizing: border-box;
+
+  width: calc(100% - 8px);
+  min-width: 0;
+
+  height: 30px;
+
+  margin-right: 8px;
+  padding: 0 8px;
+
+  border: 1px solid #b9ccde;
+  border-radius: 6px;
+
+  background: #ffffff;
+
+  color: #233f5a;
+
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 750;
+
+  outline: none;
+}
+
+
+.log-sheet-item-row.is-editing
+  > input:focus {
+  border-color: #6093c1;
+
+  box-shadow:
+    0 0 0 2px
+    rgba(96, 147, 193, 0.12);
+}
+
+
+.log-sheet-item-row__edit-actions {
+  display: grid;
+
+  gap: 3px;
+}
+
+
+.log-sheet-item-row__edit-actions
+  > button {
+  min-height: 23px;
+
+  padding: 0 5px;
+
+  border: 1px solid #b8cbdd;
+  border-radius: 5px;
+
+  background: #ffffff;
+
+  color: #466886;
+
+  font-family: inherit;
+  font-size: 8px;
+  font-weight: 900;
+
+  cursor: pointer;
+}
+
+
+.log-sheet-item-row__edit-actions
+  > button:first-child {
+  border-color: #568abb;
+
+  background: #568abb;
+
+  color: #ffffff;
+}
+
+
+.log-sheet-item-row.has-draft {
+  background: #f5faff;
+}
+
+/* =========================================================
+  Logging 항목 추가
+========================================================= */
+
+.log-sheet-item-panel__actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 7px;
+}
+
+
+.log-sheet-item-panel__actions
+  > button {
+  min-height: 27px;
+
+  padding:
+    0
+    10px;
+
+  border:
+    1px solid
+    #79a4ca;
+
+  border-radius: 6px;
+
+  background:
+    #edf6fd;
+
+  color:
+    #296493;
+
+  font-family: inherit;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  cursor: pointer;
+}
+
+
+.log-sheet-item-panel__actions
+  > button:hover {
+  border-color:
+    #4f88b8;
+
+  background:
+    #e1f0fb;
+}
+
+/* 신규 Logging 항목 미리보기 */
+
+.log-sheet-table
+  tr.is-template-added-row
+  > td {
+  box-shadow:
+    inset 0 1px 0
+    rgba(70, 126, 179, 0.35),
+    inset 0 -1px 0
+    rgba(70, 126, 179, 0.35);
+}
+
+/* =========================================================
+  Logging 항목 추가 위치 선택
+========================================================= */
+
+.log-sheet-item-row {
+  cursor: pointer;
+}
+
+
+.log-sheet-item-row.is-selected {
+  position: relative;
+
+  background: #edf6ff;
+}
+
+
+.log-sheet-item-row.is-selected::before {
+  content: "";
+
+  position: absolute;
+
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+
+  width: 3px;
+
+  border-radius: 0 3px 3px 0;
+
+  background: #4c88bd;
+}
+.log-sheet-item-panel__actions
+  > .is-template-save {
+  border-color: #4f83b1;
+
+  background: #527fa8;
+
+  color: #ffffff;
+}
+
+
+.log-sheet-item-panel__actions
+  > .is-template-save:hover {
+  border-color: #416f99;
+
+  background: #476f95;
+}
+
+
+.log-sheet-item-panel__actions
+  > .is-template-save:disabled {
+  cursor: wait;
+
+  opacity: 0.65;
+}

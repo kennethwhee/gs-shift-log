@@ -557,7 +557,6 @@ async function getAuthenticatedUser(
   };
 }
 
-
 async function ensureSchema(
   database
 ) {
@@ -573,6 +572,8 @@ async function ensureSchema(
           team TEXT NOT NULL DEFAULT '',
           values_json TEXT NOT NULL DEFAULT '{}',
           generated_values_json TEXT NOT NULL DEFAULT '{}',
+          template_version_id TEXT NOT NULL DEFAULT '',
+          template_snapshot_json TEXT NOT NULL DEFAULT '',
           revision INTEGER NOT NULL DEFAULT 1,
           created_by_id TEXT NOT NULL,
           created_by_name TEXT NOT NULL,
@@ -584,7 +585,11 @@ async function ensureSchema(
     `)
     .run();
 
-  /* 이미 생성된 초기 테이블에도 랜덤 결과 칸을 추가한다. */
+
+  /* =======================================================
+    기존 inspection_log_sheet_records 마이그레이션
+  ======================================================= */
+
   const tableInfoResult =
     await database
       .prepare(`
@@ -593,6 +598,7 @@ async function ensureSchema(
         )
       `)
       .all();
+
 
   const existingColumns =
     new Set(
@@ -604,52 +610,86 @@ async function ensureSchema(
           : []
       )
         .map(
-          column => {
-            return normalizeText(
+          column =>
+            normalizeText(
               column?.name
-            );
-          }
+            )
         )
         .filter(
           Boolean
         )
     );
 
-  if (
-    !existingColumns.has(
-      "generated_values_json"
-    )
-  ) {
-    try {
-      await database
-        .prepare(`
-          ALTER TABLE
-            inspection_log_sheet_records
-          ADD COLUMN
-            generated_values_json
-            TEXT NOT NULL DEFAULT '{}'
-        `)
-        .run();
 
-    } catch (
-      error
-    ) {
-      const errorMessage =
-        String(
-          error?.message ||
-          error ||
-          ""
-        ).toLowerCase();
-
+  const addColumnIfMissing =
+    async (
+      columnName,
+      columnSql
+    ) => {
       if (
-        !errorMessage.includes(
-          "duplicate column"
+        existingColumns.has(
+          columnName
         )
       ) {
-        throw error;
+        return;
       }
-    }
-  }
+
+      try {
+        await database
+          .prepare(`
+            ALTER TABLE
+              inspection_log_sheet_records
+            ADD COLUMN
+              ${columnSql}
+          `)
+          .run();
+
+        existingColumns.add(
+          columnName
+        );
+
+      } catch (
+        error
+      ) {
+        const errorMessage =
+          String(
+            error?.message ||
+            error ||
+            ""
+          ).toLowerCase();
+
+        if (
+          !errorMessage.includes(
+            "duplicate column"
+          )
+        ) {
+          throw error;
+        }
+      }
+    };
+
+
+  await addColumnIfMissing(
+    "generated_values_json",
+    "generated_values_json TEXT NOT NULL DEFAULT '{}'"
+  );
+
+
+  await addColumnIfMissing(
+    "template_version_id",
+    "template_version_id TEXT NOT NULL DEFAULT ''"
+  );
+
+
+  await addColumnIfMissing(
+    "template_snapshot_json",
+    "template_snapshot_json TEXT NOT NULL DEFAULT ''"
+  );
+
+
+  /* =======================================================
+    날짜별 Log Sheet 인덱스
+  ======================================================= */
 
   await database
     .prepare(`
@@ -665,6 +705,7 @@ async function ensureSchema(
     `)
     .run();
 
+
   await database
     .prepare(`
       CREATE INDEX IF NOT EXISTS
@@ -675,6 +716,11 @@ async function ensureSchema(
       )
     `)
     .run();
+
+
+  /* =======================================================
+    날짜별 Log Sheet 수정 이력
+  ======================================================= */
 
   await database
     .prepare(`
@@ -692,6 +738,7 @@ async function ensureSchema(
     `)
     .run();
 
+
   await database
     .prepare(`
       CREATE INDEX IF NOT EXISTS
@@ -702,8 +749,60 @@ async function ensureSchema(
       )
     `)
     .run();
-}
 
+
+  /* =======================================================
+    공용 Log Sheet 양식 버전
+
+    저장할 때 기존 버전을 수정하지 않고
+    새로운 version_number를 생성한다.
+  ======================================================= */
+
+  await database
+    .prepare(`
+      CREATE TABLE IF NOT EXISTS
+        inspection_log_sheet_template_versions (
+          id TEXT PRIMARY KEY,
+          template_key TEXT NOT NULL,
+          sheet_key TEXT NOT NULL,
+          sheet_name TEXT NOT NULL DEFAULT '',
+          version_number INTEGER NOT NULL,
+          items_json TEXT NOT NULL DEFAULT '[]',
+          is_active INTEGER NOT NULL DEFAULT 1,
+          created_by_id TEXT NOT NULL,
+          created_by_name TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        )
+    `)
+    .run();
+
+
+  await database
+    .prepare(`
+      CREATE UNIQUE INDEX IF NOT EXISTS
+        idx_inspection_log_sheet_template_version
+      ON inspection_log_sheet_template_versions (
+        template_key,
+        sheet_key,
+        version_number
+      )
+    `)
+    .run();
+
+
+  await database
+    .prepare(`
+      CREATE INDEX IF NOT EXISTS
+        idx_inspection_log_sheet_template_active
+      ON inspection_log_sheet_template_versions (
+        template_key,
+        sheet_key,
+        is_active,
+        version_number DESC
+      )
+    `)
+    .run();
+}
 
 function isValidIsoDate(
   value
@@ -1289,7 +1388,6 @@ function parseJsonObject(
   }
 }
 
-
 function convertRowToRecord(
   row
 ) {
@@ -1299,77 +1397,151 @@ function convertRowToRecord(
     return null;
   }
 
+
   const revision =
     Number(
       row.revision
     ) ||
     1;
 
+
+  const templateVersionId =
+    normalizeText(
+      row.template_version_id
+    );
+
+
+  let templateSnapshot =
+    null;
+
+
+  const templateSnapshotText =
+    normalizeText(
+      row.template_snapshot_json
+    );
+
+
+  if (
+    templateSnapshotText
+  ) {
+    try {
+      const parsed =
+        JSON.parse(
+          templateSnapshotText
+        );
+
+
+      if (
+        parsed &&
+        typeof parsed ===
+          "object" &&
+        !Array.isArray(
+          parsed
+        )
+      ) {
+        templateSnapshot =
+          parsed;
+      }
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "Log Sheet 양식 스냅샷 파싱 실패:",
+        error
+      );
+    }
+  }
+
+
   return {
     id:
       normalizeText(
         row.id
       ),
+
     templateKey:
       normalizeText(
         row.template_key
       ),
+
     sheetKey:
       normalizeText(
         row.sheet_key
       ),
+
     logDate:
       normalizeText(
         row.log_date
       ),
+
     shift:
       normalizeText(
         row.shift
       ),
+
     team:
       normalizeText(
         row.team
       ),
+
     values:
       parseJsonObject(
         row.values_json
       ),
+
     generatedValues:
       parseJsonObject(
         row.generated_values_json
       ),
+
+
+    /* 양식 버전 */
+
+    templateVersionId,
+
+    templateSnapshot,
+
+
     revision,
+
     serverRevision:
       revision,
+
     createdById:
       normalizeEmployeeNo(
         row.created_by_id
       ),
+
     createdByName:
       normalizeText(
         row.created_by_name
       ),
+
     createdAt:
       normalizeText(
         row.created_at
       ),
+
     updatedById:
       normalizeEmployeeNo(
         row.updated_by_id
       ),
+
     updatedByName:
       normalizeText(
         row.updated_by_name
       ),
+
     updatedAt:
       normalizeText(
         row.updated_at
       ),
+
     source:
       "shared-d1"
   };
 }
-
 
 function createSheetResponseDefinition(
   sheetKey
@@ -1693,6 +1865,152 @@ function validateIdentity(
   };
 }
 
+function parseTemplateItemsJson(
+  value
+) {
+  try {
+    const parsed =
+      JSON.parse(
+        String(
+          value || "[]"
+        )
+      );
+
+    return Array.isArray(
+      parsed
+    )
+      ? parsed
+      : [];
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "Log Sheet 양식 items_json 파싱 실패:",
+      error
+    );
+
+    return [];
+  }
+}
+
+
+async function findActiveTemplateVersion(
+  database,
+  templateKey,
+  sheetKey
+) {
+  const normalizedTemplateKey =
+    normalizeText(
+      templateKey
+    );
+
+  const normalizedSheetKey =
+    normalizeText(
+      sheetKey
+    );
+
+
+  if (
+    !normalizedTemplateKey ||
+    !normalizedSheetKey
+  ) {
+    return null;
+  }
+
+
+  const row =
+    await database
+      .prepare(`
+        SELECT
+          id,
+          template_key,
+          sheet_key,
+          sheet_name,
+          version_number,
+          items_json,
+          is_active,
+          created_by_id,
+          created_by_name,
+          created_at
+
+        FROM
+          inspection_log_sheet_template_versions
+
+        WHERE
+          template_key = ?
+          AND sheet_key = ?
+          AND is_active = 1
+
+        ORDER BY
+          version_number DESC
+
+        LIMIT 1
+      `)
+      .bind(
+        normalizedTemplateKey,
+        normalizedSheetKey
+      )
+      .first();
+
+
+  if (!row) {
+    return null;
+  }
+
+
+  return {
+    id:
+      normalizeText(
+        row.id
+      ),
+
+    templateKey:
+      normalizeText(
+        row.template_key
+      ),
+
+    sheetKey:
+      normalizeText(
+        row.sheet_key
+      ),
+
+    sheetName:
+      normalizeText(
+        row.sheet_name
+      ),
+
+    versionNumber:
+      Number(
+        row.version_number
+      ) || 1,
+
+    items:
+      parseTemplateItemsJson(
+        row.items_json
+      ),
+
+    isActive:
+      Number(
+        row.is_active
+      ) === 1,
+
+    createdById:
+      normalizeEmployeeNo(
+        row.created_by_id
+      ),
+
+    createdByName:
+      normalizeText(
+        row.created_by_name
+      ),
+
+    createdAt:
+      normalizeText(
+        row.created_at
+      )
+  };
+}
 
 export async function onRequestGet(
   context
@@ -1718,6 +2036,93 @@ export async function onRequestGet(
         context.request.url
       );
 
+
+    /* =====================================================
+      공용 Log Sheet 양식 조회
+    ===================================================== */
+
+    const mode =
+      normalizeText(
+        requestUrl.searchParams.get(
+          "mode"
+        )
+      ).toLowerCase();
+
+
+    if (
+      mode === "template"
+    ) {
+      const templateKey =
+        normalizeText(
+          requestUrl.searchParams.get(
+            "templateKey"
+          )
+        );
+
+      const sheetKey =
+        normalizeSheetKey(
+          requestUrl.searchParams.get(
+            "sheetKey"
+          ) ||
+          requestUrl.searchParams.get(
+            "type"
+          )
+        );
+
+
+      if (
+        !templateKey
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            message:
+              "templateKey가 필요합니다."
+          },
+          400
+        );
+      }
+
+
+      if (
+        !sheetKey
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            message:
+              "sheetKey가 필요합니다."
+          },
+          400
+        );
+      }
+
+
+      const template =
+        await findActiveTemplateVersion(
+          context.env.DB,
+          templateKey,
+          sheetKey
+        );
+
+
+      return jsonResponse({
+        ok: true,
+
+        template,
+
+        sheet:
+          createSheetResponseDefinition(
+            sheetKey
+          )
+      });
+    }
+
+
+    /* =====================================================
+      기존 날짜별 Log Sheet 조회
+    ===================================================== */
+
     const id =
       normalizeText(
         requestUrl.searchParams.get(
@@ -1736,6 +2141,7 @@ export async function onRequestGet(
 
     let sheetKey =
       "";
+
 
     if (
       id
@@ -1774,10 +2180,12 @@ export async function onRequestGet(
             requestUrl.searchParams.get(
               "type"
             ),
+
           templateKey:
             requestUrl.searchParams.get(
               "templateKey"
             ),
+
           logDate:
             requestUrl.searchParams.get(
               "logDate"
@@ -1785,15 +2193,18 @@ export async function onRequestGet(
             requestUrl.searchParams.get(
               "date"
             ),
+
           shift:
             requestUrl.searchParams.get(
               "shift"
             ),
+
           team:
             requestUrl.searchParams.get(
               "team"
             )
         });
+
 
       if (
         validation.error
@@ -1808,8 +2219,10 @@ export async function onRequestGet(
         );
       }
 
+
       sheetKey =
         validation.identity.sheetKey;
+
 
       record =
         await findRecordByIdentity(
@@ -1818,6 +2231,7 @@ export async function onRequestGet(
         );
     }
 
+
     const history =
       await getHistory(
         context.env.DB,
@@ -1825,10 +2239,14 @@ export async function onRequestGet(
         historyRequested
       );
 
+
     return jsonResponse({
       ok: true,
+
       record,
+
       history,
+
       sheet:
         createSheetResponseDefinition(
           sheetKey
@@ -1846,6 +2264,7 @@ export async function onRequestGet(
     return jsonResponse(
       {
         ok: false,
+
         message:
           error instanceof Error
             ? error.message
@@ -1855,7 +2274,6 @@ export async function onRequestGet(
     );
   }
 }
-
 
 export async function onRequestPost(
   context
@@ -1896,6 +2314,534 @@ export async function onRequestPost(
       );
     }
 
+
+    /* =====================================================
+      공용 Log Sheet 양식 저장
+    ===================================================== */
+
+    const mode =
+      normalizeText(
+        body?.mode
+      ).toLowerCase();
+
+
+    if (
+      mode === "template"
+    ) {
+      const templateSource =
+        body?.template &&
+        typeof body.template ===
+          "object"
+          ? body.template
+          : body;
+
+
+      const templateKey =
+        normalizeText(
+          templateSource.templateKey ||
+          body?.templateKey
+        );
+
+
+      const sheetKey =
+        normalizeSheetKey(
+          templateSource.sheetKey ||
+          templateSource.type ||
+          body?.sheetKey
+        );
+
+
+      const sheetName =
+        normalizeText(
+          templateSource.sheetName
+        );
+
+
+      if (
+        !templateKey
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            message:
+              "templateKey가 필요합니다."
+          },
+          400
+        );
+      }
+
+
+      if (
+        !sheetKey
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            message:
+              "sheetKey가 필요합니다."
+          },
+          400
+        );
+      }
+
+
+      const rawItems =
+        Array.isArray(
+          templateSource.items
+        )
+          ? templateSource.items
+          : [];
+
+
+      if (
+        rawItems.length === 0
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            message:
+              "저장할 Logging 항목이 없습니다."
+          },
+          400
+        );
+      }
+
+
+      if (
+        rawItems.length >
+          MAX_CELL_COUNT
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            message:
+              "Logging 항목 수가 너무 많습니다."
+          },
+          400
+        );
+      }
+
+
+      const items =
+        rawItems
+          .map(
+            (
+              rawItem,
+              index
+            ) => {
+              const item =
+                rawItem &&
+                typeof rawItem ===
+                  "object"
+                  ? rawItem
+                  : {};
+
+
+              const name =
+                normalizeText(
+                  item.name
+                ).slice(
+                  0,
+                  MAX_CELL_TEXT_LENGTH
+                );
+
+
+              const tag =
+                normalizeText(
+                  item.tag
+                ).slice(
+                  0,
+                  MAX_CELL_TEXT_LENGTH
+                );
+
+
+              const unit =
+                normalizeText(
+                  item.unit
+                ).slice(
+                  0,
+                  200
+                );
+
+
+              const key =
+                normalizeText(
+                  item.key
+                ).slice(
+                  0,
+                  300
+                ) ||
+                `${sheetKey}-item-${index + 1}`;
+
+
+              const insertAfterKey =
+                normalizeText(
+                  item.insertAfterKey
+                ).slice(
+                  0,
+                  300
+                );
+
+
+              const rawSourceRow =
+                Number(
+                  item.sourceRow
+                );
+
+
+              const sourceRow =
+                Number.isInteger(
+                  rawSourceRow
+                ) &&
+                rawSourceRow >
+                  0
+                  ? rawSourceRow
+                  : null;
+
+
+              const rawSourceColumn =
+                Number(
+                  item.sourceColumn
+                );
+
+
+              const sourceColumn =
+                Number.isInteger(
+                  rawSourceColumn
+                ) &&
+                rawSourceColumn >=
+                  0
+                  ? rawSourceColumn
+                  : null;
+
+
+              return {
+                key,
+
+                order:
+                  index + 1,
+
+                name,
+
+                tag,
+
+                unit,
+
+                isNew:
+                  item.isNew === true,
+
+                sourceRow,
+
+                sourceColumn,
+
+                insertAfterKey:
+                  insertAfterKey ||
+                  null
+              };
+            }
+          )
+          .filter(
+            item =>
+              Boolean(
+                item.name
+              )
+          );
+
+
+      if (
+        items.length === 0
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            message:
+              "유효한 Logging 항목이 없습니다."
+          },
+          400
+        );
+      }
+
+
+      const itemsJson =
+        JSON.stringify(
+          items
+        );
+
+
+      const itemsJsonBytes =
+        new TextEncoder()
+          .encode(
+            itemsJson
+          )
+          .byteLength;
+
+
+      if (
+        itemsJsonBytes >
+          MAX_VALUES_JSON_BYTES
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            message:
+              "Log Sheet 양식 데이터가 너무 큽니다."
+          },
+          400
+        );
+      }
+
+
+      /* ---------------------------------------------------
+        현재 활성 버전 확인
+      --------------------------------------------------- */
+
+      const currentTemplate =
+        await findActiveTemplateVersion(
+          context.env.DB,
+          templateKey,
+          sheetKey
+        );
+
+
+      const expectedVersionInput =
+        body?.expectedVersion ??
+        templateSource.expectedVersion;
+
+
+      if (
+        expectedVersionInput !==
+          undefined &&
+        expectedVersionInput !==
+          null &&
+        expectedVersionInput !==
+          ""
+      ) {
+        const expectedVersion =
+          Number(
+            expectedVersionInput
+          );
+
+
+        if (
+          !Number.isInteger(
+            expectedVersion
+          ) ||
+          expectedVersion <
+            0
+        ) {
+          return jsonResponse(
+            {
+              ok: false,
+              message:
+                "양식 버전 정보가 올바르지 않습니다."
+            },
+            400
+          );
+        }
+
+
+        const currentVersion =
+          Number(
+            currentTemplate
+              ?.versionNumber ||
+            0
+          );
+
+
+        if (
+          expectedVersion !==
+          currentVersion
+        ) {
+          return jsonResponse(
+            {
+              ok: false,
+
+              conflict: true,
+
+              message:
+                "다른 사용자가 먼저 Log Sheet 양식을 수정했습니다. 최신 양식을 다시 불러와 주세요.",
+
+              template:
+                currentTemplate
+            },
+            409
+          );
+        }
+      }
+
+
+      /* ---------------------------------------------------
+        전체 버전 중 다음 번호 계산
+      --------------------------------------------------- */
+
+      const versionRow =
+        await context.env.DB
+          .prepare(`
+            SELECT
+              COALESCE(
+                MAX(version_number),
+                0
+              ) AS max_version
+
+            FROM
+              inspection_log_sheet_template_versions
+
+            WHERE
+              template_key = ?
+              AND sheet_key = ?
+          `)
+          .bind(
+            templateKey,
+            sheetKey
+          )
+          .first();
+
+
+      const nextVersionNumber =
+        Number(
+          versionRow?.max_version ||
+          0
+        ) +
+        1;
+
+
+      const templateId =
+        `inspection-log-sheet-template-${crypto.randomUUID()}`;
+
+
+      const now =
+        new Date()
+          .toISOString();
+
+
+      try {
+        await context.env.DB.batch([
+          context.env.DB
+            .prepare(`
+              UPDATE
+                inspection_log_sheet_template_versions
+
+              SET
+                is_active = 0
+
+              WHERE
+                template_key = ?
+                AND sheet_key = ?
+                AND is_active = 1
+            `)
+            .bind(
+              templateKey,
+              sheetKey
+            ),
+
+
+          context.env.DB
+            .prepare(`
+              INSERT INTO
+                inspection_log_sheet_template_versions (
+                  id,
+                  template_key,
+                  sheet_key,
+                  sheet_name,
+                  version_number,
+                  items_json,
+                  is_active,
+                  created_by_id,
+                  created_by_name,
+                  created_at
+                )
+
+              VALUES (
+                ?,
+                ?,
+                ?,
+                ?,
+                ?,
+                ?,
+                1,
+                ?,
+                ?,
+                ?
+              )
+            `)
+            .bind(
+              templateId,
+              templateKey,
+              sheetKey,
+              sheetName,
+              nextVersionNumber,
+              itemsJson,
+              user.employeeNo,
+              user.name,
+              now
+            )
+        ]);
+
+      } catch (
+        error
+      ) {
+        if (
+          /UNIQUE constraint failed/i.test(
+            String(
+              error
+            )
+          )
+        ) {
+          return jsonResponse(
+            {
+              ok: false,
+
+              conflict: true,
+
+              message:
+                "다른 사용자가 먼저 Log Sheet 양식을 저장했습니다. 최신 양식을 다시 불러와 주세요.",
+
+              template:
+                await findActiveTemplateVersion(
+                  context.env.DB,
+                  templateKey,
+                  sheetKey
+                )
+            },
+            409
+          );
+        }
+
+        throw error;
+      }
+
+
+      const savedTemplate =
+        await findActiveTemplateVersion(
+          context.env.DB,
+          templateKey,
+          sheetKey
+        );
+
+
+      return jsonResponse(
+        {
+          ok: true,
+
+          created: true,
+
+          template:
+            savedTemplate,
+
+          sheet:
+            createSheetResponseDefinition(
+              sheetKey
+            )
+        },
+        201
+      );
+    }
+
+
+    /* =====================================================
+      기존 날짜별 Log Sheet 저장
+    ===================================================== */
+
     const source =
       body?.record &&
       typeof body.record ===
@@ -1906,11 +2852,13 @@ export async function onRequestPost(
           }
         : body;
 
+
     const identityValidation =
       validateIdentity(
         source ||
         {}
       );
+
 
     if (
       identityValidation.error
@@ -1925,8 +2873,10 @@ export async function onRequestPost(
       );
     }
 
+
     const identity =
       identityValidation.identity;
+
 
     const valuesValidation =
       validateValues(
@@ -1934,6 +2884,7 @@ export async function onRequestPost(
         source.values ||
         source.cells
       );
+
 
     if (
       valuesValidation.error
@@ -1948,11 +2899,14 @@ export async function onRequestPost(
       );
     }
 
+
     const generatedValuesProvided =
-      Object.prototype.hasOwnProperty.call(
-        source,
-        "generatedValues"
-      );
+      Object.prototype
+        .hasOwnProperty.call(
+          source,
+          "generatedValues"
+        );
+
 
     const generatedValuesValidation =
       validateGeneratedValues(
@@ -1960,6 +2914,7 @@ export async function onRequestPost(
         source.generatedValues,
         generatedValuesProvided
       );
+
 
     if (
       generatedValuesValidation.error
@@ -1974,6 +2929,7 @@ export async function onRequestPost(
       );
     }
 
+
     const expectedRevisionInput =
       body?.expectedRevision ??
       source.expectedRevision ??
@@ -1981,10 +2937,12 @@ export async function onRequestPost(
       source.serverRevision ??
       0;
 
+
     const expectedRevision =
       Number(
         expectedRevisionInput
       );
+
 
     if (
       !Number.isInteger(
@@ -2003,10 +2961,12 @@ export async function onRequestPost(
       );
     }
 
+
     const suppliedId =
       normalizeText(
         source.id
       );
+
 
     let existingRecord =
       suppliedId
@@ -2016,17 +2976,22 @@ export async function onRequestPost(
           )
         : null;
 
+
     if (
       existingRecord &&
       (
         existingRecord.templateKey !==
           identity.templateKey ||
+
         existingRecord.sheetKey !==
           identity.sheetKey ||
+
         existingRecord.logDate !==
           identity.logDate ||
+
         existingRecord.shift !==
           identity.shift ||
+
         existingRecord.team !==
           identity.team
       )
@@ -2035,11 +3000,12 @@ export async function onRequestPost(
         {
           ok: false,
           message:
-            "저장된 Log Sheet의 일자·근무·팀 정보는 변경할 수 없습니다."
+            "저장된 Log Sheet의 날짜·근무·팀 정보는 변경할 수 없습니다."
         },
         400
       );
     }
+
 
     if (
       !existingRecord
@@ -2050,6 +3016,11 @@ export async function onRequestPost(
           identity
         );
     }
+
+
+    /* =====================================================
+      전기 일간 순찰 예외처리
+    ===================================================== */
 
     if (
       identity.sheetKey ===
@@ -2063,11 +3034,12 @@ export async function onRequestPost(
           {
             ok: false,
             message:
-              "전기 야간 순찰의 자동 선택 결과를 함께 저장해 주세요."
+              "전기 일간 순찰은 자동 선택 결과를 함께 저장해 주세요."
           },
           400
         );
       }
+
 
       if (
         existingRecord
@@ -2076,9 +3048,11 @@ export async function onRequestPost(
           existingRecord.values?.P2 ??
           3;
 
+
         const incomingPart =
           valuesValidation.values.P2 ??
           3;
+
 
         if (
           String(
@@ -2093,7 +3067,7 @@ export async function onRequestPost(
             {
               ok: false,
               message:
-                "파트를 바꾸면 새로 선택된 순찰자·순찰구역 결과를 함께 저장해야 합니다."
+                "파트를 변경하면 새로 선택된 순찰 결과를 함께 저장해야 합니다."
             },
             400
           );
@@ -2101,125 +3075,198 @@ export async function onRequestPost(
       }
     }
 
+
     const now =
-      new Date().toISOString();
+      new Date()
+        .toISOString();
 
-    if (
-      !existingRecord
-    ) {
-      if (
-        Number.isFinite(
-          expectedRevision
-        ) &&
-        expectedRevision >
-          0
-      ) {
-        return createConflictResponse(
-          null
-        );
-      }
 
-      const id =
-        `inspection-log-sheet-${crypto.randomUUID()}`;
+/* =====================================================
+  신규 날짜별 기록
+===================================================== */
 
-      try {
-        await context.env.DB
-          .prepare(`
-            INSERT INTO
-              inspection_log_sheet_records (
-                id,
-                template_key,
-                sheet_key,
-                log_date,
-                shift,
-                team,
-                values_json,
-                generated_values_json,
-                revision,
-                created_by_id,
-                created_by_name,
-                created_at,
-                updated_by_id,
-                updated_by_name,
-                updated_at
-              )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
-          `)
-          .bind(
+if (
+  !existingRecord
+) {
+  if (
+    Number.isFinite(
+      expectedRevision
+    ) &&
+    expectedRevision >
+      0
+  ) {
+    return createConflictResponse(
+      null
+    );
+  }
+
+
+  /* ===================================================
+    현재 활성 공용 양식 고정
+  =================================================== */
+
+  const activeTemplate =
+    await findActiveTemplateVersion(
+      context.env.DB,
+      identity.templateKey,
+      identity.sheetKey
+    );
+
+
+  const templateVersionId =
+    normalizeText(
+      activeTemplate?.id
+    );
+
+
+  const templateSnapshotJson =
+    activeTemplate
+      ? JSON.stringify(
+          activeTemplate
+        )
+      : "";
+
+
+  /* ===================================================
+    신규 Log Sheet 기록 생성
+  =================================================== */
+
+  const id =
+    `inspection-log-sheet-${crypto.randomUUID()}`;
+
+
+  try {
+    await context.env.DB
+      .prepare(`
+        INSERT INTO
+          inspection_log_sheet_records (
             id,
-            identity.templateKey,
-            identity.sheetKey,
-            identity.logDate,
-            identity.shift,
-            identity.team,
-            valuesValidation.valuesJson,
-            generatedValuesValidation.valuesJson,
-            user.employeeNo,
-            user.name,
-            now,
-            user.employeeNo,
-            user.name,
-            now
+            template_key,
+            sheet_key,
+            log_date,
+            shift,
+            team,
+            values_json,
+            generated_values_json,
+            template_version_id,
+            template_snapshot_json,
+            revision,
+            created_by_id,
+            created_by_name,
+            created_at,
+            updated_by_id,
+            updated_by_name,
+            updated_at
           )
-          .run();
 
-      } catch (
-        error
-      ) {
-        if (
-          /UNIQUE constraint failed/i.test(
-            String(
-              error
-            )
-          )
-        ) {
-          const currentRecord =
-            await findRecordByIdentity(
-              context.env.DB,
-              identity
-            );
+        VALUES (
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          1,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?
+        )
+      `)
+      .bind(
+        id,
+        identity.templateKey,
+        identity.sheetKey,
+        identity.logDate,
+        identity.shift,
+        identity.team,
+        valuesValidation.valuesJson,
+        generatedValuesValidation.valuesJson,
+        templateVersionId,
+        templateSnapshotJson,
+        user.employeeNo,
+        user.name,
+        now,
+        user.employeeNo,
+        user.name,
+        now
+      )
+      .run();
 
-          return createConflictResponse(
-            currentRecord
-          );
-        }
-
-        throw error;
-      }
-
-      const savedRecord =
-        await findRecordById(
+  } catch (
+    error
+  ) {
+    if (
+      /UNIQUE constraint failed/i.test(
+        String(
+          error
+        )
+      )
+    ) {
+      const currentRecord =
+        await findRecordByIdentity(
           context.env.DB,
-          id
+          identity
         );
 
-      await appendHistory(
-        context.env.DB,
-        savedRecord,
-        "생성",
-        user
-      );
-
-      return jsonResponse(
-        {
-          ok: true,
-          created: true,
-          record:
-            savedRecord,
-          history:
-            await getHistory(
-              context.env.DB,
-              id,
-              false
-            ),
-          sheet:
-            createSheetResponseDefinition(
-              identity.sheetKey
-            )
-        },
-        201
+      return createConflictResponse(
+        currentRecord
       );
     }
+
+    throw error;
+  }
+
+
+  const savedRecord =
+    await findRecordById(
+      context.env.DB,
+      id
+    );
+
+
+  await appendHistory(
+    context.env.DB,
+    savedRecord,
+    "생성",
+    user
+  );
+
+
+  return jsonResponse(
+    {
+      ok: true,
+
+      created: true,
+
+      record:
+        savedRecord,
+
+      history:
+        await getHistory(
+          context.env.DB,
+          id,
+          false
+        ),
+
+      sheet:
+        createSheetResponseDefinition(
+          identity.sheetKey
+        )
+    },
+    201
+  );
+}
+
+    /* =====================================================
+      기존 날짜별 기록 수정
+    ===================================================== */
 
     if (
       !Number.isInteger(
@@ -2235,14 +3282,13 @@ export async function onRequestPost(
       );
     }
 
+
     const updateResult =
-      /*
-        generatedValues가 요청에 없으면 기존 랜덤 결과를 그대로 보존한다.
-        P2를 바꾸는 경우는 클라이언트가 새 generatedValues를 함께 보낸다.
-      */
       await context.env.DB
         .prepare(`
-          UPDATE inspection_log_sheet_records
+          UPDATE
+            inspection_log_sheet_records
+
           SET
             values_json = ?,
             generated_values_json = ?,
@@ -2250,18 +3296,21 @@ export async function onRequestPost(
             updated_by_id = ?,
             updated_by_name = ?,
             updated_at = ?
+
           WHERE
-            id = ? AND
-            revision = ?
+            id = ?
+            AND revision = ?
         `)
         .bind(
           valuesValidation.valuesJson,
+
           generatedValuesValidation.provided
             ? generatedValuesValidation.valuesJson
             : JSON.stringify(
                 existingRecord.generatedValues ||
                 {}
               ),
+
           user.employeeNo,
           user.name,
           now,
@@ -2269,6 +3318,7 @@ export async function onRequestPost(
           expectedRevision
         )
         .run();
+
 
     if (
       Number(
@@ -2285,11 +3335,13 @@ export async function onRequestPost(
       );
     }
 
+
     const savedRecord =
       await findRecordById(
         context.env.DB,
         existingRecord.id
       );
+
 
     await appendHistory(
       context.env.DB,
@@ -2298,17 +3350,22 @@ export async function onRequestPost(
       user
     );
 
+
     return jsonResponse({
       ok: true,
+
       created: false,
+
       record:
         savedRecord,
+
       history:
         await getHistory(
           context.env.DB,
           savedRecord.id,
           false
         ),
+
       sheet:
         createSheetResponseDefinition(
           identity.sheetKey
@@ -2323,9 +3380,11 @@ export async function onRequestPost(
       error
     );
 
+
     return jsonResponse(
       {
         ok: false,
+
         message:
           error instanceof Error
             ? error.message

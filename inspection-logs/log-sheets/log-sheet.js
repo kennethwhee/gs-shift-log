@@ -70,6 +70,10 @@
       byId("logSheetTabs"),
     itemCount:
       byId("logSheetItemCount"),
+    itemAddButton:
+      byId("logSheetItemAddButton"),
+    templateSaveButton:
+      byId("logSheetTemplateSaveButton"),
     itemList:
       byId("logSheetItemList"),
     loading:
@@ -1292,131 +1296,1259 @@
     );
   }
 
-  function renderLoggingItemList() {
+const loggingItemDrafts =
+  new Map();
+
+
+const loggingItemTemplateOverrides =
+  new Map();
+
+
+const loggingItemAddedItems =
+  new Map();
+
+
+let loggingItemAddedSequence =
+  0;
+
+
+let loggingItemEditingKey =
+  "";
+
+let loggingTemplateExpectedVersion =
+  0;
+
+
+/* =========================================================
+  Logging 항목 임시 상태
+========================================================= */
+
+function getCurrentLoggingAddedItems() {
+  const sheetKey =
+    state.sheetConfig?.key ||
+    "";
+
+  if (
+    !loggingItemAddedItems.has(
+      sheetKey
+    )
+  ) {
+    loggingItemAddedItems.set(
+      sheetKey,
+      []
+    );
+  }
+
+  return loggingItemAddedItems.get(
+    sheetKey
+  );
+}
+
+
+function getLoggingItemDraftKey(
+  item
+) {
+  if (item.draftKey) {
+    return item.draftKey;
+  }
+
+  return [
+    state.sheetConfig?.key || "",
+    item.sourceRow,
+    item.sourceColumn
+  ].join(":");
+}
+
+let loggingItemSelectedKey =
+  "";
+
+/* =========================================================
+  신규 Logging 항목
+========================================================= */
+
+function addLoggingItem() {
+  if (
+    !state.sheetConfig
+  ) {
+    return;
+  }
+
+  const items =
+    buildLoggingItemList();
+
+  if (!items.length) {
+    return;
+  }
+
+  /*
+    선택된 항목이 없으면
+    현재 목록의 마지막 항목 아래에 추가
+  */
+  let insertAfterKey =
+    loggingItemSelectedKey;
+
+  if (!insertAfterKey) {
+    insertAfterKey =
+      getLoggingItemDraftKey(
+        items[
+          items.length - 1
+        ]
+      );
+  }
+
+  loggingItemAddedSequence +=
+    1;
+
+  const draftKey =
+    [
+      state.sheetConfig.key,
+      "added",
+      Date.now(),
+      loggingItemAddedSequence
+    ].join(":");
+
+  const item = {
+    draftKey,
+
+    sourceRow: null,
+    sourceColumn: null,
+
+    name: "",
+    tag: "",
+    unit: "",
+
+    isNew: true,
+
+    insertAfterKey
+  };
+
+  getCurrentLoggingAddedItems()
+    .push(
+      item
+    );
+
+  loggingItemSelectedKey =
+    draftKey;
+
+  loggingItemEditingKey =
+    draftKey;
+
+  renderLoggingItemList();
+}
+
+/* =========================================================
+  Logging 항목 수정
+========================================================= */
+
+function beginLoggingItemEdit(
+  row,
+  item
+) {
+  const draftKey =
+    getLoggingItemDraftKey(
+      item
+    );
+
+
+  loggingItemEditingKey =
+    draftKey;
+
+
+  row.classList.add(
+    "is-editing"
+  );
+
+
+  const order =
+    document.createElement(
+      "span"
+    );
+
+  order.className =
+    "log-sheet-item-row__order";
+
+  order.textContent =
+    String(item.order);
+
+
+  const nameInput =
+    document.createElement(
+      "input"
+    );
+
+  nameInput.type =
+    "text";
+
+  nameInput.value =
+    item.name || "";
+
+  nameInput.placeholder =
+    "항목명";
+
+
+  const tagInput =
+    document.createElement(
+      "input"
+    );
+
+  tagInput.type =
+    "text";
+
+  tagInput.value =
+    item.tag || "";
+
+  tagInput.placeholder =
+    "TAG";
+
+
+  const unitInput =
+    document.createElement(
+      "input"
+    );
+
+  unitInput.type =
+    "text";
+
+  unitInput.value =
+    item.unit || "";
+
+  unitInput.placeholder =
+    "단위";
+
+
+  const actions =
+    document.createElement(
+      "div"
+    );
+
+  actions.className =
+    "log-sheet-item-row__edit-actions";
+
+
+  const saveButton =
+    document.createElement(
+      "button"
+    );
+
+  saveButton.type =
+    "button";
+
+  saveButton.textContent =
+    "저장";
+
+
+  const cancelButton =
+    document.createElement(
+      "button"
+    );
+
+  cancelButton.type =
+    "button";
+
+  cancelButton.textContent =
+    "취소";
+
+
+  saveButton.addEventListener(
+    "click",
+    () => {
+      const name =
+        normalizeLoggingText(
+          nameInput.value
+        );
+
+
+      if (!name) {
+        nameInput.focus();
+
+        return;
+      }
+
+
+      loggingItemDrafts.set(
+        draftKey,
+        {
+          name,
+
+          tag:
+            normalizeLoggingText(
+              tagInput.value
+            ),
+
+          unit:
+            normalizeLoggingText(
+              unitInput.value
+            )
+        }
+      );
+
+
+      loggingItemEditingKey =
+        "";
+
+
+      renderLoggingItemList();
+    }
+  );
+
+
+  cancelButton.addEventListener(
+    "click",
+    () => {
+      /*
+        방금 만든 신규 항목에서
+        아직 한 번도 저장하지 않았다면
+        취소 시 목록에서도 제거한다.
+      */
+      if (
+        item.isNew &&
+        !loggingItemDrafts.has(
+          draftKey
+        )
+      ) {
+        const addedItems =
+          getCurrentLoggingAddedItems();
+
+
+        const index =
+          addedItems.findIndex(
+            addedItem =>
+              addedItem.draftKey ===
+              draftKey
+          );
+
+
+        if (
+          index >= 0
+        ) {
+          addedItems.splice(
+            index,
+            1
+          );
+        }
+      }
+
+
+      loggingItemEditingKey =
+        "";
+
+
+      renderLoggingItemList();
+    }
+  );
+
+
+  actions.append(
+    saveButton,
+    cancelButton
+  );
+
+
+  row.replaceChildren(
+    order,
+    nameInput,
+    tagInput,
+    unitInput,
+    actions
+  );
+
+
+  requestAnimationFrame(
+    () => {
+      nameInput.focus();
+
+      if (nameInput.value) {
+        nameInput.select();
+      }
+    }
+  );
+}
+
+function buildLoggingItemList() {
+  const originalItems =
+    extractLoggingItems();
+
+  const addedItems =
+    getCurrentLoggingAddedItems();
+
+  const result =
+    [];
+
+
+  function appendAddedItems(
+    parentKey
+  ) {
+    addedItems
+      .filter(
+        item =>
+          item.insertAfterKey ===
+          parentKey
+      )
+      .forEach(
+        item => {
+          result.push(
+            item
+          );
+
+          appendAddedItems(
+            getLoggingItemDraftKey(
+              item
+            )
+          );
+        }
+      );
+  }
+
+
+  originalItems.forEach(
+    item => {
+      result.push(
+        item
+      );
+
+      appendAddedItems(
+        getLoggingItemDraftKey(
+          item
+        )
+      );
+    }
+  );
+
+
+  /*
+    이전 단계에서 만들어진
+    insertAfterKey가 없는 신규 항목도 유지
+  */
+  addedItems
+    .filter(
+      item =>
+        !item.insertAfterKey
+    )
+    .forEach(
+      item => {
+        if (
+          !result.includes(
+            item
+          )
+        ) {
+          result.push(
+            item
+          );
+        }
+      }
+    );
+
+
+  return result.map(
+    (
+      item,
+      index
+    ) => {
+      const key =
+        getLoggingItemDraftKey(
+          item
+        );
+
+
+      const templateOverride =
+        loggingItemTemplateOverrides.get(
+          key
+        );
+
+
+      const draft =
+        loggingItemDrafts.get(
+          key
+        );
+
+
+      return {
+        ...item,
+
+        ...(templateOverride || {}),
+
+        ...(draft || {}),
+
+        order:
+          index + 1
+      };
+    }
+  );
+}
+
+function resetLoggingTemplateState() {
+  loggingItemDrafts.clear();
+
+  loggingItemTemplateOverrides.clear();
+
+  loggingItemAddedItems.set(
+    state.sheetConfig.key,
+    []
+  );
+
+  loggingItemEditingKey =
+    "";
+
+  loggingItemSelectedKey =
+    "";
+}
+
+function applyLoggingTemplateState(
+  template
+) {
+  resetLoggingTemplateState();
+
+
+  loggingTemplateExpectedVersion =
+    Number(
+      template?.versionNumber ||
+      0
+    );
+
+
+  const templateItems =
+    Array.isArray(
+      template?.items
+    )
+      ? [...template.items]
+      : [];
+
+
+  if (
+    !templateItems.length
+  ) {
+    return;
+  }
+
+
+  templateItems.sort(
+    (
+      left,
+      right
+    ) =>
+      Number(
+        left?.order ||
+        0
+      ) -
+      Number(
+        right?.order ||
+        0
+      )
+  );
+
+
+  const originalItems =
+    extractLoggingItems();
+
+
+  const originalByKey =
+    new Map();
+
+
+  const originalBySource =
+    new Map();
+
+
+  originalItems.forEach(
+    item => {
+      const key =
+        getLoggingItemDraftKey(
+          item
+        );
+
+
+      originalByKey.set(
+        key,
+        item
+      );
+
+
+      originalBySource.set(
+        [
+          Number(
+            item.sourceRow
+          ),
+          Number(
+            item.sourceColumn
+          )
+        ].join(":"),
+        item
+      );
+    }
+  );
+
+
+  const addedItems =
+    getCurrentLoggingAddedItems();
+
+
+  templateItems.forEach(
+    (
+      savedItem,
+      index
+    ) => {
+      if (
+        !savedItem ||
+        typeof savedItem !==
+          "object"
+      ) {
+        return;
+      }
+
+
+      if (
+        savedItem.isNew
+      ) {
+        const draftKey =
+          normalizeLoggingText(
+            savedItem.key
+          ) ||
+          [
+            state.sheetConfig.key,
+            "loaded",
+            index + 1
+          ].join(":");
+
+
+        addedItems.push({
+          draftKey,
+
+          sourceRow:
+            null,
+
+          sourceColumn:
+            null,
+
+          name:
+            normalizeLoggingText(
+              savedItem.name
+            ),
+
+          tag:
+            normalizeLoggingText(
+              savedItem.tag
+            ),
+
+          unit:
+            normalizeLoggingText(
+              savedItem.unit
+            ),
+
+          isNew:
+            true,
+
+          insertAfterKey:
+            normalizeLoggingText(
+              savedItem.insertAfterKey
+            )
+        });
+
+
+        return;
+      }
+
+
+      const savedKey =
+        normalizeLoggingText(
+          savedItem.key
+        );
+
+
+      const sourceKey =
+        [
+          Number(
+            savedItem.sourceRow
+          ),
+          Number(
+            savedItem.sourceColumn
+          )
+        ].join(":");
+
+
+      const originalItem =
+        originalByKey.get(
+          savedKey
+        ) ||
+        originalBySource.get(
+          sourceKey
+        );
+
+
+      if (
+        !originalItem
+      ) {
+        return;
+      }
+
+
+      const originalKey =
+        getLoggingItemDraftKey(
+          originalItem
+        );
+
+
+      const override = {
+        name:
+          normalizeLoggingText(
+            savedItem.name
+          ),
+
+        tag:
+          normalizeLoggingText(
+            savedItem.tag
+          ),
+
+        unit:
+          normalizeLoggingText(
+            savedItem.unit
+          )
+      };
+
+
+      loggingItemTemplateOverrides.set(
+        originalKey,
+        override
+      );
+    }
+  );
+}
+
+async function loadActiveLoggingTemplate() {
+  const identity =
+    getIdentity();
+
+
+  const params =
+    new URLSearchParams({
+      mode:
+        "template",
+
+      templateKey:
+        identity.templateKey,
+
+      sheetKey:
+        identity.sheetKey
+    });
+
+
+  const separator =
+    config.apiPath.includes("?")
+      ? "&"
+      : "?";
+
+
+  const payload =
+    await requestApi(
+      `${config.apiPath}${separator}${params.toString()}`
+    );
+
+
+  return (
+    payload.template ||
+    null
+  );
+}
+
+function buildLoggingTemplatePayload() {
+  if (
+    !state.sheetConfig
+  ) {
+    return null;
+  }
+
+
+  const identity =
+    getIdentity();
+
+
+  const items =
+    buildLoggingItemList()
+      .filter(
+        item =>
+          normalizeLoggingText(
+            item.name
+          )
+      )
+      .map(
+        (
+          item,
+          index
+        ) => {
+          const itemKey =
+            getLoggingItemDraftKey(
+              item
+            );
+
+
+          return {
+            key:
+              itemKey,
+
+            order:
+              index + 1,
+
+            name:
+              normalizeLoggingText(
+                item.name
+              ),
+
+            tag:
+              normalizeLoggingText(
+                item.tag
+              ),
+
+            unit:
+              normalizeLoggingText(
+                item.unit
+              ),
+
+            isNew:
+              Boolean(
+                item.isNew
+              ),
+
+            sourceRow:
+              item.sourceRow ===
+                null ||
+              item.sourceRow ===
+                undefined
+                ? null
+                : Number(
+                    item.sourceRow
+                  ),
+
+            sourceColumn:
+              item.sourceColumn ===
+                null ||
+              item.sourceColumn ===
+                undefined
+                ? null
+                : Number(
+                    item.sourceColumn
+                  ),
+
+            insertAfterKey:
+              item.insertAfterKey ||
+              null
+          };
+        }
+      );
+
+
+  return {
+    templateKey:
+      identity.templateKey,
+
+    sheetKey:
+      identity.sheetKey,
+
+    sheetName:
+      state.sheetConfig.sheetName,
+
+    items
+  };
+}
+
+async function saveLoggingTemplate() {
+  if (
+    state.isBusy ||
+    !state.sheetConfig
+  ) {
+    return;
+  }
+
+
+  const template =
+    buildLoggingTemplatePayload();
+
+
+  if (
+    !template ||
+    !Array.isArray(
+      template.items
+    ) ||
+    !template.items.length
+  ) {
+    window.alert(
+      "저장할 Logging 항목이 없습니다."
+    );
+
+    return;
+  }
+
+
+  const confirmed =
+    window.confirm(
+      [
+        "현재 Logging 항목 구성을",
+        "공용 Log Sheet 양식으로 저장할까요?",
+        "",
+        "저장 이후 새로 작성하는 Log Sheet에 적용됩니다."
+      ].join("\n")
+    );
+
+
+  if (!confirmed) {
+    return;
+  }
+
+
+  const button =
+    elements.templateSaveButton;
+
+
+  if (button) {
+    button.disabled =
+      true;
+
+    button.textContent =
+      "저장 중";
+  }
+
+
+  try {
+    const payload =
+      await requestApi(
+        config.apiPath,
+        {
+          method:
+            "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body:
+            JSON.stringify({
+              mode:
+                "template",
+
+              template,
+
+              expectedVersion:
+                loggingTemplateExpectedVersion
+            })
+        }
+      );
+
+
+    const savedTemplate =
+      payload.template ||
+      null;
+
+
+    /*
+      서버에 실제 저장된 양식을
+      다시 현재 화면 상태로 적용한다.
+    */
+    applyLoggingTemplateState(
+      savedTemplate
+    );
+
+
+    renderLoggingItemList();
+
+
+    /*
+      미리보기가 이미 열려 있다면
+      저장 완료된 양식 기준으로 다시 그린다.
+    */
     if (
-      !elements.itemList ||
-      !elements.itemCount
+      elements.previewSection &&
+      !elements.previewSection.hidden
     ) {
-      return;
+      setPreviewOpen(
+        true
+      );
     }
 
-    const items =
-      extractLoggingItems();
 
-    elements.itemCount.textContent =
-      `${items.length}개`;
+    const versionNumber =
+      Number(
+        savedTemplate
+          ?.versionNumber ||
+        loggingTemplateExpectedVersion ||
+        0
+      );
 
-    if (!items.length) {
-      const empty =
+
+    setStatus(
+      "양식 저장 완료",
+      versionNumber
+        ? `공용 Log Sheet 양식 v${versionNumber}으로 저장했습니다.`
+        : "공용 Log Sheet 양식을 저장했습니다.",
+      "saved"
+    );
+
+
+    window.alert(
+      versionNumber
+        ? `공용 Log Sheet 양식 v${versionNumber}으로 저장되었습니다.`
+        : "공용 Log Sheet 양식이 저장되었습니다."
+    );
+
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "Log Sheet 공용 양식 저장 실패:",
+      error
+    );
+
+
+    if (
+      error.status ===
+        409
+    ) {
+      const currentTemplate =
+        error.payload
+          ?.template;
+
+
+      loggingTemplateExpectedVersion =
+        Number(
+          currentTemplate
+            ?.versionNumber ||
+          0
+        );
+
+
+      setStatus(
+        "양식 충돌",
+        "다른 사용자가 먼저 양식을 저장했습니다. 최신 양식을 다시 불러와 주세요.",
+        "error"
+      );
+
+
+      window.alert(
+        "다른 사용자가 먼저 Log Sheet 양식을 저장했습니다.\n최신 양식을 다시 불러온 뒤 수정해 주세요."
+      );
+
+    } else {
+      setStatus(
+        "양식 저장 실패",
+        error.message,
+        "error"
+      );
+
+
+      window.alert(
+        error.message ||
+        "공용 Log Sheet 양식을 저장하지 못했습니다."
+      );
+    }
+
+
+  } finally {
+    if (
+      button
+    ) {
+      button.disabled =
+        false;
+
+      button.textContent =
+        "양식 저장";
+    }
+  }
+}
+
+/* =========================================================
+  Logging 항목 목록
+========================================================= */
+
+function renderLoggingItemList() {
+  if (
+    !elements.itemList ||
+    !elements.itemCount
+  ) {
+    return;
+  }
+
+  const items =
+    buildLoggingItemList();
+
+  elements.itemCount.textContent =
+    `${items.length}개`;
+
+  if (!items.length) {
+    const empty =
+      document.createElement(
+        "div"
+      );
+
+    empty.className =
+      "log-sheet-item-list__empty";
+
+    empty.textContent =
+      "표시할 Logging 항목이 없습니다.";
+
+    elements.itemList.replaceChildren(
+      empty
+    );
+
+    return;
+  }
+
+  const fragment =
+    document.createDocumentFragment();
+
+  items.forEach(
+    item => {
+      const row =
         document.createElement(
           "div"
         );
 
-      empty.className =
-        "log-sheet-item-list__empty";
+      row.className =
+        "log-sheet-item-row";
 
-      empty.textContent =
-        "표시할 Logging 항목이 없습니다.";
-
-      elements.itemList.replaceChildren(
-        empty
-      );
-
-      return;
-    }
-
-    const fragment =
-      document.createDocumentFragment();
-
-    items.forEach(
-      item => {
-        const row =
-          document.createElement(
-            "div"
-          );
-
-        row.className =
-          "log-sheet-item-row";
-
-        const order =
-          document.createElement(
-            "span"
-          );
-
-        order.className =
-          "log-sheet-item-row__order";
-
-        order.textContent =
-          String(item.order);
-
-        const name =
-          document.createElement(
-            "strong"
-          );
-
-        name.className =
-          "log-sheet-item-row__name";
-
-        name.textContent =
-          item.name;
-
-        const tag =
-          document.createElement(
-            "span"
-          );
-
-        tag.className =
-          "log-sheet-item-row__tag";
-
-        tag.textContent =
-          item.tag || "-";
-
-        const unit =
-          document.createElement(
-            "span"
-          );
-
-        unit.className =
-          "log-sheet-item-row__unit";
-
-        unit.textContent =
-          item.unit || "-";
-
-        const editButton =
-          document.createElement(
-            "button"
-          );
-
-        editButton.type =
-          "button";
-
-        editButton.textContent =
-          "수정";
-
-        editButton.disabled =
-          true;
-
-        editButton.title =
-          "다음 단계에서 수정 기능을 연결합니다.";
-
-        row.append(
-          order,
-          name,
-          tag,
-          unit,
-          editButton
+      const draftKey =
+        getLoggingItemDraftKey(
+          item
         );
 
-        fragment.appendChild(
-          row
+      const hasDraft =
+        loggingItemDrafts.has(
+          draftKey
+        );
+
+      if (hasDraft) {
+        row.classList.add(
+          "has-draft"
         );
       }
-    );
 
-    elements.itemList.replaceChildren(
-      fragment
-    );
-  }
+      if (
+        loggingItemSelectedKey ===
+        draftKey
+      ) {
+        row.classList.add(
+          "is-selected"
+        );
+      }
+
+      row.addEventListener(
+        "click",
+        event => {
+          if (
+            event.target.closest(
+              "button, input"
+            )
+          ) {
+            return;
+          }
+
+          loggingItemSelectedKey =
+            draftKey;
+
+          renderLoggingItemList();
+        }
+      );
+
+      const order =
+        document.createElement(
+          "span"
+        );
+
+      order.className =
+        "log-sheet-item-row__order";
+
+      order.textContent =
+        String(item.order);
+
+      const name =
+        document.createElement(
+          "strong"
+        );
+
+      name.className =
+        "log-sheet-item-row__name";
+
+      name.textContent =
+        item.name ||
+        "새 항목";
+
+      const tag =
+        document.createElement(
+          "span"
+        );
+
+      tag.className =
+        "log-sheet-item-row__tag";
+
+      tag.textContent =
+        item.tag ||
+        "-";
+
+      const unit =
+        document.createElement(
+          "span"
+        );
+
+      unit.className =
+        "log-sheet-item-row__unit";
+
+      unit.textContent =
+        item.unit ||
+        "-";
+
+      const editButton =
+        document.createElement(
+          "button"
+        );
+
+      editButton.type =
+        "button";
+
+      editButton.textContent =
+        hasDraft
+          ? "재수정"
+          : "수정";
+
+      editButton.addEventListener(
+        "click",
+        () => {
+          loggingItemSelectedKey =
+            draftKey;
+
+          beginLoggingItemEdit(
+            row,
+            item
+          );
+        }
+      );
+
+      row.append(
+        order,
+        name,
+        tag,
+        unit,
+        editButton
+      );
+
+      fragment.appendChild(
+        row
+      );
+
+      if (
+        loggingItemEditingKey ===
+        draftKey
+      ) {
+        beginLoggingItemEdit(
+          row,
+          item
+        );
+      }
+    }
+  );
+
+  elements.itemList.replaceChildren(
+    fragment
+  );
+}
+
   function renderGrid() {
     const sheet =
       state.workbook?.Sheets?.[
@@ -2200,104 +3332,186 @@
     return `${config.apiPath}?${search}`;
   }
 
-  function applyRecord(
-    record
-  ) {
-    state.record =
-      record || null;
+function applyRecord(
+  record
+) {
+  state.record =
+    record || null;
 
-    state.values =
-      cloneObject(
-        record?.values
-      );
 
-    state.generatedValues =
-      cloneObject(
-        record?.generatedValues
-      );
-
-    ensureMetadataValues();
-
-    if (
-      state.sheetConfig.key ===
-        "electrical-patrol" &&
-      !Object.keys(
-        state.generatedValues
-      ).length
-    ) {
-      state.generatedValues =
-        createGeneratedSnapshot();
-    }
-
-    state.loadedValues =
-      cloneObject(
-        state.values
-      );
-
-    state.loadedGeneratedValues =
-      cloneObject(
-        state.generatedValues
-      );
-
-    state.identityChanged =
-      false;
-
-    updateRevisionText();
-    renderAuxiliaryControls();
-    renderGrid();
-    setDirty(false);
-  }
-
-  async function loadRecord(
-    options = {}
-  ) {
-    if (state.isBusy) {
-      return;
-    }
-
-    if (
-      state.isDirty &&
-      !options.skipDirtyConfirmation &&
-      !window.confirm(
-        "저장하지 않은 변경사항이 있습니다. 저장자료를 다시 불러올까요?"
-      )
-    ) {
-      return;
-    }
-
-    setBusy(
-      true,
-      `${elements.date.value} 저장자료를 확인하고 있습니다.`
+  state.values =
+    cloneObject(
+      record?.values
     );
 
-    try {
-      const payload =
-        await requestApi(
-          createRecordUrl()
+
+  state.generatedValues =
+    cloneObject(
+      record?.generatedValues
+    );
+
+
+  ensureMetadataValues();
+
+
+  if (
+    state.sheetConfig.key ===
+      "electrical-patrol" &&
+    !Object.keys(
+      state.generatedValues
+    ).length
+  ) {
+    state.generatedValues =
+      createGeneratedSnapshot();
+  }
+
+
+  state.loadedValues =
+    cloneObject(
+      state.values
+    );
+
+
+  state.loadedGeneratedValues =
+    cloneObject(
+      state.generatedValues
+    );
+
+
+  state.identityChanged =
+    false;
+
+
+  updateRevisionText();
+
+  renderAuxiliaryControls();
+
+  /*
+    현재 선택된 양식 상태를 반영해서
+    Logging 항목 목록도 다시 그린다.
+  */
+  renderLoggingItemList();
+
+  renderGrid();
+
+  setDirty(false);
+}
+
+async function loadRecord(
+  options = {}
+) {
+  if (
+    state.isBusy
+  ) {
+    return;
+  }
+
+
+  if (
+    state.isDirty &&
+    !options.skipDirtyConfirmation &&
+    !window.confirm(
+      "저장하지 않은 변경사항이 있습니다. 저장자료를 다시 불러올까요?"
+    )
+  ) {
+    return;
+  }
+
+
+  setBusy(
+    true,
+    `${elements.date.value} 저장자료를 확인하고 있습니다.`
+  );
+
+
+  try {
+    const payload =
+      await requestApi(
+        createRecordUrl()
+      );
+
+
+    const record =
+      payload.record ||
+      null;
+
+
+    /* ===================================================
+      기존에 저장된 Log Sheet
+    =================================================== */
+
+    if (
+      record
+    ) {
+      /*
+        양식 버전 기능 도입 이후 작성된 기록은
+        당시 저장했던 양식을 그대로 사용한다.
+      */
+      if (
+        record.templateSnapshot
+      ) {
+        applyLoggingTemplateState(
+          record.templateSnapshot
         );
 
-      applyRecord(
-        payload.record
-      );
+      } else {
+        /*
+          양식 버전 기능 도입 전에 작성된 기록은
+          최신 양식을 덮어쓰지 않고
+          원본 Excel 양식을 사용한다.
+        */
+        applyLoggingTemplateState(
+          null
+        );
+      }
 
-    } catch (
-      error
-    ) {
-      console.error(
-        "Log Sheet 조회 실패:",
-        error
-      );
 
-      setStatus(
-        "조회 실패",
-        error.message,
-        "error"
-      );
+    /* ===================================================
+      아직 저장되지 않은 신규 Log Sheet
+    =================================================== */
 
-    } finally {
-      setBusy(false);
+    } else {
+      const activeTemplate =
+        await loadActiveLoggingTemplate();
+
+
+      /*
+        공용 양식이 있으면 최신 양식,
+        없으면 원본 Excel 양식
+      */
+      applyLoggingTemplateState(
+        activeTemplate
+      );
     }
+
+
+    applyRecord(
+      record
+    );
+
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "Log Sheet 조회 실패:",
+      error
+    );
+
+
+    setStatus(
+      "조회 실패",
+      error.message,
+      "error"
+    );
+
+
+  } finally {
+    setBusy(
+      false
+    );
   }
+}
 
   async function saveRecord() {
     if (state.isBusy) {
@@ -3132,100 +4346,238 @@
     );
   }
 
-  async function createPatchedWorkbookBlob() {
-    const zip =
-      await JSZip.loadAsync(
-        state.templateBuffer.slice(0)
+async function createPatchedWorkbookBlob() {
+  const zip =
+    await JSZip.loadAsync(
+      state.templateBuffer.slice(0)
+    );
+
+  const workbookXml =
+    await zip.file(
+      "xl/workbook.xml"
+    ).async("string");
+
+  const relationshipsXml =
+    await zip.file(
+      "xl/_rels/workbook.xml.rels"
+    ).async("string");
+
+  const worksheetPath =
+    findWorksheetPath(
+      workbookXml,
+      relationshipsXml,
+      state.sheetConfig.sheetName
+    );
+
+  const worksheetFile =
+    zip.file(
+      worksheetPath
+    );
+
+  if (!worksheetFile) {
+    throw new Error(
+      `Log Sheet 시트 파일을 찾을 수 없습니다: ${worksheetPath}`
+    );
+  }
+
+  const worksheetText =
+    await worksheetFile.async(
+      "string"
+    );
+
+  const worksheetDocument =
+    new DOMParser()
+      .parseFromString(
+        worksheetText,
+        "application/xml"
       );
 
-    const workbookXml =
-      await zip.file(
-        "xl/workbook.xml"
-      ).async("string");
 
-    const relationshipsXml =
-      await zip.file(
-        "xl/_rels/workbook.xml.rels"
-      ).async("string");
+  /* =======================================================
+    기존 입력값 반영
+  ======================================================= */
 
-    const worksheetPath =
-      findWorksheetPath(
-        workbookXml,
-        relationshipsXml,
-        state.sheetConfig.sheetName
-      );
-
-    const worksheetFile =
-      zip.file(
-        worksheetPath
-      );
-
-    if (!worksheetFile) {
-      throw new Error(
-        `엑셀 시트 파일이 없습니다: ${worksheetPath}`
+  Object.entries(
+    state.values
+  ).forEach(
+    ([address, value]) => {
+      patchCellValue(
+        worksheetDocument,
+        address,
+        value
       );
     }
+  );
 
-    const worksheetText =
-      await worksheetFile.async(
-        "string"
+
+  /* =======================================================
+    자동 생성값 반영
+  ======================================================= */
+
+  Object.entries(
+    state.generatedValues
+  ).forEach(
+    ([address, value]) => {
+      patchCellValue(
+        worksheetDocument,
+        address,
+        value,
+        {
+          removeFormula: true
+        }
       );
+    }
+  );
 
-    const worksheetDocument =
-      new DOMParser()
-        .parseFromString(
-          worksheetText,
-          "application/xml"
-        );
 
-    Object.entries(
-      state.values
-    ).forEach(
-      ([address, value]) => {
-        patchCellValue(
-          worksheetDocument,
-          address,
-          value
-        );
-      }
-    );
+  /* =======================================================
+    Logging 항목 수정값 반영
+  ======================================================= */
 
-    Object.entries(
-      state.generatedValues
-    ).forEach(
-      ([address, value]) => {
-        patchCellValue(
-          worksheetDocument,
-          address,
-          value,
-          {
-            removeFormula: true
+  extractLoggingItems()
+    .forEach(
+      item => {
+        const draftKey =
+          getLoggingItemDraftKey(
+            item
+          );
+
+        const draft =
+          loggingItemDrafts.get(
+            draftKey
+          );
+
+        if (!draft) {
+          return;
+        }
+
+
+        const section =
+          getLoggingItemSectionForItem(
+            item
+          );
+
+        if (!section) {
+          return;
+        }
+
+
+        const rowNumber =
+          Number(
+            item.sourceRow
+          );
+
+        if (
+          !Number.isFinite(
+            rowNumber
+          )
+        ) {
+          return;
+        }
+
+
+        /* -----------------------------------------------
+          항목명
+        ----------------------------------------------- */
+
+        const nameColumns =
+          Array.isArray(
+            section.nameColumns
+          )
+            ? section.nameColumns
+            : [];
+
+
+        const uniqueNameColumns =
+          [
+            ...new Set(
+              nameColumns
+            )
+          ];
+
+
+        uniqueNameColumns.forEach(
+          (
+            columnName,
+            index
+          ) => {
+            patchCellValue(
+              worksheetDocument,
+              `${columnName}${rowNumber}`,
+              index === 0
+                ? draft.name
+                : ""
+            );
           }
         );
+
+
+        /* -----------------------------------------------
+          TAG
+        ----------------------------------------------- */
+
+        if (
+          section.tagColumn
+        ) {
+          patchCellValue(
+            worksheetDocument,
+            `${section.tagColumn}${rowNumber}`,
+            draft.tag || ""
+          );
+        }
+
+
+        /* -----------------------------------------------
+          단위
+        ----------------------------------------------- */
+
+        if (
+          section.unitColumn
+        ) {
+          patchCellValue(
+            worksheetDocument,
+            `${section.unitColumn}${rowNumber}`,
+            draft.unit || ""
+          );
+        }
       }
     );
 
-    const serialized =
-      new XMLSerializer()
-        .serializeToString(
-          worksheetDocument
-        );
 
-    zip.file(
-      worksheetPath,
-      serialized
-    );
+  /* =======================================================
+    XML 저장
+  ======================================================= */
 
-    return zip.generateAsync({
-      type: "blob",
-      mimeType:
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      compression: "DEFLATE",
-      compressionOptions: {
-        level: 6
-      }
-    });
-  }
+  const serialized =
+    new XMLSerializer()
+      .serializeToString(
+        worksheetDocument
+      );
+
+  zip.file(
+    worksheetPath,
+    serialized
+  );
+
+
+  /* =======================================================
+    XLSX 생성
+  ======================================================= */
+
+  return zip.generateAsync({
+    type: "blob",
+
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+
+    compression:
+      "DEFLATE",
+
+    compressionOptions: {
+      level: 6
+    }
+  });
+}
 
   function safeFilename(
     value
@@ -3318,30 +4670,823 @@
     }
   }
 
-  function setPreviewOpen(
-    open
+function getLoggingItemSectionForItem(
+  item
+) {
+  const sections =
+    getLoggingItemSections(
+      state.sheetConfig
+    );
+
+  return sections.find(
+    section => {
+      const ranges =
+        section.ranges || [];
+
+      if (!ranges.length) {
+        return false;
+      }
+
+      const sourceColumn =
+        Math.min(
+          ...ranges.map(
+            rangeText =>
+              parseRange(
+                rangeText
+              ).s.c
+          )
+        );
+
+      if (
+        sourceColumn !==
+        item.sourceColumn
+      ) {
+        return false;
+      }
+
+      const rowIndex =
+        Number(
+          item.sourceRow
+        ) - 1;
+
+      return ranges.some(
+        rangeText => {
+          const range =
+            parseRange(
+              rangeText
+            );
+
+          return (
+            rowIndex >= range.s.r &&
+            rowIndex <= range.e.r
+          );
+        }
+      );
+    }
+  ) || null;
+}
+
+
+function getLoggingPreviewCell(
+  address
+) {
+  const sheet =
+    state.workbook?.Sheets?.[
+      state.sheetConfig.sheetName
+    ];
+
+  if (
+    !sheet ||
+    !elements.grid
   ) {
-    const isOpen =
-      Boolean(open);
-
-    elements.previewSection.hidden =
-      !isOpen;
-
-    elements.previewButton.textContent =
-      isOpen
-        ? "미리보기 닫기"
-        : "미리보기";
-
-    elements.previewButton.classList.toggle(
-      "is-active",
-      isOpen
-    );
-
-    elements.previewButton.setAttribute(
-      "aria-expanded",
-      String(isOpen)
-    );
+    return null;
   }
+
+  const target =
+    XLSX.utils.decode_cell(
+      address
+    );
+
+  const merge =
+    (
+      sheet["!merges"] || []
+    ).find(
+      item =>
+        target.r >= item.s.r &&
+        target.r <= item.e.r &&
+        target.c >= item.s.c &&
+        target.c <= item.e.c
+    );
+
+  const anchorAddress =
+    merge
+      ? XLSX.utils.encode_cell(
+          merge.s
+        )
+      : address;
+
+  return elements.grid.querySelector(
+    `td[data-cell-address="${anchorAddress}"]`
+  );
+}
+
+
+function setLoggingPreviewCellText(
+  cell,
+  text
+) {
+  if (!cell) {
+    return;
+  }
+
+  const value =
+    String(
+      text ?? ""
+    );
+
+  const editor =
+    cell.querySelector(
+      ".log-sheet-cell-editor"
+    );
+
+  if (editor) {
+    editor.value =
+      value;
+
+    const printValue =
+      cell.querySelector(
+        ".log-sheet-cell-print-value"
+      );
+
+    if (printValue) {
+      printValue.textContent =
+        value;
+    }
+  } else {
+    const valueElement =
+      cell.querySelector(
+        ".log-sheet-cell-value"
+      );
+
+    if (valueElement) {
+      valueElement.textContent =
+        value;
+    }
+  }
+
+  cell.classList.add(
+    "is-template-draft"
+  );
+}
+
+function applyLoggingItemDraftsToPreview() {
+  extractLoggingItems().forEach(
+    item => {
+      const draftKey =
+        getLoggingItemDraftKey(
+          item
+        );
+
+
+      const templateOverride =
+        loggingItemTemplateOverrides.get(
+          draftKey
+        );
+
+
+      const draft =
+        loggingItemDrafts.get(
+          draftKey
+        );
+
+
+      if (
+        !templateOverride &&
+        !draft
+      ) {
+        return;
+      }
+
+
+      const effectiveItem = {
+        name:
+          item.name,
+
+        tag:
+          item.tag,
+
+        unit:
+          item.unit,
+
+        ...(templateOverride || {}),
+
+        ...(draft || {})
+      };
+
+
+      const section =
+        getLoggingItemSectionForItem(
+          item
+        );
+
+
+      if (!section) {
+        return;
+      }
+
+
+      /* 항목명 */
+
+      const nameCells =
+        new Set();
+
+
+      let nameWritten =
+        false;
+
+
+      (
+        section.nameColumns ||
+        []
+      ).forEach(
+        column => {
+          const cell =
+            getLoggingPreviewCell(
+              `${column}${item.sourceRow}`
+            );
+
+
+          if (
+            !cell ||
+            nameCells.has(
+              cell
+            )
+          ) {
+            return;
+          }
+
+
+          nameCells.add(
+            cell
+          );
+
+
+          setLoggingPreviewCellText(
+            cell,
+            nameWritten
+              ? ""
+              : effectiveItem.name
+          );
+
+
+          nameWritten =
+            true;
+        }
+      );
+
+
+      /* TAG */
+
+      if (
+        section.tagColumn
+      ) {
+        setLoggingPreviewCellText(
+          getLoggingPreviewCell(
+            `${section.tagColumn}${item.sourceRow}`
+          ),
+          effectiveItem.tag
+        );
+      }
+
+
+      /* 단위 */
+
+      if (
+        section.unitColumn
+      ) {
+        setLoggingPreviewCellText(
+          getLoggingPreviewCell(
+            `${section.unitColumn}${item.sourceRow}`
+          ),
+          effectiveItem.unit
+        );
+      }
+    }
+  );
+}
+
+
+function getLoggingPreviewRow(
+  rowNumber
+) {
+  const targetRow =
+    Number(rowNumber) - 1;
+
+  const rows =
+    elements.grid?.querySelectorAll(
+      ".log-sheet-table tbody tr"
+    ) || [];
+
+  return [
+    ...rows
+  ].find(
+    row =>
+      [
+        ...row.querySelectorAll(
+          "td[data-cell-address]"
+        )
+      ].some(
+        cell => {
+          const address =
+            cell.dataset.cellAddress;
+
+          if (!address) {
+            return false;
+          }
+
+          return (
+            XLSX.utils.decode_cell(
+              address
+            ).r ===
+            targetRow
+          );
+        }
+      )
+  ) || null;
+}
+
+
+function prepareAddedLoggingPreviewRow(
+  sourceRow
+) {
+  const row =
+    sourceRow.cloneNode(
+      true
+    );
+
+  row.classList.add(
+    "is-template-added-row"
+  );
+
+
+  [
+    ...row.querySelectorAll(
+      "td"
+    )
+  ].forEach(
+    cell => {
+      const address =
+        cell.dataset.cellAddress;
+
+      if (address) {
+        const decoded =
+          XLSX.utils.decode_cell(
+            address
+          );
+
+        cell.dataset.previewColumn =
+          String(
+            decoded.c
+          );
+      }
+
+
+      cell.removeAttribute(
+        "data-cell-address"
+      );
+
+
+      cell.classList.remove(
+        "is-editable",
+        "is-changed",
+        "is-template-draft"
+      );
+
+
+      const value =
+        document.createElement(
+          "span"
+        );
+
+      value.className =
+        "log-sheet-cell-value";
+
+      value.textContent =
+        "";
+
+
+      cell.replaceChildren(
+        value
+      );
+    }
+  );
+
+
+  return row;
+}
+
+
+function getAddedLoggingPreviewCell(
+  row,
+  columnName
+) {
+  const targetColumn =
+    XLSX.utils.decode_cell(
+      `${columnName}1`
+    ).c;
+
+
+  return [
+    ...row.querySelectorAll(
+      "td[data-preview-column]"
+    )
+  ].find(
+    cell => {
+      const startColumn =
+        Number(
+          cell.dataset.previewColumn
+        );
+
+      const span =
+        Number(
+          cell.colSpan
+        ) || 1;
+
+
+      return (
+        targetColumn >=
+          startColumn &&
+        targetColumn <
+          startColumn + span
+      );
+    }
+  ) || null;
+}
+
+
+function setAddedLoggingPreviewCell(
+  row,
+  columnName,
+  text
+) {
+  const cell =
+    getAddedLoggingPreviewCell(
+      row,
+      columnName
+    );
+
+
+  if (!cell) {
+    return null;
+  }
+
+
+  const value =
+    cell.querySelector(
+      ".log-sheet-cell-value"
+    );
+
+
+  if (value) {
+    value.textContent =
+      String(
+        text ?? ""
+      );
+  }
+
+
+  cell.classList.add(
+    "is-template-draft"
+  );
+
+
+  return cell;
+}
+
+function applyAddedLoggingItemsToPreview() {
+  const items =
+    buildLoggingItemList();
+
+  if (!items.length) {
+    return;
+  }
+
+
+  /*
+    각 Logging 항목이
+    미리보기의 어느 행에 있는지 기억한다.
+  */
+  const previewRowMap =
+    new Map();
+
+
+  /* =======================================================
+    기존 Excel 항목 위치 등록
+  ======================================================= */
+
+  items.forEach(
+    item => {
+      if (item.isNew) {
+        return;
+      }
+
+
+      const key =
+        getLoggingItemDraftKey(
+          item
+        );
+
+
+      const row =
+        getLoggingPreviewRow(
+          item.sourceRow
+        );
+
+
+      if (row) {
+        previewRowMap.set(
+          key,
+          row
+        );
+      }
+    }
+  );
+
+
+  /* =======================================================
+    신규 항목을 목록 순서대로 삽입
+  ======================================================= */
+
+  items.forEach(
+    (
+      item,
+      itemIndex
+    ) => {
+      if (!item.isNew) {
+        return;
+      }
+
+
+      const itemName =
+        normalizeLoggingText(
+          item.name
+        );
+
+
+      /*
+        아직 저장하지 않은 빈 신규 항목은
+        미리보기에 표시하지 않는다.
+      */
+      if (!itemName) {
+        return;
+      }
+
+
+      /* ---------------------------------------------------
+        바로 앞에 표시되는 항목 찾기
+      --------------------------------------------------- */
+
+      let insertionPoint =
+        null;
+
+
+      for (
+        let index =
+          itemIndex - 1;
+
+        index >= 0;
+
+        index -= 1
+      ) {
+        const previousItem =
+          items[index];
+
+
+        const previousKey =
+          getLoggingItemDraftKey(
+            previousItem
+          );
+
+
+        const previousRow =
+          previewRowMap.get(
+            previousKey
+          );
+
+
+        if (previousRow) {
+          insertionPoint =
+            previousRow;
+
+          break;
+        }
+      }
+
+
+      if (!insertionPoint) {
+        return;
+      }
+
+
+      /* ---------------------------------------------------
+        신규 항목이 속한 원본 Excel 영역 찾기
+
+        신규 → 신규 → 신규로 이어져 있어도
+        위쪽으로 올라가 가장 가까운
+        원본 항목을 기준으로 한다.
+      --------------------------------------------------- */
+
+      let baseOriginalItem =
+        null;
+
+
+      for (
+        let index =
+          itemIndex - 1;
+
+        index >= 0;
+
+        index -= 1
+      ) {
+        const candidate =
+          items[index];
+
+
+        if (
+          !candidate.isNew
+        ) {
+          baseOriginalItem =
+            candidate;
+
+          break;
+        }
+      }
+
+
+      if (!baseOriginalItem) {
+        return;
+      }
+
+
+      const section =
+        getLoggingItemSectionForItem(
+          baseOriginalItem
+        );
+
+
+      if (!section) {
+        return;
+      }
+
+
+      const sourceRow =
+        getLoggingPreviewRow(
+          baseOriginalItem.sourceRow
+        );
+
+
+      if (!sourceRow) {
+        return;
+      }
+
+
+      /* ---------------------------------------------------
+        원본 행 디자인 복제
+      --------------------------------------------------- */
+
+      const previewRow =
+        prepareAddedLoggingPreviewRow(
+          sourceRow
+        );
+
+
+      previewRow.dataset
+        .loggingItemKey =
+        getLoggingItemDraftKey(
+          item
+        );
+
+
+      /* ---------------------------------------------------
+        항목명 입력
+      --------------------------------------------------- */
+
+      const usedNameCells =
+        new Set();
+
+
+      let nameWritten =
+        false;
+
+
+      (
+        section.nameColumns ||
+        []
+      ).forEach(
+        columnName => {
+          const cell =
+            getAddedLoggingPreviewCell(
+              previewRow,
+              columnName
+            );
+
+
+          if (
+            !cell ||
+            usedNameCells.has(
+              cell
+            )
+          ) {
+            return;
+          }
+
+
+          usedNameCells.add(
+            cell
+          );
+
+
+          setAddedLoggingPreviewCell(
+            previewRow,
+            columnName,
+            nameWritten
+              ? ""
+              : item.name
+          );
+
+
+          nameWritten =
+            true;
+        }
+      );
+
+
+      /* ---------------------------------------------------
+        TAG 입력
+      --------------------------------------------------- */
+
+      if (
+        section.tagColumn
+      ) {
+        setAddedLoggingPreviewCell(
+          previewRow,
+          section.tagColumn,
+          item.tag || ""
+        );
+      }
+
+
+      /* ---------------------------------------------------
+        단위 입력
+      --------------------------------------------------- */
+
+      if (
+        section.unitColumn
+      ) {
+        setAddedLoggingPreviewCell(
+          previewRow,
+          section.unitColumn,
+          item.unit || ""
+        );
+      }
+
+
+      /* ---------------------------------------------------
+        선택한 위치 바로 다음에 삽입
+      --------------------------------------------------- */
+
+      insertionPoint.after(
+        previewRow
+      );
+
+
+      previewRowMap.set(
+        getLoggingItemDraftKey(
+          item
+        ),
+        previewRow
+      );
+    }
+  );
+}
+
+function setPreviewOpen(
+  open
+) {
+  const isOpen =
+    Boolean(open);
+
+
+  if (isOpen) {
+    renderGrid();
+
+    applyLoggingItemDraftsToPreview();
+
+    applyAddedLoggingItemsToPreview();
+  }
+
+
+  elements.previewSection.hidden =
+    !isOpen;
+
+
+  elements.previewButton.textContent =
+    isOpen
+      ? "미리보기 닫기"
+      : "미리보기";
+
+
+  elements.previewButton.classList.toggle(
+    "is-active",
+    isOpen
+  );
+
+
+  elements.previewButton.setAttribute(
+    "aria-expanded",
+    String(isOpen)
+  );
+}
 
   function printCurrentSheet() {
     updatePrintHeading();
@@ -3351,103 +5496,114 @@
     );
   }
 
-  function bindEvents() {
-    elements.loadButton.addEventListener(
-      "click",
-      () => loadRecord()
-    );
+function bindEvents() {
+  elements.loadButton.addEventListener(
+    "click",
+    () => loadRecord()
+  );
 
-    elements.saveButton.addEventListener(
-      "click",
-      saveRecord
-    );
+  elements.saveButton.addEventListener(
+    "click",
+    saveRecord
+  );
 
-    elements.historyButton.addEventListener(
-      "click",
-      showHistory
-    );
+  elements.historyButton.addEventListener(
+    "click",
+    showHistory
+  );
 
-    elements.previewButton.addEventListener(
-      "click",
-      () => {
-        setPreviewOpen(
-          elements.previewSection.hidden
-        );
-      }
-    );
+  elements.itemAddButton?.addEventListener(
+    "click",
+    addLoggingItem
+  );
 
-    elements.downloadButton.addEventListener(
-      "click",
-      downloadWorkbook
-    );
+  elements.templateSaveButton?.addEventListener(
+    "click",
+    saveLoggingTemplate
+  );
 
-    elements.printButton.addEventListener(
-      "click",
-      printCurrentSheet
-    );
+  elements.previewButton.addEventListener(
+    "click",
+    () => {
+      setPreviewOpen(
+        elements.previewSection.hidden
+      );
+    }
+  );
 
-    elements.historyCloseButton.addEventListener(
-      "click",
-      () => elements.historyDialog.close()
-    );
+  elements.downloadButton.addEventListener(
+    "click",
+    downloadWorkbook
+  );
 
-    [
-      elements.date,
-      elements.shift,
-      elements.team
-    ].forEach(
-      control => {
-        control.addEventListener(
-          "focus",
-          () => {
-            control.dataset
-              .previousValue =
-              control.value;
-          }
-        );
+  elements.printButton.addEventListener(
+    "click",
+    printCurrentSheet
+  );
 
-        control.addEventListener(
-          "change",
-          handleIdentityChange
-        );
-      }
-    );
+  elements.historyCloseButton.addEventListener(
+    "click",
+    () => {
+      elements.historyDialog.close();
+    }
+  );
 
-    window.addEventListener(
-      "beforeunload",
-      event => {
-        if (!state.isDirty) {
-          return;
+  [
+    elements.date,
+    elements.shift,
+    elements.team
+  ].forEach(
+    control => {
+      control.addEventListener(
+        "focus",
+        () => {
+          control.dataset.previousValue =
+            control.value;
         }
+      );
 
-        event.preventDefault();
-        event.returnValue =
-          "";
+      control.addEventListener(
+        "change",
+        handleIdentityChange
+      );
+    }
+  );
+
+  window.addEventListener(
+    "beforeunload",
+    event => {
+      if (!state.isDirty) {
+        return;
       }
-    );
 
-    window.addEventListener(
-      "beforeprint",
-      () => {
-        state.printZoom =
-          document.documentElement
-            .style.zoom || "";
+      event.preventDefault();
 
+      event.returnValue =
+        "";
+    }
+  );
+
+  window.addEventListener(
+    "beforeprint",
+    () => {
+      state.printZoom =
         document.documentElement
-          .style.zoom = "1";
-      }
-    );
+          .style.zoom || "";
 
-    window.addEventListener(
-      "afterprint",
-      () => {
-        document.documentElement
-          .style.zoom =
-          state.printZoom;
-      }
-    );
-  }
+      document.documentElement
+        .style.zoom = "1";
+    }
+  );
 
+  window.addEventListener(
+    "afterprint",
+    () => {
+      document.documentElement
+        .style.zoom =
+        state.printZoom;
+    }
+  );
+}
   async function start() {
     try {
       try {
