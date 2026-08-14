@@ -68,6 +68,10 @@
       byId("logSheetRevisionText"),
     tabs:
       byId("logSheetTabs"),
+    itemCount:
+      byId("logSheetItemCount"),
+    itemList:
+      byId("logSheetItemList"),
     loading:
       byId("logSheetLoading"),
     gridShell:
@@ -905,6 +909,514 @@
     return control;
   }
 
+  /* =========================================================
+    Logging 항목 목록
+  ========================================================= */
+
+  function normalizeLoggingText(
+    value
+  ) {
+    return normalizeText(
+      value
+    ).replace(
+      /\s+/g,
+      " "
+    );
+  }
+
+  function getTemplateCellText(
+    sheet,
+    address
+  ) {
+    const target =
+      XLSX.utils.decode_cell(
+        address
+      );
+
+    const merge =
+      (sheet["!merges"] || []).find(
+        item =>
+          target.r >= item.s.r &&
+          target.r <= item.e.r &&
+          target.c >= item.s.c &&
+          target.c <= item.e.c
+      );
+
+    const anchorAddress =
+      merge
+        ? XLSX.utils.encode_cell(
+            merge.s
+          )
+        : address;
+
+    const cell =
+      sheet[anchorAddress];
+
+    if (!cell) {
+      return "";
+    }
+
+    return normalizeLoggingText(
+      XLSX.utils.format_cell(
+        cell
+      ) ??
+      cell.v ??
+      ""
+    );
+  }
+
+  function getLoggingItemSections(
+    sheetConfig
+  ) {
+    const standardSection = {
+      ranges:
+        sheetConfig.editableRanges || [],
+      nameColumns: [
+        "B",
+        "C",
+        "D",
+        "E",
+        "F"
+      ],
+      tagColumn: "G",
+      unitColumn: "I"
+    };
+
+    switch (
+      sheetConfig.key
+    ) {
+      case "field-night-leader-to":
+        return [
+          {
+            ...standardSection,
+            ranges: [
+              "J7:M35",
+              "J37:M69",
+              "J71:M105"
+            ]
+          },
+          {
+            ranges: [
+              "G108:G112"
+            ],
+            nameColumns: [
+              "D",
+              "E",
+              "F"
+            ]
+          },
+          {
+            ranges: [
+              "K108:K112"
+            ],
+            nameColumns: [
+              "H",
+              "I",
+              "J"
+            ]
+          },
+          {
+            ranges: [
+              "M108:M112"
+            ],
+            nameColumns: [
+              "L"
+            ]
+          }
+        ];
+
+      case "field-night-bo12":
+        return [
+          {
+            ...standardSection,
+            ranges: [
+              "J7:Q34"
+            ]
+          },
+          {
+            ranges: [
+              "J36:K40"
+            ],
+            nameColumns: [
+              "D",
+              "E",
+              "F"
+            ]
+          },
+          {
+            ranges: [
+              "P36:Q40"
+            ],
+            nameColumns: [
+              "L",
+              "M",
+              "N",
+              "O"
+            ]
+          },
+          {
+            ...standardSection,
+            ranges: [
+              "J42:Q68"
+            ]
+          },
+          {
+            ranges: [
+              "H70:H77"
+            ],
+            nameColumns: [
+              "D",
+              "E",
+              "F"
+            ],
+            tagColumn: "G"
+          },
+          {
+            ranges: [
+              "O70:O77"
+            ],
+            nameColumns: [
+              "L",
+              "M"
+            ],
+            tagColumn: "N"
+          },
+          {
+            ...standardSection,
+            ranges: [
+              "J79:Q118"
+            ]
+          }
+        ];
+
+      case "electrical-main":
+        return [
+          {
+            ranges:
+              sheetConfig.editableRanges || [],
+            nameColumns: [
+              "B",
+              "C",
+              "D",
+              "E",
+              "F"
+            ],
+            unitColumn: "I"
+          }
+        ];
+
+      case "electrical-patrol":
+        return [
+          {
+            ranges: [
+              "G6:H28"
+            ],
+            nameColumns: [
+              "F"
+            ]
+          }
+        ];
+
+      case "aux-control-room":
+        return [
+          {
+            ranges:
+              sheetConfig.editableRanges || [],
+            nameColumns: [
+              "A",
+              "B",
+              "C"
+            ],
+            tagColumn: "D",
+            unitColumn: "E"
+          }
+        ];
+
+      case "aux-field":
+        return [
+          {
+            ranges: [
+              "G8:N46"
+            ],
+            nameColumns: [
+              "A",
+              "B"
+            ],
+            tagColumn: "C",
+            unitColumn: "D"
+          },
+          {
+            ranges: [
+              "P9:R46"
+            ],
+            nameColumns: [
+              "O"
+            ]
+          }
+        ];
+
+      default:
+        return [
+          standardSection
+        ];
+    }
+  }
+
+  function extractLoggingItems() {
+    const sheet =
+      state.workbook?.Sheets?.[
+        state.sheetConfig.sheetName
+      ];
+
+    if (!sheet) {
+      return [];
+    }
+
+    const items = [];
+
+    getLoggingItemSections(
+      state.sheetConfig
+    ).forEach(
+      section => {
+        const rowNumbers =
+          new Set();
+
+        const sourceColumn =
+          Math.min(
+            ...(
+              section.ranges || []
+            ).map(
+              rangeText =>
+                parseRange(
+                  rangeText
+                ).s.c
+            )
+          );
+
+        (
+          section.ranges || []
+        ).forEach(
+          rangeText => {
+            const range =
+              parseRange(
+                rangeText
+              );
+
+            for (
+              let row = range.s.r;
+              row <= range.e.r;
+              row += 1
+            ) {
+              rowNumbers.add(
+                row + 1
+              );
+            }
+          }
+        );
+
+        [
+          ...rowNumbers
+        ].sort(
+          (left, right) =>
+            left - right
+        ).forEach(
+          rowNumber => {
+            const nameParts =
+              (
+                section.nameColumns || []
+              ).map(
+                column =>
+                  getTemplateCellText(
+                    sheet,
+                    `${column}${rowNumber}`
+                  )
+              ).filter(
+                (value, index, array) =>
+                  value &&
+                  array.indexOf(value) ===
+                    index
+              );
+
+            const name =
+              nameParts.join(
+                " · "
+              );
+
+            if (!name) {
+              return;
+            }
+
+            const tag =
+              section.tagColumn
+                ? getTemplateCellText(
+                    sheet,
+                    `${section.tagColumn}${rowNumber}`
+                  )
+                : "";
+
+            const unit =
+              section.unitColumn
+                ? getTemplateCellText(
+                    sheet,
+                    `${section.unitColumn}${rowNumber}`
+                  )
+                : "";
+
+            items.push({
+              name,
+              tag,
+              unit,
+              sourceRow:
+                rowNumber,
+              sourceColumn
+            });
+          }
+        );
+      }
+    );
+
+    items.sort(
+      (left, right) =>
+        left.sourceRow -
+          right.sourceRow ||
+        left.sourceColumn -
+          right.sourceColumn
+    );
+
+    return items.map(
+      (item, index) => ({
+        ...item,
+        order:
+          index + 1
+      })
+    );
+  }
+
+  function renderLoggingItemList() {
+    if (
+      !elements.itemList ||
+      !elements.itemCount
+    ) {
+      return;
+    }
+
+    const items =
+      extractLoggingItems();
+
+    elements.itemCount.textContent =
+      `${items.length}개`;
+
+    if (!items.length) {
+      const empty =
+        document.createElement(
+          "div"
+        );
+
+      empty.className =
+        "log-sheet-item-list__empty";
+
+      empty.textContent =
+        "표시할 Logging 항목이 없습니다.";
+
+      elements.itemList.replaceChildren(
+        empty
+      );
+
+      return;
+    }
+
+    const fragment =
+      document.createDocumentFragment();
+
+    items.forEach(
+      item => {
+        const row =
+          document.createElement(
+            "div"
+          );
+
+        row.className =
+          "log-sheet-item-row";
+
+        const order =
+          document.createElement(
+            "span"
+          );
+
+        order.className =
+          "log-sheet-item-row__order";
+
+        order.textContent =
+          String(item.order);
+
+        const name =
+          document.createElement(
+            "strong"
+          );
+
+        name.className =
+          "log-sheet-item-row__name";
+
+        name.textContent =
+          item.name;
+
+        const tag =
+          document.createElement(
+            "span"
+          );
+
+        tag.className =
+          "log-sheet-item-row__tag";
+
+        tag.textContent =
+          item.tag || "-";
+
+        const unit =
+          document.createElement(
+            "span"
+          );
+
+        unit.className =
+          "log-sheet-item-row__unit";
+
+        unit.textContent =
+          item.unit || "-";
+
+        const editButton =
+          document.createElement(
+            "button"
+          );
+
+        editButton.type =
+          "button";
+
+        editButton.textContent =
+          "수정";
+
+        editButton.disabled =
+          true;
+
+        editButton.title =
+          "다음 단계에서 수정 기능을 연결합니다.";
+
+        row.append(
+          order,
+          name,
+          tag,
+          unit,
+          editButton
+        );
+
+        fragment.appendChild(
+          row
+        );
+      }
+    );
+
+    elements.itemList.replaceChildren(
+      fragment
+    );
+  }
   function renderGrid() {
     const sheet =
       state.workbook?.Sheets?.[
@@ -2190,6 +2702,7 @@
 
     renderTabs();
     renderAuxiliaryControls();
+    renderLoggingItemList();
     renderGrid();
 
     await loadRecord({
@@ -3031,6 +3544,7 @@
           createGeneratedSnapshot();
       }
 
+      renderLoggingItemList();
       renderGrid();
       renderAuxiliaryControls();
 

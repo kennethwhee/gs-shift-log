@@ -846,3 +846,131 @@ button {
   }
 
 }
+
+/* =========================================================
+  Logging 항목 목록 행
+========================================================= */
+
+.log-sheet-item-row {
+  display: grid;
+
+  grid-template-columns:
+    54px
+    minmax(180px, 1fr)
+    minmax(135px, 0.65fr)
+    80px
+    66px;
+
+  min-height: 39px;
+
+  align-items: center;
+
+  padding:
+    0
+    10px;
+
+  border-bottom:
+    1px solid
+    #e3eaf1;
+
+  color: #334f69;
+
+  font-size: 10px;
+}
+
+
+.log-sheet-item-row:last-child {
+  border-bottom: 0;
+}
+
+
+.log-sheet-item-row:hover {
+  background: #f8fbfe;
+}
+
+
+.log-sheet-item-row > * {
+  min-width: 0;
+}
+
+
+.log-sheet-item-row__order,
+.log-sheet-item-row__unit {
+  color: #73869a;
+
+  font-size: 9px;
+  font-weight: 850;
+
+  text-align: center;
+}
+
+
+.log-sheet-item-row__name {
+  overflow: hidden;
+
+  padding-right: 12px;
+
+  color: #203e5c;
+
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1.35;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.log-sheet-item-row__tag {
+  overflow: hidden;
+
+  padding-right: 10px;
+
+  color: #53708b;
+
+  font-size: 9px;
+  font-weight: 750;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.log-sheet-item-row > button {
+  min-height: 27px;
+
+  padding:
+    0
+    9px;
+
+  border:
+    1px solid
+    #b8cbdd;
+
+  border-radius: 7px;
+
+  background: #f4f8fc;
+
+  color: #53718e;
+
+  font-size: 9px;
+  font-weight: 850;
+}
+
+
+.log-sheet-item-row > button:disabled {
+  cursor: not-allowed;
+
+  opacity: 0.55;
+}
+
+
+.log-sheet-item-list {
+  max-height:
+    min(
+      620px,
+      calc(100vh - 270px)
+    );
+
+  overflow-y: auto;
+}
