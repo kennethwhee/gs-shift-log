@@ -6457,6 +6457,35 @@ function installIntegratedControlFixedPageStyles(
   가로 또는 세로 중 먼저 닿는 방향까지만 축소한다.
 ========================================================= */
 
+/* =========================================================
+  통합 제어실 고정 A4 페이지 맞춤
+
+  원칙
+
+  1. 페이지 구분
+     Excel 원본 그대로 유지
+
+  2. 가로 크기
+     Excel 인쇄 배율 그대로 사용
+
+     TGO  : 48%
+     BCO1 : 50%
+     BCO2 : 54%
+
+  3. 세로 크기
+     남는 위·아래 공간을
+     실제 데이터 행 높이에 분배한다.
+
+     따라서 마지막 페이지도
+     아래쪽이 크게 비지 않고
+     칸이 페이지 높이를 최대한 채운다.
+
+  4. 제목부
+     지나치게 커지지 않도록
+     첫 페이지 상단 4행,
+     이후 페이지 첫 행은 고정한다.
+========================================================= */
+
 function fitIntegratedControlFixedPages(
   previewWindow
 ) {
@@ -6469,12 +6498,52 @@ function fitIntegratedControlFixedPages(
   }
 
 
-  [
+  const pages = [
     ...previewDocument.querySelectorAll(
       ".log-sheet-fixed-print-page"
     )
-  ].forEach(
-    page => {
+  ];
+
+
+  if (!pages.length) {
+    return;
+  }
+
+
+  const pageRanges =
+    getIntegratedControlFixedPageRanges();
+
+
+  /*
+    Excel 원본 인쇄 배율
+
+    config:
+    TGO  48
+    BCO1 50
+    BCO2 54
+  */
+
+  const configuredScale =
+    Math.max(
+      0.05,
+      Math.min(
+        1,
+        Number(
+          state.sheetConfig
+            ?.print
+            ?.scale ||
+          100
+        ) /
+        100
+      )
+    );
+
+
+  pages.forEach(
+    (
+      page,
+      pageIndex
+    ) => {
       const viewport =
         page.querySelector(
           ".log-sheet-fixed-print-page__viewport"
@@ -6502,85 +6571,407 @@ function fitIntegratedControlFixedPages(
       }
 
 
-      /*
-        이전 측정값 제거
-      */
+      const rows = [
+        ...table.querySelectorAll(
+          "tbody > tr"
+        )
+      ];
+
+
+      if (!rows.length) {
+        return;
+      }
+
+
+      /* ===================================================
+        이전 맞춤 결과 초기화
+      ==================================================== */
 
       scaledContent.style.transform =
         "none";
 
 
+      rows.forEach(
+        row => {
+          /*
+            최초 실행 시
+            renderGrid가 만든 원래 inline 높이를 기억한다.
+          */
+
+          if (
+            row.dataset
+              .fixedPrintOriginalHeight ===
+            undefined
+          ) {
+            row.dataset
+              .fixedPrintOriginalHeight =
+              row.style.height ||
+              "";
+          }
+
+
+          row.style.height =
+            row.dataset
+              .fixedPrintOriginalHeight ||
+            "";
+
+
+          delete row.dataset
+            .fixedPrintFilledHeight;
+        }
+      );
+
+
+      /*
+        브라우저에 초기 높이 재계산을 요청한다.
+      */
+
+      void table.offsetHeight;
+
+
       const availableWidth =
-        viewport.clientWidth;
+        Math.max(
+          1,
+          viewport.clientWidth
+        );
 
 
       const availableHeight =
-        viewport.clientHeight;
+        Math.max(
+          1,
+          viewport.clientHeight
+        );
 
 
       const naturalWidth =
         Math.max(
+          1,
           table.scrollWidth,
-          scaledContent.scrollWidth,
-          1
+          table.getBoundingClientRect()
+            .width
+        );
+
+
+      /*
+        Excel 배율을 기본값으로 한다.
+
+        혹시 브라우저 계산 오차 때문에
+        가로가 A4를 넘는 경우에만
+        아주 조금 더 축소한다.
+      */
+
+      const widthFitScale =
+        availableWidth /
+        naturalWidth;
+
+
+      const baseScale =
+        Math.max(
+          0.05,
+          Math.min(
+            configuredScale,
+            widthFitScale
+          )
+        );
+
+
+      /*
+        실제 각 행의 자연 높이
+      */
+
+      const rowNaturalHeights =
+        rows.map(
+          row =>
+            Math.max(
+              1,
+              row.getBoundingClientRect()
+                .height
+            )
         );
 
 
       const naturalHeight =
         Math.max(
+          1,
           table.scrollHeight,
-          scaledContent.scrollHeight,
-          1
-        );
-
-
-      const widthScale =
-        availableWidth /
-        naturalWidth;
-
-
-      const heightScale =
-        availableHeight /
-        naturalHeight;
-
-
-      /*
-        확대는 하지 않는다.
-        원본보다 클 경우 100%를 유지한다.
-      */
-
-      const scale =
-        Math.max(
-          0.05,
-          Math.min(
-            1,
-            widthScale,
-            heightScale
+          rowNaturalHeights.reduce(
+            (
+              total,
+              height
+            ) =>
+              total +
+              height,
+            0
           )
         );
 
 
+      /*
+        현재 Excel 배율로 출력했을 때
+        A4 안에서 사용할 수 있는
+        원본 좌표계 기준 높이
+      */
+
+      const targetNaturalHeight =
+        availableHeight /
+        baseScale;
+
+
+      /* ===================================================
+        제목부는 그대로 유지
+
+        첫 페이지:
+        제목 / Shift / 헤더 등이 있으므로 4행 유지
+
+        2페이지 이후:
+        첫 표 헤더 1행 유지
+      ==================================================== */
+
+      const fixedHeaderRowCount =
+        pageIndex ===
+          0
+          ? Math.min(
+              4,
+              rows.length
+            )
+          : Math.min(
+              1,
+              rows.length
+            );
+
+
+      const stretchRows =
+        rows.slice(
+          fixedHeaderRowCount
+        );
+
+
+      const stretchHeights =
+        rowNaturalHeights.slice(
+          fixedHeaderRowCount
+        );
+
+
+      const stretchNaturalHeight =
+        stretchHeights.reduce(
+          (
+            total,
+            height
+          ) =>
+            total +
+            height,
+          0
+        );
+
+
+      const remainingNaturalHeight =
+        targetNaturalHeight -
+        naturalHeight;
+
+
+      let fillFactor =
+        1;
+
+
+      /* ===================================================
+        아래쪽 공간이 남는 경우
+
+        데이터 행 높이에만
+        남은 공간을 골고루 배분
+      ==================================================== */
+
+      if (
+        remainingNaturalHeight >
+          1 &&
+        stretchRows.length >
+          0 &&
+        stretchNaturalHeight >
+          0
+      ) {
+        fillFactor =
+          (
+            stretchNaturalHeight +
+            remainingNaturalHeight
+          ) /
+          stretchNaturalHeight;
+
+
+        stretchRows.forEach(
+          (
+            row,
+            index
+          ) => {
+            const originalHeight =
+              stretchHeights[
+                index
+              ] ||
+              1;
+
+
+            const filledHeight =
+              Math.max(
+                originalHeight,
+                originalHeight *
+                fillFactor
+              );
+
+
+            row.style.height =
+              `${filledHeight}px`;
+
+
+            row.dataset
+              .fixedPrintFilledHeight =
+              filledHeight.toFixed(
+                2
+              );
+          }
+        );
+
+
+        /*
+          행 높이를 적용한 뒤
+          다시 한번 layout 계산
+        */
+
+        void table.offsetHeight;
+
+
+        /*
+          브라우저 border 계산 차이로
+          몇 px 정도 남는 공간이 생기면
+          마지막 데이터 행에 추가한다.
+        */
+
+        const filledNaturalHeight =
+          Math.max(
+            table.scrollHeight,
+            table.getBoundingClientRect()
+              .height
+          );
+
+
+        const finalRemaining =
+          targetNaturalHeight -
+          filledNaturalHeight;
+
+
+        if (
+          finalRemaining >
+            1 &&
+          stretchRows.length >
+            0
+        ) {
+          const lastRow =
+            stretchRows[
+              stretchRows.length -
+              1
+            ];
+
+
+          const currentLastHeight =
+            Math.max(
+              1,
+              lastRow
+                .getBoundingClientRect()
+                .height
+            );
+
+
+          lastRow.style.height =
+            `${
+              currentLastHeight +
+              finalRemaining
+            }px`;
+        }
+      }
+
+
+      /* ===================================================
+        최종 Excel 배율 적용
+
+        가로 글씨·열 너비·테두리 비율은
+        원본 Excel 배율 그대로 유지한다.
+      ==================================================== */
+
       scaledContent.style.transform =
-        `scale(${scale})`;
+        `scale(${baseScale})`;
+
+
+      scaledContent.style
+        .transformOrigin =
+        "top left";
 
 
       page.dataset.printScale =
-        scale.toFixed(
+        baseScale.toFixed(
           4
         );
+
+
+      page.dataset.rowFillFactor =
+        fillFactor.toFixed(
+          4
+        );
+
+
+      const range =
+        pageRanges[
+          pageIndex
+        ] ||
+        null;
+
+
+      if (range) {
+        page.dataset
+          .excelStartRow =
+          String(
+            range.startRow
+          );
+
+
+        page.dataset
+          .excelEndRow =
+          String(
+            range.endRow
+          );
+      }
     }
   );
 }
 
 
 /* =========================================================
-  stylesheet와 폰트가 로드되는 시점 차이를 고려해
-  여러 번 짧게 재측정
+  새창 미리보기 배율 재계산
+
+  - 창이 열린 직후
+  - CSS / 폰트 로딩 후
+  - 창 크기 변경
+  - 실제 인쇄 직전
+
+  인쇄 직전에도 한 번 더 계산하여
+  @media print 적용 후 행 높이까지 정확히 맞춘다.
 ========================================================= */
 
 function scheduleIntegratedControlFixedPageFit(
   previewWindow
 ) {
+  const runFit =
+    () => {
+      if (
+        !previewWindow ||
+        previewWindow.closed
+      ) {
+        return;
+      }
+
+
+      fitIntegratedControlFixedPages(
+        previewWindow
+      );
+    };
+
+
   [
     0,
     120,
@@ -6589,15 +6980,7 @@ function scheduleIntegratedControlFixedPageFit(
   ].forEach(
     delay => {
       window.setTimeout(
-        () => {
-          if (
-            !previewWindow?.closed
-          ) {
-            fitIntegratedControlFixedPages(
-              previewWindow
-            );
-          }
-        },
+        runFit,
         delay
       );
     }
@@ -6606,12 +6989,70 @@ function scheduleIntegratedControlFixedPageFit(
 
   previewWindow?.addEventListener(
     "resize",
+    runFit
+  );
+
+
+  /*
+    인쇄용 CSS가 적용되는 순간
+    다시 실제 A4 크기에 맞춘다.
+  */
+
+  previewWindow?.addEventListener(
+    "beforeprint",
+    runFit
+  );
+
+
+  /*
+    인쇄창을 닫은 뒤에는
+    다시 화면용 크기로 복원
+  */
+
+  previewWindow?.addEventListener(
+    "afterprint",
     () => {
-      fitIntegratedControlFixedPages(
-        previewWindow
+      window.setTimeout(
+        runFit,
+        0
       );
     }
   );
+
+
+  /*
+    Chromium의 print media 변경도 감시
+  */
+
+  const printMedia =
+    previewWindow
+      ?.matchMedia
+      ?.("print");
+
+
+  if (
+    printMedia &&
+    typeof printMedia
+      .addEventListener ===
+      "function"
+  ) {
+    printMedia.addEventListener(
+      "change",
+      event => {
+        if (
+          event.matches
+        ) {
+          runFit();
+
+        } else {
+          window.setTimeout(
+            runFit,
+            0
+          );
+        }
+      }
+    );
+  }
 }
 
 function openLogSheetPreviewWindow(options = {}) {
