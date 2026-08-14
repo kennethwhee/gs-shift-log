@@ -23,7 +23,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260814-aux-status-gap1"
+    href="style.css?v=20260814-morning-output-folder-status1"
   >
 
 
@@ -57,7 +57,7 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 <script
-  src="script.js?v=20260814-morning-team-picker1"
+  src="script.js?v=20260814-morning-output-folder-status1"
   defer
 ></script>
 
@@ -7165,23 +7165,27 @@
     </button>
 
 
-    <span
-      class="efficiency-morning-meeting-output-folder-status"
-      id="efficiencyMorningMeetingOutputFolderStatus"
-      title="브라우저 기본 다운로드를 사용합니다."
-      aria-live="polite"
-    >
-      저장 폴더 · 기본 다운로드
-    </span>
+<div
+  class="efficiency-morning-meeting-output-folder-control"
+>
+  <button
+    type="button"
+    class="secondary-button"
+    id="selectEfficiencyMorningMeetingOutputFolderButton"
+    title="최종 엑셀 저장 위치를 설정합니다."
+  >
+    저장 위치
+  </button>
 
-    <button
-      type="button"
-      class="secondary-button"
-      id="selectEfficiencyMorningMeetingOutputFolderButton"
-      title="최종 엑셀 저장 위치를 설정합니다."
-    >
-      저장 위치
-    </button>
+  <span
+    class="efficiency-morning-meeting-output-folder-status"
+    id="efficiencyMorningMeetingOutputFolderStatus"
+    title="브라우저 기본 다운로드를 사용합니다."
+    aria-live="polite"
+  >
+    저장 폴더 · 기본 다운로드
+  </span>
+</div>
 
 
     <button

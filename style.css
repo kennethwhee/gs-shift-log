@@ -99050,77 +99050,32 @@ button:disabled {
 
 
 /* =========================================================
-  최종 엑셀 저장 위치 버튼
+  최종 엑셀 저장 위치 버튼 · 상태 문구
 ========================================================= */
 
 #efficiencyMorningMeetingView
-#efficiencyMorningMeetingOutputFolderStatus {
-  display: block;
+.efficiency-morning-meeting-output-folder-control {
+  display: flex;
 
-  flex: 0 1 154px;
+  flex: 0 0 126px;
+  flex-direction: column;
 
-  min-width: 92px;
-  max-width: 154px;
-  height: 28px;
-  padding: 0 9px;
+  width: 126px;
+  min-width: 0;
 
-  overflow: hidden;
+  align-items: stretch;
+  justify-content: center;
 
-  border: 1px solid #d8e3ee;
-  border-radius: 7px;
-
-  background: #f8fafc;
-
-  color: #718297;
-
-  font-size: 9px;
-  font-weight: 750;
-  line-height: 26px;
-
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  gap: 3px;
 }
 
-
-#efficiencyMorningMeetingView
-#efficiencyMorningMeetingOutputFolderStatus.is-selected {
-  border-color: #c7daee;
-
-  background: #f1f7fe;
-
-  color: #376da8;
-}
-
-
-#efficiencyMorningMeetingView
-#efficiencyMorningMeetingOutputFolderStatus.has-permission-warning {
-  border-color: #e6bd81;
-
-  background: #fff8eb;
-
-  color: #a56a1a;
-}
-
-
-@media (max-width: 760px) {
-
-  #efficiencyMorningMeetingView
-  #efficiencyMorningMeetingOutputFolderStatus {
-    grid-column:
-      1 /
-      -1;
-
-    width: 100%;
-    max-width: none;
-  }
-}
 
 #efficiencyMorningMeetingView
 #selectEfficiencyMorningMeetingOutputFolderButton {
   flex: 0 0 auto;
 
-  min-width: 78px;
+  width: 100%;
+  min-width: 0;
   height: 32px;
   padding: 0 10px;
 
@@ -99161,6 +99116,78 @@ button:disabled {
   background: #f1f7fe;
 }
 
+
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingOutputFolderStatus {
+  display: block;
+
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  padding: 0 2px;
+
+  overflow: hidden;
+
+  border: 0;
+  border-radius: 0;
+
+  background: transparent;
+
+  color: #7b8b9e;
+
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.2;
+
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingOutputFolderStatus.is-selected {
+  color: #4776aa;
+}
+
+
+#efficiencyMorningMeetingView
+#efficiencyMorningMeetingOutputFolderStatus.has-permission-warning {
+  color: #a56a1a;
+}
+
+
+@media (max-width: 1000px) {
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-output-folder-control {
+    flex: 1 1 0;
+
+    width: auto;
+    max-width: none;
+  }
+}
+
+
+@media (max-width: 760px) {
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-output-folder-control {
+    grid-column:
+      1 /
+      -1;
+
+    width: 100%;
+  }
+
+
+  #efficiencyMorningMeetingView
+  #efficiencyMorningMeetingOutputFolderStatus {
+    width: 100%;
+
+    font-size: 8px;
+  }
+}
 
 /* =========================================================
   모바일
