@@ -903,7 +903,7 @@
           state.generatedValues =
             createGeneratedSnapshot();
 
-          renderGrid();
+          renderGridIfPreviewVisible();
         }
 
         updateDirtyState();
@@ -2549,6 +2549,24 @@ function renderLoggingItemList() {
   );
 }
 
+  /*
+    본 화면에서는 Excel 전체 Grid를 만들지 않는다.
+
+    기존 inline preview가 실제로 열린 경우에만
+    Grid를 다시 그린다.
+
+    새창 미리보기는
+    cloneGridForPreviewWindow()에서 별도로 렌더링한다.
+  */
+  function renderGridIfPreviewVisible() {
+    if (
+      elements.previewSection &&
+      !elements.previewSection.hidden
+    ) {
+      renderGrid();
+    }
+  }
+
   function renderGrid() {
     const sheet =
       state.workbook?.Sheets?.[
@@ -2971,19 +2989,21 @@ function renderLoggingItemList() {
     const dateHeader =
       headers.date;
 
+
+    /*
+      작성일은 실제 출력물에서
+      수기로 작성한다.
+
+      저장자료 구분용 날짜는
+      숨겨진 logSheetDate 값을 계속 사용하지만,
+      Excel 날짜 셀에는 자동 입력하지 않는다.
+    */
     if (
-      dateHeader?.address &&
-      !Object.prototype.hasOwnProperty.call(
-        state.values,
-        dateHeader.address
-      )
+      dateHeader?.address
     ) {
       state.values[
         dateHeader.address
-      ] = formatDateTemplate(
-        dateHeader.valueTemplate,
-        elements.date.value
-      );
+      ] = "";
     }
 
     const shiftTeamHeader =
@@ -3392,7 +3412,7 @@ function applyRecord(
   */
   renderLoggingItemList();
 
-  renderGrid();
+  renderGridIfPreviewVisible();
 
   setDirty(false);
 }
@@ -3917,7 +3937,7 @@ async function loadRecord(
     renderTabs();
     renderAuxiliaryControls();
     renderLoggingItemList();
-    renderGrid();
+    renderGridIfPreviewVisible();
 
     await loadRecord({
       skipDirtyConfirmation: true
@@ -3981,7 +4001,7 @@ async function loadRecord(
 
     updateRevisionText();
     renderAuxiliaryControls();
-    renderGrid();
+    renderGridIfPreviewVisible();
 
     updateDirtyState();
 
@@ -5450,6 +5470,504 @@ function applyAddedLoggingItemsToPreview() {
   );
 }
 
+function cloneGridForPreviewWindow() {
+  /*
+    기본 Grid는 화면 초기화 과정에서 이미 만들어져 있다.
+
+    미리보기 버튼을 누를 때
+    전체 renderGrid()를 다시 실행하지 않고
+    기존 Grid를 복제해서 사용한다.
+  */
+  /*
+    미리보기 창을 열 때만
+    현재 Log Sheet 상태 기준으로 Grid를 한 번 생성한다.
+
+    본 화면 초기 진입에서는 생성하지 않는다.
+  */
+  renderGrid();
+
+
+  const previewGrid =
+    elements.grid.cloneNode(
+      true
+    );
+
+
+  /*
+    textarea/select/input의 현재 값은
+    cloneNode만으로 완전히 전달되지 않을 수 있으므로
+    실제 값을 복사한다.
+  */
+  const sourceControls = [
+    ...elements.grid.querySelectorAll(
+      "textarea, input, select"
+    )
+  ];
+
+
+  const clonedControls = [
+    ...previewGrid.querySelectorAll(
+      "textarea, input, select"
+    )
+  ];
+
+
+  sourceControls.forEach(
+    (
+      control,
+      index
+    ) => {
+      const cloned =
+        clonedControls[index];
+
+
+      if (!cloned) {
+        return;
+      }
+
+
+      cloned.value =
+        control.value;
+
+
+      if (
+        cloned instanceof
+          HTMLTextAreaElement
+      ) {
+        cloned.textContent =
+          control.value;
+      }
+
+
+      if (
+        cloned instanceof
+          HTMLSelectElement
+      ) {
+        cloned.value =
+          control.value;
+      }
+    }
+  );
+
+
+  /*
+    Logging 항목 수정/추가 내용은
+    원본 화면 Grid를 건드리지 않고
+    복제한 Grid에만 적용한다.
+  */
+  const originalGrid =
+    elements.grid;
+
+
+  try {
+    elements.grid =
+      previewGrid;
+
+
+    applyLoggingItemDraftsToPreview();
+
+    applyAddedLoggingItemsToPreview();
+
+  } finally {
+    elements.grid =
+      originalGrid;
+  }
+
+
+  /*
+    새창은 미리보기 전용이므로
+    입력 컨트롤을 일반 텍스트로 변환한다.
+  */
+  [
+    ...previewGrid.querySelectorAll(
+      "textarea, input, select"
+    )
+  ].forEach(
+    control => {
+      let text =
+        control.value;
+
+
+      if (
+        control instanceof
+          HTMLSelectElement
+      ) {
+        text =
+          control.options[
+            control.selectedIndex
+          ]?.textContent ||
+          control.value;
+      }
+
+
+      const value =
+        document.createElement(
+          "span"
+        );
+
+
+      value.className =
+        "log-sheet-cell-value";
+
+
+      value.textContent =
+        text || "";
+
+
+      control.replaceWith(
+        value
+      );
+    }
+  );
+
+
+  return previewGrid;
+}
+
+
+/* =========================================================
+  Log Sheet 새창 미리보기
+========================================================= */
+
+function openLogSheetPreviewWindow(options = {}) {
+  if (
+    state.isBusy
+  ) {
+    return;
+  }
+
+
+  /*
+    사용자 클릭 이벤트 안에서
+    새 창을 먼저 열어 팝업 차단을 방지한다.
+  */
+  const autoPrint =
+    options.autoPrint ===
+    true;
+
+  const previewWindow =
+    window.open(
+      "",
+      "_blank",
+      [
+        "popup=yes",
+        "width=1500",
+        "height=950",
+        "resizable=yes",
+        "scrollbars=yes"
+      ].join(",")
+    );
+
+
+  if (
+    !previewWindow
+  ) {
+    window.alert(
+      "미리보기 창이 차단되었습니다.\n브라우저에서 팝업을 허용한 뒤 다시 눌러 주세요."
+    );
+
+    return;
+  }
+
+
+  const title =
+    `${state.sheetConfig?.title || "Log Sheet"} · 미리보기`;
+
+
+  const previewDocument =
+    previewWindow.document;
+
+
+  previewDocument.open();
+
+  previewDocument.write(
+    [
+      "<!DOCTYPE html>",
+      '<html lang="ko">',
+      "<head>",
+      '<meta charset="UTF-8">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+      "<title>Log Sheet 미리보기</title>",
+      "</head>",
+      "<body>",
+      '<div class="log-sheet-preview-window__toolbar">',
+      '  <strong id="logSheetPreviewWindowTitle">Log Sheet 미리보기</strong>',
+      '  <div>',
+      '    <button type="button" id="logSheetPreviewPrintButton">인쇄</button>',
+      '    <button type="button" id="logSheetPreviewCloseButton">닫기</button>',
+      "  </div>",
+      "</div>",
+      '<main class="log-sheet-app log-sheet-preview-window__root" id="logSheetPreviewWindowRoot">',
+      '  <div class="log-sheet-preview-window__loading">',
+      "    미리보기를 준비하고 있습니다.",
+      "  </div>",
+      "</main>",
+      "</body>",
+      "</html>"
+    ].join("")
+  );
+
+  previewDocument.close();
+
+
+  previewDocument.title =
+    title;
+
+
+  const titleElement =
+    previewDocument.getElementById(
+      "logSheetPreviewWindowTitle"
+    );
+
+
+  if (
+    titleElement
+  ) {
+    titleElement.textContent =
+      title;
+  }
+
+
+  /*
+    현재 Log Sheet에 적용된 stylesheet를
+    그대로 새창에도 적용한다.
+  */
+  [
+    ...document.querySelectorAll(
+      'link[rel="stylesheet"]'
+    )
+  ].forEach(
+    sourceLink => {
+      const link =
+        previewDocument.createElement(
+          "link"
+        );
+
+
+      link.rel =
+        "stylesheet";
+
+
+      link.href =
+        sourceLink.href;
+
+
+      previewDocument.head.appendChild(
+        link
+      );
+    }
+  );
+
+
+  [
+    ...document.querySelectorAll(
+      "style"
+    )
+  ].forEach(
+    sourceStyle => {
+      previewDocument.head.appendChild(
+        sourceStyle.cloneNode(
+          true
+        )
+      );
+    }
+  );
+
+
+  const previewStyle =
+    previewDocument.createElement(
+      "style"
+    );
+
+
+  previewStyle.textContent = `
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+    }
+
+    body {
+      overflow: auto;
+    }
+
+    .log-sheet-preview-window__toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      background: #ffffff;
+      border-bottom: 1px solid #d9e4ef;
+    }
+
+    .log-sheet-preview-window__toolbar > div {
+      display: flex;
+      gap: 6px;
+    }
+
+    .log-sheet-preview-window__toolbar button {
+      min-height: 34px;
+      padding: 0 14px;
+      border: 1px solid #b9cce0;
+      border-radius: 8px;
+      background: #ffffff;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .log-sheet-preview-window__root {
+      width: max-content;
+      min-width: 100%;
+      padding: 12px;
+      box-sizing: border-box;
+    }
+
+    .log-sheet-preview-window__root
+    .log-sheet-grid-shell {
+      display: block !important;
+      max-height: none !important;
+      overflow: visible !important;
+    }
+
+    .log-sheet-preview-window__loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 240px;
+      font-weight: 700;
+    }
+
+    @media print {
+      .log-sheet-preview-window__toolbar {
+        display: none !important;
+      }
+
+      .log-sheet-preview-window__root {
+        padding: 0;
+      }
+    }
+  `;
+
+
+  previewDocument.head.appendChild(
+    previewStyle
+  );
+
+
+  previewDocument
+    .getElementById(
+      "logSheetPreviewPrintButton"
+    )
+    ?.addEventListener(
+      "click",
+      () => previewWindow.print()
+    );
+
+
+  previewDocument
+    .getElementById(
+      "logSheetPreviewCloseButton"
+    )
+    ?.addEventListener(
+      "click",
+      () => previewWindow.close()
+    );
+
+
+  /*
+    먼저 새창을 화면에 보여준 뒤
+    기존 Grid 복제를 수행한다.
+  */
+  window.setTimeout(
+    () => {
+      try {
+        const previewGrid =
+          cloneGridForPreviewWindow();
+
+
+        const gridShell =
+          previewDocument.createElement(
+            "div"
+          );
+
+
+        gridShell.className =
+          elements.gridShell?.className ||
+          "log-sheet-grid-shell";
+
+
+        gridShell.hidden =
+          false;
+
+
+        gridShell.appendChild(
+          previewDocument.importNode(
+            previewGrid,
+            true
+          )
+        );
+
+
+        const root =
+          previewDocument.getElementById(
+            "logSheetPreviewWindowRoot"
+          );
+
+
+        root?.replaceChildren(
+          gridShell
+        );
+
+
+        previewWindow.focus();
+
+
+        if (
+          autoPrint
+        ) {
+          window.setTimeout(
+            () => {
+              if (
+                !previewWindow.closed
+              ) {
+                previewWindow.print();
+              }
+            },
+            150
+          );
+        }
+
+      } catch (
+        error
+      ) {
+        console.error(
+          "Log Sheet 새창 미리보기 실패:",
+          error
+        );
+
+
+        const root =
+          previewDocument.getElementById(
+            "logSheetPreviewWindowRoot"
+          );
+
+
+        if (
+          root
+        ) {
+          root.textContent =
+            `미리보기를 만들지 못했습니다: ${error.message}`;
+        }
+      }
+    },
+    0
+  );
+}
+
 function setPreviewOpen(
   open
 ) {
@@ -5489,11 +6007,10 @@ function setPreviewOpen(
 }
 
   function printCurrentSheet() {
-    updatePrintHeading();
-
-    window.requestAnimationFrame(
-      () => window.print()
-    );
+    openLogSheetPreviewWindow({
+      autoPrint:
+        true
+    });
   }
 
 function bindEvents() {
@@ -5524,11 +6041,7 @@ function bindEvents() {
 
   elements.previewButton.addEventListener(
     "click",
-    () => {
-      setPreviewOpen(
-        elements.previewSection.hidden
-      );
-    }
+    openLogSheetPreviewWindow
   );
 
   elements.downloadButton.addEventListener(
@@ -5701,7 +6214,7 @@ function bindEvents() {
       }
 
       renderLoggingItemList();
-      renderGrid();
+      renderGridIfPreviewVisible();
       renderAuxiliaryControls();
 
       await loadRecord({
