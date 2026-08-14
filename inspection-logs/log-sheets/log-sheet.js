@@ -5808,6 +5808,812 @@ function cloneGridForPreviewWindow() {
   Log Sheet 새창 미리보기
 ========================================================= */
 
+/* =========================================================
+  통합 제어실 Log Sheet
+  원본 Excel 고정 인쇄 페이지
+
+  TGO
+  - 1Page : 1 ~ 54
+  - 2Page : 55 ~ 104
+  - 3Page : 105 ~ 120
+
+  BCO1
+  - 1Page : 1 ~ 38
+  - 2Page : 39 ~ 85
+
+  BCO2
+  - 1Page : 1 ~ 47
+  - 2Page : 48 ~ 86
+========================================================= */
+
+function getIntegratedControlFixedPageRanges() {
+  switch (
+    state.sheetConfig?.key
+  ) {
+    case "integrated-tgo":
+      return [
+        {
+          startRow:
+            1,
+
+          endRow:
+            54
+        },
+
+        {
+          startRow:
+            55,
+
+          endRow:
+            104
+        },
+
+        {
+          startRow:
+            105,
+
+          endRow:
+            120
+        }
+      ];
+
+
+    case "integrated-bco1":
+      return [
+        {
+          startRow:
+            1,
+
+          endRow:
+            38
+        },
+
+        {
+          startRow:
+            39,
+
+          endRow:
+            85
+        }
+      ];
+
+
+    case "integrated-bco2":
+      return [
+        {
+          startRow:
+            1,
+
+          endRow:
+            47
+        },
+
+        {
+          startRow:
+            48,
+
+          endRow:
+            86
+        }
+      ];
+
+
+    default:
+      return [];
+  }
+}
+
+
+/* =========================================================
+  Preview 행 → 원본 Excel 행 번호
+========================================================= */
+
+function getPreviewExcelRowNumber(
+  row
+) {
+  const cell =
+    row?.querySelector(
+      "td[data-cell-address]"
+    );
+
+
+  const address =
+    String(
+      cell?.dataset
+        ?.cellAddress ||
+      ""
+    ).trim();
+
+
+  const match =
+    address.match(
+      /^[A-Z]+(\d+)$/
+    );
+
+
+  if (!match) {
+    return null;
+  }
+
+
+  const rowNumber =
+    Number(
+      match[1]
+    );
+
+
+  return Number.isInteger(
+    rowNumber
+  )
+    ? rowNumber
+    : null;
+}
+
+
+/* =========================================================
+  지정 Excel 행만 남긴 Grid 생성
+========================================================= */
+
+function createFixedPageGrid(
+  previewGrid,
+  previewDocument,
+  range
+) {
+  const pageGrid =
+    previewDocument.importNode(
+      previewGrid,
+      true
+    );
+
+
+  pageGrid.removeAttribute(
+    "id"
+  );
+
+
+  const rows = [
+    ...pageGrid.querySelectorAll(
+      ".log-sheet-table tbody > tr"
+    )
+  ];
+
+
+  let previousExcelRow =
+    null;
+
+
+  rows.forEach(
+    row => {
+      const currentExcelRow =
+        getPreviewExcelRowNumber(
+          row
+        );
+
+
+      /*
+        사용자가 추가한 Logging 행은
+        원본 주소가 없으므로 바로 앞 원본 행과
+        같은 페이지에 배치한다.
+      */
+      if (
+        currentExcelRow !==
+          null
+      ) {
+        previousExcelRow =
+          currentExcelRow;
+      }
+
+
+      const effectiveExcelRow =
+        currentExcelRow ??
+        previousExcelRow;
+
+
+      const keepRow =
+        effectiveExcelRow !==
+          null &&
+        effectiveExcelRow >=
+          range.startRow &&
+        effectiveExcelRow <=
+          range.endRow;
+
+
+      if (!keepRow) {
+        row.remove();
+      }
+    }
+  );
+
+
+  return pageGrid;
+}
+
+
+/* =========================================================
+  TGO / BCO1 / BCO2
+  실제 A4 페이지 묶음 생성
+========================================================= */
+
+function buildIntegratedControlFixedPages(
+  previewGrid,
+  previewDocument
+) {
+  const pageRanges =
+    getIntegratedControlFixedPageRanges();
+
+
+  if (!pageRanges.length) {
+    return null;
+  }
+
+
+  const printProfile =
+    getIntegratedControlPrintProfile();
+
+
+  const pages =
+    previewDocument.createElement(
+      "div"
+    );
+
+
+  pages.className =
+    "log-sheet-fixed-print-pages";
+
+
+  pages.dataset.sheetKey =
+    state.sheetConfig?.key ||
+    "";
+
+
+  pageRanges.forEach(
+    (
+      range,
+      pageIndex
+    ) => {
+      const page =
+        previewDocument.createElement(
+          "section"
+        );
+
+
+      page.className =
+        "log-sheet-fixed-print-page";
+
+
+      page.dataset.pageNumber =
+        String(
+          pageIndex + 1
+        );
+
+
+      page.style.setProperty(
+        "--excel-page-margin-top",
+        `${printProfile.marginTopMm}mm`
+      );
+
+
+      page.style.setProperty(
+        "--excel-page-margin-right",
+        `${printProfile.marginRightMm}mm`
+      );
+
+
+      page.style.setProperty(
+        "--excel-page-margin-bottom",
+        `${printProfile.marginBottomMm}mm`
+      );
+
+
+      page.style.setProperty(
+        "--excel-page-margin-left",
+        `${printProfile.marginLeftMm}mm`
+      );
+
+
+      const viewport =
+        previewDocument.createElement(
+          "div"
+        );
+
+
+      viewport.className =
+        "log-sheet-fixed-print-page__viewport";
+
+
+      const scaledContent =
+        previewDocument.createElement(
+          "div"
+        );
+
+
+      scaledContent.className =
+        "log-sheet-fixed-print-page__scaled";
+
+
+      const pageGrid =
+        createFixedPageGrid(
+          previewGrid,
+          previewDocument,
+          range
+        );
+
+
+      scaledContent.appendChild(
+        pageGrid
+      );
+
+
+      viewport.appendChild(
+        scaledContent
+      );
+
+
+      const footer =
+        previewDocument.createElement(
+          "footer"
+        );
+
+
+      footer.className =
+        "log-sheet-fixed-print-page__footer";
+
+
+      const footerLeft =
+        previewDocument.createElement(
+          "span"
+        );
+
+
+      footerLeft.textContent =
+        "설비운영팀";
+
+
+      const footerRight =
+        previewDocument.createElement(
+          "span"
+        );
+
+
+      footerRight.textContent =
+        "포천그린에너지";
+
+
+      footer.append(
+        footerLeft,
+        footerRight
+      );
+
+
+      page.append(
+        viewport,
+        footer
+      );
+
+
+      pages.appendChild(
+        page
+      );
+    }
+  );
+
+
+  return pages;
+}
+
+
+/* =========================================================
+  고정 A4 페이지 전용 CSS
+========================================================= */
+
+function installIntegratedControlFixedPageStyles(
+  previewDocument
+) {
+  if (
+    previewDocument.getElementById(
+      "logSheetFixedExcelPageStyle"
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    previewDocument.createElement(
+      "style"
+    );
+
+
+  style.id =
+    "logSheetFixedExcelPageStyle";
+
+
+  style.textContent = `
+    @page {
+      size: A4 landscape;
+      margin: 0;
+    }
+
+
+    body.has-integrated-control-fixed-pages {
+      background: #dfe5ec !important;
+    }
+
+
+    body.has-integrated-control-fixed-pages
+    .log-sheet-preview-window__root {
+      display: block !important;
+
+      width: 100% !important;
+      min-width: 0 !important;
+
+      padding: 18px !important;
+
+      box-sizing: border-box !important;
+    }
+
+
+    .log-sheet-fixed-print-pages {
+      display: flex;
+
+      width: 100%;
+
+      flex-direction: column;
+      align-items: center;
+
+      gap: 20px;
+    }
+
+
+    .log-sheet-fixed-print-page {
+      position: relative;
+
+      display: block;
+
+      width: 297mm;
+      height: 210mm;
+
+      box-sizing: border-box;
+
+      padding:
+        var(--excel-page-margin-top)
+        var(--excel-page-margin-right)
+        var(--excel-page-margin-bottom)
+        var(--excel-page-margin-left);
+
+      overflow: hidden;
+
+      background: #ffffff;
+
+      box-shadow:
+        0 5px 22px
+        rgba(15, 23, 42, 0.18);
+    }
+
+
+    .log-sheet-fixed-print-page__viewport {
+      position: relative;
+
+      width: 100%;
+      height: 100%;
+
+      overflow: hidden;
+    }
+
+
+    .log-sheet-fixed-print-page__scaled {
+      position: absolute;
+
+      top: 0;
+      left: 0;
+
+      width: max-content;
+
+      transform-origin: top left;
+    }
+
+
+    .log-sheet-fixed-print-page
+    .log-sheet-grid {
+      width: max-content !important;
+      min-width: 0 !important;
+
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+
+    .log-sheet-fixed-print-page
+    .log-sheet-table {
+      width: max-content !important;
+      max-width: none !important;
+
+      margin: 0 !important;
+
+      zoom: 1 !important;
+    }
+
+
+    .log-sheet-fixed-print-page__footer {
+      position: absolute;
+
+      right:
+        var(--excel-page-margin-right);
+
+      bottom:
+        2mm;
+
+      left:
+        var(--excel-page-margin-left);
+
+      display: flex;
+
+      align-items: center;
+      justify-content: space-between;
+
+      color: #444444;
+
+      font-size: 7px;
+      line-height: 1;
+    }
+
+
+    @media print {
+
+      html,
+      body {
+        width: 100% !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        background: #ffffff !important;
+      }
+
+
+      .log-sheet-preview-window__toolbar {
+        display: none !important;
+      }
+
+
+      body.has-integrated-control-fixed-pages
+      .log-sheet-preview-window__root {
+        width: 100% !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+
+      .log-sheet-fixed-print-pages {
+        display: block !important;
+
+        width: 100% !important;
+
+        margin: 0 !important;
+        padding: 0 !important;
+
+        gap: 0 !important;
+      }
+
+
+      .log-sheet-fixed-print-page {
+        width: 297mm !important;
+        height: 210mm !important;
+
+        margin: 0 !important;
+
+        box-shadow: none !important;
+
+        break-after: page !important;
+        page-break-after: always !important;
+      }
+
+
+      .log-sheet-fixed-print-page:last-child {
+        break-after: auto !important;
+        page-break-after: auto !important;
+      }
+
+
+      /*
+        이전 방식의 행 단위 page-break는
+        고정 페이지 내부에서는 사용하지 않는다.
+      */
+
+      .log-sheet-fixed-print-page
+      tr.is-excel-print-break {
+        break-after: auto !important;
+        page-break-after: auto !important;
+      }
+
+
+      /*
+        기존 print CSS의 zoom 값도 제거하고
+        JS가 계산한 페이지별 transform만 사용한다.
+      */
+
+      .log-sheet-fixed-print-page
+      .log-sheet-table {
+        zoom: 1 !important;
+      }
+    }
+  `;
+
+
+  previewDocument.head.appendChild(
+    style
+  );
+}
+
+
+/* =========================================================
+  각 A4 페이지 안에 표 비율 맞춤
+
+  중요:
+  페이지 높이에 억지로 늘이지 않는다.
+
+  원본 비율을 유지한 채
+  가로 또는 세로 중 먼저 닿는 방향까지만 축소한다.
+========================================================= */
+
+function fitIntegratedControlFixedPages(
+  previewWindow
+) {
+  const previewDocument =
+    previewWindow?.document;
+
+
+  if (!previewDocument) {
+    return;
+  }
+
+
+  [
+    ...previewDocument.querySelectorAll(
+      ".log-sheet-fixed-print-page"
+    )
+  ].forEach(
+    page => {
+      const viewport =
+        page.querySelector(
+          ".log-sheet-fixed-print-page__viewport"
+        );
+
+
+      const scaledContent =
+        page.querySelector(
+          ".log-sheet-fixed-print-page__scaled"
+        );
+
+
+      const table =
+        scaledContent?.querySelector(
+          ".log-sheet-table"
+        );
+
+
+      if (
+        !viewport ||
+        !scaledContent ||
+        !table
+      ) {
+        return;
+      }
+
+
+      /*
+        이전 측정값 제거
+      */
+
+      scaledContent.style.transform =
+        "none";
+
+
+      const availableWidth =
+        viewport.clientWidth;
+
+
+      const availableHeight =
+        viewport.clientHeight;
+
+
+      const naturalWidth =
+        Math.max(
+          table.scrollWidth,
+          scaledContent.scrollWidth,
+          1
+        );
+
+
+      const naturalHeight =
+        Math.max(
+          table.scrollHeight,
+          scaledContent.scrollHeight,
+          1
+        );
+
+
+      const widthScale =
+        availableWidth /
+        naturalWidth;
+
+
+      const heightScale =
+        availableHeight /
+        naturalHeight;
+
+
+      /*
+        확대는 하지 않는다.
+        원본보다 클 경우 100%를 유지한다.
+      */
+
+      const scale =
+        Math.max(
+          0.05,
+          Math.min(
+            1,
+            widthScale,
+            heightScale
+          )
+        );
+
+
+      scaledContent.style.transform =
+        `scale(${scale})`;
+
+
+      page.dataset.printScale =
+        scale.toFixed(
+          4
+        );
+    }
+  );
+}
+
+
+/* =========================================================
+  stylesheet와 폰트가 로드되는 시점 차이를 고려해
+  여러 번 짧게 재측정
+========================================================= */
+
+function scheduleIntegratedControlFixedPageFit(
+  previewWindow
+) {
+  [
+    0,
+    120,
+    400,
+    900
+  ].forEach(
+    delay => {
+      window.setTimeout(
+        () => {
+          if (
+            !previewWindow?.closed
+          ) {
+            fitIntegratedControlFixedPages(
+              previewWindow
+            );
+          }
+        },
+        delay
+      );
+    }
+  );
+
+
+  previewWindow?.addEventListener(
+    "resize",
+    () => {
+      fitIntegratedControlFixedPages(
+        previewWindow
+      );
+    }
+  );
+}
+
 function openLogSheetPreviewWindow(options = {}) {
   if (
     state.isBusy
@@ -6219,39 +7025,81 @@ function openLogSheetPreviewWindow(options = {}) {
           cloneGridForPreviewWindow();
 
 
-        const gridShell =
-          previewDocument.createElement(
-            "div"
-          );
-
-
-        gridShell.className =
-          elements.gridShell?.className ||
-          "log-sheet-grid-shell";
-
-
-        gridShell.hidden =
-          false;
-
-
-        gridShell.appendChild(
-          previewDocument.importNode(
-            previewGrid,
-            true
-          )
-        );
-
-
         const root =
           previewDocument.getElementById(
             "logSheetPreviewWindowRoot"
           );
 
 
-        root?.replaceChildren(
-          gridShell
-        );
+        const fixedPages =
+          buildIntegratedControlFixedPages(
+            previewGrid,
+            previewDocument
+          );
 
+
+        if (
+          fixedPages
+        ) {
+          /*
+            TGO / BCO1 / BCO2는
+            원본 Excel의 페이지 구분을 그대로 사용한다.
+          */
+
+          installIntegratedControlFixedPageStyles(
+            previewDocument
+          );
+
+
+          previewDocument.body
+            .classList
+            .add(
+              "has-integrated-control-fixed-pages"
+            );
+
+
+          root?.replaceChildren(
+            fixedPages
+          );
+
+
+          scheduleIntegratedControlFixedPageFit(
+            previewWindow
+          );
+
+        } else {
+          /*
+            다른 Log Sheet는
+            기존 단일 Grid 미리보기 유지
+          */
+
+          const gridShell =
+            previewDocument.createElement(
+              "div"
+            );
+
+
+          gridShell.className =
+            elements.gridShell?.className ||
+            "log-sheet-grid-shell";
+
+
+          gridShell.hidden =
+            false;
+
+
+          gridShell.appendChild(
+            previewDocument.importNode(
+              previewGrid,
+              true
+            )
+          );
+
+
+          root?.replaceChildren(
+            gridShell
+          );
+        }
 
         previewWindow.focus();
 
