@@ -140752,20 +140752,17 @@ async function applyMorningMeetingTemplateFile(
       }
 
 
-      const text =
+      const match =
         getCellText(
           cell
         )
           .replaceAll(
             ",",
             ""
+          )
+          .match(
+            /-?\d+(?:\.\d+)?/
           );
-
-
-      const match =
-        text.match(
-          /-?\d+(?:\.\d+)?/
-        );
 
 
       if (
@@ -140832,10 +140829,12 @@ async function applyMorningMeetingTemplateFile(
             match[1]
           );
 
+
         month =
           Number(
             match[2]
           );
+
 
         day =
           Number(
@@ -140862,10 +140861,12 @@ async function applyMorningMeetingTemplateFile(
             match[1]
           );
 
+
         month =
           Number(
             match[2]
           );
+
 
         day =
           Number(
@@ -140924,7 +140925,88 @@ async function applyMorningMeetingTemplateFile(
 
 
   /* =====================================================
-    시트 상단에서 자료 기준일 찾기
+    회의자료 날짜 → 실제 실적 기준일
+
+    예:
+    2026-08-14 회의자료
+    → 2026-08-13 실적
+
+    2026-09-01 회의자료
+    → 2026-08-31 실적
+  ====================================================== */
+
+  const getPreviousSolarSourceDate =
+    value => {
+      const normalizedDate =
+        normalizeSolarDate(
+          value
+        );
+
+
+      if (
+        !normalizedDate
+      ) {
+        return "";
+      }
+
+
+      const [
+        year,
+        month,
+        day
+      ] =
+        normalizedDate
+          .split(
+            "-"
+          )
+          .map(
+            Number
+          );
+
+
+      const date =
+        new Date(
+          Date.UTC(
+            year,
+            month - 1,
+            day
+          )
+        );
+
+
+      date.setUTCDate(
+        date.getUTCDate() -
+        1
+      );
+
+
+      return [
+        String(
+          date.getUTCFullYear()
+        ),
+
+        String(
+          date.getUTCMonth() +
+          1
+        ).padStart(
+          2,
+          "0"
+        ),
+
+        String(
+          date.getUTCDate()
+        ).padStart(
+          2,
+          "0"
+        )
+      ].join(
+        "-"
+      );
+    };
+
+
+  /* =====================================================
+    시트 상단에서 회의자료 날짜 찾기
   ====================================================== */
 
   const findSheetDate =
@@ -141009,7 +141091,7 @@ async function applyMorningMeetingTemplateFile(
 
 
           /*
-            날짜가 Excel 숫자형인 경우도 보조 처리
+            Excel 날짜가 숫자로 저장된 경우
           */
 
           if (
@@ -141070,12 +141152,17 @@ async function applyMorningMeetingTemplateFile(
 
 
   /* =====================================================
-    항목명 아래의 숫자값 찾기
+    항목명 아래 숫자값 찾기
 
     고정 셀 주소를 사용하지 않는다.
 
+    예:
+    일일발전량[kWh]
+    월간발전량[kWh]
+    연간발전량[kWh]
+
     항목명이 병합셀이라면
-    병합된 열 범위 아래쪽에서 값을 찾는다.
+    병합 범위 바로 아래쪽에서 값을 찾는다.
   ====================================================== */
 
   const findMetricValue =
@@ -141161,6 +141248,7 @@ async function applyMorningMeetingTemplateFile(
           ) {
             labelRow =
               row;
+
 
             labelColumn =
               column;
@@ -141295,259 +141383,194 @@ async function applyMorningMeetingTemplateFile(
     };
 
 
-/* =====================================================
+  /* =====================================================
     첨부 Excel에서 태양광 3개 값 추출
-====================================================== */
+  ====================================================== */
+
+  const extractSolarValues =
+    async () => {
+      if (
+        typeof XLSX ===
+          "undefined"
+      ) {
+        throw new Error(
+          "엑셀 분석 라이브러리를 불러오지 못했습니다."
+        );
+      }
 
 
-const extractSolarValues =
-  async () => {
-    if (
-      typeof XLSX ===
-        "undefined"
-    ) {
+      const arrayBuffer =
+        await file
+          .arrayBuffer();
+
+
+      const workbook =
+        XLSX.read(
+          arrayBuffer,
+          {
+            type:
+              "array",
+
+            cellFormula:
+              true,
+
+            cellText:
+              true,
+
+            cellDates:
+              false,
+
+            cellNF:
+              true
+          }
+        );
+
+
+      for (
+        const sheetName of
+          workbook.SheetNames
+      ) {
+        const worksheet =
+          workbook.Sheets[
+            sheetName
+          ];
+
+
+        if (
+          !worksheet
+        ) {
+          continue;
+        }
+
+
+        const solarDailyGeneration =
+          findMetricValue(
+            worksheet,
+            "일일발전량kwh"
+          );
+
+
+        const solarMonthlyCumulative =
+          findMetricValue(
+            worksheet,
+            "월간발전량kwh"
+          );
+
+
+        const solarYearlyCumulative =
+          findMetricValue(
+            worksheet,
+            "연간발전량kwh"
+          );
+
+
+        /*
+          세 항목 모두 존재하는 시트만 사용
+        */
+
+        if (
+          solarDailyGeneration ===
+            null ||
+          solarMonthlyCumulative ===
+            null ||
+          solarYearlyCumulative ===
+            null
+        ) {
+          continue;
+        }
+
+
+        /*
+          엑셀 상단 날짜
+
+          예:
+          일일발전운전현황_08.14.xlsx
+          → 2026-08-14
+        */
+
+        const reportDate =
+          findSheetDate(
+            worksheet
+          );
+
+
+        if (
+          !reportDate
+        ) {
+          throw new Error(
+            "일일발전현황에서 회의자료 날짜를 확인하지 못했습니다."
+          );
+        }
+
+
+        /*
+          실제 데이터 기준일
+
+          2026-08-14
+          → 2026-08-13
+        */
+
+        const sourceDate =
+          getPreviousSolarSourceDate(
+            reportDate
+          );
+
+
+        if (
+          !sourceDate
+        ) {
+          throw new Error(
+            "일일발전현황의 실제 데이터 기준일을 계산하지 못했습니다."
+          );
+        }
+
+
+        return {
+          /*
+            자동수치 실제 기준일
+          */
+          sourceDate,
+
+
+          /*
+            원본 회의자료 날짜
+          */
+          reportDate,
+
+
+          sheetName,
+
+
+          solarDailyGeneration,
+
+
+          solarMonthlyCumulative,
+
+
+          solarYearlyCumulative,
+
+
+          source:
+            "일일발전운전현황 첨부 Excel"
+        };
+      }
+
+
       throw new Error(
-        "엑셀 분석 라이브러리를 불러오지 못했습니다."
+        "태양광 일일·월간·연간 발전량 항목을 찾지 못했습니다."
       );
-    }
+    };
 
 
-    /* =====================================================
-      회의자료 날짜 → 실제 데이터 기준일
-
-      규칙:
-      8/14 회의자료 → 8/13 실적
-      9/1  회의자료 → 8/31 실적
-
-      즉:
-      실제 데이터 기준일 = 회의자료 날짜 - 1일
-    ====================================================== */
-
-    const getPreviousDate =
-      value => {
-        const normalizedDate =
-          String(
-            value ||
-            ""
-          ).trim();
-
-
-        if (
-          !/^\d{4}-\d{2}-\d{2}$/.test(
-            normalizedDate
-          )
-        ) {
-          return "";
-        }
-
-
-        const parsedDate =
-          new Date(
-            `${normalizedDate}T00:00:00.000Z`
-          );
-
-
-        if (
-          Number.isNaN(
-            parsedDate.getTime()
-          )
-        ) {
-          return "";
-        }
-
-
-        parsedDate.setUTCDate(
-          parsedDate.getUTCDate() -
-          1
-        );
-
-
-        return parsedDate
-          .toISOString()
-          .slice(
-            0,
-            10
-          );
-      };
-
-
-    const arrayBuffer =
-      await file
-        .arrayBuffer();
-
-
-    const workbook =
-      XLSX.read(
-        arrayBuffer,
-        {
-          type:
-            "array",
-
-          cellFormula:
-            true,
-
-          cellText:
-            true,
-
-          cellDates:
-            false,
-
-          cellNF:
-            true
-        }
-      );
-
-
-    for (
-      const sheetName of
-        workbook.SheetNames
-    ) {
-      const worksheet =
-        workbook.Sheets[
-          sheetName
-        ];
-
-
-      if (
-        !worksheet
-      ) {
-        continue;
-      }
-
-
-      /* ===================================================
-        태양광 3개 항목
-
-        셀 주소가 아니라
-        항목명을 기준으로 찾는다.
-      ==================================================== */
-
-      const solarDailyGeneration =
-        findMetricValue(
-          worksheet,
-          "일일발전량kwh"
-        );
-
-
-      const solarMonthlyCumulative =
-        findMetricValue(
-          worksheet,
-          "월간발전량kwh"
-        );
-
-
-      const solarYearlyCumulative =
-        findMetricValue(
-          worksheet,
-          "연간발전량kwh"
-        );
-
-
-      if (
-        solarDailyGeneration ===
-          null ||
-        solarMonthlyCumulative ===
-          null ||
-        solarYearlyCumulative ===
-          null
-      ) {
-        continue;
-      }
-
-
-      /* ===================================================
-        엑셀 상단 날짜
-
-        예:
-        일일발전운전현황_08.14
-        → 2026-08-14
-
-        이것은 회의자료 날짜다.
-      ==================================================== */
-
-      const reportDate =
-        findSheetDate(
-          worksheet
-        );
-
-
-      if (
-        !reportDate
-      ) {
-        throw new Error(
-          "일일발전현황에서 회의자료 날짜를 확인하지 못했습니다."
-        );
-      }
-
-
-      /* ===================================================
-        실제 실적 기준일
-
-        2026-08-14
-        ↓
-        2026-08-13
-      ==================================================== */
-
-      const sourceDate =
-        getPreviousDate(
-          reportDate
-        );
-
-
-      if (
-        !sourceDate
-      ) {
-        throw new Error(
-          "일일발전현황의 실제 데이터 기준일을 계산하지 못했습니다."
-        );
-      }
-
-
-      return {
-        /*
-          실제 자동수치 기준일
-        */
-        sourceDate,
-
-
-        /*
-          원본 일일발전현황 날짜
-        */
-        reportDate,
-
-
-        sheetName,
-
-
-        solarDailyGeneration,
-
-
-        solarMonthlyCumulative,
-
-
-        solarYearlyCumulative,
-
-
-        source:
-          "일일발전운전현황 첨부 Excel"
-      };
-    }
-
-
-    throw new Error(
-      "태양광 일일·월간·연간 발전량 항목을 찾지 못했습니다."
-    );
-  };
-
-/* =====================================================
+  /* =====================================================
     추출한 월간·연간 누적값을
     현재 일일 DATA 상태에 합치기
 
     중요:
-    - 자료 기준일이 같은 경우만 적용
-    - 기존 일일 발전량은 그대로 유지
-    - 월간·연간 누적만 첨부 Excel 값을 사용
-====================================================== */
+    - 실제 실적 기준일이 같은 경우만 적용
+    - 기존 태양광 일일발전량은 OIS/일일DATA 값 유지
+    - 월간·연간만 첨부 Excel 누적값 사용
+  ====================================================== */
 
   const applyTemplateSolarToCurrentDailyData =
     () => {
@@ -141596,6 +141619,17 @@ const extractSolarValues =
       }
 
 
+      /*
+        예:
+        첨부파일 8/14
+        → 태양광 실적일 8/13
+
+        자동수치
+        → 8/13
+
+        두 날짜가 일치해야 적용
+      */
+
       if (
         solarDate !==
           dailyDataDate
@@ -141604,7 +141638,9 @@ const extractSolarValues =
           "태양광 누적값 자료 날짜 불일치:",
           {
             solarDate,
-            dailyDataDate
+            dailyDataDate,
+            reportDate:
+              solar.reportDate
           }
         );
 
@@ -141649,13 +141685,29 @@ const extractSolarValues =
       currentState.steamStatus = {
         ...dailyData,
 
+
+        /*
+          월간 누적
+        */
+
         solarMonthlyCumulative:
           solar
             .solarMonthlyCumulative,
 
+
+        /*
+          연간 누적
+        */
+
         solarYearlyCumulative:
           solar
             .solarYearlyCumulative,
+
+
+        /*
+          기존 코드에서 solarCumulative를
+          참조하는 경우도 지원
+        */
 
         solarCumulative: {
           ...existingCumulative,
@@ -141677,19 +141729,41 @@ const extractSolarValues =
           }
         },
 
+
+        /*
+          출처 정보
+        */
+
         solarCumulativeSource:
           solar.source,
+
 
         solarCumulativeSourceDate:
           solar.sourceDate,
 
+
+        solarCumulativeSourceReportDate:
+          solar.reportDate,
+
+
         solarCumulativeSourceSheet:
           solar.sheetName,
 
+
+        /*
+          검증용으로 첨부파일의
+          일일 발전량도 같이 보관
+        */
+
         solarTemplateDailyGeneration:
-          solar.solarDailyGeneration
+          solar
+            .solarDailyGeneration
       };
 
+
+      /* =================================================
+        전력 현황 카드 갱신
+      ================================================== */
 
       if (
         typeof window
@@ -141709,6 +141783,10 @@ const extractSolarValues =
       }
 
 
+      /* =================================================
+        자동수치 미리보기 갱신
+      ================================================== */
+
       if (
         typeof window
           .renderEfficiencyMorningMeetingAutoPreview ===
@@ -141718,6 +141796,10 @@ const extractSolarValues =
           .renderEfficiencyMorningMeetingAutoPreview();
       }
 
+
+      /* =================================================
+        최종 엑셀 버튼 상태 갱신
+      ================================================== */
 
       if (
         typeof window
@@ -141734,10 +141816,11 @@ const extractSolarValues =
 
 
   /* =====================================================
-    일일 DATA가 나중에 복원·조회되는 경우에도
-    태양광 누적값 다시 합치기
+    일일 DATA가 나중에 복원·조회되는 경우
 
-    한 번만 이벤트 연결
+    파일을 먼저 첨부하고
+    OIS/Excel 조회가 나중에 끝나더라도
+    누적값을 다시 합친다.
   ====================================================== */
 
   if (
@@ -141763,7 +141846,7 @@ const extractSolarValues =
 
 
   /* =====================================================
-    기존 첨부 처리
+    기존 일일발전현황 첨부 처리
   ====================================================== */
 
   state.templateFile =
@@ -141832,8 +141915,8 @@ const extractSolarValues =
 
 
     /*
-      분석 도중 다른 파일로 바뀌었으면
-      이전 파일 결과는 무시한다.
+      분석 중 사용자가 다른 파일을 선택했다면
+      이전 파일 결과는 적용하지 않는다.
     */
 
     if (
@@ -141872,6 +141955,8 @@ const extractSolarValues =
         [
           file.name,
 
+          `회의자료 ${solarValues.reportDate}`,
+
           `자료일 ${solarValues.sourceDate}`,
 
           `일일 ${solarValues.solarDailyGeneration} kWh`,
@@ -141885,10 +141970,15 @@ const extractSolarValues =
     }
 
 
-    /*
-      일일 DATA가 이미 있는데 날짜가 다르면
-      사용자에게 바로 알려준다.
-    */
+    /* =================================================
+      현재 자동수치 날짜와 비교
+
+      예:
+      첨부 8/14
+      실제 데이터 8/13
+      자동수치 8/13
+      → 정상
+    ================================================== */
 
     const dailyDataDate =
       String(
@@ -141908,7 +141998,11 @@ const extractSolarValues =
       showMorningMeetingWorkbookError(
         [
           "일일발전현황과 자동수치의 자료 날짜가 다릅니다.",
-          `일일발전현황: ${solarValues.sourceDate}`,
+
+          `회의자료: ${solarValues.reportDate}`,
+
+          `일일발전현황 실적: ${solarValues.sourceDate}`,
+
           `자동수치: ${dailyDataDate}`
         ].join(
           " "
@@ -141929,6 +142023,11 @@ const extractSolarValues =
   } catch (
     error
   ) {
+    /*
+      분석 중 파일이 변경된 경우
+      과거 오류를 표시하지 않는다.
+    */
+
     if (
       getMorningMeetingWorkbookState()
         .templateFile !==
