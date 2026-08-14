@@ -105403,3 +105403,365 @@ input {
       wrap !important;
   }
 }
+
+/* =========================================================
+  부재료 PC 상단 가독성·상태·핵심 열 최종 보정
+
+  1. 조회 월·OIS 기준일·밀도 적용일 확대
+  2. 저장상태·기존 엑셀 안내를 고정값 저장 옆에 배치
+  3. 자주 확인하는 핵심 3개 열 강조
+  4. 모바일 모니터링 화면은 기존 유지
+========================================================= */
+
+@media screen and (min-width: 769px) {
+
+  /* =====================================================
+    상단 날짜 값 확대
+  ====================================================== */
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-range-controls
+  .auxiliary-material-month-navigation
+  #auxiliaryMaterialMonth,
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-range-controls
+  #auxiliaryMaterialQueryDate,
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
+  #auxiliaryMaterialDensityEffectiveDate {
+    font-size: 11px !important;
+    font-weight: 850 !important;
+  }
+
+
+  /*
+    밀도 적용일은 달력 아이콘과 겹치지 않도록
+    기존보다 10px 확대
+  */
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
+  #auxiliaryMaterialDensityEffectiveDate {
+    width: 100px !important;
+    min-width: 100px !important;
+    max-width: 100px !important;
+  }
+
+
+  /*
+    상태칩이 고정값 저장 버튼에 바로 이어지도록
+    밀도 영역의 불필요한 flex 확장 방지
+  */
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped {
+    flex: 0 1 497px !important;
+
+    min-width: 497px !important;
+  }
+
+
+  /* =====================================================
+    저장상태·기존 엑셀 안내 2단 미니 칩
+  ====================================================== */
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-pc-status-row {
+    box-sizing: border-box !important;
+    display: flex !important;
+
+    flex: 0 1 230px !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+
+    align-self: flex-end !important;
+    align-items: stretch !important;
+    justify-content: center !important;
+
+    grid-column: auto !important;
+
+    gap: 2px !important;
+
+    width: 230px !important;
+    min-width: 190px !important;
+    max-width: 230px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: hidden !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-pc-status-row
+  > .auxiliary-material-status {
+    box-sizing: border-box !important;
+    display: block !important;
+
+    flex: 0 0 16px !important;
+    grid-column: auto !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    height: 16px !important;
+    min-height: 16px !important;
+    max-height: 16px !important;
+
+    margin: 0 !important;
+    padding: 1px 6px !important;
+
+    border-radius: 5px !important;
+
+    font-size: 9px !important;
+    font-weight: 800 !important;
+    line-height: 12px !important;
+
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-pc-status-row
+  > .auxiliary-material-excel-import--compact {
+    box-sizing: border-box !important;
+    display: flex !important;
+
+    flex: 0 0 16px !important;
+
+    align-items: center !important;
+    justify-content: flex-start !important;
+
+    gap: 4px !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    height: 16px !important;
+    min-height: 16px !important;
+    max-height: 16px !important;
+
+    margin: 0 !important;
+    padding: 1px 5px !important;
+
+    border-radius: 5px !important;
+
+    overflow: hidden !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-pc-status-row
+  .auxiliary-material-excel-import__description {
+    box-sizing: border-box !important;
+    display: flex !important;
+
+    flex: 1 1 auto !important;
+
+    align-items: center !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    overflow: hidden !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-pc-status-row
+  .auxiliary-material-excel-import__description
+  > span,
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-pc-status-row
+  .auxiliary-material-excel-import__description
+  > p {
+    display: none !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-pc-status-row
+  .auxiliary-material-excel-import__description
+  > strong {
+    display: block !important;
+
+    min-width: 0 !important;
+
+    margin: 0 !important;
+
+    font-size: 8px !important;
+    font-weight: 900 !important;
+    line-height: 12px !important;
+
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-pc-status-row
+  .auxiliary-material-excel-import__actions {
+    box-sizing: border-box !important;
+    display: flex !important;
+
+    flex: 0 1 82px !important;
+
+    align-items: center !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 82px !important;
+
+    margin: 0 !important;
+    padding: 0 0 0 4px !important;
+
+    overflow: hidden !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-pc-status-row
+  #auxiliaryMaterialExcelFileName {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 76px !important;
+
+    font-size: 8px !important;
+    font-weight: 700 !important;
+    line-height: 12px !important;
+
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+    자주 확인하는 핵심 3개 열 강조
+
+    - Limestone 사용량
+    - Limestone 입고량
+    - Lime Powder
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table
+  th:is(
+    .is-limestone-usage,
+    .is-limestone-receipt,
+    .is-lime-powder
+  ),
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table
+  td:is(
+    .is-limestone-usage,
+    .is-limestone-receipt,
+    .is-lime-powder
+  ) {
+    background-image:
+      linear-gradient(
+        rgba(255, 231, 151, 0.30),
+        rgba(255, 231, 151, 0.30)
+      ) !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table
+  th:is(
+    .is-limestone-usage,
+    .is-limestone-receipt,
+    .is-lime-powder
+  ) {
+    color: #29435f !important;
+
+    font-weight: 900 !important;
+
+    box-shadow:
+      inset 0 -2px 0
+      rgba(184, 132, 18, 0.30) !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-sheet-table
+  tbody
+  td:is(
+    .is-limestone-usage,
+    .is-limestone-receipt,
+    .is-lime-powder
+  ) {
+    color: #183e63 !important;
+
+    font-weight: 900 !important;
+  }
+
+
+  /*
+    수치 수정 모드 입력칸도 같은 항목만 강조
+  */
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-value-input:is(
+    [data-field="limestoneUsageTpd"],
+    [data-field="limestoneReceiptTon"],
+    [data-field="limePowderTpd"]
+  ) {
+    background: #fffdf5 !important;
+    color: #183e63 !important;
+
+    font-weight: 900 !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-value-input:is(
+    [data-field="limestoneUsageTpd"],
+    [data-field="limestoneReceiptTon"],
+    [data-field="limePowderTpd"]
+  ):not(:focus) {
+    border-color: #d5c38a !important;
+  }
+}

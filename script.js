@@ -95754,7 +95754,8 @@ function prepareAuxiliaryMaterialPcCompactControls() {
 
   /*
     실제 DOM 순서:
-    저장자료 → OIS → 엑셀 등록 → 엑셀 다운로드 → Slurry
+    저장자료 → OIS → 엑셀 등록 → 엑셀 다운로드
+    → Slurry 고정값 → 상태 안내
   */
   actionControls.append(
     loadButton,
@@ -95791,7 +95792,7 @@ function prepareAuxiliaryMaterialPcCompactControls() {
 
   /*
     저장 상태와 기존 엑셀 등록 안내를
-    같은 상태 행으로 이동
+    고정값 저장 버튼 오른쪽에 배치한다.
   */
   let statusRow =
     queryCard.querySelector(
@@ -95839,7 +95840,7 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     statusRow.childElementCount >
       0
   ) {
-    queryCard.append(
+    actionControls.append(
       statusRow
     );
   }
