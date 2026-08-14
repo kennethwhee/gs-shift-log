@@ -211624,28 +211624,70 @@ function ensureCard() {
   function getDateResult(
     targetDate
   ) {
-    const state =
-      getState();
+const state =
+  getState();
+
+
+const item =
+  state.smpPriceByDate[
+    targetDate
+  ] ||
+  null;
+
+
+let status =
+  text(
+    state.smpPriceStatusByDate[
+      targetDate
+    ]
+  ).toLowerCase();
+
+
+/*
+  저장된 SMP 값이 실제로 존재하면
+  상태값이 없거나 idle이어도
+  완료된 저장자료로 처리한다.
+
+  자동수치 기록에는 값이 있는데
+  미리보기만 "조회 대기"로 표시되는 문제 방지.
+*/
+
+    if (
+      item &&
+      (
+        !status ||
+        status ===
+        "idle"
+      )
+    ) {
+      status =
+        "complete";
+
+
+      state.smpPriceStatusByDate[
+        targetDate
+      ] =
+        "complete";
+
+
+      state.smpPriceErrorByDate[
+        targetDate
+      ] =
+        "";
+    }
+
 
     return {
-      item:
-        state.smpPriceByDate[
-          targetDate
-        ] ||
-        null,
+      item,
 
       status:
-        text(
-          state.smpPriceStatusByDate[
-            targetDate
-          ]
-        ) ||
+        status ||
         "idle",
 
       error:
         text(
           state.smpPriceErrorByDate[
-            targetDate
+          targetDate
           ]
         )
     };
@@ -224910,9 +224952,28 @@ const MORNING_MEETING_AUTO_HISTORY_OVERRIDE_TARGETS =
       "epowerTransmission"
     ],
 
+    /*
+      태양광 일일 발전량
+    */
     powerSolar: [
       "dailyData",
       "solarDailyGeneration"
+    ],
+
+    /*
+      태양광 월간 누적
+    */
+    powerSolarMonthly: [
+      "dailyData",
+      "solarMonthlyCumulative"
+    ],
+
+    /*
+      태양광 년간 누적
+    */
+    powerSolarYearly: [
+      "dailyData",
+      "solarYearlyCumulative"
     ],
 
     organicTruckCount: [
@@ -225727,6 +225788,19 @@ function getWaterText(
   수전량은 저장목록에서 제외한다.
 ====================================================== */
 
+/* =====================================================
+  전력량 표시값
+
+  자동수치 기록 저장 항목:
+  1. 생산
+  2. 판매
+  3. 태양광 일일 발전량
+  4. 태양광 월간 누적
+  5. 태양광 년간 누적
+
+  수전량은 자동수치 기록에서 제외한다.
+====================================================== */
+
 function getPowerValues(
   dailyData
 ) {
@@ -225743,28 +225817,72 @@ function getPowerValues(
         null,
 
       solar:
+        null,
+
+      solarMonthly:
+        null,
+
+      solarYearly:
         null
     };
   }
 
 
   return {
+    /*
+      발전량
+    */
     production:
       firstNumber(
         dailyData.generatorEcmsGen1,
         dailyData.powerGeneration
       ),
 
+
+    /*
+      송전량
+    */
     sales:
       firstNumber(
         dailyData.epowerTransmission,
         dailyData.electricityTransmitted
       ),
 
+
+    /*
+      태양광 일일 발전량
+    */
     solar:
       firstNumber(
         dailyData.solarDailyGeneration,
         dailyData.solarDaily
+      ),
+
+
+    /*
+      태양광 월간 누적
+
+      신규 필드를 우선하고,
+      기존 solarCumulative 구조도 호환한다.
+    */
+    solarMonthly:
+      firstNumber(
+        dailyData.solarMonthlyCumulative,
+        dailyData.solarCumulative
+          ?.month
+          ?.total
+      ),
+
+
+    /*
+      태양광 년간 누적
+    */
+    solarYearly:
+      firstNumber(
+        dailyData.solarYearlyCumulative,
+        dailyData.solarCumulative
+          ?.year
+          ?.total
       )
   };
 }
@@ -226061,7 +226179,7 @@ function renderTableHead() {
       </th>
 
       <th
-        colspan="3"
+        colspan="5"
         class="is-history-group is-power"
       >
         전력량
@@ -226286,6 +226404,30 @@ function renderTableHead() {
       >
         <span>
           태양광
+        </span>
+
+        <small>
+          kWh
+        </small>
+      </th>
+
+      <th
+        class="is-history-metric is-power"
+      >
+        <span>
+          월간 누적
+        </span>
+
+        <small>
+          kWh
+        </small>
+      </th>
+
+      <th
+        class="is-history-metric is-power"
+      >
+        <span>
+          년간 누적
         </span>
 
         <small>
@@ -227678,6 +227820,13 @@ function renderRows(
 
         /*
           전력량
+        
+          저장 항목:
+          - 생산
+          - 판매
+          - 태양광 일일 발전량
+          - 태양광 월간 누적
+          - 태양광 년간 누적
         */
 
         createSingleHistoryCell({
@@ -227742,10 +227891,67 @@ function renderRows(
             "태양광 발전량",
 
           label:
-            "태양광 발전",
+            "태양광 발전량",
 
           displayOptions: {
             numberOptions: {
+              minimumFractionDigits:
+                1,
+
+              maximumFractionDigits:
+                3
+            }
+          }
+        }),
+
+        createSingleHistoryCell({
+          key:
+            "powerSolarMonthly",
+
+          sourceValue:
+            powerValues.solarMonthly,
+
+          className:
+            "is-power is-power-solar-monthly",
+
+          title:
+            "태양광 월간 누적",
+
+          label:
+            "태양광 월간 누적",
+
+          displayOptions: {
+            numberOptions: {
+              minimumFractionDigits:
+                1,
+
+              maximumFractionDigits:
+                3
+            }
+          }
+        }),
+
+        createSingleHistoryCell({
+          key:
+            "powerSolarYearly",
+
+          sourceValue:
+            powerValues.solarYearly,
+
+          className:
+            "is-power is-power-solar-yearly",
+
+          title:
+            "태양광 년간 누적",
+
+          label:
+            "태양광 년간 누적",
+
+          displayOptions: {
+            numberOptions: {
+              minimumFractionDigits:
+                1,
+
               maximumFractionDigits:
                 3
             }

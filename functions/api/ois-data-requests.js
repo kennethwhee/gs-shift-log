@@ -7014,9 +7014,17 @@ function normalizeMorningMeetingAutoHistoryOverrideValues(
 
     "powerProduction",
     "powerSales",
-    "powerSolar",
 
-    "organicTruckCount",
+    /*
+      태양광
+      - 일일 발전량
+      - 월간 누적
+      - 년간 누적
+    */
+    "powerSolar",
+    "powerSolarMonthly",
+    "powerSolarYearly",
+
     "organicReceivedAmount",
     "organicStoredAmount"
   ];
@@ -7046,7 +7054,8 @@ function normalizeMorningMeetingAutoHistoryOverrideValues(
     );
   }
 
-  const normalizedValues = {};
+  const normalizedValues =
+    {};
 
   const normalizeNumber = (
     value,
