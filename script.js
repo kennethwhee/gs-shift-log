@@ -216374,75 +216374,97 @@ function removeLegacyFolderTools() {
     );
 }
 
-  async function chooseOrAuthorizeFolder(
-    config
-  ) {
-    hideError();
+async function chooseOrAuthorizeFolder(
+  config
+) {
+  hideError();
+
+  try {
+    /*
+      일일발전현황·운탄일지 등
+      각 카드에 저장된 기존 폴더를
+      해당 선택창의 시작 위치로 사용한다.
+    */
+    const currentHandle =
+      handles.get(
+        config.key
+      );
+
+    const pickerOptions = {
+      id:
+        config.pickerId,
+
+      mode:
+        "read"
+    };
+
+    if (
+      currentHandle?.kind ===
+        "directory"
+    ) {
+      pickerOptions.startIn =
+        currentHandle;
+    }
+
+    const selected =
+      await window.showDirectoryPicker(
+        pickerOptions
+      );
+
+    handles.set(
+      config.key,
+      selected
+    );
+
+    permissions.set(
+      config.key,
+      "granted"
+    );
+
+    render();
 
     try {
-      const selected =
-        await window.showDirectoryPicker({
-          id:
-            config.pickerId,
-
-          mode:
-            "read"
-        });
-
-      handles.set(
-        config.key,
+      await storeHandle(
+        config,
         selected
-      );
-
-      permissions.set(
-        config.key,
-        "granted"
-      );
-
-      render();
-
-      try {
-        await storeHandle(
-          config,
-          selected
-        );
-
-      } catch (
-        error
-      ) {
-        console.warn(
-          `${config.label} 폴더 기억 실패:`,
-          error
-        );
-      }
-
-      setMessage(
-        `${config.label}: ${selected.name} 폴더가 설정되었습니다.`
       );
 
     } catch (
       error
     ) {
-      if (
-        error?.name ===
-          "AbortError"
-      ) {
-        return;
-      }
-
-      console.error(
-        `${config.label} 폴더 설정 실패:`,
+      console.warn(
+        `${config.label} 폴더 기억 실패:`,
         error
       );
-
-      showError(
-        error?.message ||
-        `${config.label} 폴더를 설정하지 못했습니다.`
-      );
-
-      render();
     }
+
+    setMessage(
+      `${config.label}: ${selected.name} 폴더가 설정되었습니다.`
+    );
+
+  } catch (
+    error
+  ) {
+    if (
+      error?.name ===
+        "AbortError"
+    ) {
+      return;
+    }
+
+    console.error(
+      `${config.label} 폴더 설정 실패:`,
+      error
+    );
+
+    showError(
+      error?.message ||
+      `${config.label} 폴더를 설정하지 못했습니다.`
+    );
+
+    render();
   }
+}
 
   async function latestXlsx(
     handle
