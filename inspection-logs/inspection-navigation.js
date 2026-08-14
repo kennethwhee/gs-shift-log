@@ -156,12 +156,17 @@ function initializeInspectionWorkspaceNavigation() {
   );
 
   sidebar.innerHTML = `
-    <div class="inspection-sidebar__intro">
-      <strong>점검일지 메뉴</strong>
-      <span>
-        점검주기와 등록된 점검일지를 선택합니다.
-      </span>
-    </div>
+<section
+  class="inspection-sidebar-inspection-menu"
+  aria-labelledby="inspectionSidebarInspectionTitle"
+>
+  <div class="inspection-sidebar__intro">
+    <span>INSPECTION LOG</span>
+
+    <strong id="inspectionSidebarInspectionTitle">
+      점검일지
+    </strong>
+  </div>
 
     <details class="inspection-sidebar-group">
       <summary>점검주기</summary>
@@ -273,6 +278,7 @@ function initializeInspectionWorkspaceNavigation() {
         </span>
       </div>
     </details>
+  </section>
 
     <!-- ===================================================
       Log Sheet

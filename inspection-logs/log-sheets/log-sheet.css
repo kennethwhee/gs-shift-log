@@ -198,6 +198,33 @@ button {
   color: #fff;
 }
 
+.log-sheet-toolbar__controls
+  .is-preview {
+  border-color: #7ea6cc;
+
+  background: #edf5fc;
+
+  color: #285f92;
+}
+
+
+.log-sheet-toolbar__controls
+  .is-preview:hover {
+  border-color: #4d86bc;
+
+  background: #e2f0fc;
+}
+
+
+.log-sheet-toolbar__controls
+  .is-preview.is-active {
+  border-color: #537392;
+
+  background: #607f9e;
+
+  color: #ffffff;
+}
+
 .log-sheet-state {
   display: flex;
   min-width: 0;
@@ -505,6 +532,10 @@ button {
 }
 
 @media print {
+  .log-sheet-document[hidden] {
+    display: block !important;
+  }
+
   html,
   body {
     width: auto;
@@ -598,4 +629,220 @@ button {
     color: #000;
     white-space: pre-wrap;
   }
+}
+
+/* =========================================================
+  Logging 항목 목록
+========================================================= */
+
+.log-sheet-item-panel {
+  overflow: hidden;
+
+  border:
+    1px solid
+    #c8d7e6;
+
+  border-radius: 12px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 4px 14px
+    rgba(
+      24,
+      50,
+      78,
+      0.055
+    );
+}
+
+
+.log-sheet-item-panel__header {
+  display: flex;
+
+  min-height: 60px;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  padding:
+    10px
+    14px;
+
+  border-bottom:
+    1px solid
+    #dce6ef;
+
+  background:
+    linear-gradient(
+      180deg,
+      #f8fbfe 0%,
+      #f1f7fc 100%
+    );
+}
+
+
+.log-sheet-item-panel__header > div {
+  display: grid;
+
+  min-width: 0;
+
+  gap: 2px;
+}
+
+
+.log-sheet-item-panel__header p {
+  margin: 0;
+
+  color: #3977b2;
+
+  font-size: 8px;
+  font-weight: 950;
+  line-height: 1;
+
+  letter-spacing: 0.13em;
+}
+
+
+.log-sheet-item-panel__header strong {
+  color: #183b5e;
+
+  font-size: 14px;
+  font-weight: 950;
+  line-height: 1.35;
+}
+
+
+.log-sheet-item-panel__header
+  div
+  > span {
+  color: #708397;
+
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+
+.log-sheet-item-panel__count {
+  display: inline-flex;
+
+  min-width: 46px;
+  min-height: 25px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    0
+    9px;
+
+  border:
+    1px solid
+    #b9cee2;
+
+  border-radius: 999px;
+
+  background: #ffffff;
+
+  color: #376d9f;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+
+
+.log-sheet-item-table {
+  width: 100%;
+}
+
+
+.log-sheet-item-table__head {
+  display: grid;
+
+  grid-template-columns:
+    54px
+    minmax(180px, 1fr)
+    minmax(135px, 0.65fr)
+    80px
+    66px;
+
+  min-height: 34px;
+
+  align-items: center;
+
+  padding:
+    0
+    10px;
+
+  border-bottom:
+    1px solid
+    #dce5ee;
+
+  background: #f7f9fc;
+
+  color: #64778b;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  text-align: center;
+}
+
+
+.log-sheet-item-table__head
+  span:nth-child(2),
+
+.log-sheet-item-table__head
+  span:nth-child(3) {
+  text-align: left;
+}
+
+
+.log-sheet-item-list {
+  display: grid;
+
+  min-height: 100px;
+
+  background: #ffffff;
+}
+
+
+.log-sheet-item-list__empty {
+  display: flex;
+
+  min-height: 100px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+
+  color: #8190a0;
+
+  font-size: 10px;
+  font-weight: 750;
+
+  text-align: center;
+}
+
+
+/* 모바일 */
+
+@media (max-width: 680px) {
+
+  .log-sheet-item-table {
+    overflow-x: auto;
+  }
+
+
+  .log-sheet-item-table__head,
+  .log-sheet-item-list {
+    min-width: 650px;
+  }
+
 }

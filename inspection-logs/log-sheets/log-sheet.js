@@ -52,6 +52,10 @@
       byId("logSheetSaveButton"),
     historyButton:
       byId("logSheetHistoryButton"),
+    previewButton:
+      byId("logSheetPreviewButton"),
+    previewSection:
+      byId("logSheetPreviewSection"),
     downloadButton:
       byId("logSheetDownloadButton"),
     printButton:
@@ -362,6 +366,7 @@
       elements.loadButton,
       elements.saveButton,
       elements.historyButton,
+      elements.previewButton,
       elements.downloadButton,
       elements.printButton
     ].forEach(
@@ -1155,10 +1160,10 @@
       table
     );
 
-    elements.loading.hidden =
-      true;
-
     elements.gridShell.hidden =
+      false;
+
+    elements.previewButton.disabled =
       false;
 
     updatePrintHeading();
@@ -2800,6 +2805,31 @@
     }
   }
 
+  function setPreviewOpen(
+    open
+  ) {
+    const isOpen =
+      Boolean(open);
+
+    elements.previewSection.hidden =
+      !isOpen;
+
+    elements.previewButton.textContent =
+      isOpen
+        ? "미리보기 닫기"
+        : "미리보기";
+
+    elements.previewButton.classList.toggle(
+      "is-active",
+      isOpen
+    );
+
+    elements.previewButton.setAttribute(
+      "aria-expanded",
+      String(isOpen)
+    );
+  }
+
   function printCurrentSheet() {
     updatePrintHeading();
 
@@ -2822,6 +2852,15 @@
     elements.historyButton.addEventListener(
       "click",
       showHistory
+    );
+
+    elements.previewButton.addEventListener(
+      "click",
+      () => {
+        setPreviewOpen(
+          elements.previewSection.hidden
+        );
+      }
     );
 
     elements.downloadButton.addEventListener(
@@ -2972,6 +3011,7 @@
         `${state.documentConfig.title} · Log Sheet`;
 
       bindEvents();
+      setPreviewOpen(false);
       renderTabs();
 
       await loadTemplate();

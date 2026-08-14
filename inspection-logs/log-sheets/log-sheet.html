@@ -4,44 +4,23 @@
 <head>
   <meta charset="UTF-8">
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <title>Log Sheet</title>
 
-  <link
-    rel="stylesheet"
-    href="log-sheet.css?v=20260814-log-sheet1"
-  >
+  <link rel="stylesheet" href="log-sheet.css?v=20260815-preview1">
 
-  <script
-    src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"
-    defer
-  ></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" defer></script>
 
-  <script
-    src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
-    defer
-  ></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" defer></script>
 
-  <script
-    src="log-sheet-config.js?v=20260814-log-sheet1"
-    defer
-  ></script>
+  <script src="log-sheet-config.js?v=20260814-log-sheet1" defer></script>
 
-  <script
-    src="log-sheet.js?v=20260814-log-sheet1"
-    defer
-  ></script>
+  <script src="log-sheet.js?v=20260815-preview1" defer></script>
 </head>
 
 <body>
-  <main
-    class="log-sheet-app"
-    id="logSheetApp"
-  >
+  <main class="log-sheet-app" id="logSheetApp">
     <header class="log-sheet-toolbar screen-only">
       <div class="log-sheet-toolbar__heading">
         <p>INSPECTION LOG SHEET</p>
@@ -59,10 +38,7 @@
         <label>
           <span>작성일</span>
 
-          <input
-            type="date"
-            id="logSheetDate"
-          >
+          <input type="date" id="logSheetDate">
         </label>
 
         <label>
@@ -85,62 +61,36 @@
           </select>
         </label>
 
-        <div
-          class="log-sheet-toolbar__auxiliary"
-          id="logSheetAuxiliaryControls"
-          hidden
-        ></div>
+        <div class="log-sheet-toolbar__auxiliary" id="logSheetAuxiliaryControls" hidden></div>
 
-        <button
-          type="button"
-          class="is-secondary"
-          id="logSheetLoadButton"
-        >
+        <button type="button" class="is-secondary" id="logSheetLoadButton">
           저장자료 불러오기
         </button>
 
-        <button
-          type="button"
-          class="is-primary"
-          id="logSheetSaveButton"
-        >
+        <button type="button" class="is-primary" id="logSheetSaveButton">
           저장
         </button>
 
-        <button
-          type="button"
-          class="is-secondary"
-          id="logSheetHistoryButton"
-        >
+        <button type="button" class="is-secondary" id="logSheetHistoryButton">
           수정 이력
         </button>
 
-        <button
-          type="button"
-          class="is-excel"
-          id="logSheetDownloadButton"
-        >
+        <button type="button" class="is-preview" id="logSheetPreviewButton" aria-expanded="false" disabled>
+          미리보기
+        </button>
+
+        <button type="button" class="is-excel" id="logSheetDownloadButton">
           엑셀 다운로드
         </button>
 
-        <button
-          type="button"
-          class="is-print"
-          id="logSheetPrintButton"
-        >
+        <button type="button" class="is-print" id="logSheetPrintButton">
           바로 인쇄
         </button>
       </div>
     </header>
 
-    <section
-      class="log-sheet-state screen-only"
-      aria-live="polite"
-    >
-      <span
-        class="log-sheet-state__badge is-idle"
-        id="logSheetStateBadge"
-      >
+    <section class="log-sheet-state screen-only" aria-live="polite">
+      <span class="log-sheet-state__badge is-idle" id="logSheetStateBadge">
         준비 중
       </span>
 
@@ -153,14 +103,45 @@
       </small>
     </section>
 
-    <nav
-      class="log-sheet-tabs screen-only"
-      id="logSheetTabs"
-      aria-label="Log Sheet 시트 선택"
-      hidden
-    ></nav>
+    <nav class="log-sheet-tabs screen-only" id="logSheetTabs" aria-label="Log Sheet 시트 선택" hidden></nav>
 
-    <section class="log-sheet-document">
+    <section class="log-sheet-item-panel screen-only" id="logSheetItemPanel">
+      <header class="log-sheet-item-panel__header">
+        <div>
+          <p>LOGGING ITEMS</p>
+
+          <strong>
+            Logging 항목
+          </strong>
+
+          <span>
+            원본 Excel에 등록된 순서대로 표시됩니다.
+          </span>
+        </div>
+
+        <span class="log-sheet-item-panel__count" id="logSheetItemCount">
+          0개
+        </span>
+      </header>
+
+      <div class="log-sheet-item-table">
+        <div class="log-sheet-item-table__head">
+          <span>순서</span>
+          <span>항목명</span>
+          <span>TAG</span>
+          <span>단위</span>
+          <span>관리</span>
+        </div>
+
+        <div class="log-sheet-item-list" id="logSheetItemList">
+          <div class="log-sheet-item-list__empty">
+            Logging 항목을 불러오고 있습니다.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="log-sheet-document" id="logSheetPreviewSection" hidden>
       <header class="log-sheet-print-heading print-only">
         <strong id="logSheetPrintTitle">Log Sheet</strong>
         <span id="logSheetPrintMeta"></span>
