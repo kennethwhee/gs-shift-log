@@ -105187,3 +105187,219 @@ input {
     pointer-events: auto !important;
   }
 }
+
+/* =========================================================
+  부재료 OIS 기준일 이동 및 밀도 입력 폭 최종 보정
+
+  - OIS 기준일 전날·다음날 버튼
+  - 날짜 달력 기능 유지
+  - 밀도 입력칸 50px → 66px
+  - 좁은 PC에서는 안전하게 두 줄 배치
+  - 모바일 모니터링 화면은 기존 유지
+========================================================= */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-query-date-nav-button[hidden] {
+  display:
+    none !important;
+}
+
+
+@media screen and (min-width: 769px) {
+
+  /* =====================================================
+    OIS 기준일 전날·다음날 버튼
+  ====================================================== */
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-range-controls
+  > .auxiliary-material-query-date-nav-button:not([hidden]) {
+    box-sizing:
+      border-box !important;
+
+    display:
+      inline-flex !important;
+
+    flex:
+      0 0 27px !important;
+
+    align-self:
+      flex-end !important;
+
+    width:
+      27px !important;
+
+    min-width:
+      27px !important;
+
+    max-width:
+      27px !important;
+
+    height:
+      34px !important;
+
+    min-height:
+      34px !important;
+
+    max-height:
+      34px !important;
+
+    align-items:
+      center !important;
+
+    justify-content:
+      center !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+
+    border:
+      1px solid
+      #c9d7e9 !important;
+
+    border-radius:
+      7px !important;
+
+    background:
+      #f7faff !important;
+
+    color:
+      #245184 !important;
+
+    box-shadow:
+      none !important;
+
+    font-size:
+      17px !important;
+
+    font-weight:
+      850 !important;
+
+    line-height:
+      1 !important;
+
+    cursor:
+      pointer !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-range-controls
+  > .auxiliary-material-query-date-nav-button:hover:not(
+    :disabled
+  ) {
+    border-color:
+      #78aaf0 !important;
+
+    background:
+      #eaf3ff !important;
+
+    color:
+      #116bd8 !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-range-controls
+  > .auxiliary-material-query-date-nav-button:disabled {
+    border-color:
+      #d9e1eb !important;
+
+    background:
+      #f3f5f8 !important;
+
+    color:
+      #9aa8b8 !important;
+
+    opacity:
+      0.58 !important;
+
+    cursor:
+      not-allowed !important;
+  }
+
+
+  /* =====================================================
+    Slurry 밀도 영역
+
+    날짜 버튼이 추가된 만큼 우측 여백을 활용하고
+    밀도 수치 소수점이 보이도록 입력칸을 넓힌다.
+  ====================================================== */
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped {
+    flex:
+      1 1 487px !important;
+
+    min-width:
+      487px !important;
+
+    max-width:
+      100% !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
+  #auxiliaryMaterialUnitOneFixedDensity,
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > .auxiliary-material-density-setting--grouped
+  #auxiliaryMaterialUnitTwoFixedDensity {
+    width:
+      66px !important;
+
+    min-width:
+      66px !important;
+
+    max-width:
+      66px !important;
+  }
+}
+
+
+/* =========================================================
+  중간 폭 PC 안전장치
+
+  화살표와 넓어진 밀도 입력칸이 우측을 넘지 않도록
+  조회 조건과 자료 작업을 위·아래로 분리한다.
+========================================================= */
+
+@media screen and (min-width: 769px) and (max-width: 1599px) {
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-query-group {
+    grid-template-columns:
+      minmax(
+        0,
+        1fr
+      ) !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls {
+    width:
+      100% !important;
+
+    max-width:
+      100% !important;
+
+    flex-wrap:
+      wrap !important;
+  }
+}

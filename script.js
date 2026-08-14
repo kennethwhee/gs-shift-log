@@ -225169,6 +225169,11 @@ function initializeDailyControls() {
     );
   }
 
+  queryDateLabel.classList.add(
+    "auxiliary-material-query-date-field",
+    "auxiliary-material-period-date-field"
+  );
+
   if (
     !queryDateInput
   ) {
@@ -225184,9 +225189,15 @@ function initializeDailyControls() {
       "auxiliaryMaterialQueryDate";
   }
 
+  queryDateInput.type =
+    "date";
+
   /*
-    기존 함수에서 조회 월 라벨 안에 들어간
-    날짜 입력도 새 라벨로 이동한다.
+    기존 날짜 입력이 다른 곳에 있으면
+    OIS 기준일 라벨 안으로 이동한다.
+
+    type="date"를 유지하므로
+    기존 달력 선택 기능도 그대로 유지된다.
   */
   if (
     queryDateInput.parentElement !==
@@ -225198,8 +225209,84 @@ function initializeDailyControls() {
   }
 
   /*
+    OIS 기준일 전날 버튼
+  */
+  let previousQueryDateButton =
+    document.getElementById(
+      "auxiliaryMaterialPreviousQueryDateButton"
+    );
+
+  if (
+    !previousQueryDateButton
+  ) {
+    previousQueryDateButton =
+      document.createElement(
+        "button"
+      );
+
+    previousQueryDateButton.type =
+      "button";
+
+    previousQueryDateButton.id =
+      "auxiliaryMaterialPreviousQueryDateButton";
+  }
+
+  previousQueryDateButton.className =
+    "auxiliary-material-query-date-nav-button";
+
+  previousQueryDateButton.textContent =
+    "‹";
+
+  previousQueryDateButton.setAttribute(
+    "aria-label",
+    "OIS 기준일 전날"
+  );
+
+  previousQueryDateButton.title =
+    "전날";
+
+  /*
+    OIS 기준일 다음날 버튼
+  */
+  let nextQueryDateButton =
+    document.getElementById(
+      "auxiliaryMaterialNextQueryDateButton"
+    );
+
+  if (
+    !nextQueryDateButton
+  ) {
+    nextQueryDateButton =
+      document.createElement(
+        "button"
+      );
+
+    nextQueryDateButton.type =
+      "button";
+
+    nextQueryDateButton.id =
+      "auxiliaryMaterialNextQueryDateButton";
+  }
+
+  nextQueryDateButton.className =
+    "auxiliary-material-query-date-nav-button";
+
+  nextQueryDateButton.textContent =
+    "›";
+
+  nextQueryDateButton.setAttribute(
+    "aria-label",
+    "OIS 기준일 다음날"
+  );
+
+  nextQueryDateButton.title =
+    "다음날";
+
+  /*
     기본 배열:
-    조회 월 | 기간지정 | OIS 기준일
+
+    조회 월 | 기간지정 |
+    전날 | OIS 기준일 | 다음날
   */
   rangeControls.insertBefore(
     periodLabel,
@@ -225207,7 +225294,17 @@ function initializeDailyControls() {
   );
 
   rangeControls.insertBefore(
+    previousQueryDateButton,
+    startLabel
+  );
+
+  rangeControls.insertBefore(
     queryDateLabel,
+    startLabel
+  );
+
+  rangeControls.insertBefore(
+    nextQueryDateButton,
     startLabel
   );
 
@@ -225249,17 +225346,56 @@ function initializeDailyControls() {
     );
   }
 
+  /*
+    전날·다음날 버튼 상태
+
+    오늘 날짜에서는 다음날 버튼을 막는다.
+  */
+  function updateQueryDateNavigation() {
+    const currentDate =
+      String(
+        queryDateInput.value ||
+        ""
+      ).trim();
+
+    previousQueryDateButton.disabled =
+      !isValidAuxiliaryMaterialIsoDate(
+        currentDate
+      );
+
+    nextQueryDateButton.disabled =
+      (
+        !isValidAuxiliaryMaterialIsoDate(
+          currentDate
+        ) ||
+        currentDate >= today
+      );
+
+    nextQueryDateButton.title =
+      nextQueryDateButton.disabled
+        ? "오늘 이후 날짜는 선택할 수 없습니다."
+        : "다음날";
+  }
+
   function applyDate(
     value
   ) {
+    const normalizedValue =
+      String(
+        value ||
+        ""
+      ).trim();
+
     const dateValue =
-      (
-        isValidAuxiliaryMaterialIsoDate(
-          value
-        ) &&
-        value <= today
+      isValidAuxiliaryMaterialIsoDate(
+        normalizedValue
       )
-        ? value
+        ? (
+            normalizedValue >
+              today
+              ? today
+              : normalizedValue
+          )
         : defaultDate;
 
     queryDateInput.value =
@@ -225275,6 +225411,59 @@ function initializeDailyControls() {
       절대로 변경하지 않는다.
     */
     updateNormalModeStatus();
+
+    updateQueryDateNavigation();
+  }
+
+  /*
+    OIS 기준일을 하루씩 이동한다.
+
+    날짜만 변경하며 저장자료 GET이나
+    OIS 조회 요청은 실행하지 않는다.
+  */
+  function moveQueryDate(
+    amount
+  ) {
+    const currentDate =
+      isValidAuxiliaryMaterialIsoDate(
+        queryDateInput.value
+      )
+        ? queryDateInput.value
+        : defaultDate;
+
+    const movedDate =
+      moveDate(
+        currentDate,
+        amount
+      );
+
+    if (
+      !isValidAuxiliaryMaterialIsoDate(
+        movedDate
+      ) ||
+      movedDate > today
+    ) {
+      updateQueryDateNavigation();
+
+      return;
+    }
+
+    queryDateInput.value =
+      movedDate;
+
+    /*
+      달력에서 날짜를 직접 선택했을 때와
+      같은 change 흐름을 사용한다.
+    */
+    queryDateInput.dispatchEvent(
+      new Event(
+        "change",
+        {
+          bubbles:
+            true
+        }
+      )
+    );
   }
 
   function updatePeriodStatus() {
@@ -225331,8 +225520,16 @@ function initializeDailyControls() {
       );
     }
 
-    queryDateLabel.hidden =
-      isPeriod;
+    [
+      previousQueryDateButton,
+      queryDateLabel,
+      nextQueryDateButton
+    ].forEach(
+      control => {
+        control.hidden =
+          isPeriod;
+      }
+    );
 
     [
       startLabel,
@@ -225369,6 +225566,8 @@ function initializeDailyControls() {
       );
 
       updateNormalModeStatus();
+
+      updateQueryDateNavigation();
     }
 
     setAuxiliaryMaterialOisQueryButtonState(
@@ -225378,7 +225577,8 @@ function initializeDailyControls() {
   }
 
   /*
-    OIS 기준일 변경:
+    OIS 기준일 달력 변경:
+
     화면만 바꾸고 조회하지 않는다.
   */
   queryDateInput.addEventListener(
@@ -225390,8 +225590,27 @@ function initializeDailyControls() {
     }
   );
 
+  previousQueryDateButton.addEventListener(
+    "click",
+    () => {
+      moveQueryDate(
+        -1
+      );
+    }
+  );
+
+  nextQueryDateButton.addEventListener(
+    "click",
+    () => {
+      moveQueryDate(
+        1
+      );
+    }
+  );
+
   /*
     조회 월 변경:
+
     월 범위만 바꾸고 자동 GET하지 않는다.
   */
   elements.monthInput.addEventListener(
@@ -225401,7 +225620,7 @@ function initializeDailyControls() {
 
   /*
     월 화살표는 기존 월 이동 기능을 유지한다.
-    날짜 이동 버튼으로 복제하지 않는다.
+    OIS 날짜 이동 버튼과 서로 분리한다.
   */
   elements.previousMonthButton
     ?.addEventListener(
