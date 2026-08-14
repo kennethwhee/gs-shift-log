@@ -106051,3 +106051,115 @@ input {
     padding-bottom: 11px;
   }
 }
+
+/* =========================================================
+  점검일지 / Log Sheet 왼쪽 메뉴 최종 통일
+========================================================= */
+
+
+/* ---------------------------------------------------------
+  1. 점검일지 접기 버튼
+     → Log Sheet 접기와 동일한 텍스트형
+--------------------------------------------------------- */
+
+.inspection-sidebar:not(.is-collapsed)
+  > .inspection-sidebar-toggle {
+  top: 16px;
+  right: 13px;
+
+  width: auto;
+  min-width: 0;
+
+  height: auto;
+  min-height: 0;
+
+  padding: 0;
+
+  border: 0;
+  border-radius: 0;
+
+  background: transparent;
+
+  color: #4c7ba8;
+
+  box-shadow: none;
+
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+
+  gap: 0;
+}
+
+
+.inspection-sidebar:not(.is-collapsed)
+  > .inspection-sidebar-toggle:hover {
+  border: 0;
+
+  background: transparent;
+
+  color: #245f98;
+}
+
+
+/* 펼쳐진 상태에서는 기존 ‹ 화살표 제거 */
+
+.inspection-sidebar:not(.is-collapsed)
+  > .inspection-sidebar-toggle
+  > .inspection-sidebar-toggle__icon {
+  display: none;
+}
+
+
+.inspection-sidebar:not(.is-collapsed)
+  > .inspection-sidebar-toggle
+  > .inspection-sidebar-toggle__label {
+  display: block;
+
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+
+/* ---------------------------------------------------------
+  2. Log Sheet 상위 메뉴
+     → 점검일지 상위 메뉴와 동일
+--------------------------------------------------------- */
+
+.inspection-sidebar-sheet-group
+  > summary,
+
+.inspection-sidebar-sheet-direct
+  > button {
+  font-family: inherit;
+
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+
+/* ---------------------------------------------------------
+  3. Log Sheet 하위 메뉴
+     → 점검일지 하위 메뉴와 동일
+--------------------------------------------------------- */
+
+.inspection-sidebar-sheet-branch
+  > summary,
+
+.inspection-sidebar-sheet-menu
+  > button {
+  font-family: inherit;
+
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.log-sheet-table
+  td.is-template-draft {
+  box-shadow:
+    inset 0 0 0 2px
+    rgba(70, 126, 179, 0.35);
+}

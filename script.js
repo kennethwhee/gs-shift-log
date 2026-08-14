@@ -222945,7 +222945,6 @@ function getMorningMeetingAutoHistoryValue(
   return sourceValue;
 }
 
-
 function formatMorningMeetingAutoHistoryDisplayValue(
   value,
   {
@@ -222984,8 +222983,8 @@ function formatMorningMeetingAutoHistoryDisplayValue(
 
 
   /*
-    숫자가 아니면 "정비중", "조회불가" 같은
-    수정 텍스트를 그대로 표시한다.
+    숫자가 아니면 상태 문구 등의 텍스트를
+    그대로 표시한다.
   */
   if (
     numericValue ===
@@ -223001,15 +223000,52 @@ function formatMorningMeetingAutoHistoryDisplayValue(
     );
 
 
+  const appliedNumberOptions = {
+    ...numberOptions
+  };
+
+
+  /*
+    자동수치 기록의 ton 계열 단위는
+    최대 소수점 둘째 자리까지만 표시한다.
+
+    예:
+    32.65991  -> 32.66
+    115.756   -> 115.76
+    42.3      -> 42.3
+    12897     -> 12,897
+  */
+  if (
+    /^ton(?:\/|$)/i.test(
+      normalizedUnit
+    )
+  ) {
+    appliedNumberOptions.maximumFractionDigits =
+      2;
+
+
+    if (
+      Number.isInteger(
+        appliedNumberOptions.minimumFractionDigits
+      ) &&
+      appliedNumberOptions.minimumFractionDigits >
+        2
+    ) {
+      appliedNumberOptions.minimumFractionDigits =
+        2;
+    }
+  }
+
+
   return normalizedUnit
     ? formatAmount(
         numericValue,
         normalizedUnit,
-        numberOptions
+        appliedNumberOptions
       )
     : formatNumber(
         numericValue,
-        numberOptions
+        appliedNumberOptions
       );
 }
 
