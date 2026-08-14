@@ -177565,6 +177565,292 @@ async function createGearPinionRequest(
     return result;
   }
 
+  /* =====================================================
+    저장된 Silo Level 즉시 복원
+
+    - 완료 이력만 GET 조회
+    - 신규 OIS 요청은 만들지 않음
+  ====================================================== */
+
+  let savedSiloRestoreToken =
+    0;
+
+
+  async function restoreSavedSiloLevel(
+    targetDate
+  ) {
+    const normalizedDate =
+      normalizeText(
+        targetDate
+      );
+
+
+    if (
+      !isValidDate(
+        normalizedDate
+      )
+    ) {
+      return false;
+    }
+
+
+    const state =
+      getState();
+
+
+    const currentResult =
+      state.siloLevel;
+
+
+    const currentDate =
+      normalizeText(
+        currentResult?.sourceDate ||
+        currentResult?.targetDate
+      );
+
+
+    const hasCurrentValues = [
+      currentResult?.flyAshSiloLevel,
+      currentResult?.bioStorageSiloLevel
+    ].every(
+      value =>
+        normalizeNumber(
+          value
+        ) !==
+        null
+    );
+
+
+    if (
+      currentDate ===
+        normalizedDate &&
+      hasCurrentValues
+    ) {
+      return true;
+    }
+
+
+    const {
+      panel
+    } =
+      getElements();
+
+
+    const isBusy =
+      () =>
+        [
+          "loading",
+          "pending",
+          "processing"
+        ].includes(
+          normalizeText(
+            panel?.dataset
+              .siloLevelStatus
+          ).toLowerCase()
+        );
+
+
+    if (
+      isBusy()
+    ) {
+      return false;
+    }
+
+
+    const restoreToken =
+      savedSiloRestoreToken +
+      1;
+
+
+    savedSiloRestoreToken =
+      restoreToken;
+
+
+    const requestUrl =
+      new URL(
+        OIS_REQUEST_API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "action",
+      "completed_history"
+    );
+
+
+    requestUrl.searchParams.set(
+      "startDate",
+      normalizedDate
+    );
+
+
+    requestUrl.searchParams.set(
+      "endDate",
+      normalizedDate
+    );
+
+
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                },
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    const payload =
+      await readApiResponse(
+        response,
+        "저장된 Silo Level을 불러오지 못했습니다."
+      );
+
+
+    if (
+      restoreToken !==
+        savedSiloRestoreToken ||
+      resolveSiloTargetDate() !==
+        normalizedDate ||
+      isBusy()
+    ) {
+      return false;
+    }
+
+
+    const savedItem =
+      (
+        Array.isArray(
+          payload?.items
+        )
+          ? payload.items
+          : []
+      ).find(
+        item =>
+          normalizeText(
+            item?.requestType ||
+            item?.sourceRequestType
+          ).toLowerCase() ===
+            REQUEST_TYPE &&
+
+          normalizeText(
+            item?.targetDate
+          ) ===
+            normalizedDate &&
+
+          item?.result &&
+          typeof item.result ===
+            "object" &&
+
+          !Array.isArray(
+            item.result
+          )
+      );
+
+
+    if (
+      !savedItem
+    ) {
+      return false;
+    }
+
+
+    const overrideItem =
+      (
+        Array.isArray(
+          payload?.overrides
+        )
+          ? payload.overrides
+          : []
+      ).find(
+        item =>
+          normalizeText(
+            item?.targetDate ||
+            item?.recordDate
+          ) ===
+            normalizedDate
+      );
+
+
+    const restoredResult = {
+      ...savedItem.result
+    };
+
+
+    [
+      "flyAshSiloLevel",
+      "bioStorageSiloLevel"
+    ].forEach(
+      key => {
+        const overrideValue =
+          normalizeNumber(
+            overrideItem?.values?.[key]
+          );
+
+
+        if (
+          overrideValue !==
+            null
+        ) {
+          restoredResult[key] =
+            overrideValue;
+        }
+      }
+    );
+
+
+    if (
+      isBusy()
+    ) {
+      return false;
+    }
+
+
+    applySiloResult(
+      {
+        ...savedItem,
+
+        result:
+          restoredResult
+      },
+      normalizedDate
+    );
+
+
+    console.log(
+      `오전회의 Silo Level ${normalizedDate} 저장자료 즉시 복원`
+    );
+
+
+    return true;
+  }
+
+
+  window
+    .restoreEfficiencyMorningMeetingSavedSiloLevel =
+    restoreSavedSiloLevel;
+
 /* =====================================================
   Silo Level 실제 OIS 조회
 
@@ -189329,12 +189615,35 @@ function syncMorningMeetingSiloToCommonDate(
 
 
   /* ===================================================
-    날짜 표시만 바꾸는 호출이면 여기서 종료
+    날짜 표시만 바꾸는 호출
+
+    저장된 완료자료는 즉시 복원하되,
+    신규 OIS 요청은 만들지 않는다.
   ==================================================== */
 
   if (
     !load
   ) {
+    if (
+      typeof window
+        .restoreEfficiencyMorningMeetingSavedSiloLevel ===
+      "function"
+    ) {
+      void window
+        .restoreEfficiencyMorningMeetingSavedSiloLevel(
+          normalizedDate
+        )
+        .catch(
+          error => {
+            console.error(
+              "오전회의 저장 Silo Level 복원 실패:",
+              error
+            );
+          }
+        );
+    }
+
+
     return;
   }
 
