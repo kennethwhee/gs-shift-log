@@ -105868,3 +105868,52 @@ input {
     padding: 0 0 0 6px !important;
   }
 }
+
+/* =========================================================
+  오전회의자료 · 저장 위치 버튼 수평 정렬 보정
+========================================================= */
+
+@media screen and (min-width: 761px) {
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-output-folder-control {
+    position: relative;
+
+    height: 38px;
+
+    justify-content: flex-start;
+
+    gap: 0;
+  }
+
+
+  #efficiencyMorningMeetingView
+  #selectEfficiencyMorningMeetingOutputFolderButton {
+    width: 100%;
+    height: 38px;
+  }
+
+
+  #efficiencyMorningMeetingView
+  #efficiencyMorningMeetingOutputFolderStatus {
+    position: absolute;
+    top: calc(100% + 3px);
+    left: 0;
+
+    width: 100%;
+
+    font-size: 8px;
+    line-height: 1;
+
+    pointer-events: none;
+  }
+}
+
+
+@media screen and (min-width: 761px) and (max-width: 1000px) {
+
+  #efficiencyMorningMeetingView
+  .efficiency-morning-meeting-actions__buttons {
+    padding-bottom: 11px;
+  }
+}
