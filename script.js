@@ -138587,179 +138587,174 @@ window.updateEfficiencyMorningMeetingUploadSummary =
   ====================================================== */
 
   function selectMorningMeetingSourceSheet(
-    workbook,
-    teamKey
-  ) {
-    const targetDate =
-      getMorningMeetingSelectedWorkDate();
+  workbook,
+  teamKey
+) {
+  /*
+    오전회의 팀 자료의 최종 날짜 기준은
+    사용자가 선택한 "업무내용 기준일"이다.
+
+    시트 내부 날짜는:
+    - 정확한 날짜 시트 탐색
+    - 기계팀 다중 시트 구분
+
+    용도로만 사용한다.
+  */
+
+  const targetDate =
+    normalizeMorningMeetingAnalysisDate(
+      getMorningMeetingSelectedWorkDate()
+    );
 
 
-    const candidates =
-      workbook.SheetNames
-        .map(
-          (
-            sheetName,
-            sheetIndex
-          ) => {
-            const worksheet =
-              workbook.Sheets[
-                sheetName
-              ];
+  const targetReportDate =
+    targetDate
+      ? targetDate.replaceAll(
+          "-",
+          "."
+        )
+      : "";
 
 
-            const rows =
-              convertMorningMeetingSheetToRows(
-                worksheet
-              );
+  const normalizedTeamKey =
+    String(
+      teamKey ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
 
 
-            const meaningfulRows =
-              rows.filter(
-                row => {
-                  return Boolean(
-                    normalizeMorningMeetingSearchText(
-                      row
-                    )
-                  );
-                }
-              );
+  const candidates =
+    workbook.SheetNames
+      .map(
+        (
+          sheetName,
+          sheetIndex
+        ) => {
+          const worksheet =
+            workbook.Sheets[
+              sheetName
+            ];
 
 
-            const contentReportDate =
-              extractMorningMeetingReportDate(
-                rows
-              );
+          const rows =
+            convertMorningMeetingSheetToRows(
+              worksheet
+            );
 
 
-            const normalizedReportDate =
-              normalizeMorningMeetingAnalysisDate(
-                contentReportDate
-              ) ||
-              normalizeMorningMeetingAnalysisDate(
-                sheetName
-              );
+          const meaningfulRows =
+            rows.filter(
+              row => {
+                return Boolean(
+                  normalizeMorningMeetingSearchText(
+                    row
+                  )
+                );
+              }
+            );
 
 
-            const reportDate =
-              normalizedReportDate
-                ? normalizedReportDate.replaceAll(
+          const contentReportDate =
+            extractMorningMeetingReportDate(
+              rows
+            );
+
+
+          const normalizedReportDate =
+            normalizeMorningMeetingAnalysisDate(
+              contentReportDate
+            ) ||
+            normalizeMorningMeetingAnalysisDate(
+              sheetName
+            );
+
+
+          const sourceReportDate =
+            normalizedReportDate
+              ? normalizedReportDate
+                  .replaceAll(
                     "-",
                     "."
                   )
-                : contentReportDate;
+              : contentReportDate;
 
 
-            return {
-              sheetName,
-              sheetIndex,
-              worksheet,
-              rows,
-              reportDate,
-              meaningfulCount:
-                meaningfulRows.length
-            };
+          return {
+            sheetName,
+            sheetIndex,
+            worksheet,
+            rows,
+
+            /*
+              실제 시트에서 발견된 날짜.
+              진단용으로만 보관한다.
+            */
+            sourceReportDate,
+
+            normalizedReportDate,
+
+            /*
+              최종 분석 날짜는 아래에서
+              업무내용 기준일로 확정한다.
+            */
+            reportDate:
+              sourceReportDate,
+
+            meaningfulCount:
+              meaningfulRows.length
+          };
+        }
+      )
+      .filter(
+        item => {
+          return (
+            item.meaningfulCount >
+            0
+          );
+        }
+      );
+
+
+  if (
+    candidates.length ===
+      0
+  ) {
+    throw new Error(
+      "내용이 있는 엑셀 시트를 찾지 못했습니다."
+    );
+  }
+
+
+  /*
+    선택한 업무내용 기준일과
+    정확하게 일치하는 시트가 있으면
+    무조건 그것을 우선한다.
+  */
+
+  const matchingCandidates =
+    targetDate
+      ? candidates.filter(
+          item => {
+            return (
+              item.normalizedReportDate ===
+              targetDate
+            );
           }
         )
-        .filter(
-          item => {
-            return item
-              .meaningfulCount >
-              0;
-          }
-        );
+      : [];
 
 
-    if (
-      candidates.length ===
+  if (
+    matchingCandidates.length >
       0
-    ) {
-      throw new Error(
-        "내용이 있는 엑셀 시트를 찾지 못했습니다."
-      );
-    }
-
-
-    const matchingCandidates =
-      targetDate
-        ? candidates.filter(
-            item => {
-              return normalizeMorningMeetingAnalysisDate(
-                item.reportDate
-              ) ===
-                targetDate;
-            }
-          )
-        : [];
-
-
-    if (
-      matchingCandidates.length >
-        0
-    ) {
-      matchingCandidates.sort(
-        (
-          first,
-          second
-        ) => {
-          return (
-            second.sheetIndex -
-            first.sheetIndex
-          );
-        }
-      );
-
-
-      return matchingCandidates[
-        0
-      ];
-    }
-
-
-    const datedCandidates =
-      candidates.filter(
-        item => {
-          return Boolean(
-            normalizeMorningMeetingAnalysisDate(
-              item.reportDate
-            )
-          );
-        }
-      );
-
-
-    if (
-      targetDate &&
-      datedCandidates.length >
-        0
-    ) {
-      throw new Error(
-        `${TEAM_CONFIG[teamKey]?.name || "팀 자료"}에서 ${targetDate} 업무내용 시트를 찾지 못했습니다.`
-      );
-    }
-
-
-    candidates.sort(
+  ) {
+    matchingCandidates.sort(
       (
         first,
         second
       ) => {
-        const dateDifference =
-          getMorningMeetingDateNumber(
-            second.reportDate
-          ) -
-          getMorningMeetingDateNumber(
-            first.reportDate
-          );
-
-
-        if (
-          dateDifference !==
-          0
-        ) {
-          return dateDifference;
-        }
-
-
         return (
           second.sheetIndex -
           first.sheetIndex
@@ -138768,18 +138763,209 @@ window.updateEfficiencyMorningMeetingUploadSummary =
     );
 
 
-    /*
-      날짜를 확인할 수 없는 단일 양식은
-      기존 방식대로 내용이 있는 마지막 시트를 사용한다.
-    */
+    const selected =
+      matchingCandidates[
+        0
+      ];
 
-    return candidates[
-      0
-    ];
+
+    return {
+      ...selected,
+
+      reportDate:
+        targetReportDate ||
+        selected.sourceReportDate
+    };
   }
 
 
+  /*
+    날짜가 적혀 있지 않은 시트.
 
+    기계팀처럼 시트 내부에 날짜를
+    명확히 적지 않는 양식도 허용한다.
+  */
+
+  const undatedCandidates =
+    candidates.filter(
+      item => {
+        return !item
+          .normalizedReportDate;
+      }
+    );
+
+
+  if (
+    undatedCandidates.length >
+      0
+  ) {
+    undatedCandidates.sort(
+      (
+        first,
+        second
+      ) => {
+        return (
+          second.sheetIndex -
+          first.sheetIndex
+        );
+      }
+    );
+
+
+    const selected =
+      undatedCandidates[
+        0
+      ];
+
+
+    return {
+      ...selected,
+
+      reportDate:
+        targetReportDate ||
+        selected.sourceReportDate
+    };
+  }
+
+
+  /*
+    안전팀 / 환경팀 / 전기제어팀
+
+    이 파일들은 사용자가 현재 업무내용 기준일에
+    맞는 자료를 직접 첨부한다.
+
+    내부에 다른 날짜가 포함돼 있더라도
+    그 날짜만으로 첨부 자료 전체를 거부하지 않는다.
+
+    예:
+    업무내용 기준일 2026-08-13
+    파일 내부에 2026-08-12 날짜 문구 존재
+
+    → 2026-08-13 자료로 분석
+  */
+
+  if (
+    targetDate &&
+    normalizedTeamKey !==
+      "mechanical"
+  ) {
+    candidates.sort(
+      (
+        first,
+        second
+      ) => {
+        return (
+          second.sheetIndex -
+          first.sheetIndex
+        );
+      }
+    );
+
+
+    const selected =
+      candidates[
+        0
+      ];
+
+
+    if (
+      selected.normalizedReportDate &&
+      selected.normalizedReportDate !==
+        targetDate
+    ) {
+      console.warn(
+        "오전회의 팀 자료 내부 날짜와 업무내용 기준일이 다릅니다.",
+        {
+          teamKey:
+            normalizedTeamKey,
+
+          sheetName:
+            selected.sheetName,
+
+          detectedDate:
+            selected.normalizedReportDate,
+
+          workDate:
+            targetDate
+        }
+      );
+    }
+
+
+    return {
+      ...selected,
+
+      reportDate:
+        targetReportDate
+    };
+  }
+
+
+  /*
+    기계팀은 실제 날짜별 시트가 여러 개 있을 수 있다.
+
+    날짜가 명시된 시트들만 존재하는데
+    선택 날짜와 맞는 시트가 전혀 없다면
+    잘못된 날짜의 내용을 임의로 사용하는 것은 막는다.
+  */
+
+  if (
+    targetDate &&
+    normalizedTeamKey ===
+      "mechanical"
+  ) {
+    const detectedDates =
+      Array.from(
+        new Set(
+          candidates
+            .map(
+              item =>
+                item.normalizedReportDate
+            )
+            .filter(
+              Boolean
+            )
+        )
+      );
+
+
+    throw new Error(
+      [
+        `${TEAM_CONFIG[teamKey]?.name || "기계팀"}에서`,
+        `${targetDate} 업무내용 시트를 찾지 못했습니다.`,
+
+        detectedDates.length
+          ? ` 확인된 날짜: ${detectedDates.join(", ")}`
+          : ""
+      ].join(
+        ""
+      )
+    );
+  }
+
+
+  /*
+    기준일을 확인할 수 없는 예외 상황에서는
+    내용이 있는 마지막 시트를 사용한다.
+  */
+
+  candidates.sort(
+    (
+      first,
+      second
+    ) => {
+      return (
+        second.sheetIndex -
+        first.sheetIndex
+      );
+    }
+  );
+
+
+  return candidates[
+    0
+  ];
+}
 
 /* =====================================================
     행 검색
