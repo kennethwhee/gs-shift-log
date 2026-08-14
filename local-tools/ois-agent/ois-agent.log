@@ -11820,3 +11820,14 @@ GS Shift Log OIS · Excel 연동 프로그램
 요청 확인 주기: 15초
 지원 요청: 석회석 재고 · 수처리 현황 · Gear Wheel / Pinion · 일일 DATA Excel
 업무일지의 OIS · Excel 요청을 기다립니다.
+OIS 에이전트 로컬 설정을 불러왔습니다.
+확인된 설정: OIS_ID, OIS_PASSWORD, OIS_AGENT_KEY, OIS_AGENT_ID, SHIFT_LOG_BASE_URL, NODE_USE_SYSTEM_CA, OIS_AGENT_MODE
+==========================================
+GS Shift Log OIS · Excel 연동 프로그램
+==========================================
+업무일지 주소: https://gs-shift-log.pages.dev
+에이전트 ID: CCR-OIS-PC-01
+연동 모드: OIS + Excel
+요청 확인 주기: 30초
+지원 요청: 석회석 재고 · 수처리 현황 · Gear Wheel / Pinion · 일일 DATA Excel
+업무일지의 OIS · Excel 요청을 기다립니다.
