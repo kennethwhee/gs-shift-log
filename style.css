@@ -101855,6 +101855,51 @@ body:not(.is-auxiliary-material-expanded)
 
 
 /* =========================================================
+  자동수치 기록 선택 시 팝업 확대
+
+  - 다른 효율팀 화면 크기는 그대로 유지
+  - 기록표가 열린 동안만 화면 가장자리를 넓게 사용
+========================================================= */
+
+@media screen and (min-width: 769px) {
+
+  #efficiencyTeamModal:has(
+    #efficiencyMorningMeetingAutoHistoryView.is-active
+  ) {
+    padding: 8px !important;
+  }
+
+
+  #efficiencyTeamModal:has(
+    #efficiencyMorningMeetingAutoHistoryView.is-active
+  )
+  .efficiency-team-panel {
+    width: calc(100vw - 16px) !important;
+    max-width: none !important;
+
+    height: calc(100dvh - 16px) !important;
+    max-height: calc(100dvh - 16px) !important;
+
+    border-radius: 14px !important;
+  }
+
+
+  #efficiencyTeamModal:has(
+    #efficiencyMorningMeetingAutoHistoryView.is-active
+  )
+  .efficiency-team-modal__body {
+    grid-template-columns:
+      180px
+      minmax(0, 1fr) !important;
+
+    gap: 10px !important;
+    padding: 10px !important;
+  }
+
+}
+
+
+/* =========================================================
   화면 상단 압축
 ========================================================= */
 
@@ -102119,7 +102164,7 @@ h4 {
 #efficiencyTeamModal
 #efficiencyMorningMeetingAutoHistoryTable {
   width: 100% !important;
-  min-width: 1170px !important;
+  min-width: 1180px !important;
   max-width: none !important;
 
   table-layout: fixed !important;
@@ -102136,8 +102181,8 @@ h4 {
 
   총합:
   64 + 156 + 98 + 78 + 104
-  + 144 + 150 + 104 + 156 + 116
-  = 1170px
+  + 144 + 104 + 156 + 126 + 150
+  = 1180px
 ========================================================= */
 
 #efficiencyTeamModal
@@ -102217,7 +102262,7 @@ th.is-power {
 thead
 tr:first-child
 th.is-organic-fuel {
-  width: 116px !important;
+  width: 126px !important;
 }
 
 
@@ -102367,10 +102412,11 @@ td.is-organic-fuel {
     2px
     3px !important;
 
-  font-size: 8.4px !important;
-  line-height: 1.05 !important;
+  font-size: 8.8px !important;
+  font-weight: 850 !important;
+  line-height: 1.18 !important;
 
-  white-space: normal;
+  white-space: pre-line !important;
 }
 
 
@@ -102602,6 +102648,54 @@ td.is-missing {
     font-size: 9px !important;
   }
 
+}
+
+
+/* =========================================================
+  유기성 고형연료 강조
+
+  입고량과 재고량을 두 줄로 보여 주고
+  날씨보다 앞에서 빠르게 찾을 수 있게 한다.
+========================================================= */
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTable
+thead
+tr:first-child
+th.is-organic-fuel {
+  background: #fff0dc !important;
+  color: #7a4a16 !important;
+
+  box-shadow:
+    inset 2px 0 0
+    #dda85c;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTable
+tbody
+td.is-organic-fuel:not(.is-missing) {
+  background: #fffaf3 !important;
+  color: #714617 !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTable
+tbody
+tr:nth-child(even)
+td.is-organic-fuel:not(.is-missing) {
+  background: #fff6e9 !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyMorningMeetingAutoHistoryTable
+tbody
+tr:hover
+td.is-organic-fuel:not(.is-missing) {
+  background: #ffefd8 !important;
 }
 
 /* =========================================================

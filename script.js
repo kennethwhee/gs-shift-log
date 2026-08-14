@@ -221428,14 +221428,33 @@ function getPowerValues(
 
 
     const receivedAmount =
-      numberOrNull(
-        item.sludgeTotal
+      firstNumber(
+        item.sludgeTotal,
+        item.organicReceivedAmount
       );
 
 
     const storedAmount =
-      numberOrNull(
-        item.organicSiloTotal
+      firstNumber(
+        item.organicSiloTotal,
+        item.organicStoredAmount,
+
+        sumCompleteNumbers(
+          firstNumber(
+            item.organicDaySilo,
+            item.organicDaySiloLevel
+          ),
+
+          firstNumber(
+            item.organicStorageSiloA,
+            item.organicStorageSiloALevel
+          ),
+
+          firstNumber(
+            item.organicStorageSiloB,
+            item.organicStorageSiloBLevel
+          )
+        )
       );
 
 
@@ -221474,7 +221493,7 @@ function getPowerValues(
         "-"
       }`
     ].join(
-      " / "
+      "\n"
     );
   }
 
@@ -221556,13 +221575,6 @@ function renderTableHead() {
       </th>
 
       <th
-        colspan="3"
-        class="is-history-group is-weather"
-      >
-        신북 날씨
-      </th>
-
-      <th
         colspan="2"
         class="is-history-group is-steam"
       >
@@ -221592,6 +221604,13 @@ function renderTableHead() {
         <small>
           입고 · 재고
         </small>
+      </th>
+
+      <th
+        colspan="3"
+        class="is-history-group is-weather"
+      >
+        신북 날씨
       </th>
     </tr>
 
@@ -221737,45 +221756,6 @@ function renderTableHead() {
       </th>
 
 
-      <!-- 신북 날씨 -->
-
-      <th
-        class="is-history-metric is-weather"
-      >
-        <span>
-          상태
-        </span>
-
-        <small>
-          09시
-        </small>
-      </th>
-
-      <th
-        class="is-history-metric is-weather"
-      >
-        <span>
-          기온
-        </span>
-
-        <small>
-          현재 · 최저/최고 ℃
-        </small>
-      </th>
-
-      <th
-        class="is-history-metric is-weather"
-      >
-        <span>
-          습도
-        </span>
-
-        <small>
-          %
-        </small>
-      </th>
-
-
       <!-- 증기 -->
 
       <th
@@ -221838,6 +221818,45 @@ function renderTableHead() {
 
         <small>
           kWh
+        </small>
+      </th>
+
+
+      <!-- 신북 날씨 -->
+
+      <th
+        class="is-history-metric is-weather"
+      >
+        <span>
+          상태
+        </span>
+
+        <small>
+          09시
+        </small>
+      </th>
+
+      <th
+        class="is-history-metric is-weather"
+      >
+        <span>
+          기온
+        </span>
+
+        <small>
+          현재 · 최저/최고 ℃
+        </small>
+      </th>
+
+      <th
+        class="is-history-metric is-weather"
+      >
+        <span>
+          습도
+        </span>
+
+        <small>
+          %
         </small>
       </th>
     </tr>
@@ -222587,13 +222606,36 @@ function renderRows(
       const organicReceivedValue =
         readValue(
           "organicReceivedAmount",
-          dailyData?.sludgeTotal
+          firstNumber(
+            dailyData?.sludgeTotal,
+            dailyData?.organicReceivedAmount
+          )
         );
 
       const organicStoredValue =
         readValue(
           "organicStoredAmount",
-          dailyData?.organicSiloTotal
+          firstNumber(
+            dailyData?.organicSiloTotal,
+            dailyData?.organicStoredAmount,
+
+            sumCompleteNumbers(
+              firstNumber(
+                dailyData?.organicDaySilo,
+                dailyData?.organicDaySiloLevel
+              ),
+
+              firstNumber(
+                dailyData?.organicStorageSiloA,
+                dailyData?.organicStorageSiloALevel
+              ),
+
+              firstNumber(
+                dailyData?.organicStorageSiloB,
+                dailyData?.organicStorageSiloBLevel
+              )
+            )
+          )
         );
 
       const organicReceivedText =
@@ -222638,7 +222680,7 @@ function renderRows(
                 "-"
               }`
             ].join(
-              " / "
+              "\n"
             )
           : "";
 
@@ -223065,31 +223107,6 @@ function renderRows(
         }),
 
         /*
-          신북 날씨
-
-          저장 날씨는 읽기 전용이므로
-          수정 셀을 만들지 않는다.
-        */
-
-        createValueCell(
-          weather?.condition,
-          "is-weather is-weather-condition",
-          weatherTitle
-        ),
-
-        createValueCell(
-          weatherTemperatureText,
-          "is-weather is-weather-temperature",
-          weatherTitle
-        ),
-
-        createValueCell(
-          weatherHumidityText,
-          "is-weather is-weather-humidity",
-          weatherTitle
-        ),
-
-        /*
           증기
         */
 
@@ -223272,7 +223289,33 @@ function renderRows(
                 organicStoredValue
             }
           ]
-        })
+        }),
+
+        /*
+          신북 날씨
+
+          저장 날씨는 읽기 전용이므로
+          수정 셀을 만들지 않는다.
+          표에서 가장 오른쪽에 배치한다.
+        */
+
+        createValueCell(
+          weather?.condition,
+          "is-weather is-weather-condition",
+          weatherTitle
+        ),
+
+        createValueCell(
+          weatherTemperatureText,
+          "is-weather is-weather-temperature",
+          weatherTitle
+        ),
+
+        createValueCell(
+          weatherHumidityText,
+          "is-weather is-weather-humidity",
+          weatherTitle
+        )
       );
 
       tableBody.appendChild(
