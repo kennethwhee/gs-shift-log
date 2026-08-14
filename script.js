@@ -13583,7 +13583,7 @@ logEntryTargetRoleField:
 logEntryTargetRole:
   document.getElementById(
     "logEntryTargetRole"
-  ),  
+  ),
 
     logEntryTag:
       document.getElementById(
@@ -34182,7 +34182,7 @@ if (
 }
 
 
-updateLogEntryTargetRoleVisibility();    
+updateLogEntryTargetRoleVisibility();
 
   updateTagFieldVisibility();
 
@@ -35855,7 +35855,7 @@ function createTagHtml(
 ========================================================= */
 
 function renderLogEntryTable() {
-  
+
   const entries =
     Array.isArray(
       appState.editorEntries
@@ -37740,7 +37740,7 @@ const category =
           entry,
           originalIndex
         );
-        
+
           const categoryBadgeHtml =
     isRemark
       ? ""
@@ -44045,7 +44045,7 @@ if (
   isLeaderRoleManual
 ) {
   return true;
-}          
+}
 
         const category =
           normalizeCategory(
@@ -44225,7 +44225,7 @@ if (
             ).trim()
         };
       }
-    );  
+    );
 
 
   /*
@@ -44391,7 +44391,7 @@ function createLogRowHtml(log) {
   /*
     목록 미리보기 항목 추가
   */
- 
+
   const pushEntryGroup = ({
     title = "",
     entry = {},
@@ -49630,7 +49630,7 @@ function resolveDetailEntrySourceRole(entry, detailLog) {
     파트장 직접 작성 내용으로 유지한다.
   */
   return "파트장";
-} 
+}
 
 /* =========================================================
   업무일지 상세보기 최종본
@@ -59515,7 +59515,7 @@ openLogDetail =
         false;
     }
   };
-  
+
   /* =========================================================
   결재 버튼 이벤트를 결재 이력 포함 함수로 재연결
 ========================================================= */
@@ -140635,7 +140635,7 @@ function removeMorningMeetingCoalDateTime(
   - D1 및 R2 전송 없음
 ===================================================== */
 
-function applyMorningMeetingTemplateFile(
+async function applyMorningMeetingTemplateFile(
   file
 ) {
   const elements =
@@ -140663,8 +140663,1002 @@ function applyMorningMeetingTemplateFile(
   }
 
 
+  /* =====================================================
+    태양광 항목명 정규화
+
+    예:
+    일일발전량[kWh]
+    → 일일발전량kwh
+  ====================================================== */
+
+  const normalizeSolarLabel =
+    value => {
+      return String(
+        value ??
+        ""
+      )
+        .normalize(
+          "NFKC"
+        )
+        .toLowerCase()
+        .replace(
+          /[^0-9a-z가-힣]/g,
+          ""
+        );
+    };
+
+
+  /* =====================================================
+    셀 표시 문자열
+  ====================================================== */
+
+  const getCellText =
+    cell => {
+      if (
+        !cell
+      ) {
+        return "";
+      }
+
+
+      if (
+        typeof cell.w ===
+          "string" &&
+        cell.w.trim()
+      ) {
+        return cell.w.trim();
+      }
+
+
+      try {
+        return String(
+          XLSX.utils.format_cell(
+            cell
+          ) ??
+          cell.v ??
+          ""
+        ).trim();
+
+      } catch {
+        return String(
+          cell.v ??
+          ""
+        ).trim();
+      }
+    };
+
+
+  /* =====================================================
+    셀 숫자값
+  ====================================================== */
+
+  const getCellNumber =
+    cell => {
+      if (
+        !cell
+      ) {
+        return null;
+      }
+
+
+      if (
+        typeof cell.v ===
+          "number" &&
+        Number.isFinite(
+          cell.v
+        )
+      ) {
+        return cell.v;
+      }
+
+
+      const text =
+        getCellText(
+          cell
+        )
+          .replaceAll(
+            ",",
+            ""
+          );
+
+
+      const match =
+        text.match(
+          /-?\d+(?:\.\d+)?/
+        );
+
+
+      if (
+        !match
+      ) {
+        return null;
+      }
+
+
+      const value =
+        Number(
+          match[0]
+        );
+
+
+      return Number.isFinite(
+        value
+      )
+        ? value
+        : null;
+    };
+
+
+  /* =====================================================
+    Excel 내부 날짜 → YYYY-MM-DD
+
+    지원:
+    2026-08-14
+    2026.08.14
+    2026/08/14
+    2026년 8월 14일
+    26.08.14
+  ====================================================== */
+
+  const normalizeSolarDate =
+    value => {
+      const text =
+        String(
+          value ??
+          ""
+        )
+          .normalize(
+            "NFKC"
+          )
+          .trim();
+
+
+      let match =
+        text.match(
+          /(20\d{2})\s*(?:[.\-/]|년)\s*(\d{1,2})\s*(?:[.\-/]|월)\s*(\d{1,2})\s*(?:일)?/
+        );
+
+
+      let year;
+      let month;
+      let day;
+
+
+      if (
+        match
+      ) {
+        year =
+          Number(
+            match[1]
+          );
+
+        month =
+          Number(
+            match[2]
+          );
+
+        day =
+          Number(
+            match[3]
+          );
+
+      } else {
+        match =
+          text.match(
+            /(?:^|[^0-9])(\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})(?:[^0-9]|$)/
+          );
+
+
+        if (
+          !match
+        ) {
+          return "";
+        }
+
+
+        year =
+          2000 +
+          Number(
+            match[1]
+          );
+
+        month =
+          Number(
+            match[2]
+          );
+
+        day =
+          Number(
+            match[3]
+          );
+      }
+
+
+      const parsedDate =
+        new Date(
+          Date.UTC(
+            year,
+            month - 1,
+            day
+          )
+        );
+
+
+      if (
+        Number.isNaN(
+          parsedDate.getTime()
+        ) ||
+        parsedDate.getUTCFullYear() !==
+          year ||
+        parsedDate.getUTCMonth() !==
+          month - 1 ||
+        parsedDate.getUTCDate() !==
+          day
+      ) {
+        return "";
+      }
+
+
+      return [
+        String(
+          year
+        ),
+
+        String(
+          month
+        ).padStart(
+          2,
+          "0"
+        ),
+
+        String(
+          day
+        ).padStart(
+          2,
+          "0"
+        )
+      ].join(
+        "-"
+      );
+    };
+
+
+  /* =====================================================
+    시트 상단에서 자료 기준일 찾기
+  ====================================================== */
+
+  const findSheetDate =
+    worksheet => {
+      if (
+        !worksheet?.["!ref"]
+      ) {
+        return "";
+      }
+
+
+      const range =
+        XLSX.utils.decode_range(
+          worksheet["!ref"]
+        );
+
+
+      const lastRow =
+        Math.min(
+          range.e.r,
+          range.s.r +
+            20
+        );
+
+
+      for (
+        let row =
+          range.s.r;
+
+        row <=
+          lastRow;
+
+        row +=
+          1
+      ) {
+        for (
+          let column =
+            range.s.c;
+
+          column <=
+            range.e.c;
+
+          column +=
+            1
+        ) {
+          const address =
+            XLSX.utils.encode_cell({
+              r:
+                row,
+
+              c:
+                column
+            });
+
+
+          const cell =
+            worksheet[
+              address
+            ];
+
+
+          if (
+            !cell
+          ) {
+            continue;
+          }
+
+
+          const textDate =
+            normalizeSolarDate(
+              getCellText(
+                cell
+              )
+            );
+
+
+          if (
+            textDate
+          ) {
+            return textDate;
+          }
+
+
+          /*
+            날짜가 Excel 숫자형인 경우도 보조 처리
+          */
+
+          if (
+            typeof cell.v ===
+              "number" &&
+            Number.isFinite(
+              cell.v
+            ) &&
+            typeof cell.z ===
+              "string" &&
+            /[ymd]/i.test(
+              cell.z
+            ) &&
+            XLSX.SSF
+              ?.parse_date_code
+          ) {
+            const parsed =
+              XLSX.SSF
+                .parse_date_code(
+                  cell.v
+                );
+
+
+            if (
+              parsed?.y &&
+              parsed?.m &&
+              parsed?.d
+            ) {
+              return [
+                String(
+                  parsed.y
+                ),
+
+                String(
+                  parsed.m
+                ).padStart(
+                  2,
+                  "0"
+                ),
+
+                String(
+                  parsed.d
+                ).padStart(
+                  2,
+                  "0"
+                )
+              ].join(
+                "-"
+              );
+            }
+          }
+        }
+      }
+
+
+      return "";
+    };
+
+
+  /* =====================================================
+    항목명 아래의 숫자값 찾기
+
+    고정 셀 주소를 사용하지 않는다.
+
+    항목명이 병합셀이라면
+    병합된 열 범위 아래쪽에서 값을 찾는다.
+  ====================================================== */
+
+  const findMetricValue =
+    (
+      worksheet,
+      targetLabel
+    ) => {
+      if (
+        !worksheet?.["!ref"]
+      ) {
+        return null;
+      }
+
+
+      const range =
+        XLSX.utils.decode_range(
+          worksheet["!ref"]
+        );
+
+
+      let labelRow =
+        -1;
+
+
+      let labelColumn =
+        -1;
+
+
+      searchLabel:
+      for (
+        let row =
+          range.s.r;
+
+        row <=
+          range.e.r;
+
+        row +=
+          1
+      ) {
+        for (
+          let column =
+            range.s.c;
+
+          column <=
+            range.e.c;
+
+          column +=
+            1
+        ) {
+          const cell =
+            worksheet[
+              XLSX.utils.encode_cell({
+                r:
+                  row,
+
+                c:
+                  column
+              })
+            ];
+
+
+          if (
+            !cell
+          ) {
+            continue;
+          }
+
+
+          const label =
+            normalizeSolarLabel(
+              getCellText(
+                cell
+              )
+            );
+
+
+          if (
+            label ===
+              targetLabel ||
+            label.endsWith(
+              targetLabel
+            )
+          ) {
+            labelRow =
+              row;
+
+            labelColumn =
+              column;
+
+
+            break searchLabel;
+          }
+        }
+      }
+
+
+      if (
+        labelRow <
+          0 ||
+        labelColumn <
+          0
+      ) {
+        return null;
+      }
+
+
+      const merges =
+        Array.isArray(
+          worksheet["!merges"]
+        )
+          ? worksheet["!merges"]
+          : [];
+
+
+      const labelMerge =
+        merges.find(
+          merge => {
+            return (
+              labelRow >=
+                merge.s.r &&
+              labelRow <=
+                merge.e.r &&
+              labelColumn >=
+                merge.s.c &&
+              labelColumn <=
+                merge.e.c
+            );
+          }
+        );
+
+
+      const startColumn =
+        labelMerge
+          ? labelMerge.s.c
+          : Math.max(
+              range.s.c,
+              labelColumn -
+                1
+            );
+
+
+      const endColumn =
+        labelMerge
+          ? labelMerge.e.c
+          : Math.min(
+              range.e.c,
+              labelColumn +
+                2
+            );
+
+
+      const valueStartRow =
+        labelMerge
+          ? labelMerge.e.r +
+            1
+          : labelRow +
+            1;
+
+
+      const valueEndRow =
+        Math.min(
+          range.e.r,
+          valueStartRow +
+            2
+        );
+
+
+      for (
+        let row =
+          valueStartRow;
+
+        row <=
+          valueEndRow;
+
+        row +=
+          1
+      ) {
+        for (
+          let column =
+            startColumn;
+
+          column <=
+            endColumn;
+
+          column +=
+            1
+        ) {
+          const cell =
+            worksheet[
+              XLSX.utils.encode_cell({
+                r:
+                  row,
+
+                c:
+                  column
+              })
+            ];
+
+
+          const value =
+            getCellNumber(
+              cell
+            );
+
+
+          if (
+            value !==
+              null
+          ) {
+            return value;
+          }
+        }
+      }
+
+
+      return null;
+    };
+
+
+  /* =====================================================
+    첨부 Excel에서 태양광 3개 값 추출
+  ====================================================== */
+
+  const extractSolarValues =
+    async () => {
+      if (
+        typeof XLSX ===
+          "undefined"
+      ) {
+        throw new Error(
+          "엑셀 분석 라이브러리를 불러오지 못했습니다."
+        );
+      }
+
+
+      const arrayBuffer =
+        await file
+          .arrayBuffer();
+
+
+      const workbook =
+        XLSX.read(
+          arrayBuffer,
+          {
+            type:
+              "array",
+
+            cellFormula:
+              true,
+
+            cellText:
+              true,
+
+            cellDates:
+              false,
+
+            cellNF:
+              true
+          }
+        );
+
+
+      for (
+        const sheetName of
+          workbook.SheetNames
+      ) {
+        const worksheet =
+          workbook.Sheets[
+            sheetName
+          ];
+
+
+        if (
+          !worksheet
+        ) {
+          continue;
+        }
+
+
+        const solarDailyGeneration =
+          findMetricValue(
+            worksheet,
+            "일일발전량kwh"
+          );
+
+
+        const solarMonthlyCumulative =
+          findMetricValue(
+            worksheet,
+            "월간발전량kwh"
+          );
+
+
+        const solarYearlyCumulative =
+          findMetricValue(
+            worksheet,
+            "연간발전량kwh"
+          );
+
+
+        if (
+          solarDailyGeneration ===
+            null ||
+          solarMonthlyCumulative ===
+            null ||
+          solarYearlyCumulative ===
+            null
+        ) {
+          continue;
+        }
+
+
+        const sourceDate =
+          findSheetDate(
+            worksheet
+          );
+
+
+        if (
+          !sourceDate
+        ) {
+          throw new Error(
+            "일일발전현황에서 자료 기준일을 확인하지 못했습니다."
+          );
+        }
+
+
+        return {
+          sourceDate,
+
+          sheetName,
+
+          solarDailyGeneration,
+
+          solarMonthlyCumulative,
+
+          solarYearlyCumulative,
+
+          source:
+            "일일발전운전현황 첨부 Excel"
+        };
+      }
+
+
+      throw new Error(
+        "태양광 일일·월간·연간 발전량 항목을 찾지 못했습니다."
+      );
+    };
+
+
+  /* =====================================================
+    추출한 월간·연간 누적값을
+    현재 일일 DATA 상태에 합치기
+
+    중요:
+    - 자료 기준일이 같은 경우만 적용
+    - 기존 일일 발전량은 그대로 유지
+    - 월간·연간 누적만 첨부 Excel 값을 사용
+  ====================================================== */
+
+  const applyTemplateSolarToCurrentDailyData =
+    () => {
+      const currentState =
+        getMorningMeetingWorkbookState();
+
+
+      const solar =
+        currentState
+          .templateSolar;
+
+
+      const dailyData =
+        currentState
+          .steamStatus;
+
+
+      if (
+        !solar ||
+        !dailyData
+      ) {
+        return false;
+      }
+
+
+      const solarDate =
+        String(
+          solar.sourceDate ||
+          ""
+        ).trim();
+
+
+      const dailyDataDate =
+        String(
+          dailyData.sourceDate ||
+          dailyData.targetDate ||
+          ""
+        ).trim();
+
+
+      if (
+        !solarDate ||
+        !dailyDataDate
+      ) {
+        return false;
+      }
+
+
+      if (
+        solarDate !==
+          dailyDataDate
+      ) {
+        console.warn(
+          "태양광 누적값 자료 날짜 불일치:",
+          {
+            solarDate,
+            dailyDataDate
+          }
+        );
+
+
+        return false;
+      }
+
+
+      const existingCumulative =
+        dailyData.solarCumulative &&
+        typeof dailyData.solarCumulative ===
+          "object" &&
+        !Array.isArray(
+          dailyData.solarCumulative
+        )
+          ? dailyData.solarCumulative
+          : {};
+
+
+      const existingMonth =
+        existingCumulative.month &&
+        typeof existingCumulative.month ===
+          "object" &&
+        !Array.isArray(
+          existingCumulative.month
+        )
+          ? existingCumulative.month
+          : {};
+
+
+      const existingYear =
+        existingCumulative.year &&
+        typeof existingCumulative.year ===
+          "object" &&
+        !Array.isArray(
+          existingCumulative.year
+        )
+          ? existingCumulative.year
+          : {};
+
+
+      currentState.steamStatus = {
+        ...dailyData,
+
+        solarMonthlyCumulative:
+          solar
+            .solarMonthlyCumulative,
+
+        solarYearlyCumulative:
+          solar
+            .solarYearlyCumulative,
+
+        solarCumulative: {
+          ...existingCumulative,
+
+          month: {
+            ...existingMonth,
+
+            total:
+              solar
+                .solarMonthlyCumulative
+          },
+
+          year: {
+            ...existingYear,
+
+            total:
+              solar
+                .solarYearlyCumulative
+          }
+        },
+
+        solarCumulativeSource:
+          solar.source,
+
+        solarCumulativeSourceDate:
+          solar.sourceDate,
+
+        solarCumulativeSourceSheet:
+          solar.sheetName,
+
+        solarTemplateDailyGeneration:
+          solar.solarDailyGeneration
+      };
+
+
+      if (
+        typeof window
+          .renderEfficiencyMorningMeetingDailyData ===
+          "function"
+      ) {
+        window
+          .renderEfficiencyMorningMeetingDailyData();
+
+      } else if (
+        typeof window
+          .renderEfficiencyMorningMeetingSteamStatus ===
+          "function"
+      ) {
+        window
+          .renderEfficiencyMorningMeetingSteamStatus();
+      }
+
+
+      if (
+        typeof window
+          .renderEfficiencyMorningMeetingAutoPreview ===
+          "function"
+      ) {
+        window
+          .renderEfficiencyMorningMeetingAutoPreview();
+      }
+
+
+      if (
+        typeof window
+          .updateEfficiencyMorningMeetingCreateButton ===
+          "function"
+      ) {
+        window
+          .updateEfficiencyMorningMeetingCreateButton();
+      }
+
+
+      return true;
+    };
+
+
+  /* =====================================================
+    일일 DATA가 나중에 복원·조회되는 경우에도
+    태양광 누적값 다시 합치기
+
+    한 번만 이벤트 연결
+  ====================================================== */
+
+  if (
+    window
+      .__morningMeetingTemplateSolarSyncBound !==
+      true
+  ) {
+    document.addEventListener(
+      "efficiencyMorningMeetingSteamStatusLoaded",
+      () => {
+        window.setTimeout(
+          applyTemplateSolarToCurrentDailyData,
+          0
+        );
+      }
+    );
+
+
+    window
+      .__morningMeetingTemplateSolarSyncBound =
+      true;
+  }
+
+
+  /* =====================================================
+    기존 첨부 처리
+  ====================================================== */
+
   state.templateFile =
     file;
+
+
+  delete state
+    .templateSolar;
 
 
   elements.templateCard
@@ -140698,7 +141692,7 @@ function applyMorningMeetingTemplateFile(
     elements.templateAction
   ) {
     elements.templateAction.textContent =
-      "첨부 완료";
+      "태양광 확인 중...";
   }
 
 
@@ -140709,6 +141703,150 @@ function applyMorningMeetingTemplateFile(
   ) {
     window
       .updateEfficiencyMorningMeetingUploadSummary();
+  }
+
+
+  updateMorningMeetingCreateButton();
+
+
+  /* =====================================================
+    태양광 누적값 실제 분석
+  ====================================================== */
+
+  try {
+    const solarValues =
+      await extractSolarValues();
+
+
+    /*
+      분석 도중 다른 파일로 바뀌었으면
+      이전 파일 결과는 무시한다.
+    */
+
+    if (
+      getMorningMeetingWorkbookState()
+        .templateFile !==
+        file
+    ) {
+      return;
+    }
+
+
+    state.templateSolar = {
+      ...solarValues,
+
+      fileName:
+        file.name
+    };
+
+
+    const applied =
+      applyTemplateSolarToCurrentDailyData();
+
+
+    if (
+      elements.templateAction
+    ) {
+      elements.templateAction.textContent =
+        "첨부 완료";
+    }
+
+
+    if (
+      elements.templateStatus
+    ) {
+      elements.templateStatus.title =
+        [
+          file.name,
+
+          `자료일 ${solarValues.sourceDate}`,
+
+          `일일 ${solarValues.solarDailyGeneration} kWh`,
+
+          `월간 ${solarValues.solarMonthlyCumulative} kWh`,
+
+          `연간 ${solarValues.solarYearlyCumulative} kWh`
+        ].join(
+          " · "
+        );
+    }
+
+
+    /*
+      일일 DATA가 이미 있는데 날짜가 다르면
+      사용자에게 바로 알려준다.
+    */
+
+    const dailyDataDate =
+      String(
+        state.steamStatus
+          ?.sourceDate ||
+        state.steamStatus
+          ?.targetDate ||
+        ""
+      ).trim();
+
+
+    if (
+      dailyDataDate &&
+      dailyDataDate !==
+        solarValues.sourceDate
+    ) {
+      showMorningMeetingWorkbookError(
+        [
+          "일일발전현황과 자동수치의 자료 날짜가 다릅니다.",
+          `일일발전현황: ${solarValues.sourceDate}`,
+          `자동수치: ${dailyDataDate}`
+        ].join(
+          " "
+        )
+      );
+    }
+
+
+    console.log(
+      "오전회의 태양광 누적값 분석 완료:",
+      {
+        ...solarValues,
+
+        applied
+      }
+    );
+
+  } catch (
+    error
+  ) {
+    if (
+      getMorningMeetingWorkbookState()
+        .templateFile !==
+        file
+    ) {
+      return;
+    }
+
+
+    delete state
+      .templateSolar;
+
+
+    if (
+      elements.templateAction
+    ) {
+      elements.templateAction.textContent =
+        "첨부 완료";
+    }
+
+
+    console.error(
+      "일일발전현황 태양광 누적값 분석 실패:",
+      error
+    );
+
+
+    showMorningMeetingWorkbookError(
+      error?.message ||
+      "일일발전현황에서 태양광 누적값을 확인하지 못했습니다."
+    );
   }
 
 
@@ -142058,7 +143196,7 @@ function createMorningMeetingRichTextXml(
       `${runXml}` +
     `</is>`
   );
-}  
+}
 
 /* =====================================================
   기존 엑셀 셀 내용 교체
@@ -142494,6 +143632,367 @@ async function downloadMorningMeetingWorkbook(
     );
   }
 
+
+  /* =====================================================
+    최종 엑셀 생성 완료 중앙 팝업
+
+    - 화면 정중앙
+    - 약 1.8초 표시
+    - 자동 사라짐
+    - 사용자 조작 차단 안 함
+    - 연속 생성 시 기존 팝업 교체
+  ====================================================== */
+
+  const showCompletedPopup =
+    result => {
+      const previousPopup =
+        document.getElementById(
+          "morningMeetingWorkbookCompletedPopup"
+        );
+
+
+      if (
+        previousPopup
+      ) {
+        previousPopup.remove();
+      }
+
+
+      const popup =
+        document.createElement(
+          "div"
+        );
+
+
+      popup.id =
+        "morningMeetingWorkbookCompletedPopup";
+
+
+      popup.setAttribute(
+        "role",
+        "status"
+      );
+
+
+      popup.setAttribute(
+        "aria-live",
+        "polite"
+      );
+
+
+      popup.style.cssText = `
+        position: fixed;
+        inset: 0;
+        z-index: 2147483000;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        padding: 20px;
+
+        pointer-events: none;
+
+        background:
+          rgba(
+            15,
+            31,
+            50,
+            0.08
+          );
+
+        opacity: 0;
+
+        transition:
+          opacity
+          180ms
+          ease;
+      `;
+
+
+      const card =
+        document.createElement(
+          "div"
+        );
+
+
+      card.style.cssText = `
+        box-sizing: border-box;
+
+        width:
+          min(
+            390px,
+            calc(100vw - 40px)
+          );
+
+        padding:
+          22px
+          24px;
+
+        border:
+          1px solid
+          #b9d9c5;
+
+        border-radius:
+          16px;
+
+        background:
+          rgba(
+            255,
+            255,
+            255,
+            0.98
+          );
+
+        box-shadow:
+          0
+          18px
+          55px
+          rgba(
+            19,
+            54,
+            82,
+            0.22
+          );
+
+        color:
+          #17324f;
+
+        text-align:
+          center;
+
+        transform:
+          translateY(8px)
+          scale(0.97);
+
+        transition:
+          transform
+          180ms
+          ease;
+      `;
+
+
+      const icon =
+        document.createElement(
+          "div"
+        );
+
+
+      icon.textContent =
+        "✓";
+
+
+      icon.style.cssText = `
+        display: flex;
+
+        width: 46px;
+        height: 46px;
+
+        align-items: center;
+        justify-content: center;
+
+        margin:
+          0
+          auto
+          12px;
+
+        border-radius:
+          50%;
+
+        background:
+          #e8f7ee;
+
+        color:
+          #1f9255;
+
+        font-size:
+          25px;
+        font-weight:
+          950;
+        line-height:
+          1;
+      `;
+
+
+      const title =
+        document.createElement(
+          "strong"
+        );
+
+
+      title.textContent =
+        "최종 엑셀 생성 완료";
+
+
+      title.style.cssText = `
+        display: block;
+
+        margin: 0;
+
+        color:
+          #17324f;
+
+        font-size:
+          17px;
+        font-weight:
+          950;
+        line-height:
+          1.35;
+      `;
+
+
+      const completedFileName =
+        String(
+          result?.fileName ||
+          fileName ||
+          ""
+        ).trim();
+
+
+      const file =
+        document.createElement(
+          "span"
+        );
+
+
+      file.textContent =
+        completedFileName;
+
+
+      file.style.cssText = `
+        display: block;
+
+        margin-top:
+          7px;
+
+        overflow-wrap:
+          anywhere;
+
+        color:
+          #47637e;
+
+        font-size:
+          11px;
+        font-weight:
+          750;
+        line-height:
+          1.45;
+      `;
+
+
+      const description =
+        document.createElement(
+          "small"
+        );
+
+
+      const folderName =
+        String(
+          result?.folderName ||
+          ""
+        ).trim();
+
+
+      description.textContent =
+        result?.method ===
+          "folder"
+          ? (
+              folderName
+                ? `${folderName} 폴더에 저장했습니다.`
+                : "지정한 폴더에 저장했습니다."
+            )
+          : "파일 다운로드를 시작했습니다.";
+
+
+      description.style.cssText = `
+        display: block;
+
+        margin-top:
+          8px;
+
+        color:
+          #6f8193;
+
+        font-size:
+          10px;
+        font-weight:
+          700;
+        line-height:
+          1.4;
+      `;
+
+
+      card.append(
+        icon,
+        title,
+        file,
+        description
+      );
+
+
+      popup.appendChild(
+        card
+      );
+
+
+      document.body.appendChild(
+        popup
+      );
+
+
+      /*
+        DOM 삽입 후 등장 애니메이션
+      */
+
+      window.requestAnimationFrame(
+        () => {
+          window.requestAnimationFrame(
+            () => {
+              popup.style.opacity =
+                "1";
+
+
+              card.style.transform =
+                "translateY(0) scale(1)";
+            }
+          );
+        }
+      );
+
+
+      /*
+        1.6초 표시 후
+        약 0.2초 동안 사라짐
+
+        총 약 1.8초
+      */
+
+      window.setTimeout(
+        () => {
+          popup.style.opacity =
+            "0";
+
+
+          card.style.transform =
+            "translateY(-4px) scale(0.98)";
+
+
+          window.setTimeout(
+            () => {
+              popup.remove();
+            },
+            220
+          );
+        },
+        1600
+      );
+    };
+
+
+  /* =====================================================
+    지정 저장 폴더
+  ====================================================== */
+
   try {
     const folderResult =
       await window
@@ -142502,9 +144001,15 @@ async function downloadMorningMeetingWorkbook(
           fileName
         );
 
+
     if (
       folderResult?.saved
     ) {
+      showCompletedPopup(
+        folderResult
+      );
+
+
       return folderResult;
     }
 
@@ -142516,6 +144021,7 @@ async function downloadMorningMeetingWorkbook(
       error
     );
 
+
     window
       .markMorningMeetingOutputFolderFallback?.(
         error?.message ||
@@ -142523,28 +144029,41 @@ async function downloadMorningMeetingWorkbook(
       );
   }
 
+
+  /* =====================================================
+    기본 브라우저 다운로드
+  ====================================================== */
+
   const objectUrl =
     URL.createObjectURL(
       blob
     );
+
 
   const downloadLink =
     document.createElement(
       "a"
     );
 
+
   downloadLink.href =
     objectUrl;
 
+
   downloadLink.download =
     fileName;
+
 
   document.body.appendChild(
     downloadLink
   );
 
+
   downloadLink.click();
+
+
   downloadLink.remove();
+
 
   window.setTimeout(
     () => {
@@ -142555,7 +144074,8 @@ async function downloadMorningMeetingWorkbook(
     1000
   );
 
-  return {
+
+  const downloadResult = {
     saved:
       true,
 
@@ -142567,6 +144087,14 @@ async function downloadMorningMeetingWorkbook(
     folderName:
       ""
   };
+
+
+  showCompletedPopup(
+    downloadResult
+  );
+
+
+  return downloadResult;
 }
 
 /* =========================================================
@@ -149859,7 +151387,7 @@ async function forceMorningMeetingWorkbookRecalculation(
         workbookDocument
       )
   );
-} 
+}
 
 /* =========================================================
   오전회의 취합 - TM 사항 최종 엑셀 반영
@@ -157235,14 +158763,14 @@ const boilerTemperatures =
   typeof state.boilerTemperatures ===
     "object"
     ? state.boilerTemperatures
-    : null;    
+    : null;
 
 const gearPinion =
   state.gearPinion &&
   typeof state.gearPinion ===
     "object"
     ? state.gearPinion
-    : null;    
+    : null;
 
 let limestoneValues =
   null;
@@ -157934,7 +159462,7 @@ if (
     "오전회의 기준 취합본을 평일 기본 양식으로 정규화:",
     weekdayLayoutResult
   );
-}      
+}
 
 /* ===================================================
   I9:K9 / I10:K10 병합 및 "-" 보정
@@ -157994,7 +159522,7 @@ const boilerTemperatureResult =
   applyMorningMeetingBoilerTemperatureValues(
     worksheetDocument,
     boilerTemperaturesForWorkbook
-  ); 
+  );
 
 /* ===================================================
   OIS Gear Wheel / Pinion 반영
@@ -158117,7 +159645,7 @@ const weekdayOperationResult =
 console.log(
   "오전회의 평일 업무영역 최종 정리:",
   weekdayOperationResult
-);  
+);
 
 /* ===================================================
   AO 오른쪽에 남은 주말 양식 잔재 최종 제거
@@ -158706,6 +160234,10 @@ function resetMorningMeetingTemplateFile() {
     null;
 
 
+  delete state
+    .templateSolar;
+
+
   /*
     전체 초기화 버튼으로 호출되므로
     기존 팀 분석 결과도 함께 초기화한다.
@@ -158766,113 +160298,138 @@ function resetMorningMeetingTemplateFile() {
   updateMorningMeetingCreateButton();
 }
 
-  /* =====================================================
-    분석 완료 감지
 
-    기존 분석 코드가 미리보기를 출력하면
-    최종 엑셀 버튼 활성화 조건을 다시 검사한다.
-  ====================================================== */
+/* =====================================================
+  분석 완료 감지
 
-  function observeMorningMeetingAnalysisResult() {
-    const {
-      previewList
-    } =
-      getMorningMeetingWorkbookElements();
+  기존 분석 코드가 미리보기를 출력하면
+  최종 엑셀 버튼 활성화 조건을 다시 검사한다.
+====================================================== */
 
-
-    if (
-      !previewList
-    ) {
-      return;
-    }
-
-
-    const observer =
-      new MutationObserver(
-        () => {
-          window.setTimeout(
-            updateMorningMeetingCreateButton,
-            0
-          );
-        }
-      );
-
-
-    observer.observe(
-      previewList,
-      {
-        childList:
-          true,
-
-        subtree:
-          true
-      }
-    );
-  }
-
-
-  /* =====================================================
-    초기화
-  ====================================================== */
-
-  function initialize() {
-    const elements =
-      getMorningMeetingWorkbookElements();
-
-
-    if (
-      !elements.view ||
-      elements.view.dataset
-        .morningMeetingWorkbookCreatorInitialized ===
-        "true"
-    ) {
-      return;
-    }
-
-
-    elements.view.dataset
-      .morningMeetingWorkbookCreatorInitialized =
-      "true";
-
-
-    bindMorningMeetingTemplateUpload();
-
-    observeMorningMeetingAnalysisResult();
-
-
-    elements.createButton
-      ?.addEventListener(
-        "click",
-        createMorningMeetingWorkbook
-      );
-
-
-    elements.resetButton
-      ?.addEventListener(
-        "click",
-        resetMorningMeetingTemplateFile
-      );
-
-
-    updateMorningMeetingCreateButton();
-  }
+function observeMorningMeetingAnalysisResult() {
+  const {
+    previewList
+  } =
+    getMorningMeetingWorkbookElements();
 
 
   if (
-    document.readyState ===
-    "loading"
+    !previewList
   ) {
-    document.addEventListener(
-      "DOMContentLoaded",
-      initialize,
-      {
-        once:
-          true
+    return;
+  }
+
+
+  const observer =
+    new MutationObserver(
+      () => {
+        window.setTimeout(
+          updateMorningMeetingCreateButton,
+          0
+        );
       }
     );
-  } else {
-    initialize();
+
+
+  observer.observe(
+    previewList,
+    {
+      childList:
+        true,
+
+      subtree:
+        true
+    }
+  );
+}
+
+
+/* =====================================================
+  오전회의 최종 엑셀 생성기 초기화
+====================================================== */
+
+function initialize() {
+  const elements =
+    getMorningMeetingWorkbookElements();
+
+
+  if (
+    !elements.view ||
+    elements.view.dataset
+      .morningMeetingWorkbookCreatorInitialized ===
+      "true"
+  ) {
+    return;
   }
+
+
+  elements.view.dataset
+    .morningMeetingWorkbookCreatorInitialized =
+    "true";
+
+
+  /*
+    일일발전현황 파일 첨부
+  */
+  bindMorningMeetingTemplateUpload();
+
+
+  /*
+    자료 분석 결과 변경 감시
+  */
+  observeMorningMeetingAnalysisResult();
+
+
+  /*
+    최종 엑셀 생성
+  */
+  elements.createButton
+    ?.addEventListener(
+      "click",
+      createMorningMeetingWorkbook
+    );
+
+
+  /*
+    전체 초기화
+  */
+  elements.resetButton
+    ?.addEventListener(
+      "click",
+      resetMorningMeetingTemplateFile
+    );
+
+
+  updateMorningMeetingCreateButton();
+}
+
+
+/* =====================================================
+  초기 실행
+====================================================== */
+
+if (
+  document.readyState ===
+    "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initialize,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  initialize();
+}
+
+
+/*
+  initializeEfficiencyMorningMeetingWorkbookCreator
+  IIFE 종료
+*/
 })();
 
 /* =========================================================
@@ -164338,8 +165895,8 @@ function clearSelection() {
 
 
   updateSelectedText();
-} 
-  
+}
+
 /* =====================================================
   교대파트 업무 선택 전체 초기화
 
@@ -168164,7 +169721,7 @@ function extractCoalLogWorkDate(
   return normalizeCoalLogFileNameWorkDate(
     file?.name
   );
-}  
+}
 
 
 /* =====================================================
@@ -168285,7 +169842,7 @@ async function analyzeSingleCoalLogFile(
 
     values
   };
-}  
+}
 
 
 async function analyzeCoalLogFile() {
@@ -168844,7 +170401,7 @@ async function analyzeCoalLogFile() {
   }
 }
 
- 
+
   /* =====================================================
     개별 체크박스
   ====================================================== */
@@ -170269,7 +171826,7 @@ async function loadSavedLimestoneUsageRecords(
     setLimestoneOisRequestStatus(
       "complete",
       "OIS 조회·사용량 자동 저장 완료",
-      
+
       [
         `1호기 ${formatLimestoneOisNumber(
           normalizedResult
@@ -170804,7 +172361,7 @@ async function loadSavedLimestoneUsageRecords(
 
   window
   .loadSavedLimestoneUsageRecords =
-  loadSavedLimestoneUsageRecords;  
+  loadSavedLimestoneUsageRecords;
 
 
   if (
@@ -191198,7 +192755,7 @@ if (
         .renderEfficiencyMorningMeetingBoilerTemperatures();
     }
   }
-}  
+}
 
 
   /* ===================================================
@@ -210557,6 +212114,218 @@ function bindEvents() {
     };
 
 
+/* =====================================================
+  저장된 SMP 단가 복원
+
+  자동수치 기록에서 사용하는 저장 SMP와
+  현재 메모리의 날짜별 SMP를 메인 카드에도 연결한다.
+
+  저장값이 있으면:
+  - 값 복원
+  - 상태 complete
+  - 신규 API 조회 방지
+===================================================== */
+
+function restoreSavedSmpPriceState() {
+  const state =
+    getState();
+
+
+  /*
+    이미 메모리에 값이 있는데
+    상태만 없는 경우도 조회 완료로 복구한다.
+  */
+
+  Object.entries(
+    state.smpPriceByDate ||
+    {}
+  ).forEach(
+    ([
+      dateValue,
+      item
+    ]) => {
+      if (
+        !item ||
+        typeof item !==
+          "object"
+      ) {
+        return;
+      }
+
+
+      state.smpPriceStatusByDate[
+        dateValue
+      ] =
+        "complete";
+
+
+      state.smpPriceErrorByDate[
+        dateValue
+      ] =
+        "";
+    }
+  );
+
+
+  /*
+    자동수치 기록에서 사용하는
+    SMP 저장값도 다시 읽는다.
+  */
+
+  const storageKey =
+    "gs-shift-log:morning-meeting:smp-manual-overrides:v1";
+
+
+  try {
+    const storedItems =
+      JSON.parse(
+        localStorage.getItem(
+          storageKey
+        ) ||
+        "{}"
+      );
+
+
+    if (
+      !storedItems ||
+      typeof storedItems !==
+        "object" ||
+      Array.isArray(
+        storedItems
+      )
+    ) {
+      return;
+    }
+
+
+    Object.entries(
+      storedItems
+    ).forEach(
+      ([
+        dateValue,
+        rawItem
+      ]) => {
+        if (
+          !/^\d{4}-\d{2}-\d{2}$/.test(
+            dateValue
+          ) ||
+          !rawItem ||
+          typeof rawItem !==
+            "object" ||
+          Array.isArray(
+            rawItem
+          )
+        ) {
+          return;
+        }
+
+
+        const toNumber =
+          value => {
+            const normalized =
+              String(
+                value ??
+                ""
+              )
+                .replaceAll(
+                  ",",
+                  ""
+                )
+                .trim();
+
+
+            if (
+              normalized ===
+              ""
+            ) {
+              return null;
+            }
+
+
+            const number =
+              Number(
+                normalized
+              );
+
+
+            return Number.isFinite(
+              number
+            )
+              ? number
+              : null;
+          };
+
+
+        const maximum =
+          toNumber(
+            rawItem.maximum ??
+            rawItem.max
+          );
+
+
+        const minimum =
+          toNumber(
+            rawItem.minimum ??
+            rawItem.min
+          );
+
+
+        const weightedAverage =
+          toNumber(
+            rawItem.weightedAverage ??
+            rawItem.average ??
+            rawItem.avg
+          );
+
+
+        if (
+          maximum ===
+            null ||
+          minimum ===
+            null ||
+          weightedAverage ===
+            null
+        ) {
+          return;
+        }
+
+
+        state.smpPriceByDate[
+          dateValue
+        ] = {
+          ...rawItem,
+
+          maximum,
+
+          minimum,
+
+          weightedAverage
+        };
+
+
+        state.smpPriceStatusByDate[
+          dateValue
+        ] =
+          "complete";
+
+
+        state.smpPriceErrorByDate[
+          dateValue
+        ] =
+          "";
+      }
+    );
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "저장된 SMP 단가 복원 실패:",
+      error
+    );
+  }
+}
+
   function initialize() {
     const card =
       ensureCard();
@@ -210586,6 +212355,9 @@ function bindEvents() {
     }
 
     bindEvents();
+
+    restoreSavedSmpPriceState();
+
     render();
     load();
   }
@@ -222601,7 +224373,7 @@ function applyMorningMeetingAutoHistoryOverride(
 
 
   return nextRow;
-}  
+}
 
 /* =====================================================
     저장 자료를 날짜별 행으로 병합
@@ -229384,4 +231156,327 @@ function initializeDailyControls() {
       );
     }
   );
+})();
+
+/* =========================================================
+  오전회의자료
+  Excel 자동수치 3개 카드 미니 새로고침 버튼
+
+  대상:
+  - 전력 현황
+  - 증기 생산·판매
+  - 유기성 고형연료
+========================================================= */
+
+(function installMorningMeetingDailyDataMiniRefreshButtons() {
+  "use strict";
+
+
+  if (
+    window
+      .__morningMeetingDailyDataMiniRefreshButtonsInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__morningMeetingDailyDataMiniRefreshButtonsInstalled =
+    true;
+
+
+  const BUTTON_CLASS =
+    "morning-meeting-daily-mini-refresh";
+
+
+  const TARGETS = [
+    {
+      cardId:
+        "efficiencyMorningMeetingAutoDailyPowerCard",
+
+      buttonId:
+        "efficiencyMorningMeetingAutoDailyPowerRefreshButton",
+
+      label:
+        "전력 현황 다시 조회"
+    },
+
+    {
+      cardId:
+        "efficiencyMorningMeetingAutoSteamCard",
+
+      buttonId:
+        "efficiencyMorningMeetingAutoSteamRefreshButton",
+
+      label:
+        "증기 생산·판매 다시 조회"
+    },
+
+    {
+      cardId:
+        "efficiencyMorningMeetingAutoDailySludgeCard",
+
+      buttonId:
+        "efficiencyMorningMeetingAutoDailySludgeRefreshButton",
+
+      label:
+        "유기성 고형연료 다시 조회"
+    }
+  ];
+
+
+  let loading =
+    false;
+
+
+  function createIcon() {
+    return `
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <path
+          d="M20 6v5h-5"
+        ></path>
+
+        <path
+          d="M19 11a7 7 0 1 0 1 5"
+        ></path>
+      </svg>
+    `;
+  }
+
+
+  function setLoading(
+    activeButton
+  ) {
+    TARGETS.forEach(
+      item => {
+        const button =
+          document.getElementById(
+            item.buttonId
+          );
+
+
+        if (
+          !button
+        ) {
+          return;
+        }
+
+
+        button.disabled =
+          loading;
+
+
+        button.classList.toggle(
+          "is-loading",
+          loading &&
+          button ===
+            activeButton
+        );
+      }
+    );
+  }
+
+
+  async function refreshDailyData(
+    button
+  ) {
+    if (
+      loading
+    ) {
+      return;
+    }
+
+
+    const loader =
+      window
+        .loadEfficiencyMorningMeetingDailyData;
+
+
+    if (
+      typeof loader !==
+        "function"
+    ) {
+      console.warn(
+        "일일 DATA Excel 조회 함수를 찾지 못했습니다."
+      );
+
+      return;
+    }
+
+
+    loading =
+      true;
+
+
+    setLoading(
+      button
+    );
+
+
+    try {
+      await loader({
+        forceRefresh:
+          true,
+
+        userInitiated:
+          true
+      });
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "일일 DATA Excel 개별 재조회 실패:",
+        error
+      );
+
+    } finally {
+      loading =
+        false;
+
+
+      setLoading(
+        null
+      );
+    }
+  }
+
+
+  function installButton(
+    item
+  ) {
+    if (
+      document.getElementById(
+        item.buttonId
+      )
+    ) {
+      return true;
+    }
+
+
+    const card =
+      document.getElementById(
+        item.cardId
+      );
+
+
+    const meta =
+      card?.querySelector(
+        ".efficiency-morning-meeting-auto-card__meta"
+      );
+
+
+    if (
+      !card ||
+      !meta
+    ) {
+      return false;
+    }
+
+
+    const button =
+      document.createElement(
+        "button"
+      );
+
+
+    button.type =
+      "button";
+
+
+    button.id =
+      item.buttonId;
+
+
+    button.className =
+      BUTTON_CLASS;
+
+
+    button.title =
+      item.label;
+
+
+    button.setAttribute(
+      "aria-label",
+      item.label
+    );
+
+
+    button.innerHTML =
+      createIcon();
+
+
+    button.addEventListener(
+      "click",
+      event => {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        void refreshDailyData(
+          button
+        );
+      }
+    );
+
+
+    meta.appendChild(
+      button
+    );
+
+
+    return true;
+  }
+
+
+  function installAll() {
+    TARGETS.forEach(
+      installButton
+    );
+  }
+
+
+  function initialize() {
+    installAll();
+
+
+    const observer =
+      new MutationObserver(
+        installAll
+      );
+
+
+    observer.observe(
+      document.body,
+      {
+        childList:
+          true,
+
+        subtree:
+          true
+      }
+    );
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
 })();
