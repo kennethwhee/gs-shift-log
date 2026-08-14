@@ -93958,19 +93958,10 @@ function initializeAuxiliaryMaterialHistoryControls() {
       today;
   }
 
-  let mobileLoadTimer =
+  let savedHistoryLoadTimer =
     null;
 
-  function loadMobileHistoryIfNeeded() {
-    /*
-      PC에서는 자동 조회하지 않는다.
-    */
-    if (
-      !isAuxiliaryMaterialMobileMonitorMode()
-    ) {
-      return;
-    }
-
+  function loadAuxiliaryMaterialHistoryIfNeeded() {
     let range;
 
     try {
@@ -94024,7 +94015,7 @@ function initializeAuxiliaryMaterialHistoryControls() {
     }
 
     /*
-      모바일에서는 저장된 D1 자료만 불러온다.
+      저장된 D1 자료만 불러온다.
       OIS 신규 조회는 실행하지 않는다.
     */
     loadAuxiliaryMaterialHistory()
@@ -94037,18 +94028,12 @@ function initializeAuxiliaryMaterialHistoryControls() {
       );
   }
 
-  function scheduleMobileHistoryLoad() {
+  function scheduleAuxiliaryMaterialHistoryLoad() {
     if (
-      !isAuxiliaryMaterialMobileMonitorMode()
-    ) {
-      return;
-    }
-
-    if (
-      mobileLoadTimer
+      savedHistoryLoadTimer
     ) {
       window.clearTimeout(
-        mobileLoadTimer
+        savedHistoryLoadTimer
       );
     }
 
@@ -94056,13 +94041,13 @@ function initializeAuxiliaryMaterialHistoryControls() {
       월 화살표를 빠르게 여러 번 누르면
       마지막으로 선택한 월만 불러온다.
     */
-    mobileLoadTimer =
+    savedHistoryLoadTimer =
       window.setTimeout(
         () => {
-          mobileLoadTimer =
+          savedHistoryLoadTimer =
             null;
 
-          loadMobileHistoryIfNeeded();
+          loadAuxiliaryMaterialHistoryIfNeeded();
         },
         160
       );
@@ -94087,34 +94072,34 @@ function initializeAuxiliaryMaterialHistoryControls() {
   );
 
   /*
-    모바일에서 부재료 메뉴를 열면
+    부재료 메뉴를 열면
     선택된 월의 저장자료만 조건부 복원
   */
   elements.tab
     ?.addEventListener(
       "click",
-      loadMobileHistoryIfNeeded
+      loadAuxiliaryMaterialHistoryIfNeeded
     );
 
   /*
-    모바일 월 변경 후 저장자료 조건부 복원
+    조회 월 변경 후 저장자료 조건부 복원
   */
   elements.monthInput
     ?.addEventListener(
       "change",
-      scheduleMobileHistoryLoad
+      scheduleAuxiliaryMaterialHistoryLoad
     );
 
   elements.previousMonthButton
     ?.addEventListener(
       "click",
-      scheduleMobileHistoryLoad
+      scheduleAuxiliaryMaterialHistoryLoad
     );
 
   elements.nextMonthButton
     ?.addEventListener(
       "click",
-      scheduleMobileHistoryLoad
+      scheduleAuxiliaryMaterialHistoryLoad
     );
 
   elements

@@ -105035,3 +105035,94 @@ input {
 .auxiliary-material-query-date-field[hidden] {
   display: none !important;
 }
+
+/* =========================================================
+  부재료 PC 상단 날짜 입력 크기 최종 보정
+
+  - 실제 조회 월 입력 폭·높이 고정
+  - 날짜 입력의 세로 flex-basis 오류 해제
+  - 엑셀 등록 버튼 선택자 보정
+  - 모바일 모니터링 화면은 기존 유지
+========================================================= */
+
+@media screen and (min-width: 769px) {
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-range-controls
+  .auxiliary-material-month-navigation
+  #auxiliaryMaterialMonth {
+    box-sizing: border-box !important;
+    display: block !important;
+
+    width: 110px !important;
+    min-width: 110px !important;
+    max-width: 110px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+
+    margin: 0 !important;
+    padding: 0 5px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 9px !important;
+    font-weight: 850 !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-range-controls
+  > .auxiliary-material-period-date-field:not([hidden]) {
+    box-sizing: border-box !important;
+
+    flex: 0 0 112px !important;
+
+    width: 112px !important;
+    min-width: 112px !important;
+    max-width: 112px !important;
+
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-range-controls
+  > .auxiliary-material-period-date-field:not([hidden])
+  input[type="date"] {
+    box-sizing: border-box !important;
+    display: block !important;
+
+    flex: 0 0 34px !important;
+
+    width: 112px !important;
+    min-width: 112px !important;
+    max-width: 112px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+
+    margin: 0 !important;
+    padding: 0 5px !important;
+  }
+
+
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls
+  > #importAuxiliaryMaterialExcelButton.auxiliary-material-excel-inline-button {
+    min-width: 64px !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+
+    margin: 0 !important;
+    padding: 0 7px !important;
+  }
+}

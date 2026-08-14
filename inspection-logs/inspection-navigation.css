@@ -1342,20 +1342,41 @@
   점검일지 최상위 메뉴 접기·펼치기
 ========================================================= */
 
+/*
+  버튼은 사이드바의 직접 자식이지만
+  점검일지 메뉴 소개 카드 우측에 배치한다.
+*/
+
+.inspection-sidebar__intro strong {
+  padding-right: 64px;
+}
+
 .inspection-sidebar-toggle {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  right: 8px;
+
   display: inline-flex;
-  min-height: 38px;
-  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 58px;
+  min-width: 58px;
+  height: 30px;
+  min-height: 30px;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 0 12px;
+  gap: 4px;
+  padding: 0 7px;
+
   border: 1px solid #c9d7e5;
-  border-radius: 10px;
-  background: #ffffff;
+  border-radius: 8px;
+
+  background: #f7fafd;
   color: #29445e;
-  box-shadow: 0 3px 10px rgba(24, 50, 78, 0.05);
+
+  font: inherit;
   cursor: pointer;
+
   transition:
     border-color 0.16s ease,
     background-color 0.16s ease,
@@ -1364,7 +1385,7 @@
 
 .inspection-sidebar-toggle:hover {
   border-color: #8fb4d8;
-  background: #eef6ff;
+  background: #eaf4ff;
   color: #245f98;
 }
 
@@ -1375,27 +1396,81 @@
 
 .inspection-sidebar-toggle__icon {
   display: inline-flex;
-  width: 14px;
+  width: 10px;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  font-weight: 700;
+
+  font-size: 18px;
+  font-weight: 800;
   line-height: 1;
 }
 
 .inspection-sidebar-toggle__label {
-  font-size: 11px;
-  font-weight: 850;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
   white-space: nowrap;
 }
 
+
+/*
+  접힌 상태:
+  메뉴 전체를 없애지 않고 열기 버튼만 남긴다.
+*/
+
 .inspection-workspace.is-sidebar-collapsed {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns:
+    44px
+    minmax(0, 1fr) !important;
+
+  gap: 8px !important;
 }
 
 .inspection-workspace.is-sidebar-collapsed
   > .inspection-sidebar {
+  display: grid !important;
+  width: 44px;
+}
+
+.inspection-sidebar.is-collapsed
+  > .inspection-sidebar__intro {
+  box-sizing: border-box;
+  width: 44px;
+  min-height: 44px;
+  padding: 4px;
+}
+
+.inspection-sidebar.is-collapsed
+  > .inspection-sidebar__intro
+  > strong,
+.inspection-sidebar.is-collapsed
+  > .inspection-sidebar__intro
+  > span,
+.inspection-sidebar.is-collapsed
+  > .inspection-sidebar-group {
   display: none !important;
+}
+
+.inspection-sidebar.is-collapsed
+  > .inspection-sidebar-toggle {
+  top: 4px;
+  right: 4px;
+
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+
+  border-color: transparent;
+  background: #edf5fd;
+  box-shadow: none;
+}
+
+.inspection-sidebar.is-collapsed
+  > .inspection-sidebar-toggle
+  > .inspection-sidebar-toggle__label {
+  display: none;
 }
 
 .inspection-workspace.is-sidebar-collapsed
@@ -1404,15 +1479,29 @@
   max-width: none;
 }
 
+
+/*
+  모바일에서도 열기 버튼이 사라지지 않도록 유지한다.
+*/
+
 @media (max-width: 680px) {
-  .inspection-sidebar-toggle {
-    width: 36px;
-    min-width: 36px;
-    min-height: 36px;
-    padding: 0;
+  .inspection-sidebar {
+    position: relative;
   }
 
-  .inspection-sidebar-toggle__label {
+  .inspection-sidebar__intro {
+    display: block !important;
+    min-height: 46px;
+    padding: 12px;
+  }
+
+  .inspection-sidebar__intro > span {
     display: none;
+  }
+
+  .inspection-workspace.is-sidebar-collapsed
+    > .inspection-sidebar {
+    width: 44px;
+    margin-bottom: 8px;
   }
 }

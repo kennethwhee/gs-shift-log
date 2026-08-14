@@ -541,174 +541,142 @@ updateInspectionEmptyGuide();
   const INSPECTION_SIDEBAR_STORAGE_KEY =
     "gsShiftLog.inspectionWorkspace.sidebarCollapsed.v1";
 
-  const inspectionHeader =
-    hub.querySelector(
-      ".inspection-log-header"
+  sidebar.id =
+    "inspectionWorkspaceSidebar";
+
+  const inspectionSidebarToggleButton =
+    document.createElement(
+      "button"
     );
 
-  if (inspectionHeader) {
-    let inspectionSidebarHeaderActions =
-      inspectionHeader.querySelector(
-        ".inspection-log-header__actions"
-      );
+  inspectionSidebarToggleButton.type =
+    "button";
 
-    if (!inspectionSidebarHeaderActions) {
-      inspectionSidebarHeaderActions =
-        document.createElement(
-          "div"
-        );
+  inspectionSidebarToggleButton.className =
+    "inspection-sidebar-toggle";
 
-      inspectionSidebarHeaderActions.className =
-        "inspection-log-header__actions";
+  inspectionSidebarToggleButton.setAttribute(
+    "aria-controls",
+    sidebar.id
+  );
 
-      inspectionHeader.appendChild(
-        inspectionSidebarHeaderActions
-      );
-    }
+  inspectionSidebarToggleButton.innerHTML = `
+    <span
+      class="inspection-sidebar-toggle__icon"
+      aria-hidden="true"
+    ></span>
 
-    sidebar.id =
-      "inspectionWorkspaceSidebar";
+    <span
+      class="inspection-sidebar-toggle__label"
+    ></span>
+  `;
 
-    const inspectionSidebarToggleButton =
-      document.createElement(
-        "button"
-      );
+  const inspectionSidebarToggleIcon =
+    inspectionSidebarToggleButton.querySelector(
+      ".inspection-sidebar-toggle__icon"
+    );
 
-    inspectionSidebarToggleButton.type =
-      "button";
+  const inspectionSidebarToggleLabel =
+    inspectionSidebarToggleButton.querySelector(
+      ".inspection-sidebar-toggle__label"
+    );
 
-    inspectionSidebarToggleButton.className =
-      "inspection-sidebar-toggle";
+  const setInspectionSidebarCollapsed = (
+    isCollapsed,
+    shouldSave = true
+  ) => {
+    const collapsed =
+      isCollapsed === true;
+
+    workspace.classList.toggle(
+      "is-sidebar-collapsed",
+      collapsed
+    );
+
+    sidebar.classList.toggle(
+      "is-collapsed",
+      collapsed
+    );
 
     inspectionSidebarToggleButton.setAttribute(
-      "aria-controls",
-      sidebar.id
+      "aria-expanded",
+      String(!collapsed)
     );
 
-    inspectionSidebarToggleButton.innerHTML = `
-      <span
-        class="inspection-sidebar-toggle__icon"
-        aria-hidden="true"
-      ></span>
+    inspectionSidebarToggleIcon.textContent =
+      collapsed
+        ? "›"
+        : "‹";
 
-      <span
-        class="inspection-sidebar-toggle__label"
-      ></span>
-    `;
+    inspectionSidebarToggleLabel.textContent =
+      collapsed
+        ? "열기"
+        : "접기";
 
-    const inspectionSidebarToggleIcon =
-      inspectionSidebarToggleButton.querySelector(
-        ".inspection-sidebar-toggle__icon"
-      );
+    const accessibleText =
+      collapsed
+        ? "점검일지 메뉴 열기"
+        : "점검일지 메뉴 접기";
 
-    const inspectionSidebarToggleLabel =
-      inspectionSidebarToggleButton.querySelector(
-        ".inspection-sidebar-toggle__label"
-      );
+    inspectionSidebarToggleButton.setAttribute(
+      "aria-label",
+      accessibleText
+    );
 
-    const setInspectionSidebarCollapsed = (
-      isCollapsed,
-      shouldSave = true
-    ) => {
-      const collapsed =
-        isCollapsed ===
-          true;
+    inspectionSidebarToggleButton.title =
+      accessibleText;
 
-      workspace.classList.toggle(
-        "is-sidebar-collapsed",
-        collapsed
-      );
-
-      sidebar.hidden =
-        collapsed;
-
-      inspectionSidebarToggleButton.setAttribute(
-        "aria-expanded",
-        String(
-          !collapsed
-        )
-      );
-
-      const buttonText =
-        collapsed
-          ? "메뉴 열기"
-          : "메뉴 접기";
-
-      const accessibleText =
-        collapsed
-          ? "점검일지 메뉴 열기"
-          : "점검일지 메뉴 접기";
-
-      inspectionSidebarToggleIcon.textContent =
-        collapsed
-          ? "›"
-          : "‹";
-
-      inspectionSidebarToggleLabel.textContent =
-        buttonText;
-
-      inspectionSidebarToggleButton.setAttribute(
-        "aria-label",
-        accessibleText
-      );
-
-      inspectionSidebarToggleButton.title =
-        accessibleText;
-
-      if (!shouldSave) {
-        return;
-      }
-
-      try {
-        window.localStorage.setItem(
-          INSPECTION_SIDEBAR_STORAGE_KEY,
-          collapsed
-            ? "1"
-            : "0"
-        );
-      } catch {
-        /*
-          localStorage를 사용할 수 없어도
-          메뉴 접기 기능은 그대로 동작한다.
-        */
-      }
-    };
-
-    let initialSidebarCollapsed =
-      false;
-
-    try {
-      initialSidebarCollapsed =
-        window.localStorage.getItem(
-          INSPECTION_SIDEBAR_STORAGE_KEY
-        ) ===
-          "1";
-    } catch {
-      initialSidebarCollapsed =
-        false;
+    if (!shouldSave) {
+      return;
     }
 
-    inspectionSidebarToggleButton.addEventListener(
-      "click",
-      () => {
-        setInspectionSidebarCollapsed(
-          !workspace.classList.contains(
-            "is-sidebar-collapsed"
-          )
-        );
-      }
-    );
+    try {
+      window.localStorage.setItem(
+        INSPECTION_SIDEBAR_STORAGE_KEY,
+        collapsed
+          ? "1"
+          : "0"
+      );
+    } catch {
+      /*
+        localStorage를 사용할 수 없어도
+        메뉴 접기 기능은 그대로 동작한다.
+      */
+    }
+  };
 
-    inspectionSidebarHeaderActions.appendChild(
-      inspectionSidebarToggleButton
-    );
+  let initialSidebarCollapsed =
+    false;
 
-    setInspectionSidebarCollapsed(
-      initialSidebarCollapsed,
-      false
-    );
+  try {
+    initialSidebarCollapsed =
+      window.localStorage.getItem(
+        INSPECTION_SIDEBAR_STORAGE_KEY
+      ) === "1";
+  } catch {
+    initialSidebarCollapsed =
+      false;
   }
 
+  inspectionSidebarToggleButton.addEventListener(
+    "click",
+    () => {
+      setInspectionSidebarCollapsed(
+        !workspace.classList.contains(
+          "is-sidebar-collapsed"
+        )
+      );
+    }
+  );
+
+  sidebar.prepend(
+    inspectionSidebarToggleButton
+  );
+
+  setInspectionSidebarCollapsed(
+    initialSidebarCollapsed,
+    false
+  );
   const tableBody =
     document.getElementById(
       "inspectionScheduleTableBody"
