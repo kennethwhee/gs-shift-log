@@ -138576,7 +138576,7 @@ window.updateEfficiencyMorningMeetingUploadSummary =
   }
 
 
-  /* =====================================================
+/* =====================================================
     사용할 시트 선택
 
     기계팀 파일처럼 날짜별 시트가 여러 개면
@@ -138584,46 +138584,98 @@ window.updateEfficiencyMorningMeetingUploadSummary =
 
     날짜가 없는 단일 양식만
     기존 방식대로 내용이 있는 마지막 시트를 사용한다.
-  ====================================================== */
+====================================================== */
 
-  function selectMorningMeetingSourceSheet(
+function selectMorningMeetingSourceSheet(
   workbook,
   teamKey
 ) {
-  /*
-    오전회의 팀 자료의 최종 날짜 기준은
-    사용자가 선택한 "업무내용 기준일"이다.
-
-    시트 내부 날짜는:
-    - 정확한 날짜 시트 탐색
-    - 기계팀 다중 시트 구분
-
-    용도로만 사용한다.
-  */
-
   const targetDate =
+    getMorningMeetingSelectedWorkDate();
+
+
+  /* =====================================================
+    주말 취합 기간 확인
+
+    평일:
+    - 업무내용 기준일과 정확히 같은 날짜 사용
+
+    주말:
+    - 선택한 시작일 ~ 종료일 사이의 시트만 후보
+    - 그중 가장 최신 날짜 사용
+
+    예:
+    주말 2026-08-07 ~ 2026-08-09
+    파일 시트 08/03 ~ 08/07
+
+    → 2026-08-07 자동 선택
+  ====================================================== */
+
+  let weekendMode =
+    null;
+
+
+  try {
+    if (
+      typeof window
+        .getEfficiencyMorningMeetingWeekendMode ===
+        "function"
+    ) {
+      weekendMode =
+        window
+          .getEfficiencyMorningMeetingWeekendMode();
+    }
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "오전회의 팀자료 주말 기간 확인 실패:",
+      error
+    );
+  }
+
+
+  if (
+    !weekendMode ||
+    typeof weekendMode !==
+      "object"
+  ) {
+    const uploadState =
+      window
+        .efficiencyMorningMeetingUploadState ||
+      {};
+
+
+    weekendMode =
+      uploadState.weekendMode &&
+      typeof uploadState.weekendMode ===
+        "object"
+        ? uploadState.weekendMode
+        : {};
+  }
+
+
+  const isWeekendMode =
+    weekendMode.enabled ===
+      true;
+
+
+  const weekendStartDate =
     normalizeMorningMeetingAnalysisDate(
-      getMorningMeetingSelectedWorkDate()
+      weekendMode.startDate
     );
 
 
-  const targetReportDate =
-    targetDate
-      ? targetDate.replaceAll(
-          "-",
-          "."
-        )
-      : "";
+  const weekendEndDate =
+    normalizeMorningMeetingAnalysisDate(
+      weekendMode.endDate
+    );
 
 
-  const normalizedTeamKey =
-    String(
-      teamKey ||
-      ""
-    )
-      .trim()
-      .toLowerCase();
-
+  /* =====================================================
+    파일 안의 시트 후보 수집
+  ====================================================== */
 
   const candidates =
     workbook.SheetNames
@@ -138656,11 +138708,25 @@ window.updateEfficiencyMorningMeetingUploadSummary =
             );
 
 
+          /*
+            우선 실제 시트 내용에서 날짜 확인
+          */
+
           const contentReportDate =
             extractMorningMeetingReportDate(
               rows
             );
 
+
+          /*
+            내용에서 날짜를 못 찾은 경우
+            시트명도 날짜 후보로 사용
+
+            예:
+            08.07
+            0807
+            26.08.07
+          */
 
           const normalizedReportDate =
             normalizeMorningMeetingAnalysisDate(
@@ -138671,13 +138737,12 @@ window.updateEfficiencyMorningMeetingUploadSummary =
             );
 
 
-          const sourceReportDate =
+          const reportDate =
             normalizedReportDate
-              ? normalizedReportDate
-                  .replaceAll(
-                    "-",
-                    "."
-                  )
+              ? normalizedReportDate.replaceAll(
+                  "-",
+                  "."
+                )
               : contentReportDate;
 
 
@@ -138686,22 +138751,8 @@ window.updateEfficiencyMorningMeetingUploadSummary =
             sheetIndex,
             worksheet,
             rows,
-
-            /*
-              실제 시트에서 발견된 날짜.
-              진단용으로만 보관한다.
-            */
-            sourceReportDate,
-
+            reportDate,
             normalizedReportDate,
-
-            /*
-              최종 분석 날짜는 아래에서
-              업무내용 기준일로 확정한다.
-            */
-            reportDate:
-              sourceReportDate,
-
             meaningfulCount:
               meaningfulRows.length
           };
@@ -138727,15 +138778,194 @@ window.updateEfficiencyMorningMeetingUploadSummary =
   }
 
 
-  /*
-    선택한 업무내용 기준일과
-    정확하게 일치하는 시트가 있으면
-    무조건 그것을 우선한다.
-  */
+  const datedCandidates =
+    candidates.filter(
+      item => {
+        return Boolean(
+          item.normalizedReportDate
+        );
+      }
+    );
+
+
+  /* =====================================================
+    주말 모드
+
+    선택 기간 안의 시트 중
+    가장 최신 날짜를 사용한다.
+  ====================================================== */
+
+  if (
+    isWeekendMode &&
+    weekendStartDate &&
+    weekendEndDate
+  ) {
+    const weekendCandidates =
+      datedCandidates.filter(
+        item => {
+          return (
+            item.normalizedReportDate >=
+              weekendStartDate &&
+
+            item.normalizedReportDate <=
+              weekendEndDate
+          );
+        }
+      );
+
+
+    if (
+      weekendCandidates.length >
+        0
+    ) {
+      weekendCandidates.sort(
+        (
+          first,
+          second
+        ) => {
+          const dateCompare =
+            second
+              .normalizedReportDate
+              .localeCompare(
+                first
+                  .normalizedReportDate
+              );
+
+
+          if (
+            dateCompare !==
+              0
+          ) {
+            return dateCompare;
+          }
+
+
+          /*
+            같은 날짜 시트가 여러 개면
+            Excel에서 뒤쪽에 있는 시트를 사용
+          */
+
+          return (
+            second.sheetIndex -
+            first.sheetIndex
+          );
+        }
+      );
+
+
+      const selectedSheet =
+        weekendCandidates[
+          0
+        ];
+
+
+      console.log(
+        "오전회의 주말 팀자료 시트 선택:",
+        {
+          team:
+            TEAM_CONFIG[
+              teamKey
+            ]?.name ||
+            teamKey,
+
+          range:
+            `${weekendStartDate} ~ ${weekendEndDate}`,
+
+          sheetName:
+            selectedSheet
+              .sheetName,
+
+          reportDate:
+            selectedSheet
+              .normalizedReportDate
+        }
+      );
+
+
+      return selectedSheet;
+    }
+
+
+    /*
+      날짜가 들어 있는 시트가 존재하는데
+      주말 기간 안에는 하나도 없는 경우
+
+      엉뚱한 날짜를 사용하는 것보다
+      명확하게 오류를 표시한다.
+    */
+
+    if (
+      datedCandidates.length >
+        0
+    ) {
+      const availableDates = [
+        ...new Set(
+          datedCandidates
+            .map(
+              item =>
+                item
+                  .normalizedReportDate
+            )
+            .filter(
+              Boolean
+            )
+        )
+      ].sort();
+
+
+      throw new Error(
+        [
+          `${TEAM_CONFIG[teamKey]?.name || "팀 자료"}에서`,
+          `${weekendStartDate} ~ ${weekendEndDate}`,
+          "기간의 업무내용 시트를 찾지 못했습니다.",
+          "",
+          `확인된 날짜: ${
+            availableDates.join(
+              ", "
+            ) ||
+            "없음"
+          }`
+        ].join(
+          " "
+        )
+      );
+    }
+
+
+    /*
+      날짜를 판별할 수 없는 단일 양식은
+      기존 호환 규칙 유지
+    */
+
+    candidates.sort(
+      (
+        first,
+        second
+      ) => {
+        return (
+          second.sheetIndex -
+          first.sheetIndex
+        );
+      }
+    );
+
+
+    return candidates[
+      0
+    ];
+  }
+
+
+  /* =====================================================
+    평일 모드
+
+    기존 규칙 그대로:
+    업무내용 기준일과 정확히 같은 날짜 사용
+  ====================================================== */
 
   const matchingCandidates =
     targetDate
-      ? candidates.filter(
+      ? datedCandidates.filter(
           item => {
             return (
               item.normalizedReportDate ===
@@ -138763,197 +138993,51 @@ window.updateEfficiencyMorningMeetingUploadSummary =
     );
 
 
-    const selected =
-      matchingCandidates[
-        0
-      ];
-
-
-    return {
-      ...selected,
-
-      reportDate:
-        targetReportDate ||
-        selected.sourceReportDate
-    };
+    return matchingCandidates[
+      0
+    ];
   }
 
 
-  /*
-    날짜가 적혀 있지 않은 시트.
-
-    기계팀처럼 시트 내부에 날짜를
-    명확히 적지 않는 양식도 허용한다.
-  */
-
-  const undatedCandidates =
-    candidates.filter(
-      item => {
-        return !item
-          .normalizedReportDate;
-      }
-    );
-
-
   if (
-    undatedCandidates.length >
+    targetDate &&
+    datedCandidates.length >
       0
   ) {
-    undatedCandidates.sort(
-      (
-        first,
-        second
-      ) => {
-        return (
-          second.sheetIndex -
-          first.sheetIndex
-        );
-      }
-    );
-
-
-    const selected =
-      undatedCandidates[
-        0
-      ];
-
-
-    return {
-      ...selected,
-
-      reportDate:
-        targetReportDate ||
-        selected.sourceReportDate
-    };
-  }
-
-
-  /*
-    안전팀 / 환경팀 / 전기제어팀
-
-    이 파일들은 사용자가 현재 업무내용 기준일에
-    맞는 자료를 직접 첨부한다.
-
-    내부에 다른 날짜가 포함돼 있더라도
-    그 날짜만으로 첨부 자료 전체를 거부하지 않는다.
-
-    예:
-    업무내용 기준일 2026-08-13
-    파일 내부에 2026-08-12 날짜 문구 존재
-
-    → 2026-08-13 자료로 분석
-  */
-
-  if (
-    targetDate &&
-    normalizedTeamKey !==
-      "mechanical"
-  ) {
-    candidates.sort(
-      (
-        first,
-        second
-      ) => {
-        return (
-          second.sheetIndex -
-          first.sheetIndex
-        );
-      }
-    );
-
-
-    const selected =
-      candidates[
-        0
-      ];
-
-
-    if (
-      selected.normalizedReportDate &&
-      selected.normalizedReportDate !==
-        targetDate
-    ) {
-      console.warn(
-        "오전회의 팀 자료 내부 날짜와 업무내용 기준일이 다릅니다.",
-        {
-          teamKey:
-            normalizedTeamKey,
-
-          sheetName:
-            selected.sheetName,
-
-          detectedDate:
-            selected.normalizedReportDate,
-
-          workDate:
-            targetDate
-        }
-      );
-    }
-
-
-    return {
-      ...selected,
-
-      reportDate:
-        targetReportDate
-    };
-  }
-
-
-  /*
-    기계팀은 실제 날짜별 시트가 여러 개 있을 수 있다.
-
-    날짜가 명시된 시트들만 존재하는데
-    선택 날짜와 맞는 시트가 전혀 없다면
-    잘못된 날짜의 내용을 임의로 사용하는 것은 막는다.
-  */
-
-  if (
-    targetDate &&
-    normalizedTeamKey ===
-      "mechanical"
-  ) {
-    const detectedDates =
-      Array.from(
-        new Set(
-          candidates
-            .map(
-              item =>
-                item.normalizedReportDate
-            )
-            .filter(
-              Boolean
-            )
-        )
-      );
-
-
     throw new Error(
-      [
-        `${TEAM_CONFIG[teamKey]?.name || "기계팀"}에서`,
-        `${targetDate} 업무내용 시트를 찾지 못했습니다.`,
-
-        detectedDates.length
-          ? ` 확인된 날짜: ${detectedDates.join(", ")}`
-          : ""
-      ].join(
-        ""
-      )
+      `${TEAM_CONFIG[teamKey]?.name || "팀 자료"}에서 ${targetDate} 업무내용 시트를 찾지 못했습니다.`
     );
   }
 
 
-  /*
-    기준일을 확인할 수 없는 예외 상황에서는
-    내용이 있는 마지막 시트를 사용한다.
-  */
+  /* =====================================================
+    날짜가 없는 단일 양식 호환
+
+    내용이 있는 마지막 시트 사용
+  ====================================================== */
 
   candidates.sort(
     (
       first,
       second
     ) => {
+      const dateDifference =
+        getMorningMeetingDateNumber(
+          second.reportDate
+        ) -
+        getMorningMeetingDateNumber(
+          first.reportDate
+        );
+
+
+      if (
+        dateDifference !==
+          0
+      ) {
+        return dateDifference;
+      }
+
+
       return (
         second.sheetIndex -
         first.sheetIndex
@@ -145917,14 +146001,90 @@ function buildMorningMeetingShiftPartRows(
 
 
   /*
-    중요 변경
+    교대파트 업무 번호
 
-    기존:
-    0건 → 오류
+    일반 업무:
+    1) 내용
+    2) 내용
+    3) 내용
 
-    변경:
-    0건 → 교대파트 제목과 빈 행만 생성
+    아래와 같은 줄은 앞 업무의 세부내용으로 보고
+    새 번호를 붙이지 않는다.
+
+    - 세부내용
+    : 세부내용
+    (참고내용)
   */
+
+  let itemNumber =
+    0;
+
+
+  const numberedLines =
+    selectedLines
+      .map(
+        line => {
+          const text =
+            String(
+              line ||
+              ""
+            ).trim();
+
+
+          if (
+            !text
+          ) {
+            return "";
+          }
+
+
+          const isContinuation =
+            /^[-–—•·:※→(]/.test(
+              text
+            );
+
+
+          if (
+            isContinuation
+          ) {
+            return text;
+          }
+
+
+          /*
+            이미 붙어 있는
+            1. / 1) 형식은 제거한 뒤
+            번호를 다시 매긴다.
+          */
+
+          const cleanText =
+            text
+              .replace(
+                /^\d+\s*[.)]\s*/,
+                ""
+              )
+              .trim();
+
+
+          if (
+            !cleanText
+          ) {
+            return "";
+          }
+
+
+          itemNumber +=
+            1;
+
+
+          return (
+            `${itemNumber}) ${cleanText}`
+          );
+        }
+      )
+      .filter(
+        Boolean
+      );
 
 
   const rowDefinitions = [
@@ -145938,7 +146098,7 @@ function buildMorningMeetingShiftPartRows(
     },
 
 
-    ...selectedLines.map(
+    ...numberedLines.map(
       line => {
         return {
           template:
@@ -145951,10 +146111,6 @@ function buildMorningMeetingShiftPartRows(
       }
     ),
 
-
-    /*
-      마지막 여백용 빈 행
-    */
 
     {
       template:
@@ -148505,7 +148661,8 @@ function applyMorningMeetingCoalNumericValues(
         "N13",
 
       value:
-        null
+        values.bioInventory
+          ?.height
     },
 
     /*
@@ -150386,7 +150543,7 @@ function formatMorningMeetingTmItemText(
 
 
   /*
-    주말일 때만 날짜 사용
+    주말일 때만 날짜 표시
   */
 
   const dateText =
@@ -150397,8 +150554,8 @@ function formatMorningMeetingTmItemText(
 
 
   /*
-    내용이 이미 시간으로 시작하면
-    시간 중복 방지
+    내용 자체가 시간으로 시작하면
+    시간 중복을 방지한다.
   */
 
   const timeText =
@@ -150410,7 +150567,28 @@ function formatMorningMeetingTmItemText(
       : "";
 
 
+  /*
+    TM 번호
+
+    설비 운영:
+    1) ...
+    2) ...
+
+    연료 설비:
+    1) ...
+    2) ...
+
+    buildMorningMeetingTmAreaRows()에서
+    각 구역별 itemIndex가 따로 시작하므로
+    번호도 각 구역마다 1부터 시작한다.
+  */
+
+  const numberText =
+    `${itemIndex + 1})`;
+
+
   const firstLine = [
+    numberText,
     dateText,
     timeText,
     mainText
