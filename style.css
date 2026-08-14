@@ -102164,7 +102164,7 @@ h4 {
 #efficiencyTeamModal
 #efficiencyMorningMeetingAutoHistoryTable {
   width: 100% !important;
-  min-width: 1190px !important;
+  min-width: 1160px !important;
   max-width: none !important;
 
   table-layout: fixed !important;
@@ -102181,8 +102181,8 @@ h4 {
 
   총합:
   64 + 150 + 96 + 78 + 100
-  + 138 + 100 + 144 + 180 + 140
-  = 1190px
+  + 138 + 100 + 144 + 150 + 140
+  = 1160px
 ========================================================= */
 
 #efficiencyTeamModal
@@ -102262,7 +102262,7 @@ th.is-power {
 thead
 tr:first-child
 th.is-organic-fuel {
-  width: 180px !important;
+  width: 150px !important;
 }
 
 
