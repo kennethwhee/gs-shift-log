@@ -93958,9 +93958,119 @@ function initializeAuxiliaryMaterialHistoryControls() {
       today;
   }
 
+  let mobileLoadTimer =
+    null;
+
+  function loadMobileHistoryIfNeeded() {
+    /*
+      PC에서는 자동 조회하지 않는다.
+    */
+    if (
+      !isAuxiliaryMaterialMobileMonitorMode()
+    ) {
+      return;
+    }
+
+    let range;
+
+    try {
+      range =
+        readAuxiliaryMaterialDateRange();
+
+    } catch (
+      error
+    ) {
+      setAuxiliaryMaterialStatus(
+        error instanceof Error
+          ? error.message
+          : "부재료 조회 월을 확인해 주세요.",
+        "error"
+      );
+
+      return;
+    }
+
+    const rangeKey =
+      getAuxiliaryMaterialHistoryRangeKey(
+        range
+      );
+
+    /*
+      같은 월이 이미 로드된 경우:
+      서버 요청 없이 메모리 자료만 다시 표시
+    */
+    if (
+      auxiliaryMaterialHistoryState
+        .loadedRangeKey ===
+        rangeKey
+    ) {
+      renderAuxiliaryMaterialHistory();
+
+      renderAuxiliaryMaterialFixedDensitySettings();
+
+      return;
+    }
+
+    /*
+      같은 월을 현재 불러오는 중인 경우:
+      중복 요청하지 않음
+    */
+    if (
+      auxiliaryMaterialHistoryState
+        .loadingRangeKey ===
+        rangeKey
+    ) {
+      return;
+    }
+
+    /*
+      모바일에서는 저장된 D1 자료만 불러온다.
+      OIS 신규 조회는 실행하지 않는다.
+    */
+    loadAuxiliaryMaterialHistory()
+      .catch(
+        () => {
+          /*
+            오류 표시는 조회 함수가 담당한다.
+          */
+        }
+      );
+  }
+
+  function scheduleMobileHistoryLoad() {
+    if (
+      !isAuxiliaryMaterialMobileMonitorMode()
+    ) {
+      return;
+    }
+
+    if (
+      mobileLoadTimer
+    ) {
+      window.clearTimeout(
+        mobileLoadTimer
+      );
+    }
+
+    /*
+      월 화살표를 빠르게 여러 번 누르면
+      마지막으로 선택한 월만 불러온다.
+    */
+    mobileLoadTimer =
+      window.setTimeout(
+        () => {
+          mobileLoadTimer =
+            null;
+
+          loadMobileHistoryIfNeeded();
+        },
+        160
+      );
+  }
+
   /*
-    저장자료 조회는 사용자가
-    버튼을 직접 눌렀을 때만 실행한다.
+    PC 저장자료 보기:
+    사용자가 누를 때마다 최신 자료 조회
   */
   elements.loadButton.addEventListener(
     "click",
@@ -93975,6 +94085,37 @@ function initializeAuxiliaryMaterialHistoryControls() {
         );
     }
   );
+
+  /*
+    모바일에서 부재료 메뉴를 열면
+    선택된 월의 저장자료만 조건부 복원
+  */
+  elements.tab
+    ?.addEventListener(
+      "click",
+      loadMobileHistoryIfNeeded
+    );
+
+  /*
+    모바일 월 변경 후 저장자료 조건부 복원
+  */
+  elements.monthInput
+    ?.addEventListener(
+      "change",
+      scheduleMobileHistoryLoad
+    );
+
+  elements.previousMonthButton
+    ?.addEventListener(
+      "click",
+      scheduleMobileHistoryLoad
+    );
+
+  elements.nextMonthButton
+    ?.addEventListener(
+      "click",
+      scheduleMobileHistoryLoad
+    );
 
   elements
     .loadButton
@@ -96728,10 +96869,15 @@ async function createAuxiliaryMaterialOisQuery() {
       return result;
     }
 
+    const isPeriodMode =
+      getAuxiliaryMaterialElements()
+        .periodModeInput
+        ?.checked === true;
+
     const viewButtonText =
-      range.dayCount > 1
+      isPeriodMode
         ? "기간 저장자료 보기"
-        : "최근 7일 보기";
+        : "월 저장자료 보기";
 
     setAuxiliaryMaterialStatus(
       (
@@ -125846,7 +125992,7 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
     if (
       !(
         control instanceof
-        HTMLElement
+          HTMLElement
       )
     ) {
       return false;
@@ -126005,6 +126151,7 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
     ) {
       try {
         control.select();
+
       } catch {
         /*
           일부 input 유형은 select()를 지원하지 않는다.
@@ -126046,7 +126193,7 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
 
     if (
       currentIndex <
-      0
+        0
     ) {
       return false;
     }
@@ -126088,6 +126235,7 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
 
 
     const slots = [];
+
     const cellMetadata =
       new Map();
 
@@ -126104,8 +126252,7 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
         ) {
           slots[
             rowIndex
-          ] =
-            [];
+          ] = [];
         }
 
 
@@ -126135,7 +126282,7 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
                 Number(
                   cell.rowSpan
                 ) ||
-                  1
+                1
               );
 
 
@@ -126145,7 +126292,7 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
                 Number(
                   cell.colSpan
                 ) ||
-                  1
+                1
               );
 
 
@@ -126178,8 +126325,7 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
               ) {
                 slots[
                   targetRowIndex
-                ] =
-                  [];
+                ] = [];
               }
 
 
@@ -126248,7 +126394,7 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
 
     if (
       preferredColumn <
-      startColumn
+        startColumn
     ) {
       return (
         startColumn -
@@ -126259,7 +126405,7 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
 
     if (
       preferredColumn >
-      endColumn
+        endColumn
     ) {
       return (
         preferredColumn -
@@ -126384,18 +126530,22 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
           ) => {
             const firstDistance =
               getEfficiencySpreadsheetCellDistance(
-                tableGrid.cellMetadata.get(
-                  firstCell
-                ),
+                tableGrid
+                  .cellMetadata
+                  .get(
+                    firstCell
+                  ),
                 preferredColumn
               );
 
 
             const secondDistance =
               getEfficiencySpreadsheetCellDistance(
-                tableGrid.cellMetadata.get(
-                  secondCell
-                ),
+                tableGrid
+                  .cellMetadata
+                  .get(
+                    secondCell
+                  ),
                 preferredColumn
               );
 
@@ -126487,7 +126637,7 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
 
     if (
       currentIndex <
-      0
+        0
     ) {
       return null;
     }
@@ -126512,7 +126662,7 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
   ) {
     if (
       control instanceof
-      HTMLTextAreaElement
+        HTMLTextAreaElement
     ) {
       return true;
     }
@@ -126521,7 +126671,7 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
     if (
       !(
         control instanceof
-        HTMLInputElement
+          HTMLInputElement
       )
     ) {
       return false;
@@ -126542,20 +126692,6 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
 
   /* =====================================================
     방향키로 셀 이동이 가능한 상태인지 확인
-
-    입력 중에는 방향키가 글자 커서 이동에 사용된다.
-
-    왼쪽:
-    커서가 맨 앞일 때 셀 이동
-
-    오른쪽:
-    커서가 맨 끝일 때 셀 이동
-
-    위:
-    첫 번째 줄일 때 셀 이동
-
-    아래:
-    마지막 줄일 때 셀 이동
   ====================================================== */
 
   function shouldMoveEfficiencySpreadsheetByArrow(
@@ -126600,29 +126736,29 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
 
     if (
       key ===
-      "ArrowLeft"
+        "ArrowLeft"
     ) {
       return (
         selectionStart ===
-        0
+          0
       );
     }
 
 
     if (
       key ===
-      "ArrowRight"
+        "ArrowRight"
     ) {
       return (
         selectionEnd ===
-        value.length
+          value.length
       );
     }
 
 
     if (
       key ===
-      "ArrowUp"
+        "ArrowUp"
     ) {
       return !value
         .slice(
@@ -126637,7 +126773,7 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
 
     if (
       key ===
-      "ArrowDown"
+        "ArrowDown"
     ) {
       return !value
         .slice(
@@ -126720,6 +126856,19 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
 
 
       /*
+        실제 행 단위 편집 셀은
+        전용 키보드 이벤트에서 처리한다.
+      */
+      if (
+        control.matches?.(
+          ".efficiency-daily-work-line-cell"
+        )
+      ) {
+        return;
+      }
+
+
+      /*
         한글 조합 중 Enter는 글자 확정에 사용되므로
         셀 이동을 실행하지 않는다.
       */
@@ -126738,7 +126887,7 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
 
       if (
         event.key ===
-        "Tab"
+          "Tab"
       ) {
         event.preventDefault();
 
@@ -126756,24 +126905,27 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
 
 
       /* =================================================
-        Enter · Shift + Enter
+        Enter
 
-        textarea 줄바꿈:
-        Alt + Enter
+        textarea:
+        일반 Enter로 줄바꿈
+
+        단일행 input·select:
+        위·아래 입력칸으로 이동
       ================================================== */
 
       if (
         event.key ===
-        "Enter"
+          "Enter"
       ) {
+        /*
+          공지사항·TM 회의·설비운영팀·기타사항은
+          일반 Enter로 줄바꿈한다.
+        */
         if (
-          event.altKey &&
           control instanceof
             HTMLTextAreaElement
         ) {
-          /*
-            기본 textarea 줄바꿈을 그대로 사용한다.
-          */
           return;
         }
 
@@ -126921,7 +127073,6 @@ function initializeEfficiencyDailyWorkSpreadsheetNavigation() {
     .spreadsheetNavigationBound =
     "true";
 }
-
 
 /* =========================================================
   초기 실행
@@ -224592,39 +224743,54 @@ function initialize() {
     기간지정:
     사용자가 선택한 시작일~종료일
   */
-  function getDisplayRange() {
-    const elements =
-      getAuxiliaryMaterialElements();
 
-    if (
-      elements
-        .periodModeInput
-        ?.checked
-    ) {
-      return validateRange(
-        elements
-          .startDateInput
-          ?.value ||
-          "",
+function getDisplayRange() {
+  const elements =
+    getAuxiliaryMaterialElements();
 
-        elements
-          .endDateInput
-          ?.value ||
-          ""
-      );
-    }
-
-    const targetDate =
-      elements
-        .queryDateInput
-        ?.value ||
-        "";
-
+  /*
+    기간지정:
+    저장자료도 시작일~종료일 범위를 사용한다.
+  */
+  if (
+    elements.periodModeInput
+      ?.checked
+  ) {
     return validateRange(
-      targetDate,
-      targetDate
+      elements.startDateInput
+        ?.value || "",
+
+      elements.endDateInput
+        ?.value || ""
     );
   }
+
+  /*
+    기본:
+    선택한 조회 월 전체를 사용한다.
+
+    현재 월은 오늘까지,
+    지난달은 해당 월 말일까지이다.
+  */
+  const monthRange =
+    getAuxiliaryMaterialMonthRange(
+      elements.monthInput
+        ?.value || ""
+    );
+
+  if (
+    !monthRange
+  ) {
+    throw new Error(
+      "부재료 조회 월을 확인해 주세요."
+    );
+  }
+
+  return validateRange(
+    monthRange.startDate,
+    monthRange.endDate
+  );
+}
 
   /*
     OIS 조회 범위
@@ -224808,487 +224974,518 @@ function initialize() {
             : "선택일 OIS 조회 · 저장";
     };
 
-  function initializeDailyControls() {
-    const elements =
-      getAuxiliaryMaterialElements();
+function initializeDailyControls() {
+  const elements =
+    getAuxiliaryMaterialElements();
 
-    const view =
-      elements.view;
+  const view =
+    elements.view;
 
-    const navigation =
-      view?.querySelector(
-        ".auxiliary-material-month-navigation"
+  const navigation =
+    view?.querySelector(
+      ".auxiliary-material-month-navigation"
+    );
+
+  if (
+    !view ||
+    !navigation ||
+    !elements.monthInput ||
+    !elements.startDateInput ||
+    !elements.endDateInput
+  ) {
+    return;
+  }
+
+  const today =
+    localIso(
+      new Date()
+    );
+
+  /*
+    OIS 기준일 기본값은 기존처럼 전일
+  */
+  const defaultDate =
+    moveDate(
+      today,
+      -1
+    ) || today;
+
+  const currentMonth =
+    today.slice(
+      0,
+      7
+    );
+
+  const monthLabel =
+    elements.monthInput
+      .closest(
+        "label"
       );
 
+  const monthTitle =
+    monthLabel?.querySelector(
+      "span"
+    );
+
+  const heading =
+    view.querySelector(
+      ".auxiliary-material-heading h3"
+    );
+
+  /*
+    기존 조회 월 입력 복원
+  */
+  elements.monthInput.hidden =
+    false;
+
+  elements.monthInput.tabIndex =
+    0;
+
+  elements.monthInput.max =
+    currentMonth;
+
+  if (
+    !elements.monthInput.value
+  ) {
+    elements.monthInput.value =
+      currentMonth;
+  }
+
+  if (
+    monthTitle
+  ) {
+    monthTitle.textContent =
+      "조회 월";
+  }
+
+  if (
+    heading
+  ) {
+    heading.textContent =
+      "부재료 월별 관리";
+  }
+
+  const rangeControls =
+    view.querySelector(
+      ".auxiliary-material-pc-range-controls"
+    ) ||
+    view.querySelector(
+      ".auxiliary-material-period-fields"
+    );
+
+  const startLabel =
+    elements.startDateInput
+      .closest(
+        "label"
+      );
+
+  const endLabel =
+    elements.endDateInput
+      .closest(
+        "label"
+      );
+
+  if (
+    !rangeControls ||
+    !startLabel ||
+    !endLabel
+  ) {
+    return;
+  }
+
+  startLabel.classList.add(
+    "auxiliary-material-period-date-field"
+  );
+
+  endLabel.classList.add(
+    "auxiliary-material-period-date-field"
+  );
+
+  /*
+    기간지정 체크박스
+  */
+  let periodModeInput =
+    document.getElementById(
+      "auxiliaryMaterialPeriodMode"
+    );
+
+  let periodLabel =
+    document.getElementById(
+      "auxiliaryMaterialPeriodModeLabel"
+    );
+
+  if (
+    !periodModeInput ||
+    !periodLabel
+  ) {
+    periodLabel =
+      document.createElement(
+        "label"
+      );
+
+    periodLabel.id =
+      "auxiliaryMaterialPeriodModeLabel";
+
+    periodLabel.className =
+      "auxiliary-material-period-mode";
+
+    periodLabel.innerHTML =
+      (
+        '<input type="checkbox" ' +
+        'id="auxiliaryMaterialPeriodMode">' +
+        "<span>기간지정</span>"
+      );
+
+    periodModeInput =
+      periodLabel.querySelector(
+        "input"
+      );
+  }
+
+  /*
+    조회 월과 별도로
+    OIS 하루 조회용 날짜 입력 생성
+  */
+  let queryDateInput =
+    document.getElementById(
+      "auxiliaryMaterialQueryDate"
+    );
+
+  let queryDateLabel =
+    document.getElementById(
+      "auxiliaryMaterialQueryDateLabel"
+    );
+
+  if (
+    !queryDateLabel
+  ) {
+    queryDateLabel =
+      document.createElement(
+        "label"
+      );
+
+    queryDateLabel.id =
+      "auxiliaryMaterialQueryDateLabel";
+
+    queryDateLabel.className =
+      (
+        "auxiliary-material-query-date-field " +
+        "auxiliary-material-period-date-field"
+      );
+
+    const queryDateTitle =
+      document.createElement(
+        "span"
+      );
+
+    queryDateTitle.textContent =
+      "OIS 기준일";
+
+    queryDateLabel.append(
+      queryDateTitle
+    );
+  }
+
+  if (
+    !queryDateInput
+  ) {
+    queryDateInput =
+      document.createElement(
+        "input"
+      );
+
+    queryDateInput.type =
+      "date";
+
+    queryDateInput.id =
+      "auxiliaryMaterialQueryDate";
+  }
+
+  /*
+    기존 함수에서 조회 월 라벨 안에 들어간
+    날짜 입력도 새 라벨로 이동한다.
+  */
+  if (
+    queryDateInput.parentElement !==
+      queryDateLabel
+  ) {
+    queryDateLabel.append(
+      queryDateInput
+    );
+  }
+
+  /*
+    기본 배열:
+    조회 월 | 기간지정 | OIS 기준일
+  */
+  rangeControls.insertBefore(
+    periodLabel,
+    startLabel
+  );
+
+  rangeControls.insertBefore(
+    queryDateLabel,
+    startLabel
+  );
+
+  function getSelectedMonthRange() {
+    return getAuxiliaryMaterialMonthRange(
+      elements.monthInput.value ||
+      currentMonth
+    );
+  }
+
+  function updateNormalModeStatus() {
     if (
-      !view ||
-      !navigation ||
-      !elements.monthInput
+      periodModeInput.checked
     ) {
       return;
     }
 
-    const today =
-      localIso(
-        new Date()
+    const monthRange =
+      getSelectedMonthRange();
+
+    if (
+      !monthRange
+    ) {
+      setAuxiliaryMaterialStatus(
+        "부재료 조회 월을 확인해 주세요.",
+        "error"
       );
 
-    /*
-      기본 기준일은 오늘
-    */
-    const defaultDate =
+      return;
+    }
+
+    setAuxiliaryMaterialStatus(
+      (
+        `${monthRange.startDate}` +
+        ` ~ ${monthRange.endDate} 월 저장자료 · ` +
+        `OIS는 ${queryDateInput.value} 하루만 조회`
+      ),
+      "idle"
+    );
+  }
+
+  function applyDate(
+    value
+  ) {
+    const dateValue =
+      (
+        isValidAuxiliaryMaterialIsoDate(
+          value
+        ) &&
+        value <= today
+      )
+        ? value
+        : defaultDate;
+
+    queryDateInput.value =
+      dateValue;
+
+    queryDateInput.max =
       today;
 
-    const monthLabel =
-      elements.monthInput
-        .closest(
-          "label"
+    /*
+      OIS 기준일만 변경한다.
+
+      조회 월과 시작일·종료일은
+      절대로 변경하지 않는다.
+    */
+    updateNormalModeStatus();
+  }
+
+  function updatePeriodStatus() {
+    try {
+      const range =
+        validateRange(
+          elements.startDateInput.value,
+          elements.endDateInput.value
         );
 
-    const title =
-      monthLabel?.querySelector(
-        "span"
-      );
-
-    const heading =
-      view.querySelector(
-        ".auxiliary-material-heading h3"
-      );
-
-    /*
-      기존 월 입력은
-      엑셀 다운로드 내부 기준으로 유지하되 화면에서는 숨김
-    */
-    elements.monthInput.hidden =
-      true;
-
-    elements.monthInput.tabIndex =
-      -1;
-
-    if (
-      title
-    ) {
-      title.textContent =
-        "기준일";
-    }
-
-    if (
-      heading
-    ) {
-      heading.textContent =
-        "부재료 일별 관리";
-    }
-
-    /*
-      기준일 입력 생성
-    */
-    let queryDateInput =
-      document.getElementById(
-        "auxiliaryMaterialQueryDate"
-      );
-
-    if (
-      !queryDateInput
-    ) {
-      queryDateInput =
-        document.createElement(
-          "input"
-        );
-
-      queryDateInput.type =
-        "date";
-
-      queryDateInput.id =
-        "auxiliaryMaterialQueryDate";
-
-      monthLabel?.insertBefore(
-        queryDateInput,
-        elements.monthInput
-      );
-    }
-
-    /*
-      기간지정 체크박스 생성
-    */
-    let periodModeInput =
-      document.getElementById(
-        "auxiliaryMaterialPeriodMode"
-      );
-
-    if (
-      !periodModeInput
-    ) {
-      const periodLabel =
-        document.createElement(
-          "label"
-        );
-
-      periodLabel.id =
-        "auxiliaryMaterialPeriodModeLabel";
-
-      periodLabel.className =
-        "auxiliary-material-period-mode";
-
-      periodLabel.innerHTML =
+      setAuxiliaryMaterialStatus(
         (
-          '<input type="checkbox" ' +
-          'id="auxiliaryMaterialPeriodMode">' +
-          "<span>기간지정</span>"
-        );
-
-      const rangeControls =
-        view.querySelector(
-          ".auxiliary-material-pc-range-controls"
-        ) ||
-        view.querySelector(
-          ".auxiliary-material-period-fields"
-        );
-
-      const firstDateLabel =
-        elements
-          .startDateInput
-          ?.closest(
-            "label"
-          );
-
-      rangeControls?.insertBefore(
-        periodLabel,
-        firstDateLabel ||
-          null
+          `${range.startDate} ~ ${range.endDate} ` +
+          "기간 저장자료 및 OIS · " +
+          "저장 완료일은 OIS 요청 제외"
+        ),
+        "idle"
       );
 
-      periodModeInput =
-        periodLabel.querySelector(
-          "input"
-        );
+    } catch {
+      setAuxiliaryMaterialStatus(
+        (
+          "기간지정 모드입니다. " +
+          "시작일과 종료일을 선택하세요."
+        ),
+        "idle"
+      );
+    }
+  }
+
+  function updatePeriodMode() {
+    const isPeriod =
+      periodModeInput.checked;
+
+    /*
+      기간지정에서는 조회 월과
+      단일 OIS 기준일을 숨긴다.
+    */
+    navigation.hidden =
+      isPeriod;
+
+    if (
+      isPeriod
+    ) {
+      navigation.style.setProperty(
+        "display",
+        "none",
+        "important"
+      );
+
+    } else {
+      navigation.style.removeProperty(
+        "display"
+      );
     }
 
-    const startLabel =
-      elements
-        .startDateInput
-        ?.closest(
-          "label"
-        );
-
-    const endLabel =
-      elements
-        .endDateInput
-        ?.closest(
-          "label"
-        );
+    queryDateLabel.hidden =
+      isPeriod;
 
     [
       startLabel,
       endLabel
     ].forEach(
       label => {
-        label?.classList.add(
-          "auxiliary-material-period-date-field"
-        );
+        label.hidden =
+          !isPeriod;
       }
     );
-
-    /*
-      저장된 D1 자료만 불러온다.
-      OIS 신규조회는 실행하지 않는다.
-    */
-    function loadVisibleRange() {
-      loadAuxiliaryMaterialHistory()
-        .catch(
-          () => {
-            /*
-              오류 문구는 조회 함수 내부에서 표시
-            */
-          }
-        );
-    }
-
-    /*
-      기준일 적용
-    */
-    function applyDate(
-      value
-    ) {
-      const dateValue =
-        (
-          isValidAuxiliaryMaterialIsoDate(
-            value
-          ) &&
-          value <= today
-        )
-          ? value
-          : defaultDate;
-
-      queryDateInput.value =
-        dateValue;
-
-      queryDateInput.max =
-        today;
-
-      /*
-        월별 엑셀 다운로드용 내부 월
-      */
-      elements.monthInput.value =
-        dateValue.slice(
-          0,
-          7
-        );
-
-      if (
-        !periodModeInput.checked
-      ) {
-        elements.startDateInput.value =
-          moveDate(
-            dateValue,
-            -6
-          );
-
-        elements.endDateInput.value =
-          dateValue;
-
-        setAuxiliaryMaterialStatus(
-          (
-            `${elements.startDateInput.value}` +
-            ` ~ ${dateValue} 최근 7일 표시 · ` +
-            `OIS는 ${dateValue} 하루만 조회`
-          ),
-          "idle"
-        );
-      }
-
-      nextButton.disabled =
-        dateValue >= today;
-
-      /*
-        날짜 변경만 수행한다.
-        저장자료 및 OIS 자동 조회는 하지 않는다.
-      */
-    }
-
-    /*
-      기간지정 상태 표시
-    */
-    function updatePeriodMode() {
-      const isPeriod =
-        periodModeInput.checked;
-
-      [
-        startLabel,
-        endLabel
-      ].forEach(
-        label => {
-          if (
-            label
-          ) {
-            label.hidden =
-              !isPeriod;
-          }
-        }
-      );
-
-      if (
-        elements.loadButton
-      ) {
-        elements.loadButton.textContent =
-          isPeriod
-            ? "기간 저장자료 보기"
-            : "선택일 저장자료 보기";
-      }
-
-      if (
-        !isPeriod
-      ) {
-        applyDate(
-          queryDateInput.value ||
-            defaultDate
-        );
-
-      } else {
-        setAuxiliaryMaterialStatus(
-          "기간지정 모드입니다. 시작일과 종료일을 선택하세요.",
-          "idle"
-        );
-      }
-
-      setAuxiliaryMaterialOisQueryButtonState(
-        auxiliaryMaterialOisQueryState
-          .isRunning
-      );
-    }
-
-    /*
-      기존 월 이동 이벤트를 제거하고
-      하루 이동 이벤트로 교체
-    */
-    const oldPreviousButton =
-      elements.previousMonthButton;
-
-    const oldNextButton =
-      elements.nextMonthButton;
 
     if (
-      !oldPreviousButton ||
-      !oldNextButton
+      elements.loadButton
     ) {
-      return;
+      elements.loadButton.textContent =
+        isPeriod
+          ? "기간 저장자료 보기"
+          : "월 저장자료 보기";
     }
 
-    const previousButton =
-      oldPreviousButton.cloneNode(
-        true
+    if (
+      isPeriod
+    ) {
+      updatePeriodStatus();
+
+    } else {
+      /*
+        기간지정 해제 시
+        선택 월 범위로 복귀
+      */
+      applyAuxiliaryMaterialMonthRange(
+        elements.monthInput.value ||
+        currentMonth
       );
 
-    const nextButton =
-      oldNextButton.cloneNode(
-        true
+      updateNormalModeStatus();
+    }
+
+    setAuxiliaryMaterialOisQueryButtonState(
+      auxiliaryMaterialOisQueryState
+        .isRunning
+    );
+  }
+
+  /*
+    OIS 기준일 변경:
+    화면만 바꾸고 조회하지 않는다.
+  */
+  queryDateInput.addEventListener(
+    "change",
+    () => {
+      applyDate(
+        queryDateInput.value
       );
+    }
+  );
 
-    previousButton.title =
-      "이전 날짜";
+  /*
+    조회 월 변경:
+    월 범위만 바꾸고 자동 GET하지 않는다.
+  */
+  elements.monthInput.addEventListener(
+    "change",
+    updateNormalModeStatus
+  );
 
-    previousButton.setAttribute(
-      "aria-label",
-      "이전 날짜"
-    );
-
-    nextButton.title =
-      "다음 날짜";
-
-    nextButton.setAttribute(
-      "aria-label",
-      "다음 날짜"
-    );
-
-    oldPreviousButton.replaceWith(
-      previousButton
-    );
-
-    oldNextButton.replaceWith(
-      nextButton
-    );
-
-    /*
-      달력에서 직접 날짜 변경
-    */
-    queryDateInput.addEventListener(
-      "change",
-      () => {
-        applyDate(
-          queryDateInput.value
-        );
-      }
-    );
-
-    previousButton.addEventListener(
+  /*
+    월 화살표는 기존 월 이동 기능을 유지한다.
+    날짜 이동 버튼으로 복제하지 않는다.
+  */
+  elements.previousMonthButton
+    ?.addEventListener(
       "click",
-      () => {
-        applyDate(
-          moveDate(
-            queryDateInput.value,
-            -1
-          )
-        );
-      }
+      updateNormalModeStatus
     );
 
-    nextButton.addEventListener(
+  elements.nextMonthButton
+    ?.addEventListener(
       "click",
-      () => {
-        applyDate(
-          moveDate(
-            queryDateInput.value,
-            1
-          )
-        );
-      }
+      updateNormalModeStatus
     );
 
-    periodModeInput.addEventListener(
-      "change",
-      updatePeriodMode
-    );
+  periodModeInput.addEventListener(
+    "change",
+    updatePeriodMode
+  );
 
-    /*
-      기간 종료일을 바꾸면
-      내부 월별 엑셀 기준도 종료일에 맞춤
-    */
+  [
+    elements.startDateInput,
     elements.endDateInput
-      ?.addEventListener(
+  ].forEach(
+    input => {
+      input.addEventListener(
         "change",
         () => {
           if (
-            periodModeInput.checked &&
-            elements.endDateInput.value
+            periodModeInput.checked
           ) {
-            queryDateInput.value =
-              elements.endDateInput.value;
-
-            elements.monthInput.value =
-              elements
-                .endDateInput
-                .value
-                .slice(
-                  0,
-                  7
-                );
+            updatePeriodStatus();
           }
         }
       );
+    }
+  );
 
-    /*
-      OIS 버튼을 직접 눌렀을 때만
-      OIS 조회 범위로 전환
-    */
-    elements.queryButton
-      ?.addEventListener(
-        "click",
-        () => {
-          nextRangePurpose =
-            "ois";
-        },
-        true
-      );
-
-    /*
-      부재료 메뉴를 다시 열 때
-      확대 상태인 경우에만 컴팩트 상태로 복귀
-
-      이미 컴팩트 상태라면 재렌더링하지 않는다.
-    */
-    elements.tab
-      ?.addEventListener(
-        "click",
-        () => {
-          if (
-            auxiliaryMaterialTableViewState
-              .isExpanded
-          ) {
-            window.requestAnimationFrame(
-              () => {
-                setAuxiliaryMaterialExpandedView(
-                  false
-                );
-              }
-            );
-          }
-        }
-      );
-
-    /*
-      오늘 날짜로 초기화
-    */
-    applyDate(
-      defaultDate
+  /*
+    OIS 버튼을 직접 눌렀을 때만
+    선택일 또는 지정 기간을 사용한다.
+  */
+  elements.queryButton
+    ?.addEventListener(
+      "click",
+      () => {
+        nextRangePurpose =
+          "ois";
+      },
+      true
     );
 
-    /*
-      기본은 기간지정 해제:
-      시작일·종료일 숨김
-    */
-    updatePeriodMode();
+  /*
+    초기 범위만 준비한다.
+    네트워크 요청은 발생하지 않는다.
+  */
+  applyAuxiliaryMaterialMonthRange(
+    elements.monthInput.value ||
+    currentMonth
+  );
 
-    renderAuxiliaryMaterialHistory();
-  }
+  applyDate(
+    defaultDate
+  );
+
+  updatePeriodMode();
+
+  renderAuxiliaryMaterialHistory();
+}
 
   if (
     document.readyState ===
