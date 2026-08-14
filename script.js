@@ -224676,6 +224676,9 @@ function renderRows(
 
         /*
           Silo Level
+
+          OIS 원본 표시와 동일하게
+          소수점 3자리 고정
         */
 
         createSingleHistoryCell({
@@ -224700,7 +224703,7 @@ function renderRows(
 
             numberOptions: {
               minimumFractionDigits:
-                3,
+                2,
 
               maximumFractionDigits:
                 2
@@ -224730,7 +224733,7 @@ function renderRows(
 
             numberOptions: {
               minimumFractionDigits:
-                3,
+                2,
 
               maximumFractionDigits:
                 2
