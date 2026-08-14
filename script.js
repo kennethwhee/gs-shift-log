@@ -224227,13 +224227,11 @@ function initialize() {
     "#efficiencyAuxiliaryMaterialsView .auxiliary-material-value-input",
     "#efficiencyAuxiliaryMaterialsView .auxiliary-material-remarks-input",
 
-    /* 석회석 입고 */
-    "#refreshLimestoneReceiptsButton",
-    "#openLimestoneSlipCaptureButton",
-    "#openLimestoneSlipLibraryButton",
-    "#openLimestoneReceiptEditorButton",
-    "#limestoneSlipCapturePanel button",
-    "#limestoneManualEntryModal button",
+    /*
+      석회석 입고:
+      모바일 신규 등록은 허용하고
+      기존 기록 수정·삭제만 차단
+    */
     "#limestoneReceiptEditorPanel button",
     "#efficiencyLimestoneView .limestone-row-actions button",
 

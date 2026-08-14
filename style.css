@@ -105126,3 +105126,64 @@ input {
     padding: 0 7px !important;
   }
 }
+
+/* =========================================================
+  효율팀 모바일 메뉴·석회석 입고 기능 최종 보정
+
+  - 오전회의자료 메뉴 숨김
+  - 석회석·부재료·ARM ROLL BOX 3개만 표시
+  - 석회석 촬영·사진·수동등록 화면 표시 허용
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  #efficiencyTeamModal
+  .efficiency-team-tabs {
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(0, 1fr)
+      ) !important;
+  }
+
+
+  #efficiencyTeamModal
+  .efficiency-team-tabs
+  >
+  .efficiency-morning-meeting-menu,
+
+  #efficiencyTeamModal
+  #efficiencyMorningMeetingMenuGroup {
+    display: none !important;
+  }
+
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #efficiencyLimestoneView.is-mobile-monitor-only
+  .limestone-heading-actions {
+    display: grid !important;
+
+    grid-template-columns:
+      repeat(
+        4,
+        minmax(0, 1fr)
+      ) !important;
+
+    pointer-events: auto !important;
+  }
+
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneManualEntryModal:not([hidden]) {
+    display: flex !important;
+    pointer-events: auto !important;
+  }
+
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #efficiencyLimestoneView.is-mobile-monitor-only
+  #limestoneSlipCapturePanel:not([hidden]) {
+    display: grid !important;
+    pointer-events: auto !important;
+  }
+}
