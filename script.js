@@ -215875,74 +215875,86 @@ function elements() {
     });
   }
 
-  async function readStoredHandles() {
-    let database;
+async function readStoredHandles() {
+  let database;
 
-    try {
-      database =
-        await openDatabase();
+  try {
+    database =
+      await openDatabase();
 
-      const store =
-        database
-          .transaction(
-            STORE_NAME,
-            "readonly"
-          )
-          .objectStore(
-            STORE_NAME
-          );
-
-      await Promise.all(
-        FILE_TYPES.map(
-          config => {
-            return new Promise(
-              (
-                resolve,
-                reject
-              ) => {
-                const request =
-                  store.get(
-                    config.handleKey
-                  );
-
-                request.onsuccess =
-                  () => {
-                    if (
-                      request.result
-                    ) {
-                      handles.set(
-                        config.key,
-                        request.result
-                      );
-                    }
-
-                    resolve();
-                  };
-
-                request.onerror =
-                  () => {
-                    reject(
-                      request.error
-                    );
-                  };
-              }
-            );
-          }
+    const store =
+      database
+        .transaction(
+          STORE_NAME,
+          "readonly"
         )
+        .objectStore(
+          STORE_NAME
+        );
+
+    const configuredFolderTypes =
+      FILE_TYPES.filter(
+        config => {
+          return (
+            config.key ===
+              "template" ||
+            config.key ===
+              "coal"
+          );
+        }
       );
 
-    } catch (
+    await Promise.all(
+      configuredFolderTypes.map(
+        config => {
+          return new Promise(
+            (
+              resolve,
+              reject
+            ) => {
+              const request =
+                store.get(
+                  config.handleKey
+                );
+
+              request.onsuccess =
+                () => {
+                  if (
+                    request.result
+                  ) {
+                    handles.set(
+                      config.key,
+                      request.result
+                    );
+                  }
+
+                  resolve();
+                };
+
+              request.onerror =
+                () => {
+                  reject(
+                    request.error
+                  );
+                };
+            }
+          );
+        }
+      )
+    );
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "오전회의 자료별 폴더 복원 실패:",
       error
-    ) {
-      console.warn(
-        "오전회의 자료별 폴더 복원 실패:",
-        error
-      );
+    );
 
-    } finally {
-      database?.close();
-    }
+  } finally {
+    database?.close();
   }
+}
 
   async function storeHandle(
     config,
@@ -216074,19 +216086,39 @@ function installFolderControl(
     return;
   }
 
+  const input =
+    document.getElementById(
+      config.inputId
+    );
+
   /*
-    일일발전현황·운탄일지의
-    상단 선택·드롭 파일창을
-    각자 지정된 폴더에서 연다.
+    폴더 설정·자동 불러오기는
+    일일발전현황·운탄일지만 유지한다.
   */
-  const usesStoredFolderFilePicker =
+
+  const usesConfiguredFolder =
     config.key ===
       "template" ||
     config.key ===
       "coal";
 
+  /*
+    여섯 카드 모두 고유 파일 선택기를 사용한다.
+
+    - 일일발전현황·운탄일지:
+      설정된 폴더에서 시작
+
+    - 안전·환경·기계·전기제어:
+      최초에는 다운로드 폴더에서 시작하고
+      이후에는 카드별 마지막 폴더를 기억
+  */
+
   if (
-    usesStoredFolderFilePicker &&
+    input &&
+    typeof window.showOpenFilePicker ===
+      "function" &&
+    typeof window.DataTransfer ===
+      "function" &&
     card.dataset
       .morningMeetingStoredFolderFilePickerBound !==
         "true"
@@ -216097,31 +216129,11 @@ function installFolderControl(
 
     card.addEventListener(
       "click",
-      event => {
-        const input =
-          document.getElementById(
-            config.inputId
-          );
-
-        /*
-          미지원 브라우저에서는
-          기존 파일 선택창을 그대로 사용한다.
-        */
-        if (
-          !input ||
-          typeof window.showOpenFilePicker !==
-            "function"
-        ) {
-          return;
-        }
-
-        /*
-          코드에서 input.click()을 실행한 경우에는
-          기존 동작을 방해하지 않는다.
-        */
+      async event => {
         if (
           event.target ===
-            input
+            input ||
+          input.disabled
         ) {
           return;
         }
@@ -216135,18 +216147,10 @@ function installFolderControl(
           return;
         }
 
-        /*
-          label 기본 선택창과 새 선택창이
-          동시에 열리지 않도록 막는다.
-        */
         event.preventDefault();
+        event.stopImmediatePropagation();
 
         hideError();
-
-        const currentHandle =
-          handles.get(
-            config.key
-          );
 
         const pickerOptions = {
           id:
@@ -216174,120 +216178,110 @@ function installFolderControl(
             true
         };
 
-        /*
-          일일발전현황은 일일발전현황 폴더,
-          운탄일지는 운탄일지 폴더에서 시작한다.
-        */
+        const currentHandle =
+          usesConfiguredFolder
+            ? handles.get(
+                config.key
+              )
+            : null;
+
         if (
           currentHandle?.kind ===
             "directory"
         ) {
           pickerOptions.startIn =
             currentHandle;
+
+        } else {
+          pickerOptions.startIn =
+            "downloads";
         }
 
-        let pickerRequest;
-
         try {
-          pickerRequest =
-            window.showOpenFilePicker(
+          const fileHandles =
+            await window.showOpenFilePicker(
               pickerOptions
             );
+
+          const selectedFiles =
+            await Promise.all(
+              Array.from(
+                fileHandles ||
+                []
+              ).map(
+                fileHandle => {
+                  return fileHandle.getFile();
+                }
+              )
+            );
+
+          if (
+            selectedFiles.length ===
+              0
+          ) {
+            return;
+          }
+
+          const transfer =
+            new window.DataTransfer();
+
+          selectedFiles.forEach(
+            file => {
+              transfer.items.add(
+                file
+              );
+            }
+          );
+
+          input.value =
+            "";
+
+          input.files =
+            transfer.files;
+
+          input.dispatchEvent(
+            new Event(
+              "change",
+              {
+                bubbles:
+                  true
+              }
+            )
+          );
 
         } catch (
           error
         ) {
+          if (
+            error?.name ===
+              "AbortError"
+          ) {
+            return;
+          }
+
           console.error(
-            `${config.label} 파일 선택창 열기 실패:`,
+            `${config.label} 파일 선택 실패:`,
             error
           );
 
           showError(
             error?.message ||
-            `${config.label} 파일 선택창을 열지 못했습니다.`
+            `${config.label} 파일을 선택하지 못했습니다.`
           );
-
-          return;
         }
-
-        void pickerRequest
-          .then(
-            fileHandles => {
-              return Promise.all(
-                Array.from(
-                  fileHandles ||
-                  []
-                ).map(
-                  fileHandle => {
-                    return fileHandle.getFile();
-                  }
-                )
-              );
-            }
-          )
-          .then(
-            selectedFiles => {
-              if (
-                selectedFiles.length ===
-                  0
-              ) {
-                return;
-              }
-
-              const transfer =
-                new DataTransfer();
-
-              selectedFiles.forEach(
-                file => {
-                  transfer.items.add(
-                    file
-                  );
-                }
-              );
-
-              input.value =
-                "";
-
-              input.files =
-                transfer.files;
-
-              /*
-                기존 템플릿·운탄일지 처리 함수로
-                선택한 파일을 그대로 전달한다.
-              */
-              input.dispatchEvent(
-                new Event(
-                  "change",
-                  {
-                    bubbles:
-                      true
-                  }
-                )
-              );
-            }
-          )
-          .catch(
-            error => {
-              if (
-                error?.name ===
-                  "AbortError"
-              ) {
-                return;
-              }
-
-              console.error(
-                `${config.label} 파일 선택 실패:`,
-                error
-              );
-
-              showError(
-                error?.message ||
-                `${config.label} 파일을 선택하지 못했습니다.`
-              );
-            }
-          );
       }
     );
+  }
+
+  /*
+    안전·환경·기계·전기제어에는
+    폴더 설정 줄을 만들지 않는다.
+  */
+
+  if (
+    !usesConfiguredFolder
+  ) {
+    return;
   }
 
   let shell =
@@ -216334,7 +216328,7 @@ function installFolderControl(
 
   row.dataset
     .morningMeetingFolderRow =
-    config.key;
+      config.key;
 
   const button =
     document.createElement(
@@ -216349,7 +216343,7 @@ function installFolderControl(
 
   button.dataset
     .morningMeetingFolderButton =
-    config.key;
+      config.key;
 
   button.textContent =
     "폴더 설정";
@@ -216373,7 +216367,7 @@ function installFolderControl(
 
   name.dataset
     .morningMeetingFolderName =
-    config.key;
+      config.key;
 
   name.textContent =
     "폴더 미설정";
