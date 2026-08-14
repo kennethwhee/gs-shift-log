@@ -139898,6 +139898,9 @@ async function analyzeAllMorningMeetingFiles() {
         void window
           .loadEfficiencyMorningMeetingDailyData({
             forceRefresh:
+              false,
+
+            userInitiated:
               true
           });
       },
@@ -158831,6 +158834,11 @@ function resetMorningMeetingTemplateFile() {
           "loadEfficiencyMorningMeetingShiftLogsButton"
         ),
 
+      analyzeButton:
+        document.getElementById(
+          "analyzeEfficiencyMorningMeetingButton"
+        ),
+
       dayList:
         document.getElementById(
           "efficiencyMorningMeetingDayShiftList"
@@ -163863,9 +163871,27 @@ function resetShiftPart() {
       getElements();
 
 
-    elements.loadButton?.addEventListener("click", () => {
-      void loadShiftPartLogs({ userInitiated: true });
-    });
+    const handleUserLoad =
+      () => {
+        void loadShiftPartLogs({
+          userInitiated:
+            true
+        });
+      };
+
+
+    elements.loadButton
+      ?.addEventListener(
+        "click",
+        handleUserLoad
+      );
+
+
+    elements.analyzeButton
+      ?.addEventListener(
+        "click",
+        handleUserLoad
+      );
 
 
     elements.clearButton
@@ -225334,13 +225360,58 @@ function initialize() {
       return;
     }
 
-    rememberDisabledState(element);
+    const monitorDisabledApplied =
+      element.dataset
+        .efficiencyMonitorDisabledApplied ===
+      "true";
 
-    element.disabled = shouldDisable
-      ? true
-      : element.dataset
-          .efficiencyMonitorOriginalDisabled ===
-        "true";
+    if (
+      shouldDisable
+    ) {
+      if (
+        !monitorDisabledApplied
+      ) {
+        element.dataset
+          .efficiencyMonitorOriginalDisabled =
+          element.disabled
+            ? "true"
+            : "false";
+
+        element.dataset
+          .efficiencyMonitorDisabledApplied =
+          "true";
+      }
+
+      element.disabled =
+        true;
+
+      return;
+    }
+
+    /*
+      PC에서는 각 기능이 관리하는
+      현재 disabled 상태를 그대로 유지한다.
+    */
+    if (
+      !monitorDisabledApplied
+    ) {
+      return;
+    }
+
+    /*
+      모바일에서 PC로 돌아올 때만
+      모바일 진입 직전 상태를 복원한다.
+    */
+    element.disabled =
+      element.dataset
+        .efficiencyMonitorOriginalDisabled ===
+      "true";
+
+    delete element.dataset
+      .efficiencyMonitorDisabledApplied;
+
+    delete element.dataset
+      .efficiencyMonitorOriginalDisabled;
   }
 
   function rememberReadOnlyState(element) {
