@@ -101846,7 +101846,7 @@ body:not(.is-auxiliary-material-expanded)
 }
 
 /* =========================================================
-  오전회의취합 - 자동수치 기록표 21열 최종 컴팩트
+  오전회의취합 - 자동수치 기록표 23열 최종 컴팩트
 
   - 일반 PC에서는 최대한 한 화면에 표시
   - 좁은 화면에서만 가로 스크롤
@@ -102158,13 +102158,13 @@ h4 {
 
 
 /* =========================================================
-  21열 표 전체 크기
+  23열 표 전체 크기
 ========================================================= */
 
 #efficiencyTeamModal
 #efficiencyMorningMeetingAutoHistoryTable {
   width: 100% !important;
-  min-width: 1180px !important;
+  min-width: 1190px !important;
   max-width: none !important;
 
   table-layout: fixed !important;
@@ -102180,9 +102180,9 @@ h4 {
   첫 번째 머리글 기준 열 묶음 너비
 
   총합:
-  64 + 156 + 98 + 78 + 104
-  + 144 + 104 + 156 + 126 + 150
-  = 1180px
+  64 + 150 + 96 + 78 + 100
+  + 138 + 100 + 144 + 180 + 140
+  = 1190px
 ========================================================= */
 
 #efficiencyTeamModal
@@ -102199,7 +102199,7 @@ th.is-history-date {
 thead
 tr:first-child
 th.is-water {
-  width: 156px !important;
+  width: 150px !important;
 }
 
 
@@ -102208,7 +102208,7 @@ th.is-water {
 thead
 tr:first-child
 th.is-limestone {
-  width: 98px !important;
+  width: 96px !important;
 }
 
 
@@ -102226,7 +102226,7 @@ th.is-gear-pinion {
 thead
 tr:first-child
 th.is-silo-level {
-  width: 104px !important;
+  width: 100px !important;
 }
 
 
@@ -102235,7 +102235,7 @@ th.is-silo-level {
 thead
 tr:first-child
 th.is-smp {
-  width: 144px !important;
+  width: 138px !important;
 }
 
 
@@ -102244,7 +102244,7 @@ th.is-smp {
 thead
 tr:first-child
 th.is-steam {
-  width: 104px !important;
+  width: 100px !important;
 }
 
 
@@ -102253,7 +102253,7 @@ th.is-steam {
 thead
 tr:first-child
 th.is-power {
-  width: 156px !important;
+  width: 144px !important;
 }
 
 
@@ -102262,7 +102262,7 @@ th.is-power {
 thead
 tr:first-child
 th.is-organic-fuel {
-  width: 126px !important;
+  width: 180px !important;
 }
 
 
@@ -102271,7 +102271,7 @@ th.is-organic-fuel {
 thead
 tr:first-child
 th.is-weather {
-  width: 150px !important;
+  width: 140px !important;
 }
 
 
@@ -102402,7 +102402,7 @@ td {
 }
 
 
-/* 유기성 고형연료는 입고·재고 두 값 표시 */
+/* 유기성 고형연료 3열도 다른 수치 열과 동일하게 표시 */
 
 #efficiencyTeamModal
 #efficiencyMorningMeetingAutoHistoryTable
@@ -102410,13 +102410,13 @@ tbody
 td.is-organic-fuel {
   padding:
     2px
-    3px !important;
+    2px !important;
 
-  font-size: 8.8px !important;
-  font-weight: 850 !important;
-  line-height: 1.18 !important;
+  font-size: 9.5px !important;
+  font-weight: 700 !important;
+  line-height: 1.08 !important;
 
-  white-space: pre-line !important;
+  white-space: nowrap !important;
 }
 
 
@@ -102650,53 +102650,6 @@ td.is-missing {
 
 }
 
-
-/* =========================================================
-  유기성 고형연료 강조
-
-  입고량과 재고량을 두 줄로 보여 주고
-  날씨보다 앞에서 빠르게 찾을 수 있게 한다.
-========================================================= */
-
-#efficiencyTeamModal
-#efficiencyMorningMeetingAutoHistoryTable
-thead
-tr:first-child
-th.is-organic-fuel {
-  background: #fff0dc !important;
-  color: #7a4a16 !important;
-
-  box-shadow:
-    inset 2px 0 0
-    #dda85c;
-}
-
-
-#efficiencyTeamModal
-#efficiencyMorningMeetingAutoHistoryTable
-tbody
-td.is-organic-fuel:not(.is-missing) {
-  background: #fffaf3 !important;
-  color: #714617 !important;
-}
-
-
-#efficiencyTeamModal
-#efficiencyMorningMeetingAutoHistoryTable
-tbody
-tr:nth-child(even)
-td.is-organic-fuel:not(.is-missing) {
-  background: #fff6e9 !important;
-}
-
-
-#efficiencyTeamModal
-#efficiencyMorningMeetingAutoHistoryTable
-tbody
-tr:hover
-td.is-organic-fuel:not(.is-missing) {
-  background: #ffefd8 !important;
-}
 
 /* =========================================================
   오전회의취합 분할 메뉴 최종 정렬

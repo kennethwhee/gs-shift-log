@@ -220453,6 +220453,11 @@ const MORNING_MEETING_AUTO_HISTORY_OVERRIDE_TARGETS =
       "solarDailyGeneration"
     ],
 
+    organicTruckCount: [
+      "dailyData",
+      "sludgeTruckCount"
+    ],
+
     organicReceivedAmount: [
       "dailyData",
       "sludgeTotal"
@@ -221417,83 +221422,95 @@ function getPowerValues(
     유기성 고형연료 표시
   ====================================================== */
 
-  function getOrganicText(
+  function getOrganicTruckCount(
     item
   ) {
     if (
       !item
     ) {
-      return "";
+      return null;
     }
 
 
-    const receivedAmount =
-      firstNumber(
-        item.sludgeTotal,
-        item.organicReceivedAmount
-      );
-
-
-    const storedAmount =
-      firstNumber(
-        item.organicSiloTotal,
-        item.organicStoredAmount,
-
-        sumCompleteNumbers(
-          firstNumber(
-            item.organicDaySilo,
-            item.organicDaySiloLevel
-          ),
-
-          firstNumber(
-            item.organicStorageSiloA,
-            item.organicStorageSiloALevel
-          ),
-
-          firstNumber(
-            item.organicStorageSiloB,
-            item.organicStorageSiloBLevel
+    const entryCount =
+      Array.isArray(
+        item.sludgeEntries
+      ) &&
+      item.sludgeEntries.length >
+        0
+        ? item.sludgeEntries.reduce(
+            (
+              count,
+              entry
+            ) =>
+              numberOrNull(
+                entry?.amount
+              ) >
+              0
+                ? count +
+                  1
+                : count,
+            0
           )
-        )
-      );
+        : null;
 
 
+    return firstNumber(
+      item.sludgeTruckCount,
+      item.organicTruckCount,
+      item.receivedTruckCount,
+      entryCount
+    );
+  }
+
+
+  function getOrganicReceivedAmount(
+    item
+  ) {
     if (
-      receivedAmount ===
-        null &&
-      storedAmount ===
-        null
+      !item
     ) {
-      return "";
+      return null;
     }
 
 
-    return [
-      `입고 ${
-        formatAmount(
-          receivedAmount,
-          "ton",
-          {
-            maximumFractionDigits:
-              3
-          }
-        ) ||
-        "-"
-      }`,
+    return firstNumber(
+      item.sludgeTotal,
+      item.organicReceivedAmount
+    );
+  }
 
-      `재고 ${
-        formatAmount(
-          storedAmount,
-          "ton",
-          {
-            maximumFractionDigits:
-              6
-          }
-        ) ||
-        "-"
-      }`
-    ].join(
-      "\n"
+
+  function getOrganicStoredAmount(
+    item
+  ) {
+    if (
+      !item
+    ) {
+      return null;
+    }
+
+
+    return firstNumber(
+      item.organicSiloTotal,
+      item.organicStoredAmount,
+
+      sumCompleteNumbers(
+        firstNumber(
+          item.organicDaySilo,
+          item.organicDaySiloLevel
+        ),
+
+        firstNumber(
+          item.organicStorageSiloA,
+          item.organicStorageSiloALevel
+        ),
+
+        firstNumber(
+          item.organicStorageSiloB,
+          item.organicStorageSiloBLevel
+        )
+      )
     );
   }
 
@@ -221589,21 +221606,14 @@ function renderTableHead() {
       </th>
 
       <th
-        rowspan="2"
+        colspan="3"
         class="
           is-history-group
-          is-history-metric
           is-organic
           is-organic-fuel
         "
       >
-        <span>
-          유기성 고형연료
-        </span>
-
-        <small>
-          입고 · 재고
-        </small>
+        유기성 고형연료
       </th>
 
       <th
@@ -221818,6 +221828,60 @@ function renderTableHead() {
 
         <small>
           kWh
+        </small>
+      </th>
+
+
+      <!-- 유기성 고형연료 -->
+
+      <th
+        class="
+          is-history-metric
+          is-organic
+          is-organic-fuel
+          is-organic-truck-count
+        "
+      >
+        <span>
+          입고대수
+        </span>
+
+        <small>
+          대
+        </small>
+      </th>
+
+      <th
+        class="
+          is-history-metric
+          is-organic
+          is-organic-fuel
+          is-organic-received
+        "
+      >
+        <span>
+          입고량
+        </span>
+
+        <small>
+          ton
+        </small>
+      </th>
+
+      <th
+        class="
+          is-history-metric
+          is-organic
+          is-organic-fuel
+          is-organic-stored
+        "
+      >
+        <span>
+          총재고량
+        </span>
+
+        <small>
+          ton
         </small>
       </th>
 
@@ -222601,88 +222665,31 @@ function renderRows(
           : "";
 
       /*
-        유기성 고형연료 결합 셀
+        유기성 고형연료
       */
+      const organicTruckCountValue =
+        readValue(
+          "organicTruckCount",
+          getOrganicTruckCount(
+            dailyData
+          )
+        );
+
       const organicReceivedValue =
         readValue(
           "organicReceivedAmount",
-          firstNumber(
-            dailyData?.sludgeTotal,
-            dailyData?.organicReceivedAmount
+          getOrganicReceivedAmount(
+            dailyData
           )
         );
 
       const organicStoredValue =
         readValue(
           "organicStoredAmount",
-          firstNumber(
-            dailyData?.organicSiloTotal,
-            dailyData?.organicStoredAmount,
-
-            sumCompleteNumbers(
-              firstNumber(
-                dailyData?.organicDaySilo,
-                dailyData?.organicDaySiloLevel
-              ),
-
-              firstNumber(
-                dailyData?.organicStorageSiloA,
-                dailyData?.organicStorageSiloALevel
-              ),
-
-              firstNumber(
-                dailyData?.organicStorageSiloB,
-                dailyData?.organicStorageSiloBLevel
-              )
-            )
+          getOrganicStoredAmount(
+            dailyData
           )
         );
-
-      const organicReceivedText =
-        formatValue(
-          organicReceivedValue,
-          {
-            unit:
-              "ton",
-
-            numberOptions: {
-              maximumFractionDigits:
-                3
-            }
-          }
-        );
-
-      const organicStoredText =
-        formatValue(
-          organicStoredValue,
-          {
-            unit:
-              "ton",
-
-            numberOptions: {
-              maximumFractionDigits:
-                6
-            }
-          }
-        );
-
-      const organicText =
-        organicReceivedText ||
-        organicStoredText
-          ? [
-              `입고 ${
-                organicReceivedText ||
-                "-"
-              }`,
-
-              `재고 ${
-                organicStoredText ||
-                "-"
-              }`
-            ].join(
-              "\n"
-            )
-          : "";
 
       const smpTitle =
         row.smpDate
@@ -223248,47 +223255,76 @@ function renderRows(
           유기성 고형연료
         */
 
-        createEditableValueCell({
-          row,
+        createSingleHistoryCell({
+          key:
+            "organicTruckCount",
 
-          displayValue:
-            organicText,
+          sourceValue:
+            organicTruckCountValue,
 
           className:
-            "is-organic is-organic-fuel",
+            "is-organic is-organic-fuel is-organic-truck-count",
 
           title:
-            "총 입고량 / 총 재고량",
+            "유기성 고형연료 입고대수",
 
-          inputs: [
-            {
-              fieldName:
-                "organicReceivedAmount",
+          label:
+            "유기성 고형연료 입고대수",
 
-              label:
-                "유기성 고형연료 입고량",
-
-              shortLabel:
-                "입고",
-
-              value:
-                organicReceivedValue
-            },
-
-            {
-              fieldName:
-                "organicStoredAmount",
-
-              label:
-                "유기성 고형연료 재고량",
-
-              shortLabel:
-                "재고",
-
-              value:
-                organicStoredValue
+          displayOptions: {
+            numberOptions: {
+              maximumFractionDigits:
+                0
             }
-          ]
+          }
+        }),
+
+        createSingleHistoryCell({
+          key:
+            "organicReceivedAmount",
+
+          sourceValue:
+            organicReceivedValue,
+
+          className:
+            "is-organic is-organic-fuel is-organic-received",
+
+          title:
+            "유기성 고형연료 입고량",
+
+          label:
+            "유기성 고형연료 입고량",
+
+          displayOptions: {
+            numberOptions: {
+              maximumFractionDigits:
+                3
+            }
+          }
+        }),
+
+        createSingleHistoryCell({
+          key:
+            "organicStoredAmount",
+
+          sourceValue:
+            organicStoredValue,
+
+          className:
+            "is-organic is-organic-fuel is-organic-stored",
+
+          title:
+            "유기성 고형연료 총재고량",
+
+          label:
+            "유기성 고형연료 총재고량",
+
+          displayOptions: {
+            numberOptions: {
+              maximumFractionDigits:
+                6
+            }
+          }
         }),
 
         /*

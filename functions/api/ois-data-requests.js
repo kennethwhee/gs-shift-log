@@ -7016,6 +7016,7 @@ function normalizeMorningMeetingAutoHistoryOverrideValues(
     "powerSales",
     "powerSolar",
 
+    "organicTruckCount",
     "organicReceivedAmount",
     "organicStoredAmount"
   ];
