@@ -158336,10 +158336,58 @@ console.log(
       );
 
 
-    const outputFileName =
-      `일일발전운전현황_${formatMorningMeetingFileDate(
+let outputFileDateText =
+  formatMorningMeetingFileDate(
+    scheduleDate
+  );
+
+
+/*
+  주말 취합 파일명
+
+  예:
+  주말기간 08/07 ~ 08/09
+
+  첫 날짜 = 시작일 + 1일 → 08.08
+  마지막 날짜 = 종료일 + 1일 → 08.10
+
+  결과:
+  일일발전운전현황_08.08~08.10.xlsx
+*/
+
+if (
+  isWeekendMode
+) {
+  const weekendStartDate =
+    parseMorningMeetingReportDate(
+      weekendStartDateText
+    );
+
+
+  const weekendFileStartDate =
+    weekendStartDate
+      ? addMorningMeetingDateDays(
+          weekendStartDate,
+          1
+        )
+      : null;
+
+
+  if (
+    weekendFileStartDate
+  ) {
+    outputFileDateText =
+      `${formatMorningMeetingFileDate(
+        weekendFileStartDate
+      )}~${formatMorningMeetingFileDate(
         scheduleDate
-      )}.xlsx`;
+      )}`;
+  }
+}
+
+
+const outputFileName =
+  `일일발전운전현황_${outputFileDateText}.xlsx`;
 
 
     const downloadResult =
@@ -158348,51 +158396,113 @@ console.log(
         outputFileName
       );
 
-
-    const completedFileName =
-      downloadResult?.fileName ||
-      outputFileName;
-
-
-    const completedSaveLocation =
-      downloadResult?.method ===
-        "folder"
-        ? `${downloadResult.folderName} 폴더`
-        : "기본 다운로드";
+const completedFileName =
+  downloadResult?.fileName ||
+  outputFileName;
 
 
-    /* ===================================================
-      완료 메시지
-    ==================================================== */
+/*
+  브라우저에서는 보안상
+  C:\Users\... 같은 실제 절대경로를 알 수 없다.
 
-    if (
-      elements.message
-    ) {
-      const movementText =
-        totalRowDelta ===
-          0
-          ? "행 이동 없음"
-          : totalRowDelta >
-              0
-            ? `${totalRowDelta}행 아래로 확장`
-            : `${Math.abs(
-                totalRowDelta
-              )}행 위로 축소`;
+  따라서 지정 폴더명 + 생성 파일명을
+  저장 위치로 표시한다.
+*/
+
+const completedSavePath =
+  downloadResult?.method ===
+    "folder"
+    ? `${
+        String(
+          downloadResult.folderName ||
+          "지정 폴더"
+        ).trim() ||
+        "지정 폴더"
+      }\\${completedFileName}`
+    : `기본 다운로드\\${completedFileName}`;
 
 
-elements.message.textContent =
-  `${completedFileName} 생성 완료 · ${completedSaveLocation} · ` +
-  `교대파트 ${shiftPartResult.selectedCount}건 · ` +
-  `연료설비 ${fuelResult.selectedCount}건 · ` +
-  `TM 설비운영 ${tmResult.operationCount}건 · ` +
-  `TM 연료설비 ${tmResult.fuelCount}건 · ` +
-  `운탄 수치 ${numericResult.appliedCount}/${numericResult.totalCount}개 · ` +
-  `수처리 ${waterResult.appliedCount}/${waterResult.totalCount}개 · ` +
-  `보일러 온도 ${boilerTemperatureResult.appliedCount}/${boilerTemperatureResult.totalCount}개 · ` +
-  `석회석 ${limestoneResult.appliedCount}/${limestoneResult.totalCount}개 · ` +
-  `Gear/Pinion ${gearPinionResult.appliedCount}/${gearPinionResult.totalCount}개 · ` +
-  `${movementText}`;
-  }
+/* ===================================================
+  생성 완료 안내
+==================================================== */
+
+if (
+  elements.message
+) {
+  const messageElement =
+    elements.message;
+
+
+  window.setTimeout(
+    () => {
+      if (
+        !messageElement ||
+        !messageElement.isConnected
+      ) {
+        return;
+      }
+
+
+      const titleElement =
+        document.createElement(
+          "strong"
+        );
+
+
+      titleElement.textContent =
+        "파일이 생성되었습니다.";
+
+
+      titleElement.style.display =
+        "block";
+
+
+      titleElement.style.fontSize =
+        "13px";
+
+
+      titleElement.style.fontWeight =
+        "800";
+
+
+      const pathElement =
+        document.createElement(
+          "small"
+        );
+
+
+      pathElement.textContent =
+        `저장 위치: ${completedSavePath}`;
+
+
+      pathElement.style.display =
+        "block";
+
+
+      pathElement.style.marginTop =
+        "4px";
+
+
+      pathElement.style.fontSize =
+        "10px";
+
+
+      pathElement.style.fontWeight =
+        "500";
+
+
+      pathElement.style.opacity =
+        "0.68";
+
+
+      messageElement.replaceChildren(
+        titleElement,
+        pathElement
+      );
+    },
+    0
+  );
+}
 
   } catch (
     error

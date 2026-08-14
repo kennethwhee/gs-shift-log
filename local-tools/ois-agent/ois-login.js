@@ -10205,10 +10205,119 @@ function runDataParcSteamPowerShell(
         );
 
 
+      /* =====================================================
+        Excel 전체 CalculationState 오탐 보정
+
+        기존 내부 PowerShell은:
+
+        Excel.Application.CalculationState가
+        15초 동안 0이 아니면
+        실제 대상 셀을 읽기도 전에 실패했다.
+
+        하지만 CalculationState는
+        현재 통합문서의 Plant만 보는 것이 아니라
+        Excel Application 전체 상태다.
+
+        따라서 관계없는 외부참조·다른 시트 계산 때문에
+        계속 계산 중이어도,
+
+        Plant / Data Normalize (2)의
+        조회 대상 값은 이미 정상일 수 있다.
+
+        변경:
+        - 최대 2초까지만 계산 완료 대기
+        - 완료되지 않아도 경고만 기록
+        - 이후 실제 대상 셀 검증 계속
+        - 빈값 / 오류 / 날짜 / TAG /
+          Plant-DataPARC 일치 검사는 기존 그대로 유지
+      ====================================================== */
+
+      const calculationStateBlockPattern =
+        /  \$calculationDeadline =[\s\S]*?(?=  \$manualValues =)/;
+
+
+      const relaxedCalculationStateBlock =
+        String.raw`  $calculationDeadline =
+    [datetime]::UtcNow.AddSeconds(
+      2
+    )
+
+  while (
+    [datetime]::UtcNow -lt
+      $calculationDeadline
+  ) {
+    $calculationState =
+      try {
+        [int]$excel.CalculationState
+      }
+      catch {
+        0
+      }
+
+    if (
+      $calculationState -eq 0
+    ) {
+      break
+    }
+
+    Start-Sleep -Milliseconds 250
+  }
+
+  $finalCalculationState =
+    try {
+      [int]$excel.CalculationState
+    }
+    catch {
+      0
+    }
+
+  if (
+    $finalCalculationState -eq 0
+  ) {
+    Write-DailyDataStage -Message (
+      "Excel 계산 상태 확인 완료"
+    )
+  }
+  else {
+    Write-DailyDataStage -Message (
+      "Excel 전체 계산 상태가 완료되지 않았지만 대상 셀 직접 검증을 계속합니다 · CalculationState " +
+      [string]$finalCalculationState
+    )
+  }
+
+`;
+
+
+      const effectivePowerShellScript =
+        DATAPARC_STEAM_OPEN_WORKBOOK_POWERSHELL_SCRIPT
+          .replace(
+            calculationStateBlockPattern,
+            relaxedCalculationStateBlock
+          );
+
+
       /*
-        Windows 명령줄 길이 제한을 피하기 위해
-        UTF-8 BOM 임시 PowerShell 파일로 실행한다.
+        원본 코드 위치가 바뀌었는데도
+        조용히 기존 15초 차단 방식으로 실행되는 것을 막는다.
       */
+      if (
+        effectivePowerShellScript ===
+          DATAPARC_STEAM_OPEN_WORKBOOK_POWERSHELL_SCRIPT
+      ) {
+        reject(
+          new Error(
+            "일일DATA관리 Excel 계산상태 검사 구간을 찾지 못했습니다."
+          )
+        );
+
+        return;
+      }
+
+
+      /* =====================================================
+        Windows 명령줄 길이 제한을 피하기 위해
+        임시 PowerShell 파일로 실행
+      ====================================================== */
 
       const temporaryDirectory =
         process.env.TEMP ||
@@ -10232,11 +10341,24 @@ function runDataParcSteamPowerShell(
         );
 
 
-      fs.writeFileSync(
-        powerShellScriptPath,
-        `\uFEFF${DATAPARC_STEAM_OPEN_WORKBOOK_POWERSHELL_SCRIPT}`,
-        "utf8"
-      );
+      try {
+        fs.writeFileSync(
+          powerShellScriptPath,
+          `\uFEFF${effectivePowerShellScript}`,
+          "utf8"
+        );
+
+      } catch (
+        error
+      ) {
+        reject(
+          new Error(
+            `일일DATA관리 임시 실행파일을 만들지 못했습니다: ${error.message}`
+          )
+        );
+
+        return;
+      }
 
 
       let childProcess;
@@ -10282,66 +10404,38 @@ function runDataParcSteamPowerShell(
           fs.unlinkSync(
             powerShellScriptPath
           );
-        } catch (
-          cleanupError
-        ) {
+        } catch {
         }
 
 
-        throw error;
+        reject(
+          error
+        );
+
+        return;
       }
 
 
       let standardOutput =
         "";
 
-
       let standardError =
         "";
-
-
-      let isSettled =
-        false;
-
 
       let stdoutLineBuffer =
         "";
 
-
       let lastStage =
         "PowerShell 실행 직후";
 
+      let isSettled =
+        false;
 
       let cleanupTimeoutId =
         null;
 
-
-      let isPowerShellScriptRemoved =
+      let scriptRemoved =
         false;
-
-
-      const removePowerShellScript =
-        () => {
-          if (
-            isPowerShellScriptRemoved
-          ) {
-            return;
-          }
-
-
-          isPowerShellScriptRemoved =
-            true;
-
-
-          try {
-            fs.unlinkSync(
-              powerShellScriptPath
-            );
-          } catch (
-            error
-          ) {
-          }
-        };
 
 
       const resultMarker =
@@ -10350,6 +10444,36 @@ function runDataParcSteamPowerShell(
             .GS_STEAM_RESULT_MARKER
         );
 
+
+      /* =====================================================
+        임시 파일 삭제
+      ====================================================== */
+
+      const removeTemporaryScript =
+        () => {
+          if (
+            scriptRemoved
+          ) {
+            return;
+          }
+
+
+          scriptRemoved =
+            true;
+
+
+          try {
+            fs.unlinkSync(
+              powerShellScriptPath
+            );
+          } catch {
+          }
+        };
+
+
+      /* =====================================================
+        프로세스 강제 종료
+      ====================================================== */
 
       const stopChildProcess =
         () => {
@@ -10367,9 +10491,7 @@ function runDataParcSteamPowerShell(
             childProcess.kill(
               "SIGKILL"
             );
-          } catch (
-            error
-          ) {
+          } catch {
           }
 
 
@@ -10408,67 +10530,74 @@ function runDataParcSteamPowerShell(
                 );
 
 
-              taskKillProcess.unref();
+              taskKillProcess
+                .unref();
 
-            } catch (
-              error
-            ) {
+            } catch {
             }
           }
         };
 
 
-      const finish = (
-        error,
-        value
-      ) => {
-        if (
-          isSettled
-        ) {
-          return;
-        }
+      /* =====================================================
+        최종 완료
+      ====================================================== */
 
-
-        isSettled =
-          true;
-
-
-        clearTimeout(
-          timeoutId
-        );
-
-
-        if (
-          error &&
-          cleanupTimeoutId
-        ) {
-          clearTimeout(
-            cleanupTimeoutId
-          );
-
-
-          cleanupTimeoutId =
-            null;
-        }
-
-
-        if (
-          error
-        ) {
-          reject(
-            error
-          );
-
-
-          return;
-        }
-
-
-        resolve(
+      const finish =
+        (
+          error,
           value
-        );
-      };
+        ) => {
+          if (
+            isSettled
+          ) {
+            return;
+          }
 
+
+          isSettled =
+            true;
+
+
+          clearTimeout(
+            timeoutId
+          );
+
+
+          if (
+            error &&
+            cleanupTimeoutId
+          ) {
+            clearTimeout(
+              cleanupTimeoutId
+            );
+
+
+            cleanupTimeoutId =
+              null;
+          }
+
+
+          if (
+            error
+          ) {
+            reject(
+              error
+            );
+
+            return;
+          }
+
+
+          resolve(
+            value
+          );
+        };
+
+
+      /* =====================================================
+        전체 실행 제한시간
+      ====================================================== */
 
       const timeoutId =
         setTimeout(
@@ -10504,6 +10633,10 @@ function runDataParcSteamPowerShell(
         );
 
 
+      /* =====================================================
+        PowerShell 출력 한 줄 처리
+      ====================================================== */
+
       const handleStandardOutputLine =
         line => {
           const normalizedLine =
@@ -10521,15 +10654,21 @@ function runDataParcSteamPowerShell(
           }
 
 
+          /* -------------------------------------------------
+            진행단계
+          -------------------------------------------------- */
+
           if (
-            normalizedLine.startsWith(
-              DATAPARC_STEAM_STAGE_MARKER
-            )
+            normalizedLine
+              .startsWith(
+                DATAPARC_STEAM_STAGE_MARKER
+              )
           ) {
             lastStage =
               normalizedLine
                 .slice(
-                  DATAPARC_STEAM_STAGE_MARKER.length
+                  DATAPARC_STEAM_STAGE_MARKER
+                    .length
                 )
                 .trim() ||
               lastStage;
@@ -10544,12 +10683,23 @@ function runDataParcSteamPowerShell(
           }
 
 
+          /* -------------------------------------------------
+            최종 JSON 결과
+          -------------------------------------------------- */
+
           if (
             resultMarker &&
-            normalizedLine.startsWith(
-              resultMarker
-            )
+            normalizedLine
+              .startsWith(
+                resultMarker
+              )
           ) {
+            /*
+              정상 결과가 나왔는데
+              COM 정리 때문에 프로세스가 오래 남아 있으면
+              3초 후 종료한다.
+            */
+
             cleanupTimeoutId =
               setTimeout(
                 () => {
@@ -10560,7 +10710,8 @@ function runDataParcSteamPowerShell(
               );
 
 
-            cleanupTimeoutId.unref?.();
+            cleanupTimeoutId
+              .unref?.();
 
 
             finish(
@@ -10570,6 +10721,10 @@ function runDataParcSteamPowerShell(
           }
         };
 
+
+      /* =====================================================
+        stdout
+      ====================================================== */
 
       childProcess.stdout.on(
         "data",
@@ -10593,17 +10748,16 @@ function runDataParcSteamPowerShell(
             "";
 
 
-          for (
-            const line of
-            lines
-          ) {
-            handleStandardOutputLine(
-              line
-            );
-          }
+          lines.forEach(
+            handleStandardOutputLine
+          );
         }
       );
 
+
+      /* =====================================================
+        stderr
+      ====================================================== */
 
       childProcess.stderr.on(
         "data",
@@ -10614,10 +10768,14 @@ function runDataParcSteamPowerShell(
       );
 
 
+      /* =====================================================
+        PowerShell 프로세스 실행 오류
+      ====================================================== */
+
       childProcess.on(
         "error",
         error => {
-          removePowerShellScript();
+          removeTemporaryScript();
 
 
           stopChildProcess();
@@ -10637,10 +10795,14 @@ function runDataParcSteamPowerShell(
       );
 
 
+      /* =====================================================
+        프로세스 종료
+      ====================================================== */
+
       childProcess.on(
         "close",
         exitCode => {
-          removePowerShellScript();
+          removeTemporaryScript();
 
 
           if (
@@ -10655,6 +10817,10 @@ function runDataParcSteamPowerShell(
               null;
           }
 
+
+          /*
+            개행 없이 마지막 줄이 끝났을 때도 처리
+          */
 
           if (
             stdoutLineBuffer
@@ -10749,7 +10915,6 @@ function runDataParcSteamPowerShell(
     }
   );
 }
-
 
 function parseDailyDataWorkbookNumber(
   value,
