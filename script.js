@@ -189715,6 +189715,711 @@ function syncMorningMeetingSiloToCommonDate(
   석회석은 기존 D1 날짜별 복원을 그대로 사용한다.
 ===================================================== */
 
+/* =====================================================
+  오전회의 날짜 이동
+  D1에 이미 저장된 완료 자동수치만 복원
+
+  중요:
+  - 신규 OIS 요청 생성 안 함
+  - 저장 완료 자료만 GET
+  - 빠르게 날짜를 연속 이동해도 이전 응답 무시
+===================================================== */
+
+async function restoreMorningMeetingSavedCompletedHistoryForDate(
+  dateValue
+) {
+  const normalizedDate =
+    String(
+      dateValue ||
+      ""
+    ).trim();
+
+
+  if (
+    !isValidDate(
+      normalizedDate
+    )
+  ) {
+    return false;
+  }
+
+
+  const panel =
+    document.getElementById(
+      "efficiencyMorningMeetingWaterPanel"
+    );
+
+
+  const isStillCurrentDate =
+    () => {
+      return (
+        String(
+          panel?.dataset
+            ?.morningMeetingAutoBaseDate ||
+          ""
+        ).trim() ===
+        normalizedDate
+      );
+    };
+
+
+  const state =
+    getState();
+
+
+  let restored =
+    false;
+
+
+  try {
+    const requestUrl =
+      new URL(
+        "/api/ois-data-requests",
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "action",
+      "completed_history"
+    );
+
+
+    requestUrl.searchParams.set(
+      "startDate",
+      normalizedDate
+    );
+
+
+    requestUrl.searchParams.set(
+      "endDate",
+      normalizedDate
+    );
+
+
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
+    const response =
+      await fetch(
+        requestUrl.toString(),
+        {
+          method:
+            "GET",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                },
+
+          cache:
+            "no-store"
+        }
+      );
+
+
+    const responseText =
+      await response.text();
+
+
+    let payload = {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      payload =
+        JSON.parse(
+          responseText
+        );
+    }
+
+
+    if (
+      !response.ok ||
+      payload.ok ===
+        false ||
+      payload.success ===
+        false
+    ) {
+      throw new Error(
+        payload.message ||
+        payload.error ||
+        `저장된 자동수치 조회 실패 (HTTP ${response.status})`
+      );
+    }
+
+
+    /*
+      응답을 기다리는 동안 사용자가 다른 날짜로
+      이동했다면 이전 날짜 자료를 적용하지 않는다.
+    */
+
+    if (
+      !isStillCurrentDate()
+    ) {
+      return false;
+    }
+
+
+    const items =
+      Array.isArray(
+        payload.items
+      )
+        ? payload.items
+        : [];
+
+
+    const findCompletedItem =
+      requestTypes => {
+        return (
+          items.find(
+            item => {
+              const itemDate =
+                String(
+                  item?.targetDate ||
+                  ""
+                ).trim();
+
+
+              const itemStatus =
+                String(
+                  item?.status ||
+                  ""
+                )
+                  .trim()
+                  .toLowerCase();
+
+
+              const requestType =
+                String(
+                  item?.requestType ||
+                  item?.sourceRequestType ||
+                  ""
+                ).trim();
+
+
+              return (
+                itemDate ===
+                  normalizedDate &&
+                itemStatus ===
+                  "complete" &&
+                requestTypes.includes(
+                  requestType
+                ) &&
+                item?.result &&
+                typeof item.result ===
+                  "object" &&
+                !Array.isArray(
+                  item.result
+                )
+              );
+            }
+          ) ||
+          null
+        );
+      };
+
+
+    const createCompletedData =
+      item => {
+        const result =
+          item?.result &&
+          typeof item.result ===
+            "object"
+            ? item.result
+            : {};
+
+
+        return {
+          ...result,
+
+          /*
+            completed_history의 targetDate를
+            현재 복원 기준일로 사용한다.
+          */
+
+          sourceDate:
+            normalizedDate,
+
+          targetDate:
+            normalizedDate,
+
+          status:
+            "complete",
+
+          requestId:
+            String(
+              item?.id ||
+              result?.requestId ||
+              ""
+            ).trim(),
+
+          collectedAt:
+            String(
+              result?.collectedAt ||
+              item?.completedAt ||
+              item?.updatedAt ||
+              ""
+            ).trim(),
+
+          agentId:
+            String(
+              result?.agentId ||
+              result?.agent_id ||
+              ""
+            ).trim()
+        };
+      };
+
+
+    /* =================================================
+      수처리
+    ================================================= */
+
+    const waterItem =
+      findCompletedItem([
+        "water_environment"
+      ]);
+
+
+    if (
+      waterItem
+    ) {
+      const water =
+        createCompletedData(
+          waterItem
+        );
+
+
+      state.waterTreatment = {
+        ...water
+      };
+
+
+      if (
+        panel
+      ) {
+        panel.dataset
+          .waterStatus =
+          "complete";
+
+
+        panel.dataset
+          .waterTargetDate =
+          normalizedDate;
+
+
+        panel.dataset
+          .oisTargetDate =
+          normalizedDate;
+
+
+        if (
+          water.requestId
+        ) {
+          panel.dataset
+            .oisRequestId =
+            water.requestId;
+        }
+
+
+        if (
+          water.collectedAt
+        ) {
+          panel.dataset
+            .oisCollectedAt =
+            water.collectedAt;
+        }
+      }
+
+
+      document.dispatchEvent(
+        new CustomEvent(
+          "efficiencyMorningMeetingWaterLoaded",
+          {
+            detail: {
+              ...water,
+
+              restored:
+                true
+            }
+          }
+        )
+      );
+
+
+      restored =
+        true;
+    }
+
+
+    /* =================================================
+      Gear / Pinion
+    ================================================= */
+
+    const gearItem =
+      findCompletedItem([
+        "turbine_gear_pinion"
+      ]);
+
+
+    if (
+      gearItem
+    ) {
+      const gear =
+        createCompletedData(
+          gearItem
+        );
+
+
+      state.gearPinion = {
+        ...gear
+      };
+
+
+      delete state
+        .gearPinionError;
+
+
+      if (
+        panel
+      ) {
+        panel.dataset
+          .gearPinionStatus =
+          "complete";
+
+
+        panel.dataset
+          .gearPinionTargetDate =
+          normalizedDate;
+
+
+        if (
+          gear.requestId
+        ) {
+          panel.dataset
+            .gearPinionRequestId =
+            gear.requestId;
+        }
+
+
+        if (
+          gear.collectedAt
+        ) {
+          panel.dataset
+            .gearPinionCollectedAt =
+            gear.collectedAt;
+        }
+      }
+
+
+      document.dispatchEvent(
+        new CustomEvent(
+          "efficiencyMorningMeetingGearPinionLoaded",
+          {
+            detail: {
+              ...gear,
+
+              restored:
+                true
+            }
+          }
+        )
+      );
+
+
+      restored =
+        true;
+    }
+
+
+    /* =================================================
+      Silo Level
+    ================================================= */
+
+    const siloItem =
+      findCompletedItem([
+        "silo_level"
+      ]);
+
+
+    if (
+      siloItem
+    ) {
+      const silo =
+        createCompletedData(
+          siloItem
+        );
+
+
+      state.siloLevel = {
+        ...silo
+      };
+
+
+      delete state
+        .siloLevelError;
+
+
+      if (
+        panel
+      ) {
+        panel.dataset
+          .siloLevelStatus =
+          "complete";
+
+
+        panel.dataset
+          .siloLevelTargetDate =
+          normalizedDate;
+
+
+        if (
+          silo.requestId
+        ) {
+          panel.dataset
+            .siloLevelRequestId =
+            silo.requestId;
+        }
+
+
+        if (
+          silo.collectedAt
+        ) {
+          panel.dataset
+            .siloLevelCollectedAt =
+            silo.collectedAt;
+        }
+
+
+        if (
+          silo.agentId
+        ) {
+          panel.dataset
+            .siloLevelAgentId =
+            silo.agentId;
+        }
+      }
+
+
+      document.dispatchEvent(
+        new CustomEvent(
+          "efficiencyMorningMeetingSiloLevelLoaded",
+          {
+            detail: {
+              targetDate:
+                normalizedDate,
+
+              flyAshSiloLevel:
+                silo.flyAshSiloLevel,
+
+              bioStorageSiloLevel:
+                silo.bioStorageSiloLevel,
+
+              restored:
+                true
+            }
+          }
+        )
+      );
+
+
+      restored =
+        true;
+    }
+
+
+    /* =================================================
+      일일 DATA
+
+      daily_data_excel 우선
+      과거자료는 steam_status도 호환
+    ================================================= */
+
+    const dailyItem =
+      findCompletedItem([
+        "daily_data_excel"
+      ]) ||
+      findCompletedItem([
+        "steam_status"
+      ]);
+
+
+    if (
+      dailyItem
+    ) {
+      const dailyData =
+        createCompletedData(
+          dailyItem
+        );
+
+
+      state.steamStatus = {
+        ...dailyData
+      };
+
+
+      delete state
+        .steamStatusError;
+
+
+      if (
+        panel
+      ) {
+        panel.dataset
+          .steamStatusStatus =
+          "complete";
+
+
+        panel.dataset
+          .steamStatusTargetDate =
+          normalizedDate;
+
+
+        if (
+          dailyData.requestId
+        ) {
+          panel.dataset
+            .steamStatusRequestId =
+            dailyData.requestId;
+        }
+
+
+        if (
+          dailyData.collectedAt
+        ) {
+          panel.dataset
+            .steamStatusCollectedAt =
+            dailyData.collectedAt;
+        }
+
+
+        if (
+          dailyData.agentId
+        ) {
+          panel.dataset
+            .steamStatusAgentId =
+            dailyData.agentId;
+        }
+      }
+
+
+      document.dispatchEvent(
+        new CustomEvent(
+          "efficiencyMorningMeetingSteamStatusLoaded",
+          {
+            detail: {
+              ...dailyData,
+
+              restored:
+                true
+            }
+          }
+        )
+      );
+
+
+      restored =
+        true;
+    }
+
+
+    if (
+      !isStillCurrentDate()
+    ) {
+      return restored;
+    }
+
+
+    /*
+      모든 카드 즉시 다시 그리기
+    */
+
+    if (
+      typeof window
+        .renderEfficiencyMorningMeetingAutoPreview ===
+        "function"
+    ) {
+      window
+        .renderEfficiencyMorningMeetingAutoPreview();
+    }
+
+
+    if (
+      typeof window
+        .renderEfficiencyMorningMeetingSteamStatus ===
+        "function"
+    ) {
+      window
+        .renderEfficiencyMorningMeetingSteamStatus();
+    }
+
+
+    if (
+      typeof window
+        .renderEfficiencyMorningMeetingDailyData ===
+        "function"
+    ) {
+      window
+        .renderEfficiencyMorningMeetingDailyData();
+    }
+
+
+    if (
+      typeof window
+        .updateEfficiencyMorningMeetingCreateButton ===
+        "function"
+    ) {
+      window
+        .updateEfficiencyMorningMeetingCreateButton();
+    }
+
+
+    if (
+      restored
+    ) {
+      console.log(
+        `오전회의 ${normalizedDate} D1 저장 자동수치 복원 완료`
+      );
+    }
+
+
+    return restored;
+
+  } catch (
+    error
+  ) {
+    /*
+      날짜 이동 자체는 막지 않는다.
+
+      저장값 조회 실패 시 사용자가 필요할 때
+      개별조회 버튼으로 다시 조회할 수 있다.
+    */
+
+    if (
+      isStillCurrentDate()
+    ) {
+      console.warn(
+        `오전회의 ${normalizedDate} D1 저장 자동수치 복원 실패:`,
+        error
+      );
+    }
+
+
+    return false;
+  }
+}
+
 function applyCommonBaseDate(
   requestedDate,
   options = {}
@@ -189905,6 +190610,17 @@ if (
   if (
     !load
   ) {
+    /*
+      일반 날짜 이동:
+      신규 OIS 조회는 하지 않고
+      D1에 이미 저장된 완료자료만 복원한다.
+    */
+
+    void restoreMorningMeetingSavedCompletedHistoryForDate(
+      normalizedDate
+    );
+
+
     return;
   }
 
@@ -223595,7 +224311,7 @@ function renderRows(
                 3,
 
               maximumFractionDigits:
-                3
+                2
             }
           }
         }),
@@ -223625,7 +224341,7 @@ function renderRows(
                 3,
 
               maximumFractionDigits:
-                3
+                2
             }
           }
         }),
@@ -223743,7 +224459,7 @@ function renderRows(
 
             numberOptions: {
               maximumFractionDigits:
-                3
+                2
             }
           }
         }),
@@ -223772,7 +224488,7 @@ function renderRows(
 
             numberOptions: {
               maximumFractionDigits:
-                3
+                2
             }
           }
         }),
@@ -223900,7 +224616,7 @@ function renderRows(
           displayOptions: {
             numberOptions: {
               maximumFractionDigits:
-                3
+                2
             }
           }
         }),
@@ -223924,7 +224640,7 @@ function renderRows(
           displayOptions: {
             numberOptions: {
               maximumFractionDigits:
-                6
+                2
             }
           }
         }),

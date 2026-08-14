@@ -106163,3 +106163,85 @@ input {
     inset 0 0 0 2px
     rgba(70, 126, 179, 0.35);
 }
+
+/* AUTO HISTORY WEATHER COLUMN BALANCE START */
+
+/*
+  신북 날씨 전체 폭은 기존 140px 유지
+
+  상태   44px
+  기온   60px
+  습도   36px
+*/
+
+#efficiencyTeamModal
+.efficiency-morning-meeting-auto-history-table
+thead
+tr:first-child
+th.is-weather {
+  width: 140px !important;
+  min-width: 140px !important;
+  max-width: 140px !important;
+}
+
+
+/* 상태 */
+
+#efficiencyTeamModal
+.efficiency-morning-meeting-auto-history-table
+thead
+tr:nth-child(2)
+th:nth-last-child(3),
+
+#efficiencyTeamModal
+.efficiency-morning-meeting-auto-history-table
+tbody
+td.is-weather-condition {
+  box-sizing: border-box !important;
+
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+}
+
+
+/* 기온 */
+
+#efficiencyTeamModal
+.efficiency-morning-meeting-auto-history-table
+thead
+tr:nth-child(2)
+th:nth-last-child(2),
+
+#efficiencyTeamModal
+.efficiency-morning-meeting-auto-history-table
+tbody
+td.is-weather-temperature {
+  box-sizing: border-box !important;
+
+  width: 60px !important;
+  min-width: 60px !important;
+  max-width: 60px !important;
+}
+
+
+/* 습도 */
+
+#efficiencyTeamModal
+.efficiency-morning-meeting-auto-history-table
+thead
+tr:nth-child(2)
+th:nth-last-child(1),
+
+#efficiencyTeamModal
+.efficiency-morning-meeting-auto-history-table
+tbody
+td.is-weather-humidity {
+  box-sizing: border-box !important;
+
+  width: 36px !important;
+  min-width: 36px !important;
+  max-width: 36px !important;
+}
+
+/* AUTO HISTORY WEATHER COLUMN BALANCE END */
