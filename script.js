@@ -160552,27 +160552,54 @@ function calculateMorningMeetingPublishedSimilarity(
 function filterMorningMeetingPublishedEntries(
   entries
 ) {
+  /* =====================================================
+    오전회의 TM 중복 제거 최종 규칙
+
+    대상:
+    - TGO
+    - BCO1
+    - BCO2
+    - TO
+    - BO1
+    - BO2
+
+    제외:
+    - 파트장
+    - TM 발행 이외의 구분
+
+    같은 날짜 안에서:
+    1. 같은 보직의 사실상 동일한 TM은 1건만 유지
+    2. 상·하위 보직 내용 유사도 70% 이상이면
+       상위 보직만 유지
+
+       TGO  > TO
+       BCO1 > BO1
+       BCO2 > BO2
+
+    중요:
+    - D/S와 N/S가 달라도 같은 날짜면 비교
+    - 날짜가 다르면 서로 비교하지 않음
+      → 주말 처리기가 날짜별로 이 함수를 호출함
+  ====================================================== */
+
   const roleOrder = {
-    파트장:
+    TGO:
       1,
 
-    TGO:
+    BCO1:
       2,
 
-    BCO1:
+    BCO2:
       3,
 
-    BCO2:
+    TO:
       4,
 
-    TO:
+    BO1:
       5,
 
-    BO1:
-      6,
-
     BO2:
-      7
+      6
   };
 
 
@@ -160588,59 +160615,222 @@ function filterMorningMeetingPublishedEntries(
   };
 
 
+  const allowedRoles =
+    Object.keys(
+      roleOrder
+    );
+
+
+  /* =====================================================
+    중복 비교용 내용 정규화
+
+    다음 차이는 무시한다.
+    - 앞쪽 번호
+    - 시간
+    - 공백
+    - 줄바꿈
+    - 특수문자
+    - 대소문자
+  ====================================================== */
+
+  const normalizeDuplicateContent =
+    value => {
+      return String(
+        value ||
+        ""
+      )
+        .normalize(
+          "NFKC"
+        )
+        .toLowerCase()
+        .replace(
+          /[\u200B-\u200D\u2060\uFEFF]/g,
+          ""
+        )
+        .replace(
+          /^\s*\d+\s*[.)\-:]\s*/,
+          ""
+        )
+        .replace(
+          /\b(?:[01]?\d|2[0-3]):[0-5]\d\b/g,
+          ""
+        )
+        .replace(
+          /[^a-z0-9가-힣]/g,
+          ""
+        )
+        .trim();
+    };
+
+
   const sourceEntries =
-    Array.isArray(
-      entries
+    (
+      Array.isArray(
+        entries
+      )
+        ? entries
+        : []
     )
-      ? entries
-      : [];
+      .filter(
+        entry => {
+          if (
+            !entry ||
+            typeof entry !==
+              "object"
+          ) {
+            return false;
+          }
 
 
-  /* 같은 보직 내부의 완전 중복 제거 */
+          const role =
+            normalizeMemberLogRole(
+              entry.role
+            );
 
-  const uniqueMap =
+
+          return (
+            allowedRoles.includes(
+              role
+            ) &&
+
+            entry.category ===
+              "TM 발행" &&
+
+            Boolean(
+              normalizeText(
+                entry.content
+              )
+            )
+          );
+        }
+      )
+      .map(
+        entry => {
+          return {
+            ...entry,
+
+            role:
+              normalizeMemberLogRole(
+                entry.role
+              )
+          };
+        }
+      );
+
+
+  /* =====================================================
+    1. 같은 보직 내부 완전 중복 제거
+
+    기존에는:
+    shift + role + category + time + tag + content
+
+    전체가 같아야 중복으로 봤다.
+
+    이제:
+    role + 정규화된 내용
+
+    만 같으면 같은 TM으로 본다.
+
+    따라서 시간/TAG가 약간 달라도
+    실제 내용이 같으면 1건만 남는다.
+  ====================================================== */
+
+  const sameRoleUniqueMap =
     new Map();
 
 
   sourceEntries.forEach(
     entry => {
       const normalizedContent =
-        typeof normalizeMemberImportContent ===
-          "function"
-          ? normalizeMemberImportContent(
-              entry.content
-            )
-          : String(
-              entry.content ||
-              ""
-            )
-              .toLowerCase()
-              .replace(
-                /\s+/g,
-                " "
-              )
-              .trim();
+        normalizeDuplicateContent(
+          entry.content
+        );
 
 
-      const uniqueKey = [
-        entry.shift,
+      if (
+        !normalizedContent
+      ) {
+        return;
+      }
+
+
+      const duplicateKey = [
         entry.role,
-        entry.category,
-        entry.time,
-        entry.tag,
         normalizedContent
       ].join(
         "||"
       );
 
 
+      const existingEntry =
+        sameRoleUniqueMap.get(
+          duplicateKey
+        );
+
+
       if (
-        !uniqueMap.has(
-          uniqueKey
+        !existingEntry
+      ) {
+        sameRoleUniqueMap.set(
+          duplicateKey,
+          entry
+        );
+
+
+        return;
+      }
+
+
+      /* =================================================
+        같은 TM이 여러 번 있으면
+        정보가 더 많은 쪽을 남긴다.
+
+        우선순위:
+        TAG 있음
+        → 시간 있음
+        → 기존 항목
+      ================================================== */
+
+      const getInformationScore =
+        item => {
+          let score =
+            0;
+
+
+          if (
+            normalizeText(
+              item?.tag
+            )
+          ) {
+            score +=
+              2;
+          }
+
+
+          if (
+            normalizeText(
+              item?.time
+            )
+          ) {
+            score +=
+              1;
+          }
+
+
+          return score;
+        };
+
+
+      if (
+        getInformationScore(
+          entry
+        ) >
+        getInformationScore(
+          existingEntry
         )
       ) {
-        uniqueMap.set(
-          uniqueKey,
+        sameRoleUniqueMap.set(
+          duplicateKey,
           entry
         );
       }
@@ -160649,9 +160839,28 @@ function filterMorningMeetingPublishedEntries(
 
 
   const uniqueEntries = [
-    ...uniqueMap.values()
+    ...sameRoleUniqueMap
+      .values()
   ];
 
+
+  /* =====================================================
+    2. 상·하위 보직 70% 중복 제거
+
+    중요:
+    이전 코드는 같은 Shift일 때만 비교했다.
+
+    변경:
+    같은 날짜의 buildSelectableItems 안에서는
+    D/S ↔ N/S도 서로 비교한다.
+
+    예:
+    D/S TGO  : #2 BLR ID Fan Motor 점검요청
+    N/S TO   : #2 BLR ID Fan Motor 진동 점검 요청
+
+    유사도 70% 이상
+    → TGO만 표시
+  ====================================================== */
 
   const filteredEntries =
     uniqueEntries.filter(
@@ -160663,8 +160872,8 @@ function filterMorningMeetingPublishedEntries(
 
 
         /*
-          파트장·TGO·BCO1·BCO2는
-          하위 보직이 아니므로 그대로 유지한다.
+          TGO / BCO1 / BCO2는
+          상위 보직이므로 그대로 유지
         */
 
         if (
@@ -160679,14 +160888,19 @@ function filterMorningMeetingPublishedEntries(
             upperEntry => {
               if (
                 upperEntry.role !==
-                  upperRole ||
-                upperEntry.shift !==
-                  entry.shift ||
-                upperEntry.category !==
-                  entry.category
+                  upperRole
               ) {
                 return false;
               }
+
+
+              /*
+                Shift는 비교하지 않는다.
+
+                같은 날짜에 있는
+                D/S / N/S TM 전체를 대상으로
+                상·하위 중복을 확인한다.
+              */
 
 
               const similarity =
@@ -160696,16 +160910,28 @@ function filterMorningMeetingPublishedEntries(
                 );
 
 
-              return similarity >=
-                0.7;
+              return (
+                similarity >=
+                0.7
+              );
             }
           );
 
 
-        return !hasSimilarUpperEntry;
+        return (
+          !hasSimilarUpperEntry
+        );
       }
     );
 
+
+  /* =====================================================
+    3. 화면 표시 순서
+
+    D/S → N/S
+    각 Shift 안에서는
+    TGO → BCO1 → BCO2 → TO → BO1 → BO2
+  ====================================================== */
 
   filteredEntries.sort(
     (
@@ -160758,26 +160984,6 @@ function filterMorningMeetingPublishedEntries(
       }
 
 
-      const categoryDifference =
-        String(
-          first.category ||
-          ""
-        ).localeCompare(
-          String(
-            second.category ||
-            ""
-          )
-        );
-
-
-      if (
-        categoryDifference !==
-          0
-      ) {
-        return categoryDifference;
-      }
-
-
       return String(
         first.time ||
         ""
@@ -160794,7 +161000,6 @@ function filterMorningMeetingPublishedEntries(
   return filteredEntries;
 }
 
-
 /* =====================================================
   교대파트 일반 업무 + 전체 보직 발행 내역 생성
 ===================================================== */
@@ -160809,6 +161014,23 @@ function buildSelectableItems(
 
   const publishedItems =
     [];
+
+
+  /*
+    오른쪽 TM 사항에
+    직접 사용할 보직.
+
+    파트장은 포함하지 않는다.
+  */
+
+  const tmSourceRoles = [
+    "TGO",
+    "BCO1",
+    "BCO2",
+    "TO",
+    "BO1",
+    "BO2"
+  ];
 
 
   [
@@ -160834,10 +161056,20 @@ function buildSelectableItems(
           : []
       ).forEach(
         log => {
-          /*
-            교대파트 왼쪽 일반 업무:
-            TGO·BCO1·BCO2만
-          */
+          const logRole =
+            normalizeMemberLogRole(
+              log?.role ||
+              ""
+            );
+
+
+          /* =================================================
+            왼쪽:
+            교대파트 일반 업무
+
+            기존 그대로:
+            TGO / BCO1 / BCO2만
+          ================================================== */
 
           if (
             TARGET_ROLES.includes(
@@ -160855,22 +161087,74 @@ function buildSelectableItems(
           }
 
 
-          /*
-            오른쪽 TM 사항:
-            모든 보직의 발행 내역
-          */
+          /* =================================================
+            오른쪽:
+            TM 사항
 
-          publishedItems.push(
-            ...collectMorningMeetingPublishedEntries(
+            중요:
+            파트장 업무일지는 아예 읽지 않는다.
+
+            따라서 파트장 업무일지 안에
+            TGO/BCO1/BCO2 등에서 가져와 저장된 TM도
+            여기로 다시 들어오지 않는다.
+          ================================================== */
+
+          if (
+            !tmSourceRoles.includes(
+              logRole
+            )
+          ) {
+            return;
+          }
+
+
+          const rolePublishedItems =
+            collectMorningMeetingPublishedEntries(
               log,
               shift
             )
+              .filter(
+                item => {
+                  const itemRole =
+                    normalizeMemberLogRole(
+                      item?.role ||
+                      ""
+                    );
+
+
+                  return (
+                    /*
+                      TM 발행만 사용.
+
+                      BM 발행 / CM 발행은
+                      오른쪽 TM 사항에서 제외.
+                    */
+                    item?.category ===
+                      "TM 발행" &&
+
+                    /*
+                      파트장 제외.
+                    */
+                    tmSourceRoles.includes(
+                      itemRole
+                    )
+                  );
+                }
+              );
+
+
+          publishedItems.push(
+            ...rolePublishedItems
           );
         }
       );
     }
   );
 
+
+  /* =====================================================
+    왼쪽 업무 정렬
+  ====================================================== */
 
   workItems.sort(
     (
@@ -160936,6 +161220,16 @@ function buildSelectableItems(
   );
 
 
+  /* =====================================================
+    오른쪽 TM 중복 정리
+
+    - 같은 보직 동일 내용 중복 제거
+    - TGO > TO
+    - BCO1 > BO1
+    - BCO2 > BO2
+    - 유사도 70%
+  ====================================================== */
+
   const filteredPublishedItems =
     filterMorningMeetingPublishedEntries(
       publishedItems
@@ -160961,6 +161255,10 @@ function buildSelectableItems(
       }
     );
 
+
+  /* =====================================================
+    운탄일지 · TM 선택 화면 갱신 이벤트
+  ====================================================== */
 
   window.setTimeout(
     () => {
