@@ -141383,186 +141383,172 @@ async function applyMorningMeetingTemplateFile(
     };
 
 
-  /* =====================================================
+/* =====================================================
     첨부 Excel에서 태양광 3개 값 추출
-  ====================================================== */
+====================================================== */
 
-  const extractSolarValues =
-    async () => {
+const extractSolarValues =
+  async () => {
+    if (
+      typeof XLSX ===
+        "undefined"
+    ) {
+      throw new Error(
+        "엑셀 분석 라이브러리를 불러오지 못했습니다."
+      );
+    }
+
+
+    const arrayBuffer =
+      await file
+        .arrayBuffer();
+
+
+    const workbook =
+      XLSX.read(
+        arrayBuffer,
+        {
+          type:
+            "array",
+
+          cellFormula:
+            true,
+
+          cellText:
+            true,
+
+          cellDates:
+            false,
+
+          cellNF:
+            true
+        }
+      );
+
+
+    for (
+      const sheetName of
+        workbook.SheetNames
+    ) {
+      const worksheet =
+        workbook.Sheets[
+          sheetName
+        ];
+
+
       if (
-        typeof XLSX ===
-          "undefined"
+        !worksheet
+      ) {
+        continue;
+      }
+
+
+      /* ===================================================
+        태양광 3개 값
+
+        셀 주소가 아니라
+        항목명을 기준으로 찾는다.
+      ==================================================== */
+
+      const solarDailyGeneration =
+        findMetricValue(
+          worksheet,
+          "일일발전량kwh"
+        );
+
+
+      const solarMonthlyCumulative =
+        findMetricValue(
+          worksheet,
+          "월간발전량kwh"
+        );
+
+
+      const solarYearlyCumulative =
+        findMetricValue(
+          worksheet,
+          "연간발전량kwh"
+        );
+
+
+      if (
+        solarDailyGeneration ===
+          null ||
+        solarMonthlyCumulative ===
+          null ||
+        solarYearlyCumulative ===
+          null
+      ) {
+        continue;
+      }
+
+
+      /* ===================================================
+        중요
+
+        파일명:
+        일일발전운전현황_08.07.xlsx
+
+        실제 시트 날짜:
+        2026-08-06
+
+        시트 상단 날짜가 이미
+        실제 실적 기준일이므로
+        여기서 하루를 더 빼면 안 된다.
+      ==================================================== */
+
+      const sourceDate =
+        findSheetDate(
+          worksheet
+        );
+
+
+      if (
+        !sourceDate
       ) {
         throw new Error(
-          "엑셀 분석 라이브러리를 불러오지 못했습니다."
+          "일일발전현황에서 실제 실적 기준일을 확인하지 못했습니다."
         );
       }
 
 
-      const arrayBuffer =
-        await file
-          .arrayBuffer();
-
-
-      const workbook =
-        XLSX.read(
-          arrayBuffer,
-          {
-            type:
-              "array",
-
-            cellFormula:
-              true,
-
-            cellText:
-              true,
-
-            cellDates:
-              false,
-
-            cellNF:
-              true
-          }
-        );
-
-
-      for (
-        const sheetName of
-          workbook.SheetNames
-      ) {
-        const worksheet =
-          workbook.Sheets[
-            sheetName
-          ];
-
-
-        if (
-          !worksheet
-        ) {
-          continue;
-        }
-
-
-        const solarDailyGeneration =
-          findMetricValue(
-            worksheet,
-            "일일발전량kwh"
-          );
-
-
-        const solarMonthlyCumulative =
-          findMetricValue(
-            worksheet,
-            "월간발전량kwh"
-          );
-
-
-        const solarYearlyCumulative =
-          findMetricValue(
-            worksheet,
-            "연간발전량kwh"
-          );
+      return {
+        sourceDate,
 
 
         /*
-          세 항목 모두 존재하는 시트만 사용
+          기존 아래 코드와의 호환을 위해
+          reportDate도 같은 실제 시트 날짜를 넣는다.
         */
-
-        if (
-          solarDailyGeneration ===
-            null ||
-          solarMonthlyCumulative ===
-            null ||
-          solarYearlyCumulative ===
-            null
-        ) {
-          continue;
-        }
-
-
-        /*
-          엑셀 상단 날짜
-
-          예:
-          일일발전운전현황_08.14.xlsx
-          → 2026-08-14
-        */
-
-        const reportDate =
-          findSheetDate(
-            worksheet
-          );
-
-
-        if (
-          !reportDate
-        ) {
-          throw new Error(
-            "일일발전현황에서 회의자료 날짜를 확인하지 못했습니다."
-          );
-        }
-
-
-        /*
-          실제 데이터 기준일
-
-          2026-08-14
-          → 2026-08-13
-        */
-
-        const sourceDate =
-          getPreviousSolarSourceDate(
-            reportDate
-          );
-
-
-        if (
-          !sourceDate
-        ) {
-          throw new Error(
-            "일일발전현황의 실제 데이터 기준일을 계산하지 못했습니다."
-          );
-        }
-
-
-        return {
-          /*
-            자동수치 실제 기준일
-          */
+        reportDate:
           sourceDate,
 
 
-          /*
-            원본 회의자료 날짜
-          */
-          reportDate,
+        sheetName,
 
 
-          sheetName,
+        solarDailyGeneration,
 
 
-          solarDailyGeneration,
+        solarMonthlyCumulative,
 
 
-          solarMonthlyCumulative,
+        solarYearlyCumulative,
 
 
-          solarYearlyCumulative,
+        source:
+          "일일발전운전현황 첨부 Excel"
+      };
+    }
 
 
-          source:
-            "일일발전운전현황 첨부 Excel"
-        };
-      }
+    throw new Error(
+      "태양광 일일·월간·연간 발전량 항목을 찾지 못했습니다."
+    );
+  };
 
 
-      throw new Error(
-        "태양광 일일·월간·연간 발전량 항목을 찾지 못했습니다."
-      );
-    };
-
-
-  /* =====================================================
+/* =====================================================
     추출한 월간·연간 누적값을
     현재 일일 DATA 상태에 합치기
 
@@ -141570,7 +141556,7 @@ async function applyMorningMeetingTemplateFile(
     - 실제 실적 기준일이 같은 경우만 적용
     - 기존 태양광 일일발전량은 OIS/일일DATA 값 유지
     - 월간·연간만 첨부 Excel 누적값 사용
-  ====================================================== */
+====================================================== */
 
   const applyTemplateSolarToCurrentDailyData =
     () => {
@@ -210312,10 +210298,530 @@ function scheduleAutomaticLoad() {
     scheduleRender();
   }
 
+/* =====================================================
+  일일 DATA Excel · 카드별 개별 재조회
 
-  /* =====================================================
+  같은 Excel을 다시 읽지만
+  사용자가 누른 영역의 값만 새 결과로 교체한다.
+
+  power   : 전력 현황
+  steam   : 증기 생산·판매
+  organic : 유기성 고형연료
+
+  중요:
+  - 공용 steamStatus를 조회 시작 전에 지우지 않음
+  - 다른 카드의 기존 값 유지
+  - 다른 카드의 상태를 loading으로 변경하지 않음
+===================================================== */
+
+const DAILY_DATA_SECTION_META_FIELDS =
+  new Set([
+    "schemaVersion",
+    "source",
+    "targetDate",
+    "sourceDate",
+    "outputInterval",
+    "hourRange",
+    "hourCount",
+    "collectedAt",
+    "agentId"
+  ]);
+
+
+function isDailyDataSectionField(
+  section,
+  fieldName
+) {
+  const key =
+    String(
+      fieldName ||
+      ""
+    ).trim();
+
+
+  if (
+    !key
+  ) {
+    return false;
+  }
+
+
+  if (
+    section ===
+      "power"
+  ) {
+    return (
+      [
+        "generatorEcmsGen1",
+        "powerGeneration",
+        "ismartReception",
+        "electricityReceived",
+        "epowerTransmission",
+        "electricityTransmitted"
+      ].includes(
+        key
+      ) ||
+      /^solar/i.test(
+        key
+      )
+    );
+  }
+
+
+  if (
+    section ===
+      "steam"
+  ) {
+    return (
+      /^steam/i.test(
+        key
+      ) ||
+      [
+        "averageSteamSales",
+        "unitOneProduction",
+        "unitTwoProduction",
+        "totalProduction",
+        "salesRate"
+      ].includes(
+        key
+      )
+    );
+  }
+
+
+  if (
+    section ===
+      "organic"
+  ) {
+    return (
+      /^organic/i.test(
+        key
+      ) ||
+      /^sludge/i.test(
+        key
+      )
+    );
+  }
+
+
+  return false;
+}
+
+
+function mergeDailyDataSectionResult(
+  previousResult,
+  nextResult,
+  section
+) {
+  const merged = {
+    ...(
+      previousResult &&
+      typeof previousResult ===
+        "object"
+        ? previousResult
+        : {}
+    )
+  };
+
+
+  Object.entries(
+    nextResult ||
+    {}
+  ).forEach(
+    ([
+      key,
+      value
+    ]) => {
+      if (
+        DAILY_DATA_SECTION_META_FIELDS.has(
+          key
+        ) ||
+        isDailyDataSectionField(
+          section,
+          key
+        )
+      ) {
+        merged[
+          key
+        ] =
+          value;
+      }
+    }
+  );
+
+
+  return merged;
+}
+
+
+async function waitForDailyDataSectionCompletion(
+  initialItem,
+  targetDate,
+  runToken
+) {
+  let requestItem =
+    initialItem;
+
+
+  const requestId =
+    normalizeText(
+      initialItem?.id
+    );
+
+
+  if (
+    !requestId
+  ) {
+    throw new Error(
+      "일일 DATA 조회 요청 ID를 확인하지 못했습니다."
+    );
+  }
+
+
+  const startedAt =
+    Date.now();
+
+
+  const timeoutMs =
+    120000;
+
+
+  while (
+    Date.now() -
+      startedAt <
+    timeoutMs
+  ) {
+    if (
+      runToken !==
+        activeRunToken
+    ) {
+      return null;
+    }
+
+
+    const status =
+      normalizeText(
+        requestItem?.status
+      ).toLowerCase();
+
+
+    if (
+      status ===
+        "complete"
+    ) {
+      return requestItem;
+    }
+
+
+    if (
+      [
+        "failed",
+        "error",
+        "cancelled"
+      ].includes(
+        status
+      )
+    ) {
+      throw new Error(
+        normalizeText(
+          requestItem?.error ||
+          requestItem?.message
+        ) ||
+        `${targetDate} 일일 DATA 재조회에 실패했습니다.`
+      );
+    }
+
+
+    await new Promise(
+      resolve => {
+        window.setTimeout(
+          resolve,
+          1500
+        );
+      }
+    );
+
+
+    if (
+      runToken !==
+        activeRunToken
+    ) {
+      return null;
+    }
+
+
+    const requestResult =
+      await getSteamStatusRequest(
+        requestId
+      );
+
+
+    if (
+      requestResult?.item
+    ) {
+      requestItem =
+        requestResult.item;
+    }
+  }
+
+
+  throw new Error(
+    `${targetDate} 일일 DATA 재조회 대기시간이 초과되었습니다.`
+  );
+}
+
+
+async function refreshDailyDataSection(
+  sectionValue
+) {
+  const section =
+    normalizeText(
+      sectionValue
+    ).toLowerCase();
+
+
+  if (
+    ![
+      "power",
+      "steam",
+      "organic"
+    ].includes(
+      section
+    )
+  ) {
+    throw new Error(
+      "개별 재조회 영역을 확인하지 못했습니다."
+    );
+  }
+
+
+  const targetDate =
+    synchronizeTargetDate();
+
+
+  if (
+    !targetDate
+  ) {
+    throw new Error(
+      "일일 DATA 조회 기준일을 확인하지 못했습니다."
+    );
+  }
+
+
+  const state =
+    getState();
+
+
+  const currentDate =
+    normalizeText(
+      state.steamStatus
+        ?.sourceDate ||
+      state.steamStatus
+        ?.targetDate
+    );
+
+
+  /*
+    현재 날짜의 완성된 기존 자료가 있으면
+    다른 두 카드 값 보존용으로 사용한다.
+  */
+
+  const previousResult =
+    currentDate ===
+      targetDate &&
+    state.steamStatus &&
+    typeof state.steamStatus ===
+      "object"
+      ? {
+          ...state.steamStatus
+        }
+      : null;
+
+
+  const runToken =
+    activeRunToken +
+    1;
+
+
+  activeRunToken =
+    runToken;
+
+
+  /*
+    중요:
+    여기서는 기존 state.steamStatus를 지우지 않는다.
+    따라서 다른 카드가 조회중/빈칸으로 변하지 않는다.
+  */
+
+  const createResult =
+    await createSteamStatusRequest(
+      targetDate,
+      {
+        forceRefresh:
+          true,
+
+        userInitiated:
+          true
+      }
+    );
+
+
+  let requestItem =
+    createResult?.item;
+
+
+  if (
+    !requestItem?.id
+  ) {
+    throw new Error(
+      "생성된 일일 DATA 요청 ID를 확인할 수 없습니다."
+    );
+  }
+
+
+  if (
+    normalizeText(
+      requestItem.status
+    ).toLowerCase() !==
+      "complete"
+  ) {
+    requestItem =
+      await waitForDailyDataSectionCompletion(
+        requestItem,
+        targetDate,
+        runToken
+      );
+  }
+
+
+  if (
+    !requestItem ||
+    runToken !==
+      activeRunToken
+  ) {
+    return null;
+  }
+
+
+  const freshResult =
+    normalizeSteamStatusResult(
+      requestItem,
+      targetDate
+    );
+
+
+  /*
+    기존에 정상적인 전체 자료가 있으면
+    선택한 카드 항목만 교체한다.
+
+    아직 기존 자료 자체가 없다면
+    renderer가 완전한 일일 DATA를 필요로 하므로
+    최초 1회는 전체 결과를 사용한다.
+  */
+
+  const mergedResult =
+    previousResult &&
+    isCompleteDailyDataResult(
+      previousResult
+    )
+      ? mergeDailyDataSectionResult(
+          previousResult,
+          freshResult,
+          section
+        )
+      : {
+          ...freshResult
+        };
+
+
+  state.steamStatus = {
+    ...mergedResult,
+
+    requestId:
+      normalizeText(
+        requestItem.id
+      )
+  };
+
+
+  delete state
+    .steamStatusError;
+
+
+  const {
+    panel
+  } =
+    getElements();
+
+
+  if (
+    panel
+  ) {
+    panel.dataset
+      .steamStatusStatus =
+      "complete";
+
+
+    panel.dataset
+      .steamStatusTargetDate =
+      targetDate;
+
+
+    panel.dataset
+      .steamStatusRequestId =
+      normalizeText(
+        requestItem.id
+      );
+
+
+    panel.dataset
+      .steamStatusCollectedAt =
+      normalizeText(
+        freshResult.collectedAt
+      );
+
+
+    panel.dataset
+      .steamStatusAgentId =
+      normalizeText(
+        freshResult.agentId
+      );
+  }
+
+
+  document.dispatchEvent(
+    new CustomEvent(
+      "efficiencyMorningMeetingSteamStatusLoaded",
+      {
+        detail: {
+          ...state.steamStatus,
+
+          targetDate,
+
+          section,
+
+          partialRefresh:
+            true
+        }
+      }
+    )
+  );
+
+
+  renderSteamStatus();
+
+
+  return state.steamStatus;
+}
+
+
+window
+  .refreshEfficiencyMorningMeetingDailyDataSection =
+  refreshDailyDataSection;
+
+/* =====================================================
     외부 사용
-  ====================================================== */
+====================================================== */
 
   window
     .loadEfficiencyMorningMeetingSteamStatus =
@@ -231380,6 +231886,15 @@ function initializeDailyControls() {
   - 유기성 고형연료
 ========================================================= */
 
+/* =========================================================
+  오전회의자료
+  Excel 자동수치 3개 카드 미니 새로고침 버튼
+
+  전력     → power
+  증기     → steam
+  유기성   → organic
+========================================================= */
+
 (function installMorningMeetingDailyDataMiniRefreshButtons() {
   "use strict";
 
@@ -231404,6 +231919,9 @@ function initializeDailyControls() {
 
   const TARGETS = [
     {
+      section:
+        "power",
+
       cardId:
         "efficiencyMorningMeetingAutoDailyPowerCard",
 
@@ -231415,6 +231933,9 @@ function initializeDailyControls() {
     },
 
     {
+      section:
+        "steam",
+
       cardId:
         "efficiencyMorningMeetingAutoSteamCard",
 
@@ -231426,6 +231947,9 @@ function initializeDailyControls() {
     },
 
     {
+      section:
+        "organic",
+
       cardId:
         "efficiencyMorningMeetingAutoDailySludgeCard",
 
@@ -231478,6 +232002,14 @@ function initializeDailyControls() {
         }
 
 
+        /*
+          동시에 두 개의 Excel 조회가 실행되지 않도록
+          조회 중에는 세 버튼 모두 잠근다.
+
+          단, 회전 아이콘은
+          실제 누른 버튼에만 표시한다.
+        */
+
         button.disabled =
           loading;
 
@@ -231494,6 +232026,7 @@ function initializeDailyControls() {
 
 
   async function refreshDailyData(
+    item,
     button
   ) {
     if (
@@ -231505,7 +232038,7 @@ function initializeDailyControls() {
 
     const loader =
       window
-        .loadEfficiencyMorningMeetingDailyData;
+        .refreshEfficiencyMorningMeetingDailyDataSection;
 
 
     if (
@@ -231513,8 +232046,9 @@ function initializeDailyControls() {
         "function"
     ) {
       console.warn(
-        "일일 DATA Excel 조회 함수를 찾지 못했습니다."
+        "일일 DATA 카드별 재조회 함수를 찾지 못했습니다."
       );
+
 
       return;
     }
@@ -231530,19 +232064,15 @@ function initializeDailyControls() {
 
 
     try {
-      await loader({
-        forceRefresh:
-          true,
-
-        userInitiated:
-          true
-      });
+      await loader(
+        item.section
+      );
 
     } catch (
       error
     ) {
       console.error(
-        "일일 DATA Excel 개별 재조회 실패:",
+        `${item.label} 실패:`,
         error
       );
 
@@ -231630,6 +232160,7 @@ function initializeDailyControls() {
 
 
         void refreshDailyData(
+          item,
           button
         );
       }
