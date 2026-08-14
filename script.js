@@ -217505,29 +217505,52 @@ async function initialize() {
     const button =
       getButton();
 
+    const status =
+      document.getElementById(
+        "efficiencyMorningMeetingOutputFolderStatus"
+      );
+
     if (
       !button
     ) {
       return;
     }
 
-    button.classList.toggle(
-      "is-selected",
+    const hasFolder =
       Boolean(
         directoryHandle
-      )
+      );
+
+    const needsPermission =
+      hasFolder &&
+      permissionWarning;
+
+    button.classList.toggle(
+      "is-selected",
+      hasFolder
     );
 
     button.classList.toggle(
       "has-permission-warning",
-      Boolean(
-        directoryHandle
-      ) &&
-      permissionWarning
+      needsPermission
     );
 
     if (
-      !directoryHandle
+      status
+    ) {
+      status.classList.toggle(
+        "is-selected",
+        hasFolder
+      );
+
+      status.classList.toggle(
+        "has-permission-warning",
+        needsPermission
+      );
+    }
+
+    if (
+      !hasFolder
     ) {
       button.textContent =
         "저장 위치";
@@ -217535,26 +217558,52 @@ async function initialize() {
       button.title =
         "최종 엑셀 저장 위치를 설정합니다.";
 
+      if (
+        status
+      ) {
+        status.textContent =
+          "저장 폴더 · 기본 다운로드";
+
+        status.title =
+          "별도 폴더가 설정되지 않아 브라우저 기본 다운로드를 사용합니다.";
+      }
+
       return;
     }
 
+    const folderName =
+      String(
+        directoryHandle.name ||
+        "지정 폴더"
+      ).trim() ||
+      "지정 폴더";
+
+    const warningDetail =
+      detail ||
+      "권한 확인이 필요합니다. 저장 위치를 다시 선택해 주세요.";
+
     button.textContent =
-      permissionWarning
+      needsPermission
         ? "저장 위치 !"
         : "저장 위치 ✓";
 
     button.title =
-      permissionWarning
-        ? (
-            `저장 폴더: ${directoryHandle.name} · ` +
-            (
-              detail ||
-              "권한 확인이 필요합니다. 저장 위치를 다시 선택해 주세요."
-            )
-          )
-        : `저장 폴더: ${directoryHandle.name}`;
-  }
+      needsPermission
+        ? `저장 폴더: ${folderName} · ${warningDetail}`
+        : `저장 폴더: ${folderName}`;
 
+    if (
+      status
+    ) {
+      status.textContent =
+        needsPermission
+          ? `저장 폴더 · ${folderName} · 권한 확인`
+          : `저장 폴더 · ${folderName}`;
+
+      status.title =
+        button.title;
+    }
+  }
 
   async function chooseFolder() {
     try {
