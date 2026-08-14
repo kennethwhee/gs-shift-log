@@ -93907,6 +93907,83 @@ body.is-auxiliary-material-expanded
 
 
   /* =====================================================
+    시작일 / 종료일
+
+    현재처럼 남는 공간을 두 날짜가 모두 먹지 않고
+    필요한 폭만 사용한다.
+  ====================================================== */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields {
+    grid-template-columns:
+      190px
+      190px
+      auto
+      auto
+      auto !important;
+
+    justify-content: start !important;
+    align-items: end !important;
+
+    gap: 5px !important;
+
+    width: 100% !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-period-fields
+  > label {
+    width: 190px !important;
+    min-width: 190px !important;
+  }
+
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-query-card
+  input[type="date"] {
+    width: 190px !important;
+
+    height: 32px !important;
+    min-height: 32px !important;
+
+    padding:
+      0
+      7px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 10px !important;
+  }
+
+
+  /* 조회 관련 버튼 */
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView
+  .auxiliary-material-period-fields
+  button,
+
+  body:not(.is-auxiliary-material-expanded)
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  #importAuxiliaryMaterialExcelButton.auxiliary-material-excel-inline-button {
+    height: 32px !important;
+    min-height: 32px !important;
+
+    padding:
+      0
+      10px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 9px !important;
+  }
+
+
+  /* =====================================================
     3. Slurry 밀도 고정값
 
     제목 |
@@ -94364,6 +94441,52 @@ body.is-auxiliary-material-expanded
   .auxiliary-material-heading {
     margin-bottom: 3px !important;
     padding-bottom: 3px !important;
+  }
+
+
+  /* =====================================================
+    시작일 ~ Slurry까지 한 줄
+  ====================================================== */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields {
+    display: grid !important;
+
+    grid-template-columns:
+      155px
+      155px
+      auto
+      auto
+      auto
+      minmax(470px, 1fr) !important;
+
+    align-items: end !important;
+
+    gap: 5px !important;
+
+    width: 100% !important;
+  }
+
+
+  /* 시작일 / 종료일 */
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields
+  > label {
+    width: 155px !important;
+    min-width: 155px !important;
+  }
+
+
+  #efficiencyAuxiliaryMaterialsView.is-pc-compact-controls
+  .auxiliary-material-period-fields
+  > label
+  input[type="date"] {
+    width: 155px !important;
+    min-width: 155px !important;
+
+    height: 32px !important;
+    min-height: 32px !important;
   }
 
 
