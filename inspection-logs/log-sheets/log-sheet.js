@@ -8602,8 +8602,14 @@ async function waitForLogSheetPdfCompletion(
 }
 
 async function fetchLogSheetPdfBlob(
-  requestId
+  requestId,
+  options = {}
 ) {
+  const waitUntilReady =
+    options.waitUntilReady ===
+      true;
+
+
   const token =
     getSessionToken();
 
@@ -8615,32 +8621,123 @@ async function fetchLogSheetPdfBlob(
   }
 
 
-  const response =
-    await fetch(
-      `/api/log-sheet-pdf-files?action=preview&id=${encodeURIComponent(
-        requestId
-      )}&_=${Date.now()}`,
-      {
-        method:
-          "GET",
+  const startedAt =
+    Date.now();
 
-        cache:
-          "no-store",
 
-        headers: {
-          Accept:
-            "application/pdf",
+  while (true) {
+    const response =
+      await fetch(
+        `/api/log-sheet-pdf-files?action=preview&id=${encodeURIComponent(
+          requestId
+        )}&_=${Date.now()}`,
+        {
+          method:
+            "GET",
 
-          Authorization:
-            `Bearer ${token}`
+          cache:
+            "no-store",
+
+          headers: {
+            Accept:
+              "application/pdf",
+
+            Authorization:
+              `Bearer ${token}`
+          }
         }
+      );
+
+
+    /*
+      200:
+      PDF 생성 완료
+    */
+    if (
+      response.ok
+    ) {
+      const contentType =
+        normalizeText(
+          response.headers.get(
+            "content-type"
+          )
+        ).toLowerCase();
+
+
+      const blob =
+        await response.blob();
+
+
+      if (
+        blob.size <
+          5
+      ) {
+        throw new Error(
+          "생성된 PDF 파일이 비어 있습니다."
+        );
       }
-    );
 
 
-  if (
-    !response.ok
-  ) {
+      if (
+        !contentType.includes(
+          "application/pdf"
+        )
+      ) {
+        throw new Error(
+          "서버에서 받은 파일이 PDF 형식이 아닙니다."
+        );
+      }
+
+
+      console.log(
+        "Log Sheet PDF 직접 수신 완료:",
+        requestId,
+        `${blob.size} bytes`
+      );
+
+
+      return blob;
+    }
+
+
+    /*
+      409:
+      정상적인 변환 대기 상태.
+
+      Agent가 아직 처리 중이므로
+      오류로 취급하지 않고 계속 기다린다.
+    */
+    if (
+      response.status ===
+        409 &&
+      waitUntilReady
+    ) {
+      if (
+        Date.now() -
+          startedAt >=
+          LOG_SHEET_PDF_MAXIMUM_WAIT
+      ) {
+        throw new Error(
+          "PDF 변환 대기 시간이 3분을 초과했습니다."
+        );
+      }
+
+
+      setLogSheetPdfPreviewProgress(
+        "PDF 변환 대기 중",
+        "회사 PC의 Microsoft Excel에서 원본 인쇄 양식을 만들고 있습니다."
+      );
+
+
+      await waitLogSheetPdf(
+        LOG_SHEET_PDF_POLL_INTERVAL
+      );
+
+
+      continue;
+    }
+
+
     let message =
       "";
 
@@ -8656,7 +8753,7 @@ async function fetchLogSheetPdfBlob(
         );
 
     } catch {
-      /* PDF가 아닌 오류 응답 */
+      /* JSON 오류 응답이 아니면 기본 메시지 사용 */
     }
 
 
@@ -8665,25 +8762,7 @@ async function fetchLogSheetPdfBlob(
       `PDF 파일을 불러오지 못했습니다. (${response.status})`
     );
   }
-
-
-  const blob =
-    await response.blob();
-
-
-  if (
-    blob.size <
-      5
-  ) {
-    throw new Error(
-      "생성된 PDF 파일이 비어 있습니다."
-    );
-  }
-
-
-  return blob;
 }
-
 
 function releaseLogSheetPdfUrlWhenClosed(
   previewWindow,
@@ -9394,21 +9473,26 @@ async function openLogSheetPdfPreview(
     );
 
 
-    await waitForLogSheetPdfCompletion(
-      requestId
-    );
+    /*
+      별도의 요청 상태 API를 기다리지 않는다.
+
+      실제 PDF 주소를 직접 조회하여
+      PDF가 준비되는 순간 Blob을 받는다.
+    */
+    const pdfBlob =
+      await fetchLogSheetPdfBlob(
+        requestId,
+        {
+          waitUntilReady:
+            true
+        }
+      );
 
 
     setLogSheetPdfPreviewProgress(
       "PDF 불러오는 중",
-      "생성된 PDF를 불러오고 있습니다."
+      "생성된 PDF를 미리보기에 표시하고 있습니다."
     );
-
-
-    const pdfBlob =
-      await fetchLogSheetPdfBlob(
-        requestId
-      );
 
 
     showLogSheetPdfPreviewBlob(
