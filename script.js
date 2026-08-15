@@ -125288,13 +125288,1072 @@ function bindArmRollBoxEvents() {
   );
 
 
-  /*
-    메인 근무자 현황 우측 알림 클릭
-  */
+  /* =====================================================
+    MOBILE MAIN ALERT CENTER V1
+
+    모바일 전용:
+    - 알림을 [현황] [조회] 줄 맨 오른쪽으로 이동
+    - 느낌표만 작게 표시
+    - 클릭하면 알림 내용 먼저 표시
+    - [자세히] 클릭 시 ARM ROLL BOX 메뉴 이동
+
+    PC:
+    - 기존 위치와 기존 직접 이동 방식 유지
+  ====================================================== */
+
+  const ARM_ROLL_BOX_MOBILE_ALERT_MEDIA =
+    "(max-width: 768px)";
+
+
+  function isArmRollBoxMobileAlertMode() {
+    return Boolean(
+      window.matchMedia?.(
+        ARM_ROLL_BOX_MOBILE_ALERT_MEDIA
+      ).matches
+    );
+  }
+
+
+  /* =====================================================
+    모바일 알림 UI 생성
+  ====================================================== */
+
+  function ensureArmRollBoxMobileAlertUi() {
+    let style =
+      document.getElementById(
+        "armRollBoxMobileAlertStyles"
+      );
+
+
+    if (
+      !style
+    ) {
+      style =
+        document.createElement(
+          "style"
+        );
+
+
+      style.id =
+        "armRollBoxMobileAlertStyles";
+
+
+      style.textContent = `
+        .arm-roll-box-mobile-alert-modal[hidden] {
+          display: none !important;
+        }
+
+
+        @media screen and (max-width: 768px) {
+
+          /* ===============================================
+            현황 / 조회 줄
+          ================================================ */
+
+          .top-tabs__inner {
+            display: flex !important;
+            align-items: center !important;
+          }
+
+
+          #armRollBoxMainAlert.is-mobile-top-alert {
+            display: inline-flex !important;
+
+            flex:
+              0
+              0
+              28px !important;
+
+            width:
+              28px !important;
+
+            min-width:
+              28px !important;
+
+            max-width:
+              28px !important;
+
+            height:
+              28px !important;
+
+            min-height:
+              28px !important;
+
+            max-height:
+              28px !important;
+
+            align-items:
+              center !important;
+
+            justify-content:
+              center !important;
+
+            grid-template-columns:
+              none !important;
+
+            gap:
+              0 !important;
+
+            margin:
+              0
+              8px
+              0
+              auto !important;
+
+            padding:
+              0 !important;
+
+            border-radius:
+              50% !important;
+
+            box-shadow:
+              none !important;
+
+            transform:
+              none !important;
+
+            overflow:
+              visible !important;
+          }
+
+
+          #armRollBoxMainAlert.is-mobile-top-alert[hidden] {
+            display:
+              none !important;
+          }
+
+
+          #armRollBoxMainAlert.is-mobile-top-alert
+          .arm-roll-box-main-alert__content,
+
+          #armRollBoxMainAlert.is-mobile-top-alert
+          .arm-roll-box-main-alert__count {
+            display:
+              none !important;
+          }
+
+
+          #armRollBoxMainAlert.is-mobile-top-alert
+          .arm-roll-box-main-alert__icon {
+            display:
+              inline-flex !important;
+
+            width:
+              14px !important;
+
+            min-width:
+              14px !important;
+
+            height:
+              14px !important;
+
+            min-height:
+              14px !important;
+
+            align-items:
+              center !important;
+
+            justify-content:
+              center !important;
+
+            margin:
+              0 !important;
+
+            padding:
+              0 !important;
+
+            border:
+              0 !important;
+
+            border-radius:
+              0 !important;
+
+            background:
+              transparent !important;
+
+            color:
+              inherit !important;
+
+            font-size:
+              13px !important;
+
+            font-weight:
+              900 !important;
+
+            line-height:
+              14px !important;
+          }
+
+
+          #armRollBoxMainAlert.is-mobile-top-alert.is-recommend {
+            border:
+              1px solid
+              #dda143 !important;
+
+            background:
+              #fff7e8 !important;
+
+            color:
+              #a86700 !important;
+          }
+
+
+          #armRollBoxMainAlert.is-mobile-top-alert.is-critical {
+            border:
+              1px solid
+              #dc8585 !important;
+
+            background:
+              #fff0f0 !important;
+
+            color:
+              #b42318 !important;
+          }
+
+
+          /* ===============================================
+            알림 상세 바텀시트
+          ================================================ */
+
+          .arm-roll-box-mobile-alert-modal:not([hidden]) {
+            position:
+              fixed !important;
+
+            inset:
+              0 !important;
+
+            z-index:
+              12000 !important;
+
+            display:
+              flex !important;
+
+            align-items:
+              flex-end !important;
+
+            justify-content:
+              center !important;
+
+            padding:
+              14px !important;
+
+            background:
+              rgba(
+                15,
+                29,
+                47,
+                .38
+              ) !important;
+          }
+
+
+          .arm-roll-box-mobile-alert-sheet {
+            width:
+              100% !important;
+
+            max-width:
+              500px !important;
+
+            padding:
+              16px !important;
+
+            border:
+              1px solid
+              #d9e2ec !important;
+
+            border-radius:
+              18px !important;
+
+            background:
+              #ffffff !important;
+
+            box-shadow:
+              0
+              18px
+              46px
+              rgba(
+                20,
+                40,
+                66,
+                .20
+              ) !important;
+          }
+
+
+          .arm-roll-box-mobile-alert-sheet__header {
+            display:
+              flex !important;
+
+            align-items:
+              center !important;
+
+            justify-content:
+              space-between !important;
+
+            gap:
+              10px !important;
+
+            margin-bottom:
+              13px !important;
+          }
+
+
+          .arm-roll-box-mobile-alert-sheet__header
+          strong {
+            color:
+              #20334d !important;
+
+            font-size:
+              17px !important;
+
+            font-weight:
+              900 !important;
+          }
+
+
+          .arm-roll-box-mobile-alert-sheet__close {
+            display:
+              inline-flex !important;
+
+            width:
+              30px !important;
+
+            height:
+              30px !important;
+
+            align-items:
+              center !important;
+
+            justify-content:
+              center !important;
+
+            padding:
+              0 !important;
+
+            border:
+              1px solid
+              #d6e0ea !important;
+
+            border-radius:
+              8px !important;
+
+            background:
+              #f7f9fb !important;
+
+            color:
+              #53657a !important;
+
+            font-size:
+              19px !important;
+          }
+
+
+          .arm-roll-box-mobile-alert-sheet__body {
+            display:
+              grid !important;
+
+            grid-template-columns:
+              34px
+              minmax(
+                0,
+                1fr
+              ) !important;
+
+            gap:
+              10px !important;
+
+            align-items:
+              start !important;
+          }
+
+
+          .arm-roll-box-mobile-alert-sheet__icon {
+            display:
+              inline-flex !important;
+
+            width:
+              30px !important;
+
+            height:
+              30px !important;
+
+            align-items:
+              center !important;
+
+            justify-content:
+              center !important;
+
+            border-radius:
+              50% !important;
+
+            background:
+              #fff4df !important;
+
+            color:
+              #a96a00 !important;
+
+            font-size:
+              15px !important;
+
+            font-weight:
+              900 !important;
+          }
+
+
+          .arm-roll-box-mobile-alert-sheet__content
+          small {
+            display:
+              block !important;
+
+            margin-bottom:
+              3px !important;
+
+            color:
+              #8a6330 !important;
+
+            font-size:
+              9px !important;
+
+            font-weight:
+              900 !important;
+          }
+
+
+          .arm-roll-box-mobile-alert-sheet__content
+          strong {
+            display:
+              block !important;
+
+            color:
+              #21364e !important;
+
+            font-size:
+              15px !important;
+
+            font-weight:
+              900 !important;
+
+            line-height:
+              1.35 !important;
+          }
+
+
+          #armRollBoxMobileAlertMessage {
+            margin:
+              7px
+              0
+              0 !important;
+
+            color:
+              #52647a !important;
+
+            font-size:
+              13px !important;
+
+            font-weight:
+              700 !important;
+
+            line-height:
+              1.5 !important;
+          }
+
+
+          #armRollBoxMobileAlertReference {
+            margin:
+              8px
+              0
+              0 !important;
+
+            padding:
+              8px
+              9px !important;
+
+            border-radius:
+              8px !important;
+
+            background:
+              #f5f7fa !important;
+
+            color:
+              #69798c !important;
+
+            font-size:
+              11px !important;
+
+            font-weight:
+              700 !important;
+
+            line-height:
+              1.45 !important;
+          }
+
+
+          #armRollBoxMobileAlertReference[hidden] {
+            display:
+              none !important;
+          }
+
+
+          .arm-roll-box-mobile-alert-sheet__actions {
+            display:
+              grid !important;
+
+            grid-template-columns:
+              1fr
+              1fr !important;
+
+            gap:
+              8px !important;
+
+            margin-top:
+              15px !important;
+          }
+
+
+          .arm-roll-box-mobile-alert-sheet__actions
+          button {
+            min-height:
+              40px !important;
+
+            border-radius:
+              9px !important;
+
+            font-size:
+              13px !important;
+
+            font-weight:
+              850 !important;
+          }
+
+
+          #armRollBoxMobileAlertDetailButton {
+            border:
+              1px solid
+              #2265b5 !important;
+
+            background:
+              #2265b5 !important;
+
+            color:
+              #ffffff !important;
+          }
+
+
+          body.arm-roll-box-mobile-alert-open {
+            overflow:
+              hidden !important;
+          }
+        }
+      `;
+
+
+      document.head.appendChild(
+        style
+      );
+    }
+
+
+    let modal =
+      document.getElementById(
+        "armRollBoxMobileAlertModal"
+      );
+
+
+    if (
+      modal
+    ) {
+      return modal;
+    }
+
+
+    modal =
+      document.createElement(
+        "div"
+      );
+
+
+    modal.id =
+      "armRollBoxMobileAlertModal";
+
+
+    modal.className =
+      "arm-roll-box-mobile-alert-modal";
+
+
+    modal.hidden =
+      true;
+
+
+    modal.setAttribute(
+      "aria-hidden",
+      "true"
+    );
+
+
+    modal.innerHTML = `
+      <section
+        class="arm-roll-box-mobile-alert-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="armRollBoxMobileAlertTitle"
+      >
+
+        <header
+          class="arm-roll-box-mobile-alert-sheet__header"
+        >
+
+          <strong id="armRollBoxMobileAlertTitle">
+            알림
+          </strong>
+
+
+          <button
+            type="button"
+            class="arm-roll-box-mobile-alert-sheet__close"
+            data-arm-roll-mobile-alert-close
+            aria-label="알림 닫기"
+          >
+            ×
+          </button>
+
+        </header>
+
+
+        <div
+          class="arm-roll-box-mobile-alert-sheet__body"
+        >
+
+          <span
+            class="arm-roll-box-mobile-alert-sheet__icon"
+            aria-hidden="true"
+          >
+            !
+          </span>
+
+
+          <div
+            class="arm-roll-box-mobile-alert-sheet__content"
+          >
+
+            <small>
+              ARM ROLL BOX
+            </small>
+
+
+            <strong id="armRollBoxMobileAlertSummary">
+              확인이 필요한 항목이 있습니다.
+            </strong>
+
+
+            <p id="armRollBoxMobileAlertMessage">
+            </p>
+
+
+            <p
+              id="armRollBoxMobileAlertReference"
+              hidden
+            >
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <footer
+          class="arm-roll-box-mobile-alert-sheet__actions"
+        >
+
+          <button
+            type="button"
+            class="secondary-button"
+            data-arm-roll-mobile-alert-close
+          >
+            닫기
+          </button>
+
+
+          <button
+            type="button"
+            id="armRollBoxMobileAlertDetailButton"
+          >
+            자세히
+          </button>
+
+        </footer>
+
+      </section>
+    `;
+
+
+    document.body.appendChild(
+      modal
+    );
+
+
+    modal
+      .querySelectorAll(
+        "[data-arm-roll-mobile-alert-close]"
+      )
+      .forEach(
+        button => {
+          button.addEventListener(
+            "click",
+            closeArmRollBoxMobileAlertDetail
+          );
+        }
+      );
+
+
+    modal.addEventListener(
+      "click",
+      event => {
+        if (
+          event.target ===
+            modal
+        ) {
+          closeArmRollBoxMobileAlertDetail();
+        }
+      }
+    );
+
+
+    document
+      .getElementById(
+        "armRollBoxMobileAlertDetailButton"
+      )
+      ?.addEventListener(
+        "click",
+        () => {
+          closeArmRollBoxMobileAlertDetail();
+
+
+          openArmRollBoxFromMainAlert();
+        }
+      );
+
+
+    return modal;
+  }
+
+
+  /* =====================================================
+    모바일 알림 열기
+  ====================================================== */
+
+  function openArmRollBoxMobileAlertDetail() {
+    const modal =
+      ensureArmRollBoxMobileAlertUi();
+
+
+    const sourceText =
+      String(
+        document.getElementById(
+          "armRollBoxMainAlertText"
+        )?.textContent ||
+        ""
+      ).trim();
+
+
+    const sourceReference =
+      String(
+        document.getElementById(
+          "armRollBoxMainAlertReference"
+        )?.textContent ||
+        ""
+      ).trim();
+
+
+    const sourceCount =
+      String(
+        document.getElementById(
+          "armRollBoxMainAlertCount"
+        )?.textContent ||
+        ""
+      ).trim();
+
+
+    const summary =
+      document.getElementById(
+        "armRollBoxMobileAlertSummary"
+      );
+
+
+    const message =
+      document.getElementById(
+        "armRollBoxMobileAlertMessage"
+      );
+
+
+    const reference =
+      document.getElementById(
+        "armRollBoxMobileAlertReference"
+      );
+
+
+    if (
+      summary
+    ) {
+      summary.textContent =
+        sourceCount
+          ? `확인 필요 ${sourceCount}`
+          : "확인이 필요한 항목이 있습니다.";
+    }
+
+
+    if (
+      message
+    ) {
+      message.textContent =
+        sourceText ||
+        "ARM ROLL BOX 상태를 확인해 주세요.";
+    }
+
+
+    if (
+      reference
+    ) {
+      reference.textContent =
+        sourceReference;
+
+
+      reference.hidden =
+        !sourceReference;
+    }
+
+
+    modal.hidden =
+      false;
+
+
+    modal.setAttribute(
+      "aria-hidden",
+      "false"
+    );
+
+
+    document.body.classList.add(
+      "arm-roll-box-mobile-alert-open"
+    );
+  }
+
+
+  /* =====================================================
+    모바일 알림 닫기
+  ====================================================== */
+
+  function closeArmRollBoxMobileAlertDetail() {
+    const modal =
+      document.getElementById(
+        "armRollBoxMobileAlertModal"
+      );
+
+
+    if (
+      modal
+    ) {
+      modal.hidden =
+        true;
+
+
+      modal.setAttribute(
+        "aria-hidden",
+        "true"
+      );
+    }
+
+
+    document.body.classList.remove(
+      "arm-roll-box-mobile-alert-open"
+    );
+  }
+
+
+  /* =====================================================
+    모바일 위치 이동
+
+    [현황] [조회]                         [!]
+  ====================================================== */
+
+  function syncArmRollBoxMobileAlertPlacement() {
+    const alertButton =
+      document.getElementById(
+        "armRollBoxMainAlert"
+      );
+
+
+    if (
+      !alertButton
+    ) {
+      return;
+    }
+
+
+    ensureArmRollBoxMobileAlertUi();
+
+
+    let placeholder =
+      document.getElementById(
+        "armRollBoxMainAlertMobilePlaceholder"
+      );
+
+
+    if (
+      isArmRollBoxMobileAlertMode()
+    ) {
+      const topTabs =
+        document.querySelector(
+          ".top-tabs__inner"
+        );
+
+
+      if (
+        !topTabs
+      ) {
+        return;
+      }
+
+
+      if (
+        !placeholder
+      ) {
+        placeholder =
+          document.createElement(
+            "span"
+          );
+
+
+        placeholder.id =
+          "armRollBoxMainAlertMobilePlaceholder";
+
+
+        placeholder.hidden =
+          true;
+
+
+        alertButton.parentNode
+          ?.insertBefore(
+            placeholder,
+            alertButton
+          );
+      }
+
+
+      topTabs.appendChild(
+        alertButton
+      );
+
+
+      alertButton.classList.add(
+        "is-mobile-top-alert"
+      );
+
+
+      return;
+    }
+
+
+    /*
+      PC는 원래 위치 복원
+    */
+
+    if (
+      placeholder?.parentNode
+    ) {
+      placeholder.parentNode.insertBefore(
+        alertButton,
+        placeholder
+      );
+
+
+      placeholder.remove();
+    }
+
+
+    alertButton.classList.remove(
+      "is-mobile-top-alert"
+    );
+
+
+    closeArmRollBoxMobileAlertDetail();
+  }
+
+
+  /* =====================================================
+    메인 알림 클릭
+
+    모바일:
+    상세 알림 먼저
+
+    PC:
+    기존처럼 바로 ARM ROLL BOX
+  ====================================================== */
+
   mainAlert?.addEventListener(
     "click",
-    openArmRollBoxFromMainAlert
+    event => {
+      if (
+        isArmRollBoxMobileAlertMode()
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        openArmRollBoxMobileAlertDetail();
+
+
+        return;
+      }
+
+
+      openArmRollBoxFromMainAlert();
+    }
   );
+
+
+  /*
+    최초 위치 적용
+  */
+
+  window.setTimeout(
+    syncArmRollBoxMobileAlertPlacement,
+    0
+  );
+
+
+  /*
+    화면 회전 / 폭 변경 대응
+  */
+
+  const armRollMobileMedia =
+    window.matchMedia?.(
+      ARM_ROLL_BOX_MOBILE_ALERT_MEDIA
+    );
+
+
+  if (
+    armRollMobileMedia
+  ) {
+    if (
+      typeof armRollMobileMedia
+        .addEventListener ===
+        "function"
+    ) {
+      armRollMobileMedia.addEventListener(
+        "change",
+        syncArmRollBoxMobileAlertPlacement
+      );
+
+    } else if (
+      typeof armRollMobileMedia
+        .addListener ===
+        "function"
+    ) {
+      armRollMobileMedia.addListener(
+        syncArmRollBoxMobileAlertPlacement
+      );
+    }
+  }
 
 
   elements.view.dataset
