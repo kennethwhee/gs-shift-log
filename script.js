@@ -613,161 +613,142 @@ function formatLimestoneUsageNumber(
     계산 결과 출력
   ====================================================== */
 
-  function renderLimestoneUsageCalculation() {
-    const {
-      unitOneReceipt,
-      unitTwoReceipt,
-      unitOneUsage,
-      unitTwoUsage,
-      unitOneSummary,
-      unitTwoSummary,
-      totalUsage,
-      unitOneRow,
-      unitTwoRow
-    } =
-      getLimestoneUsageElements();
+function renderLimestoneUsageCalculation() {
+  const {
+    unitOneReceipt,
+    unitTwoReceipt,
+    unitOneUsage,
+    unitTwoUsage,
+    unitOneSummary,
+    unitTwoSummary,
+    totalUsage,
+    unitOneRow,
+    unitTwoRow
+  } =
+    getLimestoneUsageElements();
 
-
-    const unitOneReceiptValue =
-      Number(
-        limestoneUsageState
-          .receiptByUnit[1] ||
-        0
-      );
-
-
-    const unitTwoReceiptValue =
-      Number(
-        limestoneUsageState
-          .receiptByUnit[2] ||
-        0
-      );
-
-
-    if (
-      unitOneReceipt
-    ) {
-      unitOneReceipt.textContent =
-        `${formatLimestoneUsageNumber(
-          unitOneReceiptValue,
-          2
-        )} t`;
-    }
-
-
-    if (
-      unitTwoReceipt
-    ) {
-      unitTwoReceipt.textContent =
-        `${formatLimestoneUsageNumber(
-          unitTwoReceiptValue,
-          2
-        )} t`;
-    }
-
-
-    const unitOneUsageValue =
-      calculateLimestoneUsageForUnit(
-        1
-      );
-
-
-    const unitTwoUsageValue =
-      calculateLimestoneUsageForUnit(
-        2
-      );
-
-
-    if (
-      unitOneUsage
-    ) {
-      unitOneUsage.textContent =
-        unitOneUsageValue ===
-          null
-          ? "-"
-          : `${formatLimestoneUsageNumber(
-              unitOneUsageValue
-            )} t`;
-    }
-
-
-    if (
-      unitTwoUsage
-    ) {
-      unitTwoUsage.textContent =
-        unitTwoUsageValue ===
-          null
-          ? "-"
-          : `${formatLimestoneUsageNumber(
-              unitTwoUsageValue
-            )} t`;
-    }
-
-
-    if (
-      unitOneSummary
-    ) {
-      unitOneSummary.textContent =
-        unitOneUsageValue ===
-          null
-          ? "-"
-          : formatLimestoneUsageNumber(
-              unitOneUsageValue
-            );
-    }
-
-
-    if (
-      unitTwoSummary
-    ) {
-      unitTwoSummary.textContent =
-        unitTwoUsageValue ===
-          null
-          ? "-"
-          : formatLimestoneUsageNumber(
-              unitTwoUsageValue
-            );
-    }
-
-
-    const hasCompleteResult =
-      unitOneUsageValue !==
-        null &&
-      unitTwoUsageValue !==
-        null;
-
-
-    if (
-      totalUsage
-    ) {
-      totalUsage.textContent =
-        hasCompleteResult
-          ? formatLimestoneUsageNumber(
-              unitOneUsageValue +
-              unitTwoUsageValue
-            )
-          : "-";
-    }
-
-
-    unitOneRow?.classList.toggle(
-      "is-negative",
-      unitOneUsageValue !==
-        null &&
-      unitOneUsageValue <
-        0
+  const unitOneReceiptValue =
+    Number(
+      limestoneUsageState
+        .receiptByUnit[1] ||
+      0
     );
 
-
-    unitTwoRow?.classList.toggle(
-      "is-negative",
-      unitTwoUsageValue !==
-        null &&
-      unitTwoUsageValue <
-        0
+  const unitTwoReceiptValue =
+    Number(
+      limestoneUsageState
+        .receiptByUnit[2] ||
+      0
     );
+
+  if (
+    unitOneReceipt
+  ) {
+    unitOneReceipt.textContent =
+      `${formatLimestoneUsageNumber(
+        unitOneReceiptValue
+      )} ton`;
   }
 
+  if (
+    unitTwoReceipt
+  ) {
+    unitTwoReceipt.textContent =
+      `${formatLimestoneUsageNumber(
+        unitTwoReceiptValue
+      )} ton`;
+  }
+
+  const unitOneUsageValue =
+    calculateLimestoneUsageForUnit(
+      1
+    );
+
+  const unitTwoUsageValue =
+    calculateLimestoneUsageForUnit(
+      2
+    );
+
+  if (
+    unitOneUsage
+  ) {
+    unitOneUsage.textContent =
+      unitOneUsageValue ===
+        null
+        ? "-"
+        : `${formatLimestoneUsageNumber(
+            unitOneUsageValue
+          )} ton`;
+  }
+
+  if (
+    unitTwoUsage
+  ) {
+    unitTwoUsage.textContent =
+      unitTwoUsageValue ===
+        null
+        ? "-"
+        : `${formatLimestoneUsageNumber(
+            unitTwoUsageValue
+          )} ton`;
+  }
+
+  if (
+    unitOneSummary
+  ) {
+    unitOneSummary.textContent =
+      unitOneUsageValue ===
+        null
+        ? "-"
+        : formatLimestoneUsageNumber(
+            unitOneUsageValue
+          );
+  }
+
+  if (
+    unitTwoSummary
+  ) {
+    unitTwoSummary.textContent =
+      unitTwoUsageValue ===
+        null
+        ? "-"
+        : formatLimestoneUsageNumber(
+            unitTwoUsageValue
+          );
+  }
+
+  const hasCompleteResult =
+    unitOneUsageValue !==
+      null &&
+    unitTwoUsageValue !==
+      null;
+
+  if (
+    totalUsage
+  ) {
+    totalUsage.textContent =
+      hasCompleteResult
+        ? formatLimestoneUsageNumber(
+            unitOneUsageValue +
+            unitTwoUsageValue
+          )
+        : "-";
+  }
+
+  unitOneRow?.classList.toggle(
+    "is-negative",
+    unitOneUsageValue !==
+      null &&
+    unitOneUsageValue < 0
+  );
+
+  unitTwoRow?.classList.toggle(
+    "is-negative",
+    unitTwoUsageValue !==
+      null &&
+    unitTwoUsageValue < 0
+  );
+}
 
   /* =====================================================
     입고량 조회
@@ -1182,18 +1163,18 @@ function formatLimestoneUsageNumber(
             limestoneUsageState
               .receiptByUnit[1],
             2
-          )} t`,
+          )} ton`,
 
           `2호기 ${formatLimestoneUsageNumber(
             limestoneUsageState
               .receiptByUnit[2],
             2
-          )} t`,
+          )} ton`,
 
           `합계 ${formatLimestoneUsageNumber(
             totalReceipt,
             2
-          )} t`,
+          )} ton`,
 
           usageSyncResult?.updatedCount > 0
             ? `사용량 ${usageSyncResult.updatedCount}건 저장 완료`
@@ -2011,7 +1992,7 @@ function switchLimestoneSubview(
                           />
 
                           <span>
-                            t
+                            ton
                           </span>
 
                         </div>
@@ -2021,7 +2002,7 @@ function switchLimestoneSubview(
                       <td>
 
                         <strong id="limestoneUsageUnitOneReceipt">
-                          0.00 t
+                          0.00 ton
                         </strong>
 
                       </td>
@@ -2040,7 +2021,7 @@ function switchLimestoneSubview(
                           />
 
                           <span>
-                            t
+                            ton
                           </span>
 
                         </div>
@@ -2090,7 +2071,7 @@ function switchLimestoneSubview(
                           />
 
                           <span>
-                            t
+                            ton
                           </span>
 
                         </div>
@@ -2119,7 +2100,7 @@ function switchLimestoneSubview(
                           />
 
                           <span>
-                            t
+                            ton
                           </span>
 
                         </div>

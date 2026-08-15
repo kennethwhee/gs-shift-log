@@ -108633,3 +108633,203 @@ button,
   }
 
 }
+
+/* =========================================================
+  DAILY LIMESTONE USAGE TYPO + ALIGN FIX V1
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-date-card {
+  grid-template-columns:
+    44px
+    190px
+    44px
+    84px
+    minmax(320px, 1fr) !important;
+
+  align-items: end !important;
+  gap: 10px !important;
+
+  padding: 14px !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-date-arrow,
+#efficiencyTeamModal
+#limestoneUsageTodayButton,
+#efficiencyTeamModal
+.limestone-usage-date-field input {
+  box-sizing: border-box !important;
+  min-height: 44px !important;
+  height: 44px !important;
+
+  border-radius: 10px !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-date-arrow {
+  width: 44px !important;
+
+  align-self: end !important;
+
+  color: #344a63 !important;
+}
+
+#efficiencyTeamModal
+#limestoneUsageTodayButton {
+  align-self: end !important;
+
+  padding: 0 18px !important;
+
+  font-size: 14px !important;
+  font-weight: 850 !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-date-field {
+  align-self: end !important;
+  gap: 4px !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-date-field > span {
+  font-size: 11px !important;
+  font-weight: 900 !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-date-field input {
+  padding: 0 14px !important;
+
+  font-size: 14px !important;
+  font-weight: 850 !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-status {
+  min-height: 52px !important;
+  padding: 8px 13px !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-status strong {
+  font-size: 15px !important;
+  font-weight: 900 !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-status small {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+
+/* 요약 카드 글씨 확대 */
+#efficiencyTeamModal
+.limestone-usage-summary-card {
+  min-height: 112px !important;
+  padding: 16px !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-summary-card > span {
+  font-size: 13px !important;
+  font-weight: 900 !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-summary-card > strong {
+  margin-top: 10px !important;
+
+  font-size: 39px !important;
+  font-weight: 900 !important;
+  line-height: 1.05 !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-summary-card > small {
+  margin-left: 6px !important;
+
+  font-size: 13px !important;
+  font-weight: 850 !important;
+}
+
+/* 계산표 제목 확대 */
+#efficiencyTeamModal
+.limestone-usage-table-card__header span {
+  font-size: 10px !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-table-card__header h4 {
+  font-size: 18px !important;
+}
+
+/* 계산표 전체 글씨 확대 */
+#efficiencyTeamModal
+.limestone-usage-table th,
+#efficiencyTeamModal
+.limestone-usage-table td {
+  padding: 14px 12px !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-table thead th {
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-table thead small {
+  margin-top: 3px !important;
+
+  font-size: 10px !important;
+  font-weight: 800 !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-table tbody th {
+  font-size: 18px !important;
+  font-weight: 900 !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-table tbody strong {
+  font-size: 18px !important;
+  font-weight: 900 !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-number-input {
+  gap: 8px !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-number-input input {
+  min-height: 40px !important;
+  height: 40px !important;
+
+  padding: 0 12px !important;
+
+  font-size: 16px !important;
+  font-weight: 900 !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-number-input > span {
+  font-size: 13px !important;
+  font-weight: 850 !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-result-value {
+  font-size: 19px !important;
+  font-weight: 900 !important;
+}
+
+/* TAG 번호만 작게 유지 */
+#efficiencyTeamModal
+.limestone-usage-table code {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+}
