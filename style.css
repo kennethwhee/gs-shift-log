@@ -111953,3 +111953,20 @@ button,
   }
 
 }
+
+/* =========================================================
+  석회석 모바일 +입고 버튼 글씨
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #openLimestoneReceiptEditorButton {
+    font-size: 14px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    letter-spacing: -0.02em !important;
+  }
+
+}
