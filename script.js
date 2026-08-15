@@ -223400,203 +223400,357 @@ async function initialize() {
   }
 
 
-  function renderButton(
-    detail =
-      ""
-  ) {
-    const button =
-      getButton();
+function renderButton(
+  detail =
+    ""
+) {
+  const button =
+    getButton();
 
-    const status =
-      document.getElementById(
-        "efficiencyMorningMeetingOutputFolderStatus"
-      );
-
-    if (
-      !button
-    ) {
-      return;
-    }
-
-    const hasFolder =
-      Boolean(
-        directoryHandle
-      );
-
-    const needsPermission =
-      hasFolder &&
-      permissionWarning;
-
-    button.classList.toggle(
-      "is-selected",
-      hasFolder
+  const status =
+    document.getElementById(
+      "efficiencyMorningMeetingOutputFolderStatus"
     );
 
-    button.classList.toggle(
+
+  if (
+    !button
+  ) {
+    return;
+  }
+
+
+  const hasFolder =
+    Boolean(
+      directoryHandle
+    );
+
+
+  const needsPermission =
+    hasFolder &&
+    permissionWarning;
+
+
+  button.classList.toggle(
+    "is-selected",
+    hasFolder &&
+    !needsPermission
+  );
+
+
+  button.classList.toggle(
+    "has-permission-warning",
+    needsPermission
+  );
+
+
+  if (
+    status
+  ) {
+    status.classList.toggle(
+      "is-selected",
+      hasFolder &&
+      !needsPermission
+    );
+
+
+    status.classList.toggle(
       "has-permission-warning",
       needsPermission
     );
+  }
 
-    if (
-      status
-    ) {
-      status.classList.toggle(
-        "is-selected",
-        hasFolder
-      );
 
-      status.classList.toggle(
-        "has-permission-warning",
-        needsPermission
-      );
-    }
+  /* =====================================================
+    저장 위치 미설정
+  ===================================================== */
 
-    if (
-      !hasFolder
-    ) {
-      button.textContent =
-        "저장 위치";
-
-      button.title =
-        "최종 엑셀 저장 위치를 설정합니다.";
-
-      if (
-        status
-      ) {
-        status.textContent =
-          "저장 폴더 · 기본 다운로드";
-
-        status.title =
-          "별도 폴더가 설정되지 않아 브라우저 기본 다운로드를 사용합니다.";
-      }
-
-      return;
-    }
-
-    const folderName =
-      String(
-        directoryHandle.name ||
-        "지정 폴더"
-      ).trim() ||
-      "지정 폴더";
-
-    const warningDetail =
-      detail ||
-      "권한 확인이 필요합니다. 저장 위치를 다시 선택해 주세요.";
-
+  if (
+    !hasFolder
+  ) {
     button.textContent =
-      needsPermission
-        ? "저장 위치 !"
-        : "저장 위치 ✓";
+      "저장 위치 지정";
+
 
     button.title =
-      needsPermission
-        ? `저장 폴더: ${folderName} · ${warningDetail}`
-        : `저장 폴더: ${folderName}`;
+      "최종 엑셀을 저장할 폴더를 지정합니다.";
+
 
     if (
       status
     ) {
       status.textContent =
-        needsPermission
-          ? `저장 폴더 · ${folderName} · 권한 확인`
-          : `저장 폴더 · ${folderName}`;
+        "저장 위치 미설정 · 기본 다운로드";
+
+
+      status.title =
+        "별도 저장 폴더가 설정되지 않아 브라우저 기본 다운로드 폴더를 사용합니다.";
+    }
+
+
+    return;
+  }
+
+
+  const folderName =
+    String(
+      directoryHandle.name ||
+      "저장 폴더"
+    ).trim() ||
+    "저장 폴더";
+
+
+  /* =====================================================
+    폴더 기억됨 · 권한만 다시 필요
+  ===================================================== */
+
+  if (
+    needsPermission
+  ) {
+    const warningDetail =
+      detail ||
+      "폴더는 기억되어 있습니다. 접근 권한만 다시 확인하면 됩니다.";
+
+
+    button.textContent =
+      "권한 확인";
+
+
+    button.title =
+      `저장 폴더: ${folderName} · ${warningDetail}`;
+
+
+    if (
+      status
+    ) {
+      status.textContent =
+        `${folderName} · 권한 확인 필요`;
+
 
       status.title =
         button.title;
     }
+
+
+    return;
   }
 
-  async function chooseFolder() {
+
+  /* =====================================================
+    정상 연결 상태
+  ===================================================== */
+
+  button.textContent =
+    "폴더 변경";
+
+
+  button.title =
+    `저장 폴더: ${folderName}`;
+
+
+  if (
+    status
+  ) {
+    status.textContent =
+      `${folderName} · 저장 위치 설정됨`;
+
+
+    status.title =
+      button.title;
+  }
+}
+
+async function chooseFolder() {
+  try {
+    /* =====================================================
+      이미 기억된 폴더가 있는 경우
+      → 폴더를 다시 고르지 않고 권한부터 재연결
+    ===================================================== */
+
+    if (
+      directoryHandle?.kind ===
+        "directory"
+    ) {
+      const permission =
+        await directoryHandle
+          .queryPermission({
+            mode:
+              "readwrite"
+          });
+
+
+      /*
+        재접속 후 prompt 상태라면
+        기존 폴더의 권한만 다시 요청한다.
+      */
+      if (
+        permission ===
+          "prompt"
+      ) {
+        const granted =
+          await hasWritePermission(
+            directoryHandle,
+            true
+          );
+
+
+        if (
+          granted
+        ) {
+          permissionWarning =
+            false;
+
+
+          renderButton(
+            `${directoryHandle.name} 폴더 권한이 다시 연결되었습니다.`
+          );
+
+
+          try {
+            await storeHandle(
+              directoryHandle
+            );
+
+          } catch (
+            error
+          ) {
+            console.warn(
+              "최종 엑셀 저장 폴더 기억 갱신 실패:",
+              error
+            );
+          }
+
+
+          return;
+        }
+
+
+        permissionWarning =
+          true;
+
+
+        renderButton(
+          "저장된 폴더의 쓰기 권한을 허용해 주세요."
+        );
+
+
+        return;
+      }
+
+
+      /*
+        권한이 이미 정상인 상태에서 버튼을 누른 경우만
+        실제 폴더 변경으로 진행한다.
+      */
+      if (
+        permission !==
+          "granted"
+      ) {
+        permissionWarning =
+          true;
+
+        renderButton(
+          "저장된 폴더의 접근 권한이 없습니다. 폴더를 다시 지정해 주세요."
+        );
+      }
+    }
+
+
+    /* =====================================================
+      최초 설정 / 실제 폴더 변경 / 권한 완전 해제
+    ===================================================== */
+
+    const pickerOptions = {
+      id:
+        PICKER_ID,
+
+      mode:
+        "readwrite"
+    };
+
+
+    if (
+      directoryHandle?.kind ===
+        "directory"
+    ) {
+      pickerOptions.startIn =
+        directoryHandle;
+    }
+
+
+    const selectedHandle =
+      await window.showDirectoryPicker(
+        pickerOptions
+      );
+
+
+    if (
+      !await hasWritePermission(
+        selectedHandle,
+        true
+      )
+    ) {
+      throw new Error(
+        "선택한 폴더의 쓰기 권한을 허용해 주세요."
+      );
+    }
+
+
+    directoryHandle =
+      selectedHandle;
+
+
+    permissionWarning =
+      false;
+
+
+    renderButton();
+
+
     try {
-      const selectedHandle =
-        await window.showDirectoryPicker({
-          id:
-            PICKER_ID,
-
-          mode:
-            "readwrite"
-        });
-
-      if (
-        !await hasWritePermission(
-          selectedHandle,
-          true
-        )
-      ) {
-        throw new Error(
-          "선택한 폴더의 저장 권한을 허용해 주세요."
-        );
-      }
-
-      directoryHandle =
-        selectedHandle;
-
-      permissionWarning =
-        false;
-
-      renderButton();
-
-      try {
-        await storeHandle(
-          directoryHandle
-        );
-
-      } catch (
-        error
-      ) {
-        console.warn(
-          "저장 폴더 기억 실패:",
-          error
-        );
-      }
-
-      const message =
-        getMessage();
-
-      if (
-        message
-      ) {
-        message.textContent =
-          `${directoryHandle.name} 폴더를 최종 엑셀 저장 위치로 설정했습니다.`;
-      }
+      await storeHandle(
+        directoryHandle
+      );
 
     } catch (
       error
     ) {
-      if (
-        error?.name ===
-          "AbortError"
-      ) {
-        return;
-      }
-
-      console.error(
-        "저장 폴더 설정 실패:",
+      console.warn(
+        "최종 엑셀 저장 폴더 기억 실패:",
         error
       );
+    }
 
-      permissionWarning =
-        Boolean(
-          directoryHandle
-        );
 
-      renderButton(
-        error?.message
+  } catch (
+    error
+  ) {
+    if (
+      error?.name ===
+        "AbortError"
+    ) {
+      return;
+    }
+
+
+    console.error(
+      "최종 엑셀 저장 폴더 설정 실패:",
+      error
+    );
+
+
+    permissionWarning =
+      Boolean(
+        directoryHandle
       );
 
-      if (
-        typeof showToast ===
-          "function"
-      ) {
-        showToast(
-          error?.message ||
-          "저장 위치를 설정하지 못했습니다."
-        );
-      }
-    }
-  }
 
+    renderButton(
+      error?.message ||
+      "최종 엑셀 저장 폴더를 설정하지 못했습니다."
+    );
+  }
+}
 
   async function getAvailableFileName(
     handle,
@@ -223753,7 +223907,7 @@ async function initialize() {
       if (
         !await hasWritePermission(
           directoryHandle,
-          false
+          true
         )
       ) {
         permissionWarning =
@@ -223868,18 +224022,39 @@ async function initialize() {
       chooseFolder
     );
 
-    const storedHandle =
-      await readStoredHandle();
+const storedHandle =
+  await readStoredHandle();
 
-    if (
-      !directoryHandle
-    ) {
-      directoryHandle =
-        storedHandle;
-    }
 
-    permissionWarning =
-      false;
+if (
+  !directoryHandle
+) {
+  directoryHandle =
+    storedHandle;
+}
+
+
+/* =====================================================
+  복원된 저장 폴더의 현재 권한 상태 확인
+
+  페이지 시작 시에는 권한 요청창을 띄우지 않고
+  상태만 확인한다.
+===================================================== */
+
+if (
+  directoryHandle?.kind ===
+    "directory"
+) {
+  permissionWarning =
+    !await hasWritePermission(
+      directoryHandle,
+      false
+    );
+
+} else {
+  permissionWarning =
+    false;
+}
 
     renderButton();
   }
