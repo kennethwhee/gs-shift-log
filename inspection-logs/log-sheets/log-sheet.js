@@ -8731,6 +8731,618 @@ function releaseLogSheetPdfUrlWhenClosed(
 }
 
 
+/* =========================================================
+  Log Sheet PDF 미리보기 모달
+
+  중요:
+  별도 about:blank 팝업을 사용하지 않는다.
+
+  현재 Log Sheet 화면 위에서:
+  XLSX 생성
+  → Agent Excel PDF 변환
+  → PDF Blob 조회
+  → iframe PDF Viewer 표시
+========================================================= */
+
+let logSheetPdfPreviewObjectUrl =
+  "";
+
+
+function releaseLogSheetPdfPreviewObjectUrl() {
+  if (
+    !logSheetPdfPreviewObjectUrl
+  ) {
+    return;
+  }
+
+
+  URL.revokeObjectURL(
+    logSheetPdfPreviewObjectUrl
+  );
+
+
+  logSheetPdfPreviewObjectUrl =
+    "";
+}
+
+
+function ensureLogSheetPdfPreviewModal() {
+  let modal =
+    document.getElementById(
+      "logSheetPdfPreviewModal"
+    );
+
+
+  if (
+    modal
+  ) {
+    return modal;
+  }
+
+
+  modal =
+    document.createElement(
+      "div"
+    );
+
+
+  modal.id =
+    "logSheetPdfPreviewModal";
+
+
+  modal.innerHTML = `
+    <div
+      data-log-sheet-pdf-backdrop
+      style="
+        position:absolute;
+        inset:0;
+        background:rgba(25,42,58,.58);
+      "
+    ></div>
+
+    <section
+      style="
+        position:relative;
+        display:grid;
+        grid-template-rows:auto minmax(0,1fr) auto;
+        width:min(1180px,calc(100vw - 48px));
+        height:min(860px,calc(100vh - 48px));
+        overflow:hidden;
+        border:1px solid #cad5df;
+        border-radius:14px;
+        background:#fff;
+        box-shadow:0 24px 70px rgba(13,31,48,.28);
+      "
+    >
+
+      <header
+        style="
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:20px;
+          min-height:58px;
+          padding:10px 14px 10px 18px;
+          border-bottom:1px solid #dbe4ec;
+          background:#fff;
+        "
+      >
+
+        <div
+          style="
+            min-width:0;
+          "
+        >
+
+          <div
+            style="
+              margin-bottom:3px;
+              color:#1573bd;
+              font-size:8px;
+              font-weight:900;
+              letter-spacing:1.4px;
+            "
+          >
+            PRINT PREVIEW
+          </div>
+
+          <strong
+            id="logSheetPdfPreviewTitle"
+            style="
+              display:block;
+              overflow:hidden;
+              color:#173754;
+              font-size:14px;
+              font-weight:900;
+              text-overflow:ellipsis;
+              white-space:nowrap;
+            "
+          >
+            Log Sheet PDF 미리보기
+          </strong>
+
+        </div>
+
+
+        <button
+          type="button"
+          data-log-sheet-pdf-close
+          aria-label="닫기"
+          style="
+            display:grid;
+            place-items:center;
+            flex:0 0 34px;
+            width:34px;
+            height:34px;
+            padding:0;
+            border:0;
+            border-radius:9px;
+            background:#eef3f7;
+            color:#45647f;
+            cursor:pointer;
+            font-size:22px;
+            line-height:1;
+          "
+        >
+          ×
+        </button>
+
+      </header>
+
+
+      <div
+        style="
+          position:relative;
+          min-height:0;
+          overflow:hidden;
+          background:#dfe5eb;
+        "
+      >
+
+        <div
+          id="logSheetPdfPreviewLoading"
+          style="
+            position:absolute;
+            inset:0;
+            z-index:2;
+            display:grid;
+            place-items:center;
+            padding:24px;
+            background:#eef3f7;
+          "
+        >
+
+          <div
+            style="
+              display:grid;
+              gap:8px;
+              max-width:520px;
+              text-align:center;
+            "
+          >
+
+            <strong
+              id="logSheetPdfPreviewLoadingTitle"
+              style="
+                color:#1c4569;
+                font-size:17px;
+                font-weight:900;
+              "
+            >
+              PDF 미리보기 준비 중
+            </strong>
+
+            <span
+              id="logSheetPdfPreviewLoadingText"
+              style="
+                color:#6e8498;
+                font-size:11px;
+                line-height:1.55;
+              "
+            >
+              현재 Log Sheet를 준비하고 있습니다.
+            </span>
+
+          </div>
+
+        </div>
+
+
+        <iframe
+          id="logSheetPdfPreviewFrame"
+          title="Log Sheet PDF 미리보기"
+          style="
+            display:block;
+            width:100%;
+            height:100%;
+            border:0;
+            background:#dfe5eb;
+          "
+        ></iframe>
+
+      </div>
+
+
+      <footer
+        style="
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:14px;
+          min-height:52px;
+          padding:8px 14px;
+          border-top:1px solid #dbe4ec;
+          background:#fff;
+        "
+      >
+
+        <span
+          style="
+            color:#687f93;
+            font-size:9px;
+            font-weight:750;
+          "
+        >
+          Microsoft Excel 원본 인쇄 설정
+        </span>
+
+
+        <div
+          style="
+            display:flex;
+            gap:7px;
+          "
+        >
+
+          <button
+            type="button"
+            data-log-sheet-pdf-close
+            style="
+              min-width:58px;
+              min-height:31px;
+              padding:0 12px;
+              border:1px solid #bdccda;
+              border-radius:7px;
+              background:#fff;
+              color:#375775;
+              cursor:pointer;
+              font-size:10px;
+              font-weight:850;
+            "
+          >
+            닫기
+          </button>
+
+
+          <button
+            type="button"
+            id="logSheetPdfPreviewPrintButton"
+            style="
+              min-width:58px;
+              min-height:31px;
+              padding:0 12px;
+              border:1px solid #1684cd;
+              border-radius:7px;
+              background:#1684cd;
+              color:#fff;
+              cursor:pointer;
+              font-size:10px;
+              font-weight:900;
+            "
+          >
+            인쇄
+          </button>
+
+        </div>
+
+      </footer>
+
+    </section>
+  `;
+
+
+  Object.assign(
+    modal.style,
+    {
+      position:
+        "fixed",
+
+      inset:
+        "0",
+
+      zIndex:
+        "2147483000",
+
+      display:
+        "none",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      padding:
+        "24px"
+    }
+  );
+
+
+  document.body.append(
+    modal
+  );
+
+
+  const closePreview =
+    () => {
+      modal.style.display =
+        "none";
+
+
+      const frame =
+        modal.querySelector(
+          "#logSheetPdfPreviewFrame"
+        );
+
+
+      if (
+        frame
+      ) {
+        frame.removeAttribute(
+          "src"
+        );
+      }
+
+
+      releaseLogSheetPdfPreviewObjectUrl();
+    };
+
+
+  modal
+    .querySelectorAll(
+      "[data-log-sheet-pdf-close]"
+    )
+    .forEach(
+      button => {
+        button.addEventListener(
+          "click",
+          closePreview
+        );
+      }
+    );
+
+
+  modal
+    .querySelector(
+      "[data-log-sheet-pdf-backdrop]"
+    )
+    ?.addEventListener(
+      "click",
+      closePreview
+    );
+
+
+  modal
+    .querySelector(
+      "#logSheetPdfPreviewPrintButton"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+        const frame =
+          modal.querySelector(
+            "#logSheetPdfPreviewFrame"
+          );
+
+
+        try {
+          frame?.contentWindow?.focus();
+
+          frame?.contentWindow?.print();
+
+        } catch (
+          error
+        ) {
+          console.warn(
+            "PDF 인쇄창 호출 실패:",
+            error
+          );
+        }
+      }
+    );
+
+
+  return modal;
+}
+
+
+function setLogSheetPdfPreviewProgress(
+  title,
+  description
+) {
+  const modal =
+    ensureLogSheetPdfPreviewModal();
+
+
+  modal.style.display =
+    "flex";
+
+
+  const loading =
+    modal.querySelector(
+      "#logSheetPdfPreviewLoading"
+    );
+
+
+  const loadingTitle =
+    modal.querySelector(
+      "#logSheetPdfPreviewLoadingTitle"
+    );
+
+
+  const loadingText =
+    modal.querySelector(
+      "#logSheetPdfPreviewLoadingText"
+    );
+
+
+  const frame =
+    modal.querySelector(
+      "#logSheetPdfPreviewFrame"
+    );
+
+
+  if (
+    loading
+  ) {
+    loading.style.display =
+      "grid";
+  }
+
+
+  if (
+    loadingTitle
+  ) {
+    loadingTitle.textContent =
+      title;
+  }
+
+
+  if (
+    loadingText
+  ) {
+    loadingText.textContent =
+      description;
+  }
+
+
+  if (
+    frame
+  ) {
+    frame.style.visibility =
+      "hidden";
+  }
+}
+
+
+function showLogSheetPdfPreviewBlob(
+  pdfBlob,
+  options = {}
+) {
+  const modal =
+    ensureLogSheetPdfPreviewModal();
+
+
+  const frame =
+    modal.querySelector(
+      "#logSheetPdfPreviewFrame"
+    );
+
+
+  const loading =
+    modal.querySelector(
+      "#logSheetPdfPreviewLoading"
+    );
+
+
+  const title =
+    modal.querySelector(
+      "#logSheetPdfPreviewTitle"
+    );
+
+
+  if (
+    !frame
+  ) {
+    throw new Error(
+      "PDF Viewer를 생성하지 못했습니다."
+    );
+  }
+
+
+  releaseLogSheetPdfPreviewObjectUrl();
+
+
+  logSheetPdfPreviewObjectUrl =
+    URL.createObjectURL(
+      pdfBlob
+    );
+
+
+  if (
+    title
+  ) {
+    title.textContent =
+      `${
+        state.sheetConfig?.title ||
+        state.sheetConfig?.sheetName ||
+        "Log Sheet"
+      } · PDF 미리보기`;
+  }
+
+
+  if (
+    loading
+  ) {
+    loading.style.display =
+      "none";
+  }
+
+
+  frame.style.visibility =
+    "visible";
+
+
+  frame.src =
+    logSheetPdfPreviewObjectUrl;
+
+
+  if (
+    options.autoPrint ===
+      true
+  ) {
+    frame.addEventListener(
+      "load",
+      () => {
+        window.setTimeout(
+          () => {
+            try {
+              frame.contentWindow?.focus();
+
+              frame.contentWindow?.print();
+
+            } catch (
+              error
+            ) {
+              console.warn(
+                "PDF 자동 인쇄창 호출 실패:",
+                error
+              );
+            }
+          },
+          700
+        );
+      },
+      {
+        once:
+          true
+      }
+    );
+  }
+}
+
+
+function showLogSheetPdfPreviewError(
+  error
+) {
+  setLogSheetPdfPreviewProgress(
+    "PDF 미리보기 실패",
+    error?.message ||
+      "PDF 미리보기를 만들지 못했습니다."
+  );
+}
+
+
 async function openLogSheetPdfPreview(
   options = {}
 ) {
@@ -8747,38 +9359,9 @@ async function openLogSheetPdfPreview(
       true;
 
 
-  /*
-    사용자 클릭 순간에 먼저 창을 열어
-    팝업 차단을 방지한다.
-  */
-  const previewWindow =
-    window.open(
-      "",
-      "_blank",
-      [
-        "popup=yes",
-        "width=1500",
-        "height=950",
-        "resizable=yes",
-        "scrollbars=yes"
-      ].join(",")
-    );
-
-
-  if (
-    !previewWindow
-  ) {
-    window.alert(
-      "PDF 미리보기 창이 차단되었습니다.\n팝업을 허용한 뒤 다시 눌러 주세요."
-    );
-
-
-    return;
-  }
-
-
-  initializeLogSheetPdfPopup(
-    previewWindow
+  setLogSheetPdfPreviewProgress(
+    "Excel 파일 생성 중",
+    "현재 입력값을 원본 Log Sheet Excel 양식에 반영하고 있습니다."
   );
 
 
@@ -8789,12 +9372,14 @@ async function openLogSheetPdfPreview(
 
 
   try {
-    /*
-      이미 엑셀 다운로드에서 사용하는
-      동일한 XLSX 생성 함수를 재사용한다.
-    */
     const workbookBlob =
       await createPatchedWorkbookBlob();
+
+
+    setLogSheetPdfPreviewProgress(
+      "PDF 변환 요청 중",
+      "회사 PC의 Microsoft Excel에 PDF 변환을 요청하고 있습니다."
+    );
 
 
     const requestId =
@@ -8803,8 +9388,20 @@ async function openLogSheetPdfPreview(
       );
 
 
+    setLogSheetPdfPreviewProgress(
+      "PDF 변환 대기 중",
+      "회사 PC의 Microsoft Excel에서 원본 인쇄 양식을 만들고 있습니다."
+    );
+
+
     await waitForLogSheetPdfCompletion(
       requestId
+    );
+
+
+    setLogSheetPdfPreviewProgress(
+      "PDF 불러오는 중",
+      "생성된 PDF를 불러오고 있습니다."
     );
 
 
@@ -8814,167 +9411,12 @@ async function openLogSheetPdfPreview(
       );
 
 
-    if (
-      previewWindow.closed
-    ) {
-      throw new Error(
-        "PDF 변환 중 미리보기 창이 닫혔습니다."
-      );
-    }
-
-
-    const objectUrl =
-      URL.createObjectURL(
-        pdfBlob
-      );
-
-
-    releaseLogSheetPdfUrlWhenClosed(
-      previewWindow,
-      objectUrl
+    showLogSheetPdfPreviewBlob(
+      pdfBlob,
+      {
+        autoPrint
+      }
     );
-
-
-    /*
-      최종 화면은 HTML 표가 아니라
-      Edge/Chrome 자체 PDF Viewer다.
-    */
-    if (
-      autoPrint
-    ) {
-      let printAttempted =
-        false;
-
-
-      const tryPrint =
-        () => {
-          if (
-            printAttempted ||
-            previewWindow.closed
-          ) {
-            return;
-          }
-
-
-          try {
-            previewWindow.focus();
-
-            previewWindow.print();
-
-            printAttempted =
-              true;
-
-          } catch (
-            error
-          ) {
-            console.warn(
-              "PDF 자동 인쇄창 호출 실패:",
-              error
-            );
-          }
-        };
-
-
-      previewWindow.addEventListener(
-        "load",
-        () => {
-          window.setTimeout(
-            tryPrint,
-            600
-          );
-        },
-        {
-          once:
-            true
-        }
-      );
-
-
-      window.setTimeout(
-        tryPrint,
-        1800
-      );
-    }
-
-
-    /*
-      Edge에서 about:blank 팝업을
-      blob: PDF 주소로 직접 navigation하면
-      일부 환경에서 준비 화면에 그대로 남을 수 있다.
-
-      따라서 팝업 문서는 유지하고
-      내부에 PDF Viewer iframe을 직접 삽입한다.
-    */
-    const previewDocument =
-      previewWindow.document;
-
-
-    previewDocument.open();
-
-    previewDocument.write(`
-      <!DOCTYPE html>
-      <html lang="ko">
-      <head>
-        <meta charset="UTF-8">
-
-        <title>
-          ${escapeHtml(
-            state.sheetConfig?.label ||
-            state.sheetConfig?.sheetName ||
-            "Log Sheet"
-          )} · PDF 미리보기
-        </title>
-
-        <style>
-          html,
-          body {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            overflow: hidden;
-            background: #dfe5eb;
-          }
-
-          .log-sheet-pdf-viewer {
-            display: block;
-            width: 100%;
-            height: 100%;
-            border: 0;
-            background: #dfe5eb;
-          }
-        </style>
-      </head>
-
-      <body>
-        <iframe
-          id="logSheetPdfViewer"
-          class="log-sheet-pdf-viewer"
-          title="Log Sheet PDF 미리보기"
-        ></iframe>
-      </body>
-      </html>
-    `);
-
-    previewDocument.close();
-
-
-    const pdfViewer =
-      previewDocument.getElementById(
-        "logSheetPdfViewer"
-      );
-
-
-    if (
-      !pdfViewer
-    ) {
-      throw new Error(
-        "PDF Viewer를 생성하지 못했습니다."
-      );
-    }
-
-
-    pdfViewer.src =
-      objectUrl;
 
 
     setStatus(
@@ -8994,22 +9436,9 @@ async function openLogSheetPdfPreview(
     );
 
 
-    if (
-      !previewWindow.closed
-    ) {
-      const body =
-        previewWindow.document
-          ?.body;
-
-
-      if (body) {
-        body.textContent =
-          `PDF 미리보기를 만들지 못했습니다: ${
-            error?.message ||
-            "알 수 없는 오류"
-          }`;
-      }
-    }
+    showLogSheetPdfPreviewError(
+      error
+    );
 
 
     setStatus(
