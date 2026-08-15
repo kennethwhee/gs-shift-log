@@ -236859,3 +236859,290 @@ async function restoreSolarCumulativeFromD1() {
     .refreshOisLegacyBatchServerStatus =
     refreshServerBatchStatus;
 })();
+
+
+/* LIMESTONE MOBILE DATE DOM NORMALIZER V1 */
+(function installLimestoneMobileDateLayoutNormalizer() {
+  "use strict";
+
+  if (
+    window.__limestoneMobileDateLayoutNormalizerInstalled === true
+  ) {
+    return;
+  }
+
+  window.__limestoneMobileDateLayoutNormalizerInstalled = true;
+
+
+  function isMobileLimestoneLayout() {
+    return window.matchMedia(
+      "(max-width: 768px)"
+    ).matches;
+  }
+
+
+  function findDirectChildByClass(
+    parent,
+    className
+  ) {
+    if (!parent) {
+      return null;
+    }
+
+    return Array.from(
+      parent.children
+    ).find(
+      child =>
+        child.classList?.contains(
+          className
+        )
+    ) || null;
+  }
+
+
+  /* ===================================================
+     입고 현황 날짜줄
+     [<] [날짜 + 오늘] [>] [기간 조회]
+  ==================================================== */
+  function normalizeReceiptDateControls() {
+    if (!isMobileLimestoneLayout()) {
+      return false;
+    }
+
+    const container =
+      document.querySelector(
+        "#efficiencyLimestoneView .limestone-compact-period-navigation"
+      );
+
+    const previousButton =
+      document.getElementById(
+        "limestonePreviousDayButton"
+      );
+
+    const dateButton =
+      document.getElementById(
+        "limestoneMoveToTodayButton"
+      );
+
+    const nextButton =
+      document.getElementById(
+        "limestoneNextDayButton"
+      );
+
+    const periodButton =
+      document.getElementById(
+        "openLimestonePeriodSearchButton"
+      );
+
+    if (
+      !container ||
+      !previousButton ||
+      !dateButton ||
+      !nextButton ||
+      !periodButton
+    ) {
+      return false;
+    }
+
+    let row =
+      findDirectChildByClass(
+        container,
+        "limestone-mobile-receipt-date-control-row"
+      );
+
+    if (!row) {
+      row = document.createElement("div");
+      row.className =
+        "limestone-mobile-receipt-date-control-row";
+
+      container.insertBefore(
+        row,
+        container.firstChild
+      );
+    }
+
+    [
+      previousButton,
+      dateButton,
+      nextButton,
+      periodButton
+    ].forEach(
+      element =>
+        row.appendChild(element)
+    );
+
+    container.classList.add(
+      "is-mobile-date-normalized"
+    );
+
+    return true;
+  }
+
+
+  /* ===================================================
+     사용량 계산 날짜줄
+     [<] [날짜] [>] [오늘]
+  ==================================================== */
+  function normalizeUsageDateControls() {
+    if (!isMobileLimestoneLayout()) {
+      return false;
+    }
+
+    const card =
+      document.querySelector(
+        "#limestoneUsageCalculatorView .limestone-usage-date-card"
+      );
+
+    const previousButton =
+      document.getElementById(
+        "limestoneUsagePreviousDateButton"
+      );
+
+    const dateField =
+      card?.querySelector(
+        ".limestone-usage-date-field"
+      ) || null;
+
+    const nextButton =
+      document.getElementById(
+        "limestoneUsageNextDateButton"
+      );
+
+    const todayButton =
+      document.getElementById(
+        "limestoneUsageTodayButton"
+      );
+
+    const status =
+      document.getElementById(
+        "limestoneUsageStatus"
+      );
+
+    if (
+      !card ||
+      !previousButton ||
+      !dateField ||
+      !nextButton ||
+      !todayButton
+    ) {
+      return false;
+    }
+
+    let row =
+      findDirectChildByClass(
+        card,
+        "limestone-mobile-usage-date-control-row"
+      );
+
+    if (!row) {
+      row = document.createElement("div");
+      row.className =
+        "limestone-mobile-usage-date-control-row";
+
+      card.insertBefore(
+        row,
+        card.firstChild
+      );
+    }
+
+    [
+      previousButton,
+      dateField,
+      nextButton,
+      todayButton
+    ].forEach(
+      element =>
+        row.appendChild(element)
+    );
+
+    if (
+      status &&
+      status.parentElement === row
+    ) {
+      card.appendChild(status);
+    }
+
+    card.classList.add(
+      "is-mobile-date-normalized"
+    );
+
+    return true;
+  }
+
+
+  function normalizeLimestoneMobileDateLayout() {
+    if (!isMobileLimestoneLayout()) {
+      return;
+    }
+
+    normalizeReceiptDateControls();
+    normalizeUsageDateControls();
+  }
+
+
+  function scheduleNormalize() {
+    [
+      0,
+      80,
+      200,
+      500,
+      1000,
+      2000
+    ].forEach(
+      delay => {
+        window.setTimeout(
+          normalizeLimestoneMobileDateLayout,
+          delay
+        );
+      }
+    );
+  }
+
+
+  document.addEventListener(
+    "click",
+    event => {
+      const target =
+        event.target instanceof Element
+          ? event.target
+          : null;
+
+      if (!target) {
+        return;
+      }
+
+      if (
+        target.closest(
+          [
+            '[data-efficiency-tab="limestone"]',
+            '[data-limestone-subview]',
+            '#limestoneReceiptSubviewButton',
+            '#limestoneUsageSubviewButton'
+          ].join(",")
+        )
+      ) {
+        scheduleNormalize();
+      }
+    }
+  );
+
+
+  window.addEventListener(
+    "resize",
+    scheduleNormalize
+  );
+
+
+  if (
+    document.readyState === "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      scheduleNormalize,
+      { once: true }
+    );
+  } else {
+    scheduleNormalize();
+  }
+
+})();
