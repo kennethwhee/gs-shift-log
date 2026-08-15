@@ -111374,3 +111374,134 @@ button,
       900 !important;
   }
 }
+
+/* =========================================================
+  LIMESTONE RECEIPT MOBILE POLISH V1
+
+  1. 새로고침 / +입고 우측 끝 정렬
+  2. 입고량 카드 제목 조금 확대
+  3. 숫자 + 단위 우측 정렬
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  /* =====================================================
+    상단 제목 + 버튼
+  ====================================================== */
+
+  #efficiencyLimestoneView
+  .limestone-view-heading {
+    display: flex !important;
+
+    width: 100% !important;
+
+    align-items: center !important;
+
+    gap: 8px !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-view-heading
+  > div:first-child {
+    flex: 1 1 auto !important;
+
+    min-width: 0 !important;
+  }
+
+
+  /* 새로고침 / +입고 버튼을 오른쪽 끝으로 */
+
+  #efficiencyLimestoneView
+  .limestone-heading-actions {
+    display: flex !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+
+    flex: 0 0 auto !important;
+
+    align-items: center !important;
+    justify-content: flex-end !important;
+
+    gap: 6px !important;
+
+    margin-left: auto !important;
+  }
+
+
+  #efficiencyLimestoneView
+  .limestone-heading-actions
+  button {
+    width: auto !important;
+    min-width: 0 !important;
+
+    padding-right: 13px !important;
+    padding-left: 13px !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* 기존 모바일 grid-column 해제 */
+
+  #efficiencyLimestoneView
+  .limestone-add-button {
+    grid-column: auto !important;
+  }
+
+
+  /* =====================================================
+    전체 / 1호기 / 2호기 / 입고횟수 카드
+  ====================================================== */
+
+  #efficiencyLimestoneView
+  .limestone-summary-card {
+    text-align: right !important;
+  }
+
+
+  /* 카드 제목은 왼쪽 유지 + 조금 확대 */
+
+  #efficiencyLimestoneView
+  .limestone-summary-card
+  > span {
+    display: block !important;
+
+    margin-bottom: 9px !important;
+
+    font-size: 11px !important;
+    font-weight: 800 !important;
+
+    text-align: left !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /* 숫자 우측 */
+
+  #efficiencyLimestoneView
+  .limestone-summary-card
+  > strong {
+    display: inline-block !important;
+
+    text-align: right !important;
+  }
+
+
+  /* ton / 회도 숫자 바로 옆에서 함께 우측 */
+
+  #efficiencyLimestoneView
+  .limestone-summary-card
+  > small {
+    display: inline-block !important;
+
+    margin-left: 4px !important;
+
+    text-align: right !important;
+
+    white-space: nowrap !important;
+  }
+
+}
