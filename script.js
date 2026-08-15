@@ -121098,6 +121098,13 @@ function renderArmRollBoxWarnings(
       );
 
 
+  /*
+    메뉴 배지는 50% 이상부터 표시한다.
+    별도 조회 없이 이미 계산된 현재 state를 재사용한다.
+  */
+  const recommendationItems =
+    getArmRollBoxMainRecommendationItems();
+
   const badge =
     ensureArmRollBoxTabBadge();
 
@@ -121106,20 +121113,33 @@ function renderArmRollBoxWarnings(
     badge
   ) {
     badge.hidden =
-      warningItems.length ===
+      recommendationItems.length ===
       0;
 
 
     badge.textContent =
-      warningItems.length
+      recommendationItems.length
         ? String(
-            warningItems.length
+            recommendationItems.length
           )
+        : "";
+
+    badge.title =
+      recommendationItems.length
+        ? `${recommendationItems.length}개 BOX가 ${REPLACEMENT_RECOMMEND_LEVEL}% 이상입니다.`
         : "";
   }
 
 
   elements.tab?.classList.toggle(
+    "has-recommend",
+    recommendationItems.length >
+      0 &&
+    warningItems.length ===
+      0
+  );
+
+elements.tab?.classList.toggle(
     "has-warning",
     warningItems.length >
       0
@@ -237104,7 +237124,7 @@ async function restoreSolarCumulativeFromD1() {
               true
           });
         },
-        5000
+        30000
       );
 
 
