@@ -8201,6 +8201,611 @@ async function handleCompletedHistoryGet(
 }
 
 /* =========================================================
+  OIS 과거 LOG SHEET 전체 진행상황 조회
+
+  GET:
+  /api/ois-data-requests
+    ?action=logsheet_batch_status
+
+  선택:
+  &startDate=2021-01-06
+  &endDate=2023-07-20
+
+  목적:
+  - 브라우저를 새로고침해도 D1 기준 진행률 복원
+  - pending / processing / complete / failed 집계
+  - result_json은 읽지 않아 대량 조회 부담 최소화
+========================================================= */
+
+async function handleOisLegacyBatchStatusGet(
+  context,
+  requestUrl
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const user =
+    authentication.user;
+
+
+  if (
+    user.role !==
+      "super_admin"
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "최고관리자만 과거 업무일지 진행상황을 확인할 수 있습니다."
+      },
+      403
+    );
+  }
+
+
+  await expireOldRequests(
+    context.env.DB
+  );
+
+
+  let startDate =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "startDate"
+      )
+    );
+
+
+  let endDate =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "endDate"
+      )
+    );
+
+
+  /* =====================================================
+    날짜가 전달되지 않은 경우
+
+    가장 최근에 등록한 과거업무일지 요청 묶음을
+    서버에서 자동으로 찾아 기간을 복원한다.
+
+    62일 단위 여러 요청은 짧은 시간 안에 연속 등록되므로
+    가장 최근 요청 시각 기준 이전 2시간을 같은 작업으로 본다.
+  ====================================================== */
+
+  if (
+    !isValidIsoDate(
+      startDate
+    ) ||
+    !isValidIsoDate(
+      endDate
+    )
+  ) {
+    const latestRow =
+      await context.env.DB
+        .prepare(`
+          SELECT
+            requested_at
+
+          FROM ois_data_requests
+
+          WHERE
+            request_type =
+              'logsheet_approval'
+
+            AND requested_by_id = ?
+
+          ORDER BY
+            requested_at DESC
+
+          LIMIT 1
+        `)
+        .bind(
+          user.employeeNo
+        )
+        .first();
+
+
+    if (
+      !latestRow
+    ) {
+      return jsonResponse({
+        ok:
+          true,
+
+        requestType:
+          "logsheet_approval",
+
+        range:
+          null,
+
+        summary: {
+          total:
+            0,
+
+          complete:
+            0,
+
+          processing:
+            0,
+
+          pending:
+            0,
+
+          failed:
+            0,
+
+          missing:
+            0,
+
+          finished:
+            0,
+
+          remaining:
+            0,
+
+          percent:
+            0
+        },
+
+        currentItem:
+          null,
+
+        failedItems:
+          []
+      });
+    }
+
+
+    const latestRequestedAt =
+      new Date(
+        normalizeText(
+          latestRow.requested_at
+        )
+      );
+
+
+    const batchWindowStart =
+      new Date(
+        (
+          Number.isNaN(
+            latestRequestedAt.getTime()
+          )
+            ? Date.now()
+            : latestRequestedAt.getTime()
+        ) -
+        2 *
+        60 *
+        60 *
+        1000
+      )
+        .toISOString();
+
+
+    const batchWindowEnd =
+      Number.isNaN(
+        latestRequestedAt.getTime()
+      )
+        ? new Date()
+            .toISOString()
+        : latestRequestedAt
+            .toISOString();
+
+
+    const rangeRow =
+      await context.env.DB
+        .prepare(`
+          SELECT
+            MIN(
+              target_date
+            ) AS start_date,
+
+            MAX(
+              target_date
+            ) AS end_date
+
+          FROM ois_data_requests
+
+          WHERE
+            request_type =
+              'logsheet_approval'
+
+            AND requested_by_id = ?
+
+            AND requested_at >= ?
+            AND requested_at <= ?
+        `)
+        .bind(
+          user.employeeNo,
+          batchWindowStart,
+          batchWindowEnd
+        )
+        .first();
+
+
+    startDate =
+      normalizeText(
+        rangeRow?.start_date
+      );
+
+
+    endDate =
+      normalizeText(
+        rangeRow?.end_date
+      );
+  }
+
+
+  const dayCount =
+    getLimestoneUsageBatchDayCount(
+      startDate,
+      endDate
+    );
+
+
+  if (
+    dayCount <
+      1 ||
+    dayCount >
+      4000
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "과거 업무일지 진행상황 조회 기간을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  /*
+    result_json은 가져오지 않는다.
+
+    진행률에 필요한 최소 정보만 조회하여
+    900일 이상이어도 응답 크기를 작게 유지한다.
+  */
+
+  const queryResult =
+    await context.env.DB
+      .prepare(`
+        SELECT
+          id,
+          target_date,
+          status,
+
+          requested_at,
+          started_at,
+          completed_at,
+
+          agent_id,
+          error_message,
+          expires_at,
+          updated_at
+
+        FROM ois_data_requests
+
+        WHERE
+          request_type =
+            'logsheet_approval'
+
+          AND target_date >= ?
+          AND target_date <= ?
+
+        ORDER BY
+          target_date ASC,
+          requested_at DESC,
+          updated_at DESC,
+          id DESC
+      `)
+      .bind(
+        startDate,
+        endDate
+      )
+      .all();
+
+
+  const rows =
+    Array.isArray(
+      queryResult.results
+    )
+      ? queryResult.results
+      : [];
+
+
+  /*
+    같은 날짜에 재조회 이력이 여러 개 있으면
+    가장 최근 요청 한 건만 현재 상태로 사용한다.
+  */
+
+  const latestByDate =
+    new Map();
+
+
+  rows.forEach(
+    row => {
+      const targetDate =
+        normalizeText(
+          row.target_date
+        );
+
+
+      if (
+        !isValidIsoDate(
+          targetDate
+        ) ||
+        latestByDate.has(
+          targetDate
+        )
+      ) {
+        return;
+      }
+
+
+      latestByDate.set(
+        targetDate,
+        {
+          id:
+            normalizeText(
+              row.id
+            ),
+
+          targetDate,
+
+          status:
+            normalizeText(
+              row.status
+            )
+              .toLowerCase(),
+
+          requestedAt:
+            normalizeText(
+              row.requested_at
+            ),
+
+          startedAt:
+            normalizeText(
+              row.started_at
+            ),
+
+          completedAt:
+            normalizeText(
+              row.completed_at
+            ),
+
+          agentId:
+            normalizeText(
+              row.agent_id
+            ),
+
+          errorMessage:
+            normalizeText(
+              row.error_message
+            ),
+
+          expiresAt:
+            normalizeText(
+              row.expires_at
+            ),
+
+          updatedAt:
+            normalizeText(
+              row.updated_at
+            )
+        }
+      );
+    }
+  );
+
+
+  const counts = {
+    total:
+      dayCount,
+
+    complete:
+      0,
+
+    processing:
+      0,
+
+    pending:
+      0,
+
+    failed:
+      0,
+
+    missing:
+      0
+  };
+
+
+  let processingItem =
+    null;
+
+
+  let pendingItem =
+    null;
+
+
+  let latestCompletedDate =
+    "";
+
+
+  const failedItems =
+    [];
+
+
+  createLimestoneUsageBatchDates(
+    startDate,
+    endDate
+  )
+    .forEach(
+      targetDate => {
+        const item =
+          latestByDate.get(
+            targetDate
+          );
+
+
+        if (
+          !item
+        ) {
+          counts.missing +=
+            1;
+
+          return;
+        }
+
+
+        if (
+          item.status ===
+            "complete"
+        ) {
+          counts.complete +=
+            1;
+
+          latestCompletedDate =
+            targetDate;
+
+          return;
+        }
+
+
+        if (
+          item.status ===
+            "processing"
+        ) {
+          counts.processing +=
+            1;
+
+          processingItem =
+            processingItem ||
+            item;
+
+          return;
+        }
+
+
+        if (
+          item.status ===
+            "pending"
+        ) {
+          counts.pending +=
+            1;
+
+          pendingItem =
+            pendingItem ||
+            item;
+
+          return;
+        }
+
+
+        if (
+          item.status ===
+            "failed"
+        ) {
+          counts.failed +=
+            1;
+
+          failedItems.push(
+            item
+          );
+
+          return;
+        }
+
+
+        counts.missing +=
+          1;
+      }
+    );
+
+
+  const finished =
+    counts.complete +
+    counts.failed;
+
+
+  const remaining =
+    counts.processing +
+    counts.pending +
+    counts.missing;
+
+
+  const percent =
+    counts.total >
+      0
+      ? Math.min(
+          100,
+
+          Math.round(
+            (
+              finished /
+              counts.total
+            ) *
+            100
+          )
+        )
+      : 0;
+
+
+  return jsonResponse({
+    ok:
+      true,
+
+    requestType:
+      "logsheet_approval",
+
+    range: {
+      startDate,
+      endDate,
+      totalDays:
+        dayCount
+    },
+
+    summary: {
+      ...counts,
+
+      finished,
+
+      remaining,
+
+      percent
+    },
+
+    currentItem:
+      processingItem ||
+      pendingItem ||
+      null,
+
+    latestCompletedDate,
+
+    failedItems:
+      failedItems.slice(
+        0,
+        100
+      )
+  });
+}
+
+/* =========================================================
   GET 분기
 ========================================================= */
 
@@ -8250,6 +8855,19 @@ if (
     "morning_meeting_auto_history_overrides"
 ) {
   return await handleMorningMeetingAutoHistoryOverridesGet(
+    context,
+    requestUrl
+  );
+}
+
+/*
+  OIS 과거 업무일지 기간 진행상황
+*/
+if (
+  action ===
+    "logsheet_batch_status"
+) {
+  return await handleOisLegacyBatchStatusGet(
     context,
     requestUrl
   );

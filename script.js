@@ -236258,3 +236258,886 @@ async function restoreSolarCumulativeFromD1() {
     .restoreEfficiencyMorningMeetingSolarCumulativeFromD1 =
     restoreSolarCumulativeFromD1;
 })();
+
+/* =========================================================
+  시스템 관리 · OIS 과거 업무일지
+  서버 D1 진행상황 표시
+
+  목적:
+  - 브라우저를 새로 열어도 진행률 복원
+  - 상태 새로고침을 D1 기준으로 실행
+  - 시스템 관리창이 열려 있을 때 5초마다 자동 갱신
+========================================================= */
+
+(function installOisLegacyBatchServerStatusViewer() {
+  if (
+    window
+      .__oisLegacyBatchServerStatusViewerInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window
+    .__oisLegacyBatchServerStatusViewerInstalled =
+    true;
+
+
+  const API_URL =
+    "/api/ois-data-requests";
+
+
+  let isRefreshing =
+    false;
+
+
+  let pollTimer =
+    null;
+
+
+  function escapeServerStatusHtml(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    )
+      .replaceAll(
+        "&",
+        "&amp;"
+      )
+      .replaceAll(
+        "<",
+        "&lt;"
+      )
+      .replaceAll(
+        ">",
+        "&gt;"
+      )
+      .replaceAll(
+        '"',
+        "&quot;"
+      )
+      .replaceAll(
+        "'",
+        "&#039;"
+      );
+  }
+
+
+  function getServerStatusElements() {
+    return {
+      modal:
+        document.getElementById(
+          "employeeManagementModal"
+        ),
+
+      employeeView:
+        document.getElementById(
+          "employeeManagementView"
+        ),
+
+      startDate:
+        document.getElementById(
+          "oisLegacyBatchStartDate"
+        ),
+
+      endDate:
+        document.getElementById(
+          "oisLegacyBatchEndDate"
+        ),
+
+      refreshButton:
+        document.getElementById(
+          "refreshOisLegacyBatchStatusButton"
+        ),
+
+      status:
+        document.getElementById(
+          "oisLegacyBatchStatus"
+        ),
+
+      summary:
+        document.getElementById(
+          "oisLegacyBatchSummary"
+        ),
+
+      progressBar:
+        document.getElementById(
+          "oisLegacyBatchProgressBar"
+        ),
+
+      progressText:
+        document.getElementById(
+          "oisLegacyBatchProgressText"
+        ),
+
+      failureList:
+        document.getElementById(
+          "oisLegacyBatchFailureList"
+        )
+    };
+  }
+
+
+  function renderServerBatchStatus(
+    payload
+  ) {
+    const {
+      startDate,
+      endDate,
+      refreshButton,
+      status,
+      summary,
+      progressBar,
+      progressText,
+      failureList
+    } =
+      getServerStatusElements();
+
+
+    const range =
+      payload?.range &&
+      typeof payload.range ===
+        "object"
+        ? payload.range
+        : null;
+
+
+    const serverSummary =
+      payload?.summary &&
+      typeof payload.summary ===
+        "object"
+        ? payload.summary
+        : {};
+
+
+    const total =
+      Number(
+        serverSummary.total ||
+        0
+      );
+
+
+    const complete =
+      Number(
+        serverSummary.complete ||
+        0
+      );
+
+
+    const processing =
+      Number(
+        serverSummary.processing ||
+        0
+      );
+
+
+    const pending =
+      Number(
+        serverSummary.pending ||
+        0
+      );
+
+
+    const failed =
+      Number(
+        serverSummary.failed ||
+        0
+      );
+
+
+    const missing =
+      Number(
+        serverSummary.missing ||
+        0
+      );
+
+
+    const processed =
+      complete +
+      failed;
+
+
+    const remaining =
+      Math.max(
+        total -
+        processed,
+        0
+      );
+
+
+    const percent =
+      total >
+        0
+        ? (
+            processed /
+            total
+          ) *
+          100
+        : 0;
+
+
+    const percentText =
+      percent.toFixed(
+        1
+      );
+
+
+    /*
+      서버에서 복원한 실제 작업기간을
+      날짜 입력창에도 표시한다.
+    */
+
+    if (
+      range?.startDate &&
+      startDate
+    ) {
+      startDate.value =
+        range.startDate;
+    }
+
+
+    if (
+      range?.endDate &&
+      endDate
+    ) {
+      endDate.value =
+        range.endDate;
+
+      if (
+        startDate?.value
+      ) {
+        endDate.min =
+          startDate.value;
+      }
+    }
+
+
+    /*
+      실제 D1 상태 카드
+    */
+
+    if (
+      summary
+    ) {
+      summary.innerHTML = [
+        [
+          "전체",
+          total
+        ],
+
+        [
+          "완료",
+          complete
+        ],
+
+        [
+          "처리 중",
+          processing
+        ],
+
+        [
+          "대기",
+          pending
+        ],
+
+        [
+          "누락",
+          missing
+        ],
+
+        [
+          "실패",
+          failed
+        ]
+      ]
+        .map(
+          ([
+            label,
+            value
+          ]) => {
+            return `
+              <span class="ois-legacy-batch-stat">
+
+                <small>
+                  ${escapeServerStatusHtml(
+                    label
+                  )}
+                </small>
+
+                <strong>
+                  ${Number(
+                    value ||
+                    0
+                  )}
+                </strong>
+
+              </span>
+            `;
+          }
+        )
+        .join(
+          ""
+        );
+    }
+
+
+    if (
+      progressBar
+    ) {
+      progressBar.style.width =
+        `${Math.min(
+          100,
+          percent
+        )}%`;
+    }
+
+
+    if (
+      progressText
+    ) {
+      progressText.textContent =
+        total >
+          0
+          ? (
+              `${processed}/${total}일 처리 · ` +
+              `${percentText}% · ` +
+              `남음 ${remaining}일`
+            )
+          : "서버에 등록된 기간 작업이 없습니다.";
+    }
+
+
+    if (
+      refreshButton
+    ) {
+      refreshButton.disabled =
+        false;
+
+      refreshButton.textContent =
+        "상태 새로고침";
+    }
+
+
+    /*
+      상단 상태 문구
+    */
+
+    if (
+      status
+    ) {
+      const currentDate =
+        String(
+          payload?.currentItem
+            ?.targetDate ||
+          ""
+        ).trim();
+
+
+      const latestCompletedDate =
+        String(
+          payload?.latestCompletedDate ||
+          ""
+        ).trim();
+
+
+      if (
+        total <
+        1
+      ) {
+        status.dataset.type =
+          "info";
+
+        status.textContent =
+          "서버에 등록된 과거 업무일지 작업이 없습니다.";
+
+      } else if (
+        processed >=
+          total &&
+        failed ===
+          0
+      ) {
+        status.dataset.type =
+          "success";
+
+        status.textContent =
+          `${range?.startDate || "-"} ~ ${range?.endDate || "-"} 전체 수집이 완료되었습니다.`;
+
+      } else {
+        status.dataset.type =
+          failed >
+            0
+            ? "warning"
+            : "info";
+
+
+        const statusParts = [
+          "D1 기준 자동 갱신 중"
+        ];
+
+
+        if (
+          currentDate
+        ) {
+          statusParts.push(
+            `현재 ${currentDate}`
+          );
+        }
+
+
+        if (
+          latestCompletedDate
+        ) {
+          statusParts.push(
+            `최근 완료 ${latestCompletedDate}`
+          );
+        }
+
+
+        statusParts.push(
+          `남음 ${remaining}일`
+        );
+
+
+        status.textContent =
+          statusParts.join(
+            " · "
+          );
+      }
+    }
+
+
+    /*
+      실패 날짜
+    */
+
+    if (
+      failureList
+    ) {
+      const failedItems =
+        Array.isArray(
+          payload?.failedItems
+        )
+          ? payload.failedItems
+          : [];
+
+
+      if (
+        failedItems.length <
+        1
+      ) {
+        failureList.hidden =
+          true;
+
+        failureList.innerHTML =
+          "";
+
+      } else {
+        failureList.hidden =
+          false;
+
+
+        failureList.innerHTML =
+          failedItems
+            .map(
+              item => {
+                return `
+                  <div class="ois-legacy-batch-failure">
+
+                    <strong>
+                      ${escapeServerStatusHtml(
+                        item?.targetDate ||
+                        "-"
+                      )}
+                    </strong>
+
+                    <span>
+                      ${escapeServerStatusHtml(
+                        item?.errorMessage ||
+                        "실패 사유를 확인할 수 없습니다."
+                      )}
+                    </span>
+
+                  </div>
+                `;
+              }
+            )
+            .join(
+              ""
+            );
+      }
+    }
+  }
+
+
+  async function refreshServerBatchStatus(
+    options = {}
+  ) {
+    const {
+      silent =
+        false
+    } =
+      options;
+
+
+    if (
+      isRefreshing
+    ) {
+      return;
+    }
+
+
+    const {
+      refreshButton,
+      status
+    } =
+      getServerStatusElements();
+
+
+    if (
+      !refreshButton
+    ) {
+      return;
+    }
+
+
+    isRefreshing =
+      true;
+
+
+    refreshButton.disabled =
+      true;
+
+
+    if (
+      !silent
+    ) {
+      refreshButton.textContent =
+        "확인 중...";
+
+
+      if (
+        status
+      ) {
+        status.dataset.type =
+          "info";
+
+        status.textContent =
+          "D1의 실제 과거 업무일지 진행상황을 확인하고 있습니다.";
+      }
+    }
+
+
+    try {
+      const requestUrl =
+        new URL(
+          API_URL,
+          window.location.origin
+        );
+
+
+      requestUrl.searchParams.set(
+        "action",
+        "logsheet_batch_status"
+      );
+
+
+      requestUrl.searchParams.set(
+        "_",
+        String(
+          Date.now()
+        )
+      );
+
+
+      const response =
+        await fetch(
+          requestUrl.toString(),
+          {
+            method:
+              "GET",
+
+            headers:
+              typeof getShiftLogAuthHeaders ===
+                "function"
+                ? getShiftLogAuthHeaders()
+                : {
+                    Accept:
+                      "application/json"
+                  },
+
+            cache:
+              "no-store"
+          }
+        );
+
+
+      const responseText =
+        await response.text();
+
+
+      let payload = {};
+
+
+      if (
+        responseText.trim()
+      ) {
+        try {
+          payload =
+            JSON.parse(
+              responseText
+            );
+
+        } catch {
+          throw new Error(
+            "진행상황 서버 응답 형식이 올바르지 않습니다."
+          );
+        }
+      }
+
+
+      if (
+        !response.ok ||
+        payload.ok ===
+          false
+      ) {
+        throw new Error(
+          payload.message ||
+          payload.error ||
+          `진행상황 조회 실패 (HTTP ${response.status})`
+        );
+      }
+
+
+      renderServerBatchStatus(
+        payload
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "OIS 과거 업무일지 서버 진행상황 조회 실패:",
+        error
+      );
+
+
+      if (
+        status
+      ) {
+        status.dataset.type =
+          "error";
+
+        status.textContent =
+          error?.message ||
+          "과거 업무일지 진행상황을 불러오지 못했습니다.";
+      }
+
+    } finally {
+      isRefreshing =
+        false;
+
+
+      const latestElements =
+        getServerStatusElements();
+
+
+      if (
+        latestElements
+          .refreshButton
+      ) {
+        latestElements
+          .refreshButton
+          .disabled =
+          false;
+
+
+        latestElements
+          .refreshButton
+          .textContent =
+          "상태 새로고침";
+      }
+    }
+  }
+
+
+  function isSystemAdminEmployeeViewOpen() {
+    const {
+      modal,
+      employeeView
+    } =
+      getServerStatusElements();
+
+
+    return Boolean(
+      modal &&
+      modal.classList.contains(
+        "is-open"
+      ) &&
+      employeeView &&
+      !employeeView.hidden
+    );
+  }
+
+
+  function bindServerBatchStatusViewer() {
+    const {
+      refreshButton
+    } =
+      getServerStatusElements();
+
+
+    if (
+      !refreshButton
+    ) {
+      window.setTimeout(
+        bindServerBatchStatusViewer,
+        250
+      );
+
+      return;
+    }
+
+
+    /*
+      기존 로컬 state 기반 새로고침보다
+      서버 D1 조회를 우선한다.
+    */
+
+    refreshButton.disabled =
+      false;
+
+
+    refreshButton.addEventListener(
+      "click",
+      event => {
+        event.preventDefault();
+
+        event.stopPropagation();
+
+        event.stopImmediatePropagation();
+
+
+        refreshServerBatchStatus();
+      },
+      true
+    );
+
+
+    /*
+      시스템 관리 열 때 즉시 복원
+    */
+
+    document
+      .getElementById(
+        "adminButton"
+      )
+      ?.addEventListener(
+        "click",
+        () => {
+          window.setTimeout(
+            () => {
+              refreshServerBatchStatus({
+                silent:
+                  true
+              });
+            },
+            150
+          );
+        },
+        true
+      );
+
+
+    /*
+      직원 관리 탭으로 돌아와도 즉시 확인
+    */
+
+    document
+      .getElementById(
+        "employeeManagementTabButton"
+      )
+      ?.addEventListener(
+        "click",
+        () => {
+          window.setTimeout(
+            () => {
+              refreshServerBatchStatus({
+                silent:
+                  true
+              });
+            },
+            50
+          );
+        }
+      );
+
+
+    /*
+      시스템 관리창이 열려 있을 때만
+      5초마다 자동 갱신
+    */
+
+    if (
+      pollTimer
+    ) {
+      window.clearInterval(
+        pollTimer
+      );
+    }
+
+
+    pollTimer =
+      window.setInterval(
+        () => {
+          if (
+            !isSystemAdminEmployeeViewOpen()
+          ) {
+            return;
+          }
+
+
+          refreshServerBatchStatus({
+            silent:
+              true
+          });
+        },
+        5000
+      );
+
+
+    /*
+      최초 한 번 서버 상태 확인
+    */
+
+    refreshServerBatchStatus({
+      silent:
+        true
+    });
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      bindServerBatchStatusViewer,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    bindServerBatchStatusViewer();
+  }
+
+
+  window
+    .refreshOisLegacyBatchServerStatus =
+    refreshServerBatchStatus;
+})();
