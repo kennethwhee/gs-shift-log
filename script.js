@@ -775,6 +775,97 @@ function formatLimestoneUsageNumber(
     기존 석회석 입고기록 API를 사용한다.
   ====================================================== */
 
+  /* =====================================================
+    입고량 새로고침 후 계산 결과 D1 저장
+
+    - 추가 polling 없음
+    - 새로고침 1회당 POST 1회
+    - manual 보정값은 서버에서 보호
+  ====================================================== */
+
+  async function synchronizeLimestoneUsageAfterReceiptRefresh(
+    usageDate
+  ) {
+    try {
+      const requestHeaders =
+        new Headers(
+          typeof getShiftLogAuthHeaders ===
+            "function"
+            ? getShiftLogAuthHeaders()
+            : {}
+        );
+
+      requestHeaders.set(
+        "Accept",
+        "application/json"
+      );
+
+      requestHeaders.set(
+        "Content-Type",
+        "application/json"
+      );
+
+      const response =
+        await fetch(
+          LIMESTONE_USAGE_RECEIPT_API_URL,
+          {
+            method: "POST",
+            headers: requestHeaders,
+            cache: "no-store",
+            body: JSON.stringify({
+              action: "sync_usage",
+              usageDate
+            })
+          }
+        );
+
+      const responseText =
+        await response.text();
+
+      let result = {};
+
+      if (responseText.trim()) {
+        try {
+          result =
+            JSON.parse(responseText);
+        } catch {
+          return {
+            ok: false,
+            message:
+              "사용량 저장 서버 응답을 확인하지 못했습니다."
+          };
+        }
+      }
+
+      if (
+        !response.ok ||
+        result.ok === false
+      ) {
+        return {
+          ok: false,
+          message:
+            result.message ||
+            `사용량 저장 실패 (HTTP ${response.status})`
+        };
+      }
+
+      return result;
+
+    } catch (error) {
+      console.warn(
+        "석회석 입고량 새로고침 후 사용량 저장 실패:",
+        error
+      );
+
+      return {
+        ok: false,
+        message:
+          error?.message ||
+          "사용량 저장 중 오류가 발생했습니다."
+      };
+    }
+  }
+
   async function loadLimestoneUsageReceiptQuantities() {
     const {
       refreshReceiptButton,
@@ -1052,6 +1143,28 @@ function formatLimestoneUsageNumber(
       renderLimestoneUsageCalculation();
 
 
+      /*
+        최신 입고량으로 화면 계산을 끝낸 뒤
+        같은 날짜의 저장 사용량도 즉시 맞춘다.
+      */
+      const usageSyncResult =
+        await synchronizeLimestoneUsageAfterReceiptRefresh(
+          selectedDate
+        );
+
+
+      if (
+        requestToken !==
+          limestoneUsageState
+            .receiptRequestToken ||
+        selectedDate !==
+          limestoneUsageState
+            .selectedDate
+      ) {
+        return;
+      }
+
+
       const totalReceipt =
         limestoneUsageState
           .receiptByUnit[1] +
@@ -1061,7 +1174,9 @@ function formatLimestoneUsageNumber(
 
       setLimestoneUsageStatus(
         "complete",
-        "입고량 불러오기 완료",
+        usageSyncResult?.updatedCount > 0
+          ? "입고량·사용량 저장 완료"
+          : "입고량 불러오기 완료",
         [
           `1호기 ${formatLimestoneUsageNumber(
             limestoneUsageState
@@ -1078,7 +1193,15 @@ function formatLimestoneUsageNumber(
           `합계 ${formatLimestoneUsageNumber(
             totalReceipt,
             2
-          )} t`
+          )} t`,
+
+          usageSyncResult?.updatedCount > 0
+            ? `사용량 ${usageSyncResult.updatedCount}건 저장 완료`
+            : usageSyncResult?.manualProtectedCount > 0
+              ? "수동 보정값 보호"
+              : usageSyncResult?.ok === false
+                ? `사용량 저장 실패: ${usageSyncResult.message || "확인 필요"}`
+                : "저장 사용량 변경 없음"
         ].join(
           " · "
         )

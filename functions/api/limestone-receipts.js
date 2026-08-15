@@ -1959,6 +1959,72 @@ export async function onRequestPost(
       일괄 최신화
     ====================================================== */
 
+    /* =====================================================
+      입고량 새로고침 → 저장 사용량 즉시 재동기화
+    ====================================================== */
+
+    if (
+      action ===
+        "sync_usage"
+    ) {
+      const usageDate =
+        normalizeText(
+          body.usageDate ??
+          body.usage_date ??
+          body.receiptDate
+        );
+
+      if (!isValidIsoDate(usageDate)) {
+        return jsonResponse(
+          {
+            ok: false,
+            message:
+              "사용량을 저장할 날짜를 확인해 주세요."
+          },
+          400
+        );
+      }
+
+      const syncResults = [];
+
+      for (const unitNo of [1, 2]) {
+        syncResults.push(
+          await synchronizeStoredLimestoneUsageAfterReceiptChange(
+            context.env.DB,
+            usageDate,
+            unitNo,
+            user
+          )
+        );
+      }
+
+      const updatedCount =
+        syncResults.filter(
+          item => item?.updated === true
+        ).length;
+
+      const manualProtectedCount =
+        syncResults.filter(
+          item =>
+            item?.reason ===
+              "manual_protected"
+        ).length;
+
+      return jsonResponse({
+        ok: true,
+        usageDate,
+        updatedCount,
+        manualProtectedCount,
+        results: syncResults,
+        message:
+          updatedCount > 0
+            ? `Limestone 사용량 ${updatedCount}건을 저장했습니다.`
+            : manualProtectedCount > 0
+              ? "수동 보정값은 자동 저장에서 제외했습니다."
+              : "재동기화할 저장 사용량이 없습니다."
+      });
+    }
+
     if (
       action ===
         "bulk_import"
