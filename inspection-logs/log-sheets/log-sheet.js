@@ -1220,6 +1220,147 @@ function applyCellStyle(
     );
   }
 
+  /* =========================================================
+    Logging 양식 셀 상세정보
+
+    기존 getTemplateCellText()는
+    병합셀의 표시값만 반환한다.
+
+    새 편집기는 아래 정보까지 필요하다.
+    - 실제 셀 주소
+    - 병합 anchor
+    - 병합 시작/끝 행
+    - rowspan / colspan
+  ========================================================= */
+
+  function getTemplateCellDescriptor(
+    sheet,
+    address
+  ) {
+    const target =
+      XLSX.utils.decode_cell(
+        address
+      );
+
+
+    const merge =
+      (
+        sheet["!merges"] ||
+        []
+      ).find(
+        item =>
+          target.r >=
+            item.s.r &&
+          target.r <=
+            item.e.r &&
+          target.c >=
+            item.s.c &&
+          target.c <=
+            item.e.c
+      ) ||
+      null;
+
+
+    const anchor =
+      merge
+        ? merge.s
+        : target;
+
+
+    const anchorAddress =
+      XLSX.utils.encode_cell(
+        anchor
+      );
+
+
+    const cell =
+      sheet[
+        anchorAddress
+      ];
+
+
+    const text =
+      cell
+        ? normalizeLoggingText(
+            XLSX.utils.format_cell(
+              cell
+            ) ??
+            cell.v ??
+            ""
+          )
+        : "";
+
+
+    const columnName =
+      String(
+        address
+      )
+        .match(
+          /^[A-Z]+/i
+        )?.[0]
+        ?.toUpperCase() ||
+      "";
+
+
+    return {
+      address,
+
+      anchorAddress,
+
+      column:
+        columnName,
+
+      row:
+        target.r +
+        1,
+
+      text,
+
+      isMerged:
+        Boolean(
+          merge
+        ),
+
+      isMergeAnchor:
+        Boolean(
+          merge &&
+          anchorAddress ===
+            address
+        ),
+
+      merge:
+        merge
+          ? {
+              anchorAddress,
+
+              startRow:
+                merge.s.r +
+                1,
+
+              endRow:
+                merge.e.r +
+                1,
+
+              startColumn:
+                merge.s.c,
+
+              endColumn:
+                merge.e.c,
+
+              rowSpan:
+                merge.e.r -
+                merge.s.r +
+                1,
+
+              colSpan:
+                merge.e.c -
+                merge.s.c +
+                1
+            }
+          : null
+    };
+  }
+
   function getLoggingItemSections(
     sheetConfig
   ) {
@@ -1234,6 +1375,7 @@ function applyCellStyle(
         "F"
       ],
       tagColumn: "G",
+      ratingColumn: "H",
       unitColumn: "I"
     };
 
@@ -1416,18 +1558,21 @@ function applyCellStyle(
         ];
     }
   }
-
   function extractLoggingItems() {
     const sheet =
       state.workbook?.Sheets?.[
-        state.sheetConfig.sheetName
+        state.sheetConfig
+          .sheetName
       ];
+
 
     if (!sheet) {
       return [];
     }
 
+
     const items = [];
+
 
     getLoggingItemSections(
       state.sheetConfig
@@ -1436,10 +1581,12 @@ function applyCellStyle(
         const rowNumbers =
           new Set();
 
+
         const sourceColumn =
           Math.min(
             ...(
-              section.ranges || []
+              section.ranges ||
+              []
             ).map(
               rangeText =>
                 parseRange(
@@ -1448,8 +1595,10 @@ function applyCellStyle(
             )
           );
 
+
         (
-          section.ranges || []
+          section.ranges ||
+          []
         ).forEach(
           rangeText => {
             const range =
@@ -1457,92 +1606,289 @@ function applyCellStyle(
                 rangeText
               );
 
+
             for (
-              let row = range.s.r;
-              row <= range.e.r;
-              row += 1
+              let row =
+                range.s.r;
+
+              row <=
+                range.e.r;
+
+              row +=
+                1
             ) {
               rowNumbers.add(
-                row + 1
+                row +
+                1
               );
             }
           }
         );
+
 
         [
           ...rowNumbers
-        ].sort(
-          (left, right) =>
-            left - right
-        ).forEach(
-          rowNumber => {
-            const nameParts =
-              (
-                section.nameColumns || []
-              ).map(
-                column =>
-                  getTemplateCellText(
-                    sheet,
-                    `${column}${rowNumber}`
+        ]
+          .sort(
+            (
+              left,
+              right
+            ) =>
+              left -
+              right
+          )
+          .forEach(
+            rowNumber => {
+              /*
+                ===========================================
+                ITEM 계층 셀 읽기
+
+                예:
+                Generator / Stator Current Average
+
+                TBN / HP / Casing Temp
+                ===========================================
+              */
+
+              const seenNameTexts =
+                new Set();
+
+
+              const nameCells =
+                (
+                  section.nameColumns ||
+                  []
+                )
+                  .map(
+                    column =>
+                      getTemplateCellDescriptor(
+                        sheet,
+                        `${column}${rowNumber}`
+                      )
                   )
-              ).filter(
-                (value, index, array) =>
-                  value &&
-                  array.indexOf(value) ===
-                    index
-              );
+                  .filter(
+                    descriptor => {
+                      if (
+                        !descriptor.text ||
+                        seenNameTexts.has(
+                          descriptor.text
+                        )
+                      ) {
+                        return false;
+                      }
 
-            const name =
-              nameParts.join(
-                " · "
-              );
 
-            if (!name) {
-              return;
+                      seenNameTexts.add(
+                        descriptor.text
+                      );
+
+
+                      return true;
+                    }
+                  );
+
+
+              if (
+                !nameCells.length
+              ) {
+                return;
+              }
+
+
+              const pathParts =
+                nameCells.map(
+                  descriptor =>
+                    descriptor.text
+                );
+
+
+              /*
+                마지막 이름은 실제 Logging 항목명.
+
+                그 앞쪽은 계층정보로 본다.
+              */
+
+              const itemCell =
+                nameCells[
+                  nameCells.length -
+                  1
+                ];
+
+
+              const parentCells =
+                nameCells.slice(
+                  0,
+                  -1
+                );
+
+
+              const groupCell =
+                parentCells[0] ||
+                null;
+
+
+              const subgroupCells =
+                parentCells.slice(
+                  1
+                );
+
+
+              const group =
+                groupCell
+                  ?.text ||
+                "";
+
+
+              const subgroupParts =
+                subgroupCells.map(
+                  descriptor =>
+                    descriptor.text
+                );
+
+
+              const subgroup =
+                subgroupParts.join(
+                  " · "
+                );
+
+
+              const itemName =
+                itemCell.text;
+
+
+              /*
+                ===========================================
+                TAG / RATING / UNIT
+                ===========================================
+              */
+
+              const tagCell =
+                section.tagColumn
+                  ? getTemplateCellDescriptor(
+                      sheet,
+                      `${section.tagColumn}${rowNumber}`
+                    )
+                  : null;
+
+
+              const ratingCell =
+                section.ratingColumn
+                  ? getTemplateCellDescriptor(
+                      sheet,
+                      `${section.ratingColumn}${rowNumber}`
+                    )
+                  : null;
+
+
+              const unitCell =
+                section.unitColumn
+                  ? getTemplateCellDescriptor(
+                      sheet,
+                      `${section.unitColumn}${rowNumber}`
+                    )
+                  : null;
+
+
+              /*
+                기존 코드 호환용 name.
+
+                현재 UI가 아직
+                item.name을 사용하므로 유지한다.
+              */
+
+              const name =
+                pathParts.join(
+                  " · "
+                );
+
+
+              items.push({
+                /*
+                  기존 필드
+                */
+
+                name,
+
+                tag:
+                  tagCell?.text ||
+                  "",
+
+                unit:
+                  unitCell?.text ||
+                  "",
+
+                sourceRow:
+                  rowNumber,
+
+                sourceColumn,
+
+
+                /*
+                  신규 구조 필드
+                */
+
+                group,
+
+                subgroup,
+
+                subgroupParts,
+
+                itemName,
+
+                rating:
+                  ratingCell?.text ||
+                  "",
+
+
+                /*
+                  Excel 원본 위치
+                */
+
+                pathParts,
+
+                pathCells:
+                  nameCells,
+
+                groupCell,
+
+                subgroupCells,
+
+                itemCell,
+
+                tagCell,
+
+                ratingCell,
+
+                unitCell
+              });
             }
-
-            const tag =
-              section.tagColumn
-                ? getTemplateCellText(
-                    sheet,
-                    `${section.tagColumn}${rowNumber}`
-                  )
-                : "";
-
-            const unit =
-              section.unitColumn
-                ? getTemplateCellText(
-                    sheet,
-                    `${section.unitColumn}${rowNumber}`
-                  )
-                : "";
-
-            items.push({
-              name,
-              tag,
-              unit,
-              sourceRow:
-                rowNumber,
-              sourceColumn
-            });
-          }
-        );
+          );
       }
     );
 
+
     items.sort(
-      (left, right) =>
+      (
+        left,
+        right
+      ) =>
         left.sourceRow -
           right.sourceRow ||
         left.sourceColumn -
           right.sourceColumn
     );
 
+
     return items.map(
-      (item, index) => ({
+      (
+        item,
+        index
+      ) => ({
         ...item,
+
         order:
-          index + 1
+          index +
+          1
       })
     );
   }
@@ -1613,6 +1959,215 @@ function getLoggingItemDraftKey(
 let loggingItemSelectedKey =
   "";
 
+
+/* =========================================================
+  Logging 구조형 양식 저장 보조
+
+  화면에서 병합/병합해제를 추가하기 전에도
+  Excel 원본의 병합 정보를 양식 버전에 보존한다.
+========================================================= */
+
+function normalizeLoggingMergeSnapshot(
+  merge,
+  fallbackColumn = ""
+) {
+  if (
+    !merge ||
+    typeof merge !==
+      "object"
+  ) {
+    return null;
+  }
+
+
+  const startRow =
+    Number(
+      merge.startRow
+    );
+
+
+  const endRow =
+    Number(
+      merge.endRow
+    );
+
+
+  if (
+    !Number.isInteger(
+      startRow
+    ) ||
+    !Number.isInteger(
+      endRow
+    ) ||
+    startRow <=
+      0 ||
+    endRow <
+      startRow
+  ) {
+    return null;
+  }
+
+
+  const column =
+    normalizeLoggingText(
+      merge.column ||
+      fallbackColumn
+    )
+      .toUpperCase();
+
+
+  return {
+    column,
+
+    startRow,
+
+    endRow,
+
+    rowSpan:
+      endRow -
+      startRow +
+      1
+  };
+}
+
+
+function getLoggingGroupMergeSnapshot(
+  item
+) {
+  return (
+    normalizeLoggingMergeSnapshot(
+      item?.groupMerge,
+      item?.groupCell?.column
+    ) ||
+    normalizeLoggingMergeSnapshot(
+      item?.groupCell?.merge,
+      item?.groupCell?.column
+    )
+  );
+}
+
+
+function getLoggingSubgroupMergeSnapshots(
+  item
+) {
+  if (
+    Array.isArray(
+      item?.subgroupMerges
+    )
+  ) {
+    return item.subgroupMerges
+      .map(
+        merge =>
+          normalizeLoggingMergeSnapshot(
+            merge,
+            merge?.column
+          )
+      )
+      .filter(Boolean);
+  }
+
+
+  return (
+    Array.isArray(
+      item?.subgroupCells
+    )
+      ? item.subgroupCells
+          .map(
+            descriptor =>
+              normalizeLoggingMergeSnapshot(
+                descriptor?.merge,
+                descriptor?.column
+              )
+          )
+          .filter(Boolean)
+      : []
+  );
+}
+
+
+function getLoggingSubgroupParts(
+  item
+) {
+  if (
+    Array.isArray(
+      item?.subgroupParts
+    )
+  ) {
+    return item.subgroupParts
+      .map(
+        value =>
+          normalizeLoggingText(
+            value
+          )
+      )
+      .filter(Boolean);
+  }
+
+
+  const subgroup =
+    normalizeLoggingText(
+      item?.subgroup
+    );
+
+
+  return subgroup
+    ? subgroup
+        .split(
+          /\s*·\s*/
+        )
+        .map(
+          value =>
+            normalizeLoggingText(
+              value
+            )
+        )
+        .filter(Boolean)
+    : [];
+}
+
+
+function buildStructuredLoggingName(
+  item
+) {
+  const group =
+    normalizeLoggingText(
+      item?.group
+    );
+
+
+  const subgroupParts =
+    getLoggingSubgroupParts(
+      item
+    );
+
+
+  const itemName =
+    normalizeLoggingText(
+      item?.itemName
+    );
+
+
+  const structuredName =
+    [
+      group,
+      ...subgroupParts,
+      itemName
+    ]
+      .filter(Boolean)
+      .join(
+        " · "
+      );
+
+
+  return (
+    structuredName ||
+    normalizeLoggingText(
+      item?.name
+    )
+  );
+}
+
+
 /* =========================================================
   신규 Logging 항목
 ========================================================= */
@@ -1664,9 +2219,18 @@ function addLoggingItem() {
     sourceRow: null,
     sourceColumn: null,
 
+    group: "",
+    subgroup: "",
+    subgroupParts: [],
+    itemName: "",
+
     name: "",
     tag: "",
+    rating: "",
     unit: "",
+
+    groupMerge: null,
+    subgroupMerges: [],
 
     isNew: true,
 
@@ -2170,6 +2734,35 @@ function applyLoggingTemplateState(
           sourceColumn:
             null,
 
+          group:
+            normalizeLoggingText(
+              savedItem.group
+            ),
+
+          subgroup:
+            normalizeLoggingText(
+              savedItem.subgroup
+            ),
+
+          subgroupParts:
+            Array.isArray(
+              savedItem.subgroupParts
+            )
+              ? savedItem.subgroupParts
+                  .map(
+                    value =>
+                      normalizeLoggingText(
+                        value
+                      )
+                  )
+                  .filter(Boolean)
+              : [],
+
+          itemName:
+            normalizeLoggingText(
+              savedItem.itemName
+            ),
+
           name:
             normalizeLoggingText(
               savedItem.name
@@ -2180,10 +2773,35 @@ function applyLoggingTemplateState(
               savedItem.tag
             ),
 
+          rating:
+            normalizeLoggingText(
+              savedItem.rating
+            ),
+
           unit:
             normalizeLoggingText(
               savedItem.unit
             ),
+
+          groupMerge:
+            normalizeLoggingMergeSnapshot(
+              savedItem.groupMerge
+            ),
+
+          subgroupMerges:
+            Array.isArray(
+              savedItem.subgroupMerges
+            )
+              ? savedItem.subgroupMerges
+                  .map(
+                    merge =>
+                      normalizeLoggingMergeSnapshot(
+                        merge,
+                        merge?.column
+                      )
+                  )
+                  .filter(Boolean)
+              : [],
 
           isNew:
             true,
@@ -2239,6 +2857,35 @@ function applyLoggingTemplateState(
 
 
       const override = {
+        group:
+          normalizeLoggingText(
+            savedItem.group
+          ),
+
+        subgroup:
+          normalizeLoggingText(
+            savedItem.subgroup
+          ),
+
+        subgroupParts:
+          Array.isArray(
+            savedItem.subgroupParts
+          )
+            ? savedItem.subgroupParts
+                .map(
+                  value =>
+                    normalizeLoggingText(
+                      value
+                    )
+                )
+                .filter(Boolean)
+            : [],
+
+        itemName:
+          normalizeLoggingText(
+            savedItem.itemName
+          ),
+
         name:
           normalizeLoggingText(
             savedItem.name
@@ -2249,10 +2896,35 @@ function applyLoggingTemplateState(
             savedItem.tag
           ),
 
+        rating:
+          normalizeLoggingText(
+            savedItem.rating
+          ),
+
         unit:
           normalizeLoggingText(
             savedItem.unit
+          ),
+
+        groupMerge:
+          normalizeLoggingMergeSnapshot(
+            savedItem.groupMerge
+          ),
+
+        subgroupMerges:
+          Array.isArray(
+            savedItem.subgroupMerges
           )
+            ? savedItem.subgroupMerges
+                .map(
+                  merge =>
+                    normalizeLoggingMergeSnapshot(
+                      merge,
+                      merge?.column
+                    )
+                )
+                .filter(Boolean)
+            : []
       };
 
 
@@ -2314,12 +2986,6 @@ function buildLoggingTemplatePayload() {
 
   const items =
     buildLoggingItemList()
-      .filter(
-        item =>
-          normalizeLoggingText(
-            item.name
-          )
-      )
       .map(
         (
           item,
@@ -2331,27 +2997,107 @@ function buildLoggingTemplatePayload() {
             );
 
 
+          const group =
+            normalizeLoggingText(
+              item.group
+            );
+
+
+          const subgroupParts =
+            getLoggingSubgroupParts(
+              item
+            );
+
+
+          const subgroup =
+            normalizeLoggingText(
+              item.subgroup
+            ) ||
+            subgroupParts.join(
+              " · "
+            );
+
+
+          const itemName =
+            normalizeLoggingText(
+              item.itemName
+            );
+
+
+          const name =
+            buildStructuredLoggingName(
+              {
+                ...item,
+                group,
+                subgroup,
+                subgroupParts,
+                itemName
+              }
+            );
+
+
           return {
             key:
               itemKey,
 
             order:
-              index + 1,
+              index +
+              1,
 
-            name:
-              normalizeLoggingText(
-                item.name
-              ),
+
+            /*
+              기존 버전 호환용 전체 이름
+            */
+
+            name,
+
+
+            /*
+              신규 구조형 Logging 필드
+            */
+
+            group,
+
+            subgroup,
+
+            subgroupParts,
+
+            itemName,
+
 
             tag:
               normalizeLoggingText(
                 item.tag
               ),
 
+            rating:
+              normalizeLoggingText(
+                item.rating
+              ),
+
             unit:
               normalizeLoggingText(
                 item.unit
               ),
+
+
+            /*
+              병합 정보
+
+              다음 단계의 병합 / 병합해제 UI가
+              이 값을 직접 수정하게 된다.
+            */
+
+            groupMerge:
+              getLoggingGroupMergeSnapshot(
+                item
+              ),
+
+            subgroupMerges:
+              getLoggingSubgroupMergeSnapshots(
+                item
+              ),
+
 
             isNew:
               Boolean(
@@ -2383,6 +3129,14 @@ function buildLoggingTemplatePayload() {
               null
           };
         }
+      )
+      .filter(
+        item =>
+          Boolean(
+            normalizeLoggingText(
+              item.name
+            )
+          )
       );
 
 

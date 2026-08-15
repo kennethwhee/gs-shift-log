@@ -1865,6 +1865,105 @@ function validateIdentity(
   };
 }
 
+function normalizeLoggingTemplateMerge(
+  value
+) {
+  if (
+    !value ||
+    typeof value !==
+      "object"
+  ) {
+    return null;
+  }
+
+
+  const startRow =
+    Number(
+      value.startRow
+    );
+
+
+  const endRow =
+    Number(
+      value.endRow
+    );
+
+
+  if (
+    !Number.isInteger(
+      startRow
+    ) ||
+    !Number.isInteger(
+      endRow
+    ) ||
+    startRow <=
+      0 ||
+    endRow <
+      startRow
+  ) {
+    return null;
+  }
+
+
+  const column =
+    normalizeText(
+      value.column
+    )
+      .toUpperCase()
+      .replace(
+        /[^A-Z]/g,
+        ""
+      )
+      .slice(
+        0,
+        4
+      );
+
+
+  return {
+    column,
+
+    startRow,
+
+    endRow,
+
+    rowSpan:
+      endRow -
+      startRow +
+      1
+  };
+}
+
+
+function normalizeLoggingTemplateTextArray(
+  value
+) {
+  if (
+    !Array.isArray(
+      value
+    )
+  ) {
+    return [];
+  }
+
+
+  return value
+    .slice(
+      0,
+      8
+    )
+    .map(
+      item =>
+        normalizeText(
+          item
+        ).slice(
+          0,
+          MAX_CELL_TEXT_LENGTH
+        )
+    )
+    .filter(Boolean);
+}
+
 function parseTemplateItemsJson(
   value
 ) {
@@ -2462,6 +2561,73 @@ export async function onRequestPost(
                   0,
                   200
                 );
+              const group =
+                normalizeText(
+                  item.group
+                ).slice(
+                  0,
+                  MAX_CELL_TEXT_LENGTH
+                );
+
+
+              const subgroup =
+                normalizeText(
+                  item.subgroup
+                ).slice(
+                  0,
+                  MAX_CELL_TEXT_LENGTH
+                );
+
+
+              const subgroupParts =
+                normalizeLoggingTemplateTextArray(
+                  item.subgroupParts
+                );
+
+
+              const itemName =
+                normalizeText(
+                  item.itemName
+                ).slice(
+                  0,
+                  MAX_CELL_TEXT_LENGTH
+                );
+
+
+              const rating =
+                normalizeText(
+                  item.rating
+                ).slice(
+                  0,
+                  MAX_CELL_TEXT_LENGTH
+                );
+
+
+              const groupMerge =
+                normalizeLoggingTemplateMerge(
+                  item.groupMerge
+                );
+
+
+              const subgroupMerges =
+                (
+                  Array.isArray(
+                    item.subgroupMerges
+                  )
+                    ? item.subgroupMerges
+                    : []
+                )
+                  .slice(
+                    0,
+                    8
+                  )
+                  .map(
+                    merge =>
+                      normalizeLoggingTemplateMerge(
+                        merge
+                      )
+                  )
+                  .filter(Boolean);
 
 
               const key =
@@ -2526,6 +2692,21 @@ export async function onRequestPost(
                 tag,
 
                 unit,
+
+                group,
+
+                subgroup,
+
+                subgroupParts,
+
+                itemName,
+
+                rating,
+
+                groupMerge,
+
+                subgroupMerges,
+
 
                 isNew:
                   item.isNew === true,
