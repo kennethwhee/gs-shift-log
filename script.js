@@ -228748,10 +228748,10 @@ function renderRows(
 
             numberOptions: {
               minimumFractionDigits:
-                2,
+                0,
 
               maximumFractionDigits:
-                2
+                0
             }
           }
         }),
@@ -228778,10 +228778,10 @@ function renderRows(
 
             numberOptions: {
               minimumFractionDigits:
-                2,
+                0,
 
               maximumFractionDigits:
-                2
+                0
             }
           }
         }),
@@ -233420,11 +233420,11 @@ function initializeDailyControls() {
     58, // 증기 판매
     58, // 증기 생산
 
-    92, // 전력 생산
-    92, // 전력 판매
-    72, // 태양광 일일
-    82, // 태양광 월간 누적
-    82, // 태양광 년간 누적
+    78, // 전력 생산
+    78, // 전력 판매
+    66, // 태양광 일일
+    72, // 태양광 월간 누적
+    72, // 태양광 년간 누적
 
     48, // 입고대수
     60, // 입고량
