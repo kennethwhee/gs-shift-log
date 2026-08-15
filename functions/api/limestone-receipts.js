@@ -1033,32 +1033,74 @@ async function synchronizeStoredLimestoneUsageAfterReceiptChange(
     try {
       await database
         .prepare(`
-          UPDATE auxiliary_material_daily
+          INSERT INTO auxiliary_material_daily (
+            id,
+            record_date,
+            unit_no,
 
-          SET
-            limestone_receipt_ton = ?,
-            limestone_usage_tpd = ?,
+            limestone_start_stock,
+            limestone_receipt_ton,
+            limestone_end_stock,
+            limestone_usage_tpd,
 
-            updated_by_id = ?,
-            updated_by_name = ?,
-            updated_at = ?,
+            created_by_id,
+            created_by_name,
+            updated_by_id,
+            updated_by_name,
 
-            revision = revision + 1
+            created_at,
+            updated_at
+          )
+          VALUES (
+            ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?
+          )
 
-          WHERE
-            record_date = ?
-            AND unit_no = ?
+          ON CONFLICT(record_date, unit_no)
+          DO UPDATE SET
+            limestone_start_stock =
+              excluded.limestone_start_stock,
+
+            limestone_receipt_ton =
+              excluded.limestone_receipt_ton,
+
+            limestone_end_stock =
+              excluded.limestone_end_stock,
+
+            limestone_usage_tpd =
+              excluded.limestone_usage_tpd,
+
+            updated_by_id =
+              excluded.updated_by_id,
+
+            updated_by_name =
+              excluded.updated_by_name,
+
+            updated_at =
+              excluded.updated_at,
+
+            revision =
+              auxiliary_material_daily.revision + 1
         `)
         .bind(
+          crypto.randomUUID(),
+          normalizedDate,
+          normalizedUnitNo,
+
+          startStock,
           receiptQuantity,
+          endStock,
           usageQuantity,
 
           employeeNo,
           userName,
-          now,
+          employeeNo,
+          userName,
 
-          normalizedDate,
-          normalizedUnitNo
+          now,
+          now
         )
         .run();
 
