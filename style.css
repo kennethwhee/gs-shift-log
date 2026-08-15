@@ -110459,3 +110459,167 @@ button,
   }
 
 }
+
+/* LIMESTONE MOBILE RECEIPT NAV RESTORE V4 */
+@media screen and (max-width: 768px) {
+
+  /* =====================================================
+     입고현황일 때만 상단 새로고침 / +입고 우측 정렬
+  ===================================================== */
+  #efficiencyLimestoneView:has(#limestoneDashboard:not([hidden]))
+  .limestone-view-heading {
+    display: flex !important;
+    align-items: center !important;
+    flex-direction: row !important;
+    gap: 10px !important;
+  }
+
+  #efficiencyLimestoneView:has(#limestoneDashboard:not([hidden]))
+  .limestone-heading-actions {
+    display: flex !important;
+    width: auto !important;
+    min-width: 0 !important;
+    margin-left: auto !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    flex: 0 0 auto !important;
+    gap: 6px !important;
+  }
+
+  #efficiencyLimestoneView:has(#limestoneDashboard:not([hidden]))
+  #refreshLimestoneReceiptsButton {
+    width: auto !important;
+    min-width: 76px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 12px !important;
+    font-size: 11px !important;
+  }
+
+  #efficiencyLimestoneView:has(#limestoneDashboard:not([hidden]))
+  #openLimestoneReceiptEditorButton {
+    width: auto !important;
+    min-width: 100px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 16px !important;
+    font-size: 12px !important;
+  }
+
+
+  /* =====================================================
+     입고현황 날짜바 강제 복구
+  ===================================================== */
+  #efficiencyLimestoneView
+  .limestone-compact-period-navigation {
+    display: grid !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    width: 100% !important;
+    min-height: 70px !important;
+    grid-template-columns:
+      54px
+      minmax(0, 1fr)
+      54px
+      96px !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 8px !important;
+    overflow: visible !important;
+  }
+
+  #efficiencyLimestoneView
+  #limestonePreviousDayButton,
+  #efficiencyLimestoneView
+  #limestoneNextDayButton {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: static !important;
+    box-sizing: border-box !important;
+    width: 54px !important;
+    min-width: 54px !important;
+    max-width: 54px !important;
+    height: 54px !important;
+    min-height: 54px !important;
+    max-height: 54px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 14px !important;
+    font-size: 25px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  #efficiencyLimestoneView
+  #limestoneMoveToTodayButton {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: static !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 54px !important;
+    min-height: 54px !important;
+    max-height: 54px !important;
+    margin: 0 !important;
+    padding: 0 12px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 14px !important;
+    pointer-events: auto !important;
+  }
+
+  #efficiencyLimestoneView
+  #limestoneDayLabel {
+    display: inline !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    font-size: 17px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  #efficiencyLimestoneView
+  #limestoneTodayBadge {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    margin-left: 8px !important;
+    padding: 4px 8px !important;
+    font-size: 10px !important;
+    font-weight: 900 !important;
+  }
+
+  #efficiencyLimestoneView
+  #openLimestonePeriodSearchButton {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: static !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    height: 54px !important;
+    min-height: 54px !important;
+    max-height: 54px !important;
+    margin: 0 !important;
+    padding: 0 8px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 14px !important;
+    font-size: 12px !important;
+    font-weight: 850 !important;
+    white-space: nowrap !important;
+    pointer-events: auto !important;
+  }
+
+}
