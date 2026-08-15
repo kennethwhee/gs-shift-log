@@ -95875,47 +95875,6 @@ body.is-auxiliary-material-expanded
       900 !important;
   }
 
-
-  /* 입고 기록 버튼은 확실하게 보이도록 */
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #openLimestoneReceiptEditorButton {
-    min-width:
-      96px !important;
-
-    border:
-      1px solid
-      #1f5fae !important;
-
-    background:
-      #1f5fae !important;
-
-    color:
-      #ffffff !important;
-
-    text-indent:
-      0 !important;
-
-    box-shadow:
-      0 4px 10px
-      rgba(
-        31,
-        95,
-        174,
-        0.18
-      ) !important;
-  }
-
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #openLimestoneReceiptEditorButton:hover {
-    background:
-      #194f91 !important;
-  }
-
-
   /* =====================================================
     입고 현황 / 사용량 계산
 
@@ -109572,21 +109531,173 @@ button,
 
 #efficiencyTeamModal
 #efficiencyLimestoneView
+
+/* =====================================================
+  + 입고 버튼
+====================================================== */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+#openLimestoneReceiptEditorButton {
+  display: inline-flex !important;
+
+  flex: 0 0 96px !important;
+
+  width: 96px !important;
+  min-width: 96px !important;
+
+  height: 36px !important;
+  min-height: 36px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 10px !important;
+
+  border: 1px solid
+    rgba(
+      115,
+      74,
+      222,
+      0.72
+    ) !important;
+
+  border-radius: 10px !important;
+
+  background:
+    linear-gradient(
+      135deg,
+      #9a63f5 0%,
+      #7a4de5 52%,
+      #6239ce 100%
+    ) !important;
+
+  color: #ffffff !important;
+
+  box-shadow:
+    0 5px 12px
+      rgba(
+        91,
+        53,
+        193,
+        0.24
+      ),
+    inset 0 1px 0
+      rgba(
+        255,
+        255,
+        255,
+        0.22
+      ) !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* 눌렀을 때 */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+#openLimestoneReceiptEditorButton:active {
+  transform:
+    translateY(
+      1px
+    ) !important;
+
+  box-shadow:
+    0 3px 8px
+      rgba(
+        91,
+        53,
+        193,
+        0.20
+      ) !important;
+}
+
+
+/* PC용 문구 */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
 .limestone-add-label-desktop {
   display: none !important;
 }
 
 
+/* 모바일 문구 전체 */
+
 #efficiencyTeamModal
 #efficiencyLimestoneView
 .limestone-add-label-mobile {
-  display: inline !important;
+  display: inline-flex !important;
 
-  font-size: 14px !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  gap: 7px !important;
+
+  color: #ffffff !important;
+
+  font-size: 13px !important;
   font-weight: 900 !important;
   line-height: 1 !important;
 
   letter-spacing: -0.02em !important;
+}
+
+
+/* 원형 + 아이콘 */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-add-icon {
+  display: inline-flex !important;
+
+  flex: 0 0 22px !important;
+
+  width: 22px !important;
+  height: 22px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 0 1px !important;
+
+  border:
+    1.5px solid
+    rgba(
+      255,
+      255,
+      255,
+      0.82
+    ) !important;
+
+  border-radius: 50% !important;
+
+  color: #ffffff !important;
+
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+}
+
+
+/* 입고 글씨 */
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-add-text {
+  display: inline-block !important;
+
+  color: #ffffff !important;
+
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+
+  white-space: nowrap !important;
 }
 
 
