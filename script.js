@@ -188879,52 +188879,6 @@ function applyLimestoneUsageFinalLayout() {
       "limestoneUsageCalculatorView"
     );
 
-
-  if (
-    !usageView
-  ) {
-    return false;
-  }
-
-
-  /* =====================================================
-    모바일
-
-    모바일에서는:
-    - 버튼 DOM 이동 안 함
-    - 날짜 DOM 이동 안 함
-    - 상단 headingActions 강제 표시 안 함
-
-    화면 표시 여부는
-    switchLimestoneSubview()에서만 관리한다.
-  ====================================================== */
-
-  if (
-    isLimestoneUsageMobileMonitorMode()
-  ) {
-    document.getElementById(
-      "limestoneUsageBatchPanel"
-    )?.remove();
-
-
-    document.getElementById(
-      "limestoneUsageHistoryPanel"
-    )?.remove();
-
-
-    document.getElementById(
-      "limestoneUsagePeriodAccordion"
-    )?.remove();
-
-
-    return true;
-  }
-
-
-  /* =====================================================
-    여기부터 PC 전용
-  ====================================================== */
-
   const headingActions =
     document.querySelector(
       `
@@ -188933,26 +188887,26 @@ function applyLimestoneUsageFinalLayout() {
       `
     );
 
-
   const dateCard =
-    usageView.querySelector(
+    usageView?.querySelector(
       ".limestone-usage-date-card"
-    );
-
+    ) ||
+    null;
 
   const dailySummary =
-    usageView.querySelector(
+    usageView?.querySelector(
       ".limestone-usage-summary-grid"
-    );
-
+    ) ||
+    null;
 
   const dailyTable =
-    usageView.querySelector(
+    usageView?.querySelector(
       ".limestone-usage-table-card"
-    );
-
+    ) ||
+    null;
 
   if (
+    !usageView ||
     !headingActions ||
     !dateCard ||
     !dailySummary ||
@@ -188961,93 +188915,31 @@ function applyLimestoneUsageFinalLayout() {
     return false;
   }
 
-
   const loadOisButton =
     document.getElementById(
       "loadLimestoneUsageOisButton"
     );
-
 
   const refreshUsageReceiptButton =
     document.getElementById(
       "refreshLimestoneUsageReceiptButton"
     );
 
-
-  /* =====================================================
-    PC 사용량 화면 버튼
-
-    OIS 재고 불러오기
-    입고량 새로고침
-
-    → 상단 제목 우측으로 이동
-  ====================================================== */
-
-  [
-    loadOisButton,
-    refreshUsageReceiptButton
-  ]
-    .filter(
-      Boolean
-    )
-    .forEach(
-      button => {
-        button.classList.add(
-          "limestone-usage-heading-action"
-        );
-
-
-        if (
-          button.parentElement !==
-          headingActions
-        ) {
-          headingActions.appendChild(
-            button
-          );
-        }
-      }
-    );
-
-
-  /* =====================================================
-    비어 있는 과거 액션 영역 제거
-  ====================================================== */
-
-  const oldDateActions =
-    dateCard.querySelector(
-      ".limestone-usage-date-card__actions"
-    );
-
-
-  if (
-    oldDateActions &&
-    oldDateActions.children.length <
-      1
-  ) {
-    oldDateActions.remove();
-  }
-
-
-  /* =====================================================
-    PC에서는 내부 중복 제목 제거
-  ====================================================== */
-
-  usageView
-    .querySelector(
-      ".limestone-usage-calculator__header"
-    )
-    ?.remove();
-
+  const isMobile =
+    typeof isLimestoneUsageMobileMonitorMode ===
+      "function"
+      ? isLimestoneUsageMobileMonitorMode()
+      : window.matchMedia(
+          "(max-width: 768px)"
+        ).matches;
 
   const isUsageView =
     !usageView.hidden;
 
-
-  /* =====================================================
-    입고현황 전용 버튼
-  ====================================================== */
-
-  [
+  /*
+    입고 현황용 상단 버튼
+  */
+  const receiptButtons = [
     document.getElementById(
       "refreshLimestoneReceiptsButton"
     ),
@@ -189063,103 +188955,190 @@ function applyLimestoneUsageFinalLayout() {
     document.getElementById(
       "openLimestoneReceiptEditorButton"
     )
-  ]
-    .filter(
-      Boolean
-    )
-    .forEach(
-      button => {
-        button.hidden =
-          isUsageView;
-      }
-    );
-
+  ].filter(
+    Boolean
+  );
 
   const cameraGuide =
     headingActions.querySelector(
       ".limestone-slip-camera-guide"
     );
 
+  /* ===================================================
+    모바일
+
+    중요:
+    - 사용량 화면에서 headingActions를 다시 열지 않음
+    - OIS / 입고량 새로고침을 headingActions로 이동하지 않음
+    - 기존 날짜 DOM을 건드리지 않음
+  ==================================================== */
 
   if (
-    cameraGuide
+    isMobile
   ) {
-    cameraGuide.hidden =
-      isUsageView;
-  }
+    if (
+      isUsageView
+    ) {
+      headingActions.hidden =
+        true;
 
+      receiptButtons.forEach(
+        button => {
+          button.hidden =
+            true;
+        }
+      );
 
-  /* =====================================================
-    사용량 계산 전용 버튼
-  ====================================================== */
+      if (
+        cameraGuide
+      ) {
+        cameraGuide.hidden =
+          true;
+      }
 
-  [
-    loadOisButton,
-    refreshUsageReceiptButton
-  ]
-    .filter(
-      Boolean
-    )
-    .forEach(
+      [
+        loadOisButton,
+        refreshUsageReceiptButton
+      ]
+        .filter(
+          Boolean
+        )
+        .forEach(
+          button => {
+            button.hidden =
+              true;
+          }
+        );
+
+    } else {
+      /*
+        입고 현황으로 돌아왔을 때는
+        switchLimestoneSubview()가 정한
+        모바일 버튼 상태를 그대로 사용한다.
+
+        여기서 강제로 버튼을 다시 표시하지 않는다.
+      */
+      headingActions.hidden =
+        false;
+    }
+
+  } else {
+
+    /* =================================================
+      PC
+
+      기존 동작 유지
+    ================================================== */
+
+    [
+      loadOisButton,
+      refreshUsageReceiptButton
+    ]
+      .filter(
+        Boolean
+      )
+      .forEach(
+        button => {
+          button.classList.add(
+            "limestone-usage-heading-action"
+          );
+
+          headingActions.appendChild(
+            button
+          );
+        }
+      );
+
+    receiptButtons.forEach(
       button => {
         button.hidden =
-          !isUsageView;
+          isUsageView;
       }
     );
 
+    if (
+      cameraGuide
+    ) {
+      cameraGuide.hidden =
+        isUsageView;
+    }
 
-  headingActions.hidden =
-    false;
+    [
+      loadOisButton,
+      refreshUsageReceiptButton
+    ]
+      .filter(
+        Boolean
+      )
+      .forEach(
+        button => {
+          button.hidden =
+            !isUsageView;
+        }
+      );
 
-
-  /* =====================================================
-    PC 사용량 화면 순서
-
-    날짜
-    사용량 요약
-    계산표
-  ====================================================== */
-
-  if (
-    dailySummary.previousElementSibling !==
-    dateCard
-  ) {
-    dateCard.insertAdjacentElement(
-      "afterend",
-      dailySummary
-    );
+    headingActions.hidden =
+      false;
   }
 
+  /*
+    기존 날짜줄 버튼 컨테이너가
+    비어 있는 경우에만 제거
+
+    날짜 / 이전 / 다음 / 오늘 버튼 자체는
+    이동하지 않는다.
+  */
+  const oldDateActions =
+    dateCard.querySelector(
+      ".limestone-usage-date-card__actions"
+    );
 
   if (
-    dailyTable.previousElementSibling !==
+    oldDateActions &&
+    oldDateActions.children.length <
+      1
+  ) {
+    oldDateActions.remove();
+  }
+
+  /*
+    중복 내부 헤더 제거
+  */
+  usageView
+    .querySelector(
+      ".limestone-usage-calculator__header"
+    )
+    ?.remove();
+
+  /* ===================================================
+    일일 계산 화면 순서
+  ==================================================== */
+
+  dateCard.insertAdjacentElement(
+    "afterend",
     dailySummary
-  ) {
-    dailySummary.insertAdjacentElement(
-      "afterend",
-      dailyTable
-    );
-  }
+  );
 
+  dailySummary.insertAdjacentElement(
+    "afterend",
+    dailyTable
+  );
 
-  /* =====================================================
-    사용하지 않는 기간 기능 제거
-  ====================================================== */
+  /* ===================================================
+    사용하지 않는 기간 계산 영역 제거
+  ==================================================== */
 
   document.getElementById(
     "limestoneUsageBatchPanel"
   )?.remove();
 
-
   document.getElementById(
     "limestoneUsageHistoryPanel"
   )?.remove();
 
-
   document.getElementById(
     "limestoneUsagePeriodAccordion"
   )?.remove();
-
 
   return true;
 }
