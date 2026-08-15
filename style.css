@@ -98497,31 +98497,6 @@ ARM ROLL BOX: 연밤색
   border-color: #dbc6ad !important;
 }
 
-/* ARM ROLL 경고 배지 */
-#armRollBoxTabAlertBadge {
-  position: static !important;
-
-  justify-self: end;
-
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-
-  border-radius: 999px;
-
-  background: #dc2626;
-  color: #ffffff;
-
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 20px;
-  text-align: center;
-}
-
-#armRollBoxTabAlertBadge[hidden] {
-  display: none !important;
-}
-
 /* 모바일에서는 기존 폭 유지 */
 @media (max-width: 768px) {
   .efficiency-team-modal__body {
@@ -112561,16 +112536,15 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 }
 
 /* =========================================================
-   ARM ROLL BOX 모바일 알림 배지 FINAL V2
+   ARM ROLL BOX 모바일 알림 배지 FINAL V3
 
-   - 배지를 글씨 영역에서 완전히 분리
-   - 우측 상단 코너에 플로팅
-   - ARM ROLL BOX 문구 공간 확보
+   실제 JS 알림 배지 하나만 사용
+   안 1 : 우측 상단 독립 배치
 ========================================================= */
 
 @media screen and (max-width: 768px) {
 
-  /* 탭 바에서 배지가 잘리지 않도록 */
+  /* 배지가 잘리지 않도록 */
   #efficiencyTeamModal
   .efficiency-team-tabs {
     overflow: visible !important;
@@ -112582,17 +112556,12 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   #efficiencyArmRollTab {
     position: relative !important;
 
-    /*
-      모바일에서는 배지가 더 이상
-      세 번째 grid 칸을 차지하지 않음
-    */
+    /* 아이콘 + 문구만 본문 배치 */
     grid-template-columns:
-      18px
+      23px
       minmax(0, 1fr) !important;
 
-    column-gap: 5px !important;
-
-    padding-right: 14px !important;
+    padding-right: 12px !important;
 
     overflow: visible !important;
   }
@@ -112601,22 +112570,25 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   /* ARM ROLL BOX 문구 */
   #efficiencyTeamModal
   #efficiencyArmRollTab
-  .efficiency-team-tab__label {
+  > span {
     min-width: 0 !important;
 
-    overflow: visible !important;
-
     white-space: nowrap !important;
-    text-overflow: clip !important;
 
     text-align: center !important;
   }
 
 
-  /* 알림 숫자 */
+  /* =====================================================
+     실제 script.js가 생성하는 알림 배지
+
+                         ②
+        [▣ ARM ROLL BOX]
+  ====================================================== */
+
   #efficiencyTeamModal
   #efficiencyArmRollTab
-  #armRollBoxTabAlertBadge {
+  #efficiencyArmRollTabBadge {
     position: absolute !important;
 
     top: -5px !important;
@@ -112630,6 +112602,7 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
     justify-content: center !important;
 
     width: auto !important;
+
     min-width: 19px !important;
 
     height: 19px !important;
@@ -112641,7 +112614,10 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 
     box-sizing: border-box !important;
 
-    border: 2px solid #ffffff !important;
+    border-width: 2px !important;
+    border-style: solid !important;
+    border-color: #ffffff !important;
+
     border-radius: 999px !important;
 
     font-size: 9px !important;
@@ -112659,9 +112635,9 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   }
 
 
-  /* 알림 없으면 숨김 */
+  /* 알림이 없으면 숨김 */
   #efficiencyTeamModal
-  #armRollBoxTabAlertBadge[hidden] {
+  #efficiencyArmRollTabBadge[hidden] {
     display: none !important;
   }
 
