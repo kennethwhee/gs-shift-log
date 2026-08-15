@@ -110774,20 +110774,23 @@ button,
   }
 
 
-  /* =====================================================
+/* =====================================================
      사용량 화면 기본 여백
-  ====================================================== */
+====================================================== */
 
   #efficiencyTeamModal.is-mobile-monitor-only
   #limestoneUsageCalculatorView {
     padding: 8px !important;
   }
 
-
   /* =====================================================
      날짜
 
      [ < ] [      날짜      ] [ > ] [ 오늘 ]
+
+     - 화살표 / 날짜 겹침 방지
+     - 날짜 글자 세로 중앙
+     - iPhone Safari 날짜 중앙 보정
   ====================================================== */
 
   #efficiencyTeamModal.is-mobile-monitor-only
@@ -110801,146 +110804,300 @@ button,
       44px
       58px !important;
 
+    grid-template-rows:
+      44px
+      auto !important;
+
     align-items: center !important;
 
-    gap: 7px !important;
+    width: 100% !important;
+    min-width: 0 !important;
 
-    margin:
-      0
-      0
-      9px !important;
+    column-gap: 7px !important;
+    row-gap: 7px !important;
 
-    padding:
-      8px !important;
+    margin: 0 0 9px !important;
+    padding: 8px !important;
 
-    border-radius:
-      10px !important;
+    border-radius: 10px !important;
 
-    box-shadow:
-      none !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+
+    box-shadow: none !important;
   }
 
 
-  /* 이전 / 다음 */
+  /* =====================================================
+     기존 위치값 완전 초기화
+  ====================================================== */
 
   #efficiencyTeamModal.is-mobile-monitor-only
   #limestoneUsageCalculatorView
-  .limestone-usage-date-arrow {
-    width: 100% !important;
+  .limestone-usage-date-card
+  > * {
+    position: static !important;
 
-    height: 44px !important;
-    min-height: 44px !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+
+    inset: auto !important;
+
+    transform: none !important;
+
+    min-width: 0 !important;
 
     margin: 0 !important;
-    padding: 0 !important;
 
-    border-radius:
-      9px !important;
-
-    font-size:
-      27px !important;
-
-    font-weight:
-      700 !important;
-
-    line-height:
-      1 !important;
+    box-sizing: border-box !important;
   }
 
 
-  /* 날짜 영역 */
+  /* =====================================================
+     이전 버튼
+  ====================================================== */
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  #limestoneUsagePreviousDateButton {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+
+  /* =====================================================
+     날짜칸
+  ====================================================== */
 
   #efficiencyTeamModal.is-mobile-monitor-only
   #limestoneUsageCalculatorView
   .limestone-usage-date-field {
-    min-width:
-      0 !important;
+    display: flex !important;
 
-    margin:
-      0 !important;
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    align-self: center !important;
+
+    overflow: hidden !important;
+
+    border-radius: 10px !important;
+
+    box-sizing: border-box !important;
   }
 
 
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-date-field
-  input {
-    width:
-      100% !important;
-
-    height:
-      44px !important;
-
-    min-height:
-      44px !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0
-      8px !important;
-
-    border-radius:
-      9px !important;
-
-    font-size:
-      14px !important;
-
-    font-weight:
-      900 !important;
-
-    line-height:
-      1 !important;
-
-    text-align:
-      center !important;
-  }
-
+  /* 계산 기준일 글씨 숨김 */
 
   #efficiencyTeamModal.is-mobile-monitor-only
   #limestoneUsageCalculatorView
   .limestone-usage-date-field
   > span {
-    display:
-      none !important;
-  }
-
-
-  /* 오늘 */
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  #limestoneUsageTodayButton {
-    width:
-      100% !important;
-
-    height:
-      44px !important;
-
-    min-height:
-      44px !important;
-
-    margin:
-      0 !important;
-
-    padding:
-      0 !important;
-
-    border-radius:
-      9px !important;
-
-    font-size:
-      12px !important;
-
-    font-weight:
-      900 !important;
+    display: none !important;
   }
 
 
   /* =====================================================
-     저장 상태
+     실제 날짜 input
   ====================================================== */
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  #limestoneUsageDate {
+    display: block !important;
+
+    position: static !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+
+    margin: 0 !important;
+    padding: 0 8px !important;
+
+    box-sizing: border-box !important;
+
+    border-radius: 10px !important;
+
+    color: #263d57 !important;
+
+    font-size: 14px !important;
+    font-weight: 900 !important;
+
+    line-height: 44px !important;
+
+    text-align: center !important;
+
+    vertical-align: middle !important;
+
+    transform: none !important;
+  }
+
+
+  /* =====================================================
+     iPhone Safari 날짜 글자 세로 중앙 보정
+  ====================================================== */
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  #limestoneUsageDate::-webkit-date-and-time-value {
+    width: 100% !important;
+
+    height: 44px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    line-height: 44px !important;
+
+    text-align: center !important;
+  }
+
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  #limestoneUsageDate::-webkit-datetime-edit {
+    height: 44px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    line-height: 44px !important;
+
+    text-align: center !important;
+  }
+
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  #limestoneUsageDate::-webkit-datetime-edit-fields-wrapper {
+    height: 44px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    line-height: 44px !important;
+  }
+
+
+  /* =====================================================
+     다음 버튼
+  ====================================================== */
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  #limestoneUsageNextDateButton {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+  }
+
+
+  /* =====================================================
+     좌우 화살표 공통
+  ====================================================== */
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  #limestoneUsagePreviousDateButton,
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  #limestoneUsageNextDateButton {
+    display: flex !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    align-self: center !important;
+
+    border-radius: 10px !important;
+
+    font-size: 25px !important;
+    font-weight: 900 !important;
+
+    line-height: 1 !important;
+
+    box-sizing: border-box !important;
+
+    transform: none !important;
+  }
+
+
+  /* =====================================================
+     오늘 버튼
+  ====================================================== */
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  #limestoneUsageTodayButton {
+    display: flex !important;
+
+    grid-column: 4 !important;
+    grid-row: 1 !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    width: 58px !important;
+    min-width: 58px !important;
+    max-width: 58px !important;
+
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    align-self: center !important;
+
+    border-radius: 10px !important;
+
+    font-size: 12px !important;
+    font-weight: 900 !important;
+
+    line-height: 1 !important;
+
+    box-sizing: border-box !important;
+
+    transform: none !important;
+  }
+
+
+/* =====================================================
+     저장 상태
+====================================================== */
 
   #efficiencyTeamModal.is-mobile-monitor-only
   #limestoneUsageCalculatorView
