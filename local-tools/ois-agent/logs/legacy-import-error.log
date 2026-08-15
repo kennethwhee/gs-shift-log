@@ -1,0 +1,9 @@
+OIS 브라우저 세션을 자동 복구합니다. 사유: 과거 LOG SHEET 업무일지 요청 처리 전
+OIS 과거 LOG SHEET 업무일지 요청 처리 실패: Error: D1_ERROR: Network connection lost.
+    at requestOisAgentApi (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:6865:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async completeOisAgentRequest (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:12153:10)
+    at async loginOis (C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-login.js:17270:9) {
+  status: 500
+}
+오류 화면 저장: C:\Users\GSENR\Desktop\gs-shift-log\ois-agent-error-d436c90f-6ffa-4b13-a9b8-1ae1cf9156a0.png
