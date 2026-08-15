@@ -149565,6 +149565,22 @@ function getMorningMeetingLimestoneWorkbookValues() {
   X15 제목 셀에 두 번째 줄로 표시
 ===================================================== */
 
+/* =====================================================
+  석회석 → 최종 오전회의 엑셀 반영
+
+  입고량:
+  X15 제목 영역 두 번째 줄
+
+  사용량:
+  AE15 = 1호기
+  AE16 = 2호기
+
+  합계:
+  AJ16 = AE15 + AE16
+
+  기존 양식 구조는 유지한다.
+===================================================== */
+
 function applyMorningMeetingLimestoneValues(
   worksheetDocument,
   limestoneValues
@@ -149578,10 +149594,10 @@ function applyMorningMeetingLimestoneValues(
 
 
   /* =====================================================
-    값이 없으면 null
+    숫자 정리
 
-    OIS/석회석 자료가 없어도
-    최종 엑셀은 생성할 수 있게 한다.
+    값 없음:
+    null
   ====================================================== */
 
   const toOptionalNumber =
@@ -149605,9 +149621,22 @@ function applyMorningMeetingLimestoneValues(
       }
 
 
+      const match =
+        normalized.match(
+          /-?\d+(?:\.\d+)?/
+        );
+
+
+      if (
+        !match
+      ) {
+        return null;
+      }
+
+
       const numericValue =
         Number(
-          normalized
+          match[0]
         );
 
 
@@ -149618,6 +149647,26 @@ function applyMorningMeetingLimestoneValues(
         : null;
     };
 
+
+  /* =====================================================
+    입고량
+  ====================================================== */
+
+  const unitOneReceipt =
+    toOptionalNumber(
+      source.unitOneReceipt
+    );
+
+
+  const unitTwoReceipt =
+    toOptionalNumber(
+      source.unitTwoReceipt
+    );
+
+
+  /* =====================================================
+    사용량
+  ====================================================== */
 
   const unitOneUsage =
     toOptionalNumber(
@@ -149631,48 +149680,98 @@ function applyMorningMeetingLimestoneValues(
     );
 
 
-/* =====================================================
-  석회석 제목
+  /* =====================================================
+    소수점 둘째 자리 표시
+  ====================================================== */
 
-  중요:
-  inlineStr 사용 금지
+  const formatValue =
+    value => {
+      if (
+        value ===
+          null
+      ) {
+        return "-";
+      }
 
-  이유:
-  "Limestone 사용량"처럼
-  영문 + 한글 혼합 문자열은 일부 Excel에서
-  마지막 Run만 표시되는 문제가 있다.
 
-  기존 오전회의 취합과 동일하게
-  sharedStrings 방식을 사용한다.
+      return value.toLocaleString(
+        "ko-KR",
+        {
+          minimumFractionDigits:
+            2,
 
-  영문:
-  Times New Roman
+          maximumFractionDigits:
+            2
+        }
+      );
+    };
 
-  한글:
-  바탕
-====================================================== */
 
-const titleCell =
-  findMorningMeetingWorksheetCellByAddress(
+  /* =====================================================
+    제목 + 입고량
+
+    X15
+
+    예:
+    Limestone 사용량
+    입고 1호기 61.35 ton · 2호기 60.11 ton
+
+    중요:
+    inlineStr을 사용하지 않고
+    기존 DynamicCellText 방식을 유지한다.
+  ====================================================== */
+
+  const titleCell =
+    findMorningMeetingWorksheetCellByAddress(
+      worksheetDocument,
+      "X15"
+    );
+
+
+  if (
+    !titleCell
+  ) {
+    throw new Error(
+      "석회석 제목 셀 X15를 찾지 못했습니다."
+    );
+  }
+
+
+  const receiptLines = [
+    "Limestone 사용량"
+  ];
+
+
+  if (
+    unitOneReceipt !==
+      null ||
+    unitTwoReceipt !==
+      null
+  ) {
+    receiptLines.push(
+      [
+        "입고",
+        `1호기 ${formatValue(
+          unitOneReceipt
+        )} ton`,
+        "·",
+        `2호기 ${formatValue(
+          unitTwoReceipt
+        )} ton`
+      ].join(
+        " "
+      )
+    );
+  }
+
+
+  setMorningMeetingDynamicCellText(
     worksheetDocument,
-    "X15"
+    titleCell,
+    receiptLines.join(
+      "\n"
+    )
   );
-
-
-if (
-  !titleCell
-) {
-  throw new Error(
-    "석회석 제목 셀 X15를 찾지 못했습니다."
-  );
-}
-
-
-setMorningMeetingDynamicCellText(
-  worksheetDocument,
-  titleCell,
-  "Limestone 사용량"
-);
 
 
   /* =====================================================
@@ -149722,15 +149821,15 @@ setMorningMeetingDynamicCellText(
 
 
   /* =====================================================
-    합계
+    사용량 합계
 
     AJ16
 
     둘 다 빈칸:
     → 합계도 빈칸
 
-    나중에 사용자가 엑셀에서 직접 입력:
-    → 자동으로 합계 계산
+    값 존재:
+    → AE15 + AE16
   ====================================================== */
 
   const totalCell =
@@ -149791,6 +149890,8 @@ setMorningMeetingDynamicCellText(
   return {
     appliedCount:
       [
+        unitOneReceipt,
+        unitTwoReceipt,
         unitOneUsage,
         unitTwoUsage
       ].filter(
@@ -149801,17 +149902,35 @@ setMorningMeetingDynamicCellText(
       ).length,
 
     totalCount:
-      2,
+      4,
 
-    blank:
-      unitOneUsage ===
-        null &&
-      unitTwoUsage ===
-        null,
+    unitOneReceipt,
+
+    unitTwoReceipt,
 
     unitOneUsage,
 
-    unitTwoUsage
+    unitTwoUsage,
+
+    totalReceipt:
+      (
+        unitOneReceipt ??
+        0
+      ) +
+      (
+        unitTwoReceipt ??
+        0
+      ),
+
+    totalUsage:
+      (
+        unitOneUsage ??
+        0
+      ) +
+      (
+        unitTwoUsage ??
+        0
+      )
   };
 }
 
