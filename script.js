@@ -233736,3 +233736,619 @@ function initializeDailyControls() {
     initialize();
   }
 })();
+
+/* =========================================================
+  오전회의 태양광 누적 D1 복원
+
+  목적:
+  - 자동수치 기록에 이미 저장된
+    태양광 월간 누적 / 년간 누적을
+    현재 전력 현황 카드에도 표시한다.
+
+  기준:
+  - steamStatus의 실제 일일DATA 날짜
+  - morning_meeting_auto_history_overrides 동일 날짜
+
+  엑셀 재첨부 필요 없음
+========================================================= */
+
+(function installMorningMeetingSolarCumulativeD1Restore() {
+  "use strict";
+
+
+  if (
+    window
+      .__morningMeetingSolarCumulativeD1RestoreInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window
+    .__morningMeetingSolarCumulativeD1RestoreInstalled =
+    true;
+
+
+  const API_URL =
+    "/api/ois-data-requests";
+
+
+  let restoreRequestToken =
+    0;
+
+
+  let restoreTimerId =
+    null;
+
+
+  function getState() {
+    if (
+      !window
+        .efficiencyMorningMeetingUploadState
+    ) {
+      window
+        .efficiencyMorningMeetingUploadState = {
+          files: {},
+          analysis: {}
+        };
+    }
+
+
+    return window
+      .efficiencyMorningMeetingUploadState;
+  }
+
+
+  function normalizeDate(
+    value
+  ) {
+    const text =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    return /^\d{4}-\d{2}-\d{2}$/.test(
+      text
+    )
+      ? text
+      : "";
+  }
+
+
+  function hasOwn(
+    source,
+    key
+  ) {
+    return Boolean(
+      source &&
+      typeof source ===
+        "object" &&
+      !Array.isArray(
+        source
+      ) &&
+      Object.prototype
+        .hasOwnProperty
+        .call(
+          source,
+          key
+        )
+    );
+  }
+
+
+  function numberOrNull(
+    value
+  ) {
+    if (
+      value ===
+        null ||
+      value ===
+        undefined ||
+      String(
+        value
+      ).trim() ===
+        ""
+    ) {
+      return null;
+    }
+
+
+    const number =
+      Number(
+        String(
+          value
+        ).replaceAll(
+          ",",
+          ""
+        )
+      );
+
+
+    return Number.isFinite(
+      number
+    )
+      ? number
+      : null;
+  }
+
+
+  async function restoreSolarCumulativeFromD1() {
+    const state =
+      getState();
+
+
+    const dailyData =
+      state.steamStatus;
+
+
+    if (
+      !dailyData ||
+      typeof dailyData !==
+        "object"
+    ) {
+      return false;
+    }
+
+
+    const sourceDate =
+      normalizeDate(
+        dailyData.sourceDate ||
+        dailyData.targetDate
+      );
+
+
+    if (
+      !sourceDate
+    ) {
+      return false;
+    }
+
+
+    const requestToken =
+      ++restoreRequestToken;
+
+
+    const requestUrl =
+      new URL(
+        API_URL,
+        window.location.origin
+      );
+
+
+    requestUrl.searchParams.set(
+      "action",
+      "morning_meeting_auto_history_overrides"
+    );
+
+
+    requestUrl.searchParams.set(
+      "startDate",
+      sourceDate
+    );
+
+
+    requestUrl.searchParams.set(
+      "endDate",
+      sourceDate
+    );
+
+
+    requestUrl.searchParams.set(
+      "_",
+      String(
+        Date.now()
+      )
+    );
+
+
+    try {
+      const response =
+        await fetch(
+          requestUrl.toString(),
+          {
+            method:
+              "GET",
+
+            headers:
+              typeof getShiftLogAuthHeaders ===
+                "function"
+                ? getShiftLogAuthHeaders()
+                : {
+                    Accept:
+                      "application/json"
+                  },
+
+            cache:
+              "no-store"
+          }
+        );
+
+
+      let payload =
+        {};
+
+
+      try {
+        payload =
+          await response.json();
+
+      } catch {
+        payload =
+          {};
+      }
+
+
+      if (
+        !response.ok ||
+        payload?.ok ===
+          false ||
+        payload?.success ===
+          false
+      ) {
+        throw new Error(
+          payload?.message ||
+          `${sourceDate} 태양광 누적 저장값을 불러오지 못했습니다.`
+        );
+      }
+
+
+      const items =
+        Array.isArray(
+          payload?.items
+        )
+          ? payload.items
+          : Array.isArray(
+              payload?.data?.items
+            )
+              ? payload.data.items
+              : [];
+
+
+      const item =
+        items.find(
+          candidate => {
+            const candidateDate =
+              normalizeDate(
+                candidate?.recordDate ||
+                candidate?.targetDate
+              );
+
+
+            return (
+              candidateDate ===
+              sourceDate
+            );
+          }
+        );
+
+
+      if (
+        !item
+      ) {
+        return false;
+      }
+
+
+      const values =
+        item.values &&
+        typeof item.values ===
+          "object" &&
+        !Array.isArray(
+          item.values
+        )
+          ? item.values
+          : {};
+
+
+      const hasMonthly =
+        hasOwn(
+          values,
+          "powerSolarMonthly"
+        );
+
+
+      const hasYearly =
+        hasOwn(
+          values,
+          "powerSolarYearly"
+        );
+
+
+      if (
+        !hasMonthly &&
+        !hasYearly
+      ) {
+        return false;
+      }
+
+
+      /*
+        조회 도중 날짜가 바뀐 경우
+        이전 결과를 적용하지 않는다.
+      */
+
+      if (
+        requestToken !==
+          restoreRequestToken
+      ) {
+        return false;
+      }
+
+
+      const currentState =
+        getState();
+
+
+      const currentDailyData =
+        currentState.steamStatus;
+
+
+      const currentDate =
+        normalizeDate(
+          currentDailyData
+            ?.sourceDate ||
+          currentDailyData
+            ?.targetDate
+        );
+
+
+      if (
+        !currentDailyData ||
+        currentDate !==
+          sourceDate
+      ) {
+        return false;
+      }
+
+
+      const monthlyValue =
+        hasMonthly
+          ? numberOrNull(
+              values
+                .powerSolarMonthly
+            )
+          : numberOrNull(
+              currentDailyData
+                .solarMonthlyCumulative
+            );
+
+
+      const yearlyValue =
+        hasYearly
+          ? numberOrNull(
+              values
+                .powerSolarYearly
+            )
+          : numberOrNull(
+              currentDailyData
+                .solarYearlyCumulative
+            );
+
+
+      const existingCumulative =
+        currentDailyData
+          .solarCumulative &&
+        typeof currentDailyData
+          .solarCumulative ===
+          "object" &&
+        !Array.isArray(
+          currentDailyData
+            .solarCumulative
+        )
+          ? currentDailyData
+              .solarCumulative
+          : {};
+
+
+      const existingMonth =
+        existingCumulative
+          .month &&
+        typeof existingCumulative
+          .month ===
+          "object" &&
+        !Array.isArray(
+          existingCumulative
+            .month
+        )
+          ? existingCumulative
+              .month
+          : {};
+
+
+      const existingYear =
+        existingCumulative
+          .year &&
+        typeof existingCumulative
+          .year ===
+          "object" &&
+        !Array.isArray(
+          existingCumulative
+            .year
+        )
+          ? existingCumulative
+              .year
+          : {};
+
+
+      const nextMonth = {
+        ...existingMonth
+      };
+
+
+      const nextYear = {
+        ...existingYear
+      };
+
+
+      if (
+        hasMonthly
+      ) {
+        nextMonth.total =
+          monthlyValue;
+      }
+
+
+      if (
+        hasYearly
+      ) {
+        nextYear.total =
+          yearlyValue;
+      }
+
+
+      currentState.steamStatus = {
+        ...currentDailyData,
+
+        ...(
+          hasMonthly
+            ? {
+                solarMonthlyCumulative:
+                  monthlyValue
+              }
+            : {}
+        ),
+
+        ...(
+          hasYearly
+            ? {
+                solarYearlyCumulative:
+                  yearlyValue
+              }
+            : {}
+        ),
+
+        solarCumulative: {
+          ...existingCumulative,
+
+          month:
+            nextMonth,
+
+          year:
+            nextYear
+        },
+
+        solarCumulativeSource:
+          "자동수치 기록 D1",
+
+        solarCumulativeSourceDate:
+          sourceDate
+      };
+
+
+      /*
+        전력 현황 카드 갱신
+      */
+
+      if (
+        typeof window
+          .renderEfficiencyMorningMeetingDailyData ===
+          "function"
+      ) {
+        window
+          .renderEfficiencyMorningMeetingDailyData();
+
+      } else if (
+        typeof window
+          .renderEfficiencyMorningMeetingSteamStatus ===
+          "function"
+      ) {
+        window
+          .renderEfficiencyMorningMeetingSteamStatus();
+      }
+
+
+      if (
+        typeof window
+          .renderEfficiencyMorningMeetingAutoPreview ===
+          "function"
+      ) {
+        window
+          .renderEfficiencyMorningMeetingAutoPreview();
+      }
+
+
+      console.log(
+        "태양광 누적 D1 복원 완료:",
+        {
+          sourceDate,
+          solarMonthlyCumulative:
+            monthlyValue,
+          solarYearlyCumulative:
+            yearlyValue
+        }
+      );
+
+
+      return true;
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "태양광 누적 D1 복원 실패:",
+        error
+      );
+
+
+      return false;
+    }
+  }
+
+
+  function scheduleRestore() {
+    window.clearTimeout(
+      restoreTimerId
+    );
+
+
+    restoreTimerId =
+      window.setTimeout(
+        () => {
+          void restoreSolarCumulativeFromD1();
+        },
+        50
+      );
+  }
+
+
+  /*
+    일일DATA 조회·복원 완료 시
+    누적값도 바로 복원한다.
+  */
+
+  document.addEventListener(
+    "efficiencyMorningMeetingSteamStatusLoaded",
+    scheduleRestore
+  );
+
+
+  /*
+    화면을 새로 열었는데
+    일일DATA가 이미 들어 있는 경우도 처리
+  */
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      scheduleRestore,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    scheduleRestore();
+  }
+
+
+  window
+    .restoreEfficiencyMorningMeetingSolarCumulativeFromD1 =
+    restoreSolarCumulativeFromD1;
+})();
