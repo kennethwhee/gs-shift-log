@@ -106703,3 +106703,41 @@ col.is-power {
   font-weight: 850 !important;
   line-height: 1.4 !important;
 }
+
+/* ARM ROLL BOX MENU RECOMMEND BADGE V1 */
+
+/* 50~69% : 교체 권고 */
+#efficiencyArmRollTab.has-recommend {
+  border-color: #deb05b !important;
+  background: #fff7e3 !important;
+  color: #8e6215 !important;
+  box-shadow: 0 0 0 3px rgba(214, 138, 35, 0.10) !important;
+}
+
+#efficiencyArmRollTab.has-recommend #efficiencyArmRollTabBadge {
+  border-color: #d68a23 !important;
+  background: #d68a23 !important;
+  color: #ffffff !important;
+}
+
+/* 70% 이상 : 경고 */
+#efficiencyArmRollTab.has-warning #efficiencyArmRollTabBadge {
+  border-color: #d34b4b !important;
+  background: #d34b4b !important;
+  color: #ffffff !important;
+}
+
+/* 숫자 배지 공통 */
+#efficiencyArmRollTabBadge {
+  flex: 0 0 auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
