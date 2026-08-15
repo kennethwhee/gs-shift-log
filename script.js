@@ -141426,6 +141426,390 @@ const extractSolarValues =
       );
 
 
+    /* =====================================================
+      태양광 자동수치 기록 D1 저장
+
+      저장 필드:
+      - powerSolar
+      - powerSolarMonthly
+      - powerSolarYearly
+
+      보호:
+      - 기존 SMP·수처리·수동수정값 유지
+      - revision 충돌 시 최신 revision으로 1회 재시도
+    ====================================================== */
+
+    const saveSolarHistoryToD1 =
+      async solarValues => {
+        const sourceDate =
+          String(
+            solarValues?.sourceDate ||
+            ""
+          ).trim();
+
+
+        const solarDailyGeneration =
+          Number(
+            solarValues
+              ?.solarDailyGeneration
+          );
+
+
+        const solarMonthlyCumulative =
+          Number(
+            solarValues
+              ?.solarMonthlyCumulative
+          );
+
+
+        const solarYearlyCumulative =
+          Number(
+            solarValues
+              ?.solarYearlyCumulative
+          );
+
+
+        if (
+          !/^\d{4}-\d{2}-\d{2}$/.test(
+            sourceDate
+          ) ||
+          !Number.isFinite(
+            solarDailyGeneration
+          ) ||
+          !Number.isFinite(
+            solarMonthlyCumulative
+          ) ||
+          !Number.isFinite(
+            solarYearlyCumulative
+          )
+        ) {
+          return false;
+        }
+
+
+        const headers =
+          typeof getShiftLogAuthHeaders ===
+            "function"
+            ? getShiftLogAuthHeaders({
+                "Content-Type":
+                  "application/json"
+              })
+            : {
+                Accept:
+                  "application/json",
+
+                "Content-Type":
+                  "application/json"
+              };
+
+
+        /*
+          현재 날짜의 기존 자동수치 수정값과
+          revision을 먼저 확인한다.
+        */
+
+        const readUrl =
+          new URL(
+            "/api/ois-data-requests",
+            window.location.origin
+          );
+
+
+        readUrl.searchParams.set(
+          "action",
+          "morning_meeting_auto_history_overrides"
+        );
+
+
+        readUrl.searchParams.set(
+          "startDate",
+          sourceDate
+        );
+
+
+        readUrl.searchParams.set(
+          "endDate",
+          sourceDate
+        );
+
+
+        readUrl.searchParams.set(
+          "_",
+          String(
+            Date.now()
+          )
+        );
+
+
+        const readResponse =
+          await fetch(
+            readUrl.toString(),
+            {
+              method:
+                "GET",
+
+              headers:
+                typeof getShiftLogAuthHeaders ===
+                  "function"
+                  ? getShiftLogAuthHeaders()
+                  : {
+                      Accept:
+                        "application/json"
+                    },
+
+              cache:
+                "no-store"
+            }
+          );
+
+
+        let readPayload = {};
+
+
+        try {
+          readPayload =
+            await readResponse.json();
+
+        } catch {
+          readPayload =
+            {};
+        }
+
+
+        if (
+          !readResponse.ok ||
+          readPayload?.ok !==
+            true
+        ) {
+          throw new Error(
+            readPayload?.message ||
+            `${sourceDate} 자동수치 기록을 확인하지 못했습니다.`
+          );
+        }
+
+
+        const existingItem =
+          (
+            Array.isArray(
+              readPayload.items
+            )
+              ? readPayload.items
+              : []
+          ).find(
+            item => {
+              return (
+                String(
+                  item?.targetDate ||
+                  item?.recordDate ||
+                  ""
+                ).trim() ===
+                sourceDate
+              );
+            }
+          ) ||
+          null;
+
+
+        const existingRevision =
+          Number(
+            existingItem?.revision ||
+            0
+          );
+
+
+        const expectedRevision =
+          Number.isInteger(
+            existingRevision
+          ) &&
+          existingRevision >
+            0
+            ? existingRevision
+            : 0;
+
+
+        const values = {
+          powerSolar:
+            solarDailyGeneration,
+
+          powerSolarMonthly:
+            solarMonthlyCumulative,
+
+          powerSolarYearly:
+            solarYearlyCumulative
+        };
+
+
+        /*
+          이미 같은 값이면
+          불필요하게 revision을 올리지 않는다.
+        */
+
+        const existingValues =
+          existingItem?.values &&
+          typeof existingItem.values ===
+            "object" &&
+          !Array.isArray(
+            existingItem.values
+          )
+            ? existingItem.values
+            : {};
+
+
+        const hasSameValues =
+          Number(
+            existingValues.powerSolar
+          ) ===
+            solarDailyGeneration &&
+
+          Number(
+            existingValues.powerSolarMonthly
+          ) ===
+            solarMonthlyCumulative &&
+
+          Number(
+            existingValues.powerSolarYearly
+          ) ===
+            solarYearlyCumulative;
+
+
+        if (
+          hasSameValues
+        ) {
+          console.log(
+            "태양광 자동수치 기록은 이미 최신입니다.",
+            {
+              sourceDate,
+              ...values
+            }
+          );
+
+
+          return true;
+        }
+
+
+        const sendSaveRequest =
+          async revision => {
+            const response =
+              await fetch(
+                "/api/ois-data-requests",
+                {
+                  method:
+                    "POST",
+
+                  headers,
+
+                  cache:
+                    "no-store",
+
+                  body:
+                    JSON.stringify({
+                      action:
+                        "save_morning_meeting_auto_history_override",
+
+                      targetDate:
+                        sourceDate,
+
+                      expectedRevision:
+                        revision,
+
+                      values
+                    })
+                }
+              );
+
+
+            let payload = {};
+
+
+            try {
+              payload =
+                await response.json();
+
+            } catch {
+              payload =
+                {};
+            }
+
+
+            return {
+              response,
+              payload
+            };
+          };
+
+
+        let saveResult =
+          await sendSaveRequest(
+            expectedRevision
+          );
+
+
+        /*
+          다른 화면이 먼저 수정했다면
+          서버 최신 revision으로 한 번만 재시도한다.
+        */
+
+        if (
+          saveResult.response.status ===
+            409
+        ) {
+          const latestRevision =
+            Number(
+              saveResult.payload
+                ?.currentItem
+                ?.revision
+            );
+
+
+          if (
+            Number.isInteger(
+              latestRevision
+            ) &&
+            latestRevision >
+              0
+          ) {
+            saveResult =
+              await sendSaveRequest(
+                latestRevision
+              );
+          }
+        }
+
+
+        if (
+          !saveResult.response.ok ||
+          saveResult.payload?.ok !==
+            true
+        ) {
+          throw new Error(
+            saveResult.payload?.message ||
+            `${sourceDate} 태양광 자동수치 기록 저장에 실패했습니다.`
+          );
+        }
+
+
+        console.log(
+          "태양광 자동수치 기록 D1 저장 완료:",
+          {
+            sourceDate,
+            ...values,
+            revision:
+              saveResult.payload
+                ?.item
+                ?.revision
+          }
+        );
+
+
+        return true;
+      };
+
+
+    /* =====================================================
+      태양광 값이 있는 실제 시트 검색
+    ====================================================== */
+
     for (
       const sheetName of
         workbook.SheetNames
@@ -141442,13 +141826,6 @@ const extractSolarValues =
         continue;
       }
 
-
-      /* ===================================================
-        태양광 3개 값
-
-        셀 주소가 아니라
-        항목명을 기준으로 찾는다.
-      ==================================================== */
 
       const solarDailyGeneration =
         findMetricValue(
@@ -141483,19 +141860,18 @@ const extractSolarValues =
       }
 
 
-      /* ===================================================
-        중요
+      /*
+        중요:
 
-        파일명:
-        일일발전운전현황_08.07.xlsx
+        시트 내부 날짜가 이미 실제 실적일이다.
 
-        실제 시트 날짜:
-        2026-08-06
+        예:
+        파일명 08.07
+        시트 날짜 08.06
+        → 실제 저장일 08.06
 
-        시트 상단 날짜가 이미
-        실제 실적 기준일이므로
-        여기서 하루를 더 빼면 안 된다.
-      ==================================================== */
+        여기서 하루를 더 빼지 않는다.
+      */
 
       const sourceDate =
         findSheetDate(
@@ -141512,33 +141888,62 @@ const extractSolarValues =
       }
 
 
-      return {
+      const solarValues = {
         sourceDate,
 
-
         /*
-          기존 아래 코드와의 호환을 위해
-          reportDate도 같은 실제 시트 날짜를 넣는다.
+          기존 아래 코드와의 호환용
         */
         reportDate:
           sourceDate,
 
-
         sheetName,
-
 
         solarDailyGeneration,
 
-
         solarMonthlyCumulative,
 
-
         solarYearlyCumulative,
-
 
         source:
           "일일발전운전현황 첨부 Excel"
       };
+
+
+      /*
+        화면 표시와 별개로
+        태양광 3개 값을 D1 자동수치 기록에 저장한다.
+
+        D1 저장 실패가 파일 첨부 자체를 막지는 않는다.
+      */
+
+      try {
+        await saveSolarHistoryToD1(
+          solarValues
+        );
+
+      } catch (
+        saveError
+      ) {
+        console.error(
+          "태양광 자동수치 기록 D1 저장 실패:",
+          saveError
+        );
+
+
+        if (
+          typeof window.showToast ===
+            "function"
+        ) {
+          window.showToast(
+            "태양광 값은 읽었지만 자동수치 기록 저장에 실패했습니다.",
+            3000
+          );
+        }
+      }
+
+
+      return solarValues;
     }
 
 
@@ -160269,151 +160674,370 @@ if (
     기준 취합본 드래그 앤 드롭
   ====================================================== */
 
-  function bindMorningMeetingTemplateUpload() {
-    const elements =
-      getMorningMeetingWorkbookElements();
+function bindMorningMeetingTemplateUpload() {
+  const elements =
+    getMorningMeetingWorkbookElements();
 
 
-    if (
-      !elements.templateCard ||
-      !elements.templateInput
-    ) {
-      return;
-    }
+  if (
+    !elements.templateCard ||
+    !elements.templateInput
+  ) {
+    return;
+  }
 
 
-    let dragEnterCount =
-      0;
+  /*
+    8월 과거자료 등을 한 번에 선택할 수 있도록
+    다중 파일 선택 허용
+  */
+  elements.templateInput.multiple =
+    true;
 
 
-    elements.templateInput.addEventListener(
-      "change",
+  let dragEnterCount =
+    0;
 
-      () => {
-        const file =
-          elements
-            .templateInput
-            .files?.[
-              0
+
+  let batchRunning =
+    false;
+
+
+  /* =====================================================
+    여러 일일발전현황 Excel 순차 처리
+
+    각 파일마다 기존
+    applyMorningMeetingTemplateFile()
+    를 그대로 사용한다.
+
+    따라서 각 파일에서:
+    - 실제 실적일 확인
+    - 태양광 일일 발전량
+    - 태양광 월간 누적
+    - 태양광 년간 누적
+    - D1 자동수치 기록 저장
+
+    을 순서대로 처리한다.
+  ====================================================== */
+
+  const processTemplateFiles =
+    async fileList => {
+      if (
+        batchRunning
+      ) {
+        return;
+      }
+
+
+      const files =
+        [
+          ...(
+            fileList ||
+            []
+          )
+        ].filter(
+          file => {
+            return isMorningMeetingXlsxFile(
+              file
+            );
+          }
+        );
+
+
+      if (
+        !files.length
+      ) {
+        showMorningMeetingWorkbookError(
+          "일일발전현황 XLSX 파일을 선택해 주세요."
+        );
+
+
+        return;
+      }
+
+
+      batchRunning =
+        true;
+
+
+      hideMorningMeetingWorkbookError();
+
+
+      let completedCount =
+        0;
+
+
+      let failedCount =
+        0;
+
+
+      try {
+        for (
+          let index =
+            0;
+
+          index <
+            files.length;
+
+          index +=
+            1
+        ) {
+          const file =
+            files[
+              index
             ];
 
 
-        if (
-          file
-        ) {
-          applyMorningMeetingTemplateFile(
-            file
-          );
+          if (
+            elements.templateStatus
+          ) {
+            elements.templateStatus.textContent =
+              files.length >
+                1
+                ? `자동수치 저장 중 ${index + 1}/${files.length} · ${file.name}`
+                : file.name;
+
+
+            elements.templateStatus.title =
+              file.name;
+          }
+
+
+          if (
+            elements.templateAction
+          ) {
+            elements.templateAction.textContent =
+              files.length >
+                1
+                ? `${index + 1}/${files.length}`
+                : "분석 중";
+          }
+
+
+          try {
+            /*
+              기존 단일 파일 처리 함수가
+              태양광 3개 값을 D1에도 저장한다.
+            */
+            await applyMorningMeetingTemplateFile(
+              file
+            );
+
+
+            completedCount +=
+              1;
+
+          } catch (
+            error
+          ) {
+            failedCount +=
+              1;
+
+
+            console.error(
+              "일일발전현황 일괄 처리 실패:",
+              {
+                fileName:
+                  file.name,
+
+                error
+              }
+            );
+          }
         }
-      }
-    );
 
 
-    elements.templateCard.addEventListener(
-      "dragenter",
+        /*
+          마지막 파일을 현재 기준 취합본으로 유지한다.
+        */
 
-      event => {
-        event.preventDefault();
-        event.stopPropagation();
-
-
-        dragEnterCount +=
-          1;
-
-
-        elements.templateCard.classList.add(
-          "is-dragover"
-        );
-      }
-    );
-
-
-    elements.templateCard.addEventListener(
-      "dragover",
-
-      event => {
-        event.preventDefault();
-        event.stopPropagation();
-
-
-        if (
-          event.dataTransfer
-        ) {
-          event.dataTransfer.dropEffect =
-            "copy";
-        }
-
-
-        elements.templateCard.classList.add(
-          "is-dragover"
-        );
-      }
-    );
-
-
-    elements.templateCard.addEventListener(
-      "dragleave",
-
-      event => {
-        event.preventDefault();
-        event.stopPropagation();
-
-
-        dragEnterCount =
-          Math.max(
-            0,
-            dragEnterCount -
+        const lastFile =
+          files[
+            files.length -
             1
-          );
+          ];
 
 
         if (
-          dragEnterCount ===
-          0
+          elements.templateStatus
         ) {
-          elements.templateCard.classList.remove(
-            "is-dragover"
+          elements.templateStatus.textContent =
+            files.length >
+              1
+              ? (
+                  failedCount >
+                    0
+                    ? `${completedCount}개 저장 완료 · ${failedCount}개 확인 필요`
+                    : `${completedCount}개 자동수치 저장 완료 · 현재 ${lastFile.name}`
+                )
+              : lastFile.name;
+
+
+          elements.templateStatus.title =
+            lastFile.name;
+        }
+
+
+        if (
+          elements.templateAction
+        ) {
+          elements.templateAction.textContent =
+            failedCount >
+              0
+              ? "일부 완료"
+              : "첨부 완료";
+        }
+
+
+        if (
+          files.length >
+            1 &&
+          typeof window.showToast ===
+            "function"
+        ) {
+          window.showToast(
+            failedCount >
+              0
+              ? `태양광 자동수치 ${completedCount}개 저장 완료 · ${failedCount}개 실패`
+              : `태양광 자동수치 ${completedCount}개 파일을 D1에 저장했습니다.`,
+            3500
           );
         }
+
+      } finally {
+        batchRunning =
+          false;
+
+
+        updateMorningMeetingCreateButton();
       }
-    );
+    };
 
 
-    elements.templateCard.addEventListener(
-      "drop",
+  /* =====================================================
+    파일 선택
+  ====================================================== */
 
-      event => {
-        event.preventDefault();
-        event.stopPropagation();
+  elements.templateInput.addEventListener(
+    "change",
+
+    () => {
+      void processTemplateFiles(
+        elements.templateInput.files
+      );
+    }
+  );
 
 
-        dragEnterCount =
-          0;
+  /* =====================================================
+    드래그 시작
+  ====================================================== */
+
+  elements.templateCard.addEventListener(
+    "dragenter",
+
+    event => {
+      event.preventDefault();
+
+      event.stopPropagation();
 
 
+      dragEnterCount +=
+        1;
+
+
+      elements.templateCard.classList.add(
+        "is-dragover"
+      );
+    }
+  );
+
+
+  elements.templateCard.addEventListener(
+    "dragover",
+
+    event => {
+      event.preventDefault();
+
+      event.stopPropagation();
+
+
+      if (
+        event.dataTransfer
+      ) {
+        event.dataTransfer.dropEffect =
+          "copy";
+      }
+
+
+      elements.templateCard.classList.add(
+        "is-dragover"
+      );
+    }
+  );
+
+
+  /* =====================================================
+    드래그 벗어남
+  ====================================================== */
+
+  elements.templateCard.addEventListener(
+    "dragleave",
+
+    event => {
+      event.preventDefault();
+
+      event.stopPropagation();
+
+
+      dragEnterCount =
+        Math.max(
+          0,
+          dragEnterCount -
+            1
+        );
+
+
+      if (
+        dragEnterCount ===
+          0
+      ) {
         elements.templateCard.classList.remove(
           "is-dragover"
         );
-
-
-        const file =
-          event
-            .dataTransfer
-            ?.files?.[
-              0
-            ];
-
-
-        if (
-          file
-        ) {
-          applyMorningMeetingTemplateFile(
-            file
-          );
-        }
       }
-    );
-  }
+    }
+  );
+
+
+  /* =====================================================
+    여러 파일 드롭
+  ====================================================== */
+
+  elements.templateCard.addEventListener(
+    "drop",
+
+    event => {
+      event.preventDefault();
+
+      event.stopPropagation();
+
+
+      dragEnterCount =
+        0;
+
+
+      elements.templateCard.classList.remove(
+        "is-dragover"
+      );
+
+
+      void processTemplateFiles(
+        event.dataTransfer?.files
+      );
+    }
+  );
+}
 
 /* =====================================================
   일일발전현황 기준 취합본 초기화
@@ -192191,8 +192815,16 @@ async function restoreMorningMeetingSavedCompletedHistoryForDate(
     );
 
 
+    const historyStartDate =
+      addDateDays(
+        normalizedDate,
+        -1
+      );
+
+
     requestUrl.searchParams.set(
       "startDate",
+      historyStartDate ||
       normalizedDate
     );
 
@@ -192284,6 +192916,203 @@ async function restoreMorningMeetingSavedCompletedHistoryForDate(
         ? payload.items
         : [];
 
+/* =================================================
+  자동수치 기록에 저장된 SMP 수정값 복원
+
+  자동수치 기록:
+  행 날짜 + 1일 = 실제 SMP 날짜
+
+  예:
+  08.13 행 → 08.14 SMP
+  08.14 행 → 08.15 SMP
+================================================= */
+
+const overrideItems =
+  Array.isArray(
+    payload.overrides
+  )
+    ? payload.overrides
+    : [];
+
+
+if (
+  !state.smpPriceByDate ||
+  typeof state.smpPriceByDate !==
+    "object" ||
+  Array.isArray(
+    state.smpPriceByDate
+  )
+) {
+  state.smpPriceByDate =
+    {};
+}
+
+
+if (
+  !state.smpPriceStatusByDate ||
+  typeof state.smpPriceStatusByDate !==
+    "object" ||
+  Array.isArray(
+    state.smpPriceStatusByDate
+  )
+) {
+  state.smpPriceStatusByDate =
+    {};
+}
+
+
+if (
+  !state.smpPriceErrorByDate ||
+  typeof state.smpPriceErrorByDate !==
+    "object" ||
+  Array.isArray(
+    state.smpPriceErrorByDate
+  )
+) {
+  state.smpPriceErrorByDate =
+    {};
+}
+
+
+const readSavedSmpNumber =
+  value => {
+    const valueText =
+      String(
+        value ??
+        ""
+      )
+        .replaceAll(
+          ",",
+          ""
+        )
+        .trim();
+
+
+    if (
+      !valueText
+    ) {
+      return null;
+        }
+
+
+        const numericValue =
+          Number(
+            valueText
+          );
+
+
+        return Number.isFinite(
+          numericValue
+        )
+          ? numericValue
+          : null;
+      };
+
+
+    overrideItems.forEach(
+      overrideItem => {
+        const recordDate =
+          String(
+            overrideItem?.targetDate ||
+            overrideItem?.recordDate ||
+            ""
+          ).trim();
+
+
+        if (
+          !isValidDate(
+            recordDate
+          )
+        ) {
+          return;
+        }
+
+
+        const values =
+          overrideItem?.values &&
+            typeof overrideItem.values ===
+            "object" &&
+            !Array.isArray(
+              overrideItem.values
+            )
+            ? overrideItem.values
+            : {};
+
+
+        const minimum =
+          readSavedSmpNumber(
+            values.smpMinimum
+          );
+
+
+        const maximum =
+          readSavedSmpNumber(
+            values.smpMaximum
+          );
+
+
+        const weightedAverage =
+          readSavedSmpNumber(
+            values.smpWeightedAverage
+          );
+
+
+        /*
+          SMP 세 값이 모두 저장돼 있을 때만
+          메인 미리보기 상태에 복원한다.
+        */
+
+        if (
+          minimum ===
+          null ||
+          maximum ===
+          null ||
+          weightedAverage ===
+          null
+        ) {
+          return;
+        }
+
+
+        const meetingDate =
+          addDateDays(
+            recordDate,
+            1
+          );
+
+
+        if (
+          !meetingDate
+        ) {
+          return;
+        }
+
+
+        state.smpPriceByDate[
+          meetingDate
+        ] = {
+          minimum,
+          maximum,
+          weightedAverage
+        };
+
+
+        state.smpPriceStatusByDate[
+          meetingDate
+        ] =
+          "complete";
+
+
+        state.smpPriceErrorByDate[
+          meetingDate
+        ] =
+          "";
+
+
+        restored =
+          true;
+      }
+    );
 
     const findCompletedItem =
       requestTypes => {
@@ -192774,17 +193603,30 @@ async function restoreMorningMeetingSavedCompletedHistoryForDate(
     if (
       typeof window
         .renderEfficiencyMorningMeetingDailyData ===
-        "function"
+      "function"
     ) {
       window
         .renderEfficiencyMorningMeetingDailyData();
     }
 
+    /*
+      자동수치 기록에서 복원한 SMP 값을
+      메인 SMP 미리보기에 즉시 반영
+    */
+
+    if (
+      typeof window
+        .renderEfficiencyMorningMeetingSmpPrice ===
+      "function"
+    ) {
+      window
+        .renderEfficiencyMorningMeetingSmpPrice();
+    }
 
     if (
       typeof window
         .updateEfficiencyMorningMeetingCreateButton ===
-        "function"
+      "function"
     ) {
       window
         .updateEfficiencyMorningMeetingCreateButton();
