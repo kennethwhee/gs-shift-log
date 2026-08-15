@@ -106359,3 +106359,49 @@ svg {
       rotate(360deg);
   }
 }
+
+/* =========================================================
+  자동수치 기록 · 전력량 열 폭 재배분
+
+  표 전체 크기는 거의 유지하면서
+  여유 열을 조금 줄이고 전력량 영역을 확대
+========================================================= */
+
+#efficiencyTeamModal
+.efficiency-morning-meeting-auto-history-table
+col.is-water {
+  width: 205px !important;
+}
+
+
+#efficiencyTeamModal
+.efficiency-morning-meeting-auto-history-table
+col.is-gear-pinion {
+  width: 118px !important;
+}
+
+
+#efficiencyTeamModal
+.efficiency-morning-meeting-auto-history-table
+col.is-silo {
+  width: 98px !important;
+}
+
+
+#efficiencyTeamModal
+.efficiency-morning-meeting-auto-history-table
+col.is-organic {
+  width: 126px !important;
+}
+
+
+/*
+  생산 / 판매 / 태양광 / 월간 / 년간
+  전력량 영역 전체에 조금 더 공간 확보
+*/
+
+#efficiencyTeamModal
+.efficiency-morning-meeting-auto-history-table
+col.is-power {
+  width: 136px !important;
+}
