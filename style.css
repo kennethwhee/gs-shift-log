@@ -111603,3 +111603,53 @@ button,
   }
 
 }
+
+/* =========================================================
+   석회석 사용량 카드
+   수치 + ton 우측 정렬
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  .limestone-usage-summary-card {
+    text-align: right !important;
+  }
+
+
+  /* 전체 사용량 / 1호기 사용량 / 2호기 사용량 제목 */
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  .limestone-usage-summary-card
+  > span {
+    display: block !important;
+
+    width: 100% !important;
+
+    text-align: left !important;
+  }
+
+
+  /* 숫자 */
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  .limestone-usage-summary-card
+  > strong {
+    display: inline-block !important;
+
+    text-align: right !important;
+  }
+
+
+  /* ton */
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  .limestone-usage-summary-card
+  > small {
+    display: inline-block !important;
+
+    text-align: right !important;
+  }
+
+}
