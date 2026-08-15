@@ -112179,3 +112179,263 @@ button,
   }
 
 }
+
+/* =========================================================
+   LIMESTONE PERIOD SEARCH MOBILE COMPACT TUNE V1
+
+   - 일별 시작일 / 종료일 더 컴팩트
+   - 호기 라벨 제거
+   - 선택 기간 배지 제거
+   - 하단 3칸 높이 축소
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  /* =====================================================
+     1. 날짜 범위 전체 더 컴팩트
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-picker {
+    padding: 5px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-picker__heading {
+    margin: 0 0 3px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-picker__heading
+  strong {
+    font-size: 11px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-search-fields {
+    gap: 4px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-search-fields
+  .form-field {
+    gap: 1px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-search-fields
+  .form-field__label {
+    font-size: 7px !important;
+    line-height: 1 !important;
+    margin-bottom: 1px !important;
+  }
+
+  /* 시작일 / 종료일 input */
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-search-fields
+  input[type="date"] {
+    height: 24px !important;
+    min-height: 24px !important;
+    max-height: 24px !important;
+
+    padding: 0 4px !important;
+
+    border-radius: 7px !important;
+
+    font-size: 9px !important;
+    font-weight: 900 !important;
+
+    line-height: 24px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-search-fields
+  input[type="date"]::-webkit-date-and-time-value {
+    line-height: 24px !important;
+    text-align: center !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-search-fields
+  input[type="date"]::-webkit-datetime-edit {
+    height: 24px !important;
+    line-height: 24px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-search-fields
+  input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+    height: 24px !important;
+    line-height: 24px !important;
+  }
+
+
+  /* =====================================================
+     2. 아래 3칸 공통 높이 축소
+     [ 호기선택 ] [ 직접날짜선택 ] [ 조회하기 ]
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-common-fields,
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-selection-preview,
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-search-actions
+  button[type="submit"] {
+    min-height: 34px !important;
+    height: 34px !important;
+    max-height: 34px !important;
+
+    border-radius: 8px !important;
+  }
+
+
+  /* =====================================================
+     3. 호기선택 카드
+     - "호기" 문구 제거
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-common-fields {
+    padding: 4px 5px !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-common-fields
+  .form-field {
+    gap: 0 !important;
+  }
+
+  /* 호기 라벨 제거 */
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-common-fields
+  .form-field__label {
+    display: none !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-common-fields
+  select {
+    height: 24px !important;
+    min-height: 24px !important;
+    max-height: 24px !important;
+
+    padding: 0 18px 0 7px !important;
+
+    font-size: 8px !important;
+    font-weight: 850 !important;
+
+    border-radius: 7px !important;
+  }
+
+
+  /* =====================================================
+     4. 선택 기간 카드
+     - "선택 기간" 배지 제거
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-selection-preview {
+    padding: 4px 6px !important;
+    justify-content: center !important;
+  }
+
+  /* 선택 기간 배지 제거 */
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-selection-preview
+  span {
+    display: none !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-selection-preview
+  strong {
+    margin: 0 !important;
+
+    font-size: 8px !important;
+    font-weight: 900 !important;
+
+    line-height: 1.05 !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-selection-preview
+  small {
+    margin: 2px 0 0 !important;
+
+    font-size: 6px !important;
+    font-weight: 700 !important;
+
+    line-height: 1.05 !important;
+  }
+
+
+  /* =====================================================
+     5. 조회하기 버튼도 같은 높이로 축소
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-search-actions {
+    align-self: stretch !important;
+  }
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-search-actions
+  button[type="submit"] {
+    padding: 0 4px !important;
+
+    font-size: 8px !important;
+    font-weight: 900 !important;
+
+    white-space: nowrap !important;
+  }
+
+}
