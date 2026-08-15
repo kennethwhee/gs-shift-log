@@ -109273,669 +109273,583 @@ button,
   }
 }
 
-/* LIMESTONE MOBILE ADD ONLY V1 */
-@media screen and (max-width: 768px) {
+/* =========================================================
+  LIMESTONE MOBILE FINAL V9
 
-  /* OCR 기능은 유지하고 화면에서만 숨김 */
-  #efficiencyTeamModal #efficiencyLimestoneView #openLimestoneSlipCaptureButton,
-  #efficiencyTeamModal #efficiencyLimestoneView #openLimestoneSlipLibraryButton,
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-slip-camera-guide {
-    display: none !important;
-  }
+  원칙:
+  - 모바일 DOM 이동 없음
+  - JS inline style 보정 없음
+  - 입고현황 / 사용량 계산 원래 HTML 구조 사용
+  - 모바일은 CSS만으로 최종 배치
+========================================================= */
 
-  /* 새로고침 + 입고 2열 */
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-heading-actions {
-    grid-template-columns:
-      minmax(76px, 0.7fr)
-      minmax(150px, 1.3fr) !important;
-    gap: 6px !important;
-  }
-
-  /* 남는 공간을 +입고 버튼에 더 배정 */
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-add-button {
-    display: inline-flex !important;
-    width: 100% !important;
-    min-width: 150px !important;
-    padding: 0 18px !important;
-    font-size: 11px !important;
-    font-weight: 900 !important;
-  }
-
-}
-
-/* LIMESTONE MOBILE READABILITY V2 */
 @media screen and (max-width: 768px) {
 
   /* =====================================================
-     1. 입고 현황 날짜 이동
-     화살표 / 날짜 / 화살표 / 기간 조회
-  ===================================================== */
+    0. hidden 상태 최우선
+  ====================================================== */
 
   #efficiencyTeamModal
   #efficiencyLimestoneView
-  .limestone-compact-period-navigation {
+  .limestone-heading-actions[hidden],
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-usage-calculator__header-actions[hidden],
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneDashboard[hidden],
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneUsageCalculatorView[hidden],
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm[hidden] {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    1. 입고현황 상단
+
+    [석회석 입고 현황]       [새로고침] [+ 입고]
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-view-heading {
     display: grid !important;
+
     grid-template-columns:
-      52px
-      minmax(0, 1fr)
-      52px
-      88px !important;
-    align-items: stretch !important;
-    gap: 7px !important;
-    padding: 8px !important;
-    border: 1px solid #d9e3ee !important;
-    border-radius: 14px !important;
-    background: #f7f9fc !important;
-  }
+      minmax(120px, 1fr)
+      auto !important;
 
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #limestonePreviousDayButton,
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #limestoneNextDayButton,
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #openLimestonePeriodSearchButton {
-    box-sizing: border-box !important;
+    align-items: center !important;
+
     width: 100% !important;
-    height: 50px !important;
-    min-height: 50px !important;
-    margin: 0 !important;
-    border: 1px solid #c8d5e3 !important;
-    border-radius: 11px !important;
-    background: #ffffff !important;
-    color: #405973 !important;
-    box-shadow: none !important;
+    min-width: 0 !important;
+
+    column-gap: 8px !important;
+
+    overflow: visible !important;
   }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-view-heading
+  > div:first-child {
+    min-width: 0 !important;
+
+    overflow: visible !important;
+  }
+
+
+  /*
+    모바일에서는 영문 제목과 설명 제거
+  */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-view-heading
+  > div:first-child
+  > span,
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-view-description {
+    display: none !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-view-heading
+  h3 {
+    width: auto !important;
+
+    margin: 0 !important;
+
+    overflow: visible !important;
+
+    color: #23354d !important;
+
+    font-size: 18px !important;
+    font-weight: 900 !important;
+    line-height: 1.25 !important;
+
+    letter-spacing: -0.035em !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  /*
+    입고현황에서만 표시되는 버튼 영역
+  */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-heading-actions:not([hidden]) {
+    display: flex !important;
+
+    grid-column: 2 !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+
+    align-items: center !important;
+    justify-content: flex-end !important;
+
+    justify-self: end !important;
+
+    gap: 6px !important;
+
+    margin: 0 !important;
+  }
+
+
+  /*
+    OCR 기능은 유지하지만 모바일 메뉴에서는 숨김
+  */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #openLimestoneSlipCaptureButton,
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #openLimestoneSlipLibraryButton,
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-slip-camera-guide {
+    display: none !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #refreshLimestoneReceiptsButton {
+    flex: 0 0 72px !important;
+
+    width: 72px !important;
+    min-width: 72px !important;
+
+    height: 36px !important;
+    min-height: 36px !important;
+
+    margin: 0 !important;
+    padding: 0 7px !important;
+
+    border-radius: 9px !important;
+
+    font-size: 10px !important;
+    font-weight: 850 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #openLimestoneReceiptEditorButton {
+    flex: 0 0 88px !important;
+
+    width: 88px !important;
+    min-width: 88px !important;
+
+    height: 36px !important;
+    min-height: 36px !important;
+
+    margin: 0 !important;
+    padding: 0 8px !important;
+
+    border-radius: 9px !important;
+
+    font-size: 11px !important;
+    font-weight: 900 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-add-label-desktop {
+    display: none !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-add-label-mobile {
+    display: inline !important;
+  }
+
+
+  /* =====================================================
+    2. 입고현황 날짜
+
+    [<] [26.08.16 (일) 오늘] [>] [기간조회]
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-day-navigation {
+    display: grid !important;
+
+    grid-template-columns:
+      44px
+      minmax(0, 1fr)
+      44px
+      82px !important;
+
+    align-items: stretch !important;
+
+    width: 100% !important;
+
+    gap: 6px !important;
+
+    padding: 6px !important;
+
+    border: 1px solid #d9e3ee !important;
+    border-radius: 12px !important;
+
+    background: #f7f9fc !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-day-navigation
+  > * {
+    position: static !important;
+
+    inset: auto !important;
+
+    margin: 0 !important;
+
+    transform: none !important;
+
+    box-sizing: border-box !important;
+  }
+
 
   #efficiencyTeamModal
   #efficiencyLimestoneView
   #limestonePreviousDayButton,
+
   #efficiencyTeamModal
   #efficiencyLimestoneView
   #limestoneNextDayButton {
     display: flex !important;
+
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+
     align-items: center !important;
     justify-content: center !important;
+
     padding: 0 !important;
-    font-size: 23px !important;
+
+    border-radius: 11px !important;
+
+    font-size: 22px !important;
     font-weight: 900 !important;
     line-height: 1 !important;
   }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneMoveToTodayButton {
+    display: flex !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    gap: 6px !important;
+
+    padding: 0 8px !important;
+
+    border-radius: 11px !important;
+
+    overflow: hidden !important;
+
+    white-space: nowrap !important;
+  }
+
 
   #efficiencyTeamModal
   #efficiencyLimestoneView
   #limestoneDayLabel {
-    box-sizing: border-box !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 100% !important;
+    display: inline !important;
+
+    width: auto !important;
     min-width: 0 !important;
-    height: 50px !important;
-    min-height: 50px !important;
-    padding: 0 12px !important;
-    border: 1px solid #b9cde4 !important;
-    border-radius: 11px !important;
-    background: #ffffff !important;
+
+    height: auto !important;
+    min-height: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border: 0 !important;
+
+    background: transparent !important;
+
     color: #263d57 !important;
-    font-size: 16px !important;
+
+    font-size: 15px !important;
     font-weight: 900 !important;
+    line-height: 1 !important;
+
     letter-spacing: -0.025em !important;
+
     white-space: nowrap !important;
   }
+
 
   #efficiencyTeamModal
   #efficiencyLimestoneView
   #limestoneTodayBadge {
+    display: inline-flex !important;
+
     flex: 0 0 auto !important;
-    margin-left: 7px !important;
-    padding: 4px 7px !important;
+
+    margin: 0 !important;
+    padding: 3px 6px !important;
+
     border-radius: 999px !important;
-    font-size: 9px !important;
+
+    font-size: 8px !important;
     font-weight: 900 !important;
     line-height: 1 !important;
   }
+
 
   #efficiencyTeamModal
   #efficiencyLimestoneView
   #openLimestonePeriodSearchButton {
-    padding: 0 8px !important;
-    font-size: 12px !important;
+    display: flex !important;
+
+    width: 100% !important;
+
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 6px !important;
+
+    border-radius: 11px !important;
+
+    font-size: 11px !important;
     font-weight: 850 !important;
+
     white-space: nowrap !important;
   }
 
 
   /* =====================================================
-     2. 사용량 계산 날짜 이동
-     네 요소 높이를 정확히 통일
-  ===================================================== */
-
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  .limestone-usage-date-card {
-    display: grid !important;
-    grid-template-columns:
-      52px
-      minmax(0, 1fr)
-      52px
-      68px !important;
-    align-items: stretch !important;
-    column-gap: 7px !important;
-    row-gap: 8px !important;
-    padding: 8px !important;
-    border: 1px solid #d9e3ee !important;
-    border-radius: 14px !important;
-    background: #f7f9fc !important;
-  }
-
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  .limestone-usage-date-arrow,
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  #limestoneUsageTodayButton {
-    box-sizing: border-box !important;
-    width: 100% !important;
-    height: 50px !important;
-    min-height: 50px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: 1px solid #c8d5e3 !important;
-    border-radius: 11px !important;
-    background: #ffffff !important;
-    color: #405973 !important;
-    box-shadow: none !important;
-  }
-
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  .limestone-usage-date-arrow {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    font-size: 24px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-  }
-
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  .limestone-usage-date-field {
-    box-sizing: border-box !important;
-    display: block !important;
-    width: 100% !important;
-    height: 50px !important;
-    min-height: 50px !important;
-    margin: 0 !important;
-  }
-
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  .limestone-usage-date-field > span {
-    display: none !important;
-  }
-
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  #limestoneUsageDate {
-    box-sizing: border-box !important;
-    width: 100% !important;
-    height: 50px !important;
-    min-height: 50px !important;
-    margin: 0 !important;
-    padding: 0 10px !important;
-    border: 1px solid #b9cde4 !important;
-    border-radius: 11px !important;
-    background: #ffffff !important;
-    color: #263d57 !important;
-    font-size: 15px !important;
-    font-weight: 900 !important;
-    text-align: center !important;
-  }
-
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  #limestoneUsageTodayButton {
-    font-size: 12px !important;
-    font-weight: 850 !important;
-  }
-
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  .limestone-usage-status {
-    grid-column: 1 / -1 !important;
-  }
-
-
-  /* =====================================================
-     3. 입고 현황 섹션 제목
-  ===================================================== */
+    3. 입고현황 표 가독성
+  ====================================================== */
 
   #efficiencyTeamModal
   #efficiencyLimestoneView
-  .limestone-section-header h4 {
-    font-size: 18px !important;
+  .limestone-section-header
+  h4 {
+    font-size: 17px !important;
     font-weight: 900 !important;
+
     letter-spacing: -0.03em !important;
   }
+
 
   #efficiencyTeamModal
   #efficiencyLimestoneView
   .limestone-section-count {
-    min-width: 43px !important;
-    padding: 4px 9px !important;
-    border-radius: 999px !important;
-    font-size: 13px !important;
-    font-weight: 900 !important;
-    line-height: 1.1 !important;
-  }
+    min-width: 40px !important;
 
+    padding: 3px 8px !important;
 
-  /* =====================================================
-     4. 일별 입고량 표
-     기존 10 / 11px → 12 / 14px
-  ===================================================== */
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  .limestone-daily-summary-table th {
-    height: 39px !important;
-    padding: 7px 6px !important;
     font-size: 12px !important;
     font-weight: 900 !important;
-    line-height: 1.2 !important;
-    color: #566b82 !important;
-  }
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  .limestone-daily-summary-table td {
-    height: 44px !important;
-    padding: 8px 6px !important;
-    font-size: 14px !important;
-    font-weight: 850 !important;
-    line-height: 1.25 !important;
-    color: #344b65 !important;
   }
 
 
-  /* =====================================================
-     5. 입고기록 상세 표
-  ===================================================== */
-
   #efficiencyTeamModal
   #efficiencyLimestoneView
-  .limestone-receipt-table thead th {
-    height: 39px !important;
-    padding: 7px 4px !important;
+  .limestone-daily-summary-table
+  th {
+    height: 37px !important;
+
+    padding: 6px 5px !important;
+
     font-size: 11px !important;
     font-weight: 900 !important;
-    line-height: 1.2 !important;
-    color: #566b82 !important;
   }
+
 
   #efficiencyTeamModal
   #efficiencyLimestoneView
-  .limestone-receipt-table tbody tr {
-    min-height: 43px !important;
-  }
+  .limestone-daily-summary-table
+  td {
+    height: 42px !important;
 
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  .limestone-receipt-table td {
-    min-height: 43px !important;
-    padding-top: 8px !important;
-    padding-bottom: 8px !important;
+    padding: 7px 5px !important;
+
     font-size: 13px !important;
-    font-weight: 800 !important;
-    line-height: 1.25 !important;
-    color: #344b65 !important;
-  }
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  .limestone-empty-table-row td {
-    font-size: 12px !important;
-    font-weight: 750 !important;
-    color: #7a899a !important;
-  }
-
-
-  /* =====================================================
-     6. 사용량 계산 요약카드
-     카드 크기는 유지하고 글씨만 읽기 좋게
-  ===================================================== */
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-summary-card > span {
-    font-size: 9px !important;
-    font-weight: 850 !important;
-  }
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-summary-card > strong {
-    margin-top: 5px !important;
-    font-size: 20px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-  }
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-summary-card > small {
-    font-size: 8px !important;
-    font-weight: 800 !important;
-  }
-
-
-  /* =====================================================
-     7. 사용량 계산 표
-     기존 모바일 7px 규칙을 읽기 좋은 크기로 교체
-  ===================================================== */
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table th,
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table td {
-    height: 40px !important;
-    padding: 5px 3px !important;
-    font-size: 11px !important;
-    font-weight: 800 !important;
-    line-height: 1.15 !important;
-  }
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table thead th {
-    font-size: 11px !important;
-    font-weight: 900 !important;
-    color: #536981 !important;
-  }
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table thead small {
-    margin-top: 2px !important;
-    font-size: 8px !important;
-    font-weight: 750 !important;
-    line-height: 1.1 !important;
-  }
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table tbody th {
-    font-size: 14px !important;
-    font-weight: 900 !important;
-  }
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table tbody strong {
-    font-size: 13px !important;
-    font-weight: 900 !important;
-    white-space: nowrap !important;
-  }
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-number-input input {
-    font-size: 12px !important;
     font-weight: 850 !important;
   }
 
 
-  /* 상태 문구도 너무 작지 않게 */
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-status strong {
-    font-size: 11px !important;
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  thead
+  th {
+    height: 37px !important;
+
+    padding: 6px 4px !important;
+
+    font-size: 10px !important;
     font-weight: 900 !important;
   }
 
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-status small {
-    font-size: 9px !important;
-    font-weight: 700 !important;
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  td {
+    min-height: 41px !important;
+
+    padding-top: 7px !important;
+    padding-bottom: 7px !important;
+
+    font-size: 12px !important;
+    font-weight: 800 !important;
+
     line-height: 1.25 !important;
   }
 
-}
 
-/* =========================================================
-   LIMESTONE MOBILE LAYOUT TUNE V3
-   - 날짜 줄 정렬
-   - 모바일 사용량 상단 버튼 숨김
-   - 사용량 표 1호기/2호기 폭 개선
-========================================================= */
-@media (max-width: 768px) {
-  /* -----------------------------------------------------
-     1. 모바일 사용량 화면 상단 액션 버튼 숨김
-     ----------------------------------------------------- */
+  /*
+    모바일 모니터링:
+    수정/삭제 숨김
+  */
+
   #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageCalculatorView
-    .limestone-usage-calculator__header-actions,
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageCalculatorView
-    .limestone-heading-actions {
+  #efficiencyLimestoneView
+  .limestone-row-actions {
     display: none !important;
   }
 
-  /* -----------------------------------------------------
-     2. 입고현황 / 사용량계산 날짜줄 공통 정렬
-        [<] [날짜박스] [>] [오늘/기간조회]
-     ----------------------------------------------------- */
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    :is(.limestone-usage-date-card, .limestone-receipt-date-card) {
-    display: grid !important;
-    grid-template-columns: 56px minmax(0, 1fr) 56px 112px !important;
-    gap: 10px !important;
-    align-items: stretch !important;
-  }
-
-  /* 좌우 화살표 버튼 */
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    :is(.limestone-usage-date-card, .limestone-receipt-date-card)
-    > button:first-child,
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    :is(.limestone-usage-date-card, .limestone-receipt-date-card)
-    > button:nth-child(3) {
-    width: 56px !important;
-    min-width: 56px !important;
-    max-width: 56px !important;
-    height: 56px !important;
-    min-height: 56px !important;
-    padding: 0 !important;
-    border-radius: 18px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    font-size: 30px !important;
-    font-weight: 800 !important;
-    line-height: 1 !important;
-    flex: none !important;
-  }
-
-  /* 날짜 박스 */
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    :is(.limestone-usage-date-card, .limestone-receipt-date-card)
-    input,
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageDate,
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneDayLabel {
-    height: 56px !important;
-    min-height: 56px !important;
-    border-radius: 18px !important;
-    font-size: 20px !important;
-    font-weight: 800 !important;
-    line-height: 1.1 !important;
-    text-align: center !important;
-  }
-
-  /* 날짜 표시 박스 내부 정렬 */
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneDayLabel {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    padding: 0 14px !important;
-  }
-
-  /* 오늘 / 기간조회 버튼 */
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    :is(.limestone-usage-date-card, .limestone-receipt-date-card)
-    > button:last-child {
-    height: 56px !important;
-    min-height: 56px !important;
-    border-radius: 18px !important;
-    padding: 0 14px !important;
-    font-size: 16px !important;
-    font-weight: 800 !important;
-    white-space: nowrap !important;
-  }
-
-  /* -----------------------------------------------------
-     3. 사용량 계산 표 가독성 개선
-     ----------------------------------------------------- */
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageCalculatorView
-    table {
-    table-layout: fixed !important;
-    width: 100% !important;
-  }
-
-  /* 첫 열(호기) 넓힘 */
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageCalculatorView
-    table
-    th:first-child,
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageCalculatorView
-    table
-    td:first-child {
-    width: 76px !important;
-    min-width: 76px !important;
-    max-width: 76px !important;
-    white-space: nowrap !important;
-    word-break: keep-all !important;
-    text-align: center !important;
-    vertical-align: middle !important;
-    font-size: 15px !important;
-    font-weight: 800 !important;
-    line-height: 1.25 !important;
-  }
-
-  /* 표 본문 글씨 조금 키우기 */
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageCalculatorView
-    table
-    td {
-    font-size: 14px !important;
-    font-weight: 700 !important;
-  }
-
-  /* 표 헤더 글씨 */
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageCalculatorView
-    table
-    th {
-    font-size: 14px !important;
-    font-weight: 800 !important;
-    line-height: 1.2 !important;
-  }
-
-  /* 두 번째~다섯 번째 열 폭 균형 조정 */
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageCalculatorView
-    table
-    th:nth-child(2),
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageCalculatorView
-    table
-    td:nth-child(2),
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageCalculatorView
-    table
-    th:nth-child(4),
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageCalculatorView
-    table
-    td:nth-child(4) {
-    width: 24% !important;
-  }
-
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageCalculatorView
-    table
-    th:nth-child(3),
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageCalculatorView
-    table
-    td:nth-child(3),
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageCalculatorView
-    table
-    th:nth-child(5),
-  #efficiencyTeamModal
-    #efficiencyLimestoneView
-    #limestoneUsageCalculatorView
-    table
-    td:nth-child(5) {
-    width: 22% !important;
-  }
-}
-
-/* LIMESTONE MOBILE LAYOUT TUNE V3 */
-@media screen and (max-width: 768px) {
 
   /* =====================================================
-     1. 사용량 계산 화면은 모바일 모니터링 전용
-        +입고 / OIS 재고 / 입고량 새로고침 숨김
-  ===================================================== */
+    4. 입고기록 상세 호기 색상
+
+    1호기 = 연파랑
+    2호기 = 연초록
+  ====================================================== */
 
   #efficiencyTeamModal
-  #efficiencyLimestoneView:has(#limestoneUsageCalculatorView:not([hidden]))
-  .limestone-view-heading
-  .limestone-heading-actions {
-    display: none !important;
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  tbody
+  tr[data-limestone-unit="1"]
+  td {
+    background: #eef6ff !important;
   }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  tbody
+  tr[data-limestone-unit="2"]
+  td {
+    background: #effaf3 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  tbody
+  tr[data-limestone-unit="1"]
+  td:nth-child(3),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  tbody
+  tr[data-limestone-unit="1"]
+  .limestone-quantity-value {
+    color: #2f6fbd !important;
+
+    font-weight: 900 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  tbody
+  tr[data-limestone-unit="2"]
+  td:nth-child(3),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  tbody
+  tr[data-limestone-unit="2"]
+  .limestone-quantity-value {
+    color: #31845a !important;
+
+    font-weight: 900 !important;
+  }
+
+
+  /* =====================================================
+    5. 사용량 계산
+
+    모바일에서는 내부 중복 제목과 작업 버튼 숨김
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-calculator__header,
 
   #efficiencyTeamModal
   #limestoneUsageCalculatorView
   .limestone-usage-calculator__header-actions,
+
   #efficiencyTeamModal
   #limestoneUsageCalculatorView
   #loadLimestoneUsageOisButton,
+
   #efficiencyTeamModal
   #limestoneUsageCalculatorView
   #refreshLimestoneUsageReceiptButton {
@@ -109944,1412 +109858,885 @@ button,
 
 
   /* =====================================================
-     2. 입고 현황 날짜 이동
-     [<] [날짜 + 오늘] [>] [기간 조회]
-  ===================================================== */
+    6. 사용량 날짜
 
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  .limestone-compact-period-navigation {
-    display: grid !important;
-    grid-template-columns:
-      54px
-      minmax(0, 1fr)
-      54px
-      96px !important;
-    align-items: stretch !important;
-    gap: 8px !important;
-    padding: 8px !important;
-  }
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #limestonePreviousDayButton,
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #limestoneNextDayButton {
-    box-sizing: border-box !important;
-    width: 54px !important;
-    min-width: 54px !important;
-    max-width: 54px !important;
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: 14px !important;
-    font-size: 25px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-  }
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #limestoneMoveToTodayButton {
-    box-sizing: border-box !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-    margin: 0 !important;
-    padding: 0 10px !important;
-    border-radius: 14px !important;
-    overflow: hidden !important;
-  }
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #limestoneDayLabel {
-    display: inline !important;
-    width: auto !important;
-    height: auto !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    border: 0 !important;
-    background: transparent !important;
-    font-size: 17px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-    white-space: nowrap !important;
-  }
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #limestoneTodayBadge {
-    flex: 0 0 auto !important;
-    margin-left: 8px !important;
-    padding: 4px 8px !important;
-    border-radius: 999px !important;
-    font-size: 10px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-  }
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #openLimestonePeriodSearchButton {
-    box-sizing: border-box !important;
-    width: 100% !important;
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-    margin: 0 !important;
-    padding: 0 8px !important;
-    border-radius: 14px !important;
-    font-size: 12px !important;
-    font-weight: 850 !important;
-    white-space: nowrap !important;
-  }
-
-
-  /* =====================================================
-     3. 사용량 계산 날짜 이동
-     [<] [날짜] [>] [오늘]
-  ===================================================== */
+    [<] [날짜] [>] [오늘]
+    상태문구는 다음 줄
+  ====================================================== */
 
   #efficiencyTeamModal
   #limestoneUsageCalculatorView
   .limestone-usage-date-card {
     display: grid !important;
+
     grid-template-columns:
-      54px
+      44px
       minmax(0, 1fr)
-      54px
-      68px !important;
+      44px
+      56px !important;
+
+    grid-template-rows:
+      44px
+      auto !important;
+
     align-items: stretch !important;
-    column-gap: 8px !important;
-    row-gap: 8px !important;
-    padding: 8px !important;
-  }
 
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  #limestoneUsagePreviousDateButton,
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  #limestoneUsageNextDateButton {
-    box-sizing: border-box !important;
-    width: 54px !important;
-    min-width: 54px !important;
-    max-width: 54px !important;
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: 14px !important;
-    font-size: 25px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-  }
-
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  .limestone-usage-date-field {
-    box-sizing: border-box !important;
-    display: block !important;
     width: 100% !important;
-    min-width: 0 !important;
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-    margin: 0 !important;
-  }
 
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  .limestone-usage-date-field > span {
-    display: none !important;
-  }
+    column-gap: 6px !important;
+    row-gap: 6px !important;
 
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  #limestoneUsageDate {
-    box-sizing: border-box !important;
-    display: block !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-    margin: 0 !important;
-    padding: 0 10px !important;
-    border-radius: 14px !important;
-    font-size: 16px !important;
-    font-weight: 900 !important;
-    line-height: 54px !important;
-    text-align: center !important;
-  }
+    padding: 6px !important;
 
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  #limestoneUsageTodayButton {
-    box-sizing: border-box !important;
-    width: 100% !important;
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-    margin: 0 !important;
-    padding: 0 8px !important;
-    border-radius: 14px !important;
-    font-size: 12px !important;
-    font-weight: 850 !important;
-  }
-
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  .limestone-usage-status {
-    grid-column: 1 / -1 !important;
-  }
-
-
-  /* =====================================================
-     4. 사용량 계산표 열 비율 조정
-     1호기 / 2호기를 반드시 한 줄 표시
-  ===================================================== */
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table {
-    width: 100% !important;
-    min-width: 0 !important;
-    table-layout: fixed !important;
-  }
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table th:nth-child(1),
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table td:nth-child(1) {
-    width: 16% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-    white-space: nowrap !important;
-    word-break: keep-all !important;
-    overflow-wrap: normal !important;
-    font-size: 13px !important;
-    font-weight: 900 !important;
-    line-height: 1.1 !important;
-  }
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table th:nth-child(2),
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table td:nth-child(2) {
-    width: 23% !important;
-  }
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table th:nth-child(3),
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table td:nth-child(3) {
-    width: 20% !important;
-  }
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table th:nth-child(4),
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table td:nth-child(4) {
-    width: 23% !important;
-  }
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table th:nth-child(5),
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  .limestone-usage-table td:nth-child(5) {
-    width: 18% !important;
-  }
-
-}
-
-/* LIMESTONE MOBILE DATE NORMALIZED V4 */
-@media screen and (max-width: 768px) {
-
-  /* 사용량 계산의 작업 버튼은 모바일에서 숨김 */
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  .limestone-usage-calculator__header-actions {
-    display: none !important;
-  }
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView:has(
-    #limestoneUsageCalculatorView:not([hidden])
-  )
-  .limestone-heading-actions {
-    display: none !important;
-  }
-
-
-  /* ===================================================
-     입고 현황 날짜줄
-  ==================================================== */
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  .limestone-compact-period-navigation.is-mobile-date-normalized {
-    display: block !important;
-    padding: 8px !important;
-  }
-
-  #efficiencyTeamModal
-  .limestone-mobile-receipt-date-control-row {
-    display: grid !important;
-    grid-template-columns:
-      52px
-      minmax(0, 1fr)
-      52px
-      92px !important;
-    gap: 8px !important;
-    align-items: stretch !important;
-    width: 100% !important;
-  }
-
-  #efficiencyTeamModal
-  .limestone-mobile-receipt-date-control-row
-  > * {
-    position: relative !important;
-    inset: auto !important;
-    margin: 0 !important;
-    transform: none !important;
-    box-sizing: border-box !important;
-  }
-
-  #efficiencyTeamModal
-  .limestone-mobile-receipt-date-control-row
-  > #limestonePreviousDayButton,
-  #efficiencyTeamModal
-  .limestone-mobile-receipt-date-control-row
-  > #limestoneNextDayButton {
-    width: 52px !important;
-    min-width: 52px !important;
-    max-width: 52px !important;
-    height: 52px !important;
-    min-height: 52px !important;
-    max-height: 52px !important;
-    aspect-ratio: 1 / 1 !important;
-    padding: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    border: 1px solid #d9e3ee !important;
     border-radius: 12px !important;
-    font-size: 23px !important;
-    line-height: 1 !important;
-  }
 
-  #efficiencyTeamModal
-  .limestone-mobile-receipt-date-control-row
-  > #limestoneMoveToTodayButton {
-    width: 100% !important;
-    min-width: 0 !important;
-    height: 52px !important;
-    min-height: 52px !important;
-    max-height: 52px !important;
-    padding: 0 12px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: 12px !important;
-    white-space: nowrap !important;
-  }
+    background: #f7f9fc !important;
 
-  #efficiencyTeamModal
-  .limestone-mobile-receipt-date-control-row
-  #limestoneDayLabel {
-    width: auto !important;
-    height: auto !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    border: 0 !important;
-    background: transparent !important;
-    font-size: 16px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-  }
-
-  #efficiencyTeamModal
-  .limestone-mobile-receipt-date-control-row
-  #limestoneTodayBadge {
-    margin-left: 7px !important;
-  }
-
-  #efficiencyTeamModal
-  .limestone-mobile-receipt-date-control-row
-  > #openLimestonePeriodSearchButton {
-    width: 100% !important;
-    height: 52px !important;
-    min-height: 52px !important;
-    max-height: 52px !important;
-    padding: 0 8px !important;
-    border-radius: 12px !important;
-    font-size: 12px !important;
-    font-weight: 850 !important;
-    white-space: nowrap !important;
-  }
-
-
-  /* ===================================================
-     사용량 계산 날짜줄
-  ==================================================== */
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  .limestone-usage-date-card.is-mobile-date-normalized {
-    display: block !important;
-    padding: 8px !important;
-  }
-
-  #efficiencyTeamModal
-  .limestone-mobile-usage-date-control-row {
-    display: grid !important;
-    grid-template-columns:
-      52px
-      minmax(0, 1fr)
-      52px
-      64px !important;
-    gap: 8px !important;
-    align-items: stretch !important;
-    width: 100% !important;
-  }
-
-  #efficiencyTeamModal
-  .limestone-mobile-usage-date-control-row
-  > * {
-    position: relative !important;
-    inset: auto !important;
-    margin: 0 !important;
-    transform: none !important;
-    box-sizing: border-box !important;
-    grid-column: auto !important;
-    grid-row: auto !important;
-  }
-
-  #efficiencyTeamModal
-  .limestone-mobile-usage-date-control-row
-  > #limestoneUsagePreviousDateButton,
-  #efficiencyTeamModal
-  .limestone-mobile-usage-date-control-row
-  > #limestoneUsageNextDateButton {
-    width: 52px !important;
-    min-width: 52px !important;
-    max-width: 52px !important;
-    height: 52px !important;
-    min-height: 52px !important;
-    max-height: 52px !important;
-    aspect-ratio: 1 / 1 !important;
-    padding: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: 12px !important;
-    font-size: 23px !important;
-    line-height: 1 !important;
-  }
-
-  #efficiencyTeamModal
-  .limestone-mobile-usage-date-control-row
-  > .limestone-usage-date-field {
-    display: block !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    height: 52px !important;
-    min-height: 52px !important;
-    max-height: 52px !important;
-  }
-
-  #efficiencyTeamModal
-  .limestone-mobile-usage-date-control-row
-  > .limestone-usage-date-field
-  > span {
-    display: none !important;
-  }
-
-  #efficiencyTeamModal
-  .limestone-mobile-usage-date-control-row
-  #limestoneUsageDate {
-    width: 100% !important;
-    min-width: 0 !important;
-    height: 52px !important;
-    min-height: 52px !important;
-    max-height: 52px !important;
-    margin: 0 !important;
-    padding: 0 8px !important;
-    border-radius: 12px !important;
-    box-sizing: border-box !important;
-    font-size: 16px !important;
-    font-weight: 900 !important;
-    text-align: center !important;
-  }
-
-  #efficiencyTeamModal
-  .limestone-mobile-usage-date-control-row
-  > #limestoneUsageTodayButton {
-    width: 100% !important;
-    height: 52px !important;
-    min-height: 52px !important;
-    max-height: 52px !important;
-    padding: 0 8px !important;
-    border-radius: 12px !important;
-    font-size: 12px !important;
-    font-weight: 850 !important;
-  }
-
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  .limestone-usage-status {
-    width: 100% !important;
-    margin-top: 8px !important;
-  }
-
-}
-
-/* LIMESTONE MOBILE RECEIPT NAV RESTORE V4 */
-@media screen and (max-width: 768px) {
-
-  /* =====================================================
-     입고현황일 때만 상단 새로고침 / +입고 우측 정렬
-  ===================================================== */
-  #efficiencyLimestoneView:has(#limestoneDashboard:not([hidden]))
-  .limestone-view-heading {
-    display: flex !important;
-    align-items: center !important;
-    flex-direction: row !important;
-    gap: 10px !important;
-  }
-
-  #efficiencyLimestoneView:has(#limestoneDashboard:not([hidden]))
-  .limestone-heading-actions {
-    display: flex !important;
-    width: auto !important;
-    min-width: 0 !important;
-    margin-left: auto !important;
-    align-items: center !important;
-    justify-content: flex-end !important;
-    flex: 0 0 auto !important;
-    gap: 6px !important;
-  }
-
-  #efficiencyLimestoneView:has(#limestoneDashboard:not([hidden]))
-  #refreshLimestoneReceiptsButton {
-    width: auto !important;
-    min-width: 76px !important;
-    height: 38px !important;
-    min-height: 38px !important;
-    padding: 0 12px !important;
-    font-size: 11px !important;
-  }
-
-  #efficiencyLimestoneView:has(#limestoneDashboard:not([hidden]))
-  #openLimestoneReceiptEditorButton {
-    width: auto !important;
-    min-width: 100px !important;
-    height: 38px !important;
-    min-height: 38px !important;
-    padding: 0 16px !important;
-    font-size: 12px !important;
-  }
-
-
-  /* =====================================================
-     입고현황 날짜바 강제 복구
-  ===================================================== */
-  #efficiencyLimestoneView
-  .limestone-compact-period-navigation {
-    display: grid !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    width: 100% !important;
-    min-height: 70px !important;
-    grid-template-columns:
-      54px
-      minmax(0, 1fr)
-      54px
-      96px !important;
-    align-items: center !important;
-    gap: 8px !important;
-    padding: 8px !important;
-    overflow: visible !important;
-  }
-
-  #efficiencyLimestoneView
-  #limestonePreviousDayButton,
-  #efficiencyLimestoneView
-  #limestoneNextDayButton {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    position: static !important;
-    box-sizing: border-box !important;
-    width: 54px !important;
-    min-width: 54px !important;
-    max-width: 54px !important;
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: 14px !important;
-    font-size: 25px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-    pointer-events: auto !important;
-  }
-
-  #efficiencyLimestoneView
-  #limestoneMoveToTodayButton {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    position: static !important;
-    box-sizing: border-box !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-    margin: 0 !important;
-    padding: 0 12px !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: 14px !important;
-    pointer-events: auto !important;
-  }
-
-  #efficiencyLimestoneView
-  #limestoneDayLabel {
-    display: inline !important;
-    width: auto !important;
-    height: auto !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    border: 0 !important;
-    background: transparent !important;
-    font-size: 17px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-    white-space: nowrap !important;
-  }
-
-  #efficiencyLimestoneView
-  #limestoneTodayBadge {
-    display: inline-flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    margin-left: 8px !important;
-    padding: 4px 8px !important;
-    font-size: 10px !important;
-    font-weight: 900 !important;
-  }
-
-  #efficiencyLimestoneView
-  #openLimestonePeriodSearchButton {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    position: static !important;
-    box-sizing: border-box !important;
-    width: 100% !important;
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-    margin: 0 !important;
-    padding: 0 8px !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: 14px !important;
-    font-size: 12px !important;
-    font-weight: 850 !important;
-    white-space: nowrap !important;
-    pointer-events: auto !important;
-  }
-
-}
-
-/* LIMESTONE MOBILE HEADING RIGHT V5 */
-@media screen and (max-width: 768px) {
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  .limestone-view-heading {
-    display: flex !important;
-    width: 100% !important;
-    max-width: none !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
     box-sizing: border-box !important;
   }
 
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  .limestone-heading-actions {
-    display: flex !important;
-    flex: 0 0 auto !important;
-    width: auto !important;
-    margin-left: auto !important;
-    margin-right: 0 !important;
-    justify-content: flex-end !important;
-    align-items: center !important;
-    gap: 6px !important;
-  }
-
-}
-
-/* LIMESTONE MOBILE DATE FINAL V6 */
-@media screen and (max-width: 768px) {
-
-  /* ===============================================
-     입고 화면 제목 + 버튼 우측 끝
-  =============================================== */
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  .limestone-view-heading {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto !important;
-    width: 100% !important;
-    align-items: center !important;
-    column-gap: 10px !important;
-  }
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  .limestone-heading-actions {
-    display: flex !important;
-    width: auto !important;
-    min-width: 0 !important;
-    margin: 0 !important;
-    justify-self: end !important;
-    align-items: center !important;
-    justify-content: flex-end !important;
-    gap: 6px !important;
-  }
-
-
-  /* ===============================================
-     입고 현황 날짜줄
-  =============================================== */
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  .limestone-day-navigation {
-    display: grid !important;
-    grid-template-columns:
-      54px
-      minmax(0, 1fr)
-      54px
-      96px !important;
-    width: 100% !important;
-    align-items: stretch !important;
-    gap: 8px !important;
-    padding: 8px !important;
-    box-sizing: border-box !important;
-  }
-
-  #efficiencyLimestoneView
-  #limestonePreviousDayButton,
-  #efficiencyLimestoneView
-  #limestoneNextDayButton {
-    display: flex !important;
-    width: 54px !important;
-    min-width: 54px !important;
-    max-width: 54px !important;
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: 14px !important;
-    font-size: 25px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-  }
-
-  #efficiencyLimestoneView
-  #limestoneMoveToTodayButton {
-    display: flex !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-    margin: 0 !important;
-    padding: 0 12px !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: 14px !important;
-  }
-
-  #efficiencyLimestoneView
-  #limestoneDayLabel {
-    width: auto !important;
-    height: auto !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    border: 0 !important;
-    background: transparent !important;
-    font-size: 17px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-    white-space: nowrap !important;
-  }
-
-  #efficiencyLimestoneView
-  #openLimestonePeriodSearchButton {
-    width: 100% !important;
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-    margin: 0 !important;
-    padding: 0 8px !important;
-    border-radius: 14px !important;
-    font-size: 12px !important;
-    font-weight: 850 !important;
-    white-space: nowrap !important;
-  }
-
-
-  /* ===============================================
-     사용량 계산 날짜줄
-  =============================================== */
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  .limestone-usage-date-card {
-    display: grid !important;
-    grid-template-columns:
-      54px
-      minmax(0, 1fr)
-      54px
-      68px !important;
-    align-items: stretch !important;
-    column-gap: 8px !important;
-    row-gap: 8px !important;
-  }
 
   #efficiencyTeamModal
   #limestoneUsageCalculatorView
-  #limestoneUsagePreviousDateButton,
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  #limestoneUsageNextDateButton {
-    width: 54px !important;
-    min-width: 54px !important;
-    max-width: 54px !important;
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border-radius: 14px !important;
-  }
-
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  .limestone-usage-date-field,
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  #limestoneUsageDate,
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  #limestoneUsageTodayButton {
-    box-sizing: border-box !important;
-    height: 54px !important;
-    min-height: 54px !important;
-    max-height: 54px !important;
-    margin: 0 !important;
-  }
-
-  #efficiencyTeamModal
-  #limestoneUsageCalculatorView
-  .limestone-usage-status {
-    grid-column: 1 / -1 !important;
-  }
-
-}
-
-/* =========================================================
-   LIMESTONE MOBILE POLISH V7
-========================================================= */
-@media (max-width: 768px) {
-  /* -----------------------------------------
-     공통 모바일 헤더 정리
-  ----------------------------------------- */
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-heading-actions,
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-usage-calculator__header-actions {
-    margin-left: auto !important;
-    display: flex !important;
-    justify-content: flex-end !important;
-    align-items: center !important;
-    gap: 10px !important;
-    flex-wrap: nowrap !important;
-    width: auto !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-heading-actions > button,
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-usage-calculator__header-actions > button {
-    flex: 0 0 auto !important;
-  }
-
-  /* 입고 화면 상단 버튼 우측 끝 */
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-heading-actions {
-    width: auto !important;
-  }
-
-  /* 사용량 화면 상단 버튼은 모바일에서 숨김 */
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView .limestone-heading-actions,
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView .limestone-usage-calculator__header-actions {
-    display: none !important;
-  }
-
-  /* -----------------------------------------
-     입고 화면 날짜 줄
-     [<] [날짜] [>] [기간 조회]
-  ----------------------------------------- */
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-mobile-receipt-date-control-row {
-    display: grid !important;
-    grid-template-columns: 64px minmax(0, 1fr) 64px 108px !important;
-    gap: 10px !important;
-    align-items: stretch !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView #limestonePreviousDayButton,
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneNextDayButton {
-    width: 64px !important;
-    min-width: 64px !important;
-    height: 64px !important;
-    min-height: 64px !important;
-    padding: 0 !important;
-    border-radius: 20px !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneMoveToTodayButton {
-    height: 64px !important;
-    min-height: 64px !important;
-    border-radius: 20px !important;
-    padding: 0 18px !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 10px !important;
-    font-size: 17px !important;
-    font-weight: 800 !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView #openLimestonePeriodSearchButton {
-    height: 64px !important;
-    min-height: 64px !important;
-    border-radius: 20px !important;
-    padding: 0 14px !important;
-    font-size: 16px !important;
-    font-weight: 700 !important;
-  }
-
-  /* -----------------------------------------
-     사용량 화면 날짜 줄
-     [<] [날짜] [>] [오늘]
-  ----------------------------------------- */
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-mobile-usage-date-control-row {
-    display: grid !important;
-    grid-template-columns: 64px minmax(0, 1fr) 64px 82px !important;
-    gap: 10px !important;
-    align-items: stretch !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-mobile-usage-date-control-row #limestonePreviousDayButton,
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-mobile-usage-date-control-row #limestoneNextDayButton {
-    width: 64px !important;
-    min-width: 64px !important;
-    height: 64px !important;
-    min-height: 64px !important;
-    padding: 0 !important;
-    border-radius: 20px !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-mobile-usage-date-control-row #limestoneMoveToTodayButton {
-    height: 64px !important;
-    min-height: 64px !important;
-    border-radius: 20px !important;
-    padding: 0 18px !important;
-    font-size: 17px !important;
-    font-weight: 800 !important;
-  }
-
-  /* -----------------------------------------
-     입고기록 상세 - 호기 색상 강조
-     1호기 = 연파랑 / 2호기 = 연초록
-  ----------------------------------------- */
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table tbody tr.limestone-row-unit-1 {
-    background: linear-gradient(
-      90deg,
-      rgba(102, 170, 255, 0.10) 0,
-      rgba(102, 170, 255, 0.04) 54px,
-      rgba(255, 255, 255, 0) 54px
-    ) !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table tbody tr.limestone-row-unit-2 {
-    background: linear-gradient(
-      90deg,
-      rgba(110, 204, 150, 0.11) 0,
-      rgba(110, 204, 150, 0.04) 54px,
-      rgba(255, 255, 255, 0) 54px
-    ) !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table tbody tr.limestone-row-unit-1 td:nth-child(3),
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table tbody tr.limestone-row-unit-1 td:nth-child(4) {
-    color: #4d87dd !important;
-    font-weight: 800 !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table tbody tr.limestone-row-unit-2 td:nth-child(3),
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table tbody tr.limestone-row-unit-2 td:nth-child(4) {
-    color: #4ca06b !important;
-    font-weight: 800 !important;
-  }
-
-  /* -----------------------------------------
-     사용량 표 - 1호기 / 2호기 칸 폭 확대
-  ----------------------------------------- */
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table th:first-child,
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table td:first-child {
-    width: 88px !important;
-    min-width: 88px !important;
-    white-space: nowrap !important;
-    font-size: 17px !important;
-    font-weight: 800 !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table th,
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table td {
-    padding: 14px 8px !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table th:nth-child(2),
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table td:nth-child(2),
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table th:nth-child(3),
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table td:nth-child(3),
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table th:nth-child(4),
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table td:nth-child(4),
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table th:nth-child(5),
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table td:nth-child(5) {
-    font-size: 14px !important;
-  }
-
-  /* -----------------------------------------
-     기간 조회 화면 compact
-  ----------------------------------------- */
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm {
-    gap: 12px !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm input,
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm select,
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm button {
-    min-height: 52px !important;
-    height: 52px !important;
-    font-size: 16px !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .segmented-control,
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .mode-selector,
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .range-selector {
-    margin-bottom: 8px !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .card,
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .panel,
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .section-block {
-    padding: 14px !important;
-    border-radius: 18px !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .button-row,
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .search-actions {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-    gap: 10px !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .button-row button:last-child,
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .search-actions button:last-child {
-    grid-column: 1 / -1 !important;
-  }
-
-  /* 제목/본문 compact */
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm h3,
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm h4 {
-    margin-bottom: 6px !important;
-    font-size: 18px !important;
-  }
-
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm p,
-  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .description {
-    margin-bottom: 8px !important;
-    font-size: 13px !important;
-    line-height: 1.45 !important;
-  }
-}
-
-/* LIMESTONE MOBILE FINAL POLISH V8 */
-@media screen and (max-width: 768px) {
-
-  /* ===============================================
-     입고현황 제목 + 우측 버튼
-  =============================================== */
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-view-heading {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto !important;
-    width: 100% !important;
-    align-items: center !important;
-    column-gap: 8px !important;
-  }
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-view-heading > div:first-child {
-    min-width: 0 !important;
-  }
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-view-heading h3 {
-    white-space: nowrap !important;
-  }
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-heading-actions {
-    display: flex !important;
-    grid-column: 2 !important;
-    width: auto !important;
-    min-width: 0 !important;
-    margin: 0 !important;
-    justify-self: end !important;
-    justify-content: flex-end !important;
-    align-items: center !important;
-    gap: 6px !important;
-  }
-  #efficiencyTeamModal #efficiencyLimestoneView #refreshLimestoneReceiptsButton {
-    flex: 0 0 82px !important;
-    width: 82px !important;
-    min-width: 82px !important;
-    height: 38px !important;
-    min-height: 38px !important;
-    padding: 0 8px !important;
-  }
-  #efficiencyTeamModal #efficiencyLimestoneView #openLimestoneReceiptEditorButton {
-    flex: 0 0 102px !important;
-    width: 102px !important;
-    min-width: 102px !important;
-    height: 38px !important;
-    min-height: 38px !important;
-    padding: 0 10px !important;
-  }
-
-  /* ===============================================
-     입고현황 날짜줄
-     50px 높이로 살짝 축소
-  =============================================== */
-  #efficiencyTeamModal #efficiencyLimestoneView .limestone-day-navigation {
-    display: grid !important;
-    grid-template-columns: 50px minmax(0, 1fr) 50px 92px !important;
-    width: 100% !important;
-    gap: 7px !important;
-    padding: 7px !important;
-    align-items: stretch !important;
-  }
-  #efficiencyLimestoneView #limestonePreviousDayButton,
-  #efficiencyLimestoneView #limestoneNextDayButton {
-    width: 50px !important;
-    min-width: 50px !important;
-    max-width: 50px !important;
-    height: 50px !important;
-    min-height: 50px !important;
-    max-height: 50px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border-radius: 13px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    font-size: 23px !important;
-  }
-  #efficiencyLimestoneView #limestoneMoveToTodayButton {
-    width: 100% !important;
-    min-width: 0 !important;
-    height: 50px !important;
-    min-height: 50px !important;
-    max-height: 50px !important;
-    margin: 0 !important;
-    padding: 0 10px !important;
-    border-radius: 13px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 7px !important;
-  }
-  #efficiencyLimestoneView #limestoneDayLabel {
-    font-size: 16px !important;
-    font-weight: 900 !important;
-    white-space: nowrap !important;
-  }
-  #efficiencyLimestoneView #limestoneTodayBadge {
-    margin-left: 0 !important;
-    padding: 3px 7px !important;
-    font-size: 9px !important;
-  }
-  #efficiencyLimestoneView #openLimestonePeriodSearchButton {
-    width: 100% !important;
-    height: 50px !important;
-    min-height: 50px !important;
-    max-height: 50px !important;
-    margin: 0 !important;
-    padding: 0 7px !important;
-    border-radius: 13px !important;
-    font-size: 12px !important;
-  }
-
-  /* ===============================================
-     사용량 계산 날짜줄
-     실제 date-card 직계 자식 기준
-  =============================================== */
-  #efficiencyTeamModal.is-mobile-monitor-only #limestoneUsageCalculatorView .limestone-usage-date-card,
-  #efficiencyTeamModal #limestoneUsageCalculatorView .limestone-usage-date-card {
-    display: grid !important;
-    grid-template-columns: 50px minmax(0, 1fr) 50px 62px !important;
-    grid-template-rows: 50px auto !important;
-    width: 100% !important;
-    column-gap: 7px !important;
-    row-gap: 7px !important;
-    align-items: stretch !important;
-  }
   #limestoneUsagePreviousDateButton {
     grid-column: 1 !important;
     grid-row: 1 !important;
   }
-  #limestoneUsageCalculatorView .limestone-usage-date-field {
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-date-field {
+    display: block !important;
+
     grid-column: 2 !important;
     grid-row: 1 !important;
-    display: block !important;
+
     width: 100% !important;
-    height: 50px !important;
-    min-height: 50px !important;
+    min-width: 0 !important;
+
+    height: 44px !important;
+    min-height: 44px !important;
+
     margin: 0 !important;
   }
-  #limestoneUsageCalculatorView .limestone-usage-date-field > span {
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-date-field
+  > span {
     display: none !important;
   }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
   #limestoneUsageNextDateButton {
     grid-column: 3 !important;
     grid-row: 1 !important;
   }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
   #limestoneUsageTodayButton {
     grid-column: 4 !important;
     grid-row: 1 !important;
   }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
   #limestoneUsageStatus {
     grid-column: 1 / -1 !important;
     grid-row: 2 !important;
   }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
   #limestoneUsagePreviousDateButton,
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
   #limestoneUsageNextDateButton {
-    width: 50px !important;
-    min-width: 50px !important;
-    max-width: 50px !important;
-    height: 50px !important;
-    min-height: 50px !important;
-    max-height: 50px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border-radius: 13px !important;
     display: flex !important;
+
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+
     align-items: center !important;
     justify-content: center !important;
-  }
-  #limestoneUsageDate {
-    box-sizing: border-box !important;
-    width: 100% !important;
-    height: 50px !important;
-    min-height: 50px !important;
+
     margin: 0 !important;
-    padding: 0 8px !important;
-    border-radius: 13px !important;
-    font-size: 15px !important;
+    padding: 0 !important;
+
+    border-radius: 11px !important;
+
+    font-size: 22px !important;
     font-weight: 900 !important;
+
+    line-height: 1 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  #limestoneUsageDate {
+    display: block !important;
+
+    box-sizing: border-box !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+
+    margin: 0 !important;
+    padding: 0 7px !important;
+
+    border-radius: 11px !important;
+
+    color: #263d57 !important;
+
+    font-size: 14px !important;
+    font-weight: 900 !important;
+
     text-align: center !important;
   }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
   #limestoneUsageTodayButton {
     width: 100% !important;
-    height: 50px !important;
-    min-height: 50px !important;
+
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+
     margin: 0 !important;
-    padding: 0 6px !important;
-    border-radius: 13px !important;
+    padding: 0 5px !important;
+
+    border-radius: 11px !important;
+
+    font-size: 11px !important;
+    font-weight: 850 !important;
   }
 
-  /* ===============================================
-     입고기록 호기별 색상
-  =============================================== */
-  #efficiencyLimestoneView .limestone-receipt-table tbody tr[data-limestone-unit="1"] td {
-    background: #eef6ff !important;
-  }
-  #efficiencyLimestoneView .limestone-receipt-table tbody tr[data-limestone-unit="2"] td {
-    background: #effaf3 !important;
-  }
-  #efficiencyLimestoneView .limestone-receipt-table tbody tr[data-limestone-unit="1"] td:nth-child(3),
-  #efficiencyLimestoneView .limestone-receipt-table tbody tr[data-limestone-unit="1"] .limestone-quantity-value {
-    color: #2f6fbd !important;
-    font-weight: 900 !important;
-  }
-  #efficiencyLimestoneView .limestone-receipt-table tbody tr[data-limestone-unit="2"] td:nth-child(3),
-  #efficiencyLimestoneView .limestone-receipt-table tbody tr[data-limestone-unit="2"] .limestone-quantity-value {
-    color: #31845a !important;
-    font-weight: 900 !important;
-  }
 
-  /* ===============================================
-     기간조회 화면 컴팩트
-  =============================================== */
-  #efficiencyLimestoneView #limestoneSearchForm {
-    padding: 10px !important;
-    gap: 8px !important;
-  }
-  #limestoneSearchForm .limestone-period-search-panel__header {
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-status {
+    width: 100% !important;
+
     min-height: 42px !important;
-    padding-bottom: 7px !important;
+
+    margin: 0 !important;
+    padding: 7px 10px !important;
   }
-  #limestoneSearchForm .limestone-period-search-panel__header strong {
-    font-size: 17px !important;
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-status
+  strong {
+    font-size: 11px !important;
+    font-weight: 900 !important;
   }
-  #limestoneSearchForm .limestone-period-search-panel__header p {
-    margin-top: 2px !important;
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-status
+  small {
+    font-size: 9px !important;
+    font-weight: 700 !important;
+
+    line-height: 1.3 !important;
+  }
+
+
+  /* =====================================================
+    7. 사용량 요약카드
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-summary-grid {
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(0, 1fr)
+      ) !important;
+
+    gap: 6px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-summary-card {
+    min-height: 82px !important;
+
+    padding: 10px 7px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-summary-card
+  > span {
+    font-size: 9px !important;
+    font-weight: 850 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-summary-card
+  > strong {
+    margin-top: 5px !important;
+
+    font-size: 20px !important;
+    font-weight: 900 !important;
+
+    line-height: 1 !important;
+
+    letter-spacing: -0.04em !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-summary-card
+  > small {
+    margin-left: 2px !important;
+
+    font-size: 8px !important;
+    font-weight: 800 !important;
+  }
+
+
+  /* =====================================================
+    8. 사용량 계산표
+
+    모바일에서는 OIS TAG 열 숨김
+    나머지 5열을 화면 안에 배치
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table-wrap {
+    width: 100% !important;
+
+    overflow-x: hidden !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table {
+    width: 100% !important;
+    min-width: 0 !important;
+
+    table-layout: fixed !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  th:nth-child(6),
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  td:nth-child(6) {
+    display: none !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  th:nth-child(1),
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  td:nth-child(1) {
+    width: 16% !important;
+
+    white-space: nowrap !important;
+
+    word-break: keep-all !important;
+
+    font-size: 13px !important;
+    font-weight: 900 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  th:nth-child(2),
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  td:nth-child(2) {
+    width: 23% !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  th:nth-child(3),
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  td:nth-child(3) {
+    width: 20% !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  th:nth-child(4),
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  td:nth-child(4) {
+    width: 23% !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  th:nth-child(5),
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  td:nth-child(5) {
+    width: 18% !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  th,
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  td {
+    height: 40px !important;
+
+    padding: 5px 3px !important;
+
     font-size: 10px !important;
+    font-weight: 800 !important;
+
+    line-height: 1.15 !important;
   }
-  #limestoneSearchForm #closeLimestonePeriodSearchButton {
-    width: 36px !important;
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  thead
+  th {
+    color: #536981 !important;
+
+    font-size: 10px !important;
+    font-weight: 900 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  thead
+  small {
+    margin-top: 2px !important;
+
+    font-size: 7px !important;
+    font-weight: 750 !important;
+
+    line-height: 1.1 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-table
+  tbody
+  strong {
+    font-size: 11px !important;
+    font-weight: 900 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-number-input {
+    gap: 2px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-number-input
+  input {
+    width: 100% !important;
+    min-width: 0 !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+
+    padding: 0 2px !important;
+
+    font-size: 10px !important;
+    font-weight: 900 !important;
+
+    text-align: center !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-number-input
+  > span {
+    font-size: 8px !important;
+  }
+
+
+  /*
+    모바일 안내문 불필요
+  */
+
+  #efficiencyTeamModal
+  #limestoneUsageCalculatorView
+  .limestone-usage-ois-help {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+    9. 기간조회 전체 압축
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm {
+    display: flex !important;
+
+    flex-direction: column !important;
+
+    gap: 7px !important;
+
+    margin: 7px 0 0 !important;
+    padding: 9px !important;
+
+    border-radius: 12px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm[hidden] {
+    display: none !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-search-panel__header {
+    min-height: 36px !important;
+
+    align-items: center !important;
+
+    padding: 0 0 6px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-search-panel__header
+  strong {
+    font-size: 16px !important;
+    font-weight: 900 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-search-panel__header
+  p {
+    margin: 1px 0 0 !important;
+
+    font-size: 9px !important;
+
+    line-height: 1.2 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  #closeLimestonePeriodSearchButton {
+    width: 32px !important;
+    min-width: 32px !important;
+
+    height: 32px !important;
+    min-height: 32px !important;
+
+    padding: 0 !important;
+  }
+
+
+  /* 조회 방식 */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-query-mode {
+    display: grid !important;
+
+    grid-template-columns:
+      58px
+      minmax(0, 1fr) !important;
+
+    align-items: center !important;
+
+    gap: 6px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-query-mode__label {
+    font-size: 9px !important;
+    font-weight: 900 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-group-mode-buttons {
+    display: grid !important;
+
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(0, 1fr)
+      ) !important;
+
+    gap: 4px !important;
+
+    min-height: 34px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-group-mode-button {
+    height: 34px !important;
+    min-height: 34px !important;
+
+    padding: 0 5px !important;
+
+    font-size: 10px !important;
+    font-weight: 850 !important;
+  }
+
+
+  /* 기간 선택 카드 */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-picker {
+    margin: 0 !important;
+    padding: 7px !important;
+
+    border-radius: 9px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-picker[hidden] {
+    display: none !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-picker__heading {
+    margin: 0 0 5px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-picker__heading
+  strong {
+    font-size: 12px !important;
+    font-weight: 900 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-picker__heading
+  span {
+    display: none !important;
+  }
+
+
+  /* 일별 시작/종료 */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-search-fields {
+    display: grid !important;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      ) !important;
+
+    gap: 6px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .form-field {
+    gap: 2px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .form-field__label {
+    font-size: 8px !important;
+    font-weight: 850 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  input,
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  select {
     height: 36px !important;
     min-height: 36px !important;
+
+    padding: 0 7px !important;
+
+    font-size: 11px !important;
+    font-weight: 750 !important;
   }
-  #limestoneSearchForm .limestone-period-query-mode,
-  #limestoneSearchForm .limestone-period-group-setting {
-    padding: 7px 0 !important;
+
+
+  /* 주별 */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-compact-period-navigation--weekly {
+    display: grid !important;
+
+    grid-template-columns:
+      34px
+      minmax(0, 1fr)
+      minmax(0, 0.8fr)
+      minmax(0, 0.7fr)
+      34px !important;
+
+    align-items: end !important;
+
+    gap: 4px !important;
+
+    padding: 0 !important;
+
+    border: 0 !important;
+
+    background: transparent !important;
+  }
+
+
+  /* 월별 */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-compact-period-navigation--monthly {
+    display: grid !important;
+
+    grid-template-columns:
+      34px
+      minmax(0, 1fr)
+      minmax(0, 1fr)
+      34px !important;
+
+    align-items: end !important;
+
+    gap: 4px !important;
+
+    padding: 0 !important;
+
+    border: 0 !important;
+
+    background: transparent !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-compact-period-arrow {
+    width: 34px !important;
+    min-width: 34px !important;
+
+    height: 36px !important;
+    min-height: 36px !important;
+
+    padding: 0 !important;
+
+    border-radius: 8px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-compact-period-field {
+    gap: 2px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-compact-period-field
+  > span {
+    font-size: 8px !important;
+    font-weight: 850 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-compact-period-help {
+    margin: 4px 0 0 !important;
+
+    font-size: 8px !important;
+
+    line-height: 1.25 !important;
+  }
+
+
+  /* 호기 */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-common-fields {
     margin: 0 !important;
+    padding: 6px !important;
   }
-  #limestoneSearchForm .limestone-group-mode-buttons {
-    min-height: 38px !important;
+
+
+  /* 선택 기간 */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-selection-preview {
+    min-height: 42px !important;
+
+    margin: 0 !important;
+    padding: 6px 8px !important;
   }
-  #limestoneSearchForm .limestone-group-mode-button {
-    height: 38px !important;
-    min-height: 38px !important;
-    padding: 0 8px !important;
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-selection-preview
+  span {
+    margin: 0 !important;
+
+    font-size: 8px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-selection-preview
+  strong {
+    margin: 0 !important;
+
     font-size: 11px !important;
   }
-  #limestoneSearchForm .limestone-period-picker {
-    padding: 9px !important;
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-selection-preview
+  small {
     margin: 0 !important;
+
+    font-size: 8px !important;
   }
-  #limestoneSearchForm .limestone-period-picker__heading {
-    margin-bottom: 6px !important;
-  }
-  #limestoneSearchForm .limestone-period-picker__heading strong {
-    font-size: 14px !important;
-  }
-  #limestoneSearchForm .limestone-period-picker__heading span {
-    font-size: 9px !important;
-  }
-  #limestoneSearchForm .limestone-period-search-fields {
+
+
+  /* 하단 취소 / 조회 */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-search-actions {
     display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 7px !important;
+
+    grid-template-columns:
+      0.8fr
+      1.2fr !important;
+
+    gap: 6px !important;
+
+    padding-top: 3px !important;
   }
-  #limestoneSearchForm .form-field {
-    gap: 3px !important;
-  }
-  #limestoneSearchForm .form-field__label {
-    font-size: 9px !important;
-  }
-  #limestoneSearchForm input,
-  #limestoneSearchForm select {
-    height: 40px !important;
-    min-height: 40px !important;
-    padding: 0 9px !important;
-    font-size: 12px !important;
-  }
-  #limestoneSearchForm .limestone-period-common-fields {
-    padding: 8px !important;
-    margin: 0 !important;
-  }
-  #limestoneSearchForm .limestone-period-selection-preview {
-    padding: 8px 10px !important;
-    margin: 0 !important;
-    min-height: 48px !important;
-  }
-  #limestoneSearchForm .limestone-period-selection-preview span,
-  #limestoneSearchForm .limestone-period-selection-preview strong,
-  #limestoneSearchForm .limestone-period-selection-preview small {
-    margin: 0 !important;
-  }
-  #limestoneSearchForm .limestone-period-search-actions {
-    display: grid !important;
-    grid-template-columns: 0.8fr 1.2fr !important;
-    gap: 7px !important;
-    padding-top: 7px !important;
-  }
-  #limestoneSearchForm .limestone-period-search-actions button {
-    height: 42px !important;
-    min-height: 42px !important;
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-search-actions
+  button {
+    height: 38px !important;
+    min-height: 38px !important;
+
+    padding: 0 8px !important;
+
+    font-size: 10px !important;
+    font-weight: 850 !important;
   }
 }

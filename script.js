@@ -1471,922 +1471,254 @@ async function setLimestoneUsageDate(
 ====================================================== */
 
 function switchLimestoneSubview(
-    requestedView
+  requestedView
+) {
+  const normalizedView =
+    requestedView === "usage"
+      ? "usage"
+      : "receipt";
+
+  const {
+    limestoneView,
+    receiptDashboard,
+    usageView,
+    headingEyebrow,
+    headingTitle,
+    headingDescription,
+    headingActions,
+    submenuButtons,
+    dateInput,
+    loadOisButton,
+    refreshReceiptButton
+  } =
+    getLimestoneUsageElements();
+
+  const isUsageView =
+    normalizedView ===
+      "usage";
+
+  const isMobile =
+    isLimestoneUsageMobileMonitorMode();
+
+  /*
+    현재 화면 상태를 CSS에서도
+    직접 사용할 수 있게 저장한다.
+  */
+  if (
+    limestoneView
   ) {
-    const normalizedView =
-      requestedView ===
-        "usage"
-        ? "usage"
-        : "receipt";
+    limestoneView.dataset
+      .limestoneSubview =
+      normalizedView;
+  }
 
+  /*
+    입고현황 / 사용량 계산 본문
+  */
+  if (
+    receiptDashboard
+  ) {
+    receiptDashboard.hidden =
+      isUsageView;
+  }
 
-    const {
-      receiptDashboard,
-      usageView,
-      headingEyebrow,
-      headingTitle,
-      headingDescription,
-      headingActions,
-      submenuButtons,
-      dateInput
-    } =
-      getLimestoneUsageElements();
+  if (
+    usageView
+  ) {
+    usageView.hidden =
+      !isUsageView;
+  }
 
+  /*
+    상단 입고 기능
 
-    const isUsageView =
-      normalizedView ===
-        "usage";
+    입고현황:
+    PC     = 기존 기능 모두
+    모바일 = 새로고침 + 입고만
 
+    사용량 계산:
+    공통 상단 입고 버튼 영역 숨김
+  */
+  if (
+    headingActions
+  ) {
+    headingActions.hidden =
+      isUsageView;
 
-    if (
-      receiptDashboard
-    ) {
-      receiptDashboard.hidden =
-        isUsageView;
-    }
+    const receiptButtonRules = [
+      {
+        id:
+          "refreshLimestoneReceiptsButton",
 
+        mobileHidden:
+          false
+      },
 
-    if (
-      usageView
-    ) {
-      usageView.hidden =
-        !isUsageView;
-    }
+      {
+        id:
+          "openLimestoneSlipCaptureButton",
 
+        mobileHidden:
+          true
+      },
 
-    if (
-      headingActions
-    ) {
-      /*
-        입고 현황 / 사용량 계산 모두
-        상단 버튼 영역 자체는 유지한다.
-      */
-      headingActions.hidden =
-        false;
+      {
+        id:
+          "openLimestoneSlipLibraryButton",
 
+        mobileHidden:
+          true
+      },
 
-      /*
-        입고 현황 전용 버튼
+      {
+        id:
+          "openLimestoneReceiptEditorButton",
 
-        사용량 계산에서는 숨김
-        입고 현황에서는 다시 표시
-      */
-      [
-        "refreshLimestoneReceiptsButton",
-        "openLimestoneSlipCaptureButton",
-        "openLimestoneSlipLibraryButton",
-        "openLimestoneReceiptEditorButton"
-      ]
-        .forEach(
-          id => {
-            const element =
-              document.getElementById(
-                id
-              );
-
-            if (
-              element
-            ) {
-              element.hidden =
-                isUsageView;
-            }
-          }
-        );
-
-
-      const cameraGuide =
-        headingActions.querySelector(
-          ".limestone-slip-camera-guide"
-        );
-
-
-      if (
-        cameraGuide
-      ) {
-        cameraGuide.hidden =
-          isUsageView;
+        mobileHidden:
+          false
       }
+    ];
 
-
-      /*
-        사용량 계산 전용 버튼
-
-        사용량 계산에서만 표시
-      */
-      [
-        document.getElementById(
-          "loadLimestoneUsageOisButton"
-        ),
-
-        document.getElementById(
-          "refreshLimestoneUsageReceiptButton"
-        )
-      ]
-        .filter(
-          Boolean
-        )
-        .forEach(
-          button => {
-            button.hidden =
-              !isUsageView;
-          }
-        );
-    }
-
-
-    submenuButtons.forEach(
-      button => {
-        const isActive =
-          button.dataset
-            .limestoneSubview ===
-          normalizedView;
-
-
-        button.classList.toggle(
-          "is-active",
-          isActive
-        );
-
-
-        button.setAttribute(
-          "aria-selected",
-          String(
-            isActive
-          )
-        );
-
-
-        button.tabIndex =
-          isActive
-            ? 0
-            : -1;
-      }
-    );
-
-
-    if (
-      headingEyebrow
-    ) {
-      headingEyebrow.textContent =
-        isUsageView
-          ? "LIMESTONE CONSUMPTION"
-          : "LIMESTONE RECEIPT";
-    }
-
-
-    if (
-      headingTitle
-    ) {
-      headingTitle.textContent =
-        isUsageView
-          ? "석회석 사용량 계산"
-          : "석회석 입고 현황";
-    }
-
-
-    if (
-      headingDescription
-    ) {
-      headingDescription.textContent =
-        isUsageView
-          ? "OIS 재고량과 당일 입고량을 기준으로 호기별 석회석 사용량을 계산합니다."
-          : "호기별 석회석 입고량을 기록하고 기간별 합계를 확인합니다.";
-    }
-
-
-    if (
-      isUsageView
-    ) {
-      const currentReceiptDate =
-        String(
+    receiptButtonRules.forEach(
+      rule => {
+        const button =
           document.getElementById(
-            "limestoneStartDate"
-          )?.value ||
-          ""
-        ).trim();
-
-
-      const targetDate =
-        parseLimestoneUsageDate(
-          limestoneUsageState
-            .selectedDate
-        )
-          ? limestoneUsageState
-              .selectedDate
-          : parseLimestoneUsageDate(
-              currentReceiptDate
-            )
-            ? currentReceiptDate
-            : getLimestoneUsageToday();
-
-
-      if (
-        dateInput
-      ) {
-        dateInput.value =
-          targetDate;
-      }
-
-
-      if (
-        limestoneUsageState
-          .loadedDate !==
-        targetDate
-      ) {
-        setLimestoneUsageDate(
-          targetDate
-        );
-      }
-    }
-  }
-
-
-  /* =====================================================
-    화면 생성
-  ====================================================== */
-
-  function createLimestoneUsageFeatureHtml() {
-    const {
-      limestoneView,
-      heading,
-      receiptDashboard
-    } =
-      getLimestoneUsageElements();
-
-
-    if (
-      !limestoneView ||
-      !heading ||
-      !receiptDashboard
-    ) {
-      return false;
-    }
-
-
-    if (
-      !document.getElementById(
-        "limestoneSubviewMenu"
-      )
-    ) {
-      heading.insertAdjacentHTML(
-        "afterend",
-
-        `
-          <nav
-            class="limestone-subview-menu"
-            id="limestoneSubviewMenu"
-            role="tablist"
-            aria-label="석회석 세부 메뉴"
-          >
-
-            <button
-              type="button"
-              class="
-                limestone-subview-menu__button
-                is-active
-              "
-              id="limestoneReceiptSubviewButton"
-              data-limestone-subview="receipt"
-              role="tab"
-              aria-selected="true"
-              aria-controls="limestoneDashboard"
-            >
-              입고 현황
-            </button>
-
-
-            <button
-              type="button"
-              class="limestone-subview-menu__button"
-              id="limestoneUsageSubviewButton"
-              data-limestone-subview="usage"
-              role="tab"
-              aria-selected="false"
-              aria-controls="limestoneUsageCalculatorView"
-              tabindex="-1"
-            >
-              사용량 계산
-            </button>
-
-          </nav>
-        `
-      );
-    }
-
-
-    if (
-      !document.getElementById(
-        "limestoneUsageCalculatorView"
-      )
-    ) {
-      receiptDashboard.insertAdjacentHTML(
-        "afterend",
-
-        `
-          <section
-            class="limestone-usage-calculator"
-            id="limestoneUsageCalculatorView"
-            data-limestone-usage-status="idle"
-            role="tabpanel"
-            aria-labelledby="limestoneUsageSubviewButton"
-            hidden
-          >
-
-            <!-- =========================================
-              사용량 계산 상단
-            ========================================== -->
-            <header class="limestone-usage-calculator__header">
-
-              <div>
-
-                <span>
-                  DAILY CONSUMPTION
-                </span>
-
-                <h4>
-                  일일 석회석 사용량
-                </h4>
-
-                <p>
-                  시작 재고 + 당일 입고량 - 종료 재고로 계산합니다.
-                </p>
-
-              </div>
-
-
-              <div class="limestone-usage-calculator__header-actions">
-
-                <button
-                  type="button"
-                  class="secondary-button"
-                  id="loadLimestoneUsageOisButton"
-                  title="다음 단계에서 OIS 자동 조회 기능을 연결합니다."
-                  disabled
-                >
-                  OIS 재고 불러오기
-                </button>
-
-
-                <button
-                  type="button"
-                  class="secondary-button"
-                  id="refreshLimestoneUsageReceiptButton"
-                >
-                  입고량 새로고침
-                </button>
-
-              </div>
-
-            </header>
-
-
-            <!-- =========================================
-              날짜
-            ========================================== -->
-            <section class="limestone-usage-date-card">
-
-              <button
-                type="button"
-                class="limestone-usage-date-arrow"
-                id="limestoneUsagePreviousDateButton"
-                aria-label="이전 날짜"
-              >
-                ‹
-              </button>
-
-
-              <label class="limestone-usage-date-field">
-
-                <span>
-                  계산 기준일
-                </span>
-
-                <input
-                  type="date"
-                  id="limestoneUsageDate"
-                  autocomplete="off"
-                />
-
-              </label>
-
-
-              <button
-                type="button"
-                class="limestone-usage-date-arrow"
-                id="limestoneUsageNextDateButton"
-                aria-label="다음 날짜"
-              >
-                ›
-              </button>
-
-
-              <button
-                type="button"
-                class="secondary-button"
-                id="limestoneUsageTodayButton"
-              >
-                오늘
-              </button>
-
-
-              <div
-                class="limestone-usage-status"
-                id="limestoneUsageStatus"
-              >
-
-                <span
-                  class="limestone-usage-status__dot"
-                  aria-hidden="true"
-                >
-                </span>
-
-
-                <div>
-
-                  <strong id="limestoneUsageStatusTitle">
-                    조회 준비
-                  </strong>
-
-                  <small id="limestoneUsageStatusDescription">
-                    날짜를 선택하면 당일 입고량을 자동으로 불러옵니다.
-                  </small>
-
-                </div>
-
-              </div>
-
-            </section>
-
-
-            <!-- =========================================
-              결과 요약
-            ========================================== -->
-            <section class="limestone-usage-summary-grid">
-
-              <article class="limestone-usage-summary-card is-total">
-
-                <span>
-                  전체 사용량
-                </span>
-
-                <strong id="limestoneUsageTotalSummary">
-                  -
-                </strong>
-
-                <small>
-                  ton
-                </small>
-
-              </article>
-
-
-              <article class="limestone-usage-summary-card is-unit-one">
-
-                <span>
-                  1호기 사용량
-                </span>
-
-                <strong id="limestoneUsageUnitOneSummary">
-                  -
-                </strong>
-
-                <small>
-                  ton
-                </small>
-
-              </article>
-
-
-              <article class="limestone-usage-summary-card is-unit-two">
-
-                <span>
-                  2호기 사용량
-                </span>
-
-                <strong id="limestoneUsageUnitTwoSummary">
-                  -
-                </strong>
-
-                <small>
-                  ton
-                </small>
-
-              </article>
-
-            </section>
-
-
-            <!-- =========================================
-              계산표
-            ========================================== -->
-            <section class="limestone-usage-table-card">
-
-              <header class="limestone-usage-table-card__header">
-
-                <div>
-
-                  <span>
-                    CALCULATION
-                  </span>
-
-                  <h4>
-                    호기별 사용량 계산
-                  </h4>
-
-                </div>
-
-              </header>
-
-
-              <div class="limestone-usage-table-wrap">
-
-                <table class="limestone-usage-table">
-
-                  <thead>
-
-                    <tr>
-
-                      <th>
-                        호기
-                      </th>
-
-                      <th>
-                        시작 재고
-                        <small>
-                          선택일 00:00
-                        </small>
-                      </th>
-
-                      <th>
-                        ＋ 입고량
-                      </th>
-
-                      <th>
-                        종료 재고
-                        <small>
-                          다음 날 00:00
-                        </small>
-                      </th>
-
-                      <th>
-                        ＝ 사용량
-                      </th>
-
-                      <th>
-                        OIS TAG
-                      </th>
-
-                    </tr>
-
-                  </thead>
-
-
-                  <tbody>
-
-                    <!-- 1호기 -->
-                    <tr data-limestone-usage-unit="1">
-
-                      <th>
-                        1호기
-                      </th>
-
-                      <td>
-
-                        <div class="limestone-usage-number-input">
-
-                          <input
-                            type="number"
-                            id="limestoneUsageUnitOneStartStock"
-                            min="0"
-                            step="0.001"
-                            inputmode="decimal"
-                            placeholder="시작 재고"
-                          />
-
-                          <span>
-                            ton
-                          </span>
-
-                        </div>
-
-                      </td>
-
-                      <td>
-
-                        <strong id="limestoneUsageUnitOneReceipt">
-                          0.00 ton
-                        </strong>
-
-                      </td>
-
-                      <td>
-
-                        <div class="limestone-usage-number-input">
-
-                          <input
-                            type="number"
-                            id="limestoneUsageUnitOneEndStock"
-                            min="0"
-                            step="0.001"
-                            inputmode="decimal"
-                            placeholder="종료 재고"
-                          />
-
-                          <span>
-                            ton
-                          </span>
-
-                        </div>
-
-                      </td>
-
-                      <td>
-
-                        <strong
-                          class="limestone-usage-result-value"
-                          id="limestoneUsageUnitOneUsage"
-                        >
-                          -
-                        </strong>
-
-                      </td>
-
-                      <td>
-
-                        <code>
-                          ${LIMESTONE_USAGE_TAGS[1]}
-                        </code>
-
-                      </td>
-
-                    </tr>
-
-
-                    <!-- 2호기 -->
-                    <tr data-limestone-usage-unit="2">
-
-                      <th>
-                        2호기
-                      </th>
-
-                      <td>
-
-                        <div class="limestone-usage-number-input">
-
-                          <input
-                            type="number"
-                            id="limestoneUsageUnitTwoStartStock"
-                            min="0"
-                            step="0.001"
-                            inputmode="decimal"
-                            placeholder="시작 재고"
-                          />
-
-                          <span>
-                            ton
-                          </span>
-
-                        </div>
-
-                      </td>
-
-                      <td>
-
-                        <strong id="limestoneUsageUnitTwoReceipt">
-                          0.00 ton
-                        </strong>
-
-                      </td>
-
-                      <td>
-
-                        <div class="limestone-usage-number-input">
-
-                          <input
-                            type="number"
-                            id="limestoneUsageUnitTwoEndStock"
-                            min="0"
-                            step="0.001"
-                            inputmode="decimal"
-                            placeholder="종료 재고"
-                          />
-
-                          <span>
-                            ton
-                          </span>
-
-                        </div>
-
-                      </td>
-
-                      <td>
-
-                        <strong
-                          class="limestone-usage-result-value"
-                          id="limestoneUsageUnitTwoUsage"
-                        >
-                          -
-                        </strong>
-
-                      </td>
-
-                      <td>
-
-                        <code>
-                          ${LIMESTONE_USAGE_TAGS[2]}
-                        </code>
-
-                      </td>
-
-                    </tr>
-
-                  </tbody>
-
-                </table>
-
-              </div>
-
-
-              <p class="limestone-usage-formula-help">
-
-                사용량 = 시작 재고 + 당일 입고량 - 종료 재고
-
-              </p>
-
-            </section>
-
-
-            <p class="limestone-usage-ois-help">
-
-              현재 단계에서는 시작·종료 재고를 직접 입력합니다.
-              다음 단계에서 회사 PC의 OIS 연동 프로그램을 연결하면
-              두 재고값이 자동으로 입력됩니다.
-
-            </p>
-
-          </section>
-        `
-      );
-    }
-
-
-    return true;
-  }
-
-
-  /* =====================================================
-    이벤트
-  ====================================================== */
-
-  function bindLimestoneUsageEvents() {
-    const elements =
-      getLimestoneUsageElements();
-
-
-    if (
-      !elements.submenu ||
-      elements.submenu.dataset
-        .limestoneUsageBound ===
-        "true"
-    ) {
-      return;
-    }
-
-
-    elements.submenuButtons.forEach(
-      button => {
-        button.addEventListener(
-          "click",
-          () => {
-            switchLimestoneSubview(
-              button.dataset
-                .limestoneSubview
-            );
-          }
-        );
+            rule.id
+          );
+
+        if (
+          !button
+        ) {
+          return;
+        }
+
+        button.hidden =
+          isUsageView ||
+          (
+            isMobile &&
+            rule.mobileHidden
+          );
       }
     );
 
-
-    elements.previousDateButton
-      ?.addEventListener(
-        "click",
-        () => {
-          const currentDate =
-            elements.dateInput?.value ||
-            limestoneUsageState
-              .selectedDate ||
-            getLimestoneUsageToday();
-
-
-          setLimestoneUsageDate(
-            addLimestoneUsageDays(
-              currentDate,
-              -1
-            )
-          );
-        }
+    const cameraGuide =
+      headingActions.querySelector(
+        ".limestone-slip-camera-guide"
       );
-
-
-    elements.nextDateButton
-      ?.addEventListener(
-        "click",
-        () => {
-          const currentDate =
-            elements.dateInput?.value ||
-            limestoneUsageState
-              .selectedDate ||
-            getLimestoneUsageToday();
-
-
-          setLimestoneUsageDate(
-            addLimestoneUsageDays(
-              currentDate,
-              1
-            )
-          );
-        }
-      );
-
-
-    elements.todayButton
-      ?.addEventListener(
-        "click",
-        () => {
-          setLimestoneUsageDate(
-            getLimestoneUsageToday()
-          );
-        }
-      );
-
-
-    elements.dateInput
-      ?.addEventListener(
-        "change",
-        () => {
-          setLimestoneUsageDate(
-            elements.dateInput.value
-          );
-        }
-      );
-
-
-    elements.refreshReceiptButton
-      ?.addEventListener(
-        "click",
-        loadLimestoneUsageReceiptQuantities
-      );
-
-
-    [
-      elements.unitOneStartStock,
-      elements.unitOneEndStock,
-      elements.unitTwoStartStock,
-      elements.unitTwoEndStock
-    ]
-      .filter(Boolean)
-      .forEach(
-        input => {
-          input.addEventListener(
-            "input",
-            renderLimestoneUsageCalculation
-          );
-
-
-          input.addEventListener(
-            "change",
-            renderLimestoneUsageCalculation
-          );
-        }
-      );
-
-
-    elements.submenu.dataset
-      .limestoneUsageBound =
-      "true";
-  }
-
-
-  /* =====================================================
-    초기화
-  ====================================================== */
-
-  function initializeLimestoneUsageCalculator() {
-    const created =
-      createLimestoneUsageFeatureHtml();
-
 
     if (
-      !created
+      cameraGuide
     ) {
-      return;
+      cameraGuide.hidden =
+        isUsageView ||
+        isMobile;
     }
+  }
 
+  /*
+    사용량 화면 상단 기능
 
-    bindLimestoneUsageEvents();
+    PC:
+    기존 OIS / 입고량 새로고침 유지
 
+    모바일:
+    모니터링 전용이므로 전부 숨김
+  */
+  const usageHeaderActions =
+    usageView?.querySelector(
+      ".limestone-usage-calculator__header-actions"
+    ) ||
+    null;
 
+  if (
+    usageHeaderActions
+  ) {
+    usageHeaderActions.hidden =
+      !isUsageView ||
+      isMobile;
+  }
+
+  [
+    loadOisButton,
+    refreshReceiptButton
+  ]
+    .filter(
+      Boolean
+    )
+    .forEach(
+      button => {
+        button.hidden =
+          !isUsageView ||
+          isMobile;
+      }
+    );
+
+  /*
+    소메뉴 활성 상태
+  */
+  submenuButtons.forEach(
+    button => {
+      const isActive =
+        button.dataset
+          .limestoneSubview ===
+        normalizedView;
+
+      button.classList.toggle(
+        "is-active",
+        isActive
+      );
+
+      button.setAttribute(
+        "aria-selected",
+        String(
+          isActive
+        )
+      );
+
+      button.tabIndex =
+        isActive
+          ? 0
+          : -1;
+    }
+  );
+
+  /*
+    상단 제목
+  */
+  if (
+    headingEyebrow
+  ) {
+    headingEyebrow.textContent =
+      isUsageView
+        ? "LIMESTONE CONSUMPTION"
+        : "LIMESTONE RECEIPT";
+  }
+
+  if (
+    headingTitle
+  ) {
+    headingTitle.textContent =
+      isUsageView
+        ? "석회석 사용량 계산"
+        : "석회석 입고 현황";
+  }
+
+  if (
+    headingDescription
+  ) {
+    headingDescription.textContent =
+      isUsageView
+        ? "OIS 재고량과 당일 입고량을 기준으로 호기별 석회석 사용량을 계산합니다."
+        : "호기별 석회석 입고량을 기록하고 기간별 합계를 확인합니다.";
+  }
+
+  /*
+    사용량 화면 진입 시
+    현재 선택 날짜의 저장값 복원
+  */
+  if (
+    isUsageView
+  ) {
     const currentReceiptDate =
       String(
         document.getElementById(
@@ -2395,63 +1727,880 @@ function switchLimestoneSubview(
         ""
       ).trim();
 
-
-    limestoneUsageState
-      .selectedDate =
+    const targetDate =
       parseLimestoneUsageDate(
-        currentReceiptDate
+        limestoneUsageState
+          .selectedDate
       )
-        ? currentReceiptDate
-        : getLimestoneUsageToday();
+        ? limestoneUsageState
+            .selectedDate
 
-
-    const {
-      dateInput
-    } =
-      getLimestoneUsageElements();
-
+        : parseLimestoneUsageDate(
+            currentReceiptDate
+          )
+          ? currentReceiptDate
+          : getLimestoneUsageToday();
 
     if (
       dateInput
     ) {
       dateInput.value =
-        limestoneUsageState
-          .selectedDate;
+        targetDate;
     }
 
-
-    switchLimestoneSubview(
-      "receipt"
-    );
+    if (
+      limestoneUsageState
+        .loadedDate !==
+      targetDate
+    ) {
+      setLimestoneUsageDate(
+        targetDate
+      );
+    }
   }
+}
 
+/* =====================================================
+  화면 생성
+====================================================== */
 
-  window
-    .switchLimestoneSubview =
-    switchLimestoneSubview;
-
-
-  window
-    .loadLimestoneUsageReceiptQuantities =
-    loadLimestoneUsageReceiptQuantities;
+function createLimestoneUsageFeatureHtml() {
+  const {
+    limestoneView,
+    heading,
+    receiptDashboard
+  } =
+    getLimestoneUsageElements();
 
 
   if (
-    document.readyState ===
-      "loading"
+    !limestoneView ||
+    !heading ||
+    !receiptDashboard
   ) {
-    document.addEventListener(
-      "DOMContentLoaded",
-      initializeLimestoneUsageCalculator,
-      {
-        once:
-          true
+    return false;
+  }
+
+
+  /* ===================================================
+    석회석 소메뉴
+  ==================================================== */
+
+  if (
+    !document.getElementById(
+      "limestoneSubviewMenu"
+    )
+  ) {
+    heading.insertAdjacentHTML(
+      "afterend",
+
+      `
+        <nav
+          class="limestone-subview-menu"
+          id="limestoneSubviewMenu"
+          role="tablist"
+          aria-label="석회석 세부 메뉴"
+        >
+
+          <button
+            type="button"
+            class="
+              limestone-subview-menu__button
+              is-active
+            "
+            id="limestoneReceiptSubviewButton"
+            data-limestone-subview="receipt"
+            role="tab"
+            aria-selected="true"
+            aria-controls="limestoneDashboard"
+          >
+            입고 현황
+          </button>
+
+
+          <button
+            type="button"
+            class="limestone-subview-menu__button"
+            id="limestoneUsageSubviewButton"
+            data-limestone-subview="usage"
+            role="tab"
+            aria-selected="false"
+            aria-controls="limestoneUsageCalculatorView"
+            tabindex="-1"
+          >
+            사용량 계산
+          </button>
+
+        </nav>
+      `
+    );
+  }
+
+
+  /* ===================================================
+    사용량 계산 화면
+  ==================================================== */
+
+  if (
+    !document.getElementById(
+      "limestoneUsageCalculatorView"
+    )
+  ) {
+    receiptDashboard.insertAdjacentHTML(
+      "afterend",
+
+      `
+        <section
+          class="limestone-usage-calculator"
+          id="limestoneUsageCalculatorView"
+          data-limestone-usage-status="idle"
+          role="tabpanel"
+          aria-labelledby="limestoneUsageSubviewButton"
+          hidden
+        >
+
+          <!-- =========================================
+            사용량 계산 상단
+          ========================================== -->
+
+          <header class="limestone-usage-calculator__header">
+
+            <div>
+
+              <span>
+                DAILY CONSUMPTION
+              </span>
+
+              <h4>
+                일일 석회석 사용량
+              </h4>
+
+              <p>
+                시작 재고 + 당일 입고량 - 종료 재고로 계산합니다.
+              </p>
+
+            </div>
+
+
+            <div class="limestone-usage-calculator__header-actions">
+
+              <button
+                type="button"
+                class="secondary-button"
+                id="loadLimestoneUsageOisButton"
+                title="다음 단계에서 OIS 자동 조회 기능을 연결합니다."
+                disabled
+              >
+                OIS 재고 불러오기
+              </button>
+
+
+              <button
+                type="button"
+                class="secondary-button"
+                id="refreshLimestoneUsageReceiptButton"
+              >
+                입고량 새로고침
+              </button>
+
+            </div>
+
+          </header>
+
+
+          <!-- =========================================
+            날짜
+          ========================================== -->
+
+          <section class="limestone-usage-date-card">
+
+            <button
+              type="button"
+              class="limestone-usage-date-arrow"
+              id="limestoneUsagePreviousDateButton"
+              aria-label="이전 날짜"
+            >
+              ‹
+            </button>
+
+
+            <label class="limestone-usage-date-field">
+
+              <span>
+                계산 기준일
+              </span>
+
+              <input
+                type="date"
+                id="limestoneUsageDate"
+                autocomplete="off"
+              />
+
+            </label>
+
+
+            <button
+              type="button"
+              class="limestone-usage-date-arrow"
+              id="limestoneUsageNextDateButton"
+              aria-label="다음 날짜"
+            >
+              ›
+            </button>
+
+
+            <button
+              type="button"
+              class="secondary-button"
+              id="limestoneUsageTodayButton"
+            >
+              오늘
+            </button>
+
+
+            <div
+              class="limestone-usage-status"
+              id="limestoneUsageStatus"
+            >
+
+              <span
+                class="limestone-usage-status__dot"
+                aria-hidden="true"
+              >
+              </span>
+
+
+              <div>
+
+                <strong id="limestoneUsageStatusTitle">
+                  조회 준비
+                </strong>
+
+                <small id="limestoneUsageStatusDescription">
+                  날짜를 선택하면 당일 입고량을 자동으로 불러옵니다.
+                </small>
+
+              </div>
+
+            </div>
+
+          </section>
+
+
+          <!-- =========================================
+            결과 요약
+          ========================================== -->
+
+          <section class="limestone-usage-summary-grid">
+
+            <article
+              class="
+                limestone-usage-summary-card
+                is-total
+              "
+            >
+
+              <span>
+                전체 사용량
+              </span>
+
+              <strong id="limestoneUsageTotalSummary">
+                -
+              </strong>
+
+              <small>
+                ton
+              </small>
+
+            </article>
+
+
+            <article
+              class="
+                limestone-usage-summary-card
+                is-unit-one
+              "
+            >
+
+              <span>
+                1호기 사용량
+              </span>
+
+              <strong id="limestoneUsageUnitOneSummary">
+                -
+              </strong>
+
+              <small>
+                ton
+              </small>
+
+            </article>
+
+
+            <article
+              class="
+                limestone-usage-summary-card
+                is-unit-two
+              "
+            >
+
+              <span>
+                2호기 사용량
+              </span>
+
+              <strong id="limestoneUsageUnitTwoSummary">
+                -
+              </strong>
+
+              <small>
+                ton
+              </small>
+
+            </article>
+
+          </section>
+
+
+          <!-- =========================================
+            계산표
+          ========================================== -->
+
+          <section class="limestone-usage-table-card">
+
+            <header class="limestone-usage-table-card__header">
+
+              <div>
+
+                <span>
+                  CALCULATION
+                </span>
+
+                <h4>
+                  호기별 사용량 계산
+                </h4>
+
+              </div>
+
+            </header>
+
+
+            <div class="limestone-usage-table-wrap">
+
+              <table class="limestone-usage-table">
+
+                <thead>
+
+                  <tr>
+
+                    <th>
+                      호기
+                    </th>
+
+                    <th>
+                      시작 재고
+
+                      <small>
+                        선택일 00:00
+                      </small>
+                    </th>
+
+                    <th>
+                      ＋ 입고량
+                    </th>
+
+                    <th>
+                      종료 재고
+
+                      <small>
+                        다음 날 00:00
+                      </small>
+                    </th>
+
+                    <th>
+                      ＝ 사용량
+                    </th>
+
+                    <th>
+                      OIS TAG
+                    </th>
+
+                  </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                  <!-- 1호기 -->
+
+                  <tr
+                    data-limestone-usage-unit="1"
+                  >
+
+                    <th>
+                      1호기
+                    </th>
+
+
+                    <td>
+
+                      <div class="limestone-usage-number-input">
+
+                        <input
+                          type="number"
+                          id="limestoneUsageUnitOneStartStock"
+                          min="0"
+                          step="0.001"
+                          inputmode="decimal"
+                          placeholder="시작 재고"
+                        />
+
+                        <span>
+                          ton
+                        </span>
+
+                      </div>
+
+                    </td>
+
+
+                    <td>
+
+                      <strong id="limestoneUsageUnitOneReceipt">
+                        0.00 ton
+                      </strong>
+
+                    </td>
+
+
+                    <td>
+
+                      <div class="limestone-usage-number-input">
+
+                        <input
+                          type="number"
+                          id="limestoneUsageUnitOneEndStock"
+                          min="0"
+                          step="0.001"
+                          inputmode="decimal"
+                          placeholder="종료 재고"
+                        />
+
+                        <span>
+                          ton
+                        </span>
+
+                      </div>
+
+                    </td>
+
+
+                    <td>
+
+                      <strong
+                        class="limestone-usage-result-value"
+                        id="limestoneUsageUnitOneUsage"
+                      >
+                        -
+                      </strong>
+
+                    </td>
+
+
+                    <td>
+
+                      <code>
+                        ${LIMESTONE_USAGE_TAGS[1]}
+                      </code>
+
+                    </td>
+
+                  </tr>
+
+
+                  <!-- 2호기 -->
+
+                  <tr
+                    data-limestone-usage-unit="2"
+                  >
+
+                    <th>
+                      2호기
+                    </th>
+
+
+                    <td>
+
+                      <div class="limestone-usage-number-input">
+
+                        <input
+                          type="number"
+                          id="limestoneUsageUnitTwoStartStock"
+                          min="0"
+                          step="0.001"
+                          inputmode="decimal"
+                          placeholder="시작 재고"
+                        />
+
+                        <span>
+                          ton
+                        </span>
+
+                      </div>
+
+                    </td>
+
+
+                    <td>
+
+                      <strong id="limestoneUsageUnitTwoReceipt">
+                        0.00 ton
+                      </strong>
+
+                    </td>
+
+
+                    <td>
+
+                      <div class="limestone-usage-number-input">
+
+                        <input
+                          type="number"
+                          id="limestoneUsageUnitTwoEndStock"
+                          min="0"
+                          step="0.001"
+                          inputmode="decimal"
+                          placeholder="종료 재고"
+                        />
+
+                        <span>
+                          ton
+                        </span>
+
+                      </div>
+
+                    </td>
+
+
+                    <td>
+
+                      <strong
+                        class="limestone-usage-result-value"
+                        id="limestoneUsageUnitTwoUsage"
+                      >
+                        -
+                      </strong>
+
+                    </td>
+
+
+                    <td>
+
+                      <code>
+                        ${LIMESTONE_USAGE_TAGS[2]}
+                      </code>
+
+                    </td>
+
+                  </tr>
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+
+            <p class="limestone-usage-formula-help">
+              사용량 = 시작 재고 + 당일 입고량 - 종료 재고
+            </p>
+
+          </section>
+
+
+          <p class="limestone-usage-ois-help">
+            현재 단계에서는 시작·종료 재고를 직접 입력합니다.
+            다음 단계에서 회사 PC의 OIS 연동 프로그램을 연결하면
+            두 재고값이 자동으로 입력됩니다.
+          </p>
+
+        </section>
+      `
+    );
+  }
+
+
+  return true;
+}
+
+
+/* =====================================================
+  이벤트
+====================================================== */
+
+function bindLimestoneUsageEvents() {
+  const elements =
+    getLimestoneUsageElements();
+
+
+  if (
+    !elements.submenu ||
+    elements.submenu.dataset
+      .limestoneUsageBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  /* ===================================================
+    소메뉴
+  ==================================================== */
+
+  elements.submenuButtons.forEach(
+    button => {
+      button.addEventListener(
+        "click",
+        () => {
+          switchLimestoneSubview(
+            button.dataset
+              .limestoneSubview
+          );
+        }
+      );
+    }
+  );
+
+
+  /* ===================================================
+    이전 날짜
+  ==================================================== */
+
+  elements.previousDateButton
+    ?.addEventListener(
+      "click",
+      () => {
+        const currentDate =
+          elements.dateInput?.value ||
+          limestoneUsageState
+            .selectedDate ||
+          getLimestoneUsageToday();
+
+
+        setLimestoneUsageDate(
+          addLimestoneUsageDays(
+            currentDate,
+            -1
+          )
+        );
       }
     );
 
-  } else {
-    initializeLimestoneUsageCalculator();
+
+  /* ===================================================
+    다음 날짜
+  ==================================================== */
+
+  elements.nextDateButton
+    ?.addEventListener(
+      "click",
+      () => {
+        const currentDate =
+          elements.dateInput?.value ||
+          limestoneUsageState
+            .selectedDate ||
+          getLimestoneUsageToday();
+
+
+        setLimestoneUsageDate(
+          addLimestoneUsageDays(
+            currentDate,
+            1
+          )
+        );
+      }
+    );
+
+
+  /* ===================================================
+    오늘
+  ==================================================== */
+
+  elements.todayButton
+    ?.addEventListener(
+      "click",
+      () => {
+        setLimestoneUsageDate(
+          getLimestoneUsageToday()
+        );
+      }
+    );
+
+
+  /* ===================================================
+    날짜 직접 선택
+  ==================================================== */
+
+  elements.dateInput
+    ?.addEventListener(
+      "change",
+      () => {
+        setLimestoneUsageDate(
+          elements.dateInput.value
+        );
+      }
+    );
+
+
+  /* ===================================================
+    입고량 새로고침
+  ==================================================== */
+
+  elements.refreshReceiptButton
+    ?.addEventListener(
+      "click",
+      loadLimestoneUsageReceiptQuantities
+    );
+
+
+  /* ===================================================
+    재고 직접입력 계산
+  ==================================================== */
+
+  [
+    elements.unitOneStartStock,
+    elements.unitOneEndStock,
+    elements.unitTwoStartStock,
+    elements.unitTwoEndStock
+  ]
+    .filter(
+      Boolean
+    )
+    .forEach(
+      input => {
+        input.addEventListener(
+          "input",
+          renderLimestoneUsageCalculation
+        );
+
+
+        input.addEventListener(
+          "change",
+          renderLimestoneUsageCalculation
+        );
+      }
+    );
+
+
+  elements.submenu.dataset
+    .limestoneUsageBound =
+    "true";
+}
+
+
+/* =====================================================
+  초기화
+====================================================== */
+
+function initializeLimestoneUsageCalculator() {
+  const created =
+    createLimestoneUsageFeatureHtml();
+
+
+  if (
+    !created
+  ) {
+    return;
   }
+
+
+  /*
+    화면을 생성한 뒤 다시 요소를 조회해야 한다.
+
+    submenu / 사용량 날짜 버튼 등은
+    createLimestoneUsageFeatureHtml()에서 생성된다.
+  */
+  bindLimestoneUsageEvents();
+
+
+  const currentReceiptDate =
+    String(
+      document.getElementById(
+        "limestoneStartDate"
+      )?.value ||
+      ""
+    ).trim();
+
+
+  limestoneUsageState
+    .selectedDate =
+    parseLimestoneUsageDate(
+      currentReceiptDate
+    )
+      ? currentReceiptDate
+      : getLimestoneUsageToday();
+
+
+  const {
+    dateInput
+  } =
+    getLimestoneUsageElements();
+
+
+  if (
+    dateInput
+  ) {
+    dateInput.value =
+      limestoneUsageState
+        .selectedDate;
+  }
+
+
+  switchLimestoneSubview(
+    "receipt"
+  );
+}
+
+
+/* =====================================================
+  외부 공개
+====================================================== */
+
+window
+  .switchLimestoneSubview =
+  switchLimestoneSubview;
+
+
+window
+  .loadLimestoneUsageReceiptQuantities =
+  loadLimestoneUsageReceiptQuantities;
+
+
+/* =====================================================
+  최초 실행
+====================================================== */
+
+if (
+  document.readyState ===
+    "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeLimestoneUsageCalculator,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  initializeLimestoneUsageCalculator();
+}
+
+
+/*
+  installLimestoneUsageCalculatorFeature 종료
+*/
 })();
 
 /* =========================================================
@@ -188724,214 +188873,35 @@ function initializeLimestoneUsageHistoryFeature() {
     최종 레이아웃 구성
   ====================================================== */
 
-  function applyLimestoneUsageFinalLayout() {
-    const usageView =
-      document.getElementById(
-        "limestoneUsageCalculatorView"
-      );
-
-
-    const headingActions =
-      document.querySelector(
-        `
-          #efficiencyLimestoneView
-          .limestone-heading-actions
-        `
-      );
-
-
-    const dateCard =
-      usageView?.querySelector(
-        ".limestone-usage-date-card"
-      ) ||
-      null;
-
-
-    const dailySummary =
-      usageView?.querySelector(
-        ".limestone-usage-summary-grid"
-      ) ||
-      null;
-
-
-    const dailyTable =
-      usageView?.querySelector(
-        ".limestone-usage-table-card"
-      ) ||
-      null;
-
-
-    if (
-      !usageView ||
-      !headingActions ||
-      !dateCard ||
-      !dailySummary ||
-      !dailyTable
-    ) {
-      return false;
-    }
-
-
-    const loadOisButton =
-      document.getElementById(
-        "loadLimestoneUsageOisButton"
-      );
-
-
-    const refreshUsageReceiptButton =
-      document.getElementById(
-        "refreshLimestoneUsageReceiptButton"
-      );
-
-
-    /* ===================================================
-      OIS 재고 불러오기 / 입고량 새로고침
-
-      날짜줄 →
-      상단 석회석 사용량 계산 제목 오른쪽
-    ==================================================== */
-
-    [
-      loadOisButton,
-      refreshUsageReceiptButton
-    ]
-      .filter(
-        Boolean
-      )
-      .forEach(
-        button => {
-          button.classList.add(
-            "limestone-usage-heading-action"
-          );
-
-
-          headingActions.appendChild(
-            button
-          );
-        }
-      );
-
-
-    /*
-      기존 날짜줄 버튼 컨테이너가 비었다면 제거
-    */
-
-    const oldDateActions =
-      dateCard.querySelector(
-        ".limestone-usage-date-card__actions"
-      );
-
-
-    if (
-      oldDateActions &&
-      oldDateActions.children.length <
-        1
-    ) {
-      oldDateActions.remove();
-    }
-
-
-    /*
-      혹시 이전 일일 석회석 사용량 헤더가
-      남아 있으면 제거
-    */
-
-    usageView
-      .querySelector(
-        ".limestone-usage-calculator__header"
-      )
-      ?.remove();
-
-
-    /* ===================================================
-      사용량 계산 화면 버튼 상태
-    ==================================================== */
-
-    const isUsageView =
-      !usageView.hidden;
-
-
-    [
-      document.getElementById(
-        "refreshLimestoneReceiptsButton"
-      ),
-
-      document.getElementById(
-        "openLimestoneSlipCaptureButton"
-      ),
-
-      document.getElementById(
-        "openLimestoneSlipLibraryButton"
-      ),
-
-      document.getElementById(
-        "openLimestoneReceiptEditorButton"
-      )
-    ]
-      .filter(
-        Boolean
-      )
-      .forEach(
-        button => {
-          button.hidden =
-            isUsageView;
-        }
-      );
-
-
-    const cameraGuide =
-      headingActions.querySelector(
-        ".limestone-slip-camera-guide"
-      );
-
-
-    if (
-      cameraGuide
-    ) {
-      cameraGuide.hidden =
-        isUsageView;
-    }
-
-
-    [
-      loadOisButton,
-      refreshUsageReceiptButton
-    ]
-      .filter(
-        Boolean
-      )
-      .forEach(
-        button => {
-          button.hidden =
-            !isUsageView;
-        }
-      );
-
-
-    headingActions.hidden =
-      false;
-
-
-    /* ===================================================
-      일일 계산 화면 순서
-    ==================================================== */
-
-    dateCard.insertAdjacentElement(
-      "afterend",
-      dailySummary
+function applyLimestoneUsageFinalLayout() {
+  const usageView =
+    document.getElementById(
+      "limestoneUsageCalculatorView"
     );
 
 
-    dailySummary.insertAdjacentElement(
-      "afterend",
-      dailyTable
-    );
+  if (
+    !usageView
+  ) {
+    return false;
+  }
 
 
-    /* ===================================================
-      기간 계산 / 저장 내역 제거 유지
-    ==================================================== */
+  /* =====================================================
+    모바일
 
+    모바일에서는:
+    - 버튼 DOM 이동 안 함
+    - 날짜 DOM 이동 안 함
+    - 상단 headingActions 강제 표시 안 함
+
+    화면 표시 여부는
+    switchLimestoneSubview()에서만 관리한다.
+  ====================================================== */
+
+  if (
+    isLimestoneUsageMobileMonitorMode()
+  ) {
     document.getElementById(
       "limestoneUsageBatchPanel"
     )?.remove();
@@ -188950,6 +188920,249 @@ function initializeLimestoneUsageHistoryFeature() {
     return true;
   }
 
+
+  /* =====================================================
+    여기부터 PC 전용
+  ====================================================== */
+
+  const headingActions =
+    document.querySelector(
+      `
+        #efficiencyLimestoneView
+        .limestone-heading-actions
+      `
+    );
+
+
+  const dateCard =
+    usageView.querySelector(
+      ".limestone-usage-date-card"
+    );
+
+
+  const dailySummary =
+    usageView.querySelector(
+      ".limestone-usage-summary-grid"
+    );
+
+
+  const dailyTable =
+    usageView.querySelector(
+      ".limestone-usage-table-card"
+    );
+
+
+  if (
+    !headingActions ||
+    !dateCard ||
+    !dailySummary ||
+    !dailyTable
+  ) {
+    return false;
+  }
+
+
+  const loadOisButton =
+    document.getElementById(
+      "loadLimestoneUsageOisButton"
+    );
+
+
+  const refreshUsageReceiptButton =
+    document.getElementById(
+      "refreshLimestoneUsageReceiptButton"
+    );
+
+
+  /* =====================================================
+    PC 사용량 화면 버튼
+
+    OIS 재고 불러오기
+    입고량 새로고침
+
+    → 상단 제목 우측으로 이동
+  ====================================================== */
+
+  [
+    loadOisButton,
+    refreshUsageReceiptButton
+  ]
+    .filter(
+      Boolean
+    )
+    .forEach(
+      button => {
+        button.classList.add(
+          "limestone-usage-heading-action"
+        );
+
+
+        if (
+          button.parentElement !==
+          headingActions
+        ) {
+          headingActions.appendChild(
+            button
+          );
+        }
+      }
+    );
+
+
+  /* =====================================================
+    비어 있는 과거 액션 영역 제거
+  ====================================================== */
+
+  const oldDateActions =
+    dateCard.querySelector(
+      ".limestone-usage-date-card__actions"
+    );
+
+
+  if (
+    oldDateActions &&
+    oldDateActions.children.length <
+      1
+  ) {
+    oldDateActions.remove();
+  }
+
+
+  /* =====================================================
+    PC에서는 내부 중복 제목 제거
+  ====================================================== */
+
+  usageView
+    .querySelector(
+      ".limestone-usage-calculator__header"
+    )
+    ?.remove();
+
+
+  const isUsageView =
+    !usageView.hidden;
+
+
+  /* =====================================================
+    입고현황 전용 버튼
+  ====================================================== */
+
+  [
+    document.getElementById(
+      "refreshLimestoneReceiptsButton"
+    ),
+
+    document.getElementById(
+      "openLimestoneSlipCaptureButton"
+    ),
+
+    document.getElementById(
+      "openLimestoneSlipLibraryButton"
+    ),
+
+    document.getElementById(
+      "openLimestoneReceiptEditorButton"
+    )
+  ]
+    .filter(
+      Boolean
+    )
+    .forEach(
+      button => {
+        button.hidden =
+          isUsageView;
+      }
+    );
+
+
+  const cameraGuide =
+    headingActions.querySelector(
+      ".limestone-slip-camera-guide"
+    );
+
+
+  if (
+    cameraGuide
+  ) {
+    cameraGuide.hidden =
+      isUsageView;
+  }
+
+
+  /* =====================================================
+    사용량 계산 전용 버튼
+  ====================================================== */
+
+  [
+    loadOisButton,
+    refreshUsageReceiptButton
+  ]
+    .filter(
+      Boolean
+    )
+    .forEach(
+      button => {
+        button.hidden =
+          !isUsageView;
+      }
+    );
+
+
+  headingActions.hidden =
+    false;
+
+
+  /* =====================================================
+    PC 사용량 화면 순서
+
+    날짜
+    사용량 요약
+    계산표
+  ====================================================== */
+
+  if (
+    dailySummary.previousElementSibling !==
+    dateCard
+  ) {
+    dateCard.insertAdjacentElement(
+      "afterend",
+      dailySummary
+    );
+  }
+
+
+  if (
+    dailyTable.previousElementSibling !==
+    dailySummary
+  ) {
+    dailySummary.insertAdjacentElement(
+      "afterend",
+      dailyTable
+    );
+  }
+
+
+  /* =====================================================
+    사용하지 않는 기간 기능 제거
+  ====================================================== */
+
+  document.getElementById(
+    "limestoneUsageBatchPanel"
+  )?.remove();
+
+
+  document.getElementById(
+    "limestoneUsageHistoryPanel"
+  )?.remove();
+
+
+  document.getElementById(
+    "limestoneUsagePeriodAccordion"
+  )?.remove();
+
+
+  return true;
+}
 
 /* =====================================================
     동적으로 생성되는 기존 화면 대기
@@ -237839,465 +238052,35 @@ async function restoreSolarCumulativeFromD1() {
     refreshServerBatchStatus;
 })();
 
+/* =========================================================
+  LIMESTONE MOBILE STATIC LAYOUT V2
 
-/* LIMESTONE MOBILE DATE DOM NORMALIZER V1 */
-(function installLimestoneMobileDateLayoutNormalizer() {
+  모바일 석회석 레이아웃 관리 원칙:
+
+  - 날짜 버튼 DOM을 이동하지 않는다.
+  - MutationObserver를 사용하지 않는다.
+  - 반복 setTimeout 보정을 사용하지 않는다.
+  - JavaScript inline style을 사용하지 않는다.
+
+  화면 상태:
+  - switchLimestoneSubview()에서 관리
+
+  실제 배치:
+  - HTML 원래 구조 + CSS에서 관리
+========================================================= */
+
+(function installLimestoneMobileStaticLayout() {
   "use strict";
 
   if (
-    window.__limestoneMobileDateLayoutNormalizerInstalled === true
+    window
+      .__limestoneMobileStaticLayoutInstalled ===
+      true
   ) {
     return;
   }
 
-  window.__limestoneMobileDateLayoutNormalizerInstalled = true;
-
-
-  function isMobileLimestoneLayout() {
-    return window.matchMedia(
-      "(max-width: 768px)"
-    ).matches;
-  }
-
-
-  function findDirectChildByClass(
-    parent,
-    className
-  ) {
-    if (!parent) {
-      return null;
-    }
-
-    return Array.from(
-      parent.children
-    ).find(
-      child =>
-        child.classList?.contains(
-          className
-        )
-    ) || null;
-  }
-
-
-  /* ===================================================
-     입고 현황 날짜줄
-     [<] [날짜 + 오늘] [>] [기간 조회]
-  ==================================================== */
-  /* ===================================================
-     입고 현황 날짜줄
-     [<] [날짜 + 오늘] [>] [기간 조회]
-
-     중요:
-     실제 일일 컨테이너는 .limestone-day-navigation
-     주간/월간 compact navigation으로 이동시키지 않는다.
-  ==================================================== */
-  function normalizeReceiptDateControls() {
-    if (!isMobileLimestoneLayout()) {
-      return false;
-    }
-
-    const dayNavigation =
-      document.querySelector(
-        "#efficiencyLimestoneView .limestone-day-navigation"
-      );
-
-    const previousButton =
-      document.getElementById(
-        "limestonePreviousDayButton"
-      );
-
-    const dateButton =
-      document.getElementById(
-        "limestoneMoveToTodayButton"
-      );
-
-    const nextButton =
-      document.getElementById(
-        "limestoneNextDayButton"
-      );
-
-    const periodButton =
-      document.getElementById(
-        "openLimestonePeriodSearchButton"
-      );
-
-    if (
-      !dayNavigation ||
-      !previousButton ||
-      !dateButton ||
-      !nextButton ||
-      !periodButton
-    ) {
-      return false;
-    }
-
-    /*
-      이전 잘못된 정규화에서 다른 영역으로 이동됐더라도
-      실제 일일 날짜바로 다시 복귀시킨다.
-    */
-    [
-      previousButton,
-      dateButton,
-      nextButton,
-      periodButton
-    ].forEach(
-      element =>
-        dayNavigation.appendChild(element)
-    );
-
-    /*
-      과거 코드가 만든 빈 임시 행 정리
-    */
-    document
-      .querySelectorAll(
-        "#efficiencyLimestoneView .limestone-mobile-receipt-date-control-row"
-      )
-      .forEach(row => {
-        if (row.children.length < 1) {
-          row.remove();
-        }
-      });
-
-    dayNavigation.classList.add(
-      "is-mobile-date-normalized"
-    );
-
-    return true;
-  }
-
-
-  /* ===================================================
-     사용량 계산 날짜줄
-     [<] [날짜] [>] [오늘]
-
-     임시 row를 만들지 않고 원래 date-card 직계 자식으로 유지
-  ==================================================== */
-  function normalizeUsageDateControls() {
-    if (!isMobileLimestoneLayout()) {
-      return false;
-    }
-
-    const card =
-      document.querySelector(
-        "#limestoneUsageCalculatorView .limestone-usage-date-card"
-      );
-
-    const previousButton =
-      document.getElementById(
-        "limestoneUsagePreviousDateButton"
-      );
-
-    const dateField =
-      card?.querySelector(
-        ".limestone-usage-date-field"
-      ) || null;
-
-    const nextButton =
-      document.getElementById(
-        "limestoneUsageNextDateButton"
-      );
-
-    const todayButton =
-      document.getElementById(
-        "limestoneUsageTodayButton"
-      );
-
-    const status =
-      document.getElementById(
-        "limestoneUsageStatus"
-      );
-
-    if (
-      !card ||
-      !previousButton ||
-      !dateField ||
-      !nextButton ||
-      !todayButton
-    ) {
-      return false;
-    }
-
-    /*
-      상태박스를 먼저 원래 카드로 복귀
-    */
-    if (
-      status &&
-      status.parentElement !== card
-    ) {
-      card.appendChild(status);
-    }
-
-    /*
-      날짜 컨트롤을 원래 카드 직계 자식으로 정렬
-    */
-    [
-      previousButton,
-      dateField,
-      nextButton,
-      todayButton
-    ].forEach(element => {
-      card.insertBefore(
-        element,
-        status || null
-      );
-    });
-
-    document
-      .querySelectorAll(
-        "#limestoneUsageCalculatorView .limestone-mobile-usage-date-control-row"
-      )
-      .forEach(row => {
-        if (row.children.length < 1) {
-          row.remove();
-        }
-      });
-
-    card.classList.add(
-      "is-mobile-date-normalized"
-    );
-
-    return true;
-  }
-
-/* ===================================================
-   LIMESTONE MOBILE POLISH V7
-   - 모바일 헤더 버튼 우측 정렬
-   - 사용량 화면 상단 버튼 숨김
-   - 입고기록 상세 행에 호기별 클래스 부여
-   - DOM 변경 시 재적용
-=================================================== */
-function normalizeLimestoneMobileHeaderActions() {
-  if (!isMobileLimestoneLayout()) {
-    return false;
-  }
-
-  const limestoneView = document.getElementById(
-    "efficiencyLimestoneView"
-  );
-
-  if (!limestoneView) {
-    return false;
-  }
-
-  const actionGroups = Array.from(
-    limestoneView.querySelectorAll(
-      ".limestone-heading-actions, .limestone-usage-calculator__header-actions"
-    )
-  );
-
-  actionGroups.forEach(actions => {
-    const header = actions.parentElement;
-
-    if (!header) {
-      return;
-    }
-
-    header.style.display = "flex";
-    header.style.alignItems = "center";
-    header.style.gap = "12px";
-    header.style.flexWrap = "nowrap";
-
-    const firstElement = Array.from(
-      header.children
-    ).find(child => child !== actions);
-
-    if (firstElement) {
-      firstElement.style.flex = "1 1 auto";
-      firstElement.style.minWidth = "0";
-    }
-
-    actions.style.marginLeft = "auto";
-    actions.style.display = "flex";
-    actions.style.justifyContent = "flex-end";
-    actions.style.alignItems = "center";
-    actions.style.gap = "10px";
-    actions.style.flex = "0 0 auto";
-  });
-
-  /*
-    모바일 사용량 화면은 모니터링 전용
-    +입고 / OIS 재고 불러오기 / 입고량 새로고침 숨김
-  */
-  const usageHeaderActions =
-    limestoneView.querySelector(
-      "#limestoneUsageCalculatorView .limestone-heading-actions, #limestoneUsageCalculatorView .limestone-usage-calculator__header-actions"
-    );
-
-  if (usageHeaderActions) {
-    usageHeaderActions.style.display = "none";
-  }
-
-  return true;
-}
-
-function applyLimestoneReceiptUnitRowClasses() {
-  const limestoneView = document.getElementById(
-    "efficiencyLimestoneView"
-  );
-
-  if (!limestoneView) {
-    return false;
-  }
-
-  const rows = limestoneView.querySelectorAll(
-    ".limestone-receipt-table tbody tr"
-  );
-
-  rows.forEach(row => {
-    row.classList.remove(
-      "limestone-row-unit-1",
-      "limestone-row-unit-2"
-    );
-
-    const cells = row.querySelectorAll("td");
-
-    if (!cells || cells.length < 4) {
-      return;
-    }
-
-    const unitCell =
-      cells[2] || null;
-
-    const unitText = (
-      unitCell?.textContent || ""
-    )
-      .replace(/\s+/g, "")
-      .trim();
-
-    if (unitText.includes("1호기")) {
-      row.classList.add(
-        "limestone-row-unit-1"
-      );
-    } else if (
-      unitText.includes("2호기")
-    ) {
-      row.classList.add(
-        "limestone-row-unit-2"
-      );
-    }
-  });
-
-  return true;
-}
-
-function refreshLimestoneMobilePolish() {
-  if (!isMobileLimestoneLayout()) {
-    return false;
-  }
-
-  normalizeLimestoneMobileHeaderActions();
-  applyLimestoneReceiptUnitRowClasses();
-
-  return true;
-}
-
-function observeLimestoneMobilePolish() {
-  const limestoneView = document.getElementById(
-    "efficiencyLimestoneView"
-  );
-
-  if (
-    !limestoneView ||
-    limestoneView.dataset.mobilePolishObserved ===
-      "true"
-  ) {
-    return;
-  }
-
-  const observer = new MutationObserver(
-    () => {
-      window.requestAnimationFrame(
-        refreshLimestoneMobilePolish
-      );
-    }
-  );
-
-  observer.observe(limestoneView, {
-    childList: true,
-    subtree: true
-  });
-
-  limestoneView.dataset.mobilePolishObserved =
-    "true";
-}
-
-  function normalizeLimestoneMobileDateLayout() {
-    if (!isMobileLimestoneLayout()) {
-      return;
-    }
-
-    normalizeReceiptDateControls();
-    normalizeUsageDateControls();
-
-    refreshLimestoneMobilePolish();
-    observeLimestoneMobilePolish();
-    window.requestAnimationFrame(refreshLimestoneMobilePolish);
-  }
-
-
-  function scheduleNormalize() {
-    [
-      0,
-      80,
-      200,
-      500,
-      1000,
-      2000
-    ].forEach(
-      delay => {
-        window.setTimeout(
-          normalizeLimestoneMobileDateLayout,
-          delay
-        );
-      }
-    );
-  }
-
-
-  document.addEventListener(
-    "click",
-    event => {
-      const target =
-        event.target instanceof Element
-          ? event.target
-          : null;
-
-      if (!target) {
-        return;
-      }
-
-      if (
-        target.closest(
-          [
-            '[data-efficiency-tab="limestone"]',
-            '[data-limestone-subview]',
-            '#limestoneReceiptSubviewButton',
-            '#limestoneUsageSubviewButton'
-          ].join(",")
-        )
-      ) {
-        scheduleNormalize();
-      }
-    }
-  );
-
-
-  window.addEventListener(
-    "resize",
-    scheduleNormalize
-  );
-
-
-  if (
-    document.readyState === "loading"
-  ) {
-    document.addEventListener(
-      "DOMContentLoaded",
-      scheduleNormalize,
-      { once: true }
-    );
-  } else {
-    scheduleNormalize();
-  }
-
+  window
+    .__limestoneMobileStaticLayoutInstalled =
+    true;
 })();
