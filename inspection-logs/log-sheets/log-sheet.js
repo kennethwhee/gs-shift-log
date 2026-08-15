@@ -3363,6 +3363,326 @@ async function saveLoggingTemplate() {
   Logging 항목 목록
 ========================================================= */
 
+/* =========================================================
+  Logging 직접 입력 표
+========================================================= */
+
+function getLoggingInlineValues(
+  item
+) {
+  const legacyParts =
+    normalizeLoggingText(
+      item?.name
+    )
+      .split(
+        /\s*·\s*/
+      )
+      .map(
+        value =>
+          normalizeLoggingText(
+            value
+          )
+      )
+      .filter(Boolean);
+
+
+  const pathParts =
+    Array.isArray(
+      item?.pathParts
+    )
+      ? item.pathParts
+          .map(
+            value =>
+              normalizeLoggingText(
+                value
+              )
+          )
+          .filter(Boolean)
+      : [];
+
+
+  const group =
+    normalizeLoggingText(
+      item?.group
+    ) ||
+    normalizeLoggingText(
+      item?.groupCell?.text
+    ) ||
+    (
+      pathParts.length > 1
+        ? pathParts[0]
+        : ""
+    ) ||
+    (
+      legacyParts.length > 1
+        ? legacyParts[0]
+        : ""
+    );
+
+
+  let subgroupParts =
+    Array.isArray(
+      item?.subgroupParts
+    )
+      ? item.subgroupParts
+          .map(
+            value =>
+              normalizeLoggingText(
+                value
+              )
+          )
+          .filter(Boolean)
+      : [];
+
+
+  if (
+    !subgroupParts.length &&
+    Array.isArray(
+      item?.subgroupCells
+    )
+  ) {
+    subgroupParts =
+      item.subgroupCells
+        .map(
+          cell =>
+            normalizeLoggingText(
+              cell?.text
+            )
+        )
+        .filter(Boolean);
+  }
+
+
+  if (
+    !subgroupParts.length &&
+    pathParts.length > 2
+  ) {
+    subgroupParts =
+      pathParts.slice(
+        1,
+        -1
+      );
+  }
+
+
+  if (
+    !subgroupParts.length &&
+    legacyParts.length > 2
+  ) {
+    subgroupParts =
+      legacyParts.slice(
+        1,
+        -1
+      );
+  }
+
+
+  const subgroup =
+    normalizeLoggingText(
+      item?.subgroup
+    ) ||
+    subgroupParts.join(
+      " · "
+    );
+
+
+  const itemName =
+    normalizeLoggingText(
+      item?.itemName
+    ) ||
+    normalizeLoggingText(
+      item?.itemCell?.text
+    ) ||
+    (
+      pathParts.length
+        ? pathParts[
+            pathParts.length - 1
+          ]
+        : ""
+    ) ||
+    (
+      legacyParts.length
+        ? legacyParts[
+            legacyParts.length - 1
+          ]
+        : ""
+    );
+
+
+  return {
+    group,
+
+    subgroup,
+
+    itemName,
+
+    tag:
+      normalizeLoggingText(
+        item?.tag
+      ),
+
+    rating:
+      normalizeLoggingText(
+        item?.rating
+      ) ||
+      normalizeLoggingText(
+        item?.ratingCell?.text
+      ),
+
+    unit:
+      normalizeLoggingText(
+        item?.unit
+      )
+  };
+}
+
+
+function createLoggingInlineInput(
+  field,
+  value,
+  placeholder
+) {
+  const input =
+    document.createElement(
+      "input"
+    );
+
+
+  input.type =
+    "text";
+
+  input.className =
+    `log-sheet-item-input log-sheet-item-input--${field}`;
+
+  input.dataset.field =
+    field;
+
+  input.value =
+    value || "";
+
+  input.placeholder =
+    placeholder;
+
+  input.autocomplete =
+    "off";
+
+  input.spellcheck =
+    false;
+
+
+  return input;
+}
+
+
+function saveLoggingInlineDraft(
+  item,
+  row,
+  controls
+) {
+  const draftKey =
+    getLoggingItemDraftKey(
+      item
+    );
+
+
+  const group =
+    normalizeLoggingText(
+      controls.group.value
+    );
+
+
+  const subgroup =
+    normalizeLoggingText(
+      controls.subgroup.value
+    );
+
+
+  const subgroupParts =
+    subgroup
+      ? subgroup
+          .split(
+            /\s*·\s*/
+          )
+          .map(
+            value =>
+              normalizeLoggingText(
+                value
+              )
+          )
+          .filter(Boolean)
+      : [];
+
+
+  const itemName =
+    normalizeLoggingText(
+      controls.itemName.value
+    );
+
+
+  const name =
+    [
+      group,
+      ...subgroupParts,
+      itemName
+    ]
+      .filter(Boolean)
+      .join(
+        " · "
+      );
+
+
+  loggingItemDrafts.set(
+    draftKey,
+    {
+      group,
+
+      subgroup,
+
+      subgroupParts,
+
+      itemName,
+
+      name,
+
+      tag:
+        normalizeLoggingText(
+          controls.tag.value
+        ),
+
+      rating:
+        normalizeLoggingText(
+          controls.rating.value
+        ),
+
+      unit:
+        normalizeLoggingText(
+          controls.unit.value
+        ),
+
+      groupMerge:
+        getLoggingGroupMergeSnapshot(
+          item
+        ),
+
+      subgroupMerges:
+        getLoggingSubgroupMergeSnapshots(
+          item
+        )
+    }
+  );
+
+
+  loggingItemSelectedKey =
+    draftKey;
+
+
+  row.classList.add(
+    "has-draft",
+    "is-selected"
+  );
+}
+
+
 function renderLoggingItemList() {
   if (
     !elements.itemList ||
@@ -3371,199 +3691,269 @@ function renderLoggingItemList() {
     return;
   }
 
+
   const items =
     buildLoggingItemList();
+
 
   elements.itemCount.textContent =
     `${items.length}개`;
 
-  if (!items.length) {
+
+  if (
+    !items.length
+  ) {
     const empty =
       document.createElement(
         "div"
       );
 
+
     empty.className =
       "log-sheet-item-list__empty";
 
+
     empty.textContent =
       "표시할 Logging 항목이 없습니다.";
+
 
     elements.itemList.replaceChildren(
       empty
     );
 
+
     return;
   }
+
 
   const fragment =
     document.createDocumentFragment();
 
+
   items.forEach(
     item => {
-      const row =
-        document.createElement(
-          "div"
-        );
-
-      row.className =
-        "log-sheet-item-row";
-
       const draftKey =
         getLoggingItemDraftKey(
           item
         );
 
-      const hasDraft =
-        loggingItemDrafts.has(
-          draftKey
+
+      const values =
+        getLoggingInlineValues(
+          item
         );
 
-      if (hasDraft) {
+
+      const row =
+        document.createElement(
+          "div"
+        );
+
+
+      row.className =
+        "log-sheet-item-row";
+
+
+      if (
+        loggingItemDrafts.has(
+          draftKey
+        )
+      ) {
         row.classList.add(
           "has-draft"
         );
       }
 
+
       if (
         loggingItemSelectedKey ===
-        draftKey
+          draftKey
       ) {
         row.classList.add(
           "is-selected"
         );
       }
 
-      row.addEventListener(
-        "click",
-        event => {
-          if (
-            event.target.closest(
-              "button, input"
-            )
-          ) {
-            return;
-          }
-
-          loggingItemSelectedKey =
-            draftKey;
-
-          renderLoggingItemList();
-        }
-      );
 
       const order =
         document.createElement(
           "span"
         );
 
+
       order.className =
         "log-sheet-item-row__order";
 
+
       order.textContent =
-        String(item.order);
-
-      const name =
-        document.createElement(
-          "strong"
+        String(
+          item.order
         );
 
-      name.className =
-        "log-sheet-item-row__name";
 
-      name.textContent =
-        item.name ||
-        "새 항목";
+      const controls = {
+        group:
+          createLoggingInlineInput(
+            "group",
+            values.group,
+            "상위명"
+          ),
 
-      const tag =
-        document.createElement(
-          "span"
-        );
+        subgroup:
+          createLoggingInlineInput(
+            "subgroup",
+            values.subgroup,
+            "세부구분"
+          ),
 
-      tag.className =
-        "log-sheet-item-row__tag";
+        itemName:
+          createLoggingInlineInput(
+            "itemName",
+            values.itemName,
+            "항목명"
+          ),
 
-      tag.textContent =
-        item.tag ||
-        "-";
+        tag:
+          createLoggingInlineInput(
+            "tag",
+            values.tag,
+            "TAG"
+          ),
 
-      const unit =
-        document.createElement(
-          "span"
-        );
+        rating:
+          createLoggingInlineInput(
+            "rating",
+            values.rating,
+            "RATING"
+          ),
 
-      unit.className =
-        "log-sheet-item-row__unit";
+        unit:
+          createLoggingInlineInput(
+            "unit",
+            values.unit,
+            "UNIT"
+          )
+      };
 
-      unit.textContent =
-        item.unit ||
-        "-";
 
-      const editButton =
-        document.createElement(
-          "button"
-        );
+      Object.values(
+        controls
+      ).forEach(
+        input => {
 
-      editButton.type =
-        "button";
+          input.addEventListener(
+            "focus",
+            () => {
+              loggingItemSelectedKey =
+                draftKey;
 
-      editButton.textContent =
-        hasDraft
-          ? "재수정"
-          : "수정";
 
-      editButton.addEventListener(
-        "click",
-        () => {
-          loggingItemSelectedKey =
-            draftKey;
+              elements.itemList
+                .querySelectorAll(
+                  ".log-sheet-item-row.is-selected"
+                )
+                .forEach(
+                  selectedRow => {
+                    selectedRow.classList.remove(
+                      "is-selected"
+                    );
+                  }
+                );
 
-          beginLoggingItemEdit(
-            row,
-            item
+
+              row.classList.add(
+                "is-selected"
+              );
+            }
+          );
+
+
+          input.addEventListener(
+            "input",
+            () => {
+              saveLoggingInlineDraft(
+                item,
+                row,
+                controls
+              );
+            }
+          );
+
+
+          input.addEventListener(
+            "keydown",
+            event => {
+              if (
+                event.key !== "Enter"
+              ) {
+                return;
+              }
+
+
+              event.preventDefault();
+
+
+              const rows =
+                [
+                  ...elements.itemList
+                    .querySelectorAll(
+                      ".log-sheet-item-row"
+                    )
+                ];
+
+
+              const currentIndex =
+                rows.indexOf(
+                  row
+                );
+
+
+              const targetIndex =
+                event.shiftKey
+                  ? currentIndex - 1
+                  : currentIndex + 1;
+
+
+              const targetInput =
+                rows[targetIndex]
+                  ?.querySelector(
+                    `[data-field="${input.dataset.field}"]`
+                  );
+
+
+              targetInput?.focus();
+            }
           );
         }
       );
 
+
       row.append(
         order,
-        name,
-        tag,
-        unit,
-        editButton
+        controls.group,
+        controls.subgroup,
+        controls.itemName,
+        controls.tag,
+        controls.rating,
+        controls.unit
       );
+
 
       fragment.appendChild(
         row
       );
-
-      if (
-        loggingItemEditingKey ===
-        draftKey
-      ) {
-        beginLoggingItemEdit(
-          row,
-          item
-        );
-      }
     }
   );
+
 
   elements.itemList.replaceChildren(
     fragment
   );
 }
 
-  /*
-    본 화면에서는 Excel 전체 Grid를 만들지 않는다.
 
-    기존 inline preview가 실제로 열린 경우에만
-    Grid를 다시 그린다.
-
-    새창 미리보기는
-    cloneGridForPreviewWindow()에서 별도로 렌더링한다.
-  */
-  function renderGridIfPreviewVisible() {
+/* 기존 미리보기 갱신 함수는 아래에서 그대로 사용 */
+function renderGridIfPreviewVisible() {
     if (
       elements.previewSection &&
       !elements.previewSection.hidden

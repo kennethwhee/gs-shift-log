@@ -1183,3 +1183,150 @@ button {
 
   opacity: 0.65;
 }
+
+/* =========================================================
+   LOGGING INLINE EDITOR V1
+========================================================= */
+
+.log-sheet-item-table {
+  overflow-x: auto;
+}
+
+.log-sheet-item-table__head,
+.log-sheet-item-row {
+  display: grid;
+  grid-template-columns:
+    42px
+    minmax(110px, 0.7fr)
+    minmax(105px, 0.65fr)
+    minmax(230px, 1.5fr)
+    minmax(165px, 1fr)
+    minmax(95px, 0.55fr)
+    70px;
+  align-items: center;
+  min-width: 1060px;
+  box-sizing: border-box;
+}
+
+.log-sheet-item-table__head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  min-height: 34px;
+  padding: 0 7px;
+  border-bottom: 1px solid #dce5ed;
+  background: #f5f8fb;
+}
+
+.log-sheet-item-table__head span {
+  min-width: 0;
+  padding: 0 5px;
+  color: #698094;
+  font-size: 9px;
+  font-weight: 850;
+  text-align: left;
+}
+
+.log-sheet-item-table__head span:first-child,
+.log-sheet-item-table__head span:last-child {
+  text-align: center;
+}
+
+.log-sheet-item-list {
+  min-width: 1060px;
+  max-height: min(650px, calc(100vh - 280px));
+  overflow-y: auto;
+}
+
+.log-sheet-item-row {
+  min-height: 38px;
+  padding: 0 7px;
+  border-bottom: 1px solid #edf1f5;
+  background: #ffffff;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.log-sheet-item-row:hover {
+  background: #fafcfe;
+}
+
+.log-sheet-item-row.is-selected {
+  background: #f3f8fd;
+  box-shadow: inset 3px 0 0 #2e7eb9;
+}
+
+.log-sheet-item-row.has-draft {
+  background: #fffdf5;
+}
+
+.log-sheet-item-row.has-draft.is-selected {
+  background: #fff9ea;
+}
+
+.log-sheet-item-row__order {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  border-right: 1px solid #edf1f5;
+  color: #7890a4;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.log-sheet-item-input {
+  box-sizing: border-box;
+  width: calc(100% - 6px);
+  min-width: 0;
+  height: 29px;
+  margin: 0 3px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  outline: none;
+  background: transparent;
+  color: #29465f;
+  font: inherit;
+  font-size: 9.5px;
+  font-weight: 750;
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.log-sheet-item-input:hover {
+  border-color: #d7e2eb;
+  background: #ffffff;
+}
+
+.log-sheet-item-input:focus {
+  border-color: #62a1d0;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(69, 145, 199, 0.12);
+}
+
+.log-sheet-item-input--group,
+.log-sheet-item-input--subgroup {
+  color: #315f82;
+  font-weight: 900;
+}
+
+.log-sheet-item-input--itemName {
+  color: #203e58;
+  font-weight: 850;
+}
+
+.log-sheet-item-input--tag {
+  color: #526d84;
+  font-size: 9px;
+}
+
+.log-sheet-item-input--rating,
+.log-sheet-item-input--unit {
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .log-sheet-item-table__head,
+  .log-sheet-item-row,
+  .log-sheet-item-list {
+    min-width: 1060px;
+  }
+}
