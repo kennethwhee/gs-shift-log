@@ -106403,3 +106403,283 @@ col.is-organic {
 col.is-power {
   width: 136px !important;
 }
+
+/* =========================================================
+  현재 Shift 이전일지 동기화 보직 선택
+========================================================= */
+
+.current-shift-sync-role-modal[hidden] {
+  display: none !important;
+}
+
+.current-shift-sync-role-modal {
+  position: fixed;
+  inset: 0;
+
+  z-index: 10050;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+}
+
+.current-shift-sync-role-modal__backdrop {
+  position: absolute;
+  inset: 0;
+
+  background: rgba(15, 32, 55, 0.36);
+  backdrop-filter: blur(2px);
+}
+
+
+/* =========================================================
+  팝업 본체
+========================================================= */
+
+.current-shift-sync-role-dialog {
+  position: relative;
+  z-index: 1;
+
+  width: min(
+    440px,
+    calc(100vw - 32px)
+  );
+
+  overflow: hidden;
+
+  border: 1px solid #d5e0eb;
+  border-radius: 14px;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 18px 50px
+    rgba(24, 49, 79, 0.18);
+}
+
+
+/* =========================================================
+  헤더
+========================================================= */
+
+.current-shift-sync-role-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  padding: 15px 17px 13px;
+
+  border-bottom: 1px solid #e6edf4;
+}
+
+.current-shift-sync-role-dialog__header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.current-shift-sync-role-dialog__header span {
+  color: #2671bc;
+
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+}
+
+.current-shift-sync-role-dialog__header strong {
+  color: #10233d;
+
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.current-shift-sync-role-dialog__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 28px;
+  height: 28px;
+  padding: 0;
+
+  border: 1px solid #d7e1eb;
+  border-radius: 7px;
+
+  background: #ffffff;
+
+  color: #5b6c7f;
+
+  font-size: 18px;
+  line-height: 1;
+
+  cursor: pointer;
+}
+
+.current-shift-sync-role-dialog__close:hover {
+  background: #f4f7fa;
+}
+
+
+/* =========================================================
+  본문
+========================================================= */
+
+.current-shift-sync-role-dialog__body {
+  padding: 14px 17px 16px;
+}
+
+.current-shift-sync-role-dialog__body > p {
+  margin: 0 0 11px;
+
+  color: #64748b;
+
+  font-size: 11px;
+  font-weight: 650;
+}
+
+
+/* =========================================================
+  보직 선택
+========================================================= */
+
+.current-shift-sync-role-list {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  gap: 7px;
+}
+
+.current-shift-sync-role-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  min-height: 36px;
+  padding: 0 10px;
+
+  border: 1px solid #dce6ef;
+  border-radius: 8px;
+
+  background: #f9fbfd;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.current-shift-sync-role-list label:hover {
+  border-color: #a9c6e3;
+
+  background: #f2f7fc;
+}
+
+.current-shift-sync-role-list input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+
+  accent-color: #2671bc;
+}
+
+.current-shift-sync-role-list span {
+  color: #26384c;
+
+  font-size: 11px;
+  font-weight: 750;
+}
+
+
+/* =========================================================
+  하단 버튼
+========================================================= */
+
+.current-shift-sync-role-dialog__footer {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  padding: 11px 17px 13px;
+
+  border-top: 1px solid #e6edf4;
+
+  background: #fbfcfe;
+}
+
+.current-shift-sync-role-dialog__footer button {
+  width: auto;
+  min-width: 0;
+  min-height: 30px;
+
+  padding: 0 11px;
+
+  border-radius: 7px;
+
+  font-size: 10px;
+  font-weight: 800;
+}
+
+#selectAllCurrentShiftSyncRolesButton {
+  margin-right: auto;
+}
+
+#confirmCurrentShiftSyncRoleButton {
+  min-width: 108px;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media (
+  max-width: 520px
+) {
+  .current-shift-sync-role-modal {
+    padding: 14px;
+  }
+
+  .current-shift-sync-role-dialog {
+    width: 100%;
+  }
+
+  .current-shift-sync-role-dialog__header {
+    padding:
+      13px
+      14px
+      11px;
+  }
+
+  .current-shift-sync-role-dialog__body {
+    padding:
+      12px
+      14px
+      14px;
+  }
+
+  .current-shift-sync-role-dialog__footer {
+    padding:
+      10px
+      14px
+      12px;
+  }
+
+  .current-shift-sync-role-dialog__footer button {
+    min-height: 30px;
+    padding: 0 9px;
+
+    font-size: 9px;
+  }
+}

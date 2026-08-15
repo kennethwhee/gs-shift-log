@@ -692,6 +692,157 @@
     동기화
   </button>
 
+<!-- =========================================================
+  현재 Shift 이전일지 동기화 보직 선택
+========================================================= -->
+
+<div
+  class="current-shift-sync-role-modal"
+  id="currentShiftSyncRoleModal"
+  aria-hidden="true"
+  hidden
+>
+  <div
+    class="current-shift-sync-role-modal__backdrop"
+    data-current-shift-sync-close
+  ></div>
+
+  <section
+    class="current-shift-sync-role-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="currentShiftSyncRoleTitle"
+  >
+    <header class="current-shift-sync-role-dialog__header">
+      <div>
+        <span>
+          LEGACY SYNC
+        </span>
+
+        <strong id="currentShiftSyncRoleTitle">
+          이전일지 동기화
+        </strong>
+      </div>
+
+      <button
+        type="button"
+        class="current-shift-sync-role-dialog__close"
+        id="closeCurrentShiftSyncRoleModalButton"
+        aria-label="동기화 보직 선택 닫기"
+      >
+        ×
+      </button>
+    </header>
+
+    <div class="current-shift-sync-role-dialog__body">
+      <p id="currentShiftSyncRoleDescription">
+        가져올 보직을 선택하세요.
+      </p>
+
+      <div
+        class="current-shift-sync-role-list"
+        id="currentShiftSyncRoleList"
+      >
+        <label>
+          <input
+            type="checkbox"
+            value="파트장"
+            data-current-shift-sync-role
+            checked
+          >
+          <span>파트장</span>
+        </label>
+
+        <label>
+          <input
+            type="checkbox"
+            value="TGO"
+            data-current-shift-sync-role
+            checked
+          >
+          <span>TGO</span>
+        </label>
+
+        <label>
+          <input
+            type="checkbox"
+            value="BCO1"
+            data-current-shift-sync-role
+            checked
+          >
+          <span>BCO1</span>
+        </label>
+
+        <label>
+          <input
+            type="checkbox"
+            value="BCO2"
+            data-current-shift-sync-role
+            checked
+          >
+          <span>BCO2</span>
+        </label>
+
+        <label>
+          <input
+            type="checkbox"
+            value="TO"
+            data-current-shift-sync-role
+            checked
+          >
+          <span>TO</span>
+        </label>
+
+        <label>
+          <input
+            type="checkbox"
+            value="BO1"
+            data-current-shift-sync-role
+            checked
+          >
+          <span>BO1</span>
+        </label>
+
+        <label>
+          <input
+            type="checkbox"
+            value="BO2"
+            data-current-shift-sync-role
+            checked
+          >
+          <span>BO2</span>
+        </label>
+      </div>
+    </div>
+
+    <footer class="current-shift-sync-role-dialog__footer">
+      <button
+        type="button"
+        class="secondary-button"
+        id="selectAllCurrentShiftSyncRolesButton"
+      >
+        전체 선택
+      </button>
+
+      <button
+        type="button"
+        class="secondary-button"
+        id="cancelCurrentShiftSyncRoleButton"
+      >
+        취소
+      </button>
+
+      <button
+        type="button"
+        class="primary-button"
+        id="confirmCurrentShiftSyncRoleButton"
+      >
+        선택 보직 동기화
+      </button>
+    </footer>
+  </section>
+</div>
+
 </div>
 
 </div>

@@ -8003,6 +8003,183 @@ async function migrateCurrentShiftLegacyLogsManually(
 }
 
 /* =========================================================
+  현재 Shift 동기화 보직 선택
+========================================================= */
+
+const CURRENT_SHIFT_LEGACY_SYNC_ROLES = [
+  "파트장",
+  "TGO",
+  "BCO1",
+  "BCO2",
+  "TO",
+  "BO1",
+  "BO2"
+];
+
+
+function getCurrentShiftSyncRoleModalElements() {
+  return {
+    modal:
+      document.getElementById(
+        "currentShiftSyncRoleModal"
+      ),
+
+    description:
+      document.getElementById(
+        "currentShiftSyncRoleDescription"
+      ),
+
+    closeButton:
+      document.getElementById(
+        "closeCurrentShiftSyncRoleModalButton"
+      ),
+
+    cancelButton:
+      document.getElementById(
+        "cancelCurrentShiftSyncRoleButton"
+      ),
+
+    selectAllButton:
+      document.getElementById(
+        "selectAllCurrentShiftSyncRolesButton"
+      ),
+
+    confirmButton:
+      document.getElementById(
+        "confirmCurrentShiftSyncRoleButton"
+      ),
+
+    roleInputs: [
+      ...document.querySelectorAll(
+        "[data-current-shift-sync-role]"
+      )
+    ]
+  };
+}
+
+
+function getSelectedCurrentShiftSyncRoles() {
+  const {
+    roleInputs
+  } =
+    getCurrentShiftSyncRoleModalElements();
+
+
+  return roleInputs
+    .filter(
+      input => {
+        return input.checked;
+      }
+    )
+    .map(
+      input => {
+        return normalizeMemberLogRole(
+          input.value
+        );
+      }
+    )
+    .filter(
+      role => {
+        return CURRENT_SHIFT_LEGACY_SYNC_ROLES.includes(
+          role
+        );
+      }
+    );
+}
+
+
+function openCurrentShiftSyncRoleModal() {
+  const {
+    modal,
+    description,
+    roleInputs
+  } =
+    getCurrentShiftSyncRoleModalElements();
+
+
+  if (
+    !modal
+  ) {
+    showToast(
+      "동기화 보직 선택창을 찾을 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  const context =
+    getCurrentShiftLegacySyncContext();
+
+
+  if (
+    !context
+  ) {
+    showToast(
+      "현재 업무일지 기준일과 근무를 확인할 수 없습니다."
+    );
+
+    return;
+  }
+
+
+  /*
+    열 때마다 전체 선택 상태로 시작
+  */
+  roleInputs.forEach(
+    input => {
+      input.checked =
+        true;
+    }
+  );
+
+
+  if (
+    description
+  ) {
+    description.textContent =
+      `${context.workDate} ${context.shiftLabel}에서 가져올 보직을 선택하세요.`;
+  }
+
+
+  modal.hidden =
+    false;
+
+  modal.removeAttribute(
+    "hidden"
+  );
+
+  modal.setAttribute(
+    "aria-hidden",
+    "false"
+  );
+}
+
+
+function closeCurrentShiftSyncRoleModal() {
+  const {
+    modal
+  } =
+    getCurrentShiftSyncRoleModalElements();
+
+
+  if (
+    !modal
+  ) {
+    return;
+  }
+
+
+  modal.hidden =
+    true;
+
+  modal.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+}
+
+/* =========================================================
   현재 선택 날짜 + 현재 Shift 이전일지 단일 동기화
 
   예:
@@ -8021,7 +8198,6 @@ async function migrateCurrentShiftLegacyLogsManually(
 
 let currentShiftLegacySyncRunning =
   false;
-
 
 /* =========================================================
   현재 화면 날짜·근무 → legacy API 요청값
@@ -8166,10 +8342,54 @@ function updateCurrentShiftLegacySyncButtonVisibility() {
   - N/S BO1·BO2가 복원되면 오전회의 온도도 다시 조회
 ========================================================= */
 
-async function runCurrentShiftLegacySync() {
+async function runCurrentShiftLegacySync(
+  selectedRoles =
+    CURRENT_SHIFT_LEGACY_SYNC_ROLES
+) {
   if (
     currentShiftLegacySyncRunning
   ) {
+    return;
+  }
+
+  const normalizedSelectedRoles =
+    (
+      Array.isArray(
+        selectedRoles
+      )
+        ? selectedRoles
+        : []
+    )
+      .map(
+        role => {
+          return normalizeMemberLogRole(
+            role
+          );
+        }
+      )
+      .filter(
+        role => {
+          return CURRENT_SHIFT_LEGACY_SYNC_ROLES.includes(
+            role
+          );
+        }
+      );
+
+
+  const selectedRoleSet =
+    new Set(
+      normalizedSelectedRoles
+    );
+
+
+  if (
+    selectedRoleSet.size ===
+    0
+  ) {
+    showToast(
+      "동기화할 보직을 한 개 이상 선택해 주세요."
+    );
+
     return;
   }
 
@@ -8202,23 +8422,25 @@ async function runCurrentShiftLegacySync() {
     실행 확인
   ====================================================== */
 
-const shouldRun =
-  window.confirm(
-    [
-      `${context.workDate} ${context.shiftLabel} 이전일지를 동기화하시겠습니까?`,
-      "",
-      "현재 화면의 날짜와 근무만 가져옵니다.",
-      "",
-      "신규 업무일지에 이미 작성된 내용이 있더라도",
-      "이전일지 원본 내용으로 덮어씁니다.",
-      "",
-      "이전에 삭제한 동기화 자료가 원본에 존재하면 다시 복원됩니다.",
-      "",
-      "다른 날짜 및 다른 Shift는 처리하지 않습니다."
-    ].join(
-      "\n"
-    )
-  );
+  const shouldRun =
+    window.confirm(
+      [
+        `${context.workDate} ${context.shiftLabel} 이전일지를 동기화하시겠습니까?`,
+        "",
+        "현재 화면의 날짜와 근무만 가져옵니다.",
+        "",
+        `선택 보직: ${normalizedSelectedRoles.join(", ")}`,
+        "",
+        "선택한 보직의 신규 업무일지에 이미 작성된 내용이 있더라도",
+        "이전일지 원본 내용으로 덮어씁니다.",
+        "",
+        "이전에 삭제한 동기화 자료가 원본에 존재하면 다시 복원됩니다.",
+        "",
+        "다른 날짜 및 다른 Shift는 처리하지 않습니다."
+      ].join(
+        "\n"
+      )
+    );
 
 
   if (
@@ -8451,8 +8673,24 @@ const shouldRun =
                 : [];
 
 
+            const selectedSavedLogs =
+              savedLogs.filter(
+                log => {
+                  const role =
+                    normalizeMemberLogRole(
+                      log?.role
+                    );
+
+
+                  return selectedRoleSet.has(
+                    role
+                  );
+                }
+              );
+
+
             syncedLogs.push(
-              ...savedLogs
+              ...selectedSavedLogs
             );
           }
         );
@@ -8501,14 +8739,14 @@ const shouldRun =
 
 
     if (
-      fetchedCount >
-        0 &&
       legacyDiaryIds.length ===
-        0
+      0
     ) {
-      throw new Error(
-        "이전일지는 조회했지만 복원할 일지 ID를 확인하지 못했습니다."
+      showToast(
+        `${normalizedSelectedRoles.join(", ")} 보직의 이전일지 자료가 없습니다.`
       );
+
+      return;
     }
 
 
@@ -8891,6 +9129,17 @@ function initializeCurrentShiftLegacySyncButton() {
     );
 
 
+  const {
+    modal,
+    closeButton,
+    cancelButton,
+    selectAllButton,
+    confirmButton,
+    roleInputs
+  } =
+    getCurrentShiftSyncRoleModalElements();
+
+
   if (
     !button
   ) {
@@ -8905,14 +9154,94 @@ function initializeCurrentShiftLegacySyncButton() {
   ) {
     updateCurrentShiftLegacySyncButtonVisibility();
 
-
     return;
   }
 
 
+  /*
+    상단 동기화 버튼
+    → 바로 실행하지 않고 보직 선택창 표시
+  */
   button.addEventListener(
     "click",
-    runCurrentShiftLegacySync
+    openCurrentShiftSyncRoleModal
+  );
+
+
+  closeButton?.addEventListener(
+    "click",
+    closeCurrentShiftSyncRoleModal
+  );
+
+
+  cancelButton?.addEventListener(
+    "click",
+    closeCurrentShiftSyncRoleModal
+  );
+
+
+  /*
+    전체 선택
+  */
+  selectAllButton?.addEventListener(
+    "click",
+    () => {
+      roleInputs.forEach(
+        input => {
+          input.checked =
+            true;
+        }
+      );
+    }
+  );
+
+
+  /*
+    선택한 보직만 실제 동기화
+  */
+  confirmButton?.addEventListener(
+    "click",
+    async () => {
+      const selectedRoles =
+        getSelectedCurrentShiftSyncRoles();
+
+
+      if (
+        selectedRoles.length ===
+          0
+      ) {
+        showToast(
+          "동기화할 보직을 한 개 이상 선택해 주세요."
+        );
+
+        return;
+      }
+
+
+      closeCurrentShiftSyncRoleModal();
+
+
+      await runCurrentShiftLegacySync(
+        selectedRoles
+      );
+    }
+  );
+
+
+  /*
+    배경 클릭 닫기
+  */
+  modal?.addEventListener(
+    "click",
+    event => {
+      if (
+        event.target?.matches(
+          "[data-current-shift-sync-close]"
+        )
+      ) {
+        closeCurrentShiftSyncRoleModal();
+      }
+    }
   );
 
 
@@ -8923,7 +9252,6 @@ function initializeCurrentShiftLegacySyncButton() {
 
   updateCurrentShiftLegacySyncButtonVisibility();
 }
-
 
 /*
   로그인 완료 후에도
