@@ -1590,26 +1590,62 @@ async function saveLimestoneUsageRecords(
     ) {
       await database
         .prepare(`
-          UPDATE auxiliary_material_daily
+          INSERT INTO auxiliary_material_daily (
+            id,
+            record_date,
+            unit_no,
 
-          SET
-            limestone_start_stock = ?,
-            limestone_receipt_ton = ?,
-            limestone_end_stock = ?,
-            limestone_usage_tpd = ?,
+            limestone_start_stock,
+            limestone_receipt_ton,
+            limestone_end_stock,
+            limestone_usage_tpd,
 
-            updated_by_id = ?,
-            updated_by_name = ?,
-            updated_at = ?,
+            created_by_id,
+            created_by_name,
+            updated_by_id,
+            updated_by_name,
+
+            created_at,
+            updated_at
+          )
+          VALUES (
+            ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?
+          )
+
+          ON CONFLICT(record_date, unit_no)
+          DO UPDATE SET
+            limestone_start_stock =
+              excluded.limestone_start_stock,
+
+            limestone_receipt_ton =
+              excluded.limestone_receipt_ton,
+
+            limestone_end_stock =
+              excluded.limestone_end_stock,
+
+            limestone_usage_tpd =
+              excluded.limestone_usage_tpd,
+
+            updated_by_id =
+              excluded.updated_by_id,
+
+            updated_by_name =
+              excluded.updated_by_name,
+
+            updated_at =
+              excluded.updated_at,
 
             revision =
-              revision + 1
-
-          WHERE
-            record_date = ?
-            AND unit_no = ?
+              auxiliary_material_daily.revision + 1
         `)
         .bind(
+          crypto.randomUUID(),
+          usageDate,
+          unitNo,
+
           startStock,
           receiptQuantity,
           endStock,
@@ -1617,10 +1653,11 @@ async function saveLimestoneUsageRecords(
 
           requestedById,
           requestedByName,
-          timestamp,
+          requestedById,
+          requestedByName,
 
-          usageDate,
-          unitNo
+          timestamp,
+          timestamp
         )
         .run();
     }
