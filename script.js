@@ -169479,30 +169479,49 @@ function extractNumericValues(
 }
 
 
-  function formatNumber(
-    value,
-    maximumFractionDigits =
-      0
-  ) {
-    if (
-      !Number.isFinite(
-        value
-      )
-    ) {
-      return "-";
-    }
-
-
-    return new Intl.NumberFormat(
-      "ko-KR",
-
-      {
-        maximumFractionDigits
-      }
-    ).format(
+function formatNumber(
+  value,
+  digits = 2
+) {
+  const numericValue =
+    Number(
       value
     );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    return "-";
   }
+
+
+  const maximumFractionDigits =
+    Math.min(
+      Math.max(
+        Number.isInteger(
+          digits
+        )
+          ? digits
+          : 2,
+        0
+      ),
+      2
+    );
+
+
+  return numericValue.toLocaleString(
+    "ko-KR",
+    {
+      minimumFractionDigits:
+        0,
+
+      maximumFractionDigits
+    }
+  );
+}
 
 
   /* =====================================================
@@ -208460,60 +208479,82 @@ function getElements() {
     화면 숫자 표시
   ====================================================== */
 
-  function formatAmount(
-    value,
-    unit =
-      "ton",
-    options =
-      {}
-  ) {
-    const numericValue =
-      normalizeNumber(
-        value
-      );
+function formatAmount(
+  value,
+  unit =
+    "ton",
+  options =
+    {}
+) {
+  const numericValue =
+    normalizeNumber(
+      value
+    );
 
 
-    if (
-      numericValue ===
+  if (
+    numericValue ===
       null
-    ) {
-      return "-";
-    }
-
-
-    const minimumFractionDigits =
-      Number.isInteger(
-        options.minimumFractionDigits
-      )
-        ? options.minimumFractionDigits
-        : 0;
-
-
-    const maximumFractionDigits =
-      Number.isInteger(
-        options.maximumFractionDigits
-      )
-        ? options.maximumFractionDigits
-        : 3;
-
-
-    const formattedValue =
-      numericValue.toLocaleString(
-        "ko-KR",
-        {
-          minimumFractionDigits:
-            minimumFractionDigits,
-
-          maximumFractionDigits:
-            maximumFractionDigits
-        }
-      );
-
-
-    return unit
-      ? `${formattedValue} ${unit}`
-      : formattedValue;
+  ) {
+    return "-";
   }
+
+
+  /*
+    어떤 옵션이 들어와도
+    화면에서는 소수점 최대 2자리까지만 허용한다.
+  */
+
+  const requestedMinimum =
+    Number.isInteger(
+      options.minimumFractionDigits
+    )
+      ? options.minimumFractionDigits
+      : 0;
+
+
+  const requestedMaximum =
+    Number.isInteger(
+      options.maximumFractionDigits
+    )
+      ? options.maximumFractionDigits
+      : 2;
+
+
+  const maximumFractionDigits =
+    Math.min(
+      Math.max(
+        requestedMaximum,
+        0
+      ),
+      2
+    );
+
+
+  const minimumFractionDigits =
+    Math.min(
+      Math.max(
+        requestedMinimum,
+        0
+      ),
+      maximumFractionDigits
+    );
+
+
+  const formattedValue =
+    numericValue.toLocaleString(
+      "ko-KR",
+      {
+        minimumFractionDigits,
+        maximumFractionDigits
+      }
+    );
+
+
+  return unit
+    ? `${formattedValue} ${unit}`
+    : formattedValue;
+}
 
 
   function formatAverageSteamSales(
@@ -208549,36 +208590,36 @@ function getElements() {
     );
   }
 
-  function formatRate(
-    value
-  ) {
-    const numericValue =
-      normalizeNumber(
-        value
-      );
+function formatRate(
+  value
+) {
+  const numericValue =
+    normalizeNumber(
+      value
+    );
 
 
-    if (
-      numericValue ===
+  if (
+    numericValue ===
       null
-    ) {
-      return "-";
-    }
-
-
-    return `${
-      numericValue.toLocaleString(
-        "ko-KR",
-        {
-          minimumFractionDigits:
-            0,
-
-          maximumFractionDigits:
-            3
-        }
-      )
-    }%`;
+  ) {
+    return "-";
   }
+
+
+  return `${
+    numericValue.toLocaleString(
+      "ko-KR",
+      {
+        minimumFractionDigits:
+          0,
+
+        maximumFractionDigits:
+          2
+      }
+    )
+  }%`;
+}
 
 
   function isCompleteDailyDataResult(
