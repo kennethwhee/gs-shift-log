@@ -10791,6 +10791,9 @@ function showLogSheetPdfPreviewBlob(
   const modal =
     ensureLogSheetPdfPreviewModal();
 
+  modal.style.display =
+    "flex";
+
 
   const frame =
     modal.querySelector(
