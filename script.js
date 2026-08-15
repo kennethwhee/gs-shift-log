@@ -233338,3 +233338,401 @@ function initializeDailyControls() {
     initialize();
   }
 })();
+
+/* =========================================================
+  자동수치 기록 · 실제 열 너비 재배분
+
+  여유 있는 열은 축소
+  전력량 5개 열은 확대
+
+  물리 열 순서:
+  1  날짜
+
+  2~4   수처리
+  5~6   석회석
+  7     Gear / Pinion
+  8~9   Silo Level
+  10~12 전력단가
+  13~14 증기
+
+  15 생산
+  16 판매
+  17 태양광 일일
+  18 태양광 월간
+  19 태양광 년간
+
+  20~22 유기성 고형연료
+  23~25 날씨
+========================================================= */
+
+(function installMorningMeetingHistoryBalancedColumnWidths() {
+  "use strict";
+
+
+  if (
+    window
+      .__morningMeetingHistoryBalancedColumnWidthsInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__morningMeetingHistoryBalancedColumnWidthsInstalled =
+    true;
+
+
+  const TABLE_ID =
+    "efficiencyMorningMeetingAutoHistoryTable";
+
+
+  /*
+    총 25개 실제 열
+
+    특히 전력량:
+    생산 92
+    판매 92
+    태양광 72
+    월간 82
+    년간 82
+  */
+
+  const COLUMN_WIDTHS = [
+    68, // 날짜
+
+    52, // 수처리 원수
+    52, // 수처리 순수 생산
+    52, // 수처리 순수 사용
+
+    50, // 석회석 1호기
+    50, // 석회석 2호기
+
+    78, // Gear / Pinion
+
+    52, // Fly Ash
+    52, // Bio
+
+    54, // SMP 최소
+    54, // SMP 최대
+    54, // SMP 평균
+
+    58, // 증기 판매
+    58, // 증기 생산
+
+    92, // 전력 생산
+    92, // 전력 판매
+    72, // 태양광 일일
+    82, // 태양광 월간 누적
+    82, // 태양광 년간 누적
+
+    48, // 입고대수
+    60, // 입고량
+    60, // 총재고량
+
+    44, // 날씨 상태
+    76, // 날씨 기온
+    36  // 날씨 습도
+  ];
+
+
+  function getColumnCount(
+    table
+  ) {
+    const firstHeaderRow =
+      table
+        ?.tHead
+        ?.rows
+        ?.[0];
+
+
+    if (
+      !firstHeaderRow
+    ) {
+      return 0;
+    }
+
+
+    return [
+      ...firstHeaderRow.cells
+    ].reduce(
+      (
+        total,
+        cell
+      ) => {
+        return (
+          total +
+          Math.max(
+            1,
+            Number(
+              cell.colSpan ||
+              1
+            )
+          )
+        );
+      },
+      0
+    );
+  }
+
+
+  function ensureColumnGroup(
+    table,
+    columnCount
+  ) {
+    /*
+      이전 날씨 폭 조정 코드가 만든 colgroup이 있으면
+      그대로 재사용한다.
+    */
+
+    let columnGroup =
+      table.querySelector(
+        ":scope > colgroup[data-weather-column-widths='true']"
+      ) ||
+      table.querySelector(
+        ":scope > colgroup[data-balanced-column-widths='true']"
+      );
+
+
+    if (
+      !columnGroup
+    ) {
+      columnGroup =
+        document.createElement(
+          "colgroup"
+        );
+
+
+      columnGroup.dataset
+        .balancedColumnWidths =
+        "true";
+
+
+      table.insertBefore(
+        columnGroup,
+        table.tHead
+      );
+    }
+
+
+    while (
+      columnGroup.children.length <
+      columnCount
+    ) {
+      columnGroup.appendChild(
+        document.createElement(
+          "col"
+        )
+      );
+    }
+
+
+    while (
+      columnGroup.children.length >
+      columnCount
+    ) {
+      columnGroup
+        .lastElementChild
+        ?.remove();
+    }
+
+
+    return columnGroup;
+  }
+
+
+  function applyWidths() {
+    const table =
+      document.getElementById(
+        TABLE_ID
+      );
+
+
+    if (
+      !table
+    ) {
+      return false;
+    }
+
+
+    const columnCount =
+      getColumnCount(
+        table
+      );
+
+
+    /*
+      현재 설계는 25개 열이다.
+      열 구조가 달라지면 잘못 적용하지 않고 중단한다.
+    */
+
+    if (
+      columnCount !==
+        COLUMN_WIDTHS.length
+    ) {
+      return false;
+    }
+
+
+    const columnGroup =
+      ensureColumnGroup(
+        table,
+        columnCount
+      );
+
+
+    const columns = [
+      ...columnGroup.children
+    ];
+
+
+    COLUMN_WIDTHS.forEach(
+      (
+        width,
+        index
+      ) => {
+        const column =
+          columns[
+            index
+          ];
+
+
+        if (
+          !column
+        ) {
+          return;
+        }
+
+
+        column.style.setProperty(
+          "width",
+          `${width}px`,
+          "important"
+        );
+
+
+        column.style.setProperty(
+          "min-width",
+          `${width}px`,
+          "important"
+        );
+
+
+        column.style.setProperty(
+          "max-width",
+          `${width}px`,
+          "important"
+        );
+      }
+    );
+
+
+    /*
+      브라우저가 다시 동일폭으로 압축하지 못하도록
+      실제 열 합계 정도의 최소폭을 확보한다.
+    */
+
+    const totalWidth =
+      COLUMN_WIDTHS.reduce(
+        (
+          total,
+          width
+        ) =>
+          total +
+          width,
+        0
+      );
+
+
+    table.style.setProperty(
+      "min-width",
+      `${totalWidth}px`,
+      "important"
+    );
+
+
+    table.style.setProperty(
+      "table-layout",
+      "fixed",
+      "important"
+    );
+
+
+    return true;
+  }
+
+
+  function initialize() {
+    if (
+      !applyWidths()
+    ) {
+      window.setTimeout(
+        initialize,
+        150
+      );
+
+
+      return;
+    }
+
+
+    const table =
+      document.getElementById(
+        TABLE_ID
+      );
+
+
+    const tableHead =
+      table?.tHead;
+
+
+    if (
+      !tableHead
+    ) {
+      return;
+    }
+
+
+    /*
+      월 변경 / 목록 새로고침으로
+      머리글이 다시 생성되어도 폭 재적용
+    */
+
+    const observer =
+      new MutationObserver(
+        () => {
+          applyWidths();
+        }
+      );
+
+
+    observer.observe(
+      tableHead,
+      {
+        childList:
+          true,
+
+        subtree:
+          true
+      }
+    );
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
