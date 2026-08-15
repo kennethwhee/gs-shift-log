@@ -107482,99 +107482,6 @@ input {
 
 
 /* =========================================================
-  OIS 1일 테스트
-
-  JS inline style보다 우선 적용한다.
-========================================================= */
-
-#employeeManagementModal
-#oisLegacyLogPreviewPanel {
-  margin-top:
-    10px !important;
-
-  padding:
-    12px !important;
-
-  border-radius:
-    10px !important;
-
-  background:
-    #ffffff !important;
-}
-
-
-#employeeManagementModal
-#oisLegacyLogPreviewPanel
-> div {
-  gap:
-    9px !important;
-}
-
-
-#employeeManagementModal
-#oisLegacyLogPreviewPanel
-> div
-> div:first-child
-> strong {
-  margin-bottom:
-    2px !important;
-
-  font-size:
-    13px !important;
-}
-
-
-#employeeManagementModal
-#oisLegacyLogPreviewPanel
-> div
-> div:first-child
-> span {
-  font-size:
-    10px !important;
-
-  line-height:
-    1.4 !important;
-}
-
-
-#employeeManagementModal
-#oisLegacyLogPreviewDate {
-  min-height:
-    34px !important;
-
-  height:
-    34px !important;
-
-  font-size:
-    11px !important;
-}
-
-
-#employeeManagementModal
-#loadOisLegacyLogPreviewButton {
-  min-height:
-    34px !important;
-}
-
-
-#employeeManagementModal
-#oisLegacyLogPreviewStatus {
-  margin-top:
-    7px !important;
-
-  padding:
-    7px
-    9px !important;
-
-  font-size:
-    10px !important;
-
-  line-height:
-    1.45 !important;
-}
-
-
-/* =========================================================
   OIS 과거업무일지 전체 가져오기
 ========================================================= */
 
@@ -108242,4 +108149,487 @@ button,
 
 #efficiencyArmRollTabBadge[hidden] {
   display: none !important;
+}
+
+/* =========================================================
+  SYSTEM ADMIN LEGACY SYNC SINGLE ROW V2
+
+  PC:
+  제목·상태
+  | 시작일·종료일·실행
+  | 마지막 동기화·기간·결과
+
+  를 한 줄로 배치한다.
+
+  진행 중 메시지·진행률·실패내역은
+  필요할 때만 아래 행에 표시한다.
+========================================================= */
+
+@media screen and (min-width: 1000px) {
+
+  #employeeManagementModal
+  #legacySyncPanel {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      160px
+      360px
+      minmax(
+        0,
+        1fr
+      ) !important;
+
+    align-items:
+      center !important;
+
+    column-gap:
+      9px !important;
+
+    row-gap:
+      5px !important;
+
+    margin-top:
+      8px !important;
+
+    padding:
+      8px
+      10px !important;
+
+    min-height:
+      48px !important;
+  }
+
+
+  /*
+    기본적으로 추가 정보는
+    다음 행 전체 너비를 사용한다.
+  */
+
+  #employeeManagementModal
+  #legacySyncPanel
+  > * {
+    grid-column:
+      1 /
+      -1;
+  }
+
+
+  /* =====================================================
+    1열 · 제목 + 상태
+  ====================================================== */
+
+  #employeeManagementModal
+  #legacySyncPanel
+  > .legacy-sync-panel__header {
+    grid-column:
+      1 !important;
+
+    grid-row:
+      1 !important;
+
+    display:
+      flex !important;
+
+    align-items:
+      center !important;
+
+    justify-content:
+      flex-start !important;
+
+    gap:
+      6px !important;
+
+    min-width:
+      0 !important;
+
+    margin:
+      0 !important;
+  }
+
+
+  #employeeManagementModal
+  #legacySyncPanel
+  .legacy-sync-panel__header
+  > div {
+    display:
+      flex !important;
+
+    align-items:
+      center !important;
+
+    min-width:
+      0 !important;
+  }
+
+
+  #employeeManagementModal
+  #legacySyncPanel
+  .legacy-sync-panel__header
+  strong {
+    font-size:
+      11px !important;
+
+    line-height:
+      1.2 !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  /*
+    한 줄 모드에서는 설명은 생략한다.
+  */
+
+  #employeeManagementModal
+  #legacySyncPanel
+  .legacy-sync-panel__header
+  p {
+    display:
+      none !important;
+  }
+
+
+  #employeeManagementModal
+  #legacySyncStatusBadge {
+    flex:
+      0
+      0
+      auto !important;
+
+    min-height:
+      20px !important;
+
+    padding:
+      0
+      6px !important;
+
+    font-size:
+      8px !important;
+  }
+
+
+  /* =====================================================
+    2열 · 날짜 + 실행
+  ====================================================== */
+
+  #employeeManagementModal
+  #legacySyncPanel
+  > .legacy-sync-form {
+    grid-column:
+      2 !important;
+
+    grid-row:
+      1 !important;
+
+    display:
+      flex !important;
+
+    align-items:
+      center !important;
+
+    justify-content:
+      flex-start !important;
+
+    flex-wrap:
+      nowrap !important;
+
+    gap:
+      5px !important;
+
+    min-width:
+      0 !important;
+
+    margin:
+      0 !important;
+  }
+
+
+  #employeeManagementModal
+  #legacySyncPanel
+  .legacy-sync-form
+  .form-field {
+    display:
+      flex !important;
+
+    flex-direction:
+      row !important;
+
+    align-items:
+      center !important;
+
+    gap:
+      3px !important;
+
+    width:
+      auto !important;
+
+    min-width:
+      0 !important;
+
+    margin:
+      0 !important;
+  }
+
+
+  #employeeManagementModal
+  #legacySyncPanel
+  .legacy-sync-form
+  .form-field__label {
+    margin:
+      0 !important;
+
+    color:
+      #78869a !important;
+
+    font-size:
+      8px !important;
+
+    font-weight:
+      800 !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  #employeeManagementModal
+  #legacySyncStartDate,
+
+  #employeeManagementModal
+  #legacySyncEndDate {
+    width:
+      96px !important;
+
+    min-width:
+      96px !important;
+
+    height:
+      30px !important;
+
+    min-height:
+      30px !important;
+
+    padding:
+      0
+      5px !important;
+
+    border-radius:
+      6px !important;
+
+    font-size:
+      9px !important;
+  }
+
+
+  #employeeManagementModal
+  #runLegacySyncButton {
+    flex:
+      0
+      0
+      auto !important;
+
+    min-height:
+      30px !important;
+
+    height:
+      30px !important;
+
+    padding:
+      0
+      8px !important;
+
+    border-radius:
+      6px !important;
+
+    font-size:
+      9px !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  /* =====================================================
+    3열 · 최근 동기화 정보
+  ====================================================== */
+
+  #employeeManagementModal
+  #legacySyncPanel
+  > .legacy-sync-summary {
+    grid-column:
+      3 !important;
+
+    grid-row:
+      1 !important;
+
+    display:
+      grid !important;
+
+    grid-template-columns:
+      minmax(
+        0,
+        .8fr
+      )
+      minmax(
+        0,
+        1.2fr
+      )
+      minmax(
+        0,
+        1.5fr
+      ) !important;
+
+    align-items:
+      center !important;
+
+    gap:
+      4px !important;
+
+    min-width:
+      0 !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+
+    border:
+      0 !important;
+
+    background:
+      transparent !important;
+  }
+
+
+  #employeeManagementModal
+  #legacySyncPanel
+  .legacy-sync-summary
+  > div {
+    display:
+      flex !important;
+
+    align-items:
+      center !important;
+
+    gap:
+      4px !important;
+
+    min-width:
+      0 !important;
+
+    min-height:
+      30px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      4px
+      6px !important;
+
+    border:
+      1px solid
+      #e1e8f0 !important;
+
+    border-radius:
+      6px !important;
+
+    background:
+      #f8fafc !important;
+  }
+
+
+  #employeeManagementModal
+  #legacySyncPanel
+  .legacy-sync-summary
+  span {
+    flex:
+      0
+      0
+      auto !important;
+
+    color:
+      #8995a5 !important;
+
+    font-size:
+      7px !important;
+
+    font-weight:
+      800 !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  #employeeManagementModal
+  #legacySyncPanel
+  .legacy-sync-summary
+  strong {
+    overflow:
+      hidden !important;
+
+    min-width:
+      0 !important;
+
+    color:
+      #33445c !important;
+
+    font-size:
+      8px !important;
+
+    font-weight:
+      850 !important;
+
+    text-overflow:
+      ellipsis !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  /* =====================================================
+    진행 중에만 아래쪽에 펼쳐지는 영역
+  ====================================================== */
+
+  #employeeManagementModal
+  #legacySyncProgress,
+
+  #employeeManagementModal
+  #legacySyncMessage,
+
+  #employeeManagementModal
+  #legacySyncFailurePanel {
+    grid-column:
+      1 /
+      -1 !important;
+  }
+
+
+  #employeeManagementModal
+  #legacySyncProgress {
+    margin:
+      1px
+      0
+      0 !important;
+  }
+
+
+  #employeeManagementModal
+  #legacySyncMessage {
+    margin:
+      0 !important;
+
+    padding:
+      6px
+      8px !important;
+
+    font-size:
+      9px !important;
+  }
+
 }
