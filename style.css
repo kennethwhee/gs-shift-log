@@ -112713,73 +112713,98 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   }
 
 
-  /* 날짜 박스 가로폭만 살짝 축소 */
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #limestoneSearchForm
-  .limestone-period-search-fields
-  input[type="date"] {
-    width: calc(100% - 8px) !important;
-    min-width: 0 !important;
-    max-width: calc(100% - 8px) !important;
+/* 날짜 박스 가로폭 + 날짜 정중앙 */
+#efficiencyTeamModal
+#efficiencyLimestoneView
+#limestoneSearchForm
+.limestone-period-search-fields
+input[type="date"] {
+  display: flex !important;
 
-    margin-left: auto !important;
-    margin-right: auto !important;
+  width: calc(100% - 8px) !important;
+  min-width: 0 !important;
+  max-width: calc(100% - 8px) !important;
 
-    /* 높이는 기존 설정 그대로 사용 */
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
 
-    padding-left: 4px !important;
-    padding-right: 4px !important;
+  align-items: center !important;
+  justify-content: center !important;
 
-    box-sizing: border-box !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
 
-    font-size: 12px !important;
-    font-weight: 900 !important;
+  padding: 0 4px !important;
 
-    text-align: center !important;
-  }
+  box-sizing: border-box !important;
 
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 38px !important;
 
-  /* iPhone Safari 날짜 글자 중앙 정렬 */
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #limestoneSearchForm
-  .limestone-period-search-fields
-  input[type="date"]::-webkit-date-and-time-value {
-    width: 100% !important;
-
-    margin: 0 !important;
-    padding: 0 !important;
-
-    text-align: center !important;
-  }
-
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #limestoneSearchForm
-  .limestone-period-search-fields
-  input[type="date"]::-webkit-datetime-edit {
-    width: 100% !important;
-
-    margin: 0 !important;
-    padding: 0 !important;
-
-    text-align: center !important;
-  }
-
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #limestoneSearchForm
-  .limestone-period-search-fields
-  input[type="date"]::-webkit-datetime-edit-fields-wrapper {
-    width: 100% !important;
-
-    margin: 0 !important;
-    padding: 0 !important;
-
-    text-align: center !important;
-  }
-
+  text-align: center !important;
 }
+
+
+/* iPhone Safari 날짜 좌우·상하 정중앙 */
+#efficiencyTeamModal
+#efficiencyLimestoneView
+#limestoneSearchForm
+.limestone-period-search-fields
+input[type="date"]::-webkit-date-and-time-value {
+  display: flex !important;
+
+  width: 100% !important;
+  height: 38px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  line-height: 38px !important;
+  text-align: center !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+#limestoneSearchForm
+.limestone-period-search-fields
+input[type="date"]::-webkit-datetime-edit {
+  display: flex !important;
+
+  width: 100% !important;
+  height: 38px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  line-height: 38px !important;
+  text-align: center !important;
+}
+
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+#limestoneSearchForm
+.limestone-period-search-fields
+input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+  display: flex !important;
+
+  width: 100% !important;
+  height: 38px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  line-height: 38px !important;
+}}
