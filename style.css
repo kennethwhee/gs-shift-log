@@ -95894,9 +95894,6 @@ body.is-auxiliary-material-expanded
     color:
       #ffffff !important;
 
-    font-size:
-      10px !important;
-
     text-indent:
       0 !important;
 
@@ -109553,42 +109550,44 @@ button,
     white-space: nowrap !important;
   }
 
+#efficiencyTeamModal
+#efficiencyLimestoneView
+#openLimestoneReceiptEditorButton {
+  flex: 0 0 88px !important;
 
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #openLimestoneReceiptEditorButton {
-    flex: 0 0 88px !important;
+  width: 88px !important;
+  min-width: 88px !important;
 
-    width: 88px !important;
-    min-width: 88px !important;
+  height: 36px !important;
+  min-height: 36px !important;
 
-    height: 36px !important;
-    min-height: 36px !important;
+  margin: 0 !important;
+  padding: 0 8px !important;
 
-    margin: 0 !important;
-    padding: 0 8px !important;
+  border-radius: 9px !important;
 
-    border-radius: 9px !important;
-
-    font-size: 14px !important;
-    font-weight: 900 !important;
-
-    white-space: nowrap !important;
-  }
+  white-space: nowrap !important;
+}
 
 
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  .limestone-add-label-desktop {
-    display: none !important;
-  }
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-add-label-desktop {
+  display: none !important;
+}
 
 
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  .limestone-add-label-mobile {
-    display: inline !important;
-  }
+#efficiencyTeamModal
+#efficiencyLimestoneView
+.limestone-add-label-mobile {
+  display: inline !important;
+
+  font-size: 14px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+
+  letter-spacing: -0.02em !important;
+}
 
 
   /* =====================================================
@@ -112122,23 +112121,6 @@ button,
 
     font-size: 10px !important;
     font-weight: 900 !important;
-  }
-
-}
-
-/* =========================================================
-  석회석 모바일 +입고 버튼 글씨
-========================================================= */
-
-@media screen and (max-width: 768px) {
-
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #openLimestoneReceiptEditorButton {
-    font-size: 14px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-    letter-spacing: -0.02em !important;
   }
 
 }
