@@ -8267,13 +8267,604 @@ function setPreviewOpen(
   );
 }
 
-  function printCurrentSheet() {
-    openLogSheetPreviewWindow({
-      autoPrint:
-        true
+/* =========================================================
+  Log Sheet · Excel 원본 PDF 미리보기
+
+  처리:
+  현재 화면
+  → 실제 XLSX 생성
+  → R2
+  → 회사 PC Microsoft Excel
+  → PDF
+  → 브라우저 PDF 미리보기
+========================================================= */
+
+const LOG_SHEET_PDF_POLL_INTERVAL =
+  1200;
+
+
+const LOG_SHEET_PDF_MAXIMUM_WAIT =
+  3 *
+  60 *
+  1000;
+
+
+function waitLogSheetPdf(
+  milliseconds
+) {
+  return new Promise(
+    resolve => {
+      window.setTimeout(
+        resolve,
+        milliseconds
+      );
+    }
+  );
+}
+
+
+function initializeLogSheetPdfPopup(
+  previewWindow
+) {
+  const previewDocument =
+    previewWindow.document;
+
+
+  previewDocument.open();
+
+  previewDocument.write(`
+    <!DOCTYPE html>
+    <html lang="ko">
+    <head>
+      <meta charset="UTF-8">
+      <title>Log Sheet PDF 준비 중</title>
+      <style>
+        html,
+        body {
+          width: 100%;
+          height: 100%;
+          margin: 0;
+        }
+
+        body {
+          display: grid;
+          place-items: center;
+          background: #eef2f6;
+          color: #29435d;
+          font-family:
+            Arial,
+            "Malgun Gothic",
+            sans-serif;
+        }
+
+        .pdf-loading {
+          display: grid;
+          gap: 10px;
+          text-align: center;
+        }
+
+        .pdf-loading strong {
+          font-size: 18px;
+        }
+
+        .pdf-loading span {
+          color: #6c8195;
+          font-size: 12px;
+        }
+      </style>
+    </head>
+
+    <body>
+      <div class="pdf-loading">
+        <strong>PDF 미리보기 준비 중</strong>
+        <span>
+          Microsoft Excel에서 원본 출력 양식을 만들고 있습니다.
+        </span>
+      </div>
+    </body>
+    </html>
+  `);
+
+  previewDocument.close();
+}
+
+
+async function createLogSheetPdfRequest(
+  workbookBlob
+) {
+  const identity =
+    getIdentity();
+
+
+  const parameters =
+    new URLSearchParams({
+      action:
+        "create",
+
+      sheetName:
+        state.sheetConfig.sheetName,
+
+      targetDate:
+        identity.date
     });
+
+
+  const payload =
+    await requestApi(
+      `/api/log-sheet-pdf-files?${parameters.toString()}`,
+      {
+        method:
+          "POST",
+
+        headers: {
+          "Content-Type":
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        },
+
+        body:
+          workbookBlob
+      }
+    );
+
+
+  const requestId =
+    normalizeText(
+      payload?.item?.id
+    );
+
+
+  if (
+    !requestId
+  ) {
+    throw new Error(
+      "PDF 변환 요청 ID를 받지 못했습니다."
+    );
   }
 
+
+  return requestId;
+}
+
+
+async function waitForLogSheetPdfCompletion(
+  requestId
+) {
+  const startedAt =
+    Date.now();
+
+
+  while (
+    Date.now() -
+      startedAt <
+      LOG_SHEET_PDF_MAXIMUM_WAIT
+  ) {
+    const payload =
+      await requestApi(
+        `/api/ois-data-requests?id=${encodeURIComponent(
+          requestId
+        )}&_=${Date.now()}`
+      );
+
+
+    const item =
+      payload?.item ||
+      null;
+
+
+    const status =
+      normalizeText(
+        item?.status
+      ).toLowerCase();
+
+
+    if (
+      status ===
+        "complete"
+    ) {
+      return item;
+    }
+
+
+    if (
+      status ===
+        "failed"
+    ) {
+      throw new Error(
+        normalizeText(
+          item?.errorMessage
+        ) ||
+        "회사 PC에서 PDF 변환에 실패했습니다."
+      );
+    }
+
+
+    if (
+      status ===
+        "processing"
+    ) {
+      setStatus(
+        "PDF 변환 중",
+        "회사 PC의 Microsoft Excel에서 원본 양식으로 PDF를 만들고 있습니다.",
+        "loading"
+      );
+
+    } else {
+      setStatus(
+        "PDF 대기 중",
+        "회사 PC의 PDF 변환 Agent가 요청을 확인할 때까지 기다리고 있습니다.",
+        "loading"
+      );
+    }
+
+
+    await waitLogSheetPdf(
+      LOG_SHEET_PDF_POLL_INTERVAL
+    );
+  }
+
+
+  throw new Error(
+    "PDF 변환 대기 시간이 3분을 초과했습니다."
+  );
+}
+
+
+async function fetchLogSheetPdfBlob(
+  requestId
+) {
+  const token =
+    getSessionToken();
+
+
+  if (!token) {
+    throw new Error(
+      "로그인 정보가 없습니다. 다시 로그인해 주세요."
+    );
+  }
+
+
+  const response =
+    await fetch(
+      `/api/log-sheet-pdf-files?action=preview&id=${encodeURIComponent(
+        requestId
+      )}&_=${Date.now()}`,
+      {
+        method:
+          "GET",
+
+        cache:
+          "no-store",
+
+        headers: {
+          Accept:
+            "application/pdf",
+
+          Authorization:
+            `Bearer ${token}`
+        }
+      }
+    );
+
+
+  if (
+    !response.ok
+  ) {
+    let message =
+      "";
+
+
+    try {
+      const payload =
+        await response.json();
+
+
+      message =
+        normalizeText(
+          payload?.message
+        );
+
+    } catch {
+      /* PDF가 아닌 오류 응답 */
+    }
+
+
+    throw new Error(
+      message ||
+      `PDF 파일을 불러오지 못했습니다. (${response.status})`
+    );
+  }
+
+
+  const blob =
+    await response.blob();
+
+
+  if (
+    blob.size <
+      5
+  ) {
+    throw new Error(
+      "생성된 PDF 파일이 비어 있습니다."
+    );
+  }
+
+
+  return blob;
+}
+
+
+function releaseLogSheetPdfUrlWhenClosed(
+  previewWindow,
+  objectUrl
+) {
+  const timer =
+    window.setInterval(
+      () => {
+        if (
+          previewWindow.closed
+        ) {
+          window.clearInterval(
+            timer
+          );
+
+
+          URL.revokeObjectURL(
+            objectUrl
+          );
+        }
+      },
+      1500
+    );
+
+
+  /*
+    비정상적으로 창이 계속 남아 있어도
+    30분 뒤에는 Object URL을 정리한다.
+  */
+  window.setTimeout(
+    () => {
+      window.clearInterval(
+        timer
+      );
+
+
+      URL.revokeObjectURL(
+        objectUrl
+      );
+    },
+    30 *
+    60 *
+    1000
+  );
+}
+
+
+async function openLogSheetPdfPreview(
+  options = {}
+) {
+  if (
+    state.isBusy ||
+    !state.sheetConfig
+  ) {
+    return;
+  }
+
+
+  const autoPrint =
+    options.autoPrint ===
+      true;
+
+
+  /*
+    사용자 클릭 순간에 먼저 창을 열어
+    팝업 차단을 방지한다.
+  */
+  const previewWindow =
+    window.open(
+      "",
+      "_blank",
+      [
+        "popup=yes",
+        "width=1500",
+        "height=950",
+        "resizable=yes",
+        "scrollbars=yes"
+      ].join(",")
+    );
+
+
+  if (
+    !previewWindow
+  ) {
+    window.alert(
+      "PDF 미리보기 창이 차단되었습니다.\n팝업을 허용한 뒤 다시 눌러 주세요."
+    );
+
+
+    return;
+  }
+
+
+  initializeLogSheetPdfPopup(
+    previewWindow
+  );
+
+
+  setBusy(
+    true,
+    "현재 입력값으로 원본 Excel PDF를 만들고 있습니다."
+  );
+
+
+  try {
+    /*
+      이미 엑셀 다운로드에서 사용하는
+      동일한 XLSX 생성 함수를 재사용한다.
+    */
+    const workbookBlob =
+      await createPatchedWorkbookBlob();
+
+
+    const requestId =
+      await createLogSheetPdfRequest(
+        workbookBlob
+      );
+
+
+    await waitForLogSheetPdfCompletion(
+      requestId
+    );
+
+
+    const pdfBlob =
+      await fetchLogSheetPdfBlob(
+        requestId
+      );
+
+
+    if (
+      previewWindow.closed
+    ) {
+      throw new Error(
+        "PDF 변환 중 미리보기 창이 닫혔습니다."
+      );
+    }
+
+
+    const objectUrl =
+      URL.createObjectURL(
+        pdfBlob
+      );
+
+
+    releaseLogSheetPdfUrlWhenClosed(
+      previewWindow,
+      objectUrl
+    );
+
+
+    /*
+      최종 화면은 HTML 표가 아니라
+      Edge/Chrome 자체 PDF Viewer다.
+    */
+    if (
+      autoPrint
+    ) {
+      let printAttempted =
+        false;
+
+
+      const tryPrint =
+        () => {
+          if (
+            printAttempted ||
+            previewWindow.closed
+          ) {
+            return;
+          }
+
+
+          try {
+            previewWindow.focus();
+
+            previewWindow.print();
+
+            printAttempted =
+              true;
+
+          } catch (
+            error
+          ) {
+            console.warn(
+              "PDF 자동 인쇄창 호출 실패:",
+              error
+            );
+          }
+        };
+
+
+      previewWindow.addEventListener(
+        "load",
+        () => {
+          window.setTimeout(
+            tryPrint,
+            600
+          );
+        },
+        {
+          once:
+            true
+        }
+      );
+
+
+      window.setTimeout(
+        tryPrint,
+        1800
+      );
+    }
+
+
+    previewWindow.location.replace(
+      objectUrl
+    );
+
+
+    setStatus(
+      "PDF 준비 완료",
+      "Microsoft Excel 원본 인쇄 설정으로 PDF를 만들었습니다.",
+      state.isDirty
+        ? "dirty"
+        : "saved"
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "Log Sheet PDF 미리보기 실패:",
+      error
+    );
+
+
+    if (
+      !previewWindow.closed
+    ) {
+      const body =
+        previewWindow.document
+          ?.body;
+
+
+      if (body) {
+        body.textContent =
+          `PDF 미리보기를 만들지 못했습니다: ${
+            error?.message ||
+            "알 수 없는 오류"
+          }`;
+      }
+    }
+
+
+    setStatus(
+      "PDF 실패",
+      error?.message ||
+        "PDF 미리보기를 만들지 못했습니다.",
+      "error"
+    );
+
+  } finally {
+    setBusy(
+      false
+    );
+  }
+}
+
+function printCurrentSheet() {
+  openLogSheetPdfPreview({
+    autoPrint:
+      true
+  });
+}
 function bindEvents() {
   elements.loadButton.addEventListener(
     "click",
@@ -8302,9 +8893,13 @@ function bindEvents() {
 
   elements.previewButton.addEventListener(
     "click",
-    openLogSheetPreviewWindow
+    () => {
+      openLogSheetPdfPreview({
+        autoPrint:
+          false
+      });
+    }
   );
-
   elements.downloadButton.addEventListener(
     "click",
     downloadWorkbook

@@ -762,7 +762,8 @@ const OIS_REQUEST_TYPES = [
   "silo_level",
   "daily_data_excel",
   "steam_status",
-  "logsheet_approval"
+  "logsheet_approval",
+  "logsheet_pdf"
 ];
 
 

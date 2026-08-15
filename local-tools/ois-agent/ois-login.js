@@ -1,5 +1,12 @@
 "use strict";
 
+const {
+  processLogSheetPdfRequest
+} =
+  require(
+    "./log-sheet-pdf-agent"
+  );
+
 
 const fs =
   require(
@@ -7409,7 +7416,8 @@ async function getNextOisAgentRequest(
 ) {
   const excelRequestTypes = [
     "daily_data_excel",
-    "steam_status"
+    "steam_status",
+    "logsheet_pdf"
   ];
 
 
@@ -7641,6 +7649,14 @@ if (
     return "Silo Level";
   }
 
+
+
+  if (
+    requestType ===
+      "logsheet_pdf"
+  ) {
+    return "Log Sheet PDF";
+  }
 
   if (
     isDailyDataExcelRequestType(
@@ -11773,6 +11789,17 @@ if (
     );
   }
 
+
+
+  if (
+    requestType ===
+      "logsheet_pdf"
+  ) {
+    return await processLogSheetPdfRequest(
+      config,
+      requestItem
+    );
+  }
 
   if (
     isDailyDataExcelRequestType(
@@ -17093,8 +17120,12 @@ async function loginOis() {
 
 
       const requestNeedsOisBrowser =
-        !isDailyDataExcelRequestType(
-          requestType
+        !(
+          isDailyDataExcelRequestType(
+            requestType
+          ) ||
+          requestType ===
+            "logsheet_pdf"
         );
 
 
