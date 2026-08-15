@@ -112561,16 +112561,38 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 }
 
 /* =========================================================
-   ARM ROLL BOX 모바일 알림 배지 최종
-   안 1 : 우측 상단 독립 배치
+   ARM ROLL BOX 모바일 알림 배지 FINAL V2
+
+   - 배지를 글씨 영역에서 완전히 분리
+   - 우측 상단 코너에 플로팅
+   - ARM ROLL BOX 문구 공간 확보
 ========================================================= */
 
 @media screen and (max-width: 768px) {
 
-  /* ARM ROLL BOX 버튼을 배지 기준점으로 사용 */
+  /* 탭 바에서 배지가 잘리지 않도록 */
+  #efficiencyTeamModal
+  .efficiency-team-tabs {
+    overflow: visible !important;
+  }
+
+
+  /* ARM ROLL BOX 탭 */
   #efficiencyTeamModal
   #efficiencyArmRollTab {
     position: relative !important;
+
+    /*
+      모바일에서는 배지가 더 이상
+      세 번째 grid 칸을 차지하지 않음
+    */
+    grid-template-columns:
+      18px
+      minmax(0, 1fr) !important;
+
+    column-gap: 5px !important;
+
+    padding-right: 14px !important;
 
     overflow: visible !important;
   }
@@ -112582,7 +112604,10 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   .efficiency-team-tab__label {
     min-width: 0 !important;
 
+    overflow: visible !important;
+
     white-space: nowrap !important;
+    text-overflow: clip !important;
 
     text-align: center !important;
   }
@@ -112590,38 +112615,43 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 
   /* 알림 숫자 */
   #efficiencyTeamModal
+  #efficiencyArmRollTab
   #armRollBoxTabAlertBadge {
     position: absolute !important;
 
-    top: 4px !important;
+    top: -5px !important;
     right: 5px !important;
 
-    z-index: 5 !important;
+    z-index: 20 !important;
 
     display: inline-flex !important;
 
     align-items: center !important;
     justify-content: center !important;
 
-    min-width: 20px !important;
-
     width: auto !important;
+    min-width: 19px !important;
 
-    height: 20px !important;
-    min-height: 20px !important;
+    height: 19px !important;
+    min-height: 19px !important;
+    max-height: 19px !important;
 
     margin: 0 !important;
-
-    padding: 0 5px !important;
+    padding: 0 4px !important;
 
     box-sizing: border-box !important;
 
+    border: 2px solid #ffffff !important;
     border-radius: 999px !important;
 
-    font-size: 10px !important;
+    font-size: 9px !important;
     font-weight: 900 !important;
 
     line-height: 1 !important;
+
+    box-shadow:
+      0 2px 5px
+      rgba(143, 91, 16, 0.18) !important;
 
     transform: none !important;
 
@@ -112629,7 +112659,7 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   }
 
 
-  /* 알림이 없을 때는 반드시 숨김 */
+  /* 알림 없으면 숨김 */
   #efficiencyTeamModal
   #armRollBoxTabAlertBadge[hidden] {
     display: none !important;
