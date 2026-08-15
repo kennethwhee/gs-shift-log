@@ -8826,6 +8826,342 @@ function releaseLogSheetPdfUrlWhenClosed(
 let logSheetPdfPreviewObjectUrl =
   "";
 
+/* =========================================================
+  Log Sheet PDF 미리보기 캐시
+
+  목적:
+  - 같은 Log Sheet
+  - 같은 날짜/근무
+  - 입력값 변경 없음
+
+  위 조건이면:
+  - 새 PDF 요청 생성 안 함
+  - Agent 호출 안 함
+  - Excel 실행 안 함
+  - 직전 PDF Blob 즉시 재사용
+
+  값이 하나라도 변경되면 fingerprint가 달라져
+  자동으로 새 PDF를 생성한다.
+========================================================= */
+
+const LOG_SHEET_PDF_CACHE_MAX_ENTRIES =
+  12;
+
+
+const logSheetPdfCache =
+  new Map();
+
+
+function getLogSheetPdfCacheScopeKey() {
+  const identity =
+    getIdentity();
+
+
+  return [
+    normalizeText(
+      identity.templateKey
+    ),
+
+    normalizeText(
+      identity.sheetKey
+    ),
+
+    normalizeText(
+      state.sheetConfig?.sheetName
+    ),
+
+    normalizeText(
+      identity.date
+    ),
+
+    normalizeText(
+      identity.shift
+    ),
+
+    normalizeText(
+      identity.team
+    )
+  ].join(
+    "||"
+  );
+}
+
+
+async function createLogSheetPdfFingerprint() {
+  const identity =
+    getIdentity();
+
+
+  /*
+    XLSX 파일 자체를 해시하지 않는다.
+
+    XLSX ZIP 내부 메타데이터가 달라져도
+    실제 Log Sheet 내용이 같으면
+    동일한 PDF를 재사용하기 위해:
+
+    - 양식 버전
+    - 현재 시트
+    - 조회 기준
+    - 직접 입력값
+    - 자동 생성값
+
+    만으로 fingerprint를 만든다.
+  */
+  const fingerprintSource =
+    JSON.stringify({
+      version:
+        1,
+
+      templateFile:
+        normalizeText(
+          state.documentConfig
+            ?.templateFile
+        ),
+
+      templateSha256:
+        normalizeText(
+          state.documentConfig
+            ?.templateSha256
+        ),
+
+      sheetName:
+        normalizeText(
+          state.sheetConfig
+            ?.sheetName
+        ),
+
+      identity: {
+        templateKey:
+          normalizeText(
+            identity.templateKey
+          ),
+
+        sheetKey:
+          normalizeText(
+            identity.sheetKey
+          ),
+
+        date:
+          normalizeText(
+            identity.date
+          ),
+
+        shift:
+          normalizeText(
+            identity.shift
+          ),
+
+        team:
+          normalizeText(
+            identity.team
+          )
+      },
+
+      values:
+        stableJson(
+          state.values
+        ),
+
+      generatedValues:
+        stableJson(
+          state.generatedValues
+        )
+    });
+
+
+  /*
+    HTTPS 환경에서는 SHA-256 사용
+  */
+  if (
+    globalThis.crypto?.subtle
+  ) {
+    const digest =
+      await globalThis.crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder()
+          .encode(
+            fingerprintSource
+          )
+      );
+
+
+    return [
+      ...new Uint8Array(
+        digest
+      )
+    ]
+      .map(
+        byte =>
+          byte
+            .toString(
+              16
+            )
+            .padStart(
+              2,
+              "0"
+            )
+      )
+      .join(
+        ""
+      );
+  }
+
+
+  /*
+    구형 환경 fallback.
+    캐시 판별용이므로 보안 목적 해시는 아니다.
+  */
+  let hash =
+    2166136261;
+
+
+  for (
+    let index = 0;
+    index <
+      fingerprintSource.length;
+    index += 1
+  ) {
+    hash ^=
+      fingerprintSource.charCodeAt(
+        index
+      );
+
+
+    hash =
+      Math.imul(
+        hash,
+        16777619
+      );
+  }
+
+
+  return (
+    `fallback-${(
+      hash >>>
+      0
+    ).toString(16)}`
+  );
+}
+
+
+function getCachedLogSheetPdf(
+  scopeKey,
+  fingerprint
+) {
+  const cached =
+    logSheetPdfCache.get(
+      scopeKey
+    );
+
+
+  if (
+    !cached ||
+    cached.fingerprint !==
+      fingerprint ||
+    !(cached.blob instanceof Blob) ||
+    cached.blob.size <
+      5
+  ) {
+    return null;
+  }
+
+
+  /*
+    최근 사용 항목을 Map 뒤로 이동
+  */
+  logSheetPdfCache.delete(
+    scopeKey
+  );
+
+
+  cached.lastUsedAt =
+    Date.now();
+
+
+  logSheetPdfCache.set(
+    scopeKey,
+    cached
+  );
+
+
+  return cached.blob;
+}
+
+
+function saveLogSheetPdfCache(
+  scopeKey,
+  fingerprint,
+  pdfBlob
+) {
+  if (
+    !(pdfBlob instanceof Blob) ||
+    pdfBlob.size <
+      5
+  ) {
+    return;
+  }
+
+
+  /*
+    같은 Log Sheet 기준은
+    최신 PDF 하나만 유지한다.
+
+    따라서 수정 후 새 PDF를 만들면
+    이전 fingerprint PDF는 자동 교체된다.
+  */
+  logSheetPdfCache.delete(
+    scopeKey
+  );
+
+
+  logSheetPdfCache.set(
+    scopeKey,
+    {
+      fingerprint,
+
+      blob:
+        pdfBlob,
+
+      createdAt:
+        Date.now(),
+
+      lastUsedAt:
+        Date.now()
+    }
+  );
+
+
+  /*
+    여러 Log Sheet를 계속 열어도
+    브라우저 메모리가 무한 증가하지 않게 제한한다.
+  */
+  while (
+    logSheetPdfCache.size >
+      LOG_SHEET_PDF_CACHE_MAX_ENTRIES
+  ) {
+    const oldestKey =
+      logSheetPdfCache
+        .keys()
+        .next()
+        .value;
+
+
+    if (
+      oldestKey ===
+        undefined
+    ) {
+      break;
+    }
+
+
+    logSheetPdfCache.delete(
+      oldestKey
+    );
+  }
+}
+
+
+
 
 function releaseLogSheetPdfPreviewObjectUrl() {
   if (
@@ -9438,19 +9774,91 @@ async function openLogSheetPdfPreview(
       true;
 
 
-  setLogSheetPdfPreviewProgress(
-    "Excel 파일 생성 중",
-    "현재 입력값을 원본 Log Sheet Excel 양식에 반영하고 있습니다."
-  );
-
-
-  setBusy(
-    true,
-    "현재 입력값으로 원본 Excel PDF를 만들고 있습니다."
-  );
-
-
   try {
+    /*
+      =====================================================
+      1. 현재 Log Sheet 내용 fingerprint 생성
+      =====================================================
+    */
+
+    const cacheScopeKey =
+      getLogSheetPdfCacheScopeKey();
+
+
+    const fingerprint =
+      await createLogSheetPdfFingerprint();
+
+
+    /*
+      =====================================================
+      2. 동일 내용 PDF가 이미 있으면 즉시 표시
+
+      중요:
+      여기서는
+      - XLSX 생성 없음
+      - 서버 요청 없음
+      - Agent 요청 없음
+      - Excel 실행 없음
+      =====================================================
+    */
+
+    const cachedPdfBlob =
+      getCachedLogSheetPdf(
+        cacheScopeKey,
+        fingerprint
+      );
+
+
+    if (
+      cachedPdfBlob
+    ) {
+      console.log(
+        "Log Sheet PDF 캐시 재사용:",
+        state.sheetConfig
+          ?.sheetName,
+        `${cachedPdfBlob.size} bytes`
+      );
+
+
+      showLogSheetPdfPreviewBlob(
+        cachedPdfBlob,
+        {
+          autoPrint
+        }
+      );
+
+
+      setStatus(
+        "PDF 즉시 표시",
+        "변경된 내용이 없어 직전 PDF 미리보기를 재사용했습니다.",
+        state.isDirty
+          ? "dirty"
+          : "saved"
+      );
+
+
+      return;
+    }
+
+
+    /*
+      =====================================================
+      3. 내용이 변경된 경우에만 새 PDF 생성
+      =====================================================
+    */
+
+    setLogSheetPdfPreviewProgress(
+      "Excel 파일 생성 중",
+      "변경된 내용을 원본 Log Sheet Excel 양식에 반영하고 있습니다."
+    );
+
+
+    setBusy(
+      true,
+      "변경된 내용으로 원본 Excel PDF를 만들고 있습니다."
+    );
+
+
     const workbookBlob =
       await createPatchedWorkbookBlob();
 
@@ -9474,10 +9882,8 @@ async function openLogSheetPdfPreview(
 
 
     /*
-      별도의 요청 상태 API를 기다리지 않는다.
-
-      실제 PDF 주소를 직접 조회하여
-      PDF가 준비되는 순간 Blob을 받는다.
+      상태 API를 별도로 기다리지 않고
+      PDF 자체가 준비될 때까지 직접 조회한다.
     */
     const pdfBlob =
       await fetchLogSheetPdfBlob(
@@ -9492,6 +9898,30 @@ async function openLogSheetPdfPreview(
     setLogSheetPdfPreviewProgress(
       "PDF 불러오는 중",
       "생성된 PDF를 미리보기에 표시하고 있습니다."
+    );
+
+
+    /*
+      =====================================================
+      4. 새 PDF 캐시에 저장
+
+      이후 값이 바뀌지 않은 상태에서
+      미리보기를 다시 누르면 이 Blob을 즉시 재사용한다.
+      =====================================================
+    */
+
+    saveLogSheetPdfCache(
+      cacheScopeKey,
+      fingerprint,
+      pdfBlob
+    );
+
+
+    console.log(
+      "Log Sheet PDF 캐시 저장:",
+      state.sheetConfig
+        ?.sheetName,
+      `${pdfBlob.size} bytes`
     );
 
 
@@ -9533,6 +9963,10 @@ async function openLogSheetPdfPreview(
     );
 
   } finally {
+    /*
+      캐시 재사용 시에는 setBusy(true)를 실행하지 않았지만
+      false 재설정은 안전하다.
+    */
     setBusy(
       false
     );
