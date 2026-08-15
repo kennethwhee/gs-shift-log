@@ -222088,94 +222088,147 @@ function installFolderControl(
   );
 }
 
-  function renderFolder(
-    config
+function renderFolder(
+  config
+) {
+  const handle =
+    handles.get(
+      config.key
+    );
+
+  const permission =
+    permissions.get(
+      config.key
+    ) ||
+    "prompt";
+
+  const button =
+    folderButton(
+      config
+    );
+
+  const name =
+    folderName(
+      config
+    );
+
+
+  if (
+    button
   ) {
-    const handle =
-      handles.get(
-        config.key
-      );
+    button.disabled =
+      loading;
 
-    const permission =
-      permissions.get(
-        config.key
-      ) ||
-      "prompt";
+    button.classList.toggle(
+      "is-selected",
+      Boolean(
+        handle
+      ) &&
+      permission ===
+        "granted"
+    );
 
-    const button =
-      folderButton(
-        config
-      );
+    button.classList.toggle(
+      "has-permission-warning",
+      Boolean(
+        handle
+      ) &&
+      permission !==
+        "granted"
+    );
 
-    const name =
-      folderName(
-        config
-      );
 
-    if (
-      button
-    ) {
-      button.disabled =
-        loading;
-
-      button.classList.toggle(
-        "is-selected",
-        Boolean(
-          handle
-        ) &&
-        permission ===
-          "granted"
-      );
-
-      button.classList.toggle(
-        "has-permission-warning",
-        Boolean(
-          handle
-        ) &&
-        permission !==
-          "granted"
-      );
-
+    if (!handle) {
       button.textContent =
-        !handle
-          ? "폴더 설정"
-          : permission ===
-              "granted"
-            ? "폴더 변경"
-            : "다시 설정";
+        "폴더 설정";
 
-      button.title =
-        !handle
-          ? `${config.label} 자료 폴더를 설정합니다.`
-          : permission ===
-              "granted"
-            ? `${config.label}: ${handle.name}`
-            : `${handle.name} 폴더를 다시 선택해 권한을 연결합니다.`;
+    } else if (
+      permission ===
+        "granted"
+    ) {
+      button.textContent =
+        "폴더 변경";
+
+    } else if (
+      permission ===
+        "prompt"
+    ) {
+      button.textContent =
+        "권한 확인";
+
+    } else {
+      button.textContent =
+        "폴더 재설정";
     }
 
-    if (
-      name
+
+    if (!handle) {
+      button.title =
+        `${config.label} 자료 폴더를 설정합니다.`;
+
+    } else if (
+      permission ===
+        "granted"
     ) {
-      name.textContent =
-        handle
-          ? handle.name
-          : "폴더 미설정";
+      button.title =
+        `${config.label}: ${handle.name}`;
 
-      name.title =
-        handle
-          ? `${config.label} 폴더: ${handle.name}`
-          : `${config.label} 폴더가 설정되지 않았습니다.`;
+    } else if (
+      permission ===
+        "prompt"
+    ) {
+      button.title =
+        `${handle.name} 폴더는 기억되어 있습니다. 접근 권한만 다시 확인합니다.`;
 
-      name.classList.toggle(
-        "has-permission-warning",
-        Boolean(
-          handle
-        ) &&
-        permission !==
-          "granted"
-      );
+    } else {
+      button.title =
+        `${handle.name} 폴더의 접근 권한이 해제되었습니다. 폴더를 다시 지정합니다.`;
     }
   }
+
+
+  if (
+    name
+  ) {
+    if (!handle) {
+      name.textContent =
+        "폴더 미설정";
+
+    } else if (
+      permission ===
+        "granted"
+    ) {
+      name.textContent =
+        handle.name;
+
+    } else if (
+      permission ===
+        "prompt"
+    ) {
+      name.textContent =
+        `${handle.name} · 권한 확인 필요`;
+
+    } else {
+      name.textContent =
+        `${handle.name} · 권한 없음`;
+    }
+
+
+    name.title =
+      handle
+        ? `${config.label} 폴더: ${handle.name}`
+        : `${config.label} 폴더가 설정되지 않았습니다.`;
+
+    name.classList.toggle(
+      "has-permission-warning",
+      Boolean(
+        handle
+      ) &&
+      permission !==
+        "granted"
+    );
+  }
+}
 
 function render() {
   const configuredCount =
@@ -222296,16 +222349,109 @@ async function chooseOrAuthorizeFolder(
 ) {
   hideError();
 
+
   try {
-    /*
-      일일발전현황·운탄일지 등
-      각 카드에 저장된 기존 폴더를
-      해당 선택창의 시작 위치로 사용한다.
-    */
     const currentHandle =
       handles.get(
         config.key
       );
+
+
+    /* =====================================================
+      저장된 폴더가 있는 경우
+    ===================================================== */
+
+    if (
+      currentHandle?.kind ===
+        "directory"
+    ) {
+      let permission =
+        await currentHandle
+          .queryPermission({
+            mode:
+              "read"
+          });
+
+
+      permissions.set(
+        config.key,
+        permission
+      );
+
+
+      /*
+        브라우저가 권한만 다시 확인하면 되는 상태라면
+        폴더 선택창을 띄우지 않고 기존 폴더 권한만 요청한다.
+      */
+      if (
+        permission ===
+          "prompt"
+      ) {
+        permission =
+          await currentHandle
+            .requestPermission({
+              mode:
+                "read"
+            });
+
+
+        permissions.set(
+          config.key,
+          permission
+        );
+
+
+        if (
+          permission ===
+            "granted"
+        ) {
+          render();
+
+
+          setMessage(
+            `${config.label}: ${currentHandle.name} 폴더 접근 권한이 다시 연결되었습니다.`
+          );
+
+
+          return;
+        }
+
+
+        render();
+
+
+        setMessage(
+          `${config.label}: 저장된 폴더의 접근 권한이 허용되지 않았습니다.`
+        );
+
+
+        return;
+      }
+
+
+      /*
+        이미 권한이 정상인데 버튼을 눌렀다면
+        사용자가 실제로 폴더를 변경하려는 것으로 본다.
+      */
+      if (
+        permission ===
+          "granted"
+      ) {
+        // 아래 폴더 선택 단계로 진행
+      }
+
+
+      /*
+        권한이 완전히 denied 된 경우에도
+        기존 핸들로는 접근할 수 없으므로
+        아래에서 새 폴더를 선택한다.
+      */
+    }
+
+
+    /* =====================================================
+      신규 설정 / 실제 폴더 변경 / 권한 완전 해제
+    ===================================================== */
 
     const pickerOptions = {
       id:
@@ -222315,6 +222461,7 @@ async function chooseOrAuthorizeFolder(
         "read"
     };
 
+
     if (
       currentHandle?.kind ===
         "directory"
@@ -222323,22 +222470,27 @@ async function chooseOrAuthorizeFolder(
         currentHandle;
     }
 
+
     const selected =
       await window.showDirectoryPicker(
         pickerOptions
       );
+
 
     handles.set(
       config.key,
       selected
     );
 
+
     permissions.set(
       config.key,
       "granted"
     );
 
+
     render();
+
 
     try {
       await storeHandle(
@@ -222355,9 +222507,11 @@ async function chooseOrAuthorizeFolder(
       );
     }
 
+
     setMessage(
       `${config.label}: ${selected.name} 폴더가 설정되었습니다.`
     );
+
 
   } catch (
     error
@@ -222369,15 +222523,18 @@ async function chooseOrAuthorizeFolder(
       return;
     }
 
+
     console.error(
       `${config.label} 폴더 설정 실패:`,
       error
     );
 
+
     showError(
       error?.message ||
       `${config.label} 폴더를 설정하지 못했습니다.`
     );
+
 
     render();
   }
