@@ -110824,3 +110824,230 @@ button,
   }
 
 }
+
+/* =========================================================
+   LIMESTONE MOBILE POLISH V7
+========================================================= */
+@media (max-width: 768px) {
+  /* -----------------------------------------
+     공통 모바일 헤더 정리
+  ----------------------------------------- */
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-heading-actions,
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-usage-calculator__header-actions {
+    margin-left: auto !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    gap: 10px !important;
+    flex-wrap: nowrap !important;
+    width: auto !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-heading-actions > button,
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-usage-calculator__header-actions > button {
+    flex: 0 0 auto !important;
+  }
+
+  /* 입고 화면 상단 버튼 우측 끝 */
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-heading-actions {
+    width: auto !important;
+  }
+
+  /* 사용량 화면 상단 버튼은 모바일에서 숨김 */
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView .limestone-heading-actions,
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView .limestone-usage-calculator__header-actions {
+    display: none !important;
+  }
+
+  /* -----------------------------------------
+     입고 화면 날짜 줄
+     [<] [날짜] [>] [기간 조회]
+  ----------------------------------------- */
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-mobile-receipt-date-control-row {
+    display: grid !important;
+    grid-template-columns: 64px minmax(0, 1fr) 64px 108px !important;
+    gap: 10px !important;
+    align-items: stretch !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView #limestonePreviousDayButton,
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneNextDayButton {
+    width: 64px !important;
+    min-width: 64px !important;
+    height: 64px !important;
+    min-height: 64px !important;
+    padding: 0 !important;
+    border-radius: 20px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneMoveToTodayButton {
+    height: 64px !important;
+    min-height: 64px !important;
+    border-radius: 20px !important;
+    padding: 0 18px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 10px !important;
+    font-size: 17px !important;
+    font-weight: 800 !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView #openLimestonePeriodSearchButton {
+    height: 64px !important;
+    min-height: 64px !important;
+    border-radius: 20px !important;
+    padding: 0 14px !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+  }
+
+  /* -----------------------------------------
+     사용량 화면 날짜 줄
+     [<] [날짜] [>] [오늘]
+  ----------------------------------------- */
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-mobile-usage-date-control-row {
+    display: grid !important;
+    grid-template-columns: 64px minmax(0, 1fr) 64px 82px !important;
+    gap: 10px !important;
+    align-items: stretch !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-mobile-usage-date-control-row #limestonePreviousDayButton,
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-mobile-usage-date-control-row #limestoneNextDayButton {
+    width: 64px !important;
+    min-width: 64px !important;
+    height: 64px !important;
+    min-height: 64px !important;
+    padding: 0 !important;
+    border-radius: 20px !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-mobile-usage-date-control-row #limestoneMoveToTodayButton {
+    height: 64px !important;
+    min-height: 64px !important;
+    border-radius: 20px !important;
+    padding: 0 18px !important;
+    font-size: 17px !important;
+    font-weight: 800 !important;
+  }
+
+  /* -----------------------------------------
+     입고기록 상세 - 호기 색상 강조
+     1호기 = 연파랑 / 2호기 = 연초록
+  ----------------------------------------- */
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table tbody tr.limestone-row-unit-1 {
+    background: linear-gradient(
+      90deg,
+      rgba(102, 170, 255, 0.10) 0,
+      rgba(102, 170, 255, 0.04) 54px,
+      rgba(255, 255, 255, 0) 54px
+    ) !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table tbody tr.limestone-row-unit-2 {
+    background: linear-gradient(
+      90deg,
+      rgba(110, 204, 150, 0.11) 0,
+      rgba(110, 204, 150, 0.04) 54px,
+      rgba(255, 255, 255, 0) 54px
+    ) !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table tbody tr.limestone-row-unit-1 td:nth-child(3),
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table tbody tr.limestone-row-unit-1 td:nth-child(4) {
+    color: #4d87dd !important;
+    font-weight: 800 !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table tbody tr.limestone-row-unit-2 td:nth-child(3),
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-receipt-table tbody tr.limestone-row-unit-2 td:nth-child(4) {
+    color: #4ca06b !important;
+    font-weight: 800 !important;
+  }
+
+  /* -----------------------------------------
+     사용량 표 - 1호기 / 2호기 칸 폭 확대
+  ----------------------------------------- */
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table th:first-child,
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table td:first-child {
+    width: 88px !important;
+    min-width: 88px !important;
+    white-space: nowrap !important;
+    font-size: 17px !important;
+    font-weight: 800 !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table th,
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table td {
+    padding: 14px 8px !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table th:nth-child(2),
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table td:nth-child(2),
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table th:nth-child(3),
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table td:nth-child(3),
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table th:nth-child(4),
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table td:nth-child(4),
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table th:nth-child(5),
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneUsageCalculatorView table td:nth-child(5) {
+    font-size: 14px !important;
+  }
+
+  /* -----------------------------------------
+     기간 조회 화면 compact
+  ----------------------------------------- */
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm {
+    gap: 12px !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm input,
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm select,
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm button {
+    min-height: 52px !important;
+    height: 52px !important;
+    font-size: 16px !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .segmented-control,
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .mode-selector,
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .range-selector {
+    margin-bottom: 8px !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .card,
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .panel,
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .section-block {
+    padding: 14px !important;
+    border-radius: 18px !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .button-row,
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .search-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .button-row button:last-child,
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .search-actions button:last-child {
+    grid-column: 1 / -1 !important;
+  }
+
+  /* 제목/본문 compact */
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm h3,
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm h4 {
+    margin-bottom: 6px !important;
+    font-size: 18px !important;
+  }
+
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm p,
+  #efficiencyTeamModal #efficiencyLimestoneView #limestoneSearchForm .description {
+    margin-bottom: 8px !important;
+    font-size: 13px !important;
+    line-height: 1.45 !important;
+  }
+}

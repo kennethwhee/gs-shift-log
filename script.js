@@ -151553,33 +151553,21 @@ function normalizeMorningMeetingRequiredNumber(
   return numericValue;
 }
 
-
 /* =====================================================
-  OIS 수처리 값 → 최종 오전회의 엑셀 반영
+  수처리 → 최종 오전회의 엑셀 반영
 
-  1. 기존 전일 값:
-     AJ → AH 전전일 칸으로 이동
+  평일:
+  - 전전일 칸(AH) = 업무내용 기준일 전날
+  - 전일 칸(AJ/AM) = 업무내용 기준일
 
-  2. 새 OIS 값:
-     전일 칸에 입력
+  주말:
+  - 전전일 칸(AH) = 주말 시작일
+  - 전일 칸(AJ/AM) = 주말 종료일
 
-  전전일 이동:
-  AJ18 → AH18  장자산단 원수 유입량
-  AJ19 → AH19  순수 생산량
-  AJ20 → AH20  원수 TANK 저장량
-  AJ21 → AH21  여과수 TANK 저장량
-  AJ22 → AH22  순수 TANK 저장량
-
-  새 전일 입력:
-  AJ18  장자산단 원수 유입량
-  AJ19  순수 생산량
-  AM19  순수 사용량
-  AJ20  원수 TANK 저장량
-  AM20  원수 TANK 저장율
-  AJ21  여과수 TANK 저장량
-  AM21  여과수 TANK 저장율
-  AJ22  순수 TANK 저장량
-  AM22  순수 TANK 저장율
+  중요:
+  - 엑셀 템플릿의 기존 AJ 값을
+    AH로 이동하지 않는다.
+  - 날짜별 저장된 실제 수처리 값을 사용한다.
 ===================================================== */
 
 function applyMorningMeetingWaterTreatmentValues(
@@ -151595,13 +151583,107 @@ function applyMorningMeetingWaterTreatmentValues(
 
 
   /* =====================================================
-    수처리 값 선택 처리
+    날짜 검사
+  ====================================================== */
 
-    정상 숫자:
-    그대로 사용
+  const normalizeDate =
+    value => {
+      const dateValue =
+        String(
+          value ||
+          ""
+        ).trim();
 
-    조회 실패 / 값 없음:
-    null → 엑셀 빈칸
+
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(
+          dateValue
+        )
+      ) {
+        return "";
+      }
+
+
+      const parsedDate =
+        new Date(
+          `${dateValue}T00:00:00.000Z`
+        );
+
+
+      if (
+        Number.isNaN(
+          parsedDate.getTime()
+        )
+      ) {
+        return "";
+      }
+
+
+      return (
+        parsedDate
+          .toISOString()
+          .slice(
+            0,
+            10
+          ) ===
+        dateValue
+      )
+        ? dateValue
+        : "";
+    };
+
+
+  /* =====================================================
+    날짜 이동
+  ====================================================== */
+
+  const addDateDays =
+    (
+      dateValue,
+      dayCount
+    ) => {
+      const normalizedDate =
+        normalizeDate(
+          dateValue
+        );
+
+
+      if (
+        !normalizedDate
+      ) {
+        return "";
+      }
+
+
+      const parsedDate =
+        new Date(
+          `${normalizedDate}T00:00:00.000Z`
+        );
+
+
+      parsedDate.setUTCDate(
+        parsedDate.getUTCDate() +
+        Number(
+          dayCount ||
+          0
+        )
+      );
+
+
+      return parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        );
+    };
+
+
+  /* =====================================================
+    숫자 정리
+
+    값 없음:
+    null
   ====================================================== */
 
   const toOptionalNumber =
@@ -151639,140 +151721,465 @@ function applyMorningMeetingWaterTreatmentValues(
     };
 
 
-  const normalizedValues = {
-    rawWaterInflow:
-      toOptionalNumber(
-        source.rawWaterInflow
-      ),
-
-    demiProduction:
-      toOptionalNumber(
-        source.demiProduction
-      ),
-
-    pureWaterUsage:
-      toOptionalNumber(
-        source.pureWaterUsage
-      ),
-
-    rawWaterTankAmount:
-      toOptionalNumber(
-        source.rawWaterTankAmount
-      ),
-
-    rawWaterTankRate:
-      toOptionalNumber(
-        source.rawWaterTankRate
-      ),
-
-    filteredWaterTankAmount:
-      toOptionalNumber(
-        source.filteredWaterTankAmount
-      ),
-
-    filteredWaterTankRate:
-      toOptionalNumber(
-        source.filteredWaterTankRate
-      ),
-
-    demiWaterTankAmount:
-      toOptionalNumber(
-        source.demiWaterTankAmount
-      ),
-
-    demiWaterTankRate:
-      toOptionalNumber(
-        source.demiWaterTankRate
-      )
-  };
-
-
   /* =====================================================
-    템플릿에 들어 있던 기존 전일값
-
-    새 보고서에서는 전전일 값이 된다.
+    수처리 객체 → 숫자 9개 정리
   ====================================================== */
 
-  const previousCurrentValues = {
-    rawWaterInflow:
-      getMorningMeetingNumericCellValue(
-        worksheetDocument,
-        "AJ18"
-      ),
+  const normalizeWaterValues =
+    rawValue => {
+      const raw =
+        rawValue &&
+        typeof rawValue ===
+          "object"
+          ? rawValue
+          : {};
 
-    demiProduction:
-      getMorningMeetingNumericCellValue(
-        worksheetDocument,
-        "AJ19"
-      ),
 
-    rawWaterTankAmount:
-      getMorningMeetingNumericCellValue(
-        worksheetDocument,
-        "AJ20"
-      ),
+      return {
+        rawWaterInflow:
+          toOptionalNumber(
+            raw.rawWaterInflow
+          ),
 
-    filteredWaterTankAmount:
-      getMorningMeetingNumericCellValue(
-        worksheetDocument,
-        "AJ21"
-      ),
+        demiProduction:
+          toOptionalNumber(
+            raw.demiProduction
+          ),
 
-    demiWaterTankAmount:
-      getMorningMeetingNumericCellValue(
-        worksheetDocument,
-        "AJ22"
+        pureWaterUsage:
+          toOptionalNumber(
+            raw.pureWaterUsage
+          ),
+
+        rawWaterTankAmount:
+          toOptionalNumber(
+            raw.rawWaterTankAmount
+          ),
+
+        rawWaterTankRate:
+          toOptionalNumber(
+            raw.rawWaterTankRate
+          ),
+
+        filteredWaterTankAmount:
+          toOptionalNumber(
+            raw.filteredWaterTankAmount
+          ),
+
+        filteredWaterTankRate:
+          toOptionalNumber(
+            raw.filteredWaterTankRate
+          ),
+
+        demiWaterTankAmount:
+          toOptionalNumber(
+            raw.demiWaterTankAmount
+          ),
+
+        demiWaterTankRate:
+          toOptionalNumber(
+            raw.demiWaterTankRate
+          )
+      };
+    };
+
+
+  /* =====================================================
+    오전회의 현재 상태
+  ====================================================== */
+
+  const state =
+    window
+      .efficiencyMorningMeetingUploadState &&
+    typeof window
+      .efficiencyMorningMeetingUploadState ===
+      "object"
+      ? window
+          .efficiencyMorningMeetingUploadState
+      : {};
+
+
+  /* =====================================================
+    주말 모드 확인
+
+    우선:
+    getEfficiencyMorningMeetingWeekendMode()
+
+    보조:
+    state.weekendMode
+  ====================================================== */
+
+  let weekendMode =
+    {};
+
+
+  if (
+    typeof window
+      .getEfficiencyMorningMeetingWeekendMode ===
+      "function"
+  ) {
+    try {
+      const resolvedWeekendMode =
+        window
+          .getEfficiencyMorningMeetingWeekendMode();
+
+
+      if (
+        resolvedWeekendMode &&
+        typeof resolvedWeekendMode ===
+          "object" &&
+        !Array.isArray(
+          resolvedWeekendMode
+        )
+      ) {
+        weekendMode =
+          resolvedWeekendMode;
+      }
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "오전회의 수처리 주말 기간 확인 실패:",
+        error
+      );
+    }
+  }
+
+
+  if (
+    (
+      !weekendMode ||
+      typeof weekendMode !==
+        "object" ||
+      Array.isArray(
+        weekendMode
+      ) ||
+      Object.keys(
+        weekendMode
+      ).length ===
+        0
+    ) &&
+    state.weekendMode &&
+    typeof state.weekendMode ===
+      "object" &&
+    !Array.isArray(
+      state.weekendMode
+    )
+  ) {
+    weekendMode =
+      state.weekendMode;
+  }
+
+
+  const weekendStartDate =
+    normalizeDate(
+      weekendMode
+        ?.startDate
+    );
+
+
+  const weekendEndDate =
+    normalizeDate(
+      weekendMode
+        ?.endDate
+    );
+
+
+  const weekendEnabled =
+    weekendMode
+      ?.enabled ===
+        true &&
+    Boolean(
+      weekendStartDate
+    ) &&
+    Boolean(
+      weekendEndDate
+    );
+
+
+  /* =====================================================
+    업무내용 기준일
+
+    우선순위:
+    1. state.workDate
+    2. 업무내용 기준일 입력칸
+    3. 전달된 수처리 sourceDate
+  ====================================================== */
+
+  const pickerDate =
+    normalizeDate(
+      document
+        .getElementById(
+          "efficiencyMorningMeetingWorkDatePicker"
+        )
+        ?.value
+    );
+
+
+  const passedSourceDate =
+    normalizeDate(
+      source.sourceDate ||
+      source.targetDate
+    );
+
+
+  const workDate =
+    normalizeDate(
+      state.workDate
+    ) ||
+    pickerDate ||
+    passedSourceDate;
+
+
+  /* =====================================================
+    최종 수처리 날짜 결정
+
+    평일:
+      previousDate = workDate - 1
+      currentDate  = workDate
+
+    주말:
+      previousDate = 시작일
+      currentDate  = 종료일
+  ====================================================== */
+
+  const currentDate =
+    weekendEnabled
+      ? weekendEndDate
+      : workDate;
+
+
+  const previousDate =
+    weekendEnabled
+      ? weekendStartDate
+      : addDateDays(
+          currentDate,
+          -1
+        );
+
+
+  /* =====================================================
+    날짜별 수처리 캐시 읽기
+
+    저장 위치:
+    gsShiftLog.morningMeetingAutoDataCache.v1
+
+    water:
+    {
+      "2026-08-14": {...},
+      "2026-08-15": {...}
+    }
+  ====================================================== */
+
+  let waterCache =
+    {};
+
+
+  try {
+    const rawCache =
+      localStorage.getItem(
+        "gsShiftLog.morningMeetingAutoDataCache.v1"
+      );
+
+
+    const parsedCache =
+      rawCache
+        ? JSON.parse(
+            rawCache
+          )
+        : {};
+
+
+    waterCache =
+      parsedCache?.water &&
+      typeof parsedCache.water ===
+        "object" &&
+      !Array.isArray(
+        parsedCache.water
       )
+        ? parsedCache.water
+        : {};
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "오전회의 수처리 날짜별 저장값을 읽지 못했습니다.",
+      error
+    );
+
+
+    waterCache =
+      {};
+  }
+
+
+  /* =====================================================
+    전전일 자료
+
+    반드시 previousDate의 저장값만 사용한다.
+
+    엑셀 템플릿 AJ 값은 사용하지 않는다.
+  ====================================================== */
+
+  const previousSource =
+    previousDate &&
+    waterCache[
+      previousDate
+    ] &&
+    typeof waterCache[
+      previousDate
+    ] ===
+      "object"
+      ? waterCache[
+          previousDate
+        ]
+      : {};
+
+
+  /* =====================================================
+    전일 자료
+
+    1. 해당 날짜 캐시
+    2. 현재 전달된 최신 OIS 결과가
+       currentDate와 정확히 일치하면 덮어씀
+
+    따라서:
+    현재 막 조회한 값이 가장 우선된다.
+  ====================================================== */
+
+  const cachedCurrentSource =
+    currentDate &&
+    waterCache[
+      currentDate
+    ] &&
+    typeof waterCache[
+      currentDate
+    ] ===
+      "object"
+      ? waterCache[
+          currentDate
+        ]
+      : {};
+
+
+  const currentSource = {
+    ...cachedCurrentSource,
+
+    ...(
+      passedSourceDate &&
+      currentDate &&
+      passedSourceDate ===
+        currentDate
+        ? source
+        : {}
+    )
   };
 
 
   /* =====================================================
-    기존 전일 → 전전일 이동
+    숫자값 정리
+  ====================================================== */
+
+  const previousValues =
+    normalizeWaterValues(
+      previousSource
+    );
+
+
+  const currentValues =
+    normalizeWaterValues(
+      currentSource
+    );
+
+
+  /* =====================================================
+    저장값이 없을 경우 안내
+
+    잘못된 템플릿 값을 쓰지 않고
+    해당 셀을 빈칸으로 만든다.
+  ====================================================== */
+
+  if (
+    previousDate &&
+    Object.keys(
+      previousSource
+    ).length ===
+      0
+  ) {
+    console.warn(
+      `수처리 전전일 ${previousDate} 저장값이 없습니다.`
+    );
+  }
+
+
+  if (
+    currentDate &&
+    Object.keys(
+      currentSource
+    ).length ===
+      0
+  ) {
+    console.warn(
+      `수처리 전일 ${currentDate} 저장값이 없습니다.`
+    );
+  }
+
+
+  /* =====================================================
+    전전일 칸
+
+    AH18 장자산단 원수 유입량
+    AH19 순수 생산량
+    AH20 원수 TANK 저장량
+    AH21 여과수 TANK 저장량
+    AH22 순수 TANK 저장량
   ====================================================== */
 
   const moveMappings = [
     {
-      to:
+      address:
         "AH18",
 
       value:
-        previousCurrentValues
+        previousValues
           .rawWaterInflow
     },
 
     {
-      to:
+      address:
         "AH19",
 
       value:
-        previousCurrentValues
+        previousValues
           .demiProduction
     },
 
     {
-      to:
+      address:
         "AH20",
 
       value:
-        previousCurrentValues
+        previousValues
           .rawWaterTankAmount
     },
 
     {
-      to:
+      address:
         "AH21",
 
       value:
-        previousCurrentValues
+        previousValues
           .filteredWaterTankAmount
     },
 
     {
-      to:
+      address:
         "AH22",
 
       value:
-        previousCurrentValues
+        previousValues
           .demiWaterTankAmount
     }
   ];
@@ -151783,22 +152190,16 @@ function applyMorningMeetingWaterTreatmentValues(
       const writeResult =
         setMorningMeetingNumericCellValue(
           worksheetDocument,
-          mapping.to,
+          mapping.address,
           mapping.value
         );
 
-
-      /*
-        값이 없는 것은 정상.
-
-        셀 자체가 없는 경우만 오류
-      */
 
       if (
         !writeResult.found
       ) {
         throw new Error(
-          `수처리 전전일 셀 ${mapping.to}를 찾지 못했습니다.`
+          `수처리 전전일 셀 ${mapping.address}를 찾지 못했습니다.`
         );
       }
     }
@@ -151806,9 +152207,20 @@ function applyMorningMeetingWaterTreatmentValues(
 
 
   /* =====================================================
-    새 전일 값 입력
+    전일 칸
 
-    OIS 값이 없으면 해당 셀을 빈칸으로 만든다.
+    AJ18 원수 유입량
+    AJ19 순수 생산량
+    AM19 순수 사용량
+
+    AJ20 원수 TANK 저장량
+    AM20 원수 TANK 저장율
+
+    AJ21 여과수 TANK 저장량
+    AM21 여과수 TANK 저장율
+
+    AJ22 순수 TANK 저장량
+    AM22 순수 TANK 저장율
   ====================================================== */
 
   const currentMappings = [
@@ -151817,7 +152229,7 @@ function applyMorningMeetingWaterTreatmentValues(
         "AJ18",
 
       value:
-        normalizedValues
+        currentValues
           .rawWaterInflow
     },
 
@@ -151826,7 +152238,7 @@ function applyMorningMeetingWaterTreatmentValues(
         "AJ19",
 
       value:
-        normalizedValues
+        currentValues
           .demiProduction
     },
 
@@ -151835,7 +152247,7 @@ function applyMorningMeetingWaterTreatmentValues(
         "AM19",
 
       value:
-        normalizedValues
+        currentValues
           .pureWaterUsage
     },
 
@@ -151844,7 +152256,7 @@ function applyMorningMeetingWaterTreatmentValues(
         "AJ20",
 
       value:
-        normalizedValues
+        currentValues
           .rawWaterTankAmount
     },
 
@@ -151853,7 +152265,7 @@ function applyMorningMeetingWaterTreatmentValues(
         "AM20",
 
       value:
-        normalizedValues
+        currentValues
           .rawWaterTankRate
     },
 
@@ -151862,7 +152274,7 @@ function applyMorningMeetingWaterTreatmentValues(
         "AJ21",
 
       value:
-        normalizedValues
+        currentValues
           .filteredWaterTankAmount
     },
 
@@ -151871,7 +152283,7 @@ function applyMorningMeetingWaterTreatmentValues(
         "AM21",
 
       value:
-        normalizedValues
+        currentValues
           .filteredWaterTankRate
     },
 
@@ -151880,7 +152292,7 @@ function applyMorningMeetingWaterTreatmentValues(
         "AJ22",
 
       value:
-        normalizedValues
+        currentValues
           .demiWaterTankAmount
     },
 
@@ -151889,7 +152301,7 @@ function applyMorningMeetingWaterTreatmentValues(
         "AM22",
 
       value:
-        normalizedValues
+        currentValues
           .demiWaterTankRate
     }
   ];
@@ -151915,6 +152327,43 @@ function applyMorningMeetingWaterTreatmentValues(
     }
   );
 
+
+  /* =====================================================
+    확인 로그
+  ====================================================== */
+
+  console.log(
+    "오전회의 수처리 Excel 날짜 적용:",
+    {
+      mode:
+        weekendEnabled
+          ? "weekend"
+          : "weekday",
+
+      workDate,
+
+      previousDate,
+
+      currentDate,
+
+      previousFound:
+        Object.keys(
+          previousSource
+        ).length >
+        0,
+
+      currentFound:
+        Object.keys(
+          currentSource
+        ).length >
+        0
+    }
+  );
+
+
+  /* =====================================================
+    기존 반환 형식 유지
+  ====================================================== */
 
   return {
     movedCount:
@@ -179926,74 +180375,490 @@ async function waitForCompletion(
 }
 
 
-  /* =====================================================
-    OIS 수처리 불러오기
-  ====================================================== */
+/* =====================================================
+  OIS 수처리 불러오기
 
-  async function loadWaterTreatment(
+  최종 날짜 규칙
+
+  평일:
+  - 전전일 = 업무내용 기준일 - 1일
+  - 전일   = 업무내용 기준일
+
+  주말:
+  - 전전일 = 주말 시작일
+  - 전일   = 주말 종료일
+
+  처리 순서:
+  1. 전전일 조회
+  2. 전일 조회
+
+  조회가 완료될 때마다 기존
+  efficiencyMorningMeetingWaterLoaded 이벤트를 통해
+  날짜별 캐시에 자동 저장된다.
+
+  마지막에는 전일 자료를 적용하여
+  현재 화면 상태도 전일 기준으로 유지한다.
+===================================================== */
+
+async function loadWaterTreatment(
   options = {}
 ) {
   const {
     forceRefresh =
       false
   } = options;
-    const targetDate =
-      synchronizeTargetDate();
 
 
-    const {
-      loadButton
-    } =
-      getElements();
+  /* =====================================================
+    날짜 검사
+  ====================================================== */
+
+  const normalizeDate =
+    value => {
+      const normalizedValue =
+        String(
+          value ||
+          ""
+        ).trim();
 
 
-    hideError();
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(
+          normalizedValue
+        )
+      ) {
+        return "";
+      }
 
 
-    if (
-      !targetDate
-    ) {
-      showError(
-        "팀 자료를 분석하거나 업무일지를 불러와 기준일을 먼저 확인해 주세요."
+      const parsedDate =
+        new Date(
+          `${normalizedValue}T00:00:00.000Z`
+        );
+
+
+      if (
+        Number.isNaN(
+          parsedDate.getTime()
+        )
+      ) {
+        return "";
+      }
+
+
+      return (
+        parsedDate
+          .toISOString()
+          .slice(
+            0,
+            10
+          ) ===
+        normalizedValue
+      )
+        ? normalizedValue
+        : "";
+    };
+
+
+  /* =====================================================
+    날짜 이동
+  ====================================================== */
+
+  const addDateDays =
+    (
+      dateValue,
+      dayCount
+    ) => {
+      const normalizedDate =
+        normalizeDate(
+          dateValue
+        );
+
+
+      if (
+        !normalizedDate
+      ) {
+        return "";
+      }
+
+
+      const parsedDate =
+        new Date(
+          `${normalizedDate}T00:00:00.000Z`
+        );
+
+
+      parsedDate.setUTCDate(
+        parsedDate.getUTCDate() +
+        Number(
+          dayCount ||
+          0
+        )
       );
 
 
-      return;
-    }
+      return parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        );
+    };
 
 
-    const runToken =
-      activeRunToken +
-      1;
+  /* =====================================================
+    현재 상태
+  ====================================================== */
+
+  const state =
+    getState();
 
 
-    activeRunToken =
-      runToken;
+  const {
+    loadButton
+  } =
+    getElements();
 
 
-    activeRequestId =
-      "";
+  hideError();
 
 
+  /* =====================================================
+    주말 설정 확인
+  ====================================================== */
+
+  let weekendMode =
+    {};
+
+
+  try {
     if (
-      loadButton
+      typeof window
+        .getEfficiencyMorningMeetingWeekendMode ===
+        "function"
     ) {
-      loadButton.disabled =
-        true;
+      const resolvedWeekendMode =
+        window
+          .getEfficiencyMorningMeetingWeekendMode();
 
 
-      loadButton.textContent =
-        "OIS 요청 중...";
+      if (
+        resolvedWeekendMode &&
+        typeof resolvedWeekendMode ===
+          "object" &&
+        !Array.isArray(
+          resolvedWeekendMode
+        )
+      ) {
+        weekendMode =
+          resolvedWeekendMode;
+      }
     }
 
+  } catch (
+    error
+  ) {
+    console.warn(
+      "오전회의 수처리 주말 기간 확인 실패:",
+      error
+    );
+  }
 
-    setStatus(
-      "loading",
-      `${targetDate} 수처리 조회 요청 중`
+
+  /*
+    전역 함수에서 못 가져온 경우
+    상태값 사용
+  */
+
+  if (
+    (
+      !weekendMode ||
+      typeof weekendMode !==
+        "object" ||
+      Array.isArray(
+        weekendMode
+      ) ||
+      Object.keys(
+        weekendMode
+      ).length ===
+        0
+    ) &&
+    state.weekendMode &&
+    typeof state.weekendMode ===
+      "object" &&
+    !Array.isArray(
+      state.weekendMode
+    )
+  ) {
+    weekendMode =
+      state.weekendMode;
+  }
+
+
+  const weekendStartDate =
+    normalizeDate(
+      weekendMode
+        ?.startDate
     );
 
 
-    try {
+  const weekendEndDate =
+    normalizeDate(
+      weekendMode
+        ?.endDate
+    );
+
+
+  const weekendEnabled =
+    weekendMode
+      ?.enabled ===
+        true &&
+    Boolean(
+      weekendStartDate
+    ) &&
+    Boolean(
+      weekendEndDate
+    );
+
+
+  /* =====================================================
+    업무내용 기준일 확인
+
+    우선순위:
+    1. 전역 업무내용 기준일 함수
+    2. state.workDate
+    3. 상단 날짜 입력칸
+  ====================================================== */
+
+  let getterWorkDate =
+    "";
+
+
+  try {
+    if (
+      typeof window
+        .getEfficiencyMorningMeetingWorkDate ===
+        "function"
+    ) {
+      getterWorkDate =
+        normalizeDate(
+          window
+            .getEfficiencyMorningMeetingWorkDate()
+        );
+    }
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "오전회의 업무내용 기준일 확인 실패:",
+      error
+    );
+  }
+
+
+  const stateWorkDate =
+    normalizeDate(
+      state.workDate
+    );
+
+
+  const pickerWorkDate =
+    normalizeDate(
+      document
+        .getElementById(
+          "efficiencyMorningMeetingWorkDatePicker"
+        )
+        ?.value
+    );
+
+
+  const workDate =
+    getterWorkDate ||
+    stateWorkDate ||
+    pickerWorkDate;
+
+
+  /* =====================================================
+    최종 두 날짜 계산
+  ====================================================== */
+
+  const previousDate =
+    weekendEnabled
+      ? weekendStartDate
+      : addDateDays(
+          workDate,
+          -1
+        );
+
+
+  const currentDate =
+    weekendEnabled
+      ? weekendEndDate
+      : workDate;
+
+
+  /* =====================================================
+    날짜 오류 검사
+  ====================================================== */
+
+  if (
+    !previousDate ||
+    !currentDate
+  ) {
+    showError(
+      weekendEnabled
+        ? "주말 시작일과 종료일을 확인해 주세요."
+        : "업무내용 기준일을 확인해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  if (
+    previousDate >
+      currentDate
+  ) {
+    showError(
+      "수처리 조회 날짜 범위를 확인해 주세요."
+    );
+
+
+    return;
+  }
+
+
+  /*
+    시작일과 종료일이 같은 경우에는
+    중복 조회하지 않는다.
+  */
+
+  const targetDates =
+    [
+      ...new Set([
+        previousDate,
+        currentDate
+      ])
+    ];
+
+
+  /* =====================================================
+    이번 2일 조회 전체에 하나의 실행 토큰 사용
+
+    중요:
+    waitForCompletion()이 같은 runToken을 사용하므로
+    전전일 → 전일 순서로 순차 조회한다.
+  ====================================================== */
+
+  const runToken =
+    activeRunToken +
+    1;
+
+
+  activeRunToken =
+    runToken;
+
+
+  activeRequestId =
+    "";
+
+
+  if (
+    loadButton
+  ) {
+    loadButton.disabled =
+      true;
+
+
+    loadButton.textContent =
+      "OIS 요청 중...";
+  }
+
+
+  console.log(
+    "오전회의 수처리 조회 날짜:",
+    {
+      mode:
+        weekendEnabled
+          ? "weekend"
+          : "weekday",
+
+      workDate,
+
+      previousDate,
+
+      currentDate,
+
+      targetDates,
+
+      forceRefresh
+    }
+  );
+
+
+  try {
+    /* ===================================================
+      두 날짜 순차 조회
+
+      반드시:
+      전전일 → 전일
+
+      마지막 applyWaterResult()가 전일이므로
+      state.waterTreatment도 전일 상태로 끝난다.
+    ==================================================== */
+
+    for (
+      let index = 0;
+      index <
+        targetDates.length;
+      index +=
+        1
+    ) {
+      if (
+        runToken !==
+          activeRunToken
+      ) {
+        return;
+      }
+
+
+      const targetDate =
+        targetDates[
+          index
+        ];
+
+
+      const progressText =
+        `${index + 1}/${targetDates.length}`;
+
+
+      if (
+        loadButton
+      ) {
+        loadButton.textContent =
+          `OIS 조회 중 ${progressText}`;
+      }
+
+
+      setStatus(
+        "loading",
+        `${targetDate} 수처리 조회 중 (${progressText})`
+      );
+
+
+      /* =================================================
+        OIS 요청 생성
+
+        forceRefresh=false:
+        저장된 완료 자료가 있으면 재사용
+
+        forceRefresh=true:
+        사용자가 다시 조회를 명시한 경우
+        해당 두 날짜 모두 새로 확인
+      ================================================= */
+
       const createResult =
         await createWaterRequest(
           targetDate,
@@ -180004,14 +180869,14 @@ async function waitForCompletion(
 
 
       const requestItem =
-        createResult.item;
+        createResult?.item;
 
 
       if (
         !requestItem?.id
       ) {
         throw new Error(
-          "생성된 OIS 수처리 요청 ID를 확인할 수 없습니다."
+          `${targetDate} OIS 수처리 요청 ID를 확인할 수 없습니다.`
         );
       }
 
@@ -180022,17 +180887,14 @@ async function waitForCompletion(
         );
 
 
-      if (
-        loadButton
-      ) {
-        loadButton.textContent =
-          "OIS 조회 중...";
-      }
-
-
       let completedItem =
         requestItem;
 
+
+      /* =================================================
+        아직 완료되지 않았다면
+        회사 PC 처리 완료까지 대기
+      ================================================= */
 
       if (
         normalizeText(
@@ -180058,49 +180920,126 @@ async function waitForCompletion(
       }
 
 
+      /* =================================================
+        결과 적용
+
+        기존 applyWaterResult()가:
+        - 날짜 검사
+        - 화면/상태 반영
+        - water loaded 이벤트 발생
+
+        이벤트를 받은 캐시 기능이
+        targetDate별로 저장한다.
+      ================================================= */
+
       applyWaterResult(
         completedItem,
         targetDate
       );
 
-    } catch (
-      error
+
+      console.log(
+        `오전회의 수처리 ${targetDate} 확보 완료`,
+        {
+          step:
+            index +
+            1,
+
+          total:
+            targetDates.length,
+
+          requestId:
+            normalizeText(
+              requestItem.id
+            )
+        }
+      );
+    }
+
+
+    if (
+      runToken !==
+        activeRunToken
     ) {
-      console.error(
-        "오전회의 OIS 수처리 조회 실패:",
+      return;
+    }
+
+
+    /* ===================================================
+      두 날짜 최종 완료
+    ==================================================== */
+
+    setStatus(
+      "complete",
+
+      weekendEnabled
+        ? `주말 수처리 ${previousDate} → ${currentDate} 조회 완료`
+        : `수처리 ${previousDate} → ${currentDate} 조회 완료`
+    );
+
+
+    console.log(
+      "오전회의 수처리 전전일·전일 확보 완료:",
+      {
+        mode:
+          weekendEnabled
+            ? "weekend"
+            : "weekday",
+
+        workDate,
+
+        previousDate,
+
+        currentDate,
+
+        queryCount:
+          targetDates.length
+      }
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "오전회의 OIS 수처리 2일 조회 실패:",
+      {
+        previousDate,
+
+        currentDate,
+
         error
-      );
-
-
-      setStatus(
-        "error",
-        "OIS 수처리 조회 실패"
-      );
-
-
-      showError(
-        error?.message ||
-        "OIS 수처리 자료를 불러오지 못했습니다."
-      );
-
-
-      if (
-        loadButton
-      ) {
-        loadButton.textContent =
-          "OIS 수처리 다시 시도";
       }
+    );
 
-    } finally {
-      if (
-        loadButton
-      ) {
-        loadButton.disabled =
-          !resolveWaterTargetDate();
-      }
+
+    setStatus(
+      "error",
+      "OIS 수처리 조회 실패"
+    );
+
+
+    showError(
+      error?.message ||
+      "수처리 전전일·전일 자료를 불러오지 못했습니다."
+    );
+
+
+    if (
+      loadButton
+    ) {
+      loadButton.textContent =
+        "OIS 수처리 다시 시도";
+    }
+
+  } finally {
+    if (
+      loadButton
+    ) {
+      loadButton.disabled =
+        false;
     }
   }
-
+}
 
   /* =====================================================
     기준일 변경 감지
@@ -180146,87 +181085,15 @@ async function waitForCompletion(
 
 
     elements.loadButton
-  ?.addEventListener(
-    "click",
-    () => {
-      const targetDate =
-        synchronizeTargetDate();
-
-
-      const state =
-        getState();
-
-
-      const result =
-        state.waterTreatment;
-
-
-      const resultDate =
-        normalizeText(
-          result?.sourceDate ||
-          result?.targetDate
-        );
-
-
-      const hasCompleteValues = [
-        result?.rawWaterInflow,
-        result?.demiProduction,
-        result?.pureWaterUsage,
-        result?.rawWaterTankAmount,
-        result?.rawWaterTankRate,
-        result?.filteredWaterTankAmount,
-        result?.filteredWaterTankRate,
-        result?.demiWaterTankAmount,
-        result?.demiWaterTankRate
-      ].every(
-        value =>
-          normalizeNumber(
-            value
-          ) !==
-          null
+      ?.addEventListener(
+        "click",
+        () => {
+          void loadWaterTreatment({
+            forceRefresh:
+              true
+          });
+        }
       );
-
-
-      const isComplete =
-        Boolean(
-          targetDate &&
-          resultDate ===
-            targetDate &&
-          hasCompleteValues
-        );
-
-
-      const requestStatus =
-        normalizeText(
-          elements.panel
-            ?.dataset
-            .waterStatus
-        ).toLowerCase();
-
-
-      const isLoading = [
-        "loading",
-        "pending",
-        "processing"
-      ].includes(
-        requestStatus
-      );
-
-
-      if (
-        isComplete ||
-        isLoading
-      ) {
-        return;
-      }
-
-
-      void loadWaterTreatment({
-        forceRefresh:
-          false
-      });
-    }
-  );
 
 
     elements.analyzeButton
@@ -180309,7 +181176,7 @@ async function waitForCompletion(
 
       if (
         initializationAttempt <
-        40
+          40
       ) {
         window.setTimeout(
           initialize,
@@ -237110,6 +237977,168 @@ async function restoreSolarCumulativeFromD1() {
     return true;
   }
 
+/* ===================================================
+   LIMESTONE MOBILE POLISH V7
+   - 모바일 헤더 버튼 우측 정렬
+   - 사용량 화면 상단 버튼 숨김
+   - 입고기록 상세 행에 호기별 클래스 부여
+   - DOM 변경 시 재적용
+=================================================== */
+function normalizeLimestoneMobileHeaderActions() {
+  if (!isMobileLimestoneLayout()) {
+    return false;
+  }
+
+  const limestoneView = document.getElementById(
+    "efficiencyLimestoneView"
+  );
+
+  if (!limestoneView) {
+    return false;
+  }
+
+  const actionGroups = Array.from(
+    limestoneView.querySelectorAll(
+      ".limestone-heading-actions, .limestone-usage-calculator__header-actions"
+    )
+  );
+
+  actionGroups.forEach(actions => {
+    const header = actions.parentElement;
+
+    if (!header) {
+      return;
+    }
+
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.gap = "12px";
+    header.style.flexWrap = "nowrap";
+
+    const firstElement = Array.from(
+      header.children
+    ).find(child => child !== actions);
+
+    if (firstElement) {
+      firstElement.style.flex = "1 1 auto";
+      firstElement.style.minWidth = "0";
+    }
+
+    actions.style.marginLeft = "auto";
+    actions.style.display = "flex";
+    actions.style.justifyContent = "flex-end";
+    actions.style.alignItems = "center";
+    actions.style.gap = "10px";
+    actions.style.flex = "0 0 auto";
+  });
+
+  /*
+    모바일 사용량 화면은 모니터링 전용
+    +입고 / OIS 재고 불러오기 / 입고량 새로고침 숨김
+  */
+  const usageHeaderActions =
+    limestoneView.querySelector(
+      "#limestoneUsageCalculatorView .limestone-heading-actions, #limestoneUsageCalculatorView .limestone-usage-calculator__header-actions"
+    );
+
+  if (usageHeaderActions) {
+    usageHeaderActions.style.display = "none";
+  }
+
+  return true;
+}
+
+function applyLimestoneReceiptUnitRowClasses() {
+  const limestoneView = document.getElementById(
+    "efficiencyLimestoneView"
+  );
+
+  if (!limestoneView) {
+    return false;
+  }
+
+  const rows = limestoneView.querySelectorAll(
+    ".limestone-receipt-table tbody tr"
+  );
+
+  rows.forEach(row => {
+    row.classList.remove(
+      "limestone-row-unit-1",
+      "limestone-row-unit-2"
+    );
+
+    const cells = row.querySelectorAll("td");
+
+    if (!cells || cells.length < 4) {
+      return;
+    }
+
+    const unitCell =
+      cells[2] || null;
+
+    const unitText = (
+      unitCell?.textContent || ""
+    )
+      .replace(/\s+/g, "")
+      .trim();
+
+    if (unitText.includes("1호기")) {
+      row.classList.add(
+        "limestone-row-unit-1"
+      );
+    } else if (
+      unitText.includes("2호기")
+    ) {
+      row.classList.add(
+        "limestone-row-unit-2"
+      );
+    }
+  });
+
+  return true;
+}
+
+function refreshLimestoneMobilePolish() {
+  if (!isMobileLimestoneLayout()) {
+    return false;
+  }
+
+  normalizeLimestoneMobileHeaderActions();
+  applyLimestoneReceiptUnitRowClasses();
+
+  return true;
+}
+
+function observeLimestoneMobilePolish() {
+  const limestoneView = document.getElementById(
+    "efficiencyLimestoneView"
+  );
+
+  if (
+    !limestoneView ||
+    limestoneView.dataset.mobilePolishObserved ===
+      "true"
+  ) {
+    return;
+  }
+
+  const observer = new MutationObserver(
+    () => {
+      window.requestAnimationFrame(
+        refreshLimestoneMobilePolish
+      );
+    }
+  );
+
+  observer.observe(limestoneView, {
+    childList: true,
+    subtree: true
+  });
+
+  limestoneView.dataset.mobilePolishObserved =
+    "true";
+}
+
   function normalizeLimestoneMobileDateLayout() {
     if (!isMobileLimestoneLayout()) {
       return;
@@ -237117,6 +238146,10 @@ async function restoreSolarCumulativeFromD1() {
 
     normalizeReceiptDateControls();
     normalizeUsageDateControls();
+
+    refreshLimestoneMobilePolish();
+    observeLimestoneMobilePolish();
+    window.requestAnimationFrame(refreshLimestoneMobilePolish);
   }
 
 
