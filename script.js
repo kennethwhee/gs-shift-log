@@ -186912,36 +186912,48 @@ async function restoreLimestoneUsageBatch() {
     소수점 3자리
   ====================================================== */
 
-  function formatNumber(
-    value,
-    digits = 3
-  ) {
-    const numericValue =
-      Number(
-        value
-      );
-
-
-    if (
-      !Number.isFinite(
-        numericValue
-      )
-    ) {
-      return "-";
-    }
-
-
-    return numericValue.toLocaleString(
-      "ko-KR",
-      {
-        minimumFractionDigits:
-          digits,
-
-        maximumFractionDigits:
-          digits
-      }
+function formatNumber(
+  value,
+  digits = 2
+) {
+  const numericValue =
+    Number(
+      value
     );
+
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    return "-";
   }
+
+
+  const maximumDigits =
+    Math.min(
+      2,
+      Math.max(
+        0,
+        Number(
+          digits
+        ) || 0
+      )
+    );
+
+
+  return numericValue.toLocaleString(
+    "ko-KR",
+    {
+      minimumFractionDigits:
+        0,
+
+      maximumFractionDigits:
+        maximumDigits
+    }
+  );
+}
 
 
   /* =====================================================
@@ -188963,13 +188975,13 @@ function formatSiloValue(
   const formattedValue =
     numericValue.toLocaleString(
       "ko-KR",
-      {
-        minimumFractionDigits:
-          0,
+{
+  minimumFractionDigits:
+    2,
 
-        maximumFractionDigits:
-          2
-      }
+  maximumFractionDigits:
+    2
+}
     );
 
 
