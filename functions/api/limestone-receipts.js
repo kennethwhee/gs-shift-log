@@ -811,6 +811,302 @@ function convertReceiptRow(
   기록 조회
 ========================================================= */
 
+/* =========================================================
+  입고 변경 → 저장된 Limestone 사용량 즉시 동기화
+
+  대상:
+  - limestone_usage_records
+  - auxiliary_material_daily
+
+  보호:
+  - calculation_mode = manual 은 자동 덮어쓰기 금지
+========================================================= */
+
+function normalizeReceiptLinkedUsageNumber(value) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return null;
+  }
+
+  const correction =
+    Math.sign(numericValue) * 0.000000001;
+
+  return (
+    Math.trunc(
+      (numericValue + correction) * 100
+    ) / 100
+  );
+}
+
+
+async function synchronizeStoredLimestoneUsageAfterReceiptChange(
+  database,
+  receiptDate,
+  unitNo,
+  user
+) {
+  const normalizedDate =
+    normalizeText(receiptDate);
+
+  const normalizedUnitNo =
+    normalizeUnitNo(unitNo);
+
+  if (
+    !database ||
+    !isValidIsoDate(normalizedDate) ||
+    normalizedUnitNo === null
+  ) {
+    return {
+      ok: false,
+      skipped: true,
+      reason: "invalid_target"
+    };
+  }
+
+  try {
+    const usageRow =
+      await database
+        .prepare(`
+          SELECT
+            id,
+            start_stock,
+            receipt_quantity,
+            end_stock,
+            usage_quantity,
+            calculation_mode
+
+          FROM limestone_usage_records
+
+          WHERE
+            usage_date = ?
+            AND unit_no = ?
+
+          LIMIT 1
+        `)
+        .bind(
+          normalizedDate,
+          normalizedUnitNo
+        )
+        .first();
+
+    /*
+      아직 OIS 사용량 자체가 없는 날짜면
+      입고기록만 저장하고 종료한다.
+    */
+    if (!usageRow) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: "usage_record_missing"
+      };
+    }
+
+    const calculationMode =
+      normalizeText(
+        usageRow.calculation_mode
+      ).toLowerCase();
+
+    /*
+      사람이 부재료에서 직접 수정한 값 보호
+    */
+    if (calculationMode === "manual") {
+      return {
+        ok: true,
+        skipped: true,
+        reason: "manual_protected"
+      };
+    }
+
+    const startStock =
+      Number(usageRow.start_stock);
+
+    const endStock =
+      Number(usageRow.end_stock);
+
+    if (
+      !Number.isFinite(startStock) ||
+      !Number.isFinite(endStock)
+    ) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: "stock_missing"
+      };
+    }
+
+    const receiptRow =
+      await database
+        .prepare(`
+          SELECT
+            COALESCE(
+              SUM(quantity_ton),
+              0
+            ) AS total_quantity
+
+          FROM limestone_receipts
+
+          WHERE
+            receipt_date = ?
+            AND unit_no = ?
+        `)
+        .bind(
+          normalizedDate,
+          normalizedUnitNo
+        )
+        .first();
+
+    const receiptQuantity =
+      normalizeReceiptLinkedUsageNumber(
+        receiptRow?.total_quantity || 0
+      );
+
+    const usageQuantity =
+      normalizeReceiptLinkedUsageNumber(
+        startStock +
+        receiptQuantity -
+        endStock
+      );
+
+    if (
+      receiptQuantity === null ||
+      usageQuantity === null
+    ) {
+      return {
+        ok: false,
+        skipped: true,
+        reason: "calculation_failed"
+      };
+    }
+
+    const now =
+      new Date().toISOString();
+
+    const employeeNo =
+      normalizeEmployeeNo(
+        user?.employeeNo
+      );
+
+    const userName =
+      normalizeText(
+        user?.name
+      );
+
+    await database
+      .prepare(`
+        UPDATE limestone_usage_records
+
+        SET
+          receipt_quantity = ?,
+          usage_quantity = ?,
+
+          updated_by_id = ?,
+          updated_by_name = ?,
+          updated_at = ?,
+
+          revision = revision + 1
+
+        WHERE
+          usage_date = ?
+          AND unit_no = ?
+          AND LOWER(
+            COALESCE(calculation_mode, '')
+          ) <> 'manual'
+      `)
+      .bind(
+        receiptQuantity,
+        usageQuantity,
+
+        employeeNo,
+        userName,
+        now,
+
+        normalizedDate,
+        normalizedUnitNo
+      )
+      .run();
+
+    /*
+      부재료 행도 존재하면 같은 값으로 맞춘다.
+      행을 새로 만들지는 않는다.
+    */
+    try {
+      await database
+        .prepare(`
+          UPDATE auxiliary_material_daily
+
+          SET
+            limestone_receipt_ton = ?,
+            limestone_usage_tpd = ?,
+
+            updated_by_id = ?,
+            updated_by_name = ?,
+            updated_at = ?,
+
+            revision = revision + 1
+
+          WHERE
+            record_date = ?
+            AND unit_no = ?
+        `)
+        .bind(
+          receiptQuantity,
+          usageQuantity,
+
+          employeeNo,
+          userName,
+          now,
+
+          normalizedDate,
+          normalizedUnitNo
+        )
+        .run();
+
+    } catch (error) {
+      const message =
+        normalizeText(
+          error instanceof Error
+            ? error.message
+            : error
+        );
+
+      /*
+        부재료 테이블을 아직 만들지 않은 환경만 허용
+      */
+      if (!/no such table/i.test(message)) {
+        throw error;
+      }
+    }
+
+    return {
+      ok: true,
+      updated: true,
+      receiptDate: normalizedDate,
+      unitNo: normalizedUnitNo,
+      receiptQuantity,
+      usageQuantity,
+      calculationMode
+    };
+
+  } catch (error) {
+    console.error(
+      "석회석 입고 변경 후 사용량 동기화 실패:",
+      normalizedDate,
+      normalizedUnitNo,
+      error
+    );
+
+    return {
+      ok: false,
+      skipped: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "사용량 동기화 실패"
+    };
+  }
+}
+
 async function findReceiptById(
   database,
   receiptId
@@ -2692,6 +2988,14 @@ export async function onRequestPost(
       .run();
 
 
+    const usageSync =
+      await synchronizeStoredLimestoneUsageAfterReceiptChange(
+        context.env.DB,
+        receipt.receiptDate,
+        receipt.unitNo,
+        user
+      );
+
     const createdReceipt =
       await findReceiptById(
         context.env.DB,
@@ -2986,6 +3290,35 @@ export async function onRequestPut(
     }
 
 
+    const usageSyncResults = [];
+
+
+    usageSyncResults.push(
+      await synchronizeStoredLimestoneUsageAfterReceiptChange(
+        context.env.DB,
+        existingReceipt.receiptDate,
+        existingReceipt.unitNo,
+        user
+      )
+    );
+
+
+    if (
+      existingReceipt.receiptDate !==
+        receipt.receiptDate ||
+      Number(existingReceipt.unitNo) !==
+        Number(receipt.unitNo)
+    ) {
+      usageSyncResults.push(
+        await synchronizeStoredLimestoneUsageAfterReceiptChange(
+          context.env.DB,
+          receipt.receiptDate,
+          receipt.unitNo,
+          user
+        )
+      );
+    }
+
     const updatedReceipt =
       await findReceiptById(
         context.env.DB,
@@ -3254,6 +3587,14 @@ export async function onRequestDelete(
       );
     }
 
+
+    const usageSync =
+      await synchronizeStoredLimestoneUsageAfterReceiptChange(
+        context.env.DB,
+        existingReceipt.receiptDate,
+        existingReceipt.unitNo,
+        user
+      );
 
     return jsonResponse({
       ok:
