@@ -86835,15 +86835,6 @@ td.is-total {
   }
 }
 
-/* =========================================================
-  오전회의 취합
-  석회석 날짜 이동 버튼
-
-  [‹ 전날] [오늘] [다음날 ›]
-
-  기존 석회석 사용량 계산 기능을 그대로 조작한다.
-========================================================= */
-
 
 /* =========================================================
   석회석 카드 우측 메타 영역
@@ -98085,6 +98076,8 @@ body.is-limestone-manual-entry-open {
   }
 
 
+
+
   /* =====================================================
     기간 필터는 조회용으로 유지
   ====================================================== */
@@ -109221,4 +109214,61 @@ button,
       8px !important;
   }
 
+}
+
+/* =========================================================
+  석회석 사용량 계산
+  상단 일일사용량 박스 제거 후 날짜줄 액션 재배치
+========================================================= */
+
+#efficiencyTeamModal
+.limestone-usage-date-card {
+  grid-template-columns:
+    40px
+    190px
+    40px
+    84px
+    auto
+    minmax(240px, 1fr) !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-date-card__actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+}
+
+#efficiencyTeamModal
+.limestone-usage-date-card__actions .secondary-button {
+  min-height: 40px !important;
+  padding: 0 14px !important;
+  white-space: nowrap !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
+
+@media (max-width: 1180px) {
+  #efficiencyTeamModal
+  .limestone-usage-date-card {
+    grid-template-columns:
+      40px
+      minmax(150px, 1fr)
+      40px
+      84px
+      1fr !important;
+  }
+
+  #efficiencyTeamModal
+  .limestone-usage-date-card__actions {
+    grid-column: 1 / -1 !important;
+    justify-content: flex-end !important;
+  }
+
+  #efficiencyTeamModal
+  .limestone-usage-status {
+    grid-column: 1 / -1 !important;
+  }
 }

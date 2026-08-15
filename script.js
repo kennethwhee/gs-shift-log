@@ -184913,42 +184913,30 @@ async function restoreLimestoneUsageBatch() {
     초기화
   ====================================================== */
 
-  function initializeLimestoneUsageBatchFeature() {
-    if (
-      limestoneUsageBatchInitialized
-    ) {
-      return;
-    }
-
-
-    const created =
-      createLimestoneUsageBatchHtml();
-
-
-    if (
-      !created
-    ) {
-      return;
-    }
-
-
-    limestoneUsageBatchInitialized =
-      true;
-
-
-    bindLimestoneUsageBatchEvents();
-
-
-    restoreLimestoneUsageBatch()
-      .catch(
-        error => {
-          console.warn(
-            "저장된 석회석 기간 계산 복원 실패:",
-            error
-          );
-        }
-      );
+function initializeLimestoneUsageBatchFeature() {
+  if (
+    limestoneUsageBatchInitialized
+  ) {
+    return;
   }
+
+  /*
+    기간 계산 · 저장 기능 제거
+
+    - 생성되어 있으면 즉시 제거
+    - wait timer가 계속 돌지 않도록 initialized=true 처리
+  */
+  document.getElementById(
+    "limestoneUsageBatchPanel"
+  )?.remove();
+
+  document.getElementById(
+    "limestoneUsagePeriodAccordion"
+  )?.remove();
+
+  limestoneUsageBatchInitialized =
+    true;
+}
 
 
   /* =====================================================
@@ -186297,45 +186285,30 @@ async function restoreLimestoneUsageBatch() {
     초기화
   ====================================================== */
 
-  function initializeLimestoneUsageHistoryFeature() {
-    if (
-      limestoneUsageHistoryInitialized
-    ) {
-      return;
-    }
-
-
-    const created =
-      createLimestoneUsageHistoryHtml();
-
-
-    if (
-      !created
-    ) {
-      return;
-    }
-
-
-    limestoneUsageHistoryInitialized =
-      true;
-
-
-    bindLimestoneUsageHistoryEvents();
-
-
-    observeLimestoneUsageBatchCompletion();
-
-
-    loadLimestoneUsageHistory()
-      .catch(
-        error => {
-          console.warn(
-            "석회석 저장 사용량 최초 조회 실패:",
-            error
-          );
-        }
-      );
+function initializeLimestoneUsageHistoryFeature() {
+  if (
+    limestoneUsageHistoryInitialized
+  ) {
+    return;
   }
+
+  /*
+    저장 내역 기능 제거
+
+    - 생성되어 있으면 즉시 제거
+    - 초기화 완료 처리해서 대기 루프 종료
+  */
+  document.getElementById(
+    "limestoneUsageHistoryPanel"
+  )?.remove();
+
+  document.getElementById(
+    "limestoneUsagePeriodAccordion"
+  )?.remove();
+
+  limestoneUsageHistoryInitialized =
+    true;
+}
 
 
   function waitForLimestoneUsageHistoryTarget() {
@@ -186641,326 +186614,118 @@ async function restoreLimestoneUsageBatch() {
     최종 레이아웃 구성
   ====================================================== */
 
-  function applyLimestoneUsageFinalLayout() {
-    const usageView =
-      document.getElementById(
-        "limestoneUsageCalculatorView"
-      );
-
-
-    const dateCard =
-      usageView?.querySelector(
-        ".limestone-usage-date-card"
-      ) ||
-      null;
-
-
-    const dailySummary =
-      usageView?.querySelector(
-        ".limestone-usage-summary-grid"
-      ) ||
-      null;
-
-
-    const dailyTable =
-      usageView?.querySelector(
-        ".limestone-usage-table-card"
-      ) ||
-      null;
-
-
-    const batchPanel =
-      document.getElementById(
-        "limestoneUsageBatchPanel"
-      );
-
-
-    const historyPanel =
-      document.getElementById(
-        "limestoneUsageHistoryPanel"
-      );
-
-
-    if (
-      !usageView ||
-      !dateCard ||
-      !dailySummary ||
-      !dailyTable ||
-      !batchPanel ||
-      !historyPanel
-    ) {
-      return false;
-    }
-
-
-    /* ===================================================
-      일일 사용량을 날짜 바로 아래로 이동
-    ==================================================== */
-
-    dateCard.insertAdjacentElement(
-      "afterend",
-      dailySummary
+function applyLimestoneUsageFinalLayout() {
+  const usageView =
+    document.getElementById(
+      "limestoneUsageCalculatorView"
     );
 
-
-    dailySummary.insertAdjacentElement(
-      "afterend",
-      dailyTable
-    );
-
-
-    /* ===================================================
-      기간 기능 통합 접기 영역 생성
-    ==================================================== */
-
-    let accordion =
-      document.getElementById(
-        "limestoneUsagePeriodAccordion"
-      );
-
-
-    if (
-      !accordion
-    ) {
-      dailyTable.insertAdjacentHTML(
-        "afterend",
-
-        `
-          <section
-            class="limestone-usage-period-accordion"
-            id="limestoneUsagePeriodAccordion"
-            data-status="ready"
-          >
-
-            <button
-              type="button"
-              class="limestone-usage-period-toggle"
-              id="toggleLimestoneUsagePeriodButton"
-              aria-expanded="false"
-              aria-controls="limestoneUsagePeriodContent"
-            >
-
-              <div class="limestone-usage-period-toggle__title">
-
-                <span>
-                  PERIOD CALCULATION
-                </span>
-
-                <strong>
-                  기간 계산·저장 내역
-                </strong>
-
-                <small id="limestoneUsagePeriodDescription">
-                  필요할 때 펼쳐 기간 계산과 저장 내역을 확인합니다.
-                </small>
-
-              </div>
-
-
-              <div class="limestone-usage-period-toggle__actions">
-
-                <span
-                  class="limestone-usage-period-status"
-                  id="limestoneUsagePeriodStatus"
-                  data-status="ready"
-                >
-                  대기
-                </span>
-
-
-                <span id="limestoneUsagePeriodActionText">
-                  펼쳐보기
-                </span>
-
-
-                <strong id="limestoneUsagePeriodArrow">
-                  ⌄
-                </strong>
-
-              </div>
-
-            </button>
-
-
-            <div
-              class="limestone-usage-period-content"
-              id="limestoneUsagePeriodContent"
-              hidden
-            >
-            </div>
-
-          </section>
-        `
-      );
-
-
-      accordion =
-        document.getElementById(
-          "limestoneUsagePeriodAccordion"
-        );
-    }
-
-
-    const periodContent =
-      document.getElementById(
-        "limestoneUsagePeriodContent"
-      );
-
-
-    if (
-      !accordion ||
-      !periodContent
-    ) {
-      return false;
-    }
-
-
-    /* ===================================================
-      기존 기간 계산·저장 패널을 접기 영역 안으로 이동
-    ==================================================== */
-
-    periodContent.appendChild(
-      batchPanel
-    );
-
-
-    periodContent.appendChild(
-      historyPanel
-    );
-
-
-    batchPanel.classList.add(
-      "is-inside-period-accordion"
-    );
-
-
-    historyPanel.classList.add(
-      "is-inside-period-accordion"
-    );
-
-
-    /* ===================================================
-      기본 상태는 접힘
-    ==================================================== */
-
-    setLimestoneUsagePeriodExpanded(
-      false
-    );
-
-
-    const toggleButton =
-      document.getElementById(
-        "toggleLimestoneUsagePeriodButton"
-      );
-
-
-    if (
-      toggleButton &&
-      toggleButton.dataset
-        .limestonePeriodBound !==
-        "true"
-    ) {
-      toggleButton.addEventListener(
-        "click",
-        () => {
-          const isExpanded =
-            toggleButton.getAttribute(
-              "aria-expanded"
-            ) ===
-            "true";
-
-
-          setLimestoneUsagePeriodExpanded(
-            !isExpanded
-          );
-        }
-      );
-
-
-      toggleButton.dataset
-        .limestonePeriodBound =
-        "true";
-    }
-
-
-    /* ===================================================
-      기간 계산 상태가 바뀌면 머리글도 갱신
-    ==================================================== */
-
-    if (
-      !layoutObserver
-    ) {
-      layoutObserver =
-        new MutationObserver(
-          updateLimestoneUsagePeriodHeader
-        );
-
-
-      layoutObserver.observe(
-        periodContent,
-        {
-          subtree:
-            true,
-
-          childList:
-            true,
-
-          characterData:
-            true,
-
-          attributes:
-            true,
-
-          attributeFilter: [
-            "data-status",
-            "value"
-          ]
-        }
-      );
-    }
-
-
-    [
-      document.getElementById(
-        "limestoneUsageBatchStartDate"
-      ),
-
-      document.getElementById(
-        "limestoneUsageBatchEndDate"
-      )
-    ]
-      .filter(
-        Boolean
-      )
-      .forEach(
-        input => {
-          if (
-            input.dataset
-              .limestonePeriodHeaderBound ===
-              "true"
-          ) {
-            return;
-          }
-
-
-          input.addEventListener(
-            "change",
-            updateLimestoneUsagePeriodHeader
-          );
-
-
-          input.dataset
-            .limestonePeriodHeaderBound =
-            "true";
-        }
-      );
-
-
-    updateLimestoneUsagePeriodHeader();
-
-
-    return true;
+  const usageHeader =
+    usageView?.querySelector(
+      ".limestone-usage-calculator__header"
+    ) || null;
+
+  const headerActions =
+    usageHeader?.querySelector(
+      ".limestone-usage-calculator__header-actions"
+    ) || null;
+
+  const dateCard =
+    usageView?.querySelector(
+      ".limestone-usage-date-card"
+    ) || null;
+
+  const dailySummary =
+    usageView?.querySelector(
+      ".limestone-usage-summary-grid"
+    ) || null;
+
+  const dailyTable =
+    usageView?.querySelector(
+      ".limestone-usage-table-card"
+    ) || null;
+
+  if (
+    !usageView ||
+    !dateCard ||
+    !dailySummary ||
+    !dailyTable
+  ) {
+    return false;
   }
+
+  /* ===================================================
+    상단 "일일 석회석 사용량" 박스 제거
+    대신 버튼은 날짜줄로 이동
+  ==================================================== */
+
+  if (
+    headerActions &&
+    !dateCard.querySelector(
+      ".limestone-usage-date-card__actions"
+    )
+  ) {
+    headerActions.classList.add(
+      "limestone-usage-date-card__actions"
+    );
+
+    const statusBox =
+      dateCard.querySelector(
+        ".limestone-usage-status"
+      );
+
+    if (
+      statusBox
+    ) {
+      dateCard.insertBefore(
+        headerActions,
+        statusBox
+      );
+    } else {
+      dateCard.append(
+        headerActions
+      );
+    }
+  }
+
+  if (
+    usageHeader
+  ) {
+    usageHeader.remove();
+  }
+
+  /* ===================================================
+    순서 정리
+  ==================================================== */
+
+  dateCard.insertAdjacentElement(
+    "afterend",
+    dailySummary
+  );
+
+  dailySummary.insertAdjacentElement(
+    "afterend",
+    dailyTable
+  );
+
+  /* ===================================================
+    하단 기간 계산 / 저장 내역 완전 제거
+  ==================================================== */
+
+  document.getElementById(
+    "limestoneUsageBatchPanel"
+  )?.remove();
+
+  document.getElementById(
+    "limestoneUsageHistoryPanel"
+  )?.remove();
+
+  document.getElementById(
+    "limestoneUsagePeriodAccordion"
+  )?.remove();
+
+  return true;
+}
 
 
   /* =====================================================
