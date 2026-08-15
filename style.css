@@ -109272,3 +109272,33 @@ button,
     grid-column: 1 / -1 !important;
   }
 }
+
+/* LIMESTONE MOBILE ADD ONLY V1 */
+@media screen and (max-width: 768px) {
+
+  /* OCR 기능은 유지하고 화면에서만 숨김 */
+  #efficiencyTeamModal #efficiencyLimestoneView #openLimestoneSlipCaptureButton,
+  #efficiencyTeamModal #efficiencyLimestoneView #openLimestoneSlipLibraryButton,
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-slip-camera-guide {
+    display: none !important;
+  }
+
+  /* 새로고침 + 입고 2열 */
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-heading-actions {
+    grid-template-columns:
+      minmax(76px, 0.7fr)
+      minmax(150px, 1.3fr) !important;
+    gap: 6px !important;
+  }
+
+  /* 남는 공간을 +입고 버튼에 더 배정 */
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-add-button {
+    display: inline-flex !important;
+    width: 100% !important;
+    min-width: 150px !important;
+    padding: 0 18px !important;
+    font-size: 11px !important;
+    font-weight: 900 !important;
+  }
+
+}
