@@ -7766,21 +7766,6 @@ async function migrateCurrentShiftLegacyLogsManually(
         legacyLog
       );
 
-
-    /*
-      이미 D1에 같은 날짜·근무·보직이 있으면
-      기존 D1 자료를 유지한다.
-    */
-
-    if (
-      sharedGroupKeys.has(
-        groupKey
-      )
-    ) {
-      continue;
-    }
-
-
     const migrationLog = {
       ...legacyLog,
 
@@ -8217,20 +8202,23 @@ async function runCurrentShiftLegacySync() {
     실행 확인
   ====================================================== */
 
-  const shouldRun =
-    window.confirm(
-      [
-        `${context.workDate} ${context.shiftLabel} 이전일지를 동기화하시겠습니까?`,
-        "",
-        "현재 화면의 날짜와 근무만 가져옵니다.",
-        "",
-        "이전에 삭제한 동기화 자료가 원본에 존재하면 다시 복원됩니다.",
-        "",
-        "다른 날짜 및 다른 Shift는 처리하지 않습니다."
-      ].join(
-        "\n"
-      )
-    );
+const shouldRun =
+  window.confirm(
+    [
+      `${context.workDate} ${context.shiftLabel} 이전일지를 동기화하시겠습니까?`,
+      "",
+      "현재 화면의 날짜와 근무만 가져옵니다.",
+      "",
+      "신규 업무일지에 이미 작성된 내용이 있더라도",
+      "이전일지 원본 내용으로 덮어씁니다.",
+      "",
+      "이전에 삭제한 동기화 자료가 원본에 존재하면 다시 복원됩니다.",
+      "",
+      "다른 날짜 및 다른 Shift는 처리하지 않습니다."
+    ].join(
+      "\n"
+    )
+  );
 
 
   if (
@@ -159295,6 +159283,522 @@ return {
 };
 }
 
+/* =========================================================
+  오전회의 일일DATA → 최종 엑셀 반영
+
+  반영 대상
+
+  전력
+  - 발전량
+  - 송전량
+  - 수전량
+
+  태양광
+  - 일일 발전량
+  - 월간 누적
+  - 년간 누적
+
+  증기
+  - 1호기 생산량
+  - 2호기 생산량
+  - 저압 판매량
+  - 고압 판매량
+
+  유기성 고형연료
+  - 입고 차량
+  - 총 입고량
+  - Day Silo
+  - Storage A
+  - Storage B
+
+  중요
+  - 기존 합계·평균 수식은 건드리지 않는다.
+  - 화면의 자동수치 값을 최종 XLSX에 덮어쓴다.
+========================================================= */
+
+function applyMorningMeetingDailyDataValues(
+  worksheetDocument,
+  dailyData
+) {
+  const source =
+    dailyData &&
+    typeof dailyData ===
+      "object"
+      ? dailyData
+      : {};
+
+
+  /* =====================================================
+    숫자 정리
+  ====================================================== */
+
+  const toOptionalNumber =
+    value => {
+      if (
+        value === null ||
+        value === undefined
+      ) {
+        return null;
+      }
+
+
+      const normalized =
+        String(
+          value
+        )
+          .replaceAll(
+            ",",
+            ""
+          )
+          .trim();
+
+
+      if (
+        normalized ===
+          ""
+      ) {
+        return null;
+      }
+
+
+      const numericValue =
+        Number(
+          normalized
+        );
+
+
+      return Number.isFinite(
+        numericValue
+      )
+        ? numericValue
+        : null;
+    };
+
+
+  /*
+    여러 호환 필드 중
+    처음 확인되는 숫자를 사용한다.
+  */
+
+  const firstNumber =
+    (...values) => {
+      for (
+        const value of
+          values
+      ) {
+        const numericValue =
+          toOptionalNumber(
+            value
+          );
+
+
+        if (
+          numericValue !==
+            null
+        ) {
+          return numericValue;
+        }
+      }
+
+
+      return null;
+    };
+
+
+  /* =====================================================
+    셀 기록 공통 처리
+
+    값 없음:
+    - 해당 셀을 비운다.
+    - 오래된 템플릿 값이 남지 않게 한다.
+
+    셀 자체 없음:
+    - 잘못된 양식으로 판단하고 중단한다.
+  ====================================================== */
+
+  const writeResults =
+    [];
+
+
+  const writeNumber =
+    (
+      address,
+      value,
+      label
+    ) => {
+      const result =
+        setMorningMeetingNumericCellValue(
+          worksheetDocument,
+          address,
+          value
+        );
+
+
+      if (
+        !result.found
+      ) {
+        throw new Error(
+          `최종 엑셀의 "${label}" 셀 ${address}을 찾지 못했습니다.`
+        );
+      }
+
+
+      writeResults.push({
+        address,
+        label,
+        value,
+        result
+      });
+
+
+      return result;
+    };
+
+
+  /* =====================================================
+    전력
+
+    일일DATA:
+    kWh
+
+    최종 오전회의 Excel:
+    MWh
+
+    따라서 1000으로 나누어 기록한다.
+  ====================================================== */
+
+  const generatorKwh =
+    firstNumber(
+      source.generatorEcmsGen1,
+      source.powerGeneration
+    );
+
+
+  const transmissionKwh =
+    firstNumber(
+      source.epowerTransmission,
+      source.electricityTransmitted
+    );
+
+
+  const receptionKwh =
+    firstNumber(
+      source.ismartReception,
+      source.electricityReceived
+    );
+
+
+  const toMwh =
+    value => {
+      return value ===
+        null
+        ? null
+        : value /
+            1000;
+    };
+
+
+  /*
+    AK7 = 생산
+    AK8 = 판매/송전
+    AK9 = 수전
+
+    AN7~AN9 평균 수식은 그대로 유지
+  */
+
+  writeNumber(
+    "AK7",
+    toMwh(
+      generatorKwh
+    ),
+    "전력 발전량"
+  );
+
+
+  writeNumber(
+    "AK8",
+    toMwh(
+      transmissionKwh
+    ),
+    "전력 송전량"
+  );
+
+
+  writeNumber(
+    "AK9",
+    toMwh(
+      receptionKwh
+    ),
+    "전력 수전량"
+  );
+
+
+  /* =====================================================
+    태양광
+
+    H18 = 일일
+    M18 = 월간 누적
+    V18 = 년간 누적
+  ====================================================== */
+
+  const solarDailyGeneration =
+    firstNumber(
+      source.solarDailyGeneration,
+      source.solarDaily
+    );
+
+
+  const solarMonthlyCumulative =
+    firstNumber(
+      source.solarMonthlyCumulative,
+      source.solarCumulative
+        ?.month
+        ?.total
+    );
+
+
+  const solarYearlyCumulative =
+    firstNumber(
+      source.solarYearlyCumulative,
+      source.solarCumulative
+        ?.year
+        ?.total
+    );
+
+
+  writeNumber(
+    "H18",
+    solarDailyGeneration,
+    "태양광 일일 발전량"
+  );
+
+
+  writeNumber(
+    "M18",
+    solarMonthlyCumulative,
+    "태양광 월간 누적"
+  );
+
+
+  writeNumber(
+    "V18",
+    solarYearlyCumulative,
+    "태양광 년간 누적"
+  );
+
+
+  /* =====================================================
+    증기 생산
+
+    E7 = 1호기
+    E8 = 2호기
+
+    E11 총 생산량 수식은 유지한다.
+  ====================================================== */
+
+  const unitOneProduction =
+    firstNumber(
+      source.unitOneProduction
+    );
+
+
+  const unitTwoProduction =
+    firstNumber(
+      source.unitTwoProduction
+    );
+
+
+  writeNumber(
+    "E7",
+    unitOneProduction,
+    "증기 생산량 1호기"
+  );
+
+
+  writeNumber(
+    "E8",
+    unitTwoProduction,
+    "증기 생산량 2호기"
+  );
+
+
+  /* =====================================================
+    증기 판매
+
+    AD11 = 저압
+    AJ11 = 고압
+
+    AM11 평균 수식은 유지한다.
+  ====================================================== */
+
+  const steamSalesLowPressure =
+    firstNumber(
+      source.steamSalesLowPressure
+    );
+
+
+  const steamSalesHighPressure =
+    firstNumber(
+      source.steamSalesHighPressure
+    );
+
+
+  writeNumber(
+    "AD11",
+    steamSalesLowPressure,
+    "저압 증기 판매량"
+  );
+
+
+  writeNumber(
+    "AJ11",
+    steamSalesHighPressure,
+    "고압 증기 판매량"
+  );
+
+
+  /* =====================================================
+    유기성 고형연료 재고
+
+    X14  = Storage A
+    Z14  = Storage B
+    AC14 = Day Silo
+
+    AE13 총재고량 수식
+    = X14 + Z14 + AC14
+
+    수식은 그대로 유지한다.
+  ====================================================== */
+
+  const organicStorageSiloA =
+    firstNumber(
+      source.organicStorageSiloA,
+      source.organicStorageSiloALevel
+    );
+
+
+  const organicStorageSiloB =
+    firstNumber(
+      source.organicStorageSiloB,
+      source.organicStorageSiloBLevel
+    );
+
+
+  const organicDaySilo =
+    firstNumber(
+      source.organicDaySilo,
+      source.organicDaySiloLevel
+    );
+
+
+  writeNumber(
+    "X14",
+    organicStorageSiloA,
+    "유기성 고형연료 Storage A"
+  );
+
+
+  writeNumber(
+    "Z14",
+    organicStorageSiloB,
+    "유기성 고형연료 Storage B"
+  );
+
+
+  writeNumber(
+    "AC14",
+    organicDaySilo,
+    "유기성 고형연료 Day Silo"
+  );
+
+
+  /* =====================================================
+    유기성 고형연료 입고
+
+    AH13 = 입고 차량 대수
+    AH14 = 총 입고량
+  ====================================================== */
+
+  const organicTruckCount =
+    firstNumber(
+      source.sludgeTruckCount,
+      source.organicTruckCount
+    );
+
+
+  const organicReceivedAmount =
+    firstNumber(
+      source.sludgeTotal,
+      source.organicReceivedAmount
+    );
+
+
+  writeNumber(
+    "AH13",
+    organicTruckCount,
+    "유기성 고형연료 입고 차량"
+  );
+
+
+  writeNumber(
+    "AH14",
+    organicReceivedAmount,
+    "유기성 고형연료 총 입고량"
+  );
+
+
+  /* =====================================================
+    최종 결과
+
+    아래 수식은 직접 수정하지 않음
+
+    - E11   증기 총 생산량
+    - G7/G8 증기 시간 평균
+    - AN7~AN9 전력 평균
+    - AM11  증기 판매 평균
+    - AE13  유기성 총 재고량
+  ====================================================== */
+
+  return {
+    appliedCount:
+      writeResults.filter(
+        item => {
+          return item
+            .result
+            .written;
+        }
+      ).length,
+
+    totalCount:
+      writeResults.length,
+
+    writeResults,
+
+    values: {
+      generatorKwh,
+      transmissionKwh,
+      receptionKwh,
+
+      solarDailyGeneration,
+      solarMonthlyCumulative,
+      solarYearlyCumulative,
+
+      unitOneProduction,
+      unitTwoProduction,
+
+      steamSalesLowPressure,
+      steamSalesHighPressure,
+
+      organicTruckCount,
+      organicReceivedAmount,
+
+      organicDaySilo,
+      organicStorageSiloA,
+      organicStorageSiloB
+    }
+  };
+}
+
 /* =====================================================
   최종 엑셀 생성
 
@@ -160085,11 +160589,49 @@ console.log(
   ijkDashResult
 );
 
-    /* ===================================================
+/* ===================================================
+  0차: 자동수치 일일DATA 최종 엑셀 반영
+
+  - 전력 발전 / 송전 / 수전
+  - 태양광 일일 / 월간 / 년간
+  - 증기 생산 / 판매
+  - 유기성 고형연료
+=================================================== */
+
+const dailyData =
+  state.steamStatus &&
+  typeof state.steamStatus ===
+    "object"
+    ? state.steamStatus
+    : null;
+
+
+if (
+  !dailyData
+) {
+  throw new Error(
+    "전력·태양광·증기·유기성 고형연료 자동수치가 없습니다."
+  );
+}
+
+
+const dailyDataResult =
+  applyMorningMeetingDailyDataValues(
+    worksheetDocument,
+    dailyData
+  );
+
+
+console.log(
+  "최종 엑셀 일일DATA 반영 완료:",
+  dailyDataResult
+);
+
+/* ===================================================
       1차: 운탄일지 수치 반영
 
       유연탄 재고 합계 J13의 수식은 그대로 유지한다.
-    ==================================================== */
+==================================================== */
 
     const numericResult =
       applyMorningMeetingCoalNumericValues(

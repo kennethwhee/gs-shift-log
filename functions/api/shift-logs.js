@@ -12819,7 +12819,7 @@ if (
   - 다른 날짜 전체 suppression은 건드리지 않음
 =================================================== */
 
-  
+
   const workDate =
     normalizeText(
       body.workDate ||
@@ -13101,20 +13101,16 @@ if (
     }
 
 
-    if (
+if (
   existingLog &&
-  [
-    "migrate",
-    "manual_migrate"
-  ].includes(
-    action
-  )
+  action ===
+    "migrate"
 ) {
-      return createConflictResponse(
-        existingLog,
-        "이미 서버에 같은 날짜·근무·보직의 업무일지가 있습니다."
-      );
-    }
+  return createConflictResponse(
+    existingLog,
+    "이미 서버에 같은 날짜·근무·보직의 업무일지가 있습니다."
+  );
+}
 
 
     const now =
@@ -13336,24 +13332,31 @@ if (
       }
     }
 
+  const effectiveExpectedRevision =
+  action ===
+    "manual_migrate"
+    ? Number(
+        existingLog.serverRevision
+      )
+    : expectedRevision;
 
     /* =====================================================
       기존 업무일지 revision 확인
     ====================================================== */
 
-    if (
-      !Number.isInteger(
-        expectedRevision
-      ) ||
-      expectedRevision <
-        1 ||
-      expectedRevision !==
-        existingLog.serverRevision
-    ) {
-      return createConflictResponse(
-        existingLog
-      );
-    }
+if (
+  !Number.isInteger(
+    effectiveExpectedRevision
+  ) ||
+  effectiveExpectedRevision <
+    1 ||
+  effectiveExpectedRevision !==
+    existingLog.serverRevision
+) {
+  return createConflictResponse(
+    existingLog
+  );
+}
 
 
     let nextLog;
@@ -13363,36 +13366,83 @@ if (
       일반 저장 또는 결재 상태 변경
     ====================================================== */
 
-    if (
-      action ===
-        "save"
-    ) {
-      nextLog =
-        applySaveRules(
-          incomingLog,
-          existingLog,
-          user,
-          now
-        );
+if (
+  action ===
+    "save"
+) {
+  nextLog =
+    applySaveRules(
+      incomingLog,
+      existingLog,
+      user,
+      now
+    );
 
-    } else {
-      nextLog =
-        applyApprovalAction(
-          existingLog,
-          user,
-          action,
-          now
-        );
-    }
+} else if (
+  action ===
+    "manual_migrate"
+) {
+  /*
+    현재 Shift [동기화]
+
+    기존 D1 업무일지가 있더라도
+    이전일지 원본 내용으로 강제 갱신한다.
+
+    단:
+    - D1 기존 ID 유지
+    - 기존 생성시각 유지
+    - revision은 현재 서버 revision 기준으로 갱신
+    - 작성자/결재상태는 legacy 원본 기준으로 복원
+  */
+
+  const migratedLog =
+    await applyCreateRules(
+      context.env.DB,
+
+      {
+        ...incomingLog
+      },
+
+      user,
+
+      action,
+
+      now
+    );
 
 
-    const savedLog =
-      await updateLog(
-        context.env.DB,
-        nextLog,
-        user,
-        expectedRevision
-      );
+  nextLog = {
+    ...migratedLog,
+
+    id:
+      existingLog.id,
+
+    createdAt:
+      existingLog.createdAt ||
+      migratedLog.createdAt,
+
+    serverRevision:
+      existingLog.serverRevision
+  };
+
+} else {
+  nextLog =
+    applyApprovalAction(
+      existingLog,
+      user,
+      action,
+      now
+    );
+}
+
+
+const savedLog =
+  await updateLog(
+    context.env.DB,
+    nextLog,
+    user,
+    effectiveExpectedRevision
+  );
 
 
     if (
