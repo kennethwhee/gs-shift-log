@@ -112638,125 +112638,118 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 }
 
 /* =========================================================
-   LIMESTONE DATE RANGE FINAL COMPACT FIX
-   - 시작일/종료일 박스 축소
+   LIMESTONE DATE RANGE HORIZONTAL FINAL
+
+   - 시작일 / 종료일 박스 가로폭만 축소
+   - 가운데 여백 확보
    - 날짜 숫자 확대
-   - 날짜 숫자 정중앙 정렬
-   - 박스 겹침 방지
+   - 날짜 숫자 중앙 정렬
+   - 높이는 기존 값 유지
 ========================================================= */
 
 @media screen and (max-width: 768px) {
 
-  /* 시작일 / 종료일 전체 줄 */
+  /* 시작일 / 종료일 사이 간격 확보 */
   #efficiencyTeamModal
   #efficiencyLimestoneView
   #limestoneSearchForm
   .limestone-period-search-fields {
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
-    gap: 4px !important;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(0, 1fr) !important;
+
+    column-gap: 10px !important;
+
     width: 100% !important;
     min-width: 0 !important;
   }
 
-  /* 각각의 시작일 / 종료일 칸 */
+
+  /* 각각의 날짜 영역이 자기 칸 밖으로 나오지 않도록 */
   #efficiencyTeamModal
   #efficiencyLimestoneView
   #limestoneSearchForm
   .limestone-period-search-fields
   .form-field {
+    width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
+
     overflow: hidden !important;
-    gap: 1px !important;
+
+    box-sizing: border-box !important;
   }
 
-  /* 라벨 */
-  #efficiencyTeamModal
-  #efficiencyLimestoneView
-  #limestoneSearchForm
-  .limestone-period-search-fields
-  .form-field__label {
-    font-size: 7px !important;
-    line-height: 1 !important;
-    margin-bottom: 1px !important;
-  }
 
-  /* 실제 날짜 input */
+  /* 날짜 박스 가로폭만 살짝 축소 */
   #efficiencyTeamModal
   #efficiencyLimestoneView
   #limestoneSearchForm
   .limestone-period-search-fields
   input[type="date"] {
-    display: block !important;
-    -webkit-appearance: none !important;
-    appearance: none !important;
-
-    width: 100% !important;
+    width: calc(100% - 8px) !important;
     min-width: 0 !important;
-    max-width: 100% !important;
+    max-width: calc(100% - 8px) !important;
 
-    height: 22px !important;
-    min-height: 22px !important;
-    max-height: 22px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
 
-    margin: 0 !important;
-    padding: 0 4px !important;
+    /* 높이는 기존 설정 그대로 사용 */
 
-    border-radius: 7px !important;
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+
     box-sizing: border-box !important;
-    overflow: hidden !important;
 
     font-size: 12px !important;
     font-weight: 900 !important;
-    line-height: 22px !important;
+
     text-align: center !important;
-    vertical-align: middle !important;
   }
 
-  /* iPhone Safari 날짜 텍스트 중앙 정렬 */
+
+  /* iPhone Safari 날짜 글자 중앙 정렬 */
   #efficiencyTeamModal
   #efficiencyLimestoneView
   #limestoneSearchForm
   .limestone-period-search-fields
   input[type="date"]::-webkit-date-and-time-value {
     width: 100% !important;
+
     margin: 0 !important;
     padding: 0 !important;
-    line-height: 22px !important;
+
     text-align: center !important;
   }
+
 
   #efficiencyTeamModal
   #efficiencyLimestoneView
   #limestoneSearchForm
   .limestone-period-search-fields
   input[type="date"]::-webkit-datetime-edit {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    width: 100% !important;
 
-    height: 22px !important;
     margin: 0 !important;
     padding: 0 !important;
-    line-height: 22px !important;
+
     text-align: center !important;
   }
+
 
   #efficiencyTeamModal
   #efficiencyLimestoneView
   #limestoneSearchForm
   .limestone-period-search-fields
   input[type="date"]::-webkit-datetime-edit-fields-wrapper {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-
     width: 100% !important;
-    height: 22px !important;
+
     margin: 0 !important;
     padding: 0 !important;
-    line-height: 22px !important;
+
+    text-align: center !important;
   }
 
 }
