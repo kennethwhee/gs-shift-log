@@ -2081,7 +2081,7 @@ function switchLimestoneSubview(
                       <td>
 
                         <strong id="limestoneUsageUnitTwoReceipt">
-                          0.00 t
+                          0.00 ton
                         </strong>
 
                       </td>

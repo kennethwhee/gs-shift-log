@@ -108833,3 +108833,392 @@ button,
   font-weight: 700 !important;
   letter-spacing: 0.01em !important;
 }
+
+/* =========================================================
+  DAILY LIMESTONE USAGE MOBILE V1
+========================================================= */
+
+@media screen and (max-width: 720px) {
+
+  /* =====================================================
+    전체
+  ====================================================== */
+
+  #efficiencyTeamModal
+  .limestone-usage-calculator {
+    padding:
+      10px !important;
+  }
+
+
+  /* =====================================================
+    상단 제목
+  ====================================================== */
+
+  #efficiencyTeamModal
+  .limestone-usage-calculator__header {
+    align-items:
+      stretch !important;
+
+    flex-direction:
+      column !important;
+
+    gap:
+      10px !important;
+
+    padding:
+      12px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-calculator__header h4 {
+    font-size:
+      17px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-calculator__header p {
+    font-size:
+      10px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-calculator__header-actions {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+
+    width:
+      100% !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-calculator__header-actions
+  button {
+    width:
+      100% !important;
+
+    min-height:
+      38px !important;
+
+    font-size:
+      11px !important;
+  }
+
+
+  /* =====================================================
+    날짜
+
+    [<] [날짜] [>] [오늘]
+    상태는 아래 한 줄
+  ====================================================== */
+
+  #efficiencyTeamModal
+  .limestone-usage-date-card {
+    grid-template-columns:
+      42px
+      minmax(
+        0,
+        1fr
+      )
+      42px
+      68px !important;
+
+    align-items:
+      end !important;
+
+    gap:
+      6px !important;
+
+    padding:
+      10px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-date-arrow {
+    width:
+      42px !important;
+
+    min-width:
+      42px !important;
+
+    height:
+      42px !important;
+
+    min-height:
+      42px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-date-field input {
+    height:
+      42px !important;
+
+    min-height:
+      42px !important;
+
+    padding:
+      0
+      8px !important;
+
+    font-size:
+      12px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-date-field > span {
+    font-size:
+      9px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneUsageTodayButton {
+    width:
+      68px !important;
+
+    min-width:
+      68px !important;
+
+    height:
+      42px !important;
+
+    min-height:
+      42px !important;
+
+    padding:
+      0 !important;
+
+    font-size:
+      12px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-status {
+    grid-column:
+      1 /
+      -1 !important;
+
+    width:
+      100% !important;
+
+    min-height:
+      48px !important;
+
+    margin-top:
+      2px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-status strong {
+    font-size:
+      12px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-status small {
+    font-size:
+      9px !important;
+
+    line-height:
+      1.4 !important;
+  }
+
+
+  /* =====================================================
+    요약 3개는 모바일에서도 한 줄 유지
+  ====================================================== */
+
+  #efficiencyTeamModal
+  .limestone-usage-summary-grid {
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(
+          0,
+          1fr
+        )
+      ) !important;
+
+    gap:
+      6px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-summary-card {
+    min-height:
+      88px !important;
+
+    padding:
+      11px
+      9px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-summary-card > span {
+    font-size:
+      9px !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-summary-card > strong {
+    margin-top:
+      8px !important;
+
+    font-size:
+      25px !important;
+
+    letter-spacing:
+      -0.04em !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-summary-card > small {
+    margin-left:
+      3px !important;
+
+    font-size:
+      9px !important;
+  }
+
+
+  /* =====================================================
+    계산표
+
+    열이 많기 때문에 억지로 찌그러뜨리지 않고
+    가로 스크롤 유지
+  ====================================================== */
+
+  #efficiencyTeamModal
+  .limestone-usage-table-card__header {
+    min-height:
+      52px !important;
+
+    padding:
+      9px
+      11px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-table-card__header h4 {
+    font-size:
+      16px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-table-wrap {
+    overflow-x:
+      auto !important;
+
+    -webkit-overflow-scrolling:
+      touch;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-table {
+    min-width:
+      760px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-table th,
+  #efficiencyTeamModal
+  .limestone-usage-table td {
+    padding:
+      11px
+      8px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-table thead th {
+    font-size:
+      10px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-table thead small {
+    font-size:
+      8px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-table tbody th {
+    font-size:
+      15px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-table tbody strong {
+    font-size:
+      15px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-number-input input {
+    min-height:
+      38px !important;
+
+    height:
+      38px !important;
+
+    font-size:
+      14px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-number-input > span {
+    font-size:
+      11px !important;
+  }
+
+
+  #efficiencyTeamModal
+  .limestone-usage-result-value {
+    font-size:
+      16px !important;
+  }
+
+
+  /* TAG는 계속 작게 */
+  #efficiencyTeamModal
+  .limestone-usage-table code {
+    font-size:
+      8px !important;
+  }
+
+}
