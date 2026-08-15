@@ -169524,9 +169524,9 @@ function formatNumber(
 }
 
 
-  /* =====================================================
+/* =====================================================
     수치 카드 출력
-  ====================================================== */
+====================================================== */
 
   function renderValues(
     values
@@ -188271,7 +188271,7 @@ function renderPreview() {
   }
 
 
-  /* =====================================================
+/* =====================================================
     Silo 숫자 표시
 
     OIS 표시와 맞춰
@@ -188279,52 +188279,51 @@ function renderPreview() {
 
     단위는 OIS에서 받은 값이 있을 때만 표시한다.
     임의로 %를 붙이지 않는다.
-  ====================================================== */
+====================================================== */
 
-  function formatSiloValue(
-    value,
-    unit
+function formatSiloValue(
+  value,
+  unit
+) {
+  const numericValue =
+    parseNumber(
+      value
+    );
+
+
+  if (
+    numericValue ===
+      null
   ) {
-    const numericValue =
-      parseNumber(
-        value
-      );
-
-
-    if (
-      numericValue ===
-        null
-    ) {
-      return "-";
-    }
-
-
-    const formattedValue =
-      numericValue.toLocaleString(
-        "ko-KR",
-        {
-          minimumFractionDigits:
-            3,
-
-          maximumFractionDigits:
-            3
-        }
-      );
-
-
-    const normalizedUnit =
-      normalizeText(
-        unit
-      );
-
-
-    return normalizedUnit
-      ? `${formattedValue} ${normalizedUnit}`
-      : formattedValue;
+    return "-";
   }
 
 
-  /* =====================================================
+  const formattedValue =
+    numericValue.toLocaleString(
+      "ko-KR",
+      {
+        minimumFractionDigits:
+          0,
+
+        maximumFractionDigits:
+          2
+      }
+    );
+
+
+  const normalizedUnit =
+    normalizeText(
+      unit
+    );
+
+
+  return normalizedUnit
+    ? `${formattedValue} ${normalizedUnit}`
+    : formattedValue;
+}
+
+/* =====================================================
     Silo 카드 생성
 
     기존 자동수치 카드 스타일을 그대로 사용한다.
@@ -188332,7 +188331,7 @@ function renderPreview() {
     grid의 마지막에 append하므로
     BO1·BO2 온도 아래,
     자동 미리보기 맨 마지막에 표시된다.
-  ====================================================== */
+====================================================== */
 
 function ensureSiloPreviewCard() {
   const grid = document.querySelector(
