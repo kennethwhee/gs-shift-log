@@ -151132,27 +151132,15 @@ function getMorningMeetingLimestoneWorkbookValues() {
   };
 }
 
-
 /* =====================================================
   석회석 → 최종 오전회의 엑셀 반영
 
-  사용량:
-  AE15 = 1호기
-  AE16 = 2호기
+  제목:
+  X15 = Limestone 사용량
 
-  합계:
-  AJ16 기존 수식 유지
-  =AE15+AE16
-
-  입고량:
-  X15 제목 셀에 두 번째 줄로 표시
-===================================================== */
-
-/* =====================================================
-  석회석 → 최종 오전회의 엑셀 반영
-
-  입고량:
-  X15 제목 영역 두 번째 줄
+  중요:
+  - X15에는 입고량을 표시하지 않는다.
+  - 입고량 데이터 자체는 유지한다.
 
   사용량:
   AE15 = 1호기
@@ -151160,8 +151148,6 @@ function getMorningMeetingLimestoneWorkbookValues() {
 
   합계:
   AJ16 = AE15 + AE16
-
-  기존 양식 구조는 유지한다.
 ===================================================== */
 
 function applyMorningMeetingLimestoneValues(
@@ -151233,6 +151219,9 @@ function applyMorningMeetingLimestoneValues(
 
   /* =====================================================
     입고량
+
+    Excel 제목에는 표시하지 않지만
+    기존 데이터 흐름과 반환값은 유지한다.
   ====================================================== */
 
   const unitOneReceipt =
@@ -151264,44 +151253,14 @@ function applyMorningMeetingLimestoneValues(
 
 
   /* =====================================================
-    소수점 둘째 자리 표시
-  ====================================================== */
-
-  const formatValue =
-    value => {
-      if (
-        value ===
-          null
-      ) {
-        return "-";
-      }
-
-
-      return value.toLocaleString(
-        "ko-KR",
-        {
-          minimumFractionDigits:
-            2,
-
-          maximumFractionDigits:
-            2
-        }
-      );
-    };
-
-
-  /* =====================================================
-    제목 + 입고량
+    제목
 
     X15
 
-    예:
+    최종 표시:
     Limestone 사용량
-    입고 1호기 61.35 ton · 2호기 60.11 ton
 
-    중요:
-    inlineStr을 사용하지 않고
-    기존 DynamicCellText 방식을 유지한다.
+    입고량 문구는 절대 추가하지 않는다.
   ====================================================== */
 
   const titleCell =
@@ -151320,40 +151279,10 @@ function applyMorningMeetingLimestoneValues(
   }
 
 
-  const receiptLines = [
-    "Limestone 사용량"
-  ];
-
-
-  if (
-    unitOneReceipt !==
-      null ||
-    unitTwoReceipt !==
-      null
-  ) {
-    receiptLines.push(
-      [
-        "입고",
-        `1호기 ${formatValue(
-          unitOneReceipt
-        )} ton`,
-        "·",
-        `2호기 ${formatValue(
-          unitTwoReceipt
-        )} ton`
-      ].join(
-        " "
-      )
-    );
-  }
-
-
   setMorningMeetingDynamicCellText(
     worksheetDocument,
     titleCell,
-    receiptLines.join(
-      "\n"
-    )
+    "Limestone 사용량"
   );
 
 
@@ -151469,6 +151398,13 @@ function applyMorningMeetingLimestoneValues(
     formulaElement
   );
 
+
+  /* =====================================================
+    결과 반환
+
+    입고량은 Excel 제목에서 숨길 뿐
+    데이터 자체는 기존과 동일하게 유지한다.
+  ====================================================== */
 
   return {
     appliedCount:
@@ -162308,11 +162244,102 @@ const dailyData =
     : null;
 
 
+/* ===================================================
+  MORNING MEETING MISSING DAILY DATA CONFIRM V1
+
+  자동수치가 없는 경우:
+  - 즉시 실패시키지 않는다.
+  - 사용자에게 계속 진행 여부를 묻는다.
+  - [예]    → 해당 자동수치 셀을 빈칸으로 만들고 계속 생성
+  - [아니오] → 엑셀 생성 취소
+
+  빈 객체를 applyMorningMeetingDailyDataValues()에 넘기면
+  기존 템플릿에 남아 있을 수 있는 오래된 수치도 제거된다.
+=================================================== */
+
+let dailyDataForWorkbook =
+  dailyData;
+
+
 if (
   !dailyData
 ) {
-  throw new Error(
-    "전력·태양광·증기·유기성 고형연료 자동수치가 없습니다."
+  const missingDailyDataMessage =
+    "전력·태양광·증기·유기성 고형연료 자동수치가 없습니다.";
+
+
+  let shouldContinueWithoutDailyData =
+    false;
+
+
+  if (
+    typeof showCompactConfirm ===
+      "function"
+  ) {
+    shouldContinueWithoutDailyData =
+      Boolean(
+        await showCompactConfirm({
+          title:
+            missingDailyDataMessage,
+
+          message:
+            "그래도 진행하시겠습니까?",
+
+          confirmText:
+            "예",
+
+          cancelText:
+            "아니오"
+        })
+      );
+
+  } else {
+    /*
+      공통 확인창을 사용할 수 없는 경우의
+      브라우저 기본 확인창 대체 처리
+    */
+
+    shouldContinueWithoutDailyData =
+      window.confirm(
+        [
+          missingDailyDataMessage,
+          "",
+          "그래도 진행하시겠습니까?"
+        ].join(
+          "\n"
+        )
+      );
+  }
+
+
+  if (
+    !shouldContinueWithoutDailyData
+  ) {
+    if (
+      elements.message
+    ) {
+      elements.message.textContent =
+        "최종 엑셀 생성을 취소했습니다.";
+    }
+
+
+    return;
+  }
+
+
+  /*
+    빈 객체를 사용하면
+    일일DATA 대상 셀들이 빈칸으로 정리된다.
+
+    기존 템플릿의 과거 수치를
+    그대로 남기지 않는다.
+  */
+
+  dailyDataForWorkbook = {};
+
+
+  console.warn(
+    "전력·태양광·증기·유기성 고형연료 자동수치 없이 최종 엑셀 생성을 계속합니다."
   );
 }
 
@@ -162320,12 +162347,15 @@ if (
 const dailyDataResult =
   applyMorningMeetingDailyDataValues(
     worksheetDocument,
-    dailyData
+    dailyDataForWorkbook
   );
 
 
 console.log(
-  "최종 엑셀 일일DATA 반영 완료:",
+  dailyData
+    ? "최종 엑셀 일일DATA 반영 완료:"
+    : "최종 엑셀 일일DATA 빈칸 처리 완료:",
+
   dailyDataResult
 );
 
