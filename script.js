@@ -1517,8 +1517,80 @@ function switchLimestoneSubview(
     if (
       headingActions
     ) {
+      /*
+        입고 현황 / 사용량 계산 모두
+        상단 버튼 영역 자체는 유지한다.
+      */
       headingActions.hidden =
-        isUsageView;
+        false;
+
+
+      /*
+        입고 현황 전용 버튼
+
+        사용량 계산에서는 숨김
+        입고 현황에서는 다시 표시
+      */
+      [
+        "refreshLimestoneReceiptsButton",
+        "openLimestoneSlipCaptureButton",
+        "openLimestoneSlipLibraryButton",
+        "openLimestoneReceiptEditorButton"
+      ]
+        .forEach(
+          id => {
+            const element =
+              document.getElementById(
+                id
+              );
+
+            if (
+              element
+            ) {
+              element.hidden =
+                isUsageView;
+            }
+          }
+        );
+
+
+      const cameraGuide =
+        headingActions.querySelector(
+          ".limestone-slip-camera-guide"
+        );
+
+
+      if (
+        cameraGuide
+      ) {
+        cameraGuide.hidden =
+          isUsageView;
+      }
+
+
+      /*
+        사용량 계산 전용 버튼
+
+        사용량 계산에서만 표시
+      */
+      [
+        document.getElementById(
+          "loadLimestoneUsageOisButton"
+        ),
+
+        document.getElementById(
+          "refreshLimestoneUsageReceiptButton"
+        )
+      ]
+        .filter(
+          Boolean
+        )
+        .forEach(
+          button => {
+            button.hidden =
+              !isUsageView;
+          }
+        );
     }
 
 
@@ -186614,121 +186686,234 @@ function initializeLimestoneUsageHistoryFeature() {
     최종 레이아웃 구성
   ====================================================== */
 
-function applyLimestoneUsageFinalLayout() {
-  const usageView =
-    document.getElementById(
-      "limestoneUsageCalculatorView"
-    );
-
-  const usageHeader =
-    usageView?.querySelector(
-      ".limestone-usage-calculator__header"
-    ) || null;
-
-  const headerActions =
-    usageHeader?.querySelector(
-      ".limestone-usage-calculator__header-actions"
-    ) || null;
-
-  const dateCard =
-    usageView?.querySelector(
-      ".limestone-usage-date-card"
-    ) || null;
-
-  const dailySummary =
-    usageView?.querySelector(
-      ".limestone-usage-summary-grid"
-    ) || null;
-
-  const dailyTable =
-    usageView?.querySelector(
-      ".limestone-usage-table-card"
-    ) || null;
-
-  if (
-    !usageView ||
-    !dateCard ||
-    !dailySummary ||
-    !dailyTable
-  ) {
-    return false;
-  }
-
-  /* ===================================================
-    상단 "일일 석회석 사용량" 박스 제거
-    대신 버튼은 날짜줄로 이동
-  ==================================================== */
-
-  if (
-    headerActions &&
-    !dateCard.querySelector(
-      ".limestone-usage-date-card__actions"
-    )
-  ) {
-    headerActions.classList.add(
-      "limestone-usage-date-card__actions"
-    );
-
-    const statusBox =
-      dateCard.querySelector(
-        ".limestone-usage-status"
+  function applyLimestoneUsageFinalLayout() {
+    const usageView =
+      document.getElementById(
+        "limestoneUsageCalculatorView"
       );
+
+
+    const headingActions =
+      document.querySelector(
+        `
+          #efficiencyLimestoneView
+          .limestone-heading-actions
+        `
+      );
+
+
+    const dateCard =
+      usageView?.querySelector(
+        ".limestone-usage-date-card"
+      ) ||
+      null;
+
+
+    const dailySummary =
+      usageView?.querySelector(
+        ".limestone-usage-summary-grid"
+      ) ||
+      null;
+
+
+    const dailyTable =
+      usageView?.querySelector(
+        ".limestone-usage-table-card"
+      ) ||
+      null;
+
 
     if (
-      statusBox
+      !usageView ||
+      !headingActions ||
+      !dateCard ||
+      !dailySummary ||
+      !dailyTable
     ) {
-      dateCard.insertBefore(
-        headerActions,
-        statusBox
-      );
-    } else {
-      dateCard.append(
-        headerActions
-      );
+      return false;
     }
+
+
+    const loadOisButton =
+      document.getElementById(
+        "loadLimestoneUsageOisButton"
+      );
+
+
+    const refreshUsageReceiptButton =
+      document.getElementById(
+        "refreshLimestoneUsageReceiptButton"
+      );
+
+
+    /* ===================================================
+      OIS 재고 불러오기 / 입고량 새로고침
+
+      날짜줄 →
+      상단 석회석 사용량 계산 제목 오른쪽
+    ==================================================== */
+
+    [
+      loadOisButton,
+      refreshUsageReceiptButton
+    ]
+      .filter(
+        Boolean
+      )
+      .forEach(
+        button => {
+          button.classList.add(
+            "limestone-usage-heading-action"
+          );
+
+
+          headingActions.appendChild(
+            button
+          );
+        }
+      );
+
+
+    /*
+      기존 날짜줄 버튼 컨테이너가 비었다면 제거
+    */
+
+    const oldDateActions =
+      dateCard.querySelector(
+        ".limestone-usage-date-card__actions"
+      );
+
+
+    if (
+      oldDateActions &&
+      oldDateActions.children.length <
+        1
+    ) {
+      oldDateActions.remove();
+    }
+
+
+    /*
+      혹시 이전 일일 석회석 사용량 헤더가
+      남아 있으면 제거
+    */
+
+    usageView
+      .querySelector(
+        ".limestone-usage-calculator__header"
+      )
+      ?.remove();
+
+
+    /* ===================================================
+      사용량 계산 화면 버튼 상태
+    ==================================================== */
+
+    const isUsageView =
+      !usageView.hidden;
+
+
+    [
+      document.getElementById(
+        "refreshLimestoneReceiptsButton"
+      ),
+
+      document.getElementById(
+        "openLimestoneSlipCaptureButton"
+      ),
+
+      document.getElementById(
+        "openLimestoneSlipLibraryButton"
+      ),
+
+      document.getElementById(
+        "openLimestoneReceiptEditorButton"
+      )
+    ]
+      .filter(
+        Boolean
+      )
+      .forEach(
+        button => {
+          button.hidden =
+            isUsageView;
+        }
+      );
+
+
+    const cameraGuide =
+      headingActions.querySelector(
+        ".limestone-slip-camera-guide"
+      );
+
+
+    if (
+      cameraGuide
+    ) {
+      cameraGuide.hidden =
+        isUsageView;
+    }
+
+
+    [
+      loadOisButton,
+      refreshUsageReceiptButton
+    ]
+      .filter(
+        Boolean
+      )
+      .forEach(
+        button => {
+          button.hidden =
+            !isUsageView;
+        }
+      );
+
+
+    headingActions.hidden =
+      false;
+
+
+    /* ===================================================
+      일일 계산 화면 순서
+    ==================================================== */
+
+    dateCard.insertAdjacentElement(
+      "afterend",
+      dailySummary
+    );
+
+
+    dailySummary.insertAdjacentElement(
+      "afterend",
+      dailyTable
+    );
+
+
+    /* ===================================================
+      기간 계산 / 저장 내역 제거 유지
+    ==================================================== */
+
+    document.getElementById(
+      "limestoneUsageBatchPanel"
+    )?.remove();
+
+
+    document.getElementById(
+      "limestoneUsageHistoryPanel"
+    )?.remove();
+
+
+    document.getElementById(
+      "limestoneUsagePeriodAccordion"
+    )?.remove();
+
+
+    return true;
   }
 
-  if (
-    usageHeader
-  ) {
-    usageHeader.remove();
-  }
 
-  /* ===================================================
-    순서 정리
-  ==================================================== */
-
-  dateCard.insertAdjacentElement(
-    "afterend",
-    dailySummary
-  );
-
-  dailySummary.insertAdjacentElement(
-    "afterend",
-    dailyTable
-  );
-
-  /* ===================================================
-    하단 기간 계산 / 저장 내역 완전 제거
-  ==================================================== */
-
-  document.getElementById(
-    "limestoneUsageBatchPanel"
-  )?.remove();
-
-  document.getElementById(
-    "limestoneUsageHistoryPanel"
-  )?.remove();
-
-  document.getElementById(
-    "limestoneUsagePeriodAccordion"
-  )?.remove();
-
-  return true;
-}
-
-
-  /* =====================================================
+/* =====================================================
     동적으로 생성되는 기존 화면 대기
   ====================================================== */
 
