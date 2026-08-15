@@ -227225,7 +227225,7 @@ function renderTableHead() {
         </span>
 
         <small>
-          kWh
+          MWh
         </small>
       </th>
 
@@ -227237,7 +227237,7 @@ function renderTableHead() {
         </span>
 
         <small>
-          kWh
+          MWh
         </small>
       </th>
 
@@ -227827,10 +227827,11 @@ function getMorningMeetingAutoHistoryValue(
 
 function formatMorningMeetingAutoHistoryDisplayValue(
   value,
-  {
-    unit = "",
-    numberOptions = {}
-  } = {}
+{
+  unit = "",
+  numberOptions = {},
+  scale = 1
+} = {}
 ) {
   if (
     value ===
@@ -227868,11 +227869,24 @@ function formatMorningMeetingAutoHistoryDisplayValue(
   */
   if (
     numericValue ===
-      null
+    null
   ) {
     return text;
   }
 
+  const numericScale =
+    Number(
+      scale
+    );
+
+
+  const displayNumericValue =
+    Number.isFinite(
+      numericScale
+    )
+      ? numericValue *
+      numericScale
+      : numericValue;
 
   const normalizedUnit =
     normalizeText(
@@ -228688,9 +228702,15 @@ function renderRows(
             "전력 생산",
 
           displayOptions: {
+            scale:
+              0.001,
+
             numberOptions: {
+              minimumFractionDigits:
+                2,
+
               maximumFractionDigits:
-                3
+                2
             }
           }
         }),
@@ -228712,9 +228732,15 @@ function renderRows(
             "전력 판매",
 
           displayOptions: {
+            scale:
+              0.001,
+
             numberOptions: {
+              minimumFractionDigits:
+                2,
+
               maximumFractionDigits:
-                3
+                2
             }
           }
         }),
