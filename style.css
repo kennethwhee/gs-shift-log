@@ -105471,19 +105471,21 @@ input {
   }
 
 
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #efficiencyLimestoneView.is-mobile-monitor-only
-  .limestone-heading-actions {
-    display: grid !important;
+#efficiencyTeamModal.is-mobile-monitor-only
+#efficiencyLimestoneView.is-mobile-monitor-only
+.limestone-heading-actions {
+  display: flex !important;
 
-    grid-template-columns:
-      repeat(
-        4,
-        minmax(0, 1fr)
-      ) !important;
+  width: auto !important;
+  min-width: 0 !important;
 
-    pointer-events: auto !important;
-  }
+  align-items: center !important;
+  justify-content: flex-end !important;
+
+  gap: 6px !important;
+
+  pointer-events: auto !important;
+}
 
 
   #efficiencyTeamModal.is-mobile-monitor-only
