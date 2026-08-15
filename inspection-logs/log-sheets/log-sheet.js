@@ -8429,8 +8429,25 @@ async function createLogSheetPdfRequest(
 async function waitForLogSheetPdfCompletion(
   requestId
 ) {
+  const token =
+    getSessionToken();
+
+
+  if (
+    !token
+  ) {
+    throw new Error(
+      "로그인 정보가 없습니다. 다시 로그인해 주세요."
+    );
+  }
+
+
   const startedAt =
     Date.now();
+
+
+  let previousStatus =
+    "";
 
 
   while (
@@ -8438,12 +8455,54 @@ async function waitForLogSheetPdfCompletion(
       startedAt <
       LOG_SHEET_PDF_MAXIMUM_WAIT
   ) {
-    const payload =
-      await requestApi(
+    const response =
+      await fetch(
         `/api/ois-data-requests?id=${encodeURIComponent(
           requestId
-        )}&_=${Date.now()}`
+        )}&_=${Date.now()}`,
+        {
+          method:
+            "GET",
+
+          cache:
+            "no-store",
+
+          headers: {
+            Accept:
+              "application/json",
+
+            Authorization:
+              `Bearer ${token}`
+          }
+        }
       );
+
+
+    let payload =
+      null;
+
+
+    try {
+      payload =
+        await response.json();
+
+    } catch {
+      throw new Error(
+        `PDF 변환 상태 응답을 읽지 못했습니다. (${response.status})`
+      );
+    }
+
+
+    if (
+      !response.ok
+    ) {
+      throw new Error(
+        normalizeText(
+          payload?.message
+        ) ||
+        `PDF 변환 상태 조회에 실패했습니다. (${response.status})`
+      );
+    }
 
 
     const item =
@@ -8451,16 +8510,49 @@ async function waitForLogSheetPdfCompletion(
       null;
 
 
+    if (
+      !item
+    ) {
+      throw new Error(
+        "PDF 변환 요청 상태를 찾지 못했습니다."
+      );
+    }
+
+
     const status =
       normalizeText(
-        item?.status
+        item.status
       ).toLowerCase();
+
+
+    if (
+      status !==
+        previousStatus
+    ) {
+      console.log(
+        "Log Sheet PDF 상태:",
+        requestId,
+        status
+      );
+
+
+      previousStatus =
+        status;
+    }
 
 
     if (
       status ===
         "complete"
     ) {
+      console.log(
+        "Log Sheet PDF 완료 확인:",
+        requestId,
+        item.result ||
+        null
+      );
+
+
       return item;
     }
 
@@ -8471,7 +8563,8 @@ async function waitForLogSheetPdfCompletion(
     ) {
       throw new Error(
         normalizeText(
-          item?.errorMessage
+          item.errorMessage ||
+          item.error_message
         ) ||
         "회사 PC에서 PDF 변환에 실패했습니다."
       );
@@ -8507,7 +8600,6 @@ async function waitForLogSheetPdfCompletion(
     "PDF 변환 대기 시간이 3분을 초과했습니다."
   );
 }
-
 
 async function fetchLogSheetPdfBlob(
   requestId
