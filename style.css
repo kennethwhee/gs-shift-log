@@ -106683,3 +106683,23 @@ col.is-power {
     font-size: 9px;
   }
 }
+
+/* LOG SHEET SIDEBAR FONT MATCH V1 */
+
+/* 점검일지 상위 메뉴와 동일 */
+.inspection-sidebar-sheet-group > summary,
+.inspection-sidebar-sheet-direct > button {
+  font-family: inherit !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1.4 !important;
+}
+
+/* 점검일지 하위 메뉴와 동일 */
+.inspection-sidebar-sheet-branch > summary,
+.inspection-sidebar-sheet-menu > button {
+  font-family: inherit !important;
+  font-size: 11px !important;
+  font-weight: 850 !important;
+  line-height: 1.4 !important;
+}
