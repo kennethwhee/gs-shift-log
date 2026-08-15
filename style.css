@@ -84262,30 +84262,66 @@ td:last-child {
 }
 
   /* =====================================================
-     사용량 날짜 박스 디자인
-     입고현황 날짜 박스 스타일과 통일
+     사용량 날짜 박스 최종
+     입고현황 날짜 박스와 동일한 느낌
   ====================================================== */
 
   #efficiencyTeamModal.is-mobile-monitor-only
   #limestoneUsageCalculatorView
   .limestone-usage-date-field {
+    display: flex !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    background: #ffffff !important;
+
+    border: 1.5px solid #b8cbe2 !important;
+    border-radius: 11px !important;
+
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+
+    box-shadow: none !important;
+  }
+
+
+  /*
+     실제 date input은 껍데기를 없애고
+     바깥 박스 안에서 글자만 표시
+  */
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  #limestoneUsageDate {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    height: 42px !important;
+    min-height: 42px !important;
+    max-height: 42px !important;
+
+    margin: 0 !important;
+    padding: 0 8px !important;
+
     background: transparent !important;
 
     border: 0 !important;
     border-radius: 0 !important;
 
-    overflow: visible !important;
-  }
-
-
-  #efficiencyTeamModal.is-mobile-monitor-only
-  #limestoneUsageCalculatorView
-  #limestoneUsageDate {
-    background: #ffffff !important;
-
-    border: 1px solid #b8cbe2 !important;
-    border-radius: 11px !important;
-
+    outline: 0 !important;
     box-shadow: none !important;
 
     color: #263d57 !important;
@@ -84293,7 +84329,35 @@ td:last-child {
     font-size: 15px !important;
     font-weight: 900 !important;
 
+    line-height: 42px !important;
     text-align: center !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* iPhone Safari 날짜 중앙 정렬 */
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  #limestoneUsageDate::-webkit-date-and-time-value {
+    width: 100% !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    line-height: 42px !important;
+    text-align: center !important;
+  }
+
+
+  #efficiencyTeamModal.is-mobile-monitor-only
+  #limestoneUsageCalculatorView
+  #limestoneUsageDate::-webkit-datetime-edit {
+    margin: 0 !important;
+    padding: 0 !important;
+
+    line-height: 42px !important;
   }
 
 /* =========================================================
