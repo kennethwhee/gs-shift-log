@@ -111051,3 +111051,305 @@ button,
     line-height: 1.45 !important;
   }
 }
+
+/* LIMESTONE MOBILE FINAL POLISH V8 */
+@media screen and (max-width: 768px) {
+
+  /* ===============================================
+     입고현황 제목 + 우측 버튼
+  =============================================== */
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-view-heading {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    width: 100% !important;
+    align-items: center !important;
+    column-gap: 8px !important;
+  }
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-view-heading > div:first-child {
+    min-width: 0 !important;
+  }
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-view-heading h3 {
+    white-space: nowrap !important;
+  }
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-heading-actions {
+    display: flex !important;
+    grid-column: 2 !important;
+    width: auto !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    justify-self: end !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    gap: 6px !important;
+  }
+  #efficiencyTeamModal #efficiencyLimestoneView #refreshLimestoneReceiptsButton {
+    flex: 0 0 82px !important;
+    width: 82px !important;
+    min-width: 82px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 8px !important;
+  }
+  #efficiencyTeamModal #efficiencyLimestoneView #openLimestoneReceiptEditorButton {
+    flex: 0 0 102px !important;
+    width: 102px !important;
+    min-width: 102px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 10px !important;
+  }
+
+  /* ===============================================
+     입고현황 날짜줄
+     50px 높이로 살짝 축소
+  =============================================== */
+  #efficiencyTeamModal #efficiencyLimestoneView .limestone-day-navigation {
+    display: grid !important;
+    grid-template-columns: 50px minmax(0, 1fr) 50px 92px !important;
+    width: 100% !important;
+    gap: 7px !important;
+    padding: 7px !important;
+    align-items: stretch !important;
+  }
+  #efficiencyLimestoneView #limestonePreviousDayButton,
+  #efficiencyLimestoneView #limestoneNextDayButton {
+    width: 50px !important;
+    min-width: 50px !important;
+    max-width: 50px !important;
+    height: 50px !important;
+    min-height: 50px !important;
+    max-height: 50px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 13px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 23px !important;
+  }
+  #efficiencyLimestoneView #limestoneMoveToTodayButton {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 50px !important;
+    min-height: 50px !important;
+    max-height: 50px !important;
+    margin: 0 !important;
+    padding: 0 10px !important;
+    border-radius: 13px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+  }
+  #efficiencyLimestoneView #limestoneDayLabel {
+    font-size: 16px !important;
+    font-weight: 900 !important;
+    white-space: nowrap !important;
+  }
+  #efficiencyLimestoneView #limestoneTodayBadge {
+    margin-left: 0 !important;
+    padding: 3px 7px !important;
+    font-size: 9px !important;
+  }
+  #efficiencyLimestoneView #openLimestonePeriodSearchButton {
+    width: 100% !important;
+    height: 50px !important;
+    min-height: 50px !important;
+    max-height: 50px !important;
+    margin: 0 !important;
+    padding: 0 7px !important;
+    border-radius: 13px !important;
+    font-size: 12px !important;
+  }
+
+  /* ===============================================
+     사용량 계산 날짜줄
+     실제 date-card 직계 자식 기준
+  =============================================== */
+  #efficiencyTeamModal.is-mobile-monitor-only #limestoneUsageCalculatorView .limestone-usage-date-card,
+  #efficiencyTeamModal #limestoneUsageCalculatorView .limestone-usage-date-card {
+    display: grid !important;
+    grid-template-columns: 50px minmax(0, 1fr) 50px 62px !important;
+    grid-template-rows: 50px auto !important;
+    width: 100% !important;
+    column-gap: 7px !important;
+    row-gap: 7px !important;
+    align-items: stretch !important;
+  }
+  #limestoneUsagePreviousDateButton {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+  #limestoneUsageCalculatorView .limestone-usage-date-field {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    display: block !important;
+    width: 100% !important;
+    height: 50px !important;
+    min-height: 50px !important;
+    margin: 0 !important;
+  }
+  #limestoneUsageCalculatorView .limestone-usage-date-field > span {
+    display: none !important;
+  }
+  #limestoneUsageNextDateButton {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+  }
+  #limestoneUsageTodayButton {
+    grid-column: 4 !important;
+    grid-row: 1 !important;
+  }
+  #limestoneUsageStatus {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+  }
+  #limestoneUsagePreviousDateButton,
+  #limestoneUsageNextDateButton {
+    width: 50px !important;
+    min-width: 50px !important;
+    max-width: 50px !important;
+    height: 50px !important;
+    min-height: 50px !important;
+    max-height: 50px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 13px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  #limestoneUsageDate {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    height: 50px !important;
+    min-height: 50px !important;
+    margin: 0 !important;
+    padding: 0 8px !important;
+    border-radius: 13px !important;
+    font-size: 15px !important;
+    font-weight: 900 !important;
+    text-align: center !important;
+  }
+  #limestoneUsageTodayButton {
+    width: 100% !important;
+    height: 50px !important;
+    min-height: 50px !important;
+    margin: 0 !important;
+    padding: 0 6px !important;
+    border-radius: 13px !important;
+  }
+
+  /* ===============================================
+     입고기록 호기별 색상
+  =============================================== */
+  #efficiencyLimestoneView .limestone-receipt-table tbody tr[data-limestone-unit="1"] td {
+    background: #eef6ff !important;
+  }
+  #efficiencyLimestoneView .limestone-receipt-table tbody tr[data-limestone-unit="2"] td {
+    background: #effaf3 !important;
+  }
+  #efficiencyLimestoneView .limestone-receipt-table tbody tr[data-limestone-unit="1"] td:nth-child(3),
+  #efficiencyLimestoneView .limestone-receipt-table tbody tr[data-limestone-unit="1"] .limestone-quantity-value {
+    color: #2f6fbd !important;
+    font-weight: 900 !important;
+  }
+  #efficiencyLimestoneView .limestone-receipt-table tbody tr[data-limestone-unit="2"] td:nth-child(3),
+  #efficiencyLimestoneView .limestone-receipt-table tbody tr[data-limestone-unit="2"] .limestone-quantity-value {
+    color: #31845a !important;
+    font-weight: 900 !important;
+  }
+
+  /* ===============================================
+     기간조회 화면 컴팩트
+  =============================================== */
+  #efficiencyLimestoneView #limestoneSearchForm {
+    padding: 10px !important;
+    gap: 8px !important;
+  }
+  #limestoneSearchForm .limestone-period-search-panel__header {
+    min-height: 42px !important;
+    padding-bottom: 7px !important;
+  }
+  #limestoneSearchForm .limestone-period-search-panel__header strong {
+    font-size: 17px !important;
+  }
+  #limestoneSearchForm .limestone-period-search-panel__header p {
+    margin-top: 2px !important;
+    font-size: 10px !important;
+  }
+  #limestoneSearchForm #closeLimestonePeriodSearchButton {
+    width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+  }
+  #limestoneSearchForm .limestone-period-query-mode,
+  #limestoneSearchForm .limestone-period-group-setting {
+    padding: 7px 0 !important;
+    margin: 0 !important;
+  }
+  #limestoneSearchForm .limestone-group-mode-buttons {
+    min-height: 38px !important;
+  }
+  #limestoneSearchForm .limestone-group-mode-button {
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 8px !important;
+    font-size: 11px !important;
+  }
+  #limestoneSearchForm .limestone-period-picker {
+    padding: 9px !important;
+    margin: 0 !important;
+  }
+  #limestoneSearchForm .limestone-period-picker__heading {
+    margin-bottom: 6px !important;
+  }
+  #limestoneSearchForm .limestone-period-picker__heading strong {
+    font-size: 14px !important;
+  }
+  #limestoneSearchForm .limestone-period-picker__heading span {
+    font-size: 9px !important;
+  }
+  #limestoneSearchForm .limestone-period-search-fields {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+  }
+  #limestoneSearchForm .form-field {
+    gap: 3px !important;
+  }
+  #limestoneSearchForm .form-field__label {
+    font-size: 9px !important;
+  }
+  #limestoneSearchForm input,
+  #limestoneSearchForm select {
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 0 9px !important;
+    font-size: 12px !important;
+  }
+  #limestoneSearchForm .limestone-period-common-fields {
+    padding: 8px !important;
+    margin: 0 !important;
+  }
+  #limestoneSearchForm .limestone-period-selection-preview {
+    padding: 8px 10px !important;
+    margin: 0 !important;
+    min-height: 48px !important;
+  }
+  #limestoneSearchForm .limestone-period-selection-preview span,
+  #limestoneSearchForm .limestone-period-selection-preview strong,
+  #limestoneSearchForm .limestone-period-selection-preview small {
+    margin: 0 !important;
+  }
+  #limestoneSearchForm .limestone-period-search-actions {
+    display: grid !important;
+    grid-template-columns: 0.8fr 1.2fr !important;
+    gap: 7px !important;
+    padding-top: 7px !important;
+  }
+  #limestoneSearchForm .limestone-period-search-actions button {
+    height: 42px !important;
+    min-height: 42px !important;
+  }
+}

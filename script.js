@@ -113809,7 +113809,7 @@ function renderLimestoneGroupedSummary(
             return `
               <tr data-limestone-row="${escapeLimestoneHtml(
                 item.id
-              )}">
+              )}" data-limestone-unit="${Number(item.unitNo)}">
 
                 <td>
                   ${escapeLimestoneHtml(
@@ -152757,9 +152757,6 @@ function applyMorningMeetingBoilerTemperatureValues(
   C14  유연탄 Silo B 높이
   F14  유연탄 Silo B 재고량
 
-  J13  유연탄 재고 합계
-  - 기존 =F13+F14 수식 유지
-
   L13  유연탄 입고 차량
   L14  유연탄 입고량
 
@@ -152771,6 +152768,9 @@ function applyMorningMeetingBoilerTemperatureValues(
 
   X21  Fly Ash 반출 차량
   X22  Fly Ash 반출량 ton
+
+  AB21 Fly Ash Silo Level
+       → 소수점 2자리 반올림
 ===================================================== */
 
 function applyMorningMeetingCoalNumericValues(
@@ -152785,10 +152785,10 @@ function applyMorningMeetingCoalNumericValues(
       : {};
 
 
-  /*
-    회의자료 기준일 전날 24시
+  /* =====================================================
+    회의자료 기준일 24시
     OIS Silo Level 조회값
-  */
+  ====================================================== */
 
   const state =
     getMorningMeetingWorkbookState();
@@ -152801,6 +152801,83 @@ function applyMorningMeetingCoalNumericValues(
       ? state.siloLevel
       : {};
 
+
+  /* =====================================================
+    소수점 2자리 반올림
+
+    예:
+    379.092 → 379.09
+    379.096 → 379.10
+
+    값이 없거나 숫자가 아니면 null
+  ====================================================== */
+
+  const roundToTwoDecimals =
+    value => {
+      const normalizedValue =
+        String(
+          value ??
+          ""
+        )
+          .replaceAll(
+            ",",
+            ""
+          )
+          .trim();
+
+
+      if (
+        !normalizedValue
+      ) {
+        return null;
+      }
+
+
+      const numericValue =
+        Number(
+          normalizedValue
+        );
+
+
+      if (
+        !Number.isFinite(
+          numericValue
+        )
+      ) {
+        return null;
+      }
+
+
+      return Math.round(
+        (
+          numericValue +
+          Number.EPSILON
+        ) *
+        100
+      ) /
+      100;
+    };
+
+
+  /* =====================================================
+    Fly Ash Silo Level
+
+    Excel AB21에 들어갈 값만
+    소수점 2자리로 정리한다.
+
+    OIS 원본 데이터 자체는 변경하지 않는다.
+  ====================================================== */
+
+  const flyAshSiloLevel =
+    roundToTwoDecimals(
+      siloLevel
+        .flyAshSiloLevel
+    );
+
+
+  /* =====================================================
+    Excel 셀 매핑
+  ====================================================== */
 
   const mappings = [
     {
@@ -152858,8 +152935,7 @@ function applyMorningMeetingCoalNumericValues(
     },
 
     /*
-      기존 Bio Storage 높이(m) 칸은
-      값이 남지 않도록 비운다.
+      기존 Bio Storage 높이(m) 칸
     */
 
     {
@@ -152874,8 +152950,8 @@ function applyMorningMeetingCoalNumericValues(
     /*
       Bio Storage Silo Level
 
-      N14:
-      Bio-SRF 재고량 ton 칸
+      이번 수정 대상 아님.
+      기존 값을 그대로 유지한다.
     */
 
     {
@@ -152927,7 +153003,9 @@ function applyMorningMeetingCoalNumericValues(
       Fly Ash Silo Level
 
       AB21:
-      Silo Level 24시 ton 칸
+      24시 재고량
+
+      소수점 2자리로 반올림한 값 사용
     */
 
     {
@@ -152935,11 +153013,14 @@ function applyMorningMeetingCoalNumericValues(
         "AB21",
 
       value:
-        siloLevel
-          .flyAshSiloLevel
+        flyAshSiloLevel
     }
   ];
 
+
+  /* =====================================================
+    Excel 반영
+  ====================================================== */
 
   let appliedCount =
     0;
@@ -152969,6 +153050,7 @@ function applyMorningMeetingCoalNumericValues(
         missingAddresses.push(
           mapping.address
         );
+
 
         return;
       }
