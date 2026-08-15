@@ -231057,13 +231057,15 @@ async function saveMorningMeetingAutoHistoryDrafts() {
           rowIndex
         ];
 
-      /*
-        completed_history 응답에 포함된
-        현재 D1 수정값 revision을 우선 사용한다.
 
-        충돌 응답을 화면에 적용한 경우에는
-        별도 보관된 revision을 예비값으로 사용한다.
+      /*
+        자동수치 수정 저장
+
+        현재 화면 revision으로 먼저 저장하고,
+        다른 화면의 수정으로 409가 발생하면
+        서버 최신 revision으로 한 번만 자동 재시도한다.
       */
+
       const revisionValue =
         Number(
           row?.override
@@ -231083,83 +231085,95 @@ async function saveMorningMeetingAutoHistoryDrafts() {
           ? revisionValue
           : 0;
 
-      const response =
-        await fetch(
-          `${API_URL}?action=save_morning_meeting_auto_history_override`,
-          {
-            method:
-              "POST",
+      const sendSaveRequest =
+        async revision => {
+          const saveResponse =
+            await fetch(
+              `${API_URL}?action=save_morning_meeting_auto_history_override`,
+              {
+                method:
+                  "POST",
 
-            headers:
-              typeof getShiftLogAuthHeaders ===
-                "function"
-                ? getShiftLogAuthHeaders({
-                    "Content-Type":
-                      "application/json"
+                headers:
+                  typeof getShiftLogAuthHeaders ===
+                    "function"
+                    ? getShiftLogAuthHeaders({
+                      "Content-Type":
+                        "application/json"
+                    })
+                    : {
+                      Accept:
+                        "application/json",
+
+                      "Content-Type":
+                        "application/json"
+                    },
+
+                cache:
+                  "no-store",
+
+                body:
+                  JSON.stringify({
+                    action:
+                      "save_morning_meeting_auto_history_override",
+
+                    targetDate,
+
+                    expectedRevision:
+                      revision,
+
+                    values
                   })
-                : {
-                    Accept:
-                      "application/json",
+              }
+            );
 
-                    "Content-Type":
-                      "application/json"
-                  },
 
-            cache:
-              "no-store",
+          let savePayload;
 
-            body:
-              JSON.stringify({
-                action:
-                  "save_morning_meeting_auto_history_override",
 
-                targetDate,
+          try {
+            savePayload =
+              await saveResponse.json();
 
-                expectedRevision,
-
-                values
-              })
+          } catch {
+            throw new Error(
+              `${targetDate} 저장 응답을 확인하지 못했습니다.`
+            );
           }
-        );
 
-      let payload;
 
-      try {
-        payload =
-          await response.json();
+          return {
+            response:
+              saveResponse,
 
-      } catch {
-        throw new Error(
-          `${targetDate} 저장 응답을 확인하지 못했습니다.`
-        );
-      }
+            payload:
+              savePayload
+          };
+        };
 
-      if (
-        !response.ok ||
-        payload?.ok !==
-          true
-      ) {
-        let currentItemApplied =
-          false;
 
-        /*
-          동시 수정 충돌이면 서버 최신값과
-          revision을 현재 행에 적용한다.
+      /*
+        409 응답의 최신 자료를
+        현재 행에 반영하고 revision을 반환한다.
+      */
 
-          사용자가 입력한 draft는 삭제하지 않는다.
-        */
-        if (
-          response.status ===
-            409 &&
-          payload?.currentItem &&
-          typeof payload.currentItem ===
-            "object" &&
-          !Array.isArray(
-            payload.currentItem
-          )
-        ) {
+      const applyConflictCurrentItem =
+        conflictPayload => {
           const currentItem =
-            payload.currentItem;
+            conflictPayload?.currentItem;
+
+
+          if (
+            !currentItem ||
+            typeof currentItem !==
+            "object" ||
+            Array.isArray(
+              currentItem
+            )
+          ) {
+            return null;
+          }
+
 
           const currentDate =
             normalizeText(
@@ -231167,46 +231181,140 @@ async function saveMorningMeetingAutoHistoryDrafts() {
               currentItem.targetDate
             );
 
+
           const currentRevision =
             Number(
               currentItem.revision
             );
 
+
           if (
-            currentDate ===
-              targetDate &&
-            currentItem.values &&
-            typeof currentItem.values ===
-              "object" &&
-            !Array.isArray(
+            currentDate !==
+            targetDate ||
+            !currentItem.values ||
+            typeof currentItem.values !==
+            "object" ||
+            Array.isArray(
               currentItem.values
-            ) &&
-            Number.isInteger(
+            ) ||
+            !Number.isInteger(
               currentRevision
-            ) &&
-            currentRevision >= 1
+            ) ||
+            currentRevision <
+            1
           ) {
-            state.rows[
+            return null;
+          }
+
+
+          state.rows[
+            rowIndex
+          ] =
+            applyMorningMeetingAutoHistoryOverride(
+              state.rows[
               rowIndex
-            ] =
-              applyMorningMeetingAutoHistoryOverride(
-                row,
-                {
-                  ...currentItem,
+              ],
+              {
+                ...currentItem,
 
-                  recordDate:
-                    currentDate
-                }
-              );
-
-            state.cache.delete(
-              state.month
+                recordDate:
+                  currentDate
+              }
             );
 
-            currentItemApplied =
-              true;
-          }
+
+          state.cache.delete(
+            state.month
+          );
+
+
+          return currentRevision;
+        };
+
+
+      /*
+        1차 저장
+      */
+
+      let saveResult =
+        await sendSaveRequest(
+          expectedRevision
+        );
+
+
+      /*
+        revision 충돌이면
+        서버 최신 revision으로 한 번만 재저장한다.
+
+        values는 사용자가 현재 입력한 수정값을
+        그대로 다시 보낸다.
+      */
+
+      if (
+        saveResult.response.status ===
+        409
+      ) {
+        const latestRevision =
+          applyConflictCurrentItem(
+            saveResult.payload
+          );
+
+
+        if (
+          Number.isInteger(
+            latestRevision
+          ) &&
+          latestRevision >=
+          1
+        ) {
+          saveResult =
+            await sendSaveRequest(
+              latestRevision
+            );
         }
+      }
+
+
+      const response =
+        saveResult.response;
+
+
+      const payload =
+        saveResult.payload;
+
+
+      /*
+        재시도 후에도 실패했다면
+        그때만 실제 충돌 오류로 처리한다.
+      */
+
+      if (
+        !response.ok ||
+        payload?.ok !==
+        true
+      ) {
+        let latestItemApplied =
+          false;
+
+
+        if (
+          response.status ===
+          409
+        ) {
+          const latestRevision =
+            applyConflictCurrentItem(
+              payload
+            );
+
+
+          latestItemApplied =
+            Number.isInteger(
+              latestRevision
+            ) &&
+            latestRevision >=
+            1;
+        }
+
 
         const requestError =
           new Error(
@@ -231216,10 +231324,12 @@ async function saveMorningMeetingAutoHistoryDrafts() {
             `${targetDate} 수정값을 저장하지 못했습니다.`
           );
 
+
         requestError.shouldRefresh =
           response.status ===
-            409 &&
-          !currentItemApplied;
+          409 &&
+          !latestItemApplied;
+
 
         throw requestError;
       }
