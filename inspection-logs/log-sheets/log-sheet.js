@@ -8805,9 +8805,84 @@ async function openLogSheetPdfPreview(
     }
 
 
-    previewWindow.location.replace(
-      objectUrl
-    );
+    /*
+      Edge에서 about:blank 팝업을
+      blob: PDF 주소로 직접 navigation하면
+      일부 환경에서 준비 화면에 그대로 남을 수 있다.
+
+      따라서 팝업 문서는 유지하고
+      내부에 PDF Viewer iframe을 직접 삽입한다.
+    */
+    const previewDocument =
+      previewWindow.document;
+
+
+    previewDocument.open();
+
+    previewDocument.write(`
+      <!DOCTYPE html>
+      <html lang="ko">
+      <head>
+        <meta charset="UTF-8">
+
+        <title>
+          ${escapeHtml(
+            state.sheetConfig?.label ||
+            state.sheetConfig?.sheetName ||
+            "Log Sheet"
+          )} · PDF 미리보기
+        </title>
+
+        <style>
+          html,
+          body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: #dfe5eb;
+          }
+
+          .log-sheet-pdf-viewer {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border: 0;
+            background: #dfe5eb;
+          }
+        </style>
+      </head>
+
+      <body>
+        <iframe
+          id="logSheetPdfViewer"
+          class="log-sheet-pdf-viewer"
+          title="Log Sheet PDF 미리보기"
+        ></iframe>
+      </body>
+      </html>
+    `);
+
+    previewDocument.close();
+
+
+    const pdfViewer =
+      previewDocument.getElementById(
+        "logSheetPdfViewer"
+      );
+
+
+    if (
+      !pdfViewer
+    ) {
+      throw new Error(
+        "PDF Viewer를 생성하지 못했습니다."
+      );
+    }
+
+
+    pdfViewer.src =
+      objectUrl;
 
 
     setStatus(
