@@ -111656,19 +111656,19 @@ button,
 }
 
 /* =========================================================
-   LIMESTONE PERIOD SEARCH MOBILE FINAL V3
+   LIMESTONE PERIOD SEARCH MOBILE FINAL V4
 
-   - 일별 시작일/종료일 더 컴팩트
+   - 일별 시작일/종료일 겹침 해소
    - 날짜 숫자 중앙 정렬
-   - 호기 / 선택기간 / 조회하기 한 줄 배치
+   - 호기 / 선택기간 / 조회하기 한 줄 컴팩트
+   - 하단 취소 제거
    - 주별 안내문 제거
-   - 취소 버튼 제거
 ========================================================= */
 
 @media screen and (max-width: 768px) {
 
   /* =====================================================
-     1. 기간조회 전체 레이아웃
+     0. 전체 컨테이너
   ====================================================== */
 
   #efficiencyTeamModal
@@ -111677,9 +111677,9 @@ button,
     display: grid !important;
 
     grid-template-columns:
-      minmax(0, 0.34fr)
-      minmax(0, 0.41fr)
-      minmax(0, 0.25fr) !important;
+      minmax(0, 0.31fr)
+      minmax(0, 0.43fr)
+      minmax(0, 0.26fr) !important;
 
     column-gap: 6px !important;
     row-gap: 6px !important;
@@ -111694,7 +111694,7 @@ button,
   }
 
 
-  /* 기본적으로 전체폭 */
+  /* 기본 전체폭 */
   #efficiencyTeamModal
   #efficiencyLimestoneView
   #limestoneSearchForm
@@ -111707,7 +111707,42 @@ button,
 
 
   /* =====================================================
-     2. 날짜 범위 카드 압축
+     1. 기간조회 상단 영역 압축
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-search-panel__header {
+    min-height: auto !important;
+    padding: 0 0 6px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-search-panel__header
+  strong {
+    font-size: 15px !important;
+    font-weight: 900 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  #limestoneSearchForm
+  .limestone-period-search-panel__header
+  p {
+    margin: 2px 0 0 !important;
+
+    font-size: 9px !important;
+    line-height: 1.2 !important;
+  }
+
+
+  /* =====================================================
+     2. 날짜 범위 카드
   ====================================================== */
 
   #efficiencyTeamModal
@@ -111749,7 +111784,7 @@ button,
       minmax(0, 1fr)
       minmax(0, 1fr) !important;
 
-    gap: 4px !important;
+    gap: 0 !important;
 
     width: 100% !important;
     min-width: 0 !important;
@@ -111765,9 +111800,10 @@ button,
     min-width: 0 !important;
     max-width: 100% !important;
 
-    gap: 1px !important;
+    gap: 2px !important;
     margin: 0 !important;
 
+    overflow: hidden !important;
     box-sizing: border-box !important;
   }
 
@@ -111779,10 +111815,14 @@ button,
   .form-field__label {
     font-size: 8px !important;
     font-weight: 850 !important;
-
     line-height: 1.1 !important;
   }
 
+
+  /* =====================================================
+     3. 일별 시작일 / 종료일 input
+     겹침 방지 핵심
+  ====================================================== */
 
   #efficiencyTeamModal
   #efficiencyLimestoneView
@@ -111791,23 +111831,29 @@ button,
   input[type="date"] {
     display: block !important;
 
+    -webkit-appearance: none !important;
+    appearance: none !important;
+
     width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
 
-    height: 30px !important;
-    min-height: 30px !important;
-    max-height: 30px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
 
     margin: 0 !important;
-    padding: 0 4px !important;
+    padding: 0 6px !important;
+
+    border-radius: 8px !important;
 
     box-sizing: border-box !important;
+    overflow: hidden !important;
 
-    font-size: 12px !important;
+    font-size: 11px !important;
     font-weight: 900 !important;
 
-    line-height: 30px !important;
+    line-height: 28px !important;
     text-align: center !important;
     vertical-align: middle !important;
   }
@@ -111824,7 +111870,7 @@ button,
     margin: 0 !important;
     padding: 0 !important;
 
-    line-height: 30px !important;
+    line-height: 28px !important;
     text-align: center !important;
   }
 
@@ -111834,10 +111880,17 @@ button,
   #limestoneSearchForm
   .limestone-period-search-fields
   input[type="date"]::-webkit-datetime-edit {
+    display: flex !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    height: 28px !important;
+
     margin: 0 !important;
     padding: 0 !important;
 
-    line-height: 30px !important;
+    line-height: 28px !important;
     text-align: center !important;
   }
 
@@ -111847,15 +111900,21 @@ button,
   #limestoneSearchForm
   .limestone-period-search-fields
   input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+    display: flex !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    width: 100% !important;
+    height: 28px !important;
+
     margin: 0 !important;
     padding: 0 !important;
-
-    line-height: 30px !important;
   }
 
 
   /* =====================================================
-     3. 호기 선택 - 왼쪽 컴팩트
+     4. 호기 선택 카드
   ====================================================== */
 
   #efficiencyTeamModal
@@ -111867,7 +111926,7 @@ button,
     width: 100% !important;
     min-width: 0 !important;
 
-    min-height: 46px !important;
+    min-height: 44px !important;
 
     margin: 0 !important;
     padding: 5px !important;
@@ -111887,7 +111946,7 @@ button,
     width: 100% !important;
     min-width: 0 !important;
 
-    gap: 1px !important;
+    gap: 2px !important;
     margin: 0 !important;
   }
 
@@ -111911,12 +111970,12 @@ button,
     min-width: 0 !important;
     max-width: 100% !important;
 
-    height: 28px !important;
-    min-height: 28px !important;
-    max-height: 28px !important;
+    height: 26px !important;
+    min-height: 26px !important;
+    max-height: 26px !important;
 
     margin: 0 !important;
-    padding: 0 22px 0 7px !important;
+    padding: 0 20px 0 7px !important;
 
     box-sizing: border-box !important;
 
@@ -111926,7 +111985,7 @@ button,
 
 
   /* =====================================================
-     4. 선택 기간 - 가운데 컴팩트
+     5. 선택 기간 카드
   ====================================================== */
 
   #efficiencyTeamModal
@@ -111937,13 +111996,14 @@ button,
 
     display: flex !important;
     flex-direction: column !important;
-    justify-content: center !important;
+
     align-items: flex-start !important;
+    justify-content: center !important;
 
     width: 100% !important;
     min-width: 0 !important;
 
-    min-height: 46px !important;
+    min-height: 44px !important;
 
     margin: 0 !important;
     padding: 5px 7px !important;
@@ -111983,7 +112043,7 @@ button,
 
     overflow: hidden !important;
 
-    font-size: 10px !important;
+    font-size: 9px !important;
     font-weight: 900 !important;
 
     line-height: 1.1 !important;
@@ -112015,7 +112075,7 @@ button,
 
 
   /* =====================================================
-     5. 조회하기 - 오른쪽 붙임
+     6. 조회하기 버튼
   ====================================================== */
 
   #efficiencyTeamModal
@@ -112025,6 +112085,7 @@ button,
     grid-column: 3 !important;
 
     display: flex !important;
+
     align-items: stretch !important;
     justify-content: stretch !important;
 
@@ -112063,8 +112124,8 @@ button,
     width: 100% !important;
     min-width: 0 !important;
 
+    min-height: 44px !important;
     height: 100% !important;
-    min-height: 46px !important;
 
     margin: 0 !important;
     padding: 0 6px !important;
@@ -112077,7 +112138,7 @@ button,
 
 
   /* =====================================================
-     6. 주별 안내문 제거
+     7. 주별 안내문 제거
   ====================================================== */
 
   #efficiencyTeamModal
@@ -112089,16 +112150,19 @@ button,
 
 
   /* =====================================================
-     7. 주별 / 월별 컨트롤도 살짝 압축
+     8. 주별 / 월별 컨트롤 압축
   ====================================================== */
 
   #efficiencyTeamModal
   #efficiencyLimestoneView
   #limestoneSearchForm
   .limestone-compact-period-arrow {
-    height: 32px !important;
-    min-height: 32px !important;
-    max-height: 32px !important;
+    width: 32px !important;
+    min-width: 32px !important;
+
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
   }
 
 
@@ -112107,9 +112171,9 @@ button,
   #limestoneSearchForm
   .limestone-compact-period-navigation
   select {
-    height: 32px !important;
-    min-height: 32px !important;
-    max-height: 32px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
 
     font-size: 10px !important;
   }
