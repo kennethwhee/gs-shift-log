@@ -111655,3 +111655,301 @@ button,
   }
 
 }
+
+/* =========================================================
+   LIMESTONE PERIOD SEARCH MOBILE FINAL V1
+
+   - 일별 시작일 / 종료일 겹침 해결
+   - 호기 + 선택 기간 같은 줄
+   - 주별 1주~5주 안내문 제거
+========================================================= */
+
+@media screen and (max-width: 768px) {
+
+  /* =====================================================
+     1. 기간조회 전체
+
+     기본 2열 Grid로 변경
+     나머지 영역은 전체폭,
+     호기 / 선택기간만 한 줄
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm {
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(0, 0.42fr)
+      minmax(0, 0.58fr) !important;
+
+    column-gap: 7px !important;
+    row-gap: 7px !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /*
+     기본 구성요소는 전부 전체 폭
+  */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  > * {
+    grid-column: 1 / -1;
+
+    min-width: 0 !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  /* =====================================================
+     2. 일별 시작일 / 종료일
+
+     날짜 input 자체가 옆 칸을 침범하지 않게 고정
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-search-fields {
+    display: grid !important;
+
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(0, 1fr) !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    gap: 7px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-search-fields
+  .form-field {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    margin: 0 !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-search-fields
+  input[type="date"] {
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    height: 38px !important;
+    min-height: 38px !important;
+
+    margin: 0 !important;
+    padding: 0 5px !important;
+
+    box-sizing: border-box !important;
+
+    font-size: 10px !important;
+    font-weight: 800 !important;
+
+    text-align: center !important;
+  }
+
+
+  /* iPhone Safari date input 폭 보정 */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-search-fields
+  input[type="date"]::-webkit-date-and-time-value {
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    text-align: center !important;
+  }
+
+
+  /* =====================================================
+     3. 호기 + 선택 기간 한 줄
+
+     [ 호기          ] [ 선택 기간                 ]
+     [ 전체 호기     ] [ 2026년 8월 3주 ...       ]
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-common-fields {
+    grid-column: 1 !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+    padding: 7px !important;
+
+    align-self: stretch !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-common-fields
+  .form-field {
+    width: 100% !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-common-fields
+  select {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+
+    height: 38px !important;
+    min-height: 38px !important;
+
+    padding-left: 7px !important;
+    padding-right: 24px !important;
+
+    box-sizing: border-box !important;
+
+    font-size: 10px !important;
+    font-weight: 850 !important;
+  }
+
+
+  /* 선택 기간 */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-selection-preview {
+    grid-column: 2 !important;
+
+    display: flex !important;
+
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    min-height: 0 !important;
+
+    margin: 0 !important;
+    padding: 7px 8px !important;
+
+    align-self: stretch !important;
+
+    overflow: hidden !important;
+
+    box-sizing: border-box !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-selection-preview
+  span {
+    margin: 0 0 3px !important;
+    padding: 2px 5px !important;
+
+    font-size: 7px !important;
+    font-weight: 850 !important;
+
+    white-space: nowrap !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-selection-preview
+  strong {
+    width: 100% !important;
+
+    margin: 0 !important;
+
+    overflow: hidden !important;
+
+    font-size: 10px !important;
+    font-weight: 900 !important;
+
+    line-height: 1.2 !important;
+
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-selection-preview
+  small {
+    width: 100% !important;
+
+    margin: 3px 0 0 !important;
+
+    overflow: hidden !important;
+
+    font-size: 7px !important;
+    font-weight: 700 !important;
+
+    line-height: 1.2 !important;
+
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+
+  /* =====================================================
+     4. 주별 안내문 제거
+
+     "1주 1~7일 · 2주 8~14일 ..."
+     문구만 제거
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-picker:has(
+    .limestone-compact-period-navigation--weekly
+  )
+  .limestone-compact-period-help {
+    display: none !important;
+  }
+
+
+  /* =====================================================
+     5. 취소 / 조회 버튼은 다시 전체 폭
+  ====================================================== */
+
+  #efficiencyTeamModal
+  #limestoneSearchForm
+  .limestone-period-search-actions {
+    grid-column: 1 / -1 !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+}
