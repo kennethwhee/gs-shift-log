@@ -236934,14 +236934,22 @@ async function restoreSolarCumulativeFromD1() {
      입고 현황 날짜줄
      [<] [날짜 + 오늘] [>] [기간 조회]
   ==================================================== */
+  /* ===================================================
+     입고 현황 날짜줄
+     [<] [날짜 + 오늘] [>] [기간 조회]
+
+     중요:
+     실제 일일 컨테이너는 .limestone-day-navigation
+     주간/월간 compact navigation으로 이동시키지 않는다.
+  ==================================================== */
   function normalizeReceiptDateControls() {
     if (!isMobileLimestoneLayout()) {
       return false;
     }
 
-    const container =
+    const dayNavigation =
       document.querySelector(
-        "#efficiencyLimestoneView .limestone-compact-period-navigation"
+        "#efficiencyLimestoneView .limestone-day-navigation"
       );
 
     const previousButton =
@@ -236965,7 +236973,7 @@ async function restoreSolarCumulativeFromD1() {
       );
 
     if (
-      !container ||
+      !dayNavigation ||
       !previousButton ||
       !dateButton ||
       !nextButton ||
@@ -236974,23 +236982,10 @@ async function restoreSolarCumulativeFromD1() {
       return false;
     }
 
-    let row =
-      findDirectChildByClass(
-        container,
-        "limestone-mobile-receipt-date-control-row"
-      );
-
-    if (!row) {
-      row = document.createElement("div");
-      row.className =
-        "limestone-mobile-receipt-date-control-row";
-
-      container.insertBefore(
-        row,
-        container.firstChild
-      );
-    }
-
+    /*
+      이전 잘못된 정규화에서 다른 영역으로 이동됐더라도
+      실제 일일 날짜바로 다시 복귀시킨다.
+    */
     [
       previousButton,
       dateButton,
@@ -236998,10 +236993,23 @@ async function restoreSolarCumulativeFromD1() {
       periodButton
     ].forEach(
       element =>
-        row.appendChild(element)
+        dayNavigation.appendChild(element)
     );
 
-    container.classList.add(
+    /*
+      과거 코드가 만든 빈 임시 행 정리
+    */
+    document
+      .querySelectorAll(
+        "#efficiencyLimestoneView .limestone-mobile-receipt-date-control-row"
+      )
+      .forEach(row => {
+        if (row.children.length < 1) {
+          row.remove();
+        }
+      });
+
+    dayNavigation.classList.add(
       "is-mobile-date-normalized"
     );
 
@@ -237012,6 +237020,8 @@ async function restoreSolarCumulativeFromD1() {
   /* ===================================================
      사용량 계산 날짜줄
      [<] [날짜] [>] [오늘]
+
+     임시 row를 만들지 않고 원래 date-card 직계 자식으로 유지
   ==================================================== */
   function normalizeUsageDateControls() {
     if (!isMobileLimestoneLayout()) {
@@ -237058,39 +237068,40 @@ async function restoreSolarCumulativeFromD1() {
       return false;
     }
 
-    let row =
-      findDirectChildByClass(
-        card,
-        "limestone-mobile-usage-date-control-row"
-      );
-
-    if (!row) {
-      row = document.createElement("div");
-      row.className =
-        "limestone-mobile-usage-date-control-row";
-
-      card.insertBefore(
-        row,
-        card.firstChild
-      );
+    /*
+      상태박스를 먼저 원래 카드로 복귀
+    */
+    if (
+      status &&
+      status.parentElement !== card
+    ) {
+      card.appendChild(status);
     }
 
+    /*
+      날짜 컨트롤을 원래 카드 직계 자식으로 정렬
+    */
     [
       previousButton,
       dateField,
       nextButton,
       todayButton
-    ].forEach(
-      element =>
-        row.appendChild(element)
-    );
+    ].forEach(element => {
+      card.insertBefore(
+        element,
+        status || null
+      );
+    });
 
-    if (
-      status &&
-      status.parentElement === row
-    ) {
-      card.appendChild(status);
-    }
+    document
+      .querySelectorAll(
+        "#limestoneUsageCalculatorView .limestone-mobile-usage-date-control-row"
+      )
+      .forEach(row => {
+        if (row.children.length < 1) {
+          row.remove();
+        }
+      });
 
     card.classList.add(
       "is-mobile-date-normalized"
@@ -237098,7 +237109,6 @@ async function restoreSolarCumulativeFromD1() {
 
     return true;
   }
-
 
   function normalizeLimestoneMobileDateLayout() {
     if (!isMobileLimestoneLayout()) {
