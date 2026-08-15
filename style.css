@@ -109689,7 +109689,15 @@ button,
 #efficiencyTeamModal
 #efficiencyLimestoneView
 .limestone-add-text {
-  display: inline-block !important;
+  display: inline-flex !important;
+
+  height: 22px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
 
   color: #ffffff !important;
 
@@ -109698,6 +109706,8 @@ button,
   line-height: 1 !important;
 
   white-space: nowrap !important;
+
+  transform: translateY(1px) !important;
 }
 
 
