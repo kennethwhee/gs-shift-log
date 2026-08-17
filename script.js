@@ -180746,6 +180746,7 @@ async function loadWaterTreatment(
 
 
   const {
+    panel,
     loadButton
   } =
     getElements();
@@ -180856,10 +180857,23 @@ async function loadWaterTreatment(
     업무내용 기준일 확인
 
     우선순위:
-    1. 전역 업무내용 기준일 함수
-    2. state.workDate
-    3. 상단 날짜 입력칸
+    1. 자동 수치 미리보기 공용 기준일
+    2. 전역 업무내용 기준일 함수
+    3. state.workDate
+    4. 상단 날짜 입력칸
+
+    중요:
+    자동 수치 내부 날짜는 최상단 업무내용 기준일과
+    독립적으로 이동할 수 있으므로 공용 기준일을
+    반드시 가장 먼저 사용한다.
   ====================================================== */
+
+  const autoBaseDate =
+    normalizeDate(
+      panel?.dataset
+        .morningMeetingAutoBaseDate
+    );
+
 
   let getterWorkDate =
     "";
@@ -180905,6 +180919,7 @@ async function loadWaterTreatment(
 
 
   const workDate =
+    autoBaseDate ||
     getterWorkDate ||
     stateWorkDate ||
     pickerWorkDate;
@@ -181272,9 +181287,9 @@ async function loadWaterTreatment(
   }
 }
 
-  /* =====================================================
+/* =====================================================
     기준일 변경 감지
-  ====================================================== */
+====================================================== */
 
   function scheduleTargetDateSync() {
     window.setTimeout(
