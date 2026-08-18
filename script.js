@@ -201096,7 +201096,6 @@ function loadCache() {
         ""
       ).trim();
 
-
     if (
       !isValidDate(
         normalizedBaseDate
@@ -201111,35 +201110,167 @@ function loadCache() {
       };
     }
 
-
     const gearDate =
       normalizedBaseDate;
-
 
     const cache =
       loadCache();
 
-
     const state =
       getState();
-
 
     const panel =
       document.getElementById(
         "efficiencyMorningMeetingWaterPanel"
       );
 
-
     let waterRestored =
       false;
-
 
     let gearPinionRestored =
       false;
 
+    let cacheChanged =
+      false;
+
+    /*
+      PHASE21 DATE-SAFE CACHE RESTORE
+
+      캐시의 key만 믿지 않는다.
+
+      sourceDate / targetDate 중
+      실제 날짜값이 하나라도 존재하면
+      모두 현재 조회 날짜와 정확히 같아야 한다.
+
+      예:
+      cache.water["2026-07-13"] 안에
+      sourceDate: "2026-08-12" 가 들어 있으면
+      해당 캐시는 잘못된 캐시로 판단한다.
+    */
+    const getStoredDates =
+      item => {
+        if (
+          !item ||
+          typeof item !==
+            "object" ||
+          Array.isArray(
+            item
+          )
+        ) {
+          return [];
+        }
+
+        return [
+          item.sourceDate,
+          item.targetDate
+        ]
+          .map(
+            value =>
+              String(
+                value ||
+                ""
+              ).trim()
+          )
+          .filter(
+            value =>
+              isValidDate(
+                value
+              )
+          );
+      };
+
+    const hasExactStoredDate =
+      (
+        item,
+        expectedDate
+      ) => {
+        const storedDates =
+          getStoredDates(
+            item
+          );
+
+        return (
+          storedDates.length >
+            0 &&
+          storedDates.every(
+            storedDate =>
+              storedDate ===
+              expectedDate
+          )
+        );
+      };
+
+    /*
+      다른 날짜의 수처리 state가 남아 있으면
+      조회 완료 상태까지 함께 제거한다.
+    */
+    const clearWaterState =
+      () => {
+        delete state
+          .waterTreatment;
+
+        if (
+          panel
+        ) {
+          panel.dataset
+            .waterStatus =
+            "idle";
+
+          panel.dataset
+            .waterTargetDate =
+            normalizedBaseDate;
+
+          panel.dataset
+            .oisTargetDate =
+            normalizedBaseDate;
+
+          delete panel.dataset
+            .oisRequestId;
+
+          delete panel.dataset
+            .oisCollectedAt;
+
+          delete panel.dataset
+            .oisAgentId;
+        }
+      };
+
+    /*
+      Gear / Pinion도 동일하게
+      다른 날짜의 state를 남기지 않는다.
+    */
+    const clearGearPinionState =
+      () => {
+        delete state
+          .gearPinion;
+
+        delete state
+          .gearPinionError;
+
+        if (
+          panel
+        ) {
+          panel.dataset
+            .gearPinionStatus =
+            "idle";
+
+          panel.dataset
+            .gearPinionTargetDate =
+            gearDate;
+
+          delete panel.dataset
+            .gearPinionRequestId;
+
+          delete panel.dataset
+            .gearPinionCollectedAt;
+
+          delete panel.dataset
+            .gearPinionAgentId;
+        }
+      };
 
     /* ===================================================
-      수처리 복원
+      수처리 캐시 복원
     ==================================================== */
 
     const savedWater =
@@ -201147,16 +201278,27 @@ function loadCache() {
         normalizedBaseDate
       ];
 
-
     if (
-      savedWater &&
-      typeof savedWater ===
-        "object"
+      hasExactStoredDate(
+        savedWater,
+        normalizedBaseDate
+      )
     ) {
-      state.waterTreatment = {
-        ...savedWater
-      };
+      /*
+        정상 캐시는 화면 기준일로 날짜를 다시 고정한다.
 
+        예전 캐시에 sourceDate 또는 targetDate가
+        하나만 저장되어 있어도 이후에는 둘 다 동일하게 유지된다.
+      */
+      state.waterTreatment = {
+        ...savedWater,
+
+        sourceDate:
+          normalizedBaseDate,
+
+        targetDate:
+          normalizedBaseDate
+      };
 
       if (
         panel
@@ -201165,16 +201307,13 @@ function loadCache() {
           .waterStatus =
           "complete";
 
-
         panel.dataset
           .waterTargetDate =
           normalizedBaseDate;
 
-
         panel.dataset
           .oisTargetDate =
           normalizedBaseDate;
-
 
         if (
           savedWater.requestId
@@ -201184,8 +201323,10 @@ function loadCache() {
             String(
               savedWater.requestId
             );
+        } else {
+          delete panel.dataset
+            .oisRequestId;
         }
-
 
         if (
           savedWater.collectedAt
@@ -201195,22 +201336,72 @@ function loadCache() {
             String(
               savedWater.collectedAt
             );
+        } else {
+          delete panel.dataset
+            .oisCollectedAt;
+        }
+
+        if (
+          savedWater.agentId
+        ) {
+          panel.dataset
+            .oisAgentId =
+            String(
+              savedWater.agentId
+            );
+        } else {
+          delete panel.dataset
+            .oisAgentId;
         }
       }
-
 
       waterRestored =
         true;
 
-
       console.log(
-        `오전회의 수처리 ${normalizedBaseDate} 저장값 복원`
+        `[Morning Meeting] Water ${normalizedBaseDate} cache restored`
       );
+
+    } else {
+      /*
+        같은 key 아래에 다른 날짜 값이 저장돼 있으면
+        잘못된 캐시 자체를 제거한다.
+      */
+      if (
+        savedWater !==
+        undefined
+      ) {
+        delete cache.water[
+          normalizedBaseDate
+        ];
+
+        cacheChanged =
+          true;
+
+        console.warn(
+          `[Morning Meeting] Water ${normalizedBaseDate} stale cache ignored`
+        );
+      }
+
+      /*
+        캐시가 없더라도 현재 state에
+        이전 날짜 값이 남아 있을 수 있다.
+
+        현재 날짜와 일치하지 않으면 반드시 제거한다.
+      */
+      if (
+        !hasExactStoredDate(
+          state.waterTreatment,
+          normalizedBaseDate
+        )
+      ) {
+        clearWaterState();
+      }
     }
 
 
     /* ===================================================
-      Gear / Pinion 복원
+      Gear / Pinion 캐시 복원
     ==================================================== */
 
     const savedGear =
@@ -201218,20 +201409,24 @@ function loadCache() {
         gearDate
       ];
 
-
     if (
-      savedGear &&
-      typeof savedGear ===
-        "object"
+      hasExactStoredDate(
+        savedGear,
+        gearDate
+      )
     ) {
       state.gearPinion = {
-        ...savedGear
-      };
+        ...savedGear,
 
+        sourceDate:
+          gearDate,
+
+        targetDate:
+          gearDate
+      };
 
       delete state
         .gearPinionError;
-
 
       if (
         panel
@@ -201240,11 +201435,9 @@ function loadCache() {
           .gearPinionStatus =
           "complete";
 
-
         panel.dataset
           .gearPinionTargetDate =
           gearDate;
-
 
         if (
           savedGear.requestId
@@ -201254,8 +201447,10 @@ function loadCache() {
             String(
               savedGear.requestId
             );
+        } else {
+          delete panel.dataset
+            .gearPinionRequestId;
         }
-
 
         if (
           savedGear.collectedAt
@@ -201265,16 +201460,68 @@ function loadCache() {
             String(
               savedGear.collectedAt
             );
+        } else {
+          delete panel.dataset
+            .gearPinionCollectedAt;
+        }
+
+        if (
+          savedGear.agentId
+        ) {
+          panel.dataset
+            .gearPinionAgentId =
+            String(
+              savedGear.agentId
+            );
+        } else {
+          delete panel.dataset
+            .gearPinionAgentId;
         }
       }
-
 
       gearPinionRestored =
         true;
 
-
       console.log(
-        `오전회의 Gear/Pinion ${gearDate} 저장값 복원`
+        `[Morning Meeting] Gear/Pinion ${gearDate} cache restored`
+      );
+
+    } else {
+      if (
+        savedGear !==
+        undefined
+      ) {
+        delete cache.gearPinion[
+          gearDate
+        ];
+
+        cacheChanged =
+          true;
+
+        console.warn(
+          `[Morning Meeting] Gear/Pinion ${gearDate} stale cache ignored`
+        );
+      }
+
+      if (
+        !hasExactStoredDate(
+          state.gearPinion,
+          gearDate
+        )
+      ) {
+        clearGearPinionState();
+      }
+    }
+
+
+    /*
+      발견된 잘못된 캐시를 localStorage에서도 제거한다.
+    */
+    if (
+      cacheChanged
+    ) {
+      saveCache(
+        cache
       );
     }
 
@@ -201291,7 +201538,6 @@ function loadCache() {
       window
         .renderEfficiencyMorningMeetingAutoPreview();
     }
-
 
     if (
       typeof window
@@ -201314,12 +201560,6 @@ function loadCache() {
       gearDate
     };
   }
-
-/* =====================================================
-    조회 완료 이벤트
-
-    각 자료가 끝나는 즉시 저장한다.
-====================================================== */
 
   document.addEventListener(
     "efficiencyMorningMeetingWaterLoaded",
