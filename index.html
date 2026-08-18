@@ -57,7 +57,7 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 <script
-  src="script.js?v=20260816-limestone-usage-mobile-fix1"
+  src="script.js?v=20260818-morning-water-date-boiler-button1"
   defer
 ></script>
 
@@ -6418,57 +6418,34 @@
       <header
         class="efficiency-morning-meeting-auto-card__header"
       >
-
         <div>
-
           <span>
             WATER TREATMENT
           </span>
-
           <strong>
             수처리 현황
           </strong>
-
         </div>
-
-
-        <!-- =============================================
-          수처리 날짜 · 상태
-
-          중요:
-          석회석 ID를 사용하지 않는다.
-        ============================================== -->
 
         <div
           class="efficiency-morning-meeting-auto-card__meta"
         >
-
           <small
             id="efficiencyMorningMeetingAutoWaterDate"
           >
             -
           </small>
 
-
-          <span class="efficiency-morning-meeting-auto-card__badge" id="efficiencyMorningMeetingAutoWaterStatus">
+          <span
+            class="efficiency-morning-meeting-auto-card__badge"
+            id="efficiencyMorningMeetingAutoWaterStatus"
+          >
             조회 대기
           </span>
-          
-          <button type="button" id="reloadEfficiencyMorningMeetingBoilerLogsButton" class="
-              secondary-button
-              efficiency-morning-meeting-boiler-reload-button
-            ">
-            BO1·BO2 일지 재조회
-          </button>
-          
-          </div>
-          
-          </header>
+        </div>
+      </header>
 
-
-      <div
-        class="efficiency-morning-meeting-auto-card__body"
-      >
+        <div class="efficiency-morning-meeting-auto-card__body">
 
         <div
           class="efficiency-morning-meeting-auto-row"
@@ -6875,32 +6852,32 @@
           <strong>
             1·2호기 온도
           </strong>
-
-        </div>
-
-
-        <div
-          class="efficiency-morning-meeting-auto-card__meta"
-        >
-
-          <small
-            id="efficiencyMorningMeetingAutoBoilerDate"
-          >
-            -
-          </small>
+</div>
 
 
-          <span
-            class="efficiency-morning-meeting-auto-card__badge"
-            id="efficiencyMorningMeetingAutoBoilerStatus"
-          >
-            조회 대기
-          </span>
+<div class="efficiency-morning-meeting-auto-card__meta">
 
-        </div>
+<small id="efficiencyMorningMeetingAutoBoilerDate">
+  -
+</small>
 
-      </header>
 
+<span class="efficiency-morning-meeting-auto-card__badge" id="efficiencyMorningMeetingAutoBoilerStatus">
+  조회 대기
+</span>
+
+
+  <button type="button" id="reloadEfficiencyMorningMeetingBoilerLogsButton" class="
+      secondary-button
+
+      efficiency-morning-meeting-boiler-reload-button
+    ">
+    BO1·BO2 일지 재조회
+  </button>
+
+</div>
+
+</header>
 
       <!-- =================================================
         온도표
