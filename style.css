@@ -112900,7 +112900,7 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   line-height: 38px !important;
 }}
 
-/* ===== EFFICIENCY MOBILE PHOTO FIX 3 START ===== */
+/* ===== EFFICIENCY MOBILE PHOTO FIX 4 START ===== */
 
 @media screen and (max-width: 768px) {
 
@@ -113649,4 +113649,310 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   }
 }
 
-/* ===== EFFICIENCY MOBILE PHOTO FIX 3 END ===== */
+/* FIX4 MOBILE DATE RANGE + COMPACT LEGEND */
+
+@media screen and (max-width: 768px) {
+
+  /* ARM ROLL 시작일·종료일 입력 영역 */
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxSearchForm {
+    display: grid !important;
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(0, 1fr)
+      60px !important;
+    column-gap: 8px !important;
+    row-gap: 0 !important;
+    align-items: end !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxSearchForm
+  > label.form-field {
+    display: grid !important;
+    grid-template-rows: 14px 36px !important;
+    row-gap: 4px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxSearchForm
+  > label.form-field
+  > .form-field__label {
+    display: block !important;
+    height: 14px !important;
+    margin: 0 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 14px !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxStartDate,
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxEndDate {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    display: block !important;
+    box-sizing: border-box !important;
+    inline-size: 100% !important;
+    width: 100% !important;
+    min-inline-size: 0 !important;
+    min-width: 0 !important;
+    max-inline-size: 100% !important;
+    max-width: 100% !important;
+    block-size: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+    margin: 0 !important;
+    padding: 0 6px !important;
+    overflow: hidden !important;
+    border: 1px solid #c7d5e4 !important;
+    border-radius: 8px !important;
+    outline: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    color: #243b57 !important;
+    font-size: 15px !important;
+    font-weight: 750 !important;
+    line-height: 1 !important;
+    text-align: center !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxStartDate::-webkit-date-and-time-value,
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxEndDate::-webkit-date-and-time-value {
+    display: flex !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    text-align: center !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxStartDate::-webkit-datetime-edit,
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxEndDate::-webkit-datetime-edit,
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxStartDate::-webkit-datetime-edit-fields-wrapper,
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxEndDate::-webkit-datetime-edit-fields-wrapper {
+    display: flex !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #searchArmRollBoxButton {
+    align-self: end !important;
+    box-sizing: border-box !important;
+    width: 60px !important;
+    min-width: 60px !important;
+    max-width: 60px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+    margin: 0 !important;
+    padding: 0 4px !important;
+    border-radius: 8px !important;
+    font-size: 14px !important;
+    line-height: 1 !important;
+  }
+
+  /* 트렌드 제목과 범례 영역 */
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-card
+  > .arm-roll-box-section-header {
+    position: static !important;
+    display: flex !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 10px 12px 8px !important;
+    overflow: visible !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 5px !important;
+  }
+
+  /* 남은 범례 5개를 한 줄로 배치 */
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-card
+  .arm-roll-box-chart-legend {
+    display: grid !important;
+    box-sizing: border-box !important;
+    grid-template-columns:
+      minmax(0, 1.15fr)
+      minmax(0, 0.85fr)
+      minmax(0, 1.15fr)
+      minmax(0, 0.85fr)
+      auto !important;
+    grid-template-rows: 22px !important;
+    column-gap: 3px !important;
+    row-gap: 0 !important;
+    align-items: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 22px !important;
+    min-height: 22px !important;
+    max-height: 22px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  /* 그래프 안에 이미 표시되는 요청선·경보선 범례 제거 */
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  > span:nth-of-type(5),
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  > span:nth-of-type(6) {
+    display: none !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  > span:not(:nth-of-type(5)):not(:nth-of-type(6)) {
+    position: relative !important;
+    display: inline-flex !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 22px !important;
+    min-height: 22px !important;
+    max-height: 22px !important;
+    margin: 0 !important;
+    padding: 0 1px 0 16px !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  > span:not(:nth-of-type(5)):not(:nth-of-type(6))::before {
+    left: 0 !important;
+    top: 50% !important;
+    width: 12px !important;
+    max-width: 12px !important;
+    margin: 0 !important;
+    transform: translateY(-50%) !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  > span:not(:nth-of-type(5)):not(:nth-of-type(6))
+  > b {
+    display: block !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    color: inherit !important;
+    font-size: clamp(8px, 2.1vw, 9px) !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+    letter-spacing: -0.35px !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  > .is-replacement-marker {
+    width: auto !important;
+    padding-left: 13px !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  > .is-replacement-marker::before {
+    left: 0 !important;
+    width: 8px !important;
+    height: 8px !important;
+    max-width: 8px !important;
+    border-radius: 50% !important;
+  }
+}
+/* ===== EFFICIENCY MOBILE PHOTO FIX 4 END ===== */
