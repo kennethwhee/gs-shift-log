@@ -114386,38 +114386,154 @@ function filterLimestoneItemsBySelectedRange(
         firstItem,
         secondItem
       ) => {
-        const firstKey = [
+        /*
+          상세 기록 표시 순서
+
+          1. 최신 날짜
+          2. 같은 날짜는 1호기 → 2호기
+          3. 같은 호기는 먼저 입고된 시간부터
+        */
+        const firstDate =
           String(
             firstItem?.receiptDate ||
             ""
-          ),
-
-          String(
-            firstItem?.receiptTime ||
-            ""
-          )
-        ].join(
-          " "
-        );
+          ).trim();
 
 
-        const secondKey = [
+        const secondDate =
           String(
             secondItem?.receiptDate ||
             ""
-          ),
+          ).trim();
 
+
+        const dateOrder =
+          secondDate.localeCompare(
+            firstDate
+          );
+
+
+        if (
+          dateOrder !==
+            0
+        ) {
+          return dateOrder;
+        }
+
+
+        const firstUnitNo =
+          Number(
+            firstItem?.unitNo
+          );
+
+
+        const secondUnitNo =
+          Number(
+            secondItem?.unitNo
+          );
+
+
+        const firstUnitOrder =
+          [
+            1,
+            2
+          ].includes(
+            firstUnitNo
+          )
+            ? firstUnitNo
+            : 99;
+
+
+        const secondUnitOrder =
+          [
+            1,
+            2
+          ].includes(
+            secondUnitNo
+          )
+            ? secondUnitNo
+            : 99;
+
+
+        const unitOrder =
+          firstUnitOrder -
+          secondUnitOrder;
+
+
+        if (
+          unitOrder !==
+            0
+        ) {
+          return unitOrder;
+        }
+
+
+        const firstTime =
+          String(
+            firstItem?.receiptTime ||
+            ""
+          ).trim() ||
+          "99:99";
+
+
+        const secondTime =
           String(
             secondItem?.receiptTime ||
             ""
+          ).trim() ||
+          "99:99";
+
+
+        const timeOrder =
+          firstTime.localeCompare(
+            secondTime
+          );
+
+
+        if (
+          timeOrder !==
+            0
+        ) {
+          return timeOrder;
+        }
+
+
+        const firstCreatedAt =
+          String(
+            firstItem?.createdAt ||
+            ""
+          );
+
+
+        const secondCreatedAt =
+          String(
+            secondItem?.createdAt ||
+            ""
+          );
+
+
+        const createdAtOrder =
+          firstCreatedAt.localeCompare(
+            secondCreatedAt
+          );
+
+
+        if (
+          createdAtOrder !==
+            0
+        ) {
+          return createdAtOrder;
+        }
+
+
+        return String(
+          firstItem?.id ||
+          ""
+        ).localeCompare(
+          String(
+            secondItem?.id ||
+            ""
           )
-        ].join(
-          " "
-        );
-
-
-        return secondKey.localeCompare(
-          firstKey
         );
       }
     );

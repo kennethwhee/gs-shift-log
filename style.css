@@ -113956,3 +113956,71 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   }
 }
 /* ===== EFFICIENCY MOBILE PHOTO FIX 4 END ===== */
+
+/* =========================================================
+   LIMESTONE RECEIPT UNIT COLOR PC V1
+
+   - 1호기: 연파랑
+   - 2호기: 연초록
+   - 기존 모바일 색상 규칙은 그대로 유지
+========================================================= */
+
+@media screen and (min-width: 769px) {
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  tbody
+  tr[data-limestone-unit="1"]
+  td {
+    background: #eef6ff !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  tbody
+  tr[data-limestone-unit="2"]
+  td {
+    background: #effaf3 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  tbody
+  tr[data-limestone-unit="1"]
+  td:nth-child(3),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  tbody
+  tr[data-limestone-unit="1"]
+  .limestone-quantity-value {
+    color: #2f6fbd !important;
+    font-weight: 900 !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  tbody
+  tr[data-limestone-unit="2"]
+  td:nth-child(3),
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-table
+  tbody
+  tr[data-limestone-unit="2"]
+  .limestone-quantity-value {
+    color: #31845a !important;
+    font-weight: 900 !important;
+  }
+}
+
+/* END LIMESTONE RECEIPT UNIT COLOR PC V1 */
