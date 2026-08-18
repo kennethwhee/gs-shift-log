@@ -7421,13 +7421,20 @@ async function getNextOisAgentRequest(
   ];
 
 
-  const oisRequestTypes = [
+  const morningMeetingRequestTypes = [
     "water_environment",
     "limestone_stock",
-    "auxiliary_materials",
     "turbine_gear_pinion",
     "silo_level",
-    "logsheet_approval"
+    "daily_data_excel",
+    "steam_status"
+  ];
+
+
+  const backgroundRequestTypes = [
+    "auxiliary_materials",
+    "logsheet_approval",
+    "logsheet_pdf"
   ];
 
 
@@ -7436,8 +7443,8 @@ async function getNextOisAgentRequest(
       "excel"
       ? excelRequestTypes
       : [
-          ...oisRequestTypes,
-          ...excelRequestTypes
+          ...morningMeetingRequestTypes,
+          ...backgroundRequestTypes
         ];
 
 
@@ -7516,20 +7523,41 @@ async function getNextOisAgentRequest(
       );
 
 
+    const previousClaimedRequestType =
+      normalizeOisAgentText(
+        getNextOisAgentRequest
+          .lastClaimedRequestType
+      );
+
+
+    const keepWaterPriority =
+      claimedRequestType ===
+        "water_environment" &&
+      previousClaimedRequestType !==
+        "water_environment";
+
+
     getNextOisAgentRequest
       .nextTypeIndex =
       claimedRequestTypeIndex >=
         0
-        ? (
-            claimedRequestTypeIndex +
-            1
-          ) %
-          requestTypes.length
+        ? keepWaterPriority
+          ? claimedRequestTypeIndex
+          : (
+              claimedRequestTypeIndex +
+              1
+            ) %
+            requestTypes.length
         : (
             startIndex +
             1
           ) %
           requestTypes.length;
+
+
+    getNextOisAgentRequest
+      .lastClaimedRequestType =
+      claimedRequestType;
 
 
     return result.item;
@@ -7547,6 +7575,11 @@ async function getNextOisAgentRequest(
       1
     ) %
     requestTypes.length;
+
+
+  getNextOisAgentRequest
+    .lastClaimedRequestType =
+    "";
 
 
   return null;

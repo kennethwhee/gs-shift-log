@@ -181185,8 +181185,10 @@ async function loadWaterTreatment(
     이번 2일 조회 전체에 하나의 실행 토큰 사용
 
     중요:
-    waitForCompletion()이 같은 runToken을 사용하므로
-    전전일 → 전일 순서로 순차 조회한다.
+    두 날짜의 요청을 먼저 모두 등록한다.
+    회사 PC는 같은 환경일지 화면에서 두 날짜를
+    연속 처리할 수 있고, 화면 반영은 기존처럼
+    전전일 → 전일 순서를 유지한다.
   ====================================================== */
 
   const runToken =
@@ -181237,7 +181239,69 @@ async function loadWaterTreatment(
 
   try {
     /* ===================================================
-      두 날짜 순차 조회
+      두 날짜 요청을 먼저 등록
+
+      - 실제 OIS 조회 건수는 기존과 동일하다.
+      - 첫 날짜 완료 후 두 번째 요청을 만드는 대기를 없앤다.
+      - 완료자료가 있으면 서버가 그대로 재사용한다.
+    ==================================================== */
+
+    const requestItemsByDate =
+      new Map();
+
+
+    for (
+      let index = 0;
+      index <
+        targetDates.length;
+      index +=
+        1
+    ) {
+      if (
+        runToken !==
+          activeRunToken
+      ) {
+        return;
+      }
+
+
+      const targetDate =
+        targetDates[
+          index
+        ];
+
+
+      const createResult =
+        await createWaterRequest(
+          targetDate,
+          {
+            forceRefresh
+          }
+        );
+
+
+      const requestItem =
+        createResult?.item;
+
+
+      if (
+        !requestItem?.id
+      ) {
+        throw new Error(
+          `${targetDate} OIS 수처리 요청 ID를 확인할 수 없습니다.`
+        );
+      }
+
+
+      requestItemsByDate.set(
+        targetDate,
+        requestItem
+      );
+    }
+
+
+    /* ===================================================
+      두 날짜 결과를 순서대로 반영
 
       반드시:
       전전일 → 전일
@@ -181285,28 +181349,10 @@ async function loadWaterTreatment(
       );
 
 
-      /* =================================================
-        OIS 요청 생성
-
-        forceRefresh=false:
-        저장된 완료 자료가 있으면 재사용
-
-        forceRefresh=true:
-        사용자가 다시 조회를 명시한 경우
-        해당 두 날짜 모두 새로 확인
-      ================================================= */
-
-      const createResult =
-        await createWaterRequest(
-          targetDate,
-          {
-            forceRefresh
-          }
-        );
-
-
       const requestItem =
-        createResult?.item;
+        requestItemsByDate.get(
+          targetDate
+        );
 
 
       if (
@@ -181527,7 +181573,7 @@ async function loadWaterTreatment(
         () => {
           void loadWaterTreatment({
             forceRefresh:
-              true
+              false
           });
         }
       );
