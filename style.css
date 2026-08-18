@@ -112900,37 +112900,45 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   line-height: 38px !important;
 }}
 
-/* ===== EFFICIENCY MOBILE PHOTO FIX 2 START ===== */
+/* ===== EFFICIENCY MOBILE PHOTO FIX 3 START ===== */
 
 @media screen and (max-width: 768px) {
 
-  /* ---------------------------------------------------------
-     1. AUXILIARY MATERIAL MONTH NAVIGATION
-  --------------------------------------------------------- */
+  /* =====================================================
+     1. AUXILIARY MONTH NAVIGATION
+  ===================================================== */
 
+  body
+  #efficiencyTeamModal
   #efficiencyAuxiliaryMaterialsView
   .auxiliary-material-month-navigation {
     box-sizing: border-box !important;
 
     display: grid !important;
     grid-template-columns:
-      44px
-      minmax(0, 230px)
-      44px !important;
+      36px
+      minmax(0, 200px)
+      36px !important;
 
-    align-items: stretch !important;
+    align-items: center !important;
     justify-content: center !important;
 
-    gap: 10px !important;
+    gap: 8px !important;
 
     width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
 
+    min-height: 40px !important;
+
     margin: 0 !important;
     padding: 0 !important;
+
+    overflow: visible !important;
   }
 
+  body
+  #efficiencyTeamModal
   #efficiencyAuxiliaryMaterialsView
   .auxiliary-material-month-navigation
   > button {
@@ -112938,36 +112946,57 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 
     position: static !important;
 
-    width: 44px !important;
-    min-width: 44px !important;
-    max-width: 44px !important;
+    inset: auto !important;
+    translate: none !important;
+    transform: none !important;
 
-    height: 44px !important;
-    min-height: 44px !important;
-    max-height: 44px !important;
+    display: inline-flex !important;
+
+    width: 36px !important;
+    min-width: 36px !important;
+    max-width: 36px !important;
+
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
 
     margin: 0 !important;
     padding: 0 !important;
 
-    font-size: 22px !important;
+    font-size: 18px !important;
     line-height: 1 !important;
   }
 
+  body
+  #efficiencyTeamModal
   #efficiencyAuxiliaryMaterialsView
   .auxiliary-material-month-navigation
   > label {
     box-sizing: border-box !important;
 
-    display: block !important;
+    display: flex !important;
 
     width: 100% !important;
     min-width: 0 !important;
-    max-width: none !important;
+    max-width: 200px !important;
+
+    height: 40px !important;
+    min-height: 40px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
 
     margin: 0 !important;
     padding: 0 !important;
+
+    transform: none !important;
   }
 
+  body
+  #efficiencyTeamModal
   #efficiencyAuxiliaryMaterialsView
   .auxiliary-material-month-navigation
   > label
@@ -112975,9 +113004,148 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
     display: none !important;
   }
 
+  body
+  #efficiencyTeamModal
   #efficiencyAuxiliaryMaterialsView
-  .auxiliary-material-month-navigation
   #auxiliaryMaterialMonth {
+    box-sizing: border-box !important;
+
+    display: block !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 200px !important;
+
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+
+    margin: 0 !important;
+    padding: 0 8px !important;
+
+    border-radius: 9px !important;
+
+    font-family: inherit !important;
+    font-size: 16px !important;
+    font-weight: 900 !important;
+    line-height: 40px !important;
+    text-align: center !important;
+
+    vertical-align: middle !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyAuxiliaryMaterialsView
+  #auxiliaryMaterialMonth::-webkit-date-and-time-value {
+    box-sizing: border-box !important;
+
+    display: flex !important;
+
+    width: 100% !important;
+    height: 40px !important;
+    min-height: 40px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    font-size: 16px !important;
+    font-weight: 900 !important;
+    line-height: 40px !important;
+    text-align: center !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyAuxiliaryMaterialsView
+  #auxiliaryMaterialMonth::-webkit-datetime-edit {
+    box-sizing: border-box !important;
+
+    display: flex !important;
+
+    height: 100% !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyAuxiliaryMaterialsView
+  #auxiliaryMaterialMonth::-webkit-datetime-edit-fields-wrapper {
+    display: flex !important;
+
+    height: 100% !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+
+  /* =====================================================
+     2. ARM ROLL SEARCH DATES
+  ===================================================== */
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxSearchForm {
+    box-sizing: border-box !important;
+
+    display: grid !important;
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(0, 1fr)
+      64px !important;
+
+    align-items: end !important;
+
+    column-gap: 8px !important;
+    row-gap: 0 !important;
+
+    width: 100% !important;
+    min-width: 0 !important;
+
+    margin: 0 !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxSearchForm
+  > .form-field {
+    box-sizing: border-box !important;
+
+    display: grid !important;
+    grid-template-rows:
+      auto
+      40px !important;
+
+    gap: 4px !important;
+
+    min-width: 0 !important;
+
+    margin: 0 !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxStartDate,
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxEndDate {
     box-sizing: border-box !important;
 
     display: block !important;
@@ -112986,75 +113154,117 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
     min-width: 0 !important;
     max-width: 100% !important;
 
-    height: 44px !important;
-    min-height: 44px !important;
-    max-height: 44px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
 
     margin: 0 !important;
-    padding: 0 14px !important;
+    padding: 0 6px !important;
 
-    border-radius: 10px !important;
-
-    font-family: inherit !important;
-    font-size: 18px !important;
-    font-weight: 900 !important;
-    line-height: 1 !important;
-    text-align: center !important;
-  }
-
-
-  /* ---------------------------------------------------------
-     2. ARM ROLL DATE INPUT
-  --------------------------------------------------------- */
-
-  #armRollBoxSearchForm
-  #armRollBoxStartDate,
-
-  #armRollBoxSearchForm
-  #armRollBoxEndDate {
-    box-sizing: border-box !important;
-
-    width: 100% !important;
-
-    height: 48px !important;
-    min-height: 48px !important;
-
-    margin: 0 !important;
-    padding: 0 10px !important;
+    overflow: hidden !important;
 
     font-family: inherit !important;
-    font-size: 18px !important;
+    font-size: 16px !important;
     font-weight: 850 !important;
-    line-height: 1.2 !important;
+    line-height: 40px !important;
     text-align: center !important;
 
     font-variant-numeric: tabular-nums !important;
   }
 
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
   #armRollBoxStartDate::-webkit-date-and-time-value,
 
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
   #armRollBoxEndDate::-webkit-date-and-time-value {
-    min-height: 22px !important;
+    box-sizing: border-box !important;
+
+    display: flex !important;
+
+    width: 100% !important;
+    height: 40px !important;
+    min-height: 40px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
 
     margin: 0 !important;
+    padding: 0 !important;
 
-    font-family: inherit !important;
-    font-size: 18px !important;
+    font-size: 16px !important;
     font-weight: 850 !important;
-    line-height: 1.2 !important;
+    line-height: 40px !important;
     text-align: center !important;
   }
 
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxStartDate::-webkit-datetime-edit,
 
-  /* ---------------------------------------------------------
-     3. BOX LEVEL WARNING
-  --------------------------------------------------------- */
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxEndDate::-webkit-datetime-edit {
+    box-sizing: border-box !important;
 
-  #armRollBoxMainAlert[hidden] {
+    display: flex !important;
+
+    height: 100% !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #searchArmRollBoxButton {
+    box-sizing: border-box !important;
+
+    grid-column: 3 / 4 !important;
+    grid-row: 1 / 2 !important;
+
+    align-self: end !important;
+
+    width: 64px !important;
+    min-width: 64px !important;
+    max-width: 64px !important;
+
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+
+    margin: 0 !important;
+    padding: 0 8px !important;
+
+    font-size: 14px !important;
+    line-height: 1 !important;
+  }
+
+
+  /* =====================================================
+     3. ACTUAL BOX LEVEL WARNING
+  ===================================================== */
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxThresholdAlert[hidden] {
     display: none !important;
   }
 
-  #armRollBoxMainAlert:not([hidden]) {
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxThresholdAlert:not([hidden]) {
     box-sizing: border-box !important;
 
     position: relative !important;
@@ -113067,13 +113277,13 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 
     align-items: center !important;
 
-    column-gap: 10px !important;
+    gap: 10px !important;
 
     width: 100% !important;
     min-width: 0 !important;
 
     height: auto !important;
-    min-height: 66px !important;
+    min-height: 64px !important;
     max-height: none !important;
 
     margin: 0 !important;
@@ -113081,11 +113291,17 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 
     overflow: visible !important;
 
+    visibility: visible !important;
+    opacity: 1 !important;
+
     text-align: left !important;
   }
 
-  #armRollBoxMainAlert
-  .arm-roll-box-main-alert__icon {
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxThresholdAlert
+  .arm-roll-box-threshold-alert__icon {
     box-sizing: border-box !important;
 
     position: static !important;
@@ -113103,40 +113319,64 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
     margin: 0 !important;
     padding: 0 !important;
 
-    font-size: 18px !important;
+    overflow: visible !important;
+
+    visibility: visible !important;
+    opacity: 1 !important;
+
+    font-size: 17px !important;
     font-weight: 950 !important;
     line-height: 1 !important;
+
+    transform: none !important;
   }
 
-  #armRollBoxMainAlert
-  .arm-roll-box-main-alert__content {
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxThresholdAlert
+  .arm-roll-box-threshold-alert__content {
     box-sizing: border-box !important;
 
-    display: grid !important;
+    position: static !important;
+
+    display: block !important;
 
     min-width: 0 !important;
 
-    align-content: center !important;
-
-    row-gap: 4px !important;
-
     margin: 0 !important;
     padding: 0 !important;
 
     overflow: visible !important;
+
+    visibility: visible !important;
+    opacity: 1 !important;
+
+    transform: none !important;
   }
 
-  #armRollBoxMainAlert
-  .arm-roll-box-main-alert__content
-  small {
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxThresholdAlert
+  .arm-roll-box-threshold-alert__content
+  > span,
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxThresholdAlertTitle {
     display: block !important;
 
-    margin: 0 !important;
+    margin: 0 0 3px !important;
     padding: 0 !important;
 
     overflow: visible !important;
 
-    font-size: 12px !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+
+    font-size: 11px !important;
     font-weight: 900 !important;
     line-height: 1.2 !important;
     letter-spacing: 0.08em !important;
@@ -113144,13 +113384,26 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
     white-space: normal !important;
   }
 
-  #armRollBoxMainAlertText {
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxThresholdAlert
+  .arm-roll-box-threshold-alert__content
+  strong,
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxThresholdAlertMessage {
     display: block !important;
 
     margin: 0 !important;
     padding: 0 !important;
 
     overflow: visible !important;
+
+    visibility: visible !important;
+    opacity: 1 !important;
 
     font-size: 14px !important;
     font-weight: 900 !important;
@@ -113160,17 +113413,25 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
     word-break: keep-all !important;
     overflow-wrap: anywhere !important;
 
-    -webkit-box-orient: initial !important;
     -webkit-line-clamp: unset !important;
     line-clamp: unset !important;
   }
 
-  #armRollBoxMainAlertReference:not([hidden]) {
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxThresholdAlert
+  .arm-roll-box-threshold-alert__content
+  p {
     display: block !important;
 
-    margin: 1px 0 0 !important;
+    margin: 3px 0 0 !important;
+    padding: 0 !important;
 
     overflow: visible !important;
+
+    visibility: visible !important;
+    opacity: 0.9 !important;
 
     font-size: 10px !important;
     font-weight: 800 !important;
@@ -113182,17 +113443,15 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
     line-clamp: unset !important;
   }
 
-  #armRollBoxMainAlertCount {
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  #armRollBoxThresholdAlertValue {
     box-sizing: border-box !important;
 
     position: static !important;
 
     display: inline-flex !important;
-
-    top: auto !important;
-    right: auto !important;
-    bottom: auto !important;
-    left: auto !important;
 
     min-width: 54px !important;
     min-height: 32px !important;
@@ -113203,30 +113462,52 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
     margin: 0 !important;
     padding: 0 9px !important;
 
-    border-radius: 999px !important;
+    overflow: visible !important;
 
-    font-size: 14px !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+
+    font-size: 15px !important;
     font-weight: 950 !important;
     line-height: 1 !important;
 
     white-space: nowrap !important;
+
+    transform: none !important;
   }
 
 
-  /* ---------------------------------------------------------
-     4. BOX LEVEL TREND LEGEND
-  --------------------------------------------------------- */
+  /* =====================================================
+     4. ACTUAL TREND HEADER AND LEGEND
+  ===================================================== */
 
+  body
+  #efficiencyTeamModal
   #efficiencyArmRollView
-  header:has(.arm-roll-box-chart-legend) {
+  .arm-roll-box-chart-card {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+
+    overflow: visible !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-card
+  .arm-roll-box-section-header {
     box-sizing: border-box !important;
 
+    position: static !important;
+
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns:
+      minmax(0, 1fr) !important;
 
     align-items: stretch !important;
 
-    row-gap: 10px !important;
+    gap: 9px !important;
 
     width: 100% !important;
     min-width: 0 !important;
@@ -113235,25 +113516,31 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
     min-height: 0 !important;
     max-height: none !important;
 
+    margin: 0 !important;
+
     overflow: visible !important;
+
+    visibility: visible !important;
+    opacity: 1 !important;
+
+    transform: none !important;
   }
 
+  body
+  #efficiencyTeamModal
   #efficiencyArmRollView
-  header:has(.arm-roll-box-chart-legend)
-  > :not(.arm-roll-box-chart-legend) {
-    min-width: 0 !important;
-  }
-
-  #efficiencyArmRollView
+  .arm-roll-box-chart-card
+  .arm-roll-box-section-header
   .arm-roll-box-chart-legend {
     box-sizing: border-box !important;
+
+    position: static !important;
 
     display: grid !important;
     grid-template-columns:
       repeat(2, minmax(0, 1fr)) !important;
 
     align-items: stretch !important;
-    justify-content: stretch !important;
 
     gap: 6px !important;
 
@@ -113272,9 +113559,14 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 
     visibility: visible !important;
     opacity: 1 !important;
+
+    transform: none !important;
   }
 
+  body
+  #efficiencyTeamModal
   #efficiencyArmRollView
+  .arm-roll-box-chart-card
   .arm-roll-box-chart-legend
   > span {
     box-sizing: border-box !important;
@@ -113284,13 +113576,13 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
     display: inline-flex !important;
 
     min-width: 0 !important;
-    min-height: 30px !important;
+    min-height: 28px !important;
 
     align-items: center !important;
     justify-content: flex-start !important;
 
     margin: 0 !important;
-    padding: 0 7px 0 35px !important;
+    padding: 0 7px 0 34px !important;
 
     overflow: visible !important;
 
@@ -113298,15 +113590,21 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
     opacity: 1 !important;
   }
 
+  body
+  #efficiencyTeamModal
   #efficiencyArmRollView
+  .arm-roll-box-chart-card
   .arm-roll-box-chart-legend
   > span::before {
     left: 8px !important;
 
-    width: 20px !important;
+    width: 19px !important;
   }
 
+  body
+  #efficiencyTeamModal
   #efficiencyArmRollView
+  .arm-roll-box-chart-card
   .arm-roll-box-chart-legend
   > span
   > b {
@@ -113316,7 +113614,10 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 
     overflow: visible !important;
 
-    font-size: 11px !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+
+    font-size: 10px !important;
     font-weight: 900 !important;
     line-height: 1.15 !important;
 
@@ -113324,32 +113625,28 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
     white-space: nowrap !important;
   }
 
+  body
+  #efficiencyTeamModal
   #efficiencyArmRollView
+  .arm-roll-box-chart-card
   .arm-roll-box-chart-legend
   > span
   > strong {
-    min-height: 20px !important;
+    display: inline-flex !important;
 
-    padding: 0 5px !important;
+    min-height: 18px !important;
 
-    font-size: 10px !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 4px !important;
+
+    visibility: visible !important;
+    opacity: 1 !important;
+
+    font-size: 9px !important;
     font-weight: 900 !important;
-  }
-
-  #efficiencyArmRollView
-  .arm-roll-box-chart-legend
-  > .is-replacement-marker {
-    padding-left: 31px !important;
-  }
-
-  #efficiencyArmRollView
-  .arm-roll-box-chart-legend
-  > .is-replacement-marker::before {
-    left: 10px !important;
-
-    width: 10px !important;
-    height: 10px !important;
   }
 }
 
-/* ===== EFFICIENCY MOBILE PHOTO FIX 2 END ===== */
+/* ===== EFFICIENCY MOBILE PHOTO FIX 3 END ===== */
