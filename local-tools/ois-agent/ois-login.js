@@ -6202,28 +6202,109 @@ async function collectOisWaterTreatmentValues(
   }
 
 
-  await ensureOisAgentLoggedIn(
-    page,
-    config
-  );
+  const getErrorMessage =
+    error => {
+      return error instanceof
+        Error
+        ? error.message
+        : String(
+            error ||
+            "알 수 없는 오류"
+          );
+    };
 
 
-  await setOisEnvironmentDate(
-    page,
-    targetDate
-  );
+  const collectOnce =
+    async () => {
+      await ensureOisAgentLoggedIn(
+        page,
+        config
+      );
 
 
-  await clickOisEnvironmentRecalculateButton(
-    page
-  );
+      await setOisEnvironmentDate(
+        page,
+        targetDate
+      );
 
 
-  const result =
-    await waitForOisWaterTreatmentValues(
-      page,
-      targetDate
+      await clickOisEnvironmentRecalculateButton(
+        page
+      );
+
+
+      return await waitForOisWaterTreatmentValues(
+        page,
+        targetDate
+      );
+    };
+
+
+  let result;
+
+
+  try {
+    result =
+      await collectOnce();
+
+  } catch (
+    firstError
+  ) {
+    console.warn(
+      "OIS 수처리 1차 조회 실패. 환경일지를 새로 열어 1회 재시도합니다:",
+      getErrorMessage(
+        firstError
+      )
     );
+
+
+    try {
+      await page.goto(
+        OIS_LOGIN_URL,
+        {
+          waitUntil:
+            "domcontentloaded",
+
+          timeout:
+            OIS_QUERY_TIMEOUT
+        }
+      );
+
+
+      await page.waitForTimeout(
+        800
+      );
+
+
+      result =
+        await collectOnce();
+
+
+      console.log(
+        "OIS 수처리 환경일지 재진입 조회 성공:",
+        targetDate
+      );
+
+    } catch (
+      retryError
+    ) {
+      throw new Error(
+        [
+          "OIS 수처리 조회가 환경일지 재진입 후에도 실패했습니다.",
+          "1차:",
+          getErrorMessage(
+            firstError
+          ),
+          "재시도:",
+          getErrorMessage(
+            retryError
+          )
+        ].join(
+          " "
+        )
+      );
+    }
+  }
 
 
   const outputPath =
@@ -9534,6 +9615,10 @@ try {
       $targetColumnName +
       [string]$rowNumber
 
+    $allowBlank =
+      $resultKey -eq
+        "solarDailyGeneration"
+
     $numericValue =
       Get-FiniteExcelNumber -Value (
         Read-ExcelCellValue -Worksheet $plantWorksheet -Address $valueAddress
@@ -9542,9 +9627,10 @@ try {
         " (Plant!" +
         $valueAddress +
         ")"
-      )
+      ) -AllowBlank $allowBlank
 
     if (
+      $null -ne $numericValue -and
       $numericValue -lt 0
     ) {
       throw (
@@ -9569,26 +9655,67 @@ try {
     "태양광 누적 발전량 계산 시작"
   )
 
-  $solarCumulativeParameters =
-    @{
-      PlantWorksheet =
-        $plantWorksheet
+  $solarDailyGeneration =
+    $manualValues.solarDailyGeneration
 
-      WorkbookFullName =
-        $workbookFullName
+  if (
+    $null -ne $solarDailyGeneration
+  ) {
+    $solarCumulativeParameters =
+      @{
+        PlantWorksheet =
+          $plantWorksheet
 
-      TargetDateValue =
-        $targetDateValue
+        WorkbookFullName =
+          $workbookFullName
 
-      TargetDate =
-        $targetDate
+        TargetDateValue =
+          $targetDateValue
 
-      ExpectedDailyValue =
-        [double]$manualValues.solarDailyGeneration
-    }
+        TargetDate =
+          $targetDate
 
-  $solarCumulativeResult =
-    Get-SolarCumulativeWorkbookResult @solarCumulativeParameters
+        ExpectedDailyValue =
+          [double]$solarDailyGeneration
+      }
+
+    $solarCumulativeResult =
+      Get-SolarCumulativeWorkbookResult @solarCumulativeParameters
+  }
+  else {
+    $solarCumulativeResult =
+      [ordered]@{
+        skipped =
+          $true
+
+        reason =
+          "target-day solar daily value is blank"
+
+        week =
+          [ordered]@{
+            total =
+              $null
+          }
+
+        month =
+          [ordered]@{
+            total =
+              $null
+          }
+
+        year =
+          [ordered]@{
+            total =
+              $null
+          }
+      }
+
+    Write-DailyDataStage -Message (
+      "Solar daily blank; cumulative calculation skipped: Plant!" +
+      $targetColumnName +
+      "55"
+    )
+  }
 
   Write-DailyDataStage -Message (
     "태양광 누적 발전량 계산 완료"
@@ -10401,10 +10528,10 @@ try {
         [double]$manualValues.epowerTransmission
 
       solarDailyGeneration =
-        [double]$manualValues.solarDailyGeneration
+        $solarDailyGeneration
 
       solarDaily =
-        [double]$manualValues.solarDailyGeneration
+        $solarDailyGeneration
 
       solarWeeklyCumulative =
         $solarCumulativeResult.week.total
@@ -11616,14 +11743,27 @@ async function collectDailyDataWorkbookValues(
     );
 
 
+  const rawSolarDailyGeneration =
+    capturedResult.solarDailyGeneration ??
+      capturedResult.solarDaily;
+
+
   const solarDailyGeneration =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.solarDailyGeneration ??
-          capturedResult.solarDaily,
-        "태양광 일일 발전량"
-      )
-    );
+    rawSolarDailyGeneration ===
+        null ||
+      rawSolarDailyGeneration ===
+        undefined ||
+      normalizeOisAgentText(
+        rawSolarDailyGeneration
+      ) ===
+        ""
+      ? null
+      : roundDailyDataNumber(
+          parseDailyDataWorkbookNumber(
+            rawSolarDailyGeneration,
+            "solarDailyGeneration"
+          )
+        );
 
 
   const organicDaySilo =

@@ -191999,7 +191999,7 @@ function renderOverallStatus(
       "complete";
 
     overallLabel =
-      "전체 완료";
+      "핵심 완료";
   }
 
 
@@ -211727,9 +211727,6 @@ function formatRate(
 
 
     return [
-      result.solarDailyGeneration ??
-        result.solarDaily,
-
       result.generatorEcmsGen1,
 
       result.ismartReception ??
@@ -212961,10 +212958,9 @@ if (
 
 
     const solarDailyGeneration =
-      requireNumber(
+      normalizeNumber(
         rawResult.solarDailyGeneration ??
-          rawResult.solarDaily,
-        "태양광 일일 발전량"
+          rawResult.solarDaily
       );
 
 
@@ -224650,11 +224646,15 @@ function initializeLimestoneSlipCameraPicker() {
         key:
           "daily-data",
 
+        requireResult:
+          true,
+
         label:
           "월간 일일 DATA",
 
         statusIds: [
           "efficiencyMorningMeetingAutoDailyPowerStatus",
+          "efficiencyMorningMeetingAutoSolarStatus",
           "efficiencyMorningMeetingAutoSteamStatus",
           "efficiencyMorningMeetingAutoDailySludgeStatus"
         ],
@@ -224751,6 +224751,26 @@ function initializeLimestoneSlipCameraPicker() {
 
       const result =
         await item.load();
+
+
+      if (
+        item?.requireResult ===
+          true &&
+        (
+          result ===
+            null ||
+          result ===
+            undefined
+        )
+      ) {
+        throw new Error(
+          String(
+            item.label ||
+            "자료"
+          ) +
+          " 조회 결과가 비어 있습니다."
+        );
+      }
 
 
       return {
