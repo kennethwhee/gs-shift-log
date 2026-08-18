@@ -106191,12 +106191,40 @@ input {
 
 /* =========================================================
   점검일지 / Log Sheet 왼쪽 메뉴 최종 통일
+
+  - 점검일지 / Log Sheet 제목 글씨 통일
+  - Log Sheet 상위·하위 메뉴 글씨 통일
+  - 모바일에서는 Log Sheet 메뉴 전체 숨김
 ========================================================= */
 
 
 /* ---------------------------------------------------------
-  1. 점검일지 접기 버튼
-     → Log Sheet 접기와 동일한 텍스트형
+  1. 점검일지 / Log Sheet 제목
+
+  점검주기 · 일일점검 · 주간점검 · 월간점검과
+  동일한 글꼴 크기와 굵기를 사용한다.
+--------------------------------------------------------- */
+
+.inspection-sidebar
+  > .inspection-sidebar__intro
+  > strong,
+
+.inspection-sidebar
+  > .inspection-sidebar-log-sheet
+  > .inspection-sidebar-log-sheet__title
+  > strong {
+  font-family: inherit;
+
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+
+/* ---------------------------------------------------------
+  2. 점검일지 접기 버튼
+
+  Log Sheet 접기와 동일한 텍스트형
 --------------------------------------------------------- */
 
 .inspection-sidebar:not(.is-collapsed)
@@ -106239,7 +106267,7 @@ input {
 }
 
 
-/* 펼쳐진 상태에서는 기존 ‹ 화살표 제거 */
+/* 펼쳐진 상태에서는 기존 화살표 제거 */
 
 .inspection-sidebar:not(.is-collapsed)
   > .inspection-sidebar-toggle
@@ -106260,8 +106288,9 @@ input {
 
 
 /* ---------------------------------------------------------
-  2. Log Sheet 상위 메뉴
-     → 점검일지 상위 메뉴와 동일
+  3. Log Sheet 상위 메뉴
+
+  점검주기 · 일일점검 · 주간점검 · 월간점검과 동일
 --------------------------------------------------------- */
 
 .inspection-sidebar-sheet-group
@@ -106271,15 +106300,16 @@ input {
   > button {
   font-family: inherit;
 
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 900;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
 
 /* ---------------------------------------------------------
-  3. Log Sheet 하위 메뉴
-     → 점검일지 하위 메뉴와 동일
+  4. Log Sheet 하위 메뉴
+
+  점검일지 하위 메뉴와 동일
 --------------------------------------------------------- */
 
 .inspection-sidebar-sheet-branch
@@ -106289,11 +106319,27 @@ input {
   > button {
   font-family: inherit;
 
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 850;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
+
+/* ---------------------------------------------------------
+  5. 모바일
+
+  Log Sheet는 모바일에서 사용하지 않으므로
+  WORK LOG / Log Sheet 카드 전체를 숨긴다.
+--------------------------------------------------------- */
+
+@media screen and (max-width: 768px) {
+
+  .inspection-sidebar
+    > .inspection-sidebar-log-sheet {
+    display: none !important;
+  }
+
+}
 .log-sheet-table
   td.is-template-draft {
   box-shadow:
@@ -106821,26 +106867,6 @@ col.is-power {
 
     font-size: 9px;
   }
-}
-
-/* LOG SHEET SIDEBAR FONT MATCH V1 */
-
-/* 점검일지 상위 메뉴와 동일 */
-.inspection-sidebar-sheet-group > summary,
-.inspection-sidebar-sheet-direct > button {
-  font-family: inherit !important;
-  font-size: 13px !important;
-  font-weight: 900 !important;
-  line-height: 1.4 !important;
-}
-
-/* 점검일지 하위 메뉴와 동일 */
-.inspection-sidebar-sheet-branch > summary,
-.inspection-sidebar-sheet-menu > button {
-  font-family: inherit !important;
-  font-size: 11px !important;
-  font-weight: 850 !important;
-  line-height: 1.4 !important;
 }
 
 /* ARM ROLL BOX MENU RECOMMEND BADGE V1 */
