@@ -122647,6 +122647,12 @@ function renderArmRollBoxChart() {
       : [];
 
 
+  const isMobileChart =
+    window.matchMedia(
+      "(max-width: 768px)"
+    ).matches;
+
+
   /* =====================================================
     그래프 색상 최종 기준
 
@@ -122671,6 +122677,9 @@ function renderArmRollBoxChart() {
       label:
         "1호기 ARM ROLL",
 
+      mobileLabel:
+        "1호 ARM",
+
       color:
         "#2f7fc1",
 
@@ -122684,6 +122693,9 @@ function renderArmRollBoxChart() {
 
       label:
         "1호기 SCRAP",
+
+      mobileLabel:
+        "1호 SCRAP",
 
       color:
         "#8b5db7",
@@ -122699,6 +122711,9 @@ function renderArmRollBoxChart() {
       label:
         "2호기 ARM ROLL",
 
+      mobileLabel:
+        "2호 ARM",
+
       color:
         "#15977f",
 
@@ -122712,6 +122727,9 @@ function renderArmRollBoxChart() {
 
       label:
         "2호기 SCRAP",
+
+      mobileLabel:
+        "2호 SCRAP",
 
       color:
         "#d95f9f",
@@ -122777,10 +122795,18 @@ if (
                 --arm-roll-legend-color:
                 ${series.color};
               "
+              aria-label="${escapeArmRollBoxHtml(
+                series.label
+              )}"
+              title="${escapeArmRollBoxHtml(
+                series.label
+              )}"
             >
               <b>
                 ${escapeArmRollBoxHtml(
-                  series.label
+                  isMobileChart
+                    ? series.mobileLabel
+                    : series.label
                 )}
               </b>
             </span>
@@ -122873,12 +122899,35 @@ if (
     그래프 크기
   ====================================================== */
 
-  const width =
-    1000;
-
-
   const height =
     300;
+
+
+  const mobileChartCssWidth =
+    Math.max(
+      300,
+
+      (
+        Number(
+          chart.clientWidth
+        ) ||
+        Number(
+          window.innerWidth
+        ) ||
+        393
+      ) -
+      12
+    );
+
+
+  const width =
+    isMobileChart
+      ? Math.round(
+          mobileChartCssWidth *
+          height /
+          220
+        )
+      : 1000;
 
 
   const padding = {
@@ -122886,13 +122935,17 @@ if (
       18,
 
     right:
-      58,
+      isMobileChart
+        ? 50
+        : 72,
 
     bottom:
       44,
 
     left:
-      44
+      isMobileChart
+        ? 24
+        : 44
   };
 
 
@@ -122987,9 +123040,12 @@ if (
 
   const gridLevels = [
     0,
-    25,
+    20,
+    40,
     50,
+    60,
     70,
+    80,
     100
   ];
 
@@ -123016,14 +123072,20 @@ if (
                 : "#dce4ec";
 
 
+          const labelColor =
+            isWarning
+              ? "#c63f3f"
+              : isRequest
+                ? "#b66c0d"
+                : "#61758a";
+
+
           const label =
             isWarning
               ? "70 경보"
               : isRequest
                 ? "50 요청"
-                : String(
-                    level
-                  );
+                : `${level}%`;
 
 
           return `
@@ -123054,17 +123116,23 @@ if (
 
 
             <text
-              x="${width - padding.right + 7}"
+              x="${
+                isRequest ||
+                isWarning
+                  ? width - padding.right - 7
+                  : width - padding.right + 7
+              }"
               y="${getY(
                 level
               ) + 4}"
-              fill="${lineColor}"
-              font-size="${
+              text-anchor="${
                 isRequest ||
                 isWarning
-                  ? 11
-                  : 10
+                  ? "end"
+                  : "start"
               }"
+              fill="${labelColor}"
+              font-size="12"
               font-weight="${
                 isRequest ||
                 isWarning
