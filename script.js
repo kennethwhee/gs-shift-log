@@ -216367,6 +216367,10 @@ async function load(
     options.forceRefresh ===
     true;
 
+  const cacheFirst =
+    options.cacheFirst ===
+    true;
+
   const target =
     getTargetDates();
 
@@ -216382,6 +216386,8 @@ async function load(
   */
   if (
     forceRefresh !==
+      true &&
+    cacheFirst !==
       true
   ) {
     render();
@@ -223762,7 +223768,7 @@ function initializeLimestoneSlipCameraPicker() {
     "loadEfficiencyMorningMeetingWaterButton";
 
   const BULK_BUTTON_LABEL =
-    "OIS 자료 일괄조회";
+    "전체 자료 일괄조회";
 
   let syncTimerId =
     null;
@@ -223813,6 +223819,8 @@ function initializeLimestoneSlipCameraPicker() {
     "efficiencyMorningMeetingAutoDailyPowerRefreshButton",
     "efficiencyMorningMeetingAutoSteamRefreshButton",
     "efficiencyMorningMeetingAutoDailySludgeRefreshButton",
+    "efficiencyMorningMeetingAutoSmpRefreshButton",
+    "efficiencyMorningMeetingAutoWeatherRefreshButton",
     "loadLimestoneUsageOisButton",
     "resetEfficiencyMorningMeetingButton"
   ];
@@ -224478,6 +224486,45 @@ function initializeLimestoneSlipCameraPicker() {
       });
   }
 
+  async function loadWeatherForBulk() {
+    const loader =
+      window
+        .loadEfficiencyMorningMeetingWeather;
+
+    if (
+      typeof loader !==
+        "function"
+    ) {
+      return null;
+    }
+
+    const restored =
+      await loader({
+        forceRefresh:
+          false,
+
+        userInitiated:
+          false
+      });
+
+    if (
+      restored
+    ) {
+      return restored;
+    }
+
+    return await loader({
+      forceRefresh:
+        false,
+
+      userInitiated:
+        true
+    });
+  }
+
+
+
+
 
   function createBulkLookupItems() {
     return [
@@ -224561,6 +224608,43 @@ function initializeLimestoneSlipCameraPicker() {
                   false
               })
       },
+      {
+        key:
+          "smp-price",
+
+        alwaysLoad:
+          true,
+
+        label:
+          "SMP 단가",
+
+        load:
+          () =>
+            window
+              .loadEfficiencyMorningMeetingSmpPrice?.({
+                forceRefresh:
+                  false,
+
+                cacheFirst:
+                  true
+              })
+      },
+
+      {
+        key:
+          "weather",
+
+        alwaysLoad:
+          true,
+
+        label:
+          "신북 날씨",
+
+        load:
+          loadWeatherForBulk
+      },
+
+
 
       {
         key:
