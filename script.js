@@ -118748,6 +118748,11 @@ openLogDetail =
     70;
 
 
+  /* 오늘과 이전 14일을 포함한 기본 조회기간 */
+  const DEFAULT_ARM_ROLL_BOX_RANGE_DAYS =
+    15;
+
+
 /*
   자동 교체 확정 기준
 
@@ -125384,7 +125389,7 @@ function renderArmRollBoxDashboard(
 
         Number(
           days ||
-          30
+          DEFAULT_ARM_ROLL_BOX_RANGE_DAYS
         )
       );
 
@@ -125492,9 +125497,11 @@ function bindArmRollBoxEvents() {
 
   /*
     기본 조회 기간
+    - 오늘 포함 15일
+    - 시작일은 오늘보다 14일 전
   */
   setArmRollBoxRange(
-    30,
+    DEFAULT_ARM_ROLL_BOX_RANGE_DAYS,
     false
   );
 

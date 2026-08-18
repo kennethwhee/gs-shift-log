@@ -114743,3 +114743,143 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 }
 
 /* ===== ARM ROLL MOBILE LEGEND AXIS FIX 8 END ===== */
+
+/* ===== ARM ROLL 2 WEEK + LEGEND 20 PERCENT FIX 9 START ===== */
+
+@media screen and (max-width: 768px) {
+
+  /* 5개 항목이 한 줄에서 각각 정확히 20%를 차지한다. */
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-card
+  .arm-roll-box-section-header
+  .arm-roll-box-chart-legend {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 0 !important;
+
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  > .is-reference-line,
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  > span:nth-of-type(5),
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-legend
+  > span:nth-of-type(6) {
+    display: none !important;
+  }
+
+  /* 각 항목 자체의 폭도 20%로 고정하고 내부 묶음을 중앙 정렬한다. */
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-card
+  .arm-roll-box-section-header
+  .arm-roll-box-chart-legend
+  > span:not(.is-reference-line):not(:nth-of-type(5)):not(:nth-of-type(6)) {
+    position: relative !important;
+    display: flex !important;
+    flex: 0 0 20% !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 3px !important;
+
+    box-sizing: border-box !important;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    width: 20% !important;
+    min-width: 20% !important;
+    max-width: 20% !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    white-space: nowrap !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-card
+  .arm-roll-box-section-header
+  .arm-roll-box-chart-legend
+  > span:not(.is-reference-line):not(:nth-of-type(5)):not(:nth-of-type(6))::before {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    flex: 0 0 12px !important;
+    width: 12px !important;
+    min-width: 12px !important;
+    max-width: 12px !important;
+    height: 3px !important;
+    margin: 0 !important;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-card
+  .arm-roll-box-section-header
+  .arm-roll-box-chart-legend
+  > span:not(.is-reference-line):not(:nth-of-type(5)):not(:nth-of-type(6))
+  > b {
+    display: block !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+  }
+
+  body
+  #efficiencyTeamModal
+  #efficiencyArmRollView
+  .arm-roll-box-chart-card
+  .arm-roll-box-section-header
+  .arm-roll-box-chart-legend
+  > .is-replacement-marker::before {
+    flex-basis: 9px !important;
+    width: 9px !important;
+    min-width: 9px !important;
+    max-width: 9px !important;
+    height: 9px !important;
+  }
+}
+
+/* ===== ARM ROLL 2 WEEK + LEGEND 20 PERCENT FIX 9 END ===== */
