@@ -6640,6 +6640,406 @@ async function createAuxiliaryMaterialBatchRequest(
 
 
 
+
+/* =========================================================
+  업무일지 사용자 요청 상태 묶음 조회
+
+  GET /api/ois-data-requests
+    ?action=status_batch
+    &ids=요청ID1,요청ID2,...
+
+  - 한 번에 최대 12건
+  - 사용자 인증은 묶음 전체에서 한 번만 수행
+  - 전달받은 요청 중 실제 만료된 활성 요청만 정리
+========================================================= */
+
+const MAXIMUM_STATUS_BATCH_IDS =
+  12;
+
+
+function parseStatusBatchRequestIds(
+  requestUrl
+) {
+  const rawValues =
+    requestUrl.searchParams
+      .getAll(
+        "ids"
+      );
+
+
+  if (
+    rawValues.length <
+      1
+  ) {
+    return {
+      error:
+        "상태를 조회할 OIS 요청 ID가 없습니다."
+    };
+  }
+
+
+  const rawIds =
+    rawValues.flatMap(
+      value => {
+        return String(
+          value ??
+          ""
+        ).split(
+          ","
+        );
+      }
+    );
+
+
+  if (
+    rawIds.length <
+      1 ||
+    rawIds.length >
+      MAXIMUM_STATUS_BATCH_IDS
+  ) {
+    return {
+      error:
+        "OIS 요청 상태는 한 번에 최대 12건까지 조회할 수 있습니다."
+    };
+  }
+
+
+  const requestIds = [];
+
+
+  for (
+    const rawId
+    of rawIds
+  ) {
+    const requestId =
+      normalizeText(
+        rawId
+      );
+
+
+    if (
+      !requestId ||
+      requestId.length >
+        128 ||
+      !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(
+        requestId
+      )
+    ) {
+      return {
+        error:
+          "OIS 요청 ID 형식이 올바르지 않습니다."
+      };
+    }
+
+
+    if (
+      !requestIds.includes(
+        requestId
+      )
+    ) {
+      requestIds.push(
+        requestId
+      );
+    }
+  }
+
+
+  return {
+    requestIds
+  };
+}
+
+
+async function findRequestsByIds(
+  database,
+  requestIds
+) {
+  if (
+    requestIds.length <
+      1
+  ) {
+    return [];
+  }
+
+
+  const placeholders =
+    requestIds
+      .map(
+        () => {
+          return "?";
+        }
+      )
+      .join(
+        ", "
+      );
+
+
+  const query = [
+    "SELECT *",
+    "FROM ois_data_requests",
+    "WHERE id IN (" +
+      placeholders +
+      ")"
+  ].join(
+    "\n"
+  );
+
+
+  const queryResult =
+    await database
+      .prepare(
+        query
+      )
+      .bind(
+        ...requestIds
+      )
+      .all();
+
+
+  return Array.isArray(
+    queryResult?.results
+  )
+    ? queryResult.results
+    : [];
+}
+
+
+async function expireSelectedActiveRequests(
+  database,
+  rows
+) {
+  const nowDate =
+    new Date();
+
+
+  const now =
+    nowDate.toISOString();
+
+
+  const expiredRequestIds =
+    rows
+      .filter(
+        row => {
+          const status =
+            normalizeText(
+              row?.status
+            )
+              .toLowerCase();
+
+
+          if (
+            status !==
+              "pending" &&
+            status !==
+              "processing"
+          ) {
+            return false;
+          }
+
+
+          const expiresAt =
+            new Date(
+              normalizeText(
+                row?.expires_at
+              )
+            );
+
+
+          return (
+            !Number.isNaN(
+              expiresAt.getTime()
+            ) &&
+            expiresAt <
+              nowDate
+          );
+        }
+      )
+      .map(
+        row => {
+          return normalizeText(
+            row.id
+          );
+        }
+      );
+
+
+  if (
+    expiredRequestIds.length <
+      1
+  ) {
+    return false;
+  }
+
+
+  const placeholders =
+    expiredRequestIds
+      .map(
+        () => {
+          return "?";
+        }
+      )
+      .join(
+        ", "
+      );
+
+
+  const updateQuery = [
+    "UPDATE ois_data_requests",
+    "SET",
+    "  status = 'failed',",
+    "  error_message = 'OIS 연동 프로그램의 응답 시간이 초과되었습니다.',",
+    "  completed_at = ?,",
+    "  updated_at = ?",
+    "WHERE id IN (" +
+      placeholders +
+      ")",
+    "  AND status IN ('pending', 'processing')",
+    "  AND expires_at < ?"
+  ].join(
+    "\n"
+  );
+
+
+  await database
+    .prepare(
+      updateQuery
+    )
+    .bind(
+      now,
+      now,
+      ...expiredRequestIds,
+      now
+    )
+    .run();
+
+
+  return true;
+}
+
+
+async function handleStatusBatchGet(
+  context,
+  requestUrl
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const parsedIds =
+    parseStatusBatchRequestIds(
+      requestUrl
+    );
+
+
+  if (
+    parsedIds.error
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          parsedIds.error
+      },
+      400
+    );
+  }
+
+
+  const requestIds =
+    parsedIds.requestIds;
+
+
+  let rows =
+    await findRequestsByIds(
+      context.env.DB,
+      requestIds
+    );
+
+
+  const expiredAny =
+    await expireSelectedActiveRequests(
+      context.env.DB,
+      rows
+    );
+
+
+  if (
+    expiredAny
+  ) {
+    rows =
+      await findRequestsByIds(
+        context.env.DB,
+        requestIds
+      );
+  }
+
+
+  const rowsById =
+    new Map(
+      rows.map(
+        row => {
+          return [
+            normalizeText(
+              row.id
+            ),
+            row
+          ];
+        }
+      )
+    );
+
+
+  const items =
+    requestIds
+      .map(
+        requestId => {
+          return rowsById.get(
+            requestId
+          );
+        }
+      )
+      .filter(
+        Boolean
+      )
+      .map(
+        convertRequestRow
+      );
+
+
+  const missingIds =
+    requestIds.filter(
+      requestId => {
+        return !rowsById.has(
+          requestId
+        );
+      }
+    );
+
+
+  return jsonResponse({
+    ok:
+      true,
+
+    requestedIds:
+      requestIds,
+
+    items,
+
+    missingIds
+  });
+}
+
 /* =========================================================
   업무일지 사용자 상태 조회
 
@@ -6971,6 +7371,752 @@ async function handleAgentNextRequest(
 
     message:
       "다른 OIS 연동 프로그램이 요청을 먼저 처리했습니다."
+  });
+}
+
+/* =========================================================
+  회사 PC가 OIS · Excel 두 실행 레인을 한 번에 가져오기
+
+  중요:
+  - HTTP 폴링 요청은 기존처럼 한 번만 사용한다.
+  - OIS 레인과 Excel 레인은 각각 최대 한 건만 가져온다.
+  - OIS 요청끼리는 병렬로 가져오지 않는다.
+  - 기존 action=next는 구버전 에이전트를 위해 유지한다.
+========================================================= */
+
+const OIS_AGENT_OIS_LANE_REQUEST_TYPES = [
+  "water_environment",
+  "limestone_stock",
+  "turbine_gear_pinion",
+  "silo_level",
+  "auxiliary_materials",
+  "logsheet_approval"
+];
+
+
+const OIS_AGENT_EXCEL_LANE_REQUEST_TYPES = [
+  "daily_data_excel",
+  "steam_status",
+  "logsheet_pdf"
+];
+
+
+function normalizeAgentLaneRequestTypes(
+  value,
+  allowedRequestTypes,
+  parameterName
+) {
+  const allowedRequestTypeSet =
+    new Set(
+      allowedRequestTypes
+    );
+
+
+  /*
+    파라미터가 아예 없을 때만 전체 레인을 기본값으로 쓴다.
+
+    `?oisRequestTypes=`처럼 명시됐지만 비어 있는 값까지
+    전체 허용으로 넓히면 호출자의 오타가 요청 범위를
+    예상보다 크게 만들 수 있으므로 아래 검증에서 거부한다.
+  */
+  if (
+    value ===
+      null ||
+    typeof value ===
+      "undefined"
+  ) {
+    return {
+      ok:
+        true,
+
+      requestTypes: [
+        ...allowedRequestTypes
+      ]
+    };
+  }
+
+
+  const requestedTypes = [];
+
+
+  const seenRequestTypes =
+    new Set();
+
+
+  const rawRequestTypes =
+    String(
+      value
+    )
+      .split(
+        ","
+      )
+      .map(
+        rawRequestType => {
+          return normalizeText(
+            rawRequestType
+          )
+            .toLowerCase()
+            .replace(
+              /[\s-]+/g,
+              "_"
+            );
+        }
+      );
+
+
+  if (
+    rawRequestTypes.length ===
+      0
+  ) {
+    return {
+      ok:
+        false,
+
+      message:
+        `${parameterName}에 허용되지 않은 요청 유형이 포함되어 있습니다.`
+    };
+  }
+
+
+  for (
+    const requestType of
+    rawRequestTypes
+  ) {
+    if (
+      !requestType ||
+      !OIS_REQUEST_TYPES.includes(
+        requestType
+      ) ||
+      !allowedRequestTypeSet.has(
+        requestType
+      )
+    ) {
+      return {
+        ok:
+          false,
+
+        message:
+          `${parameterName}에 허용되지 않은 요청 유형이 포함되어 있습니다.`
+      };
+    }
+
+
+    if (
+      seenRequestTypes.has(
+        requestType
+      )
+    ) {
+      continue;
+    }
+
+
+    seenRequestTypes.add(
+      requestType
+    );
+
+
+    requestedTypes.push(
+      requestType
+    );
+  }
+
+
+  return {
+    ok:
+      true,
+
+    requestTypes:
+      requestedTypes
+  };
+}
+
+
+async function findNextOisAgentLaneCandidates(
+  database,
+  oisRequestTypes,
+  excelRequestTypes,
+  includeOisLane =
+    true,
+  includeExcelLane =
+    true
+) {
+  const oisRequestTypeOrderKey =
+    `,${oisRequestTypes.join(",")},`;
+
+
+  const excelRequestTypeOrderKey =
+    `,${excelRequestTypes.join(",")},`;
+
+
+  /*
+    OIS와 Excel 후보를 CTE 한 SELECT로 함께 찾는다.
+
+    대기 요청이 없는 평상시에는 기존 action=next와 같이
+    후보 SELECT가 정확히 한 번만 실행된다.
+  */
+  const queryResult =
+    await database
+      .prepare(`
+        WITH
+          ois_candidate AS (
+            SELECT
+              'ois' AS claim_lane,
+              request.*
+
+            FROM ois_data_requests
+              AS request
+
+            WHERE
+              ? = 1
+              AND request.status = 'pending'
+
+              AND instr(
+                ?,
+                ',' || request.request_type || ','
+              ) >
+                0
+
+            ORDER BY
+              instr(
+                ?,
+                ',' || request.request_type || ','
+              ) ASC,
+
+              request.requested_at ASC
+
+            LIMIT 1
+          ),
+
+          excel_candidate AS (
+            SELECT
+              'excel' AS claim_lane,
+              request.*
+
+            FROM ois_data_requests
+              AS request
+
+            WHERE
+              ? = 1
+              AND request.status = 'pending'
+
+              AND instr(
+                ?,
+                ',' || request.request_type || ','
+              ) >
+                0
+
+            ORDER BY
+              instr(
+                ?,
+                ',' || request.request_type || ','
+              ) ASC,
+
+              request.requested_at ASC
+
+            LIMIT 1
+          )
+
+        SELECT
+          *
+
+        FROM ois_candidate
+
+        UNION ALL
+
+        SELECT
+          *
+
+        FROM excel_candidate
+      `)
+      .bind(
+        includeOisLane
+          ? 1
+          : 0,
+        oisRequestTypeOrderKey,
+        oisRequestTypeOrderKey,
+        includeExcelLane
+          ? 1
+          : 0,
+        excelRequestTypeOrderKey,
+        excelRequestTypeOrderKey
+      )
+      .all();
+
+
+  const rows =
+    Array.isArray(
+      queryResult?.results
+    )
+      ? queryResult.results
+      : [];
+
+
+  return {
+    ois:
+      rows.find(
+        row => {
+          return normalizeText(
+            row?.claim_lane
+          ) ===
+            "ois";
+        }
+      ) ||
+      null,
+
+    excel:
+      rows.find(
+        row => {
+          return normalizeText(
+            row?.claim_lane
+          ) ===
+            "excel";
+        }
+      ) ||
+      null
+  };
+}
+
+
+async function claimOisAgentLaneCandidate(
+  database,
+  pendingRow,
+  agentId
+) {
+  if (
+    !pendingRow
+  ) {
+    return null;
+  }
+
+
+  const requestId =
+    normalizeText(
+      pendingRow.id
+    );
+
+
+  const processingStartedAt =
+    new Date();
+
+
+  const processingStartedAtText =
+    processingStartedAt.toISOString();
+
+
+  const processingExpiresAtText =
+    new Date(
+      processingStartedAt.getTime() +
+      (
+        REQUEST_PROCESSING_TIMEOUT_MINUTES *
+        60 *
+        1000
+      )
+    )
+      .toISOString();
+
+
+  /*
+    다른 에이전트와 동시에 실행되더라도
+    status='pending' 조건부 UPDATE에 성공한 한 곳만
+    해당 요청을 가져간다.
+  */
+  const updateResult =
+    await database
+      .prepare(`
+        UPDATE ois_data_requests
+
+        SET
+          status = 'processing',
+          started_at = ?,
+          agent_id = ?,
+          expires_at = ?,
+          updated_at = ?
+
+        WHERE
+          id = ?
+          AND status = 'pending'
+      `)
+      .bind(
+        processingStartedAtText,
+        agentId,
+        processingExpiresAtText,
+        processingStartedAtText,
+        requestId
+      )
+      .run();
+
+
+  if (
+    Number(
+      updateResult?.meta?.changes
+    ) !==
+      1
+  ) {
+    return null;
+  }
+
+
+  /*
+    조건부 UPDATE가 성공한 뒤 별도 SELECT를 하지 않는다.
+
+    UPDATE 후 재조회만 실패하여 이미 가져간 요청을
+    응답하지 못하는 고아 처리 상태를 줄이기 위해,
+    방금 선택한 행에 처리 정보를 반영해 즉시 반환한다.
+  */
+  return convertRequestRow({
+    ...pendingRow,
+
+    status:
+      "processing",
+
+    started_at:
+      processingStartedAtText,
+
+    agent_id:
+      agentId,
+
+    expires_at:
+      processingExpiresAtText,
+
+    updated_at:
+      processingStartedAtText
+  });
+}
+
+
+function getOisAgentLaneErrorMessage(
+  reason,
+  fallbackMessage
+) {
+  return (
+    normalizeText(
+      reason instanceof
+        Error
+        ? reason.message
+        : reason
+    ) ||
+    fallbackMessage
+  );
+}
+
+
+async function handleAgentNextLaneRequests(
+  context,
+  requestUrl
+) {
+  const authentication =
+    await authenticateOisAgent(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const oisRequestTypeResult =
+    normalizeAgentLaneRequestTypes(
+      requestUrl.searchParams.get(
+        "oisRequestTypes"
+      ),
+      OIS_AGENT_OIS_LANE_REQUEST_TYPES,
+      "oisRequestTypes"
+    );
+
+
+  const excelRequestTypeResult =
+    normalizeAgentLaneRequestTypes(
+      requestUrl.searchParams.get(
+        "excelRequestTypes"
+      ),
+      OIS_AGENT_EXCEL_LANE_REQUEST_TYPES,
+      "excelRequestTypes"
+    );
+
+
+  if (
+    !oisRequestTypeResult.ok ||
+    !excelRequestTypeResult.ok
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          oisRequestTypeResult.message ||
+          excelRequestTypeResult.message ||
+          "에이전트 레인 요청 유형을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const oisRequestTypes =
+    oisRequestTypeResult
+      .requestTypes;
+
+
+  const excelRequestTypes =
+    excelRequestTypeResult
+      .requestTypes;
+
+
+  await expireOldRequests(
+    context.env.DB
+  );
+
+
+  const items = {
+    ois:
+      null,
+
+    excel:
+      null
+  };
+
+
+  const laneErrors = {
+    ois:
+      "",
+
+    excel:
+      ""
+  };
+
+
+  const unresolvedLanes = {
+    ois:
+      true,
+
+    excel:
+      true
+  };
+
+
+  /*
+    첫 시도는 후보 SELECT 한 번으로 두 lane을 함께 찾는다.
+
+    조건부 UPDATE 경쟁에서 진 lane만 최대 두 번 다시 찾고,
+    이미 성공한 lane은 추가 요청을 가져오지 않는다.
+  */
+  for (
+    let attempt = 0;
+    attempt <
+      3 &&
+      (
+        unresolvedLanes.ois ||
+        unresolvedLanes.excel
+      );
+    attempt +=
+      1
+  ) {
+    let candidates;
+
+
+    try {
+      candidates =
+        await findNextOisAgentLaneCandidates(
+          context.env.DB,
+          oisRequestTypes,
+          excelRequestTypes,
+          unresolvedLanes.ois,
+          unresolvedLanes.excel
+        );
+
+    } catch (
+      error
+    ) {
+      /*
+        후보 SELECT는 어느 행도 processing으로 바꾸지 않는다.
+        이전 반복에서 성공한 item이 있다면 그대로 응답하고,
+        아직 해결되지 않은 lane에만 오류를 기록한다.
+      */
+      if (
+        unresolvedLanes.ois
+      ) {
+        laneErrors.ois =
+          getOisAgentLaneErrorMessage(
+            error,
+            "OIS 레인 후보를 찾지 못했습니다."
+          );
+
+
+        unresolvedLanes.ois =
+          false;
+      }
+
+
+      if (
+        unresolvedLanes.excel
+      ) {
+        laneErrors.excel =
+          getOisAgentLaneErrorMessage(
+            error,
+            "Excel 레인 후보를 찾지 못했습니다."
+          );
+
+
+        unresolvedLanes.excel =
+          false;
+      }
+
+
+      break;
+    }
+
+
+    const claimLaneNames = [];
+
+
+    const claimPromises = [];
+
+
+    [
+      "ois",
+      "excel"
+    ]
+      .forEach(
+        laneName => {
+          if (
+            !unresolvedLanes[
+              laneName
+            ]
+          ) {
+            return;
+          }
+
+
+          const candidate =
+            candidates[
+              laneName
+            ];
+
+
+          if (
+            !candidate
+          ) {
+            unresolvedLanes[
+              laneName
+            ] =
+              false;
+
+
+            return;
+          }
+
+
+          claimLaneNames.push(
+            laneName
+          );
+
+
+          claimPromises.push(
+            claimOisAgentLaneCandidate(
+              context.env.DB,
+              candidate,
+              authentication.agentId
+            )
+          );
+        }
+      );
+
+
+    if (
+      claimPromises.length ===
+        0
+    ) {
+      break;
+    }
+
+
+    const claimResults =
+      await Promise.allSettled(
+        claimPromises
+      );
+
+
+    claimResults.forEach(
+      (
+        claimResult,
+        claimIndex
+      ) => {
+        const laneName =
+          claimLaneNames[
+            claimIndex
+          ];
+
+
+        if (
+          claimResult.status ===
+            "rejected"
+        ) {
+          laneErrors[
+            laneName
+          ] =
+            getOisAgentLaneErrorMessage(
+              claimResult.reason,
+              laneName ===
+                "ois"
+                ? "OIS 레인 요청을 가져오지 못했습니다."
+                : "Excel 레인 요청을 가져오지 못했습니다."
+            );
+
+
+          unresolvedLanes[
+            laneName
+          ] =
+            false;
+
+
+          return;
+        }
+
+
+        if (
+          claimResult.value
+        ) {
+          items[
+            laneName
+          ] =
+            claimResult.value;
+
+
+          unresolvedLanes[
+            laneName
+          ] =
+            false;
+        }
+
+
+        /*
+          value가 null이면 다른 agent가 먼저 UPDATE한 경쟁이다.
+          이 lane만 다음 반복의 통합 SELECT에서 다시 찾는다.
+        */
+      }
+    );
+  }
+
+
+  return jsonResponse({
+    ok:
+      true,
+
+    items,
+
+    checkedRequestTypes: {
+      ois:
+        oisRequestTypes,
+
+      excel:
+        excelRequestTypes
+    },
+
+    laneErrors
   });
 }
 
@@ -8976,6 +10122,36 @@ if (
     }
 
 
+
+    /*
+      일반 OIS 요청 상태 묶음 조회
+    */
+    if (
+      action ===
+        "status_batch"
+    ) {
+      return await handleStatusBatchGet(
+        context,
+        requestUrl
+      );
+    }
+
+
+    /*
+      회사 PC OIS · Excel 두 레인 동시 요청
+
+      한 번의 HTTP 폴링으로
+      OIS 최대 1건 + Excel 최대 1건을 가져온다.
+    */
+    if (
+      action ===
+        "next_lanes"
+    ) {
+      return await handleAgentNextLaneRequests(
+        context,
+        requestUrl
+      );
+    }
     /*
       회사 PC 다음 요청
     */

@@ -7586,6 +7586,340 @@ async function getNextOisAgentRequest(
 }
 
 /* =========================================================
+  다음 OIS · Excel 두 레인 요청 가져오기
+
+  hybrid 모드:
+  - 한 번의 HTTP 요청으로 OIS 최대 1건
+  - 같은 요청으로 Excel 최대 1건
+
+  excel 모드:
+  - 기존 단건 요청 함수를 그대로 사용한다.
+
+  OIS 레인은 Phase 1의 수처리 두 날짜 연속 우선순위를
+  유지하며, OIS 요청끼리는 절대 병렬로 가져오지 않는다.
+========================================================= */
+
+async function getNextOisAgentLaneRequests(
+  config
+) {
+  if (
+    config.agentMode ===
+      "excel"
+  ) {
+    const excelItem =
+      await getNextOisAgentRequest(
+        config
+      );
+
+
+    return excelItem
+      ? [
+          excelItem
+        ]
+      : [];
+  }
+
+
+  const oisRequestTypes = [
+    "water_environment",
+    "limestone_stock",
+    "turbine_gear_pinion",
+    "silo_level",
+    "auxiliary_materials",
+    "logsheet_approval"
+  ];
+
+
+  const excelRequestTypes = [
+    "daily_data_excel",
+    "steam_status",
+    "logsheet_pdf"
+  ];
+
+
+  const oisStartIndex =
+    Number(
+      getNextOisAgentLaneRequests
+        .nextOisTypeIndex ||
+      0
+    ) %
+    oisRequestTypes.length;
+
+
+  const excelStartIndex =
+    Number(
+      getNextOisAgentLaneRequests
+        .nextExcelTypeIndex ||
+      0
+    ) %
+    excelRequestTypes.length;
+
+
+  const orderedOisRequestTypes =
+    oisRequestTypes.map(
+      (
+        requestType,
+        offset
+      ) => {
+        return oisRequestTypes[
+          (
+            oisStartIndex +
+            offset
+          ) %
+          oisRequestTypes.length
+        ];
+      }
+    );
+
+
+  const orderedExcelRequestTypes =
+    excelRequestTypes.map(
+      (
+        requestType,
+        offset
+      ) => {
+        return excelRequestTypes[
+          (
+            excelStartIndex +
+            offset
+          ) %
+          excelRequestTypes.length
+        ];
+      }
+    );
+
+
+  const result =
+    await requestOisAgentApi(
+      config,
+
+      getOisAgentApiUrl(
+        config,
+        {
+          action:
+            "next_lanes",
+
+          oisRequestTypes:
+            orderedOisRequestTypes.join(
+              ","
+            ),
+
+          excelRequestTypes:
+            orderedExcelRequestTypes.join(
+              ","
+            ),
+
+          _:
+            Date.now()
+        }
+      )
+    );
+
+
+  Object.entries(
+    result?.laneErrors ||
+    {}
+  )
+    .filter(
+      (
+        [
+          laneName,
+          laneError
+        ]
+      ) => {
+        return Boolean(
+          normalizeOisAgentText(
+            laneError
+          )
+        );
+      }
+    )
+    .forEach(
+      (
+        [
+          laneName,
+          laneError
+        ]
+      ) => {
+        console.warn(
+          `${laneName} 레인 요청 확인 실패: ${normalizeOisAgentText(
+            laneError
+          )}`
+        );
+      }
+    );
+
+
+  const oisItem =
+    result?.items?.ois ||
+    null;
+
+
+  const excelItem =
+    result?.items?.excel ||
+    null;
+
+
+  const oisRequestType =
+    normalizeOisAgentText(
+      oisItem?.requestType ||
+      oisItem?.request_type
+    );
+
+
+  const excelRequestType =
+    normalizeOisAgentText(
+      excelItem?.requestType ||
+      excelItem?.request_type
+    );
+
+
+  if (
+    oisItem &&
+    !oisRequestTypes.includes(
+      oisRequestType
+    )
+  ) {
+    throw new Error(
+      `OIS 레인에 잘못된 요청 유형이 반환되었습니다: ${oisRequestType}`
+    );
+  }
+
+
+  if (
+    excelItem &&
+    !excelRequestTypes.includes(
+      excelRequestType
+    )
+  ) {
+    throw new Error(
+      `Excel 레인에 잘못된 요청 유형이 반환되었습니다: ${excelRequestType}`
+    );
+  }
+
+
+  if (
+    oisItem?.id &&
+    excelItem?.id &&
+    normalizeOisAgentText(
+      oisItem.id
+    ) ===
+      normalizeOisAgentText(
+        excelItem.id
+      )
+  ) {
+    throw new Error(
+      "OIS와 Excel 레인에 동일한 요청이 중복 반환되었습니다."
+    );
+  }
+
+
+  if (
+    oisItem
+  ) {
+    const claimedOisTypeIndex =
+      oisRequestTypes.indexOf(
+        oisRequestType
+      );
+
+
+    const previousOisRequestType =
+      normalizeOisAgentText(
+        getNextOisAgentLaneRequests
+          .lastOisRequestType
+      );
+
+
+    const keepWaterPriority =
+      oisRequestType ===
+        "water_environment" &&
+      previousOisRequestType !==
+        "water_environment";
+
+
+    getNextOisAgentLaneRequests
+      .nextOisTypeIndex =
+      claimedOisTypeIndex >=
+        0
+        ? keepWaterPriority
+          ? claimedOisTypeIndex
+          : (
+              claimedOisTypeIndex +
+              1
+            ) %
+            oisRequestTypes.length
+        : (
+            oisStartIndex +
+            1
+          ) %
+          oisRequestTypes.length;
+
+
+    getNextOisAgentLaneRequests
+      .lastOisRequestType =
+      oisRequestType;
+
+  } else {
+    getNextOisAgentLaneRequests
+      .nextOisTypeIndex =
+      (
+        oisStartIndex +
+        1
+      ) %
+      oisRequestTypes.length;
+
+
+    getNextOisAgentLaneRequests
+      .lastOisRequestType =
+      "";
+  }
+
+
+  if (
+    excelItem
+  ) {
+    const claimedExcelTypeIndex =
+      excelRequestTypes.indexOf(
+        excelRequestType
+      );
+
+
+    getNextOisAgentLaneRequests
+      .nextExcelTypeIndex =
+      claimedExcelTypeIndex >=
+        0
+        ? (
+            claimedExcelTypeIndex +
+            1
+          ) %
+          excelRequestTypes.length
+        : (
+            excelStartIndex +
+            1
+          ) %
+          excelRequestTypes.length;
+
+  } else {
+    getNextOisAgentLaneRequests
+      .nextExcelTypeIndex =
+      (
+        excelStartIndex +
+        1
+      ) %
+      excelRequestTypes.length;
+  }
+
+
+  return [
+    oisItem,
+    excelItem
+  ]
+    .filter(
+      Boolean
+    );
+}
+
+/* =========================================================
   요청 유형 정규화
 ========================================================= */
 
@@ -17084,13 +17418,13 @@ async function loginOis() {
     while (
       !isShuttingDown
     ) {
-      let requestItem =
-        null;
+      let requestItems =
+        [];
 
 
       try {
-        requestItem =
-          await getNextOisAgentRequest(
+        requestItems =
+          await getNextOisAgentLaneRequests(
             config
           );
 
@@ -17116,14 +17450,15 @@ async function loginOis() {
 
 
       /*
-        요청이 없을 때는 OIS Edge를 열거나 복구하지 않는다.
+        한 번의 기존 폴링으로
+        OIS 최대 한 건과 Excel 최대 한 건을 가져온다.
 
-        실제 OIS 요청이 들어왔을 때만 브라우저 세션을
-        지연 생성하므로, 집에서도 Excel 전용 요청을
-        OIS 로그인 없이 처리할 수 있다.
+        요청이 없을 때만 30초 대기하므로
+        유휴 HTTP 요청 수는 기존과 동일하다.
       */
       if (
-        !requestItem
+        requestItems.length ===
+          0
       ) {
         await waitOisAgent(
           OIS_AGENT_POLL_INTERVAL
@@ -17134,6 +17469,10 @@ async function loginOis() {
       }
 
 
+      const processingResults =
+        await Promise.allSettled(
+          requestItems.map(
+            async requestItem => {
       const requestId =
         normalizeOisAgentText(
           requestItem.id
@@ -17423,6 +17762,26 @@ async function loginOis() {
           }
         );
       }
+            }
+          )
+        );
+
+
+      processingResults
+        .filter(
+          processingResult => {
+            return processingResult.status ===
+              "rejected";
+          }
+        )
+        .forEach(
+          processingResult => {
+            console.error(
+              "OIS · Excel 병렬 처리 중 예상하지 못한 오류:",
+              processingResult.reason
+            );
+          }
+        );
 
 
       await waitOisAgent(

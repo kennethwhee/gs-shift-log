@@ -174665,6 +174665,982 @@ async function analyzeCoalLogFile() {
   }
 })();
 
+
+/* =========================================================
+  OIS 요청 상태 공용 폴링 조정기
+
+  - 동시에 기다리는 요청을 최대 12개까지 한 GET으로 조회
+  - 등록 후 20초 동안 2초 간격
+  - 이후에는 5초 간격으로 자동 완화
+  - 완료·실패한 카드는 묶음 전체를 기다리지 않고 즉시 반환
+========================================================= */
+
+(function installSharedOisStatusPollCoordinator() {
+  "use strict";
+
+
+  if (
+    window
+      .__sharedOisStatusPollCoordinatorInstalled ===
+    true
+  ) {
+    return;
+  }
+
+
+  window
+    .__sharedOisStatusPollCoordinatorInstalled =
+    true;
+
+
+  const API_URL =
+    "/api/ois-data-requests";
+
+
+  const MAXIMUM_BATCH_IDS =
+    12;
+
+
+  const FAST_POLL_INTERVAL_MS =
+    2000;
+
+
+  const SLOW_POLL_INTERVAL_MS =
+    5000;
+
+
+  const FAST_POLL_DURATION_MS =
+    20000;
+
+
+  const MAXIMUM_CONSECUTIVE_FETCH_FAILURES =
+    3;
+
+
+  const waitersByRequestId =
+    new Map();
+
+
+  let pollTimer =
+    null;
+
+
+  let pollInFlight =
+    false;
+
+
+  let immediatePollRequested =
+    false;
+
+
+  let fastPollUntil =
+    0;
+
+
+  let consecutiveFetchFailures =
+    0;
+
+
+  function normalizeCoordinatorText(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    ).trim();
+  }
+
+
+  function removeWaiter(
+    waiter
+  ) {
+    const requestWaiters =
+      waitersByRequestId.get(
+        waiter.requestId
+      );
+
+
+    if (
+      !requestWaiters
+    ) {
+      return;
+    }
+
+
+    requestWaiters.delete(
+      waiter
+    );
+
+
+    if (
+      requestWaiters.size <
+        1
+    ) {
+      waitersByRequestId.delete(
+        waiter.requestId
+      );
+    }
+  }
+
+
+  function resolveWaiter(
+    waiter,
+    value
+  ) {
+    if (
+      waiter.settled
+    ) {
+      return;
+    }
+
+
+    waiter.settled =
+      true;
+
+
+    removeWaiter(
+      waiter
+    );
+
+
+    waiter.resolve(
+      value
+    );
+  }
+
+
+  function rejectWaiter(
+    waiter,
+    error
+  ) {
+    if (
+      waiter.settled
+    ) {
+      return;
+    }
+
+
+    waiter.settled =
+      true;
+
+
+    removeWaiter(
+      waiter
+    );
+
+
+    waiter.reject(
+      error instanceof Error
+        ? error
+        : new Error(
+            normalizeCoordinatorText(
+              error
+            ) ||
+            "OIS 요청 상태를 확인하지 못했습니다."
+          )
+    );
+  }
+
+
+  function readWaiterMessage(
+    option,
+    fallbackMessage,
+    requestItem
+  ) {
+    if (
+      typeof option ===
+        "function"
+    ) {
+      return normalizeCoordinatorText(
+        option(
+          requestItem
+        )
+      ) ||
+        fallbackMessage;
+    }
+
+
+    return normalizeCoordinatorText(
+      option
+    ) ||
+      fallbackMessage;
+  }
+
+
+  function pruneInactiveWaiters() {
+    const now =
+      Date.now();
+
+
+    for (
+      const requestWaiters
+      of waitersByRequestId.values()
+    ) {
+      for (
+        const waiter
+        of [
+          ...requestWaiters
+        ]
+      ) {
+        let cancelled =
+          false;
+
+
+        if (
+          typeof waiter.isCancelled ===
+            "function"
+        ) {
+          try {
+            cancelled =
+              waiter.isCancelled() ===
+              true;
+
+          } catch (
+            error
+          ) {
+            rejectWaiter(
+              waiter,
+              error
+            );
+
+            continue;
+          }
+        }
+
+
+        if (
+          cancelled
+        ) {
+          resolveWaiter(
+            waiter,
+            null
+          );
+
+          continue;
+        }
+
+
+        if (
+          now -
+            waiter.startedAt >=
+          waiter.maximumWaitMs
+        ) {
+          rejectWaiter(
+            waiter,
+            new Error(
+              readWaiterMessage(
+                waiter.timeoutMessage,
+                "OIS 요청의 응답 시간이 초과되었습니다.",
+                null
+              )
+            )
+          );
+        }
+      }
+    }
+  }
+
+
+  async function readBatchResponse(
+    response
+  ) {
+    const responseText =
+      await response.text();
+
+
+    let result =
+      {};
+
+
+    if (
+      responseText.trim()
+    ) {
+      try {
+        result =
+          JSON.parse(
+            responseText
+          );
+
+      } catch {
+        const parseError =
+          new Error(
+          "OIS 상태 묶음 조회 서버 응답 형식이 올바르지 않습니다."
+          );
+
+
+        parseError
+          .isRetryableOisBatchFetchError =
+          response.status >=
+            500 &&
+          response.status <=
+            599;
+
+
+        throw parseError;
+      }
+    }
+
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false
+    ) {
+      const responseError =
+        new Error(
+        result.message ||
+        result.error ||
+        "OIS 상태 묶음 조회에 실패했습니다. (HTTP " +
+          response.status +
+          ")"
+        );
+
+
+      responseError
+        .isRetryableOisBatchFetchError =
+        response.status >=
+          500 &&
+        response.status <=
+          599;
+
+
+      throw responseError;
+    }
+
+
+    return result;
+  }
+
+
+  function schedulePoll(
+    delay
+  ) {
+    if (
+      waitersByRequestId.size <
+        1
+    ) {
+      if (
+        pollTimer !==
+          null
+      ) {
+        window.clearTimeout(
+          pollTimer
+        );
+
+
+        pollTimer =
+          null;
+      }
+
+
+      fastPollUntil =
+        0;
+
+
+      consecutiveFetchFailures =
+        0;
+
+
+      return;
+    }
+
+
+    if (
+      pollInFlight
+    ) {
+      if (
+        Number(
+          delay
+        ) ===
+          0
+      ) {
+        immediatePollRequested =
+          true;
+      }
+
+
+      return;
+    }
+
+
+    if (
+      pollTimer !==
+        null
+    ) {
+      if (
+        Number(
+          delay
+        ) !==
+          0
+      ) {
+        return;
+      }
+
+
+      window.clearTimeout(
+        pollTimer
+      );
+    }
+
+
+    pollTimer =
+      window.setTimeout(
+        runPoll,
+        Math.max(
+          0,
+          Number(
+            delay
+          ) ||
+          0
+        )
+      );
+  }
+
+
+  async function runPoll() {
+    pollTimer =
+      null;
+
+
+    pruneInactiveWaiters();
+
+
+    if (
+      waitersByRequestId.size <
+        1
+    ) {
+      schedulePoll(
+        0
+      );
+
+
+      return;
+    }
+
+
+    if (
+      pollInFlight
+    ) {
+      immediatePollRequested =
+        true;
+
+
+      return;
+    }
+
+
+    const requestIds = [
+      ...waitersByRequestId.keys()
+    ].slice(
+      0,
+      MAXIMUM_BATCH_IDS
+    );
+
+
+    pollInFlight =
+      true;
+
+
+    immediatePollRequested =
+      false;
+
+
+    try {
+      const requestUrl =
+        new URL(
+          API_URL,
+          window.location.origin
+        );
+
+
+      requestUrl.searchParams.set(
+        "action",
+        "status_batch"
+      );
+
+
+      requestUrl.searchParams.set(
+        "ids",
+        requestIds.join(
+          ","
+        )
+      );
+
+
+      requestUrl.searchParams.set(
+        "_",
+        String(
+          Date.now()
+        )
+      );
+
+
+      const response =
+        await fetch(
+          requestUrl.toString(),
+          {
+            method:
+              "GET",
+
+            headers:
+              typeof getShiftLogAuthHeaders ===
+                "function"
+                ? getShiftLogAuthHeaders()
+                : {
+                    Accept:
+                      "application/json"
+                  },
+
+            cache:
+              "no-store"
+          }
+        );
+
+
+      const result =
+        await readBatchResponse(
+          response
+        );
+
+
+      consecutiveFetchFailures =
+        0;
+
+
+      const itemsById =
+        new Map(
+          (
+            Array.isArray(
+              result.items
+            )
+              ? result.items
+              : []
+          )
+            .map(
+              item => {
+                return [
+                  normalizeCoordinatorText(
+                    item?.id
+                  ),
+                  item
+                ];
+              }
+            )
+            .filter(
+              entry => {
+                return Boolean(
+                  entry[0]
+                );
+              }
+            )
+        );
+
+
+      const missingIds =
+        new Set(
+          Array.isArray(
+            result.missingIds
+          )
+            ? result.missingIds.map(
+                normalizeCoordinatorText
+              )
+            : []
+        );
+
+
+      requestIds.forEach(
+        requestId => {
+          const requestWaiters =
+            waitersByRequestId.get(
+              requestId
+            );
+
+
+          if (
+            !requestWaiters
+          ) {
+            return;
+          }
+
+
+          const requestItem =
+            itemsById.get(
+              requestId
+            );
+
+
+          if (
+            !requestItem ||
+            missingIds.has(
+              requestId
+            )
+          ) {
+            [
+              ...requestWaiters
+            ].forEach(
+              waiter => {
+                rejectWaiter(
+                  waiter,
+                  new Error(
+                    readWaiterMessage(
+                      waiter.notFoundMessage,
+                      "OIS 요청을 찾을 수 없습니다.",
+                      null
+                    )
+                  )
+                );
+              }
+            );
+
+
+            return;
+          }
+
+
+          [
+            ...requestWaiters
+          ].forEach(
+            waiter => {
+              if (
+                waiter.settled
+              ) {
+                return;
+              }
+
+
+              if (
+                typeof waiter.onUpdate ===
+                  "function"
+              ) {
+                try {
+                  waiter.onUpdate(
+                    requestItem
+                  );
+
+                } catch (
+                  error
+                ) {
+                  console.warn(
+                    "OIS 상태 화면 갱신 오류:",
+                    error
+                  );
+                }
+              }
+
+
+              const status =
+                normalizeCoordinatorText(
+                  requestItem.status
+                )
+                  .toLowerCase();
+
+
+              if (
+                status ===
+                  "complete"
+              ) {
+                resolveWaiter(
+                  waiter,
+                  requestItem
+                );
+
+
+                return;
+              }
+
+
+              if (
+                status ===
+                  "failed"
+              ) {
+                rejectWaiter(
+                  waiter,
+                  new Error(
+                    readWaiterMessage(
+                      waiter.failureMessage,
+                      normalizeCoordinatorText(
+                        requestItem.errorMessage ||
+                        requestItem.error_message
+                      ) ||
+                        "OIS 요청 처리에 실패했습니다.",
+                      requestItem
+                    )
+                  )
+                );
+              }
+            }
+          );
+        }
+      );
+
+    } catch (
+      error
+    ) {
+      const retryableError =
+        error
+          ?.isRetryableOisBatchFetchError !==
+        false;
+
+
+      if (
+        retryableError
+      ) {
+        consecutiveFetchFailures +=
+          1;
+
+      } else {
+        consecutiveFetchFailures =
+          MAXIMUM_CONSECUTIVE_FETCH_FAILURES;
+      }
+
+
+      if (
+        retryableError &&
+        consecutiveFetchFailures <
+          MAXIMUM_CONSECUTIVE_FETCH_FAILURES
+      ) {
+        console.warn(
+          "OIS 상태 묶음 조회 일시 오류. 재시도합니다:",
+          consecutiveFetchFailures +
+            "/" +
+            MAXIMUM_CONSECUTIVE_FETCH_FAILURES,
+          error
+        );
+
+      } else {
+        requestIds.forEach(
+          requestId => {
+            const requestWaiters =
+              waitersByRequestId.get(
+                requestId
+              );
+
+
+            if (
+              !requestWaiters
+            ) {
+              return;
+            }
+
+
+            [
+              ...requestWaiters
+            ].forEach(
+              waiter => {
+                rejectWaiter(
+                  waiter,
+                  error
+                );
+              }
+            );
+          }
+        );
+
+
+        consecutiveFetchFailures =
+          0;
+      }
+
+    } finally {
+      pollInFlight =
+        false;
+
+
+      pruneInactiveWaiters();
+
+
+      if (
+        waitersByRequestId.size <
+          1
+      ) {
+        schedulePoll(
+          0
+        );
+
+
+        return;
+      }
+
+
+      if (
+        immediatePollRequested
+      ) {
+        schedulePoll(
+          0
+        );
+
+
+        return;
+      }
+
+
+      schedulePoll(
+        Date.now() <
+          fastPollUntil
+          ? FAST_POLL_INTERVAL_MS
+          : SLOW_POLL_INTERVAL_MS
+      );
+    }
+  }
+
+
+  function waitForCompletion(
+    requestId,
+    options =
+      {}
+  ) {
+    const normalizedRequestId =
+      normalizeCoordinatorText(
+        requestId
+      );
+
+
+    if (
+      !normalizedRequestId
+    ) {
+      return Promise.reject(
+        new Error(
+          "OIS 요청 ID가 없습니다."
+        )
+      );
+    }
+
+
+    if (
+      !waitersByRequestId.has(
+        normalizedRequestId
+      ) &&
+      waitersByRequestId.size >=
+        MAXIMUM_BATCH_IDS
+    ) {
+      return Promise.reject(
+        new Error(
+          "동시에 확인할 수 있는 OIS 요청은 최대 12건입니다."
+        )
+      );
+    }
+
+
+    const maximumWaitMs =
+      Number(
+        options.maximumWaitMs
+      );
+
+
+    const startedAt =
+      Date.now();
+
+
+    fastPollUntil =
+      Math.max(
+        fastPollUntil,
+        startedAt +
+          FAST_POLL_DURATION_MS
+      );
+
+
+    return new Promise(
+      (
+        resolve,
+        reject
+      ) => {
+        const waiter = {
+          requestId:
+            normalizedRequestId,
+
+          resolve,
+
+          reject,
+
+          startedAt,
+
+          maximumWaitMs:
+            Number.isFinite(
+              maximumWaitMs
+            ) &&
+            maximumWaitMs >
+              0
+              ? maximumWaitMs
+              : 10 *
+                60 *
+                1000,
+
+          isCancelled:
+            options.isCancelled,
+
+          onUpdate:
+            options.onUpdate,
+
+          failureMessage:
+            options.failureMessage,
+
+          notFoundMessage:
+            options.notFoundMessage,
+
+          timeoutMessage:
+            options.timeoutMessage,
+
+          settled:
+            false
+        };
+
+
+        let requestWaiters =
+          waitersByRequestId.get(
+            normalizedRequestId
+          );
+
+
+        if (
+          !requestWaiters
+        ) {
+          requestWaiters =
+            new Set();
+
+
+          waitersByRequestId.set(
+            normalizedRequestId,
+            requestWaiters
+          );
+        }
+
+
+        requestWaiters.add(
+          waiter
+        );
+
+
+        schedulePoll(
+          0
+        );
+      }
+    );
+  }
+
+
+  window.waitForSharedOisRequestCompletion =
+    waitForCompletion;
+
+
+  window.getSharedOisStatusPollDiagnostics =
+    function getSharedOisStatusPollDiagnostics() {
+      return {
+        activeRequestCount:
+          waitersByRequestId.size,
+
+        pollInFlight,
+
+        intervalMs:
+          Date.now() <
+            fastPollUntil
+            ? FAST_POLL_INTERVAL_MS
+            : SLOW_POLL_INTERVAL_MS,
+
+        consecutiveFetchFailures
+      };
+    };
+})();
+
 /* =========================================================
   석회석 사용량 계산
   OIS 재고 조회 요청 연결 최종본
@@ -175456,8 +176432,17 @@ async function loadSavedLimestoneUsageRecords(
 ====================================================== */
 
   async function createLimestoneOisRequest(
-    targetDate
+    targetDate,
+    options =
+      {}
   ) {
+    const {
+      forceRefresh =
+        true
+    } =
+      options;
+
+
     const response =
       await fetch(
         OIS_REQUEST_API_URL,
@@ -175491,6 +176476,7 @@ async function loadSavedLimestoneUsageRecords(
               targetDate,
 
               forceRefresh:
+                forceRefresh ===
                 true
             })
         }
@@ -175859,114 +176845,83 @@ async function loadSavedLimestoneUsageRecords(
     targetDate,
     runToken
   ) {
-    const startedAt =
-      Date.now();
+    return await window
+      .waitForSharedOisRequestCompletion(
+        requestId,
+        {
+          maximumWaitMs:
+            OIS_REQUEST_MAX_WAIT,
+
+          isCancelled:
+            () => {
+              return runToken !==
+                activeRunToken;
+            },
+
+          notFoundMessage:
+            "OIS 요청 정보를 찾을 수 없습니다.",
+
+          timeoutMessage:
+            "OIS 연동 프로그램의 응답 시간이 초과되었습니다.",
+
+          failureMessage:
+            requestItem => {
+              return requestItem.errorMessage ||
+                requestItem.error_message ||
+                "회사 PC에서 OIS 자료를 조회하지 못했습니다.";
+            },
+
+          onUpdate:
+            requestItem => {
+              const requestStatus =
+                String(
+                  requestItem.status ||
+                  ""
+                )
+                  .trim()
+                  .toLowerCase();
 
 
-    while (
-      Date.now() -
-        startedAt <
-      OIS_REQUEST_MAX_WAIT
-    ) {
-      /*
-        다른 날짜로 이동하거나
-        새 요청을 시작한 경우 기존 대기를 중단한다.
-      */
-      if (
-        runToken !==
-          activeRunToken
-      ) {
-        return null;
-      }
+              if (
+                requestStatus ===
+                  "processing"
+              ) {
+                setLimestoneOisRequestStatus(
+                  "loading",
+                  "OIS 자료 조회 중",
+                  [
+                    targetDate +
+                      "와 다음 날의 석회석 재고를 확인하고 있습니다.",
 
+                    requestItem.agentId
+                      ? "처리 PC: " +
+                        requestItem.agentId
+                      : ""
+                  ]
+                    .filter(
+                      Boolean
+                    )
+                    .join(
+                      " · "
+                    )
+                );
 
-      const responseResult =
-        await getLimestoneOisRequest(
-          requestId
-        );
-
-
-      const requestItem =
-        responseResult.item;
-
-
-      if (
-        !requestItem
-      ) {
-        throw new Error(
-          "OIS 요청 정보를 찾을 수 없습니다."
-        );
-      }
-
-
-      const requestStatus =
-        String(
-          requestItem.status ||
-          ""
-        )
-          .trim()
-          .toLowerCase();
-
-
-      if (
-        requestStatus ===
-          "complete"
-      ) {
-        return requestItem;
-      }
-
-
-      if (
-        requestStatus ===
-          "failed"
-      ) {
-        throw new Error(
-          requestItem.errorMessage ||
-          "회사 PC에서 OIS 자료를 조회하지 못했습니다."
-        );
-      }
-
-
-      if (
-        requestStatus ===
-          "processing"
-      ) {
-        setLimestoneOisRequestStatus(
-          "loading",
-          "OIS 자료 조회 중",
-          [
-            `${targetDate}와 다음 날의 석회석 재고를 확인하고 있습니다.`,
-
-            requestItem.agentId
-              ? `처리 PC: ${requestItem.agentId}`
-              : ""
-          ]
-            .filter(
-              Boolean
-            )
-            .join(
-              " · "
-            )
-        );
-
-      } else {
-        setLimestoneOisRequestStatus(
-          "loading",
-          "회사 PC 연결 대기 중",
-          `${targetDate} OIS 조회 요청을 회사 PC 프로그램이 가져가기를 기다리고 있습니다.`
-        );
-      }
-
-
-      await waitLimestoneOisRequest(
-        OIS_REQUEST_POLL_INTERVAL
+              } else if (
+                requestStatus !==
+                  "complete" &&
+                requestStatus !==
+                  "failed"
+              ) {
+                setLimestoneOisRequestStatus(
+                  "loading",
+                  "회사 PC 연결 대기 중",
+                  targetDate +
+                    " OIS 조회 요청을 회사 PC 프로그램이 가져가기를 기다리고 있습니다."
+                );
+              }
+            }
+        }
       );
-    }
-
-
-    throw new Error(
-      "OIS 연동 프로그램의 응답 시간이 초과되었습니다."
-    );
   }
 
 
@@ -175974,7 +176929,23 @@ async function loadSavedLimestoneUsageRecords(
     OIS 재고 불러오기 버튼
   ====================================================== */
 
-  async function loadLimestoneOisStock() {
+  async function loadLimestoneOisStock(
+    options =
+      {}
+  ) {
+    const {
+      forceRefresh =
+        true
+    } =
+      options;
+    /*
+      LIMESTONE BULK CACHE-FIRST V1
+
+      - 무인자 직접조회: forceRefresh=true
+      - 일괄조회: forceRefresh=false
+    */
+
+
     if (
       isLimestoneUsageMobileMonitorMode()
     ) {
@@ -176050,7 +177021,10 @@ async function loadSavedLimestoneUsageRecords(
     try {
       const createResult =
         await createLimestoneOisRequest(
-          targetDate
+          targetDate,
+          {
+            forceRefresh
+          }
         );
 
 
@@ -180673,127 +181647,88 @@ async function waitForCompletion(
   targetDate,
   runToken
 ) {
-  const startedAt =
-    Date.now();
+  return await window
+    .waitForSharedOisRequestCompletion(
+      requestId,
+      {
+        maximumWaitMs:
+          MAXIMUM_WAIT,
+
+        isCancelled:
+          () => {
+            return runToken !==
+              activeRunToken;
+          },
+
+        notFoundMessage:
+          "수처리 OIS 요청을 찾을 수 없습니다.",
+
+        timeoutMessage:
+          targetDate +
+            " 수처리 OIS 조회 응답 시간이 초과되었습니다.",
+
+        failureMessage:
+          requestItem => {
+            return normalizeText(
+              requestItem.errorMessage ||
+              requestItem.error_message
+            ) ||
+              targetDate +
+                " 수처리 OIS 조회에 실패했습니다.";
+          },
+
+        onUpdate:
+          requestItem => {
+            const requestStatus =
+              normalizeText(
+                requestItem.status
+              ).toLowerCase();
 
 
-  while (
-    Date.now() -
-      startedAt <
-    MAXIMUM_WAIT
-  ) {
-    if (
-      runToken !==
-        activeRunToken
-    ) {
-      return null;
-    }
+            if (
+              requestStatus ===
+                "processing"
+            ) {
+              const agentId =
+                normalizeText(
+                  requestItem.agentId
+                );
 
 
-    const requestResult =
-      await getWaterRequest(
-        requestId
-      );
+              setStatus(
+                "loading",
+                [
+                  targetDate +
+                    " OIS 수처리 조회 중",
 
+                  agentId
+                    ? "처리 PC: " +
+                      agentId
+                    : ""
+                ]
+                  .filter(
+                    Boolean
+                  )
+                  .join(
+                    " · "
+                  )
+              );
 
-    const requestItem =
-      requestResult.item;
-
-
-    if (
-      !requestItem
-    ) {
-      throw new Error(
-        "수처리 OIS 요청을 찾을 수 없습니다."
-      );
-    }
-
-
-    const requestStatus =
-      normalizeText(
-        requestItem.status
-      ).toLowerCase();
-
-
-    /* =================================================
-      조회 완료
-    ================================================== */
-
-    if (
-      requestStatus ===
-        "complete"
-    ) {
-      return requestItem;
-    }
-
-
-    /* =================================================
-      실제 조회 실패
-    ================================================== */
-
-    if (
-      requestStatus ===
-        "failed"
-    ) {
-      throw new Error(
-        normalizeText(
-          requestItem.errorMessage ||
-          requestItem.error_message
-        ) ||
-        `${targetDate} 수처리 OIS 조회에 실패했습니다.`
-      );
-    }
-
-
-    /* =================================================
-      현재 진행 상태 표시
-    ================================================== */
-
-    if (
-      requestStatus ===
-        "processing"
-    ) {
-      const agentId =
-        normalizeText(
-          requestItem.agentId
-        );
-
-
-      setStatus(
-        "loading",
-
-        [
-          `${targetDate} OIS 수처리 조회 중`,
-
-          agentId
-            ? `처리 PC: ${agentId}`
-            : ""
-        ]
-          .filter(
-            Boolean
-          )
-          .join(
-            " · "
-          )
-      );
-
-    } else {
-      setStatus(
-        "loading",
-        `${targetDate} 회사 PC 처리 대기 중`
-      );
-    }
-
-
-    await wait(
-      POLL_INTERVAL
+            } else if (
+              requestStatus !==
+                "complete" &&
+              requestStatus !==
+                "failed"
+            ) {
+              setStatus(
+                "loading",
+                targetDate +
+                  " 회사 PC 처리 대기 중"
+              );
+            }
+          }
+      }
     );
-  }
-
-
-  throw new Error(
-    `${targetDate} 수처리 OIS 조회 응답 시간이 초과되었습니다.`
-  );
 }
 
 
@@ -181567,16 +182502,14 @@ async function loadWaterTreatment(
     }
 
 
-    elements.loadButton
-      ?.addEventListener(
-        "click",
-        () => {
-          void loadWaterTreatment({
-            forceRefresh:
-              false
-          });
-        }
-      );
+    /*
+      일괄조회 버튼은 아래
+      installMorningMeetingAutoRetryButtons의
+      단일 coordinator가 전담한다.
+
+      이 클라이언트는 날짜 동기화·초기화 이벤트만
+      독립적으로 유지한다.
+    */
 
 
     elements.analyzeButton
@@ -182270,78 +183203,37 @@ async function createGearPinionRequest(
     targetDate,
     runToken
   ) {
-    const startedAt =
-      Date.now();
+    return await window
+      .waitForSharedOisRequestCompletion(
+        requestId,
+        {
+          maximumWaitMs:
+            MAXIMUM_WAIT,
 
+          isCancelled:
+            () => {
+              return runToken !==
+                activeRunToken;
+            },
 
-    while (
-      Date.now() -
-        startedAt <
-      MAXIMUM_WAIT
-    ) {
-      if (
-        runToken !==
-          activeRunToken
-      ) {
-        return null;
-      }
+          notFoundMessage:
+            "Gear Wheel / Pinion OIS 요청을 찾을 수 없습니다.",
 
+          timeoutMessage:
+            targetDate +
+              " Gear Wheel / Pinion OIS 조회 응답 시간이 초과되었습니다.",
 
-      const requestResult =
-        await getGearPinionRequest(
-          requestId
-        );
-
-
-      const requestItem =
-        requestResult.item;
-
-
-      if (
-        !requestItem
-      ) {
-        throw new Error(
-          "Gear Wheel / Pinion OIS 요청을 찾을 수 없습니다."
-        );
-      }
-
-
-      const requestStatus =
-        normalizeText(
-          requestItem.status
-        ).toLowerCase();
-
-
-      if (
-        requestStatus ===
-          "complete"
-      ) {
-        return requestItem;
-      }
-
-
-      if (
-        requestStatus ===
-          "failed"
-      ) {
-        throw new Error(
-          normalizeText(
-            requestItem.errorMessage
-          ) ||
-          `${targetDate} Gear Wheel / Pinion OIS 조회에 실패했습니다.`
-        );
-      }
-
-
-      await wait(
-        POLL_INTERVAL
+          failureMessage:
+            requestItem => {
+              return normalizeText(
+                requestItem.errorMessage ||
+                requestItem.error_message
+              ) ||
+                targetDate +
+                  " Gear Wheel / Pinion OIS 조회에 실패했습니다.";
+            }
+        }
       );
-    }
-
-
-    throw new Error(
-      `${targetDate} Gear Wheel / Pinion OIS 조회 응답 시간이 초과되었습니다.`
-    );
   }
 
 
@@ -183003,87 +183895,11 @@ async function createGearPinionRequest(
 
 
     /*
-      수처리 OIS 버튼을 누르면
-      Gear / Pinion도 동시에 요청한다.
+      일괄조회 버튼의 Gear / Pinion 실행은
+      단일 coordinator가 전담한다.
 
-      수처리 기능과 서로 다른 요청 ID를 사용하므로
-      두 기능은 독립적으로 완료된다.
+      이 함수는 날짜 동기화·초기화 이벤트만 유지한다.
     */
-
-    elements.loadButton.addEventListener(
-  "click",
-  () => {
-    const targetDate =
-      synchronizeTargetDate();
-
-
-    const state =
-      getState();
-
-
-    const result =
-      state.gearPinion;
-
-
-    const resultDate =
-      normalizeText(
-        result?.targetDate ||
-        result?.sourceDate
-      );
-
-
-    const hasCompleteValues = [
-      result?.gearWheel,
-      result?.pinion
-    ].every(
-      value =>
-        normalizeNumber(
-          value
-        ) !==
-        null
-    );
-
-
-    const isComplete =
-      Boolean(
-        targetDate &&
-        resultDate ===
-          targetDate &&
-        hasCompleteValues
-      );
-
-
-    const requestStatus =
-      normalizeText(
-        elements.panel
-          ?.dataset
-          .gearPinionStatus
-      ).toLowerCase();
-
-
-    const isLoading = [
-      "loading",
-      "pending",
-      "processing"
-    ].includes(
-      requestStatus
-    );
-
-
-    if (
-      isComplete ||
-      isLoading
-    ) {
-      return;
-    }
-
-
-    void loadGearPinion({
-      forceRefresh:
-        false
-    });
-  }
-);
 
 
     elements.analyzeButton
@@ -183142,7 +183958,7 @@ async function createGearPinionRequest(
 
 
     return true;
-}
+  }
 
 
 
@@ -183861,78 +184677,37 @@ async function createGearPinionRequest(
     targetDate,
     runToken
   ) {
-    const startedAt =
-      Date.now();
+    return await window
+      .waitForSharedOisRequestCompletion(
+        requestId,
+        {
+          maximumWaitMs:
+            MAXIMUM_WAIT,
 
+          isCancelled:
+            () => {
+              return runToken !==
+                activeRunToken;
+            },
 
-    while (
-      Date.now() -
-        startedAt <
-      MAXIMUM_WAIT
-    ) {
-      if (
-        runToken !==
-          activeRunToken
-      ) {
-        return null;
-      }
+          notFoundMessage:
+            "Silo Level OIS 요청을 찾을 수 없습니다.",
 
+          timeoutMessage:
+            targetDate +
+              " Silo Level OIS 조회 응답 시간이 초과되었습니다.",
 
-      const requestResult =
-        await getSiloRequest(
-          requestId
-        );
-
-
-      const requestItem =
-        requestResult.item;
-
-
-      if (
-        !requestItem
-      ) {
-        throw new Error(
-          "Silo Level OIS 요청을 찾을 수 없습니다."
-        );
-      }
-
-
-      const status =
-        normalizeText(
-          requestItem.status
-        ).toLowerCase();
-
-
-      if (
-        status ===
-          "complete"
-      ) {
-        return requestItem;
-      }
-
-
-      if (
-        status ===
-          "failed"
-      ) {
-        throw new Error(
-          normalizeText(
-            requestItem.errorMessage
-          ) ||
-          `${targetDate} Silo Level OIS 조회에 실패했습니다.`
-        );
-      }
-
-
-      await wait(
-        POLL_INTERVAL
+          failureMessage:
+            requestItem => {
+              return normalizeText(
+                requestItem.errorMessage ||
+                requestItem.error_message
+              ) ||
+                targetDate +
+                  " Silo Level OIS 조회에 실패했습니다.";
+            }
+        }
       );
-    }
-
-
-    throw new Error(
-      `${targetDate} Silo Level OIS 조회 응답 시간이 초과되었습니다.`
-    );
   }
 
 
@@ -185011,94 +185786,11 @@ async function loadSiloLevel(
 
 
     /*
-      기존 OIS 수처리 불러오기 버튼에
-      Silo 조회를 추가한다.
+      일괄조회 버튼의 Silo Level 실행은
+      단일 coordinator가 전담한다.
 
-      기존:
-      - 수처리
-      - Gear / Pinion
-
-      추가:
-      - Silo Level
-
-      세 요청은 각각 별도 OIS 요청 ID로
-      독립 처리된다.
+      이 함수는 날짜 동기화·초기화 이벤트만 유지한다.
     */
-
-    elements.loadButton.addEventListener(
-      "click",
-      () => {
-        const targetDate =
-          synchronizeTargetDate();
-
-
-        const state =
-          getState();
-
-
-        const result =
-          state.siloLevel;
-
-
-        const resultDate =
-          normalizeText(
-            result?.sourceDate ||
-            result?.targetDate
-          );
-
-
-        const hasCompleteValues = [
-          result?.flyAshSiloLevel,
-          result?.bioStorageSiloLevel
-        ].every(
-          value =>
-            normalizeNumber(
-              value
-            ) !==
-            null
-        );
-
-
-        const isComplete =
-          Boolean(
-            targetDate &&
-            resultDate ===
-              targetDate &&
-            hasCompleteValues
-          );
-
-
-        const requestStatus =
-          normalizeText(
-            elements.panel
-              ?.dataset
-              .siloLevelStatus
-          ).toLowerCase();
-
-
-        const isLoading = [
-          "loading",
-          "pending",
-          "processing"
-        ].includes(
-          requestStatus
-        );
-
-
-        if (
-          isComplete ||
-          isLoading
-        ) {
-          return;
-        }
-
-
-        void loadSiloLevel({
-          forceRefresh:
-            false
-        });
-      }
-    );
 
 
     elements.analyzeButton
@@ -211839,109 +212531,75 @@ if (
     targetDate,
     runToken
   ) {
-    const startedAt =
-      Date.now();
-
-
     const {
       panel
     } =
       getElements();
 
 
-    while (
-      Date.now() -
-        startedAt <
-      MAXIMUM_WAIT
-    ) {
-      if (
-        runToken !==
-        activeRunToken
-      ) {
-        return null;
-      }
+    return await window
+      .waitForSharedOisRequestCompletion(
+        requestId,
+        {
+          maximumWaitMs:
+            MAXIMUM_WAIT,
+
+          isCancelled:
+            () => {
+              return runToken !==
+                activeRunToken;
+            },
+
+          notFoundMessage:
+            "일일 DATA 요청을 찾을 수 없습니다.",
+
+          timeoutMessage:
+            targetDate +
+              " 월간 일일DATA Excel 조회 응답 시간이 초과되었습니다.",
+
+          failureMessage:
+            requestItem => {
+              return normalizeText(
+                requestItem.errorMessage ||
+                requestItem.error_message
+              ) ||
+                targetDate +
+                  " 월간 일일DATA Excel 조회에 실패했습니다.";
+            },
+
+          onUpdate:
+            requestItem => {
+              const status =
+                normalizeText(
+                  requestItem.status
+                ).toLowerCase();
 
 
-      const requestResult =
-        await getSteamStatusRequest(
-          requestId
-        );
+              if (
+                panel
+              ) {
+                panel.dataset
+                  .steamStatusStatus =
+                  status ||
+                  "loading";
 
 
-      const requestItem =
-        requestResult.item;
+                if (
+                  requestItem.agentId
+                ) {
+                  panel.dataset
+                    .steamStatusAgentId =
+                    normalizeText(
+                      requestItem.agentId
+                    );
+                }
+              }
 
 
-      if (
-        !requestItem
-      ) {
-        throw new Error(
-          "일일 DATA 요청을 찾을 수 없습니다."
-        );
-      }
-
-
-      const status =
-        normalizeText(
-          requestItem.status
-        ).toLowerCase();
-
-
-      if (
-        panel
-      ) {
-        panel.dataset
-          .steamStatusStatus =
-          status ||
-          "loading";
-
-
-        if (
-          requestItem.agentId
-        ) {
-          panel.dataset
-            .steamStatusAgentId =
-            normalizeText(
-              requestItem.agentId
-            );
+              renderSteamStatus();
+            }
         }
-      }
-
-
-      renderSteamStatus();
-
-
-      if (
-        status ===
-        "complete"
-      ) {
-        return requestItem;
-      }
-
-
-      if (
-        status ===
-        "failed"
-      ) {
-        throw new Error(
-          normalizeText(
-            requestItem.errorMessage ||
-            requestItem.error_message
-          ) ||
-          `${targetDate} 월간 일일DATA Excel 조회에 실패했습니다.`
-        );
-      }
-
-
-      await wait(
-        POLL_INTERVAL
       );
-    }
-
-
-    throw new Error(
-      `${targetDate} 월간 일일DATA Excel 조회 응답 시간이 초과되었습니다.`
-    );
   }
 
 
@@ -213114,82 +213772,13 @@ function scheduleAutomaticLoad() {
 
 
     /*
-      자동 수치 불러오기 버튼
+      일괄조회 버튼의 일일 DATA Excel 실행은
+      단일 coordinator가 전담한다.
 
-      사용자가 직접 누른 경우에는
-      회사 PC의 열린 월간 Excel에서 새로 조회한다.
+      전체 초기화·날짜 동기화·완료 렌더 이벤트는
+      기존 동작을 그대로 유지한다.
     */
 
-    elements.loadButton.addEventListener(
-      "click",
-      () => {
-        const state =
-          getState();
-
-
-        const targetDate =
-          resolveTargetDate();
-
-
-        const existingDate =
-          normalizeText(
-            state.steamStatus
-              ?.sourceDate ||
-            state.steamStatus
-              ?.targetDate
-          );
-
-
-        const isComplete =
-          Boolean(
-            targetDate &&
-            existingDate ===
-              targetDate &&
-            isCompleteDailyDataResult(
-              state.steamStatus
-            )
-          );
-
-
-        const requestStatus =
-          normalizeText(
-            elements.panel
-              ?.dataset
-              .steamStatusStatus
-          ).toLowerCase();
-
-
-        const isLoading = [
-          "loading",
-          "pending",
-          "processing"
-        ].includes(
-          requestStatus
-        );
-
-
-        if (
-          isComplete ||
-          isLoading
-        ) {
-          return;
-        }
-
-
-        void loadSteamStatus({
-          forceRefresh:
-            false,
-
-          userInitiated:
-            true
-        });
-      }
-    );
-
-
-    /*
-      전체 초기화
-    */
 
     elements.resetButton
       ?.addEventListener(
@@ -213199,11 +213788,6 @@ function scheduleAutomaticLoad() {
         }
       );
 
-
-    /*
-      전날·오늘·다음날 이동 시
-      D1 저장값을 먼저 확인한다.
-    */
 
     [
       elements.previousButton,
@@ -213233,13 +213817,6 @@ function scheduleAutomaticLoad() {
       scheduleRender
     );
 
-
-    /*
-      공용 기준일 변경 감지
-
-      날짜만 동기화하며,
-      여기서는 신규 요청을 자동 생성하지 않는다.
-    */
 
     const panelObserver =
       new MutationObserver(
@@ -222941,6 +223518,892 @@ function initializeLimestoneSlipCameraPicker() {
     null;
 
 
+  /* =====================================================
+    MORNING MEETING BULK COORDINATOR V1
+
+    - 일괄조회 단일 실행
+    - 완료·진행 중 카드 중복 요청 차단
+    - 모든 자료 완료 후 버튼 잠금 해제
+    - 일괄조회 중 날짜·개별조회 잠금
+  ====================================================== */
+
+  let bulkLookupActive =
+    false;
+
+
+  let bulkLookupPromise =
+    null;
+
+
+  let bulkButtonObserver =
+    null;
+
+
+  const bulkLockedControls =
+    new Map();
+
+
+  const BULK_CONTROL_IDS = [
+    "efficiencyMorningMeetingWorkDatePreviousButton",
+    "efficiencyMorningMeetingWorkDatePicker",
+    "efficiencyMorningMeetingWorkDateNextButton",
+    "efficiencyMorningMeetingWorkDateTodayButton",
+    "efficiencyMorningMeetingWeekendMode",
+    "efficiencyMorningMeetingWeekendStartDate",
+    "efficiencyMorningMeetingWeekendEndDate",
+    "efficiencyMorningMeetingLimestonePreviousButton",
+    "efficiencyMorningMeetingLimestoneTodayButton",
+    "efficiencyMorningMeetingLimestoneNextButton",
+    "efficiencyMorningMeetingAutoDatePicker",
+    "efficiencyMorningMeetingAutoDatePickerWrap",
+    "efficiencyMorningMeetingAutoRetry-water",
+    "efficiencyMorningMeetingAutoRetry-limestone",
+    "efficiencyMorningMeetingAutoRetry-gear-pinion",
+    "efficiencyMorningMeetingAutoRetry-silo-level",
+    "efficiencyMorningMeetingAutoDailyPowerRefreshButton",
+    "efficiencyMorningMeetingAutoSteamRefreshButton",
+    "efficiencyMorningMeetingAutoDailySludgeRefreshButton",
+    "loadLimestoneUsageOisButton",
+    "resetEfficiencyMorningMeetingButton"
+  ];
+
+
+  const BULK_STATUS_LOADING_CLASSES = [
+    "is-loading",
+    "is-pending",
+    "is-processing"
+  ];
+
+
+  const BULK_STATUS_MAXIMUM_WAIT =
+    10 *
+    60 *
+    1000;
+
+
+  function getBulkStatusElements(
+    statusIds
+  ) {
+    return statusIds
+      .map(
+        statusId =>
+          document.getElementById(
+            statusId
+          )
+      )
+      .filter(
+        Boolean
+      );
+  }
+
+
+  function hasBulkLoadingStatus(
+    statusIds
+  ) {
+    return getBulkStatusElements(
+      statusIds
+    ).some(
+      statusElement =>
+        BULK_STATUS_LOADING_CLASSES.some(
+          className =>
+            statusElement.classList.contains(
+              className
+            )
+        )
+    );
+  }
+
+
+  function hasBulkCompleteStatus(
+    statusIds
+  ) {
+    const statusElements =
+      getBulkStatusElements(
+        statusIds
+      );
+
+
+    return (
+      statusElements.length >
+        0 &&
+      statusElements.length ===
+        statusIds.length &&
+      statusElements.every(
+        statusElement =>
+          statusElement.classList.contains(
+            "is-complete"
+          )
+      )
+    );
+  }
+
+
+  function wait(
+    milliseconds
+  ) {
+    return new Promise(
+      resolve => {
+        window.setTimeout(
+          resolve,
+          milliseconds
+        );
+      }
+    );
+  }
+
+
+  async function waitForExistingBulkTask(
+    item
+  ) {
+    const startedAt =
+      Date.now();
+
+
+    while (
+      Date.now() -
+        startedAt <
+      BULK_STATUS_MAXIMUM_WAIT
+    ) {
+      if (
+        !hasBulkLoadingStatus(
+          item.statusIds
+        )
+      ) {
+        return;
+      }
+
+
+      await wait(
+        500
+      );
+    }
+
+
+    throw new Error(
+      `${item.label} 기존 조회의 완료 대기시간이 초과되었습니다.`
+    );
+  }
+
+
+  function getBulkLockControls() {
+    const controls = [
+      ...BULK_CONTROL_IDS.map(
+        controlId =>
+          document.getElementById(
+            controlId
+          )
+      ),
+
+      ...document.querySelectorAll(
+        ".efficiency-morning-meeting-auto-card__retry-button"
+      )
+    ]
+      .filter(
+        control =>
+          control &&
+          control.id !==
+            BULK_BUTTON_ID
+      );
+
+
+    return [
+      ...new Set(
+        controls
+      )
+    ];
+  }
+
+
+  function setBulkControlsLocked(
+    locked
+  ) {
+    if (
+      locked
+    ) {
+      getBulkLockControls()
+        .forEach(
+          control => {
+            if (
+              !bulkLockedControls.has(
+                control
+              )
+            ) {
+              const supportsDisabled =
+                "disabled" in
+                control;
+
+
+              const lockState = {
+                supportsDisabled,
+
+                wasDisabled:
+                  supportsDisabled
+                    ? control.disabled ===
+                        true
+                    : false,
+
+                ariaDisabled:
+                  control.getAttribute(
+                    "aria-disabled"
+                  ),
+
+                tabIndex:
+                  control.getAttribute(
+                    "tabindex"
+                  ),
+
+                pointerEvents:
+                  control.style
+                    ?.pointerEvents ||
+                  "",
+
+                blocker:
+                  null
+              };
+
+
+              if (
+                !supportsDisabled
+              ) {
+                lockState.blocker =
+                  event => {
+                    if (
+                      !bulkLookupActive
+                    ) {
+                      return;
+                    }
+
+
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                  };
+
+
+                control.addEventListener(
+                  "click",
+                  lockState.blocker,
+                  true
+                );
+
+
+                control.addEventListener(
+                  "keydown",
+                  lockState.blocker,
+                  true
+                );
+              }
+
+
+              bulkLockedControls.set(
+                control,
+                lockState
+              );
+            }
+
+
+            const lockState =
+              bulkLockedControls.get(
+                control
+              );
+
+
+            if (
+              lockState
+                .supportsDisabled
+            ) {
+              control.disabled =
+                true;
+
+            } else {
+              control.setAttribute(
+                "aria-disabled",
+                "true"
+              );
+
+
+              control.setAttribute(
+                "tabindex",
+                "-1"
+              );
+
+
+              if (
+                control.style
+              ) {
+                control.style
+                  .pointerEvents =
+                  "none";
+              }
+
+
+              if (
+                document.activeElement ===
+                  control
+              ) {
+                control.blur?.();
+              }
+            }
+
+
+            control.dataset
+              .morningBulkLocked =
+              "true";
+          }
+        );
+
+
+      return;
+    }
+
+
+    bulkLockedControls.forEach(
+      (
+        lockState,
+        control
+      ) => {
+        if (
+          control.isConnected
+        ) {
+          if (
+            lockState
+              .supportsDisabled
+          ) {
+            control.disabled =
+              lockState
+                .wasDisabled;
+
+          } else {
+            control.removeEventListener(
+              "click",
+              lockState.blocker,
+              true
+            );
+
+
+            control.removeEventListener(
+              "keydown",
+              lockState.blocker,
+              true
+            );
+
+
+            if (
+              lockState
+                .ariaDisabled ===
+              null
+            ) {
+              control.removeAttribute(
+                "aria-disabled"
+              );
+
+            } else {
+              control.setAttribute(
+                "aria-disabled",
+                lockState
+                  .ariaDisabled
+              );
+            }
+
+
+            if (
+              lockState.tabIndex ===
+              null
+            ) {
+              control.removeAttribute(
+                "tabindex"
+              );
+
+            } else {
+              control.setAttribute(
+                "tabindex",
+                lockState.tabIndex
+              );
+            }
+
+
+            if (
+              control.style
+            ) {
+              control.style
+                .pointerEvents =
+                lockState
+                  .pointerEvents;
+            }
+          }
+
+
+          delete control.dataset
+            .morningBulkLocked;
+        }
+      }
+    );
+
+
+    bulkLockedControls.clear();
+  }
+
+
+  function keepBulkButtonLocked(
+    button
+  ) {
+    if (
+      !bulkLookupActive ||
+      !button
+    ) {
+      return;
+    }
+
+
+    if (
+      button.disabled !==
+        true
+    ) {
+      button.disabled =
+        true;
+    }
+
+
+    if (
+      button.textContent !==
+        "자료 조회 중"
+    ) {
+      button.textContent =
+        "자료 조회 중";
+    }
+
+
+    button.dataset
+      .bulkLookupRunning =
+      "true";
+
+
+    button.setAttribute(
+      "aria-busy",
+      "true"
+    );
+  }
+
+
+  function beginBulkButtonLock(
+    button
+  ) {
+    bulkButtonObserver
+      ?.disconnect();
+
+
+    bulkButtonObserver =
+      new MutationObserver(
+        () => {
+          keepBulkButtonLocked(
+            button
+          );
+        }
+      );
+
+
+    bulkButtonObserver.observe(
+      button,
+      {
+        attributes:
+          true,
+
+        attributeFilter: [
+          "disabled"
+        ],
+
+        childList:
+          true,
+
+        characterData:
+          true,
+
+        subtree:
+          true
+      }
+    );
+
+
+    keepBulkButtonLocked(
+      button
+    );
+  }
+
+
+  function endBulkButtonLock(
+    button
+  ) {
+    bulkButtonObserver
+      ?.disconnect();
+
+
+    bulkButtonObserver =
+      null;
+
+
+    if (
+      !button
+    ) {
+      return;
+    }
+
+
+    delete button.dataset
+      .bulkLookupRunning;
+
+
+    button.removeAttribute(
+      "aria-busy"
+    );
+
+
+    button.disabled =
+      false;
+
+
+    button.textContent =
+      BULK_BUTTON_LABEL;
+  }
+
+
+  async function loadLimestoneForBulk() {
+    const targetDate =
+      String(
+        document.getElementById(
+          "limestoneUsageDate"
+        )?.value ||
+        ""
+      ).trim();
+
+
+    let restored =
+      false;
+
+
+    if (
+      /^\d{4}-\d{2}-\d{2}$/.test(
+        targetDate
+      ) &&
+      typeof window
+        .loadSavedLimestoneUsageRecords ===
+        "function"
+    ) {
+      try {
+        restored =
+          await window
+            .loadSavedLimestoneUsageRecords(
+              targetDate,
+              {
+                silentWhenMissing:
+                  true,
+
+                requireActiveUsageDate:
+                  true
+              }
+            );
+
+      } catch (
+        error
+      ) {
+        console.warn(
+          "석회석 저장자료 확인 실패 → OIS 캐시 우선 조회:",
+          error
+        );
+      }
+    }
+
+
+    if (
+      restored
+    ) {
+      window
+        .renderEfficiencyMorningMeetingAutoPreview?.();
+
+
+      return true;
+    }
+
+
+    return await window
+      .loadLimestoneOisStock?.({
+        forceRefresh:
+          false
+      });
+  }
+
+
+  function createBulkLookupItems() {
+    return [
+      {
+        key:
+          "water",
+
+        label:
+          "수처리 현황",
+
+        statusIds: [
+          "efficiencyMorningMeetingAutoWaterStatus"
+        ],
+
+        load:
+          () =>
+            window
+              .loadEfficiencyMorningMeetingWaterTreatment?.({
+                forceRefresh:
+                  false
+              })
+      },
+
+      {
+        key:
+          "limestone",
+
+        label:
+          "석회석 현황",
+
+        statusIds: [
+          "efficiencyMorningMeetingAutoLimestoneStatus"
+        ],
+
+        load:
+          loadLimestoneForBulk
+      },
+
+      {
+        key:
+          "gear-pinion",
+
+        label:
+          "Gear Wheel / Pinion",
+
+        statusIds: [
+          "efficiencyMorningMeetingAutoGearPinionStatus"
+        ],
+
+        load:
+          () =>
+            window
+              .loadEfficiencyMorningMeetingGearPinion?.({
+                forceRefresh:
+                  false
+              })
+      },
+
+      {
+        key:
+          "silo-level",
+
+        label:
+          "Silo Level",
+
+        statusIds: [
+          "efficiencyMorningMeetingAutoSiloStatus"
+        ],
+
+        load:
+          () =>
+            window
+              .loadEfficiencyMorningMeetingSiloLevel?.({
+                forceRefresh:
+                  false
+              })
+      },
+
+      {
+        key:
+          "daily-data",
+
+        label:
+          "월간 일일 DATA",
+
+        statusIds: [
+          "efficiencyMorningMeetingAutoDailyPowerStatus",
+          "efficiencyMorningMeetingAutoSteamStatus",
+          "efficiencyMorningMeetingAutoDailySludgeStatus"
+        ],
+
+        load:
+          () =>
+            window
+              .loadEfficiencyMorningMeetingSteamStatus?.({
+                forceRefresh:
+                  false,
+
+                userInitiated:
+                  true
+              })
+      }
+    ];
+  }
+
+
+  async function runBulkLookupItem(
+    item,
+    button
+  ) {
+    if (
+      hasBulkCompleteStatus(
+        item.statusIds
+      )
+    ) {
+      return {
+        key:
+          item.key,
+
+        status:
+          "skipped-complete"
+      };
+    }
+
+
+    if (
+      hasBulkLoadingStatus(
+        item.statusIds
+      )
+    ) {
+      await waitForExistingBulkTask(
+        item
+      );
+
+
+      return {
+        key:
+          item.key,
+
+        status:
+          "waited-existing"
+      };
+    }
+
+
+    try {
+      if (
+        typeof item.load !==
+          "function"
+      ) {
+        throw new Error(
+          `${item.label} 조회 함수를 찾지 못했습니다.`
+        );
+      }
+
+
+      const result =
+        await item.load();
+
+
+      return {
+        key:
+          item.key,
+
+        status:
+          "fulfilled",
+
+        result
+      };
+
+    } finally {
+      keepBulkButtonLocked(
+        button
+      );
+
+
+      setBulkControlsLocked(
+        true
+      );
+    }
+  }
+
+
+  function runBulkLookup(
+    button
+  ) {
+    if (
+      bulkLookupPromise
+    ) {
+      return bulkLookupPromise;
+    }
+
+
+    bulkLookupActive =
+      true;
+
+
+    setBulkControlsLocked(
+      true
+    );
+
+
+    beginBulkButtonLock(
+      button
+    );
+
+
+    scheduleSync();
+
+
+    const lookupPromises =
+      createBulkLookupItems()
+        .map(
+          item =>
+            runBulkLookupItem(
+              item,
+              button
+            )
+        );
+
+
+    bulkLookupPromise =
+      Promise.allSettled(
+        lookupPromises
+      )
+        .then(
+          results => {
+            console.log(
+              "오전회의 자동자료 일괄조회 완료:",
+              results
+            );
+
+
+            return results;
+          }
+        )
+        .finally(
+          () => {
+            bulkLookupActive =
+              false;
+
+
+            setBulkControlsLocked(
+              false
+            );
+
+
+            endBulkButtonLock(
+              button
+            );
+
+
+            bulkLookupPromise =
+              null;
+
+
+            delete window
+              .__efficiencyMorningMeetingBulkLookupPromise;
+
+
+            scheduleSync();
+          }
+        );
+
+
+    window
+      .__efficiencyMorningMeetingBulkLookupPromise =
+      bulkLookupPromise;
+
+
+    return bulkLookupPromise;
+  }
+
+
   const retryItems = [
     {
       key:
@@ -222980,7 +224443,10 @@ function initializeLimestoneSlipCameraPicker() {
       load:
         () =>
           window
-            .loadLimestoneOisStock?.()
+            .loadLimestoneOisStock?.({
+              forceRefresh:
+                true
+            })
     },
 
     {
@@ -223080,7 +224546,8 @@ function initializeLimestoneSlipCameraPicker() {
     button
   ) {
     if (
-      button.disabled
+      button.disabled ||
+      bulkLookupActive
     ) {
       return;
     }
@@ -223270,6 +224737,7 @@ function initializeLimestoneSlipCameraPicker() {
 
 
     const shouldDisable =
+      bulkLookupActive ||
       isLookupRunning ||
       isStatusLoading;
 
@@ -223337,7 +224805,51 @@ function initializeLimestoneSlipCameraPicker() {
 
 
     button.title =
-      "조회 완료·조회 중 자료는 건너뛰고 미완료 자료만 조회합니다.";
+      "완료 자료는 재사용하고 미완료 자료만 한 번씩 조회합니다.";
+
+
+    if (
+      button.dataset
+        .bulkLookupCoordinatorBound !==
+      "true"
+    ) {
+      button.addEventListener(
+        "click",
+        event => {
+          event.preventDefault();
+
+
+          if (
+            bulkLookupActive ||
+            bulkLookupPromise
+          ) {
+            return;
+          }
+
+
+          void runBulkLookup(
+            button
+          );
+        }
+      );
+
+
+      button.dataset
+        .bulkLookupCoordinatorBound =
+        "true";
+    }
+
+
+    if (
+      bulkLookupActive
+    ) {
+      keepBulkButtonLocked(
+        button
+      );
+
+
+      return;
+    }
 
 
     if (
@@ -223345,107 +224857,6 @@ function initializeLimestoneSlipCameraPicker() {
     ) {
       button.textContent =
         BULK_BUTTON_LABEL;
-    }
-
-
-    /*
-      기존 일괄조회에
-      석회석 조회 연결 유지
-    */
-
-    if (
-      button.dataset
-        .limestoneBulkLookupBound !==
-      "true"
-    ) {
-      button.addEventListener(
-        "click",
-
-        async () => {
-          const statusElement =
-            document.getElementById(
-              "efficiencyMorningMeetingAutoLimestoneStatus"
-            );
-
-
-          if (
-            statusElement?.classList.contains(
-              "is-complete"
-            ) ||
-            statusElement?.classList.contains(
-              "is-loading"
-            )
-          ) {
-            return;
-          }
-
-
-          const targetDate =
-            String(
-              document.getElementById(
-                "limestoneUsageDate"
-              )?.value ||
-              ""
-            ).trim();
-
-
-          let restored =
-            false;
-
-
-          if (
-            /^\d{4}-\d{2}-\d{2}$/.test(
-              targetDate
-            ) &&
-            typeof window
-              .loadSavedLimestoneUsageRecords ===
-              "function"
-          ) {
-            try {
-              restored =
-                await window
-                  .loadSavedLimestoneUsageRecords(
-                    targetDate,
-                    {
-                      silentWhenMissing:
-                        true,
-
-                      requireActiveUsageDate:
-                        true
-                    }
-                  );
-
-            } catch (
-              error
-            ) {
-              console.warn(
-                "석회석 저장자료 확인 실패 → OIS 신규 조회:",
-                error
-              );
-            }
-          }
-
-
-          if (
-            restored
-          ) {
-            window
-              .renderEfficiencyMorningMeetingAutoPreview?.();
-
-
-            return;
-          }
-
-
-          await window
-            .loadLimestoneOisStock?.();
-        }
-      );
-
-
-      button.dataset
-        .limestoneBulkLookupBound =
-        "true";
     }
   }
 
@@ -223456,6 +224867,15 @@ function initializeLimestoneSlipCameraPicker() {
 
 
     syncBulkButton();
+
+
+    if (
+      bulkLookupActive
+    ) {
+      setBulkControlsLocked(
+        true
+      );
+    }
 
 
     retryItems.forEach(
@@ -223496,6 +224916,25 @@ function initializeLimestoneSlipCameraPicker() {
 
 
     syncAll();
+
+
+    window
+      .runEfficiencyMorningMeetingBulkLookup =
+      () => {
+        const button =
+          document.getElementById(
+            BULK_BUTTON_ID
+          );
+
+
+        return button
+          ? runBulkLookup(
+              button
+            )
+          : Promise.resolve(
+              []
+            );
+      };
 
 
     const observer =
