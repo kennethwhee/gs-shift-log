@@ -114159,3 +114159,56 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 }
 
 /* END LIMESTONE RECEIPT UNIT COLOR PC V1 */
+
+/* ===== LIMESTONE MOBILE RECEIPT TALL LIST V1 START ===== */
+
+/*
+  석회석 입고기록 상세
+
+  - 기존 150px 제한을 최종 단계에서 해제
+  - 화면 아래 빈 공간까지 목록창 확장
+  - 기록이 많을 때만 목록창 내부 스크롤
+*/
+
+@media screen and (max-width: 768px) {
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-history-card {
+    display: flex !important;
+    flex-direction: column !important;
+
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+
+    overflow: hidden !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-scroll {
+    display: block !important;
+
+    width: 100% !important;
+
+    height:
+      clamp(
+        280px,
+        33dvh,
+        340px
+      ) !important;
+
+    min-height: 280px !important;
+    max-height: 340px !important;
+
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ===== LIMESTONE MOBILE RECEIPT TALL LIST V1 END ===== */
