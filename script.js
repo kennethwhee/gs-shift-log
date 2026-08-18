@@ -182418,6 +182418,14 @@ async function loadWaterTreatment(
   } catch (
     error
   ) {
+    if (
+      runToken !==
+        activeRunToken
+    ) {
+      return;
+    }
+
+
     console.error(
       "오전회의 OIS 수처리 2일 조회 실패:",
       {
@@ -182451,6 +182459,8 @@ async function loadWaterTreatment(
 
   } finally {
     if (
+      runToken ===
+        activeRunToken &&
       loadButton
     ) {
       loadButton.disabled =
@@ -223878,6 +223888,104 @@ function initializeLimestoneSlipCameraPicker() {
   }
 
 
+  function getBulkCurrentBaseDate() {
+    const panel =
+      document.getElementById(
+        "efficiencyMorningMeetingWaterPanel"
+      );
+
+    const dateValue =
+      String(
+        panel?.dataset
+          ?.morningMeetingAutoBaseDate ||
+        document.getElementById(
+          "efficiencyMorningMeetingAutoDatePicker"
+        )?.value ||
+        ""
+      ).trim();
+
+    return /^\d{4}-\d{2}-\d{2}$/.test(
+      dateValue
+    )
+      ? dateValue
+      : "";
+  }
+
+
+  function getBulkItemResultDate(
+    item
+  ) {
+    const panel =
+      document.getElementById(
+        "efficiencyMorningMeetingWaterPanel"
+      );
+
+    const state =
+      window
+        .efficiencyMorningMeetingUploadState ||
+      {};
+
+    if (
+      item?.key ===
+        "water"
+    ) {
+      return String(
+        state.waterTreatment
+          ?.sourceDate ||
+        state.waterTreatment
+          ?.targetDate ||
+        panel?.dataset
+          ?.waterTargetDate ||
+        ""
+      ).trim();
+    }
+
+    if (
+      item?.key ===
+        "gear-pinion"
+    ) {
+      return String(
+        state.gearPinion
+          ?.targetDate ||
+        state.gearPinion
+          ?.sourceDate ||
+        panel?.dataset
+          ?.gearPinionTargetDate ||
+        ""
+      ).trim();
+    }
+
+    return "";
+  }
+
+
+  function isBulkItemCurrentDate(
+    item
+  ) {
+    if (
+      item?.requireCurrentDate !==
+        true
+    ) {
+      return true;
+    }
+
+    const expectedDate =
+      getBulkCurrentBaseDate();
+
+    const resultDate =
+      getBulkItemResultDate(
+        item
+      );
+
+    return Boolean(
+      expectedDate &&
+      resultDate &&
+      expectedDate ===
+        resultDate
+    );
+  }
+
+
   function wait(
     milliseconds
   ) {
@@ -224377,6 +224485,9 @@ function initializeLimestoneSlipCameraPicker() {
         key:
           "water",
 
+        alwaysLoad:
+          true,
+
         label:
           "수처리 현황",
 
@@ -224411,6 +224522,9 @@ function initializeLimestoneSlipCameraPicker() {
       {
         key:
           "gear-pinion",
+
+        requireCurrentDate:
+          true,
 
         label:
           "Gear Wheel / Pinion",
@@ -224480,7 +224594,18 @@ function initializeLimestoneSlipCameraPicker() {
     item,
     button
   ) {
+    const shouldAlwaysLoad =
+      item?.alwaysLoad ===
+        true;
+
+    const currentDateMatches =
+      isBulkItemCurrentDate(
+        item
+      );
+
     if (
+      !shouldAlwaysLoad &&
+      currentDateMatches &&
       hasBulkCompleteStatus(
         item.statusIds
       )
@@ -224496,6 +224621,8 @@ function initializeLimestoneSlipCameraPicker() {
 
 
     if (
+      !shouldAlwaysLoad &&
+      currentDateMatches &&
       hasBulkLoadingStatus(
         item.statusIds
       )
@@ -224504,14 +224631,22 @@ function initializeLimestoneSlipCameraPicker() {
         item
       );
 
+      if (
+        isBulkItemCurrentDate(
+          item
+        ) &&
+        hasBulkCompleteStatus(
+          item.statusIds
+        )
+      ) {
+        return {
+          key:
+            item.key,
 
-      return {
-        key:
-          item.key,
-
-        status:
-          "waited-existing"
-      };
+          status:
+            "waited-existing"
+        };
+      }
     }
 
 
@@ -224521,7 +224656,11 @@ function initializeLimestoneSlipCameraPicker() {
           "function"
       ) {
         throw new Error(
-          `${item.label} 조회 함수를 찾지 못했습니다.`
+          String(
+            item.label ||
+            "Item"
+          ) +
+          " lookup function was not found."
         );
       }
 
