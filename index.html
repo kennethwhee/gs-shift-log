@@ -23,7 +23,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260816-limestone-mobile-final10"
+    href="style.css?v=20260818-efficiency-mobile-fix1"
   >
 
 
@@ -10419,26 +10419,54 @@
           class="arm-roll-box-chart-legend"
           aria-label="그래프 범례"
         >
-<span class="is-arm-roll">
-  ARM ROLL
-</span>
+          <span
+            class="arm-roll-box-combined-legend-item is-solid"
+            style="--arm-roll-legend-color: #2f7fc1;"
+          >
+            <b>1호기 ARM ROLL</b>
+          </span>
 
-<span class="is-scrap">
-  SCRAP
-</span>
+          <span
+            class="arm-roll-box-combined-legend-item is-solid"
+            style="--arm-roll-legend-color: #8b5db7;"
+          >
+            <b>1호기 SCRAP</b>
+          </span>
 
-<span class="is-request">
-  50% 요청 필요
-</span>
+          <span
+            class="arm-roll-box-combined-legend-item is-dashed"
+            style="--arm-roll-legend-color: #15977f;"
+          >
+            <b>2호기 ARM ROLL</b>
+          </span>
 
-<span class="is-threshold">
-  70% 경보선
-</span>
+          <span
+            class="arm-roll-box-combined-legend-item is-dashed"
+            style="--arm-roll-legend-color: #d95f9f;"
+          >
+            <b>2호기 SCRAP</b>
+          </span>
 
-<span class="is-replacement">
-  교체
-</span>
-          
+          <span
+            class="arm-roll-box-combined-legend-line is-request is-dashed"
+            style="--arm-roll-legend-color: #d68a23;"
+          >
+            <b>50% 요청선</b>
+          </span>
+
+          <span
+            class="arm-roll-box-combined-legend-line is-warning is-dashed"
+            style="--arm-roll-legend-color: #d34b4b;"
+          >
+            <b>70% 경보선</b>
+          </span>
+
+          <span
+            class="arm-roll-box-combined-legend-marker is-replacement-marker"
+            style="--arm-roll-legend-color: #249064;"
+          >
+            <b>교체일</b>
+          </span>
         </div>
       </header>
 
@@ -10595,8 +10623,8 @@
 <!-- =================================================
   교체 이력 카드 목록
 
-  교체 1건을 카드 1개로 표시하여
-  모바일에서도 가로 스크롤 없이 확인한다.
+  교체 1건을 카드 1개로 표시한다.
+  모바일에서는 교체 이력 영역 전체를 숨긴다.
 ================================================== -->
 <div
   class="arm-roll-box-replacement-list"
