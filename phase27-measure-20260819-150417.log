@@ -1,0 +1,46 @@
+﻿15:04:28.663  Gear Wheel / Pinion 조회 요청을 받았습니다.
+15:04:28.818  일일 DATA 현황 조회 요청을 받았습니다.
+15:04:28.843  월간 일일DATA관리 Excel 조회 시작 · 2026-06-13
+15:04:34.518  [PHASE2.5 DIRECT V5] Gear/Pinion API complete 5.40s
+15:04:35.658  OIS Gear Wheel / Pinion 조회가 완료되었습니다.
+15:04:40.460  DataPARC 진행 · 월간 일일DATA관리 Excel 조회 시작
+15:04:41.587  DataPARC 진행 · 실행 중인 Excel 연결 시도
+15:04:41.592  DataPARC 진행 · 실행 중인 Excel 연결 완료
+15:04:42.208  DataPARC 진행 · 대상 월 통합문서 찾기 · 26.06-일일DATA관리.xlsx
+15:04:42.213  DataPARC 진행 · 대상 월 통합문서 연결 완료 · 26.06-일일DATA관리.xlsx
+15:04:42.232  DataPARC 진행 · Plant 조회일 열 확인 · 2026-06-13 · R5
+15:04:44.377  DataPARC 진행 · Excel 전체 계산 상태가 완료되지 않았지만 대상 셀 직접 검증을 계속합니다 · CalculationState 2
+15:04:44.384  DataPARC 진행 · 태양광 누적 발전량 계산 시작
+15:04:46.019  DataPARC 진행 · 태양광 누적 발전량 계산 완료
+15:04:46.024  DataPARC 진행 · DataPARC 유기성 Silo TAG 위치 확인
+15:04:48.681  DataPARC 진행 · Optional organic Silo data unavailable; continuing with other Daily DATA
+15:04:48.690  DataPARC 진행 · 월간 일일DATA관리 값 읽기 완료
+15:04:48.693  월간 일일DATA관리 Excel 조회 완료 · 2026-06-13 · 26.06-일일DATA관리.xlsx · 열 R · 1호기 6364.57 ton · 2호기 6348.313 ton · 저압 158.43 ton · 고압 37.76 ton · 판매합계 196.19 ton · 하수슬러지 5대 / 146.38 ton
+15:04:49.311  Excel 일일 DATA 현황 조회가 완료되었습니다.
+15:04:50.461  Silo Level 조회 요청을 받았습니다.
+15:04:53.597  운영정보 메뉴를 클릭했습니다.
+15:04:55.741  LOG SHEET 메뉴를 클릭했습니다.
+15:04:56.861  TAG별 LOG 조회 메뉴를 클릭했습니다.
+15:04:57.995  OIS TAG별 LOG 조회 화면을 열었습니다.
+15:04:58.000  OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-06-13
+15:04:58.618  OIS TAG별 LOG 24시 자료 확인: {
+15:04:58.627  OIS TAG별 LOG 조회조건 · EBF20CW201 · 2026-06-13
+15:04:58.631  OIS TAG별 LOG 24시 자료 확인: {
+15:04:58.648  OIS Silo Level 조회 완료 · 2026-06-13 · Fly Ash 395.205 · Bio Storage 637
+15:04:59.263  OIS Silo Level 조회가 완료되었습니다.
+15:05:00.412  수처리 현황 조회 요청을 받았습니다.
+15:05:17.329  운영정보 메뉴를 클릭했습니다.
+15:05:24.819  OIS 기준일을 2026/06/12로 변경합니다.
+15:05:25.444  2026년 06월 12일 환경자료 조회가 완료되었습니다.
+15:05:25.451  OIS 환경일지 재계산 버튼을 클릭했습니다.
+15:05:27.729  OIS 수처리 현황 조회가 완료되었습니다.
+15:05:27.739  [PHASE2.7A] Water request finished; Daily DATA may start.
+15:05:28.867  수처리 현황 조회 요청을 받았습니다.
+15:05:28.873  OIS 기준일을 2026/06/13로 변경합니다.
+15:05:29.494  2026년 06월 13일 환경자료 조회가 완료되었습니다.
+15:05:29.498  OIS 환경일지 재계산 버튼을 클릭했습니다.
+15:05:30.667  OIS 수처리 현황 조회가 완료되었습니다.
+15:05:30.673  [PHASE2.7A] Water request finished; Daily DATA may start.
+15:05:31.811  석회석 재고 조회 요청을 받았습니다.
+15:05:32.442  [PHASE2.5 DIRECT V5] Limestone API complete 0.28s
+15:05:32.445  OIS 석회석 재고 조회가 완료되었습니다.

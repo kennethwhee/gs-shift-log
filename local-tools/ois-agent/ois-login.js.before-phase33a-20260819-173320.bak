@@ -10078,133 +10078,67 @@ function Get-SolarCumulativeWorkbookResult {
   $historyErrors =
     @()
 
-  # [PHASE3.3A EXCEL BULK READ]
-  Write-DailyDataStage -Message (
-    "[PHASE3.3A] Solar current-month bulk read start"
-  )
+  $day =
+    1
 
-  $solarDailyRange =
-    $null
-
-  try {
-    $lastSolarColumnName =
+  while (
+    $day -le
+      $TargetDateValue.Day
+  ) {
+    $columnName =
       ConvertTo-ExcelColumnName -ColumnNumber (
         5 +
-        [int]$TargetDateValue.Day
+        $day
       )
 
-    $solarDailyRangeAddress =
-      "F55:" +
-      $lastSolarColumnName +
+    $address =
+      $columnName +
       "55"
 
-    $solarDailyRange =
-      $PlantWorksheet.Range(
-        $solarDailyRangeAddress
+    $dateValue =
+      Get-Date -Year $TargetDateValue.Year -Month $TargetDateValue.Month -Day $day
+
+    $dateKey =
+      $dateValue.ToString(
+        "yyyy-MM-dd",
+        [Globalization.CultureInfo]::InvariantCulture
       )
 
-    $solarDailyRangeValues =
-      $solarDailyRange.Value2
+    try {
+      $solarValue =
+        Get-FiniteExcelNumber -Value (
+          Read-ExcelCellValue -Worksheet $PlantWorksheet -Address $address
+        ) -Label (
+          "태양광 일일 발전량 (" +
+          $dateKey +
+          ", Plant!" +
+          $address +
+          ")"
+        )
 
-    if (
-      $solarDailyRangeValues -isnot
-        [Array] -or
-      $solarDailyRangeValues.Rank -lt
-        2
-    ) {
-      throw (
-        "Solar bulk read did not return a 2D array: Plant!" +
-        $solarDailyRangeAddress
-      )
+      if (
+        $solarValue -lt 0
+      ) {
+        throw (
+          "태양광 일일 발전량이 0보다 작습니다: " +
+          $dateKey
+        )
+      }
+
+      $dailyValues[$dateKey] =
+        [double]$solarValue
+    }
+    catch {
+      $dailyValues[$dateKey] =
+        $null
+
+      $historyErrors +=
+        $_.Exception.Message
     }
 
-    $solarRowLower =
-      $solarDailyRangeValues.GetLowerBound(
-        0
-      )
-
-    $solarColumnLower =
-      $solarDailyRangeValues.GetLowerBound(
-        1
-      )
-
-    $day =
+    $day +=
       1
-
-    while (
-      $day -le
-        $TargetDateValue.Day
-    ) {
-      $columnName =
-        ConvertTo-ExcelColumnName -ColumnNumber (
-          5 +
-          $day
-        )
-
-      $address =
-        $columnName +
-        "55"
-
-      $dateValue =
-        Get-Date -Year $TargetDateValue.Year -Month $TargetDateValue.Month -Day $day
-
-      $dateKey =
-        $dateValue.ToString(
-          "yyyy-MM-dd",
-          [Globalization.CultureInfo]::InvariantCulture
-        )
-
-      $rawSolarValue =
-        $solarDailyRangeValues.GetValue(
-          $solarRowLower,
-          (
-            $solarColumnLower +
-            $day -
-            1
-          )
-        )
-
-      try {
-        $solarValue =
-          Get-FiniteExcelNumber -Value $rawSolarValue -Label (
-            "solar daily generation (" +
-            $dateKey +
-            ", Plant!" +
-            $address +
-            ")"
-          )
-
-        if (
-          $solarValue -lt 0
-        ) {
-          throw (
-            "Solar daily generation is below zero: " +
-            $dateKey
-          )
-        }
-
-        $dailyValues[$dateKey] =
-          [double]$solarValue
-      }
-      catch {
-        $dailyValues[$dateKey] =
-          $null
-
-        $historyErrors +=
-          $_.Exception.Message
-      }
-
-      $day +=
-        1
-    }
   }
-  finally {
-    Release-ExcelComObject -Value $solarDailyRange
-  }
-
-  Write-DailyDataStage -Message (
-    "[PHASE3.3A] Solar current-month bulk read complete"
-  )
 
   $weekOffset =
     (
@@ -10658,91 +10592,40 @@ try {
     5 +
     $targetDay
 
-  # [PHASE3.3A EXCEL BULK READ]
-  Write-DailyDataStage -Message (
-    "[PHASE3.3A] Plant day-header bulk read start"
-  )
-
   $dayMatches =
     @()
 
-  $dayHeaderRange =
-    $null
+  for (
+    $columnNumber = 6;
+    $columnNumber -le 36;
+    $columnNumber += 1
+  ) {
+    $dayAddress =
+      Get-ExcelAddress -RowNumber 5 -ColumnNumber $columnNumber
 
-  try {
-    $dayHeaderRange =
-      $plantWorksheet.Range(
-        "F5:AJ5"
-      )
+    $dayValue =
+      Read-ExcelCellValue -Worksheet $plantWorksheet -Address $dayAddress
 
-    $dayHeaderValues =
-      $dayHeaderRange.Value2
-
-    if (
-      $dayHeaderValues -isnot
-        [Array] -or
-      $dayHeaderValues.Rank -lt
-        2
-    ) {
-      throw "Plant!F5:AJ5 bulk read did not return a 2D array."
-    }
-
-    $rowLower =
-      $dayHeaderValues.GetLowerBound(
-        0
-      )
-
-    $columnLower =
-      $dayHeaderValues.GetLowerBound(
-        1
-      )
-
-    for (
-      $offset = 0;
-      $offset -lt 31;
-      $offset += 1
-    ) {
-      $columnNumber =
-        6 +
-        $offset
-
-      $dayValue =
-        $dayHeaderValues.GetValue(
-          $rowLower,
-          (
-            $columnLower +
-            $offset
-          )
+    try {
+      $numericDay =
+        [Convert]::ToDouble(
+          $dayValue,
+          [Globalization.CultureInfo]::InvariantCulture
         )
 
-      try {
-        $numericDay =
-          [Convert]::ToDouble(
-            $dayValue,
-            [Globalization.CultureInfo]::InvariantCulture
-          )
-
-        if (
-          [Math]::Abs(
-            $numericDay -
-            $targetDay
-          ) -le 0.000001
-        ) {
-          $dayMatches +=
-            $columnNumber
-        }
-      }
-      catch {
+      if (
+        [Math]::Abs(
+          $numericDay -
+          $targetDay
+        ) -le 0.000001
+      ) {
+        $dayMatches +=
+          $columnNumber
       }
     }
+    catch {
+    }
   }
-  finally {
-    Release-ExcelComObject -Value $dayHeaderRange
-  }
-
-  Write-DailyDataStage -Message (
-    "[PHASE3.3A] Plant day-header bulk read complete"
-  )
 
   if (
     $dayMatches.Count -ne 1

@@ -6187,268 +6187,305 @@ async function waitForOisWaterTreatmentValues(
 ========================================================= */
 
 /* =========================================================
-  [PHASE3.2 WATER DIRECT]
+  [PHASE3.1 WATER DIRECT PROBE]
 
-  Verified direct same-origin OIS API path for Water treatment.
+  Diagnostic only.
 
-  Field mapping verified against the existing UI results:
-  rawWaterInflow          -> menu1_1_2
-  demiProduction          -> menu2_5_4
-  pureWaterUsage          -> menu2_6_13
-  rawWaterTankAmount      -> menu1_1_5
-  rawWaterTankRate        -> menu1_3_4
-  filteredWaterTankAmount -> menu1_1_6
-  filteredWaterTankRate   -> menu1_3_5
-  demiWaterTankAmount     -> menu1_1_7
-  demiWaterTankRate       -> menu1_3_6
+  Probe the two Water commands discovered from the UI trace:
+  - oi.DayMonitoringService.listEnvDayRunnigStatus
+  - oi.DayMonitoringService.listReCalEnv
 
-  Existing UI flow remains automatic fallback.
+  Existing UI Water collection remains the source of truth.
 ========================================================= */
-async function collectOisWaterTreatmentValuesDirect(
+async function runPhase31WaterDirectProbe(
   page,
   targetDate
 ) {
-  if (
-    !isValidOisAgentDate(
-      targetDate
-    )
-  ) {
-    throw new Error(
-      "Water Direct API target date is invalid."
-    );
-  }
-
-
-  const startedAt =
-    Date.now();
-
-
-  const compactTargetDate =
+  const compactDate =
     String(
-      targetDate
+      targetDate ||
+      ""
     ).replace(
       /-/g,
       ""
     );
 
 
-  const responseData =
-    await requestOisInternalAjaxData(
-      page,
-      "oi.DayMonitoringService.listEnvDayRunnigStatus",
-      {
-        schepowstat:
-          "8000",
+  const selectItem = {
+    schepowstat:
+      "8000",
 
-        schdate:
-          compactTargetDate,
+    schdate:
+      compactDate,
 
-        rowstatus:
-          "C",
+    rowstatus:
+      "C",
 
-        schprgid:
-          "EOIS5020"
-      }
-    );
-
-
-  const rows =
-    Array.isArray(
-      responseData?.result
-    )
-      ? responseData.result
-      : [];
-
-
-  if (
-    rows.length ===
-      0
-  ) {
-    throw new Error(
-      "Water Direct API returned no rows."
-    );
-  }
-
-
-  const row =
-    rows[
-      0
-    ];
-
-
-  if (
-    !row ||
-    typeof row !==
-      "object"
-  ) {
-    throw new Error(
-      "Water Direct API returned an invalid row."
-    );
-  }
-
-
-  const sourceDateDigits =
-    String(
-      row.now_date ||
-      ""
-    ).replace(
-      /[^0-9]/g,
-      ""
-    ).slice(
-      0,
-      8
-    );
-
-
-  if (
-    sourceDateDigits &&
-    sourceDateDigits !==
-      compactTargetDate
-  ) {
-    throw new Error(
-      "Water Direct API source date does not match the target date."
-    );
-  }
-
-
-  const readRequiredNumber =
-    (
-      key,
-      label
-    ) => {
-      const value =
-        parseOisNumericCell(
-          row[
-            key
-          ]
-        );
-
-
-      if (
-        value ===
-          null ||
-        !Number.isFinite(
-          value
-        )
-      ) {
-        throw new Error(
-          "Water Direct API value is missing: " +
-          label +
-          " (" +
-          key +
-          ")"
-        );
-      }
-
-
-      return value;
-    };
-
-
-  const result = {
-    source:
-      "OIS Daily Environment Log Direct API",
-
-    sourceDate:
-      targetDate,
-
-    collectedAt:
-      new Date()
-        .toISOString(),
-
-    rawWaterInflow:
-      readRequiredNumber(
-        "menu1_1_2",
-        "rawWaterInflow"
-      ),
-
-    demiProduction:
-      readRequiredNumber(
-        "menu2_5_4",
-        "demiProduction"
-      ),
-
-    pureWaterUsage:
-      readRequiredNumber(
-        "menu2_6_13",
-        "pureWaterUsage"
-      ),
-
-    rawWaterTankAmount:
-      readRequiredNumber(
-        "menu1_1_5",
-        "rawWaterTankAmount"
-      ),
-
-    rawWaterTankRate:
-      readRequiredNumber(
-        "menu1_3_4",
-        "rawWaterTankRate"
-      ),
-
-    filteredWaterTankAmount:
-      readRequiredNumber(
-        "menu1_1_6",
-        "filteredWaterTankAmount"
-      ),
-
-    filteredWaterTankRate:
-      readRequiredNumber(
-        "menu1_3_5",
-        "filteredWaterTankRate"
-      ),
-
-    demiWaterTankAmount:
-      readRequiredNumber(
-        "menu1_1_7",
-        "demiWaterTankAmount"
-      ),
-
-    demiWaterTankRate:
-      readRequiredNumber(
-        "menu1_3_6",
-        "demiWaterTankRate"
-      )
+    schprgid:
+      "EOIS5020"
   };
 
 
-  console.log(
-    "[PHASE3.2 WATER DIRECT] complete " +
-    (
+  const commands = [
+    "oi.DayMonitoringService.listEnvDayRunnigStatus",
+    "oi.DayMonitoringService.listReCalEnv"
+  ];
+
+
+  const responses =
+    {};
+
+
+  for (
+    const command of
+    commands
+  ) {
+    const startedAt =
+      Date.now();
+
+
+    try {
+      const responseData =
+        await requestOisInternalAjaxData(
+          page,
+          command,
+          selectItem
+        );
+
+
+      const rows =
+        Array.isArray(
+          responseData?.result
+        )
+          ? responseData.result
+          : [];
+
+
+      responses[
+        command
+      ] =
+        responseData;
+
+
+      console.log(
+        "[PHASE3.1 WATER DIRECT PROBE] " +
+        command +
+        " complete " +
+        (
+          (
+            Date.now() -
+            startedAt
+          ) /
+          1000
+        ).toFixed(
+          2
+        ) +
+        "s " +
+        JSON.stringify({
+          targetDate,
+          resultCount:
+            rows.length,
+          firstRow:
+            rows[
+              0
+            ] ||
+            null
+        })
+      );
+
+    } catch (
+      error
+    ) {
+      responses[
+        command
+      ] =
+        null;
+
+
+      console.warn(
+        "[PHASE3.1 WATER DIRECT PROBE] " +
+        command +
+        " failed:",
+        error instanceof
+          Error
+          ? error.message
+          : error
+      );
+    }
+  }
+
+
+  return responses;
+}
+
+
+function logPhase31WaterValueMatches(
+  targetDate,
+  uiResult,
+  probeResponses
+) {
+  const candidateSources =
+    Object.entries(
+      probeResponses ||
+      {}
+    ).flatMap(
       (
-        Date.now() -
-        startedAt
-      ) /
-      1000
-    ).toFixed(
-      2
-    ) +
-    "s " +
+        [
+          command,
+          responseData
+        ]
+      ) => {
+        const rows =
+          Array.isArray(
+            responseData?.result
+          )
+            ? responseData.result
+            : [];
+
+
+        return rows.flatMap(
+          (
+            row,
+            rowIndex
+          ) => {
+            if (
+              !row ||
+              typeof row !==
+                "object"
+            ) {
+              return [];
+            }
+
+
+            return Object.entries(
+              row
+            ).map(
+              (
+                [
+                  key,
+                  rawValue
+                ]
+              ) => {
+                const numericValue =
+                  Number(
+                    String(
+                      rawValue ??
+                      ""
+                    )
+                      .replace(
+                        /,/g,
+                        ""
+                      )
+                      .trim()
+                  );
+
+
+                return {
+                  command,
+                  rowIndex,
+                  key,
+                  rawValue,
+                  numericValue:
+                    Number.isFinite(
+                      numericValue
+                    )
+                      ? numericValue
+                      : null
+                };
+              }
+            );
+          }
+        );
+      }
+    );
+
+
+  const fields = [
+    "rawWaterInflow",
+    "demiProduction",
+    "pureWaterUsage",
+    "rawWaterTankAmount",
+    "rawWaterTankRate",
+    "filteredWaterTankAmount",
+    "filteredWaterTankRate",
+    "demiWaterTankAmount",
+    "demiWaterTankRate"
+  ];
+
+
+  const matches =
+    Object.fromEntries(
+      fields.map(
+        field => {
+          const value =
+            Number(
+              uiResult?.[
+                field
+              ]
+            );
+
+
+          const fieldMatches =
+            Number.isFinite(
+              value
+            )
+              ? candidateSources
+                  .filter(
+                    candidate => {
+                      return (
+                        candidate.numericValue !==
+                          null &&
+                        Math.abs(
+                          candidate.numericValue -
+                          value
+                        ) <
+                          0.000001
+                      );
+                    }
+                  )
+                  .map(
+                    candidate => {
+                      return {
+                        command:
+                          candidate.command,
+                        rowIndex:
+                          candidate.rowIndex,
+                        key:
+                          candidate.key,
+                        rawValue:
+                          candidate.rawValue
+                      };
+                    }
+                  )
+              : [];
+
+
+          return [
+            field,
+            {
+              value:
+                Number.isFinite(
+                  value
+                )
+                  ? value
+                  : null,
+
+              matches:
+                fieldMatches
+            }
+          ];
+        }
+      )
+    );
+
+
+  console.log(
+    "[PHASE3.1 WATER DIRECT PROBE] UI VALUE MATCHES " +
     JSON.stringify({
       targetDate,
-      rawWaterInflow:
-        result.rawWaterInflow,
-      demiProduction:
-        result.demiProduction,
-      pureWaterUsage:
-        result.pureWaterUsage,
-      rawWaterTankAmount:
-        result.rawWaterTankAmount,
-      rawWaterTankRate:
-        result.rawWaterTankRate,
-      filteredWaterTankAmount:
-        result.filteredWaterTankAmount,
-      filteredWaterTankRate:
-        result.filteredWaterTankRate,
-      demiWaterTankAmount:
-        result.demiWaterTankAmount,
-      demiWaterTankRate:
-        result.demiWaterTankRate
+      matches
     })
   );
-
-
-  return result;
 }
 
 async function collectOisWaterTreatmentValues(
@@ -6487,23 +6524,11 @@ async function collectOisWaterTreatmentValues(
       );
 
 
-      try {
-        return await collectOisWaterTreatmentValuesDirect(
+      const phase31ProbeResponses =
+        await runPhase31WaterDirectProbe(
           page,
           targetDate
         );
-
-      } catch (
-        directError
-      ) {
-        console.warn(
-          "[PHASE3.2 WATER DIRECT] direct API failed; using UI fallback:",
-          directError instanceof
-            Error
-            ? directError.message
-            : directError
-        );
-      }
 
 
       await setOisEnvironmentDate(
@@ -6517,10 +6542,21 @@ async function collectOisWaterTreatmentValues(
       );
 
 
-      return await waitForOisWaterTreatmentValues(
-        page,
-        targetDate
+      const uiResult =
+        await waitForOisWaterTreatmentValues(
+          page,
+          targetDate
+        );
+
+
+      logPhase31WaterValueMatches(
+        targetDate,
+        uiResult,
+        phase31ProbeResponses
       );
+
+
+      return uiResult;
     };
 
   let result;
@@ -10078,133 +10114,67 @@ function Get-SolarCumulativeWorkbookResult {
   $historyErrors =
     @()
 
-  # [PHASE3.3A EXCEL BULK READ]
-  Write-DailyDataStage -Message (
-    "[PHASE3.3A] Solar current-month bulk read start"
-  )
+  $day =
+    1
 
-  $solarDailyRange =
-    $null
-
-  try {
-    $lastSolarColumnName =
+  while (
+    $day -le
+      $TargetDateValue.Day
+  ) {
+    $columnName =
       ConvertTo-ExcelColumnName -ColumnNumber (
         5 +
-        [int]$TargetDateValue.Day
+        $day
       )
 
-    $solarDailyRangeAddress =
-      "F55:" +
-      $lastSolarColumnName +
+    $address =
+      $columnName +
       "55"
 
-    $solarDailyRange =
-      $PlantWorksheet.Range(
-        $solarDailyRangeAddress
+    $dateValue =
+      Get-Date -Year $TargetDateValue.Year -Month $TargetDateValue.Month -Day $day
+
+    $dateKey =
+      $dateValue.ToString(
+        "yyyy-MM-dd",
+        [Globalization.CultureInfo]::InvariantCulture
       )
 
-    $solarDailyRangeValues =
-      $solarDailyRange.Value2
+    try {
+      $solarValue =
+        Get-FiniteExcelNumber -Value (
+          Read-ExcelCellValue -Worksheet $PlantWorksheet -Address $address
+        ) -Label (
+          "태양광 일일 발전량 (" +
+          $dateKey +
+          ", Plant!" +
+          $address +
+          ")"
+        )
 
-    if (
-      $solarDailyRangeValues -isnot
-        [Array] -or
-      $solarDailyRangeValues.Rank -lt
-        2
-    ) {
-      throw (
-        "Solar bulk read did not return a 2D array: Plant!" +
-        $solarDailyRangeAddress
-      )
+      if (
+        $solarValue -lt 0
+      ) {
+        throw (
+          "태양광 일일 발전량이 0보다 작습니다: " +
+          $dateKey
+        )
+      }
+
+      $dailyValues[$dateKey] =
+        [double]$solarValue
+    }
+    catch {
+      $dailyValues[$dateKey] =
+        $null
+
+      $historyErrors +=
+        $_.Exception.Message
     }
 
-    $solarRowLower =
-      $solarDailyRangeValues.GetLowerBound(
-        0
-      )
-
-    $solarColumnLower =
-      $solarDailyRangeValues.GetLowerBound(
-        1
-      )
-
-    $day =
+    $day +=
       1
-
-    while (
-      $day -le
-        $TargetDateValue.Day
-    ) {
-      $columnName =
-        ConvertTo-ExcelColumnName -ColumnNumber (
-          5 +
-          $day
-        )
-
-      $address =
-        $columnName +
-        "55"
-
-      $dateValue =
-        Get-Date -Year $TargetDateValue.Year -Month $TargetDateValue.Month -Day $day
-
-      $dateKey =
-        $dateValue.ToString(
-          "yyyy-MM-dd",
-          [Globalization.CultureInfo]::InvariantCulture
-        )
-
-      $rawSolarValue =
-        $solarDailyRangeValues.GetValue(
-          $solarRowLower,
-          (
-            $solarColumnLower +
-            $day -
-            1
-          )
-        )
-
-      try {
-        $solarValue =
-          Get-FiniteExcelNumber -Value $rawSolarValue -Label (
-            "solar daily generation (" +
-            $dateKey +
-            ", Plant!" +
-            $address +
-            ")"
-          )
-
-        if (
-          $solarValue -lt 0
-        ) {
-          throw (
-            "Solar daily generation is below zero: " +
-            $dateKey
-          )
-        }
-
-        $dailyValues[$dateKey] =
-          [double]$solarValue
-      }
-      catch {
-        $dailyValues[$dateKey] =
-          $null
-
-        $historyErrors +=
-          $_.Exception.Message
-      }
-
-      $day +=
-        1
-    }
   }
-  finally {
-    Release-ExcelComObject -Value $solarDailyRange
-  }
-
-  Write-DailyDataStage -Message (
-    "[PHASE3.3A] Solar current-month bulk read complete"
-  )
 
   $weekOffset =
     (
@@ -10658,91 +10628,40 @@ try {
     5 +
     $targetDay
 
-  # [PHASE3.3A EXCEL BULK READ]
-  Write-DailyDataStage -Message (
-    "[PHASE3.3A] Plant day-header bulk read start"
-  )
-
   $dayMatches =
     @()
 
-  $dayHeaderRange =
-    $null
+  for (
+    $columnNumber = 6;
+    $columnNumber -le 36;
+    $columnNumber += 1
+  ) {
+    $dayAddress =
+      Get-ExcelAddress -RowNumber 5 -ColumnNumber $columnNumber
 
-  try {
-    $dayHeaderRange =
-      $plantWorksheet.Range(
-        "F5:AJ5"
-      )
+    $dayValue =
+      Read-ExcelCellValue -Worksheet $plantWorksheet -Address $dayAddress
 
-    $dayHeaderValues =
-      $dayHeaderRange.Value2
-
-    if (
-      $dayHeaderValues -isnot
-        [Array] -or
-      $dayHeaderValues.Rank -lt
-        2
-    ) {
-      throw "Plant!F5:AJ5 bulk read did not return a 2D array."
-    }
-
-    $rowLower =
-      $dayHeaderValues.GetLowerBound(
-        0
-      )
-
-    $columnLower =
-      $dayHeaderValues.GetLowerBound(
-        1
-      )
-
-    for (
-      $offset = 0;
-      $offset -lt 31;
-      $offset += 1
-    ) {
-      $columnNumber =
-        6 +
-        $offset
-
-      $dayValue =
-        $dayHeaderValues.GetValue(
-          $rowLower,
-          (
-            $columnLower +
-            $offset
-          )
+    try {
+      $numericDay =
+        [Convert]::ToDouble(
+          $dayValue,
+          [Globalization.CultureInfo]::InvariantCulture
         )
 
-      try {
-        $numericDay =
-          [Convert]::ToDouble(
-            $dayValue,
-            [Globalization.CultureInfo]::InvariantCulture
-          )
-
-        if (
-          [Math]::Abs(
-            $numericDay -
-            $targetDay
-          ) -le 0.000001
-        ) {
-          $dayMatches +=
-            $columnNumber
-        }
-      }
-      catch {
+      if (
+        [Math]::Abs(
+          $numericDay -
+          $targetDay
+        ) -le 0.000001
+      ) {
+        $dayMatches +=
+          $columnNumber
       }
     }
+    catch {
+    }
   }
-  finally {
-    Release-ExcelComObject -Value $dayHeaderRange
-  }
-
-  Write-DailyDataStage -Message (
-    "[PHASE3.3A] Plant day-header bulk read complete"
-  )
 
   if (
     $dayMatches.Count -ne 1

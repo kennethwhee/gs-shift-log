@@ -6186,271 +6186,6 @@ async function waitForOisWaterTreatmentValues(
   6. 수처리 9개 값 추출
 ========================================================= */
 
-/* =========================================================
-  [PHASE3.2 WATER DIRECT]
-
-  Verified direct same-origin OIS API path for Water treatment.
-
-  Field mapping verified against the existing UI results:
-  rawWaterInflow          -> menu1_1_2
-  demiProduction          -> menu2_5_4
-  pureWaterUsage          -> menu2_6_13
-  rawWaterTankAmount      -> menu1_1_5
-  rawWaterTankRate        -> menu1_3_4
-  filteredWaterTankAmount -> menu1_1_6
-  filteredWaterTankRate   -> menu1_3_5
-  demiWaterTankAmount     -> menu1_1_7
-  demiWaterTankRate       -> menu1_3_6
-
-  Existing UI flow remains automatic fallback.
-========================================================= */
-async function collectOisWaterTreatmentValuesDirect(
-  page,
-  targetDate
-) {
-  if (
-    !isValidOisAgentDate(
-      targetDate
-    )
-  ) {
-    throw new Error(
-      "Water Direct API target date is invalid."
-    );
-  }
-
-
-  const startedAt =
-    Date.now();
-
-
-  const compactTargetDate =
-    String(
-      targetDate
-    ).replace(
-      /-/g,
-      ""
-    );
-
-
-  const responseData =
-    await requestOisInternalAjaxData(
-      page,
-      "oi.DayMonitoringService.listEnvDayRunnigStatus",
-      {
-        schepowstat:
-          "8000",
-
-        schdate:
-          compactTargetDate,
-
-        rowstatus:
-          "C",
-
-        schprgid:
-          "EOIS5020"
-      }
-    );
-
-
-  const rows =
-    Array.isArray(
-      responseData?.result
-    )
-      ? responseData.result
-      : [];
-
-
-  if (
-    rows.length ===
-      0
-  ) {
-    throw new Error(
-      "Water Direct API returned no rows."
-    );
-  }
-
-
-  const row =
-    rows[
-      0
-    ];
-
-
-  if (
-    !row ||
-    typeof row !==
-      "object"
-  ) {
-    throw new Error(
-      "Water Direct API returned an invalid row."
-    );
-  }
-
-
-  const sourceDateDigits =
-    String(
-      row.now_date ||
-      ""
-    ).replace(
-      /[^0-9]/g,
-      ""
-    ).slice(
-      0,
-      8
-    );
-
-
-  if (
-    sourceDateDigits &&
-    sourceDateDigits !==
-      compactTargetDate
-  ) {
-    throw new Error(
-      "Water Direct API source date does not match the target date."
-    );
-  }
-
-
-  const readRequiredNumber =
-    (
-      key,
-      label
-    ) => {
-      const value =
-        parseOisNumericCell(
-          row[
-            key
-          ]
-        );
-
-
-      if (
-        value ===
-          null ||
-        !Number.isFinite(
-          value
-        )
-      ) {
-        throw new Error(
-          "Water Direct API value is missing: " +
-          label +
-          " (" +
-          key +
-          ")"
-        );
-      }
-
-
-      return value;
-    };
-
-
-  const result = {
-    source:
-      "OIS Daily Environment Log Direct API",
-
-    sourceDate:
-      targetDate,
-
-    collectedAt:
-      new Date()
-        .toISOString(),
-
-    rawWaterInflow:
-      readRequiredNumber(
-        "menu1_1_2",
-        "rawWaterInflow"
-      ),
-
-    demiProduction:
-      readRequiredNumber(
-        "menu2_5_4",
-        "demiProduction"
-      ),
-
-    pureWaterUsage:
-      readRequiredNumber(
-        "menu2_6_13",
-        "pureWaterUsage"
-      ),
-
-    rawWaterTankAmount:
-      readRequiredNumber(
-        "menu1_1_5",
-        "rawWaterTankAmount"
-      ),
-
-    rawWaterTankRate:
-      readRequiredNumber(
-        "menu1_3_4",
-        "rawWaterTankRate"
-      ),
-
-    filteredWaterTankAmount:
-      readRequiredNumber(
-        "menu1_1_6",
-        "filteredWaterTankAmount"
-      ),
-
-    filteredWaterTankRate:
-      readRequiredNumber(
-        "menu1_3_5",
-        "filteredWaterTankRate"
-      ),
-
-    demiWaterTankAmount:
-      readRequiredNumber(
-        "menu1_1_7",
-        "demiWaterTankAmount"
-      ),
-
-    demiWaterTankRate:
-      readRequiredNumber(
-        "menu1_3_6",
-        "demiWaterTankRate"
-      )
-  };
-
-
-  console.log(
-    "[PHASE3.2 WATER DIRECT] complete " +
-    (
-      (
-        Date.now() -
-        startedAt
-      ) /
-      1000
-    ).toFixed(
-      2
-    ) +
-    "s " +
-    JSON.stringify({
-      targetDate,
-      rawWaterInflow:
-        result.rawWaterInflow,
-      demiProduction:
-        result.demiProduction,
-      pureWaterUsage:
-        result.pureWaterUsage,
-      rawWaterTankAmount:
-        result.rawWaterTankAmount,
-      rawWaterTankRate:
-        result.rawWaterTankRate,
-      filteredWaterTankAmount:
-        result.filteredWaterTankAmount,
-      filteredWaterTankRate:
-        result.filteredWaterTankRate,
-      demiWaterTankAmount:
-        result.demiWaterTankAmount,
-      demiWaterTankRate:
-        result.demiWaterTankRate
-    })
-  );
-
-
-  return result;
-}
-
 async function collectOisWaterTreatmentValues(
   page,
   config,
@@ -6487,25 +6222,6 @@ async function collectOisWaterTreatmentValues(
       );
 
 
-      try {
-        return await collectOisWaterTreatmentValuesDirect(
-          page,
-          targetDate
-        );
-
-      } catch (
-        directError
-      ) {
-        console.warn(
-          "[PHASE3.2 WATER DIRECT] direct API failed; using UI fallback:",
-          directError instanceof
-            Error
-            ? directError.message
-            : directError
-        );
-      }
-
-
       await setOisEnvironmentDate(
         page,
         targetDate
@@ -6522,6 +6238,7 @@ async function collectOisWaterTreatmentValues(
         targetDate
       );
     };
+
 
   let result;
 
@@ -8863,18 +8580,7 @@ async function getNextOisAgentLaneRequests(
     excelRequestTypes.length;
 
 
-  /*
-    [PHASE2.8B WATER-FIRST]
-
-    Keep the single OIS browser/page model.
-
-    Water is always offered first to the server.
-    This keeps consecutive Water dates on the environment page,
-    avoiding an expensive Silo -> Water menu round trip.
-
-    Non-Water request types still keep the existing rotating order.
-  */
-  const rotatedOisRequestTypes =
+  const orderedOisRequestTypes =
     oisRequestTypes.map(
       (
         requestType,
@@ -8889,17 +8595,6 @@ async function getNextOisAgentLaneRequests(
         ];
       }
     );
-
-
-  const orderedOisRequestTypes = [
-    "water_environment",
-    ...rotatedOisRequestTypes.filter(
-      requestType => {
-        return requestType !==
-          "water_environment";
-      }
-    )
-  ];
 
 
   const orderedExcelRequestTypes =
@@ -9152,6 +8847,124 @@ async function getNextOisAgentLaneRequests(
 /* =========================================================
   요청 유형 정규화
 ========================================================= */
+
+/* =========================================================
+  [PHASE2.8A DETACHED EXCEL LANE]
+
+  Excel may continue in background while safe OIS work proceeds.
+
+  Water is intentionally excluded while Excel is active because
+  Water + Excel contention was measured as slow in Phase 2.7.
+
+  OIS still uses exactly one existing browser/page.
+========================================================= */
+async function getNextPhase28OisOnlyRequest(
+  config
+) {
+  const requestTypes = [
+    "limestone_stock",
+    "turbine_gear_pinion",
+    "silo_level",
+    "auxiliary_materials",
+    "logsheet_approval"
+  ];
+
+
+  const startIndex =
+    Number(
+      getNextPhase28OisOnlyRequest
+        .nextTypeIndex ||
+      0
+    ) %
+    requestTypes.length;
+
+
+  const orderedRequestTypes =
+    requestTypes.map(
+      (
+        requestType,
+        offset
+      ) => {
+        return requestTypes[
+          (
+            startIndex +
+            offset
+          ) %
+          requestTypes.length
+        ];
+      }
+    );
+
+
+  const result =
+    await requestOisAgentApi(
+      config,
+
+      getOisAgentApiUrl(
+        config,
+        {
+          action:
+            "next",
+
+          requestTypes:
+            orderedRequestTypes.join(
+              ","
+            ),
+
+          _:
+            Date.now()
+        }
+      )
+    );
+
+
+  if (
+    result.item
+  ) {
+    const claimedRequestType =
+      normalizeOisAgentText(
+        result.item.requestType ||
+        result.item.request_type
+      );
+
+
+    const claimedIndex =
+      requestTypes.indexOf(
+        claimedRequestType
+      );
+
+
+    getNextPhase28OisOnlyRequest
+      .nextTypeIndex =
+      claimedIndex >=
+        0
+        ? (
+            claimedIndex +
+            1
+          ) %
+          requestTypes.length
+        : (
+            startIndex +
+            1
+          ) %
+          requestTypes.length;
+
+
+    return result.item;
+  }
+
+
+  getNextPhase28OisOnlyRequest
+    .nextTypeIndex =
+    (
+      startIndex +
+      1
+    ) %
+    requestTypes.length;
+
+
+  return null;
+}
 
 function getOisAgentRequestType(
   requestItem
@@ -10078,133 +9891,67 @@ function Get-SolarCumulativeWorkbookResult {
   $historyErrors =
     @()
 
-  # [PHASE3.3A EXCEL BULK READ]
-  Write-DailyDataStage -Message (
-    "[PHASE3.3A] Solar current-month bulk read start"
-  )
+  $day =
+    1
 
-  $solarDailyRange =
-    $null
-
-  try {
-    $lastSolarColumnName =
+  while (
+    $day -le
+      $TargetDateValue.Day
+  ) {
+    $columnName =
       ConvertTo-ExcelColumnName -ColumnNumber (
         5 +
-        [int]$TargetDateValue.Day
+        $day
       )
 
-    $solarDailyRangeAddress =
-      "F55:" +
-      $lastSolarColumnName +
+    $address =
+      $columnName +
       "55"
 
-    $solarDailyRange =
-      $PlantWorksheet.Range(
-        $solarDailyRangeAddress
+    $dateValue =
+      Get-Date -Year $TargetDateValue.Year -Month $TargetDateValue.Month -Day $day
+
+    $dateKey =
+      $dateValue.ToString(
+        "yyyy-MM-dd",
+        [Globalization.CultureInfo]::InvariantCulture
       )
 
-    $solarDailyRangeValues =
-      $solarDailyRange.Value2
+    try {
+      $solarValue =
+        Get-FiniteExcelNumber -Value (
+          Read-ExcelCellValue -Worksheet $PlantWorksheet -Address $address
+        ) -Label (
+          "태양광 일일 발전량 (" +
+          $dateKey +
+          ", Plant!" +
+          $address +
+          ")"
+        )
 
-    if (
-      $solarDailyRangeValues -isnot
-        [Array] -or
-      $solarDailyRangeValues.Rank -lt
-        2
-    ) {
-      throw (
-        "Solar bulk read did not return a 2D array: Plant!" +
-        $solarDailyRangeAddress
-      )
+      if (
+        $solarValue -lt 0
+      ) {
+        throw (
+          "태양광 일일 발전량이 0보다 작습니다: " +
+          $dateKey
+        )
+      }
+
+      $dailyValues[$dateKey] =
+        [double]$solarValue
+    }
+    catch {
+      $dailyValues[$dateKey] =
+        $null
+
+      $historyErrors +=
+        $_.Exception.Message
     }
 
-    $solarRowLower =
-      $solarDailyRangeValues.GetLowerBound(
-        0
-      )
-
-    $solarColumnLower =
-      $solarDailyRangeValues.GetLowerBound(
-        1
-      )
-
-    $day =
+    $day +=
       1
-
-    while (
-      $day -le
-        $TargetDateValue.Day
-    ) {
-      $columnName =
-        ConvertTo-ExcelColumnName -ColumnNumber (
-          5 +
-          $day
-        )
-
-      $address =
-        $columnName +
-        "55"
-
-      $dateValue =
-        Get-Date -Year $TargetDateValue.Year -Month $TargetDateValue.Month -Day $day
-
-      $dateKey =
-        $dateValue.ToString(
-          "yyyy-MM-dd",
-          [Globalization.CultureInfo]::InvariantCulture
-        )
-
-      $rawSolarValue =
-        $solarDailyRangeValues.GetValue(
-          $solarRowLower,
-          (
-            $solarColumnLower +
-            $day -
-            1
-          )
-        )
-
-      try {
-        $solarValue =
-          Get-FiniteExcelNumber -Value $rawSolarValue -Label (
-            "solar daily generation (" +
-            $dateKey +
-            ", Plant!" +
-            $address +
-            ")"
-          )
-
-        if (
-          $solarValue -lt 0
-        ) {
-          throw (
-            "Solar daily generation is below zero: " +
-            $dateKey
-          )
-        }
-
-        $dailyValues[$dateKey] =
-          [double]$solarValue
-      }
-      catch {
-        $dailyValues[$dateKey] =
-          $null
-
-        $historyErrors +=
-          $_.Exception.Message
-      }
-
-      $day +=
-        1
-    }
   }
-  finally {
-    Release-ExcelComObject -Value $solarDailyRange
-  }
-
-  Write-DailyDataStage -Message (
-    "[PHASE3.3A] Solar current-month bulk read complete"
-  )
 
   $weekOffset =
     (
@@ -10658,91 +10405,40 @@ try {
     5 +
     $targetDay
 
-  # [PHASE3.3A EXCEL BULK READ]
-  Write-DailyDataStage -Message (
-    "[PHASE3.3A] Plant day-header bulk read start"
-  )
-
   $dayMatches =
     @()
 
-  $dayHeaderRange =
-    $null
+  for (
+    $columnNumber = 6;
+    $columnNumber -le 36;
+    $columnNumber += 1
+  ) {
+    $dayAddress =
+      Get-ExcelAddress -RowNumber 5 -ColumnNumber $columnNumber
 
-  try {
-    $dayHeaderRange =
-      $plantWorksheet.Range(
-        "F5:AJ5"
-      )
+    $dayValue =
+      Read-ExcelCellValue -Worksheet $plantWorksheet -Address $dayAddress
 
-    $dayHeaderValues =
-      $dayHeaderRange.Value2
-
-    if (
-      $dayHeaderValues -isnot
-        [Array] -or
-      $dayHeaderValues.Rank -lt
-        2
-    ) {
-      throw "Plant!F5:AJ5 bulk read did not return a 2D array."
-    }
-
-    $rowLower =
-      $dayHeaderValues.GetLowerBound(
-        0
-      )
-
-    $columnLower =
-      $dayHeaderValues.GetLowerBound(
-        1
-      )
-
-    for (
-      $offset = 0;
-      $offset -lt 31;
-      $offset += 1
-    ) {
-      $columnNumber =
-        6 +
-        $offset
-
-      $dayValue =
-        $dayHeaderValues.GetValue(
-          $rowLower,
-          (
-            $columnLower +
-            $offset
-          )
+    try {
+      $numericDay =
+        [Convert]::ToDouble(
+          $dayValue,
+          [Globalization.CultureInfo]::InvariantCulture
         )
 
-      try {
-        $numericDay =
-          [Convert]::ToDouble(
-            $dayValue,
-            [Globalization.CultureInfo]::InvariantCulture
-          )
-
-        if (
-          [Math]::Abs(
-            $numericDay -
-            $targetDay
-          ) -le 0.000001
-        ) {
-          $dayMatches +=
-            $columnNumber
-        }
-      }
-      catch {
+      if (
+        [Math]::Abs(
+          $numericDay -
+          $targetDay
+        ) -le 0.000001
+      ) {
+        $dayMatches +=
+          $columnNumber
       }
     }
+    catch {
+    }
   }
-  finally {
-    Release-ExcelComObject -Value $dayHeaderRange
-  }
-
-  Write-DailyDataStage -Message (
-    "[PHASE3.3A] Plant day-header bulk read complete"
-  )
 
   if (
     $dayMatches.Count -ne 1
@@ -19101,6 +18797,13 @@ async function loginOis() {
       );
     }
 
+    /*
+      [PHASE2.8A DETACHED EXCEL LANE]
+      At most one Excel-lane request may run in background.
+    */
+    let phase28ExcelTask =
+      null;
+
     while (
       !isShuttingDown
     ) {
@@ -19109,10 +18812,28 @@ async function loginOis() {
 
 
       try {
-        requestItems =
-          await getNextOisAgentLaneRequests(
-            config
-          );
+        if (
+          phase28ExcelTask
+        ) {
+          const phase28OisOnlyItem =
+            await getNextPhase28OisOnlyRequest(
+              config
+            );
+
+
+          requestItems =
+            phase28OisOnlyItem
+              ? [
+                  phase28OisOnlyItem
+                ]
+              : [];
+
+        } else {
+          requestItems =
+            await getNextOisAgentLaneRequests(
+              config
+            );
+        }
 
       } catch (
         error
@@ -19146,9 +18867,21 @@ async function loginOis() {
         requestItems.length ===
           0
       ) {
-        await waitOisAgent(
-          OIS_AGENT_POLL_INTERVAL
-        );
+        if (
+          phase28ExcelTask
+        ) {
+          await Promise.race([
+            waitOisAgent(
+              OIS_AGENT_POLL_INTERVAL
+            ),
+            phase28ExcelTask
+          ]);
+
+        } else {
+          await waitOisAgent(
+            OIS_AGENT_POLL_INTERVAL
+          );
+        }
 
 
         continue;
@@ -19175,9 +18908,8 @@ async function loginOis() {
       let phase27aWaterFinished =
         !phase27aHasWaterRequest;
 
-      const processingResults =
-        await Promise.allSettled(
-          requestItems.map(
+      const phase28ProcessingPromises =
+        requestItems.map(
             async requestItem => {
       const requestId =
         normalizeOisAgentText(
@@ -19519,7 +19251,90 @@ async function loginOis() {
         );
       }
             }
-          )
+          );
+
+
+      const phase28ForegroundPromises =
+        [];
+
+
+      phase28ProcessingPromises.forEach(
+        (
+          processingPromise,
+          index
+        ) => {
+          const phase28RequestType =
+            getOisAgentRequestType(
+              requestItems[
+                index
+              ]
+            );
+
+
+          const phase28IsExcelLane =
+            (
+              isDailyDataExcelRequestType(
+                phase28RequestType
+              ) ||
+              phase28RequestType ===
+                "logsheet_pdf"
+            );
+
+
+          if (
+            !phase28IsExcelLane
+          ) {
+            phase28ForegroundPromises.push(
+              processingPromise
+            );
+
+            return;
+          }
+
+
+          let trackedExcelTask =
+            null;
+
+
+          trackedExcelTask =
+            processingPromise
+              .catch(
+                error => {
+                  console.error(
+                    "[PHASE2.8A] detached Excel task error:",
+                    error
+                  );
+
+                  return null;
+                }
+              )
+              .finally(
+                () => {
+                  if (
+                    phase28ExcelTask ===
+                      trackedExcelTask
+                  ) {
+                    phase28ExcelTask =
+                      null;
+                  }
+                }
+              );
+
+
+          phase28ExcelTask =
+            trackedExcelTask;
+
+
+          console.log(
+            `[PHASE2.8A] Excel lane detached - ${phase28RequestType}`
+          );
+        }
+      );
+
+
+      const processingResults =
+        await Promise.allSettled(
+          phase28ForegroundPromises
         );
 
 
