@@ -371,9 +371,16 @@
 
 .inspection-role-today-list {
   display: grid;
+
+  grid-template-rows: none;
+  grid-auto-rows: max-content;
+  align-content: start;
+
   min-height: 0;
   flex: 1 1 auto;
-  gap: 8px;
+
+  gap: 6px;
+
   overflow: auto;
   padding: 13px;
 }
@@ -381,10 +388,18 @@
 .inspection-role-today-item {
   display: grid;
   min-width: 0;
+
   grid-template-columns: 30px minmax(0, 1fr) auto;
+
   align-items: center;
-  gap: 10px;
-  padding: 11px 12px;
+  align-self: start;
+
+  height: auto;
+  min-height: 0;
+
+  gap: 8px;
+  padding: 8px 11px;
+
   border: 1px solid #d7e1ea;
   border-radius: 10px;
   background: #ffffff;
@@ -431,7 +446,7 @@
 .inspection-role-today-item__content {
   display: grid;
   min-width: 0;
-  gap: 4px;
+  gap: 2px;
 }
 
 .inspection-role-today-item__badges {
@@ -672,13 +687,13 @@
   }
 
   .inspection-role-today-list {
-    padding: 10px;
+    padding: 8px 10px;
   }
 
   .inspection-role-today-item {
     grid-template-columns: 27px minmax(0, 1fr);
-    gap: 8px;
-    padding: 10px;
+    gap: 7px;
+    padding: 6px 10px;
   }
 
   .inspection-role-today-item__actions {
