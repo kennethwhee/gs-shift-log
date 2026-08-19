@@ -1209,6 +1209,83 @@ button {
 }
 
 
+
+/* =========================================================
+  Logging 관리 도구 한 줄 정렬
+========================================================= */
+
+.log-sheet-item-panel__header
+  > .log-sheet-item-panel__actions {
+  display: flex;
+
+  flex: 0 0 auto;
+
+  width: auto;
+
+  min-width: 0;
+
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 6px;
+
+  flex-wrap: nowrap;
+
+  white-space: nowrap;
+}
+
+
+.log-sheet-item-panel__header
+  > .log-sheet-item-panel__actions
+  > * {
+  flex: 0 0 auto;
+}
+
+
+.log-sheet-item-panel__header
+  > .log-sheet-item-panel__actions
+  .log-sheet-logging-interval {
+  min-height: 27px;
+}
+
+
+.log-sheet-item-panel__header
+  > .log-sheet-item-panel__actions
+  > button {
+  white-space: nowrap;
+}
+
+
+.log-sheet-item-panel__header
+  > .log-sheet-item-panel__actions
+  .log-sheet-item-panel__count {
+  margin-left: 0;
+}
+
+
+/*
+  좁은 화면에서는 가로 스크롤로 유지하여
+  도구가 세로 여러 줄로 무너지지 않게 한다.
+*/
+@media (max-width: 760px) {
+  .log-sheet-item-panel__header {
+    align-items: flex-start;
+  }
+
+  .log-sheet-item-panel__header
+    > .log-sheet-item-panel__actions {
+    max-width: 100%;
+
+    overflow-x: auto;
+    overflow-y: hidden;
+
+    justify-content: flex-start;
+
+    padding-bottom: 2px;
+  }
+}
+
+
 /* 신규 Logging 항목 미리보기 */
 
 .log-sheet-table
