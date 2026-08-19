@@ -15108,102 +15108,6 @@ async function loadLegacyLogsForSearchDate(
 }
 
 /* =========================================================
-  업무일지 조회 최대 종료일 계산
-
-  기준:
-  시작일로부터 달력 기준 6개월
-
-  예:
-  2026-02-02 → 2026-08-02
-  2026-08-31 → 2027-02-28
-========================================================= */
-
-function getSearchMaximumEndDate(
-  startDateValue
-) {
-  const normalizedStartDate =
-    String(
-      startDateValue ||
-      ""
-    ).trim();
-
-
-  if (
-    !normalizedStartDate
-  ) {
-    return "";
-  }
-
-
-  const startDate =
-    new Date(
-      `${normalizedStartDate}T00:00:00`
-    );
-
-
-  if (
-    Number.isNaN(
-      startDate.getTime()
-    )
-  ) {
-    return "";
-  }
-
-
-  /*
-    31일인 날짜가 짧은 달로 이동할 때
-    다음 달로 넘어가지 않게 원래 일자를 보관한다.
-  */
-  const originalDay =
-    startDate.getDate();
-
-
-  const maximumEndDate =
-    new Date(
-      startDate
-    );
-
-
-  /*
-    먼저 1일로 이동한 뒤
-    6개월을 더한다.
-  */
-  maximumEndDate.setDate(
-    1
-  );
-
-
-  maximumEndDate.setMonth(
-    maximumEndDate.getMonth() +
-    6
-  );
-
-
-  /*
-    대상 월의 마지막 날짜
-  */
-  const lastDayOfTargetMonth =
-    new Date(
-      maximumEndDate.getFullYear(),
-      maximumEndDate.getMonth() + 1,
-      0
-    ).getDate();
-
-
-  maximumEndDate.setDate(
-    Math.min(
-      originalDay,
-      lastDayOfTargetMonth
-    )
-  );
-
-
-  return formatInputDate(
-    maximumEndDate
-  );
-}
-
-/* =========================================================
   시작일 ~ 종료일 날짜 배열 생성
 
   예:
@@ -15410,7 +15314,7 @@ async function loadLegacyLogsForSearchRange(
 
   시작일 선택 시:
   - 종료일 최소값 = 시작일
-  - 종료일 최대값 = 시작일 기준 6개월
+  - 최대 조회기간 제한 없음
 
   폼 초기화 시:
   - 초기값을 기준으로 다시 계산
@@ -15444,6 +15348,15 @@ function syncSearchDateInputLimits() {
     ).trim();
 
 
+  /*
+    기존 6개월 제한에서 설정했던
+    종료일 max 속성은 항상 제거한다.
+  */
+  searchEndDate.removeAttribute(
+    "max"
+  );
+
+
   if (
     !startDate
   ) {
@@ -15452,38 +15365,17 @@ function syncSearchDateInputLimits() {
     );
 
 
-    searchEndDate.removeAttribute(
-      "max"
-    );
-
-
     return;
   }
 
 
-  const maximumEndDate =
-    getSearchMaximumEndDate(
-      startDate
-    );
-
-
+  /*
+    날짜 순서만 제한하고
+    최대 조회기간은 제한하지 않는다.
+  */
   searchEndDate.min =
     startDate;
-
-
-  if (
-    maximumEndDate
-  ) {
-    searchEndDate.max =
-      maximumEndDate;
-
-  } else {
-    searchEndDate.removeAttribute(
-      "max"
-    );
-  }
 }
-
 
 /* =========================================================
   조회 날짜 제한 이벤트 연결
@@ -52617,8 +52509,9 @@ async function runSearch() {
 /* =====================================================
   조회 기간 검사
 
-  최대:
-  시작일 기준 달력 6개월
+  - 시작일·종료일 필수
+  - 시작일 <= 종료일
+  - 최대 조회기간 제한 없음
 ====================================================== */
 
 if (
@@ -52645,38 +52538,6 @@ if (
 
   return;
 }
-
-
-const maximumEndDate =
-  getSearchMaximumEndDate(
-    startDate
-  );
-
-
-if (
-  !maximumEndDate
-) {
-  showToast(
-    "조회 시작일을 확인해 주세요."
-  );
-
-
-  return;
-}
-
-
-if (
-  endDate >
-  maximumEndDate
-) {
-  showToast(
-    `조회 기간은 최대 6개월까지 선택할 수 있습니다. 최대 종료일은 ${maximumEndDate}입니다.`
-  );
-
-
-  return;
-}
-
 
 const searchDates =
   createSearchDateRange(
