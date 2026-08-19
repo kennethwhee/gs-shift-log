@@ -11,7 +11,7 @@
   핵심 규칙:
   - Cloudflare D1 공용 저장
   - 로그인 세션 확인
-  - 최고관리자, TO, BO1, BO2만 사용 가능
+  - 로그인한 모든 사용자 조회작성수정 가능
   - 날짜별 1건 저장
   - revision으로 동시 수정 충돌 방지
   - 저장할 때마다 수정 이력 보관
@@ -515,19 +515,15 @@ async function getAuthenticatedUser(
 function canUseHighPressureGasLog(
   user
 ) {
-  if (
-    !user
-  ) {
-    return false;
-  }
+  /*
+    로그인 인증을 통과한 모든 직원은
+    고압가스 점검일지를 조회작성수정할 수 있다.
 
-  return (
-    user.isSuperAdmin ||
-    ALLOWED_POSITIONS.has(
-      normalizePosition(
-        user.position
-      )
-    )
+    삭제 권한은 canDeleteHighPressureGasLog,
+    양식 수정 권한은 isSuperAdmin 검사로 별도 유지한다.
+  */
+  return Boolean(
+    user
   );
 }
 
