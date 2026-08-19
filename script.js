@@ -35389,7 +35389,8 @@ function showCompactConfirm({
   title = "확인",
   message = "",
   confirmText = "확인",
-  cancelText = "취소"
+  cancelText = "취소",
+  singleButton = false
 } = {}) {
   return new Promise(
     (resolve) => {
@@ -35490,6 +35491,17 @@ function showCompactConfirm({
         backdrop.querySelector(
           "[data-compact-confirm-cancel]"
         );
+
+
+      /*
+        안내용 팝업은 확인/취소 구분이 필요 없으므로
+        singleButton=true일 때 확인 버튼 하나만 표시한다.
+      */
+      if (
+        singleButton
+      ) {
+        cancelButton?.remove();
+      }
 
 
       let isClosed =
@@ -121465,10 +121477,10 @@ if (
           `${warningText}\n70% 이상 BOX의 교체 여부를 확인해 주세요.`,
 
         confirmText:
-          "확인",
+          "닫기",
 
-        cancelText:
-          "닫기"
+        singleButton:
+          true
       });
 
 
