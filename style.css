@@ -112778,6 +112778,7 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 
   /* 알림이 없으면 숨김 */
   #efficiencyTeamModal
+  #efficiencyArmRollTab
   #efficiencyArmRollTabBadge[hidden] {
     display: none !important;
   }
