@@ -1286,6 +1286,82 @@ button {
 }
 
 
+
+/* =========================================================
+  Logging 주기 / 시작시간 선택박스 정렬 보정
+========================================================= */
+
+.log-sheet-item-panel__actions
+  .log-sheet-logging-interval {
+  box-sizing: border-box;
+
+  height: 29px;
+  min-height: 29px;
+
+  padding:
+    2px
+    4px
+    2px
+    8px;
+
+  gap: 6px;
+
+  align-items: center;
+
+  border-radius: 6px;
+}
+
+
+.log-sheet-item-panel__actions
+  .log-sheet-logging-interval
+  > span {
+  display: inline-flex;
+
+  align-items: center;
+
+  height: 23px;
+
+  line-height: 1;
+
+  white-space: nowrap;
+}
+
+
+.log-sheet-item-panel__actions
+  .log-sheet-logging-interval
+  > select {
+  box-sizing: border-box;
+
+  width: 72px;
+  min-width: 72px;
+  height: 23px;
+
+  margin: 0;
+
+  padding:
+    0
+    22px
+    0
+    8px;
+
+  line-height: 21px;
+
+  border-radius: 5px;
+
+  vertical-align: middle;
+}
+
+
+.log-sheet-item-panel__actions
+  #logSheetLoggingInterval,
+.log-sheet-item-panel__actions
+  #logSheetLoggingStartHour {
+  width: 72px;
+  min-width: 72px;
+  height: 23px;
+}
+
+
 /* 신규 Logging 항목 미리보기 */
 
 .log-sheet-table
