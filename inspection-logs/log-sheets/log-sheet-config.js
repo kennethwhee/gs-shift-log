@@ -69,6 +69,26 @@
             0
           ),
           mergePolicy: MERGE_POLICY,
+          loggingSchedule: {
+            startHour: 8,
+            defaultIntervalHours: 2,
+            supportedIntervals: [
+              2,
+              3,
+              4,
+              6
+            ],
+            startColumn: "J",
+            endColumn: "U",
+            headerRows: [
+              6,
+              57
+            ],
+            dataRanges: [
+              "J7:U54",
+              "J58:U103"
+            ]
+          },
           editableRanges: [
             "J7:U54",
             "J58:U103",
@@ -133,6 +153,26 @@
             4
           ),
           mergePolicy: MERGE_POLICY,
+          loggingSchedule: {
+            startHour: 8,
+            defaultIntervalHours: 2,
+            supportedIntervals: [
+              2,
+              3,
+              4,
+              6
+            ],
+            startColumn: "J",
+            endColumn: "U",
+            headerRows: [
+              6,
+              40
+            ],
+            dataRanges: [
+              "J7:U37",
+              "J41:U85"
+            ]
+          },
           editableRanges: [
             "J7:U37",
             "J41:U85"
@@ -195,6 +235,26 @@
             4
           ),
           mergePolicy: MERGE_POLICY,
+          loggingSchedule: {
+            startHour: 8,
+            defaultIntervalHours: 2,
+            supportedIntervals: [
+              2,
+              3,
+              4,
+              6
+            ],
+            startColumn: "J",
+            endColumn: "U",
+            headerRows: [
+              6,
+              49
+            ],
+            dataRanges: [
+              "J7:U46",
+              "J50:U85"
+            ]
+          },
           editableRanges: [
             "J7:U46",
             "J50:U85"
@@ -869,7 +929,7 @@
   const config =
     deepFreeze({
       version:
-        "2026-08-14-log-sheet-1",
+        "2026-08-19-log-sheet-logging-interval-1",
       defaultType:
         "integrated-tgo",
       apiPath:

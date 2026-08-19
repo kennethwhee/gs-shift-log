@@ -20,6 +20,7 @@
     isBusy: false,
     isDirty: false,
     identityChanged: false,
+    loggingIntervalHours: 0,
     printZoom: ""
   };
 
@@ -68,6 +69,10 @@
       byId("logSheetRevisionText"),
     tabs:
       byId("logSheetTabs"),
+    loggingIntervalField:
+      byId("logSheetLoggingIntervalField"),
+    loggingInterval:
+      byId("logSheetLoggingInterval"),
     itemCount:
       byId("logSheetItemCount"),
     itemAddButton:
@@ -376,7 +381,8 @@
       elements.historyButton,
       elements.previewButton,
       elements.downloadButton,
-      elements.printButton
+      elements.printButton,
+      elements.loggingInterval
     ].forEach(
       button => {
         if (button) {
@@ -598,6 +604,631 @@
     }
 
     return [];
+  }
+
+
+  /* =========================================================
+    Log Sheet 로깅 시간 주기
+
+    Phase 1:
+    - 통합 TGO / BCO1 / BCO2
+    - 2 / 3 / 4 / 6시간
+    - 기존 12개 물리 열(J:U)을 주기별 슬롯으로 재분할
+  ========================================================= */
+
+  function getLoggingScheduleConfig() {
+    const schedule =
+      state.sheetConfig?.loggingSchedule;
+
+    if (
+      !schedule ||
+      typeof schedule !==
+        "object"
+    ) {
+      return null;
+    }
+
+    return schedule;
+  }
+
+
+  function getSupportedLoggingIntervals() {
+    const schedule =
+      getLoggingScheduleConfig();
+
+    if (!schedule) {
+      return [];
+    }
+
+    return (
+      Array.isArray(
+        schedule.supportedIntervals
+      )
+        ? schedule.supportedIntervals
+        : []
+    )
+      .map(
+        value =>
+          Number(value)
+      )
+      .filter(
+        value =>
+          Number.isInteger(
+            value
+          ) &&
+          value >
+            0 &&
+          24 %
+            value ===
+            0
+      );
+  }
+
+
+  function getLoggingIntervalHours() {
+    const schedule =
+      getLoggingScheduleConfig();
+
+    if (!schedule) {
+      return 0;
+    }
+
+    const supported =
+      getSupportedLoggingIntervals();
+
+    const current =
+      Number(
+        state.loggingIntervalHours
+      );
+
+    if (
+      supported.includes(
+        current
+      )
+    ) {
+      return current;
+    }
+
+    const fallback =
+      Number(
+        schedule.defaultIntervalHours
+      );
+
+    return supported.includes(
+      fallback
+    )
+      ? fallback
+      : (
+          supported[0] ||
+          0
+        );
+  }
+
+
+  function renderLoggingIntervalControl() {
+    const field =
+      elements.loggingIntervalField;
+
+    const select =
+      elements.loggingInterval;
+
+    if (
+      !field ||
+      !select
+    ) {
+      return;
+    }
+
+    const schedule =
+      getLoggingScheduleConfig();
+
+    const supported =
+      getSupportedLoggingIntervals();
+
+    if (
+      !schedule ||
+      !supported.length
+    ) {
+      field.hidden =
+        true;
+
+      select.replaceChildren();
+
+      return;
+    }
+
+    const current =
+      getLoggingIntervalHours();
+
+    const fragment =
+      document.createDocumentFragment();
+
+    supported.forEach(
+      interval => {
+        const option =
+          document.createElement(
+            "option"
+          );
+
+        option.value =
+          String(interval);
+
+        option.textContent =
+          String(interval) +
+          "시간";
+
+        fragment.appendChild(
+          option
+        );
+      }
+    );
+
+    select.replaceChildren(
+      fragment
+    );
+
+    select.value =
+      String(current);
+
+    field.hidden =
+      false;
+  }
+
+
+  function resetLoggingIntervalForCurrentSheet() {
+    const schedule =
+      getLoggingScheduleConfig();
+
+    state.loggingIntervalHours =
+      schedule
+        ? Number(
+            schedule.defaultIntervalHours
+          ) || 0
+        : 0;
+
+    renderLoggingIntervalControl();
+  }
+
+
+  function applyLoggingIntervalSetting(
+    settings
+  ) {
+    const schedule =
+      getLoggingScheduleConfig();
+
+    if (!schedule) {
+      state.loggingIntervalHours =
+        0;
+
+      renderLoggingIntervalControl();
+
+      return;
+    }
+
+    const supported =
+      getSupportedLoggingIntervals();
+
+    const requested =
+      Number(
+        settings?.loggingIntervalHours
+      );
+
+    const fallback =
+      Number(
+        schedule.defaultIntervalHours
+      );
+
+    state.loggingIntervalHours =
+      supported.includes(
+        requested
+      )
+        ? requested
+        : (
+            supported.includes(
+              fallback
+            )
+              ? fallback
+              : (
+                  supported[0] ||
+                  0
+                )
+          );
+
+    renderLoggingIntervalControl();
+  }
+
+
+  function formatLoggingHour(
+    rawHour
+  ) {
+    const normalized =
+      (
+        (
+          Number(rawHour) %
+          24
+        ) +
+        24
+      ) %
+      24;
+
+    if (
+      Number(rawHour) >
+        0 &&
+      normalized ===
+        0
+    ) {
+      return "24";
+    }
+
+    return String(
+      normalized
+    ).padStart(
+      2,
+      "0"
+    );
+  }
+
+
+  function getLoggingTimeGroups() {
+    const schedule =
+      getLoggingScheduleConfig();
+
+    const interval =
+      getLoggingIntervalHours();
+
+    if (
+      !schedule ||
+      !interval
+    ) {
+      return [];
+    }
+
+    const startColumn =
+      XLSX.utils.decode_col(
+        schedule.startColumn
+      );
+
+    const endColumn =
+      XLSX.utils.decode_col(
+        schedule.endColumn
+      );
+
+    const totalColumns =
+      endColumn -
+      startColumn +
+      1;
+
+    const slotCount =
+      24 /
+      interval;
+
+    if (
+      !Number.isInteger(
+        slotCount
+      ) ||
+      slotCount >
+        totalColumns
+    ) {
+      return [];
+    }
+
+    const startHour =
+      Number(
+        schedule.startHour
+      ) ||
+      0;
+
+    const groups =
+      [];
+
+    for (
+      let index = 0;
+      index < slotCount;
+      index += 1
+    ) {
+      const groupStart =
+        startColumn +
+        Math.floor(
+          index *
+          totalColumns /
+          slotCount
+        );
+
+      const groupEnd =
+        startColumn +
+        Math.floor(
+          (
+            index +
+            1
+          ) *
+          totalColumns /
+          slotCount
+        ) -
+        1;
+
+      groups.push({
+        index,
+
+        startColumn:
+          groupStart,
+
+        endColumn:
+          Math.max(
+            groupStart,
+            groupEnd
+          ),
+
+        label:
+          formatLoggingHour(
+            startHour +
+            index *
+            interval
+          )
+      });
+    }
+
+    return groups;
+  }
+
+
+  function getLoggingScheduleRows() {
+    const schedule =
+      getLoggingScheduleConfig();
+
+    const rows =
+      new Set();
+
+    if (!schedule) {
+      return rows;
+    }
+
+    (
+      schedule.headerRows ||
+      []
+    ).forEach(
+      rowNumber => {
+        const numeric =
+          Number(rowNumber);
+
+        if (
+          Number.isInteger(
+            numeric
+          ) &&
+          numeric >
+            0
+        ) {
+          rows.add(
+            numeric -
+            1
+          );
+        }
+      }
+    );
+
+    (
+      schedule.dataRanges ||
+      []
+    ).forEach(
+      rangeText => {
+        const range =
+          parseRange(
+            rangeText
+          );
+
+        for (
+          let row =
+            range.s.r;
+          row <=
+            range.e.r;
+          row +=
+            1
+        ) {
+          rows.add(
+            row
+          );
+        }
+      }
+    );
+
+    return rows;
+  }
+
+
+  function applyLoggingScheduleToMergeMaps(
+    anchorMap,
+    slaveAddresses
+  ) {
+    const rows =
+      getLoggingScheduleRows();
+
+    const groups =
+      getLoggingTimeGroups();
+
+    if (
+      !rows.size ||
+      !groups.length
+    ) {
+      return;
+    }
+
+    rows.forEach(
+      row => {
+        groups.forEach(
+          group => {
+            if (
+              group.endColumn <=
+                group.startColumn
+            ) {
+              return;
+            }
+
+            const merge = {
+              s: {
+                r:
+                  row,
+
+                c:
+                  group.startColumn
+              },
+
+              e: {
+                r:
+                  row,
+
+                c:
+                  group.endColumn
+              }
+            };
+
+            const anchor =
+              XLSX.utils.encode_cell(
+                merge.s
+              );
+
+            anchorMap.set(
+              anchor,
+              merge
+            );
+
+            for (
+              let column =
+                group.startColumn +
+                1;
+              column <=
+                group.endColumn;
+              column +=
+                1
+            ) {
+              slaveAddresses.add(
+                XLSX.utils.encode_cell({
+                  r:
+                    row,
+
+                  c:
+                    column
+                })
+              );
+            }
+          }
+        );
+      }
+    );
+  }
+
+
+  function getLoggingScheduleHeaderValue(
+    address
+  ) {
+    const schedule =
+      getLoggingScheduleConfig();
+
+    if (!schedule) {
+      return null;
+    }
+
+    const cell =
+      XLSX.utils.decode_cell(
+        address
+      );
+
+    const isHeaderRow =
+      (
+        schedule.headerRows ||
+        []
+      ).some(
+        rowNumber =>
+          Number(
+            rowNumber
+          ) -
+            1 ===
+          cell.r
+      );
+
+    if (!isHeaderRow) {
+      return null;
+    }
+
+    const group =
+      getLoggingTimeGroups()
+        .find(
+          item =>
+            item.startColumn ===
+            cell.c
+        );
+
+    return group
+      ? group.label
+      : null;
+  }
+
+
+  function handleLoggingIntervalChange() {
+    const schedule =
+      getLoggingScheduleConfig();
+
+    if (
+      !schedule ||
+      !elements.loggingInterval
+    ) {
+      return;
+    }
+
+    const previous =
+      getLoggingIntervalHours();
+
+    const next =
+      Number(
+        elements.loggingInterval.value
+      );
+
+    if (
+      !getSupportedLoggingIntervals()
+        .includes(
+          next
+        )
+    ) {
+      elements.loggingInterval.value =
+        String(previous);
+
+      return;
+    }
+
+    if (
+      next ===
+        previous
+    ) {
+      return;
+    }
+
+    if (
+      state.record &&
+      !window.confirm(
+        "현재 저장된 Log Sheet는 작성 당시 로깅 주기로 유지됩니다.\n\n" +
+        "지금 변경한 주기는 '양식 저장' 후 새로 작성되는 Log Sheet부터 적용됩니다.\n" +
+        "현재 화면에서는 새 양식을 미리 확인할 수 있습니다.\n\n" +
+        "계속할까요?"
+      )
+    ) {
+      elements.loggingInterval.value =
+        String(previous);
+
+      return;
+    }
+
+    state.loggingIntervalHours =
+      next;
+
+    renderLoggingIntervalControl();
+
+    renderGridIfPreviewVisible();
+
+    setStatus(
+      "양식 수정",
+      "로깅 주기를 " +
+      next +
+      "시간으로 변경했습니다. 공용 적용은 '양식 저장'을 눌러 완료하세요.",
+      "dirty"
+    );
   }
 
   function getMergeAnchorMap(
@@ -2621,6 +3252,11 @@ function applyLoggingTemplateState(
     );
 
 
+  applyLoggingIntervalSetting(
+    template?.settings
+  );
+
+
   const templateItems =
     Array.isArray(
       template?.items
@@ -3149,6 +3785,14 @@ function buildLoggingTemplatePayload() {
 
     sheetName:
       state.sheetConfig.sheetName,
+
+    settings:
+      getLoggingScheduleConfig()
+        ? {
+            loggingIntervalHours:
+              getLoggingIntervalHours()
+          }
+        : {},
 
     items
   };
@@ -4002,6 +4646,12 @@ function renderGrid() {
     );
 
 
+  applyLoggingScheduleToMergeMaps(
+    anchorMap,
+    slaveAddresses
+  );
+
+
   const table =
     document.createElement(
       "table"
@@ -4370,7 +5020,14 @@ function renderGrid() {
           "log-sheet-cell-value";
 
 
+        const loggingHeaderValue =
+          getLoggingScheduleHeaderValue(
+            address
+          );
+
+
         value.textContent =
+          loggingHeaderValue ??
           getCellDisplayValue(
             sheet,
             address
@@ -5497,6 +6154,8 @@ async function loadRecord(
     state.sheetConfig =
       sheetConfig;
 
+    resetLoggingIntervalForCurrentSheet();
+
     applyIdentityPolicy();
 
     state.record =
@@ -5827,6 +6486,224 @@ async function loadRecord(
     return cell;
   }
 
+
+  function applyLoggingScheduleToWorksheet(
+    worksheetDocument
+  ) {
+    const schedule =
+      getLoggingScheduleConfig();
+
+    const groups =
+      getLoggingTimeGroups();
+
+    const rows =
+      getLoggingScheduleRows();
+
+    if (
+      !schedule ||
+      !groups.length ||
+      !rows.size
+    ) {
+      return;
+    }
+
+    const namespace =
+      worksheetDocument
+        .documentElement
+        .namespaceURI;
+
+    const startColumn =
+      XLSX.utils.decode_col(
+        schedule.startColumn
+      );
+
+    const endColumn =
+      XLSX.utils.decode_col(
+        schedule.endColumn
+      );
+
+    let mergeCells =
+      worksheetDocument
+        .getElementsByTagName(
+          "mergeCells"
+        )[0];
+
+    if (!mergeCells) {
+      mergeCells =
+        worksheetDocument
+          .createElementNS(
+            namespace,
+            "mergeCells"
+          );
+
+      const sheetData =
+        worksheetDocument
+          .getElementsByTagName(
+            "sheetData"
+          )[0];
+
+      sheetData.parentNode
+        .insertBefore(
+          mergeCells,
+          sheetData.nextSibling
+        );
+    }
+
+    [
+      ...mergeCells
+        .getElementsByTagName(
+          "mergeCell"
+        )
+    ].forEach(
+      mergeCell => {
+        const reference =
+          mergeCell.getAttribute(
+            "ref"
+          );
+
+        if (!reference) {
+          return;
+        }
+
+        let range;
+
+        try {
+          range =
+            XLSX.utils.decode_range(
+              reference
+            );
+        } catch {
+          return;
+        }
+
+        if (
+          range.s.r ===
+            range.e.r &&
+          rows.has(
+            range.s.r
+          ) &&
+          range.s.c >=
+            startColumn &&
+          range.e.c <=
+            endColumn
+        ) {
+          mergeCell.remove();
+        }
+      }
+    );
+
+    rows.forEach(
+      row => {
+        groups.forEach(
+          group => {
+            const anchorAddress =
+              XLSX.utils.encode_cell({
+                r:
+                  row,
+
+                c:
+                  group.startColumn
+              });
+
+            if (
+              (
+                schedule.headerRows ||
+                []
+              ).includes(
+                row +
+                1
+              )
+            ) {
+              patchCellValue(
+                worksheetDocument,
+                anchorAddress,
+                group.label,
+                {
+                  removeFormula:
+                    true
+                }
+              );
+            }
+
+            for (
+              let column =
+                group.startColumn +
+                1;
+              column <=
+                group.endColumn;
+              column +=
+                1
+            ) {
+              patchCellValue(
+                worksheetDocument,
+                XLSX.utils.encode_cell({
+                  r:
+                    row,
+
+                  c:
+                    column
+                }),
+                "",
+                {
+                  removeFormula:
+                    true
+                }
+              );
+            }
+
+            if (
+              group.endColumn <=
+                group.startColumn
+            ) {
+              return;
+            }
+
+            const mergeCell =
+              worksheetDocument
+                .createElementNS(
+                  namespace,
+                  "mergeCell"
+                );
+
+            mergeCell.setAttribute(
+              "ref",
+              XLSX.utils.encode_cell({
+                r:
+                  row,
+
+                c:
+                  group.startColumn
+              }) +
+              ":" +
+              XLSX.utils.encode_cell({
+                r:
+                  row,
+
+                c:
+                  group.endColumn
+              })
+            );
+
+            mergeCells.appendChild(
+              mergeCell
+            );
+          }
+        );
+      }
+    );
+
+    mergeCells.setAttribute(
+      "count",
+      String(
+        mergeCells
+          .getElementsByTagName(
+            "mergeCell"
+          )
+          .length
+      )
+    );
+  }
+
   function patchCellValue(
     worksheetDocument,
     address,
@@ -6150,6 +7027,18 @@ async function createPatchedWorkbookBlob() {
         }
       }
     );
+
+
+  /* =======================================================
+    로깅 시간 주기 반영
+
+    입력값 / 항목 수정까지 끝난 뒤 적용하여
+    병합 slave 셀의 숨은 값을 마지막에 정리한다.
+  ======================================================= */
+
+  applyLoggingScheduleToWorksheet(
+    worksheetDocument
+  );
 
 
   /* =======================================================
@@ -10054,7 +10943,10 @@ async function createLogSheetPdfFingerprint() {
   const fingerprintSource =
     JSON.stringify({
       version:
-        1,
+        2,
+
+      loggingIntervalHours:
+        getLoggingIntervalHours(),
 
       templateFile:
         normalizeText(
@@ -11229,6 +12121,11 @@ function bindEvents() {
     saveLoggingTemplate
   );
 
+  elements.loggingInterval?.addEventListener(
+    "change",
+    handleLoggingIntervalChange
+  );
+
   elements.previewButton.addEventListener(
     "click",
     () => {
@@ -11344,6 +12241,8 @@ function bindEvents() {
 
       state.sheetConfig =
         route.sheetConfig;
+
+      resetLoggingIntervalForCurrentSheet();
 
       applyIdentityPolicy();
 

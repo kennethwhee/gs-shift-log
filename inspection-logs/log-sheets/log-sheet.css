@@ -1075,6 +1075,8 @@ button {
   align-items: center;
 
   gap: 7px;
+
+  flex-wrap: wrap;
 }
 
 
@@ -1115,6 +1117,97 @@ button {
   background:
     #e1f0fb;
 }
+
+/* =========================================================
+  Log Sheet 로깅 시간 주기
+========================================================= */
+
+.log-sheet-logging-interval {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 5px;
+
+  min-height: 27px;
+
+  padding:
+    0
+    7px;
+
+  border:
+    1px solid
+    #b9cddd;
+
+  border-radius: 6px;
+
+  background:
+    #ffffff;
+
+  color:
+    #466886;
+
+  font-size: 9px;
+
+  font-weight: 850;
+}
+
+
+.log-sheet-logging-interval[hidden] {
+  display: none !important;
+}
+
+
+.log-sheet-logging-interval
+  > span {
+  white-space: nowrap;
+}
+
+
+.log-sheet-logging-interval
+  > select {
+  height: 23px;
+
+  min-width: 68px;
+
+  padding:
+    0
+    22px
+    0
+    7px;
+
+  border:
+    1px solid
+    #9bb9d1;
+
+  border-radius: 5px;
+
+  background:
+    #f7fbff;
+
+  color:
+    #24597f;
+
+  font-family: inherit;
+
+  font-size: 9px;
+
+  font-weight: 900;
+
+  outline: none;
+}
+
+
+.log-sheet-logging-interval
+  > select:focus {
+  border-color:
+    #568abb;
+
+  box-shadow:
+    0 0 0 2px
+    rgba(86, 138, 187, 0.12);
+}
+
 
 /* 신규 Logging 항목 미리보기 */
 

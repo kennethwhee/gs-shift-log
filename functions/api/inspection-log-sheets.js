@@ -26,6 +26,24 @@ const MAX_CELL_TEXT_LENGTH =
 const MAX_HISTORY_RESULTS =
   100;
 
+
+const LOGGING_INTERVAL_SHEET_KEYS =
+  new Set([
+    "integrated-tgo",
+    "integrated-bco1",
+    "integrated-bco2"
+  ]);
+
+const LOGGING_INTERVAL_HOURS =
+  new Set([
+    2,
+    3,
+    4,
+    6
+  ]);
+
+
+
 /*
   5개 원본 Excel의 12개 표시 시트.
 
@@ -768,6 +786,7 @@ async function ensureSchema(
           sheet_name TEXT NOT NULL DEFAULT '',
           version_number INTEGER NOT NULL,
           items_json TEXT NOT NULL DEFAULT '[]',
+          settings_json TEXT NOT NULL DEFAULT '{}',
           is_active INTEGER NOT NULL DEFAULT 1,
           created_by_id TEXT NOT NULL,
           created_by_name TEXT NOT NULL,
@@ -775,6 +794,76 @@ async function ensureSchema(
         )
     `)
     .run();
+
+
+  /* =======================================================
+    기존 공용 양식 버전 테이블 마이그레이션
+  ======================================================= */
+
+  const templateTableInfoResult =
+    await database
+      .prepare(`
+        PRAGMA table_info(
+          inspection_log_sheet_template_versions
+        )
+      `)
+      .all();
+
+  const templateColumns =
+    new Set(
+      (
+        Array.isArray(
+          templateTableInfoResult.results
+        )
+          ? templateTableInfoResult.results
+          : []
+      )
+        .map(
+          column =>
+            normalizeText(
+              column?.name
+            )
+        )
+        .filter(
+          Boolean
+        )
+    );
+
+  if (
+    !templateColumns.has(
+      "settings_json"
+    )
+  ) {
+    try {
+      await database
+        .prepare(`
+          ALTER TABLE
+            inspection_log_sheet_template_versions
+          ADD COLUMN
+            settings_json TEXT NOT NULL DEFAULT '{}'
+        `)
+        .run();
+
+    } catch (
+      error
+    ) {
+      const message =
+        String(
+          error?.message ||
+          error ||
+          ""
+        ).toLowerCase();
+
+      if (
+        !message.includes(
+          "duplicate column"
+        )
+      ) {
+        throw error;
+      }
+    }
+  }
+
 
 
   await database
@@ -1964,6 +2053,76 @@ function normalizeLoggingTemplateTextArray(
     .filter(Boolean);
 }
 
+
+function parseTemplateSettingsJson(
+  value
+) {
+  try {
+    const parsed =
+      JSON.parse(
+        String(
+          value ||
+          "{}"
+        )
+      );
+
+    return (
+      parsed &&
+      typeof parsed ===
+        "object" &&
+      !Array.isArray(
+        parsed
+      )
+    )
+      ? parsed
+      : {};
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "Log Sheet 양식 settings_json 파싱 실패:",
+      error
+    );
+
+    return {};
+  }
+}
+
+
+function normalizeLoggingTemplateSettings(
+  sheetKey,
+  source
+) {
+  if (
+    !LOGGING_INTERVAL_SHEET_KEYS.has(
+      sheetKey
+    )
+  ) {
+    return {};
+  }
+
+  const rawInterval =
+    Number(
+      source?.loggingIntervalHours ??
+      2
+    );
+
+  if (
+    !LOGGING_INTERVAL_HOURS.has(
+      rawInterval
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    loggingIntervalHours:
+      rawInterval
+  };
+}
+
+
 function parseTemplateItemsJson(
   value
 ) {
@@ -2028,6 +2187,7 @@ async function findActiveTemplateVersion(
           sheet_name,
           version_number,
           items_json,
+          settings_json,
           is_active,
           created_by_id,
           created_by_name,
@@ -2087,6 +2247,11 @@ async function findActiveTemplateVersion(
     items:
       parseTemplateItemsJson(
         row.items_json
+      ),
+
+    settings:
+      parseTemplateSettingsJson(
+        row.settings_json
       ),
 
     isActive:
@@ -2456,6 +2621,28 @@ export async function onRequestPost(
         );
 
 
+      const templateSettings =
+        normalizeLoggingTemplateSettings(
+          sheetKey,
+          templateSource.settings
+        );
+
+
+      if (
+        templateSettings ===
+          null
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            message:
+              "로깅 시간 주기는 2·3·4·6시간 중에서 선택해 주세요."
+          },
+          400
+        );
+      }
+
+
       if (
         !templateKey
       ) {
@@ -2749,6 +2936,13 @@ export async function onRequestPost(
         );
 
 
+      const settingsJson =
+        JSON.stringify(
+          templateSettings ||
+          {}
+        );
+
+
       const itemsJsonBytes =
         new TextEncoder()
           .encode(
@@ -2926,6 +3120,7 @@ export async function onRequestPost(
                   sheet_name,
                   version_number,
                   items_json,
+                  settings_json,
                   is_active,
                   created_by_id,
                   created_by_name,
@@ -2939,6 +3134,8 @@ export async function onRequestPost(
                 ?,
                 ?,
                 ?,
+                ?,
+
                 1,
                 ?,
                 ?,
@@ -2952,6 +3149,8 @@ export async function onRequestPost(
               sheetName,
               nextVersionNumber,
               itemsJson,
+              settingsJson,
+
               user.employeeNo,
               user.name,
               now

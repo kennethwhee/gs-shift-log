@@ -10,7 +10,7 @@
 
 <link
   rel="stylesheet"
-  href="log-sheet.css?v=20260816-inline-editor1"
+  href="log-sheet.css?v=20260819-logging-interval1"
 >
 
 <script
@@ -24,12 +24,12 @@
 ></script>
 
 <script
-  src="log-sheet-config.js?v=20260814-log-sheet1"
+  src="log-sheet-config.js?v=20260819-logging-interval1"
   defer
 ></script>
 
 <script
-  src="log-sheet.js?v=20260816-pdf-cache-show1"
+  src="log-sheet.js?v=20260819-logging-interval1"
   defer
 ></script>
 
@@ -131,6 +131,19 @@
 </div>
 
 <div class="log-sheet-item-panel__actions">
+  <label
+    class="log-sheet-logging-interval"
+    id="logSheetLoggingIntervalField"
+    hidden
+  >
+    <span>로깅 주기</span>
+
+    <select
+      id="logSheetLoggingInterval"
+      aria-label="로깅 시간 주기"
+    ></select>
+  </label>
+
   <button
     type="button"
     id="logSheetItemAddButton"
