@@ -645,6 +645,11 @@
     display: none;
   }
 
+/* 모바일에서는 Log Sheet 메뉴 전체 숨김 */
+.inspection-sidebar-log-sheet {
+  display: none !important;
+}
+
   .inspection-sidebar-group {
     margin-bottom: 7px;
   }
