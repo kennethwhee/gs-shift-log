@@ -10613,7 +10613,16 @@ function ensureLogSheetPdfPreviewModal() {
         "2147483000",
 
       display:
-        "none",
+      "flex",
+
+    visibility:
+      "hidden",
+
+    opacity:
+      "0",
+
+    pointerEvents:
+      "none",
 
       alignItems:
         "center",
@@ -10635,6 +10644,15 @@ function ensureLogSheetPdfPreviewModal() {
   const closePreview =
     () => {
       modal.style.display =
+        "flex";
+
+      modal.style.visibility =
+        "hidden";
+
+      modal.style.opacity =
+        "0";
+
+      modal.style.pointerEvents =
         "none";
 
 
@@ -10787,6 +10805,18 @@ function showLogSheetPdfPreviewBlob(
 
   modal.style.display =
     "flex";
+
+
+  modal.style.visibility =
+    "visible";
+
+
+  modal.style.opacity =
+    "1";
+
+
+  modal.style.pointerEvents =
+    "auto";
 
 
   const frame =
