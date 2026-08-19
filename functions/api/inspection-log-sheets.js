@@ -2116,9 +2116,30 @@ function normalizeLoggingTemplateSettings(
     return null;
   }
 
+  const rawStartHour =
+    Number(
+      source?.loggingStartHour ??
+      8
+    );
+
+  if (
+    !Number.isInteger(
+      rawStartHour
+    ) ||
+    rawStartHour <
+      0 ||
+    rawStartHour >
+      23
+  ) {
+    return null;
+  }
+
   return {
     loggingIntervalHours:
-      rawInterval
+      rawInterval,
+
+    loggingStartHour:
+      rawStartHour
   };
 }
 
@@ -2636,7 +2657,7 @@ export async function onRequestPost(
           {
             ok: false,
             message:
-              "로깅 시간 주기는 2·3·4·6시간 중에서 선택해 주세요."
+              "로깅 시간 주기는 2·3·4·6시간, 시작 시간은 00~23시 범위에서 선택해 주세요."
           },
           400
         );

@@ -29,7 +29,7 @@
 ></script>
 
 <script
-  src="log-sheet.js?v=20260819-logging-interval1"
+  src="log-sheet.js?v=20260819-logging-schedule-fix1"
   defer
 ></script>
 
@@ -141,6 +141,19 @@
     <select
       id="logSheetLoggingInterval"
       aria-label="로깅 시간 주기"
+    ></select>
+  </label>
+
+  <label
+    class="log-sheet-logging-interval"
+    id="logSheetLoggingStartField"
+    hidden
+  >
+    <span>시작 시간</span>
+
+    <select
+      id="logSheetLoggingStartHour"
+      aria-label="로깅 시작 시간"
     ></select>
   </label>
 

@@ -21,6 +21,7 @@
     isDirty: false,
     identityChanged: false,
     loggingIntervalHours: 0,
+    loggingStartHour: 0,
     printZoom: ""
   };
 
@@ -73,6 +74,10 @@
       byId("logSheetLoggingIntervalField"),
     loggingInterval:
       byId("logSheetLoggingInterval"),
+    loggingStartField:
+      byId("logSheetLoggingStartField"),
+    loggingStartHour:
+      byId("logSheetLoggingStartHour"),
     itemCount:
       byId("logSheetItemCount"),
     itemAddButton:
@@ -382,7 +387,8 @@
       elements.previewButton,
       elements.downloadButton,
       elements.printButton,
-      elements.loggingInterval
+      elements.loggingInterval,
+      elements.loggingStartHour
     ].forEach(
       button => {
         if (button) {
@@ -705,6 +711,120 @@
   }
 
 
+
+  function getLoggingStartHour() {
+    const schedule =
+      getLoggingScheduleConfig();
+
+    if (!schedule) {
+      return 0;
+    }
+
+    const current =
+      Number(
+        state.loggingStartHour
+      );
+
+    if (
+      Number.isInteger(
+        current
+      ) &&
+      current >=
+        0 &&
+      current <=
+        23
+    ) {
+      return current;
+    }
+
+    const fallback =
+      Number(
+        schedule.startHour
+      );
+
+    return (
+      Number.isInteger(
+        fallback
+      ) &&
+      fallback >=
+        0 &&
+      fallback <=
+        23
+    )
+      ? fallback
+      : 0;
+  }
+
+
+  function renderLoggingStartControl() {
+    const field =
+      elements.loggingStartField;
+
+    const select =
+      elements.loggingStartHour;
+
+    const schedule =
+      getLoggingScheduleConfig();
+
+    if (
+      !field ||
+      !select
+    ) {
+      return;
+    }
+
+    if (!schedule) {
+      field.hidden =
+        true;
+
+      select.replaceChildren();
+
+      return;
+    }
+
+    const fragment =
+      document.createDocumentFragment();
+
+    for (
+      let hour = 0;
+      hour <= 23;
+      hour += 1
+    ) {
+      const option =
+        document.createElement(
+          "option"
+        );
+
+      option.value =
+        String(hour);
+
+      option.textContent =
+        String(hour)
+          .padStart(
+            2,
+            "0"
+          ) +
+        "시";
+
+      fragment.appendChild(
+        option
+      );
+    }
+
+    select.replaceChildren(
+      fragment
+    );
+
+    select.value =
+      String(
+        getLoggingStartHour()
+      );
+
+    field.hidden =
+      false;
+  }
+
+
   function renderLoggingIntervalControl() {
     const field =
       elements.loggingIntervalField;
@@ -733,6 +853,9 @@
         true;
 
       select.replaceChildren();
+
+      renderLoggingStartControl();
+
 
       return;
     }
@@ -772,6 +895,8 @@
 
     field.hidden =
       false;
+
+    renderLoggingStartControl();
   }
 
 
@@ -783,6 +908,13 @@
       schedule
         ? Number(
             schedule.defaultIntervalHours
+          ) || 0
+        : 0;
+
+    state.loggingStartHour =
+      schedule
+        ? Number(
+            schedule.startHour
           ) || 0
         : 0;
 
@@ -832,6 +964,39 @@
                   supported[0] ||
                   0
                 )
+          );
+
+
+
+    const requestedStartHour =
+      Number(
+        settings?.loggingStartHour
+      );
+
+    const fallbackStartHour =
+      Number(
+        schedule.startHour
+      );
+
+    state.loggingStartHour =
+      Number.isInteger(
+        requestedStartHour
+      ) &&
+      requestedStartHour >=
+        0 &&
+      requestedStartHour <=
+        23
+        ? requestedStartHour
+        : (
+            Number.isInteger(
+              fallbackStartHour
+            ) &&
+            fallbackStartHour >=
+              0 &&
+            fallbackStartHour <=
+              23
+              ? fallbackStartHour
+              : 0
           );
 
     renderLoggingIntervalControl();
@@ -913,10 +1078,7 @@
     }
 
     const startHour =
-      Number(
-        schedule.startHour
-      ) ||
-      0;
+      getLoggingStartHour();
 
     const groups =
       [];
@@ -968,6 +1130,208 @@
     }
 
     return groups;
+  }
+
+
+
+  function getOriginalLoggingColumnWidthPx(
+    sheet,
+    column
+  ) {
+    const columnInfo =
+      sheet?.["!cols"]?.[
+        column
+      ];
+
+    let widthPx =
+      Number(
+        columnInfo?.wpx
+      );
+
+    if (
+      !Number.isFinite(
+        widthPx
+      ) ||
+      widthPx <=
+        0
+    ) {
+      const widthChars =
+        Number(
+          columnInfo?.wch
+        );
+
+      widthPx =
+        Number.isFinite(
+          widthChars
+        ) &&
+        widthChars >
+          0
+          ? widthChars *
+              7.2 +
+            5
+          : 54;
+    }
+
+    return Math.max(
+      6,
+      widthPx
+    );
+  }
+
+
+  function getOriginalLoggingColumnWidthChars(
+    sheet,
+    column
+  ) {
+    const columnInfo =
+      sheet?.["!cols"]?.[
+        column
+      ];
+
+    const widthChars =
+      Number(
+        columnInfo?.wch
+      );
+
+    if (
+      Number.isFinite(
+        widthChars
+      ) &&
+      widthChars >
+        0
+    ) {
+      return widthChars;
+    }
+
+    const widthPx =
+      Number(
+        columnInfo?.wpx
+      );
+
+    if (
+      Number.isFinite(
+        widthPx
+      ) &&
+      widthPx >
+        5
+    ) {
+      return Math.max(
+        0.5,
+        (
+          widthPx -
+          5
+        ) /
+        7.2
+      );
+    }
+
+    return 7;
+  }
+
+
+  function getEqualizedLoggingColumnWidth(
+    sheet,
+    column,
+    unit
+  ) {
+    const schedule =
+      getLoggingScheduleConfig();
+
+    const groups =
+      getLoggingTimeGroups();
+
+    if (
+      !schedule ||
+      !groups.length
+    ) {
+      return null;
+    }
+
+    const startColumn =
+      XLSX.utils.decode_col(
+        schedule.startColumn
+      );
+
+    const endColumn =
+      XLSX.utils.decode_col(
+        schedule.endColumn
+      );
+
+    if (
+      column <
+        startColumn ||
+      column >
+        endColumn
+    ) {
+      return null;
+    }
+
+    const totalColumns =
+      endColumn -
+      startColumn +
+      1;
+
+    /*
+      2시간 = 12칸 = 원본 12열 그대로이므로
+      원본 열 폭을 건드리지 않는다.
+    */
+    if (
+      groups.length ===
+        totalColumns
+    ) {
+      return null;
+    }
+
+    const widthReader =
+      unit ===
+        "chars"
+        ? getOriginalLoggingColumnWidthChars
+        : getOriginalLoggingColumnWidthPx;
+
+    let totalWidth =
+      0;
+
+    for (
+      let sourceColumn =
+        startColumn;
+      sourceColumn <=
+        endColumn;
+      sourceColumn +=
+        1
+    ) {
+      totalWidth +=
+        widthReader(
+          sheet,
+          sourceColumn
+        );
+    }
+
+    const targetSlotWidth =
+      totalWidth /
+      groups.length;
+
+    const group =
+      groups.find(
+        item =>
+          column >=
+            item.startColumn &&
+          column <=
+            item.endColumn
+      );
+
+    if (!group) {
+      return null;
+    }
+
+    const physicalColumnCount =
+      group.endColumn -
+      group.startColumn +
+      1;
+
+    return (
+      targetSlotWidth /
+      physicalColumnCount
+    );
   }
 
 
@@ -1230,6 +1594,84 @@
       "dirty"
     );
   }
+
+
+  function handleLoggingStartHourChange() {
+    const schedule =
+      getLoggingScheduleConfig();
+
+    if (
+      !schedule ||
+      !elements.loggingStartHour
+    ) {
+      return;
+    }
+
+    const previous =
+      getLoggingStartHour();
+
+    const next =
+      Number(
+        elements.loggingStartHour.value
+      );
+
+    if (
+      !Number.isInteger(
+        next
+      ) ||
+      next <
+        0 ||
+      next >
+        23
+    ) {
+      elements.loggingStartHour.value =
+        String(previous);
+
+      return;
+    }
+
+    if (
+      next ===
+        previous
+    ) {
+      return;
+    }
+
+    if (
+      state.record &&
+      !window.confirm(
+        "현재 저장된 Log Sheet는 작성 당시 로깅 시간으로 유지됩니다.\n\n" +
+        "지금 변경한 시작 시간은 '양식 저장' 후 새로 작성되는 Log Sheet부터 적용됩니다.\n" +
+        "현재 화면에서는 새 양식을 미리 확인할 수 있습니다.\n\n" +
+        "계속할까요?"
+      )
+    ) {
+      elements.loggingStartHour.value =
+        String(previous);
+
+      return;
+    }
+
+    state.loggingStartHour =
+      next;
+
+    renderLoggingIntervalControl();
+
+    renderGridIfPreviewVisible();
+
+    setStatus(
+      "양식 수정",
+      "로깅 시작 시간을 " +
+      String(next)
+        .padStart(
+          2,
+          "0"
+        ) +
+      "시로 변경했습니다. 공용 적용은 '양식 저장'을 눌러 완료하세요.",
+      "dirty"
+    );
+  }
+
 
   function getMergeAnchorMap(
     sheet
@@ -3790,7 +4232,10 @@ function buildLoggingTemplatePayload() {
       getLoggingScheduleConfig()
         ? {
             loggingIntervalHours:
-              getLoggingIntervalHours()
+              getLoggingIntervalHours(),
+
+            loggingStartHour:
+              getLoggingStartHour()
           }
         : {},
 
@@ -4752,6 +5197,28 @@ function renderGrid() {
         6,
         widthPx
       );
+
+
+    const loggingWidthPx =
+      getEqualizedLoggingColumnWidth(
+        sheet,
+        column,
+        "px"
+      );
+
+    if (
+      Number.isFinite(
+        loggingWidthPx
+      ) &&
+      loggingWidthPx >
+        0
+    ) {
+      widthPx =
+        Math.max(
+          6,
+          loggingWidthPx
+        );
+    }
 
 
     col.style.width =
@@ -6487,7 +6954,317 @@ async function loadRecord(
   }
 
 
-  function applyLoggingScheduleToWorksheet(
+
+  function applyLoggingScheduleColumnWidthsToWorksheet(
+    worksheetDocument
+  ) {
+    const schedule =
+      getLoggingScheduleConfig();
+
+    const groups =
+      getLoggingTimeGroups();
+
+    if (
+      !schedule ||
+      !groups.length
+    ) {
+      return;
+    }
+
+    const startColumn =
+      XLSX.utils.decode_col(
+        schedule.startColumn
+      );
+
+    const endColumn =
+      XLSX.utils.decode_col(
+        schedule.endColumn
+      );
+
+    const totalColumns =
+      endColumn -
+      startColumn +
+      1;
+
+    if (
+      groups.length ===
+        totalColumns
+    ) {
+      return;
+    }
+
+    const namespace =
+      worksheetDocument
+        .documentElement
+        .namespaceURI;
+
+    let cols =
+      worksheetDocument
+        .getElementsByTagName(
+          "cols"
+        )[0];
+
+    if (!cols) {
+      cols =
+        worksheetDocument
+          .createElementNS(
+            namespace,
+            "cols"
+          );
+
+      const sheetData =
+        worksheetDocument
+          .getElementsByTagName(
+            "sheetData"
+          )[0];
+
+      sheetData.parentNode
+        .insertBefore(
+          cols,
+          sheetData
+        );
+    }
+
+    const existingDefinitions =
+      [
+        ...cols
+          .getElementsByTagName(
+            "col"
+          )
+      ]
+        .map(
+          element => {
+            const attributes =
+              {};
+
+            [
+              ...element.attributes
+            ].forEach(
+              attribute => {
+                attributes[
+                  attribute.name
+                ] =
+                  attribute.value;
+              }
+            );
+
+            return {
+              min:
+                Number(
+                  attributes.min
+                ),
+
+              max:
+                Number(
+                  attributes.max
+                ),
+
+              attributes
+            };
+          }
+        )
+        .filter(
+          definition =>
+            Number.isInteger(
+              definition.min
+            ) &&
+            Number.isInteger(
+              definition.max
+            )
+        );
+
+    const excelStartColumn =
+      startColumn +
+      1;
+
+    const excelEndColumn =
+      endColumn +
+      1;
+
+    const outputDefinitions =
+      [];
+
+    existingDefinitions.forEach(
+      definition => {
+        if (
+          definition.max <
+            excelStartColumn ||
+          definition.min >
+            excelEndColumn
+        ) {
+          outputDefinitions.push(
+            {
+              ...definition.attributes
+            }
+          );
+
+          return;
+        }
+
+        if (
+          definition.min <
+            excelStartColumn
+        ) {
+          outputDefinitions.push({
+            ...definition.attributes,
+
+            max:
+              String(
+                excelStartColumn -
+                1
+              )
+          });
+        }
+
+        if (
+          definition.max >
+            excelEndColumn
+        ) {
+          outputDefinitions.push({
+            ...definition.attributes,
+
+            min:
+              String(
+                excelEndColumn +
+                1
+              )
+          });
+        }
+      }
+    );
+
+    const sheet =
+      state.workbook?.Sheets?.[
+        state.sheetConfig
+          .sheetName
+      ];
+
+    for (
+      let column =
+        startColumn;
+      column <=
+        endColumn;
+      column +=
+        1
+    ) {
+      const excelColumn =
+        column +
+        1;
+
+      const sourceDefinition =
+        existingDefinitions.find(
+          definition =>
+            excelColumn >=
+              definition.min &&
+            excelColumn <=
+              definition.max
+        );
+
+      const width =
+        getEqualizedLoggingColumnWidth(
+          sheet,
+          column,
+          "chars"
+        );
+
+      const attributes = {
+        ...(
+          sourceDefinition
+            ?.attributes ||
+          {}
+        ),
+
+        min:
+          String(
+            excelColumn
+          ),
+
+        max:
+          String(
+            excelColumn
+          ),
+
+        width:
+          Number(
+            width ||
+            getOriginalLoggingColumnWidthChars(
+              sheet,
+              column
+            )
+          )
+            .toFixed(
+              6
+            ),
+
+        customWidth:
+          "1"
+      };
+
+      /*
+        폭을 직접 지정하므로 bestFit은 제거한다.
+      */
+      delete attributes.bestFit;
+
+      outputDefinitions.push(
+        attributes
+      );
+    }
+
+    outputDefinitions.sort(
+      (
+        left,
+        right
+      ) =>
+        Number(
+          left.min
+        ) -
+        Number(
+          right.min
+        )
+    );
+
+    while (
+      cols.firstChild
+    ) {
+      cols.removeChild(
+        cols.firstChild
+      );
+    }
+
+    outputDefinitions.forEach(
+      attributes => {
+        const element =
+          worksheetDocument
+            .createElementNS(
+              namespace,
+              "col"
+            );
+
+        Object.entries(
+          attributes
+        ).forEach(
+          (
+            [
+              name,
+              value
+            ]
+          ) => {
+            element.setAttribute(
+              name,
+              String(value)
+            );
+          }
+        );
+
+        cols.appendChild(
+          element
+        );
+      }
+    );
+  }
+
+
+function applyLoggingScheduleToWorksheet(
     worksheetDocument
   ) {
     const schedule =
@@ -6521,6 +7298,10 @@ async function loadRecord(
       XLSX.utils.decode_col(
         schedule.endColumn
       );
+
+    applyLoggingScheduleColumnWidthsToWorksheet(
+      worksheetDocument
+    );
 
     let mergeCells =
       worksheetDocument
@@ -10943,10 +11724,13 @@ async function createLogSheetPdfFingerprint() {
   const fingerprintSource =
     JSON.stringify({
       version:
-        2,
+        3,
 
       loggingIntervalHours:
         getLoggingIntervalHours(),
+
+      loggingStartHour:
+        getLoggingStartHour(),
 
       templateFile:
         normalizeText(
@@ -12124,6 +12908,11 @@ function bindEvents() {
   elements.loggingInterval?.addEventListener(
     "change",
     handleLoggingIntervalChange
+  );
+
+  elements.loggingStartHour?.addEventListener(
+    "change",
+    handleLoggingStartHourChange
   );
 
   elements.previewButton.addEventListener(
