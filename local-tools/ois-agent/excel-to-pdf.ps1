@@ -38,14 +38,64 @@ $excel = $null
 $workbook = $null
 $sheet = $null
 
+$timingLogPath =
+    Join-Path `
+        ([System.IO.Path]::GetTempPath()) `
+        'gs-log-sheet-pdf-excel-timing.log'
+
+$timingStopwatch =
+    [System.Diagnostics.Stopwatch]::StartNew()
+
+$timingPreviousMs = 0
+
+function Write-ExcelPdfTiming {
+    param(
+        [string]$Label
+    )
+
+    try {
+        $currentMs =
+            $timingStopwatch.ElapsedMilliseconds
+
+        $stepMs =
+            $currentMs -
+            $script:timingPreviousMs
+
+        $script:timingPreviousMs =
+            $currentMs
+
+        $line =
+            '{0:yyyy-MM-dd HH:mm:ss.fff} | {1} | step={2}ms | total={3}ms | sheet={4}' -f `
+                (Get-Date),
+                $Label,
+                $stepMs,
+                $currentMs,
+                $SheetName
+
+        Add-Content `
+            -LiteralPath $timingLogPath `
+            -Value $line `
+            -Encoding UTF8
+    }
+    catch {
+        # 진단 로그 오류가 PDF 생성에 영향을 주지 않도록 무시
+    }
+}
+
+Write-ExcelPdfTiming 'script-start'
+
 try {
     $excel =
         New-Object `
             -ComObject Excel.Application
 
+    Write-ExcelPdfTiming 'excel-application-created'
+
     $excel.Visible = $false
     $excel.DisplayAlerts = $false
     $excel.AskToUpdateLinks = $false
+
+    Write-ExcelPdfTiming 'excel-settings-applied'
 
     $workbook =
         $excel.Workbooks.Open(
@@ -53,6 +103,8 @@ try {
             0,
             $true
         )
+
+    Write-ExcelPdfTiming 'workbook-opened'
 
     try {
         $sheet =
@@ -63,6 +115,8 @@ try {
     catch {
         throw "Excel 시트를 찾을 수 없습니다: $SheetName"
     }
+
+    Write-ExcelPdfTiming 'worksheet-selected'
 
     if (
         Test-Path -LiteralPath $OutputPath
@@ -85,6 +139,8 @@ try {
         $false
     )
 
+    Write-ExcelPdfTiming 'pdf-exported'
+
     if (
         -not (
             Test-Path -LiteralPath $OutputPath
@@ -96,6 +152,8 @@ try {
     $pdf =
         Get-Item `
             -LiteralPath $OutputPath
+
+    Write-ExcelPdfTiming 'result-ready'
 
     Write-Output (
         [PSCustomObject]@{
@@ -110,9 +168,12 @@ try {
     )
 }
 finally {
+    Write-ExcelPdfTiming 'cleanup-start'
     if ($workbook) {
         try {
             $workbook.Close($false)
+
+            Write-ExcelPdfTiming 'workbook-closed'
         }
         catch {}
     }
@@ -120,6 +181,8 @@ finally {
     if ($excel) {
         try {
             $excel.Quit()
+
+            Write-ExcelPdfTiming 'excel-quit'
         }
         catch {}
     }
@@ -144,4 +207,6 @@ finally {
 
     [GC]::Collect()
     [GC]::WaitForPendingFinalizers()
+
+    Write-ExcelPdfTiming 'cleanup-complete'
 }

@@ -1,0 +1,274 @@
+OIS 에이전트 로컬 설정을 불러왔습니다.
+확인된 설정: OIS_ID, OIS_PASSWORD, OIS_AGENT_KEY, OIS_AGENT_ID, SHIFT_LOG_BASE_URL, NODE_USE_SYSTEM_CA, OIS_AGENT_MODE
+==========================================
+GS Shift Log OIS · Excel 연동 프로그램
+==========================================
+업무일지 주소: https://gs-shift-log.pages.dev
+에이전트 ID: CCR-OIS-PC-01
+연동 모드: OIS + Excel
+요청 확인 주기: 5초
+지원 요청: 석회석 재고 · 수처리 현황 · Gear Wheel / Pinion · 일일 DATA Excel
+업무일지의 OIS · Excel 요청을 기다립니다.
+Log Sheet Excel PDF Worker 以鍮??꾨즺: 1551ms
+
+------------------------------------------
+Log Sheet PDF 조회 요청을 받았습니다.
+요청 유형: logsheet_pdf
+요청 ID: 8f1d1270-26d1-4032-a130-c132db5b5169
+조회일: 2026-08-19
+------------------------------------------
+[LOGSHEET PDF TIMING] agent-start | step=0.00s | total=0.00s
+Log Sheet XLSX 다운로드: 8f1d1270-26d1-4032-a130-c132db5b5169
+[LOGSHEET PDF TIMING] xlsx-download-complete | step=0.41s | total=0.42s
+Log Sheet Excel PDF 변환 시작 · TGO · 54366 bytes
+Log Sheet Excel PDF ?곸＜ Worker ?꾨즺: TGO 쨌 5083ms
+[LOGSHEET PDF TIMING] excel-pdf-complete | step=5.12s | total=5.54s
+[LOGSHEET PDF TIMING] pdf-validate-complete | step=0.00s | total=5.54s
+Log Sheet Excel PDF 변환 완료 · TGO · 427859 bytes
+[LOGSHEET PDF TIMING] pdf-upload-complete | step=0.99s | total=6.53s
+Log Sheet PDF 업로드 완료: 8f1d1270-26d1-4032-a130-c132db5b5169
+[LOGSHEET PDF TIMING] cleanup-start | step=0.01s | total=6.54s
+[LOGSHEET PDF TIMING] cleanup-complete | step=0.00s | total=6.54s
+Excel Log Sheet PDF 조회가 완료되었습니다.
+
+------------------------------------------
+석회석 재고 조회 요청을 받았습니다.
+요청 유형: limestone_stock
+요청 ID: 9a14afd9-451c-40ba-bc78-50a867b1460f
+조회일: 2026-07-06
+------------------------------------------
+
+------------------------------------------
+일일 DATA 현황 조회 요청을 받았습니다.
+요청 유형: daily_data_excel
+요청 ID: 145c2ddd-16dc-4303-9781-b51d7b3f82e6
+조회일: 2026-07-06
+------------------------------------------
+월간 일일DATA관리 Excel 조회 시작 · 2026-07-06
+OIS Edge 브라우저 세션을 시작합니다.
+DataPARC 진행 · 월간 일일DATA관리 Excel 조회 시작
+DataPARC 진행 · 실행 중인 Excel 연결 시도
+DataPARC 진행 · 실행 중인 Excel 연결 완료
+DataPARC 진행 · 대상 월 통합문서 찾기 · 26.07-일일DATA관리.xlsx
+DataPARC 진행 · 대상 월 통합문서 연결 완료 · 26.07-일일DATA관리.xlsx
+DataPARC 진행 · Plant 조회일 열 확인 · 2026-07-06 · K5
+DataPARC 진행 · Excel 전체 계산 상태가 완료되지 않았지만 대상 셀 직접 검증을 계속합니다 · CalculationState 2
+DataPARC 진행 · 태양광 누적 발전량 계산 시작
+OIS 로그인이 완료되었습니다.
+OIS Edge 브라우저 세션이 준비되었습니다.
+OIS 브라우저 자동 복구 완료 (1회)
+운영정보 메뉴를 클릭했습니다.
+LOG SHEET 메뉴를 클릭했습니다.
+LOG SHEET조회 메뉴를 클릭했습니다.
+OIS LOG SHEET 조회 화면을 열었습니다.
+OIS LOG SHEET API 자료 확인: {
+  tag: '103HRJ01CW201XQ01',
+  itemName: 'LIMESTONE SILO WIEGHT',
+  startStock: 468.546,
+  endStock: 467.555,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+1호기 · 2026-07-06 · 전일 468.546 ton · 24시 467.555 ton
+OIS LOG SHEET API 자료 확인: {
+  tag: '203HRJ01CW201XQ01',
+  itemName: '#2UNIT LIMESTONE SILO WEIGHT',
+  startStock: 452.181,
+  endStock: 481.688,
+  startField: 'decimal_pnt',
+  endField: 'hd_24'
+}
+2호기 · 2026-07-06 · 전일 452.181 ton · 24시 481.688 ton
+OIS 석회석 재고 조회가 완료되었습니다.
+┌─────────────────┬─────────┐
+│ (index)         │ Values  │
+├─────────────────┼─────────┤
+│ 1호기 시작 재고 │ 468.546 │
+│ 1호기 종료 재고 │ 467.555 │
+│ 2호기 시작 재고 │ 452.181 │
+│ 2호기 종료 재고 │ 481.688 │
+└─────────────────┴─────────┘
+DataPARC 진행 · 태양광 누적 발전량 계산 완료
+DataPARC 진행 · DataPARC 유기성 Silo TAG 위치 확인
+DataPARC 진행 · 월간 일일DATA관리 값 읽기 완료
+월간 일일DATA관리 Excel 조회 완료 · 2026-07-06 · 26.07-일일DATA관리.xlsx · 열 K · 1호기 6471.359 ton · 2호기 6460 ton · 저압 573.48 ton · 고압 104.74 ton · 판매합계 678.22 ton · 하수슬러지 7대 / 208.47 ton
+Excel 일일 DATA 현황 조회가 완료되었습니다.
+┌───────────────────────┬───────────────────────────┐
+│ (index)               │ Values                    │
+├───────────────────────┼───────────────────────────┤
+│ 조회일                │ '2026-07-06'              │
+│ 월간 파일             │ '26.07-일일DATA관리.xlsx' │
+│ Plant 조회 열         │ 'K'                       │
+│ 발전량(ECMS gen1)     │ 4062853.9                 │
+│ 수전량(I-Smart)       │ 423.9                     │
+│ 송전량(ePower)        │ 3536400                   │
+│ 태양광 일일 발전량    │ 204.4                     │
+│ 저압증기              │ 573.48                    │
+│ 고압증기              │ 104.74                    │
+│ 총 증기 판매량        │ 678.22                    │
+│ 시간당 평균 판매량    │ 28.259                    │
+│ 1호기 증기생산량      │ 6471.359                  │
+│ 2호기 증기생산량      │ 6460                      │
+│ 총 증기생산량         │ 12931.359                 │
+│ 판매율                │ 5.245                     │
+│ 하수슬러지 차량       │ 7                         │
+│ 하수슬러지 총 입고량  │ 208.47                    │
+│ 유기성 Day Silo       │ 11.914063                 │
+│ 유기성 Storage Silo A │ 30.678711                 │
+│ 유기성 Storage Silo B │ 48.439941                 │
+│ 유기성 Silo 합계      │ 91.032715                 │
+└───────────────────────┴───────────────────────────┘
+┌─────────┬───────────┬─────────────┬──────────────┐
+│ (index) │ 입고 순번 │ 입고량(ton) │ 원본 셀      │
+├─────────┼───────────┼─────────────┼──────────────┤
+│ 0       │ 1         │ 28.83       │ 'Plant!K288' │
+│ 1       │ 2         │ 29.63       │ 'Plant!K289' │
+│ 2       │ 3         │ 31.35       │ 'Plant!K290' │
+│ 3       │ 4         │ 29.47       │ 'Plant!K291' │
+│ 4       │ 5         │ 28.68       │ 'Plant!K292' │
+│ 5       │ 6         │ 29.3        │ 'Plant!K293' │
+│ 6       │ 7         │ 31.21       │ 'Plant!K294' │
+│ 7       │ 8         │ null        │ 'Plant!K295' │
+│ 8       │ 9         │ null        │ 'Plant!K296' │
+│ 9       │ 10        │ null        │ 'Plant!K297' │
+└─────────┴───────────┴─────────────┴──────────────┘
+
+------------------------------------------
+Gear Wheel / Pinion 조회 요청을 받았습니다.
+요청 유형: turbine_gear_pinion
+요청 ID: 4604c33b-ef3f-4960-ba0d-379b09eaf007
+조회일: 2026-07-06
+------------------------------------------
+OIS TGO 전일 자료 확인: {
+  label: 'Gear Wheel',
+  tag: 'MAD11FG905-ZE01_V2',
+  itemName: 'HP TBN ROTOR AXIAL POSITION',
+  value: 0.761,
+  field: 'decimal_pnt'
+}
+OIS TGO 전일 자료 확인: {
+  label: 'Pinion',
+  tag: 'MAD41FY905-ZE01_V2',
+  itemName: 'CASINLG PINL T-SIDE VIB',
+  value: 1.957,
+  field: 'decimal_pnt'
+}
+OIS TGO 조회 완료 · 2026-07-06 · Gear Wheel 0.761 · Pinion 1.957
+OIS Gear Wheel / Pinion 조회가 완료되었습니다.
+┌────────────────┬──────────────────────┐
+│ (index)        │ Values               │
+├────────────────┼──────────────────────┤
+│ 조회일         │ '2026-07-06'         │
+│ 조회 열        │ '전일'               │
+│ Gear Wheel     │ 0.761                │
+│ Pinion         │ 1.957                │
+│ Gear Wheel TAG │ 'MAD11FG905-ZE01_V2' │
+│ Pinion TAG     │ 'MAD41FY905-ZE01_V2' │
+└────────────────┴──────────────────────┘
+
+------------------------------------------
+Silo Level 조회 요청을 받았습니다.
+요청 유형: silo_level
+요청 ID: 65485918-63fb-40f0-94c7-b11b7e77516c
+조회일: 2026-07-06
+------------------------------------------
+TAG별 LOG 조회 메뉴를 클릭했습니다.
+OIS TAG별 LOG 조회 화면을 열었습니다.
+OIS TAG별 LOG 조회조건 · 003ETH01CW201XQ01 · 2026-07-06
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-07-06',
+  targetTag: '003ETH01CW201XQ01',
+  value: 981.997,
+  valueField: 'hd_24',
+  tag: '003ETH01CW201XQ01',
+  sourceDate: '20260706',
+  itemName: 'FLY ASH SILO MICRO CELL WEIGHT',
+  unit: ''
+}
+OIS TAG별 LOG 조회조건 · EBF20CW201 · 2026-07-06
+OIS TAG별 LOG 24시 자료 확인: {
+  targetDate: '2026-07-06',
+  targetTag: 'EBF20CW201',
+  value: 194,
+  valueField: 'hd_24',
+  tag: 'EBF20CW201',
+  sourceDate: '20260706',
+  itemName: 'FHS BIO STOR SILO WEIGHT',
+  unit: ''
+}
+OIS Silo Level 조회 완료 · 2026-07-06 · Fly Ash 981.997 · Bio Storage 194
+OIS Silo Level 조회가 완료되었습니다.
+┌────────────────────────┬─────────────────────┐
+│ (index)                │ Values              │
+├────────────────────────┼─────────────────────┤
+│ 조회일                 │ '2026-07-06'        │
+│ 조회 기준              │ '24시'              │
+│ Fly Ash Silo Level     │ 981.997             │
+│ Bio Storage Silo Level │ 194                 │
+│ Fly Ash TAG            │ '003ETH01CW201XQ01' │
+│ Bio Storage TAG        │ 'EBF20CW201'        │
+│ Fly Ash 단위           │ ''                  │
+│ Bio Storage 단위       │ ''                  │
+└────────────────────────┴─────────────────────┘
+
+------------------------------------------
+수처리 현황 조회 요청을 받았습니다.
+요청 유형: water_environment
+요청 ID: 35a5ed01-21fa-4228-8fc7-b3d24ef2321d
+조회일: 2026-07-05
+------------------------------------------
+OIS 일일 운전일지(환경) 화면을 엽니다.
+운영정보 메뉴를 클릭했습니다.
+일일현황 메뉴를 클릭했습니다.
+일일 운전일지(환경) 메뉴를 클릭했습니다.
+일일 운전일지(환경) 화면을 열었습니다.
+OIS 기준일을 2026/07/05로 변경합니다.
+2026년 07월 05일 환경자료 조회가 완료되었습니다.
+OIS 환경일지 재계산 버튼을 클릭했습니다.
+OIS "장자산단" 행 셀: [ '장자산단', '6,618.000', '저장율(%)', '69.780', '90.532', '94.984' ]
+OIS "저장량" 행 셀: [
+  '동두천',    '0.000',
+  '6,618.000', '2,310.000',
+  '4,745.700', '저장량(m3)',
+  '2,791.184', '9,958.480',
+  '5,699.069'
+]
+OIS "저장율" 행 셀: [ '장자산단', '6,618.000', '저장율(%)', '69.780', '90.532', '94.984' ]
+OIS "순수사용량" 행 셀: [
+  'B',         '71.000',
+  '47.10',     '33.400',
+  '96.64',     '총량',
+  '1,861.000', '순수사용량',
+  '총합',      '0',
+  '0',         '0',
+  '0'
+]
+OIS 수처리 최종 추출값: {
+  source: 'OIS 일일 운전일지(환경)',
+  sourceDate: '',
+  collectedAt: '2026-08-18T23:34:29.851Z',
+  rawWaterInflow: 6618,
+  demiProduction: 1861,
+  pureWaterUsage: 882,
+  rawWaterTankAmount: 2791.184,
+  rawWaterTankRate: 69.78,
+  filteredWaterTankAmount: 9958.48,
+  filteredWaterTankRate: 90.532,
+  demiWaterTankAmount: 5699.069,
+  demiWaterTankRate: 94.984
+}
+OIS 수처리 결과 JSON 저장: C:\Users\GSENR\Desktop\gs-shift-log\local-tools\ois-agent\ois-water-values.json
+OIS 수처리 현황 조회가 완료되었습니다.
+┌──────────────────────┬──────────┐
+│ (index)              │ Values   │
+├──────────────────────┼──────────┤
+│ 장자산단 원수 유입량 │ 6618     │
+│ 원수 TANK 저장량     │ 2791.184 │
+│ 원수 TANK 저장율     │ 69.78    │
+│ 여과수 TANK 저장량   │ 9958.48  │
+│ 여과수 TANK 저장율   │ 90.532   │
+│ 순수 TANK 저장량     │ 5699.069 │
+│ 순수 TANK 저장율     │ 94.984   │
+│ 순수 생산량          │ 1861     │
+│ 순수 사용량          │ 882      │
+└──────────────────────┴──────────┘

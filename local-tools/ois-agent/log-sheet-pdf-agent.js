@@ -282,7 +282,642 @@ async function downloadLogSheetWorkbook(
   Excel → PDF PowerShell 실행
 ========================================================= */
 
-function runExcelToPdf(
+const LOG_SHEET_PDF_WORKER_READY_TIMEOUT =
+  20000;
+
+let logSheetPdfExcelWorker =
+  null;
+
+let logSheetPdfExcelWorkerReadyPromise =
+  null;
+
+let logSheetPdfExcelWorkerReadyResolve =
+  null;
+
+let logSheetPdfExcelWorkerReadyReject =
+  null;
+
+let logSheetPdfExcelWorkerReadyTimeout =
+  null;
+
+let logSheetPdfExcelWorkerOutputBuffer =
+  "";
+
+let logSheetPdfExcelWorkerStandardError =
+  "";
+
+let logSheetPdfExcelWorkerCurrentRequest =
+  null;
+
+let logSheetPdfExcelWorkerSequence =
+  0;
+
+let logSheetPdfExcelWorkerQueue =
+  Promise.resolve();
+
+function getLogSheetPdfPowerShellPath() {
+  const systemRoot =
+    process.env.SystemRoot ||
+    "C:\\Windows";
+
+  return path.join(
+    systemRoot,
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe"
+  );
+}
+
+function finishLogSheetPdfExcelWorkerRequest(
+  error,
+  result = null
+) {
+  const currentRequest =
+    logSheetPdfExcelWorkerCurrentRequest;
+
+  if (
+    !currentRequest
+  ) {
+    return;
+  }
+
+  logSheetPdfExcelWorkerCurrentRequest =
+    null;
+
+  clearTimeout(
+    currentRequest.timeoutId
+  );
+
+  if (
+    error
+  ) {
+    currentRequest.reject(
+      error
+    );
+
+    return;
+  }
+
+  currentRequest.resolve(
+    result
+  );
+}
+
+function failLogSheetPdfExcelWorker(
+  childProcess,
+  error
+) {
+  if (
+    childProcess !==
+      logSheetPdfExcelWorker
+  ) {
+    return;
+  }
+
+  if (
+    logSheetPdfExcelWorkerReadyTimeout
+  ) {
+    clearTimeout(
+      logSheetPdfExcelWorkerReadyTimeout
+    );
+
+    logSheetPdfExcelWorkerReadyTimeout =
+      null;
+  }
+
+  if (
+    logSheetPdfExcelWorkerReadyReject
+  ) {
+    logSheetPdfExcelWorkerReadyReject(
+      error
+    );
+  }
+
+  logSheetPdfExcelWorkerReadyResolve =
+    null;
+
+  logSheetPdfExcelWorkerReadyReject =
+    null;
+
+  finishLogSheetPdfExcelWorkerRequest(
+    error
+  );
+
+  logSheetPdfExcelWorker =
+    null;
+
+  logSheetPdfExcelWorkerReadyPromise =
+    null;
+
+  logSheetPdfExcelWorkerOutputBuffer =
+    "";
+
+  logSheetPdfExcelWorkerStandardError =
+    "";
+
+  try {
+    if (
+      childProcess.exitCode ===
+        null &&
+      childProcess.signalCode ===
+        null
+    ) {
+      childProcess.kill(
+        "SIGKILL"
+      );
+    }
+  }
+  catch {}
+}
+
+function handleLogSheetPdfExcelWorkerLine(
+  childProcess,
+  line
+) {
+  const normalizedLine =
+    normalizeText(
+      line
+    );
+
+  if (
+    !normalizedLine
+  ) {
+    return;
+  }
+
+  let message;
+
+  try {
+    message =
+      JSON.parse(
+        normalizedLine
+      );
+  }
+  catch {
+    console.warn(
+      "Log Sheet Excel PDF Worker ?묐떟 ?댁꽍 ?ㅽ뙣:",
+      normalizedLine
+    );
+
+    return;
+  }
+
+  if (
+    message?.type ===
+      "ready"
+  ) {
+    if (
+      logSheetPdfExcelWorkerReadyTimeout
+    ) {
+      clearTimeout(
+        logSheetPdfExcelWorkerReadyTimeout
+      );
+
+      logSheetPdfExcelWorkerReadyTimeout =
+        null;
+    }
+
+    const resolveReady =
+      logSheetPdfExcelWorkerReadyResolve;
+
+    logSheetPdfExcelWorkerReadyResolve =
+      null;
+
+    logSheetPdfExcelWorkerReadyReject =
+      null;
+
+    resolveReady?.(
+      childProcess
+    );
+
+    console.log(
+      "Log Sheet Excel PDF Worker 以鍮??꾨즺:",
+      `${Number(message.startupMs) || 0}ms`
+    );
+
+    return;
+  }
+
+  if (
+    message?.type ===
+      "fatal"
+  ) {
+    failLogSheetPdfExcelWorker(
+      childProcess,
+      new Error(
+        normalizeText(
+          message.error
+        ) ||
+          "Log Sheet Excel PDF Worker ?쒖옉???ㅽ뙣?덉뒿?덈떎."
+      )
+    );
+
+    return;
+  }
+
+  if (
+    message?.type !==
+      "result"
+  ) {
+    return;
+  }
+
+  const currentRequest =
+    logSheetPdfExcelWorkerCurrentRequest;
+
+  if (
+    !currentRequest ||
+    normalizeText(
+      message.id
+    ) !==
+      currentRequest.id
+  ) {
+    return;
+  }
+
+  if (
+    message.ok !==
+      true
+  ) {
+    finishLogSheetPdfExcelWorkerRequest(
+      new Error(
+        normalizeText(
+          message.error
+        ) ||
+          "Log Sheet Excel PDF Worker 蹂?섏뿉 ?ㅽ뙣?덉뒿?덈떎."
+      )
+    );
+
+    return;
+  }
+
+  finishLogSheetPdfExcelWorkerRequest(
+    null,
+    message
+  );
+}
+
+function ensureLogSheetPdfExcelWorker() {
+  if (
+    logSheetPdfExcelWorker &&
+    logSheetPdfExcelWorker.exitCode ===
+      null &&
+    logSheetPdfExcelWorker.signalCode ===
+      null &&
+    logSheetPdfExcelWorkerReadyPromise
+  ) {
+    return logSheetPdfExcelWorkerReadyPromise;
+  }
+
+  const workerPath =
+    path.join(
+      __dirname,
+      "excel-to-pdf-worker.ps1"
+    );
+
+  if (
+    !fs.existsSync(
+      workerPath
+    )
+  ) {
+    return Promise.reject(
+      new Error(
+        `Excel PDF Worker瑜?李얠? 紐삵뻽?듬땲?? ${workerPath}`
+      )
+    );
+  }
+
+  const childProcess =
+    spawn(
+      getLogSheetPdfPowerShellPath(),
+      [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-STA",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        workerPath
+      ],
+      {
+        windowsHide:
+          true,
+
+        stdio: [
+          "pipe",
+          "pipe",
+          "pipe"
+        ]
+      }
+    );
+
+  logSheetPdfExcelWorker =
+    childProcess;
+
+  logSheetPdfExcelWorkerOutputBuffer =
+    "";
+
+  logSheetPdfExcelWorkerStandardError =
+    "";
+
+  logSheetPdfExcelWorkerReadyPromise =
+    new Promise(
+      (
+        resolve,
+        reject
+      ) => {
+        logSheetPdfExcelWorkerReadyResolve =
+          resolve;
+
+        logSheetPdfExcelWorkerReadyReject =
+          reject;
+      }
+    );
+
+  logSheetPdfExcelWorkerReadyTimeout =
+    setTimeout(
+      () => {
+        failLogSheetPdfExcelWorker(
+          childProcess,
+          new Error(
+            "Log Sheet Excel PDF Worker 以鍮??쒓컙??20珥덈? 珥덇낵?덉뒿?덈떎."
+          )
+        );
+      },
+      LOG_SHEET_PDF_WORKER_READY_TIMEOUT
+    );
+
+  logSheetPdfExcelWorkerReadyTimeout
+    .unref?.();
+
+  childProcess.stdout
+    .setEncoding(
+      "utf8"
+    );
+
+  childProcess.stderr
+    .setEncoding(
+      "utf8"
+    );
+
+  childProcess.stdout.on(
+    "data",
+    chunk => {
+      logSheetPdfExcelWorkerOutputBuffer +=
+        chunk;
+
+      while (
+        true
+      ) {
+        const lineBreakIndex =
+          logSheetPdfExcelWorkerOutputBuffer
+            .indexOf(
+              "\n"
+            );
+
+        if (
+          lineBreakIndex <
+            0
+        ) {
+          break;
+        }
+
+        const line =
+          logSheetPdfExcelWorkerOutputBuffer
+            .slice(
+              0,
+              lineBreakIndex
+            )
+            .replace(
+              /\r$/,
+              ""
+            );
+
+        logSheetPdfExcelWorkerOutputBuffer =
+          logSheetPdfExcelWorkerOutputBuffer
+            .slice(
+              lineBreakIndex +
+                1
+            );
+
+        handleLogSheetPdfExcelWorkerLine(
+          childProcess,
+          line
+        );
+      }
+    }
+  );
+
+  childProcess.stderr.on(
+    "data",
+    chunk => {
+      logSheetPdfExcelWorkerStandardError +=
+        chunk;
+
+      if (
+        logSheetPdfExcelWorkerStandardError.length >
+          16000
+      ) {
+        logSheetPdfExcelWorkerStandardError =
+          logSheetPdfExcelWorkerStandardError.slice(
+            -16000
+          );
+      }
+    }
+  );
+
+  childProcess.on(
+    "error",
+    error => {
+      failLogSheetPdfExcelWorker(
+        childProcess,
+        new Error(
+          `Log Sheet Excel PDF Worker ?ㅽ뻾 ?ㅽ뙣: ${error.message}`
+        )
+      );
+    }
+  );
+
+  childProcess.on(
+    "close",
+    exitCode => {
+      if (
+        childProcess !==
+          logSheetPdfExcelWorker
+      ) {
+        return;
+      }
+
+      const workerError =
+        normalizeText(
+          logSheetPdfExcelWorkerStandardError
+        );
+
+      failLogSheetPdfExcelWorker(
+        childProcess,
+        new Error(
+          workerError ||
+          `Log Sheet Excel PDF Worker媛 醫낅즺?섏뿀?듬땲?? (醫낅즺 肄붾뱶 ${exitCode})`
+        )
+      );
+    }
+  );
+
+  return logSheetPdfExcelWorkerReadyPromise;
+}
+
+async function runLogSheetPdfExcelWorkerRequest(
+  inputPath,
+  outputPath,
+  sheetName
+) {
+  const childProcess =
+    await ensureLogSheetPdfExcelWorker();
+
+  if (
+    logSheetPdfExcelWorkerCurrentRequest
+  ) {
+    throw new Error(
+      "Log Sheet Excel PDF Worker??泥섎━ 以묒씤 ?붿껌???⑥븘 ?덉뒿?덈떎."
+    );
+  }
+
+  const requestId =
+    [
+      "logsheet",
+      process.pid,
+      Date.now(),
+      ++logSheetPdfExcelWorkerSequence
+    ].join(
+      "-"
+    );
+
+  return await new Promise(
+    (
+      resolve,
+      reject
+    ) => {
+      const timeoutId =
+        setTimeout(
+          () => {
+            if (
+              !logSheetPdfExcelWorkerCurrentRequest ||
+              logSheetPdfExcelWorkerCurrentRequest.id !==
+                requestId
+            ) {
+              return;
+            }
+
+            const timeoutError =
+              new Error(
+                "Log Sheet Excel PDF Worker 蹂???쒓컙??90珥덈? 珥덇낵?덉뒿?덈떎."
+              );
+
+            finishLogSheetPdfExcelWorkerRequest(
+              timeoutError
+            );
+
+            failLogSheetPdfExcelWorker(
+              childProcess,
+              timeoutError
+            );
+          },
+          LOG_SHEET_PDF_PROCESS_TIMEOUT
+        );
+
+      timeoutId.unref?.();
+
+      logSheetPdfExcelWorkerCurrentRequest = {
+        id:
+          requestId,
+
+        resolve,
+        reject,
+        timeoutId
+      };
+
+      const command =
+        JSON.stringify({
+          type:
+            "convert",
+
+          id:
+            requestId,
+
+          inputPath,
+          outputPath,
+          sheetName
+        }) +
+        "\n";
+
+      try {
+        childProcess.stdin.write(
+          command,
+          "utf8",
+          error => {
+            if (
+              !error
+            ) {
+              return;
+            }
+
+            finishLogSheetPdfExcelWorkerRequest(
+              error
+            );
+
+            failLogSheetPdfExcelWorker(
+              childProcess,
+              error
+            );
+          }
+        );
+      }
+      catch (
+        error
+      ) {
+        finishLogSheetPdfExcelWorkerRequest(
+          error
+        );
+
+        failLogSheetPdfExcelWorker(
+          childProcess,
+          error
+        );
+      }
+    }
+  );
+}
+
+function runExcelToPdfWithWorker(
+  inputPath,
+  outputPath,
+  sheetName
+) {
+  const execute =
+    () =>
+      runLogSheetPdfExcelWorkerRequest(
+        inputPath,
+        outputPath,
+        sheetName
+      );
+
+  const task =
+    logSheetPdfExcelWorkerQueue.then(
+      execute,
+      execute
+    );
+
+  logSheetPdfExcelWorkerQueue =
+    task.catch(
+      () => undefined
+    );
+
+  return task;
+}
+
+function runExcelToPdfOneShot(
   inputPath,
   outputPath,
   sheetName
@@ -602,6 +1237,77 @@ function runExcelToPdf(
   );
 }
 
+async function runExcelToPdf(
+  inputPath,
+  outputPath,
+  sheetName
+) {
+  try {
+    const workerResult =
+      await runExcelToPdfWithWorker(
+        inputPath,
+        outputPath,
+        sheetName
+      );
+
+    if (
+      !fs.existsSync(
+        outputPath
+      )
+    ) {
+      throw new Error(
+        "Excel PDF Worker 蹂?섏? ?꾨즺?먯?留?PDF ?뚯씪???앹꽦?섏? ?딆븯?듬땲??"
+      );
+    }
+
+    console.log(
+      "Log Sheet Excel PDF ?곸＜ Worker ?꾨즺:",
+      [
+        sheetName,
+        `${Number(workerResult?.durationMs) || 0}ms`
+      ].join(
+        " 쨌 "
+      )
+    );
+
+    return;
+  }
+  catch (
+    error
+  ) {
+    console.warn(
+      "Log Sheet Excel PDF ?곸＜ Worker ?ㅽ뙣 - 湲곗〈 蹂??諛⑹떇?쇰줈 ?꾪솚:",
+      error instanceof Error
+        ? error.message
+        : error
+    );
+
+    return await runExcelToPdfOneShot(
+      inputPath,
+      outputPath,
+      sheetName
+    );
+  }
+}
+
+function warmUpLogSheetPdfWorker() {
+  ensureLogSheetPdfExcelWorker()
+    .catch(
+      error => {
+        console.warn(
+          "Log Sheet Excel PDF Worker ?ъ쟾 以鍮??ㅽ뙣 - 泥??붿껌?먯꽌 ?ㅼ떆 ?쒕룄?⑸땲??",
+          error instanceof Error
+            ? error.message
+            : error
+        );
+      }
+    );
+}
+
+setTimeout(
+  warmUpLogSheetPdfWorker,
+  0
+);
 
 /* =========================================================
   생성 PDF 검사
@@ -786,6 +1492,37 @@ async function processLogSheetPdfRequest(
       requestItem?.target_date
     );
 
+  const timingStartedAt =
+    Date.now();
+
+  let timingPreviousAt =
+    timingStartedAt;
+
+  const logLogSheetPdfTiming =
+    label => {
+      const now =
+        Date.now();
+
+      const stepSeconds =
+        ((
+          now -
+          timingPreviousAt
+        ) / 1000).toFixed(2);
+
+      const totalSeconds =
+        ((
+          now -
+          timingStartedAt
+        ) / 1000).toFixed(2);
+
+      timingPreviousAt =
+        now;
+
+      console.log(
+        `[LOGSHEET PDF TIMING] ${label} | step=${stepSeconds}s | total=${totalSeconds}s`
+      );
+    };
+
 
   const temporaryBase =
     process.env.TEMP ||
@@ -836,6 +1573,10 @@ async function processLogSheetPdfRequest(
     }
   );
 
+  logLogSheetPdfTiming(
+    "agent-start"
+  );
+
 
   try {
     console.log(
@@ -850,6 +1591,10 @@ async function processLogSheetPdfRequest(
         requestId,
         sourcePath
       );
+
+    logLogSheetPdfTiming(
+      "xlsx-download-complete"
+    );
 
 
     console.log(
@@ -869,11 +1614,19 @@ async function processLogSheetPdfRequest(
       sourceInfo.sheetName
     );
 
+    logLogSheetPdfTiming(
+      "excel-pdf-complete"
+    );
+
 
     const pdfBuffer =
       readAndValidatePdf(
         pdfPath
       );
+
+    logLogSheetPdfTiming(
+      "pdf-validate-complete"
+    );
 
 
     console.log(
@@ -893,6 +1646,10 @@ async function processLogSheetPdfRequest(
         requestId,
         pdfBuffer
       );
+
+    logLogSheetPdfTiming(
+      "pdf-upload-complete"
+    );
 
 
     console.log(
@@ -930,6 +1687,10 @@ async function processLogSheetPdfRequest(
     };
 
   } finally {
+    logLogSheetPdfTiming(
+      "cleanup-start"
+    );
+
     try {
       fs.rmSync(
         workDirectory,
@@ -940,6 +1701,10 @@ async function processLogSheetPdfRequest(
           force:
             true
         }
+      );
+
+      logLogSheetPdfTiming(
+        "cleanup-complete"
       );
 
     } catch (
