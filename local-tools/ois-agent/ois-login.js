@@ -19055,51 +19055,24 @@ async function loginOis() {
 
 
     /*
-      [PHASE2.6 WARMUP]
-      Prepare the existing single OIS browser session once at agent startup.
-      No periodic refresh or repeated warmup is added.
-      If startup warmup fails, normal on-demand recovery remains unchanged.
+      [PHASE3.3B NONBLOCKING STARTUP]
+
+      Phase 2.6 startup warmup used to await ensureBrowserSession()
+      before the request polling loop started.
+
+      When OIS startup navigation stalled, the whole Agent could remain
+      unable to claim Excel or OIS requests for several minutes.
+
+      Startup warmup is intentionally skipped here.
+      The existing on-demand ensureBrowserSession() path remains unchanged,
+      so an OIS request creates or recovers the single browser session only
+      when it is actually needed.
+
+      This also avoids adding a second concurrent browser initialization.
     */
-    const phase26WarmupStartedAt =
-      Date.now();
-
-
     console.log(
-      "[PHASE2.6 WARMUP] OIS browser startup warmup started"
+      "[PHASE3.3B NONBLOCKING STARTUP] startup warmup skipped; request polling starts immediately"
     );
-
-
-    try {
-      await ensureBrowserSession(
-        "Phase 2.6 startup warmup"
-      );
-
-
-      console.log(
-        "[PHASE2.6 WARMUP] OIS browser startup warmup complete " +
-        (
-          (
-            Date.now() -
-            phase26WarmupStartedAt
-          ) /
-          1000
-        ).toFixed(
-          2
-        ) +
-        "s"
-      );
-
-    } catch (
-      warmupError
-    ) {
-      console.warn(
-        "[PHASE2.6 WARMUP] startup warmup failed; on-demand recovery remains enabled:",
-        warmupError instanceof
-          Error
-          ? warmupError.message
-          : warmupError
-      );
-    }
 
     while (
       !isShuttingDown
