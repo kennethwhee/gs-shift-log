@@ -211616,15 +211616,6 @@ function formatRate(
       result.unitTwoProduction,
       result.totalProduction,
       result.salesRate,
-      result.sludgeTruckCount,
-      result.sludgeTotal,
-      result.organicDaySilo ??
-        result.organicDaySiloLevel,
-      result.organicStorageSiloA ??
-        result.organicStorageSiloALevel,
-      result.organicStorageSiloB ??
-        result.organicStorageSiloBLevel,
-      result.organicSiloTotal
     ].every(
       value => {
         return normalizeNumber(
@@ -212285,7 +212276,9 @@ if (
       elements.sludgeTruckCount
     ) {
       elements.sludgeTruckCount.textContent =
-        hideValues
+        hideValues ||
+        sludgeTruckCount ===
+          null
           ? "-"
           : `${sludgeTruckCount.toLocaleString(
               "ko-KR",
@@ -212921,50 +212914,44 @@ if (
       );
 
 
-    const sludgeTruckCount =
-      requireNumber(
-        rawResult.sludgeTruckCount,
-        "하수슬러지 입고 차량"
+    /* [PHASE2.7B ORGANIC OPTIONAL V2] */
+    let sludgeTruckCount =
+      normalizeNumber(
+        rawResult.sludgeTruckCount
       );
 
 
-    const sludgeTotal =
-      requireNumber(
-        rawResult.sludgeTotal,
-        "하수슬러지 총 입고량"
+    let sludgeTotal =
+      normalizeNumber(
+        rawResult.sludgeTotal
       );
 
 
     const organicDaySilo =
-      requireNumber(
+      normalizeNumber(
         rawResult.organicDaySilo ??
-          rawResult.organicDaySiloLevel,
-        "유기성 Day Silo"
+          rawResult.organicDaySiloLevel
       );
 
 
     const organicStorageSiloA =
-      requireNumber(
+      normalizeNumber(
         rawResult.organicStorageSiloA ??
-          rawResult.organicStorageSiloALevel,
-        "유기성 Storage Silo A"
+          rawResult.organicStorageSiloALevel
       );
 
 
     const organicStorageSiloB =
-      requireNumber(
+      normalizeNumber(
         rawResult.organicStorageSiloB ??
-          rawResult.organicStorageSiloBLevel,
-        "유기성 Storage Silo B"
+          rawResult.organicStorageSiloBLevel
       );
 
 
-    const organicSiloTotal =
-      requireNumber(
-        rawResult.organicSiloTotal,
-        "유기성 사일로 총 재고량"
+    let organicSiloTotal =
+      normalizeNumber(
+        rawResult.organicSiloTotal
       );
-
 
     const sourceDate =
       normalizeText(
@@ -213119,75 +213106,91 @@ if (
     }
 
 
-    const calculatedSludgeTruckCount =
-      sludgeEntries.filter(
+    const hasOrganicReceiptData =
+      sludgeEntries.some(
         item => {
           return Number.isFinite(
             item.amount
-          ) &&
-            item.amount >
-              0;
+          );
         }
-      ).length;
-
-
-    const calculatedSludgeTotal =
-      roundNumber(
-        sludgeEntries.reduce(
-          (
-            sum,
-            item
-          ) => {
-            return sum +
-              (
-                Number.isFinite(
-                  item.amount
-                )
-                  ? item.amount
-                  : 0
-              );
-          },
-          0
-        )
       );
 
 
     if (
-      sludgeTruckCount !==
-        calculatedSludgeTruckCount ||
-      Math.abs(
-        sludgeTotal -
-        calculatedSludgeTotal
-      ) >
-        0.001
+      hasOrganicReceiptData
     ) {
-      throw new Error(
-        "하수슬러지 입고 차량 수 또는 총 입고량이 상세내역과 일치하지 않습니다."
-      );
+      sludgeTruckCount =
+        sludgeEntries.filter(
+          item => {
+            return (
+              Number.isFinite(
+                item.amount
+              ) &&
+              item.amount >
+                0
+            );
+          }
+        ).length;
+
+
+      sludgeTotal =
+        roundNumber(
+          sludgeEntries.reduce(
+            (
+              sum,
+              item
+            ) => {
+              return sum +
+                (
+                  Number.isFinite(
+                    item.amount
+                  )
+                    ? item.amount
+                    : 0
+                );
+            },
+            0
+          )
+        );
+
+    } else {
+      sludgeTruckCount =
+        null;
+
+      sludgeTotal =
+        null;
     }
 
 
-    const calculatedOrganicSiloTotal =
-      roundNumber(
-        organicDaySilo +
-        organicStorageSiloA +
-        organicStorageSiloB,
-        6
+    const hasCompleteOrganicSiloValues =
+      [
+        organicDaySilo,
+        organicStorageSiloA,
+        organicStorageSiloB
+      ].every(
+        value => {
+          return Number.isFinite(
+            value
+          );
+        }
       );
 
 
     if (
-      Math.abs(
-        calculatedOrganicSiloTotal -
-        organicSiloTotal
-      ) >
-        0.00001
+      hasCompleteOrganicSiloValues
     ) {
-      throw new Error(
-        "유기성 사일로 3개 값과 총 재고량이 일치하지 않습니다."
-      );
-    }
+      organicSiloTotal =
+        roundNumber(
+          organicDaySilo +
+          organicStorageSiloA +
+          organicStorageSiloB,
+          6
+        );
 
+    } else {
+      organicSiloTotal =
+        null;
+    }
 
     return {
       ...rawResult,
