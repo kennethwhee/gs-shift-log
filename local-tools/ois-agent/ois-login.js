@@ -3286,9 +3286,28 @@ async function captureOisTagLog24HourValueFromApi(
   2026-08-07 24시
 ========================================================= */
 
-async function collectOisSiloLevelValues(
+/* =========================================================
+  [PHASE3.4B SILO DIRECT]
+
+  Exact request captured from the working TAG Log UI:
+
+  cmd:
+  oi.LogSheetService.listTagLog
+
+  tossdata.select[0]:
+  - schepow_stat_code = 8000
+  - outtime = 1
+  - tag_no = target tag
+  - startdate = yyyyMMdd
+  - enddate = yyyyMMdd
+  - rowstatus = C
+
+  The direct path reads hd_24 only.
+  The existing UI path remains the automatic fallback.
+========================================================= */
+
+async function collectOisSiloLevelValuesDirect(
   page,
-  config,
   targetDate
 ) {
   if (
@@ -3297,11 +3316,326 @@ async function collectOisSiloLevelValues(
     )
   ) {
     throw new Error(
-      "Silo Level 조회 날짜가 올바르지 않습니다."
+      "Silo Direct API target date is invalid."
     );
   }
 
 
+  const startedAt =
+    Date.now();
+
+
+  const compactDate =
+    targetDate.replace(
+      /-/g,
+      ""
+    );
+
+
+  const capturedValues = {};
+
+
+  for (
+    const definition of
+      OIS_SILO_LEVEL_DEFINITIONS
+  ) {
+    const responseData =
+      await requestOisInternalAjaxData(
+        page,
+        "oi.LogSheetService.listTagLog",
+        {
+          schepow_stat_code:
+            "8000",
+
+          outtime:
+            "1",
+
+          tag_no:
+            definition.tag,
+
+          startdate:
+            compactDate,
+
+          enddate:
+            compactDate,
+
+          rowstatus:
+            "C"
+        }
+      );
+
+
+    const rows =
+      Array.isArray(
+        responseData?.result
+      )
+        ? responseData.result
+        : [];
+
+
+    const normalizedTargetTag =
+      normalizeOisAgentText(
+        definition.tag
+      ).toUpperCase();
+
+
+    const targetRow =
+      rows.find(
+        row => {
+          const rowTag =
+            normalizeOisAgentText(
+              row?.tag_no ||
+              row?.tag ||
+              row?.tagno ||
+              ""
+            ).toUpperCase();
+
+
+          if (
+            rowTag &&
+            rowTag !==
+              normalizedTargetTag
+          ) {
+            return false;
+          }
+
+
+          const rowDate =
+            String(
+              row?.base_date ||
+              row?.schbase_date ||
+              row?.date ||
+              row?.work_date ||
+              ""
+            )
+              .replace(
+                /[^0-9]/g,
+                ""
+              )
+              .slice(
+                0,
+                8
+              );
+
+
+          if (
+            rowDate &&
+            rowDate !==
+              compactDate
+          ) {
+            return false;
+          }
+
+
+          return true;
+        }
+      ) ||
+      null;
+
+
+    if (
+      !targetRow
+    ) {
+      throw new Error(
+        "Silo Direct API row missing: " +
+        definition.tag
+      );
+    }
+
+
+    const value =
+      parseOisAgentNumber(
+        targetRow.hd_24
+      );
+
+
+    if (
+      value ===
+        null ||
+      !Number.isFinite(
+        value
+      )
+    ) {
+      throw new Error(
+        "Silo Direct API hd_24 is invalid: " +
+        definition.tag
+      );
+    }
+
+
+    const sourceDate =
+      String(
+        targetRow?.base_date ||
+        targetRow?.schbase_date ||
+        targetRow?.date ||
+        targetRow?.work_date ||
+        compactDate
+      )
+        .replace(
+          /[^0-9]/g,
+          ""
+        )
+        .slice(
+          0,
+          8
+        ) ||
+      compactDate;
+
+
+    if (
+      sourceDate !==
+        compactDate
+    ) {
+      throw new Error(
+        "Silo Direct API source date mismatch: " +
+        definition.tag
+      );
+    }
+
+
+    capturedValues[
+      definition.resultKey
+    ] = {
+      value,
+
+      valueField:
+        "hd_24",
+
+      tag:
+        normalizeOisAgentText(
+          targetRow?.tag_no ||
+          targetRow?.tag ||
+          targetRow?.tagno ||
+          definition.tag
+        ) ||
+        definition.tag,
+
+      sourceDate,
+
+      itemName:
+        normalizeOisAgentText(
+          targetRow?.tag_name ||
+          targetRow?.tag_name_kor ||
+          targetRow?.mid_name ||
+          ""
+        ),
+
+      unit:
+        normalizeOisAgentText(
+          targetRow?.unit_code ||
+          targetRow?.unit ||
+          ""
+        )
+    };
+  }
+
+
+  if (
+    !capturedValues.flyAsh ||
+    !capturedValues.bioStorage
+  ) {
+    throw new Error(
+      "Silo Direct API did not return both target tags."
+    );
+  }
+
+
+  const result = {
+    source:
+      "OIS TAG Log Direct API",
+
+    targetDate,
+
+    valueColumn:
+      "24시",
+
+    flyAshSiloLevel:
+      capturedValues
+        .flyAsh
+        .value,
+
+    bioStorageSiloLevel:
+      capturedValues
+        .bioStorage
+        .value,
+
+    flyAshTag:
+      capturedValues
+        .flyAsh
+        .tag,
+
+    bioStorageTag:
+      capturedValues
+        .bioStorage
+        .tag,
+
+    flyAshItemName:
+      capturedValues
+        .flyAsh
+        .itemName,
+
+    bioStorageItemName:
+      capturedValues
+        .bioStorage
+        .itemName,
+
+    flyAshUnit:
+      capturedValues
+        .flyAsh
+        .unit,
+
+    bioStorageUnit:
+      capturedValues
+        .bioStorage
+        .unit,
+
+    flyAshValueField:
+      capturedValues
+        .flyAsh
+        .valueField,
+
+    bioStorageValueField:
+      capturedValues
+        .bioStorage
+        .valueField,
+
+    collectedAt:
+      new Date()
+        .toISOString()
+  };
+
+
+  console.log(
+    "[PHASE3.4B SILO DIRECT] complete " +
+    (
+      (
+        Date.now() -
+        startedAt
+      ) /
+      1000
+    ).toFixed(
+      2
+    ) +
+    "s " +
+    JSON.stringify({
+      targetDate,
+      flyAshSiloLevel:
+        result.flyAshSiloLevel,
+      bioStorageSiloLevel:
+        result.bioStorageSiloLevel
+    })
+  );
+
+
+  return result;
+}
+
+
+async function collectOisSiloLevelValuesUi(
+  page,
+  config,
+  targetDate
+) {
   await ensureOisAgentLoggedIn(
     page,
     config
@@ -3313,7 +3647,7 @@ async function collectOisSiloLevelValues(
 
   for (
     const definition of
-    OIS_SILO_LEVEL_DEFINITIONS
+      OIS_SILO_LEVEL_DEFINITIONS
   ) {
     let frame =
       await openOisTagLogLookup(
@@ -3348,12 +3682,6 @@ async function collectOisSiloLevelValues(
         targetDate,
 
         async () => {
-          /*
-            기존 조회버튼 함수는
-            화면 안의 "조회" 버튼을 찾아 클릭하므로
-            TAG별 LOG 화면에서도 재사용한다.
-          */
-
           await clickOisLogSheetSearchButton(
             frame
           );
@@ -3453,6 +3781,55 @@ async function collectOisSiloLevelValues(
 
 
   return result;
+}
+
+
+async function collectOisSiloLevelValues(
+  page,
+  config,
+  targetDate
+) {
+  if (
+    !isValidOisAgentDate(
+      targetDate
+    )
+  ) {
+    throw new Error(
+      "Silo Level 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  await ensureOisAgentLoggedIn(
+    page,
+    config
+  );
+
+
+  try {
+    return await collectOisSiloLevelValuesDirect(
+      page,
+      targetDate
+    );
+
+  } catch (
+    directError
+  ) {
+    console.warn(
+      "[PHASE3.4B SILO DIRECT] direct API failed; using UI fallback:",
+      directError instanceof
+        Error
+        ? directError.message
+        : directError
+    );
+  }
+
+
+  return await collectOisSiloLevelValuesUi(
+    page,
+    config,
+    targetDate
+  );
 }
 
 /* =========================================================
