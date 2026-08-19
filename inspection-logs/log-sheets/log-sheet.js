@@ -10642,18 +10642,12 @@ function ensureLogSheetPdfPreviewModal() {
         modal.querySelector(
           "#logSheetPdfPreviewFrame"
         );
+      /*
+        같은 PDF를 다시 열 때 즉시 표시하기 위해
+        닫을 때 iframe src와 Object URL을 유지한다.
 
-
-      if (
-        frame
-      ) {
-        frame.removeAttribute(
-          "src"
-        );
-      }
-
-
-      releaseLogSheetPdfPreviewObjectUrl();
+        새 PDF가 표시될 때만 기존 Object URL을 정리한다.
+      */
     };
 
 
@@ -10822,13 +10816,33 @@ function showLogSheetPdfPreviewBlob(
   }
 
 
-  releaseLogSheetPdfPreviewObjectUrl();
+  const reuseRenderedPdf =
+    frame.__logSheetPdfPreviewBlob ===
+      pdfBlob &&
+    Boolean(
+      logSheetPdfPreviewObjectUrl
+    ) &&
+    frame.getAttribute(
+      "src"
+    ) ===
+      logSheetPdfPreviewObjectUrl;
 
 
-  logSheetPdfPreviewObjectUrl =
-    URL.createObjectURL(
-      pdfBlob
-    );
+  if (
+    !reuseRenderedPdf
+  ) {
+    releaseLogSheetPdfPreviewObjectUrl();
+
+
+    logSheetPdfPreviewObjectUrl =
+      URL.createObjectURL(
+        pdfBlob
+      );
+
+
+    frame.__logSheetPdfPreviewBlob =
+      pdfBlob;
+  }
 
 
   if (
@@ -10855,8 +10869,41 @@ function showLogSheetPdfPreviewBlob(
     "visible";
 
 
-  frame.src =
-    logSheetPdfPreviewObjectUrl;
+  if (
+    !reuseRenderedPdf
+  ) {
+    frame.src =
+      logSheetPdfPreviewObjectUrl;
+  }
+
+
+  if (
+    reuseRenderedPdf &&
+    options.autoPrint ===
+      true
+  ) {
+    window.setTimeout(
+      () => {
+        try {
+          frame.contentWindow?.focus();
+
+          frame.contentWindow?.print();
+
+        } catch (
+          error
+        ) {
+          console.warn(
+            "PDF 자동 인쇄창 호출 실패:",
+            error
+          );
+        }
+      },
+      100
+    );
+
+
+    return;
+  }
 
 
   if (
