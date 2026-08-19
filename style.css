@@ -73837,6 +73837,7 @@ textarea.efficiency-daily-work-line-source[
     display: grid !important;
 
     grid-template-columns: 1fr !important;
+    grid-template-rows: none !important;
     grid-auto-rows: max-content !important;
     align-content: start !important;
 
@@ -73863,19 +73864,20 @@ textarea.efficiency-daily-work-line-source[
       minmax(0, 1fr) !important;
 
     align-items: center !important;
+    align-self: start !important;
 
     flex: 0 0 auto !important;
 
     width: 100% !important;
 
     height: auto !important;
-    min-height: 60px !important;
+    min-height: 56px !important;
     max-height: none !important;
 
-    gap: 7px !important;
+    gap: 6px !important;
 
     margin: 0 !important;
-    padding: 6px 10px !important;
+    padding: 5px 9px !important;
 
     border-radius: 11px !important;
   }

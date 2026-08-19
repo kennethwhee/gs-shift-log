@@ -134288,6 +134288,16 @@ if (
     0;
 
 
+  /*
+    마지막으로 전달한 날짜·근무.
+
+    최초 진입이나 같은 context 재전송 때는
+    기존 점검 배지를 지우지 않는다.
+  */
+  let lastSentInspectionContextKey =
+    "";
+
+
   /* =====================================================
     근무값 정리
   ====================================================== */
@@ -134509,14 +134519,43 @@ if (
     }
 
 
-    if (
+    const selectedContextKey =
+      `${context.workDate}|${context.shift}`;
+
+
+    /*
+      최초 화면 진입:
+      - 기존 배지를 임시 0건으로 바꾸지 않는다.
+
+      같은 날짜·근무 재전송:
+      - DOM을 건드리지 않는다.
+
+      실제 날짜·근무 변경:
+      - 이전 날짜 배지만 즉시 초기화한다.
+    */
+    const shouldClearPrevious =
       options.clearPrevious !==
-      false
+        false &&
+
+      Boolean(
+        lastSentInspectionContextKey
+      ) &&
+
+      lastSentInspectionContextKey !==
+        selectedContextKey;
+
+
+    if (
+      shouldClearPrevious
     ) {
       clearPreviousInspectionSummary(
         context
       );
     }
+
+
+    lastSentInspectionContextKey =
+      selectedContextKey;
 
 
     const message = {

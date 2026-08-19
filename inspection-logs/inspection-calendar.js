@@ -1023,6 +1023,43 @@ async function applyRoleInspectionContext(
     );
 
 
+  /*
+    이미 적용돼 있던 context와 실제로 달라질 때만
+    기존 날짜의 점검 배지를 비운다.
+
+    최초 진입과 같은 날짜·근무 재전송에서는
+    빈 summary를 보내지 않는다.
+  */
+  const previousWorkDate =
+    String(
+      roleSummaryContextOverride
+        ?.workDate ||
+      ""
+    ).trim();
+
+
+  const previousShift =
+    normalizeShift(
+      roleSummaryContextOverride
+        ?.shift ||
+      ""
+    );
+
+
+  const contextChanged =
+    Boolean(
+      previousWorkDate &&
+      previousShift &&
+      (
+        previousWorkDate !==
+          normalizedWorkDate ||
+
+        previousShift !==
+          normalizedShift
+      )
+    );
+
+
   roleSummaryContextOverride = {
     workDate:
       normalizedWorkDate,
@@ -1053,11 +1090,16 @@ async function applyRoleInspectionContext(
 
 
   /*
-    기존 날짜의 점검 배지를 먼저 지운다.
+    날짜 또는 근무가 실제로 바뀐 경우에만
+    이전 context의 점검 배지를 먼저 지운다.
   */
-  publishEmptyRoleInspectionSummary(
-    context
-  );
+  if (
+    contextChanged
+  ) {
+    publishEmptyRoleInspectionSummary(
+      context
+    );
+  }
 
 
   /*
