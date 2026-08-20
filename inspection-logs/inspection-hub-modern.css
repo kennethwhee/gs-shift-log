@@ -69,12 +69,12 @@ body {
     display: grid !important;
 
     grid-template-columns:
-      286px
+      230px
       minmax(0, 1fr) !important;
 
     align-items: stretch !important;
 
-    gap: 22px !important;
+    gap: 14px !important;
   }
 
 
@@ -296,9 +296,9 @@ summary::-webkit-details-marker {
 
   padding:
     0
-    44px
+    38px
     0
-    56px !important;
+    52px !important;
 
   border:
     0 !important;
@@ -326,6 +326,15 @@ summary::-webkit-details-marker {
 
   user-select:
     none !important;
+
+  white-space:
+    nowrap !important;
+
+  overflow:
+    hidden !important;
+
+  text-overflow:
+    ellipsis !important;
 }
 
 
@@ -677,9 +686,9 @@ button.is-active {
 
   padding:
     0
-    44px
+    38px
     0
-    50px !important;
+    45px !important;
 
   border:
     1px solid
@@ -714,6 +723,15 @@ button.is-active {
 
   cursor:
     pointer !important;
+
+  white-space:
+    nowrap !important;
+
+  overflow:
+    hidden !important;
+
+  text-overflow:
+    ellipsis !important;
 }
 
 
@@ -1322,34 +1340,43 @@ button.is-active {
 
   .inspection-workspace.is-sidebar-collapsed {
     grid-template-columns:
-      56px
+      46px
       minmax(0, 1fr) !important;
 
     gap:
-      14px !important;
+      10px !important;
   }
 
 
   .inspection-workspace.is-sidebar-collapsed
   > .inspection-sidebar {
     width:
-      56px !important;
+      46px !important;
   }
 
 
   .inspection-sidebar.is-collapsed
   > .inspection-sidebar__intro {
     width:
-      56px !important;
+      46px !important;
 
     min-height:
-      56px !important;
+      46px !important;
 
     padding:
-      5px !important;
+      0 !important;
+
+    border:
+      0 !important;
 
     border-radius:
-      13px !important;
+      0 !important;
+
+    background:
+      transparent !important;
+
+    box-shadow:
+      none !important;
   }
 
 
@@ -1381,10 +1408,10 @@ button.is-active {
   .inspection-sidebar.is-collapsed
   > .inspection-sidebar-toggle {
     top:
-      8px !important;
+      3px !important;
 
     right:
-      8px !important;
+      3px !important;
 
     width:
       40px !important;
