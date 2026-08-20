@@ -79238,6 +79238,86 @@ const FACILITY_NAVIGATOR_WINDOW_NAME =
   "GS_FACILITY_NAVIGATOR";
 
 
+/* =========================================================
+  상단 네비게이터 메뉴
+  - TAG 없이 Facility Navigator 홈을 연다.
+  - 기존 TAG 이동과 같은 전용 탭을 재사용한다.
+========================================================= */
+
+function openFacilityNavigatorHome() {
+  const navigatorWindow =
+    window.open(
+      FACILITY_NAVIGATOR_URL,
+      FACILITY_NAVIGATOR_WINDOW_NAME
+    );
+
+
+  if (!navigatorWindow) {
+    showToast(
+      "팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요."
+    );
+
+    return;
+  }
+
+
+  try {
+    navigatorWindow.focus();
+
+  } catch (error) {
+    console.warn(
+      "네비게이터 상단 메뉴 탭 포커스 처리:",
+      error
+    );
+  }
+}
+
+
+function initializeFacilityNavigatorHeaderButton() {
+  const button =
+    document.getElementById(
+      "facilityNavigatorHeaderButton"
+    );
+
+
+  if (
+    !button ||
+    button.dataset
+      .facilityNavigatorBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  button.dataset.facilityNavigatorBound =
+    "true";
+
+  button.addEventListener(
+    "click",
+    openFacilityNavigatorHome
+  );
+}
+
+
+if (
+  document.readyState ===
+  "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeFacilityNavigatorHeaderButton,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+  initializeFacilityNavigatorHeaderButton();
+}
+
+
 function openFacilityNavigator(
   rawTag
 ) {

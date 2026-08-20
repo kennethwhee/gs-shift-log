@@ -20,6 +20,21 @@
   const MODAL_ID = "nightPatrolModal";
   const BUTTON_ID = "nightPatrolButton";
   const FRAME_ID = "nightPatrolFrame";
+
+  /*
+    [HEADER-NAVIGATOR-MOBILE]
+
+    Mobile header:
+    - hide/remove only the top inspection-log menu button
+    - keep inspection modal and role inspection functions available
+
+    PC header:
+    - inspection button is placed immediately before Navigator
+  */
+  const MOBILE_HEADER_MEDIA =
+    window.matchMedia(
+      "(max-width: 760px)"
+    );
   const ROLE_MODAL_ID = "inspectionRoleTodayModal";
   const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
   const PAGE_URL =
@@ -181,41 +196,110 @@
   }
 
   function createMenuButton() {
-    const headerActions = document.querySelector(".header-actions");
+    const headerActions =
+      document.querySelector(
+        ".header-actions"
+      );
+
 
     if (!headerActions) {
       return false;
     }
 
-    const existingButton = document.getElementById(BUTTON_ID);
 
-    if (existingButton) {
-      existingButton.setAttribute("aria-label", "점검일지 열기");
-      existingButton.title = "점검일지";
+    const existingButton =
+      document.getElementById(
+        BUTTON_ID
+      );
+
+
+    /*
+      모바일에서는 상단 점검일지 메뉴를 표시하지 않는다.
+      점검일지 모달·보직별 오늘 점검 기능은 그대로 유지한다.
+    */
+    if (
+      MOBILE_HEADER_MEDIA.matches
+    ) {
+      existingButton?.remove();
+
       return true;
     }
 
-    const button = document.createElement("button");
-    button.type = "button";
-    button.id = BUTTON_ID;
-    button.className = "header-action night-patrol-header-button";
+
+    if (existingButton) {
+      existingButton.setAttribute(
+        "aria-label",
+        "점검일지 열기"
+      );
+
+      existingButton.title =
+        "점검일지";
+
+      return true;
+    }
+
+
+    const button =
+      document.createElement(
+        "button"
+      );
+
+    button.type =
+      "button";
+
+    button.id =
+      BUTTON_ID;
+
+    button.className =
+      "header-action night-patrol-header-button";
+
     button.innerHTML = `
       <span class="night-patrol-header-button__label">
         점검일지
       </span>
     `;
-    button.setAttribute("aria-label", "점검일지 열기");
-    button.title = "점검일지";
 
-    const noticeButton = document.getElementById("noticeButton");
+    button.setAttribute(
+      "aria-label",
+      "점검일지 열기"
+    );
 
-    if (noticeButton?.parentElement === headerActions) {
-      headerActions.insertBefore(button, noticeButton);
+    button.title =
+      "점검일지";
+
+
+    /*
+      PC 순서:
+      점검일지 → 네비게이터 → 효율팀
+    */
+    const navigatorButton =
+      document.getElementById(
+        "facilityNavigatorHeaderButton"
+      );
+
+
+    if (
+      navigatorButton
+        ?.parentElement ===
+      headerActions
+    ) {
+      headerActions.insertBefore(
+        button,
+        navigatorButton
+      );
+
     } else {
-      headerActions.prepend(button);
+      headerActions.prepend(
+        button
+      );
     }
 
-    button.addEventListener("click", openInspectionLogModal);
+
+    button.addEventListener(
+      "click",
+      openInspectionLogModal
+    );
+
     return true;
   }
 
@@ -950,20 +1034,74 @@
     syncInspectionLogAccess();
     observeLoginState();
 
+
+    /*
+      PC ↔ 모바일 폭 변경 시
+      점검일지 상단 버튼을 즉시 추가/제거한다.
+    */
+    if (
+      window
+        .__gsInspectionHeaderMediaBound !==
+      true
+    ) {
+      const handleHeaderMediaChange =
+        () => {
+          syncInspectionLogAccess();
+        };
+
+
+      if (
+        typeof MOBILE_HEADER_MEDIA
+          .addEventListener ===
+        "function"
+      ) {
+        MOBILE_HEADER_MEDIA
+          .addEventListener(
+            "change",
+            handleHeaderMediaChange
+          );
+
+      } else if (
+        typeof MOBILE_HEADER_MEDIA
+          .addListener ===
+        "function"
+      ) {
+        MOBILE_HEADER_MEDIA
+          .addListener(
+            handleHeaderMediaChange
+          );
+      }
+
+
+      window
+        .__gsInspectionHeaderMediaBound =
+        true;
+    }
+
+
     if (window.__gsInspectionScheduleMessageBound !== true) {
       window.addEventListener("message", handleInspectionLauncherMessage);
       window.__gsInspectionScheduleMessageBound = true;
     }
 
-    let attempts = 0;
-    const timer = window.setInterval(() => {
-      attempts += 1;
-      syncInspectionLogAccess();
 
-      if (attempts >= 40) {
-        window.clearInterval(timer);
-      }
-    }, 250);
+    let attempts = 0;
+
+    const timer =
+      window.setInterval(
+        () => {
+          attempts += 1;
+
+          syncInspectionLogAccess();
+
+          if (attempts >= 40) {
+            window.clearInterval(
+              timer
+            );
+          }
+        },
+        250
+      );
   }
 
   document.addEventListener(

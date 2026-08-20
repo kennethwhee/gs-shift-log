@@ -57,7 +57,7 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 <script
-  src="script.js?v=20260820-boiler-reload-date1"
+  src="script.js?v=20260820-header-navigator1"
   defer
 ></script>
 
@@ -66,7 +66,7 @@
     점검일지 메뉴 및 팝업 실행기
   ====================================================== -->
   <script
-    src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260814-log-sheet1"
+    src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260820-header-navigator1"
     defer
   ></script>
 
@@ -469,11 +469,27 @@
     <!-- =====================================================
       오른쪽 메뉴
 
-      점검일지 버튼은 launcher가 이 영역에 자동 생성
+      PC:
+      점검일지 → 네비게이터 → 효율팀
+
+      모바일:
+      네비게이터 → 효율팀
+      점검일지 상단 메뉴는 launcher에서 생성하지 않음
     ====================================================== -->
 
     <div class="header-actions">
 
+
+      <!-- 설비 네비게이터 -->
+      <button
+        type="button"
+        class="header-action"
+        id="facilityNavigatorHeaderButton"
+        aria-label="설비 네비게이터 열기"
+        title="네비게이터"
+      >
+        네비게이터
+      </button>
 
       <button
         type="button"
