@@ -463,61 +463,21 @@
   }
 
 
-  async function toggleFocusMode() {
-    if (
-      state.focusMode
-    ) {
-      if (
-        document.fullscreenElement &&
-        typeof document.exitFullscreen ===
-          "function"
-      ) {
-        try {
-          await document.exitFullscreen();
-        } catch (
-          error
-        ) {
-          console.warn(
-            "전체 화면 종료 실패:",
-            error
-          );
-        }
-      }
+  function toggleFocusMode() {
+    /*
+      [INSPECTION-MODAL-EXPAND-ONLY]
 
-      applyFocusMode(
-        false
-      );
+      Browser native fullscreen is intentionally not used here.
 
-      return;
-    }
+      The inspection page already sends the focus-mode state to
+      the parent launcher. The parent modal then toggles
+      "is-inspection-expanded" and fills the browser viewport.
 
+      This avoids the nested-iframe native-fullscreen width bug.
+    */
     applyFocusMode(
-      true
+      !state.focusMode
     );
-
-    const fullscreenTarget =
-      document.documentElement;
-
-    if (
-      typeof fullscreenTarget.requestFullscreen ===
-        "function"
-    ) {
-      try {
-        await fullscreenTarget.requestFullscreen();
-
-      } catch (
-        error
-      ) {
-        /*
-          iframe 전체화면 권한이 없는 환경에서도
-          부모 모달 확장과 집중 보기 상태는 유지한다.
-        */
-        console.warn(
-          "브라우저 전체화면을 사용할 수 없어 점검창만 확대합니다.",
-          error
-        );
-      }
-    }
   }
 
 
