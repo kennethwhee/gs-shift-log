@@ -1,0 +1,1240 @@
+/* =========================================================
+  INSPECTION HUB MODERN DESIGN V1
+
+  紐⑹쟻:
+  - ?먭??쇱? 泥??붾㈃/?쇱そ 硫붾돱 ?꾩슜 ?붿옄???덉씠??  - 湲곗〈 ?먭?二쇨린/?먭??쇱?/Log Sheet 湲곕뒫怨?data-* ?띿꽦? 蹂寃쏀븯吏 ?딆쓬
+  - PC / 紐⑤컮?쇱쓣 ???뚯씪?먯꽌 愿由?========================================================= */
+
+:root {
+  --inspection-modern-bg: #f5f8fc;
+  --inspection-modern-surface: #ffffff;
+  --inspection-modern-surface-soft: #f8fbff;
+  --inspection-modern-line: #d8e4f0;
+  --inspection-modern-line-strong: #c8d8e9;
+  --inspection-modern-blue: #1769c2;
+  --inspection-modern-blue-soft: #edf5ff;
+  --inspection-modern-navy: #172f4c;
+  --inspection-modern-text: #27415d;
+  --inspection-modern-muted: #71849a;
+  --inspection-modern-shadow: 0 10px 30px rgba(28, 65, 104, 0.07);
+}
+
+
+/* =========================================================
+  ?꾩껜 諛곌꼍 / 湲곕낯 ?ㅻ뜑
+========================================================= */
+
+html,
+body {
+  background:
+    linear-gradient(
+      180deg,
+      #f7faff 0%,
+      var(--inspection-modern-bg) 100%
+    ) !important;
+}
+
+
+.inspection-log-hub {
+  padding:
+    18px
+    22px
+    28px !important;
+}
+
+
+/*
+  PC?먯꽌??諛붽묑 ?먭??쇱? 紐⑤떖 ?ㅻ뜑媛 ?대? ?덉쑝誘濡?  iframe ?대???媛숈? ?쒕ぉ? ?④꺼 以묐났???쒓굅?쒕떎.
+*/
+
+@media (min-width: 769px) {
+  .inspection-log-hub
+  > .inspection-log-header {
+    display: none !important;
+  }
+}
+
+
+/* =========================================================
+  PC ?묒뾽怨듦컙
+========================================================= */
+
+@media (min-width: 769px) {
+
+  .inspection-workspace {
+    grid-template-columns:
+      286px
+      minmax(0, 1fr) !important;
+
+    align-items: stretch !important;
+
+    gap: 22px !important;
+  }
+
+
+  .inspection-sidebar {
+    position: sticky !important;
+    top: 16px !important;
+
+    align-content: start;
+
+    gap: 13px !important;
+
+    min-width: 0;
+  }
+
+
+  .inspection-workspace__content {
+    min-width: 0;
+
+    border-radius: 18px;
+  }
+
+}
+
+
+/* =========================================================
+  ?먭??쇱? 硫붾돱 ?뚭컻 移대뱶
+========================================================= */
+
+.inspection-sidebar__intro {
+  position: relative;
+
+  min-height: 76px;
+
+  padding:
+    16px
+    54px
+    16px
+    62px !important;
+
+  border:
+    1px solid
+    var(--inspection-modern-line) !important;
+
+  border-radius: 16px !important;
+
+  background:
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #f8fbff 100%
+    ) !important;
+
+  box-shadow:
+    var(--inspection-modern-shadow) !important;
+}
+
+
+.inspection-sidebar__intro::before {
+  position: absolute;
+  top: 50%;
+  left: 15px;
+
+  display: grid;
+
+  width: 34px;
+  height: 34px;
+
+  place-items: center;
+
+  border:
+    1px solid
+    #cfe0f3;
+
+  border-radius: 10px;
+
+  background:
+    var(--inspection-modern-blue-soft);
+
+  color:
+    var(--inspection-modern-blue);
+
+  content: "??;
+
+  font-size: 19px;
+  font-weight: 1000;
+  line-height: 1;
+
+  transform:
+    translateY(-50%);
+}
+
+
+.inspection-sidebar__intro strong {
+  display: block !important;
+
+  padding: 0 !important;
+
+  color:
+    var(--inspection-modern-navy) !important;
+
+  font-size: 17px !important;
+  font-weight: 950 !important;
+  line-height: 1.2 !important;
+
+  letter-spacing: -0.02em;
+}
+
+
+.inspection-sidebar__intro
+> span {
+  display: none !important;
+}
+
+
+.inspection-sidebar__intro::after {
+  display: block;
+
+  margin-top: 6px;
+
+  color:
+    #5577a1;
+
+  content:
+    "INSPECTION LOG";
+
+  font-size: 9px;
+  font-weight: 950;
+  line-height: 1;
+
+  letter-spacing: 0.14em;
+}
+
+
+/* =========================================================
+  ?먭??쇱? ?곸쐞 硫붾돱
+========================================================= */
+
+.inspection-sidebar-group {
+  overflow: hidden !important;
+
+  margin: 0 !important;
+
+  border:
+    1px solid
+    var(--inspection-modern-line) !important;
+
+  border-radius: 13px !important;
+
+  background:
+    var(--inspection-modern-surface) !important;
+
+  box-shadow:
+    0 4px 15px
+    rgba(26, 62, 99, 0.04) !important;
+}
+
+
+.inspection-sidebar-group
+> summary {
+  position: relative;
+
+  display: flex !important;
+
+  min-height: 54px !important;
+
+  align-items: center !important;
+
+  padding:
+    0
+    43px
+    0
+    52px !important;
+
+  list-style: none !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    var(--inspection-modern-text) !important;
+
+  font-size: 14px !important;
+  font-weight: 900 !important;
+  line-height: 1.3 !important;
+
+  cursor: pointer;
+
+  user-select: none;
+}
+
+
+.inspection-sidebar-group
+> summary::-webkit-details-marker {
+  display: none !important;
+}
+
+
+/*
+  湲곗〈 ?쇨컖?뺤쓣 ?묒? 湲곕뒫 ?꾩씠肄섏쑝濡?援먯껜?쒕떎.
+*/
+
+.inspection-sidebar-group
+> summary::before {
+  position: absolute !important;
+  top: 50% !important;
+  left: 14px !important;
+
+  display: grid !important;
+
+  width: 28px !important;
+  height: 28px !important;
+
+  place-items: center !important;
+
+  border:
+    1px solid
+    #d7e5f4 !important;
+
+  border-radius: 8px !important;
+
+  background:
+    #f2f7fd !important;
+
+  color:
+    var(--inspection-modern-blue) !important;
+
+  content: "?? !important;
+
+  font-size: 14px !important;
+  font-weight: 1000 !important;
+  line-height: 1 !important;
+
+  transform:
+    translateY(-50%) !important;
+
+  transition:
+    none !important;
+}
+
+
+.inspection-sidebar-group:nth-of-type(1)
+> summary::before {
+  content: "?? !important;
+}
+
+
+.inspection-sidebar-group:nth-of-type(2)
+> summary::before {
+  content: "?? !important;
+}
+
+
+.inspection-sidebar-group:nth-of-type(3)
+> summary::before {
+  content: "?? !important;
+}
+
+
+.inspection-sidebar-group:nth-of-type(4)
+> summary::before {
+  content: "?? !important;
+}
+
+
+/*
+  ?ㅻⅨ履??대룞/?쇱묠 ?붿궡??*/
+
+.inspection-sidebar-group
+> summary::after {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+
+  color:
+    #45698f;
+
+  content: "??;
+
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+
+  transform:
+    translateY(-50%);
+
+  transition:
+    transform 0.16s ease;
+}
+
+
+.inspection-sidebar-group[open]
+> summary::after {
+  transform:
+    translateY(-50%)
+    rotate(90deg);
+}
+
+
+.inspection-sidebar-group
+> summary:hover {
+  background:
+    #f8fbff !important;
+
+  color:
+    #174f86 !important;
+}
+
+
+/* =========================================================
+  ?먭??쇱? ?섏쐞 硫붾돱
+========================================================= */
+
+.inspection-sidebar-submenu {
+  display: grid !important;
+
+  gap: 6px !important;
+
+  padding:
+    8px
+    9px
+    10px !important;
+
+  border-top:
+    1px solid
+    #e8eef5 !important;
+
+  background:
+    #f8fbff !important;
+}
+
+
+.inspection-sidebar-submenu
+button,
+.inspection-sidebar-empty {
+  position: relative;
+
+  width: 100% !important;
+
+  min-height: 42px !important;
+
+  padding:
+    8px
+    34px
+    8px
+    12px !important;
+
+  border:
+    1px solid
+    #e0e9f3 !important;
+
+  border-radius: 10px !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #526b84 !important;
+
+  font: inherit;
+
+  font-size: 11px !important;
+  font-weight: 850 !important;
+  line-height: 1.35 !important;
+
+  text-align: left !important;
+}
+
+
+.inspection-sidebar-submenu
+button::after {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+
+  color:
+    #7c93aa;
+
+  content: "??;
+
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+
+  transform:
+    translateY(-50%);
+}
+
+
+.inspection-sidebar-submenu
+button:hover {
+  border-color:
+    #b9d2ec !important;
+
+  background:
+    #f4f9ff !important;
+
+  color:
+    #1d5f9e !important;
+}
+
+
+.inspection-sidebar-submenu
+button.is-active {
+  border-color:
+    #7eb0df !important;
+
+  background:
+    #edf6ff !important;
+
+  color:
+    #145d9f !important;
+
+  box-shadow:
+    inset 3px 0 0
+    #2b79c4 !important;
+}
+
+
+.inspection-sidebar-empty {
+  padding-right: 12px !important;
+
+  color:
+    #8a98a7 !important;
+
+  text-align: center !important;
+}
+
+
+/* =========================================================
+  Log Sheet 硫붾돱
+
+  ?꾩옱 Log Sheet ?듯빀 硫붾돱媛 ?ъ슜?섎뒗 ?꾩슜 ?대옒?ㅻ룄
+  媛숈? ?붿옄???몄뼱濡?留욎텣??
+========================================================= */
+
+.inspection-sidebar-sheet-group,
+.inspection-sidebar-sheet-direct,
+.inspection-sidebar-sheet-branch,
+.inspection-sidebar-sheet-menu {
+  margin: 0 !important;
+}
+
+
+.inspection-sidebar-sheet-group
+> summary,
+.inspection-sidebar-sheet-direct
+> button,
+.inspection-sidebar-sheet-branch
+> summary,
+.inspection-sidebar-sheet-menu
+> button {
+  position: relative;
+
+  box-sizing: border-box;
+
+  width: 100% !important;
+
+  min-height: 48px !important;
+
+  padding:
+    0
+    38px
+    0
+    42px !important;
+
+  border:
+    1px solid
+    var(--inspection-modern-line) !important;
+
+  border-radius: 11px !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    var(--inspection-modern-text) !important;
+
+  font-family: inherit !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1.35 !important;
+
+  text-align: left !important;
+
+  box-shadow:
+    0 3px 12px
+    rgba(25, 61, 97, 0.035) !important;
+
+  cursor: pointer;
+}
+
+
+.inspection-sidebar-sheet-group
+> summary::before,
+.inspection-sidebar-sheet-direct
+> button::before,
+.inspection-sidebar-sheet-branch
+> summary::before,
+.inspection-sidebar-sheet-menu
+> button::before {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+
+  display: grid;
+
+  width: 22px;
+  height: 26px;
+
+  place-items: center;
+
+  border:
+    1px solid
+    #d8e6f4;
+
+  border-radius: 6px;
+
+  background:
+    #f2f7fd;
+
+  color:
+    var(--inspection-modern-blue);
+
+  content: "??;
+
+  font-size: 11px;
+  font-weight: 1000;
+  line-height: 1;
+
+  transform:
+    translateY(-50%);
+}
+
+
+.inspection-sidebar-sheet-group
+> summary::after,
+.inspection-sidebar-sheet-direct
+> button::after,
+.inspection-sidebar-sheet-branch
+> summary::after,
+.inspection-sidebar-sheet-menu
+> button::after {
+  position: absolute;
+  top: 50%;
+  right: 13px;
+
+  color:
+    #6b87a4;
+
+  content: "??;
+
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+
+  transform:
+    translateY(-50%);
+}
+
+
+.inspection-sidebar-sheet-group
+> summary:hover,
+.inspection-sidebar-sheet-direct
+> button:hover,
+.inspection-sidebar-sheet-branch
+> summary:hover,
+.inspection-sidebar-sheet-menu
+> button:hover {
+  border-color:
+    #b9d2ec !important;
+
+  background:
+    #f6faff !important;
+
+  color:
+    #1d5f9e !important;
+}
+
+
+/* =========================================================
+  理쒖큹 鍮??붾㈃ ?덈궡
+========================================================= */
+
+.inspection-workspace-empty {
+  display: grid !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  min-height:
+    calc(
+      100dvh - 128px
+    ) !important;
+
+  place-items: center !important;
+
+  padding:
+    34px !important;
+}
+
+
+.inspection-workspace-empty[hidden] {
+  display: none !important;
+}
+
+
+.inspection-workspace-empty__card {
+  position: relative;
+
+  width:
+    min(
+      100%,
+      610px
+    ) !important;
+
+  min-height: 330px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    50px
+    44px !important;
+
+  border:
+    1px dashed
+    #c5d8eb !important;
+
+  border-radius:
+    20px !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      #ffffff 0%,
+      #fbfdff 100%
+    ) !important;
+
+  text-align: center;
+
+  box-shadow:
+    0 16px 40px
+    rgba(28, 67, 108, 0.07) !important;
+}
+
+
+.inspection-workspace-empty__card::before {
+  display: grid;
+
+  width: 64px;
+  height: 64px;
+
+  place-items: center;
+
+  margin-bottom: 22px;
+
+  border:
+    1px solid
+    #cfe1f5;
+
+  border-radius: 20px;
+
+  background:
+    #eef6ff;
+
+  color:
+    var(--inspection-modern-blue);
+
+  content: "??;
+
+  font-size: 32px;
+  font-weight: 1000;
+  line-height: 1;
+
+  box-shadow:
+    0 8px 22px
+    rgba(29, 100, 176, 0.09);
+}
+
+
+.inspection-workspace-empty__eyebrow {
+  display: block !important;
+
+  margin: 0 0 10px !important;
+
+  color:
+    #4f78a7 !important;
+
+  font-size: 9px !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+
+  letter-spacing: 0.16em !important;
+}
+
+
+.inspection-workspace-empty__card
+strong {
+  display: block !important;
+
+  color:
+    var(--inspection-modern-navy) !important;
+
+  font-size: 26px !important;
+  font-weight: 950 !important;
+  line-height: 1.35 !important;
+
+  letter-spacing: -0.025em;
+}
+
+
+.inspection-workspace-empty__card
+p {
+  max-width: 430px;
+
+  margin:
+    13px
+    0
+    0 !important;
+
+  color:
+    var(--inspection-modern-muted) !important;
+
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1.75 !important;
+
+  word-break: keep-all;
+}
+
+
+/* =========================================================
+  ?ъ씠?쒕컮 ?묎린 踰꾪듉
+========================================================= */
+
+.inspection-sidebar-toggle {
+  border-color:
+    #cfdeed !important;
+
+  background:
+    #f7fbff !important;
+
+  color:
+    #4b6f94 !important;
+
+  box-shadow:
+    none !important;
+}
+
+
+.inspection-sidebar:not(.is-collapsed)
+> .inspection-sidebar-toggle {
+  top: 15px !important;
+  right: 14px !important;
+
+  width: 34px !important;
+  min-width: 34px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+
+  padding: 0 !important;
+
+  border:
+    1px solid
+    #d5e2ef !important;
+
+  border-radius:
+    9px !important;
+
+  background:
+    #f8fbff !important;
+}
+
+
+.inspection-sidebar:not(.is-collapsed)
+> .inspection-sidebar-toggle
+> .inspection-sidebar-toggle__icon {
+  display: inline-flex !important;
+
+  width: auto !important;
+
+  color:
+    #55789b;
+
+  font-size: 18px !important;
+}
+
+
+.inspection-sidebar:not(.is-collapsed)
+> .inspection-sidebar-toggle
+> .inspection-sidebar-toggle__label {
+  display: none !important;
+}
+
+
+.inspection-sidebar-toggle:hover {
+  border-color:
+    #a8c6e5 !important;
+
+  background:
+    #edf6ff !important;
+
+  color:
+    #1d5f9e !important;
+}
+
+
+/* =========================================================
+  ?묓엺 PC ?ъ씠?쒕컮
+========================================================= */
+
+@media (min-width: 769px) {
+
+  .inspection-workspace.is-sidebar-collapsed {
+    grid-template-columns:
+      54px
+      minmax(0, 1fr) !important;
+
+    gap: 14px !important;
+  }
+
+
+  .inspection-workspace.is-sidebar-collapsed
+  > .inspection-sidebar {
+    width: 54px !important;
+  }
+
+
+  .inspection-sidebar.is-collapsed
+  > .inspection-sidebar__intro {
+    width: 54px !important;
+
+    min-height: 54px !important;
+
+    padding: 5px !important;
+
+    border-radius:
+      13px !important;
+  }
+
+
+  .inspection-sidebar.is-collapsed
+  > .inspection-sidebar__intro::before,
+  .inspection-sidebar.is-collapsed
+  > .inspection-sidebar__intro::after {
+    display: none !important;
+  }
+
+
+  .inspection-sidebar.is-collapsed
+  > .inspection-sidebar-toggle {
+    top: 7px !important;
+    right: 7px !important;
+
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+
+    border:
+      1px solid
+      #d5e2ef !important;
+
+    border-radius:
+      10px !important;
+
+    background:
+      #f1f7fd !important;
+  }
+
+}
+
+
+/* =========================================================
+  紐⑤컮??========================================================= */
+
+@media (max-width: 768px) {
+
+  .inspection-log-hub {
+    padding:
+      18px
+      16px
+      28px !important;
+  }
+
+
+  /*
+    紐⑤컮?쇱? ?섏씠吏 ?먯껜 ?쒕ぉ???ш쾶 蹂댁뿬以??
+  */
+
+  .inspection-log-hub
+  > .inspection-log-header {
+    display: block !important;
+
+    margin:
+      6px
+      4px
+      26px !important;
+
+    padding: 0 !important;
+  }
+
+
+  .inspection-log-header__eyebrow {
+    margin:
+      0
+      0
+      7px !important;
+
+    color:
+      #4f74a0 !important;
+
+    font-size: 10px !important;
+    font-weight: 950 !important;
+    line-height: 1 !important;
+
+    letter-spacing:
+      0.16em !important;
+  }
+
+
+  .inspection-log-header h1 {
+    color:
+      var(--inspection-modern-navy) !important;
+
+    font-size: 34px !important;
+    font-weight: 950 !important;
+    line-height: 1.12 !important;
+
+    letter-spacing:
+      -0.035em !important;
+  }
+
+
+  .inspection-workspace {
+    display: block !important;
+  }
+
+
+  .inspection-sidebar {
+    position: relative !important;
+
+    display: grid !important;
+
+    width: 100% !important;
+
+    gap: 11px !important;
+
+    margin: 0 !important;
+  }
+
+
+  .inspection-sidebar__intro {
+    min-height: 72px !important;
+
+    padding:
+      15px
+      54px
+      15px
+      62px !important;
+  }
+
+
+  .inspection-sidebar__intro strong {
+    font-size:
+      18px !important;
+  }
+
+
+  .inspection-sidebar-group {
+    margin: 0 !important;
+
+    border-radius:
+      14px !important;
+  }
+
+
+  .inspection-sidebar-group
+  > summary {
+    min-height:
+      58px !important;
+
+    padding-left:
+      56px !important;
+
+    font-size:
+      15px !important;
+  }
+
+
+  .inspection-sidebar-group
+  > summary::before {
+    left:
+      15px !important;
+
+    width:
+      30px !important;
+
+    height:
+      30px !important;
+  }
+
+
+  .inspection-sidebar-submenu {
+    gap:
+      7px !important;
+
+    padding:
+      9px
+      10px
+      11px !important;
+  }
+
+
+  .inspection-sidebar-submenu
+  button,
+  .inspection-sidebar-empty {
+    min-height:
+      48px !important;
+
+    padding-left:
+      13px !important;
+
+    border-radius:
+      11px !important;
+
+    font-size:
+      13px !important;
+  }
+
+
+  .inspection-sidebar-sheet-group
+  > summary,
+  .inspection-sidebar-sheet-direct
+  > button,
+  .inspection-sidebar-sheet-branch
+  > summary,
+  .inspection-sidebar-sheet-menu
+  > button {
+    min-height:
+      52px !important;
+
+    font-size:
+      13px !important;
+  }
+
+
+  /*
+    泥?吏꾩엯 紐⑤컮?쇱? 硫붾돱 ?좏깮??吏묒쨷?섎룄濡?    PC????鍮??덈궡 移대뱶???쒖떆?섏? ?딅뒗??
+  */
+
+  .inspection-workspace-empty {
+    display: none !important;
+  }
+
+
+  /*
+    紐⑤컮???묎린 ?곹깭?먯꽌??硫붾돱 ??씠 44px濡?以꾩? ?딄쾶 ?쒕떎.
+    ?ъ슜?먭? ?묒쑝硫??곷떒 ?닿린 踰꾪듉留??⑤릺 ?붾㈃ ?꾩껜 ??쓣 ?좎??쒕떎.
+  */
+
+  .inspection-workspace.is-sidebar-collapsed
+  > .inspection-sidebar {
+    width:
+      100% !important;
+
+    margin-bottom:
+      0 !important;
+  }
+
+
+  .inspection-sidebar.is-collapsed
+  > .inspection-sidebar__intro {
+    width:
+      100% !important;
+
+    min-height:
+      54px !important;
+
+    padding:
+      8px !important;
+  }
+
+
+  .inspection-sidebar.is-collapsed
+  > .inspection-sidebar__intro::before,
+  .inspection-sidebar.is-collapsed
+  > .inspection-sidebar__intro::after {
+    display: none !important;
+  }
+
+
+  .inspection-sidebar.is-collapsed
+  > .inspection-sidebar-toggle {
+    top:
+      7px !important;
+
+    right:
+      7px !important;
+
+    width:
+      40px !important;
+
+    min-width:
+      40px !important;
+
+    height:
+      40px !important;
+
+    min-height:
+      40px !important;
+
+    border:
+      1px solid
+      #d5e2ef !important;
+
+    border-radius:
+      10px !important;
+  }
+
+}
+
+
+/* =========================================================
+  ?묒? 紐⑤컮??========================================================= */
+
+@media (max-width: 420px) {
+
+  .inspection-log-hub {
+    padding:
+      16px
+      12px
+      24px !important;
+  }
+
+
+  .inspection-log-header h1 {
+    font-size:
+      31px !important;
+  }
+
+
+  .inspection-sidebar__intro {
+    padding-left:
+      58px !important;
+  }
+
+
+  .inspection-sidebar-group
+  > summary {
+    min-height:
+      56px !important;
+
+    font-size:
+      14px !important;
+  }
+
+
+  .inspection-sidebar-submenu
+  button {
+    font-size:
+      12px !important;
+  }
+
+}
