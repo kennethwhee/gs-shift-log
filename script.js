@@ -19778,6 +19778,234 @@ function convertLegacyBodyIndexToRole(
   entries의 category로 정확히 구분한다.
 ========================================================= */
 
+/* =========================================================
+  [LEGACY-LEADER-COMBINED-ROLE-SPLIT]
+
+  최신 기존 파트장 통합본문(index 2)은
+  보직별 body index가 아니라 한 본문 안에 다음 구분문구를 가진다.
+
+  ※ #1 Boiler 운전 및 작업사항  -> BCO1
+  ※ #2 Boiler 운전 및 작업사항  -> BCO2
+  ※ TBN & BOP 운전 및 작업사항 -> TGO
+
+  구분문구가 이전 항목 끝에 붙어 있어도 분리하고,
+  구분문구 자체는 업무 항목으로 저장하지 않는다.
+========================================================= */
+
+function splitLegacyLeaderCombinedEntryByRoleMarkers(
+  parsedLine,
+  initialRole
+) {
+  const originalContent =
+    String(
+      parsedLine?.content ||
+      ""
+    ).trim();
+
+  let activeRole =
+    normalizeMemberLogRole(
+      initialRole
+    ) ||
+    "파트장";
+
+  if (!originalContent) {
+    return {
+      entries:
+        [],
+
+      nextRole:
+        activeRole
+    };
+  }
+
+  const markerPattern =
+    /(?:※\s*)?(?:#\s*1\s*(?:BOILER|BLR)|#\s*2\s*(?:BOILER|BLR)|TBN\s*(?:&|\/|AND)\s*BOP)\s*운전\s*및\s*작업사항/giu;
+
+  const resolveMarkerRole = (
+    markerText
+  ) => {
+    const normalizedMarker =
+      String(
+        markerText ||
+        ""
+      )
+        .normalize(
+          "NFKC"
+        )
+        .replace(
+          /\s+/g,
+          " "
+        )
+        .trim()
+        .toUpperCase();
+
+    if (
+      /#\s*1\s*(?:BOILER|BLR)/u
+        .test(
+          normalizedMarker
+        )
+    ) {
+      return "BCO1";
+    }
+
+    if (
+      /#\s*2\s*(?:BOILER|BLR)/u
+        .test(
+          normalizedMarker
+        )
+    ) {
+      return "BCO2";
+    }
+
+    if (
+      /TBN\s*(?:&|\/|AND)\s*BOP/u
+        .test(
+          normalizedMarker
+        )
+    ) {
+      return "TGO";
+    }
+
+    return "";
+  };
+
+  const matches =
+    [
+      ...originalContent.matchAll(
+        markerPattern
+      )
+    ];
+
+  if (
+    matches.length ===
+    0
+  ) {
+    return {
+      entries: [
+        {
+          time:
+            String(
+              parsedLine?.time ||
+              ""
+            ).trim(),
+
+          content:
+            originalContent,
+
+          sourceRole:
+            activeRole
+        }
+      ],
+
+      nextRole:
+        activeRole
+    };
+  }
+
+  const entries =
+    [];
+
+  let cursor =
+    0;
+
+  let firstContentSegment =
+    true;
+
+  matches.forEach(
+    match => {
+      const matchIndex =
+        Number(
+          match.index ||
+          0
+        );
+
+      const contentBeforeMarker =
+        originalContent
+          .slice(
+            cursor,
+            matchIndex
+          )
+          .trim();
+
+      if (
+        contentBeforeMarker
+      ) {
+        entries.push({
+          time:
+            firstContentSegment
+              ? String(
+                  parsedLine?.time ||
+                  ""
+                ).trim()
+              : "",
+
+          content:
+            contentBeforeMarker,
+
+          sourceRole:
+            activeRole
+        });
+
+        firstContentSegment =
+          false;
+      }
+
+      const markerRole =
+        resolveMarkerRole(
+          match[0]
+        );
+
+      if (
+        markerRole
+      ) {
+        activeRole =
+          markerRole;
+      }
+
+      cursor =
+        matchIndex +
+        String(
+          match[0] ||
+          ""
+        ).length;
+    }
+  );
+
+  const remainingContent =
+    originalContent
+      .slice(
+        cursor
+      )
+      .trim();
+
+  if (
+    remainingContent
+  ) {
+    entries.push({
+      time:
+        firstContentSegment
+          ? String(
+              parsedLine?.time ||
+              ""
+            ).trim()
+          : "",
+
+      content:
+        remainingContent,
+
+      sourceRole:
+        activeRole
+    });
+  }
+
+  return {
+    entries,
+
+    nextRole:
+      activeRole
+  };
+}
+
 function convertLegacyDiaryToLog(
   legacyItem,
   itemIndex,
@@ -20127,6 +20355,15 @@ function convertLegacyDiaryToLog(
   const entries = [];
 
 
+  /*
+    통합 파트장 본문은 한 body(index 2) 안에서
+    #1 Boiler / #2 Boiler / TBN & BOP 구간이 이어진다.
+    현재 활성 구간을 다음 항목까지 유지한다.
+  */
+  let combinedLeaderSourceRole =
+    "파트장";
+
+
   bodyEntries.forEach(
     (
       bodyItem,
@@ -20184,7 +20421,66 @@ function convertLegacyDiaryToLog(
         );
 
 
+      const roleAwareParsedLines =
+        [];
+
+
       parsedLines.forEach(
+        (
+          parsedLine,
+          parsedLineIndex
+        ) => {
+          const shouldSplitCombinedLeader =
+            normalizedRole ===
+              "파트장" &&
+            isLeaderCombinedStructure &&
+            bodyIndex ===
+              2 &&
+            category ===
+              "인계사항";
+
+          if (
+            !shouldSplitCombinedLeader
+          ) {
+            roleAwareParsedLines.push({
+              ...parsedLine,
+
+              sourceRole
+            });
+
+            return;
+          }
+
+          const splitResult =
+            splitLegacyLeaderCombinedEntryByRoleMarkers(
+              parsedLine,
+              combinedLeaderSourceRole
+            );
+
+          combinedLeaderSourceRole =
+            splitResult.nextRole ||
+            combinedLeaderSourceRole;
+
+          splitResult.entries.forEach(
+            (
+              splitEntry,
+              splitIndex
+            ) => {
+              roleAwareParsedLines.push({
+                ...splitEntry,
+
+                originalParsedLineIndex:
+                  parsedLineIndex,
+
+                splitIndex
+              });
+            }
+          );
+        }
+      );
+
+
+      roleAwareParsedLines.forEach(
         (
           parsedLine,
           lineIndex
@@ -20252,7 +20548,11 @@ function convertLegacyDiaryToLog(
               보직별 구분에 사용한다.
             */
             importedFromRole:
-              sourceRole,
+              normalizeMemberLogRole(
+                parsedLine.sourceRole ||
+                sourceRole ||
+                normalizedRole
+              ),
 
             importedFromAuthor:
               author,
