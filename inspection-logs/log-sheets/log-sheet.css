@@ -1650,6 +1650,62 @@ button {
    Logging row actions
 --------------------------------------------------------- */
 
+/* ---------------------------------------------------------
+   [LOG-SHEET-UNIT-MANAGE-HEADER-V1]
+   UNIT stays over the UNIT value.
+   Delete + grip controls use a separate management header.
+--------------------------------------------------------- */
+
+.log-sheet-item-table__head {
+  position:
+    relative !important;
+
+  box-sizing:
+    border-box !important;
+
+  padding-right:
+    92px !important;
+}
+
+
+.log-sheet-item-table__head-actions {
+  position:
+    absolute;
+
+  top:
+    0;
+
+  right:
+    8px;
+
+  display:
+    grid;
+
+  width:
+    68px;
+
+  height:
+    100%;
+
+  place-items:
+    center;
+
+  color:
+    #64778b;
+
+  font-size:
+    9px;
+
+  font-weight:
+    900;
+
+  text-align:
+    center;
+
+  pointer-events:
+    none;
+}
+
 .log-sheet-item-row {
   position:
     relative !important;
@@ -2224,6 +2280,21 @@ button {
 
     min-width:
       92px !important;
+  }
+
+
+  .log-sheet-item-table__head {
+    padding-right:
+      100px !important;
+  }
+
+
+  .log-sheet-item-table__head-actions {
+    right:
+      9px;
+
+    width:
+      77px;
   }
 
 
