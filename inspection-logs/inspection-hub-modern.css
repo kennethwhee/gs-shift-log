@@ -55,40 +55,318 @@ body {
 
 /* =========================================================
    Desktop workspace
+
+   [INSPECTION-MIDDLE-FRAME-FILL-V1]
+
+   The inspection page is the middle layer:
+
+   main GS Shift Log modal
+   -> nightPatrolFrame
+   -> inspection workspace
+   -> inspectionLogFrame
+   -> Log Sheet
+
+   The middle layer must own the complete viewport height.
 ========================================================= */
 
 @media (min-width: 769px) {
 
+  html,
+  body {
+    width:
+      100% !important;
+
+    height:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    min-height:
+      0 !important;
+
+    overflow:
+      hidden !important;
+  }
+
+
+  .inspection-log-hub {
+    display:
+      flex !important;
+
+    width:
+      100% !important;
+
+    height:
+      100dvh !important;
+
+    min-width:
+      0 !important;
+
+    min-height:
+      0 !important;
+
+    flex-direction:
+      column !important;
+
+    overflow:
+      hidden !important;
+  }
+
+
   .inspection-log-hub
   > .inspection-log-header {
-    display: none !important;
+    display:
+      none !important;
   }
 
 
   .inspection-workspace {
-    display: grid !important;
+    display:
+      grid !important;
+
+    width:
+      100% !important;
+
+    height:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    min-height:
+      0 !important;
+
+    flex:
+      1 1 auto !important;
 
     grid-template-columns:
       230px
       minmax(0, 1fr) !important;
 
-    align-items: stretch !important;
+    align-items:
+      stretch !important;
 
-    gap: 14px !important;
+    gap:
+      14px !important;
+
+    overflow:
+      hidden !important;
   }
 
 
   .inspection-sidebar {
-    position: sticky !important;
-    top: 16px !important;
+    position:
+      sticky !important;
 
-    display: grid !important;
+    top:
+      16px !important;
 
-    align-content: start !important;
+    align-content:
+      start;
 
-    gap: 12px !important;
+    gap:
+      12px !important;
 
-    min-width: 0 !important;
+    min-width:
+      0 !important;
+
+    min-height:
+      0 !important;
+
+    overflow-y:
+      auto !important;
+
+    overflow-x:
+      hidden !important;
+  }
+
+
+  .inspection-workspace__content {
+    width:
+      100% !important;
+
+    height:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    min-height:
+      0 !important;
+
+    max-width:
+      none !important;
+
+    overflow:
+      auto !important;
+  }
+
+
+  /*
+    A viewer is a nested iframe host.
+    It must be a flex column so the 52px toolbar does not
+    subtract height from the iframe twice.
+  */
+
+  .inspection-log-viewer:not([hidden]) {
+    display:
+      flex !important;
+
+    width:
+      100% !important;
+
+    height:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    min-height:
+      0 !important;
+
+    max-width:
+      none !important;
+
+    flex-direction:
+      column !important;
+
+    overflow:
+      hidden !important;
+  }
+
+
+  .inspection-log-viewer__header {
+    height:
+      52px !important;
+
+    min-height:
+      52px !important;
+
+    flex:
+      0 0 52px !important;
+  }
+
+
+  #inspectionLogFrame {
+    display:
+      block !important;
+
+    width:
+      100% !important;
+
+    height:
+      auto !important;
+
+    min-width:
+      0 !important;
+
+    min-height:
+      0 !important;
+
+    flex:
+      1 1 auto !important;
+
+    border:
+      0 !important;
+  }
+
+
+  .inspection-workspace__content:has(
+    > .inspection-log-viewer:not([hidden])
+  ) {
+    overflow:
+      hidden !important;
+  }
+
+
+  /* =====================================================
+     Focus / large view
+
+     The parent modal is already full-screen sized.
+     Do not keep the sidebar grid track in this mode.
+  ====================================================== */
+
+  body.inspection-focus-mode
+  .inspection-log-hub {
+    width:
+      100vw !important;
+
+    height:
+      100dvh !important;
+
+    max-width:
+      none !important;
+
+    padding:
+      0 !important;
+  }
+
+
+  body.inspection-focus-mode
+  .inspection-sidebar {
+    display:
+      none !important;
+  }
+
+
+  body.inspection-focus-mode
+  .inspection-workspace {
+    display:
+      block !important;
+
+    width:
+      100% !important;
+
+    height:
+      100% !important;
+
+    max-width:
+      none !important;
+  }
+
+
+  body.inspection-focus-mode
+  .inspection-workspace__content {
+    display:
+      block !important;
+
+    width:
+      100% !important;
+
+    height:
+      100% !important;
+
+    max-width:
+      none !important;
+
+    overflow:
+      auto !important;
+  }
+
+
+  body.inspection-focus-mode
+  .inspection-calendar-dashboard,
+
+  body.inspection-focus-mode
+  .inspection-schedule-table-panel,
+
+  body.inspection-focus-mode
+  .inspection-log-viewer {
+    width:
+      100% !important;
+
+    max-width:
+      none !important;
+  }
+
+
+  body.inspection-focus-mode
+  .inspection-workspace__content:has(
+    > .inspection-log-viewer:not([hidden])
+  ) {
+    overflow:
+      hidden !important;
   }
 
 }
