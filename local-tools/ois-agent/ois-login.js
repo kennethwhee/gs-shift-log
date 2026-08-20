@@ -6476,11 +6476,23 @@ async function waitForOisWaterTreatmentValues(
     null;
 
 
+  let attemptCount =
+    0;
+
+
+  let sawAllZeroResult =
+    false;
+
+
   while (
     Date.now() -
       startedAt <
     OIS_QUERY_TIMEOUT
   ) {
+    attemptCount +=
+      1;
+
+
     try {
       const values =
         await extractOisWaterTreatmentValues(
@@ -6511,6 +6523,145 @@ async function waitForOisWaterTreatmentValues(
       }
 
 
+      /*
+        [WATER-RECALC-WAIT]
+
+        재계산 버튼 클릭 직후에는
+        화면의 9개 값이 모두 0인 상태가
+        잠시 표시될 수 있다.
+
+        전체 9개가 모두 0이면
+        아직 재계산 결과가 반영되지 않은 것으로 보고
+        기존 OIS_QUERY_TIMEOUT까지 계속 재확인한다.
+
+        일부 값만 0인 경우는
+        실제 정상 데이터일 수 있으므로 허용한다.
+      */
+
+      const numericValues = [
+        values?.rawWaterInflow,
+        values?.demiProduction,
+        values?.pureWaterUsage,
+        values?.rawWaterTankAmount,
+        values?.rawWaterTankRate,
+        values?.filteredWaterTankAmount,
+        values?.filteredWaterTankRate,
+        values?.demiWaterTankAmount,
+        values?.demiWaterTankRate
+      ].map(
+        value => {
+          const text =
+            String(
+              value ??
+              ""
+            )
+              .replaceAll(
+                ",",
+                ""
+              )
+              .trim();
+
+
+          if (!text) {
+            return null;
+          }
+
+
+          const number =
+            Number(
+              text
+            );
+
+
+          return Number.isFinite(
+            number
+          )
+            ? number
+            : null;
+        }
+      );
+
+
+      const hasInvalidValue =
+        numericValues.some(
+          value => {
+            return value ===
+              null;
+          }
+        );
+
+
+      if (
+        hasInvalidValue
+      ) {
+        throw new Error(
+          "OIS 수처리 9개 값 중 일부를 숫자로 확인하지 못했습니다."
+        );
+      }
+
+
+      const allValuesAreZero =
+        numericValues.every(
+          value => {
+            return Math.abs(
+              value
+            ) <
+              0.000001;
+          }
+        );
+
+
+      if (
+        allValuesAreZero
+      ) {
+        sawAllZeroResult =
+          true;
+
+
+        lastError =
+          new Error(
+            `${targetDate} OIS 수처리 재계산 결과가 아직 모두 0입니다.`
+          );
+
+
+        if (
+          attemptCount ===
+            1 ||
+          attemptCount %
+            4 ===
+            0
+        ) {
+          console.log(
+            [
+              `${targetDate} OIS 수처리 재계산 대기`,
+              `${attemptCount}회차`,
+              "9개 값 모두 0"
+            ].join(
+              " · "
+            )
+          );
+        }
+
+
+        await page.waitForTimeout(
+          500
+        );
+
+
+        continue;
+      }
+
+
+      console.log(
+        [
+          `${targetDate} OIS 수처리 재계산 완료 확인`,
+          `${attemptCount}회차`
+        ].join(
+          " · "
+        )
+      );
+
+
       return {
         ...values,
 
@@ -6539,6 +6690,20 @@ async function waitForOisWaterTreatmentValues(
         500
       );
     }
+  }
+
+
+  if (
+    sawAllZeroResult
+  ) {
+    throw new Error(
+      [
+        `${targetDate} OIS 수처리 재계산 결과가`,
+        "제한 시간 동안 모두 0으로 유지되었습니다."
+      ].join(
+        " "
+      )
+    );
   }
 
 

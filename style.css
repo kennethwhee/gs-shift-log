@@ -114487,6 +114487,69 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 
 @media screen and (min-width: 769px) {
 
+  /* [LIMESTONE-RECEIPT-PC-FONT-UP]
+    PC 입고기록 상세 글씨만 소폭 확대
+    행 높이와 표 레이아웃은 그대로 유지
+  */
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-history-card
+  .limestone-section-header
+  > div
+  > span {
+    font-size: 9px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-history-card
+  .limestone-section-header
+  h4 {
+    font-size: 15px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-history-card
+  .limestone-section-count {
+    font-size: 10px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-history-card
+  .limestone-receipt-table
+  thead
+  th {
+    font-size: 11px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-history-card
+  .limestone-receipt-table
+  td {
+    font-size: 11px !important;
+  }
+
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-history-card
+  .limestone-edit-button,
+
+  #efficiencyTeamModal
+  #efficiencyLimestoneView
+  .limestone-receipt-history-card
+  .limestone-delete-button {
+    font-size: 10px !important;
+  }
+
   #efficiencyTeamModal
   #efficiencyLimestoneView
   .limestone-receipt-table
