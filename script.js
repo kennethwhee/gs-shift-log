@@ -194952,34 +194952,87 @@ window
       {};
 
 
-    const candidates = [
+    /*
+      [BOILER-RELOAD-DATE-FIX]
+
+      The date printed on the boiler-temperature card is a display date
+      for the post-midnight N/S temperature.
+
+      The dedicated BO1/BO2 reload button must query the source shift-log
+      work date instead.
+
+      Example:
+      auto-data base date  = 2026-08-19
+      boiler display date  = 2026-08-20
+      source shift logs    = 2026-08-19 N/S
+
+      Use the same base-date source as the normal morning-meeting analysis.
+      The displayed boiler date is kept only as the final fallback.
+    */
+    const commonBaseDate =
       document
         .getElementById(
-          "efficiencyMorningMeetingAutoBoilerDate"
+          "efficiencyMorningMeetingWaterPanel"
         )
-        ?.textContent,
+        ?.dataset
+        ?.morningMeetingAutoBaseDate;
+
+
+    const candidates = [
+      commonBaseDate,
+
+      state.shiftPart
+        ?.reportDate,
+
+      state.shiftPart
+        ?.loadedDate,
 
       state.boilerTemperatures
         ?.reportDate,
 
-      state.shiftPart
-        ?.reportDate,
-
-      state.shiftPart
-        ?.loadedDate
+      document
+        .getElementById(
+          "efficiencyMorningMeetingAutoBoilerDate"
+        )
+        ?.textContent
     ];
 
 
-    return candidates
-      .map(
-        normalizeDate
-      )
-      .find(
-        Boolean
-      ) ||
+    const resolvedDate =
+      candidates
+        .map(
+          normalizeDate
+        )
+        .find(
+          Boolean
+        ) ||
       "";
-  }
 
+
+    console.log(
+      "[BOILER-RELOAD-DATE-FIX] BO1·BO2 reload source work date:",
+      {
+        resolvedDate,
+
+        commonBaseDate:
+          normalizeDate(
+            commonBaseDate
+          ),
+
+        displayDate:
+          normalizeDate(
+            document
+              .getElementById(
+                "efficiencyMorningMeetingAutoBoilerDate"
+              )
+              ?.textContent
+          )
+      }
+    );
+
+
+    return resolvedDate;
+  }
 
   async function reloadBoilerLogs() {
     const button =
