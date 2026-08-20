@@ -5040,6 +5040,1697 @@ function renderLoggingItemList() {
   );
 }
 
+/* =========================================================
+  [LOG-SHEET-ITEM-INSERT-REORDER-V3]
+
+  - Keep the current structured Log Sheet item model.
+  - Do not replace existing add/edit/render/template functions.
+  - Wrap the existing functions and decorate rendered rows only.
+  - A row itself never starts drag.
+  - Only the far-right grip handle starts drag.
+========================================================= */
+
+const loggingItemOrderKeysBySheet =
+  new Map();
+
+
+function getCurrentLoggingItemOrderKeys() {
+  const sheetKey =
+    String(
+      state.sheetConfig?.key ||
+      ""
+    );
+
+  if (
+    !loggingItemOrderKeysBySheet
+      .has(
+        sheetKey
+      )
+  ) {
+    loggingItemOrderKeysBySheet
+      .set(
+        sheetKey,
+        []
+      );
+  }
+
+  return [
+    ...loggingItemOrderKeysBySheet
+      .get(
+        sheetKey
+      )
+  ];
+}
+
+
+function setCurrentLoggingItemOrderKeys(
+  keys
+) {
+  const sheetKey =
+    String(
+      state.sheetConfig?.key ||
+      ""
+    );
+
+  const nextKeys =
+    [];
+
+  const seen =
+    new Set();
+
+  (
+    Array.isArray(
+      keys
+    )
+      ? keys
+      : []
+  ).forEach(
+    key => {
+      const normalizedKey =
+        String(
+          key ||
+          ""
+        ).trim();
+
+      if (
+        !normalizedKey ||
+        seen.has(
+          normalizedKey
+        )
+      ) {
+        return;
+      }
+
+      seen.add(
+        normalizedKey
+      );
+
+      nextKeys.push(
+        normalizedKey
+      );
+    }
+  );
+
+  loggingItemOrderKeysBySheet
+    .set(
+      sheetKey,
+      nextKeys
+    );
+}
+
+
+function syncLoggingAddedItemInsertAfterKeys(
+  orderedItems
+) {
+  const addedItems =
+    getCurrentLoggingAddedItems();
+
+  const addedByKey =
+    new Map(
+      addedItems.map(
+        item => [
+          getLoggingItemDraftKey(
+            item
+          ),
+          item
+        ]
+      )
+    );
+
+  (
+    Array.isArray(
+      orderedItems
+    )
+      ? orderedItems
+      : []
+  ).forEach(
+    (
+      item,
+      index
+    ) => {
+      if (
+        !item?.isNew
+      ) {
+        return;
+      }
+
+      const key =
+        getLoggingItemDraftKey(
+          item
+        );
+
+      const sourceItem =
+        addedByKey.get(
+          key
+        );
+
+      if (!sourceItem) {
+        return;
+      }
+
+      sourceItem.insertAfterKey =
+        index > 0
+          ? getLoggingItemDraftKey(
+              orderedItems[
+                index - 1
+              ]
+            )
+          : "";
+    }
+  );
+}
+
+
+/* ---------------------------------------------------------
+   Preserve current structured build logic, then apply order.
+--------------------------------------------------------- */
+
+const buildLoggingItemListBeforeReorder =
+  buildLoggingItemList;
+
+
+buildLoggingItemList =
+  function buildLoggingItemListWithReorder() {
+    const baseItems =
+      buildLoggingItemListBeforeReorder();
+
+    const requestedKeys =
+      getCurrentLoggingItemOrderKeys();
+
+    if (
+      !requestedKeys.length ||
+      !baseItems.length
+    ) {
+      return baseItems.map(
+        (
+          item,
+          index
+        ) => ({
+          ...item,
+          order:
+            index + 1
+        })
+      );
+    }
+
+    const itemByKey =
+      new Map(
+        baseItems.map(
+          item => [
+            getLoggingItemDraftKey(
+              item
+            ),
+            item
+          ]
+        )
+      );
+
+    const orderedItems =
+      [];
+
+    const usedKeys =
+      new Set();
+
+    requestedKeys.forEach(
+      key => {
+        const item =
+          itemByKey.get(
+            key
+          );
+
+        if (!item) {
+          return;
+        }
+
+        orderedItems.push(
+          item
+        );
+
+        usedKeys.add(
+          key
+        );
+      }
+    );
+
+    baseItems.forEach(
+      item => {
+        const key =
+          getLoggingItemDraftKey(
+            item
+          );
+
+        if (
+          usedKeys.has(
+            key
+          )
+        ) {
+          return;
+        }
+
+        orderedItems.push(
+          item
+        );
+      }
+    );
+
+    return orderedItems.map(
+      (
+        item,
+        index
+      ) => ({
+        ...item,
+        order:
+          index + 1
+      })
+    );
+  };
+
+
+/* ---------------------------------------------------------
+   Reset/load wrappers.
+   Existing structured fields and logging-interval settings stay intact.
+--------------------------------------------------------- */
+
+const resetLoggingTemplateStateBeforeReorder =
+  resetLoggingTemplateState;
+
+
+resetLoggingTemplateState =
+  function resetLoggingTemplateStateWithReorder() {
+    resetLoggingTemplateStateBeforeReorder();
+
+    setCurrentLoggingItemOrderKeys(
+      []
+    );
+  };
+
+
+const applyLoggingTemplateStateBeforeReorder =
+  applyLoggingTemplateState;
+
+
+applyLoggingTemplateState =
+  function applyLoggingTemplateStateWithReorder(
+    template
+  ) {
+    applyLoggingTemplateStateBeforeReorder(
+      template
+    );
+
+    const savedItems =
+      Array.isArray(
+        template?.items
+      )
+        ? [
+            ...template.items
+          ].sort(
+            (
+              left,
+              right
+            ) =>
+              Number(
+                left?.order ||
+                0
+              ) -
+              Number(
+                right?.order ||
+                0
+              )
+          )
+        : [];
+
+    if (
+      !savedItems.length
+    ) {
+      setCurrentLoggingItemOrderKeys(
+        []
+      );
+
+      return;
+    }
+
+    const availableItems =
+      buildLoggingItemListBeforeReorder();
+
+    const byKey =
+      new Map();
+
+    const bySource =
+      new Map();
+
+    availableItems.forEach(
+      item => {
+        const key =
+          getLoggingItemDraftKey(
+            item
+          );
+
+        byKey.set(
+          key,
+          item
+        );
+
+        if (
+          item.sourceRow !==
+            null &&
+          item.sourceRow !==
+            undefined &&
+          item.sourceColumn !==
+            null &&
+          item.sourceColumn !==
+            undefined
+        ) {
+          bySource.set(
+            String(
+              Number(
+                item.sourceRow
+              )
+            ) +
+            ":" +
+            String(
+              Number(
+                item.sourceColumn
+              )
+            ),
+            item
+          );
+        }
+      }
+    );
+
+    const resolvedKeys =
+      [];
+
+    savedItems.forEach(
+      savedItem => {
+        const savedKey =
+          String(
+            savedItem?.key ||
+            ""
+          ).trim();
+
+        let item =
+          savedKey
+            ? byKey.get(
+                savedKey
+              )
+            : null;
+
+        if (
+          !item &&
+          savedItem?.sourceRow !==
+            null &&
+          savedItem?.sourceRow !==
+            undefined &&
+          savedItem?.sourceColumn !==
+            null &&
+          savedItem?.sourceColumn !==
+            undefined
+        ) {
+          item =
+            bySource.get(
+              String(
+                Number(
+                  savedItem.sourceRow
+                )
+              ) +
+              ":" +
+              String(
+                Number(
+                  savedItem.sourceColumn
+                )
+              )
+            );
+        }
+
+        if (!item) {
+          return;
+        }
+
+        resolvedKeys.push(
+          getLoggingItemDraftKey(
+            item
+          )
+        );
+      }
+    );
+
+    setCurrentLoggingItemOrderKeys(
+      resolvedKeys
+    );
+
+    syncLoggingAddedItemInsertAfterKeys(
+      buildLoggingItemList()
+    );
+  };
+
+
+/* ---------------------------------------------------------
+   Insert a new item at an exact gap using the existing add function.
+--------------------------------------------------------- */
+
+const addLoggingItemBeforeGapInsert =
+  addLoggingItem;
+
+
+function addLoggingItemAfterKey(
+  targetKey
+) {
+  const normalizedTargetKey =
+    String(
+      targetKey ||
+      ""
+    ).trim();
+
+  if (
+    !normalizedTargetKey ||
+    state.isBusy
+  ) {
+    return;
+  }
+
+  const beforeItems =
+    buildLoggingItemList();
+
+  const beforeAddedKeys =
+    new Set(
+      getCurrentLoggingAddedItems()
+        .map(
+          item =>
+            getLoggingItemDraftKey(
+              item
+            )
+        )
+    );
+
+  if (
+    !beforeItems.some(
+      item =>
+        getLoggingItemDraftKey(
+          item
+        ) ===
+        normalizedTargetKey
+    )
+  ) {
+    return;
+  }
+
+  loggingItemSelectedKey =
+    normalizedTargetKey;
+
+  addLoggingItemBeforeGapInsert();
+
+  const newItem =
+    getCurrentLoggingAddedItems()
+      .find(
+        item =>
+          !beforeAddedKeys.has(
+            getLoggingItemDraftKey(
+              item
+            )
+          )
+      );
+
+  if (!newItem) {
+    return;
+  }
+
+  const newKey =
+    getLoggingItemDraftKey(
+      newItem
+    );
+
+  newItem.insertAfterKey =
+    normalizedTargetKey;
+
+  const orderedKeys =
+    beforeItems.map(
+      item =>
+        getLoggingItemDraftKey(
+          item
+        )
+    );
+
+  const targetIndex =
+    orderedKeys.indexOf(
+      normalizedTargetKey
+    );
+
+  orderedKeys.splice(
+    targetIndex + 1,
+    0,
+    newKey
+  );
+
+  setCurrentLoggingItemOrderKeys(
+    orderedKeys
+  );
+
+  syncLoggingAddedItemInsertAfterKeys(
+    buildLoggingItemList()
+  );
+
+  loggingItemSelectedKey =
+    newKey;
+
+  renderLoggingItemList();
+}
+
+
+/* ---------------------------------------------------------
+   Reorder boundaries.
+   Structured group/subgroup + source section + fixed print page.
+--------------------------------------------------------- */
+
+function getLoggingItemSourceSectionSignature(
+  item
+) {
+  if (
+    !item ||
+    item.isNew
+  ) {
+    return "";
+  }
+
+  const section =
+    typeof getLoggingItemSectionForItem ===
+      "function"
+      ? getLoggingItemSectionForItem(
+          item
+        )
+      : null;
+
+  if (!section) {
+    return "";
+  }
+
+  return JSON.stringify({
+    ranges:
+      section.ranges ||
+      [],
+
+    nameColumns:
+      section.nameColumns ||
+      [],
+
+    tagColumn:
+      section.tagColumn ||
+      "",
+
+    ratingColumn:
+      section.ratingColumn ||
+      "",
+
+    unitColumn:
+      section.unitColumn ||
+      ""
+  });
+}
+
+
+function getLoggingItemPrintPageSignature(
+  item
+) {
+  if (
+    !item ||
+    item.isNew ||
+    typeof getIntegratedControlFixedPageRanges !==
+      "function"
+  ) {
+    return "";
+  }
+
+  const rowNumber =
+    Number(
+      item.sourceRow
+    );
+
+  if (
+    !Number.isFinite(
+      rowNumber
+    )
+  ) {
+    return "";
+  }
+
+  const pageRanges =
+    getIntegratedControlFixedPageRanges();
+
+  const pageIndex =
+    pageRanges.findIndex(
+      range =>
+        rowNumber >=
+          Number(
+            range.startRow
+          ) &&
+        rowNumber <=
+          Number(
+            range.endRow
+          )
+    );
+
+  return pageIndex >=
+    0
+    ? "page:" +
+        String(
+          pageIndex
+        )
+    : "";
+}
+
+
+function getLoggingItemReorderSegmentKey(
+  item,
+  orderedItems
+) {
+  if (!item) {
+    return "";
+  }
+
+  if (
+    item.isNew
+  ) {
+    const items =
+      Array.isArray(
+        orderedItems
+      )
+        ? orderedItems
+        : [];
+
+    const key =
+      getLoggingItemDraftKey(
+        item
+      );
+
+    const itemIndex =
+      items.findIndex(
+        candidate =>
+          getLoggingItemDraftKey(
+            candidate
+          ) ===
+          key
+      );
+
+    for (
+      let index =
+        itemIndex - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      if (
+        !items[index]?.isNew
+      ) {
+        return getLoggingItemReorderSegmentKey(
+          items[index],
+          items
+        );
+      }
+    }
+
+    for (
+      let index =
+        itemIndex + 1;
+      index <
+        items.length;
+      index += 1
+    ) {
+      if (
+        !items[index]?.isNew
+      ) {
+        return getLoggingItemReorderSegmentKey(
+          items[index],
+          items
+        );
+      }
+    }
+
+    return "";
+  }
+
+  const group =
+    normalizeLoggingText(
+      item.group ||
+      item.groupLabel ||
+      ""
+    );
+
+  const subgroup =
+    normalizeLoggingText(
+      item.subgroup ||
+      item.subgroupLabel ||
+      ""
+    );
+
+  return [
+    String(
+      state.sheetConfig?.key ||
+      ""
+    ),
+
+    getLoggingItemSourceSectionSignature(
+      item
+    ),
+
+    group,
+
+    subgroup,
+
+    getLoggingItemPrintPageSignature(
+      item
+    )
+  ].join(
+    "||"
+  );
+}
+
+
+function moveLoggingItemByKey(
+  draggedKey,
+  targetKey,
+  position
+) {
+  const items =
+    buildLoggingItemList();
+
+  const draggedItem =
+    items.find(
+      item =>
+        getLoggingItemDraftKey(
+          item
+        ) ===
+        draggedKey
+    );
+
+  const targetItem =
+    items.find(
+      item =>
+        getLoggingItemDraftKey(
+          item
+        ) ===
+        targetKey
+    );
+
+  if (
+    !draggedItem ||
+    !targetItem ||
+    draggedKey ===
+      targetKey
+  ) {
+    return false;
+  }
+
+  const draggedSegment =
+    getLoggingItemReorderSegmentKey(
+      draggedItem,
+      items
+    );
+
+  const targetSegment =
+    getLoggingItemReorderSegmentKey(
+      targetItem,
+      items
+    );
+
+  if (
+    !draggedSegment ||
+    draggedSegment !==
+      targetSegment
+  ) {
+    setStatus(
+      "순서 이동 제한",
+      "같은 Log Sheet 구간 안에서만 순서를 이동할 수 있습니다.",
+      "idle"
+    );
+
+    return false;
+  }
+
+  const keys =
+    items.map(
+      item =>
+        getLoggingItemDraftKey(
+          item
+        )
+    );
+
+  const draggedIndex =
+    keys.indexOf(
+      draggedKey
+    );
+
+  if (
+    draggedIndex <
+    0
+  ) {
+    return false;
+  }
+
+  keys.splice(
+    draggedIndex,
+    1
+  );
+
+  const targetIndex =
+    keys.indexOf(
+      targetKey
+    );
+
+  if (
+    targetIndex <
+    0
+  ) {
+    return false;
+  }
+
+  keys.splice(
+    position ===
+      "after"
+      ? targetIndex + 1
+      : targetIndex,
+    0,
+    draggedKey
+  );
+
+  setCurrentLoggingItemOrderKeys(
+    keys
+  );
+
+  syncLoggingAddedItemInsertAfterKeys(
+    buildLoggingItemList()
+  );
+
+  loggingItemSelectedKey =
+    draggedKey;
+
+  renderLoggingItemList();
+
+  if (
+    elements.previewSection &&
+    !elements.previewSection.hidden
+  ) {
+    renderGrid();
+
+    applyLoggingItemDraftsToPreview();
+
+    applyLoggingItemOrderToPreview();
+
+    applyAddedLoggingItemsToPreview();
+  }
+
+  setStatus(
+    "양식 수정",
+    "Logging 항목 순서를 변경했습니다. 공용 적용은 '양식 저장'을 눌러 완료하세요.",
+    "dirty"
+  );
+
+  return true;
+}
+
+
+/* ---------------------------------------------------------
+   Preview: move cloned HTML rows only.
+   The original workbook/template remains untouched here.
+--------------------------------------------------------- */
+
+function applyLoggingItemOrderToPreview() {
+  if (
+    !elements.grid ||
+    typeof getLoggingPreviewRow !==
+      "function"
+  ) {
+    return;
+  }
+
+  const items =
+    buildLoggingItemList();
+
+  const originalItems =
+    items.filter(
+      item =>
+        !item.isNew
+    );
+
+  const groups =
+    new Map();
+
+  originalItems.forEach(
+    item => {
+      const segmentKey =
+        getLoggingItemReorderSegmentKey(
+          item,
+          items
+        );
+
+      if (!segmentKey) {
+        return;
+      }
+
+      if (
+        !groups.has(
+          segmentKey
+        )
+      ) {
+        groups.set(
+          segmentKey,
+          []
+        );
+      }
+
+      groups.get(
+        segmentKey
+      ).push(
+        item
+      );
+    }
+  );
+
+  groups.forEach(
+    orderedGroupItems => {
+      if (
+        orderedGroupItems.length <
+        2
+      ) {
+        return;
+      }
+
+      const naturalGroupItems =
+        [
+          ...orderedGroupItems
+        ].sort(
+          (
+            left,
+            right
+          ) =>
+            Number(
+              left.sourceRow
+            ) -
+              Number(
+                right.sourceRow
+              ) ||
+            Number(
+              left.sourceColumn
+            ) -
+              Number(
+                right.sourceColumn
+              )
+        );
+
+      const naturalKeys =
+        naturalGroupItems.map(
+          item =>
+            getLoggingItemDraftKey(
+              item
+            )
+        );
+
+      const orderedKeys =
+        orderedGroupItems.map(
+          item =>
+            getLoggingItemDraftKey(
+              item
+            )
+        );
+
+      if (
+        naturalKeys.every(
+          (
+            key,
+            index
+          ) =>
+            key ===
+            orderedKeys[
+              index
+            ]
+        )
+      ) {
+        return;
+      }
+
+      const destinationRows =
+        naturalGroupItems.map(
+          item =>
+            getLoggingPreviewRow(
+              item.sourceRow
+            )
+        );
+
+      const orderedRows =
+        orderedGroupItems.map(
+          item =>
+            getLoggingPreviewRow(
+              item.sourceRow
+            )
+        );
+
+      if (
+        destinationRows.some(
+          row =>
+            !row
+        ) ||
+        orderedRows.some(
+          row =>
+            !row
+        )
+      ) {
+        return;
+      }
+
+      if (
+        new Set(
+          destinationRows
+        ).size !==
+          destinationRows.length ||
+        new Set(
+          orderedRows
+        ).size !==
+          orderedRows.length
+      ) {
+        return;
+      }
+
+      const parent =
+        destinationRows[0]
+          .parentNode;
+
+      if (
+        !parent ||
+        destinationRows.some(
+          row =>
+            row.parentNode !==
+              parent
+        ) ||
+        orderedRows.some(
+          row =>
+            row.parentNode !==
+              parent
+        )
+      ) {
+        return;
+      }
+
+      const placeholders =
+        destinationRows.map(
+          row => {
+            const placeholder =
+              document.createComment(
+                "logging-item-order-slot"
+              );
+
+            row.before(
+              placeholder
+            );
+
+            return placeholder;
+          }
+        );
+
+      orderedRows.forEach(
+        (
+          row,
+          index
+        ) => {
+          placeholders[
+            index
+          ].replaceWith(
+            row
+          );
+        }
+      );
+    }
+  );
+}
+
+
+/* ---------------------------------------------------------
+   Dedicated grip drag.
+--------------------------------------------------------- */
+
+let loggingItemGripDragState =
+  null;
+
+
+function clearLoggingItemDragClasses() {
+  elements.itemList
+    ?.querySelectorAll(
+      [
+        ".is-dragging",
+        ".is-drop-before",
+        ".is-drop-after",
+        ".is-drop-blocked"
+      ].join(
+        ","
+      )
+    )
+    .forEach(
+      element => {
+        element.classList.remove(
+          "is-dragging",
+          "is-drop-before",
+          "is-drop-after",
+          "is-drop-blocked"
+        );
+      }
+    );
+}
+
+
+function beginLoggingItemGripDrag(
+  event,
+  row,
+  item
+) {
+  if (
+    state.isBusy ||
+    row.classList.contains(
+      "is-editing"
+    )
+  ) {
+    return;
+  }
+
+  if (
+    event.pointerType ===
+      "mouse" &&
+    event.button !==
+      0
+  ) {
+    return;
+  }
+
+  const handle =
+    event.currentTarget;
+
+  const draggedKey =
+    getLoggingItemDraftKey(
+      item
+    );
+
+  loggingItemGripDragState = {
+    handle,
+    row,
+    draggedKey,
+    pointerId:
+      event.pointerId,
+    startX:
+      event.clientX,
+    startY:
+      event.clientY,
+    active:
+      false,
+    targetKey:
+      "",
+    position:
+      "after"
+  };
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  try {
+    handle.setPointerCapture(
+      event.pointerId
+    );
+  } catch {
+    /* no-op */
+  }
+
+  const onPointerMove =
+    moveEvent => {
+      const dragState =
+        loggingItemGripDragState;
+
+      if (
+        !dragState ||
+        dragState.pointerId !==
+          moveEvent.pointerId
+      ) {
+        return;
+      }
+
+      const distance =
+        Math.hypot(
+          moveEvent.clientX -
+            dragState.startX,
+          moveEvent.clientY -
+            dragState.startY
+        );
+
+      if (
+        !dragState.active &&
+        distance <
+          4
+      ) {
+        return;
+      }
+
+      if (
+        !dragState.active
+      ) {
+        dragState.active =
+          true;
+
+        dragState.row
+          .classList.add(
+            "is-dragging"
+          );
+      }
+
+      moveEvent.preventDefault();
+
+      const list =
+        elements.itemList;
+
+      if (list) {
+        const listRect =
+          list.getBoundingClientRect();
+
+        if (
+          moveEvent.clientY <
+          listRect.top +
+            34
+        ) {
+          list.scrollTop -=
+            14;
+
+        } else if (
+          moveEvent.clientY >
+          listRect.bottom -
+            34
+        ) {
+          list.scrollTop +=
+            14;
+        }
+      }
+
+      const targetElement =
+        document.elementFromPoint(
+          moveEvent.clientX,
+          moveEvent.clientY
+        );
+
+      const targetRow =
+        targetElement
+          ?.closest(
+            ".log-sheet-item-row"
+          );
+
+      elements.itemList
+        ?.querySelectorAll(
+          [
+            ".is-drop-before",
+            ".is-drop-after",
+            ".is-drop-blocked"
+          ].join(
+            ","
+          )
+        )
+        .forEach(
+          currentRow => {
+            currentRow.classList.remove(
+              "is-drop-before",
+              "is-drop-after",
+              "is-drop-blocked"
+            );
+          }
+        );
+
+      dragState.targetKey =
+        "";
+
+      if (
+        !targetRow ||
+        targetRow ===
+          dragState.row
+      ) {
+        return;
+      }
+
+      const targetKey =
+        String(
+          targetRow.dataset
+            .loggingItemKey ||
+          ""
+        ).trim();
+
+      if (!targetKey) {
+        return;
+      }
+
+      const items =
+        buildLoggingItemList();
+
+      const draggedItem =
+        items.find(
+          currentItem =>
+            getLoggingItemDraftKey(
+              currentItem
+            ) ===
+            dragState.draggedKey
+        );
+
+      const targetItem =
+        items.find(
+          currentItem =>
+            getLoggingItemDraftKey(
+              currentItem
+            ) ===
+            targetKey
+        );
+
+      const allowed =
+        draggedItem &&
+        targetItem &&
+        getLoggingItemReorderSegmentKey(
+          draggedItem,
+          items
+        ) ===
+        getLoggingItemReorderSegmentKey(
+          targetItem,
+          items
+        );
+
+      if (!allowed) {
+        targetRow.classList.add(
+          "is-drop-blocked"
+        );
+
+        return;
+      }
+
+      const rect =
+        targetRow
+          .getBoundingClientRect();
+
+      const position =
+        moveEvent.clientY <
+          rect.top +
+          rect.height /
+            2
+          ? "before"
+          : "after";
+
+      targetRow.classList.add(
+        position ===
+          "before"
+          ? "is-drop-before"
+          : "is-drop-after"
+      );
+
+      dragState.targetKey =
+        targetKey;
+
+      dragState.position =
+        position;
+    };
+
+  const finishDrag =
+    endEvent => {
+      const dragState =
+        loggingItemGripDragState;
+
+      if (
+        !dragState ||
+        dragState.pointerId !==
+          endEvent.pointerId
+      ) {
+        return;
+      }
+
+      handle.removeEventListener(
+        "pointermove",
+        onPointerMove
+      );
+
+      handle.removeEventListener(
+        "pointerup",
+        finishDrag
+      );
+
+      handle.removeEventListener(
+        "pointercancel",
+        finishDrag
+      );
+
+      try {
+        handle.releasePointerCapture(
+          endEvent.pointerId
+        );
+      } catch {
+        /* no-op */
+      }
+
+      const shouldMove =
+        dragState.active &&
+        dragState.targetKey;
+
+      const draggedKey =
+        dragState.draggedKey;
+
+      const targetKey =
+        dragState.targetKey;
+
+      const position =
+        dragState.position;
+
+      loggingItemGripDragState =
+        null;
+
+      clearLoggingItemDragClasses();
+
+      if (
+        shouldMove
+      ) {
+        moveLoggingItemByKey(
+          draggedKey,
+          targetKey,
+          position
+        );
+      }
+    };
+
+  handle.addEventListener(
+    "pointermove",
+    onPointerMove
+  );
+
+  handle.addEventListener(
+    "pointerup",
+    finishDrag
+  );
+
+  handle.addEventListener(
+    "pointercancel",
+    finishDrag
+  );
+}
+
+
+function createLoggingItemGripHandle(
+  row,
+  item
+) {
+  const handle =
+    document.createElement(
+      "button"
+    );
+
+  handle.type =
+    "button";
+
+  handle.className =
+    "log-sheet-item-row__drag-handle";
+
+  handle.setAttribute(
+    "aria-label",
+    String(
+      item.order
+    ) +
+      "번 항목 순서 이동"
+  );
+
+  handle.title =
+    "이 핸들을 잡아서 위아래로 이동";
+
+  handle.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  );
+
+  handle.addEventListener(
+    "pointerdown",
+    event => {
+      beginLoggingItemGripDrag(
+        event,
+        row,
+        item
+      );
+    }
+  );
+
+  return handle;
+}
+
+
+function createLoggingItemInsertSlot(
+  item
+) {
+  const itemKey =
+    getLoggingItemDraftKey(
+      item
+    );
+
+  const slot =
+    document.createElement(
+      "div"
+    );
+
+  slot.className =
+    "log-sheet-item-insert-slot";
+
+  const button =
+    document.createElement(
+      "button"
+    );
+
+  button.type =
+    "button";
+
+  button.className =
+    "log-sheet-item-insert-button";
+
+  button.textContent =
+    "+";
+
+  button.setAttribute(
+    "aria-label",
+    String(
+      item.order
+    ) +
+      "번 항목 뒤에 항목 추가"
+  );
+
+  button.title =
+    "이 위치에 항목 추가";
+
+  button.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      addLoggingItemAfterKey(
+        itemKey
+      );
+    }
+  );
+
+  slot.appendChild(
+    button
+  );
+
+  return slot;
+}
+
+
+/* ---------------------------------------------------------
+   Decorate the CURRENT renderer instead of replacing it.
+--------------------------------------------------------- */
+
+const renderLoggingItemListBeforeInsertReorder =
+  renderLoggingItemList;
+
+
+function decorateLoggingItemRowsForInsertReorder() {
+  if (
+    !elements.itemList
+  ) {
+    return;
+  }
+
+  elements.itemList
+    .querySelectorAll(
+      ".log-sheet-item-insert-slot"
+    )
+    .forEach(
+      slot =>
+        slot.remove()
+    );
+
+  const items =
+    buildLoggingItemList();
+
+  const rows = [
+    ...elements.itemList
+      .querySelectorAll(
+        ".log-sheet-item-row"
+      )
+  ];
+
+  rows.forEach(
+    (
+      row,
+      index
+    ) => {
+      const item =
+        items[
+          index
+        ];
+
+      if (!item) {
+        return;
+      }
+
+      const itemKey =
+        getLoggingItemDraftKey(
+          item
+        );
+
+      row.dataset
+        .loggingItemKey =
+        itemKey;
+
+      row.querySelector(
+        ".log-sheet-item-row__drag-handle"
+      )?.remove();
+
+      if (
+        !row.classList.contains(
+          "is-editing"
+        )
+      ) {
+        row.appendChild(
+          createLoggingItemGripHandle(
+            row,
+            item
+          )
+        );
+
+        row.after(
+          createLoggingItemInsertSlot(
+            item
+          )
+        );
+      }
+    }
+  );
+}
+
+
+renderLoggingItemList =
+  function renderLoggingItemListWithInsertReorder() {
+    const result =
+      renderLoggingItemListBeforeInsertReorder();
+
+    decorateLoggingItemRowsForInsertReorder();
+
+    return result;
+  };
+
+
+
 
 /* 기존 미리보기 갱신 함수는 아래에서 그대로 사용 */
 function renderGridIfPreviewVisible() {
@@ -8998,6 +10689,8 @@ function cloneGridForPreviewWindow() {
 
     applyLoggingItemDraftsToPreview();
 
+    applyLoggingItemOrderToPreview();
+
     applyAddedLoggingItemsToPreview();
 
   } finally {
@@ -11054,6 +12747,8 @@ function setPreviewOpen(
     renderGrid();
 
     applyLoggingItemDraftsToPreview();
+
+    applyLoggingItemOrderToPreview();
 
     applyAddedLoggingItemsToPreview();
   }

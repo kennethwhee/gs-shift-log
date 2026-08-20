@@ -1576,3 +1576,370 @@ button {
     min-width: 1060px;
   }
 }
+
+/* =========================================================
+   [LOG-SHEET-ITEM-INSERT-REORDER-V3]
+   Gap insert button + dedicated far-right grip handle
+========================================================= */
+
+.log-sheet-item-row {
+  position: relative !important;
+
+  box-sizing: border-box !important;
+
+  padding-right:
+    50px !important;
+}
+
+
+.log-sheet-item-row
+> .log-sheet-item-row__drag-handle {
+  position: absolute !important;
+
+  top: 50% !important;
+  right: 8px !important;
+
+  display: inline-grid !important;
+
+  width: 30px !important;
+  min-width: 30px !important;
+
+  height: 30px !important;
+  min-height: 30px !important;
+
+  place-items: center !important;
+
+  padding: 0 !important;
+
+  border:
+    1px solid
+    #c6d6e5 !important;
+
+  border-radius:
+    7px !important;
+
+  background:
+    #f8fafc !important;
+
+  color:
+    transparent !important;
+
+  font-size:
+    0 !important;
+
+  line-height:
+    0 !important;
+
+  cursor:
+    grab !important;
+
+  touch-action:
+    none !important;
+
+  opacity:
+    0.82;
+
+  box-shadow:
+    none !important;
+
+  transform:
+    translateY(-50%) !important;
+
+  z-index:
+    3;
+}
+
+
+.log-sheet-item-row
+> .log-sheet-item-row__drag-handle::before {
+  display: block;
+
+  width: 15px;
+  height: 18px;
+
+  background-image:
+    radial-gradient(
+      circle,
+      #607b96 1.55px,
+      transparent 1.8px
+    );
+
+  background-position:
+    center;
+
+  background-size:
+    7px 6px;
+
+  content: "";
+}
+
+
+.log-sheet-item-row
+> .log-sheet-item-row__drag-handle:hover {
+  border-color:
+    #7ba5ca !important;
+
+  background:
+    #edf6fd !important;
+
+  opacity:
+    1;
+}
+
+
+.log-sheet-item-row
+> .log-sheet-item-row__drag-handle:active {
+  cursor:
+    grabbing !important;
+
+  background:
+    #e3f0fa !important;
+}
+
+
+.log-sheet-item-row.is-dragging {
+  z-index:
+    4;
+
+  background:
+    #eaf4fd !important;
+
+  box-shadow:
+    0 5px 15px
+    rgba(37, 91, 138, 0.12);
+
+  opacity:
+    0.78;
+}
+
+
+.log-sheet-item-row.is-drop-before::before,
+.log-sheet-item-row.is-drop-after::after {
+  position: absolute;
+
+  right: 8px;
+  left: 8px;
+
+  z-index: 8;
+
+  height: 2px;
+
+  border-radius:
+    999px;
+
+  background:
+    #287bc1;
+
+  content: "";
+
+  pointer-events:
+    none;
+}
+
+
+.log-sheet-item-row.is-drop-before::before {
+  top: -2px;
+}
+
+
+.log-sheet-item-row.is-drop-after::after {
+  bottom: -2px;
+}
+
+
+.log-sheet-item-row.is-drop-blocked {
+  background:
+    #fff4f4 !important;
+
+  outline:
+    1px dashed
+    #d78989;
+}
+
+
+/* ---------------------------------------------------------
+   Insert gap
+--------------------------------------------------------- */
+
+.log-sheet-item-insert-slot {
+  position: relative;
+
+  display: flex;
+
+  width: 100%;
+  height: 12px;
+
+  box-sizing:
+    border-box;
+
+  align-items: center;
+  justify-content: center;
+
+  margin:
+    -6px
+    0;
+
+  z-index:
+    5;
+}
+
+
+.log-sheet-item-insert-slot::before {
+  position: absolute;
+
+  top: 50%;
+  right: 12px;
+  left: 12px;
+
+  height: 1px;
+
+  background:
+    transparent;
+
+  content: "";
+
+  transform:
+    translateY(-50%);
+
+  transition:
+    background
+    0.14s ease;
+}
+
+
+.log-sheet-item-insert-button {
+  position: relative;
+
+  display: inline-grid;
+
+  width: 22px !important;
+  min-width: 22px !important;
+
+  height: 22px !important;
+  min-height: 22px !important;
+
+  place-items: center;
+
+  padding: 0 !important;
+
+  border:
+    1px solid
+    #7ea9cf !important;
+
+  border-radius:
+    999px !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #246da9 !important;
+
+  font-family:
+    inherit !important;
+
+  font-size:
+    15px !important;
+
+  font-weight:
+    950 !important;
+
+  line-height:
+    1 !important;
+
+  cursor:
+    pointer;
+
+  opacity:
+    0;
+
+  transform:
+    scale(0.82);
+
+  transition:
+    opacity
+      0.14s ease,
+    transform
+      0.14s ease,
+    background
+      0.14s ease;
+}
+
+
+.log-sheet-item-insert-slot:hover::before,
+.log-sheet-item-insert-slot:focus-within::before {
+  background:
+    #c9dceb;
+}
+
+
+.log-sheet-item-insert-slot:hover
+.log-sheet-item-insert-button,
+.log-sheet-item-insert-button:focus-visible {
+  opacity:
+    1;
+
+  transform:
+    scale(1);
+}
+
+
+.log-sheet-item-insert-button:hover {
+  background:
+    #edf6fd !important;
+}
+
+
+/* Edit mode keeps the existing current editor layout. */
+
+.log-sheet-item-row.is-editing {
+  padding-right:
+    10px !important;
+}
+
+
+@media (hover: none) {
+  .log-sheet-item-insert-button {
+    opacity:
+      0.68;
+
+    transform:
+      scale(0.9);
+  }
+}
+
+
+@media (max-width: 768px) {
+  .log-sheet-item-row {
+    padding-right:
+      54px !important;
+  }
+
+
+  .log-sheet-item-row
+  > .log-sheet-item-row__drag-handle {
+    right:
+      9px !important;
+
+    width:
+      34px !important;
+
+    min-width:
+      34px !important;
+
+    height:
+      34px !important;
+
+    min-height:
+      34px !important;
+
+    border-radius:
+      9px !important;
+  }
+
+
+  .log-sheet-item-row.is-editing {
+    padding-right:
+      10px !important;
+  }
+}
