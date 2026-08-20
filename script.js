@@ -8136,7 +8136,11 @@ async function migrateCurrentShiftLegacyLogsManually(
       바로 아래 manual_migrate에 그 결과가 사용된다.
     */
     rebuildLegacyLeaderLogFromMemberLogs(
-      syncLeaderRebuildSourceLogs
+      syncLeaderRebuildSourceLogs,
+      {
+        cleanupCombinedLeaderResiduals:
+          true
+      }
     );
 
 
@@ -18146,7 +18150,8 @@ async function loadLegacyLogsForSelectedDate() {
 ========================================================= */
 
 function rebuildLegacyLeaderLogFromMemberLogs(
-  convertedLogs
+  convertedLogs,
+  options = {}
 ) {
   if (
     !Array.isArray(
@@ -18786,10 +18791,130 @@ function rebuildLegacyLeaderLogFromMemberLogs(
     파트장 직접 업무로 유지한다.
   ====================================================== */
 
-  const leaderOwnEntries =
+  /* =====================================================
+    [LEGACY-SYNC-LEADER-RESIDUAL-CLEANUP]
+
+    수동 동기화에서만 파트장 통합본문의 잔여 구분 제목을
+    팀원 원본과 비교하기 전에 제거한다.
+
+    예:
+    - ※ #1 Boiler 운전 및 작업사항
+    - ※ #2 Boiler 운전 및 작업사항
+    - ※ TBN & BOP 운전 및 작업사항
+
+    구분 제목이 실제 업무 뒤에 붙어 있던 경우에는
+    업무 본문만 남긴 뒤 기존 isSameSourceEntry() 비교를 수행한다.
+
+    options를 주지 않는 기존 호출은 false이므로
+    2026-07-21 이전 일반 조회 재구성 동작은 변경하지 않는다.
+  ====================================================== */
+
+  const cleanupCombinedLeaderResiduals =
+    options
+      ?.cleanupCombinedLeaderResiduals ===
+        true;
+
+
+  const stripLegacyLeaderSectionHeading = (
+    content
+  ) => {
+    const originalContent =
+      String(
+        content ||
+        ""
+      )
+        .replace(
+          /\r\n/g,
+          "\n"
+        )
+        .replace(
+          /\r/g,
+          "\n"
+        );
+
+
+    if (
+      !cleanupCombinedLeaderResiduals ||
+      !originalContent.trim()
+    ) {
+      return originalContent.trim();
+    }
+
+
+    const headingAtLineEndPattern =
+      /(?:^|\s+)(?:※\s*)?(?:#\s*[12]\s*(?:BOILER|BLR)|TBN\s*(?:&|\/|AND)\s*BOP)\s*운전\s*및\s*작업\s*사항\s*[:：-]?\s*$/iu;
+
+
+    return originalContent
+      .split(
+        "\n"
+      )
+      .map(
+        line => {
+          return String(
+            line ||
+            ""
+          )
+            .replace(
+              headingAtLineEndPattern,
+              ""
+            )
+            .trimEnd();
+        }
+      )
+      .filter(
+        line => {
+          return Boolean(
+            String(
+              line ||
+              ""
+            ).trim()
+          );
+        }
+      )
+      .join(
+        "\n"
+      )
+      .trim();
+  };
+
+
+  const rawLeaderOwnEntries =
     collectLogEntries(
       leaderLog
-    )
+    );
+
+
+  const cleanedLeaderOwnEntries =
+    cleanupCombinedLeaderResiduals
+      ? rawLeaderOwnEntries
+          .map(
+            entry => {
+              return {
+                ...entry,
+
+                content:
+                  stripLegacyLeaderSectionHeading(
+                    entry?.content
+                  )
+              };
+            }
+          )
+          .filter(
+            entry => {
+              return Boolean(
+                String(
+                  entry?.content ||
+                  ""
+                ).trim()
+              );
+            }
+          )
+      : rawLeaderOwnEntries;
+
+
+  const leaderOwnEntries =
+    cleanedLeaderOwnEntries
       .filter(
         (
           leaderEntry
