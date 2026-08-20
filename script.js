@@ -8059,6 +8059,117 @@ async function migrateCurrentShiftLegacyLogsManually(
 
 
   /* =====================================================
+    [LEGACY-SYNC-LEADER-REBUILD]
+
+    수동 "동기화"에서 파트장을 선택한 경우에만
+    기존 2026-07-21 이전 자료와 같은 재구성 방식을 적용한다.
+
+    중요:
+    - 일반 기존일지 조회 로직은 변경하지 않는다.
+    - 검색/상세/오전회의용 legacy 조회도 변경하지 않는다.
+    - 이번 날짜 + 이번 Shift의 raw legacy만 사용한다.
+    - 파트장 저장본만 팀원 원본 기준으로 재구성한다.
+
+    재구성 기준은 기존 함수 그대로:
+    - TGO·BCO1·BCO2: TM·업무·비고 전체
+    - TO·BO1·BO2: TM만
+    - 팀원 원본과 겹치는 파트장 통합본문 제거
+    - 남는 내용만 파트장 직접 업무로 유지
+  ====================================================== */
+
+  const shouldRebuildLeaderForManualSync =
+    targetLegacyLogs.some(
+      log => {
+        return (
+          normalizeMemberLogRole(
+            log?.role
+          ) ===
+          "파트장"
+        );
+      }
+    );
+
+
+  if (
+    shouldRebuildLeaderForManualSync &&
+    typeof rebuildLegacyLeaderLogFromMemberLogs ===
+      "function"
+  ) {
+    const syncLeaderRebuildSourceLogs =
+      appState.logs.filter(
+        log => {
+          const logDate =
+            String(
+              log?.date ||
+              ""
+            ).trim();
+
+
+          const logShift =
+            String(
+              log?.shift ||
+              ""
+            )
+              .trim()
+              .toUpperCase();
+
+
+          return (
+            logDate ===
+              workDate &&
+
+            logShift ===
+              shift &&
+
+            isReadOnlyLegacyShiftLog(
+              log
+            )
+          );
+        }
+      );
+
+
+    /*
+      targetLegacyLogs와 appState.logs는
+      같은 legacy 객체를 참조하므로,
+      여기서 파트장 객체를 재구성하면
+      바로 아래 manual_migrate에 그 결과가 사용된다.
+    */
+    rebuildLegacyLeaderLogFromMemberLogs(
+      syncLeaderRebuildSourceLogs
+    );
+
+
+    console.log(
+      "현재 Shift 수동 동기화 파트장 재구성:",
+      {
+        workDate,
+
+        shift,
+
+        sourceRoles:
+          syncLeaderRebuildSourceLogs.map(
+            log => {
+              return normalizeMemberLogRole(
+                log?.role
+              );
+            }
+          ),
+
+        targetRoles:
+          targetLegacyLogs.map(
+            log => {
+              return normalizeMemberLogRole(
+                log?.role
+              );
+            }
+          )
+      }
+    );
+  }
+
+
+  /* =====================================================
     이미 D1에 존재하는 날짜·근무·보직 확인
   ====================================================== */
 
