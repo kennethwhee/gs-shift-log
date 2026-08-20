@@ -87069,6 +87069,11 @@ function getAuxiliaryMaterialElements() {
         "loadAuxiliaryMaterialHistoryButton"
       ),
 
+    refreshButton:
+      document.getElementById(
+        "refreshAuxiliaryMaterialHistoryButton"
+      ),
+
     queryButton:
       document.getElementById(
         "queryAuxiliaryMaterialOisButton"
@@ -94534,11 +94539,21 @@ async function loadAuxiliaryMaterialHistory(
     rangeKey;
 
   if (
-    elements.loadButton &&
     !isSilent
   ) {
-    elements.loadButton.disabled =
-      true;
+    if (
+      elements.loadButton
+    ) {
+      elements.loadButton.disabled =
+        true;
+    }
+
+    if (
+      elements.refreshButton
+    ) {
+      elements.refreshButton.disabled =
+        true;
+    }
   }
 
   if (
@@ -94722,11 +94737,21 @@ async function loadAuxiliaryMaterialHistory(
     }
 
     if (
-      elements.loadButton &&
       !isSilent
     ) {
-      elements.loadButton.disabled =
-        false;
+      if (
+        elements.loadButton
+      ) {
+        elements.loadButton.disabled =
+          false;
+      }
+
+      if (
+        elements.refreshButton
+      ) {
+        elements.refreshButton.disabled =
+          false;
+      }
     }
   }
 }
@@ -96407,6 +96432,67 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     "엑셀 등록";
 
   /*
+    [AUXILIARY-MATERIAL-AUTO-REFRESH]
+
+    저장자료 새로고침:
+    - OIS 재조회는 실행하지 않는다.
+    - 현재 선택 월/기간의 D1 저장자료만 다시 읽는다.
+    - 모바일 모니터링 화면에는 생성하지 않는다.
+  */
+  let refreshButton =
+    document.getElementById(
+      "refreshAuxiliaryMaterialHistoryButton"
+    );
+
+  if (
+    !refreshButton
+  ) {
+    refreshButton =
+      document.createElement(
+        "button"
+      );
+
+    refreshButton.type =
+      "button";
+
+    refreshButton.id =
+      "refreshAuxiliaryMaterialHistoryButton";
+
+    refreshButton.className =
+      "is-secondary auxiliary-material-refresh-button";
+
+    refreshButton.textContent =
+      "새로고침";
+
+    refreshButton.title =
+      "현재 선택 월/기간의 저장자료 새로고침";
+  }
+
+  if (
+    refreshButton.dataset
+      .auxiliaryMaterialRefreshBound !==
+      "true"
+  ) {
+    refreshButton.addEventListener(
+      "click",
+      () => {
+        loadAuxiliaryMaterialHistory()
+          .catch(
+            () => {
+              /*
+                오류 표시는 조회 함수가 담당한다.
+              */
+            }
+          );
+      }
+    );
+
+    refreshButton.dataset
+      .auxiliaryMaterialRefreshBound =
+      "true";
+  }
+
+  /*
     엑셀 다운로드 버튼
   */
   let downloadButton =
@@ -96571,11 +96657,12 @@ function prepareAuxiliaryMaterialPcCompactControls() {
 
   /*
     실제 DOM 순서:
-    저장자료 → OIS → 엑셀 등록 → 엑셀 다운로드
+    저장자료 → 새로고침 → OIS → 엑셀 등록 → 엑셀 다운로드
     → Slurry 고정값 → 상태 안내
   */
   actionControls.append(
     loadButton,
+    refreshButton,
     queryButton,
     excelButton,
     downloadButton,
@@ -97486,20 +97573,224 @@ function isAuxiliaryMaterialOisRangeStillSelected() {
 
 
 function scheduleAuxiliaryMaterialOisPolling() {
-  /*
-    부재료 OIS 진행 상태는
-    자동으로 반복 확인하지 않는다.
-  */
-  stopAuxiliaryMaterialOisPolling();
+  if (
+    !auxiliaryMaterialOisQueryState
+      .isRunning
+  ) {
+    return;
+  }
+
+  if (
+    auxiliaryMaterialOisQueryState
+      .timer
+  ) {
+    window.clearTimeout(
+      auxiliaryMaterialOisQueryState
+        .timer
+    );
+  }
+
+  auxiliaryMaterialOisQueryState.timer =
+    window.setTimeout(
+      pollAuxiliaryMaterialOisProgress,
+      2000
+    );
 }
 
 
 async function pollAuxiliaryMaterialOisProgress() {
-  /*
-    저장자료 확인은 사용자가
-    보기 버튼을 눌렀을 때만 실행한다.
-  */
-  stopAuxiliaryMaterialOisPolling();
+  if (
+    !auxiliaryMaterialOisQueryState
+      .isRunning
+  ) {
+    return;
+  }
+
+  auxiliaryMaterialOisQueryState.timer =
+    null;
+
+  auxiliaryMaterialOisQueryState
+    .pollCount +=
+    1;
+
+  if (
+    !isAuxiliaryMaterialOisRangeStillSelected()
+  ) {
+    stopAuxiliaryMaterialOisPolling();
+
+    setAuxiliaryMaterialStatus(
+      (
+        "OIS 기준일/기간이 변경되었습니다. " +
+        "진행 중인 요청은 계속 저장되며 " +
+        "완료 후 새로고침으로 확인할 수 있습니다."
+      ),
+      "idle"
+    );
+
+    return;
+  }
+
+  try {
+    await refreshAuxiliaryMaterialOisStatusSlice();
+
+    const counts =
+      getAuxiliaryMaterialOisProgressCounts();
+
+    if (
+      counts.finished >=
+        counts.total &&
+      counts.total >
+        0
+    ) {
+      let historyResult =
+        null;
+
+      try {
+        historyResult =
+          await loadAuxiliaryMaterialHistory({
+            silent:
+              true
+          });
+
+      } catch (
+        historyError
+      ) {
+        console.warn(
+          "부재료 OIS 완료 후 저장자료 자동 새로고침 실패:",
+          historyError
+        );
+      }
+
+      const savedDateCount =
+        Number(
+          historyResult?.summary
+            ?.savedDateCount ||
+          0
+        );
+
+      stopAuxiliaryMaterialOisPolling();
+
+      if (
+        counts.failed >
+        0
+      ) {
+        setAuxiliaryMaterialStatus(
+          (
+            "부재료 OIS 조회가 일부 완료되었습니다. " +
+            `완료 ${counts.complete}/${counts.total}일 · ` +
+            `실패 ${counts.failed}일` +
+            (
+              historyResult
+                ? ` · 현재 목록 ${savedDateCount}일 저장`
+                : ""
+            )
+          ),
+          "error"
+        );
+
+      } else {
+        setAuxiliaryMaterialStatus(
+          (
+            "부재료 OIS 조회와 D1 저장이 완료되었습니다. " +
+            (
+              historyResult
+                ? `${savedDateCount}일 저장 · 목록 자동 새로고침 완료`
+                : "목록 자동 새로고침은 실패했습니다."
+            )
+          ),
+          historyResult
+            ? "complete"
+            : "idle"
+        );
+
+        if (
+          typeof showToast ===
+            "function"
+        ) {
+          showToast(
+            historyResult
+              ? "부재료 OIS 저장 완료 · 목록을 새로고침했습니다."
+              : "부재료 OIS 저장이 완료되었습니다."
+          );
+        }
+      }
+
+      return;
+    }
+
+    if (
+      auxiliaryMaterialOisQueryState
+        .pollCount >=
+      auxiliaryMaterialOisQueryState
+        .maxPollCount
+    ) {
+      stopAuxiliaryMaterialOisPolling();
+
+      setAuxiliaryMaterialStatus(
+        (
+          "부재료 OIS 조회가 아직 진행 중입니다. " +
+          "잠시 후 새로고침 버튼으로 저장자료를 확인해 주세요."
+        ),
+        "idle"
+      );
+
+      return;
+    }
+
+    setAuxiliaryMaterialStatus(
+      (
+        "OIS 조회 · D1 저장 중 " +
+        `(${counts.complete}/${counts.total}일 완료` +
+        `${
+          counts.processing > 0
+            ? ` · ${counts.processing}일 처리 중`
+            : ""
+        }` +
+        `${
+          counts.pending > 0
+            ? ` · ${counts.pending}일 대기`
+            : ""
+        }` +
+        `${
+          counts.failed > 0
+            ? ` · ${counts.failed}일 실패`
+            : ""
+        })`
+      ),
+      "loading"
+    );
+
+    scheduleAuxiliaryMaterialOisPolling();
+
+  } catch (
+    error
+  ) {
+    console.warn(
+      "부재료 OIS 진행 상태 확인 실패:",
+      error
+    );
+
+    if (
+      auxiliaryMaterialOisQueryState
+        .pollCount >=
+      auxiliaryMaterialOisQueryState
+        .maxPollCount
+    ) {
+      stopAuxiliaryMaterialOisPolling();
+
+      setAuxiliaryMaterialStatus(
+        (
+          "부재료 OIS 진행 상태 확인을 종료했습니다. " +
+          "새로고침 버튼으로 저장자료를 확인해 주세요."
+        ),
+        "idle"
+      );
+
+      return;
+    }
+
+    scheduleAuxiliaryMaterialOisPolling();
+  }
 }
 
 async function createAuxiliaryMaterialOisQuery() {
@@ -97651,15 +97942,33 @@ async function createAuxiliaryMaterialOisQuery() {
       );
 
     /*
-      등록 응답까지만 확인한다.
-      이후 상태 폴링과 저장자료 GET은 하지 않는다.
-    */
-    stopAuxiliaryMaterialOisPolling();
+      새 요청이 없으면 즉시 종료하고
+      현재 선택 월/기간의 D1 저장자료만 다시 읽는다.
 
+      새 요청 또는 진행 중 요청이 있으면
+      2초 간격으로 상태만 확인하고,
+      완료 시 목록을 한 번 자동 새로고침한다.
+    */
     if (
       createdCount < 1 &&
       reusedCount < 1
     ) {
+      stopAuxiliaryMaterialOisPolling();
+
+      try {
+        await loadAuxiliaryMaterialHistory({
+          silent:
+            true
+        });
+
+      } catch (
+        historyError
+      ) {
+        console.warn(
+          "부재료 저장자료 즉시 새로고침 실패:",
+          historyError
+        );
+      }
       setAuxiliaryMaterialStatus(
         (
           `선택 범위 ${savedCount}일은 ` +
@@ -97672,26 +97981,18 @@ async function createAuxiliaryMaterialOisQuery() {
       return result;
     }
 
-    const isPeriodMode =
-      getAuxiliaryMaterialElements()
-        .periodModeInput
-        ?.checked === true;
-
-    const viewButtonText =
-      isPeriodMode
-        ? "기간 저장자료 보기"
-        : "월 저장자료 보기";
 
     setAuxiliaryMaterialStatus(
       (
         `저장자료 ${savedCount}일 제외 · ` +
         `신규 OIS ${createdCount}일 · ` +
         `이미 진행 중 ${reusedCount}일. ` +
-        "자동 진행 확인은 하지 않습니다. " +
-        `완료 후 '${viewButtonText}'를 눌러 확인하세요.`
+        "완료 여부를 자동 확인하고 저장 완료 시 목록을 새로고침합니다."
       ),
-      "idle"
+      "loading"
     );
+
+    scheduleAuxiliaryMaterialOisPolling();
 
     if (
       typeof showToast ===
