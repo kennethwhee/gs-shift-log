@@ -174,6 +174,15 @@ body {
     min-height:
       0 !important;
 
+    box-sizing:
+      border-box !important;
+
+    padding-right:
+      8px !important;
+
+    scrollbar-gutter:
+      stable !important;
+
     overflow-y:
       auto !important;
 
@@ -376,18 +385,20 @@ body {
    Main inspection intro card
 ========================================================= */
 
+/* [INSPECTION-SIDEBAR-CLIP-INTRO-V1]
+   - stable scrollbar gutter prevents right-edge clipping
+   - intro title/subtitle are compact and single-line
+*/
+
 .inspection-sidebar__intro {
   position: relative !important;
 
-  min-height: 78px !important;
+  min-height: 62px !important;
 
   box-sizing: border-box !important;
 
   padding:
-    16px
-    56px
-    16px
-    62px !important;
+    10px 50px 10px 50px !important;
 
   border:
     1px solid
@@ -411,12 +422,12 @@ body {
 .inspection-sidebar__intro::before {
   position: absolute !important;
   top: 50% !important;
-  left: 15px !important;
+  left: 12px !important;
 
   display: block !important;
 
-  width: 34px !important;
-  height: 34px !important;
+  width: 30px !important;
+  height: 30px !important;
 
   box-sizing: border-box !important;
 
@@ -440,7 +451,7 @@ body {
     center !important;
 
   background-size:
-    20px 20px !important;
+    18px 18px !important;
 
   content:
     "" !important;
@@ -454,7 +465,7 @@ body {
   display: block !important;
 
   margin-top:
-    6px !important;
+    3px !important;
 
   color:
     #56789f !important;
@@ -463,16 +474,25 @@ body {
     "INSPECTION LOG" !important;
 
   font-size:
-    9px !important;
+    8px !important;
 
   font-weight:
     950 !important;
 
   line-height:
-    1 !important;
+    1.1 !important;
 
   letter-spacing:
-    0.14em !important;
+    0.07em !important;
+
+  white-space:
+    nowrap !important;
+
+  overflow:
+    hidden !important;
+
+  text-overflow:
+    clip !important;
 }
 
 
@@ -487,16 +507,25 @@ body {
     var(--ih-navy) !important;
 
   font-size:
-    17px !important;
+    15px !important;
 
   font-weight:
     950 !important;
 
   line-height:
-    1.2 !important;
+    1.15 !important;
 
   letter-spacing:
     -0.02em !important;
+
+  white-space:
+    nowrap !important;
+
+  overflow:
+    hidden !important;
+
+  text-overflow:
+    ellipsis !important;
 }
 
 
