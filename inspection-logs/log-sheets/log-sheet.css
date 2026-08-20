@@ -1578,45 +1578,175 @@ button {
 }
 
 /* =========================================================
-   [LOG-SHEET-ITEM-INSERT-REORDER-V3]
-   Gap insert button + dedicated far-right grip handle
+   [LOG-SHEET-ITEM-INSERT-REORDER-V5]
+   Logging row UX:
+   - wider logging interval select
+   - hover gap insert
+   - delete button
+   - four-dot grip
+   - floating drag ghost
 ========================================================= */
 
-.log-sheet-item-row {
-  position: relative !important;
 
-  box-sizing: border-box !important;
+/* ---------------------------------------------------------
+   Logging interval text clipping fix
+--------------------------------------------------------- */
+
+.log-sheet-logging-interval
+  > select {
+  box-sizing:
+    border-box !important;
+
+  width:
+    88px !important;
+
+  min-width:
+    88px !important;
 
   padding-right:
-    50px !important;
+    28px !important;
+
+  text-overflow:
+    clip !important;
+}
+
+
+/* ---------------------------------------------------------
+   Logging row actions
+--------------------------------------------------------- */
+
+.log-sheet-item-row {
+  position:
+    relative !important;
+
+  box-sizing:
+    border-box !important;
+
+  padding-right:
+    92px !important;
+}
+
+
+.log-sheet-item-row
+> .log-sheet-item-row__delete-button,
+.log-sheet-item-row
+> .log-sheet-item-row__drag-handle {
+  position:
+    absolute !important;
+
+  top:
+    50% !important;
+
+  display:
+    inline-grid !important;
+
+  width:
+    30px !important;
+
+  min-width:
+    30px !important;
+
+  height:
+    30px !important;
+
+  min-height:
+    30px !important;
+
+  box-sizing:
+    border-box !important;
+
+  place-items:
+    center !important;
+
+  padding:
+    0 !important;
+
+  border-radius:
+    7px !important;
+
+  box-shadow:
+    none !important;
+
+  transform:
+    translateY(-50%) !important;
+
+  z-index:
+    3;
+}
+
+
+.log-sheet-item-row
+> .log-sheet-item-row__delete-button {
+  right:
+    46px !important;
+
+  border:
+    1px solid
+    #e1c8c8 !important;
+
+  background:
+    #fffafa !important;
+
+  color:
+    transparent !important;
+
+  font-size:
+    0 !important;
+
+  line-height:
+    0 !important;
+
+  cursor:
+    pointer !important;
+}
+
+
+.log-sheet-item-row
+> .log-sheet-item-row__delete-button::before {
+  display:
+    block;
+
+  width:
+    14px;
+
+  height:
+    14px;
+
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b85a5a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5'/%3E%3C/svg%3E");
+
+  background-repeat:
+    no-repeat;
+
+  background-position:
+    center;
+
+  background-size:
+    14px 14px;
+
+  content:
+    "";
+}
+
+
+.log-sheet-item-row
+> .log-sheet-item-row__delete-button:hover {
+  border-color:
+    #d79e9e !important;
+
+  background:
+    #fff0f0 !important;
 }
 
 
 .log-sheet-item-row
 > .log-sheet-item-row__drag-handle {
-  position: absolute !important;
-
-  top: 50% !important;
-  right: 8px !important;
-
-  display: inline-grid !important;
-
-  width: 30px !important;
-  min-width: 30px !important;
-
-  height: 30px !important;
-  min-height: 30px !important;
-
-  place-items: center !important;
-
-  padding: 0 !important;
+  right:
+    8px !important;
 
   border:
     1px solid
     #c6d6e5 !important;
-
-  border-radius:
-    7px !important;
 
   background:
     #f8fafc !important;
@@ -1637,40 +1767,51 @@ button {
     none !important;
 
   opacity:
-    0.82;
-
-  box-shadow:
-    none !important;
-
-  transform:
-    translateY(-50%) !important;
-
-  z-index:
-    3;
+    0.88;
 }
 
 
+/* exactly four dots: 2 x 2 */
+
 .log-sheet-item-row
 > .log-sheet-item-row__drag-handle::before {
-  display: block;
+  position:
+    absolute;
 
-  width: 15px;
-  height: 18px;
+  top:
+    50%;
 
-  background-image:
-    radial-gradient(
-      circle,
-      #607b96 1.55px,
-      transparent 1.8px
+  left:
+    50%;
+
+  display:
+    block;
+
+  width:
+    3px;
+
+  height:
+    3px;
+
+  border-radius:
+    50%;
+
+  background:
+    #607b96;
+
+  box-shadow:
+    6px 0 0 #607b96,
+    0 6px 0 #607b96,
+    6px 6px 0 #607b96;
+
+  content:
+    "";
+
+  transform:
+    translate(
+      -4.5px,
+      -4.5px
     );
-
-  background-position:
-    center;
-
-  background-size:
-    7px 6px;
-
-  content: "";
 }
 
 
@@ -1697,6 +1838,10 @@ button {
 }
 
 
+/* ---------------------------------------------------------
+   Drag feedback
+--------------------------------------------------------- */
+
 .log-sheet-item-row.is-dragging {
   z-index:
     4;
@@ -1705,24 +1850,113 @@ button {
     #eaf4fd !important;
 
   box-shadow:
-    0 5px 15px
-    rgba(37, 91, 138, 0.12);
+    inset 0 0 0 1px
+    rgba(
+      62,
+      127,
+      185,
+      0.22
+    );
 
   opacity:
-    0.78;
+    0.28 !important;
+
+  transition:
+    opacity
+      0.1s ease,
+    background
+      0.1s ease;
+}
+
+
+.log-sheet-item-row__drag-ghost {
+  position:
+    fixed !important;
+
+  z-index:
+    99999 !important;
+
+  margin:
+    0 !important;
+
+  pointer-events:
+    none !important;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.96
+    ) !important;
+
+  border:
+    1px solid
+    #79a8cf !important;
+
+  border-radius:
+    8px !important;
+
+  box-shadow:
+    0 14px 32px
+    rgba(
+      32,
+      78,
+      119,
+      0.24
+    ) !important;
+
+  opacity:
+    0.92 !important;
+
+  transform:
+    scale(
+      1.01
+    ) !important;
+
+  transform-origin:
+    center !important;
+
+  pointer-events:
+    none !important;
+
+  will-change:
+    top,
+    left;
+
+  transition:
+    box-shadow
+      0.12s ease,
+    opacity
+      0.12s ease,
+    transform
+      0.12s ease;
+}
+
+
+.log-sheet-item-row__drag-ghost
+button {
+  pointer-events:
+    none !important;
 }
 
 
 .log-sheet-item-row.is-drop-before::before,
 .log-sheet-item-row.is-drop-after::after {
-  position: absolute;
+  position:
+    absolute;
 
-  right: 8px;
-  left: 8px;
+  right:
+    8px;
 
-  z-index: 8;
+  left:
+    8px;
 
-  height: 2px;
+  z-index:
+    8;
+
+  height:
+    3px;
 
   border-radius:
     999px;
@@ -1730,7 +1964,8 @@ button {
   background:
     #287bc1;
 
-  content: "";
+  content:
+    "";
 
   pointer-events:
     none;
@@ -1738,12 +1973,14 @@ button {
 
 
 .log-sheet-item-row.is-drop-before::before {
-  top: -2px;
+  top:
+    -2px;
 }
 
 
 .log-sheet-item-row.is-drop-after::after {
-  bottom: -2px;
+  bottom:
+    -2px;
 }
 
 
@@ -1762,18 +1999,26 @@ button {
 --------------------------------------------------------- */
 
 .log-sheet-item-insert-slot {
-  position: relative;
+  position:
+    relative;
 
-  display: flex;
+  display:
+    flex;
 
-  width: 100%;
-  height: 12px;
+  width:
+    100%;
+
+  height:
+    12px;
 
   box-sizing:
     border-box;
 
-  align-items: center;
-  justify-content: center;
+  align-items:
+    center;
+
+  justify-content:
+    center;
 
   margin:
     -6px
@@ -1785,42 +2030,60 @@ button {
 
 
 .log-sheet-item-insert-slot::before {
-  position: absolute;
+  position:
+    absolute;
 
-  top: 50%;
-  right: 12px;
-  left: 12px;
+  top:
+    50%;
 
-  height: 1px;
+  right:
+    12px;
+
+  left:
+    12px;
+
+  height:
+    1px;
 
   background:
     transparent;
 
-  content: "";
+  content:
+    "";
 
   transform:
     translateY(-50%);
 
   transition:
     background
-    0.14s ease;
+      0.14s ease;
 }
 
 
 .log-sheet-item-insert-button {
-  position: relative;
+  position:
+    relative;
 
-  display: inline-grid;
+  display:
+    inline-grid;
 
-  width: 22px !important;
-  min-width: 22px !important;
+  width:
+    22px !important;
 
-  height: 22px !important;
-  min-height: 22px !important;
+  min-width:
+    22px !important;
 
-  place-items: center;
+  height:
+    22px !important;
 
-  padding: 0 !important;
+  min-height:
+    22px !important;
+
+  place-items:
+    center;
+
+  padding:
+    0 !important;
 
   border:
     1px solid
@@ -1854,7 +2117,9 @@ button {
     0;
 
   transform:
-    scale(0.82);
+    scale(
+      0.82
+    );
 
   transition:
     opacity
@@ -1880,7 +2145,9 @@ button {
     1;
 
   transform:
-    scale(1);
+    scale(
+      1
+    );
 }
 
 
@@ -1890,7 +2157,7 @@ button {
 }
 
 
-/* Edit mode keeps the existing current editor layout. */
+/* Existing inline editor keeps its current action layout. */
 
 .log-sheet-item-row.is-editing {
   padding-right:
@@ -1899,28 +2166,42 @@ button {
 
 
 @media (hover: none) {
+
   .log-sheet-item-insert-button {
     opacity:
       0.68;
 
     transform:
-      scale(0.9);
+      scale(
+        0.9
+      );
   }
+
 }
 
 
 @media (max-width: 768px) {
+
+  .log-sheet-logging-interval
+    > select {
+    width:
+      92px !important;
+
+    min-width:
+      92px !important;
+  }
+
+
   .log-sheet-item-row {
     padding-right:
-      54px !important;
+      100px !important;
   }
 
 
   .log-sheet-item-row
+  > .log-sheet-item-row__delete-button,
+  .log-sheet-item-row
   > .log-sheet-item-row__drag-handle {
-    right:
-      9px !important;
-
     width:
       34px !important;
 
@@ -1938,8 +2219,23 @@ button {
   }
 
 
+  .log-sheet-item-row
+  > .log-sheet-item-row__delete-button {
+    right:
+      52px !important;
+  }
+
+
+  .log-sheet-item-row
+  > .log-sheet-item-row__drag-handle {
+    right:
+      9px !important;
+  }
+
+
   .log-sheet-item-row.is-editing {
     padding-right:
       10px !important;
   }
+
 }

@@ -6718,6 +6718,1165 @@ function decorateLoggingItemRowsForInsertReorder() {
   );
 }
 
+/* =========================================================
+  [LOG-SHEET-UX-DELETE-DRAG-V5]
+
+  Additional UX layer on top of the current V3 insert/reorder feature.
+
+  - Existing/new Logging items can be deleted from the shared template.
+  - Deleted original rows are omitted from template payload.
+  - When a saved template is loaded, omitted original rows remain deleted.
+  - Drag starts only from the grip.
+  - Dragging shows a floating ghost row.
+========================================================= */
+
+const loggingItemDeletedKeysBySheet =
+  new Map();
+
+
+function getCurrentLoggingItemDeletedKeys() {
+  const sheetKey =
+    String(
+      state.sheetConfig?.key ||
+      ""
+    );
+
+  if (
+    !loggingItemDeletedKeysBySheet
+      .has(
+        sheetKey
+      )
+  ) {
+    loggingItemDeletedKeysBySheet
+      .set(
+        sheetKey,
+        new Set()
+      );
+  }
+
+  return loggingItemDeletedKeysBySheet
+    .get(
+      sheetKey
+    );
+}
+
+
+function setCurrentLoggingItemDeletedKeys(
+  keys
+) {
+  const sheetKey =
+    String(
+      state.sheetConfig?.key ||
+      ""
+    );
+
+  loggingItemDeletedKeysBySheet
+    .set(
+      sheetKey,
+      new Set(
+        (
+          Array.isArray(
+            keys
+          )
+            ? keys
+            : [
+                ...(
+                  keys ||
+                  []
+                )
+              ]
+        )
+          .map(
+            key =>
+              String(
+                key ||
+                ""
+              ).trim()
+          )
+          .filter(
+            Boolean
+          )
+      )
+    );
+}
+
+
+/* ---------------------------------------------------------
+   Filter deleted rows after the current order wrapper.
+--------------------------------------------------------- */
+
+const buildLoggingItemListBeforeDelete =
+  buildLoggingItemList;
+
+
+buildLoggingItemList =
+  function buildLoggingItemListWithDelete() {
+    const deletedKeys =
+      getCurrentLoggingItemDeletedKeys();
+
+    return buildLoggingItemListBeforeDelete()
+      .filter(
+        item =>
+          !deletedKeys.has(
+            getLoggingItemDraftKey(
+              item
+            )
+          )
+      )
+      .map(
+        (
+          item,
+          index
+        ) => ({
+          ...item,
+
+          order:
+            index + 1
+        })
+      );
+  };
+
+
+/* ---------------------------------------------------------
+   Reset deleted state when switching/reloading template state.
+--------------------------------------------------------- */
+
+const resetLoggingTemplateStateBeforeDelete =
+  resetLoggingTemplateState;
+
+
+resetLoggingTemplateState =
+  function resetLoggingTemplateStateWithDelete() {
+    resetLoggingTemplateStateBeforeDelete();
+
+    setCurrentLoggingItemDeletedKeys(
+      []
+    );
+  };
+
+
+/* ---------------------------------------------------------
+   Persist deleted original items by inferring omissions from
+   the saved template item list.
+
+   The existing payload already saves the complete visible list.
+   Therefore an original source row missing from saved items means
+   it was intentionally deleted from the shared template.
+--------------------------------------------------------- */
+
+const applyLoggingTemplateStateBeforeDelete =
+  applyLoggingTemplateState;
+
+
+applyLoggingTemplateState =
+  function applyLoggingTemplateStateWithDelete(
+    template
+  ) {
+    applyLoggingTemplateStateBeforeDelete(
+      template
+    );
+
+    const savedItems =
+      Array.isArray(
+        template?.items
+      )
+        ? template.items
+        : [];
+
+    if (
+      !savedItems.length
+    ) {
+      setCurrentLoggingItemDeletedKeys(
+        []
+      );
+
+      return;
+    }
+
+    const baseItems =
+      buildLoggingItemListBeforeDelete();
+
+    const originalItems =
+      baseItems.filter(
+        item =>
+          !item.isNew
+      );
+
+    const originalByKey =
+      new Map();
+
+    const originalBySource =
+      new Map();
+
+    originalItems.forEach(
+      item => {
+        const key =
+          getLoggingItemDraftKey(
+            item
+          );
+
+        originalByKey.set(
+          key,
+          item
+        );
+
+        originalBySource.set(
+          [
+            Number(
+              item.sourceRow
+            ),
+            Number(
+              item.sourceColumn
+            )
+          ].join(
+            ":"
+          ),
+          item
+        );
+      }
+    );
+
+    const savedOriginalKeys =
+      new Set();
+
+    savedItems.forEach(
+      savedItem => {
+        if (
+          !savedItem ||
+          savedItem.isNew
+        ) {
+          return;
+        }
+
+        const savedKey =
+          normalizeLoggingText(
+            savedItem.key
+          );
+
+        const sourceKey =
+          [
+            Number(
+              savedItem.sourceRow
+            ),
+            Number(
+              savedItem.sourceColumn
+            )
+          ].join(
+            ":"
+          );
+
+        const matchedItem =
+          originalByKey.get(
+            savedKey
+          ) ||
+          originalBySource.get(
+            sourceKey
+          );
+
+        if (!matchedItem) {
+          return;
+        }
+
+        savedOriginalKeys.add(
+          getLoggingItemDraftKey(
+            matchedItem
+          )
+        );
+      }
+    );
+
+    const deletedKeys =
+      originalItems
+        .map(
+          item =>
+            getLoggingItemDraftKey(
+              item
+            )
+        )
+        .filter(
+          key =>
+            !savedOriginalKeys.has(
+              key
+            )
+        );
+
+    setCurrentLoggingItemDeletedKeys(
+      deletedKeys
+    );
+
+    syncLoggingAddedItemInsertAfterKeys(
+      buildLoggingItemList()
+    );
+  };
+
+
+/* ---------------------------------------------------------
+   Delete action.
+--------------------------------------------------------- */
+
+function deleteLoggingItem(
+  item
+) {
+  if (
+    !item ||
+    state.isBusy
+  ) {
+    return;
+  }
+
+  const itemKey =
+    getLoggingItemDraftKey(
+      item
+    );
+
+  const items =
+    buildLoggingItemList();
+
+  const itemIndex =
+    items.findIndex(
+      currentItem =>
+        getLoggingItemDraftKey(
+          currentItem
+        ) ===
+        itemKey
+    );
+
+  if (
+    itemIndex <
+    0
+  ) {
+    return;
+  }
+
+  const itemName =
+    normalizeLoggingText(
+      item.name
+    ) ||
+    "이 항목";
+
+  const confirmed =
+    window.confirm(
+      [
+        "'" +
+          itemName +
+          "' 항목을 삭제할까요?",
+        "",
+        "현재 화면에서 즉시 제외되며,",
+        "'양식 저장' 후 새로 작성하는 Log Sheet부터 공용 적용됩니다."
+      ].join(
+        "\n"
+      )
+    );
+
+  if (!confirmed) {
+    return;
+  }
+
+  const previousKey =
+    itemIndex >
+      0
+      ? getLoggingItemDraftKey(
+          items[
+            itemIndex - 1
+          ]
+        )
+      : "";
+
+  /*
+    Any added child item that was attached below the deleted row
+    is reconnected to the previous visible row.
+  */
+  const addedItems =
+    getCurrentLoggingAddedItems();
+
+  addedItems.forEach(
+    addedItem => {
+      if (
+        normalizeLoggingText(
+          addedItem.insertAfterKey
+        ) ===
+        itemKey
+      ) {
+        addedItem.insertAfterKey =
+          previousKey;
+      }
+    }
+  );
+
+  if (
+    item.isNew
+  ) {
+    const addedIndex =
+      addedItems.findIndex(
+        addedItem =>
+          getLoggingItemDraftKey(
+            addedItem
+          ) ===
+          itemKey
+      );
+
+    if (
+      addedIndex >=
+      0
+    ) {
+      addedItems.splice(
+        addedIndex,
+        1
+      );
+    }
+
+  } else {
+    getCurrentLoggingItemDeletedKeys()
+      .add(
+        itemKey
+      );
+  }
+
+  loggingItemDrafts.delete(
+    itemKey
+  );
+
+  loggingItemTemplateOverrides.delete(
+    itemKey
+  );
+
+  setCurrentLoggingItemOrderKeys(
+    getCurrentLoggingItemOrderKeys()
+      .filter(
+        key =>
+          key !==
+          itemKey
+      )
+  );
+
+  if (
+    loggingItemSelectedKey ===
+    itemKey
+  ) {
+    loggingItemSelectedKey =
+      "";
+  }
+
+  if (
+    loggingItemEditingKey ===
+    itemKey
+  ) {
+    loggingItemEditingKey =
+      "";
+  }
+
+  syncLoggingAddedItemInsertAfterKeys(
+    buildLoggingItemList()
+  );
+
+  renderLoggingItemList();
+
+  renderGridIfPreviewVisible();
+
+  setStatus(
+    "양식 수정",
+    "Logging 항목을 삭제했습니다. 공용 적용은 '양식 저장'을 눌러 완료하세요.",
+    "dirty"
+  );
+}
+
+
+function createLoggingItemDeleteButton(
+  item
+) {
+  const button =
+    document.createElement(
+      "button"
+    );
+
+  button.type =
+    "button";
+
+  button.className =
+    "log-sheet-item-row__delete-button";
+
+  button.setAttribute(
+    "aria-label",
+    String(
+      item.order
+    ) +
+      "번 항목 삭제"
+  );
+
+  button.title =
+    "항목 삭제";
+
+  button.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      deleteLoggingItem(
+        item
+      );
+    }
+  );
+
+  return button;
+}
+
+
+/* ---------------------------------------------------------
+   Preview deletion.
+--------------------------------------------------------- */
+
+const applyLoggingItemOrderToPreviewBeforeDelete =
+  applyLoggingItemOrderToPreview;
+
+
+applyLoggingItemOrderToPreview =
+  function applyLoggingItemOrderToPreviewWithDelete() {
+    const deletedKeys =
+      getCurrentLoggingItemDeletedKeys();
+
+    if (
+      deletedKeys.size &&
+      typeof getLoggingPreviewRow ===
+        "function"
+    ) {
+      buildLoggingItemListBeforeDelete()
+        .forEach(
+          item => {
+            if (
+              item.isNew
+            ) {
+              return;
+            }
+
+            const key =
+              getLoggingItemDraftKey(
+                item
+              );
+
+            if (
+              !deletedKeys.has(
+                key
+              )
+            ) {
+              return;
+            }
+
+            const row =
+              getLoggingPreviewRow(
+                item.sourceRow
+              );
+
+            if (row) {
+              row.style.display =
+                "none";
+            }
+          }
+        );
+    }
+
+    applyLoggingItemOrderToPreviewBeforeDelete();
+  };
+
+
+/* ---------------------------------------------------------
+   Floating drag ghost.
+--------------------------------------------------------- */
+
+function removeLoggingItemDragGhost(
+  dragState
+) {
+  dragState
+    ?.ghost
+    ?.remove();
+
+  if (dragState) {
+    dragState.ghost =
+      null;
+  }
+}
+
+
+function createLoggingItemDragGhost(
+  row,
+  pointerY
+) {
+  const rect =
+    row.getBoundingClientRect();
+
+  const ghost =
+    row.cloneNode(
+      true
+    );
+
+  ghost.classList.remove(
+    "is-dragging",
+    "is-drop-before",
+    "is-drop-after",
+    "is-drop-blocked",
+    "is-selected"
+  );
+
+  ghost.classList.add(
+    "log-sheet-item-row__drag-ghost"
+  );
+
+  ghost
+    .querySelectorAll(
+      "button"
+    )
+    .forEach(
+      button => {
+        button.tabIndex =
+          -1;
+      }
+    );
+
+  ghost.style.left =
+    rect.left +
+    "px";
+
+  ghost.style.top =
+    rect.top +
+    "px";
+
+  ghost.style.width =
+    rect.width +
+    "px";
+
+  ghost.style.height =
+    rect.height +
+    "px";
+
+  document.body.appendChild(
+    ghost
+  );
+
+  return {
+    ghost,
+
+    offsetY:
+      pointerY -
+      rect.top,
+
+    fixedLeft:
+      rect.left
+  };
+}
+
+
+function beginLoggingItemGripDragWithGhost(
+  event,
+  row,
+  item
+) {
+  if (
+    state.isBusy ||
+    row.classList.contains(
+      "is-editing"
+    )
+  ) {
+    return;
+  }
+
+  if (
+    event.pointerType ===
+      "mouse" &&
+    event.button !==
+      0
+  ) {
+    return;
+  }
+
+  const handle =
+    event.currentTarget;
+
+  const draggedKey =
+    getLoggingItemDraftKey(
+      item
+    );
+
+  loggingItemGripDragState = {
+    handle,
+    row,
+    draggedKey,
+    pointerId:
+      event.pointerId,
+    startX:
+      event.clientX,
+    startY:
+      event.clientY,
+    active:
+      false,
+    targetKey:
+      "",
+    position:
+      "after",
+    ghost:
+      null,
+    ghostOffsetY:
+      0,
+    ghostLeft:
+      0
+  };
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  try {
+    handle.setPointerCapture(
+      event.pointerId
+    );
+  } catch {
+    /* no-op */
+  }
+
+  const onPointerMove =
+    moveEvent => {
+      const dragState =
+        loggingItemGripDragState;
+
+      if (
+        !dragState ||
+        dragState.pointerId !==
+          moveEvent.pointerId
+      ) {
+        return;
+      }
+
+      const distance =
+        Math.hypot(
+          moveEvent.clientX -
+            dragState.startX,
+          moveEvent.clientY -
+            dragState.startY
+        );
+
+      if (
+        !dragState.active &&
+        distance <
+          4
+      ) {
+        return;
+      }
+
+      if (
+        !dragState.active
+      ) {
+        dragState.active =
+          true;
+
+        dragState.row
+          .classList.add(
+            "is-dragging"
+          );
+
+        const ghostState =
+          createLoggingItemDragGhost(
+            dragState.row,
+            moveEvent.clientY
+          );
+
+        dragState.ghost =
+          ghostState.ghost;
+
+        dragState.ghostOffsetY =
+          ghostState.offsetY;
+
+        dragState.ghostLeft =
+          ghostState.fixedLeft;
+      }
+
+      moveEvent.preventDefault();
+
+      if (
+        dragState.ghost
+      ) {
+        dragState.ghost.style.top =
+          (
+            moveEvent.clientY -
+            dragState.ghostOffsetY
+          ) +
+          "px";
+
+        const horizontalOffset =
+          Math.max(
+            -8,
+            Math.min(
+              8,
+              (
+                moveEvent.clientX -
+                dragState.startX
+              ) *
+              0.08
+            )
+          );
+
+        dragState.ghost.style.left =
+          (
+            dragState.ghostLeft +
+            horizontalOffset
+          ) +
+          "px";
+      }
+
+      const list =
+        elements.itemList;
+
+      if (list) {
+        const listRect =
+          list.getBoundingClientRect();
+
+        if (
+          moveEvent.clientY <
+          listRect.top +
+            34
+        ) {
+          list.scrollTop -=
+            14;
+
+        } else if (
+          moveEvent.clientY >
+          listRect.bottom -
+            34
+        ) {
+          list.scrollTop +=
+            14;
+        }
+      }
+
+      const targetElement =
+        document.elementFromPoint(
+          moveEvent.clientX,
+          moveEvent.clientY
+        );
+
+      const targetRow =
+        targetElement
+          ?.closest(
+            ".log-sheet-item-row:not(.log-sheet-item-row__drag-ghost)"
+          );
+
+      elements.itemList
+        ?.querySelectorAll(
+          [
+            ".is-drop-before",
+            ".is-drop-after",
+            ".is-drop-blocked"
+          ].join(
+            ","
+          )
+        )
+        .forEach(
+          currentRow => {
+            currentRow.classList.remove(
+              "is-drop-before",
+              "is-drop-after",
+              "is-drop-blocked"
+            );
+          }
+        );
+
+      dragState.targetKey =
+        "";
+
+      if (
+        !targetRow ||
+        targetRow ===
+          dragState.row
+      ) {
+        return;
+      }
+
+      const targetKey =
+        String(
+          targetRow.dataset
+            .loggingItemKey ||
+          ""
+        ).trim();
+
+      if (!targetKey) {
+        return;
+      }
+
+      const items =
+        buildLoggingItemList();
+
+      const draggedItem =
+        items.find(
+          currentItem =>
+            getLoggingItemDraftKey(
+              currentItem
+            ) ===
+            dragState.draggedKey
+        );
+
+      const targetItem =
+        items.find(
+          currentItem =>
+            getLoggingItemDraftKey(
+              currentItem
+            ) ===
+            targetKey
+        );
+
+      const allowed =
+        draggedItem &&
+        targetItem &&
+        getLoggingItemReorderSegmentKey(
+          draggedItem,
+          items
+        ) ===
+        getLoggingItemReorderSegmentKey(
+          targetItem,
+          items
+        );
+
+      if (!allowed) {
+        targetRow.classList.add(
+          "is-drop-blocked"
+        );
+
+        return;
+      }
+
+      const rect =
+        targetRow
+          .getBoundingClientRect();
+
+      const position =
+        moveEvent.clientY <
+          rect.top +
+          rect.height /
+            2
+          ? "before"
+          : "after";
+
+      targetRow.classList.add(
+        position ===
+          "before"
+          ? "is-drop-before"
+          : "is-drop-after"
+      );
+
+      dragState.targetKey =
+        targetKey;
+
+      dragState.position =
+        position;
+    };
+
+  const finishDrag =
+    endEvent => {
+      const dragState =
+        loggingItemGripDragState;
+
+      if (
+        !dragState ||
+        dragState.pointerId !==
+          endEvent.pointerId
+      ) {
+        return;
+      }
+
+      handle.removeEventListener(
+        "pointermove",
+        onPointerMove
+      );
+
+      handle.removeEventListener(
+        "pointerup",
+        finishDrag
+      );
+
+      handle.removeEventListener(
+        "pointercancel",
+        finishDrag
+      );
+
+      try {
+        handle.releasePointerCapture(
+          endEvent.pointerId
+        );
+      } catch {
+        /* no-op */
+      }
+
+      const shouldMove =
+        dragState.active &&
+        dragState.targetKey;
+
+      const draggedKey =
+        dragState.draggedKey;
+
+      const targetKey =
+        dragState.targetKey;
+
+      const position =
+        dragState.position;
+
+      removeLoggingItemDragGhost(
+        dragState
+      );
+
+      loggingItemGripDragState =
+        null;
+
+      clearLoggingItemDragClasses();
+
+      if (
+        shouldMove
+      ) {
+        moveLoggingItemByKey(
+          draggedKey,
+          targetKey,
+          position
+        );
+      }
+    };
+
+  handle.addEventListener(
+    "pointermove",
+    onPointerMove
+  );
+
+  handle.addEventListener(
+    "pointerup",
+    finishDrag
+  );
+
+  handle.addEventListener(
+    "pointercancel",
+    finishDrag
+  );
+}
+
+
+/* ---------------------------------------------------------
+   Replace grip construction so only the improved ghost drag path is used.
+--------------------------------------------------------- */
+
+createLoggingItemGripHandle =
+  function createLoggingItemGripHandleWithGhost(
+    row,
+    item
+  ) {
+    const handle =
+      document.createElement(
+        "button"
+      );
+
+    handle.type =
+      "button";
+
+    handle.className =
+      "log-sheet-item-row__drag-handle";
+
+    handle.setAttribute(
+      "aria-label",
+      String(
+        item.order
+      ) +
+        "번 항목 순서 이동"
+    );
+
+    handle.title =
+      "이 핸들을 잡아서 위아래로 이동";
+
+    handle.addEventListener(
+      "click",
+      event => {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    );
+
+    handle.addEventListener(
+      "pointerdown",
+      event => {
+        beginLoggingItemGripDragWithGhost(
+          event,
+          row,
+          item
+        );
+      }
+    );
+
+    return handle;
+  };
+
+
+/* ---------------------------------------------------------
+   Decorate rows with delete action before the far-right grip.
+--------------------------------------------------------- */
+
+const decorateLoggingItemRowsBeforeDeleteButton =
+  decorateLoggingItemRowsForInsertReorder;
+
+
+decorateLoggingItemRowsForInsertReorder =
+  function decorateLoggingItemRowsWithDeleteButton() {
+    decorateLoggingItemRowsBeforeDeleteButton();
+
+    if (
+      !elements.itemList
+    ) {
+      return;
+    }
+
+    const items =
+      buildLoggingItemList();
+
+    const rows = [
+      ...elements.itemList
+        .querySelectorAll(
+          ".log-sheet-item-row"
+        )
+    ];
+
+    rows.forEach(
+      (
+        row,
+        index
+      ) => {
+        const item =
+          items[
+            index
+          ];
+
+        if (
+          !item ||
+          row.classList.contains(
+            "is-editing"
+          )
+        ) {
+          return;
+        }
+
+        row.querySelector(
+          ".log-sheet-item-row__delete-button"
+        )?.remove();
+
+        const handle =
+          row.querySelector(
+            ".log-sheet-item-row__drag-handle"
+          );
+
+        if (!handle) {
+          return;
+        }
+
+        handle.before(
+          createLoggingItemDeleteButton(
+            item
+          )
+        );
+      }
+    );
+  };
+
+
+
 
 renderLoggingItemList =
   function renderLoggingItemListWithInsertReorder() {
