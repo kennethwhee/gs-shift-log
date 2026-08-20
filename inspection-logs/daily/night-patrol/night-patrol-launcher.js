@@ -35,6 +35,25 @@
     window.matchMedia(
       "(max-width: 760px)"
     );
+
+  /*
+    [MOBILE-INSPECTION-HAMBURGER]
+
+    Mobile:
+    - Navigator / Efficiency remain direct buttons
+    - Inspection Logs moves into the hamburger at the far right
+  */
+  const MOBILE_MENU_ID =
+    "mobileHeaderMoreMenu";
+
+  const MOBILE_MENU_BUTTON_ID =
+    "mobileHeaderMoreButton";
+
+  const MOBILE_MENU_DROPDOWN_ID =
+    "mobileHeaderMoreDropdown";
+
+  const MOBILE_INSPECTION_ITEM_ID =
+    "mobileHeaderInspectionItem";
   const ROLE_MODAL_ID = "inspectionRoleTodayModal";
   const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
   const PAGE_URL =
@@ -195,36 +214,203 @@
     syncBodyModalState();
   }
 
+  function closeMobileInspectionMenu() {
+    const dropdown =
+      document.getElementById(
+        MOBILE_MENU_DROPDOWN_ID
+      );
+
+    const button =
+      document.getElementById(
+        MOBILE_MENU_BUTTON_ID
+      );
+
+    if (dropdown) {
+      dropdown.hidden = true;
+    }
+
+    if (button) {
+      button.setAttribute(
+        "aria-expanded",
+        "false"
+      );
+    }
+  }
+
+
+  function createMobileInspectionMenu(
+    headerActions
+  ) {
+    let menu =
+      document.getElementById(
+        MOBILE_MENU_ID
+      );
+
+    if (menu) {
+      headerActions.append(menu);
+      return true;
+    }
+
+    menu =
+      document.createElement(
+        "div"
+      );
+
+    menu.id =
+      MOBILE_MENU_ID;
+
+    menu.className =
+      "mobile-header-more-menu";
+
+    menu.innerHTML = `
+      <button
+        type="button"
+        class="header-action mobile-header-more-button"
+        id="${MOBILE_MENU_BUTTON_ID}"
+        aria-label="더보기 메뉴 열기"
+        aria-haspopup="menu"
+        aria-expanded="false"
+        title="더보기"
+      >
+        <span aria-hidden="true">☰</span>
+      </button>
+
+      <div
+        class="mobile-header-more-dropdown"
+        id="${MOBILE_MENU_DROPDOWN_ID}"
+        role="menu"
+        aria-label="모바일 더보기 메뉴"
+        hidden
+      >
+        <button
+          type="button"
+          class="mobile-header-more-item"
+          id="${MOBILE_INSPECTION_ITEM_ID}"
+          role="menuitem"
+        >
+          점검일지
+        </button>
+      </div>
+    `;
+
+    headerActions.append(menu);
+
+    const menuButton =
+      document.getElementById(
+        MOBILE_MENU_BUTTON_ID
+      );
+
+    const dropdown =
+      document.getElementById(
+        MOBILE_MENU_DROPDOWN_ID
+      );
+
+    const inspectionItem =
+      document.getElementById(
+        MOBILE_INSPECTION_ITEM_ID
+      );
+
+    menuButton?.addEventListener(
+      "click",
+      event => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const nextOpen =
+          Boolean(
+            dropdown?.hidden
+          );
+
+        if (dropdown) {
+          dropdown.hidden =
+            !nextOpen;
+        }
+
+        menuButton.setAttribute(
+          "aria-expanded",
+          nextOpen
+            ? "true"
+            : "false"
+        );
+      }
+    );
+
+    inspectionItem?.addEventListener(
+      "click",
+      event => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        closeMobileInspectionMenu();
+        openInspectionLogModal();
+      }
+    );
+
+    if (
+      window
+        .__gsInspectionMobileMenuOutsideBound !==
+      true
+    ) {
+      document.addEventListener(
+        "click",
+        event => {
+          const currentMenu =
+            document.getElementById(
+              MOBILE_MENU_ID
+            );
+
+          if (
+            !currentMenu ||
+            currentMenu.contains(
+              event.target
+            )
+          ) {
+            return;
+          }
+
+          closeMobileInspectionMenu();
+        }
+      );
+
+      window
+        .__gsInspectionMobileMenuOutsideBound =
+        true;
+    }
+
+    return true;
+  }
+
+
   function createMenuButton() {
     const headerActions =
       document.querySelector(
         ".header-actions"
       );
 
-
     if (!headerActions) {
       return false;
     }
-
 
     const existingButton =
       document.getElementById(
         BUTTON_ID
       );
 
-
-    /*
-      모바일에서는 상단 점검일지 메뉴를 표시하지 않는다.
-      점검일지 모달·보직별 오늘 점검 기능은 그대로 유지한다.
-    */
     if (
       MOBILE_HEADER_MEDIA.matches
     ) {
       existingButton?.remove();
 
-      return true;
+      return createMobileInspectionMenu(
+        headerActions
+      );
     }
 
+    document
+      .getElementById(
+        MOBILE_MENU_ID
+      )
+      ?.remove();
 
     if (existingButton) {
       existingButton.setAttribute(
@@ -237,7 +423,6 @@
 
       return true;
     }
-
 
     const button =
       document.createElement(
@@ -267,16 +452,10 @@
     button.title =
       "점검일지";
 
-
-    /*
-      PC 순서:
-      점검일지 → 네비게이터 → 효율팀
-    */
     const navigatorButton =
       document.getElementById(
         "facilityNavigatorHeaderButton"
       );
-
 
     if (
       navigatorButton
@@ -287,13 +466,11 @@
         button,
         navigatorButton
       );
-
     } else {
       headerActions.prepend(
         button
       );
     }
-
 
     button.addEventListener(
       "click",
@@ -960,6 +1137,7 @@
     closeInspectionLogModal();
 
     document.getElementById(BUTTON_ID)?.remove();
+    document.getElementById(MOBILE_MENU_ID)?.remove();
     getMainModal()?.remove();
     getRoleModal()?.remove();
     unwrapRoleTopActions();
@@ -1108,6 +1286,21 @@
     "keydown",
     event => {
       if (event.key !== "Escape") {
+        return;
+      }
+
+      const mobileDropdown =
+        document.getElementById(
+          MOBILE_MENU_DROPDOWN_ID
+        );
+
+      if (
+        mobileDropdown &&
+        !mobileDropdown.hidden
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeMobileInspectionMenu();
         return;
       }
 
