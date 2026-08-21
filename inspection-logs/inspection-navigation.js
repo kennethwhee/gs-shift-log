@@ -448,17 +448,28 @@ emptyGuide.innerHTML = `
         `
       : "";
 
-  const printButtonHtml = `
-  <button
-    type="button"
-    class="inspection-schedule-table-print-button"
-    id="inspectionScheduleTablePrintButton"
-    hidden
-  >
-    인쇄
-  </button>
-`;      
+  const previewButtonHtml = `
+    <button
+      type="button"
+      class="inspection-schedule-table-preview-button"
+      id="inspectionScheduleTablePreviewButton"
+      hidden
+    >
+      미리보기
+    </button>
+  `;
 
+
+  const printButtonHtml = `
+    <button
+      type="button"
+      class="inspection-schedule-table-print-button"
+      id="inspectionScheduleTablePrintButton"
+      hidden
+    >
+      인쇄
+    </button>
+  `;
 
   tablePanel.innerHTML = `
     <header class="inspection-schedule-table-header">
@@ -474,6 +485,8 @@ emptyGuide.innerHTML = `
   <span id="inspectionScheduleTableSummary">
     전체 점검주기
   </span>
+
+  ${previewButtonHtml}
 
   ${printButtonHtml}
 
@@ -677,10 +690,16 @@ updateInspectionEmptyGuide();
       "inspectionScheduleTableNewButton"
     );
 
+  const previewScheduleButton =
+    document.getElementById(
+      "inspectionScheduleTablePreviewButton"
+    );
+
+
   const printScheduleButton =
-  document.getElementById(
-    "inspectionScheduleTablePrintButton"
-  );  
+    document.getElementById(
+      "inspectionScheduleTablePrintButton"
+    );
 
   const viewButtons = [
     ...sidebar.querySelectorAll(
@@ -1838,134 +1857,211 @@ updateInspectionEmptyGuide();
   }
 
 /* =====================================================
-  전체 점검표 인쇄
+  [INSPECTION-SCHEDULE-PRINT-PREVIEW-V2]
 
-  인쇄 대상:
-  - 사용 중인 일정만
-  - 구분
-  - 점검 주기
-  - Shift
-  - 점검사항
-  - 비고
+  전체 점검표 인쇄 / 미리보기
 
-  제외:
-  - 사용 중지 일정
-  - 담당 보직
-  - 상태 배지
-  - Position
-  - 결재
-  - 공유
-  - 관리
+  - 사용 중 + 사용 중지 일정 전체 포함
+  - 상태 열 추가
+  - 기존 구분 / 점검주기 / Shift / 점검사항 / 비고 유지
+  - A4 가로 한 페이지 기준 자동 축소
+  - 미리보기 창에서 인쇄 가능
 ===================================================== */
 
-function printInspectionScheduleList() {
+function getInspectionSchedulePrintStatus(
+  item
+) {
   if (
-    activeTableCategory
+    item?.isActive ===
+      false
   ) {
-    return;
+    return {
+      label:
+        "사용 중지",
+
+      className:
+        "is-inactive"
+    };
   }
 
 
-  const items =
-    getManagerItems()
-      .filter(
-        item =>
-          item?.isActive !==
-            false
-      );
+  if (
+    item?.isCustom ===
+      true
+  ) {
+    return {
+      label:
+        "추가 일정",
+
+      className:
+        "is-custom"
+    };
+  }
 
 
   if (
-    items.length <
-      1
+    item?.hasOverride ===
+      true
   ) {
-    window.alert(
-      "인쇄할 점검 목록이 없습니다."
+    return {
+      label:
+        "수정됨",
+
+      className:
+        "is-edited"
+    };
+  }
+
+
+  return {
+    label:
+      "사용 중",
+
+    className:
+      "is-active"
+  };
+}
+
+
+function buildInspectionSchedulePrintRows(
+  items
+) {
+  return items
+    .map(
+      item => {
+        const shifts =
+          Array.isArray(
+            item?.shifts
+          )
+            ? item.shifts
+            : [];
+
+
+        const shiftText =
+          [
+            shifts.includes(
+              "D/S"
+            )
+              ? "D/S"
+              : "",
+
+            shifts.includes(
+              "N/S"
+            )
+              ? "N/S"
+              : ""
+          ]
+            .filter(
+              Boolean
+            )
+            .join(
+              " · "
+            ) ||
+          "-";
+
+
+        const status =
+          getInspectionSchedulePrintStatus(
+            item
+          );
+
+
+        return `
+          <tr
+            class="${
+              item?.isActive ===
+                false
+                ? "is-inactive"
+                : ""
+            }"
+          >
+            <td class="is-category">
+              ${escapeHtml(
+                categoryLabels[
+                  item?.category
+                ] ||
+                "기타"
+              )}
+            </td>
+
+            <td class="is-cycle">
+              ${escapeHtml(
+                item?.scheduleLabel ||
+                "-"
+              )}
+            </td>
+
+            <td class="is-shift">
+              ${escapeHtml(
+                shiftText
+              )}
+            </td>
+
+            <td class="is-title">
+              ${escapeHtml(
+                item?.title ||
+                "-"
+              )}
+            </td>
+
+            <td class="is-status">
+              <span class="${status.className}">
+                ${escapeHtml(
+                  status.label
+                )}
+              </span>
+            </td>
+
+            <td class="is-note">
+              ${escapeHtml(
+                item?.note ||
+                "-"
+              )}
+            </td>
+          </tr>
+        `;
+      }
+    )
+    .join(
+      ""
     );
+}
 
-    return;
-  }
+
+function buildInspectionSchedulePrintDocument(
+  items
+) {
+  const totalCount =
+    items.length;
+
+
+  const inactiveCount =
+    items.filter(
+      item => {
+        return (
+          item?.isActive ===
+          false
+        );
+      }
+    ).length;
+
+
+  const densityClass =
+    totalCount >
+      46
+      ? "is-ultra-compact"
+      : (
+          totalCount >
+            36
+            ? "is-compact"
+            : ""
+        );
 
 
   const rowsHtml =
-    items
-      .map(
-        item => {
-          const shifts =
-            Array.isArray(
-              item?.shifts
-            )
-              ? item.shifts
-              : [];
-
-
-          const shiftText =
-            [
-              shifts.includes(
-                "D/S"
-              )
-                ? "D/S"
-                : "",
-
-              shifts.includes(
-                "N/S"
-              )
-                ? "N/S"
-                : ""
-            ]
-              .filter(
-                Boolean
-              )
-              .join(
-                " · "
-              ) ||
-            "-";
-
-
-          return `
-            <tr>
-              <td class="is-category">
-                ${escapeHtml(
-                  categoryLabels[
-                    item?.category
-                  ] ||
-                  "기타"
-                )}
-              </td>
-
-              <td class="is-cycle">
-                ${escapeHtml(
-                  item?.scheduleLabel ||
-                  "-"
-                )}
-              </td>
-
-              <td class="is-shift">
-                ${escapeHtml(
-                  shiftText
-                )}
-              </td>
-
-              <td class="is-title">
-                ${escapeHtml(
-                  item?.title ||
-                  "-"
-                )}
-              </td>
-
-              <td class="is-note">
-                ${escapeHtml(
-                  item?.note ||
-                  "-"
-                )}
-              </td>
-            </tr>
-          `;
-        }
-      )
-      .join(
-        ""
-      );
+    buildInspectionSchedulePrintRows(
+      items
+    );
 
 
   const printedAt =
@@ -1992,29 +2088,7 @@ function printInspectionScheduleList() {
     );
 
 
-  const printWindow =
-    window.open(
-      "",
-      "_blank",
-      "width=1200,height=850"
-    );
-
-
-  if (
-    !printWindow
-  ) {
-    window.alert(
-      "인쇄 창을 열 수 없습니다. 브라우저의 팝업 차단을 확인해 주세요."
-    );
-
-    return;
-  }
-
-
-  printWindow.document.open();
-
-
-  printWindow.document.write(`
+  return `
     <!DOCTYPE html>
 
     <html lang="ko">
@@ -2022,6 +2096,11 @@ function printInspectionScheduleList() {
     <head>
 
       <meta charset="UTF-8">
+
+      <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+      >
 
       <title>
         전체 점검표
@@ -2031,7 +2110,7 @@ function printInspectionScheduleList() {
 
         @page {
           size: A4 landscape;
-          margin: 10mm;
+          margin: 4mm;
         }
 
 
@@ -2045,7 +2124,7 @@ function printInspectionScheduleList() {
           margin: 0;
           padding: 0;
 
-          background: #ffffff;
+          background: #e9eef3;
 
           color: #111827;
 
@@ -2057,8 +2136,141 @@ function printInspectionScheduleList() {
         }
 
 
+        .preview-toolbar {
+          position: sticky;
+          top: 0;
+          z-index: 10;
+
+          display: flex;
+
+          min-height: 52px;
+
+          align-items: center;
+          justify-content: space-between;
+
+          gap: 12px;
+
+          padding: 8px 14px;
+
+          border-bottom:
+            1px solid
+            #cdd8e2;
+
+          background:
+            rgba(
+              255,
+              255,
+              255,
+              0.97
+            );
+
+          box-shadow:
+            0 3px 12px
+            rgba(
+              23,
+              46,
+              72,
+              0.08
+            );
+        }
+
+
+        .preview-toolbar strong {
+          color: #20384f;
+
+          font-size: 14px;
+          font-weight: 900;
+        }
+
+
+        .preview-toolbar span {
+          margin-left: 8px;
+
+          color: #6c7f91;
+
+          font-size: 10px;
+          font-weight: 750;
+        }
+
+
+        .preview-toolbar__actions {
+          display: flex;
+
+          align-items: center;
+
+          gap: 6px;
+        }
+
+
+        .preview-toolbar button {
+          min-height: 34px;
+
+          padding: 0 13px;
+
+          border:
+            1px solid
+            #b7c8d8;
+
+          border-radius: 7px;
+
+          background: #ffffff;
+
+          color: #315c86;
+
+          font: inherit;
+          font-size: 10px;
+          font-weight: 900;
+
+          cursor: pointer;
+        }
+
+
+        .preview-toolbar button.is-primary {
+          border-color: #2d73b8;
+
+          background: #2d73b8;
+
+          color: #ffffff;
+        }
+
+
+        .preview-stage {
+          display: flex;
+
+          min-height:
+            calc(
+              100vh -
+              52px
+            );
+
+          align-items: flex-start;
+          justify-content: center;
+
+          padding: 18px;
+
+          overflow: auto;
+        }
+
+
         .print-document {
-          width: 100%;
+          width: 1100px;
+
+          margin: 0 auto;
+
+          padding: 12px 14px;
+
+          background: #ffffff;
+
+          box-shadow:
+            0 12px 34px
+            rgba(
+              22,
+              43,
+              65,
+              0.18
+            );
+
+          transform-origin: top center;
         }
 
 
@@ -2068,14 +2280,14 @@ function printInspectionScheduleList() {
           align-items: flex-end;
           justify-content: space-between;
 
-          gap: 20px;
+          gap: 12px;
 
-          margin-bottom: 10px;
+          margin-bottom: 4px;
 
-          padding-bottom: 8px;
+          padding-bottom: 4px;
 
           border-bottom:
-            2px solid
+            1.5px solid
             #243b53;
         }
 
@@ -2083,24 +2295,26 @@ function printInspectionScheduleList() {
         .print-header h1 {
           margin: 0;
 
-          font-size: 18pt;
-          font-weight: 800;
+          font-size: 11pt;
+          font-weight: 900;
+          line-height: 1.1;
         }
 
 
         .print-header p {
-          margin: 3px 0 0;
+          margin: 2px 0 0;
 
           color: #52606d;
 
-          font-size: 8.5pt;
+          font-size: 5.8pt;
+          font-weight: 750;
         }
 
 
         .print-meta {
           color: #52606d;
 
-          font-size: 8pt;
+          font-size: 5.5pt;
           text-align: right;
 
           white-space: nowrap;
@@ -2113,32 +2327,47 @@ function printInspectionScheduleList() {
           border-collapse: collapse;
           table-layout: fixed;
 
-          font-size: 8.5pt;
+          font-size: 6.2pt;
+        }
+
+
+        body.is-compact table {
+          font-size: 5.6pt;
+        }
+
+
+        body.is-ultra-compact table {
+          font-size: 5.1pt;
         }
 
 
         col.is-category {
-          width: 8%;
+          width: 6.5%;
         }
 
 
         col.is-cycle {
-          width: 14%;
+          width: 12.5%;
         }
 
 
         col.is-shift {
-          width: 9%;
+          width: 7%;
         }
 
 
         col.is-title {
-          width: 47%;
+          width: 44%;
+        }
+
+
+        col.is-status {
+          width: 9%;
         }
 
 
         col.is-note {
-          width: 22%;
+          width: 21%;
         }
 
 
@@ -2150,8 +2379,8 @@ function printInspectionScheduleList() {
 
         th {
           padding:
-            6px
-            5px;
+            2px
+            3px;
 
           border:
             1px solid
@@ -2160,23 +2389,27 @@ function printInspectionScheduleList() {
           background:
             #e9eef4;
 
-          font-size: 8.5pt;
-          font-weight: 800;
+          font-size: 5.9pt;
+          font-weight: 900;
+
+          line-height: 1.05;
 
           text-align: center;
+
+          white-space: nowrap;
         }
 
 
         td {
           padding:
-            5px
-            6px;
+            1.4px
+            3px;
 
           border:
             1px solid
             #9aa5b1;
 
-          line-height: 1.35;
+          line-height: 1.08;
 
           vertical-align: middle;
 
@@ -2185,20 +2418,92 @@ function printInspectionScheduleList() {
         }
 
 
+        body.is-compact td {
+          padding:
+            0.9px
+            2.5px;
+
+          line-height: 1.04;
+        }
+
+
+        body.is-ultra-compact td {
+          padding:
+            0.5px
+            2px;
+
+          line-height: 1;
+        }
+
+
         td.is-category,
         td.is-cycle,
-        td.is-shift {
+        td.is-shift,
+        td.is-status {
           text-align: center;
         }
 
 
         td.is-title {
-          font-weight: 700;
+          font-weight: 800;
         }
 
 
         td.is-note {
-          font-size: 8pt;
+          font-size: 0.94em;
+        }
+
+
+        td.is-status span {
+          display: inline-flex;
+
+          min-height: 12px;
+
+          align-items: center;
+          justify-content: center;
+
+          padding:
+            0
+            3px;
+
+          border-radius: 999px;
+
+          background: #edf2f6;
+
+          color: #50697f;
+
+          font-size: 0.9em;
+          font-weight: 900;
+
+          white-space: nowrap;
+        }
+
+
+        td.is-status span.is-inactive {
+          background: #ffecec;
+
+          color: #a04444;
+        }
+
+
+        td.is-status span.is-custom {
+          background: #e9f7ee;
+
+          color: #317149;
+        }
+
+
+        td.is-status span.is-edited {
+          background: #eaf3fc;
+
+          color: #356f9f;
+        }
+
+
+        tr.is-inactive td {
+          background: #fff7f7;
+
+          color: #7e5f5f;
         }
 
 
@@ -2209,11 +2514,12 @@ function printInspectionScheduleList() {
 
 
         .print-footer {
-          margin-top: 6px;
+          margin: 3px 0 0;
 
           color: #6b7280;
 
-          font-size: 7.5pt;
+          font-size: 5pt;
+          font-weight: 700;
         }
 
 
@@ -2221,7 +2527,36 @@ function printInspectionScheduleList() {
 
           html,
           body {
-            width: 100%;
+            width: auto;
+            height: auto;
+
+            overflow: visible;
+
+            background: #ffffff;
+          }
+
+
+          .preview-toolbar {
+            display: none !important;
+          }
+
+
+          .preview-stage {
+            display: block;
+
+            min-height: 0;
+
+            padding: 0;
+
+            overflow: visible;
+          }
+
+
+          .print-document {
+            margin: 0;
+            padding: 0;
+
+            box-shadow: none;
           }
 
         }
@@ -2231,101 +2566,366 @@ function printInspectionScheduleList() {
     </head>
 
 
-    <body>
+    <body class="${densityClass}">
 
-      <main class="print-document">
+      <div class="preview-toolbar">
 
-        <header class="print-header">
+        <div>
 
-          <div>
+          <strong>
+            전체 점검표 미리보기
+          </strong>
 
-            <h1>
-              설비점검 및 회전기기 교체운전 List 및 주기
-            </h1>
+          <span>
+            전체 ${totalCount}건 · 사용 중지 ${inactiveCount}건 포함
+          </span>
 
-            <p>
-              전체 점검표 · 사용 중 일정 ${items.length}건
-            </p>
-
-          </div>
+        </div>
 
 
-          <div class="print-meta">
-            출력일시 ${escapeHtml(
-              printedAt
-            )}
-          </div>
+        <div class="preview-toolbar__actions">
 
-        </header>
+          <button
+            type="button"
+            id="inspectionSchedulePrintPreviewCloseButton"
+          >
+            닫기
+          </button>
 
+          <button
+            type="button"
+            class="is-primary"
+            id="inspectionSchedulePrintPreviewPrintButton"
+          >
+            인쇄
+          </button>
 
-        <table>
+        </div>
 
-          <colgroup>
-            <col class="is-category">
-            <col class="is-cycle">
-            <col class="is-shift">
-            <col class="is-title">
-            <col class="is-note">
-          </colgroup>
-
-
-          <thead>
-
-            <tr>
-              <th>구분</th>
-              <th>점검 주기</th>
-              <th>Shift</th>
-              <th>점검사항</th>
-              <th>비고</th>
-            </tr>
-
-          </thead>
+      </div>
 
 
-          <tbody>
-            ${rowsHtml}
-          </tbody>
+      <div class="preview-stage">
 
-        </table>
+        <main class="print-document">
+
+          <header class="print-header">
+
+            <div>
+
+              <h1>
+                설비점검 및 회전기기 교체운전 List 및 주기
+              </h1>
+
+              <p>
+                전체 점검표 · 전체 ${totalCount}건 · 사용 중지 ${inactiveCount}건 포함
+              </p>
+
+            </div>
 
 
-        <p class="print-footer">
-          * 사용 중지 일정과 담당·결재·공유·관리 정보는 인쇄에서 제외됩니다.
-        </p>
+            <div class="print-meta">
+              출력일시 ${escapeHtml(
+                printedAt
+              )}
+            </div>
 
-      </main>
+          </header>
+
+
+          <table>
+
+            <colgroup>
+              <col class="is-category">
+              <col class="is-cycle">
+              <col class="is-shift">
+              <col class="is-title">
+              <col class="is-status">
+              <col class="is-note">
+            </colgroup>
+
+
+            <thead>
+
+              <tr>
+                <th>구분</th>
+                <th>점검 주기</th>
+                <th>Shift</th>
+                <th>점검사항</th>
+                <th>상태</th>
+                <th>비고</th>
+              </tr>
+
+            </thead>
+
+
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+
+          </table>
+
+
+          <p class="print-footer">
+            * 사용 중지 일정을 포함한 전체 점검 일정입니다.
+          </p>
+
+        </main>
+
+      </div>
 
     </body>
 
     </html>
-  `);
+  `;
+}
 
+
+function fitInspectionSchedulePrintToOnePage(
+  printWindow
+) {
+  if (
+    !printWindow ||
+    printWindow.closed
+  ) {
+    return;
+  }
+
+
+  const printDocument =
+    printWindow.document.querySelector(
+      ".print-document"
+    );
+
+
+  if (
+    !printDocument
+  ) {
+    return;
+  }
+
+
+  printDocument.style.zoom =
+    "1";
+
+
+  /*
+    A4 landscape / 4mm margin에 맞춘 안전 영역.
+    Chromium / Edge의 CSS zoom을 사용해
+    실제 인쇄 레이아웃 크기 자체를 줄인다.
+  */
+  const targetWidth =
+    1080;
+
+
+  const targetHeight =
+    748;
+
+
+  const widthRatio =
+    targetWidth /
+    Math.max(
+      printDocument.scrollWidth,
+      1
+    );
+
+
+  const heightRatio =
+    targetHeight /
+    Math.max(
+      printDocument.scrollHeight,
+      1
+    );
+
+
+  const fitRatio =
+    Math.min(
+      1,
+      widthRatio,
+      heightRatio
+    );
+
+
+  const safeRatio =
+    Math.max(
+      0.52,
+      Math.floor(
+        fitRatio *
+        100
+      ) /
+      100
+    );
+
+
+  printDocument.style.zoom =
+    String(
+      safeRatio
+    );
+}
+
+
+function openInspectionSchedulePrintPreview(
+  options = {}
+) {
+  if (
+    activeTableCategory
+  ) {
+    return;
+  }
+
+
+  const items =
+    getManagerItems();
+
+
+  if (
+    items.length <
+      1
+  ) {
+    window.alert(
+      "인쇄할 점검 목록이 없습니다."
+    );
+
+    return;
+  }
+
+
+  const autoPrint =
+    options.autoPrint ===
+      true;
+
+
+  const printWindow =
+    window.open(
+      "",
+      "_blank",
+      "width=1280,height=900,resizable=yes,scrollbars=yes"
+    );
+
+
+  if (
+    !printWindow
+  ) {
+    window.alert(
+      "미리보기 창을 열 수 없습니다. 브라우저의 팝업 차단을 확인해 주세요."
+    );
+
+    return;
+  }
+
+
+  printWindow.document.open();
+
+  printWindow.document.write(
+    buildInspectionSchedulePrintDocument(
+      items
+    )
+  );
 
   printWindow.document.close();
 
-  printWindow.focus();
+
+  const previewPrintButton =
+    printWindow.document.getElementById(
+      "inspectionSchedulePrintPreviewPrintButton"
+    );
 
 
-  printWindow.setTimeout(
+  const previewCloseButton =
+    printWindow.document.getElementById(
+      "inspectionSchedulePrintPreviewCloseButton"
+    );
+
+
+  function fitPreview() {
+    fitInspectionSchedulePrintToOnePage(
+      printWindow
+    );
+  }
+
+
+  function runPrint() {
+    fitPreview();
+
+    printWindow.focus();
+
+    printWindow.setTimeout(
+      () => {
+        printWindow.print();
+      },
+      80
+    );
+  }
+
+
+  previewPrintButton?.addEventListener(
+    "click",
+    runPrint
+  );
+
+
+  previewCloseButton?.addEventListener(
+    "click",
     () => {
-      printWindow.print();
-    },
-    150
+      printWindow.close();
+    }
   );
 
 
   printWindow.addEventListener(
-    "afterprint",
-    () => {
-      printWindow.close();
-    },
-    {
-      once:
-        true
-    }
+    "beforeprint",
+    fitPreview
   );
-}  
+
+
+  printWindow.addEventListener(
+    "resize",
+    fitPreview
+  );
+
+
+  if (
+    autoPrint
+  ) {
+    printWindow.addEventListener(
+      "afterprint",
+      () => {
+        printWindow.close();
+      },
+      {
+        once:
+          true
+      }
+    );
+  }
+
+
+  printWindow.setTimeout(
+    () => {
+      fitPreview();
+
+      if (
+        autoPrint
+      ) {
+        runPrint();
+      }
+    },
+    140
+  );
+}
+
+
+function previewInspectionScheduleList() {
+  openInspectionSchedulePrintPreview();
+}
+
+
+function printInspectionScheduleList() {
+  openInspectionSchedulePrintPreview({
+    autoPrint:
+      true
+  });
+}
 
   function renderScheduleTable(
     category = ""
@@ -2371,6 +2971,16 @@ function printInspectionScheduleList() {
           ? `${categoryLabels[activeTableCategory] || "기타"} 항목 ${items.length}건`
           : `전체 점검주기 ${items.length}건`;
     }
+
+    if (
+      previewScheduleButton
+    ) {
+      previewScheduleButton.hidden =
+        Boolean(
+          activeTableCategory
+        );
+    }
+
 
     if (
       printScheduleButton
@@ -4077,6 +4687,14 @@ function printInspectionScheduleList() {
       );
     }
   );
+
+  previewScheduleButton?.addEventListener(
+    "click",
+    () => {
+      previewInspectionScheduleList();
+    }
+  );
+
 
   printScheduleButton?.addEventListener(
     "click",

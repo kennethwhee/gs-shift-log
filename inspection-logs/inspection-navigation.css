@@ -203,6 +203,7 @@
   cursor: pointer;
 }
 
+.inspection-schedule-table-preview-button,
 .inspection-schedule-table-print-button {
   min-height: 34px;
   padding: 0 12px;
@@ -221,6 +222,7 @@
 }
 
 
+.inspection-schedule-table-preview-button:hover,
 .inspection-schedule-table-print-button:hover {
   border-color: #4e82b4;
 
@@ -843,6 +845,7 @@
   
   
     .inspection-schedule-table-new-button,
+    .inspection-schedule-table-preview-button,
     .inspection-schedule-table-print-button {
       min-height: 32px !important;
       padding: 0 10px !important;
