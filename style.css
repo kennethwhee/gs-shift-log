@@ -114641,7 +114641,7 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 
 #efficiencyTeamModal
 #efficiencyLimestoneView
-> .limestone-dashboard {
+> .limestone-dashboard:not([hidden]) {
   display: flex !important;
   flex: 1 1 0% !important;
   flex-direction: column !important;
@@ -114649,6 +114649,12 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
   height: auto !important;
   min-height: 0 !important;
   overflow: hidden !important;
+}
+
+#efficiencyTeamModal
+#efficiencyLimestoneView
+> .limestone-dashboard[hidden] {
+  display: none !important;
 }
 
 #efficiencyTeamModal
