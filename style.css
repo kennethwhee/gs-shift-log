@@ -95117,7 +95117,7 @@ body.is-auxiliary-material-expanded
     width: 100% !important;
     min-width: 0 !important;
 
-    margin: 10px 0 6px !important;
+    margin: 0 0 6px !important;
     padding: 8px 10px !important;
 
     border-radius: 11px !important;
@@ -100142,19 +100142,26 @@ th > small {
 
 @media screen and (min-width: 769px) {
 
-  body
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-heading {
-    position: relative !important;
-    box-sizing: border-box !important;
+body
+#efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+.auxiliary-material-heading {
+  position: relative !important;
+  box-sizing: border-box !important;
 
-    min-height: 62px !important;
-    padding-right: clamp(310px, 27vw, 390px) !important;
+  min-height: 32px !important;
+  height: auto !important;
 
-    border-bottom: 0 !important;
+  margin: 0 !important;
+  padding:
+    0
+    min(700px, 46vw)
+    0
+    10px !important;
 
-    overflow: visible !important;
-  }
+  border-bottom: 0 !important;
+
+  overflow: visible !important;
+}
 
 
   body
