@@ -7,7 +7,6 @@
 
 :root {
   --inv2-sidebar-width: 264px;
-  --inv2-sidebar-collapsed-width: 58px;
   --inv2-gap: 14px;
   --inv2-line: #cfddec;
   --inv2-line-soft: #e2ebf4;
@@ -34,12 +33,6 @@
     align-items: stretch !important;
     min-width: 0 !important;
     min-height: 0 !important;
-  }
-
-  .inspection-workspace.inspection-workspace--nav-v2.is-sidebar-collapsed {
-    grid-template-columns:
-      var(--inv2-sidebar-collapsed-width)
-      minmax(0, 1fr) !important;
   }
 }
 
@@ -124,14 +117,16 @@
   text-overflow: ellipsis;
 }
 
-.inspection-nav-v2__worklog > .inspection-nav-v2__section-header {
+.inspection-nav-v2__collapsible-section
+  > .inspection-nav-v2__section-header {
   position: relative;
   padding-right: 50px;
   cursor: pointer;
   user-select: none;
 }
 
-.inspection-nav-v2__worklog > .inspection-nav-v2__section-header::after {
+.inspection-nav-v2__collapsible-section
+  > .inspection-nav-v2__section-header::after {
   position: absolute;
   top: 50%;
   right: 8px;
@@ -143,7 +138,12 @@
   transform: translateY(-50%);
 }
 
-.inspection-nav-v2__worklog:not([open])
+.inspection-nav-v2__collapsible-section:not([open])
+  > .inspection-nav-v2__section-header {
+  border-bottom-color: transparent;
+}
+
+.inspection-nav-v2__collapsible-section:not([open])
   > .inspection-nav-v2__section-header::after {
   content: "열기";
 }
@@ -420,102 +420,6 @@
 }
 
 /* =========================================================
-  Sidebar toggle
-========================================================= */
-
-.inspection-nav-v2__toggle {
-  position: absolute;
-  z-index: 5;
-  top: 11px;
-  right: 17px;
-  display: inline-flex;
-  width: 38px;
-  height: 38px;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1px solid #cbdcec;
-  border-radius: 10px;
-  background: #f6faff;
-  color: #3f6e99;
-  font: inherit;
-  cursor: pointer;
-  box-shadow: none;
-}
-
-.inspection-nav-v2__toggle:hover {
-  border-color: #9fc1e1;
-  background: #ecf6ff;
-  color: #185f9e;
-}
-
-.inspection-nav-v2__toggle-icon {
-  font-size: 0;
-}
-
-.inspection-nav-v2__toggle-icon::before {
-  display: block;
-  width: 9px;
-  height: 9px;
-  border-left: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  content: "";
-  transform: translateX(2px) rotate(45deg);
-}
-
-.inspection-nav-v2__toggle-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-/* =========================================================
-  Collapsed rail
-========================================================= */
-
-.inspection-nav-v2.is-collapsed {
-  width: var(--inv2-sidebar-collapsed-width);
-  min-width: var(--inv2-sidebar-collapsed-width);
-  max-width: var(--inv2-sidebar-collapsed-width);
-  align-items: center;
-  padding: 8px 7px;
-  overflow: hidden;
-  border: 1px solid var(--inv2-line);
-  border-radius: 14px;
-  background: #f8fbff;
-  box-shadow: var(--inv2-shadow);
-}
-
-.inspection-nav-v2.is-collapsed > .inspection-nav-v2__section {
-  display: none !important;
-}
-
-.inspection-nav-v2.is-collapsed > .inspection-nav-v2__toggle {
-  position: static;
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
-  margin: 0;
-  border-color: #bfd3e6;
-  background: #ffffff;
-  box-shadow: 0 3px 10px rgba(31, 65, 100, 0.06);
-}
-
-.inspection-nav-v2.is-collapsed
-  > .inspection-nav-v2__toggle
-  .inspection-nav-v2__toggle-icon::before {
-  border-left: 0;
-  border-bottom: 0;
-  border-right: 2px solid currentColor;
-  border-top: 2px solid currentColor;
-  transform: translateX(-2px) rotate(45deg);
-}
-
-/* =========================================================
   Focus-mode home button
 ========================================================= */
 
@@ -565,8 +469,7 @@ body.inspection-focus-mode .inspection-schedule-table-panel {
 ========================================================= */
 
 @media (max-width: 768px) {
-  .inspection-workspace.inspection-workspace--nav-v2,
-  .inspection-workspace.inspection-workspace--nav-v2.is-sidebar-collapsed {
+  .inspection-workspace.inspection-workspace--nav-v2 {
     grid-template-columns: minmax(0, 1fr) !important;
     gap: 10px !important;
   }
@@ -581,12 +484,6 @@ body.inspection-focus-mode .inspection-schedule-table-panel {
 
   .inspection-nav-v2__worklog {
     display: none !important;
-  }
-
-  .inspection-nav-v2.is-collapsed {
-    width: 58px;
-    min-width: 58px;
-    max-width: 58px;
   }
 
   body.inspection-focus-mode .inspection-workspace-home-button:not([hidden]) {

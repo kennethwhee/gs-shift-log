@@ -156,14 +156,15 @@ function initializeInspectionWorkspaceNavigation() {
   );
 
   sidebar.innerHTML = `
-<section
-  class="inspection-nav-v2__section inspection-nav-v2__section--inspection"
+<details
+  class="inspection-nav-v2__section inspection-nav-v2__section--inspection inspection-nav-v2__collapsible-section"
   aria-labelledby="inspectionSidebarInspectionTitle"
+  open
 >
-  <header class="inspection-nav-v2__section-header">
+  <summary class="inspection-nav-v2__section-header">
     <span>INSPECTION LOG</span>
     <strong id="inspectionSidebarInspectionTitle">점검일지</strong>
-  </header>
+  </summary>
 
   <div class="inspection-nav-v2__groups">
     <details class="inspection-nav-v2__group" data-nav-icon="cycle">
@@ -262,10 +263,10 @@ function initializeInspectionWorkspaceNavigation() {
       </div>
     </details>
   </div>
-</section>
+</details>
 
 <details
-  class="inspection-nav-v2__section inspection-nav-v2__worklog"
+  class="inspection-nav-v2__section inspection-nav-v2__worklog inspection-nav-v2__collapsible-section"
   aria-labelledby="inspectionSidebarLogSheetTitle"
   open
 >
@@ -632,148 +633,12 @@ updateInspectionEmptyGuide();
   );
 
   /* =====================================================
-    점검일지 최상위 메뉴 접기·펼치기
+    좌측 메뉴 접기 정책
+
+    - 전체 사이드바 접기 기능은 사용하지 않는다.
+    - 점검일지 / Log Sheet 섹션만 각각 독립적으로 접는다.
   ====================================================== */
 
-  const INSPECTION_SIDEBAR_STORAGE_KEY =
-    "gsShiftLog.inspectionWorkspace.sidebarCollapsed.v1";
-
-  sidebar.id =
-    "inspectionWorkspaceSidebar";
-
-  const inspectionSidebarToggleButton =
-    document.createElement(
-      "button"
-    );
-
-  inspectionSidebarToggleButton.type =
-    "button";
-
-  inspectionSidebarToggleButton.className =
-    "inspection-nav-v2__toggle";
-
-  inspectionSidebarToggleButton.setAttribute(
-    "aria-controls",
-    sidebar.id
-  );
-
-  inspectionSidebarToggleButton.innerHTML = `
-    <span
-      class="inspection-nav-v2__toggle-icon"
-      aria-hidden="true"
-    ></span>
-
-    <span
-      class="inspection-nav-v2__toggle-label"
-    ></span>
-  `;
-
-  const inspectionSidebarToggleIcon =
-    inspectionSidebarToggleButton.querySelector(
-      ".inspection-nav-v2__toggle-icon"
-    );
-
-  const inspectionSidebarToggleLabel =
-    inspectionSidebarToggleButton.querySelector(
-      ".inspection-nav-v2__toggle-label"
-    );
-
-  const setInspectionSidebarCollapsed = (
-    isCollapsed,
-    shouldSave = true
-  ) => {
-    const collapsed =
-      isCollapsed === true;
-
-    workspace.classList.toggle(
-      "is-sidebar-collapsed",
-      collapsed
-    );
-
-    sidebar.classList.toggle(
-      "is-collapsed",
-      collapsed
-    );
-
-    inspectionSidebarToggleButton.setAttribute(
-      "aria-expanded",
-      String(!collapsed)
-    );
-
-    inspectionSidebarToggleIcon.textContent =
-      collapsed
-        ? "›"
-        : "‹";
-
-    inspectionSidebarToggleLabel.textContent =
-      collapsed
-        ? "열기"
-        : "접기";
-
-    const accessibleText =
-      collapsed
-        ? "점검일지 메뉴 열기"
-        : "점검일지 메뉴 접기";
-
-    inspectionSidebarToggleButton.setAttribute(
-      "aria-label",
-      accessibleText
-    );
-
-    inspectionSidebarToggleButton.title =
-      accessibleText;
-
-    if (!shouldSave) {
-      return;
-    }
-
-    try {
-      window.localStorage.setItem(
-        INSPECTION_SIDEBAR_STORAGE_KEY,
-        collapsed
-          ? "1"
-          : "0"
-      );
-    } catch {
-      /*
-        localStorage를 사용할 수 없어도
-        메뉴 접기 기능은 그대로 동작한다.
-      */
-    }
-  };
-
-  let initialSidebarCollapsed =
-    false;
-
-  try {
-    initialSidebarCollapsed =
-      window.localStorage.getItem(
-        INSPECTION_SIDEBAR_STORAGE_KEY
-      ) === "1";
-  } catch {
-    initialSidebarCollapsed =
-      false;
-  }
-
-  inspectionSidebarToggleButton.addEventListener(
-    "click",
-    () => {
-      setInspectionSidebarCollapsed(
-        !workspace.classList.contains(
-          "is-sidebar-collapsed"
-        )
-      );
-    }
-  );
-
-  sidebar.prepend(
-    inspectionSidebarToggleButton
-  );
-
-  setInspectionSidebarCollapsed(
-    initialSidebarCollapsed,
-    false
-  );
   const tableBody =
     document.getElementById(
       "inspectionScheduleTableBody"

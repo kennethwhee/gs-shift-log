@@ -824,14 +824,6 @@ button {
 }
 
 
-.log-sheet-item-table__head
-  span:nth-child(2),
-
-.log-sheet-item-table__head
-  span:nth-child(3) {
-  text-align: left;
-}
-
 
 .log-sheet-item-list {
   display: grid;
@@ -1505,11 +1497,6 @@ button {
   color: #698094;
   font-size: 9px;
   font-weight: 850;
-  text-align: left;
-}
-
-.log-sheet-item-table__head span:first-child,
-.log-sheet-item-table__head span:last-child {
   text-align: center;
 }
 
