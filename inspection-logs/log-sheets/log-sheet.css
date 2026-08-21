@@ -1507,6 +1507,17 @@ button {
   text-align: left;
 }
 
+/* =========================================================
+   [LOG-SHEET-RIGHT-3-HEADER-ALIGN-FIX2]
+   RATING / UNIT / 관리 헤더만 본문 스크롤바 폭만큼 좌측 보정
+========================================================= */
+
+.log-sheet-item-table__head span:nth-child(6),
+.log-sheet-item-table__head span:nth-child(7) {
+  position: relative;
+  left: -12px;
+}
+
 .log-sheet-item-list {
   min-width: 1060px;
   max-height: min(650px, calc(100vh - 280px));
@@ -1670,7 +1681,7 @@ button {
     0;
 
   right:
-    12px;
+    24px;
 
   display:
     grid;
