@@ -87630,11 +87630,28 @@ function setAuxiliaryMaterialStatus(
   }
 
 
-  statusElement.textContent =
+  /*
+    [AUXILIARY-STATUS-TEXT-FIT-V5]
+
+    같은 연도의 날짜 범위는 연도를 한 번만 표시한다.
+
+    2026-08-01 ~ 2026-08-21
+    -> 2026-08-01 ~ 08-21
+
+    연도가 달라지는 범위는 원문을 그대로 유지한다.
+  */
+  const displayMessage =
     String(
       message ||
       ""
+    ).replace(
+      /\b(\d{4})-(\d{2})-(\d{2})\s*~\s*\1-(\d{2})-(\d{2})\b/g,
+      "$1-$2-$3 ~ $4-$5"
     );
+
+
+  statusElement.textContent =
+    displayMessage;
 
 
   statusElement.dataset.status =
