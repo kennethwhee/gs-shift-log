@@ -438,8 +438,13 @@
 }
 
 
+/* =========================================================
+   [INSPECTION-CALENDAR-TWO-LINE-ITEM-V1]
+   월간 달력 점검명 최대 2줄 표시
+========================================================= */
+
 .inspection-calendar-day__item {
-  display: block;
+  display: -webkit-box;
 
   overflow: hidden;
 
@@ -462,8 +467,12 @@
   font-weight: 800;
   line-height: 1.25;
 
+  white-space: normal;
+  overflow-wrap: break-word;
   text-overflow: ellipsis;
-  white-space: nowrap;
+
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 
