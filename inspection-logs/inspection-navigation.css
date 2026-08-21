@@ -1790,6 +1790,12 @@
 
 .inspection-sidebar-sheet-group,
 .inspection-sidebar-sheet-branch {
+  box-sizing: border-box;
+
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+
   overflow: hidden;
 
   border:
@@ -1878,7 +1884,13 @@
 .inspection-sidebar-sheet-branches,
 .inspection-sidebar-sheet-menu,
 .inspection-sidebar-sheet-direct {
+  box-sizing: border-box;
+
   display: grid;
+
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 
   gap: 4px;
 }
@@ -1928,30 +1940,33 @@
   box-sizing: border-box;
 
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
 
-  min-height: 32px;
+  min-height: 38px;
 
   padding:
-    7px
+    0
     9px;
 
   border: 0;
 
-  border-radius: 6px;
+  border-radius: 8px;
 
   background: transparent;
 
-  color: #536b82;
+  color: #2d4c68;
 
-  font: inherit;
-
-  font-size: 10px;
-  font-weight: 850;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
   line-height: 1.35;
 
   text-align: left;
 
-  word-break: keep-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 
   cursor: pointer;
 }
@@ -1962,11 +1977,13 @@
 .inspection-sidebar-sheet-direct button {
   border:
     1px solid
-    #d5e1ec;
+    #d3dfeb;
 
   background: #ffffff;
 
-  color: #314f69;
+  color: #2d4c68;
+
+  box-shadow: none;
 }
 
 
@@ -2168,17 +2185,6 @@
 /* 점검주기·일일·주간·월간 그룹 */
 
 .inspection-sidebar-inspection-menu
-  > .inspection-sidebar-group {
-  border:
-    1px solid
-    #d3dfeb;
-
-  border-radius: 8px;
-
-  background: #ffffff;
-
-  box-shadow: none;
-}
 
 
 .inspection-sidebar-inspection-menu
