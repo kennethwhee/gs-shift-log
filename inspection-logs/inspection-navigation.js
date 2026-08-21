@@ -1857,7 +1857,7 @@ updateInspectionEmptyGuide();
   }
 
 /* =====================================================
-  [INSPECTION-SCHEDULE-EXCEL-PRINT-V3]
+  [INSPECTION-SCHEDULE-EXCEL-PRINT-V4]
 
   전체 점검표 인쇄 / 미리보기
 
@@ -2127,16 +2127,13 @@ function buildInspectionScheduleExcelPrintDocument(
     `설비운영팀('${yearText}.${monthText}.${dayText})`;
 
 
+  /*
+    Excel 원본은 80% 고정 배율이다.
+    항목 수에 따른 선제적 폰트 축소는 하지 않고,
+    실제 한 페이지를 넘을 때만 마지막 fit 단계에서 미세 축소한다.
+  */
   const densityClass =
-    items.length >
-      44
-      ? "is-ultra-compact"
-      : (
-          items.length >
-            38
-            ? "is-compact"
-            : ""
-        );
+    "";
 
 
   return `
@@ -2160,8 +2157,10 @@ function buildInspectionScheduleExcelPrintDocument(
       <style>
 
         @page {
-          size: A4 landscape;
-          margin: 3mm;
+          size: A4 portrait;
+          margin:
+            19mm
+            18mm;
         }
 
 
@@ -2304,14 +2303,15 @@ function buildInspectionScheduleExcelPrintDocument(
 
 
         .print-document {
-          width: 289mm;
+          /*
+            Excel B:J 실제 폭 약 179.4mm × 저장 scale 80%
+            = 약 143.5mm.
+          */
+          width: 143.5mm;
 
           margin: 0 auto;
 
-          padding:
-            4mm
-            4mm
-            3mm;
+          padding: 0;
 
           background: #ffffff;
 
@@ -2331,9 +2331,9 @@ function buildInspectionScheduleExcelPrintDocument(
         .excel-title {
           position: relative;
 
-          min-height: 13mm;
+          min-height: 11.9mm;
 
-          padding-top: 2mm;
+          padding-top: 0;
 
           text-align: center;
         }
@@ -2342,7 +2342,7 @@ function buildInspectionScheduleExcelPrintDocument(
         .excel-title h1 {
           margin: 0;
 
-          font-size: 14pt;
+          font-size: 11.2pt;
           font-weight: 900;
           line-height: 1.1;
         }
@@ -2353,20 +2353,22 @@ function buildInspectionScheduleExcelPrintDocument(
           right: 0;
           bottom: 1mm;
 
-          font-size: 7pt;
+          font-size: 6.4pt;
           font-weight: 500;
         }
 
 
         .excel-section-title {
-          margin:
-            1.5mm
-            0
-            1.2mm;
+          min-height: 5.1mm;
 
-          font-size: 12pt;
+          margin:
+            0
+            0
+            0.8mm;
+
+          font-size: 9.6pt;
           font-weight: 900;
-          line-height: 1.1;
+          line-height: 1.05;
         }
 
 
@@ -2376,7 +2378,7 @@ function buildInspectionScheduleExcelPrintDocument(
           border-collapse: collapse;
           table-layout: fixed;
 
-          font-size: 7.1pt;
+          font-size: 6.4pt;
         }
 
 
@@ -2391,43 +2393,43 @@ function buildInspectionScheduleExcelPrintDocument(
 
 
         col.is-category {
-          width: 6.8%;
+          width: 9.95mm;
         }
 
 
         col.is-cycle {
-          width: 8.5%;
+          width: 12.49mm;
         }
 
 
         col.is-shift-ds,
         col.is-shift-ns {
-          width: 5.1%;
+          width: 8.25mm;
         }
 
 
         col.is-title {
-          width: 28.7%;
+          width: 37.89mm;
         }
 
 
         col.is-position {
-          width: 9.2%;
+          width: 12.49mm;
         }
 
 
         col.is-approval {
-          width: 9.2%;
+          width: 12.49mm;
         }
 
 
         col.is-share {
-          width: 9.2%;
+          width: 12.49mm;
         }
 
 
         col.is-note {
-          width: 18.2%;
+          width: 29.21mm;
         }
 
 
@@ -2443,15 +2445,26 @@ function buildInspectionScheduleExcelPrintDocument(
 
         thead th {
           padding:
-            1.15mm
-            0.8mm;
+            0.2mm
+            0.55mm;
 
           background: #f2f2f2;
 
+          font-size: 6.4pt;
           font-weight: 900;
-          line-height: 1.1;
+          line-height: 1.05;
 
           text-align: center;
+        }
+
+
+        thead tr:first-child {
+          height: 4.7mm;
+        }
+
+
+        thead tr:last-child {
+          height: 4.9mm;
         }
 
 
@@ -2465,11 +2478,16 @@ function buildInspectionScheduleExcelPrintDocument(
         }
 
 
+        tbody tr {
+          height: 5.08mm;
+        }
+
+
         tbody th,
         tbody td {
           padding:
-            0.55mm
-            0.7mm;
+            0.2mm
+            0.55mm;
 
           line-height: 1.12;
         }
@@ -2533,14 +2551,16 @@ function buildInspectionScheduleExcelPrintDocument(
 
 
         .excel-footnote {
+          min-height: 5.1mm;
+
           margin:
-            1.3mm
+            0.8mm
             0
             0;
 
           color: #ff0000;
 
-          font-size: 7pt;
+          font-size: 7.2pt;
           font-weight: 500;
         }
 
@@ -2575,10 +2595,13 @@ function buildInspectionScheduleExcelPrintDocument(
 
 
           .print-document {
-            margin: 0;
-            padding:
+            width: 143.5mm;
+
+            margin:
               0
-              1mm;
+              auto;
+
+            padding: 0;
 
             box-shadow: none;
           }
@@ -2776,16 +2799,21 @@ function fitInspectionScheduleExcelPrintToOnePage(
 
 
   /*
-    A4 landscape
-    297 x 210mm
-    @page margin 3mm 기준의 안전영역에 맞춘다.
+    첨부 Excel 실제 설정:
+    A4 portrait + 80% scale
+    좌우 18mm / 상하 19mm.
+
+    기본 CSS 자체를 이미 Excel 80% 크기로 만들었기 때문에,
+    평상시 zoom은 1이다.
+    현재 데이터가 Excel 기준보다 조금 늘어난 경우에만
+    한 페이지를 넘지 않도록 소폭 축소한다.
   */
   const targetWidth =
-    1090;
+    657;
 
 
   const targetHeight =
-    758;
+    979;
 
 
   const widthRatio =
@@ -2814,7 +2842,7 @@ function fitInspectionScheduleExcelPrintToOnePage(
 
   const safeRatio =
     Math.max(
-      0.34,
+      0.78,
       Math.floor(
         fitRatio *
         100
