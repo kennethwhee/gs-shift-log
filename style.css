@@ -100146,15 +100146,15 @@ body
   position: relative !important;
   box-sizing: border-box !important;
 
-  min-height: 32px !important;
+  min-height: 44px !important;
   height: auto !important;
 
   margin: 0 !important;
   padding:
-    0
-    min(700px, 46vw)
-    0
-    10px !important;
+  0
+  min(700px, 46vw)
+  4px
+  10px !important;
 
   border-bottom: 0 !important;
 
