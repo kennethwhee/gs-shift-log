@@ -1857,7 +1857,7 @@ updateInspectionEmptyGuide();
   }
 
 /* =====================================================
-  [INSPECTION-SCHEDULE-EXCEL-PRINT-V5]
+  [INSPECTION-SCHEDULE-EXCEL-PRINT-V6]
 
   전체 점검표 인쇄 / 미리보기
 
@@ -2157,10 +2157,16 @@ function buildInspectionScheduleExcelPrintDocument(
       <style>
 
         @page {
+          /*
+            Edge/Chromium 자동 머리글·바닥글
+            (날짜·시간 / 문서명 / URL / 페이지 번호)이
+            들어갈 page margin 공간을 없앤다.
+
+            실제 문서 여백은 아래 print 전용
+            .preview-stage padding과 174mm 문서폭으로 복원한다.
+          */
           size: A4 portrait;
-          margin:
-            19mm
-            18mm;
+          margin: 0;
         }
 
 
@@ -2379,6 +2385,10 @@ function buildInspectionScheduleExcelPrintDocument(
         table {
           width: 100%;
 
+          border:
+            1.8px solid
+            #000000;
+
           border-collapse: collapse;
           table-layout: fixed;
 
@@ -2473,7 +2483,19 @@ function buildInspectionScheduleExcelPrintDocument(
 
 
         thead tr:first-child th {
-          border-top-width: 1.4px;
+          border-top-width: 1.8px;
+        }
+
+
+        thead tr:first-child
+        > th:first-child {
+          border-left-width: 1.8px;
+        }
+
+
+        thead tr:first-child
+        > th:last-child {
+          border-right-width: 1.8px;
         }
 
 
@@ -2519,13 +2541,27 @@ function buildInspectionScheduleExcelPrintDocument(
 
         tbody tr.is-category-start
         > * {
-          border-top-width: 1.5px;
+          border-top-width: 1.8px;
         }
 
 
         tbody th.is-category {
+          border-left-width: 1.8px;
+          border-bottom-width: 1.8px;
+
           font-weight: 900;
           text-align: center;
+        }
+
+
+        tbody td.is-note {
+          border-right-width: 1.8px;
+        }
+
+
+        tbody tr:last-child
+        > td {
+          border-bottom-width: 1.8px;
         }
 
 
@@ -2601,8 +2637,15 @@ function buildInspectionScheduleExcelPrintDocument(
             height: auto !important;
             min-height: 0 !important;
 
+            /*
+              @page margin을 0으로 바꾼 대신
+              Excel 기준 상·하 19mm 여백을 문서 안쪽에서 복원한다.
+              174mm 문서폭을 가운데 두면 좌·우는 각각 18mm가 된다.
+            */
             margin: 0 !important;
-            padding: 0 !important;
+            padding:
+              19mm
+              0 !important;
 
             overflow: hidden !important;
           }
@@ -2620,7 +2663,12 @@ function buildInspectionScheduleExcelPrintDocument(
 
             padding: 0;
 
-            overflow: hidden !important;
+            /*
+              기존 hidden은 표 오른쪽 외곽선의 절반을 잘라냈다.
+              문서 자체는 visible로 두고,
+              페이지 넘침은 상위 preview-stage에서 차단한다.
+            */
+            overflow: visible !important;
 
             box-shadow: none;
 
