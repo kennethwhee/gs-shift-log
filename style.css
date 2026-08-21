@@ -95096,34 +95096,32 @@ body.is-auxiliary-material-expanded
   }
 
 
-  body
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-query-card--grouped {
-    box-sizing: border-box !important;
-    position: relative !important;
-    z-index: 1 !important;
-
-    display: grid !important;
-    clear: both !important;
-
-    grid-template-columns:
-      max-content
-      minmax(0, 1fr) !important;
-
-    align-items: center !important;
-
-    gap: 6px 10px !important;
-
-    width: 100% !important;
-    min-width: 0 !important;
-
-    margin: 0 0 6px !important;
-    padding: 8px 10px !important;
-
-    border-radius: 11px !important;
-  }
-
-
+    body #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls .auxiliary-material-query-card--grouped {
+      box-sizing: border-box !important;
+      position: relative !important;
+      z-index: 1 !important;
+  
+      display: grid !important;
+      clear: both !important;
+  
+      grid-template-columns:
+        max-content minmax(0, 1fr) !important;
+  
+      align-items: center !important;
+      gap: 6px 10px !important;
+  
+      width: 100% !important;
+      min-width: 0 !important;
+  
+      margin: 0 0 6px !important;
+      padding: 0 !important;
+  
+      border: 0 !important;
+      border-radius: 0 !important;
+  
+      background: transparent !important;
+      box-shadow: none !important;
+    }
   body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-period-fields--grouped {
