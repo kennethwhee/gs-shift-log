@@ -463,6 +463,18 @@
   }
 
 
+  window.gsInspectionViewToolsExitFocusMode =
+    () => {
+      if (
+        state.focusMode
+      ) {
+        applyFocusMode(
+          false
+        );
+      }
+    };
+
+
   function toggleFocusMode() {
     /*
       [INSPECTION-MODAL-EXPAND-ONLY]

@@ -1,0 +1,597 @@
+/* =========================================================
+  INSPECTION NAVIGATION V2
+
+  New isolated sidebar design.
+  Legacy .inspection-sidebar* rules do not participate in this UI.
+========================================================= */
+
+:root {
+  --inv2-sidebar-width: 264px;
+  --inv2-sidebar-collapsed-width: 58px;
+  --inv2-gap: 14px;
+  --inv2-line: #cfddec;
+  --inv2-line-soft: #e2ebf4;
+  --inv2-panel: #f7faff;
+  --inv2-surface: #ffffff;
+  --inv2-text: #203b56;
+  --inv2-muted: #6f849a;
+  --inv2-blue: #1b6fc2;
+  --inv2-blue-soft: #edf6ff;
+  --inv2-shadow: 0 5px 18px rgba(31, 65, 100, 0.055);
+}
+
+/* =========================================================
+  Workspace frame
+========================================================= */
+
+@media (min-width: 769px) {
+  .inspection-workspace.inspection-workspace--nav-v2 {
+    display: grid !important;
+    grid-template-columns:
+      var(--inv2-sidebar-width)
+      minmax(0, 1fr) !important;
+    gap: var(--inv2-gap) !important;
+    align-items: stretch !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+  }
+
+  .inspection-workspace.inspection-workspace--nav-v2.is-sidebar-collapsed {
+    grid-template-columns:
+      var(--inv2-sidebar-collapsed-width)
+      minmax(0, 1fr) !important;
+  }
+}
+
+/* =========================================================
+  Sidebar shell
+========================================================= */
+
+.inspection-nav-v2 {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 7px 10px 0;
+  overflow-x: clip;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.inspection-nav-v2,
+.inspection-nav-v2 * {
+  box-sizing: border-box;
+}
+
+.inspection-nav-v2 details,
+.inspection-nav-v2 summary {
+  margin: 0;
+}
+
+.inspection-nav-v2 summary {
+  list-style: none;
+}
+
+.inspection-nav-v2 summary::-webkit-details-marker {
+  display: none;
+}
+
+/* =========================================================
+  Section cards
+========================================================= */
+
+.inspection-nav-v2__section {
+  width: 100%;
+  min-width: 0;
+  flex: 0 0 auto;
+  padding: 8px;
+  border: 1px solid var(--inv2-line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fbfdff 0%, var(--inv2-panel) 100%);
+  box-shadow: var(--inv2-shadow);
+}
+
+.inspection-nav-v2__section-header {
+  display: grid;
+  min-height: 48px;
+  align-content: center;
+  gap: 3px;
+  padding: 4px 52px 8px 7px;
+  border-bottom: 1px solid var(--inv2-line-soft);
+}
+
+.inspection-nav-v2__section-header > span {
+  color: var(--inv2-blue);
+  font-size: 8px;
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: 0.14em;
+}
+
+.inspection-nav-v2__section-header > strong {
+  min-width: 0;
+  color: #173a5c;
+  font-size: 15px;
+  font-weight: 950;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inspection-nav-v2__worklog > .inspection-nav-v2__section-header {
+  position: relative;
+  padding-right: 50px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.inspection-nav-v2__worklog > .inspection-nav-v2__section-header::after {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  color: #5b7b98;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  content: "접기";
+  transform: translateY(-50%);
+}
+
+.inspection-nav-v2__worklog:not([open])
+  > .inspection-nav-v2__section-header::after {
+  content: "열기";
+}
+
+.inspection-nav-v2__groups {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 7px;
+  padding-top: 8px;
+}
+
+/* =========================================================
+  Top-level inspection groups
+========================================================= */
+
+.inspection-nav-v2__group,
+.inspection-nav-v2__sheet-group {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #d7e3ef;
+  border-radius: 11px;
+  background: var(--inv2-surface);
+  box-shadow: none;
+}
+
+.inspection-nav-v2__group > summary,
+.inspection-nav-v2__sheet-group > summary {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  grid-template-columns: 32px minmax(0, 1fr) 12px;
+  align-items: center;
+  column-gap: 9px;
+  padding: 0 13px 0 11px;
+  background: #ffffff;
+  color: var(--inv2-text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.3;
+  cursor: pointer;
+  user-select: none;
+}
+
+.inspection-nav-v2__group > summary:hover,
+.inspection-nav-v2__sheet-group > summary:hover {
+  background: #f7fbff;
+  color: #175a97;
+}
+
+.inspection-nav-v2__group > summary::before,
+.inspection-nav-v2__sheet-group > summary::before {
+  display: block;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #d5e4f2;
+  border-radius: 8px;
+  background-color: #f1f7fd;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 16px 16px;
+  content: "";
+}
+
+.inspection-nav-v2__group > summary::after,
+.inspection-nav-v2__sheet-group > summary::after {
+  width: 8px;
+  height: 8px;
+  justify-self: end;
+  border-right: 2px solid #66829d;
+  border-bottom: 2px solid #66829d;
+  content: "";
+  transform: rotate(-45deg);
+  transition: transform 0.16s ease;
+}
+
+.inspection-nav-v2__group[open] > summary::after,
+.inspection-nav-v2__sheet-group[open] > summary::after {
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.inspection-nav-v2__group[open] > summary,
+.inspection-nav-v2__sheet-group[open] > summary {
+  background: #f8fbff;
+  color: #175a97;
+}
+
+/* calendar icon */
+.inspection-nav-v2__group[data-nav-icon="cycle"] > summary::before,
+.inspection-nav-v2__group[data-nav-icon="weekly"] > summary::before,
+.inspection-nav-v2__group[data-nav-icon="monthly"] > summary::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231b6fc2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M16 3v4M8 3v4M3 10h18'/%3E%3C/svg%3E");
+}
+
+/* check icon */
+.inspection-nav-v2__group[data-nav-icon="daily"] > summary::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231b6fc2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='3'/%3E%3Cpath d='m7 12 3 3 7-7'/%3E%3C/svg%3E");
+}
+
+/* document icon */
+.inspection-nav-v2__sheet-group[data-nav-icon="sheet"] > summary::before,
+.inspection-nav-v2__sheet-direct > button::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231b6fc2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 2h8l4 4v16H6z'/%3E%3Cpath d='M14 2v5h5M9 12h6M9 16h6'/%3E%3C/svg%3E");
+}
+
+/* =========================================================
+  Inspection submenus
+========================================================= */
+
+.inspection-nav-v2__submenu,
+.inspection-nav-v2__sheet-menu,
+.inspection-nav-v2__sheet-branches {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 5px;
+  padding: 6px;
+  border-top: 1px solid var(--inv2-line-soft);
+  background: #f7faff;
+}
+
+.inspection-nav-v2__submenu button,
+.inspection-nav-v2__sheet-menu button,
+.inspection-nav-v2__sheet-direct button,
+.inspection-nav-v2__empty {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  align-items: center;
+  padding: 7px 30px 7px 11px;
+  border: 1px solid #dce7f2;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #48647f;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 850;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.inspection-nav-v2__submenu button,
+.inspection-nav-v2__sheet-menu button,
+.inspection-nav-v2__sheet-direct button {
+  cursor: pointer;
+}
+
+.inspection-nav-v2__submenu button::after,
+.inspection-nav-v2__sheet-menu button::after,
+.inspection-nav-v2__sheet-direct button::after {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid #8196aa;
+  border-bottom: 2px solid #8196aa;
+  content: "";
+  transform: translateY(-50%) rotate(-45deg);
+}
+
+.inspection-nav-v2__submenu button:hover,
+.inspection-nav-v2__sheet-menu button:hover,
+.inspection-nav-v2__sheet-direct button:hover {
+  border-color: #aecae5;
+  background: #f2f8ff;
+  color: #145d9f;
+}
+
+.inspection-nav-v2__submenu button.is-active,
+.inspection-nav-v2__sheet-menu button.is-active,
+.inspection-nav-v2__sheet-direct button.is-active {
+  border-color: #5b99d2;
+  background: var(--inv2-blue-soft);
+  color: #145d9f;
+  box-shadow: inset 3px 0 0 var(--inv2-blue);
+}
+
+.inspection-nav-v2__empty {
+  justify-content: center;
+  padding-right: 11px;
+  color: #8a99a8;
+  text-align: center;
+}
+
+/* =========================================================
+  Log Sheet hierarchy
+========================================================= */
+
+.inspection-nav-v2__sheet-branch {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dce7f2;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+.inspection-nav-v2__sheet-branch > summary {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  align-items: center;
+  padding: 0 32px 0 12px;
+  color: #4a657e;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 900;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.inspection-nav-v2__sheet-branch > summary::after {
+  position: absolute;
+  top: 50%;
+  right: 13px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid #8196aa;
+  border-bottom: 2px solid #8196aa;
+  content: "";
+  transform: translateY(-60%) rotate(45deg);
+  transition: transform 0.16s ease;
+}
+
+.inspection-nav-v2__sheet-branch:not([open]) > summary::after {
+  transform: translateY(-50%) rotate(-45deg);
+}
+
+.inspection-nav-v2__sheet-branch .inspection-nav-v2__sheet-menu {
+  padding: 5px;
+}
+
+.inspection-nav-v2__sheet-direct {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 7px;
+}
+
+.inspection-nav-v2__sheet-direct > button {
+  min-height: 46px;
+  padding-left: 48px;
+  padding-right: 31px;
+  color: var(--inv2-text);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.inspection-nav-v2__sheet-direct > button::before {
+  position: absolute;
+  top: 50%;
+  left: 11px;
+  width: 28px;
+  height: 30px;
+  border: 1px solid #d5e4f2;
+  border-radius: 8px;
+  background-color: #f1f7fd;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 16px 16px;
+  content: "";
+  transform: translateY(-50%);
+}
+
+/* =========================================================
+  Sidebar toggle
+========================================================= */
+
+.inspection-nav-v2__toggle {
+  position: absolute;
+  z-index: 5;
+  top: 11px;
+  right: 17px;
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #cbdcec;
+  border-radius: 10px;
+  background: #f6faff;
+  color: #3f6e99;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.inspection-nav-v2__toggle:hover {
+  border-color: #9fc1e1;
+  background: #ecf6ff;
+  color: #185f9e;
+}
+
+.inspection-nav-v2__toggle-icon {
+  font-size: 0;
+}
+
+.inspection-nav-v2__toggle-icon::before {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  content: "";
+  transform: translateX(2px) rotate(45deg);
+}
+
+.inspection-nav-v2__toggle-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* =========================================================
+  Collapsed rail
+========================================================= */
+
+.inspection-nav-v2.is-collapsed {
+  width: var(--inv2-sidebar-collapsed-width);
+  min-width: var(--inv2-sidebar-collapsed-width);
+  max-width: var(--inv2-sidebar-collapsed-width);
+  align-items: center;
+  padding: 8px 7px;
+  overflow: hidden;
+  border: 1px solid var(--inv2-line);
+  border-radius: 14px;
+  background: #f8fbff;
+  box-shadow: var(--inv2-shadow);
+}
+
+.inspection-nav-v2.is-collapsed > .inspection-nav-v2__section {
+  display: none !important;
+}
+
+.inspection-nav-v2.is-collapsed > .inspection-nav-v2__toggle {
+  position: static;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  margin: 0;
+  border-color: #bfd3e6;
+  background: #ffffff;
+  box-shadow: 0 3px 10px rgba(31, 65, 100, 0.06);
+}
+
+.inspection-nav-v2.is-collapsed
+  > .inspection-nav-v2__toggle
+  .inspection-nav-v2__toggle-icon::before {
+  border-left: 0;
+  border-bottom: 0;
+  border-right: 2px solid currentColor;
+  border-top: 2px solid currentColor;
+  transform: translateX(-2px) rotate(45deg);
+}
+
+/* =========================================================
+  Focus-mode home button
+========================================================= */
+
+.inspection-workspace-home-button {
+  display: none;
+}
+
+.inspection-workspace-home-button[hidden] {
+  display: none !important;
+}
+
+body.inspection-focus-mode .inspection-workspace-home-button:not([hidden]) {
+  position: fixed;
+  z-index: 30020;
+  top: 14px;
+  left: 14px;
+  display: inline-flex;
+  height: 38px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 13px;
+  border: 1px solid #b9cde1;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #244d73;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  box-shadow: 0 6px 20px rgba(23, 47, 72, 0.12);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+
+body.inspection-focus-mode .inspection-workspace-home-button:hover {
+  border-color: #82add5;
+  background: #f4f9ff;
+  color: #145d9f;
+}
+
+body.inspection-focus-mode .inspection-calendar-dashboard,
+body.inspection-focus-mode .inspection-schedule-table-panel {
+  padding-top: 48px;
+}
+
+/* =========================================================
+  Mobile
+========================================================= */
+
+@media (max-width: 768px) {
+  .inspection-workspace.inspection-workspace--nav-v2,
+  .inspection-workspace.inspection-workspace--nav-v2.is-sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .inspection-nav-v2 {
+    position: relative;
+    width: 100%;
+    max-height: none;
+    padding-right: 0;
+    overflow: visible;
+  }
+
+  .inspection-nav-v2__worklog {
+    display: none !important;
+  }
+
+  .inspection-nav-v2.is-collapsed {
+    width: 58px;
+    min-width: 58px;
+    max-width: 58px;
+  }
+
+  body.inspection-focus-mode .inspection-workspace-home-button:not([hidden]) {
+    top: 8px;
+    left: 8px;
+    height: 36px;
+  }
+}

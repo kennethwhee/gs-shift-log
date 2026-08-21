@@ -8849,7 +8849,17 @@ function initializeInspectionLogHub() {
   backButton
     ?.addEventListener(
       "click",
-      () => {
+      event => {
+        if (
+          typeof window.gsShiftLogShowInspectionHome ===
+            "function"
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          window.gsShiftLogShowInspectionHome();
+          return;
+        }
+
         selectCategory(
           activeCategory
         );

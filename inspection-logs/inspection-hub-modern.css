@@ -313,7 +313,10 @@ body {
 
 
   body.inspection-focus-mode
-  .inspection-sidebar {
+  .inspection-sidebar,
+
+  body.inspection-focus-mode
+  .inspection-nav-v2 {
     display:
       none !important;
   }
