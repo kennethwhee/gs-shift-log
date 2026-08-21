@@ -100133,10 +100133,11 @@ th > small {
 
 /* =========================================================
   부재료 PC 제목·저장상태·엑셀 등록 최종 통합
+  [AUXILIARY-STATUS-HEADING-V6]
 
   - 제목 아래 가로선 제거
-  - 저장 상태 오른쪽에 기존 엑셀 등록 안내 배치
-  - 큰 엑셀 등록 카드를 작은 상태 칩으로 축소
+  - 저장상태·기존 엑셀 안내를 제목 오른쪽 빈 공간에 배치
+  - 조회 조작 박스에서 상태 영역을 분리
 ========================================================= */
 
 @media screen and (min-width: 769px) {
@@ -100144,7 +100145,15 @@ th > small {
   body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-heading {
+    position: relative !important;
+    box-sizing: border-box !important;
+
+    min-height: 62px !important;
+    padding-right: clamp(310px, 27vw, 390px) !important;
+
     border-bottom: 0 !important;
+
+    overflow: visible !important;
   }
 
 
@@ -100152,21 +100161,30 @@ th > small {
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-pc-status-row {
     box-sizing: border-box !important;
+
+    position: absolute !important;
+    top: 50% !important;
+    right: 12px !important;
+    z-index: 2 !important;
+
     display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
 
-    grid-column: 1 / -1 !important;
+    width: clamp(290px, 25vw, 370px) !important;
+    min-width: 290px !important;
+    max-width: 370px !important;
 
-    width: fit-content !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-
-    align-items: center !important;
-    justify-content: flex-start !important;
-    flex-wrap: wrap !important;
-    gap: 6px !important;
+    align-items: stretch !important;
+    justify-content: center !important;
+    gap: 4px !important;
 
     margin: 0 !important;
     padding: 0 !important;
+
+    transform: translateY(-50%) !important;
+
+    overflow: visible !important;
   }
 
 
@@ -100174,13 +100192,32 @@ th > small {
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
   .auxiliary-material-pc-status-row
   > .auxiliary-material-status {
-    flex: 0 0 auto !important;
+    box-sizing: border-box !important;
+    display: flex !important;
 
-    width: fit-content !important;
+    flex: 0 0 24px !important;
+
+    width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
 
+    height: 24px !important;
+    min-height: 24px !important;
+    max-height: 24px !important;
+
+    align-items: center !important;
+
     margin: 0 !important;
+    padding: 2px 8px !important;
+
+    border-radius: 6px !important;
+
+    font-size: 10px !important;
+    line-height: 16px !important;
+
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
 
@@ -100191,25 +100228,30 @@ th > small {
     box-sizing: border-box !important;
     display: inline-flex !important;
 
-    flex: 0 1 auto !important;
+    flex: 0 0 24px !important;
 
-    width: auto !important;
+    width: 100% !important;
     min-width: 0 !important;
-    max-width: 390px !important;
-    min-height: 25px !important;
+    max-width: 100% !important;
+
+    height: 24px !important;
+    min-height: 24px !important;
+    max-height: 24px !important;
 
     align-items: center !important;
     justify-content: flex-start !important;
     gap: 8px !important;
 
     margin: 0 !important;
-    padding: 3px 8px !important;
+    padding: 2px 8px !important;
 
     border: 1px solid #b9dfc5 !important;
-    border-radius: 7px !important;
+    border-radius: 6px !important;
 
     background: #f1faf4 !important;
     box-shadow: none !important;
+
+    overflow: hidden !important;
   }
 
 
@@ -105837,7 +105879,7 @@ input {
   부재료 PC 상단 가독성·상태·핵심 열 최종 보정
 
   1. 조회 월·OIS 기준일·밀도 적용일 확대
-  2. 저장상태·기존 엑셀 안내를 고정값 저장 옆에 배치
+  2. 저장상태·기존 엑셀 안내를 제목 영역 오른쪽에 배치
   3. 자주 확인하는 핵심 3개 열 강조
   4. 모바일 모니터링 화면은 기존 유지
 ========================================================= */
@@ -105913,306 +105955,6 @@ input {
     min-width: 360px !important;
 
     max-width: 497px !important;
-  }
-
-
-  /* =====================================================
-    저장상태·기존 엑셀 안내 2단 미니 칩
-  ====================================================== */
-
-  body
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-action-controls
-  > .auxiliary-material-pc-status-row {
-    box-sizing: border-box !important;
-    display: flex !important;
-
-    flex: 0 1 230px !important;
-    flex-direction: column !important;
-    flex-wrap: nowrap !important;
-
-    align-self: flex-end !important;
-    align-items: stretch !important;
-    justify-content: center !important;
-
-    grid-column: auto !important;
-
-    gap: 2px !important;
-
-    width: 230px !important;
-    min-width: 190px !important;
-    max-width: 230px !important;
-
-    height: 34px !important;
-    min-height: 34px !important;
-    max-height: 34px !important;
-
-    margin: 0 !important;
-    padding: 0 !important;
-
-    overflow: hidden !important;
-  }
-
-/* =========================================================
-   [AUXILIARY-STATUS-TEXT-FIT-V5]
-   PC 우측 초록 상태 2줄 글자 잘림 보정
-========================================================= */
-
-body
-#efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-.auxiliary-material-pc-action-controls
-> .auxiliary-material-pc-status-row {
-  min-height: 43px !important;
-  height: auto !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  justify-content: center !important;
-  gap: 3px !important;
-  overflow: visible !important;
-}
-
-body
-#efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-.auxiliary-material-pc-status-row
-> .auxiliary-material-status {
-  box-sizing: border-box !important;
-  display: flex !important;
-  flex: 0 0 20px !important;
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: 100% !important;
-  min-height: 20px !important;
-  height: 20px !important;
-  align-items: center !important;
-  margin: 0 !important;
-  padding: 2px 6px !important;
-  font-size: 9px !important;
-  line-height: 1.3 !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-}
-
-body
-#efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-.auxiliary-material-pc-status-row
-> .auxiliary-material-excel-import--compact {
-  box-sizing: border-box !important;
-  flex: 0 0 20px !important;
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: 100% !important;
-  min-height: 20px !important;
-  height: 20px !important;
-  gap: 5px !important;
-  padding: 2px 6px !important;
-  overflow: hidden !important;
-}
-
-body
-#efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-.auxiliary-material-excel-import--compact
-.auxiliary-material-excel-import__description
-> strong {
-  font-size: 9px !important;
-  line-height: 1.3 !important;
-}
-
-body
-#efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-.auxiliary-material-excel-import--compact
-.auxiliary-material-excel-import__actions {
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
-  padding-left: 5px !important;
-  overflow: hidden !important;
-}
-
-body
-#efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-.auxiliary-material-excel-import--compact
-#auxiliaryMaterialExcelFileName {
-  flex: 1 1 auto !important;
-  width: auto !important;
-  min-width: 0 !important;
-  max-width: none !important;
-  font-size: 9px !important;
-  line-height: 1.3 !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-}
-
-
-
-  body
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-action-controls
-  > .auxiliary-material-pc-status-row
-  > .auxiliary-material-status {
-    box-sizing: border-box !important;
-    display: block !important;
-
-    flex: 0 0 16px !important;
-    grid-column: auto !important;
-
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-
-    height: 16px !important;
-    min-height: 16px !important;
-    max-height: 16px !important;
-
-    margin: 0 !important;
-    padding: 1px 6px !important;
-
-    border-radius: 5px !important;
-
-    font-size: 9px !important;
-    font-weight: 800 !important;
-    line-height: 12px !important;
-
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-  }
-
-
-  body
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-action-controls
-  > .auxiliary-material-pc-status-row
-  > .auxiliary-material-excel-import--compact {
-    box-sizing: border-box !important;
-    display: flex !important;
-
-    flex: 0 0 16px !important;
-
-    align-items: center !important;
-    justify-content: flex-start !important;
-
-    gap: 4px !important;
-
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-
-    height: 16px !important;
-    min-height: 16px !important;
-    max-height: 16px !important;
-
-    margin: 0 !important;
-    padding: 1px 5px !important;
-
-    border-radius: 5px !important;
-
-    overflow: hidden !important;
-  }
-
-
-  body
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-action-controls
-  > .auxiliary-material-pc-status-row
-  .auxiliary-material-excel-import__description {
-    box-sizing: border-box !important;
-    display: flex !important;
-
-    flex: 1 1 auto !important;
-
-    align-items: center !important;
-
-    width: auto !important;
-    min-width: 0 !important;
-
-    margin: 0 !important;
-    padding: 0 !important;
-
-    overflow: hidden !important;
-  }
-
-
-  body
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-action-controls
-  > .auxiliary-material-pc-status-row
-  .auxiliary-material-excel-import__description
-  > span,
-
-  body
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-action-controls
-  > .auxiliary-material-pc-status-row
-  .auxiliary-material-excel-import__description
-  > p {
-    display: none !important;
-  }
-
-
-  body
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-action-controls
-  > .auxiliary-material-pc-status-row
-  .auxiliary-material-excel-import__description
-  > strong {
-    display: block !important;
-
-    min-width: 0 !important;
-
-    margin: 0 !important;
-
-    font-size: 8px !important;
-    font-weight: 900 !important;
-    line-height: 12px !important;
-
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-  }
-
-
-  body
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-action-controls
-  > .auxiliary-material-pc-status-row
-  .auxiliary-material-excel-import__actions {
-    box-sizing: border-box !important;
-    display: flex !important;
-
-    flex: 0 1 82px !important;
-
-    align-items: center !important;
-
-    width: auto !important;
-    min-width: 0 !important;
-    max-width: 82px !important;
-
-    margin: 0 !important;
-    padding: 0 0 0 4px !important;
-
-    overflow: hidden !important;
-  }
-
-
-  body
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-action-controls
-  > .auxiliary-material-pc-status-row
-  #auxiliaryMaterialExcelFileName {
-    display: block !important;
-
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 76px !important;
-
-    font-size: 8px !important;
-    font-weight: 700 !important;
-    line-height: 12px !important;
-
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
   }
 
 
@@ -106301,19 +106043,6 @@ body
     [data-field="limePowderTpd"]
   ):not(:focus) {
     border-color: #d5c38a !important;
-  }
-}
-
-/* =========================================================
-  부재료 PC 고정값 저장·상태 박스 간격 보정
-========================================================= */
-
-@media screen and (min-width: 769px) {
-  body
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-action-controls
-  > .auxiliary-material-pc-status-row {
-    padding: 0 0 0 6px !important;
   }
 }
 

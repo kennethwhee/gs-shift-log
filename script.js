@@ -96949,10 +96949,10 @@ function prepareAuxiliaryMaterialPcCompactControls() {
 
   /*
     저장 상태와 기존 엑셀 등록 안내를
-    고정값 저장 버튼 오른쪽에 배치한다.
+    조회 박스 바깥 제목 오른쪽에 배치한다.
   */
   let statusRow =
-    queryCard.querySelector(
+    view.querySelector(
       ".auxiliary-material-pc-status-row"
     );
 
@@ -96997,7 +96997,9 @@ function prepareAuxiliaryMaterialPcCompactControls() {
     statusRow.childElementCount >
       0
   ) {
-    actionControls.append(
+    (view.querySelector(
+      ".auxiliary-material-heading"
+    ) || queryCard).append(
       statusRow
     );
   }
