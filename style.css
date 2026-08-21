@@ -114938,3 +114938,63 @@ input[type="date"]::-webkit-datetime-edit-fields-wrapper {
 
 /* ===== ARM ROLL 2 WEEK + LEGEND 20 PERCENT FIX 9 END ===== */
 
+/* =========================================================
+  부재료 월 평균 행
+========================================================= */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody
+> .auxiliary-material-average-row
+> td {
+  background: #f3effb !important;
+
+  color: #40375f !important;
+
+  font-weight: 900 !important;
+
+  border-top:
+    1px solid
+    #c9bfdf !important;
+
+  border-bottom:
+    2px solid
+    #b7aacd !important;
+}
+
+
+/* 월 평균 제목 */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody
+> .auxiliary-material-average-row
+> td.is-date {
+  background: #e9e2f5 !important;
+
+  color: #4b3c72 !important;
+
+  font-weight: 950 !important;
+
+  white-space: nowrap !important;
+}
+
+
+/*
+  평균행에서는 1호기·2호기 기존 배경색을 사용하지 않는다.
+  행 전체를 하나의 요약 색상으로 통일한다.
+*/
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody
+> .auxiliary-material-average-row
+> td.is-unit-one,
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody
+> .auxiliary-material-average-row
+> td.is-unit-two {
+  background: #f3effb !important;
+}
