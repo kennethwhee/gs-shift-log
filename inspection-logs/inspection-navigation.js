@@ -1857,235 +1857,286 @@ updateInspectionEmptyGuide();
   }
 
 /* =====================================================
-  [INSPECTION-SCHEDULE-PRINT-PREVIEW-V2]
+  [INSPECTION-SCHEDULE-EXCEL-PRINT-V3]
 
   전체 점검표 인쇄 / 미리보기
 
-  - 사용 중 + 사용 중지 일정 전체 포함
-  - 상태 열 추가
-  - 기존 구분 / 점검주기 / Shift / 점검사항 / 비고 유지
-  - A4 가로 한 페이지 기준 자동 축소
-  - 미리보기 창에서 인쇄 가능
+  기준 양식:
+  - "(GS포천 설비운영팀)2025년 설비 정기점검 업무일정표(251014).xlsx"
+  - "설비 정기점검&교체운전(251014수정)" 시트
+  - 주설비 운전분야 B2:J47 형식
+
+  출력 원칙:
+  - 연료설비 운전분야는 제외
+  - 사용 중지 일정도 행 자체는 모두 포함
+  - 별도 상태 열은 만들지 않고 Excel 열 구조를 그대로 유지
+  - 구분 / 점검주기 / Shift(D/S,N/S) / 점검사항 /
+    담당(Position) / 결재 / 공유 / 비고
+  - A4 가로 1페이지 자동 축소
 ===================================================== */
 
-function getInspectionSchedulePrintStatus(
+function isInspectionScheduleFuelFacilityItem(
   item
 ) {
-  if (
-    item?.isActive ===
-      false
-  ) {
-    return {
-      label:
-        "사용 중지",
-
-      className:
-        "is-inactive"
-    };
-  }
-
-
-  if (
-    item?.isCustom ===
-      true
-  ) {
-    return {
-      label:
-        "추가 일정",
-
-      className:
-        "is-custom"
-    };
-  }
+  const possibleSectionValues = [
+    item?.section,
+    item?.sectionKey,
+    item?.sourceSection,
+    item?.operationArea,
+    item?.facilityGroup
+  ]
+    .map(
+      value => {
+        return String(
+          value ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+      }
+    )
+    .filter(
+      Boolean
+    );
 
 
-  if (
-    item?.hasOverride ===
-      true
-  ) {
-    return {
-      label:
-        "수정됨",
-
-      className:
-        "is-edited"
-    };
-  }
+  const fuelSectionKeys =
+    new Set([
+      "fuel",
+      "fuel-facility",
+      "fuel_facility",
+      "fuel facility",
+      "연료설비",
+      "연료설비 운전분야"
+    ]);
 
 
-  return {
-    label:
-      "사용 중",
-
-    className:
-      "is-active"
-  };
+  return possibleSectionValues.some(
+    value => {
+      return fuelSectionKeys.has(
+        value
+      );
+    }
+  );
 }
 
 
-function buildInspectionSchedulePrintRows(
-  items
-) {
-  return items
-    .map(
+function getInspectionScheduleExcelPrintItems() {
+  return getManagerItems()
+    .filter(
       item => {
-        const shifts =
-          Array.isArray(
-            item?.shifts
-          )
-            ? item.shifts
-            : [];
-
-
-        const shiftText =
-          [
-            shifts.includes(
-              "D/S"
-            )
-              ? "D/S"
-              : "",
-
-            shifts.includes(
-              "N/S"
-            )
-              ? "N/S"
-              : ""
-          ]
-            .filter(
-              Boolean
-            )
-            .join(
-              " · "
-            ) ||
-          "-";
-
-
-        const status =
-          getInspectionSchedulePrintStatus(
+        return (
+          !isInspectionScheduleFuelFacilityItem(
             item
-          );
-
-
-        return `
-          <tr
-            class="${
-              item?.isActive ===
-                false
-                ? "is-inactive"
-                : ""
-            }"
-          >
-            <td class="is-category">
-              ${escapeHtml(
-                categoryLabels[
-                  item?.category
-                ] ||
-                "기타"
-              )}
-            </td>
-
-            <td class="is-cycle">
-              ${escapeHtml(
-                item?.scheduleLabel ||
-                "-"
-              )}
-            </td>
-
-            <td class="is-shift">
-              ${escapeHtml(
-                shiftText
-              )}
-            </td>
-
-            <td class="is-title">
-              ${escapeHtml(
-                item?.title ||
-                "-"
-              )}
-            </td>
-
-            <td class="is-status">
-              <span class="${status.className}">
-                ${escapeHtml(
-                  status.label
-                )}
-              </span>
-            </td>
-
-            <td class="is-note">
-              ${escapeHtml(
-                item?.note ||
-                "-"
-              )}
-            </td>
-          </tr>
-        `;
+          )
+        );
       }
-    )
-    .join(
-      ""
     );
 }
 
 
-function buildInspectionSchedulePrintDocument(
+function getInspectionSchedulePrintCategoryOrder() {
+  return [
+    "daily",
+    "weekly",
+    "monthly",
+    "quarterly",
+    "other"
+  ];
+}
+
+
+function buildInspectionScheduleExcelPrintRows(
   items
 ) {
-  const totalCount =
-    items.length;
+  const rows = [];
 
 
-  const inactiveCount =
-    items.filter(
-      item => {
-        return (
-          item?.isActive ===
-          false
+  getInspectionSchedulePrintCategoryOrder()
+    .forEach(
+      category => {
+        const categoryItems =
+          items.filter(
+            item => {
+              return (
+                String(
+                  item?.category ||
+                  ""
+                ).trim() ===
+                category
+              );
+            }
+          );
+
+
+        if (
+          !categoryItems.length
+        ) {
+          return;
+        }
+
+
+        categoryItems.forEach(
+          (
+            item,
+            index
+          ) => {
+            const shifts =
+              Array.isArray(
+                item?.shifts
+              )
+                ? item.shifts
+                : [];
+
+
+            const isCategoryFirst =
+              index ===
+              0;
+
+
+            rows.push(`
+              <tr
+                class="${
+                  isCategoryFirst
+                    ? "is-category-start"
+                    : ""
+                }"
+              >
+                ${
+                  isCategoryFirst
+                    ? `
+                        <th
+                          class="is-category"
+                          rowspan="${categoryItems.length}"
+                        >
+                          ${escapeHtml(
+                            categoryLabels[
+                              category
+                            ] ||
+                            "기타"
+                          )}
+                        </th>
+                      `
+                    : ""
+                }
+
+                <td class="is-cycle">
+                  ${escapeHtml(
+                    item?.scheduleLabel ||
+                    "-"
+                  )}
+                </td>
+
+                <td class="is-shift">
+                  ${shifts.includes("D/S") ? "●" : ""}
+                </td>
+
+                <td class="is-shift">
+                  ${shifts.includes("N/S") ? "●" : ""}
+                </td>
+
+                <td class="is-title">
+                  ${escapeHtml(
+                    item?.title ||
+                    "-"
+                  )}
+                </td>
+
+                <td class="is-position">
+                  ${escapeHtml(
+                    item?.position ||
+                    "-"
+                  )}
+                </td>
+
+                <td class="is-approval">
+                  ${escapeHtml(
+                    item?.approval ||
+                    "-"
+                  )}
+                </td>
+
+                <td class="is-share">
+                  ${escapeHtml(
+                    item?.share ||
+                    "-"
+                  )}
+                </td>
+
+                <td class="is-note">
+                  ${escapeHtml(
+                    item?.note ||
+                    "-"
+                  )}
+                </td>
+              </tr>
+            `);
+          }
         );
       }
-    ).length;
+    );
 
 
-  const densityClass =
-    totalCount >
-      46
-      ? "is-ultra-compact"
-      : (
-          totalCount >
-            36
-            ? "is-compact"
-            : ""
-        );
+  return rows.join(
+    ""
+  );
+}
 
 
+function buildInspectionScheduleExcelPrintDocument(
+  items
+) {
   const rowsHtml =
-    buildInspectionSchedulePrintRows(
+    buildInspectionScheduleExcelPrintRows(
       items
     );
 
 
-  const printedAt =
-    new Intl.DateTimeFormat(
-      "ko-KR",
-      {
-        year:
-          "numeric",
+  const now =
+    new Date();
 
-        month:
-          "2-digit",
 
-        day:
-          "2-digit",
-
-        hour:
-          "2-digit",
-
-        minute:
-          "2-digit"
-      }
-    ).format(
-      new Date()
+  const yearText =
+    String(
+      now.getFullYear()
+    ).slice(
+      -2
     );
+
+
+  const monthText =
+    String(
+      now.getMonth() +
+      1
+    ).padStart(
+      2,
+      "0"
+    );
+
+
+  const dayText =
+    String(
+      now.getDate()
+    ).padStart(
+      2,
+      "0"
+    );
+
+
+  const revisionText =
+    `설비운영팀('${yearText}.${monthText}.${dayText})`;
+
+
+  const densityClass =
+    items.length >
+      44
+      ? "is-ultra-compact"
+      : (
+          items.length >
+            38
+            ? "is-compact"
+            : ""
+        );
 
 
   return `
@@ -2110,7 +2161,7 @@ function buildInspectionSchedulePrintDocument(
 
         @page {
           size: A4 landscape;
-          margin: 4mm;
+          margin: 3mm;
         }
 
 
@@ -2124,13 +2175,13 @@ function buildInspectionSchedulePrintDocument(
           margin: 0;
           padding: 0;
 
-          background: #e9eef3;
+          background: #e8edf2;
 
-          color: #111827;
+          color: #000000;
 
           font-family:
             "Malgun Gothic",
-            "Apple SD Gothic Neo",
+            "맑은 고딕",
             Arial,
             sans-serif;
         }
@@ -2139,11 +2190,11 @@ function buildInspectionSchedulePrintDocument(
         .preview-toolbar {
           position: sticky;
           top: 0;
-          z-index: 10;
+          z-index: 20;
 
           display: flex;
 
-          min-height: 52px;
+          min-height: 54px;
 
           align-items: center;
           justify-content: space-between;
@@ -2154,7 +2205,7 @@ function buildInspectionSchedulePrintDocument(
 
           border-bottom:
             1px solid
-            #cdd8e2;
+            #cad4dd;
 
           background:
             rgba(
@@ -2165,18 +2216,18 @@ function buildInspectionSchedulePrintDocument(
             );
 
           box-shadow:
-            0 3px 12px
+            0 2px 10px
             rgba(
-              23,
-              46,
-              72,
+              28,
+              45,
+              64,
               0.08
             );
         }
 
 
         .preview-toolbar strong {
-          color: #20384f;
+          color: #18344f;
 
           font-size: 14px;
           font-weight: 900;
@@ -2186,7 +2237,7 @@ function buildInspectionSchedulePrintDocument(
         .preview-toolbar span {
           margin-left: 8px;
 
-          color: #6c7f91;
+          color: #60778c;
 
           font-size: 10px;
           font-weight: 750;
@@ -2205,17 +2256,17 @@ function buildInspectionSchedulePrintDocument(
         .preview-toolbar button {
           min-height: 34px;
 
-          padding: 0 13px;
+          padding: 0 14px;
 
           border:
             1px solid
-            #b7c8d8;
+            #bfd0df;
 
           border-radius: 7px;
 
           background: #ffffff;
 
-          color: #315c86;
+          color: #2f5f8f;
 
           font: inherit;
           font-size: 10px;
@@ -2226,9 +2277,9 @@ function buildInspectionSchedulePrintDocument(
 
 
         .preview-toolbar button.is-primary {
-          border-color: #2d73b8;
+          border-color: #2f73b8;
 
-          background: #2d73b8;
+          background: #2f73b8;
 
           color: #ffffff;
         }
@@ -2240,7 +2291,7 @@ function buildInspectionSchedulePrintDocument(
           min-height:
             calc(
               100vh -
-              52px
+              54px
             );
 
           align-items: flex-start;
@@ -2253,11 +2304,14 @@ function buildInspectionSchedulePrintDocument(
 
 
         .print-document {
-          width: 1100px;
+          width: 289mm;
 
           margin: 0 auto;
 
-          padding: 12px 14px;
+          padding:
+            4mm
+            4mm
+            3mm;
 
           background: #ffffff;
 
@@ -2274,50 +2328,45 @@ function buildInspectionSchedulePrintDocument(
         }
 
 
-        .print-header {
-          display: flex;
+        .excel-title {
+          position: relative;
 
-          align-items: flex-end;
-          justify-content: space-between;
+          min-height: 13mm;
 
-          gap: 12px;
+          padding-top: 2mm;
 
-          margin-bottom: 4px;
-
-          padding-bottom: 4px;
-
-          border-bottom:
-            1.5px solid
-            #243b53;
+          text-align: center;
         }
 
 
-        .print-header h1 {
+        .excel-title h1 {
           margin: 0;
 
-          font-size: 11pt;
+          font-size: 14pt;
           font-weight: 900;
           line-height: 1.1;
         }
 
 
-        .print-header p {
-          margin: 2px 0 0;
+        .excel-title__revision {
+          position: absolute;
+          right: 0;
+          bottom: 1mm;
 
-          color: #52606d;
-
-          font-size: 5.8pt;
-          font-weight: 750;
+          font-size: 7pt;
+          font-weight: 500;
         }
 
 
-        .print-meta {
-          color: #52606d;
+        .excel-section-title {
+          margin:
+            1.5mm
+            0
+            1.2mm;
 
-          font-size: 5.5pt;
-          text-align: right;
-
-          white-space: nowrap;
+          font-size: 12pt;
+          font-weight: 900;
+          line-height: 1.1;
         }
 
 
@@ -2327,199 +2376,172 @@ function buildInspectionSchedulePrintDocument(
           border-collapse: collapse;
           table-layout: fixed;
 
-          font-size: 6.2pt;
+          font-size: 7.1pt;
         }
 
 
         body.is-compact table {
-          font-size: 5.6pt;
+          font-size: 6.45pt;
         }
 
 
         body.is-ultra-compact table {
-          font-size: 5.1pt;
+          font-size: 5.9pt;
         }
 
 
         col.is-category {
-          width: 6.5%;
+          width: 6.8%;
         }
 
 
         col.is-cycle {
-          width: 12.5%;
+          width: 8.5%;
         }
 
 
-        col.is-shift {
-          width: 7%;
+        col.is-shift-ds,
+        col.is-shift-ns {
+          width: 5.1%;
         }
 
 
         col.is-title {
-          width: 44%;
+          width: 28.7%;
         }
 
 
-        col.is-status {
-          width: 9%;
+        col.is-position {
+          width: 9.2%;
+        }
+
+
+        col.is-approval {
+          width: 9.2%;
+        }
+
+
+        col.is-share {
+          width: 9.2%;
         }
 
 
         col.is-note {
-          width: 21%;
+          width: 18.2%;
         }
 
 
-        thead {
-          display:
-            table-header-group;
-        }
-
-
-        th {
-          padding:
-            2px
-            3px;
-
-          border:
-            1px solid
-            #7b8794;
-
-          background:
-            #e9eef4;
-
-          font-size: 5.9pt;
-          font-weight: 900;
-
-          line-height: 1.05;
-
-          text-align: center;
-
-          white-space: nowrap;
-        }
-
-
+        th,
         td {
-          padding:
-            1.4px
-            3px;
-
           border:
             1px solid
-            #9aa5b1;
-
-          line-height: 1.08;
+            #000000;
 
           vertical-align: middle;
-
-          word-break: keep-all;
-          overflow-wrap: anywhere;
         }
 
 
-        body.is-compact td {
+        thead th {
           padding:
-            0.9px
-            2.5px;
+            1.15mm
+            0.8mm;
+
+          background: #f2f2f2;
+
+          font-weight: 900;
+          line-height: 1.1;
+
+          text-align: center;
+        }
+
+
+        thead tr:first-child th {
+          border-top-width: 1.4px;
+        }
+
+
+        thead tr:last-child th {
+          border-bottom: 3px double #000000;
+        }
+
+
+        tbody th,
+        tbody td {
+          padding:
+            0.55mm
+            0.7mm;
+
+          line-height: 1.12;
+        }
+
+
+        body.is-compact tbody th,
+        body.is-compact tbody td {
+          padding:
+            0.38mm
+            0.55mm;
 
           line-height: 1.04;
         }
 
 
-        body.is-ultra-compact td {
+        body.is-ultra-compact tbody th,
+        body.is-ultra-compact tbody td {
           padding:
-            0.5px
-            2px;
+            0.22mm
+            0.45mm;
 
           line-height: 1;
         }
 
 
-        td.is-category,
-        td.is-cycle,
-        td.is-shift,
-        td.is-status {
+        tbody tr.is-category-start
+        > * {
+          border-top-width: 1.5px;
+        }
+
+
+        tbody th.is-category {
+          font-weight: 900;
           text-align: center;
         }
 
 
-        td.is-title {
-          font-weight: 800;
+        td.is-cycle,
+        td.is-shift,
+        td.is-position,
+        td.is-approval,
+        td.is-share {
+          text-align: center;
         }
 
 
+        td.is-title,
         td.is-note {
-          font-size: 0.94em;
+          text-align: left;
         }
 
 
-        td.is-status span {
-          display: inline-flex;
+        td.is-title,
+        td.is-note,
+        td.is-position,
+        td.is-approval,
+        td.is-share {
+          word-break: keep-all;
+          overflow-wrap: anywhere;
+        }
 
-          min-height: 12px;
 
-          align-items: center;
-          justify-content: center;
-
-          padding:
+        .excel-footnote {
+          margin:
+            1.3mm
             0
-            3px;
+            0;
 
-          border-radius: 999px;
+          color: #ff0000;
 
-          background: #edf2f6;
-
-          color: #50697f;
-
-          font-size: 0.9em;
-          font-weight: 900;
-
-          white-space: nowrap;
-        }
-
-
-        td.is-status span.is-inactive {
-          background: #ffecec;
-
-          color: #a04444;
-        }
-
-
-        td.is-status span.is-custom {
-          background: #e9f7ee;
-
-          color: #317149;
-        }
-
-
-        td.is-status span.is-edited {
-          background: #eaf3fc;
-
-          color: #356f9f;
-        }
-
-
-        tr.is-inactive td {
-          background: #fff7f7;
-
-          color: #7e5f5f;
-        }
-
-
-        tbody tr {
-          break-inside: avoid;
-          page-break-inside: avoid;
-        }
-
-
-        .print-footer {
-          margin: 3px 0 0;
-
-          color: #6b7280;
-
-          font-size: 5pt;
-          font-weight: 700;
+          font-size: 7pt;
+          font-weight: 500;
         }
 
 
@@ -2554,7 +2576,9 @@ function buildInspectionSchedulePrintDocument(
 
           .print-document {
             margin: 0;
-            padding: 0;
+            padding:
+              0
+              1mm;
 
             box-shadow: none;
           }
@@ -2577,7 +2601,7 @@ function buildInspectionSchedulePrintDocument(
           </strong>
 
           <span>
-            전체 ${totalCount}건 · 사용 중지 ${inactiveCount}건 포함
+            주설비 ${items.length}건 · 사용 중지 포함 · 연료설비 제외
           </span>
 
         </div>
@@ -2609,28 +2633,24 @@ function buildInspectionSchedulePrintDocument(
 
         <main class="print-document">
 
-          <header class="print-header">
+          <header class="excel-title">
 
-            <div>
+            <h1>
+              설비운영팀 설비점검 및 회전기기 교체운전 List 및 주기
+            </h1>
 
-              <h1>
-                설비점검 및 회전기기 교체운전 List 및 주기
-              </h1>
-
-              <p>
-                전체 점검표 · 전체 ${totalCount}건 · 사용 중지 ${inactiveCount}건 포함
-              </p>
-
-            </div>
-
-
-            <div class="print-meta">
-              출력일시 ${escapeHtml(
-                printedAt
+            <span class="excel-title__revision">
+              ${escapeHtml(
+                revisionText
               )}
-            </div>
+            </span>
 
           </header>
+
+
+          <h2 class="excel-section-title">
+            ▣ 주설비 운전분야 설비점검
+          </h2>
 
 
           <table>
@@ -2638,9 +2658,12 @@ function buildInspectionSchedulePrintDocument(
             <colgroup>
               <col class="is-category">
               <col class="is-cycle">
-              <col class="is-shift">
+              <col class="is-shift-ds">
+              <col class="is-shift-ns">
               <col class="is-title">
-              <col class="is-status">
+              <col class="is-position">
+              <col class="is-approval">
+              <col class="is-share">
               <col class="is-note">
             </colgroup>
 
@@ -2648,12 +2671,55 @@ function buildInspectionSchedulePrintDocument(
             <thead>
 
               <tr>
-                <th>구분</th>
-                <th>점검 주기</th>
-                <th>Shift</th>
-                <th>점검사항</th>
-                <th>상태</th>
-                <th>비고</th>
+
+                <th
+                  colspan="2"
+                  rowspan="2"
+                >
+                  점검 주기
+                </th>
+
+                <th colspan="2">
+                  Shift
+                </th>
+
+                <th rowspan="2">
+                  점검사항
+                </th>
+
+                <th>
+                  담당
+                </th>
+
+                <th rowspan="2">
+                  결재
+                </th>
+
+                <th rowspan="2">
+                  공유
+                </th>
+
+                <th rowspan="2">
+                  비고
+                </th>
+
+              </tr>
+
+
+              <tr>
+
+                <th>
+                  D/S
+                </th>
+
+                <th>
+                  N/S
+                </th>
+
+                <th>
+                  Position
+                </th>
+
               </tr>
 
             </thead>
@@ -2666,8 +2732,8 @@ function buildInspectionSchedulePrintDocument(
           </table>
 
 
-          <p class="print-footer">
-            * 사용 중지 일정을 포함한 전체 점검 일정입니다.
+          <p class="excel-footnote">
+            * 월간 점검기준 첫주는 1일이 금요일 포함시 첫주 적용
           </p>
 
         </main>
@@ -2681,7 +2747,7 @@ function buildInspectionSchedulePrintDocument(
 }
 
 
-function fitInspectionSchedulePrintToOnePage(
+function fitInspectionScheduleExcelPrintToOnePage(
   printWindow
 ) {
   if (
@@ -2710,16 +2776,16 @@ function fitInspectionSchedulePrintToOnePage(
 
 
   /*
-    A4 landscape / 4mm margin에 맞춘 안전 영역.
-    Chromium / Edge의 CSS zoom을 사용해
-    실제 인쇄 레이아웃 크기 자체를 줄인다.
+    A4 landscape
+    297 x 210mm
+    @page margin 3mm 기준의 안전영역에 맞춘다.
   */
   const targetWidth =
-    1080;
+    1090;
 
 
   const targetHeight =
-    748;
+    758;
 
 
   const widthRatio =
@@ -2748,7 +2814,7 @@ function fitInspectionSchedulePrintToOnePage(
 
   const safeRatio =
     Math.max(
-      0.52,
+      0.34,
       Math.floor(
         fitRatio *
         100
@@ -2775,7 +2841,7 @@ function openInspectionSchedulePrintPreview(
 
 
   const items =
-    getManagerItems();
+    getInspectionScheduleExcelPrintItems();
 
 
   if (
@@ -2783,7 +2849,7 @@ function openInspectionSchedulePrintPreview(
       1
   ) {
     window.alert(
-      "인쇄할 점검 목록이 없습니다."
+      "인쇄할 주설비 점검 목록이 없습니다."
     );
 
     return;
@@ -2817,7 +2883,7 @@ function openInspectionSchedulePrintPreview(
   printWindow.document.open();
 
   printWindow.document.write(
-    buildInspectionSchedulePrintDocument(
+    buildInspectionScheduleExcelPrintDocument(
       items
     )
   );
@@ -2838,7 +2904,7 @@ function openInspectionSchedulePrintPreview(
 
 
   function fitPreview() {
-    fitInspectionSchedulePrintToOnePage(
+    fitInspectionScheduleExcelPrintToOnePage(
       printWindow
     );
   }
