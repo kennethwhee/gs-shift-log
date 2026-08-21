@@ -208894,80 +208894,92 @@ function renderTeamApprovalCard(
     HTML은 이번 단계에서 수정하지 않는다.
   ====================================================== */
 
-  function initializeOisLegacyShiftOptions() {
-    const shiftSelect =
-      document.getElementById(
-        "searchShift"
-      );
+function initializeOisLegacyShiftOptions() {
+  const shiftSelect =
+    document.getElementById(
+      "searchShift"
+    );
 
 
-    if (
-      !shiftSelect ||
-      shiftSelect.querySelector(
-        'option[value="A"]'
-      )
-    ) {
-      return;
-    }
+  if (
+    !shiftSelect ||
+    shiftSelect.querySelector(
+      'option[value="A"]'
+    )
+  ) {
+    return;
+  }
 
 
-    const group =
-      document.createElement(
-        "optgroup"
-      );
+  /*
+    optgroup을 사용하면 브라우저가
+    D / A / N 옵션을 자동으로 들여쓴다.
+
+    따라서 "구 3교대"는
+    선택 불가 안내 option으로 두고,
+    D / A / N은 모두 최상위 option으로 추가한다.
+  */
+  const legacyHeading =
+    document.createElement(
+      "option"
+    );
+
+  legacyHeading.value =
+    "";
+
+  legacyHeading.textContent =
+    "구 3교대";
+
+  legacyHeading.disabled =
+    true;
 
 
-    group.label =
-      "구 3교대";
+  shiftSelect.appendChild(
+    legacyHeading
+  );
 
+
+  [
+    [
+      "D",
+      "D (주간)"
+    ],
 
     [
-      [
-        "D",
-        "D (주간)"
-      ],
+      "A",
+      "A (오후)"
+    ],
 
+    [
+      "N",
+      "N (야간)"
+    ]
+  ].forEach(
+    (
       [
-        "A",
-        "A (오후)"
-      ],
-
-      [
-        "N",
-        "N (야간)"
+        value,
+        label
       ]
-    ].forEach(
-      (
-        [
-          value,
-          label
-        ]
-      ) => {
-        const option =
-          document.createElement(
-            "option"
-          );
-
-
-        option.value =
-          value;
-
-
-        option.textContent =
-          label;
-
-
-        group.appendChild(
-          option
+    ) => {
+      const option =
+        document.createElement(
+          "option"
         );
-      }
-    );
 
 
-    shiftSelect.appendChild(
-      group
-    );
-  }
+      option.value =
+        value;
+
+      option.textContent =
+        label;
+
+
+      shiftSelect.appendChild(
+        option
+      );
+    }
+  );
+}
 
 
   if (
