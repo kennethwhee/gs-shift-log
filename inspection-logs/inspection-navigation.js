@@ -1857,7 +1857,7 @@ updateInspectionEmptyGuide();
   }
 
 /* =====================================================
-  [INSPECTION-SCHEDULE-EXCEL-PRINT-V4]
+  [INSPECTION-SCHEDULE-EXCEL-PRINT-V5]
 
   전체 점검표 인쇄 / 미리보기
 
@@ -1872,7 +1872,7 @@ updateInspectionEmptyGuide();
   - 별도 상태 열은 만들지 않고 Excel 열 구조를 그대로 유지
   - 구분 / 점검주기 / Shift(D/S,N/S) / 점검사항 /
     담당(Position) / 결재 / 공유 / 비고
-  - A4 가로 1페이지 자동 축소
+  - A4 세로 1페이지 · Excel처럼 인쇄 가능 폭을 넓게 사용
 ===================================================== */
 
 function isInspectionScheduleFuelFacilityItem(
@@ -2304,10 +2304,14 @@ function buildInspectionScheduleExcelPrintDocument(
 
         .print-document {
           /*
-            Excel B:J 실제 폭 약 179.4mm × 저장 scale 80%
-            = 약 143.5mm.
+            A4 portrait에서 좌우 18mm를 제외한
+            실제 인쇄 가능 폭 174mm를 사용한다.
+
+            Excel의 80%는 원본 시트 전체 배율이며,
+            완성된 143.5mm 폭을 다시 적용하는 값이 아니다.
           */
-          width: 143.5mm;
+          width: 174mm;
+          max-width: 174mm;
 
           margin: 0 auto;
 
@@ -2393,43 +2397,43 @@ function buildInspectionScheduleExcelPrintDocument(
 
 
         col.is-category {
-          width: 9.95mm;
+          width: 12.06mm;
         }
 
 
         col.is-cycle {
-          width: 12.49mm;
+          width: 15.14mm;
         }
 
 
         col.is-shift-ds,
         col.is-shift-ns {
-          width: 8.25mm;
+          width: 10mm;
         }
 
 
         col.is-title {
-          width: 37.89mm;
+          width: 45.94mm;
         }
 
 
         col.is-position {
-          width: 12.49mm;
+          width: 15.14mm;
         }
 
 
         col.is-approval {
-          width: 12.49mm;
+          width: 15.14mm;
         }
 
 
         col.is-share {
-          width: 12.49mm;
+          width: 15.14mm;
         }
 
 
         col.is-note {
-          width: 29.21mm;
+          width: 35.42mm;
         }
 
 
@@ -2569,12 +2573,19 @@ function buildInspectionScheduleExcelPrintDocument(
 
           html,
           body {
-            width: auto;
-            height: auto;
+            width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
 
-            overflow: visible;
+            margin: 0 !important;
+            padding: 0 !important;
+
+            overflow: hidden !important;
 
             background: #ffffff;
+
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
 
 
@@ -2586,24 +2597,49 @@ function buildInspectionScheduleExcelPrintDocument(
           .preview-stage {
             display: block;
 
-            min-height: 0;
+            width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
 
-            padding: 0;
+            margin: 0 !important;
+            padding: 0 !important;
 
-            overflow: visible;
+            overflow: hidden !important;
           }
 
 
           .print-document {
-            width: 143.5mm;
+            width: 174mm;
+            max-width: 174mm;
+            height: auto !important;
+            min-height: 0 !important;
 
             margin:
               0
-              auto;
+              auto !important;
 
             padding: 0;
 
+            overflow: hidden !important;
+
             box-shadow: none;
+
+            break-inside: avoid-page;
+            break-after: avoid-page;
+            page-break-inside: avoid;
+            page-break-after: avoid;
+          }
+
+
+          .print-document table {
+            break-inside: avoid-page;
+            page-break-inside: avoid;
+          }
+
+
+          .excel-footnote {
+            break-after: avoid-page;
+            page-break-after: avoid;
           }
 
         }
@@ -2799,21 +2835,18 @@ function fitInspectionScheduleExcelPrintToOnePage(
 
 
   /*
-    첨부 Excel 실제 설정:
-    A4 portrait + 80% scale
-    좌우 18mm / 상하 19mm.
+    A4 portrait + 좌우 18mm / 상하 19mm 기준.
 
-    기본 CSS 자체를 이미 Excel 80% 크기로 만들었기 때문에,
-    평상시 zoom은 1이다.
-    현재 데이터가 Excel 기준보다 조금 늘어난 경우에만
-    한 페이지를 넘지 않도록 소폭 축소한다.
+    폭은 실제 인쇄 가능 폭 174mm에 가깝게 사용하고,
+    높이는 브라우저 인쇄 반올림과 기본 머리글/바닥글을 고려해
+    약 7mm의 안전 여유를 둔다.
   */
   const targetWidth =
-    657;
+    650;
 
 
   const targetHeight =
-    979;
+    952;
 
 
   const widthRatio =
@@ -2842,12 +2875,15 @@ function fitInspectionScheduleExcelPrintToOnePage(
 
   const safeRatio =
     Math.max(
-      0.78,
-      Math.floor(
-        fitRatio *
+      0.72,
+      Math.min(
+        0.98,
+        Math.floor(
+          fitRatio *
+          100
+        ) /
         100
-      ) /
-      100
+      )
     );
 
 
