@@ -105960,6 +105960,55 @@ input {
     max-width: 497px !important;
   }
 
+/* =========================================================
+  부재료 월 평균 행
+========================================================= */
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody
+> .auxiliary-material-average-row
+> td {
+  background-color: #f2f6fb;
+
+  color: #173e67;
+
+  font-weight: 900;
+
+  border-top: 1px solid #b8cadc;
+  border-bottom: 2px solid #9fb7cf;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody
+> .auxiliary-material-average-row
+> td.is-date {
+  background-color: #e8f0fa;
+
+  color: #174d7c;
+
+  white-space: nowrap;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody
+> .auxiliary-material-average-row
+> td.is-unit-one {
+  background-color: #eef5ff;
+}
+
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-sheet-table
+tbody
+> .auxiliary-material-average-row
+> td.is-unit-two {
+  background-color: #eef8f1;
+}
 
   /* =====================================================
     자주 확인하는 핵심 3개 열 강조

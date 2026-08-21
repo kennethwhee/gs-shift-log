@@ -91961,55 +91961,108 @@ if (
 
 (function installAuxiliaryMaterialUnitAverageSummary() {
 
-  function getValidAverageValues(
-    propertyName,
-    unitNo = null
-  ) {
-    const normalizedUnitNo =
-      Number(unitNo);
+function getValidAverageValues(
+  propertyName,
+  unitNo = null
+) {
+  const normalizedUnitNo =
+    Number(
+      unitNo
+    );
 
-    const shouldFilterByUnit =
-      Number.isInteger(
-        normalizedUnitNo
-      ) &&
-      normalizedUnitNo > 0;
+  const shouldFilterByUnit =
+    Number.isInteger(
+      normalizedUnitNo
+    ) &&
+    normalizedUnitNo > 0;
 
-    return (
-      Array.isArray(
-        auxiliaryMaterialHistoryState
-          ?.items
-      )
-        ? auxiliaryMaterialHistoryState
-            .items
-        : []
+  /*
+    Limestone 입고량만
+    0을 실제 값으로 평균에 포함한다.
+
+    그 외 항목:
+    0은 미조회 / 무효값으로 보고 평균에서 제외한다.
+  */
+  const includeZero =
+    propertyName ===
+      "limestoneReceiptTon";
+
+
+  return (
+    Array.isArray(
+      auxiliaryMaterialHistoryState
+        ?.items
     )
-      .filter(item => {
+      ? auxiliaryMaterialHistoryState
+          .items
+      : []
+  )
+    .filter(
+      item => {
         if (
           shouldFilterByUnit &&
-          Number(item?.unitNo) !==
+          Number(
+            item?.unitNo
+          ) !==
             normalizedUnitNo
         ) {
           return false;
         }
 
-        const value =
-          item?.[propertyName];
 
-        return (
-          value !== null &&
-          value !== undefined &&
-          String(value).trim() !== "" &&
-          Number.isFinite(
-            Number(value)
+        const value =
+          item?.[
+            propertyName
+          ];
+
+
+        if (
+          value === null ||
+          value === undefined ||
+          String(
+            value
+          ).trim() ===
+            ""
+        ) {
+          return false;
+        }
+
+
+        const numericValue =
+          Number(
+            value
+          );
+
+
+        if (
+          !Number.isFinite(
+            numericValue
           )
-        );
-      })
-      .map(item =>
+        ) {
+          return false;
+        }
+
+
+        if (
+          !includeZero &&
+          numericValue === 0
+        ) {
+          return false;
+        }
+
+
+        return true;
+      }
+    )
+    .map(
+      item =>
         Number(
-          item?.[propertyName]
+          item?.[
+            propertyName
+          ]
         )
-      );
-  }
+    );
+}
 
 
   function calculateUnitAverage(
@@ -92273,6 +92326,242 @@ if (
     });
   }
 
+  /* =====================================================
+    부재료 월 평균 행
+
+    규칙:
+    - Limestone 입고량: 0 포함
+    - 나머지 항목: 0 제외
+    - 빈값 / - / 비숫자 제외
+  ====================================================== */
+
+  const auxiliaryMaterialAverageFieldKeys = [
+    "soxPpm",
+    "limestoneUsageTpd",
+    "limestoneReceiptTon",
+    "limePowderTpd",
+    "limeSlurryFlowM3h",
+    "limeSlurryDensityKgm3",
+    "noxPpm",
+    "ammoniaM3d"
+  ];
+
+
+  function getAuxiliaryMaterialAverageFields() {
+    return auxiliaryMaterialAverageFieldKeys
+      .map(
+        fieldKey =>
+          AUXILIARY_MATERIAL_EDIT_FIELDS
+            .find(
+              field =>
+                field.key ===
+                  fieldKey
+            )
+      )
+      .filter(
+        Boolean
+      );
+  }
+
+
+  function renderAuxiliaryMaterialAverageCells(
+    unitNo,
+    unitClass
+  ) {
+    return getAuxiliaryMaterialAverageFields()
+      .map(
+        field => {
+          const averageValue =
+            calculateUnitAverage(
+              field.key,
+              unitNo
+            );
+
+
+          return `
+            <td
+              class="
+                ${field.cssClass}
+                ${unitClass}
+                auxiliary-material-average-cell
+              "
+            >
+              <strong>
+                ${formatAuxiliaryMaterialDisplayNumber(
+                  averageValue,
+                  field.decimalPlaces
+                )}
+              </strong>
+            </td>
+          `;
+        }
+      )
+      .join(
+        ""
+      );
+  }
+
+
+  function renderAuxiliaryMaterialTableAverageRows() {
+    const elements =
+      getAuxiliaryMaterialElements();
+
+
+    const tableBody =
+      elements.tableBody;
+
+
+    if (
+      !tableBody
+    ) {
+      return;
+    }
+
+
+    /*
+      모바일은 별도 모니터링 화면을 사용하므로
+      PC 표에만 평균행을 표시한다.
+    */
+    if (
+      typeof isAuxiliaryMaterialMobileMonitorMode ===
+        "function" &&
+      isAuxiliaryMaterialMobileMonitorMode()
+    ) {
+      return;
+    }
+
+
+    /*
+      혹시 별도 재렌더 호출이 있어도
+      평균행이 중복되지 않게 한다.
+    */
+    tableBody
+      .querySelectorAll(
+        ".auxiliary-material-average-row"
+      )
+      .forEach(
+        row =>
+          row.remove()
+      );
+
+
+    if (
+      !tableBody.querySelector(
+        "tr"
+      )
+    ) {
+      return;
+    }
+
+
+    /*
+      축소형 화면:
+      1호기 / 2호기가 각각 별도 구역
+    */
+    const splitHeadings = [
+      ...tableBody.querySelectorAll(
+        ".auxiliary-material-split-column-heading"
+      )
+    ];
+
+
+    if (
+      splitHeadings.length > 0
+    ) {
+      splitHeadings.forEach(
+        heading => {
+          const unitNo =
+            heading.classList.contains(
+              "is-unit-two"
+            )
+              ? 2
+              : 1;
+
+
+          const unitClass =
+            unitNo === 1
+              ? "is-unit-one"
+              : "is-unit-two";
+
+
+          heading.insertAdjacentHTML(
+            "afterend",
+
+            `
+              <tr
+                class="
+                  auxiliary-material-average-row
+                  ${unitClass}
+                "
+              >
+                <td
+                  class="is-date"
+                  title="Limestone 입고량은 0 포함, 기타 항목은 0 제외"
+                >
+                  <strong>
+                    월 평균
+                  </strong>
+                </td>
+
+                ${renderAuxiliaryMaterialAverageCells(
+                  unitNo,
+                  unitClass
+                )}
+
+                <td class="is-remarks">
+                  -
+                </td>
+              </tr>
+            `
+          );
+        }
+      );
+
+
+      return;
+    }
+
+
+    /*
+      현재 PC 통합표:
+      일자 + 1호기 8개 + 2호기 8개 + 비고
+    */
+    tableBody.insertAdjacentHTML(
+      "afterbegin",
+
+      `
+        <tr
+          class="
+            auxiliary-material-average-row
+            is-combined-average
+          "
+        >
+          <td
+            class="is-date"
+            title="Limestone 입고량은 0 포함, 기타 항목은 0 제외"
+          >
+            <strong>
+              월 평균
+            </strong>
+          </td>
+
+          ${renderAuxiliaryMaterialAverageCells(
+            1,
+            "is-unit-one"
+          )}
+
+          ${renderAuxiliaryMaterialAverageCells(
+            2,
+            "is-unit-two"
+          )}
+
+          <td class="is-remarks">
+            -
+          </td>
+        </tr>
+      `
+    );
+  }  
 
   const originalRenderAuxiliaryMaterialHistory =
     renderAuxiliaryMaterialHistory;
@@ -92286,6 +92575,8 @@ renderAuxiliaryMaterialHistory =
       originalRenderAuxiliaryMaterialHistory();
 
       renderUnitAverageSummary();
+
+      renderAuxiliaryMaterialTableAverageRows();
 
       renderAuxiliaryMaterialMobileMonitor();
     };
