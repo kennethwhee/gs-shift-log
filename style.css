@@ -105885,6 +105885,22 @@ input {
 
 
   /*
+    [AUXILIARY-PC-STATUS-FIT-V3]
+    브라우저 폭이 아니라 효율팀 모달의 실제 가용폭을 기준으로
+    우측 상태박스가 카드 내부에서 줄바꿈되도록 한다.
+  */
+  body
+  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+  .auxiliary-material-pc-action-controls {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex-wrap: wrap !important;
+    align-content: flex-start !important;
+  }
+
+  /*
     상태칩이 고정값 저장 버튼에 바로 이어지도록
     밀도 영역의 불필요한 flex 확장 방지
   */
@@ -105894,7 +105910,9 @@ input {
   > .auxiliary-material-density-setting--grouped {
     flex: 0 1 497px !important;
 
-    min-width: 497px !important;
+    min-width: 420px !important;
+
+    max-width: 497px !important;
   }
 
 
@@ -105922,14 +105940,14 @@ input {
     gap: 2px !important;
 
     width: 230px !important;
-    min-width: 190px !important;
+    min-width: 150px !important;
     max-width: 230px !important;
 
     height: 34px !important;
     min-height: 34px !important;
     max-height: 34px !important;
 
-    margin: 0 !important;
+    margin: 0 0 0 auto !important;
     padding: 0 !important;
 
     overflow: hidden !important;
