@@ -100158,48 +100158,50 @@ th > small {
 
 
   body
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-status-row {
-    box-sizing: border-box !important;
+#efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
+.auxiliary-material-pc-status-row {
+  box-sizing: border-box !important;
 
-    position: absolute !important;
-    top: 50% !important;
-    right: 12px !important;
-    z-index: 2 !important;
+  position: absolute !important;
+  top: 50% !important;
+  right: 12px !important;
+  z-index: 2 !important;
 
-    display: flex !important;
-    flex-direction: column !important;
-    flex-wrap: nowrap !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
 
-    width: clamp(290px, 25vw, 370px) !important;
-    min-width: 290px !important;
-    max-width: 370px !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
 
-    align-items: stretch !important;
-    justify-content: center !important;
-    gap: 4px !important;
+  gap: 6px !important;
 
-    margin: 0 !important;
-    padding: 0 !important;
+  width: min(700px, calc(100% - 260px)) !important;
+  min-width: 0 !important;
+  max-width: 700px !important;
 
-    transform: translateY(-50%) !important;
+  height: 24px !important;
+  min-height: 24px !important;
 
-    overflow: visible !important;
-  }
+  margin: 0 !important;
+  padding: 0 !important;
+
+  transform: translateY(-50%) !important;
+
+  overflow: visible !important;
+}
 
 
   body
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-status-row
-  > .auxiliary-material-status {
-    box-sizing: border-box !important;
-    display: flex !important;
-
-    flex: 0 0 24px !important;
-
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
+    #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls .auxiliary-material-pc-status-row>.auxiliary-material-status {
+      box-sizing: border-box !important;
+      display: flex !important;
+  
+      flex: 1 1 0 !important;
+  
+      width: auto !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
 
     height: 24px !important;
     min-height: 24px !important;
@@ -100221,39 +100223,35 @@ th > small {
   }
 
 
-  body
-  #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
-  .auxiliary-material-pc-status-row
-  > .auxiliary-material-excel-import--compact {
-    box-sizing: border-box !important;
-    display: inline-flex !important;
-
-    flex: 0 0 24px !important;
-
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-
-    height: 24px !important;
-    min-height: 24px !important;
-    max-height: 24px !important;
-
-    align-items: center !important;
-    justify-content: flex-start !important;
-    gap: 8px !important;
-
-    margin: 0 !important;
-    padding: 2px 8px !important;
-
-    border: 1px solid #b9dfc5 !important;
-    border-radius: 6px !important;
-
-    background: #f1faf4 !important;
-    box-shadow: none !important;
-
-    overflow: hidden !important;
-  }
-
+    body #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls .auxiliary-material-pc-status-row>.auxiliary-material-excel-import--compact {
+      box-sizing: border-box !important;
+      display: inline-flex !important;
+  
+      flex: 1 1 0 !important;
+  
+      width: auto !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+  
+      height: 24px !important;
+      min-height: 24px !important;
+      max-height: 24px !important;
+  
+      align-items: center !important;
+      justify-content: flex-start !important;
+      gap: 8px !important;
+  
+      margin: 0 !important;
+      padding: 2px 8px !important;
+  
+      border: 1px solid #b9dfc5 !important;
+      border-radius: 6px !important;
+  
+      background: #f1faf4 !important;
+      box-shadow: none !important;
+  
+      overflow: hidden !important;
+    }
 
   body
   #efficiencyAuxiliaryMaterialsView.is-pc-grouped-controls
