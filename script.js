@@ -208894,6 +208894,22 @@ function renderTeamApprovalCard(
     HTML은 이번 단계에서 수정하지 않는다.
   ====================================================== */
 
+/* =====================================================
+  업무일지 조회 근무 구분
+
+  현행 근무:
+  - D/S
+  - N/S
+
+  과거 조회:
+  - D
+  - A
+  - N
+
+  현행 근무는 강조하고,
+  구 3교대는 과거 조회용으로 약하게 표시한다.
+====================================================== */
+
 function initializeOisLegacyShiftOptions() {
   const shiftSelect =
     document.getElementById(
@@ -208902,65 +208918,114 @@ function initializeOisLegacyShiftOptions() {
 
 
   if (
-    !shiftSelect ||
-    shiftSelect.querySelector(
-      'option[value="A"]'
-    )
+    !shiftSelect
   ) {
     return;
   }
 
 
   /*
-    optgroup을 사용하면 브라우저가
-    D / A / N 옵션을 자동으로 들여쓴다.
-
-    따라서 "구 3교대"는
-    선택 불가 안내 option으로 두고,
-    D / A / N은 모두 최상위 option으로 추가한다.
+    기존 선택값은 옵션을 다시 구성한 뒤
+    그대로 복원한다.
   */
-  const legacyHeading =
-    document.createElement(
-      "option"
-    );
-
-  legacyHeading.value =
-    "";
-
-  legacyHeading.textContent =
-    "구 3교대";
-
-  legacyHeading.disabled =
-    true;
+  const previousValue =
+    String(
+      shiftSelect.value ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
 
 
-  shiftSelect.appendChild(
-    legacyHeading
-  );
+  const optionDefinitions = [
+    {
+      value:
+        "",
+
+      label:
+        "전체",
+
+      type:
+        "default"
+    },
+
+    {
+      value:
+        "DS",
+
+      label:
+        "● D/S  현재",
+
+      type:
+        "current"
+    },
+
+    {
+      value:
+        "NS",
+
+      label:
+        "● N/S  현재",
+
+      type:
+        "current"
+    },
+
+    {
+      value:
+        "__legacy_heading__",
+
+      label:
+        "구 3교대 · 과거 조회",
+
+      type:
+        "legacy-heading",
+
+      disabled:
+        true
+    },
+
+    {
+      value:
+        "D",
+
+      label:
+        "D (주간 · 과거)",
+
+      type:
+        "legacy"
+    },
+
+    {
+      value:
+        "A",
+
+      label:
+        "A (오후 · 과거)",
+
+      type:
+        "legacy"
+    },
+
+    {
+      value:
+        "N",
+
+      label:
+        "N (야간 · 과거)",
+
+      type:
+        "legacy"
+    }
+  ];
 
 
-  [
-    [
-      "D",
-      "D (주간)"
-    ],
+  const optionFragment =
+    document.createDocumentFragment();
 
-    [
-      "A",
-      "A (오후)"
-    ],
 
-    [
-      "N",
-      "N (야간)"
-    ]
-  ].forEach(
-    (
-      [
-        value,
-        label
-      ]
-    ) => {
+  optionDefinitions.forEach(
+    definition => {
       const option =
         document.createElement(
           "option"
@@ -208968,17 +209033,98 @@ function initializeOisLegacyShiftOptions() {
 
 
       option.value =
-        value;
+        definition.value;
 
       option.textContent =
-        label;
+        definition.label;
+
+      option.disabled =
+        definition.disabled ===
+          true;
 
 
-      shiftSelect.appendChild(
+      /*
+        option 스타일은 브라우저에 따라
+        일부만 적용될 수 있으므로,
+        글자에도 현재/과거를 명확히 표시한다.
+      */
+      if (
+        definition.type ===
+          "current"
+      ) {
+        option.style.color =
+          "#1f5fae";
+
+        option.style.fontWeight =
+          "900";
+
+        option.style.backgroundColor =
+          "#eef5ff";
+      }
+
+
+      if (
+        definition.type ===
+          "legacy-heading"
+      ) {
+        option.style.color =
+          "#9aa5b1";
+
+        option.style.fontWeight =
+          "700";
+
+        option.style.backgroundColor =
+          "#f5f6f8";
+      }
+
+
+      if (
+        definition.type ===
+          "legacy"
+      ) {
+        option.style.color =
+          "#7b8794";
+
+        option.style.fontWeight =
+          "500";
+      }
+
+
+      optionFragment.appendChild(
         option
       );
     }
   );
+
+
+  /*
+    기존 HTML 옵션과 이전에 추가된 구 3교대 옵션을
+    모두 정리하고 한 번에 다시 구성한다.
+  */
+  shiftSelect.replaceChildren(
+    optionFragment
+  );
+
+
+  const allowedValues =
+    new Set(
+      [
+        "",
+        "DS",
+        "NS",
+        "D",
+        "A",
+        "N"
+      ]
+    );
+
+
+  shiftSelect.value =
+    allowedValues.has(
+      previousValue
+    )
+      ? previousValue
+      : "";
 }
 
 
