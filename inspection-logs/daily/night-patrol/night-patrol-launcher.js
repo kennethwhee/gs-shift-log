@@ -29,7 +29,7 @@
     - keep inspection modal and role inspection functions available
 
     PC header:
-    - inspection button is placed immediately before Navigator
+    - inspection button is placed immediately before Efficiency
   */
   const MOBILE_HEADER_MEDIA =
     window.matchMedia(
@@ -452,20 +452,21 @@
     button.title =
       "점검일지";
 
-    const navigatorButton =
+    const efficiencyButton =
       document.getElementById(
-        "facilityNavigatorHeaderButton"
+        "efficiencyTeamButton"
       );
 
     if (
-      navigatorButton
+      efficiencyButton
         ?.parentElement ===
       headerActions
     ) {
       headerActions.insertBefore(
         button,
-        navigatorButton
+        efficiencyButton
       );
+
     } else {
       headerActions.prepend(
         button
