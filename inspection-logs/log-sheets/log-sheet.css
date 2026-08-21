@@ -1500,6 +1500,13 @@ button {
   text-align: center;
 }
 
+.log-sheet-item-table__head span:nth-child(2),
+.log-sheet-item-table__head span:nth-child(3),
+.log-sheet-item-table__head span:nth-child(4),
+.log-sheet-item-table__head span:nth-child(5) {
+  text-align: left;
+}
+
 .log-sheet-item-list {
   min-width: 1060px;
   max-height: min(650px, calc(100vh - 280px));
@@ -1663,7 +1670,7 @@ button {
     0;
 
   right:
-    8px;
+    12px;
 
   display:
     grid;
@@ -1756,7 +1763,7 @@ button {
 .log-sheet-item-row
 > .log-sheet-item-row__delete-button {
   right:
-    46px !important;
+    50px !important;
 
   border:
     1px solid
@@ -1820,7 +1827,7 @@ button {
 .log-sheet-item-row
 > .log-sheet-item-row__drag-handle {
   right:
-    8px !important;
+    12px !important;
 
   border:
     1px solid
