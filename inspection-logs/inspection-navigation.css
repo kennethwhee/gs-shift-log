@@ -203,6 +203,31 @@
   cursor: pointer;
 }
 
+.inspection-schedule-table-print-button {
+  min-height: 34px;
+  padding: 0 12px;
+
+  border: 1px solid #8aa9c8;
+  border-radius: 7px;
+
+  background: #ffffff;
+  color: #315c86;
+
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+
+  cursor: pointer;
+}
+
+
+.inspection-schedule-table-print-button:hover {
+  border-color: #4e82b4;
+
+  background: #eef5fc;
+  color: #1f5fae;
+}
+
 .inspection-schedule-table-message {
   padding: 10px 13px;
   border-bottom: 1px solid #dbe5ee;
@@ -812,19 +837,20 @@
   }
 
 
-  .inspection-schedule-table-header__actions > span {
-    font-size: 9px !important;
-  }
-
-
-  .inspection-schedule-table-new-button {
-    min-height: 32px !important;
-    padding: 0 10px !important;
-    font-size: 9px !important;
-  }
-
-
-  /* =====================================================
+    .inspection-schedule-table-header__actions>span {
+      font-size: 9px !important;
+    }
+  
+  
+    .inspection-schedule-table-new-button,
+    .inspection-schedule-table-print-button {
+      min-height: 32px !important;
+      padding: 0 10px !important;
+      font-size: 9px !important;
+    }
+  
+  
+    /* =====================================================
     가로 스크롤 제거
 
     세로 스크롤은 유지한다.

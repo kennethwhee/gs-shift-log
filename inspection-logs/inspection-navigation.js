@@ -448,6 +448,17 @@ emptyGuide.innerHTML = `
         `
       : "";
 
+  const printButtonHtml = `
+  <button
+    type="button"
+    class="inspection-schedule-table-print-button"
+    id="inspectionScheduleTablePrintButton"
+    hidden
+  >
+    인쇄
+  </button>
+`;      
+
 
   tablePanel.innerHTML = `
     <header class="inspection-schedule-table-header">
@@ -459,13 +470,15 @@ emptyGuide.innerHTML = `
         </h2>
       </div>
 
-      <div class="inspection-schedule-table-header__actions">
-        <span id="inspectionScheduleTableSummary">
-          전체 점검주기
-        </span>
+<div class="inspection-schedule-table-header__actions">
+  <span id="inspectionScheduleTableSummary">
+    전체 점검주기
+  </span>
 
-        ${newButtonHtml}
-      </div>
+  ${printButtonHtml}
+
+  ${newButtonHtml}
+</div>
     </header>
 
     <div
@@ -663,6 +676,11 @@ updateInspectionEmptyGuide();
     document.getElementById(
       "inspectionScheduleTableNewButton"
     );
+
+  const printScheduleButton =
+  document.getElementById(
+    "inspectionScheduleTablePrintButton"
+  );  
 
   const viewButtons = [
     ...sidebar.querySelectorAll(
@@ -1819,6 +1837,495 @@ updateInspectionEmptyGuide();
     `;
   }
 
+/* =====================================================
+  전체 점검표 인쇄
+
+  인쇄 대상:
+  - 사용 중인 일정만
+  - 구분
+  - 점검 주기
+  - Shift
+  - 점검사항
+  - 비고
+
+  제외:
+  - 사용 중지 일정
+  - 담당 보직
+  - 상태 배지
+  - Position
+  - 결재
+  - 공유
+  - 관리
+===================================================== */
+
+function printInspectionScheduleList() {
+  if (
+    activeTableCategory
+  ) {
+    return;
+  }
+
+
+  const items =
+    getManagerItems()
+      .filter(
+        item =>
+          item?.isActive !==
+            false
+      );
+
+
+  if (
+    items.length <
+      1
+  ) {
+    window.alert(
+      "인쇄할 점검 목록이 없습니다."
+    );
+
+    return;
+  }
+
+
+  const rowsHtml =
+    items
+      .map(
+        item => {
+          const shifts =
+            Array.isArray(
+              item?.shifts
+            )
+              ? item.shifts
+              : [];
+
+
+          const shiftText =
+            [
+              shifts.includes(
+                "D/S"
+              )
+                ? "D/S"
+                : "",
+
+              shifts.includes(
+                "N/S"
+              )
+                ? "N/S"
+                : ""
+            ]
+              .filter(
+                Boolean
+              )
+              .join(
+                " · "
+              ) ||
+            "-";
+
+
+          return `
+            <tr>
+              <td class="is-category">
+                ${escapeHtml(
+                  categoryLabels[
+                    item?.category
+                  ] ||
+                  "기타"
+                )}
+              </td>
+
+              <td class="is-cycle">
+                ${escapeHtml(
+                  item?.scheduleLabel ||
+                  "-"
+                )}
+              </td>
+
+              <td class="is-shift">
+                ${escapeHtml(
+                  shiftText
+                )}
+              </td>
+
+              <td class="is-title">
+                ${escapeHtml(
+                  item?.title ||
+                  "-"
+                )}
+              </td>
+
+              <td class="is-note">
+                ${escapeHtml(
+                  item?.note ||
+                  "-"
+                )}
+              </td>
+            </tr>
+          `;
+        }
+      )
+      .join(
+        ""
+      );
+
+
+  const printedAt =
+    new Intl.DateTimeFormat(
+      "ko-KR",
+      {
+        year:
+          "numeric",
+
+        month:
+          "2-digit",
+
+        day:
+          "2-digit",
+
+        hour:
+          "2-digit",
+
+        minute:
+          "2-digit"
+      }
+    ).format(
+      new Date()
+    );
+
+
+  const printWindow =
+    window.open(
+      "",
+      "_blank",
+      "width=1200,height=850"
+    );
+
+
+  if (
+    !printWindow
+  ) {
+    window.alert(
+      "인쇄 창을 열 수 없습니다. 브라우저의 팝업 차단을 확인해 주세요."
+    );
+
+    return;
+  }
+
+
+  printWindow.document.open();
+
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+
+    <html lang="ko">
+
+    <head>
+
+      <meta charset="UTF-8">
+
+      <title>
+        전체 점검표
+      </title>
+
+      <style>
+
+        @page {
+          size: A4 landscape;
+          margin: 10mm;
+        }
+
+
+        * {
+          box-sizing: border-box;
+        }
+
+
+        html,
+        body {
+          margin: 0;
+          padding: 0;
+
+          background: #ffffff;
+
+          color: #111827;
+
+          font-family:
+            "Malgun Gothic",
+            "Apple SD Gothic Neo",
+            Arial,
+            sans-serif;
+        }
+
+
+        .print-document {
+          width: 100%;
+        }
+
+
+        .print-header {
+          display: flex;
+
+          align-items: flex-end;
+          justify-content: space-between;
+
+          gap: 20px;
+
+          margin-bottom: 10px;
+
+          padding-bottom: 8px;
+
+          border-bottom:
+            2px solid
+            #243b53;
+        }
+
+
+        .print-header h1 {
+          margin: 0;
+
+          font-size: 18pt;
+          font-weight: 800;
+        }
+
+
+        .print-header p {
+          margin: 3px 0 0;
+
+          color: #52606d;
+
+          font-size: 8.5pt;
+        }
+
+
+        .print-meta {
+          color: #52606d;
+
+          font-size: 8pt;
+          text-align: right;
+
+          white-space: nowrap;
+        }
+
+
+        table {
+          width: 100%;
+
+          border-collapse: collapse;
+          table-layout: fixed;
+
+          font-size: 8.5pt;
+        }
+
+
+        col.is-category {
+          width: 8%;
+        }
+
+
+        col.is-cycle {
+          width: 14%;
+        }
+
+
+        col.is-shift {
+          width: 9%;
+        }
+
+
+        col.is-title {
+          width: 47%;
+        }
+
+
+        col.is-note {
+          width: 22%;
+        }
+
+
+        thead {
+          display:
+            table-header-group;
+        }
+
+
+        th {
+          padding:
+            6px
+            5px;
+
+          border:
+            1px solid
+            #7b8794;
+
+          background:
+            #e9eef4;
+
+          font-size: 8.5pt;
+          font-weight: 800;
+
+          text-align: center;
+        }
+
+
+        td {
+          padding:
+            5px
+            6px;
+
+          border:
+            1px solid
+            #9aa5b1;
+
+          line-height: 1.35;
+
+          vertical-align: middle;
+
+          word-break: keep-all;
+          overflow-wrap: anywhere;
+        }
+
+
+        td.is-category,
+        td.is-cycle,
+        td.is-shift {
+          text-align: center;
+        }
+
+
+        td.is-title {
+          font-weight: 700;
+        }
+
+
+        td.is-note {
+          font-size: 8pt;
+        }
+
+
+        tbody tr {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+
+
+        .print-footer {
+          margin-top: 6px;
+
+          color: #6b7280;
+
+          font-size: 7.5pt;
+        }
+
+
+        @media print {
+
+          html,
+          body {
+            width: 100%;
+          }
+
+        }
+
+      </style>
+
+    </head>
+
+
+    <body>
+
+      <main class="print-document">
+
+        <header class="print-header">
+
+          <div>
+
+            <h1>
+              설비점검 및 회전기기 교체운전 List 및 주기
+            </h1>
+
+            <p>
+              전체 점검표 · 사용 중 일정 ${items.length}건
+            </p>
+
+          </div>
+
+
+          <div class="print-meta">
+            출력일시 ${escapeHtml(
+              printedAt
+            )}
+          </div>
+
+        </header>
+
+
+        <table>
+
+          <colgroup>
+            <col class="is-category">
+            <col class="is-cycle">
+            <col class="is-shift">
+            <col class="is-title">
+            <col class="is-note">
+          </colgroup>
+
+
+          <thead>
+
+            <tr>
+              <th>구분</th>
+              <th>점검 주기</th>
+              <th>Shift</th>
+              <th>점검사항</th>
+              <th>비고</th>
+            </tr>
+
+          </thead>
+
+
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+
+        </table>
+
+
+        <p class="print-footer">
+          * 사용 중지 일정과 담당·결재·공유·관리 정보는 인쇄에서 제외됩니다.
+        </p>
+
+      </main>
+
+    </body>
+
+    </html>
+  `);
+
+
+  printWindow.document.close();
+
+  printWindow.focus();
+
+
+  printWindow.setTimeout(
+    () => {
+      printWindow.print();
+    },
+    150
+  );
+
+
+  printWindow.addEventListener(
+    "afterprint",
+    () => {
+      printWindow.close();
+    },
+    {
+      once:
+        true
+    }
+  );
+}  
 
   function renderScheduleTable(
     category = ""
@@ -1865,6 +2372,14 @@ updateInspectionEmptyGuide();
           : `전체 점검주기 ${items.length}건`;
     }
 
+    if (
+      printScheduleButton
+    ) {
+      printScheduleButton.hidden =
+        Boolean(
+          activeTableCategory
+        );
+    }
 
     if (
       !items.length &&
@@ -3563,6 +4078,12 @@ updateInspectionEmptyGuide();
     }
   );
 
+  printScheduleButton?.addEventListener(
+    "click",
+    () => {
+      printInspectionScheduleList();
+    }
+  );
 
   newScheduleButton?.addEventListener(
     "click",
