@@ -2371,3 +2371,157 @@ td {
     gap: 8px !important;
   }
 }
+
+/* =========================================================
+   MANHOLE_REMOVE_X_AND_KEEP_COLOR_ONLY_V17
+
+   - remove X marks completely
+   - keep simple rectangular color markers only
+   - open = yellow + halo
+   - close = dark gray
+   - unselected = light gray
+========================================================= */
+
+/* ---------------------------------------------------------
+   Base marker box: simple rectangular box only
+--------------------------------------------------------- */
+[data-manhole-diagram-status],
+[data-manhole-diagram-status-group],
+.manhole-diagram-status,
+.manhole-diagram-status-group,
+.manhole-diagram-marker,
+.manhole-diagram-marker--single,
+.manhole-diagram-marker--group {
+  position: relative !important;
+  border: 2px solid #111111 !important;
+  border-radius: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background-image: none !important;
+  overflow: visible !important;
+}
+
+/* ---------------------------------------------------------
+   Remove every X-like decorative layer
+--------------------------------------------------------- */
+[data-manhole-diagram-status]::before,
+[data-manhole-diagram-status]::after,
+[data-manhole-diagram-status-group]::before,
+[data-manhole-diagram-status-group]::after,
+.manhole-diagram-status::before,
+.manhole-diagram-status::after,
+.manhole-diagram-status-group::before,
+.manhole-diagram-status-group::after,
+.manhole-diagram-marker::before,
+.manhole-diagram-marker::after,
+.manhole-diagram-marker--single::before,
+.manhole-diagram-marker--single::after,
+.manhole-diagram-marker--group::before,
+.manhole-diagram-marker--group::after {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* child icon / svg / image / line 제거 */
+[data-manhole-diagram-status] img,
+[data-manhole-diagram-status-group] img,
+.manhole-diagram-status img,
+.manhole-diagram-status-group img,
+.manhole-diagram-marker img,
+[data-manhole-diagram-status] svg,
+[data-manhole-diagram-status-group] svg,
+.manhole-diagram-status svg,
+.manhole-diagram-status-group svg,
+.manhole-diagram-marker svg,
+[data-manhole-diagram-status] line,
+[data-manhole-diagram-status-group] line,
+.manhole-diagram-status line,
+.manhole-diagram-status-group line,
+.manhole-diagram-marker line,
+[data-manhole-diagram-status] path,
+[data-manhole-diagram-status-group] path,
+.manhole-diagram-status path,
+.manhole-diagram-status-group path,
+.manhole-diagram-marker path,
+[data-manhole-diagram-status] polyline,
+[data-manhole-diagram-status-group] polyline,
+.manhole-diagram-status polyline,
+.manhole-diagram-status-group polyline,
+.manhole-diagram-marker polyline {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* text 노드가 들어가 있을 경우도 최대한 안 보이게 */
+[data-manhole-diagram-status],
+[data-manhole-diagram-status-group],
+.manhole-diagram-status,
+.manhole-diagram-status-group,
+.manhole-diagram-marker {
+  color: transparent !important;
+  text-shadow: none !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+
+/* ---------------------------------------------------------
+   State colors only
+--------------------------------------------------------- */
+
+/* unselected */
+[data-manhole-diagram-status],
+[data-manhole-diagram-status-group],
+.manhole-diagram-status,
+.manhole-diagram-status-group,
+.manhole-diagram-marker {
+  background-color: #dfe4ea !important;
+}
+
+/* close */
+.is-close [data-manhole-diagram-status],
+.is-close [data-manhole-diagram-status-group],
+[data-manhole-diagram-status].is-close,
+[data-manhole-diagram-status-group].is-close,
+.manhole-diagram-status.is-close,
+.manhole-diagram-status-group.is-close,
+.manhole-diagram-marker.is-close,
+tr.is-close [data-manhole-diagram-status],
+tr.is-close [data-manhole-diagram-status-group] {
+  background-color: #6b7280 !important;
+  border-color: #111111 !important;
+  box-shadow: none !important;
+}
+
+/* open */
+.is-open [data-manhole-diagram-status],
+.is-open [data-manhole-diagram-status-group],
+[data-manhole-diagram-status].is-open,
+[data-manhole-diagram-status-group].is-open,
+.manhole-diagram-status.is-open,
+.manhole-diagram-status-group.is-open,
+.manhole-diagram-marker.is-open,
+tr.is-open [data-manhole-diagram-status],
+tr.is-open [data-manhole-diagram-status-group] {
+  background-color: #f3dd1c !important;
+  border-color: #111111 !important;
+  box-shadow: none !important;
+}
+
+/* ---------------------------------------------------------
+   Open halo only
+--------------------------------------------------------- */
+.is-open [data-manhole-diagram-status],
+.is-open [data-manhole-diagram-status-group],
+[data-manhole-diagram-status].is-open,
+[data-manhole-diagram-status-group].is-open,
+.manhole-diagram-status.is-open,
+.manhole-diagram-status-group.is-open,
+.manhole-diagram-marker.is-open,
+tr.is-open [data-manhole-diagram-status],
+tr.is-open [data-manhole-diagram-status-group] {
+  box-shadow:
+    0 0 0 6px rgba(243, 221, 28, 0.28) !important;
+}
