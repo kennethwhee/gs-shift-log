@@ -634,3 +634,132 @@
     translate(-50%, -50%)
     scale(1.08);
 }
+
+/* =========================================================
+   MANHOLE_STATUS_SYMBOL_V7
+
+   Diagram status symbol only:
+   - Open      : vivid yellow
+   - Close     : dark gray
+   - Unselected: light gray
+   - Mixed pair: yellow / dark gray split
+
+   The old ring and number label overlays are hidden.
+========================================================= */
+
+.manhole-diagram-marker,
+.manhole-diagram-open-label {
+  display: none !important;
+}
+
+.manhole-diagram-status-symbol {
+  --marker-x: 50%;
+  --marker-y: 50%;
+  --manhole-fill: #d7dde5;
+  --manhole-x: #111827;
+
+  position: absolute;
+  top: var(--marker-y);
+  left: var(--marker-x);
+  z-index: 6;
+
+  width: clamp(15px, 2.8%, 23px);
+  aspect-ratio: 1.55 / 1;
+
+  transform: translate(-50%, -50%);
+
+  border: 2px solid #111827;
+  border-radius: 2px;
+
+  background: var(--manhole-fill);
+
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 -2px 3px rgba(15, 23, 42, 0.18) inset,
+    0 2px 4px rgba(15, 23, 42, 0.14);
+
+  pointer-events: none;
+}
+
+.manhole-diagram-status-symbol::before,
+.manhole-diagram-status-symbol::after {
+  content: "";
+
+  position: absolute;
+  top: 50%;
+  left: 50%;
+
+  width: 84%;
+  height: 2px;
+
+  border-radius: 999px;
+  background: var(--manhole-x);
+
+  transform-origin: center;
+}
+
+.manhole-diagram-status-symbol::before {
+  transform:
+    translate(-50%, -50%)
+    rotate(31deg);
+}
+
+.manhole-diagram-status-symbol::after {
+  transform:
+    translate(-50%, -50%)
+    rotate(-31deg);
+}
+
+.manhole-diagram-status-symbol.is-open {
+  --manhole-fill: #ffd51f;
+  --manhole-x: #111827;
+
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 -2px 3px rgba(176, 119, 0, 0.22) inset,
+    0 0 0 1px rgba(255, 191, 0, 0.22),
+    0 2px 5px rgba(181, 128, 0, 0.20);
+}
+
+.manhole-diagram-status-symbol.is-close {
+  --manhole-fill: #4b5563;
+  --manhole-x: #f8fafc;
+
+  border-color: #1f2937;
+
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 -2px 3px rgba(15, 23, 42, 0.30) inset,
+    0 2px 4px rgba(15, 23, 42, 0.20);
+}
+
+.manhole-diagram-status-symbol.is-unknown {
+  --manhole-fill: #d7dde5;
+  --manhole-x: #5b6573;
+
+  border-color: #8792a2;
+  opacity: 0.92;
+}
+
+.manhole-diagram-status-symbol.is-mixed {
+  --manhole-x: #111827;
+
+  background:
+    linear-gradient(
+      90deg,
+      #ffd51f 0 50%,
+      #4b5563 50% 100%
+    );
+}
+
+@media (max-width: 900px) {
+  .manhole-diagram-status-symbol {
+    width: clamp(12px, 2.8%, 18px);
+    border-width: 1.5px;
+  }
+
+  .manhole-diagram-status-symbol::before,
+  .manhole-diagram-status-symbol::after {
+    height: 1.5px;
+  }
+}
