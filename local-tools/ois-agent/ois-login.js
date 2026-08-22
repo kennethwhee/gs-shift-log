@@ -6744,7 +6744,7 @@ async function waitForOisWaterTreatmentValues(
   demiWaterTankAmount     -> menu1_1_7
   demiWaterTankRate       -> menu1_3_6
 
-  Existing UI flow remains automatic fallback.
+  Direct helper retained, but main water collection requires UI recalculation.
 ========================================================= */
 async function collectOisWaterTreatmentValuesDirect(
   page,
@@ -7029,23 +7029,25 @@ async function collectOisWaterTreatmentValues(
       );
 
 
-      try {
-        return await collectOisWaterTreatmentValuesDirect(
-          page,
-          targetDate
-        );
+      /*
+        [WATER-RECALC-REQUIRED]
 
-      } catch (
-        directError
-      ) {
-        console.warn(
-          "[PHASE3.2 WATER DIRECT] direct API failed; using UI fallback:",
-          directError instanceof
-            Error
-            ? directError.message
-            : directError
-        );
-      }
+        수처리 일일 환경값은
+        OIS 재계산이 수행되기 전까지
+        Direct API에서도 0 또는 미반영 값이
+        반환될 수 있다.
+
+        따라서 수처리는 Direct API 성공 여부와
+        관계없이 반드시 다음 순서를 거친다.
+
+        1. 조회일 설정
+        2. 재계산 버튼 클릭
+        3. 재계산 결과 반영 확인
+        4. 9개 수처리 값 반환
+      */
+      console.log(
+        `${targetDate} OIS 수처리 조회: 재계산을 먼저 수행합니다.`
+      );
 
 
       await setOisEnvironmentDate(
