@@ -16126,6 +16126,25 @@ function setLogSheetPdfPreviewProgress(
     "flex";
 
 
+  /*
+    [LOG-SHEET-PDF-PROGRESS-VISIBLE-V3]
+
+    생성 중/실패 상태도 즉시 보이도록 한다.
+    기존에는 display만 flex로 바꾸고 visibility/opacity는 hidden 상태라
+    비통합 PDF 오류가 사용자에게 보이지 않았다.
+  */
+  modal.style.visibility =
+    "visible";
+
+
+  modal.style.opacity =
+    "1";
+
+
+  modal.style.pointerEvents =
+    "auto";
+
+
   const loading =
     modal.querySelector(
       "#logSheetPdfPreviewLoading"

@@ -226,11 +226,57 @@ async function downloadLogSheetWorkbook(
   }
 
 
-  const sheetName =
+  /*
+    [LOG-SHEET-PDF-UNICODE-SHEETNAME-V3]
+
+    서버가 한글 sheetName을 ASCII-safe URI component로 보낸다.
+    기존 ASCII 응답과도 호환되도록 encoding header가 있을 때만 decode한다.
+  */
+  const sheetNameHeader =
     normalizeText(
       response.headers.get(
         "X-Log-Sheet-Name"
       )
+    );
+
+
+  const sheetNameEncoding =
+    normalizeText(
+      response.headers.get(
+        "X-Log-Sheet-Name-Encoding"
+      )
+    ).toLowerCase();
+
+
+  let sheetName =
+    sheetNameHeader;
+
+
+  if (
+    sheetNameEncoding ===
+      "uri-component"
+  ) {
+    try {
+      sheetName =
+        decodeURIComponent(
+          sheetNameHeader
+        );
+    } catch (
+      error
+    ) {
+      throw new Error(
+        `Log Sheet 시트명 디코딩 실패: ${
+          error?.message ||
+          error
+        }`
+      );
+    }
+  }
+
+
+  sheetName =
+    normalizeText(
+      sheetName
     );
 
 

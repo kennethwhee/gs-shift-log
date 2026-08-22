@@ -561,7 +561,8 @@ async function findRequest(
         status,
         requested_by_id,
         requested_by_name,
-        agent_id
+        agent_id,
+        error_message
 
       FROM ois_data_requests
 
@@ -811,7 +812,18 @@ async function createPdfRequest(
 
         customMetadata: {
           requestId,
-          sheetName,
+
+          /*
+            [LOG-SHEET-PDF-UNICODE-SHEETNAME-V3]
+
+            R2 custom metadata와 HTTP header는
+            한글 시트명을 그대로 운반하지 않고 URI component로 저장한다.
+          */
+          sheetName:
+            encodeURIComponent(
+              sheetName
+            ),
+
           targetDate,
 
           requestedById:
@@ -1035,10 +1047,35 @@ async function getSourceWorkbook(
   }
 
 
-  const sheetName =
-    normalizeSheetName(
+  const storedSheetName =
+    normalizeText(
       object.customMetadata
         ?.sheetName
+    );
+
+
+  let decodedSheetName =
+    storedSheetName;
+
+
+  try {
+    decodedSheetName =
+      decodeURIComponent(
+        storedSheetName
+      );
+  } catch (
+    error
+  ) {
+    console.warn(
+      "Log Sheet sheetName decode fallback:",
+      error
+    );
+  }
+
+
+  const sheetName =
+    normalizeSheetName(
+      decodedSheetName
     );
 
 
@@ -1075,7 +1112,12 @@ async function getSourceWorkbook(
           "no-store",
 
         "X-Log-Sheet-Name":
-          sheetName,
+          encodeURIComponent(
+            sheetName
+          ),
+
+        "X-Log-Sheet-Name-Encoding":
+          "uri-component",
 
         "X-Log-Sheet-Target-Date":
           normalizeText(
@@ -1382,31 +1424,51 @@ async function getPdfPreview(
   }
 
 
-  if (
+  const requestStatus =
     normalizeText(
       requestItem.status
-    ) !==
+    ).toLowerCase();
+
+
+  if (
+    requestStatus ===
+      "failed"
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+
+        status:
+          requestStatus,
+
+        message:
+          normalizeText(
+            requestItem.error_message
+          ) ||
+          "회사 PC에서 Log Sheet PDF 변환에 실패했습니다."
+      },
+      422
+    );
+  }
+
+
+  if (
+    requestStatus !==
       "complete"
   ) {
     return jsonResponse(
       {
-        ok:
-          false,
+        ok: false,
 
         status:
-          normalizeText(
-            requestItem.status
-          ),
+          requestStatus,
 
         message:
           "PDF 변환이 아직 완료되지 않았습니다."
       },
       409
     );
-  }
-
-
-  const object =
+  }  const object =
     await context.env.ATTACHMENTS
       .get(
         getPdfKey(
