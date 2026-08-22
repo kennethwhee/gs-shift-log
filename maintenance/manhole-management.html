@@ -13,14 +13,14 @@
   >
   <link
     rel="stylesheet"
-    href="manhole-management.css?v=20260822-maintenance-v1"
+    href="manhole-management.css?v=20260822-manhole-original-diagram-v2"
   >
   <script
     src="management-common.js?v=20260822-maintenance-v1"
     defer
   ></script>
   <script
-    src="manhole-management.js?v=20260822-maintenance-v1"
+    src="manhole-management.js?v=20260822-manhole-original-diagram-v2"
     defer
   ></script>
 </head>
@@ -135,20 +135,37 @@
         <div class="manhole-workspace">
           <section class="manhole-schematic-panel">
             <div class="manhole-section-heading">
-              <strong>설비 위치도</strong>
-              <span>각 번호에서 Open / Close를 선택합니다.</span>
+              <strong id="manholeDiagramHeading">1호기 원본 설비 위치도</strong>
+              <span id="manholeDiagramHint">원본 맨홀 위치도를 그대로 표시합니다.</span>
             </div>
 
             <div
               class="manhole-schematic"
               id="manholeSchematic"
-            ></div>
+            >
+              <div class="manhole-original-diagram">
+                <img
+                  class="manhole-original-diagram__image"
+                  id="manholeDiagramImage"
+                  src="manhole-unit1-diagram.png?v=20260822-manhole-original-diagram-v2"
+                  alt="1호기 보일러 맨홀 개방·폐쇄 추적 관리 원본 위치도"
+                >
+
+                <div
+                  class="manhole-original-diagram__notice"
+                  id="manholeDiagramUnitNotice"
+                  hidden
+                >
+                  2호기 위치도는 1호기 기준 임시 복제본입니다.
+                </div>
+              </div>
+            </div>
           </section>
 
           <section class="manhole-list-panel">
             <div class="manhole-section-heading">
               <strong>개폐 관리 리스트</strong>
-              <span>상태 변경 시 개폐일자가 오늘 날짜로 자동 입력됩니다.</span>
+              <span>상태 · 개폐일자 · 비고는 오른쪽 목록에서 수정합니다.</span>
             </div>
 
             <div class="manhole-table-wrap">

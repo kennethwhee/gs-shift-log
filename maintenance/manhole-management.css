@@ -60,7 +60,7 @@
 
 .manhole-workspace {
   display: grid;
-  grid-template-columns: minmax(680px, 1.55fr) minmax(560px, 1fr);
+  grid-template-columns: minmax(720px, 1.28fr) minmax(620px, 1fr);
   gap: 14px;
   padding: 14px;
 }
@@ -98,166 +98,52 @@
   text-align: right;
 }
 
+/*
+  원본 Excel 위치도는 다시 그리지 않고 그대로 표시한다.
+  상태 변경은 오른쪽 관리 리스트에서만 수행한다.
+*/
 .manhole-schematic {
   position: relative;
-  width: 100%;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+  background: #fff;
+}
+
+.manhole-original-diagram {
+  position: relative;
+  width: min(100%, 900px);
   min-width: 680px;
-  aspect-ratio: 1.28 / 1;
-  overflow: hidden;
-  background:
-    linear-gradient(#ffffffd9, #ffffffd9),
-    repeating-linear-gradient(
-      0deg,
-      transparent 0,
-      transparent 39px,
-      #eef2f6 40px
-    ),
-    repeating-linear-gradient(
-      90deg,
-      transparent 0,
-      transparent 39px,
-      #eef2f6 40px
-    );
+  margin: 0 auto;
 }
 
-.manhole-schematic__frame {
+.manhole-original-diagram__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #182233;
+  background: #fff;
+  object-fit: contain;
+}
+
+.manhole-original-diagram__notice {
   position: absolute;
-  inset: 2.5%;
-  border: 1px solid #dce4ec;
-  border-radius: 12px;
-}
-
-.manhole-diagram-block {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px;
-  border: 2px solid #5f6a78;
-  border-radius: 8px;
-  background: rgba(245, 248, 251, 0.9);
-  color: #303b49;
-  font-size: 11px;
-  font-weight: 950;
-  text-align: center;
-  line-height: 1.15;
-}
-
-.manhole-diagram-block.is-boiler-stack {
-  left: 38%;
-  top: 16%;
-  width: 21%;
-  height: 47%;
-  border-radius: 14px 14px 5px 5px;
-  background: rgba(232, 239, 247, 0.86);
-}
-
-.manhole-diagram-block.is-scr {
-  left: 62%;
-  top: 8%;
-  width: 15%;
-  height: 52%;
-  background: rgba(238, 243, 248, 0.9);
-}
-
-.manhole-diagram-block.is-combustor {
-  left: 3%;
-  top: 54%;
-  width: 26%;
-  height: 29%;
-  background: rgba(246, 244, 239, 0.9);
-}
-
-.manhole-diagram-block.is-fbhe {
-  left: 17%;
-  top: 76%;
-  width: 24%;
-  height: 17%;
-  background: rgba(239, 244, 248, 0.92);
-}
-
-.manhole-diagram-block.is-seal-pot {
-  left: 20%;
-  top: 61%;
-  width: 15%;
-  height: 9%;
-  background: rgba(248, 244, 236, 0.94);
-}
-
-.manhole-diagram-block.is-sda {
-  left: 80%;
-  top: 37%;
-  width: 16%;
-  height: 37%;
-  background: rgba(239, 246, 243, 0.92);
-}
-
-.manhole-diagram-label {
-  position: absolute;
-  z-index: 2;
-  padding: 2px 5px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.82);
-  color: #4a5565;
-  font-size: 10px;
-  font-weight: 900;
-  pointer-events: none;
-}
-
-.manhole-zone {
-  position: absolute;
-  z-index: 5;
-  display: flex;
-  width: 88px;
-  min-height: 28px;
-  align-items: center;
-  gap: 3px;
-  transform: translate(-50%, -50%);
-  border: 1px solid #b9c6d2;
+  top: 8px;
+  right: 8px;
+  max-width: 280px;
+  padding: 7px 9px;
+  border: 1px solid #d7b45d;
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 3px 8px rgba(25, 44, 66, 0.1);
-}
-
-.manhole-zone__number {
-  display: grid;
-  width: 25px;
-  height: 26px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-right: 1px solid #d5dee7;
-  color: #263a51;
+  background: rgba(255, 249, 225, 0.96);
+  color: #72581d;
   font-size: 10px;
-  font-weight: 950;
+  font-weight: 850;
+  line-height: 1.35;
+  box-shadow: 0 3px 10px rgba(59, 48, 18, 0.12);
 }
 
-.manhole-zone select {
-  width: 58px;
-  height: 26px;
-  padding: 0 2px;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: #596779;
-  font-size: 9px;
-  font-weight: 900;
-}
-
-.manhole-zone.is-open {
-  background: transparent;
-}
-
-.manhole-zone.is-open select {
-  color: #d4202b;
-}
-
-.manhole-zone.is-close {
-  background: #e9edf1;
-  border-color: #b9c1c9;
-}
-
-.manhole-zone.is-close select {
-  color: #59616b;
+.manhole-original-diagram__notice[hidden] {
+  display: none !important;
 }
 
 .manhole-table-wrap {
@@ -326,10 +212,18 @@
   min-height: 30px;
   border: 1px solid #c7d1db;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.82);
+  background: #fff;
   color: #34465b;
   font-size: 10px;
   font-weight: 800;
+}
+
+.manhole-table tr.is-open td {
+  background: transparent;
+}
+
+.manhole-table tr.is-close td {
+  background: #eceff2;
 }
 
 .manhole-table tr.is-open select[data-manhole-status-select] {
@@ -338,8 +232,16 @@
 }
 
 .manhole-table tr.is-close select[data-manhole-status-select] {
-  background: #e2e6ea;
+  background: #e1e5e9;
   color: #59616b;
+}
+
+.manhole-table select[data-manhole-status-select] {
+  cursor: pointer;
+}
+
+.manhole-table tbody tr[data-manhole-row]:hover td {
+  box-shadow: inset 0 0 0 999px rgba(63, 94, 128, 0.035);
 }
 
 .manhole-group-row td {
@@ -388,7 +290,12 @@
   }
 
   .manhole-schematic {
-    width: 760px;
+    padding: 8px;
+  }
+
+  .manhole-original-diagram {
+    width: 710px;
+    min-width: 710px;
   }
 
   .manhole-section-heading {

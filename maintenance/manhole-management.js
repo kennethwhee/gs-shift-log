@@ -15,8 +15,8 @@
 
   /*
     1호기 Excel 양식의 위치/개소를 기준으로 만든 공통 마스터입니다.
-    2호기도 첫 화면에서는 동일 마스터를 사용하고,
-    실제 2호기 위치 차이는 화면 확인 후 조정합니다.
+    왼쪽 위치도는 원본 그림을 그대로 표시하고, 상태 변경은 오른쪽 목록에서만 수행합니다.
+    2호기는 화면 확인 전까지 1호기 위치도를 임시 복제하여 사용합니다.
   */
   const MASTER_LOCATIONS = [
     {
@@ -386,6 +386,22 @@
       document.getElementById(
         "manholeSchematic"
       ),
+    diagramHeading:
+      document.getElementById(
+        "manholeDiagramHeading"
+      ),
+    diagramHint:
+      document.getElementById(
+        "manholeDiagramHint"
+      ),
+    diagramImage:
+      document.getElementById(
+        "manholeDiagramImage"
+      ),
+    diagramUnitNotice:
+      document.getElementById(
+        "manholeDiagramUnitNotice"
+      ),
     tableBody:
       document.getElementById(
         "manholeTableBody"
@@ -573,8 +589,7 @@
   }
 
   function getStatusSelectHtml(
-    row,
-    context
+    row
   ) {
     const no =
       Number(row.no);
@@ -582,7 +597,6 @@
     return `
       <select
         data-manhole-status-select="${no}"
-        data-manhole-context="${context}"
         aria-label="${no}번 ${management.escapeHtml(row.location)} 상태"
       >
         <option value="" ${row.status === "" ? "selected" : ""}>선택</option>
@@ -593,67 +607,34 @@
   }
 
   function renderSchematic() {
-    const zones =
-      state.rows.map(
-        row => `
-          <label
-            class="manhole-zone ${getRowClass(row)}"
-            style="left:${row.x}%;top:${row.y}%"
-            title="${row.no}. ${management.escapeHtml(row.location)} · ${management.escapeHtml(row.area)} · ${row.count}개소"
-          >
-            <span class="manhole-zone__number">${row.no}</span>
-            ${getStatusSelectHtml(row, "diagram")}
-          </label>
-        `
-      ).join("");
+    const isUnit2 =
+      state.unit === "2";
 
-    elements.schematic.innerHTML = `
-      <div class="manhole-schematic__frame"></div>
+    if (elements.diagramHeading) {
+      elements.diagramHeading.textContent =
+        isUnit2
+          ? "2호기 설비 위치도"
+          : "1호기 원본 설비 위치도";
+    }
 
-      <div class="manhole-diagram-block is-combustor">
-        Combustor
-      </div>
+    if (elements.diagramHint) {
+      elements.diagramHint.textContent =
+        isUnit2
+          ? "1호기 원본 위치도를 임시 복제해 표시합니다."
+          : "원본 맨홀 위치도를 그대로 표시합니다.";
+    }
 
-      <div class="manhole-diagram-block is-seal-pot">
-        Seal Pot
-      </div>
+    if (elements.diagramImage) {
+      elements.diagramImage.alt =
+        isUnit2
+          ? "2호기 맨홀 위치도 임시 복제본"
+          : "1호기 보일러 맨홀 개방·폐쇄 추적 관리 원본 위치도";
+    }
 
-      <div class="manhole-diagram-block is-fbhe">
-        FBHE
-      </div>
-
-      <div class="manhole-diagram-block is-boiler-stack">
-        <span>
-          C.I.D<br>
-          S/H · R/H<br>
-          ECO
-        </span>
-      </div>
-
-      <div class="manhole-diagram-block is-scr">
-        SCR<br><br>1 · 2 · 3
-      </div>
-
-      <div class="manhole-diagram-block is-sda">
-        SDA
-      </div>
-
-      <span
-        class="manhole-diagram-label"
-        style="left:58%;top:58%"
-      >
-        TAH
-      </span>
-
-      <span
-        class="manhole-diagram-label"
-        style="left:45%;top:59%"
-      >
-        Wind Box
-      </span>
-
-      ${zones}
-    `;
+    if (elements.diagramUnitNotice) {
+      elements.diagramUnitNotice.hidden =
+        !isUnit2;
+    }
   }
 
   function renderTable() {
@@ -696,7 +677,7 @@
             <td>${management.escapeHtml(row.area)}</td>
             <td class="manhole-count">${row.count}</td>
             <td>
-              ${getStatusSelectHtml(row, "table")}
+              ${getStatusSelectHtml(row)}
             </td>
             <td>
               <input
