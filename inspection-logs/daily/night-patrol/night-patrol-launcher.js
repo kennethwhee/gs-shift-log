@@ -1394,10 +1394,10 @@
     "vacationReplacementHeaderButton";
 
   const VACATION_REPLACEMENT_URL =
-    "https://shift-system-gspoge.vercel.app/";
+    "https://gs-vacation-gateway.wheekeun-lee.workers.dev/__sso";
 
   const VACATION_REPLACEMENT_WINDOW_NAME =
-    "gsShiftVacationReplacement";
+    "_blank";
 
 
   function closeVacationReplacementHeaderMenu() {
@@ -1428,9 +1428,99 @@
   }
 
 
+  /* =========================================================
+    [VACATION-GATEWAY-SSO-V1]
+
+    GS Shift Log 로그인 세션을
+    Vacation Gateway로 안전하게 전달한다.
+
+    PIN은 브라우저에 저장하지 않는다.
+  ========================================================= */
+
+  function getVacationReplacementSessionToken() {
+
+    if (
+      typeof getShiftLogSessionToken ===
+      "function"
+    ) {
+
+      return String(
+        getShiftLogSessionToken() ||
+        ""
+      ).trim();
+    }
+
+
+    try {
+
+      const savedUser =
+        JSON.parse(
+          window.localStorage.getItem(
+            "gsShiftLog.currentUser"
+          ) ||
+          "null"
+        );
+
+
+      return String(
+        savedUser?.sessionToken ||
+        savedUser?.session_token ||
+        ""
+      ).trim();
+
+    } catch (error) {
+
+      return "";
+    }
+  }
+
+
+  function showVacationReplacementMessage(
+    message
+  ) {
+
+    if (
+      typeof showToast ===
+      "function"
+    ) {
+
+      showToast(
+        message
+      );
+
+      return;
+    }
+
+
+    window.alert(
+      message
+    );
+  }
+
+
   function openVacationReplacementManagement() {
 
     closeVacationReplacementHeaderMenu();
+
+
+    const sessionToken =
+      getVacationReplacementSessionToken();
+
+
+    if (!sessionToken) {
+
+      showVacationReplacementMessage(
+        "업무일지 로그인 세션을 확인할 수 없습니다. 다시 로그인해 주세요."
+      );
+
+      return;
+    }
+
+
+    const gatewayOrigin =
+      new URL(
+        VACATION_REPLACEMENT_URL
+      ).origin;
 
 
     const targetWindow =
@@ -1442,18 +1532,135 @@
 
     if (!targetWindow) {
 
-      window.location.assign(
-        VACATION_REPLACEMENT_URL
+      showVacationReplacementMessage(
+        "휴가·대근 관리 창이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요."
       );
 
       return;
     }
 
 
-    try {
+    let authenticationSent =
+      false;
 
-      targetWindow.opener =
-        null;
+    let timeoutId =
+      0;
+
+
+    const cleanup =
+      () => {
+
+        window.removeEventListener(
+          "message",
+          handleGatewayMessage
+        );
+
+
+        if (timeoutId) {
+
+          window.clearTimeout(
+            timeoutId
+          );
+
+          timeoutId =
+            0;
+        }
+      };
+
+
+    const handleGatewayMessage =
+      event => {
+
+        if (
+          event.origin !==
+            gatewayOrigin ||
+          event.source !==
+            targetWindow
+        ) {
+          return;
+        }
+
+
+        const message =
+          event.data;
+
+
+        if (
+          !message ||
+          message.type !==
+            "GS_VACATION_READY" ||
+          authenticationSent
+        ) {
+          return;
+        }
+
+
+        authenticationSent =
+          true;
+
+
+        try {
+
+          targetWindow.postMessage(
+            {
+              type:
+                "GS_VACATION_AUTH",
+
+              sessionToken
+            },
+            gatewayOrigin
+          );
+
+
+          cleanup();
+
+        } catch (error) {
+
+          console.error(
+            "휴가·대근 Gateway 인증 전달 실패:",
+            error
+          );
+
+
+          cleanup();
+
+
+          showVacationReplacementMessage(
+            "휴가·대근 관리 자동 로그인 연결에 실패했습니다."
+          );
+        }
+      };
+
+
+    window.addEventListener(
+      "message",
+      handleGatewayMessage
+    );
+
+
+    timeoutId =
+      window.setTimeout(
+        () => {
+
+          cleanup();
+
+
+          if (
+            !authenticationSent &&
+            !targetWindow.closed
+          ) {
+
+            showVacationReplacementMessage(
+              "휴가·대근 관리 서버 연결 시간이 초과되었습니다. 다시 시도해 주세요."
+            );
+          }
+
+        },
+        12000
+      );
+
+
+    try {
 
       targetWindow.focus();
 
