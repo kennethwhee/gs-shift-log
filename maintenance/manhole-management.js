@@ -16,6 +16,7 @@
   /*
     1호기 Excel 양식의 위치/개소를 기준으로 만든 공통 마스터입니다.
     왼쪽 위치도는 원본 그림을 그대로 표시하고, 상태 변경은 오른쪽 목록에서만 수행합니다.
+    오른쪽 목록에서 Open / Close를 바꾸면 원본 그림의 해당 맨홀 심볼 주변 원형 마커가 상태색으로 바뀝니다.
     2호기는 화면 확인 전까지 1호기 위치도를 임시 복제하여 사용합니다.
   */
   const MASTER_LOCATIONS = [
@@ -327,6 +328,56 @@
     }
   ];
 
+  /*
+    원본 1호기 그림(710 x 656px)에서 노란 맨홀 심볼 중심점을
+    백분율 좌표로 고정한 표시 전용 맵입니다.
+
+    - 14번은 원본 그림에서 3개 심볼을 함께 표시합니다.
+    - 25~34번 일부는 같은 심볼 위치에 두 번호가 표기되어 있어
+      바깥 원 / 안쪽 원으로 두 상태를 동시에 표시합니다.
+    - 2호기는 현재 1호기 원본 위치도를 임시 복제하므로 같은 좌표를 사용합니다.
+  */
+  const DIAGRAM_MARKERS_BY_NO = {
+    1: [{ x: 4.085, y: 90.168 }],
+    2: [{ x: 12.746, y: 22.256 }],
+    3: [{ x: 18.099, y: 30.030 }],
+    4: [{ x: 44.789, y: 24.848 }],
+    5: [{ x: 44.718, y: 30.793 }],
+    6: [{ x: 44.718, y: 37.271 }],
+    7: [{ x: 44.789, y: 43.445 }],
+    8: [{ x: 44.789, y: 49.695 }],
+    9: [{ x: 44.930, y: 55.488 }],
+    10: [{ x: 65.634, y: 11.280 }],
+    11: [{ x: 65.493, y: 15.854 }],
+    12: [{ x: 65.563, y: 21.189 }],
+    13: [{ x: 65.493, y: 31.402 }],
+    14: [
+      { x: 62.465, y: 36.052 },
+      { x: 65.493, y: 36.052 },
+      { x: 68.662, y: 36.052 }
+    ],
+    15: [{ x: 65.563, y: 40.930 }],
+    16: [{ x: 65.563, y: 58.460 }],
+    17: [{ x: 65.704, y: 63.338 }],
+    18: [{ x: 65.563, y: 67.912 }],
+    19: [{ x: 65.634, y: 73.399 }],
+    20: [{ x: 31.972, y: 97.180 }],
+    21: [{ x: 83.732, y: 39.177 }],
+    22: [{ x: 89.859, y: 42.835 }],
+    23: [{ x: 87.042, y: 67.530 }],
+    24: [{ x: 96.972, y: 61.204 }],
+    25: [{ x: 25.000, y: 83.308, ring: "outer" }],
+    26: [{ x: 29.930, y: 83.384, ring: "outer" }],
+    27: [{ x: 34.859, y: 83.232, ring: "outer" }],
+    28: [{ x: 21.690, y: 78.277, ring: "outer" }],
+    29: [{ x: 27.113, y: 61.128, ring: "outer" }],
+    30: [{ x: 25.000, y: 83.308, ring: "inner" }],
+    31: [{ x: 29.930, y: 83.384, ring: "inner" }],
+    32: [{ x: 34.859, y: 83.232, ring: "inner" }],
+    33: [{ x: 21.690, y: 78.277, ring: "inner" }],
+    34: [{ x: 27.113, y: 61.128, ring: "inner" }]
+  };
+
   const state = {
     unit: "1",
     version: 0,
@@ -397,6 +448,10 @@
     diagramImage:
       document.getElementById(
         "manholeDiagramImage"
+      ),
+    diagramOverlay:
+      document.getElementById(
+        "manholeDiagramOverlay"
       ),
     diagramUnitNotice:
       document.getElementById(
@@ -606,6 +661,88 @@
     `;
   }
 
+  function getDiagramMarkerClass(
+    row,
+    point
+  ) {
+    const classes = [
+      "manhole-diagram-marker"
+    ];
+
+    if (row.status === "open") {
+      classes.push(
+        "is-open"
+      );
+    } else if (row.status === "close") {
+      classes.push(
+        "is-close"
+      );
+    }
+
+    if (point?.ring === "inner") {
+      classes.push(
+        "is-paired-inner"
+      );
+    }
+
+    return classes.join(" ");
+  }
+
+  function renderDiagramStatusMarkers() {
+    if (!elements.diagramOverlay) {
+      return;
+    }
+
+    const html = [];
+
+    state.rows.forEach(
+      row => {
+        if (!row.status) {
+          return;
+        }
+
+        const points =
+          DIAGRAM_MARKERS_BY_NO[
+            row.no
+          ] || [];
+
+        points.forEach(
+          (point, index) => {
+            html.push(`
+              <span
+                class="${getDiagramMarkerClass(row, point)}"
+                data-manhole-diagram-marker="${row.no}"
+                data-manhole-diagram-marker-index="${index}"
+                style="--marker-x: ${point.x}%; --marker-y: ${point.y}%;"
+              ></span>
+            `);
+          }
+        );
+      }
+    );
+
+    elements.diagramOverlay.innerHTML =
+      html.join("");
+  }
+
+  function setDiagramRowHighlight(
+    no,
+    active
+  ) {
+    document
+      .querySelectorAll(
+        `[data-manhole-diagram-marker="${Number(no)}"]`
+      )
+      .forEach(
+        marker => {
+          marker.classList.toggle(
+            "is-row-highlight",
+            Boolean(active)
+          );
+        }
+      );
+  }
+
   function renderSchematic() {
     const isUnit2 =
       state.unit === "2";
@@ -620,8 +757,8 @@
     if (elements.diagramHint) {
       elements.diagramHint.textContent =
         isUnit2
-          ? "1호기 원본 위치도를 임시 복제해 표시합니다."
-          : "원본 맨홀 위치도를 그대로 표시합니다.";
+          ? "1호기 원본 위치도 임시 복제본에 오른쪽 목록의 Open / Close 상태를 원으로 표시합니다."
+          : "오른쪽 목록에서 Open / Close를 바꾸면 해당 맨홀 주변 원의 색이 바뀝니다.";
     }
 
     if (elements.diagramImage) {
@@ -635,6 +772,8 @@
       elements.diagramUnitNotice.hidden =
         !isUnit2;
     }
+
+    renderDiagramStatusMarkers();
   }
 
   function renderTable() {
@@ -1159,6 +1298,100 @@
       );
     }
   );
+
+  elements.tableBody
+    ?.addEventListener(
+      "pointerover",
+      event => {
+        const row =
+          event.target.closest?.(
+            "[data-manhole-row]"
+          );
+
+        if (!row) {
+          return;
+        }
+
+        setDiagramRowHighlight(
+          row.dataset.manholeRow,
+          true
+        );
+      }
+    );
+
+  elements.tableBody
+    ?.addEventListener(
+      "pointerout",
+      event => {
+        const row =
+          event.target.closest?.(
+            "[data-manhole-row]"
+          );
+
+        if (!row) {
+          return;
+        }
+
+        if (
+          row.contains(
+            event.relatedTarget
+          )
+        ) {
+          return;
+        }
+
+        setDiagramRowHighlight(
+          row.dataset.manholeRow,
+          false
+        );
+      }
+    );
+
+  elements.tableBody
+    ?.addEventListener(
+      "focusin",
+      event => {
+        const row =
+          event.target.closest?.(
+            "[data-manhole-row]"
+          );
+
+        if (row) {
+          setDiagramRowHighlight(
+            row.dataset.manholeRow,
+            true
+          );
+        }
+      }
+    );
+
+  elements.tableBody
+    ?.addEventListener(
+      "focusout",
+      event => {
+        const row =
+          event.target.closest?.(
+            "[data-manhole-row]"
+          );
+
+        if (!row) {
+          return;
+        }
+
+        if (
+          row.contains(
+            event.relatedTarget
+          )
+        ) {
+          return;
+        }
+
+        setDiagramRowHighlight(
+          row.dataset.manholeRow,
+          false
+        );
+      }
+    );
 
   document
     .querySelectorAll(

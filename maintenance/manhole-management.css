@@ -126,6 +126,80 @@
   object-fit: contain;
 }
 
+/*
+  오른쪽 관리 리스트의 상태를 원본 위치도 위 원형 마커로만 표시한다.
+  편집은 오른쪽 목록에서만 가능하며 오버레이 자체는 클릭되지 않는다.
+*/
+.manhole-diagram-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.manhole-diagram-marker {
+  --marker-x: 50%;
+  --marker-y: 50%;
+  --marker-scale: 1;
+
+  position: absolute;
+  top: var(--marker-y);
+  left: var(--marker-x);
+  width: clamp(24px, 4.2%, 38px);
+  aspect-ratio: 1;
+  border: 3px solid transparent;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(var(--marker-scale));
+  transform-origin: center;
+  opacity: 0;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease,
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+.manhole-diagram-marker.is-open {
+  border-color: #e3222f;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.84),
+    0 0 0 4px rgba(227, 34, 47, 0.12);
+  opacity: 1;
+}
+
+.manhole-diagram-marker.is-close {
+  border-color: #6d7783;
+  background: rgba(157, 165, 175, 0.32);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.84),
+    0 0 0 4px rgba(109, 119, 131, 0.12);
+  opacity: 1;
+}
+
+/*
+  25~34번처럼 원본 그림에서 하나의 맨홀 심볼을
+  두 번호가 함께 사용하는 경우 두 상태를 동시에 볼 수 있도록
+  안쪽/바깥쪽 동심원으로 구분한다.
+*/
+.manhole-diagram-marker.is-paired-inner {
+  --marker-scale: 0.68;
+  border-width: 2px;
+}
+
+.manhole-diagram-marker.is-row-highlight {
+  z-index: 4;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.96),
+    0 0 0 6px rgba(31, 111, 235, 0.28);
+  transform: translate(-50%, -50%) scale(1.16);
+}
+
+.manhole-diagram-marker.is-paired-inner.is-row-highlight {
+  transform: translate(-50%, -50%) scale(0.86);
+}
+
 .manhole-original-diagram__notice {
   position: absolute;
   top: 8px;

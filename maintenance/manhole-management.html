@@ -13,14 +13,14 @@
   >
   <link
     rel="stylesheet"
-    href="manhole-management.css?v=20260822-manhole-original-diagram-v2"
+    href="manhole-management.css?v=20260822-manhole-diagram-status-v3"
   >
   <script
     src="management-common.js?v=20260822-maintenance-v1"
     defer
   ></script>
   <script
-    src="manhole-management.js?v=20260822-manhole-original-diagram-v2"
+    src="manhole-management.js?v=20260822-manhole-diagram-status-v3"
     defer
   ></script>
 </head>
@@ -147,9 +147,15 @@
                 <img
                   class="manhole-original-diagram__image"
                   id="manholeDiagramImage"
-                  src="manhole-unit1-diagram.png?v=20260822-manhole-original-diagram-v2"
+                  src="manhole-unit1-diagram.png?v=20260822-manhole-diagram-status-v3"
                   alt="1호기 보일러 맨홀 개방·폐쇄 추적 관리 원본 위치도"
                 >
+
+                <div
+                  class="manhole-diagram-overlay"
+                  id="manholeDiagramOverlay"
+                  aria-hidden="true"
+                ></div>
 
                 <div
                   class="manhole-original-diagram__notice"
