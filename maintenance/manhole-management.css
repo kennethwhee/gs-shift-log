@@ -3211,7 +3211,7 @@ tr.is-open
 
   background:
     #ffffff
-    url("manhole-unit1-diagram-clean-v24.png?v=20260823-clean-v24")
+    url("manhole-unit1-diagram-clean-v24.png?v=20260823-reference-v25")
     center
     / 100% 100%
     no-repeat !important;
@@ -3821,4 +3821,17 @@ tr.is-open
 > td {
   background:
     #ffffff !important;
+}
+
+/* =========================================================
+   MANHOLE_REFERENCE_POSITION_WHITE_BG_V25
+
+   - keep V24 clean artwork
+   - background = pure white
+   - marker coordinates = user's second reference diagram
+   - status marker size/colors stay unchanged
+========================================================= */
+
+.manhole-original-diagram {
+  background-color: #ffffff !important;
 }
