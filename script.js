@@ -208954,7 +208954,7 @@ function initializeOisLegacyShiftOptions() {
         "DS",
 
       label:
-        "● D/S  현재",
+        "D/S 현재",
 
       type:
         "current"
@@ -208965,7 +208965,7 @@ function initializeOisLegacyShiftOptions() {
         "NS",
 
       label:
-        "● N/S  현재",
+        "N/S 현재",
 
       type:
         "current"
