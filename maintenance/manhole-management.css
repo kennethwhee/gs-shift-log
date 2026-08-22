@@ -475,3 +475,162 @@
     text-align: left;
   }
 }
+/* =========================================================
+   MANHOLE_OPEN_NUMBER_MASK_V6
+
+   Open:
+   - keep the yellow manhole symbol visible
+   - hide small source-image red numbers around the symbol
+   - show only the external Open number badge
+
+   Close / unselected:
+   - no overlay
+========================================================= */
+
+.manhole-diagram-marker.is-open {
+  width: 64px;
+  height: 64px;
+
+  /*
+    The transparent center keeps the original yellow manhole
+    symbol visible.
+
+    The solid white annulus covers the small red source-image
+    number surrounding the manhole symbol.
+  */
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(255, 255, 255, 0) 0 12px,
+      rgba(255, 255, 255, 0.99) 13px 27px,
+      rgba(255, 255, 255, 0) 28px
+    );
+
+  border-radius: 50%;
+
+  box-shadow:
+    0 8px 18px rgba(185, 28, 28, 0.20);
+
+  isolation: isolate;
+}
+
+
+/*
+  Rebuild the red ring above the white masking annulus.
+*/
+.manhole-diagram-marker.is-open::before {
+  content: "";
+
+  position: absolute;
+  inset: 3px;
+
+  border:
+    4px solid
+    #ef233c;
+
+  border-radius:
+    50%;
+
+  background:
+    transparent;
+
+  box-shadow:
+    0 4px 9px
+      rgba(153, 27, 27, 0.22),
+
+    inset 0 0 0 2px
+      rgba(255, 255, 255, 0.92);
+
+  pointer-events:
+    none;
+}
+
+
+/*
+  Small highlight gives the ring a raised / glossy appearance.
+*/
+.manhole-diagram-marker.is-open::after {
+  content: "";
+
+  position: absolute;
+
+  top: 9px;
+  left: 14px;
+
+  width: 20px;
+  height: 8px;
+
+  border-radius:
+    50%;
+
+  background:
+    rgba(255, 255, 255, 0.82);
+
+  transform:
+    rotate(-22deg);
+
+  pointer-events:
+    none;
+}
+
+
+/*
+  Only this badge carries the Open manhole number.
+  It is kept outside the red ring.
+*/
+.manhole-diagram-open-label {
+  z-index:
+    8;
+
+  min-width:
+    26px;
+
+  padding:
+    2px 7px;
+
+  border:
+    2px solid
+    #ef233c;
+
+  border-radius:
+    999px;
+
+  background:
+    #ffffff;
+
+  box-shadow:
+    0 4px 10px
+      rgba(185, 28, 28, 0.18);
+
+  color:
+    #d7192d;
+
+  font-weight:
+    900;
+
+  line-height:
+    1.15;
+
+  white-space:
+    nowrap;
+}
+
+
+.manhole-diagram-marker.is-row-highlight {
+  transform:
+    translate(-50%, -50%)
+    scale(1.08);
+
+  filter:
+    drop-shadow(
+      0 4px 7px
+      rgba(220, 38, 38, 0.28)
+    );
+}
+
+
+.manhole-diagram-open-label.is-row-highlight {
+  transform:
+    translate(-50%, -50%)
+    scale(1.08);
+}
