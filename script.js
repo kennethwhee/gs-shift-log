@@ -209147,14 +209147,15 @@ function renderTeamApprovalCard(
 
 function initializeOisLegacyShiftOptions() {
   /*
-    [SEARCH-SHIFT-QUICK-V1]
+    [SEARCH-SHIFT-SIMPLE-V3]
 
-    실제 검색값:
-    #searchShift
+    화면에 보이는 현재 근무:
+    전체 / D/S / N/S
 
-    화면:
-    전체 / D/S / N/S 빠른 선택
-    + 구 3교대 D / A / N 선택
+    과거 구교대:
+    작은 "구교대" 버튼 안에 D / A / N을 숨긴다.
+
+    실제 검색값은 기존 #searchShift가 계속 담당한다.
   */
 
   const shiftSelect =
@@ -209163,17 +209164,29 @@ function initializeOisLegacyShiftOptions() {
     );
 
 
-  const legacySelect =
+  const currentShiftSelect =
     document.getElementById(
-      "searchLegacyShift"
+      "searchCurrentShift"
     );
 
 
-  const quickButtons =
+  const legacyToggle =
+    document.getElementById(
+      "searchLegacyToggle"
+    );
+
+
+  const legacyPanel =
+    document.getElementById(
+      "searchLegacyPanel"
+    );
+
+
+  const legacyButtons =
     [
       ...document.querySelectorAll(
-        "#searchShiftQuickButtons " +
-        "[data-search-shift-value]"
+        "#searchLegacyPanel " +
+        "[data-search-legacy-shift-value]"
       )
     ];
 
@@ -209186,8 +209199,10 @@ function initializeOisLegacyShiftOptions() {
 
   if (
     !shiftSelect ||
-    !legacySelect ||
-    quickButtons.length !== 3
+    !currentShiftSelect ||
+    !legacyToggle ||
+    !legacyPanel ||
+    legacyButtons.length !== 3
   ) {
     return;
   }
@@ -209202,6 +209217,16 @@ function initializeOisLegacyShiftOptions() {
         "D",
         "A",
         "N"
+      ]
+    );
+
+
+  const currentValues =
+    new Set(
+      [
+        "",
+        "DS",
+        "NS"
       ]
     );
 
@@ -209236,6 +209261,18 @@ function initializeOisLegacyShiftOptions() {
   }
 
 
+  function closeLegacyPanel() {
+    legacyPanel.hidden =
+      true;
+
+
+    legacyToggle.setAttribute(
+      "aria-expanded",
+      "false"
+    );
+  }
+
+
   function renderShiftControls(
     value
   ) {
@@ -209251,46 +209288,57 @@ function initializeOisLegacyShiftOptions() {
       );
 
 
-    quickButtons.forEach(
+    if (isLegacy) {
+
+      currentShiftSelect.value =
+        "";
+
+
+      legacyToggle.textContent =
+        `구교대 ${normalized}`;
+
+
+      legacyToggle.classList.add(
+        "is-active"
+      );
+
+    }
+    else {
+
+      currentShiftSelect.value =
+        currentValues.has(
+          normalized
+        )
+          ? normalized
+          : "";
+
+
+      legacyToggle.textContent =
+        "구교대";
+
+
+      legacyToggle.classList.remove(
+        "is-active"
+      );
+    }
+
+
+    legacyButtons.forEach(
       button => {
         const buttonValue =
           normalizeShiftValue(
             button.dataset
-              .searchShiftValue
+              .searchLegacyShiftValue
           );
-
-
-        const isActive =
-          !isLegacy &&
-          buttonValue ===
-            normalized;
 
 
         button.classList.toggle(
           "is-active",
-          isActive
-        );
-
-
-        button.setAttribute(
-          "aria-pressed",
-          String(
-            isActive
-          )
+          isLegacy &&
+            buttonValue ===
+              normalized
         );
       }
-    );
-
-
-    legacySelect.value =
-      isLegacy
-        ? normalized
-        : "";
-
-
-    legacySelect.classList.toggle(
-      "has-value",
-      isLegacy
     );
   }
 
@@ -209305,7 +209353,7 @@ function initializeOisLegacyShiftOptions() {
       );
 
 
-    const previous =
+    const previousValue =
       normalizeShiftValue(
         shiftSelect.value
       );
@@ -209322,7 +209370,7 @@ function initializeOisLegacyShiftOptions() {
 
     if (
       emitChange &&
-      previous !==
+      previousValue !==
         normalized
     ) {
       shiftSelect.dispatchEvent(
@@ -209340,7 +209388,7 @@ function initializeOisLegacyShiftOptions() {
 
   if (
     shiftSelect.dataset
-      .quickShiftInitialized ===
+      .simpleShiftInitialized ===
     "true"
   ) {
     renderShiftControls(
@@ -209352,30 +209400,63 @@ function initializeOisLegacyShiftOptions() {
 
 
   shiftSelect.dataset
-    .quickShiftInitialized =
+    .simpleShiftInitialized =
     "true";
 
 
-  quickButtons.forEach(
-    button => {
-      button.addEventListener(
-        "click",
-        () => {
-          setShiftValue(
-            button.dataset
-              .searchShiftValue
-          );
-        }
+  currentShiftSelect.addEventListener(
+    "change",
+    () => {
+      closeLegacyPanel();
+
+
+      setShiftValue(
+        currentShiftSelect.value
       );
     }
   );
 
 
-  legacySelect.addEventListener(
-    "change",
-    () => {
-      setShiftValue(
-        legacySelect.value
+  legacyToggle.addEventListener(
+    "click",
+    event => {
+      event.stopPropagation();
+
+
+      const willOpen =
+        legacyPanel.hidden;
+
+
+      legacyPanel.hidden =
+        !willOpen;
+
+
+      legacyToggle.setAttribute(
+        "aria-expanded",
+        String(
+          willOpen
+        )
+      );
+    }
+  );
+
+
+  legacyButtons.forEach(
+    button => {
+      button.addEventListener(
+        "click",
+        event => {
+          event.stopPropagation();
+
+
+          setShiftValue(
+            button.dataset
+              .searchLegacyShiftValue
+          );
+
+
+          closeLegacyPanel();
+        }
       );
     }
   );
@@ -209391,47 +209472,56 @@ function initializeOisLegacyShiftOptions() {
   );
 
 
-  searchForm?.addEventListener(
-    "reset",
-    () => {
-      window.setTimeout(
-        () => {
-          setShiftValue(
-            "",
-            false
-          );
-        },
-        0
-      );
-    }
-  );
-
-
-  searchForm?.addEventListener(
+  document.addEventListener(
     "click",
     event => {
-      const button =
-        event.target.closest(
-          "button"
-        );
-
-
       if (
-        !button ||
-        String(
-          button.textContent ||
-          ""
-        ).trim() !==
-          "초기화"
+        legacyPanel.hidden
       ) {
         return;
       }
 
 
+      if (
+        event.target ===
+          legacyToggle ||
+        legacyPanel.contains(
+          event.target
+        )
+      ) {
+        return;
+      }
+
+
+      closeLegacyPanel();
+    }
+  );
+
+
+  document.addEventListener(
+    "keydown",
+    event => {
+      if (
+        event.key ===
+        "Escape"
+      ) {
+        closeLegacyPanel();
+      }
+    }
+  );
+
+
+  searchForm?.addEventListener(
+    "reset",
+    () => {
       window.setTimeout(
         () => {
-          renderShiftControls(
-            shiftSelect.value
+          closeLegacyPanel();
+
+
+          setShiftValue(
+            "",
+            false
           );
         },
         0

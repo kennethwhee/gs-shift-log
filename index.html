@@ -23,7 +23,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260822-search-shift-quick2"
+    href="style.css?v=20260822-search-shift-simple3"
   >
 
 
@@ -57,7 +57,7 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 <script
-  src="script.js?v=20260822-header-more-menu-v3"
+  src="script.js?v=20260822-search-shift-simple3"
   defer
 ></script>
 
@@ -1873,40 +1873,54 @@
       "
     >
 
-      <div class="search-shift-field__header">
+      <div class="search-shift-label-row">
 
         <span class="form-field__label">
           근무
         </span>
 
-        <select
-          id="searchLegacyShift"
-          class="search-shift-legacy-select"
-          aria-label="구 3교대 조회"
+        <button
+          type="button"
+          id="searchLegacyToggle"
+          class="search-legacy-shift-toggle"
+          aria-expanded="false"
+          aria-controls="searchLegacyPanel"
+          title="과거 3교대 근무 조회"
         >
-
-          <option value="">
-            구 3교대
-          </option>
-
-          <option value="D">
-            D (주간)
-          </option>
-
-          <option value="A">
-            A (오후)
-          </option>
-
-          <option value="N">
-            N (야간)
-          </option>
-
-        </select>
+          구교대
+        </button>
 
       </div>
 
 
-      <!-- 실제 검색 조건값 저장용 -->
+      <!-- 현재 근무 전용 -->
+      <select
+        id="searchCurrentShift"
+        aria-label="현재 근무 선택"
+      >
+
+        <option value="">
+          전체
+        </option>
+
+        <option value="DS">
+          D/S
+        </option>
+
+        <option value="NS">
+          N/S
+        </option>
+
+      </select>
+
+
+      <!--
+        실제 조회 조건값 저장용.
+
+        기존 검색 로직은 계속 #searchShift를 사용한다.
+        현재 근무뿐 아니라 과거 D/A/N도 저장할 수 있도록
+        숨겨진 select로 유지한다.
+      -->
       <select
         id="searchShift"
         name="shift"
@@ -1943,47 +1957,34 @@
 
 
       <div
-        class="search-shift-quick-buttons"
-        id="searchShiftQuickButtons"
-        role="group"
-        aria-label="근무 빠른 선택"
+        id="searchLegacyPanel"
+        class="search-legacy-shift-panel"
+        hidden
+        aria-label="구교대 근무 선택"
       >
 
         <button
           type="button"
-          class="
-            search-shift-quick-button
-            is-all
-            is-active
-          "
-          data-search-shift-value=""
-          aria-pressed="true"
+          data-search-legacy-shift-value="D"
+          title="구교대 주간"
         >
-          전체
+          D
         </button>
 
         <button
           type="button"
-          class="
-            search-shift-quick-button
-            is-current
-          "
-          data-search-shift-value="DS"
-          aria-pressed="false"
+          data-search-legacy-shift-value="A"
+          title="구교대 오후"
         >
-          D/S
+          A
         </button>
 
         <button
           type="button"
-          class="
-            search-shift-quick-button
-            is-current
-          "
-          data-search-shift-value="NS"
-          aria-pressed="false"
+          data-search-legacy-shift-value="N"
+          title="구교대 야간"
         >
-          N/S
+          N
         </button>
 
       </div>
