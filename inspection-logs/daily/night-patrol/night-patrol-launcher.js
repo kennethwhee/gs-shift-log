@@ -1378,3 +1378,314 @@
     scheduleInstall();
   }
 })();
+
+/* =========================================================
+  [HEADER-VACATION-REPLACEMENT-MENU-V1]
+
+  운전파트 휴가·대근 관리
+
+  PC / 모바일 공통 햄버거 메뉴에
+  맨홀개폐관리 다음, 관리자 앞에 표시한다.
+========================================================= */
+
+(() => {
+
+  const VACATION_REPLACEMENT_ITEM_ID =
+    "vacationReplacementHeaderButton";
+
+  const VACATION_REPLACEMENT_URL =
+    "https://shift-system-gspoge.vercel.app/";
+
+  const VACATION_REPLACEMENT_WINDOW_NAME =
+    "gsShiftVacationReplacement";
+
+
+  function closeVacationReplacementHeaderMenu() {
+
+    const dropdown =
+      document.getElementById(
+        "headerMoreDropdown"
+      );
+
+    const toggle =
+      document.getElementById(
+        "headerMoreButton"
+      );
+
+
+    if (dropdown) {
+      dropdown.hidden = true;
+    }
+
+
+    if (toggle) {
+
+      toggle.setAttribute(
+        "aria-expanded",
+        "false"
+      );
+    }
+  }
+
+
+  function openVacationReplacementManagement() {
+
+    closeVacationReplacementHeaderMenu();
+
+
+    const targetWindow =
+      window.open(
+        VACATION_REPLACEMENT_URL,
+        VACATION_REPLACEMENT_WINDOW_NAME
+      );
+
+
+    if (!targetWindow) {
+
+      window.location.assign(
+        VACATION_REPLACEMENT_URL
+      );
+
+      return;
+    }
+
+
+    try {
+
+      targetWindow.opener =
+        null;
+
+      targetWindow.focus();
+
+    } catch (error) {
+
+      console.warn(
+        "휴가·대근 관리 창 포커스 처리 실패:",
+        error
+      );
+    }
+  }
+
+
+  function ensureVacationReplacementHeaderItem() {
+
+    const dropdown =
+      document.getElementById(
+        "headerMoreDropdown"
+      );
+
+
+    if (!dropdown) {
+      return false;
+    }
+
+
+    let item =
+      document.getElementById(
+        VACATION_REPLACEMENT_ITEM_ID
+      );
+
+
+    if (!item) {
+
+      item =
+        document.createElement(
+          "button"
+        );
+
+      item.id =
+        VACATION_REPLACEMENT_ITEM_ID;
+
+      item.type =
+        "button";
+
+      item.textContent =
+        "휴가·대근 관리";
+    }
+
+
+    item.className =
+      "header-more-item";
+
+    item.setAttribute(
+      "role",
+      "menuitem"
+    );
+
+    item.setAttribute(
+      "aria-label",
+      "운전파트 휴가·대근 관리 열기"
+    );
+
+    item.title =
+      "운전파트 휴가·대근 관리";
+
+
+    if (
+      item.dataset
+        .vacationReplacementBound !==
+      "true"
+    ) {
+
+      item.dataset
+        .vacationReplacementBound =
+        "true";
+
+
+      item.addEventListener(
+        "click",
+        event => {
+
+          event.preventDefault();
+          event.stopPropagation();
+
+          openVacationReplacementManagement();
+        }
+      );
+    }
+
+
+    const manholeItem =
+      document.getElementById(
+        "manholeManagementHeaderButton"
+      );
+
+    const adminButton =
+      document.getElementById(
+        "adminButton"
+      );
+
+
+    /*
+      우선 순서
+
+      맨홀개폐관리
+      휴가·대근 관리
+      관리자
+    */
+
+    if (
+      manholeItem?.parentElement ===
+      dropdown
+    ) {
+
+      const referenceElement =
+        manholeItem.nextElementSibling;
+
+
+      if (
+        referenceElement !==
+        item
+      ) {
+
+        dropdown.insertBefore(
+          item,
+          referenceElement
+        );
+      }
+
+    } else if (
+      adminButton?.parentElement ===
+      dropdown
+    ) {
+
+      if (
+        item.parentElement !==
+          dropdown ||
+        item.nextElementSibling !==
+          adminButton
+      ) {
+
+        dropdown.insertBefore(
+          item,
+          adminButton
+        );
+      }
+
+    } else if (
+      item.parentElement !==
+      dropdown
+    ) {
+
+      dropdown.append(
+        item
+      );
+    }
+
+
+    /*
+      기존 정책대로 관리자는 항상 마지막.
+    */
+
+    if (
+      adminButton?.parentElement ===
+        dropdown &&
+      dropdown.lastElementChild !==
+        adminButton
+    ) {
+
+      dropdown.append(
+        adminButton
+      );
+    }
+
+
+    return true;
+  }
+
+
+  function initializeVacationReplacementHeaderItem() {
+
+    if (
+      ensureVacationReplacementHeaderItem()
+    ) {
+      return;
+    }
+
+
+    let attemptCount =
+      0;
+
+
+    const retryTimer =
+      window.setInterval(
+        () => {
+
+          attemptCount +=
+            1;
+
+
+          if (
+            ensureVacationReplacementHeaderItem() ||
+            attemptCount >= 20
+          ) {
+
+            window.clearInterval(
+              retryTimer
+            );
+          }
+        },
+        250
+      );
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeVacationReplacementHeaderItem,
+      {
+        once: true
+      }
+    );
+
+  } else {
+
+    initializeVacationReplacementHeaderItem();
+  }
+
+})();
