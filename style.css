@@ -45607,7 +45607,197 @@ button {
   }
 
 
-  /* =====================================================
+  /* =========================================================
+  SEARCH SHIFT QUICK SELECT V1
+========================================================= */
+
+#searchView
+.search-form-layout--compact
+#searchShift[hidden] {
+  display: none !important;
+}
+
+
+#searchView
+.search-shift-field {
+  gap: 5px !important;
+}
+
+
+#searchView
+.search-shift-quick-buttons {
+  display: grid;
+
+  grid-template-columns:
+    52px
+    minmax(0, 1fr)
+    minmax(0, 1fr);
+
+  width: 100%;
+  min-width: 0;
+
+  gap: 6px;
+}
+
+
+#searchView
+.search-shift-quick-button {
+  display: inline-flex;
+
+  width: 100%;
+  min-width: 0;
+
+  height: 42px;
+  min-height: 42px;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0 7px;
+
+  border: 1px solid #b9c9da;
+  border-radius: 8px;
+
+  background: #ffffff;
+  color: #43546a;
+
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+}
+
+
+#searchView
+.search-shift-quick-button.is-current {
+  color: #173d69;
+
+  font-size: 16px;
+  font-weight: 950;
+}
+
+
+#searchView
+.search-shift-quick-button:hover {
+  border-color: #74a0cf;
+
+  background: #f3f7fc;
+  color: #1f5fae;
+}
+
+
+#searchView
+.search-shift-quick-button.is-all.is-active {
+  border-color: #9bbbe0;
+
+  background: #edf4fc;
+  color: #1f5fae;
+}
+
+
+#searchView
+.search-shift-quick-button.is-current.is-active {
+  border-color: #2469b3;
+
+  background: #2469b3;
+  color: #ffffff;
+
+  box-shadow:
+    0 4px 10px
+    rgba(
+      36,
+      105,
+      179,
+      0.18
+    );
+}
+
+
+/* 구 3교대 전용 */
+
+#searchView
+.search-shift-field
+#searchLegacyShift {
+  display: block !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+
+  margin: 0 !important;
+
+  padding:
+    0
+    28px
+    0
+    10px !important;
+
+  border:
+    1px solid
+    #d2dae4 !important;
+
+  border-radius:
+    7px !important;
+
+  background:
+    #f6f7f9 !important;
+
+  color:
+    #828d9a !important;
+
+  font-size:
+    10px !important;
+
+  font-weight:
+    750 !important;
+}
+
+
+#searchView
+.search-shift-field
+#searchLegacyShift.has-value {
+  border-color:
+    #9db0c4 !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #42556d !important;
+
+  font-weight:
+    850 !important;
+}
+
+
+@media screen and (min-width: 769px) {
+
+  #searchView
+  .search-form-layout--compact {
+    align-items:
+      start !important;
+  }
+
+
+  #searchView
+  .search-form__actions--compact {
+    align-self:
+      start !important;
+
+    margin-top:
+      19px !important;
+  }
+}
+
+/* =====================================================
     모바일 조회 조건
 
     1줄: 시작일 | 종료일
@@ -53706,13 +53896,11 @@ small {
     grid !important;
 
   grid-template-columns:
-    repeat(
-      5,
-      minmax(
-        125px,
-        125px
-      )
-    )
+    125px
+    125px
+    238px
+    125px
+    125px
     minmax(
       240px,
       1fr
@@ -53746,9 +53934,6 @@ small {
 .search-compact-field--end,
 
 #searchView
-.search-compact-field--shift,
-
-#searchView
 .search-compact-field--role,
 
 #searchView
@@ -53761,6 +53946,19 @@ small {
 
   max-width:
     125px !important;
+}
+
+
+#searchView
+.search-compact-field--shift {
+  width:
+    238px !important;
+
+  min-width:
+    238px !important;
+
+  max-width:
+    238px !important;
 }
 
 
@@ -54355,7 +54553,16 @@ small {
   .search-compact-field--shift {
     grid-column:
       1 /
-      3 !important;
+      -1 !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    max-width:
+      none !important;
   }
 
 
@@ -54363,8 +54570,8 @@ small {
   #searchView
   .search-compact-field--role {
     grid-column:
-      3 /
-      5 !important;
+      1 /
+      4 !important;
   }
 
 
@@ -54372,7 +54579,7 @@ small {
   #searchView
   .search-compact-field--category {
     grid-column:
-      5 /
+      4 /
       7 !important;
   }
 
