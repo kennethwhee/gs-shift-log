@@ -1896,3 +1896,215 @@
   }
 
 })();
+/* =========================================================
+   [HEADER-MENU-EMOJI-V1]
+
+   PC / Mobile 공통 햄버거 메뉴 이모지
+   기존 메뉴 DOM 구조와 우측 화살표는 유지한다.
+========================================================= */
+
+(() => {
+
+  const MENU_EMOJI_LABELS =
+    new Map([
+      [
+        "네비게이터",
+        "🔎 네비게이터"
+      ],
+      [
+        "계정정비",
+        "⚙️ 계정정비"
+      ],
+      [
+        "맨홀개폐관리",
+        "🕳️ 맨홀개폐관리"
+      ],
+      [
+        "휴가·대근 관리",
+        "🗓️ 휴가·대근 관리"
+      ],
+      [
+        "관리자",
+        "🔐 관리자"
+      ]
+    ]);
+
+
+  function applyHeaderMenuEmoji() {
+
+    const dropdown =
+      document.getElementById(
+        "headerMoreDropdown"
+      );
+
+
+    if (!dropdown) {
+      return false;
+    }
+
+
+    const walker =
+      document.createTreeWalker(
+        dropdown,
+        NodeFilter.SHOW_TEXT
+      );
+
+
+    const textNodes =
+      [];
+
+
+    let node =
+      walker.nextNode();
+
+
+    while (node) {
+
+      textNodes.push(
+        node
+      );
+
+      node =
+        walker.nextNode();
+    }
+
+
+    textNodes.forEach(
+      textNode => {
+
+        const rawText =
+          String(
+            textNode.nodeValue ||
+            ""
+          );
+
+
+        const label =
+          rawText.trim();
+
+
+        const replacement =
+          MENU_EMOJI_LABELS.get(
+            label
+          );
+
+
+        if (!replacement) {
+          return;
+        }
+
+
+        const leadingSpace =
+          (
+            rawText.match(
+              /^\s*/
+            ) ||
+            [""]
+          )[0];
+
+
+        const trailingSpace =
+          (
+            rawText.match(
+              /\s*$/
+            ) ||
+            [""]
+          )[0];
+
+
+        textNode.nodeValue =
+          `${leadingSpace}${replacement}${trailingSpace}`;
+      }
+    );
+
+
+    return true;
+  }
+
+
+  function installHeaderMenuEmoji() {
+
+    let attempt =
+      0;
+
+
+    const install =
+      () => {
+
+        attempt +=
+          1;
+
+
+        const dropdown =
+          document.getElementById(
+            "headerMoreDropdown"
+          );
+
+
+        if (!dropdown) {
+
+          if (attempt < 50) {
+
+            window.setTimeout(
+              install,
+              100
+            );
+          }
+
+          return;
+        }
+
+
+        applyHeaderMenuEmoji();
+
+
+        const observer =
+          new MutationObserver(
+            () => {
+
+              applyHeaderMenuEmoji();
+            }
+          );
+
+
+        observer.observe(
+          dropdown,
+          {
+            childList:
+              true,
+
+            subtree:
+              true,
+
+            characterData:
+              true
+          }
+        );
+      };
+
+
+    install();
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      installHeaderMenuEmoji,
+      {
+        once:
+          true
+      }
+    );
+
+  }
+  else {
+
+    installHeaderMenuEmoji();
+  }
+
+})();
