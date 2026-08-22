@@ -1,7 +1,7 @@
 {
-  "source": "OIS Daily Environment Log Direct API",
+  "source": "OIS 일일 운전일지(환경)",
   "sourceDate": "2026-08-21",
-  "collectedAt": "2026-08-21T18:39:38.415Z",
+  "collectedAt": "2026-08-22T12:52:21.250Z",
   "rawWaterInflow": 7475,
   "demiProduction": 1915,
   "pureWaterUsage": -60,
@@ -10,5 +10,6 @@
   "filteredWaterTankAmount": 10251.07,
   "filteredWaterTankRate": 93.192,
   "demiWaterTankAmount": 5673.245,
-  "demiWaterTankRate": 94.554
+  "demiWaterTankRate": 94.554,
+  "targetDate": "2026-08-21"
 }

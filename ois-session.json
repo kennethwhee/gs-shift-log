@@ -1,22 +1,22 @@
 {
   "cookies": [
     {
-      "name": "tossSaveId",
-      "value": "wheekeun.lee",
-      "domain": "ois.gspoge.com",
-      "path": "/",
-      "expires": 1787411522,
-      "httpOnly": false,
-      "secure": false,
-      "sameSite": "Lax"
-    },
-    {
       "name": "JSESSIONID",
-      "value": "621F968D56951BE9FAC9C164713AEB38",
+      "value": "8A4245C83F0AADC68C1197812051E7D3",
       "domain": "ois.gspoge.com",
       "path": "/",
       "expires": -1,
       "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "tossSaveId",
+      "value": "wheekeun.lee",
+      "domain": "ois.gspoge.com",
+      "path": "/",
+      "expires": 1788025031,
+      "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     }
