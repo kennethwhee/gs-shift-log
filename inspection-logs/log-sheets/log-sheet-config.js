@@ -45,10 +45,10 @@
       type: "integrated-tgo",
       title: "TGO",
       groupTitle:
-        "통합 제어실 Log Sheet",
+        "제어실 Log Sheet",
       navigationPath: [
         "Log Sheet",
-        "통합 제어실 Log Sheet",
+        "제어실 Log Sheet",
         "TGO"
       ],
       templateFile:
@@ -129,10 +129,10 @@
       type: "integrated-bco1",
       title: "BCO1",
       groupTitle:
-        "통합 제어실 Log Sheet",
+        "제어실 Log Sheet",
       navigationPath: [
         "Log Sheet",
-        "통합 제어실 Log Sheet",
+        "제어실 Log Sheet",
         "BCO1"
       ],
       templateFile:
@@ -211,10 +211,10 @@
       type: "integrated-bco2",
       title: "BCO2",
       groupTitle:
-        "통합 제어실 Log Sheet",
+        "제어실 Log Sheet",
       navigationPath: [
         "Log Sheet",
-        "통합 제어실 Log Sheet",
+        "제어실 Log Sheet",
         "BCO2"
       ],
       templateFile:

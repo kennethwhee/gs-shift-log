@@ -277,7 +277,7 @@ function initializeInspectionWorkspaceNavigation() {
 
   <div class="inspection-nav-v2__groups">
     <details class="inspection-nav-v2__sheet-group" data-nav-icon="sheet">
-      <summary>통합 제어실 Log Sheet</summary>
+      <summary>제어실 Log Sheet</summary>
 
       <div class="inspection-nav-v2__sheet-menu">
         <button type="button" data-inspection-sidebar-log="log-sheet-integrated-tgo">TGO</button>
@@ -291,7 +291,7 @@ function initializeInspectionWorkspaceNavigation() {
 
       <div class="inspection-nav-v2__sheet-branches">
         <details class="inspection-nav-v2__sheet-branch">
-          <summary>야간</summary>
+          <summary class="inspection-nav-v2__sheet-branch-summary inspection-nav-v2__sheet-branch-summary--night">야간</summary>
 
           <div class="inspection-nav-v2__sheet-menu">
             <button type="button" data-inspection-sidebar-log="log-sheet-field-night-leader-to">파트장·TO 야간</button>
@@ -300,7 +300,7 @@ function initializeInspectionWorkspaceNavigation() {
         </details>
 
         <details class="inspection-nav-v2__sheet-branch">
-          <summary>주간</summary>
+          <summary class="inspection-nav-v2__sheet-branch-summary inspection-nav-v2__sheet-branch-summary--day">주간</summary>
 
           <div class="inspection-nav-v2__sheet-menu">
             <button type="button" data-inspection-sidebar-log="log-sheet-field-day-to">TO</button>

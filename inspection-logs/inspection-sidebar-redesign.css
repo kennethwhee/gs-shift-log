@@ -383,6 +383,81 @@
   transform: translateY(-50%) rotate(-45deg);
 }
 
+/* =========================================================
+  [FIELD-LOG-SHEET-PARENT-COLOR-V2]
+
+  현장 Log Sheet의
+  야간 / 주간은 상위 그룹임을 색상으로 구분한다.
+
+  실제 하위 Log Sheet 버튼은 기존 흰색 디자인 유지.
+========================================================= */
+
+
+/* 야간 상위 그룹 */
+
+.inspection-nav-v2__sheet-branch
+> summary.inspection-nav-v2__sheet-branch-summary--night {
+  border-bottom:
+    1px solid
+    #ccd7ee;
+
+  background:
+    #eef2fb;
+
+  color:
+    #40557f;
+}
+
+
+.inspection-nav-v2__sheet-branch
+> summary.inspection-nav-v2__sheet-branch-summary--night::after {
+  border-color:
+    #6579a6;
+}
+
+
+.inspection-nav-v2__sheet-branch[open]
+> summary.inspection-nav-v2__sheet-branch-summary--night {
+  background:
+    #e4eafa;
+
+  color:
+    #334875;
+}
+
+
+/* 주간 상위 그룹 */
+
+.inspection-nav-v2__sheet-branch
+> summary.inspection-nav-v2__sheet-branch-summary--day {
+  border-bottom:
+    1px solid
+    #ead8ad;
+
+  background:
+    #fff6e5;
+
+  color:
+    #73591f;
+}
+
+
+.inspection-nav-v2__sheet-branch
+> summary.inspection-nav-v2__sheet-branch-summary--day::after {
+  border-color:
+    #a47b2d;
+}
+
+
+.inspection-nav-v2__sheet-branch[open]
+> summary.inspection-nav-v2__sheet-branch-summary--day {
+  background:
+    #fcedcf;
+
+  color:
+    #614817;
+}
+
 .inspection-nav-v2__sheet-branch .inspection-nav-v2__sheet-menu {
   padding: 5px;
 }
