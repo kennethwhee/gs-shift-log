@@ -3159,3 +3159,30 @@ tr.is-open
       -50%
     ) !important;
 }
+
+/* =========================================================
+   MANHOLE_SYMBOL_SIZE_V23
+
+   - keep V22 exact anchor
+   - enlarge the status body only
+   - cover small source-symbol alignment differences
+   - keep Close/Open colors and list styling unchanged
+========================================================= */
+
+.manhole-diagram-status-symbol {
+  width: 28px !important;
+  height: 17px !important;
+
+  min-width: 28px !important;
+  min-height: 17px !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/* Open halo도 본체 확대에 맞춰 아주 조금만 키움 */
+.manhole-diagram-status-symbol.is-open::before,
+.manhole-diagram-status-symbol.is-mixed::before {
+  width: 56px !important;
+  height: 56px !important;
+}
