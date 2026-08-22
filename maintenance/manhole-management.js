@@ -1705,3 +1705,208 @@
   render();
   loadDocument();
 })();
+
+/* =========================================================
+   MANHOLE_PANEL_HEIGHT_SYNC_V10
+
+   Desktop:
+   Keep the right management-list panel the same total height
+   as the left diagram panel.
+
+   Stacked/mobile layout:
+   Remove the forced height.
+========================================================= */
+
+(function installManholePanelHeightSyncV10() {
+  if (
+    window.__manholePanelHeightSyncV10Installed ===
+    true
+  ) {
+    return;
+  }
+
+  window.__manholePanelHeightSyncV10Installed =
+    true;
+
+
+  function initializeManholePanelHeightSyncV10() {
+    const diagram =
+      document.querySelector(
+        ".manhole-original-diagram"
+      );
+
+    const listPanel =
+      document.querySelector(
+        ".manhole-list-panel"
+      );
+
+
+    if (
+      !diagram ||
+      !listPanel
+    ) {
+      return;
+    }
+
+
+    const leftPanel =
+      diagram.closest(
+        "section"
+      ) ||
+      diagram.parentElement;
+
+
+    if (!leftPanel) {
+      return;
+    }
+
+
+    let frameRequest =
+      0;
+
+
+    function clearListPanelHeight() {
+      listPanel.style.removeProperty(
+        "height"
+      );
+
+      listPanel.style.removeProperty(
+        "max-height"
+      );
+    }
+
+
+    function syncPanelHeight() {
+      if (frameRequest) {
+        cancelAnimationFrame(
+          frameRequest
+        );
+      }
+
+
+      frameRequest =
+        requestAnimationFrame(
+          () => {
+            frameRequest =
+              0;
+
+            clearListPanelHeight();
+
+
+            const leftRect =
+              leftPanel.getBoundingClientRect();
+
+            const rightRect =
+              listPanel.getBoundingClientRect();
+
+
+            /*
+              When the cards are stacked vertically,
+              their top positions are different.
+              Do not force matching height in that layout.
+            */
+            const sameRow =
+              Math.abs(
+                leftRect.top -
+                rightRect.top
+              ) < 24;
+
+
+            if (!sameRow) {
+              return;
+            }
+
+
+            const targetHeight =
+              Math.round(
+                leftRect.height
+              );
+
+
+            if (
+              !Number.isFinite(
+                targetHeight
+              ) ||
+              targetHeight < 300
+            ) {
+              return;
+            }
+
+
+            listPanel.style.height =
+              `${targetHeight}px`;
+
+            listPanel.style.maxHeight =
+              `${targetHeight}px`;
+          }
+        );
+    }
+
+
+    const diagramImage =
+      diagram.querySelector(
+        "img"
+      );
+
+
+    if (
+      diagramImage &&
+      !diagramImage.complete
+    ) {
+      diagramImage.addEventListener(
+        "load",
+        syncPanelHeight,
+        {
+          once:
+            true
+        }
+      );
+    }
+
+
+    if (
+      typeof ResizeObserver ===
+      "function"
+    ) {
+      const observer =
+        new ResizeObserver(
+          syncPanelHeight
+        );
+
+      observer.observe(
+        leftPanel
+      );
+    }
+
+
+    window.addEventListener(
+      "resize",
+      syncPanelHeight,
+      {
+        passive:
+          true
+      }
+    );
+
+
+    syncPanelHeight();
+  }
+
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeManholePanelHeightSyncV10,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initializeManholePanelHeightSyncV10();
+  }
+})();

@@ -904,3 +904,95 @@
     0 0 0 4px rgba(255, 230, 70, 0.12),
     0 0 18px rgba(250, 204, 21, 0.18) !important;
 }
+
+/* =========================================================
+   MANHOLE_LIST_LAYOUT_V10
+
+   - right panel follows left panel height
+   - table uses all available panel height
+   - larger table typography
+   - Close row uses light gray background
+========================================================= */
+
+.manhole-list-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.manhole-list-panel .manhole-table-wrap {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: auto !important;
+}
+
+
+/* Table readability */
+
+.manhole-table {
+  font-size: 14px !important;
+}
+
+.manhole-table thead th {
+  padding: 11px 8px !important;
+
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  line-height: 1.25 !important;
+
+  white-space: nowrap;
+}
+
+.manhole-table tbody td {
+  padding: 9px 8px !important;
+
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+}
+
+.manhole-table .manhole-number,
+.manhole-table .manhole-count {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+
+/* Inputs */
+
+.manhole-table select,
+.manhole-table input {
+  min-height: 37px !important;
+
+  font-size: 14px !important;
+  font-weight: 650 !important;
+}
+
+.manhole-table select[data-manhole-status-select] {
+  min-width: 88px !important;
+}
+
+
+/* Close row */
+
+.manhole-table tbody tr.is-close td {
+  background: #edf0f3 !important;
+}
+
+.manhole-table tbody tr.is-close:hover td {
+  background: #e3e7eb !important;
+}
+
+.manhole-table tbody tr.is-close select,
+.manhole-table tbody tr.is-close input {
+  background: #f4f6f8 !important;
+}
+
+
+/* Keep Open rows visually clean */
+
+.manhole-table tbody tr.is-open td {
+  background: #ffffff !important;
+}
