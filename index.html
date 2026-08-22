@@ -23,7 +23,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260822-header-more-menu-v1"
+    href="style.css?v=20260822-search-shift-quick1"
   >
 
 
@@ -57,7 +57,7 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 <script
-  src="script.js?v=20260822-header-more-menu-v1"
+  src="script.js?v=20260822-header-more-menu-v3"
   defer
 ></script>
 
@@ -66,7 +66,7 @@
     점검일지 메뉴 및 팝업 실행기
   ====================================================== -->
   <script
-    src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260822-header-more-menu-v1"
+    src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260822-header-more-menu-v3"
     defer
   ></script>
 
@@ -541,16 +541,42 @@
           >
             네비게이터
           </button>
+
+          <button
+            type="button"
+            class="header-more-item"
+            id="plannedMaintenanceHeaderButton"
+            role="menuitem"
+            aria-label="계획정비 열기"
+            title="계획정비"
+          >
+            계획정비
+          </button>
+
+          <button
+            type="button"
+            class="header-more-item"
+            id="manholeManagementHeaderButton"
+            role="menuitem"
+            aria-label="맨홀개폐관리 열기"
+            title="맨홀개폐관리"
+          >
+            맨홀개폐관리
+          </button>
+
+          <button
+            type="button"
+            class="
+              header-more-item
+              header-more-item--admin
+            "
+            id="adminButton"
+            role="menuitem"
+          >
+            관리자
+          </button>
         </div>
       </div>
-
-      <button
-        type="button"
-        class="header-action"
-        id="adminButton"
-      >
-        관리자
-      </button>
 
 
       <div class="header-user">
@@ -1838,11 +1864,12 @@
 
 
     <!-- 근무 -->
-    <label
+    <div
       class="
         form-field
         search-compact-field
         search-compact-field--shift
+        search-shift-field
       "
     >
 
@@ -1850,9 +1877,14 @@
         근무
       </span>
 
+
+      <!-- 실제 검색 조건값 저장용 -->
       <select
         id="searchShift"
         name="shift"
+        hidden
+        aria-hidden="true"
+        tabindex="-1"
       >
 
         <option value="">
@@ -1867,9 +1899,93 @@
           N/S
         </option>
 
+        <option value="D">
+          D
+        </option>
+
+        <option value="A">
+          A
+        </option>
+
+        <option value="N">
+          N
+        </option>
+
       </select>
 
-    </label>
+
+      <div
+        class="search-shift-quick-buttons"
+        id="searchShiftQuickButtons"
+        role="group"
+        aria-label="근무 빠른 선택"
+      >
+
+        <button
+          type="button"
+          class="
+            search-shift-quick-button
+            is-all
+            is-active
+          "
+          data-search-shift-value=""
+          aria-pressed="true"
+        >
+          전체
+        </button>
+
+        <button
+          type="button"
+          class="
+            search-shift-quick-button
+            is-current
+          "
+          data-search-shift-value="DS"
+          aria-pressed="false"
+        >
+          D/S
+        </button>
+
+        <button
+          type="button"
+          class="
+            search-shift-quick-button
+            is-current
+          "
+          data-search-shift-value="NS"
+          aria-pressed="false"
+        >
+          N/S
+        </button>
+
+      </div>
+
+
+      <select
+        id="searchLegacyShift"
+        class="search-shift-legacy-select"
+        aria-label="구 3교대 조회"
+      >
+
+        <option value="">
+          구 3교대 조회
+        </option>
+
+        <option value="D">
+          D (주간)
+        </option>
+
+        <option value="A">
+          A (오후)
+        </option>
+
+        <option value="N">
+          N (야간)
+        </option>
+
+      </select>
+
+    </div>
 
 
     <!-- 보직 -->

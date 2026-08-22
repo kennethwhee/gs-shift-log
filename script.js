@@ -79888,24 +79888,19 @@ function initializeFacilityNavigatorHeaderMenu() {
       "facilityNavigatorHeaderButton"
     );
 
-  const headerActions =
-    document.querySelector(
-      ".header-actions"
+  const plannedMaintenanceItem =
+    document.getElementById(
+      "plannedMaintenanceHeaderButton"
     );
 
-  const headerUser =
-    document.querySelector(
-      ".header-user"
+  const manholeManagementItem =
+    document.getElementById(
+      "manholeManagementHeaderButton"
     );
 
   const adminButton =
     document.getElementById(
       "adminButton"
-    );
-
-  const mobileMedia =
-    window.matchMedia(
-      "(max-width: 760px)"
     );
 
 
@@ -79914,7 +79909,6 @@ function initializeFacilityNavigatorHeaderMenu() {
     !button ||
     !dropdown ||
     !navigatorItem ||
-    !headerActions ||
     menu.dataset.headerMoreBound ===
       "true"
   ) {
@@ -79926,56 +79920,33 @@ function initializeFacilityNavigatorHeaderMenu() {
     "true";
 
 
-  function syncHeaderMoreMenuLayout() {
-    if (adminButton) {
-      if (mobileMedia.matches) {
-        adminButton.classList.remove(
-          "header-action"
-        );
+  /*
+    PC / 모바일 공통 메뉴
 
-        adminButton.classList.add(
-          "header-more-item",
-          "header-more-item--admin"
-        );
+    네비게이터
+    계획정비
+    맨홀개폐관리
+    점검일지 (모바일)
+    관리자
 
-        adminButton.setAttribute(
-          "role",
-          "menuitem"
-        );
-
-        /*
-          append()를 매번 사용하여
-          앞으로 메뉴가 추가되더라도 관리자는
-          항상 드롭다운 최하단에 둔다.
-        */
-        dropdown.append(
-          adminButton
-        );
-
-      } else {
-        adminButton.classList.remove(
-          "header-more-item",
-          "header-more-item--admin"
-        );
-
-        adminButton.classList.add(
-          "header-action"
-        );
-
-        adminButton.removeAttribute(
-          "role"
-        );
-
-        headerActions.insertBefore(
-          adminButton,
-          headerUser ||
-            null
-        );
-      }
+    관리자는 기존 권한 판정을 그대로 사용하고
+    항상 메뉴의 마지막에 둔다.
+  */
+  function keepAdminMenuLast() {
+    if (!adminButton) {
+      return;
     }
 
-
-    closeHeaderMoreMenu();
+    if (
+      adminButton.parentElement !==
+        dropdown ||
+      dropdown.lastElementChild !==
+        adminButton
+    ) {
+      dropdown.append(
+        adminButton
+      );
+    }
   }
 
 
@@ -79984,6 +79955,8 @@ function initializeFacilityNavigatorHeaderMenu() {
     event => {
       event.preventDefault();
       event.stopPropagation();
+
+      keepAdminMenuLast();
 
       const nextOpen =
         dropdown.hidden;
@@ -80016,6 +79989,36 @@ function initializeFacilityNavigatorHeaderMenu() {
 
       closeHeaderMoreMenu();
       openFacilityNavigatorHome();
+    }
+  );
+
+
+  plannedMaintenanceItem?.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      closeHeaderMoreMenu();
+
+      showToast(
+        "계획정비 메뉴는 준비 중입니다."
+      );
+    }
+  );
+
+
+  manholeManagementItem?.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      closeHeaderMoreMenu();
+
+      showToast(
+        "맨홀개폐관리 메뉴는 준비 중입니다."
+      );
     }
   );
 
@@ -80063,24 +80066,8 @@ function initializeFacilityNavigatorHeaderMenu() {
   );
 
 
-  if (
-    typeof mobileMedia
-      .addEventListener ===
-    "function"
-  ) {
-    mobileMedia.addEventListener(
-      "change",
-      syncHeaderMoreMenuLayout
-    );
-
-  } else {
-    mobileMedia.addListener(
-      syncHeaderMoreMenuLayout
-    );
-  }
-
-
-  syncHeaderMoreMenuLayout();
+  keepAdminMenuLast();
+  closeHeaderMoreMenu();
 }
 
 
@@ -209159,199 +209146,51 @@ function renderTeamApprovalCard(
 ====================================================== */
 
 function initializeOisLegacyShiftOptions() {
+  /*
+    [SEARCH-SHIFT-QUICK-V1]
+
+    실제 검색값:
+    #searchShift
+
+    화면:
+    전체 / D/S / N/S 빠른 선택
+    + 구 3교대 D / A / N 선택
+  */
+
   const shiftSelect =
     document.getElementById(
       "searchShift"
     );
 
 
+  const legacySelect =
+    document.getElementById(
+      "searchLegacyShift"
+    );
+
+
+  const quickButtons =
+    [
+      ...document.querySelectorAll(
+        "#searchShiftQuickButtons " +
+        "[data-search-shift-value]"
+      )
+    ];
+
+
+  const searchForm =
+    document.getElementById(
+      "searchForm"
+    );
+
+
   if (
-    !shiftSelect
+    !shiftSelect ||
+    !legacySelect ||
+    quickButtons.length !== 3
   ) {
     return;
   }
-
-
-  /*
-    기존 선택값은 옵션을 다시 구성한 뒤
-    그대로 복원한다.
-  */
-  const previousValue =
-    String(
-      shiftSelect.value ||
-      ""
-    )
-      .trim()
-      .toUpperCase();
-
-
-  const optionDefinitions = [
-    {
-      value:
-        "",
-
-      label:
-        "전체",
-
-      type:
-        "default"
-    },
-
-    {
-      value:
-        "DS",
-
-      label:
-        "D/S 현재",
-
-      type:
-        "current"
-    },
-
-    {
-      value:
-        "NS",
-
-      label:
-        "N/S 현재",
-
-      type:
-        "current"
-    },
-
-    {
-      value:
-        "__legacy_heading__",
-
-      label:
-        "구 3교대 · 과거 조회",
-
-      type:
-        "legacy-heading",
-
-      disabled:
-        true
-    },
-
-    {
-      value:
-        "D",
-
-      label:
-        "D (주간 · 과거)",
-
-      type:
-        "legacy"
-    },
-
-    {
-      value:
-        "A",
-
-      label:
-        "A (오후 · 과거)",
-
-      type:
-        "legacy"
-    },
-
-    {
-      value:
-        "N",
-
-      label:
-        "N (야간 · 과거)",
-
-      type:
-        "legacy"
-    }
-  ];
-
-
-  const optionFragment =
-    document.createDocumentFragment();
-
-
-  optionDefinitions.forEach(
-    definition => {
-      const option =
-        document.createElement(
-          "option"
-        );
-
-
-      option.value =
-        definition.value;
-
-      option.textContent =
-        definition.label;
-
-      option.disabled =
-        definition.disabled ===
-          true;
-
-
-      /*
-        option 스타일은 브라우저에 따라
-        일부만 적용될 수 있으므로,
-        글자에도 현재/과거를 명확히 표시한다.
-      */
-      if (
-        definition.type ===
-          "current"
-      ) {
-        option.style.color =
-          "#1f5fae";
-
-        option.style.fontWeight =
-          "900";
-
-        option.style.backgroundColor =
-          "#eef5ff";
-      }
-
-
-      if (
-        definition.type ===
-          "legacy-heading"
-      ) {
-        option.style.color =
-          "#9aa5b1";
-
-        option.style.fontWeight =
-          "700";
-
-        option.style.backgroundColor =
-          "#f5f6f8";
-      }
-
-
-      if (
-        definition.type ===
-          "legacy"
-      ) {
-        option.style.color =
-          "#7b8794";
-
-        option.style.fontWeight =
-          "500";
-      }
-
-
-      optionFragment.appendChild(
-        option
-      );
-    }
-  );
-
-
-  /*
-    기존 HTML 옵션과 이전에 추가된 구 3교대 옵션을
-    모두 정리하고 한 번에 다시 구성한다.
-  */
-  shiftSelect.replaceChildren(
-    optionFragment
-  );
 
 
   const allowedValues =
@@ -209367,12 +209206,244 @@ function initializeOisLegacyShiftOptions() {
     );
 
 
-  shiftSelect.value =
-    allowedValues.has(
-      previousValue
+  const legacyValues =
+    new Set(
+      [
+        "D",
+        "A",
+        "N"
+      ]
+    );
+
+
+  function normalizeShiftValue(
+    value
+  ) {
+    const normalized =
+      String(
+        value ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    return allowedValues.has(
+      normalized
     )
-      ? previousValue
+      ? normalized
       : "";
+  }
+
+
+  function renderShiftControls(
+    value
+  ) {
+    const normalized =
+      normalizeShiftValue(
+        value
+      );
+
+
+    const isLegacy =
+      legacyValues.has(
+        normalized
+      );
+
+
+    quickButtons.forEach(
+      button => {
+        const buttonValue =
+          normalizeShiftValue(
+            button.dataset
+              .searchShiftValue
+          );
+
+
+        const isActive =
+          !isLegacy &&
+          buttonValue ===
+            normalized;
+
+
+        button.classList.toggle(
+          "is-active",
+          isActive
+        );
+
+
+        button.setAttribute(
+          "aria-pressed",
+          String(
+            isActive
+          )
+        );
+      }
+    );
+
+
+    legacySelect.value =
+      isLegacy
+        ? normalized
+        : "";
+
+
+    legacySelect.classList.toggle(
+      "has-value",
+      isLegacy
+    );
+  }
+
+
+  function setShiftValue(
+    value,
+    emitChange = true
+  ) {
+    const normalized =
+      normalizeShiftValue(
+        value
+      );
+
+
+    const previous =
+      normalizeShiftValue(
+        shiftSelect.value
+      );
+
+
+    shiftSelect.value =
+      normalized;
+
+
+    renderShiftControls(
+      normalized
+    );
+
+
+    if (
+      emitChange &&
+      previous !==
+        normalized
+    ) {
+      shiftSelect.dispatchEvent(
+        new Event(
+          "change",
+          {
+            bubbles:
+              true
+          }
+        )
+      );
+    }
+  }
+
+
+  if (
+    shiftSelect.dataset
+      .quickShiftInitialized ===
+    "true"
+  ) {
+    renderShiftControls(
+      shiftSelect.value
+    );
+
+    return;
+  }
+
+
+  shiftSelect.dataset
+    .quickShiftInitialized =
+    "true";
+
+
+  quickButtons.forEach(
+    button => {
+      button.addEventListener(
+        "click",
+        () => {
+          setShiftValue(
+            button.dataset
+              .searchShiftValue
+          );
+        }
+      );
+    }
+  );
+
+
+  legacySelect.addEventListener(
+    "change",
+    () => {
+      setShiftValue(
+        legacySelect.value
+      );
+    }
+  );
+
+
+  shiftSelect.addEventListener(
+    "change",
+    () => {
+      renderShiftControls(
+        shiftSelect.value
+      );
+    }
+  );
+
+
+  searchForm?.addEventListener(
+    "reset",
+    () => {
+      window.setTimeout(
+        () => {
+          setShiftValue(
+            "",
+            false
+          );
+        },
+        0
+      );
+    }
+  );
+
+
+  searchForm?.addEventListener(
+    "click",
+    event => {
+      const button =
+        event.target.closest(
+          "button"
+        );
+
+
+      if (
+        !button ||
+        String(
+          button.textContent ||
+          ""
+        ).trim() !==
+          "초기화"
+      ) {
+        return;
+      }
+
+
+      window.setTimeout(
+        () => {
+          renderShiftControls(
+            shiftSelect.value
+          );
+        },
+        0
+      );
+    }
+  );
+
+
+  setShiftValue(
+    shiftSelect.value,
+    false
+  );
 }
 
 

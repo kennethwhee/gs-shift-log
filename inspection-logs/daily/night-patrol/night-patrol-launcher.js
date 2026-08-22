@@ -285,6 +285,16 @@
         HEADER_NAVIGATOR_ITEM_ID
       );
 
+    const manholeManagementItem =
+      document.getElementById(
+        "manholeManagementHeaderButton"
+      );
+
+    const adminButton =
+      document.getElementById(
+        "adminButton"
+      );
+
 
     if (
       !menu ||
@@ -361,13 +371,30 @@
 
 
     /*
-      네비게이터 다음에 점검일지를 배치한다.
-      관리자는 script.js에서 항상 마지막으로 이동한다.
+      모바일 메뉴 순서:
+
+      네비게이터
+      계획정비
+      맨홀개폐관리
+      점검일지
+      관리자
+
+      관리자는 PC / 모바일 모두 항상 마지막이다.
     */
-    navigatorItem.insertAdjacentElement(
+    (
+      manholeManagementItem ||
+      navigatorItem
+    ).insertAdjacentElement(
       "afterend",
       inspectionItem
     );
+
+
+    if (adminButton) {
+      dropdown.append(
+        adminButton
+      );
+    }
 
 
     if (
