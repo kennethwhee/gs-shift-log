@@ -107,7 +107,33 @@
   min-height: 0;
   overflow: auto;
   padding: 10px;
-  background: #fff;
+  background:
+    radial-gradient(circle at 50% 0%, #ffffff 0%, #fbfcfe 58%, #f5f8fb 100%);
+}
+
+.manhole-process-flow {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 auto 9px;
+  padding: 7px 12px;
+  border: 1px solid #d5dee8;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 4px 14px rgba(26, 45, 70, 0.08);
+  color: #31445e;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.manhole-process-flow b {
+  color: #c58b45;
+  font-size: 13px;
+  font-weight: 950;
 }
 
 .manhole-original-diagram {
@@ -143,14 +169,18 @@
   display: block;
   width: 100%;
   height: auto;
-  border: 1px solid #182233;
+  border: 1px solid #25364a;
   background: #fff;
   object-fit: contain;
+  filter: contrast(1.035) saturate(0.96);
+  box-shadow:
+    0 12px 28px rgba(31, 45, 61, 0.10),
+    0 2px 5px rgba(31, 45, 61, 0.08);
 }
 
 /*
-  오른쪽 관리 리스트의 상태를 원본 위치도 위 원형 마커로만 표시한다.
-  편집은 오른쪽 목록에서만 가능하며 오버레이 자체는 클릭되지 않는다.
+  오른쪽 관리 리스트의 Open 상태만 원본 도면 위에 표시한다.
+  원본 그림의 번호는 그대로 유지하며, 추가 번호 라벨은 Open 상태에서만 표시한다.
 */
 .manhole-diagram-overlay {
   position: absolute;
@@ -162,81 +192,98 @@
 .manhole-diagram-marker {
   --marker-x: 50%;
   --marker-y: 50%;
-  --marker-scale: 1;
 
   position: absolute;
   top: var(--marker-y);
   left: var(--marker-x);
-  width: clamp(34px, 6.2%, 54px);
+  width: clamp(46px, 7.3%, 68px);
   aspect-ratio: 1;
-  border: 4px solid transparent;
+  border: 4px solid #e32331;
   border-radius: 50%;
-  transform: translate(-50%, -50%) scale(var(--marker-scale));
+  background:
+    radial-gradient(
+      circle at 32% 27%,
+      rgba(255, 255, 255, 0.98) 0 12%,
+      rgba(255, 255, 255, 0.46) 18%,
+      rgba(255, 93, 101, 0.12) 43%,
+      rgba(255, 70, 80, 0.04) 61%,
+      rgba(255, 255, 255, 0) 70%
+    );
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.96),
+    0 0 0 6px rgba(227, 35, 49, 0.12),
+    0 9px 15px rgba(141, 24, 34, 0.22),
+    inset 0 3px 5px rgba(255, 255, 255, 0.92),
+    inset 0 -5px 8px rgba(124, 18, 27, 0.12);
+  transform: translate(-50%, -50%);
   transform-origin: center;
-  opacity: 0;
+  opacity: 1;
   transition:
-    border-color 0.16s ease,
-    background 0.16s ease,
     box-shadow 0.16s ease,
-    opacity 0.16s ease,
     transform 0.16s ease;
 }
 
-.manhole-diagram-marker.is-open {
-  border-color: #e3222f;
-  background: transparent;
-  box-shadow:
-    0 0 0 2px rgba(255, 255, 255, 0.92),
-    0 0 0 5px rgba(227, 34, 47, 0.14);
-  opacity: 1;
+.manhole-diagram-marker::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.96);
+  border-radius: 50%;
 }
 
-/* Close / 미선택 상태는 도면 위에 원형 마커를 표시하지 않는다. */
-
-/*
-  25~34번처럼 원본 그림에서 하나의 맨홀 심볼을
-  두 번호가 함께 사용하는 경우 두 상태를 동시에 볼 수 있도록
-  안쪽/바깥쪽 동심원으로 구분한다.
-*/
-.manhole-diagram-marker.is-paired-inner {
-  --marker-scale: 0.70;
-  border-width: 3px;
+.manhole-diagram-marker::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  width: 31%;
+  height: 18%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.84);
+  transform: rotate(-24deg);
 }
+
+/* Close / 미선택 상태는 도면 위에 아무 표시도 하지 않는다. */
 
 .manhole-diagram-marker.is-row-highlight {
-  z-index: 4;
+  z-index: 5;
   box-shadow:
-    0 0 0 2px rgba(255, 255, 255, 0.96),
-    0 0 0 6px rgba(31, 111, 235, 0.28);
-  transform: translate(-50%, -50%) scale(1.10);
+    0 0 0 2px rgba(255, 255, 255, 0.98),
+    0 0 0 8px rgba(31, 111, 235, 0.28),
+    0 12px 20px rgba(31, 80, 150, 0.24),
+    inset 0 3px 5px rgba(255, 255, 255, 0.94),
+    inset 0 -5px 8px rgba(124, 18, 27, 0.12);
+  transform: translate(-50%, -50%) scale(1.08);
 }
 
-.manhole-diagram-marker.is-paired-inner.is-row-highlight {
-  transform: translate(-50%, -50%) scale(0.79);
-}
-
-.manhole-diagram-number {
+.manhole-diagram-open-label {
   position: absolute;
-  top: var(--number-y);
-  left: var(--number-x);
-  z-index: 4;
-  min-width: 20px;
-  padding: 2px 4px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.88);
-  color: #ef1d2a;
-  font-size: clamp(11px, 1.55vw, 15px);
+  top: var(--label-y);
+  left: var(--label-x);
+  z-index: 6;
+  min-width: 28px;
+  padding: 3px 7px;
+  border: 1px solid #d8212d;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffffff 0%, #fff3f4 100%);
+  box-shadow:
+    0 4px 9px rgba(136, 26, 34, 0.18),
+    inset 0 1px 0 #fff;
+  color: #d51d2a;
+  font-size: clamp(11px, 1.25vw, 14px);
   font-weight: 950;
   line-height: 1.05;
   text-align: center;
   white-space: nowrap;
-  pointer-events: none;
-  text-shadow:
-    -1px -1px 0 #fff,
-    1px -1px 0 #fff,
-    -1px 1px 0 #fff,
-    1px 1px 0 #fff;
   transform: translate(-50%, -50%);
+}
+
+.manhole-diagram-open-label.is-row-highlight {
+  border-color: #2563eb;
+  box-shadow:
+    0 0 0 3px rgba(37, 99, 235, 0.16),
+    0 6px 12px rgba(37, 99, 235, 0.16);
+  color: #1f56bd;
 }
 
 .manhole-original-diagram__notice {
@@ -404,6 +451,14 @@
 
   .manhole-schematic {
     padding: 8px;
+  }
+
+  .manhole-process-flow {
+    justify-content: flex-start;
+    overflow-x: auto;
+    margin-right: 0;
+    margin-left: 0;
+    border-radius: 9px;
   }
 
   .manhole-original-diagram {

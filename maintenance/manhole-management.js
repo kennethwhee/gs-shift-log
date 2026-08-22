@@ -665,107 +665,124 @@
     `;
   }
 
-  function getDiagramMarkerClass(
-    point
-  ) {
-    const classes = [
-      "manhole-diagram-marker",
-      "is-open"
-    ];
-
-    if (point?.ring === "inner") {
-      classes.push(
-        "is-paired-inner"
-      );
-    }
-
-    return classes.join(" ");
-  }
-
-  function getDiagramNumberLabelEntries() {
-    const grouped =
-      new Map();
-
-    Object.entries(
-      DIAGRAM_MARKERS_BY_NO
-    ).forEach(
-      ([rawNo, points]) => {
+  const DIAGRAM_OPEN_GROUPS = [
+    ...Array.from(
+      { length: 24 },
+      (_, index) => {
         const no =
-          Number(rawNo);
+          index + 1;
 
-        points.forEach(
-          point => {
-            const key =
-              `${point.x.toFixed(3)}:${point.y.toFixed(3)}`;
-
-            if (!grouped.has(key)) {
-              grouped.set(
-                key,
-                {
-                  x: point.x,
-                  y: point.y,
-                  numbers: []
-                }
-              );
-            }
-
-            grouped
-              .get(key)
-              .numbers
-              .push(no);
-          }
-        );
+        return {
+          key: String(no),
+          numbers: [no],
+          label: String(no),
+          points:
+            DIAGRAM_MARKERS_BY_NO[no] || []
+        };
       }
-    );
+    ),
+    {
+      key: "25-30",
+      numbers: [25, 30],
+      label: "25/30",
+      points: [DIAGRAM_MARKERS_BY_NO[25][0]]
+    },
+    {
+      key: "26-31",
+      numbers: [26, 31],
+      label: "26/31",
+      points: [DIAGRAM_MARKERS_BY_NO[26][0]]
+    },
+    {
+      key: "27-32",
+      numbers: [27, 32],
+      label: "27/32",
+      points: [DIAGRAM_MARKERS_BY_NO[27][0]]
+    },
+    {
+      key: "28-33",
+      numbers: [28, 33],
+      label: "28/33",
+      points: [DIAGRAM_MARKERS_BY_NO[28][0]]
+    },
+    {
+      key: "29-34",
+      numbers: [29, 34],
+      label: "29/34",
+      points: [DIAGRAM_MARKERS_BY_NO[29][0]]
+    }
+  ];
 
-    return Array.from(
-      grouped.values()
+
+  function getOpenDiagramGroups() {
+    const rowByNo =
+      new Map(
+        state.rows.map(
+          row => [
+            Number(row.no),
+            row
+          ]
+        )
+      );
+
+    return DIAGRAM_OPEN_GROUPS.filter(
+      group =>
+        group.numbers.some(
+          no =>
+            rowByNo.get(no)?.status ===
+            "open"
+        )
     );
   }
 
 
-  const DIAGRAM_NUMBER_LABELS =
-    getDiagramNumberLabelEntries();
-
-
-  function getDiagramNumberPosition(
-    item
+  function getMarkerLabelPosition(
+    group
   ) {
-    let x =
-      item.x +
-      (item.x >= 86
-        ? -5.3
-        : 1.9);
+    const points =
+      group.points || [];
 
-    let y =
-      item.y - 2.6;
-
-    if (item.y >= 89) {
-      y =
-        item.y - 4.2;
+    if (!points.length) {
+      return null;
     }
 
-    x =
-      Math.min(
-        96,
-        Math.max(
-          4,
-          x
-        )
+    const center =
+      points.reduce(
+        (accumulator, point) => ({
+          x:
+            accumulator.x +
+            Number(point.x || 0),
+          y:
+            accumulator.y +
+            Number(point.y || 0)
+        }),
+        { x: 0, y: 0 }
       );
 
-    y =
-      Math.min(
-        96,
-        Math.max(
-          5.2,
-          y
-        )
-      );
+    center.x /= points.length;
+    center.y /= points.length;
+
+    const rightSide =
+      center.x >= 84;
 
     return {
-      x,
-      y
+      x:
+        Math.min(
+          96,
+          Math.max(
+            4,
+            center.x +
+              (rightSide ? -4.6 : 3.0)
+          )
+        ),
+      y:
+        Math.min(
+          96,
+          Math.max(
+            5,
+            center.y - 3.0
+          )
+        )
     };
   }
 
@@ -778,53 +795,43 @@
     const html = [];
 
     /*
-      번호는 상태와 관계없이 크게 표시한다.
-      같은 실제 맨홀을 공유하는 25/30 등의 번호는
-      하나의 라벨로 합쳐 표시한다.
+      원본 그림의 작은 번호는 그대로 둔다.
+      추가 번호는 Open 상태에만 표시하여 평상시 번호 중복을 없앤다.
+      25/30 등 같은 실제 맨홀 위치를 공유하는 번호는 하나의 그룹으로 표시한다.
+      14번은 원본 위치의 3개 맨홀에 동시에 마커를 표시한다.
     */
-    DIAGRAM_NUMBER_LABELS.forEach(
-      item => {
-        const position =
-          getDiagramNumberPosition(
-            item
-          );
+    getOpenDiagramGroups().forEach(
+      group => {
+        const noTokens =
+          group.numbers.join(" ");
 
-        html.push(`
-          <span
-            class="manhole-diagram-number"
-            style="--number-x: ${position.x}%; --number-y: ${position.y}%;"
-          >${item.numbers.join("/")}</span>
-        `);
-      }
-    );
-
-    /*
-      도면에는 Open 상태만 빨간 원으로 표시한다.
-      Close / 미선택은 아무 원도 표시하지 않는다.
-    */
-    state.rows.forEach(
-      row => {
-        if (row.status !== "open") {
-          return;
-        }
-
-        const points =
-          DIAGRAM_MARKERS_BY_NO[
-            row.no
-          ] || [];
-
-        points.forEach(
+        group.points.forEach(
           (point, index) => {
             html.push(`
               <span
-                class="${getDiagramMarkerClass(point)}"
-                data-manhole-diagram-marker="${row.no}"
+                class="manhole-diagram-marker is-open"
+                data-manhole-diagram-nos="${noTokens}"
                 data-manhole-diagram-marker-index="${index}"
                 style="--marker-x: ${point.x}%; --marker-y: ${point.y}%;"
               ></span>
             `);
           }
         );
+
+        const labelPosition =
+          getMarkerLabelPosition(
+            group
+          );
+
+        if (labelPosition) {
+          html.push(`
+            <span
+              class="manhole-diagram-open-label"
+              data-manhole-diagram-nos="${noTokens}"
+              style="--label-x: ${labelPosition.x}%; --label-y: ${labelPosition.y}%;"
+            >${group.label}</span>
+          `);
+        }
       }
     );
 
@@ -839,7 +846,7 @@
   ) {
     document
       .querySelectorAll(
-        `[data-manhole-diagram-marker="${Number(no)}"]`
+        `[data-manhole-diagram-nos~="${Number(no)}"]`
       )
       .forEach(
         marker => {
@@ -870,8 +877,8 @@
     if (elements.diagramHint) {
       elements.diagramHint.textContent =
         isUnit2
-          ? "1호기 원본 위치도 임시 복제본입니다. Open만 빨간 원으로 표시하고 Close는 표시하지 않습니다."
-          : "오른쪽 목록에서 Open으로 바꾼 맨홀만 큰 빨간 원으로 표시합니다. Close는 도면에 표시하지 않습니다.";
+          ? "1호기 원본 위치도 임시 복제본입니다. Open만 입체 마커로 표시하고 Close는 표시하지 않습니다."
+          : "오른쪽 목록에서 Open으로 바꾼 맨홀만 입체 빨간 마커로 표시합니다. Close는 도면에 표시하지 않습니다.";
     }
 
     if (elements.diagramImage) {

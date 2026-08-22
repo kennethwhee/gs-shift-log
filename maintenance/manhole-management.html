@@ -13,14 +13,14 @@
   >
   <link
     rel="stylesheet"
-    href="manhole-management.css?v=20260822-manhole-visual-status-v4"
+    href="manhole-management.css?v=20260822-manhole-premium-marker-v5"
   >
   <script
     src="management-common.js?v=20260822-maintenance-v1"
     defer
   ></script>
   <script
-    src="manhole-management.js?v=20260822-manhole-visual-status-v4"
+    src="manhole-management.js?v=20260822-manhole-premium-marker-v5"
     defer
   ></script>
 </head>
@@ -103,7 +103,7 @@
           </div>
 
           <div class="management-toolbar__right">
-            <span class="manhole-legend is-open">Open · 빨간 원</span>
+            <span class="manhole-legend is-open">Open · 입체 빨간 마커</span>
             <span class="manhole-legend is-close">Close · 도면 표시 없음</span>
           </div>
         </div>
@@ -143,6 +143,18 @@
               class="manhole-schematic"
               id="manholeSchematic"
             >
+              <div class="manhole-process-flow" aria-label="연소가스 흐름">
+                <span>Combustor</span>
+                <b aria-hidden="true">→</b>
+                <span>Cyclone</span>
+                <b aria-hidden="true">→</b>
+                <span>Backpass 1</span>
+                <b aria-hidden="true">→</b>
+                <span>Backpass 2</span>
+                <b aria-hidden="true">→</b>
+                <span>SDA</span>
+              </div>
+
               <div class="manhole-original-diagram">
                 <div
                   class="manhole-diagram-title"
