@@ -31,7 +31,18 @@ const LOGGING_INTERVAL_SHEET_KEYS =
   new Set([
     "integrated-tgo",
     "integrated-bco1",
-    "integrated-bco2"
+    "integrated-bco2",
+
+    "field-night-leader-to",
+    "field-night-bo12",
+    "field-day-to",
+    "field-day-bo1",
+    "field-day-bo2",
+
+    "electrical-main",
+
+    "aux-control-room",
+    "aux-field"
   ]);
 
 const LOGGING_INTERVAL_HOURS =

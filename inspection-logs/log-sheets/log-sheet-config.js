@@ -318,6 +318,58 @@
             0
           ),
           mergePolicy: MERGE_POLICY,
+          loggingSchedule: {
+            startHour: 20,
+            defaultIntervalHours: 3,
+            supportedIntervals: [
+              2,
+              3,
+              4,
+              6
+            ],
+            preserveDataLayout: true,
+            sections: [
+              {
+                headerRows: [
+                  6
+                ],
+                fixedGroupSets: [
+                  [
+                    "J",
+                    "K",
+                    "L",
+                    "M"
+                  ]
+                ]
+              },
+              {
+                headerRows: [
+                  36
+                ],
+                fixedGroupSets: [
+                  [
+                    "J",
+                    "K",
+                    "L",
+                    "M"
+                  ]
+                ]
+              },
+              {
+                headerRows: [
+                  70
+                ],
+                fixedGroupSets: [
+                  [
+                    "J",
+                    "K",
+                    "L",
+                    "M"
+                  ]
+                ]
+              }
+            ]
+          },
           editableRanges: [
             "J7:M35",
             "J37:M69",
@@ -390,6 +442,70 @@
             null
           ),
           mergePolicy: MERGE_POLICY,
+          loggingSchedule: {
+            startHour: 20,
+            defaultIntervalHours: 3,
+            supportedIntervals: [
+              2,
+              3,
+              4,
+              6
+            ],
+            preserveDataLayout: true,
+            sections: [
+              {
+                headerRows: [
+                  6
+                ],
+                fixedGroupSets: [
+                  [
+                    "J",
+                    "K",
+                    "L",
+                    "M"
+                  ],
+                  [
+                    "N",
+                    "O",
+                    "P",
+                    "Q"
+                  ]
+                ]
+              },
+              {
+                headerRows: [
+                  41
+                ],
+                fixedGroupSets: [
+                  [
+                    "J",
+                    "K",
+                    "L",
+                    "M"
+                  ],
+                  [
+                    "N",
+                    "O",
+                    "P",
+                    "Q"
+                  ]
+                ]
+              },
+              {
+                headerRows: [
+                  78
+                ],
+                fixedGroupSets: [
+                  [
+                    "J:K",
+                    "L:M",
+                    "N:O",
+                    "P:Q"
+                  ]
+                ]
+              }
+            ]
+          },
           editableRanges: [
             "J7:Q34",
             "J36:K40",
@@ -470,6 +586,34 @@
             0
           ),
           mergePolicy: MERGE_POLICY,
+          loggingSchedule: {
+            startHour: 8,
+            defaultIntervalHours: 3,
+            supportedIntervals: [
+              2,
+              3,
+              4,
+              6
+            ],
+            preserveDataLayout: true,
+            sections: [
+              {
+                headerRows: [
+                  6,
+                  36,
+                  70
+                ],
+                fixedGroupSets: [
+                  [
+                    "J",
+                    "K",
+                    "L",
+                    "M"
+                  ]
+                ]
+              }
+            ]
+          },
           editableRanges: [
             "J7:M35",
             "J37:M69",
@@ -526,6 +670,34 @@
             0
           ),
           mergePolicy: MERGE_POLICY,
+          loggingSchedule: {
+            startHour: 8,
+            defaultIntervalHours: 3,
+            supportedIntervals: [
+              2,
+              3,
+              4,
+              6
+            ],
+            preserveDataLayout: true,
+            sections: [
+              {
+                headerRows: [
+                  6,
+                  35,
+                  74
+                ],
+                fixedGroupSets: [
+                  [
+                    "J",
+                    "K",
+                    "L",
+                    "M"
+                  ]
+                ]
+              }
+            ]
+          },
           editableRanges: [
             "J7:M34",
             "J36:M73",
@@ -582,6 +754,34 @@
             0
           ),
           mergePolicy: MERGE_POLICY,
+          loggingSchedule: {
+            startHour: 8,
+            defaultIntervalHours: 3,
+            supportedIntervals: [
+              2,
+              3,
+              4,
+              6
+            ],
+            preserveDataLayout: true,
+            sections: [
+              {
+                headerRows: [
+                  6,
+                  33,
+                  70
+                ],
+                fixedGroupSets: [
+                  [
+                    "J",
+                    "K",
+                    "L",
+                    "M"
+                  ]
+                ]
+              }
+            ]
+          },
           editableRanges: [
             "J7:M32",
             "J34:M69",
@@ -635,6 +835,33 @@
             null
           ),
           mergePolicy: MERGE_POLICY,
+          loggingSchedule: {
+            startHour: 20,
+            defaultIntervalHours: 4,
+            supportedIntervals: [
+              2,
+              3,
+              4,
+              6
+            ],
+            headerLabelMode:
+              "clock",
+            preserveDataLayout: true,
+            sections: [
+              {
+                headerRows: [
+                  9
+                ],
+                fixedGroupSets: [
+                  [
+                    "J:L",
+                    "M:O",
+                    "P:R"
+                  ]
+                ]
+              }
+            ]
+          },
           editableRanges: [
             "J10:J47",
             "M10:M47",
@@ -696,6 +923,41 @@
             0
           ),
           mergePolicy: MERGE_POLICY,
+          loggingSchedule: {
+            startHour: 8,
+            defaultIntervalHours: 2,
+            supportedIntervals: [
+              2,
+              3,
+              4,
+              6
+            ],
+            preserveDataLayout: true,
+            sections: [
+              {
+                headerRows: [
+                  8,
+                  43
+                ],
+                fixedGroupSets: [
+                  [
+                    "H",
+                    "I",
+                    "J",
+                    "K",
+                    "L",
+                    "M",
+                    "N",
+                    "O",
+                    "P",
+                    "Q",
+                    "R",
+                    "S"
+                  ]
+                ]
+              }
+            ]
+          },
           editableRanges: [
             "H10:S41",
             "H45:S85"
@@ -758,6 +1020,36 @@
             0
           ),
           mergePolicy: MERGE_POLICY,
+          loggingSchedule: {
+            startHour: 8,
+            defaultIntervalHours: 3,
+            supportedIntervals: [
+              2,
+              3,
+              4,
+              6
+            ],
+            preserveDataLayout: true,
+            sections: [
+              {
+                headerRows: [
+                  6
+                ],
+                fixedGroupSets: [
+                  [
+                    "G",
+                    "H",
+                    "I",
+                    "J",
+                    "K",
+                    "L",
+                    "M",
+                    "N"
+                  ]
+                ]
+              }
+            ]
+          },
           editableRanges: [
             "G8:N46",
             "P9:R46"
@@ -846,7 +1138,7 @@
   const config =
     deepFreeze({
       version:
-        "2026-08-19-log-sheet-logging-interval-1",
+        "2026-08-22-log-sheet-all-time-controls-1",
       defaultType:
         "integrated-tgo",
       apiPath:

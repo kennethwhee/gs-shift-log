@@ -1043,54 +1043,303 @@
   }
 
 
-  function getLoggingTimeGroups() {
+  /* =========================================================
+    [LOG-SHEET-NONINTEGRATED-TIME-CONTROLS-V1]
+
+    통합 제어실
+    - 기존 동적 칸 병합/재분할 방식 유지
+
+    비통합 Log Sheet
+    - 원본 Excel의 칸 수와 병합 구조를 절대 변경하지 않음
+    - 원본 시간칸의 위치를 fixedGroupSets로 지정
+    - 로깅 주기 / 시작 시간 변경 시 시간 헤더만 재계산
+    - BO1&2 야간처럼 한 행에 시간대 묶음이 2개이면
+      각 묶음에서 시작 시간을 다시 사용
+  ========================================================= */
+
+  function getLoggingScheduleSections() {
     const schedule =
       getLoggingScheduleConfig();
 
+
+    if (!schedule) {
+      return [];
+    }
+
+
+    if (
+      Array.isArray(
+        schedule.sections
+      ) &&
+      schedule.sections.length
+    ) {
+      return schedule.sections;
+    }
+
+
+    return [
+      {
+        headerRows:
+          schedule.headerRows ||
+          [],
+
+        dataRanges:
+          schedule.dataRanges ||
+          [],
+
+        startColumn:
+          schedule.startColumn,
+
+        endColumn:
+          schedule.endColumn,
+
+        durationHours:
+          24
+      }
+    ];
+  }
+
+
+  function parseLoggingFixedGroup(
+    rangeText
+  ) {
+    const normalized =
+      normalizeText(
+        rangeText
+      );
+
+
+    if (!normalized) {
+      return null;
+    }
+
+
+    const range =
+      parseRange(
+        normalized.includes(":")
+          ? normalized
+          : `${normalized}:${normalized}`
+      );
+
+
+    return {
+      startColumn:
+        range.s.c,
+
+      endColumn:
+        range.e.c
+    };
+  }
+
+
+  function formatLoggingScheduleLabel(
+    rawHour
+  ) {
+    const schedule =
+      getLoggingScheduleConfig();
+
+
+    if (
+      schedule?.headerLabelMode ===
+        "clock"
+    ) {
+      const normalized =
+        (
+          (
+            Number(rawHour) %
+            24
+          ) +
+          24
+        ) %
+        24;
+
+
+      return (
+        String(
+          normalized
+        ).padStart(
+          2,
+          "0"
+        ) +
+        ":00"
+      );
+    }
+
+
+    return formatLoggingHour(
+      rawHour
+    );
+  }
+
+
+  function getLoggingFixedGroupsForSection(
+    section
+  ) {
     const interval =
       getLoggingIntervalHours();
 
+
+    const groupSets =
+      Array.isArray(
+        section?.fixedGroupSets
+      )
+        ? section.fixedGroupSets
+        : [];
+
+
     if (
-      !schedule ||
-      !interval
+      !interval ||
+      !groupSets.length
     ) {
       return [];
     }
 
+
+    const startHour =
+      getLoggingStartHour();
+
+
+    const result =
+      [];
+
+
+    groupSets.forEach(
+      (
+        groupSet,
+        setIndex
+      ) => {
+        (
+          Array.isArray(
+            groupSet
+          )
+            ? groupSet
+            : []
+        ).forEach(
+          (
+            rangeText,
+            index
+          ) => {
+            const range =
+              parseLoggingFixedGroup(
+                rangeText
+              );
+
+
+            if (!range) {
+              return;
+            }
+
+
+            result.push({
+              index,
+
+              setIndex,
+
+              startColumn:
+                range.startColumn,
+
+              endColumn:
+                range.endColumn,
+
+              label:
+                formatLoggingScheduleLabel(
+                  startHour +
+                  index *
+                  interval
+                )
+            });
+          }
+        );
+      }
+    );
+
+
+    return result;
+  }
+
+
+  function getLoggingDynamicGroupsForSection(
+    section
+  ) {
+    const interval =
+      getLoggingIntervalHours();
+
+
+    if (!interval) {
+      return [];
+    }
+
+
+    const startColumnName =
+      normalizeText(
+        section?.startColumn
+      );
+
+
+    const endColumnName =
+      normalizeText(
+        section?.endColumn
+      );
+
+
+    if (
+      !startColumnName ||
+      !endColumnName
+    ) {
+      return [];
+    }
+
+
     const startColumn =
       XLSX.utils.decode_col(
-        schedule.startColumn
+        startColumnName
       );
+
 
     const endColumn =
       XLSX.utils.decode_col(
-        schedule.endColumn
+        endColumnName
       );
+
 
     const totalColumns =
       endColumn -
       startColumn +
       1;
 
+
+    const durationHours =
+      Number(
+        section?.durationHours ||
+        24
+      );
+
+
     const slotCount =
-      24 /
+      durationHours /
       interval;
+
 
     if (
       !Number.isInteger(
         slotCount
       ) ||
+      slotCount <
+        1 ||
       slotCount >
         totalColumns
     ) {
       return [];
     }
 
+
     const startHour =
       getLoggingStartHour();
 
+
     const groups =
       [];
+
 
     for (
       let index = 0;
@@ -1105,6 +1354,7 @@
           slotCount
         );
 
+
       const groupEnd =
         startColumn +
         Math.floor(
@@ -1117,8 +1367,12 @@
         ) -
         1;
 
+
       groups.push({
         index,
+
+        setIndex:
+          0,
 
         startColumn:
           groupStart,
@@ -1130,7 +1384,7 @@
           ),
 
         label:
-          formatLoggingHour(
+          formatLoggingScheduleLabel(
             startHour +
             index *
             interval
@@ -1138,10 +1392,43 @@
       });
     }
 
+
     return groups;
   }
 
 
+  function getLoggingTimeGroupsForSection(
+    section
+  ) {
+    if (
+      Array.isArray(
+        section?.fixedGroupSets
+      ) &&
+      section.fixedGroupSets.length
+    ) {
+      return getLoggingFixedGroupsForSection(
+        section
+      );
+    }
+
+
+    return getLoggingDynamicGroupsForSection(
+      section
+    );
+  }
+
+
+  function getLoggingTimeGroups() {
+    const section =
+      getLoggingScheduleSections()[0];
+
+
+    return section
+      ? getLoggingTimeGroupsForSection(
+          section
+        )
+      : [];
+  }
 
   function getOriginalLoggingColumnWidthPx(
     sheet,
@@ -1255,6 +1542,14 @@
     ) {
       return null;
     }
+
+
+    if (
+      schedule.preserveDataLayout
+    ) {
+      return null;
+    }
+
 
     const startColumn =
       XLSX.utils.decode_col(
@@ -1424,6 +1719,15 @@
       return;
     }
 
+
+    if (
+      getLoggingScheduleConfig()
+        ?.preserveDataLayout
+    ) {
+      return;
+    }
+
+
     rows.forEach(
       row => {
         groups.forEach(
@@ -1495,45 +1799,55 @@
     const schedule =
       getLoggingScheduleConfig();
 
+
     if (!schedule) {
       return null;
     }
+
 
     const cell =
       XLSX.utils.decode_cell(
         address
       );
 
-    const isHeaderRow =
-      (
-        schedule.headerRows ||
-        []
-      ).some(
-        rowNumber =>
-          Number(
-            rowNumber
-          ) -
-            1 ===
-          cell.r
-      );
 
-    if (!isHeaderRow) {
+    const section =
+      getLoggingScheduleSections()
+        .find(
+          item =>
+            (
+              item.headerRows ||
+              []
+            ).some(
+              rowNumber =>
+                Number(
+                  rowNumber
+                ) -
+                  1 ===
+                cell.r
+            )
+        );
+
+
+    if (!section) {
       return null;
     }
 
+
     const group =
-      getLoggingTimeGroups()
-        .find(
-          item =>
-            item.startColumn ===
-            cell.c
-        );
+      getLoggingTimeGroupsForSection(
+        section
+      ).find(
+        item =>
+          item.startColumn ===
+          cell.c
+      );
+
 
     return group
       ? group.label
       : null;
   }
-
 
   function handleLoggingIntervalChange() {
     const schedule =
@@ -9853,6 +10167,14 @@ async function loadRecord(
       return;
     }
 
+
+    if (
+      schedule.preserveDataLayout
+    ) {
+      return;
+    }
+
+
     const startColumn =
       XLSX.utils.decode_col(
         schedule.startColumn
@@ -10159,12 +10481,83 @@ function applyLoggingScheduleToWorksheet(
       getLoggingScheduleRows();
 
     if (
-      !schedule ||
+      !schedule
+    ) {
+      return;
+    }
+
+
+    if (
+      schedule.preserveDataLayout
+    ) {
+      getLoggingScheduleSections()
+        .forEach(
+          section => {
+            const sectionGroups =
+              getLoggingTimeGroupsForSection(
+                section
+              );
+
+
+            (
+              section.headerRows ||
+              []
+            ).forEach(
+              rowNumber => {
+                const rowIndex =
+                  Number(
+                    rowNumber
+                  ) -
+                  1;
+
+
+                if (
+                  !Number.isInteger(
+                    rowIndex
+                  ) ||
+                  rowIndex <
+                    0
+                ) {
+                  return;
+                }
+
+
+                sectionGroups.forEach(
+                  group => {
+                    patchCellValue(
+                      worksheetDocument,
+                      XLSX.utils.encode_cell({
+                        r:
+                          rowIndex,
+
+                        c:
+                          group.startColumn
+                      }),
+                      group.label,
+                      {
+                        removeFormula:
+                          true
+                      }
+                    );
+                  }
+                );
+              }
+            );
+          }
+        );
+
+
+      return;
+    }
+
+
+    if (
       !groups.length ||
       !rows.size
     ) {
       return;
     }
+
 
     const namespace =
       worksheetDocument
