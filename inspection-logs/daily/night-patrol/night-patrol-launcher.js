@@ -1930,6 +1930,26 @@
     ]);
 
 
+  function normalizeHeaderMenuLabel(
+    value
+  ) {
+
+    return String(
+      value ||
+      ""
+    )
+      .replace(
+        /[\u200B-\u200D\u2060\uFEFF]/g,
+        ""
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+  }
+
+
   function applyHeaderMenuEmoji() {
 
     const dropdown =
@@ -1980,7 +2000,9 @@
 
 
         const label =
-          rawText.trim();
+          normalizeHeaderMenuLabel(
+            rawText
+          );
 
 
         const replacement =
@@ -2016,6 +2038,113 @@
           `${leadingSpace}${replacement}${trailingSpace}`;
       }
     );
+
+
+    /*
+      계정정비는 우측 펼침 화살표가 붙은 부모 메뉴라
+      일반 텍스트 노드 치환에서 빠질 수 있다.
+
+      실제 클릭 가능한 가장 작은 요소를 찾아
+      ⚙️ 아이콘만 직접 앞에 추가한다.
+    */
+    const accountCandidates =
+      Array.from(
+        dropdown.querySelectorAll(
+          "button, a, [role='button']"
+        )
+      )
+        .filter(
+          element => {
+
+            const text =
+              normalizeHeaderMenuLabel(
+                element.textContent
+              )
+                .replace(
+                  /^⚙️\s*/,
+                  ""
+                );
+
+
+            return (
+              text ===
+                "계정정비" ||
+              text.startsWith(
+                "계정정비 "
+              )
+            );
+          }
+        )
+        .sort(
+          (left, right) => {
+
+            const leftLength =
+              normalizeHeaderMenuLabel(
+                left.textContent
+              ).length;
+
+            const rightLength =
+              normalizeHeaderMenuLabel(
+                right.textContent
+              ).length;
+
+
+            return (
+              leftLength -
+              rightLength
+            );
+          }
+        );
+
+
+    const accountButton =
+      accountCandidates[0] ||
+      null;
+
+
+    if (
+      accountButton &&
+      !accountButton.querySelector(
+        '[data-header-menu-emoji="account"]'
+      ) &&
+      !normalizeHeaderMenuLabel(
+        accountButton.textContent
+      ).startsWith(
+        "⚙️"
+      )
+    ) {
+
+      const emoji =
+        document.createElement(
+          "span"
+        );
+
+
+      emoji.setAttribute(
+        "data-header-menu-emoji",
+        "account"
+      );
+
+
+      emoji.setAttribute(
+        "aria-hidden",
+        "true"
+      );
+
+
+      emoji.textContent =
+        "⚙️";
+
+
+      emoji.style.marginRight =
+        "6px";
+
+
+      accountButton.insertBefore(
+        emoji,
+        accountButton.firstChild
+      );
+    }
 
 
     return true;
