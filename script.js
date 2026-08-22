@@ -209240,7 +209240,7 @@ function renderTeamApprovalCard(
 
 function initializeOisLegacyShiftOptions() {
   /*
-    [SEARCH-SHIFT-SIMPLE-V3]
+    [SEARCH-SHIFT-SIMPLE-V4]
 
     화면에 보이는 현재 근무:
     전체 / D/S / N/S
@@ -209295,7 +209295,7 @@ function initializeOisLegacyShiftOptions() {
     !currentShiftSelect ||
     !legacyToggle ||
     !legacyPanel ||
-    legacyButtons.length !== 3
+    legacyButtons.length !== 4
   ) {
     return;
   }
@@ -209425,11 +209425,29 @@ function initializeOisLegacyShiftOptions() {
           );
 
 
-        button.classList.toggle(
-          "is-active",
-          isLegacy &&
+        const isActive =
+          (
+            normalized === "" &&
+            buttonValue === ""
+          ) ||
+          (
+            isLegacy &&
             buttonValue ===
               normalized
+          );
+
+
+        button.classList.toggle(
+          "is-active",
+          isActive
+        );
+
+
+        button.setAttribute(
+          "aria-pressed",
+          String(
+            isActive
+          )
         );
       }
     );

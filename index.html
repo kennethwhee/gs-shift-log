@@ -23,7 +23,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260822-search-shift-simple3"
+    href="style.css?v=20260822-legacy-shift-select4"
   >
   <link
     rel="stylesheet"
@@ -61,7 +61,7 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 <script
-  src="script.js?v=20260822-maintenance-management-v1"
+  src="script.js?v=20260822-legacy-shift-select4"
   defer
 ></script>
 
@@ -1998,12 +1998,24 @@
         id="searchLegacyPanel"
         class="search-legacy-shift-panel"
         hidden
+        role="menu"
         aria-label="구교대 근무 선택"
       >
 
         <button
           type="button"
+          class="search-legacy-shift-option--all"
+          data-search-legacy-shift-value=""
+          role="menuitem"
+          title="전체 근무 조회"
+        >
+          전체
+        </button>
+
+        <button
+          type="button"
           data-search-legacy-shift-value="D"
+          role="menuitem"
           title="구교대 주간"
         >
           D
@@ -2012,6 +2024,7 @@
         <button
           type="button"
           data-search-legacy-shift-value="A"
+          role="menuitem"
           title="구교대 오후"
         >
           A
@@ -2020,6 +2033,7 @@
         <button
           type="button"
           data-search-legacy-shift-value="N"
+          role="menuitem"
           title="구교대 야간"
         >
           N

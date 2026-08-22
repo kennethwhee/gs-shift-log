@@ -53764,10 +53764,14 @@ small {
 }
 
 /* =========================================================
-  SEARCH SHIFT SIMPLE V3
+  SEARCH SHIFT SIMPLE V4
 
-  현재 근무는 일반 Select만 사용한다.
-  구교대 D/A/N은 작은 보조 버튼 안에 숨긴다.
+  현재 근무:
+  전체 / D/S / N/S
+
+  구교대:
+  작게 유지하되 Select형으로 표시
+  전체 / D / A / N
 ========================================================= */
 
 
@@ -53824,8 +53828,6 @@ small {
 }
 
 
-/* 기존 검색 로직용 실제 값 */
-
 #searchView
 #searchShift[hidden] {
   display:
@@ -53833,11 +53835,7 @@ small {
 }
 
 
-/* =========================================================
-  구교대 진입 버튼
-
-  일부러 눈에 띄지 않게 작은 텍스트 형태로 둔다.
-========================================================= */
+/* 구교대 진입 */
 
 #searchView
 #searchLegacyToggle {
@@ -53850,17 +53848,14 @@ small {
   flex:
     0 0 auto !important;
 
-  width:
-    auto !important;
-
   min-width:
-    0 !important;
+    58px !important;
 
   height:
-    auto !important;
+    22px !important;
 
   min-height:
-    0 !important;
+    22px !important;
 
   align-items:
     center !important;
@@ -53872,20 +53867,23 @@ small {
     0 !important;
 
   padding:
-    1px
-    2px !important;
+    0
+    6px
+    0
+    8px !important;
 
   border:
-    0 !important;
+    1px solid
+    #cad6e2 !important;
 
   border-radius:
-    3px !important;
+    6px !important;
 
   background:
-    transparent !important;
+    #ffffff !important;
 
   color:
-    #9ba5b1 !important;
+    #6f7f91 !important;
 
   font-family:
     inherit !important;
@@ -53894,10 +53892,13 @@ small {
     9px !important;
 
   font-weight:
-    700 !important;
+    800 !important;
 
   line-height:
     1 !important;
+
+  white-space:
+    nowrap !important;
 
   box-shadow:
     none !important;
@@ -53908,35 +53909,60 @@ small {
 
 
 #searchView
-#searchLegacyToggle:hover {
+#searchLegacyToggle::after {
+  content:
+    "▾";
+
+  margin-left:
+    5px;
+
   color:
-    #667587 !important;
+    #8492a1;
 
-  text-decoration:
-    underline !important;
+  font-size:
+    8px;
 
-  text-underline-offset:
-    2px !important;
+  line-height:
+    1;
 }
 
 
-/* 구교대가 실제 적용 중일 때만 살짝 표시 */
+#searchView
+#searchLegacyToggle[aria-expanded="true"]::after {
+  content:
+    "▴";
+}
+
+
+#searchView
+#searchLegacyToggle:hover {
+  border-color:
+    #9eb2c8 !important;
+
+  background:
+    #f8fafc !important;
+
+  color:
+    #4f647c !important;
+}
+
+
+/* D/A/N 실제 사용 중에만 약하게 표시 */
 
 #searchView
 #searchLegacyToggle.is-active {
-  color:
-    #91671b !important;
+  border-color:
+    #d8bf7e !important;
 
-  font-weight:
-    850 !important;
+  background:
+    #fff9eb !important;
+
+  color:
+    #8c661e !important;
 }
 
 
-/* =========================================================
-  구교대 D / A / N 팝업
-
-  평소에는 완전히 숨겨진다.
-========================================================= */
+/* 구교대 드롭다운 */
 
 #searchView
 #searchLegacyPanel[hidden] {
@@ -53947,6 +53973,9 @@ small {
 
 #searchView
 #searchLegacyPanel {
+  box-sizing:
+    border-box !important;
+
   position:
     absolute !important;
 
@@ -53957,25 +53986,16 @@ small {
     0 !important;
 
   z-index:
-    50 !important;
+    60 !important;
 
   display:
-    flex !important;
+    block !important;
 
   width:
-    auto !important;
+    96px !important;
 
   min-width:
-    108px !important;
-
-  align-items:
-    center !important;
-
-  justify-content:
-    center !important;
-
-  gap:
-    3px !important;
+    96px !important;
 
   margin:
     0 !important;
@@ -53985,7 +54005,7 @@ small {
 
   border:
     1px solid
-    #d6dee7 !important;
+    #cad6e2 !important;
 
   border-radius:
     7px !important;
@@ -53995,16 +54015,18 @@ small {
 
   box-shadow:
     0
-    5px
-    14px
+    6px
+    16px
     rgba(
       29,
       48,
       70,
-      0.13
+      0.15
     ) !important;
 }
 
+
+/* 옵션 */
 
 #searchView
 #searchLegacyPanel
@@ -54012,45 +54034,50 @@ button {
   appearance:
     none !important;
 
+  position:
+    relative !important;
+
   display:
-    inline-flex !important;
+    flex !important;
 
   width:
-    30px !important;
+    100% !important;
 
   min-width:
-    30px !important;
+    0 !important;
 
   height:
-    26px !important;
+    28px !important;
 
   min-height:
-    26px !important;
+    28px !important;
 
   align-items:
     center !important;
 
   justify-content:
-    center !important;
+    flex-start !important;
 
   margin:
     0 !important;
 
   padding:
-    0 !important;
+    0
+    23px
+    0
+    9px !important;
 
   border:
-    1px solid
-    #d8e0e8 !important;
+    0 !important;
 
   border-radius:
-    5px !important;
+    4px !important;
 
   background:
-    #f8f9fb !important;
+    transparent !important;
 
   color:
-    #667587 !important;
+    #56677a !important;
 
   font-family:
     inherit !important;
@@ -54059,10 +54086,13 @@ button {
     11px !important;
 
   font-weight:
-    850 !important;
+    750 !important;
 
   line-height:
     1 !important;
+
+  text-align:
+    left !important;
 
   box-shadow:
     none !important;
@@ -54075,32 +54105,86 @@ button {
 #searchView
 #searchLegacyPanel
 button:hover {
-  border-color:
-    #9eb3c9 !important;
-
   background:
-    #eef3f8 !important;
+    #f0f4f8 !important;
 
   color:
-    #325d8b !important;
+    #294f79 !important;
+}
+
+
+/* 전체는 첫 번째 핵심 항목 */
+
+#searchView
+#searchLegacyPanel
+.search-legacy-shift-option--all {
+  margin-bottom:
+    3px !important;
+
+  border-bottom:
+    1px solid
+    #dfe6ed !important;
+
+  border-radius:
+    4px
+    4px
+    2px
+    2px !important;
+
+  color:
+    #294c70 !important;
+
+  font-weight:
+    950 !important;
+}
+
+
+/* 현재 선택값 */
+
+#searchView
+#searchLegacyPanel
+button.is-active {
+  background:
+    #e8f2fd !important;
+
+  color:
+    #1d5e9f !important;
+
+  font-weight:
+    900 !important;
 }
 
 
 #searchView
 #searchLegacyPanel
-button.is-active {
-  border-color:
-    #d7bd7a !important;
+button.is-active::after {
+  content:
+    "✓";
 
-  background:
-    #fff7e6 !important;
+  position:
+    absolute;
+
+  top:
+    50%;
+
+  right:
+    8px;
+
+  transform:
+    translateY(-50%);
 
   color:
-    #8c6316 !important;
+    #2168ae;
+
+  font-size:
+    10px;
+
+  font-weight:
+    950;
+
+  line-height:
+    1;
 }
-
-
-
 
 /* 날짜 입력칸이 기본 크기를 넘지 않도록 보정 */
 #searchView
