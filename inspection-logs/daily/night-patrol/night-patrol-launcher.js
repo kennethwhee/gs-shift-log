@@ -22,14 +22,16 @@
   const FRAME_ID = "nightPatrolFrame";
 
   /*
-    [HEADER-NAVIGATOR-MOBILE]
-
-    Mobile header:
-    - hide/remove only the top inspection-log menu button
-    - keep inspection modal and role inspection functions available
+    [HEADER-MORE-MENU]
 
     PC header:
-    - inspection button is placed immediately before Efficiency
+    - Inspection Logs remains a direct top menu
+    - Navigator is inside the common hamburger
+
+    Mobile header:
+    - remove only the direct Inspection Logs button
+    - add Inspection Logs to the common hamburger
+    - keep inspection modal and role inspection functions available
   */
   const MOBILE_HEADER_MEDIA =
     window.matchMedia(
@@ -37,11 +39,8 @@
     );
 
   /*
-    [MOBILE-INSPECTION-HAMBURGER]
-
-    Mobile:
-    - Navigator / Efficiency remain direct buttons
-    - Inspection Logs moves into the hamburger at the far right
+    Legacy mobile menu IDs are retained only so that
+    previously generated standalone menus can be removed safely.
   */
   const MOBILE_MENU_ID =
     "mobileHeaderMoreMenu";
@@ -51,6 +50,18 @@
 
   const MOBILE_MENU_DROPDOWN_ID =
     "mobileHeaderMoreDropdown";
+
+  const HEADER_MORE_MENU_ID =
+    "headerMoreMenu";
+
+  const HEADER_MORE_BUTTON_ID =
+    "headerMoreButton";
+
+  const HEADER_MORE_DROPDOWN_ID =
+    "headerMoreDropdown";
+
+  const HEADER_NAVIGATOR_ITEM_ID =
+    "facilityNavigatorHeaderButton";
 
   const MOBILE_INSPECTION_ITEM_ID =
     "mobileHeaderInspectionItem";
@@ -215,24 +226,42 @@
   }
 
   function closeMobileInspectionMenu() {
+    if (
+      typeof window
+        .closeHeaderMoreMenu ===
+      "function"
+    ) {
+      window.closeHeaderMoreMenu();
+      return;
+    }
+
+
     const dropdown =
       document.getElementById(
-        MOBILE_MENU_DROPDOWN_ID
+        HEADER_MORE_DROPDOWN_ID
       );
 
     const button =
       document.getElementById(
-        MOBILE_MENU_BUTTON_ID
+        HEADER_MORE_BUTTON_ID
       );
 
+
     if (dropdown) {
-      dropdown.hidden = true;
+      dropdown.hidden =
+        true;
     }
+
 
     if (button) {
       button.setAttribute(
         "aria-expanded",
         "false"
+      );
+
+      button.setAttribute(
+        "aria-label",
+        "더보기 메뉴 열기"
       );
     }
   }
@@ -241,145 +270,130 @@
   function createMobileInspectionMenu(
     headerActions
   ) {
-    let menu =
+    const menu =
       document.getElementById(
-        MOBILE_MENU_ID
-      );
-
-    if (menu) {
-      headerActions.append(menu);
-      return true;
-    }
-
-    menu =
-      document.createElement(
-        "div"
-      );
-
-    menu.id =
-      MOBILE_MENU_ID;
-
-    menu.className =
-      "mobile-header-more-menu";
-
-    menu.innerHTML = `
-      <button
-        type="button"
-        class="header-action mobile-header-more-button"
-        id="${MOBILE_MENU_BUTTON_ID}"
-        aria-label="더보기 메뉴 열기"
-        aria-haspopup="menu"
-        aria-expanded="false"
-        title="더보기"
-      >
-        <span aria-hidden="true">☰</span>
-      </button>
-
-      <div
-        class="mobile-header-more-dropdown"
-        id="${MOBILE_MENU_DROPDOWN_ID}"
-        role="menu"
-        aria-label="모바일 더보기 메뉴"
-        hidden
-      >
-        <button
-          type="button"
-          class="mobile-header-more-item"
-          id="${MOBILE_INSPECTION_ITEM_ID}"
-          role="menuitem"
-        >
-          점검일지
-        </button>
-      </div>
-    `;
-
-    headerActions.append(menu);
-
-    const menuButton =
-      document.getElementById(
-        MOBILE_MENU_BUTTON_ID
+        HEADER_MORE_MENU_ID
       );
 
     const dropdown =
       document.getElementById(
-        MOBILE_MENU_DROPDOWN_ID
+        HEADER_MORE_DROPDOWN_ID
       );
 
-    const inspectionItem =
+    const navigatorItem =
+      document.getElementById(
+        HEADER_NAVIGATOR_ITEM_ID
+      );
+
+
+    if (
+      !menu ||
+      !dropdown ||
+      !navigatorItem
+    ) {
+      return false;
+    }
+
+
+    /*
+      공통 메뉴가 다른 위치로 이동한 경우에도
+      사용자 영역 바로 앞의 기존 네비게이터 위치로 복원한다.
+    */
+    if (
+      menu.parentElement !==
+      headerActions
+    ) {
+      const directAdminButton =
+        document.getElementById(
+          "adminButton"
+        );
+
+      const headerUser =
+        headerActions.querySelector(
+          ".header-user"
+        );
+
+      const referenceElement =
+        directAdminButton?.parentElement ===
+        headerActions
+          ? directAdminButton
+          : headerUser;
+
+
+      headerActions.insertBefore(
+        menu,
+        referenceElement ||
+          null
+      );
+    }
+
+
+    let inspectionItem =
       document.getElementById(
         MOBILE_INSPECTION_ITEM_ID
       );
 
-    menuButton?.addEventListener(
-      "click",
-      event => {
-        event.preventDefault();
-        event.stopPropagation();
 
-        const nextOpen =
-          Boolean(
-            dropdown?.hidden
-          );
-
-        if (dropdown) {
-          dropdown.hidden =
-            !nextOpen;
-        }
-
-        menuButton.setAttribute(
-          "aria-expanded",
-          nextOpen
-            ? "true"
-            : "false"
+    if (!inspectionItem) {
+      inspectionItem =
+        document.createElement(
+          "button"
         );
-      }
+
+      inspectionItem.id =
+        MOBILE_INSPECTION_ITEM_ID;
+
+      inspectionItem.type =
+        "button";
+
+      inspectionItem.textContent =
+        "점검일지";
+    }
+
+
+    inspectionItem.className =
+      "header-more-item header-more-item--mobile-only";
+
+    inspectionItem.setAttribute(
+      "role",
+      "menuitem"
     );
 
-    inspectionItem?.addEventListener(
-      "click",
-      event => {
-        event.preventDefault();
-        event.stopPropagation();
 
-        closeMobileInspectionMenu();
-        openInspectionLogModal();
-      }
+    /*
+      네비게이터 다음에 점검일지를 배치한다.
+      관리자는 script.js에서 항상 마지막으로 이동한다.
+    */
+    navigatorItem.insertAdjacentElement(
+      "afterend",
+      inspectionItem
     );
+
 
     if (
-      window
-        .__gsInspectionMobileMenuOutsideBound !==
-      true
+      inspectionItem.dataset
+        .inspectionMenuBound !==
+      "true"
     ) {
-      document.addEventListener(
+      inspectionItem.dataset
+        .inspectionMenuBound =
+        "true";
+
+      inspectionItem.addEventListener(
         "click",
         event => {
-          const currentMenu =
-            document.getElementById(
-              MOBILE_MENU_ID
-            );
-
-          if (
-            !currentMenu ||
-            currentMenu.contains(
-              event.target
-            )
-          ) {
-            return;
-          }
+          event.preventDefault();
+          event.stopPropagation();
 
           closeMobileInspectionMenu();
+          openInspectionLogModal();
         }
       );
-
-      window
-        .__gsInspectionMobileMenuOutsideBound =
-        true;
     }
+
 
     return true;
   }
-
 
   function createMenuButton() {
     const headerActions =

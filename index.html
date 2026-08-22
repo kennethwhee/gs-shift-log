@@ -23,7 +23,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260821-aux-status-heading-v6-fix1"
+    href="style.css?v=20260822-header-more-menu-v1"
   >
 
 
@@ -57,7 +57,7 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 <script
-  src="script.js?v=20260822-search-shift-no-dot1"
+  src="script.js?v=20260822-header-more-menu-v1"
   defer
 ></script>
 
@@ -66,7 +66,7 @@
     점검일지 메뉴 및 팝업 실행기
   ====================================================== -->
   <script
-    src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260821-header-order1"
+    src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260822-header-more-menu-v1"
     defer
   ></script>
 
@@ -469,12 +469,16 @@
     <!-- =====================================================
       오른쪽 메뉴
 
+      공통:
+      기존 네비게이터 위치에 더보기 햄버거 메뉴 배치
+
       PC:
-      점검일지 → 네비게이터 → 효율팀
+      점검일지는 직접 표시
+      더보기 메뉴에는 네비게이터 표시
 
       모바일:
-      네비게이터 → 효율팀
-      점검일지 상단 메뉴는 launcher에서 생성하지 않음
+      점검일지는 같은 더보기 메뉴에 추가
+      관리자는 기존 권한 판정을 유지하며 메뉴 최하단 배치
     ====================================================== -->
 
     <div class="header-actions">
@@ -492,16 +496,53 @@
       </button>
 
       
-      <!-- 설비 네비게이터 -->
-      <button
-        type="button"
-        class="header-action"
-        id="facilityNavigatorHeaderButton"
-        aria-label="설비 네비게이터 열기"
-        title="네비게이터"
+      <!-- 상단 더보기 메뉴 -->
+      <div
+        class="header-more-menu"
+        id="headerMoreMenu"
       >
-        네비게이터
-      </button>
+        <button
+          type="button"
+          class="
+            header-action
+            header-more-button
+          "
+          id="headerMoreButton"
+          aria-label="더보기 메뉴 열기"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          aria-controls="headerMoreDropdown"
+          title="더보기"
+        >
+          <span
+            class="header-more-button__icon"
+            aria-hidden="true"
+          >
+            <span class="header-more-button__line"></span>
+            <span class="header-more-button__line"></span>
+            <span class="header-more-button__line"></span>
+          </span>
+        </button>
+
+        <div
+          class="header-more-dropdown"
+          id="headerMoreDropdown"
+          role="menu"
+          aria-label="상단 더보기 메뉴"
+          hidden
+        >
+          <button
+            type="button"
+            class="header-more-item"
+            id="facilityNavigatorHeaderButton"
+            role="menuitem"
+            aria-label="설비 네비게이터 열기"
+            title="네비게이터"
+          >
+            네비게이터
+          </button>
+        </div>
+      </div>
 
       <button
         type="button"

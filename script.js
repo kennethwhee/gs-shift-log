@@ -79809,30 +79809,278 @@ function openFacilityNavigatorHome() {
 }
 
 
-function initializeFacilityNavigatorHeaderButton() {
+function closeHeaderMoreMenu(
+  options = {}
+) {
   const button =
     document.getElementById(
-      "facilityNavigatorHeaderButton"
+      "headerMoreButton"
+    );
+
+  const dropdown =
+    document.getElementById(
+      "headerMoreDropdown"
     );
 
 
   if (
     !button ||
-    button.dataset
-      .facilityNavigatorBound ===
+    !dropdown
+  ) {
+    return;
+  }
+
+
+  dropdown.hidden =
+    true;
+
+  button.setAttribute(
+    "aria-expanded",
+    "false"
+  );
+
+  button.setAttribute(
+    "aria-label",
+    "더보기 메뉴 열기"
+  );
+
+
+  if (
+    options.restoreFocus ===
+    true
+  ) {
+    button.focus();
+  }
+}
+
+
+window.closeHeaderMoreMenu =
+  closeHeaderMoreMenu;
+
+
+/* =========================================================
+  상단 더보기 햄버거 메뉴
+
+  - 기존 네비게이터 위치에 배치
+  - PC: 네비게이터 메뉴
+  - 모바일: 점검일지 추가
+  - 모바일 관리자 버튼은 표시 상태를 유지하며 항상 최하단
+========================================================= */
+
+function initializeFacilityNavigatorHeaderMenu() {
+  const menu =
+    document.getElementById(
+      "headerMoreMenu"
+    );
+
+  const button =
+    document.getElementById(
+      "headerMoreButton"
+    );
+
+  const dropdown =
+    document.getElementById(
+      "headerMoreDropdown"
+    );
+
+  const navigatorItem =
+    document.getElementById(
+      "facilityNavigatorHeaderButton"
+    );
+
+  const headerActions =
+    document.querySelector(
+      ".header-actions"
+    );
+
+  const headerUser =
+    document.querySelector(
+      ".header-user"
+    );
+
+  const adminButton =
+    document.getElementById(
+      "adminButton"
+    );
+
+  const mobileMedia =
+    window.matchMedia(
+      "(max-width: 760px)"
+    );
+
+
+  if (
+    !menu ||
+    !button ||
+    !dropdown ||
+    !navigatorItem ||
+    !headerActions ||
+    menu.dataset.headerMoreBound ===
       "true"
   ) {
     return;
   }
 
 
-  button.dataset.facilityNavigatorBound =
+  menu.dataset.headerMoreBound =
     "true";
+
+
+  function syncHeaderMoreMenuLayout() {
+    if (adminButton) {
+      if (mobileMedia.matches) {
+        adminButton.classList.remove(
+          "header-action"
+        );
+
+        adminButton.classList.add(
+          "header-more-item",
+          "header-more-item--admin"
+        );
+
+        adminButton.setAttribute(
+          "role",
+          "menuitem"
+        );
+
+        /*
+          append()를 매번 사용하여
+          앞으로 메뉴가 추가되더라도 관리자는
+          항상 드롭다운 최하단에 둔다.
+        */
+        dropdown.append(
+          adminButton
+        );
+
+      } else {
+        adminButton.classList.remove(
+          "header-more-item",
+          "header-more-item--admin"
+        );
+
+        adminButton.classList.add(
+          "header-action"
+        );
+
+        adminButton.removeAttribute(
+          "role"
+        );
+
+        headerActions.insertBefore(
+          adminButton,
+          headerUser ||
+            null
+        );
+      }
+    }
+
+
+    closeHeaderMoreMenu();
+  }
+
 
   button.addEventListener(
     "click",
-    openFacilityNavigatorHome
+    event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const nextOpen =
+        dropdown.hidden;
+
+      dropdown.hidden =
+        !nextOpen;
+
+      button.setAttribute(
+        "aria-expanded",
+        nextOpen
+          ? "true"
+          : "false"
+      );
+
+      button.setAttribute(
+        "aria-label",
+        nextOpen
+          ? "더보기 메뉴 닫기"
+          : "더보기 메뉴 열기"
+      );
+    }
   );
+
+
+  navigatorItem.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      closeHeaderMoreMenu();
+      openFacilityNavigatorHome();
+    }
+  );
+
+
+  adminButton?.addEventListener(
+    "click",
+    () => {
+      closeHeaderMoreMenu();
+    }
+  );
+
+
+  document.addEventListener(
+    "click",
+    event => {
+      if (
+        menu.contains(
+          event.target
+        )
+      ) {
+        return;
+      }
+
+      closeHeaderMoreMenu();
+    }
+  );
+
+
+  document.addEventListener(
+    "keydown",
+    event => {
+      if (
+        event.key !==
+          "Escape" ||
+        dropdown.hidden
+      ) {
+        return;
+      }
+
+      closeHeaderMoreMenu({
+        restoreFocus:
+          true
+      });
+    }
+  );
+
+
+  if (
+    typeof mobileMedia
+      .addEventListener ===
+    "function"
+  ) {
+    mobileMedia.addEventListener(
+      "change",
+      syncHeaderMoreMenuLayout
+    );
+
+  } else {
+    mobileMedia.addListener(
+      syncHeaderMoreMenuLayout
+    );
+  }
+
+
+  syncHeaderMoreMenuLayout();
 }
 
 
@@ -79842,7 +80090,7 @@ if (
 ) {
   document.addEventListener(
     "DOMContentLoaded",
-    initializeFacilityNavigatorHeaderButton,
+    initializeFacilityNavigatorHeaderMenu,
     {
       once:
         true
@@ -79850,7 +80098,7 @@ if (
   );
 
 } else {
-  initializeFacilityNavigatorHeaderButton();
+  initializeFacilityNavigatorHeaderMenu();
 }
 
 

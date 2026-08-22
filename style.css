@@ -177,6 +177,104 @@ a {
   color: var(--primary);
 }
 
+
+/* =========================================================
+  상단 더보기 햄버거 메뉴
+
+  - 기존 네비게이터 위치에 배치
+  - PC: 네비게이터
+  - 모바일: 네비게이터, 점검일지, 관리자
+========================================================= */
+
+.header-more-menu {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.header-more-button {
+  display: inline-flex;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.header-more-button__icon {
+  display: flex;
+  width: 17px;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.header-more-button__line {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.header-more-button[aria-expanded="true"] {
+  background: var(--surface-muted);
+  color: var(--primary);
+}
+
+.header-more-dropdown {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  z-index: 260;
+  min-width: 148px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(24, 38, 58, 0.16);
+}
+
+.header-more-dropdown[hidden] {
+  display: none !important;
+}
+
+.header-more-item {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #29364a;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.header-more-item:hover,
+.header-more-item:focus-visible {
+  background: var(--surface-muted);
+  color: var(--primary);
+}
+
+.header-more-item--mobile-only {
+  display: none;
+}
+
+.header-more-item--admin {
+  margin-top: 2px;
+}
+
+
 .header-user {
   display: flex;
   align-items: center;
@@ -33667,69 +33765,39 @@ body {
 
 
   /*
-    Mobile header hamburger:
-    Navigator / Efficiency remain direct buttons.
-    Inspection Logs is inside this menu.
+    Mobile header more menu:
+    Navigator is inside the common hamburger.
+    Inspection Logs is added to the same menu.
   */
-  .mobile-header-more-menu {
-    position: relative;
-    display: inline-flex;
-    flex: 0 0 auto;
-    align-items: center;
-  }
-
-  .mobile-header-more-button {
-    display: inline-flex;
+  .header-more-button {
     width: 32px;
     min-width: 32px;
     height: 32px;
     min-height: 32px;
-    align-items: center;
-    justify-content: center;
     padding: 0 !important;
-    font-size: 18px !important;
-    line-height: 1 !important;
   }
 
-  .mobile-header-more-dropdown {
-    position: absolute;
+  .header-more-button__icon {
+    width: 16px;
+    gap: 3px;
+  }
+
+  .header-more-dropdown {
     top: calc(100% + 6px);
-    right: 0;
-    z-index: 260;
-    min-width: 118px;
+    min-width: 124px;
     padding: 6px;
-    border: 1px solid var(--line);
     border-radius: 9px;
-    background: #fff;
-    box-shadow: 0 10px 28px rgba(24, 38, 58, 0.16);
   }
 
-  .mobile-header-more-dropdown[hidden] {
-    display: none !important;
-  }
-
-  .mobile-header-more-item {
-    display: flex;
-    width: 100%;
+  .header-more-item {
     min-height: 36px;
-    align-items: center;
-    justify-content: flex-start;
     padding: 0 10px;
-    border: 0;
-    border-radius: 7px;
-    background: transparent;
-    color: #29364a;
     font-size: 12px;
-    font-weight: 800;
-    white-space: nowrap;
   }
 
-  .mobile-header-more-item:hover,
-  .mobile-header-more-item:focus-visible {
-    background: var(--surface-muted);
-    color: var(--primary);
+  .header-more-item--mobile-only {
+    display: flex;
   }
-
 
   .header-action {
     min-height: 32px;
