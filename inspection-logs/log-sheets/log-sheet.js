@@ -15281,11 +15281,64 @@ function runLogSheetPdfBackgroundWorker() {
 }
 
 
+/* =========================================================
+  [LOG-SHEET-PDF-NONINTEGRATED-DIRECT-V2]
+
+  백그라운드 자동 준비 적용 범위
+
+  통합 제어실:
+  - 저장 직후 백그라운드 PDF 준비 유지
+  - 준비된 캐시를 미리보기에서 즉시 사용
+
+  현장 / 전기 / 고압 Aux:
+  - 기존의 안정적인 클릭 즉시 생성 경로 사용
+  - 저장 직후 별도 백그라운드 요청은 만들지 않는다.
+
+  이유:
+  비통합 원본 Excel 5종은 로컬 Microsoft Excel 직접 변환에서
+  모두 정상임을 확인했다.
+  따라서 Excel/시트 문제가 아니라
+  새 공유 백그라운드 조정 계층과의 결합 문제를 우선 격리한다.
+========================================================= */
+
+function isLogSheetPdfBackgroundPreparationEnabled() {
+  const documentType =
+    normalizeText(
+      state.documentConfig?.type
+    );
+
+
+  return documentType.startsWith(
+    "integrated-"
+  );
+}
+
 function scheduleLogSheetPdfPreparationAfterSave() {
   if (
     !state.sheetConfig ||
     state.isDirty
   ) {
+    return;
+  }
+
+
+  if (
+    !isLogSheetPdfBackgroundPreparationEnabled()
+  ) {
+    clearLogSheetPdfBackgroundTimer();
+
+
+    logSheetPdfBackgroundQueuedTarget =
+      null;
+
+
+    logSheetPdfPreparingVersion =
+      -1;
+
+
+    void refreshLogSheetPdfPreviewButtonState();
+
+
     return;
   }
 
@@ -16316,6 +16369,202 @@ function showLogSheetPdfPreviewError(
 }
 
 
+async function openLogSheetPdfPreviewDirect(
+  options = {}
+) {
+  if (
+    state.isBusy ||
+    !state.sheetConfig
+  ) {
+    return;
+  }
+
+
+  const autoPrint =
+    options.autoPrint ===
+      true;
+
+
+  try {
+    const cacheScopeKey =
+      getLogSheetPdfCacheScopeKey();
+
+
+    const fingerprint =
+      await createLogSheetPdfFingerprint();
+
+
+    const cachedPdfBlob =
+      getCachedLogSheetPdf(
+        cacheScopeKey,
+        fingerprint
+      );
+
+
+    if (
+      cachedPdfBlob
+    ) {
+      logSheetPdfPreparingVersion =
+        -1;
+
+
+      setLogSheetPdfPreviewButtonState(
+        "ready"
+      );
+
+
+      showLogSheetPdfPreviewBlob(
+        cachedPdfBlob,
+        {
+          autoPrint
+        }
+      );
+
+
+      setStatus(
+        "PDF 즉시 표시",
+        "준비된 Excel PDF 미리보기를 즉시 표시했습니다.",
+        state.isDirty
+          ? "dirty"
+          : "saved"
+      );
+
+
+      return;
+    }
+
+
+    setLogSheetPdfPreviewProgress(
+      "Excel 파일 생성 중",
+      "변경된 내용을 원본 Log Sheet Excel 양식에 반영하고 있습니다."
+    );
+
+
+    setLogSheetPdfPreviewButtonState(
+      "preparing"
+    );
+
+
+    setBusy(
+      true,
+      "변경된 내용으로 원본 Excel PDF를 만들고 있습니다."
+    );
+
+
+    const workbookBlob =
+      await createPatchedWorkbookBlob();
+
+
+    setLogSheetPdfPreviewProgress(
+      "PDF 변환 요청 중",
+      "회사 PC의 Microsoft Excel에 PDF 변환을 요청하고 있습니다."
+    );
+
+
+    const requestId =
+      await createLogSheetPdfRequest(
+        workbookBlob
+      );
+
+
+    setLogSheetPdfPreviewProgress(
+      "PDF 변환 대기 중",
+      "회사 PC의 Microsoft Excel에서 원본 인쇄 양식을 만들고 있습니다."
+    );
+
+
+    const pdfBlob =
+      await fetchLogSheetPdfBlob(
+        requestId,
+        {
+          waitUntilReady:
+            true
+        }
+      );
+
+
+    setLogSheetPdfPreviewProgress(
+      "PDF 불러오는 중",
+      "생성된 PDF를 미리보기에 표시하고 있습니다."
+    );
+
+
+    saveLogSheetPdfCache(
+      cacheScopeKey,
+      fingerprint,
+      pdfBlob
+    );
+
+
+    logSheetPdfPreparingVersion =
+      -1;
+
+
+    setLogSheetPdfPreviewButtonState(
+      "ready"
+    );
+
+
+    showLogSheetPdfPreviewBlob(
+      pdfBlob,
+      {
+        autoPrint
+      }
+    );
+
+
+    setStatus(
+      "PDF 준비 완료",
+      "Microsoft Excel 원본 인쇄 설정으로 PDF를 만들었습니다.",
+      state.isDirty
+        ? "dirty"
+        : "saved"
+    );
+
+
+    console.log(
+      "Log Sheet PDF 직접 미리보기 완료:",
+      state.sheetConfig?.sheetName,
+      `${pdfBlob.size} bytes`
+    );
+
+  } catch (
+    error
+  ) {
+    logSheetPdfPreparingVersion =
+      -1;
+
+
+    setLogSheetPdfPreviewButtonState(
+      "error"
+    );
+
+
+    console.error(
+      "Log Sheet PDF 직접 미리보기 실패:",
+      error
+    );
+
+
+    showLogSheetPdfPreviewError(
+      error
+    );
+
+
+    setStatus(
+      "PDF 실패",
+      error?.message ||
+        "PDF 미리보기를 만들지 못했습니다.",
+      "error"
+    );
+
+  } finally {
+    setBusy(
+      false
+    );
+  }
+}
+
 async function openLogSheetPdfPreview(
   options = {}
 ) {
@@ -16323,6 +16572,18 @@ async function openLogSheetPdfPreview(
     state.isBusy ||
     !state.sheetConfig
   ) {
+    return;
+  }
+
+
+  if (
+    !isLogSheetPdfBackgroundPreparationEnabled()
+  ) {
+    await openLogSheetPdfPreviewDirect(
+      options
+    );
+
+
     return;
   }
 
