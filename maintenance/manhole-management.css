@@ -996,3 +996,461 @@
 .manhole-table tbody tr.is-open td {
   background: #ffffff !important;
 }
+
+/* =========================================================
+   MANHOLE_LIST_ONLY_V12
+
+   RIGHT LIST ONLY
+
+   - original diagram geometry is untouched
+   - larger readable text
+   - enough width for status/date/note
+   - Close row = light gray
+========================================================= */
+
+.manhole-list-panel {
+  border:
+    1px solid
+    #d7e0ea !important;
+
+  border-radius:
+    12px !important;
+
+  background:
+    #ffffff !important;
+
+  overflow:
+    hidden !important;
+}
+
+
+.manhole-list-panel
+.manhole-table-wrap {
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  overflow:
+    auto !important;
+
+  background:
+    #ffffff !important;
+}
+
+
+/*
+  Preserve readable column widths.
+
+  If the panel is narrower than the table,
+  only the right list receives horizontal scrolling.
+*/
+.manhole-list-panel
+.manhole-table {
+  width:
+    100% !important;
+
+  min-width:
+    850px !important;
+
+  table-layout:
+    auto !important;
+
+  border-collapse:
+    separate !important;
+
+  border-spacing:
+    0 !important;
+}
+
+
+/* =========================
+   Table header
+========================= */
+
+.manhole-list-panel
+.manhole-table
+thead
+th {
+  padding:
+    11px 9px !important;
+
+  border-right:
+    1px solid
+    #d3dde8 !important;
+
+  border-bottom:
+    1px solid
+    #c7d3e0 !important;
+
+  background:
+    #edf3f8 !important;
+
+  color:
+    #16243a !important;
+
+  font-size:
+    14px !important;
+
+  font-weight:
+    800 !important;
+
+  line-height:
+    1.2 !important;
+
+  text-align:
+    center !important;
+
+  white-space:
+    nowrap !important;
+}
+
+
+.manhole-list-panel
+.manhole-table
+thead
+th:last-child {
+  border-right:
+    0 !important;
+}
+
+
+/* =========================
+   Table body
+========================= */
+
+.manhole-list-panel
+.manhole-table
+tbody
+td {
+  padding:
+    9px 9px !important;
+
+  border-right:
+    1px solid
+    #dde5ed !important;
+
+  border-bottom:
+    1px solid
+    #dde5ed !important;
+
+  color:
+    #17243a !important;
+
+  font-size:
+    14px !important;
+
+  font-weight:
+    650 !important;
+
+  line-height:
+    1.25 !important;
+
+  vertical-align:
+    middle !important;
+
+  background:
+    #ffffff;
+}
+
+
+.manhole-list-panel
+.manhole-table
+tbody
+td:last-child {
+  border-right:
+    0 !important;
+}
+
+
+/* =========================
+   Column widths
+========================= */
+
+/* 번호 */
+.manhole-list-panel
+.manhole-table
+th:nth-child(1),
+.manhole-list-panel
+.manhole-table
+td:nth-child(1) {
+  width:
+    64px !important;
+
+  min-width:
+    64px !important;
+
+  text-align:
+    center !important;
+}
+
+
+/* 위치 */
+.manhole-list-panel
+.manhole-table
+th:nth-child(2),
+.manhole-list-panel
+.manhole-table
+td:nth-child(2) {
+  min-width:
+    128px !important;
+}
+
+
+/* 구역 */
+.manhole-list-panel
+.manhole-table
+th:nth-child(3),
+.manhole-list-panel
+.manhole-table
+td:nth-child(3) {
+  min-width:
+    96px !important;
+}
+
+
+/* 개소 */
+.manhole-list-panel
+.manhole-table
+th:nth-child(4),
+.manhole-list-panel
+.manhole-table
+td:nth-child(4) {
+  width:
+    68px !important;
+
+  min-width:
+    68px !important;
+
+  text-align:
+    center !important;
+}
+
+
+/* 상태 */
+.manhole-list-panel
+.manhole-table
+th:nth-child(5),
+.manhole-list-panel
+.manhole-table
+td:nth-child(5) {
+  width:
+    108px !important;
+
+  min-width:
+    108px !important;
+}
+
+
+/* 개폐일자 */
+.manhole-list-panel
+.manhole-table
+th:nth-child(6),
+.manhole-list-panel
+.manhole-table
+td:nth-child(6) {
+  width:
+    132px !important;
+
+  min-width:
+    132px !important;
+}
+
+
+/* 비고 */
+.manhole-list-panel
+.manhole-table
+th:nth-child(7),
+.manhole-list-panel
+.manhole-table
+td:nth-child(7) {
+  min-width:
+    132px !important;
+}
+
+
+/* =========================
+   Location / area wrapping
+========================= */
+
+.manhole-list-panel
+.manhole-table
+tbody
+td:nth-child(2),
+.manhole-list-panel
+.manhole-table
+tbody
+td:nth-child(3) {
+  white-space:
+    normal !important;
+
+  word-break:
+    keep-all !important;
+
+  overflow-wrap:
+    break-word !important;
+}
+
+
+/* =========================
+   Form controls
+========================= */
+
+.manhole-list-panel
+.manhole-table
+select,
+.manhole-list-panel
+.manhole-table
+input {
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  height:
+    38px !important;
+
+  box-sizing:
+    border-box !important;
+
+  border:
+    1px solid
+    #c7d3e0 !important;
+
+  border-radius:
+    7px !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #17243a !important;
+
+  font-weight:
+    700 !important;
+}
+
+
+.manhole-list-panel
+.manhole-table
+select[data-manhole-status-select] {
+  min-width:
+    88px !important;
+
+  padding:
+    0 8px !important;
+
+  font-size:
+    14px !important;
+}
+
+
+.manhole-list-panel
+.manhole-table
+input[type="date"] {
+  min-width:
+    112px !important;
+
+  padding:
+    0 5px !important;
+
+  font-size:
+    12px !important;
+
+  letter-spacing:
+    -0.2px !important;
+}
+
+
+.manhole-list-panel
+.manhole-table
+input[type="text"] {
+  min-width:
+    108px !important;
+
+  padding:
+    0 8px !important;
+
+  font-size:
+    13px !important;
+}
+
+
+/* =========================
+   Close row
+========================= */
+
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+td {
+  background:
+    #edf0f3 !important;
+}
+
+
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close:hover
+td {
+  background:
+    #e2e7eb !important;
+}
+
+
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+select,
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+input {
+  background:
+    #f5f6f7 !important;
+}
+
+
+/* =========================
+   Open row
+========================= */
+
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-open
+td {
+  background:
+    #ffffff !important;
+}
+
+
+/* =========================
+   Group headers
+========================= */
+
+.manhole-list-panel
+.manhole-table
+.manhole-group-row
+td {
+  padding:
+    9px 10px !important;
+
+  background:
+    #f1f5f8 !important;
+
+  color:
+    #1d3554 !important;
+
+  font-size:
+    13px !important;
+
+  font-weight:
+    850 !important;
+}
