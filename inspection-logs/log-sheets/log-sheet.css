@@ -227,7 +227,47 @@ button {
   color: #ffffff;
 }
 
-.log-sheet-state {
+/* =========================================================
+  [LOG-SHEET-PDF-BACKGROUND-PREPARE-UI-V1]
+  저장 후 PDF 백그라운드 준비 상태
+========================================================= */
+
+.log-sheet-toolbar__controls
+  .is-preview {
+  min-width: 108px;
+}
+
+
+.log-sheet-toolbar__controls
+  .is-preview.is-pdf-stale {
+  border-color: #d6aa55;
+  background: #fff6df;
+  color: #8b5b00;
+}
+
+
+.log-sheet-toolbar__controls
+  .is-preview.is-pdf-preparing {
+  border-color: #75a2cf;
+  background: #e8f2fc;
+  color: #285f92;
+}
+
+
+.log-sheet-toolbar__controls
+  .is-preview.is-pdf-ready {
+  border-color: #6eaf88;
+  background: #eaf7ef;
+  color: #276c43;
+}
+
+
+.log-sheet-toolbar__controls
+  .is-preview.is-pdf-error {
+  border-color: #d69797;
+  background: #fff0f0;
+  color: #a53f3f;
+}.log-sheet-state {
   display: flex;
   min-width: 0;
   align-items: center;

@@ -413,32 +413,41 @@
     state.isDirty =
       Boolean(dirty);
 
+
     if (state.isDirty) {
+      invalidateLogSheetPdfPreparation(
+        "stale"
+      );
+
+
       setStatus(
         "수정 중",
         "변경된 값이 있습니다. 저장 버튼을 눌러 한 번에 저장하세요.",
         "dirty"
       );
 
-    } else if (
-      state.record
-    ) {
-      setStatus(
-        "저장됨",
-        "공용 저장자료를 불러왔습니다.",
-        "saved"
-      );
-
     } else {
-      setStatus(
-        "새 문서",
-        "저장된 자료가 없습니다. 값을 입력한 뒤 저장하세요.",
-        "idle"
-      );
-    }
-  }
+      void refreshLogSheetPdfPreviewButtonState();
 
-  function updateRevisionText() {
+
+      if (
+        state.record
+      ) {
+        setStatus(
+          "저장됨",
+          "공용 저장자료를 불러왔습니다.",
+          "saved"
+        );
+
+      } else {
+        setStatus(
+          "새 문서",
+          "저장된 자료가 없습니다. 값을 입력한 뒤 저장하세요.",
+          "idle"
+        );
+      }
+    }
+  }  function updateRevisionText() {
     if (
       !state.record
     ) {
@@ -8917,6 +8926,11 @@ function renderGrid() {
 function applyRecord(
   record
 ) {
+  invalidateLogSheetPdfPreparation(
+    "idle"
+  );
+
+
   state.record =
     record || null;
 
@@ -9100,6 +9114,11 @@ async function loadRecord(
       return;
     }
 
+
+    let preparePdfAfterSave =
+      false;
+
+
     ensureMetadataValues();
 
     if (
@@ -9166,9 +9185,13 @@ async function loadRecord(
 
       setStatus(
         "저장 완료",
-        "공용 저장자료에 반영했습니다.",
+        "공용 저장자료에 반영했습니다. PDF 미리보기를 자동으로 준비합니다.",
         "saved"
       );
+
+
+      preparePdfAfterSave =
+        true;
 
     } catch (
       error
@@ -9210,7 +9233,16 @@ async function loadRecord(
       }
 
     } finally {
-      setBusy(false);
+      setBusy(
+        false
+      );
+
+
+      if (
+        preparePdfAfterSave
+      ) {
+        scheduleLogSheetPdfPreparationAfterSave();
+      }
     }
   }
 
@@ -14519,7 +14551,779 @@ const LOG_SHEET_PDF_CACHE_MAX_ENTRIES =
 const logSheetPdfCache =
   new Map();
 
+/* =========================================================
+  [LOG-SHEET-PDF-BACKGROUND-PREPARE-V1]
 
+  저장 직후 PDF를 백그라운드에서 미리 만든다.
+
+  핵심 원칙:
+  - 저장 작업 자체는 PDF 변환을 기다리지 않는다.
+  - 같은 fingerprint 변환은 하나의 Promise를 공유한다.
+  - 값이 바뀌면 진행 중 결과는 현재 미리보기로 사용하지 않는다.
+  - 연속 저장 시 백그라운드 변환은 한 번에 하나만 실행하고
+    가장 최근 저장본만 다음 작업으로 남긴다.
+========================================================= */
+
+const LOG_SHEET_PDF_BACKGROUND_DELAY =
+  500;
+
+
+const logSheetPdfGenerationTasks =
+  new Map();
+
+
+let logSheetPdfContentVersion =
+  0;
+
+
+let logSheetPdfPreparingVersion =
+  -1;
+
+
+let logSheetPdfBackgroundTimer =
+  0;
+
+
+let logSheetPdfBackgroundQueuedTarget =
+  null;
+
+
+let logSheetPdfBackgroundWorkerPromise =
+  null;
+
+
+function setLogSheetPdfPreviewButtonState(
+  status = "idle"
+) {
+  const button =
+    elements.previewButton;
+
+
+  if (
+    !button
+  ) {
+    return;
+  }
+
+
+  const states = {
+    idle: {
+      label:
+        "미리보기",
+
+      title:
+        "현재 내용으로 Excel PDF 미리보기를 엽니다."
+    },
+
+    stale: {
+      label:
+        "미리보기 · 변경됨",
+
+      title:
+        "변경된 현재 내용으로 새 Excel PDF를 생성합니다."
+    },
+
+    preparing: {
+      label:
+        "미리보기 준비 중",
+
+      title:
+        "저장된 내용으로 Excel PDF를 백그라운드에서 만들고 있습니다."
+    },
+
+    ready: {
+      label:
+        "미리보기",
+
+      title:
+        "준비된 Excel PDF를 즉시 표시합니다."
+    },
+
+    error: {
+      label:
+        "미리보기 다시 생성",
+
+      title:
+        "PDF 자동 준비에 실패했습니다. 클릭하면 다시 생성합니다."
+    }
+  };
+
+
+  const next =
+    states[status] ||
+    states.idle;
+
+
+  button.textContent =
+    next.label;
+
+
+  button.title =
+    next.title;
+
+
+  button.dataset.pdfState =
+    status;
+
+
+  button.setAttribute(
+    "aria-busy",
+    String(
+      status ===
+        "preparing"
+    )
+  );
+
+
+  [
+    "is-pdf-stale",
+    "is-pdf-preparing",
+    "is-pdf-ready",
+    "is-pdf-error"
+  ].forEach(
+    className => {
+      button.classList.remove(
+        className
+      );
+    }
+  );
+
+
+  const stateClass = {
+    stale:
+      "is-pdf-stale",
+
+    preparing:
+      "is-pdf-preparing",
+
+    ready:
+      "is-pdf-ready",
+
+    error:
+      "is-pdf-error"
+  }[status];
+
+
+  if (
+    stateClass
+  ) {
+    button.classList.add(
+      stateClass
+    );
+  }
+}
+
+
+function setLogSheetPdfBackgroundStatus(
+  message
+) {
+  if (
+    state.isDirty ||
+    normalizeText(
+      elements.stateBadge
+        ?.textContent
+    ) !==
+      "저장 완료"
+  ) {
+    return;
+  }
+
+
+  setStatus(
+    "저장 완료",
+    message,
+    "saved"
+  );
+}
+
+
+function clearLogSheetPdfBackgroundTimer() {
+  if (
+    !logSheetPdfBackgroundTimer
+  ) {
+    return;
+  }
+
+
+  window.clearTimeout(
+    logSheetPdfBackgroundTimer
+  );
+
+
+  logSheetPdfBackgroundTimer =
+    0;
+}
+
+
+function invalidateLogSheetPdfPreparation(
+  buttonState = "idle"
+) {
+  logSheetPdfContentVersion +=
+    1;
+
+
+  logSheetPdfPreparingVersion =
+    -1;
+
+
+  clearLogSheetPdfBackgroundTimer();
+
+
+  logSheetPdfBackgroundQueuedTarget =
+    null;
+
+
+  setLogSheetPdfPreviewButtonState(
+    buttonState
+  );
+
+
+  return logSheetPdfContentVersion;
+}
+
+
+async function refreshLogSheetPdfPreviewButtonState() {
+  if (
+    !state.sheetConfig
+  ) {
+    setLogSheetPdfPreviewButtonState(
+      "idle"
+    );
+
+
+    return;
+  }
+
+
+  const version =
+    logSheetPdfContentVersion;
+
+
+  try {
+    const scopeKey =
+      getLogSheetPdfCacheScopeKey();
+
+
+    const fingerprint =
+      await createLogSheetPdfFingerprint();
+
+
+    if (
+      version !==
+        logSheetPdfContentVersion ||
+      logSheetPdfPreparingVersion ===
+        version
+    ) {
+      return;
+    }
+
+
+    const cachedPdfBlob =
+      getCachedLogSheetPdf(
+        scopeKey,
+        fingerprint
+      );
+
+
+    setLogSheetPdfPreviewButtonState(
+      cachedPdfBlob
+        ? "ready"
+        : (
+            state.isDirty
+              ? "stale"
+              : "idle"
+          )
+    );
+
+  } catch (
+    error
+  ) {
+    if (
+      version ===
+        logSheetPdfContentVersion
+    ) {
+      setLogSheetPdfPreviewButtonState(
+        state.isDirty
+          ? "stale"
+          : "idle"
+      );
+    }
+
+
+    console.warn(
+      "Log Sheet PDF 준비 상태 확인 실패:",
+      error
+    );
+  }
+}
+
+
+function getLogSheetPdfGenerationTaskKey(
+  scopeKey,
+  fingerprint
+) {
+  return (
+    `${scopeKey}||${fingerprint}`
+  );
+}
+
+
+function reportLogSheetPdfGenerationProgress(
+  task,
+  title,
+  description
+) {
+  task.title =
+    title;
+
+
+  task.description =
+    description;
+
+
+  task.listeners.forEach(
+    listener => {
+      try {
+        listener(
+          title,
+          description
+        );
+
+      } catch (
+        error
+      ) {
+        console.warn(
+          "Log Sheet PDF 진행상태 표시 실패:",
+          error
+        );
+      }
+    }
+  );
+}
+
+
+function subscribeLogSheetPdfGenerationProgress(
+  task,
+  listener
+) {
+  if (
+    typeof listener !==
+      "function"
+  ) {
+    return () => {};
+  }
+
+
+  task.listeners.add(
+    listener
+  );
+
+
+  listener(
+    task.title,
+    task.description
+  );
+
+
+  return () => {
+    task.listeners.delete(
+      listener
+    );
+  };
+}
+
+
+function getOrCreateLogSheetPdfGenerationTask(
+  scopeKey,
+  fingerprint
+) {
+  const taskKey =
+    getLogSheetPdfGenerationTaskKey(
+      scopeKey,
+      fingerprint
+    );
+
+
+  const existingTask =
+    logSheetPdfGenerationTasks.get(
+      taskKey
+    );
+
+
+  if (
+    existingTask
+  ) {
+    return existingTask;
+  }
+
+
+  const task = {
+    key:
+      taskKey,
+
+    title:
+      "Excel 파일 생성 중",
+
+    description:
+      "변경된 내용을 원본 Log Sheet Excel 양식에 반영하고 있습니다.",
+
+    listeners:
+      new Set(),
+
+    promise:
+      null
+  };
+
+
+  task.promise =
+    (async () => {
+      reportLogSheetPdfGenerationProgress(
+        task,
+        "Excel 파일 생성 중",
+        "변경된 내용을 원본 Log Sheet Excel 양식에 반영하고 있습니다."
+      );
+
+
+      const workbookBlob =
+        await createPatchedWorkbookBlob();
+
+
+      reportLogSheetPdfGenerationProgress(
+        task,
+        "PDF 변환 요청 중",
+        "회사 PC의 Microsoft Excel에 PDF 변환을 요청하고 있습니다."
+      );
+
+
+      const requestId =
+        await createLogSheetPdfRequest(
+          workbookBlob
+        );
+
+
+      reportLogSheetPdfGenerationProgress(
+        task,
+        "PDF 변환 대기 중",
+        "회사 PC의 Microsoft Excel에서 원본 인쇄 양식을 만들고 있습니다."
+      );
+
+
+      return fetchLogSheetPdfBlob(
+        requestId,
+        {
+          waitUntilReady:
+            true
+        }
+      );
+    })()
+      .finally(
+        () => {
+          if (
+            logSheetPdfGenerationTasks.get(
+              taskKey
+            ) ===
+              task
+          ) {
+            logSheetPdfGenerationTasks.delete(
+              taskKey
+            );
+          }
+        }
+      );
+
+
+  logSheetPdfGenerationTasks.set(
+    taskKey,
+    task
+  );
+
+
+  return task;
+}
+
+
+async function isLogSheetPdfTargetCurrent(
+  scopeKey,
+  fingerprint,
+  version
+) {
+  if (
+    version !==
+      logSheetPdfContentVersion ||
+    scopeKey !==
+      getLogSheetPdfCacheScopeKey()
+  ) {
+    return false;
+  }
+
+
+  const currentFingerprint =
+    await createLogSheetPdfFingerprint();
+
+
+  return (
+    version ===
+      logSheetPdfContentVersion &&
+    fingerprint ===
+      currentFingerprint
+  );
+}
+
+
+async function prepareLogSheetPdfTargetInBackground(
+  target
+) {
+  if (
+    !target ||
+    !state.sheetConfig ||
+    state.isDirty ||
+    target.version !==
+      logSheetPdfContentVersion
+  ) {
+    return;
+  }
+
+
+  const scopeKey =
+    getLogSheetPdfCacheScopeKey();
+
+
+  const fingerprint =
+    await createLogSheetPdfFingerprint();
+
+
+  if (
+    !(
+      await isLogSheetPdfTargetCurrent(
+        scopeKey,
+        fingerprint,
+        target.version
+      )
+    ) ||
+    state.isDirty
+  ) {
+    return;
+  }
+
+
+  const cachedPdfBlob =
+    getCachedLogSheetPdf(
+      scopeKey,
+      fingerprint
+    );
+
+
+  if (
+    cachedPdfBlob
+  ) {
+    logSheetPdfPreparingVersion =
+      -1;
+
+
+    setLogSheetPdfPreviewButtonState(
+      "ready"
+    );
+
+
+    setLogSheetPdfBackgroundStatus(
+      "공용 저장자료 반영 · PDF 미리보기 준비 완료"
+    );
+
+
+    return;
+  }
+
+
+  logSheetPdfPreparingVersion =
+    target.version;
+
+
+  setLogSheetPdfPreviewButtonState(
+    "preparing"
+  );
+
+
+  setLogSheetPdfBackgroundStatus(
+    "저장은 완료됐습니다. PDF 미리보기를 백그라운드에서 준비하고 있습니다."
+  );
+
+
+  try {
+    const task =
+      getOrCreateLogSheetPdfGenerationTask(
+        scopeKey,
+        fingerprint
+      );
+
+
+    const pdfBlob =
+      await task.promise;
+
+
+    if (
+      !(
+        await isLogSheetPdfTargetCurrent(
+          scopeKey,
+          fingerprint,
+          target.version
+        )
+      ) ||
+      state.isDirty
+    ) {
+      return;
+    }
+
+
+    saveLogSheetPdfCache(
+      scopeKey,
+      fingerprint,
+      pdfBlob
+    );
+
+
+    logSheetPdfPreparingVersion =
+      -1;
+
+
+    setLogSheetPdfPreviewButtonState(
+      "ready"
+    );
+
+
+    setLogSheetPdfBackgroundStatus(
+      "공용 저장자료 반영 · PDF 미리보기 준비 완료"
+    );
+
+
+    console.log(
+      "Log Sheet PDF 백그라운드 준비 완료:",
+      state.sheetConfig
+        ?.sheetName,
+      `${pdfBlob.size} bytes`
+    );
+
+  } catch (
+    error
+  ) {
+    if (
+      target.version !==
+        logSheetPdfContentVersion ||
+      state.isDirty
+    ) {
+      return;
+    }
+
+
+    logSheetPdfPreparingVersion =
+      -1;
+
+
+    setLogSheetPdfPreviewButtonState(
+      "error"
+    );
+
+
+    setLogSheetPdfBackgroundStatus(
+      "저장은 완료됐지만 PDF 자동 준비에 실패했습니다. 미리보기에서 다시 생성할 수 있습니다."
+    );
+
+
+    console.warn(
+      "Log Sheet PDF 백그라운드 준비 실패:",
+      error
+    );
+  }
+}
+
+
+function runLogSheetPdfBackgroundWorker() {
+  if (
+    logSheetPdfBackgroundWorkerPromise
+  ) {
+    return logSheetPdfBackgroundWorkerPromise;
+  }
+
+
+  logSheetPdfBackgroundWorkerPromise =
+    (async () => {
+      while (
+        logSheetPdfBackgroundQueuedTarget
+      ) {
+        const target =
+          logSheetPdfBackgroundQueuedTarget;
+
+
+        logSheetPdfBackgroundQueuedTarget =
+          null;
+
+
+        await prepareLogSheetPdfTargetInBackground(
+          target
+        );
+      }
+    })()
+      .finally(
+        () => {
+          logSheetPdfBackgroundWorkerPromise =
+            null;
+
+
+          if (
+            logSheetPdfBackgroundQueuedTarget
+          ) {
+            void runLogSheetPdfBackgroundWorker();
+          }
+        }
+      );
+
+
+  return logSheetPdfBackgroundWorkerPromise;
+}
+
+
+function scheduleLogSheetPdfPreparationAfterSave() {
+  if (
+    !state.sheetConfig ||
+    state.isDirty
+  ) {
+    return;
+  }
+
+
+  clearLogSheetPdfBackgroundTimer();
+
+
+  const target = {
+    version:
+      logSheetPdfContentVersion
+  };
+
+
+  logSheetPdfBackgroundQueuedTarget =
+    target;
+
+
+  logSheetPdfPreparingVersion =
+    target.version;
+
+
+  setLogSheetPdfPreviewButtonState(
+    "preparing"
+  );
+
+
+  logSheetPdfBackgroundTimer =
+    window.setTimeout(
+      () => {
+        logSheetPdfBackgroundTimer =
+          0;
+
+
+        void runLogSheetPdfBackgroundWorker();
+      },
+      LOG_SHEET_PDF_BACKGROUND_DELAY
+    );
+}
 function getLogSheetPdfCacheScopeKey() {
   const identity =
     getIdentity();
@@ -15528,54 +16332,188 @@ async function openLogSheetPdfPreview(
       true;
 
 
+  let busyStarted =
+    false;
+
+
   try {
-    /*
-      =====================================================
-      1. 현재 Log Sheet 내용 fingerprint 생성
-      =====================================================
-    */
-
-    const cacheScopeKey =
-      getLogSheetPdfCacheScopeKey();
-
-
-    const fingerprint =
-      await createLogSheetPdfFingerprint();
+    for (
+      let attempt = 0;
+      attempt < 2;
+      attempt += 1
+    ) {
+      const version =
+        logSheetPdfContentVersion;
 
 
-    /*
-      =====================================================
-      2. 동일 내용 PDF가 이미 있으면 즉시 표시
+      const cacheScopeKey =
+        getLogSheetPdfCacheScopeKey();
 
-      중요:
-      여기서는
-      - XLSX 생성 없음
-      - 서버 요청 없음
-      - Agent 요청 없음
-      - Excel 실행 없음
-      =====================================================
-    */
 
-    const cachedPdfBlob =
-      getCachedLogSheetPdf(
-        cacheScopeKey,
-        fingerprint
+      const fingerprint =
+        await createLogSheetPdfFingerprint();
+
+
+      if (
+        version !==
+          logSheetPdfContentVersion
+      ) {
+        continue;
+      }
+
+
+      const cachedPdfBlob =
+        getCachedLogSheetPdf(
+          cacheScopeKey,
+          fingerprint
+        );
+
+
+      if (
+        cachedPdfBlob
+      ) {
+        logSheetPdfPreparingVersion =
+          -1;
+
+
+        setLogSheetPdfPreviewButtonState(
+          "ready"
+        );
+
+
+        showLogSheetPdfPreviewBlob(
+          cachedPdfBlob,
+          {
+            autoPrint
+          }
+        );
+
+
+        setStatus(
+          "PDF 즉시 표시",
+          "준비된 Excel PDF 미리보기를 즉시 표시했습니다.",
+          state.isDirty
+            ? "dirty"
+            : "saved"
+        );
+
+
+        return;
+      }
+
+
+      setLogSheetPdfPreviewProgress(
+        "PDF 미리보기 준비 중",
+        "저장된 백그라운드 PDF를 확인하거나 최신 내용으로 새 PDF를 만들고 있습니다."
       );
 
 
-    if (
-      cachedPdfBlob
-    ) {
-      console.log(
-        "Log Sheet PDF 캐시 재사용:",
-        state.sheetConfig
-          ?.sheetName,
-        `${cachedPdfBlob.size} bytes`
+      if (
+        !busyStarted
+      ) {
+        setBusy(
+          true,
+          "최신 내용으로 원본 Excel PDF를 준비하고 있습니다."
+        );
+
+
+        busyStarted =
+          true;
+      }
+
+
+      logSheetPdfPreparingVersion =
+        version;
+
+
+      setLogSheetPdfPreviewButtonState(
+        "preparing"
+      );
+
+
+      const task =
+        getOrCreateLogSheetPdfGenerationTask(
+          cacheScopeKey,
+          fingerprint
+        );
+
+
+      const unsubscribeProgress =
+        subscribeLogSheetPdfGenerationProgress(
+          task,
+          (
+            title,
+            description
+          ) => {
+            setLogSheetPdfPreviewProgress(
+              title,
+              description
+            );
+          }
+        );
+
+
+      let pdfBlob;
+
+
+      try {
+        pdfBlob =
+          await task.promise;
+
+      } finally {
+        unsubscribeProgress();
+      }
+
+
+      const isCurrent =
+        await isLogSheetPdfTargetCurrent(
+          cacheScopeKey,
+          fingerprint,
+          version
+        );
+
+
+      if (
+        !isCurrent
+      ) {
+        if (
+          attempt ===
+            0
+        ) {
+          setLogSheetPdfPreviewProgress(
+            "내용 변경 감지",
+            "PDF 생성 중 내용이 변경되어 최신 내용으로 다시 준비하고 있습니다."
+          );
+
+
+          continue;
+        }
+
+
+        throw new Error(
+          "PDF 생성 중 내용이 다시 변경되었습니다. 저장 후 미리보기를 다시 눌러 주세요."
+        );
+      }
+
+
+      saveLogSheetPdfCache(
+        cacheScopeKey,
+        fingerprint,
+        pdfBlob
+      );
+
+
+      logSheetPdfPreparingVersion =
+        -1;
+
+
+      setLogSheetPdfPreviewButtonState(
+        "ready"
       );
 
 
       showLogSheetPdfPreviewBlob(
-        cachedPdfBlob,
+        pdfBlob,
         {
           autoPrint
         }
@@ -15583,8 +16521,8 @@ async function openLogSheetPdfPreview(
 
 
       setStatus(
-        "PDF 즉시 표시",
-        "변경된 내용이 없어 직전 PDF 미리보기를 재사용했습니다.",
+        "PDF 준비 완료",
+        "Microsoft Excel 원본 인쇄 설정으로 PDF를 만들었습니다.",
         state.isDirty
           ? "dirty"
           : "saved"
@@ -15595,104 +16533,8 @@ async function openLogSheetPdfPreview(
     }
 
 
-    /*
-      =====================================================
-      3. 내용이 변경된 경우에만 새 PDF 생성
-      =====================================================
-    */
-
-    setLogSheetPdfPreviewProgress(
-      "Excel 파일 생성 중",
-      "변경된 내용을 원본 Log Sheet Excel 양식에 반영하고 있습니다."
-    );
-
-
-    setBusy(
-      true,
-      "변경된 내용으로 원본 Excel PDF를 만들고 있습니다."
-    );
-
-
-    const workbookBlob =
-      await createPatchedWorkbookBlob();
-
-
-    setLogSheetPdfPreviewProgress(
-      "PDF 변환 요청 중",
-      "회사 PC의 Microsoft Excel에 PDF 변환을 요청하고 있습니다."
-    );
-
-
-    const requestId =
-      await createLogSheetPdfRequest(
-        workbookBlob
-      );
-
-
-    setLogSheetPdfPreviewProgress(
-      "PDF 변환 대기 중",
-      "회사 PC의 Microsoft Excel에서 원본 인쇄 양식을 만들고 있습니다."
-    );
-
-
-    /*
-      상태 API를 별도로 기다리지 않고
-      PDF 자체가 준비될 때까지 직접 조회한다.
-    */
-    const pdfBlob =
-      await fetchLogSheetPdfBlob(
-        requestId,
-        {
-          waitUntilReady:
-            true
-        }
-      );
-
-
-    setLogSheetPdfPreviewProgress(
-      "PDF 불러오는 중",
-      "생성된 PDF를 미리보기에 표시하고 있습니다."
-    );
-
-
-    /*
-      =====================================================
-      4. 새 PDF 캐시에 저장
-
-      이후 값이 바뀌지 않은 상태에서
-      미리보기를 다시 누르면 이 Blob을 즉시 재사용한다.
-      =====================================================
-    */
-
-    saveLogSheetPdfCache(
-      cacheScopeKey,
-      fingerprint,
-      pdfBlob
-    );
-
-
-    console.log(
-      "Log Sheet PDF 캐시 저장:",
-      state.sheetConfig
-        ?.sheetName,
-      `${pdfBlob.size} bytes`
-    );
-
-
-    showLogSheetPdfPreviewBlob(
-      pdfBlob,
-      {
-        autoPrint
-      }
-    );
-
-
-    setStatus(
-      "PDF 준비 완료",
-      "Microsoft Excel 원본 인쇄 설정으로 PDF를 만들었습니다.",
-      state.isDirty
-        ? "dirty"
-        : "saved"
+    throw new Error(
+      "현재 내용의 PDF를 준비하지 못했습니다. 다시 시도해 주세요."
     );
 
   } catch (
@@ -15701,6 +16543,17 @@ async function openLogSheetPdfPreview(
     console.error(
       "Log Sheet PDF 미리보기 실패:",
       error
+    );
+
+
+    logSheetPdfPreparingVersion =
+      -1;
+
+
+    setLogSheetPdfPreviewButtonState(
+      state.isDirty
+        ? "stale"
+        : "error"
     );
 
 
@@ -15717,17 +16570,15 @@ async function openLogSheetPdfPreview(
     );
 
   } finally {
-    /*
-      캐시 재사용 시에는 setBusy(true)를 실행하지 않았지만
-      false 재설정은 안전하다.
-    */
-    setBusy(
-      false
-    );
+    if (
+      busyStarted
+    ) {
+      setBusy(
+        false
+      );
+    }
   }
-}
-
-function printCurrentSheet() {
+}function printCurrentSheet() {
   openLogSheetPdfPreview({
     autoPrint:
       true
