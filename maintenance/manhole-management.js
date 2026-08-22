@@ -471,7 +471,7 @@
     return MASTER_LOCATIONS.map(
       item => ({
         ...item,
-        status: "close",
+        status: "",
         changeDate: "",
         note: ""
       })
@@ -494,7 +494,7 @@
       return "close";
     }
 
-    return "close";
+    return "";
   }
 
   function mergeStoredRows(
@@ -658,6 +658,7 @@
         data-manhole-status-select="${no}"
         aria-label="${no}번 ${management.escapeHtml(row.location)} 상태"
       >
+        <option value="" ${row.status === "" ? "selected" : ""}>선택</option>
         <option value="open" ${row.status === "open" ? "selected" : ""}>Open</option>
         <option value="close" ${row.status === "close" ? "selected" : ""}>Close</option>
       </select>
