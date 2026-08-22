@@ -3835,3 +3835,133 @@ tr.is-open
 .manhole-original-diagram {
   background-color: #ffffff !important;
 }
+
+/* =========================================================
+   MANHOLE_REDRAWN_BASE_AND_ANCHORS_V26
+
+   - use newly redrawn base artwork
+   - source artwork contains no yellow manhole symbols
+   - white background
+   - live marker anchors matched to this exact artwork
+   - render only Close/Open markers
+========================================================= */
+
+.manhole-original-diagram {
+  background:
+    #ffffff
+    url("manhole-unit1-diagram-clean-v26.png?v=20260823-redrawn-v26")
+    center
+    / 100% 100%
+    no-repeat !important;
+
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+
+/* Old img remains only as the existing layout/sizing fallback. */
+.manhole-original-diagram__image {
+  opacity: 0 !important;
+  visibility: hidden !important;
+
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+
+/*
+  V26 no longer needs an oversized marker because there is
+  no source yellow icon underneath it.
+
+  Relative dimensions scale with the drawing and reduce
+  visual drift when the card size changes.
+*/
+.manhole-diagram-status-symbol {
+  width: 2.25% !important;
+  height: 1.35% !important;
+
+  min-width: 16px !important;
+  min-height: 10px !important;
+
+  max-width: 23px !important;
+  max-height: 14px !important;
+
+  transform: translate(-50%, -50%) !important;
+
+  box-sizing: border-box !important;
+
+  border:
+    1.5px solid
+    #171717 !important;
+
+  border-radius:
+    1px !important;
+}
+
+
+/* Close = dark gray closed manhole. */
+.manhole-diagram-status-symbol,
+.manhole-diagram-status-symbol.is-close,
+.manhole-diagram-status-symbol.is-unknown {
+  background: #6f7782 !important;
+  border-color: #171717 !important;
+}
+
+
+/* Open = yellow manhole. */
+.manhole-diagram-status-symbol.is-open {
+  background: #f5dc16 !important;
+  border-color: #171717 !important;
+}
+
+
+/* Open halo scales with the artwork. */
+.manhole-diagram-status-symbol.is-open::before,
+.manhole-diagram-status-symbol.is-mixed::before {
+  width: 5.2vw !important;
+  height: 5.2vw !important;
+
+  min-width: 40px !important;
+  min-height: 40px !important;
+
+  max-width: 54px !important;
+  max-height: 54px !important;
+}
+
+
+/*
+  V24 had to recreate number 15 because an older clean image
+  omitted it. V26 already contains the correct red 15.
+*/
+.manhole-diagram-status-symbol[
+  data-manhole-diagram-status-group="15"
+]::after {
+  content: none !important;
+  display: none !important;
+}
+
+
+/* Close row remains light gray. */
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+> td {
+  background: #e8ebef !important;
+}
+
+
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+select,
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+input {
+  background: #f0f2f4 !important;
+}
