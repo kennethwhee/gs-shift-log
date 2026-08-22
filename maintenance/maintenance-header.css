@@ -1,0 +1,78 @@
+/* =========================================================
+  계획정비 상단 햄버거 소메뉴
+========================================================= */
+
+.header-more-submenu {
+  display: block;
+  width: 100%;
+}
+
+.header-more-item--submenu-toggle {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.header-more-item__chevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: #7b8798;
+  font-size: 13px;
+  line-height: 1;
+  transition: transform 0.16s ease;
+}
+
+.header-more-item--submenu-toggle[aria-expanded="true"]
+  .header-more-item__chevron {
+  transform: rotate(180deg);
+}
+
+.header-more-submenu-panel {
+  display: grid;
+  gap: 2px;
+  padding: 2px 0 5px 12px;
+}
+
+.header-more-submenu-panel[hidden] {
+  display: none !important;
+}
+
+.header-more-subitem {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 10px 0 14px;
+  border: 0;
+  border-left: 2px solid #dce5ef;
+  border-radius: 0 7px 7px 0;
+  background: transparent;
+  color: #516176;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.header-more-subitem:hover,
+.header-more-subitem:focus-visible {
+  border-left-color: #2e73bd;
+  background: #f3f7fb;
+  color: #185b9f;
+}
+
+@media screen and (max-width: 760px) {
+  .header-more-submenu-panel {
+    padding-left: 10px;
+  }
+
+  .header-more-subitem {
+    min-height: 33px;
+    font-size: 11px;
+  }
+}

@@ -1,0 +1,402 @@
+.manhole-unit-title {
+  color: #25374e;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.manhole-legend {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid #cbd6e1;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.manhole-legend.is-open {
+  background: transparent;
+  color: #d3212b;
+}
+
+.manhole-legend.is-close {
+  background: #edf0f3;
+  color: #5f6874;
+}
+
+.manhole-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e5ebf1;
+  background: #fafcff;
+}
+
+.manhole-summary article {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid #d7e1eb;
+  border-radius: 11px;
+  background: #fff;
+}
+
+.manhole-summary span {
+  color: #637188;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.manhole-summary strong {
+  color: #23354c;
+  font-size: 23px;
+  font-weight: 950;
+}
+
+.manhole-workspace {
+  display: grid;
+  grid-template-columns: minmax(680px, 1.55fr) minmax(560px, 1fr);
+  gap: 14px;
+  padding: 14px;
+}
+
+.manhole-schematic-panel,
+.manhole-list-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #d7e1eb;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.manhole-section-heading {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 13px;
+  border-bottom: 1px solid #e2e8ef;
+  background: #f8fafc;
+}
+
+.manhole-section-heading strong {
+  color: #2d3e55;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.manhole-section-heading span {
+  color: #7a8797;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.manhole-schematic {
+  position: relative;
+  width: 100%;
+  min-width: 680px;
+  aspect-ratio: 1.28 / 1;
+  overflow: hidden;
+  background:
+    linear-gradient(#ffffffd9, #ffffffd9),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0,
+      transparent 39px,
+      #eef2f6 40px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 39px,
+      #eef2f6 40px
+    );
+}
+
+.manhole-schematic__frame {
+  position: absolute;
+  inset: 2.5%;
+  border: 1px solid #dce4ec;
+  border-radius: 12px;
+}
+
+.manhole-diagram-block {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: 2px solid #5f6a78;
+  border-radius: 8px;
+  background: rgba(245, 248, 251, 0.9);
+  color: #303b49;
+  font-size: 11px;
+  font-weight: 950;
+  text-align: center;
+  line-height: 1.15;
+}
+
+.manhole-diagram-block.is-boiler-stack {
+  left: 38%;
+  top: 16%;
+  width: 21%;
+  height: 47%;
+  border-radius: 14px 14px 5px 5px;
+  background: rgba(232, 239, 247, 0.86);
+}
+
+.manhole-diagram-block.is-scr {
+  left: 62%;
+  top: 8%;
+  width: 15%;
+  height: 52%;
+  background: rgba(238, 243, 248, 0.9);
+}
+
+.manhole-diagram-block.is-combustor {
+  left: 3%;
+  top: 54%;
+  width: 26%;
+  height: 29%;
+  background: rgba(246, 244, 239, 0.9);
+}
+
+.manhole-diagram-block.is-fbhe {
+  left: 17%;
+  top: 76%;
+  width: 24%;
+  height: 17%;
+  background: rgba(239, 244, 248, 0.92);
+}
+
+.manhole-diagram-block.is-seal-pot {
+  left: 20%;
+  top: 61%;
+  width: 15%;
+  height: 9%;
+  background: rgba(248, 244, 236, 0.94);
+}
+
+.manhole-diagram-block.is-sda {
+  left: 80%;
+  top: 37%;
+  width: 16%;
+  height: 37%;
+  background: rgba(239, 246, 243, 0.92);
+}
+
+.manhole-diagram-label {
+  position: absolute;
+  z-index: 2;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #4a5565;
+  font-size: 10px;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.manhole-zone {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  width: 88px;
+  min-height: 28px;
+  align-items: center;
+  gap: 3px;
+  transform: translate(-50%, -50%);
+  border: 1px solid #b9c6d2;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 3px 8px rgba(25, 44, 66, 0.1);
+}
+
+.manhole-zone__number {
+  display: grid;
+  width: 25px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-right: 1px solid #d5dee7;
+  color: #263a51;
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.manhole-zone select {
+  width: 58px;
+  height: 26px;
+  padding: 0 2px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #596779;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.manhole-zone.is-open {
+  background: transparent;
+}
+
+.manhole-zone.is-open select {
+  color: #d4202b;
+}
+
+.manhole-zone.is-close {
+  background: #e9edf1;
+  border-color: #b9c1c9;
+}
+
+.manhole-zone.is-close select {
+  color: #59616b;
+}
+
+.manhole-table-wrap {
+  max-height: min(790px, calc(100vh - 230px));
+  overflow: auto;
+}
+
+.manhole-table {
+  width: 100%;
+  min-width: 650px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.manhole-table th,
+.manhole-table td {
+  border-right: 1px solid #b8c2cc;
+  border-bottom: 1px solid #b8c2cc;
+}
+
+.manhole-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  height: 38px;
+  padding: 6px;
+  background: #e8eef4;
+  color: #2d3b4e;
+  font-size: 10px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.manhole-table tbody td {
+  padding: 5px 6px;
+  background: transparent;
+  color: #273649;
+  font-size: 10px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.manhole-table tbody tr.is-close td {
+  background: #eceff2;
+}
+
+.manhole-table tbody tr.is-open td {
+  background: transparent;
+}
+
+.manhole-table .manhole-number {
+  width: 46px;
+  font-weight: 950;
+  text-align: center;
+}
+
+.manhole-table .manhole-count {
+  width: 48px;
+  text-align: center;
+}
+
+.manhole-table select,
+.manhole-table input {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid #c7d1db;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #34465b;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.manhole-table tr.is-open select[data-manhole-status-select] {
+  background: transparent;
+  color: #d4202b;
+}
+
+.manhole-table tr.is-close select[data-manhole-status-select] {
+  background: #e2e6ea;
+  color: #59616b;
+}
+
+.manhole-group-row td {
+  padding: 8px 9px !important;
+  background: #f4f7fa !important;
+  color: #304158 !important;
+  font-size: 10px !important;
+  font-weight: 950 !important;
+}
+
+.manhole-group-row.is-fbhe td {
+  background: #fbf7e8 !important;
+}
+
+@media screen and (max-width: 1180px) {
+  .manhole-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .manhole-table-wrap {
+    max-height: none;
+  }
+}
+
+@media screen and (max-width: 760px) {
+  .manhole-unit-title {
+    width: 100%;
+    font-size: 12px;
+  }
+
+  .manhole-summary {
+    grid-template-columns: 1fr;
+    padding: 10px;
+  }
+
+  .manhole-summary article {
+    min-height: 46px;
+  }
+
+  .manhole-workspace {
+    padding: 10px;
+  }
+
+  .manhole-schematic-panel {
+    overflow-x: auto;
+  }
+
+  .manhole-schematic {
+    width: 760px;
+  }
+
+  .manhole-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .manhole-section-heading span {
+    text-align: left;
+  }
+}

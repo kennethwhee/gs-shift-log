@@ -25,6 +25,10 @@
     rel="stylesheet"
     href="style.css?v=20260822-search-shift-simple3"
   >
+  <link
+    rel="stylesheet"
+    href="maintenance/maintenance-header.css?v=20260822-maintenance-v1"
+  >
 
 
   <!-- =====================================================
@@ -57,7 +61,7 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 <script
-  src="script.js?v=20260822-search-shift-simple3"
+  src="script.js?v=20260822-maintenance-management-v1"
   defer
 ></script>
 
@@ -542,16 +546,50 @@
             네비게이터
           </button>
 
+                <div class="header-more-submenu">
+        <button
+          type="button"
+          class="header-more-item header-more-item--submenu-toggle"
+          id="plannedMaintenanceHeaderButton"
+          role="menuitem"
+          aria-haspopup="true"
+          aria-expanded="false"
+          aria-controls="plannedMaintenanceHeaderSubmenuPanel"
+          title="계획정비"
+        >
+          <span>계획정비</span>
+          <span
+            class="header-more-item__chevron"
+            aria-hidden="true"
+          >⌄</span>
+        </button>
+
+        <div
+          class="header-more-submenu-panel"
+          id="plannedMaintenanceHeaderSubmenuPanel"
+          role="group"
+          aria-label="계획정비 소메뉴"
+          hidden
+        >
           <button
             type="button"
-            class="header-more-item"
-            id="plannedMaintenanceHeaderButton"
+            class="header-more-subitem"
+            id="plannedMaintenanceLogicHeaderButton"
             role="menuitem"
-            aria-label="계획정비 열기"
-            title="계획정비"
           >
-            계획정비
+            Logic 개선
           </button>
+
+          <button
+            type="button"
+            class="header-more-subitem"
+            id="plannedMaintenanceWorkHeaderButton"
+            role="menuitem"
+          >
+            작업필요사항
+          </button>
+        </div>
+      </div>
 
           <button
             type="button"

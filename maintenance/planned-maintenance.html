@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+  <title>계획정비 관리 - GS Shift Log</title>
+  <link
+    rel="stylesheet"
+    href="management-common.css?v=20260822-maintenance-v1"
+  >
+  <link
+    rel="stylesheet"
+    href="planned-maintenance.css?v=20260822-maintenance-v1"
+  >
+  <script
+    src="management-common.js?v=20260822-maintenance-v1"
+    defer
+  ></script>
+  <script
+    src="planned-maintenance.js?v=20260822-maintenance-v1"
+    defer
+  ></script>
+</head>
+<body>
+  <div class="management-shell">
+    <header class="management-header">
+      <div class="management-header__inner">
+        <div class="management-brand">
+          <div class="management-brand__mark">GS</div>
+          <div class="management-brand__text">
+            <strong id="plannedMaintenancePageTitle">
+              계획정비
+            </strong>
+            <span>
+              Logic 개선 · 작업필요사항
+            </span>
+          </div>
+        </div>
+
+        <div class="management-header__actions">
+          <button
+            type="button"
+            class="management-button"
+            id="plannedMaintenanceHomeButton"
+          >
+            업무일지
+          </button>
+
+          <button
+            type="button"
+            class="management-button"
+            id="plannedMaintenancePreviewButton"
+          >
+            PDF 미리보기
+          </button>
+
+          <button
+            type="button"
+            class="management-button is-primary"
+            id="plannedMaintenanceSaveButton"
+          >
+            저장
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="management-main">
+      <div
+        class="management-auth-warning"
+        id="plannedMaintenanceAuthWarning"
+        hidden
+      >
+        로그인 정보가 없습니다. GS Shift Log에서 로그인한 뒤 다시 열어 주세요.
+      </div>
+
+      <section class="management-panel">
+        <div class="management-toolbar">
+          <div class="management-toolbar__left">
+            <div
+              class="management-tabs"
+              aria-label="계획정비 구분"
+            >
+              <button
+                type="button"
+                class="management-tab"
+                data-planned-maintenance-view="logic"
+              >
+                Logic 개선
+              </button>
+
+              <button
+                type="button"
+                class="management-tab"
+                data-planned-maintenance-view="work"
+              >
+                작업필요사항
+              </button>
+            </div>
+
+            <div
+              class="management-tabs"
+              aria-label="호기 선택"
+            >
+              <button
+                type="button"
+                class="management-tab"
+                data-planned-maintenance-unit="1"
+              >
+                1호기
+              </button>
+
+              <button
+                type="button"
+                class="management-tab"
+                data-planned-maintenance-unit="2"
+              >
+                2호기
+              </button>
+            </div>
+
+            <label class="management-field">
+              <span>계획연도</span>
+              <select id="plannedMaintenanceYearSelect">
+                <option value="2026">2026</option>
+                <option value="2027" selected>2027</option>
+                <option value="2028">2028</option>
+                <option value="2029">2029</option>
+                <option value="2030">2030</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="management-toolbar__right">
+            <button
+              type="button"
+              class="management-button"
+              id="plannedMaintenanceReloadButton"
+            >
+              다시 불러오기
+            </button>
+
+            <button
+              type="button"
+              class="management-button is-primary"
+              id="plannedMaintenanceAddRowButton"
+            >
+              + 항목 추가
+            </button>
+          </div>
+        </div>
+
+        <div class="management-meta">
+          <span
+            class="management-status-dot"
+            id="plannedMaintenanceStatusDot"
+          ></span>
+
+          <strong id="plannedMaintenanceContextLabel">
+            2027년 · 1호기 · Logic 개선
+          </strong>
+
+          <span id="plannedMaintenanceStatusText">
+            불러오는 중
+          </span>
+
+          <span id="plannedMaintenanceModifierText"></span>
+        </div>
+
+        <div class="planned-maintenance-table-wrap">
+          <table
+            class="planned-maintenance-table"
+            id="plannedMaintenanceTable"
+          >
+            <thead id="plannedMaintenanceTableHead"></thead>
+            <tbody id="plannedMaintenanceTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div
+    class="management-toast"
+    id="managementToast"
+    hidden
+  ></div>
+</body>
+</html>

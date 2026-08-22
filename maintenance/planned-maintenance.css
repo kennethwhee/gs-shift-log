@@ -1,0 +1,205 @@
+.planned-maintenance-table-wrap {
+  width: 100%;
+  overflow: auto;
+}
+
+.planned-maintenance-table {
+  width: 100%;
+  min-width: 1480px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.planned-maintenance-table th,
+.planned-maintenance-table td {
+  border-right: 1px solid #aebbc8;
+  border-bottom: 1px solid #aebbc8;
+}
+
+.planned-maintenance-table th:first-child,
+.planned-maintenance-table td:first-child {
+  border-left: 1px solid #aebbc8;
+}
+
+.planned-maintenance-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  height: 42px;
+  padding: 7px 6px;
+  border-top: 1px solid #8da1b5;
+  background: #9fc5e6;
+  color: #203247;
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.planned-maintenance-table tbody td {
+  padding: 0;
+  background: #fff;
+  vertical-align: top;
+}
+
+.planned-maintenance-table tbody tr:hover td {
+  background: #fbfdff;
+}
+
+.planned-maintenance-table .pm-number-cell {
+  width: 54px;
+  padding: 10px 4px;
+  color: #40516a;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.planned-maintenance-table input,
+.planned-maintenance-table select,
+.planned-maintenance-table textarea {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #172235;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.planned-maintenance-table input,
+.planned-maintenance-table select {
+  min-height: 42px;
+  padding: 6px 8px;
+}
+
+.planned-maintenance-table textarea {
+  min-height: 64px;
+  padding: 8px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.planned-maintenance-table input:focus,
+.planned-maintenance-table select:focus,
+.planned-maintenance-table textarea:focus {
+  background: #fffdeb;
+  box-shadow: inset 0 0 0 2px #e4b83b;
+}
+
+.planned-maintenance-table .pm-row-delete-cell {
+  width: 54px;
+  padding: 8px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.pm-row-delete-button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #dfbaba;
+  border-radius: 7px;
+  background: #fff;
+  color: #b54242;
+  font-weight: 950;
+}
+
+.pm-row-delete-button:hover {
+  background: #fff2f2;
+}
+
+.planned-maintenance-table.is-logic col.pm-col-number {
+  width: 54px;
+}
+
+.planned-maintenance-table.is-logic col.pm-col-date {
+  width: 105px;
+}
+
+.planned-maintenance-table.is-logic col.pm-col-equipment {
+  width: 165px;
+}
+
+.planned-maintenance-table.is-logic col.pm-col-reason {
+  width: 330px;
+}
+
+.planned-maintenance-table.is-logic col.pm-col-target {
+  width: 160px;
+}
+
+.planned-maintenance-table.is-logic col.pm-col-progress {
+  width: 170px;
+}
+
+.planned-maintenance-table.is-logic col.pm-col-author {
+  width: 95px;
+}
+
+.planned-maintenance-table.is-logic col.pm-col-reply {
+  width: 180px;
+}
+
+.planned-maintenance-table.is-logic col.pm-col-remark {
+  width: 180px;
+}
+
+.planned-maintenance-table.is-logic col.pm-col-action {
+  width: 54px;
+}
+
+.planned-maintenance-table.is-work {
+  min-width: 1320px;
+}
+
+.planned-maintenance-table.is-work col.pm-col-number {
+  width: 54px;
+}
+
+.planned-maintenance-table.is-work col.pm-col-category {
+  width: 96px;
+}
+
+.planned-maintenance-table.is-work col.pm-col-equipment {
+  width: 165px;
+}
+
+.planned-maintenance-table.is-work col.pm-col-tag {
+  width: 155px;
+}
+
+.planned-maintenance-table.is-work col.pm-col-reason {
+  width: 360px;
+}
+
+.planned-maintenance-table.is-work col.pm-col-date {
+  width: 115px;
+}
+
+.planned-maintenance-table.is-work col.pm-col-progress {
+  width: 170px;
+}
+
+.planned-maintenance-table.is-work col.pm-col-author {
+  width: 95px;
+}
+
+.planned-maintenance-table.is-work col.pm-col-remark {
+  width: 190px;
+}
+
+.planned-maintenance-table.is-work col.pm-col-action {
+  width: 54px;
+}
+
+@media screen and (max-width: 760px) {
+  .planned-maintenance-table-wrap {
+    border-radius: 0 0 13px 13px;
+  }
+
+  .planned-maintenance-table thead th {
+    top: 0;
+  }
+}

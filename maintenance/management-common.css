@@ -1,0 +1,385 @@
+:root {
+  --mg-primary: #1f5fae;
+  --mg-primary-dark: #174b89;
+  --mg-bg: #eef3f8;
+  --mg-surface: #ffffff;
+  --mg-line: #d6e0ea;
+  --mg-line-dark: #aebdcb;
+  --mg-text: #172033;
+  --mg-soft: #627086;
+  --mg-danger: #c73d3d;
+  --mg-success: #17855a;
+  --mg-shadow: 0 14px 36px rgba(24, 44, 74, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--mg-bg);
+  color: var(--mg-text);
+  font-family:
+    Inter,
+    Pretendard,
+    "Noto Sans KR",
+    "Malgun Gothic",
+    sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.management-shell {
+  min-height: 100vh;
+}
+
+.management-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border-bottom: 1px solid var(--mg-line);
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(14px);
+}
+
+.management-header__inner {
+  display: flex;
+  width: min(calc(100% - 36px), 1540px);
+  min-height: 66px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 auto;
+}
+
+.management-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.management-brand__mark {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #1f5fae, #3d8bd4);
+  color: #fff;
+  font-weight: 950;
+}
+
+.management-brand__text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.management-brand__text strong {
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.management-brand__text span {
+  margin-top: 2px;
+  color: var(--mg-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.management-header__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.management-button {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border: 1px solid var(--mg-line-dark);
+  border-radius: 9px;
+  background: #fff;
+  color: #324156;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.management-button:hover {
+  background: #f4f8fc;
+}
+
+.management-button.is-primary {
+  border-color: var(--mg-primary);
+  background: var(--mg-primary);
+  color: #fff;
+}
+
+.management-button.is-primary:hover {
+  background: var(--mg-primary-dark);
+}
+
+.management-button.is-danger {
+  border-color: #e2b7b7;
+  color: var(--mg-danger);
+}
+
+.management-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.management-main {
+  width: min(calc(100% - 36px), 1540px);
+  margin: 0 auto;
+  padding: 24px 0 50px;
+}
+
+.management-panel {
+  border: 1px solid var(--mg-line);
+  border-radius: 16px;
+  background: var(--mg-surface);
+  box-shadow: var(--mg-shadow);
+}
+
+.management-panel + .management-panel {
+  margin-top: 16px;
+}
+
+.management-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--mg-line);
+}
+
+.management-toolbar__left,
+.management-toolbar__right {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.management-tabs {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #d9e3ed;
+  border-radius: 10px;
+  background: #f5f8fb;
+}
+
+.management-tab {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #67768a;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.management-tab.is-active {
+  background: #fff;
+  color: var(--mg-primary);
+  box-shadow: 0 2px 8px rgba(32, 69, 112, 0.1);
+}
+
+.management-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #526177;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.management-field select,
+.management-field input {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #c9d5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #1f2d40;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.management-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  border-bottom: 1px solid #edf1f5;
+  color: var(--mg-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.management-meta strong {
+  color: #314157;
+}
+
+.management-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9aa9b8;
+}
+
+.management-status-dot.is-dirty {
+  background: #e59f1c;
+}
+
+.management-status-dot.is-saved {
+  background: #20a26d;
+}
+
+.management-table-wrap {
+  width: 100%;
+  overflow: auto;
+}
+
+.management-empty {
+  padding: 56px 20px;
+  color: #7b899a;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.management-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1000;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 15px;
+  border: 1px solid #cbd8e4;
+  border-radius: 10px;
+  background: #fff;
+  color: #27374c;
+  box-shadow: 0 12px 30px rgba(26, 44, 69, 0.18);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.management-toast.is-error {
+  border-color: #e7b5b5;
+  color: #a72f2f;
+}
+
+.management-toast.is-success {
+  border-color: #b4ddcb;
+  color: #14734e;
+}
+
+.management-auth-warning {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid #edcaca;
+  border-radius: 10px;
+  background: #fff8f8;
+  color: #a13f3f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+@media screen and (max-width: 760px) {
+  .management-header__inner,
+  .management-main {
+    width: 100%;
+  }
+
+  .management-header__inner {
+    min-height: 58px;
+    padding: 0 10px;
+  }
+
+  .management-brand__mark {
+    width: 34px;
+    height: 34px;
+  }
+
+  .management-brand__text strong {
+    font-size: 14px;
+  }
+
+  .management-brand__text span {
+    display: none;
+  }
+
+  .management-header__actions {
+    gap: 5px;
+  }
+
+  .management-header__actions .management-button {
+    min-height: 34px;
+    padding: 0 9px;
+    font-size: 11px;
+  }
+
+  .management-main {
+    padding: 10px 10px 34px;
+  }
+
+  .management-panel {
+    border-radius: 13px;
+  }
+
+  .management-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 12px;
+  }
+
+  .management-toolbar__left,
+  .management-toolbar__right {
+    width: 100%;
+  }
+
+  .management-tabs {
+    flex: 1 1 auto;
+  }
+
+  .management-tab {
+    flex: 1 1 0;
+  }
+
+  .management-meta {
+    padding: 9px 12px;
+  }
+}

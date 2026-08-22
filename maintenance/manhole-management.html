@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+  <title>맨홀 개폐관리 - GS Shift Log</title>
+  <link
+    rel="stylesheet"
+    href="management-common.css?v=20260822-maintenance-v1"
+  >
+  <link
+    rel="stylesheet"
+    href="manhole-management.css?v=20260822-maintenance-v1"
+  >
+  <script
+    src="management-common.js?v=20260822-maintenance-v1"
+    defer
+  ></script>
+  <script
+    src="manhole-management.js?v=20260822-maintenance-v1"
+    defer
+  ></script>
+</head>
+<body>
+  <div class="management-shell">
+    <header class="management-header">
+      <div class="management-header__inner">
+        <div class="management-brand">
+          <div class="management-brand__mark">GS</div>
+          <div class="management-brand__text">
+            <strong>맨홀 개폐관리</strong>
+            <span>Boiler · SDA · Seal Pot &amp; FBHE</span>
+          </div>
+        </div>
+
+        <div class="management-header__actions">
+          <button
+            type="button"
+            class="management-button"
+            id="manholeHomeButton"
+          >
+            업무일지
+          </button>
+
+          <button
+            type="button"
+            class="management-button"
+            id="manholeReloadButton"
+          >
+            다시 불러오기
+          </button>
+
+          <button
+            type="button"
+            class="management-button is-primary"
+            id="manholeSaveButton"
+          >
+            저장
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="management-main">
+      <div
+        class="management-auth-warning"
+        id="manholeAuthWarning"
+        hidden
+      >
+        로그인 정보가 없습니다. GS Shift Log에서 로그인한 뒤 다시 열어 주세요.
+      </div>
+
+      <section class="management-panel">
+        <div class="management-toolbar">
+          <div class="management-toolbar__left">
+            <div
+              class="management-tabs"
+              aria-label="호기 선택"
+            >
+              <button
+                type="button"
+                class="management-tab is-active"
+                data-manhole-unit="1"
+              >
+                1호기
+              </button>
+
+              <button
+                type="button"
+                class="management-tab"
+                data-manhole-unit="2"
+              >
+                2호기
+              </button>
+            </div>
+
+            <strong class="manhole-unit-title" id="manholeUnitTitle">
+              1호기 보일러 맨홀 개방/폐쇄 추적 관리
+            </strong>
+          </div>
+
+          <div class="management-toolbar__right">
+            <span class="manhole-legend is-open">Open</span>
+            <span class="manhole-legend is-close">Close</span>
+          </div>
+        </div>
+
+        <div class="management-meta">
+          <span
+            class="management-status-dot"
+            id="manholeStatusDot"
+          ></span>
+          <strong id="manholeStatusText">불러오는 중</strong>
+          <span id="manholeModifierText"></span>
+        </div>
+
+        <div class="manhole-summary" id="manholeSummary">
+          <article>
+            <span>OPEN 총 개소</span>
+            <strong id="manholeOpenCount">0</strong>
+          </article>
+          <article>
+            <span>CLOSE 총 개소</span>
+            <strong id="manholeCloseCount">0</strong>
+          </article>
+          <article>
+            <span>미선택 개소</span>
+            <strong id="manholeUnknownCount">0</strong>
+          </article>
+        </div>
+
+        <div class="manhole-workspace">
+          <section class="manhole-schematic-panel">
+            <div class="manhole-section-heading">
+              <strong>설비 위치도</strong>
+              <span>각 번호에서 Open / Close를 선택합니다.</span>
+            </div>
+
+            <div
+              class="manhole-schematic"
+              id="manholeSchematic"
+            ></div>
+          </section>
+
+          <section class="manhole-list-panel">
+            <div class="manhole-section-heading">
+              <strong>개폐 관리 리스트</strong>
+              <span>상태 변경 시 개폐일자가 오늘 날짜로 자동 입력됩니다.</span>
+            </div>
+
+            <div class="manhole-table-wrap">
+              <table class="manhole-table">
+                <thead>
+                  <tr>
+                    <th>번호</th>
+                    <th>위치</th>
+                    <th>구역</th>
+                    <th>개소</th>
+                    <th>상태</th>
+                    <th>개폐일자</th>
+                    <th>비고</th>
+                  </tr>
+                </thead>
+                <tbody id="manholeTableBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div
+    class="management-toast"
+    id="managementToast"
+    hidden
+  ></div>
+</body>
+</html>

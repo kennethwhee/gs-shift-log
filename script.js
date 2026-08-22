@@ -79809,6 +79809,30 @@ function openFacilityNavigatorHome() {
 }
 
 
+function closePlannedMaintenanceHeaderSubmenu() {
+  const toggle =
+    document.getElementById(
+      "plannedMaintenanceHeaderButton"
+    );
+
+  const panel =
+    document.getElementById(
+      "plannedMaintenanceHeaderSubmenuPanel"
+    );
+
+  if (panel) {
+    panel.hidden = true;
+  }
+
+  if (toggle) {
+    toggle.setAttribute(
+      "aria-expanded",
+      "false"
+    );
+  }
+}
+
+
 function closeHeaderMoreMenu(
   options = {}
 ) {
@@ -79822,6 +79846,7 @@ function closeHeaderMoreMenu(
       "headerMoreDropdown"
     );
 
+  closePlannedMaintenanceHeaderSubmenu();
 
   if (
     !button ||
@@ -79830,9 +79855,7 @@ function closeHeaderMoreMenu(
     return;
   }
 
-
-  dropdown.hidden =
-    true;
+  dropdown.hidden = true;
 
   button.setAttribute(
     "aria-expanded",
@@ -79843,7 +79866,6 @@ function closeHeaderMoreMenu(
     "aria-label",
     "더보기 메뉴 열기"
   );
-
 
   if (
     options.restoreFocus ===
@@ -79893,6 +79915,21 @@ function initializeFacilityNavigatorHeaderMenu() {
       "plannedMaintenanceHeaderButton"
     );
 
+  const plannedMaintenancePanel =
+    document.getElementById(
+      "plannedMaintenanceHeaderSubmenuPanel"
+    );
+
+  const plannedMaintenanceLogicItem =
+    document.getElementById(
+      "plannedMaintenanceLogicHeaderButton"
+    );
+
+  const plannedMaintenanceWorkItem =
+    document.getElementById(
+      "plannedMaintenanceWorkHeaderButton"
+    );
+
   const manholeManagementItem =
     document.getElementById(
       "manholeManagementHeaderButton"
@@ -79902,7 +79939,6 @@ function initializeFacilityNavigatorHeaderMenu() {
     document.getElementById(
       "adminButton"
     );
-
 
   if (
     !menu ||
@@ -79915,23 +79951,9 @@ function initializeFacilityNavigatorHeaderMenu() {
     return;
   }
 
-
   menu.dataset.headerMoreBound =
     "true";
 
-
-  /*
-    PC / 모바일 공통 메뉴
-
-    네비게이터
-    계획정비
-    맨홀개폐관리
-    점검일지 (모바일)
-    관리자
-
-    관리자는 기존 권한 판정을 그대로 사용하고
-    항상 메뉴의 마지막에 둔다.
-  */
   function keepAdminMenuLast() {
     if (!adminButton) {
       return;
@@ -79949,6 +79971,33 @@ function initializeFacilityNavigatorHeaderMenu() {
     }
   }
 
+  function openHeaderManagementPage(
+    path,
+    windowName,
+    label
+  ) {
+    const targetWindow =
+      window.open(
+        path,
+        windowName
+      );
+
+    if (!targetWindow) {
+      showToast(
+        label + " 창이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요."
+      );
+      return;
+    }
+
+    try {
+      targetWindow.focus();
+    } catch (error) {
+      console.warn(
+        label + " 창 포커스 처리:",
+        error
+      );
+    }
+  }
 
   button.addEventListener(
     "click",
@@ -79963,6 +80012,10 @@ function initializeFacilityNavigatorHeaderMenu() {
 
       dropdown.hidden =
         !nextOpen;
+
+      if (!nextOpen) {
+        closePlannedMaintenanceHeaderSubmenu();
+      }
 
       button.setAttribute(
         "aria-expanded",
@@ -79980,7 +80033,6 @@ function initializeFacilityNavigatorHeaderMenu() {
     }
   );
 
-
   navigatorItem.addEventListener(
     "click",
     event => {
@@ -79992,8 +80044,34 @@ function initializeFacilityNavigatorHeaderMenu() {
     }
   );
 
-
   plannedMaintenanceItem?.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (!plannedMaintenancePanel) {
+        return;
+      }
+
+      const nextOpen =
+        plannedMaintenancePanel.hidden;
+
+      plannedMaintenancePanel.hidden =
+        !nextOpen;
+
+      plannedMaintenanceItem.setAttribute(
+        "aria-expanded",
+        nextOpen
+          ? "true"
+          : "false"
+      );
+
+      keepAdminMenuLast();
+    }
+  );
+
+  plannedMaintenanceLogicItem?.addEventListener(
     "click",
     event => {
       event.preventDefault();
@@ -80001,12 +80079,29 @@ function initializeFacilityNavigatorHeaderMenu() {
 
       closeHeaderMoreMenu();
 
-      showToast(
-        "계획정비 메뉴는 준비 중입니다."
+      openHeaderManagementPage(
+        "/maintenance/planned-maintenance.html?view=logic",
+        "GS_PLANNED_MAINTENANCE",
+        "계획정비 Logic 개선"
       );
     }
   );
 
+  plannedMaintenanceWorkItem?.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      closeHeaderMoreMenu();
+
+      openHeaderManagementPage(
+        "/maintenance/planned-maintenance.html?view=work",
+        "GS_PLANNED_MAINTENANCE",
+        "계획정비 작업필요사항"
+      );
+    }
+  );
 
   manholeManagementItem?.addEventListener(
     "click",
@@ -80016,12 +80111,13 @@ function initializeFacilityNavigatorHeaderMenu() {
 
       closeHeaderMoreMenu();
 
-      showToast(
-        "맨홀개폐관리 메뉴는 준비 중입니다."
+      openHeaderManagementPage(
+        "/maintenance/manhole-management.html",
+        "GS_MANHOLE_MANAGEMENT",
+        "맨홀개폐관리"
       );
     }
   );
-
 
   adminButton?.addEventListener(
     "click",
@@ -80029,7 +80125,6 @@ function initializeFacilityNavigatorHeaderMenu() {
       closeHeaderMoreMenu();
     }
   );
-
 
   document.addEventListener(
     "click",
@@ -80045,7 +80140,6 @@ function initializeFacilityNavigatorHeaderMenu() {
       closeHeaderMoreMenu();
     }
   );
-
 
   document.addEventListener(
     "keydown",
@@ -80064,7 +80158,6 @@ function initializeFacilityNavigatorHeaderMenu() {
       });
     }
   );
-
 
   keepAdminMenuLast();
   closeHeaderMoreMenu();
