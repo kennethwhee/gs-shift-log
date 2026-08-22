@@ -3129,3 +3129,33 @@ tr.is-open
   background:
     #ffffff !important;
 }
+
+/* =========================================================
+   MANHOLE_EXACT_ANCHOR_V22
+
+   Screenshot verification:
+   V21 +2% / +1.6% offset moved every gray Close marker
+   about one symbol-width to the right and downward.
+
+   The original --marker-x / --marker-y already points to
+   the source manhole symbol center.
+
+   V22:
+   - remove the extra percentage offset
+   - keep V21 size/state colors/list styling unchanged
+   - PNG / main files untouched
+========================================================= */
+
+.manhole-diagram-status-symbol {
+  left:
+    var(--marker-x) !important;
+
+  top:
+    var(--marker-y) !important;
+
+  transform:
+    translate(
+      -50%,
+      -50%
+    ) !important;
+}
