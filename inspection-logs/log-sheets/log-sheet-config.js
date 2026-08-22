@@ -427,8 +427,7 @@
       templateFile:
         TEMPLATE_ROOT +
         "field-log-sheet.xlsx",
-      templateSha256:
-        "548f04366e86bb44c057271f42c7975a33c781160a0a8f6c167a49bf0543f68c",
+      templateSha256: "fb5d65f850669fa5734366dc3f31fd91feb8260ba91000f4b75fc4d5969b1d75",
       sheets: [
         {
           key: "field-night-bo12",
@@ -571,8 +570,7 @@
       templateFile:
         TEMPLATE_ROOT +
         "field-log-sheet.xlsx",
-      templateSha256:
-        "548f04366e86bb44c057271f42c7975a33c781160a0a8f6c167a49bf0543f68c",
+      templateSha256: "fb5d65f850669fa5734366dc3f31fd91feb8260ba91000f4b75fc4d5969b1d75",
       sheets: [
         {
           key: "field-day-to",
@@ -655,8 +653,7 @@
       templateFile:
         TEMPLATE_ROOT +
         "field-log-sheet.xlsx",
-      templateSha256:
-        "548f04366e86bb44c057271f42c7975a33c781160a0a8f6c167a49bf0543f68c",
+      templateSha256: "fb5d65f850669fa5734366dc3f31fd91feb8260ba91000f4b75fc4d5969b1d75",
       sheets: [
         {
           key: "field-day-bo1",
@@ -739,8 +736,7 @@
       templateFile:
         TEMPLATE_ROOT +
         "field-log-sheet.xlsx",
-      templateSha256:
-        "548f04366e86bb44c057271f42c7975a33c781160a0a8f6c167a49bf0543f68c",
+      templateSha256: "fb5d65f850669fa5734366dc3f31fd91feb8260ba91000f4b75fc4d5969b1d75",
       sheets: [
         {
           key: "field-day-bo2",
@@ -820,8 +816,7 @@
       templateFile:
         TEMPLATE_ROOT +
         "electrical-log-sheet.xlsx",
-      templateSha256:
-        "9f9a5f359680bf376aba1c5ff79128750494569e94875555b6d62d7d321a3135",
+      templateSha256: "fb5d65f850669fa5734366dc3f31fd91feb8260ba91000f4b75fc4d5969b1d75",
       sheets: [
         {
           key: "electrical-main",
