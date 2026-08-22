@@ -763,3 +763,126 @@
     height: 1.5px;
   }
 }
+
+/* =========================================================
+   MANHOLE_STATUS_VISUAL_V8
+   - single clean outline
+   - open = yellow box + soft transparent yellow halo
+   - close = dark gray
+   - unselected = light gray
+========================================================= */
+
+/* 상태 표시 그룹 기준점 */
+[data-manhole-diagram-status-group] {
+  position: absolute;
+  isolation: isolate;
+}
+
+/* Open일 때만 주변에 투명 노란 halo */
+[data-manhole-diagram-status-group].is-open::before,
+[data-manhole-diagram-status-group][data-status="open"]::before,
+[data-manhole-diagram-status-group][data-manhole-status="open"]::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: rgba(255, 230, 70, 0.28);
+  border: 2px solid rgba(250, 204, 21, 0.52);
+  box-shadow: 0 0 0 2px rgba(255, 230, 70, 0.08);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* 실제 X 박스 본체:
+   윤곽선 하나만 남기고 이중선/그림자 제거 */
+[data-manhole-diagram-status-group] .manhole-diagram-status-marker,
+[data-manhole-diagram-status-group] .manhole-diagram-marker,
+[data-manhole-diagram-status-group] .manhole-status-marker,
+[data-manhole-diagram-status-group] > .manhole-diagram-status,
+[data-manhole-diagram-status-group] > div:first-child {
+  position: relative;
+  z-index: 1;
+  box-shadow: none !important;
+  filter: none !important;
+  outline: none !important;
+  border-radius: 2px !important;
+}
+
+/* 공통 외곽선 하나로 정리 */
+[data-manhole-diagram-status-group] .manhole-diagram-status-marker,
+[data-manhole-diagram-status-group] .manhole-diagram-marker,
+[data-manhole-diagram-status-group] .manhole-status-marker,
+[data-manhole-diagram-status-group] > .manhole-diagram-status,
+[data-manhole-diagram-status-group] > div:first-child {
+  border: 1px solid #4b5563 !important;
+}
+
+/* Open */
+[data-manhole-diagram-status-group].is-open .manhole-diagram-status-marker,
+[data-manhole-diagram-status-group].is-open .manhole-diagram-marker,
+[data-manhole-diagram-status-group].is-open .manhole-status-marker,
+[data-manhole-diagram-status-group].is-open > .manhole-diagram-status,
+[data-manhole-diagram-status-group].is-open > div:first-child,
+[data-manhole-diagram-status-group][data-status="open"] .manhole-diagram-status-marker,
+[data-manhole-diagram-status-group][data-status="open"] .manhole-diagram-marker,
+[data-manhole-diagram-status-group][data-status="open"] .manhole-status-marker,
+[data-manhole-diagram-status-group][data-status="open"] > .manhole-diagram-status,
+[data-manhole-diagram-status-group][data-status="open"] > div:first-child,
+[data-manhole-diagram-status-group][data-manhole-status="open"] .manhole-diagram-status-marker,
+[data-manhole-diagram-status-group][data-manhole-status="open"] .manhole-diagram-marker,
+[data-manhole-diagram-status-group][data-manhole-status="open"] .manhole-status-marker,
+[data-manhole-diagram-status-group][data-manhole-status="open"] > .manhole-diagram-status,
+[data-manhole-diagram-status-group][data-manhole-status="open"] > div:first-child {
+  background: #facc15 !important;
+  border-color: #374151 !important;
+}
+
+/* Close */
+[data-manhole-diagram-status-group].is-close .manhole-diagram-status-marker,
+[data-manhole-diagram-status-group].is-close .manhole-diagram-marker,
+[data-manhole-diagram-status-group].is-close .manhole-status-marker,
+[data-manhole-diagram-status-group].is-close > .manhole-diagram-status,
+[data-manhole-diagram-status-group].is-close > div:first-child,
+[data-manhole-diagram-status-group][data-status="close"] .manhole-diagram-status-marker,
+[data-manhole-diagram-status-group][data-status="close"] .manhole-diagram-marker,
+[data-manhole-diagram-status-group][data-status="close"] .manhole-status-marker,
+[data-manhole-diagram-status-group][data-status="close"] > .manhole-diagram-status,
+[data-manhole-diagram-status-group][data-status="close"] > div:first-child,
+[data-manhole-diagram-status-group][data-manhole-status="close"] .manhole-diagram-status-marker,
+[data-manhole-diagram-status-group][data-manhole-status="close"] .manhole-diagram-marker,
+[data-manhole-diagram-status-group][data-manhole-status="close"] .manhole-status-marker,
+[data-manhole-diagram-status-group][data-manhole-status="close"] > .manhole-diagram-status,
+[data-manhole-diagram-status-group][data-manhole-status="close"] > div:first-child {
+  background: #6b7280 !important;
+  border-color: #374151 !important;
+}
+
+/* 미선택 */
+[data-manhole-diagram-status-group].is-unselected .manhole-diagram-status-marker,
+[data-manhole-diagram-status-group].is-unselected .manhole-diagram-marker,
+[data-manhole-diagram-status-group].is-unselected .manhole-status-marker,
+[data-manhole-diagram-status-group].is-unselected > .manhole-diagram-status,
+[data-manhole-diagram-status-group].is-unselected > div:first-child,
+[data-manhole-diagram-status-group][data-status=""] .manhole-diagram-status-marker,
+[data-manhole-diagram-status-group][data-status=""] .manhole-diagram-marker,
+[data-manhole-diagram-status-group][data-status=""] .manhole-status-marker,
+[data-manhole-diagram-status-group][data-status=""] > .manhole-diagram-status,
+[data-manhole-diagram-status-group][data-status=""] > div:first-child {
+  background: #d1d5db !important;
+  border-color: #6b7280 !important;
+}
+
+/* X 라인은 또렷하게 */
+[data-manhole-diagram-status-group] svg line,
+[data-manhole-diagram-status-group] svg path,
+[data-manhole-diagram-status-group] .manhole-diagram-status-marker::before,
+[data-manhole-diagram-status-group] .manhole-diagram-status-marker::after,
+[data-manhole-diagram-status-group] .manhole-diagram-marker::before,
+[data-manhole-diagram-status-group] .manhole-diagram-marker::after {
+  stroke: #374151 !important;
+  color: #374151 !important;
+}
