@@ -1974,3 +1974,130 @@ td {
   background:
     #ffffff !important;
 }
+
+/* =========================================================
+   MANHOLE_ONE_SCREEN_FIT_V14
+
+   desktop-only vertical compaction
+   - keep left/right functionality
+   - preserve right internal scrolling
+   - reduce total page height slightly
+========================================================= */
+
+@media (min-width: 1200px) {
+
+  /* 좌우 카드 간 간격과 상단 여백을 소폭 축소 */
+  .manhole-grid,
+  .manhole-layout,
+  .manhole-content {
+    gap: 12px !important;
+    margin-top: 0 !important;
+  }
+
+  /* 카드 내부 상단/하단 여백 압축 */
+  .manhole-original-diagram,
+  .manhole-list-panel {
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+  }
+
+  /* 왼쪽 위치도 영역 전체를 아주 살짝 축소
+     - Chromium/Edge 기준 한 화면 맞춤용
+     - 내부 이미지/마커를 함께 축소 */
+  .manhole-original-diagram {
+    zoom: 0.94;
+  }
+
+  /* 오른쪽 목록도 세로 공간을 조금 더 줄임 */
+  .manhole-list-panel {
+    zoom: 0.96;
+  }
+
+  /* 안내문 / 상단 설명 줄 높이 압축 */
+  .manhole-original-diagram__notice,
+  .manhole-list-panel .panel-description,
+  .manhole-list-panel .manhole-panel-description {
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+    margin-bottom: 4px !important;
+  }
+
+  /* 오른쪽 표 header/body 높이 추가 압축 */
+  .manhole-list-panel
+  .manhole-table
+  thead
+  th {
+    height: 36px !important;
+    padding: 5px 4px !important;
+    font-size: 12.5px !important;
+    line-height: 1.1 !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  td {
+    height: 39px !important;
+    padding: 4px 4px !important;
+    font-size: 12.5px !important;
+    line-height: 1.1 !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  .manhole-group-row
+  td {
+    height: 30px !important;
+    padding: 5px 7px !important;
+    font-size: 12px !important;
+  }
+
+  /* 입력칸도 세로폭 약간 축소 */
+  .manhole-list-panel
+  .manhole-table
+  select,
+  .manhole-list-panel
+  .manhole-table
+  input {
+    height: 30px !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  select[data-manhole-status-select] {
+    font-size: 11.5px !important;
+    padding: 0 3px !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  input[type="date"] {
+    font-size: 10.5px !important;
+    letter-spacing: -0.45px !important;
+    padding: 0 2px !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  input[type="text"] {
+    font-size: 11.5px !important;
+    padding: 0 4px !important;
+  }
+
+  /* 위치 텍스트 조금 더 컴팩트 */
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  td:nth-child(2) {
+    font-size: 12px !important;
+    line-height: 1.05 !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  td:nth-child(3) {
+    font-size: 12px !important;
+    line-height: 1.05 !important;
+  }
+}
