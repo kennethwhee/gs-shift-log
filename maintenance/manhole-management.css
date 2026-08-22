@@ -886,3 +886,21 @@
   stroke: #374151 !important;
   color: #374151 !important;
 }
+
+/* =========================================================
+   MANHOLE_OPEN_HALO_SIZE_V9
+   - enlarge open halo significantly for better visibility
+========================================================= */
+
+[data-manhole-diagram-status-group].is-open::before,
+[data-manhole-diagram-status-group][data-status="open"]::before,
+[data-manhole-diagram-status-group][data-manhole-status="open"]::before {
+  width: 46px !important;
+  height: 46px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 230, 70, 0.30) !important;
+  border: 2px solid rgba(250, 204, 21, 0.58) !important;
+  box-shadow:
+    0 0 0 4px rgba(255, 230, 70, 0.12),
+    0 0 18px rgba(250, 204, 21, 0.18) !important;
+}
