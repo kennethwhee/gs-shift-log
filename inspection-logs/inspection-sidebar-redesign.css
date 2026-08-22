@@ -300,8 +300,7 @@
 }
 
 .inspection-nav-v2__submenu button::after,
-.inspection-nav-v2__sheet-menu button::after,
-.inspection-nav-v2__sheet-direct button::after {
+.inspection-nav-v2__sheet-menu button::after {
   position: absolute;
   top: 50%;
   right: 12px;
@@ -311,6 +310,27 @@
   border-bottom: 2px solid #8196aa;
   content: "";
   transform: translateY(-50%) rotate(-45deg);
+}
+
+/* =========================================================
+  [LOG-SHEET-DIRECT-NO-ARROW-V1]
+
+  하위메뉴가 없는 단일 Log Sheet:
+  - Elec. Log Sheet
+  - 고압 Aux BLR 제어실
+  - 고압 Aux BLR 현장
+
+  문서 아이콘(::before)은 유지하고
+  우측 이동 화살표(::after)만 제거한다.
+========================================================= */
+
+.inspection-nav-v2__sheet-direct
+> button::after {
+  display:
+    none !important;
+
+  content:
+    none !important;
 }
 
 .inspection-nav-v2__submenu button:hover,
