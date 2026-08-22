@@ -525,6 +525,7 @@ async function getAuthenticatedUser(
         SELECT
           session.employee_no,
           session.expires_at,
+          session.last_used_at,
 
           user.name,
           user.role,
@@ -600,19 +601,52 @@ async function getAuthenticatedUser(
           );
 
 
-  await context.env.DB
-    .prepare(`
-      UPDATE shift_log_sessions
+  /*
+    [D1-POLLING-OPT-V1]
 
-      SET last_used_at = ?
+    상태조회 요청마다 last_used_at을 쓰지 않는다.
+    인증 SELECT에서 이미 읽은 last_used_at을 이용해
+    5분 이상 지난 경우에만 실제 UPDATE를 수행한다.
 
-      WHERE token_hash = ?
-    `)
-    .bind(
-      now.toISOString(),
-      tokenHash
-    )
-    .run();
+    세션 만료 판단은 expires_at 기준이므로
+    오전회의 조회 속도/로그인 유효성에는 영향이 없다.
+  */
+  const previousLastUsedAt =
+    new Date(
+      session.last_used_at ||
+      0
+    );
+
+
+  const shouldRefreshLastUsedAt =
+    Number.isNaN(
+      previousLastUsedAt.getTime()
+    ) ||
+    (
+      now.getTime() -
+      previousLastUsedAt.getTime()
+    ) >=
+      5 *
+      60 *
+      1000;
+
+
+  if (
+    shouldRefreshLastUsedAt
+  ) {
+    await context.env.DB
+      .prepare(`
+        UPDATE shift_log_sessions
+
+        SET last_used_at = ?
+        WHERE token_hash = ?
+      `)
+      .bind(
+        now.toISOString(),
+        tokenHash
+      )
+      .run();
+  }
 
 
   return {
@@ -7125,6 +7159,71 @@ async function handleUserGet(
 }
 
 /* =========================================================
+  [D1-POLLING-OPT-V1]
+  OIS Queue polling 인덱스
+
+  Agent의 5초 polling 주기는 유지한다.
+  대신 status='pending' 후보를 찾을 때
+  과거 complete/failed 이력 전체를 훑지 않도록 한다.
+
+  Worker 인스턴스당 최초 1회만 IF NOT EXISTS 확인 후
+  같은 인스턴스에서는 resolved Promise를 재사용한다.
+========================================================= */
+
+let oisQueuePerformanceIndexPromise =
+  null;
+
+
+async function ensureOisQueuePerformanceIndexes(
+  database
+) {
+  if (
+    oisQueuePerformanceIndexPromise
+  ) {
+    return await oisQueuePerformanceIndexPromise;
+  }
+
+
+  oisQueuePerformanceIndexPromise =
+    database
+      .batch([
+        database.prepare(`
+          CREATE INDEX IF NOT EXISTS
+            idx_ois_data_requests_status_requested_v1
+
+          ON ois_data_requests (
+            status,
+            requested_at,
+            request_type,
+            id
+          )
+        `),
+
+        database.prepare(`
+          CREATE INDEX IF NOT EXISTS
+            idx_ois_data_requests_status_expires_v1
+
+          ON ois_data_requests (
+            status,
+            expires_at,
+            id
+          )
+        `)
+      ])
+      .catch(
+        error => {
+          oisQueuePerformanceIndexPromise =
+            null;
+
+          throw error;
+        }
+      );
+
+
+  return await oisQueuePerformanceIndexPromise;
+}
+
+/* =========================================================
   회사 PC가 다음 요청 가져오기
 
   지원 방식:
@@ -7160,7 +7259,7 @@ async function handleAgentNextRequest(
   }
 
 
-  await expireOldRequests(
+  await ensureOisQueuePerformanceIndexes(
     context.env.DB
   );
 
@@ -7208,6 +7307,10 @@ async function handleAgentNextRequest(
   const requestTypeOrderKey =
     `,${requestTypes.join(",")},`;
 
+  const pollingNow =
+    new Date()
+      .toISOString();
+
 
   /*
     동시에 여러 PC가 요청을 가져가더라도
@@ -7231,6 +7334,8 @@ async function handleAgentNextRequest(
           WHERE
             status = 'pending'
 
+            AND expires_at >= ?
+
             AND instr(
               ?,
               ',' || request_type || ','
@@ -7248,6 +7353,7 @@ async function handleAgentNextRequest(
           LIMIT 1
         `)
         .bind(
+          pollingNow,
           requestTypeOrderKey,
           requestTypeOrderKey
         )
@@ -7547,6 +7653,10 @@ async function findNextOisAgentLaneCandidates(
   const excelRequestTypeOrderKey =
     `,${excelRequestTypes.join(",")},`;
 
+  const pollingNow =
+    new Date()
+      .toISOString();
+
 
   /*
     OIS와 Excel 후보를 CTE 한 SELECT로 함께 찾는다.
@@ -7569,6 +7679,7 @@ async function findNextOisAgentLaneCandidates(
             WHERE
               ? = 1
               AND request.status = 'pending'
+              AND request.expires_at >= ?
 
               AND instr(
                 ?,
@@ -7598,6 +7709,7 @@ async function findNextOisAgentLaneCandidates(
             WHERE
               ? = 1
               AND request.status = 'pending'
+              AND request.expires_at >= ?
 
               AND instr(
                 ?,
@@ -7632,11 +7744,13 @@ async function findNextOisAgentLaneCandidates(
         includeOisLane
           ? 1
           : 0,
+        pollingNow,
         oisRequestTypeOrderKey,
         oisRequestTypeOrderKey,
         includeExcelLane
           ? 1
           : 0,
+        pollingNow,
         excelRequestTypeOrderKey,
         excelRequestTypeOrderKey
       )
@@ -7866,7 +7980,7 @@ async function handleAgentNextLaneRequests(
       .requestTypes;
 
 
-  await expireOldRequests(
+  await ensureOisQueuePerformanceIndexes(
     context.env.DB
   );
 
