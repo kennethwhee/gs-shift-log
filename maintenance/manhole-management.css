@@ -1454,3 +1454,523 @@ td {
   font-weight:
     850 !important;
 }
+
+/* =========================================================
+   MANHOLE_COMPACT_SCROLL_V13
+
+   RIGHT LIST ONLY
+
+   - use V10 synchronized card height
+   - vertical scroll only when rows exceed left-panel height
+   - fit all seven columns inside right panel
+   - keep note column visible
+   - Close row remains light gray
+========================================================= */
+
+
+/* =========================================================
+   Right panel height / scroll
+========================================================= */
+
+.manhole-list-panel {
+  display:
+    flex !important;
+
+  flex-direction:
+    column !important;
+
+  min-height:
+    0 !important;
+
+  overflow:
+    hidden !important;
+}
+
+
+.manhole-list-panel
+.manhole-table-wrap {
+  flex:
+    1 1 0 !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  min-height:
+    0 !important;
+
+  max-height:
+    none !important;
+
+  overflow-x:
+    hidden !important;
+
+  overflow-y:
+    auto !important;
+
+  scrollbar-gutter:
+    stable !important;
+
+  background:
+    #ffffff !important;
+}
+
+
+/* =========================================================
+   Compact table
+========================================================= */
+
+.manhole-list-panel
+.manhole-table {
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  max-width:
+    100% !important;
+
+  table-layout:
+    fixed !important;
+
+  border-collapse:
+    separate !important;
+
+  border-spacing:
+    0 !important;
+
+  font-size:
+    13px !important;
+}
+
+
+/* =========================================================
+   Header
+========================================================= */
+
+.manhole-list-panel
+.manhole-table
+thead
+th {
+  position:
+    sticky !important;
+
+  top:
+    0 !important;
+
+  z-index:
+    4 !important;
+
+  height:
+    40px !important;
+
+  padding:
+    6px 5px !important;
+
+  border-right:
+    1px solid
+    #d3dde8 !important;
+
+  border-bottom:
+    1px solid
+    #c5d1de !important;
+
+  background:
+    #edf3f8 !important;
+
+  color:
+    #17243a !important;
+
+  font-size:
+    13px !important;
+
+  font-weight:
+    800 !important;
+
+  line-height:
+    1.15 !important;
+
+  text-align:
+    center !important;
+
+  white-space:
+    nowrap !important;
+}
+
+
+/* =========================================================
+   Body rows
+========================================================= */
+
+.manhole-list-panel
+.manhole-table
+tbody
+td {
+  height:
+    43px !important;
+
+  padding:
+    5px 5px !important;
+
+  border-right:
+    1px solid
+    #dde5ed !important;
+
+  border-bottom:
+    1px solid
+    #dde5ed !important;
+
+  color:
+    #17243a !important;
+
+  font-size:
+    13px !important;
+
+  font-weight:
+    650 !important;
+
+  line-height:
+    1.15 !important;
+
+  vertical-align:
+    middle !important;
+
+  box-sizing:
+    border-box !important;
+}
+
+
+/* =========================================================
+   Seven-column compact balance
+========================================================= */
+
+/* 번호 */
+.manhole-list-panel
+.manhole-table
+th:nth-child(1),
+.manhole-list-panel
+.manhole-table
+td:nth-child(1) {
+  width:
+    8% !important;
+
+  min-width:
+    0 !important;
+
+  text-align:
+    center !important;
+}
+
+
+/* 위치 */
+.manhole-list-panel
+.manhole-table
+th:nth-child(2),
+.manhole-list-panel
+.manhole-table
+td:nth-child(2) {
+  width:
+    19% !important;
+
+  min-width:
+    0 !important;
+}
+
+
+/* 구역 */
+.manhole-list-panel
+.manhole-table
+th:nth-child(3),
+.manhole-list-panel
+.manhole-table
+td:nth-child(3) {
+  width:
+    13% !important;
+
+  min-width:
+    0 !important;
+}
+
+
+/* 개소 */
+.manhole-list-panel
+.manhole-table
+th:nth-child(4),
+.manhole-list-panel
+.manhole-table
+td:nth-child(4) {
+  width:
+    8% !important;
+
+  min-width:
+    0 !important;
+
+  text-align:
+    center !important;
+}
+
+
+/* 상태 */
+.manhole-list-panel
+.manhole-table
+th:nth-child(5),
+.manhole-list-panel
+.manhole-table
+td:nth-child(5) {
+  width:
+    14% !important;
+
+  min-width:
+    0 !important;
+}
+
+
+/* 개폐일자 */
+.manhole-list-panel
+.manhole-table
+th:nth-child(6),
+.manhole-list-panel
+.manhole-table
+td:nth-child(6) {
+  width:
+    19% !important;
+
+  min-width:
+    0 !important;
+}
+
+
+/* 비고 */
+.manhole-list-panel
+.manhole-table
+th:nth-child(7),
+.manhole-list-panel
+.manhole-table
+td:nth-child(7) {
+  width:
+    19% !important;
+
+  min-width:
+    0 !important;
+}
+
+
+/* =========================================================
+   Text fitting
+========================================================= */
+
+.manhole-list-panel
+.manhole-table
+tbody
+td:nth-child(2),
+.manhole-list-panel
+.manhole-table
+tbody
+td:nth-child(3) {
+  white-space:
+    normal !important;
+
+  word-break:
+    keep-all !important;
+
+  overflow-wrap:
+    break-word !important;
+
+  line-height:
+    1.1 !important;
+}
+
+
+/*
+  Very long location text gets slightly smaller
+  without shrinking the rest of the table.
+*/
+.manhole-list-panel
+.manhole-table
+tbody
+td:nth-child(2) {
+  font-size:
+    12.5px !important;
+}
+
+
+/* =========================================================
+   Inputs
+========================================================= */
+
+.manhole-list-panel
+.manhole-table
+select,
+.manhole-list-panel
+.manhole-table
+input {
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  max-width:
+    100% !important;
+
+  height:
+    32px !important;
+
+  box-sizing:
+    border-box !important;
+
+  margin:
+    0 !important;
+
+  border:
+    1px solid
+    #c7d3e0 !important;
+
+  border-radius:
+    6px !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #17243a !important;
+
+  font-weight:
+    700 !important;
+}
+
+
+/* 상태 */
+
+.manhole-list-panel
+.manhole-table
+select[data-manhole-status-select] {
+  min-width:
+    0 !important;
+
+  padding:
+    0 4px !important;
+
+  font-size:
+    12px !important;
+}
+
+
+/* 날짜 */
+
+.manhole-list-panel
+.manhole-table
+input[type="date"] {
+  min-width:
+    0 !important;
+
+  padding:
+    0 3px !important;
+
+  font-size:
+    11px !important;
+
+  font-weight:
+    700 !important;
+
+  letter-spacing:
+    -0.45px !important;
+}
+
+
+/* 비고 */
+
+.manhole-list-panel
+.manhole-table
+input[type="text"] {
+  min-width:
+    0 !important;
+
+  padding:
+    0 5px !important;
+
+  font-size:
+    12px !important;
+}
+
+
+/* =========================================================
+   Group rows
+========================================================= */
+
+.manhole-list-panel
+.manhole-table
+.manhole-group-row
+td {
+  height:
+    34px !important;
+
+  padding:
+    6px 8px !important;
+
+  background:
+    #f1f5f8 !important;
+
+  color:
+    #1d3554 !important;
+
+  font-size:
+    12.5px !important;
+
+  font-weight:
+    850 !important;
+}
+
+
+/* =========================================================
+   Close row
+========================================================= */
+
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+td {
+  background:
+    #edf0f3 !important;
+}
+
+
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close:hover
+td {
+  background:
+    #e1e6ea !important;
+}
+
+
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+select,
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+input {
+  background:
+    #f3f5f6 !important;
+}
+
+
+/* Open row stays clean */
+
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-open
+td {
+  background:
+    #ffffff !important;
+}
