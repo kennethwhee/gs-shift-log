@@ -2525,3 +2525,186 @@ tr.is-open [data-manhole-diagram-status-group] {
   box-shadow:
     0 0 0 6px rgba(243, 221, 28, 0.28) !important;
 }
+
+/* =========================================================
+   MANHOLE_RESTORE_HALO_ONLY_V18
+
+   - remove small square overlay markers
+   - use original manhole symbol only
+   - show status by transparent halo only
+   - open  = yellow transparent circle
+   - close = gray transparent circle
+   - unselected = no circle
+   - keep single bold black outline on diagram
+========================================================= */
+
+/* ---------------------------------------------------------
+   Diagram frame: single black outline only
+--------------------------------------------------------- */
+.manhole-original-diagram,
+.manhole-original-diagram__image,
+.manhole-original-diagram__canvas,
+.manhole-original-diagram__figure,
+.manhole-original-diagram__frame {
+  box-shadow: none !important;
+  background-image: none !important;
+}
+
+.manhole-original-diagram {
+  border: none !important;
+  outline: none !important;
+}
+
+.manhole-original-diagram__image {
+  border: none !important;
+  outline: 2px solid #111111 !important;
+  outline-offset: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+.manhole-original-diagram::before,
+.manhole-original-diagram::after,
+.manhole-original-diagram__image::after,
+.manhole-original-diagram__canvas::before,
+.manhole-original-diagram__canvas::after,
+.manhole-original-diagram__figure::before,
+.manhole-original-diagram__figure::after,
+.manhole-original-diagram__frame::before,
+.manhole-original-diagram__frame::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* ---------------------------------------------------------
+   Remove the small square overlay itself
+   Keep only a transparent circular halo
+--------------------------------------------------------- */
+[data-manhole-diagram-status],
+[data-manhole-diagram-status-group],
+.manhole-diagram-status,
+.manhole-diagram-status-group,
+.manhole-diagram-marker,
+.manhole-diagram-marker--single,
+.manhole-diagram-marker--group {
+  position: absolute !important;
+  width: 0 !important;
+  height: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  color: transparent !important;
+}
+
+/* hide any inner icon/image/svg/text */
+[data-manhole-diagram-status] *,
+[data-manhole-diagram-status-group] *,
+.manhole-diagram-status *,
+.manhole-diagram-status-group *,
+.manhole-diagram-marker *,
+.manhole-diagram-marker--single *,
+.manhole-diagram-marker--group * {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* no default pseudo */
+[data-manhole-diagram-status]::before,
+[data-manhole-diagram-status]::after,
+[data-manhole-diagram-status-group]::before,
+[data-manhole-diagram-status-group]::after,
+.manhole-diagram-status::before,
+.manhole-diagram-status::after,
+.manhole-diagram-status-group::before,
+.manhole-diagram-status-group::after,
+.manhole-diagram-marker::before,
+.manhole-diagram-marker::after,
+.manhole-diagram-marker--single::before,
+.manhole-diagram-marker--single::after,
+.manhole-diagram-marker--group::before,
+.manhole-diagram-marker--group::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* ---------------------------------------------------------
+   Halo only: no outline, transparent fill
+--------------------------------------------------------- */
+
+/* OPEN = yellow transparent circle */
+.is-open [data-manhole-diagram-status]::before,
+.is-open [data-manhole-diagram-status-group]::before,
+[data-manhole-diagram-status].is-open::before,
+[data-manhole-diagram-status-group].is-open::before,
+.manhole-diagram-status.is-open::before,
+.manhole-diagram-status-group.is-open::before,
+.manhole-diagram-marker.is-open::before,
+tr.is-open [data-manhole-diagram-status]::before,
+tr.is-open [data-manhole-diagram-status-group]::before {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  width: 28px !important;
+  height: 28px !important;
+  margin-left: -14px !important;
+  margin-top: -14px !important;
+  border: none !important;
+  outline: none !important;
+  border-radius: 999px !important;
+  background: rgba(243, 221, 28, 0.30) !important;
+  box-shadow: none !important;
+  pointer-events: none !important;
+}
+
+/* CLOSE = gray transparent circle */
+.is-close [data-manhole-diagram-status]::before,
+.is-close [data-manhole-diagram-status-group]::before,
+[data-manhole-diagram-status].is-close::before,
+[data-manhole-diagram-status-group].is-close::before,
+.manhole-diagram-status.is-close::before,
+.manhole-diagram-status-group.is-close::before,
+.manhole-diagram-marker.is-close::before,
+tr.is-close [data-manhole-diagram-status]::before,
+tr.is-close [data-manhole-diagram-status-group]::before {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  width: 28px !important;
+  height: 28px !important;
+  margin-left: -14px !important;
+  margin-top: -14px !important;
+  border: none !important;
+  outline: none !important;
+  border-radius: 999px !important;
+  background: rgba(107, 114, 128, 0.28) !important;
+  box-shadow: none !important;
+  pointer-events: none !important;
+}
+
+/* unselected = nothing */
+[data-manhole-diagram-status]:not(.is-open):not(.is-close)::before,
+[data-manhole-diagram-status-group]:not(.is-open):not(.is-close)::before,
+.manhole-diagram-status:not(.is-open):not(.is-close)::before,
+.manhole-diagram-status-group:not(.is-open):not(.is-close)::before,
+.manhole-diagram-marker:not(.is-open):not(.is-close)::before {
+  content: none !important;
+  display: none !important;
+}
+
+/* ---------------------------------------------------------
+   List styling keep compact and close-row background
+--------------------------------------------------------- */
+.manhole-table tbody tr.is-close td {
+  background: #eef1f4 !important;
+}
