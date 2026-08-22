@@ -1,14 +1,14 @@
 {
   "source": "OIS Daily Environment Log Direct API",
-  "sourceDate": "2026-06-26",
-  "collectedAt": "2026-08-19T08:21:40.179Z",
-  "rawWaterInflow": 7636,
-  "demiProduction": 1581,
-  "pureWaterUsage": 1480,
-  "rawWaterTankAmount": 3350.863,
-  "rawWaterTankRate": 83.772,
-  "filteredWaterTankAmount": 9701.37,
-  "filteredWaterTankRate": 88.194,
-  "demiWaterTankAmount": 5807.894,
-  "demiWaterTankRate": 96.798
+  "sourceDate": "2026-08-21",
+  "collectedAt": "2026-08-21T18:39:38.415Z",
+  "rawWaterInflow": 7475,
+  "demiProduction": 1915,
+  "pureWaterUsage": -60,
+  "rawWaterTankAmount": 2968.36,
+  "rawWaterTankRate": 74.209,
+  "filteredWaterTankAmount": 10251.07,
+  "filteredWaterTankRate": 93.192,
+  "demiWaterTankAmount": 5673.245,
+  "demiWaterTankRate": 94.554
 }
