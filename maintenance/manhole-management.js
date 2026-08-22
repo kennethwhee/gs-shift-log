@@ -445,6 +445,10 @@
       document.getElementById(
         "manholeDiagramHint"
       ),
+    diagramTitle:
+      document.getElementById(
+        "manholeDiagramTitle"
+      ),
     diagramImage:
       document.getElementById(
         "manholeDiagramImage"
@@ -662,22 +666,12 @@
   }
 
   function getDiagramMarkerClass(
-    row,
     point
   ) {
     const classes = [
-      "manhole-diagram-marker"
+      "manhole-diagram-marker",
+      "is-open"
     ];
-
-    if (row.status === "open") {
-      classes.push(
-        "is-open"
-      );
-    } else if (row.status === "close") {
-      classes.push(
-        "is-close"
-      );
-    }
 
     if (point?.ring === "inner") {
       classes.push(
@@ -688,6 +682,94 @@
     return classes.join(" ");
   }
 
+  function getDiagramNumberLabelEntries() {
+    const grouped =
+      new Map();
+
+    Object.entries(
+      DIAGRAM_MARKERS_BY_NO
+    ).forEach(
+      ([rawNo, points]) => {
+        const no =
+          Number(rawNo);
+
+        points.forEach(
+          point => {
+            const key =
+              `${point.x.toFixed(3)}:${point.y.toFixed(3)}`;
+
+            if (!grouped.has(key)) {
+              grouped.set(
+                key,
+                {
+                  x: point.x,
+                  y: point.y,
+                  numbers: []
+                }
+              );
+            }
+
+            grouped
+              .get(key)
+              .numbers
+              .push(no);
+          }
+        );
+      }
+    );
+
+    return Array.from(
+      grouped.values()
+    );
+  }
+
+
+  const DIAGRAM_NUMBER_LABELS =
+    getDiagramNumberLabelEntries();
+
+
+  function getDiagramNumberPosition(
+    item
+  ) {
+    let x =
+      item.x +
+      (item.x >= 86
+        ? -5.3
+        : 1.9);
+
+    let y =
+      item.y - 2.6;
+
+    if (item.y >= 89) {
+      y =
+        item.y - 4.2;
+    }
+
+    x =
+      Math.min(
+        96,
+        Math.max(
+          4,
+          x
+        )
+      );
+
+    y =
+      Math.min(
+        96,
+        Math.max(
+          5.2,
+          y
+        )
+      );
+
+    return {
+      x,
+      y
+    };
+  }
+
+
   function renderDiagramStatusMarkers() {
     if (!elements.diagramOverlay) {
       return;
@@ -695,9 +777,34 @@
 
     const html = [];
 
+    /*
+      번호는 상태와 관계없이 크게 표시한다.
+      같은 실제 맨홀을 공유하는 25/30 등의 번호는
+      하나의 라벨로 합쳐 표시한다.
+    */
+    DIAGRAM_NUMBER_LABELS.forEach(
+      item => {
+        const position =
+          getDiagramNumberPosition(
+            item
+          );
+
+        html.push(`
+          <span
+            class="manhole-diagram-number"
+            style="--number-x: ${position.x}%; --number-y: ${position.y}%;"
+          >${item.numbers.join("/")}</span>
+        `);
+      }
+    );
+
+    /*
+      도면에는 Open 상태만 빨간 원으로 표시한다.
+      Close / 미선택은 아무 원도 표시하지 않는다.
+    */
     state.rows.forEach(
       row => {
-        if (!row.status) {
+        if (row.status !== "open") {
           return;
         }
 
@@ -710,7 +817,7 @@
           (point, index) => {
             html.push(`
               <span
-                class="${getDiagramMarkerClass(row, point)}"
+                class="${getDiagramMarkerClass(point)}"
                 data-manhole-diagram-marker="${row.no}"
                 data-manhole-diagram-marker-index="${index}"
                 style="--marker-x: ${point.x}%; --marker-y: ${point.y}%;"
@@ -724,6 +831,7 @@
     elements.diagramOverlay.innerHTML =
       html.join("");
   }
+
 
   function setDiagramRowHighlight(
     no,
@@ -754,11 +862,16 @@
           : "1호기 원본 설비 위치도";
     }
 
+    if (elements.diagramTitle) {
+      elements.diagramTitle.textContent =
+        `${state.unit}호기 보일러 맨홀 개방/폐쇄 추적 관리 리스트`;
+    }
+
     if (elements.diagramHint) {
       elements.diagramHint.textContent =
         isUnit2
-          ? "1호기 원본 위치도 임시 복제본에 오른쪽 목록의 Open / Close 상태를 원으로 표시합니다."
-          : "오른쪽 목록에서 Open / Close를 바꾸면 해당 맨홀 주변 원의 색이 바뀝니다.";
+          ? "1호기 원본 위치도 임시 복제본입니다. Open만 빨간 원으로 표시하고 Close는 표시하지 않습니다."
+          : "오른쪽 목록에서 Open으로 바꾼 맨홀만 큰 빨간 원으로 표시합니다. Close는 도면에 표시하지 않습니다.";
     }
 
     if (elements.diagramImage) {

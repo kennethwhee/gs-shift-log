@@ -13,14 +13,14 @@
   >
   <link
     rel="stylesheet"
-    href="manhole-management.css?v=20260822-manhole-diagram-status-v3"
+    href="manhole-management.css?v=20260822-manhole-visual-status-v4"
   >
   <script
     src="management-common.js?v=20260822-maintenance-v1"
     defer
   ></script>
   <script
-    src="manhole-management.js?v=20260822-manhole-diagram-status-v3"
+    src="manhole-management.js?v=20260822-manhole-visual-status-v4"
     defer
   ></script>
 </head>
@@ -103,8 +103,8 @@
           </div>
 
           <div class="management-toolbar__right">
-            <span class="manhole-legend is-open">Open</span>
-            <span class="manhole-legend is-close">Close</span>
+            <span class="manhole-legend is-open">Open · 빨간 원</span>
+            <span class="manhole-legend is-close">Close · 도면 표시 없음</span>
           </div>
         </div>
 
@@ -144,6 +144,13 @@
               id="manholeSchematic"
             >
               <div class="manhole-original-diagram">
+                <div
+                  class="manhole-diagram-title"
+                  id="manholeDiagramTitle"
+                >
+                  1호기 보일러 맨홀 개방/폐쇄 추적 관리 리스트
+                </div>
+
                 <img
                   class="manhole-original-diagram__image"
                   id="manholeDiagramImage"
