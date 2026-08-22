@@ -2230,3 +2230,144 @@ td {
     line-height: 1.02 !important;
   }
 }
+
+/* =========================================================
+   MANHOLE_MARKER_SIMPLIFY_AND_SINGLE_OUTLINE_V16
+
+   - simplify manhole marker visuals
+   - remove strange overlay / shadow / frame effects
+   - keep single bold black outline only
+========================================================= */
+
+/* ---------------------------------------------------------
+   LEFT DIAGRAM: remove duplicated frames
+--------------------------------------------------------- */
+
+.manhole-original-diagram,
+.manhole-original-diagram__image,
+.manhole-original-diagram__canvas,
+.manhole-original-diagram__figure,
+.manhole-original-diagram__frame {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background-image: none !important;
+}
+
+/* Single clean outline only on the actual diagram holder */
+.manhole-original-diagram__image {
+  position: relative !important;
+  overflow: hidden !important;
+  border-radius: 0 !important;
+  outline: 2px solid #111111 !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Remove any extra pseudo border/frame */
+.manhole-original-diagram::before,
+.manhole-original-diagram::after,
+.manhole-original-diagram__image::before,
+.manhole-original-diagram__image::after,
+.manhole-original-diagram__canvas::before,
+.manhole-original-diagram__canvas::after,
+.manhole-original-diagram__figure::before,
+.manhole-original-diagram__figure::after,
+.manhole-original-diagram__frame::before,
+.manhole-original-diagram__frame::after {
+  content: none !important;
+  display: none !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* ---------------------------------------------------------
+   MANHOLE MARKERS: simplify appearance
+--------------------------------------------------------- */
+
+/* base marker containers */
+[data-manhole-diagram-status],
+[data-manhole-diagram-status-group],
+.manhole-diagram-status,
+.manhole-diagram-status-group,
+.manhole-diagram-marker,
+.manhole-diagram-marker--single,
+.manhole-diagram-marker--group {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+  background-image: none !important;
+  text-shadow: none !important;
+}
+
+/* remove weird overlaid image effect if icon element exists */
+[data-manhole-diagram-status] img,
+[data-manhole-diagram-status-group] img,
+.manhole-diagram-status img,
+.manhole-diagram-status-group img,
+.manhole-diagram-marker img,
+.manhole-diagram-marker svg,
+.manhole-diagram-status svg,
+.manhole-diagram-status-group svg {
+  filter: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  border: none !important;
+  image-rendering: auto !important;
+}
+
+/* if state marker tile exists, force simple flat shape */
+[data-manhole-diagram-status],
+[data-manhole-diagram-status-group],
+.manhole-diagram-status,
+.manhole-diagram-status-group {
+  border-radius: 0 !important;
+  background-color: transparent !important;
+}
+
+/* If the marker uses status classes, keep simple flat styling */
+.is-open [data-manhole-diagram-status],
+.is-open [data-manhole-diagram-status-group],
+[data-manhole-diagram-status].is-open,
+[data-manhole-diagram-status-group].is-open,
+.manhole-diagram-status.is-open,
+.manhole-diagram-status-group.is-open {
+  box-shadow: none !important;
+}
+
+.is-close [data-manhole-diagram-status],
+.is-close [data-manhole-diagram-status-group],
+[data-manhole-diagram-status].is-close,
+[data-manhole-diagram-status-group].is-close,
+.manhole-diagram-status.is-close,
+.manhole-diagram-status-group.is-close {
+  box-shadow: none !important;
+}
+
+/* ---------------------------------------------------------
+   Desktop one-screen fit should remain,
+   but without any diagram/frame distortion
+--------------------------------------------------------- */
+@media (min-width: 1200px) {
+  .manhole-original-diagram {
+    zoom: 1 !important;
+  }
+
+  .manhole-original-diagram__image {
+    zoom: 1 !important;
+  }
+
+  .manhole-original-diagram,
+  .manhole-list-panel {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+
+  .manhole-grid,
+  .manhole-layout,
+  .manhole-content {
+    gap: 8px !important;
+  }
+}
