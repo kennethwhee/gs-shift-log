@@ -3965,3 +3965,184 @@ tr.is-close
 input {
   background: #f0f2f4 !important;
 }
+
+/* =========================================================
+   MANHOLE_ORIGINAL_REFERENCE_EXACT_V27
+
+   - exact user original reference artwork
+   - only yellow source manhole symbols removed
+   - live marker uses the exact original symbol center
+   - preserve 703:622 source ratio
+   - artwork and overlay always share one coordinate plane
+========================================================= */
+
+.manhole-original-diagram {
+  position: relative !important;
+
+  width: 100% !important;
+  height: auto !important;
+
+  aspect-ratio:
+    703 / 622 !important;
+
+  min-height: 0 !important;
+  max-height: none !important;
+
+  background:
+    #ffffff
+    url("manhole-unit1-diagram-clean-v27.png?v=20260823-original-exact-v27")
+    center
+    / 100% 100%
+    no-repeat !important;
+
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+
+  overflow: hidden !important;
+}
+
+
+/*
+  Existing img is no longer the visual source.
+  It is pinned to the same exact aspect-ratio box only.
+*/
+.manhole-original-diagram__image {
+  position: absolute !important;
+  inset: 0 !important;
+
+  width: 100% !important;
+  height: 100% !important;
+
+  opacity: 0 !important;
+  visibility: hidden !important;
+
+  object-fit: fill !important;
+
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+
+  pointer-events: none !important;
+}
+
+
+/* Overlay and artwork use exactly the same 703:622 box. */
+.manhole-diagram-overlay {
+  position: absolute !important;
+  inset: 0 !important;
+
+  width: 100% !important;
+  height: 100% !important;
+
+  pointer-events: none !important;
+}
+
+
+/*
+  Original source symbol size is about 19x11 on 703x622.
+  Use proportional dimensions so it stays aligned when scaled.
+*/
+.manhole-diagram-status-symbol {
+  width: 2.80% !important;
+  height: 1.85% !important;
+
+  min-width: 15px !important;
+  min-height: 9px !important;
+
+  max-width: 24px !important;
+  max-height: 15px !important;
+
+  transform:
+    translate(
+      -50%,
+      -50%
+    ) !important;
+
+  box-sizing:
+    border-box !important;
+
+  border:
+    1.5px solid
+    #111111 !important;
+
+  border-radius:
+    1px !important;
+
+  z-index:
+    8 !important;
+}
+
+
+/* Default / Close = gray closed manhole. */
+.manhole-diagram-status-symbol,
+.manhole-diagram-status-symbol.is-close,
+.manhole-diagram-status-symbol.is-unknown {
+  background:
+    #6f7782 !important;
+
+  border-color:
+    #111111 !important;
+}
+
+
+/* Open = yellow manhole. */
+.manhole-diagram-status-symbol.is-open {
+  background:
+    #f5dc16 !important;
+
+  border-color:
+    #111111 !important;
+}
+
+
+/* Open halo only. */
+.manhole-diagram-status-symbol.is-open::before,
+.manhole-diagram-status-symbol.is-mixed::before {
+  width: 50px !important;
+  height: 50px !important;
+
+  border: 0 !important;
+  outline: 0 !important;
+
+  background:
+    rgba(
+      250,
+      204,
+      21,
+      0.26
+    ) !important;
+}
+
+
+/* V27 artwork already contains every red number. */
+.manhole-diagram-status-symbol::after {
+  content: none !important;
+  display: none !important;
+}
+
+
+/* Keep the right-side Close row visual. */
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+> td {
+  background:
+    #e8ebef !important;
+}
+
+
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+select,
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+input {
+  background:
+    #f0f2f4 !important;
+}
