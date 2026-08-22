@@ -23,7 +23,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260822-search-shift-quick1"
+    href="style.css?v=20260822-search-shift-quick2"
   >
 
 
@@ -1873,9 +1873,37 @@
       "
     >
 
-      <span class="form-field__label">
-        근무
-      </span>
+      <div class="search-shift-field__header">
+
+        <span class="form-field__label">
+          근무
+        </span>
+
+        <select
+          id="searchLegacyShift"
+          class="search-shift-legacy-select"
+          aria-label="구 3교대 조회"
+        >
+
+          <option value="">
+            구 3교대
+          </option>
+
+          <option value="D">
+            D (주간)
+          </option>
+
+          <option value="A">
+            A (오후)
+          </option>
+
+          <option value="N">
+            N (야간)
+          </option>
+
+        </select>
+
+      </div>
 
 
       <!-- 실제 검색 조건값 저장용 -->
@@ -1960,33 +1988,7 @@
 
       </div>
 
-
-      <select
-        id="searchLegacyShift"
-        class="search-shift-legacy-select"
-        aria-label="구 3교대 조회"
-      >
-
-        <option value="">
-          구 3교대 조회
-        </option>
-
-        <option value="D">
-          D (주간)
-        </option>
-
-        <option value="A">
-          A (오후)
-        </option>
-
-        <option value="N">
-          N (야간)
-        </option>
-
-      </select>
-
     </div>
-
 
     <!-- 보직 -->
     <label

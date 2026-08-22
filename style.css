@@ -45608,8 +45608,17 @@ button {
 
 
   /* =========================================================
-  SEARCH SHIFT QUICK SELECT V1
+  SEARCH SHIFT QUICK SELECT V2
+
+  현행:
+  전체 | D/S | N/S
+
+  과거:
+  근무 제목 오른쪽 작은 구 3교대 메뉴
 ========================================================= */
+
+
+/* 실제 검색값 저장용 */
 
 #searchView
 .search-form-layout--compact
@@ -45618,182 +45627,449 @@ button {
 }
 
 
+/* =========================================================
+  근무 영역
+========================================================= */
+
 #searchView
 .search-shift-field {
-  gap: 5px !important;
+  gap:
+    5px !important;
 }
 
 
-#searchView
-.search-shift-quick-buttons {
-  display: grid;
-
-  grid-template-columns:
-    52px
-    minmax(0, 1fr)
-    minmax(0, 1fr);
-
-  width: 100%;
-  min-width: 0;
-
-  gap: 6px;
-}
-
+/* 근무              구 3교대 */
 
 #searchView
-.search-shift-quick-button {
-  display: inline-flex;
+.search-shift-field__header {
+  display:
+    flex !important;
 
-  width: 100%;
-  min-width: 0;
+  width:
+    100% !important;
 
-  height: 42px;
-  min-height: 42px;
+  min-width:
+    0 !important;
 
-  align-items: center;
-  justify-content: center;
+  height:
+    18px !important;
 
-  margin: 0;
-  padding: 0 7px;
+  min-height:
+    18px !important;
 
-  border: 1px solid #b9c9da;
-  border-radius: 8px;
+  align-items:
+    center !important;
 
-  background: #ffffff;
-  color: #43546a;
+  justify-content:
+    space-between !important;
 
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 850;
-  line-height: 1;
+  gap:
+    6px !important;
 
-  white-space: nowrap;
-
-  cursor: pointer;
-}
-
-
-#searchView
-.search-shift-quick-button.is-current {
-  color: #173d69;
-
-  font-size: 16px;
-  font-weight: 950;
-}
-
-
-#searchView
-.search-shift-quick-button:hover {
-  border-color: #74a0cf;
-
-  background: #f3f7fc;
-  color: #1f5fae;
-}
-
-
-#searchView
-.search-shift-quick-button.is-all.is-active {
-  border-color: #9bbbe0;
-
-  background: #edf4fc;
-  color: #1f5fae;
-}
-
-
-#searchView
-.search-shift-quick-button.is-current.is-active {
-  border-color: #2469b3;
-
-  background: #2469b3;
-  color: #ffffff;
-
-  box-shadow:
-    0 4px 10px
-    rgba(
-      36,
-      105,
-      179,
-      0.18
-    );
-}
-
-
-/* 구 3교대 전용 */
-
-#searchView
-.search-shift-field
-#searchLegacyShift {
-  display: block !important;
-
-  width: 100% !important;
-  min-width: 0 !important;
-
-  height: 32px !important;
-  min-height: 32px !important;
-  max-height: 32px !important;
-
-  margin: 0 !important;
+  margin:
+    0 !important;
 
   padding:
     0
-    28px
-    0
-    10px !important;
-
-  border:
-    1px solid
-    #d2dae4 !important;
-
-  border-radius:
-    7px !important;
-
-  background:
-    #f6f7f9 !important;
-
-  color:
-    #828d9a !important;
-
-  font-size:
-    10px !important;
-
-  font-weight:
-    750 !important;
+    1px !important;
 }
 
 
 #searchView
-.search-shift-field
+.search-shift-field__header
+.form-field__label {
+  flex:
+    0 0 auto !important;
+
+  min-height:
+    0 !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+}
+
+
+/* =========================================================
+  구 3교대
+
+  평소에는 눈에 띄지 않는 보조 기능
+========================================================= */
+
+#searchView
+.search-shift-field__header
+#searchLegacyShift {
+  display:
+    block !important;
+
+  flex:
+    0 0 88px !important;
+
+  width:
+    88px !important;
+
+  min-width:
+    88px !important;
+
+  max-width:
+    88px !important;
+
+  height:
+    18px !important;
+
+  min-height:
+    18px !important;
+
+  max-height:
+    18px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0
+    18px
+    0
+    7px !important;
+
+  border:
+    1px solid
+    #d4dce5 !important;
+
+  border-radius:
+    999px !important;
+
+  background:
+    #f7f8fa !important;
+
+  color:
+    #87919e !important;
+
+  font-family:
+    inherit !important;
+
+  font-size:
+    8px !important;
+
+  font-weight:
+    800 !important;
+
+  line-height:
+    1 !important;
+
+  cursor:
+    pointer !important;
+}
+
+
+/* 과거 근무가 실제 선택됐을 때만 강조 */
+
+#searchView
+.search-shift-field__header
 #searchLegacyShift.has-value {
   border-color:
-    #9db0c4 !important;
+    #dfc785 !important;
 
+  background:
+    #fff8e8 !important;
+
+  color:
+    #8d6517 !important;
+}
+
+
+/* =========================================================
+  전체 / D/S / N/S
+
+  하나의 세그먼트 컨트롤처럼 표시
+========================================================= */
+
+#searchView
+.search-shift-quick-buttons {
+  box-sizing:
+    border-box !important;
+
+  display:
+    grid !important;
+
+  grid-template-columns:
+    50px
+    minmax(
+      0,
+      1fr
+    )
+    minmax(
+      0,
+      1fr
+    ) !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  height:
+    42px !important;
+
+  min-height:
+    42px !important;
+
+  gap:
+    3px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    3px !important;
+
+  border:
+    1px solid
+    #c8d4e1 !important;
+
+  border-radius:
+    9px !important;
+
+  background:
+    #f3f6f9 !important;
+
+  box-shadow:
+    inset
+    0
+    1px
+    2px
+    rgba(
+      15,
+      23,
+      42,
+      0.025
+    ) !important;
+}
+
+
+/* 공통 */
+
+#searchView
+.search-shift-quick-button {
+  display:
+    inline-flex !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  height:
+    34px !important;
+
+  min-height:
+    34px !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    center !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0
+    6px !important;
+
+  border:
+    0 !important;
+
+  border-radius:
+    6px !important;
+
+  background:
+    transparent !important;
+
+  color:
+    #687789 !important;
+
+  font-family:
+    inherit !important;
+
+  font-size:
+    11px !important;
+
+  font-weight:
+    850 !important;
+
+  line-height:
+    1 !important;
+
+  white-space:
+    nowrap !important;
+
+  box-shadow:
+    none !important;
+
+  cursor:
+    pointer !important;
+
+  transition:
+    background 0.14s ease,
+    color 0.14s ease,
+    box-shadow 0.14s ease !important;
+}
+
+
+/* D/S · N/S */
+
+#searchView
+.search-shift-quick-button.is-current {
+  color:
+    #203d5e !important;
+
+  font-size:
+    15px !important;
+
+  font-weight:
+    950 !important;
+
+  letter-spacing:
+    0.01em !important;
+}
+
+
+/* hover */
+
+#searchView
+.search-shift-quick-button:hover {
   background:
     #ffffff !important;
 
   color:
-    #42556d !important;
-
-  font-weight:
-    850 !important;
+    #1f5fae !important;
 }
 
 
-@media screen and (min-width: 769px) {
+/* 전체 선택 */
+
+#searchView
+.search-shift-quick-button.is-all.is-active {
+  background:
+    #ffffff !important;
+
+  color:
+    #315e8e !important;
+
+  box-shadow:
+    0
+    1px
+    4px
+    rgba(
+      40,
+      66,
+      96,
+      0.12
+    ) !important;
+}
+
+
+/* D/S 또는 N/S 선택 */
+
+#searchView
+.search-shift-quick-button.is-current.is-active {
+  background:
+    #2868ad !important;
+
+  color:
+    #ffffff !important;
+
+  box-shadow:
+    0
+    2px
+    7px
+    rgba(
+      32,
+      91,
+      153,
+      0.25
+    ) !important;
+}
+
+
+/* =========================================================
+  모바일
+========================================================= */
+
+@media screen and (max-width: 768px) {
 
   #searchView
-  .search-form-layout--compact {
-    align-items:
-      start !important;
+  .search-shift-field__header {
+    height:
+      17px !important;
+
+    min-height:
+      17px !important;
   }
 
 
   #searchView
-  .search-form__actions--compact {
-    align-self:
-      start !important;
+  .search-shift-field__header
+  #searchLegacyShift {
+    flex-basis:
+      84px !important;
 
-    margin-top:
-      19px !important;
+    width:
+      84px !important;
+
+    min-width:
+      84px !important;
+
+    max-width:
+      84px !important;
+
+    height:
+      17px !important;
+
+    min-height:
+      17px !important;
+
+    max-height:
+      17px !important;
+
+    font-size:
+      7.5px !important;
+  }
+
+
+  #searchView
+  .search-shift-quick-buttons {
+    height:
+      38px !important;
+
+    min-height:
+      38px !important;
+  }
+
+
+  #searchView
+  .search-shift-quick-button {
+    height:
+      30px !important;
+
+    min-height:
+      30px !important;
+
+    font-size:
+      10px !important;
+  }
+
+
+  #searchView
+  .search-shift-quick-button.is-current {
+    font-size:
+      14px !important;
   }
 }
 
