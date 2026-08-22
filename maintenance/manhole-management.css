@@ -3186,3 +3186,187 @@ tr.is-open
   width: 56px !important;
   height: 56px !important;
 }
+
+/* =========================================================
+   MANHOLE_CLEAN_BASE_DIAGRAM_V24
+
+   - clean artwork contains no source yellow manhole symbols
+   - live status symbols are the only manhole graphics
+   - no PNG title / no duplicate header line
+   - keep right-side Close row styling
+   - do not touch main index/style/script
+========================================================= */
+
+/*
+  Keep the existing diagram holder dimensions.
+  The clean artwork and status overlay are stretched by the same
+  holder, so percentage anchors stay aligned at every desktop size.
+*/
+.manhole-original-diagram {
+  position: relative !important;
+
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+
+  background:
+    #ffffff
+    url("manhole-unit1-diagram-clean-v24.png?v=20260823-clean-v24")
+    center
+    / 100% 100%
+    no-repeat !important;
+
+  overflow: hidden !important;
+}
+
+
+/* Old source PNG remains in DOM only as a sizing/fallback element. */
+.manhole-original-diagram__image {
+  width: 100% !important;
+  height: 100% !important;
+
+  opacity: 0 !important;
+  visibility: hidden !important;
+
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+
+  object-fit: fill !important;
+
+  pointer-events: none !important;
+}
+
+
+/* Remove the duplicated title / old image frame. */
+.manhole-diagram-title,
+.manhole-diagram-title-overlay {
+  display: none !important;
+}
+
+
+.manhole-original-diagram::before,
+.manhole-original-diagram::after,
+.manhole-original-diagram__image::before,
+.manhole-original-diagram__image::after {
+  content: none !important;
+  display: none !important;
+}
+
+
+/* Status layer must use the exact same box as the clean artwork. */
+.manhole-diagram-overlay {
+  position: absolute !important;
+  inset: 0 !important;
+
+  width: 100% !important;
+  height: 100% !important;
+
+  pointer-events: none !important;
+}
+
+
+/*
+  With the source yellow symbols removed, a slightly smaller
+  live manhole body is cleaner and no longer needs to cover an
+  underlying icon.
+*/
+.manhole-diagram-status-symbol {
+  width: 24px !important;
+  height: 14px !important;
+
+  min-width: 24px !important;
+  min-height: 14px !important;
+
+  box-sizing: border-box !important;
+
+  border: 1.5px solid #171717 !important;
+  border-radius: 1px !important;
+
+  transform: translate(-50%, -50%) !important;
+}
+
+
+/* Default / Close = solid dark gray closed manhole. */
+.manhole-diagram-status-symbol,
+.manhole-diagram-status-symbol.is-close,
+.manhole-diagram-status-symbol.is-unknown {
+  background: #6f7782 !important;
+  border-color: #171717 !important;
+}
+
+
+/* Open = yellow manhole + borderless translucent halo. */
+.manhole-diagram-status-symbol.is-open {
+  background: #f5dc16 !important;
+  border-color: #171717 !important;
+}
+
+
+.manhole-diagram-status-symbol.is-open::before,
+.manhole-diagram-status-symbol.is-mixed::before {
+  width: 50px !important;
+  height: 50px !important;
+}
+
+
+/*
+  The approved clean artwork has every red number except 15.
+  Supply only that one label from the live overlay.
+*/
+.manhole-diagram-status-symbol[
+  data-manhole-diagram-status-group="15"
+]::after {
+  content: "15" !important;
+  display: block !important;
+
+  position: absolute !important;
+
+  left: 31px !important;
+  top: 50% !important;
+
+  transform: translateY(-50%) !important;
+
+  color: #ff1616 !important;
+
+  font-family:
+    Arial,
+    "Malgun Gothic",
+    sans-serif !important;
+
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+
+  white-space: nowrap !important;
+
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+
+  visibility: visible !important;
+}
+
+
+/* Keep Close row background clearly visible in the list. */
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+> td {
+  background: #e8ebef !important;
+}
+
+
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+select,
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+input {
+  background: #f0f2f4 !important;
+}
