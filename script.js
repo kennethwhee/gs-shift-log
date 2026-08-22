@@ -53233,8 +53233,34 @@ if (
 
           /*
             근무
+
+            현교대:
+            전체 / D/S / N/S
+
+            구교대:
+            전체 / D / A / N
           */
           if (
+            shift ===
+              "LEGACY_ALL"
+          ) {
+            /*
+              구교대 전체는
+              D / A / N만 조회한다.
+            */
+            if (
+              ![
+                "D",
+                "A",
+                "N"
+              ].includes(
+                logShift
+              )
+            ) {
+              return false;
+            }
+
+          } else if (
             shift &&
             logShift !==
               shift
@@ -209240,15 +209266,22 @@ function renderTeamApprovalCard(
 
 function initializeOisLegacyShiftOptions() {
   /*
-    [SEARCH-SHIFT-SIMPLE-V4]
+    [SEARCH-SHIFT-EXCLUSIVE-V5]
 
-    화면에 보이는 현재 근무:
+    현교대와 구교대는
+    동시에 선택되지 않는다.
+
+    기본:
+    현교대 전체
+
+    현교대:
     전체 / D/S / N/S
 
-    과거 구교대:
-    작은 "구교대" 버튼 안에 D / A / N을 숨긴다.
+    구교대:
+    전체 / D / A / N
 
-    실제 검색값은 기존 #searchShift가 계속 담당한다.
+    구교대 전체는
+    LEGACY_ALL 내부값을 사용한다.
   */
 
   const shiftSelect =
@@ -209301,12 +209334,42 @@ function initializeOisLegacyShiftOptions() {
   }
 
 
+  /*
+    실제 조회 select에
+    구교대 전체 전용값 추가.
+  */
+  if (
+    !shiftSelect.querySelector(
+      'option[value="LEGACY_ALL"]'
+    )
+  ) {
+    const option =
+      document.createElement(
+        "option"
+      );
+
+
+    option.value =
+      "LEGACY_ALL";
+
+
+    option.textContent =
+      "구교대 전체";
+
+
+    shiftSelect.appendChild(
+      option
+    );
+  }
+
+
   const allowedValues =
     new Set(
       [
         "",
         "DS",
         "NS",
+        "LEGACY_ALL",
         "D",
         "A",
         "N"
@@ -209327,6 +209390,7 @@ function initializeOisLegacyShiftOptions() {
   const legacyValues =
     new Set(
       [
+        "LEGACY_ALL",
         "D",
         "A",
         "N"
@@ -209354,6 +209418,29 @@ function initializeOisLegacyShiftOptions() {
   }
 
 
+  function getLegacyButtonValue(
+    button
+  ) {
+    const rawValue =
+      String(
+        button?.dataset
+          ?.searchLegacyShiftValue ??
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    /*
+      구교대 메뉴의 빈 값은
+      현교대 전체가 아니라
+      구교대 전체다.
+    */
+    return rawValue ||
+      "LEGACY_ALL";
+  }
+
+
   function closeLegacyPanel() {
     legacyPanel.hidden =
       true;
@@ -209375,35 +209462,25 @@ function initializeOisLegacyShiftOptions() {
       );
 
 
+    const isCurrent =
+      currentValues.has(
+        normalized
+      );
+
+
     const isLegacy =
       legacyValues.has(
         normalized
       );
 
 
-    if (isLegacy) {
+    /*
+      현교대 활성 상태.
+    */
+    if (isCurrent) {
 
       currentShiftSelect.value =
-        "";
-
-
-      legacyToggle.textContent =
-        `구교대 ${normalized}`;
-
-
-      legacyToggle.classList.add(
-        "is-active"
-      );
-
-    }
-    else {
-
-      currentShiftSelect.value =
-        currentValues.has(
-          normalized
-        )
-          ? normalized
-          : "";
+        normalized;
 
 
       legacyToggle.textContent =
@@ -209416,25 +209493,47 @@ function initializeOisLegacyShiftOptions() {
     }
 
 
+    /*
+      구교대 활성 상태.
+
+      현교대는 아무 값도
+      선택되지 않은 상태로 만든다.
+    */
+    if (isLegacy) {
+
+      currentShiftSelect.selectedIndex =
+        -1;
+
+
+      legacyToggle.textContent =
+        normalized ===
+          "LEGACY_ALL"
+          ? "구교대 전체"
+          : `구교대 ${normalized}`;
+
+
+      legacyToggle.classList.add(
+        "is-active"
+      );
+    }
+
+
+    /*
+      구교대 체크 표시는
+      구교대 활성 중일 때만 나타난다.
+    */
     legacyButtons.forEach(
       button => {
         const buttonValue =
-          normalizeShiftValue(
-            button.dataset
-              .searchLegacyShiftValue
+          getLegacyButtonValue(
+            button
           );
 
 
         const isActive =
-          (
-            normalized === "" &&
-            buttonValue === ""
-          ) ||
-          (
-            isLegacy &&
-            buttonValue ===
-              normalized
-          );
+          isLegacy &&
+          buttonValue ===
+            normalized;
 
 
         button.classList.toggle(
@@ -209499,7 +209598,7 @@ function initializeOisLegacyShiftOptions() {
 
   if (
     shiftSelect.dataset
-      .simpleShiftInitialized ===
+      .exclusiveShiftInitialized ===
     "true"
   ) {
     renderShiftControls(
@@ -209511,18 +209610,31 @@ function initializeOisLegacyShiftOptions() {
 
 
   shiftSelect.dataset
-    .simpleShiftInitialized =
+    .exclusiveShiftInitialized =
     "true";
 
 
+  /*
+    현교대를 선택하면
+    구교대 선택은 즉시 해제된다.
+  */
   currentShiftSelect.addEventListener(
     "change",
     () => {
+      const currentValue =
+        String(
+          currentShiftSelect.value ||
+          ""
+        )
+          .trim()
+          .toUpperCase();
+
+
       closeLegacyPanel();
 
 
       setShiftValue(
-        currentShiftSelect.value
+        currentValue
       );
     }
   );
@@ -209552,6 +209664,10 @@ function initializeOisLegacyShiftOptions() {
   );
 
 
+  /*
+    구교대를 선택하면
+    현교대 선택은 즉시 해제된다.
+  */
   legacyButtons.forEach(
     button => {
       button.addEventListener(
@@ -209561,8 +209677,9 @@ function initializeOisLegacyShiftOptions() {
 
 
           setShiftValue(
-            button.dataset
-              .searchLegacyShiftValue
+            getLegacyButtonValue(
+              button
+            )
           );
 
 
@@ -209622,12 +209739,20 @@ function initializeOisLegacyShiftOptions() {
   );
 
 
+  /*
+    초기화 기본값:
+    현교대 전체
+  */
   searchForm?.addEventListener(
     "reset",
     () => {
       window.setTimeout(
         () => {
           closeLegacyPanel();
+
+
+          currentShiftSelect.value =
+            "";
 
 
           setShiftValue(
@@ -209641,8 +209766,16 @@ function initializeOisLegacyShiftOptions() {
   );
 
 
+  /*
+    최초 진입 기본값:
+    현교대 전체
+  */
+  currentShiftSelect.value =
+    "";
+
+
   setShiftValue(
-    shiftSelect.value,
+    "",
     false
   );
 }
