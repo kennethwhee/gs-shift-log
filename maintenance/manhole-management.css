@@ -2819,3 +2819,180 @@ tr.is-close [data-manhole-diagram-status-group]::before {
 .manhole-list-panel .manhole-table tbody tr:not(.is-open):not(.is-close) > td {
   background: #ffffff;
 }
+
+/* =========================================================
+   MANHOLE_DEFAULT_CLOSE_AND_CLEAN_HEADER_V20
+
+   FINAL STATUS MODEL
+   - default / unknown = Close
+   - Close = solid gray closed manhole
+   - Open  = solid yellow manhole + borderless yellow halo
+   - no X graphic
+   - actual --marker-x / --marker-y anchor only
+========================================================= */
+
+/* PNG 자체에서 제목/프레임을 정리했으므로 HTML 중복 제목은 숨긴다. */
+.manhole-diagram-title,
+.manhole-diagram-title-overlay {
+  display: none !important;
+}
+
+/* CSS 프레임은 제거하고 PNG의 단일 검은 프레임만 사용한다. */
+.manhole-original-diagram,
+.manhole-original-diagram__image {
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+/*
+  실제 상태 심볼은 JS가 넘긴 좌표의 정중앙에 놓는다.
+  원본 노란 X 심볼을 완전히 덮는 단순 직사각형 맨홀 표현.
+*/
+.manhole-diagram-status-symbol {
+  position: absolute !important;
+
+  left: var(--marker-x) !important;
+  top: var(--marker-y) !important;
+
+  width: 24px !important;
+  height: 14px !important;
+
+  transform: translate(-50%, -50%) !important;
+
+  border: 1.5px solid #111111 !important;
+  outline: 0 !important;
+  border-radius: 1px !important;
+
+  box-shadow: none !important;
+  filter: none !important;
+
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+
+  overflow: visible !important;
+  pointer-events: none !important;
+
+  z-index: 6 !important;
+}
+
+/* X / 장식 완전 제거 */
+.manhole-diagram-status-symbol::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* 기본값은 Close이므로 혹시 남은 unknown도 회색 닫힘으로 보인다. */
+.manhole-diagram-status-symbol,
+.manhole-diagram-status-symbol.is-close,
+.manhole-diagram-status-symbol.is-unknown {
+  background: #6f7782 !important;
+}
+
+.manhole-diagram-status-symbol.is-close::before,
+.manhole-diagram-status-symbol.is-unknown::before {
+  content: none !important;
+  display: none !important;
+}
+
+/* Open은 노란 맨홀 + 무테 투명 노란 halo */
+.manhole-diagram-status-symbol.is-open {
+  background: #f4d90b !important;
+}
+
+.manhole-diagram-status-symbol.is-open::before {
+  content: "" !important;
+  display: block !important;
+
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+
+  width: 48px !important;
+  height: 48px !important;
+
+  transform: translate(-50%, -50%) !important;
+
+  border: 0 !important;
+  outline: 0 !important;
+  border-radius: 50% !important;
+
+  background: rgba(250, 204, 21, 0.27) !important;
+  box-shadow: none !important;
+
+  z-index: -1 !important;
+}
+
+/* 공유 위치가 Open/Close 혼합이면 색상만 반반 표시 */
+.manhole-diagram-status-symbol.is-mixed {
+  background:
+    linear-gradient(
+      90deg,
+      #f4d90b 0 50%,
+      #6f7782 50% 100%
+    ) !important;
+}
+
+.manhole-diagram-status-symbol.is-mixed::before {
+  content: "" !important;
+  display: block !important;
+
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+
+  width: 48px !important;
+  height: 48px !important;
+
+  transform: translate(-50%, -50%) !important;
+
+  border: 0 !important;
+  outline: 0 !important;
+  border-radius: 50% !important;
+
+  background: rgba(250, 204, 21, 0.16) !important;
+  box-shadow: none !important;
+
+  z-index: -1 !important;
+}
+
+/* 오른쪽 목록 Close 행 전체 연회색 */
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+> td {
+  background: #e7eaee !important;
+}
+
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close:hover
+> td {
+  background: #dfe3e7 !important;
+}
+
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+select,
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-close
+input {
+  background: #eff1f3 !important;
+}
+
+/* Open 행은 흰색 */
+.manhole-list-panel
+.manhole-table
+tbody
+tr.is-open
+> td {
+  background: #ffffff !important;
+}
