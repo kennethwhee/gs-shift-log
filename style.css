@@ -118780,3 +118780,85 @@ html body
   }
 
 }
+
+/* =========================================================
+  MOBILE-LOGIN-TOUCH-HOTFIX-V1
+
+  iPhone Safari:
+  Keep every decorative full-screen layer out of hit-testing.
+  Force the visible login card/form controls above those layers.
+========================================================= */
+
+@media screen and (max-width: 900px) {
+
+  #loginScreen {
+    pointer-events: auto !important;
+  }
+
+
+  #loginScreen::before,
+  #loginScreen::after,
+  #loginScreen .login-screen__background,
+  #loginScreen .login-screen__overlay,
+  #loginScreen .login-introduction {
+    pointer-events: none !important;
+  }
+
+
+  #loginScreen .login-screen__content {
+    z-index: 1002 !important;
+    pointer-events: auto !important;
+  }
+
+
+  #loginScreen .login-card {
+    position: relative !important;
+    z-index: 1003 !important;
+
+    isolation: isolate !important;
+
+    pointer-events: auto !important;
+  }
+
+
+  #loginScreen .login-form,
+  #loginScreen .login-field,
+  #loginScreen .login-field input,
+  #loginScreen .login-remember,
+  #loginScreen .login-submit-button {
+    position: relative !important;
+    z-index: 2 !important;
+
+    pointer-events: auto !important;
+  }
+
+
+  #loginScreen .login-field input {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+
+    -webkit-touch-callout: default !important;
+
+    touch-action: manipulation !important;
+  }
+
+
+  #loginScreen .login-remember,
+  #loginScreen .login-submit-button {
+    touch-action: manipulation !important;
+
+    -webkit-tap-highlight-color:
+      rgba(
+        31,
+        95,
+        174,
+        0.12
+      ) !important;
+  }
+
+
+  #loginScreen .login-submit-button {
+    cursor: pointer !important;
+  }
+
+}
