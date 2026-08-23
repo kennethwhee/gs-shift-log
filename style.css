@@ -118383,3 +118383,91 @@ table {
   }
 
 }
+/* =========================================================
+  [SECTION-CONTEXT-COMPACT-V6-FIX3]
+  내용 textarea 우선순위 강제 보정
+
+  기존 고특이도 textarea 규칙에 밀리지 않도록
+  선택자 특이도를 높여 실제 입력 글씨/높이를 확정한다.
+========================================================= */
+
+@media (
+  min-width:
+    769px
+) {
+
+  html body
+  textarea.section-context-entry-content.section-context-entry-content {
+    box-sizing:
+      border-box !important;
+
+    height:
+      32px !important;
+
+    min-height:
+      32px !important;
+
+    max-height:
+      72px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      5px 8px !important;
+
+    font-family:
+      inherit !important;
+
+    font-size:
+      11px !important;
+
+    font-weight:
+      500 !important;
+
+    line-height:
+      1.25 !important;
+
+    letter-spacing:
+      0 !important;
+
+    resize:
+      vertical !important;
+  }
+
+
+  html body
+  textarea.section-context-entry-content.section-context-entry-content::placeholder {
+    font-size:
+      10px !important;
+
+    font-weight:
+      500 !important;
+
+    line-height:
+      1.25 !important;
+  }
+
+
+  html body
+  .section-context-entry-editor.section-context-entry-editor {
+    min-height:
+      46px !important;
+
+    padding-top:
+      4px !important;
+
+    padding-bottom:
+      4px !important;
+  }
+
+
+  html body
+  .section-context-entry-editor.is-instruction.section-context-entry-editor,
+  html body
+  .section-context-entry-editor.is-remark.section-context-entry-editor {
+    min-height:
+      44px !important;
+  }
+
+}

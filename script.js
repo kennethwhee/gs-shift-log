@@ -247681,3 +247681,158 @@ async function restoreSolarCumulativeFromD1() {
     initialize();
   }
 })();
+/* =========================================================
+  [SECTION-CONTEXT-COMPACT-V6-FIX3]
+  동적 생성 textarea 컴팩트 스타일 보장
+
+  section-context-entry-content가 동적으로 만들어진 직후
+  기존 다른 CSS/JS 영향을 받더라도 초기 크기를 확정한다.
+========================================================= */
+
+(function installSectionContextCompactV6Fix3() {
+  if (
+    window.__sectionContextCompactV6Fix3Installed ===
+      true
+  ) {
+    return;
+  }
+
+
+  window.__sectionContextCompactV6Fix3Installed =
+    true;
+
+
+  function applyCompactStyle(
+    root = document
+  ) {
+    const textareas =
+      root instanceof Element &&
+      root.matches(
+        "textarea.section-context-entry-content"
+      )
+        ? [
+            root
+          ]
+        : [
+            ...(
+              root.querySelectorAll?.(
+                "textarea.section-context-entry-content"
+              ) ||
+              []
+            )
+          ];
+
+
+    textareas.forEach(
+      textarea => {
+        textarea.style.setProperty(
+          "font-size",
+          "11px",
+          "important"
+        );
+
+        textarea.style.setProperty(
+          "font-weight",
+          "500",
+          "important"
+        );
+
+        textarea.style.setProperty(
+          "line-height",
+          "1.25",
+          "important"
+        );
+
+        textarea.style.setProperty(
+          "height",
+          "32px",
+          "important"
+        );
+
+        textarea.style.setProperty(
+          "min-height",
+          "32px",
+          "important"
+        );
+
+        textarea.style.setProperty(
+          "max-height",
+          "72px",
+          "important"
+        );
+
+        textarea.style.setProperty(
+          "padding",
+          "5px 8px",
+          "important"
+        );
+      }
+    );
+  }
+
+
+  const observer =
+    new MutationObserver(
+      mutations => {
+        mutations.forEach(
+          mutation => {
+            mutation.addedNodes.forEach(
+              node => {
+                if (
+                  !(node instanceof Element)
+                ) {
+                  return;
+                }
+
+
+                applyCompactStyle(
+                  node
+                );
+              }
+            );
+          }
+        );
+      }
+    );
+
+
+  function initialize() {
+    applyCompactStyle(
+      document
+    );
+
+
+    if (
+      document.body
+    ) {
+      observer.observe(
+        document.body,
+        {
+          childList:
+            true,
+
+          subtree:
+            true
+        }
+      );
+    }
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
