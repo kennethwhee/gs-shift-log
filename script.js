@@ -244708,6 +244708,49 @@ async function restoreSolarCumulativeFromD1() {
   ];
 
 
+  const HANDOVER_CATEGORIES = [
+    {
+      value:
+        "인계사항",
+
+      label:
+        "인계사항"
+    },
+
+    {
+      value:
+        "TM 작업",
+
+      label:
+        "TM 작업"
+    },
+
+    {
+      value:
+        "BM 작업",
+
+      label:
+        "BM 작업"
+    },
+
+    {
+      value:
+        "CM 작업",
+
+      label:
+        "CM 작업"
+    },
+
+    {
+      value:
+        "기타",
+
+      label:
+        "기타"
+    }
+  ];
+
+
   let activeEditorSection =
     null;
 
@@ -245307,6 +245350,11 @@ async function restoreSolarCumulativeFromD1() {
       SECTION_TYPES.ISSUE;
 
 
+    const isHandover =
+      sectionType ===
+      SECTION_TYPES.HANDOVER;
+
+
     const hasTime =
       [
         SECTION_TYPES.ISSUE,
@@ -245314,6 +245362,35 @@ async function restoreSolarCumulativeFromD1() {
       ].includes(
         sectionType
       );
+
+
+    const existingHandoverCategory =
+      String(
+        existingEntry?.category ||
+        ""
+      ).trim();
+
+
+    const handoverCategory =
+      HANDOVER_CATEGORIES.some(
+        item => {
+          return (
+            item.value ===
+            existingHandoverCategory
+          );
+        }
+      )
+        ? existingHandoverCategory
+        : "인계사항";
+
+
+    const existingTag =
+      String(
+        existingEntry?.tag ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
 
 
     const titleText =
@@ -245349,6 +245426,67 @@ async function restoreSolarCumulativeFromD1() {
                 )
                 .join("")}
             </select>
+          </label>
+        `
+        : "";
+
+
+    const handoverSelectorHtml =
+      isHandover
+        ? `
+          <label class="section-context-entry-field section-context-entry-field--handover-type">
+            <span>구분</span>
+
+            <select class="section-context-entry-handover-type">
+              ${HANDOVER_CATEGORIES
+                .map(
+                  item => {
+                    return `
+                      <option
+                        value="${item.value}"
+                        ${
+                          item.value ===
+                            handoverCategory
+                            ? "selected"
+                            : ""
+                        }
+                      >
+                        ${item.label}
+                      </option>
+                    `;
+                  }
+                )
+                .join("")}
+            </select>
+          </label>
+        `
+        : "";
+
+
+    const tagHtml =
+      isHandover
+        ? `
+          <label
+            class="
+              section-context-entry-field
+              section-context-entry-field--tag
+              ${
+                handoverCategory ===
+                  "인계사항"
+                  ? "is-tag-hidden"
+                  : ""
+              }
+            "
+          >
+            <span>TAG 번호 (선택)</span>
+
+            <input
+              type="text"
+              class="section-context-entry-tag"
+              value="${typeof escapeHtml === "function" ? escapeHtml(existingTag) : existingTag}"
+              placeholder="예: 10HLC11AP001"
+              autocomplete="off"
+            />
           </label>
         `
         : "";
@@ -245411,11 +245549,14 @@ async function restoreSolarCumulativeFromD1() {
 
         ${
           isIssue ||
+          isHandover ||
           hasTime
             ? `
               <div class="section-context-entry-editor__tools">
                 ${issueSelectorHtml}
+                ${handoverSelectorHtml}
                 ${timeHtml}
+                ${tagHtml}
               </div>
             `
             : ""
@@ -245679,34 +245820,25 @@ async function restoreSolarCumulativeFromD1() {
       definition.type ===
         SECTION_TYPES.HANDOVER
     ) {
-      /*
-        기존 TM/BM/CM 작업 항목을 수정할 때는
-        원래 category를 보존한다.
-
-        신규 추가는 항상 인계사항.
-      */
-      const oldCategory =
+      const selectedHandoverCategory =
         String(
-          previousEntry?.category ||
-          ""
+          editor.querySelector(
+            ".section-context-entry-handover-type"
+          )?.value ||
+          "인계사항"
         ).trim();
 
 
       category =
-        (
-          previousEntry &&
-          ![
-            "",
-            "비고",
-            "지시사항",
-            "TM 발행",
-            "BM 발행",
-            "CM 발행"
-          ].includes(
-            oldCategory
-          )
+        HANDOVER_CATEGORIES.some(
+          item => {
+            return (
+              item.value ===
+              selectedHandoverCategory
+            );
+          }
         )
-          ? oldCategory
+          ? selectedHandoverCategory
           : "인계사항";
 
 
@@ -245781,15 +245913,33 @@ async function restoreSolarCumulativeFromD1() {
             SECTION_TYPES.REMARK
           ].includes(
             definition.type
+          ) ||
+          (
+            definition.type ===
+              SECTION_TYPES.HANDOVER &&
+            category ===
+              "인계사항"
           )
         )
           ? ""
-          : String(
-              previousEntry?.tag ||
-              ""
-            )
-              .trim()
-              .toUpperCase(),
+          : (
+              definition.type ===
+                SECTION_TYPES.HANDOVER
+                ? String(
+                    editor.querySelector(
+                      ".section-context-entry-tag"
+                    )?.value ||
+                    ""
+                  )
+                    .trim()
+                    .toUpperCase()
+                : String(
+                    previousEntry?.tag ||
+                    ""
+                  )
+                    .trim()
+                    .toUpperCase()
+            ),
 
       content,
 
@@ -246220,6 +246370,61 @@ async function restoreSolarCumulativeFromD1() {
   }
 
 
+  function syncHandoverTagField(
+    editor
+  ) {
+    if (
+      !editor ||
+      editor.dataset
+        ?.contextEntryType !==
+        SECTION_TYPES.HANDOVER
+    ) {
+      return;
+    }
+
+
+    const category =
+      String(
+        editor.querySelector(
+          ".section-context-entry-handover-type"
+        )?.value ||
+        "인계사항"
+      ).trim();
+
+
+    const tagField =
+      editor.querySelector(
+        ".section-context-entry-field--tag"
+      );
+
+
+    const tagInput =
+      editor.querySelector(
+        ".section-context-entry-tag"
+      );
+
+
+    const shouldShowTag =
+      category !==
+      "인계사항";
+
+
+    tagField?.classList.toggle(
+      "is-tag-hidden",
+      !shouldShowTag
+    );
+
+
+    if (
+      !shouldShowTag &&
+      tagInput
+    ) {
+      tagInput.value =
+        "";
+    }
+  }
+
+
   function handleContextEditorClick(
     event
   ) {
@@ -246540,6 +246745,21 @@ async function restoreSolarCumulativeFromD1() {
           "logRole"
       ) {
         syncContextButtonsForRole();
+
+        return;
+      }
+
+
+      if (
+        target?.classList.contains(
+          "section-context-entry-handover-type"
+        )
+      ) {
+        syncHandoverTagField(
+          target.closest(
+            ".section-context-entry-editor"
+          )
+        );
       }
     }
   );
@@ -246569,4 +246789,73 @@ async function restoreSolarCumulativeFromD1() {
   } else {
     initialize();
   }
+})();
+/* =========================================================
+  [SECTION-CONTEXT-ENTRY-V4]
+  인계사항 기타 category 보존
+========================================================= */
+
+(function installSectionContextEntryV4Compatibility() {
+  if (
+    window.__sectionContextEntryV4CompatibilityInstalled ===
+      true
+  ) {
+    return;
+  }
+
+
+  window.__sectionContextEntryV4CompatibilityInstalled =
+    true;
+
+
+  if (
+    typeof normalizeLogEntryCategory !==
+      "function" ||
+    normalizeLogEntryCategory
+      .__sectionContextEntryV4Protected ===
+      true
+  ) {
+    return;
+  }
+
+
+  const previousNormalizeLogEntryCategory =
+    normalizeLogEntryCategory;
+
+
+  const protectedNormalizeLogEntryCategory =
+    function (
+      value,
+      ...args
+    ) {
+      const raw =
+        String(
+          value ||
+          ""
+        ).trim();
+
+
+      if (
+        raw ===
+          "기타"
+      ) {
+        return "기타";
+      }
+
+
+      return previousNormalizeLogEntryCategory.call(
+        this,
+        value,
+        ...args
+      );
+    };
+
+
+  protectedNormalizeLogEntryCategory
+    .__sectionContextEntryV4Protected =
+    true;
+
+
+  normalizeLogEntryCategory =
+    protectedNormalizeLogEntryCategory;
 })();

@@ -116511,3 +116511,316 @@ tbody
   }
 
 }
+/* =========================================================
+  [SECTION-CONTEXT-ENTRY-V4]
+  헤더 한 줄 Hover + / 인계사항 Select / TAG 선택
+========================================================= */
+
+
+/* ---------------------------------------------------------
+   + 버튼은 섹션 전체 Hover가 아니라
+   제목 "그 줄" Hover에서만 나타난다.
+--------------------------------------------------------- */
+
+.section-context-entry-enabled:hover
+.section-context-add-button {
+  opacity:
+    0;
+
+  transform:
+    translateY(
+      1px
+    ) scale(
+      0.96
+    );
+}
+
+
+.section-context-entry-enabled
+.section-context-entry-header:hover
+.section-context-add-button,
+.section-context-entry-enabled
+.section-context-entry-header:focus-within
+.section-context-add-button,
+.section-context-entry-enabled.is-context-entry-open
+.section-context-entry-header
+.section-context-add-button {
+  opacity:
+    1;
+
+  transform:
+    translateY(
+      0
+    ) scale(
+      1
+    );
+}
+
+
+/*
+  각 제목줄에서 +와 이전일지 버튼을 같은 행에 유지
+*/
+.section-context-entry-header {
+  position:
+    relative;
+
+  align-items:
+    center !important;
+}
+
+
+.section-context-entry-header
+.section-context-add-button {
+  order:
+    90;
+}
+
+
+.section-context-entry-header
+#loadPreviousHandoverEntriesButton,
+.section-context-entry-header
+#loadPreviousInstructionEntriesButton,
+.section-context-entry-header
+#loadPreviousRemarkEntriesButton {
+  order:
+    91;
+
+  flex:
+    0 0 auto;
+}
+
+
+/* ---------------------------------------------------------
+   인계사항 입력 Select
+--------------------------------------------------------- */
+
+.section-context-entry-field--handover-type {
+  flex:
+    0 0 112px;
+
+  width:
+    112px;
+}
+
+
+.section-context-entry-handover-type {
+  box-sizing:
+    border-box;
+
+  width:
+    100%;
+
+  height:
+    34px;
+
+  min-height:
+    34px;
+
+  padding:
+    0 9px;
+
+  border:
+    1px solid #bdcad9;
+
+  border-radius:
+    7px;
+
+  background:
+    #ffffff;
+
+  color:
+    #26364c;
+
+  font-family:
+    inherit;
+
+  font-size:
+    12px;
+
+  outline:
+    none;
+}
+
+
+.section-context-entry-handover-type:focus {
+  border-color:
+    #7895b8;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(
+      120,
+      149,
+      184,
+      0.12
+    );
+}
+
+
+/* ---------------------------------------------------------
+   작업 TAG 입력
+--------------------------------------------------------- */
+
+.section-context-entry-field--tag {
+  flex:
+    1 1 190px;
+
+  min-width:
+    170px;
+}
+
+
+.section-context-entry-field--tag.is-tag-hidden {
+  display:
+    none !important;
+}
+
+
+.section-context-entry-tag {
+  box-sizing:
+    border-box;
+
+  width:
+    100%;
+
+  height:
+    34px;
+
+  min-height:
+    34px;
+
+  padding:
+    0 9px;
+
+  border:
+    1px solid #bdcad9;
+
+  border-radius:
+    7px;
+
+  background:
+    #ffffff;
+
+  color:
+    #26364c;
+
+  font-family:
+    inherit;
+
+  font-size:
+    12px;
+
+  text-transform:
+    uppercase;
+
+  outline:
+    none;
+}
+
+
+.section-context-entry-tag::placeholder {
+  color:
+    #9aa5b3;
+
+  text-transform:
+    none;
+}
+
+
+.section-context-entry-tag:focus {
+  border-color:
+    #7895b8;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(
+      120,
+      149,
+      184,
+      0.12
+    );
+}
+
+
+/*
+  인계사항 입력 도구:
+  구분 / 시간 / 현재시간 / TAG(작업 선택 시)
+  모두 한 줄에서 자연스럽게 배치
+*/
+.section-context-entry-editor.is-handover
+.section-context-entry-editor__tools {
+  display:
+    flex;
+
+  flex-wrap:
+    wrap;
+
+  align-items:
+    end;
+
+  gap:
+    8px;
+}
+
+
+@media (
+  hover:
+    none
+),
+(
+  max-width:
+    768px
+) {
+
+  /*
+    모바일에는 Hover가 없으므로 + 항상 표시
+  */
+  .section-context-entry-enabled:hover
+  .section-context-add-button,
+  .section-context-entry-enabled
+  .section-context-entry-header
+  .section-context-add-button {
+    opacity:
+      1;
+
+    transform:
+      none;
+  }
+
+
+  .section-context-entry-editor.is-handover
+  .section-context-entry-editor__tools {
+    display:
+      grid;
+
+    grid-template-columns:
+      minmax(
+        0,
+        105px
+      )
+      minmax(
+        0,
+        1fr
+      );
+
+    gap:
+      8px;
+  }
+
+
+  .section-context-entry-field--handover-type,
+  .section-context-entry-field--tag {
+    width:
+      100%;
+
+    min-width:
+      0;
+  }
+
+
+  .section-context-entry-field--tag {
+    grid-column:
+      1 / -1;
+  }
+
+}
