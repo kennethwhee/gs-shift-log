@@ -243525,3 +243525,1115 @@ async function restoreSolarCumulativeFromD1() {
   collectLogEntriesForDisplay =
     protectedCollectLogEntriesForDisplay;
 })();
+/* =========================================================
+  [LEADER-INSTRUCTION-PREVIOUS-V2]
+  파트장 지시사항 이전일지 가져오기
+
+  동작:
+  - 현재 N/S → 같은 날 D/S
+  - 현재 D/S → 전날 N/S
+  - 파트장 업무일지만 대상
+  - instructionEntries 우선
+  - 없으면 entries의 "지시사항" 사용
+  - 현재 지시사항과 중복되는 내용은 제외
+  - 가져온 항목은 파트장 소유로 유지
+========================================================= */
+
+(function installLeaderInstructionPreviousImportV2() {
+  if (
+    window
+      .__leaderInstructionPreviousImportV2Installed ===
+      true
+  ) {
+    return;
+  }
+
+
+  window
+    .__leaderInstructionPreviousImportV2Installed =
+    true;
+
+
+  const INSTRUCTION_CATEGORY =
+    "지시사항";
+
+
+  const normalizeRole = (
+    value
+  ) => {
+    return typeof normalizeMemberLogRole ===
+      "function"
+      ? normalizeMemberLogRole(
+          value
+        )
+      : String(
+          value ||
+          ""
+        ).trim();
+  };
+
+
+  const normalizeShift = (
+    value
+  ) => {
+    return String(
+      value ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      )
+      .replaceAll(
+        "/",
+        ""
+      );
+  };
+
+
+  const normalizeContent = (
+    value
+  ) => {
+    return String(
+      value ||
+      ""
+    )
+      .replace(
+        /\r\n/g,
+        "\n"
+      )
+      .replace(
+        /\r/g,
+        "\n"
+      )
+      .trim()
+      .replace(
+        /^(?:\d+\s*[.)\-:：]\s*|[①②③④⑤⑥⑦⑧⑨⑩]\s*)/u,
+        ""
+      )
+      .trim();
+  };
+
+
+  const createContentKey = (
+    value
+  ) => {
+    return normalizeContent(
+      value
+    )
+      .normalize(
+        "NFKC"
+      )
+      .replace(
+        /[\u200B-\u200D\u2060\uFEFF]/g,
+        ""
+      )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim()
+      .toUpperCase();
+  };
+
+
+  const getModifiedTime = (
+    sourceLog
+  ) => {
+    const parsedTime =
+      new Date(
+        sourceLog?.updatedAt ||
+        sourceLog?.createdAt ||
+        0
+      ).getTime();
+
+
+    return Number.isFinite(
+      parsedTime
+    )
+      ? parsedTime
+      : 0;
+  };
+
+
+  const findLatestPreviousLeaderLog = (
+    sourceLogs,
+    previousContext
+  ) => {
+    const safeLogs =
+      Array.isArray(
+        sourceLogs
+      )
+        ? sourceLogs
+        : [];
+
+
+    return (
+      safeLogs
+        .filter(
+          sourceLog => {
+            return (
+              String(
+                sourceLog?.date ||
+                ""
+              ).trim() ===
+                previousContext.date &&
+
+              normalizeShift(
+                sourceLog?.shift
+              ) ===
+                normalizeShift(
+                  previousContext.shift
+                ) &&
+
+              normalizeRole(
+                sourceLog?.role
+              ) ===
+                "파트장"
+            );
+          }
+        )
+        .sort(
+          (
+            firstLog,
+            secondLog
+          ) => {
+            return (
+              getModifiedTime(
+                secondLog
+              ) -
+              getModifiedTime(
+                firstLog
+              )
+            );
+          }
+        )[0] ||
+      null
+    );
+  };
+
+
+  const collectInstructionEntries = (
+    sourceLog,
+    previousContext
+  ) => {
+    if (
+      !sourceLog ||
+      typeof sourceLog !==
+        "object"
+    ) {
+      return [];
+    }
+
+
+    const candidates =
+      [];
+
+
+    const appendCandidate = (
+      rawEntry,
+      entryIndex,
+      sourceCollection
+    ) => {
+      const sourceEntry =
+        rawEntry &&
+        typeof rawEntry ===
+          "object" &&
+        !Array.isArray(
+          rawEntry
+        )
+          ? rawEntry
+          : {
+              content:
+                String(
+                  rawEntry ||
+                  ""
+                )
+            };
+
+
+      const content =
+        normalizeContent(
+          sourceEntry.content ||
+          sourceEntry.text ||
+          ""
+        );
+
+
+      if (
+        !content
+      ) {
+        return;
+      }
+
+
+      candidates.push({
+        entry:
+          sourceEntry,
+
+        content,
+
+        entryIndex,
+
+        sourceCollection
+      });
+    };
+
+
+    /*
+      1. 새 분리 저장 배열 우선
+    */
+    if (
+      Array.isArray(
+        sourceLog.instructionEntries
+      )
+    ) {
+      sourceLog.instructionEntries.forEach(
+        (
+          entry,
+          entryIndex
+        ) => {
+          appendCandidate(
+            entry,
+            entryIndex,
+            "instructionEntries"
+          );
+        }
+      );
+    }
+
+
+    /*
+      2. 분리 배열에 내용이 없으면
+         기존 entries에서 지시사항만 수집
+    */
+    if (
+      !candidates.length &&
+      Array.isArray(
+        sourceLog.entries
+      )
+    ) {
+      sourceLog.entries.forEach(
+        (
+          entry,
+          entryIndex
+        ) => {
+          if (
+            String(
+              entry?.category ||
+              ""
+            ).trim() !==
+              INSTRUCTION_CATEGORY
+          ) {
+            return;
+          }
+
+
+          appendCandidate(
+            entry,
+            entryIndex,
+            "entries"
+          );
+        }
+      );
+    }
+
+
+    const uniqueMap =
+      new Map();
+
+
+    candidates.forEach(
+      (
+        candidate
+      ) => {
+        const uniqueKey =
+          createContentKey(
+            candidate.content
+          );
+
+
+        if (
+          !uniqueKey ||
+          uniqueMap.has(
+            uniqueKey
+          )
+        ) {
+          return;
+        }
+
+
+        const sourceEntry =
+          candidate.entry;
+
+
+        uniqueMap.set(
+          uniqueKey,
+          {
+            id:
+              "",
+
+            time:
+              "",
+
+            category:
+              INSTRUCTION_CATEGORY,
+
+            tag:
+              "",
+
+            content:
+              candidate.content,
+
+            attachmentName:
+              "",
+
+            importedFromRole:
+              "파트장",
+
+            importedFromAuthor:
+              String(
+                sourceEntry
+                  ?.importedFromAuthor ||
+                sourceLog.author ||
+                ""
+              ).trim(),
+
+            importedFromLogId:
+              String(
+                sourceEntry
+                  ?.importedFromLogId ||
+                sourceLog.id ||
+                ""
+              ).trim(),
+
+            importedFromEntryIndex:
+              Number.isInteger(
+                candidate.entryIndex
+              )
+                ? candidate.entryIndex
+                : null,
+
+            /*
+              저장 시 파트장 직접 소유 항목 보호 로직을
+              그대로 사용한다.
+            */
+            source:
+              "leader-manual",
+
+            leaderTargetRole:
+              "파트장",
+
+            sourceCollection:
+              candidate.sourceCollection,
+
+            inheritedSource:
+              "previous-shift-instruction",
+
+            inheritedFromDate:
+              previousContext.date,
+
+            inheritedFromShift:
+              previousContext.shift
+          }
+        );
+      }
+    );
+
+
+    return [
+      ...uniqueMap.values()
+    ];
+  };
+
+
+  async function getPreviousShiftInstructionEntries(
+    dateValue,
+    shiftValue
+  ) {
+    const previousContext =
+      typeof getPreviousShiftContext ===
+        "function"
+        ? getPreviousShiftContext(
+            dateValue,
+            shiftValue
+          )
+        : null;
+
+
+    if (
+      !previousContext
+    ) {
+      return null;
+    }
+
+
+    /*
+      1. 현재 로딩된 신규 업무일지
+    */
+    const currentPreviousLog =
+      findLatestPreviousLeaderLog(
+        appState?.logs,
+        previousContext
+      );
+
+
+    if (
+      currentPreviousLog
+    ) {
+      return {
+        date:
+          previousContext.date,
+
+        shift:
+          previousContext.shift,
+
+        author:
+          String(
+            currentPreviousLog.author ||
+            ""
+          ).trim(),
+
+        sourceLogId:
+          String(
+            currentPreviousLog.id ||
+            ""
+          ).trim(),
+
+        entries:
+          collectInstructionEntries(
+            currentPreviousLog,
+            previousContext
+          )
+      };
+    }
+
+
+    /*
+      2. 기존 D1 과거 업무일지
+         함수가 존재하는 경우만 보조 조회
+    */
+    if (
+      typeof loadLegacyLogsForOperationStatusDate ===
+        "function"
+    ) {
+      const legacyLogs =
+        await loadLegacyLogsForOperationStatusDate(
+          previousContext.date
+        );
+
+
+      const legacyPreviousLog =
+        findLatestPreviousLeaderLog(
+          legacyLogs,
+          previousContext
+        );
+
+
+      if (
+        legacyPreviousLog
+      ) {
+        return {
+          date:
+            previousContext.date,
+
+          shift:
+            previousContext.shift,
+
+          author:
+            String(
+              legacyPreviousLog.author ||
+              ""
+            ).trim(),
+
+          sourceLogId:
+            String(
+              legacyPreviousLog.id ||
+              ""
+            ).trim(),
+
+          entries:
+            collectInstructionEntries(
+              legacyPreviousLog,
+              previousContext
+            )
+        };
+      }
+    }
+
+
+    return {
+      date:
+        previousContext.date,
+
+      shift:
+        previousContext.shift,
+
+      author:
+        "",
+
+      sourceLogId:
+        "",
+
+      entries:
+        []
+    };
+  }
+
+
+  async function loadPreviousShiftInstructionEntriesForCurrentEditor() {
+    const importButton =
+      document.getElementById(
+        "loadPreviousInstructionEntriesButton"
+      );
+
+
+    if (
+      !importButton
+    ) {
+      return;
+    }
+
+
+    const currentRole =
+      normalizeRole(
+        document.getElementById(
+          "logRole"
+        )?.value ||
+        ""
+      );
+
+
+    const currentDate =
+      String(
+        document.getElementById(
+          "logDate"
+        )?.value ||
+        ""
+      ).trim();
+
+
+    const currentShift =
+      String(
+        document.getElementById(
+          "logShift"
+        )?.value ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    if (
+      currentRole !==
+        "파트장"
+    ) {
+      showToast(
+        "지시사항 이전일지 가져오기는 파트장 업무일지에서만 사용할 수 있습니다."
+      );
+
+      return;
+    }
+
+
+    if (
+      !currentDate ||
+      !currentShift
+    ) {
+      showToast(
+        "날짜와 근무 정보를 먼저 확인해 주세요."
+      );
+
+      return;
+    }
+
+
+    const requestedContextKey = [
+      currentRole,
+      currentDate,
+      normalizeShift(
+        currentShift
+      )
+    ].join(
+      "||"
+    );
+
+
+    const requestToken =
+      typeof createId ===
+        "function"
+        ? createId()
+        : (
+            "instruction-request-" +
+            Date.now()
+          );
+
+
+    appState
+      .previousShiftInstructionRequestToken =
+      requestToken;
+
+
+    const originalText =
+      String(
+        importButton.textContent ||
+        "이전일지 가져오기"
+      ).trim();
+
+
+    importButton.disabled =
+      true;
+
+    importButton.textContent =
+      "가져오는 중...";
+
+
+    try {
+      const previousResult =
+        await getPreviousShiftInstructionEntries(
+          currentDate,
+          currentShift
+        );
+
+
+      if (
+        appState
+          .previousShiftInstructionRequestToken !==
+        requestToken
+      ) {
+        return;
+      }
+
+
+      const latestContextKey = [
+        normalizeRole(
+          document.getElementById(
+            "logRole"
+          )?.value ||
+          ""
+        ),
+
+        String(
+          document.getElementById(
+            "logDate"
+          )?.value ||
+          ""
+        ).trim(),
+
+        normalizeShift(
+          document.getElementById(
+            "logShift"
+          )?.value ||
+          ""
+        )
+      ].join(
+        "||"
+      );
+
+
+      if (
+        requestedContextKey !==
+        latestContextKey
+      ) {
+        showToast(
+          "날짜·근무·보직이 변경되어 가져오기를 취소했습니다."
+        );
+
+        return;
+      }
+
+
+      const sourceEntries =
+        Array.isArray(
+          previousResult?.entries
+        )
+          ? previousResult.entries
+          : [];
+
+
+      if (
+        !sourceEntries.length
+      ) {
+        showToast(
+          `${previousResult?.date || ""} ${previousResult?.shift || ""} 파트장 업무일지에 지시사항이 없습니다.`
+            .trim()
+        );
+
+        return;
+      }
+
+
+      const existingKeys =
+        new Set();
+
+
+      (
+        Array.isArray(
+          appState.editorEntries
+        )
+          ? appState.editorEntries
+          : []
+      )
+        .filter(
+          entry => {
+            return (
+              String(
+                entry?.category ||
+                ""
+              ).trim() ===
+              INSTRUCTION_CATEGORY
+            );
+          }
+        )
+        .forEach(
+          entry => {
+            const key =
+              createContentKey(
+                entry?.content
+              );
+
+
+            if (
+              key
+            ) {
+              existingKeys.add(
+                key
+              );
+            }
+          }
+        );
+
+
+      const importedEntries =
+        [];
+
+
+      sourceEntries.forEach(
+        (
+          sourceEntry,
+          entryIndex
+        ) => {
+          const content =
+            normalizeContent(
+              sourceEntry?.content
+            );
+
+
+          const key =
+            createContentKey(
+              content
+            );
+
+
+          if (
+            !content ||
+            !key ||
+            existingKeys.has(
+              key
+            )
+          ) {
+            return;
+          }
+
+
+          existingKeys.add(
+            key
+          );
+
+
+          importedEntries.push({
+            ...sourceEntry,
+
+            id:
+              typeof createId ===
+                "function"
+                ? createId()
+                : (
+                    "instruction-import-" +
+                    Date.now() +
+                    "-" +
+                    entryIndex
+                  ),
+
+            time:
+              "",
+
+            category:
+              INSTRUCTION_CATEGORY,
+
+            tag:
+              "",
+
+            content,
+
+            importedFromRole:
+              "파트장",
+
+            importedFromAuthor:
+              String(
+                sourceEntry
+                  ?.importedFromAuthor ||
+                previousResult?.author ||
+                ""
+              ).trim(),
+
+            importedFromLogId:
+              String(
+                sourceEntry
+                  ?.importedFromLogId ||
+                previousResult
+                  ?.sourceLogId ||
+                ""
+              ).trim(),
+
+            importedFromEntryIndex:
+              Number.isInteger(
+                sourceEntry
+                  ?.importedFromEntryIndex
+              )
+                ? sourceEntry
+                    .importedFromEntryIndex
+                : entryIndex,
+
+            source:
+              "leader-manual",
+
+            leaderTargetRole:
+              "파트장",
+
+            inheritedSource:
+              "previous-shift-instruction",
+
+            inheritedFromDate:
+              String(
+                previousResult?.date ||
+                ""
+              ).trim(),
+
+            inheritedFromShift:
+              String(
+                previousResult?.shift ||
+                ""
+              )
+                .trim()
+                .toUpperCase()
+          });
+        }
+      );
+
+
+      if (
+        !importedEntries.length
+      ) {
+        showToast(
+          "전 근무 지시사항이 이미 모두 반영되어 있습니다."
+        );
+
+        return;
+      }
+
+
+      appState.editorEntries = [
+        ...(
+          Array.isArray(
+            appState.editorEntries
+          )
+            ? appState.editorEntries
+            : []
+        ),
+
+        ...importedEntries
+      ];
+
+
+      if (
+        typeof sortImportedLogEntries ===
+          "function"
+      ) {
+        sortImportedLogEntries();
+      }
+
+
+      if (
+        typeof renderLogEntryTable ===
+          "function"
+      ) {
+        renderLogEntryTable();
+      }
+
+
+      showToast(
+        `${previousResult.date} ${previousResult.shift} 지시사항 ${importedEntries.length}건을 가져왔습니다.`
+      );
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "전 근무 지시사항 가져오기 실패:",
+        error
+      );
+
+
+      showToast(
+        "전 근무 지시사항을 가져오지 못했습니다."
+      );
+
+    } finally {
+      if (
+        appState
+          .previousShiftInstructionRequestToken ===
+        requestToken
+      ) {
+        importButton.disabled =
+          false;
+
+        importButton.textContent =
+          originalText;
+      }
+    }
+  }
+
+
+  function ensureInstructionPreviousButton() {
+    const section =
+      document.getElementById(
+        "instructionEntrySection"
+      );
+
+
+    const header =
+      section?.querySelector(
+        ".log-entry-group-header__title"
+      );
+
+
+    if (
+      !header
+    ) {
+      return;
+    }
+
+
+    let button =
+      document.getElementById(
+        "loadPreviousInstructionEntriesButton"
+      );
+
+
+    if (
+      !button
+    ) {
+      button =
+        document.createElement(
+          "button"
+        );
+
+
+      button.type =
+        "button";
+
+      button.id =
+        "loadPreviousInstructionEntriesButton";
+
+      button.className =
+        "previous-instruction-import-button";
+
+      button.textContent =
+        "이전일지 가져오기";
+
+      button.setAttribute(
+        "aria-label",
+        "전 근무 파트장 업무일지 지시사항 가져오기"
+      );
+
+
+      header.appendChild(
+        button
+      );
+    }
+
+
+    if (
+      button.dataset
+        .instructionPreviousBound ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    button.addEventListener(
+      "click",
+      loadPreviousShiftInstructionEntriesForCurrentEditor
+    );
+
+
+    button.dataset
+      .instructionPreviousBound =
+      "true";
+  }
+
+
+  /*
+    업무목록이 다시 렌더링돼도
+    버튼 연결을 보장한다.
+  */
+  if (
+    typeof renderLogEntryTable ===
+      "function" &&
+    renderLogEntryTable
+      .__instructionPreviousButtonWrapped !==
+      true
+  ) {
+    const originalRenderLogEntryTable =
+      renderLogEntryTable;
+
+
+    const wrappedRenderLogEntryTable =
+      function (
+        ...args
+      ) {
+        const result =
+          originalRenderLogEntryTable.apply(
+            this,
+            args
+          );
+
+
+        ensureInstructionPreviousButton();
+
+
+        return result;
+      };
+
+
+    wrappedRenderLogEntryTable
+      .__instructionPreviousButtonWrapped =
+      true;
+
+
+    renderLogEntryTable =
+      wrappedRenderLogEntryTable;
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      ensureInstructionPreviousButton,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    ensureInstructionPreviousButton();
+  }
+})();

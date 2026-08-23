@@ -115590,3 +115590,269 @@ tbody
     font-size: 9px;
   }
 }
+/* =========================================================
+  [LEADER-INSTRUCTION-PREVIOUS-V2]
+  지시사항 한 줄 표시 + 이전일지 버튼
+========================================================= */
+
+/*
+  지시사항 행:
+  1.
+  내용
+
+  형태가 아니라
+
+  1. 내용
+
+  형태로 같은 줄에 표시한다.
+  여러 줄 내용의 2번째 줄부터는 내용 시작 위치에 맞춘다.
+*/
+
+#instructionEntryTableBody
+.log-entry-document-line {
+  display:
+    grid !important;
+
+  grid-template-columns:
+    max-content minmax(0, 1fr) !important;
+
+  align-items:
+    start !important;
+
+  column-gap:
+    6px !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  margin:
+    0 !important;
+}
+
+
+#instructionEntryTableBody
+.log-entry-document-number {
+  grid-column:
+    1 !important;
+
+  grid-row:
+    1 !important;
+
+  display:
+    block !important;
+
+  width:
+    auto !important;
+
+  min-width:
+    0 !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  line-height:
+    1.55 !important;
+}
+
+
+#instructionEntryTableBody
+.log-entry-document-body {
+  grid-column:
+    2 !important;
+
+  grid-row:
+    1 !important;
+
+  display:
+    block !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  line-height:
+    1.55 !important;
+}
+
+
+#instructionEntryTableBody
+.log-entry-document-content-text {
+  display:
+    inline !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  white-space:
+    pre-wrap !important;
+
+  word-break:
+    keep-all !important;
+
+  overflow-wrap:
+    anywhere !important;
+}
+
+
+/* =========================================================
+  이전일지 가져오기 버튼
+========================================================= */
+
+#loadPreviousInstructionEntriesButton {
+  box-sizing:
+    border-box;
+
+  display:
+    inline-flex;
+
+  flex:
+    0 0 92px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  width:
+    92px;
+
+  height:
+    28px;
+
+  min-height:
+    28px;
+
+  margin-left:
+    0 !important;
+
+  padding:
+    0 9px;
+
+  border:
+    1px solid #b8c3d2;
+
+  border-radius:
+    7px;
+
+  background:
+    #f7f9fc;
+
+  color:
+    #46566d;
+
+  font-family:
+    inherit;
+
+  font-size:
+    11px;
+
+  font-weight:
+    700;
+
+  line-height:
+    1;
+
+  white-space:
+    nowrap;
+
+  cursor:
+    pointer;
+
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+
+#loadPreviousInstructionEntriesButton:hover:not(:disabled) {
+  border-color:
+    #8597b0;
+
+  background:
+    #edf2f8;
+
+  color:
+    #31445f;
+}
+
+
+#loadPreviousInstructionEntriesButton:active:not(:disabled) {
+  transform:
+    translateY(1px);
+}
+
+
+#loadPreviousInstructionEntriesButton:disabled {
+  border-color:
+    #d8dbe2;
+
+  background:
+    #f2f3f5;
+
+  color:
+    #999da7;
+
+  cursor:
+    wait;
+
+  opacity:
+    0.8;
+}
+
+
+@media (
+  max-width:
+    640px
+) {
+
+  #instructionEntrySection
+  .log-entry-group-header__title {
+    min-height:
+      36px !important;
+
+    padding:
+      4px 8px 4px 10px !important;
+  }
+
+
+  #loadPreviousInstructionEntriesButton {
+    flex-basis:
+      88px;
+
+    width:
+      88px;
+
+    height:
+      27px;
+
+    min-height:
+      27px;
+
+    padding:
+      0 7px;
+
+    font-size:
+      10px;
+  }
+
+}
