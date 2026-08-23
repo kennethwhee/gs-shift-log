@@ -15,13 +15,16 @@
   const params = new URLSearchParams(window.location.search);
   const initialView = params.get("view") === "work" ? "work" : "logic";
 
-  const WORK_CATEGORIES = [
+
+/* [PLANNED-MAINTENANCE-WORK-CATEGORY-OPTIONS-V2]
+   작업필요사항 분류:
+   기계 / 전기 / 제어 / 기타
+   화면 필터:
+   통합 / 기계 / 전기 / 제어 / 기타
+*/  const WORK_CATEGORIES = [
     "기계",
     "전기",
     "제어",
-    "인력",
-    "안전",
-    "효율",
     "기타"
   ];
 
@@ -1667,6 +1670,10 @@
     {
       key: "제어",
       label: "제어"
+    },
+    {
+      key: "기타",
+      label: "기타"
     }
   ];
 
