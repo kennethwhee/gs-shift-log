@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  >
+  <title>GS Shift Log Mobile Login Debug</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding:
+        max(16px, env(safe-area-inset-top))
+        14px
+        max(20px, env(safe-area-inset-bottom));
+      background: #eef3f8;
+      color: #172033;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Apple SD Gothic Neo",
+        "Malgun Gothic",
+        Arial,
+        sans-serif;
+      font-size: 14px;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .panel {
+      width: min(100%, 520px);
+      margin: 0 auto;
+      padding: 18px;
+      border: 1px solid #d5dfe9;
+      border-radius: 14px;
+      background: #fff;
+      box-shadow:
+        0 10px 30px
+        rgba(28, 54, 84, 0.08);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.3;
+    }
+
+    .intro {
+      margin: 7px 0 17px;
+      color: #667488;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 12px;
+    }
+
+    .field span {
+      font-weight: 800;
+    }
+
+    input {
+      width: 100%;
+      height: 48px;
+      padding: 0 12px;
+      border: 1px solid #c8d4e1;
+      border-radius: 9px;
+      background: #fff;
+      color: #172033;
+      font: inherit;
+      font-size: 16px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: #377dc1;
+      box-shadow:
+        0 0 0 3px
+        rgba(55, 125, 193, 0.13);
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    button {
+      min-height: 46px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 9px;
+      background: #246ab0;
+      color: #fff;
+      font: inherit;
+      font-weight: 900;
+      touch-action: manipulation;
+    }
+
+    button.secondary {
+      border: 1px solid #c8d4e1;
+      background: #fff;
+      color: #45566e;
+    }
+
+    button.danger {
+      border: 1px solid #e1bcbc;
+      background: #fff6f6;
+      color: #ad3a3a;
+    }
+
+    button:disabled {
+      opacity: 0.45;
+    }
+
+    .status {
+      margin-top: 18px;
+      padding: 12px;
+      border: 1px solid #dbe4ed;
+      border-radius: 10px;
+      background: #f8fafc;
+    }
+
+    .status strong {
+      display: block;
+      margin-bottom: 7px;
+    }
+
+    #debugLog {
+      margin: 0;
+      color: #24344a;
+      font-family:
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Consolas,
+        monospace;
+      font-size: 11px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .ok {
+      color: #16754e;
+    }
+
+    .fail {
+      color: #b33d3d;
+    }
+
+    .warn {
+      color: #95610d;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="panel">
+    <h1>
+      모바일 로그인 진단
+    </h1>
+
+    <p class="intro">
+      이 페이지는 기존 업무일지 JavaScript를 전혀 로드하지 않고
+      로그인 API와 모바일 저장소만 직접 검사합니다.
+      비밀번호와 세션 토큰은 화면 로그에 표시하지 않습니다.
+    </p>
+
+    <form id="debugLoginForm">
+      <label class="field">
+        <span>
+          사번
+        </span>
+
+        <input
+          id="debugEmployeeNo"
+          type="text"
+          inputmode="numeric"
+          maxlength="7"
+          autocomplete="username"
+          placeholder="사번"
+          required
+        >
+      </label>
+
+      <label class="field">
+        <span>
+          비밀번호
+        </span>
+
+        <input
+          id="debugPassword"
+          type="password"
+          maxlength="30"
+          autocomplete="current-password"
+          placeholder="비밀번호"
+          required
+        >
+      </label>
+
+      <div class="buttons">
+        <button
+          id="runLoginTestButton"
+          type="submit"
+        >
+          로그인 API 진단 실행
+        </button>
+
+        <button
+          id="enterMainButton"
+          class="secondary"
+          type="button"
+          disabled
+        >
+          진단 성공 세션으로 메인 이동
+        </button>
+
+        <button
+          id="clearSavedSessionButton"
+          class="danger"
+          type="button"
+        >
+          이 휴대폰의 기존 로그인 정보 삭제
+        </button>
+      </div>
+    </form>
+
+    <section class="status">
+      <strong>
+        실시간 결과
+      </strong>
+
+      <pre id="debugLog"></pre>
+    </section>
+  </main>
+
+  <script>
+    "use strict";
+
+    (() => {
+      const AUTH_STORAGE_KEY =
+        "gsShiftLog.currentUser";
+
+      const REMEMBER_STORAGE_KEY =
+        "gsShiftLog.rememberedLogin";
+
+      const DEBUG_PROBE_KEY =
+        "gsShiftLog.mobileLoginDebugProbe";
+
+      let verifiedUser =
+        null;
+
+
+      function getLogElement() {
+        return document.getElementById(
+          "debugLog"
+        );
+      }
+
+
+      function appendLog(
+        message,
+        type = ""
+      ) {
+        const logElement =
+          getLogElement();
+
+        if (!logElement) {
+          return;
+        }
+
+        const timestamp =
+          new Date()
+            .toLocaleTimeString(
+              "ko-KR",
+              {
+                hour12: false
+              }
+            );
+
+        const prefix =
+          type === "ok"
+            ? "[OK]"
+            : type === "fail"
+              ? "[FAIL]"
+              : type === "warn"
+                ? "[WARN]"
+                : "[INFO]";
+
+        logElement.textContent +=
+          `${timestamp} ${prefix} ${message}\n`;
+
+        logElement.scrollTop =
+          logElement.scrollHeight;
+      }
+
+
+      function maskEmployeeNo(
+        employeeNo
+      ) {
+        const value =
+          String(
+            employeeNo ||
+            ""
+          );
+
+        if (
+          value.length <= 4
+        ) {
+          return "***";
+        }
+
+        return (
+          value.slice(
+            0,
+            2
+          ) +
+          "***" +
+          value.slice(
+            -2
+          )
+        );
+      }
+
+
+      function getSessionToken(
+        user
+      ) {
+        if (
+          !user ||
+          typeof user !==
+            "object"
+        ) {
+          return "";
+        }
+
+        return String(
+          user.sessionToken ||
+          user.session_token ||
+          ""
+        ).trim();
+      }
+
+
+      function createTimeout(
+        timeoutMs
+      ) {
+        const controller =
+          new AbortController();
+
+        const timer =
+          window.setTimeout(
+            () => {
+              controller.abort();
+            },
+            timeoutMs
+          );
+
+        return {
+          controller,
+
+          clear() {
+            window.clearTimeout(
+              timer
+            );
+          }
+        };
+      }
+
+
+      async function testLogin(
+        employeeNo,
+        password
+      ) {
+        appendLog(
+          "submit 이벤트 수신"
+        );
+
+        appendLog(
+          `사번=${maskEmployeeNo(
+            employeeNo
+          )}`
+        );
+
+        const timeout =
+          createTimeout(
+            15000
+          );
+
+        const startedAt =
+          performance.now();
+
+        try {
+          appendLog(
+            "POST /api/login 요청 시작"
+          );
+
+          const response =
+            await fetch(
+              "/api/login",
+              {
+                method:
+                  "POST",
+
+                headers: {
+                  "Content-Type":
+                    "application/json",
+
+                  Accept:
+                    "application/json"
+                },
+
+                cache:
+                  "no-store",
+
+                body:
+                  JSON.stringify({
+                    employeeNo,
+                    password
+                  }),
+
+                signal:
+                  timeout.controller.signal
+              }
+            );
+
+          const elapsed =
+            Math.round(
+              performance.now() -
+              startedAt
+            );
+
+          appendLog(
+            `POST 응답 HTTP ${response.status}, ${elapsed}ms`,
+            response.ok
+              ? "ok"
+              : "warn"
+          );
+
+          const responseText =
+            await response.text();
+
+          appendLog(
+            `응답 본문 ${responseText.length} bytes`
+          );
+
+          let result = {};
+
+          try {
+            result =
+              responseText
+                ? JSON.parse(
+                    responseText
+                  )
+                : {};
+
+            appendLog(
+              "JSON 파싱 성공",
+              "ok"
+            );
+
+          } catch {
+            appendLog(
+              "JSON 파싱 실패",
+              "fail"
+            );
+
+            throw new Error(
+              "LOGIN_RESPONSE_NOT_JSON"
+            );
+          }
+
+          if (
+            !response.ok ||
+            result.ok !==
+              true
+          ) {
+            appendLog(
+              `로그인 거부: ${
+                result.message ||
+                "서버 메시지 없음"
+              }`,
+              "fail"
+            );
+
+            return false;
+          }
+
+          appendLog(
+            "result.ok=true",
+            "ok"
+          );
+
+          const user =
+            result.user ||
+            result.member ||
+            result.data ||
+            null;
+
+          if (
+            !user ||
+            typeof user !==
+              "object"
+          ) {
+            appendLog(
+              "사용자 객체 없음",
+              "fail"
+            );
+
+            return false;
+          }
+
+          const token =
+            getSessionToken(
+              user
+            );
+
+          appendLog(
+            `사용자 객체 수신, tokenLength=${token.length}`,
+            token
+              ? "ok"
+              : "fail"
+          );
+
+          if (!token) {
+            return false;
+          }
+
+
+          /*
+            Temporary localStorage write/read test.
+            This does NOT replace the actual auth key.
+          */
+          try {
+            localStorage.setItem(
+              DEBUG_PROBE_KEY,
+              JSON.stringify({
+                ok:
+                  true,
+
+                at:
+                  Date.now()
+              })
+            );
+
+            const probeValue =
+              localStorage.getItem(
+                DEBUG_PROBE_KEY
+              );
+
+            localStorage.removeItem(
+              DEBUG_PROBE_KEY
+            );
+
+            appendLog(
+              `localStorage write/read=${
+                Boolean(
+                  probeValue
+                )
+              }`,
+              probeValue
+                ? "ok"
+                : "fail"
+            );
+
+          } catch (
+            error
+          ) {
+            appendLog(
+              `localStorage 오류: ${
+                error &&
+                error.message
+                  ? error.message
+                  : String(
+                      error
+                    )
+              }`,
+              "fail"
+            );
+
+            return false;
+          }
+
+
+          /*
+            Validate the brand-new token without redirecting.
+          */
+          const validationTimeout =
+            createTimeout(
+              8000
+            );
+
+          try {
+            appendLog(
+              "GET /api/login 새 토큰 검증 시작"
+            );
+
+            const validationStartedAt =
+              performance.now();
+
+            const validationResponse =
+              await fetch(
+                "/api/login",
+                {
+                  method:
+                    "GET",
+
+                  headers: {
+                    Accept:
+                      "application/json",
+
+                    Authorization:
+                      `Bearer ${token}`
+                  },
+
+                  cache:
+                    "no-store",
+
+                  signal:
+                    validationTimeout
+                      .controller
+                      .signal
+                }
+              );
+
+            const validationElapsed =
+              Math.round(
+                performance.now() -
+                validationStartedAt
+              );
+
+            appendLog(
+              `GET 검증 HTTP ${validationResponse.status}, ${validationElapsed}ms`,
+              validationResponse.ok
+                ? "ok"
+                : "warn"
+            );
+
+            const validationText =
+              await validationResponse.text();
+
+            let validationResult = {};
+
+            try {
+              validationResult =
+                validationText
+                  ? JSON.parse(
+                      validationText
+                    )
+                  : {};
+
+            } catch {
+              appendLog(
+                "GET 검증 JSON 파싱 실패",
+                "fail"
+              );
+
+              return false;
+            }
+
+            const authenticated =
+              validationResult
+                .authenticated ===
+                true;
+
+            appendLog(
+              `authenticated=${authenticated}`,
+              authenticated
+                ? "ok"
+                : "fail"
+            );
+
+            if (!authenticated) {
+              return false;
+            }
+
+          } finally {
+            validationTimeout.clear();
+          }
+
+          verifiedUser =
+            user;
+
+          const enterButton =
+            document.getElementById(
+              "enterMainButton"
+            );
+
+          if (enterButton) {
+            enterButton.disabled =
+              false;
+          }
+
+          appendLog(
+            "로그인 API + 새 세션 + 모바일 저장소 모두 정상",
+            "ok"
+          );
+
+          appendLog(
+            "아래 '진단 성공 세션으로 메인 이동' 버튼은 별도 단계입니다.",
+            "warn"
+          );
+
+          return true;
+
+        } catch (
+          error
+        ) {
+          if (
+            error &&
+            error.name ===
+              "AbortError"
+          ) {
+            appendLog(
+              "요청 시간 초과",
+              "fail"
+            );
+
+          } else {
+            appendLog(
+              `예외: ${
+                error &&
+                error.message
+                  ? error.message
+                  : String(
+                      error
+                    )
+              }`,
+              "fail"
+            );
+          }
+
+          return false;
+
+        } finally {
+          timeout.clear();
+        }
+      }
+
+
+      function initialize() {
+        appendLog(
+          "진단 페이지 JavaScript 실행",
+          "ok"
+        );
+
+        appendLog(
+          `readyState=${document.readyState}`
+        );
+
+        appendLog(
+          `UA=${navigator.userAgent}`
+        );
+
+        try {
+          const currentRaw =
+            localStorage.getItem(
+              AUTH_STORAGE_KEY
+            );
+
+          appendLog(
+            `기존 currentUser=${
+              currentRaw
+                ? "있음"
+                : "없음"
+            }`,
+            currentRaw
+              ? "warn"
+              : "ok"
+          );
+
+        } catch (
+          error
+        ) {
+          appendLog(
+            `초기 localStorage 접근 오류: ${
+              error &&
+              error.message
+                ? error.message
+                : String(
+                    error
+                  )
+            }`,
+            "fail"
+          );
+        }
+
+        const form =
+          document.getElementById(
+            "debugLoginForm"
+          );
+
+        const runButton =
+          document.getElementById(
+            "runLoginTestButton"
+          );
+
+        form.addEventListener(
+          "submit",
+          async event => {
+            event.preventDefault();
+
+            const employeeNo =
+              String(
+                document.getElementById(
+                  "debugEmployeeNo"
+                ).value ||
+                ""
+              ).trim();
+
+            const password =
+              String(
+                document.getElementById(
+                  "debugPassword"
+                ).value ||
+                ""
+              );
+
+            if (
+              !employeeNo ||
+              !password
+            ) {
+              appendLog(
+                "사번/비밀번호 입력 필요",
+                "fail"
+              );
+
+              return;
+            }
+
+            runButton.disabled =
+              true;
+
+            runButton.textContent =
+              "진단 중...";
+
+            verifiedUser =
+              null;
+
+            const enterButton =
+              document.getElementById(
+                "enterMainButton"
+              );
+
+            enterButton.disabled =
+              true;
+
+            try {
+              await testLogin(
+                employeeNo,
+                password
+              );
+
+            } finally {
+              runButton.disabled =
+                false;
+
+              runButton.textContent =
+                "로그인 API 진단 실행";
+            }
+          }
+        );
+
+        document.getElementById(
+          "clearSavedSessionButton"
+        ).addEventListener(
+          "click",
+          () => {
+            localStorage.removeItem(
+              AUTH_STORAGE_KEY
+            );
+
+            localStorage.removeItem(
+              REMEMBER_STORAGE_KEY
+            );
+
+            appendLog(
+              "기존 currentUser/자동로그인 정보 삭제 완료",
+              "ok"
+            );
+          }
+        );
+
+        document.getElementById(
+          "enterMainButton"
+        ).addEventListener(
+          "click",
+          () => {
+            if (!verifiedUser) {
+              appendLog(
+                "먼저 로그인 API 진단을 성공시켜 주세요.",
+                "fail"
+              );
+
+              return;
+            }
+
+            try {
+              localStorage.setItem(
+                AUTH_STORAGE_KEY,
+                JSON.stringify(
+                  verifiedUser
+                )
+              );
+
+              appendLog(
+                "실제 currentUser 저장 완료",
+                "ok"
+              );
+
+            } catch (
+              error
+            ) {
+              appendLog(
+                `실제 currentUser 저장 실패: ${
+                  error &&
+                  error.message
+                    ? error.message
+                    : String(
+                        error
+                      )
+                }`,
+                "fail"
+              );
+
+              return;
+            }
+
+            const nextUrl =
+              `/?mobileLogin=success&mobileLoginNonce=${Date.now()}&debugLogin=1`;
+
+            appendLog(
+              `메인 이동: ${nextUrl}`,
+              "warn"
+            );
+
+            window.location.assign(
+              nextUrl
+            );
+          }
+        );
+      }
+
+
+      window.addEventListener(
+        "error",
+        event => {
+          appendLog(
+            `window.error: ${
+              event.message ||
+              "unknown"
+            }`,
+            "fail"
+          );
+        }
+      );
+
+      window.addEventListener(
+        "unhandledrejection",
+        event => {
+          const reason =
+            event.reason;
+
+          appendLog(
+            `unhandledrejection: ${
+              reason &&
+              reason.message
+                ? reason.message
+                : String(
+                    reason
+                  )
+            }`,
+            "fail"
+          );
+        }
+      );
+
+      if (
+        document.readyState ===
+          "loading"
+      ) {
+        document.addEventListener(
+          "DOMContentLoaded",
+          initialize,
+          {
+            once:
+              true
+          }
+        );
+
+      } else {
+        initialize();
+      }
+    })();
+  </script>
+</body>
+</html>
