@@ -4232,3 +4232,67 @@ input {
   height:
     98.1073% !important;
 }
+
+/* =========================================================
+   MANHOLE_TOP_BREATHING_SPACE_V29_1
+
+   V28:
+   - artwork 703 x 622
+   - top blank 12
+   - total 703 x 634
+
+   V29.1:
+   - keep artwork unchanged
+   - increase top blank to 20
+   - total 703 x 642
+   - overlay stays exactly on the 703 x 622 artwork area
+========================================================= */
+
+.manhole-original-diagram {
+  aspect-ratio:
+    703 / 642 !important;
+
+  background-size:
+    100% auto !important;
+
+  background-position:
+    center bottom !important;
+
+  background-repeat:
+    no-repeat !important;
+
+  background-color:
+    #ffffff !important;
+}
+
+/* 622 / 642 = 96.8847352% */
+.manhole-diagram-overlay {
+  top:
+    auto !important;
+
+  right:
+    0 !important;
+
+  bottom:
+    0 !important;
+
+  left:
+    0 !important;
+
+  width:
+    100% !important;
+
+  height:
+    96.8847352% !important;
+}
+
+.manhole-original-diagram__image {
+  top:
+    auto !important;
+
+  bottom:
+    0 !important;
+
+  height:
+    96.8847352% !important;
+}
