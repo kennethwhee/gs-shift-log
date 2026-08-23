@@ -4370,3 +4370,170 @@ input {
   z-index:
     4 !important;
 }
+
+/* =========================================================
+   MANHOLE_FINAL_HALO_CENTER_AND_LINE_V32
+
+   1) SCR top connector:
+      V31 height 3px -> 2px
+
+   2) Open halo:
+      use ONLY the real current element:
+      .manhole-diagram-status-symbol
+
+      Reset old inherited pseudo properties such as margin,
+      shadow, border and filter so the halo is one centered circle.
+========================================================= */
+
+/* SCR top horizontal connector: match the other diagram lines. */
+.manhole-original-diagram::before {
+  height:
+    2px !important;
+}
+
+
+/* Keep Open body clean. */
+.manhole-diagram-status-symbol.is-open {
+  box-shadow:
+    none !important;
+
+  filter:
+    none !important;
+}
+
+
+/*
+  The same element also carries:
+  data-manhole-diagram-status-group="..."
+
+  Use a high-specificity final rule so older V8/V9/V18 halo
+  declarations cannot leave margin / shadow / border offsets.
+*/
+[data-manhole-diagram-status-group]
+.manhole-diagram-status-symbol.is-open::before,
+.manhole-diagram-status-symbol[
+  data-manhole-diagram-status-group
+].is-open::before {
+  content:
+    "" !important;
+
+  display:
+    block !important;
+
+  position:
+    absolute !important;
+
+  left:
+    50% !important;
+
+  top:
+    50% !important;
+
+  width:
+    46px !important;
+
+  height:
+    46px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  transform:
+    translate(
+      -50%,
+      -50%
+    ) !important;
+
+  border:
+    0 !important;
+
+  outline:
+    0 !important;
+
+  border-radius:
+    50% !important;
+
+  background:
+    rgba(
+      250,
+      204,
+      21,
+      0.24
+    ) !important;
+
+  box-shadow:
+    none !important;
+
+  filter:
+    none !important;
+
+  opacity:
+    1 !important;
+
+  pointer-events:
+    none !important;
+
+  z-index:
+    -1 !important;
+}
+
+
+/* No second ring / decoration. */
+.manhole-diagram-status-symbol.is-open::after,
+.manhole-diagram-status-symbol[
+  data-manhole-diagram-status-group
+].is-open::after {
+  content:
+    none !important;
+
+  display:
+    none !important;
+
+  border:
+    0 !important;
+
+  outline:
+    0 !important;
+
+  background:
+    transparent !important;
+
+  box-shadow:
+    none !important;
+}
+
+
+/*
+  Mixed shared positions keep one centered halo as well.
+*/
+.manhole-diagram-status-symbol.is-mixed::before {
+  left:
+    50% !important;
+
+  top:
+    50% !important;
+
+  margin:
+    0 !important;
+
+  transform:
+    translate(
+      -50%,
+      -50%
+    ) !important;
+
+  border:
+    0 !important;
+
+  outline:
+    0 !important;
+
+  box-shadow:
+    none !important;
+
+  filter:
+    none !important;
+}
