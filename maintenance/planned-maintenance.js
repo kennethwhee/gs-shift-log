@@ -1433,3 +1433,196 @@
 
   void initialize();
 })();
+/* =========================================================
+   [PLANNED-MAINTENANCE-AUTO-TEXTAREA-HEIGHT-V1]
+
+   Logic 개선 / 작업필요사항 표의 textarea를 내용 높이에 맞춰
+   자동 확장한다.
+
+   - 사용자 입력 / 붙여넣기 즉시 반영
+   - Sheet 탭 전환 및 표 재렌더링 반영
+   - Excel 업로드 후 생성된 행 반영
+   - 다시 불러오기 후 반영
+   - 화면 폭 변경으로 줄바꿈 수가 변할 때 재계산
+========================================================= */
+(() => {
+  const TEXTAREA_SELECTOR =
+    ".planned-maintenance-table textarea";
+
+  const MIN_HEIGHT_PX = 72;
+
+  let resizeFrame = 0;
+
+  function resizeTextarea(textarea) {
+    if (!(textarea instanceof HTMLTextAreaElement)) {
+      return;
+    }
+
+    if (!textarea.matches(TEXTAREA_SELECTOR)) {
+      return;
+    }
+
+    textarea.style.height = "auto";
+
+    const nextHeight = Math.max(
+      MIN_HEIGHT_PX,
+      textarea.scrollHeight
+    );
+
+    textarea.style.height = `${nextHeight}px`;
+  }
+
+  function resizeAllTextareas(root = document) {
+    if (
+      root instanceof HTMLTextAreaElement &&
+      root.matches(TEXTAREA_SELECTOR)
+    ) {
+      resizeTextarea(root);
+      return;
+    }
+
+    if (
+      root === document ||
+      root instanceof Document ||
+      root instanceof DocumentFragment ||
+      root instanceof Element
+    ) {
+      root
+        .querySelectorAll(TEXTAREA_SELECTOR)
+        .forEach(resizeTextarea);
+    }
+  }
+
+  function scheduleResize(root = document) {
+    if (resizeFrame) {
+      cancelAnimationFrame(resizeFrame);
+    }
+
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = 0;
+      resizeAllTextareas(root);
+    });
+  }
+
+  function scheduleFollowupResizes() {
+    scheduleResize();
+
+    window.setTimeout(() => {
+      scheduleResize();
+    }, 80);
+
+    window.setTimeout(() => {
+      scheduleResize();
+    }, 300);
+
+    window.setTimeout(() => {
+      scheduleResize();
+    }, 900);
+  }
+
+  document.addEventListener(
+    "input",
+    (event) => {
+      const target = event.target;
+
+      if (
+        target instanceof HTMLTextAreaElement &&
+        target.matches(TEXTAREA_SELECTOR)
+      ) {
+        resizeTextarea(target);
+      }
+    },
+    true
+  );
+
+  document.addEventListener(
+    "change",
+    (event) => {
+      const target = event.target;
+
+      if (
+        target instanceof HTMLTextAreaElement &&
+        target.matches(TEXTAREA_SELECTOR)
+      ) {
+        resizeTextarea(target);
+        return;
+      }
+
+      if (
+        target instanceof HTMLInputElement &&
+        target.type === "file"
+      ) {
+        scheduleFollowupResizes();
+      }
+    },
+    true
+  );
+
+  document.addEventListener(
+    "click",
+    () => {
+      scheduleResize();
+    },
+    true
+  );
+
+  window.addEventListener(
+    "resize",
+    () => {
+      scheduleResize();
+    }
+  );
+
+  const observer = new MutationObserver((mutations) => {
+    let shouldResize = false;
+
+    for (const mutation of mutations) {
+      if (mutation.type !== "childList") {
+        continue;
+      }
+
+      for (const node of mutation.addedNodes) {
+        if (!(node instanceof Element)) {
+          continue;
+        }
+
+        if (
+          node.matches(TEXTAREA_SELECTOR) ||
+          node.querySelector(TEXTAREA_SELECTOR)
+        ) {
+          shouldResize = true;
+          break;
+        }
+      }
+
+      if (shouldResize) {
+        break;
+      }
+    }
+
+    if (shouldResize) {
+      scheduleResize();
+    }
+  });
+
+  function startAutoResize() {
+    resizeAllTextareas();
+
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
+
+    scheduleFollowupResizes();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener(
+      "DOMContentLoaded",
+      startAutoResize,
+      { once: true }
+    );
+  } else {
+    startAutoResize();
+  }
+})();

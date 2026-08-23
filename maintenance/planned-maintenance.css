@@ -312,3 +312,13 @@
     font-size: 12px;
   }
 }
+/* PLANNED-MAINTENANCE-AUTO-TEXTAREA-HEIGHT-V1
+   Logic 개선 / 작업필요사항 공통:
+   내용이 여러 줄이면 내부 스크롤 대신 textarea 자체가 늘어나고
+   같은 행도 가장 긴 내용에 맞춰 함께 확장된다.
+*/
+.planned-maintenance-table textarea {
+  box-sizing: border-box;
+  overflow-y: hidden;
+  resize: none;
+}
