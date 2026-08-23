@@ -4537,3 +4537,16 @@ input {
   filter:
     none !important;
 }
+
+/* =========================================================
+   MANHOLE_HIDE_UNIT2_TEMP_NOTICE_V34
+
+   Hide the old temporary Unit 2 diagram notice only.
+   Diagram, Open/Close states, markers, tables and saved data
+   are unchanged.
+========================================================= */
+
+.manhole-original-diagram__notice {
+  display:
+    none !important;
+}
