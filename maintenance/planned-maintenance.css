@@ -256,3 +256,59 @@
     border-radius: 0 0 13px 13px;
   }
 }
+/* PLANNED-MAINTENANCE-READABILITY-V1
+   Logic 개선 / 작업필요사항 공통 가독성 개선
+*/
+.pm-sheet-tab {
+  min-height: 34px;
+  padding: 7px 14px 8px;
+  font-size: 13px;
+  line-height: 1.1;
+}
+
+.planned-maintenance-table thead th {
+  height: 44px;
+  padding: 8px 7px;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.planned-maintenance-table .pm-number-cell {
+  padding: 10px 4px;
+  font-size: 13px;
+}
+
+.planned-maintenance-table input,
+.planned-maintenance-table select,
+.planned-maintenance-table textarea {
+  color: #172235;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.planned-maintenance-table input,
+.planned-maintenance-table select {
+  min-height: 50px;
+  padding: 8px 9px;
+  line-height: 1.35;
+}
+
+.planned-maintenance-table textarea {
+  min-height: 72px;
+  padding: 9px;
+  line-height: 1.5;
+}
+
+@media screen and (max-width: 760px) {
+  .pm-sheet-tab {
+    font-size: 12px;
+  }
+
+  .planned-maintenance-table thead th,
+  .planned-maintenance-table .pm-number-cell,
+  .planned-maintenance-table input,
+  .planned-maintenance-table select,
+  .planned-maintenance-table textarea {
+    font-size: 12px;
+  }
+}
