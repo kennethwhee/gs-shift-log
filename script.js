@@ -162272,7 +162272,11 @@ async function applyMorningMeetingManualInputCellFills(
     사용자가 지정한 고정 직접입력 영역만
     연한 노란색으로 남긴다.
   */
-  void options;
+  /*
+    [WEEKEND-BIO-MANUAL-YELLOW-V2]
+    Weekend supplement metadata is used below to mark only the
+    intentionally blank Bio / organic co-firing input area.
+  */
 
 
   const stylesFile =
@@ -162938,6 +162942,85 @@ async function applyMorningMeetingManualInputCellFills(
   ];
 
 
+  /*
+    Weekend Bio / organic co-firing values are manual entry.
+
+    Keep the values blank.
+    Only add the same pale-yellow fill used by other manual cells.
+
+    Restored legacy 2-day layout:
+    - labels are left of AI
+    - manual value area is AI:AO
+
+    Generated 1-4 day layout:
+    - first 3-column group is labels
+    - all groups to its right are manual value cells
+  */
+  if (
+    options.isWeekendMode ===
+      true
+  ) {
+    const weekendSupplement =
+      options.weekendSupplementResult &&
+      typeof options.weekendSupplementResult ===
+        "object"
+        ? options.weekendSupplementResult
+        : {};
+
+
+    const holidayCount =
+      Number(
+        weekendSupplement.holidayCount ||
+        0
+      );
+
+
+    if (
+      holidayCount >=
+        1 &&
+      holidayCount <=
+        4
+    ) {
+      if (
+        weekendSupplement.restored ===
+          true &&
+        holidayCount ===
+          2
+      ) {
+        manualInputRanges.push(
+          "AI26:AO29"
+        );
+
+      } else {
+        const tableStartColumnNumber =
+          columnNameToNumber(
+            weekendSupplement.tableStartColumn
+          );
+
+
+        if (
+          Number.isFinite(
+            tableStartColumnNumber
+          ) &&
+          tableStartColumnNumber >
+            0
+        ) {
+          const firstBioValueColumn =
+            columnNumberToName(
+              tableStartColumnNumber +
+              3
+            );
+
+
+          manualInputRanges.push(
+            `${firstBioValueColumn}26:AO29`
+          );
+        }
+      }
+    }
+  }
+
+
   const manualInputAddresses =
     manualInputRanges.flatMap(
       expandCellRange
@@ -163535,9 +163618,21 @@ function applyMorningMeetingPreviewAutoValues(
         );
 
 
+      /*
+        [WEEKEND-SMP-EXPORT-V2]
+        Some restored SMP records are keyed by the correct target date
+        but contain only the three numeric values and no date metadata.
+
+        Accept that legacy/restored shape.
+        If date metadata exists and explicitly points to another date,
+        still reject it.
+      */
       if (
-        itemDate !==
-          normalizedDate ||
+        (
+          itemDate &&
+          itemDate !==
+            normalizedDate
+        ) ||
 
         (
           status &&
