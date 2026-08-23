@@ -118015,3 +118015,289 @@ table {
   }
 
 }
+/* =========================================================
+  [SECTION-CONTEXT-COMPACT-V6-FIX1]
+
+  1. PC 입력 글씨와 컨트롤 높이를 한 단계 더 축소
+  2. 내용 textarea 높이 축소
+  3. 인계/작업에서 TAG 입력칸을 시간/현재시간 바로 아래 배치
+========================================================= */
+
+@media (
+  min-width:
+    769px
+) {
+
+  /* -------------------------------------------------------
+     전체 높이 / 간격 축소
+  ------------------------------------------------------- */
+
+  .section-context-entry-editor {
+    min-height:
+      50px !important;
+
+    padding:
+      5px 8px !important;
+
+    column-gap:
+      6px !important;
+  }
+
+
+  .section-context-entry-editor__heading strong {
+    font-size:
+      10px !important;
+
+    line-height:
+      1.2 !important;
+  }
+
+
+  /* -------------------------------------------------------
+     Select / 시간 / TAG / 현재시간
+  ------------------------------------------------------- */
+
+  .section-context-entry-issue-type,
+  .section-context-entry-handover-type,
+  .section-context-entry-time,
+  .section-context-entry-tag {
+    height:
+      28px !important;
+
+    min-height:
+      28px !important;
+
+    padding:
+      0 7px !important;
+
+    border-radius:
+      5px !important;
+
+    font-size:
+      10px !important;
+
+    line-height:
+      1.2 !important;
+  }
+
+
+  .section-context-entry-now {
+    height:
+      28px !important;
+
+    min-height:
+      28px !important;
+
+    padding:
+      0 8px !important;
+
+    border-radius:
+      5px !important;
+
+    font-size:
+      8px !important;
+  }
+
+
+  /* -------------------------------------------------------
+     내용 입력박스 축소
+  ------------------------------------------------------- */
+
+  .section-context-entry-content {
+    height:
+      36px !important;
+
+    min-height:
+      36px !important;
+
+    max-height:
+      80px !important;
+
+    padding:
+      5px 8px !important;
+
+    border-radius:
+      5px !important;
+
+    font-size:
+      10px !important;
+
+    line-height:
+      1.3 !important;
+  }
+
+
+  /* -------------------------------------------------------
+     취소 / 추가 버튼 축소
+  ------------------------------------------------------- */
+
+  .section-context-entry-cancel,
+  .section-context-entry-save {
+    height:
+      28px !important;
+
+    min-height:
+      28px !important;
+
+    min-width:
+      54px !important;
+
+    padding:
+      0 8px !important;
+
+    border-radius:
+      5px !important;
+
+    font-size:
+      8px !important;
+  }
+
+
+  /* -------------------------------------------------------
+     인계 / 작업:
+     구분은 왼쪽,
+     시간 + 현재시간은 오른쪽 위,
+     TAG는 그 바로 아래
+  ------------------------------------------------------- */
+
+  .section-context-entry-editor.is-handover
+  .section-context-entry-editor__tools {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      104px
+      max-content !important;
+
+    grid-template-areas:
+      "type time"
+      "type tag" !important;
+
+    align-items:
+      center !important;
+
+    column-gap:
+      5px !important;
+
+    row-gap:
+      4px !important;
+
+    width:
+      max-content !important;
+
+    min-width:
+      0 !important;
+  }
+
+
+  .section-context-entry-editor.is-handover
+  .section-context-entry-field--handover-type {
+    grid-area:
+      type;
+
+    align-self:
+      center !important;
+
+    width:
+      104px !important;
+
+    min-width:
+      104px !important;
+  }
+
+
+  .section-context-entry-editor.is-handover
+  .section-context-entry-time-group {
+    grid-area:
+      time;
+
+    display:
+      flex !important;
+
+    align-items:
+      center !important;
+
+    gap:
+      5px !important;
+  }
+
+
+  .section-context-entry-editor.is-handover
+  .section-context-entry-field--tag {
+    grid-area:
+      tag;
+
+    width:
+      170px !important;
+
+    min-width:
+      170px !important;
+
+    max-width:
+      170px !important;
+  }
+
+
+  .section-context-entry-editor.is-handover
+  .section-context-entry-field--tag.is-tag-hidden {
+    display:
+      none !important;
+  }
+
+
+  /*
+    TAG 입력칸은 아래줄이므로 placeholder가 잘리지 않게
+    글씨를 아주 조금만 작게 유지
+  */
+  .section-context-entry-editor.is-handover
+  .section-context-entry-tag {
+    font-size:
+      9px !important;
+  }
+
+}
+
+
+/* =========================================================
+  중간 폭 PC에서도 TAG 아래 배치 유지
+========================================================= */
+
+@media (
+  min-width:
+    769px
+) and (
+  max-width:
+    1080px
+) {
+
+  .section-context-entry-editor.is-handover
+  .section-context-entry-editor__tools {
+    grid-template-columns:
+      100px
+      max-content !important;
+  }
+
+
+  .section-context-entry-editor.is-handover
+  .section-context-entry-field--handover-type {
+    width:
+      100px !important;
+
+    min-width:
+      100px !important;
+  }
+
+
+  .section-context-entry-editor.is-handover
+  .section-context-entry-field--tag {
+    width:
+      160px !important;
+
+    min-width:
+      160px !important;
+
+    max-width:
+      160px !important;
+  }
+
+}
