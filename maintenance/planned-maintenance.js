@@ -5,7 +5,7 @@
 (function initializePlannedMaintenancePage() {
   const API_URL = "/api/planned-maintenance";
   const STORAGE_UNIT = "1";
-  const TEMPLATE_VERSION = "20260823-maintenance-sheet-tabs-v2";
+  const TEMPLATE_VERSION = "20260824-maintenance-template-exceljs-v3";
   const management = window.GSManagement;
 
   if (!management) {
