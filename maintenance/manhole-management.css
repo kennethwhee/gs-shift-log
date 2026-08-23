@@ -4305,3 +4305,68 @@ input {
    - top breathing space unchanged
    - only SCR outer top horizontal line restored in PNG
 ========================================================= */
+
+/* =========================================================
+   MANHOLE_SCR_TOP_CONNECTOR_V31
+
+   Restore ONLY the missing thick black horizontal line
+   that connects the two outer SCR vertical walls.
+
+   Current V29.1 coordinate box:
+   - original artwork: 703 x 622
+   - top blank: 20
+   - total box: 703 x 642
+
+   Original SCR outer top:
+   - x: about 369..500 of 703
+   - y: about 4 inside the source artwork
+
+   CSS overlay:
+   - left: 52.5%
+   - top : 3.7%
+   - width: 18.8%
+   - thickness: 3px
+
+   No image, marker, spacing, or geometry changes.
+========================================================= */
+
+.manhole-original-diagram::before {
+  content:
+    "" !important;
+
+  display:
+    block !important;
+
+  position:
+    absolute !important;
+
+  left:
+    52.5% !important;
+
+  top:
+    3.7% !important;
+
+  width:
+    18.8% !important;
+
+  height:
+    3px !important;
+
+  background:
+    #111111 !important;
+
+  border:
+    0 !important;
+
+  outline:
+    0 !important;
+
+  box-shadow:
+    none !important;
+
+  pointer-events:
+    none !important;
+
+  z-index:
+    4 !important;
+}
