@@ -246859,3 +246859,421 @@ async function restoreSolarCumulativeFromD1() {
   normalizeLogEntryCategory =
     protectedNormalizeLogEntryCategory;
 })();
+/* =========================================================
+  [SECTION-CONTENT-HOVER-ADD-V5]
+  내용 영역 Hover + 버튼
+
+  변경:
+  - 제목줄 Hover + 사용하지 않음
+  - 제목줄 클릭으로 입력창 열지 않음
+  - 실제 내용 목록 영역에 마우스를 올렸을 때 + 표시
+  - 내용 영역의 + 클릭 시 기존 섹션별 입력창을 그대로 실행
+  - 기존 V3/V4 저장·입력·수정 로직은 유지
+========================================================= */
+
+(function installSectionContentHoverAddV5() {
+  if (
+    window.__sectionContentHoverAddV5Installed ===
+      true
+  ) {
+    return;
+  }
+
+
+  window.__sectionContentHoverAddV5Installed =
+    true;
+
+
+  const BODY_BUTTON_CLASS =
+    "section-context-body-add-button";
+
+
+  const CONTENT_ZONE_CLASS =
+    "section-context-content-zone";
+
+
+  const sectionLabels = {
+    issue:
+      "발행 내역 추가",
+
+    handover:
+      "인계사항 추가",
+
+    instruction:
+      "지시사항 추가",
+
+    remark:
+      "비고 추가"
+  };
+
+
+  function getSectionType(
+    section
+  ) {
+    return String(
+      section?.dataset
+        ?.contextEntryType ||
+      ""
+    ).trim();
+  }
+
+
+  function getContentZone(
+    section
+  ) {
+    return (
+      section?.querySelector(
+        ".log-entry-table-wrap"
+      ) ||
+      null
+    );
+  }
+
+
+  function getHeaderAddButton(
+    section
+  ) {
+    return (
+      section?.querySelector(
+        ".section-context-entry-header .section-context-add-button"
+      ) ||
+      null
+    );
+  }
+
+
+  function ensureBodyAddButton(
+    section
+  ) {
+    if (
+      !section ||
+      !section.classList.contains(
+        "section-context-entry-enabled"
+      )
+    ) {
+      return;
+    }
+
+
+    const contentZone =
+      getContentZone(
+        section
+      );
+
+
+    if (
+      !contentZone
+    ) {
+      return;
+    }
+
+
+    contentZone.classList.add(
+      CONTENT_ZONE_CLASS
+    );
+
+
+    const sectionType =
+      getSectionType(
+        section
+      );
+
+
+    let bodyButton =
+      contentZone.querySelector(
+        `.${BODY_BUTTON_CLASS}`
+      );
+
+
+    if (
+      !bodyButton
+    ) {
+      bodyButton =
+        document.createElement(
+          "button"
+        );
+
+
+      bodyButton.type =
+        "button";
+
+      bodyButton.className =
+        BODY_BUTTON_CLASS;
+
+      bodyButton.textContent =
+        "+";
+
+
+      const label =
+        sectionLabels[
+          sectionType
+        ] ||
+        "내용 추가";
+
+
+      bodyButton.title =
+        label;
+
+      bodyButton.setAttribute(
+        "aria-label",
+        label
+      );
+
+
+      contentZone.appendChild(
+        bodyButton
+      );
+    }
+
+
+    /*
+      실제 클릭 동작은 V3에서 이미 만들어진
+      섹션별 + 버튼을 프로그램으로 눌러 재사용한다.
+
+      이렇게 하면:
+      - 발행 TM/BM/CM
+      - 인계 Select
+      - TAG 선택입력
+      - 지시사항
+      - 비고
+      기존 V4 로직을 그대로 유지할 수 있다.
+    */
+    if (
+      bodyButton.dataset
+        .bodyAddBound !==
+        "true"
+    ) {
+      bodyButton.addEventListener(
+        "click",
+        event => {
+          event.preventDefault();
+          event.stopPropagation();
+
+
+          const headerButton =
+            getHeaderAddButton(
+              section
+            );
+
+
+          if (
+            !headerButton ||
+            headerButton.hidden ||
+            headerButton.disabled
+          ) {
+            if (
+              sectionType ===
+                "instruction" &&
+              typeof showToast ===
+                "function"
+            ) {
+              showToast(
+                "지시사항은 파트장 업무일지에서만 작성할 수 있습니다."
+              );
+            }
+
+            return;
+          }
+
+
+          headerButton.click();
+        }
+      );
+
+
+      bodyButton.dataset
+        .bodyAddBound =
+        "true";
+    }
+
+
+    /*
+      파트장 전용 지시사항 등
+      기존 헤더 +가 hidden이면 내용 영역 +도 숨긴다.
+    */
+    const headerButton =
+      getHeaderAddButton(
+        section
+      );
+
+
+    bodyButton.hidden =
+      Boolean(
+        !headerButton ||
+        headerButton.hidden ||
+        headerButton.disabled
+      );
+  }
+
+
+  function ensureAllBodyAddButtons() {
+    document
+      .querySelectorAll(
+        ".section-context-entry-enabled"
+      )
+      .forEach(
+        section => {
+          ensureBodyAddButton(
+            section
+          );
+        }
+      );
+  }
+
+
+  /*
+    제목줄 자체를 클릭했을 때 입력창이 열리는
+    V3 동작을 막는다.
+
+    이전일지, 편집 등의 실제 버튼 클릭은 그대로 통과시킨다.
+  */
+  document.addEventListener(
+    "click",
+    event => {
+      const target =
+        event.target instanceof
+          Element
+          ? event.target
+          : null;
+
+
+      if (
+        !target
+      ) {
+        return;
+      }
+
+
+      const header =
+        target.closest(
+          ".section-context-entry-header"
+        );
+
+
+      if (
+        !header
+      ) {
+        return;
+      }
+
+
+      if (
+        target.closest(
+          [
+            "button",
+            "input",
+            "select",
+            "textarea",
+            "a",
+            "label"
+          ].join(
+            ","
+          )
+        )
+      ) {
+        return;
+      }
+
+
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    true
+  );
+
+
+  /*
+    기존 렌더링 뒤 내용 영역 + 상태 재확인
+  */
+  if (
+    typeof renderLogEntryTable ===
+      "function" &&
+    renderLogEntryTable
+      .__sectionContentHoverAddV5Wrapped !==
+      true
+  ) {
+    const previousRenderLogEntryTable =
+      renderLogEntryTable;
+
+
+    const wrappedRenderLogEntryTable =
+      function (
+        ...args
+      ) {
+        const result =
+          previousRenderLogEntryTable.apply(
+            this,
+            args
+          );
+
+
+        window.requestAnimationFrame(
+          ensureAllBodyAddButtons
+        );
+
+
+        return result;
+      };
+
+
+    wrappedRenderLogEntryTable
+      .__sectionContentHoverAddV5Wrapped =
+      true;
+
+
+    renderLogEntryTable =
+      wrappedRenderLogEntryTable;
+  }
+
+
+  /*
+    보직 변경 시 지시사항 버튼 hidden 상태가 바뀔 수 있으므로
+    다시 동기화한다.
+  */
+  document.addEventListener(
+    "change",
+    event => {
+      const target =
+        event.target instanceof
+          Element
+          ? event.target
+          : null;
+
+
+      if (
+        target?.id !==
+          "logRole"
+      ) {
+        return;
+      }
+
+
+      window.requestAnimationFrame(
+        ensureAllBodyAddButtons
+      );
+    }
+  );
+
+
+  function initialize() {
+    ensureAllBodyAddButtons();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();

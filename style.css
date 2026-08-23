@@ -116824,3 +116824,319 @@ tbody
   }
 
 }
+/* =========================================================
+  [SECTION-CONTENT-HOVER-ADD-V5]
+  내용 영역 Hover + 버튼
+========================================================= */
+
+
+/* ---------------------------------------------------------
+   제목줄 + 버튼은 완전히 숨긴다.
+   실제 클릭 동작 재사용을 위해 DOM에는 유지한다.
+--------------------------------------------------------- */
+
+.section-context-entry-header
+.section-context-add-button {
+  display:
+    none !important;
+}
+
+
+/*
+  제목줄은 더 이상 "추가" 클릭 영역이 아니므로
+  일반 커서로 복원한다.
+*/
+.section-context-entry-header {
+  cursor:
+    default !important;
+}
+
+
+/* ---------------------------------------------------------
+   실제 내용 입력 영역
+--------------------------------------------------------- */
+
+.section-context-content-zone {
+  position:
+    relative !important;
+}
+
+
+/*
+  내용 영역 위에 마우스를 올렸을 때만 나타나는 +
+*/
+.section-context-body-add-button {
+  box-sizing:
+    border-box;
+
+  position:
+    absolute;
+
+  z-index:
+    8;
+
+  top:
+    50%;
+
+  right:
+    14px;
+
+  display:
+    inline-flex;
+
+  width:
+    31px;
+
+  height:
+    31px;
+
+  min-width:
+    31px;
+
+  min-height:
+    31px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  margin:
+    0;
+
+  padding:
+    0;
+
+  border:
+    1px solid #9fb1c8;
+
+  border-radius:
+    8px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.97
+    );
+
+  color:
+    #355a83;
+
+  box-shadow:
+    0 3px 10px
+    rgba(
+      44,
+      67,
+      93,
+      0.10
+    );
+
+  font-family:
+    inherit;
+
+  font-size:
+    18px;
+
+  font-weight:
+    700;
+
+  line-height:
+    1;
+
+  cursor:
+    pointer;
+
+  opacity:
+    0;
+
+  pointer-events:
+    none;
+
+  transform:
+    translateY(
+      -50%
+    )
+    scale(
+      0.94
+    );
+
+  transition:
+    opacity 0.13s ease,
+    transform 0.13s ease,
+    border-color 0.13s ease,
+    background-color 0.13s ease,
+    color 0.13s ease;
+}
+
+
+.section-context-content-zone:hover
+.section-context-body-add-button,
+.section-context-content-zone:focus-within
+.section-context-body-add-button {
+  opacity:
+    1;
+
+  pointer-events:
+    auto;
+
+  transform:
+    translateY(
+      -50%
+    )
+    scale(
+      1
+    );
+}
+
+
+.section-context-body-add-button:hover {
+  border-color:
+    #6785aa;
+
+  background:
+    #edf5fd;
+
+  color:
+    #1f4f7e;
+}
+
+
+.section-context-body-add-button:active {
+  transform:
+    translateY(
+      -50%
+    )
+    scale(
+      0.96
+    );
+}
+
+
+.section-context-body-add-button[hidden] {
+  display:
+    none !important;
+}
+
+
+/*
+  사용자가 내용 영역에 마우스를 올렸다는 것이
+  은은하게 느껴지도록 최소한의 반응만 준다.
+*/
+.section-context-content-zone::after {
+  content:
+    "";
+
+  position:
+    absolute;
+
+  z-index:
+    1;
+
+  inset:
+    0;
+
+  border:
+    1px solid transparent;
+
+  border-radius:
+    inherit;
+
+  pointer-events:
+    none;
+
+  transition:
+    border-color 0.13s ease,
+    background-color 0.13s ease;
+}
+
+
+.section-context-content-zone:hover::after {
+  border-color:
+    rgba(
+      104,
+      139,
+      178,
+      0.22
+    );
+
+  background:
+    rgba(
+      235,
+      244,
+      253,
+      0.06
+    );
+}
+
+
+/*
+  기존 테이블/버튼은 Hover 장식보다 위에서 정상 클릭되어야 한다.
+*/
+.section-context-content-zone
+table {
+  position:
+    relative;
+
+  z-index:
+    2;
+}
+
+
+/* ---------------------------------------------------------
+   터치 기기에는 Hover가 없으므로
+   내용 영역 +를 항상 작게 표시한다.
+--------------------------------------------------------- */
+
+@media (
+  hover:
+    none
+),
+(
+  max-width:
+    768px
+) {
+
+  .section-context-body-add-button {
+    top:
+      10px;
+
+    right:
+      9px;
+
+    width:
+      29px;
+
+    height:
+      29px;
+
+    min-width:
+      29px;
+
+    min-height:
+      29px;
+
+    opacity:
+      1;
+
+    pointer-events:
+      auto;
+
+    transform:
+      none;
+
+    font-size:
+      17px;
+  }
+
+
+  .section-context-body-add-button:active {
+    transform:
+      scale(
+        0.96
+      );
+  }
+
+}
