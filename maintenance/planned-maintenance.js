@@ -1081,6 +1081,75 @@
       .filter(row => importedRowHasContent(config, row));
   }
 
+
+  /* =========================================================
+     [PLANNED-MAINTENANCE-WORK-BLR1-DUPLICATE-PREFIX-V1]
+
+     작업필요사항 Excel의 #1 BLR Sheet 앞부분이
+     TBN,BOP Sheet와 동일하게 복제된 경우에만
+     연속 중복 prefix를 자동 제외한다.
+
+     - 10건 이상 연속 완전일치할 때만 동작
+     - #1 BLR 전체가 동일한 경우에는 제거하지 않음
+     - 실제 고유 #1 BLR 데이터는 그대로 유지
+     - 다른 Sheet / Logic 개선에는 영향 없음
+  ========================================================= */
+  function buildWorkImportRowSignature(config, row) {
+    return config.columns
+      .map(col => normalizeString(row?.[col.field]))
+      .join("\u241f");
+  }
+
+  function trimDuplicatedBlr1Prefix(rows, referenceRows, config) {
+    if (
+      state.view !== "work" ||
+      config?.name !== "#1 BLR" ||
+      !Array.isArray(rows) ||
+      !Array.isArray(referenceRows) ||
+      rows.length === 0 ||
+      referenceRows.length === 0
+    ) {
+      return rows;
+    }
+
+    const compareLength = Math.min(
+      rows.length,
+      referenceRows.length
+    );
+
+    let duplicatePrefixLength = 0;
+
+    while (
+      duplicatePrefixLength < compareLength &&
+      buildWorkImportRowSignature(
+        config,
+        rows[duplicatePrefixLength]
+      ) ===
+        buildWorkImportRowSignature(
+          config,
+          referenceRows[duplicatePrefixLength]
+        )
+    ) {
+      duplicatePrefixLength += 1;
+    }
+
+    const minimumSafeDuplicatePrefix = 10;
+
+    if (
+      duplicatePrefixLength < minimumSafeDuplicatePrefix ||
+      duplicatePrefixLength >= rows.length
+    ) {
+      return rows;
+    }
+
+    console.info(
+      `[계획정비 Excel] #1 BLR 앞쪽 TBN,BOP 중복 ${duplicatePrefixLength}건 자동 제외`
+    );
+
+    return rows.slice(
+      duplicatePrefixLength
+    );
+  }
   async function importExcelFile(file) {
     if (!file) {
       return;
@@ -1103,6 +1172,7 @@
 
       const matched = [];
       const imported = [];
+      const importedRowsBySheetName = new Map();
 
       getSheetConfigs().forEach(config => {
         const sheetName = findWorkbookSheet(workbook, config);
@@ -1110,7 +1180,24 @@
           return;
         }
 
-        const rows = importRowsFromWorksheet(workbook, sheetName, config);
+        let rows = importRowsFromWorksheet(workbook, sheetName, config);
+
+        if (
+          state.view === "work" &&
+          config.name === "#1 BLR"
+        ) {
+          rows = trimDuplicatedBlr1Prefix(
+            rows,
+            importedRowsBySheetName.get("TBN,BOP") || [],
+            config
+          );
+        }
+
+        importedRowsBySheetName.set(
+          config.name,
+          rows
+        );
+
         matched.push(config);
         imported.push(...rows);
       });
