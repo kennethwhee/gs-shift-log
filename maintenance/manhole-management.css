@@ -4146,3 +4146,89 @@ input {
   background:
     #f0f2f4 !important;
 }
+
+/* =========================================================
+   MANHOLE_TOP_BREATHING_SPACE_V28
+
+   V27 source artwork:
+   703 x 622
+
+   Add a 12-unit blank band above the artwork without
+   cropping or stretching the drawing.
+
+   Total coordinate box:
+   703 x 634
+
+   Artwork:
+   - full width
+   - original aspect ratio preserved
+   - anchored to the bottom
+
+   Overlay:
+   - uses the exact same artwork area
+   - all V27 manhole coordinates remain unchanged
+========================================================= */
+
+.manhole-original-diagram {
+  /*
+    622px artwork + 12px top breathing space.
+    Nothing inside the actual drawing is cropped.
+  */
+  aspect-ratio:
+    703 / 634 !important;
+
+  background-size:
+    100% auto !important;
+
+  background-position:
+    center bottom !important;
+
+  background-repeat:
+    no-repeat !important;
+
+  background-color:
+    #ffffff !important;
+}
+
+
+/*
+  The live manhole overlay must occupy only the original
+  703:622 artwork area.
+
+  622 / 634 = 98.1073%
+*/
+.manhole-diagram-overlay {
+  top:
+    auto !important;
+
+  right:
+    0 !important;
+
+  bottom:
+    0 !important;
+
+  left:
+    0 !important;
+
+  width:
+    100% !important;
+
+  height:
+    98.1073% !important;
+}
+
+
+/*
+  The old hidden image remains non-visual and must not
+  influence the new top breathing space.
+*/
+.manhole-original-diagram__image {
+  top:
+    auto !important;
+
+  bottom:
+    0 !important;
+
+  height:
+    98.1073% !important;
+}
