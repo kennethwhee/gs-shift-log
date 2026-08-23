@@ -117525,19 +117525,6 @@ table {
   }
 
 }
-/* MANHOLE-SUBMENU-ICON-HIDE-V1
-   계획정비 하위메뉴의 맨홀개폐관리 앞 장식 아이콘 제거.
-   HTML 텍스트는 그대로 두고 CSS pseudo-element/background만 차단한다.
-*/
-#manholeManagementHeaderButton::before,
-#manholeManagementHeaderButton::after {
-  content: none !important;
-  display: none !important;
-}
-
-#manholeManagementHeaderButton {
-  background-image: none !important;
-}
 /* =========================================================
   [SECTION-CONTEXT-COMPACT-V6]
   섹션별 입력창 한 줄형 컴팩트 배치
