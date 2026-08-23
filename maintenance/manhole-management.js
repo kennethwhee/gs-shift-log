@@ -1134,33 +1134,18 @@
       String(unknownCount);
   }
 
-  function render() {
-    syncUnitUi();
-    renderSchematic();
+  /* MANHOLE_UNIT_RENDER_ORDER_FIX_V33_1
+   The diagram status renderer reads the current table status controls.
+   Render the selected unit table first so switching Unit 1 / Unit 2
+   cannot reuse the previous unit's DOM status.
+*/
+function render() {
     renderTable();
+    renderSchematic();
     renderSummary();
+}
 
-    elements.modifierText.textContent =
-      state.lastModifiedBy
-        ? `마지막 수정: ${state.lastModifiedBy}`
-        : "";
-
-    setDirty(
-      state.dirty
-    );
-  }
-
-  function findRow(
-    no
-  ) {
-    return state.rows.find(
-      row =>
-        row.no ===
-        Number(no)
-    );
-  }
-
-  function updateStatus(
+function updateStatus(
     no,
     nextStatus
   ) {
