@@ -115856,3 +115856,658 @@ tbody
   }
 
 }
+/* =========================================================
+  [SECTION-CONTEXT-ENTRY-V3]
+  업무일지 섹션별 바로입력 UI
+========================================================= */
+
+
+/* ---------------------------------------------------------
+   기존 상단 고정 입력 UI 숨김
+--------------------------------------------------------- */
+
+.context-entry-legacy-section,
+#logEntryInputPanel.is-context-entry-legacy-hidden {
+  display:
+    none !important;
+}
+
+
+/*
+  기존 지시사항/비고의 별도 "+ 내용 추가"는
+  새 섹션 + 버튼으로 통합한다.
+*/
+.context-entry-old-add-hidden {
+  display:
+    none !important;
+}
+
+
+/* ---------------------------------------------------------
+   섹션 Hover / 클릭
+--------------------------------------------------------- */
+
+.section-context-entry-enabled {
+  position:
+    relative;
+}
+
+
+.section-context-entry-header {
+  cursor:
+    pointer;
+
+  user-select:
+    none;
+}
+
+
+.section-context-entry-enabled
+.section-context-add-button {
+  box-sizing:
+    border-box;
+
+  display:
+    inline-flex;
+
+  flex:
+    0 0 26px;
+
+  width:
+    26px;
+
+  height:
+    26px;
+
+  min-width:
+    26px;
+
+  min-height:
+    26px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  margin-left:
+    auto;
+
+  padding:
+    0;
+
+  border:
+    1px solid #aebbd0;
+
+  border-radius:
+    7px;
+
+  background:
+    #ffffff;
+
+  color:
+    #44607f;
+
+  font-size:
+    15px;
+
+  font-weight:
+    800;
+
+  line-height:
+    1;
+
+  cursor:
+    pointer;
+
+  opacity:
+    0;
+
+  transform:
+    translateY(
+      1px
+    ) scale(
+      0.96
+    );
+
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease,
+    border-color 0.14s ease,
+    background-color 0.14s ease,
+    color 0.14s ease;
+}
+
+
+.section-context-entry-enabled:hover
+.section-context-add-button,
+.section-context-entry-enabled:focus-within
+.section-context-add-button,
+.section-context-entry-enabled.is-context-entry-open
+.section-context-add-button {
+  opacity:
+    1;
+
+  transform:
+    translateY(
+      0
+    ) scale(
+      1
+    );
+}
+
+
+.section-context-entry-enabled
+.section-context-add-button:hover {
+  border-color:
+    #6f8aad;
+
+  background:
+    #edf4fb;
+
+  color:
+    #254b75;
+}
+
+
+/*
+  새 + 버튼이 먼저 auto 여백을 사용하므로
+  기존 이전일지 버튼의 자동 밀기 해제
+*/
+.section-context-entry-header
+#loadPreviousHandoverEntriesButton,
+.section-context-entry-header
+#loadPreviousInstructionEntriesButton,
+.section-context-entry-header
+#loadPreviousRemarkEntriesButton {
+  margin-left:
+    6px !important;
+}
+
+
+/* ---------------------------------------------------------
+   인라인 입력창
+--------------------------------------------------------- */
+
+.section-context-entry-editor {
+  display:
+    grid;
+
+  gap:
+    11px;
+
+  width:
+    100%;
+
+  min-width:
+    0;
+
+  padding:
+    12px 14px;
+
+  border-top:
+    1px solid #cbd7e5;
+
+  border-right:
+    1px solid #d5deea;
+
+  border-bottom:
+    1px solid #d5deea;
+
+  border-left:
+    3px solid #7393b8;
+
+  background:
+    #f8fbff;
+
+  box-sizing:
+    border-box;
+}
+
+
+.section-context-entry-editor.is-instruction {
+  border-left-color:
+    #7d92ad;
+
+  background:
+    #f8fafc;
+}
+
+
+.section-context-entry-editor.is-remark {
+  border-left-color:
+    #9a8bc5;
+
+  background:
+    #fbfaff;
+}
+
+
+.section-context-entry-editor__heading {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    space-between;
+
+  gap:
+    10px;
+}
+
+
+.section-context-entry-editor__heading strong {
+  color:
+    #2d3d52;
+
+  font-size:
+    12px;
+
+  font-weight:
+    800;
+}
+
+
+.section-context-entry-close {
+  display:
+    inline-flex;
+
+  width:
+    25px;
+
+  height:
+    25px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  padding:
+    0;
+
+  border:
+    1px solid #c6d0dd;
+
+  border-radius:
+    6px;
+
+  background:
+    #ffffff;
+
+  color:
+    #64748b;
+
+  font-size:
+    16px;
+
+  line-height:
+    1;
+
+  cursor:
+    pointer;
+}
+
+
+.section-context-entry-editor__tools {
+  display:
+    flex;
+
+  flex-wrap:
+    wrap;
+
+  align-items:
+    end;
+
+  gap:
+    10px;
+}
+
+
+.section-context-entry-field {
+  display:
+    grid;
+
+  min-width:
+    0;
+
+  gap:
+    5px;
+}
+
+
+.section-context-entry-field > span {
+  color:
+    #607086;
+
+  font-size:
+    10px;
+
+  font-weight:
+    800;
+}
+
+
+.section-context-entry-field--type {
+  flex:
+    0 0 100px;
+}
+
+
+.section-context-entry-field--time {
+  width:
+    105px;
+}
+
+
+.section-context-entry-field--content {
+  width:
+    100%;
+}
+
+
+.section-context-entry-time-group {
+  display:
+    flex;
+
+  align-items:
+    end;
+
+  gap:
+    6px;
+}
+
+
+.section-context-entry-issue-type,
+.section-context-entry-time,
+.section-context-entry-content {
+  box-sizing:
+    border-box;
+
+  width:
+    100%;
+
+  border:
+    1px solid #bdcad9;
+
+  border-radius:
+    7px;
+
+  background:
+    #ffffff;
+
+  color:
+    #26364c;
+
+  font-family:
+    inherit;
+
+  font-size:
+    12px;
+
+  outline:
+    none;
+}
+
+
+.section-context-entry-issue-type,
+.section-context-entry-time {
+  height:
+    34px;
+
+  min-height:
+    34px;
+
+  padding:
+    0 9px;
+}
+
+
+.section-context-entry-content {
+  min-height:
+    74px;
+
+  max-height:
+    220px;
+
+  padding:
+    9px 10px;
+
+  line-height:
+    1.55;
+
+  resize:
+    vertical;
+}
+
+
+.section-context-entry-issue-type:focus,
+.section-context-entry-time:focus,
+.section-context-entry-content:focus {
+  border-color:
+    #7895b8;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(
+      120,
+      149,
+      184,
+      0.12
+    );
+}
+
+
+.section-context-entry-now {
+  height:
+    34px;
+
+  min-height:
+    34px;
+
+  padding:
+    0 10px;
+
+  border:
+    1px solid #b5c4d5;
+
+  border-radius:
+    7px;
+
+  background:
+    #ffffff;
+
+  color:
+    #45617f;
+
+  font-family:
+    inherit;
+
+  font-size:
+    10px;
+
+  font-weight:
+    800;
+
+  white-space:
+    nowrap;
+
+  cursor:
+    pointer;
+}
+
+
+.section-context-entry-editor__actions {
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    flex-end;
+
+  gap:
+    7px;
+}
+
+
+.section-context-entry-shortcut {
+  margin-right:
+    auto;
+
+  color:
+    #8a96a6;
+
+  font-size:
+    9px;
+
+  font-weight:
+    600;
+}
+
+
+.section-context-entry-cancel,
+.section-context-entry-save {
+  min-width:
+    66px;
+
+  height:
+    32px;
+
+  min-height:
+    32px;
+
+  padding:
+    0 11px;
+
+  border-radius:
+    7px;
+
+  font-family:
+    inherit;
+
+  font-size:
+    10px;
+
+  font-weight:
+    800;
+
+  cursor:
+    pointer;
+}
+
+
+.section-context-entry-cancel {
+  border:
+    1px solid #c5ceda;
+
+  background:
+    #ffffff;
+
+  color:
+    #5f6c7d;
+}
+
+
+.section-context-entry-save {
+  border:
+    1px solid #6d8fb6;
+
+  background:
+    #6d8fb6;
+
+  color:
+    #ffffff;
+}
+
+
+/* ---------------------------------------------------------
+   모바일/터치:
+   Hover가 없으므로 + 버튼 항상 표시
+--------------------------------------------------------- */
+
+@media (
+  hover:
+    none
+),
+(
+  max-width:
+    768px
+) {
+
+  .section-context-entry-enabled
+  .section-context-add-button {
+    opacity:
+      1;
+
+    transform:
+      none;
+  }
+
+
+  .section-context-entry-editor {
+    gap:
+      10px;
+
+    padding:
+      10px;
+  }
+
+
+  .section-context-entry-editor__tools {
+    display:
+      grid;
+
+    grid-template-columns:
+      minmax(
+        0,
+        96px
+      )
+      minmax(
+        0,
+        1fr
+      );
+
+    align-items:
+      end;
+
+    gap:
+      8px;
+  }
+
+
+  .section-context-entry-field--type {
+    width:
+      100%;
+  }
+
+
+  .section-context-entry-time-group {
+    min-width:
+      0;
+  }
+
+
+  .section-context-entry-field--time {
+    width:
+      100%;
+  }
+
+
+  .section-context-entry-time {
+    min-width:
+      0;
+  }
+
+
+  .section-context-entry-shortcut {
+    display:
+      none;
+  }
+
+}

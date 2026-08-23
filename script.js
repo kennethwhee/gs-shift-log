@@ -244637,3 +244637,1936 @@ async function restoreSolarCumulativeFromD1() {
     ensureInstructionPreviousButton();
   }
 })();
+/* =========================================================
+  [SECTION-CONTEXT-ENTRY-V3]
+  업무일지 섹션별 바로입력 UI
+
+  목표:
+  - 기존 상단 고정 "작업 · 정비 · 인계 내역" 입력 UI 숨김
+  - 각 섹션 Hover 시 + 표시
+  - 섹션 제목 또는 + 클릭 시 해당 위치에서 입력
+  - 발행 내역: TM / BM / CM 선택 + 시간 + 내용
+  - 인계사항: 시간 + 내용
+  - 지시사항: 내용만
+  - 비고: 내용만
+  - 기존 저장 구조는 그대로 사용
+  - 기존 항목 수정도 같은 섹션 입력 UI에서 수행
+========================================================= */
+
+(function installSectionContextEntryV3() {
+  if (
+    window.__sectionContextEntryV3Installed ===
+      true
+  ) {
+    return;
+  }
+
+
+  window.__sectionContextEntryV3Installed =
+    true;
+
+
+  const SECTION_TYPES = {
+    ISSUE:
+      "issue",
+
+    HANDOVER:
+      "handover",
+
+    INSTRUCTION:
+      "instruction",
+
+    REMARK:
+      "remark"
+  };
+
+
+  const ISSUE_CATEGORIES = [
+    {
+      value:
+        "TM 발행",
+
+      label:
+        "TM"
+    },
+
+    {
+      value:
+        "BM 발행",
+
+      label:
+        "BM"
+    },
+
+    {
+      value:
+        "CM 발행",
+
+      label:
+        "CM"
+    }
+  ];
+
+
+  let activeEditorSection =
+    null;
+
+
+  let editingEntryIndex =
+    -1;
+
+
+  const originalStartLogEntryEdit =
+    typeof startLogEntryEdit ===
+      "function"
+      ? startLogEntryEdit
+      : null;
+
+
+  function normalizeRole(
+    value
+  ) {
+    return typeof normalizeMemberLogRole ===
+      "function"
+      ? normalizeMemberLogRole(
+          value
+        )
+      : String(
+          value ||
+          ""
+        ).trim();
+  }
+
+
+  function getCurrentRole() {
+    return normalizeRole(
+      document.getElementById(
+        "logRole"
+      )?.value ||
+      ""
+    );
+  }
+
+
+  function getCurrentAuthor() {
+    return String(
+      document.getElementById(
+        "logAuthor"
+      )?.value ||
+      ""
+    ).trim();
+  }
+
+
+  function createEntryId() {
+    if (
+      typeof createId ===
+        "function"
+    ) {
+      return createId();
+    }
+
+
+    return [
+      "context-entry",
+      Date.now(),
+      Math.random()
+        .toString(36)
+        .slice(
+          2,
+          9
+        )
+    ].join(
+      "-"
+    );
+  }
+
+
+  function normalizeContent(
+    value
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .replace(
+        /\r\n?/g,
+        "\n"
+      )
+      .trim()
+      .replace(
+        /^\s*(?:\d+\s*[.)\-:：]\s*|[①②③④⑤⑥⑦⑧⑨⑩]\s*)/u,
+        ""
+      )
+      .trim();
+  }
+
+
+  function normalizeTime(
+    value
+  ) {
+    const raw =
+      String(
+        value ||
+        ""
+      ).trim();
+
+
+    if (
+      !raw
+    ) {
+      return "";
+    }
+
+
+    /*
+      단일 3~4자리 숫자만 입력한 경우
+      HH:MM으로 편의 변환한다.
+
+      예:
+      800  → 08:00
+      1545 → 15:45
+
+      그 외 여러 시간·범위 입력은 그대로 보존한다.
+    */
+    if (
+      /^\d{3,4}$/.test(
+        raw
+      )
+    ) {
+      const padded =
+        raw.padStart(
+          4,
+          "0"
+        );
+
+
+      const hour =
+        Number(
+          padded.slice(
+            0,
+            2
+          )
+        );
+
+
+      const minute =
+        Number(
+          padded.slice(
+            2
+          )
+        );
+
+
+      if (
+        hour >= 0 &&
+        hour <= 23 &&
+        minute >= 0 &&
+        minute <= 59
+      ) {
+        return (
+          padded.slice(
+            0,
+            2
+          ) +
+          ":" +
+          padded.slice(
+            2
+          )
+        );
+      }
+    }
+
+
+    return raw;
+  }
+
+
+  function getCurrentTimeText() {
+    if (
+      typeof getCurrentTimeValue ===
+        "function"
+    ) {
+      return getCurrentTimeValue();
+    }
+
+
+    const now =
+      new Date();
+
+
+    return [
+      String(
+        now.getHours()
+      ).padStart(
+        2,
+        "0"
+      ),
+
+      String(
+        now.getMinutes()
+      ).padStart(
+        2,
+        "0"
+      )
+    ].join(
+      ":"
+    );
+  }
+
+
+  function getSectionDefinitions() {
+    const issueBody =
+      document.getElementById(
+        "tmIssueEntryTableBody"
+      );
+
+
+    const handoverBody =
+      document.getElementById(
+        "logEntryTableBody"
+      );
+
+
+    const instructionSection =
+      document.getElementById(
+        "instructionEntrySection"
+      );
+
+
+    const remarkSection =
+      document.getElementById(
+        "noteEntrySection"
+      );
+
+
+    const issueSection =
+      issueBody?.closest(
+        "section"
+      ) ||
+      null;
+
+
+    const handoverSection =
+      handoverBody?.closest(
+        "section"
+      ) ||
+      null;
+
+
+    return [
+      {
+        type:
+          SECTION_TYPES.ISSUE,
+
+        section:
+          issueSection,
+
+        title:
+          "발행 내역",
+
+        addLabel:
+          "발행 내역 추가",
+
+        isAvailable:
+          () => true
+      },
+
+      {
+        type:
+          SECTION_TYPES.HANDOVER,
+
+        section:
+          handoverSection,
+
+        title:
+          "인계사항",
+
+        addLabel:
+          "인계사항 추가",
+
+        isAvailable:
+          () => true
+      },
+
+      {
+        type:
+          SECTION_TYPES.INSTRUCTION,
+
+        section:
+          instructionSection,
+
+        title:
+          "지시사항",
+
+        addLabel:
+          "지시사항 추가",
+
+        isAvailable:
+          () => {
+            return (
+              getCurrentRole() ===
+              "파트장"
+            );
+          }
+      },
+
+      {
+        type:
+          SECTION_TYPES.REMARK,
+
+        section:
+          remarkSection,
+
+        title:
+          "비고",
+
+        addLabel:
+          "비고 추가",
+
+        isAvailable:
+          () => true
+      }
+    ];
+  }
+
+
+  function getSectionHeader(
+    section
+  ) {
+    if (
+      !section
+    ) {
+      return null;
+    }
+
+
+    return (
+      section.querySelector(
+        ".handover-entry-group__header"
+      ) ||
+      section.querySelector(
+        ".log-entry-group-header__title"
+      ) ||
+      section.querySelector(
+        ".log-entry-group-header"
+      ) ||
+      null
+    );
+  }
+
+
+  function getSectionInsertPoint(
+    section
+  ) {
+    if (
+      !section
+    ) {
+      return null;
+    }
+
+
+    return (
+      section.querySelector(
+        ".log-entry-table-wrap"
+      ) ||
+      null
+    );
+  }
+
+
+  function hideLegacyFixedInput() {
+    const legacyInputPanel =
+      document.getElementById(
+        "logEntryInputPanel"
+      );
+
+
+    if (
+      !legacyInputPanel
+    ) {
+      return;
+    }
+
+
+    legacyInputPanel.classList.add(
+      "is-context-entry-legacy-hidden"
+    );
+
+
+    /*
+      가능하면 제목까지 포함한 전용 부모만 숨긴다.
+      업무 목록 섹션까지 포함하는 큰 부모라면 숨기지 않는다.
+    */
+    const possibleContainer =
+      legacyInputPanel.closest(
+        ".editor-section"
+      );
+
+
+    const containsEntryTables =
+      Boolean(
+        possibleContainer?.querySelector(
+          [
+            "#tmIssueEntryTableBody",
+            "#logEntryTableBody",
+            "#instructionEntryTableBody",
+            "#noteEntryTableBody"
+          ].join(
+            ","
+          )
+        )
+      );
+
+
+    if (
+      possibleContainer &&
+      !containsEntryTables
+    ) {
+      possibleContainer.classList.add(
+        "context-entry-legacy-section"
+      );
+    }
+  }
+
+
+  function hideLegacySectionAddButtons() {
+    [
+      "addDirectInstructionButton",
+      "addDirectRemarkButton"
+    ].forEach(
+      id => {
+        document.getElementById(
+          id
+        )?.classList.add(
+          "context-entry-old-add-hidden"
+        );
+      }
+    );
+  }
+
+
+  function closeActiveEditor(
+    options = {}
+  ) {
+    const {
+      resetEditing =
+        true
+    } = options;
+
+
+    document
+      .querySelectorAll(
+        ".section-context-entry-editor"
+      )
+      .forEach(
+        editor => {
+          editor.remove();
+        }
+      );
+
+
+    document
+      .querySelectorAll(
+        ".section-context-entry-enabled.is-context-entry-open"
+      )
+      .forEach(
+        section => {
+          section.classList.remove(
+            "is-context-entry-open"
+          );
+        }
+      );
+
+
+    activeEditorSection =
+      null;
+
+
+    if (
+      resetEditing
+    ) {
+      editingEntryIndex =
+        -1;
+
+      if (
+        appState
+      ) {
+        appState.editingEntryIndex =
+          -1;
+      }
+    }
+  }
+
+
+  function getEntrySectionType(
+    entry
+  ) {
+    const category =
+      String(
+        entry?.category ||
+        ""
+      ).trim();
+
+
+    if (
+      [
+        "TM 발행",
+        "BM 발행",
+        "CM 발행"
+      ].includes(
+        category
+      )
+    ) {
+      return SECTION_TYPES.ISSUE;
+    }
+
+
+    if (
+      category ===
+        "지시사항"
+    ) {
+      return SECTION_TYPES.INSTRUCTION;
+    }
+
+
+    if (
+      category ===
+        "비고"
+    ) {
+      return SECTION_TYPES.REMARK;
+    }
+
+
+    return SECTION_TYPES.HANDOVER;
+  }
+
+
+  function getIssueCategoryLabel(
+    category
+  ) {
+    const matched =
+      ISSUE_CATEGORIES.find(
+        item => {
+          return (
+            item.value ===
+            category
+          );
+        }
+      );
+
+
+    return (
+      matched?.label ||
+      "TM"
+    );
+  }
+
+
+  function createEditorHtml(
+    definition,
+    existingEntry = null
+  ) {
+    const sectionType =
+      definition.type;
+
+
+    const content =
+      normalizeContent(
+        existingEntry?.content ||
+        ""
+      );
+
+
+    const time =
+      String(
+        existingEntry?.time ||
+        ""
+      ).trim();
+
+
+    const issueCategory =
+      [
+        "TM 발행",
+        "BM 발행",
+        "CM 발행"
+      ].includes(
+        String(
+          existingEntry?.category ||
+          ""
+        ).trim()
+      )
+        ? String(
+            existingEntry.category
+          ).trim()
+        : "TM 발행";
+
+
+    const isIssue =
+      sectionType ===
+      SECTION_TYPES.ISSUE;
+
+
+    const hasTime =
+      [
+        SECTION_TYPES.ISSUE,
+        SECTION_TYPES.HANDOVER
+      ].includes(
+        sectionType
+      );
+
+
+    const titleText =
+      existingEntry
+        ? `${definition.title} 수정`
+        : `${definition.title} 추가`;
+
+
+    const issueSelectorHtml =
+      isIssue
+        ? `
+          <label class="section-context-entry-field section-context-entry-field--type">
+            <span>구분</span>
+
+            <select class="section-context-entry-issue-type">
+              ${ISSUE_CATEGORIES
+                .map(
+                  item => {
+                    return `
+                      <option
+                        value="${item.value}"
+                        ${
+                          item.value ===
+                            issueCategory
+                            ? "selected"
+                            : ""
+                        }
+                      >
+                        ${item.label}
+                      </option>
+                    `;
+                  }
+                )
+                .join("")}
+            </select>
+          </label>
+        `
+        : "";
+
+
+    const timeHtml =
+      hasTime
+        ? `
+          <div class="section-context-entry-time-group">
+
+            <label class="section-context-entry-field section-context-entry-field--time">
+              <span>시간</span>
+
+              <input
+                type="text"
+                class="section-context-entry-time"
+                value="${typeof escapeHtml === "function" ? escapeHtml(time) : time}"
+                placeholder="예: 08:00"
+                autocomplete="off"
+              />
+            </label>
+
+            <button
+              type="button"
+              class="section-context-entry-now"
+            >
+              현재시간
+            </button>
+
+          </div>
+        `
+        : "";
+
+
+    return `
+      <div
+        class="
+          section-context-entry-editor
+          is-${sectionType}
+        "
+        data-context-entry-type="${sectionType}"
+      >
+
+        <div class="section-context-entry-editor__heading">
+
+          <strong>
+            ${titleText}
+          </strong>
+
+          <button
+            type="button"
+            class="section-context-entry-close"
+            aria-label="${titleText} 닫기"
+          >
+            ×
+          </button>
+
+        </div>
+
+
+        ${
+          isIssue ||
+          hasTime
+            ? `
+              <div class="section-context-entry-editor__tools">
+                ${issueSelectorHtml}
+                ${timeHtml}
+              </div>
+            `
+            : ""
+        }
+
+
+        <label class="section-context-entry-field section-context-entry-field--content">
+
+          <span>내용</span>
+
+          <textarea
+            class="section-context-entry-content"
+            rows="${
+              [
+                SECTION_TYPES.INSTRUCTION,
+                SECTION_TYPES.REMARK
+              ].includes(sectionType)
+                ? 3
+                : 4
+            }"
+            placeholder="${definition.title} 내용을 입력하세요."
+          >${typeof escapeHtml === "function" ? escapeHtml(content) : content}</textarea>
+
+        </label>
+
+
+        <div class="section-context-entry-editor__actions">
+
+          <span class="section-context-entry-shortcut">
+            Ctrl + Enter로 추가
+          </span>
+
+          <button
+            type="button"
+            class="section-context-entry-cancel"
+          >
+            취소
+          </button>
+
+          <button
+            type="button"
+            class="section-context-entry-save"
+          >
+            ${existingEntry ? "수정 완료" : "＋ 추가"}
+          </button>
+
+        </div>
+
+      </div>
+    `;
+  }
+
+
+  function openSectionEditor(
+    definition,
+    existingEntry = null,
+    entryIndex = -1
+  ) {
+    if (
+      !definition?.section ||
+      !definition.isAvailable()
+    ) {
+      if (
+        definition?.type ===
+          SECTION_TYPES.INSTRUCTION
+      ) {
+        showToast(
+          "지시사항은 파트장 업무일지에서만 작성할 수 있습니다."
+        );
+      }
+
+      return;
+    }
+
+
+    const insertPoint =
+      getSectionInsertPoint(
+        definition.section
+      );
+
+
+    if (
+      !insertPoint
+    ) {
+      showToast(
+        `${definition.title} 입력 위치를 찾지 못했습니다.`
+      );
+
+      return;
+    }
+
+
+    if (
+      activeEditorSection ===
+        definition.section &&
+      !existingEntry
+    ) {
+      closeActiveEditor();
+
+      return;
+    }
+
+
+    closeActiveEditor({
+      resetEditing:
+        false
+    });
+
+
+    editingEntryIndex =
+      Number.isInteger(
+        entryIndex
+      )
+        ? entryIndex
+        : -1;
+
+
+    if (
+      appState
+    ) {
+      appState.editingEntryIndex =
+        editingEntryIndex;
+    }
+
+
+    const wrapper =
+      document.createElement(
+        "div"
+      );
+
+
+    wrapper.innerHTML =
+      createEditorHtml(
+        definition,
+        existingEntry
+      ).trim();
+
+
+    const editor =
+      wrapper.firstElementChild;
+
+
+    if (
+      !editor
+    ) {
+      return;
+    }
+
+
+    insertPoint.insertAdjacentElement(
+      "beforebegin",
+      editor
+    );
+
+
+    definition.section.classList.add(
+      "is-context-entry-open"
+    );
+
+
+    activeEditorSection =
+      definition.section;
+
+
+    window.requestAnimationFrame(
+      () => {
+        editor
+          .querySelector(
+            ".section-context-entry-content"
+          )
+          ?.focus();
+      }
+    );
+  }
+
+
+  function createNewEntry(
+    definition,
+    editor,
+    previousEntry = null
+  ) {
+    const currentRole =
+      getCurrentRole();
+
+
+    const currentAuthor =
+      getCurrentAuthor();
+
+
+    const content =
+      normalizeContent(
+        editor.querySelector(
+          ".section-context-entry-content"
+        )?.value ||
+        ""
+      );
+
+
+    if (
+      !content
+    ) {
+      showToast(
+        "내용을 입력해 주세요."
+      );
+
+
+      editor
+        .querySelector(
+          ".section-context-entry-content"
+        )
+        ?.focus();
+
+
+      return null;
+    }
+
+
+    let category =
+      "인계사항";
+
+
+    let time =
+      "";
+
+
+    if (
+      definition.type ===
+        SECTION_TYPES.ISSUE
+    ) {
+      const selectedIssueCategory =
+        String(
+          editor.querySelector(
+            ".section-context-entry-issue-type"
+          )?.value ||
+          "TM 발행"
+        ).trim();
+
+
+      category =
+        ISSUE_CATEGORIES.some(
+          item => {
+            return (
+              item.value ===
+              selectedIssueCategory
+            );
+          }
+        )
+          ? selectedIssueCategory
+          : "TM 발행";
+
+
+      time =
+        normalizeTime(
+          editor.querySelector(
+            ".section-context-entry-time"
+          )?.value ||
+          ""
+        );
+
+    } else if (
+      definition.type ===
+        SECTION_TYPES.HANDOVER
+    ) {
+      /*
+        기존 TM/BM/CM 작업 항목을 수정할 때는
+        원래 category를 보존한다.
+
+        신규 추가는 항상 인계사항.
+      */
+      const oldCategory =
+        String(
+          previousEntry?.category ||
+          ""
+        ).trim();
+
+
+      category =
+        (
+          previousEntry &&
+          ![
+            "",
+            "비고",
+            "지시사항",
+            "TM 발행",
+            "BM 발행",
+            "CM 발행"
+          ].includes(
+            oldCategory
+          )
+        )
+          ? oldCategory
+          : "인계사항";
+
+
+      time =
+        normalizeTime(
+          editor.querySelector(
+            ".section-context-entry-time"
+          )?.value ||
+          ""
+        );
+
+    } else if (
+      definition.type ===
+        SECTION_TYPES.INSTRUCTION
+    ) {
+      if (
+        currentRole !==
+          "파트장"
+      ) {
+        showToast(
+          "지시사항은 파트장 업무일지에서만 작성할 수 있습니다."
+        );
+
+        return null;
+      }
+
+
+      category =
+        "지시사항";
+
+      time =
+        "";
+
+    } else {
+      category =
+        "비고";
+
+      time =
+        "";
+    }
+
+
+    const isLeader =
+      currentRole ===
+      "파트장";
+
+
+    return {
+      ...(
+        previousEntry &&
+        typeof previousEntry ===
+          "object"
+          ? previousEntry
+          : {}
+      ),
+
+      id:
+        String(
+          previousEntry?.id ||
+          ""
+        ).trim() ||
+        createEntryId(),
+
+      time,
+
+      category,
+
+      tag:
+        (
+          [
+            SECTION_TYPES.INSTRUCTION,
+            SECTION_TYPES.REMARK
+          ].includes(
+            definition.type
+          )
+        )
+          ? ""
+          : String(
+              previousEntry?.tag ||
+              ""
+            )
+              .trim()
+              .toUpperCase(),
+
+      content,
+
+      attachmentName:
+        String(
+          previousEntry?.attachmentName ||
+          ""
+        ).trim(),
+
+      importedFromRole:
+        (
+          previousEntry?.importedFromLogId
+            ? normalizeRole(
+                previousEntry
+                  ?.importedFromRole ||
+                currentRole
+              )
+            : currentRole
+        ) ||
+        currentRole,
+
+      importedFromAuthor:
+        String(
+          previousEntry
+            ?.importedFromAuthor ||
+          currentAuthor
+        ).trim(),
+
+      importedFromLogId:
+        String(
+          previousEntry
+            ?.importedFromLogId ||
+          ""
+        ).trim(),
+
+      importedFromEntryIndex:
+        previousEntry
+          ?.importedFromEntryIndex ??
+        null,
+
+      source:
+        String(
+          previousEntry?.source ||
+          (
+            isLeader
+              ? "leader-manual"
+              : "member-manual"
+          )
+        ).trim(),
+
+      leaderTargetRole:
+        isLeader &&
+        !previousEntry
+          ? "파트장"
+          : String(
+              previousEntry
+                ?.leaderTargetRole ||
+              (
+                isLeader
+                  ? "파트장"
+                  : ""
+              )
+            ).trim()
+    };
+  }
+
+
+  function saveContextEntry(
+    definition,
+    editor
+  ) {
+    if (
+      !Array.isArray(
+        appState.editorEntries
+      )
+    ) {
+      appState.editorEntries =
+        [];
+    }
+
+
+    const isEditing =
+      Number.isInteger(
+        editingEntryIndex
+      ) &&
+      editingEntryIndex >=
+        0 &&
+      Boolean(
+        appState.editorEntries[
+          editingEntryIndex
+        ]
+      );
+
+
+    const previousEntry =
+      isEditing
+        ? appState.editorEntries[
+            editingEntryIndex
+          ]
+        : null;
+
+
+    const entry =
+      createNewEntry(
+        definition,
+        editor,
+        previousEntry
+      );
+
+
+    if (
+      !entry
+    ) {
+      return;
+    }
+
+
+    if (
+      isEditing
+    ) {
+      appState.editorEntries.splice(
+        editingEntryIndex,
+        1,
+        entry
+      );
+
+    } else {
+      appState.editorEntries.push(
+        entry
+      );
+    }
+
+
+    editingEntryIndex =
+      -1;
+
+    appState.editingEntryIndex =
+      -1;
+
+
+    if (
+      typeof sortImportedLogEntries ===
+        "function"
+    ) {
+      sortImportedLogEntries();
+    }
+
+
+    if (
+      typeof renderLogEntryTable ===
+        "function"
+    ) {
+      renderLogEntryTable();
+    }
+
+
+    closeActiveEditor();
+
+
+    showToast(
+      isEditing
+        ? `${definition.title}을 수정했습니다.`
+        : `${definition.title}을 추가했습니다.`
+    );
+  }
+
+
+  function getDefinitionByType(
+    sectionType
+  ) {
+    return (
+      getSectionDefinitions()
+        .find(
+          definition => {
+            return (
+              definition.type ===
+              sectionType
+            );
+          }
+        ) ||
+      null
+    );
+  }
+
+
+  function getDefinitionForEntry(
+    entry
+  ) {
+    return getDefinitionByType(
+      getEntrySectionType(
+        entry
+      )
+    );
+  }
+
+
+  function addSectionButtons() {
+    getSectionDefinitions().forEach(
+      definition => {
+        const {
+          section
+        } =
+          definition;
+
+
+        if (
+          !section
+        ) {
+          return;
+        }
+
+
+        section.classList.add(
+          "section-context-entry-enabled"
+        );
+
+
+        section.dataset
+          .contextEntryType =
+          definition.type;
+
+
+        const header =
+          getSectionHeader(
+            section
+          );
+
+
+        if (
+          !header
+        ) {
+          return;
+        }
+
+
+        header.classList.add(
+          "section-context-entry-header"
+        );
+
+
+        let button =
+          header.querySelector(
+            ".section-context-add-button"
+          );
+
+
+        if (
+          !button
+        ) {
+          button =
+            document.createElement(
+              "button"
+            );
+
+
+          button.type =
+            "button";
+
+          button.className =
+            "section-context-add-button";
+
+          button.textContent =
+            "+";
+
+          button.title =
+            definition.addLabel;
+
+          button.setAttribute(
+            "aria-label",
+            definition.addLabel
+          );
+
+
+          /*
+            이전일지 버튼 앞에 +를 둔다.
+            대상 버튼이 없다면 제목줄 끝에 추가한다.
+          */
+          const previousButton =
+            header.querySelector(
+              [
+                "#loadPreviousHandoverEntriesButton",
+                "#loadPreviousInstructionEntriesButton",
+                "#loadPreviousRemarkEntriesButton"
+              ].join(
+                ","
+              )
+            );
+
+
+          if (
+            previousButton
+          ) {
+            previousButton.insertAdjacentElement(
+              "beforebegin",
+              button
+            );
+
+          } else {
+            header.appendChild(
+              button
+            );
+          }
+        }
+
+
+        button.hidden =
+          !definition.isAvailable();
+
+
+        if (
+          button.dataset
+            .contextEntryBound !==
+            "true"
+        ) {
+          button.addEventListener(
+            "click",
+            event => {
+              event.preventDefault();
+              event.stopPropagation();
+
+
+              openSectionEditor(
+                definition
+              );
+            }
+          );
+
+
+          button.dataset
+            .contextEntryBound =
+            "true";
+        }
+
+
+        if (
+          header.dataset
+            .contextEntryHeaderBound !==
+            "true"
+        ) {
+          header.addEventListener(
+            "click",
+            event => {
+              const target =
+                event.target instanceof
+                  Element
+                  ? event.target
+                  : null;
+
+
+              if (
+                !target
+              ) {
+                return;
+              }
+
+
+              if (
+                target.closest(
+                  [
+                    "button",
+                    "input",
+                    "select",
+                    "textarea",
+                    "a",
+                    "label"
+                  ].join(
+                    ","
+                  )
+                )
+              ) {
+                return;
+              }
+
+
+              if (
+                !definition.isAvailable()
+              ) {
+                return;
+              }
+
+
+              openSectionEditor(
+                definition
+              );
+            }
+          );
+
+
+          header.dataset
+            .contextEntryHeaderBound =
+            "true";
+        }
+      }
+    );
+  }
+
+
+  function syncContextButtonsForRole() {
+    getSectionDefinitions().forEach(
+      definition => {
+        const button =
+          getSectionHeader(
+            definition.section
+          )?.querySelector(
+            ".section-context-add-button"
+          );
+
+
+        if (
+          button
+        ) {
+          button.hidden =
+            !definition.isAvailable();
+        }
+      }
+    );
+
+
+    if (
+      getCurrentRole() !==
+        "파트장" &&
+      activeEditorSection?.dataset
+        ?.contextEntryType ===
+        SECTION_TYPES.INSTRUCTION
+    ) {
+      closeActiveEditor();
+    }
+  }
+
+
+  function handleContextEditorClick(
+    event
+  ) {
+    const target =
+      event.target instanceof
+        Element
+        ? event.target
+        : null;
+
+
+    if (
+      !target
+    ) {
+      return;
+    }
+
+
+    const editor =
+      target.closest(
+        ".section-context-entry-editor"
+      );
+
+
+    if (
+      !editor
+    ) {
+      return;
+    }
+
+
+    if (
+      target.closest(
+        ".section-context-entry-close, .section-context-entry-cancel"
+      )
+    ) {
+      event.preventDefault();
+
+      closeActiveEditor();
+
+      return;
+    }
+
+
+    if (
+      target.closest(
+        ".section-context-entry-now"
+      )
+    ) {
+      event.preventDefault();
+
+
+      const timeInput =
+        editor.querySelector(
+          ".section-context-entry-time"
+        );
+
+
+      if (
+        timeInput
+      ) {
+        timeInput.value =
+          getCurrentTimeText();
+
+        timeInput.focus();
+      }
+
+
+      return;
+    }
+
+
+    if (
+      target.closest(
+        ".section-context-entry-save"
+      )
+    ) {
+      event.preventDefault();
+
+
+      const type =
+        String(
+          editor.dataset
+            .contextEntryType ||
+          ""
+        ).trim();
+
+
+      const definition =
+        getDefinitionByType(
+          type
+        );
+
+
+      if (
+        definition
+      ) {
+        saveContextEntry(
+          definition,
+          editor
+        );
+      }
+    }
+  }
+
+
+  function handleContextEditorKeydown(
+    event
+  ) {
+    const target =
+      event.target;
+
+
+    if (
+      !(target instanceof Element)
+    ) {
+      return;
+    }
+
+
+    const editor =
+      target.closest(
+        ".section-context-entry-editor"
+      );
+
+
+    if (
+      !editor
+    ) {
+      return;
+    }
+
+
+    if (
+      event.key ===
+        "Escape"
+    ) {
+      event.preventDefault();
+
+      closeActiveEditor();
+
+      return;
+    }
+
+
+    if (
+      event.key !==
+        "Enter" ||
+      !(
+        event.ctrlKey ||
+        event.metaKey
+      ) ||
+      event.isComposing ||
+      event.keyCode ===
+        229
+    ) {
+      return;
+    }
+
+
+    event.preventDefault();
+
+
+    const type =
+      String(
+        editor.dataset
+          .contextEntryType ||
+        ""
+      ).trim();
+
+
+    const definition =
+      getDefinitionByType(
+        type
+      );
+
+
+    if (
+      definition
+    ) {
+      saveContextEntry(
+        definition,
+        editor
+      );
+    }
+  }
+
+
+  /*
+    기존 수정 버튼도 고정 입력창 대신
+    해당 섹션의 바로입력 UI를 사용한다.
+  */
+  if (
+    originalStartLogEntryEdit
+  ) {
+    startLogEntryEdit =
+      function startLogEntryEditWithContextUi(
+        entryIndex
+      ) {
+        const entry =
+          Array.isArray(
+            appState.editorEntries
+          )
+            ? appState.editorEntries[
+                entryIndex
+              ]
+            : null;
+
+
+        if (
+          !entry
+        ) {
+          return originalStartLogEntryEdit.call(
+            this,
+            entryIndex
+          );
+        }
+
+
+        const definition =
+          getDefinitionForEntry(
+            entry
+          );
+
+
+        if (
+          !definition?.section ||
+          !definition.isAvailable()
+        ) {
+          return originalStartLogEntryEdit.call(
+            this,
+            entryIndex
+          );
+        }
+
+
+        openSectionEditor(
+          definition,
+          entry,
+          entryIndex
+        );
+      };
+  }
+
+
+  /*
+    기존 렌더링 후에도 + 상태를 다시 맞춘다.
+  */
+  if (
+    typeof renderLogEntryTable ===
+      "function" &&
+    renderLogEntryTable
+      .__sectionContextEntryV3Wrapped !==
+      true
+  ) {
+    const originalRenderLogEntryTable =
+      renderLogEntryTable;
+
+
+    const wrappedRenderLogEntryTable =
+      function (
+        ...args
+      ) {
+        const result =
+          originalRenderLogEntryTable.apply(
+            this,
+            args
+          );
+
+
+        window.requestAnimationFrame(
+          () => {
+            hideLegacyFixedInput();
+            hideLegacySectionAddButtons();
+            addSectionButtons();
+            syncContextButtonsForRole();
+          }
+        );
+
+
+        return result;
+      };
+
+
+    wrappedRenderLogEntryTable
+      .__sectionContextEntryV3Wrapped =
+      true;
+
+
+    renderLogEntryTable =
+      wrappedRenderLogEntryTable;
+  }
+
+
+  document.addEventListener(
+    "click",
+    handleContextEditorClick
+  );
+
+
+  document.addEventListener(
+    "keydown",
+    handleContextEditorKeydown
+  );
+
+
+  document.addEventListener(
+    "change",
+    event => {
+      const target =
+        event.target instanceof
+          Element
+          ? event.target
+          : null;
+
+
+      if (
+        target?.id ===
+          "logRole"
+      ) {
+        syncContextButtonsForRole();
+      }
+    }
+  );
+
+
+  function initialize() {
+    hideLegacyFixedInput();
+    hideLegacySectionAddButtons();
+    addSectionButtons();
+    syncContextButtonsForRole();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
