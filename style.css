@@ -118288,3 +118288,98 @@ table {
   }
 
 }
+/* =========================================================
+  [SECTION-CONTEXT-COMPACT-V6-FIX2]
+  업무일지 내용 입력칸 추가 축소
+
+  - TAG/시간/Select 배치는 V6 Fix1 그대로 유지
+  - 내용 글씨만 한 단계 더 축소
+  - textarea 기본 높이 추가 축소
+  - 한 줄 업무 입력 시 세로 공간 최소화
+========================================================= */
+
+@media (
+  min-width:
+    769px
+) {
+
+  /*
+    기존 전역 textarea 규칙보다 우선하도록
+    편집기 + textarea를 함께 지정한다.
+  */
+  .section-context-entry-editor
+  textarea.section-context-entry-content {
+    box-sizing:
+      border-box !important;
+
+    height:
+      30px !important;
+
+    min-height:
+      30px !important;
+
+    max-height:
+      72px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      4px 7px !important;
+
+    font-family:
+      inherit !important;
+
+    font-size:
+      9px !important;
+
+    font-weight:
+      500 !important;
+
+    line-height:
+      1.2 !important;
+
+    letter-spacing:
+      0 !important;
+
+    resize:
+      vertical !important;
+  }
+
+
+  .section-context-entry-editor
+  textarea.section-context-entry-content::placeholder {
+    font-size:
+      9px !important;
+
+    font-weight:
+      500 !important;
+  }
+
+
+  /*
+    내용칸 축소에 맞춰 전체 입력행도 조금 더 낮춘다.
+  */
+  .section-context-entry-editor {
+    min-height:
+      44px !important;
+
+    padding-top:
+      4px !important;
+
+    padding-bottom:
+      4px !important;
+  }
+
+
+  /*
+    지시사항/비고는 도구가 없으므로
+    한 줄 입력창 높이를 가장 작게 유지
+  */
+  .section-context-entry-editor.is-instruction,
+  .section-context-entry-editor.is-remark {
+    min-height:
+      42px !important;
+  }
+
+}
