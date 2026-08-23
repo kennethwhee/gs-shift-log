@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  >
+  <meta
+    name="description"
+    content="GS 포천그린에너지 교대근무 업무일지 시스템 모바일 로그인"
+  >
+  <title>GS Shift Log - 로그인</title>
+
+  <style>
+    :root {
+      color-scheme: light;
+      font-family:
+        Pretendard,
+        "Noto Sans KR",
+        "Apple SD Gothic Neo",
+        "Malgun Gothic",
+        Arial,
+        sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-width: 0;
+      min-height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow: hidden;
+      background:
+        linear-gradient(
+          135deg,
+          #12385f 0%,
+          #1f5f9f 55%,
+          #276eae 100%
+        );
+      color: #172033;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .screen {
+      display: grid;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      place-items: center;
+      padding:
+        max(18px, env(safe-area-inset-top))
+        18px
+        max(18px, env(safe-area-inset-bottom));
+    }
+
+    .card {
+      width: min(100%, 430px);
+      padding: 27px 24px 24px;
+      border: 1px solid rgba(255, 255, 255, 0.78);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.97);
+      box-shadow:
+        0 22px 60px
+        rgba(9, 32, 58, 0.28);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 21px;
+    }
+
+    .logo {
+      display: grid;
+      width: 50px;
+      height: 50px;
+      flex: 0 0 50px;
+      place-items: center;
+      border-radius: 12px;
+      background:
+        linear-gradient(
+          135deg,
+          #1d5da8,
+          #2e79c9
+        );
+      color: #fff;
+      font-size: 16px;
+      font-weight: 900;
+    }
+
+    .brand-copy {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .brand-copy small {
+      color: #778396;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .brand-copy strong {
+      color: #172033;
+      font-size: 18px;
+      font-weight: 900;
+      line-height: 1.3;
+    }
+
+    .eyebrow {
+      margin: 0 0 2px;
+      color: #1f5fae;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+    }
+
+    h1 {
+      margin: 0;
+      color: #121c2c;
+      font-size: 34px;
+      font-weight: 900;
+      line-height: 1.16;
+      letter-spacing: -0.05em;
+    }
+
+    .description {
+      margin: 8px 0 23px;
+      color: #6f7b8d;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    label.field {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .field > span {
+      color: #25354d;
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .field input {
+      width: 100%;
+      height: 50px;
+      padding: 0 14px;
+      border: 1px solid #c9d5e2;
+      border-radius: 10px;
+      background: #fff;
+      color: #172033;
+      outline: none;
+      font: inherit;
+      font-size: 16px;
+      line-height: 1;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .field input:focus {
+      border-color: #5b91ca;
+      box-shadow:
+        0 0 0 3px
+        rgba(31, 95, 174, 0.12);
+    }
+
+    .field input::placeholder {
+      color: #a0a9b6;
+    }
+
+    .remember {
+      display: inline-flex;
+      align-items: center;
+      align-self: flex-start;
+      gap: 9px;
+      min-height: 38px;
+      color: #536175;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .remember input {
+      width: 22px;
+      height: 22px;
+      margin: 0;
+      accent-color: #1f5fae;
+    }
+
+    .error {
+      margin: -3px 0 0;
+      padding: 10px 11px;
+      border: 1px solid #efc4c4;
+      border-radius: 8px;
+      background: #fff3f3;
+      color: #b33d3d;
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1.5;
+    }
+
+    .error[hidden] {
+      display: none;
+    }
+
+    .submit {
+      width: 100%;
+      height: 52px;
+      margin-top: 1px;
+      border: 0;
+      border-radius: 10px;
+      background:
+        linear-gradient(
+          135deg,
+          #2676c8,
+          #19579b
+        );
+      color: #fff;
+      font: inherit;
+      font-size: 16px;
+      font-weight: 900;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color:
+        rgba(31, 95, 174, 0.14);
+    }
+
+    .submit:disabled {
+      cursor: wait;
+      opacity: 0.68;
+    }
+
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      margin-top: 20px;
+      padding-top: 17px;
+      border-top: 1px solid #e0e6ed;
+      color: #8a95a4;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #2ca66d;
+      box-shadow:
+        0 0 0 3px
+        rgba(44, 166, 109, 0.12);
+    }
+
+    @media (max-height: 700px) {
+      .screen {
+        place-items: start center;
+        overflow-y: auto;
+        padding-top: 18px;
+        padding-bottom: 18px;
+      }
+
+      .card {
+        margin: auto 0;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="screen">
+    <section
+      class="card"
+      aria-labelledby="mobileLoginTitle"
+    >
+      <div class="brand">
+        <div
+          class="logo"
+          aria-hidden="true"
+        >
+          GS
+        </div>
+
+        <div class="brand-copy">
+          <small>
+            GS 포천그린에너지
+          </small>
+
+          <strong>
+            GS Shift Log
+          </strong>
+        </div>
+      </div>
+
+      <p class="eyebrow">
+        EMPLOYEE LOGIN
+      </p>
+
+      <h1 id="mobileLoginTitle">
+        로그인
+      </h1>
+
+      <p class="description">
+        사번과 비밀번호를 입력해 주세요.
+      </p>
+
+      <form
+        id="mobileLoginForm"
+        autocomplete="on"
+      >
+        <label class="field">
+          <span>
+            사번
+          </span>
+
+          <input
+            type="text"
+            id="mobileLoginEmployeeId"
+            name="employeeNo"
+            inputmode="numeric"
+            maxlength="7"
+            placeholder="사번을 입력하세요"
+            autocomplete="username"
+            required
+          >
+        </label>
+
+        <label class="field">
+          <span>
+            비밀번호
+          </span>
+
+          <input
+            type="password"
+            id="mobileLoginPassword"
+            name="password"
+            maxlength="30"
+            placeholder="비밀번호를 입력하세요"
+            autocomplete="current-password"
+            required
+          >
+        </label>
+
+        <label class="remember">
+          <input
+            type="checkbox"
+            id="mobileLoginRemember"
+          >
+
+          <span>
+            자동 로그인
+          </span>
+        </label>
+
+        <p
+          class="error"
+          id="mobileLoginError"
+          role="alert"
+          hidden
+        ></p>
+
+        <button
+          type="submit"
+          class="submit"
+          id="mobileLoginSubmit"
+        >
+          로그인
+        </button>
+      </form>
+
+      <footer class="footer">
+        <span
+          class="dot"
+          aria-hidden="true"
+        ></span>
+
+        <span>
+          GS Shift Log 보안 접속
+        </span>
+      </footer>
+    </section>
+  </main>
+
+  <script>
+    "use strict";
+
+    (() => {
+      const AUTH_STORAGE_KEY =
+        "gsShiftLog.currentUser";
+
+      const REMEMBER_STORAGE_KEY =
+        "gsShiftLog.rememberedLogin";
+
+
+      function loadStoredUser() {
+        try {
+          const value =
+            localStorage.getItem(
+              AUTH_STORAGE_KEY
+            );
+
+          if (!value) {
+            return null;
+          }
+
+          const parsed =
+            JSON.parse(
+              value
+            );
+
+          return (
+            parsed &&
+            typeof parsed ===
+              "object"
+          )
+            ? parsed
+            : null;
+
+        } catch {
+          return null;
+        }
+      }
+
+
+      function restoreRememberedLogin() {
+        try {
+          const value =
+            localStorage.getItem(
+              REMEMBER_STORAGE_KEY
+            );
+
+          if (!value) {
+            return;
+          }
+
+          const parsed =
+            JSON.parse(
+              value
+            );
+
+          const employeeId =
+            String(
+              parsed?.employeeId ||
+              ""
+            ).trim();
+
+          const password =
+            String(
+              parsed?.password ||
+              ""
+            );
+
+          if (
+            !employeeId ||
+            !password
+          ) {
+            return;
+          }
+
+          const employeeInput =
+            document.getElementById(
+              "mobileLoginEmployeeId"
+            );
+
+          const passwordInput =
+            document.getElementById(
+              "mobileLoginPassword"
+            );
+
+          const rememberInput =
+            document.getElementById(
+              "mobileLoginRemember"
+            );
+
+          if (employeeInput) {
+            employeeInput.value =
+              employeeId;
+          }
+
+          if (passwordInput) {
+            passwordInput.value =
+              password;
+          }
+
+          if (rememberInput) {
+            rememberInput.checked =
+              true;
+          }
+
+        } catch {
+          localStorage.removeItem(
+            REMEMBER_STORAGE_KEY
+          );
+        }
+      }
+
+
+      function showError(
+        message
+      ) {
+        const errorElement =
+          document.getElementById(
+            "mobileLoginError"
+          );
+
+        if (!errorElement) {
+          return;
+        }
+
+        errorElement.textContent =
+          String(
+            message ||
+            "로그인에 실패했습니다."
+          );
+
+        errorElement.hidden =
+          false;
+      }
+
+
+      function hideError() {
+        const errorElement =
+          document.getElementById(
+            "mobileLoginError"
+          );
+
+        if (!errorElement) {
+          return;
+        }
+
+        errorElement.textContent =
+          "";
+
+        errorElement.hidden =
+          true;
+      }
+
+
+      async function requestLogin(
+        employeeId,
+        password
+      ) {
+        const response =
+          await fetch(
+            "/api/login",
+            {
+              method:
+                "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+
+                Accept:
+                  "application/json"
+              },
+
+              cache:
+                "no-store",
+
+              body:
+                JSON.stringify({
+                  employeeNo:
+                    employeeId,
+
+                  password
+                })
+            }
+          );
+
+        let result = {};
+
+        try {
+          result =
+            await response.json();
+
+        } catch {
+          throw new Error(
+            "로그인 서버 응답을 확인할 수 없습니다."
+          );
+        }
+
+        if (
+          !response.ok ||
+          !result.ok
+        ) {
+          throw new Error(
+            result.message ||
+            "사번 또는 비밀번호를 확인해 주세요."
+          );
+        }
+
+        return (
+          result.user ||
+          result.member ||
+          result.data ||
+          {
+            employeeId
+          }
+        );
+      }
+
+
+      async function handleSubmit(
+        event
+      ) {
+        event.preventDefault();
+
+        const employeeInput =
+          document.getElementById(
+            "mobileLoginEmployeeId"
+          );
+
+        const passwordInput =
+          document.getElementById(
+            "mobileLoginPassword"
+          );
+
+        const rememberInput =
+          document.getElementById(
+            "mobileLoginRemember"
+          );
+
+        const submitButton =
+          document.getElementById(
+            "mobileLoginSubmit"
+          );
+
+        const employeeId =
+          String(
+            employeeInput?.value ||
+            ""
+          ).trim();
+
+        const password =
+          String(
+            passwordInput?.value ||
+            ""
+          );
+
+        hideError();
+
+        if (!employeeId) {
+          showError(
+            "사번을 입력해 주세요."
+          );
+
+          employeeInput?.focus();
+
+          return;
+        }
+
+        if (!password) {
+          showError(
+            "비밀번호를 입력해 주세요."
+          );
+
+          passwordInput?.focus();
+
+          return;
+        }
+
+        if (submitButton) {
+          submitButton.disabled =
+            true;
+
+          submitButton.textContent =
+            "로그인 중...";
+        }
+
+        try {
+          const user =
+            await requestLogin(
+              employeeId,
+              password
+            );
+
+          if (
+            rememberInput?.checked
+          ) {
+            localStorage.setItem(
+              REMEMBER_STORAGE_KEY,
+              JSON.stringify({
+                employeeId,
+                password,
+                savedAt:
+                  new Date()
+                    .toISOString()
+              })
+            );
+
+          } else {
+            localStorage.removeItem(
+              REMEMBER_STORAGE_KEY
+            );
+          }
+
+          localStorage.setItem(
+            AUTH_STORAGE_KEY,
+            JSON.stringify(
+              user
+            )
+          );
+
+          window.location.replace(
+            "/"
+          );
+
+        } catch (
+          error
+        ) {
+          showError(
+            error?.message ||
+            "로그인에 실패했습니다."
+          );
+
+          if (submitButton) {
+            submitButton.disabled =
+              false;
+
+            submitButton.textContent =
+              "로그인";
+          }
+        }
+      }
+
+
+      function initialize() {
+        if (
+          loadStoredUser()
+        ) {
+          window.location.replace(
+            "/"
+          );
+
+          return;
+        }
+
+        restoreRememberedLogin();
+
+        const form =
+          document.getElementById(
+            "mobileLoginForm"
+          );
+
+        form?.addEventListener(
+          "submit",
+          handleSubmit
+        );
+
+        const rememberInput =
+          document.getElementById(
+            "mobileLoginRemember"
+          );
+
+        rememberInput?.addEventListener(
+          "change",
+          () => {
+            if (
+              !rememberInput.checked
+            ) {
+              localStorage.removeItem(
+                REMEMBER_STORAGE_KEY
+              );
+            }
+          }
+        );
+      }
+
+
+      if (
+        document.readyState ===
+          "loading"
+      ) {
+        document.addEventListener(
+          "DOMContentLoaded",
+          initialize,
+          {
+            once:
+              true
+          }
+        );
+
+      } else {
+        initialize();
+      }
+    })();
+  </script>
+</body>
+</html>

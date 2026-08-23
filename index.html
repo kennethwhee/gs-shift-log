@@ -18,7 +18,36 @@
     GS Shift Log
   </title>
 
-  <!-- =====================================================
+<!-- MOBILE-LOGIN-LIGHTWEIGHT-BOOTSTRAP-V1 -->
+  <script>
+    (() => {
+      try {
+        const isMobile =
+          window.matchMedia(
+            "(max-width: 900px)"
+          ).matches;
+
+        const hasSavedUser =
+          Boolean(
+            localStorage.getItem(
+              "gsShiftLog.currentUser"
+            )
+          );
+
+        if (
+          isMobile &&
+          !hasSavedUser
+        ) {
+          window.location.replace(
+            "/mobile-login.html"
+          );
+        }
+      } catch {
+        // Keep the normal page as fallback.
+      }
+    })();
+  </script>
+<!-- =====================================================
     기존 업무일지 CSS
   ====================================================== -->
   <link
