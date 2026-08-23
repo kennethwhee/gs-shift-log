@@ -18,7 +18,7 @@
     GS Shift Log
   </title>
 
-<!-- MOBILE-LOGIN-LIGHTWEIGHT-BOOTSTRAP-V1 -->
+<!-- MOBILE-LOGIN-LIGHTWEIGHT-BOOTSTRAP-V2 -->
   <script>
     (() => {
       try {
@@ -27,23 +27,48 @@
             "(max-width: 900px)"
           ).matches;
 
-        const hasSavedUser =
-          Boolean(
-            localStorage.getItem(
-              "gsShiftLog.currentUser"
-            )
+        const path =
+          window.location.pathname;
+
+        const isMainPath =
+          path ===
+            "/" ||
+          path.endsWith(
+            "/index.html"
           );
 
         if (
-          isMobile &&
-          !hasSavedUser
+          !isMobile ||
+          !isMainPath
         ) {
-          window.location.replace(
-            "/mobile-login.html"
-          );
+          return;
         }
+
+        const bypassKey =
+          "gsShiftLog.mobileLoginBypassOnce";
+
+        const bypassOnce =
+          sessionStorage.getItem(
+            bypassKey
+          ) ===
+          "1";
+
+        if (bypassOnce) {
+          sessionStorage.removeItem(
+            bypassKey
+          );
+
+          return;
+        }
+
+        window.location.replace(
+          "/mobile-login.html?v=20260824-mobile-login-bootstrap2-fix1"
+        );
+
       } catch {
-        // Keep the normal page as fallback.
+        window.location.replace(
+          "/mobile-login.html?v=20260824-mobile-login-bootstrap2-fix1"
+        );
       }
     })();
   </script>
