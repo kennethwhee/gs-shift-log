@@ -3990,7 +3990,7 @@ input {
 
   background:
     #ffffff
-    url("manhole-unit1-diagram-clean-v27.png?v=20260823-original-exact-v27")
+    url("manhole-unit1-diagram-clean-v27.png?v=20260823-scr-top-v30")
     center
     / 100% 100%
     no-repeat !important;
@@ -4296,3 +4296,12 @@ input {
   height:
     96.8847352% !important;
 }
+
+/* =========================================================
+   MANHOLE_SCR_TOP_LINE_RESTORE_V30
+
+   - artwork geometry unchanged
+   - marker coordinates unchanged
+   - top breathing space unchanged
+   - only SCR outer top horizontal line restored in PNG
+========================================================= */
