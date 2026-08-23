@@ -117140,3 +117140,40 @@ table {
   }
 
 }
+/* PLANNED-MAINTENANCE-SUBMENU-TWO-ROW-V1
+   계획정비 하위메뉴:
+   1행 = Logic 개선 / 작업필요사항
+   2행 = 맨홀개폐관리
+*/
+#plannedMaintenanceHeaderSubmenuPanel {
+  min-width: 168px;
+}
+
+.planned-maintenance-submenu-inline-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: max-content;
+  max-width: 100%;
+}
+
+.planned-maintenance-submenu-inline-row > .header-more-subitem {
+  width: auto;
+  min-width: 0;
+  flex: 0 0 auto;
+  padding-left: 0;
+  padding-right: 0;
+  white-space: nowrap;
+}
+
+.planned-maintenance-submenu-divider {
+  flex: 0 0 auto;
+  color: var(--text-muted, #7b8794);
+  font-size: 0.72em;
+  line-height: 1;
+  pointer-events: none;
+}
+
+#plannedMaintenanceHeaderSubmenuPanel .planned-maintenance-manhole-subitem {
+  width: 100%;
+}

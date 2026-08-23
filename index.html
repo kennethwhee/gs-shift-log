@@ -571,25 +571,36 @@
           aria-label="계획정비 소메뉴"
           hidden
         >
-          <button
-            type="button"
-            class="header-more-subitem"
-            id="plannedMaintenanceLogicHeaderButton"
-            role="menuitem"
-          >
-            Logic 개선
-          </button>
+          <div class="planned-maintenance-submenu-inline-row">
+            <button
+              type="button"
+              class="header-more-subitem"
+              id="plannedMaintenanceLogicHeaderButton"
+              role="menuitem"
+            >
+              Logic 개선
+            </button>
+            <span class="planned-maintenance-submenu-divider" aria-hidden="true">/</span>
+            <button
+              type="button"
+              class="header-more-subitem"
+              id="plannedMaintenanceWorkHeaderButton"
+              role="menuitem"
+            >
+              작업필요사항
+            </button>
+          </div>
 
           <button
             type="button"
-            class="header-more-subitem"
-            id="plannedMaintenanceWorkHeaderButton"
+            class="header-more-subitem planned-maintenance-manhole-subitem"
+            id="manholeManagementHeaderButton"
             role="menuitem"
+            aria-label="맨홀개폐관리 열기"
+            title="맨홀개폐관리"
           >
-            작업필요사항
+            맨홀개폐관리
           </button>
-
-          <!-- MANHOLE_SUBMENU_MOVE_V1 -->           <button             type="button"             class="header-more-subitem"             id="manholeManagementHeaderButton"             role="menuitem"             aria-label="맨홀개폐관리 열기"             title="맨홀개폐관리"           >             맨홀개폐관리           </button>
         </div>
       </div>
 
