@@ -115497,3 +115497,96 @@ tbody
 > td.is-unit-two {
   background: #f3effb !important;
 }
+/* =========================================================
+  [LEADER-INSTRUCTION-V1-FIX2]
+  파트장 업무일지 지시사항
+========================================================= */
+
+#instructionEntrySection[hidden] {
+  display: none !important;
+}
+
+
+#instructionEntrySection {
+  margin-top: 12px;
+}
+
+
+#addDirectInstructionButton {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: 0 10px;
+  border: 1px solid #9ca9bf;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #46556c;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+
+#addDirectInstructionButton:hover {
+  border-color: #6d7f9c;
+  background: #f1f4f8;
+  color: #35445c;
+}
+
+
+#directInstructionContent {
+  width: 100%;
+  min-height: 76px;
+  padding: 9px 10px;
+  border: 1px solid #bdc6d4;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #273248;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.55;
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+
+#directInstructionContent:focus {
+  border-color: #778aa7;
+  box-shadow: 0 0 0 3px rgba(119, 138, 167, 0.13);
+}
+
+
+#saveDirectInstructionButton {
+  border-color: #687b98;
+  background: #687b98;
+  color: #ffffff;
+}
+
+
+#instructionEntrySection .log-entry-row-shell {
+  border-left: 3px solid #9aa8bc;
+}
+
+
+.detail-work-row__number.is-instruction {
+  color: #566984;
+}
+
+
+.shift-log-detail-section--instruction
+.shift-log-detail-section__header {
+  background: #f3f6fa;
+}
+
+
+@media (max-width: 768px) {
+  #addDirectInstructionButton {
+    min-height: 27px;
+    padding: 0 8px;
+    font-size: 9px;
+  }
+}

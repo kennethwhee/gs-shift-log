@@ -23,7 +23,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260823-index-recovery1"
+    href="style.css?v=20260823-leader-instruction1"
   >
   <link
     rel="stylesheet"
@@ -61,7 +61,7 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 <script
-  src="script.js?v=20260823-index-recovery1"
+  src="script.js?v=20260823-leader-instruction1"
   defer
 ></script>
 
@@ -3244,6 +3244,10 @@
         CM 작업
       </option>
 
+      <option value="지시사항">
+        지시사항
+      </option>
+
       <option value="비고">
         비고
       </option>
@@ -3721,6 +3725,165 @@
   />
 
 </div>
+
+
+<!-- =====================================================
+  파트장 지시사항
+
+  - 파트장 업무일지에서만 표시
+  - 상단 업무내용 추가에서 "지시사항" 선택 가능
+  - 아래 "내용 추가"로 직접 입력 가능
+====================================================== -->
+<section
+  class="
+    log-entry-group-section
+    log-entry-note-section
+    log-entry-instruction-section
+  "
+  id="instructionEntrySection"
+  hidden
+>
+
+  <div class="log-entry-group-header">
+
+    <div class="log-entry-group-header__title">
+
+      <strong>
+        지시사항
+      </strong>
+
+      <span
+        class="log-entry-group-count"
+        id="instructionEntryCount"
+      >
+        0건
+      </span>
+
+      <button
+        type="button"
+        id="addDirectInstructionButton"
+        class="direct-remark-add-button"
+      >
+        ＋ 내용 추가
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <div
+    class="direct-remark-input-panel"
+    id="directInstructionInputPanel"
+    hidden
+  >
+
+    <label class="direct-remark-input-field">
+
+      <span>
+        지시사항 내용
+      </span>
+
+      <textarea
+        id="directInstructionContent"
+        rows="3"
+        placeholder="지시사항을 입력하세요. 여러 줄 입력도 가능합니다."
+      ></textarea>
+
+    </label>
+
+
+    <div class="direct-remark-input-actions">
+
+      <button
+        type="button"
+        id="cancelDirectInstructionButton"
+      >
+        취소
+      </button>
+
+      <button
+        type="button"
+        id="saveDirectInstructionButton"
+      >
+        ＋ 추가
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <div class="log-entry-table-wrap">
+
+    <table
+      class="
+        log-entry-table
+        log-entry-table--note
+        log-entry-table--instruction
+      "
+    >
+
+      <thead>
+
+        <tr>
+
+          <th
+            class="
+              log-entry-table__select
+              log-entry-edit-only-column
+            "
+            hidden
+          >
+            <input
+              id="selectAllInstructionEntriesCheckbox"
+              class="log-entry-select-checkbox"
+              type="checkbox"
+              aria-label="지시사항 전체 선택"
+            />
+          </th>
+
+          <th class="log-entry-table__time">
+            시간
+          </th>
+
+          <th class="log-entry-table__content">
+            내용
+          </th>
+
+          <th
+            class="
+              log-entry-table__actions
+              log-entry-edit-only-column
+            "
+            hidden
+          >
+            관리
+          </th>
+
+        </tr>
+
+      </thead>
+
+
+      <tbody id="instructionEntryTableBody">
+
+        <tr class="log-entry-empty-row">
+
+          <td colspan="2">
+            등록된 지시사항이 없습니다.
+          </td>
+
+        </tr>
+
+      </tbody>
+
+    </table>
+
+  </div>
+
+</section>
+
 
 <!-- =====================================================
   비고

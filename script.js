@@ -14437,6 +14437,26 @@ logEntryTargetRole:
       ),
 
           /* =====================================================
+      지시사항 내역
+    ====================================================== */
+
+    instructionEntryTableBody:
+      document.getElementById(
+        "instructionEntryTableBody"
+      ),
+
+    instructionEntryCount:
+      document.getElementById(
+        "instructionEntryCount"
+      ),
+
+    selectAllInstructionEntriesCheckbox:
+      document.getElementById(
+        "selectAllInstructionEntriesCheckbox"
+      ),
+
+
+    /* =====================================================
       비고 내역
     ====================================================== */
 
@@ -35087,7 +35107,24 @@ const handoverEntries =
         ) &&
 
         category !==
-          "비고"
+          "비고" &&
+
+        category !==
+          "지시사항"
+      );
+    }
+  );
+
+
+const instructionEntries =
+  collectedEntries.filter(
+    entry => {
+      return (
+        String(
+          entry?.category ||
+          ""
+        ).trim() ===
+        "지시사항"
       );
     }
   );
@@ -35123,6 +35160,29 @@ const remarkEntries =
           entry,
           "인계사항"
         );
+      }
+    ),
+
+    ...instructionEntries.map(
+      entry => {
+        const normalized =
+          normalizeEditorEntry(
+            entry,
+            "지시사항"
+          );
+
+        return {
+          ...normalized,
+
+          category:
+            "지시사항",
+
+          time:
+            "",
+
+          tag:
+            ""
+        };
       }
     ),
 
@@ -36352,6 +36412,20 @@ function addOrUpdateLogEntry() {
     );
 
 
+  if (
+    category ===
+      "지시사항" &&
+    currentEditorRole !==
+      "파트장"
+  ) {
+    showToast(
+      "지시사항은 파트장 업무일지에서만 작성할 수 있습니다."
+    );
+
+    return;
+  }
+
+
   const currentAuthor =
     String(
       elements.logAuthor?.value ||
@@ -36399,14 +36473,19 @@ function addOrUpdateLogEntry() {
 
 
   /*
-    비고는 보직별 업무 영역으로 보내지 않는다.
+    비고와 지시사항은
+    보직별 업무 영역으로 보내지 않는다.
 
-    추가 위치가 BCO2로 선택되어 있어도
-    구분이 비고라면 항상 파트장 비고로 저장한다.
+    파트장 업무일지에서 작성한 지시사항은
+    항상 파트장 항목으로 저장한다.
   */
   if (
-    category ===
-      "비고"
+    [
+      "비고",
+      "지시사항"
+    ].includes(
+      category
+    )
   ) {
     selectedTargetRole =
       currentEditorRole ===
@@ -36613,13 +36692,20 @@ function addOrUpdateLogEntry() {
 
 
     time:
-      normalizedTime,
+      category ===
+        "지시사항"
+        ? ""
+        : normalizedTime,
 
 
     category,
 
 
-    tag,
+    tag:
+      category ===
+        "지시사항"
+        ? ""
+        : tag,
 
 
     content,
@@ -36693,7 +36779,12 @@ function addOrUpdateLogEntry() {
         category ===
           "비고"
           ? "비고 내용을 추가했습니다."
-          : `${finalSourceRole} 업무내용을 추가했습니다.`
+          : (
+              category ===
+                "지시사항"
+                ? "지시사항을 추가했습니다."
+                : `${finalSourceRole} 업무내용을 추가했습니다.`
+            )
       );
 
     } else {
@@ -36956,6 +37047,20 @@ function renderLogEntryTable() {
   const normalizeCategory = (
     value
   ) => {
+    const rawInstructionCategory =
+      String(
+        value ||
+        ""
+      ).trim();
+
+    if (
+      rawInstructionCategory ===
+        "지시사항"
+    ) {
+      return "지시사항";
+    }
+
+
     if (
       typeof normalizeLogEntryCategory ===
         "function"
@@ -37116,6 +37221,46 @@ function renderLogEntryTable() {
     "파트장";
 
 
+  const instructionSection =
+    document.getElementById(
+      "instructionEntrySection"
+    );
+
+  if (
+    instructionSection
+  ) {
+    instructionSection.hidden =
+      !isLeaderLog;
+  }
+
+
+  const instructionOption =
+    elements.logEntryCategory
+      ?.querySelector(
+        'option[value="지시사항"]'
+      );
+
+  if (
+    instructionOption
+  ) {
+    instructionOption.hidden =
+      !isLeaderLog;
+
+    instructionOption.disabled =
+      !isLeaderLog;
+  }
+
+
+  if (
+    !isLeaderLog &&
+    elements.logEntryCategory?.value ===
+      "지시사항"
+  ) {
+    elements.logEntryCategory.value =
+      "인계사항";
+  }
+
+
   /*
     수정 중인 파트장 업무일지의 날짜·근무를 확인한다.
 
@@ -37204,17 +37349,22 @@ if (
         BO1 / BO2 / TGO 등으로 다시 분류하지 않는다.
       */
       if (
-        category ===
-          "비고" &&
+        [
+          "비고",
+          "지시사항"
+        ].includes(
+          category
+        ) &&
         [
           "direct-remark",
+          "direct-instruction",
           "leader-manual"
         ].includes(
           entrySource
         )
       ) {
         entry.category =
-          "비고";
+          category;
 
         entry.importedFromRole =
           "파트장";
@@ -37298,6 +37448,13 @@ if (
   const handoverColumnCount =
     getTableColumnCount(
       elements.logEntryTableBody,
+      4
+    );
+
+
+  const instructionColumnCount =
+    getTableColumnCount(
+      elements.instructionEntryTableBody,
       4
     );
 
@@ -37390,6 +37547,25 @@ const tmEntries =
     );
 
 
+const instructionEntries =
+  indexedEntries
+    .filter(
+      ({
+        entry
+      }) => {
+        return (
+          normalizeCategory(
+            entry?.category
+          ) ===
+          "지시사항"
+        );
+      }
+    )
+    .sort(
+      sortEntries
+    );
+
+
 const noteEntries =
   indexedEntries
     .filter(
@@ -37426,7 +37602,10 @@ const ordinaryEntries =
         ) &&
 
         category !==
-          "비고"
+          "비고" &&
+
+        category !==
+          "지시사항"
       );
     }
   );
@@ -37456,6 +37635,14 @@ const ordinaryEntries =
   ) {
     elements.handoverEntryCount.textContent =
       `${ordinaryEntries.length}건`;
+  }
+
+
+  if (
+    elements.instructionEntryCount
+  ) {
+    elements.instructionEntryCount.textContent =
+      `${instructionEntries.length}건`;
   }
 
 
@@ -38009,6 +38196,53 @@ const ordinaryEntries =
 
                   columnCount:
                     handoverColumnCount
+                }
+              );
+            }
+          )
+          .join("");
+    }
+  }
+
+
+  /* =====================================================
+    지시사항 출력
+  ====================================================== */
+
+  if (
+    elements.instructionEntryTableBody
+  ) {
+    if (
+      !instructionEntries.length
+    ) {
+      elements.instructionEntryTableBody.innerHTML = `
+        <tr class="log-entry-empty-row">
+          <td colspan="${instructionColumnCount}">
+            등록된 지시사항이 없습니다.
+          </td>
+        </tr>
+      `;
+
+    } else {
+      elements.instructionEntryTableBody.innerHTML =
+        instructionEntries
+          .map(
+            (
+              item,
+              index
+            ) => {
+              return createEntryRowHtml(
+                item,
+                index + 1,
+                {
+                  showTime:
+                    false,
+
+                  sourceRole:
+                    "파트장",
+
+                  columnCount:
+                    instructionColumnCount
                 }
               );
             }
@@ -38701,6 +38935,382 @@ document.addEventListener(
   "DOMContentLoaded",
   initializeDirectRemarkInput
 );
+
+/* =========================================================
+  [LEADER-INSTRUCTION-V1]
+  파트장 지시사항 직접 입력
+========================================================= */
+
+function openDirectInstructionInput() {
+  const currentRole =
+    normalizeMemberLogRole(
+      elements.logRole?.value ||
+      ""
+    );
+
+  if (
+    currentRole !==
+      "파트장"
+  ) {
+    showToast(
+      "지시사항은 파트장 업무일지에서만 작성할 수 있습니다."
+    );
+
+    return;
+  }
+
+
+  const inputPanel =
+    document.getElementById(
+      "directInstructionInputPanel"
+    );
+
+  const contentInput =
+    document.getElementById(
+      "directInstructionContent"
+    );
+
+  if (
+    !inputPanel ||
+    !contentInput
+  ) {
+    return;
+  }
+
+  inputPanel.hidden =
+    false;
+
+  window.setTimeout(
+    () => {
+      contentInput.focus();
+    },
+    0
+  );
+}
+
+
+function closeDirectInstructionInput(
+  clearContent = true
+) {
+  const inputPanel =
+    document.getElementById(
+      "directInstructionInputPanel"
+    );
+
+  const contentInput =
+    document.getElementById(
+      "directInstructionContent"
+    );
+
+  if (
+    inputPanel
+  ) {
+    inputPanel.hidden =
+      true;
+  }
+
+  if (
+    clearContent &&
+    contentInput
+  ) {
+    contentInput.value =
+      "";
+  }
+}
+
+
+function addDirectInstructionEntry() {
+  const currentRole =
+    normalizeMemberLogRole(
+      elements.logRole?.value ||
+      ""
+    );
+
+  if (
+    currentRole !==
+      "파트장"
+  ) {
+    showToast(
+      "지시사항은 파트장 업무일지에서만 작성할 수 있습니다."
+    );
+
+    return;
+  }
+
+
+  const contentInput =
+    document.getElementById(
+      "directInstructionContent"
+    );
+
+  let content =
+    String(
+      contentInput?.value ||
+      ""
+    )
+      .replace(
+        /\r\n?/g,
+        "\n"
+      )
+      .trim()
+      .replace(
+        /^\s*(?:\d+\s*[.)\-:：]\s*|[①②③④⑤⑥⑦⑧⑨⑩]\s*)/u,
+        ""
+      )
+      .trim();
+
+  if (
+    !content
+  ) {
+    showToast(
+      "지시사항을 입력해 주세요."
+    );
+
+    contentInput?.focus();
+
+    return;
+  }
+
+
+  if (
+    !Array.isArray(
+      appState.editorEntries
+    )
+  ) {
+    appState.editorEntries =
+      [];
+  }
+
+
+  const currentAuthor =
+    String(
+      elements.logAuthor?.value ||
+      ""
+    ).trim();
+
+
+  appState.editorEntries.push({
+    id: [
+      "direct-instruction",
+      Date.now(),
+      Math.random()
+        .toString(36)
+        .slice(2, 8)
+    ].join("-"),
+
+    time:
+      "",
+
+    category:
+      "지시사항",
+
+    tag:
+      "",
+
+    content,
+
+    attachmentName:
+      "",
+
+    importedFromRole:
+      "파트장",
+
+    importedFromAuthor:
+      currentAuthor,
+
+    importedFromLogId:
+      "",
+
+    importedFromEntryIndex:
+      null,
+
+    role:
+      "파트장",
+
+    leaderTargetRole:
+      "파트장",
+
+    source:
+      "leader-manual"
+  });
+
+
+  appState.editingEntryIndex =
+    -1;
+
+
+  if (
+    typeof sortImportedLogEntries ===
+      "function"
+  ) {
+    sortImportedLogEntries();
+  }
+
+
+  renderLogEntryTable();
+
+  closeDirectInstructionInput(
+    true
+  );
+
+  showToast(
+    "지시사항을 추가했습니다."
+  );
+}
+
+
+async function confirmAndAddDirectInstructionEntry() {
+  const contentInput =
+    document.getElementById(
+      "directInstructionContent"
+    );
+
+  const content =
+    String(
+      contentInput?.value ||
+      ""
+    ).trim();
+
+  if (
+    !content
+  ) {
+    showToast(
+      "지시사항을 입력해 주세요."
+    );
+
+    contentInput?.focus();
+
+    return false;
+  }
+
+
+  const shouldContinue =
+    await showCompactConfirm({
+      title:
+        "지시사항 추가",
+
+      message:
+        "입력한 지시사항을 추가할까요?",
+
+      confirmText:
+        "추가",
+
+      cancelText:
+        "취소"
+    });
+
+
+  if (
+    !shouldContinue
+  ) {
+    contentInput?.focus();
+
+    return false;
+  }
+
+
+  addDirectInstructionEntry();
+
+  return true;
+}
+
+
+function initializeDirectInstructionInput() {
+  const openButton =
+    document.getElementById(
+      "addDirectInstructionButton"
+    );
+
+  const cancelButton =
+    document.getElementById(
+      "cancelDirectInstructionButton"
+    );
+
+  const saveButton =
+    document.getElementById(
+      "saveDirectInstructionButton"
+    );
+
+  const contentInput =
+    document.getElementById(
+      "directInstructionContent"
+    );
+
+
+  if (
+    !openButton ||
+    openButton.dataset
+      .directInstructionBound ===
+      "true"
+  ) {
+    return;
+  }
+
+
+  openButton.addEventListener(
+    "click",
+    openDirectInstructionInput
+  );
+
+
+  cancelButton?.addEventListener(
+    "click",
+    () => {
+      closeDirectInstructionInput(
+        true
+      );
+    }
+  );
+
+
+  saveButton?.addEventListener(
+    "click",
+    addDirectInstructionEntry
+  );
+
+
+  contentInput?.addEventListener(
+    "keydown",
+    async event => {
+      if (
+        event.key !==
+          "Enter"
+      ) {
+        return;
+      }
+
+      if (
+        event.isComposing ||
+        event.keyCode ===
+          229
+      ) {
+        return;
+      }
+
+      if (
+        event.shiftKey
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+
+      await confirmAndAddDirectInstructionEntry();
+    }
+  );
+
+
+  openButton.dataset
+    .directInstructionBound =
+    "true";
+}
+
+
+document.addEventListener(
+  "DOMContentLoaded",
+  initializeDirectInstructionInput
+);
+
 
 /* =====================================================
   업무일지 한 줄 출력 최종본
@@ -39931,14 +40541,18 @@ function startLogEntryEdit(
 
 
     /*
-      비고는 무조건 파트장
+      비고와 지시사항은 무조건 파트장
     */
     if (
-      String(
-        entry.category ||
-        ""
-      ).trim() ===
-        "비고"
+      [
+        "비고",
+        "지시사항"
+      ].includes(
+        String(
+          entry.category ||
+          ""
+        ).trim()
+      )
     ) {
       targetRole =
         "파트장";
@@ -40731,9 +41345,15 @@ const resolvedImportedFromRole =
 
             time:
               String(
-                entry?.time ||
+                entry?.category ||
                 ""
-              ).trim(),
+              ).trim() ===
+                "지시사항"
+                ? ""
+                : String(
+                    entry?.time ||
+                    ""
+                  ).trim(),
 
             category:
               String(
@@ -40743,11 +41363,17 @@ const resolvedImportedFromRole =
 
             tag:
               String(
-                entry?.tag ||
+                entry?.category ||
                 ""
-              )
-                .trim()
-                .toUpperCase(),
+              ).trim() ===
+                "지시사항"
+                ? ""
+                : String(
+                    entry?.tag ||
+                    ""
+                  )
+                    .trim()
+                    .toUpperCase(),
 
             content:
               String(
@@ -40855,6 +41481,24 @@ const tmEntries =
 
 
 /* =====================================================
+  지시사항 분리
+===================================================== */
+
+const instructionEntries =
+  normalizedEntries.filter(
+    entry => {
+      return (
+        String(
+          entry?.category ||
+          ""
+        ).trim() ===
+        "지시사항"
+      );
+    }
+  );
+
+
+/* =====================================================
   비고 내역 분리
 ===================================================== */
 
@@ -40898,7 +41542,10 @@ const handoverEntries =
         ) &&
 
         category !==
-          "비고"
+          "비고" &&
+
+        category !==
+          "지시사항"
       );
     }
   );
@@ -41149,6 +41796,8 @@ operationStatusItems:
     tmEntries,
 
     handoverEntries,
+
+    instructionEntries,
 
     remarkEntries,
 
@@ -43207,7 +43856,29 @@ function createMobileLogCardHtml(
             getMobileLogEntrySection(
               entry
             ) ===
-            "handover"
+              "handover" &&
+            String(
+              entry?.category ||
+              ""
+            ).trim() !==
+              "지시사항"
+          );
+        }
+      ),
+      log?.shift || ""
+    );
+
+
+  const instructionEntries =
+    sortDetailEntriesByTime(
+      entries.filter(
+        entry => {
+          return (
+            String(
+              entry?.category ||
+              ""
+            ).trim() ===
+            "지시사항"
           );
         }
       ),
@@ -43361,6 +44032,8 @@ const isDeletable =
       0 ||
     handoverEntries.length >
       0 ||
+    instructionEntries.length >
+      0 ||
     noteEntries.length >
       0;
 
@@ -43468,6 +44141,18 @@ const isDeletable =
             "handover",
             log?.shift || ""
           )}
+
+
+          ${
+            isLeader
+              ? createMobileLogSectionHtml(
+                  "지시사항",
+                  instructionEntries,
+                  "instruction",
+                  log?.shift || ""
+                )
+              : ""
+          }
 
 
           ${createMobileLogSectionHtml(
@@ -45683,7 +46368,9 @@ function createLogRowHtml(log) {
           category !==
             "TM 발행" &&
           category !==
-            "비고"
+            "비고" &&
+          category !==
+            "지시사항"
         );
       }
     );
@@ -45848,7 +46535,64 @@ const roleEntries =
 
 
   /* =====================================================
-    4. 비고
+    4. 지시사항
+  ====================================================== */
+
+  const instructionEntries =
+    entries.filter(
+      entry => {
+        return (
+          String(
+            entry?.category ||
+            ""
+          ).trim() ===
+          "지시사항"
+        );
+      }
+    );
+
+
+  if (
+    isLeaderLog
+  ) {
+    instructionEntries.forEach(
+      (
+        entry,
+        index
+      ) => {
+        pushEntryGroup({
+          title:
+            index === 0
+              ? "지시사항"
+              : "",
+
+          entry,
+
+          index,
+
+          showTime:
+            false,
+
+          showTag:
+            false,
+
+          categoryClass: [
+            "is-instruction",
+
+            index === 0
+              ? "is-section-start"
+              : ""
+          ]
+            .filter(Boolean)
+            .join(" ")
+        });
+      }
+    );
+  }
+
+
+  /* =====================================================
+    5. 비고
   ====================================================== */
 
   const remarkEntries =
@@ -51209,7 +51953,27 @@ function openLogDetail(
           category !==
             "TM 발행" &&
           category !==
-            "비고"
+            "비고" &&
+          category !==
+            "지시사항"
+        );
+      }
+    );
+
+
+  /* =====================================================
+    지시사항
+  ====================================================== */
+
+  const instructionEntries =
+    normalizedDetailEntries.filter(
+      entry => {
+        return (
+          String(
+            entry?.category ||
+            ""
+          ).trim() ===
+          "지시사항"
         );
       }
     );
@@ -51236,6 +52000,7 @@ function openLogDetail(
   const combinedEntries = [
     ...tmEntries,
     ...handoverEntries,
+    ...instructionEntries,
     ...remarkEntries
   ];
 
@@ -52001,6 +52766,52 @@ if (
 
 
 /* =====================================================
+  지시사항 HTML
+===================================================== */
+
+const instructionHtml =
+  instructionEntries.length
+    ? `
+      <div
+        class="
+          detail-work-list
+          detail-work-list--instruction
+        "
+      >
+
+        ${instructionEntries
+          .map(
+            (
+              entry,
+              index
+            ) => {
+              return createDetailWorkRowHtml(
+                entry,
+                index,
+                {
+                  numberType:
+                    "instruction",
+
+                  showTime:
+                    false,
+
+                  showTag:
+                    false
+                }
+              );
+            }
+          )
+          .join("")}
+
+      </div>
+    `
+    : `
+      <div class="detail-empty-message">
+        등록된 지시사항이 없습니다.
+      </div>
+    `;
+
+/* =====================================================
   비고 HTML
 ====================================================== */
 
@@ -52303,6 +53114,43 @@ const attachmentHtml =
 
         </section>
 
+
+        ${
+          isLeaderLog
+            ? `
+              <section
+                class="
+                  shift-log-detail-section
+                  shift-log-detail-section--instruction
+                "
+              >
+
+                <div class="shift-log-detail-section__header">
+
+                  <div>
+                    <span class="shift-log-detail-eyebrow">
+                      INSTRUCTION
+                    </span>
+
+                    <h3>지시사항</h3>
+                  </div>
+
+
+                  <span class="shift-log-detail-count">
+                    ${instructionEntries.length}건
+                  </span>
+
+                </div>
+
+
+                <div class="shift-log-detail-section__body">
+                  ${instructionHtml}
+                </div>
+
+              </section>
+            `
+            : ""
+        }
 
         <section
           class="
@@ -222158,6 +223006,11 @@ function removeDisplayedOverrides() {
     );
 
     appendEntries(
+      log?.instructionEntries,
+      "지시사항"
+    );
+
+    appendEntries(
       log?.remarkEntries,
       "비고"
     );
@@ -242228,4 +243081,447 @@ async function restoreSolarCumulativeFromD1() {
   window
     .__limestoneMobileStaticLayoutInstalled =
     true;
+})();
+/* =========================================================
+  [LEADER-INSTRUCTION-V1-FIX2]
+  파트장 지시사항 저장·복원·UI 최종 호환
+========================================================= */
+
+(function installLeaderInstructionCompatibilityFix2() {
+  if (
+    window
+      .__leaderInstructionCompatibilityFix2Installed ===
+      true
+  ) {
+    return;
+  }
+
+
+  window
+    .__leaderInstructionCompatibilityFix2Installed =
+    true;
+
+
+  if (
+    typeof normalizeLogEntryCategory ===
+      "function" &&
+    normalizeLogEntryCategory
+      .__leaderInstructionProtected !==
+      true
+  ) {
+    const originalNormalizeLogEntryCategory =
+      normalizeLogEntryCategory;
+
+
+    const protectedNormalizeLogEntryCategory =
+      function (
+        value,
+        ...args
+      ) {
+        if (
+          String(
+            value ||
+            ""
+          ).trim() ===
+            "지시사항"
+        ) {
+          return "지시사항";
+        }
+
+
+        return originalNormalizeLogEntryCategory.call(
+          this,
+          value,
+          ...args
+        );
+      };
+
+
+    protectedNormalizeLogEntryCategory
+      .__leaderInstructionProtected =
+      true;
+
+
+    normalizeLogEntryCategory =
+      protectedNormalizeLogEntryCategory;
+  }
+
+
+  function syncLeaderInstructionUi() {
+    const role =
+      typeof normalizeMemberLogRole ===
+        "function"
+        ? normalizeMemberLogRole(
+            document.getElementById(
+              "logRole"
+            )?.value ||
+            ""
+          )
+        : String(
+            document.getElementById(
+              "logRole"
+            )?.value ||
+            ""
+          ).trim();
+
+
+    const isLeader =
+      role ===
+      "파트장";
+
+
+    const section =
+      document.getElementById(
+        "instructionEntrySection"
+      );
+
+
+    if (
+      section
+    ) {
+      section.hidden =
+        !isLeader;
+    }
+
+
+    const categorySelect =
+      document.getElementById(
+        "logEntryCategory"
+      );
+
+
+    const instructionOption =
+      categorySelect
+        ?.querySelector(
+          'option[value="지시사항"]'
+        );
+
+
+    if (
+      instructionOption
+    ) {
+      instructionOption.hidden =
+        !isLeader;
+
+      instructionOption.disabled =
+        !isLeader;
+    }
+
+
+    if (
+      !isLeader &&
+      categorySelect?.value ===
+        "지시사항"
+    ) {
+      categorySelect.value =
+        "인계사항";
+    }
+  }
+
+
+  document.addEventListener(
+    "change",
+    event => {
+      const target =
+        event.target;
+
+
+      if (
+        !(target instanceof Element)
+      ) {
+        return;
+      }
+
+
+      if (
+        [
+          "logRole",
+          "logEntryCategory"
+        ].includes(
+          target.id
+        )
+      ) {
+        syncLeaderInstructionUi();
+      }
+    }
+  );
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      syncLeaderInstructionUi,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    window.setTimeout(
+      syncLeaderInstructionUi,
+      0
+    );
+  }
+
+
+  if (
+    typeof collectLogEntriesForDisplay !==
+      "function" ||
+    collectLogEntriesForDisplay
+      .__leaderInstructionProtected ===
+      true
+  ) {
+    return;
+  }
+
+
+  const originalCollectLogEntriesForDisplay =
+    collectLogEntriesForDisplay;
+
+
+  const protectedCollectLogEntriesForDisplay =
+    function (
+      log
+    ) {
+      const originalEntries =
+        originalCollectLogEntriesForDisplay.call(
+          this,
+          log
+        );
+
+
+      const result =
+        Array.isArray(
+          originalEntries
+        )
+          ? originalEntries.map(
+              entry => {
+                return (
+                  entry &&
+                  typeof entry ===
+                    "object"
+                    ? {
+                        ...entry
+                      }
+                    : entry
+                );
+              }
+            )
+          : [];
+
+
+      const role =
+        typeof normalizeMemberLogRole ===
+          "function"
+          ? normalizeMemberLogRole(
+              log?.role ||
+              ""
+            )
+          : String(
+              log?.role ||
+              ""
+            ).trim();
+
+
+      if (
+        role !==
+          "파트장"
+      ) {
+        return result;
+      }
+
+
+      const instructionCandidates =
+        [];
+
+
+      [
+        log?.instructionEntries,
+        log?.entries,
+        log?.handoverEntries
+      ].forEach(
+        collection => {
+          if (
+            !Array.isArray(
+              collection
+            )
+          ) {
+            return;
+          }
+
+
+          collection.forEach(
+            entry => {
+              if (
+                String(
+                  entry?.category ||
+                  ""
+                ).trim() !==
+                  "지시사항"
+              ) {
+                return;
+              }
+
+
+              instructionCandidates.push({
+                ...entry,
+
+                category:
+                  "지시사항",
+
+                time:
+                  "",
+
+                tag:
+                  "",
+
+                importedFromRole:
+                  "파트장",
+
+                leaderTargetRole:
+                  "파트장"
+              });
+            }
+          );
+        }
+      );
+
+
+      const createKey =
+        entry => {
+          const id =
+            String(
+              entry?.id ||
+              ""
+            ).trim();
+
+
+          if (
+            id
+          ) {
+            return (
+              "ID||" +
+              id
+            );
+          }
+
+
+          return [
+            String(
+              entry?.content ||
+              ""
+            )
+              .replace(
+                /\s+/g,
+                " "
+              )
+              .trim(),
+
+            String(
+              entry?.importedFromRole ||
+              ""
+            ).trim(),
+
+            String(
+              entry?.source ||
+              ""
+            ).trim()
+          ].join(
+            "||"
+          );
+        };
+
+
+      const existingIndex =
+        new Map();
+
+
+      result.forEach(
+        (
+          entry,
+          index
+        ) => {
+          existingIndex.set(
+            createKey(
+              entry
+            ),
+            index
+          );
+        }
+      );
+
+
+      instructionCandidates.forEach(
+        instructionEntry => {
+          const key =
+            createKey(
+              instructionEntry
+            );
+
+
+          if (
+            existingIndex.has(
+              key
+            )
+          ) {
+            const index =
+              existingIndex.get(
+                key
+              );
+
+
+            result[index] = {
+              ...(
+                result[index] &&
+                typeof result[index] ===
+                  "object"
+                  ? result[index]
+                  : {}
+              ),
+
+              ...instructionEntry,
+
+              category:
+                "지시사항",
+
+              time:
+                "",
+
+              tag:
+                ""
+            };
+
+
+            return;
+          }
+
+
+          existingIndex.set(
+            key,
+            result.length
+          );
+
+
+          result.push(
+            instructionEntry
+          );
+        }
+      );
+
+
+      return result;
+    };
+
+
+  protectedCollectLogEntriesForDisplay
+    .__leaderInstructionProtected =
+    true;
+
+
+  collectLogEntriesForDisplay =
+    protectedCollectLogEntriesForDisplay;
 })();
