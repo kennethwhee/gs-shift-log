@@ -247277,3 +247277,407 @@ async function restoreSolarCumulativeFromD1() {
     initialize();
   }
 })();
+/* =========================================================
+  [SECTION-CONTENT-HOVER-ADD-V5-FIX2]
+  내용영역 Hover 시 제목 옆 + 표시
+
+  - + 버튼은 업무내용 위를 가리지 않는다.
+  - 실제 내용영역에 마우스를 올리면 제목/건수 바로 옆에 + 표시
+  - 내용영역에서 제목줄로 마우스를 이동해도 + 유지
+  - 클릭 시 기존 섹션별 입력 UI 재사용
+========================================================= */
+
+(function installSectionContentHoverAddV5Fix2() {
+  if (
+    window.__sectionContentHoverAddV5Fix2Installed ===
+      true
+  ) {
+    return;
+  }
+
+
+  window.__sectionContentHoverAddV5Fix2Installed =
+    true;
+
+
+  const INLINE_BUTTON_CLASS =
+    "section-context-inline-add-button";
+
+
+  const COUNT_SELECTORS = {
+    issue:
+      "#tmIssueEntryCount",
+
+    handover:
+      "#handoverEntryCount",
+
+    instruction:
+      "#instructionEntryCount",
+
+    remark:
+      "#noteEntryCount"
+  };
+
+
+  const BUTTON_LABELS = {
+    issue:
+      "발행 내역 추가",
+
+    handover:
+      "인계사항 추가",
+
+    instruction:
+      "지시사항 추가",
+
+    remark:
+      "비고 추가"
+  };
+
+
+  function getSectionType(
+    section
+  ) {
+    return String(
+      section?.dataset
+        ?.contextEntryType ||
+      ""
+    ).trim();
+  }
+
+
+  function getOriginalHeaderButton(
+    section
+  ) {
+    return (
+      section?.querySelector(
+        ".section-context-entry-header .section-context-add-button"
+      ) ||
+      null
+    );
+  }
+
+
+  function getContentZone(
+    section
+  ) {
+    return (
+      section?.querySelector(
+        ".section-context-content-zone"
+      ) ||
+      section?.querySelector(
+        ".log-entry-table-wrap"
+      ) ||
+      null
+    );
+  }
+
+
+  function syncInlineButtonAvailability(
+    section,
+    inlineButton
+  ) {
+    const originalButton =
+      getOriginalHeaderButton(
+        section
+      );
+
+
+    inlineButton.hidden =
+      Boolean(
+        !originalButton ||
+        originalButton.hidden ||
+        originalButton.disabled
+      );
+  }
+
+
+  function ensureInlineButton(
+    section
+  ) {
+    if (
+      !section ||
+      !section.classList.contains(
+        "section-context-entry-enabled"
+      )
+    ) {
+      return;
+    }
+
+
+    const sectionType =
+      getSectionType(
+        section
+      );
+
+
+    const countSelector =
+      COUNT_SELECTORS[
+        sectionType
+      ];
+
+
+    if (
+      !countSelector
+    ) {
+      return;
+    }
+
+
+    const countElement =
+      section.querySelector(
+        countSelector
+      );
+
+
+    const contentZone =
+      getContentZone(
+        section
+      );
+
+
+    if (
+      !countElement ||
+      !contentZone
+    ) {
+      return;
+    }
+
+
+    let inlineButton =
+      section.querySelector(
+        `.${INLINE_BUTTON_CLASS}`
+      );
+
+
+    if (
+      !inlineButton
+    ) {
+      inlineButton =
+        document.createElement(
+          "button"
+        );
+
+
+      inlineButton.type =
+        "button";
+
+      inlineButton.className =
+        INLINE_BUTTON_CLASS;
+
+      inlineButton.textContent =
+        "+";
+
+
+      const label =
+        BUTTON_LABELS[
+          sectionType
+        ] ||
+        "내용 추가";
+
+
+      inlineButton.title =
+        label;
+
+      inlineButton.setAttribute(
+        "aria-label",
+        label
+      );
+
+
+      countElement.insertAdjacentElement(
+        "afterend",
+        inlineButton
+      );
+    }
+
+
+    syncInlineButtonAvailability(
+      section,
+      inlineButton
+    );
+
+
+    /*
+      내용영역에 진입해야 +가 나타난다.
+      나타난 뒤 제목줄의 +로 이동하는 동안은
+      section 안에 있으므로 그대로 유지한다.
+    */
+    if (
+      contentZone.dataset
+        .inlineAddHoverBound !==
+        "true"
+    ) {
+      contentZone.addEventListener(
+        "mouseenter",
+        () => {
+          section.classList.add(
+            "is-content-hovering"
+          );
+        }
+      );
+
+
+      section.addEventListener(
+        "mouseleave",
+        () => {
+          section.classList.remove(
+            "is-content-hovering"
+          );
+        }
+      );
+
+
+      contentZone.dataset
+        .inlineAddHoverBound =
+        "true";
+    }
+
+
+    if (
+      inlineButton.dataset
+        .inlineAddBound !==
+        "true"
+    ) {
+      inlineButton.addEventListener(
+        "click",
+        event => {
+          event.preventDefault();
+          event.stopPropagation();
+
+
+          const originalButton =
+            getOriginalHeaderButton(
+              section
+            );
+
+
+          if (
+            !originalButton ||
+            originalButton.hidden ||
+            originalButton.disabled
+          ) {
+            return;
+          }
+
+
+          originalButton.click();
+        }
+      );
+
+
+      inlineButton.dataset
+        .inlineAddBound =
+        "true";
+    }
+  }
+
+
+  function ensureAllInlineButtons() {
+    document
+      .querySelectorAll(
+        ".section-context-entry-enabled"
+      )
+      .forEach(
+        section => {
+          ensureInlineButton(
+            section
+          );
+        }
+      );
+  }
+
+
+  /*
+    기존 V5가 내용영역 위에 만든 + 버튼은
+    CSS에서 숨기지만 DOM/기능은 그대로 둔다.
+  */
+
+
+  if (
+    typeof renderLogEntryTable ===
+      "function" &&
+    renderLogEntryTable
+      .__sectionContentHoverAddV5Fix2Wrapped !==
+      true
+  ) {
+    const previousRenderLogEntryTable =
+      renderLogEntryTable;
+
+
+    const wrappedRenderLogEntryTable =
+      function (
+        ...args
+      ) {
+        const result =
+          previousRenderLogEntryTable.apply(
+            this,
+            args
+          );
+
+
+        window.requestAnimationFrame(
+          ensureAllInlineButtons
+        );
+
+
+        return result;
+      };
+
+
+    wrappedRenderLogEntryTable
+      .__sectionContentHoverAddV5Fix2Wrapped =
+      true;
+
+
+    renderLogEntryTable =
+      wrappedRenderLogEntryTable;
+  }
+
+
+  document.addEventListener(
+    "change",
+    event => {
+      const target =
+        event.target instanceof
+          Element
+          ? event.target
+          : null;
+
+
+      if (
+        target?.id !==
+          "logRole"
+      ) {
+        return;
+      }
+
+
+      window.requestAnimationFrame(
+        ensureAllInlineButtons
+      );
+    }
+  );
+
+
+  function initialize() {
+    ensureAllInlineButtons();
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();

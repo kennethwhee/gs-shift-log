@@ -117210,3 +117210,318 @@ table {
   flex:
     0 0 auto !important;
 }
+/* =========================================================
+  [SECTION-CONTENT-HOVER-ADD-V5-FIX2]
+  + 버튼 제목 옆 표시 / 이전일지 버튼 우측 통일
+========================================================= */
+
+
+/* ---------------------------------------------------------
+   V5의 내용 위 Overlay +는 제거
+--------------------------------------------------------- */
+
+.section-context-body-add-button {
+  display:
+    none !important;
+}
+
+
+/* ---------------------------------------------------------
+   새 + 버튼:
+   제목/건수 바로 옆
+--------------------------------------------------------- */
+
+.section-context-inline-add-button {
+  box-sizing:
+    border-box;
+
+  display:
+    inline-flex;
+
+  flex:
+    0 0 22px;
+
+  width:
+    22px;
+
+  height:
+    22px;
+
+  min-width:
+    22px;
+
+  min-height:
+    22px;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  margin-left:
+    6px;
+
+  padding:
+    0;
+
+  border:
+    1px solid #9fb1c8;
+
+  border-radius:
+    6px;
+
+  background:
+    #ffffff;
+
+  color:
+    #355a83;
+
+  box-shadow:
+    0 1px 4px
+    rgba(
+      44,
+      67,
+      93,
+      0.08
+    );
+
+  font-family:
+    inherit;
+
+  font-size:
+    14px;
+
+  font-weight:
+    800;
+
+  line-height:
+    1;
+
+  cursor:
+    pointer;
+
+  opacity:
+    0;
+
+  visibility:
+    hidden;
+
+  transform:
+    scale(
+      0.94
+    );
+
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease,
+    visibility 0.12s ease,
+    border-color 0.12s ease,
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+
+.section-context-entry-enabled.is-content-hovering
+.section-context-inline-add-button,
+.section-context-entry-enabled.is-context-entry-open
+.section-context-inline-add-button,
+.section-context-inline-add-button:focus-visible {
+  opacity:
+    1;
+
+  visibility:
+    visible;
+
+  transform:
+    scale(
+      1
+    );
+}
+
+
+.section-context-inline-add-button:hover {
+  border-color:
+    #6785aa;
+
+  background:
+    #edf5fd;
+
+  color:
+    #1f4f7e;
+}
+
+
+.section-context-inline-add-button[hidden] {
+  display:
+    none !important;
+}
+
+
+/* ---------------------------------------------------------
+   제목 / 건수 / + 는 한 묶음
+--------------------------------------------------------- */
+
+.handover-entry-group__header > div {
+  display:
+    flex !important;
+
+  align-items:
+    center !important;
+
+  gap:
+    5px;
+}
+
+
+.log-entry-group-header__title {
+  display:
+    flex !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0;
+
+  align-items:
+    center !important;
+
+  gap:
+    5px;
+}
+
+
+/* ---------------------------------------------------------
+   이전일지 가져오기:
+   인계 / 지시 / 비고 모두 동일한 우측 끝 위치
+--------------------------------------------------------- */
+
+.handover-entry-group__header,
+.log-entry-group-header__title {
+  position:
+    relative !important;
+}
+
+
+#loadPreviousHandoverEntriesButton,
+#loadPreviousInstructionEntriesButton,
+#loadPreviousRemarkEntriesButton {
+  box-sizing:
+    border-box !important;
+
+  position:
+    absolute !important;
+
+  top:
+    50% !important;
+
+  right:
+    8px !important;
+
+  width:
+    92px !important;
+
+  min-width:
+    92px !important;
+
+  height:
+    26px !important;
+
+  min-height:
+    26px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 8px !important;
+
+  transform:
+    translateY(
+      -50%
+    ) !important;
+
+  display:
+    inline-flex !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    center !important;
+
+  white-space:
+    nowrap !important;
+}
+
+
+/*
+  오른쪽 버튼 공간을 미리 확보해서
+  제목/건수/+가 이전일지 버튼과 겹치지 않게 한다.
+*/
+.handover-entry-group__header {
+  padding-right:
+    108px !important;
+}
+
+
+.log-entry-group-header__title {
+  padding-right:
+    108px !important;
+}
+
+
+/* ---------------------------------------------------------
+   모바일/터치:
+   Hover가 없으므로 제목 옆 + 항상 표시
+--------------------------------------------------------- */
+
+@media (
+  hover:
+    none
+),
+(
+  max-width:
+    768px
+) {
+
+  .section-context-inline-add-button {
+    opacity:
+      1;
+
+    visibility:
+      visible;
+
+    transform:
+      none;
+  }
+
+
+  #loadPreviousHandoverEntriesButton,
+  #loadPreviousInstructionEntriesButton,
+  #loadPreviousRemarkEntriesButton {
+    right:
+      6px !important;
+
+    width:
+      88px !important;
+
+    min-width:
+      88px !important;
+
+    height:
+      25px !important;
+
+    min-height:
+      25px !important;
+  }
+
+
+  .handover-entry-group__header,
+  .log-entry-group-header__title {
+    padding-right:
+      100px !important;
+  }
+
+}
