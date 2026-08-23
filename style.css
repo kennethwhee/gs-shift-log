@@ -117538,3 +117538,480 @@ table {
 #manholeManagementHeaderButton {
   background-image: none !important;
 }
+/* =========================================================
+  [SECTION-CONTEXT-COMPACT-V6]
+  섹션별 입력창 한 줄형 컴팩트 배치
+
+  PC:
+  [발행 내역 추가] [TM] [시간] [현재시간] [내용] [취소] [+ 추가]
+
+  인계/작업:
+  [인계사항 추가] [구분] [시간] [현재시간] [TAG 선택] [내용] [취소] [+ 추가]
+
+  지시사항/비고:
+  [지시사항 추가] [내용] [취소] [+ 추가]
+
+  모바일은 기존 세로 배치를 유지한다.
+========================================================= */
+
+@media (
+  min-width:
+    769px
+) {
+
+  /* -------------------------------------------------------
+     전체 입력창: 세로 카드 → 한 줄형
+  ------------------------------------------------------- */
+
+  .section-context-entry-editor {
+    display:
+      grid !important;
+
+    grid-template-columns:
+      max-content
+      max-content
+      minmax(
+        260px,
+        1fr
+      )
+      max-content !important;
+
+    grid-template-areas:
+      "heading tools content actions" !important;
+
+    align-items:
+      center !important;
+
+    column-gap:
+      8px !important;
+
+    row-gap:
+      0 !important;
+
+    min-height:
+      58px !important;
+
+    padding:
+      7px 10px !important;
+  }
+
+
+  .section-context-entry-editor__heading {
+    grid-area:
+      heading;
+
+    display:
+      flex !important;
+
+    align-items:
+      center !important;
+
+    gap:
+      0 !important;
+
+    min-width:
+      max-content;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+  }
+
+
+  .section-context-entry-editor__heading strong {
+    font-size:
+      11px !important;
+
+    line-height:
+      1.25 !important;
+
+    white-space:
+      nowrap !important;
+  }
+
+
+  /*
+    우측 취소 버튼이 있으므로
+    왼쪽의 X 닫기 버튼은 PC에서 생략
+  */
+  .section-context-entry-close {
+    display:
+      none !important;
+  }
+
+
+  /* -------------------------------------------------------
+     구분 / 시간 / 현재시간 / TAG 도구
+  ------------------------------------------------------- */
+
+  .section-context-entry-editor__tools {
+    grid-area:
+      tools;
+
+    display:
+      flex !important;
+
+    flex-wrap:
+      nowrap !important;
+
+    align-items:
+      center !important;
+
+    gap:
+      5px !important;
+
+    min-width:
+      0;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+  }
+
+
+  /*
+    한 줄형에서는 Select/시간/TAG 자체가 의미를 보여주므로
+    위쪽 작은 라벨은 숨겨 높이를 줄인다.
+  */
+  .section-context-entry-editor__tools
+  .section-context-entry-field > span {
+    display:
+      none !important;
+  }
+
+
+  .section-context-entry-field--type {
+    flex:
+      0 0 76px !important;
+
+    width:
+      76px !important;
+  }
+
+
+  .section-context-entry-field--handover-type {
+    flex:
+      0 0 104px !important;
+
+    width:
+      104px !important;
+  }
+
+
+  .section-context-entry-time-group {
+    display:
+      flex !important;
+
+    align-items:
+      center !important;
+
+    gap:
+      5px !important;
+
+    margin:
+      0 !important;
+  }
+
+
+  .section-context-entry-field--time {
+    width:
+      88px !important;
+  }
+
+
+  .section-context-entry-field--tag {
+    flex:
+      0 1 165px !important;
+
+    width:
+      165px !important;
+
+    min-width:
+      135px !important;
+  }
+
+
+  .section-context-entry-issue-type,
+  .section-context-entry-handover-type,
+  .section-context-entry-time,
+  .section-context-entry-tag {
+    height:
+      31px !important;
+
+    min-height:
+      31px !important;
+
+    padding:
+      0 8px !important;
+
+    border-radius:
+      6px !important;
+
+    font-size:
+      11px !important;
+  }
+
+
+  .section-context-entry-now {
+    height:
+      31px !important;
+
+    min-height:
+      31px !important;
+
+    padding:
+      0 9px !important;
+
+    border-radius:
+      6px !important;
+
+    font-size:
+      9px !important;
+  }
+
+
+  /* -------------------------------------------------------
+     내용 입력
+  ------------------------------------------------------- */
+
+  .section-context-entry-field--content {
+    grid-area:
+      content;
+
+    display:
+      block !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+  }
+
+
+  .section-context-entry-field--content > span {
+    display:
+      none !important;
+  }
+
+
+  .section-context-entry-content {
+    display:
+      block !important;
+
+    width:
+      100% !important;
+
+    height:
+      44px !important;
+
+    min-height:
+      44px !important;
+
+    max-height:
+      96px !important;
+
+    margin:
+      0 !important;
+
+    padding:
+      7px 9px !important;
+
+    border-radius:
+      6px !important;
+
+    font-size:
+      11px !important;
+
+    line-height:
+      1.4 !important;
+
+    resize:
+      vertical !important;
+  }
+
+
+  /* -------------------------------------------------------
+     취소 / 추가
+  ------------------------------------------------------- */
+
+  .section-context-entry-editor__actions {
+    grid-area:
+      actions;
+
+    display:
+      flex !important;
+
+    align-items:
+      center !important;
+
+    justify-content:
+      flex-end !important;
+
+    gap:
+      5px !important;
+
+    min-width:
+      max-content;
+
+    margin:
+      0 !important;
+
+    padding:
+      0 !important;
+  }
+
+
+  .section-context-entry-shortcut {
+    display:
+      none !important;
+  }
+
+
+  .section-context-entry-cancel,
+  .section-context-entry-save {
+    height:
+      31px !important;
+
+    min-height:
+      31px !important;
+
+    min-width:
+      58px !important;
+
+    padding:
+      0 9px !important;
+
+    border-radius:
+      6px !important;
+
+    font-size:
+      9px !important;
+  }
+
+
+  /* -------------------------------------------------------
+     지시사항 / 비고:
+     도구가 없으므로 제목 → 내용 → 버튼 3열
+  ------------------------------------------------------- */
+
+  .section-context-entry-editor.is-instruction,
+  .section-context-entry-editor.is-remark {
+    grid-template-columns:
+      max-content
+      minmax(
+        280px,
+        1fr
+      )
+      max-content !important;
+
+    grid-template-areas:
+      "heading content actions" !important;
+  }
+
+
+  .section-context-entry-editor.is-instruction
+  .section-context-entry-editor__tools,
+  .section-context-entry-editor.is-remark
+  .section-context-entry-editor__tools {
+    display:
+      none !important;
+  }
+
+
+  /* -------------------------------------------------------
+     인계/작업 입력:
+     TAG까지 있어도 한 줄 유지
+  ------------------------------------------------------- */
+
+  .section-context-entry-editor.is-handover {
+    grid-template-columns:
+      max-content
+      minmax(
+        300px,
+        max-content
+      )
+      minmax(
+        220px,
+        1fr
+      )
+      max-content !important;
+  }
+
+}
+
+
+/* =========================================================
+  중간 폭 PC:
+  너무 좁아지면 내용만 두 번째 줄로 내려서 가독성 보호
+========================================================= */
+
+@media (
+  min-width:
+    769px
+) and (
+  max-width:
+    1080px
+) {
+
+  .section-context-entry-editor {
+    grid-template-columns:
+      max-content
+      minmax(
+        0,
+        1fr
+      )
+      max-content !important;
+
+    grid-template-areas:
+      "heading tools actions"
+      "content content content" !important;
+
+    row-gap:
+      6px !important;
+  }
+
+
+  .section-context-entry-editor.is-instruction,
+  .section-context-entry-editor.is-remark {
+    grid-template-columns:
+      max-content
+      minmax(
+        0,
+        1fr
+      )
+      max-content !important;
+
+    grid-template-areas:
+      "heading content actions" !important;
+
+    row-gap:
+      0 !important;
+  }
+
+
+  .section-context-entry-editor.is-handover {
+    grid-template-columns:
+      max-content
+      minmax(
+        0,
+        1fr
+      )
+      max-content !important;
+
+    grid-template-areas:
+      "heading tools actions"
+      "content content content" !important;
+  }
+
+}
