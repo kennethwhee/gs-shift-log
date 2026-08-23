@@ -117177,3 +117177,73 @@ table {
 #plannedMaintenanceHeaderSubmenuPanel .planned-maintenance-manhole-subitem {
   width: 100%;
 }
+/* =========================================================
+  [SECTION-CONTENT-HOVER-ADD-V5-FIX1]
+  Hover + 위치 및 이전일지 버튼 정렬 보정
+========================================================= */
+
+
+/* ---------------------------------------------------------
+   내용영역 Hover + 를 왼쪽으로 이동
+--------------------------------------------------------- */
+
+.section-context-body-add-button {
+  left:
+    14px !important;
+
+  right:
+    auto !important;
+}
+
+
+@media (
+  hover:
+    none
+),
+(
+  max-width:
+    768px
+) {
+
+  .section-context-body-add-button {
+    left:
+      9px !important;
+
+    right:
+      auto !important;
+  }
+
+}
+
+
+/* ---------------------------------------------------------
+   이전일지 가져오기 버튼은 항상 가장 오른쪽
+--------------------------------------------------------- */
+
+.section-context-entry-header {
+  display:
+    flex !important;
+
+  align-items:
+    center !important;
+
+  gap:
+    6px;
+}
+
+
+.section-context-entry-header
+#loadPreviousHandoverEntriesButton,
+.section-context-entry-header
+#loadPreviousInstructionEntriesButton,
+.section-context-entry-header
+#loadPreviousRemarkEntriesButton {
+  margin-left:
+    auto !important;
+
+  order:
+    999 !important;
+
+  flex:
+    0 0 auto !important;
+}
