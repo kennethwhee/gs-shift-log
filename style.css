@@ -118506,15 +118506,15 @@ textarea#logEntryContent {
 
   box-sizing: border-box !important;
 }
-/* =========================================================
-  [SECTION-CONTEXT-ENTRY-AUTOGROW-V1]
 
-  Dynamic shift-log section textarea:
-  - readable content text
-  - one-line compact minimum
-  - no fixed maximum height
-  - no inner vertical scrollbar
-  - parent editor is allowed to grow with textarea
+/* =========================================================
+  [SECTION-CONTEXT-ENTRY-AUTOGROW-V2]
+
+  Shift-log section editor final sizing:
+  - textarea keeps auto-grow behavior
+  - select / time / buttons match one-line field height
+  - visible control text is normalized
+  - controls stay top-aligned when textarea grows
 ========================================================= */
 
 html body
@@ -118537,6 +118537,9 @@ textarea.section-context-entry-content.section-context-entry-content {
   padding:
     6px 8px !important;
 
+  border-radius:
+    6px !important;
+
   font-family:
     inherit !important;
 
@@ -118557,6 +118560,9 @@ textarea.section-context-entry-content.section-context-entry-content {
 
   resize:
     none !important;
+
+  box-sizing:
+    border-box !important;
 }
 
 
@@ -118565,18 +118571,11 @@ textarea.section-context-entry-content.section-context-entry-content::placeholde
   font-size:
     14px !important;
 
+  font-weight:
+    500 !important;
+
   line-height:
     1.5 !important;
-}
-
-
-html body
-.section-context-entry-editor.section-context-entry-editor {
-  height:
-    auto !important;
-
-  max-height:
-    none !important;
 }
 
 
@@ -118592,5 +118591,192 @@ html body
     none !important;
 
   align-self:
-    stretch !important;
+    start !important;
+}
+
+
+html body
+.section-context-entry-editor.section-context-entry-editor {
+  height:
+    auto !important;
+
+  max-height:
+    none !important;
+}
+
+
+@media (
+  min-width:
+    769px
+) {
+
+  html body
+  .section-context-entry-editor.section-context-entry-editor {
+    align-items:
+      start !important;
+  }
+
+
+  html body
+  .section-context-entry-editor
+  .section-context-entry-editor__heading {
+    min-height:
+      38px !important;
+
+    align-self:
+      start !important;
+
+    align-items:
+      center !important;
+  }
+
+
+  html body
+  .section-context-entry-editor
+  .section-context-entry-editor__tools {
+    min-height:
+      38px !important;
+
+    align-self:
+      start !important;
+  }
+
+
+  html body
+  .section-context-entry-editor
+  .section-context-entry-time-group {
+    min-height:
+      38px !important;
+
+    align-items:
+      center !important;
+  }
+
+
+  html body
+  .section-context-entry-editor
+  .section-context-entry-editor__actions {
+    min-height:
+      38px !important;
+
+    align-self:
+      start !important;
+
+    align-items:
+      center !important;
+  }
+
+
+  html body
+  .section-context-entry-editor
+  .section-context-entry-issue-type,
+
+  html body
+  .section-context-entry-editor
+  .section-context-entry-handover-type,
+
+  html body
+  .section-context-entry-editor
+  .section-context-entry-time,
+
+  html body
+  .section-context-entry-editor
+  .section-context-entry-tag {
+    box-sizing:
+      border-box !important;
+
+    height:
+      38px !important;
+
+    min-height:
+      38px !important;
+
+    padding:
+      0 9px !important;
+
+    border-radius:
+      6px !important;
+
+    font-family:
+      inherit !important;
+
+    font-size:
+      14px !important;
+
+    font-weight:
+      500 !important;
+
+    line-height:
+      normal !important;
+  }
+
+
+  html body
+  .section-context-entry-editor
+  .section-context-entry-now,
+
+  html body
+  .section-context-entry-editor
+  .section-context-entry-cancel,
+
+  html body
+  .section-context-entry-editor
+  .section-context-entry-save {
+    box-sizing:
+      border-box !important;
+
+    display:
+      inline-flex !important;
+
+    height:
+      38px !important;
+
+    min-height:
+      38px !important;
+
+    align-items:
+      center !important;
+
+    justify-content:
+      center !important;
+
+    padding:
+      0 10px !important;
+
+    border-radius:
+      6px !important;
+
+    font-family:
+      inherit !important;
+
+    font-size:
+      14px !important;
+
+    line-height:
+      1 !important;
+  }
+
+
+  html body
+  .section-context-entry-editor
+  .section-context-entry-now {
+    font-weight:
+      700 !important;
+  }
+
+
+  html body
+  .section-context-entry-editor
+  .section-context-entry-cancel,
+
+  html body
+  .section-context-entry-editor
+  .section-context-entry-save {
+    min-width:
+      62px !important;
+
+    font-weight:
+      800 !important;
+  }
+
 }

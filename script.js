@@ -248107,28 +248107,29 @@ async function restoreSolarCumulativeFromD1() {
     startLogEntryContentAutogrow();
   }
 })();
-/* =========================================================
-  [SECTION-CONTEXT-ENTRY-AUTOGROW-V1]
 
-  Robust auto-grow for dynamically created
+/* =========================================================
+  [SECTION-CONTEXT-ENTRY-AUTOGROW-V2]
+
+  Final auto-grow behavior for dynamically created
   textarea.section-context-entry-content.
 
-  The older compact feature writes a fixed inline height
-  when each textarea is created. This feature runs after
-  creation and on every input event, then replaces that
-  fixed height with the actual content height.
+  Handover placeholder:
+  "Add a handover item. (Ctrl + Enter to add)"
+  is emitted in Korean through Unicode escapes so this
+  patch remains safe in Windows PowerShell 5.1.
 ========================================================= */
 
-(function installSectionContextEntryAutogrowV1() {
+(function installSectionContextEntryAutogrowV2() {
   if (
-    window.__sectionContextEntryAutogrowV1Installed ===
+    window.__sectionContextEntryAutogrowV2Installed ===
       true
   ) {
     return;
   }
 
 
-  window.__sectionContextEntryAutogrowV1Installed =
+  window.__sectionContextEntryAutogrowV2Installed =
     true;
 
 
@@ -248137,6 +248138,9 @@ async function restoreSolarCumulativeFromD1() {
 
   const MINIMUM_HEIGHT =
     38;
+
+  const HANDOVER_PLACEHOLDER =
+    "\uC778\uACC4\uC0AC\uD56D\uC744 \uCD94\uAC00\uD558\uC138\uC694. (Ctrl + Enter\uB97C \uB20C\uB7EC \uCD94\uAC00)";
 
 
   function isTargetTextarea(
@@ -248152,6 +248156,26 @@ async function restoreSolarCumulativeFromD1() {
   }
 
 
+  function applyPlaceholder(
+    textarea
+  ) {
+    const editor =
+      textarea.closest(
+        ".section-context-entry-editor"
+      );
+
+
+    if (
+      editor?.dataset
+        ?.contextEntryType ===
+        "handover"
+    ) {
+      textarea.placeholder =
+        HANDOVER_PLACEHOLDER;
+    }
+  }
+
+
   function fitTextarea(
     textarea
   ) {
@@ -248162,6 +248186,11 @@ async function restoreSolarCumulativeFromD1() {
     ) {
       return;
     }
+
+
+    applyPlaceholder(
+      textarea
+    );
 
 
     textarea.rows =
@@ -248223,10 +248252,6 @@ async function restoreSolarCumulativeFromD1() {
     );
 
 
-    /*
-      Collapse first so scrollHeight always reflects
-      only the current content, including when text is deleted.
-    */
     textarea.style.setProperty(
       "height",
       "0px",
@@ -248337,10 +248362,6 @@ async function restoreSolarCumulativeFromD1() {
         );
 
 
-        /*
-          Run once more after other mutation callbacks
-          and existing editor code have completed.
-        */
         window.setTimeout(
           () => {
             fitTextareasIn(
