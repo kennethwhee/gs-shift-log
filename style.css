@@ -118506,3 +118506,91 @@ textarea#logEntryContent {
 
   box-sizing: border-box !important;
 }
+/* =========================================================
+  [SECTION-CONTEXT-ENTRY-AUTOGROW-V1]
+
+  Dynamic shift-log section textarea:
+  - readable content text
+  - one-line compact minimum
+  - no fixed maximum height
+  - no inner vertical scrollbar
+  - parent editor is allowed to grow with textarea
+========================================================= */
+
+html body
+textarea.section-context-entry-content.section-context-entry-content {
+  box-sizing:
+    border-box !important;
+
+  width:
+    100% !important;
+
+  min-height:
+    38px !important;
+
+  max-height:
+    none !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    6px 8px !important;
+
+  font-family:
+    inherit !important;
+
+  font-size:
+    16px !important;
+
+  font-weight:
+    500 !important;
+
+  line-height:
+    1.5 !important;
+
+  letter-spacing:
+    0 !important;
+
+  overflow-y:
+    hidden !important;
+
+  resize:
+    none !important;
+}
+
+
+html body
+textarea.section-context-entry-content.section-context-entry-content::placeholder {
+  font-size:
+    14px !important;
+
+  line-height:
+    1.5 !important;
+}
+
+
+html body
+.section-context-entry-editor.section-context-entry-editor {
+  height:
+    auto !important;
+
+  max-height:
+    none !important;
+}
+
+
+html body
+.section-context-entry-field--content.section-context-entry-field--content {
+  height:
+    auto !important;
+
+  min-height:
+    0 !important;
+
+  max-height:
+    none !important;
+
+  align-self:
+    stretch !important;
+}

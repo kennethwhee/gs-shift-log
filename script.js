@@ -248107,3 +248107,391 @@ async function restoreSolarCumulativeFromD1() {
     startLogEntryContentAutogrow();
   }
 })();
+/* =========================================================
+  [SECTION-CONTEXT-ENTRY-AUTOGROW-V1]
+
+  Robust auto-grow for dynamically created
+  textarea.section-context-entry-content.
+
+  The older compact feature writes a fixed inline height
+  when each textarea is created. This feature runs after
+  creation and on every input event, then replaces that
+  fixed height with the actual content height.
+========================================================= */
+
+(function installSectionContextEntryAutogrowV1() {
+  if (
+    window.__sectionContextEntryAutogrowV1Installed ===
+      true
+  ) {
+    return;
+  }
+
+
+  window.__sectionContextEntryAutogrowV1Installed =
+    true;
+
+
+  const SELECTOR =
+    "textarea.section-context-entry-content";
+
+  const MINIMUM_HEIGHT =
+    38;
+
+
+  function isTargetTextarea(
+    element
+  ) {
+    return (
+      element instanceof
+        HTMLTextAreaElement &&
+      element.matches(
+        SELECTOR
+      )
+    );
+  }
+
+
+  function fitTextarea(
+    textarea
+  ) {
+    if (
+      !isTargetTextarea(
+        textarea
+      )
+    ) {
+      return;
+    }
+
+
+    textarea.rows =
+      1;
+
+
+    textarea.style.setProperty(
+      "box-sizing",
+      "border-box",
+      "important"
+    );
+
+    textarea.style.setProperty(
+      "font-size",
+      "16px",
+      "important"
+    );
+
+    textarea.style.setProperty(
+      "font-weight",
+      "500",
+      "important"
+    );
+
+    textarea.style.setProperty(
+      "line-height",
+      "1.5",
+      "important"
+    );
+
+    textarea.style.setProperty(
+      "padding",
+      "6px 8px",
+      "important"
+    );
+
+    textarea.style.setProperty(
+      "min-height",
+      `${MINIMUM_HEIGHT}px`,
+      "important"
+    );
+
+    textarea.style.setProperty(
+      "max-height",
+      "none",
+      "important"
+    );
+
+    textarea.style.setProperty(
+      "overflow-y",
+      "hidden",
+      "important"
+    );
+
+    textarea.style.setProperty(
+      "resize",
+      "none",
+      "important"
+    );
+
+
+    /*
+      Collapse first so scrollHeight always reflects
+      only the current content, including when text is deleted.
+    */
+    textarea.style.setProperty(
+      "height",
+      "0px",
+      "important"
+    );
+
+
+    const computedStyle =
+      window.getComputedStyle(
+        textarea
+      );
+
+
+    const borderHeight =
+      (
+        Number.parseFloat(
+          computedStyle.borderTopWidth
+        ) ||
+        0
+      ) +
+      (
+        Number.parseFloat(
+          computedStyle.borderBottomWidth
+        ) ||
+        0
+      );
+
+
+    const nextHeight =
+      Math.max(
+        MINIMUM_HEIGHT,
+        textarea.scrollHeight +
+          borderHeight
+      );
+
+
+    textarea.style.setProperty(
+      "height",
+      `${Math.ceil(nextHeight)}px`,
+      "important"
+    );
+
+
+    const editor =
+      textarea.closest(
+        ".section-context-entry-editor"
+      );
+
+
+    if (
+      editor
+    ) {
+      editor.style.setProperty(
+        "height",
+        "auto",
+        "important"
+      );
+
+      editor.style.setProperty(
+        "max-height",
+        "none",
+        "important"
+      );
+    }
+  }
+
+
+  function fitTextareasIn(
+    root
+  ) {
+    if (
+      isTargetTextarea(
+        root
+      )
+    ) {
+      fitTextarea(
+        root
+      );
+
+      return;
+    }
+
+
+    if (
+      !root ||
+      typeof root.querySelectorAll !==
+        "function"
+    ) {
+      return;
+    }
+
+
+    root.querySelectorAll(
+      SELECTOR
+    ).forEach(
+      fitTextarea
+    );
+  }
+
+
+  function scheduleFit(
+    root = document
+  ) {
+    window.requestAnimationFrame(
+      () => {
+        fitTextareasIn(
+          root
+        );
+
+
+        /*
+          Run once more after other mutation callbacks
+          and existing editor code have completed.
+        */
+        window.setTimeout(
+          () => {
+            fitTextareasIn(
+              root
+            );
+          },
+          0
+        );
+      }
+    );
+  }
+
+
+  document.addEventListener(
+    "input",
+    event => {
+      if (
+        isTargetTextarea(
+          event.target
+        )
+      ) {
+        fitTextarea(
+          event.target
+        );
+      }
+    },
+    true
+  );
+
+
+  document.addEventListener(
+    "change",
+    event => {
+      if (
+        isTargetTextarea(
+          event.target
+        )
+      ) {
+        fitTextarea(
+          event.target
+        );
+      }
+    },
+    true
+  );
+
+
+  document.addEventListener(
+    "paste",
+    event => {
+      if (
+        isTargetTextarea(
+          event.target
+        )
+      ) {
+        scheduleFit(
+          event.target
+        );
+      }
+    },
+    true
+  );
+
+
+  document.addEventListener(
+    "focusin",
+    event => {
+      if (
+        isTargetTextarea(
+          event.target
+        )
+      ) {
+        scheduleFit(
+          event.target
+        );
+      }
+    },
+    true
+  );
+
+
+  const observer =
+    new MutationObserver(
+      mutations => {
+        mutations.forEach(
+          mutation => {
+            mutation.addedNodes.forEach(
+              node => {
+                if (
+                  node instanceof
+                    Element
+                ) {
+                  scheduleFit(
+                    node
+                  );
+                }
+              }
+            );
+          }
+        );
+      }
+    );
+
+
+  function initialize() {
+    fitTextareasIn(
+      document
+    );
+
+
+    if (
+      document.body
+    ) {
+      observer.observe(
+        document.body,
+        {
+          childList:
+            true,
+
+          subtree:
+            true
+        }
+      );
+    }
+
+
+    window.addEventListener(
+      "resize",
+      () => {
+        scheduleFit(
+          document
+        );
+      }
+    );
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
