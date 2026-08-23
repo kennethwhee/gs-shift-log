@@ -248611,3 +248611,5 @@ async function restoreSolarCumulativeFromD1() {
     initialize();
   }
 })();
+
+/* MOBILE-LOGIN-FORCE-REDEPLOY-V1 */
