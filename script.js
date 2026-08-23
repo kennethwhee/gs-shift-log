@@ -247768,144 +247768,19 @@ async function restoreSolarCumulativeFromD1() {
     return;
   }
 
-
   window.__sectionContextCompactV6Fix3Installed =
     true;
 
+  /*
+    [MOBILE-STARTUP-OBSERVER-SCOPE-V1]
 
-  function applyCompactStyle(
-    root = document
-  ) {
-    const textareas =
-      root instanceof Element &&
-      root.matches(
-        "textarea.section-context-entry-content"
-      )
-        ? [
-            root
-          ]
-        : [
-            ...(
-              root.querySelectorAll?.(
-                "textarea.section-context-entry-content"
-              ) ||
-              []
-            )
-          ];
+    This legacy V6 block used a document.body subtree observer
+    and scanned every added element for section textareas.
 
-
-    textareas.forEach(
-      textarea => {
-        textarea.style.setProperty(
-          "font-size",
-          "11px",
-          "important"
-        );
-
-        textarea.style.setProperty(
-          "font-weight",
-          "500",
-          "important"
-        );
-
-        textarea.style.setProperty(
-          "line-height",
-          "1.25",
-          "important"
-        );
-
-        textarea.style.setProperty(
-          "height",
-          "32px",
-          "important"
-        );
-
-        textarea.style.setProperty(
-          "min-height",
-          "32px",
-          "important"
-        );
-
-        textarea.style.setProperty(
-          "max-height",
-          "72px",
-          "important"
-        );
-
-        textarea.style.setProperty(
-          "padding",
-          "5px 8px",
-          "important"
-        );
-      }
-    );
-  }
-
-
-  const observer =
-    new MutationObserver(
-      mutations => {
-        mutations.forEach(
-          mutation => {
-            mutation.addedNodes.forEach(
-              node => {
-                if (
-                  !(node instanceof Element)
-                ) {
-                  return;
-                }
-
-
-                applyCompactStyle(
-                  node
-                );
-              }
-            );
-          }
-        );
-      }
-    );
-
-
-  function initialize() {
-    applyCompactStyle(
-      document
-    );
-
-
-    if (
-      document.body
-    ) {
-      observer.observe(
-        document.body,
-        {
-          childList:
-            true,
-
-          subtree:
-            true
-        }
-      );
-    }
-  }
-
-
-  if (
-    document.readyState ===
-      "loading"
-  ) {
-    document.addEventListener(
-      "DOMContentLoaded",
-      initialize,
-      {
-        once:
-          true
-      }
-    );
-
-  } else {
-    initialize();
-  }
+    SECTION-CONTEXT-ENTRY-AUTOGROW-V2 is the final owner of
+    the textarea sizing, so the legacy global observer is no
+    longer needed.
+  */
 })();
 
 
@@ -248199,10 +248074,8 @@ async function restoreSolarCumulativeFromD1() {
     return;
   }
 
-
   window.__sectionContextEntryAutogrowV2Installed =
     true;
-
 
   const SELECTOR =
     "textarea.section-context-entry-content";
@@ -248212,6 +248085,12 @@ async function restoreSolarCumulativeFromD1() {
 
   const HANDOVER_PLACEHOLDER =
     "\uC778\uACC4\uC0AC\uD56D\uC744 \uCD94\uAC00\uD558\uC138\uC694. (Ctrl + Enter\uB97C \uB20C\uB7EC \uCD94\uAC00)";
+
+  let scheduledFrameId =
+    0;
+
+  let scheduledRoot =
+    null;
 
 
   function isTargetTextarea(
@@ -248235,7 +248114,6 @@ async function restoreSolarCumulativeFromD1() {
         ".section-context-entry-editor"
       );
 
-
     if (
       editor?.dataset
         ?.contextEntryType ===
@@ -248258,15 +248136,12 @@ async function restoreSolarCumulativeFromD1() {
       return;
     }
 
-
     applyPlaceholder(
       textarea
     );
 
-
     textarea.rows =
       1;
-
 
     textarea.style.setProperty(
       "box-sizing",
@@ -248322,19 +248197,16 @@ async function restoreSolarCumulativeFromD1() {
       "important"
     );
 
-
     textarea.style.setProperty(
       "height",
       "0px",
       "important"
     );
 
-
     const computedStyle =
       window.getComputedStyle(
         textarea
       );
-
 
     const borderHeight =
       (
@@ -248350,7 +248222,6 @@ async function restoreSolarCumulativeFromD1() {
         0
       );
 
-
     const nextHeight =
       Math.max(
         MINIMUM_HEIGHT,
@@ -248358,19 +248229,16 @@ async function restoreSolarCumulativeFromD1() {
           borderHeight
       );
 
-
     textarea.style.setProperty(
       "height",
       `${Math.ceil(nextHeight)}px`,
       "important"
     );
 
-
     const editor =
       textarea.closest(
         ".section-context-entry-editor"
       );
-
 
     if (
       editor
@@ -248405,7 +248273,6 @@ async function restoreSolarCumulativeFromD1() {
       return;
     }
 
-
     if (
       !root ||
       typeof root.querySelectorAll !==
@@ -248413,7 +248280,6 @@ async function restoreSolarCumulativeFromD1() {
     ) {
       return;
     }
-
 
     root.querySelectorAll(
       SELECTOR
@@ -248424,25 +248290,38 @@ async function restoreSolarCumulativeFromD1() {
 
 
   function scheduleFit(
-    root = document
+    root
   ) {
-    window.requestAnimationFrame(
-      () => {
-        fitTextareasIn(
-          root
-        );
+    scheduledRoot =
+      root ||
+      scheduledRoot ||
+      document.getElementById(
+        "logEditorModal"
+      );
 
+    if (
+      scheduledFrameId
+    ) {
+      return;
+    }
 
-        window.setTimeout(
-          () => {
-            fitTextareasIn(
-              root
-            );
-          },
-          0
-        );
-      }
-    );
+    scheduledFrameId =
+      window.requestAnimationFrame(
+        () => {
+          scheduledFrameId =
+            0;
+
+          const rootToFit =
+            scheduledRoot;
+
+          scheduledRoot =
+            null;
+
+          fitTextareasIn(
+            rootToFit
+          );
+        }
+      );
   }
 
 
@@ -248514,40 +248393,62 @@ async function restoreSolarCumulativeFromD1() {
   );
 
 
-  const observer =
-    new MutationObserver(
-      mutations => {
-        mutations.forEach(
-          mutation => {
-            mutation.addedNodes.forEach(
-              node => {
-                if (
-                  node instanceof
-                    Element
-                ) {
-                  scheduleFit(
-                    node
-                  );
-                }
-              }
-            );
-          }
-        );
-      }
-    );
-
-
   function initialize() {
-    fitTextareasIn(
-      document
-    );
+    const modal =
+      document.getElementById(
+        "logEditorModal"
+      );
 
+    fitTextareasIn(
+      modal
+    );
 
     if (
-      document.body
+      modal &&
+      typeof MutationObserver ===
+        "function"
     ) {
+      const observer =
+        new MutationObserver(
+          mutations => {
+            const hasTargetAddition =
+              mutations.some(
+                mutation => {
+                  return [
+                    ...mutation.addedNodes
+                  ].some(
+                    node => {
+                      return (
+                        node instanceof
+                          Element &&
+                        (
+                          node.matches(
+                            SELECTOR
+                          ) ||
+                          Boolean(
+                            node.querySelector(
+                              SELECTOR
+                            )
+                          )
+                        )
+                      );
+                    }
+                  );
+                }
+              );
+
+            if (
+              hasTargetAddition
+            ) {
+              scheduleFit(
+                modal
+              );
+            }
+          }
+        );
+
       observer.observe(
-        document.body,
+        modal,
         {
           childList:
             true,
@@ -248558,12 +248459,11 @@ async function restoreSolarCumulativeFromD1() {
       );
     }
 
-
     window.addEventListener(
       "resize",
       () => {
         scheduleFit(
-          document
+          modal
         );
       }
     );
