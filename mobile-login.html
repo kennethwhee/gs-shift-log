@@ -409,43 +409,66 @@
 "use strict";
 
 (() => {
-  const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
-  const REMEMBER_STORAGE_KEY = "gsShiftLog.rememberedLogin";
-  const MOBILE_BYPASS_KEY = "gsShiftLog.mobileLoginBypassOnce";
+  const AUTH_STORAGE_KEY =
+    "gsShiftLog.currentUser";
 
-  const SESSION_CHECK_TIMEOUT_MS = 4000;
-  const LOGIN_TIMEOUT_MS = 15000;
+  const REMEMBER_STORAGE_KEY =
+    "gsShiftLog.rememberedLogin";
 
-  let userInteracted = false;
-  let loginSubmitting = false;
+  const SESSION_CHECK_TIMEOUT_MS =
+    4000;
+
+  const LOGIN_TIMEOUT_MS =
+    15000;
+
+  let userInteracted =
+    false;
+
+  let loginSubmitting =
+    false;
+
 
   function readStoredUser() {
     try {
-      const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+      const raw =
+        localStorage.getItem(
+          AUTH_STORAGE_KEY
+        );
 
       if (!raw) {
         return null;
       }
 
-      const user = JSON.parse(raw);
+      const user =
+        JSON.parse(
+          raw
+        );
 
       return (
         user &&
-        typeof user === "object"
+        typeof user ===
+          "object"
       )
         ? user
         : null;
 
     } catch {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
+      localStorage.removeItem(
+        AUTH_STORAGE_KEY
+      );
+
       return null;
     }
   }
 
-  function getSessionToken(user) {
+
+  function getSessionToken(
+    user
+  ) {
     if (
       !user ||
-      typeof user !== "object"
+      typeof user !==
+        "object"
     ) {
       return "";
     }
@@ -457,8 +480,12 @@
     ).trim();
   }
 
-  function createTimeoutController(timeoutMs) {
-    const controller = new AbortController();
+
+  function createTimeoutController(
+    timeoutMs
+  ) {
+    const controller =
+      new AbortController();
 
     const timeoutId =
       window.setTimeout(
@@ -472,14 +499,21 @@
       controller,
 
       clear() {
-        window.clearTimeout(timeoutId);
+        window.clearTimeout(
+          timeoutId
+        );
       }
     };
   }
 
-  async function validateStoredSession(user) {
+
+  async function validateStoredSession(
+    user
+  ) {
     const sessionToken =
-      getSessionToken(user);
+      getSessionToken(
+        user
+      );
 
     if (!sessionToken) {
       return false;
@@ -495,16 +529,22 @@
         await fetch(
           "/api/login",
           {
-            method: "GET",
+            method:
+              "GET",
 
             headers: {
-              Accept: "application/json",
+              Accept:
+                "application/json",
+
               Authorization:
-                "Bearer " + sessionToken
+                `Bearer ${sessionToken}`
             },
 
-            cache: "no-store",
-            signal: timeout.controller.signal
+            cache:
+              "no-store",
+
+            signal:
+              timeout.controller.signal
           }
         );
 
@@ -516,9 +556,10 @@
         await response.json();
 
       return (
-        result &&
-        result.ok === true &&
-        result.authenticated === true
+        result?.ok ===
+          true &&
+        result?.authenticated ===
+          true
       );
 
     } catch {
@@ -529,18 +570,13 @@
     }
   }
 
-  function enterMainApp() {
-    try {
-      sessionStorage.setItem(
-        MOBILE_BYPASS_KEY,
-        "1"
-      );
-    } catch {
-      // Continue even if unavailable.
-    }
 
-    window.location.replace("/");
+  function enterMainApp() {
+    window.location.replace(
+      "/?mobileLogin=success"
+    );
   }
+
 
   function restoreRememberedLogin() {
     try {
@@ -553,23 +589,20 @@
         return;
       }
 
-      const saved = JSON.parse(raw);
+      const saved =
+        JSON.parse(
+          raw
+        );
 
       const employeeId =
         String(
-          (
-            saved &&
-            saved.employeeId
-          ) ||
+          saved?.employeeId ||
           ""
         ).trim();
 
       const password =
         String(
-          (
-            saved &&
-            saved.password
-          ) ||
+          saved?.password ||
           ""
         );
 
@@ -617,7 +650,10 @@
     }
   }
 
-  function showError(message) {
+
+  function showError(
+    message
+  ) {
     const errorElement =
       document.getElementById(
         "mobileLoginError"
@@ -630,11 +666,13 @@
     errorElement.textContent =
       String(
         message ||
-        "\uB85C\uADF8\uC778\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4."
+        "로그인에 실패했습니다."
       );
 
-    errorElement.hidden = false;
+    errorElement.hidden =
+      false;
   }
+
 
   function hideError() {
     const errorElement =
@@ -646,11 +684,17 @@
       return;
     }
 
-    errorElement.textContent = "";
-    errorElement.hidden = true;
+    errorElement.textContent =
+      "";
+
+    errorElement.hidden =
+      true;
   }
 
-  function setSubmitState(isBusy) {
+
+  function setSubmitState(
+    isBusy
+  ) {
     const submitButton =
       document.getElementById(
         "mobileLoginSubmit"
@@ -661,13 +705,16 @@
     }
 
     submitButton.disabled =
-      Boolean(isBusy);
+      Boolean(
+        isBusy
+      );
 
     submitButton.textContent =
       isBusy
-        ? "\uB85C\uADF8\uC778 \uC911..."
-        : "\uB85C\uADF8\uC778";
+        ? "로그인 중..."
+        : "로그인";
   }
+
 
   async function requestLogin(
     employeeId,
@@ -683,7 +730,8 @@
         await fetch(
           "/api/login",
           {
-            method: "POST",
+            method:
+              "POST",
 
             headers: {
               "Content-Type":
@@ -698,7 +746,9 @@
 
             body:
               JSON.stringify({
-                employeeNo: employeeId,
+                employeeNo:
+                  employeeId,
+
                 password
               }),
 
@@ -715,21 +765,18 @@
 
       } catch {
         throw new Error(
-          "\uB85C\uADF8\uC778 \uC11C\uBC84 \uC751\uB2F5\uC744 \uD655\uC778\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4."
+          "로그인 서버 응답을 확인할 수 없습니다."
         );
       }
 
       if (
         !response.ok ||
-        !result ||
-        result.ok !== true
+        result?.ok !==
+          true
       ) {
         throw new Error(
-          (
-            result &&
-            result.message
-          ) ||
-          "\uC0AC\uBC88 \uB610\uB294 \uBE44\uBC00\uBC88\uD638\uB97C \uD655\uC778\uD574 \uC8FC\uC138\uC694."
+          result?.message ||
+          "사번 또는 비밀번호를 확인해 주세요."
         );
       }
 
@@ -742,13 +789,15 @@
         }
       );
 
-    } catch (error) {
+    } catch (
+      error
+    ) {
       if (
-        error &&
-        error.name === "AbortError"
+        error?.name ===
+          "AbortError"
       ) {
         throw new Error(
-          "\uB85C\uADF8\uC778 \uC11C\uBC84 \uC751\uB2F5\uC774 \uC9C0\uC5F0\uB418\uACE0 \uC788\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694."
+          "로그인 서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요."
         );
       }
 
@@ -759,14 +808,20 @@
     }
   }
 
-  async function handleSubmit(event) {
+
+  async function handleSubmit(
+    event
+  ) {
     event.preventDefault();
 
-    if (loginSubmitting) {
+    if (
+      loginSubmitting
+    ) {
       return;
     }
 
-    userInteracted = true;
+    userInteracted =
+      true;
 
     const employeeInput =
       document.getElementById(
@@ -785,19 +840,13 @@
 
     const employeeId =
       String(
-        (
-          employeeInput &&
-          employeeInput.value
-        ) ||
+        employeeInput?.value ||
         ""
       ).trim();
 
     const password =
       String(
-        (
-          passwordInput &&
-          passwordInput.value
-        ) ||
+        passwordInput?.value ||
         ""
       );
 
@@ -805,30 +854,30 @@
 
     if (!employeeId) {
       showError(
-        "\uC0AC\uBC88\uC744 \uC785\uB825\uD574 \uC8FC\uC138\uC694."
+        "사번을 입력해 주세요."
       );
 
-      if (employeeInput) {
-        employeeInput.focus();
-      }
+      employeeInput?.focus();
 
       return;
     }
 
     if (!password) {
       showError(
-        "\uBE44\uBC00\uBC88\uD638\uB97C \uC785\uB825\uD574 \uC8FC\uC138\uC694."
+        "비밀번호를 입력해 주세요."
       );
 
-      if (passwordInput) {
-        passwordInput.focus();
-      }
+      passwordInput?.focus();
 
       return;
     }
 
-    loginSubmitting = true;
-    setSubmitState(true);
+    loginSubmitting =
+      true;
+
+    setSubmitState(
+      true
+    );
 
     try {
       const user =
@@ -838,8 +887,7 @@
         );
 
       if (
-        rememberInput &&
-        rememberInput.checked
+        rememberInput?.checked
       ) {
         localStorage.setItem(
           REMEMBER_STORAGE_KEY,
@@ -860,24 +908,30 @@
 
       localStorage.setItem(
         AUTH_STORAGE_KEY,
-        JSON.stringify(user)
+        JSON.stringify(
+          user
+        )
       );
 
       enterMainApp();
 
-    } catch (error) {
+    } catch (
+      error
+    ) {
       showError(
-        (
-          error &&
-          error.message
-        ) ||
-        "\uB85C\uADF8\uC778\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4."
+        error?.message ||
+        "로그인에 실패했습니다."
       );
 
-      loginSubmitting = false;
-      setSubmitState(false);
+      loginSubmitting =
+        false;
+
+      setSubmitState(
+        false
+      );
     }
   }
+
 
   function bindFormImmediately() {
     const form =
@@ -887,14 +941,16 @@
 
     if (
       form &&
-      form.dataset.bound !== "true"
+      form.dataset.bound !==
+        "true"
     ) {
       form.addEventListener(
         "submit",
         handleSubmit
       );
 
-      form.dataset.bound = "true";
+      form.dataset.bound =
+        "true";
     }
 
     const employeeInput =
@@ -923,14 +979,16 @@
           element.addEventListener(
             "input",
             () => {
-              userInteracted = true;
+              userInteracted =
+                true;
             }
           );
 
           element.addEventListener(
             "focus",
             () => {
-              userInteracted = true;
+              userInteracted =
+                true;
             }
           );
         }
@@ -940,9 +998,12 @@
       rememberInput.addEventListener(
         "change",
         () => {
-          userInteracted = true;
+          userInteracted =
+            true;
 
-          if (!rememberInput.checked) {
+          if (
+            !rememberInput.checked
+          ) {
             localStorage.removeItem(
               REMEMBER_STORAGE_KEY
             );
@@ -952,6 +1013,7 @@
     }
   }
 
+
   async function validateStoredSessionInBackground() {
     const storedUser =
       readStoredUser();
@@ -959,6 +1021,11 @@
     if (!storedUser) {
       return;
     }
+
+    const checkedToken =
+      getSessionToken(
+        storedUser
+      );
 
     const isValid =
       await validateStoredSession(
@@ -971,39 +1038,50 @@
       !loginSubmitting
     ) {
       enterMainApp();
+
       return;
     }
 
     if (!isValid) {
-      localStorage.removeItem(
-        AUTH_STORAGE_KEY
-      );
+      const latestUser =
+        readStoredUser();
+
+      const latestToken =
+        getSessionToken(
+          latestUser
+        );
+
+      if (
+        latestToken ===
+          checkedToken
+      ) {
+        localStorage.removeItem(
+          AUTH_STORAGE_KEY
+        );
+      }
     }
   }
 
+
   function initialize() {
-    /*
-      Bind the form before any network request.
-      A slow session check must never disable login.
-    */
     bindFormImmediately();
 
     restoreRememberedLogin();
 
-    /*
-      Run in background.
-    */
     validateStoredSessionInBackground();
   }
 
+
   if (
-    document.readyState === "loading"
+    document.readyState ===
+      "loading"
   ) {
     document.addEventListener(
       "DOMContentLoaded",
       initialize,
       {
-        once: true
+        once:
+          true
       }
     );
 

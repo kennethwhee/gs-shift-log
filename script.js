@@ -13429,20 +13429,12 @@ async function initializeShiftLogLogin() {
     );
 
 
-  /* =====================================================
-    로그인
-  ====================================================== */
-
   loginForm
     ?.addEventListener(
       "submit",
       handleShiftLogLogin
     );
 
-
-  /* =====================================================
-    로그아웃
-  ====================================================== */
 
   logoutButton
     ?.addEventListener(
@@ -13451,20 +13443,12 @@ async function initializeShiftLogLogin() {
     );
 
 
-  /* =====================================================
-    시스템 관리자 열기
-  ====================================================== */
-
   adminButton
     ?.addEventListener(
       "click",
       openEmployeeManagementModal
     );
 
-
-  /* =====================================================
-    시스템 관리자 닫기
-  ====================================================== */
 
   closeEmployeeManagementButton
     ?.addEventListener(
@@ -13480,10 +13464,6 @@ async function initializeShiftLogLogin() {
     );
 
 
-  /* =====================================================
-    직원 관리
-  ====================================================== */
-
   refreshEmployeeManagementButton
     ?.addEventListener(
       "click",
@@ -13498,23 +13478,8 @@ async function initializeShiftLogLogin() {
     );
 
 
-  /* =====================================================
-    브랜드 관리 이벤트
-  ====================================================== */
-
   bindBrandManagementEvents();
 
-
-  /*
-    서버의 브랜드 설정을 먼저 불러온 후
-    로그인 화면과 헤더를 표시한다.
-  */
-  await initializeBrandSettings();
-
-
-  /* =====================================================
-    모달 바깥 클릭 닫기
-  ====================================================== */
 
   employeeManagementModal
     ?.addEventListener(
@@ -13530,10 +13495,6 @@ async function initializeShiftLogLogin() {
     );
 
 
-  /* =====================================================
-    저장된 로그인 사용자 복원
-  ====================================================== */
-
   const currentUser =
     loadCurrentUser();
 
@@ -13541,13 +13502,28 @@ async function initializeShiftLogLogin() {
   if (
     currentUser
   ) {
+    /*
+      MOBILE-LOGIN-ROOT-CAUSE-FIX-V3
+
+      로그인 직후에는 브랜드 설정 서버 응답을 기다리지 않고
+      먼저 앱 화면을 연다.
+    */
     openShiftLogApp(
       currentUser
     );
 
 
+    initializeBrandSettings();
+
+
     return;
   }
+
+
+  /*
+    로그아웃 상태에서만 로그인 화면 브랜드 적용을 기다린다.
+  */
+  await initializeBrandSettings();
 
 
   openLoginScreen();

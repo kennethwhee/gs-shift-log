@@ -1228,19 +1228,228 @@ export async function onRequestDelete(
   }
 }
 
-
 /* =========================================================
-  지원하지 않는 요청
+  GET /api/login
+
+  현재 Bearer 세션 유효성 확인
 ========================================================= */
 
-export function onRequestGet() {
-  return jsonResponse(
-    {
-      ok: false,
+export async function onRequestGet(
+  context
+) {
+  try {
+    if (
+      !context.env.DB
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          authenticated: false,
+          message:
+            "D1 바인딩 DB가 등록되지 않았습니다."
+        },
+        500
+      );
+    }
 
-      message:
-        "로그인은 POST 요청으로 진행해주세요."
-    },
-    405
-  );
+    const sessionToken =
+      getBearerToken(
+        context.request
+      );
+
+    if (!sessionToken) {
+      return jsonResponse(
+        {
+          ok: false,
+          authenticated: false,
+          message:
+            "로그인이 필요합니다."
+        },
+        401
+      );
+    }
+
+    const tokenHash =
+      await hashSessionToken(
+        sessionToken
+      );
+
+    const session =
+      await context.env.DB
+        .prepare(`
+          SELECT
+            session.employee_no,
+            session.expires_at,
+            user.name,
+            user.role,
+            user.is_active,
+            COALESCE(
+              employee.default_role,
+              ''
+            ) AS default_role,
+            COALESCE(
+              employee.position,
+              ''
+            ) AS position
+          FROM shift_log_sessions AS session
+          INNER JOIN users AS user
+            ON user.employee_no =
+               session.employee_no
+          LEFT JOIN employees AS employee
+            ON employee.employee_no =
+               session.employee_no
+          WHERE session.token_hash = ?
+          LIMIT 1
+        `)
+        .bind(
+          tokenHash
+        )
+        .first();
+
+    const now =
+      new Date();
+
+    const expiresAt =
+      new Date(
+        session?.expires_at ||
+        0
+      );
+
+    if (
+      !session ||
+      Number(
+        session.is_active
+      ) !==
+        1 ||
+      Number.isNaN(
+        expiresAt.getTime()
+      ) ||
+      expiresAt <=
+        now
+    ) {
+      await context.env.DB
+        .prepare(`
+          DELETE FROM shift_log_sessions
+          WHERE token_hash = ?
+        `)
+        .bind(
+          tokenHash
+        )
+        .run();
+
+      return jsonResponse(
+        {
+          ok: false,
+          authenticated: false,
+          message:
+            "로그인 세션이 만료되었습니다. 다시 로그인해 주세요."
+        },
+        401
+      );
+    }
+
+    const role =
+      resolveLoginRole({
+        employee_no:
+          session.employee_no,
+        role:
+          session.role,
+        default_role:
+          session.default_role
+      });
+
+    const position =
+      String(
+        session.position ||
+        ""
+      ).trim();
+
+    await context.env.DB
+      .prepare(`
+        UPDATE shift_log_sessions
+        SET last_used_at = ?
+        WHERE token_hash = ?
+      `)
+      .bind(
+        now.toISOString(),
+        tokenHash
+      )
+      .run();
+
+    return jsonResponse({
+      ok: true,
+      authenticated: true,
+      expiresAt:
+        session.expires_at,
+      user: {
+        employeeNo:
+          String(
+            session.employee_no ||
+            ""
+          ).trim(),
+        employee_no:
+          String(
+            session.employee_no ||
+            ""
+          ).trim(),
+        name:
+          String(
+            session.name ||
+            ""
+          ).trim(),
+        role,
+        defaultRole:
+          normalizeRole(
+            session.default_role,
+            session.employee_no
+          ),
+        default_role:
+          normalizeRole(
+            session.default_role,
+            session.employee_no
+          ),
+        position,
+        jobPosition:
+          position,
+        job_position:
+          position,
+        adminLevel:
+          getAdminLevel(
+            role
+          ),
+        isAdmin:
+          role ===
+            "admin" ||
+          role ===
+            "super_admin",
+        isTeamManager:
+          role ===
+            "team_manager",
+        is_team_manager:
+          role ===
+            "team_manager",
+        isSuperAdmin:
+          role ===
+            "super_admin"
+      }
+    });
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "로그인 세션 확인 오류:",
+      error
+    );
+
+    return jsonResponse(
+      {
+        ok: false,
+        authenticated: false,
+        message:
+          "로그인 세션을 확인하지 못했습니다."
+      },
+      500
+    );
+  }
 }
