@@ -1139,13 +1139,38 @@
    Render the selected unit table first so switching Unit 1 / Unit 2
    cannot reuse the previous unit's DOM status.
 */
+/* MANHOLE_UNIT_RENDER_ORDER_FIX_V33_2
+   Restores the complete pre-V33.1 render/helper section.
+   Only the render call order is changed to:
+   syncUnitUi -> renderTable -> renderSchematic -> renderSummary.
+*/
 function render() {
+    syncUnitUi();
     renderTable();
     renderSchematic();
     renderSummary();
-}
 
-function updateStatus(
+    elements.modifierText.textContent =
+      state.lastModifiedBy
+        ? `마지막 수정: ${state.lastModifiedBy}`
+        : "";
+
+    setDirty(
+      state.dirty
+    );
+  }
+
+  function findRow(
+    no
+  ) {
+    return state.rows.find(
+      row =>
+        row.no ===
+        Number(no)
+    );
+  }
+
+  function updateStatus(
     no,
     nextStatus
   ) {
