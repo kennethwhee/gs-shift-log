@@ -1626,3 +1626,451 @@
     startAutoResize();
   }
 })();
+/* =========================================================
+   [PLANNED-MAINTENANCE-WORK-CATEGORY-TABS-V1]
+
+   작업필요사항 표에 "분류" 열이 있을 때만
+   통합 / 기계 / 전기 / 제어 화면 필터 탭을 표시한다.
+
+   원본 행과 값은 그대로 유지하고 CSS class로만 숨김 처리한다.
+   따라서 저장 데이터나 Excel Sheet 구성은 변경하지 않는다.
+========================================================= */
+(() => {
+  const TABLE_SELECTOR =
+    ".planned-maintenance-table";
+
+  const SHEET_TABS_SHELL_SELECTOR =
+    ".pm-sheet-tabs-shell";
+
+  const FILTER_SHELL_CLASS =
+    "pm-work-category-tabs-shell";
+
+  const FILTER_BUTTON_CLASS =
+    "pm-work-category-tab";
+
+  const FILTERED_ROW_CLASS =
+    "pm-category-filtered-out";
+
+  const FILTERS = [
+    {
+      key: "all",
+      label: "통합"
+    },
+    {
+      key: "기계",
+      label: "기계"
+    },
+    {
+      key: "전기",
+      label: "전기"
+    },
+    {
+      key: "제어",
+      label: "제어"
+    }
+  ];
+
+  let activeFilter = "all";
+  let refreshFrame = 0;
+
+  function normalizeText(value) {
+    return String(value ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function findCategoryContext() {
+    const table =
+      document.querySelector(
+        TABLE_SELECTOR
+      );
+
+    if (!(table instanceof HTMLTableElement)) {
+      return null;
+    }
+
+    const headers = Array.from(
+      table.querySelectorAll(
+        "thead th"
+      )
+    );
+
+    const categoryIndex =
+      headers.findIndex(
+        header =>
+          normalizeText(
+            header.textContent
+          ) === "분류"
+      );
+
+    if (categoryIndex < 0) {
+      return null;
+    }
+
+    const sheetTabsShell =
+      document.querySelector(
+        SHEET_TABS_SHELL_SELECTOR
+      );
+
+    if (!(sheetTabsShell instanceof HTMLElement)) {
+      return null;
+    }
+
+    return {
+      table,
+      categoryIndex,
+      sheetTabsShell
+    };
+  }
+
+  function getExistingFilterShell() {
+    return document.querySelector(
+      `.${FILTER_SHELL_CLASS}`
+    );
+  }
+
+  function createFilterShell() {
+    const shell =
+      document.createElement("div");
+
+    shell.className =
+      FILTER_SHELL_CLASS;
+
+    shell.setAttribute(
+      "role",
+      "tablist"
+    );
+
+    shell.setAttribute(
+      "aria-label",
+      "작업필요사항 분류"
+    );
+
+    for (const filter of FILTERS) {
+      const button =
+        document.createElement("button");
+
+      button.type = "button";
+
+      button.className =
+        FILTER_BUTTON_CLASS;
+
+      button.dataset.pmCategoryFilter =
+        filter.key;
+
+      button.textContent =
+        filter.label;
+
+      button.setAttribute(
+        "role",
+        "tab"
+      );
+
+      shell.appendChild(
+        button
+      );
+    }
+
+    return shell;
+  }
+
+  function ensureFilterShell(
+    context
+  ) {
+    let shell =
+      getExistingFilterShell();
+
+    if (!(shell instanceof HTMLElement)) {
+      shell =
+        createFilterShell();
+    }
+
+    if (
+      shell.previousElementSibling !==
+        context.sheetTabsShell
+    ) {
+      context.sheetTabsShell
+        .insertAdjacentElement(
+          "afterend",
+          shell
+        );
+    }
+
+    shell.hidden = false;
+
+    return shell;
+  }
+
+  function clearFilteredRows() {
+    document
+      .querySelectorAll(
+        `.${FILTERED_ROW_CLASS}`
+      )
+      .forEach(
+        row => {
+          row.classList.remove(
+            FILTERED_ROW_CLASS
+          );
+        }
+      );
+  }
+
+  function readRowCategory(
+    row,
+    categoryIndex
+  ) {
+    const cell =
+      row.cells?.[categoryIndex];
+
+    if (!(cell instanceof HTMLTableCellElement)) {
+      return "";
+    }
+
+    const select =
+      cell.querySelector(
+        "select"
+      );
+
+    if (select instanceof HTMLSelectElement) {
+      const selectedText =
+        select.selectedOptions?.[0]
+          ?.textContent;
+
+      return normalizeText(
+        selectedText ||
+        select.value
+      );
+    }
+
+    const control =
+      cell.querySelector(
+        "input, textarea"
+      );
+
+    if (
+      control instanceof HTMLInputElement ||
+      control instanceof HTMLTextAreaElement
+    ) {
+      return normalizeText(
+        control.value
+      );
+    }
+
+    return normalizeText(
+      cell.textContent
+    );
+  }
+
+  function updateFilterButtons(
+    shell
+  ) {
+    shell
+      .querySelectorAll(
+        `.${FILTER_BUTTON_CLASS}`
+      )
+      .forEach(
+        button => {
+          const isActive =
+            button.dataset
+              .pmCategoryFilter ===
+            activeFilter;
+
+          button.classList.toggle(
+            "is-active",
+            isActive
+          );
+
+          button.setAttribute(
+            "aria-selected",
+            isActive
+              ? "true"
+              : "false"
+          );
+        }
+      );
+  }
+
+  function applyCategoryFilter() {
+    const context =
+      findCategoryContext();
+
+    if (!context) {
+      const shell =
+        getExistingFilterShell();
+
+      if (shell instanceof HTMLElement) {
+        shell.hidden = true;
+      }
+
+      clearFilteredRows();
+      return;
+    }
+
+    const shell =
+      ensureFilterShell(
+        context
+      );
+
+    updateFilterButtons(
+      shell
+    );
+
+    const rows =
+      Array.from(
+        context.table.tBodies
+      )
+        .flatMap(
+          body =>
+            Array.from(
+              body.rows
+            )
+        );
+
+    for (const row of rows) {
+      const category =
+        readRowCategory(
+          row,
+          context.categoryIndex
+        );
+
+      /*
+        새 항목처럼 분류가 아직 비어 있는 행은
+        특정 필터 탭에서도 숨기지 않는다.
+        그래야 +항목 추가 직후 새 행이 사라지지 않는다.
+      */
+      const shouldShow =
+        activeFilter === "all" ||
+        category === "" ||
+        category === activeFilter;
+
+      row.classList.toggle(
+        FILTERED_ROW_CLASS,
+        !shouldShow
+      );
+    }
+  }
+
+  function scheduleRefresh() {
+    if (refreshFrame) {
+      cancelAnimationFrame(
+        refreshFrame
+      );
+    }
+
+    refreshFrame =
+      requestAnimationFrame(
+        () => {
+          refreshFrame = 0;
+          applyCategoryFilter();
+        }
+      );
+  }
+
+  document.addEventListener(
+    "click",
+    event => {
+      const button =
+        event.target.closest?.(
+          `.${FILTER_BUTTON_CLASS}`
+        );
+
+      if (
+        button instanceof HTMLButtonElement
+      ) {
+        const nextFilter =
+          button.dataset
+            .pmCategoryFilter;
+
+        if (
+          FILTERS.some(
+            filter =>
+              filter.key ===
+              nextFilter
+          )
+        ) {
+          activeFilter =
+            nextFilter;
+
+          applyCategoryFilter();
+        }
+
+        return;
+      }
+
+      /*
+        Sheet 탭 / Logic 개선 / 작업필요사항 전환,
+        항목 추가 등 기존 버튼 동작 뒤 DOM이 바뀌는 경우를
+        다음 frame에서 다시 판정한다.
+      */
+      scheduleRefresh();
+    },
+    true
+  );
+
+  document.addEventListener(
+    "change",
+    event => {
+      const target =
+        event.target;
+
+      if (
+        target instanceof Element &&
+        target.closest(
+          TABLE_SELECTOR
+        )
+      ) {
+        scheduleRefresh();
+      }
+    },
+    true
+  );
+
+  const observer =
+    new MutationObserver(
+      mutations => {
+        const hasRelevantChange =
+          mutations.some(
+            mutation =>
+              mutation.type ===
+                "childList" &&
+              (
+                mutation.addedNodes.length >
+                  0 ||
+                mutation.removedNodes.length >
+                  0
+              )
+          );
+
+        if (hasRelevantChange) {
+          scheduleRefresh();
+        }
+      }
+    );
+
+  function startCategoryTabs() {
+    observer.observe(
+      document.documentElement,
+      {
+        childList: true,
+        subtree: true
+      }
+    );
+
+    applyCategoryFilter();
+  }
+
+  if (
+    document.readyState ===
+    "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      startCategoryTabs,
+      {
+        once: true
+      }
+    );
+  } else {
+    startCategoryTabs();
+  }
+})();
