@@ -18,7 +18,7 @@
     GS Shift Log
   </title>
 
-<!-- MOBILE-LOGIN-ROOT-CAUSE-FIX-V3 -->
+<!-- MOBILE-LOGIN-POST-SUCCESS-BOOT-V4 -->
   <script>
     (() => {
       try {
@@ -58,31 +58,121 @@
         if (
           returnedFromMobileLogin
         ) {
-          searchParams.delete(
-            "mobileLogin"
-          );
+          window.__mobileLoginPostSuccessBootV4 =
+            true;
 
-          const nextQuery =
-            searchParams.toString();
+          const revealAuthenticatedShell =
+            () => {
+              let currentUser =
+                null;
 
-          window.history.replaceState(
-            null,
-            "",
-            nextQuery
-              ? `/?${nextQuery}`
-              : "/"
-          );
+              try {
+                const raw =
+                  localStorage.getItem(
+                    "gsShiftLog.currentUser"
+                  );
+
+                currentUser =
+                  raw
+                    ? JSON.parse(
+                        raw
+                      )
+                    : null;
+
+              } catch {
+                currentUser =
+                  null;
+              }
+
+              if (
+                !currentUser ||
+                typeof currentUser !==
+                  "object"
+              ) {
+                window.location.replace(
+                  "/mobile-login?v=20260824-post-success-v4"
+                );
+
+                return;
+              }
+
+              const loginScreen =
+                document.getElementById(
+                  "loginScreen"
+                );
+
+              const appShell =
+                document.getElementById(
+                  "appShell"
+                );
+
+              if (
+                loginScreen
+              ) {
+                loginScreen.hidden =
+                  true;
+              }
+
+              if (
+                appShell
+              ) {
+                appShell.hidden =
+                  false;
+              }
+
+              document.documentElement
+                .setAttribute(
+                  "data-mobile-auth-boot",
+                  "ready"
+                );
+
+              searchParams.delete(
+                "mobileLogin"
+              );
+
+              searchParams.delete(
+                "mobileLoginNonce"
+              );
+
+              const nextQuery =
+                searchParams.toString();
+
+              window.history.replaceState(
+                null,
+                "",
+                nextQuery
+                  ? `/?${nextQuery}`
+                  : "/"
+              );
+            };
+
+          if (
+            document.readyState ===
+              "loading"
+          ) {
+            document.addEventListener(
+              "DOMContentLoaded",
+              revealAuthenticatedShell,
+              {
+                once:
+                  true
+              }
+            );
+
+          } else {
+            revealAuthenticatedShell();
+          }
 
           return;
         }
 
         window.location.replace(
-          "/mobile-login?v=20260824-mobile-login-rootfix3"
+          "/mobile-login?v=20260824-post-success-v4"
         );
 
       } catch {
         window.location.replace(
-          "/mobile-login?v=20260824-mobile-login-rootfix3"
+          "/mobile-login?v=20260824-post-success-v4"
         );
       }
     })();

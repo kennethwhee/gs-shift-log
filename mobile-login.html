@@ -573,12 +573,11 @@
 
   function enterMainApp() {
     window.location.replace(
-      "/?mobileLogin=success"
+      `/?mobileLogin=success&mobileLoginNonce=${Date.now()}`
     );
   }
 
-
-  function restoreRememberedLogin() {
+function restoreRememberedLogin() {
     try {
       const raw =
         localStorage.getItem(
