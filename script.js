@@ -247836,3 +247836,274 @@ async function restoreSolarCumulativeFromD1() {
     initialize();
   }
 })();
+
+
+/* =========================================================
+  LOG-ENTRY-CONTENT-READABILITY-AUTOGROW-V1-JS
+
+  Auto-grow #logEntryContent by its real content height.
+========================================================= */
+
+(() => {
+  const TEXTAREA_ID =
+    "logEntryContent";
+
+  const TEXTAREA_DATA_KEY =
+    "logEntryContentAutogrowV1";
+
+  const MODAL_DATA_KEY =
+    "logEntryContentAutogrowObserverV1";
+
+
+  function fitLogEntryContentTextarea(
+    textarea
+  ) {
+    if (
+      !textarea ||
+      textarea.id !== TEXTAREA_ID
+    ) {
+      return;
+    }
+
+
+    textarea.rows =
+      1;
+
+
+    textarea.style.setProperty(
+      "height",
+      "auto",
+      "important"
+    );
+
+
+    const computedStyle =
+      window.getComputedStyle(
+        textarea
+      );
+
+
+    const minimumHeight =
+      Number.parseFloat(
+        computedStyle.minHeight
+      ) ||
+      42;
+
+
+    const borderHeight =
+      (
+        Number.parseFloat(
+          computedStyle.borderTopWidth
+        ) ||
+        0
+      ) +
+      (
+        Number.parseFloat(
+          computedStyle.borderBottomWidth
+        ) ||
+        0
+      );
+
+
+    const nextHeight =
+      Math.max(
+        minimumHeight,
+        textarea.scrollHeight +
+          borderHeight
+      );
+
+
+    textarea.style.setProperty(
+      "height",
+      `${Math.ceil(nextHeight)}px`,
+      "important"
+    );
+  }
+
+
+  function syncLogEntryContentTextarea() {
+    fitLogEntryContentTextarea(
+      document.getElementById(
+        TEXTAREA_ID
+      )
+    );
+  }
+
+
+  function scheduleLogEntryContentTextareaSync() {
+    window.requestAnimationFrame(
+      () => {
+        syncLogEntryContentTextarea();
+
+        window.setTimeout(
+          syncLogEntryContentTextarea,
+          0
+        );
+      }
+    );
+  }
+
+
+  function installLogEntryContentAutogrow() {
+    const textarea =
+      document.getElementById(
+        TEXTAREA_ID
+      );
+
+
+    if (
+      !textarea
+    ) {
+      return;
+    }
+
+
+    if (
+      textarea.dataset[
+        TEXTAREA_DATA_KEY
+      ] !==
+      "true"
+    ) {
+      textarea.dataset[
+        TEXTAREA_DATA_KEY
+      ] =
+        "true";
+
+
+      textarea.addEventListener(
+        "input",
+        () => {
+          fitLogEntryContentTextarea(
+            textarea
+          );
+        }
+      );
+
+
+      textarea.addEventListener(
+        "paste",
+        () => {
+          window.requestAnimationFrame(
+            () => {
+              fitLogEntryContentTextarea(
+                textarea
+              );
+            }
+          );
+        }
+      );
+
+
+      textarea.addEventListener(
+        "change",
+        () => {
+          fitLogEntryContentTextarea(
+            textarea
+          );
+        }
+      );
+    }
+
+
+    const modal =
+      document.getElementById(
+        "logEditorModal"
+      );
+
+
+    if (
+      modal &&
+      modal.dataset[
+        MODAL_DATA_KEY
+      ] !==
+      "true"
+    ) {
+      const observer =
+        new MutationObserver(
+          () => {
+            const isOpen =
+              modal.classList.contains(
+                "is-open"
+              ) ||
+              modal.getAttribute(
+                "aria-hidden"
+              ) ===
+                "false";
+
+
+            if (
+              isOpen
+            ) {
+              scheduleLogEntryContentTextareaSync();
+            }
+          }
+        );
+
+
+      observer.observe(
+        modal,
+        {
+          attributes:
+            true,
+
+          attributeFilter: [
+            "class",
+            "aria-hidden"
+          ]
+        }
+      );
+
+
+      modal.dataset[
+        MODAL_DATA_KEY
+      ] =
+        "true";
+
+
+      modal.addEventListener(
+        "click",
+        () => {
+          window.setTimeout(
+            syncLogEntryContentTextarea,
+            0
+          );
+        }
+      );
+    }
+
+
+    window.addEventListener(
+      "resize",
+      scheduleLogEntryContentTextareaSync
+    );
+
+
+    syncLogEntryContentTextarea();
+  }
+
+
+  function startLogEntryContentAutogrow() {
+    window.setTimeout(
+      installLogEntryContentAutogrow,
+      0
+    );
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      startLogEntryContentAutogrow,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    startLogEntryContentAutogrow();
+  }
+})();

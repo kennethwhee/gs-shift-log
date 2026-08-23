@@ -118471,3 +118471,38 @@ table {
   }
 
 }
+
+
+/* =========================================================
+  LOG-ENTRY-CONTENT-READABILITY-AUTOGROW-V1-CSS
+
+  Shift-log entry content textarea:
+  - readable 16px text
+  - compact one-line start
+  - content-driven height
+  - no internal vertical scrollbar
+========================================================= */
+
+#logEditorModal
+#logEntryInputPanel.log-entry-input-panel
+textarea#logEntryContent,
+
+#logEditorModal
+tr.is-inline-entry-panel-editing
+#logEntryInputPanel.log-entry-input-panel
+textarea#logEntryContent {
+  width: 100% !important;
+
+  min-height: 42px !important;
+  max-height: none !important;
+
+  padding: 7px 9px !important;
+
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+
+  overflow-y: hidden !important;
+  resize: none !important;
+
+  box-sizing: border-box !important;
+}
