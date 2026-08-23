@@ -1,3 +1,5 @@
+/* [PLANNED-MAINTENANCE-EXCEL-TOTAL-V1] */
+
 .planned-maintenance-table-wrap {
   width: 100%;
   overflow: auto;
@@ -110,8 +112,50 @@
   background: #fff2f2;
 }
 
+.planned-maintenance-table.is-aggregate tbody td {
+  padding: 9px 8px;
+  background: #f8fafc;
+  color: #1e2a3b;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  vertical-align: top;
+}
+
+.planned-maintenance-table.is-aggregate tbody tr:hover td {
+  background: #f2f7fc;
+}
+
+.planned-maintenance-table.is-aggregate .pm-number-cell,
+.planned-maintenance-table.is-aggregate .pm-unit-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.pm-unit-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 25px;
+  padding: 0 8px;
+  border: 1px solid #9eb8d1;
+  border-radius: 999px;
+  background: #fff;
+  color: #245a8d;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 .planned-maintenance-table.is-logic col.pm-col-number {
   width: 54px;
+}
+
+.planned-maintenance-table.is-logic col.pm-col-unit {
+  width: 74px;
 }
 
 .planned-maintenance-table.is-logic col.pm-col-date {
@@ -154,8 +198,20 @@
   min-width: 1320px;
 }
 
+.planned-maintenance-table.is-work.is-aggregate {
+  min-width: 1360px;
+}
+
+.planned-maintenance-table.is-logic.is-aggregate {
+  min-width: 1540px;
+}
+
 .planned-maintenance-table.is-work col.pm-col-number {
   width: 54px;
+}
+
+.planned-maintenance-table.is-work col.pm-col-unit {
+  width: 74px;
 }
 
 .planned-maintenance-table.is-work col.pm-col-category {
