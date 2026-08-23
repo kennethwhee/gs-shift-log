@@ -1,43 +1,234 @@
 "use strict";
 
-/* [PLANNED-MAINTENANCE-EXCEL-TOTAL-V1] */
+/* [PLANNED-MAINTENANCE-SHEET-TABS-V2] */
 
 (function initializePlannedMaintenancePage() {
-  const API_URL =
-    "/api/planned-maintenance";
-
-  const management =
-    window.GSManagement;
+  const API_URL = "/api/planned-maintenance";
+  const STORAGE_UNIT = "1";
+  const TEMPLATE_VERSION = "20260823-maintenance-sheet-tabs-v2";
+  const management = window.GSManagement;
 
   if (!management) {
-    throw new Error(
-      "관리 공통 모듈을 불러오지 못했습니다."
-    );
+    throw new Error("관리 공통 모듈을 불러오지 못했습니다.");
   }
 
-  const params =
-    new URLSearchParams(
-      window.location.search
-    );
-
-  const initialView =
-    params.get("view") === "work"
-      ? "work"
-      : "logic";
+  const params = new URLSearchParams(window.location.search);
+  const initialView = params.get("view") === "work" ? "work" : "logic";
 
   const WORK_CATEGORIES = [
     "기계",
     "전기",
     "제어",
+    "인력",
     "안전",
     "효율",
     "기타"
   ];
 
+  const SHEETS = {
+    logic: [
+      {
+        key: "logic-blr",
+        name: "BLR",
+        theme: "logic-blr",
+        tabColor: "FFFFC000",
+        excelTitle: year =>
+          `${year}년 Boiler 정지 중 Logic 수정 및 보완 요청 List`,
+        columns: [
+          column("작성일시", "createdDate", 110, "date", ["작성일시", "작성 일시", "작성일"]),
+          column("설 비 명", "equipmentName", 180, "textarea", ["설비명", "설 비 명"]),
+          column("사 유", "reason", 340, "textarea", ["사유", "사 유"]),
+          column("대상 설비", "targetEquipment", 165, "textarea", ["대상설비", "대상 설비"]),
+          column("진행사항", "progress", 175, "textarea", ["진행사항", "진행 사항"]),
+          column("작성자", "author", 95, "text", ["작성자"]),
+          column("제어 회신 (1차)", "controlReply1", 190, "textarea", ["제어회신1차", "제어 회신 (1차)", "제어 회신(1차)"]),
+          column("설비운영팀 회신 (1차)", "operationReply1", 205, "textarea", ["설비운영팀회신1차", "설비운영팀 회신 (1차)", "설비운영팀 회신(1차)"]),
+          column("제어 회신 (2차)", "controlReply2", 190, "textarea", ["제어회신2차", "제어 회신 (2차)", "제어 회신(2차)"]),
+          column("비 고", "remark", 185, "textarea", ["비고", "비 고"])
+        ],
+        importSignals: [
+          "equipmentName",
+          "reason",
+          "targetEquipment",
+          "progress",
+          "controlReply1",
+          "operationReply1",
+          "controlReply2",
+          "remark"
+        ]
+      },
+      {
+        key: "logic-tbn-bop",
+        name: "TBN & BOP",
+        theme: "logic-tbn-bop",
+        tabColor: "FFFF0000",
+        excelTitle: year =>
+          `${year}년 TBN & BOP 정지 중 Logic 수정 및 보완 요청 List`,
+        columns: [
+          column("작성일시", "createdDate", 110, "date", ["작성일시", "작성 일시", "작성일"]),
+          column("설 비 명", "equipmentName", 190, "textarea", ["설비명", "설 비 명"]),
+          column("사 유", "reason", 380, "textarea", ["사유", "사 유"]),
+          column("진행사항", "progress", 180, "textarea", ["진행사항", "진행 사항"]),
+          column("작성자", "author", 95, "text", ["작성자"]),
+          column("제어 회신 (1차)", "controlReply1", 190, "textarea", ["제어회신1차", "제어 회신 (1차)", "제어 회신(1차)"]),
+          column("설비운영팀 회신 (1차)", "operationReply1", 205, "textarea", ["설비운영팀회신1차", "설비운영팀 회신 (1차)", "설비운영팀 회신(1차)"]),
+          column("제어 회신 (2차)", "controlReply2", 190, "textarea", ["제어회신2차", "제어 회신 (2차)", "제어 회신(2차)"]),
+          column("비 고", "remark", 185, "textarea", ["비고", "비 고"])
+        ],
+        importSignals: [
+          "equipmentName",
+          "reason",
+          "progress",
+          "controlReply1",
+          "operationReply1",
+          "controlReply2",
+          "remark"
+        ]
+      },
+      {
+        key: "logic-aux-blr",
+        name: "Aux. BLR",
+        theme: "logic-aux-blr",
+        tabColor: "FF70AD47",
+        excelTitle: year =>
+          `${year}년 Aux. BLR Logic 수정 및 보완 요청 List`,
+        columns: [
+          column("작성일시", "createdDate", 110, "date", ["작성일시", "작성 일시", "작성일"]),
+          column("설 비 명", "equipmentName", 190, "textarea", ["설비명", "설 비 명"]),
+          column("사 유", "reason", 390, "textarea", ["사유", "사 유"]),
+          column("진행사항", "progress", 180, "textarea", ["진행사항", "진행 사항"]),
+          column("작성자", "author", 95, "text", ["작성자"]),
+          column("제어회신", "controlReply", 200, "textarea", ["제어회신", "제어 회신"]),
+          column("확인및작업", "confirmWork", 165, "textarea", ["확인및작업", "확인 및 작업"]),
+          column("작업내용", "workContent", 205, "textarea", ["작업내용", "작업 내용"]),
+          column("비 고", "remark", 185, "textarea", ["비고", "비 고"])
+        ],
+        importSignals: [
+          "equipmentName",
+          "reason",
+          "progress",
+          "controlReply",
+          "confirmWork",
+          "workContent",
+          "remark"
+        ]
+      },
+      {
+        key: "logic-dcs",
+        name: "DCS",
+        theme: "logic-dcs",
+        tabColor: "FFFFFF00",
+        excelTitle: year =>
+          `${year}년 Boiler 정지 중 Graphic & Description 수정 List`,
+        columns: [
+          column("작성일시", "createdDate", 110, "date", ["작성일시", "작성 일시", "작성일"]),
+          column("설 비 명", "equipmentName", 175, "textarea", ["설비명", "설 비 명"]),
+          column("사 유", "reason", 330, "textarea", ["사유", "사 유"]),
+          column("대상 설비", "targetEquipment", 165, "textarea", ["대상설비", "대상 설비"]),
+          column("Tag", "tag", 150, "text", ["tag", "태그", "TAG"]),
+          column("작성자", "author", 95, "text", ["작성자"]),
+          column("1 Part", "part1", 150, "textarea", ["1part", "1 part", "1파트"]),
+          column("2 Part", "part2", 150, "textarea", ["2part", "2 part", "2파트"]),
+          column("3 Part", "part3", 150, "textarea", ["3part", "3 part", "3파트"]),
+          column("4 Part", "part4", 150, "textarea", ["4part", "4 part", "4파트"])
+        ],
+        importSignals: [
+          "equipmentName",
+          "reason",
+          "targetEquipment",
+          "tag",
+          "part1",
+          "part2",
+          "part3",
+          "part4"
+        ]
+      },
+      {
+        key: "logic-realtime",
+        name: "실시간 발전 운영 현황",
+        theme: "logic-realtime",
+        tabColor: "FFFFC000",
+        excelTitle: year =>
+          `${year}년 실시간 발전 운영 현황 수정 List`,
+        columns: [
+          column("작성일시", "createdDate", 110, "date", ["작성일시", "작성 일시", "작성일"]),
+          column("설 비 명", "equipmentName", 175, "textarea", ["설비명", "설 비 명"]),
+          column("사 유", "reason", 330, "textarea", ["사유", "사 유"]),
+          column("대상 설비", "targetEquipment", 165, "textarea", ["대상설비", "대상 설비"]),
+          column("Tag", "tag", 150, "text", ["tag", "태그", "TAG"]),
+          column("작성자", "author", 95, "text", ["작성자"]),
+          column("1 Part", "part1", 150, "textarea", ["1part", "1 part", "1파트"]),
+          column("2 Part", "part2", 150, "textarea", ["2part", "2 part", "2파트"]),
+          column("3 Part", "part3", 150, "textarea", ["3part", "3 part", "3파트"]),
+          column("4 Part", "part4", 150, "textarea", ["4part", "4 part", "4파트"])
+        ],
+        importSignals: [
+          "equipmentName",
+          "reason",
+          "targetEquipment",
+          "tag",
+          "part1",
+          "part2",
+          "part3",
+          "part4"
+        ]
+      }
+    ],
+    work: [
+      workSheet("work-tbn-bop", "TBN,BOP", "work-tbn-bop", "FF70AD47", year =>
+        `${year}년 TBN & BOP 정지 작업 요청사항`),
+      workSheet("work-blr1", "#1 BLR", "work-blr1", "FF7030A0", year =>
+        `${year}년 #1 BLR 정지 작업 요청사항`),
+      workSheet("work-blr2", "#2 BLR", "work-blr2", "FF1F4E78", year =>
+        `${year}년 #2 Boiler 정지 작업 요청사항`),
+      workSheet("work-aux-blr", "Aux. BLR", "work-aux-blr", "FF7030A0", year =>
+        `${year}년 Aux. BLR 정지 작업 요청사항`),
+      workSheet("work-shutdown", "정지 중 자체작업 사항", "work-shutdown", "FF1F4E78", year =>
+        `${year}년 정지 중 자체 작업 사항(설비운영팀)`, "인력")
+    ]
+  };
+
+  function column(header, field, width, type, aliases) {
+    return {
+      header,
+      field,
+      width,
+      type,
+      aliases: aliases || [header]
+    };
+  }
+
+  function workSheet(key, name, theme, tabColor, excelTitle, defaultCategory = "제어") {
+    return {
+      key,
+      name,
+      theme,
+      tabColor,
+      excelTitle,
+      defaultCategory,
+      columns: [
+        column("분류", "category", 100, "select", ["분류"]),
+        column("설 비 명", "equipmentName", 220, "textarea", ["설비명", "설 비 명"]),
+        column("사 유", "reason", 465, "textarea", ["사유", "사 유"]),
+        column("Issue Date", "issueDate", 120, "date", ["Issue Date", "issuedate", "issue date", "이슈일자"]),
+        column("진행사항", "progress", 185, "textarea", ["진행사항", "진행 사항"]),
+        column("작성자", "author", 100, "text", ["작성자"]),
+        column("비 고", "remark", 230, "textarea", ["비고", "비 고"])
+      ],
+      importSignals: [
+        "equipmentName",
+        "reason",
+        "issueDate",
+        "progress",
+        "remark"
+      ]
+    };
+  }
+
   const state = {
     year: 2027,
-    unit: "1",
     view: initialView,
+    sheetKey: "",
     version: 0,
     recordId: "",
     rows: [],
@@ -45,839 +236,511 @@
     loading: false,
     lastModifiedBy: "",
     updatedAt: "",
-    aggregateMeta: null
+    legacyRowsDetected: false
   };
 
   const elements = {
-    authWarning:
-      document.getElementById(
-        "plannedMaintenanceAuthWarning"
-      ),
-    title:
-      document.getElementById(
-        "plannedMaintenancePageTitle"
-      ),
-    yearSelect:
-      document.getElementById(
-        "plannedMaintenanceYearSelect"
-      ),
-    addRowButton:
-      document.getElementById(
-        "plannedMaintenanceAddRowButton"
-      ),
-    reloadButton:
-      document.getElementById(
-        "plannedMaintenanceReloadButton"
-      ),
-    previewButton:
-      document.getElementById(
-        "plannedMaintenancePreviewButton"
-      ),
-    saveButton:
-      document.getElementById(
-        "plannedMaintenanceSaveButton"
-      ),
-    homeButton:
-      document.getElementById(
-        "plannedMaintenanceHomeButton"
-      ),
-    excelUploadButton:
-      document.getElementById(
-        "plannedMaintenanceExcelUploadButton"
-      ),
-    excelDownloadButton:
-      document.getElementById(
-        "plannedMaintenanceExcelDownloadButton"
-      ),
-    excelFileInput:
-      document.getElementById(
-        "plannedMaintenanceExcelFileInput"
-      ),
-    statusDot:
-      document.getElementById(
-        "plannedMaintenanceStatusDot"
-      ),
-    contextLabel:
-      document.getElementById(
-        "plannedMaintenanceContextLabel"
-      ),
-    statusText:
-      document.getElementById(
-        "plannedMaintenanceStatusText"
-      ),
-    modifierText:
-      document.getElementById(
-        "plannedMaintenanceModifierText"
-      ),
-    table:
-      document.getElementById(
-        "plannedMaintenanceTable"
-      ),
-    tableHead:
-      document.getElementById(
-        "plannedMaintenanceTableHead"
-      ),
-    tableBody:
-      document.getElementById(
-        "plannedMaintenanceTableBody"
-      )
+    authWarning: document.getElementById("plannedMaintenanceAuthWarning"),
+    title: document.getElementById("plannedMaintenancePageTitle"),
+    yearSelect: document.getElementById("plannedMaintenanceYearSelect"),
+    addRowButton: document.getElementById("plannedMaintenanceAddRowButton"),
+    reloadButton: document.getElementById("plannedMaintenanceReloadButton"),
+    previewButton: document.getElementById("plannedMaintenancePreviewButton"),
+    saveButton: document.getElementById("plannedMaintenanceSaveButton"),
+    homeButton: document.getElementById("plannedMaintenanceHomeButton"),
+    excelUploadButton: document.getElementById("plannedMaintenanceExcelUploadButton"),
+    excelDownloadButton: document.getElementById("plannedMaintenanceExcelDownloadButton"),
+    excelFileInput: document.getElementById("plannedMaintenanceExcelFileInput"),
+    sheetTabs: document.getElementById("plannedMaintenanceSheetTabs"),
+    statusDot: document.getElementById("plannedMaintenanceStatusDot"),
+    contextLabel: document.getElementById("plannedMaintenanceContextLabel"),
+    statusText: document.getElementById("plannedMaintenanceStatusText"),
+    modifierText: document.getElementById("plannedMaintenanceModifierText"),
+    table: document.getElementById("plannedMaintenanceTable"),
+    tableHead: document.getElementById("plannedMaintenanceTableHead"),
+    tableBody: document.getElementById("plannedMaintenanceTableBody")
   };
 
-  function isAggregateUnit() {
-    return state.unit === "all";
+  function getViewLabel(view = state.view) {
+    return view === "work" ? "작업필요사항" : "Logic 개선";
   }
 
-  function getViewLabel() {
-    return state.view === "work"
-      ? "작업필요사항"
-      : "Logic 개선";
+  function getSheetConfigs(view = state.view) {
+    return SHEETS[view] || SHEETS.logic;
   }
 
-  function getUnitLabel() {
-    return isAggregateUnit()
-      ? "종합"
-      : `${state.unit}호기`;
+  function getSheetConfigByKey(key, view = state.view) {
+    return getSheetConfigs(view).find(item => item.key === key) || null;
+  }
+
+  function getActiveSheetConfig() {
+    return getSheetConfigByKey(state.sheetKey) || getSheetConfigs()[0];
+  }
+
+  function ensureSheetKey() {
+    const configs = getSheetConfigs();
+    const requested = state.sheetKey || params.get("sheet") || "";
+    state.sheetKey = configs.some(item => item.key === requested)
+      ? requested
+      : configs[0].key;
   }
 
   function getDocumentTitle() {
-    const unitTitle =
-      isAggregateUnit()
-        ? "#1·#2호기"
-        : `#${state.unit}호기`;
+    return getActiveSheetConfig().excelTitle(state.year);
+  }
 
-    if (state.view === "work") {
-      return (
-        `${state.year}년 ${unitTitle} ` +
-        "계획정비 필요 작업사항" +
-        (isAggregateUnit() ? " 종합" : "")
+  function normalizeString(value) {
+    return String(value ?? "").trim();
+  }
+
+  function normalizeToken(value) {
+    return normalizeString(value)
+      .toLowerCase()
+      .replace(/[\s._,&()\-\/\\]+/g, "")
+      .replace(/[^0-9a-z가-힣#]/gi, "");
+  }
+
+  function dateToIso(year, month, day) {
+    const y = Number(year);
+    const m = Number(month);
+    const d = Number(day);
+
+    if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
+      return "";
+    }
+
+    const date = new Date(y, m - 1, d);
+    if (
+      date.getFullYear() !== y ||
+      date.getMonth() !== m - 1 ||
+      date.getDate() !== d
+    ) {
+      return "";
+    }
+
+    return [
+      String(y).padStart(4, "0"),
+      String(m).padStart(2, "0"),
+      String(d).padStart(2, "0")
+    ].join("-");
+  }
+
+  function valueToIsoDate(value) {
+    if (!value) {
+      return "";
+    }
+
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return dateToIso(
+        value.getFullYear(),
+        value.getMonth() + 1,
+        value.getDate()
       );
     }
 
-    return (
-      `${state.year}년 ${unitTitle} ` +
-      "계획정비 Logic 수정 및 보완 요청 List" +
-      (isAggregateUnit() ? " 종합" : "")
-    );
+    if (typeof value === "number" && window.XLSX?.SSF?.parse_date_code) {
+      const parsed = window.XLSX.SSF.parse_date_code(value);
+      if (parsed) {
+        return dateToIso(parsed.y, parsed.m, parsed.d);
+      }
+    }
+
+    const text = normalizeString(value);
+    if (!text) {
+      return "";
+    }
+
+    let match = text.match(/^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})$/);
+    if (match) {
+      return dateToIso(match[1], match[2], match[3]);
+    }
+
+    match = text.match(/^(\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})$/);
+    if (match) {
+      return dateToIso(2000 + Number(match[1]), match[2], match[3]);
+    }
+
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) {
+      return dateToIso(
+        parsed.getFullYear(),
+        parsed.getMonth() + 1,
+        parsed.getDate()
+      );
+    }
+
+    return "";
+  }
+
+  function isoToExcelDate(value) {
+    const text = normalizeString(value);
+    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) {
+      return text;
+    }
+
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0);
+  }
+
+  function rowIdPrefix(config) {
+    return `pmv2-${config.key}`;
+  }
+
+  function createRowId(config) {
+    return management.createId(rowIdPrefix(config));
+  }
+
+  function resolveRowSheetKey(row, view = state.view) {
+    const configs = getSheetConfigs(view);
+    const explicit = normalizeString(row?.sheetKey || row?.__sheetKey);
+
+    if (configs.some(item => item.key === explicit)) {
+      return explicit;
+    }
+
+    const id = normalizeString(row?.id);
+    const byId = configs.find(config => id.startsWith(rowIdPrefix(config)));
+    if (byId) {
+      return byId.key;
+    }
+
+    return configs[0].key;
+  }
+
+  function normalizeStoredRows(rows) {
+    const source = Array.isArray(rows) ? rows : [];
+    let legacy = false;
+
+    const normalized = source.map(row => {
+      const explicit = normalizeString(row?.sheetKey || row?.__sheetKey);
+      if (!explicit) {
+        const id = normalizeString(row?.id);
+        const hasV2Id = getSheetConfigs().some(config =>
+          id.startsWith(rowIdPrefix(config))
+        );
+        if (!hasV2Id) {
+          legacy = true;
+        }
+      }
+
+      const sheetKey = resolveRowSheetKey(row);
+      const config = getSheetConfigByKey(sheetKey) || getSheetConfigs()[0];
+
+      return {
+        ...row,
+        id: normalizeString(row?.id) || createRowId(config),
+        sheetKey,
+        __placeholder: false
+      };
+    });
+
+    state.legacyRowsDetected = legacy;
+    return normalized;
+  }
+
+  function createBlankRow(config, placeholder = true) {
+    const row = {
+      id: createRowId(config),
+      sheetKey: config.key,
+      __placeholder: placeholder
+    };
+
+    config.columns.forEach(col => {
+      if (col.field === "category") {
+        row[col.field] = config.defaultCategory || "제어";
+      } else if (col.field === "createdDate" || col.field === "issueDate") {
+        row[col.field] = management.todayDate();
+      } else if (col.field === "author") {
+        row[col.field] = management.getUserName();
+      } else {
+        row[col.field] = "";
+      }
+    });
+
+    return row;
+  }
+
+  function getRowsForSheet(sheetKey = state.sheetKey) {
+    return state.rows.filter(row => resolveRowSheetKey(row) === sheetKey);
+  }
+
+  function getPersistableRows() {
+    return state.rows
+      .filter(row => !row.__placeholder)
+      .map(row => {
+        const clean = { ...row };
+        delete clean.__placeholder;
+        delete clean.__sheetKey;
+        delete clean.__unit;
+        clean.sheetKey = resolveRowSheetKey(row);
+        return clean;
+      });
+  }
+
+  function ensureVisibleRow() {
+    if (getRowsForSheet().length > 0) {
+      return;
+    }
+
+    state.rows.push(createBlankRow(getActiveSheetConfig(), true));
+  }
+
+  function syncSheetTabs() {
+    const configs = getSheetConfigs();
+
+    elements.sheetTabs.innerHTML = configs.map(config => `
+      <button
+        type="button"
+        class="pm-sheet-tab ${config.key === state.sheetKey ? "is-active" : ""}"
+        data-planned-maintenance-sheet="${management.escapeHtml(config.key)}"
+        data-pm-sheet-theme="${management.escapeHtml(config.theme)}"
+        role="tab"
+        aria-selected="${config.key === state.sheetKey ? "true" : "false"}"
+      >${management.escapeHtml(config.name)}</button>
+    `).join("");
   }
 
   function syncContextUi() {
-    document
-      .querySelectorAll(
-        "[data-planned-maintenance-view]"
-      )
-      .forEach(
-        button => {
-          button.classList.toggle(
-            "is-active",
-            button.dataset
-              .plannedMaintenanceView ===
-              state.view
-          );
-        }
-      );
+    ensureSheetKey();
 
     document
-      .querySelectorAll(
-        "[data-planned-maintenance-unit]"
-      )
-      .forEach(
-        button => {
-          button.classList.toggle(
-            "is-active",
-            button.dataset
-              .plannedMaintenanceUnit ===
-              state.unit
-          );
-        }
-      );
+      .querySelectorAll("[data-planned-maintenance-view]")
+      .forEach(button => {
+        button.classList.toggle(
+          "is-active",
+          button.dataset.plannedMaintenanceView === state.view
+        );
+      });
 
-    elements.yearSelect.value =
-      String(state.year);
+    syncSheetTabs();
 
-    elements.title.textContent =
-      getViewLabel();
-
+    elements.yearSelect.value = String(state.year);
+    elements.title.textContent = getViewLabel();
     elements.contextLabel.textContent =
-      `${state.year}년 · ${getUnitLabel()} · ${getViewLabel()}`;
+      `${state.year}년 · ${getViewLabel()} · ${getActiveSheetConfig().name}`;
 
-    const url =
-      new URL(
-        window.location.href
-      );
-
-    url.searchParams.set(
-      "view",
-      state.view
-    );
-
-    history.replaceState(
-      null,
-      "",
-      url
-    );
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", state.view);
+    url.searchParams.set("sheet", state.sheetKey);
+    history.replaceState(null, "", url);
 
     syncActionAvailability();
   }
 
   function syncActionAvailability() {
-    const aggregate =
-      isAggregateUnit();
+    const authenticated = Boolean(management.getSessionToken());
 
-    const authenticated =
-      Boolean(
-        management.getSessionToken()
-      );
-
-    if (elements.addRowButton) {
-      elements.addRowButton.disabled =
-        state.loading || aggregate;
-    }
-
-    if (elements.saveButton) {
-      elements.saveButton.disabled =
-        state.loading ||
-        aggregate ||
-        !authenticated;
-    }
-
-    if (elements.excelUploadButton) {
-      elements.excelUploadButton.disabled =
-        state.loading ||
-        aggregate ||
-        !authenticated;
-
-      elements.excelUploadButton.title =
-        aggregate
-          ? "엑셀 업로드는 1호기 또는 2호기 탭에서 사용할 수 있습니다."
-          : "기존 계획정비 Excel 문서를 현재 탭으로 불러옵니다.";
-    }
-
-    if (elements.excelDownloadButton) {
-      elements.excelDownloadButton.disabled =
-        state.loading;
-    }
-
-    if (elements.previewButton) {
-      elements.previewButton.disabled =
-        state.loading;
-    }
-
-    if (elements.reloadButton) {
-      elements.reloadButton.disabled =
-        state.loading;
-    }
-
-    if (elements.yearSelect) {
-      elements.yearSelect.disabled =
-        state.loading;
-    }
+    elements.saveButton.disabled = state.loading || !authenticated;
+    elements.addRowButton.disabled = state.loading || !authenticated;
+    elements.excelUploadButton.disabled = state.loading || !authenticated;
+    elements.excelDownloadButton.disabled = state.loading;
+    elements.previewButton.disabled = state.loading;
+    elements.reloadButton.disabled = state.loading;
+    elements.yearSelect.disabled = state.loading;
 
     document
-      .querySelectorAll(
-        "[data-planned-maintenance-view], " +
-        "[data-planned-maintenance-unit]"
-      )
-      .forEach(
-        button => {
-          button.disabled =
-            state.loading;
-        }
-      );
+      .querySelectorAll("[data-planned-maintenance-view], [data-planned-maintenance-sheet]")
+      .forEach(button => {
+        button.disabled = state.loading;
+      });
   }
 
-  function setDirty(
-    dirty
-  ) {
-    if (isAggregateUnit()) {
-      state.dirty = false;
-
-      elements.statusDot.classList.remove(
-        "is-dirty",
-        "is-saved"
-      );
-
-      const oneCount =
-        Number(
-          state.aggregateMeta?.one?.rows?.length ||
-          0
-        );
-
-      const twoCount =
-        Number(
-          state.aggregateMeta?.two?.rows?.length ||
-          0
-        );
-
-      elements.statusText.textContent =
-        `종합 조회 · 1호기 ${oneCount}건 · 2호기 ${twoCount}건`;
-
-      return;
-    }
-
-    state.dirty =
-      Boolean(dirty);
-
-    elements.statusDot.classList.toggle(
-      "is-dirty",
-      state.dirty
-    );
-
-    elements.statusDot.classList.toggle(
-      "is-saved",
-      !state.dirty &&
-      state.version > 0
-    );
-
-    if (state.dirty) {
-      elements.statusText.textContent =
-        "저장되지 않은 변경사항 있음";
-    } else if (state.version > 0) {
-      elements.statusText.textContent =
-        `저장됨 · v${state.version}`;
-    } else {
-      elements.statusText.textContent =
-        "아직 저장된 기록 없음";
-    }
-  }
-
-  function setLoading(
-    loading
-  ) {
-    state.loading =
-      Boolean(loading);
-
+  function setLoading(loading) {
+    state.loading = Boolean(loading);
     syncActionAvailability();
   }
 
-  function createLogicRow() {
-    return {
-      id:
-        management.createId(
-          "pm-logic"
-        ),
-      createdDate:
-        management.todayDate(),
-      equipmentName: "",
-      reason: "",
-      targetEquipment: "",
-      progress: "",
-      author:
-        management.getUserName(),
-      controlReply1: "",
-      operationReply1: "",
-      controlReply2: "",
-      remark: ""
-    };
+  function setDirty(dirty) {
+    state.dirty = Boolean(dirty);
+
+    elements.statusDot.classList.toggle("is-dirty", state.dirty);
+    elements.statusDot.classList.toggle(
+      "is-saved",
+      !state.dirty && state.version > 0
+    );
+
+    if (state.dirty) {
+      elements.statusText.textContent = "저장되지 않은 변경사항 있음";
+    } else if (state.version > 0) {
+      elements.statusText.textContent = `저장됨 · v${state.version}`;
+    } else {
+      elements.statusText.textContent = "아직 저장된 기록 없음";
+    }
   }
 
-  function createWorkRow() {
-    return {
-      id:
-        management.createId(
-          "pm-work"
-        ),
-      category: "제어",
-      equipmentName: "",
-      tag: "",
-      reason: "",
-      issueDate:
-        management.todayDate(),
-      progress: "",
-      author:
-        management.getUserName(),
-      remark: ""
-    };
-  }
-
-  function ensureVisibleRow() {
-    if (
-      isAggregateUnit() ||
-      state.rows.length > 0
-    ) {
+  function updateModifierText() {
+    if (!state.updatedAt) {
+      elements.modifierText.textContent = state.legacyRowsDetected
+        ? "기존 호기형 데이터 감지"
+        : "";
       return;
     }
 
-    state.rows = [
-      state.view === "work"
-        ? createWorkRow()
-        : createLogicRow()
-    ];
+    const date = new Date(state.updatedAt);
+    const dateText = Number.isNaN(date.getTime())
+      ? state.updatedAt
+      : date.toLocaleString("ko-KR");
 
-    setDirty(false);
+    const prefix = state.lastModifiedBy
+      ? `최종 수정 ${state.lastModifiedBy} · ${dateText}`
+      : `최종 수정 ${dateText}`;
+
+    elements.modifierText.textContent = state.legacyRowsDetected
+      ? `${prefix} · 기존 호기형 데이터 감지`
+      : prefix;
   }
 
-  function inputHtml(
-    row,
-    field,
-    type = "text"
-  ) {
+  function inputHtml(row, col) {
+    const value = normalizeString(row[col.field]);
+
+    if (col.type === "select") {
+      const values = WORK_CATEGORIES.includes(value)
+        ? WORK_CATEGORIES
+        : [value, ...WORK_CATEGORIES].filter(Boolean);
+
+      return `
+        <select data-pm-field="${management.escapeHtml(col.field)}">
+          ${values.map(option => `
+            <option
+              value="${management.escapeHtml(option)}"
+              ${option === value ? "selected" : ""}
+            >${management.escapeHtml(option)}</option>
+          `).join("")}
+        </select>
+      `;
+    }
+
+    if (col.type === "textarea") {
+      return `
+        <textarea
+          data-pm-field="${management.escapeHtml(col.field)}"
+        >${management.escapeHtml(value)}</textarea>
+      `;
+    }
+
+    if (col.type === "date") {
+      return `
+        <input
+          type="date"
+          data-pm-field="${management.escapeHtml(col.field)}"
+          value="${management.escapeHtml(valueToIsoDate(value) || value)}"
+        >
+      `;
+    }
+
     return `
       <input
-        type="${type}"
-        data-pm-field="${field}"
-        value="${management.escapeHtml(row[field] || "")}"
+        type="text"
+        data-pm-field="${management.escapeHtml(col.field)}"
+        value="${management.escapeHtml(value)}"
       >
     `;
-  }
-
-  function textareaHtml(
-    row,
-    field
-  ) {
-    return `
-      <textarea
-        data-pm-field="${field}"
-      >${management.escapeHtml(row[field] || "")}</textarea>
-    `;
-  }
-
-  function displayCellHtml(
-    value
-  ) {
-    const text =
-      String(
-        value ??
-        ""
-      );
-
-    return text
-      ? management.textToHtml(text)
-      : "";
-  }
-
-  function renderLogicTable() {
-    const aggregate =
-      isAggregateUnit();
-
-    elements.table.className =
-      "planned-maintenance-table is-logic" +
-      (aggregate ? " is-aggregate" : "");
-
-    elements.table.innerHTML = `
-      <colgroup>
-        <col class="pm-col-number">
-        ${aggregate ? '<col class="pm-col-unit">' : ""}
-        <col class="pm-col-date">
-        <col class="pm-col-equipment">
-        <col class="pm-col-reason">
-        <col class="pm-col-target">
-        <col class="pm-col-progress">
-        <col class="pm-col-author">
-        <col class="pm-col-reply">
-        <col class="pm-col-reply">
-        <col class="pm-col-reply">
-        <col class="pm-col-remark">
-        ${aggregate ? "" : '<col class="pm-col-action">'}
-      </colgroup>
-      <thead id="plannedMaintenanceTableHead">
-        <tr>
-          <th>번호</th>
-          ${aggregate ? "<th>호기</th>" : ""}
-          <th>작성일시</th>
-          <th>설 비 명</th>
-          <th>사 유</th>
-          <th>대상 설비</th>
-          <th>진행사항</th>
-          <th>작성자</th>
-          <th>제어 회신 (1차)</th>
-          <th>설비운영팀 회신 (1차)</th>
-          <th>제어 회신 (2차)</th>
-          <th>비 고</th>
-          ${aggregate ? "" : "<th data-pm-action-column>삭제</th>"}
-        </tr>
-      </thead>
-      <tbody id="plannedMaintenanceTableBody"></tbody>
-    `;
-
-    elements.tableHead =
-      document.getElementById(
-        "plannedMaintenanceTableHead"
-      );
-
-    elements.tableBody =
-      document.getElementById(
-        "plannedMaintenanceTableBody"
-      );
-
-    if (aggregate) {
-      elements.tableBody.innerHTML =
-        state.rows.map(
-          (row, index) => `
-            <tr>
-              <td class="pm-number-cell">${index + 1}</td>
-              <td class="pm-unit-cell">
-                <span class="pm-unit-badge">${management.escapeHtml(row.__unit || "-")}호기</span>
-              </td>
-              <td>${displayCellHtml(row.createdDate)}</td>
-              <td>${displayCellHtml(row.equipmentName)}</td>
-              <td>${displayCellHtml(row.reason)}</td>
-              <td>${displayCellHtml(row.targetEquipment)}</td>
-              <td>${displayCellHtml(row.progress)}</td>
-              <td>${displayCellHtml(row.author)}</td>
-              <td>${displayCellHtml(row.controlReply1)}</td>
-              <td>${displayCellHtml(row.operationReply1)}</td>
-              <td>${displayCellHtml(row.controlReply2)}</td>
-              <td>${displayCellHtml(row.remark)}</td>
-            </tr>
-          `
-        ).join("");
-
-      return;
-    }
-
-    elements.tableBody.innerHTML =
-      state.rows.map(
-        (row, index) => `
-          <tr data-pm-row-id="${management.escapeHtml(row.id)}">
-            <td class="pm-number-cell">${index + 1}</td>
-            <td>${inputHtml(row, "createdDate", "date")}</td>
-            <td>${textareaHtml(row, "equipmentName")}</td>
-            <td>${textareaHtml(row, "reason")}</td>
-            <td>${textareaHtml(row, "targetEquipment")}</td>
-            <td>${textareaHtml(row, "progress")}</td>
-            <td>${inputHtml(row, "author")}</td>
-            <td>${textareaHtml(row, "controlReply1")}</td>
-            <td>${textareaHtml(row, "operationReply1")}</td>
-            <td>${textareaHtml(row, "controlReply2")}</td>
-            <td>${textareaHtml(row, "remark")}</td>
-            <td class="pm-row-delete-cell" data-pm-action-column>
-              <button
-                type="button"
-                class="pm-row-delete-button"
-                data-pm-delete-row
-                aria-label="${index + 1}번 항목 삭제"
-              >×</button>
-            </td>
-          </tr>
-        `
-      ).join("");
-  }
-
-  function renderWorkTable() {
-    const aggregate =
-      isAggregateUnit();
-
-    elements.table.className =
-      "planned-maintenance-table is-work" +
-      (aggregate ? " is-aggregate" : "");
-
-    elements.table.innerHTML = `
-      <colgroup>
-        <col class="pm-col-number">
-        ${aggregate ? '<col class="pm-col-unit">' : ""}
-        <col class="pm-col-category">
-        <col class="pm-col-equipment">
-        <col class="pm-col-tag">
-        <col class="pm-col-reason">
-        <col class="pm-col-date">
-        <col class="pm-col-progress">
-        <col class="pm-col-author">
-        <col class="pm-col-remark">
-        ${aggregate ? "" : '<col class="pm-col-action">'}
-      </colgroup>
-      <thead id="plannedMaintenanceTableHead">
-        <tr>
-          <th>번호</th>
-          ${aggregate ? "<th>호기</th>" : ""}
-          <th>분류</th>
-          <th>설 비 명</th>
-          <th>TAG</th>
-          <th>사 유</th>
-          <th>Issue Date</th>
-          <th>진행사항</th>
-          <th>작성자</th>
-          <th>비 고</th>
-          ${aggregate ? "" : "<th data-pm-action-column>삭제</th>"}
-        </tr>
-      </thead>
-      <tbody id="plannedMaintenanceTableBody"></tbody>
-    `;
-
-    elements.tableHead =
-      document.getElementById(
-        "plannedMaintenanceTableHead"
-      );
-
-    elements.tableBody =
-      document.getElementById(
-        "plannedMaintenanceTableBody"
-      );
-
-    if (aggregate) {
-      elements.tableBody.innerHTML =
-        state.rows.map(
-          (row, index) => `
-            <tr>
-              <td class="pm-number-cell">${index + 1}</td>
-              <td class="pm-unit-cell">
-                <span class="pm-unit-badge">${management.escapeHtml(row.__unit || "-")}호기</span>
-              </td>
-              <td>${displayCellHtml(row.category)}</td>
-              <td>${displayCellHtml(row.equipmentName)}</td>
-              <td>${displayCellHtml(row.tag)}</td>
-              <td>${displayCellHtml(row.reason)}</td>
-              <td>${displayCellHtml(row.issueDate)}</td>
-              <td>${displayCellHtml(row.progress)}</td>
-              <td>${displayCellHtml(row.author)}</td>
-              <td>${displayCellHtml(row.remark)}</td>
-            </tr>
-          `
-        ).join("");
-
-      return;
-    }
-
-    elements.tableBody.innerHTML =
-      state.rows.map(
-        (row, index) => `
-          <tr data-pm-row-id="${management.escapeHtml(row.id)}">
-            <td class="pm-number-cell">${index + 1}</td>
-            <td>
-              <select data-pm-field="category">
-                ${WORK_CATEGORIES.map(
-                  option => `
-                    <option
-                      value="${option}"
-                      ${row.category === option ? "selected" : ""}
-                    >${option}</option>
-                  `
-                ).join("")}
-              </select>
-            </td>
-            <td>${textareaHtml(row, "equipmentName")}</td>
-            <td>${inputHtml(row, "tag")}</td>
-            <td>${textareaHtml(row, "reason")}</td>
-            <td>${inputHtml(row, "issueDate", "date")}</td>
-            <td>${textareaHtml(row, "progress")}</td>
-            <td>${inputHtml(row, "author")}</td>
-            <td>${textareaHtml(row, "remark")}</td>
-            <td class="pm-row-delete-cell" data-pm-action-column>
-              <button
-                type="button"
-                class="pm-row-delete-button"
-                data-pm-delete-row
-                aria-label="${index + 1}번 항목 삭제"
-              >×</button>
-            </td>
-          </tr>
-        `
-      ).join("");
   }
 
   function renderTable() {
     ensureVisibleRow();
 
-    if (state.view === "work") {
-      renderWorkTable();
-    } else {
-      renderLogicTable();
-    }
+    const config = getActiveSheetConfig();
+    const rows = getRowsForSheet();
+    const totalWidth = 54 + config.columns.reduce((sum, col) => sum + col.width, 0) + 54;
+
+    elements.table.className = `planned-maintenance-table is-${state.view}`;
+    elements.table.style.minWidth = `${Math.max(1080, totalWidth)}px`;
+
+    elements.table.innerHTML = `
+      <colgroup>
+        <col style="width:54px">
+        ${config.columns.map(col => `<col style="width:${col.width}px">`).join("")}
+        <col style="width:54px">
+      </colgroup>
+      <thead id="plannedMaintenanceTableHead">
+        <tr>
+          <th>번호</th>
+          ${config.columns.map(col => `<th>${management.escapeHtml(col.header)}</th>`).join("")}
+          <th data-pm-action-column>삭제</th>
+        </tr>
+      </thead>
+      <tbody id="plannedMaintenanceTableBody">
+        ${rows.map((row, index) => `
+          <tr data-pm-row-id="${management.escapeHtml(row.id)}">
+            <td class="pm-number-cell">${index + 1}</td>
+            ${config.columns.map(col => `<td>${inputHtml(row, col)}</td>`).join("")}
+            <td class="pm-row-delete-cell" data-pm-action-column>
+              <button
+                type="button"
+                class="pm-row-delete-button"
+                data-pm-delete-row
+                aria-label="${index + 1}번 항목 삭제"
+              >×</button>
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    `;
+
+    elements.tableHead = document.getElementById("plannedMaintenanceTableHead");
+    elements.tableBody = document.getElementById("plannedMaintenanceTableBody");
   }
 
-  function updateModifierText() {
-    if (isAggregateUnit()) {
-      const one =
-        state.aggregateMeta?.one || {};
-      const two =
-        state.aggregateMeta?.two || {};
+  async function fetchDocument() {
+    const url = new URL(API_URL, window.location.origin);
+    url.searchParams.set("year", String(state.year));
+    url.searchParams.set("unit", STORAGE_UNIT);
+    url.searchParams.set("type", state.view);
 
-      elements.modifierText.textContent =
-        `1호기 v${Number(one.version || 0)} · ` +
-        `2호기 v${Number(two.version || 0)}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: management.getAuthHeaders(),
+      cache: "no-store"
+    });
 
-      return;
-    }
-
-    if (!state.updatedAt) {
-      elements.modifierText.textContent =
-        "";
-      return;
-    }
-
-    const date =
-      new Date(
-        state.updatedAt
-      );
-
-    const dateText =
-      Number.isNaN(
-        date.getTime()
-      )
-        ? state.updatedAt
-        : date.toLocaleString(
-            "ko-KR"
-          );
-
-    elements.modifierText.textContent =
-      state.lastModifiedBy
-        ? `최종 수정 ${state.lastModifiedBy} · ${dateText}`
-        : `최종 수정 ${dateText}`;
-  }
-
-  async function fetchDocumentForUnit(
-    unit
-  ) {
-    const url =
-      new URL(
-        API_URL,
-        window.location.origin
-      );
-
-    url.searchParams.set(
-      "year",
-      String(state.year)
-    );
-
-    url.searchParams.set(
-      "unit",
-      String(unit)
-    );
-
-    url.searchParams.set(
-      "type",
-      state.view
-    );
-
-    const response =
-      await fetch(
-        url,
-        {
-          method: "GET",
-          headers:
-            management.getAuthHeaders(),
-          cache: "no-store"
-        }
-      );
-
-    const data =
-      await management.parseJsonResponse(
-        response
-      );
+    const data = await management.parseJsonResponse(response);
 
     if (!response.ok || !data.ok) {
-      throw new Error(
-        data.message ||
-        `${unit}호기 계획정비 기록을 불러오지 못했습니다.`
-      );
+      throw new Error(data.message || "계획정비 기록을 불러오지 못했습니다.");
     }
 
     return data.item || {};
   }
 
   async function loadDocument() {
-    const token =
-      management.getSessionToken();
+    const token = management.getSessionToken();
 
     if (!token) {
-      elements.authWarning.hidden =
-        false;
-
-      elements.statusText.textContent =
-        "로그인 필요";
-
+      elements.authWarning.hidden = false;
+      elements.statusText.textContent = "로그인 필요";
       syncActionAvailability();
       return;
     }
 
-    elements.authWarning.hidden =
-      true;
-
+    elements.authWarning.hidden = true;
     setLoading(true);
-    elements.statusText.textContent =
-      "불러오는 중";
+    elements.statusText.textContent = "불러오는 중";
 
     try {
-      if (isAggregateUnit()) {
-        const [one, two] =
-          await Promise.all([
-            fetchDocumentForUnit("1"),
-            fetchDocumentForUnit("2")
-          ]);
+      const item = await fetchDocument();
 
-        const oneRows =
-          Array.isArray(one.rows)
-            ? one.rows
-            : [];
-
-        const twoRows =
-          Array.isArray(two.rows)
-            ? two.rows
-            : [];
-
-        state.aggregateMeta = {
-          one: {
-            ...one,
-            rows: oneRows
-          },
-          two: {
-            ...two,
-            rows: twoRows
-          }
-        };
-
-        state.version = 0;
-        state.recordId = "";
-        state.rows = [
-          ...oneRows.map(
-            row => ({
-              ...row,
-              __unit: "1"
-            })
-          ),
-          ...twoRows.map(
-            row => ({
-              ...row,
-              __unit: "2"
-            })
-          )
-        ];
-        state.lastModifiedBy = "";
-        state.updatedAt = "";
-        state.dirty = false;
-
-        renderTable();
-        updateModifierText();
-        setDirty(false);
-
-        return;
-      }
-
-      const item =
-        await fetchDocumentForUnit(
-          state.unit
-        );
-
-      state.aggregateMeta = null;
-      state.version =
-        Number(item.version || 0);
-      state.recordId =
-        String(item.id || "");
-      state.rows =
-        Array.isArray(item.rows)
-          ? item.rows
-          : [];
-      state.lastModifiedBy =
-        String(
-          item.lastModifiedBy ||
-          item.updatedByName ||
-          ""
-        );
-      state.updatedAt =
-        String(
-          item.updatedAt ||
-          ""
-        );
+      state.version = Number(item.version || 0);
+      state.recordId = normalizeString(item.id);
+      state.rows = normalizeStoredRows(item.rows);
+      state.lastModifiedBy = normalizeString(
+        item.lastModifiedBy || item.updatedByName
+      );
+      state.updatedAt = normalizeString(item.updatedAt);
+      state.dirty = false;
 
       renderTable();
       updateModifierText();
       setDirty(false);
 
+      if (state.legacyRowsDetected && state.rows.length > 0) {
+        management.showToast(
+          "기존 1·2호기 방식 데이터가 감지되었습니다. 이번 Sheet 방식 Excel을 업로드한 뒤 저장하면 새 구조로 전환됩니다.",
+          "info"
+        );
+      }
     } catch (error) {
-      console.error(
-        "계획정비 불러오기 오류:",
-        error
-      );
-
+      console.error("계획정비 불러오기 오류:", error);
       management.showToast(
         error instanceof Error
           ? error.message
@@ -887,153 +750,98 @@
 
       state.rows = [];
       state.version = 0;
-      state.aggregateMeta = null;
+      state.recordId = "";
+      state.lastModifiedBy = "";
+      state.updatedAt = "";
+      state.legacyRowsDetected = false;
       renderTable();
       setDirty(false);
-
     } finally {
       setLoading(false);
     }
   }
 
   async function saveDocument() {
-    if (
-      state.loading ||
-      isAggregateUnit()
-    ) {
+    if (state.loading) {
       return;
     }
 
     if (!management.getSessionToken()) {
-      management.showToast(
-        "로그인 정보가 없습니다.",
-        "error"
-      );
+      management.showToast("로그인 정보가 없습니다.", "error");
       return;
     }
 
     setLoading(true);
-    elements.statusText.textContent =
-      "저장 중";
+    elements.statusText.textContent = "저장 중";
 
     try {
-      const response =
-        await fetch(
-          API_URL,
-          {
-            method: "PUT",
-            headers:
-              management.getAuthHeaders({
-                "Content-Type":
-                  "application/json; charset=utf-8"
-              }),
-            body:
-              JSON.stringify({
-                year: state.year,
-                unit: state.unit,
-                type: state.view,
-                version: state.version,
-                rows: state.rows
-              }),
-            cache: "no-store"
-          }
-        );
+      const rows = getPersistableRows();
+      const response = await fetch(API_URL, {
+        method: "PUT",
+        headers: management.getAuthHeaders({
+          "Content-Type": "application/json; charset=utf-8"
+        }),
+        body: JSON.stringify({
+          year: state.year,
+          unit: STORAGE_UNIT,
+          type: state.view,
+          version: state.version,
+          rows
+        }),
+        cache: "no-store"
+      });
 
-      const data =
-        await management.parseJsonResponse(
-          response
-        );
+      const data = await management.parseJsonResponse(response);
 
       if (!response.ok || !data.ok) {
         if (response.status === 409) {
-          throw new Error(
-            "다른 사용자가 먼저 수정했습니다. 다시 불러온 뒤 저장해 주세요."
-          );
+          throw new Error("다른 사용자가 먼저 수정했습니다. 다시 불러온 뒤 저장해 주세요.");
         }
 
-        throw new Error(
-          data.message ||
-          "계획정비 기록 저장에 실패했습니다."
-        );
+        throw new Error(data.message || "계획정비 기록 저장에 실패했습니다.");
       }
 
-      const item =
-        data.item || {};
-
-      state.version =
-        Number(item.version || 0);
-      state.recordId =
-        String(item.id || "");
-      state.rows =
-        Array.isArray(item.rows)
-          ? item.rows
-          : state.rows;
-      state.lastModifiedBy =
-        String(
-          item.lastModifiedBy ||
-          item.updatedByName ||
-          ""
-        );
-      state.updatedAt =
-        String(item.updatedAt || "");
+      const item = data.item || {};
+      state.version = Number(item.version || 0);
+      state.recordId = normalizeString(item.id);
+      state.rows = normalizeStoredRows(
+        Array.isArray(item.rows) ? item.rows : rows
+      );
+      state.lastModifiedBy = normalizeString(
+        item.lastModifiedBy || item.updatedByName
+      );
+      state.updatedAt = normalizeString(item.updatedAt);
+      state.legacyRowsDetected = false;
 
       renderTable();
       updateModifierText();
       setDirty(false);
 
-      management.showToast(
-        "계획정비 기록을 저장했습니다.",
-        "success"
-      );
-
+      management.showToast("계획정비 기록을 저장했습니다.", "success");
     } catch (error) {
-      console.error(
-        "계획정비 저장 오류:",
-        error
-      );
-
+      console.error("계획정비 저장 오류:", error);
       setDirty(true);
-
       management.showToast(
         error instanceof Error
           ? error.message
           : "계획정비 기록 저장에 실패했습니다.",
         "error"
       );
-
     } finally {
       setLoading(false);
     }
   }
 
   function addRow() {
-    if (isAggregateUnit()) {
-      return;
-    }
-
-    state.rows.push(
-      state.view === "work"
-        ? createWorkRow()
-        : createLogicRow()
-    );
-
+    const config = getActiveSheetConfig();
+    state.rows.push(createBlankRow(config, false));
     renderTable();
     setDirty(true);
 
-    window.requestAnimationFrame(
-      () => {
-        const wrap =
-          document.querySelector(
-            ".planned-maintenance-table-wrap"
-          );
-
-        wrap?.scrollTo({
-          top:
-            wrap.scrollHeight,
-          behavior: "smooth"
-        });
-      }
-    );
+    window.requestAnimationFrame(() => {
+      const wrap = document.querySelector(".planned-maintenance-table-wrap");
+      wrap?.scrollTo({ top: wrap.scrollHeight, behavior: "smooth" });
+    });
   }
 
   function confirmContextChange() {
@@ -1046,128 +854,87 @@
     );
   }
 
-  async function changeContext(
-    next
-  ) {
+  async function changeView(nextView) {
+    if (nextView === state.view) {
+      return;
+    }
+
     if (!confirmContextChange()) {
       syncContextUi();
       return;
     }
 
-    if (next.view) {
-      state.view = next.view;
-    }
-
-    if (next.unit) {
-      state.unit = next.unit;
-    }
-
-    if (next.year) {
-      state.year = Number(next.year);
-    }
-
+    state.view = nextView;
+    state.sheetKey = getSheetConfigs(nextView)[0].key;
     state.version = 0;
     state.recordId = "";
     state.rows = [];
     state.lastModifiedBy = "";
     state.updatedAt = "";
-    state.aggregateMeta = null;
+    state.legacyRowsDetected = false;
     state.dirty = false;
 
     syncContextUi();
+    await loadDocument();
+  }
 
+  function changeSheet(nextSheetKey) {
+    if (nextSheetKey === state.sheetKey) {
+      return;
+    }
+
+    if (!getSheetConfigByKey(nextSheetKey)) {
+      return;
+    }
+
+    state.sheetKey = nextSheetKey;
+    syncContextUi();
+    renderTable();
+    setDirty(state.dirty);
+  }
+
+  async function changeYear(nextYear) {
+    if (Number(nextYear) === state.year) {
+      return;
+    }
+
+    if (!confirmContextChange()) {
+      elements.yearSelect.value = String(state.year);
+      return;
+    }
+
+    state.year = Number(nextYear);
+    state.version = 0;
+    state.recordId = "";
+    state.rows = [];
+    state.lastModifiedBy = "";
+    state.updatedAt = "";
+    state.legacyRowsDetected = false;
+    state.dirty = false;
+
+    syncContextUi();
     await loadDocument();
   }
 
   function getPreviewColumns() {
-    const aggregate =
-      isAggregateUnit();
-
-    if (state.view === "work") {
-      return [
-        ...(aggregate
-          ? [{ header: "호기", field: "__unit" }]
-          : []),
-        { header: "분류", field: "category" },
-        { header: "설 비 명", field: "equipmentName" },
-        { header: "TAG", field: "tag" },
-        { header: "사 유", field: "reason" },
-        { header: "Issue Date", field: "issueDate" },
-        { header: "진행사항", field: "progress" },
-        { header: "작성자", field: "author" },
-        { header: "비 고", field: "remark" }
-      ];
-    }
-
-    return [
-      ...(aggregate
-        ? [{ header: "호기", field: "__unit" }]
-        : []),
-      { header: "작성일시", field: "createdDate" },
-      { header: "설 비 명", field: "equipmentName" },
-      { header: "사 유", field: "reason" },
-      { header: "대상 설비", field: "targetEquipment" },
-      { header: "진행사항", field: "progress" },
-      { header: "작성자", field: "author" },
-      { header: "제어 회신 (1차)", field: "controlReply1" },
-      { header: "설비운영팀 회신 (1차)", field: "operationReply1" },
-      { header: "제어 회신 (2차)", field: "controlReply2" },
-      { header: "비 고", field: "remark" }
-    ];
-  }
-
-  function getDisplayValue(
-    row,
-    field
-  ) {
-    if (field === "__unit") {
-      return row.__unit
-        ? `${row.__unit}호기`
-        : "";
-    }
-
-    return row[field] || "";
+    return getActiveSheetConfig().columns;
   }
 
   function buildPreviewHtml() {
-    const columns =
-      getPreviewColumns();
+    const config = getActiveSheetConfig();
+    const columns = getPreviewColumns();
+    const rows = getRowsForSheet().filter(row => !row.__placeholder);
 
-    const headers = [
-      "번호",
-      ...columns.map(
-        column => column.header
-      )
-    ];
-
-    const rowsHtml =
-      state.rows.map(
-        (row, index) => `
+    const body = rows.length > 0
+      ? rows.map((row, index) => `
           <tr>
             <td class="number">${index + 1}</td>
-            ${columns.map(
-              column => `
-                <td>${management.textToHtml(
-                  getDisplayValue(
-                    row,
-                    column.field
-                  )
-                )}</td>
-              `
-            ).join("")}
+            ${columns.map(col => `
+              <td>${management.textToHtml(normalizeString(row[col.field]))}</td>
+            `).join("")}
           </tr>
-        `
-      ).join("");
-
-    const workLegend =
-      state.view === "work"
-        ? `
-          <div class="legend">
-            <span></span>
-            정지 중 필수 작업 사항(효율,안전)
-          </div>
-        `
-        : "";
+        `).join("")
+      : `<tr><td colspan="${columns.length + 1}" class="empty">등록된 내용이 없습니다.</td></tr>`;
 
     return `<!DOCTYPE html>
 <html lang="ko">
@@ -1175,1324 +942,494 @@
 <meta charset="UTF-8">
 <title>${management.escapeHtml(getDocumentTitle())}</title>
 <style>
-  @page { size: A4 landscape; margin: 9mm; }
+  @page { size: A4 landscape; margin: 8mm; }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: "Malgun Gothic", sans-serif; color: #111; background: #e9eef4; }
-  .toolbar { position: sticky; top: 0; z-index: 10; display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px; background: #fff; border-bottom: 1px solid #ccd6e1; }
-  .toolbar button { min-height: 34px; padding: 0 13px; border: 1px solid #b8c5d3; border-radius: 7px; background: #fff; font-weight: 800; cursor: pointer; }
-  .toolbar button.primary { border-color: #1f5fae; background: #1f5fae; color: #fff; }
-  .stage { padding: 20px; }
-  .paper { width: 277mm; min-height: 190mm; margin: 0 auto; padding: 7mm; background: #fff; box-shadow: 0 12px 30px rgba(20,35,55,.16); }
-  h1 { margin: 0 0 7mm; font-size: 20px; text-align: center; text-decoration: underline; }
-  .meta { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2mm; font-size: 10px; font-weight: 700; }
-  .legend { display: flex; align-items: center; gap: 6px; }
-  .legend span { width: 22mm; height: 5mm; background: #ffc31a; }
+  body { margin: 0; color: #111827; font-family: "Malgun Gothic", Arial, sans-serif; }
+  .toolbar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+  .toolbar button { padding: 7px 12px; border: 1px solid #9aa7b5; background: #fff; border-radius: 6px; font-weight: 700; cursor: pointer; }
+  h1 { margin: 0 0 9px; font-size: 17px; text-align: center; }
+  .meta { margin-bottom: 6px; font-size: 10px; font-weight: 700; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  thead { display: table-header-group; }
-  tr { break-inside: avoid; }
-  th, td { border: 1px solid #1f2933; padding: 2mm 1.5mm; vertical-align: middle; font-size: ${state.view === "logic" ? "7.2px" : "8px"}; line-height: 1.35; word-break: break-word; white-space: normal; }
-  th { background: #9fc5e6; font-weight: 900; text-align: center; }
-  td.number { width: 8mm; text-align: center; font-weight: 800; }
-  @media print {
-    body { background: #fff; }
-    .toolbar { display: none; }
-    .stage { padding: 0; }
-    .paper { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
-  }
+  th, td { border: 1px solid #1f2933; padding: 2mm 1.5mm; vertical-align: middle; font-size: 7.4px; line-height: 1.35; word-break: break-word; white-space: normal; }
+  th { background: #9fc5e6; text-align: center; font-weight: 900; }
+  td.number { width: 8mm; text-align: center; font-weight: 900; }
+  td.empty { text-align: center; padding: 16mm 4mm; color: #64748b; }
+  @media print { .toolbar { display: none; } }
 </style>
 </head>
 <body>
-  <div class="toolbar">
-    <button onclick="window.close()">닫기</button>
-    <button class="primary" onclick="window.print()">인쇄 / PDF 저장</button>
-  </div>
-  <div class="stage">
-    <section class="paper">
-      <h1>${management.escapeHtml(getDocumentTitle())}</h1>
-      <div class="meta">
-        <strong>설비운영팀</strong>
-        ${workLegend}
-      </div>
-      <table>
-        <thead>
-          <tr>${headers.map(header => `<th>${management.escapeHtml(header)}</th>`).join("")}</tr>
-        </thead>
-        <tbody>${rowsHtml}</tbody>
-      </table>
-    </section>
-  </div>
+  <div class="toolbar"><button onclick="window.print()">인쇄 / PDF 저장</button></div>
+  <h1>${management.escapeHtml(getDocumentTitle())}</h1>
+  <div class="meta">${management.escapeHtml(getViewLabel())} · Sheet: ${management.escapeHtml(config.name)}</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:8mm">번호</th>
+        ${columns.map(col => `<th>${management.escapeHtml(col.header)}</th>`).join("")}
+      </tr>
+    </thead>
+    <tbody>${body}</tbody>
+  </table>
 </body>
 </html>`;
   }
 
   function openPreview() {
-    const previewWindow =
-      window.open(
-        "",
-        "GS_PLANNED_MAINTENANCE_PREVIEW"
-      );
-
+    const previewWindow = window.open("", "_blank");
     if (!previewWindow) {
-      management.showToast(
-        "팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요.",
-        "error"
-      );
+      management.showToast("팝업이 차단되어 PDF 미리보기를 열 수 없습니다.", "error");
       return;
     }
 
     previewWindow.document.open();
-    previewWindow.document.write(
-      buildPreviewHtml()
-    );
+    previewWindow.document.write(buildPreviewHtml());
     previewWindow.document.close();
     previewWindow.focus();
   }
 
-  function normalizeExcelHeader(
-    value
-  ) {
-    return String(
-      value ??
-      ""
-    )
-      .replace(/\r?\n/g, " ")
-      .trim()
-      .toLowerCase()
-      .replace(/[\s._\-\/()[\]{}:]+/g, "");
+  function findWorkbookSheet(workbook, config) {
+    const wanted = normalizeToken(config.name);
+    return workbook.SheetNames.find(name => normalizeToken(name) === wanted) || null;
   }
 
-  function cleanExcelText(
-    value
-  ) {
-    if (
-      value === null ||
-      value === undefined
-    ) {
-      return "";
-    }
-
-    if (value instanceof Date) {
-      const year =
-        value.getFullYear();
-      const month =
-        String(
-          value.getMonth() + 1
-        ).padStart(2, "0");
-      const day =
-        String(
-          value.getDate()
-        ).padStart(2, "0");
-
-      return `${year}-${month}-${day}`;
-    }
-
-    return String(value)
-      .replace(/\r\n/g, "\n")
-      .trim();
-  }
-
-  function normalizeImportedDate(
-    value
-  ) {
-    const text =
-      cleanExcelText(value);
-
-    if (!text) {
-      return "";
-    }
-
-    const direct =
-      text.match(
-        /(20\d{2})\D{0,3}(\d{1,2})\D{0,3}(\d{1,2})/
-      );
-
-    if (direct) {
-      const year =
-        direct[1];
-      const month =
-        String(
-          Number(direct[2])
-        ).padStart(2, "0");
-      const day =
-        String(
-          Number(direct[3])
-        ).padStart(2, "0");
-
-      return `${year}-${month}-${day}`;
-    }
-
-    if (/^\d{5}(?:\.\d+)?$/.test(text)) {
-      const serial =
-        Number(text);
-
-      const utcMillis =
-        Math.round(
-          (serial - 25569) *
-          86400 *
-          1000
-        );
-
-      const date =
-        new Date(utcMillis);
-
-      if (!Number.isNaN(date.getTime())) {
-        return date
-          .toISOString()
-          .slice(0, 10);
-      }
-    }
-
-    return "";
-  }
-
-  function normalizeImportedCategory(
-    value
-  ) {
-    const text =
-      cleanExcelText(value);
-
-    if (!text) {
-      return "제어";
-    }
-
-    const match =
-      WORK_CATEGORIES.find(
-        category =>
-          text.includes(category)
-      );
-
-    return match || "기타";
-  }
-
-  function getExcelHeaderDefinitions() {
-    if (state.view === "work") {
-      return {
-        unit: ["호기", "unit", "unitno"],
-        category: ["분류", "구분", "category"],
-        equipmentName: ["설비명", "설비", "equipmentname"],
-        tag: ["tag", "태그"],
-        reason: ["사유", "작업사유", "reason"],
-        issueDate: ["issuedate", "이슈데이트", "작성일", "날짜"],
-        progress: ["진행사항", "진행상황", "조치사항", "progress"],
-        author: ["작성자", "담당자", "author"],
-        remark: ["비고", "remark", "remarks"]
-      };
-    }
-
-    return {
-      unit: ["호기", "unit", "unitno"],
-      createdDate: ["작성일시", "작성일", "등록일", "date"],
-      equipmentName: ["설비명", "설비", "equipmentname"],
-      reason: ["사유", "작업사유", "reason"],
-      targetEquipment: ["대상설비", "대상", "targetequipment"],
-      progress: ["진행사항", "진행상황", "조치사항", "progress"],
-      author: ["작성자", "담당자", "author"],
-      controlReply1: ["제어회신1차", "제어1차회신", "controlreply1"],
-      operationReply1: ["설비운영팀회신1차", "설비운영회신1차", "operationreply1"],
-      controlReply2: ["제어회신2차", "제어2차회신", "controlreply2"],
-      remark: ["비고", "remark", "remarks"]
-    };
-  }
-
-  function findExcelHeaderLocation(
-    workbook
-  ) {
-    const definitions =
-      getExcelHeaderDefinitions();
-
-    const normalizedDefinitions =
-      Object.fromEntries(
-        Object.entries(definitions)
-          .map(
-            ([field, names]) => [
-              field,
-              names.map(
-                normalizeExcelHeader
-              )
-            ]
-          )
-      );
-
+  function findHeaderRow(matrix, config) {
+    const expected = ["번호", ...config.columns.map(col => col.header)];
+    const expectedTokens = expected.map(normalizeToken);
     let best = null;
 
-    workbook.SheetNames.forEach(
-      sheetName => {
-        const worksheet =
-          workbook.Sheets[sheetName];
-
-        const matrix =
-          window.XLSX.utils.sheet_to_json(
-            worksheet,
-            {
-              header: 1,
-              raw: false,
-              defval: "",
-              blankrows: false
-            }
-          );
-
-        matrix
-          .slice(0, 80)
-          .forEach(
-            (row, rowIndex) => {
-              const fieldIndexes = {};
-
-              row
-                .slice(0, 40)
-                .forEach(
-                  (cell, columnIndex) => {
-                    const header =
-                      normalizeExcelHeader(
-                        cell
-                      );
-
-                    if (!header) {
-                      return;
-                    }
-
-                    Object.entries(
-                      normalizedDefinitions
-                    ).forEach(
-                      ([field, names]) => {
-                        if (
-                          fieldIndexes[field] ===
-                            undefined &&
-                          names.includes(header)
-                        ) {
-                          fieldIndexes[field] =
-                            columnIndex;
-                        }
-                      }
-                    );
-                  }
-                );
-
-              const score =
-                Object.keys(
-                  fieldIndexes
-                ).filter(
-                  field => field !== "unit"
-                ).length;
-
-              if (
-                !best ||
-                score > best.score
-              ) {
-                best = {
-                  sheetName,
-                  matrix,
-                  rowIndex,
-                  fieldIndexes,
-                  score
-                };
-              }
-            }
-          );
-      }
-    );
-
-    const minimumScore =
-      state.view === "work"
-        ? 5
-        : 6;
-
-    if (
-      !best ||
-      best.score < minimumScore
-    ) {
-      throw new Error(
-        state.view === "work"
-          ? "Excel에서 작업필요사항 표 머리글(분류·설비명·TAG·사유·Issue Date 등)을 찾지 못했습니다."
-          : "Excel에서 Logic 개선 표 머리글(작성일시·설비명·사유·진행사항·회신 등)을 찾지 못했습니다."
+    matrix.slice(0, 15).forEach((row, index) => {
+      const tokens = (row || []).map(normalizeToken);
+      const score = expectedTokens.reduce(
+        (sum, token) => sum + (tokens.includes(token) ? 1 : 0),
+        0
       );
+
+      if (!best || score > best.score) {
+        best = { index, score, row: row || [] };
+      }
+    });
+
+    if (!best || best.score < Math.max(3, Math.ceil(expectedTokens.length * 0.45))) {
+      return null;
     }
 
     return best;
   }
 
-  function rowMatchesSelectedUnit(
-    row,
-    unitIndex
-  ) {
-    if (
-      unitIndex === undefined ||
-      unitIndex === null
-    ) {
-      return true;
+  function findColumnIndex(headerRow, aliases) {
+    const tokens = (headerRow || []).map(normalizeToken);
+    const aliasTokens = (aliases || []).map(normalizeToken);
+
+    for (const alias of aliasTokens) {
+      const index = tokens.indexOf(alias);
+      if (index >= 0) {
+        return index;
+      }
     }
 
-    const unitText =
-      normalizeExcelHeader(
-        row[unitIndex]
-      );
-
-    if (!unitText) {
-      return true;
-    }
-
-    if (state.unit === "1") {
-      return (
-        unitText === "1" ||
-        unitText === "1호기" ||
-        unitText === "#1" ||
-        unitText === "unit1"
-      );
-    }
-
-    return (
-      unitText === "2" ||
-      unitText === "2호기" ||
-      unitText === "#2" ||
-      unitText === "unit2"
-    );
+    return -1;
   }
 
-  function parseExcelRows(
-    location
-  ) {
-    const {
-      matrix,
-      rowIndex,
-      fieldIndexes
-    } = location;
+  function importedRowHasContent(config, row) {
+    return config.importSignals.some(field => normalizeString(row[field]));
+  }
 
-    const imported = [];
+  function importRowsFromWorksheet(workbook, sheetName, config) {
+    const worksheet = workbook.Sheets[sheetName];
+    const matrix = window.XLSX.utils.sheet_to_json(worksheet, {
+      header: 1,
+      raw: true,
+      defval: "",
+      blankrows: false
+    });
 
-    const readField =
-      (row, field) => {
-        const index =
-          fieldIndexes[field];
+    const headerInfo = findHeaderRow(matrix, config);
+    if (!headerInfo) {
+      throw new Error(`${config.name} Sheet의 표 머리글을 찾지 못했습니다.`);
+    }
 
-        if (
-          index === undefined ||
-          index === null
-        ) {
-          return "";
-        }
+    const indexes = {};
+    config.columns.forEach(col => {
+      indexes[col.field] = findColumnIndex(
+        headerInfo.row,
+        [col.header, ...(col.aliases || [])]
+      );
+    });
 
-        return cleanExcelText(
-          row[index]
-        );
-      };
+    return matrix
+      .slice(headerInfo.index + 1)
+      .map(sourceRow => {
+        const row = {
+          id: createRowId(config),
+          sheetKey: config.key,
+          __placeholder: false
+        };
 
-    for (
-      let index = rowIndex + 1;
-      index < matrix.length;
-      index += 1
-    ) {
-      const row =
-        matrix[index] || [];
-
-      if (
-        !rowMatchesSelectedUnit(
-          row,
-          fieldIndexes.unit
-        )
-      ) {
-        continue;
-      }
-
-      const rawValues =
-        Object.keys(fieldIndexes)
-          .filter(
-            field => field !== "unit"
-          )
-          .map(
-            field =>
-              readField(row, field)
-          );
-
-      if (
-        rawValues.every(
-          value => !value
-        )
-      ) {
-        continue;
-      }
-
-      if (state.view === "work") {
-        const equipmentName =
-          readField(
-            row,
-            "equipmentName"
-          );
-        const tag =
-          readField(
-            row,
-            "tag"
-          );
-        const reason =
-          readField(
-            row,
-            "reason"
-          );
-        const progress =
-          readField(
-            row,
-            "progress"
-          );
-        const remark =
-          readField(
-            row,
-            "remark"
-          );
-
-        const hasCoreContent =
-          Boolean(
-            equipmentName ||
-            tag ||
-            reason ||
-            progress ||
-            remark
-          );
-
-        if (!hasCoreContent) {
-          continue;
-        }
-
-        imported.push({
-          id:
-            management.createId(
-              "pm-work"
-            ),
-          category:
-            normalizeImportedCategory(
-              readField(
-                row,
-                "category"
-              )
-            ),
-          equipmentName,
-          tag,
-          reason,
-          issueDate:
-            normalizeImportedDate(
-              readField(
-                row,
-                "issueDate"
-              )
-            ) ||
-            management.todayDate(),
-          progress,
-          author:
-            readField(
-              row,
-              "author"
-            ) ||
-            management.getUserName(),
-          remark
+        config.columns.forEach(col => {
+          const index = indexes[col.field];
+          const raw = index >= 0 ? sourceRow[index] : "";
+          row[col.field] = col.type === "date"
+            ? valueToIsoDate(raw)
+            : normalizeString(raw);
         });
 
-      } else {
-        const equipmentName =
-          readField(
-            row,
-            "equipmentName"
-          );
-        const reason =
-          readField(
-            row,
-            "reason"
-          );
-        const targetEquipment =
-          readField(
-            row,
-            "targetEquipment"
-          );
-        const progress =
-          readField(
-            row,
-            "progress"
-          );
-        const controlReply1 =
-          readField(
-            row,
-            "controlReply1"
-          );
-        const operationReply1 =
-          readField(
-            row,
-            "operationReply1"
-          );
-        const controlReply2 =
-          readField(
-            row,
-            "controlReply2"
-          );
-        const remark =
-          readField(
-            row,
-            "remark"
-          );
-
-        const hasCoreContent =
-          Boolean(
-            equipmentName ||
-            reason ||
-            targetEquipment ||
-            progress ||
-            controlReply1 ||
-            operationReply1 ||
-            controlReply2 ||
-            remark
-          );
-
-        if (!hasCoreContent) {
-          continue;
-        }
-
-        imported.push({
-          id:
-            management.createId(
-              "pm-logic"
-            ),
-          createdDate:
-            normalizeImportedDate(
-              readField(
-                row,
-                "createdDate"
-              )
-            ) ||
-            management.todayDate(),
-          equipmentName,
-          reason,
-          targetEquipment,
-          progress,
-          author:
-            readField(
-              row,
-              "author"
-            ) ||
-            management.getUserName(),
-          controlReply1,
-          operationReply1,
-          controlReply2,
-          remark
-        });
-      }
-
-      if (imported.length >= 1000) {
-        break;
-      }
-    }
-
-    if (imported.length < 1) {
-      throw new Error(
-        `${state.unit}호기에 입력할 계획정비 항목을 Excel에서 찾지 못했습니다.`
-      );
-    }
-
-    return imported;
+        return row;
+      })
+      .filter(row => importedRowHasContent(config, row));
   }
 
-  function hasCurrentBusinessData() {
-    if (
-      state.version > 0 ||
-      state.dirty ||
-      state.rows.length > 1
-    ) {
-      return true;
-    }
-
-    return state.rows.some(
-      row => {
-        if (state.view === "work") {
-          return Boolean(
-            String(row.equipmentName || "").trim() ||
-            String(row.tag || "").trim() ||
-            String(row.reason || "").trim() ||
-            String(row.progress || "").trim() ||
-            String(row.remark || "").trim()
-          );
-        }
-
-        return Boolean(
-          String(row.equipmentName || "").trim() ||
-          String(row.reason || "").trim() ||
-          String(row.targetEquipment || "").trim() ||
-          String(row.progress || "").trim() ||
-          String(row.controlReply1 || "").trim() ||
-          String(row.operationReply1 || "").trim() ||
-          String(row.controlReply2 || "").trim() ||
-          String(row.remark || "").trim()
-        );
-      }
-    );
-  }
-
-  async function importExcelFile(
-    file
-  ) {
-    if (
-      isAggregateUnit() ||
-      !file
-    ) {
+  async function importExcelFile(file) {
+    if (!file) {
       return;
     }
 
-    if (
-      typeof window.XLSX ===
-      "undefined"
-    ) {
-      management.showToast(
-        "Excel 분석 모듈을 불러오지 못했습니다. 페이지를 새로고침해 주세요.",
-        "error"
-      );
+    if (!window.XLSX) {
+      management.showToast("Excel 읽기 모듈이 아직 준비되지 않았습니다.", "error");
       return;
     }
+
+    setLoading(true);
+    elements.statusText.textContent = "Excel 읽는 중";
 
     try {
-      setLoading(true);
-      elements.statusText.textContent =
-        "Excel 불러오는 중";
+      const buffer = await file.arrayBuffer();
+      const workbook = window.XLSX.read(buffer, {
+        type: "array",
+        cellDates: true
+      });
 
-      const arrayBuffer =
-        await file.arrayBuffer();
+      const matched = [];
+      const imported = [];
 
-      const workbook =
-        window.XLSX.read(
-          arrayBuffer,
-          {
-            type: "array",
-            cellDates: true,
-            cellText: true
-          }
+      getSheetConfigs().forEach(config => {
+        const sheetName = findWorkbookSheet(workbook, config);
+        if (!sheetName) {
+          return;
+        }
+
+        const rows = importRowsFromWorksheet(workbook, sheetName, config);
+        matched.push(config);
+        imported.push(...rows);
+      });
+
+      if (matched.length === 0) {
+        throw new Error(
+          `${getViewLabel()} 원본 Sheet를 찾지 못했습니다. 현재 화면에 맞는 Excel 파일인지 확인해 주세요.`
         );
+      }
 
-      const location =
-        findExcelHeaderLocation(
-          workbook
-        );
+      const matchedKeys = new Set(matched.map(config => config.key));
+      const description = matched
+        .map(config => `${config.name} ${imported.filter(row => row.sheetKey === config.key).length}건`)
+        .join(" · ");
 
-      const importedRows =
-        parseExcelRows(
-          location
-        );
+      const confirmed = window.confirm(
+        `Excel의 ${matched.length}개 Sheet를 ${getViewLabel()}에 불러옵니다.\n` +
+        `해당 Sheet의 현재 내용은 Excel 내용으로 교체됩니다.\n\n${description}\n\n계속할까요?`
+      );
 
-      if (
-        hasCurrentBusinessData() &&
-        !window.confirm(
-          `현재 ${state.unit}호기 ${getViewLabel()} 내용을 ` +
-          `Excel ${importedRows.length}개 항목으로 교체할까요?\n\n` +
-          "업로드 후에는 반드시 저장 버튼을 눌러야 서버에 반영됩니다."
-        )
-      ) {
+      if (!confirmed) {
         setDirty(state.dirty);
         return;
       }
 
-      state.rows =
-        importedRows;
+      state.rows = [
+        ...state.rows.filter(row => !matchedKeys.has(resolveRowSheetKey(row))),
+        ...imported
+      ];
+      state.legacyRowsDetected = false;
 
       renderTable();
       setDirty(true);
+      updateModifierText();
 
       management.showToast(
-        `${file.name}에서 ${importedRows.length}개 항목을 불러왔습니다. 내용 확인 후 저장해 주세요.`,
+        `Excel Sheet ${matched.length}개를 불러왔습니다. 화면 확인 후 저장을 눌러 주세요.`,
         "success"
       );
-
     } catch (error) {
-      console.error(
-        "계획정비 Excel 업로드 오류:",
-        error
+      console.error("Excel 업로드 오류:", error);
+      management.showToast(
+        error instanceof Error ? error.message : "Excel 파일을 읽지 못했습니다.",
+        "error"
       );
-
       setDirty(state.dirty);
-
-      management.showToast(
-        error instanceof Error
-          ? error.message
-          : "Excel 파일을 불러오지 못했습니다.",
-        "error"
-      );
-
     } finally {
-      if (elements.excelFileInput) {
-        elements.excelFileInput.value =
-          "";
-      }
-
       setLoading(false);
+      elements.excelFileInput.value = "";
     }
   }
 
-  function getExcelExportColumns() {
-    const aggregate =
-      isAggregateUnit();
-
-    if (state.view === "work") {
-      return [
-        { header: "번호", field: "__number", width: 8, align: "center" },
-        ...(aggregate
-          ? [{ header: "호기", field: "__unit", width: 10, align: "center" }]
-          : []),
-        { header: "분류", field: "category", width: 12, align: "center" },
-        { header: "설 비 명", field: "equipmentName", width: 22 },
-        { header: "TAG", field: "tag", width: 20, align: "center" },
-        { header: "사 유", field: "reason", width: 46 },
-        { header: "Issue Date", field: "issueDate", width: 15, align: "center" },
-        { header: "진행사항", field: "progress", width: 24 },
-        { header: "작성자", field: "author", width: 13, align: "center" },
-        { header: "비 고", field: "remark", width: 25 }
-      ];
-    }
-
-    return [
-      { header: "번호", field: "__number", width: 8, align: "center" },
-      ...(aggregate
-        ? [{ header: "호기", field: "__unit", width: 10, align: "center" }]
-        : []),
-      { header: "작성일시", field: "createdDate", width: 15, align: "center" },
-      { header: "설 비 명", field: "equipmentName", width: 22 },
-      { header: "사 유", field: "reason", width: 42 },
-      { header: "대상 설비", field: "targetEquipment", width: 22 },
-      { header: "진행사항", field: "progress", width: 24 },
-      { header: "작성자", field: "author", width: 13, align: "center" },
-      { header: "제어 회신 (1차)", field: "controlReply1", width: 24 },
-      { header: "설비운영팀 회신 (1차)", field: "operationReply1", width: 26 },
-      { header: "제어 회신 (2차)", field: "controlReply2", width: 24 },
-      { header: "비 고", field: "remark", width: 24 }
-    ];
+  function templatePathForView() {
+    return state.view === "work"
+      ? `templates/planned-maintenance-work-template.xlsx?v=${TEMPLATE_VERSION}`
+      : `templates/planned-maintenance-logic-template.xlsx?v=${TEMPLATE_VERSION}`;
   }
 
-  function getExcelFileName() {
-    const unitText =
-      isAggregateUnit()
-        ? "1-2호기_종합"
-        : `${state.unit}호기`;
-
-    const viewText =
-      state.view === "work"
-        ? "작업필요사항"
-        : "Logic개선";
-
-    return (
-      `${state.year}년_${unitText}_계획정비_${viewText}.xlsx`
-    );
-  }
-
-  async function downloadExcel() {
-    if (
-      typeof window.ExcelJS ===
-      "undefined"
-    ) {
-      management.showToast(
-        "Excel 생성 모듈을 불러오지 못했습니다. 페이지를 새로고침해 주세요.",
-        "error"
-      );
-      return;
+  function cloneStyle(value) {
+    if (!value || typeof value !== "object") {
+      return value;
     }
 
     try {
-      setLoading(true);
-      elements.statusText.textContent =
-        "Excel 생성 중";
+      return JSON.parse(JSON.stringify(value));
+    } catch (_error) {
+      return value;
+    }
+  }
 
-      const workbook =
-        new window.ExcelJS.Workbook();
+  function copyTemplateRowStyle(worksheet, sourceRowNumber, targetRowNumber, lastColumnNumber) {
+    const sourceRow = worksheet.getRow(sourceRowNumber);
+    const targetRow = worksheet.getRow(targetRowNumber);
 
-      workbook.creator =
-        "GS Shift Log";
-      workbook.lastModifiedBy =
-        management.getUserName() ||
-        "GS Shift Log";
-      workbook.created =
-        new Date();
-      workbook.modified =
-        new Date();
+    targetRow.height = sourceRow.height;
 
-      const sheetName =
-        isAggregateUnit()
-          ? "종합"
-          : `${state.unit}호기`;
+    for (let col = 1; col <= lastColumnNumber; col += 1) {
+      const sourceCell = sourceRow.getCell(col);
+      const targetCell = targetRow.getCell(col);
 
-      const worksheet =
-        workbook.addWorksheet(
-          sheetName,
-          {
-            views: [
-              {
-                state: "frozen",
-                ySplit: 4
-              }
-            ],
-            pageSetup: {
-              paperSize: 9,
-              orientation: "landscape",
-              fitToPage: true,
-              fitToWidth: 1,
-              fitToHeight: 0,
-              margins: {
-                left: 0.3,
-                right: 0.3,
-                top: 0.4,
-                bottom: 0.4,
-                header: 0.2,
-                footer: 0.2
-              }
-            }
-          }
-        );
+      targetCell.style = cloneStyle(sourceCell.style);
+      if (sourceCell.numFmt) {
+        targetCell.numFmt = sourceCell.numFmt;
+      }
+    }
+  }
 
-      const columns =
-        getExcelExportColumns();
+  function setExcelCellValue(cell, col, value) {
+    if (col.type === "date") {
+      cell.value = value ? isoToExcelDate(value) : null;
+      cell.numFmt = "m/d/yy";
+      return;
+    }
 
-      columns.forEach(
-        (column, index) => {
-          worksheet.getColumn(
-            index + 1
-          ).width =
-            column.width;
-        }
-      );
+    cell.value = normalizeString(value) || null;
+  }
 
-      const lastColumn =
-        columns.length;
+  function estimateExcelRowHeight(config, row, fallback) {
+    let longest = 0;
+    config.columns.forEach(col => {
+      const text = normalizeString(row[col.field]);
+      const lineCount = Math.max(1, text.split(/\r?\n/).length);
+      const roughWrap = Math.ceil(text.length / Math.max(18, Math.floor(col.width / 7)));
+      longest = Math.max(longest, lineCount, roughWrap);
+    });
 
-      worksheet.mergeCells(
-        1,
-        1,
-        1,
-        lastColumn
-      );
+    return Math.max(fallback || 22, Math.min(95, 18 + longest * 13));
+  }
 
-      const titleCell =
-        worksheet.getCell(1, 1);
+  async function downloadExcel() {
+    if (!window.ExcelJS) {
+      management.showToast("Excel 생성 모듈이 아직 준비되지 않았습니다.", "error");
+      return;
+    }
 
-      titleCell.value =
-        getDocumentTitle();
-      titleCell.font = {
-        name: "맑은 고딕",
-        size: 16,
-        bold: true,
-        underline: true
-      };
-      titleCell.alignment = {
-        horizontal: "center",
-        vertical: "middle"
-      };
-      worksheet.getRow(1).height =
-        30;
+    setLoading(true);
+    elements.statusText.textContent = "Excel 생성 중";
 
-      worksheet.getCell(2, 1).value =
-        "설비운영팀";
-      worksheet.getCell(2, 1).font = {
-        name: "맑은 고딕",
-        size: 10,
-        bold: true
-      };
+    try {
+      const templateResponse = await fetch(templatePathForView(), {
+        cache: "no-store"
+      });
 
-      if (state.view === "work") {
-        const legendCell =
-          worksheet.getCell(
-            2,
-            Math.max(
-              2,
-              lastColumn - 1
-            )
-          );
-
-        legendCell.value =
-          "정지 중 필수 작업 사항(효율,안전)";
-        legendCell.font = {
-          name: "맑은 고딕",
-          size: 9,
-          bold: true
-        };
-        legendCell.alignment = {
-          horizontal: "right"
-        };
-
-        const markerCell =
-          worksheet.getCell(
-            2,
-            lastColumn
-          );
-
-        markerCell.value = " ";
-        markerCell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: {
-            argb: "FFFFC31A"
-          }
-        };
+      if (!templateResponse.ok) {
+        throw new Error("Excel 원본 양식 템플릿을 불러오지 못했습니다.");
       }
 
-      const headerRow =
-        worksheet.getRow(4);
+      const templateBuffer = await templateResponse.arrayBuffer();
+      const workbook = new window.ExcelJS.Workbook();
+      await workbook.xlsx.load(templateBuffer);
 
-      columns.forEach(
-        (column, index) => {
-          const cell =
-            headerRow.getCell(
-              index + 1
-            );
+      const legacyWorksheet = workbook.getWorksheet("2021.09 긴급 정비 사항");
+      if (legacyWorksheet) {
+        workbook.removeWorksheet(legacyWorksheet.id);
+      }
 
-          cell.value =
-            column.header;
-          cell.font = {
-            name: "맑은 고딕",
-            size: 10,
-            bold: true,
-            color: {
-              argb: "FF203247"
-            }
-          };
-          cell.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: {
-              argb: "FF9FC5E6"
-            }
-          };
-          cell.alignment = {
-            horizontal: "center",
-            vertical: "middle",
-            wrapText: true
-          };
-          cell.border = {
-            top: { style: "thin", color: { argb: "FF1F2933" } },
-            left: { style: "thin", color: { argb: "FF1F2933" } },
-            bottom: { style: "thin", color: { argb: "FF1F2933" } },
-            right: { style: "thin", color: { argb: "FF1F2933" } }
-          };
+      getSheetConfigs().forEach(config => {
+        const worksheet = workbook.getWorksheet(config.name);
+        if (!worksheet) {
+          throw new Error(`${config.name} Excel 템플릿 Sheet를 찾지 못했습니다.`);
         }
-      );
 
-      headerRow.height = 25;
+        worksheet.properties.tabColor = { argb: config.tabColor };
+        worksheet.getCell("B2").value = config.excelTitle(state.year);
 
-      state.rows.forEach(
-        (item, rowIndex) => {
-          const excelRow =
-            worksheet.getRow(
-              rowIndex + 5
-            );
+        const lastColumn = 2 + config.columns.length;
+        const rows = state.rows
+          .filter(row => resolveRowSheetKey(row) === config.key && !row.__placeholder);
 
-          columns.forEach(
-            (column, columnIndex) => {
-              let value = "";
-
-              if (column.field === "__number") {
-                value = rowIndex + 1;
-              } else if (column.field === "__unit") {
-                value = item.__unit
-                  ? `${item.__unit}호기`
-                  : "";
-              } else {
-                value =
-                  item[column.field] ??
-                  "";
-              }
-
-              const cell =
-                excelRow.getCell(
-                  columnIndex + 1
-                );
-
-              cell.value =
-                value;
-              cell.font = {
-                name: "맑은 고딕",
-                size: 9
-              };
-              cell.alignment = {
-                horizontal:
-                  column.align ||
-                  "left",
-                vertical: "middle",
-                wrapText: true
-              };
-              cell.border = {
-                top: { style: "thin", color: { argb: "FF1F2933" } },
-                left: { style: "thin", color: { argb: "FF1F2933" } },
-                bottom: { style: "thin", color: { argb: "FF1F2933" } },
-                right: { style: "thin", color: { argb: "FF1F2933" } }
-              };
-            }
-          );
-
-          excelRow.height =
-            38;
-        }
-      );
-
-      worksheet.pageSetup.printTitlesRow =
-        "4:4";
-
-      const buffer =
-        await workbook.xlsx.writeBuffer();
-
-      const blob =
-        new Blob(
-          [buffer],
-          {
-            type:
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        const clearTo = Math.max(worksheet.rowCount, 6 + rows.length + 5);
+        for (let rowNumber = 6; rowNumber <= clearTo; rowNumber += 1) {
+          for (let colNumber = 2; colNumber <= lastColumn; colNumber += 1) {
+            worksheet.getCell(rowNumber, colNumber).value = null;
           }
-        );
+        }
 
-      const url =
-        URL.createObjectURL(
-          blob
-        );
+        rows.forEach((row, index) => {
+          const rowNumber = 6 + index;
 
-      const anchor =
-        document.createElement(
-          "a"
-        );
+          if (rowNumber > worksheet.rowCount || !worksheet.getRow(rowNumber).hasValues) {
+            copyTemplateRowStyle(worksheet, 6, rowNumber, lastColumn);
+          }
 
-      anchor.href = url;
-      anchor.download =
-        getExcelFileName();
+          worksheet.getCell(rowNumber, 2).value = index + 1;
 
-      document.body.append(
-        anchor
+          config.columns.forEach((col, colIndex) => {
+            setExcelCellValue(
+              worksheet.getCell(rowNumber, 3 + colIndex),
+              col,
+              row[col.field]
+            );
+          });
+
+          worksheet.getRow(rowNumber).height = estimateExcelRowHeight(
+            config,
+            row,
+            worksheet.getRow(rowNumber).height
+          );
+        });
+      });
+
+      const output = await workbook.xlsx.writeBuffer();
+      const blob = new Blob(
+        [output],
+        { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
       );
-
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${state.year}년_계획정비_${getViewLabel()}.xlsx`;
+      document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-
-      window.setTimeout(
-        () => {
-          URL.revokeObjectURL(
-            url
-          );
-        },
-        1000
-      );
+      URL.revokeObjectURL(url);
 
       management.showToast(
-        "현재 화면 내용을 Excel 파일로 만들었습니다.",
+        `${getViewLabel()} 5개 Sheet를 원본 양식 Excel로 다운로드했습니다.`,
         "success"
       );
-
       setDirty(state.dirty);
-
     } catch (error) {
-      console.error(
-        "계획정비 Excel 다운로드 오류:",
-        error
-      );
-
+      console.error("Excel 다운로드 오류:", error);
       management.showToast(
-        error instanceof Error
-          ? error.message
-          : "Excel 파일을 만들지 못했습니다.",
+        error instanceof Error ? error.message : "Excel 파일 생성에 실패했습니다.",
         "error"
       );
-
       setDirty(state.dirty);
-
     } finally {
       setLoading(false);
     }
   }
 
-  elements.table.addEventListener(
-    "input",
-    event => {
-      const fieldElement =
-        event.target.closest?.(
-          "[data-pm-field]"
-        );
-
-      if (!fieldElement) {
-        return;
-      }
-
-      const rowElement =
-        fieldElement.closest(
-          "[data-pm-row-id]"
-        );
-
-      const row =
-        state.rows.find(
-          item =>
-            item.id ===
-            rowElement?.dataset.pmRowId
-        );
-
-      if (!row) {
-        return;
-      }
-
-      row[
-        fieldElement.dataset.pmField
-      ] = fieldElement.value;
-
-      setDirty(true);
+  function handleTableInput(event) {
+    const fieldElement = event.target.closest("[data-pm-field]");
+    if (!fieldElement) {
+      return;
     }
-  );
 
-  elements.table.addEventListener(
-    "change",
-    event => {
-      event.target.dispatchEvent(
-        new Event(
-          "input",
-          { bubbles: true }
-        )
-      );
+    const rowElement = fieldElement.closest("[data-pm-row-id]");
+    if (!rowElement) {
+      return;
     }
-  );
 
-  elements.table.addEventListener(
-    "click",
-    event => {
-      const deleteButton =
-        event.target.closest?.(
-          "[data-pm-delete-row]"
-        );
-
-      if (!deleteButton) {
-        return;
-      }
-
-      const rowElement =
-        deleteButton.closest(
-          "[data-pm-row-id]"
-        );
-
-      const rowId =
-        rowElement?.dataset.pmRowId;
-
-      state.rows =
-        state.rows.filter(
-          row => row.id !== rowId
-        );
-
-      renderTable();
-      setDirty(true);
+    const row = state.rows.find(item => item.id === rowElement.dataset.pmRowId);
+    if (!row) {
+      return;
     }
-  );
 
-  document
-    .querySelectorAll(
-      "[data-planned-maintenance-view]"
-    )
-    .forEach(
-      button => {
-        button.addEventListener(
-          "click",
-          () => {
-            changeContext({
-              view:
-                button.dataset
-                  .plannedMaintenanceView
-            });
-          }
-        );
-      }
-    );
+    row[fieldElement.dataset.pmField] = fieldElement.value;
+    row.__placeholder = false;
+    setDirty(true);
+  }
 
-  document
-    .querySelectorAll(
-      "[data-planned-maintenance-unit]"
-    )
-    .forEach(
-      button => {
-        button.addEventListener(
-          "click",
-          () => {
-            changeContext({
-              unit:
-                button.dataset
-                  .plannedMaintenanceUnit
-            });
-          }
-        );
-      }
-    );
+  function handleTableClick(event) {
+    const deleteButton = event.target.closest("[data-pm-delete-row]");
+    if (!deleteButton) {
+      return;
+    }
 
-  elements.yearSelect.addEventListener(
-    "change",
-    () => {
-      changeContext({
-        year:
-          elements.yearSelect.value
+    const rowElement = deleteButton.closest("[data-pm-row-id]");
+    if (!rowElement) {
+      return;
+    }
+
+    state.rows = state.rows.filter(item => item.id !== rowElement.dataset.pmRowId);
+    renderTable();
+    setDirty(true);
+  }
+
+  function bindEvents() {
+    document
+      .querySelectorAll("[data-planned-maintenance-view]")
+      .forEach(button => {
+        button.addEventListener("click", () => {
+          void changeView(button.dataset.plannedMaintenanceView);
+        });
       });
-    }
-  );
 
-  elements.addRowButton.addEventListener(
-    "click",
-    addRow
-  );
+    elements.sheetTabs.addEventListener("click", event => {
+      const button = event.target.closest("[data-planned-maintenance-sheet]");
+      if (!button) {
+        return;
+      }
+      changeSheet(button.dataset.plannedMaintenanceSheet);
+    });
 
-  elements.reloadButton.addEventListener(
-    "click",
-    () => {
+    elements.yearSelect.addEventListener("change", event => {
+      void changeYear(event.target.value);
+    });
+
+    elements.addRowButton.addEventListener("click", addRow);
+    elements.saveButton.addEventListener("click", () => void saveDocument());
+
+    elements.reloadButton.addEventListener("click", () => {
       if (!confirmContextChange()) {
         return;
       }
+      state.dirty = false;
+      void loadDocument();
+    });
 
-      loadDocument();
-    }
-  );
+    elements.previewButton.addEventListener("click", openPreview);
 
-  elements.saveButton.addEventListener(
-    "click",
-    saveDocument
-  );
+    elements.homeButton.addEventListener("click", () => {
+      window.location.href = "../index.html";
+    });
 
-  elements.previewButton.addEventListener(
-    "click",
-    openPreview
-  );
-
-  elements.excelUploadButton.addEventListener(
-    "click",
-    () => {
-      if (isAggregateUnit()) {
-        management.showToast(
-          "엑셀 업로드는 1호기 또는 2호기 탭에서 진행해 주세요.",
-          "error"
-        );
-        return;
-      }
-
+    elements.excelUploadButton.addEventListener("click", () => {
       elements.excelFileInput.click();
-    }
-  );
+    });
 
-  elements.excelFileInput.addEventListener(
-    "change",
-    () => {
-      const file =
-        elements.excelFileInput.files?.[0];
-
+    elements.excelFileInput.addEventListener("change", event => {
+      const file = event.target.files?.[0];
       if (file) {
-        importExcelFile(file);
+        void importExcelFile(file);
       }
-    }
-  );
+    });
 
-  elements.excelDownloadButton.addEventListener(
-    "click",
-    downloadExcel
-  );
+    elements.excelDownloadButton.addEventListener("click", () => {
+      void downloadExcel();
+    });
 
-  elements.homeButton.addEventListener(
-    "click",
-    () => {
-      window.location.href = "/";
-    }
-  );
+    elements.table.addEventListener("input", handleTableInput);
+    elements.table.addEventListener("change", handleTableInput);
+    elements.table.addEventListener("click", handleTableClick);
 
-  window.addEventListener(
-    "beforeunload",
-    event => {
+    window.addEventListener("beforeunload", event => {
       if (!state.dirty) {
         return;
       }
-
       event.preventDefault();
       event.returnValue = "";
-    }
-  );
+    });
+  }
 
-  syncContextUi();
-  loadDocument();
+  async function initialize() {
+    ensureSheetKey();
+    bindEvents();
+    syncContextUi();
+    renderTable();
+    await loadDocument();
+  }
+
+  void initialize();
 })();
