@@ -14164,19 +14164,19 @@
   src="script.js?v=20260824-mobile-body-observer-guard1"
 ></script>
 
-<!-- MOBILE-APP-BOUNDED-DATA-STARTUP-V9 -->
+<!-- MOBILE-APP-READONLY-LEGACY-V10 -->
 <script>
 "use strict";
 
 (() => {
   if (
-    window.__mobileBoundedStartupV9Installed ===
+    window.__mobileReadOnlyLegacyStartupV10Installed ===
       true
   ) {
     return;
   }
 
-  window.__mobileBoundedStartupV9Installed =
+  window.__mobileReadOnlyLegacyStartupV10Installed =
     true;
 
   if (
@@ -14188,7 +14188,7 @@
       "function"
   ) {
     console.error(
-      "[Mobile V9] required startup functions are unavailable."
+      "[Mobile V10] required startup functions are unavailable."
     );
 
     return;
@@ -14203,13 +14203,16 @@
   const originalLoadSharedShiftLogsFromServer =
     loadSharedShiftLogsFromServer;
 
+  const rawLegacyLoader =
+    typeof loadLegacyLogsForSelectedDateBeforeEditableMigration ===
+      "function"
+      ? loadLegacyLogsForSelectedDateBeforeEditableMigration
+      : originalLoadLegacyLogsForSelectedDate;
+
   let initialLoadIntercepted =
     false;
 
   let initialLegacyIntercepted =
-    false;
-
-  let startupFunctionsRestored =
     false;
 
   let backgroundStarted =
@@ -14228,7 +14231,7 @@
     sharedCount:
       0,
 
-    localMigrationCandidateCount:
+    rawLegacyCount:
       0,
 
     sharedError:
@@ -14244,7 +14247,7 @@
       0
   };
 
-  window.__mobileBoundedStartupV9State =
+  window.__mobileReadOnlyLegacyStartupV10State =
     state;
 
 
@@ -14274,7 +14277,7 @@
       }
 
     } catch {
-      // Continue to local date fallback.
+      // Continue to local-date fallback.
     }
 
     const now =
@@ -14319,23 +14322,20 @@
     state.selectedDate =
       date;
 
-    const params =
+    return (
+      "?" +
       new URLSearchParams({
         from:
           date,
 
         to:
           date
-      });
-
-    return (
-      "?" +
-      params.toString()
+      }).toString()
     );
   }
 
 
-  function normalizeQuery(
+  function normalizeSharedQuery(
     query
   ) {
     const value =
@@ -14344,11 +14344,8 @@
         ""
       ).trim();
 
-    if (value) {
-      return value;
-    }
-
-    return createSelectedDateQuery();
+    return value ||
+      createSelectedDateQuery();
   }
 
 
@@ -14429,7 +14426,7 @@
   function getStatusElement() {
     let element =
       document.getElementById(
-        "mobileDataStartupStatusV9"
+        "mobileDataStartupStatusV10"
       );
 
     if (
@@ -14445,7 +14442,7 @@
       );
 
     element.id =
-      "mobileDataStartupStatusV9";
+      "mobileDataStartupStatusV10";
 
     element.style.cssText = [
       "position:fixed",
@@ -14510,24 +14507,14 @@
     element.hidden =
       false;
 
-    if (
+    element.style.background =
       options.error ===
         true
-    ) {
-      element.style.background =
-        "rgba(150,45,45,.94)";
-
-    } else if (
-      options.warning ===
-        true
-    ) {
-      element.style.background =
-        "rgba(132,87,12,.94)";
-
-    } else {
-      element.style.background =
-        "rgba(18,56,95,.92)";
-    }
+        ? "rgba(150,45,45,.94)"
+        : options.warning ===
+            true
+          ? "rgba(132,87,12,.94)"
+          : "rgba(18,56,95,.92)";
 
     const hideAfterMs =
       Number(
@@ -14611,7 +14598,7 @@
           error
         ) {
           console.warn(
-            "[Mobile V9] render refresh failed:",
+            "[Mobile V10] render refresh failed:",
             error
           );
         }
@@ -14621,49 +14608,49 @@
 
 
   /*
-    Important mobile-only behavior:
-
-    Any shared-log request that intentionally provides a query
-    keeps that query exactly as-is.
-
-    Only an empty query is bounded to the currently selected date.
-    This prevents mobile navigation/startup code from downloading
-    the entire D1 shift-log history.
+    Mobile-only shared-log bound:
+    empty queries are restricted to the selected day.
+    Explicit from/to queries remain unchanged.
   */
   loadSharedShiftLogsFromServer =
-    async function mobileBoundedSharedLoadV9(
+    async function mobileBoundedSharedLoadV10(
       query = ""
     ) {
       return originalLoadSharedShiftLogsFromServer(
-        normalizeQuery(
+        normalizeSharedQuery(
           query
         )
       );
     };
 
 
-  function restoreStartupFunctions() {
-    if (
-      startupFunctionsRestored
+  /*
+    Critical mobile-only fix:
+
+    The normal legacy loader was wrapped so that every legacy
+    fetch for dates after 2026-07-21 automatically calls
+    migrateEditableLegacyLogsForSelectedDate().
+
+    That migration performs sequential saveShiftLogToServer()
+    requests for legacy rows. It is not required for read-only
+    mobile viewing and can overload mobile Safari.
+
+    On /mobile-app/ we keep legacy loading read-only.
+    The explicit manual sync button still uses its own migration
+    path when the user intentionally requests synchronization.
+  */
+  loadLegacyLogsForSelectedDate =
+    async function mobileReadOnlyLegacyLoadV10(
+      ...args
     ) {
-      return;
-    }
-
-    loadLogs =
-      originalLoadLogs;
-
-    loadLegacyLogsForSelectedDate =
-      originalLoadLegacyLogsForSelectedDate;
-
-    startupFunctionsRestored =
-      true;
-  }
+      return rawLegacyLoader.apply(
+        this,
+        args
+      );
+    };
 
 
   async function loadCurrentDateSharedLogs() {
-    const query =
-      createSelectedDateQuery();
-
     state.stage =
       "shared-current-date";
 
@@ -14674,7 +14661,7 @@
     const serverLogs =
       await withTimeout(
         originalLoadSharedShiftLogsFromServer(
-          query
+          createSelectedDateQuery()
         ),
         12000,
         "shared current-date load"
@@ -14709,51 +14696,31 @@
       ...preservedLegacyLogs
     ];
 
-    /*
-      Do NOT run migrateLocalShiftLogsToServer during mobile startup.
-
-      That routine scans old localStorage logs and may issue one
-      server migration request per old log. Desktop login keeps the
-      original migration behavior. Mobile data is left untouched.
-    */
-    if (
-      typeof readLocalShiftLogsForMigration ===
-        "function"
-    ) {
-      try {
-        const candidates =
-          readLocalShiftLogsForMigration();
-
-        state.localMigrationCandidateCount =
-          Array.isArray(
-            candidates
-          )
-            ? candidates.length
-            : 0;
-
-      } catch {
-        state.localMigrationCandidateCount =
-          0;
-      }
-    }
-
     safeRenderCurrentState();
   }
 
 
-  async function loadCurrentDateLegacyLogs() {
+  async function loadCurrentDateLegacyLogsReadOnly() {
     state.stage =
-      "legacy-current-date";
+      "legacy-readonly-current-date";
 
     setStatus(
-      "\uC624\uB298 \uACFC\uAC70 \uC5F0\uB3D9 \uC77C\uC9C0\uB97C \uBD88\uB7EC\uC624\uB294 \uC911..."
+      "\uC624\uB298 \uACFC\uAC70 \uC5F0\uB3D9 \uC77C\uC9C0\uB97C \uC77D\uAE30 \uC804\uC6A9\uC73C\uB85C \uBD88\uB7EC\uC624\uB294 \uC911..."
     );
 
-    await withTimeout(
-      originalLoadLegacyLogsForSelectedDate(),
-      12000,
-      "legacy current-date load"
-    );
+    const legacyLogs =
+      await withTimeout(
+        rawLegacyLoader(),
+        12000,
+        "legacy read-only current-date load"
+      );
+
+    state.rawLegacyCount =
+      Array.isArray(
+        legacyLogs
+      )
+        ? legacyLogs.length
+        : 0;
 
     safeRenderCurrentState();
   }
@@ -14786,7 +14753,7 @@
         );
 
       console.error(
-        "[Mobile V9] current-date shared load failed:",
+        "[Mobile V10] shared load failed:",
         error
       );
 
@@ -14800,7 +14767,7 @@
     }
 
     try {
-      await loadCurrentDateLegacyLogs();
+      await loadCurrentDateLegacyLogsReadOnly();
 
     } catch (
       error
@@ -14816,7 +14783,7 @@
         );
 
       console.error(
-        "[Mobile V9] current-date legacy load failed:",
+        "[Mobile V10] read-only legacy load failed:",
         error
       );
     }
@@ -14835,26 +14802,9 @@
         state.legacyError
       );
 
-    const migrationNote =
-      state.localMigrationCandidateCount >
-        0
-        ? (
-            " / local migration deferred=" +
-            state.localMigrationCandidateCount
-          )
-        : "";
-
-    console.log(
-      "[Mobile V9] startup complete",
-      {
-        ...state,
-        migrationNote
-      }
-    );
-
     setStatus(
       hasError
-        ? "\uBAA8\uBC14\uC77C \uD654\uBA74 \uC900\uBE44 \uC644\uB8CC \u00B7 \uC77C\uBD80 \uC870\uD68C\uB294 \uBC31\uADF8\uB77C\uC6B4\uB4DC\uC5D0\uC11C \uACC4\uC18D\uB429\uB2C8\uB2E4."
+        ? "\uBAA8\uBC14\uC77C \uD654\uBA74 \uC900\uBE44 \uC644\uB8CC \u00B7 \uC77C\uBD80 \uC870\uD68C \uC9C0\uC5F0"
         : "\uBAA8\uBC14\uC77C \uC5C5\uBB34\uC77C\uC9C0 \uC900\uBE44 \uC644\uB8CC",
       {
         warning:
@@ -14865,6 +14815,11 @@
             ? 5000
             : 1600
       }
+    );
+
+    console.log(
+      "[Mobile V10] startup complete",
+      state
     );
   }
 
@@ -14880,7 +14835,7 @@
 
 
   loadLogs =
-    async function mobileInitialLoadLogsV9(
+    async function mobileInitialLoadLogsV10(
       ...args
     ) {
       if (
@@ -14904,8 +14859,12 @@
     };
 
 
+  const readOnlyLegacyStartupWrapper =
+    loadLegacyLogsForSelectedDate;
+
+
   loadLegacyLogsForSelectedDate =
-    async function mobileInitialLegacyLoadV9(
+    async function mobileInitialLegacyLoadV10(
       ...args
     ) {
       if (
@@ -14918,12 +14877,19 @@
         state.stage =
           "initial-legacy-intercepted";
 
-        restoreStartupFunctions();
+        /*
+          Keep the permanent mobile read-only wrapper after startup.
+        */
+        loadLogs =
+          originalLoadLogs;
+
+        loadLegacyLogsForSelectedDate =
+          readOnlyLegacyStartupWrapper;
 
         return [];
       }
 
-      return originalLoadLegacyLogsForSelectedDate.apply(
+      return readOnlyLegacyStartupWrapper.apply(
         this,
         args
       );
@@ -14932,7 +14898,16 @@
 
   window.setTimeout(
     () => {
-      restoreStartupFunctions();
+      loadLogs =
+        originalLoadLogs;
+
+      if (
+        loadLegacyLogsForSelectedDate.name ===
+          "mobileInitialLegacyLoadV10"
+      ) {
+        loadLegacyLogsForSelectedDate =
+          readOnlyLegacyStartupWrapper;
+      }
     },
     3000
   );
