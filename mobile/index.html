@@ -271,11 +271,152 @@
         0 0 0 3px
         rgba(44, 166, 109, 0.12);
     }
+
+    .launch-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: none;
+      place-items: center;
+      padding:
+        max(24px, env(safe-area-inset-top))
+        24px
+        max(24px, env(safe-area-inset-bottom));
+      background:
+        linear-gradient(
+          135deg,
+          #12385f 0%,
+          #1f5f9f 58%,
+          #276eae 100%
+        );
+      color: #fff;
+      text-align: center;
+    }
+
+    body.is-launching-app .screen {
+      visibility: hidden;
+    }
+
+    body.is-launching-app .launch-overlay {
+      display: grid;
+    }
+
+    .launch-overlay__logo {
+      display: grid;
+      width: 58px;
+      height: 58px;
+      margin: 0 auto 18px;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 15px;
+      background: rgba(255,255,255,0.14);
+      box-shadow: 0 16px 38px rgba(0,0,0,0.18);
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .launch-overlay strong {
+      display: block;
+      font-size: 22px;
+      font-weight: 900;
+      line-height: 1.35;
+    }
+
+    .launch-overlay p {
+      margin: 8px 0 0;
+      color: rgba(255,255,255,0.84);
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
+    .launch-overlay__spinner {
+      width: 28px;
+      height: 28px;
+      margin: 22px auto 0;
+      border: 3px solid rgba(255,255,255,0.25);
+      border-top-color: #fff;
+      border-radius: 999px;
+      animation: mobile-launch-spin 0.8s linear infinite;
+    }
+
+    .launch-overlay__fallback {
+      display: none;
+      width: min(100%, 320px);
+      min-height: 46px;
+      margin: 20px auto 0;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255,255,255,0.42);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 900;
+      text-decoration: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    body.is-launch-delayed
+      .launch-overlay__spinner {
+      display: none;
+    }
+
+    body.is-launch-delayed
+      .launch-overlay__fallback {
+      display: flex;
+    }
+
+    @keyframes mobile-launch-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .launch-overlay__spinner {
+        animation-duration: 1.8s;
+      }
+    }
   </style>
 </head>
 
 <body>
-  <!-- MOBILE-LOGIN-ROUTE-V12 -->
+  <!-- MOBILE-LOGIN-ROUTE-V13 -->
+  <section
+    id="mobileV13LaunchOverlay"
+    class="launch-overlay"
+    role="status"
+    aria-live="polite"
+    aria-hidden="true"
+  >
+    <div>
+      <div class="launch-overlay__logo" aria-hidden="true">
+        GS
+      </div>
+
+      <strong>
+        모바일 업무일지를 준비하고 있습니다
+      </strong>
+
+      <p id="mobileV13LaunchStatus">
+        로그인은 완료되었습니다. 화면이 열릴 때까지 잠시만 기다려 주세요.
+      </p>
+
+      <div class="launch-overlay__spinner" aria-hidden="true"></div>
+
+      <button
+        type="button"
+        id="mobileV13LaunchRetryButton"
+        class="launch-overlay__fallback"
+      >
+        모바일 화면 다시 열기
+      </button>
+    </div>
+  </section>
+
   <main class="screen">
     <section class="card">
       <div class="brand">
@@ -395,6 +536,9 @@
       let interacted =
         false;
 
+      let navigationStarted =
+        false;
+
 
       function byId(id) {
         return document.getElementById(id);
@@ -405,16 +549,57 @@
         const controller =
           new AbortController();
 
+        const timeoutMarker = {};
+
+        let resolveTimeout;
+
+        const timeoutPromise =
+          new Promise(
+            resolve => {
+              resolveTimeout =
+                resolve;
+            }
+          );
+
         const timeoutId =
           window.setTimeout(
             () => {
               controller.abort();
+
+              resolveTimeout(
+                timeoutMarker
+              );
             },
             ms
           );
 
         return {
           controller,
+
+          async wait(promise) {
+            const result =
+              await Promise.race([
+                promise,
+                timeoutPromise
+              ]);
+
+            if (
+              result ===
+                timeoutMarker
+            ) {
+              const error =
+                new Error(
+                  "Request timeout"
+                );
+
+              error.name =
+                "AbortError";
+
+              throw error;
+            }
+
+            return result;
+          },
 
           clear() {
             window.clearTimeout(
@@ -528,29 +713,31 @@
 
         try {
           const response =
-            await fetch(
-              "/api/login",
-              {
-                method:
-                  "GET",
+            await timeout.wait(
+              fetch(
+                "/api/login",
+                {
+                  method:
+                    "GET",
 
-                headers: {
-                  Accept:
-                    "application/json",
+                  headers: {
+                    Accept:
+                      "application/json",
 
-                  Authorization:
-                    "Bearer " +
-                    token
-                },
+                    Authorization:
+                      "Bearer " +
+                      token
+                  },
 
-                cache:
-                  "no-store",
+                  cache:
+                    "no-store",
 
-                signal:
-                  timeout
-                    .controller
-                    .signal
-              }
+                  signal:
+                    timeout
+                      .controller
+                      .signal
+                }
+              )
             );
 
           if (
@@ -597,34 +784,36 @@
 
         try {
           const response =
-            await fetch(
-              "/api/login",
-              {
-                method:
-                  "POST",
+            await timeout.wait(
+              fetch(
+                "/api/login",
+                {
+                  method:
+                    "POST",
 
-                headers: {
-                  "Content-Type":
-                    "application/json",
+                  headers: {
+                    "Content-Type":
+                      "application/json",
 
-                  Accept:
-                    "application/json"
-                },
+                    Accept:
+                      "application/json"
+                  },
 
-                cache:
-                  "no-store",
+                  cache:
+                    "no-store",
 
-                body:
-                  JSON.stringify({
-                    employeeNo,
-                    password
-                  }),
+                  body:
+                    JSON.stringify({
+                      employeeNo,
+                      password
+                    }),
 
-                signal:
-                  timeout
-                    .controller
-                    .signal
-              }
+                  signal:
+                    timeout
+                      .controller
+                      .signal
+                }
+              )
             );
 
           const responseText =
@@ -765,10 +954,96 @@
 
 
       function goToApp() {
-        window.location.replace(
-          "/mobile-app/?mobileApp=1&mobileLoginNonce=" +
-          Date.now()
+        if (navigationStarted) {
+          return;
+        }
+
+        navigationStarted =
+          true;
+
+        const overlay =
+          byId(
+            "mobileV13LaunchOverlay"
+          );
+
+        document.body.classList.add(
+          "is-launching-app"
         );
+
+        if (overlay) {
+          overlay.setAttribute(
+            "aria-hidden",
+            "false"
+          );
+        }
+
+        setBusy(true);
+
+        setStatus(
+          "로그인 완료. 모바일 업무일지를 준비하고 있습니다."
+        );
+
+        const destination =
+          "/mobile-app/?build=20260825-mobile-boot-v13";
+
+        window.setTimeout(
+          () => {
+            if (
+              !document.body.classList
+                .contains(
+                  "is-launching-app"
+                )
+            ) {
+              return;
+            }
+
+            document.body.classList.add(
+              "is-launch-delayed"
+            );
+
+            const launchStatus =
+              byId(
+                "mobileV13LaunchStatus"
+              );
+
+            if (launchStatus) {
+              launchStatus.textContent =
+                "화면 준비가 지연되고 있습니다. 아래 버튼으로 다시 열 수 있습니다.";
+            }
+          },
+          15000
+        );
+
+        const navigate =
+          () => {
+            window.location.replace(
+              destination
+            );
+          };
+
+        /*
+          상태 변경을 실제로 한 번 그린 뒤 이동한다.
+          iOS 인앱 브라우저가 무거운 다음 문서를 여는 동안에도
+          이전 로그인 화면이 멈춘 것처럼 남지 않게 한다.
+        */
+        if (
+          typeof window.requestAnimationFrame ===
+            "function"
+        ) {
+          window.requestAnimationFrame(
+            () => {
+              window.requestAnimationFrame(
+                navigate
+              );
+            }
+          );
+
+        } else {
+          window.setTimeout(
+            navigate,
+            40
+          );
+        }
       }
 
 
@@ -928,7 +1203,7 @@
         }
 
         setStatus(
-          "기존 로그인 세션을 확인하고 있습니다."
+          "기존 로그인 세션을 확인하고 있습니다. 최대 6초 정도 걸릴 수 있습니다."
         );
 
         const validation =
@@ -997,6 +1272,17 @@
         form.addEventListener(
           "submit",
           handleSubmit
+        );
+
+        byId(
+          "mobileV13LaunchRetryButton"
+        )?.addEventListener(
+          "click",
+          () => {
+            window.location.replace(
+              "/mobile-app/?build=20260825-mobile-boot-v13"
+            );
+          }
         );
 
         [

@@ -3,7 +3,7 @@
 
 <head>
   <base href="/">
-  <!-- MOBILE-APP-SAFE-STARTUP-V7 -->
+  <!-- MOBILE-APP-INSTANT-BOOT-V13 -->
   <meta charset="UTF-8">
 
   <meta
@@ -25,6 +25,12 @@
 
       const AUTH_KEY =
         "gsShiftLog.currentUser";
+
+      const BOOT_CLASS =
+        "mobile-app-boot-v13";
+
+      const LOGIN_URL =
+        "/mobile/?build=20260825-mobile-boot-v13";
 
       try {
         const raw =
@@ -51,7 +57,7 @@
 
         if (!token) {
           window.location.replace(
-            "/mobile/?build=20260825-mobile-auth-v12"
+            LOGIN_URL
           );
 
           return;
@@ -60,34 +66,367 @@
         document.documentElement
           .classList
           .add(
-            "mobile-app-boot-v7"
+            BOOT_CLASS
           );
 
-        window.__mobileAppBootV7 = {
+        const state = {
           startedAt:
             Date.now(),
 
           stage:
-            "html-parsing"
+            "head-authenticated",
+
+          message:
+            "모바일 화면 구조를 준비하고 있습니다.",
+
+          resources: {
+            mainCss:
+              false,
+
+            maintenanceCss:
+              false,
+
+            inspectionCss:
+              false,
+
+            sharedScript:
+              false,
+
+            startupScript:
+              false
+          },
+
+          recoveryShown:
+            false,
+
+          ready:
+            false,
+
+          watchdogId:
+            0
         };
+
+        window.__mobileAppBootV13 =
+          state;
+
+
+        function updateBootDisplay() {
+          const status =
+            document.getElementById(
+              "mobileAppBootV13Status"
+            );
+
+          const stage =
+            document.getElementById(
+              "mobileAppBootV13Stage"
+            );
+
+          const splash =
+            document.getElementById(
+              "mobileAppBootV13Splash"
+            );
+
+          if (status) {
+            status.textContent =
+              state.message;
+          }
+
+          if (stage) {
+            stage.textContent =
+              "진행 단계: " +
+              state.stage;
+          }
+
+          if (splash) {
+            splash.classList.toggle(
+              "is-recovery",
+              state.recoveryShown
+            );
+          }
+        }
+
+
+        function rememberBootStage() {
+          try {
+            sessionStorage.setItem(
+              "gsShiftLog.mobileBootV13",
+              JSON.stringify({
+                stage:
+                  state.stage,
+
+                message:
+                  state.message,
+
+                at:
+                  new Date()
+                    .toISOString()
+              })
+            );
+
+          } catch {
+            // 진단 저장 실패는 앱 실행을 막지 않는다.
+          }
+        }
+
+
+        function setStage(
+          nextStage,
+          nextMessage
+        ) {
+          if (state.ready) {
+            return;
+          }
+
+          const normalizedStage =
+            String(
+              nextStage ||
+              "unknown"
+            );
+
+          if (
+            state.recoveryShown &&
+            normalizedStage !==
+              "resource-error" &&
+            !normalizedStage.endsWith(
+              "-error"
+            )
+          ) {
+            updateBootDisplay();
+
+            return;
+          }
+
+          state.stage =
+            normalizedStage;
+
+          if (nextMessage) {
+            state.message =
+              String(nextMessage);
+          }
+
+          rememberBootStage();
+
+          updateBootDisplay();
+        }
+
+
+        function showRecovery(
+          message
+        ) {
+          if (state.ready) {
+            return;
+          }
+
+          state.recoveryShown =
+            true;
+
+          state.message =
+            String(
+              message ||
+              "모바일 화면 준비가 지연되고 있습니다."
+            );
+
+          const splash =
+            document.getElementById(
+              "mobileAppBootV13Splash"
+            );
+
+          updateBootDisplay();
+        }
+
+
+        function markResource(
+          resourceName,
+          loaded
+        ) {
+          if (
+            Object.prototype
+              .hasOwnProperty.call(
+                state.resources,
+                resourceName
+              )
+          ) {
+            state.resources[
+              resourceName
+            ] =
+              loaded !== false;
+          }
+
+          updateBootDisplay();
+        }
+
+
+        function markReady() {
+          state.ready =
+            true;
+
+          state.stage =
+            "ready";
+
+          state.message =
+            "모바일 업무일지 준비 완료";
+
+          if (state.watchdogId) {
+            window.clearInterval(
+              state.watchdogId
+            );
+
+            state.watchdogId =
+              0;
+          }
+
+          rememberBootStage();
+        }
+
+
+        window.__setMobileAppBootStageV13 =
+          setStage;
+
+        window.__showMobileAppBootRecoveryV13 =
+          showRecovery;
+
+        window.__markMobileAppBootResourceV13 =
+          markResource;
+
+        window.__markMobileAppReadyV13 =
+          markReady;
+
+
+        state.watchdogId =
+          window.setInterval(
+            () => {
+              updateBootDisplay();
+
+              const elapsed =
+                Date.now() -
+                state.startedAt;
+
+              if (
+                elapsed >
+                  5000 &&
+                state.resources
+                  .mainCss !==
+                    true
+              ) {
+                const mainStyle =
+                  document.getElementById(
+                    "mobileAppMainStyleV13"
+                  );
+
+                if (
+                  mainStyle &&
+                  mainStyle.rel ===
+                    "preload"
+                ) {
+                  mainStyle.rel =
+                    "stylesheet";
+                }
+              }
+
+              if (
+                elapsed >
+                  30000 &&
+                !state.recoveryShown
+              ) {
+                showRecovery(
+                  "모바일 화면 준비가 30초 이상 지연되고 있습니다."
+                );
+              }
+            },
+            250
+          );
+
+
+        window.addEventListener(
+          "error",
+          event => {
+            if (state.ready) {
+              return;
+            }
+
+            const target =
+              event.target;
+
+            const tagName =
+              String(
+                target?.tagName ||
+                ""
+              ).toUpperCase();
+
+            const source =
+              String(
+                target?.src ||
+                target?.href ||
+                ""
+              );
+
+            const isMainStyle =
+              tagName === "LINK" &&
+              target?.id ===
+                "mobileAppMainStyleV13";
+
+            const isRequiredScript =
+              tagName === "SCRIPT" &&
+              (
+                source.includes(
+                  "/mobile-app/mobile-runtime-v13.js"
+                ) ||
+                source.includes(
+                  "/mobile-app/mobile-startup.js"
+                )
+              );
+
+            if (
+              !isMainStyle &&
+              !isRequiredScript
+            ) {
+              return;
+            }
+
+            setStage(
+              "resource-error",
+              "모바일 필수 파일을 불러오지 못했습니다."
+            );
+
+            showRecovery(
+              "모바일 필수 파일을 불러오지 못했습니다. 다시 시도해 주세요."
+            );
+          },
+          true
+        );
+
+
+        setStage(
+          "head-authenticated",
+          "로그인 확인 완료 · 모바일 화면을 준비하고 있습니다."
+        );
 
       } catch {
         window.location.replace(
-          "/mobile/?build=20260825-mobile-auth-v12"
+          LOGIN_URL
         );
       }
     })();
   </script>
 
   <style>
-    html.mobile-app-boot-v7 body::before {
-      content: "GS Shift Log";
+    html.mobile-app-boot-v13,
+    html.mobile-app-boot-v13 body {
+      min-height: 100%;
+      margin: 0;
+      background: #12385f;
+    }
+
+    #mobileAppBootV13Splash {
       position: fixed;
       inset: 0;
       z-index: 2147483645;
       display: grid;
       place-items: center;
-      padding-bottom: 38px;
+      padding:
+        max(24px, env(safe-area-inset-top))
+        24px
+        max(24px, env(safe-area-inset-bottom));
       background:
         linear-gradient(
           135deg,
@@ -98,61 +437,158 @@
       font-family:
         -apple-system,
         BlinkMacSystemFont,
+        "Apple SD Gothic Neo",
+        "Malgun Gothic",
         Arial,
         sans-serif;
+      text-align: center;
+    }
+
+    #mobileAppBootV13Splash[hidden],
+    html:not(.mobile-app-boot-v13)
+      #mobileAppBootV13Splash {
+      display: none !important;
+    }
+
+    .mobile-app-boot-v13__logo {
+      display: grid;
+      width: 62px;
+      height: 62px;
+      margin: 0 auto 19px;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 16px;
+      background: rgba(255,255,255,0.14);
+      box-shadow: 0 18px 42px rgba(0,0,0,0.2);
+      font-size: 19px;
+      font-weight: 900;
+    }
+
+    .mobile-app-boot-v13__title {
+      display: block;
       font-size: 22px;
       font-weight: 900;
-      pointer-events: none;
+      line-height: 1.35;
     }
 
-    html.mobile-app-boot-v7 body::after {
-      content: "Loading mobile Shift Log...";
-      position: fixed;
-      left: 0;
-      right: 0;
-      top: calc(50% + 19px);
-      z-index: 2147483646;
+    .mobile-app-boot-v13__status {
+      margin: 9px 0 0;
       color: rgba(255,255,255,0.86);
-      font-family:
-        -apple-system,
-        BlinkMacSystemFont,
-        Arial,
-        sans-serif;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 700;
-      text-align: center;
-      pointer-events: none;
+      line-height: 1.55;
     }
 
-    html.mobile-app-boot-v7 #loginScreen,
-    html.mobile-app-boot-v7 #appShell {
+    .mobile-app-boot-v13__stage {
+      margin: 7px 0 0;
+      color: rgba(255,255,255,0.58);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .mobile-app-boot-v13__spinner {
+      width: 30px;
+      height: 30px;
+      margin: 22px auto 0;
+      border: 3px solid rgba(255,255,255,0.24);
+      border-top-color: #fff;
+      border-radius: 999px;
+      animation: mobile-app-boot-v13-spin 0.8s linear infinite;
+    }
+
+    @keyframes mobile-app-boot-v13-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .mobile-app-boot-v13__actions {
+      display: none;
+      width: min(100%, 340px);
+      margin: 22px auto 0;
+      gap: 9px;
+    }
+
+    #mobileAppBootV13Splash.is-recovery
+      .mobile-app-boot-v13__spinner {
+      display: none;
+    }
+
+    #mobileAppBootV13Splash.is-recovery
+      .mobile-app-boot-v13__actions {
+      display: grid;
+    }
+
+    .mobile-app-boot-v13__button {
+      width: 100%;
+      min-height: 46px;
+      border: 1px solid rgba(255,255,255,0.36);
+      border-radius: 10px;
+      background: #fff;
+      color: #164f87;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .mobile-app-boot-v13__button--secondary {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+
+    html.mobile-app-boot-v13 #loginScreen,
+    html.mobile-app-boot-v13 #appShell {
       visibility: hidden !important;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .mobile-app-boot-v13__spinner {
+        animation-duration: 1.8s;
+      }
     }
   </style>
 
-<!-- ROOT MOBILE REDIRECT BOOTSTRAP REMOVED IN MOBILE-APP V12 -->
+<!-- ROOT MOBILE REDIRECT BOOTSTRAP REMOVED IN MOBILE-APP V13 -->
 
   <!--
-    Start downloading the large shared bundle while HTML is parsing.
-    It is executed synchronously at the end of <body> so script.js
-    keeps its established readyState="loading" initialization path.
+    큰 공통 스크립트는 HTML 파싱과 동시에 미리 받는다.
+    실행은 body 끝의 기존 loading 순서를 유지한다.
   -->
   <link
     rel="preload"
-    href="/script.js?v=20260825-mobile-auth-v12"
+    href="/mobile-app/mobile-runtime-v13.js?v=20260825-1"
+    as="script"
+  >
+
+  <link
+    rel="preload"
+    href="/mobile-app/mobile-startup.js?v=20260825-mobile-boot-v13"
     as="script"
   >
 
 <!-- =====================================================
     기존 업무일지 CSS
+
+    인라인 부팅 화면을 먼저 표시할 수 있도록 큰 CSS는
+    preload 후 stylesheet로 전환한다. 앱 본문은 CSS와
+    JavaScript 준비가 모두 끝날 때까지 계속 숨긴다.
   ====================================================== -->
   <link
-    rel="stylesheet"
-    href="/style.css?v=20260824-mobile-login-touch-hotfix1"
+    id="mobileAppMainStyleV13"
+    rel="preload"
+    as="style"
+    href="/mobile-app/mobile-style-v13.css?v=20260825-1"
+    onload="this.onload=null;this.rel='stylesheet';window.__setMobileAppBootStageV13?.('main-css-applying','업무일지 화면 스타일을 적용하고 있습니다.')"
+    onerror="window.__setMobileAppBootStageV13?.('main-css-error','업무일지 화면 스타일을 불러오지 못했습니다.')"
   >
+
   <link
-    rel="stylesheet"
+    rel="preload"
+    as="style"
     href="/maintenance/maintenance-header.css?v=20260822-maintenance-v1"
+    onload="this.onload=null;this.rel='stylesheet';window.__markMobileAppBootResourceV13?.('maintenanceCss',true)"
+    onerror="window.__markMobileAppBootResourceV13?.('maintenanceCss',false)"
   >
 
 
@@ -160,26 +596,33 @@
     점검일지 팝업 외곽 CSS
   ====================================================== -->
   <link
-    rel="stylesheet"
+    rel="preload"
+    as="style"
     href="/inspection-logs/daily/night-patrol/night-patrol-shell.css?v=20260819-role-today-compact1"
+    onload="this.onload=null;this.rel='stylesheet';window.__markMobileAppBootResourceV13?.('inspectionCss',true)"
+    onerror="window.__markMobileAppBootResourceV13?.('inspectionCss',false)"
   >
 
-<!-- =====================================================
-  XLSX 파일 내부 수정용
-====================================================== -->
-<script
-  src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"
-  async
-></script>
+  <noscript>
+    <link
+      rel="stylesheet"
+      href="/mobile-app/mobile-style-v13.css?v=20260825-1"
+    >
+    <link
+      rel="stylesheet"
+      href="/maintenance/maintenance-header.css?v=20260822-maintenance-v1"
+    >
+    <link
+      rel="stylesheet"
+      href="/inspection-logs/daily/night-patrol/night-patrol-shell.css?v=20260819-role-today-compact1"
+    >
+  </noscript>
 
-
-<!-- =====================================================
-  팀별 엑셀 분석용
-====================================================== -->
-<script
-  src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
-  async
-></script>
+<!--
+  JSZip과 SheetJS는 앱 화면이 열린 뒤 백그라운드에서 불러온다.
+  로그인 직후의 필수 CSS·공통 스크립트와 네트워크 및 메인
+  스레드를 경쟁하지 않게 한다.
+-->
 
 
 <!-- =====================================================
@@ -196,6 +639,124 @@
 </head>
 
 <body>
+
+<!-- MOBILE-APP-INSTANT-BOOT-SPLASH-V13 -->
+<section
+  id="mobileAppBootV13Splash"
+  role="status"
+  aria-live="polite"
+>
+  <div>
+    <div
+      class="mobile-app-boot-v13__logo"
+      aria-hidden="true"
+    >
+      GS
+    </div>
+
+    <strong class="mobile-app-boot-v13__title">
+      GS Shift Log
+    </strong>
+
+    <p
+      id="mobileAppBootV13Status"
+      class="mobile-app-boot-v13__status"
+    >
+      로그인 확인 완료 · 모바일 화면을 준비하고 있습니다.
+    </p>
+
+    <p
+      id="mobileAppBootV13Stage"
+      class="mobile-app-boot-v13__stage"
+    >
+      진행 단계: body-parsing
+    </p>
+
+    <div
+      class="mobile-app-boot-v13__spinner"
+      aria-hidden="true"
+    ></div>
+
+    <div class="mobile-app-boot-v13__actions">
+      <button
+        type="button"
+        id="retryMobileAppBootV13Button"
+        class="mobile-app-boot-v13__button"
+      >
+        모바일 화면 다시 열기
+      </button>
+
+      <button
+        type="button"
+        id="returnMobileLoginV13Button"
+        class="mobile-app-boot-v13__button mobile-app-boot-v13__button--secondary"
+      >
+        로그인 화면으로 돌아가기
+      </button>
+    </div>
+  </div>
+</section>
+
+<script>
+  (() => {
+    "use strict";
+
+    window.__setMobileAppBootStageV13?.(
+      "body-parsing",
+      "앱 화면 구조를 구성하고 있습니다."
+    );
+
+    document.getElementById(
+      "retryMobileAppBootV13Button"
+    )?.addEventListener(
+      "click",
+      () => {
+        window.location.replace(
+          "/mobile-app/?build=20260825-mobile-boot-v13&retry=" +
+          Date.now()
+        );
+      }
+    );
+
+    document.getElementById(
+      "returnMobileLoginV13Button"
+    )?.addEventListener(
+      "click",
+      () => {
+        localStorage.removeItem(
+          "gsShiftLog.currentUser"
+        );
+
+        window.location.replace(
+          "/mobile/?build=20260825-mobile-boot-v13"
+        );
+      }
+    );
+
+    if (
+      typeof window.requestAnimationFrame ===
+        "function"
+    ) {
+      window.requestAnimationFrame(
+        () => {
+          const state =
+            window.__mobileAppBootV13;
+
+          if (
+            state &&
+            state.stage ===
+              "body-parsing"
+          ) {
+            window.__setMobileAppBootStageV13?.(
+              "boot-screen-painted",
+              "필수 화면 파일을 불러오고 있습니다."
+            );
+          }
+        }
+      );
+    }
+  })();
+</script>
 
 <!-- =========================================================
   로그인 화면
@@ -14172,174 +14733,256 @@
 
 
 <!--
-  MOBILE-APP-V12 SAFE EXECUTION ORDER
+  MOBILE-APP-V13 SAFE EXECUTION ORDER
 
-  The preload in <head> starts the large download early. The first two
-  parser-inserted body-end scripts preserve readyState="loading", and
-  mobile-startup.js runs immediately after script.js so the one-time
-  bounded startup wrappers are active before DOMContentLoaded.
-  The independent inspection launcher remains deferred.
+  script.js와 mobile-startup.js는 기존처럼 readyState="loading"
+  상태에서 순서대로 실행한다. 대신 인라인 부팅 화면과 감시기는
+  두 파일보다 먼저 실행되어 iOS에서도 진행 상태와 복구 버튼을
+  항상 표시할 수 있다.
 -->
-<script
-  src="/script.js?v=20260825-mobile-auth-v12"
-></script>
+<script>
+  window.__setMobileAppBootStageV13?.(
+    "shared-script-loading",
+    "업무일지 프로그램을 불러오고 있습니다."
+  );
+</script>
 
 <script
-  src="/mobile-app/mobile-startup.js?v=20260825-mobile-auth-v12"
+  src="/mobile-app/mobile-runtime-v13.js?v=20260825-1"
+  onload="window.__markMobileAppBootResourceV13?.('sharedScript',true)"
+  onerror="window.__setMobileAppBootStageV13?.('shared-script-error','업무일지 프로그램을 불러오지 못했습니다.');window.__showMobileAppBootRecoveryV13?.('업무일지 프로그램을 불러오지 못했습니다. 다시 시도해 주세요.')"
 ></script>
+
+<script>
+  window.__setMobileAppBootStageV13?.(
+    "startup-script-loading",
+    "모바일 시작 설정을 적용하고 있습니다."
+  );
+</script>
 
 <script
-  src="/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260823-header-menu-emoji4"
-  defer
+  src="/mobile-app/mobile-startup.js?v=20260825-mobile-boot-v13"
+  onload="window.__markMobileAppBootResourceV13?.('startupScript',true)"
+  onerror="window.__setMobileAppBootStageV13?.('startup-script-error','모바일 시작 설정을 불러오지 못했습니다.');window.__showMobileAppBootRecoveryV13?.('모바일 시작 설정을 불러오지 못했습니다. 다시 시도해 주세요.')"
 ></script>
-
-
 
 <script>
   (() => {
     "use strict";
 
-    if (
-      window.__mobileAppBootV7
+    window.__setMobileAppBootStageV13?.(
+      "application-scripts-evaluated",
+      "로그인 화면에서 업무일지 화면으로 전환하고 있습니다."
+    );
+
+    let finishing =
+      false;
+
+
+    function loadOptionalScript(
+      id,
+      source
     ) {
-      window.__mobileAppBootV7.stage =
-        "application-scripts-evaluated";
+      if (
+        document.getElementById(id)
+      ) {
+        return;
+      }
+
+      const script =
+        document.createElement(
+          "script"
+        );
+
+      script.id =
+        id;
+
+      script.src =
+        source;
+
+      script.async =
+        true;
+
+      script.addEventListener(
+        "error",
+        () => {
+          console.warn(
+            "모바일 선택 기능 파일 로딩 실패:",
+            source
+          );
+        }
+      );
+
+      document.head.appendChild(
+        script
+      );
     }
 
+
+    function scheduleOptionalFeatures() {
+      const loadFeatures =
+        () => {
+          loadOptionalScript(
+            "mobileJsZipV13",
+            "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"
+          );
+
+          loadOptionalScript(
+            "mobileSheetJsV13",
+            "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
+          );
+
+          loadOptionalScript(
+            "mobileInspectionLauncherV13",
+            "/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260823-header-menu-emoji4"
+          );
+        };
+
+      if (
+        typeof window.requestIdleCallback ===
+          "function"
+      ) {
+        window.requestIdleCallback(
+          loadFeatures,
+          {
+            timeout:
+              2500
+          }
+        );
+
+      } else {
+        window.setTimeout(
+          loadFeatures,
+          1200
+        );
+      }
+    }
+
+
+    function mainStyleIsReady() {
+      const link =
+        document.getElementById(
+          "mobileAppMainStyleV13"
+        );
+
+      return Boolean(
+        link &&
+        link.rel ===
+          "stylesheet" &&
+        link.sheet
+      );
+    }
+
+
+    function completeBoot() {
+      if (finishing) {
+        return;
+      }
+
+      const appShell =
+        document.getElementById(
+          "appShell"
+        );
+
+      if (
+        !appShell ||
+        appShell.hidden !== false ||
+        !mainStyleIsReady()
+      ) {
+        return;
+      }
+
+      window.__markMobileAppBootResourceV13?.(
+        "mainCss",
+        true
+      );
+
+      finishing =
+        true;
+
+      window.__setMobileAppBootStageV13?.(
+        "first-screen-ready",
+        "모바일 업무일지 화면을 여는 중입니다."
+      );
+
+      const reveal =
+        () => {
+          document.documentElement
+            .classList
+            .remove(
+              "mobile-app-boot-v13"
+            );
+
+          const splash =
+            document.getElementById(
+              "mobileAppBootV13Splash"
+            );
+
+          if (splash) {
+            splash.hidden =
+              true;
+          }
+
+          window.__markMobileAppReadyV13?.();
+
+          if (
+            window.location.pathname ===
+              "/mobile-app" ||
+            window.location.pathname.startsWith(
+              "/mobile-app/"
+            )
+          ) {
+            window.history.replaceState(
+              null,
+              "",
+              "/mobile-app/"
+            );
+          }
+
+          scheduleOptionalFeatures();
+        };
+
+      if (
+        typeof window.requestAnimationFrame ===
+          "function"
+      ) {
+        window.requestAnimationFrame(
+          () => {
+            window.requestAnimationFrame(
+              reveal
+            );
+          }
+        );
+
+      } else {
+        window.setTimeout(
+          reveal,
+          40
+        );
+      }
+    }
+
+
     function finishWhenAppOpens() {
-      const startedAt =
-        Date.now();
+      completeBoot();
 
       const timer =
         window.setInterval(
           () => {
-            const appShell =
-              document.getElementById(
-                "appShell"
-              );
+            completeBoot();
 
             if (
-              appShell &&
-              appShell.hidden === false
+              finishing
             ) {
               window.clearInterval(
                 timer
-              );
-
-              document.documentElement
-                .classList
-                .remove(
-                  "mobile-app-boot-v7"
-                );
-
-              if (
-                window.__mobileAppBootV7
-              ) {
-                window.__mobileAppBootV7.stage =
-                  "ready";
-              }
-
-              if (
-                window.location.pathname ===
-                  "/mobile-app" ||
-                window.location.pathname.startsWith(
-                  "/mobile-app/"
-                )
-              ) {
-                window.history.replaceState(
-                  null,
-                  "",
-                  "/mobile-app/"
-                );
-              }
-
-              return;
-            }
-
-            if (
-              Date.now() -
-                startedAt >
-              20000
-            ) {
-              window.clearInterval(
-                timer
-              );
-
-              document.documentElement
-                .classList
-                .remove(
-                  "mobile-app-boot-v7"
-                );
-
-              const panel =
-                document.createElement(
-                  "div"
-                );
-
-              panel.id =
-                "mobileAppV7Recovery";
-
-              panel.style.cssText =
-                "position:fixed;inset:0;z-index:2147483647;" +
-                "display:grid;place-items:center;padding:24px;" +
-                "background:#12385f;font-family:-apple-system," +
-                "BlinkMacSystemFont,Arial,sans-serif;";
-
-              const card =
-                document.createElement(
-                  "div"
-                );
-
-              card.style.cssText =
-                "width:min(100%,390px);padding:22px;border-radius:16px;" +
-                "background:#fff;color:#172033;box-shadow:0 20px 60px rgba(0,0,0,.28);";
-
-              const stage =
-                window.__mobileAppBootV7 &&
-                window.__mobileAppBootV7.stage
-                  ? window.__mobileAppBootV7.stage
-                  : "unknown";
-
-              card.innerHTML =
-                "<strong style='display:block;margin-bottom:8px;font-size:18px'>" +
-                "Mobile app startup delayed" +
-                "</strong>" +
-                "<p style='margin:0 0 15px;color:#667488;font-size:13px;line-height:1.55'>" +
-                "The app did not open within 20 seconds. Stage: " +
-                stage +
-                "</p>" +
-                "<button type='button' style='width:100%;min-height:46px;border:0;" +
-                "border-radius:9px;background:#246ab0;color:#fff;font-weight:900'>" +
-                "Open mobile login again" +
-                "</button>";
-
-              card.querySelector(
-                "button"
-              ).addEventListener(
-                "click",
-                () => {
-                  localStorage.removeItem(
-                    "gsShiftLog.currentUser"
-                  );
-
-                  window.location.replace(
-                    "/mobile/?build=20260825-mobile-auth-v12"
-                  );
-                }
-              );
-
-              panel.appendChild(
-                card
-              );
-
-              document.body.appendChild(
-                panel
               );
             }
           },
           120
         );
     }
+
 
     if (
       document.readyState ===
