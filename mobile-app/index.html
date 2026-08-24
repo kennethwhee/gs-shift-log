@@ -14164,6 +14164,535 @@
   src="script.js?v=20260824-mobile-body-observer-guard1"
 ></script>
 
+<!-- MOBILE-APP-NONBLOCKING-DATA-STARTUP-V8 -->
+<script>
+"use strict";
+
+(() => {
+  if (
+    window.__mobileNonblockingDataStartupV8Installed ===
+      true
+  ) {
+    return;
+  }
+
+  window.__mobileNonblockingDataStartupV8Installed =
+    true;
+
+  if (
+    typeof loadLogs !==
+      "function" ||
+    typeof loadLegacyLogsForSelectedDate !==
+      "function"
+  ) {
+    console.error(
+      "[Mobile V8] startup data functions are unavailable."
+    );
+
+    return;
+  }
+
+  const originalLoadLogs =
+    loadLogs;
+
+  const originalLoadLegacyLogsForSelectedDate =
+    loadLegacyLogsForSelectedDate;
+
+  let initialLoadLogsIntercepted =
+    false;
+
+  let initialLegacyIntercepted =
+    false;
+
+  let originalFunctionsRestored =
+    false;
+
+  let backgroundScheduled =
+    false;
+
+  let statusTimerId =
+    0;
+
+  const state = {
+    stage:
+      "installed",
+
+    serverStartedAt:
+      0,
+
+    serverCompletedAt:
+      0,
+
+    legacyStartedAt:
+      0,
+
+    legacyCompletedAt:
+      0,
+
+    completedAt:
+      0,
+
+    serverError:
+      "",
+
+    legacyError:
+      ""
+  };
+
+  window.__mobileNonblockingDataStartupV8State =
+    state;
+
+
+  function getStatusElement() {
+    let element =
+      document.getElementById(
+        "mobileDataStartupStatusV8"
+      );
+
+    if (
+      element ||
+      !document.body
+    ) {
+      return element;
+    }
+
+    element =
+      document.createElement(
+        "div"
+      );
+
+    element.id =
+      "mobileDataStartupStatusV8";
+
+    element.style.cssText = [
+      "position:fixed",
+      "left:50%",
+      "bottom:max(18px,env(safe-area-inset-bottom))",
+      "z-index:2147483600",
+      "transform:translateX(-50%)",
+      "max-width:calc(100vw - 28px)",
+      "padding:8px 12px",
+      "border:1px solid rgba(255,255,255,.22)",
+      "border-radius:999px",
+      "background:rgba(18,56,95,.92)",
+      "box-shadow:0 8px 24px rgba(0,0,0,.2)",
+      "color:#fff",
+      "font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif",
+      "font-size:11px",
+      "font-weight:800",
+      "line-height:1.35",
+      "text-align:center",
+      "white-space:normal",
+      "pointer-events:none",
+      "-webkit-backdrop-filter:blur(8px)",
+      "backdrop-filter:blur(8px)"
+    ].join(
+      ";"
+    );
+
+    document.body.appendChild(
+      element
+    );
+
+    return element;
+  }
+
+
+  function setStatus(
+    message,
+    options = {}
+  ) {
+    const element =
+      getStatusElement();
+
+    if (!element) {
+      return;
+    }
+
+    if (statusTimerId) {
+      window.clearTimeout(
+        statusTimerId
+      );
+
+      statusTimerId =
+        0;
+    }
+
+    element.textContent =
+      String(
+        message ||
+        ""
+      );
+
+    element.hidden =
+      false;
+
+    if (
+      options.error ===
+        true
+    ) {
+      element.style.background =
+        "rgba(150,45,45,.94)";
+
+    } else if (
+      options.warning ===
+        true
+    ) {
+      element.style.background =
+        "rgba(132,87,12,.94)";
+
+    } else {
+      element.style.background =
+        "rgba(18,56,95,.92)";
+    }
+
+    const hideAfterMs =
+      Number(
+        options.hideAfterMs ||
+        0
+      );
+
+    if (
+      Number.isFinite(
+        hideAfterMs
+      ) &&
+      hideAfterMs >
+        0
+    ) {
+      statusTimerId =
+        window.setTimeout(
+          () => {
+            element.hidden =
+              true;
+          },
+          hideAfterMs
+        );
+    }
+  }
+
+
+  function safeRenderCurrentState() {
+    const operations = [
+      [
+        "renderSelectedDate",
+        () => {
+          if (
+            typeof renderSelectedDate ===
+              "function"
+          ) {
+            renderSelectedDate();
+          }
+        }
+      ],
+
+      [
+        "renderLogTable",
+        () => {
+          if (
+            typeof renderLogTable ===
+              "function"
+          ) {
+            renderLogTable();
+          }
+        }
+      ],
+
+      [
+        "updateShiftMemberCardStates",
+        () => {
+          if (
+            typeof updateShiftMemberCardStates ===
+              "function"
+          ) {
+            updateShiftMemberCardStates();
+          }
+        }
+      ],
+
+      [
+        "setEditorDateFromSelectedDate",
+        () => {
+          if (
+            typeof setEditorDateFromSelectedDate ===
+              "function"
+          ) {
+            setEditorDateFromSelectedDate();
+          }
+        }
+      ],
+
+      [
+        "renderLogEntryTable",
+        () => {
+          if (
+            typeof renderLogEntryTable ===
+              "function"
+          ) {
+            renderLogEntryTable();
+          }
+        }
+      ]
+    ];
+
+    operations.forEach(
+      (
+        [
+          label,
+          operation
+        ]
+      ) => {
+        try {
+          operation();
+
+        } catch (
+          error
+        ) {
+          console.warn(
+            `[Mobile V8] ${label} refresh failed:`,
+            error
+          );
+        }
+      }
+    );
+  }
+
+
+  function restoreOriginalFunctions() {
+    if (
+      originalFunctionsRestored
+    ) {
+      return;
+    }
+
+    loadLogs =
+      originalLoadLogs;
+
+    loadLegacyLogsForSelectedDate =
+      originalLoadLegacyLogsForSelectedDate;
+
+    originalFunctionsRestored =
+      true;
+
+    state.stage =
+      "initial-render-unblocked";
+  }
+
+
+  async function runBackgroundDataLoad() {
+    state.stage =
+      "server-logs";
+
+    state.serverStartedAt =
+      Date.now();
+
+    setStatus(
+      "\uC11C\uBC84 \uC5C5\uBB34\uC77C\uC9C0\uB97C \uBD88\uB7EC\uC624\uB294 \uC911..."
+    );
+
+    try {
+      await originalLoadLogs();
+
+    } catch (
+      error
+    ) {
+      state.serverError =
+        String(
+          (
+            error &&
+            error.message
+          ) ||
+          error ||
+          "unknown"
+        );
+
+      console.error(
+        "[Mobile V8] initial D1 load failed:",
+        error
+      );
+    }
+
+    state.serverCompletedAt =
+      Date.now();
+
+    state.stage =
+      "legacy-logs";
+
+    state.legacyStartedAt =
+      Date.now();
+
+    setStatus(
+      "\uACFC\uAC70 \uC5C5\uBB34\uC77C\uC9C0\uB97C \uBD88\uB7EC\uC624\uB294 \uC911..."
+    );
+
+    try {
+      /*
+        Keep the existing required sequence:
+        shared D1 first, legacy second.
+      */
+      await originalLoadLegacyLogsForSelectedDate();
+
+    } catch (
+      error
+    ) {
+      state.legacyError =
+        String(
+          (
+            error &&
+            error.message
+          ) ||
+          error ||
+          "unknown"
+        );
+
+      console.error(
+        "[Mobile V8] initial legacy load failed:",
+        error
+      );
+    }
+
+    state.legacyCompletedAt =
+      Date.now();
+
+    state.stage =
+      "final-render";
+
+    safeRenderCurrentState();
+
+    state.completedAt =
+      Date.now();
+
+    state.stage =
+      "ready";
+
+    const hasError =
+      Boolean(
+        state.serverError ||
+        state.legacyError
+      );
+
+    if (hasError) {
+      setStatus(
+        "\uD654\uBA74\uC740 \uC0AC\uC6A9\uD560 \uC218 \uC788\uC9C0\uB9CC \uC77C\uBD80 \uC5C5\uBB34\uC77C\uC9C0 \uC870\uD68C\uAC00 \uC9C0\uC5F0\uB410\uC2B5\uB2C8\uB2E4.",
+        {
+          warning:
+            true,
+
+          hideAfterMs:
+            6000
+        }
+      );
+
+    } else {
+      setStatus(
+        "\uC5C5\uBB34\uC77C\uC9C0 \uBD88\uB7EC\uC624\uAE30 \uC644\uB8CC",
+        {
+          hideAfterMs:
+            1800
+        }
+      );
+    }
+  }
+
+
+  function scheduleBackgroundDataLoad() {
+    if (
+      backgroundScheduled
+    ) {
+      return;
+    }
+
+    backgroundScheduled =
+      true;
+
+    /*
+      Run after the current DOMContentLoaded listener finishes.
+      This guarantees the initial UI render is no longer held
+      behind the two network-loading awaits.
+    */
+    window.setTimeout(
+      () => {
+        void runBackgroundDataLoad();
+      },
+      0
+    );
+  }
+
+
+  loadLogs =
+    async function mobileInitialLoadLogsV8(
+      ...args
+    ) {
+      if (
+        initialLoadLogsIntercepted
+      ) {
+        return originalLoadLogs.apply(
+          this,
+          args
+        );
+      }
+
+      initialLoadLogsIntercepted =
+        true;
+
+      state.stage =
+        "initial-loadLogs-intercepted";
+
+      scheduleBackgroundDataLoad();
+
+      /*
+        Resolve immediately for the one initial startup call.
+      */
+      return [];
+    };
+
+
+  loadLegacyLogsForSelectedDate =
+    async function mobileInitialLegacyLoadV8(
+      ...args
+    ) {
+      if (
+        initialLoadLogsIntercepted &&
+        !initialLegacyIntercepted
+      ) {
+        initialLegacyIntercepted =
+          true;
+
+        state.stage =
+          "initial-legacy-intercepted";
+
+        restoreOriginalFunctions();
+
+        /*
+          Resolve immediately for the one initial startup call.
+        */
+        return [];
+      }
+
+      return originalLoadLegacyLogsForSelectedDate.apply(
+        this,
+        args
+      );
+    };
+
+
+  /*
+    Safety:
+    If the expected startup listener never reaches the second
+    intercepted function, restore originals after 3 seconds.
+  */
+  window.setTimeout(
+    () => {
+      if (
+        !originalFunctionsRestored
+      ) {
+        restoreOriginalFunctions();
+      }
+    },
+    3000
+  );
+})();
+</script>
+
 <script
     src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260823-header-menu-emoji4"
   ></script>
