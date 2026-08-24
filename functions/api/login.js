@@ -52,6 +52,43 @@ function jsonResponse(
 
 
 /* =========================================================
+  응답을 막지 않는 유지보수 작업
+
+  세션 만료 판정은 expires_at으로 끝난다. 만료 행 정리와
+  last_used_at 기록은 인증 결과를 바꾸지 않으므로 모바일
+  로그인/세션 확인 응답의 critical path에서 제외한다.
+========================================================= */
+
+function runSessionMaintenance(
+  context,
+  task,
+  label
+) {
+  const guardedTask =
+    Promise.resolve(
+      task
+    ).catch(
+      error => {
+        console.warn(
+          `${label} 실패:`,
+          error
+        );
+      }
+    );
+
+
+  if (
+    typeof context.waitUntil ===
+      "function"
+  ) {
+    context.waitUntil(
+      guardedTask
+    );
+  }
+}
+
+
+/* =========================================================
   사번 정리
 ========================================================= */
 
@@ -950,20 +987,6 @@ const user =
 
 
     /*
-      만료된 세션을 먼저 정리한다.
-    */
-    await context.env.DB
-      .prepare(`
-        DELETE FROM shift_log_sessions
-        WHERE expires_at <= ?
-      `)
-      .bind(
-        currentTimeText
-      )
-      .run();
-
-
-    /*
       실제 토큰 원문은 브라우저에만 전달하고
       D1에는 SHA-256 해시만 저장한다.
     */
@@ -999,6 +1022,26 @@ const user =
         user.id
       )
       .run();
+
+
+    /*
+      만료 세션 정리는 새 세션 발급 성공 여부와 무관하다.
+      전체 expires_at 범위 DELETE가 로그인 응답을 지연시키지
+      않도록 필수 로그인 쓰기가 끝난 뒤 백그라운드에서 수행한다.
+    */
+    runSessionMaintenance(
+      context,
+      context.env.DB
+        .prepare(`
+          DELETE FROM shift_log_sessions
+          WHERE expires_at <= ?
+        `)
+        .bind(
+          currentTimeText
+        )
+        .run(),
+      "만료 로그인 세션 정리"
+    );
 
 
 /* =========================
@@ -1327,15 +1370,19 @@ export async function onRequestGet(
       expiresAt <=
         now
     ) {
-      await context.env.DB
-        .prepare(`
-          DELETE FROM shift_log_sessions
-          WHERE token_hash = ?
-        `)
-        .bind(
-          tokenHash
-        )
-        .run();
+      runSessionMaintenance(
+        context,
+        context.env.DB
+          .prepare(`
+            DELETE FROM shift_log_sessions
+            WHERE token_hash = ?
+          `)
+          .bind(
+            tokenHash
+          )
+          .run(),
+        "만료 로그인 세션 삭제"
+      );
 
       return jsonResponse(
         {
@@ -1364,17 +1411,21 @@ export async function onRequestGet(
         ""
       ).trim();
 
-    await context.env.DB
-      .prepare(`
-        UPDATE shift_log_sessions
-        SET last_used_at = ?
-        WHERE token_hash = ?
-      `)
-      .bind(
-        now.toISOString(),
-        tokenHash
-      )
-      .run();
+    runSessionMaintenance(
+      context,
+      context.env.DB
+        .prepare(`
+          UPDATE shift_log_sessions
+          SET last_used_at = ?
+          WHERE token_hash = ?
+        `)
+        .bind(
+          now.toISOString(),
+          tokenHash
+        )
+        .run(),
+      "로그인 세션 사용시각 기록"
+    );
 
     return jsonResponse({
       ok: true,

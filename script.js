@@ -3967,7 +3967,47 @@ function openShiftLogApp(
   );
 }
 
+function isMobileShiftLogAppRoute() {
+  const path =
+    String(
+      window.location.pathname ||
+      ""
+    );
+
+
+  return (
+    path ===
+      "/mobile-app" ||
+    path.startsWith(
+      "/mobile-app/"
+    )
+  );
+}
+
+
 function openLoginScreen() {
+  /*
+    /mobile-app/ must never expose the embedded desktop login.
+
+    A 401 response or logout used to reopen that form and then run
+    the original, blocking loadLogs + legacy sequence after login.
+    On mobile this left the submit button at "로그인 중..." while
+    the whole data startup ran. Return to the lightweight canonical
+    gateway instead. The desktop route is unchanged.
+  */
+  if (
+    isMobileShiftLogAppRoute()
+  ) {
+    window.location.replace(
+      "/mobile/?build=20260825-mobile-auth-v12&reason=login-required&nonce=" +
+      Date.now()
+    );
+
+
+    return;
+  }
+
+
   const {
     loginScreen,
     appShell,

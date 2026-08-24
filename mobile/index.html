@@ -275,7 +275,7 @@
 </head>
 
 <body>
-  <!-- MOBILE-LOGIN-ROUTE-V6 -->
+  <!-- MOBILE-LOGIN-ROUTE-V12 -->
   <main class="screen">
     <section class="card">
       <div class="brand">
@@ -518,7 +518,7 @@
           getToken(user);
 
         if (!token) {
-          return false;
+          return "invalid";
         }
 
         const timeout =
@@ -553,8 +553,17 @@
               }
             );
 
+          if (
+            response.status ===
+              401 ||
+            response.status ===
+              403
+          ) {
+            return "invalid";
+          }
+
           if (!response.ok) {
-            return false;
+            return "unavailable";
           }
 
           const result =
@@ -564,10 +573,12 @@
             result &&
             result.ok === true &&
             result.authenticated === true
-          );
+          )
+            ? "valid"
+            : "invalid";
 
         } catch {
-          return false;
+          return "unavailable";
 
         } finally {
           timeout.clear();
@@ -834,19 +845,6 @@
               password
             );
 
-          setStatus(
-            "새 로그인 세션을 확인하고 있습니다."
-          );
-
-          const valid =
-            await validateUser(user);
-
-          if (!valid) {
-            throw new Error(
-              "로그인 세션 확인에 실패했습니다. 다시 시도해 주세요."
-            );
-          }
-
           if (
             remember &&
             remember.checked
@@ -880,6 +878,16 @@
             "로그인 완료. 업무일지를 여는 중입니다."
           );
 
+          /*
+            POST /api/login already waits until the new session is
+            stored and returns only after a token is issued.
+
+            Do not block a fresh mobile login on a second GET. That
+            extra round trip was unique to mobile and could keep the
+            button in its busy state on a slow network or under D1
+            write contention. Existing stored sessions are still
+            validated by validateStoredInBackground().
+          */
           goToApp();
 
         } catch (error) {
@@ -923,14 +931,15 @@
           "기존 로그인 세션을 확인하고 있습니다."
         );
 
-        const valid =
+        const validation =
           await validateUser(
             storedUser,
             6000
           );
 
         if (
-          valid &&
+          validation ===
+            "valid" &&
           !interacted &&
           !submitting
         ) {
@@ -943,7 +952,10 @@
           return;
         }
 
-        if (!valid) {
+        if (
+          validation ===
+            "invalid"
+        ) {
           const latestUser =
             readStoredUser();
 
@@ -960,6 +972,18 @@
           if (!interacted) {
             setStatus("");
           }
+
+          return;
+        }
+
+        if (
+          validation ===
+            "unavailable" &&
+          !interacted
+        ) {
+          setStatus(
+            "기존 세션 확인이 지연되고 있습니다. 필요하면 로그인 버튼을 눌러 다시 시도해 주세요."
+          );
         }
       }
 
