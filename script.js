@@ -120929,6 +120929,26 @@ openLogDetail =
     }
 
 
+    /*
+      [MOBILE-STARTUP-BODY-OBSERVER-GUARD-V1]
+
+      Desktop:
+      Keep the existing full label normalization and observer.
+
+      Mobile:
+      Do not walk every text node in the full document during startup.
+      Current mobile markup already uses the final labels, so the
+      compatibility fixer is not required for initial app entry.
+    */
+    if (
+      window.matchMedia(
+        "(max-width: 900px)"
+      ).matches
+    ) {
+      return;
+    }
+
+
     normalizeIssueEntryLabelsIn(
       document.body
     );
@@ -208132,6 +208152,40 @@ window
     }
 
 
+    const isMobileStartup =
+      window.matchMedia(
+        "(max-width: 900px)"
+      ).matches;
+
+
+    if (
+      isMobileStartup
+    ) {
+      /*
+        Mobile:
+        Only watch direct body children.
+
+        The old observer watched every descendant class/hidden change
+        across the complete application, which creates a large callback
+        burst while the mobile app is being initialized.
+
+        The existing message listener and delegated completion click
+        handlers remain active.
+      */
+      observer.observe(
+        document.body,
+        {
+          childList:
+            true
+        }
+      );
+
+      scheduleRoleInspectionManualRender();
+
+      return;
+    }
+
+
     observer.observe(
       document.body,
       {
@@ -222951,21 +223005,35 @@ function removeDisplayedOverrides() {
     ensureStyle();
     bindEvents();
 
-    const observer =
-      new MutationObserver(
-        scheduleEditorRefresh
+    const isMobileStartup =
+      window.matchMedia(
+        "(max-width: 900px)"
+      ).matches;
+
+
+    /*
+      Mobile morning-meeting editing is not exposed in the mobile UI.
+      Keep one initial refresh, but do not observe every body mutation.
+    */
+    if (
+      !isMobileStartup
+    ) {
+      const observer =
+        new MutationObserver(
+          scheduleEditorRefresh
+        );
+
+      observer.observe(
+        document.body,
+        {
+          childList:
+            true,
+
+          subtree:
+            true
+        }
       );
-
-    observer.observe(
-      document.body,
-      {
-        childList:
-          true,
-
-        subtree:
-          true
-      }
-    );
+    }
 
     window
       .renderEfficiencyMorningMeetingSmpPrice
@@ -240721,6 +240789,24 @@ function initializeDailyControls() {
 
   function initialize() {
     installAll();
+
+
+    const isMobileStartup =
+      window.matchMedia(
+        "(max-width: 900px)"
+      ).matches;
+
+
+    /*
+      Mobile does not expose the morning-meeting editor controls.
+      The initial installAll() is kept for compatibility, while the
+      full-body mutation observer is desktop-only.
+    */
+    if (
+      isMobileStartup
+    ) {
+      return;
+    }
 
 
     const observer =
