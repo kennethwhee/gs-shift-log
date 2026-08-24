@@ -14164,29 +14164,31 @@
   src="script.js?v=20260824-mobile-body-observer-guard1"
 ></script>
 
-<!-- MOBILE-APP-NONBLOCKING-DATA-STARTUP-V8 -->
+<!-- MOBILE-APP-BOUNDED-DATA-STARTUP-V9 -->
 <script>
 "use strict";
 
 (() => {
   if (
-    window.__mobileNonblockingDataStartupV8Installed ===
+    window.__mobileBoundedStartupV9Installed ===
       true
   ) {
     return;
   }
 
-  window.__mobileNonblockingDataStartupV8Installed =
+  window.__mobileBoundedStartupV9Installed =
     true;
 
   if (
     typeof loadLogs !==
       "function" ||
     typeof loadLegacyLogsForSelectedDate !==
+      "function" ||
+    typeof loadSharedShiftLogsFromServer !==
       "function"
   ) {
     console.error(
-      "[Mobile V8] startup data functions are unavailable."
+      "[Mobile V9] required startup functions are unavailable."
     );
 
     return;
@@ -14198,16 +14200,19 @@
   const originalLoadLegacyLogsForSelectedDate =
     loadLegacyLogsForSelectedDate;
 
-  let initialLoadLogsIntercepted =
+  const originalLoadSharedShiftLogsFromServer =
+    loadSharedShiftLogsFromServer;
+
+  let initialLoadIntercepted =
     false;
 
   let initialLegacyIntercepted =
     false;
 
-  let originalFunctionsRestored =
+  let startupFunctionsRestored =
     false;
 
-  let backgroundScheduled =
+  let backgroundStarted =
     false;
 
   let statusTimerId =
@@ -14217,36 +14222,214 @@
     stage:
       "installed",
 
-    serverStartedAt:
+    selectedDate:
+      "",
+
+    sharedCount:
       0,
 
-    serverCompletedAt:
+    localMigrationCandidateCount:
       0,
 
-    legacyStartedAt:
-      0,
-
-    legacyCompletedAt:
-      0,
-
-    completedAt:
-      0,
-
-    serverError:
+    sharedError:
       "",
 
     legacyError:
-      ""
+      "",
+
+    startedAt:
+      Date.now(),
+
+    completedAt:
+      0
   };
 
-  window.__mobileNonblockingDataStartupV8State =
+  window.__mobileBoundedStartupV9State =
     state;
+
+
+  function getSelectedDateIso() {
+    try {
+      if (
+        typeof formatInputDate ===
+          "function" &&
+        appState &&
+        appState.selectedDate
+      ) {
+        const value =
+          String(
+            formatInputDate(
+              appState.selectedDate
+            ) ||
+            ""
+          ).trim();
+
+        if (
+          /^\d{4}-\d{2}-\d{2}$/.test(
+            value
+          )
+        ) {
+          return value;
+        }
+      }
+
+    } catch {
+      // Continue to local date fallback.
+    }
+
+    const now =
+      new Date();
+
+    const year =
+      String(
+        now.getFullYear()
+      );
+
+    const month =
+      String(
+        now.getMonth() +
+        1
+      ).padStart(
+        2,
+        "0"
+      );
+
+    const day =
+      String(
+        now.getDate()
+      ).padStart(
+        2,
+        "0"
+      );
+
+    return (
+      year +
+      "-" +
+      month +
+      "-" +
+      day
+    );
+  }
+
+
+  function createSelectedDateQuery() {
+    const date =
+      getSelectedDateIso();
+
+    state.selectedDate =
+      date;
+
+    const params =
+      new URLSearchParams({
+        from:
+          date,
+
+        to:
+          date
+      });
+
+    return (
+      "?" +
+      params.toString()
+    );
+  }
+
+
+  function normalizeQuery(
+    query
+  ) {
+    const value =
+      String(
+        query ||
+        ""
+      ).trim();
+
+    if (value) {
+      return value;
+    }
+
+    return createSelectedDateQuery();
+  }
+
+
+  function withTimeout(
+    promise,
+    timeoutMs,
+    label
+  ) {
+    return new Promise(
+      (
+        resolve,
+        reject
+      ) => {
+        let settled =
+          false;
+
+        const timer =
+          window.setTimeout(
+            () => {
+              if (settled) {
+                return;
+              }
+
+              settled =
+                true;
+
+              reject(
+                new Error(
+                  label +
+                  " timeout"
+                )
+              );
+            },
+            timeoutMs
+          );
+
+        Promise.resolve(
+          promise
+        ).then(
+          value => {
+            if (settled) {
+              return;
+            }
+
+            settled =
+              true;
+
+            window.clearTimeout(
+              timer
+            );
+
+            resolve(
+              value
+            );
+          },
+          error => {
+            if (settled) {
+              return;
+            }
+
+            settled =
+              true;
+
+            window.clearTimeout(
+              timer
+            );
+
+            reject(
+              error
+            );
+          }
+        );
+      }
+    );
+  }
 
 
   function getStatusElement() {
     let element =
       document.getElementById(
-        "mobileDataStartupStatusV8"
+        "mobileDataStartupStatusV9"
       );
 
     if (
@@ -14262,7 +14445,7 @@
       );
 
     element.id =
-      "mobileDataStartupStatusV8";
+      "mobileDataStartupStatusV9";
 
     element.style.cssText = [
       "position:fixed",
@@ -14373,74 +14556,54 @@
 
   function safeRenderCurrentState() {
     const operations = [
-      [
-        "renderSelectedDate",
-        () => {
-          if (
-            typeof renderSelectedDate ===
-              "function"
-          ) {
-            renderSelectedDate();
-          }
+      () => {
+        if (
+          typeof renderSelectedDate ===
+            "function"
+        ) {
+          renderSelectedDate();
         }
-      ],
+      },
 
-      [
-        "renderLogTable",
-        () => {
-          if (
-            typeof renderLogTable ===
-              "function"
-          ) {
-            renderLogTable();
-          }
+      () => {
+        if (
+          typeof renderLogTable ===
+            "function"
+        ) {
+          renderLogTable();
         }
-      ],
+      },
 
-      [
-        "updateShiftMemberCardStates",
-        () => {
-          if (
-            typeof updateShiftMemberCardStates ===
-              "function"
-          ) {
-            updateShiftMemberCardStates();
-          }
+      () => {
+        if (
+          typeof updateShiftMemberCardStates ===
+            "function"
+        ) {
+          updateShiftMemberCardStates();
         }
-      ],
+      },
 
-      [
-        "setEditorDateFromSelectedDate",
-        () => {
-          if (
-            typeof setEditorDateFromSelectedDate ===
-              "function"
-          ) {
-            setEditorDateFromSelectedDate();
-          }
+      () => {
+        if (
+          typeof setEditorDateFromSelectedDate ===
+            "function"
+        ) {
+          setEditorDateFromSelectedDate();
         }
-      ],
+      },
 
-      [
-        "renderLogEntryTable",
-        () => {
-          if (
-            typeof renderLogEntryTable ===
-              "function"
-          ) {
-            renderLogEntryTable();
-          }
+      () => {
+        if (
+          typeof renderLogEntryTable ===
+            "function"
+        ) {
+          renderLogEntryTable();
         }
-      ]
+      }
     ];
 
     operations.forEach(
-      (
-        [
-          label,
-          operation
-        ]
-      ) => {
+      operation => {
         try {
           operation();
 
@@ -14448,7 +14611,7 @@
           error
         ) {
           console.warn(
-            `[Mobile V8] ${label} refresh failed:`,
+            "[Mobile V9] render refresh failed:",
             error
           );
         }
@@ -14457,9 +14620,31 @@
   }
 
 
-  function restoreOriginalFunctions() {
+  /*
+    Important mobile-only behavior:
+
+    Any shared-log request that intentionally provides a query
+    keeps that query exactly as-is.
+
+    Only an empty query is bounded to the currently selected date.
+    This prevents mobile navigation/startup code from downloading
+    the entire D1 shift-log history.
+  */
+  loadSharedShiftLogsFromServer =
+    async function mobileBoundedSharedLoadV9(
+      query = ""
+    ) {
+      return originalLoadSharedShiftLogsFromServer(
+        normalizeQuery(
+          query
+        )
+      );
+    };
+
+
+  function restoreStartupFunctions() {
     if (
-      originalFunctionsRestored
+      startupFunctionsRestored
     ) {
       return;
     }
@@ -14470,32 +14655,127 @@
     loadLegacyLogsForSelectedDate =
       originalLoadLegacyLogsForSelectedDate;
 
-    originalFunctionsRestored =
+    startupFunctionsRestored =
       true;
-
-    state.stage =
-      "initial-render-unblocked";
   }
 
 
-  async function runBackgroundDataLoad() {
-    state.stage =
-      "server-logs";
+  async function loadCurrentDateSharedLogs() {
+    const query =
+      createSelectedDateQuery();
 
-    state.serverStartedAt =
-      Date.now();
+    state.stage =
+      "shared-current-date";
 
     setStatus(
-      "\uC11C\uBC84 \uC5C5\uBB34\uC77C\uC9C0\uB97C \uBD88\uB7EC\uC624\uB294 \uC911..."
+      "\uC624\uB298 \uC5C5\uBB34\uC77C\uC9C0\uB97C \uBD88\uB7EC\uC624\uB294 \uC911..."
     );
 
+    const serverLogs =
+      await withTimeout(
+        originalLoadSharedShiftLogsFromServer(
+          query
+        ),
+        12000,
+        "shared current-date load"
+      );
+
+    state.sharedCount =
+      Array.isArray(
+        serverLogs
+      )
+        ? serverLogs.length
+        : 0;
+
+    const preservedLegacyLogs =
+      (
+        typeof isReadOnlyLegacyShiftLog ===
+          "function"
+      )
+        ? appState.logs.filter(
+            isReadOnlyLegacyShiftLog
+          )
+        : [];
+
+    appState.logs = [
+      ...(
+        Array.isArray(
+          serverLogs
+        )
+          ? serverLogs
+          : []
+      ),
+
+      ...preservedLegacyLogs
+    ];
+
+    /*
+      Do NOT run migrateLocalShiftLogsToServer during mobile startup.
+
+      That routine scans old localStorage logs and may issue one
+      server migration request per old log. Desktop login keeps the
+      original migration behavior. Mobile data is left untouched.
+    */
+    if (
+      typeof readLocalShiftLogsForMigration ===
+        "function"
+    ) {
+      try {
+        const candidates =
+          readLocalShiftLogsForMigration();
+
+        state.localMigrationCandidateCount =
+          Array.isArray(
+            candidates
+          )
+            ? candidates.length
+            : 0;
+
+      } catch {
+        state.localMigrationCandidateCount =
+          0;
+      }
+    }
+
+    safeRenderCurrentState();
+  }
+
+
+  async function loadCurrentDateLegacyLogs() {
+    state.stage =
+      "legacy-current-date";
+
+    setStatus(
+      "\uC624\uB298 \uACFC\uAC70 \uC5F0\uB3D9 \uC77C\uC9C0\uB97C \uBD88\uB7EC\uC624\uB294 \uC911..."
+    );
+
+    await withTimeout(
+      originalLoadLegacyLogsForSelectedDate(),
+      12000,
+      "legacy current-date load"
+    );
+
+    safeRenderCurrentState();
+  }
+
+
+  async function runBackgroundStartup() {
+    if (
+      backgroundStarted
+    ) {
+      return;
+    }
+
+    backgroundStarted =
+      true;
+
     try {
-      await originalLoadLogs();
+      await loadCurrentDateSharedLogs();
 
     } catch (
       error
     ) {
-      state.serverError =
+      state.sharedError =
         String(
           (
             error &&
@@ -14506,30 +14786,21 @@
         );
 
       console.error(
-        "[Mobile V8] initial D1 load failed:",
+        "[Mobile V9] current-date shared load failed:",
         error
+      );
+
+      setStatus(
+        "\uC624\uB298 \uC11C\uBC84 \uC77C\uC9C0 \uC870\uD68C\uAC00 \uC9C0\uC5F0\uB429\uB2C8\uB2E4. \uD654\uBA74\uC740 \uACC4\uC18D \uC0AC\uC6A9\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.",
+        {
+          warning:
+            true
+        }
       );
     }
 
-    state.serverCompletedAt =
-      Date.now();
-
-    state.stage =
-      "legacy-logs";
-
-    state.legacyStartedAt =
-      Date.now();
-
-    setStatus(
-      "\uACFC\uAC70 \uC5C5\uBB34\uC77C\uC9C0\uB97C \uBD88\uB7EC\uC624\uB294 \uC911..."
-    );
-
     try {
-      /*
-        Keep the existing required sequence:
-        shared D1 first, legacy second.
-      */
-      await originalLoadLegacyLogsForSelectedDate();
+      await loadCurrentDateLegacyLogs();
 
     } catch (
       error
@@ -14545,73 +14816,63 @@
         );
 
       console.error(
-        "[Mobile V8] initial legacy load failed:",
+        "[Mobile V9] current-date legacy load failed:",
         error
       );
     }
 
-    state.legacyCompletedAt =
-      Date.now();
-
-    state.stage =
-      "final-render";
-
     safeRenderCurrentState();
-
-    state.completedAt =
-      Date.now();
 
     state.stage =
       "ready";
 
+    state.completedAt =
+      Date.now();
+
     const hasError =
       Boolean(
-        state.serverError ||
+        state.sharedError ||
         state.legacyError
       );
 
-    if (hasError) {
-      setStatus(
-        "\uD654\uBA74\uC740 \uC0AC\uC6A9\uD560 \uC218 \uC788\uC9C0\uB9CC \uC77C\uBD80 \uC5C5\uBB34\uC77C\uC9C0 \uC870\uD68C\uAC00 \uC9C0\uC5F0\uB410\uC2B5\uB2C8\uB2E4.",
-        {
-          warning:
-            true,
+    const migrationNote =
+      state.localMigrationCandidateCount >
+        0
+        ? (
+            " / local migration deferred=" +
+            state.localMigrationCandidateCount
+          )
+        : "";
 
-          hideAfterMs:
-            6000
-        }
-      );
+    console.log(
+      "[Mobile V9] startup complete",
+      {
+        ...state,
+        migrationNote
+      }
+    );
 
-    } else {
-      setStatus(
-        "\uC5C5\uBB34\uC77C\uC9C0 \uBD88\uB7EC\uC624\uAE30 \uC644\uB8CC",
-        {
-          hideAfterMs:
-            1800
-        }
-      );
-    }
+    setStatus(
+      hasError
+        ? "\uBAA8\uBC14\uC77C \uD654\uBA74 \uC900\uBE44 \uC644\uB8CC \u00B7 \uC77C\uBD80 \uC870\uD68C\uB294 \uBC31\uADF8\uB77C\uC6B4\uB4DC\uC5D0\uC11C \uACC4\uC18D\uB429\uB2C8\uB2E4."
+        : "\uBAA8\uBC14\uC77C \uC5C5\uBB34\uC77C\uC9C0 \uC900\uBE44 \uC644\uB8CC",
+      {
+        warning:
+          hasError,
+
+        hideAfterMs:
+          hasError
+            ? 5000
+            : 1600
+      }
+    );
   }
 
 
-  function scheduleBackgroundDataLoad() {
-    if (
-      backgroundScheduled
-    ) {
-      return;
-    }
-
-    backgroundScheduled =
-      true;
-
-    /*
-      Run after the current DOMContentLoaded listener finishes.
-      This guarantees the initial UI render is no longer held
-      behind the two network-loading awaits.
-    */
+  function scheduleBackgroundStartup() {
     window.setTimeout(
       () => {
-        void runBackgroundDataLoad();
+        void runBackgroundStartup();
       },
       0
     );
@@ -14619,11 +14880,11 @@
 
 
   loadLogs =
-    async function mobileInitialLoadLogsV8(
+    async function mobileInitialLoadLogsV9(
       ...args
     ) {
       if (
-        initialLoadLogsIntercepted
+        initialLoadIntercepted
       ) {
         return originalLoadLogs.apply(
           this,
@@ -14631,27 +14892,24 @@
         );
       }
 
-      initialLoadLogsIntercepted =
+      initialLoadIntercepted =
         true;
 
       state.stage =
         "initial-loadLogs-intercepted";
 
-      scheduleBackgroundDataLoad();
+      scheduleBackgroundStartup();
 
-      /*
-        Resolve immediately for the one initial startup call.
-      */
       return [];
     };
 
 
   loadLegacyLogsForSelectedDate =
-    async function mobileInitialLegacyLoadV8(
+    async function mobileInitialLegacyLoadV9(
       ...args
     ) {
       if (
-        initialLoadLogsIntercepted &&
+        initialLoadIntercepted &&
         !initialLegacyIntercepted
       ) {
         initialLegacyIntercepted =
@@ -14660,11 +14918,8 @@
         state.stage =
           "initial-legacy-intercepted";
 
-        restoreOriginalFunctions();
+        restoreStartupFunctions();
 
-        /*
-          Resolve immediately for the one initial startup call.
-        */
         return [];
       }
 
@@ -14675,18 +14930,9 @@
     };
 
 
-  /*
-    Safety:
-    If the expected startup listener never reaches the second
-    intercepted function, restore originals after 3 seconds.
-  */
   window.setTimeout(
     () => {
-      if (
-        !originalFunctionsRestored
-      ) {
-        restoreOriginalFunctions();
-      }
+      restoreStartupFunctions();
     },
     3000
   );
