@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  >
+  <meta
+    name="description"
+    content="GS Shift Log mobile login"
+  >
+  <title>GS Shift Log - Mobile Login</title>
+
+  <style>
+    :root {
+      color-scheme: light;
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Apple SD Gothic Neo",
+        "Malgun Gothic",
+        Arial,
+        sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-width: 0;
+      min-height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      background:
+        linear-gradient(
+          135deg,
+          #12385f 0%,
+          #1f5f9f 55%,
+          #276eae 100%
+        );
+      color: #172033;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .screen {
+      display: grid;
+      width: 100%;
+      min-height: 100vh;
+      min-height: 100dvh;
+      place-items: center;
+      padding:
+        max(18px, env(safe-area-inset-top))
+        18px
+        max(18px, env(safe-area-inset-bottom));
+    }
+
+    .card {
+      width: min(100%, 430px);
+      padding: 27px 24px 24px;
+      border: 1px solid rgba(255, 255, 255, 0.78);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow:
+        0 22px 60px
+        rgba(9, 32, 58, 0.28);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 21px;
+    }
+
+    .logo {
+      display: grid;
+      width: 50px;
+      height: 50px;
+      flex: 0 0 50px;
+      place-items: center;
+      border-radius: 12px;
+      background:
+        linear-gradient(
+          135deg,
+          #1d5da8,
+          #2e79c9
+        );
+      color: #fff;
+      font-size: 16px;
+      font-weight: 900;
+    }
+
+    .brand-copy {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .brand-copy small {
+      color: #778396;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .brand-copy strong {
+      color: #172033;
+      font-size: 18px;
+      font-weight: 900;
+      line-height: 1.3;
+    }
+
+    .eyebrow {
+      margin: 0 0 2px;
+      color: #1f5fae;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+    }
+
+    h1 {
+      margin: 0;
+      color: #121c2c;
+      font-size: 34px;
+      font-weight: 900;
+      line-height: 1.16;
+      letter-spacing: -0.05em;
+    }
+
+    .description {
+      margin: 8px 0 23px;
+      color: #6f7b8d;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    label.field {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .field > span {
+      color: #25354d;
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .field input {
+      width: 100%;
+      height: 50px;
+      padding: 0 14px;
+      border: 1px solid #c9d5e2;
+      border-radius: 10px;
+      background: #fff;
+      color: #172033;
+      outline: none;
+      font: inherit;
+      font-size: 16px;
+      line-height: 1;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .field input:focus {
+      border-color: #5b91ca;
+      box-shadow:
+        0 0 0 3px
+        rgba(31, 95, 174, 0.12);
+    }
+
+    .remember {
+      display: inline-flex;
+      align-items: center;
+      align-self: flex-start;
+      gap: 9px;
+      min-height: 38px;
+      color: #536175;
+      font-size: 14px;
+      font-weight: 800;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .remember input {
+      width: 22px;
+      height: 22px;
+      margin: 0;
+      accent-color: #1f5fae;
+    }
+
+    .status {
+      min-height: 18px;
+      margin: -3px 0 0;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1.5;
+    }
+
+    .status.is-error {
+      padding: 10px 11px;
+      border: 1px solid #efc4c4;
+      border-radius: 8px;
+      background: #fff3f3;
+      color: #b33d3d;
+    }
+
+    .status:empty {
+      min-height: 0;
+      margin: 0;
+    }
+
+    .submit {
+      width: 100%;
+      height: 52px;
+      margin-top: 1px;
+      border: 0;
+      border-radius: 10px;
+      background:
+        linear-gradient(
+          135deg,
+          #2676c8,
+          #19579b
+        );
+      color: #fff;
+      font: inherit;
+      font-size: 16px;
+      font-weight: 900;
+      touch-action: manipulation;
+    }
+
+    .submit:disabled {
+      opacity: 0.68;
+    }
+
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      margin-top: 20px;
+      padding-top: 17px;
+      border-top: 1px solid #e0e6ed;
+      color: #8a95a4;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #2ca66d;
+      box-shadow:
+        0 0 0 3px
+        rgba(44, 166, 109, 0.12);
+    }
+  </style>
+</head>
+
+<body>
+  <!-- MOBILE-LOGIN-ROUTE-V6 -->
+  <main class="screen">
+    <section class="card">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          GS
+        </div>
+
+        <div class="brand-copy">
+          <small>
+            GS 포천그린에너지
+          </small>
+
+          <strong>
+            GS Shift Log
+          </strong>
+        </div>
+      </div>
+
+      <p class="eyebrow">
+        EMPLOYEE LOGIN
+      </p>
+
+      <h1>
+        로그인
+      </h1>
+
+      <p class="description">
+        사번과 비밀번호를 입력해 주세요.
+      </p>
+
+      <form
+        id="mobileV6LoginForm"
+        autocomplete="on"
+      >
+        <label class="field">
+          <span>
+            사번
+          </span>
+
+          <input
+            id="mobileV6EmployeeNo"
+            name="employeeNo"
+            type="text"
+            inputmode="numeric"
+            maxlength="7"
+            autocomplete="username"
+            placeholder="사번을 입력하세요"
+            required
+          >
+        </label>
+
+        <label class="field">
+          <span>
+            비밀번호
+          </span>
+
+          <input
+            id="mobileV6Password"
+            name="password"
+            type="password"
+            maxlength="30"
+            autocomplete="current-password"
+            placeholder="비밀번호를 입력하세요"
+            required
+          >
+        </label>
+
+        <label class="remember">
+          <input
+            id="mobileV6Remember"
+            type="checkbox"
+          >
+
+          <span>
+            자동 로그인
+          </span>
+        </label>
+
+        <p
+          class="status"
+          id="mobileV6Status"
+          role="status"
+          aria-live="polite"
+        ></p>
+
+        <button
+          id="mobileV6Submit"
+          class="submit"
+          type="submit"
+        >
+          로그인
+        </button>
+      </form>
+
+      <footer class="footer">
+        <span class="dot" aria-hidden="true"></span>
+        <span>
+          GS Shift Log 모바일 보안 접속
+        </span>
+      </footer>
+    </section>
+  </main>
+
+  <script>
+    "use strict";
+
+    (() => {
+      const AUTH_KEY =
+        "gsShiftLog.currentUser";
+
+      const REMEMBER_KEY =
+        "gsShiftLog.rememberedLogin";
+
+      let submitting =
+        false;
+
+      let interacted =
+        false;
+
+
+      function byId(id) {
+        return document.getElementById(id);
+      }
+
+
+      function createTimeout(ms) {
+        const controller =
+          new AbortController();
+
+        const timeoutId =
+          window.setTimeout(
+            () => {
+              controller.abort();
+            },
+            ms
+          );
+
+        return {
+          controller,
+
+          clear() {
+            window.clearTimeout(
+              timeoutId
+            );
+          }
+        };
+      }
+
+
+      function getToken(user) {
+        if (
+          !user ||
+          typeof user !== "object"
+        ) {
+          return "";
+        }
+
+        return String(
+          user.sessionToken ||
+          user.session_token ||
+          ""
+        ).trim();
+      }
+
+
+      function readStoredUser() {
+        try {
+          const raw =
+            localStorage.getItem(
+              AUTH_KEY
+            );
+
+          if (!raw) {
+            return null;
+          }
+
+          const user =
+            JSON.parse(raw);
+
+          return (
+            user &&
+            typeof user === "object"
+          )
+            ? user
+            : null;
+
+        } catch {
+          localStorage.removeItem(
+            AUTH_KEY
+          );
+
+          return null;
+        }
+      }
+
+
+      function setStatus(
+        message,
+        isError = false
+      ) {
+        const element =
+          byId(
+            "mobileV6Status"
+          );
+
+        element.textContent =
+          String(
+            message ||
+            ""
+          );
+
+        element.classList.toggle(
+          "is-error",
+          Boolean(isError)
+        );
+      }
+
+
+      function setBusy(isBusy) {
+        const button =
+          byId(
+            "mobileV6Submit"
+          );
+
+        button.disabled =
+          Boolean(isBusy);
+
+        button.textContent =
+          isBusy
+            ? "로그인 확인 중..."
+            : "로그인";
+      }
+
+
+      async function validateUser(
+        user,
+        timeoutMs = 8000
+      ) {
+        const token =
+          getToken(user);
+
+        if (!token) {
+          return false;
+        }
+
+        const timeout =
+          createTimeout(
+            timeoutMs
+          );
+
+        try {
+          const response =
+            await fetch(
+              "/api/login",
+              {
+                method:
+                  "GET",
+
+                headers: {
+                  Accept:
+                    "application/json",
+
+                  Authorization:
+                    "Bearer " +
+                    token
+                },
+
+                cache:
+                  "no-store",
+
+                signal:
+                  timeout
+                    .controller
+                    .signal
+              }
+            );
+
+          if (!response.ok) {
+            return false;
+          }
+
+          const result =
+            await response.json();
+
+          return (
+            result &&
+            result.ok === true &&
+            result.authenticated === true
+          );
+
+        } catch {
+          return false;
+
+        } finally {
+          timeout.clear();
+        }
+      }
+
+
+      async function requestLogin(
+        employeeNo,
+        password
+      ) {
+        const timeout =
+          createTimeout(
+            15000
+          );
+
+        try {
+          const response =
+            await fetch(
+              "/api/login",
+              {
+                method:
+                  "POST",
+
+                headers: {
+                  "Content-Type":
+                    "application/json",
+
+                  Accept:
+                    "application/json"
+                },
+
+                cache:
+                  "no-store",
+
+                body:
+                  JSON.stringify({
+                    employeeNo,
+                    password
+                  }),
+
+                signal:
+                  timeout
+                    .controller
+                    .signal
+              }
+            );
+
+          const responseText =
+            await response.text();
+
+          let result = {};
+
+          try {
+            result =
+              responseText
+                ? JSON.parse(
+                    responseText
+                  )
+                : {};
+
+          } catch {
+            throw new Error(
+              "로그인 서버 응답을 확인할 수 없습니다."
+            );
+          }
+
+          if (
+            !response.ok ||
+            !result ||
+            result.ok !== true
+          ) {
+            throw new Error(
+              (
+                result &&
+                result.message
+              ) ||
+              "사번 또는 비밀번호를 확인해 주세요."
+            );
+          }
+
+          const user =
+            result.user ||
+            result.member ||
+            result.data ||
+            null;
+
+          if (
+            !user ||
+            typeof user !== "object"
+          ) {
+            throw new Error(
+              "로그인 사용자 정보를 확인할 수 없습니다."
+            );
+          }
+
+          if (!getToken(user)) {
+            throw new Error(
+              "로그인 세션 토큰을 발급받지 못했습니다."
+            );
+          }
+
+          return user;
+
+        } catch (error) {
+          if (
+            error &&
+            error.name ===
+              "AbortError"
+          ) {
+            throw new Error(
+              "로그인 서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요."
+            );
+          }
+
+          throw error;
+
+        } finally {
+          timeout.clear();
+        }
+      }
+
+
+      function restoreRemembered() {
+        try {
+          const raw =
+            localStorage.getItem(
+              REMEMBER_KEY
+            );
+
+          if (!raw) {
+            return;
+          }
+
+          const saved =
+            JSON.parse(raw);
+
+          const employeeNo =
+            String(
+              (
+                saved &&
+                saved.employeeId
+              ) ||
+              ""
+            ).trim();
+
+          const password =
+            String(
+              (
+                saved &&
+                saved.password
+              ) ||
+              ""
+            );
+
+          if (
+            !employeeNo ||
+            !password
+          ) {
+            return;
+          }
+
+          byId(
+            "mobileV6EmployeeNo"
+          ).value =
+            employeeNo;
+
+          byId(
+            "mobileV6Password"
+          ).value =
+            password;
+
+          byId(
+            "mobileV6Remember"
+          ).checked =
+            true;
+
+        } catch {
+          localStorage.removeItem(
+            REMEMBER_KEY
+          );
+        }
+      }
+
+
+      function goToApp() {
+        window.location.replace(
+          "/?mobileApp=1&mobileLoginNonce=" +
+          Date.now()
+        );
+      }
+
+
+      async function handleSubmit(event) {
+        event.preventDefault();
+
+        if (submitting) {
+          return;
+        }
+
+        interacted =
+          true;
+
+        const employeeNo =
+          String(
+            byId(
+              "mobileV6EmployeeNo"
+            ).value ||
+            ""
+          ).trim();
+
+        const password =
+          String(
+            byId(
+              "mobileV6Password"
+            ).value ||
+            ""
+          );
+
+        const remember =
+          byId(
+            "mobileV6Remember"
+          );
+
+        if (!employeeNo) {
+          setStatus(
+            "사번을 입력해 주세요.",
+            true
+          );
+
+          byId(
+            "mobileV6EmployeeNo"
+          ).focus();
+
+          return;
+        }
+
+        if (!password) {
+          setStatus(
+            "비밀번호를 입력해 주세요.",
+            true
+          );
+
+          byId(
+            "mobileV6Password"
+          ).focus();
+
+          return;
+        }
+
+        submitting =
+          true;
+
+        setBusy(true);
+
+        setStatus(
+          "로그인 정보를 확인하고 있습니다."
+        );
+
+        try {
+          const user =
+            await requestLogin(
+              employeeNo,
+              password
+            );
+
+          setStatus(
+            "새 로그인 세션을 확인하고 있습니다."
+          );
+
+          const valid =
+            await validateUser(user);
+
+          if (!valid) {
+            throw new Error(
+              "로그인 세션 확인에 실패했습니다. 다시 시도해 주세요."
+            );
+          }
+
+          if (
+            remember &&
+            remember.checked
+          ) {
+            localStorage.setItem(
+              REMEMBER_KEY,
+              JSON.stringify({
+                employeeId:
+                  employeeNo,
+
+                password,
+
+                savedAt:
+                  new Date()
+                    .toISOString()
+              })
+            );
+
+          } else {
+            localStorage.removeItem(
+              REMEMBER_KEY
+            );
+          }
+
+          localStorage.setItem(
+            AUTH_KEY,
+            JSON.stringify(user)
+          );
+
+          setStatus(
+            "로그인 완료. 업무일지를 여는 중입니다."
+          );
+
+          goToApp();
+
+        } catch (error) {
+          submitting =
+            false;
+
+          setBusy(false);
+
+          setStatus(
+            (
+              error &&
+              error.message
+            ) ||
+            "로그인에 실패했습니다.",
+            true
+          );
+        }
+      }
+
+
+      async function validateStoredInBackground() {
+        const storedUser =
+          readStoredUser();
+
+        if (!storedUser) {
+          return;
+        }
+
+        const checkedToken =
+          getToken(storedUser);
+
+        if (!checkedToken) {
+          localStorage.removeItem(
+            AUTH_KEY
+          );
+
+          return;
+        }
+
+        setStatus(
+          "기존 로그인 세션을 확인하고 있습니다."
+        );
+
+        const valid =
+          await validateUser(
+            storedUser,
+            6000
+          );
+
+        if (
+          valid &&
+          !interacted &&
+          !submitting
+        ) {
+          setStatus(
+            "기존 로그인 확인 완료. 업무일지를 여는 중입니다."
+          );
+
+          goToApp();
+
+          return;
+        }
+
+        if (!valid) {
+          const latestUser =
+            readStoredUser();
+
+          if (
+            getToken(
+              latestUser
+            ) === checkedToken
+          ) {
+            localStorage.removeItem(
+              AUTH_KEY
+            );
+          }
+
+          if (!interacted) {
+            setStatus("");
+          }
+        }
+      }
+
+
+      function initialize() {
+        const form =
+          byId(
+            "mobileV6LoginForm"
+          );
+
+        form.addEventListener(
+          "submit",
+          handleSubmit
+        );
+
+        [
+          byId(
+            "mobileV6EmployeeNo"
+          ),
+
+          byId(
+            "mobileV6Password"
+          ),
+
+          byId(
+            "mobileV6Remember"
+          )
+        ]
+          .filter(Boolean)
+          .forEach(
+            element => {
+              element.addEventListener(
+                "input",
+                () => {
+                  interacted =
+                    true;
+                }
+              );
+
+              element.addEventListener(
+                "focus",
+                () => {
+                  interacted =
+                    true;
+                }
+              );
+            }
+          );
+
+        byId(
+          "mobileV6Remember"
+        ).addEventListener(
+          "change",
+          event => {
+            interacted =
+              true;
+
+            if (
+              !event.currentTarget
+                .checked
+            ) {
+              localStorage.removeItem(
+                REMEMBER_KEY
+              );
+            }
+          }
+        );
+
+        restoreRemembered();
+
+        void validateStoredInBackground();
+      }
+
+
+      window.addEventListener(
+        "error",
+        event => {
+          setStatus(
+            "모바일 로그인 화면 오류: " +
+            String(
+              event.message ||
+              "알 수 없는 오류"
+            ),
+            true
+          );
+        }
+      );
+
+      window.addEventListener(
+        "unhandledrejection",
+        event => {
+          const reason =
+            event.reason;
+
+          setStatus(
+            "모바일 로그인 처리 오류: " +
+            String(
+              reason &&
+              reason.message
+                ? reason.message
+                : reason ||
+                  "알 수 없는 오류"
+            ),
+            true
+          );
+        }
+      );
+
+      if (
+        document.readyState ===
+          "loading"
+      ) {
+        document.addEventListener(
+          "DOMContentLoaded",
+          initialize,
+          {
+            once:
+              true
+          }
+        );
+
+      } else {
+        initialize();
+      }
+    })();
+  </script>
+</body>
+</html>
