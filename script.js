@@ -32966,6 +32966,84 @@ function getScheduledPart(
             - Loading중...
 ========================================================= */
 
+/* =========================================================
+  LEGACY-OIS-TAG-CLASSIFICATION-V1
+
+  Old OIS source period:
+  2021-01-06 ~ 2023-07-20
+
+  Explicit TAG examples:
+  [10HFB10AF001] Bio Rotary Feeder 점검
+  Bio-SRF Screw Reclaimer 결선완료(ECY10CF101)
+
+  Only a conservative equipment-like token is promoted to
+  TM 작업. Untagged text remains 인계사항.
+========================================================= */
+
+const OIS_LEGACY_TAG_CLASSIFICATION_START_DATE =
+  "2021-01-06";
+
+const OIS_LEGACY_TAG_CLASSIFICATION_END_DATE =
+  "2023-07-20";
+
+
+function normalizeOisLegacyEquipmentTag(
+  value
+) {
+  const tag =
+    String(
+      value ||
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+
+  if (
+    tag.length <
+      5 ||
+    tag.length >
+      64 ||
+    !/^[A-Z0-9][A-Z0-9_.\/-]*$/.test(
+      tag
+    ) ||
+    !/[A-Z]/.test(
+      tag
+    ) ||
+    !/[0-9]/.test(
+      tag
+    )
+  ) {
+    return "";
+  }
+
+
+  return tag;
+}
+
+
+function isOisLegacyTagClassificationDate(
+  workDate
+) {
+  const date =
+    String(
+      workDate ||
+      ""
+    ).trim();
+
+
+  return (
+    /^\d{4}-\d{2}-\d{2}$/.test(
+      date
+    ) &&
+    date >=
+      OIS_LEGACY_TAG_CLASSIFICATION_START_DATE &&
+    date <=
+      OIS_LEGACY_TAG_CLASSIFICATION_END_DATE
+  );
+}
+
+
 function extractLegacyTagFromContent(
   rawContent
 ) {
@@ -32995,42 +33073,77 @@ function extractLegacyTagFromContent(
 
 
   /*
-    [TAG] 뒤에 줄바꿈이 있어도
-    나머지 전체 내용을 함께 가져온다.
-
-    기존의 (.*)는 줄바꿈을 포함하지 못했지만
-    ([\s\S]*)는 여러 줄 전체를 포함한다.
+    Existing leading bracket format.
   */
-  const tagMatch =
+  const leadingMatch =
     sourceText.match(
       /^\s*[\[【]\s*([A-Za-z0-9_.\-\/]+)\s*[\]】]\s*([\s\S]*)$/
     );
 
 
   if (
-    !tagMatch
+    leadingMatch
   ) {
     return {
-      tag: "",
+      tag:
+        String(
+          leadingMatch[1] || ""
+        )
+          .trim()
+          .toUpperCase(),
 
       content:
-        sourceText
+        String(
+          leadingMatch[2] || ""
+        ).trim()
     };
   }
 
 
+  /*
+    Old OIS rows often place the equipment TAG at the end.
+
+    Example:
+    Bio-SRF Screw Reclaimer ... 완료(ECY10CF101)
+  */
+  const trailingMatch =
+    sourceText.match(
+      /[\(（]\s*([A-Za-z0-9_.\-\/]+)\s*[\)）]\s*$/
+    );
+
+
+  if (
+    trailingMatch
+  ) {
+    const tag =
+      normalizeOisLegacyEquipmentTag(
+        trailingMatch[1]
+      );
+
+
+    if (
+      tag
+    ) {
+      return {
+        tag,
+
+        content:
+          sourceText
+            .slice(
+              0,
+              trailingMatch.index
+            )
+            .trim()
+      };
+    }
+  }
+
+
   return {
-    tag:
-      String(
-        tagMatch[1] || ""
-      )
-        .trim()
-        .toUpperCase(),
+    tag: "",
 
     content:
-      String(
-        tagMatch[2] || ""
-      ).trim()
+      sourceText
   };
 }
 
@@ -209527,7 +209640,8 @@ function renderTeamApprovalCard(
     sourceId,
     role,
     worker,
-    logId
+    logId,
+    workDate = ""
   ) {
     const parsedLines =
       typeof parseLegacyDiaryContentLines ===
@@ -209584,12 +209698,39 @@ function renderTeamApprovalCard(
           }
 
 
+          const equipmentTag =
+            typeof normalizeOisLegacyEquipmentTag ===
+              "function"
+              ? normalizeOisLegacyEquipmentTag(
+                  parsedContent?.tag
+                )
+              : String(
+                  parsedContent?.tag ||
+                  ""
+                )
+                  .trim()
+                  .toUpperCase();
+
+
+          const classifyAsLegacyTmWork =
+            Boolean(
+              equipmentTag
+            ) &&
+            typeof isOisLegacyTagClassificationDate ===
+              "function" &&
+            isOisLegacyTagClassificationDate(
+              workDate
+            );
+
+
           return {
             id:
               `ois-legacy-entry-${sourceId}-${lineIndex}`,
 
             category:
-              "인계사항",
+              classifyAsLegacyTmWork
+                ? "TM 작업"
+                : "인계사항",
 
             time:
               String(
@@ -209598,6 +209739,7 @@ function renderTeamApprovalCard(
               ).trim(),
 
             tag:
+              equipmentTag ||
               String(
                 parsedContent?.tag ||
                 ""
@@ -209632,11 +209774,6 @@ function renderTeamApprovalCard(
         Boolean
       );
   }
-
-
-  /* =====================================================
-    OIS D1 한 행 → 현재 업무일지 한 건
-  ====================================================== */
 
   function convertOisLegacyItemToLog(
     item,
@@ -209746,7 +209883,8 @@ function renderTeamApprovalCard(
         sourceId,
         role,
         worker,
-        logId
+        logId,
+        workDate
       );
 
 

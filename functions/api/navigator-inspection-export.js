@@ -1110,6 +1110,832 @@ function createContainerSnapshot(
   페이지 크기
 ========================================================= */
 
+/* =========================================================
+  LEGACY-OIS-NAVIGATOR-TAG-EXPORT-V1
+
+  Scope:
+  - 2021-01-06 ~ 2023-07-20 OIS legacy shift logs
+  - explicit equipment TAG only
+  - unclassified tagged work defaults to "TM 작업"
+  - original ois_legacy_logs rows are never rewritten
+
+  Stable source identity:
+  - container: ois-legacy-nav-{ois row id}
+  - entry:     ois-legacy-nav-entry-{ois row id}-{item index}
+========================================================= */
+
+const LEGACY_NAVIGATOR_START_DATE =
+  "2021-01-06";
+
+const LEGACY_NAVIGATOR_END_DATE =
+  "2023-07-20";
+
+const LEGACY_NAVIGATOR_CURSOR_PREFIX =
+  "legacy.";
+
+const LEGACY_NAVIGATOR_SHIFT_START_CURSOR =
+  "shift-start";
+
+
+function normalizeLegacyNavigatorTag(
+  value
+) {
+  const tag =
+    normalizeText(
+      value
+    )
+      .toUpperCase();
+
+
+  if (
+    tag.length <
+      5 ||
+    tag.length >
+      64 ||
+    !/^[A-Z0-9][A-Z0-9_.\/-]*$/.test(
+      tag
+    ) ||
+    !/[A-Z]/.test(
+      tag
+    ) ||
+    !/[0-9]/.test(
+      tag
+    )
+  ) {
+    return "";
+  }
+
+
+  return tag;
+}
+
+
+function extractLegacyNavigatorTag(
+  rawContent
+) {
+  const sourceText =
+    String(
+      rawContent ||
+      ""
+    )
+      .replace(
+        /\r\n?/g,
+        "\n"
+      )
+      .trim();
+
+
+  if (
+    !sourceText
+  ) {
+    return {
+      tag:
+        "",
+
+      content:
+        ""
+    };
+  }
+
+
+  const leadingMatch =
+    sourceText.match(
+      /^\s*[\[【]\s*([A-Za-z0-9_.\/-]+)\s*[\]】]\s*([\s\S]*)$/
+    );
+
+
+  if (
+    leadingMatch
+  ) {
+    const tag =
+      normalizeLegacyNavigatorTag(
+        leadingMatch[1]
+      );
+
+
+    if (
+      tag
+    ) {
+      return {
+        tag,
+
+        content:
+          normalizeText(
+            leadingMatch[2]
+          )
+      };
+    }
+  }
+
+
+  const trailingMatch =
+    sourceText.match(
+      /[\(（]\s*([A-Za-z0-9_.\/-]+)\s*[\)）]\s*$/
+    );
+
+
+  if (
+    trailingMatch
+  ) {
+    const tag =
+      normalizeLegacyNavigatorTag(
+        trailingMatch[1]
+      );
+
+
+    if (
+      tag
+    ) {
+      return {
+        tag,
+
+        content:
+          sourceText
+            .slice(
+              0,
+              trailingMatch.index
+            )
+            .trim()
+      };
+    }
+  }
+
+
+  return {
+    tag:
+      "",
+
+    content:
+      sourceText
+  };
+}
+
+
+function normalizeLegacyNavigatorCategory(
+  content
+) {
+  const compact =
+    normalizeText(
+      content
+    )
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+
+
+  if (
+    compact.includes(
+      "TM발행"
+    )
+  ) {
+    return "TM 발행";
+  }
+
+
+  if (
+    compact.includes(
+      "BM발행"
+    )
+  ) {
+    return "BM 발행";
+  }
+
+
+  if (
+    compact.includes(
+      "CM발행"
+    )
+  ) {
+    return "CM 발행";
+  }
+
+
+  if (
+    compact.includes(
+      "BM작업"
+    ) ||
+    compact.includes(
+      "BM종결"
+    )
+  ) {
+    return "BM 작업";
+  }
+
+
+  if (
+    compact.includes(
+      "CM작업"
+    ) ||
+    compact.includes(
+      "CM종결"
+    )
+  ) {
+    return "CM 작업";
+  }
+
+
+  /*
+    구교대 OIS 원문에는 발행/작업 구조가 없다.
+
+    명시적인 TAG가 존재하는 미분류 업무는
+    설비 작업 이력으로 사용할 수 있도록 TM 작업으로 분류한다.
+  */
+  return "TM 작업";
+}
+
+
+function parseLegacyNavigatorWorkItems(
+  rawContent
+) {
+  const rawLines =
+    String(
+      rawContent ||
+      ""
+    )
+      .replace(
+        /\r\n?/g,
+        "\n"
+      )
+      .split(
+        "\n"
+      );
+
+
+  const groups =
+    [];
+
+
+  let currentGroup =
+    null;
+
+
+  const flushCurrentGroup =
+    () => {
+      if (
+        !currentGroup
+      ) {
+        return;
+      }
+
+
+      currentGroup.text =
+        normalizeText(
+          currentGroup.text
+        );
+
+
+      if (
+        currentGroup.text
+      ) {
+        groups.push(
+          currentGroup
+        );
+      }
+
+
+      currentGroup =
+        null;
+    };
+
+
+  rawLines.forEach(
+    (
+      rawLine,
+      rawLineIndex
+    ) => {
+      const line =
+        normalizeText(
+          rawLine
+        );
+
+
+      if (
+        !line
+      ) {
+        return;
+      }
+
+
+      const numberedMatch =
+        line.match(
+          /^\s*\d+\s*[.)]\s*([\s\S]*)$/
+        );
+
+
+      if (
+        numberedMatch
+      ) {
+        flushCurrentGroup();
+
+
+        currentGroup = {
+          rawLineIndex,
+
+          text:
+            normalizeText(
+              numberedMatch[1]
+            )
+        };
+
+
+        return;
+      }
+
+
+      if (
+        currentGroup
+      ) {
+        currentGroup.text = [
+          currentGroup.text,
+          line
+        ]
+          .filter(
+            Boolean
+          )
+          .join(
+            " "
+          );
+
+
+        return;
+      }
+
+
+      groups.push({
+        rawLineIndex,
+
+        text:
+          line
+      });
+    }
+  );
+
+
+  flushCurrentGroup();
+
+
+  return groups
+    .map(
+      (
+        group,
+        groupIndex
+      ) => {
+        let workText =
+          normalizeText(
+            group.text
+          );
+
+
+        let time =
+          "";
+
+
+        const timeMatch =
+          workText.match(
+            /^((?:[01]\d|2[0-3]):[0-5]\d)(?:\s+|$)([\s\S]*)$/
+          );
+
+
+        if (
+          timeMatch
+        ) {
+          time =
+            normalizeText(
+              timeMatch[1]
+            );
+
+
+          workText =
+            normalizeText(
+              timeMatch[2]
+            );
+        }
+
+
+        const tagged =
+          extractLegacyNavigatorTag(
+            workText
+          );
+
+
+        if (
+          !tagged.tag ||
+          !tagged.content
+        ) {
+          return null;
+        }
+
+
+        return {
+          sourceIndex:
+            groupIndex,
+
+          time,
+
+          tag:
+            tagged.tag,
+
+          content:
+            tagged.content,
+
+          category:
+            normalizeLegacyNavigatorCategory(
+              tagged.content
+            )
+        };
+      }
+    )
+    .filter(
+      Boolean
+    );
+}
+
+
+function normalizeLegacyNavigatorShift(
+  originalShift
+) {
+  const shift =
+    normalizeText(
+      originalShift
+    )
+      .toUpperCase();
+
+
+  if (
+    shift ===
+      "NIGHT"
+  ) {
+    return "NS";
+  }
+
+
+  /*
+    Facility Navigator accepts the current DS/NS schema only.
+
+    Historical DAY and AFTER are both represented as DS.
+    Original OIS shift remains part of the stable source row identity.
+  */
+  if (
+    [
+      "DAY",
+      "AFTER"
+    ].includes(
+      shift
+    )
+  ) {
+    return "DS";
+  }
+
+
+  return "";
+}
+
+
+function normalizeLegacyNavigatorTimestamp(
+  value,
+  workDate
+) {
+  const parsed =
+    new Date(
+      normalizeText(
+        value
+      ) ||
+      `${workDate}T00:00:00.000Z`
+    );
+
+
+  if (
+    !Number.isNaN(
+      parsed.getTime()
+    )
+  ) {
+    return parsed
+      .toISOString();
+  }
+
+
+  return (
+    `${workDate}T00:00:00.000Z`
+  );
+}
+
+
+function createLegacyNavigatorRevision(
+  timestamp
+) {
+  const time =
+    new Date(
+      timestamp
+    ).getTime();
+
+
+  return (
+    Number.isSafeInteger(
+      time
+    ) &&
+    time >
+      0
+  )
+    ? time
+    : 1;
+}
+
+
+function convertLegacyNavigatorRowToLog(
+  row
+) {
+  const rowId =
+    normalizeText(
+      row?.id
+    );
+
+
+  const workDate =
+    normalizeText(
+      row?.work_date
+    );
+
+
+  const role =
+    normalizeLogRole(
+      row?.role
+    );
+
+
+  const originalShift =
+    normalizeText(
+      row?.original_shift
+    )
+      .toUpperCase();
+
+
+  const shift =
+    normalizeLegacyNavigatorShift(
+      originalShift
+    );
+
+
+  const worker =
+    normalizeText(
+      row?.worker
+    ) ||
+    "OIS 과거 업무일지";
+
+
+  const sourceLogId =
+    `ois-legacy-nav-${rowId}`;
+
+
+  if (
+    !rowId ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      workDate
+    ) ||
+    workDate <
+      LEGACY_NAVIGATOR_START_DATE ||
+    workDate >
+      LEGACY_NAVIGATOR_END_DATE ||
+    !VALID_LOG_ROLES.has(
+      role
+    ) ||
+    !shift
+  ) {
+    return null;
+  }
+
+
+  const workItems =
+    parseLegacyNavigatorWorkItems(
+      row?.content
+    );
+
+
+  if (
+    workItems.length ===
+      0
+  ) {
+    return null;
+  }
+
+
+  const updatedAt =
+    normalizeLegacyNavigatorTimestamp(
+      row?.updated_at ||
+      row?.collected_at ||
+      row?.created_at,
+      workDate
+    );
+
+
+  const createdAt =
+    normalizeLegacyNavigatorTimestamp(
+      row?.created_at ||
+      row?.collected_at ||
+      row?.updated_at,
+      workDate
+    );
+
+
+  const entries =
+    workItems.map(
+      item => {
+        return {
+          id:
+            `ois-legacy-nav-entry-${rowId}-${item.sourceIndex}`,
+
+          category:
+            item.category,
+
+          time:
+            item.time,
+
+          tag:
+            item.tag,
+
+          content:
+            item.content,
+
+          attachmentName:
+            "",
+
+          importedFromRole:
+            role,
+
+          importedFromAuthor:
+            worker,
+
+          importedFromLogId:
+            sourceLogId,
+
+          importedFromEntryIndex:
+            item.sourceIndex,
+
+          source:
+            "ois-legacy-navigator"
+        };
+      }
+    );
+
+
+  return {
+    id:
+      sourceLogId,
+
+    date:
+      workDate,
+
+    shift,
+
+    role,
+
+    team:
+      "구교대 OIS",
+
+    author:
+      worker,
+
+    authorId:
+      "",
+
+    authorRole:
+      "user",
+
+    /*
+      Historical OIS rows are immutable source records.
+      They are treated as completed snapshots for Navigator export.
+    */
+    status:
+      "결재완료",
+
+    entries,
+
+    tmEntries:
+      [],
+
+    handoverEntries:
+      [],
+
+    remarkEntries:
+      [],
+
+    serverRevision:
+      createLegacyNavigatorRevision(
+        updatedAt
+      ),
+
+    createdAt,
+
+    updatedAt,
+
+    source:
+      "ois-legacy-navigator"
+  };
+}
+
+
+function createLegacyNavigatorCursor(
+  workDate,
+  id
+) {
+  return (
+    LEGACY_NAVIGATOR_CURSOR_PREFIX +
+    encodeBase64Url(
+      JSON.stringify({
+        workDate:
+          normalizeText(
+            workDate
+          ),
+
+        id:
+          normalizeText(
+            id
+          )
+      })
+    )
+  );
+}
+
+
+function parseLegacyNavigatorCursor(
+  cursorValue
+) {
+  const rawCursor =
+    normalizeText(
+      cursorValue
+    );
+
+
+  if (
+    !rawCursor
+  ) {
+    return {
+      workDate:
+        "",
+
+      id:
+        ""
+    };
+  }
+
+
+  if (
+    !rawCursor.startsWith(
+      LEGACY_NAVIGATOR_CURSOR_PREFIX
+    )
+  ) {
+    return null;
+  }
+
+
+  try {
+    const parsed =
+      JSON.parse(
+        decodeBase64Url(
+          rawCursor.slice(
+            LEGACY_NAVIGATOR_CURSOR_PREFIX.length
+          )
+        )
+      );
+
+
+    const workDate =
+      normalizeText(
+        parsed?.workDate
+      );
+
+
+    const id =
+      normalizeText(
+        parsed?.id
+      );
+
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        workDate
+      ) ||
+      workDate <
+        LEGACY_NAVIGATOR_START_DATE ||
+      workDate >
+        LEGACY_NAVIGATOR_END_DATE ||
+      !id
+    ) {
+      return null;
+    }
+
+
+    return {
+      workDate,
+      id
+    };
+
+  } catch {
+    return null;
+  }
+}
+
 function normalizePageLimit(
   value
 ) {
@@ -1337,12 +2163,267 @@ export async function onRequestGet(
       );
 
 
-    const cursor =
-      parseCursor(
+    let rawCursorValue =
+      normalizeText(
         requestUrl.searchParams.get(
           "cursor"
         )
       );
+
+
+    /*
+      Complete snapshot phase 1:
+      historical OIS rows with explicit equipment TAGs.
+
+      The cursor is opaque to Facility Navigator.
+      Once the legacy phase is exhausted, "shift-start"
+      switches to the existing shift_logs cursor flow.
+    */
+    const shouldReadLegacy =
+      !rawCursorValue ||
+      rawCursorValue.startsWith(
+        LEGACY_NAVIGATOR_CURSOR_PREFIX
+      );
+
+
+    if (
+      shouldReadLegacy
+    ) {
+      const legacyCursor =
+        parseLegacyNavigatorCursor(
+          rawCursorValue
+        );
+
+
+      if (
+        !legacyCursor
+      ) {
+        return jsonResponse(
+          {
+            ok:
+              false,
+
+            message:
+              "구교대 cursor 값이 올바르지 않습니다."
+          },
+          400
+        );
+      }
+
+
+      const legacyQueryResult =
+        await context.env.DB
+          .prepare(`
+            SELECT
+              *
+
+            FROM ois_legacy_logs
+
+            WHERE
+              work_date >= ?1
+              AND work_date <= ?2
+
+              AND COALESCE(
+                has_content,
+                0
+              ) = 1
+
+              AND TRIM(
+                COALESCE(
+                  content,
+                  ''
+                )
+              ) <> ''
+
+              AND (
+                content LIKE '%(%'
+                OR content LIKE '%[%'
+                OR content LIKE '%【%'
+              )
+
+              AND (
+                ?3 = ''
+
+                OR work_date > ?3
+
+                OR (
+                  work_date = ?3
+                  AND id > ?4
+                )
+              )
+
+            ORDER BY
+              work_date ASC,
+              id ASC
+
+            LIMIT ?5
+          `)
+          .bind(
+            LEGACY_NAVIGATOR_START_DATE,
+            LEGACY_NAVIGATOR_END_DATE,
+            legacyCursor.workDate,
+            legacyCursor.id,
+            limit
+          )
+          .all();
+
+
+      const legacyRows =
+        Array.isArray(
+          legacyQueryResult.results
+        )
+          ? legacyQueryResult.results
+          : [];
+
+
+      /*
+        A zero-row legacy page immediately falls through to
+        the normal shift_logs phase. This avoids an empty page
+        when there are no more historical rows.
+      */
+      if (
+        legacyRows.length >
+          0
+      ) {
+        const legacyLogs =
+          legacyRows
+            .map(
+              convertLegacyNavigatorRowToLog
+            )
+            .filter(
+              Boolean
+            );
+
+
+        const legacyContainers =
+          legacyLogs.map(
+            createContainerSnapshot
+          );
+
+
+        const legacyLastRow =
+          legacyRows[
+            legacyRows.length -
+            1
+          ] ||
+          null;
+
+
+        const nextCursor =
+          legacyRows.length ===
+            limit &&
+          legacyLastRow
+            ? createLegacyNavigatorCursor(
+                legacyLastRow.work_date,
+                legacyLastRow.id
+              )
+            : LEGACY_NAVIGATOR_SHIFT_START_CURSOR;
+
+
+        const publishCount =
+          legacyContainers.filter(
+            container => {
+              return (
+                container.disposition ===
+                "publish"
+              );
+            }
+          ).length;
+
+
+        const purgeCount =
+          legacyContainers.length -
+          publishCount;
+
+
+        const itemCount =
+          legacyContainers.reduce(
+            (
+              total,
+              container
+            ) => {
+              return (
+                total +
+                (
+                  Array.isArray(
+                    container.items
+                  )
+                    ? container.items.length
+                    : 0
+                )
+              );
+            },
+            0
+          );
+
+
+        return jsonResponse({
+          ok:
+            true,
+
+          sourceSystem:
+            "gs-shift-log",
+
+          exportType:
+            "complete-current-snapshot",
+
+          generatedAt:
+            new Date()
+              .toISOString(),
+
+          page: {
+            limit,
+
+            count:
+              legacyContainers.length,
+
+            hasMore:
+              true,
+
+            nextCursor,
+
+            sourcePhase:
+              "ois-legacy"
+          },
+
+          summary: {
+            containerCount:
+              legacyContainers.length,
+
+            publishCount,
+
+            purgeCount,
+
+            itemCount,
+
+            scannedLegacyRowCount:
+              legacyRows.length
+          },
+
+          containers:
+            legacyContainers
+        });
+      }
+
+
+      rawCursorValue =
+        LEGACY_NAVIGATOR_SHIFT_START_CURSOR;
+    }
+
+
+    const cursor =
+      rawCursorValue ===
+        LEGACY_NAVIGATOR_SHIFT_START_CURSOR
+        ? {
+            updatedAt:
+              "",
+
+            id:
+              ""
+          }
+        : parseCursor(
+            rawCursorValue
+          );
 
 
     if (
@@ -1362,9 +2443,10 @@ export async function onRequestGet(
 
 
     /*
-      cursor 이후의 업무일지를
-      수정시간과 ID 기준으로 안정적으로 조회한다.
+      Complete snapshot phase 2:
+      current shift_logs export.
     */
+
     const queryResult =
       await context.env.DB
         .prepare(`
