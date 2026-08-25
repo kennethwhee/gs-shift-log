@@ -30,7 +30,7 @@
         "mobile-app-boot-v13";
 
       const LOGIN_URL =
-        "/mobile/?build=20260825-mobile-stability-v14";
+        "/mobile/?build=20260825-mobile-menu-stability-v15";
 
       try {
         const raw =
@@ -572,7 +572,7 @@
 
   <link
     rel="preload"
-    href="/mobile-app/mobile-startup.js?v=20260825-mobile-stability-v14"
+    href="/mobile-app/mobile-startup.js?v=20260825-mobile-menu-stability-v15"
     as="script"
   >
 
@@ -602,8 +602,9 @@
 
 
   <!--
-    MOBILE-APP-V14: 점검일지 CSS와 실행기는 더보기 메뉴를
-    실제로 열었을 때만 불러온다.
+    MOBILE-APP-V15: 점검일지 CSS와 실행기는 더보기 메뉴가 아니라
+    점검일지 항목을 실제로 눌렀을 때만 불러온다. 휴가·대근 관리는
+    팝업의 사용자 동작을 보존하는 가벼운 전용 핸들러를 사용한다.
   -->
 
   <noscript>
@@ -716,7 +717,7 @@
       "click",
       () => {
         window.location.replace(
-          "/mobile-app/?build=20260825-mobile-stability-v14&retry=" +
+          "/mobile-app/?build=20260825-mobile-menu-stability-v15&retry=" +
           Date.now()
         );
       }
@@ -732,7 +733,7 @@
         );
 
         window.location.replace(
-          "/mobile/?build=20260825-mobile-stability-v14"
+          "/mobile/?build=20260825-mobile-menu-stability-v15"
         );
       }
     );
@@ -1285,6 +1286,26 @@
           </button>
         </div>
       </div>
+
+          <button
+            type="button"
+            class="header-more-item"
+            id="mobileHeaderInspectionItem"
+            role="menuitem"
+            aria-label="점검일지 열기"
+          >
+            점검일지
+          </button>
+
+          <button
+            type="button"
+            class="header-more-item"
+            id="vacationReplacementHeaderButton"
+            role="menuitem"
+            aria-label="운전파트 휴가·대근 관리 열기"
+          >
+            휴가·대근 관리
+          </button>
 
                     <button
             type="button"
@@ -14749,6 +14770,10 @@
     true;
 
 
+  window.__GS_MOBILE_MENU_LAZY_V15 =
+    true;
+
+
   window.__setMobileAppBootStageV13?.(
     "shared-script-loading",
     "업무일지 프로그램을 불러오고 있습니다."
@@ -14769,7 +14794,7 @@
 </script>
 
 <script
-  src="/mobile-app/mobile-startup.js?v=20260825-mobile-stability-v14"
+  src="/mobile-app/mobile-startup.js?v=20260825-mobile-menu-stability-v15"
   onload="window.__markMobileAppBootResourceV13?.('startupScript',true)"
   onerror="window.__setMobileAppBootStageV13?.('startup-script-error','모바일 시작 설정을 불러오지 못했습니다.');window.__showMobileAppBootRecoveryV13?.('모바일 시작 설정을 불러오지 못했습니다. 다시 시도해 주세요.')"
 ></script>
@@ -15090,8 +15115,8 @@
           .then(
             () => {
               return loadOptionalScript(
-                "mobileInspectionLauncherV14",
-                "/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260825-mobile-lazy-v14",
+                "mobileInspectionLauncherV15",
+                "/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260825-mobile-menu-stability-v15",
                 () => {
                   return window.__gsNightPatrolLauncherInstalled ===
                     true;
@@ -15134,6 +15159,249 @@
     }
 
 
+    function installVacationReplacementTriggerV15() {
+      const item =
+        document.getElementById(
+          "vacationReplacementHeaderButton"
+        );
+
+
+      if (
+        !item ||
+        item.dataset
+          .vacationReplacementBound ===
+            "true"
+      ) {
+        return;
+      }
+
+
+      item.dataset
+        .vacationReplacementBound =
+          "true";
+
+
+      item.addEventListener(
+        "click",
+        event => {
+          event.preventDefault();
+          event.stopPropagation();
+
+
+          window.closeHeaderMoreMenu?.();
+
+
+          let sessionToken =
+            "";
+
+
+          if (
+            typeof window.getShiftLogSessionToken ===
+              "function"
+          ) {
+            sessionToken =
+              String(
+                window.getShiftLogSessionToken() ||
+                ""
+              ).trim();
+          }
+
+
+          if (!sessionToken) {
+            try {
+              const savedUser =
+                JSON.parse(
+                  window.localStorage.getItem(
+                    "gsShiftLog.currentUser"
+                  ) ||
+                  "null"
+                );
+
+
+              sessionToken =
+                String(
+                  savedUser?.sessionToken ||
+                  savedUser?.session_token ||
+                  ""
+                ).trim();
+
+            } catch (error) {
+              console.warn(
+                "휴가·대근 로그인 정보 확인 실패:",
+                error
+              );
+            }
+          }
+
+
+          const showMessage =
+            message => {
+              if (
+                typeof window.showToast ===
+                  "function"
+              ) {
+                window.showToast(
+                  message
+                );
+
+              } else {
+                window.alert(
+                  message
+                );
+              }
+            };
+
+
+          if (!sessionToken) {
+            showMessage(
+              "업무일지 로그인 세션을 확인할 수 없습니다. 다시 로그인해 주세요."
+            );
+
+
+            return;
+          }
+
+
+          const gatewayUrl =
+            "https://gs-vacation-gateway.wheekeun-lee.workers.dev/__sso";
+
+          const gatewayOrigin =
+            new URL(
+              gatewayUrl
+            ).origin;
+
+          const targetWindow =
+            window.open(
+              gatewayUrl,
+              "_blank"
+            );
+
+
+          if (!targetWindow) {
+            showMessage(
+              "휴가·대근 관리 창이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요."
+            );
+
+
+            return;
+          }
+
+
+          let authenticationSent =
+            false;
+
+          let timeoutId =
+            0;
+
+
+          const cleanup =
+            () => {
+              window.removeEventListener(
+                "message",
+                handleGatewayMessage
+              );
+
+
+              if (timeoutId) {
+                window.clearTimeout(
+                  timeoutId
+                );
+
+
+                timeoutId =
+                  0;
+              }
+            };
+
+
+          const handleGatewayMessage =
+            messageEvent => {
+              if (
+                messageEvent.origin !==
+                  gatewayOrigin ||
+                messageEvent.source !==
+                  targetWindow ||
+                messageEvent.data?.type !==
+                  "GS_VACATION_READY" ||
+                authenticationSent
+              ) {
+                return;
+              }
+
+
+              authenticationSent =
+                true;
+
+
+              try {
+                targetWindow.postMessage(
+                  {
+                    type:
+                      "GS_VACATION_AUTH",
+                    sessionToken
+                  },
+                  gatewayOrigin
+                );
+
+
+                cleanup();
+
+              } catch (error) {
+                console.error(
+                  "휴가·대근 Gateway 인증 전달 실패:",
+                  error
+                );
+
+
+                cleanup();
+
+
+                showMessage(
+                  "휴가·대근 관리 자동 로그인 연결에 실패했습니다."
+                );
+              }
+            };
+
+
+          window.addEventListener(
+            "message",
+            handleGatewayMessage
+          );
+
+
+          timeoutId =
+            window.setTimeout(
+              () => {
+                cleanup();
+
+
+                if (
+                  !authenticationSent &&
+                  !targetWindow.closed
+                ) {
+                  showMessage(
+                    "휴가·대근 관리 서버 연결 시간이 초과되었습니다. 다시 시도해 주세요."
+                  );
+                }
+              },
+              12000
+            );
+
+
+          try {
+            targetWindow.focus();
+
+          } catch (error) {
+            console.warn(
+              "휴가·대근 관리 창 포커스 처리 실패:",
+              error
+            );
+          }
+        }
+      );
+    }
+
+
     function installOptionalFeatureTriggersV14() {
       const spreadsheetActionSelector = [
         "#analyzeEfficiencyMorningMeetingButton",
@@ -15165,15 +15433,77 @@
               : null;
 
 
-          if (
+          const inspectionTrigger =
             target?.closest(
-              "#headerMoreButton"
-            )
+              "#mobileHeaderInspectionItem"
+            );
+
+
+          if (
+            inspectionTrigger &&
+            window.__gsNightPatrolLauncherInstalled !==
+              true
           ) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+
+
+            if (
+              inspectionTrigger.dataset
+                .mobileFeatureReplayPending ===
+                  "true"
+            ) {
+              return;
+            }
+
+
+            inspectionTrigger.dataset
+              .mobileFeatureReplayPending =
+                "true";
+
+
+            inspectionTrigger.setAttribute(
+              "aria-busy",
+              "true"
+            );
+
+
             void loadInspectionFeatureV14()
+              .then(
+                () => {
+                  delete inspectionTrigger
+                    .dataset
+                    .mobileFeatureReplayPending;
+
+
+                  inspectionTrigger.removeAttribute(
+                    "aria-busy"
+                  );
+
+
+                  inspectionTrigger.click();
+                }
+              )
               .catch(
-                reportOptionalLoadErrorV14
+                error => {
+                  delete inspectionTrigger
+                    .dataset
+                    .mobileFeatureReplayPending;
+
+
+                  inspectionTrigger.removeAttribute(
+                    "aria-busy"
+                  );
+
+
+                  reportOptionalLoadErrorV14(
+                    error
+                  );
+                }
               );
+
+
+            return;
           }
 
 
@@ -15352,6 +15682,9 @@
       loadInspectionFeatureV14;
 
 
+    installVacationReplacementTriggerV15();
+
+
     installOptionalFeatureTriggersV14();
 
 
@@ -15436,7 +15769,7 @@
           }
 
           /*
-            MOBILE-APP-V14:
+            MOBILE-APP-V15:
             선택 기능은 위의 사용자 동작 트리거에서만 로드한다.
           */
         };

@@ -73,6 +73,9 @@
   const deferInitialFrameLoad =
     window.__GS_MOBILE_RUNTIME_V14 === true;
 
+  const mobileMenuLazyV15 =
+    window.__GS_MOBILE_MENU_LAZY_V15 === true;
+
   const ROLE_ORDER = [
     "파트장",
     "TGO",
@@ -365,7 +368,9 @@
 
 
     inspectionItem.className =
-      "header-more-item header-more-item--mobile-only";
+      mobileMenuLazyV15
+        ? "header-more-item"
+        : "header-more-item header-more-item--mobile-only";
 
     inspectionItem.setAttribute(
       "role",
@@ -384,16 +389,42 @@
 
       관리자는 PC / 모바일 모두 항상 마지막이다.
     */
-    (
-      manholeManagementItem ||
-      navigatorItem
-    ).insertAdjacentElement(
-      "afterend",
-      inspectionItem
-    );
+    const vacationReplacementItem =
+      document.getElementById(
+        "vacationReplacementHeaderButton"
+      );
+
+    const inspectionReference =
+      vacationReplacementItem?.parentElement ===
+        dropdown
+        ? vacationReplacementItem
+        : adminButton?.parentElement ===
+            dropdown
+          ? adminButton
+          : null;
+
+    if (
+      inspectionItem.parentElement !==
+        dropdown ||
+      inspectionItem.nextElementSibling !==
+        inspectionReference
+    ) {
+      dropdown.insertBefore(
+        inspectionItem,
+        inspectionReference
+      );
+    }
 
 
-    if (adminButton) {
+    if (
+      adminButton &&
+      (
+        adminButton.parentElement !==
+          dropdown ||
+        dropdown.lastElementChild !==
+          adminButton
+      )
+    ) {
       dropdown.append(
         adminButton
       );
@@ -441,6 +472,7 @@
       );
 
     if (
+      mobileMenuLazyV15 ||
       MOBILE_HEADER_MEDIA.matches
     ) {
       existingButton?.remove();
@@ -1318,6 +1350,11 @@
     }
 
 
+    if (mobileMenuLazyV15) {
+      return;
+    }
+
+
     let attempts = 0;
 
     const timer =
@@ -1929,10 +1966,6 @@
         "⚙️ 계획정비"
       ],
       [
-        "맨홀개폐관리",
-        "맨홀개폐관리"
-      ],
-      [
         "휴가·대근 관리",
         "🗓️ 휴가·대근 관리"
       ],
@@ -2047,8 +2080,17 @@
           )[0];
 
 
-        textNode.nodeValue =
+        const nextValue =
           `${leadingSpace}${replacement}${trailingSpace}`;
+
+
+        if (
+          textNode.nodeValue !==
+          nextValue
+        ) {
+          textNode.nodeValue =
+            nextValue;
+        }
       }
     );
 
