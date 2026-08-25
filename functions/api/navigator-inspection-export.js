@@ -1147,18 +1147,47 @@ function normalizeLegacyNavigatorTag(
       .toUpperCase();
 
 
+  const letters =
+    tag.match(
+      /[A-Z]/g
+    ) ||
+    [];
+
+
+  const digits =
+    tag.match(
+      /[0-9]/g
+    ) ||
+    [];
+
+
+  /*
+    Conservative equipment TAG rule.
+
+    Accept:
+    - LBA10CP007
+    - 000LBB81AA101
+    - ECY10CF101
+    - 10HFB10AF001
+
+    Reject measurement/value tokens:
+    - 15.56T
+    - 30.66TON
+    - 75.5C
+  */
   if (
     tag.length <
-      5 ||
+      6 ||
     tag.length >
       64 ||
     !/^[A-Z0-9][A-Z0-9_.\/-]*$/.test(
       tag
     ) ||
-    !/[A-Z]/.test(
-      tag
-    ) ||
-    !/[0-9]/.test(
+    letters.length <
+      2 ||
+    digits.length <
+      2 ||
+    /^\d+(?:\.\d+)?[A-Z]+$/.test(
       tag
     )
   ) {
@@ -1198,66 +1227,82 @@ function extractLegacyNavigatorTag(
   }
 
 
-  const leadingMatch =
-    sourceText.match(
-      /^\s*[\[【]\s*([A-Za-z0-9_.\/-]+)\s*[\]】]\s*([\s\S]*)$/
-    );
+  /*
+    Old OIS rows use both square brackets and parentheses,
+    and the TAG can appear anywhere in the work sentence.
+
+    Examples:
+    HP Turbine Inlet Pressure[LBA10CP007] Fault
+    ILP ... MOV (000LBB81AA101)FAULT
+    ... 결선완료(ECY10CF101)
+
+    Non-TAG value examples such as [15.56T] are ignored.
+  */
+  const tokenPattern =
+    /(?:[\[【]\s*([A-Za-z0-9_.\/-]+)\s*[\]】])|(?:[\(（]\s*([A-Za-z0-9_.\/-]+)\s*[\)）])/g;
 
 
-  if (
-    leadingMatch
-  ) {
-    const tag =
-      normalizeLegacyNavigatorTag(
-        leadingMatch[1]
-      );
+  let matchedToken;
 
 
-    if (
-      tag
-    ) {
-      return {
-        tag,
-
-        content:
-          normalizeText(
-            leadingMatch[2]
-          )
-      };
-    }
-  }
-
-
-  const trailingMatch =
-    sourceText.match(
-      /[\(（]\s*([A-Za-z0-9_.\/-]+)\s*[\)）]\s*$/
-    );
-
-
-  if (
-    trailingMatch
-  ) {
-    const tag =
-      normalizeLegacyNavigatorTag(
-        trailingMatch[1]
-      );
-
-
-    if (
-      tag
-    ) {
-      return {
-        tag,
-
-        content:
+  while (
+    (
+      matchedToken =
+        tokenPattern.exec(
           sourceText
-            .slice(
-              0,
-              trailingMatch.index
-            )
-            .trim()
-      };
+        )
+    )
+  ) {
+    const rawTag =
+      matchedToken[1] ||
+      matchedToken[2] ||
+      "";
+
+
+    const tag =
+      normalizeLegacyNavigatorTag(
+        rawTag
+      );
+
+
+    if (
+      !tag
+    ) {
+      continue;
     }
+
+
+    const content =
+      [
+        sourceText.slice(
+          0,
+          matchedToken.index
+        ),
+
+        sourceText.slice(
+          matchedToken.index +
+          matchedToken[0].length
+        )
+      ]
+        .join(
+          " "
+        )
+        .replace(
+          /[ \t]{2,}/g,
+          " "
+        )
+        .replace(
+          /\s+([,.;:])/g,
+          "$1"
+        )
+        .trim();
+
+
+    return {
+      tag,
+
+      content
+    };
   }
 
 
@@ -1271,79 +1316,19 @@ function extractLegacyNavigatorTag(
 }
 
 
-function normalizeLegacyNavigatorCategory(
-  content
-) {
-  const compact =
-    normalizeText(
-      content
-    )
-      .toUpperCase()
-      .replace(
-        /\s+/g,
-        ""
-      );
-
-
-  if (
-    compact.includes(
-      "TM발행"
-    )
-  ) {
-    return "TM 발행";
-  }
-
-
-  if (
-    compact.includes(
-      "BM발행"
-    )
-  ) {
-    return "BM 발행";
-  }
-
-
-  if (
-    compact.includes(
-      "CM발행"
-    )
-  ) {
-    return "CM 발행";
-  }
-
-
-  if (
-    compact.includes(
-      "BM작업"
-    ) ||
-    compact.includes(
-      "BM종결"
-    )
-  ) {
-    return "BM 작업";
-  }
-
-
-  if (
-    compact.includes(
-      "CM작업"
-    ) ||
-    compact.includes(
-      "CM종결"
-    )
-  ) {
-    return "CM 작업";
-  }
-
-
+function normalizeLegacyNavigatorCategory() {
   /*
-    구교대 OIS 원문에는 발행/작업 구조가 없다.
+    Transport-only category.
 
-    명시적인 TAG가 존재하는 미분류 업무는
-    설비 작업 이력으로 사용할 수 있도록 TM 작업으로 분류한다.
+    The old OIS source UI remains "인계사항".
+    Facility Navigator needs a recognized TM/BM/CM category
+    to accept an inspection-history item, so an explicitly
+    tagged legacy item is transported as TM work without
+    rewriting or reclassifying the original OIS log.
   */
   return "TM 작업";
 }
+
 
 
 function parseLegacyNavigatorWorkItems(

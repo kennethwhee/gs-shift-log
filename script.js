@@ -32967,17 +32967,19 @@ function getScheduledPart(
 ========================================================= */
 
 /* =========================================================
-  LEGACY-OIS-TAG-CLASSIFICATION-V1
+  LEGACY-OIS-TAG-CLASSIFICATION-V2
 
-  Old OIS source period:
-  2021-01-06 ~ 2023-07-20
+  Scope:
+  - enhanced TAG detection only for 2021-01-06 ~ 2023-07-20
+  - old OIS entries remain "인계사항"
+  - only the TAG field is classified
 
   Explicit TAG examples:
-  [10HFB10AF001] Bio Rotary Feeder 점검
-  Bio-SRF Screw Reclaimer 결선완료(ECY10CF101)
+  [LBA10CP007]
+  (000LBB81AA101)
+  (ECY10CF101)
 
-  Only a conservative equipment-like token is promoted to
-  TM 작업. Untagged text remains 인계사항.
+  Value examples such as [15.56T] are NOT TAGs.
 ========================================================= */
 
 const OIS_LEGACY_TAG_CLASSIFICATION_START_DATE =
@@ -32999,18 +33001,33 @@ function normalizeOisLegacyEquipmentTag(
       .toUpperCase();
 
 
+  const letters =
+    tag.match(
+      /[A-Z]/g
+    ) ||
+    [];
+
+
+  const digits =
+    tag.match(
+      /[0-9]/g
+    ) ||
+    [];
+
+
   if (
     tag.length <
-      5 ||
+      6 ||
     tag.length >
       64 ||
     !/^[A-Z0-9][A-Z0-9_.\/-]*$/.test(
       tag
     ) ||
-    !/[A-Z]/.test(
-      tag
-    ) ||
-    !/[0-9]/.test(
+    letters.length <
+      2 ||
+    digits.length <
+      2 ||
+    /^\d+(?:\.\d+)?[A-Z]+$/.test(
       tag
     )
   ) {
@@ -33045,7 +33062,9 @@ function isOisLegacyTagClassificationDate(
 
 
 function extractLegacyTagFromContent(
-  rawContent
+  rawContent,
+  enableOldShiftTagDetection =
+    false
 ) {
   const sourceText =
     String(
@@ -33073,7 +33092,9 @@ function extractLegacyTagFromContent(
 
 
   /*
-    Existing leading bracket format.
+    Preserve the historical leading [TAG] behavior outside
+    the old-shift range. Only the target old-shift range
+    receives the stricter equipment-TAG validation.
   */
   const leadingMatch =
     sourceText.match(
@@ -33082,7 +33103,8 @@ function extractLegacyTagFromContent(
 
 
   if (
-    leadingMatch
+    leadingMatch &&
+    !enableOldShiftTagDetection
   ) {
     return {
       tag:
@@ -33100,42 +33122,83 @@ function extractLegacyTagFromContent(
   }
 
 
-  /*
-    Old OIS rows often place the equipment TAG at the end.
-
-    Example:
-    Bio-SRF Screw Reclaimer ... 완료(ECY10CF101)
-  */
-  const trailingMatch =
-    sourceText.match(
-      /[\(（]\s*([A-Za-z0-9_.\-\/]+)\s*[\)）]\s*$/
-    );
-
-
   if (
-    trailingMatch
+    !enableOldShiftTagDetection
   ) {
+    return {
+      tag: "",
+
+      content:
+        sourceText
+    };
+  }
+
+
+  const tokenPattern =
+    /(?:[\[【]\s*([A-Za-z0-9_.\/-]+)\s*[\]】])|(?:[\(（]\s*([A-Za-z0-9_.\/-]+)\s*[\)）])/g;
+
+
+  let matchedToken;
+
+
+  while (
+    (
+      matchedToken =
+        tokenPattern.exec(
+          sourceText
+        )
+    )
+  ) {
+    const rawTag =
+      matchedToken[1] ||
+      matchedToken[2] ||
+      "";
+
+
     const tag =
       normalizeOisLegacyEquipmentTag(
-        trailingMatch[1]
+        rawTag
       );
 
 
     if (
-      tag
+      !tag
     ) {
-      return {
-        tag,
-
-        content:
-          sourceText
-            .slice(
-              0,
-              trailingMatch.index
-            )
-            .trim()
-      };
+      continue;
     }
+
+
+    const content =
+      [
+        sourceText.slice(
+          0,
+          matchedToken.index
+        ),
+
+        sourceText.slice(
+          matchedToken.index +
+          matchedToken[0].length
+        )
+      ]
+        .join(
+          " "
+        )
+        .replace(
+          /[ \t]{2,}/g,
+          " "
+        )
+        .replace(
+          /\s+([,.;:])/g,
+          "$1"
+        )
+        .trim();
+
+
+    return {
+      tag,
+
+      content
+    };
   }
 
 
@@ -209659,6 +209722,14 @@ function renderTeamApprovalCard(
           ];
 
 
+    const enableOldShiftTagDetection =
+      typeof isOisLegacyTagClassificationDate ===
+        "function" &&
+      isOisLegacyTagClassificationDate(
+        workDate
+      );
+
+
     return parsedLines
       .map(
         (
@@ -209670,7 +209741,8 @@ function renderTeamApprovalCard(
               "function"
               ? extractLegacyTagFromContent(
                   parsedLine?.content ||
-                  ""
+                  "",
+                  enableOldShiftTagDetection
                 )
               : {
                   tag:
@@ -209698,39 +209770,16 @@ function renderTeamApprovalCard(
           }
 
 
-          const equipmentTag =
-            typeof normalizeOisLegacyEquipmentTag ===
-              "function"
-              ? normalizeOisLegacyEquipmentTag(
-                  parsedContent?.tag
-                )
-              : String(
-                  parsedContent?.tag ||
-                  ""
-                )
-                  .trim()
-                  .toUpperCase();
-
-
-          const classifyAsLegacyTmWork =
-            Boolean(
-              equipmentTag
-            ) &&
-            typeof isOisLegacyTagClassificationDate ===
-              "function" &&
-            isOisLegacyTagClassificationDate(
-              workDate
-            );
-
-
           return {
             id:
               `ois-legacy-entry-${sourceId}-${lineIndex}`,
 
+            /*
+              Keep the old OIS classification exactly as before.
+              Only the tag field is enriched for the target range.
+            */
             category:
-              classifyAsLegacyTmWork
-                ? "TM 작업"
-                : "인계사항",
+              "인계사항",
 
             time:
               String(
@@ -209739,7 +209788,6 @@ function renderTeamApprovalCard(
               ).trim(),
 
             tag:
-              equipmentTag ||
               String(
                 parsedContent?.tag ||
                 ""
@@ -209774,6 +209822,8 @@ function renderTeamApprovalCard(
         Boolean
       );
   }
+
+
 
   function convertOisLegacyItemToLog(
     item,
