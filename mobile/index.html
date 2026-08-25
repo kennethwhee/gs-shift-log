@@ -51,7 +51,51 @@
       -webkit-text-size-adjust: 100%;
     }
 
+    .mobile-brand-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .mobile-brand-backdrop__image,
+    .mobile-brand-backdrop__shade {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .mobile-brand-backdrop__image {
+      display: block;
+      object-fit: cover;
+      object-position: 50% 50%;
+      opacity: 0;
+    }
+
+    .mobile-brand-backdrop__image.is-ready {
+      opacity: 1;
+    }
+
+    .mobile-brand-backdrop__shade {
+      background: rgba(
+        8,
+        25,
+        48,
+        var(--mobile-brand-overlay, 0.3)
+      );
+      opacity: 0;
+    }
+
+    .mobile-brand-backdrop.has-background
+      .mobile-brand-backdrop__shade {
+      opacity: 1;
+    }
+
     .screen {
+      position: relative;
+      z-index: 1;
       display: grid;
       width: 100%;
       min-height: 100vh;
@@ -82,10 +126,19 @@
     }
 
     .logo {
+      display: flex;
+      min-width: 50px;
+      max-width: 150px;
+      height: 50px;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo__fallback {
       display: grid;
       width: 50px;
       height: 50px;
-      flex: 0 0 50px;
       place-items: center;
       border-radius: 12px;
       background:
@@ -97,6 +150,20 @@
       color: #fff;
       font-size: 16px;
       font-weight: 900;
+    }
+
+    .logo__image {
+      display: block;
+      width: auto;
+      max-width: 145px;
+      height: 48px;
+      object-fit: contain;
+      object-position: left center;
+    }
+
+    .logo__image[hidden],
+    .logo__fallback[hidden] {
+      display: none !important;
     }
 
     .brand-copy {
@@ -315,6 +382,19 @@
       font-weight: 900;
     }
 
+    .launch-overlay__logo img {
+      display: block;
+      width: auto;
+      max-width: 54px;
+      max-height: 54px;
+      object-fit: contain;
+    }
+
+    .launch-overlay__logo img[hidden],
+    .launch-overlay__logo span[hidden] {
+      display: none !important;
+    }
+
     .launch-overlay strong {
       display: block;
       font-size: 22px;
@@ -384,6 +464,26 @@
 </head>
 
 <body>
+  <!-- MOBILE-BRAND-LOGIN-V16 -->
+  <div
+    id="mobileV16BrandBackdrop"
+    class="mobile-brand-backdrop"
+    aria-hidden="true"
+  >
+    <img
+      id="mobileV16BrandBackgroundImage"
+      class="mobile-brand-backdrop__image"
+      alt=""
+      decoding="async"
+      fetchpriority="low"
+    >
+
+    <div
+      id="mobileV16BrandBackgroundShade"
+      class="mobile-brand-backdrop__shade"
+    ></div>
+  </div>
+
   <!-- MOBILE-LOGIN-ROUTE-V13 -->
   <section
     id="mobileV13LaunchOverlay"
@@ -394,7 +494,17 @@
   >
     <div>
       <div class="launch-overlay__logo" aria-hidden="true">
-        GS
+        <span id="mobileV16LaunchLogoFallback">
+          GS
+        </span>
+
+        <img
+          id="mobileV16LaunchLogoImage"
+          alt=""
+          decoding="async"
+          fetchpriority="low"
+          hidden
+        >
       </div>
 
       <strong>
@@ -421,15 +531,29 @@
     <section class="card">
       <div class="brand">
         <div class="logo" aria-hidden="true">
-          GS
+          <span
+            id="mobileV16CardLogoFallback"
+            class="logo__fallback"
+          >
+            GS
+          </span>
+
+          <img
+            id="mobileV16CardLogoImage"
+            class="logo__image"
+            alt=""
+            decoding="async"
+            fetchpriority="low"
+            hidden
+          >
         </div>
 
         <div class="brand-copy">
-          <small>
+          <small id="mobileV16CompanyName">
             GS 포천그린에너지
           </small>
 
-          <strong>
+          <strong id="mobileV16ProgramName">
             GS Shift Log
           </strong>
         </div>
@@ -450,6 +574,8 @@
       <form
         id="mobileV6LoginForm"
         autocomplete="on"
+        method="post"
+        action="/api/login"
       >
         <label class="field">
           <span>
@@ -506,6 +632,7 @@
           id="mobileV6Submit"
           class="submit"
           type="submit"
+          disabled
         >
           로그인
         </button>
@@ -513,7 +640,7 @@
 
       <footer class="footer">
         <span class="dot" aria-hidden="true"></span>
-        <span>
+        <span id="mobileV16SecurityLabel">
           GS Shift Log 모바일 보안 접속
         </span>
       </footer>
@@ -539,9 +666,686 @@
       let navigationStarted =
         false;
 
+      let mobileBrandingStarted =
+        false;
+
+      let mobileBrandingController =
+        null;
+
+      const mobileBrandingTimers =
+        new Set();
+
 
       function byId(id) {
         return document.getElementById(id);
+      }
+
+
+      function clampMobileBrandNumber(
+        value,
+        minimum,
+        maximum,
+        fallback
+      ) {
+        const numericValue =
+          Number(value);
+
+        if (
+          !Number.isFinite(
+            numericValue
+          )
+        ) {
+          return fallback;
+        }
+
+        return Math.min(
+          maximum,
+          Math.max(
+            minimum,
+            numericValue
+          )
+        );
+      }
+
+
+      function normalizeMobileBrandText(
+        value,
+        fallback,
+        maximumLength = 80
+      ) {
+        const normalized =
+          String(
+            value ||
+            ""
+          ).trim();
+
+        return (
+          normalized ||
+          fallback
+        ).slice(
+          0,
+          maximumLength
+        );
+      }
+
+
+      function getSafeMobileBrandAssetUrl(
+        rawUrl,
+        expectedType
+      ) {
+        try {
+          const url =
+            new URL(
+              String(
+                rawUrl ||
+                ""
+              ),
+              window.location.origin
+            );
+
+          if (
+            url.origin !==
+              window.location.origin ||
+            url.pathname !==
+              "/api/brand-assets" ||
+            url.hash
+          ) {
+            return "";
+          }
+
+          const typeValues =
+            url.searchParams.getAll(
+              "type"
+            );
+
+          if (
+            typeValues.length !== 1 ||
+            typeValues[0] !==
+              expectedType ||
+            url.searchParams.getAll(
+              "v"
+            ).length > 1
+          ) {
+            return "";
+          }
+
+          for (
+            const key of
+              url.searchParams.keys()
+          ) {
+            if (
+              key !== "type" &&
+              key !== "v"
+            ) {
+              return "";
+            }
+          }
+
+          return (
+            url.pathname +
+            url.search
+          );
+
+        } catch {
+          return "";
+        }
+      }
+
+
+      function clearMobileBrandingTimer(
+        timerId
+      ) {
+        window.clearTimeout(
+          timerId
+        );
+
+        mobileBrandingTimers.delete(
+          timerId
+        );
+      }
+
+
+      function loadMobileBrandImage(
+        image,
+        sourceUrl,
+        timeoutMs,
+        onReady,
+        onFailure
+      ) {
+        if (
+          !image ||
+          !sourceUrl ||
+          navigationStarted
+        ) {
+          onFailure?.();
+          return;
+        }
+
+        const requestKey =
+          sourceUrl;
+
+        image.dataset.mobileBrandRequest =
+          requestKey;
+
+        let timerId =
+          0;
+
+        const cleanup =
+          () => {
+            image.onload =
+              null;
+
+            image.onerror =
+              null;
+
+            if (timerId) {
+              clearMobileBrandingTimer(
+                timerId
+              );
+
+              timerId =
+                0;
+            }
+          };
+
+        const fail =
+          () => {
+            if (
+              image.dataset
+                .mobileBrandRequest !==
+                requestKey
+            ) {
+              return;
+            }
+
+            if (
+              image.complete &&
+              Number(
+                image.naturalWidth ||
+                0
+              ) > 0
+            ) {
+              cleanup();
+
+              if (!navigationStarted) {
+                onReady?.();
+              }
+
+              return;
+            }
+
+            cleanup();
+
+            image.removeAttribute(
+              "src"
+            );
+
+            onFailure?.();
+          };
+
+        image.onload =
+          () => {
+            if (
+              image.dataset
+                .mobileBrandRequest !==
+                requestKey
+            ) {
+              return;
+            }
+
+            cleanup();
+
+            if (
+              navigationStarted
+            ) {
+              return;
+            }
+
+            onReady?.();
+          };
+
+        image.onerror =
+          fail;
+
+        timerId =
+          window.setTimeout(
+            fail,
+            timeoutMs
+          );
+
+        mobileBrandingTimers.add(
+          timerId
+        );
+
+        image.src =
+          sourceUrl;
+      }
+
+
+      function applyMobileBrandLogo(
+        imageId,
+        fallbackId,
+        logoUrl
+      ) {
+        const image =
+          byId(imageId);
+
+        const fallback =
+          byId(fallbackId);
+
+        if (
+          !image ||
+          !fallback
+        ) {
+          return;
+        }
+
+        image.hidden =
+          true;
+
+        image.classList.remove(
+          "is-ready"
+        );
+
+        image.removeAttribute(
+          "src"
+        );
+
+        fallback.hidden =
+          false;
+
+        if (!logoUrl) {
+          return;
+        }
+
+        loadMobileBrandImage(
+          image,
+          logoUrl,
+          5000,
+          () => {
+            image.classList.add(
+              "is-ready"
+            );
+
+            image.hidden =
+              false;
+
+            fallback.hidden =
+              true;
+          },
+          () => {
+            image.hidden =
+              true;
+
+            fallback.hidden =
+              false;
+          }
+        );
+      }
+
+
+      function applyMobileBrandBackground(
+        backgroundUrl,
+        positionX,
+        positionY,
+        overlayPercent
+      ) {
+        const backdrop =
+          byId(
+            "mobileV16BrandBackdrop"
+          );
+
+        const image =
+          byId(
+            "mobileV16BrandBackgroundImage"
+          );
+
+        const shade =
+          byId(
+            "mobileV16BrandBackgroundShade"
+          );
+
+        if (
+          !backdrop ||
+          !image ||
+          !shade
+        ) {
+          return;
+        }
+
+        image.style.objectPosition =
+          `${positionX}% ${positionY}%`;
+
+        shade.style.setProperty(
+          "--mobile-brand-overlay",
+          String(
+            overlayPercent /
+            100
+          )
+        );
+
+        image.classList.remove(
+          "is-ready"
+        );
+
+        backdrop.classList.remove(
+          "has-background"
+        );
+
+        image.removeAttribute(
+          "src"
+        );
+
+        if (!backgroundUrl) {
+          return;
+        }
+
+        loadMobileBrandImage(
+          image,
+          backgroundUrl,
+          7000,
+          () => {
+            image.classList.add(
+              "is-ready"
+            );
+
+            backdrop.classList.add(
+              "has-background"
+            );
+          },
+          () => {
+            image.classList.remove(
+              "is-ready"
+            );
+
+            backdrop.classList.remove(
+              "has-background"
+            );
+          }
+        );
+      }
+
+
+      async function loadMobileBrandSettings() {
+        if (navigationStarted) {
+          return;
+        }
+
+        const timeout =
+          createTimeout(
+            4000
+          );
+
+        mobileBrandingController =
+          timeout.controller;
+
+        try {
+          const requestUrl =
+            new URL(
+              "/api/brand-settings",
+              window.location.origin
+            );
+
+          requestUrl.searchParams.set(
+            "_",
+            String(
+              Date.now()
+            )
+          );
+
+          const response =
+            await timeout.wait(
+              fetch(
+                requestUrl.toString(),
+                {
+                  method:
+                    "GET",
+
+                  headers: {
+                    Accept:
+                      "application/json"
+                  },
+
+                  cache:
+                    "no-store",
+
+                  signal:
+                    timeout
+                      .controller
+                      .signal
+                }
+              )
+            );
+
+          if (!response.ok) {
+            return;
+          }
+
+          const result =
+            await response.json();
+
+          if (
+            navigationStarted ||
+            !result ||
+            result.ok !== true ||
+            !result.brand ||
+            typeof result.brand !==
+              "object"
+          ) {
+            return;
+          }
+
+          const brand =
+            result.brand;
+
+          const companyName =
+            normalizeMobileBrandText(
+              brand.companyName,
+              "GS 포천그린에너지"
+            );
+
+          const programName =
+            normalizeMobileBrandText(
+              brand.programName,
+              "GS Shift Log"
+            );
+
+          const programSubtitle =
+            normalizeMobileBrandText(
+              brand.programSubtitle,
+              "교대근무 업무일지 시스템",
+              120
+            );
+
+          const positionX =
+            clampMobileBrandNumber(
+              brand.backgroundPositionX,
+              0,
+              100,
+              50
+            );
+
+          const positionY =
+            clampMobileBrandNumber(
+              brand.backgroundPositionY,
+              0,
+              100,
+              50
+            );
+
+          const overlayPercent =
+            clampMobileBrandNumber(
+              brand.backgroundOverlay,
+              0,
+              80,
+              30
+            );
+
+          const logoUrl =
+            getSafeMobileBrandAssetUrl(
+              brand.logoUrl,
+              "logo"
+            );
+
+          const backgroundUrl =
+            getSafeMobileBrandAssetUrl(
+              brand.backgroundUrl,
+              "background"
+            );
+
+          byId(
+            "mobileV16CompanyName"
+          ).textContent =
+            companyName;
+
+          byId(
+            "mobileV16ProgramName"
+          ).textContent =
+            programName;
+
+          byId(
+            "mobileV16SecurityLabel"
+          ).textContent =
+            `${programName} 모바일 보안 접속`;
+
+          document.title =
+            `${programName} - 로그인`;
+
+          const descriptionMeta =
+            document.querySelector(
+              'meta[name="description"]'
+            );
+
+          descriptionMeta?.setAttribute(
+            "content",
+            `${programName} - ${programSubtitle}`
+          );
+
+          applyMobileBrandLogo(
+            "mobileV16CardLogoImage",
+            "mobileV16CardLogoFallback",
+            logoUrl
+          );
+
+          applyMobileBrandLogo(
+            "mobileV16LaunchLogoImage",
+            "mobileV16LaunchLogoFallback",
+            logoUrl
+          );
+
+          applyMobileBrandBackground(
+            backgroundUrl,
+            positionX,
+            positionY,
+            overlayPercent
+          );
+
+        } catch {
+          /*
+            Brand settings are decorative. Keep the V15 gradient,
+            GS fallback, and login controls working on any failure.
+          */
+
+        } finally {
+          timeout.clear();
+
+          if (
+            mobileBrandingController ===
+              timeout.controller
+          ) {
+            mobileBrandingController =
+              null;
+          }
+        }
+      }
+
+
+      function startMobileBranding() {
+        if (
+          mobileBrandingStarted ||
+          navigationStarted ||
+          submitting
+        ) {
+          return;
+        }
+
+        mobileBrandingStarted =
+          true;
+
+        const start =
+          () => {
+            if (!navigationStarted) {
+              void loadMobileBrandSettings();
+            }
+          };
+
+        if (
+          typeof window.requestAnimationFrame ===
+            "function"
+        ) {
+          window.requestAnimationFrame(
+            start
+          );
+
+        } else {
+          window.setTimeout(
+            start,
+            0
+          );
+        }
+      }
+
+
+      function stopMobileBrandingPending() {
+        mobileBrandingStarted =
+          false;
+
+        mobileBrandingController
+          ?.abort();
+
+        mobileBrandingController =
+          null;
+
+        for (
+          const timerId of
+            mobileBrandingTimers
+        ) {
+          window.clearTimeout(
+            timerId
+          );
+        }
+
+        mobileBrandingTimers.clear();
+
+        [
+          "mobileV16BrandBackgroundImage",
+          "mobileV16CardLogoImage",
+          "mobileV16LaunchLogoImage"
+        ].forEach(
+          id => {
+            const image =
+              byId(id);
+
+            if (
+              !image ||
+              image.classList.contains(
+                "is-ready"
+              )
+            ) {
+              return;
+            }
+
+            image.onload =
+              null;
+
+            image.onerror =
+              null;
+
+            image.removeAttribute(
+              "src"
+            );
+          }
+        );
       }
 
 
@@ -961,6 +1765,8 @@
         navigationStarted =
           true;
 
+        stopMobileBrandingPending();
+
         const overlay =
           byId(
             "mobileV13LaunchOverlay"
@@ -984,7 +1790,7 @@
         );
 
         const destination =
-          "/mobile-app/?build=20260825-mobile-menu-stability-v15";
+          "/mobile-app/?build=20260825-mobile-branding-v16";
 
         window.setTimeout(
           () => {
@@ -1104,6 +1910,8 @@
           return;
         }
 
+        stopMobileBrandingPending();
+
         submitting =
           true;
 
@@ -1169,6 +1977,8 @@
           submitting =
             false;
 
+          startMobileBranding();
+
           setBusy(false);
 
           setStatus(
@@ -1229,6 +2039,14 @@
 
         if (
           validation ===
+            "valid"
+        ) {
+          startMobileBranding();
+          return;
+        }
+
+        if (
+          validation ===
             "invalid"
         ) {
           const latestUser =
@@ -1248,6 +2066,8 @@
             setStatus("");
           }
 
+          startMobileBranding();
+
           return;
         }
 
@@ -1259,6 +2079,13 @@
           setStatus(
             "기존 세션 확인이 지연되고 있습니다. 필요하면 로그인 버튼을 눌러 다시 시도해 주세요."
           );
+        }
+
+        if (
+          validation ===
+            "unavailable"
+        ) {
+          startMobileBranding();
         }
       }
 
@@ -1274,13 +2101,15 @@
           handleSubmit
         );
 
+        setBusy(false);
+
         byId(
           "mobileV13LaunchRetryButton"
         )?.addEventListener(
           "click",
           () => {
             window.location.replace(
-              "/mobile-app/?build=20260825-mobile-menu-stability-v15"
+              "/mobile-app/?build=20260825-mobile-branding-v16"
             );
           }
         );
@@ -1306,6 +2135,8 @@
                 () => {
                   interacted =
                     true;
+
+                  startMobileBranding();
                 }
               );
 
@@ -1314,6 +2145,8 @@
                 () => {
                   interacted =
                     true;
+
+                  startMobileBranding();
                 }
               );
             }
@@ -1326,6 +2159,8 @@
           event => {
             interacted =
               true;
+
+            startMobileBranding();
 
             if (
               !event.currentTarget
@@ -1340,8 +2175,39 @@
 
         restoreRemembered();
 
+        const storedUser =
+          readStoredUser();
+
+        if (
+          !getToken(
+            storedUser
+          )
+        ) {
+          startMobileBranding();
+        }
+
         void validateStoredInBackground();
       }
+
+
+      window.addEventListener(
+        "pagehide",
+        () => {
+          stopMobileBrandingPending();
+        }
+      );
+
+      window.addEventListener(
+        "pageshow",
+        event => {
+          if (
+            event.persisted &&
+            !navigationStarted
+          ) {
+            startMobileBranding();
+          }
+        }
+      );
 
 
       window.addEventListener(
