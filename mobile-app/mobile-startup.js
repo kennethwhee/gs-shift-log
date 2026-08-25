@@ -550,7 +550,6 @@
       ...preservedLegacyLogs
     ];
 
-    safeRenderCurrentState();
   }
 
 
@@ -593,7 +592,6 @@
         ? legacyLogs.length
         : 0;
 
-    safeRenderCurrentState();
   }
 
 

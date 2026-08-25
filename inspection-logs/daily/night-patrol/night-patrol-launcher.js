@@ -70,6 +70,9 @@
   const PAGE_URL =
     "inspection-logs/inspection-logs.html?v=20260814-log-sheet1";
 
+  const deferInitialFrameLoad =
+    window.__GS_MOBILE_RUNTIME_V14 === true;
+
   const ROLE_ORDER = [
     "파트장",
     "TGO",
@@ -528,9 +531,19 @@
     if (existingModal) {
       const existingFrame = getFrame();
 
-      if (existingFrame && existingFrame.getAttribute("src") !== PAGE_URL) {
+      if (
+        existingFrame &&
+        !existingFrame.getAttribute(
+          "src"
+        )
+      ) {
         existingFrame.dataset.inspectionLoaded = "false";
-        existingFrame.setAttribute("src", PAGE_URL);
+        existingFrame.setAttribute(
+          "src",
+          deferInitialFrameLoad
+            ? "about:blank"
+            : PAGE_URL
+        );
       }
 
       return true;
@@ -571,8 +584,8 @@
             id="${FRAME_ID}"
             class="night-patrol-frame"
             title="점검일지"
-            src="${PAGE_URL}"
-            loading="eager"
+            src="${deferInitialFrameLoad ? "about:blank" : PAGE_URL}"
+            loading="${deferInitialFrameLoad ? "lazy" : "eager"}"
             allow="fullscreen"
             allowfullscreen
           ></iframe>

@@ -1,6 +1,21 @@
 "use strict";
 
 /* =========================================================
+  MOBILE RUNTIME V14 STARTUP POLICY
+
+  /mobile-app/ sets this flag before loading the shared
+  runtime. Heavy dashboards must not start network scans,
+  hidden renders, or polling until the user opens them.
+
+  The PC page does not set the flag, so its existing startup
+  behavior remains unchanged.
+========================================================= */
+
+function shouldDeferHeavyMobileStartupV14() {
+  return window.__GS_MOBILE_RUNTIME_V14 === true;
+}
+
+/* =========================================================
   석회석 사용량 모바일 모니터링 모드
 
   모바일:
@@ -3999,8 +4014,7 @@ function openLoginScreen() {
     isMobileShiftLogAppRoute()
   ) {
     window.location.replace(
-      "/mobile/?build=20260825-mobile-auth-v12&reason=login-required&nonce=" +
-      Date.now()
+      "/mobile/?build=20260825-mobile-stability-v14&reason=login-required"
     );
 
 
@@ -44634,6 +44648,21 @@ function renderLogTable() {
   renderMobileLogCards(
     filteredLogs
   );
+
+
+  /*
+    MOBILE-APP-V14:
+    모바일에서는 바로 위의 카드 목록만 표시한다.
+    숨겨진 PC 표까지 같은 대용량 HTML로 다시 만드는 작업은
+    iOS 첫 화면의 메인 스레드와 메모리 사용량만 늘리므로 생략한다.
+  */
+  if (
+    shouldDeferHeavyMobileStartupV14()
+  ) {
+    updateShiftMemberCardStates();
+
+    return;
+  }
 
 
   if (
@@ -127252,6 +127281,13 @@ function openArmRollBoxFromMainAlert() {
 ========================================================= */
 
 function startArmRollBoxMainAlertAutoLoad() {
+  if (
+    shouldDeferHeavyMobileStartupV14()
+  ) {
+    return;
+  }
+
+
   let attemptCount =
     0;
 
@@ -127941,6 +127977,13 @@ function bindArmRollBoxEvents() {
   elements.openButton?.addEventListener(
     "click",
     () => {
+      if (
+        shouldDeferHeavyMobileStartupV14()
+      ) {
+        return;
+      }
+
+
       window.setTimeout(
         () => {
           const stale =
@@ -194832,6 +194875,13 @@ function renderPreview() {
     bindEvents();
 
 
+    if (
+      shouldDeferHeavyMobileStartupV14()
+    ) {
+      return;
+    }
+
+
     renderPreview();
 
 
@@ -195905,6 +195955,26 @@ function renderSiloPreview() {
   ====================================================== */
 
   function initialize() {
+    if (
+      shouldDeferHeavyMobileStartupV14()
+    ) {
+      bindEvents();
+
+
+      document
+        .getElementById(
+          "efficiencyMorningMeetingTab"
+        )
+        ?.addEventListener(
+          "click",
+          scheduleRender
+        );
+
+
+      return;
+    }
+
+
     const card =
       ensureSiloPreviewCard();
 
@@ -197865,6 +197935,10 @@ window
 
   let initializationAttempt =
     0;
+
+
+  let mobileFeatureActivated =
+    !shouldDeferHeavyMobileStartupV14();
 
 
   /* =====================================================
@@ -200944,6 +201018,13 @@ document.addEventListener(
   "efficiencyMorningMeetingShiftLogsLoaded",
 
   event => {
+    if (
+      !mobileFeatureActivated
+    ) {
+      return;
+    }
+
+
     /*
       BO1·BO2 온도만 다시 조회한 이벤트는
       교대파트 기준일을 변경하지 않는다.
@@ -201096,6 +201177,13 @@ document.addEventListener(
       requestedDate,
       options = {}
     ) {
+      if (
+        !mobileFeatureActivated
+      ) {
+        return;
+      }
+
+
       applyCommonBaseDate(
         requestedDate,
         options
@@ -201132,6 +201220,50 @@ document.addEventListener(
 
     const initialDate =
       resolveCommonBaseDate();
+
+
+    if (
+      shouldDeferHeavyMobileStartupV14()
+    ) {
+      document
+        .getElementById(
+          "efficiencyMorningMeetingTab"
+        )
+        ?.addEventListener(
+          "click",
+          () => {
+            mobileFeatureActivated =
+              true;
+
+
+            const activatedDate =
+              resolveCommonBaseDate();
+
+
+            if (
+              activatedDate
+            ) {
+              applyCommonBaseDate(
+                activatedDate,
+                {
+                  load:
+                    false
+                }
+              );
+            }
+
+
+            refreshMorningMeetingPreview();
+          },
+          {
+            once:
+              true
+          }
+        );
+
+
+      return;
+    }
 
 
     if (
@@ -219944,7 +220076,36 @@ function restoreSavedSmpPriceState() {
   }
 }
 
-  function initialize() {
+  function initialize(
+    activatedByUser =
+      false
+  ) {
+    if (
+      shouldDeferHeavyMobileStartupV14() &&
+      !activatedByUser
+    ) {
+      document
+        .getElementById(
+          "efficiencyMorningMeetingTab"
+        )
+        ?.addEventListener(
+          "click",
+          () => {
+            initialize(
+              true
+            );
+          },
+          {
+            once:
+              true
+          }
+        );
+
+
+      return;
+    }
+
+
     const card =
       ensureCard();
 
@@ -219961,10 +220122,14 @@ function restoreSavedSmpPriceState() {
 
       if (
         initializationAttempt <
-        80
+          80
       ) {
         window.setTimeout(
-          initialize,
+          () => {
+            initialize(
+              activatedByUser
+            );
+          },
           250
         );
       }
@@ -221559,7 +221724,36 @@ async function load(
     };
 
 
-  function initialize() {
+  function initialize(
+    activatedByUser =
+      false
+  ) {
+    if (
+      shouldDeferHeavyMobileStartupV14() &&
+      !activatedByUser
+    ) {
+      document
+        .getElementById(
+          "efficiencyMorningMeetingTab"
+        )
+        ?.addEventListener(
+          "click",
+          () => {
+            initialize(
+              true
+            );
+          },
+          {
+            once:
+              true
+          }
+        );
+
+
+      return;
+    }
+
+
     const card =
       ensureCard();
 
@@ -221576,10 +221770,14 @@ async function load(
 
       if (
         initializeAttempt <
-        80
+          80
       ) {
         window.setTimeout(
-          initialize,
+          () => {
+            initialize(
+              activatedByUser
+            );
+          },
           250
         );
       }
@@ -221589,6 +221787,19 @@ async function load(
 
     bindEvents();
     render();
+
+
+    if (
+      shouldDeferHeavyMobileStartupV14()
+    ) {
+      scheduleLoad(
+        false
+      );
+
+
+      return;
+    }
+
 
     void load();
   }
@@ -231977,6 +232188,32 @@ if (
     render();
 
 
+    if (
+      shouldDeferHeavyMobileStartupV14()
+    ) {
+      document
+        .getElementById(
+          "efficiencyMorningMeetingTab"
+        )
+        ?.addEventListener(
+          "click",
+          () => {
+            window.setTimeout(
+              refreshShiftPart,
+              0
+            );
+          },
+          {
+            once:
+              true
+          }
+        );
+
+
+      return;
+    }
+
+
     applyDefaultAutoDate({
       load:
         false
@@ -241329,6 +241566,10 @@ function initializeDailyControls() {
     null;
 
 
+  let mobileFeatureActivated =
+    !shouldDeferHeavyMobileStartupV14();
+
+
   function getState() {
     if (
       !window
@@ -241422,6 +241663,13 @@ function initializeDailyControls() {
   }
 
 async function restoreSolarCumulativeFromD1() {
+  if (
+    !mobileFeatureActivated
+  ) {
+    return false;
+  }
+
+
   const state =
     getState();
 
@@ -242310,6 +242558,13 @@ async function restoreSolarCumulativeFromD1() {
 }
 
   function scheduleRestore() {
+    if (
+      !mobileFeatureActivated
+    ) {
+      return;
+    }
+
+
     window.clearTimeout(
       restoreTimerId
     );
@@ -242336,12 +242591,37 @@ async function restoreSolarCumulativeFromD1() {
   );
 
 
+  if (
+    shouldDeferHeavyMobileStartupV14()
+  ) {
+    document
+      .getElementById(
+        "efficiencyMorningMeetingTab"
+      )
+      ?.addEventListener(
+        "click",
+        () => {
+          mobileFeatureActivated =
+            true;
+
+
+          scheduleRestore();
+        },
+        {
+          once:
+            true
+        }
+      );
+  }
+
+
   /*
     화면을 새로 열었는데
     일일DATA가 이미 들어 있는 경우도 처리
   */
 
   if (
+    !shouldDeferHeavyMobileStartupV14() &&
     document.readyState ===
       "loading"
   ) {
@@ -242354,7 +242634,9 @@ async function restoreSolarCumulativeFromD1() {
       }
     );
 
-  } else {
+  } else if (
+    !shouldDeferHeavyMobileStartupV14()
+  ) {
     scheduleRestore();
   }
 
@@ -243217,10 +243499,14 @@ async function restoreSolarCumulativeFromD1() {
       최초 한 번 서버 상태 확인
     */
 
-    refreshServerBatchStatus({
-      silent:
-        true
-    });
+    if (
+      !shouldDeferHeavyMobileStartupV14()
+    ) {
+      refreshServerBatchStatus({
+        silent:
+          true
+      });
+    }
   }
 
 

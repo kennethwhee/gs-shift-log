@@ -30,7 +30,7 @@
         "mobile-app-boot-v13";
 
       const LOGIN_URL =
-        "/mobile/?build=20260825-mobile-boot-v13";
+        "/mobile/?build=20260825-mobile-stability-v14";
 
       try {
         const raw =
@@ -226,6 +226,15 @@
               "모바일 화면 준비가 지연되고 있습니다."
             );
 
+          if (state.watchdogId) {
+            window.clearInterval(
+              state.watchdogId
+            );
+
+            state.watchdogId =
+              0;
+          }
+
           const splash =
             document.getElementById(
               "mobileAppBootV13Splash"
@@ -369,7 +378,7 @@
               tagName === "SCRIPT" &&
               (
                 source.includes(
-                  "/mobile-app/mobile-runtime-v13.js"
+                  "/mobile-app/mobile-runtime-v14.js"
                 ) ||
                 source.includes(
                   "/mobile-app/mobile-startup.js"
@@ -557,13 +566,13 @@
   -->
   <link
     rel="preload"
-    href="/mobile-app/mobile-runtime-v13.js?v=20260825-1"
+    href="/mobile-app/mobile-runtime-v14.js?v=20260825-1"
     as="script"
   >
 
   <link
     rel="preload"
-    href="/mobile-app/mobile-startup.js?v=20260825-mobile-boot-v13"
+    href="/mobile-app/mobile-startup.js?v=20260825-mobile-stability-v14"
     as="script"
   >
 
@@ -592,16 +601,10 @@
   >
 
 
-  <!-- =====================================================
-    점검일지 팝업 외곽 CSS
-  ====================================================== -->
-  <link
-    rel="preload"
-    as="style"
-    href="/inspection-logs/daily/night-patrol/night-patrol-shell.css?v=20260819-role-today-compact1"
-    onload="this.onload=null;this.rel='stylesheet';window.__markMobileAppBootResourceV13?.('inspectionCss',true)"
-    onerror="window.__markMobileAppBootResourceV13?.('inspectionCss',false)"
-  >
+  <!--
+    MOBILE-APP-V14: 점검일지 CSS와 실행기는 더보기 메뉴를
+    실제로 열었을 때만 불러온다.
+  -->
 
   <noscript>
     <link
@@ -619,7 +622,8 @@
   </noscript>
 
 <!--
-  JSZip과 SheetJS는 앱 화면이 열린 뒤 백그라운드에서 불러온다.
+  MOBILE-APP-V14:
+  JSZip과 SheetJS는 엑셀 기능을 실제로 눌렀을 때만 불러온다.
   로그인 직후의 필수 CSS·공통 스크립트와 네트워크 및 메인
   스레드를 경쟁하지 않게 한다.
 -->
@@ -712,7 +716,7 @@
       "click",
       () => {
         window.location.replace(
-          "/mobile-app/?build=20260825-mobile-boot-v13&retry=" +
+          "/mobile-app/?build=20260825-mobile-stability-v14&retry=" +
           Date.now()
         );
       }
@@ -728,7 +732,7 @@
         );
 
         window.location.replace(
-          "/mobile/?build=20260825-mobile-boot-v13"
+          "/mobile/?build=20260825-mobile-stability-v14"
         );
       }
     );
@@ -14741,6 +14745,10 @@
   항상 표시할 수 있다.
 -->
 <script>
+  window.__GS_MOBILE_RUNTIME_V14 =
+    true;
+
+
   window.__setMobileAppBootStageV13?.(
     "shared-script-loading",
     "업무일지 프로그램을 불러오고 있습니다."
@@ -14748,7 +14756,7 @@
 </script>
 
 <script
-  src="/mobile-app/mobile-runtime-v13.js?v=20260825-1"
+  src="/mobile-app/mobile-runtime-v14.js?v=20260825-1"
   onload="window.__markMobileAppBootResourceV13?.('sharedScript',true)"
   onerror="window.__setMobileAppBootStageV13?.('shared-script-error','업무일지 프로그램을 불러오지 못했습니다.');window.__showMobileAppBootRecoveryV13?.('업무일지 프로그램을 불러오지 못했습니다. 다시 시도해 주세요.')"
 ></script>
@@ -14761,7 +14769,7 @@
 </script>
 
 <script
-  src="/mobile-app/mobile-startup.js?v=20260825-mobile-boot-v13"
+  src="/mobile-app/mobile-startup.js?v=20260825-mobile-stability-v14"
   onload="window.__markMobileAppBootResourceV13?.('startupScript',true)"
   onerror="window.__setMobileAppBootStageV13?.('startup-script-error','모바일 시작 설정을 불러오지 못했습니다.');window.__showMobileAppBootRecoveryV13?.('모바일 시작 설정을 불러오지 못했습니다. 다시 시도해 주세요.')"
 ></script>
@@ -14779,84 +14787,572 @@
       false;
 
 
+    const optionalLoads =
+      new Map();
+
+
+    function yieldToMobileBrowserV14() {
+      return new Promise(
+        resolve => {
+          window.requestAnimationFrame(
+            () => {
+              window.setTimeout(
+                resolve,
+                0
+              );
+            }
+          );
+        }
+      );
+    }
+
+
     function loadOptionalScript(
+      id,
+      source,
+      isReady
+    ) {
+      if (
+        typeof isReady ===
+          "function" &&
+        isReady()
+      ) {
+        return Promise.resolve();
+      }
+
+
+      if (
+        optionalLoads.has(
+          id
+        )
+      ) {
+        return optionalLoads.get(
+          id
+        );
+      }
+
+
+      const promise =
+        new Promise(
+          (
+            resolve,
+            reject
+          ) => {
+            let script =
+              document.getElementById(
+                id
+              );
+
+
+            let shouldAppend =
+              false;
+
+
+            if (
+              !script
+            ) {
+              script =
+                document.createElement(
+                  "script"
+                );
+
+
+              script.id =
+                id;
+
+
+              script.src =
+                source;
+
+
+              script.async =
+                true;
+
+              shouldAppend =
+                true;
+            }
+
+
+            script.addEventListener(
+              "load",
+              () => {
+                script.dataset
+                  .mobileOptionalLoaded =
+                  "true";
+
+
+                resolve();
+              },
+              {
+                once:
+                  true
+              }
+            );
+
+
+            script.addEventListener(
+              "error",
+              () => {
+                optionalLoads.delete(
+                  id
+                );
+
+
+                script.remove();
+
+
+                reject(
+                  new Error(
+                    `선택 기능 파일 로딩 실패: ${source}`
+                  )
+                );
+              },
+              {
+                once:
+                  true
+              }
+            );
+
+
+            if (
+              shouldAppend
+            ) {
+              document.head.appendChild(
+                script
+              );
+            }
+          }
+        );
+
+
+      optionalLoads.set(
+        id,
+        promise
+      );
+
+
+      return promise;
+    }
+
+
+    function loadOptionalStyle(
       id,
       source
     ) {
       if (
-        document.getElementById(id)
+        document.getElementById(
+          id
+        )
       ) {
-        return;
+        return Promise.resolve();
       }
 
-      const script =
-        document.createElement(
-          "script"
-        );
 
-      script.id =
-        id;
+      return new Promise(
+        (
+          resolve,
+          reject
+        ) => {
+          const link =
+            document.createElement(
+              "link"
+            );
 
-      script.src =
-        source;
 
-      script.async =
-        true;
+          link.id =
+            id;
 
-      script.addEventListener(
-        "error",
-        () => {
-          console.warn(
-            "모바일 선택 기능 파일 로딩 실패:",
-            source
+
+          link.rel =
+            "stylesheet";
+
+
+          link.href =
+            source;
+
+
+          link.addEventListener(
+            "load",
+            resolve,
+            {
+              once:
+                true
+            }
+          );
+
+
+          link.addEventListener(
+            "error",
+            error => {
+              link.remove();
+
+
+              reject(
+                error
+              );
+            },
+            {
+              once:
+                true
+            }
+          );
+
+
+          document.head.appendChild(
+            link
           );
         }
       );
+    }
 
-      document.head.appendChild(
-        script
+
+    let spreadsheetLoadPromise =
+      null;
+
+
+    function loadSpreadsheetFeaturesV14() {
+      if (
+        typeof window.XLSX !==
+          "undefined" &&
+        typeof window.JSZip !==
+          "undefined"
+      ) {
+        return Promise.resolve();
+      }
+
+
+      if (
+        spreadsheetLoadPromise
+      ) {
+        return spreadsheetLoadPromise;
+      }
+
+
+      spreadsheetLoadPromise =
+        loadOptionalScript(
+          "mobileSheetJsV14",
+          "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js",
+          () => {
+            return typeof window.XLSX !==
+              "undefined";
+          }
+        )
+          .then(
+            yieldToMobileBrowserV14
+          )
+          .then(
+            () => {
+              return loadOptionalScript(
+                "mobileJsZipV14",
+                "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
+                () => {
+                  return typeof window.JSZip !==
+                    "undefined";
+                }
+              );
+            }
+          )
+          .catch(
+            error => {
+              spreadsheetLoadPromise =
+                null;
+
+
+              throw error;
+            }
+          );
+
+
+      return spreadsheetLoadPromise;
+    }
+
+
+    let inspectionLoadPromise =
+      null;
+
+
+    function loadInspectionFeatureV14() {
+      if (
+        inspectionLoadPromise
+      ) {
+        return inspectionLoadPromise;
+      }
+
+
+      inspectionLoadPromise =
+        loadOptionalStyle(
+          "mobileInspectionStyleV14",
+          "/inspection-logs/daily/night-patrol/night-patrol-shell.css?v=20260819-role-today-compact1"
+        )
+          .then(
+            yieldToMobileBrowserV14
+          )
+          .then(
+            () => {
+              return loadOptionalScript(
+                "mobileInspectionLauncherV14",
+                "/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260825-mobile-lazy-v14",
+                () => {
+                  return window.__gsNightPatrolLauncherInstalled ===
+                    true;
+                }
+              );
+            }
+          )
+          .catch(
+            error => {
+              inspectionLoadPromise =
+                null;
+
+
+              throw error;
+            }
+          );
+
+
+      return inspectionLoadPromise;
+    }
+
+
+    function reportOptionalLoadErrorV14(
+      error
+    ) {
+      console.warn(
+        "모바일 선택 기능 준비 실패:",
+        error
+      );
+
+
+      if (
+        typeof window.showToast ===
+          "function"
+      ) {
+        window.showToast(
+          "선택 기능을 불러오지 못했습니다. 네트워크 확인 후 다시 눌러주세요."
+        );
+      }
+    }
+
+
+    function installOptionalFeatureTriggersV14() {
+      const spreadsheetActionSelector = [
+        "#analyzeEfficiencyMorningMeetingButton",
+        "#createEfficiencyMorningMeetingWorkbookButton",
+        "#downloadAuxiliaryMaterialExcelButton",
+        "[data-requires-spreadsheet='action']"
+      ].join(
+        ","
+      );
+
+
+      const spreadsheetWarmupSelector = [
+        spreadsheetActionSelector,
+        "#openEmployeeExcelUploadButton",
+        "#importAuxiliaryMaterialExcelButton",
+        "[data-requires-spreadsheet='warmup']"
+      ].join(
+        ","
+      );
+
+
+      document.addEventListener(
+        "click",
+        event => {
+          const target =
+            event.target instanceof
+              Element
+              ? event.target
+              : null;
+
+
+          if (
+            target?.closest(
+              "#headerMoreButton"
+            )
+          ) {
+            void loadInspectionFeatureV14()
+              .catch(
+                reportOptionalLoadErrorV14
+              );
+          }
+
+
+          const spreadsheetTrigger =
+            target?.closest(
+              spreadsheetWarmupSelector
+            );
+
+
+          if (
+            spreadsheetTrigger
+          ) {
+            const librariesReady =
+              typeof window.XLSX !==
+                "undefined" &&
+              typeof window.JSZip !==
+                "undefined";
+
+
+            const actionTrigger =
+              spreadsheetTrigger.matches(
+                spreadsheetActionSelector
+              );
+
+
+            if (
+              actionTrigger &&
+              !librariesReady
+            ) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+
+
+              if (
+                spreadsheetTrigger.dataset
+                  .spreadsheetReplayPending ===
+                    "true"
+              ) {
+                return;
+              }
+
+
+              spreadsheetTrigger.dataset
+                .spreadsheetReplayPending =
+                  "true";
+
+
+              void loadSpreadsheetFeaturesV14()
+                .then(
+                  () => {
+                    delete spreadsheetTrigger
+                      .dataset
+                      .spreadsheetReplayPending;
+
+
+                    spreadsheetTrigger.click();
+                  }
+                )
+                .catch(
+                  error => {
+                    delete spreadsheetTrigger
+                      .dataset
+                      .spreadsheetReplayPending;
+
+
+                    reportOptionalLoadErrorV14(
+                      error
+                    );
+                  }
+                );
+
+
+              return;
+            }
+
+
+            void loadSpreadsheetFeaturesV14()
+              .catch(
+                reportOptionalLoadErrorV14
+              );
+          }
+        },
+        true
+      );
+
+
+      document.addEventListener(
+        "change",
+        event => {
+          const input =
+            event.target;
+
+
+          if (
+            !(
+              input instanceof
+                HTMLInputElement
+            ) ||
+            input.type !==
+              "file" ||
+            !Array.from(
+              input.files ||
+              []
+            ).some(
+              file => {
+                const name =
+                  String(
+                    file?.name ||
+                    ""
+                  ).toLowerCase();
+
+
+                const type =
+                  String(
+                    file?.type ||
+                    ""
+                  ).toLowerCase();
+
+
+                return (
+                  /\.(xlsx|xls|xlsm|xlsb)$/i.test(
+                    name
+                  ) ||
+                  type.includes(
+                    "spreadsheet"
+                  ) ||
+                  type.includes(
+                    "ms-excel"
+                  )
+                );
+              }
+            ) ||
+            (
+              typeof window.XLSX !==
+                "undefined" &&
+              typeof window.JSZip !==
+                "undefined"
+            )
+          ) {
+            return;
+          }
+
+
+          event.preventDefault();
+          event.stopImmediatePropagation();
+
+
+          void loadSpreadsheetFeaturesV14()
+            .then(
+              () => {
+                input.dispatchEvent(
+                  new Event(
+                    "change",
+                    {
+                      bubbles:
+                        true
+                    }
+                  )
+                );
+              }
+            )
+            .catch(
+              reportOptionalLoadErrorV14
+            );
+        },
+        true
       );
     }
 
 
-    function scheduleOptionalFeatures() {
-      const loadFeatures =
-        () => {
-          loadOptionalScript(
-            "mobileJsZipV13",
-            "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"
-          );
+    window.__loadMobileSpreadsheetFeaturesV14 =
+      loadSpreadsheetFeaturesV14;
 
-          loadOptionalScript(
-            "mobileSheetJsV13",
-            "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
-          );
 
-          loadOptionalScript(
-            "mobileInspectionLauncherV13",
-            "/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260823-header-menu-emoji4"
-          );
-        };
+    window.__loadMobileInspectionFeatureV14 =
+      loadInspectionFeatureV14;
 
-      if (
-        typeof window.requestIdleCallback ===
-          "function"
-      ) {
-        window.requestIdleCallback(
-          loadFeatures,
-          {
-            timeout:
-              2500
-          }
-        );
 
-      } else {
-        window.setTimeout(
-          loadFeatures,
-          1200
-        );
-      }
-    }
+    installOptionalFeatureTriggersV14();
 
 
     function mainStyleIsReady() {
@@ -14939,7 +15435,10 @@
             );
           }
 
-          scheduleOptionalFeatures();
+          /*
+            MOBILE-APP-V14:
+            선택 기능은 위의 사용자 동작 트리거에서만 로드한다.
+          */
         };
 
       if (
@@ -14966,13 +15465,22 @@
     function finishWhenAppOpens() {
       completeBoot();
 
+      const stopAt =
+        Date.now() +
+        30000;
+
       const timer =
         window.setInterval(
           () => {
             completeBoot();
 
             if (
-              finishing
+              finishing ||
+              Date.now() >=
+                stopAt ||
+              window.__mobileAppBootV13
+                ?.recoveryShown ===
+                true
             ) {
               window.clearInterval(
                 timer
