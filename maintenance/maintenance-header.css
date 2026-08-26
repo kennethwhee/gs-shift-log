@@ -66,6 +66,22 @@
   color: #185b9f;
 }
 
+.header-more-item--admin {
+  position: relative;
+  margin-top: 7px;
+}
+
+.header-more-item--admin::before {
+  position: absolute;
+  top: -4px;
+  right: 6px;
+  left: 6px;
+  height: 1px;
+  background: #dfe6ee;
+  content: "";
+  pointer-events: none;
+}
+
 @media screen and (max-width: 760px) {
   .header-more-submenu-panel {
     padding-left: 10px;
