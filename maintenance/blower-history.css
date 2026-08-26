@@ -275,6 +275,8 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .asset-card[data-severity="critical"] { border-top-color: var(--critical); background: linear-gradient(180deg, #fff4f4, #fff 38%); }
 .asset-card[data-severity="overdue"] { border-top-color: var(--overdue); background: linear-gradient(180deg, #fff0f2, #fff 38%); }
 .asset-card[data-severity="uninitialized"], .asset-card[data-severity="unset"] { border-top-color: #8a98a6; }
+.asset-card.is-placeholder { border-style: dashed; background: #fafbfc; }
+.asset-card.is-placeholder .asset-tag { font-family: inherit; }
 .asset-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .asset-identity { min-width: 0; }
 .asset-position { display: block; font-size: 18px; font-weight: 850; }

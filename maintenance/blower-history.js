@@ -175,9 +175,16 @@
   }
 
   function formatDate(value) {
-    const text = String(value || "");
-    const matched = text.match(/^(\d{4}-\d{2}-\d{2})/);
-    return matched?.[1] || "-";
+    const text = String(value || "").trim();
+    if (!text) return "-";
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+      return text;
+    }
+
+    const parsed = new Date(text);
+    if (Number.isNaN(parsed.getTime())) return "-";
+    return formatKstDateInput(parsed);
   }
 
   function roundHours(value) {
@@ -198,7 +205,7 @@
   }
 
   function formatSignedRemaining(asset) {
-    if (asset.severity === "uninitialized") return "최근 교체일 등록 필요";
+    if (asset.severity === "uninitialized") return "2021년 이후 교체기록 미검출";
     if (asset.severity === "unset") return "교체주기 설정 필요";
 
     const remaining = Number(asset.remainingHours);
@@ -219,7 +226,7 @@
       critical: "교체 임박",
       overdue: "교체주기 초과",
       unset: "기준 미설정",
-      uninitialized: "교체일 미등록"
+      uninitialized: "과거 교체 미검출"
     }[severity] || "확인 필요";
   }
 
@@ -242,6 +249,10 @@
 
   function getActiveAssets() {
     return (state.data?.assets || []).filter(asset => asset.blowerType === state.activeType);
+  }
+
+  function getActiveMissingSlots() {
+    return (state.data?.missingSlots || []).filter(slot => slot.blowerType === state.activeType);
   }
 
   function renderTypeTabs() {
@@ -270,9 +281,10 @@
 
   function renderSummary() {
     const assets = getActiveAssets();
+    const missingSlots = getActiveMissingSlots();
     const count = severity => assets.filter(asset => asset.severity === severity).length;
 
-    elements.assetCount.textContent = String(assets.length);
+    elements.assetCount.textContent = String(assets.length + missingSlots.length);
     elements.warningCount.textContent = String(count("warning"));
     elements.criticalCount.textContent = String(count("critical"));
     elements.overdueCount.textContent = String(count("overdue"));
@@ -319,7 +331,7 @@
         const unitLabel = item.unitNo === "shared" ? "공용" : `#${item.unitNo}호기`;
         return `${escapeHtml(unitLabel)} ${item.missingCount}대`;
       }).join(" · ")}
-      <br><small>알려주지 않은 TAG는 임의로 204 계열 등으로 추정하지 않고 비워 두었습니다.</small>
+      <br><small>알려주지 않은 TAG는 임의로 추정하지 않습니다. 2021년 이후 업무일지에서 정확한 전체 TAG가 발견되면 해당 위치에 자동 등록합니다.</small>
     `;
   }
 
@@ -328,7 +340,7 @@
     const runtime = roundHours(asset.runtimeHours);
     const runtimeText = asset.lastReplacementAt
       ? `${formatDaysHours(runtime)} / ${cycleDays > 0 ? `${cycleDays}일` : "기준 미설정"}`
-      : "Cycle 시작 전";
+      : "과거 교체기록 탐색 필요";
     const progress = Number.isFinite(Number(asset.progressPct)) ? Math.max(0, Math.min(100, Number(asset.progressPct))) : 0;
     const latestProblem = asset.latestProblem;
 
@@ -384,25 +396,64 @@
     `;
   }
 
+  function renderMissingAssetCard(slot) {
+    return `
+      <article class="asset-card is-placeholder" data-severity="uninitialized">
+        <div class="asset-card-header">
+          <div class="asset-identity">
+            <strong class="asset-position">${escapeHtml(slot.positionLabel)}</strong>
+            <span class="asset-tag">TAG 자동확인 대기</span>
+          </div>
+          <span class="status-pill uninitialized">TAG 미확인</span>
+        </div>
+
+        <div class="runtime-main">
+          <strong>설비 위치 등록됨</strong>
+          <small>2021년 이후 업무일지에서 정확한 전체 TAG를 찾고 있습니다.</small>
+          <div class="progress-track" aria-hidden="true"><div class="progress-bar" style="width:0%"></div></div>
+        </div>
+
+        <div class="asset-meta">
+          <div><span>위치</span><strong>${escapeHtml(slot.positionLabel)}</strong></div>
+          <div><span>TAG</span><strong>확인 필요</strong></div>
+          <div><span>과거 이력</span><strong>자동 탐색</strong></div>
+          <div><span>Cycle</span><strong>TAG 확인 후 자동 계산</strong></div>
+        </div>
+
+        <div class="asset-problem">정확한 TAG가 업무일지에서 발견되면 이 카드가 실제 설비 카드로 자동 전환됩니다.</div>
+      </article>
+    `;
+  }
+
   function renderAssets() {
     const assets = getActiveAssets();
+    const missingSlots = getActiveMissingSlots();
     const setting = getActiveSetting();
     const groupOrder = ["1", "2", "shared"];
     const groups = new Map();
+    const missingGroups = new Map();
 
     for (const asset of assets) {
       if (!groups.has(asset.unitNo)) groups.set(asset.unitNo, []);
       groups.get(asset.unitNo).push(asset);
     }
 
+    for (const slot of missingSlots) {
+      if (!missingGroups.has(slot.unitNo)) missingGroups.set(slot.unitNo, []);
+      missingGroups.get(slot.unitNo).push(slot);
+    }
+
     const html = groupOrder
-      .filter(unitNo => groups.has(unitNo))
+      .filter(unitNo => groups.has(unitNo) || missingGroups.has(unitNo))
       .map(unitNo => {
         const label = unitNo === "shared" ? "#1 · #2호기 공용" : `#${unitNo}호기`;
-        const cards = groups.get(unitNo)
+        const actualCards = (groups.get(unitNo) || [])
           .sort((a, b) => Number(a.sortOrder) - Number(b.sortOrder))
-          .map(asset => renderAssetCard(asset, setting))
-          .join("");
+          .map(asset => renderAssetCard(asset, setting));
+        const placeholderCards = (missingGroups.get(unitNo) || [])
+          .sort((a, b) => String(a.positionLabel).localeCompare(String(b.positionLabel)))
+          .map(renderMissingAssetCard);
+        const cards = [...actualCards, ...placeholderCards].join("");
 
         return `
           <section class="unit-group">
@@ -414,7 +465,7 @@
       .join("");
 
     elements.assetGroups.innerHTML = html || `
-      <div class="empty-state">이 탭에 등록된 Blower TAG가 없습니다.</div>
+      <div class="empty-state">이 탭에 등록된 Blower가 없습니다.</div>
     `;
   }
 
@@ -504,7 +555,7 @@
 
     if (!backfill) {
       notice.hidden = false;
-      notice.textContent = "과거 업무일지 이력 자동 반영 상태를 확인하고 있습니다.";
+      notice.textContent = "2021년부터 오늘까지 과거 업무일지 이력 자동 반영 상태를 확인하고 있습니다.";
       return;
     }
 
@@ -516,11 +567,11 @@
     notice.hidden = false;
 
     if (backfill.isCompleteForToday) {
-      notice.textContent = `과거 업무일지 자동 반영 완료 · ${target}까지 ${scanned}건 확인 · 이력 ${events}건 자동 반영 · 확인 필요 ${pending}건`;
+      notice.textContent = `2021년부터 과거 업무일지 자동 반영 완료 · ${target}까지 ${scanned}건 확인 · 이력 ${events}건 자동 반영`;
       return;
     }
 
-    notice.textContent = `과거 업무일지 자동 반영 중 · ${target}까지 ${scanned}건 확인 · 이력 ${events}건 자동 반영 · 확인 필요 ${pending}건`;
+    notice.textContent = `2021년부터 과거 업무일지 자동 반영 중 · ${target}까지 ${scanned}건 확인 · 이력 ${events}건 자동 반영`;
   }
 
   function renderAll() {

@@ -120,7 +120,33 @@ const REPLACEMENT_COMPLETE_KEYWORDS = [
   "취부"
 ];
 
-const HISTORY_BACKFILL_ID = "shift_logs_full_v2";
+const COMPONENT_REPLACEMENT_KEYWORDS = [
+  "bearing",
+  "베어링",
+  "belt",
+  "벨트",
+  "coupling",
+  "커플링",
+  "filter",
+  "필터",
+  "grease",
+  "그리스",
+  "oil",
+  "오일",
+  "packing",
+  "패킹",
+  "mechanical seal",
+  "메카니컬씰",
+  "motor",
+  "모터",
+  "impeller",
+  "임펠러",
+  "bolt",
+  "볼트"
+];
+
+const HISTORY_BACKFILL_ID = "shift_logs_full_v3";
+const HISTORY_BACKFILL_START_DATE = "2021-01-01";
 const HISTORY_BACKFILL_BATCH_SIZE = 200;
 
 const TYPE_CONTEXT_KEYWORDS = {
@@ -551,9 +577,9 @@ function runtimeHoursAt(asset, eventDate) {
 
 function buildAssetState(asset, setting, latestProblem, now = new Date()) {
   const runtimeHours = currentRuntimeHours(asset, now);
-  const cycleDays = toNullableNumber(setting?.cycle_days);
-  const warningDays = toNullableNumber(setting?.warning_days);
-  const criticalDays = toNullableNumber(setting?.critical_days);
+  const cycleDays = toNullableNumber(setting?.cycleDays ?? setting?.cycle_days);
+  const warningDays = toNullableNumber(setting?.warningDays ?? setting?.warning_days);
+  const criticalDays = toNullableNumber(setting?.criticalDays ?? setting?.critical_days);
 
   let severity = "normal";
   let remainingHours = null;
@@ -815,30 +841,36 @@ async function loadAssetStates(database, settings) {
     `)
     .all();
 
-  const latestProblemMap = new Map();
-
-  for (const row of Array.isArray(problemResult.results) ? problemResult.results : []) {
-    if (!latestProblemMap.has(row.tag_number)) {
-      latestProblemMap.set(row.tag_number, {
-        id: row.id,
-        eventDate: row.event_date,
-        issueType: normalizeText(row.issue_type),
-        actionType: normalizeText(row.action_type),
-        note: normalizeText(row.note)
-      });
-    }
-  }
-
+  const problemRows = Array.isArray(problemResult.results) ? problemResult.results : [];
   const now = new Date();
 
-  return assets.map(asset =>
-    buildAssetState(
+  return assets.map(asset => {
+    const replacementAt = asset.last_replacement_at ? new Date(asset.last_replacement_at) : null;
+    const latestProblemRow = problemRows.find(row => {
+      if (row.tag_number !== asset.tag_number) return false;
+      if (!replacementAt || Number.isNaN(replacementAt.getTime())) return true;
+
+      const problemAt = new Date(row.event_date);
+      return !Number.isNaN(problemAt.getTime()) && problemAt >= replacementAt;
+    });
+
+    const latestProblem = latestProblemRow
+      ? {
+          id: latestProblemRow.id,
+          eventDate: latestProblemRow.event_date,
+          issueType: normalizeText(latestProblemRow.issue_type),
+          actionType: normalizeText(latestProblemRow.action_type),
+          note: normalizeText(latestProblemRow.note)
+        }
+      : null;
+
+    return buildAssetState(
       asset,
       settings[asset.blower_type],
-      latestProblemMap.get(asset.tag_number),
+      latestProblem,
       now
-    )
-  );
+    );
+  });
 }
 
 function buildMissingTagSummary(assetStates) {
@@ -870,6 +902,44 @@ function buildMissingTagSummary(assetStates) {
   return missing;
 }
 
+function expectedPositions(expectedCount) {
+  if (Number(expectedCount) >= 3) return ["#A", "#B", "#C"];
+  if (Number(expectedCount) === 2) return ["#A", "#B"];
+  return ["#A"].slice(0, Math.max(0, Number(expectedCount) || 0));
+}
+
+function buildMissingSlotDetails(assetStates) {
+  const registered = new Map();
+
+  for (const asset of assetStates) {
+    const key = `${asset.blowerType}::${asset.unitNo}`;
+    if (!registered.has(key)) registered.set(key, new Set());
+    registered.get(key).add(asset.positionLabel);
+  }
+
+  const missingSlots = [];
+
+  for (const type of TYPE_DEFINITIONS) {
+    for (const [unitNo, expectedCount] of Object.entries(type.expected || {})) {
+      const key = `${type.key}::${unitNo}`;
+      const positions = registered.get(key) || new Set();
+
+      for (const positionLabel of expectedPositions(expectedCount)) {
+        if (!positions.has(positionLabel)) {
+          missingSlots.push({
+            blowerType: type.key,
+            unitNo,
+            positionLabel,
+            displayName: `${unitNo === "shared" ? "공용" : `#${unitNo}`} ${type.label} ${positionLabel}`
+          });
+        }
+      }
+    }
+  }
+
+  return missingSlots;
+}
+
 async function buildFullData(database, user) {
   const settings = await loadSettings(database);
   const assets = await loadAssetStates(database, settings);
@@ -889,6 +959,7 @@ async function buildFullData(database, user) {
     settingHistory,
     backfill,
     missingTags: buildMissingTagSummary(assets),
+    missingSlots: buildMissingSlotDetails(assets),
     generatedAt: new Date().toISOString()
   };
 }
@@ -1430,6 +1501,93 @@ function collectObjectTextFragments(value, output = new Set(), depth = 0) {
   return output;
 }
 
+function collectLocalScalarValues(value, depth = 0, maxDepth = 2, output = []) {
+  if (depth > maxDepth || value === null || value === undefined) return output;
+  if (Array.isArray(value)) return output;
+
+  if (["string", "number"].includes(typeof value)) {
+    const text = normalizeText(value);
+    if (text) output.push(text);
+    return output;
+  }
+
+  if (typeof value !== "object") return output;
+
+  for (const item of Object.values(value)) {
+    if (Array.isArray(item)) continue;
+    collectLocalScalarValues(item, depth + 1, maxDepth, output);
+  }
+
+  return output;
+}
+
+function collectHistoricalFragments(value, output = new Set(), depth = 0) {
+  if (depth > 14 || value === null || value === undefined) {
+    return output;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectHistoricalFragments(item, output, depth + 1);
+    }
+    return output;
+  }
+
+  if (typeof value !== "object") {
+    return output;
+  }
+
+  const directValues = Object.values(value)
+    .filter(item => ["string", "number"].includes(typeof item))
+    .map(item => normalizeText(item))
+    .filter(Boolean);
+
+  const localValues = collectLocalScalarValues(value, 0, 2, []);
+  if (localValues.length > directValues.length && localValues.length <= 10) {
+    const localJoined = localValues.join(" | ").trim();
+    const recognizedTags = extractRecognizedBlowerTags(localJoined);
+    const contextualIdentity = detectBlowerTypes(localJoined).length === 1 && detectUnitNo(localJoined) && detectPositionLabel(localJoined);
+
+    if (
+      localJoined.length >= 3 &&
+      localJoined.length <= 3000 &&
+      (recognizedTags.length === 1 || contextualIdentity)
+    ) {
+      output.add(localJoined);
+    }
+  }
+
+  for (const text of directValues) {
+    if (text.length >= 3 && text.length <= 3000) {
+      output.add(text);
+    }
+  }
+
+  if (directValues.length > 0 && directValues.length <= 6) {
+    const joined = directValues.join(" | ").trim();
+    if (joined.length >= 3 && joined.length <= 3000) {
+      output.add(joined);
+    }
+  } else if (directValues.length > 6) {
+    for (let index = 0; index < directValues.length; index += 1) {
+      const start = Math.max(0, index - 2);
+      const end = Math.min(directValues.length, index + 3);
+      const joined = directValues.slice(start, end).join(" | ").trim();
+      if (joined.length >= 3 && joined.length <= 3000) {
+        output.add(joined);
+      }
+    }
+  }
+
+  for (const item of Object.values(value)) {
+    if (item && typeof item === "object") {
+      collectHistoricalFragments(item, output, depth + 1);
+    }
+  }
+
+  return output;
+}
+
 function fingerprintText(text) {
   let hash = 2166136261;
   const source = String(text || "");
@@ -1444,6 +1602,141 @@ function fingerprintText(text) {
 
 function compactEquipmentText(value) {
   return normalizeText(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function classifyRecognizedBlowerTag(tagNumber) {
+  const tag = compactEquipmentText(tagNumber);
+  let match;
+
+  match = tag.match(/^([12])04HHL60AP(611|621|631)$/);
+  if (match) {
+    const positionMap = { "611": "#A", "621": "#B", "631": "#C" };
+    const position = positionMap[match[2]];
+    const unitNo = match[1];
+    return {
+      tagNumber: tag,
+      blowerType: "fbhe",
+      unitNo,
+      positionLabel: position,
+      displayName: `#${unitNo} FBHE Blower ${position}`,
+      sortOrder: (unitNo === "1" ? 100 : 200) + { "#A": 1, "#B": 2, "#C": 3 }[position]
+    };
+  }
+
+  match = tag.match(/^([12])04HHL10AN(611|621|631)$/);
+  if (match) {
+    const positionMap = { "611": "#A", "621": "#B", "631": "#C" };
+    const position = positionMap[match[2]];
+    const unitNo = match[1];
+    return {
+      tagNumber: tag,
+      blowerType: "seal_pot",
+      unitNo,
+      positionLabel: position,
+      displayName: `#${unitNo} Seal Pot Blower ${position}`,
+      sortOrder: (unitNo === "1" ? 300 : 350) + { "#A": 1, "#B": 2, "#C": 3 }[position]
+    };
+  }
+
+  match = tag.match(/^([12])04SDF01AN(001|002)$/);
+  if (match) {
+    const positionMap = { "001": "#A", "002": "#B" };
+    const position = positionMap[match[2]];
+    const unitNo = match[1];
+    return {
+      tagNumber: tag,
+      blowerType: "organic_fuel",
+      unitNo,
+      positionLabel: position,
+      displayName: `#${unitNo} 유기성 고형연료 Blower ${position}`,
+      sortOrder: (unitNo === "1" ? 400 : 450) + { "#A": 1, "#B": 2 }[position]
+    };
+  }
+
+  match = tag.match(/^([12])04ETG30AN(601|602)$/);
+  if (match) {
+    const positionMap = { "601": "#A", "602": "#B" };
+    const position = positionMap[match[2]];
+    const unitNo = match[1];
+    return {
+      tagNumber: tag,
+      blowerType: "flyash_bag",
+      unitNo,
+      positionLabel: position,
+      displayName: `#${unitNo} Fly Ash Bag Filter Aeration Blower ${position}`,
+      sortOrder: (unitNo === "1" ? 500 : 550) + { "#A": 1, "#B": 2 }[position]
+    };
+  }
+
+  match = tag.match(/^104ETH03AN(601|602)$/);
+  if (match) {
+    const positionMap = { "601": "#A", "602": "#B" };
+    const position = positionMap[match[1]];
+    return {
+      tagNumber: tag,
+      blowerType: "flyash_silo",
+      unitNo: "shared",
+      positionLabel: position,
+      displayName: `Fly Ash Silo Aeration Blower ${position}`,
+      sortOrder: 600 + { "#A": 1, "#B": 2 }[position]
+    };
+  }
+
+  return null;
+}
+
+function extractRecognizedBlowerTags(text) {
+  const compact = compactEquipmentText(text);
+  const pattern = /(?:104|204)HHL60AP(?:611|621|631)|(?:104|204)HHL10AN(?:611|621|631)|(?:104|204)SDF01AN(?:001|002)|(?:104|204)ETG30AN(?:601|602)|104ETH03AN(?:601|602)/g;
+  return [...new Set(compact.match(pattern) || [])];
+}
+
+async function ensureDiscoveredAssets(database, text, assets) {
+  const known = new Set(assets.map(asset => normalizeText(asset.tag_number).toUpperCase()));
+  const now = new Date().toISOString();
+
+  for (const tagNumber of extractRecognizedBlowerTags(text)) {
+    if (known.has(tagNumber)) continue;
+
+    const definition = classifyRecognizedBlowerTag(tagNumber);
+    if (!definition) continue;
+
+    await database
+      .prepare(`
+        INSERT OR IGNORE INTO blower_history_assets (
+          tag_number,
+          blower_type,
+          unit_no,
+          position_label,
+          display_name,
+          sort_order,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .bind(
+        definition.tagNumber,
+        definition.blowerType,
+        definition.unitNo,
+        definition.positionLabel,
+        definition.displayName,
+        definition.sortOrder,
+        now,
+        now
+      )
+      .run();
+
+    const inserted = await database
+      .prepare(`SELECT * FROM blower_history_assets WHERE tag_number = ? LIMIT 1`)
+      .bind(definition.tagNumber)
+      .first();
+
+    if (inserted) {
+      assets.push(inserted);
+      known.add(definition.tagNumber);
+    }
+  }
 }
 
 function detectUnitNo(text) {
@@ -1494,6 +1787,34 @@ function hasReplacementPlanContext(text) {
   const planned = REPLACEMENT_PLAN_KEYWORDS.some(keyword => normalized.includes(keyword.toLowerCase()));
   const completed = REPLACEMENT_COMPLETE_KEYWORDS.some(keyword => normalized.includes(keyword.toLowerCase()));
   return planned && !completed;
+}
+
+function hasExplicitWholeBlowerReplacement(text) {
+  const normalized = normalizeText(text).toLowerCase();
+  const equipment = "(?:blower|fan|블로워|브로워)";
+  const position = "(?:\\s*#?\\s*[abc])?";
+  const replacement = "(?:교체|replace(?:ment)?|신품(?:으로)?\\s*(?:교체|취부|설치)?)";
+  const forward = new RegExp(`${equipment}${position}[\\s:;,_\\-]{0,8}${replacement}`, "i");
+  const reverse = new RegExp(`${replacement}[\\s:;,_\\-]{0,8}${equipment}${position}`, "i");
+  return forward.test(normalized) || reverse.test(normalized);
+}
+
+function hasComponentReplacementContext(text) {
+  const normalized = normalizeText(text).toLowerCase();
+  if (hasExplicitWholeBlowerReplacement(normalized)) return false;
+
+  return COMPONENT_REPLACEMENT_KEYWORDS.some(keyword => {
+    const componentIndex = normalized.indexOf(keyword.toLowerCase());
+    if (componentIndex < 0) return false;
+
+    const replacementIndex = normalized.indexOf("교체");
+    const replaceIndex = normalized.indexOf("replace");
+    const nearest = [replacementIndex, replaceIndex]
+      .filter(index => index >= 0)
+      .reduce((best, index) => Math.min(best, Math.abs(index - componentIndex)), Infinity);
+
+    return nearest <= 35;
+  });
 }
 
 function findAssetMatches(fragment, assets) {
@@ -1561,11 +1882,68 @@ function detectedEventSpecs(fragment) {
       detectedType: "replacement",
       issueType: issueType || "정기주기",
       actionType: "교체",
-      autoEligible: !hasReplacementPlanContext(fragment)
+      autoEligible: !hasReplacementPlanContext(fragment) && !hasComponentReplacementContext(fragment)
     });
   }
 
   return specs;
+}
+
+function resolveHistoricalMatch(fragment, matches, spec) {
+  if (matches.length === 1) return matches[0];
+  if (matches.length === 0 || !fragment.includes("|")) return null;
+
+  if (spec.detectedType === "replacement" && spec.issueType && spec.issueType !== "정기주기") {
+    const problemMatch = resolveHistoricalMatch(fragment, matches, {
+      detectedType: "problem",
+      issueType: spec.issueType,
+      actionType: "확인",
+      autoEligible: true
+    });
+    if (problemMatch) return problemMatch;
+  }
+
+  const segments = fragment
+    .split("|")
+    .map(segment => normalizeText(segment))
+    .filter(Boolean);
+
+  const eventIndexes = [];
+  for (let index = 0; index < segments.length; index += 1) {
+    const segmentSpecs = detectedEventSpecs(segments[index]);
+    if (segmentSpecs.some(item => item.detectedType === spec.detectedType && item.autoEligible)) {
+      eventIndexes.push(index);
+    }
+  }
+
+  if (eventIndexes.length === 0) return null;
+
+  const scored = [];
+  for (const match of matches) {
+    const identityIndexes = [];
+
+    for (let index = 0; index < segments.length; index += 1) {
+      if (findAssetMatches(segments[index], [match.asset]).length === 1) {
+        identityIndexes.push(index);
+      }
+    }
+
+    if (identityIndexes.length === 0) continue;
+
+    let distance = Infinity;
+    for (const identityIndex of identityIndexes) {
+      for (const eventIndex of eventIndexes) {
+        distance = Math.min(distance, Math.abs(identityIndex - eventIndex));
+      }
+    }
+
+    scored.push({ match, distance });
+  }
+
+  scored.sort((a, b) => a.distance - b.distance);
+  if (scored.length === 0 || scored[0].distance > 2) return null;
+  if (scored.length > 1 && scored[0].distance === scored[1].distance) return null;
+  return scored[0].match;
 }
 
 async function findExistingDetection(database, row, tagNumber, detectedType) {
@@ -1674,7 +2052,7 @@ async function insertDetectionCandidate(database, row, tagNumber, spec, status, 
 
   const now = new Date().toISOString();
   const fingerprint = fingerprintText(
-    ["v2", row.id, row.work_date, tagNumber, spec.detectedType].join("||")
+    ["v3", row.id, row.work_date, tagNumber, spec.detectedType].join("||")
   );
   const id = crypto.randomUUID();
 
@@ -1839,13 +2217,14 @@ async function processHistoricalLog(database, row, assets) {
     return { autoEvents: 0, pending: 0 };
   }
 
-  const fragments = [...collectObjectTextFragments(parsed)];
+  const fragments = [...collectHistoricalFragments(parsed)];
   let autoEvents = 0;
-  let pending = 0;
   const seen = new Set();
 
   for (const fragment of fragments) {
-    const specs = detectedEventSpecs(fragment);
+    await ensureDiscoveredAssets(database, fragment, assets);
+
+    const specs = detectedEventSpecs(fragment).filter(spec => spec.autoEligible);
 
     if (specs.length === 0) {
       continue;
@@ -1857,52 +2236,82 @@ async function processHistoricalLog(database, row, assets) {
       continue;
     }
 
-    for (const match of matches) {
-      for (const spec of specs) {
-        const eventKey = `${row.id}::${match.asset.tag_number}::${spec.detectedType}`;
+    for (const spec of specs) {
+      const match = resolveHistoricalMatch(fragment, matches, spec);
+      if (!match || !match.strong) continue;
 
-        if (seen.has(eventKey)) {
-          continue;
-        }
+      const eventKey = `${row.id}::${match.asset.tag_number}::${spec.detectedType}`;
 
-        seen.add(eventKey);
-        const sourceRow = { ...row, sourceText: fragment };
-        const shouldAuto = match.strong && spec.autoEligible;
-        const desiredStatus = shouldAuto ? "auto_confirmed" : "pending";
-        const detection = await insertDetectionCandidate(
-          database,
-          sourceRow,
-          match.asset.tag_number,
-          spec,
-          desiredStatus,
-          shouldAuto ? new Date().toISOString() : null
-        );
-
-        if (detection.alreadyEvent) {
-          continue;
-        }
-
-        const candidate = detection.candidate;
-
-        if (!candidate) {
-          continue;
-        }
-
-        if (["confirmed", "excluded"].includes(candidate.status) && !detection.inserted) {
-          continue;
-        }
-
-        if (shouldAuto) {
-          const result = await insertHistoricalEvent(database, sourceRow, candidate, spec);
-          if (result.inserted) autoEvents += 1;
-        } else if (detection.inserted) {
-          pending += 1;
-        }
+      if (seen.has(eventKey)) {
+        continue;
       }
+
+      seen.add(eventKey);
+      const sourceRow = { ...row, sourceText: fragment };
+      const detection = await insertDetectionCandidate(
+        database,
+        sourceRow,
+        match.asset.tag_number,
+        spec,
+        "auto_confirmed",
+        new Date().toISOString()
+      );
+
+      if (detection.alreadyEvent) {
+        continue;
+      }
+
+      const candidate = detection.candidate;
+
+      if (!candidate || ["confirmed", "excluded"].includes(candidate.status) && !detection.inserted) {
+        continue;
+      }
+
+      const result = await insertHistoricalEvent(database, sourceRow, candidate, spec);
+      if (result.inserted) autoEvents += 1;
     }
   }
 
-  return { autoEvents, pending };
+  return { autoEvents, pending: 0 };
+}
+
+async function resetHistoricalAutoDataForV3(database, today) {
+  const now = new Date().toISOString();
+
+  await database.batch([
+    database.prepare(`
+      UPDATE blower_history_assets
+      SET
+        last_replacement_at = NULL,
+        runtime_hours = 0,
+        runtime_anchor_at = NULL,
+        is_running = 0,
+        last_modified_by_id = '',
+        last_modified_by_name = '',
+        updated_at = ?
+      WHERE EXISTS (
+        SELECT 1
+        FROM blower_history_events AS event
+        WHERE event.tag_number = blower_history_assets.tag_number
+          AND event.event_type = 'replacement'
+          AND event.source_type = 'shift_log_history_auto'
+          AND event.created_by_id = 'history_auto'
+          AND event.event_date = blower_history_assets.last_replacement_at
+      )
+    `).bind(now),
+    database.prepare(`
+      DELETE FROM blower_history_events
+      WHERE source_type = 'shift_log_history_auto'
+        AND created_by_id = 'history_auto'
+    `),
+    database.prepare(`
+      DELETE FROM blower_history_candidates
+      WHERE source_log_id <> ''
+        AND substr(detected_date, 1, 10) >= ?
+        AND substr(detected_date, 1, 10) <= ?
+        AND (reviewed_by_id = 'history_auto' OR status = 'pending')
+    `).bind(HISTORY_BACKFILL_START_DATE, today)
+  ]);
 }
 
 async function initializeBackfillRun(database, today) {
@@ -1913,6 +2322,8 @@ async function initializeBackfillRun(database, today) {
   const now = new Date().toISOString();
 
   if (!state) {
+    await resetHistoricalAutoDataForV3(database, today);
+
     await database
       .prepare(`
         INSERT INTO blower_history_backfill_state (
@@ -2003,22 +2414,24 @@ async function historicalBackfillStep(database) {
       .prepare(`
         SELECT id, work_date, shift, role, author, log_json
         FROM shift_logs
-        WHERE work_date <= ?
+        WHERE work_date >= ?
+          AND work_date <= ?
           AND (work_date > ? OR (work_date = ? AND id > ?))
         ORDER BY work_date ASC, id ASC
         LIMIT ?
       `)
-      .bind(today, cursorDate, cursorDate, cursorId, HISTORY_BACKFILL_BATCH_SIZE);
+      .bind(HISTORY_BACKFILL_START_DATE, today, cursorDate, cursorDate, cursorId, HISTORY_BACKFILL_BATCH_SIZE);
   } else {
     query = database
       .prepare(`
         SELECT id, work_date, shift, role, author, log_json
         FROM shift_logs
-        WHERE work_date <= ?
+        WHERE work_date >= ?
+          AND work_date <= ?
         ORDER BY work_date ASC, id ASC
         LIMIT ?
       `)
-      .bind(today, HISTORY_BACKFILL_BATCH_SIZE);
+      .bind(HISTORY_BACKFILL_START_DATE, today, HISTORY_BACKFILL_BATCH_SIZE);
   }
 
   const result = await query.all();
