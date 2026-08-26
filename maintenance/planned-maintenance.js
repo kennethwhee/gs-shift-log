@@ -2022,6 +2022,10 @@
       return null;
     }
 
+    if (!table.classList.contains("is-work")) {
+      return null;
+    }
+
     const headers = Array.from(
       table.querySelectorAll(
         "thead th"
@@ -2232,7 +2236,7 @@
         getExistingFilterShell();
 
       if (shell instanceof HTMLElement) {
-        shell.hidden = true;
+        shell.remove();
       }
 
       clearFilteredRows();
