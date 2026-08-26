@@ -640,6 +640,20 @@
     `;
   }
 
+  function mobileReadOnlyValueHtml(row, col) {
+    const value = normalizeString(row[col.field]);
+    const displayValue = col.type === "date"
+      ? (valueToIsoDate(value) || value)
+      : value;
+
+    return `
+      <span
+        class="pm-mobile-readonly-value"
+        data-pm-mobile-readonly-value
+      >${management.escapeHtml(displayValue || "—")}</span>
+    `;
+  }
+
   function getMobileRowSummary(row, config) {
     const compactValue = value =>
       normalizeString(value)
@@ -670,7 +684,7 @@
       .filter(item => item.value)
       .map(item => `${item.label} ${item.value}`)
       .join(" · ") ||
-      "눌러서 내용을 입력하세요.";
+      "저장된 내용이 없습니다.";
 
     return {
       title,
@@ -767,7 +781,10 @@
             );
 
           return `
-          <tr data-pm-row-id="${management.escapeHtml(row.id)}">
+          <tr
+            data-pm-row-id="${management.escapeHtml(row.id)}"
+            data-pm-placeholder="${row.__placeholder ? "true" : "false"}"
+          >
             <td class="pm-number-cell">
               <span class="pm-number-index">${index + 1}</span>
               <button
@@ -790,7 +807,11 @@
                 data-pm-label="${management.escapeHtml(col.header)}"
                 data-pm-field-cell="${management.escapeHtml(col.field)}"
                 data-pm-cell-type="${management.escapeHtml(col.type)}"
-              >${inputHtml(row, col)}</td>
+                class="${normalizeString(row[col.field]) ? "" : "pm-mobile-empty-field"}"
+              >
+                ${inputHtml(row, col)}
+                ${mobileReadOnlyValueHtml(row, col)}
+              </td>
             `).join("")}
             <td class="pm-row-delete-cell" data-pm-action-column>
               <button
@@ -803,6 +824,13 @@
           </tr>
         `;
         }).join("")}
+        ${rows.some(row => !row.__placeholder) ? "" : `
+          <tr class="pm-mobile-monitoring-empty">
+            <td colspan="${config.columns.length + 2}">
+              등록된 내용이 없습니다.
+            </td>
+          </tr>
+        `}
       </tbody>
     `;
 

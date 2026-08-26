@@ -996,3 +996,166 @@
     display: none !important;
   }
 }
+
+/* =========================================================
+   PLANNED_MAINTENANCE_MOBILE_MONITORING_V19
+
+   Mobile is a compact monitoring-only surface:
+   - only the return button remains in the header
+   - save/add/delete and every row editing control are hidden
+   - collapsed rows stay at a two-line summary
+   - expanded rows render saved values as compact plain text
+   Desktop editing, Excel/PDF and save behavior are unchanged.
+========================================================= */
+
+.pm-mobile-readonly-value {
+  display: none;
+}
+
+.pm-mobile-monitoring-empty {
+  display: none;
+}
+
+@media screen and (max-width: 760px) {
+  #plannedMaintenanceSaveButton,
+  #plannedMaintenanceAddRowButton {
+    display: none !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id]
+    > td.pm-row-delete-cell {
+    display: none !important;
+  }
+
+  .management-header__actions {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  #plannedMaintenanceHomeButton {
+    min-height: 36px !important;
+  }
+
+  .management-toolbar__right {
+    display: none !important;
+  }
+
+  .planned-maintenance-table tbody {
+    gap: 4px !important;
+    padding: 4px !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id] {
+    gap: 3px !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+  }
+
+  .planned-maintenance-table tbody
+    tr[data-pm-placeholder="true"] {
+    display: none !important;
+  }
+
+  .planned-maintenance-table tbody
+    .pm-mobile-monitoring-empty {
+    display: block !important;
+    min-height: 46px !important;
+    padding: 0 !important;
+    border: 1px solid #d8e3ee !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+  }
+
+  .planned-maintenance-table tbody
+    .pm-mobile-monitoring-empty > td {
+    display: flex !important;
+    min-height: 46px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 8px !important;
+    border: 0 !important;
+    color: #718096 !important;
+    font-size: 10px !important;
+    font-weight: 750 !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id]
+    .pm-number-cell {
+    right: 4px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+  }
+
+  .planned-maintenance-table input,
+  .planned-maintenance-table select,
+  .planned-maintenance-table textarea {
+    display: none !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id].is-mobile-expanded
+    > td[data-pm-label].pm-mobile-empty-field {
+    display: none !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id].is-mobile-expanded
+    > td[data-pm-label]:not(.pm-mobile-empty-field) {
+    display: grid !important;
+    min-height: 0 !important;
+    grid-template-columns: minmax(54px, 0.28fr) minmax(0, 1fr) !important;
+    align-items: start !important;
+    gap: 5px !important;
+    padding: 4px 5px !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id].is-mobile-expanded
+    > td[data-pm-field-cell="reason"],
+  .planned-maintenance-table tbody tr[data-pm-row-id].is-mobile-expanded
+    > td[data-pm-field-cell="remark"] {
+    grid-column: 1 / -1 !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id]
+    > td[data-pm-label]::before {
+    max-width: none !important;
+    color: #66778b !important;
+    font-size: 8px !important;
+    line-height: 1.25 !important;
+  }
+
+  .pm-mobile-readonly-value {
+    display: block !important;
+    min-width: 0 !important;
+    color: #24364d !important;
+    font-size: 10px !important;
+    font-weight: 750 !important;
+    line-height: 1.35 !important;
+    overflow-wrap: anywhere !important;
+    white-space: pre-wrap !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id]:not(.is-mobile-expanded) {
+    min-height: 52px !important;
+    padding: 3px !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id].is-mobile-expanded {
+    padding: 50px 4px 4px !important;
+  }
+
+  .pm-mobile-row-toggle {
+    min-height: 40px !important;
+    padding-right: 18px !important;
+  }
+
+  .pm-mobile-row-toggle strong {
+    font-size: 11px !important;
+  }
+
+  .pm-mobile-row-toggle span {
+    font-size: 8px !important;
+  }
+
+  .planned-maintenance-table tbody
+    tr[data-pm-row-id].pm-category-filtered-out {
+    display: none !important;
+  }
+}

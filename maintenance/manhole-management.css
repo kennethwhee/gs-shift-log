@@ -4846,3 +4846,216 @@ input {
     line-height: 1.2 !important;
   }
 }
+
+/* =========================================================
+   MANHOLE_MOBILE_EDIT_LIST_V19
+
+   Keep the complete diagram first, then expose the existing
+   server-backed status/date/note controls as a compact list.
+   Desktop table geometry and behavior are unchanged.
+========================================================= */
+
+@media screen and (max-width: 760px) {
+  .manhole-list-panel {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    contain: none !important;
+    content-visibility: visible !important;
+  }
+
+  .manhole-list-panel > .manhole-section-heading {
+    position: relative !important;
+    z-index: 1 !important;
+    min-height: 36px !important;
+    padding: 7px 9px !important;
+  }
+
+  .manhole-list-panel > .manhole-section-heading strong {
+    font-size: 11px !important;
+  }
+
+  .manhole-list-panel > .manhole-section-heading span {
+    display: block !important;
+    font-size: 8px !important;
+  }
+
+  .manhole-list-panel .manhole-table-wrap,
+  .manhole-list-panel .manhole-table,
+  .manhole-list-panel .manhole-table tbody {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    visibility: visible !important;
+  }
+
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row] {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    grid-template-columns:
+      30px
+      minmax(0, 1fr)
+      72px
+      116px !important;
+    grid-template-areas:
+      "number location status date"
+      "number area note note" !important;
+    align-items: stretch !important;
+    border: 0 !important;
+    border-bottom: 1px solid #d6e0e9 !important;
+    background: #ffffff !important;
+  }
+
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row].is-close {
+    background: #f1f3f5 !important;
+  }
+
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row] > td {
+    display: flex !important;
+    box-sizing: border-box !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 27px !important;
+    align-items: center !important;
+    padding: 3px 4px !important;
+    overflow: hidden !important;
+    border: 0 !important;
+    background: transparent !important;
+    font-size: 9px !important;
+    line-height: 1.15 !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-number {
+    grid-area: number !important;
+    justify-content: center !important;
+    border-right: 1px solid #d6e0e9 !important;
+    color: #1f5f9f !important;
+    font-size: 11px !important;
+    font-weight: 950 !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-location {
+    grid-area: location !important;
+    align-items: flex-end !important;
+    padding-bottom: 1px !important;
+    overflow: hidden !important;
+    font-weight: 900 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-area {
+    grid-area: area !important;
+    align-items: flex-start !important;
+    padding-top: 1px !important;
+    overflow: hidden !important;
+    color: #718096 !important;
+    font-size: 8px !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-count {
+    display: none !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-status-cell {
+    grid-area: status !important;
+    padding: 3px 2px !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-date-cell {
+    grid-area: date !important;
+    padding: 3px 3px 3px 2px !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td.manhole-note-cell {
+    display: flex !important;
+    grid-area: note !important;
+    padding: 1px 3px 3px 2px !important;
+  }
+
+  .manhole-list-panel .manhole-table select[data-manhole-status-select],
+  .manhole-list-panel .manhole-table input[type="date"],
+  .manhole-list-panel .manhole-table input[data-manhole-note] {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    border: 1px solid #bcc9d6 !important;
+    border-radius: 6px !important;
+    background: #ffffff !important;
+    color: #26384e !important;
+    font-weight: 800 !important;
+    box-shadow: none !important;
+  }
+
+  .manhole-list-panel .manhole-table select[data-manhole-status-select],
+  .manhole-list-panel .manhole-table input[type="date"] {
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+    padding: 0 3px !important;
+    font-size: 16px !important;
+    letter-spacing: -0.045em !important;
+  }
+
+  .manhole-list-panel .manhole-table input[data-manhole-note] {
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    padding: 0 7px !important;
+    font-size: 16px !important;
+  }
+
+  .manhole-list-panel .manhole-table input[data-manhole-note]::placeholder {
+    color: #8a98a9 !important;
+    font-size: 10px !important;
+  }
+
+  .manhole-list-panel .manhole-table tbody tr.is-open
+  select[data-manhole-status-select] {
+    border-color: #d4a514 !important;
+    background: #fff8d6 !important;
+    color: #b4232b !important;
+  }
+
+  .manhole-list-panel .manhole-table tbody tr.is-close
+  select[data-manhole-status-select],
+  .manhole-list-panel .manhole-table tbody tr.is-close
+  input {
+    background: #ffffff !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-group-row {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-group-row td {
+    display: block !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-height: 24px !important;
+    padding: 5px 8px !important;
+    border: 0 !important;
+    border-bottom: 1px solid #cfdae5 !important;
+    background: #eaf1f7 !important;
+    color: #2e4864 !important;
+    font-size: 9px !important;
+    line-height: 1.2 !important;
+  }
+}

@@ -1008,7 +1008,7 @@
       elements.diagramHint.textContent =
         isUnit2
           ? "1호기 원본 위치도 임시 복제본입니다. Open은 노란색, Close는 진한 회색, 미선택은 연회색 맨홀로 표시합니다."
-          : "오른쪽 목록 상태에 따라 맨홀 색상이 바뀝니다. Open은 노란색, Close는 진한 회색입니다.";
+          : "관리 목록 상태에 따라 맨홀 색상이 바뀝니다. Open은 노란색, Close는 진한 회색입니다.";
     }
 
     if (elements.diagramImage) {
@@ -1062,13 +1062,13 @@
             data-manhole-row="${row.no}"
           >
             <td class="manhole-number">${row.no}</td>
-            <td>${management.escapeHtml(row.location)}</td>
-            <td>${management.escapeHtml(row.area)}</td>
+            <td class="manhole-location">${management.escapeHtml(row.location)}</td>
+            <td class="manhole-area">${management.escapeHtml(row.area)}</td>
             <td class="manhole-count">${row.count}</td>
-            <td>
+            <td class="manhole-status-cell">
               ${getStatusSelectHtml(row)}
             </td>
-            <td>
+            <td class="manhole-date-cell">
               <input
                 type="date"
                 value="${management.escapeHtml(row.changeDate)}"
@@ -1076,12 +1076,13 @@
                 aria-label="${row.no}번 개폐일자"
               >
             </td>
-            <td>
+            <td class="manhole-note-cell">
               <input
                 type="text"
                 value="${management.escapeHtml(row.note)}"
                 data-manhole-note="${row.no}"
                 maxlength="1000"
+                placeholder="비고"
                 aria-label="${row.no}번 비고"
               >
             </td>
