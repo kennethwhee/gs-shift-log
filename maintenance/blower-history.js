@@ -135,35 +135,157 @@
     };
   }
 
+  function parseRetryAfterMs(value) {
+    const text = String(value || "").trim();
+    if (!text) return 0;
+
+    const seconds = Number(text);
+    if (Number.isFinite(seconds)) {
+      return Math.max(0, Math.round(seconds * 1000));
+    }
+
+    const retryAt = new Date(text);
+    return Number.isNaN(retryAt.getTime())
+      ? 0
+      : Math.max(0, retryAt.getTime() - Date.now());
+  }
+
+  function waitForMilliseconds(milliseconds) {
+    return new Promise(resolve => {
+      window.setTimeout(resolve, Math.max(0, Number(milliseconds) || 0));
+    });
+  }
+
   async function apiRequest(options = {}) {
     const method = options.method || "GET";
-    const response = await fetch(options.url || API_URL, {
-      method,
-      headers: getAuthHeaders(
-        options.body
-          ? { "Content-Type": "application/json; charset=utf-8" }
-          : {}
-      ),
-      cache: "no-store",
-      body: options.body ? JSON.stringify(options.body) : undefined
-    });
+    let response;
+
+    try {
+      response = await fetch(options.url || API_URL, {
+        method,
+        headers: getAuthHeaders(
+          options.body
+            ? { "Content-Type": "application/json; charset=utf-8" }
+            : {}
+        ),
+        cache: "no-store",
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+    } catch (cause) {
+      const error = new Error("서버에 연결할 수 없습니다.");
+      error.status = 0;
+      error.code = "NETWORK_ERROR";
+      error.retryable = true;
+      error.cause = cause;
+      throw error;
+    }
 
     const text = await response.text();
     let result = {};
+    let invalidJson = false;
 
     if (text.trim()) {
       try {
         result = JSON.parse(text);
       } catch {
-        throw new Error("서버 응답 형식을 확인할 수 없습니다.");
+        invalidJson = true;
       }
     }
 
     if (!response.ok || result.ok === false) {
-      throw new Error(result.message || `요청 실패 (HTTP ${response.status})`);
+      const error = new Error(result.message || `요청 실패 (HTTP ${response.status})`);
+      error.status = response.status;
+      error.code = String(result.code || "HTTP_ERROR");
+      error.retryable = result.retryable === true || [429, 502, 503, 504].includes(response.status);
+      error.retryAfterMs = parseRetryAfterMs(response.headers.get("Retry-After"));
+      error.cfRay = String(response.headers.get("CF-Ray") || "");
+      error.payload = result;
+      throw error;
+    }
+
+    if (invalidJson) {
+      throw new Error("서버 응답 형식을 확인할 수 없습니다.");
     }
 
     return result;
+  }
+
+  function buildAdaptiveRetryLimits(currentLimit, defaults) {
+    const normalizedCurrent = Math.floor(Number(currentLimit) || 0);
+    if (normalizedCurrent <= 0) return [...defaults];
+
+    const limits = [normalizedCurrent];
+
+    for (const value of defaults) {
+      const normalizedValue = Math.floor(Number(value) || 0);
+      if (normalizedValue > 0 && normalizedValue < normalizedCurrent) {
+        limits.push(normalizedValue);
+      }
+    }
+
+    const fallback = limits[limits.length - 1] || normalizedCurrent;
+    while (limits.length < defaults.length) limits.push(fallback);
+    return limits.slice(0, defaults.length);
+  }
+
+  async function requestHistoricalAuditStep(cursor, onRetry, tuning = {}) {
+    const fallbackWaits = [1200, 2400, 4800, 8000];
+    const adaptiveLimits = buildAdaptiveRetryLimits(
+      tuning.analysisLimit,
+      [null, 2, 1, 1, 1]
+    );
+    const adaptiveScanLimits = buildAdaptiveRetryLimits(
+      tuning.scanLimit,
+      [null, 25, 10, 5, 1]
+    );
+
+    for (let attempt = 0; attempt <= fallbackWaits.length; attempt += 1) {
+      try {
+        const result = await apiRequest({
+          method: "POST",
+          body: {
+            action: "historical_audit_step",
+            cursor,
+            analysisLimit: adaptiveLimits[attempt],
+            scanLimit: adaptiveScanLimits[attempt]
+          }
+        });
+        tuning.analysisLimit = adaptiveLimits[attempt];
+        tuning.scanLimit = adaptiveScanLimits[attempt];
+        return result;
+      } catch (error) {
+        const retryable = error?.retryable === true ||
+          [0, 429, 502, 503, 504].includes(Number(error?.status));
+
+        if (!retryable || attempt >= fallbackWaits.length) {
+          throw error;
+        }
+
+        const waitMs = Math.min(
+          15000,
+          Math.max(250, Number(error?.retryAfterMs) || fallbackWaits[attempt])
+        );
+        const retryInfo = {
+          attempt: attempt + 1,
+          maxAttempts: fallbackWaits.length,
+          waitMs,
+          nextAnalysisLimit: adaptiveLimits[attempt + 1],
+          nextScanLimit: adaptiveScanLimits[attempt + 1],
+          status: Number(error?.status) || 0,
+          code: String(error?.code || ""),
+          cfRay: String(error?.cfRay || ""),
+          message: String(error?.message || ""),
+          diagnostics: isPlainObject(error?.payload?.diagnostics)
+            ? error.payload.diagnostics
+            : null
+        };
+
+        if (typeof onRetry === "function") onRetry(retryInfo);
+        await waitForMilliseconds(waitMs);
+      }
+    }
+
+    throw new Error("누락 진단 재시도 횟수를 초과했습니다.");
   }
 
   function showToast(message, type = "info") {
@@ -1452,7 +1574,13 @@
     const records = [];
     const apiDiagnostics = [];
     const batches = [];
+    const retryEvents = [];
+    const recordKeys = new Set();
     const visitedCursors = new Set();
+    const auditTuning = {
+      analysisLimit: null,
+      scanLimit: null
+    };
     let aggregateSummary = {};
     let cursor = null;
     let completed = false;
@@ -1465,18 +1593,28 @@
 
     try {
       for (let batchIndex = 1; batchIndex <= 5000; batchIndex += 1) {
-        const result = await apiRequest({
-          method: "POST",
-          body: {
-            action: "historical_audit_step",
-            cursor
-          }
-        });
+        const requestedCursor = cursor;
+        const result = await requestHistoricalAuditStep(cursor, retry => {
+          retryEvents.push({
+            ...retry,
+            cursor: requestedCursor
+          });
+          const waitSeconds = Math.max(1, Math.ceil(retry.waitMs / 1000));
+          elements.auditHistoryButton.textContent =
+            `서버 혼잡 · ${waitSeconds}초 후 재시도 (${retry.attempt}/${retry.maxAttempts})`;
+        }, auditTuning);
         const batchRecords = Array.isArray(result.records) ? result.records : [];
         const batchSummary = isPlainObject(result.summary) ? result.summary : {};
         const batchScannedRows = Math.max(0, Number(result.scannedRows) || 0);
+        let receivedRecords = 0;
 
-        records.push(...batchRecords);
+        for (const record of batchRecords) {
+          const recordKey = String(record?.key || JSON.stringify(record));
+          if (recordKeys.has(recordKey)) continue;
+          recordKeys.add(recordKey);
+          records.push(record);
+          receivedRecords += 1;
+        }
         scannedRows += batchScannedRows;
         aggregateSummary = mergeAuditSummary(aggregateSummary, batchSummary);
 
@@ -1488,8 +1626,10 @@
 
         batches.push({
           batch: batchIndex,
+          cursor: requestedCursor,
           scannedRows: batchScannedRows,
-          receivedRecords: batchRecords.length,
+          analyzedRows: Math.max(0, Number(result.analyzedRows) || 0),
+          receivedRecords,
           done: result.done === true,
           summary: batchSummary
         });
@@ -1509,6 +1649,7 @@
 
         visitedCursors.add(cursorKey);
         cursor = nextCursor;
+        await waitForMilliseconds(250);
       }
 
       if (!completed) {
@@ -1518,7 +1659,7 @@
       const generatedAt = new Date().toISOString();
       const filename = `blower-vbelt-audit-${formatKstDownloadTimestamp()}.json`;
       const payload = {
-        version: "v11",
+        version: "v11-r2",
         generatedAt,
         summary: aggregateSummary,
         records,
@@ -1529,6 +1670,8 @@
           batchCount: batches.length,
           scannedRowCount: scannedRows,
           recordCount: records.length,
+          finalTuning: auditTuning,
+          retries: retryEvents,
           batches,
           api: apiDiagnostics
         }
@@ -1538,7 +1681,42 @@
       showToast(`누락 진단 ${records.length.toLocaleString("ko-KR")}건을 내려받았습니다.`);
     } catch (error) {
       console.error("Blower 누락 이력 진단 실패:", error);
-      showToast(error.message || "누락 진단 파일을 만들지 못했습니다.", "error");
+      const failedAt = new Date().toISOString();
+      const filename = `blower-vbelt-audit-partial-${formatKstDownloadTimestamp()}.json`;
+      const payload = {
+        version: "v11-r2",
+        partial: true,
+        generatedAt: failedAt,
+        summary: aggregateSummary,
+        records,
+        diagnostics: {
+          readOnly: true,
+          startedAt,
+          failedAt,
+          failedCursor: cursor,
+          batchCount: batches.length,
+          scannedRowCount: scannedRows,
+          recordCount: records.length,
+          finalTuning: auditTuning,
+          retries: retryEvents,
+          batches,
+          api: apiDiagnostics,
+          error: {
+            message: String(error?.message || "누락 진단 파일을 만들지 못했습니다."),
+            status: Number(error?.status) || 0,
+            code: String(error?.code || ""),
+            cfRay: String(error?.cfRay || ""),
+            diagnostics: isPlainObject(error?.payload?.diagnostics)
+              ? error.payload.diagnostics
+              : null
+          }
+        }
+      };
+
+      downloadAuditJson(payload, filename);
+      showToast(
+        `${error?.message || "누락 진단에 실패했습니다."} 부분 진단 파일을 내려받았습니다.`, "error"
+      );
     } finally {
       state.auditRunning = false;
       elements.auditHistoryButton.classList.remove("is-running");

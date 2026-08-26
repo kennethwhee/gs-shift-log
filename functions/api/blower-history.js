@@ -203,8 +203,13 @@ const HISTORY_BACKFILL_ID = "shift_logs_approved_canonical_replacements_v9";
 const HISTORY_BACKFILL_START_DATE = "2021-01-01";
 const HISTORY_BACKFILL_BATCH_SIZE = 200;
 const HISTORY_BACKFILL_STALE_LEASE_MS = 2 * 60 * 1000;
-const HISTORY_AUDIT_VERSION = "blower_vbelt_missing_history_audit_v11";
-const HISTORY_AUDIT_BATCH_SIZE = 200;
+const HISTORY_AUDIT_VERSION = "blower_vbelt_missing_history_audit_v11_r2";
+const HISTORY_AUDIT_BATCH_SIZES = Object.freeze({
+  shift_logs: 5,
+  legacy_logs: 3,
+  event_archive: 10
+});
+const HISTORY_AUDIT_LEGACY_SCAN_BATCH_SIZE = 100;
 
 const HISTORY_AUDIT_SOURCE_ORDER = [
   "shift_logs",
@@ -4478,6 +4483,37 @@ function nextHistoricalAuditSource(source) {
     : "";
 }
 
+function historicalAuditBatchSize(source, requestedLimit) {
+  const defaultLimit = HISTORY_AUDIT_BATCH_SIZES[source] || HISTORY_AUDIT_BATCH_SIZES.shift_logs;
+  const normalizedLimit = Math.floor(Number(requestedLimit) || 0);
+
+  return normalizedLimit > 0
+    ? Math.max(1, Math.min(defaultLimit, normalizedLimit))
+    : defaultLimit;
+}
+
+function historicalAuditLegacyScanBatchSize(requestedLimit) {
+  const normalizedLimit = Math.floor(Number(requestedLimit) || 0);
+
+  return normalizedLimit > 0
+    ? Math.max(1, Math.min(HISTORY_AUDIT_LEGACY_SCAN_BATCH_SIZE, normalizedLimit))
+    : HISTORY_AUDIT_LEGACY_SCAN_BATCH_SIZE;
+}
+
+function historicalAuditRowMayContainBelt(row) {
+  let belt = false;
+  let replacement = false;
+
+  for (const value of Object.values(row || {})) {
+    if (typeof value !== "string") continue;
+    if (!belt && hasBeltWord(value)) belt = true;
+    if (!replacement && hasReplacementKeyword(value)) replacement = true;
+    if (belt && replacement) return true;
+  }
+
+  return false;
+}
+
 function auditPotentialTagNumbers() {
   const tags = new Set(ASSET_SEEDS.map(seed => normalizeText(seed[0]).toUpperCase()));
 
@@ -4860,7 +4896,9 @@ function analyzeHistoricalAuditRows(rows, sourceTable, auditAssets) {
   return [...new Map(records.map(record => [record.key, record])).values()];
 }
 
-async function loadHistoricalAuditRows(database, cursor) {
+async function loadHistoricalAuditRows(database, cursor, requestedLimit, requestedScanLimit) {
+  const parseBatchSize = historicalAuditBatchSize(cursor.source, requestedLimit);
+
   if (cursor.source === "shift_logs") {
     const result = await database
       .prepare(`
@@ -4869,15 +4907,37 @@ async function loadHistoricalAuditRows(database, cursor) {
         WHERE rowid > ?
           AND work_date >= ?
           AND status = '결재완료'
+          AND (
+            INSTR(LOWER(COALESCE(log_json, '')), 'belt') > 0
+            OR INSTR(COALESCE(log_json, ''), '벨트') > 0
+          )
+          AND (
+            INSTR(COALESCE(log_json, ''), '교체') > 0
+            OR INSTR(COALESCE(log_json, ''), '교환') > 0
+            OR INSTR(LOWER(COALESCE(log_json, '')), 'replac' || 'e') > 0
+            OR INSTR(LOWER(COALESCE(log_json, '')), 'replacement') > 0
+            OR INSTR(LOWER(COALESCE(log_json, '')), 'exchange') > 0
+          )
         ORDER BY rowid ASC
         LIMIT ?
       `)
-      .bind(cursor.rowId, HISTORY_BACKFILL_START_DATE, HISTORY_AUDIT_BATCH_SIZE)
+      .bind(cursor.rowId, HISTORY_BACKFILL_START_DATE, parseBatchSize)
       .all();
-    return Array.isArray(result.results) ? result.results : [];
+    const rows = Array.isArray(result.results) ? result.results : [];
+    return {
+      rows,
+      scannedRows: rows.length,
+      cursorRowId: rows.length > 0
+        ? Number(rows[rows.length - 1]?.audit_rowid || cursor.rowId)
+        : cursor.rowId,
+      sourceComplete: rows.length < parseBatchSize,
+      parseBatchSize,
+      scanBatchSize: parseBatchSize
+    };
   }
 
   if (cursor.source === "legacy_logs") {
+    const legacyScanBatchSize = historicalAuditLegacyScanBatchSize(requestedScanLimit);
     const result = await database
       .prepare(`
         SELECT rowid AS audit_rowid, *
@@ -4888,14 +4948,49 @@ async function loadHistoricalAuditRows(database, cursor) {
         ORDER BY rowid ASC
         LIMIT ?
       `)
-      .bind(cursor.rowId, HISTORY_BACKFILL_START_DATE, HISTORY_AUDIT_BATCH_SIZE)
+      .bind(cursor.rowId, HISTORY_BACKFILL_START_DATE, legacyScanBatchSize)
       .all();
-    return Array.isArray(result.results) ? result.results : [];
+    const loadedRows = Array.isArray(result.results) ? result.results : [];
+    const rows = [];
+    let scannedRows = 0;
+    let cursorRowId = cursor.rowId;
+    let stoppedAtParseLimit = false;
+
+    for (const row of loadedRows) {
+      scannedRows += 1;
+      cursorRowId = Number(row?.audit_rowid || cursorRowId);
+
+      if (!historicalAuditRowMayContainBelt(row)) continue;
+      rows.push(row);
+
+      if (rows.length >= parseBatchSize) {
+        stoppedAtParseLimit = true;
+        break;
+      }
+    }
+
+    return {
+      rows,
+      scannedRows,
+      cursorRowId,
+      sourceComplete:
+        !stoppedAtParseLimit && loadedRows.length < legacyScanBatchSize,
+      parseBatchSize,
+      scanBatchSize: legacyScanBatchSize
+    };
   }
 
   const result = await database
     .prepare(`
-      SELECT rowid AS audit_rowid, *
+      SELECT
+        rowid AS audit_rowid,
+        id,
+        tag_number,
+        event_type,
+        event_date,
+        source_log_id,
+        source_text,
+        created_by_name
       FROM blower_history_event_archive
       WHERE rowid > ?
         AND migration_id = ?
@@ -4903,37 +4998,79 @@ async function loadHistoricalAuditRows(database, cursor) {
       ORDER BY rowid ASC
       LIMIT ?
     `)
-    .bind(cursor.rowId, HISTORY_BACKFILL_ID, HISTORY_AUDIT_BATCH_SIZE)
+    .bind(cursor.rowId, HISTORY_BACKFILL_ID, parseBatchSize)
     .all();
-  return Array.isArray(result.results) ? result.results : [];
+  const rows = Array.isArray(result.results) ? result.results : [];
+  return {
+    rows,
+    scannedRows: rows.length,
+    cursorRowId: rows.length > 0
+      ? Number(rows[rows.length - 1]?.audit_rowid || cursor.rowId)
+      : cursor.rowId,
+    sourceComplete: rows.length < parseBatchSize,
+    parseBatchSize,
+    scanBatchSize: parseBatchSize
+  };
 }
 
 async function historicalAuditStep(database, body) {
   const cursor = normalizeHistoricalAuditCursor(body?.cursor);
-  const warnings = [];
-  let rows = [];
+  let page;
 
   try {
-    rows = await loadHistoricalAuditRows(database, cursor);
+    page = await loadHistoricalAuditRows(
+      database,
+      cursor,
+      body?.analysisLimit,
+      body?.scanLimit
+    );
   } catch (error) {
-    warnings.push(`${cursor.source} 조회 실패: ${error instanceof Error ? error.message : String(error)}`);
+    return jsonResponse({
+      ok: false,
+      readOnly: true,
+      retryable: true,
+      code: "AUDIT_SOURCE_UNAVAILABLE",
+      message: "누락 진단 원본 조회가 일시적으로 실패했습니다. 같은 위치에서 다시 시도합니다.",
+      cursor,
+      diagnostics: {
+        sourceTable: cursor.source,
+        detail: error instanceof Error ? error.message : String(error)
+      }
+    }, 503);
   }
 
-  const storedResult = await database
-    .prepare(`
-      SELECT *
-      FROM blower_history_assets
-      WHERE enabled = 1
-      ORDER BY sort_order ASC, tag_number ASC
-    `)
-    .all();
+  let storedResult;
+
+  try {
+    storedResult = await database
+      .prepare(`
+        SELECT *
+        FROM blower_history_assets
+        WHERE enabled = 1
+        ORDER BY sort_order ASC, tag_number ASC
+      `)
+      .all();
+  } catch (error) {
+    return jsonResponse({
+      ok: false,
+      readOnly: true,
+      retryable: true,
+      code: "AUDIT_ASSETS_UNAVAILABLE",
+      message: "Blower 설비 기준 조회가 일시적으로 실패했습니다. 같은 위치에서 다시 시도합니다.",
+      cursor,
+      diagnostics: {
+        sourceTable: cursor.source,
+        detail: error instanceof Error ? error.message : String(error)
+      }
+    }, 503);
+  }
+
+  const rows = Array.isArray(page?.rows) ? page.rows : [];
   const storedAssets = Array.isArray(storedResult.results) ? storedResult.results : [];
   const auditAssets = buildHistoricalAuditAssets(storedAssets);
   const records = analyzeHistoricalAuditRows(rows, cursor.source, auditAssets);
-  const lastRowId = rows.length > 0
-    ? Number(rows[rows.length - 1]?.audit_rowid || cursor.rowId)
-    : cursor.rowId;
-  const sourceComplete = rows.length < HISTORY_AUDIT_BATCH_SIZE;
+  const lastRowId = Number(page?.cursorRowId || cursor.rowId);
+  const sourceComplete = page?.sourceComplete === true;
   const nextSource = sourceComplete ? nextHistoricalAuditSource(cursor.source) : cursor.source;
   const done = sourceComplete && !nextSource;
   const nextCursor = done
@@ -4950,26 +5087,21 @@ async function historicalAuditStep(database, body) {
     done,
     cursor,
     nextCursor,
-    scannedRows: rows.length,
+    scannedRows: Math.max(0, Number(page?.scannedRows) || 0),
+    analyzedRows: rows.length,
     summary: summarizeHistoricalAuditRecords(records),
     diagnostics: {
       sourceTable: cursor.source,
       sourceComplete,
-      warnings
+      parseBatchSize: page?.parseBatchSize,
+      scanBatchSize: page?.scanBatchSize,
+      warnings: []
     },
     records
   });
 }
 
-async function handlePost(context, user) {
-  let body = {};
-
-  try {
-    body = await context.request.json();
-  } catch {
-    return jsonResponse({ ok: false, message: "요청 내용을 읽을 수 없습니다." }, 400);
-  }
-
+async function handlePost(context, user, body) {
   const action = normalizeText(body.action);
   const database = context.env.DB;
 
@@ -5052,8 +5184,21 @@ export async function onRequestPost(context) {
       return authentication.error;
     }
 
-    await ensureSchema(context.env.DB);
-    return await handlePost(context, authentication.user);
+    let body = {};
+
+    try {
+      body = await context.request.json();
+    } catch {
+      return jsonResponse({ ok: false, message: "요청 내용을 읽을 수 없습니다." }, 400);
+    }
+
+    const action = normalizeText(body?.action);
+
+    if (action !== "historical_audit_step") {
+      await ensureSchema(context.env.DB);
+    }
+
+    return await handlePost(context, authentication.user, body);
   } catch (error) {
     console.error("Blower 교체 이력 저장 오류:", error);
     return jsonResponse(
