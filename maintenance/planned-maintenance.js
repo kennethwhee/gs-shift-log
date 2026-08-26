@@ -640,6 +640,101 @@
     `;
   }
 
+  function getMobileRowSummary(row, config) {
+    const compactValue = value =>
+      normalizeString(value)
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const equipment =
+      compactValue(row.equipmentName);
+
+    const category =
+      compactValue(row.category);
+
+    const reason =
+      compactValue(row.reason);
+
+    const title = [
+      category,
+      equipment
+    ].filter(Boolean).join(" · ") ||
+      reason ||
+      "새 항목";
+
+    const detail = config.columns
+      .map(col => ({
+        label: normalizeString(col.header),
+        value: compactValue(row[col.field])
+      }))
+      .filter(item => item.value)
+      .map(item => `${item.label} ${item.value}`)
+      .join(" · ") ||
+      "눌러서 내용을 입력하세요.";
+
+    return {
+      title,
+      detail
+    };
+  }
+
+  function syncMobileRowSummary(
+    rowElement,
+    row,
+    config = getActiveSheetConfig()
+  ) {
+    if (!rowElement || !row) {
+      return;
+    }
+
+    const summary =
+      getMobileRowSummary(
+        row,
+        config
+      );
+
+    const title =
+      rowElement.querySelector(
+        "[data-pm-mobile-summary-title]"
+      );
+
+    const detail =
+      rowElement.querySelector(
+        "[data-pm-mobile-summary-detail]"
+      );
+
+    if (title) {
+      title.textContent = summary.title;
+    }
+
+    if (detail) {
+      detail.textContent = summary.detail;
+    }
+  }
+
+  function setMobileRowExpanded(
+    rowElement,
+    expanded
+  ) {
+    if (!rowElement) {
+      return;
+    }
+
+    rowElement.classList.toggle(
+      "is-mobile-expanded",
+      Boolean(expanded)
+    );
+
+    rowElement
+      .querySelector(
+        "[data-pm-mobile-row-toggle]"
+      )
+      ?.setAttribute(
+        "aria-expanded",
+        String(Boolean(expanded))
+      );
+  }
+
   function renderTable() {
     ensureVisibleRow();
 
@@ -664,9 +759,32 @@
         </tr>
       </thead>
       <tbody id="plannedMaintenanceTableBody">
-        ${rows.map((row, index) => `
+        ${rows.map((row, index) => {
+          const mobileSummary =
+            getMobileRowSummary(
+              row,
+              config
+            );
+
+          return `
           <tr data-pm-row-id="${management.escapeHtml(row.id)}">
-            <td class="pm-number-cell">${index + 1}</td>
+            <td class="pm-number-cell">
+              <span class="pm-number-index">${index + 1}</span>
+              <button
+                type="button"
+                class="pm-mobile-row-toggle"
+                data-pm-mobile-row-toggle
+                aria-expanded="false"
+                aria-label="${index + 1}번 항목 펼치기 또는 접기"
+              >
+                <strong data-pm-mobile-summary-title>
+                  ${management.escapeHtml(mobileSummary.title)}
+                </strong>
+                <span data-pm-mobile-summary-detail>
+                  ${management.escapeHtml(mobileSummary.detail)}
+                </span>
+              </button>
+            </td>
             ${config.columns.map(col => `
               <td
                 data-pm-label="${management.escapeHtml(col.header)}"
@@ -683,7 +801,8 @@
               >×</button>
             </td>
           </tr>
-        `).join("")}
+        `;
+        }).join("")}
       </tbody>
     `;
 
@@ -843,12 +962,34 @@
 
   function addRow() {
     const config = getActiveSheetConfig();
-    state.rows.push(createBlankRow(config, false));
+    const newRow =
+      createBlankRow(
+        config,
+        false
+      );
+
+    state.rows.push(newRow);
     renderTable();
     setDirty(true);
 
     window.requestAnimationFrame(() => {
       const wrap = document.querySelector(".planned-maintenance-table-wrap");
+      const rowElement =
+        [
+          ...elements.table.querySelectorAll(
+            "[data-pm-row-id]"
+          )
+        ].find(
+          element =>
+            element.dataset.pmRowId ===
+            newRow.id
+        );
+
+      setMobileRowExpanded(
+        rowElement,
+        true
+      );
+
       wrap?.scrollTo({ top: wrap.scrollHeight, behavior: "smooth" });
     });
   }
@@ -1434,10 +1575,35 @@
 
     row[fieldElement.dataset.pmField] = fieldElement.value;
     row.__placeholder = false;
+    syncMobileRowSummary(
+      rowElement,
+      row
+    );
     setDirty(true);
   }
 
   function handleTableClick(event) {
+    const toggleButton =
+      event.target.closest(
+        "[data-pm-mobile-row-toggle]"
+      );
+
+    if (toggleButton) {
+      const rowElement =
+        toggleButton.closest(
+          "[data-pm-row-id]"
+        );
+
+      setMobileRowExpanded(
+        rowElement,
+        !rowElement?.classList.contains(
+          "is-mobile-expanded"
+        )
+      );
+
+      return;
+    }
+
     const deleteButton = event.target.closest("[data-pm-delete-row]");
     if (!deleteButton) {
       return;
@@ -1488,6 +1654,17 @@
     elements.previewButton.addEventListener("click", openPreview);
 
     elements.homeButton.addEventListener("click", () => {
+      if (
+        window.matchMedia(
+          "(max-width: 760px)"
+        ).matches &&
+        window.opener &&
+        !window.opener.closed
+      ) {
+        window.close();
+        return;
+      }
+
       window.location.href = "../index.html";
     });
 
@@ -1547,7 +1724,9 @@
 
   const DESKTOP_MIN_HEIGHT_PX = 72;
 
-  const MOBILE_MIN_HEIGHT_PX = 44;
+  const MOBILE_MIN_HEIGHT_PX = 34;
+
+  const MOBILE_MAX_HEIGHT_PX = 42;
 
   let resizeFrame = 0;
 
@@ -1562,19 +1741,36 @@
 
     textarea.style.height = "auto";
 
-    const minimumHeight =
+    const isMobile =
       window.matchMedia(
         "(max-width: 760px)"
-      ).matches
+      ).matches;
+
+    const minimumHeight =
+      isMobile
         ? MOBILE_MIN_HEIGHT_PX
         : DESKTOP_MIN_HEIGHT_PX;
 
-    const nextHeight = Math.max(
+    const contentHeight = Math.max(
       minimumHeight,
       textarea.scrollHeight
     );
 
+    const nextHeight =
+      isMobile
+        ? Math.min(
+            MOBILE_MAX_HEIGHT_PX,
+            contentHeight
+          )
+        : contentHeight;
+
     textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY =
+      isMobile &&
+      textarea.scrollHeight >
+        MOBILE_MAX_HEIGHT_PX
+        ? "auto"
+        : "hidden";
   }
 
   function resizeAllTextareas(root = document) {

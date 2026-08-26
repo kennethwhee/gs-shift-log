@@ -81206,6 +81206,17 @@ function initializeFacilityNavigatorHeaderMenu() {
 
       closeHeaderMoreMenu();
 
+      if (
+        window.__GS_MOBILE_RUNTIME_V14 ===
+        true
+      ) {
+        window.location.assign(
+          "/maintenance/manhole-management.html?source=mobile-app"
+        );
+
+        return;
+      }
+
       openHeaderManagementPage(
         "/maintenance/manhole-management.html",
         "GS_MANHOLE_MANAGEMENT",

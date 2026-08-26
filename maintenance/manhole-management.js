@@ -413,13 +413,9 @@
       document.getElementById(
         "manholeAuthWarning"
       ),
-    homeButton:
+    closeButton:
       document.getElementById(
-        "manholeHomeButton"
-      ),
-    reloadButton:
-      document.getElementById(
-        "manholeReloadButton"
+        "manholeCloseButton"
       ),
     saveButton:
       document.getElementById(
@@ -579,7 +575,6 @@
       Boolean(loading);
 
     [
-      elements.reloadButton,
       elements.saveButton
     ].forEach(
       button => {
@@ -1676,35 +1671,30 @@ function render() {
       }
     );
 
-  elements.reloadButton
-    ?.addEventListener(
-      "click",
-      async () => {
-        if (
-          state.dirty &&
-          !window.confirm(
-            "저장하지 않은 변경사항을 버리고 다시 불러올까요?"
-          )
-        ) {
-          return;
-        }
-
-        await loadDocument();
-      }
-    );
-
   elements.saveButton
     ?.addEventListener(
       "click",
       saveDocument
     );
 
-  elements.homeButton
+  const isMobileAppEntry =
+    new URLSearchParams(
+      window.location.search
+    ).get("source") ===
+    "mobile-app";
+
+  if (elements.closeButton) {
+    elements.closeButton.hidden =
+      !isMobileAppEntry;
+  }
+
+  elements.closeButton
     ?.addEventListener(
       "click",
       () => {
-        window.location.href =
-          "/";
+        window.location.replace(
+          "/mobile-app/"
+        );
       }
     );
 

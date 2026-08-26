@@ -14,7 +14,7 @@
   >
   <link
     rel="stylesheet"
-    href="planned-maintenance.css?v=20260826-mobile-layout-v17"
+    href="planned-maintenance.css?v=20260826-mobile-ux-v18"
   >
   <script
     src="management-common.js?v=20260822-maintenance-v1"
@@ -29,7 +29,7 @@
     defer
   ></script>
   <script
-    src="planned-maintenance.js?v=20260826-mobile-layout-v17"
+    src="planned-maintenance.js?v=20260826-mobile-ux-v18"
     defer
   ></script>
 </head>
@@ -53,8 +53,10 @@
             type="button"
             class="management-button"
             id="plannedMaintenanceHomeButton"
+            aria-label="업무일지로 돌아가기"
           >
-            업무일지
+            <span class="pm-home-label-desktop">업무일지</span>
+            <span class="pm-home-label-mobile">업무일지로 돌아가기</span>
           </button>
 
           <button

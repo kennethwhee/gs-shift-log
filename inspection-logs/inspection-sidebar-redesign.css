@@ -587,3 +587,91 @@ body.inspection-focus-mode .inspection-schedule-table-panel {
     height: 36px;
   }
 }
+
+/* =========================================================
+   INSPECTION_MOBILE_MENU_COMPACT_V18
+
+   Mobile landing only:
+   - remove duplicated page/section headings
+   - keep all cycle/daily/weekly/monthly rows on one screen
+   - retain 44px touch targets and every existing destination
+   - content pages, calendar and desktop navigation are unchanged
+========================================================= */
+
+@media (max-width: 768px) {
+  .inspection-log-hub {
+    padding: 5px !important;
+  }
+
+  .inspection-log-hub > .inspection-log-header,
+  .inspection-nav-v2__section--inspection
+    > .inspection-nav-v2__section-header {
+    display: none !important;
+  }
+
+  .inspection-workspace.inspection-workspace--nav-v2,
+  .inspection-sidebar {
+    gap: 5px !important;
+  }
+
+  .inspection-nav-v2__section--inspection {
+    padding: 5px !important;
+    border-radius: 10px !important;
+  }
+
+  .inspection-nav-v2__groups {
+    gap: 4px !important;
+    padding-top: 0 !important;
+  }
+
+  .inspection-nav-v2__group {
+    border-radius: 8px !important;
+  }
+
+  .inspection-nav-v2__group > summary {
+    min-height: 44px !important;
+    grid-template-columns:
+      27px
+      minmax(0, 1fr)
+      9px !important;
+    column-gap: 7px !important;
+    padding: 0 10px 0 8px !important;
+    font-size: 11px !important;
+  }
+
+  .inspection-nav-v2__group > summary::before {
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 7px !important;
+    background-size: 14px 14px !important;
+  }
+
+  .inspection-nav-v2__group > summary::after {
+    width: 7px !important;
+    height: 7px !important;
+  }
+
+  .inspection-nav-v2__submenu {
+    gap: 3px !important;
+    padding: 4px !important;
+  }
+
+  .inspection-nav-v2__submenu button,
+  .inspection-nav-v2__empty {
+    min-height: 44px !important;
+    padding: 5px 26px 5px 9px !important;
+    border-radius: 7px !important;
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+  }
+
+  .inspection-nav-v2__group[data-nav-icon="cycle"]
+    > .inspection-nav-v2__submenu {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  body.inspection-landing-mode .inspection-view-tools {
+    display: none !important;
+  }
+}

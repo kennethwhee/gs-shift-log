@@ -599,6 +599,11 @@ function updateInspectionEmptyGuide() {
   emptyGuide.hidden =
     hasVisibleContent;
 
+  document.body.classList.toggle(
+    "inspection-landing-mode",
+    !hasVisibleContent
+  );
+
   /*
     크게 보기에서 달력·점검주기표는 자체 목록 버튼이 없으므로
     별도 홈 버튼을 표시한다.
@@ -4809,6 +4814,38 @@ function printInspectionScheduleList() {
     이벤트
   ====================================================== */
 
+  const inspectionMenuGroups = [
+    ...sidebar.querySelectorAll(
+      ".inspection-nav-v2__section--inspection .inspection-nav-v2__group"
+    )
+  ];
+
+  inspectionMenuGroups.forEach(
+    group => {
+      group.addEventListener(
+        "toggle",
+        () => {
+          if (
+            !group.open ||
+            !window.matchMedia(
+              "(max-width: 768px)"
+            ).matches
+          ) {
+            return;
+          }
+
+          inspectionMenuGroups.forEach(
+            otherGroup => {
+              if (otherGroup !== group) {
+                otherGroup.open = false;
+              }
+            }
+          );
+        }
+      );
+    }
+  );
+
   viewButtons.forEach(
     button => {
       button.addEventListener(
@@ -5319,4 +5356,3 @@ if (
 } else {
   startInspectionWorkspaceNavigation();
 }
-

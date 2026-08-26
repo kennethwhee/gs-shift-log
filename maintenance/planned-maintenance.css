@@ -240,6 +240,14 @@
   background: #fff2f2;
 }
 
+.pm-mobile-row-toggle {
+  display: none;
+}
+
+.pm-home-label-mobile {
+  display: none;
+}
+
 @media screen and (max-width: 760px) {
   .pm-sheet-tabs-shell {
     padding-right: 8px;
@@ -713,5 +721,278 @@
   .planned-maintenance-table textarea {
     min-height: 44px !important;
     padding: 6px 7px !important;
+  }
+}
+
+/* =========================================================
+   PLANNED_MAINTENANCE_MOBILE_DENSE_V18
+
+   Mobile-only editing layout:
+   - header keeps only Back and Save
+   - each field uses an inline label/value row
+   - long text grows from one line to at most two lines
+   - desktop Excel-style tables and export actions are unchanged
+========================================================= */
+
+@media screen and (max-width: 760px) {
+  #plannedMaintenanceExcelUploadButton,
+  #plannedMaintenanceExcelDownloadButton,
+  #plannedMaintenancePreviewButton,
+  #plannedMaintenanceReloadButton {
+    display: none !important;
+  }
+
+  .management-header__actions {
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(74px, 0.38fr) !important;
+    gap: 5px !important;
+  }
+
+  #plannedMaintenanceHomeButton,
+  #plannedMaintenanceSaveButton {
+    min-height: 36px !important;
+    font-size: 10px !important;
+    white-space: nowrap !important;
+  }
+
+  .pm-home-label-desktop {
+    display: none !important;
+  }
+
+  .pm-home-label-mobile {
+    display: inline !important;
+  }
+
+  .management-toolbar__right {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .planned-maintenance-table tbody {
+    gap: 5px !important;
+    padding: 5px !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id] {
+    grid-template-columns:
+      repeat(12, minmax(0, 1fr)) !important;
+    grid-auto-flow: row dense !important;
+    gap: 3px !important;
+    padding: 27px 4px 4px !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id]
+    > td[data-pm-label] {
+    display: grid !important;
+    grid-column: span 6 !important;
+    grid-template-columns: max-content minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 4px !important;
+    min-height: 34px !important;
+    padding: 3px 4px !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id]
+    > td[data-pm-cell-type="textarea"] {
+    grid-column: span 6 !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id]
+    > td[data-pm-label]::before {
+    display: block !important;
+    max-width: 54px !important;
+    margin: 0 !important;
+    overflow-wrap: anywhere !important;
+    font-size: 7px !important;
+    line-height: 1.1 !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id]
+    > td[data-pm-field-cell="reason"],
+  .planned-maintenance-table tbody tr[data-pm-row-id]
+    > td[data-pm-field-cell="remark"] {
+    grid-column: 1 / -1 !important;
+  }
+
+  .planned-maintenance-table.is-logic
+    td[data-pm-field-cell="createdDate"] {
+    grid-column: span 6 !important;
+  }
+
+  .planned-maintenance-table.is-logic
+    td[data-pm-field-cell="equipmentName"] {
+    grid-column: span 6 !important;
+  }
+
+  .planned-maintenance-table.is-logic
+    td[data-pm-field-cell="targetEquipment"],
+  .planned-maintenance-table.is-logic
+    td[data-pm-field-cell="progress"] {
+    grid-column: span 6 !important;
+  }
+
+  .planned-maintenance-table.is-logic
+    td[data-pm-field-cell="tag"],
+  .planned-maintenance-table.is-logic
+    td[data-pm-field-cell="author"] {
+    grid-column: span 4 !important;
+  }
+
+  .planned-maintenance-table.is-work
+    td[data-pm-field-cell="category"],
+  .planned-maintenance-table.is-work
+    td[data-pm-field-cell="author"] {
+    grid-column: span 3 !important;
+  }
+
+  .planned-maintenance-table.is-work
+    td[data-pm-field-cell="issueDate"] {
+    grid-column: span 6 !important;
+  }
+
+  .planned-maintenance-table.is-work
+    td[data-pm-field-cell="equipmentName"],
+  .planned-maintenance-table.is-work
+    td[data-pm-field-cell="progress"] {
+    grid-column: span 6 !important;
+  }
+
+  .planned-maintenance-table input,
+  .planned-maintenance-table select {
+    min-height: 30px !important;
+    max-height: 30px !important;
+    padding: 3px 5px !important;
+    font-size: 16px !important;
+  }
+
+  .planned-maintenance-table textarea {
+    min-height: 34px !important;
+    max-height: 42px !important;
+    padding: 4px 5px !important;
+    overflow-y: auto !important;
+    font-size: 16px !important;
+    line-height: 1.25 !important;
+    resize: none !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id]
+    .pm-number-cell {
+    top: 4px !important;
+    right: 38px !important;
+    left: 4px !important;
+    display: grid !important;
+    width: auto !important;
+    height: 46px !important;
+    min-height: 46px !important;
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 5px !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .planned-maintenance-table .pm-number-cell::before {
+    content: none !important;
+  }
+
+  .pm-number-index {
+    display: inline-flex !important;
+    min-width: 38px !important;
+    min-height: 24px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 7px !important;
+    border-radius: 999px !important;
+    background: #eaf2fb !important;
+    color: #1f5fae !important;
+    font-size: 9px !important;
+    font-weight: 900 !important;
+  }
+
+  .pm-number-index::before {
+    content: "항목 ";
+  }
+
+  .pm-mobile-row-toggle {
+    position: relative !important;
+    display: grid !important;
+    min-width: 0 !important;
+    min-height: 42px !important;
+    align-content: center !important;
+    gap: 2px !important;
+    padding: 3px 20px 3px 4px !important;
+    overflow: hidden !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: #23354c !important;
+    text-align: left !important;
+    cursor: pointer !important;
+  }
+
+  .pm-mobile-row-toggle::after {
+    position: absolute !important;
+    top: 50% !important;
+    right: 5px !important;
+    content: "⌄" !important;
+    color: #62809d !important;
+    font-size: 14px !important;
+    transform: translateY(-50%) !important;
+  }
+
+  .is-mobile-expanded .pm-mobile-row-toggle::after {
+    content: "⌃" !important;
+  }
+
+  .pm-mobile-row-toggle strong,
+  .pm-mobile-row-toggle span {
+    display: block !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .pm-mobile-row-toggle strong {
+    font-size: 11px !important;
+    line-height: 1.15 !important;
+  }
+
+  .pm-mobile-row-toggle span {
+    color: #718096 !important;
+    font-size: 9px !important;
+    line-height: 1.15 !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id]
+    .pm-row-delete-cell {
+    top: 15px !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id]
+    > td[data-pm-label] {
+    display: none !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id]
+    > td.pm-row-delete-cell,
+  .planned-maintenance-table tbody tr[data-pm-row-id]
+    > td.pm-number-cell,
+  .planned-maintenance-table tbody tr[data-pm-row-id].is-mobile-expanded
+    > td[data-pm-label] {
+    display: grid !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id]:not(.is-mobile-expanded) {
+    min-height: 58px !important;
+    padding: 4px !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id].is-mobile-expanded {
+    padding-top: 54px !important;
+  }
+
+  .planned-maintenance-table tbody
+    tr[data-pm-row-id].pm-category-filtered-out {
+    display: none !important;
   }
 }
