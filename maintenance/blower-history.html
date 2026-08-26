@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="GS Shift Log Blower 교체 이력 관리">
+  <title>Blower 교체 이력 관리</title>
+  <link rel="stylesheet" href="blower-history.css?v=20260826-v1">
+  <script src="blower-history.js?v=20260826-v1" defer></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">EQUIPMENT LIFE MANAGEMENT</p>
+        <h1>Blower 교체 이력 관리</h1>
+        <p class="page-description">
+          실제 누적 운전시간을 기준으로 교체주기와 문제·교체 이력을 관리합니다.
+        </p>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="button secondary" id="refreshButton">새로고침</button>
+        <button type="button" class="button secondary" id="closeButton">업무일지로</button>
+      </div>
+    </header>
+
+    <section class="notice-bar" id="authNotice" hidden></section>
+
+    <nav class="type-tabs" id="typeTabs" aria-label="Blower 종류"></nav>
+
+    <div class="workspace">
+      <nav class="sub-tabs" aria-label="관리 화면">
+        <button type="button" class="sub-tab is-active" data-subview="overview">현재현황</button>
+        <button type="button" class="sub-tab" data-subview="history">교체·문제이력</button>
+        <button type="button" class="sub-tab" data-subview="detect">
+          자동감지
+          <span class="count-badge" id="candidateCountBadge" hidden>0</span>
+        </button>
+      </nav>
+
+      <main>
+        <section class="subview is-active" data-subview-panel="overview">
+          <section class="summary-row">
+            <article class="summary-card">
+              <span>등록 설비</span>
+              <strong id="assetCount">0</strong>
+              <small>대</small>
+            </article>
+            <article class="summary-card warning">
+              <span>교체 예정</span>
+              <strong id="warningCount">0</strong>
+              <small>대</small>
+            </article>
+            <article class="summary-card critical">
+              <span>교체 임박</span>
+              <strong id="criticalCount">0</strong>
+              <small>대</small>
+            </article>
+            <article class="summary-card overdue">
+              <span>주기 초과</span>
+              <strong id="overdueCount">0</strong>
+              <small>대</small>
+            </article>
+          </section>
+
+          <section class="settings-strip">
+            <div>
+              <span class="settings-label">현재 교체기준</span>
+              <strong id="settingsSummary">설정 확인 중</strong>
+              <small id="settingsUpdated"></small>
+            </div>
+            <button type="button" class="button secondary" id="settingsButton" hidden>
+              교체주기 설정
+            </button>
+          </section>
+
+          <section class="missing-tags" id="missingTagsNotice" hidden></section>
+
+          <section class="asset-section">
+            <div class="section-title-row">
+              <div>
+                <p class="eyebrow">CURRENT CYCLE</p>
+                <h2 id="activeTypeTitle">FBHE Blower</h2>
+              </div>
+              <span class="legend">
+                <i class="dot normal"></i>정상
+                <i class="dot warning"></i>교체 예정
+                <i class="dot critical"></i>교체 임박
+                <i class="dot overdue"></i>초과
+              </span>
+            </div>
+            <div id="assetGroups"></div>
+          </section>
+        </section>
+
+        <section class="subview" data-subview-panel="history" hidden>
+          <section class="panel-card">
+            <div class="section-title-row">
+              <div>
+                <p class="eyebrow">EVENT HISTORY</p>
+                <h2>교체·문제 이력</h2>
+              </div>
+              <div class="filter-actions">
+                <select id="historyFilter" aria-label="이력 종류">
+                  <option value="all">전체</option>
+                  <option value="replacement">교체</option>
+                  <option value="problem">문제발생</option>
+                  <option value="runtime_correction">운전시간 보정</option>
+                </select>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="history-table">
+                <thead>
+                  <tr>
+                    <th>일자</th>
+                    <th>설비</th>
+                    <th>구분</th>
+                    <th>당시 운전시간</th>
+                    <th>문제/사유</th>
+                    <th>조치</th>
+                    <th>내용</th>
+                    <th>출처</th>
+                  </tr>
+                </thead>
+                <tbody id="historyBody"></tbody>
+              </table>
+            </div>
+            <div class="empty-state" id="historyEmpty" hidden>등록된 이력이 없습니다.</div>
+          </section>
+        </section>
+
+        <section class="subview" data-subview-panel="detect" hidden>
+          <section class="panel-card">
+            <div class="section-title-row detect-heading">
+              <div>
+                <p class="eyebrow">SHIFT LOG DETECTION</p>
+                <h2>업무일지 자동감지</h2>
+                <p>등록된 Blower TAG와 문제·교체 키워드가 함께 있는 업무일지만 후보로 가져옵니다.</p>
+              </div>
+              <div class="scan-controls">
+                <label>
+                  <span>분석기간</span>
+                  <select id="scanDays">
+                    <option value="30">최근 30일</option>
+                    <option value="90">최근 90일</option>
+                    <option value="180" selected>최근 180일</option>
+                    <option value="365">최근 1년</option>
+                    <option value="1095">최근 3년</option>
+                  </select>
+                </label>
+                <button type="button" class="button primary" id="scanButton">업무일지 분석</button>
+              </div>
+            </div>
+            <div class="detect-guide">
+              자동감지 결과는 바로 이력에 반영되지 않습니다. 내용을 확인한 뒤 확정·수정·제외하세요.
+            </div>
+            <div class="candidate-list" id="candidateList"></div>
+            <div class="empty-state" id="candidateEmpty">검토 대기 중인 자동감지 후보가 없습니다.</div>
+          </section>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <dialog class="dialog" id="recordDialog">
+    <form method="dialog" id="recordForm">
+      <header class="dialog-header">
+        <div>
+          <p class="eyebrow" id="recordDialogEyebrow">EVENT</p>
+          <h2 id="recordDialogTitle">이력 등록</h2>
+          <p id="recordAssetLabel"></p>
+        </div>
+        <button type="button" class="icon-button" data-close-dialog="recordDialog" aria-label="닫기">×</button>
+      </header>
+
+      <div class="dialog-body">
+        <input type="hidden" id="recordMode">
+        <input type="hidden" id="recordTag">
+        <input type="hidden" id="candidateId">
+
+        <label class="field">
+          <span id="recordDateLabel">일자</span>
+          <input type="date" id="recordDate" required>
+        </label>
+
+        <label class="field" id="issueTypeField">
+          <span>문제 / 교체사유</span>
+          <select id="issueType">
+            <option value="정기주기">정기주기</option>
+            <option value="파손">파손</option>
+            <option value="소손">소손</option>
+            <option value="끊김">끊김</option>
+            <option value="절손">절손</option>
+            <option value="크랙">크랙</option>
+            <option value="균열">균열</option>
+            <option value="손상">손상</option>
+            <option value="누설">누설</option>
+            <option value="마모">마모</option>
+            <option value="변형">변형</option>
+            <option value="파열">파열</option>
+            <option value="이상진동">이상진동</option>
+            <option value="기타">기타</option>
+          </select>
+        </label>
+
+        <label class="field" id="actionTypeField">
+          <span>조치</span>
+          <select id="actionType">
+            <option value="교체">교체</option>
+            <option value="확인">확인</option>
+            <option value="감시">감시</option>
+            <option value="보수">보수</option>
+            <option value="용접보수">용접보수</option>
+            <option value="정비요청">정비요청</option>
+            <option value="기타">기타</option>
+          </select>
+        </label>
+
+        <label class="field checkbox-field" id="replacementRunningField">
+          <input type="checkbox" id="replacementRunning" checked>
+          <span>교체일부터 운전시간 자동 누적</span>
+        </label>
+
+        <label class="field" id="runtimeHoursField" hidden>
+          <span>현재 누적 운전시간(h)</span>
+          <input type="number" id="runtimeHours" min="0" step="0.1" inputmode="decimal">
+        </label>
+
+        <label class="field" id="runtimeStateField" hidden>
+          <span>현재 운전상태</span>
+          <select id="runtimeState">
+            <option value="running">운전중</option>
+            <option value="stopped">정지</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>비고 / 작업내용</span>
+          <textarea id="recordNote" rows="4" placeholder="필요한 내용을 입력하세요."></textarea>
+        </label>
+
+        <div class="source-preview" id="candidateSourcePreview" hidden></div>
+      </div>
+
+      <footer class="dialog-footer">
+        <button type="button" class="button secondary" data-close-dialog="recordDialog">취소</button>
+        <button type="submit" class="button primary" id="recordSaveButton">저장</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="dialog" id="settingsDialog">
+    <form method="dialog" id="settingsForm">
+      <header class="dialog-header">
+        <div>
+          <p class="eyebrow">REPLACEMENT POLICY</p>
+          <h2 id="settingsDialogTitle">교체주기 설정</h2>
+          <p>종류별 기준이며 저장 즉시 현재 Cycle 경고 계산에 적용됩니다.</p>
+        </div>
+        <button type="button" class="icon-button" data-close-dialog="settingsDialog" aria-label="닫기">×</button>
+      </header>
+      <div class="dialog-body settings-grid">
+        <label class="field">
+          <span>최대 교체주기 (일)</span>
+          <input type="number" id="cycleDays" min="1" step="1" placeholder="예: 90">
+          <small>90일 = 2,160시간</small>
+        </label>
+        <label class="field">
+          <span>교체 예정 알림 (남은 일수)</span>
+          <input type="number" id="warningDays" min="0" step="1" placeholder="예: 7">
+          <small>노란색 경고 시작</small>
+        </label>
+        <label class="field">
+          <span>교체 임박 알림 (남은 일수)</span>
+          <input type="number" id="criticalDays" min="0" step="1" placeholder="예: 3">
+          <small>빨간색 강력 경고 시작</small>
+        </label>
+        <p class="settings-help">
+          다른 Blower의 교체주기가 아직 정해지지 않았다면 값을 비워 둘 수 있습니다. FBHE 기본값은 90일 / 7일 / 3일입니다.
+        </p>
+      </div>
+      <footer class="dialog-footer">
+        <button type="button" class="button danger-ghost" id="clearSettingsButton">기준 미설정</button>
+        <span class="footer-spacer"></span>
+        <button type="button" class="button secondary" data-close-dialog="settingsDialog">취소</button>
+        <button type="submit" class="button primary">저장</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" hidden></div>
+</body>
+</html>

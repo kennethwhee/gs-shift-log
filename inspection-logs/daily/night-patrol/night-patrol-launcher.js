@@ -2185,3 +2185,397 @@ return true;
   }
 
 })();
+/* =========================================================
+  BLOWER_HISTORY_MANAGEMENT_V1
+
+  - 햄버거 메뉴에 Blower 교체 이력 관리 추가
+  - 관리자 메뉴는 기존 로직대로 항상 최하단 유지
+  - D-7 / D-3 / 초과 경고를 업무일지 메인에도 표시
+  - 실제 관리 화면과 D1 API는 독립 파일 사용
+========================================================= */
+
+(() => {
+  if (window.__blowerHistoryManagementLauncherV1Installed === true) {
+    return;
+  }
+
+  window.__blowerHistoryManagementLauncherV1Installed = true;
+
+  const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
+  const BLOWER_HISTORY_URL = "/maintenance/blower-history.html";
+  const BLOWER_HISTORY_API_URL = "/api/blower-history?action=summary";
+  const WINDOW_NAME = "GS_BLOWER_HISTORY";
+
+  let hasLoadedSummary = false;
+  let pendingRetryTimer = null;
+
+  function getSessionToken() {
+    try {
+      const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (!raw) return "";
+
+      const user = JSON.parse(raw);
+      return String(user?.sessionToken || user?.session_token || "").trim();
+    } catch {
+      return "";
+    }
+  }
+
+  function openBlowerHistory() {
+    if (typeof window.closeHeaderMoreMenu === "function") {
+      window.closeHeaderMoreMenu();
+    }
+
+    const target = window.open(BLOWER_HISTORY_URL, WINDOW_NAME);
+
+    if (!target) {
+      window.location.assign(BLOWER_HISTORY_URL);
+      return;
+    }
+
+    try {
+      target.focus();
+    } catch {
+      // 창 포커스 실패는 기능에 영향을 주지 않는다.
+    }
+  }
+
+  function ensureLauncherStyle() {
+    if (document.getElementById("blowerHistoryLauncherStyle")) {
+      return;
+    }
+
+    const style = document.createElement("style");
+    style.id = "blowerHistoryLauncherStyle";
+    style.textContent = `
+      #blowerHistoryHeaderButton {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .blower-history-menu-badge {
+        display: inline-flex;
+        min-width: 20px;
+        height: 20px;
+        align-items: center;
+        justify-content: center;
+        padding: 0 6px;
+        border-radius: 999px;
+        background: #c63c45;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .blower-history-main-alert {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+        margin: 10px 0 0;
+        padding: 10px 12px;
+        border: 1px solid #e6cc78;
+        border-radius: 10px;
+        background: #fff8dc;
+        color: #76570f;
+        text-align: left;
+      }
+
+      .blower-history-main-alert[hidden] {
+        display: none !important;
+      }
+
+      .blower-history-main-alert.is-critical,
+      .blower-history-main-alert.is-overdue {
+        border-color: #e8a7ad;
+        background: #fff0f1;
+        color: #9f2632;
+      }
+
+      .blower-history-main-alert__content {
+        min-width: 0;
+      }
+
+      .blower-history-main-alert__content small,
+      .blower-history-main-alert__content strong {
+        display: block;
+      }
+
+      .blower-history-main-alert__content small {
+        margin-bottom: 2px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: .04em;
+      }
+
+      .blower-history-main-alert__content strong {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+      }
+
+      .blower-history-main-alert__count {
+        flex: 0 0 auto;
+        min-width: 29px;
+        height: 29px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 8px;
+        border-radius: 999px;
+        background: rgba(111, 79, 4, .12);
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .blower-history-main-alert.is-critical .blower-history-main-alert__count,
+      .blower-history-main-alert.is-overdue .blower-history-main-alert__count {
+        background: rgba(157, 38, 51, .12);
+      }
+
+      @media (max-width: 768px) {
+        .blower-history-main-alert {
+          margin-top: 7px;
+          padding: 8px 9px;
+        }
+
+        .blower-history-main-alert__content strong {
+          font-size: 11px;
+        }
+
+        .blower-history-main-alert__content small {
+          font-size: 9px;
+        }
+      }
+    `;
+
+    document.head.append(style);
+  }
+
+  function ensureMenuItem() {
+    const dropdown = document.getElementById("headerMoreDropdown");
+    const adminButton = document.getElementById("adminButton");
+
+    if (!dropdown) {
+      return null;
+    }
+
+    let button = document.getElementById("blowerHistoryHeaderButton");
+
+    if (!button) {
+      button = document.createElement("button");
+      button.type = "button";
+      button.className = "header-more-item";
+      button.id = "blowerHistoryHeaderButton";
+      button.setAttribute("role", "menuitem");
+      button.setAttribute("aria-label", "Blower 교체 이력 관리 열기");
+      button.title = "Blower 교체 이력 관리";
+      button.innerHTML = `
+        <span>Blower 교체 이력</span>
+        <span class="blower-history-menu-badge" id="blowerHistoryMenuBadge" hidden>0</span>
+      `;
+
+      button.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        openBlowerHistory();
+      });
+    }
+
+    if (adminButton?.parentElement === dropdown) {
+      if (button.parentElement !== dropdown || button.nextElementSibling !== adminButton) {
+        dropdown.insertBefore(button, adminButton);
+      }
+    } else if (button.parentElement !== dropdown) {
+      dropdown.append(button);
+    }
+
+    return button;
+  }
+
+  function ensureMainAlert() {
+    const section = document.querySelector(".shift-status-section");
+
+    if (!section) {
+      return null;
+    }
+
+    let alertButton = document.getElementById("blowerHistoryMainAlert");
+
+    if (alertButton) {
+      return alertButton;
+    }
+
+    alertButton = document.createElement("button");
+    alertButton.type = "button";
+    alertButton.className = "blower-history-main-alert";
+    alertButton.id = "blowerHistoryMainAlert";
+    alertButton.hidden = true;
+    alertButton.innerHTML = `
+      <span class="blower-history-main-alert__content">
+        <small id="blowerHistoryMainAlertLabel">BLOWER 교체 알림</small>
+        <strong id="blowerHistoryMainAlertText">교체 예정 설비가 있습니다.</strong>
+      </span>
+      <span class="blower-history-main-alert__count" id="blowerHistoryMainAlertCount">0</span>
+    `;
+
+    alertButton.addEventListener("click", openBlowerHistory);
+
+    const heading = section.querySelector(":scope > .section-heading");
+
+    if (heading?.nextSibling) {
+      section.insertBefore(alertButton, heading.nextSibling);
+    } else if (heading) {
+      heading.insertAdjacentElement("afterend", alertButton);
+    } else {
+      section.prepend(alertButton);
+    }
+
+    return alertButton;
+  }
+
+  function formatRemaining(asset) {
+    const remaining = Number(asset?.remainingHours);
+
+    if (!Number.isFinite(remaining)) {
+      return "";
+    }
+
+    if (remaining <= 0) {
+      const hours = Math.abs(remaining);
+      const days = Math.floor(hours / 24);
+      const rest = Math.floor(hours % 24);
+      return `${days}일 ${rest}시간 초과`;
+    }
+
+    const days = Math.floor(remaining / 24);
+    const hours = Math.floor(remaining % 24);
+    return `${days}일 ${hours}시간 남음`;
+  }
+
+  function renderSummary(summary) {
+    ensureMenuItem();
+    const alertButton = ensureMainAlert();
+    const badge = document.getElementById("blowerHistoryMenuBadge");
+    const alertCount = Math.max(0, Number(summary?.alertCount || 0));
+
+    if (badge) {
+      badge.hidden = alertCount === 0;
+      badge.textContent = String(alertCount);
+    }
+
+    if (!alertButton) {
+      return;
+    }
+
+    if (alertCount === 0) {
+      alertButton.hidden = true;
+      alertButton.classList.remove("is-warning", "is-critical", "is-overdue");
+      return;
+    }
+
+    const strongest = String(summary?.strongestSeverity || "warning");
+    const first = Array.isArray(summary?.alerts) ? summary.alerts[0] : null;
+    const label = document.getElementById("blowerHistoryMainAlertLabel");
+    const text = document.getElementById("blowerHistoryMainAlertText");
+    const count = document.getElementById("blowerHistoryMainAlertCount");
+
+    alertButton.hidden = false;
+    alertButton.classList.remove("is-warning", "is-critical", "is-overdue");
+    alertButton.classList.add(`is-${strongest}`);
+
+    if (label) {
+      label.textContent =
+        strongest === "overdue"
+          ? "BLOWER 교체주기 초과"
+          : strongest === "critical"
+            ? "BLOWER 교체 임박"
+            : "BLOWER 교체 예정";
+    }
+
+    if (text) {
+      text.textContent = first
+        ? `${first.displayName} · ${formatRemaining(first)}`
+        : `교체 확인이 필요한 Blower ${alertCount}대`;
+    }
+
+    if (count) {
+      count.textContent = String(alertCount);
+    }
+  }
+
+  async function refreshSummary() {
+    const token = getSessionToken();
+
+    if (!token) {
+      hasLoadedSummary = false;
+      return;
+    }
+
+    try {
+      const response = await fetch(BLOWER_HISTORY_API_URL, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        cache: "no-store"
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const result = await response.json();
+
+      if (result?.ok === false) {
+        return;
+      }
+
+      hasLoadedSummary = true;
+      renderSummary(result);
+    } catch (error) {
+      console.warn("Blower 교체 알림 조회 실패:", error);
+    }
+  }
+
+  function initialize() {
+    ensureLauncherStyle();
+    ensureMenuItem();
+    ensureMainAlert();
+    refreshSummary();
+
+    pendingRetryTimer = window.setInterval(() => {
+      ensureMenuItem();
+
+      if (!hasLoadedSummary && getSessionToken()) {
+        refreshSummary();
+      }
+    }, 5000);
+
+    window.setInterval(refreshSummary, 10 * 60 * 1000);
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        refreshSummary();
+      }
+    });
+
+    window.addEventListener("storage", event => {
+      if (event.key === AUTH_STORAGE_KEY) {
+        hasLoadedSummary = false;
+        refreshSummary();
+      }
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initialize, { once: true });
+  } else {
+    initialize();
+  }
+})();
