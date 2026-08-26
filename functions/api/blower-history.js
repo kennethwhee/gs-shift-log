@@ -145,7 +145,7 @@ const COMPONENT_REPLACEMENT_KEYWORDS = [
   "볼트"
 ];
 
-const HISTORY_BACKFILL_ID = "shift_logs_full_v4";
+const HISTORY_BACKFILL_ID = "shift_logs_full_v5";
 const HISTORY_BACKFILL_START_DATE = "2021-01-01";
 const HISTORY_BACKFILL_BATCH_SIZE = 200;
 
@@ -676,7 +676,7 @@ async function loadSettings(database) {
 }
 
 async function loadEvents(database, limit = 300) {
-  const safeLimit = Math.max(1, Math.min(5000, Number(limit) || 300));
+  const safeLimit = Math.max(1, Math.min(10000, Number(limit) || 300));
 
   const result = await database
     .prepare(`
@@ -984,7 +984,7 @@ function buildMissingSlotDetails(assetStates) {
 async function buildFullData(database, user) {
   const settings = await loadSettings(database);
   const assets = await loadAssetStates(database, settings);
-  const events = await loadEvents(database, 2000);
+  const events = await loadEvents(database, 10000);
   const candidates = await loadCandidates(database, "pending", 300);
   const settingHistory = await loadSettingHistory(database, 60);
   const backfill = await loadBackfillState(database);
@@ -1782,34 +1782,64 @@ async function ensureDiscoveredAssets(database, text, assets) {
   }
 }
 
-function detectUnitNo(text) {
+function detectUnitNos(text) {
   const normalized = normalizeText(text);
+  const found = new Set();
 
-  if (/(?:#\s*1(?:\b|호)|1\s*호기|UNIT\s*#?\s*1\b)/i.test(normalized)) {
-    return "1";
+  const patterns = [
+    { unit: "1", regex: /(?:#\s*1(?:\b|호)|1\s*호기|1\s*호\b|UNIT\s*#?\s*1\b|U\s*1\b|#?\s*1\s*BLR\b|1BLR\b)/ig },
+    { unit: "2", regex: /(?:#\s*2(?:\b|호)|2\s*호기|2\s*호\b|UNIT\s*#?\s*2\b|U\s*2\b|#?\s*2\s*BLR\b|2BLR\b)/ig }
+  ];
+
+  for (const item of patterns) {
+    if (item.regex.test(normalized)) found.add(item.unit);
   }
 
-  if (/(?:#\s*2(?:\b|호)|2\s*호기|UNIT\s*#?\s*2\b)/i.test(normalized)) {
-    return "2";
-  }
-
-  return "";
+  return [...found];
 }
 
-function detectPositionLabel(text) {
-  const normalized = normalizeText(text);
+function detectUnitNo(text) {
+  const units = detectUnitNos(text);
+  return units.length === 1 ? units[0] : "";
+}
 
-  for (const position of ["A", "B", "C"]) {
-    const hashPattern = new RegExp(`#\\s*${position}(?:\\b|호|번)`, "i");
-    const blowerPattern = new RegExp(`(?:BLOWER|FAN)\\s*#?\\s*${position}\\b`, "i");
-    const trailingPattern = new RegExp(`\\b${position}\\s*(?:BLOWER|FAN)\\b`, "i");
+function addPositionTokens(raw, output) {
+  const token = normalizeText(raw).toUpperCase();
+  for (const match of token.matchAll(/[ABC]/g)) {
+    output.add(`#${match[0]}`);
+  }
+}
 
-    if (hashPattern.test(normalized) || blowerPattern.test(normalized) || trailingPattern.test(normalized)) {
-      return `#${position}`;
+function detectPositionLabels(text) {
+  const normalized = normalizeText(text).toUpperCase();
+  const found = new Set();
+
+  for (const match of normalized.matchAll(/#\s*([ABC])\b/g)) {
+    found.add(`#${match[1]}`);
+  }
+
+  const equipmentPatterns = [
+    /(?:BLOWER|FAN|블로워|브로워)\s*(?:NO\.?\s*)?(#?\s*[ABC](?:\s*[,/&·+\-]\s*#?\s*[ABC]){0,2})/g,
+    /(#?\s*[ABC](?:\s*[,/&·+\-]\s*#?\s*[ABC]){0,2})\s*(?:BLOWER|FAN|블로워|브로워)/g,
+    /(?:FBHE|SEAL\s*POT|SEALPOT|ORGANIC\s*FUEL|유기성\s*고형연료|FLY\s*ASH\s*BAG\s*FILTER|BAG\s*FILTER\s*AERATION|FLY\s*ASH\s*SILO|SILO\s*AERATION)\s*(?:BLOWER|FAN|블로워|브로워)?\s*(#?\s*[ABC](?:\s*[,/&·+\-]\s*#?\s*[ABC]){0,2})/g
+  ];
+
+  for (const pattern of equipmentPatterns) {
+    for (const match of normalized.matchAll(pattern)) {
+      addPositionTokens(match[1], found);
     }
   }
 
-  return "";
+  for (const [suffix, position] of [["AP611", "#A"], ["AP621", "#B"], ["AP631", "#C"]]) {
+    if (normalized.includes(suffix)) found.add(position);
+  }
+
+  return ["#A", "#B", "#C"].filter(position => found.has(position));
+}
+
+function detectPositionLabel(text) {
+  const positions = detectPositionLabels(text);
+  return positions.length === 1 ? positions[0] : "";
 }
 
 function detectBlowerTypes(text) {
@@ -1825,6 +1855,16 @@ function detectBlowerTypes(text) {
   return matches;
 }
 
+function splitSemanticClauses(text) {
+  const normalized = normalizeText(text);
+  const parts = normalized
+    .split(/\s*(?:\||\r?\n|→|➡|▶|⇒|;|；)\s*/g)
+    .map(item => normalizeText(item))
+    .filter(Boolean);
+
+  return parts.length > 0 ? parts : [normalized];
+}
+
 function hasReplacementPlanContext(text) {
   const normalized = normalizeText(text).toLowerCase();
   const planned = REPLACEMENT_PLAN_KEYWORDS.some(keyword => normalized.includes(keyword.toLowerCase()));
@@ -1832,38 +1872,83 @@ function hasReplacementPlanContext(text) {
   return planned && !completed;
 }
 
-function hasExplicitWholeBlowerReplacement(text) {
+function componentReplacementPhrase(text) {
   const normalized = normalizeText(text).toLowerCase();
-  const equipment = "(?:blower|fan|블로워|브로워)";
-  const position = "(?:\\s*#?\\s*[abc])?";
-  const replacement = "(?:교체|replace(?:ment)?|신품(?:으로)?\\s*(?:교체|취부|설치)?)";
-  const forward = new RegExp(`${equipment}${position}[\\s:;,_\\-]{0,8}${replacement}`, "i");
-  const reverse = new RegExp(`${replacement}[\\s:;,_\\-]{0,8}${equipment}${position}`, "i");
-  return forward.test(normalized) || reverse.test(normalized);
+
+  for (const keyword of COMPONENT_REPLACEMENT_KEYWORDS) {
+    const escaped = keyword.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const forward = new RegExp(`${escaped}.{0,18}(?:교체|replace)`, "i");
+    const reverse = new RegExp(`(?:교체|replace).{0,18}${escaped}`, "i");
+    if (forward.test(normalized) || reverse.test(normalized)) return true;
+  }
+
+  return false;
+}
+
+function hasExplicitWholeBlowerReplacement(text) {
+  const normalized = normalizeText(text);
+  const equipment = "(?:BLOWER|FAN|블로워|브로워)";
+  const positionList = "(?:\\s*#?\\s*[ABC](?:\\s*[,/&·+]\\s*#?\\s*[ABC]){0,2})?";
+  const bodyWord = "(?:\\s*(?:본체|ASSY|ASSEMBLY|SET))?";
+  const action = "(?:교체(?:\\s*(?:완료|실시|시행|함|하였))?|REPLACE(?:MENT|D)?|취외|취부|신품\\s*(?:교체|취부|설치)?)";
+  const direct = new RegExp(`${equipment}${positionList}${bodyWord}\\s*${action}`, "i");
+  const reverse = new RegExp(`${action}\\s*${bodyWord}\\s*${equipment}${positionList}`, "i");
+  return direct.test(normalized) || reverse.test(normalized);
+}
+
+function hasDirectTagReplacement(text) {
+  const normalized = normalizeText(text);
+  if (extractRecognizedBlowerTags(normalized).length === 0) return false;
+  if (!hasReplacementKeyword(normalized)) return false;
+  if (hasReplacementPlanContext(normalized)) return false;
+  if (componentReplacementPhrase(normalized) && !hasExplicitWholeBlowerReplacement(normalized)) return false;
+  return true;
+}
+
+function hasContextualBlowerReplacement(text) {
+  const normalized = normalizeText(text);
+  if (!hasReplacementKeyword(normalized)) return false;
+  if (hasReplacementPlanContext(normalized)) return false;
+
+  const types = detectBlowerTypes(normalized);
+  const positions = detectPositionLabels(normalized);
+  const units = detectUnitNos(normalized);
+  const hasBlowerWord = /(?:blower|fan|블로워|브로워)/i.test(normalized);
+  const hasShortTag = /\b(?:AP(?:611|621|631)|AN(?:611|621|631)|AN(?:001|002)|AN(?:601|602))\b/i.test(normalized);
+
+  if (types.length !== 1) return false;
+  if (positions.length === 0 && !hasShortTag) return false;
+  if (units.length > 1) return false;
+
+  if (componentReplacementPhrase(normalized) && !hasExplicitWholeBlowerReplacement(normalized)) {
+    return false;
+  }
+
+  return hasBlowerWord || positions.length > 0 || hasShortTag;
+}
+
+function hasActualBlowerReplacementSignal(text) {
+  for (const clause of splitSemanticClauses(text)) {
+    if (!hasReplacementKeyword(clause)) continue;
+    if (hasReplacementPlanContext(clause)) continue;
+
+    if (hasDirectTagReplacement(clause)) return true;
+    if (hasExplicitWholeBlowerReplacement(clause)) return true;
+    if (hasContextualBlowerReplacement(clause)) return true;
+  }
+
+  return false;
 }
 
 function hasComponentReplacementContext(text) {
-  const normalized = normalizeText(text).toLowerCase();
-  if (hasExplicitWholeBlowerReplacement(normalized)) return false;
-
-  return COMPONENT_REPLACEMENT_KEYWORDS.some(keyword => {
-    const componentIndex = normalized.indexOf(keyword.toLowerCase());
-    if (componentIndex < 0) return false;
-
-    const replacementIndex = normalized.indexOf("교체");
-    const replaceIndex = normalized.indexOf("replace");
-    const nearest = [replacementIndex, replaceIndex]
-      .filter(index => index >= 0)
-      .reduce((best, index) => Math.min(best, Math.abs(index - componentIndex)), Infinity);
-
-    return nearest <= 35;
-  });
+  if (hasActualBlowerReplacementSignal(text)) return false;
+  return splitSemanticClauses(text).some(componentReplacementPhrase);
 }
 
 function findAssetMatches(fragment, assets) {
   const compact = compactEquipmentText(fragment);
-  const unitNo = detectUnitNo(fragment);
-  const positionLabel = detectPositionLabel(fragment);
+  const unitNos = detectUnitNos(fragment);
+  const positions = detectPositionLabels(fragment);
   const typeMatches = detectBlowerTypes(fragment);
   const exact = [];
 
@@ -1883,12 +1968,12 @@ function findAssetMatches(fragment, assets) {
   const contextual = [];
 
   for (const asset of assets) {
-    if (!typeMatches.includes(asset.blower_type)) {
+    if (typeMatches.length !== 1 || !typeMatches.includes(asset.blower_type)) {
       continue;
     }
 
-    if (asset.unit_no !== "shared" && unitNo !== asset.unit_no) {
-      continue;
+    if (asset.unit_no !== "shared") {
+      if (unitNos.length !== 1 || unitNos[0] !== asset.unit_no) continue;
     }
 
     const tag = normalizeText(asset.tag_number).toUpperCase();
@@ -1896,14 +1981,31 @@ function findAssetMatches(fragment, assets) {
     const shortToken = compactEquipmentText(tag.slice(-5));
     const suffixMatched = suffix && compact.includes(suffix);
     const shortMatched = shortToken && compact.includes(shortToken);
-    const positionMatched = positionLabel && positionLabel === asset.position_label;
+    const positionMatched = positions.includes(asset.position_label);
 
     if (suffixMatched || shortMatched || positionMatched) {
-      contextual.push({ asset, strong: true, reason: "type_unit_context" });
+      contextual.push({ asset, strong: true, reason: positionMatched ? "content_type_unit_position" : "type_unit_context" });
     }
   }
 
   return contextual;
+}
+
+function isGroupedContextReference(fragment, matches) {
+  if (matches.length < 2) return false;
+  const types = detectBlowerTypes(fragment);
+  const units = detectUnitNos(fragment);
+  const positions = detectPositionLabels(fragment);
+  if (types.length !== 1 || positions.length < 2) return false;
+  if (matches.some(match => match.asset.blower_type !== types[0])) return false;
+
+  const nonShared = matches.filter(match => match.asset.unit_no !== "shared");
+  if (nonShared.length > 0) {
+    if (units.length !== 1 || nonShared.some(match => match.asset.unit_no !== units[0])) return false;
+  }
+
+  const matchedPositions = new Set(matches.map(match => match.asset.position_label));
+  return positions.every(position => matchedPositions.has(position));
 }
 
 async function upsertHistoricalReference(database, row, tagNumber, sourceText, referenceKind = "mention") {
@@ -1961,26 +2063,29 @@ function detectedEventSpecs(fragment) {
       detectedType: "replacement",
       issueType: issueType || "정기주기",
       actionType: "교체",
-      autoEligible: !hasReplacementPlanContext(fragment) && !hasComponentReplacementContext(fragment)
+      autoEligible: hasActualBlowerReplacementSignal(fragment)
     });
   }
 
   return specs;
 }
 
-function resolveHistoricalMatch(fragment, matches, spec) {
-  if (matches.length === 1) return matches[0];
-  if (matches.length === 0 || !fragment.includes("|")) return null;
+function resolveHistoricalMatches(fragment, matches, spec) {
+  if (matches.length === 1) return [matches[0]];
+  if (matches.length === 0) return [];
 
-  if (spec.detectedType === "replacement" && spec.issueType && spec.issueType !== "정기주기") {
-    const problemMatch = resolveHistoricalMatch(fragment, matches, {
-      detectedType: "problem",
-      issueType: spec.issueType,
-      actionType: "확인",
-      autoEligible: true
-    });
-    if (problemMatch) return problemMatch;
+  const exactOnly = matches.every(match => match.reason === "full_tag");
+  if (exactOnly) {
+    const types = new Set(matches.map(match => match.asset.blower_type));
+    const units = new Set(matches.map(match => match.asset.unit_no));
+    if (types.size === 1 && units.size === 1) return matches;
   }
+
+  if (isGroupedContextReference(fragment, matches)) {
+    return matches;
+  }
+
+  if (!fragment.includes("|")) return [];
 
   const segments = fragment
     .split("|")
@@ -1995,7 +2100,7 @@ function resolveHistoricalMatch(fragment, matches, spec) {
     }
   }
 
-  if (eventIndexes.length === 0) return null;
+  if (eventIndexes.length === 0) return [];
 
   const scored = [];
   for (const match of matches) {
@@ -2020,9 +2125,9 @@ function resolveHistoricalMatch(fragment, matches, spec) {
   }
 
   scored.sort((a, b) => a.distance - b.distance);
-  if (scored.length === 0 || scored[0].distance > 2) return null;
-  if (scored.length > 1 && scored[0].distance === scored[1].distance) return null;
-  return scored[0].match;
+  if (scored.length === 0 || scored[0].distance > 2) return [];
+  if (scored.length > 1 && scored[0].distance === scored[1].distance) return [];
+  return [scored[0].match];
 }
 
 async function findExistingDetection(database, row, tagNumber, detectedType) {
@@ -2131,7 +2236,7 @@ async function insertDetectionCandidate(database, row, tagNumber, spec, status, 
 
   const now = new Date().toISOString();
   const fingerprint = fingerprintText(
-    ["v4", row.id, row.work_date, tagNumber, spec.detectedType].join("||")
+    ["v5", row.id, row.work_date, tagNumber, spec.detectedType].join("||")
   );
   const id = crypto.randomUUID();
 
@@ -2317,13 +2422,18 @@ async function processHistoricalLog(database, row, assets) {
     await ensureDiscoveredAssets(database, fragment, assets);
 
     const matches = findAssetMatches(fragment, assets);
-    if (matches.length === 1 && matches[0].strong) {
+    const referenceMatches = matches.length === 1
+      ? matches
+      : (isGroupedContextReference(fragment, matches) ? matches : []);
+
+    for (const referenceMatch of referenceMatches) {
+      if (!referenceMatch.strong) continue;
       await upsertHistoricalReference(
         database,
         row,
-        matches[0].asset.tag_number,
+        referenceMatch.asset.tag_number,
         fragment,
-        matches[0].reason || "context"
+        referenceMatch.reason || "content_context"
       );
     }
 
@@ -2333,45 +2443,47 @@ async function processHistoricalLog(database, row, assets) {
     }
 
     for (const spec of specs) {
-      const match = resolveHistoricalMatch(fragment, matches, spec);
-      if (!match || !match.strong) continue;
+      const resolvedMatches = resolveHistoricalMatches(fragment, matches, spec)
+        .filter(match => match && match.strong);
 
-      const eventKey = `${row.id}::${match.asset.tag_number}::${spec.detectedType}`;
+      for (const match of resolvedMatches) {
+        const eventKey = `${row.id}::${match.asset.tag_number}::${spec.detectedType}`;
 
-      if (seen.has(eventKey)) {
-        continue;
+        if (seen.has(eventKey)) {
+          continue;
+        }
+
+        seen.add(eventKey);
+        const sourceRow = { ...row, sourceText: fragment };
+        const detection = await insertDetectionCandidate(
+          database,
+          sourceRow,
+          match.asset.tag_number,
+          spec,
+          "auto_confirmed",
+          new Date().toISOString()
+        );
+
+        if (detection.alreadyEvent) {
+          continue;
+        }
+
+        const candidate = detection.candidate;
+
+        if (!candidate || (["confirmed", "excluded"].includes(candidate.status) && !detection.inserted)) {
+          continue;
+        }
+
+        const result = await insertHistoricalEvent(database, sourceRow, candidate, spec);
+        if (result.inserted) autoEvents += 1;
       }
-
-      seen.add(eventKey);
-      const sourceRow = { ...row, sourceText: fragment };
-      const detection = await insertDetectionCandidate(
-        database,
-        sourceRow,
-        match.asset.tag_number,
-        spec,
-        "auto_confirmed",
-        new Date().toISOString()
-      );
-
-      if (detection.alreadyEvent) {
-        continue;
-      }
-
-      const candidate = detection.candidate;
-
-      if (!candidate || (["confirmed", "excluded"].includes(candidate.status) && !detection.inserted)) {
-        continue;
-      }
-
-      const result = await insertHistoricalEvent(database, sourceRow, candidate, spec);
-      if (result.inserted) autoEvents += 1;
     }
   }
 
   return { autoEvents, pending: 0 };
 }
 
-async function resetHistoricalAutoDataForV4(database, today) {
+async function resetHistoricalAutoDataForV5(database, today) {
   const now = new Date().toISOString();
 
   await database.batch([
@@ -2421,7 +2533,7 @@ async function initializeBackfillRun(database, today) {
   const now = new Date().toISOString();
 
   if (!state) {
-    await resetHistoricalAutoDataForV4(database, today);
+    await resetHistoricalAutoDataForV5(database, today);
 
     await database
       .prepare(`
@@ -2661,18 +2773,26 @@ async function scanShiftLogs(database, user, body) {
       continue;
     }
 
-    const fragments = [...collectObjectTextFragments(parsed)];
+    const fragments = [...new Set([
+      ...collectHistoricalFragments(parsed),
+      ...collectObjectTextFragments(parsed)
+    ])];
     const seen = new Set();
 
     for (const fragment of fragments) {
+      await ensureDiscoveredAssets(database, fragment, assets);
       const specs = detectedEventSpecs(fragment);
       if (specs.length === 0) continue;
 
       const matches = findAssetMatches(fragment, assets);
       if (matches.length === 0) continue;
 
-      for (const match of matches) {
-        for (const spec of specs) {
+      for (const spec of specs) {
+        const resolved = spec.autoEligible
+          ? resolveHistoricalMatches(fragment, matches, spec)
+          : (matches.length === 1 || isGroupedContextReference(fragment, matches) ? matches : []);
+
+        for (const match of resolved) {
           const key = `${row.id}::${match.asset.tag_number}::${spec.detectedType}`;
           if (seen.has(key)) continue;
           seen.add(key);

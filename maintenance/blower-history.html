@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="GS Shift Log Blower 교체 이력 관리">
   <title>Blower 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260826-v4">
-  <script src="blower-history.js?v=20260826-v4" defer></script>
+  <link rel="stylesheet" href="blower-history.css?v=20260826-v5">
+  <script src="blower-history.js?v=20260826-v5" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -75,6 +75,26 @@
             </button>
           </section>
 
+          <section class="average-panel">
+            <div class="average-heading">
+              <div>
+                <span class="settings-label">평균 교체주기</span>
+                <strong id="averageHeadline">계산 중</strong>
+                <small id="averageSubline">실제 교체일과 다음 교체일 사이의 달력 일수를 계산합니다.</small>
+              </div>
+              <div class="average-controls" aria-label="평균 교체주기 계산기간">
+                <span>최근</span>
+                <input type="number" id="averagePeriodValue" min="1" max="120" step="1" value="12" inputmode="numeric" aria-label="평균 계산 기간">
+                <select id="averagePeriodUnit" aria-label="평균 계산 기간 단위">
+                  <option value="months" selected>개월</option>
+                  <option value="years">년</option>
+                </select>
+              </div>
+            </div>
+            <div class="average-metrics" id="averageMetrics"></div>
+            <div class="average-assets" id="averageAssets"></div>
+          </section>
+
           <section class="missing-tags" id="missingTagsNotice" hidden></section>
 
           <section class="asset-section">
@@ -138,7 +158,7 @@
               <div>
                 <p class="eyebrow">SHIFT LOG DETECTION</p>
                 <h2>업무일지 자동감지</h2>
-                <p>과거 업무일지는 명확한 설비와 실제 문제·교체 기록을 자동 이력화하고, 애매한 내용만 검토 대상으로 남깁니다.</p>
+                <p>TAG뿐 아니라 호기, Blower 종류, #A/#B/#C와 업무내용의 교체·문제 문맥을 함께 읽어 이력화합니다.</p>
               </div>
               <div class="scan-controls">
                 <label>
@@ -155,7 +175,7 @@
               </div>
             </div>
             <div class="detect-guide">
-              과거 기록은 오늘 기준까지 자동 반영됩니다. 교체 예정·계획처럼 실제 교체 여부가 애매한 문장은 검토 대기에 남습니다. 과거 자동반영의 당시 운전시간은 이전 교체일과의 경과시간을 기준으로 표시됩니다.
+              과거 기록은 오늘 기준까지 자동 반영됩니다. Blower 본체 교체와 Oil/Bearing/Filter 등 부품 교체를 구분하고, #B,C처럼 여러 설비가 한 문장에 적힌 경우에도 각각 연결합니다. 교체 예정·계획처럼 실제 교체 여부가 애매한 문장은 검토 대기에 남습니다.
             </div>
             <div class="candidate-list" id="candidateList"></div>
             <div class="empty-state" id="candidateEmpty">검토 대기 중인 자동감지 후보가 없습니다.</div>

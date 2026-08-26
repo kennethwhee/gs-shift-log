@@ -3,6 +3,7 @@
 (() => {
   const API_URL = "/api/blower-history";
   const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
+  const AVERAGE_PERIOD_STORAGE_KEY = "gsShiftLog.blowerHistory.averagePeriod";
 
   const state = {
     data: null,
@@ -32,6 +33,12 @@
       "settingsUpdated",
       "settingsButton",
       "missingTagsNotice",
+      "averageHeadline",
+      "averageSubline",
+      "averagePeriodValue",
+      "averagePeriodUnit",
+      "averageMetrics",
+      "averageAssets",
       "activeTypeTitle",
       "assetGroups",
       "historyFilter",
@@ -479,6 +486,141 @@
     `;
   }
 
+  function readAveragePeriod() {
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem(AVERAGE_PERIOD_STORAGE_KEY) || "null");
+    } catch {
+      saved = null;
+    }
+
+    const value = Math.max(1, Math.min(120, Number(saved?.value || elements.averagePeriodValue?.value || 12) || 12));
+    const unit = saved?.unit === "years" ? "years" : "months";
+    return { value: Math.round(value), unit };
+  }
+
+  function applySavedAveragePeriod() {
+    if (!elements.averagePeriodValue || !elements.averagePeriodUnit) return;
+    const period = readAveragePeriod();
+    elements.averagePeriodValue.value = String(period.value);
+    elements.averagePeriodUnit.value = period.unit;
+  }
+
+  function saveAveragePeriod() {
+    if (!elements.averagePeriodValue || !elements.averagePeriodUnit) return;
+    const value = Math.max(1, Math.min(120, Number(elements.averagePeriodValue.value) || 1));
+    const unit = elements.averagePeriodUnit.value === "years" ? "years" : "months";
+    elements.averagePeriodValue.value = String(Math.round(value));
+    localStorage.setItem(AVERAGE_PERIOD_STORAGE_KEY, JSON.stringify({ value: Math.round(value), unit }));
+  }
+
+  function getAverageWindowStart(period) {
+    const start = new Date();
+    if (period.unit === "years") {
+      start.setFullYear(start.getFullYear() - period.value);
+    } else {
+      start.setMonth(start.getMonth() - period.value);
+    }
+    return start;
+  }
+
+  function buildReplacementIntervals() {
+    const period = readAveragePeriod();
+    const windowStart = getAverageWindowStart(period);
+    const now = new Date();
+    const grouped = new Map();
+
+    for (const event of state.data?.events || []) {
+      if (event.blowerType !== state.activeType || event.eventType !== "replacement") continue;
+      const parsed = new Date(event.eventDate);
+      if (Number.isNaN(parsed.getTime())) continue;
+      if (!grouped.has(event.tagNumber)) grouped.set(event.tagNumber, []);
+      grouped.get(event.tagNumber).push({ event, parsed });
+    }
+
+    const intervals = [];
+    const perAsset = new Map();
+
+    for (const [tagNumber, replacements] of grouped.entries()) {
+      replacements.sort((a, b) => a.parsed - b.parsed);
+      for (let index = 1; index < replacements.length; index += 1) {
+        const previous = replacements[index - 1];
+        const current = replacements[index];
+        if (current.parsed < windowStart || current.parsed > now) continue;
+        const days = (current.parsed.getTime() - previous.parsed.getTime()) / 86400000;
+        if (!(days > 0 && days < 3650)) continue;
+
+        const item = {
+          tagNumber,
+          days,
+          from: previous.event.eventDate,
+          to: current.event.eventDate
+        };
+        intervals.push(item);
+        if (!perAsset.has(tagNumber)) perAsset.set(tagNumber, []);
+        perAsset.get(tagNumber).push(item);
+      }
+    }
+
+    return { period, windowStart, intervals, perAsset };
+  }
+
+  function averageOf(values) {
+    if (!values.length) return null;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }
+
+  function formatAverageDays(value) {
+    return Number.isFinite(value)
+      ? `${value.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}일`
+      : "-";
+  }
+
+  function renderAverageStats() {
+    if (!elements.averageHeadline || !elements.averageMetrics || !elements.averageAssets) return;
+
+    const { period, intervals, perAsset } = buildReplacementIntervals();
+    const periodLabel = `최근 ${period.value}${period.unit === "years" ? "년" : "개월"}`;
+    const days = intervals.map(item => item.days);
+    const average = averageOf(days);
+
+    if (!days.length) {
+      elements.averageHeadline.textContent = `${periodLabel} · 계산 가능한 연속 교체 이력 없음`;
+      elements.averageMetrics.innerHTML = `
+        <div class="average-metric"><span>평균</span><strong>-</strong></div>
+        <div class="average-metric"><span>표본</span><strong>0회</strong></div>
+        <div class="average-metric"><span>최단</span><strong>-</strong></div>
+        <div class="average-metric"><span>최장</span><strong>-</strong></div>
+      `;
+    } else {
+      elements.averageHeadline.textContent = `${periodLabel} · 평균 ${formatAverageDays(average)}`;
+      elements.averageMetrics.innerHTML = `
+        <div class="average-metric primary"><span>평균 교체주기</span><strong>${escapeHtml(formatAverageDays(average))}</strong></div>
+        <div class="average-metric"><span>표본</span><strong>${days.length.toLocaleString("ko-KR")}회</strong></div>
+        <div class="average-metric"><span>최단</span><strong>${escapeHtml(formatAverageDays(Math.min(...days)))}</strong></div>
+        <div class="average-metric"><span>최장</span><strong>${escapeHtml(formatAverageDays(Math.max(...days)))}</strong></div>
+      `;
+    }
+
+    const assets = getActiveAssets()
+      .slice()
+      .sort((a, b) => Number(a.sortOrder) - Number(b.sortOrder));
+
+    elements.averageAssets.innerHTML = assets
+      .map(asset => {
+        const assetIntervals = perAsset.get(asset.tagNumber) || [];
+        const assetAverage = averageOf(assetIntervals.map(item => item.days));
+        return `
+          <div class="average-asset-row">
+            <span><strong>${escapeHtml(asset.unitNo === "shared" ? "공용" : `#${asset.unitNo}호기`)} ${escapeHtml(asset.positionLabel)}</strong><small>${escapeHtml(asset.tagNumber)}</small></span>
+            <strong>${escapeHtml(formatAverageDays(assetAverage))}</strong>
+            <em>${assetIntervals.length}회</em>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
   function historySourceLabel(event) {
     if (event.sourceType === "shift_log_history_auto") {
       return "업무일지 과거 자동반영";
@@ -590,6 +732,7 @@
     renderTypeTabs();
     renderSummary();
     renderSettings();
+    renderAverageStats();
     renderMissingTags();
     renderAssets();
     renderHistory();
@@ -951,6 +1094,15 @@
     });
 
     elements.historyFilter.addEventListener("change", renderHistory);
+
+    elements.averagePeriodValue.addEventListener("change", () => {
+      saveAveragePeriod();
+      renderAverageStats();
+    });
+    elements.averagePeriodUnit.addEventListener("change", () => {
+      saveAveragePeriod();
+      renderAverageStats();
+    });
     elements.settingsButton.addEventListener("click", openSettingsDialog);
     elements.refreshButton.addEventListener("click", () => loadData());
     elements.scanButton.addEventListener("click", scanShiftLogs);
@@ -992,6 +1144,7 @@
 
   async function initialize() {
     cacheElements();
+    applySavedAveragePeriod();
     bindEvents();
     switchSubview("overview");
     await loadData();
