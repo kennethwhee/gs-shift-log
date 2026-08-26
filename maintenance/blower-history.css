@@ -82,6 +82,12 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .button.primary { background: var(--primary); color: #fff; }
 .button.secondary { background: #fff; border-color: #cbd4dd; color: #334454; }
 .button.danger-ghost { background: #fff; border-color: #e5b9bf; color: var(--overdue); }
+.audit-history-button { min-width: 88px; }
+.audit-history-button.is-running {
+  border-color: #7eaed9;
+  background: var(--primary-soft);
+  color: #0f578f;
+}
 
 .notice-bar {
   margin-bottom: 12px;
@@ -591,12 +597,13 @@ select:focus, input:focus, textarea:focus { border-color: #6ca6d8; box-shadow: 0
 
 @media (max-width: 700px) {
   .page-shell { width: min(100% - 14px, 1540px); padding-top: 10px; }
-  .page-header { align-items: center; margin-bottom: 10px; }
+  .page-header { align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
   .page-description { display: none; }
   .page-header h1 { font-size: 20px; }
   .eyebrow { font-size: 9px; }
   .header-actions { gap: 5px; }
   .header-actions .button { min-height: 34px; padding: 0 9px; font-size: 11px; }
+  .audit-history-button { min-width: 0; }
   .type-tab { min-height: 38px; padding: 0 11px; font-size: 11px; }
   .sub-tabs { min-height: 46px; padding: 5px 6px; }
   .sub-tab { min-height: 34px; padding: 0 10px; font-size: 11px; }

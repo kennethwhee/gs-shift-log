@@ -203,6 +203,14 @@ const HISTORY_BACKFILL_ID = "shift_logs_approved_canonical_replacements_v9";
 const HISTORY_BACKFILL_START_DATE = "2021-01-01";
 const HISTORY_BACKFILL_BATCH_SIZE = 200;
 const HISTORY_BACKFILL_STALE_LEASE_MS = 2 * 60 * 1000;
+const HISTORY_AUDIT_VERSION = "blower_vbelt_missing_history_audit_v11";
+const HISTORY_AUDIT_BATCH_SIZE = 200;
+
+const HISTORY_AUDIT_SOURCE_ORDER = [
+  "shift_logs",
+  "legacy_logs",
+  "event_archive"
+];
 
 const DUPLICATE_SIMILARITY_THRESHOLD = 0.70;
 
@@ -1730,6 +1738,14 @@ function fragmentIdentityText(fragment) {
   return "";
 }
 
+function fragmentSourceRole(fragment) {
+  if (fragment && typeof fragment === "object" && !Array.isArray(fragment)) {
+    return normalizeDutyPosition(fragment.sourceRole);
+  }
+
+  return "";
+}
+
 function fragmentSourceTime(fragment) {
   if (fragment && typeof fragment === "object" && !Array.isArray(fragment)) {
     return normalizeCanonicalEntryTime(fragment.sourceTime);
@@ -1748,6 +1764,7 @@ function fragmentAnalysisText(fragment) {
 function fragmentStableKey(fragment) {
   return [
     compactEquipmentText(fragmentIdentityText(fragment)),
+    fragmentSourceRole(fragment),
     fragmentSourceTime(fragment),
     normalizeSimilarityText(fragmentSourceText(fragment))
   ].join("::");
@@ -1850,16 +1867,18 @@ function collectCanonicalShiftLogFragments(parsedLog, row) {
   const usedEntries = new Set();
   const usedFragments = new Set();
 
-  for (const collectionName of CANONICAL_SHIFT_LOG_ENTRY_COLLECTIONS) {
-    const collection = parsedLog?.[collectionName];
-    if (!Array.isArray(collection)) continue;
-
-    collection.forEach((rawEntry, entryIndex) => {
+  const appendEntry = (rawEntry, collectionName, entryIndex) => {
       const entry = rawEntry && typeof rawEntry === "object" && !Array.isArray(rawEntry)
         ? rawEntry
         : { content: String(rawEntry || "") };
       const content = normalizeText(
-        entry.content || entry.text || entry.description || entry.value
+        entry.content ||
+        entry.text ||
+        entry.description ||
+        entry.value ||
+        entry.note ||
+        entry.remark ||
+        entry.remarks
       );
 
       if (!content) return;
@@ -1884,6 +1903,8 @@ function collectCanonicalShiftLogFragments(parsedLog, row) {
       const structuredTags = extractRecognizedBlowerTags(
         entry.tag || entry.tagNumber || entry.equipmentTag || ""
       );
+      const contentTags = extractRecognizedBlowerTags(content);
+      const entryContentTag = contentTags.length === 1 ? contentTags[0] : "";
       const structuredUnitRaw = normalizeText(entry.unitNo || entry.unit || "");
       const structuredUnit = /^[12]$/.test(structuredUnitRaw)
         ? structuredUnitRaw
@@ -1894,25 +1915,44 @@ function collectCanonicalShiftLogFragments(parsedLog, row) {
       const entryType = entryTypes.length === 1 ? entryTypes[0] : "";
       const entryUnits = detectUnitNos(content);
       const entryUnit = entryUnits.length === 1 ? entryUnits[0] : "";
+      const entryPositions = detectPositionLabels(content);
+      const entryPosition = entryPositions.length === 1 ? entryPositions[0] : "";
 
       for (const clause of splitCanonicalEntryClauses(content)) {
         const inlineTime = normalizeCanonicalEntryTime(clause);
         const evidence = clause;
+        const explicitTags = extractRecognizedBlowerTags(evidence);
         const explicitUnits = detectUnitNos(evidence);
         const explicitTypes = detectBlowerTypes(evidence);
-        const trustedUnit = structuredTags.length > 0 || explicitUnits.length > 0
+        const explicitPositions = detectPositionLabels(evidence);
+        const inheritedContentTag = (
+          structuredTags.length === 0 &&
+          explicitTags.length === 0 &&
+          entryContentTag
+        )
+          ? entryContentTag
+          : "";
+        const identityTags = structuredTags.length > 0
+          ? structuredTags
+          : (inheritedContentTag ? [inheritedContentTag] : []);
+        const trustedUnit = identityTags.length > 0 || explicitUnits.length > 0
           ? ""
           : (structuredUnit || entryUnit || roleUnit);
-        const trustedType = structuredTags.length > 0 || explicitTypes.length > 0
+        const trustedType = identityTags.length > 0 || explicitTypes.length > 0
           ? ""
           : entryType;
+        const trustedPosition = identityTags.length > 0 || explicitPositions.length > 0
+          ? ""
+          : entryPosition;
         const identityText = [
-          structuredTags.join(" "),
+          identityTags.join(" "),
           trustedType ? TYPE_IDENTITY_LABELS[trustedType] : "",
-          trustedUnit ? `#${trustedUnit} BLR` : ""
+          trustedUnit ? `#${trustedUnit} BLR` : "",
+          trustedPosition
         ].filter(Boolean).join(" ");
         const fragmentKey = [
           compactEquipmentText(identityText),
+          sourceRole,
           normalizeSimilarityText(evidence)
         ].join("::");
 
@@ -1921,10 +1961,58 @@ function collectCanonicalShiftLogFragments(parsedLog, row) {
         fragments.push({
           sourceText: evidence,
           identityText,
-          sourceTime: inlineTime || entryTime
+          sourceTime: inlineTime || entryTime,
+          sourceRole
         });
       }
+  };
+
+  for (const collectionName of CANONICAL_SHIFT_LOG_ENTRY_COLLECTIONS) {
+    const collection = parsedLog?.[collectionName];
+    if (!Array.isArray(collection)) continue;
+
+    collection.forEach((rawEntry, entryIndex) => {
+      appendEntry(rawEntry, collectionName, entryIndex);
+
+      if (!rawEntry || typeof rawEntry !== "object" || Array.isArray(rawEntry)) {
+        return;
+      }
+
+      for (const fieldName of ["note", "remark", "remarks"]) {
+        const fieldValue = rawEntry[fieldName];
+        if (typeof fieldValue !== "string" || !normalizeText(fieldValue)) continue;
+
+        appendEntry(
+          {
+            ...rawEntry,
+            id: `${normalizeText(rawEntry.id) || entryIndex}-${fieldName}`,
+            content: fieldValue,
+            text: "",
+            description: "",
+            value: "",
+            note: "",
+            remark: "",
+            remarks: ""
+          },
+          `${collectionName}.${fieldName}`,
+          entryIndex
+        );
+      }
     });
+  }
+
+  for (const fieldName of ["note", "remark", "remarks"]) {
+    const fieldValue = parsedLog?.[fieldName];
+    if (typeof fieldValue !== "string" || !normalizeText(fieldValue)) continue;
+
+    appendEntry(
+      {
+        id: `legacy-${fieldName}`,
+        content: fieldValue
+      },
+      fieldName,
+      0
+    );
   }
 
   return fragments;
@@ -2046,20 +2134,22 @@ function buildRolePriorityContext(rows) {
   const context = new Map();
 
   for (const row of rows || []) {
-    const role = normalizeDutyPosition(row?.role);
-    if (!DUTY_ROLE_HIGHER.has(role)) continue;
-
     const fragments = parseShiftLogFragments(row)
       .filter(isBlowerScanRelevantFragment);
 
     if (fragments.length === 0) continue;
 
-    const key = rolePriorityGroupKey(row, role);
-    if (!context.has(key)) {
-      context.set(key, []);
-    }
+    for (const fragment of fragments) {
+      const role = fragmentSourceRole(fragment) || normalizeDutyPosition(row?.role);
+      if (!DUTY_ROLE_HIGHER.has(role)) continue;
 
-    context.get(key).push(...fragments);
+      const key = rolePriorityGroupKey(row, role);
+      if (!context.has(key)) {
+        context.set(key, []);
+      }
+
+      context.get(key).push(fragment);
+    }
   }
 
   for (const [key, fragments] of context.entries()) {
@@ -2074,50 +2164,30 @@ function buildRolePriorityContext(rows) {
 }
 
 function applyDutyRolePriority(row, fragments, rolePriorityContext) {
-  const role = normalizeDutyPosition(row?.role);
-
-  if (role === "PART_LEADER") {
-    return {
-      fragments: [],
-      excludedPartLeader: true,
-      suppressedDuplicateFragments: 0,
-      role
-    };
-  }
-
-  const higherRole = DUTY_ROLE_SUPERIOR[role];
-
-  if (!higherRole || !rolePriorityContext) {
-    return {
-      fragments,
-      excludedPartLeader: false,
-      suppressedDuplicateFragments: 0,
-      role
-    };
-  }
-
-  const higherFragments =
-    rolePriorityContext.get(rolePriorityGroupKey(row, higherRole)) || [];
-
-  if (higherFragments.length === 0) {
-    return {
-      fragments,
-      excludedPartLeader: false,
-      suppressedDuplicateFragments: 0,
-      role
-    };
-  }
-
+  const containerRole = normalizeDutyPosition(row?.role);
   let suppressedDuplicateFragments = 0;
   const retained = [];
+  let excludedNativePartLeaderFragments = 0;
 
   for (const fragment of fragments) {
+    const role = fragmentSourceRole(fragment) || containerRole;
+
+    if (containerRole === "PART_LEADER" && role === "PART_LEADER") {
+      excludedNativePartLeaderFragments += 1;
+      continue;
+    }
+
+    const higherRole = DUTY_ROLE_SUPERIOR[role];
+    const higherFragments = higherRole && rolePriorityContext
+      ? (rolePriorityContext.get(rolePriorityGroupKey(row, higherRole)) || [])
+      : [];
+
     if (!isBlowerScanRelevantFragment(fragment)) {
       retained.push(fragment);
       continue;
     }
 
-    const duplicated = higherFragments.some(higherFragment =>
+    const duplicated = higherFragments.length > 0 && higherFragments.some(higherFragment =>
       duplicateIdentityCompatible(fragment, higherFragment) &&
       contentSimilarity(fragment, higherFragment) >= DUPLICATE_SIMILARITY_THRESHOLD
     );
@@ -2132,9 +2202,13 @@ function applyDutyRolePriority(row, fragments, rolePriorityContext) {
 
   return {
     fragments: retained,
-    excludedPartLeader: false,
+    excludedPartLeader: (
+      containerRole === "PART_LEADER" &&
+      retained.length === 0 &&
+      excludedNativePartLeaderFragments > 0
+    ),
     suppressedDuplicateFragments,
-    role
+    role: containerRole
   };
 }
 
@@ -2332,7 +2406,41 @@ function classifyRecognizedBlowerTag(tagNumber) {
 function extractRecognizedBlowerTags(text) {
   const compact = compactEquipmentText(text);
   const pattern = /(?:104|204)HHL60AP(?:611|621|631)|(?:104|204)HHL10AN(?:611|621|631)|(?:104|204)SDF01AN(?:001|002)|(?:104|204)ETG30AN(?:601|602)|104ETH03AN(?:601|602)/g;
-  return [...new Set(compact.match(pattern) || [])];
+  const found = new Set(compact.match(pattern) || []);
+  const groupedSource = normalizeText(text)
+    .toUpperCase()
+    .replace(/[\s[\](){}_\-]+/g, "");
+  const groupedFamilies = [
+    { prefix: "(?:104|204)HHL60AP", suffix: "(?:611|621|631)" },
+    { prefix: "(?:104|204)HHL10AN", suffix: "(?:611|621|631)" },
+    { prefix: "(?:104|204)SDF01AN", suffix: "(?:001|002)" },
+    { prefix: "(?:104|204)ETG30AN", suffix: "(?:601|602)" },
+    { prefix: "104ETH03AN", suffix: "(?:601|602)" }
+  ];
+
+  for (const family of groupedFamilies) {
+    const groupPattern = new RegExp(
+      `(${family.prefix})(${family.suffix})((?:[/,&+·](?:${family.prefix})?${family.suffix})+)`,
+      "g"
+    );
+
+    for (const groupMatch of groupedSource.matchAll(groupPattern)) {
+      const basePrefix = groupMatch[1];
+      const firstTag = `${basePrefix}${groupMatch[2]}`;
+      if (classifyRecognizedBlowerTag(firstTag)) found.add(firstTag);
+
+      const tailPattern = new RegExp(
+        `[/,&+·](${family.prefix})?(${family.suffix})`,
+        "g"
+      );
+      for (const tailMatch of groupMatch[3].matchAll(tailPattern)) {
+        const tagNumber = `${tailMatch[1] || basePrefix}${tailMatch[2]}`;
+        if (classifyRecognizedBlowerTag(tagNumber)) found.add(tagNumber);
+      }
+    }
+  }
+
+  return [...found];
 }
 
 async function ensureDiscoveredAssets(database, text, assets) {
@@ -2419,10 +2527,23 @@ function detectPositionLabels(text) {
     found.add(`#${match[1]}`);
   }
 
+  const positionSequence = "(?:#\\s*)?[ABC]\\b(?:\\s*[,/&·+\\-]\\s*(?:#\\s*)?[ABC]\\b){0,2}";
+  const equipmentName = "(?:BLOWER|FAN|블로워|브로워)";
+  const typeName = [
+    "FBHE",
+    "SEAL\\s*POT",
+    "SEALPOT",
+    "ORGANIC\\s*FUEL",
+    "유기성\\s*고형연료",
+    "FLY\\s*ASH\\s*BAG\\s*FILTER(?:\\s*AERATION)?",
+    "BAG\\s*FILTER\\s*AERATION",
+    "FLY\\s*ASH\\s*SILO(?:\\s*AERATION)?",
+    "SILO\\s*AERATION"
+  ].join("|");
   const equipmentPatterns = [
-    /(?:BLOWER|FAN|블로워|브로워)\s*(?:NO\.?\s*)?(#?\s*[ABC](?:\s*[,/&·+\-]\s*#?\s*[ABC]){0,2})/g,
-    /(#?\s*[ABC](?:\s*[,/&·+\-]\s*#?\s*[ABC]){0,2})\s*(?:BLOWER|FAN|블로워|브로워)/g,
-    /(?:FBHE|SEAL\s*POT|SEALPOT|ORGANIC\s*FUEL|유기성\s*고형연료|FLY\s*ASH\s*BAG\s*FILTER|BAG\s*FILTER\s*AERATION|FLY\s*ASH\s*SILO|SILO\s*AERATION)\s*(?:BLOWER|FAN|블로워|브로워)?\s*(#?\s*[ABC](?:\s*[,/&·+\-]\s*#?\s*[ABC]){0,2})/g
+    new RegExp(`${equipmentName}\\s*(?:NO\\.?\\s*)?(${positionSequence})`, "g"),
+    new RegExp(`(?:^|[^A-Z0-9])(${positionSequence})\\s*${equipmentName}`, "g"),
+    new RegExp(`(?:${typeName})\\s*(?:${equipmentName}\\s*)?(?:NO\\.?\\s*)?(${positionSequence})`, "g")
   ];
 
   for (const pattern of equipmentPatterns) {
@@ -2431,7 +2552,12 @@ function detectPositionLabels(text) {
     }
   }
 
-  for (const [suffix, position] of [["AP611", "#A"], ["AP621", "#B"], ["AP631", "#C"]]) {
+  for (const [suffix, position] of [
+    ["AP611", "#A"], ["AP621", "#B"], ["AP631", "#C"],
+    ["AN611", "#A"], ["AN621", "#B"], ["AN631", "#C"],
+    ["AN001", "#A"], ["AN002", "#B"],
+    ["AN601", "#A"], ["AN602", "#B"]
+  ]) {
     if (normalized.includes(suffix)) found.add(position);
   }
 
@@ -2772,6 +2898,37 @@ function findAssetMatches(fragment, assets) {
   }
 
   if (exact.length > 0) {
+    const exactPositionsAreExplicit = exact.every(match =>
+      explicitPositions.includes(match.asset.position_label)
+    );
+    const groupIdentityIsConsistent = (
+      exact.length === 1 &&
+      structuredTags.length === 1 &&
+      explicitPositions.length > 1 &&
+      exactPositionsAreExplicit &&
+      explicitTypeMatches.length === 1 &&
+      explicitTypeMatches[0] === exact[0].asset.blower_type &&
+      (
+        exact[0].asset.unit_no === "shared"
+          ? explicitUnitNos.length === 0
+          : (explicitUnitNos.length === 1 && explicitUnitNos[0] === exact[0].asset.unit_no)
+      )
+    );
+
+    if (groupIdentityIsConsistent) {
+      const blowerType = exact[0].asset.blower_type;
+      const unitNo = exact[0].asset.unit_no;
+      const exactTags = new Set(exact.map(match => match.asset.tag_number));
+
+      for (const asset of assets) {
+        if (asset.blower_type !== blowerType || asset.unit_no !== unitNo) continue;
+        if (!explicitPositions.includes(asset.position_label)) continue;
+        if (exactTags.has(asset.tag_number)) continue;
+        exact.push({ asset, strong: true, reason: "structured_tag_group_position" });
+        exactTags.add(asset.tag_number);
+      }
+    }
+
     return exact;
   }
 
@@ -2862,7 +3019,9 @@ function resolveHistoricalMatches(fragment, matches, spec) {
 
   const analysisText = fragmentAnalysisText(fragment);
 
-  const exactOnly = matches.every(match => match.reason === "full_tag");
+  const exactOnly = matches.every(match =>
+    ["full_tag", "structured_tag_group_position"].includes(match.reason)
+  );
   if (exactOnly) {
     const types = new Set(matches.map(match => match.asset.blower_type));
     const units = new Set(matches.map(match => match.asset.unit_no));
@@ -4303,6 +4462,505 @@ async function reviewCandidate(database, user, body) {
   });
 }
 
+function normalizeHistoricalAuditCursor(value) {
+  const source = HISTORY_AUDIT_SOURCE_ORDER.includes(normalizeText(value?.source))
+    ? normalizeText(value.source)
+    : HISTORY_AUDIT_SOURCE_ORDER[0];
+  const rowId = Math.max(0, Math.floor(Number(value?.rowId) || 0));
+
+  return { source, rowId };
+}
+
+function nextHistoricalAuditSource(source) {
+  const index = HISTORY_AUDIT_SOURCE_ORDER.indexOf(source);
+  return index >= 0 && index + 1 < HISTORY_AUDIT_SOURCE_ORDER.length
+    ? HISTORY_AUDIT_SOURCE_ORDER[index + 1]
+    : "";
+}
+
+function auditPotentialTagNumbers() {
+  const tags = new Set(ASSET_SEEDS.map(seed => normalizeText(seed[0]).toUpperCase()));
+
+  for (const unitNo of ["1", "2"]) {
+    for (const suffix of ["611", "621", "631"]) {
+      tags.add(`${unitNo}04HHL60AP${suffix}`);
+      tags.add(`${unitNo}04HHL10AN${suffix}`);
+    }
+    for (const suffix of ["001", "002"]) {
+      tags.add(`${unitNo}04SDF01AN${suffix}`);
+    }
+    for (const suffix of ["601", "602"]) {
+      tags.add(`${unitNo}04ETG30AN${suffix}`);
+    }
+  }
+
+  tags.add("104ETH03AN601");
+  tags.add("104ETH03AN602");
+  return [...tags];
+}
+
+function buildHistoricalAuditAssets(storedAssets) {
+  const byTag = new Map();
+
+  for (const asset of storedAssets || []) {
+    const tagNumber = normalizeText(asset?.tag_number).toUpperCase();
+    if (!tagNumber) continue;
+    byTag.set(tagNumber, {
+      ...asset,
+      tag_number: tagNumber,
+      audit_registered: true
+    });
+  }
+
+  for (const tagNumber of auditPotentialTagNumbers()) {
+    if (byTag.has(tagNumber)) continue;
+    const definition = classifyRecognizedBlowerTag(tagNumber);
+    if (!definition) continue;
+    byTag.set(tagNumber, {
+      tag_number: definition.tagNumber,
+      blower_type: definition.blowerType,
+      unit_no: definition.unitNo,
+      position_label: definition.positionLabel,
+      display_name: definition.displayName,
+      sort_order: definition.sortOrder,
+      enabled: 1,
+      audit_registered: false
+    });
+  }
+
+  return [...byTag.values()];
+}
+
+function auditJsonValue(value) {
+  const text = normalizeText(value);
+  if (!text || !/^[\[{]/.test(text)) return null;
+
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function auditIdentityFromObject(value, inheritedIdentity, fallbackRole) {
+  const tagText = [
+    value?.tag,
+    value?.tagNumber,
+    value?.equipmentTag,
+    value?.tag_number
+  ].filter(Boolean).join(" ");
+  const tags = extractRecognizedBlowerTags(tagText);
+  const labelText = [
+    value?.equipmentName,
+    value?.equipment,
+    value?.title,
+    value?.name,
+    value?.category
+  ].filter(Boolean).join(" ");
+  const types = detectBlowerTypes(labelText);
+  const positions = detectPositionLabels(labelText);
+  const explicitUnits = detectUnitNos(labelText);
+  const sourceRole = normalizeDutyPosition(
+    value?.importedFromRole || value?.sourceRole || fallbackRole
+  );
+  const roleUnit = DUTY_ROLE_UNIT[sourceRole] || "";
+
+  return [
+    inheritedIdentity,
+    tags.join(" "),
+    types.length === 1 ? TYPE_IDENTITY_LABELS[types[0]] : "",
+    explicitUnits.length === 1
+      ? `#${explicitUnits[0]} BLR`
+      : (roleUnit ? `#${roleUnit} BLR` : ""),
+    positions.length === 1 ? positions[0] : ""
+  ].filter(Boolean).join(" ");
+}
+
+function collectUnknownHistoricalAuditFragments(value, options = {}) {
+  const fragments = [];
+  const used = new Set();
+  const seenObjects = new WeakSet();
+
+  const appendText = (rawText, identityText, sourceField, sourceRole) => {
+    const text = normalizeText(rawText);
+    if (!text || !hasBeltWord(text)) return;
+
+    for (const clause of splitCanonicalEntryClauses(text)) {
+      if (!hasBeltWord(clause)) continue;
+      const fragment = {
+        sourceText: clause,
+        identityText: normalizeText(identityText),
+        sourceTime: normalizeCanonicalEntryTime(clause),
+        sourceField: normalizeText(sourceField),
+        sourceRole: normalizeDutyPosition(sourceRole || options.role)
+      };
+      const key = [
+        compactEquipmentText(fragment.identityText),
+        normalizeSimilarityText(fragment.sourceText),
+        fragment.sourceField
+      ].join("::");
+      if (used.has(key)) continue;
+      used.add(key);
+      fragments.push(fragment);
+    }
+  };
+
+  const visit = (item, path, inheritedIdentity, inheritedRole) => {
+    if (item == null) return;
+
+    if (typeof item === "string") {
+      const parsed = auditJsonValue(item);
+      if (parsed) {
+        visit(parsed, path, inheritedIdentity, inheritedRole);
+        return;
+      }
+      appendText(item, inheritedIdentity, path, inheritedRole);
+      return;
+    }
+
+    if (typeof item !== "object") return;
+    if (seenObjects.has(item)) return;
+    seenObjects.add(item);
+
+    if (Array.isArray(item)) {
+      item.forEach((entry, index) => {
+        visit(entry, `${path}[${index}]`, inheritedIdentity, inheritedRole);
+      });
+      return;
+    }
+
+    const sourceRole = normalizeDutyPosition(
+      item.importedFromRole || item.sourceRole || inheritedRole || options.role
+    );
+    const identityText = auditIdentityFromObject(
+      item,
+      inheritedIdentity,
+      sourceRole
+    );
+
+    for (const [key, nested] of Object.entries(item)) {
+      if (["status", "author", "authorId", "createdAt", "updatedAt"].includes(key)) {
+        continue;
+      }
+      visit(nested, path ? `${path}.${key}` : key, identityText, sourceRole);
+    }
+  };
+
+  visit(value, options.sourceField || "legacy", options.identityText || "", options.role || "");
+  return fragments;
+}
+
+function historicalAuditReasons(fragment, matches, resolvedMatches) {
+  const analysisText = fragmentAnalysisText(fragment);
+  const reasons = [];
+  const tags = extractRecognizedBlowerTags(analysisText);
+  const types = detectBlowerTypes(analysisText);
+  const units = detectUnitNos(analysisText);
+  const positions = detectPositionLabels(analysisText);
+
+  if (tags.length === 0) reasons.push("전체 TAG 없음");
+  if (types.length === 0) reasons.push("Blower 종류 미인식");
+  if (types.length > 1) reasons.push("Blower 종류가 둘 이상");
+  if (units.length === 0 && !types.includes("flyash_silo")) reasons.push("호기 미인식");
+  if (units.length > 1) reasons.push("호기가 둘 이상");
+  if (positions.length === 0) reasons.push("위치 A/B/C 미인식");
+  if (matches.length > 1 && resolvedMatches.length === 0) reasons.push("복수 설비 귀속 불명확");
+  if (matches.length === 0 && tags.length > 0) reasons.push("TAG와 본문 설비정보 충돌 또는 미등록");
+  return reasons;
+}
+
+function analyzeHistoricalAuditFragment(fragment, row, sourceTable, auditAssets) {
+  const sourceText = fragmentSourceText(fragment);
+  if (!hasBeltWord(sourceText) || !hasReplacementKeyword(sourceText)) return null;
+
+  const specs = detectedEventSpecs(fragment);
+  const matches = findAssetMatches(fragment, auditAssets);
+  const resolved = [];
+
+  for (const spec of specs) {
+    const specMatches = spec.autoEligible
+      ? resolveHistoricalMatches(fragment, matches, spec)
+      : (matches.length === 1 || isGroupedContextReference(fragment, matches) ? matches : []);
+
+    for (const match of specMatches) {
+      if (match?.strong && !resolved.some(item => item.asset.tag_number === match.asset.tag_number)) {
+        resolved.push(match);
+      }
+    }
+  }
+
+  let classification;
+  if (specs.length === 0) {
+    if (
+      hasReplacementPlanContext(sourceText) ||
+      hasReplacementExclusionContext(sourceText) ||
+      hasBeltAccessoryReplacementPhrase(sourceText)
+    ) {
+      classification = "excluded_context";
+    } else {
+      classification = "parser_miss";
+    }
+  } else if (matches.length === 0) {
+    classification = "asset_unmatched";
+  } else if (resolved.length === 0) {
+    classification = "asset_ambiguous";
+  } else if (specs.some(spec => spec.autoEligible)) {
+    classification = resolved.some(match => match.asset.audit_registered === false)
+      ? "confirmed_unregistered_asset"
+      : "confirmed_match";
+  } else {
+    classification = "needs_review";
+  }
+
+  const analysisText = fragmentAnalysisText(fragment);
+  return {
+    key: fingerprintText([
+      HISTORY_AUDIT_VERSION,
+      sourceTable,
+      normalizeText(row?.id || row?.source_log_id || row?.audit_rowid),
+      normalizeSimilarityText(sourceText),
+      normalizeText(fragment?.sourceField)
+    ].join("||")),
+    sourceTable,
+    sourceRowId: Number(row?.audit_rowid || 0),
+    sourceLogId: normalizeText(row?.id || row?.source_log_id),
+    workDate: normalizeText(row?.work_date || row?.event_date).slice(0, 10),
+    shift: normalizeText(row?.shift),
+    role: normalizeDutyPosition(fragment?.sourceRole || row?.role),
+    author: normalizeText(row?.author || row?.created_by_name),
+    sourceField: normalizeText(fragment?.sourceField) || "canonical",
+    sourceTime: fragmentSourceTime(fragment),
+    sourceText,
+    classification,
+    detectedTags: extractRecognizedBlowerTags(analysisText),
+    detectedTypes: detectBlowerTypes(analysisText),
+    detectedUnits: detectUnitNos(analysisText),
+    detectedPositions: detectPositionLabels(analysisText),
+    matchedAssets: resolved.map(match => ({
+      tagNumber: match.asset.tag_number,
+      blowerType: match.asset.blower_type,
+      unitNo: match.asset.unit_no,
+      positionLabel: match.asset.position_label,
+      registered: match.asset.audit_registered !== false,
+      reason: match.reason
+    })),
+    reasons: historicalAuditReasons(fragment, matches, resolved)
+  };
+}
+
+function summarizeHistoricalAuditRecords(records) {
+  const classifications = {};
+  const sourceTables = {};
+
+  for (const record of records || []) {
+    classifications[record.classification] = (classifications[record.classification] || 0) + 1;
+    sourceTables[record.sourceTable] = (sourceTables[record.sourceTable] || 0) + 1;
+  }
+
+  return {
+    relevantRecords: (records || []).length,
+    classifications,
+    sourceTables
+  };
+}
+
+function analyzeHistoricalAuditRows(rows, sourceTable, auditAssets) {
+  const records = [];
+
+  for (const row of rows || []) {
+    let fragments;
+
+    if (sourceTable === "shift_logs") {
+      fragments = parseShiftLogFragments(row);
+    } else if (sourceTable === "legacy_logs") {
+      fragments = collectUnknownHistoricalAuditFragments(row, {
+        sourceField: "legacy_row",
+        role: row?.role
+      });
+    } else {
+      const sourceText = normalizeText(row?.source_text);
+      if (!sourceText) {
+        if (normalizeText(row?.event_type) === "replacement") {
+          records.push({
+            key: fingerprintText([
+              HISTORY_AUDIT_VERSION,
+              sourceTable,
+              normalizeText(row?.id),
+              normalizeText(row?.tag_number),
+              normalizeText(row?.event_date)
+            ].join("||")),
+            sourceTable,
+            sourceRowId: Number(row?.audit_rowid || 0),
+            sourceLogId: normalizeText(row?.source_log_id),
+            workDate: normalizeText(row?.event_date).slice(0, 10),
+            shift: "",
+            role: "",
+            author: normalizeText(row?.created_by_name),
+            sourceField: "archive.source_text",
+            sourceTime: "",
+            sourceText: "",
+            classification: "archive_without_evidence",
+            detectedTags: normalizeText(row?.tag_number) ? [normalizeText(row.tag_number)] : [],
+            detectedTypes: [],
+            detectedUnits: [],
+            detectedPositions: [],
+            matchedAssets: [],
+            reasons: ["V9 이전 자동 이력에 근거 문장 없음"]
+          });
+        }
+        continue;
+      }
+
+      if (!hasBeltWord(sourceText) || !hasReplacementKeyword(sourceText)) {
+        records.push({
+          key: fingerprintText([
+            HISTORY_AUDIT_VERSION,
+            sourceTable,
+            normalizeText(row?.id),
+            normalizeText(row?.tag_number),
+            normalizeText(row?.event_date),
+            normalizeSimilarityText(sourceText)
+          ].join("||")),
+          sourceTable,
+          sourceRowId: Number(row?.audit_rowid || 0),
+          sourceLogId: normalizeText(row?.source_log_id),
+          workDate: normalizeText(row?.event_date).slice(0, 10),
+          shift: "",
+          role: "",
+          author: normalizeText(row?.created_by_name),
+          sourceField: "archive.source_text",
+          sourceTime: "",
+          sourceText,
+          classification: "archive_non_vbelt_evidence",
+          detectedTags: normalizeText(row?.tag_number) ? [normalizeText(row.tag_number)] : [],
+          detectedTypes: detectBlowerTypes(sourceText),
+          detectedUnits: detectUnitNos(sourceText),
+          detectedPositions: detectPositionLabels(sourceText),
+          matchedAssets: [],
+          reasons: ["V9 이전 자동 이력의 근거가 V-Belt 교체 문장이 아님"]
+        });
+        continue;
+      }
+      fragments = [{
+        sourceText,
+        identityText: normalizeText(row?.tag_number),
+        sourceTime: "",
+        sourceField: "archive.source_text",
+        sourceRole: ""
+      }];
+    }
+
+    for (const fragment of fragments || []) {
+      const record = analyzeHistoricalAuditFragment(fragment, row, sourceTable, auditAssets);
+      if (record) records.push(record);
+    }
+  }
+
+  return [...new Map(records.map(record => [record.key, record])).values()];
+}
+
+async function loadHistoricalAuditRows(database, cursor) {
+  if (cursor.source === "shift_logs") {
+    const result = await database
+      .prepare(`
+        SELECT rowid AS audit_rowid, id, work_date, shift, role, author, status, log_json
+        FROM shift_logs
+        WHERE rowid > ?
+          AND work_date >= ?
+          AND status = '결재완료'
+        ORDER BY rowid ASC
+        LIMIT ?
+      `)
+      .bind(cursor.rowId, HISTORY_BACKFILL_START_DATE, HISTORY_AUDIT_BATCH_SIZE)
+      .all();
+    return Array.isArray(result.results) ? result.results : [];
+  }
+
+  if (cursor.source === "legacy_logs") {
+    const result = await database
+      .prepare(`
+        SELECT rowid AS audit_rowid, *
+        FROM legacy_logs
+        WHERE rowid > ?
+          AND work_date >= ?
+          AND (status = '결재완료' OR UPPER(status) = 'APPROVED')
+        ORDER BY rowid ASC
+        LIMIT ?
+      `)
+      .bind(cursor.rowId, HISTORY_BACKFILL_START_DATE, HISTORY_AUDIT_BATCH_SIZE)
+      .all();
+    return Array.isArray(result.results) ? result.results : [];
+  }
+
+  const result = await database
+    .prepare(`
+      SELECT rowid AS audit_rowid, *
+      FROM blower_history_event_archive
+      WHERE rowid > ?
+        AND migration_id = ?
+        AND event_type = 'replacement'
+      ORDER BY rowid ASC
+      LIMIT ?
+    `)
+    .bind(cursor.rowId, HISTORY_BACKFILL_ID, HISTORY_AUDIT_BATCH_SIZE)
+    .all();
+  return Array.isArray(result.results) ? result.results : [];
+}
+
+async function historicalAuditStep(database, body) {
+  const cursor = normalizeHistoricalAuditCursor(body?.cursor);
+  const warnings = [];
+  let rows = [];
+
+  try {
+    rows = await loadHistoricalAuditRows(database, cursor);
+  } catch (error) {
+    warnings.push(`${cursor.source} 조회 실패: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  const storedResult = await database
+    .prepare(`
+      SELECT *
+      FROM blower_history_assets
+      WHERE enabled = 1
+      ORDER BY sort_order ASC, tag_number ASC
+    `)
+    .all();
+  const storedAssets = Array.isArray(storedResult.results) ? storedResult.results : [];
+  const auditAssets = buildHistoricalAuditAssets(storedAssets);
+  const records = analyzeHistoricalAuditRows(rows, cursor.source, auditAssets);
+  const lastRowId = rows.length > 0
+    ? Number(rows[rows.length - 1]?.audit_rowid || cursor.rowId)
+    : cursor.rowId;
+  const sourceComplete = rows.length < HISTORY_AUDIT_BATCH_SIZE;
+  const nextSource = sourceComplete ? nextHistoricalAuditSource(cursor.source) : cursor.source;
+  const done = sourceComplete && !nextSource;
+  const nextCursor = done
+    ? null
+    : {
+        source: nextSource || cursor.source,
+        rowId: sourceComplete ? 0 : lastRowId
+      };
+
+  return jsonResponse({
+    ok: true,
+    readOnly: true,
+    version: HISTORY_AUDIT_VERSION,
+    done,
+    cursor,
+    nextCursor,
+    scannedRows: rows.length,
+    summary: summarizeHistoricalAuditRecords(records),
+    diagnostics: {
+      sourceTable: cursor.source,
+      sourceComplete,
+      warnings
+    },
+    records
+  });
+}
+
 async function handlePost(context, user) {
   let body = {};
 
@@ -4340,6 +4998,17 @@ async function handlePost(context, user) {
     }
 
     return historicalBackfillStep(database);
+  }
+
+  if (action === "historical_audit_step") {
+    if (!user.isSuperAdmin) {
+      return jsonResponse(
+        { ok: false, message: "누락 이력 진단은 최고관리자만 실행할 수 있습니다." },
+        403
+      );
+    }
+
+    return historicalAuditStep(database, body);
   }
 
   if (action === "scan") {

@@ -12,7 +12,8 @@
     historyAssetTag: "",
     subview: "overview",
     busy: false,
-    backfillRunning: false
+    backfillRunning: false,
+    auditRunning: false
   };
 
   const elements = {};
@@ -54,6 +55,7 @@
       "historicalBackfillButton",
       "candidateList",
       "candidateEmpty",
+      "auditHistoryButton",
       "refreshButton",
       "closeButton",
       "recordDialog",
@@ -177,6 +179,54 @@
     }, 3300);
   }
 
+  function isPlainObject(value) {
+    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+  }
+
+  function mergeAuditSummary(current = {}, incoming = {}) {
+    const output = isPlainObject(current) ? { ...current } : {};
+
+    if (!isPlainObject(incoming)) return output;
+
+    for (const [key, value] of Object.entries(incoming)) {
+      if (["__proto__", "prototype", "constructor"].includes(key)) continue;
+
+      const previous = output[key];
+
+      if (typeof value === "number" && Number.isFinite(value)) {
+        output[key] = (typeof previous === "number" && Number.isFinite(previous) ? previous : 0) + value;
+      } else if (Array.isArray(value)) {
+        output[key] = [
+          ...(Array.isArray(previous) ? previous : []),
+          ...value
+        ];
+      } else if (isPlainObject(value)) {
+        output[key] = mergeAuditSummary(isPlainObject(previous) ? previous : {}, value);
+      } else if (value !== undefined) {
+        output[key] = value;
+      }
+    }
+
+    return output;
+  }
+
+  function downloadAuditJson(payload, filename) {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json;charset=utf-8"
+    });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+
+    anchor.href = objectUrl;
+    anchor.download = filename;
+    anchor.hidden = true;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  }
+
   function formatKstDateInput(date = new Date()) {
     const parts = new Intl.DateTimeFormat("ko-KR", {
       timeZone: "Asia/Seoul",
@@ -190,6 +240,24 @@
     );
 
     return `${values.year}-${values.month}-${values.day}`;
+  }
+
+  function formatKstDownloadTimestamp(date = new Date()) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23"
+    }).formatToParts(date);
+    const values = Object.fromEntries(
+      parts.filter(part => part.type !== "literal").map(part => [part.type, part.value])
+    );
+
+    return `${values.year}${values.month}${values.day}-${values.hour}${values.minute}${values.second}`;
   }
 
   function formatDate(value) {
@@ -363,6 +431,10 @@
     }
 
     elements.settingsButton.hidden = !state.data?.user?.isAdmin;
+  }
+
+  function renderHeaderActions() {
+    elements.auditHistoryButton.hidden = !state.data?.user?.isSuperAdmin;
   }
 
   function renderMissingTags() {
@@ -1034,6 +1106,7 @@
   function renderAll() {
     if (!state.data) return;
 
+    renderHeaderActions();
     renderTypeTabs();
     renderStatusFilters();
     renderSettings();
@@ -1051,6 +1124,7 @@
     elements.scanButton.disabled = state.busy || shouldHideAutomaticData();
     elements.historicalBackfillButton.disabled = state.busy || state.backfillRunning;
     elements.overviewBackfillButton.disabled = state.busy || state.backfillRunning;
+    elements.auditHistoryButton.disabled = state.busy || state.backfillRunning || state.auditRunning;
   }
 
   async function loadData(options = {}) {
@@ -1300,7 +1374,8 @@
 
   async function runHistoricalBackfill() {
     if (
-      state.backfillRunning
+      state.busy
+      || state.backfillRunning
       || !getSessionToken()
       || !state.data?.user?.isSuperAdmin
     ) return;
@@ -1319,6 +1394,7 @@
     elements.overviewBackfillButton.textContent = "재구성 중...";
     elements.scanButton.disabled = true;
     elements.refreshButton.disabled = true;
+    elements.auditHistoryButton.disabled = true;
     renderBackfillStatus(state.data?.backfill);
     let lastResult = null;
 
@@ -1358,7 +1434,116 @@
       elements.overviewBackfillButton.textContent = "과거 이력 재구성";
       elements.scanButton.disabled = state.busy;
       elements.refreshButton.disabled = state.busy;
+      elements.auditHistoryButton.disabled = state.busy || state.auditRunning;
       renderBackfillStatus();
+    }
+  }
+
+  async function downloadHistoricalAudit() {
+    if (
+      state.busy
+      || state.backfillRunning
+      || state.auditRunning
+      || !getSessionToken()
+      || !state.data?.user?.isSuperAdmin
+    ) return;
+
+    const startedAt = new Date().toISOString();
+    const records = [];
+    const apiDiagnostics = [];
+    const batches = [];
+    const visitedCursors = new Set();
+    let aggregateSummary = {};
+    let cursor = null;
+    let completed = false;
+    let scannedRows = 0;
+
+    state.auditRunning = true;
+    setBusy(true);
+    elements.auditHistoryButton.classList.add("is-running");
+    elements.auditHistoryButton.textContent = "진단 중 · 0건";
+
+    try {
+      for (let batchIndex = 1; batchIndex <= 5000; batchIndex += 1) {
+        const result = await apiRequest({
+          method: "POST",
+          body: {
+            action: "historical_audit_step",
+            cursor
+          }
+        });
+        const batchRecords = Array.isArray(result.records) ? result.records : [];
+        const batchSummary = isPlainObject(result.summary) ? result.summary : {};
+        const batchScannedRows = Math.max(0, Number(result.scannedRows) || 0);
+
+        records.push(...batchRecords);
+        scannedRows += batchScannedRows;
+        aggregateSummary = mergeAuditSummary(aggregateSummary, batchSummary);
+
+        if (Array.isArray(result.diagnostics)) {
+          apiDiagnostics.push(...result.diagnostics);
+        } else if (result.diagnostics !== undefined && result.diagnostics !== null) {
+          apiDiagnostics.push(result.diagnostics);
+        }
+
+        batches.push({
+          batch: batchIndex,
+          scannedRows: batchScannedRows,
+          receivedRecords: batchRecords.length,
+          done: result.done === true,
+          summary: batchSummary
+        });
+        elements.auditHistoryButton.textContent = `진단 중 · ${scannedRows.toLocaleString("ko-KR")}건`;
+
+        if (result.done === true) {
+          completed = true;
+          break;
+        }
+
+        const nextCursor = result.nextCursor;
+        const cursorKey = JSON.stringify(nextCursor ?? null);
+
+        if (nextCursor === undefined || nextCursor === null || visitedCursors.has(cursorKey)) {
+          throw new Error("누락 진단의 다음 조회 위치를 확인할 수 없습니다.");
+        }
+
+        visitedCursors.add(cursorKey);
+        cursor = nextCursor;
+      }
+
+      if (!completed) {
+        throw new Error("누락 진단 조회 범위를 초과했습니다. 잠시 후 다시 시도해 주세요.");
+      }
+
+      const generatedAt = new Date().toISOString();
+      const filename = `blower-vbelt-audit-${formatKstDownloadTimestamp()}.json`;
+      const payload = {
+        version: "v11",
+        generatedAt,
+        summary: aggregateSummary,
+        records,
+        diagnostics: {
+          readOnly: true,
+          startedAt,
+          completedAt: generatedAt,
+          batchCount: batches.length,
+          scannedRowCount: scannedRows,
+          recordCount: records.length,
+          batches,
+          api: apiDiagnostics
+        }
+      };
+
+      downloadAuditJson(payload, filename);
+      showToast(`누락 진단 ${records.length.toLocaleString("ko-KR")}건을 내려받았습니다.`);
+    } catch (error) {
+      console.error("Blower 누락 이력 진단 실패:", error);
+      showToast(error.message || "누락 진단 파일을 만들지 못했습니다.", "error");
+    } finally {
+      state.auditRunning = false;
+      elements.auditHistoryButton.classList.remove("is-running");
+      elements.auditHistoryButton.textContent = "누락 진단";
+      setBusy(false);
     }
   }
 
@@ -1457,6 +1642,7 @@
       renderAverageStats();
     });
     elements.settingsButton.addEventListener("click", openSettingsDialog);
+    elements.auditHistoryButton.addEventListener("click", downloadHistoricalAudit);
     elements.refreshButton.addEventListener("click", () => loadData());
     elements.scanButton.addEventListener("click", scanShiftLogs);
     elements.historicalBackfillButton.addEventListener("click", runHistoricalBackfill);
