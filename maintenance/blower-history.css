@@ -240,6 +240,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .dot.warning { background: var(--warning); }
 .dot.critical { background: var(--critical); }
 .dot.overdue { background: var(--overdue); }
+.dot.reference { background: #607d9d; }
 
 .unit-group + .unit-group { margin-top: 18px; }
 .unit-heading {
@@ -274,6 +275,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .asset-card[data-severity="warning"] { border-top-color: var(--warning); background: linear-gradient(180deg, #fffaf0, #fff 38%); }
 .asset-card[data-severity="critical"] { border-top-color: var(--critical); background: linear-gradient(180deg, #fff4f4, #fff 38%); }
 .asset-card[data-severity="overdue"] { border-top-color: var(--overdue); background: linear-gradient(180deg, #fff0f2, #fff 38%); }
+.asset-card[data-severity="reference"] { border-top-color: #607d9d; background: linear-gradient(180deg, #f4f8fb, #fff 38%); }
 .asset-card[data-severity="uninitialized"], .asset-card[data-severity="unset"] { border-top-color: #8a98a6; }
 .asset-card.is-placeholder { border-style: dashed; background: #fafbfc; }
 .asset-card.is-placeholder .asset-tag { font-family: inherit; }
@@ -296,6 +298,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .status-pill.warning { background: var(--warning-soft); color: var(--warning); }
 .status-pill.critical { background: var(--critical-soft); color: var(--critical); }
 .status-pill.overdue { background: var(--overdue-soft); color: var(--overdue); }
+.status-pill.reference { background: #eaf1f7; color: #3f607e; }
 .status-pill.uninitialized, .status-pill.unset { background: #f0f2f4; color: #5f6d79; }
 
 .runtime-main { margin-top: 14px; }

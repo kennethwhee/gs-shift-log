@@ -145,7 +145,7 @@ const COMPONENT_REPLACEMENT_KEYWORDS = [
   "볼트"
 ];
 
-const HISTORY_BACKFILL_ID = "shift_logs_full_v3";
+const HISTORY_BACKFILL_ID = "shift_logs_full_v4";
 const HISTORY_BACKFILL_START_DATE = "2021-01-01";
 const HISTORY_BACKFILL_BATCH_SIZE = 200;
 
@@ -441,6 +441,16 @@ async function ensureSchema(database) {
         completed_at TEXT,
         updated_at TEXT NOT NULL
       )
+    `),
+    database.prepare(`
+      CREATE TABLE IF NOT EXISTS blower_history_references (
+        tag_number TEXT PRIMARY KEY NOT NULL,
+        reference_date TEXT NOT NULL,
+        source_log_id TEXT NOT NULL DEFAULT '',
+        source_text TEXT NOT NULL DEFAULT '',
+        reference_kind TEXT NOT NULL DEFAULT 'mention',
+        updated_at TEXT NOT NULL
+      )
     `)
   ]);
 
@@ -575,7 +585,7 @@ function runtimeHoursAt(asset, eventDate) {
   return Math.max(0, hours);
 }
 
-function buildAssetState(asset, setting, latestProblem, now = new Date()) {
+function buildAssetState(asset, setting, latestProblem, latestReference, now = new Date()) {
   const runtimeHours = currentRuntimeHours(asset, now);
   const cycleDays = toNullableNumber(setting?.cycleDays ?? setting?.cycle_days);
   const warningDays = toNullableNumber(setting?.warningDays ?? setting?.warning_days);
@@ -584,9 +594,17 @@ function buildAssetState(asset, setting, latestProblem, now = new Date()) {
   let severity = "normal";
   let remainingHours = null;
   let progressPct = null;
+  let referenceElapsedHours = null;
+
+  if (latestReference?.referenceDate) {
+    const referenceAt = new Date(latestReference.referenceDate);
+    if (!Number.isNaN(referenceAt.getTime()) && referenceAt <= now) {
+      referenceElapsedHours = Math.max(0, (now.getTime() - referenceAt.getTime()) / 3600000);
+    }
+  }
 
   if (!asset.last_replacement_at) {
-    severity = "uninitialized";
+    severity = latestReference ? "reference" : "uninitialized";
   } else if (!(cycleDays > 0)) {
     severity = "unset";
   } else {
@@ -624,7 +642,9 @@ function buildAssetState(asset, setting, latestProblem, now = new Date()) {
     remainingHours,
     progressPct,
     severity,
-    latestProblem: latestProblem || null
+    latestProblem: latestProblem || null,
+    latestReference: latestReference || null,
+    referenceElapsedHours
   };
 }
 
@@ -842,6 +862,16 @@ async function loadAssetStates(database, settings) {
     .all();
 
   const problemRows = Array.isArray(problemResult.results) ? problemResult.results : [];
+
+  const referenceResult = await database
+    .prepare(`
+      SELECT *
+      FROM blower_history_references
+      ORDER BY reference_date DESC, updated_at DESC
+    `)
+    .all();
+
+  const referenceRows = Array.isArray(referenceResult.results) ? referenceResult.results : [];
   const now = new Date();
 
   return assets.map(asset => {
@@ -864,10 +894,21 @@ async function loadAssetStates(database, settings) {
         }
       : null;
 
+    const latestReferenceRow = referenceRows.find(row => row.tag_number === asset.tag_number);
+    const latestReference = latestReferenceRow
+      ? {
+          referenceDate: normalizeText(latestReferenceRow.reference_date),
+          sourceLogId: normalizeText(latestReferenceRow.source_log_id),
+          sourceText: normalizeText(latestReferenceRow.source_text),
+          referenceKind: normalizeText(latestReferenceRow.reference_kind) || "mention"
+        }
+      : null;
+
     return buildAssetState(
       asset,
       settings[asset.blower_type],
       latestProblem,
+      latestReference,
       now
     );
   });
@@ -970,6 +1011,7 @@ function buildSummaryFromAssets(assets) {
     critical: 3,
     warning: 2,
     unset: 1,
+    reference: 1,
     uninitialized: 1,
     normal: 0
   };
@@ -988,6 +1030,7 @@ function buildSummaryFromAssets(assets) {
     critical: 0,
     overdue: 0,
     unset: 0,
+    reference: 0,
     uninitialized: 0
   };
 
@@ -1863,6 +1906,42 @@ function findAssetMatches(fragment, assets) {
   return contextual;
 }
 
+async function upsertHistoricalReference(database, row, tagNumber, sourceText, referenceKind = "mention") {
+  const referenceDate = normalizeDateTime(row.work_date);
+  if (!referenceDate) return;
+
+  const now = new Date().toISOString();
+
+  await database
+    .prepare(`
+      INSERT INTO blower_history_references (
+        tag_number,
+        reference_date,
+        source_log_id,
+        source_text,
+        reference_kind,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(tag_number) DO UPDATE SET
+        reference_date = excluded.reference_date,
+        source_log_id = excluded.source_log_id,
+        source_text = excluded.source_text,
+        reference_kind = excluded.reference_kind,
+        updated_at = excluded.updated_at
+      WHERE excluded.reference_date >= blower_history_references.reference_date
+    `)
+    .bind(
+      normalizeText(tagNumber).toUpperCase(),
+      referenceDate,
+      normalizeText(row.id),
+      normalizeText(sourceText).slice(0, 2000),
+      normalizeText(referenceKind) || "mention",
+      now
+    )
+    .run();
+}
+
 function detectedEventSpecs(fragment) {
   const issueType = findIssueType(fragment);
   const replacementDetected = hasReplacementKeyword(fragment);
@@ -2052,7 +2131,7 @@ async function insertDetectionCandidate(database, row, tagNumber, spec, status, 
 
   const now = new Date().toISOString();
   const fingerprint = fingerprintText(
-    ["v3", row.id, row.work_date, tagNumber, spec.detectedType].join("||")
+    ["v4", row.id, row.work_date, tagNumber, spec.detectedType].join("||")
   );
   const id = crypto.randomUUID();
 
@@ -2217,22 +2296,39 @@ async function processHistoricalLog(database, row, assets) {
     return { autoEvents: 0, pending: 0 };
   }
 
-  const fragments = [...collectHistoricalFragments(parsed)];
+  const fragments = [...new Set([
+    ...collectHistoricalFragments(parsed),
+    ...collectObjectTextFragments(parsed)
+  ])];
   let autoEvents = 0;
   const seen = new Set();
+
+  const rawTags = extractRecognizedBlowerTags(row.log_json || "");
+  for (const tagNumber of rawTags) {
+    await ensureDiscoveredAssets(database, tagNumber, assets);
+    const asset = assets.find(item => normalizeText(item.tag_number).toUpperCase() === tagNumber);
+    if (!asset) continue;
+
+    const sourceFragment = fragments.find(fragment => compactEquipmentText(fragment).includes(tagNumber)) || tagNumber;
+    await upsertHistoricalReference(database, row, tagNumber, sourceFragment, "exact_tag");
+  }
 
   for (const fragment of fragments) {
     await ensureDiscoveredAssets(database, fragment, assets);
 
-    const specs = detectedEventSpecs(fragment).filter(spec => spec.autoEligible);
-
-    if (specs.length === 0) {
-      continue;
+    const matches = findAssetMatches(fragment, assets);
+    if (matches.length === 1 && matches[0].strong) {
+      await upsertHistoricalReference(
+        database,
+        row,
+        matches[0].asset.tag_number,
+        fragment,
+        matches[0].reason || "context"
+      );
     }
 
-    const matches = findAssetMatches(fragment, assets);
-
-    if (matches.length === 0) {
+    const specs = detectedEventSpecs(fragment).filter(spec => spec.autoEligible);
+    if (specs.length === 0 || matches.length === 0) {
       continue;
     }
 
@@ -2263,7 +2359,7 @@ async function processHistoricalLog(database, row, assets) {
 
       const candidate = detection.candidate;
 
-      if (!candidate || ["confirmed", "excluded"].includes(candidate.status) && !detection.inserted) {
+      if (!candidate || (["confirmed", "excluded"].includes(candidate.status) && !detection.inserted)) {
         continue;
       }
 
@@ -2275,7 +2371,7 @@ async function processHistoricalLog(database, row, assets) {
   return { autoEvents, pending: 0 };
 }
 
-async function resetHistoricalAutoDataForV3(database, today) {
+async function resetHistoricalAutoDataForV4(database, today) {
   const now = new Date().toISOString();
 
   await database.batch([
@@ -2310,7 +2406,10 @@ async function resetHistoricalAutoDataForV3(database, today) {
         AND substr(detected_date, 1, 10) >= ?
         AND substr(detected_date, 1, 10) <= ?
         AND (reviewed_by_id = 'history_auto' OR status = 'pending')
-    `).bind(HISTORY_BACKFILL_START_DATE, today)
+    `).bind(HISTORY_BACKFILL_START_DATE, today),
+    database.prepare(`
+      DELETE FROM blower_history_references
+    `)
   ]);
 }
 
@@ -2322,7 +2421,7 @@ async function initializeBackfillRun(database, today) {
   const now = new Date().toISOString();
 
   if (!state) {
-    await resetHistoricalAutoDataForV3(database, today);
+    await resetHistoricalAutoDataForV4(database, today);
 
     await database
       .prepare(`

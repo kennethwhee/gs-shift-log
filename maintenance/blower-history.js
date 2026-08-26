@@ -205,7 +205,11 @@
   }
 
   function formatSignedRemaining(asset) {
-    if (asset.severity === "uninitialized") return "2021년 이후 교체기록 미검출";
+    if (asset.severity === "reference") {
+      const referenceDate = formatDate(asset.latestReference?.referenceDate);
+      return `교체일 미검출 · 최근 기록 ${referenceDate} 기준`;
+    }
+    if (asset.severity === "uninitialized") return "2021년 이후 관련 기록 미검출";
     if (asset.severity === "unset") return "교체주기 설정 필요";
 
     const remaining = Number(asset.remainingHours);
@@ -226,7 +230,8 @@
       critical: "교체 임박",
       overdue: "교체주기 초과",
       unset: "기준 미설정",
-      uninitialized: "과거 교체 미검출"
+      reference: "최근 기록 기준",
+      uninitialized: "과거 이력 미검출"
     }[severity] || "확인 필요";
   }
 
@@ -338,9 +343,12 @@
   function renderAssetCard(asset, setting) {
     const cycleDays = Number(setting?.cycleDays);
     const runtime = roundHours(asset.runtimeHours);
+    const referenceElapsed = roundHours(asset.referenceElapsedHours);
     const runtimeText = asset.lastReplacementAt
       ? `${formatDaysHours(runtime)} / ${cycleDays > 0 ? `${cycleDays}일` : "기준 미설정"}`
-      : "과거 교체기록 탐색 필요";
+      : asset.latestReference
+        ? `최근 기록 후 ${formatDaysHours(referenceElapsed)} 경과`
+        : "2021년 이후 관련 이력 미검출";
     const progress = Number.isFinite(Number(asset.progressPct)) ? Math.max(0, Math.min(100, Number(asset.progressPct))) : 0;
     const latestProblem = asset.latestProblem;
 
@@ -365,26 +373,28 @@
         <div class="asset-meta">
           <div>
             <span>최근 교체</span>
-            <strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong>
+            <strong>${asset.lastReplacementAt ? escapeHtml(formatDate(asset.lastReplacementAt)) : "미검출"}</strong>
           </div>
           <div>
-            <span>누적 운전</span>
-            <strong>${escapeHtml(formatHours(runtime))}</strong>
+            <span>${asset.lastReplacementAt ? "누적 운전" : "최근 기록"}</span>
+            <strong>${asset.lastReplacementAt ? escapeHtml(formatHours(runtime)) : escapeHtml(formatDate(asset.latestReference?.referenceDate))}</strong>
           </div>
           <div>
             <span>운전 상태</span>
-            <strong>${asset.isRunning ? "운전중 · 자동누적" : "정지 · 누적정지"}</strong>
+            <strong>${asset.lastReplacementAt ? (asset.isRunning ? "운전중 · 자동누적" : "정지 · 누적정지") : (asset.latestReference ? "최근 이력 기준 · 교체일 미확정" : "기준 이력 없음")}</strong>
           </div>
           <div>
             <span>주기 진행</span>
-            <strong>${asset.progressPct === null ? "-" : `${Math.round(progress)}%`}</strong>
+            <strong>${asset.lastReplacementAt ? (asset.progressPct === null ? "-" : `${Math.round(progress)}%`) : "교체일 확인 필요"}</strong>
           </div>
         </div>
 
         <div class="asset-problem">
           ${latestProblem
             ? `최근 문제 · ${escapeHtml(formatDate(latestProblem.eventDate))} · <strong>${escapeHtml(latestProblem.issueType || "확인")}</strong>${latestProblem.actionType ? ` → ${escapeHtml(latestProblem.actionType)}` : ""}`
-            : "이번 Cycle에 등록된 문제 이력이 없습니다."}
+            : asset.latestReference
+              ? `최근 업무일지 · ${escapeHtml(formatDate(asset.latestReference.referenceDate))}${asset.latestReference.sourceText ? ` · ${escapeHtml(String(asset.latestReference.sourceText).slice(0, 120))}` : ""}`
+              : "2021년 이후 이 설비로 확정 가능한 업무일지 이력이 없습니다."}
         </div>
 
         <div class="asset-actions">
