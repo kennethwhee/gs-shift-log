@@ -8,6 +8,8 @@
   const state = {
     data: null,
     activeType: "fbhe",
+    statusFilter: "all",
+    historyAssetTag: "",
     subview: "overview",
     busy: false,
     backfillRunning: false
@@ -25,10 +27,8 @@
       "historicalBackfillNotice",
       "typeTabs",
       "candidateCountBadge",
-      "assetCount",
-      "warningCount",
-      "criticalCount",
-      "overdueCount",
+      "statusFilters",
+      "visibleAssetCount",
       "settingsSummary",
       "settingsUpdated",
       "settingsButton",
@@ -46,6 +46,7 @@
       "historyEmpty",
       "scanDays",
       "scanButton",
+      "historicalBackfillButton",
       "candidateList",
       "candidateEmpty",
       "refreshButton",
@@ -80,6 +81,11 @@
       "warningDays",
       "criticalDays",
       "clearSettingsButton",
+      "historyDialog",
+      "historyDialogTitle",
+      "historyDialogAsset",
+      "historyCycleSummary",
+      "assetHistoryList",
       "toast"
     ].forEach(id => {
       elements[id] = byId(id);
@@ -212,11 +218,7 @@
   }
 
   function formatSignedRemaining(asset) {
-    if (asset.severity === "reference") {
-      const referenceDate = formatDate(asset.latestReference?.referenceDate);
-      return `V-Belt 교체일 미검출 · 최근 기록 ${referenceDate} 기준`;
-    }
-    if (asset.severity === "uninitialized") return "2021년 이후 관련 기록 미검출";
+    if (!asset.lastReplacementAt) return "확정된 V-Belt 교체 이력이 없습니다.";
     if (asset.severity === "unset") return "교체주기 설정 필요";
 
     const remaining = Number(asset.remainingHours);
@@ -237,9 +239,15 @@
       critical: "교체 임박",
       overdue: "교체주기 초과",
       unset: "기준 미설정",
-      reference: "최근 기록 기준",
-      uninitialized: "과거 이력 미검출"
+      unknown: "교체일 미확인"
     }[severity] || "확인 필요";
+  }
+
+  function displaySeverity(asset) {
+    if (!asset?.lastReplacementAt) return "unknown";
+    return ["normal", "warning", "critical", "overdue", "unset"].includes(asset.severity)
+      ? asset.severity
+      : "normal";
   }
 
   function eventLabel(type) {
@@ -291,15 +299,37 @@
       .join("");
   }
 
-  function renderSummary() {
+  function renderStatusFilters() {
     const assets = getActiveAssets();
     const missingSlots = getActiveMissingSlots();
-    const count = severity => assets.filter(asset => asset.severity === severity).length;
+    const counts = assets.reduce((result, asset) => {
+      const severity = displaySeverity(asset);
+      result[severity] = (result[severity] || 0) + 1;
+      return result;
+    }, { unknown: missingSlots.length });
+    const definitions = [
+      ["all", "전체", assets.length + missingSlots.length],
+      ["normal", "정상", counts.normal || 0],
+      ["warning", "교체 예정", counts.warning || 0],
+      ["critical", "교체 임박", counts.critical || 0],
+      ["overdue", "주기 초과", counts.overdue || 0],
+      ["unknown", "교체일 미확인", counts.unknown || 0],
+      ["unset", "기준 미설정", counts.unset || 0]
+    ];
 
-    elements.assetCount.textContent = String(assets.length + missingSlots.length);
-    elements.warningCount.textContent = String(count("warning"));
-    elements.criticalCount.textContent = String(count("critical"));
-    elements.overdueCount.textContent = String(count("overdue"));
+    elements.statusFilters.innerHTML = definitions
+      .map(([key, label, count]) => `
+        <button
+          type="button"
+          class="status-filter ${escapeHtml(key)}${state.statusFilter === key ? " is-active" : ""}"
+          data-status-filter="${escapeHtml(key)}"
+          aria-pressed="${state.statusFilter === key ? "true" : "false"}"
+        >
+          <span>${escapeHtml(label)}</span>
+          <strong>${Number(count).toLocaleString("ko-KR")}</strong>
+        </button>
+      `)
+      .join("");
   }
 
   function renderSettings() {
@@ -347,67 +377,115 @@
     `;
   }
 
+  function getAssetEvents(tagNumber) {
+    return (state.data?.events || []).filter(event => event.tagNumber === tagNumber);
+  }
+
+  function getLatestReplacementEvent(asset) {
+    const replacements = getAssetEvents(asset.tagNumber)
+      .filter(event => event.eventType === "replacement");
+    const replacementDate = formatDate(asset.lastReplacementAt);
+
+    return replacements.find(event => formatDate(event.eventDate) === replacementDate)
+      || replacements[0]
+      || null;
+  }
+
+  function isShiftLogEvent(event) {
+    return ["shift_log_auto", "shift_log_history_auto"].includes(event?.sourceType);
+  }
+
+  function readableEvidence(event) {
+    if (!event) return "";
+
+    const raw = String(
+      isShiftLogEvent(event)
+        ? (event.sourceText || event.note || "")
+        : (event.note || event.sourceText || "")
+    )
+      .replace(/legacy-entry-[^|\s]+/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const fragments = raw
+      .split(/\s*\|\s*|\s*\n\s*/)
+      .map(fragment => fragment.trim())
+      .filter(Boolean)
+      .filter(fragment => !/^\d{3}[A-Z0-9]{7,}$/i.test(fragment))
+      .filter(fragment => !/^(?:BCO[12]|BO[12]|TGO|TO|TM\s*발행)$/i.test(fragment));
+    const replacementFragment = fragments.find(fragment =>
+      /(?:v[\s-]?belt|belt|벨트)/i.test(fragment)
+      && /(?:교체|완료|실시|시행|replace)/i.test(fragment)
+    );
+    const text = replacementFragment || fragments.join(" · ") || raw;
+
+    return text.length > 180 ? `${text.slice(0, 177).trim()}…` : text;
+  }
+
   function renderAssetCard(asset, setting) {
     const cycleDays = Number(setting?.cycleDays);
     const runtime = roundHours(asset.runtimeHours);
-    const referenceElapsed = roundHours(asset.referenceElapsedHours);
-    const runtimeText = asset.lastReplacementAt
-      ? `${formatDaysHours(runtime)} / ${cycleDays > 0 ? `${cycleDays}일` : "기준 미설정"}`
-      : asset.latestReference
-        ? `최근 기록 후 ${formatDaysHours(referenceElapsed)} 경과`
-        : "2021년 이후 관련 이력 미검출";
+    const confirmed = Boolean(asset.lastReplacementAt);
+    const severity = displaySeverity(asset);
     const progress = Number.isFinite(Number(asset.progressPct)) ? Math.max(0, Math.min(100, Number(asset.progressPct))) : 0;
-    const latestProblem = asset.latestProblem;
+    const replacementEvent = confirmed ? getLatestReplacementEvent(asset) : null;
+    const evidence = readableEvidence(replacementEvent);
+    const cycleHours = cycleDays > 0 ? cycleDays * 24 : null;
+    const stateLabel = asset.isRunning ? "운전중 · 자동누적" : "정지 · 누적정지";
 
     return `
-      <article class="asset-card" data-severity="${escapeHtml(asset.severity)}" data-tag="${escapeHtml(asset.tagNumber)}">
+      <article class="asset-card" data-severity="${escapeHtml(severity)}" data-tag="${escapeHtml(asset.tagNumber)}">
         <div class="asset-card-header">
           <div class="asset-identity">
             <strong class="asset-position">${escapeHtml(asset.positionLabel)}</strong>
             <span class="asset-tag">${escapeHtml(asset.tagNumber)}</span>
           </div>
-          <span class="status-pill ${escapeHtml(asset.severity)}">${escapeHtml(severityLabel(asset.severity))}</span>
+          <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         </div>
 
-        <div class="runtime-main">
-          <strong>${escapeHtml(runtimeText)}</strong>
-          <small>${escapeHtml(formatSignedRemaining(asset))}</small>
-          <div class="progress-track" aria-label="교체주기 진행률">
-            <div class="progress-bar" style="width:${progress.toFixed(2)}%"></div>
+        ${confirmed ? `
+          <div class="runtime-main">
+            <span class="cycle-label">현재 교체주기</span>
+            <strong>교체 후 ${escapeHtml(formatHours(runtime))}</strong>
+            <small>${escapeHtml(formatSignedRemaining(asset))}</small>
+            ${cycleHours ? `
+              <div class="progress-caption">
+                <span>${escapeHtml(formatHours(runtime))}</span>
+                <span>${cycleHours.toLocaleString("ko-KR")}h</span>
+              </div>
+              <div class="progress-track" aria-label="교체주기 진행률 ${Math.round(progress)}%">
+                <div class="progress-bar" style="width:${progress.toFixed(2)}%"></div>
+              </div>
+            ` : ""}
           </div>
-        </div>
 
-        <div class="asset-meta">
-          <div>
-            <span>최근 V-Belt 교체</span>
-            <strong>${asset.lastReplacementAt ? escapeHtml(formatDate(asset.lastReplacementAt)) : "미검출"}</strong>
+          <div class="asset-meta">
+            <div><span>최근 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
+            <div><span>운전 상태</span><strong>${escapeHtml(stateLabel)}</strong></div>
           </div>
-          <div>
-            <span>${asset.lastReplacementAt ? "누적 운전" : "최근 기록"}</span>
-            <strong>${asset.lastReplacementAt ? escapeHtml(formatHours(runtime)) : escapeHtml(formatDate(asset.latestReference?.referenceDate))}</strong>
-          </div>
-          <div>
-            <span>운전 상태</span>
-            <strong>${asset.lastReplacementAt ? (asset.isRunning ? "운전중 · 자동누적" : "정지 · 누적정지") : (asset.latestReference ? "최근 이력 기준 · V-Belt 교체일 미확정" : "기준 이력 없음")}</strong>
-          </div>
-          <div>
-            <span>주기 진행</span>
-            <strong>${asset.lastReplacementAt ? (asset.progressPct === null ? "-" : `${Math.round(progress)}%`) : "V-Belt 교체일 확인 필요"}</strong>
-          </div>
-        </div>
 
-        <div class="asset-problem">
-          ${latestProblem
-            ? `최근 문제 · ${escapeHtml(formatDate(latestProblem.eventDate))} · <strong>${escapeHtml(latestProblem.issueType || "확인")}</strong>${latestProblem.actionType ? ` → ${escapeHtml(latestProblem.actionType)}` : ""}`
-            : asset.latestReference
-              ? `최근 업무일지 · ${escapeHtml(formatDate(asset.latestReference.referenceDate))}${asset.latestReference.sourceText ? ` · ${escapeHtml(String(asset.latestReference.sourceText).slice(0, 120))}` : ""}`
-              : "2021년 이후 이 설비로 확정 가능한 업무일지 이력이 없습니다."}
-        </div>
+          <div class="asset-evidence${evidence ? "" : " is-empty"}">
+            <span>${isShiftLogEvent(replacementEvent) ? "업무일지 근거" : "등록 근거"}</span>
+            <p>${escapeHtml(evidence || "교체 이력은 확인되었지만 등록된 근거 문장이 없습니다.")}</p>
+            ${replacementEvent ? `<small>${escapeHtml(formatDate(replacementEvent.eventDate))} · ${escapeHtml(historySourceLabel(replacementEvent))}</small>` : ""}
+          </div>
+        ` : `
+          <div class="unknown-cycle">
+            <strong>교체일 미확인</strong>
+            <p>확정된 V-Belt 교체 이력이 없습니다.</p>
+            <small>검토 대기 후보를 확인하거나 최초 교체일을 직접 등록해 주세요.</small>
+          </div>
+        `}
 
         <div class="asset-actions">
           <button type="button" class="asset-action primary" data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">V-Belt 교체 등록</button>
-          <button type="button" class="asset-action danger" data-asset-action="problem" data-tag="${escapeHtml(asset.tagNumber)}">문제 등록</button>
-          <button type="button" class="asset-action" data-asset-action="runtime" data-tag="${escapeHtml(asset.tagNumber)}">운전시간/상태 보정</button>
+          <button type="button" class="asset-action" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}">이력 보기</button>
+          <details class="asset-more">
+            <summary aria-label="추가 관리 메뉴">•••</summary>
+            <div class="asset-more-menu">
+              <button type="button" data-asset-action="runtime" data-tag="${escapeHtml(asset.tagNumber)}">운전시간/상태 보정</button>
+            </div>
+          </details>
         </div>
       </article>
     `;
@@ -415,29 +493,20 @@
 
   function renderMissingAssetCard(slot) {
     return `
-      <article class="asset-card is-placeholder" data-severity="uninitialized">
+      <article class="asset-card is-placeholder" data-severity="unknown">
         <div class="asset-card-header">
           <div class="asset-identity">
             <strong class="asset-position">${escapeHtml(slot.positionLabel)}</strong>
             <span class="asset-tag">TAG 자동확인 대기</span>
           </div>
-          <span class="status-pill uninitialized">TAG 미확인</span>
+          <span class="status-pill unknown">TAG 미확인</span>
         </div>
 
-        <div class="runtime-main">
-          <strong>설비 위치 등록됨</strong>
-          <small>2021년 이후 업무일지에서 정확한 전체 TAG를 찾고 있습니다.</small>
-          <div class="progress-track" aria-hidden="true"><div class="progress-bar" style="width:0%"></div></div>
+        <div class="unknown-cycle">
+          <strong>TAG 확인 필요</strong>
+          <p>이 위치의 정확한 TAG가 아직 등록되지 않았습니다.</p>
+          <small>업무일지에서 전체 TAG가 확인되면 실제 설비 카드로 전환됩니다.</small>
         </div>
-
-        <div class="asset-meta">
-          <div><span>위치</span><strong>${escapeHtml(slot.positionLabel)}</strong></div>
-          <div><span>TAG</span><strong>확인 필요</strong></div>
-          <div><span>과거 이력</span><strong>자동 탐색</strong></div>
-          <div><span>Cycle</span><strong>TAG 확인 후 자동 계산</strong></div>
-        </div>
-
-        <div class="asset-problem">정확한 TAG가 업무일지에서 발견되면 이 카드가 실제 설비 카드로 자동 전환됩니다.</div>
       </article>
     `;
   }
@@ -465,24 +534,35 @@
       .map(unitNo => {
         const label = unitNo === "shared" ? "#1 · #2호기 공용" : `#${unitNo}호기`;
         const actualCards = (groups.get(unitNo) || [])
+          .filter(asset => state.statusFilter === "all" || displaySeverity(asset) === state.statusFilter)
           .sort((a, b) => Number(a.sortOrder) - Number(b.sortOrder))
           .map(asset => renderAssetCard(asset, setting));
         const placeholderCards = (missingGroups.get(unitNo) || [])
+          .filter(() => ["all", "unknown"].includes(state.statusFilter))
           .sort((a, b) => String(a.positionLabel).localeCompare(String(b.positionLabel)))
           .map(renderMissingAssetCard);
         const cards = [...actualCards, ...placeholderCards].join("");
 
+        if (!cards) return "";
+
         return `
           <section class="unit-group">
-            <h3 class="unit-heading">${escapeHtml(label)}</h3>
+            <h3 class="unit-heading">${escapeHtml(label)} <span>${actualCards.length + placeholderCards.length}대</span></h3>
             <div class="asset-grid">${cards}</div>
           </section>
         `;
       })
       .join("");
 
+    const total = assets.length + missingSlots.length;
+    const visible = state.statusFilter === "all"
+      ? total
+      : assets.filter(asset => displaySeverity(asset) === state.statusFilter).length
+        + (state.statusFilter === "unknown" ? missingSlots.length : 0);
+
+    elements.visibleAssetCount.textContent = `${visible.toLocaleString("ko-KR")} / ${total.toLocaleString("ko-KR")}대`;
     elements.assetGroups.innerHTML = html || `
-      <div class="empty-state">이 탭에 등록된 Blower가 없습니다.</div>
+      <div class="empty-state compact">선택한 상태의 Blower가 없습니다.</div>
     `;
   }
 
@@ -644,7 +724,7 @@
   }
 
   function renderHistory() {
-    const filter = elements.historyFilter?.value || "all";
+    const filter = elements.historyFilter?.value || "replacement";
     const events = (state.data?.events || []).filter(event => {
       if (event.blowerType !== state.activeType) return false;
       return filter === "all" || event.eventType === filter;
@@ -663,15 +743,67 @@
           <td>${escapeHtml(historyRuntimeLabel(event))}</td>
           <td>${escapeHtml(event.issueType || "-")}</td>
           <td>${escapeHtml(event.actionType || "-")}</td>
-          <td>${escapeHtml(event.note || event.sourceText || "-")}</td>
+          <td>${escapeHtml(
+            event.eventType === "replacement"
+              ? (readableEvidence(event) || event.note || event.sourceText || "-")
+              : (event.note || event.sourceText || "-")
+          )}</td>
           <td>${escapeHtml(historySourceLabel(event))}${event.createdByName ? `<br><small>${escapeHtml(event.createdByName)}</small>` : ""}</td>
         </tr>
       `)
       .join("");
   }
 
+  function openAssetHistory(tagNumber) {
+    const asset = findAsset(tagNumber);
+    if (!asset || !elements.historyDialog) return;
+
+    state.historyAssetTag = tagNumber;
+    const severity = displaySeverity(asset);
+    const events = getAssetEvents(tagNumber)
+      .filter(event => event.eventType === "replacement");
+
+    elements.historyDialogTitle.textContent = `${asset.positionLabel} 이력`;
+    elements.historyDialogAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
+    elements.historyCycleSummary.innerHTML = asset.lastReplacementAt
+      ? `
+        <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
+        <div><span>최근 V-Belt 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
+        <div><span>교체 후 누적 운전</span><strong>${escapeHtml(formatHours(asset.runtimeHours))}</strong></div>
+        <div><span>현재 주기</span><strong>${escapeHtml(formatSignedRemaining(asset))}</strong></div>
+      `
+      : `
+        <span class="status-pill unknown">교체일 미확인</span>
+        <div class="history-unknown"><strong>확정된 V-Belt 교체 이력이 없습니다.</strong><span>검토 대기 후보를 확인하거나 최초 이력을 직접 등록해 주세요.</span></div>
+      `;
+
+    elements.assetHistoryList.innerHTML = events.length
+      ? events.map(event => {
+          const content = readableEvidence(event) || event.note || event.sourceText || "등록 내용 없음";
+          const detail = [event.issueType, event.actionType].filter(Boolean).join(" → ");
+
+          return `
+            <article class="asset-history-item">
+              <div class="asset-history-date">${escapeHtml(formatDate(event.eventDate))}</div>
+              <div class="asset-history-content">
+                <div class="asset-history-heading">
+                  <span class="event-badge ${escapeHtml(event.eventType)}">${escapeHtml(eventLabel(event.eventType))}</span>
+                  ${detail ? `<strong>${escapeHtml(detail)}</strong>` : ""}
+                </div>
+                <p>${escapeHtml(content)}</p>
+                <small>${escapeHtml(historySourceLabel(event))}${event.createdByName ? ` · ${escapeHtml(event.createdByName)}` : ""}${Number(event.runtimeHours) > 0 ? ` · 당시 ${escapeHtml(historyRuntimeLabel(event))}` : ""}</small>
+              </div>
+            </article>
+          `;
+        }).join("")
+      : `<div class="empty-state compact">등록된 이력이 없습니다.</div>`;
+
+    elements.historyDialog.showModal();
+  }
+
   function renderCandidates() {
-    const allCandidates = state.data?.candidates || [];
+    const allCandidates = (state.data?.candidates || [])
+      .filter(candidate => candidate.detectedType === "replacement");
     const candidates = allCandidates.filter(candidate => candidate.blowerType === state.activeType);
 
     elements.candidateCountBadge.hidden = allCandidates.length === 0;
@@ -688,7 +820,7 @@
           <div class="candidate-source">
             <div class="candidate-meta">
               ${escapeHtml(formatDate(candidate.detectedDate))} · ${escapeHtml(candidate.sourceShift || "-")} · ${escapeHtml(candidate.sourceRole || "-")} · ${escapeHtml(candidate.sourceAuthor || "-")}
-              · ${candidate.detectedType === "replacement" ? "V-Belt 교체 감지" : "문제 감지"}
+              · V-Belt 교체 감지
             </div>
             <p>${escapeHtml(candidate.sourceText)}</p>
           </div>
@@ -705,9 +837,13 @@
     const notice = elements.historicalBackfillNotice;
     if (!notice) return;
 
+    const isSuperAdmin = Boolean(state.data?.user?.isSuperAdmin);
+    elements.historicalBackfillButton.hidden = !isSuperAdmin;
+
     if (!backfill) {
       notice.hidden = false;
-      notice.textContent = "2021년부터 오늘까지 과거 업무일지 이력 자동 반영 상태를 확인하고 있습니다.";
+      notice.dataset.state = "required";
+      notice.textContent = "과거 이력 재구성 필요 · 아직 실행 기록이 없습니다.";
       return;
     }
 
@@ -718,19 +854,29 @@
 
     notice.hidden = false;
 
-    if (backfill.isCompleteForToday) {
-      notice.textContent = `2021년부터 과거 업무일지 자동 반영 완료 · ${target}까지 ${scanned}건 확인 · 이력 ${events}건 자동 반영`;
+    if (state.backfillRunning) {
+      notice.dataset.state = "running";
+      notice.textContent = `과거 이력 재구성 진행 중 · ${target}까지 ${scanned}건 확인 · 교체 이력 ${events}건 반영 · 검토 대기 ${pending}건`;
       return;
     }
 
-    notice.textContent = `2021년부터 과거 업무일지 자동 반영 중 · ${target}까지 ${scanned}건 확인 · 이력 ${events}건 자동 반영`;
+    if (backfill.isCompleteForToday) {
+      notice.dataset.state = "complete";
+      notice.textContent = `과거 이력 재구성 완료 · ${target}까지 ${scanned}건 확인 · 교체 이력 ${events}건 반영`;
+      return;
+    }
+
+    notice.dataset.state = "required";
+    notice.textContent = backfill.status === "running"
+      ? `과거 이력 재구성 필요 · 중단 지점부터 재개 가능 · 기존 확인 ${scanned}건`
+      : `과거 이력 재구성 필요 · 마지막 기준 ${target} · 기존 확인 ${scanned}건`;
   }
 
   function renderAll() {
     if (!state.data) return;
 
     renderTypeTabs();
-    renderSummary();
+    renderStatusFilters();
     renderSettings();
     renderAverageStats();
     renderMissingTags();
@@ -744,6 +890,7 @@
     state.busy = Boolean(isBusy);
     elements.refreshButton.disabled = state.busy;
     elements.scanButton.disabled = state.busy;
+    elements.historicalBackfillButton.disabled = state.busy || state.backfillRunning;
   }
 
   async function loadData(options = {}) {
@@ -778,6 +925,7 @@
   function switchType(type) {
     if (!state.data?.types?.some(item => item.key === type)) return;
     state.activeType = type;
+    state.statusFilter = "all";
     renderAll();
   }
 
@@ -833,7 +981,7 @@
       elements.actionType.value = "V-Belt 교체";
       elements.actionTypeField.hidden = true;
       elements.replacementRunningField.hidden = false;
-      elements.replacementRunning.checked = true;
+      elements.replacementRunning.checked = Boolean(asset.isRunning);
     }
 
     if (mode === "problem") {
@@ -864,7 +1012,7 @@
       elements.issueType.value = candidate?.issueType || (replacement ? "정기주기" : "기타");
       elements.actionType.value = candidate?.actionType || (replacement ? "V-Belt 교체" : "확인");
       elements.replacementRunningField.hidden = !replacement;
-      elements.replacementRunning.checked = true;
+      elements.replacementRunning.checked = Boolean(asset.isRunning);
       elements.candidateSourcePreview.hidden = false;
       elements.candidateSourcePreview.innerHTML = `
         <strong>업무일지 원문</strong><br>
@@ -988,15 +1136,25 @@
   }
 
   async function runHistoricalBackfill() {
-    if (state.backfillRunning || !getSessionToken()) return;
+    if (
+      state.backfillRunning
+      || !getSessionToken()
+      || !state.data?.user?.isSuperAdmin
+    ) return;
 
     const today = formatKstDateInput();
     if (state.data?.backfill?.isCompleteForToday && state.data?.backfill?.targetDate === today) {
       renderBackfillStatus(state.data.backfill);
+      showToast("오늘 기준 과거 이력 재구성이 완료되어 있습니다.");
       return;
     }
 
     state.backfillRunning = true;
+    elements.historicalBackfillButton.disabled = true;
+    elements.historicalBackfillButton.textContent = "재구성 중...";
+    elements.scanButton.disabled = true;
+    elements.refreshButton.disabled = true;
+    renderBackfillStatus(state.data?.backfill);
     let lastResult = null;
 
     try {
@@ -1010,7 +1168,7 @@
           renderBackfillStatus(lastResult.backfill);
         }
 
-        if (lastResult.done) {
+        if (lastResult.done || lastResult.busy) {
           break;
         }
       }
@@ -1018,15 +1176,22 @@
       await loadData({ silent: true });
 
       if (lastResult?.done) {
-        showToast("과거 업무일지 이력을 오늘 기준까지 자동 반영했습니다.");
+        showToast("과거 이력 재구성을 오늘 기준까지 완료했습니다.");
+      } else if (lastResult?.busy) {
+        showToast(lastResult.message || "다른 재구성 작업이 진행 중입니다.");
       } else {
-        showToast("과거 업무일지 자동 반영 진행상태를 저장했습니다.");
+        showToast("과거 이력 재구성 진행상태를 저장했습니다.");
       }
     } catch (error) {
-      console.error("과거 Blower 이력 자동 반영 실패:", error);
-      showToast(error.message || "과거 업무일지 자동 반영에 실패했습니다.", "error");
+      console.error("과거 Blower 이력 재구성 실패:", error);
+      showToast(error.message || "과거 이력 재구성에 실패했습니다.", "error");
     } finally {
       state.backfillRunning = false;
+      elements.historicalBackfillButton.disabled = state.busy;
+      elements.historicalBackfillButton.textContent = "과거 이력 재구성";
+      elements.scanButton.disabled = state.busy;
+      elements.refreshButton.disabled = state.busy;
+      renderBackfillStatus();
     }
   }
 
@@ -1083,6 +1248,14 @@
       if (button) switchType(button.dataset.type);
     });
 
+    elements.statusFilters.addEventListener("click", event => {
+      const button = event.target.closest("[data-status-filter]");
+      if (!button) return;
+      state.statusFilter = button.dataset.statusFilter || "all";
+      renderStatusFilters();
+      renderAssets();
+    });
+
     document.querySelectorAll(".sub-tab").forEach(button => {
       button.addEventListener("click", () => switchSubview(button.dataset.subview));
     });
@@ -1090,7 +1263,20 @@
     elements.assetGroups.addEventListener("click", event => {
       const button = event.target.closest("[data-asset-action]");
       if (!button) return;
+      if (button.dataset.assetAction === "history") {
+        openAssetHistory(button.dataset.tag);
+        return;
+      }
       openRecordDialog(button.dataset.assetAction, button.dataset.tag);
+    });
+
+    elements.historyDialog.addEventListener("click", event => {
+      const button = event.target.closest("[data-history-action]");
+      if (!button || !state.historyAssetTag) return;
+      const action = button.dataset.historyAction;
+      const tagNumber = state.historyAssetTag;
+      elements.historyDialog.close();
+      openRecordDialog(action, tagNumber);
     });
 
     elements.historyFilter.addEventListener("change", renderHistory);
@@ -1106,6 +1292,7 @@
     elements.settingsButton.addEventListener("click", openSettingsDialog);
     elements.refreshButton.addEventListener("click", () => loadData());
     elements.scanButton.addEventListener("click", scanShiftLogs);
+    elements.historicalBackfillButton.addEventListener("click", runHistoricalBackfill);
 
     elements.candidateList.addEventListener("click", event => {
       const button = event.target.closest("[data-candidate-action]");
@@ -1148,7 +1335,6 @@
     bindEvents();
     switchSubview("overview");
     await loadData();
-    await runHistoricalBackfill();
   }
 
   if (document.readyState === "loading") {

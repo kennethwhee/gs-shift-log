@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260826-v7">
-  <script src="blower-history.js?v=20260826-v7" defer></script>
+  <link rel="stylesheet" href="blower-history.css?v=20260826-v8">
+  <script src="blower-history.js?v=20260826-v8" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -15,7 +15,7 @@
         <p class="eyebrow">EQUIPMENT LIFE MANAGEMENT</p>
         <h1>Blower V-Belt 교체 이력 관리</h1>
         <p class="page-description">
-          Blower V-Belt 교체 이력을 기준으로 교체주기와 문제 이력을 관리합니다.
+          업무일지에서 확인된 실제 V-Belt 교체 이력을 기준으로 현재 교체주기를 관리합니다.
         </p>
       </div>
       <div class="header-actions">
@@ -31,37 +31,19 @@
 
     <div class="workspace">
       <nav class="sub-tabs" aria-label="관리 화면">
-        <button type="button" class="sub-tab is-active" data-subview="overview">현재현황</button>
-        <button type="button" class="sub-tab" data-subview="history">V-Belt 교체·문제이력</button>
+        <button type="button" class="sub-tab is-active" data-subview="overview">현황</button>
+        <button type="button" class="sub-tab" data-subview="history">교체 이력</button>
         <button type="button" class="sub-tab" data-subview="detect">
-          자동감지
+          검토 대기
           <span class="count-badge" id="candidateCountBadge" hidden>0</span>
         </button>
       </nav>
 
       <main>
         <section class="subview is-active" data-subview-panel="overview">
-          <section class="summary-row">
-            <article class="summary-card">
-              <span>등록 설비</span>
-              <strong id="assetCount">0</strong>
-              <small>대</small>
-            </article>
-            <article class="summary-card warning">
-              <span>교체 예정</span>
-              <strong id="warningCount">0</strong>
-              <small>대</small>
-            </article>
-            <article class="summary-card critical">
-              <span>교체 임박</span>
-              <strong id="criticalCount">0</strong>
-              <small>대</small>
-            </article>
-            <article class="summary-card overdue">
-              <span>주기 초과</span>
-              <strong id="overdueCount">0</strong>
-              <small>대</small>
-            </article>
+          <section class="status-toolbar" aria-label="설비 상태 필터">
+            <div class="status-filters" id="statusFilters"></div>
+            <span class="visible-count" id="visibleAssetCount"></span>
           </section>
 
           <section class="settings-strip">
@@ -75,13 +57,16 @@
             </button>
           </section>
 
-          <section class="average-panel">
-            <div class="average-heading">
+          <details class="average-panel">
+            <summary class="average-summary">
               <div>
                 <span class="settings-label">평균 V-Belt 교체주기</span>
                 <strong id="averageHeadline">계산 중</strong>
-                <small id="averageSubline">실제 V-Belt 교체일과 다음 V-Belt 교체일 사이의 달력 일수를 계산합니다.</small>
               </div>
+              <span class="average-summary-action">상세 보기</span>
+            </summary>
+            <div class="average-detail">
+              <small id="averageSubline">확정된 V-Belt 교체일과 다음 교체일 사이의 달력 일수를 계산합니다.</small>
               <div class="average-controls" aria-label="평균 교체주기 계산기간">
                 <span>최근</span>
                 <input type="number" id="averagePeriodValue" min="1" max="120" step="1" value="12" inputmode="numeric" aria-label="평균 계산 기간">
@@ -90,10 +75,10 @@
                   <option value="years">년</option>
                 </select>
               </div>
+              <div class="average-metrics" id="averageMetrics"></div>
+              <div class="average-assets" id="averageAssets"></div>
             </div>
-            <div class="average-metrics" id="averageMetrics"></div>
-            <div class="average-assets" id="averageAssets"></div>
-          </section>
+          </details>
 
           <section class="missing-tags" id="missingTagsNotice" hidden></section>
 
@@ -108,7 +93,7 @@
                 <i class="dot warning"></i>교체 예정
                 <i class="dot critical"></i>교체 임박
                 <i class="dot overdue"></i>초과
-                <i class="dot reference"></i>최근기록 기준
+                <i class="dot unknown"></i>교체일 미확인
               </span>
             </div>
             <div id="assetGroups"></div>
@@ -120,12 +105,12 @@
             <div class="section-title-row">
               <div>
                 <p class="eyebrow">EVENT HISTORY</p>
-                <h2>V-Belt 교체·문제 이력</h2>
+                <h2>V-Belt 교체 이력</h2>
               </div>
               <div class="filter-actions">
                 <select id="historyFilter" aria-label="이력 종류">
-                  <option value="all">전체</option>
-                  <option value="replacement">V-Belt 교체</option>
+                  <option value="replacement" selected>V-Belt 교체</option>
+                  <option value="all">전체 관리 이력</option>
                   <option value="problem">문제발생</option>
                   <option value="runtime_correction">운전시간 보정</option>
                 </select>
@@ -172,10 +157,11 @@
                   </select>
                 </label>
                 <button type="button" class="button primary" id="scanButton">업무일지 분석</button>
+                <button type="button" class="button secondary" id="historicalBackfillButton" hidden>과거 이력 재구성</button>
               </div>
             </div>
             <div class="detect-guide">
-              과거 기록은 오늘 기준까지 자동 반영됩니다. 파트장 업무일지는 분석에서 제외합니다. 같은 날짜·교대에서 BCO1↔BO1, BCO2↔BO2, TGO↔TO 내용이 70% 이상 중복되면 하위보직의 중복 구절은 제외하고 상위보직(BCO1·BCO2·TGO) 내용을 기준으로 이력화합니다. 70% 미만의 하위보직 고유 내용은 그대로 분석합니다. 교체 이력은 V-Belt / V Belt / Belt 교체만 포함하며 Suction Filter, Oil, Bearing, Motor 등 다른 부품 교체는 자동감지에서 제외합니다.
+              과거 이력 재구성은 최고관리자가 필요할 때 직접 실행합니다. 파트장 업무일지는 분석에서 제외합니다. 같은 날짜·교대에서 BCO1↔BO1, BCO2↔BO2, TGO↔TO 내용이 70% 이상 중복되면 하위보직의 중복 구절은 제외하고 상위보직(BCO1·BCO2·TGO) 내용을 기준으로 이력화합니다. 70% 미만의 하위보직 고유 내용은 그대로 분석합니다. 교체 이력은 V-Belt / V Belt / Belt 교체만 포함하며 Suction Filter, Oil, Bearing, Motor 등 다른 부품 교체는 자동감지에서 제외합니다.
             </div>
             <div class="candidate-list" id="candidateList"></div>
             <div class="empty-state" id="candidateEmpty">검토 대기 중인 자동감지 후보가 없습니다.</div>
@@ -309,6 +295,27 @@
         <button type="submit" class="button primary">저장</button>
       </footer>
     </form>
+  </dialog>
+
+  <dialog class="dialog history-dialog" id="historyDialog">
+    <div class="history-dialog-shell">
+      <header class="dialog-header">
+        <div>
+          <p class="eyebrow">ASSET HISTORY</p>
+          <h2 id="historyDialogTitle">설비 이력</h2>
+          <p id="historyDialogAsset"></p>
+        </div>
+        <button type="button" class="icon-button" data-close-dialog="historyDialog" aria-label="닫기">×</button>
+      </header>
+      <div class="dialog-body">
+        <div class="history-cycle-summary" id="historyCycleSummary"></div>
+        <div class="asset-history-list" id="assetHistoryList"></div>
+      </div>
+      <footer class="dialog-footer history-dialog-footer">
+        <button type="button" class="button primary" data-history-action="replacement">V-Belt 교체 등록</button>
+        <button type="button" class="button secondary" data-close-dialog="historyDialog">닫기</button>
+      </footer>
+    </div>
   </dialog>
 
   <div class="toast" id="toast" hidden></div>
