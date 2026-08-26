@@ -795,24 +795,24 @@
 })();
 
 /* =========================================================
-   MOBILE SEARCH SHIFT DISPLAY V20
+   MOBILE SEARCH LEGACY CHECKBOX V21
 
-   Keep the existing exclusive search values unchanged:
-   current DS/NS and legacy D/A/N. This layer only presents
-   the legacy control like the neighbouring current select.
+   The existing hidden #searchShift remains the only submitted
+   query value. The mobile checkbox explicitly switches between
+   the current DS/NS family and the legacy D/A/N family.
 ========================================================= */
 
-(function installMobileSearchShiftDisplayV20() {
+(function installMobileSearchLegacyCheckboxV21() {
   "use strict";
 
   if (
-    window.__mobileSearchShiftDisplayV20Installed ===
+    window.__mobileSearchLegacyCheckboxV21Installed ===
       true
   ) {
     return;
   }
 
-  window.__mobileSearchShiftDisplayV20Installed =
+  window.__mobileSearchLegacyCheckboxV21Installed =
     true;
 
   function initialize() {
@@ -826,42 +826,244 @@
         "searchShift"
       );
 
+    const currentShiftSelect =
+      document.getElementById(
+        "searchCurrentShift"
+      );
+
+    const legacyEnabled =
+      document.getElementById(
+        "searchLegacyEnabled"
+      );
+
+    const legacyShiftSelect =
+      document.getElementById(
+        "searchLegacyShift"
+      );
+
     const legacyToggle =
       document.getElementById(
         "searchLegacyToggle"
       );
 
+    const legacyPanel =
+      document.getElementById(
+        "searchLegacyPanel"
+      );
+
     if (
       !shiftSelect ||
-      !legacyToggle
+      !currentShiftSelect ||
+      !legacyEnabled ||
+      !legacyShiftSelect
     ) {
       return;
     }
 
-    const legacyLabels = {
-      LEGACY_ALL: "전체",
-      D: "D/S",
-      A: "A/S",
-      N: "N/S"
-    };
+    const currentValues =
+      new Set(
+        [
+          "",
+          "DS",
+          "NS"
+        ]
+      );
 
-    function syncLegacyLabel() {
-      const value =
+    const legacyValues =
+      new Set(
+        [
+          "LEGACY_ALL",
+          "D",
+          "A",
+          "N"
+        ]
+      );
+
+    const allValues =
+      new Set(
+        [
+          ...currentValues,
+          ...legacyValues
+        ]
+      );
+
+    function normalizeValue(
+      value
+    ) {
+      const normalized =
         String(
-          shiftSelect.value ||
+          value ||
           ""
         )
           .trim()
           .toUpperCase();
 
-      legacyToggle.textContent =
-        legacyLabels[value] ||
-        "전체";
+      return allValues.has(
+        normalized
+      )
+        ? normalized
+        : "";
     }
+
+    if (
+      !shiftSelect.querySelector(
+        'option[value="LEGACY_ALL"]'
+      )
+    ) {
+      const legacyAllOption =
+        document.createElement(
+          "option"
+        );
+
+      legacyAllOption.value =
+        "LEGACY_ALL";
+
+      legacyAllOption.textContent =
+        "구교대 전체";
+
+      shiftSelect.appendChild(
+        legacyAllOption
+      );
+    }
+
+    function closeLegacyMenu() {
+      if (legacyPanel) {
+        legacyPanel.hidden =
+          true;
+      }
+
+      legacyToggle?.setAttribute(
+        "aria-expanded",
+        "false"
+      );
+    }
+
+    function syncControls() {
+      const value =
+        normalizeValue(
+          shiftSelect.value
+        );
+
+      const usesLegacy =
+        legacyValues.has(
+          value
+        );
+
+      legacyEnabled.checked =
+        usesLegacy;
+
+      legacyShiftSelect.hidden =
+        !usesLegacy;
+
+      legacyShiftSelect.disabled =
+        !usesLegacy;
+
+      currentShiftSelect.disabled =
+        usesLegacy;
+
+      if (usesLegacy) {
+        legacyShiftSelect.value =
+          value;
+
+        currentShiftSelect.selectedIndex =
+          -1;
+
+      } else {
+        currentShiftSelect.value =
+          currentValues.has(
+            value
+          )
+            ? value
+            : "";
+
+        legacyShiftSelect.value =
+          "LEGACY_ALL";
+      }
+
+      closeLegacyMenu();
+    }
+
+    function setCanonicalShift(
+      requestedValue
+    ) {
+      const value =
+        normalizeValue(
+          requestedValue
+        );
+
+      const previousValue =
+        normalizeValue(
+          shiftSelect.value
+        );
+
+      shiftSelect.value =
+        value;
+
+      if (
+        previousValue !==
+          value
+      ) {
+        shiftSelect.dispatchEvent(
+          new Event(
+            "change",
+            {
+              bubbles: true
+            }
+          )
+        );
+
+      } else {
+        syncControls();
+      }
+    }
+
+    legacyEnabled.addEventListener(
+      "change",
+      () => {
+        if (
+          legacyEnabled.checked
+        ) {
+          setCanonicalShift(
+            legacyShiftSelect.value ||
+              "LEGACY_ALL"
+          );
+
+          return;
+        }
+
+        setCanonicalShift(
+          ""
+        );
+      }
+    );
+
+    legacyShiftSelect.addEventListener(
+      "change",
+      () => {
+        setCanonicalShift(
+          legacyShiftSelect.value
+        );
+      }
+    );
+
+    currentShiftSelect.addEventListener(
+      "change",
+      () => {
+        if (
+          currentShiftSelect.disabled
+        ) {
+          return;
+        }
+
+        setCanonicalShift(
+          currentShiftSelect.value
+        );
+      }
+    );
 
     shiftSelect.addEventListener(
       "change",
-      syncLegacyLabel
+      syncControls
     );
 
     searchForm?.addEventListener(
@@ -869,9 +1071,20 @@
       () => {
         window.setTimeout(
           () => {
-            window.setTimeout(
-              syncLegacyLabel,
-              0
+            legacyEnabled.checked =
+              false;
+
+            legacyShiftSelect.value =
+              "LEGACY_ALL";
+
+            currentShiftSelect.disabled =
+              false;
+
+            currentShiftSelect.value =
+              "";
+
+            setCanonicalShift(
+              ""
             );
           },
           0
@@ -879,7 +1092,7 @@
       }
     );
 
-    syncLegacyLabel();
+    syncControls();
   }
 
   if (

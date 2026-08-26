@@ -5195,3 +5195,227 @@ input {
     font-size: 8px !important;
   }
 }
+
+/* =========================================================
+   MANHOLE_MOBILE_ROW_POLISH_V21
+
+   Keep every editable manhole item on one mobile row while
+   balancing location, status, date and note. Editable controls
+   retain a computed 16px font to prevent iOS focus zoom and are
+   visually scaled inside their fixed-height cells.
+   Desktop table/diagram geometry is unchanged.
+========================================================= */
+
+@media screen and (max-width: 760px) {
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row] {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+    grid-template-columns:
+      24px
+      minmax(0, 1fr)
+      58px
+      96px
+      64px !important;
+    grid-template-areas:
+      "number location status date note" !important;
+    grid-template-rows: 34px !important;
+    align-items: center !important;
+    overflow: hidden !important;
+    border-bottom: 1px solid #d8e2eb !important;
+    background: #ffffff !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row].is-close,
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row].is-close:hover {
+    background: #f7f9fb !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row].is-open,
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row].is-open:hover {
+    background: #fffdf4 !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td {
+    display: flex !important;
+    box-sizing: border-box !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 2px 1px !important;
+    overflow: hidden !important;
+    border: 0 !important;
+    background: transparent !important;
+    line-height: 1 !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td.manhole-number {
+    grid-area: number !important;
+    border-right: 1px solid #d8e2eb !important;
+    color: #2167a9 !important;
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    text-align: center !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td.manhole-location {
+    display: flex !important;
+    grid-area: location !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    align-self: stretch !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+    padding: 0 5px !important;
+    overflow: hidden !important;
+    color: #26384e !important;
+    font-size: clamp(9px, 2.55vw, 10px) !important;
+    font-weight: 850 !important;
+    line-height: 1 !important;
+    text-align: left !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-location__mobile {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    line-height: 1 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-status-cell {
+    grid-area: status !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-date-cell {
+    grid-area: date !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td.manhole-note-cell {
+    display: flex !important;
+    grid-area: note !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 2px 1px !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-status-cell,
+  .manhole-list-panel .manhole-table .manhole-date-cell {
+    padding: 2px 1px !important;
+  }
+
+  .manhole-list-panel .manhole-table select[data-manhole-status-select],
+  .manhole-list-panel .manhole-table input[type="date"],
+  .manhole-list-panel .manhole-table input[data-manhole-note] {
+    box-sizing: border-box !important;
+    flex: 0 0 123.076923% !important;
+    width: 123.076923% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+    margin: 0 !important;
+    padding: 0 5px !important;
+    transform: scale(0.8125) !important;
+    transform-origin: left center !important;
+    border: 1px solid #b8c7d6 !important;
+    border-radius: 7px !important;
+    background: #ffffff !important;
+    color: #26384e !important;
+    font-family: inherit !important;
+    font-size: 16px !important;
+    font-weight: 750 !important;
+    line-height: normal !important;
+    letter-spacing: -0.025em !important;
+    text-align: center !important;
+    text-align-last: center !important;
+    box-shadow: none !important;
+  }
+
+  .manhole-list-panel .manhole-table input[type="date"] {
+    padding: 0 2px !important;
+    font-variant-numeric: tabular-nums !important;
+    letter-spacing: -0.045em !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  input[type="date"]::-webkit-date-and-time-value {
+    min-height: 0 !important;
+    text-align: center !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  input[type="date"]::-webkit-datetime-edit {
+    padding: 0 !important;
+  }
+
+  .manhole-list-panel .manhole-table input[data-manhole-note] {
+    padding: 0 6px !important;
+    text-align: left !important;
+    text-align-last: auto !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  input[data-manhole-note]::placeholder {
+    color: #8795a5 !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-group-row td {
+    min-height: 22px !important;
+    padding: 4px 7px !important;
+    color: #35516e !important;
+    font-size: 8px !important;
+    font-weight: 850 !important;
+    line-height: 14px !important;
+    text-align: center !important;
+  }
+}

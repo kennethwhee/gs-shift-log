@@ -572,7 +572,7 @@
 
   <link
     rel="preload"
-    href="/mobile-app/mobile-startup.js?v=20260826-mobile-search-shift-v20"
+    href="/mobile-app/mobile-startup.js?v=20260826-mobile-search-legacy-checkbox-v21"
     as="script"
   >
 
@@ -594,7 +594,7 @@
 
   <link
     rel="stylesheet"
-    href="/mobile-app/mobile-layout-v17.css?v=20260826-mobile-search-shift-v20"
+    href="/mobile-app/mobile-layout-v17.css?v=20260826-mobile-search-legacy-checkbox-v21"
   >
 
   <link
@@ -619,7 +619,7 @@
     >
     <link
       rel="stylesheet"
-      href="/mobile-app/mobile-layout-v17.css?v=20260826-mobile-search-shift-v20"
+      href="/mobile-app/mobile-layout-v17.css?v=20260826-mobile-search-legacy-checkbox-v21"
     >
     <link
       rel="stylesheet"
@@ -2559,7 +2559,7 @@
 
     모바일:
     시작일 | 종료일
-    현 교대 | 구 교대
+    현 교대 | 구 교대 체크 (체크 시 선택창 표시)
     보직 | 구분
     검색어
     초기화 | 조회
@@ -2640,6 +2640,7 @@
           aria-expanded="false"
           aria-controls="searchLegacyPanel"
           title="과거 3교대 근무 조회"
+          hidden
         >
           구교대
         </button>
@@ -2655,12 +2656,23 @@
       </label>
 
 
-      <span
+      <label
         class="search-shift-mobile-label search-shift-mobile-label--legacy"
-        aria-hidden="true"
+        for="searchLegacyEnabled"
       >
-        구 교대
-      </span>
+
+        <input
+          type="checkbox"
+          id="searchLegacyEnabled"
+          aria-label="구 교대 조회 사용"
+          aria-controls="searchLegacyShift"
+        />
+
+        <span>
+          구 교대
+        </span>
+
+      </label>
 
 
       <!-- 현재 근무 전용 -->
@@ -2678,6 +2690,33 @@
         </option>
 
         <option value="NS">
+          N/S
+        </option>
+
+      </select>
+
+
+      <!-- 모바일 구 교대 전용 -->
+      <select
+        id="searchLegacyShift"
+        aria-label="구 교대 근무 선택"
+        hidden
+        disabled
+      >
+
+        <option value="LEGACY_ALL">
+          전체
+        </option>
+
+        <option value="D">
+          D/S
+        </option>
+
+        <option value="A">
+          A/S
+        </option>
+
+        <option value="N">
           N/S
         </option>
 
@@ -14821,7 +14860,7 @@
 </script>
 
 <script
-  src="/mobile-app/mobile-startup.js?v=20260826-mobile-search-shift-v20"
+  src="/mobile-app/mobile-startup.js?v=20260826-mobile-search-legacy-checkbox-v21"
   onload="window.__markMobileAppBootResourceV13?.('startupScript',true)"
   onerror="window.__setMobileAppBootStageV13?.('startup-script-error','모바일 시작 설정을 불러오지 못했습니다.');window.__showMobileAppBootRecoveryV13?.('모바일 시작 설정을 불러오지 못했습니다. 다시 시도해 주세요.')"
 ></script>
