@@ -143,9 +143,20 @@ const COMPONENT_REPLACEMENT_KEYWORDS = [
   "볼트"
 ];
 
-const HISTORY_BACKFILL_ID = "shift_logs_full_v6";
+const HISTORY_BACKFILL_ID = "shift_logs_full_v7";
 const HISTORY_BACKFILL_START_DATE = "2021-01-01";
 const HISTORY_BACKFILL_BATCH_SIZE = 200;
+
+const DUPLICATE_SIMILARITY_THRESHOLD = 0.70;
+
+const DUTY_ROLE_SUPERIOR = {
+  BO1: "BCO1",
+  BO2: "BCO2",
+  TO: "TGO"
+};
+
+const DUTY_ROLE_HIGHER = new Set(Object.values(DUTY_ROLE_SUPERIOR));
+const DUTY_ROLE_LOWER = new Set(Object.keys(DUTY_ROLE_SUPERIOR));
 
 const TYPE_CONTEXT_KEYWORDS = {
   fbhe: ["fbhe", "hhl60"],
@@ -1456,6 +1467,279 @@ async function correctRuntime(database, user, body) {
   });
 }
 
+
+function normalizeDutyPosition(value) {
+  const raw = normalizeText(value);
+
+  if (!raw) return "";
+  if (/파트장/i.test(raw)) return "PART_LEADER";
+
+  const compact = raw
+    .toUpperCase()
+    .replace(/[^A-Z0-9가-힣]/g, "");
+
+  if (["BCO1", "BCO2", "BO1", "BO2", "TGO", "TO"].includes(compact)) {
+    return compact;
+  }
+
+  if (["PARTLEADER", "SHIFTLEADER"].includes(compact)) {
+    return "PART_LEADER";
+  }
+
+  return compact;
+}
+
+function normalizeShiftKey(value) {
+  return normalizeText(value)
+    .toUpperCase()
+    .replace(/[^A-Z0-9가-힣]/g, "");
+}
+
+function rolePriorityGroupKey(row, dutyPosition) {
+  return [
+    normalizeText(row?.work_date).slice(0, 10),
+    normalizeShiftKey(row?.shift),
+    normalizeDutyPosition(dutyPosition)
+  ].join("::");
+}
+
+function parseShiftLogFragments(row) {
+  let parsed;
+
+  try {
+    parsed = JSON.parse(row?.log_json || "{}");
+  } catch {
+    return [];
+  }
+
+  return [...new Set([
+    ...collectHistoricalFragments(parsed),
+    ...collectObjectTextFragments(parsed)
+  ])];
+}
+
+function isBlowerScanRelevantFragment(text) {
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+
+  return (
+    extractRecognizedBlowerTags(normalized).length > 0 ||
+    detectBlowerTypes(normalized).length > 0 ||
+    /(?:blower|fan|블로워|브로워)/i.test(normalized) ||
+    hasBeltWord(normalized) ||
+    hasProblemKeyword(normalized)
+  );
+}
+
+function normalizeSimilarityText(value) {
+  return normalizeText(value)
+    .toLowerCase()
+    .normalize("NFKC")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function buildBigramCounts(value) {
+  const counts = new Map();
+
+  for (let index = 0; index < value.length - 1; index += 1) {
+    const token = value.slice(index, index + 2);
+    counts.set(token, (counts.get(token) || 0) + 1);
+  }
+
+  return counts;
+}
+
+function contentSimilarity(left, right) {
+  const a = normalizeSimilarityText(left);
+  const b = normalizeSimilarityText(right);
+
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (Math.min(a.length, b.length) < 8) return 0;
+
+  const aCounts = buildBigramCounts(a);
+  const bCounts = buildBigramCounts(b);
+  let intersection = 0;
+  let aTotal = 0;
+  let bTotal = 0;
+
+  for (const count of aCounts.values()) aTotal += count;
+  for (const count of bCounts.values()) bTotal += count;
+
+  for (const [token, count] of aCounts.entries()) {
+    intersection += Math.min(count, bCounts.get(token) || 0);
+  }
+
+  if (aTotal + bTotal === 0) return 0;
+  return (2 * intersection) / (aTotal + bTotal);
+}
+
+
+function hasSetOverlap(left, right) {
+  const rightSet = new Set(right);
+  return left.some(item => rightSet.has(item));
+}
+
+function duplicateIdentityCompatible(left, right) {
+  const leftTags = extractRecognizedBlowerTags(left);
+  const rightTags = extractRecognizedBlowerTags(right);
+
+  if (leftTags.length > 0 && rightTags.length > 0 && !hasSetOverlap(leftTags, rightTags)) {
+    return false;
+  }
+
+  const leftTypes = detectBlowerTypes(left);
+  const rightTypes = detectBlowerTypes(right);
+
+  if (leftTypes.length > 0 && rightTypes.length > 0 && !hasSetOverlap(leftTypes, rightTypes)) {
+    return false;
+  }
+
+  const leftUnits = detectUnitNos(left);
+  const rightUnits = detectUnitNos(right);
+
+  if (leftUnits.length > 0 && rightUnits.length > 0 && !hasSetOverlap(leftUnits, rightUnits)) {
+    return false;
+  }
+
+  const leftPositions = detectPositionLabels(left);
+  const rightPositions = detectPositionLabels(right);
+
+  if (leftPositions.length > 0 && rightPositions.length > 0 && !hasSetOverlap(leftPositions, rightPositions)) {
+    return false;
+  }
+
+  return true;
+}
+
+function buildRolePriorityContext(rows) {
+  const context = new Map();
+
+  for (const row of rows || []) {
+    const role = normalizeDutyPosition(row?.role);
+    if (!DUTY_ROLE_HIGHER.has(role)) continue;
+
+    const fragments = parseShiftLogFragments(row)
+      .filter(isBlowerScanRelevantFragment);
+
+    if (fragments.length === 0) continue;
+
+    const key = rolePriorityGroupKey(row, role);
+    if (!context.has(key)) {
+      context.set(key, []);
+    }
+
+    context.get(key).push(...fragments);
+  }
+
+  for (const [key, fragments] of context.entries()) {
+    context.set(key, [...new Set(fragments)]);
+  }
+
+  return context;
+}
+
+function applyDutyRolePriority(row, fragments, rolePriorityContext) {
+  const role = normalizeDutyPosition(row?.role);
+
+  if (role === "PART_LEADER") {
+    return {
+      fragments: [],
+      excludedPartLeader: true,
+      suppressedDuplicateFragments: 0,
+      role
+    };
+  }
+
+  const higherRole = DUTY_ROLE_SUPERIOR[role];
+
+  if (!higherRole || !rolePriorityContext) {
+    return {
+      fragments,
+      excludedPartLeader: false,
+      suppressedDuplicateFragments: 0,
+      role
+    };
+  }
+
+  const higherFragments =
+    rolePriorityContext.get(rolePriorityGroupKey(row, higherRole)) || [];
+
+  if (higherFragments.length === 0) {
+    return {
+      fragments,
+      excludedPartLeader: false,
+      suppressedDuplicateFragments: 0,
+      role
+    };
+  }
+
+  let suppressedDuplicateFragments = 0;
+  const retained = [];
+
+  for (const fragment of fragments) {
+    if (!isBlowerScanRelevantFragment(fragment)) {
+      retained.push(fragment);
+      continue;
+    }
+
+    const duplicated = higherFragments.some(higherFragment =>
+      duplicateIdentityCompatible(fragment, higherFragment) &&
+      contentSimilarity(fragment, higherFragment) >= DUPLICATE_SIMILARITY_THRESHOLD
+    );
+
+    if (duplicated) {
+      suppressedDuplicateFragments += 1;
+      continue;
+    }
+
+    retained.push(fragment);
+  }
+
+  return {
+    fragments: retained,
+    excludedPartLeader: false,
+    suppressedDuplicateFragments,
+    role
+  };
+}
+
+async function loadUpperRoleRowsForDates(database, rows) {
+  const dates = [...new Set(
+    (rows || [])
+      .filter(row => DUTY_ROLE_LOWER.has(normalizeDutyPosition(row?.role)))
+      .map(row => normalizeText(row?.work_date).slice(0, 10))
+      .filter(Boolean)
+  )];
+
+  if (dates.length === 0) return [];
+
+  const output = [];
+  const chunkSize = 250;
+
+  for (let offset = 0; offset < dates.length; offset += chunkSize) {
+    const chunk = dates.slice(offset, offset + chunkSize);
+    const placeholders = chunk.map(() => "?").join(", ");
+
+    const result = await database
+      .prepare(`
+        SELECT id, work_date, shift, role, author, log_json
+        FROM shift_logs
+        WHERE substr(work_date, 1, 10) IN (${placeholders})
+          AND REPLACE(REPLACE(REPLACE(UPPER(role), ' ', ''), '-', ''), '_', '')
+              IN ('BCO1', 'BCO2', 'TGO')
+      `)
+      .bind(...chunk)
+      .all();
+
+    if (Array.isArray(result.results)) {
+      output.push(...result.results);
+    }
+  }
+
+  return output;
+}
+
 function findIssueType(text) {
   const normalized = normalizeText(text).toLowerCase();
 
@@ -2233,7 +2517,7 @@ async function insertDetectionCandidate(database, row, tagNumber, spec, status, 
 
   const now = new Date().toISOString();
   const fingerprint = fingerprintText(
-    ["v6", row.id, row.work_date, tagNumber, spec.detectedType].join("||")
+    ["v7", row.id, row.work_date, tagNumber, spec.detectedType].join("||")
   );
   const id = crypto.randomUUID();
 
@@ -2389,29 +2673,28 @@ async function insertHistoricalEvent(database, row, candidate, spec) {
   return { inserted: true, duplicate: false };
 }
 
-async function processHistoricalLog(database, row, assets) {
-  let parsed;
+async function processHistoricalLog(database, row, assets, fragmentsOverride = null) {
+  const fragments = Array.isArray(fragmentsOverride)
+    ? [...new Set(fragmentsOverride)]
+    : parseShiftLogFragments(row);
 
-  try {
-    parsed = JSON.parse(row.log_json || "{}");
-  } catch {
+  if (fragments.length === 0) {
     return { autoEvents: 0, pending: 0 };
   }
 
-  const fragments = [...new Set([
-    ...collectHistoricalFragments(parsed),
-    ...collectObjectTextFragments(parsed)
-  ])];
   let autoEvents = 0;
   const seen = new Set();
 
-  const rawTags = extractRecognizedBlowerTags(row.log_json || "");
+  const rawTags = extractRecognizedBlowerTags(fragments.join(" | "));
   for (const tagNumber of rawTags) {
     await ensureDiscoveredAssets(database, tagNumber, assets);
     const asset = assets.find(item => normalizeText(item.tag_number).toUpperCase() === tagNumber);
     if (!asset) continue;
 
-    const sourceFragment = fragments.find(fragment => compactEquipmentText(fragment).includes(tagNumber)) || tagNumber;
+    const sourceFragment = fragments.find(fragment =>
+      compactEquipmentText(fragment).includes(tagNumber)
+    ) || tagNumber;
+
     await upsertHistoricalReference(database, row, tagNumber, sourceFragment, "exact_tag");
   }
 
@@ -2480,7 +2763,7 @@ async function processHistoricalLog(database, row, assets) {
   return { autoEvents, pending: 0 };
 }
 
-async function resetHistoricalAutoDataForV6(database, today) {
+async function resetHistoricalAutoDataForV7(database, today) {
   const now = new Date().toISOString();
 
   await database.batch([
@@ -2530,7 +2813,7 @@ async function initializeBackfillRun(database, today) {
   const now = new Date().toISOString();
 
   if (!state) {
-    await resetHistoricalAutoDataForV6(database, today);
+    await resetHistoricalAutoDataForV7(database, today);
 
     await database
       .prepare(`
@@ -2673,11 +2956,33 @@ async function historicalBackfillStep(database) {
     `)
     .all();
   const assets = Array.isArray(assetResult.results) ? assetResult.results : [];
+  const upperRoleRows = await loadUpperRoleRowsForDates(database, logs);
+  const rolePriorityContext = buildRolePriorityContext([
+    ...logs,
+    ...upperRoleRows
+  ]);
   let autoEvents = 0;
   let pending = 0;
+  let excludedPartLeaderLogs = 0;
+  let suppressedDuplicateFragments = 0;
 
   for (const row of logs) {
-    const processed = await processHistoricalLog(database, row, assets);
+    const fragments = parseShiftLogFragments(row);
+    const prioritized = applyDutyRolePriority(row, fragments, rolePriorityContext);
+
+    if (prioritized.excludedPartLeader) {
+      excludedPartLeaderLogs += 1;
+      continue;
+    }
+
+    suppressedDuplicateFragments += prioritized.suppressedDuplicateFragments;
+
+    const processed = await processHistoricalLog(
+      database,
+      row,
+      assets,
+      prioritized.fragments
+    );
     autoEvents += processed.autoEvents;
     pending += processed.pending;
   }
@@ -2722,6 +3027,8 @@ async function historicalBackfillStep(database) {
     batchScanned: logs.length,
     batchAutoEvents: autoEvents,
     batchPending: pending,
+    batchExcludedPartLeaderLogs: excludedPartLeaderLogs,
+    batchSuppressedDuplicateFragments: suppressedDuplicateFragments,
     backfill: await loadBackfillState(database)
   });
 }
@@ -2758,22 +3065,27 @@ async function scanShiftLogs(database, user, body) {
     `)
     .all();
   const assets = Array.isArray(assetResult.results) ? assetResult.results : [];
+  const upperRoleRows = await loadUpperRoleRowsForDates(database, logs);
+  const rolePriorityContext = buildRolePriorityContext([
+    ...logs,
+    ...upperRoleRows
+  ]);
   let detectedCount = 0;
   let insertedCount = 0;
+  let excludedPartLeaderLogs = 0;
+  let suppressedDuplicateFragments = 0;
 
   for (const row of logs) {
-    let parsed;
+    const rawFragments = parseShiftLogFragments(row);
+    const prioritized = applyDutyRolePriority(row, rawFragments, rolePriorityContext);
 
-    try {
-      parsed = JSON.parse(row.log_json || "{}");
-    } catch {
+    if (prioritized.excludedPartLeader) {
+      excludedPartLeaderLogs += 1;
       continue;
     }
 
-    const fragments = [...new Set([
-      ...collectHistoricalFragments(parsed),
-      ...collectObjectTextFragments(parsed)
-    ])];
+    suppressedDuplicateFragments += prioritized.suppressedDuplicateFragments;
+    const fragments = prioritized.fragments;
     const seen = new Set();
 
     for (const fragment of fragments) {
@@ -2812,9 +3124,14 @@ async function scanShiftLogs(database, user, body) {
 
   return jsonResponse({
     ok: true,
-    message: `업무일지 ${logs.length}건을 확인했습니다.`,
+    message:
+      `업무일지 ${logs.length}건 확인 · 파트장 ${excludedPartLeaderLogs}건 제외 · ` +
+      `70% 이상 중복 하위보직 구절 ${suppressedDuplicateFragments}건은 상위보직 기준 처리`,
     scannedDays: days,
     scannedLogCount: logs.length,
+    excludedPartLeaderLogs,
+    suppressedDuplicateFragments,
+    duplicateSimilarityThreshold: DUPLICATE_SIMILARITY_THRESHOLD,
     detectedCount,
     insertedCount,
     pendingCandidates: await loadCandidates(database, "pending", 300)
