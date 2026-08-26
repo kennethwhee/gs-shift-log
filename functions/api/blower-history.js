@@ -123,8 +123,6 @@ const REPLACEMENT_COMPLETE_KEYWORDS = [
 const COMPONENT_REPLACEMENT_KEYWORDS = [
   "bearing",
   "베어링",
-  "belt",
-  "벨트",
   "coupling",
   "커플링",
   "filter",
@@ -145,7 +143,7 @@ const COMPONENT_REPLACEMENT_KEYWORDS = [
   "볼트"
 ];
 
-const HISTORY_BACKFILL_ID = "shift_logs_full_v5";
+const HISTORY_BACKFILL_ID = "shift_logs_full_v6";
 const HISTORY_BACKFILL_START_DATE = "2021-01-01";
 const HISTORY_BACKFILL_BATCH_SIZE = 200;
 
@@ -1885,29 +1883,31 @@ function componentReplacementPhrase(text) {
   return false;
 }
 
-function hasExplicitWholeBlowerReplacement(text) {
+function hasBeltWord(text) {
   const normalized = normalizeText(text);
-  const equipment = "(?:BLOWER|FAN|블로워|브로워)";
-  const positionList = "(?:\\s*#?\\s*[ABC](?:\\s*[,/&·+]\\s*#?\\s*[ABC]){0,2})?";
-  const bodyWord = "(?:\\s*(?:본체|ASSY|ASSEMBLY|SET))?";
-  const action = "(?:교체(?:\\s*(?:완료|실시|시행|함|하였))?|REPLACE(?:MENT|D)?|취외|취부|신품\\s*(?:교체|취부|설치)?)";
-  const direct = new RegExp(`${equipment}${positionList}${bodyWord}\\s*${action}`, "i");
-  const reverse = new RegExp(`${action}\\s*${bodyWord}\\s*${equipment}${positionList}`, "i");
-  return direct.test(normalized) || reverse.test(normalized);
+  return /(?:\bV\s*[-\/]?\s*BELT\b|\bVBELT\b|\bBELT\b|V\s*[-\/]?\s*벨트|V벨트|벨트)/i.test(normalized);
 }
 
-function hasDirectTagReplacement(text) {
+function hasBeltReplacementPhrase(text) {
+  const normalized = normalizeText(text);
+  const belt = "(?:V\\s*[-\\/]?\\s*BELT|VBELT|BELT|V\\s*[-\\/]?\\s*벨트|V벨트|벨트)";
+  const action = "(?:교체|REPLACE(?:MENT|D)?)";
+  const forward = new RegExp(`${belt}.{0,24}${action}`, "i");
+  const reverse = new RegExp(`${action}.{0,24}${belt}`, "i");
+  return forward.test(normalized) || reverse.test(normalized);
+}
+
+function hasDirectTagBeltReplacement(text) {
   const normalized = normalizeText(text);
   if (extractRecognizedBlowerTags(normalized).length === 0) return false;
-  if (!hasReplacementKeyword(normalized)) return false;
+  if (!hasBeltReplacementPhrase(normalized)) return false;
   if (hasReplacementPlanContext(normalized)) return false;
-  if (componentReplacementPhrase(normalized) && !hasExplicitWholeBlowerReplacement(normalized)) return false;
   return true;
 }
 
-function hasContextualBlowerReplacement(text) {
+function hasContextualBlowerBeltReplacement(text) {
   const normalized = normalizeText(text);
-  if (!hasReplacementKeyword(normalized)) return false;
+  if (!hasBeltReplacementPhrase(normalized)) return false;
   if (hasReplacementPlanContext(normalized)) return false;
 
   const types = detectBlowerTypes(normalized);
@@ -1920,28 +1920,25 @@ function hasContextualBlowerReplacement(text) {
   if (positions.length === 0 && !hasShortTag) return false;
   if (units.length > 1) return false;
 
-  if (componentReplacementPhrase(normalized) && !hasExplicitWholeBlowerReplacement(normalized)) {
-    return false;
-  }
-
   return hasBlowerWord || positions.length > 0 || hasShortTag;
 }
 
-function hasActualBlowerReplacementSignal(text) {
+function hasActualBlowerBeltReplacementSignal(text) {
   for (const clause of splitSemanticClauses(text)) {
+    if (!hasBeltWord(clause)) continue;
     if (!hasReplacementKeyword(clause)) continue;
+    if (!hasBeltReplacementPhrase(clause)) continue;
     if (hasReplacementPlanContext(clause)) continue;
 
-    if (hasDirectTagReplacement(clause)) return true;
-    if (hasExplicitWholeBlowerReplacement(clause)) return true;
-    if (hasContextualBlowerReplacement(clause)) return true;
+    if (hasDirectTagBeltReplacement(clause)) return true;
+    if (hasContextualBlowerBeltReplacement(clause)) return true;
   }
 
   return false;
 }
 
 function hasComponentReplacementContext(text) {
-  if (hasActualBlowerReplacementSignal(text)) return false;
+  if (hasActualBlowerBeltReplacementSignal(text)) return false;
   return splitSemanticClauses(text).some(componentReplacementPhrase);
 }
 
@@ -2046,7 +2043,7 @@ async function upsertHistoricalReference(database, row, tagNumber, sourceText, r
 
 function detectedEventSpecs(fragment) {
   const issueType = findIssueType(fragment);
-  const replacementDetected = hasReplacementKeyword(fragment);
+  const beltReplacementDetected = hasReplacementKeyword(fragment) && hasBeltReplacementPhrase(fragment);
   const specs = [];
 
   if (issueType) {
@@ -2058,12 +2055,12 @@ function detectedEventSpecs(fragment) {
     });
   }
 
-  if (replacementDetected) {
+  if (beltReplacementDetected) {
     specs.push({
       detectedType: "replacement",
       issueType: issueType || "정기주기",
-      actionType: "교체",
-      autoEligible: hasActualBlowerReplacementSignal(fragment)
+      actionType: "V-Belt 교체",
+      autoEligible: hasActualBlowerBeltReplacementSignal(fragment)
     });
   }
 
@@ -2236,7 +2233,7 @@ async function insertDetectionCandidate(database, row, tagNumber, spec, status, 
 
   const now = new Date().toISOString();
   const fingerprint = fingerprintText(
-    ["v5", row.id, row.work_date, tagNumber, spec.detectedType].join("||")
+    ["v6", row.id, row.work_date, tagNumber, spec.detectedType].join("||")
   );
   const id = crypto.randomUUID();
 
@@ -2483,7 +2480,7 @@ async function processHistoricalLog(database, row, assets) {
   return { autoEvents, pending: 0 };
 }
 
-async function resetHistoricalAutoDataForV5(database, today) {
+async function resetHistoricalAutoDataForV6(database, today) {
   const now = new Date().toISOString();
 
   await database.batch([
@@ -2533,7 +2530,7 @@ async function initializeBackfillRun(database, today) {
   const now = new Date().toISOString();
 
   if (!state) {
-    await resetHistoricalAutoDataForV5(database, today);
+    await resetHistoricalAutoDataForV6(database, today);
 
     await database
       .prepare(`

@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="GS Shift Log Blower 교체 이력 관리">
-  <title>Blower 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260826-v5">
-  <script src="blower-history.js?v=20260826-v5" defer></script>
+  <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
+  <title>Blower V-Belt 교체 이력 관리</title>
+  <link rel="stylesheet" href="blower-history.css?v=20260826-v6">
+  <script src="blower-history.js?v=20260826-v6" defer></script>
 </head>
 <body>
   <div class="page-shell">
     <header class="page-header">
       <div>
         <p class="eyebrow">EQUIPMENT LIFE MANAGEMENT</p>
-        <h1>Blower 교체 이력 관리</h1>
+        <h1>Blower V-Belt 교체 이력 관리</h1>
         <p class="page-description">
-          실제 누적 운전시간을 기준으로 교체주기와 문제·교체 이력을 관리합니다.
+          Blower V-Belt 교체 이력을 기준으로 교체주기와 문제 이력을 관리합니다.
         </p>
       </div>
       <div class="header-actions">
@@ -32,7 +32,7 @@
     <div class="workspace">
       <nav class="sub-tabs" aria-label="관리 화면">
         <button type="button" class="sub-tab is-active" data-subview="overview">현재현황</button>
-        <button type="button" class="sub-tab" data-subview="history">교체·문제이력</button>
+        <button type="button" class="sub-tab" data-subview="history">V-Belt 교체·문제이력</button>
         <button type="button" class="sub-tab" data-subview="detect">
           자동감지
           <span class="count-badge" id="candidateCountBadge" hidden>0</span>
@@ -78,9 +78,9 @@
           <section class="average-panel">
             <div class="average-heading">
               <div>
-                <span class="settings-label">평균 교체주기</span>
+                <span class="settings-label">평균 V-Belt 교체주기</span>
                 <strong id="averageHeadline">계산 중</strong>
-                <small id="averageSubline">실제 교체일과 다음 교체일 사이의 달력 일수를 계산합니다.</small>
+                <small id="averageSubline">실제 V-Belt 교체일과 다음 V-Belt 교체일 사이의 달력 일수를 계산합니다.</small>
               </div>
               <div class="average-controls" aria-label="평균 교체주기 계산기간">
                 <span>최근</span>
@@ -120,12 +120,12 @@
             <div class="section-title-row">
               <div>
                 <p class="eyebrow">EVENT HISTORY</p>
-                <h2>교체·문제 이력</h2>
+                <h2>V-Belt 교체·문제 이력</h2>
               </div>
               <div class="filter-actions">
                 <select id="historyFilter" aria-label="이력 종류">
                   <option value="all">전체</option>
-                  <option value="replacement">교체</option>
+                  <option value="replacement">V-Belt 교체</option>
                   <option value="problem">문제발생</option>
                   <option value="runtime_correction">운전시간 보정</option>
                 </select>
@@ -158,7 +158,7 @@
               <div>
                 <p class="eyebrow">SHIFT LOG DETECTION</p>
                 <h2>업무일지 자동감지</h2>
-                <p>TAG뿐 아니라 호기, Blower 종류, #A/#B/#C와 업무내용의 교체·문제 문맥을 함께 읽어 이력화합니다.</p>
+                <p>TAG뿐 아니라 호기, Blower 종류, #A/#B/#C와 업무내용을 함께 읽되, 교체 이력은 V-Belt / V Belt / Belt 교체만 이력화합니다.</p>
               </div>
               <div class="scan-controls">
                 <label>
@@ -175,7 +175,7 @@
               </div>
             </div>
             <div class="detect-guide">
-              과거 기록은 오늘 기준까지 자동 반영됩니다. Blower 본체 교체와 Oil/Bearing/Filter 등 부품 교체를 구분하고, #B,C처럼 여러 설비가 한 문장에 적힌 경우에도 각각 연결합니다. 교체 예정·계획처럼 실제 교체 여부가 애매한 문장은 검토 대기에 남습니다.
+              과거 기록은 오늘 기준까지 자동 반영됩니다. 교체 이력은 V-Belt / V Belt / Belt 교체만 포함하며 Suction Filter, Oil, Bearing, Motor 등 다른 부품 교체는 자동감지에서 제외합니다. #B,C처럼 여러 설비가 한 문장에 적힌 경우에도 각각 연결합니다.
             </div>
             <div class="candidate-list" id="candidateList"></div>
             <div class="empty-state" id="candidateEmpty">검토 대기 중인 자동감지 후보가 없습니다.</div>
@@ -207,7 +207,7 @@
         </label>
 
         <label class="field" id="issueTypeField">
-          <span>문제 / 교체사유</span>
+          <span>문제 / V-Belt 교체사유</span>
           <select id="issueType">
             <option value="정기주기">정기주기</option>
             <option value="파손">파손</option>
@@ -229,7 +229,7 @@
         <label class="field" id="actionTypeField">
           <span>조치</span>
           <select id="actionType">
-            <option value="교체">교체</option>
+            <option value="V-Belt 교체">V-Belt 교체</option>
             <option value="확인">확인</option>
             <option value="감시">감시</option>
             <option value="보수">보수</option>
@@ -241,7 +241,7 @@
 
         <label class="field checkbox-field" id="replacementRunningField">
           <input type="checkbox" id="replacementRunning" checked>
-          <span>교체일부터 운전시간 자동 누적</span>
+          <span>V-Belt 교체일부터 운전시간 자동 누적</span>
         </label>
 
         <label class="field" id="runtimeHoursField" hidden>

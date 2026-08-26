@@ -214,7 +214,7 @@
   function formatSignedRemaining(asset) {
     if (asset.severity === "reference") {
       const referenceDate = formatDate(asset.latestReference?.referenceDate);
-      return `교체일 미검출 · 최근 기록 ${referenceDate} 기준`;
+      return `V-Belt 교체일 미검출 · 최근 기록 ${referenceDate} 기준`;
     }
     if (asset.severity === "uninitialized") return "2021년 이후 관련 기록 미검출";
     if (asset.severity === "unset") return "교체주기 설정 필요";
@@ -244,7 +244,7 @@
 
   function eventLabel(type) {
     return {
-      replacement: "교체",
+      replacement: "V-Belt 교체",
       problem: "문제발생",
       runtime_correction: "운전시간 보정",
       note: "메모"
@@ -379,7 +379,7 @@
 
         <div class="asset-meta">
           <div>
-            <span>최근 교체</span>
+            <span>최근 V-Belt 교체</span>
             <strong>${asset.lastReplacementAt ? escapeHtml(formatDate(asset.lastReplacementAt)) : "미검출"}</strong>
           </div>
           <div>
@@ -388,11 +388,11 @@
           </div>
           <div>
             <span>운전 상태</span>
-            <strong>${asset.lastReplacementAt ? (asset.isRunning ? "운전중 · 자동누적" : "정지 · 누적정지") : (asset.latestReference ? "최근 이력 기준 · 교체일 미확정" : "기준 이력 없음")}</strong>
+            <strong>${asset.lastReplacementAt ? (asset.isRunning ? "운전중 · 자동누적" : "정지 · 누적정지") : (asset.latestReference ? "최근 이력 기준 · V-Belt 교체일 미확정" : "기준 이력 없음")}</strong>
           </div>
           <div>
             <span>주기 진행</span>
-            <strong>${asset.lastReplacementAt ? (asset.progressPct === null ? "-" : `${Math.round(progress)}%`) : "교체일 확인 필요"}</strong>
+            <strong>${asset.lastReplacementAt ? (asset.progressPct === null ? "-" : `${Math.round(progress)}%`) : "V-Belt 교체일 확인 필요"}</strong>
           </div>
         </div>
 
@@ -405,7 +405,7 @@
         </div>
 
         <div class="asset-actions">
-          <button type="button" class="asset-action primary" data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">교체 등록</button>
+          <button type="button" class="asset-action primary" data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">V-Belt 교체 등록</button>
           <button type="button" class="asset-action danger" data-asset-action="problem" data-tag="${escapeHtml(asset.tagNumber)}">문제 등록</button>
           <button type="button" class="asset-action" data-asset-action="runtime" data-tag="${escapeHtml(asset.tagNumber)}">운전시간/상태 보정</button>
         </div>
@@ -595,7 +595,7 @@
     } else {
       elements.averageHeadline.textContent = `${periodLabel} · 평균 ${formatAverageDays(average)}`;
       elements.averageMetrics.innerHTML = `
-        <div class="average-metric primary"><span>평균 교체주기</span><strong>${escapeHtml(formatAverageDays(average))}</strong></div>
+        <div class="average-metric primary"><span>평균 V-Belt 교체주기</span><strong>${escapeHtml(formatAverageDays(average))}</strong></div>
         <div class="average-metric"><span>표본</span><strong>${days.length.toLocaleString("ko-KR")}회</strong></div>
         <div class="average-metric"><span>최단</span><strong>${escapeHtml(formatAverageDays(Math.min(...days)))}</strong></div>
         <div class="average-metric"><span>최장</span><strong>${escapeHtml(formatAverageDays(Math.max(...days)))}</strong></div>
@@ -688,7 +688,7 @@
           <div class="candidate-source">
             <div class="candidate-meta">
               ${escapeHtml(formatDate(candidate.detectedDate))} · ${escapeHtml(candidate.sourceShift || "-")} · ${escapeHtml(candidate.sourceRole || "-")} · ${escapeHtml(candidate.sourceAuthor || "-")}
-              · ${candidate.detectedType === "replacement" ? "교체 감지" : "문제 감지"}
+              · ${candidate.detectedType === "replacement" ? "V-Belt 교체 감지" : "문제 감지"}
             </div>
             <p>${escapeHtml(candidate.sourceText)}</p>
           </div>
@@ -827,10 +827,10 @@
 
     if (mode === "replacement") {
       elements.recordDialogEyebrow.textContent = "REPLACEMENT";
-      elements.recordDialogTitle.textContent = "교체 등록";
-      elements.recordDateLabel.textContent = "교체일";
+      elements.recordDialogTitle.textContent = "V-Belt 교체 등록";
+      elements.recordDateLabel.textContent = "V-Belt 교체일";
       elements.issueType.value = "정기주기";
-      elements.actionType.value = "교체";
+      elements.actionType.value = "V-Belt 교체";
       elements.actionTypeField.hidden = true;
       elements.replacementRunningField.hidden = false;
       elements.replacementRunning.checked = true;
@@ -859,10 +859,10 @@
     if (mode === "candidate") {
       const replacement = candidate?.detectedType === "replacement";
       elements.recordDialogEyebrow.textContent = "AUTO DETECTION REVIEW";
-      elements.recordDialogTitle.textContent = replacement ? "교체 감지 확인" : "문제 감지 확인";
-      elements.recordDateLabel.textContent = replacement ? "교체일" : "발생일";
+      elements.recordDialogTitle.textContent = replacement ? "V-Belt 교체 감지 확인" : "문제 감지 확인";
+      elements.recordDateLabel.textContent = replacement ? "V-Belt 교체일" : "발생일";
       elements.issueType.value = candidate?.issueType || (replacement ? "정기주기" : "기타");
-      elements.actionType.value = candidate?.actionType || (replacement ? "교체" : "확인");
+      elements.actionType.value = candidate?.actionType || (replacement ? "V-Belt 교체" : "확인");
       elements.replacementRunningField.hidden = !replacement;
       elements.replacementRunning.checked = true;
       elements.candidateSourcePreview.hidden = false;
@@ -906,7 +906,7 @@
           tagNumber,
           eventDate: elements.recordDate.value,
           issueType: elements.issueType.value,
-          actionType: "교체",
+          actionType: "V-Belt 교체",
           isRunning: elements.replacementRunning.checked,
           note: elements.recordNote.value
         };
