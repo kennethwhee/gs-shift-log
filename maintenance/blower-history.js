@@ -489,15 +489,19 @@
 
   function renderAssetCard(asset, setting) {
     const cycleDays = Number(setting?.cycleDays);
-    const runtime = roundHours(asset.runtimeHours);
+    const cycleElapsedHours = roundHours(asset.cycleElapsedHours);
     const replacementEvent = asset.lastReplacementAt ? getLatestReplacementEvent(asset) : null;
     const awaitingBackfill = isAssetAwaitingBackfill(asset);
     const confirmed = Boolean(asset.lastReplacementAt) && !awaitingBackfill;
     const severity = displaySeverity(asset);
-    const progress = Number.isFinite(Number(asset.progressPct)) ? Math.max(0, Math.min(100, Number(asset.progressPct))) : 0;
     const evidence = readableEvidence(replacementEvent);
     const cycleHours = cycleDays > 0 ? cycleDays * 24 : null;
-    const stateLabel = asset.isRunning ? "운전중 · 자동누적" : "정지 · 누적정지";
+    const progress = cycleHours
+      ? Math.max(0, Math.min(100, (cycleElapsedHours / cycleHours) * 100))
+      : 0;
+    const cycleHeadline = cycleHours
+      ? `교체 후 ${formatDaysHours(cycleElapsedHours)} / ${cycleDays.toLocaleString("ko-KR")}일`
+      : `교체 후 ${formatDaysHours(cycleElapsedHours)}`;
 
     return `
       <article class="asset-card" data-severity="${escapeHtml(severity)}" data-tag="${escapeHtml(asset.tagNumber)}">
@@ -512,12 +516,12 @@
         ${confirmed ? `
           <div class="runtime-main">
             <span class="cycle-label">현재 교체주기</span>
-            <strong>교체 후 ${escapeHtml(formatHours(runtime))}</strong>
+            <strong>${escapeHtml(cycleHeadline)}</strong>
             <small>${escapeHtml(formatSignedRemaining(asset))}</small>
             ${cycleHours ? `
               <div class="progress-caption">
-                <span>${escapeHtml(formatHours(runtime))}</span>
-                <span>${cycleHours.toLocaleString("ko-KR")}h</span>
+                <span>${escapeHtml(formatDaysHours(cycleElapsedHours))}</span>
+                <span>${cycleDays.toLocaleString("ko-KR")}일</span>
               </div>
               <div
                 class="progress-track"
@@ -534,7 +538,7 @@
 
           <div class="asset-meta">
             <div><span>최근 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
-            <div><span>운전 상태</span><strong>${escapeHtml(stateLabel)}</strong></div>
+            <div><span>계산 기준</span><strong>교체일 기준 자동계산</strong></div>
           </div>
 
           <div class="asset-evidence${evidence ? "" : " is-empty"}">
@@ -545,7 +549,7 @@
         ` : awaitingBackfill ? `
           <div class="unknown-cycle is-rebuild-pending">
             <strong>자동 이력 재확인 중</strong>
-            <p>과거 이력 재구성 후 교체일과 누적시간을 표시합니다.</p>
+            <p>과거 이력 재구성 후 교체일과 경과시간을 표시합니다.</p>
             <small>수동 등록 이력은 재구성과 관계없이 유지됩니다.</small>
           </div>
         ` : `
@@ -863,13 +867,13 @@
       ? `
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         <div><span>최근 V-Belt 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
-        <div><span>교체 후 누적 운전</span><strong>${escapeHtml(formatHours(asset.runtimeHours))}</strong></div>
+        <div><span>교체 후 경과시간</span><strong>${escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
         <div><span>현재 주기</span><strong>${escapeHtml(formatSignedRemaining(asset))}</strong></div>
       `
       : awaitingBackfill
         ? `
         <span class="status-pill unknown">재구성 대기</span>
-        <div class="history-unknown"><strong>자동 이력을 다시 확인하고 있습니다.</strong><span>재구성 완료 후 확정된 교체일과 누적시간을 표시합니다.</span></div>
+        <div class="history-unknown"><strong>자동 이력을 다시 확인하고 있습니다.</strong><span>재구성 완료 후 확정된 교체일과 경과시간을 표시합니다.</span></div>
       `
         : `
         <span class="status-pill unknown">교체일 미확인</span>

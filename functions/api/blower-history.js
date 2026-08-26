@@ -748,8 +748,23 @@ function runtimeHoursAt(asset, eventDate) {
   return Math.max(0, hours);
 }
 
+function cycleElapsedHoursSince(lastReplacementAt, now = new Date()) {
+  const replacementText = normalizeText(lastReplacementAt);
+  if (!replacementText) return null;
+
+  const replacementAt = new Date(replacementText);
+  const currentAt = now instanceof Date ? now : new Date(now);
+
+  if (Number.isNaN(replacementAt.getTime()) || Number.isNaN(currentAt.getTime())) {
+    return null;
+  }
+
+  return Math.max(0, (currentAt.getTime() - replacementAt.getTime()) / 3600000);
+}
+
 function buildAssetState(asset, setting, latestProblem, latestReference, now = new Date()) {
   const runtimeHours = currentRuntimeHours(asset, now);
+  const cycleElapsedHours = cycleElapsedHoursSince(asset.last_replacement_at, now);
   const cycleDays = toNullableNumber(setting?.cycleDays ?? setting?.cycle_days);
   const warningDays = toNullableNumber(setting?.warningDays ?? setting?.warning_days);
   const criticalDays = toNullableNumber(setting?.criticalDays ?? setting?.critical_days);
@@ -766,14 +781,14 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
     }
   }
 
-  if (!asset.last_replacement_at) {
+  if (cycleElapsedHours === null) {
     severity = latestReference ? "reference" : "uninitialized";
   } else if (!(cycleDays > 0)) {
     severity = "unset";
   } else {
     const cycleHours = cycleDays * 24;
-    remainingHours = cycleHours - runtimeHours;
-    progressPct = Math.max(0, Math.min(100, (runtimeHours / cycleHours) * 100));
+    remainingHours = cycleHours - cycleElapsedHours;
+    progressPct = Math.max(0, Math.min(100, (cycleElapsedHours / cycleHours) * 100));
 
     if (remainingHours <= 0) {
       severity = "overdue";
@@ -802,6 +817,7 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
     lastReplacementAt: normalizeText(asset.last_replacement_at),
     runtimeHours,
     isRunning: Number(asset.is_running) === 1,
+    cycleElapsedHours,
     remainingHours,
     progressPct,
     severity,
