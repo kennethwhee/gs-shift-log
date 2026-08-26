@@ -4736,6 +4736,40 @@ function printInspectionScheduleList() {
     saveLastView(
       "calendar"
     );
+
+
+    /*
+      모바일 Safari에서 메뉴가 긴 경우에도
+      월간 달력 버튼을 누르면 실제 달력 시작 위치로 이동한다.
+      두 번의 animation frame 뒤 실행해 hidden 해제 레이아웃이
+      완전히 반영된 좌표를 사용한다.
+    */
+    window.requestAnimationFrame(
+      () => {
+        window.requestAnimationFrame(
+          () => {
+            const prefersReducedMotion =
+              window.matchMedia?.(
+                "(prefers-reduced-motion: reduce)"
+              ).matches === true;
+
+
+            dashboard.scrollIntoView({
+              behavior:
+                prefersReducedMotion
+                  ? "auto"
+                  : "smooth",
+
+              block:
+                "start",
+
+              inline:
+                "nearest"
+            });
+          }
+        );
+      }
+    );
   }
 
 
@@ -5285,5 +5319,4 @@ if (
 } else {
   startInspectionWorkspaceNavigation();
 }
-
 

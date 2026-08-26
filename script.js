@@ -4014,7 +4014,7 @@ function openLoginScreen() {
     isMobileShiftLogAppRoute()
   ) {
     window.location.replace(
-      "/mobile/?build=20260825-mobile-branding-v16&reason=login-required"
+      "/mobile/?build=20260826-mobile-layout-v17&reason=login-required"
     );
 
 

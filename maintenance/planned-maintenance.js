@@ -667,7 +667,13 @@
         ${rows.map((row, index) => `
           <tr data-pm-row-id="${management.escapeHtml(row.id)}">
             <td class="pm-number-cell">${index + 1}</td>
-            ${config.columns.map(col => `<td>${inputHtml(row, col)}</td>`).join("")}
+            ${config.columns.map(col => `
+              <td
+                data-pm-label="${management.escapeHtml(col.header)}"
+                data-pm-field-cell="${management.escapeHtml(col.field)}"
+                data-pm-cell-type="${management.escapeHtml(col.type)}"
+              >${inputHtml(row, col)}</td>
+            `).join("")}
             <td class="pm-row-delete-cell" data-pm-action-column>
               <button
                 type="button"
@@ -1539,7 +1545,9 @@
   const TEXTAREA_SELECTOR =
     ".planned-maintenance-table textarea";
 
-  const MIN_HEIGHT_PX = 72;
+  const DESKTOP_MIN_HEIGHT_PX = 72;
+
+  const MOBILE_MIN_HEIGHT_PX = 44;
 
   let resizeFrame = 0;
 
@@ -1554,8 +1562,15 @@
 
     textarea.style.height = "auto";
 
+    const minimumHeight =
+      window.matchMedia(
+        "(max-width: 760px)"
+      ).matches
+        ? MOBILE_MIN_HEIGHT_PX
+        : DESKTOP_MIN_HEIGHT_PX;
+
     const nextHeight = Math.max(
-      MIN_HEIGHT_PX,
+      minimumHeight,
       textarea.scrollHeight
     );
 

@@ -396,3 +396,322 @@
     font-size: 12px;
   }
 }
+
+/* =========================================================
+   PLANNED_MAINTENANCE_MOBILE_CARDS_V17
+
+   Logic 개선 / 작업필요사항 공통 모바일 화면:
+   - desktop Excel column widths remain untouched
+   - each row becomes a readable full-width card
+   - every field remains visible without horizontal scrolling
+========================================================= */
+
+@media screen and (max-width: 760px) {
+  .management-header__inner {
+    display: grid !important;
+    min-height: 0 !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 6px !important;
+    padding: 7px 8px !important;
+  }
+
+  .management-brand {
+    width: 100% !important;
+    gap: 8px !important;
+  }
+
+  .management-brand__mark {
+    width: 31px !important;
+    height: 31px !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+  }
+
+  .management-brand__text strong {
+    font-size: 15px !important;
+  }
+
+  .management-header__actions {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    grid-template-columns:
+      repeat(
+        5,
+        minmax(0, 1fr)
+      ) !important;
+    gap: 3px !important;
+  }
+
+  .management-header__actions .management-button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 34px !important;
+    padding: 2px 3px !important;
+    border-radius: 7px !important;
+    font-size: clamp(7px, 2.15vw, 9px) !important;
+    line-height: 1.12 !important;
+    text-align: center !important;
+    white-space: normal !important;
+    word-break: keep-all !important;
+  }
+
+  .management-main {
+    padding: 6px 4px 24px !important;
+  }
+
+  .management-panel {
+    border-radius: 10px !important;
+  }
+
+  .management-toolbar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 7px !important;
+    padding: 8px !important;
+  }
+
+  .management-toolbar__left {
+    display: grid !important;
+    width: 100% !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 6px !important;
+  }
+
+  .management-toolbar__right {
+    display: grid !important;
+    width: 100% !important;
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      ) !important;
+    gap: 5px !important;
+  }
+
+  .management-tabs {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 2px !important;
+  }
+
+  .management-tab {
+    min-width: 0 !important;
+    min-height: 34px !important;
+    padding: 0 5px !important;
+    font-size: 10px !important;
+  }
+
+  .management-field {
+    gap: 4px !important;
+    font-size: 8px !important;
+  }
+
+  .management-field select {
+    min-height: 34px !important;
+    padding: 0 4px !important;
+    font-size: 10px !important;
+  }
+
+  .management-toolbar__right .management-button {
+    min-height: 34px !important;
+    padding: 0 7px !important;
+    font-size: 10px !important;
+  }
+
+  .pm-sheet-tabs-shell {
+    padding: 5px 5px 0 !important;
+  }
+
+  .pm-sheet-tabs {
+    display: grid !important;
+    grid-template-columns:
+      repeat(
+        5,
+        minmax(0, 1fr)
+      ) !important;
+    align-items: stretch !important;
+    gap: 2px !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .pm-sheet-tab {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 34px !important;
+    padding: 4px 2px !important;
+    overflow: hidden !important;
+    font-size: clamp(6px, 1.95vw, 8px) !important;
+    line-height: 1.12 !important;
+    text-overflow: ellipsis !important;
+    white-space: normal !important;
+    word-break: keep-all !important;
+  }
+
+  .pm-work-category-tabs-shell {
+    display: grid !important;
+    grid-template-columns:
+      repeat(
+        5,
+        minmax(0, 1fr)
+      ) !important;
+    gap: 3px !important;
+    min-height: 0 !important;
+    padding: 5px !important;
+    overflow: visible !important;
+  }
+
+  .pm-work-category-tab {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 32px !important;
+    padding: 3px 2px !important;
+    font-size: 9px !important;
+  }
+
+  .management-meta {
+    min-height: 0 !important;
+    flex-wrap: wrap !important;
+    gap: 3px 7px !important;
+    padding: 6px 8px !important;
+    font-size: 8px !important;
+    line-height: 1.25 !important;
+  }
+
+  .planned-maintenance-table-wrap {
+    width: 100% !important;
+    overflow: visible !important;
+    border-radius: 0 0 10px 10px !important;
+    background: #edf3f8 !important;
+  }
+
+  .planned-maintenance-table {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .planned-maintenance-table colgroup,
+  .planned-maintenance-table thead {
+    display: none !important;
+  }
+
+  .planned-maintenance-table tbody {
+    display: grid !important;
+    width: 100% !important;
+    gap: 8px !important;
+    padding: 8px !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id] {
+    position: relative !important;
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      ) !important;
+    gap: 5px !important;
+    padding: 30px 6px 6px !important;
+    border: 1px solid #c9d6e2 !important;
+    border-radius: 9px !important;
+    background: #ffffff !important;
+    box-shadow: 0 2px 7px rgba(28, 55, 84, 0.05) !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id] > td {
+    display: block !important;
+    width: auto !important;
+    min-width: 0 !important;
+    padding: 5px !important;
+    overflow: hidden !important;
+    border: 1px solid #e0e7ef !important;
+    border-radius: 6px !important;
+    background: #fbfcfe !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id] > td[data-pm-cell-type="textarea"] {
+    grid-column: 1 / -1 !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id] > td[data-pm-label]::before {
+    content: attr(data-pm-label);
+    display: block;
+    margin: 0 0 3px;
+    color: #607187;
+    font-size: 8px;
+    font-weight: 900;
+    line-height: 1.15;
+  }
+
+  .planned-maintenance-table .pm-number-cell {
+    position: absolute !important;
+    top: 6px !important;
+    left: 7px !important;
+    width: auto !important;
+    min-width: 42px !important;
+    min-height: 20px !important;
+    padding: 3px 8px !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    background: #eaf2fb !important;
+    color: #1f5fae !important;
+    font-size: 9px !important;
+    line-height: 1.4 !important;
+  }
+
+  .planned-maintenance-table .pm-number-cell::before {
+    content: "항목 ";
+  }
+
+  .planned-maintenance-table .pm-row-delete-cell {
+    position: absolute !important;
+    top: 4px !important;
+    right: 5px !important;
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 24px !important;
+    min-height: 24px !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  .pm-row-delete-button {
+    width: 28px !important;
+    height: 24px !important;
+    border-radius: 6px !important;
+    font-size: 13px !important;
+  }
+
+  .planned-maintenance-table input,
+  .planned-maintenance-table select,
+  .planned-maintenance-table textarea {
+    box-sizing: border-box !important;
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    border: 1px solid #d5dee8 !important;
+    border-radius: 5px !important;
+    background: #ffffff !important;
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+  }
+
+  .planned-maintenance-table input,
+  .planned-maintenance-table select {
+    min-height: 38px !important;
+    padding: 5px 7px !important;
+  }
+
+  .planned-maintenance-table textarea {
+    min-height: 44px !important;
+    padding: 6px 7px !important;
+  }
+}

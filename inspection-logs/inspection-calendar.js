@@ -1977,36 +1977,10 @@ function getCalendarShortTitle(value) {
 
 
   /*
-    자동 축약 후에도 너무 긴 경우
-    캘린더에서는 30자까지만 표시한다.
-
-    전체 이름은 title 속성과
-    아래 선택 날짜 상세 목록에서 확인할 수 있다.
+    의미가 같은 긴 표현만 위에서 약칭으로 정리한다.
+    글자 수를 기준으로 강제 생략하지 않아 달력 안에서도
+    점검 항목의 전체 내용을 확인할 수 있게 한다.
   */
-
-  const characters = [
-    ...shortTitle
-  ];
-
-  const maximumLength =
-    30;
-
-
-  if (
-    characters.length >
-    maximumLength
-  ) {
-    return (
-      characters
-        .slice(
-          0,
-          maximumLength - 1
-        )
-        .join("") +
-      "…"
-    );
-  }
-
 
   return (
     shortTitle ||

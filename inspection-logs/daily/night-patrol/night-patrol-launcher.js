@@ -68,7 +68,7 @@
   const ROLE_MODAL_ID = "inspectionRoleTodayModal";
   const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
   const PAGE_URL =
-    "inspection-logs/inspection-logs.html?v=20260814-log-sheet1";
+    "inspection-logs/inspection-logs.html?v=20260826-mobile-layout-v17";
 
   const deferInitialFrameLoad =
     window.__GS_MOBILE_RUNTIME_V14 === true;
@@ -1947,13 +1947,19 @@
 
 })();
 /* =========================================================
-   [HEADER-MENU-EMOJI-V1]
+   [HEADER-MENU-EMOJI-V2]
 
-   PC / Mobile 공통 햄버거 메뉴 이모지
-   기존 메뉴 DOM 구조와 우측 화살표는 유지한다.
+   PC 햄버거 메뉴에는 기존 이모지를 유지한다.
+   모바일에서는 같은 메뉴명을 글자로만 표시한다.
+   메뉴 DOM 구조, 순서, 우측 화살표는 변경하지 않는다.
 ========================================================= */
 
 (() => {
+
+  const MOBILE_HEADER_MEDIA =
+    window.matchMedia(
+      "(max-width: 760px)"
+    );
 
   const MENU_EMOJI_LABELS =
     new Map([
@@ -2051,15 +2057,34 @@
           );
 
 
-        const replacement =
-          MENU_EMOJI_LABELS.get(
-            label
+        const matchedEntry =
+          [
+            ...MENU_EMOJI_LABELS.entries()
+          ].find(
+            ([plainLabel, emojiLabel]) => {
+              return (
+                label === plainLabel ||
+                label === emojiLabel
+              );
+            }
           );
 
 
-        if (!replacement) {
+        if (!matchedEntry) {
           return;
         }
+
+
+        const [
+          plainLabel,
+          emojiLabel
+        ] = matchedEntry;
+
+
+        const replacement =
+          MOBILE_HEADER_MEDIA.matches
+            ? plainLabel
+            : emojiLabel;
 
 
         const leadingSpace =
@@ -2157,6 +2182,33 @@ return true;
               true
           }
         );
+
+
+        const handleHeaderMenuMediaChange =
+          () => {
+            applyHeaderMenuEmoji();
+          };
+
+
+        if (
+          typeof MOBILE_HEADER_MEDIA
+            .addEventListener ===
+            "function"
+        ) {
+          MOBILE_HEADER_MEDIA.addEventListener(
+            "change",
+            handleHeaderMenuMediaChange
+          );
+
+        } else if (
+          typeof MOBILE_HEADER_MEDIA
+            .addListener ===
+            "function"
+        ) {
+          MOBILE_HEADER_MEDIA.addListener(
+            handleHeaderMenuMediaChange
+          );
+        }
       };
 
 

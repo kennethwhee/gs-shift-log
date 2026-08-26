@@ -4550,3 +4550,299 @@ input {
   display:
     none !important;
 }
+
+/* =========================================================
+   MANHOLE_MOBILE_COMPACT_V17
+
+   - summary counts stay on one compact row
+   - the complete source diagram fits the mobile viewport
+   - status/date controls remain directly below the diagram
+   - desktop diagram geometry and table are unchanged
+========================================================= */
+
+@media screen and (max-width: 760px) {
+  .manhole-summary {
+    grid-template-columns:
+      repeat(
+        3,
+        minmax(0, 1fr)
+      ) !important;
+    gap: 5px !important;
+    padding: 7px !important;
+  }
+
+  .manhole-summary article {
+    min-width: 0 !important;
+    min-height: 42px !important;
+    gap: 4px !important;
+    padding: 6px 8px !important;
+    border-radius: 8px !important;
+  }
+
+  .manhole-summary span {
+    min-width: 0 !important;
+    font-size: 8px !important;
+    line-height: 1.15 !important;
+    letter-spacing: -0.04em !important;
+    white-space: nowrap !important;
+  }
+
+  .manhole-summary strong {
+    flex: 0 0 auto !important;
+    font-size: 18px !important;
+    line-height: 1 !important;
+  }
+
+  .manhole-workspace {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    padding: 7px !important;
+  }
+
+  .manhole-schematic-panel,
+  .manhole-list-panel {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-radius: 9px !important;
+  }
+
+  .manhole-schematic-panel {
+    order: 1 !important;
+    overflow: hidden !important;
+  }
+
+  .manhole-list-panel {
+    order: 2 !important;
+  }
+
+  .manhole-section-heading {
+    min-height: 34px !important;
+    align-items: center !important;
+    flex-direction: row !important;
+    gap: 6px !important;
+    padding: 6px 8px !important;
+  }
+
+  .manhole-section-heading strong {
+    flex: 0 0 auto !important;
+    font-size: 10px !important;
+  }
+
+  .manhole-section-heading span {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    font-size: 7px !important;
+    line-height: 1.2 !important;
+    text-align: right !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .manhole-schematic {
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    padding: 5px !important;
+  }
+
+  .manhole-process-flow {
+    display: grid !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    grid-template-columns:
+      repeat(
+        9,
+        max-content
+      ) !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 2px !important;
+    margin: 0 0 5px !important;
+    padding: 5px 3px !important;
+    overflow: hidden !important;
+    border-radius: 7px !important;
+    font-size: clamp(6px, 1.85vw, 8px) !important;
+    line-height: 1 !important;
+  }
+
+  .manhole-process-flow b {
+    font-size: 8px !important;
+  }
+
+  .manhole-original-diagram {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    zoom: 1 !important;
+  }
+
+  .manhole-original-diagram__image {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: auto !important;
+    object-fit: contain !important;
+  }
+
+  .manhole-diagram-title {
+    height: 20px !important;
+    padding: 0 5px !important;
+    font-size: clamp(7px, 2.15vw, 10px) !important;
+    line-height: 1 !important;
+  }
+
+  .manhole-diagram-status-symbol {
+    width: clamp(7px, 2.7vw, 11px) !important;
+    min-width: 7px !important;
+    max-width: 11px !important;
+    height: clamp(4px, 1.7vw, 7px) !important;
+    min-height: 4px !important;
+    max-height: 7px !important;
+  }
+
+  [data-manhole-diagram-status-group]
+  .manhole-diagram-status-symbol.is-open::before,
+  .manhole-diagram-status-symbol[
+    data-manhole-diagram-status-group
+  ].is-open::before,
+  [data-manhole-diagram-status-group]
+  .manhole-diagram-status-symbol.is-mixed::before,
+  .manhole-diagram-status-symbol[
+    data-manhole-diagram-status-group
+  ].is-mixed::before {
+    width: clamp(18px, 7vw, 28px) !important;
+    min-width: 18px !important;
+    max-width: 28px !important;
+    height: clamp(18px, 7vw, 28px) !important;
+    min-height: 18px !important;
+    max-height: 28px !important;
+  }
+
+  /* =====================================================
+     Mobile edit list: number/location + Open/Close + date
+  ====================================================== */
+
+  .manhole-list-panel .manhole-table-wrap {
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .manhole-list-panel .manhole-table {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .manhole-list-panel .manhole-table thead {
+    display: none !important;
+  }
+
+  .manhole-list-panel .manhole-table tbody {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row] {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    grid-template-columns:
+      32px
+      minmax(0, 1fr)
+      78px
+      108px !important;
+    grid-template-areas:
+      "number location status date"
+      "number area status date" !important;
+    align-items: stretch !important;
+    border-bottom: 1px solid #dce5ed !important;
+  }
+
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row] > td {
+    display: flex !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 24px !important;
+    align-items: center !important;
+    padding: 3px 4px !important;
+    border: 0 !important;
+    background: transparent !important;
+    font-size: 9px !important;
+    line-height: 1.15 !important;
+  }
+
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row] > td:nth-child(1) {
+    grid-area: number !important;
+    justify-content: center !important;
+    border-right: 1px solid #dce5ed !important;
+    font-size: 11px !important;
+  }
+
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row] > td:nth-child(2) {
+    grid-area: location !important;
+    align-items: flex-end !important;
+    padding-bottom: 1px !important;
+    font-weight: 850 !important;
+  }
+
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row] > td:nth-child(3) {
+    grid-area: area !important;
+    align-items: flex-start !important;
+    padding-top: 1px !important;
+    color: #718096 !important;
+    font-size: 7px !important;
+  }
+
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row] > td:nth-child(4),
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row] > td:nth-child(7) {
+    display: none !important;
+  }
+
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row] > td:nth-child(5) {
+    grid-area: status !important;
+    padding: 4px 3px !important;
+  }
+
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row] > td:nth-child(6) {
+    grid-area: date !important;
+    padding: 4px 3px !important;
+  }
+
+  .manhole-list-panel .manhole-table select[data-manhole-status-select],
+  .manhole-list-panel .manhole-table input[type="date"] {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+    margin: 0 !important;
+    padding: 0 3px !important;
+    border-radius: 6px !important;
+    font-size: 10px !important;
+    letter-spacing: -0.05em !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-group-row {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-group-row td {
+    display: block !important;
+    width: 100% !important;
+    min-height: 26px !important;
+    padding: 6px 8px !important;
+    border: 0 !important;
+    border-bottom: 1px solid #d6e0ea !important;
+    font-size: 9px !important;
+    line-height: 1.2 !important;
+  }
+}

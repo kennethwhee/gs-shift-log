@@ -30,7 +30,7 @@
         "mobile-app-boot-v13";
 
       const LOGIN_URL =
-        "/mobile/?build=20260825-mobile-branding-v16";
+        "/mobile/?build=20260826-mobile-layout-v17";
 
       try {
         const raw =
@@ -566,7 +566,7 @@
   -->
   <link
     rel="preload"
-    href="/mobile-app/mobile-runtime-v14.js?v=20260825-1"
+    href="/mobile-app/mobile-runtime-v14.js?v=20260826-mobile-layout-v17"
     as="script"
   >
 
@@ -593,6 +593,11 @@
   >
 
   <link
+    rel="stylesheet"
+    href="/mobile-app/mobile-layout-v17.css?v=20260826-mobile-layout-v17"
+  >
+
+  <link
     rel="preload"
     as="style"
     href="/maintenance/maintenance-header.css?v=20260822-maintenance-v1"
@@ -611,6 +616,10 @@
     <link
       rel="stylesheet"
       href="/mobile-app/mobile-style-v13.css?v=20260825-1"
+    >
+    <link
+      rel="stylesheet"
+      href="/mobile-app/mobile-layout-v17.css?v=20260826-mobile-layout-v17"
     >
     <link
       rel="stylesheet"
@@ -717,7 +726,7 @@
       "click",
       () => {
         window.location.replace(
-          "/mobile-app/?build=20260825-mobile-branding-v16&retry=" +
+          "/mobile-app/?build=20260826-mobile-layout-v17&retry=" +
           Date.now()
         );
       }
@@ -733,7 +742,7 @@
         );
 
         window.location.replace(
-          "/mobile/?build=20260825-mobile-branding-v16"
+          "/mobile/?build=20260826-mobile-layout-v17"
         );
       }
     );
@@ -14781,7 +14790,7 @@
 </script>
 
 <script
-  src="/mobile-app/mobile-runtime-v14.js?v=20260825-1"
+  src="/mobile-app/mobile-runtime-v14.js?v=20260826-mobile-layout-v17"
   onload="window.__markMobileAppBootResourceV13?.('sharedScript',true)"
   onerror="window.__setMobileAppBootStageV13?.('shared-script-error','업무일지 프로그램을 불러오지 못했습니다.');window.__showMobileAppBootRecoveryV13?.('업무일지 프로그램을 불러오지 못했습니다. 다시 시도해 주세요.')"
 ></script>
@@ -15116,7 +15125,7 @@
             () => {
               return loadOptionalScript(
                 "mobileInspectionLauncherV15",
-                "/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260825-mobile-menu-stability-v15",
+                "/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260826-mobile-layout-v17",
                 () => {
                   return window.__gsNightPatrolLauncherInstalled ===
                     true;

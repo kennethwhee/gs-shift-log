@@ -439,14 +439,14 @@
 
 
 /* =========================================================
-   [INSPECTION-CALENDAR-TWO-LINE-ITEM-V1]
-   월간 달력 점검명 최대 2줄 표시
+   [INSPECTION-CALENDAR-FULL-ITEM-V17]
+   월간 달력 점검명을 생략하지 않고 전체 표시
 ========================================================= */
 
 .inspection-calendar-day__item {
-  display: -webkit-box;
+  display: block;
 
-  overflow: hidden;
+  overflow: visible;
 
   width: 100%;
   min-width: 0;
@@ -469,10 +469,11 @@
 
   white-space: normal;
   overflow-wrap: break-word;
-  text-overflow: ellipsis;
+  text-overflow: clip;
 
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-box-orient: initial;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
 }
 
 
