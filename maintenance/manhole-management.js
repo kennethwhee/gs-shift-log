@@ -1062,7 +1062,12 @@
             data-manhole-row="${row.no}"
           >
             <td class="manhole-number">${row.no}</td>
-            <td class="manhole-location">${management.escapeHtml(row.location)}</td>
+            <td class="manhole-location">
+              <span class="manhole-location__desktop">${management.escapeHtml(row.location)}</span>
+              <span
+                class="manhole-location__mobile"
+              >${management.escapeHtml(row.location)} · ${management.escapeHtml(row.area)}</span>
+            </td>
             <td class="manhole-area">${management.escapeHtml(row.area)}</td>
             <td class="manhole-count">${row.count}</td>
             <td class="manhole-status-cell">

@@ -5059,3 +5059,139 @@ input {
     line-height: 1.2 !important;
   }
 }
+
+/* =========================================================
+   MANHOLE_MOBILE_ONE_ROW_LIST_V20
+
+   Every mobile manhole item stays on one editable row:
+   number | location/area | status | date | note.
+   The desktop table and the existing save/API behavior remain
+   unchanged.
+========================================================= */
+
+.manhole-location__mobile {
+  display: none;
+}
+
+@media screen and (max-width: 760px) {
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row] {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    grid-template-columns:
+      24px
+      minmax(0, 1fr)
+      60px
+      98px
+      minmax(54px, 0.72fr) !important;
+    grid-template-areas:
+      "number location status date note" !important;
+    grid-template-rows: 38px !important;
+    align-items: center !important;
+    overflow: hidden !important;
+  }
+
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row] > td {
+    box-sizing: border-box !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    padding: 3px 2px !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-number {
+    grid-area: number !important;
+    font-size: 10px !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-location {
+    display: block !important;
+    grid-area: location !important;
+    align-self: center !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    padding: 0 4px !important;
+    overflow: hidden !important;
+    font-size: 9px !important;
+    line-height: 1.15 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-location__desktop {
+    display: none !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-location__mobile {
+    display: block !important;
+    width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-area,
+  .manhole-list-panel .manhole-table .manhole-count {
+    display: none !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-status-cell {
+    grid-area: status !important;
+    padding: 3px 1px !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-date-cell {
+    grid-area: date !important;
+    padding: 3px 1px !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td.manhole-note-cell {
+    display: flex !important;
+    grid-area: note !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    padding: 3px 2px 3px 1px !important;
+  }
+
+  .manhole-list-panel .manhole-table select[data-manhole-status-select],
+  .manhole-list-panel .manhole-table input[type="date"],
+  .manhole-list-panel .manhole-table input[data-manhole-note] {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    margin: 0 !important;
+    padding: 0 2px !important;
+    border-radius: 5px !important;
+    font-size: 16px !important;
+    line-height: 32px !important;
+  }
+
+  .manhole-list-panel .manhole-table select[data-manhole-status-select] {
+    letter-spacing: -0.055em !important;
+  }
+
+  .manhole-list-panel .manhole-table input[type="date"] {
+    letter-spacing: -0.06em !important;
+  }
+
+  .manhole-list-panel .manhole-table input[data-manhole-note] {
+    padding: 0 4px !important;
+  }
+
+  .manhole-list-panel .manhole-table .manhole-group-row td {
+    min-height: 22px !important;
+    padding: 4px 7px !important;
+    font-size: 8px !important;
+  }
+}

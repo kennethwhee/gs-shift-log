@@ -126,3 +126,219 @@
     white-space: nowrap !important;
   }
 }
+
+/* =========================================================
+   MOBILE SEARCH SHIFT ROW V20
+
+   The source filter remains the hidden #searchShift control.
+   Mobile users choose the current and legacy shift families
+   from two clearly labelled, side-by-side controls.
+========================================================= */
+
+.search-shift-mobile-label {
+  display: none !important;
+}
+
+@media screen and (max-width: 768px) {
+  #searchView
+  .search-shift-field.search-compact-field {
+    position: relative !important;
+    z-index: 20 !important;
+    display: grid !important;
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr)) !important;
+    grid-template-rows:
+      auto
+      auto
+      30px !important;
+    align-items: end !important;
+    column-gap: 6px !important;
+    row-gap: 3px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #searchView
+  .search-shift-label-row {
+    display: contents !important;
+  }
+
+  #searchView
+  .search-shift-label-row
+  > .form-field__label {
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
+    display: block !important;
+    min-height: 10px !important;
+    margin: 0 !important;
+    padding: 0 1px !important;
+    color: #4c5f78 !important;
+    font-size: 8px !important;
+    font-weight: 850 !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+  }
+
+  #searchView
+  .search-shift-mobile-label {
+    display: block !important;
+    grid-row: 2 !important;
+    min-width: 0 !important;
+    min-height: 11px !important;
+    margin: 0 !important;
+    padding: 0 2px !important;
+    color: #52657d !important;
+    font-size: 9px !important;
+    font-weight: 850 !important;
+    line-height: 1.2 !important;
+    letter-spacing: -0.02em !important;
+    white-space: nowrap !important;
+  }
+
+  #searchView
+  .search-shift-mobile-label--current {
+    grid-column: 1 !important;
+  }
+
+  #searchView
+  .search-shift-mobile-label--legacy {
+    grid-column: 2 !important;
+  }
+
+  #searchView
+  #searchCurrentShift {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* The combined value remains script-only and must never
+     become the accidental second visible select on mobile. */
+  #searchView
+  #searchShift[hidden] {
+    display: none !important;
+  }
+
+  #searchView
+  #searchLegacyToggle {
+    appearance: none !important;
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+    margin: 0 !important;
+    padding: 0 7px !important;
+    border: 1px solid #b9c9da !important;
+    border-radius: 6px !important;
+    background: #ffffff !important;
+    color: #182b45 !important;
+    font-family: inherit !important;
+    font-size: 9px !important;
+    font-weight: 750 !important;
+    line-height: 1 !important;
+    text-align: left !important;
+    box-shadow: none !important;
+  }
+
+  #searchView
+  #searchLegacyToggle::after {
+    content: "▾" !important;
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+    color: #53657a !important;
+    font-size: 9px !important;
+    line-height: 1 !important;
+  }
+
+  #searchView
+  #searchLegacyToggle[aria-expanded="true"]::after {
+    content: "▴" !important;
+  }
+
+  #searchView
+  #searchLegacyToggle.is-active {
+    border-color: #7fa7cf !important;
+    background: #f2f7fd !important;
+    color: #1f5fae !important;
+  }
+
+  #searchView
+  #searchLegacyPanel[hidden] {
+    display: none !important;
+  }
+
+  #searchView
+  #searchLegacyPanel {
+    box-sizing: border-box !important;
+    position: absolute !important;
+    top: calc(100% + 4px) !important;
+    right: 0 !important;
+    z-index: 80 !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    width: calc(50% - 3px) !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 4px !important;
+    border: 1px solid #b9c9da !important;
+    border-radius: 7px !important;
+    background: #ffffff !important;
+    box-shadow: 0 6px 16px rgba(29, 48, 70, 0.16) !important;
+  }
+
+  #searchView
+  #searchLegacyPanel
+  button {
+    appearance: none !important;
+    position: relative !important;
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    margin: 0 !important;
+    padding: 0 24px 0 9px !important;
+    border: 0 !important;
+    border-radius: 5px !important;
+    background: transparent !important;
+    color: #42566f !important;
+    font-family: inherit !important;
+    font-size: 10px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+    text-align: left !important;
+    box-shadow: none !important;
+  }
+
+  #searchView
+  #searchLegacyPanel
+  button.is-active {
+    background: #e8f2fd !important;
+    color: #1d5e9f !important;
+  }
+
+  #searchView
+  #searchLegacyPanel
+  button.is-active::after {
+    content: "✓" !important;
+    position: absolute !important;
+    top: 50% !important;
+    right: 8px !important;
+    transform: translateY(-50%) !important;
+    color: #2168ae !important;
+    font-size: 9px !important;
+    font-weight: 950 !important;
+  }
+}

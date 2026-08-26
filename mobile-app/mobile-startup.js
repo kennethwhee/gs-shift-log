@@ -793,3 +793,107 @@
     }
   );
 })();
+
+/* =========================================================
+   MOBILE SEARCH SHIFT DISPLAY V20
+
+   Keep the existing exclusive search values unchanged:
+   current DS/NS and legacy D/A/N. This layer only presents
+   the legacy control like the neighbouring current select.
+========================================================= */
+
+(function installMobileSearchShiftDisplayV20() {
+  "use strict";
+
+  if (
+    window.__mobileSearchShiftDisplayV20Installed ===
+      true
+  ) {
+    return;
+  }
+
+  window.__mobileSearchShiftDisplayV20Installed =
+    true;
+
+  function initialize() {
+    const searchForm =
+      document.getElementById(
+        "searchForm"
+      );
+
+    const shiftSelect =
+      document.getElementById(
+        "searchShift"
+      );
+
+    const legacyToggle =
+      document.getElementById(
+        "searchLegacyToggle"
+      );
+
+    if (
+      !shiftSelect ||
+      !legacyToggle
+    ) {
+      return;
+    }
+
+    const legacyLabels = {
+      LEGACY_ALL: "전체",
+      D: "D/S",
+      A: "A/S",
+      N: "N/S"
+    };
+
+    function syncLegacyLabel() {
+      const value =
+        String(
+          shiftSelect.value ||
+          ""
+        )
+          .trim()
+          .toUpperCase();
+
+      legacyToggle.textContent =
+        legacyLabels[value] ||
+        "전체";
+    }
+
+    shiftSelect.addEventListener(
+      "change",
+      syncLegacyLabel
+    );
+
+    searchForm?.addEventListener(
+      "reset",
+      () => {
+        window.setTimeout(
+          () => {
+            window.setTimeout(
+              syncLegacyLabel,
+              0
+            );
+          },
+          0
+        );
+      }
+    );
+
+    syncLegacyLabel();
+  }
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once: true
+      }
+    );
+  } else {
+    initialize();
+  }
+})();

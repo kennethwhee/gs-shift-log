@@ -1159,3 +1159,24 @@
     display: none !important;
   }
 }
+
+/* =========================================================
+   PLANNED_MAINTENANCE_MOBILE_REASON_ALIGN_V20
+
+   Keep the mobile monitoring cards read-only while placing the
+   saved reason directly beside its label instead of reserving the
+   generic proportional label column used by the other fields.
+========================================================= */
+
+@media screen and (max-width: 760px) {
+  .planned-maintenance-table tbody tr[data-pm-row-id].is-mobile-expanded
+    > td[data-pm-field-cell="reason"]:not(.pm-mobile-empty-field) {
+    grid-template-columns: max-content minmax(0, 1fr) !important;
+    column-gap: 4px !important;
+  }
+
+  .planned-maintenance-table tbody tr[data-pm-row-id]
+    > td[data-pm-field-cell="reason"]::before {
+    white-space: nowrap !important;
+  }
+}

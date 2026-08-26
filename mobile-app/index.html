@@ -572,7 +572,7 @@
 
   <link
     rel="preload"
-    href="/mobile-app/mobile-startup.js?v=20260825-mobile-menu-stability-v15"
+    href="/mobile-app/mobile-startup.js?v=20260826-mobile-search-shift-v20"
     as="script"
   >
 
@@ -594,7 +594,7 @@
 
   <link
     rel="stylesheet"
-    href="/mobile-app/mobile-layout-v17.css?v=20260826-mobile-layout-v17"
+    href="/mobile-app/mobile-layout-v17.css?v=20260826-mobile-search-shift-v20"
   >
 
   <link
@@ -619,7 +619,7 @@
     >
     <link
       rel="stylesheet"
-      href="/mobile-app/mobile-layout-v17.css?v=20260826-mobile-layout-v17"
+      href="/mobile-app/mobile-layout-v17.css?v=20260826-mobile-search-shift-v20"
     >
     <link
       rel="stylesheet"
@@ -2559,7 +2559,8 @@
 
     모바일:
     시작일 | 종료일
-    근무 | 보직 | 구분
+    현 교대 | 구 교대
+    보직 | 구분
     검색어
     초기화 | 조회
   ====================================================== -->
@@ -2635,6 +2636,7 @@
           type="button"
           id="searchLegacyToggle"
           class="search-legacy-shift-toggle"
+          aria-label="구 교대 근무 선택"
           aria-expanded="false"
           aria-controls="searchLegacyPanel"
           title="과거 3교대 근무 조회"
@@ -2643,6 +2645,22 @@
         </button>
 
       </div>
+
+
+      <label
+        class="search-shift-mobile-label search-shift-mobile-label--current"
+        for="searchCurrentShift"
+      >
+        현 교대
+      </label>
+
+
+      <span
+        class="search-shift-mobile-label search-shift-mobile-label--legacy"
+        aria-hidden="true"
+      >
+        구 교대
+      </span>
 
 
       <!-- 현재 근무 전용 -->
@@ -2732,7 +2750,7 @@
           role="menuitem"
           title="구교대 주간"
         >
-          D
+          D/S
         </button>
 
         <button
@@ -2741,7 +2759,7 @@
           role="menuitem"
           title="구교대 오후"
         >
-          A
+          A/S
         </button>
 
         <button
@@ -2750,7 +2768,7 @@
           role="menuitem"
           title="구교대 야간"
         >
-          N
+          N/S
         </button>
 
       </div>
@@ -14803,7 +14821,7 @@
 </script>
 
 <script
-  src="/mobile-app/mobile-startup.js?v=20260825-mobile-menu-stability-v15"
+  src="/mobile-app/mobile-startup.js?v=20260826-mobile-search-shift-v20"
   onload="window.__markMobileAppBootResourceV13?.('startupScript',true)"
   onerror="window.__setMobileAppBootStageV13?.('startup-script-error','모바일 시작 설정을 불러오지 못했습니다.');window.__showMobileAppBootRecoveryV13?.('모바일 시작 설정을 불러오지 못했습니다. 다시 시도해 주세요.')"
 ></script>
