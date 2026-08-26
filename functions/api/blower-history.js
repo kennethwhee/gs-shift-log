@@ -199,7 +199,7 @@ const COMPONENT_REPLACEMENT_KEYWORDS = [
   "볼트"
 ];
 
-const HISTORY_BACKFILL_ID = "shift_logs_approved_canonical_replacements_v8";
+const HISTORY_BACKFILL_ID = "shift_logs_approved_canonical_replacements_v9";
 const HISTORY_BACKFILL_START_DATE = "2021-01-01";
 const HISTORY_BACKFILL_BATCH_SIZE = 200;
 const HISTORY_BACKFILL_STALE_LEASE_MS = 2 * 60 * 1000;
@@ -955,24 +955,33 @@ async function loadBackfillState(database) {
       startedAt: "",
       completedAt: "",
       updatedAt: "",
-      isCompleteForToday: false
+      isCompleteForToday: false,
+      hasRun: false,
+      requiresInitialRebuild: true,
+      requiresCatchUp: false
     };
   }
 
+  const targetDate = normalizeText(row.target_date);
+  const status = normalizeText(row.status) || "idle";
+  const isCompleteForToday = status === "complete" && targetDate === today;
+
   return {
     id: row.id,
-    targetDate: normalizeText(row.target_date),
+    targetDate,
     cursorDate: normalizeText(row.cursor_date),
     cursorId: normalizeText(row.cursor_id),
-    status: normalizeText(row.status) || "idle",
+    status,
     scannedLogs: Number(row.scanned_logs || 0),
     autoConfirmedEvents: Number(row.auto_confirmed_events || 0),
     pendingCandidates: Number(row.pending_candidates || 0),
     startedAt: normalizeText(row.started_at),
     completedAt: normalizeText(row.completed_at),
     updatedAt: normalizeText(row.updated_at),
-    isCompleteForToday:
-      normalizeText(row.status) === "complete" && normalizeText(row.target_date) === today
+    isCompleteForToday,
+    hasRun: true,
+    requiresInitialRebuild: false,
+    requiresCatchUp: status === "complete" && targetDate !== today
   };
 }
 
@@ -1757,6 +1766,46 @@ function splitMixedAssetLine(value) {
   return output.length > 0 ? output : [line];
 }
 
+function splitEvidenceWorkSegments(value) {
+  const fullEvidence = normalizeCanonicalEvidence(value);
+  if (!fullEvidence) return [];
+
+  const segments = fullEvidence
+    .split(/\s*(?:->|=>|→|➡|⇒)\s*|\s+(?:[-–—]{1,3})\s+/g)
+    .map(normalizeCanonicalEvidence)
+    .filter(item => item.length >= 3);
+
+  if (segments.length <= 1) {
+    return [fullEvidence];
+  }
+
+  const fullTypes = detectBlowerTypes(fullEvidence);
+  const fullPositions = detectPositionLabels(fullEvidence);
+  const canStandAlone = segment => {
+    if (!hasBeltReplacementPhrase(segment)) return false;
+    if (!hasExplicitReplacementCompletion(segment)) return false;
+    if (hasReplacementPlanContext(segment)) return false;
+    if (hasReplacementExclusionContext(segment)) return false;
+    if (hasBeltAccessoryReplacementPhrase(segment)) return false;
+
+    if (fullTypes.length > 0 && detectBlowerTypes(segment).length === 0) {
+      return false;
+    }
+
+    if (fullPositions.length > 0 && detectPositionLabels(segment).length === 0) {
+      return false;
+    }
+
+    return true;
+  };
+  const hasStandaloneCompletion = segments.some(canStandAlone);
+  const output = hasStandaloneCompletion
+    ? segments
+    : [...segments, fullEvidence];
+
+  return [...new Set(output)];
+}
+
 function splitCanonicalEntryClauses(value) {
   const normalized = String(value || "")
     .replace(/\r\n?/g, "\n")
@@ -1769,9 +1818,10 @@ function splitCanonicalEntryClauses(value) {
 
   for (const rawLine of normalized.split(/\n|\||;|；/g)) {
     for (const line of splitMixedAssetLine(rawLine)) {
-      const evidence = normalizeCanonicalEvidence(line);
-      if (evidence.length >= 3 && evidence.length <= 2000) {
-        clauses.push(evidence);
+      for (const evidence of splitEvidenceWorkSegments(line)) {
+        if (evidence.length >= 3 && evidence.length <= 2000) {
+          clauses.push(evidence);
+        }
       }
     }
   }
@@ -2169,7 +2219,7 @@ function fingerprintText(text) {
 
 function buildDetectionFingerprint(row, tagNumber, detectedType) {
   return fingerprintText([
-    "v8",
+    "v9",
     normalizeText(row?.id),
     detectionDateTime(row) || normalizeText(row?.work_date),
     normalizeText(tagNumber).toUpperCase(),
@@ -2402,16 +2452,20 @@ function splitSemanticClauses(text) {
 
 function hasReplacementPlanContext(text) {
   const normalized = normalizeText(text).toLowerCase();
+  const completed = hasExplicitReplacementCompletion(normalized);
   const prospective = (
     /(?:교체|교환)(?:\s*작업|\s*실시|\s*시행)?.{0,16}(?:예정|계획|요청|요망|필요|검토|준비|지시|발행)/i.test(normalized) ||
     /(?:명일|차후|추후|향후|예방정비).{0,40}(?:교체|교환)/i.test(normalized) ||
     /(?:tm|bm|cm)\s*발행.{0,40}(?:교체|교환)/i.test(normalized)
   );
 
-  if (prospective) return true;
+  if (prospective) {
+    if (!completed) return true;
+    if (hasDirectCompletedBeltReplacement(normalized)) return false;
+    if (hasCompletedForeignComponentReplacement(normalized)) return true;
+  }
 
   const planned = REPLACEMENT_PLAN_KEYWORDS.some(keyword => normalized.includes(keyword.toLowerCase()));
-  const completed = hasExplicitReplacementCompletion(normalized);
   return planned && !completed;
 }
 
@@ -2507,12 +2561,28 @@ function hasBeltWord(text) {
   return /(?:\bV\s*[-\/]?\s*BELT\b|\bVBELT\b|\bBELT\b|V\s*[-\/]?\s*벨트|V벨트|벨트)/i.test(normalized);
 }
 
+function isValidBeltToReplacementGap(value) {
+  const gap = normalizeText(value).toLowerCase();
+  const foreignComponent = COMPONENT_REPLACEMENT_KEYWORDS
+    .map(keyword => ({ keyword, index: gap.indexOf(keyword.toLowerCase()) }))
+    .filter(item => item.index >= 0)
+    .sort((left, right) => left.index - right.index)[0]?.keyword;
+
+  if (!foreignComponent) return true;
+
+  const escaped = foreignComponent.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^(?:및|와|과|&|\\+|,)\\s*${escaped}(?:\\b|\\s|$)`, "i").test(gap);
+}
+
 function hasBeltReplacementPhrase(text) {
   const normalized = normalizeText(text);
   const belt = "(?:V\\s*[-\\/]?\\s*BELT|VBELT|BELT|V\\s*[-\\/]?\\s*벨트|V벨트|벨트)";
   const action = "(?:교체|교환|REPLACE(?:MENT|D)?|EXCHANGE(?:D)?)";
-  const forward = new RegExp(`${belt}.{0,24}${action}`, "i");
-  const reverse = new RegExp(`${action}.{0,24}${belt}`, "i");
+  const forward = new RegExp(`${belt}(.{0,24})${action}`, "gi");
+  const reverseEnglish = new RegExp(
+    `(?:REPLACE(?:MENT|D)?|EXCHANGE(?:D)?)(.{0,24})${belt}`,
+    "gi"
+  );
   const removeAndInstall = new RegExp(
     `${belt}.{0,32}(?:취외|제거|탈거).{0,32}(?:신품|NEW)?.{0,12}(?:취부|설치|장착)`,
     "i"
@@ -2521,7 +2591,12 @@ function hasBeltReplacementPhrase(text) {
     `(?:${belt}.{0,20}(?:신품|NEW)|(?:신품|NEW).{0,16}${belt}).{0,16}(?:취부|설치|장착)`,
     "i"
   );
-  return forward.test(normalized) || reverse.test(normalized) || removeAndInstall.test(normalized) || directNewInstall.test(normalized);
+  const validForward = [...normalized.matchAll(forward)]
+    .some(match => isValidBeltToReplacementGap(match[1]));
+  const validReverseEnglish = [...normalized.matchAll(reverseEnglish)]
+    .some(match => !/(?:후|뒤|이후|다음|점검)/i.test(match[1]));
+
+  return validForward || validReverseEnglish || removeAndInstall.test(normalized) || directNewInstall.test(normalized);
 }
 
 function hasBeltAccessoryReplacementPhrase(text) {
@@ -2529,9 +2604,75 @@ function hasBeltAccessoryReplacementPhrase(text) {
   const belt = "(?:V\\s*[-\\/]?\\s*BELT|VBELT|BELT|V\\s*[-\\/]?\\s*벨트|V벨트|벨트)";
   const accessory = "(?:GUARD|COVER|AUTO\\s*TENSION(?:ER)?|TENSIONER|PULLEY|SHEAVE|가드|커버|오토\\s*텐션(?:너)?|자동\\s*장력조정기|텐션(?:너)?|풀리|쉬브)";
   const action = "(?:교체|교환|REPLACE(?:MENT|D)?|EXCHANGE(?:D)?)";
+  const conjunction = "(?:및|와|과|&|\\+|,)";
+  const combinedForward = new RegExp(
+    `${belt}\\s*${conjunction}\\s*${accessory}.{0,20}${action}`,
+    "i"
+  );
+  const combinedReverse = new RegExp(
+    `${accessory}\\s*${conjunction}\\s*${belt}.{0,20}${action}`,
+    "i"
+  );
+
+  if (combinedForward.test(normalized) || combinedReverse.test(normalized)) {
+    return false;
+  }
+
   const forward = new RegExp(`${belt}.{0,16}${accessory}.{0,20}${action}`, "i");
   const reverse = new RegExp(`${action}.{0,20}${belt}.{0,16}${accessory}`, "i");
   return forward.test(normalized) || reverse.test(normalized);
+}
+
+function hasDirectCompletedBeltReplacement(text) {
+  const normalized = normalizeText(text);
+  const belt = "(?:V\\s*[-\\/]?\\s*BELT|VBELT|BELT|V\\s*[-\\/]?\\s*벨트|V벨트|벨트)";
+  const completedAction = new RegExp(
+    `${belt}(.{0,24})(?:교체|교환)\\s*(?:작업\\s*)?(?:완료|실시|시행|함|하였|했|하여)`,
+    "gi"
+  );
+  const englishAction = new RegExp(`${belt}(.{0,24})(?:REPLACED|EXCHANGED)`, "gi");
+  const newInstall = new RegExp(
+    `(?:${belt}.{0,20}(?:신품|NEW)|(?:신품|NEW).{0,16}${belt}).{0,16}(?:취부|설치|장착).{0,16}(?:완료|실시|함|하였|했)`,
+    "i"
+  );
+  const direct = [...normalized.matchAll(completedAction), ...normalized.matchAll(englishAction)]
+    .some(match => (
+      isValidBeltToReplacementGap(match[1]) &&
+      !hasBeltAccessoryReplacementPhrase(match[0])
+    ));
+
+  return direct || newInstall.test(normalized);
+}
+
+function hasCompletedForeignComponentReplacement(text) {
+  const normalized = normalizeText(text);
+  const componentKeywords = [
+    ...COMPONENT_REPLACEMENT_KEYWORDS,
+    "guard",
+    "cover",
+    "auto tensioner",
+    "tensioner",
+    "pulley",
+    "sheave",
+    "가드",
+    "커버",
+    "오토 텐션너",
+    "자동 장력조정기",
+    "텐션너",
+    "풀리",
+    "쉬브"
+  ];
+
+  return componentKeywords.some(keyword => {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return (
+      new RegExp(
+        `${escaped}.{0,18}(?:교체|교환)\\s*(?:작업\\s*)?(?:완료|실시|시행|함|하였|했|하여)`,
+        "i"
+      ).test(normalized) ||
+      new RegExp(`${escaped}.{0,18}(?:REPLACED|EXCHANGED)`, "i").test(normalized)
+    );
+  });
 }
 
 function hasDirectTagBeltReplacement(text) {
@@ -2741,6 +2882,30 @@ async function findExistingDetection(database, row, tagNumber, detectedType) {
 
   if (candidate) {
     return { candidate, event: null };
+  }
+
+  const excludedResult = await database
+    .prepare(`
+      SELECT *
+      FROM blower_history_candidates
+      WHERE source_log_id = ?
+        AND tag_number = ?
+        AND detected_type = ?
+        AND status = 'excluded'
+      ORDER BY reviewed_at DESC, created_at DESC
+      LIMIT 20
+    `)
+    .bind(normalizeText(row?.id), tagNumber, detectedType)
+    .all();
+  const currentSourceKey = normalizeSimilarityText(row?.sourceText);
+  const priorExcluded = (Array.isArray(excludedResult.results) ? excludedResult.results : [])
+    .find(item => (
+      currentSourceKey &&
+      normalizeSimilarityText(item.source_text) === currentSourceKey
+    ));
+
+  if (priorExcluded) {
+    return { candidate: priorExcluded, event: null };
   }
 
   const detectedDate = detectionDateTime(row) || normalizeDateTime(row.work_date);
@@ -3082,19 +3247,24 @@ async function processHistoricalLog(database, row, assets, fragmentsOverride = n
   }
 
   let autoEvents = 0;
+  let pending = 0;
   const seen = new Set();
 
   for (const fragment of fragments) {
     await ensureDiscoveredAssets(database, fragmentAnalysisText(fragment), assets);
 
     const matches = findAssetMatches(fragment, assets);
-    const specs = detectedEventSpecs(fragment).filter(spec => spec.autoEligible);
+    const specs = detectedEventSpecs(fragment);
     if (specs.length === 0 || matches.length === 0) {
       continue;
     }
 
     for (const spec of specs) {
-      const resolvedMatches = resolveHistoricalMatches(fragment, matches, spec)
+      const resolvedMatches = (
+        spec.autoEligible
+          ? resolveHistoricalMatches(fragment, matches, spec)
+          : (matches.length === 1 || isGroupedContextReference(fragment, matches) ? matches : [])
+      )
         .filter(match => match && match.strong);
 
       for (const match of resolvedMatches) {
@@ -3115,11 +3285,16 @@ async function processHistoricalLog(database, row, assets, fragmentsOverride = n
           sourceRow,
           match.asset.tag_number,
           spec,
-          "auto_confirmed",
-          new Date().toISOString()
+          spec.autoEligible ? "auto_confirmed" : "pending",
+          spec.autoEligible ? new Date().toISOString() : null
         );
 
         if (detection.alreadyEvent) {
+          continue;
+        }
+
+        if (!spec.autoEligible) {
+          if (detection.inserted) pending += 1;
           continue;
         }
 
@@ -3135,10 +3310,10 @@ async function processHistoricalLog(database, row, assets, fragmentsOverride = n
     }
   }
 
-  return { autoEvents, pending: 0 };
+  return { autoEvents, pending };
 }
 
-async function resetHistoricalAutoDataForV8(database, today) {
+async function resetHistoricalAutoDataForV9(database, today) {
   const now = new Date().toISOString();
 
   await database.batch([
@@ -3181,8 +3356,7 @@ async function resetHistoricalAutoDataForV8(database, today) {
         updated_at,
         ?
       FROM blower_history_events
-      WHERE source_type = 'shift_log_history_auto'
-        AND created_by_id = 'history_auto'
+      WHERE source_type IN ('shift_log_auto', 'shift_log_history_auto')
     `).bind(HISTORY_BACKFILL_ID, now),
     database.prepare(`
       INSERT OR IGNORE INTO blower_history_candidate_archive (
@@ -3227,11 +3401,8 @@ async function resetHistoricalAutoDataForV8(database, today) {
         created_at,
         ?
       FROM blower_history_candidates
-      WHERE source_log_id <> ''
-        AND date(detected_date, '+9 hours') >= ?
-        AND date(detected_date, '+9 hours') <= ?
-        AND (reviewed_by_id = 'history_auto' OR status = 'pending')
-    `).bind(HISTORY_BACKFILL_ID, now, HISTORY_BACKFILL_START_DATE, today),
+      WHERE status IN ('pending', 'confirmed', 'auto_confirmed')
+    `).bind(HISTORY_BACKFILL_ID, now),
     database.prepare(`
       INSERT OR IGNORE INTO blower_history_reference_archive (
         migration_id,
@@ -3262,31 +3433,103 @@ async function resetHistoricalAutoDataForV8(database, today) {
           FROM blower_history_events AS event
           WHERE event.tag_number = blower_history_assets.tag_number
             AND event.event_type = 'replacement'
-            AND NOT (
-              event.source_type = 'shift_log_history_auto'
-              AND event.created_by_id = 'history_auto'
-            )
+            AND event.source_type NOT IN ('shift_log_auto', 'shift_log_history_auto')
           ORDER BY event.event_date DESC, event.created_at DESC
           LIMIT 1
         ),
         runtime_hours = CASE
-          WHEN last_modified_by_id = 'history_auto' THEN 0
+          WHEN EXISTS (
+            SELECT 1
+            FROM blower_history_events AS event
+            WHERE event.tag_number = blower_history_assets.tag_number
+              AND event.event_type = 'replacement'
+              AND event.source_type IN ('shift_log_auto', 'shift_log_history_auto')
+              AND event.event_date = blower_history_assets.last_replacement_at
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM blower_history_events AS correction
+            WHERE correction.tag_number = blower_history_assets.tag_number
+              AND correction.event_type = 'runtime_correction'
+              AND correction.source_type = 'manual'
+              AND correction.event_date >= blower_history_assets.last_replacement_at
+          ) THEN 0
           ELSE runtime_hours
         END,
         runtime_anchor_at = CASE
-          WHEN last_modified_by_id = 'history_auto' THEN NULL
+          WHEN EXISTS (
+            SELECT 1
+            FROM blower_history_events AS event
+            WHERE event.tag_number = blower_history_assets.tag_number
+              AND event.event_type = 'replacement'
+              AND event.source_type IN ('shift_log_auto', 'shift_log_history_auto')
+              AND event.event_date = blower_history_assets.last_replacement_at
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM blower_history_events AS correction
+            WHERE correction.tag_number = blower_history_assets.tag_number
+              AND correction.event_type = 'runtime_correction'
+              AND correction.source_type = 'manual'
+              AND correction.event_date >= blower_history_assets.last_replacement_at
+          ) THEN NULL
           ELSE runtime_anchor_at
         END,
         is_running = CASE
-          WHEN last_modified_by_id = 'history_auto' THEN 0
+          WHEN EXISTS (
+            SELECT 1
+            FROM blower_history_events AS event
+            WHERE event.tag_number = blower_history_assets.tag_number
+              AND event.event_type = 'replacement'
+              AND event.source_type IN ('shift_log_auto', 'shift_log_history_auto')
+              AND event.event_date = blower_history_assets.last_replacement_at
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM blower_history_events AS correction
+            WHERE correction.tag_number = blower_history_assets.tag_number
+              AND correction.event_type = 'runtime_correction'
+              AND correction.source_type = 'manual'
+              AND correction.event_date >= blower_history_assets.last_replacement_at
+          ) THEN 0
           ELSE is_running
         END,
         last_modified_by_id = CASE
-          WHEN last_modified_by_id = 'history_auto' THEN ''
+          WHEN EXISTS (
+            SELECT 1
+            FROM blower_history_events AS event
+            WHERE event.tag_number = blower_history_assets.tag_number
+              AND event.event_type = 'replacement'
+              AND event.source_type IN ('shift_log_auto', 'shift_log_history_auto')
+              AND event.event_date = blower_history_assets.last_replacement_at
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM blower_history_events AS correction
+            WHERE correction.tag_number = blower_history_assets.tag_number
+              AND correction.event_type = 'runtime_correction'
+              AND correction.source_type = 'manual'
+              AND correction.event_date >= blower_history_assets.last_replacement_at
+          ) THEN ''
           ELSE last_modified_by_id
         END,
         last_modified_by_name = CASE
-          WHEN last_modified_by_id = 'history_auto' THEN ''
+          WHEN EXISTS (
+            SELECT 1
+            FROM blower_history_events AS event
+            WHERE event.tag_number = blower_history_assets.tag_number
+              AND event.event_type = 'replacement'
+              AND event.source_type IN ('shift_log_auto', 'shift_log_history_auto')
+              AND event.event_date = blower_history_assets.last_replacement_at
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM blower_history_events AS correction
+            WHERE correction.tag_number = blower_history_assets.tag_number
+              AND correction.event_type = 'runtime_correction'
+              AND correction.source_type = 'manual'
+              AND correction.event_date >= blower_history_assets.last_replacement_at
+          ) THEN ''
           ELSE last_modified_by_name
         END,
         updated_at = ?
@@ -3295,22 +3538,17 @@ async function resetHistoricalAutoDataForV8(database, today) {
         FROM blower_history_events AS event
         WHERE event.tag_number = blower_history_assets.tag_number
           AND event.event_type = 'replacement'
-          AND event.source_type = 'shift_log_history_auto'
-          AND event.created_by_id = 'history_auto'
+          AND event.source_type IN ('shift_log_auto', 'shift_log_history_auto')
       )
     `).bind(now),
     database.prepare(`
-      DELETE FROM blower_history_events
-      WHERE source_type = 'shift_log_history_auto'
-        AND created_by_id = 'history_auto'
+      DELETE FROM blower_history_candidates
+      WHERE status IN ('pending', 'confirmed', 'auto_confirmed')
     `),
     database.prepare(`
-      DELETE FROM blower_history_candidates
-      WHERE source_log_id <> ''
-        AND date(detected_date, '+9 hours') >= ?
-        AND date(detected_date, '+9 hours') <= ?
-        AND (reviewed_by_id = 'history_auto' OR status = 'pending')
-    `).bind(HISTORY_BACKFILL_START_DATE, today),
+      DELETE FROM blower_history_events
+      WHERE source_type IN ('shift_log_auto', 'shift_log_history_auto')
+    `),
     database.prepare(`
       DELETE FROM blower_history_references
     `),
@@ -3357,7 +3595,7 @@ async function initializeBackfillRun(database, today) {
         .first();
     }
 
-    await resetHistoricalAutoDataForV8(database, today);
+    await resetHistoricalAutoDataForV9(database, today);
 
     return database
       .prepare(`SELECT * FROM blower_history_backfill_state WHERE id = ? LIMIT 1`)
@@ -3376,12 +3614,12 @@ async function initializeBackfillRun(database, today) {
     const reclaim = await database
       .prepare(`
         UPDATE blower_history_backfill_state
-        SET updated_at = ?
+        SET target_date = ?, updated_at = ?
         WHERE id = ?
           AND status = 'initializing'
           AND updated_at = ?
       `)
-      .bind(now, HISTORY_BACKFILL_ID, normalizeText(state.updated_at))
+      .bind(today, now, HISTORY_BACKFILL_ID, normalizeText(state.updated_at))
       .run();
 
     if (Number(reclaim?.meta?.changes || 0) === 0) {
@@ -3391,7 +3629,7 @@ async function initializeBackfillRun(database, today) {
         .first();
     }
 
-    await resetHistoricalAutoDataForV8(database, today);
+    await resetHistoricalAutoDataForV9(database, today);
 
     return database
       .prepare(`SELECT * FROM blower_history_backfill_state WHERE id = ? LIMIT 1`)
@@ -3440,38 +3678,66 @@ async function initializeBackfillRun(database, today) {
   }
 
   if (normalizeText(state.target_date) !== today) {
-    const resumeDate = normalizeText(state.target_date);
-
-    const advancedTarget = await database
-      .prepare(`
-        UPDATE blower_history_backfill_state
-        SET
-          target_date = ?,
-          cursor_date = ?,
-          cursor_id = '',
-          status = 'running',
-          scanned_logs = 0,
-          auto_confirmed_events = 0,
-          pending_candidates = 0,
-          started_at = ?,
-          completed_at = NULL,
-          updated_at = ?
-        WHERE id = ?
-          AND status = ?
-          AND target_date = ?
-          AND updated_at = ?
-      `)
-      .bind(
-        today,
-        resumeDate,
-        now,
-        now,
-        HISTORY_BACKFILL_ID,
-        normalizeText(state.status),
-        normalizeText(state.target_date),
-        normalizeText(state.updated_at)
-      )
-      .run();
+    const previousTarget = normalizeText(state.target_date);
+    const previousStatus = normalizeText(state.status);
+    const advancedTarget = previousStatus === "complete"
+      ? await database
+          .prepare(`
+            UPDATE blower_history_backfill_state
+            SET
+              target_date = ?,
+              cursor_date = ?,
+              cursor_id = '',
+              status = 'running',
+              scanned_logs = 0,
+              auto_confirmed_events = 0,
+              pending_candidates = 0,
+              started_at = ?,
+              completed_at = NULL,
+              updated_at = ?
+            WHERE id = ?
+              AND status = 'complete'
+              AND target_date = ?
+              AND updated_at = ?
+          `)
+          .bind(
+            today,
+            previousTarget,
+            now,
+            now,
+            HISTORY_BACKFILL_ID,
+            previousTarget,
+            normalizeText(state.updated_at)
+          )
+          .run()
+      : await database
+          .prepare(`
+            UPDATE blower_history_backfill_state
+            SET
+              target_date = ?,
+              status = 'running',
+              started_at = COALESCE(started_at, ?),
+              completed_at = NULL,
+              updated_at = ?
+            WHERE id = ?
+              AND status = ?
+              AND target_date = ?
+              AND cursor_date = ?
+              AND cursor_id = ?
+              AND updated_at = ?
+          `)
+          .bind(
+            today,
+            now,
+            now,
+            HISTORY_BACKFILL_ID,
+            previousStatus,
+            previousTarget,
+            normalizeText(state.cursor_date),
+            normalizeText(state.cursor_id),
+            normalizeText(state.updated_at)
+          )
+          .run();
 
     if (Number(advancedTarget?.meta?.changes || 0) === 0) {
       return database
@@ -3615,6 +3881,11 @@ async function historicalBackfillStep(database) {
             WHERE source_type = 'shift_log_history_auto'
               AND created_by_id = 'history_auto'
           ),
+          pending_candidates = (
+            SELECT COUNT(*)
+            FROM blower_history_candidates
+            WHERE status = 'pending'
+          ),
           completed_at = ?,
           updated_at = ?
         WHERE id = ?
@@ -3703,7 +3974,14 @@ async function historicalBackfillStep(database) {
           )
           ELSE auto_confirmed_events + ?
         END,
-        pending_candidates = pending_candidates + ?,
+        pending_candidates = CASE
+          WHEN ? = 1 THEN (
+            SELECT COUNT(*)
+            FROM blower_history_candidates
+            WHERE status = 'pending'
+          )
+          ELSE pending_candidates + ?
+        END,
         completed_at = ?,
         updated_at = ?
       WHERE id = ?
@@ -3717,6 +3995,7 @@ async function historicalBackfillStep(database) {
       logs.length,
       done ? 1 : 0,
       autoEvents,
+      done ? 1 : 0,
       pending,
       done ? now : null,
       now,

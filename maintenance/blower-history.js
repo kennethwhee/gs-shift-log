@@ -25,6 +25,10 @@
     [
       "authNotice",
       "historicalBackfillNotice",
+      "overviewBackfillCallout",
+      "overviewBackfillTitle",
+      "overviewBackfillSummary",
+      "overviewBackfillButton",
       "typeTabs",
       "candidateCountBadge",
       "statusFilters",
@@ -33,6 +37,7 @@
       "settingsUpdated",
       "settingsButton",
       "missingTagsNotice",
+      "averagePanel",
       "averageHeadline",
       "averageSubline",
       "averagePeriodValue",
@@ -245,6 +250,7 @@
 
   function displaySeverity(asset) {
     if (!asset?.lastReplacementAt) return "unknown";
+    if (isAssetAwaitingBackfill(asset)) return "unknown";
     return ["normal", "warning", "critical", "overdue", "unset"].includes(asset.severity)
       ? asset.severity
       : "normal";
@@ -282,7 +288,7 @@
       .map(type => {
         const active = type.key === state.activeType;
         const typeAlerts = (state.data.assets || []).filter(
-          asset => asset.blowerType === type.key && ["warning", "critical", "overdue"].includes(asset.severity)
+          asset => asset.blowerType === type.key && ["warning", "critical", "overdue"].includes(displaySeverity(asset))
         ).length;
 
         return `
@@ -290,7 +296,8 @@
             type="button"
             class="type-tab${active ? " is-active" : ""}${type.important ? " is-important" : ""}"
             data-type="${escapeHtml(type.key)}"
-            aria-selected="${active ? "true" : "false"}"
+            aria-pressed="${active ? "true" : "false"}"
+            ${active ? 'aria-current="page"' : ""}
           >
             ${escapeHtml(type.label)}${typeAlerts > 0 ? ` · ${typeAlerts}` : ""}
           </button>
@@ -318,6 +325,7 @@
     ];
 
     elements.statusFilters.innerHTML = definitions
+      .filter(([key, , count]) => key === "all" || count > 0 || state.statusFilter === key)
       .map(([key, label, count]) => `
         <button
           type="button"
@@ -344,9 +352,9 @@
     } else {
       const cycleHours = Number(setting.cycleDays) * 24;
       elements.settingsSummary.textContent = [
-        `교체 ${setting.cycleDays}일 (${cycleHours.toLocaleString("ko-KR")}h)`,
-        `예정 D-${setting.warningDays} 노란색`,
-        `임박 D-${setting.criticalDays} 빨간색`
+        `${setting.cycleDays}일 (${cycleHours.toLocaleString("ko-KR")}h)`,
+        `예정 D-${setting.warningDays}`,
+        `임박 D-${setting.criticalDays}`
       ].join(" · ");
 
       elements.settingsUpdated.textContent = setting.updatedAt
@@ -368,27 +376,64 @@
 
     elements.missingTagsNotice.hidden = false;
     elements.missingTagsNotice.innerHTML = `
-      <strong>TAG 추가 확인 필요</strong> ·
-      ${missing.map(item => {
+      <strong>TAG 확인 대기</strong>
+      <span>${missing.map(item => {
         const unitLabel = item.unitNo === "shared" ? "공용" : `#${item.unitNo}호기`;
         return `${escapeHtml(unitLabel)} ${item.missingCount}대`;
-      }).join(" · ")}
-      <br><small>알려주지 않은 TAG는 임의로 추정하지 않습니다. 2021년 이후 업무일지에서 정확한 전체 TAG가 발견되면 해당 위치에 자동 등록합니다.</small>
+      }).join(" · ")}</span>
+      <small>정확한 전체 TAG가 업무일지에서 확인되면 자동 등록됩니다.</small>
     `;
   }
 
-  function getAssetEvents(tagNumber) {
+  function getRawAssetEvents(tagNumber) {
     return (state.data?.events || []).filter(event => event.tagNumber === tagNumber);
   }
 
-  function getLatestReplacementEvent(asset) {
-    const replacements = getAssetEvents(asset.tagNumber)
+  function shouldHideAutomaticData(backfill = state.data?.backfill) {
+    return !hasCanonicalBackfill(backfill) && !backfill?.requiresCatchUp;
+  }
+
+  function getVisibleEvents() {
+    const events = state.data?.events || [];
+    return shouldHideAutomaticData()
+      ? events.filter(event => !isShiftLogEvent(event))
+      : events;
+  }
+
+  function getAssetEvents(tagNumber) {
+    return getVisibleEvents().filter(event => event.tagNumber === tagNumber);
+  }
+
+  function getLatestReplacementEvent(asset, includeHiddenAutomatic = false) {
+    const sourceEvents = includeHiddenAutomatic
+      ? getRawAssetEvents(asset.tagNumber)
+      : getAssetEvents(asset.tagNumber);
+    const replacements = sourceEvents
       .filter(event => event.eventType === "replacement");
     const replacementDate = formatDate(asset.lastReplacementAt);
 
     return replacements.find(event => formatDate(event.eventDate) === replacementDate)
       || replacements[0]
       || null;
+  }
+
+  function requiresInitialBackfill(backfill = state.data?.backfill) {
+    if (!backfill) return true;
+    return backfill.hasRun === false || backfill.requiresInitialRebuild === true;
+  }
+
+  function hasCanonicalBackfill(backfill = state.data?.backfill) {
+    return Boolean(backfill?.hasRun && backfill.status === "complete");
+  }
+
+  function isAssetAwaitingBackfill(asset) {
+    if (!shouldHideAutomaticData()) return false;
+
+    const latestRecordedReplacement = asset?.lastReplacementAt
+      ? getLatestReplacementEvent(asset, true)
+      : null;
+
+    return !latestRecordedReplacement || isShiftLogEvent(latestRecordedReplacement);
   }
 
   function isShiftLogEvent(event) {
@@ -413,10 +458,30 @@
       .filter(Boolean)
       .filter(fragment => !/^\d{3}[A-Z0-9]{7,}$/i.test(fragment))
       .filter(fragment => !/^(?:BCO[12]|BO[12]|TGO|TO|TM\s*발행)$/i.test(fragment));
-    const replacementFragment = fragments.find(fragment =>
-      /(?:v[\s-]?belt|belt|벨트)/i.test(fragment)
-      && /(?:교체|완료|실시|시행|replace)/i.test(fragment)
-    );
+    const replacementFragment = fragments.find(fragment => {
+      const hasBelt = /(?:v[\s\/-]?belt|vbelt|belt|v[\s\/-]?벨트|v벨트|벨트)/i.test(fragment);
+      const hasNewBeltInstall = (
+        /(?:v[\s\/-]?belt|vbelt|belt|v[\s\/-]?벨트|v벨트|벨트).{0,40}(?:신품|new)?.{0,16}(?:취부|설치|장착).{0,16}(?:완료|실시|함|하였|했)/i.test(fragment)
+        || /(?:신품|new).{0,16}(?:v[\s\/-]?belt|vbelt|belt|v[\s\/-]?벨트|v벨트|벨트).{0,16}(?:취부|설치|장착).{0,16}(?:완료|실시|함|하였|했)/i.test(fragment)
+      );
+      const hasCompletion = (
+        /(?:교체|교환)\s*(?:작업\s*)?(?:완료|실시|시행|함|하였|했|하여)/i.test(fragment)
+        || /\breplaced\b|replacement\s+completed?/i.test(fragment)
+        || hasNewBeltInstall
+      );
+      const hasHardExclusion = (
+        /(?:교체\s*운전|교체\s*(?:중|미실시|미완료|보류|취소|불가)|미교체|완료\s*(?:여부|미확인|실패|불가)|하지\s*못|못\s*(?:함|했)|안\s*(?:됨|함|했)|not\s+replaced|replacement\s+cancelled?)/i.test(fragment)
+      );
+      const hasUnresolvedPlan = (
+        /(?:요청|예정|계획|필요|검토|관찰|감시|요망|tm\s*발행)/i.test(fragment)
+        && !hasCompletion
+      );
+      const isBeltWork = hasBelt && (/(?:교체|교환|replace)/i.test(fragment) || hasNewBeltInstall);
+      return isBeltWork && hasCompletion && !hasHardExclusion && !hasUnresolvedPlan;
+    });
+
+    if (isShiftLogEvent(event) && !replacementFragment) return "";
+
     const text = replacementFragment || fragments.join(" · ") || raw;
 
     return text.length > 180 ? `${text.slice(0, 177).trim()}…` : text;
@@ -425,10 +490,11 @@
   function renderAssetCard(asset, setting) {
     const cycleDays = Number(setting?.cycleDays);
     const runtime = roundHours(asset.runtimeHours);
-    const confirmed = Boolean(asset.lastReplacementAt);
+    const replacementEvent = asset.lastReplacementAt ? getLatestReplacementEvent(asset) : null;
+    const awaitingBackfill = isAssetAwaitingBackfill(asset);
+    const confirmed = Boolean(asset.lastReplacementAt) && !awaitingBackfill;
     const severity = displaySeverity(asset);
     const progress = Number.isFinite(Number(asset.progressPct)) ? Math.max(0, Math.min(100, Number(asset.progressPct))) : 0;
-    const replacementEvent = confirmed ? getLatestReplacementEvent(asset) : null;
     const evidence = readableEvidence(replacementEvent);
     const cycleHours = cycleDays > 0 ? cycleDays * 24 : null;
     const stateLabel = asset.isRunning ? "운전중 · 자동누적" : "정지 · 누적정지";
@@ -440,7 +506,7 @@
             <strong class="asset-position">${escapeHtml(asset.positionLabel)}</strong>
             <span class="asset-tag">${escapeHtml(asset.tagNumber)}</span>
           </div>
-          <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
+          <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(awaitingBackfill ? "재구성 대기" : severityLabel(severity))}</span>
         </div>
 
         ${confirmed ? `
@@ -453,7 +519,14 @@
                 <span>${escapeHtml(formatHours(runtime))}</span>
                 <span>${cycleHours.toLocaleString("ko-KR")}h</span>
               </div>
-              <div class="progress-track" aria-label="교체주기 진행률 ${Math.round(progress)}%">
+              <div
+                class="progress-track"
+                role="progressbar"
+                aria-label="교체주기 진행률"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow="${Math.round(progress)}"
+              >
                 <div class="progress-bar" style="width:${progress.toFixed(2)}%"></div>
               </div>
             ` : ""}
@@ -469,11 +542,17 @@
             <p>${escapeHtml(evidence || "교체 이력은 확인되었지만 등록된 근거 문장이 없습니다.")}</p>
             ${replacementEvent ? `<small>${escapeHtml(formatDate(replacementEvent.eventDate))} · ${escapeHtml(historySourceLabel(replacementEvent))}</small>` : ""}
           </div>
+        ` : awaitingBackfill ? `
+          <div class="unknown-cycle is-rebuild-pending">
+            <strong>자동 이력 재확인 중</strong>
+            <p>과거 이력 재구성 후 교체일과 누적시간을 표시합니다.</p>
+            <small>수동 등록 이력은 재구성과 관계없이 유지됩니다.</small>
+          </div>
         ` : `
           <div class="unknown-cycle">
-            <strong>교체일 미확인</strong>
-            <p>확정된 V-Belt 교체 이력이 없습니다.</p>
-            <small>검토 대기 후보를 확인하거나 최초 교체일을 직접 등록해 주세요.</small>
+            <strong>최근 교체일 없음</strong>
+            <p>확정된 V-Belt 교체 이력이 아직 없습니다.</p>
+            <small>검토 대기에서 확인하거나 직접 등록할 수 있습니다.</small>
           </div>
         `}
 
@@ -502,10 +581,8 @@
           <span class="status-pill unknown">TAG 미확인</span>
         </div>
 
-        <div class="unknown-cycle">
-          <strong>TAG 확인 필요</strong>
-          <p>이 위치의 정확한 TAG가 아직 등록되지 않았습니다.</p>
-          <small>업무일지에서 전체 TAG가 확인되면 실제 설비 카드로 전환됩니다.</small>
+        <div class="placeholder-note">
+          정확한 전체 TAG가 업무일지에서 확인되면 설비 카드로 자동 전환됩니다.
         </div>
       </article>
     `;
@@ -541,14 +618,15 @@
           .filter(() => ["all", "unknown"].includes(state.statusFilter))
           .sort((a, b) => String(a.positionLabel).localeCompare(String(b.positionLabel)))
           .map(renderMissingAssetCard);
-        const cards = [...actualCards, ...placeholderCards].join("");
+        const visibleCards = [...actualCards, ...placeholderCards];
+        const cards = visibleCards.join("");
 
         if (!cards) return "";
 
         return `
           <section class="unit-group">
             <h3 class="unit-heading">${escapeHtml(label)} <span>${actualCards.length + placeholderCards.length}대</span></h3>
-            <div class="asset-grid">${cards}</div>
+            <div class="asset-grid${visibleCards.length === 2 ? " is-two" : visibleCards.length === 1 ? " is-single" : ""}">${cards}</div>
           </section>
         `;
       })
@@ -560,7 +638,10 @@
       : assets.filter(asset => displaySeverity(asset) === state.statusFilter).length
         + (state.statusFilter === "unknown" ? missingSlots.length : 0);
 
-    elements.visibleAssetCount.textContent = `${visible.toLocaleString("ko-KR")} / ${total.toLocaleString("ko-KR")}대`;
+    elements.visibleAssetCount.hidden = state.statusFilter === "all";
+    elements.visibleAssetCount.textContent = state.statusFilter === "all"
+      ? ""
+      : `${visible.toLocaleString("ko-KR")} / ${total.toLocaleString("ko-KR")}대`;
     elements.assetGroups.innerHTML = html || `
       <div class="empty-state compact">선택한 상태의 Blower가 없습니다.</div>
     `;
@@ -610,7 +691,7 @@
     const now = new Date();
     const grouped = new Map();
 
-    for (const event of state.data?.events || []) {
+    for (const event of getVisibleEvents()) {
       if (event.blowerType !== state.activeType || event.eventType !== "replacement") continue;
       const parsed = new Date(event.eventDate);
       if (Number.isNaN(parsed.getTime())) continue;
@@ -665,6 +746,7 @@
     const average = averageOf(days);
 
     if (!days.length) {
+      elements.averagePanel.hidden = true;
       elements.averageHeadline.textContent = `${periodLabel} · 계산 가능한 연속 교체 이력 없음`;
       elements.averageMetrics.innerHTML = `
         <div class="average-metric"><span>평균</span><strong>-</strong></div>
@@ -673,6 +755,7 @@
         <div class="average-metric"><span>최장</span><strong>-</strong></div>
       `;
     } else {
+      elements.averagePanel.hidden = false;
       elements.averageHeadline.textContent = `${periodLabel} · 평균 ${formatAverageDays(average)}`;
       elements.averageMetrics.innerHTML = `
         <div class="average-metric primary"><span>평균 V-Belt 교체주기</span><strong>${escapeHtml(formatAverageDays(average))}</strong></div>
@@ -723,14 +806,28 @@
     return formatHours(event.runtimeHours);
   }
 
+  function displayEventContent(event) {
+    if (event?.eventType !== "replacement") {
+      return event?.note || event?.sourceText || "-";
+    }
+
+    const evidence = readableEvidence(event);
+    if (evidence) return evidence;
+    if (isShiftLogEvent(event)) return "업무일지 교체 근거 확인 필요";
+    return event?.note || event?.sourceText || "-";
+  }
+
   function renderHistory() {
     const filter = elements.historyFilter?.value || "replacement";
-    const events = (state.data?.events || []).filter(event => {
+    const events = getVisibleEvents().filter(event => {
       if (event.blowerType !== state.activeType) return false;
       return filter === "all" || event.eventType === filter;
     });
 
     elements.historyEmpty.hidden = events.length > 0;
+    elements.historyEmpty.textContent = shouldHideAutomaticData()
+      ? "초기 재구성 완료 전에는 수동 등록 이력만 표시합니다."
+      : "등록된 이력이 없습니다.";
     elements.historyBody.innerHTML = events
       .map(event => `
         <tr>
@@ -743,11 +840,7 @@
           <td>${escapeHtml(historyRuntimeLabel(event))}</td>
           <td>${escapeHtml(event.issueType || "-")}</td>
           <td>${escapeHtml(event.actionType || "-")}</td>
-          <td>${escapeHtml(
-            event.eventType === "replacement"
-              ? (readableEvidence(event) || event.note || event.sourceText || "-")
-              : (event.note || event.sourceText || "-")
-          )}</td>
+          <td>${escapeHtml(displayEventContent(event))}</td>
           <td>${escapeHtml(historySourceLabel(event))}${event.createdByName ? `<br><small>${escapeHtml(event.createdByName)}</small>` : ""}</td>
         </tr>
       `)
@@ -760,26 +853,32 @@
 
     state.historyAssetTag = tagNumber;
     const severity = displaySeverity(asset);
+    const awaitingBackfill = isAssetAwaitingBackfill(asset);
     const events = getAssetEvents(tagNumber)
       .filter(event => event.eventType === "replacement");
 
     elements.historyDialogTitle.textContent = `${asset.positionLabel} 이력`;
     elements.historyDialogAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
-    elements.historyCycleSummary.innerHTML = asset.lastReplacementAt
+    elements.historyCycleSummary.innerHTML = asset.lastReplacementAt && !awaitingBackfill
       ? `
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         <div><span>최근 V-Belt 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
         <div><span>교체 후 누적 운전</span><strong>${escapeHtml(formatHours(asset.runtimeHours))}</strong></div>
         <div><span>현재 주기</span><strong>${escapeHtml(formatSignedRemaining(asset))}</strong></div>
       `
-      : `
+      : awaitingBackfill
+        ? `
+        <span class="status-pill unknown">재구성 대기</span>
+        <div class="history-unknown"><strong>자동 이력을 다시 확인하고 있습니다.</strong><span>재구성 완료 후 확정된 교체일과 누적시간을 표시합니다.</span></div>
+      `
+        : `
         <span class="status-pill unknown">교체일 미확인</span>
         <div class="history-unknown"><strong>확정된 V-Belt 교체 이력이 없습니다.</strong><span>검토 대기 후보를 확인하거나 최초 이력을 직접 등록해 주세요.</span></div>
       `;
 
     elements.assetHistoryList.innerHTML = events.length
       ? events.map(event => {
-          const content = readableEvidence(event) || event.note || event.sourceText || "등록 내용 없음";
+          const content = displayEventContent(event) || "등록 내용 없음";
           const detail = [event.issueType, event.actionType].filter(Boolean).join(" → ");
 
           return `
@@ -802,6 +901,18 @@
   }
 
   function renderCandidates() {
+    if (shouldHideAutomaticData()) {
+      elements.candidateCountBadge.hidden = true;
+      elements.candidateEmpty.hidden = true;
+      elements.candidateList.innerHTML = `
+        <div class="candidate-rebuild-lock">
+          <strong>과거 이력 재구성을 먼저 완료해 주세요.</strong>
+          <span>기존 자동감지 후보는 재구성 완료 후 새 기준으로 다시 표시됩니다. 수동 등록 이력은 영향을 받지 않습니다.</span>
+        </div>
+      `;
+      return;
+    }
+
     const allCandidates = (state.data?.candidates || [])
       .filter(candidate => candidate.detectedType === "replacement");
     const candidates = allCandidates.filter(candidate => candidate.blowerType === state.activeType);
@@ -838,12 +949,50 @@
     if (!notice) return;
 
     const isSuperAdmin = Boolean(state.data?.user?.isSuperAdmin);
+    const initialRequired = requiresInitialBackfill(backfill);
+    const catchUpRequired = !initialRequired && Boolean(
+      backfill?.requiresCatchUp
+      || (state.backfillRunning && state.data?.backfill?.requiresCatchUp)
+    );
+    const interrupted = !state.backfillRunning
+      && ["initializing", "running", "processing"].includes(String(backfill?.status || ""));
+    const showOverviewCallout = initialRequired || catchUpRequired || interrupted || state.backfillRunning;
     elements.historicalBackfillButton.hidden = !isSuperAdmin;
+    elements.overviewBackfillButton.hidden = !isSuperAdmin;
+    elements.overviewBackfillCallout.hidden = !showOverviewCallout;
+    elements.overviewBackfillCallout.classList.toggle("is-catchup", catchUpRequired && !state.backfillRunning);
 
-    if (!backfill) {
+    if (showOverviewCallout) {
+      elements.overviewBackfillTitle.textContent = catchUpRequired
+        ? "최신 업무일지 반영"
+        : "과거 교체 이력 확인 필요";
+      elements.overviewBackfillSummary.textContent = state.backfillRunning
+        ? catchUpRequired
+          ? "새 업무일지를 반영하고 있습니다. 기존에 확정된 교체 이력은 그대로 유지됩니다."
+          : "업무일지를 다시 분석하고 있습니다. 완료 후 확정된 교체주기가 자동 표시됩니다."
+        : catchUpRequired
+          ? "마지막 완료 이후의 업무일지만 추가 확인합니다. 기존 교체 이력은 그대로 유지됩니다."
+          : interrupted
+            ? "중단된 지점부터 이어서 재구성할 수 있습니다."
+            : isSuperAdmin
+              ? "재구성 완료 전에는 기존 자동감지 이력을 확정값으로 표시하지 않습니다. 지금 한 번 실행해 주세요."
+              : "최고관리자의 과거 이력 재구성이 완료되면 확정된 교체주기가 표시됩니다.";
+
+      const buttonLabel = state.backfillRunning
+        ? "재구성 중..."
+        : catchUpRequired
+          ? "최신 이력 반영"
+          : interrupted
+            ? "이어서 재구성"
+            : "과거 이력 재구성";
+      elements.overviewBackfillButton.textContent = buttonLabel;
+      elements.historicalBackfillButton.textContent = buttonLabel;
+    }
+
+    if (!backfill || backfill.hasRun === false || backfill.requiresInitialRebuild === true) {
       notice.hidden = false;
       notice.dataset.state = "required";
-      notice.textContent = "과거 이력 재구성 필요 · 아직 실행 기록이 없습니다.";
+      notice.textContent = "과거 이력 재구성 필요 · 아직 실행하지 않음";
       return;
     }
 
@@ -863,6 +1012,12 @@
     if (backfill.isCompleteForToday) {
       notice.dataset.state = "complete";
       notice.textContent = `과거 이력 재구성 완료 · ${target}까지 ${scanned}건 확인 · 교체 이력 ${events}건 반영`;
+      return;
+    }
+
+    if (backfill.requiresCatchUp) {
+      notice.dataset.state = "required";
+      notice.textContent = `최신 업무일지 추가 확인 가능 · 기존 교체 이력 유지 · 마지막 완료 ${target}`;
       return;
     }
 
@@ -889,8 +1044,9 @@
   function setBusy(isBusy) {
     state.busy = Boolean(isBusy);
     elements.refreshButton.disabled = state.busy;
-    elements.scanButton.disabled = state.busy;
+    elements.scanButton.disabled = state.busy || shouldHideAutomaticData();
     elements.historicalBackfillButton.disabled = state.busy || state.backfillRunning;
+    elements.overviewBackfillButton.disabled = state.busy || state.backfillRunning;
   }
 
   async function loadData(options = {}) {
@@ -933,7 +1089,10 @@
     state.subview = subview;
 
     document.querySelectorAll(".sub-tab").forEach(button => {
-      button.classList.toggle("is-active", button.dataset.subview === subview);
+      const active = button.dataset.subview === subview;
+      button.classList.toggle("is-active", active);
+      if (active) button.setAttribute("aria-current", "page");
+      else button.removeAttribute("aria-current");
     });
 
     document.querySelectorAll("[data-subview-panel]").forEach(panel => {
@@ -1152,6 +1311,8 @@
     state.backfillRunning = true;
     elements.historicalBackfillButton.disabled = true;
     elements.historicalBackfillButton.textContent = "재구성 중...";
+    elements.overviewBackfillButton.disabled = true;
+    elements.overviewBackfillButton.textContent = "재구성 중...";
     elements.scanButton.disabled = true;
     elements.refreshButton.disabled = true;
     renderBackfillStatus(state.data?.backfill);
@@ -1189,6 +1350,8 @@
       state.backfillRunning = false;
       elements.historicalBackfillButton.disabled = state.busy;
       elements.historicalBackfillButton.textContent = "과거 이력 재구성";
+      elements.overviewBackfillButton.disabled = state.busy;
+      elements.overviewBackfillButton.textContent = "과거 이력 재구성";
       elements.scanButton.disabled = state.busy;
       elements.refreshButton.disabled = state.busy;
       renderBackfillStatus();
@@ -1293,6 +1456,7 @@
     elements.refreshButton.addEventListener("click", () => loadData());
     elements.scanButton.addEventListener("click", scanShiftLogs);
     elements.historicalBackfillButton.addEventListener("click", runHistoricalBackfill);
+    elements.overviewBackfillButton.addEventListener("click", runHistoricalBackfill);
 
     elements.candidateList.addEventListener("click", event => {
       const button = event.target.closest("[data-candidate-action]");
