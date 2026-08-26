@@ -1921,6 +1921,120 @@ function parseLegacyNavigatorCursor(
   }
 }
 
+/* =========================================================
+  SHIFT_LOG_NAVIGATOR_DATE_RANGE_V1
+  Facility Navigator 선택 조회기간
+========================================================= */
+
+function isValidNavigatorDate(
+  value
+) {
+  const normalizedValue =
+    normalizeText(
+      value
+    );
+
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      normalizedValue
+    )
+  ) {
+    return false;
+  }
+
+
+  const parsedDate =
+    new Date(
+      `${normalizedValue}T00:00:00.000Z`
+    );
+
+
+  return (
+    !Number.isNaN(
+      parsedDate.getTime()
+    ) &&
+    parsedDate
+      .toISOString()
+      .slice(
+        0,
+        10
+      ) ===
+      normalizedValue
+  );
+}
+
+
+function normalizeNavigatorDateRange(
+  startValue,
+  endValue
+) {
+  const startDate =
+    normalizeText(
+      startValue
+    );
+
+
+  const endDate =
+    normalizeText(
+      endValue
+    );
+
+
+  if (
+    !startDate &&
+    !endDate
+  ) {
+    return {
+      startDate:
+        "",
+
+      endDate:
+        ""
+    };
+  }
+
+
+  if (
+    !startDate ||
+    !endDate
+  ) {
+    throw new Error(
+      "기간 지정 시 시작일과 종료일을 모두 입력해야 합니다."
+    );
+  }
+
+
+  if (
+    !isValidNavigatorDate(
+      startDate
+    ) ||
+    !isValidNavigatorDate(
+      endDate
+    )
+  ) {
+    throw new Error(
+      "조회 기간의 날짜 형식이 올바르지 않습니다."
+    );
+  }
+
+
+  if (
+    startDate >
+      endDate
+  ) {
+    throw new Error(
+      "시작일은 종료일보다 늦을 수 없습니다."
+    );
+  }
+
+
+  return {
+    startDate,
+    endDate
+  };
+}
+
 function normalizePageLimit(
   value
 ) {
@@ -2148,6 +2262,39 @@ export async function onRequestGet(
       );
 
 
+    let dateRange;
+
+
+    try {
+      dateRange =
+        normalizeNavigatorDateRange(
+          requestUrl.searchParams.get(
+            "startDate"
+          ),
+
+          requestUrl.searchParams.get(
+            "endDate"
+          )
+        );
+
+    } catch (
+      validationError
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+
+          message:
+            validationError instanceof
+              Error
+              ? validationError.message
+              : "조회 기간이 올바르지 않습니다."
+        },
+        400
+      );
+    }
+
     let rawCursorValue =
       normalizeText(
         requestUrl.searchParams.get(
@@ -2164,6 +2311,21 @@ export async function onRequestGet(
       Once the legacy phase is exhausted, "shift-start"
       switches to the existing shift_logs cursor flow.
     */
+    const legacyStartDate =
+      dateRange.startDate &&
+      dateRange.startDate >
+        LEGACY_NAVIGATOR_START_DATE
+        ? dateRange.startDate
+        : LEGACY_NAVIGATOR_START_DATE;
+
+
+    const legacyEndDate =
+      dateRange.endDate &&
+      dateRange.endDate <
+        LEGACY_NAVIGATOR_END_DATE
+        ? dateRange.endDate
+        : LEGACY_NAVIGATOR_END_DATE;
+
     const shouldReadLegacy =
       !rawCursorValue ||
       rawCursorValue.startsWith(
@@ -2244,8 +2406,8 @@ export async function onRequestGet(
             LIMIT ?5
           `)
           .bind(
-            LEGACY_NAVIGATOR_START_DATE,
-            LEGACY_NAVIGATOR_END_DATE,
+            legacyStartDate,
+            legacyEndDate,
             legacyCursor.workDate,
             legacyCursor.id,
             limit
@@ -2458,6 +2620,16 @@ export async function onRequestGet(
               )
             )
 
+            AND (
+              ?3 = ''
+              OR work_date >= ?3
+            )
+
+            AND (
+              ?4 = ''
+              OR work_date <= ?4
+            )
+
           ORDER BY
             COALESCE(
               updated_at,
@@ -2466,11 +2638,13 @@ export async function onRequestGet(
 
             id ASC
 
-          LIMIT ?3
+          LIMIT ?5
         `)
         .bind(
           cursor.updatedAt,
           cursor.id,
+          dateRange.startDate,
+          dateRange.endDate,
           limit
         )
         .all();
