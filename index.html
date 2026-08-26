@@ -23,10 +23,68 @@
     (() => {
       "use strict";
 
-      const isMobile =
+      const viewportIsMobile =
         window.matchMedia(
           "(max-width: 900px)"
         ).matches;
+
+      const touchPoints =
+        Number(
+          window.navigator &&
+          window.navigator.maxTouchPoints
+        ) || 0;
+
+      const shortScreenSide =
+        Math.min(
+          Number(window.screen.width) ||
+            window.innerWidth,
+
+          Number(window.screen.height) ||
+            window.innerHeight
+        );
+
+      const userAgent =
+        String(
+          window.navigator.userAgent ||
+          ""
+        );
+
+      const platform =
+        String(
+          window.navigator.platform ||
+          ""
+        );
+
+      const hasMobileUserAgent =
+        /Android|iPhone|iPad|iPod|Mobile/i
+          .test(
+            userAgent
+          );
+
+      const isAppleTouchDevice =
+        touchPoints > 0 &&
+        (
+          /^(iPhone|iPad|iPod|MacIntel)$/i
+            .test(
+              platform
+            ) ||
+          /iPhone|iPad|iPod|Macintosh/i
+            .test(
+              userAgent
+            )
+        );
+
+      const touchScreenIsMobile =
+        touchPoints > 0 &&
+        (
+          hasMobileUserAgent ||
+          isAppleTouchDevice
+        ) &&
+        shortScreenSide <= 900;
+
+      const isMobile =
+        viewportIsMobile ||
+        touchScreenIsMobile;
 
       const path =
         window.location.pathname;
@@ -50,8 +108,31 @@
         sessions, and sends an authenticated user to /mobile-app/.
         Desktop continues with the unchanged page below.
       */
+      const params =
+        new URLSearchParams(
+          window.location.search
+        );
+
+      const build =
+        params.get(
+          "build"
+        ) ||
+        "20260826-mobile-entry-v22";
+
+      const destination =
+        new URL(
+          "/mobile/",
+          window.location.origin
+        );
+
+      destination.searchParams.set(
+        "build",
+        build
+      );
+
       window.location.replace(
-        "/mobile/?build=20260826-mobile-layout-v17"
+        destination.pathname +
+        destination.search
       );
     })();
   </script>

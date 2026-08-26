@@ -5419,3 +5419,176 @@ input {
     text-align: center !important;
   }
 }
+
+/* =========================================================
+   MANHOLE_MOBILE_FIXED_CONTROL_COLUMNS_V22
+
+   Safari can keep table-cell sizing even when a table row is
+   declared as a grid. Use a real flex row on mobile so every
+   status/date/note control starts at the exact same position,
+   independent of the location text length.
+========================================================= */
+
+@media screen and (max-width: 760px) {
+  .manhole-list-panel .manhole-table tbody tr[data-manhole-row] {
+    display: flex !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    align-items: center !important;
+    overflow: hidden !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td {
+    box-sizing: border-box !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    padding: 2px 1px !important;
+    overflow: hidden !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td.manhole-number {
+    flex: 0 0 22px !important;
+    font-size: 9px !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td.manhole-location {
+    flex: 1 1 auto !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    padding: 0 4px !important;
+    font-size: clamp(9px, 2.45vw, 10px) !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td.manhole-area,
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td.manhole-count {
+    display: none !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td.manhole-status-cell {
+    flex: 0 0 50px !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td.manhole-date-cell {
+    flex: 0 0 78px !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td.manhole-note-cell {
+    flex: 0 0 54px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    max-height: 32px !important;
+    padding: 2px 1px !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td.manhole-status-cell,
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td.manhole-date-cell,
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  > td.manhole-note-cell {
+    align-items: center !important;
+    justify-content: flex-start !important;
+  }
+
+  .manhole-list-panel .manhole-table select[data-manhole-status-select],
+  .manhole-list-panel .manhole-table input[type="date"],
+  .manhole-list-panel .manhole-table input[data-manhole-note] {
+    flex: 0 0 133.333333% !important;
+    width: 133.333333% !important;
+    min-width: 133.333333% !important;
+    max-width: 133.333333% !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
+    padding: 0 4px !important;
+    transform: scale(0.75) !important;
+    transform-origin: left center !important;
+    border-radius: 7px !important;
+    font-size: 16px !important;
+    font-weight: 750 !important;
+    line-height: normal !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  tbody
+  tr[data-manhole-row]
+  select[data-manhole-status-select] {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    padding-right: 14px !important;
+    background-image:
+      linear-gradient(45deg, transparent 50%, #52677c 50%),
+      linear-gradient(135deg, #52677c 50%, transparent 50%) !important;
+    background-position:
+      calc(100% - 10px) 50%,
+      calc(100% - 6px) 50% !important;
+    background-repeat: no-repeat !important;
+    background-size: 4px 4px !important;
+  }
+
+  .manhole-list-panel .manhole-table input[type="date"] {
+    padding-right: 1px !important;
+    padding-left: 1px !important;
+    letter-spacing: -0.065em !important;
+  }
+
+  .manhole-list-panel .manhole-table input[data-manhole-note] {
+    padding: 0 5px !important;
+  }
+
+  .manhole-list-panel
+  .manhole-table
+  input[data-manhole-note]::placeholder {
+    font-size: 16px !important;
+  }
+}
