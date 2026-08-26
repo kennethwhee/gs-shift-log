@@ -71,16 +71,65 @@ const PROBLEM_KEYWORDS = [
   ["변형", "변형"],
   ["천공", "천공"],
   ["파열", "파열"],
-  ["진동", "이상진동"],
-  ["이상", "이상"]
+  ["진동", "이상진동"]
 ];
 
 const REPLACEMENT_KEYWORDS = [
   "교체",
-  "신품",
   "replacement",
   "replace"
 ];
+
+const REPLACEMENT_PLAN_KEYWORDS = [
+  "교체 예정",
+  "교체예정",
+  "교체 계획",
+  "교체계획",
+  "교체 필요",
+  "교체필요",
+  "교체 검토",
+  "교체검토",
+  "교체 요청",
+  "교체요청",
+  "교체 준비",
+  "교체준비",
+  "교체 여부",
+  "교체여부",
+  "교체 대상",
+  "교체대상",
+  "교체 주기",
+  "교체주기",
+  "교체 시기",
+  "교체시기",
+  "교체 가능",
+  "교체가능"
+];
+
+const REPLACEMENT_COMPLETE_KEYWORDS = [
+  "교체 완료",
+  "교체완료",
+  "교체 실시",
+  "교체실시",
+  "교체 시행",
+  "교체시행",
+  "교체함",
+  "교체하였",
+  "신품 교체",
+  "신품교체",
+  "취외",
+  "취부"
+];
+
+const HISTORY_BACKFILL_ID = "shift_logs_full_v2";
+const HISTORY_BACKFILL_BATCH_SIZE = 200;
+
+const TYPE_CONTEXT_KEYWORDS = {
+  fbhe: ["fbhe", "hhl60"],
+  seal_pot: ["seal pot", "sealpot", "hhl10"],
+  organic_fuel: ["유기성 고형연료", "유기성고형연료", "organic fuel", "sdf01"],
+  flyash_bag: ["fly ash bag filter", "flyash bag filter", "bag filter aeration", "etg30"],
+  flyash_silo: ["fly ash silo", "flyash silo", "silo aeration", "eth03"]
+};
 
 function jsonResponse(data, status = 200) {
   return Response.json(data, {
@@ -351,6 +400,21 @@ async function ensureSchema(database) {
     database.prepare(`
       CREATE INDEX IF NOT EXISTS idx_blower_history_candidates_status_date
       ON blower_history_candidates (status, detected_date DESC)
+    `),
+    database.prepare(`
+      CREATE TABLE IF NOT EXISTS blower_history_backfill_state (
+        id TEXT PRIMARY KEY NOT NULL,
+        target_date TEXT NOT NULL DEFAULT '',
+        cursor_date TEXT NOT NULL DEFAULT '',
+        cursor_id TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'idle',
+        scanned_logs INTEGER NOT NULL DEFAULT 0,
+        auto_confirmed_events INTEGER NOT NULL DEFAULT 0,
+        pending_candidates INTEGER NOT NULL DEFAULT 0,
+        started_at TEXT,
+        completed_at TEXT,
+        updated_at TEXT NOT NULL
+      )
     `)
   ]);
 
@@ -465,6 +529,26 @@ function currentRuntimeHours(asset, now = new Date()) {
   return Math.max(0, hours);
 }
 
+function runtimeHoursAt(asset, eventDate) {
+  const at = new Date(eventDate);
+
+  if (Number.isNaN(at.getTime())) {
+    return currentRuntimeHours(asset);
+  }
+
+  let hours = Math.max(0, Number(asset.runtime_hours || 0));
+
+  if (Number(asset.is_running) === 1 && asset.runtime_anchor_at) {
+    const anchor = new Date(asset.runtime_anchor_at);
+
+    if (!Number.isNaN(anchor.getTime()) && anchor <= at) {
+      hours += (at.getTime() - anchor.getTime()) / 3600000;
+    }
+  }
+
+  return Math.max(0, hours);
+}
+
 function buildAssetState(asset, setting, latestProblem, now = new Date()) {
   const runtimeHours = currentRuntimeHours(asset, now);
   const cycleDays = toNullableNumber(setting?.cycle_days);
@@ -546,7 +630,7 @@ async function loadSettings(database) {
 }
 
 async function loadEvents(database, limit = 300) {
-  const safeLimit = Math.max(1, Math.min(1000, Number(limit) || 300));
+  const safeLimit = Math.max(1, Math.min(5000, Number(limit) || 300));
 
   const result = await database
     .prepare(`
@@ -589,7 +673,7 @@ async function loadEvents(database, limit = 300) {
 }
 
 async function loadCandidates(database, status = "pending", limit = 200) {
-  const safeStatus = ["pending", "confirmed", "excluded"].includes(status)
+  const safeStatus = ["pending", "confirmed", "excluded", "auto_confirmed"].includes(status)
     ? status
     : "pending";
   const safeLimit = Math.max(1, Math.min(1000, Number(limit) || 200));
@@ -634,6 +718,53 @@ async function loadCandidates(database, status = "pending", limit = 200) {
     reviewedAt: normalizeText(row.reviewed_at),
     createdAt: normalizeText(row.created_at)
   }));
+}
+
+async function loadBackfillState(database) {
+  const row = await database
+    .prepare(`
+      SELECT *
+      FROM blower_history_backfill_state
+      WHERE id = ?
+      LIMIT 1
+    `)
+    .bind(HISTORY_BACKFILL_ID)
+    .first();
+
+  const today = formatKstDate(new Date());
+
+  if (!row) {
+    return {
+      id: HISTORY_BACKFILL_ID,
+      targetDate: today,
+      cursorDate: "",
+      cursorId: "",
+      status: "pending",
+      scannedLogs: 0,
+      autoConfirmedEvents: 0,
+      pendingCandidates: 0,
+      startedAt: "",
+      completedAt: "",
+      updatedAt: "",
+      isCompleteForToday: false
+    };
+  }
+
+  return {
+    id: row.id,
+    targetDate: normalizeText(row.target_date),
+    cursorDate: normalizeText(row.cursor_date),
+    cursorId: normalizeText(row.cursor_id),
+    status: normalizeText(row.status) || "idle",
+    scannedLogs: Number(row.scanned_logs || 0),
+    autoConfirmedEvents: Number(row.auto_confirmed_events || 0),
+    pendingCandidates: Number(row.pending_candidates || 0),
+    startedAt: normalizeText(row.started_at),
+    completedAt: normalizeText(row.completed_at),
+    updatedAt: normalizeText(row.updated_at),
+    isCompleteForToday:
+      normalizeText(row.status) === "complete" && normalizeText(row.target_date) === today
+  };
 }
 
 async function loadSettingHistory(database, limit = 50) {
@@ -742,9 +873,10 @@ function buildMissingTagSummary(assetStates) {
 async function buildFullData(database, user) {
   const settings = await loadSettings(database);
   const assets = await loadAssetStates(database, settings);
-  const events = await loadEvents(database, 400);
+  const events = await loadEvents(database, 2000);
   const candidates = await loadCandidates(database, "pending", 300);
   const settingHistory = await loadSettingHistory(database, 60);
+  const backfill = await loadBackfillState(database);
 
   return {
     ok: true,
@@ -755,6 +887,7 @@ async function buildFullData(database, user) {
     events,
     candidates,
     settingHistory,
+    backfill,
     missingTags: buildMissingTagSummary(assets),
     generatedAt: new Date().toISOString()
   };
@@ -1053,7 +1186,7 @@ async function registerReplacement(database, user, body, source = {}) {
     return jsonResponse({ ok: false, message: "교체날짜가 현재보다 너무 미래입니다." }, 400);
   }
 
-  const beforeRuntime = currentRuntimeHours(asset);
+  const beforeRuntime = runtimeHoursAt(asset, eventDate);
   const issueType = normalizeText(body.issueType) || "정기주기";
   const actionType = normalizeText(body.actionType) || "교체";
   const note = normalizeText(body.note);
@@ -1131,7 +1264,7 @@ async function registerProblem(database, user, body, source = {}) {
     return jsonResponse({ ok: false, message: "문제 발생일을 확인해 주세요." }, 400);
   }
 
-  const runtimeHours = currentRuntimeHours(asset);
+  const runtimeHours = runtimeHoursAt(asset, eventDate);
   const issueType = normalizeText(body.issueType) || "기타";
   const actionType = normalizeText(body.actionType) || "확인";
 
@@ -1215,8 +1348,25 @@ function findIssueType(text) {
   const normalized = normalizeText(text).toLowerCase();
 
   for (const [keyword, label] of PROBLEM_KEYWORDS) {
-    if (normalized.includes(keyword.toLowerCase())) {
-      return label;
+    const token = keyword.toLowerCase();
+    let index = normalized.indexOf(token);
+
+    while (index >= 0) {
+      const tail = normalized
+        .slice(index + token.length, index + token.length + 12)
+        .replace(/\s+/g, "");
+      const negated =
+        tail.startsWith("없") ||
+        tail.startsWith("미발생") ||
+        tail.startsWith("무") ||
+        tail.startsWith("x") ||
+        tail.startsWith("no");
+
+      if (!negated) {
+        return label;
+      }
+
+      index = normalized.indexOf(token, index + token.length);
     }
   }
 
@@ -1225,7 +1375,15 @@ function findIssueType(text) {
 
 function hasReplacementKeyword(text) {
   const normalized = normalizeText(text).toLowerCase();
-  return REPLACEMENT_KEYWORDS.some(keyword => normalized.includes(keyword.toLowerCase()));
+
+  if (REPLACEMENT_KEYWORDS.some(keyword => normalized.includes(keyword.toLowerCase()))) {
+    return true;
+  }
+
+  return (
+    normalized.includes("신품") &&
+    ["취부", "설치", "장착"].some(keyword => normalized.includes(keyword))
+  );
 }
 
 function hasProblemKeyword(text) {
@@ -1284,6 +1442,669 @@ function fingerprintText(text) {
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
+function compactEquipmentText(value) {
+  return normalizeText(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function detectUnitNo(text) {
+  const normalized = normalizeText(text);
+
+  if (/(?:#\s*1(?:\b|호)|1\s*호기|UNIT\s*#?\s*1\b)/i.test(normalized)) {
+    return "1";
+  }
+
+  if (/(?:#\s*2(?:\b|호)|2\s*호기|UNIT\s*#?\s*2\b)/i.test(normalized)) {
+    return "2";
+  }
+
+  return "";
+}
+
+function detectPositionLabel(text) {
+  const normalized = normalizeText(text);
+
+  for (const position of ["A", "B", "C"]) {
+    const hashPattern = new RegExp(`#\\s*${position}(?:\\b|호|번)`, "i");
+    const blowerPattern = new RegExp(`(?:BLOWER|FAN)\\s*#?\\s*${position}\\b`, "i");
+    const trailingPattern = new RegExp(`\\b${position}\\s*(?:BLOWER|FAN)\\b`, "i");
+
+    if (hashPattern.test(normalized) || blowerPattern.test(normalized) || trailingPattern.test(normalized)) {
+      return `#${position}`;
+    }
+  }
+
+  return "";
+}
+
+function detectBlowerTypes(text) {
+  const normalized = normalizeText(text).toLowerCase();
+  const matches = [];
+
+  for (const [type, keywords] of Object.entries(TYPE_CONTEXT_KEYWORDS)) {
+    if (keywords.some(keyword => normalized.includes(keyword.toLowerCase()))) {
+      matches.push(type);
+    }
+  }
+
+  return matches;
+}
+
+function hasReplacementPlanContext(text) {
+  const normalized = normalizeText(text).toLowerCase();
+  const planned = REPLACEMENT_PLAN_KEYWORDS.some(keyword => normalized.includes(keyword.toLowerCase()));
+  const completed = REPLACEMENT_COMPLETE_KEYWORDS.some(keyword => normalized.includes(keyword.toLowerCase()));
+  return planned && !completed;
+}
+
+function findAssetMatches(fragment, assets) {
+  const compact = compactEquipmentText(fragment);
+  const unitNo = detectUnitNo(fragment);
+  const positionLabel = detectPositionLabel(fragment);
+  const typeMatches = detectBlowerTypes(fragment);
+  const exact = [];
+
+  for (const asset of assets) {
+    const tag = normalizeText(asset.tag_number).toUpperCase();
+    const compactTag = compactEquipmentText(tag);
+
+    if (compactTag && compact.includes(compactTag)) {
+      exact.push({ asset, strong: true, reason: "full_tag" });
+    }
+  }
+
+  if (exact.length > 0) {
+    return exact;
+  }
+
+  const contextual = [];
+
+  for (const asset of assets) {
+    if (!typeMatches.includes(asset.blower_type)) {
+      continue;
+    }
+
+    if (asset.unit_no !== "shared" && unitNo !== asset.unit_no) {
+      continue;
+    }
+
+    const tag = normalizeText(asset.tag_number).toUpperCase();
+    const suffix = compactEquipmentText(tag.slice(3));
+    const shortToken = compactEquipmentText(tag.slice(-5));
+    const suffixMatched = suffix && compact.includes(suffix);
+    const shortMatched = shortToken && compact.includes(shortToken);
+    const positionMatched = positionLabel && positionLabel === asset.position_label;
+
+    if (suffixMatched || shortMatched || positionMatched) {
+      contextual.push({ asset, strong: true, reason: "type_unit_context" });
+    }
+  }
+
+  return contextual;
+}
+
+function detectedEventSpecs(fragment) {
+  const issueType = findIssueType(fragment);
+  const replacementDetected = hasReplacementKeyword(fragment);
+  const specs = [];
+
+  if (issueType) {
+    specs.push({
+      detectedType: "problem",
+      issueType,
+      actionType: "확인",
+      autoEligible: true
+    });
+  }
+
+  if (replacementDetected) {
+    specs.push({
+      detectedType: "replacement",
+      issueType: issueType || "정기주기",
+      actionType: "교체",
+      autoEligible: !hasReplacementPlanContext(fragment)
+    });
+  }
+
+  return specs;
+}
+
+async function findExistingDetection(database, row, tagNumber, detectedType) {
+  const candidate = await database
+    .prepare(`
+      SELECT *
+      FROM blower_history_candidates
+      WHERE source_log_id = ?
+        AND tag_number = ?
+        AND detected_type = ?
+      ORDER BY created_at ASC
+      LIMIT 1
+    `)
+    .bind(row.id, tagNumber, detectedType)
+    .first();
+
+  if (candidate) {
+    return { candidate, event: null };
+  }
+
+  const dayText = normalizeText(row.work_date).slice(0, 10);
+  const event = await database
+    .prepare(`
+      SELECT *
+      FROM blower_history_events
+      WHERE source_log_id = ?
+        AND tag_number = ?
+        AND event_type = ?
+      LIMIT 1
+    `)
+    .bind(row.id, tagNumber, detectedType)
+    .first();
+
+  return { candidate: null, event, dayText };
+}
+
+async function findSameDayEvent(database, tagNumber, detectedType, eventDate, issueType) {
+  const dateText = normalizeText(eventDate).slice(0, 10);
+
+  if (detectedType === "replacement") {
+    return database
+      .prepare(`
+        SELECT id
+        FROM blower_history_events
+        WHERE tag_number = ?
+          AND event_type = 'replacement'
+          AND substr(event_date, 1, 10) = ?
+        LIMIT 1
+      `)
+      .bind(tagNumber, dateText)
+      .first();
+  }
+
+  return database
+    .prepare(`
+      SELECT id
+      FROM blower_history_events
+      WHERE tag_number = ?
+        AND event_type = 'problem'
+        AND substr(event_date, 1, 10) = ?
+        AND issue_type = ?
+      LIMIT 1
+    `)
+    .bind(tagNumber, dateText, normalizeText(issueType))
+    .first();
+}
+
+async function estimateHistoricalRuntime(database, tagNumber, eventDate) {
+  const previous = await database
+    .prepare(`
+      SELECT event_date
+      FROM blower_history_events
+      WHERE tag_number = ?
+        AND event_type = 'replacement'
+        AND event_date < ?
+      ORDER BY event_date DESC, created_at DESC
+      LIMIT 1
+    `)
+    .bind(tagNumber, eventDate)
+    .first();
+
+  if (!previous?.event_date) {
+    return 0;
+  }
+
+  const previousDate = new Date(previous.event_date);
+  const currentDate = new Date(eventDate);
+
+  if (Number.isNaN(previousDate.getTime()) || Number.isNaN(currentDate.getTime())) {
+    return 0;
+  }
+
+  return Math.max(0, (currentDate.getTime() - previousDate.getTime()) / 3600000);
+}
+
+async function insertDetectionCandidate(database, row, tagNumber, spec, status, reviewedAt = null) {
+  const existing = await findExistingDetection(database, row, tagNumber, spec.detectedType);
+
+  if (existing.candidate || existing.event) {
+    return {
+      candidate: existing.candidate,
+      inserted: false,
+      alreadyEvent: Boolean(existing.event)
+    };
+  }
+
+  const now = new Date().toISOString();
+  const fingerprint = fingerprintText(
+    ["v2", row.id, row.work_date, tagNumber, spec.detectedType].join("||")
+  );
+  const id = crypto.randomUUID();
+
+  const result = await database
+    .prepare(`
+      INSERT OR IGNORE INTO blower_history_candidates (
+        id,
+        source_fingerprint,
+        tag_number,
+        detected_type,
+        detected_date,
+        issue_type,
+        action_type,
+        source_log_id,
+        source_shift,
+        source_role,
+        source_author,
+        source_text,
+        status,
+        reviewed_by_id,
+        reviewed_by_name,
+        reviewed_at,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    .bind(
+      id,
+      fingerprint,
+      tagNumber,
+      spec.detectedType,
+      normalizeDateTime(row.work_date),
+      spec.issueType,
+      spec.actionType,
+      row.id,
+      normalizeText(row.shift),
+      normalizeText(row.role),
+      normalizeText(row.author),
+      normalizeText(row.sourceText).slice(0, 2000),
+      status,
+      status === "auto_confirmed" ? "history_auto" : "",
+      status === "auto_confirmed" ? "업무일지 과거 자동반영" : "",
+      reviewedAt,
+      now
+    )
+    .run();
+
+  const inserted = Number(result?.meta?.changes || 0) > 0;
+  const candidate = inserted
+    ? await database.prepare(`SELECT * FROM blower_history_candidates WHERE id = ? LIMIT 1`).bind(id).first()
+    : await database
+        .prepare(`
+          SELECT *
+          FROM blower_history_candidates
+          WHERE source_fingerprint = ?
+          LIMIT 1
+        `)
+        .bind(fingerprint)
+        .first();
+
+  return { candidate, inserted, alreadyEvent: false };
+}
+
+async function insertHistoricalEvent(database, row, candidate, spec) {
+  const tagNumber = normalizeText(candidate.tag_number).toUpperCase();
+  const eventDate = normalizeDateTime(candidate.detected_date || row.work_date);
+
+  const sameDay = await findSameDayEvent(
+    database,
+    tagNumber,
+    spec.detectedType,
+    eventDate,
+    spec.issueType
+  );
+
+  if (sameDay) {
+    await database
+      .prepare(`
+        UPDATE blower_history_candidates
+        SET
+          status = 'auto_confirmed',
+          reviewed_by_id = 'history_auto',
+          reviewed_by_name = '업무일지 과거 자동반영',
+          reviewed_at = ?
+        WHERE id = ? AND status = 'pending'
+      `)
+      .bind(new Date().toISOString(), candidate.id)
+      .run();
+
+    return { inserted: false, duplicate: true };
+  }
+
+  const runtimeHours = await estimateHistoricalRuntime(database, tagNumber, eventDate);
+  const systemUser = {
+    employeeNo: "history_auto",
+    name: "업무일지 과거 자동반영"
+  };
+
+  await insertEvent(database, systemUser, {
+    tagNumber,
+    eventType: spec.detectedType,
+    eventDate,
+    runtimeHours,
+    issueType: spec.issueType,
+    actionType: spec.actionType,
+    note: "",
+    sourceType: "shift_log_history_auto",
+    sourceLogId: row.id,
+    sourceText: normalizeText(row.sourceText)
+  });
+
+  if (spec.detectedType === "replacement") {
+    const asset = await findAsset(database, tagNumber);
+    const eventValue = new Date(eventDate);
+    const currentValue = asset?.last_replacement_at ? new Date(asset.last_replacement_at) : null;
+    const shouldUpdateCurrent =
+      asset &&
+      (!currentValue || Number.isNaN(currentValue.getTime()) || eventValue >= currentValue);
+
+    if (shouldUpdateCurrent) {
+      const now = new Date().toISOString();
+      await database
+        .prepare(`
+          UPDATE blower_history_assets
+          SET
+            last_replacement_at = ?,
+            runtime_hours = 0,
+            runtime_anchor_at = ?,
+            is_running = 1,
+            last_modified_by_id = 'history_auto',
+            last_modified_by_name = '업무일지 과거 자동반영',
+            updated_at = ?
+          WHERE tag_number = ?
+        `)
+        .bind(eventDate, eventDate, now, tagNumber)
+        .run();
+    }
+  }
+
+  await database
+    .prepare(`
+      UPDATE blower_history_candidates
+      SET
+        status = 'auto_confirmed',
+        reviewed_by_id = 'history_auto',
+        reviewed_by_name = '업무일지 과거 자동반영',
+        reviewed_at = ?
+      WHERE id = ?
+    `)
+    .bind(new Date().toISOString(), candidate.id)
+    .run();
+
+  return { inserted: true, duplicate: false };
+}
+
+async function processHistoricalLog(database, row, assets) {
+  let parsed;
+
+  try {
+    parsed = JSON.parse(row.log_json || "{}");
+  } catch {
+    return { autoEvents: 0, pending: 0 };
+  }
+
+  const fragments = [...collectObjectTextFragments(parsed)];
+  let autoEvents = 0;
+  let pending = 0;
+  const seen = new Set();
+
+  for (const fragment of fragments) {
+    const specs = detectedEventSpecs(fragment);
+
+    if (specs.length === 0) {
+      continue;
+    }
+
+    const matches = findAssetMatches(fragment, assets);
+
+    if (matches.length === 0) {
+      continue;
+    }
+
+    for (const match of matches) {
+      for (const spec of specs) {
+        const eventKey = `${row.id}::${match.asset.tag_number}::${spec.detectedType}`;
+
+        if (seen.has(eventKey)) {
+          continue;
+        }
+
+        seen.add(eventKey);
+        const sourceRow = { ...row, sourceText: fragment };
+        const shouldAuto = match.strong && spec.autoEligible;
+        const desiredStatus = shouldAuto ? "auto_confirmed" : "pending";
+        const detection = await insertDetectionCandidate(
+          database,
+          sourceRow,
+          match.asset.tag_number,
+          spec,
+          desiredStatus,
+          shouldAuto ? new Date().toISOString() : null
+        );
+
+        if (detection.alreadyEvent) {
+          continue;
+        }
+
+        const candidate = detection.candidate;
+
+        if (!candidate) {
+          continue;
+        }
+
+        if (["confirmed", "excluded"].includes(candidate.status) && !detection.inserted) {
+          continue;
+        }
+
+        if (shouldAuto) {
+          const result = await insertHistoricalEvent(database, sourceRow, candidate, spec);
+          if (result.inserted) autoEvents += 1;
+        } else if (detection.inserted) {
+          pending += 1;
+        }
+      }
+    }
+  }
+
+  return { autoEvents, pending };
+}
+
+async function initializeBackfillRun(database, today) {
+  let state = await database
+    .prepare(`SELECT * FROM blower_history_backfill_state WHERE id = ? LIMIT 1`)
+    .bind(HISTORY_BACKFILL_ID)
+    .first();
+  const now = new Date().toISOString();
+
+  if (!state) {
+    await database
+      .prepare(`
+        INSERT INTO blower_history_backfill_state (
+          id,
+          target_date,
+          cursor_date,
+          cursor_id,
+          status,
+          scanned_logs,
+          auto_confirmed_events,
+          pending_candidates,
+          started_at,
+          completed_at,
+          updated_at
+        )
+        VALUES (?, ?, '', '', 'running', 0, 0, 0, ?, NULL, ?)
+      `)
+      .bind(HISTORY_BACKFILL_ID, today, now, now)
+      .run();
+
+    return database
+      .prepare(`SELECT * FROM blower_history_backfill_state WHERE id = ? LIMIT 1`)
+      .bind(HISTORY_BACKFILL_ID)
+      .first();
+  }
+
+  if (normalizeText(state.status) === "complete" && normalizeText(state.target_date) === today) {
+    return state;
+  }
+
+  if (normalizeText(state.target_date) !== today) {
+    const resumeDate = normalizeText(state.target_date);
+
+    await database
+      .prepare(`
+        UPDATE blower_history_backfill_state
+        SET
+          target_date = ?,
+          cursor_date = ?,
+          cursor_id = '',
+          status = 'running',
+          scanned_logs = 0,
+          auto_confirmed_events = 0,
+          pending_candidates = 0,
+          started_at = ?,
+          completed_at = NULL,
+          updated_at = ?
+        WHERE id = ?
+      `)
+      .bind(today, resumeDate, now, now, HISTORY_BACKFILL_ID)
+      .run();
+  } else if (normalizeText(state.status) !== "running") {
+    await database
+      .prepare(`
+        UPDATE blower_history_backfill_state
+        SET status = 'running', started_at = COALESCE(started_at, ?), updated_at = ?
+        WHERE id = ?
+      `)
+      .bind(now, now, HISTORY_BACKFILL_ID)
+      .run();
+  }
+
+  return database
+    .prepare(`SELECT * FROM blower_history_backfill_state WHERE id = ? LIMIT 1`)
+    .bind(HISTORY_BACKFILL_ID)
+    .first();
+}
+
+async function historicalBackfillStep(database) {
+  const today = formatKstDate(new Date());
+  const state = await initializeBackfillRun(database, today);
+
+  if (normalizeText(state.status) === "complete" && normalizeText(state.target_date) === today) {
+    return jsonResponse({
+      ok: true,
+      done: true,
+      message: `${today}까지 과거 업무일지 자동 반영이 완료되어 있습니다.`,
+      backfill: await loadBackfillState(database)
+    });
+  }
+
+  const cursorDate = normalizeText(state.cursor_date);
+  const cursorId = normalizeText(state.cursor_id);
+  let query;
+
+  if (cursorDate) {
+    query = database
+      .prepare(`
+        SELECT id, work_date, shift, role, author, log_json
+        FROM shift_logs
+        WHERE work_date <= ?
+          AND (work_date > ? OR (work_date = ? AND id > ?))
+        ORDER BY work_date ASC, id ASC
+        LIMIT ?
+      `)
+      .bind(today, cursorDate, cursorDate, cursorId, HISTORY_BACKFILL_BATCH_SIZE);
+  } else {
+    query = database
+      .prepare(`
+        SELECT id, work_date, shift, role, author, log_json
+        FROM shift_logs
+        WHERE work_date <= ?
+        ORDER BY work_date ASC, id ASC
+        LIMIT ?
+      `)
+      .bind(today, HISTORY_BACKFILL_BATCH_SIZE);
+  }
+
+  const result = await query.all();
+  const logs = Array.isArray(result.results) ? result.results : [];
+
+  if (logs.length === 0) {
+    const now = new Date().toISOString();
+    await database
+      .prepare(`
+        UPDATE blower_history_backfill_state
+        SET status = 'complete', completed_at = ?, updated_at = ?
+        WHERE id = ?
+      `)
+      .bind(now, now, HISTORY_BACKFILL_ID)
+      .run();
+
+    return jsonResponse({
+      ok: true,
+      done: true,
+      message: `${today}까지 과거 업무일지 자동 반영을 완료했습니다.`,
+      backfill: await loadBackfillState(database)
+    });
+  }
+
+  const assetResult = await database
+    .prepare(`
+      SELECT *
+      FROM blower_history_assets
+      WHERE enabled = 1
+      ORDER BY sort_order ASC, tag_number ASC
+    `)
+    .all();
+  const assets = Array.isArray(assetResult.results) ? assetResult.results : [];
+  let autoEvents = 0;
+  let pending = 0;
+
+  for (const row of logs) {
+    const processed = await processHistoricalLog(database, row, assets);
+    autoEvents += processed.autoEvents;
+    pending += processed.pending;
+  }
+
+  const last = logs[logs.length - 1];
+  const done = logs.length < HISTORY_BACKFILL_BATCH_SIZE;
+  const now = new Date().toISOString();
+
+  await database
+    .prepare(`
+      UPDATE blower_history_backfill_state
+      SET
+        cursor_date = ?,
+        cursor_id = ?,
+        status = ?,
+        scanned_logs = scanned_logs + ?,
+        auto_confirmed_events = auto_confirmed_events + ?,
+        pending_candidates = pending_candidates + ?,
+        completed_at = ?,
+        updated_at = ?
+      WHERE id = ?
+    `)
+    .bind(
+      normalizeText(last.work_date),
+      normalizeText(last.id),
+      done ? "complete" : "running",
+      logs.length,
+      autoEvents,
+      pending,
+      done ? now : null,
+      now,
+      HISTORY_BACKFILL_ID
+    )
+    .run();
+
+  return jsonResponse({
+    ok: true,
+    done,
+    message: done
+      ? `${today}까지 과거 업무일지 자동 반영을 완료했습니다.`
+      : `과거 업무일지 ${logs.length}건을 추가 확인했습니다.`,
+    batchScanned: logs.length,
+    batchAutoEvents: autoEvents,
+    batchPending: pending,
+    backfill: await loadBackfillState(database)
+  });
+}
+
 async function scanShiftLogs(database, user, body) {
   const days = Math.max(1, Math.min(3650, Number(body.days) || 180));
   const fromDate = new Date(Date.now() - days * 24 * 3600000);
@@ -1307,19 +2128,15 @@ async function scanShiftLogs(database, user, body) {
     .all();
 
   const logs = Array.isArray(logResult.results) ? logResult.results : [];
-  const assetsResult = await database
+  const assetResult = await database
     .prepare(`
-      SELECT tag_number
+      SELECT *
       FROM blower_history_assets
       WHERE enabled = 1
+      ORDER BY sort_order ASC, tag_number ASC
     `)
     .all();
-
-  const knownTags = (Array.isArray(assetsResult.results) ? assetsResult.results : [])
-    .map(row => normalizeText(row.tag_number).toUpperCase())
-    .filter(Boolean);
-
-  const now = new Date().toISOString();
+  const assets = Array.isArray(assetResult.results) ? assetResult.results : [];
   let detectedCount = 0;
   let insertedCount = 0;
 
@@ -1333,70 +2150,33 @@ async function scanShiftLogs(database, user, body) {
     }
 
     const fragments = [...collectObjectTextFragments(parsed)];
+    const seen = new Set();
 
     for (const fragment of fragments) {
-      const upper = fragment.toUpperCase();
-      const matchedTags = knownTags.filter(tag => upper.includes(tag));
+      const specs = detectedEventSpecs(fragment);
+      if (specs.length === 0) continue;
 
-      if (matchedTags.length === 0) {
-        continue;
-      }
+      const matches = findAssetMatches(fragment, assets);
+      if (matches.length === 0) continue;
 
-      const replacementDetected = hasReplacementKeyword(fragment);
-      const issueType = findIssueType(fragment);
+      for (const match of matches) {
+        for (const spec of specs) {
+          const key = `${row.id}::${match.asset.tag_number}::${spec.detectedType}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          detectedCount += 1;
 
-      if (!replacementDetected && !issueType) {
-        continue;
-      }
+          const sourceRow = { ...row, sourceText: fragment };
+          const detection = await insertDetectionCandidate(
+            database,
+            sourceRow,
+            match.asset.tag_number,
+            spec,
+            "pending"
+          );
 
-      const detectedType = replacementDetected ? "replacement" : "problem";
-      const actionType = replacementDetected ? "교체" : "확인";
-
-      for (const tagNumber of matchedTags) {
-        detectedCount += 1;
-
-        const fingerprint = fingerprintText(
-          [row.id, row.work_date, tagNumber, detectedType, fragment].join("||")
-        );
-
-        const insertResult = await database
-          .prepare(`
-            INSERT OR IGNORE INTO blower_history_candidates (
-              id,
-              source_fingerprint,
-              tag_number,
-              detected_type,
-              detected_date,
-              issue_type,
-              action_type,
-              source_log_id,
-              source_shift,
-              source_role,
-              source_author,
-              source_text,
-              status,
-              created_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
-          `)
-          .bind(
-            crypto.randomUUID(),
-            fingerprint,
-            tagNumber,
-            detectedType,
-            normalizeDateTime(row.work_date),
-            issueType,
-            actionType,
-            row.id,
-            normalizeText(row.shift),
-            normalizeText(row.role),
-            normalizeText(row.author),
-            fragment.slice(0, 2000),
-            now
-          )
-          .run();
-
-        insertedCount += Number(insertResult?.meta?.changes || 0);
+          if (detection.inserted) insertedCount += 1;
+        }
       }
     }
   }
@@ -1526,6 +2306,10 @@ async function handlePost(context, user) {
 
   if (action === "runtime") {
     return correctRuntime(database, user, body);
+  }
+
+  if (action === "historical_backfill_step") {
+    return historicalBackfillStep(database);
   }
 
   if (action === "scan") {

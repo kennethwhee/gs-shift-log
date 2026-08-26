@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="GS Shift Log Blower 교체 이력 관리">
   <title>Blower 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260826-v1">
-  <script src="blower-history.js?v=20260826-v1" defer></script>
+  <link rel="stylesheet" href="blower-history.css?v=20260826-v2">
+  <script src="blower-history.js?v=20260826-v2" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -25,6 +25,7 @@
     </header>
 
     <section class="notice-bar" id="authNotice" hidden></section>
+    <section class="notice-bar" id="historicalBackfillNotice" hidden></section>
 
     <nav class="type-tabs" id="typeTabs" aria-label="Blower 종류"></nav>
 
@@ -136,7 +137,7 @@
               <div>
                 <p class="eyebrow">SHIFT LOG DETECTION</p>
                 <h2>업무일지 자동감지</h2>
-                <p>등록된 Blower TAG와 문제·교체 키워드가 함께 있는 업무일지만 후보로 가져옵니다.</p>
+                <p>과거 업무일지는 명확한 설비와 실제 문제·교체 기록을 자동 이력화하고, 애매한 내용만 검토 대상으로 남깁니다.</p>
               </div>
               <div class="scan-controls">
                 <label>
@@ -153,7 +154,7 @@
               </div>
             </div>
             <div class="detect-guide">
-              자동감지 결과는 바로 이력에 반영되지 않습니다. 내용을 확인한 뒤 확정·수정·제외하세요.
+              과거 기록은 오늘 기준까지 자동 반영됩니다. 교체 예정·계획처럼 실제 교체 여부가 애매한 문장은 검토 대기에 남습니다. 과거 자동반영의 당시 운전시간은 이전 교체일과의 경과시간을 기준으로 표시됩니다.
             </div>
             <div class="candidate-list" id="candidateList"></div>
             <div class="empty-state" id="candidateEmpty">검토 대기 중인 자동감지 후보가 없습니다.</div>

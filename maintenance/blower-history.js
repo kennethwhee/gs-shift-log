@@ -8,7 +8,8 @@
     data: null,
     activeType: "fbhe",
     subview: "overview",
-    busy: false
+    busy: false,
+    backfillRunning: false
   };
 
   const elements = {};
@@ -20,6 +21,7 @@
   function cacheElements() {
     [
       "authNotice",
+      "historicalBackfillNotice",
       "typeTabs",
       "candidateCountBadge",
       "assetCount",
@@ -416,6 +418,28 @@
     `;
   }
 
+  function historySourceLabel(event) {
+    if (event.sourceType === "shift_log_history_auto") {
+      return "업무일지 과거 자동반영";
+    }
+
+    if (event.sourceType === "shift_log_auto") {
+      return "업무일지 자동감지";
+    }
+
+    return "수동";
+  }
+
+  function historyRuntimeLabel(event) {
+    if (event.sourceType === "shift_log_history_auto") {
+      return Number(event.runtimeHours) > 0
+        ? `약 ${formatHours(event.runtimeHours)}`
+        : "-";
+    }
+
+    return formatHours(event.runtimeHours);
+  }
+
   function renderHistory() {
     const filter = elements.historyFilter?.value || "all";
     const events = (state.data?.events || []).filter(event => {
@@ -433,11 +457,11 @@
             <span class="history-tag">${escapeHtml(event.tagNumber)}</span>
           </td>
           <td><span class="event-badge ${escapeHtml(event.eventType)}">${escapeHtml(eventLabel(event.eventType))}</span></td>
-          <td>${escapeHtml(formatHours(event.runtimeHours))}</td>
+          <td>${escapeHtml(historyRuntimeLabel(event))}</td>
           <td>${escapeHtml(event.issueType || "-")}</td>
           <td>${escapeHtml(event.actionType || "-")}</td>
           <td>${escapeHtml(event.note || event.sourceText || "-")}</td>
-          <td>${event.sourceType === "shift_log_auto" ? "업무일지 자동감지" : "수동"}${event.createdByName ? `<br><small>${escapeHtml(event.createdByName)}</small>` : ""}</td>
+          <td>${escapeHtml(historySourceLabel(event))}${event.createdByName ? `<br><small>${escapeHtml(event.createdByName)}</small>` : ""}</td>
         </tr>
       `)
       .join("");
@@ -474,6 +498,31 @@
       .join("");
   }
 
+  function renderBackfillStatus(backfill = state.data?.backfill) {
+    const notice = elements.historicalBackfillNotice;
+    if (!notice) return;
+
+    if (!backfill) {
+      notice.hidden = false;
+      notice.textContent = "과거 업무일지 이력 자동 반영 상태를 확인하고 있습니다.";
+      return;
+    }
+
+    const scanned = Number(backfill.scannedLogs || 0).toLocaleString("ko-KR");
+    const events = Number(backfill.autoConfirmedEvents || 0).toLocaleString("ko-KR");
+    const pending = Number(backfill.pendingCandidates || 0).toLocaleString("ko-KR");
+    const target = backfill.targetDate || formatKstDateInput();
+
+    notice.hidden = false;
+
+    if (backfill.isCompleteForToday) {
+      notice.textContent = `과거 업무일지 자동 반영 완료 · ${target}까지 ${scanned}건 확인 · 이력 ${events}건 자동 반영 · 확인 필요 ${pending}건`;
+      return;
+    }
+
+    notice.textContent = `과거 업무일지 자동 반영 중 · ${target}까지 ${scanned}건 확인 · 이력 ${events}건 자동 반영 · 확인 필요 ${pending}건`;
+  }
+
   function renderAll() {
     if (!state.data) return;
 
@@ -484,6 +533,7 @@
     renderAssets();
     renderHistory();
     renderCandidates();
+    renderBackfillStatus();
   }
 
   function setBusy(isBusy) {
@@ -733,6 +783,49 @@
     }
   }
 
+  async function runHistoricalBackfill() {
+    if (state.backfillRunning || !getSessionToken()) return;
+
+    const today = formatKstDateInput();
+    if (state.data?.backfill?.isCompleteForToday && state.data?.backfill?.targetDate === today) {
+      renderBackfillStatus(state.data.backfill);
+      return;
+    }
+
+    state.backfillRunning = true;
+    let lastResult = null;
+
+    try {
+      for (let step = 0; step < 500; step += 1) {
+        lastResult = await apiRequest({
+          method: "POST",
+          body: { action: "historical_backfill_step" }
+        });
+
+        if (lastResult.backfill) {
+          renderBackfillStatus(lastResult.backfill);
+        }
+
+        if (lastResult.done) {
+          break;
+        }
+      }
+
+      await loadData({ silent: true });
+
+      if (lastResult?.done) {
+        showToast("과거 업무일지 이력을 오늘 기준까지 자동 반영했습니다.");
+      } else {
+        showToast("과거 업무일지 자동 반영 진행상태를 저장했습니다.");
+      }
+    } catch (error) {
+      console.error("과거 Blower 이력 자동 반영 실패:", error);
+      showToast(error.message || "과거 업무일지 자동 반영에 실패했습니다.", "error");
+    } finally {
+      state.backfillRunning = false;
+    }
+  }
+
   async function scanShiftLogs() {
     if (state.busy) return;
     setBusy(true);
@@ -841,6 +934,7 @@
     bindEvents();
     switchSubview("overview");
     await loadData();
+    await runHistoricalBackfill();
   }
 
   if (document.readyState === "loading") {
