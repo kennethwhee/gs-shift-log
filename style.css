@@ -119544,3 +119544,281 @@ html body
   }
 
 }
+
+/* =========================================================
+  [LEADER-INSTRUCTION-HEADER-ROLE-V1]
+
+  지시사항
+  - 제목 + 건수: 회색 박스 왼쪽
+  - 이전일지 가져오기: 같은 박스 오른쪽
+  - 파트장 외 보직: 섹션 전체 숨김
+========================================================= */
+
+
+/* 파트장이 아니면 어떤 기존 CSS보다 우선해 숨긴다. */
+html body
+#instructionEntrySection[hidden],
+html body
+#instructionEntrySection[aria-hidden="true"] {
+  display:
+    none !important;
+}
+
+
+/*
+  이전 FULL-WIDTH V1에서 만든 빈 가상 회색바는 제거한다.
+  이제 실제 제목줄 자체가 회색 헤더다.
+*/
+html body
+#instructionEntrySection
+.log-entry-table-wrap::before {
+  content:
+    none !important;
+
+  display:
+    none !important;
+}
+
+
+/* 제목을 옮긴 뒤 비게 되는 기존 상단 shell 제거 */
+html body
+#instructionEntrySection
+> .log-entry-group-header {
+  display:
+    none !important;
+}
+
+
+/* 실제 회색 헤더 */
+html body
+#instructionEntrySection
+.log-entry-table-wrap
+> .log-entry-group-header__title {
+  position:
+    relative !important;
+
+  box-sizing:
+    border-box !important;
+
+  display:
+    flex !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    flex-start !important;
+
+  gap:
+    6px !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  min-height:
+    32px !important;
+
+  margin:
+    0 !important;
+
+  /*
+    오른쪽 112px은
+    이전일지 가져오기 버튼 영역으로 예약한다.
+  */
+  padding:
+    4px 112px 4px 12px !important;
+
+  border:
+    0 !important;
+
+  border-bottom:
+    1px solid #dce3ea !important;
+
+  border-radius:
+    0 !important;
+
+  background:
+    #f3f6f9 !important;
+
+  color:
+    #34445a !important;
+}
+
+
+/* 제목 */
+html body
+#instructionEntrySection
+.log-entry-table-wrap
+> .log-entry-group-header__title
+> strong {
+  display:
+    inline-flex !important;
+
+  align-items:
+    center !important;
+
+  flex:
+    0 0 auto !important;
+
+  margin:
+    0 !important;
+
+  color:
+    #31435a !important;
+
+  font-size:
+    12px !important;
+
+  font-weight:
+    900 !important;
+
+  line-height:
+    1.2 !important;
+}
+
+
+/* 다른 섹션과 같은 짧은 포인트선 */
+html body
+#instructionEntrySection
+.log-entry-table-wrap
+> .log-entry-group-header__title
+> strong::before {
+  content:
+    "" !important;
+
+  display:
+    inline-block !important;
+
+  flex:
+    0 0 3px !important;
+
+  width:
+    3px !important;
+
+  height:
+    13px !important;
+
+  margin-right:
+    7px !important;
+
+  border-radius:
+    999px !important;
+
+  background:
+    #7d92ad !important;
+}
+
+
+/* 0건 배지 */
+html body
+#instructionEntrySection
+#instructionEntryCount {
+  box-sizing:
+    border-box !important;
+
+  display:
+    inline-flex !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    center !important;
+
+  min-width:
+    25px !important;
+
+  min-height:
+    18px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    1px 6px !important;
+
+  border:
+    1px solid #d8e0e9 !important;
+
+  border-radius:
+    999px !important;
+
+  background:
+    #e9eef5 !important;
+
+  color:
+    #60748e !important;
+
+  font-size:
+    10px !important;
+
+  font-weight:
+    800 !important;
+
+  line-height:
+    1 !important;
+}
+
+
+/*
+  섹션 Hover + 버튼이 있을 경우
+  이전일지 버튼과 겹치지 않고 제목 오른쪽에 위치한다.
+*/
+html body
+#instructionEntrySection
+.log-entry-table-wrap
+> .log-entry-group-header__title
+.section-context-add-button {
+  margin-left:
+    auto !important;
+}
+
+
+/*
+  이전일지 버튼 위치는 직전 V1의 absolute 배치를 유지.
+  실제 제목줄이 32px이므로 같은 회색 헤더 안에서 중앙 정렬된다.
+*/
+html body
+#instructionEntrySection
+.log-entry-table-wrap
+#loadPreviousInstructionEntriesButton {
+  top:
+    4px !important;
+
+  right:
+    8px !important;
+}
+
+
+@media (
+  max-width:
+    640px
+) {
+
+  html body
+  #instructionEntrySection
+  .log-entry-table-wrap
+  > .log-entry-group-header__title {
+    min-height:
+      30px !important;
+
+    padding:
+      3px 103px 3px 10px !important;
+  }
+
+
+  html body
+  #instructionEntrySection
+  .log-entry-table-wrap
+  #loadPreviousInstructionEntriesButton {
+    top:
+      3px !important;
+
+    right:
+      6px !important;
+  }
+
+}

@@ -252012,3 +252012,393 @@ async function restoreSolarCumulativeFromD1() {
     initialize();
   }
 })();
+
+/* =========================================================
+  [LEADER-INSTRUCTION-HEADER-ROLE-V1]
+
+  목적
+  1. "지시사항 + 건수"를 회색 헤더 안으로 이동
+  2. 기존 "이전일지 가져오기" 버튼과 한 줄 구성
+  3. 지시사항 섹션은 파트장 업무일지에만 표시
+  4. TGO / BCO1 / BCO2 / TO / BO1 / BO2에서는
+     섹션 전체를 숨기고 지시사항 입력도 차단
+
+  기존 지시사항 저장 / 이전일지 가져오기 데이터 로직은
+  변경하지 않는다.
+========================================================= */
+
+(function installLeaderInstructionHeaderRoleV1() {
+  "use strict";
+
+
+  if (
+    window.__leaderInstructionHeaderRoleV1Installed ===
+      true
+  ) {
+    return;
+  }
+
+
+  window.__leaderInstructionHeaderRoleV1Installed =
+    true;
+
+
+  const LEADER_ROLE =
+    "파트장";
+
+
+  const MEMBER_ROLES =
+    new Set([
+      "TGO",
+      "BCO1",
+      "BCO2",
+      "TO",
+      "BO1",
+      "BO2"
+    ]);
+
+
+  let scheduledFrame =
+    0;
+
+
+  function normalizeRole(
+    value
+  ) {
+    return typeof normalizeMemberLogRole ===
+      "function"
+      ? normalizeMemberLogRole(
+          value
+        )
+      : String(
+          value ||
+          ""
+        ).trim();
+  }
+
+
+  function getCurrentRole() {
+    return normalizeRole(
+      document.getElementById(
+        "logRole"
+      )?.value ||
+      ""
+    );
+  }
+
+
+  function moveInstructionTitleIntoGrayHeader() {
+    const section =
+      document.getElementById(
+        "instructionEntrySection"
+      );
+
+
+    const wrap =
+      section?.querySelector(
+        ".log-entry-table-wrap"
+      );
+
+
+    const title =
+      section?.querySelector(
+        ".log-entry-group-header__title"
+      );
+
+
+    if (
+      !section ||
+      !wrap ||
+      !title
+    ) {
+      return false;
+    }
+
+
+    if (
+      title.parentElement !==
+        wrap
+    ) {
+      /*
+        기존 회색 가상바 대신 실제 제목줄을
+        table wrap의 첫 줄로 이동한다.
+
+        이전일지 버튼은 기존 V1 모듈이
+        wrap 내부 absolute 위치를 유지한다.
+      */
+      wrap.insertBefore(
+        title,
+        wrap.firstChild
+      );
+    }
+
+
+    title.dataset
+      .instructionGrayHeader =
+      "true";
+
+
+    return true;
+  }
+
+
+  function syncInstructionRoleAndHeader() {
+    const section =
+      document.getElementById(
+        "instructionEntrySection"
+      );
+
+
+    if (
+      !section
+    ) {
+      return;
+    }
+
+
+    const currentRole =
+      getCurrentRole();
+
+
+    const isLeader =
+      currentRole ===
+        LEADER_ROLE;
+
+
+    /*
+      파트장일 때는 화면을 열기 전에
+      먼저 헤더 구조를 맞춰 순간적인 레이아웃 튐을 줄인다.
+    */
+    if (
+      isLeader
+    ) {
+      moveInstructionTitleIntoGrayHeader();
+    }
+
+
+    section.hidden =
+      !isLeader;
+
+
+    section.setAttribute(
+      "aria-hidden",
+      isLeader
+        ? "false"
+        : "true"
+    );
+
+
+    section.dataset
+      .leaderInstructionVisible =
+      isLeader
+        ? "true"
+        : "false";
+
+
+    const categorySelect =
+      document.getElementById(
+        "logEntryCategory"
+      );
+
+
+    const instructionOption =
+      categorySelect?.querySelector(
+        'option[value="지시사항"]'
+      );
+
+
+    if (
+      instructionOption
+    ) {
+      instructionOption.hidden =
+        !isLeader;
+
+      instructionOption.disabled =
+        !isLeader;
+    }
+
+
+    if (
+      !isLeader &&
+      categorySelect?.value ===
+        "지시사항"
+    ) {
+      categorySelect.value =
+        "인계사항";
+    }
+
+
+    if (
+      !isLeader
+    ) {
+      /*
+        역할 변경 중 열려 있던 지시사항 인라인 입력창도
+        즉시 제거한다.
+      */
+      section
+        .querySelectorAll(
+          ".section-context-entry-editor.is-instruction"
+        )
+        .forEach(
+          editor => {
+            editor.remove();
+          }
+        );
+    }
+
+
+    /*
+      알려진 여섯 일반 보직뿐 아니라
+      미지정/알 수 없는 역할도 파트장이 아니면 숨긴다.
+    */
+    if (
+      MEMBER_ROLES.has(
+        currentRole
+      )
+    ) {
+      section.dataset
+        .memberRoleHidden =
+        "true";
+
+    } else {
+      delete section.dataset
+        .memberRoleHidden;
+    }
+  }
+
+
+  function scheduleSync() {
+    if (
+      scheduledFrame
+    ) {
+      return;
+    }
+
+
+    scheduledFrame =
+      window.requestAnimationFrame(
+        () => {
+          scheduledFrame =
+            0;
+
+          syncInstructionRoleAndHeader();
+        }
+      );
+  }
+
+
+  /*
+    업무일지가 다시 렌더링될 때도
+    파트장 전용 조건과 헤더 위치를 다시 보장한다.
+  */
+  if (
+    typeof renderLogEntryTable ===
+      "function" &&
+    renderLogEntryTable
+      .__leaderInstructionHeaderRoleV1Wrapped !==
+      true
+  ) {
+    const originalRenderLogEntryTable =
+      renderLogEntryTable;
+
+
+    const wrappedRenderLogEntryTable =
+      function (
+        ...args
+      ) {
+        const result =
+          originalRenderLogEntryTable.apply(
+            this,
+            args
+          );
+
+
+        scheduleSync();
+
+
+        return result;
+      };
+
+
+    wrappedRenderLogEntryTable
+      .__leaderInstructionHeaderRoleV1Wrapped =
+      true;
+
+
+    renderLogEntryTable =
+      wrappedRenderLogEntryTable;
+  }
+
+
+  document.addEventListener(
+    "change",
+    event => {
+      const target =
+        event.target instanceof
+          Element
+          ? event.target
+          : null;
+
+
+      if (
+        target?.id ===
+          "logRole"
+      ) {
+        syncInstructionRoleAndHeader();
+      }
+    }
+  );
+
+
+  document.addEventListener(
+    "input",
+    event => {
+      const target =
+        event.target instanceof
+          Element
+          ? event.target
+          : null;
+
+
+      if (
+        target?.id ===
+          "logRole"
+      ) {
+        scheduleSync();
+      }
+    }
+  );
+
+
+  function initialize() {
+    syncInstructionRoleAndHeader();
+
+
+    window.setTimeout(
+      syncInstructionRoleAndHeader,
+      0
+    );
+  }
+
+
+  window.syncLeaderInstructionHeaderRoleV1 =
+    syncInstructionRoleAndHeader;
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
