@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>고형연료 Trouble | GS Shift Log</title>
-  <link rel="stylesheet" href="/maintenance/solid-fuel-trouble.css?v=20260827-v1">
+  <link rel="stylesheet" href="/maintenance/solid-fuel-trouble.css?v=20260827-v2">
 </head>
 <body>
   <main class="page">
@@ -12,76 +12,188 @@
       <div>
         <span class="eyebrow">GS SHIFT LOG · SOLID FUEL</span>
         <h1>고형연료 Trouble</h1>
-        <p>유기성 고형연료 Trouble 발생 내역을 Excel 형식으로 기록·조회합니다.</p>
+        <p>유기성 고형연료 Trouble과 하역시간을 한 화면에서 조회·분석·관리합니다.</p>
       </div>
       <div class="head-actions">
         <button class="btn ghost" id="refreshBtn" type="button">새로고침</button>
-        <button class="btn primary" id="createBtn" type="button">+ Trouble 등록</button>
+        <button class="btn primary" id="createTroubleBtn" type="button">+ Trouble 등록</button>
+        <button class="btn secondary" id="createUnloadBtn" type="button">+ 하역시간 등록</button>
         <a class="btn ghost" href="/">업무일지</a>
       </div>
     </header>
 
-    <section class="kpis">
-      <article><span>조회 건수</span><strong id="totalKpi">0</strong><small>건</small></article>
-      <article><span>이번 달</span><strong id="monthKpi">0</strong><small>건</small></article>
-      <article><span>Storage #A</span><strong id="aKpi">0</strong><small>건</small></article>
-      <article><span>Storage #B</span><strong id="bKpi">0</strong><small>건</small></article>
-    </section>
+    <section class="query-card">
+      <div class="query-mode" id="queryMode" role="group" aria-label="조회 방식">
+        <button type="button" class="query-mode__button is-active" data-query-mode="month">월별 조회</button>
+        <button type="button" class="query-mode__button" data-query-mode="range">기간 지정</button>
+        <button type="button" class="query-mode__button" data-query-mode="all">전체</button>
+      </div>
 
-    <section class="toolbar">
       <form id="filterForm" class="filters">
-        <label><span>시작일</span><input id="filterFrom" type="date"></label>
-        <label><span>종료일</span><input id="filterTo" type="date"></label>
+        <label id="monthFilterBox">
+          <span>조회 월</span>
+          <input id="filterMonth" type="month">
+        </label>
+
+        <div class="range-fields" id="rangeFilterBox" hidden>
+          <label><span>시작일</span><input id="filterFrom" type="date"></label>
+          <label><span>종료일</span><input id="filterTo" type="date"></label>
+        </div>
+
         <label><span>업체명</span><input id="filterCompany" list="companyList" placeholder="전체"></label>
         <label><span>차량번호</span><input id="filterVehicle" placeholder="예: 4202"></label>
-        <label class="search"><span>통합 검색</span><input id="filterSearch" type="search" placeholder="설비 / 조치내용 검색"></label>
-        <label><span>정렬</span><select id="filterSort"><option value="asc">오래된 순</option><option value="desc">최신 순</option></select></label>
-        <div class="filter-buttons"><button class="btn primary" type="submit">조회</button><button class="btn ghost" id="resetBtn" type="button">초기화</button></div>
+        <label class="search"><span>통합 검색</span><input id="filterSearch" type="search" placeholder="설비 / Silo / 비고 검색"></label>
+        <label><span>정렬</span>
+          <select id="filterSort">
+            <option value="desc">최신 순</option>
+            <option value="asc">오래된 순</option>
+          </select>
+        </label>
+        <div class="filter-buttons">
+          <button class="btn primary" type="submit">조회</button>
+          <button class="btn ghost" id="resetBtn" type="button">초기화</button>
+        </div>
       </form>
       <datalist id="companyList"></datalist>
     </section>
 
-    <section class="sheet">
+    <section class="kpis" aria-label="조회 요약">
+      <article><span>Trouble</span><strong id="troubleKpi">0</strong><small>건</small></article>
+      <article><span>하역 건수</span><strong id="unloadKpi">0</strong><small>건</small></article>
+      <article><span>평균 하역</span><strong id="averageKpi">-</strong><small id="averageKpiUnit"></small></article>
+      <article><span>이상·막힘 하역</span><strong id="abnormalKpi">0</strong><small>건</small></article>
+      <article><span>최장 하역</span><strong id="maxKpi">-</strong><small id="maxKpiUnit"></small></article>
+    </section>
+
+    <section class="analytics">
+      <header class="section-head">
+        <div>
+          <strong>하역시간 참고 데이터</strong>
+          <span id="analyticsStatus">조회 조건 기준</span>
+        </div>
+        <small>업체별 평균 · Silo별 평균 · 이상/막힘 포함 여부</small>
+      </header>
+      <div class="analytics-grid">
+        <div class="company-stats">
+          <h2>업체별 평균 하역시간</h2>
+          <div class="company-stats__list" id="companyStats"></div>
+        </div>
+        <div class="silo-stats">
+          <h2>Silo별 평균</h2>
+          <div class="silo-stats__list" id="siloStats"></div>
+        </div>
+      </div>
+    </section>
+
+    <nav class="tabs" aria-label="고형연료 관리 보기">
+      <button class="tab is-active" type="button" data-tab="trouble">Trouble 발생 내역 <span id="troubleTabCount">0</span></button>
+      <button class="tab" type="button" data-tab="unload">하역시간 기록 <span id="unloadTabCount">0</span></button>
+    </nav>
+
+    <section class="sheet tab-panel is-active" id="troublePanel" data-tab-panel="trouble">
       <header class="sheet-head">
         <div><strong>유기성고형연료 Trouble 발생 내역</strong><span id="statusText">조회 대기</span></div>
-        <small>Excel 원본 21건 · 사진 4건 초기 반영</small>
+        <small>Excel Trouble 21건 · 원본 사진 4건 포함</small>
       </header>
       <div class="table-wrap">
-        <table>
+        <table class="data-table trouble-table">
           <thead><tr>
             <th class="no">No.</th><th class="date">날짜</th><th class="company">업체명</th><th class="vehicle">차량번호</th>
-            <th class="equipment">발생 설비</th><th class="photo">샘플 사진</th><th class="note">비고</th><th class="actions">관리</th>
+            <th class="equipment">발생 설비</th><th class="photo">샘플 사진</th><th class="note">비고 / 조치</th><th class="actions">관리</th>
           </tr></thead>
-          <tbody id="tableBody"><tr><td colspan="8" class="empty">Trouble 내역을 불러오는 중입니다.</td></tr></tbody>
+          <tbody id="troubleBody"><tr><td colspan="8" class="empty">Trouble 내역을 불러오는 중입니다.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="sheet tab-panel" id="unloadPanel" data-tab-panel="unload" hidden>
+      <header class="sheet-head">
+        <div><strong>유기성고형연료 하역시간 기록</strong><span id="unloadStatusText">조회 대기</span></div>
+        <small>Excel 하역시간 시트 309건 초기 반영</small>
+      </header>
+      <div class="table-wrap">
+        <table class="data-table unload-table">
+          <thead><tr>
+            <th class="no">No.</th><th class="date">날짜</th><th class="clock">입고</th><th class="clock">출고</th>
+            <th class="duration">소요시간</th><th class="company">업체명</th><th class="vehicle">차량번호</th>
+            <th class="silo">하역 Silo</th><th class="unload-note">비고</th><th class="actions">관리</th>
+          </tr></thead>
+          <tbody id="unloadBody"><tr><td colspan="10" class="empty">하역시간 내역을 불러오는 중입니다.</td></tr></tbody>
         </table>
       </div>
     </section>
   </main>
 
-  <div class="modal" id="editorModal" hidden>
-    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
-      <header class="modal-head"><div><span>SOLID FUEL TROUBLE</span><h2 id="editorTitle">Trouble 등록</h2></div><button class="icon-btn" id="editorClose" type="button">×</button></header>
-      <form id="editorForm" class="editor">
-        <input id="editorId" type="hidden"><input id="editorVersion" type="hidden">
+  <div class="modal" id="troubleModal" hidden>
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="troubleEditorTitle">
+      <header class="modal-head"><div><span>SOLID FUEL TROUBLE</span><h2 id="troubleEditorTitle">Trouble 등록</h2></div><button class="icon-btn" id="troubleClose" type="button">×</button></header>
+      <form id="troubleForm" class="editor">
+        <input id="troubleId" type="hidden"><input id="troubleVersion" type="hidden">
         <div class="editor-grid">
-          <label><span>날짜 <em>필수</em></span><input id="editorDate" type="date" required></label>
-          <label><span>업체명</span><input id="editorCompany" list="companyList" maxlength="80" placeholder="예: 수도권"></label>
-          <label><span>차량번호</span><input id="editorVehicle" maxlength="40" placeholder="예: 4202"></label>
+          <label><span>날짜 <em>필수</em></span><input id="troubleDate" type="date" required></label>
+          <label><span>업체명</span><input id="troubleCompany" list="companyList" maxlength="80" placeholder="예: 수도권"></label>
+          <label><span>차량번호</span><input id="troubleVehicle" maxlength="40" placeholder="예: 4202"></label>
         </div>
-        <label><span>발생 설비 / Trouble <em>필수</em></span><textarea id="editorEquipment" rows="3" maxlength="500" required placeholder="예: Storage Silo #A 하역라인 곡관부 막힘"></textarea></label>
-        <label><span>비고 / 조치내용</span><textarea id="editorNote" rows="5" maxlength="3000" placeholder="조치방법, 대기시간, 특이사항 등을 입력"></textarea></label>
-        <label><span>샘플 사진 <small>신규 사진 최대 4장 · 장당 10MB</small></span><input id="editorFiles" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple></label>
+        <label><span>발생 설비 / Trouble <em>필수</em></span><textarea id="troubleEquipment" rows="3" maxlength="500" required placeholder="예: Storage Silo #A 하역라인 곡관부 막힘"></textarea></label>
+        <label><span>비고 / 조치내용</span><textarea id="troubleNote" rows="5" maxlength="3000" placeholder="조치방법, 대기시간, 특이사항 등을 입력"></textarea></label>
+        <label><span>샘플 사진 <small>신규 사진 최대 4장 · 장당 10MB</small></span><input id="troubleFiles" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple></label>
         <div id="existingPhotos" class="existing-photos" hidden></div>
-        <p id="editorStatus" class="editor-status" hidden></p>
-        <footer class="modal-foot"><button class="btn ghost" id="editorCancel" type="button">취소</button><button class="btn primary" id="editorSave" type="submit">저장</button></footer>
+        <p id="troubleEditorStatus" class="editor-status" hidden></p>
+        <footer class="modal-foot"><button class="btn ghost" id="troubleCancel" type="button">취소</button><button class="btn primary" id="troubleSave" type="submit">저장</button></footer>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal" id="unloadModal" hidden>
+    <section class="modal-card unload-editor-card" role="dialog" aria-modal="true" aria-labelledby="unloadEditorTitle">
+      <header class="modal-head"><div><span>SOLID FUEL UNLOADING</span><h2 id="unloadEditorTitle">하역시간 등록</h2></div><button class="icon-btn" id="unloadClose" type="button">×</button></header>
+      <form id="unloadForm" class="editor">
+        <input id="unloadId" type="hidden"><input id="unloadVersion" type="hidden">
+        <div class="unload-editor-grid">
+          <label><span>일자 <em>필수</em></span><input id="unloadDate" type="date" required></label>
+          <label><span>입고 <em>필수</em></span><input id="unloadArrival" type="time" required></label>
+          <label><span>출고 <em>필수</em></span><input id="unloadDeparture" type="time" required></label>
+          <label><span>소요시간</span><input id="unloadDurationPreview" readonly placeholder="자동 계산"></label>
+          <label><span>업체명</span><input id="unloadCompany" list="companyList" maxlength="80" placeholder="예: 수도권"></label>
+          <label><span>차량번호</span><input id="unloadVehicle" maxlength="40" placeholder="예: 4202"></label>
+          <label><span>하역 Silo</span>
+            <select id="unloadSilo">
+              <option value="">선택</option>
+              <option value="#A">#A Storage Silo</option>
+              <option value="#B">#B Storage Silo</option>
+              <option value="Day">Day Silo</option>
+              <option value="#A → #B">#A → #B</option>
+              <option value="#A → Day">#A → Day</option>
+              <option value="#B → Day">#B → Day</option>
+              <option value="#A → #B → Day">#A → #B → Day</option>
+            </select>
+          </label>
+        </div>
+        <label><span>비고</span><textarea id="unloadNote" rows="5" maxlength="3000" placeholder="막힘, 이동하역, 조치내용 등"></textarea></label>
+        <p id="unloadEditorStatus" class="editor-status" hidden></p>
+        <footer class="modal-foot"><button class="btn ghost" id="unloadCancel" type="button">취소</button><button class="btn secondary" id="unloadSave" type="submit">저장</button></footer>
       </form>
     </section>
   </div>
 
   <div class="modal photo-modal" id="photoModal" hidden>
-    <section class="photo-viewer"><button id="photoClose" class="photo-close" type="button">×</button><img id="photoImage" alt="고형연료 Trouble 샘플 사진"></section>
+    <section class="photo-viewer">
+      <header class="photo-toolbar">
+        <div class="photo-toolbar__zoom">
+          <button class="photo-tool" id="zoomOut" type="button" aria-label="축소">−</button>
+          <input id="zoomRange" type="range" min="25" max="400" step="25" value="100" aria-label="사진 확대 비율">
+          <strong id="zoomText">100%</strong>
+          <button class="photo-tool" id="zoomIn" type="button" aria-label="확대">+</button>
+          <button class="photo-tool photo-tool--text" id="zoomFit" type="button">화면 맞춤</button>
+        </div>
+        <button class="photo-tool photo-tool--close" id="photoClose" type="button" aria-label="닫기">×</button>
+      </header>
+      <div class="photo-stage" id="photoStage">
+        <img id="photoImage" alt="고형연료 Trouble 샘플 사진">
+      </div>
+    </section>
   </div>
 
-  <script src="/maintenance/solid-fuel-trouble.js?v=20260827-v1" defer></script>
+  <script src="/maintenance/solid-fuel-trouble.js?v=20260827-v2" defer></script>
 </body>
 </html>
