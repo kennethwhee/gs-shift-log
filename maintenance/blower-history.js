@@ -756,7 +756,7 @@
         ` : awaitingBackfill ? `
           <div class="unknown-cycle is-rebuild-pending">
             <strong>자동 이력 재확인 중</strong>
-            <p>V12 확정 복구 후 교체일과 경과시간을 표시합니다.</p>
+            <p>V13 업무일지 문맥 복구 후 교체일과 경과시간을 표시합니다.</p>
             <small>수동 등록 이력은 재구성과 관계없이 유지됩니다.</small>
           </div>
         ` : `
@@ -1117,7 +1117,7 @@
       elements.candidateEmpty.hidden = true;
       elements.candidateList.innerHTML = `
         <div class="candidate-rebuild-lock">
-          <strong>V12 확정 이력 복구를 먼저 완료해 주세요.</strong>
+          <strong>V13 업무일지 이력 복구를 먼저 완료해 주세요.</strong>
           <span>기존 자동감지 후보는 재구성 완료 후 새 기준으로 다시 표시됩니다. 수동 등록 이력은 영향을 받지 않습니다.</span>
         </div>
       `;
@@ -1166,9 +1166,10 @@
     const recoveryBlocked = recoveryStatus === "blocked";
     const recoveryStarted = Boolean(recovery?.hasRun) || !["", "pending"].includes(recoveryStatus);
     const staged = Number(recovery?.stagedEvents || 0);
-    const expected = Number(recovery?.expectedEvents || 76);
     const scanned = Number(recovery?.scannedRows || 0);
     const showOverviewCallout = !recoveryComplete || state.backfillRunning;
+    const sourceLabel = recovery?.sourceTable === "legacy_logs" ? "과거 업무일지" : "신규 업무일지";
+    const cursor = Number(recovery?.cursorRowId || 0).toLocaleString("ko-KR");
 
     elements.historicalBackfillButton.hidden = !isSuperAdmin;
     elements.overviewBackfillButton.hidden = !isSuperAdmin;
@@ -1177,23 +1178,23 @@
 
     if (showOverviewCallout) {
       elements.overviewBackfillTitle.textContent = recoveryBlocked
-        ? "V12 안전 차단"
-        : "확정 교체 이력 복구 필요";
+        ? "V13 안전 차단"
+        : "업무일지 교체 이력 복구 V13";
       elements.overviewBackfillSummary.textContent = state.backfillRunning
-        ? `업무일지 원문을 V12 기준으로 검증하고 있습니다. 확정 ${staged}/${expected}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인 · ${recovery.sourceTable === "legacy_logs" ? "과거 업무일지" : "신규 업무일지"} #${Number(recovery.cursorRowId || 0).toLocaleString("ko-KR")}`
+        ? `업무일지 한 건 전체 문맥으로 설비를 판정하고 있습니다. 확정 ${staged.toLocaleString("ko-KR")}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인 · ${sourceLabel} #${cursor}`
         : recoveryBlocked
-          ? (recovery?.message || `확정 ${staged}/${expected}건으로 기대값과 달라 기존 저장값을 유지했습니다.`)
+          ? (recovery?.message || "자동 확정 가능한 교체이력이 없어 기존 저장값을 유지했습니다. 감사자료를 확인해 주세요.")
           : isSuperAdmin
-            ? "기존 과거 재구성 완료 여부와 관계없이 V12 전용 검증을 별도로 실행합니다. 확정 76건이 맞을 때만 기존 자동 교체 이력을 교체합니다."
-            : "최고관리자의 V12 확정 복구가 완료되면 검증된 교체주기가 표시됩니다.";
+            ? "TAG·설비명·호기·A/B/C 위치와 같은 업무일지 안의 앞뒤 문맥을 함께 읽어 실제 V-Belt 교체만 복구합니다. 고정 건수 목표는 사용하지 않습니다."
+            : "최고관리자의 V13 업무일지 문맥 복구가 완료되면 검증된 교체주기가 표시됩니다.";
 
       const buttonLabel = state.backfillRunning
-        ? "V12 검증·복구 중..."
+        ? "V13 검증·복구 중..."
         : recoveryBlocked
-          ? "V12 감사자료 확인"
+          ? "V13 감사자료 확인"
           : recoveryStarted
-            ? "V12 이어서 복구"
-            : "확정 이력 복구 V12";
+            ? "V13 이어서 복구"
+            : "업무일지 이력 복구 V13";
       elements.overviewBackfillButton.textContent = buttonLabel;
       elements.historicalBackfillButton.textContent = buttonLabel;
     }
@@ -1202,30 +1203,30 @@
 
     if (state.backfillRunning) {
       notice.dataset.state = "running";
-      notice.textContent = `V12 확정 복구 진행 중 · 확정 ${staged}/${expected}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인 · ${recovery.sourceTable === "legacy_logs" ? "과거 업무일지" : "신규 업무일지"} #${Number(recovery.cursorRowId || 0).toLocaleString("ko-KR")}`;
+      notice.textContent = `V13 문맥 복구 진행 중 · 확정 ${staged.toLocaleString("ko-KR")}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인 · ${sourceLabel} #${cursor}`;
       return;
     }
 
     if (recoveryComplete) {
       notice.dataset.state = "complete";
-      notice.textContent = `V12 확정 복구 완료 · 교체 이력 ${staged}건 반영`;
+      notice.textContent = `V13 업무일지 복구 완료 · 교체 이력 ${staged.toLocaleString("ko-KR")}건 반영`;
       return;
     }
 
     if (recoveryBlocked) {
       notice.dataset.state = "required";
-      notice.textContent = `V12 안전 차단 · 확정 ${staged}/${expected}건 · 기존 저장 이력 유지`;
+      notice.textContent = `V13 안전 차단 · 확정 ${staged.toLocaleString("ko-KR")}건 · 기존 저장 이력 유지`;
       return;
     }
 
     if (recoveryStarted) {
       notice.dataset.state = "required";
-      notice.textContent = `V12 확정 복구 필요 · 확정 ${staged}/${expected}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인 · 이어서 실행 가능`;
+      notice.textContent = `V13 문맥 복구 필요 · 확정 ${staged.toLocaleString("ko-KR")}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인 · 이어서 실행 가능`;
       return;
     }
 
     notice.dataset.state = "required";
-    notice.textContent = "V12 확정 복구 필요 · 아직 V12 전용 검증을 실행하지 않음";
+    notice.textContent = "V13 업무일지 문맥 복구 필요 · 아직 V13 검증을 실행하지 않음";
   }
 
   function renderAll() {
@@ -1500,9 +1501,9 @@
   async function downloadRecoveryV12Audits() {
     const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "");
     const files = [
-      ["confirmed", `blower-vbelt-v12-confirmed-${stamp}.json`],
-      ["review", `blower-vbelt-v12-review-${stamp}.json`],
-      ["unmatched", `blower-vbelt-v12-unmatched-${stamp}.json`]
+      ["confirmed", `blower-vbelt-v13-confirmed-${stamp}.json`],
+      ["review", `blower-vbelt-v13-review-${stamp}.json`],
+      ["unmatched", `blower-vbelt-v13-unmatched-${stamp}.json`]
     ];
 
     for (const [category, filename] of files) {
@@ -1528,11 +1529,11 @@
         const retryable = error?.retryable === true || [0, 429, 502, 503, 504].includes(Number(error?.status));
         if (!retryable || attempt >= waits.length) throw error;
         const waitMs = Math.min(15000, Math.max(300, Number(error?.retryAfterMs) || waits[attempt]));
-        showToast(`V12 원문 조회 재시도 ${attempt + 1}/${waits.length}`);
+        showToast(`V13 원문 조회 재시도 ${attempt + 1}/${waits.length}`);
         await waitForMilliseconds(waitMs);
       }
     }
-    throw new Error("V12 재시도 횟수를 초과했습니다.");
+    throw new Error("V13 재시도 횟수를 초과했습니다.");
   }
 
   async function runHistoricalBackfill() {
@@ -1546,20 +1547,20 @@
     const recovery = state.data?.recoveryV12 || null;
     if (recovery?.status === "complete") {
       renderBackfillStatus(state.data?.backfill);
-      showToast("V12 확정 복구가 이미 완료되어 있습니다.");
+      showToast("V13 업무일지 문맥 복구가 이미 완료되어 있습니다.");
       return;
     }
     if (recovery?.status === "blocked") {
-      showToast(recovery.message || "V12 사전검증이 안전 차단되었습니다. 감사자료를 확인해 주세요.", "error");
+      showToast(recovery.message || "V13 문맥 검증이 안전 차단되었습니다. 감사자료를 확인해 주세요.", "error");
       try { await downloadRecoveryV12Audits(); } catch (auditError) { console.error(auditError); }
       return;
     }
 
     state.backfillRunning = true;
     elements.historicalBackfillButton.disabled = true;
-    elements.historicalBackfillButton.textContent = "V12 검증·복구 중...";
+    elements.historicalBackfillButton.textContent = "V13 검증·복구 중...";
     elements.overviewBackfillButton.disabled = true;
-    elements.overviewBackfillButton.textContent = "V12 검증·복구 중...";
+    elements.overviewBackfillButton.textContent = "V13 검증·복구 중...";
     elements.scanButton.disabled = true;
     elements.refreshButton.disabled = true;
     elements.auditHistoryButton.disabled = true;
@@ -1574,13 +1575,12 @@
         const recovery = lastResult?.recovery;
         if (recovery) {
           const staged = Number(recovery.stagedEvents || 0).toLocaleString("ko-KR");
-          const expected = Number(recovery.expectedEvents || 76).toLocaleString("ko-KR");
           const scanned = Number(recovery.scannedRows || 0).toLocaleString("ko-KR");
           const sourceLabel = recovery.sourceTable === "legacy_logs" ? "과거 업무일지" : "신규 업무일지";
           const cursor = Number(recovery.cursorRowId || 0).toLocaleString("ko-KR");
           elements.historicalBackfillNotice.hidden = false;
           elements.historicalBackfillNotice.dataset.state = recovery.status === "complete" ? "complete" : "running";
-          elements.historicalBackfillNotice.textContent = `V12 ${recovery.status} · 확정 ${staged}/${expected}건 · 원문 ${scanned}건 확인 · ${sourceLabel} #${cursor}`;
+          elements.historicalBackfillNotice.textContent = `V13 ${recovery.status} · 확정 ${staged}건 · 원문 ${scanned}건 확인 · ${sourceLabel} #${cursor}`;
         }
         if (lastResult?.busy) {
           await waitForMilliseconds(700);
@@ -1591,39 +1591,39 @@
         await waitForMilliseconds(30);
       }
       if (!lastResult?.done && productiveSteps >= 2000) {
-        throw new Error("V12 자동 진행 한도에 도달했습니다. 현재 진행상태는 저장되어 있으며 다시 누르면 이어서 진행합니다.");
+        throw new Error("V13 자동 진행 한도에 도달했습니다. 현재 진행상태는 저장되어 있으며 다시 누르면 이어서 진행합니다.");
       }
 
       await loadData({ silent: true });
 
       if (lastResult?.done && lastResult?.applied) {
-        showToast("V12 확정 교체 이력 76건 복구를 완료했습니다.");
+        showToast(`V13 업무일지 교체 이력 ${Number(lastResult?.recovery?.stagedEvents || 0).toLocaleString("ko-KR")}건 복구를 완료했습니다.`);
         try {
           await downloadRecoveryV12Audits();
         } catch (auditError) {
-          console.error("V12 감사자료 내려받기 실패:", auditError);
+          console.error("V13 감사자료 내려받기 실패:", auditError);
           showToast("복구는 완료됐지만 감사자료 자동 내려받기에 실패했습니다.", "error");
         }
       } else if (lastResult?.busy) {
-        showToast(lastResult.message || "다른 V12 복구 작업이 진행 중입니다.");
+        showToast(lastResult.message || "다른 V13 복구 작업이 진행 중입니다.");
       } else {
-        showToast(lastResult?.message || "V12 사전검증 진행상태를 저장했습니다.");
+        showToast(lastResult?.message || "V13 문맥 검증 진행상태를 저장했습니다.");
       }
     } catch (error) {
-      console.error("Blower V12 확정 복구 실패:", error);
+      console.error("Blower V13 문맥 복구 실패:", error);
       if (error?.payload?.blocked || error?.payload?.recovery?.status === "blocked") {
         try { await downloadRecoveryV12Audits(); } catch (auditError) { console.error(auditError); }
-        showToast(error.message || "확정 건수가 76건과 달라 안전 차단했습니다. 기존 저장값은 유지됩니다.", "error");
+        showToast(error.message || "V13 문맥 검증이 안전 차단되었습니다. 기존 저장값은 유지됩니다.", "error");
       } else {
-        showToast(error.message || "V12 확정 복구에 실패했습니다.", "error");
+        showToast(error.message || "V13 업무일지 문맥 복구에 실패했습니다.", "error");
       }
       await loadData({ silent: true });
     } finally {
       state.backfillRunning = false;
       elements.historicalBackfillButton.disabled = state.busy;
-      elements.historicalBackfillButton.textContent = "확정 이력 복구 V12";
+      elements.historicalBackfillButton.textContent = "업무일지 이력 복구 V13";
       elements.overviewBackfillButton.disabled = state.busy;
-      elements.overviewBackfillButton.textContent = "확정 이력 복구 V12";
+      elements.overviewBackfillButton.textContent = "업무일지 이력 복구 V13";
       elements.scanButton.disabled = state.busy || shouldHideAutomaticData();
       elements.refreshButton.disabled = state.busy;
       elements.auditHistoryButton.disabled = state.busy || state.auditRunning;

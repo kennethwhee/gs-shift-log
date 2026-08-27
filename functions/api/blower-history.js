@@ -212,37 +212,24 @@ const HISTORY_BACKFILL_BATCH_SIZE = 200;
 const HISTORY_BACKFILL_STALE_LEASE_MS = 2 * 60 * 1000;
 const HISTORY_AUDIT_VERSION = "blower_vbelt_missing_history_audit_v11_r2";
 const HISTORY_RECOVERY_V12_ID = "blower_vbelt_confirmed_recovery_v12";
-const HISTORY_RECOVERY_V12_VERSION = "blower_vbelt_confirmed_recovery_v12_r2";
+const HISTORY_RECOVERY_V12_VERSION = "blower_vbelt_context_recovery_v13_r1";
 const HISTORY_RECOVERY_V12_CUTOFF_DATE = "2026-08-26";
-const HISTORY_RECOVERY_V12_EXPECTED_EVENTS = 76;
+const HISTORY_RECOVERY_V12_EXPECTED_EVENTS = 0;
 const HISTORY_RECOVERY_V12_SOURCE_ORDER = ["shift_logs", "legacy_logs"];
 const HISTORY_RECOVERY_V12_SHIFT_SCAN_BATCH = 40;
 const HISTORY_RECOVERY_V12_LEGACY_SCAN_BATCH = 40;
 const HISTORY_RECOVERY_V12_LEASE_MS = 30 * 1000;
 const HISTORY_RECOVERY_V12_LOCK_STALE_MS = 35 * 1000;
 
-const HISTORY_RECOVERY_V12_R2_AUDITED_RULES = Object.freeze([
-  { sourceTable: "legacy_logs", sourceRowId: 4858, textIncludes: "FBHE Blower #A V-Belt 교체 완료", category: "confirmed", reason: "V12.2 감사보정: #B는 교체운전 대상이며 실제 V-Belt 교체는 #A", events: [["104HHL60AP611", "2024-02-06"]] },
-  { sourceTable: "legacy_logs", sourceRowId: 7186, textIncludes: "V-Belt 교체 문의", category: "excluded", reason: "V12.2 감사보정: 교체 문의 문장" },
-  { sourceTable: "legacy_logs", sourceRowId: 17441, textIncludes: "V-Belt 교체 및 점검요청", category: "excluded", reason: "V12.2 감사보정: 교체·점검 요청 문장" },
-  { sourceTable: "legacy_logs", sourceRowId: 37600, textIncludes: "Belt 교체 및 점검 예정", category: "excluded", reason: "V12.2 감사보정: 교체 예정 문장" },
-  { sourceTable: "legacy_logs", sourceRowId: 38159, textIncludes: "교체 하려했지만 미실시", category: "excluded", reason: "V12.2 감사보정: V-Belt 교체 미실시" },
-
-  { sourceTable: "legacy_logs", sourceRowId: 3963, textIncludes: "Fly Ash Aeration Blower #A, #B Belt 교체 실시", category: "confirmed", reason: "V12.2 감사보정: Fly Ash Bag Filter Aeration 역사 명칭", events: [["204ETG30AN601", "2023-10-04"], ["204ETG30AN602", "2023-10-04"]] },
-  { sourceTable: "legacy_logs", sourceRowId: 4277, textIncludes: "Bag Filter Fly Ash Aeration Blower #A V-Belt 교체 완료", category: "confirmed", reason: "V12.2 감사보정: Fly Ash Bag Filter Aeration 역사 명칭", events: [["104ETG30AN601", "2023-11-27"]] },
-  { sourceTable: "legacy_logs", sourceRowId: 5118, textIncludes: "Bag Filter Fly Ash Aeration Blower #A Belt 교체", category: "confirmed", reason: "V12.2 감사보정: Fly Ash Bag Filter Aeration 역사 명칭", events: [["204ETG30AN601", "2024-03-05"]] },
-  { sourceTable: "legacy_logs", sourceRowId: 35747, textIncludes: "FBHE Blower #A V-Belt 1가닥", category: "confirmed", reason: "V12.2 감사보정: 끊어짐 확인 후 교체완료", events: [["104HHL60AP611", "2024-04-22"]] },
-  { sourceTable: "legacy_logs", sourceRowId: 36022, textIncludes: "Fly Ash Aeration Blower #A, B V-Belt 교체 완료", category: "confirmed", reason: "V12.2 감사보정: Fly Ash Bag Filter Aeration 역사 명칭", events: [["104ETG30AN601", "2024-07-27"], ["104ETG30AN602", "2024-07-27"]] },
-  { sourceTable: "legacy_logs", sourceRowId: 16825, textIncludes: "FBHE Blower #B V-belt 교체", category: "confirmed", reason: "V12.2 감사보정: V-Belt와 타 부품이 함께 교체된 완료 문장", events: [["204HHL60AP621", "2024-10-17"]] },
-  { sourceTable: "legacy_logs", sourceRowId: 7423, textIncludes: "Fly Ash Aeration Blower #B V-Belt 교체 완료", category: "confirmed", reason: "V12.2 감사보정: Fly Ash Bag Filter Aeration 역사 명칭", events: [["104ETG30AN602", "2024-12-02"]] },
-  { sourceTable: "legacy_logs", sourceRowId: 36412, textIncludes: "BagFilter Aeration Blower #B V-Belt 교체완료", category: "confirmed", reason: "V12.2 감사보정: Bag Filter Aeration 역사 명칭", events: [["204ETG30AN602", "2024-12-23"]] },
-  { sourceTable: "legacy_logs", sourceRowId: 10092, textIncludes: "유기성 고형연료 Blower 1-A Belt 교체 후 정상 기동 실시", category: "confirmed", reason: "V12.2 감사보정: 1-A 위치 표기 인식", events: [["104SDF01AN001", "2025-12-19"]] },
-  { sourceTable: "legacy_logs", sourceRowId: 10135, textIncludes: "Fly Ash Aeration Blower #A Belt 교체", category: "confirmed", reason: "V12.2 감사보정: Fly Ash Bag Filter Aeration 역사 명칭", events: [["204ETG30AN601", "2025-12-22"]] },
-  { sourceTable: "legacy_logs", sourceRowId: 20928, textIncludes: "Bag Filter Fly Ash Aeration Blower #B V-Belt 교체 완료", category: "confirmed", reason: "V12.2 감사보정: Fly Ash Bag Filter Aeration 역사 명칭", events: [["104ETG30AN602", "2025-12-26"]] },
-  { sourceTable: "legacy_logs", sourceRowId: 1783, textIncludes: "FBHE Blower #A V-Belt 교체", category: "confirmed", reason: "V12.2 감사보정: V-Belt 교체와 Base 보강 동시 작업", events: [["104HHL60AP611", "2026-02-12"]] },
-  { sourceTable: "legacy_logs", sourceRowId: 21489, textIncludes: "FBHE Blower #C V-Belt 및 Suction Filter 교체 완료", category: "confirmed", reason: "V12.2 감사보정: V-Belt와 Suction Filter 동시 교체 완료", events: [["204HHL60AP631", "2026-02-25"]] },
-  { sourceTable: "legacy_logs", sourceRowId: 21489, textIncludes: "Seal Pot Blower #C V-Belt 및 Suction Filter 교체 완료", category: "confirmed", reason: "V12.2 감사보정: V-Belt와 Suction Filter 동시 교체 완료", events: [["204HHL10AN631", "2026-02-25"]] }
-]);
+const HISTORY_RECOVERY_V13_SOURCE_TYPE = "shift_log_history_v13";
+const HISTORY_RECOVERY_V13_CREATED_BY_ID = "history_v13";
+const HISTORY_RECOVERY_V13_CREATED_BY_NAME = "업무일지 V13 문맥복구";
+const HISTORY_RECOVERY_V13_TAG_ALIASES = Object.freeze({
+  "103ETG30AN601": "104ETG30AN601",
+  "103ETG30AN602": "104ETG30AN602",
+  "203ETG30AN601": "204ETG30AN601",
+  "203ETG30AN602": "204ETG30AN602"
+});
 const HISTORY_AUDIT_BATCH_SIZES = Object.freeze({
   shift_logs: 5,
   legacy_logs: 3,
@@ -1080,7 +1067,7 @@ async function loadRecoveryV12StateForUi(database) {
     if (!state) return defaultRecoveryV12StateForUi();
     return { ...state, hasRun: true };
   } catch (error) {
-    // V12 테이블은 최초 실행 전에는 아직 없을 수 있습니다.
+    // V13 문맥복구 테이블은 최초 실행 전에는 아직 없을 수 있습니다.
     // 화면 조회 자체가 실패하지 않도록 '미실행' 상태로만 표시합니다.
     return defaultRecoveryV12StateForUi();
   }
@@ -4337,43 +4324,51 @@ async function scanShiftLogs(database, user, body) {
     }
 
     suppressedDuplicateFragments += prioritized.suppressedDuplicateFragments;
-    const fragments = prioritized.fragments;
+    const fragments = v13ContextualizeScanFragments(prioritized.fragments, row, assets);
     const seen = new Set();
 
     for (const fragment of fragments) {
       await ensureDiscoveredAssets(database, fragmentAnalysisText(fragment), assets);
-      const specs = detectedEventSpecs(fragment);
-      if (specs.length === 0) continue;
+      const sourceText = fragmentSourceText(fragment);
+      if (!v13ActualBeltReplacement(sourceText, row.work_date, false)) continue;
 
-      const matches = findAssetMatches(fragment, assets);
-      if (matches.length === 0) continue;
+      const v13Record = {
+        sourceText,
+        identityText: fragmentIdentityText(fragment),
+        role: fragmentSourceRole(fragment) || row.role,
+        workDate: row.work_date,
+        v13Context: fragment.v13Context
+      };
+      const targets = v13ResolveTargets(v13Record, assets);
+      if (targets.length === 0) continue;
 
-      for (const spec of specs) {
-        const resolved = spec.autoEligible
-          ? resolveHistoricalMatches(fragment, matches, spec)
-          : (matches.length === 1 || isGroupedContextReference(fragment, matches) ? matches : []);
+      const spec = {
+        detectedType: "replacement",
+        issueType: findIssueType(sourceText) || "정기주기",
+        actionType: "V-Belt 교체",
+        autoEligible: true
+      };
 
-        for (const match of resolved) {
-          const key = `${row.id}::${match.asset.tag_number}::${spec.detectedType}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          detectedCount += 1;
+      for (const asset of targets) {
+        const key = `${row.id}::${asset.tag_number}::replacement`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        detectedCount += 1;
 
-          const sourceRow = {
-            ...row,
-            sourceText: fragmentSourceText(fragment),
-            sourceTime: fragmentSourceTime(fragment)
-          };
-          const detection = await insertDetectionCandidate(
-            database,
-            sourceRow,
-            match.asset.tag_number,
-            spec,
-            "pending"
-          );
+        const sourceRow = {
+          ...row,
+          sourceText: normalizeText(fragment.v13EvidenceText || sourceText),
+          sourceTime: fragmentSourceTime(fragment)
+        };
+        const detection = await insertDetectionCandidate(
+          database,
+          sourceRow,
+          asset.tag_number,
+          spec,
+          "pending"
+        );
 
-          if (detection.inserted) insertedCount += 1;
-        }
+        if (detection.inserted) insertedCount += 1;
       }
     }
   }
@@ -4382,7 +4377,7 @@ async function scanShiftLogs(database, user, body) {
     ok: true,
     message:
       `업무일지 ${logs.length}건 확인 · 파트장 ${excludedPartLeaderLogs}건 제외 · ` +
-      `70% 이상 중복 하위보직 구절 ${suppressedDuplicateFragments}건은 상위보직 기준 처리`,
+      `70% 이상 중복 하위보직 구절 ${suppressedDuplicateFragments}건은 상위보직 기준 처리 · V13 문맥 기반 설비 귀속`,
     scannedDays: days,
     scannedLogCount: logs.length,
     excludedPartLeaderLogs,
@@ -4842,6 +4837,7 @@ function analyzeHistoricalAuditFragment(fragment, row, sourceTable, auditAssets)
     sourceField: normalizeText(fragment?.sourceField) || "canonical",
     sourceTime: fragmentSourceTime(fragment),
     sourceText,
+    identityText: fragmentIdentityText(fragment),
     classification,
     detectedTags: extractRecognizedBlowerTags(analysisText),
     detectedTypes: detectBlowerTypes(analysisText),
@@ -5189,7 +5185,7 @@ async function ensureHistoryRecoveryV12Schema(database) {
         staged_events INTEGER NOT NULL DEFAULT 0,
         review_records INTEGER NOT NULL DEFAULT 0,
         unmatched_records INTEGER NOT NULL DEFAULT 0,
-        expected_events INTEGER NOT NULL DEFAULT 76,
+        expected_events INTEGER NOT NULL DEFAULT 0,
         lock_token TEXT NOT NULL DEFAULT '',
         lock_expires_at TEXT NOT NULL DEFAULT '',
         started_at TEXT,
@@ -5314,7 +5310,7 @@ async function ensureHistoryRecoveryV12Schema(database) {
             lock_expires_at = '',
             started_at = ?,
             completed_at = NULL,
-            message = 'V12.2 감사자료 교차검토 기준으로 사전검증을 다시 시작합니다.',
+            message = 'V13 업무일지 문맥 기반 복구를 새로 시작합니다.',
             updated_at = ?
         WHERE id = ?
       `).bind(
@@ -5331,7 +5327,7 @@ async function ensureHistoryRecoveryV12Schema(database) {
 
 async function ensureHistoryRecoveryV12Ready(database) {
   // 정상 운영/복구 요청마다 CREATE TABLE/INDEX DDL을 반복하지 않는다.
-  // 현재 V12.2 state가 이미 존재하면 단일 SELECT만 수행하고 바로 진행한다.
+  // 현재 V13 state가 이미 존재하면 단일 SELECT만 수행하고 바로 진행한다.
   try {
     const current = await database.prepare(`
       SELECT version, status
@@ -5354,42 +5350,559 @@ async function ensureHistoryRecoveryV12Ready(database) {
 }
 
 
-function v12AuditedOverride(record, assets) {
-  const sourceTable = normalizeText(record?.sourceTable);
-  const sourceRowId = Number(record?.sourceRowId || 0);
-  const sourceText = normalizeText(record?.sourceText);
+function v13CanonicalTagNumbers(text) {
+  const normalized = normalizeText(text).toUpperCase();
+  const tags = new Set(extractRecognizedBlowerTags(normalized));
 
-  const rule = HISTORY_RECOVERY_V12_R2_AUDITED_RULES.find(item => (
-    item.sourceTable === sourceTable &&
-    Number(item.sourceRowId) === sourceRowId &&
-    sourceText.includes(item.textIncludes)
-  ));
-
-  if (!rule) return null;
-
-  if (rule.category !== "confirmed") {
-    return { category: rule.category, reason: rule.reason, events: [] };
+  for (const [legacyTag, canonicalTag] of Object.entries(HISTORY_RECOVERY_V13_TAG_ALIASES)) {
+    if (normalized.includes(legacyTag)) tags.add(canonicalTag);
   }
 
-  const events = [];
-  for (const [tagNumber, eventDate] of rule.events || []) {
-    const target = assets.find(asset =>
-      normalizeText(asset?.tag_number).toUpperCase() ===
-      normalizeText(tagNumber).toUpperCase()
+  return [...tags];
+}
+
+function v13DetectTypes(text) {
+  const normalized = normalizeText(text).toLowerCase();
+  const found = new Set();
+
+  if (/(?:\bfbhe\b|\bfhbe\b|hhl60)/i.test(normalized)) found.add('fbhe');
+  if (/(?:seal\s*pot|sealpot|hhl10)/i.test(normalized)) found.add('seal_pot');
+  if (/(?:유기성\s*고형연료|유기성고형연료|organic\s*fuel|sdf01)/i.test(normalized)) found.add('organic_fuel');
+
+  if (/(?:fly\s*ash\s*silo\s*aeration|silo\s*aeration|eth03)/i.test(normalized)) {
+    found.add('flyash_silo');
+  }
+
+  if (/(?:fly\s*ash\s*bag\s*filter(?:\s*aeration)?|bag\s*filter\s*(?:fly\s*ash\s*)?aeration|bagfilter\s*aeration|etg30)/i.test(normalized)) {
+    found.add('flyash_bag');
+  } else if (
+    /fly\s*ash\s*aeration\s*(?:blower|blwr|fan)?/i.test(normalized) &&
+    !found.has('flyash_silo')
+  ) {
+    // 과거 업무일지에서 "Fly Ash Aeration Blower"는 Bag Filter Aeration의 축약명으로 사용됨.
+    found.add('flyash_bag');
+  }
+
+  return [...found];
+}
+
+function v13DetectUnitPositionPairs(text) {
+  const normalized = normalizeText(text).toUpperCase();
+  const pairs = [];
+  const seen = new Set();
+
+  for (const match of normalized.matchAll(/(?:^|[^0-9A-Z])([12])\s*[-_/]\s*#?\s*([ABC])(?=$|[^A-Z0-9])/g)) {
+    const key = `${match[1]}:#${match[2]}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    pairs.push({ unit: match[1], position: `#${match[2]}` });
+  }
+
+  return pairs;
+}
+
+function v13SuffixPositions(types, text) {
+  const normalized = normalizeText(text).toUpperCase();
+  const found = new Set();
+  const typeSet = new Set(types || []);
+
+  if (typeSet.has('fbhe') || typeSet.has('seal_pot')) {
+    if (/\b611\b/.test(normalized)) found.add('#A');
+    if (/\b621\b/.test(normalized)) found.add('#B');
+    if (/\b631\b/.test(normalized)) found.add('#C');
+  }
+  if (typeSet.has('organic_fuel')) {
+    if (/\b001\b/.test(normalized)) found.add('#A');
+    if (/\b002\b/.test(normalized)) found.add('#B');
+  }
+  if (typeSet.has('flyash_bag') || typeSet.has('flyash_silo')) {
+    if (/\b601\b/.test(normalized)) found.add('#A');
+    if (/\b602\b/.test(normalized)) found.add('#B');
+  }
+
+  return [...found];
+}
+
+function v13HasExplicitMultiUnit(text) {
+  const normalized = normalizeText(text);
+  return (
+    /(?:#\s*)?1\s*[,/&+·]\s*(?:#\s*)?2(?:\s*호기|\s*호|\s*BLR|\b)/i.test(normalized) ||
+    /(?:1\s*,\s*2|1\s*&\s*2)\s*호기/i.test(normalized) ||
+    /양\s*호기/.test(normalized)
+  );
+}
+
+function v13HistoricalPositionLabels(text) {
+  const normalized = normalizeText(text).toUpperCase();
+  const found = new Set(v12ExpandPositionRange(normalized));
+
+  // 기존 detectPositionLabels()의 \\b는 "_" 뒤에서 경계로 인식되지 않는다.
+  // 과거 일지의 "#C_11월7일", "#A_12/17" 같은 요약 표기를 별도로 인식한다.
+  for (const match of normalized.matchAll(/#\s*([ABC])(?=$|[^A-Z0-9])/g)) {
+    found.add(`#${match[1]}`);
+  }
+
+  return ['#A', '#B', '#C'].filter(position => found.has(position));
+}
+
+function v13DirectBeltPositions(text) {
+  const normalized = normalizeText(text).toUpperCase();
+  const found = new Set();
+  const beltWord = '(?:V\\s*[-/]?\\s*BELT|VBELT|BELT|V\\s*[-/]?\\s*벨트|V벨트|벨트)';
+
+  // Belt 바로 앞의 단일/목록 위치만 직접 대상으로 본다.
+  // 교체운전 화살표의 출발/도착 위치는 이 패턴에 들어오지 않는다.
+  const listBeforeBelt = new RegExp(
+    `(#\\s*[ABC](?:\\s*[,/&+·]\\s*#?\\s*[ABC]){0,2})\\s*${beltWord}`,
+    'g'
+  );
+  for (const match of normalized.matchAll(listBeforeBelt)) {
+    addPositionTokens(match[1], found);
+  }
+
+  // #A-C / #A~#C 같은 실제 다중 교체 범위가 Belt 바로 앞에 있는 경우만 확장한다.
+  const rangeBeforeBelt = new RegExp(
+    `#?\\s*([ABC])\\s*(?:~|－|–|—|-)\\s*#?\\s*([ABC])\\s*${beltWord}`,
+    'g'
+  );
+  for (const match of normalized.matchAll(rangeBeforeBelt)) {
+    const order = ['A', 'B', 'C'];
+    const a = order.indexOf(match[1]);
+    const b = order.indexOf(match[2]);
+    if (a < 0 || b < 0) continue;
+    for (let i = Math.min(a, b); i <= Math.max(a, b); i += 1) found.add(`#${order[i]}`);
+  }
+
+  // 실제 Belt 교체 표현까지 다른 #표기가 끼지 않는 위치만 추가한다.
+  // 예: "#B 교체 운전 실시 : FBHE Blower #A V-Belt 교체 완료" -> #A만.
+  const nearBelt = new RegExp(
+    `#\\s*([ABC])(?=[^#\\n]{0,32}${beltWord}[^#\\n]{0,32}(?:교체|교환))`,
+    'g'
+  );
+  for (const match of normalized.matchAll(nearBelt)) {
+    found.add(`#${match[1]}`);
+  }
+
+  // 과거 요약형: "#C_11월7일 Belt 교체", "#B 11월3일 Belt 교체".
+  const datedNearBelt = new RegExp(
+    `#\\s*([ABC])(?=[^#\\n]{0,36}(?:\\d{1,2}\\s*월\\s*\\d{1,2}\\s*일?|\\d{1,2}\\s*[./-]\\s*\\d{1,2})?[^#\\n]{0,12}${beltWord}[^#\\n]{0,24}(?:교체|교환))`,
+    'g'
+  );
+  for (const match of normalized.matchAll(datedNearBelt)) {
+    found.add(`#${match[1]}`);
+  }
+
+  return ['#A', '#B', '#C'].filter(position => found.has(position));
+}
+
+function v13IdentityFromText(text, role, assets, structuredText = '') {
+  const source = normalizeText(text);
+  const structured = normalizeText(structuredText);
+  const combined = [structured, source].filter(Boolean).join(' ');
+  const tags = new Set(v13CanonicalTagNumbers(combined));
+  const types = new Set(v13DetectTypes(combined));
+  const explicitUnits = new Set(detectUnitNos(combined));
+  const directPositions = new Set(v13DirectBeltPositions(source));
+  const broadPositions = new Set(v13HistoricalPositionLabels(combined));
+  const switchLike = /(?:교체운전|교체\s*운전|->|→)/i.test(source);
+  const sourceHasBeltAction = v13HasDirectBeltAction(source) || hasBeltReplacementPhrase(source);
+  const explicitPositions = new Set(
+    directPositions.size > 0
+      ? directPositions
+      : (switchLike && sourceHasBeltAction ? [] : broadPositions)
+  );
+  const pairs = v13DetectUnitPositionPairs(combined);
+
+  for (const pair of pairs) {
+    explicitUnits.add(pair.unit);
+    if (directPositions.size === 0) explicitPositions.add(pair.position);
+  }
+
+  for (const tag of tags) {
+    const asset = (assets || []).find(item => normalizeText(item?.tag_number).toUpperCase() === tag);
+    if (!asset) continue;
+    types.add(asset.blower_type);
+    explicitUnits.add(asset.unit_no);
+    if (directPositions.size === 0) explicitPositions.add(asset.position_label);
+  }
+
+  if (directPositions.size === 0) {
+    for (const position of v13SuffixPositions([...types], combined)) {
+      explicitPositions.add(position);
+    }
+  }
+
+  if (v13HasExplicitMultiUnit(combined)) {
+    explicitUnits.add('1');
+    explicitUnits.add('2');
+  }
+
+  const roleUnit = DUTY_ROLE_UNIT[normalizeDutyPosition(role)] || '';
+  const units = new Set(explicitUnits);
+  if (units.size === 0 && roleUnit) units.add(roleUnit);
+  if (types.size === 1 && types.has('flyash_silo')) {
+    units.clear();
+    units.add('shared');
+  }
+
+  return {
+    tags: [...tags],
+    types: [...types],
+    units: [...units],
+    positions: ['#A', '#B', '#C'].filter(position => explicitPositions.has(position)),
+    directPositions: ['#A', '#B', '#C'].filter(position => directPositions.has(position)),
+    explicitUnits: [...explicitUnits],
+    explicitPositions: ['#A', '#B', '#C'].filter(position => explicitPositions.has(position)),
+    roleUnit,
+    hasManagedIdentity: tags.size > 0 || types.size > 0,
+    explicitMultiUnit: v13HasExplicitMultiUnit(combined)
+  };
+}
+
+function v13IsForeignEquipmentText(text, identity) {
+  if (identity?.hasManagedIdentity) return false;
+  const normalized = normalizeText(text);
+  return /(?:limestone|bed\s*ash|bed\s*material|dust\s*collector|dosing\s*conveyor|ahu[-\s]*\d*|hvac|fin\s*fan|vent\s*filter\s*fan|vent\s*fan|screw\s*feeder|보조보일러)/i.test(normalized);
+}
+
+function v13ContextBucket(record) {
+  const field = normalizeText(record?.sourceField) || 'canonical';
+  const indexed = field.match(/^(.+?\[\d+\])/);
+  if (indexed) return indexed[1];
+  return field.split('.').slice(0, 2).join('.') || field;
+}
+
+function v13MergeContext(previous, own, sourceText) {
+  if (own?.hasManagedIdentity) {
+    return {
+      ...own,
+      inherited: false,
+      evidenceText: normalizeText(sourceText)
+    };
+  }
+
+  if (!previous) {
+    return {
+      ...own,
+      inherited: false,
+      evidenceText: normalizeText(sourceText)
+    };
+  }
+
+  const units = own.explicitUnits?.length > 0
+    ? [...own.explicitUnits]
+    : [...(previous.units || [])];
+  const positions = own.explicitPositions?.length > 0
+    ? [...own.explicitPositions]
+    : [...(previous.positions || [])];
+  const evidenceParts = [normalizeText(previous.evidenceText), normalizeText(sourceText)].filter(Boolean);
+
+  // 이전 문장에 TAG가 있었더라도 현재 문장이 #A/#B/#C 또는 호기를 새로 명시하면
+  // 이전 TAG를 고정하지 않는다. 설비 종류 문맥만 이어받고 현재 위치/호기로 다시 귀속한다.
+  const hasOwnLocator =
+    (own.explicitUnits?.length || 0) > 0 ||
+    (own.explicitPositions?.length || 0) > 0;
+  const tags = hasOwnLocator ? [] : [...(previous.tags || [])];
+
+  return {
+    ...previous,
+    tags,
+    units,
+    positions,
+    directPositions: own.directPositions?.length > 0 ? [...own.directPositions] : [],
+    explicitUnits: own.explicitUnits || [],
+    explicitPositions: own.explicitPositions || [],
+    inherited: true,
+    evidenceText: [...new Set(evidenceParts)].join(' → ')
+  };
+}
+
+function v13ContextualizeAuditRecords(records, assets) {
+  const active = new Map();
+  const output = [];
+
+  for (const record of records || []) {
+    const role = normalizeDutyPosition(record?.role);
+    const key = [record?.sourceTable, record?.sourceRowId, role, v13ContextBucket(record)].join('::');
+    const own = v13IdentityFromText(
+      record?.sourceText,
+      role,
+      assets,
+      record?.identityText || (record?.detectedTags || []).join(' ')
     );
 
-    if (!target) {
-      return {
-        category: "review",
-        reason: `V12.2 감사보정 TAG 미등록: ${tagNumber}`,
-        events: []
-      };
+    if (v13IsForeignEquipmentText(record?.sourceText, own)) {
+      active.delete(key);
+      output.push({ ...record, v13Context: own, v13EvidenceText: normalizeText(record?.sourceText) });
+      continue;
     }
 
-    events.push({ target, date: eventDate });
+    const previous = active.get(key) || null;
+    const context = v13MergeContext(previous, own, record?.sourceText);
+
+    if (context?.hasManagedIdentity || (previous && (own.explicitUnits?.length || own.explicitPositions?.length))) {
+      active.set(key, context);
+    }
+
+    output.push({
+      ...record,
+      v13Context: context,
+      v13EvidenceText: normalizeText(context?.evidenceText || record?.sourceText)
+    });
   }
 
-  return { category: "confirmed", reason: rule.reason, events };
+  return output;
+}
+
+function v13ContextIdentityText(context) {
+  if (!context) return '';
+  const typeLabels = (context.types || []).map(type => TYPE_IDENTITY_LABELS[type]).filter(Boolean);
+  const units = (context.units || []).filter(unit => unit !== 'shared').map(unit => `#${unit} BLR`);
+  return [
+    ...(context.tags || []),
+    ...typeLabels,
+    ...units,
+    ...(context.positions || [])
+  ].filter(Boolean).join(' ');
+}
+
+function v13ContextualizeScanFragments(fragments, row, assets) {
+  const output = [];
+  let active = null;
+
+  for (const fragment of fragments || []) {
+    const role = fragmentSourceRole(fragment) || normalizeDutyPosition(row?.role);
+    const own = v13IdentityFromText(
+      fragmentSourceText(fragment),
+      role,
+      assets,
+      fragmentIdentityText(fragment)
+    );
+
+    if (v13IsForeignEquipmentText(fragmentSourceText(fragment), own)) {
+      active = null;
+      output.push({ ...fragment, v13Context: own, v13EvidenceText: fragmentSourceText(fragment) });
+      continue;
+    }
+
+    const context = v13MergeContext(active, own, fragmentSourceText(fragment));
+    if (context?.hasManagedIdentity || (active && (own.explicitUnits?.length || own.explicitPositions?.length))) {
+      active = context;
+    }
+
+    output.push({
+      ...fragment,
+      identityText: [fragmentIdentityText(fragment), v13ContextIdentityText(context)].filter(Boolean).join(' '),
+      v13Context: context,
+      v13EvidenceText: normalizeText(context?.evidenceText || fragmentSourceText(fragment))
+    });
+  }
+
+  return output;
+}
+
+function v13HasDirectBeltAction(text) {
+  const normalized = normalizeText(text);
+  return (
+    /(?:V\s*[-/]?\s*Belt|V-Belt|Belt|V\s*[-/]?\s*벨트|V벨트|벨트)\s*(?:전량\s*)?(?:교체|교환)(?=\s|[,/&+.)\]]|$)/i.test(normalized) ||
+    /(?:교체|교환)\s*(?:완료|실시|시행|함|하였|했|하여)?\s*(?:한|된)?\s*(?:V\s*[-/]?\s*Belt|V-Belt|Belt|V\s*[-/]?\s*벨트|V벨트|벨트)\b/i.test(normalized)
+  );
+}
+
+function v13HardNegativeReplacement(text) {
+  const normalized = normalizeText(text);
+  return /(?:미교체|미실시|미완료|교체\s*미실시|교체\s*미완료|교체\s*보류|교체\s*취소|교체\s*불가|교체\s*안\s*함|교체하지\s*않|교체\s*하려.{0,12}미실시|not\s*replaced|replacement\s*cancell?ed)/i.test(normalized);
+}
+
+function v13SoftPlanReplacement(text) {
+  const normalized = normalizeText(text);
+  return (
+    /(?:교체|교환)\s*(?:작업\s*)?(?:예정|요청|문의|요망|필요|검토|준비|지시)/i.test(normalized) ||
+    /(?:명일|차주|차후|추후|향후).{0,40}(?:belt|벨트).{0,24}(?:교체|교환)/i.test(normalized) ||
+    /(?:belt|벨트).{0,24}(?:교체|교환)\s*(?:관련\s*정지|위해|입회|지원)/i.test(normalized) ||
+    /(?:belt|벨트).{0,24}(?:교체|교환)(?:로|을|를)?\s*(?:인해|관련)\s*(?:정지|대기|정상화)/i.test(normalized) ||
+    /(?:교체|교환)\s*(?:작업\s*)?입회/i.test(normalized)
+  );
+}
+
+function v13StrongReplacementCompletion(text) {
+  const normalized = normalizeText(text);
+  if (v13HardNegativeReplacement(normalized)) return false;
+
+  if (hasDirectCompletedBeltReplacement(normalized)) return true;
+  if (/(?:V\s*[-/]?\s*Belt|V-Belt|Belt|V\s*[-/]?\s*벨트|V벨트|벨트).{0,28}(?:전량\s*)?(?:교체|교환)\s*(?:작업\s*)?(?:완료|실시|시행|함|하였|했|하여)(?=\s|[,/&+.)\]]|$)/i.test(normalized)) return true;
+  if (/(?:V\s*[-/]?\s*Belt|V-Belt|Belt|V\s*[-/]?\s*벨트|V벨트|벨트).{0,28}(?:전량\s*)?(?:교체|교환)\s*후\s*(?:재?기동|운전|정상|양호|stand\s*by)/i.test(normalized)) return true;
+  if (/(?:V\s*[-/]?\s*Belt|V-Belt|Belt|V\s*[-/]?\s*벨트|V벨트|벨트).{0,28}(?:전량\s*)?(?:교체|교환)\s*(?:및|,)\s*.{0,60}(?:상태\s*)?(?:정상|양호|stand\s*by)/i.test(normalized)) return true;
+  if (/(?:신품|new).{0,18}(?:V\s*[-/]?\s*Belt|V-Belt|Belt|V\s*[-/]?\s*벨트|V벨트|벨트).{0,18}(?:교체|교환|취부|설치|장착)/i.test(normalized)) return true;
+  if (/(?:V\s*[-/]?\s*Belt|V-Belt|Belt|V\s*[-/]?\s*벨트|V벨트|벨트).{0,18}(?:신품|new).{0,18}(?:교체|교환|취부|설치|장착)/i.test(normalized)) return true;
+  return false;
+}
+
+function v13BareReplacementAction(text) {
+  const normalized = normalizeText(text);
+  if (!v13HasDirectBeltAction(normalized) && !hasBeltReplacementPhrase(normalized)) return false;
+  if (v13HardNegativeReplacement(normalized) || v13SoftPlanReplacement(normalized)) return false;
+  if (/(?:교체|교환)\s*(?:작업\s*)?입회|교체\s*건\s*$/i.test(normalized)) return false;
+
+  return (
+    /(?:V\s*[-/]?\s*Belt|V-Belt|Belt|V\s*[-/]?\s*벨트|V벨트|벨트).{0,18}(?:전량\s*)?(?:교체|교환)(?:\s*[,/&+]|\s*$|\s*\)|\s*\])/i.test(normalized) ||
+    /(?:TM|BM|CM)\s*작업.{0,80}(?:V\s*[-/]?\s*Belt|V-Belt|Belt|벨트).{0,18}(?:교체|교환)/i.test(normalized) ||
+    /(?:[01]?\d|2[0-3]):[0-5]\d.{0,100}(?:V\s*[-/]?\s*Belt|V-Belt|Belt|벨트).{0,18}(?:교체|교환)/i.test(normalized)
+  );
+}
+
+function v13ActualBeltReplacement(text, workDate, allowHistoricalReference = true) {
+  const normalized = normalizeText(text);
+  if (!normalized || !hasBeltWord(normalized) || !hasReplacementKeyword(normalized)) return false;
+  if (!v13HasDirectBeltAction(normalized) && !hasBeltReplacementPhrase(normalized)) return false;
+  if (hasBeltAccessoryReplacementPhrase(normalized) && !hasDirectCompletedBeltReplacement(normalized)) return false;
+  if (v13HardNegativeReplacement(normalized)) return false;
+
+  const switchLike = /(?:교체운전|교체\s*운전|->|→)/i.test(normalized);
+  // 교체운전은 설비 운전 전환이지 Belt 교체가 아니다. 같은 문장에 Belt 자체의 직접 교체 표현이
+  // 별도로 있을 때만 실제 교체 판정을 계속한다.
+  if (switchLike && !v13HasDirectBeltAction(normalized) && !hasDirectCompletedBeltReplacement(normalized)) return false;
+
+  const softPlan = v13SoftPlanReplacement(normalized);
+  const replacementMentions = (normalized.match(/(?:교체|교환)/g) || []).length;
+  // "교체 요청 (작업 완료)"처럼 요청 처리 완료를 실제 Belt 교체로 오인하지 않는다.
+  // 요청/예정 뒤에 별도의 두 번째 교체 완료 표현이 있을 때만 아래 완료 판정을 허용한다.
+  if (softPlan && replacementMentions < 2) return false;
+  if (v13StrongReplacementCompletion(normalized)) return true;
+  if (softPlan) return false;
+
+  if (allowHistoricalReference && v12ExtractDateTokens(normalized, workDate).length > 0) {
+    return true;
+  }
+
+  return v13BareReplacementAction(normalized);
+}
+
+function v13ResolveTargets(record, assets) {
+  const context = record?.v13Context || v13IdentityFromText(
+    record?.sourceText,
+    record?.role,
+    assets,
+    record?.identityText || ''
+  );
+  const targets = new Map();
+  const directPositions = new Set(context?.directPositions || []);
+
+  for (const tag of context?.tags || []) {
+    const asset = (assets || []).find(item => normalizeText(item?.tag_number).toUpperCase() === tag);
+    if (!asset) continue;
+    // 같은 문장 안에서 TAG와 Belt 대상 위치가 충돌하면 자동 확정하지 않는다.
+    if (directPositions.size > 0 && !directPositions.has(asset.position_label)) continue;
+    targets.set(asset.tag_number, asset);
+  }
+
+  if ((context?.tags || []).length > 0 && directPositions.size > 0 && targets.size === 0) {
+    return [];
+  }
+
+  if (targets.size > 0) {
+    const types = new Set([...targets.values()].map(item => item.blower_type));
+    const units = new Set([...targets.values()].map(item => item.unit_no));
+    if (types.size === 1 && units.size === 1 && (context?.positions || []).length > 1) {
+      const type = [...types][0];
+      const unit = [...units][0];
+      for (const asset of assets || []) {
+        if (asset.blower_type === type && asset.unit_no === unit && context.positions.includes(asset.position_label)) {
+          targets.set(asset.tag_number, asset);
+        }
+      }
+    }
+    return [...targets.values()].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+  }
+
+  const types = context?.types || [];
+  if (types.length !== 1) return [];
+  const type = types[0];
+  const positions = context?.positions || [];
+  if (positions.length === 0) return [];
+  const units = type === 'flyash_silo' ? ['shared'] : (context?.units || []);
+  if (units.length === 0) return [];
+  if (units.length > 1 && !context?.explicitMultiUnit) return [];
+
+  for (const asset of assets || []) {
+    if (asset.blower_type !== type) continue;
+    if (!units.includes(asset.unit_no)) continue;
+    if (!positions.includes(asset.position_label)) continue;
+    targets.set(asset.tag_number, asset);
+  }
+
+  return [...targets.values()].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+}
+
+function v13EventsForRecord(record, targets) {
+  const workDate = normalizeText(record?.workDate).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return [];
+  const text = normalizeText(record?.sourceText);
+  const byPosition = v12PositionSpecificDates(text, workDate);
+  const explicitDates = v12ExtractDateTokens(text, workDate);
+  const events = [];
+
+  if (targets.length === 1 && explicitDates.length > 0) {
+    for (const date of explicitDates) events.push({ target: targets[0], date });
+    return events;
+  }
+
+  if (byPosition.size > 0) {
+    for (const target of targets) {
+      const date = byPosition.get(target.position_label);
+      if (date) events.push({ target, date });
+    }
+    if (events.length === targets.length) return events;
+  }
+
+  if (explicitDates.length === 1) {
+    for (const target of targets) events.push({ target, date: explicitDates[0] });
+    return events;
+  }
+
+  if (explicitDates.length > 1) return [];
+
+  for (const target of targets) events.push({ target, date: workDate });
+  return events;
+}
+
+function v13EvaluateAuditRecord(record, assets) {
+  const text = normalizeText(record?.sourceText);
+  if (!text || !hasBeltWord(text) || !hasReplacementKeyword(text)) {
+    return { category: 'unmatched', reason: 'V-Belt 교체 문장 아님', events: [] };
+  }
+  if (normalizeDutyPosition(record?.role) === 'PART_LEADER') {
+    return { category: 'review', reason: '파트장 원문은 자동 복구 제외', events: [] };
+  }
+  if (!v13ActualBeltReplacement(text, record?.workDate, true)) {
+    return { category: 'excluded', reason: '실제 V-Belt 교체 완료 근거 없음', events: [] };
+  }
+
+  const targets = v13ResolveTargets(record, assets);
+  if (targets.length === 0) {
+    const context = record?.v13Context;
+    const managed = (context?.types || []).length === 1 || (context?.tags || []).length > 0;
+    return {
+      category: managed ? 'review' : 'unmatched',
+      reason: managed ? '설비는 식별했지만 A/B/C 위치 확정 불가' : '관리 대상 Blower 귀속 불명확',
+      events: []
+    };
+  }
+
+  const events = v13EventsForRecord(record, targets);
+  if (events.length === 0) {
+    return { category: 'review', reason: '교체일 확정 불가', events: [] };
+  }
+  if (events.some(item => item.date > HISTORY_RECOVERY_V12_CUTOFF_DATE)) {
+    return { category: 'review', reason: 'V13 기준일 이후 날짜', events: [] };
+  }
+
+  const inherited = record?.v13Context?.inherited === true;
+  return {
+    category: 'confirmed',
+    reason: inherited ? 'V13 업무일지 문맥 승계로 실제 V-Belt 교체 확정' : 'V13 업무일지 직접 문맥으로 실제 V-Belt 교체 확정',
+    events
+  };
 }
 
 function v12RolePriority(role) {
@@ -5612,39 +6125,7 @@ function v12EventsForRecord(record, targets) {
 }
 
 function v12EvaluateAuditRecord(record, assets) {
-  const text = normalizeText(record?.sourceText);
-  if (!text || !hasBeltWord(text) || !hasReplacementKeyword(text)) {
-    return { category: 'unmatched', reason: 'V-Belt 교체 문장 아님', events: [] };
-  }
-  if (normalizeDutyPosition(record?.role) === 'PART_LEADER') {
-    return { category: 'review', reason: '파트장 원문은 자동 복구 제외', events: [] };
-  }
-
-  const auditedOverride = v12AuditedOverride(record, assets);
-  if (auditedOverride) return auditedOverride;
-
-  if (hasCompletedForeignComponentReplacement(text) && !hasDirectCompletedBeltReplacement(text)) {
-    return { category: 'excluded', reason: '다른 부품 교체 문장', events: [] };
-  }
-  if (!v12StrongCompletion(text)) {
-    return { category: 'excluded', reason: '교체 완료 근거 불충분/예정·요청 문장', events: [] };
-  }
-  if (!v12SwitchOperationHasSeparateReplacement(text)) {
-    return { category: 'excluded', reason: '교체운전 문맥만 존재', events: [] };
-  }
-
-  const targets = v12ResolveTargets(record, assets);
-  if (targets.length === 0) {
-    return { category: 'unmatched', reason: '설비 TAG/종류/호기/위치 귀속 불명확', events: [] };
-  }
-  const events = v12EventsForRecord(record, targets);
-  if (events.length === 0) {
-    return { category: 'review', reason: '교체일 확정 불가', events: [] };
-  }
-  if (events.some(item => item.date > HISTORY_RECOVERY_V12_CUTOFF_DATE)) {
-    return { category: 'review', reason: 'V12 기준일 이후 날짜', events: [] };
-  }
-  return { category: 'confirmed', reason: 'V12 실제 V-Belt 교체 확정', events };
+  return v13EvaluateAuditRecord(record, assets);
 }
 
 async function v12LoadSourcePage(database, source, cursorRowId) {
@@ -5742,7 +6223,7 @@ async function v12StageEvent(database, record, item, reason, now) {
     `).bind(
       eventKey, tag, `${date}T00:00:00+09:00`, normalizeText(record.sourceTable), Number(record.sourceRowId || 0),
       normalizeText(record.sourceLogId), normalizeDutyPosition(record.role), normalizeText(record.author),
-      normalizeText(record.sourceText).slice(0,2000), reason, now, now
+      normalizeText(record.v13EvidenceText || record.sourceText).slice(0,2000), reason, now, now
     ).run();
     return;
   }
@@ -5764,7 +6245,7 @@ async function v12StageEvent(database, record, item, reason, now) {
     replaceEvidence ? 1 : 0, normalizeText(record.sourceLogId),
     replaceEvidence ? 1 : 0, normalizeDutyPosition(record.role),
     replaceEvidence ? 1 : 0, normalizeText(record.author),
-    replaceEvidence ? 1 : 0, normalizeText(record.sourceText).slice(0,2000),
+    replaceEvidence ? 1 : 0, normalizeText(record.v13EvidenceText || record.sourceText).slice(0,2000),
     now, eventKey
   ).run();
 }
@@ -5815,8 +6296,8 @@ async function v12ReleaseLock(database, token) {
 
 async function v12ApplyConfirmedEvents(database) {
   const counts = await v12RefreshCounts(database);
-  if (counts.staged !== HISTORY_RECOVERY_V12_EXPECTED_EVENTS) {
-    return { ok: false, blocked: true, message: `확정 복구 건수가 ${counts.staged}건으로 기대값 ${HISTORY_RECOVERY_V12_EXPECTED_EVENTS}건과 달라 실제 이력은 변경하지 않았습니다.` };
+  if (counts.staged <= 0) {
+    return { ok: false, blocked: true, message: 'V13에서 확정된 V-Belt 교체 이력이 없어 실제 이력은 변경하지 않았습니다.' };
   }
   const now = new Date().toISOString();
   const today = formatKstDate(new Date());
@@ -5838,7 +6319,7 @@ async function v12ApplyConfirmedEvents(database) {
       ) SELECT ?, id, tag_number, event_type, event_date, runtime_hours, issue_type, action_type,
         note, source_type, source_log_id, source_text, created_by_id, created_by_name, created_at, updated_at, ?
         FROM blower_history_events
-        WHERE event_type = 'replacement' AND source_type IN ('shift_log_auto','shift_log_history_auto','shift_log_history_v12')
+        WHERE event_type = 'replacement' AND source_type IN ('shift_log_auto','shift_log_history_auto','shift_log_history_v12','shift_log_history_v13')
     `).bind(HISTORY_RECOVERY_V12_ID, now),
     database.prepare(`
       INSERT OR IGNORE INTO blower_history_candidate_archive (
@@ -5859,15 +6340,15 @@ async function v12ApplyConfirmedEvents(database) {
     `),
     database.prepare(`
       DELETE FROM blower_history_events
-      WHERE event_type = 'replacement' AND source_type IN ('shift_log_auto','shift_log_history_auto','shift_log_history_v12')
+      WHERE event_type = 'replacement' AND source_type IN ('shift_log_auto','shift_log_history_auto','shift_log_history_v12','shift_log_history_v13')
     `),
     database.prepare(`
       INSERT OR IGNORE INTO blower_history_events (
         id, tag_number, event_type, event_date, runtime_hours, issue_type, action_type, note,
         source_type, source_log_id, source_text, created_by_id, created_by_name, created_at, updated_at
-      ) SELECT 'v12:' || event_key, tag_number, 'replacement', event_date, 0, '정기주기', 'V-Belt 교체',
-        'V12 확정 복구', 'shift_log_history_v12', source_log_id, source_text,
-        'history_v12', '업무일지 V12 확정복구', ?, ?
+      ) SELECT 'v13:' || event_key, tag_number, 'replacement', event_date, 0, '정기주기', 'V-Belt 교체',
+        'V13 업무일지 문맥 복구', 'shift_log_history_v13', source_log_id, source_text,
+        'history_v13', '업무일지 V13 문맥복구', ?, ?
         FROM blower_history_recovery_v12_stage
     `).bind(now, now),
     database.prepare(`
@@ -5911,7 +6392,7 @@ async function v12ApplyConfirmedEvents(database) {
               AND correction.event_date >= COALESCE((SELECT event.event_date FROM blower_history_events event WHERE event.tag_number = asset.tag_number AND event.event_type = 'replacement' ORDER BY event.event_date DESC, event.created_at DESC LIMIT 1),'9999-12-31')
           ) OR COALESCE((SELECT snap.last_replacement_at FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number),'') = COALESCE((SELECT event.event_date FROM blower_history_events event WHERE event.tag_number = asset.tag_number AND event.event_type = 'replacement' ORDER BY event.event_date DESC, event.created_at DESC LIMIT 1),'')
           THEN COALESCE((SELECT snap.last_modified_by_id FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number), asset.last_modified_by_id)
-          ELSE 'history_v12' END,
+          ELSE 'history_v13' END,
         last_modified_by_name = CASE
           WHEN EXISTS (
             SELECT 1 FROM blower_history_events correction
@@ -5920,7 +6401,7 @@ async function v12ApplyConfirmedEvents(database) {
               AND correction.event_date >= COALESCE((SELECT event.event_date FROM blower_history_events event WHERE event.tag_number = asset.tag_number AND event.event_type = 'replacement' ORDER BY event.event_date DESC, event.created_at DESC LIMIT 1),'9999-12-31')
           ) OR COALESCE((SELECT snap.last_replacement_at FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number),'') = COALESCE((SELECT event.event_date FROM blower_history_events event WHERE event.tag_number = asset.tag_number AND event.event_type = 'replacement' ORDER BY event.event_date DESC, event.created_at DESC LIMIT 1),'')
           THEN COALESCE((SELECT snap.last_modified_by_name FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number), asset.last_modified_by_name)
-          ELSE '업무일지 V12 확정복구' END,
+          ELSE '업무일지 V13 문맥복구' END,
         updated_at = ?
       WHERE EXISTS (SELECT 1 FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number)
     `).bind(
@@ -5945,9 +6426,9 @@ async function v12ApplyConfirmedEvents(database) {
       UPDATE blower_history_recovery_v12_state
       SET status = 'complete', staged_events = ?, completed_at = ?, message = ?, updated_at = ?
       WHERE id = ?
-    `).bind(counts.staged, now, `V12 확정 복구 ${counts.staged}건 적용 완료`, now, HISTORY_RECOVERY_V12_ID)
+    `).bind(counts.staged, now, `V13 업무일지 문맥 복구 ${counts.staged}건 적용 완료`, now, HISTORY_RECOVERY_V12_ID)
   ]);
-  return { ok: true, applied: true, message: `확정된 V-Belt 교체 이력 ${counts.staged}건을 V12로 복구했습니다.` };
+  return { ok: true, applied: true, message: `업무일지에서 확정된 V-Belt 교체 이력 ${counts.staged}건을 V13으로 복구했습니다.` };
 }
 
 async function historicalRecoveryV12Step(database) {
@@ -5956,7 +6437,7 @@ async function historicalRecoveryV12Step(database) {
   if (state?.status === 'complete') return jsonResponse({ ok: true, done: true, applied: true, recovery: state, message: state.message });
   if (state?.status === 'blocked') return jsonResponse({ ok: false, done: true, blocked: true, recovery: state, message: state.message }, 409);
   const lock = await v12ClaimLock(database);
-  if (!lock) return jsonResponse({ ok: true, busy: true, done: false, recovery: state, message: '다른 V12 복구 작업이 진행 중입니다.' });
+  if (!lock) return jsonResponse({ ok: true, busy: true, done: false, recovery: state, message: '다른 V13 복구 작업이 진행 중입니다.' });
 
   try {
     state = await v12LoadState(database);
@@ -5975,15 +6456,16 @@ async function historicalRecoveryV12Step(database) {
     try {
       page = await v12LoadSourcePage(database, source, state.cursorRowId);
     } catch (error) {
-      return jsonResponse({ ok: false, retryable: true, code: 'V12_SOURCE_UNAVAILABLE', message: 'V12 원문 조회가 일시적으로 실패했습니다. 같은 위치에서 재시도합니다.', detail: error instanceof Error ? error.message : String(error), recovery: state }, 503);
+      return jsonResponse({ ok: false, retryable: true, code: 'V13_SOURCE_UNAVAILABLE', message: 'V13 업무일지 원문 조회가 일시적으로 실패했습니다. 같은 위치에서 재시도합니다.', detail: error instanceof Error ? error.message : String(error), recovery: state }, 503);
     }
 
     const stored = await database.prepare(`SELECT * FROM blower_history_assets WHERE enabled = 1 ORDER BY sort_order, tag_number`).all();
     const assets = buildHistoricalAuditAssets(Array.isArray(stored.results) ? stored.results : []);
-    const records = analyzeHistoricalAuditRows(page.rows, source, assets);
+    const rawRecords = analyzeHistoricalAuditRows(page.rows, source, assets);
+    const records = v13ContextualizeAuditRecords(rawRecords, assets);
     const now = new Date().toISOString();
     for (const record of records) {
-      const evaluation = v12EvaluateAuditRecord(record, assets);
+      const evaluation = v13EvaluateAuditRecord(record, assets);
       const inserted = await v12InsertAuditRecord(database, record, evaluation, now);
       if (inserted && evaluation.category === 'confirmed') {
         for (const item of evaluation.events) await v12StageEvent(database, record, item, evaluation.reason, now);
@@ -5995,19 +6477,19 @@ async function historicalRecoveryV12Step(database) {
       ? HISTORY_RECOVERY_V12_SOURCE_ORDER[sourceIndex + 1] : source;
     const allDone = page.complete && sourceIndex === HISTORY_RECOVERY_V12_SOURCE_ORDER.length - 1;
     const counts = await v12RefreshCounts(database);
-    const nextStatus = allDone ? (counts.staged === HISTORY_RECOVERY_V12_EXPECTED_EVENTS ? 'ready' : 'blocked') : 'scanning';
+    const nextStatus = allDone ? (counts.staged > 0 ? 'ready' : 'blocked') : 'scanning';
     const message = allDone
-      ? (counts.staged === HISTORY_RECOVERY_V12_EXPECTED_EVENTS
-        ? `사전검증 완료: 확정 ${counts.staged}건 / 기대 ${HISTORY_RECOVERY_V12_EXPECTED_EVENTS}건`
-        : `안전 차단: 확정 ${counts.staged}건 / 기대 ${HISTORY_RECOVERY_V12_EXPECTED_EVENTS}건. 기존 저장값은 변경하지 않았습니다.`)
-      : `V12 원문 확인 중: 확정 ${counts.staged}건`;
+      ? (counts.staged > 0
+        ? `V13 문맥 검증 완료: 확정 ${counts.staged}건 · 검토 ${counts.review}건 · 미귀속/제외 ${counts.unmatched}건`
+        : 'V13에서 확정 가능한 V-Belt 교체 이력이 없어 기존 저장값을 유지합니다.')
+      : `V13 업무일지 문맥 확인 중: 확정 ${counts.staged}건`;
     const progressUpdate = await database.prepare(`
       UPDATE blower_history_recovery_v12_state SET status=?, source_table=?, cursor_row_id=?,
         scanned_rows=scanned_rows+?, staged_events=?, review_records=?, unmatched_records=?, message=?, updated_at=?
       WHERE id=? AND lock_token=?
     `).bind(nextStatus, nextSource, page.complete && !allDone ? 0 : page.cursorRowId, page.scannedRows, counts.staged, counts.review, counts.unmatched, message, now, HISTORY_RECOVERY_V12_ID, lock.token).run();
     if (Number(progressUpdate?.meta?.changes || 0) === 0) {
-      return jsonResponse({ ok: true, busy: true, done: false, recovery: await v12LoadState(database), message: 'V12 작업 잠금이 갱신되어 현재 단계 결과는 중복 적용하지 않았습니다.' });
+      return jsonResponse({ ok: true, busy: true, done: false, recovery: await v12LoadState(database), message: 'V13 작업 잠금이 갱신되어 현재 단계 결과는 중복 적용하지 않았습니다.' });
     }
 
     const updated = await v12LoadState(database);
@@ -6021,14 +6503,14 @@ async function historicalRecoveryV12Step(database) {
 async function resetHistoricalRecoveryV12(database) {
   await ensureHistoryRecoveryV12Ready(database);
   const current = await v12LoadState(database);
-  if (current?.status === 'complete') return jsonResponse({ ok: false, message: '이미 적용 완료된 V12는 화면에서 초기화할 수 없습니다.' }, 409);
+  if (current?.status === 'complete') return jsonResponse({ ok: false, message: '이미 적용 완료된 V13은 화면에서 초기화할 수 없습니다.' }, 409);
   const now = new Date().toISOString();
   await database.batch([
     database.prepare(`DELETE FROM blower_history_recovery_v12_stage`),
     database.prepare(`DELETE FROM blower_history_recovery_v12_audit`),
     database.prepare(`UPDATE blower_history_recovery_v12_state SET status='scanning', source_table='shift_logs', cursor_row_id=0, scanned_rows=0, staged_events=0, review_records=0, unmatched_records=0, lock_token='', lock_expires_at='', started_at=?, completed_at=NULL, message='', updated_at=? WHERE id=?`).bind(now, now, HISTORY_RECOVERY_V12_ID)
   ]);
-  return jsonResponse({ ok: true, message: 'V12 사전검증 상태를 초기화했습니다.', recovery: await v12LoadState(database) });
+  return jsonResponse({ ok: true, message: 'V13 문맥검증 상태를 초기화했습니다.', recovery: await v12LoadState(database) });
 }
 
 async function exportHistoricalRecoveryV12(database, category) {
@@ -6072,27 +6554,27 @@ async function handlePost(context, user, body) {
     return jsonResponse({
       ok: false,
       code: "LEGACY_BACKFILL_DISABLED_V12",
-      message: "기존 [과거 이력 재구성]은 V12에서 차단되었습니다. [확정 이력 복구 V12]를 사용해 주세요."
+      message: "기존 [과거 이력 재구성]은 차단되었습니다. [업무일지 이력 복구 V13]을 사용해 주세요."
     }, 409);
   }
 
   if (action === "historical_recovery_v12_step") {
     if (!user.isSuperAdmin) {
-      return jsonResponse({ ok: false, message: "V12 확정 복구는 최고관리자만 실행할 수 있습니다." }, 403);
+      return jsonResponse({ ok: false, message: "V13 업무일지 이력 복구는 최고관리자만 실행할 수 있습니다." }, 403);
     }
     return historicalRecoveryV12Step(database);
   }
 
   if (action === "historical_recovery_v12_reset") {
     if (!user.isSuperAdmin) {
-      return jsonResponse({ ok: false, message: "V12 초기화는 최고관리자만 실행할 수 있습니다." }, 403);
+      return jsonResponse({ ok: false, message: "V13 초기화는 최고관리자만 실행할 수 있습니다." }, 403);
     }
     return resetHistoricalRecoveryV12(database);
   }
 
   if (action === "historical_recovery_v12_export") {
     if (!user.isSuperAdmin) {
-      return jsonResponse({ ok: false, message: "V12 감사자료는 최고관리자만 내려받을 수 있습니다." }, 403);
+      return jsonResponse({ ok: false, message: "V13 감사자료는 최고관리자만 내려받을 수 있습니다." }, 403);
     }
     return exportHistoricalRecoveryV12(database, body.category);
   }
