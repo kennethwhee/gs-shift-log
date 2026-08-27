@@ -119145,3 +119145,114 @@ th[hidden] {
   }
 
 }
+
+/* =========================================================
+  [INSTRUCTION-FULL-WIDTH-HEADER-V1]
+
+  기존 instruction thead는 열 너비 영향으로 회색 영역이
+  왼쪽 일부만 채워질 수 있다.
+
+  해결:
+  - 실제 thead는 화면에서 완전히 숨긴다.
+  - table wrap 자체의 ::before로 회색 바를 그린다.
+  - 따라서 시간/내용 열 너비와 무관하게 항상 100% 폭이다.
+========================================================= */
+
+html body
+#instructionEntrySection
+.log-entry-table-wrap {
+  position:
+    relative !important;
+
+  box-sizing:
+    border-box !important;
+
+  width:
+    100% !important;
+
+  max-width:
+    none !important;
+
+  min-width:
+    0 !important;
+}
+
+
+html body
+#instructionEntrySection
+.log-entry-table-wrap::before {
+  content:
+    "" !important;
+
+  display:
+    block !important;
+
+  box-sizing:
+    border-box !important;
+
+  width:
+    100% !important;
+
+  height:
+    32px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  background:
+    #f3f6f9 !important;
+
+  border-bottom:
+    1px solid #dce3ea !important;
+}
+
+
+/*
+  기존 thead는 문구뿐 아니라 공간 자체도 제거한다.
+  회색 바는 위의 wrap::before 하나만 담당한다.
+*/
+html body
+#instructionEntrySection
+.log-entry-table--instruction
+thead {
+  display:
+    none !important;
+}
+
+
+html body
+#instructionEntrySection
+table.log-entry-table--instruction {
+  box-sizing:
+    border-box !important;
+
+  width:
+    100% !important;
+
+  max-width:
+    none !important;
+
+  min-width:
+    0 !important;
+
+  margin:
+    0 !important;
+}
+
+
+@media (
+  max-width:
+    768px
+) {
+
+  html body
+  #instructionEntrySection
+  .log-entry-table-wrap::before {
+    height:
+      30px !important;
+  }
+
+}
