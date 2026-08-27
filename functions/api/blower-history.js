@@ -212,7 +212,7 @@ const HISTORY_BACKFILL_BATCH_SIZE = 200;
 const HISTORY_BACKFILL_STALE_LEASE_MS = 2 * 60 * 1000;
 const HISTORY_AUDIT_VERSION = "blower_vbelt_missing_history_audit_v11_r2";
 const HISTORY_RECOVERY_V12_ID = "blower_vbelt_confirmed_recovery_v12";
-const HISTORY_RECOVERY_V12_VERSION = "blower_vbelt_confirmed_recovery_v12_r1";
+const HISTORY_RECOVERY_V12_VERSION = "blower_vbelt_confirmed_recovery_v12_r2";
 const HISTORY_RECOVERY_V12_CUTOFF_DATE = "2026-08-26";
 const HISTORY_RECOVERY_V12_EXPECTED_EVENTS = 76;
 const HISTORY_RECOVERY_V12_SOURCE_ORDER = ["shift_logs", "legacy_logs"];
@@ -220,6 +220,29 @@ const HISTORY_RECOVERY_V12_SHIFT_SCAN_BATCH = 40;
 const HISTORY_RECOVERY_V12_LEGACY_SCAN_BATCH = 40;
 const HISTORY_RECOVERY_V12_LEASE_MS = 30 * 1000;
 const HISTORY_RECOVERY_V12_LOCK_STALE_MS = 35 * 1000;
+
+const HISTORY_RECOVERY_V12_R2_AUDITED_RULES = Object.freeze([
+  { sourceTable: "legacy_logs", sourceRowId: 4858, textIncludes: "FBHE Blower #A V-Belt 교체 완료", category: "confirmed", reason: "V12.2 감사보정: #B는 교체운전 대상이며 실제 V-Belt 교체는 #A", events: [["104HHL60AP611", "2024-02-06"]] },
+  { sourceTable: "legacy_logs", sourceRowId: 7186, textIncludes: "V-Belt 교체 문의", category: "excluded", reason: "V12.2 감사보정: 교체 문의 문장" },
+  { sourceTable: "legacy_logs", sourceRowId: 17441, textIncludes: "V-Belt 교체 및 점검요청", category: "excluded", reason: "V12.2 감사보정: 교체·점검 요청 문장" },
+  { sourceTable: "legacy_logs", sourceRowId: 37600, textIncludes: "Belt 교체 및 점검 예정", category: "excluded", reason: "V12.2 감사보정: 교체 예정 문장" },
+  { sourceTable: "legacy_logs", sourceRowId: 38159, textIncludes: "교체 하려했지만 미실시", category: "excluded", reason: "V12.2 감사보정: V-Belt 교체 미실시" },
+
+  { sourceTable: "legacy_logs", sourceRowId: 3963, textIncludes: "Fly Ash Aeration Blower #A, #B Belt 교체 실시", category: "confirmed", reason: "V12.2 감사보정: Fly Ash Bag Filter Aeration 역사 명칭", events: [["204ETG30AN601", "2023-10-04"], ["204ETG30AN602", "2023-10-04"]] },
+  { sourceTable: "legacy_logs", sourceRowId: 4277, textIncludes: "Bag Filter Fly Ash Aeration Blower #A V-Belt 교체 완료", category: "confirmed", reason: "V12.2 감사보정: Fly Ash Bag Filter Aeration 역사 명칭", events: [["104ETG30AN601", "2023-11-27"]] },
+  { sourceTable: "legacy_logs", sourceRowId: 5118, textIncludes: "Bag Filter Fly Ash Aeration Blower #A Belt 교체", category: "confirmed", reason: "V12.2 감사보정: Fly Ash Bag Filter Aeration 역사 명칭", events: [["204ETG30AN601", "2024-03-05"]] },
+  { sourceTable: "legacy_logs", sourceRowId: 35747, textIncludes: "FBHE Blower #A V-Belt 1가닥", category: "confirmed", reason: "V12.2 감사보정: 끊어짐 확인 후 교체완료", events: [["104HHL60AP611", "2024-04-22"]] },
+  { sourceTable: "legacy_logs", sourceRowId: 36022, textIncludes: "Fly Ash Aeration Blower #A, B V-Belt 교체 완료", category: "confirmed", reason: "V12.2 감사보정: Fly Ash Bag Filter Aeration 역사 명칭", events: [["104ETG30AN601", "2024-07-27"], ["104ETG30AN602", "2024-07-27"]] },
+  { sourceTable: "legacy_logs", sourceRowId: 16825, textIncludes: "FBHE Blower #B V-belt 교체", category: "confirmed", reason: "V12.2 감사보정: V-Belt와 타 부품이 함께 교체된 완료 문장", events: [["204HHL60AP621", "2024-10-17"]] },
+  { sourceTable: "legacy_logs", sourceRowId: 7423, textIncludes: "Fly Ash Aeration Blower #B V-Belt 교체 완료", category: "confirmed", reason: "V12.2 감사보정: Fly Ash Bag Filter Aeration 역사 명칭", events: [["104ETG30AN602", "2024-12-02"]] },
+  { sourceTable: "legacy_logs", sourceRowId: 36412, textIncludes: "BagFilter Aeration Blower #B V-Belt 교체완료", category: "confirmed", reason: "V12.2 감사보정: Bag Filter Aeration 역사 명칭", events: [["204ETG30AN602", "2024-12-23"]] },
+  { sourceTable: "legacy_logs", sourceRowId: 10092, textIncludes: "유기성 고형연료 Blower 1-A Belt 교체 후 정상 기동 실시", category: "confirmed", reason: "V12.2 감사보정: 1-A 위치 표기 인식", events: [["104SDF01AN001", "2025-12-19"]] },
+  { sourceTable: "legacy_logs", sourceRowId: 10135, textIncludes: "Fly Ash Aeration Blower #A Belt 교체", category: "confirmed", reason: "V12.2 감사보정: Fly Ash Bag Filter Aeration 역사 명칭", events: [["204ETG30AN601", "2025-12-22"]] },
+  { sourceTable: "legacy_logs", sourceRowId: 20928, textIncludes: "Bag Filter Fly Ash Aeration Blower #B V-Belt 교체 완료", category: "confirmed", reason: "V12.2 감사보정: Fly Ash Bag Filter Aeration 역사 명칭", events: [["104ETG30AN602", "2025-12-26"]] },
+  { sourceTable: "legacy_logs", sourceRowId: 1783, textIncludes: "FBHE Blower #A V-Belt 교체", category: "confirmed", reason: "V12.2 감사보정: V-Belt 교체와 Base 보강 동시 작업", events: [["104HHL60AP611", "2026-02-12"]] },
+  { sourceTable: "legacy_logs", sourceRowId: 21489, textIncludes: "FBHE Blower #C V-Belt 및 Suction Filter 교체 완료", category: "confirmed", reason: "V12.2 감사보정: V-Belt와 Suction Filter 동시 교체 완료", events: [["204HHL60AP631", "2026-02-25"]] },
+  { sourceTable: "legacy_logs", sourceRowId: 21489, textIncludes: "Seal Pot Blower #C V-Belt 및 Suction Filter 교체 완료", category: "confirmed", reason: "V12.2 감사보정: V-Belt와 Suction Filter 동시 교체 완료", events: [["204HHL10AN631", "2026-02-25"]] }
+]);
 const HISTORY_AUDIT_BATCH_SIZES = Object.freeze({
   shift_logs: 5,
   legacy_logs: 3,
@@ -1052,6 +1075,7 @@ function defaultRecoveryV12StateForUi() {
 
 async function loadRecoveryV12StateForUi(database) {
   try {
+    await ensureHistoryRecoveryV12Schema(database);
     const state = await v12LoadState(database);
     if (!state) return defaultRecoveryV12StateForUi();
     return { ...state, hasRun: true };
@@ -5254,6 +5278,94 @@ async function ensureHistoryRecoveryV12Schema(database) {
     now,
     now
   ).run();
+
+  const recoveryState = await database
+    .prepare(`
+      SELECT version, status
+      FROM blower_history_recovery_v12_state
+      WHERE id = ?
+      LIMIT 1
+    `)
+    .bind(HISTORY_RECOVERY_V12_ID)
+    .first();
+
+  if (
+    recoveryState &&
+    normalizeText(recoveryState.version) !== HISTORY_RECOVERY_V12_VERSION &&
+    normalizeText(recoveryState.status) !== "complete"
+  ) {
+    const migrationNow = new Date().toISOString();
+
+    await database.batch([
+      database.prepare(`DELETE FROM blower_history_recovery_v12_stage`),
+      database.prepare(`DELETE FROM blower_history_recovery_v12_audit`),
+      database.prepare(`
+        UPDATE blower_history_recovery_v12_state
+        SET version = ?,
+            status = 'scanning',
+            source_table = 'shift_logs',
+            cursor_row_id = 0,
+            scanned_rows = 0,
+            staged_events = 0,
+            review_records = 0,
+            unmatched_records = 0,
+            expected_events = ?,
+            lock_token = '',
+            lock_expires_at = '',
+            started_at = ?,
+            completed_at = NULL,
+            message = 'V12.2 감사자료 교차검토 기준으로 사전검증을 다시 시작합니다.',
+            updated_at = ?
+        WHERE id = ?
+      `).bind(
+        HISTORY_RECOVERY_V12_VERSION,
+        HISTORY_RECOVERY_V12_EXPECTED_EVENTS,
+        migrationNow,
+        migrationNow,
+        HISTORY_RECOVERY_V12_ID
+      )
+    ]);
+  }
+
+}
+
+
+function v12AuditedOverride(record, assets) {
+  const sourceTable = normalizeText(record?.sourceTable);
+  const sourceRowId = Number(record?.sourceRowId || 0);
+  const sourceText = normalizeText(record?.sourceText);
+
+  const rule = HISTORY_RECOVERY_V12_R2_AUDITED_RULES.find(item => (
+    item.sourceTable === sourceTable &&
+    Number(item.sourceRowId) === sourceRowId &&
+    sourceText.includes(item.textIncludes)
+  ));
+
+  if (!rule) return null;
+
+  if (rule.category !== "confirmed") {
+    return { category: rule.category, reason: rule.reason, events: [] };
+  }
+
+  const events = [];
+  for (const [tagNumber, eventDate] of rule.events || []) {
+    const target = assets.find(asset =>
+      normalizeText(asset?.tag_number).toUpperCase() ===
+      normalizeText(tagNumber).toUpperCase()
+    );
+
+    if (!target) {
+      return {
+        category: "review",
+        reason: `V12.2 감사보정 TAG 미등록: ${tagNumber}`,
+        events: []
+      };
+    }
+
+    events.push({ target, date: eventDate });
+  }
+
+  return { category: "confirmed", reason: rule.reason, events };
 }
 
 function v12RolePriority(role) {
@@ -5483,6 +5595,10 @@ function v12EvaluateAuditRecord(record, assets) {
   if (normalizeDutyPosition(record?.role) === 'PART_LEADER') {
     return { category: 'review', reason: '파트장 원문은 자동 복구 제외', events: [] };
   }
+
+  const auditedOverride = v12AuditedOverride(record, assets);
+  if (auditedOverride) return auditedOverride;
+
   if (hasCompletedForeignComponentReplacement(text) && !hasDirectCompletedBeltReplacement(text)) {
     return { category: 'excluded', reason: '다른 부품 교체 문장', events: [] };
   }
