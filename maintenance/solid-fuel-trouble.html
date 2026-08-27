@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>고형연료 Trouble | GS Shift Log</title>
+  <link rel="stylesheet" href="/maintenance/solid-fuel-trouble.css?v=20260827-v1">
+</head>
+<body>
+  <main class="page">
+    <header class="page-head">
+      <div>
+        <span class="eyebrow">GS SHIFT LOG · SOLID FUEL</span>
+        <h1>고형연료 Trouble</h1>
+        <p>유기성 고형연료 Trouble 발생 내역을 Excel 형식으로 기록·조회합니다.</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn ghost" id="refreshBtn" type="button">새로고침</button>
+        <button class="btn primary" id="createBtn" type="button">+ Trouble 등록</button>
+        <a class="btn ghost" href="/">업무일지</a>
+      </div>
+    </header>
+
+    <section class="kpis">
+      <article><span>조회 건수</span><strong id="totalKpi">0</strong><small>건</small></article>
+      <article><span>이번 달</span><strong id="monthKpi">0</strong><small>건</small></article>
+      <article><span>Storage #A</span><strong id="aKpi">0</strong><small>건</small></article>
+      <article><span>Storage #B</span><strong id="bKpi">0</strong><small>건</small></article>
+    </section>
+
+    <section class="toolbar">
+      <form id="filterForm" class="filters">
+        <label><span>시작일</span><input id="filterFrom" type="date"></label>
+        <label><span>종료일</span><input id="filterTo" type="date"></label>
+        <label><span>업체명</span><input id="filterCompany" list="companyList" placeholder="전체"></label>
+        <label><span>차량번호</span><input id="filterVehicle" placeholder="예: 4202"></label>
+        <label class="search"><span>통합 검색</span><input id="filterSearch" type="search" placeholder="설비 / 조치내용 검색"></label>
+        <label><span>정렬</span><select id="filterSort"><option value="asc">오래된 순</option><option value="desc">최신 순</option></select></label>
+        <div class="filter-buttons"><button class="btn primary" type="submit">조회</button><button class="btn ghost" id="resetBtn" type="button">초기화</button></div>
+      </form>
+      <datalist id="companyList"></datalist>
+    </section>
+
+    <section class="sheet">
+      <header class="sheet-head">
+        <div><strong>유기성고형연료 Trouble 발생 내역</strong><span id="statusText">조회 대기</span></div>
+        <small>Excel 원본 21건 · 사진 4건 초기 반영</small>
+      </header>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th class="no">No.</th><th class="date">날짜</th><th class="company">업체명</th><th class="vehicle">차량번호</th>
+            <th class="equipment">발생 설비</th><th class="photo">샘플 사진</th><th class="note">비고</th><th class="actions">관리</th>
+          </tr></thead>
+          <tbody id="tableBody"><tr><td colspan="8" class="empty">Trouble 내역을 불러오는 중입니다.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal" id="editorModal" hidden>
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+      <header class="modal-head"><div><span>SOLID FUEL TROUBLE</span><h2 id="editorTitle">Trouble 등록</h2></div><button class="icon-btn" id="editorClose" type="button">×</button></header>
+      <form id="editorForm" class="editor">
+        <input id="editorId" type="hidden"><input id="editorVersion" type="hidden">
+        <div class="editor-grid">
+          <label><span>날짜 <em>필수</em></span><input id="editorDate" type="date" required></label>
+          <label><span>업체명</span><input id="editorCompany" list="companyList" maxlength="80" placeholder="예: 수도권"></label>
+          <label><span>차량번호</span><input id="editorVehicle" maxlength="40" placeholder="예: 4202"></label>
+        </div>
+        <label><span>발생 설비 / Trouble <em>필수</em></span><textarea id="editorEquipment" rows="3" maxlength="500" required placeholder="예: Storage Silo #A 하역라인 곡관부 막힘"></textarea></label>
+        <label><span>비고 / 조치내용</span><textarea id="editorNote" rows="5" maxlength="3000" placeholder="조치방법, 대기시간, 특이사항 등을 입력"></textarea></label>
+        <label><span>샘플 사진 <small>신규 사진 최대 4장 · 장당 10MB</small></span><input id="editorFiles" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple></label>
+        <div id="existingPhotos" class="existing-photos" hidden></div>
+        <p id="editorStatus" class="editor-status" hidden></p>
+        <footer class="modal-foot"><button class="btn ghost" id="editorCancel" type="button">취소</button><button class="btn primary" id="editorSave" type="submit">저장</button></footer>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal photo-modal" id="photoModal" hidden>
+    <section class="photo-viewer"><button id="photoClose" class="photo-close" type="button">×</button><img id="photoImage" alt="고형연료 Trouble 샘플 사진"></section>
+  </div>
+
+  <script src="/maintenance/solid-fuel-trouble.js?v=20260827-v1" defer></script>
+</body>
+</html>
