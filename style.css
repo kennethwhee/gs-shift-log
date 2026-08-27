@@ -119822,3 +119822,218 @@ html body
   }
 
 }
+
+/* =========================================================
+  [HANDOVER-TAG-INLINE-V1]
+
+  PC 인계사항 입력:
+  구분 → 시간 → 현재시간 → TAG 를 한 줄로 배치한다.
+
+  기존 저장/표시 로직은 건드리지 않는다.
+  "인계사항" 선택 시 TAG 숨김 동작도 그대로 유지한다.
+  모바일(<=768px)은 기존 grid 줄바꿈 구조를 유지한다.
+========================================================= */
+
+@media (
+  min-width:
+    769px
+) {
+
+  html body
+  .section-context-entry-editor.is-handover
+  .section-context-entry-editor__tools {
+    display:
+      flex !important;
+
+    flex-wrap:
+      nowrap !important;
+
+    align-items:
+      center !important;
+
+    gap:
+      5px !important;
+
+    width:
+      auto !important;
+
+    min-width:
+      0 !important;
+
+    grid-template-columns:
+      none !important;
+
+    grid-template-areas:
+      none !important;
+  }
+
+
+  html body
+  .section-context-entry-editor.is-handover
+  .section-context-entry-field--handover-type {
+    grid-area:
+      auto !important;
+
+    flex:
+      0 0 104px !important;
+
+    width:
+      104px !important;
+
+    min-width:
+      104px !important;
+
+    max-width:
+      104px !important;
+
+    align-self:
+      center !important;
+  }
+
+
+  html body
+  .section-context-entry-editor.is-handover
+  .section-context-entry-time-group {
+    grid-area:
+      auto !important;
+
+    display:
+      flex !important;
+
+    flex:
+      0 0 auto !important;
+
+    align-items:
+      center !important;
+
+    gap:
+      5px !important;
+
+    margin:
+      0 !important;
+  }
+
+
+  html body
+  .section-context-entry-editor.is-handover
+  .section-context-entry-field--tag {
+    grid-area:
+      auto !important;
+
+    flex:
+      0 1 165px !important;
+
+    width:
+      165px !important;
+
+    min-width:
+      135px !important;
+
+    max-width:
+      165px !important;
+
+    align-self:
+      center !important;
+
+    margin:
+      0 !important;
+  }
+
+
+  html body
+  .section-context-entry-editor.is-handover
+  .section-context-entry-field--tag.is-tag-hidden {
+    display:
+      none !important;
+  }
+
+
+  /*
+    TM 발행 쪽 TAG 입력칸과 같은 가독성으로 맞춘다.
+    기존 handover 전용 9px 규칙을 덮어쓴다.
+  */
+  html body
+  .section-context-entry-editor.is-handover
+  input.section-context-entry-tag {
+    height:
+      31px !important;
+
+    min-height:
+      31px !important;
+
+    padding:
+      0 8px !important;
+
+    font-size:
+      11px !important;
+  }
+
+}
+
+
+/*
+  중간 폭 PC에서도 TAG를 아래줄로 보내던
+  기존 769~1080 grid 보정을 무효화한다.
+*/
+@media (
+  min-width:
+    769px
+) and (
+  max-width:
+    1080px
+) {
+
+  html body
+  .section-context-entry-editor.is-handover
+  .section-context-entry-editor__tools {
+    display:
+      flex !important;
+
+    flex-wrap:
+      nowrap !important;
+
+    grid-template-columns:
+      none !important;
+
+    grid-template-areas:
+      none !important;
+
+    width:
+      auto !important;
+  }
+
+
+  html body
+  .section-context-entry-editor.is-handover
+  .section-context-entry-field--handover-type {
+    flex:
+      0 0 100px !important;
+
+    width:
+      100px !important;
+
+    min-width:
+      100px !important;
+
+    max-width:
+      100px !important;
+  }
+
+
+  html body
+  .section-context-entry-editor.is-handover
+  .section-context-entry-field--tag {
+    flex:
+      0 1 150px !important;
+
+    width:
+      150px !important;
+
+    min-width:
+      125px !important;
+
+    max-width:
+      150px !important;
+  }
+
+}
