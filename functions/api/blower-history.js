@@ -212,11 +212,11 @@ const HISTORY_BACKFILL_BATCH_SIZE = 200;
 const HISTORY_BACKFILL_STALE_LEASE_MS = 2 * 60 * 1000;
 const HISTORY_AUDIT_VERSION = "blower_vbelt_missing_history_audit_v11_r2";
 const HISTORY_RECOVERY_V12_ID = "blower_vbelt_confirmed_recovery_v12";
-const HISTORY_RECOVERY_V12_VERSION = "blower_vbelt_context_recovery_v13_r1";
+const HISTORY_RECOVERY_V12_VERSION = "blower_vbelt_context_recovery_v13_r2";
 const HISTORY_RECOVERY_V12_CUTOFF_DATE = "2026-08-26";
 const HISTORY_RECOVERY_V12_EXPECTED_EVENTS = 0;
 const HISTORY_RECOVERY_V12_SOURCE_ORDER = ["shift_logs", "legacy_logs"];
-const HISTORY_RECOVERY_V12_SHIFT_SCAN_BATCH = 40;
+const HISTORY_RECOVERY_V12_SHIFT_SCAN_BATCH = 20;
 const HISTORY_RECOVERY_V12_LEGACY_SCAN_BATCH = 40;
 const HISTORY_RECOVERY_V12_LEASE_MS = 30 * 1000;
 const HISTORY_RECOVERY_V12_LOCK_STALE_MS = 35 * 1000;
@@ -5725,6 +5725,23 @@ function v13SoftPlanReplacement(text) {
   );
 }
 
+function v13InheritedGenericCompletion(record) {
+  if (record?.v13Context?.inherited !== true) return false;
+  const current = normalizeText(record?.sourceText);
+  const evidence = normalizeText(record?.v13EvidenceText);
+  if (!current || !evidence || !hasBeltWord(evidence)) return false;
+  if (hasBeltWord(current)) return false;
+  if (v13HardNegativeReplacement(current) || v13SoftPlanReplacement(current)) return false;
+  if (/(?:filter|필터|oil|오일|psv|sensor|센서|bearing|베어링|pulley|풀리|seal|씰|gasket|가스켓|hose|호스|motor|모터|bolt|볼트|grease|구리스|impeller|임펠러)/i.test(current)) return false;
+  return /(?:교체|교환)\s*(?:작업\s*)?(?:완료|실시|시행|함|하였|했|하여|후\s*(?:재?기동|기동|정상화|정상|양호))/i.test(current);
+}
+
+function v13AuditRelevantRecord(record) {
+  const current = normalizeText(record?.sourceText);
+  if (hasBeltWord(current) && hasReplacementKeyword(current)) return true;
+  return v13InheritedGenericCompletion(record);
+}
+
 function v13StrongReplacementCompletion(text) {
   const normalized = normalizeText(text);
   if (v13HardNegativeReplacement(normalized)) return false;
@@ -5868,13 +5885,17 @@ function v13EventsForRecord(record, targets) {
 
 function v13EvaluateAuditRecord(record, assets) {
   const text = normalizeText(record?.sourceText);
-  if (!text || !hasBeltWord(text) || !hasReplacementKeyword(text)) {
+  const inheritedGenericCompletion = v13InheritedGenericCompletion(record);
+  const evaluationText = inheritedGenericCompletion
+    ? normalizeText(record?.v13EvidenceText)
+    : text;
+  if (!text || (!hasBeltWord(text) || !hasReplacementKeyword(text)) && !inheritedGenericCompletion) {
     return { category: 'unmatched', reason: 'V-Belt 교체 문장 아님', events: [] };
   }
   if (normalizeDutyPosition(record?.role) === 'PART_LEADER') {
     return { category: 'review', reason: '파트장 원문은 자동 복구 제외', events: [] };
   }
-  if (!v13ActualBeltReplacement(text, record?.workDate, true)) {
+  if (!v13ActualBeltReplacement(evaluationText, record?.workDate, true)) {
     return { category: 'excluded', reason: '실제 V-Belt 교체 완료 근거 없음', events: [] };
   }
 
@@ -6462,7 +6483,10 @@ async function historicalRecoveryV12Step(database) {
     const stored = await database.prepare(`SELECT * FROM blower_history_assets WHERE enabled = 1 ORDER BY sort_order, tag_number`).all();
     const assets = buildHistoricalAuditAssets(Array.isArray(stored.results) ? stored.results : []);
     const rawRecords = analyzeHistoricalAuditRows(page.rows, source, assets);
-    const records = v13ContextualizeAuditRecords(rawRecords, assets);
+    const contextualRecords = v13ContextualizeAuditRecords(rawRecords, assets);
+    // 문맥 승계 계산은 모든 fragment로 수행하되, D1 write는 실제 V-Belt 교체 후보/제외 후보에만 수행한다.
+    // 한 업무일지에 unrelated fragment가 많아도 매 STEP에서 수십~수백 건의 audit INSERT가 발생하지 않게 한다.
+    const records = contextualRecords.filter(v13AuditRelevantRecord);
     const now = new Date().toISOString();
     for (const record of records) {
       const evaluation = v13EvaluateAuditRecord(record, assets);
