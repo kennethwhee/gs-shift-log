@@ -158,7 +158,16 @@
 
   async function apiRequest(options = {}) {
     const method = options.method || "GET";
+    const timeoutMs = Math.max(0, Number(options.timeoutMs) || 0);
+    const controller = timeoutMs > 0 && typeof AbortController !== "undefined"
+      ? new AbortController()
+      : null;
+    let timeoutId = null;
     let response;
+
+    if (controller && timeoutMs > 0) {
+      timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+    }
 
     try {
       response = await fetch(options.url || API_URL, {
@@ -169,15 +178,19 @@
             : {}
         ),
         cache: "no-store",
-        body: options.body ? JSON.stringify(options.body) : undefined
+        body: options.body ? JSON.stringify(options.body) : undefined,
+        ...(controller ? { signal: controller.signal } : {})
       });
     } catch (cause) {
-      const error = new Error("서버에 연결할 수 없습니다.");
-      error.status = 0;
-      error.code = "NETWORK_ERROR";
+      const timedOut = cause?.name === "AbortError" && timeoutMs > 0;
+      const error = new Error(timedOut ? "서버 응답 시간이 초과되었습니다. 자동으로 다시 시도합니다." : "서버에 연결할 수 없습니다.");
+      error.status = timedOut ? 504 : 0;
+      error.code = timedOut ? "REQUEST_TIMEOUT" : "NETWORK_ERROR";
       error.retryable = true;
       error.cause = cause;
       throw error;
+    } finally {
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
     }
 
     const text = await response.text();
@@ -1508,7 +1521,8 @@
       try {
         return await apiRequest({
           method: "POST",
-          body: { action: "historical_recovery_v12_step" }
+          body: { action: "historical_recovery_v12_step" },
+          timeoutMs: 20000
         });
       } catch (error) {
         const retryable = error?.retryable === true || [0, 429, 502, 503, 504].includes(Number(error?.status));
@@ -1563,7 +1577,12 @@
           elements.historicalBackfillNotice.dataset.state = recovery.status === "complete" ? "complete" : "running";
           elements.historicalBackfillNotice.textContent = `V12 ${recovery.status} · 확정 ${staged}/${expected}건 · 원문 ${Number(recovery.scannedRows || 0).toLocaleString("ko-KR")}건 확인`;
         }
-        if (lastResult.done || lastResult.busy) break;
+        if (lastResult?.busy) {
+          await waitForMilliseconds(1500);
+          continue;
+        }
+        if (lastResult.done) break;
+        await waitForMilliseconds(40);
       }
 
       await loadData({ silent: true });

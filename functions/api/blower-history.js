@@ -216,8 +216,8 @@ const HISTORY_RECOVERY_V12_VERSION = "blower_vbelt_confirmed_recovery_v12_r1";
 const HISTORY_RECOVERY_V12_CUTOFF_DATE = "2026-08-26";
 const HISTORY_RECOVERY_V12_EXPECTED_EVENTS = 76;
 const HISTORY_RECOVERY_V12_SOURCE_ORDER = ["shift_logs", "legacy_logs"];
-const HISTORY_RECOVERY_V12_SHIFT_BATCH = 10;
-const HISTORY_RECOVERY_V12_LEGACY_SCAN_BATCH = 20;
+const HISTORY_RECOVERY_V12_SHIFT_SCAN_BATCH = 40;
+const HISTORY_RECOVERY_V12_LEGACY_SCAN_BATCH = 40;
 const HISTORY_RECOVERY_V12_LEASE_MS = 2 * 60 * 1000;
 const HISTORY_AUDIT_BATCH_SIZES = Object.freeze({
   shift_logs: 5,
@@ -5512,12 +5512,16 @@ async function v12LoadSourcePage(database, source, cursorRowId) {
       SELECT rowid AS audit_rowid, id, work_date, shift, role, author, status, log_json
       FROM shift_logs
       WHERE rowid > ? AND work_date >= ? AND work_date <= ? AND status = '결재완료'
-        AND (INSTR(LOWER(COALESCE(log_json,'')), 'belt') > 0 OR INSTR(COALESCE(log_json,''), '벨트') > 0)
-        AND (INSTR(COALESCE(log_json,''), '교체') > 0 OR INSTR(COALESCE(log_json,''), '교환') > 0 OR INSTR(LOWER(COALESCE(log_json,'')), 'replac') > 0)
       ORDER BY rowid ASC LIMIT ?
-    `).bind(cursorRowId, HISTORY_BACKFILL_START_DATE, HISTORY_RECOVERY_V12_CUTOFF_DATE, HISTORY_RECOVERY_V12_SHIFT_BATCH).all();
-    const rows = Array.isArray(result.results) ? result.results : [];
-    return { rows, scannedRows: rows.length, cursorRowId: rows.length ? Number(rows[rows.length-1].audit_rowid) : cursorRowId, complete: rows.length < HISTORY_RECOVERY_V12_SHIFT_BATCH };
+    `).bind(cursorRowId, HISTORY_BACKFILL_START_DATE, HISTORY_RECOVERY_V12_CUTOFF_DATE, HISTORY_RECOVERY_V12_SHIFT_SCAN_BATCH).all();
+    const loaded = Array.isArray(result.results) ? result.results : [];
+    const rows = loaded.filter(historicalAuditRowMayContainBelt);
+    return {
+      rows,
+      scannedRows: loaded.length,
+      cursorRowId: loaded.length ? Number(loaded[loaded.length - 1].audit_rowid) : cursorRowId,
+      complete: loaded.length < HISTORY_RECOVERY_V12_SHIFT_SCAN_BATCH
+    };
   }
 
   const result = await database.prepare(`
@@ -5533,7 +5537,7 @@ async function v12LoadSourcePage(database, source, cursorRowId) {
 async function v12InsertAuditRecord(database, record, evaluation, now) {
   const tags = evaluation.events.map(item => item.target.tag_number);
   const dates = evaluation.events.map(item => item.date);
-  await database.prepare(`
+  const inserted = await database.prepare(`
     INSERT OR IGNORE INTO blower_history_recovery_v12_audit (
       record_key, category, source_table, source_row_id, source_log_id, work_date,
       source_role, source_author, source_text, resolved_tags, resolved_dates, reason, created_at
@@ -5553,6 +5557,7 @@ async function v12InsertAuditRecord(database, record, evaluation, now) {
     evaluation.reason,
     now
   ).run();
+  return Number(inserted?.meta?.changes || 0) > 0;
 }
 
 async function v12StageEvent(database, record, item, reason, now) {
@@ -5805,8 +5810,8 @@ async function historicalRecoveryV12Step(database) {
     const now = new Date().toISOString();
     for (const record of records) {
       const evaluation = v12EvaluateAuditRecord(record, assets);
-      await v12InsertAuditRecord(database, record, evaluation, now);
-      if (evaluation.category === 'confirmed') {
+      const inserted = await v12InsertAuditRecord(database, record, evaluation, now);
+      if (inserted && evaluation.category === 'confirmed') {
         for (const item of evaluation.events) await v12StageEvent(database, record, item, evaluation.reason, now);
       }
     }
@@ -5822,11 +5827,14 @@ async function historicalRecoveryV12Step(database) {
         ? `사전검증 완료: 확정 ${counts.staged}건 / 기대 ${HISTORY_RECOVERY_V12_EXPECTED_EVENTS}건`
         : `안전 차단: 확정 ${counts.staged}건 / 기대 ${HISTORY_RECOVERY_V12_EXPECTED_EVENTS}건. 기존 저장값은 변경하지 않았습니다.`)
       : `V12 원문 확인 중: 확정 ${counts.staged}건`;
-    await database.prepare(`
+    const progressUpdate = await database.prepare(`
       UPDATE blower_history_recovery_v12_state SET status=?, source_table=?, cursor_row_id=?,
         scanned_rows=scanned_rows+?, staged_events=?, review_records=?, unmatched_records=?, message=?, updated_at=?
-      WHERE id=?
-    `).bind(nextStatus, nextSource, page.complete && !allDone ? 0 : page.cursorRowId, page.scannedRows, counts.staged, counts.review, counts.unmatched, message, now, HISTORY_RECOVERY_V12_ID).run();
+      WHERE id=? AND lock_token=?
+    `).bind(nextStatus, nextSource, page.complete && !allDone ? 0 : page.cursorRowId, page.scannedRows, counts.staged, counts.review, counts.unmatched, message, now, HISTORY_RECOVERY_V12_ID, lock.token).run();
+    if (Number(progressUpdate?.meta?.changes || 0) === 0) {
+      return jsonResponse({ ok: true, busy: true, done: false, recovery: await v12LoadState(database), message: 'V12 작업 잠금이 갱신되어 현재 단계 결과는 중복 적용하지 않았습니다.' });
+    }
 
     const updated = await v12LoadState(database);
     if (nextStatus === 'blocked') return jsonResponse({ ok: false, done: true, blocked: true, applied: false, recovery: updated, message }, 409);
