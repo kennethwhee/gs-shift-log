@@ -252402,3 +252402,327 @@ async function restoreSolarCumulativeFromD1() {
     initialize();
   }
 })();
+
+/* =========================================================
+  [SECTION-CONTENT-DOUBLECLICK-ADD-V1]
+
+  업무일지 내용 박스:
+  - 기존 Hover + 버튼 유지
+  - 빈 내용영역을 더블클릭해도 동일 입력창 실행
+  - 기존 등록 행/버튼/TAG/입력창 더블클릭은 제외
+  - 파트장 전용 지시사항은 기존 권한을 그대로 따른다.
+
+  핵심:
+  새 저장 로직을 만들지 않고
+  기존 + 버튼의 click 경로만 재사용한다.
+========================================================= */
+
+(function installSectionContentDoubleClickAddV1() {
+  "use strict";
+
+
+  if (
+    window.__sectionContentDoubleClickAddV1Installed ===
+      true
+  ) {
+    return;
+  }
+
+
+  window.__sectionContentDoubleClickAddV1Installed =
+    true;
+
+
+  const INTERACTIVE_SELECTOR = [
+    "button",
+    "input",
+    "select",
+    "textarea",
+    "a",
+    "label",
+    "[contenteditable='true']",
+    "[role='button']"
+  ].join(
+    ","
+  );
+
+
+  const EXISTING_ENTRY_SELECTOR = [
+    "tr[data-entry-index]",
+    "[data-entry-row-shell]",
+    ".log-entry-row-content",
+    ".log-entry-row-actions",
+    ".section-context-entry-editor"
+  ].join(
+    ","
+  );
+
+
+  const HEADER_SELECTOR = [
+    ".section-context-entry-header",
+    ".log-entry-group-header__title",
+    "[data-instruction-gray-header='true']"
+  ].join(
+    ","
+  );
+
+
+  function getSectionFromDoubleClickTarget(
+    target
+  ) {
+    const contentZone =
+      target.closest(
+        [
+          ".section-context-content-zone",
+          ".log-entry-table-wrap"
+        ].join(
+          ","
+        )
+      );
+
+
+    if (
+      !contentZone
+    ) {
+      return {
+        section:
+          null,
+
+        contentZone:
+          null
+      };
+    }
+
+
+    const section =
+      contentZone.closest(
+        ".section-context-entry-enabled"
+      );
+
+
+    return {
+      section,
+      contentZone
+    };
+  }
+
+
+  function getReusableAddButton(
+    section
+  ) {
+    if (
+      !section
+    ) {
+      return null;
+    }
+
+
+    /*
+      우선순위:
+      1. 현재 화면의 제목 옆 +
+      2. V5 내용영역 + (CSS로 숨겨져 있어도 기능 경로 존재)
+      3. V3 원본 헤더 +
+
+      모두 기존 입력 UI로 연결된 버튼이다.
+    */
+    const candidates = [
+      section.querySelector(
+        ".section-context-inline-add-button"
+      ),
+
+      section.querySelector(
+        ".section-context-body-add-button"
+      ),
+
+      section.querySelector(
+        ".section-context-add-button"
+      )
+    ]
+      .filter(
+        Boolean
+      );
+
+
+    return (
+      candidates.find(
+        button => {
+          return (
+            !button.hidden &&
+            !button.disabled
+          );
+        }
+      ) ||
+      null
+    );
+  }
+
+
+  function isSectionAvailableForDoubleClick(
+    section
+  ) {
+    if (
+      !section ||
+      section.hidden ||
+      section.getAttribute(
+        "aria-hidden"
+      ) ===
+        "true"
+    ) {
+      return false;
+    }
+
+
+    const addButton =
+      getReusableAddButton(
+        section
+      );
+
+
+    return Boolean(
+      addButton &&
+      !addButton.hidden &&
+      !addButton.disabled
+    );
+  }
+
+
+  function handleSectionContentDoubleClick(
+    event
+  ) {
+    if (
+      event.defaultPrevented
+    ) {
+      return;
+    }
+
+
+    const target =
+      event.target instanceof
+        Element
+        ? event.target
+        : null;
+
+
+    if (
+      !target
+    ) {
+      return;
+    }
+
+
+    /*
+      실제 버튼, TAG, 입력요소 등은
+      각 요소 본래의 더블클릭 동작을 방해하지 않는다.
+    */
+    if (
+      target.closest(
+        INTERACTIVE_SELECTOR
+      )
+    ) {
+      return;
+    }
+
+
+    const {
+      section,
+      contentZone
+    } =
+      getSectionFromDoubleClickTarget(
+        target
+      );
+
+
+    if (
+      !section ||
+      !contentZone
+    ) {
+      return;
+    }
+
+
+    /*
+      제목/헤더는 추가 영역이 아니다.
+      사용자가 요청한 "박스 안 내용영역"만 처리한다.
+    */
+    if (
+      target.closest(
+        HEADER_SELECTOR
+      )
+    ) {
+      return;
+    }
+
+
+    /*
+      이미 등록된 업무내용을 더블클릭했을 때
+      새 업무가 추가되는 오작동을 막는다.
+
+      빈 행:
+      .log-entry-empty-row
+      는 data-entry-index가 없으므로 더블클릭 추가 가능.
+    */
+    if (
+      target.closest(
+        EXISTING_ENTRY_SELECTOR
+      )
+    ) {
+      return;
+    }
+
+
+    /*
+      편집기가 이미 열려 있다면
+      더블클릭으로 또 입력창을 중복 생성하지 않는다.
+    */
+    if (
+      section.classList.contains(
+        "is-context-entry-open"
+      ) ||
+      section.querySelector(
+        ".section-context-entry-editor"
+      )
+    ) {
+      return;
+    }
+
+
+    if (
+      !isSectionAvailableForDoubleClick(
+        section
+      )
+    ) {
+      return;
+    }
+
+
+    const addButton =
+      getReusableAddButton(
+        section
+      );
+
+
+    if (
+      !addButton
+    ) {
+      return;
+    }
+
+
+    event.preventDefault();
+    event.stopPropagation();
+
+
+    /*
+      새로운 입력/저장 코드는 만들지 않는다.
+      기존 + 클릭과 100% 동일한 경로를 사용한다.
+    */
+    addButton.click();
+  }
+
+
+  document.addEventListener(
+    "dblclick",
+    handleSectionContentDoubleClick,
+    true
+  );
+})();
