@@ -1029,6 +1029,38 @@ async function loadBackfillState(database) {
   };
 }
 
+function defaultRecoveryV12StateForUi() {
+  return {
+    id: HISTORY_RECOVERY_V12_ID,
+    version: HISTORY_RECOVERY_V12_VERSION,
+    status: "pending",
+    sourceTable: "shift_logs",
+    cursorRowId: 0,
+    scannedRows: 0,
+    stagedEvents: 0,
+    reviewRecords: 0,
+    unmatchedRecords: 0,
+    expectedEvents: HISTORY_RECOVERY_V12_EXPECTED_EVENTS,
+    startedAt: "",
+    completedAt: "",
+    message: "",
+    updatedAt: "",
+    hasRun: false
+  };
+}
+
+async function loadRecoveryV12StateForUi(database) {
+  try {
+    const state = await v12LoadState(database);
+    if (!state) return defaultRecoveryV12StateForUi();
+    return { ...state, hasRun: true };
+  } catch (error) {
+    // V12 테이블은 최초 실행 전에는 아직 없을 수 있습니다.
+    // 화면 조회 자체가 실패하지 않도록 '미실행' 상태로만 표시합니다.
+    return defaultRecoveryV12StateForUi();
+  }
+}
+
 async function loadSettingHistory(database, limit = 50) {
   const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
   const result = await database
@@ -1204,6 +1236,7 @@ async function buildFullData(database, user) {
   const candidates = await loadCandidates(database, "pending", 300);
   const settingHistory = await loadSettingHistory(database, 60);
   const backfill = await loadBackfillState(database);
+  const recoveryV12 = await loadRecoveryV12StateForUi(database);
 
   return {
     ok: true,
@@ -1215,6 +1248,7 @@ async function buildFullData(database, user) {
     candidates,
     settingHistory,
     backfill,
+    recoveryV12,
     missingTags: buildMissingTagSummary(assets),
     missingSlots: buildMissingSlotDetails(assets),
     generatedAt: new Date().toISOString()

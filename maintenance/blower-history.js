@@ -1147,82 +1147,72 @@
     if (!notice) return;
 
     const isSuperAdmin = Boolean(state.data?.user?.isSuperAdmin);
-    const initialRequired = requiresInitialBackfill(backfill);
-    const catchUpRequired = !initialRequired && Boolean(
-      backfill?.requiresCatchUp
-      || (state.backfillRunning && state.data?.backfill?.requiresCatchUp)
-    );
-    const interrupted = !state.backfillRunning
-      && ["initializing", "running", "processing"].includes(String(backfill?.status || ""));
-    const showOverviewCallout = initialRequired || catchUpRequired || interrupted || state.backfillRunning;
+    const recovery = state.data?.recoveryV12 || null;
+    const recoveryStatus = String(recovery?.status || "pending");
+    const recoveryComplete = recoveryStatus === "complete";
+    const recoveryBlocked = recoveryStatus === "blocked";
+    const recoveryStarted = Boolean(recovery?.hasRun) || !["", "pending"].includes(recoveryStatus);
+    const staged = Number(recovery?.stagedEvents || 0);
+    const expected = Number(recovery?.expectedEvents || 76);
+    const scanned = Number(recovery?.scannedRows || 0);
+    const showOverviewCallout = !recoveryComplete || state.backfillRunning;
+
     elements.historicalBackfillButton.hidden = !isSuperAdmin;
     elements.overviewBackfillButton.hidden = !isSuperAdmin;
     elements.overviewBackfillCallout.hidden = !showOverviewCallout;
-    elements.overviewBackfillCallout.classList.toggle("is-catchup", catchUpRequired && !state.backfillRunning);
+    elements.overviewBackfillCallout.classList.toggle("is-catchup", false);
 
     if (showOverviewCallout) {
-      elements.overviewBackfillTitle.textContent = catchUpRequired
-        ? "최신 업무일지 반영"
+      elements.overviewBackfillTitle.textContent = recoveryBlocked
+        ? "V12 안전 차단"
         : "확정 교체 이력 복구 필요";
       elements.overviewBackfillSummary.textContent = state.backfillRunning
-        ? catchUpRequired
-          ? "새 업무일지를 반영하고 있습니다. 기존에 확정된 교체 이력은 그대로 유지됩니다."
-          : "업무일지 원문을 V12 기준으로 검증하고 있습니다. 확정 76건이 맞을 때만 교체 이력을 갱신합니다."
-        : catchUpRequired
-          ? "마지막 완료 이후의 업무일지만 추가 확인합니다. 기존 교체 이력은 그대로 유지됩니다."
-          : interrupted
-            ? "중단된 지점부터 이어서 재구성할 수 있습니다."
-            : isSuperAdmin
-              ? "V12는 확정 76건을 먼저 검증한 뒤에만 기존 자동 교체 이력을 교체합니다. 실행해 주세요."
-              : "최고관리자의 V12 확정 복구가 완료되면 검증된 교체주기가 표시됩니다.";
+        ? `업무일지 원문을 V12 기준으로 검증하고 있습니다. 확정 ${staged}/${expected}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인`
+        : recoveryBlocked
+          ? (recovery?.message || `확정 ${staged}/${expected}건으로 기대값과 달라 기존 저장값을 유지했습니다.`)
+          : isSuperAdmin
+            ? "기존 과거 재구성 완료 여부와 관계없이 V12 전용 검증을 별도로 실행합니다. 확정 76건이 맞을 때만 기존 자동 교체 이력을 교체합니다."
+            : "최고관리자의 V12 확정 복구가 완료되면 검증된 교체주기가 표시됩니다.";
 
       const buttonLabel = state.backfillRunning
         ? "V12 검증·복구 중..."
-        : catchUpRequired
-          ? "최신 이력 반영"
-          : interrupted
+        : recoveryBlocked
+          ? "V12 감사자료 확인"
+          : recoveryStarted
             ? "V12 이어서 복구"
             : "확정 이력 복구 V12";
       elements.overviewBackfillButton.textContent = buttonLabel;
       elements.historicalBackfillButton.textContent = buttonLabel;
     }
 
-    if (!backfill || backfill.hasRun === false || backfill.requiresInitialRebuild === true) {
-      notice.hidden = false;
-      notice.dataset.state = "required";
-      notice.textContent = "V12 확정 복구 필요 · 아직 실행하지 않음";
-      return;
-    }
-
-    const scanned = Number(backfill.scannedLogs || 0).toLocaleString("ko-KR");
-    const events = Number(backfill.autoConfirmedEvents || 0).toLocaleString("ko-KR");
-    const pending = Number(backfill.pendingCandidates || 0).toLocaleString("ko-KR");
-    const target = backfill.targetDate || formatKstDateInput();
-
     notice.hidden = false;
 
     if (state.backfillRunning) {
       notice.dataset.state = "running";
-      notice.textContent = `V12 확정 복구 진행 중 · ${target}까지 ${scanned}건 확인 · 교체 이력 ${events}건 · 검토 대기 ${pending}건`;
+      notice.textContent = `V12 확정 복구 진행 중 · 확정 ${staged}/${expected}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인`;
       return;
     }
 
-    if (backfill.isCompleteForToday) {
+    if (recoveryComplete) {
       notice.dataset.state = "complete";
-      notice.textContent = `V12 확정 복구 완료 · ${target}까지 ${scanned}건 확인 · 교체 이력 ${events}건 반영`;
+      notice.textContent = `V12 확정 복구 완료 · 교체 이력 ${staged}건 반영`;
       return;
     }
 
-    if (backfill.requiresCatchUp) {
+    if (recoveryBlocked) {
       notice.dataset.state = "required";
-      notice.textContent = `최신 업무일지 추가 확인 가능 · 기존 교체 이력 유지 · 마지막 완료 ${target}`;
+      notice.textContent = `V12 안전 차단 · 확정 ${staged}/${expected}건 · 기존 저장 이력 유지`;
+      return;
+    }
+
+    if (recoveryStarted) {
+      notice.dataset.state = "required";
+      notice.textContent = `V12 확정 복구 필요 · 확정 ${staged}/${expected}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인 · 이어서 실행 가능`;
       return;
     }
 
     notice.dataset.state = "required";
-    notice.textContent = backfill.status === "running"
-      ? `V12 확정 복구 필요 · 중단 지점부터 재개 가능 · 기존 확인 ${scanned}건`
-      : `V12 확정 복구 필요 · 마지막 기준 ${target} · 기존 확인 ${scanned}건`;
+    notice.textContent = "V12 확정 복구 필요 · 아직 V12 전용 검증을 실행하지 않음";
   }
 
   function renderAll() {
@@ -1539,10 +1529,15 @@
       || !state.data?.user?.isSuperAdmin
     ) return;
 
-    const today = formatKstDateInput();
-    if (state.data?.backfill?.isCompleteForToday && state.data?.backfill?.targetDate === today) {
-      renderBackfillStatus(state.data.backfill);
-      showToast("V12 확정 복구가 완료되어 있습니다.");
+    const recovery = state.data?.recoveryV12 || null;
+    if (recovery?.status === "complete") {
+      renderBackfillStatus(state.data?.backfill);
+      showToast("V12 확정 복구가 이미 완료되어 있습니다.");
+      return;
+    }
+    if (recovery?.status === "blocked") {
+      showToast(recovery.message || "V12 사전검증이 안전 차단되었습니다. 감사자료를 확인해 주세요.", "error");
+      try { await downloadRecoveryV12Audits(); } catch (auditError) { console.error(auditError); }
       return;
     }
 
