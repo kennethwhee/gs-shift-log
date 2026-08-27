@@ -1180,7 +1180,7 @@
         ? "V12 안전 차단"
         : "확정 교체 이력 복구 필요";
       elements.overviewBackfillSummary.textContent = state.backfillRunning
-        ? `업무일지 원문을 V12 기준으로 검증하고 있습니다. 확정 ${staged}/${expected}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인`
+        ? `업무일지 원문을 V12 기준으로 검증하고 있습니다. 확정 ${staged}/${expected}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인 · ${recovery.sourceTable === "legacy_logs" ? "과거 업무일지" : "신규 업무일지"} #${Number(recovery.cursorRowId || 0).toLocaleString("ko-KR")}`
         : recoveryBlocked
           ? (recovery?.message || `확정 ${staged}/${expected}건으로 기대값과 달라 기존 저장값을 유지했습니다.`)
           : isSuperAdmin
@@ -1202,7 +1202,7 @@
 
     if (state.backfillRunning) {
       notice.dataset.state = "running";
-      notice.textContent = `V12 확정 복구 진행 중 · 확정 ${staged}/${expected}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인`;
+      notice.textContent = `V12 확정 복구 진행 중 · 확정 ${staged}/${expected}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인 · ${recovery.sourceTable === "legacy_logs" ? "과거 업무일지" : "신규 업무일지"} #${Number(recovery.cursorRowId || 0).toLocaleString("ko-KR")}`;
       return;
     }
 
@@ -1567,22 +1567,31 @@
     let lastResult = null;
 
     try {
-      for (let step = 0; step < 1000; step += 1) {
+      let productiveSteps = 0;
+      const recoveryStartedAt = Date.now();
+      while (productiveSteps < 2000 && Date.now() - recoveryStartedAt < 30 * 60 * 1000) {
         lastResult = await requestRecoveryV12Step();
         const recovery = lastResult?.recovery;
         if (recovery) {
           const staged = Number(recovery.stagedEvents || 0).toLocaleString("ko-KR");
           const expected = Number(recovery.expectedEvents || 76).toLocaleString("ko-KR");
+          const scanned = Number(recovery.scannedRows || 0).toLocaleString("ko-KR");
+          const sourceLabel = recovery.sourceTable === "legacy_logs" ? "과거 업무일지" : "신규 업무일지";
+          const cursor = Number(recovery.cursorRowId || 0).toLocaleString("ko-KR");
           elements.historicalBackfillNotice.hidden = false;
           elements.historicalBackfillNotice.dataset.state = recovery.status === "complete" ? "complete" : "running";
-          elements.historicalBackfillNotice.textContent = `V12 ${recovery.status} · 확정 ${staged}/${expected}건 · 원문 ${Number(recovery.scannedRows || 0).toLocaleString("ko-KR")}건 확인`;
+          elements.historicalBackfillNotice.textContent = `V12 ${recovery.status} · 확정 ${staged}/${expected}건 · 원문 ${scanned}건 확인 · ${sourceLabel} #${cursor}`;
         }
         if (lastResult?.busy) {
-          await waitForMilliseconds(1500);
+          await waitForMilliseconds(700);
           continue;
         }
+        productiveSteps += 1;
         if (lastResult.done) break;
-        await waitForMilliseconds(40);
+        await waitForMilliseconds(30);
+      }
+      if (!lastResult?.done && productiveSteps >= 2000) {
+        throw new Error("V12 자동 진행 한도에 도달했습니다. 현재 진행상태는 저장되어 있으며 다시 누르면 이어서 진행합니다.");
       }
 
       await loadData({ silent: true });

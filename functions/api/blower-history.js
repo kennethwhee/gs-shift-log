@@ -218,7 +218,8 @@ const HISTORY_RECOVERY_V12_EXPECTED_EVENTS = 76;
 const HISTORY_RECOVERY_V12_SOURCE_ORDER = ["shift_logs", "legacy_logs"];
 const HISTORY_RECOVERY_V12_SHIFT_SCAN_BATCH = 40;
 const HISTORY_RECOVERY_V12_LEGACY_SCAN_BATCH = 40;
-const HISTORY_RECOVERY_V12_LEASE_MS = 2 * 60 * 1000;
+const HISTORY_RECOVERY_V12_LEASE_MS = 30 * 1000;
+const HISTORY_RECOVERY_V12_LOCK_STALE_MS = 35 * 1000;
 const HISTORY_AUDIT_BATCH_SIZES = Object.freeze({
   shift_logs: 5,
   legacy_logs: 3,
@@ -5524,14 +5525,41 @@ async function v12LoadSourcePage(database, source, cursorRowId) {
     };
   }
 
+  // legacy_logs는 큰 JSON 컬럼과 상태/날짜 조건을 함께 걸면 D1에서 첫 페이지가 오래 걸릴 수 있다.
+  // rowid 범위만 사용해 항상 작은 연속 블록을 읽고, 날짜/승인/Belt 필터는 JS에서 수행한다.
   const result = await database.prepare(`
-    SELECT rowid AS audit_rowid, * FROM legacy_logs
-    WHERE rowid > ? AND work_date >= ? AND work_date <= ? AND (status = '결재완료' OR UPPER(status) = 'APPROVED')
-    ORDER BY rowid ASC LIMIT ?
-  `).bind(cursorRowId, HISTORY_BACKFILL_START_DATE, HISTORY_RECOVERY_V12_CUTOFF_DATE, HISTORY_RECOVERY_V12_LEGACY_SCAN_BATCH).all();
+    SELECT
+      rowid AS audit_rowid,
+      id,
+      legacy_diary_id,
+      work_date,
+      shift,
+      role,
+      author,
+      status,
+      entries_json,
+      original_json
+    FROM legacy_logs
+    WHERE rowid > ?
+    ORDER BY rowid ASC
+    LIMIT ?
+  `).bind(cursorRowId, HISTORY_RECOVERY_V12_LEGACY_SCAN_BATCH).all();
   const loaded = Array.isArray(result.results) ? result.results : [];
-  const rows = loaded.filter(historicalAuditRowMayContainBelt);
-  return { rows, scannedRows: loaded.length, cursorRowId: loaded.length ? Number(loaded[loaded.length-1].audit_rowid) : cursorRowId, complete: loaded.length < HISTORY_RECOVERY_V12_LEGACY_SCAN_BATCH };
+  const eligible = loaded.filter(row => {
+    const workDate = normalizeText(row?.work_date).slice(0, 10);
+    const status = normalizeText(row?.status).toUpperCase();
+    const approved = status === '결재완료' || status === 'APPROVED';
+    return approved
+      && workDate >= HISTORY_BACKFILL_START_DATE
+      && workDate <= HISTORY_RECOVERY_V12_CUTOFF_DATE;
+  });
+  const rows = eligible.filter(historicalAuditRowMayContainBelt);
+  return {
+    rows,
+    scannedRows: loaded.length,
+    cursorRowId: loaded.length ? Number(loaded[loaded.length - 1].audit_rowid) : cursorRowId,
+    complete: loaded.length < HISTORY_RECOVERY_V12_LEGACY_SCAN_BATCH
+  };
 }
 
 async function v12InsertAuditRecord(database, record, evaluation, now) {
@@ -5628,10 +5656,16 @@ async function v12ClaimLock(database) {
   const nowIso = now.toISOString();
   const token = crypto.randomUUID();
   const expires = new Date(now.getTime() + HISTORY_RECOVERY_V12_LEASE_MS).toISOString();
+  const staleBefore = new Date(now.getTime() - HISTORY_RECOVERY_V12_LOCK_STALE_MS).toISOString();
   const claim = await database.prepare(`
     UPDATE blower_history_recovery_v12_state SET lock_token = ?, lock_expires_at = ?, updated_at = ?
-    WHERE id = ? AND (lock_token = '' OR lock_expires_at = '' OR lock_expires_at < ?)
-  `).bind(token, expires, nowIso, HISTORY_RECOVERY_V12_ID, nowIso).run();
+    WHERE id = ? AND (
+      lock_token = ''
+      OR lock_expires_at = ''
+      OR lock_expires_at < ?
+      OR updated_at < ?
+    )
+  `).bind(token, expires, nowIso, HISTORY_RECOVERY_V12_ID, nowIso, staleBefore).run();
   return Number(claim?.meta?.changes || 0) > 0 ? { token, nowIso } : null;
 }
 
