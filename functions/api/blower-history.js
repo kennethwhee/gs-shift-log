@@ -44,12 +44,19 @@ const ASSET_SEEDS = [
   ["104HHL10AN611", "seal_pot", "1", "#A", "#1 Seal Pot Blower #A", 301],
   ["104HHL10AN621", "seal_pot", "1", "#B", "#1 Seal Pot Blower #B", 302],
   ["104HHL10AN631", "seal_pot", "1", "#C", "#1 Seal Pot Blower #C", 303],
+  ["204HHL10AN611", "seal_pot", "2", "#A", "#2 Seal Pot Blower #A", 351],
+  ["204HHL10AN621", "seal_pot", "2", "#B", "#2 Seal Pot Blower #B", 352],
+  ["204HHL10AN631", "seal_pot", "2", "#C", "#2 Seal Pot Blower #C", 353],
 
   ["104SDF01AN001", "organic_fuel", "1", "#A", "#1 유기성 고형연료 Blower #A", 401],
   ["104SDF01AN002", "organic_fuel", "1", "#B", "#1 유기성 고형연료 Blower #B", 402],
+  ["204SDF01AN001", "organic_fuel", "2", "#A", "#2 유기성 고형연료 Blower #A", 451],
+  ["204SDF01AN002", "organic_fuel", "2", "#B", "#2 유기성 고형연료 Blower #B", 452],
 
   ["104ETG30AN601", "flyash_bag", "1", "#A", "#1 Fly Ash Bag Filter Aeration Blower #A", 501],
   ["104ETG30AN602", "flyash_bag", "1", "#B", "#1 Fly Ash Bag Filter Aeration Blower #B", 502],
+  ["204ETG30AN601", "flyash_bag", "2", "#A", "#2 Fly Ash Bag Filter Aeration Blower #A", 551],
+  ["204ETG30AN602", "flyash_bag", "2", "#B", "#2 Fly Ash Bag Filter Aeration Blower #B", 552],
 
   ["104ETH03AN601", "flyash_silo", "shared", "#A", "Fly Ash Silo Aeration Blower #A", 601],
   ["104ETH03AN602", "flyash_silo", "shared", "#B", "Fly Ash Silo Aeration Blower #B", 602]
@@ -204,6 +211,14 @@ const HISTORY_BACKFILL_START_DATE = "2021-01-01";
 const HISTORY_BACKFILL_BATCH_SIZE = 200;
 const HISTORY_BACKFILL_STALE_LEASE_MS = 2 * 60 * 1000;
 const HISTORY_AUDIT_VERSION = "blower_vbelt_missing_history_audit_v11_r2";
+const HISTORY_RECOVERY_V12_ID = "blower_vbelt_confirmed_recovery_v12";
+const HISTORY_RECOVERY_V12_VERSION = "blower_vbelt_confirmed_recovery_v12_r1";
+const HISTORY_RECOVERY_V12_CUTOFF_DATE = "2026-08-26";
+const HISTORY_RECOVERY_V12_EXPECTED_EVENTS = 76;
+const HISTORY_RECOVERY_V12_SOURCE_ORDER = ["shift_logs", "legacy_logs"];
+const HISTORY_RECOVERY_V12_SHIFT_BATCH = 10;
+const HISTORY_RECOVERY_V12_LEGACY_SCAN_BATCH = 20;
+const HISTORY_RECOVERY_V12_LEASE_MS = 2 * 60 * 1000;
 const HISTORY_AUDIT_BATCH_SIZES = Object.freeze({
   shift_logs: 5,
   legacy_logs: 3,
@@ -5101,6 +5116,722 @@ async function historicalAuditStep(database, body) {
   });
 }
 
+
+async function ensureHistoryRecoveryV12Schema(database) {
+  await database.batch([
+    database.prepare(`
+      CREATE TABLE IF NOT EXISTS blower_history_recovery_v12_state (
+        id TEXT PRIMARY KEY NOT NULL,
+        version TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'scanning',
+        source_table TEXT NOT NULL DEFAULT 'shift_logs',
+        cursor_row_id INTEGER NOT NULL DEFAULT 0,
+        scanned_rows INTEGER NOT NULL DEFAULT 0,
+        staged_events INTEGER NOT NULL DEFAULT 0,
+        review_records INTEGER NOT NULL DEFAULT 0,
+        unmatched_records INTEGER NOT NULL DEFAULT 0,
+        expected_events INTEGER NOT NULL DEFAULT 76,
+        lock_token TEXT NOT NULL DEFAULT '',
+        lock_expires_at TEXT NOT NULL DEFAULT '',
+        started_at TEXT,
+        completed_at TEXT,
+        message TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL
+      )
+    `),
+    database.prepare(`
+      CREATE TABLE IF NOT EXISTS blower_history_recovery_v12_stage (
+        event_key TEXT PRIMARY KEY NOT NULL,
+        tag_number TEXT NOT NULL,
+        event_date TEXT NOT NULL,
+        source_table TEXT NOT NULL,
+        source_row_id INTEGER NOT NULL DEFAULT 0,
+        source_log_id TEXT NOT NULL DEFAULT '',
+        source_role TEXT NOT NULL DEFAULT '',
+        source_author TEXT NOT NULL DEFAULT '',
+        source_text TEXT NOT NULL DEFAULT '',
+        decision_reason TEXT NOT NULL DEFAULT '',
+        support_count INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `),
+    database.prepare(`
+      CREATE INDEX IF NOT EXISTS idx_blower_history_recovery_v12_stage_tag_date
+      ON blower_history_recovery_v12_stage (tag_number, event_date)
+    `),
+    database.prepare(`
+      CREATE TABLE IF NOT EXISTS blower_history_recovery_v12_audit (
+        record_key TEXT PRIMARY KEY NOT NULL,
+        category TEXT NOT NULL,
+        source_table TEXT NOT NULL,
+        source_row_id INTEGER NOT NULL DEFAULT 0,
+        source_log_id TEXT NOT NULL DEFAULT '',
+        work_date TEXT NOT NULL DEFAULT '',
+        source_role TEXT NOT NULL DEFAULT '',
+        source_author TEXT NOT NULL DEFAULT '',
+        source_text TEXT NOT NULL DEFAULT '',
+        resolved_tags TEXT NOT NULL DEFAULT '[]',
+        resolved_dates TEXT NOT NULL DEFAULT '[]',
+        reason TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL
+      )
+    `),
+    database.prepare(`
+      CREATE INDEX IF NOT EXISTS idx_blower_history_recovery_v12_audit_category
+      ON blower_history_recovery_v12_audit (category, work_date, source_row_id)
+    `),
+    database.prepare(`
+      CREATE TABLE IF NOT EXISTS blower_history_asset_archive_v12 (
+        migration_id TEXT NOT NULL,
+        tag_number TEXT NOT NULL,
+        blower_type TEXT NOT NULL,
+        unit_no TEXT NOT NULL,
+        position_label TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        last_replacement_at TEXT,
+        runtime_hours REAL NOT NULL DEFAULT 0,
+        runtime_anchor_at TEXT,
+        is_running INTEGER NOT NULL DEFAULT 0,
+        last_modified_by_id TEXT NOT NULL DEFAULT '',
+        last_modified_by_name TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        archived_at TEXT NOT NULL,
+        PRIMARY KEY (migration_id, tag_number)
+      )
+    `)
+  ]);
+
+  const now = new Date().toISOString();
+  await database.prepare(`
+    INSERT OR IGNORE INTO blower_history_recovery_v12_state (
+      id, version, status, source_table, cursor_row_id, scanned_rows,
+      staged_events, review_records, unmatched_records, expected_events,
+      started_at, updated_at
+    ) VALUES (?, ?, 'scanning', 'shift_logs', 0, 0, 0, 0, 0, ?, ?, ?)
+  `).bind(
+    HISTORY_RECOVERY_V12_ID,
+    HISTORY_RECOVERY_V12_VERSION,
+    HISTORY_RECOVERY_V12_EXPECTED_EVENTS,
+    now,
+    now
+  ).run();
+}
+
+function v12RolePriority(role) {
+  return ({ BCO1: 60, BCO2: 60, TGO: 55, BO1: 40, BO2: 40, TO: 35, PART_LEADER: 10 })[
+    normalizeDutyPosition(role)
+  ] || 20;
+}
+
+function v12ExpandPositionRange(text) {
+  const found = new Set(detectPositionLabels(text));
+  const normalized = normalizeText(text).toUpperCase();
+  if (/(?:#\s*)?A\s*(?:~|－|–|—|-)\s*(?:#\s*)?C\b/.test(normalized)) {
+    found.add('#A'); found.add('#B'); found.add('#C');
+  }
+  if (/(?:#\s*)?A\s*(?:~|－|–|—|-)\s*(?:#\s*)?B\b/.test(normalized)) {
+    found.add('#A'); found.add('#B');
+  }
+  if (/(?:#\s*)?B\s*(?:~|－|–|—|-)\s*(?:#\s*)?C\b/.test(normalized)) {
+    found.add('#B'); found.add('#C');
+  }
+  return ['#A', '#B', '#C'].filter(position => found.has(position));
+}
+
+function v12DirectBeltTargetPositions(text) {
+  const normalized = normalizeText(text).toUpperCase();
+  const found = new Set();
+  const patterns = [
+    /(?:BLOWER|FAN|블로워|브로워)?\s*(#\s*[ABC](?:\s*[,/&+·]\s*#?\s*[ABC]){0,2})\s*(?:V\s*[-/]?\s*BELT|VBELT|BELT|V\s*[-/]?\s*벨트|V벨트|벨트)/g,
+    /(#\s*[ABC](?:\s*[,/&+·]\s*#?\s*[ABC]){0,2}).{0,28}?(?:V\s*[-/]?\s*BELT|VBELT|BELT|V\s*[-/]?\s*벨트|V벨트|벨트).{0,28}?(?:교체|교환)/g
+  ];
+  for (const pattern of patterns) {
+    for (const match of normalized.matchAll(pattern)) addPositionTokens(match[1], found);
+  }
+  if (/(?:#\s*)?A\s*(?:~|－|–|—|-)\s*(?:#\s*)?C\b/.test(normalized)) {
+    found.add('#A'); found.add('#B'); found.add('#C');
+  }
+  if (/(?:#\s*)?A\s*(?:~|－|–|—|-)\s*(?:#\s*)?B\b/.test(normalized)) {
+    found.add('#A'); found.add('#B');
+  }
+  if (/(?:#\s*)?B\s*(?:~|－|–|—|-)\s*(?:#\s*)?C\b/.test(normalized)) {
+    found.add('#B'); found.add('#C');
+  }
+  return ['#A', '#B', '#C'].filter(position => found.has(position));
+}
+
+function v12DetectUnits(text, role) {
+  const normalized = normalizeText(text).toUpperCase();
+  const explicit = new Set(detectUnitNos(normalized));
+  if (/(?:#\s*)?1\s*[,/&+·]\s*(?:#\s*)?2(?:\s*호기|\s*호|\s*BLR|\b)/i.test(normalized) ||
+      /(?:1\s*,\s*2|1\s*&\s*2)\s*호기/i.test(normalized) ||
+      /양\s*호기/.test(normalized)) {
+    explicit.add('1'); explicit.add('2');
+  }
+  if (explicit.size > 0) return [...explicit].sort();
+  const roleUnit = DUTY_ROLE_UNIT[normalizeDutyPosition(role)] || '';
+  return roleUnit ? [roleUnit] : [];
+}
+
+function v12DetectTypes(text) {
+  const found = new Set(detectBlowerTypes(text));
+  const normalized = normalizeText(text).toLowerCase();
+  if (/fly\s*ash\s*bag\s*filter\s*(?:aeration\s*)?(?:blower|fan)/i.test(normalized)) found.add('flyash_bag');
+  if (/fly\s*ash\s*silo\s*(?:aeration\s*)?(?:blower|fan)/i.test(normalized)) found.add('flyash_silo');
+  return [...found];
+}
+
+function v12StrongCompletion(text) {
+  const normalized = normalizeText(text);
+  const directBeltCompleted = /(?:V\s*[-/]?\s*Belt|V-Belt|Belt|V\s*[-/]?\s*벨트|V벨트|벨트).{0,18}(?:교체|교환).{0,12}(?:완료|실시|시행|함|하였|했)/i.test(normalized);
+  if (!hasBeltWord(normalized) || !hasReplacementKeyword(normalized)) return false;
+  if (!hasBeltReplacementPhrase(normalized) && !directBeltCompleted && !hasDirectCompletedBeltReplacement(normalized)) return false;
+  if (hasBeltAccessoryReplacementPhrase(normalized) && !directBeltCompleted && !hasDirectCompletedBeltReplacement(normalized)) return false;
+  if (/교체\s*(?:예정|계획|요망|필요|검토|준비|지시)/i.test(normalized)) return false;
+  if (/명일.{0,40}(?:belt|벨트).{0,24}교체/i.test(normalized)) return false;
+  if (/(?:교체\s*요청|교체요청)(?!\s*건.{0,24}(?:작업\s*)?완료)/i.test(normalized)) return false;
+  if (/(?:미교체|교체\s*미실시|교체\s*미완료|교체\s*보류|교체\s*취소|교체\s*불가)/i.test(normalized)) return false;
+
+  if (hasExplicitReplacementCompletion(normalized)) return true;
+  if (/(?:교체\s*요청|교체요청)\s*건.{0,28}(?:작업\s*)?완료/i.test(normalized)) return true;
+  if (/(?:마지막|최근|참고|이력).{0,32}(?:belt|벨트).{0,18}교체/i.test(normalized)) return true;
+  if (/(?:belt|벨트)\s*교체\s*$/i.test(normalized)) return true;
+  if (/(?:blower|블로워|브로워).{0,24}#?\s*[ABC].{0,20}(?:belt|벨트)\s*교체(?:\s|$)/i.test(normalized)) return true;
+  return false;
+}
+
+function v12SwitchOperationHasSeparateReplacement(text) {
+  const normalized = normalizeText(text);
+  if (!/(?:교체운전|교체\s*운전|->|→)/i.test(normalized)) return true;
+  const directTargets = v12DirectBeltTargetPositions(normalized);
+  if (directTargets.length === 0) return false;
+  return /(?:belt|벨트).{0,28}(?:교체\s*(?:완료|실시|시행|작업\s*실시)|교체\s*작업\s*완료)/i.test(normalized);
+}
+
+function v12ResolveTargets(record, assets) {
+  const text = normalizeText(record?.sourceText);
+  const recognizedTags = extractRecognizedBlowerTags(text);
+  const targets = new Map();
+
+  for (const tag of recognizedTags) {
+    const asset = assets.find(item => normalizeText(item.tag_number).toUpperCase() === tag);
+    if (asset) targets.set(asset.tag_number, asset);
+  }
+
+  const types = v12DetectTypes(text);
+  let units = v12DetectUnits(text, record?.role);
+  let positions = v12DirectBeltTargetPositions(text);
+  if (positions.length === 0) positions = v12ExpandPositionRange(text);
+
+  if (recognizedTags.length > 0 && targets.size > 0 && positions.length > 1) {
+    const existing = [...targets.values()][0];
+    const oneType = new Set([...targets.values()].map(item => item.blower_type));
+    const oneUnit = new Set([...targets.values()].map(item => item.unit_no));
+    if (oneType.size === 1 && oneUnit.size === 1) {
+      for (const asset of assets) {
+        if (asset.blower_type === existing.blower_type && asset.unit_no === existing.unit_no && positions.includes(asset.position_label)) {
+          targets.set(asset.tag_number, asset);
+        }
+      }
+    }
+  }
+
+  if (targets.size === 0) {
+    if (types.length !== 1 || positions.length === 0) return [];
+    const type = types[0];
+    if (type === 'flyash_silo') units = ['shared'];
+    if (units.length === 0) return [];
+    const explicitMultiUnit = units.length > 1;
+    if (explicitMultiUnit && !/(?:#\s*)?1\s*[,/&+·]\s*(?:#\s*)?2|양\s*호기|1\s*,\s*2\s*호기/i.test(text)) return [];
+
+    for (const asset of assets) {
+      if (asset.blower_type !== type) continue;
+      if (!units.includes(asset.unit_no)) continue;
+      if (!positions.includes(asset.position_label)) continue;
+      targets.set(asset.tag_number, asset);
+    }
+  }
+
+  return [...targets.values()].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+}
+
+function v12InferDate(year, month, day, workDate) {
+  const work = /^\d{4}-\d{2}-\d{2}$/.test(normalizeText(workDate)) ? normalizeText(workDate) : '';
+  if (!work) return '';
+  let resolvedYear = Number(year || work.slice(0, 4));
+  if (resolvedYear < 100) resolvedYear += 2000;
+  const mm = Number(month), dd = Number(day);
+  if (!(mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31)) return '';
+  let date = `${String(resolvedYear).padStart(4,'0')}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+  if (!year && date > work) {
+    resolvedYear -= 1;
+    date = `${resolvedYear}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+  }
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0,10) !== date) return '';
+  return date;
+}
+
+function v12ExtractDateTokens(text, workDate) {
+  const normalized = normalizeText(text);
+  const dates = [];
+  const seen = new Set();
+  const push = date => { if (date && !seen.has(date)) { seen.add(date); dates.push(date); } };
+  for (const match of normalized.matchAll(/(?:(\d{2,4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일/g)) {
+    push(v12InferDate(match[1], match[2], match[3], workDate));
+  }
+  for (const match of normalized.matchAll(/\b(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})\b/g)) {
+    push(v12InferDate(match[1], match[2], match[3], workDate));
+  }
+  for (const match of normalized.matchAll(/(?<!\d)(\d{1,2})\s*[/\-]\s*(\d{1,2})(?!\d|\s*[:])/g)) {
+    push(v12InferDate('', match[1], match[2], workDate));
+  }
+  return dates;
+}
+
+function v12PositionSpecificDates(text, workDate) {
+  const normalized = normalizeText(text);
+  const output = new Map();
+  const tokenPattern = '((?:\\d{2,4}\\s*년\\s*)?\\d{1,2}\\s*월\\s*\\d{1,2}\\s*일|20\\d{2}[.\\-/]\\d{1,2}[.\\-/]\\d{1,2}|\\d{1,2}\\s*[/\\-]\\s*\\d{1,2})';
+  const pattern = new RegExp(`#\\s*([ABC])[^#\\n]{0,12}?${tokenPattern}[^#\\n]{0,28}?(?:V\\s*[-/]?\\s*Belt|V-Belt|Belt|벨트)[^#\\n]{0,20}?교체`, 'ig');
+  for (const match of normalized.matchAll(pattern)) {
+    const tokenDates = v12ExtractDateTokens(match[2], workDate);
+    if (tokenDates[0]) output.set(`#${match[1].toUpperCase()}`, tokenDates[0]);
+  }
+  return output;
+}
+
+function v12EventsForRecord(record, targets) {
+  const workDate = normalizeText(record?.workDate).slice(0,10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return [];
+  const text = normalizeText(record?.sourceText);
+  const byPosition = v12PositionSpecificDates(text, workDate);
+  const explicitDates = v12ExtractDateTokens(text, workDate);
+  const events = [];
+
+  if (targets.length === 1 && explicitDates.length > 0) {
+    for (const date of explicitDates) events.push({ target: targets[0], date });
+    return events;
+  }
+
+  if (explicitDates.length === 1) {
+    for (const target of targets) events.push({ target, date: explicitDates[0] });
+    return events;
+  }
+
+  if (byPosition.size > 0) {
+    for (const target of targets) {
+      const date = byPosition.get(target.position_label);
+      if (date) events.push({ target, date });
+    }
+    if (events.length > 0) return events;
+  }
+
+  if (explicitDates.length === 1) {
+    for (const target of targets) events.push({ target, date: explicitDates[0] });
+    return events;
+  }
+
+  for (const target of targets) events.push({ target, date: workDate });
+  return events;
+}
+
+function v12EvaluateAuditRecord(record, assets) {
+  const text = normalizeText(record?.sourceText);
+  if (!text || !hasBeltWord(text) || !hasReplacementKeyword(text)) {
+    return { category: 'unmatched', reason: 'V-Belt 교체 문장 아님', events: [] };
+  }
+  if (normalizeDutyPosition(record?.role) === 'PART_LEADER') {
+    return { category: 'review', reason: '파트장 원문은 자동 복구 제외', events: [] };
+  }
+  if (hasCompletedForeignComponentReplacement(text) && !hasDirectCompletedBeltReplacement(text)) {
+    return { category: 'excluded', reason: '다른 부품 교체 문장', events: [] };
+  }
+  if (!v12StrongCompletion(text)) {
+    return { category: 'excluded', reason: '교체 완료 근거 불충분/예정·요청 문장', events: [] };
+  }
+  if (!v12SwitchOperationHasSeparateReplacement(text)) {
+    return { category: 'excluded', reason: '교체운전 문맥만 존재', events: [] };
+  }
+
+  const targets = v12ResolveTargets(record, assets);
+  if (targets.length === 0) {
+    return { category: 'unmatched', reason: '설비 TAG/종류/호기/위치 귀속 불명확', events: [] };
+  }
+  const events = v12EventsForRecord(record, targets);
+  if (events.length === 0) {
+    return { category: 'review', reason: '교체일 확정 불가', events: [] };
+  }
+  if (events.some(item => item.date > HISTORY_RECOVERY_V12_CUTOFF_DATE)) {
+    return { category: 'review', reason: 'V12 기준일 이후 날짜', events: [] };
+  }
+  return { category: 'confirmed', reason: 'V12 실제 V-Belt 교체 확정', events };
+}
+
+async function v12LoadSourcePage(database, source, cursorRowId) {
+  if (source === 'shift_logs') {
+    const result = await database.prepare(`
+      SELECT rowid AS audit_rowid, id, work_date, shift, role, author, status, log_json
+      FROM shift_logs
+      WHERE rowid > ? AND work_date >= ? AND work_date <= ? AND status = '결재완료'
+        AND (INSTR(LOWER(COALESCE(log_json,'')), 'belt') > 0 OR INSTR(COALESCE(log_json,''), '벨트') > 0)
+        AND (INSTR(COALESCE(log_json,''), '교체') > 0 OR INSTR(COALESCE(log_json,''), '교환') > 0 OR INSTR(LOWER(COALESCE(log_json,'')), 'replac') > 0)
+      ORDER BY rowid ASC LIMIT ?
+    `).bind(cursorRowId, HISTORY_BACKFILL_START_DATE, HISTORY_RECOVERY_V12_CUTOFF_DATE, HISTORY_RECOVERY_V12_SHIFT_BATCH).all();
+    const rows = Array.isArray(result.results) ? result.results : [];
+    return { rows, scannedRows: rows.length, cursorRowId: rows.length ? Number(rows[rows.length-1].audit_rowid) : cursorRowId, complete: rows.length < HISTORY_RECOVERY_V12_SHIFT_BATCH };
+  }
+
+  const result = await database.prepare(`
+    SELECT rowid AS audit_rowid, * FROM legacy_logs
+    WHERE rowid > ? AND work_date >= ? AND work_date <= ? AND (status = '결재완료' OR UPPER(status) = 'APPROVED')
+    ORDER BY rowid ASC LIMIT ?
+  `).bind(cursorRowId, HISTORY_BACKFILL_START_DATE, HISTORY_RECOVERY_V12_CUTOFF_DATE, HISTORY_RECOVERY_V12_LEGACY_SCAN_BATCH).all();
+  const loaded = Array.isArray(result.results) ? result.results : [];
+  const rows = loaded.filter(historicalAuditRowMayContainBelt);
+  return { rows, scannedRows: loaded.length, cursorRowId: loaded.length ? Number(loaded[loaded.length-1].audit_rowid) : cursorRowId, complete: loaded.length < HISTORY_RECOVERY_V12_LEGACY_SCAN_BATCH };
+}
+
+async function v12InsertAuditRecord(database, record, evaluation, now) {
+  const tags = evaluation.events.map(item => item.target.tag_number);
+  const dates = evaluation.events.map(item => item.date);
+  await database.prepare(`
+    INSERT OR IGNORE INTO blower_history_recovery_v12_audit (
+      record_key, category, source_table, source_row_id, source_log_id, work_date,
+      source_role, source_author, source_text, resolved_tags, resolved_dates, reason, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    `${record.sourceTable}:${record.key}`,
+    evaluation.category,
+    normalizeText(record.sourceTable),
+    Number(record.sourceRowId || 0),
+    normalizeText(record.sourceLogId),
+    normalizeText(record.workDate).slice(0,10),
+    normalizeDutyPosition(record.role),
+    normalizeText(record.author),
+    normalizeText(record.sourceText).slice(0,2000),
+    JSON.stringify(tags),
+    JSON.stringify(dates),
+    evaluation.reason,
+    now
+  ).run();
+}
+
+async function v12StageEvent(database, record, item, reason, now) {
+  const tag = normalizeText(item.target.tag_number).toUpperCase();
+  const date = normalizeText(item.date).slice(0,10);
+  const eventKey = `${tag}|${date}`;
+  const existing = await database.prepare(`SELECT source_role FROM blower_history_recovery_v12_stage WHERE event_key = ? LIMIT 1`).bind(eventKey).first();
+  if (!existing) {
+    await database.prepare(`
+      INSERT INTO blower_history_recovery_v12_stage (
+        event_key, tag_number, event_date, source_table, source_row_id, source_log_id,
+        source_role, source_author, source_text, decision_reason, support_count, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+    `).bind(
+      eventKey, tag, `${date}T00:00:00+09:00`, normalizeText(record.sourceTable), Number(record.sourceRowId || 0),
+      normalizeText(record.sourceLogId), normalizeDutyPosition(record.role), normalizeText(record.author),
+      normalizeText(record.sourceText).slice(0,2000), reason, now, now
+    ).run();
+    return;
+  }
+  const replaceEvidence = v12RolePriority(record.role) > v12RolePriority(existing.source_role);
+  await database.prepare(`
+    UPDATE blower_history_recovery_v12_stage
+    SET support_count = support_count + 1,
+        source_table = CASE WHEN ? THEN ? ELSE source_table END,
+        source_row_id = CASE WHEN ? THEN ? ELSE source_row_id END,
+        source_log_id = CASE WHEN ? THEN ? ELSE source_log_id END,
+        source_role = CASE WHEN ? THEN ? ELSE source_role END,
+        source_author = CASE WHEN ? THEN ? ELSE source_author END,
+        source_text = CASE WHEN ? THEN ? ELSE source_text END,
+        updated_at = ?
+    WHERE event_key = ?
+  `).bind(
+    replaceEvidence ? 1 : 0, normalizeText(record.sourceTable),
+    replaceEvidence ? 1 : 0, Number(record.sourceRowId || 0),
+    replaceEvidence ? 1 : 0, normalizeText(record.sourceLogId),
+    replaceEvidence ? 1 : 0, normalizeDutyPosition(record.role),
+    replaceEvidence ? 1 : 0, normalizeText(record.author),
+    replaceEvidence ? 1 : 0, normalizeText(record.sourceText).slice(0,2000),
+    now, eventKey
+  ).run();
+}
+
+async function v12RefreshCounts(database) {
+  const [staged, review, unmatched] = await Promise.all([
+    database.prepare(`SELECT COUNT(*) AS count FROM blower_history_recovery_v12_stage`).first(),
+    database.prepare(`SELECT COUNT(*) AS count FROM blower_history_recovery_v12_audit WHERE category = 'review'`).first(),
+    database.prepare(`SELECT COUNT(*) AS count FROM blower_history_recovery_v12_audit WHERE category IN ('unmatched','excluded')`).first()
+  ]);
+  return { staged: Number(staged?.count || 0), review: Number(review?.count || 0), unmatched: Number(unmatched?.count || 0) };
+}
+
+async function v12LoadState(database) {
+  const row = await database.prepare(`SELECT * FROM blower_history_recovery_v12_state WHERE id = ? LIMIT 1`).bind(HISTORY_RECOVERY_V12_ID).first();
+  if (!row) return null;
+  return {
+    id: row.id, version: row.version, status: row.status, sourceTable: row.source_table,
+    cursorRowId: Number(row.cursor_row_id || 0), scannedRows: Number(row.scanned_rows || 0),
+    stagedEvents: Number(row.staged_events || 0), reviewRecords: Number(row.review_records || 0),
+    unmatchedRecords: Number(row.unmatched_records || 0), expectedEvents: Number(row.expected_events || 0),
+    startedAt: normalizeText(row.started_at), completedAt: normalizeText(row.completed_at),
+    message: normalizeText(row.message), updatedAt: normalizeText(row.updated_at)
+  };
+}
+
+async function v12ClaimLock(database) {
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const token = crypto.randomUUID();
+  const expires = new Date(now.getTime() + HISTORY_RECOVERY_V12_LEASE_MS).toISOString();
+  const claim = await database.prepare(`
+    UPDATE blower_history_recovery_v12_state SET lock_token = ?, lock_expires_at = ?, updated_at = ?
+    WHERE id = ? AND (lock_token = '' OR lock_expires_at = '' OR lock_expires_at < ?)
+  `).bind(token, expires, nowIso, HISTORY_RECOVERY_V12_ID, nowIso).run();
+  return Number(claim?.meta?.changes || 0) > 0 ? { token, nowIso } : null;
+}
+
+async function v12ReleaseLock(database, token) {
+  await database.prepare(`UPDATE blower_history_recovery_v12_state SET lock_token = '', lock_expires_at = '' WHERE id = ? AND lock_token = ?`).bind(HISTORY_RECOVERY_V12_ID, token).run();
+}
+
+async function v12ApplyConfirmedEvents(database) {
+  const counts = await v12RefreshCounts(database);
+  if (counts.staged !== HISTORY_RECOVERY_V12_EXPECTED_EVENTS) {
+    return { ok: false, blocked: true, message: `확정 복구 건수가 ${counts.staged}건으로 기대값 ${HISTORY_RECOVERY_V12_EXPECTED_EVENTS}건과 달라 실제 이력은 변경하지 않았습니다.` };
+  }
+  const now = new Date().toISOString();
+  const today = formatKstDate(new Date());
+  await database.batch([
+    database.prepare(`
+      INSERT OR IGNORE INTO blower_history_asset_archive_v12 (
+        migration_id, tag_number, blower_type, unit_no, position_label, display_name, sort_order,
+        enabled, last_replacement_at, runtime_hours, runtime_anchor_at, is_running,
+        last_modified_by_id, last_modified_by_name, created_at, updated_at, archived_at
+      ) SELECT ?, tag_number, blower_type, unit_no, position_label, display_name, sort_order,
+        enabled, last_replacement_at, runtime_hours, runtime_anchor_at, is_running,
+        last_modified_by_id, last_modified_by_name, created_at, updated_at, ?
+        FROM blower_history_assets
+    `).bind(HISTORY_RECOVERY_V12_ID, now),
+    database.prepare(`
+      INSERT OR IGNORE INTO blower_history_event_archive (
+        migration_id, id, tag_number, event_type, event_date, runtime_hours, issue_type, action_type,
+        note, source_type, source_log_id, source_text, created_by_id, created_by_name, created_at, updated_at, archived_at
+      ) SELECT ?, id, tag_number, event_type, event_date, runtime_hours, issue_type, action_type,
+        note, source_type, source_log_id, source_text, created_by_id, created_by_name, created_at, updated_at, ?
+        FROM blower_history_events
+        WHERE event_type = 'replacement' AND source_type IN ('shift_log_auto','shift_log_history_auto','shift_log_history_v12')
+    `).bind(HISTORY_RECOVERY_V12_ID, now),
+    database.prepare(`
+      INSERT OR IGNORE INTO blower_history_candidate_archive (
+        migration_id, id, source_fingerprint, tag_number, detected_type, detected_date, issue_type, action_type,
+        source_log_id, source_shift, source_role, source_author, source_text, status, reviewed_by_id,
+        reviewed_by_name, reviewed_at, created_at, archived_at
+      ) SELECT ?, id, source_fingerprint, tag_number, detected_type, detected_date, issue_type, action_type,
+        source_log_id, source_shift, source_role, source_author, source_text, status, reviewed_by_id,
+        reviewed_by_name, reviewed_at, created_at, ?
+        FROM blower_history_candidates
+        WHERE detected_type = 'replacement'
+          AND ((status = 'auto_confirmed' AND reviewed_by_id = 'history_auto') OR (status = 'pending' AND COALESCE(reviewed_by_id,'') = ''))
+    `).bind(HISTORY_RECOVERY_V12_ID, now),
+    database.prepare(`
+      DELETE FROM blower_history_candidates
+      WHERE detected_type = 'replacement'
+        AND ((status = 'auto_confirmed' AND reviewed_by_id = 'history_auto') OR (status = 'pending' AND COALESCE(reviewed_by_id,'') = ''))
+    `),
+    database.prepare(`
+      DELETE FROM blower_history_events
+      WHERE event_type = 'replacement' AND source_type IN ('shift_log_auto','shift_log_history_auto','shift_log_history_v12')
+    `),
+    database.prepare(`
+      INSERT OR IGNORE INTO blower_history_events (
+        id, tag_number, event_type, event_date, runtime_hours, issue_type, action_type, note,
+        source_type, source_log_id, source_text, created_by_id, created_by_name, created_at, updated_at
+      ) SELECT 'v12:' || event_key, tag_number, 'replacement', event_date, 0, '정기주기', 'V-Belt 교체',
+        'V12 확정 복구', 'shift_log_history_v12', source_log_id, source_text,
+        'history_v12', '업무일지 V12 확정복구', ?, ?
+        FROM blower_history_recovery_v12_stage
+    `).bind(now, now),
+    database.prepare(`
+      UPDATE blower_history_assets AS asset
+      SET
+        last_replacement_at = (
+          SELECT event.event_date FROM blower_history_events event
+          WHERE event.tag_number = asset.tag_number AND event.event_type = 'replacement'
+          ORDER BY event.event_date DESC, event.created_at DESC LIMIT 1
+        ),
+        runtime_hours = CASE
+          WHEN EXISTS (
+            SELECT 1 FROM blower_history_events correction
+            WHERE correction.tag_number = asset.tag_number AND correction.event_type = 'runtime_correction'
+              AND correction.source_type = 'manual'
+              AND correction.event_date >= COALESCE((SELECT event.event_date FROM blower_history_events event WHERE event.tag_number = asset.tag_number AND event.event_type = 'replacement' ORDER BY event.event_date DESC, event.created_at DESC LIMIT 1),'9999-12-31')
+          ) THEN COALESCE((SELECT snap.runtime_hours FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number), asset.runtime_hours)
+          WHEN (SELECT event.event_date FROM blower_history_events event WHERE event.tag_number = asset.tag_number AND event.event_type = 'replacement' ORDER BY event.event_date DESC, event.created_at DESC LIMIT 1) IS NULL
+            THEN COALESCE((SELECT snap.runtime_hours FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number), asset.runtime_hours)
+          WHEN COALESCE((SELECT snap.last_replacement_at FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number),'') = COALESCE((SELECT event.event_date FROM blower_history_events event WHERE event.tag_number = asset.tag_number AND event.event_type = 'replacement' ORDER BY event.event_date DESC, event.created_at DESC LIMIT 1),'')
+            THEN COALESCE((SELECT snap.runtime_hours FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number), asset.runtime_hours)
+          ELSE 0 END,
+        runtime_anchor_at = CASE
+          WHEN EXISTS (
+            SELECT 1 FROM blower_history_events correction
+            WHERE correction.tag_number = asset.tag_number AND correction.event_type = 'runtime_correction'
+              AND correction.source_type = 'manual'
+              AND correction.event_date >= COALESCE((SELECT event.event_date FROM blower_history_events event WHERE event.tag_number = asset.tag_number AND event.event_type = 'replacement' ORDER BY event.event_date DESC, event.created_at DESC LIMIT 1),'9999-12-31')
+          ) THEN (SELECT snap.runtime_anchor_at FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number)
+          WHEN COALESCE((SELECT snap.last_replacement_at FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number),'') = COALESCE((SELECT event.event_date FROM blower_history_events event WHERE event.tag_number = asset.tag_number AND event.event_type = 'replacement' ORDER BY event.event_date DESC, event.created_at DESC LIMIT 1),'')
+            THEN (SELECT snap.runtime_anchor_at FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number)
+          WHEN COALESCE((SELECT snap.is_running FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number), asset.is_running) = 1
+            THEN (SELECT event.event_date FROM blower_history_events event WHERE event.tag_number = asset.tag_number AND event.event_type = 'replacement' ORDER BY event.event_date DESC, event.created_at DESC LIMIT 1)
+          ELSE NULL END,
+        is_running = COALESCE((SELECT snap.is_running FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number), asset.is_running),
+        last_modified_by_id = CASE
+          WHEN EXISTS (
+            SELECT 1 FROM blower_history_events correction
+            WHERE correction.tag_number = asset.tag_number AND correction.event_type = 'runtime_correction'
+              AND correction.source_type = 'manual'
+              AND correction.event_date >= COALESCE((SELECT event.event_date FROM blower_history_events event WHERE event.tag_number = asset.tag_number AND event.event_type = 'replacement' ORDER BY event.event_date DESC, event.created_at DESC LIMIT 1),'9999-12-31')
+          ) OR COALESCE((SELECT snap.last_replacement_at FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number),'') = COALESCE((SELECT event.event_date FROM blower_history_events event WHERE event.tag_number = asset.tag_number AND event.event_type = 'replacement' ORDER BY event.event_date DESC, event.created_at DESC LIMIT 1),'')
+          THEN COALESCE((SELECT snap.last_modified_by_id FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number), asset.last_modified_by_id)
+          ELSE 'history_v12' END,
+        last_modified_by_name = CASE
+          WHEN EXISTS (
+            SELECT 1 FROM blower_history_events correction
+            WHERE correction.tag_number = asset.tag_number AND correction.event_type = 'runtime_correction'
+              AND correction.source_type = 'manual'
+              AND correction.event_date >= COALESCE((SELECT event.event_date FROM blower_history_events event WHERE event.tag_number = asset.tag_number AND event.event_type = 'replacement' ORDER BY event.event_date DESC, event.created_at DESC LIMIT 1),'9999-12-31')
+          ) OR COALESCE((SELECT snap.last_replacement_at FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number),'') = COALESCE((SELECT event.event_date FROM blower_history_events event WHERE event.tag_number = asset.tag_number AND event.event_type = 'replacement' ORDER BY event.event_date DESC, event.created_at DESC LIMIT 1),'')
+          THEN COALESCE((SELECT snap.last_modified_by_name FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number), asset.last_modified_by_name)
+          ELSE '업무일지 V12 확정복구' END,
+        updated_at = ?
+      WHERE EXISTS (SELECT 1 FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number)
+    `).bind(
+      HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID,
+      HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID,
+      HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID,
+      HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID,
+      now, HISTORY_RECOVERY_V12_ID
+    ),
+    database.prepare(`
+      INSERT INTO blower_history_backfill_state (
+        id, target_date, cursor_date, cursor_id, status, scanned_logs, auto_confirmed_events,
+        pending_candidates, started_at, completed_at, updated_at
+      ) VALUES (?, ?, ?, '', 'complete', ?, ?, 0, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        target_date = excluded.target_date, cursor_date = excluded.cursor_date, cursor_id = '',
+        status = 'complete', scanned_logs = excluded.scanned_logs,
+        auto_confirmed_events = excluded.auto_confirmed_events,
+        pending_candidates = 0, completed_at = excluded.completed_at, updated_at = excluded.updated_at
+    `).bind(HISTORY_BACKFILL_ID, today, HISTORY_RECOVERY_V12_CUTOFF_DATE, counts.staged, counts.staged, now, now, now),
+    database.prepare(`
+      UPDATE blower_history_recovery_v12_state
+      SET status = 'complete', staged_events = ?, completed_at = ?, message = ?, updated_at = ?
+      WHERE id = ?
+    `).bind(counts.staged, now, `V12 확정 복구 ${counts.staged}건 적용 완료`, now, HISTORY_RECOVERY_V12_ID)
+  ]);
+  return { ok: true, applied: true, message: `확정된 V-Belt 교체 이력 ${counts.staged}건을 V12로 복구했습니다.` };
+}
+
+async function historicalRecoveryV12Step(database) {
+  await ensureHistoryRecoveryV12Schema(database);
+  let state = await v12LoadState(database);
+  if (state?.status === 'complete') return jsonResponse({ ok: true, done: true, applied: true, recovery: state, message: state.message });
+  if (state?.status === 'blocked') return jsonResponse({ ok: false, done: true, blocked: true, recovery: state, message: state.message }, 409);
+  const lock = await v12ClaimLock(database);
+  if (!lock) return jsonResponse({ ok: true, busy: true, done: false, recovery: state, message: '다른 V12 복구 작업이 진행 중입니다.' });
+
+  try {
+    state = await v12LoadState(database);
+    if (state.status === 'ready') {
+      const applied = await v12ApplyConfirmedEvents(database);
+      if (!applied.ok) {
+        const now = new Date().toISOString();
+        await database.prepare(`UPDATE blower_history_recovery_v12_state SET status='blocked', message=?, updated_at=? WHERE id=?`).bind(applied.message, now, HISTORY_RECOVERY_V12_ID).run();
+        return jsonResponse({ ...applied, done: true, recovery: await v12LoadState(database) }, 409);
+      }
+      return jsonResponse({ ...applied, done: true, recovery: await v12LoadState(database) });
+    }
+
+    const source = HISTORY_RECOVERY_V12_SOURCE_ORDER.includes(state.sourceTable) ? state.sourceTable : HISTORY_RECOVERY_V12_SOURCE_ORDER[0];
+    let page;
+    try {
+      page = await v12LoadSourcePage(database, source, state.cursorRowId);
+    } catch (error) {
+      return jsonResponse({ ok: false, retryable: true, code: 'V12_SOURCE_UNAVAILABLE', message: 'V12 원문 조회가 일시적으로 실패했습니다. 같은 위치에서 재시도합니다.', detail: error instanceof Error ? error.message : String(error), recovery: state }, 503);
+    }
+
+    const stored = await database.prepare(`SELECT * FROM blower_history_assets WHERE enabled = 1 ORDER BY sort_order, tag_number`).all();
+    const assets = buildHistoricalAuditAssets(Array.isArray(stored.results) ? stored.results : []);
+    const records = analyzeHistoricalAuditRows(page.rows, source, assets);
+    const now = new Date().toISOString();
+    for (const record of records) {
+      const evaluation = v12EvaluateAuditRecord(record, assets);
+      await v12InsertAuditRecord(database, record, evaluation, now);
+      if (evaluation.category === 'confirmed') {
+        for (const item of evaluation.events) await v12StageEvent(database, record, item, evaluation.reason, now);
+      }
+    }
+
+    const sourceIndex = HISTORY_RECOVERY_V12_SOURCE_ORDER.indexOf(source);
+    const nextSource = page.complete && sourceIndex + 1 < HISTORY_RECOVERY_V12_SOURCE_ORDER.length
+      ? HISTORY_RECOVERY_V12_SOURCE_ORDER[sourceIndex + 1] : source;
+    const allDone = page.complete && sourceIndex === HISTORY_RECOVERY_V12_SOURCE_ORDER.length - 1;
+    const counts = await v12RefreshCounts(database);
+    const nextStatus = allDone ? (counts.staged === HISTORY_RECOVERY_V12_EXPECTED_EVENTS ? 'ready' : 'blocked') : 'scanning';
+    const message = allDone
+      ? (counts.staged === HISTORY_RECOVERY_V12_EXPECTED_EVENTS
+        ? `사전검증 완료: 확정 ${counts.staged}건 / 기대 ${HISTORY_RECOVERY_V12_EXPECTED_EVENTS}건`
+        : `안전 차단: 확정 ${counts.staged}건 / 기대 ${HISTORY_RECOVERY_V12_EXPECTED_EVENTS}건. 기존 저장값은 변경하지 않았습니다.`)
+      : `V12 원문 확인 중: 확정 ${counts.staged}건`;
+    await database.prepare(`
+      UPDATE blower_history_recovery_v12_state SET status=?, source_table=?, cursor_row_id=?,
+        scanned_rows=scanned_rows+?, staged_events=?, review_records=?, unmatched_records=?, message=?, updated_at=?
+      WHERE id=?
+    `).bind(nextStatus, nextSource, page.complete && !allDone ? 0 : page.cursorRowId, page.scannedRows, counts.staged, counts.review, counts.unmatched, message, now, HISTORY_RECOVERY_V12_ID).run();
+
+    const updated = await v12LoadState(database);
+    if (nextStatus === 'blocked') return jsonResponse({ ok: false, done: true, blocked: true, applied: false, recovery: updated, message }, 409);
+    return jsonResponse({ ok: true, done: false, ready: nextStatus === 'ready', recovery: updated, message });
+  } finally {
+    await v12ReleaseLock(database, lock.token);
+  }
+}
+
+async function resetHistoricalRecoveryV12(database) {
+  await ensureHistoryRecoveryV12Schema(database);
+  const current = await v12LoadState(database);
+  if (current?.status === 'complete') return jsonResponse({ ok: false, message: '이미 적용 완료된 V12는 화면에서 초기화할 수 없습니다.' }, 409);
+  const now = new Date().toISOString();
+  await database.batch([
+    database.prepare(`DELETE FROM blower_history_recovery_v12_stage`),
+    database.prepare(`DELETE FROM blower_history_recovery_v12_audit`),
+    database.prepare(`UPDATE blower_history_recovery_v12_state SET status='scanning', source_table='shift_logs', cursor_row_id=0, scanned_rows=0, staged_events=0, review_records=0, unmatched_records=0, lock_token='', lock_expires_at='', started_at=?, completed_at=NULL, message='', updated_at=? WHERE id=?`).bind(now, now, HISTORY_RECOVERY_V12_ID)
+  ]);
+  return jsonResponse({ ok: true, message: 'V12 사전검증 상태를 초기화했습니다.', recovery: await v12LoadState(database) });
+}
+
+async function exportHistoricalRecoveryV12(database, category) {
+  await ensureHistoryRecoveryV12Schema(database);
+  const safeCategory = ['confirmed','review','unmatched'].includes(normalizeText(category)) ? normalizeText(category) : 'confirmed';
+  let rows;
+  if (safeCategory === 'confirmed') {
+    const result = await database.prepare(`SELECT * FROM blower_history_recovery_v12_stage ORDER BY event_date, tag_number`).all();
+    rows = Array.isArray(result.results) ? result.results : [];
+  } else if (safeCategory === 'review') {
+    const result = await database.prepare(`SELECT * FROM blower_history_recovery_v12_audit WHERE category='review' ORDER BY work_date, source_row_id`).all();
+    rows = Array.isArray(result.results) ? result.results : [];
+  } else {
+    const result = await database.prepare(`SELECT * FROM blower_history_recovery_v12_audit WHERE category IN ('unmatched','excluded') ORDER BY work_date, source_row_id`).all();
+    rows = Array.isArray(result.results) ? result.results : [];
+  }
+  return jsonResponse({ ok: true, version: HISTORY_RECOVERY_V12_VERSION, category: safeCategory, expectedConfirmed: HISTORY_RECOVERY_V12_EXPECTED_EVENTS, recovery: await v12LoadState(database), records: rows });
+}
+
 async function handlePost(context, user, body) {
   const action = normalizeText(body.action);
   const database = context.env.DB;
@@ -5122,14 +5853,32 @@ async function handlePost(context, user, body) {
   }
 
   if (action === "historical_backfill_step") {
-    if (!user.isSuperAdmin) {
-      return jsonResponse(
-        { ok: false, message: "과거 업무일지 재분석은 최고관리자만 실행할 수 있습니다." },
-        403
-      );
-    }
+    return jsonResponse({
+      ok: false,
+      code: "LEGACY_BACKFILL_DISABLED_V12",
+      message: "기존 [과거 이력 재구성]은 V12에서 차단되었습니다. [확정 이력 복구 V12]를 사용해 주세요."
+    }, 409);
+  }
 
-    return historicalBackfillStep(database);
+  if (action === "historical_recovery_v12_step") {
+    if (!user.isSuperAdmin) {
+      return jsonResponse({ ok: false, message: "V12 확정 복구는 최고관리자만 실행할 수 있습니다." }, 403);
+    }
+    return historicalRecoveryV12Step(database);
+  }
+
+  if (action === "historical_recovery_v12_reset") {
+    if (!user.isSuperAdmin) {
+      return jsonResponse({ ok: false, message: "V12 초기화는 최고관리자만 실행할 수 있습니다." }, 403);
+    }
+    return resetHistoricalRecoveryV12(database);
+  }
+
+  if (action === "historical_recovery_v12_export") {
+    if (!user.isSuperAdmin) {
+      return jsonResponse({ ok: false, message: "V12 감사자료는 최고관리자만 내려받을 수 있습니다." }, 403);
+    }
+    return exportHistoricalRecoveryV12(database, body.category);
   }
 
   if (action === "historical_audit_step") {

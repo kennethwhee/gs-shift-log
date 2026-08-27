@@ -631,7 +631,7 @@
   }
 
   function isShiftLogEvent(event) {
-    return ["shift_log_auto", "shift_log_history_auto"].includes(event?.sourceType);
+    return ["shift_log_auto", "shift_log_history_auto", "shift_log_history_v12"].includes(event?.sourceType);
   }
 
   function readableEvidence(event) {
@@ -743,7 +743,7 @@
         ` : awaitingBackfill ? `
           <div class="unknown-cycle is-rebuild-pending">
             <strong>자동 이력 재확인 중</strong>
-            <p>과거 이력 재구성 후 교체일과 경과시간을 표시합니다.</p>
+            <p>V12 확정 복구 후 교체일과 경과시간을 표시합니다.</p>
             <small>수동 등록 이력은 재구성과 관계없이 유지됩니다.</small>
           </div>
         ` : `
@@ -1104,7 +1104,7 @@
       elements.candidateEmpty.hidden = true;
       elements.candidateList.innerHTML = `
         <div class="candidate-rebuild-lock">
-          <strong>과거 이력 재구성을 먼저 완료해 주세요.</strong>
+          <strong>V12 확정 이력 복구를 먼저 완료해 주세요.</strong>
           <span>기존 자동감지 후보는 재구성 완료 후 새 기준으로 다시 표시됩니다. 수동 등록 이력은 영향을 받지 않습니다.</span>
         </div>
       `;
@@ -1163,26 +1163,26 @@
     if (showOverviewCallout) {
       elements.overviewBackfillTitle.textContent = catchUpRequired
         ? "최신 업무일지 반영"
-        : "과거 교체 이력 확인 필요";
+        : "확정 교체 이력 복구 필요";
       elements.overviewBackfillSummary.textContent = state.backfillRunning
         ? catchUpRequired
           ? "새 업무일지를 반영하고 있습니다. 기존에 확정된 교체 이력은 그대로 유지됩니다."
-          : "업무일지를 다시 분석하고 있습니다. 완료 후 확정된 교체주기가 자동 표시됩니다."
+          : "업무일지 원문을 V12 기준으로 검증하고 있습니다. 확정 76건이 맞을 때만 교체 이력을 갱신합니다."
         : catchUpRequired
           ? "마지막 완료 이후의 업무일지만 추가 확인합니다. 기존 교체 이력은 그대로 유지됩니다."
           : interrupted
             ? "중단된 지점부터 이어서 재구성할 수 있습니다."
             : isSuperAdmin
-              ? "재구성 완료 전에는 기존 자동감지 이력을 확정값으로 표시하지 않습니다. 지금 한 번 실행해 주세요."
-              : "최고관리자의 과거 이력 재구성이 완료되면 확정된 교체주기가 표시됩니다.";
+              ? "V12는 확정 76건을 먼저 검증한 뒤에만 기존 자동 교체 이력을 교체합니다. 실행해 주세요."
+              : "최고관리자의 V12 확정 복구가 완료되면 검증된 교체주기가 표시됩니다.";
 
       const buttonLabel = state.backfillRunning
-        ? "재구성 중..."
+        ? "V12 검증·복구 중..."
         : catchUpRequired
           ? "최신 이력 반영"
           : interrupted
-            ? "이어서 재구성"
-            : "과거 이력 재구성";
+            ? "V12 이어서 복구"
+            : "확정 이력 복구 V12";
       elements.overviewBackfillButton.textContent = buttonLabel;
       elements.historicalBackfillButton.textContent = buttonLabel;
     }
@@ -1190,7 +1190,7 @@
     if (!backfill || backfill.hasRun === false || backfill.requiresInitialRebuild === true) {
       notice.hidden = false;
       notice.dataset.state = "required";
-      notice.textContent = "과거 이력 재구성 필요 · 아직 실행하지 않음";
+      notice.textContent = "V12 확정 복구 필요 · 아직 실행하지 않음";
       return;
     }
 
@@ -1203,13 +1203,13 @@
 
     if (state.backfillRunning) {
       notice.dataset.state = "running";
-      notice.textContent = `과거 이력 재구성 진행 중 · ${target}까지 ${scanned}건 확인 · 교체 이력 ${events}건 반영 · 검토 대기 ${pending}건`;
+      notice.textContent = `V12 확정 복구 진행 중 · ${target}까지 ${scanned}건 확인 · 교체 이력 ${events}건 · 검토 대기 ${pending}건`;
       return;
     }
 
     if (backfill.isCompleteForToday) {
       notice.dataset.state = "complete";
-      notice.textContent = `과거 이력 재구성 완료 · ${target}까지 ${scanned}건 확인 · 교체 이력 ${events}건 반영`;
+      notice.textContent = `V12 확정 복구 완료 · ${target}까지 ${scanned}건 확인 · 교체 이력 ${events}건 반영`;
       return;
     }
 
@@ -1221,8 +1221,8 @@
 
     notice.dataset.state = "required";
     notice.textContent = backfill.status === "running"
-      ? `과거 이력 재구성 필요 · 중단 지점부터 재개 가능 · 기존 확인 ${scanned}건`
-      : `과거 이력 재구성 필요 · 마지막 기준 ${target} · 기존 확인 ${scanned}건`;
+      ? `V12 확정 복구 필요 · 중단 지점부터 재개 가능 · 기존 확인 ${scanned}건`
+      : `V12 확정 복구 필요 · 마지막 기준 ${target} · 기존 확인 ${scanned}건`;
   }
 
   function renderAll() {
@@ -1494,6 +1494,43 @@
     }
   }
 
+  async function downloadRecoveryV12Audits() {
+    const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "");
+    const files = [
+      ["confirmed", `blower-vbelt-v12-confirmed-${stamp}.json`],
+      ["review", `blower-vbelt-v12-review-${stamp}.json`],
+      ["unmatched", `blower-vbelt-v12-unmatched-${stamp}.json`]
+    ];
+
+    for (const [category, filename] of files) {
+      const payload = await apiRequest({
+        method: "POST",
+        body: { action: "historical_recovery_v12_export", category }
+      });
+      downloadAuditJson(payload, filename);
+      await waitForMilliseconds(180);
+    }
+  }
+
+  async function requestRecoveryV12Step() {
+    const waits = [1000, 2000, 4000, 8000];
+    for (let attempt = 0; attempt <= waits.length; attempt += 1) {
+      try {
+        return await apiRequest({
+          method: "POST",
+          body: { action: "historical_recovery_v12_step" }
+        });
+      } catch (error) {
+        const retryable = error?.retryable === true || [0, 429, 502, 503, 504].includes(Number(error?.status));
+        if (!retryable || attempt >= waits.length) throw error;
+        const waitMs = Math.min(15000, Math.max(300, Number(error?.retryAfterMs) || waits[attempt]));
+        showToast(`V12 원문 조회 재시도 ${attempt + 1}/${waits.length}`);
+        await waitForMilliseconds(waitMs);
+      }
+    }
+    throw new Error("V12 재시도 횟수를 초과했습니다.");
+  }
+
   async function runHistoricalBackfill() {
     if (
       state.busy
@@ -1505,15 +1542,15 @@
     const today = formatKstDateInput();
     if (state.data?.backfill?.isCompleteForToday && state.data?.backfill?.targetDate === today) {
       renderBackfillStatus(state.data.backfill);
-      showToast("오늘 기준 과거 이력 재구성이 완료되어 있습니다.");
+      showToast("V12 확정 복구가 완료되어 있습니다.");
       return;
     }
 
     state.backfillRunning = true;
     elements.historicalBackfillButton.disabled = true;
-    elements.historicalBackfillButton.textContent = "재구성 중...";
+    elements.historicalBackfillButton.textContent = "V12 검증·복구 중...";
     elements.overviewBackfillButton.disabled = true;
-    elements.overviewBackfillButton.textContent = "재구성 중...";
+    elements.overviewBackfillButton.textContent = "V12 검증·복구 중...";
     elements.scanButton.disabled = true;
     elements.refreshButton.disabled = true;
     elements.auditHistoryButton.disabled = true;
@@ -1521,40 +1558,50 @@
     let lastResult = null;
 
     try {
-      for (let step = 0; step < 500; step += 1) {
-        lastResult = await apiRequest({
-          method: "POST",
-          body: { action: "historical_backfill_step" }
-        });
-
-        if (lastResult.backfill) {
-          renderBackfillStatus(lastResult.backfill);
+      for (let step = 0; step < 1000; step += 1) {
+        lastResult = await requestRecoveryV12Step();
+        const recovery = lastResult?.recovery;
+        if (recovery) {
+          const staged = Number(recovery.stagedEvents || 0).toLocaleString("ko-KR");
+          const expected = Number(recovery.expectedEvents || 76).toLocaleString("ko-KR");
+          elements.historicalBackfillNotice.hidden = false;
+          elements.historicalBackfillNotice.dataset.state = recovery.status === "complete" ? "complete" : "running";
+          elements.historicalBackfillNotice.textContent = `V12 ${recovery.status} · 확정 ${staged}/${expected}건 · 원문 ${Number(recovery.scannedRows || 0).toLocaleString("ko-KR")}건 확인`;
         }
-
-        if (lastResult.done || lastResult.busy) {
-          break;
-        }
+        if (lastResult.done || lastResult.busy) break;
       }
 
       await loadData({ silent: true });
 
-      if (lastResult?.done) {
-        showToast("과거 이력 재구성을 오늘 기준까지 완료했습니다.");
+      if (lastResult?.done && lastResult?.applied) {
+        showToast("V12 확정 교체 이력 76건 복구를 완료했습니다.");
+        try {
+          await downloadRecoveryV12Audits();
+        } catch (auditError) {
+          console.error("V12 감사자료 내려받기 실패:", auditError);
+          showToast("복구는 완료됐지만 감사자료 자동 내려받기에 실패했습니다.", "error");
+        }
       } else if (lastResult?.busy) {
-        showToast(lastResult.message || "다른 재구성 작업이 진행 중입니다.");
+        showToast(lastResult.message || "다른 V12 복구 작업이 진행 중입니다.");
       } else {
-        showToast("과거 이력 재구성 진행상태를 저장했습니다.");
+        showToast(lastResult?.message || "V12 사전검증 진행상태를 저장했습니다.");
       }
     } catch (error) {
-      console.error("과거 Blower 이력 재구성 실패:", error);
-      showToast(error.message || "과거 이력 재구성에 실패했습니다.", "error");
+      console.error("Blower V12 확정 복구 실패:", error);
+      if (error?.payload?.blocked || error?.payload?.recovery?.status === "blocked") {
+        try { await downloadRecoveryV12Audits(); } catch (auditError) { console.error(auditError); }
+        showToast(error.message || "확정 건수가 76건과 달라 안전 차단했습니다. 기존 저장값은 유지됩니다.", "error");
+      } else {
+        showToast(error.message || "V12 확정 복구에 실패했습니다.", "error");
+      }
+      await loadData({ silent: true });
     } finally {
       state.backfillRunning = false;
       elements.historicalBackfillButton.disabled = state.busy;
-      elements.historicalBackfillButton.textContent = "과거 이력 재구성";
+      elements.historicalBackfillButton.textContent = "확정 이력 복구 V12";
       elements.overviewBackfillButton.disabled = state.busy;
-      elements.overviewBackfillButton.textContent = "과거 이력 재구성";
-      elements.scanButton.disabled = state.busy;
+      elements.overviewBackfillButton.textContent = "확정 이력 복구 V12";
+      elements.scanButton.disabled = state.busy || shouldHideAutomaticData();
       elements.refreshButton.disabled = state.busy;
       elements.auditHistoryButton.disabled = state.busy || state.auditRunning;
       renderBackfillStatus();

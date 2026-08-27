@@ -51,7 +51,7 @@
               <strong id="overviewBackfillTitle">과거 교체 이력 확인 필요</strong>
               <span id="overviewBackfillSummary">재구성 완료 전에는 기존 자동감지 이력을 확정값으로 표시하지 않습니다.</span>
             </div>
-            <button type="button" class="button primary" id="overviewBackfillButton" hidden>과거 이력 재구성</button>
+            <button type="button" class="button primary" id="overviewBackfillButton" hidden>확정 이력 복구 V12</button>
           </section>
 
           <section class="status-toolbar" aria-label="설비 상태 필터">
@@ -163,11 +163,11 @@
                   </select>
                 </label>
                 <button type="button" class="button primary" id="scanButton">업무일지 분석</button>
-                <button type="button" class="button secondary" id="historicalBackfillButton" hidden>과거 이력 재구성</button>
+                <button type="button" class="button secondary" id="historicalBackfillButton" hidden>확정 이력 복구 V12</button>
               </div>
             </div>
             <div class="detect-guide">
-              과거 이력 재구성은 최고관리자가 필요할 때 직접 실행합니다. 파트장 직접 작성 문구는 자동확정에서 제외하되, 취합 항목에 원래 보직이 보존된 경우에는 원 업무일지 항목으로 분석합니다. 같은 날짜·교대에서 BCO1↔BO1, BCO2↔BO2, TGO↔TO 내용이 70% 이상 중복되면 하위보직의 중복 구절은 제외하고 상위보직(BCO1·BCO2·TGO) 내용을 기준으로 이력화합니다. 70% 미만의 하위보직 고유 내용은 그대로 분석합니다. 교체 이력은 V-Belt / V Belt / Belt 교체만 포함하며 Suction Filter, Oil, Bearing, Motor 등 다른 부품 교체는 자동감지에서 제외합니다.
+              확정 이력 복구 V12은 최고관리자가 필요할 때 직접 실행합니다. 파트장 직접 작성 문구는 자동확정에서 제외하되, 취합 항목에 원래 보직이 보존된 경우에는 원 업무일지 항목으로 분석합니다. 같은 날짜·교대에서 BCO1↔BO1, BCO2↔BO2, TGO↔TO 내용이 70% 이상 중복되면 하위보직의 중복 구절은 제외하고 상위보직(BCO1·BCO2·TGO) 내용을 기준으로 이력화합니다. 70% 미만의 하위보직 고유 내용은 그대로 분석합니다. 교체 이력은 V-Belt / V Belt / Belt 교체만 포함하며 Suction Filter, Oil, Bearing, Motor 등 다른 부품 교체는 자동감지에서 제외합니다.
             </div>
             <div class="candidate-list" id="candidateList"></div>
             <div class="empty-state" id="candidateEmpty">검토 대기 중인 자동감지 후보가 없습니다.</div>
