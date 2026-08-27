@@ -250434,3 +250434,1400 @@ async function restoreSolarCumulativeFromD1() {
     }
   );
 })();
+
+/* =========================================================
+  SHIFT_LOG_PID_DIRECT_VIEW_V1
+
+  업무일지 TAG -> Facility Navigator 최신 P&ID 매핑 -> PDF 직접 열기
+
+  설계 원칙:
+  - P&ID 매핑은 업무일지에 복사하지 않는다.
+  - Facility Navigator의 data/pidMap.js를 클릭 시점에 읽는다.
+  - TAG 정확 일치만 사용한다.
+  - 1개 도면: 즉시 PDF 열기
+  - 복수 도면: 업무일지 안에서 선택 후 PDF 열기
+  - 매핑 없음/로드 실패: 해당 TAG의 Navigator 화면으로 fallback
+  - 기존 TAG 클릭(설비 Navigator 이동)은 그대로 유지한다.
+========================================================= */
+
+(function installShiftLogPidDirectViewV1() {
+  "use strict";
+
+  if (
+    window.__shiftLogPidDirectViewV1Installed ===
+    true
+  ) {
+    return;
+  }
+
+  window.__shiftLogPidDirectViewV1Installed =
+    true;
+
+  const NAVIGATOR_BASE_URL =
+    (
+      typeof FACILITY_NAVIGATOR_URL ===
+        "string" &&
+      FACILITY_NAVIGATOR_URL
+    )
+      ? FACILITY_NAVIGATOR_URL
+      : "https://gs-facility-navigator-2mg.pages.dev/";
+
+  const NAVIGATOR_PID_MAP_URL =
+    new URL(
+      "data/pidMap.js",
+      NAVIGATOR_BASE_URL
+    ).toString();
+
+  const PID_MAP_SCRIPT_ID =
+    "shiftLogNavigatorPidMapScript";
+
+  const PID_STYLE_ID =
+    "shiftLogPidDirectStyle";
+
+  const PID_PICKER_ID =
+    "shiftLogPidPicker";
+
+  const PID_DRAWING_WINDOW_NAME =
+    "GS_PID_DRAWING";
+
+  let pidMapLoadPromise =
+    null;
+
+  let enhanceFrameId =
+    0;
+
+  function normalizePidTag(
+    value
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /\s+/g,
+        ""
+      );
+  }
+
+  function notifyPidUser(
+    message
+  ) {
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message
+      );
+
+      return;
+    }
+
+    console.info(
+      message
+    );
+  }
+
+  function getNavigatorPidIndex() {
+    const index =
+      window.NAVIGATOR_PID_PILOT;
+
+    if (
+      !index ||
+      typeof index !==
+        "object" ||
+      !index.documents ||
+      !index.tagLinks
+    ) {
+      return null;
+    }
+
+    return index;
+  }
+
+  function loadNavigatorPidIndex() {
+    const existingIndex =
+      getNavigatorPidIndex();
+
+    if (
+      existingIndex
+    ) {
+      return Promise.resolve(
+        existingIndex
+      );
+    }
+
+    if (
+      pidMapLoadPromise
+    ) {
+      return pidMapLoadPromise;
+    }
+
+    pidMapLoadPromise =
+      new Promise(
+        (
+          resolve,
+          reject
+        ) => {
+          let script =
+            document.getElementById(
+              PID_MAP_SCRIPT_ID
+            );
+
+          const finishLoad =
+            () => {
+              const index =
+                getNavigatorPidIndex();
+
+              if (
+                index
+              ) {
+                resolve(
+                  index
+                );
+
+                return;
+              }
+
+              reject(
+                new Error(
+                  "Facility Navigator P&ID 매핑을 확인하지 못했습니다."
+                )
+              );
+            };
+
+          if (
+            script
+          ) {
+            if (
+              script.dataset.loaded ===
+                "true"
+            ) {
+              finishLoad();
+
+              return;
+            }
+
+            script.addEventListener(
+              "load",
+              finishLoad,
+              {
+                once:
+                  true
+              }
+            );
+
+            script.addEventListener(
+              "error",
+              () => {
+                reject(
+                  new Error(
+                    "Facility Navigator P&ID 매핑 파일을 불러오지 못했습니다."
+                  )
+                );
+              },
+              {
+                once:
+                  true
+              }
+            );
+
+            return;
+          }
+
+          script =
+            document.createElement(
+              "script"
+            );
+
+          script.id =
+            PID_MAP_SCRIPT_ID;
+
+          script.async =
+            true;
+
+          /*
+            클릭할 때 최신 Navigator 매핑을 읽는다.
+            업무일지 쪽에 별도 매핑 복사본을 두지 않는다.
+          */
+          const sourceUrl =
+            new URL(
+              NAVIGATOR_PID_MAP_URL
+            );
+
+          sourceUrl.searchParams.set(
+            "shiftLogPidBridge",
+            "v1"
+          );
+
+          sourceUrl.searchParams.set(
+            "_",
+            String(
+              Date.now()
+            )
+          );
+
+          script.src =
+            sourceUrl.toString();
+
+          script.addEventListener(
+            "load",
+            () => {
+              script.dataset.loaded =
+                "true";
+
+              finishLoad();
+            },
+            {
+              once:
+                true
+            }
+          );
+
+          script.addEventListener(
+            "error",
+            () => {
+              reject(
+                new Error(
+                  "Facility Navigator P&ID 매핑 파일을 불러오지 못했습니다."
+                )
+              );
+            },
+            {
+              once:
+                true
+            }
+          );
+
+          document.head.append(
+            script
+          );
+        }
+      )
+        .catch(
+          error => {
+            pidMapLoadPromise =
+              null;
+
+            throw error;
+          }
+        );
+
+    return pidMapLoadPromise;
+  }
+
+  function getPidDocumentsForTag(
+    index,
+    rawTag
+  ) {
+    const tag =
+      normalizePidTag(
+        rawTag
+      );
+
+    if (
+      !tag
+    ) {
+      return [];
+    }
+
+    const documents =
+      index?.documents &&
+      typeof index.documents ===
+        "object"
+        ? index.documents
+        : {};
+
+    const tagLinks =
+      index?.tagLinks &&
+      typeof index.tagLinks ===
+        "object"
+        ? Object.values(
+            index.tagLinks
+          )
+        : [];
+
+    const documentIds =
+      new Set();
+
+    tagLinks.forEach(
+      link => {
+        if (
+          normalizePidTag(
+            link?.tagNo
+          ) !==
+          tag
+        ) {
+          return;
+        }
+
+        const ids =
+          Array.isArray(
+            link?.documentIds
+          )
+            ? link.documentIds
+            : [];
+
+        ids.forEach(
+          id => {
+            const normalizedId =
+              String(
+                id ||
+                ""
+              ).trim();
+
+            if (
+              normalizedId
+            ) {
+              documentIds.add(
+                normalizedId
+              );
+            }
+          }
+        );
+      }
+    );
+
+    return [
+      ...documentIds
+    ]
+      .map(
+        documentId => {
+          const documentInfo =
+            documents[
+              documentId
+            ];
+
+          if (
+            !documentInfo ||
+            typeof documentInfo !==
+              "object" ||
+            !String(
+              documentInfo.pdfFile ||
+              ""
+            ).trim()
+          ) {
+            return null;
+          }
+
+          return {
+            id:
+              documentId,
+
+            ...documentInfo
+          };
+        }
+      )
+      .filter(
+        Boolean
+      );
+  }
+
+  function createPidDocumentUrl(
+    documentInfo
+  ) {
+    const relativePdf =
+      String(
+        documentInfo?.pdfFile ||
+        ""
+      )
+        .trim()
+        .replace(
+          /^\/+/,
+          ""
+        );
+
+    if (
+      !relativePdf
+    ) {
+      return "";
+    }
+
+    return new URL(
+      "docs/" +
+        relativePdf,
+      NAVIGATOR_BASE_URL
+    ).toString();
+  }
+
+  function getNavigatorTagUrl(
+    tag
+  ) {
+    const targetUrl =
+      new URL(
+        NAVIGATOR_BASE_URL
+      );
+
+    targetUrl.searchParams.set(
+      "tag",
+      tag
+    );
+
+    return targetUrl.toString();
+  }
+
+  function writePidLoadingWindow(
+    targetWindow,
+    tag
+  ) {
+    try {
+      targetWindow.document.open();
+
+      targetWindow.document.write(
+        [
+          "<!doctype html>",
+          "<html lang='ko'>",
+          "<head>",
+          "<meta charset='utf-8'>",
+          "<title>P&ID 도면 조회</title>",
+          "<meta name='viewport' content='width=device-width,initial-scale=1'>",
+          "<style>",
+          "body{font-family:Arial,sans-serif;margin:0;padding:32px;background:#f5f7fa;color:#1f2937}",
+          ".card{max-width:520px;margin:10vh auto;background:#fff;border:1px solid #d9e0e8;border-radius:14px;padding:26px;box-shadow:0 10px 30px rgba(0,0,0,.08)}",
+          "h1{font-size:20px;margin:0 0 10px}",
+          "p{margin:0;color:#5c6776;line-height:1.6}",
+          "</style>",
+          "</head>",
+          "<body>",
+          "<div class='card'>",
+          "<h1>P&amp;ID 도면 조회 중</h1>",
+          "<p>" +
+            tag.replace(
+              /[&<>"']/g,
+              ""
+            ) +
+            " TAG에 연결된 도면을 확인하고 있습니다.</p>",
+          "</div>",
+          "</body>",
+          "</html>"
+        ].join(
+          ""
+        )
+      );
+
+      targetWindow.document.close();
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "P&ID 로딩창 표시 실패:",
+        error
+      );
+    }
+  }
+
+  function installPidStyle() {
+    if (
+      document.getElementById(
+        PID_STYLE_ID
+      )
+    ) {
+      return;
+    }
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+    style.id =
+      PID_STYLE_ID;
+
+    style.textContent = `
+      .shift-log-pid-direct-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 24px;
+        margin-left: 5px;
+        padding: 2px 7px;
+        border: 1px solid #9aaabd;
+        border-radius: 5px;
+        background: #ffffff;
+        color: #405a74;
+        font: inherit;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1.2;
+        white-space: nowrap;
+        vertical-align: middle;
+        cursor: pointer;
+      }
+
+      .shift-log-pid-direct-button:hover {
+        background: #f1f5f9;
+        border-color: #71869f;
+      }
+
+      .shift-log-pid-direct-button:focus-visible {
+        outline: 2px solid currentColor;
+        outline-offset: 2px;
+      }
+
+      #${PID_PICKER_ID} {
+        position: fixed;
+        inset: 0;
+        z-index: 100000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        background: rgba(15, 23, 42, 0.48);
+      }
+
+      #${PID_PICKER_ID}[hidden] {
+        display: none !important;
+      }
+
+      #${PID_PICKER_ID} .shift-log-pid-picker__card {
+        width: min(680px, 100%);
+        max-height: min(78vh, 720px);
+        overflow: auto;
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+      }
+
+      #${PID_PICKER_ID} .shift-log-pid-picker__header {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px 20px;
+        border-bottom: 1px solid #e2e8f0;
+        background: #ffffff;
+      }
+
+      #${PID_PICKER_ID} .shift-log-pid-picker__header span {
+        display: block;
+        margin-bottom: 4px;
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      #${PID_PICKER_ID} .shift-log-pid-picker__header strong {
+        color: #172033;
+        font-size: 17px;
+      }
+
+      #${PID_PICKER_ID} .shift-log-pid-picker__close {
+        flex: 0 0 auto;
+        min-width: 34px;
+        min-height: 34px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #ffffff;
+        font-size: 20px;
+        cursor: pointer;
+      }
+
+      #${PID_PICKER_ID} .shift-log-pid-picker__list {
+        display: grid;
+        gap: 9px;
+        padding: 16px 20px 20px;
+      }
+
+      #${PID_PICKER_ID} .shift-log-pid-picker__item {
+        width: 100%;
+        padding: 13px 14px;
+        border: 1px solid #d9e2ec;
+        border-radius: 9px;
+        background: #ffffff;
+        color: #1e293b;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      #${PID_PICKER_ID} .shift-log-pid-picker__item:hover {
+        background: #f8fafc;
+        border-color: #9fb0c4;
+      }
+
+      #${PID_PICKER_ID} .shift-log-pid-picker__item strong,
+      #${PID_PICKER_ID} .shift-log-pid-picker__item span,
+      #${PID_PICKER_ID} .shift-log-pid-picker__item small {
+        display: block;
+      }
+
+      #${PID_PICKER_ID} .shift-log-pid-picker__item strong {
+        margin-bottom: 4px;
+        font-size: 14px;
+      }
+
+      #${PID_PICKER_ID} .shift-log-pid-picker__item span {
+        color: #475569;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      #${PID_PICKER_ID} .shift-log-pid-picker__item small {
+        margin-top: 5px;
+        color: #64748b;
+        font-size: 11px;
+      }
+
+      @media (max-width: 768px) {
+        .shift-log-pid-direct-button {
+          min-height: 22px;
+          padding: 2px 6px;
+          font-size: 10px;
+        }
+
+        #${PID_PICKER_ID} {
+          align-items: flex-end;
+          padding: 12px;
+        }
+
+        #${PID_PICKER_ID} .shift-log-pid-picker__card {
+          max-height: 82vh;
+          border-radius: 14px 14px 10px 10px;
+        }
+      }
+    `;
+
+    document.head.append(
+      style
+    );
+  }
+
+  function closePidPicker() {
+    const picker =
+      document.getElementById(
+        PID_PICKER_ID
+      );
+
+    if (
+      picker
+    ) {
+      picker.hidden =
+        true;
+
+      picker.replaceChildren();
+    }
+
+    document.body.classList.remove(
+      "shift-log-pid-picker-open"
+    );
+  }
+
+  function showPidPicker(
+    tag,
+    documents
+  ) {
+    installPidStyle();
+
+    let picker =
+      document.getElementById(
+        PID_PICKER_ID
+      );
+
+    if (
+      !picker
+    ) {
+      picker =
+        document.createElement(
+          "div"
+        );
+
+      picker.id =
+        PID_PICKER_ID;
+
+      document.body.append(
+        picker
+      );
+
+      picker.addEventListener(
+        "click",
+        event => {
+          if (
+            event.target ===
+              picker
+          ) {
+            closePidPicker();
+          }
+        }
+      );
+    }
+
+    picker.replaceChildren();
+
+    const card =
+      document.createElement(
+        "section"
+      );
+
+    card.className =
+      "shift-log-pid-picker__card";
+
+    card.setAttribute(
+      "role",
+      "dialog"
+    );
+
+    card.setAttribute(
+      "aria-modal",
+      "true"
+    );
+
+    card.setAttribute(
+      "aria-label",
+      `${tag} P&ID 도면 선택`
+    );
+
+    const header =
+      document.createElement(
+        "header"
+      );
+
+    header.className =
+      "shift-log-pid-picker__header";
+
+    const heading =
+      document.createElement(
+        "div"
+      );
+
+    const eyebrow =
+      document.createElement(
+        "span"
+      );
+
+    eyebrow.textContent =
+      "P&ID DRAWING";
+
+    const title =
+      document.createElement(
+        "strong"
+      );
+
+    title.textContent =
+      `${tag} · 도면 ${documents.length}개`;
+
+    heading.append(
+      eyebrow,
+      title
+    );
+
+    const closeButton =
+      document.createElement(
+        "button"
+      );
+
+    closeButton.type =
+      "button";
+
+    closeButton.className =
+      "shift-log-pid-picker__close";
+
+    closeButton.textContent =
+      "×";
+
+    closeButton.setAttribute(
+      "aria-label",
+      "P&ID 도면 선택 닫기"
+    );
+
+    closeButton.addEventListener(
+      "click",
+      closePidPicker
+    );
+
+    header.append(
+      heading,
+      closeButton
+    );
+
+    const list =
+      document.createElement(
+        "div"
+      );
+
+    list.className =
+      "shift-log-pid-picker__list";
+
+    documents.forEach(
+      documentInfo => {
+        const button =
+          document.createElement(
+            "button"
+          );
+
+        button.type =
+          "button";
+
+        button.className =
+          "shift-log-pid-picker__item";
+
+        const pid =
+          document.createElement(
+            "strong"
+          );
+
+        pid.textContent =
+          String(
+            documentInfo.pid ||
+            "P&ID"
+          );
+
+        const description =
+          document.createElement(
+            "span"
+          );
+
+        description.textContent =
+          String(
+            documentInfo.description ||
+            "연결 도면"
+          );
+
+        const meta =
+          document.createElement(
+            "small"
+          );
+
+        const metaParts = [];
+
+        if (
+          documentInfo.sheet
+        ) {
+          metaParts.push(
+            `Sheet ${documentInfo.sheet}`
+          );
+        }
+
+        if (
+          documentInfo.revision
+        ) {
+          metaParts.push(
+            `Rev. ${documentInfo.revision}`
+          );
+        }
+
+        meta.textContent =
+          metaParts.join(
+            " · "
+          );
+
+        button.append(
+          pid,
+          description
+        );
+
+        if (
+          meta.textContent
+        ) {
+          button.append(
+            meta
+          );
+        }
+
+        button.addEventListener(
+          "click",
+          () => {
+            const url =
+              createPidDocumentUrl(
+                documentInfo
+              );
+
+            if (
+              !url
+            ) {
+              notifyPidUser(
+                "P&ID PDF 주소를 확인하지 못했습니다."
+              );
+
+              return;
+            }
+
+            const drawingWindow =
+              window.open(
+                url,
+                "_blank",
+                "noopener,noreferrer"
+              );
+
+            if (
+              !drawingWindow
+            ) {
+              notifyPidUser(
+                "팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요."
+              );
+
+              return;
+            }
+
+            closePidPicker();
+          }
+        );
+
+        list.append(
+          button
+        );
+      }
+    );
+
+    card.append(
+      header,
+      list
+    );
+
+    picker.append(
+      card
+    );
+
+    picker.hidden =
+      false;
+
+    document.body.classList.add(
+      "shift-log-pid-picker-open"
+    );
+
+    window.setTimeout(
+      () => {
+        closeButton.focus();
+      },
+      0
+    );
+  }
+
+  async function openShiftLogPidDirect(
+    rawTag
+  ) {
+    const tag =
+      normalizePidTag(
+        rawTag
+      );
+
+    if (
+      !tag
+    ) {
+      notifyPidUser(
+        "먼저 TAG를 입력해 주세요."
+      );
+
+      return;
+    }
+
+    /*
+      첫 클릭에서 매핑 파일을 비동기로 읽기 때문에
+      브라우저 팝업 차단을 피하려고 빈 도면창을
+      사용자 클릭 시점에 먼저 확보한다.
+    */
+    const loadingWindow =
+      window.open(
+        "",
+        PID_DRAWING_WINDOW_NAME
+      );
+
+    if (
+      !loadingWindow
+    ) {
+      notifyPidUser(
+        "팝업이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요."
+      );
+
+      return;
+    }
+
+    writePidLoadingWindow(
+      loadingWindow,
+      tag
+    );
+
+    try {
+      const index =
+        await loadNavigatorPidIndex();
+
+      const documents =
+        getPidDocumentsForTag(
+          index,
+          tag
+        );
+
+      if (
+        documents.length ===
+          1
+      ) {
+        const targetUrl =
+          createPidDocumentUrl(
+            documents[0]
+          );
+
+        if (
+          !targetUrl
+        ) {
+          throw new Error(
+            "연결된 P&ID PDF 주소를 확인하지 못했습니다."
+          );
+        }
+
+        loadingWindow.location.href =
+          targetUrl;
+
+        try {
+          loadingWindow.focus();
+        } catch {
+        }
+
+        return;
+      }
+
+      if (
+        documents.length >
+          1
+      ) {
+        try {
+          loadingWindow.close();
+        } catch {
+        }
+
+        showPidPicker(
+          tag,
+          documents
+        );
+
+        return;
+      }
+
+      /*
+        정확 TAG에 연결 도면이 없는 경우
+        기존 Navigator TAG 화면으로 이동한다.
+      */
+      loadingWindow.location.href =
+        getNavigatorTagUrl(
+          tag
+        );
+
+      notifyPidUser(
+        `${tag}에 직접 연결된 P&ID가 없어 설비 네비게이터로 이동합니다.`
+      );
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "업무일지 P&ID 직접 열기 실패:",
+        error
+      );
+
+      /*
+        매핑 파일 자체를 읽지 못해도
+        기존 Navigator 기능은 잃지 않는다.
+      */
+      try {
+        loadingWindow.location.href =
+          getNavigatorTagUrl(
+            tag
+          );
+      } catch {
+      }
+
+      notifyPidUser(
+        "P&ID 매핑을 확인하지 못해 설비 네비게이터로 이동합니다."
+      );
+    }
+  }
+
+  function createPidButton(
+    tag,
+    sourceType
+  ) {
+    const button =
+      document.createElement(
+        "button"
+      );
+
+    button.type =
+      "button";
+
+    button.className =
+      "shift-log-pid-direct-button";
+
+    button.textContent =
+      "도면";
+
+    button.title =
+      "연결된 P&ID 도면 바로 보기";
+
+    button.setAttribute(
+      "aria-label",
+      `${tag || "현재 TAG"} P&ID 도면 보기`
+    );
+
+    button.dataset.pidSource =
+      sourceType;
+
+    if (
+      tag
+    ) {
+      button.dataset.pidTag =
+        normalizePidTag(
+          tag
+        );
+    }
+
+    return button;
+  }
+
+  function enhanceStaticTagButtons() {
+    const sources =
+      [
+        ...document.querySelectorAll(
+          "[data-log-tag], [data-detail-tag]"
+        )
+      ];
+
+    sources.forEach(
+      source => {
+        if (
+          source.dataset
+            .pidDirectEnhanced ===
+            "true"
+        ) {
+          return;
+        }
+
+        const rawTag =
+          source.dataset.logTag ||
+          source.dataset.detailTag ||
+          "";
+
+        const tag =
+          normalizePidTag(
+            rawTag
+          );
+
+        if (
+          !tag
+        ) {
+          return;
+        }
+
+        const next =
+          source.nextElementSibling;
+
+        if (
+          next?.classList?.contains(
+            "shift-log-pid-direct-button"
+          ) &&
+          normalizePidTag(
+            next.dataset.pidTag
+          ) ===
+            tag
+        ) {
+          source.dataset
+            .pidDirectEnhanced =
+            "true";
+
+          return;
+        }
+
+        const button =
+          createPidButton(
+            tag,
+            "rendered"
+          );
+
+        source.insertAdjacentElement(
+          "afterend",
+          button
+        );
+
+        source.dataset
+          .pidDirectEnhanced =
+          "true";
+      }
+    );
+  }
+
+  function enhanceEditorTagButton() {
+    const navigatorButton =
+      document.getElementById(
+        "logEntryNavigatorButton"
+      );
+
+    if (
+      !navigatorButton
+    ) {
+      return;
+    }
+
+    let pidButton =
+      document.getElementById(
+        "logEntryPidDirectButton"
+      );
+
+    if (
+      !pidButton
+    ) {
+      pidButton =
+        createPidButton(
+          "",
+          "editor"
+        );
+
+      pidButton.id =
+        "logEntryPidDirectButton";
+
+      navigatorButton.insertAdjacentElement(
+        "afterend",
+        pidButton
+      );
+    }
+  }
+
+  function enhancePidUi() {
+    installPidStyle();
+    enhanceStaticTagButtons();
+    enhanceEditorTagButton();
+  }
+
+  function schedulePidUiEnhance() {
+    if (
+      enhanceFrameId
+    ) {
+      return;
+    }
+
+    enhanceFrameId =
+      window.requestAnimationFrame(
+        () => {
+          enhanceFrameId =
+            0;
+
+          enhancePidUi();
+        }
+      );
+  }
+
+  function handlePidDirectClick(
+    event
+  ) {
+    const target =
+      event.target instanceof
+        Element
+        ? event.target.closest(
+            ".shift-log-pid-direct-button"
+          )
+        : null;
+
+    if (
+      !target
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    let tag =
+      normalizePidTag(
+        target.dataset.pidTag
+      );
+
+    if (
+      target.dataset.pidSource ===
+        "editor"
+    ) {
+      tag =
+        normalizePidTag(
+          document.getElementById(
+            "logEntryTag"
+          )?.value
+        );
+    }
+
+    openShiftLogPidDirect(
+      tag
+    );
+  }
+
+  function initializePidDirectView() {
+    enhancePidUi();
+
+    document.addEventListener(
+      "click",
+      handlePidDirectClick,
+      true
+    );
+
+    document.addEventListener(
+      "keydown",
+      event => {
+        if (
+          event.key ===
+            "Escape" &&
+          !document.getElementById(
+            PID_PICKER_ID
+          )?.hidden
+        ) {
+          closePidPicker();
+        }
+      }
+    );
+
+    if (
+      typeof MutationObserver ===
+        "function"
+    ) {
+      const observer =
+        new MutationObserver(
+          mutationRecords => {
+            if (
+              mutationRecords.some(
+                mutation =>
+                  mutation.type ===
+                    "childList" &&
+                  (
+                    mutation.addedNodes.length >
+                      0 ||
+                    mutation.removedNodes.length >
+                      0
+                  )
+              )
+            ) {
+              schedulePidUiEnhance();
+            }
+          }
+        );
+
+      observer.observe(
+        document.body,
+        {
+          childList:
+            true,
+
+          subtree:
+            true
+        }
+      );
+    }
+  }
+
+  window.openShiftLogPidDirect =
+    openShiftLogPidDirect;
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializePidDirectView,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initializePidDirectView();
+  }
+})();
