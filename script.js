@@ -251850,3 +251850,165 @@ async function restoreSolarCumulativeFromD1() {
 
   지시사항 화면 스타일은 style.css V1.1 블록에서 처리
 ========================================================= */
+
+/* =========================================================
+  [INSTRUCTION-PREVIOUS-BUTTON-IN-GRAY-V1]
+
+  기존 기능/이벤트는 그대로 유지하고,
+  이미 생성된 지시사항 "이전일지 가져오기" 버튼의
+  실제 DOM 위치만 회색 바 컨테이너로 옮긴다.
+
+  회색 바:
+  #instructionEntrySection .log-entry-table-wrap::before
+========================================================= */
+
+(function installInstructionPreviousButtonInGrayV1() {
+  "use strict";
+
+
+  if (
+    window.__instructionPreviousButtonInGrayV1Installed ===
+      true
+  ) {
+    return;
+  }
+
+
+  window.__instructionPreviousButtonInGrayV1Installed =
+    true;
+
+
+  let scheduledFrame =
+    0;
+
+
+  function moveInstructionPreviousButtonIntoGrayBar() {
+    const section =
+      document.getElementById(
+        "instructionEntrySection"
+      );
+
+
+    const wrap =
+      section?.querySelector(
+        ".log-entry-table-wrap"
+      );
+
+
+    const button =
+      document.getElementById(
+        "loadPreviousInstructionEntriesButton"
+      );
+
+
+    if (
+      !section ||
+      !wrap ||
+      !button
+    ) {
+      return false;
+    }
+
+
+    if (
+      button.parentElement !==
+        wrap
+    ) {
+      /*
+        첫 번째 실제 자식으로 넣어
+        키보드 탐색 순서도 표 내용보다 앞에 둔다.
+      */
+      wrap.insertBefore(
+        button,
+        wrap.firstChild
+      );
+    }
+
+
+    button.dataset
+      .instructionButtonInGray =
+      "true";
+
+
+    return true;
+  }
+
+
+  function scheduleMove() {
+    if (
+      scheduledFrame
+    ) {
+      return;
+    }
+
+
+    scheduledFrame =
+      window.requestAnimationFrame(
+        () => {
+          scheduledFrame =
+            0;
+
+
+          moveInstructionPreviousButtonIntoGrayBar();
+        }
+      );
+  }
+
+
+  function initialize() {
+    moveInstructionPreviousButtonIntoGrayBar();
+
+
+    const section =
+      document.getElementById(
+        "instructionEntrySection"
+      );
+
+
+    if (
+      !section ||
+      typeof MutationObserver !==
+        "function"
+    ) {
+      return;
+    }
+
+
+    const observer =
+      new MutationObserver(
+        () => {
+          scheduleMove();
+        }
+      );
+
+
+    observer.observe(
+      section,
+      {
+        childList:
+          true,
+
+        subtree:
+          true
+      }
+    );
+  }
+
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initialize,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initialize();
+  }
+})();
