@@ -690,6 +690,44 @@ async function ensureSchema(database) {
   }
 }
 
+async function ensureBlowerHistorySchemaReady(database) {
+  // 운영 GET/POST마다 전체 CREATE TABLE/INDEX + seed INSERT를 반복하지 않는다.
+  // 이미 운영 스키마/필수 seed가 준비되어 있으면 읽기 1회로 바로 진행한다.
+  // 최초 설치/실제 schema 누락 시에만 기존 full ensureSchema를 실행한다.
+  try {
+    const ready = await database.prepare(`
+      SELECT
+        (
+          SELECT COUNT(*)
+          FROM blower_history_settings
+          WHERE blower_type IN ('fbhe', 'seal_pot', 'organic_fuel', 'flyash_bag', 'flyash_silo')
+        ) AS setting_count,
+        (
+          SELECT COUNT(*)
+          FROM blower_history_assets
+          WHERE tag_number IN (
+            '204HHL60AP631',
+            '204HHL10AN631',
+            '204SDF01AN002',
+            '204ETG30AN602',
+            '104ETH03AN602'
+          )
+        ) AS sentinel_asset_count
+    `).first();
+
+    if (
+      Number(ready?.setting_count || 0) >= 5 &&
+      Number(ready?.sentinel_asset_count || 0) >= 5
+    ) {
+      return;
+    }
+  } catch (error) {
+    // 최초 설치처럼 base table 자체가 없으면 아래 full ensure로 이동한다.
+  }
+
+  await ensureSchema(database);
+}
+
 function typeExists(type) {
   return TYPE_DEFINITIONS.some(item => item.key === type);
 }
@@ -6633,7 +6671,7 @@ export async function onRequestGet(context) {
       return authentication.error;
     }
 
-    await ensureSchema(context.env.DB);
+    await ensureBlowerHistorySchemaReady(context.env.DB);
     return await handleGet(context, authentication.user);
   } catch (error) {
     console.error("Blower 교체 이력 조회 오류:", error);
@@ -6666,7 +6704,7 @@ export async function onRequestPost(context) {
     const action = normalizeText(body?.action);
 
     if (action !== "historical_audit_step") {
-      await ensureSchema(context.env.DB);
+      await ensureBlowerHistorySchemaReady(context.env.DB);
     }
 
     return await handlePost(context, authentication.user, body);
