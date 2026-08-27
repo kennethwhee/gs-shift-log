@@ -1075,7 +1075,7 @@ function defaultRecoveryV12StateForUi() {
 
 async function loadRecoveryV12StateForUi(database) {
   try {
-    await ensureHistoryRecoveryV12Schema(database);
+    await ensureHistoryRecoveryV12Ready(database);
     const state = await v12LoadState(database);
     if (!state) return defaultRecoveryV12StateForUi();
     return { ...state, hasRun: true };
@@ -5329,6 +5329,30 @@ async function ensureHistoryRecoveryV12Schema(database) {
 
 }
 
+async function ensureHistoryRecoveryV12Ready(database) {
+  // 정상 운영/복구 요청마다 CREATE TABLE/INDEX DDL을 반복하지 않는다.
+  // 현재 V12.2 state가 이미 존재하면 단일 SELECT만 수행하고 바로 진행한다.
+  try {
+    const current = await database.prepare(`
+      SELECT version, status
+      FROM blower_history_recovery_v12_state
+      WHERE id = ?
+      LIMIT 1
+    `).bind(HISTORY_RECOVERY_V12_ID).first();
+
+    if (
+      current &&
+      normalizeText(current.version) === HISTORY_RECOVERY_V12_VERSION
+    ) {
+      return;
+    }
+  } catch (error) {
+    // 최초 설치처럼 state table 자체가 아직 없으면 아래 full schema ensure로 이동한다.
+  }
+
+  await ensureHistoryRecoveryV12Schema(database);
+}
+
 
 function v12AuditedOverride(record, assets) {
   const sourceTable = normalizeText(record?.sourceTable);
@@ -5927,7 +5951,7 @@ async function v12ApplyConfirmedEvents(database) {
 }
 
 async function historicalRecoveryV12Step(database) {
-  await ensureHistoryRecoveryV12Schema(database);
+  await ensureHistoryRecoveryV12Ready(database);
   let state = await v12LoadState(database);
   if (state?.status === 'complete') return jsonResponse({ ok: true, done: true, applied: true, recovery: state, message: state.message });
   if (state?.status === 'blocked') return jsonResponse({ ok: false, done: true, blocked: true, recovery: state, message: state.message }, 409);
@@ -5995,7 +6019,7 @@ async function historicalRecoveryV12Step(database) {
 }
 
 async function resetHistoricalRecoveryV12(database) {
-  await ensureHistoryRecoveryV12Schema(database);
+  await ensureHistoryRecoveryV12Ready(database);
   const current = await v12LoadState(database);
   if (current?.status === 'complete') return jsonResponse({ ok: false, message: '이미 적용 완료된 V12는 화면에서 초기화할 수 없습니다.' }, 409);
   const now = new Date().toISOString();
@@ -6008,7 +6032,7 @@ async function resetHistoricalRecoveryV12(database) {
 }
 
 async function exportHistoricalRecoveryV12(database, category) {
-  await ensureHistoryRecoveryV12Schema(database);
+  await ensureHistoryRecoveryV12Ready(database);
   const safeCategory = ['confirmed','review','unmatched'].includes(normalizeText(category)) ? normalizeText(category) : 'confirmed';
   let rows;
   if (safeCategory === 'confirmed') {
