@@ -249100,3 +249100,1337 @@ async function restoreSolarCumulativeFromD1() {
 })();
 
 /* MOBILE-LOGIN-FORCE-REDEPLOY-V1 */
+
+
+/* =========================================================
+  AUXILIARY MATERIAL SINGLE DAY OIS REQUERY V1
+
+  목적:
+  - 기존 "선택일 OIS 조회 · 저장" 버튼 위에 작은 [재조회] 버튼 추가
+  - 현재 OIS 기준일 하루만 forceRefresh=true로 강제 재조회
+  - 일반 조회의 forceRefresh=false 동작은 변경하지 않음
+  - 재조회 성공 시 저장 자료를 다시 불러와 월 평균 재계산
+  - 재조회 실패 시 기존 auxiliary_material_daily 저장값 유지
+  - 일반 조회/재조회 상호 중복 클릭 방지
+========================================================= */
+
+(function installAuxiliaryMaterialSingleDayRequeryV1() {
+  "use strict";
+
+  if (
+    window
+      .__auxiliaryMaterialSingleDayRequeryV1Installed ===
+      true
+  ) {
+    return;
+  }
+
+  window
+    .__auxiliaryMaterialSingleDayRequeryV1Installed =
+    true;
+
+  const REQUERY_BUTTON_ID =
+    "requeryAuxiliaryMaterialOisButton";
+
+  const REQUERY_STACK_ID =
+    "auxiliaryMaterialOisQueryButtonStack";
+
+  const REQUERY_STYLE_ID =
+    "auxiliaryMaterialOisRequeryStyleV1";
+
+  const REQUERY_POLL_INTERVAL_MS =
+    2000;
+
+  const REQUERY_MAX_POLL_COUNT =
+    90;
+
+  let requeryRunning =
+    false;
+
+  let requeryRequestId =
+    "";
+
+  /* =====================================================
+    공통 헬퍼
+  ====================================================== */
+
+  function getRequeryElements() {
+    return {
+      queryButton:
+        document.getElementById(
+          "queryAuxiliaryMaterialOisButton"
+        ),
+
+      requeryButton:
+        document.getElementById(
+          REQUERY_BUTTON_ID
+        ),
+
+      queryDateInput:
+        document.getElementById(
+          "auxiliaryMaterialQueryDate"
+        ),
+
+      periodModeInput:
+        document.getElementById(
+          "auxiliaryMaterialPeriodMode"
+        ),
+
+      monthInput:
+        document.getElementById(
+          "auxiliaryMaterialMonth"
+        ),
+
+      status:
+        document.getElementById(
+          "auxiliaryMaterialStatus"
+        )
+    };
+  }
+
+  function isMobileMonitorMode() {
+    try {
+      return (
+        typeof isAuxiliaryMaterialMobileMonitorMode ===
+          "function" &&
+        isAuxiliaryMaterialMobileMonitorMode()
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function isNormalOisQueryRunning() {
+    try {
+      return (
+        typeof auxiliaryMaterialOisQueryState !==
+          "undefined" &&
+        Boolean(
+          auxiliaryMaterialOisQueryState
+            ?.isRunning
+        )
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function setRequeryStatus(
+    message,
+    type = "idle"
+  ) {
+    if (
+      typeof setAuxiliaryMaterialStatus ===
+        "function"
+    ) {
+      setAuxiliaryMaterialStatus(
+        message,
+        type
+      );
+
+      return;
+    }
+
+    const {
+      status
+    } =
+      getRequeryElements();
+
+    if (
+      status
+    ) {
+      status.textContent =
+        String(
+          message ||
+          ""
+        );
+
+      status.dataset.status =
+        String(
+          type ||
+          "idle"
+        );
+    }
+  }
+
+  function notifyRequery(
+    message
+  ) {
+    if (
+      typeof showToast ===
+        "function"
+    ) {
+      showToast(
+        message
+      );
+    }
+  }
+
+  function wait(
+    milliseconds
+  ) {
+    return new Promise(
+      resolve => {
+        window.setTimeout(
+          resolve,
+          milliseconds
+        );
+      }
+    );
+  }
+
+  function normalizeRequestItem(
+    item
+  ) {
+    if (
+      typeof normalizeAuxiliaryMaterialOisRequestItem ===
+        "function"
+    ) {
+      return normalizeAuxiliaryMaterialOisRequestItem(
+        item
+      );
+    }
+
+    const disposition =
+      String(
+        item?.disposition ||
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+    const status =
+      disposition ===
+        "saved"
+        ? "complete"
+        : String(
+            item?.status ||
+            "pending"
+          )
+            .trim()
+            .toLowerCase();
+
+    return {
+      ...item,
+
+      id:
+        String(
+          item?.id ||
+          ""
+        ).trim(),
+
+      targetDate:
+        String(
+          item?.targetDate ||
+          item?.target_date ||
+          ""
+        ).trim(),
+
+      disposition,
+
+      status
+    };
+  }
+
+  async function readJsonResponse(
+    response
+  ) {
+    if (
+      typeof readAuxiliaryMaterialOisJsonResponse ===
+        "function"
+    ) {
+      return await readAuxiliaryMaterialOisJsonResponse(
+        response
+      );
+    }
+
+    const result =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+    if (
+      !response.ok ||
+      result.ok ===
+        false
+    ) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        (
+          "부재료 OIS 요청을 처리하지 못했습니다. " +
+          `(HTTP ${response.status})`
+        )
+      );
+    }
+
+    return result;
+  }
+
+  function getRequestErrorMessage(
+    item
+  ) {
+    return String(
+      item?.errorMessage ||
+      item?.error_message ||
+      item?.message ||
+      item?.error ||
+      "OIS 재조회에 실패했습니다."
+    ).trim();
+  }
+
+  /* =====================================================
+    작은 [재조회] 버튼 스타일
+  ====================================================== */
+
+  function installRequeryStyle() {
+    if (
+      document.getElementById(
+        REQUERY_STYLE_ID
+      )
+    ) {
+      return;
+    }
+
+    const style =
+      document.createElement(
+        "style"
+      );
+
+    style.id =
+      REQUERY_STYLE_ID;
+
+    style.textContent = `
+      #${REQUERY_STACK_ID} {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        vertical-align: top;
+        min-width: 0;
+      }
+
+      #${REQUERY_STACK_ID}
+      > #queryAuxiliaryMaterialOisButton {
+        width: 100%;
+      }
+
+      #${REQUERY_BUTTON_ID} {
+        align-self: flex-end;
+        min-height: 22px;
+        padding: 3px 8px;
+        border: 1px solid #a9b7c8;
+        border-radius: 5px;
+        background: #ffffff;
+        color: #3d5874;
+        font: inherit;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.15;
+        letter-spacing: -0.01em;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      #${REQUERY_BUTTON_ID}:hover:not(:disabled) {
+        background: #f4f7fa;
+        border-color: #8298b2;
+      }
+
+      #${REQUERY_BUTTON_ID}:disabled {
+        opacity: 0.52;
+        cursor: not-allowed;
+      }
+
+      #${REQUERY_BUTTON_ID}[hidden] {
+        display: none !important;
+      }
+
+      @media (max-width: 768px) {
+        #${REQUERY_BUTTON_ID} {
+          display: none !important;
+        }
+      }
+    `;
+
+    document.head.append(
+      style
+    );
+  }
+
+  /* =====================================================
+    버튼 배치
+
+    기존 파란 OIS 버튼은 그대로 유지하고
+    바로 위에 작은 [재조회] 버튼만 추가한다.
+  ====================================================== */
+
+  function ensureRequeryButton() {
+    const {
+      queryButton
+    } =
+      getRequeryElements();
+
+    if (
+      !queryButton
+    ) {
+      return null;
+    }
+
+    installRequeryStyle();
+
+    let stack =
+      document.getElementById(
+        REQUERY_STACK_ID
+      );
+
+    if (
+      !stack ||
+      !stack.isConnected
+    ) {
+      const parent =
+        queryButton.parentElement;
+
+      if (
+        !parent
+      ) {
+        return null;
+      }
+
+      const parentStyle =
+        window.getComputedStyle(
+          parent
+        );
+
+      const buttonStyle =
+        window.getComputedStyle(
+          queryButton
+        );
+
+      stack =
+        document.createElement(
+          "span"
+        );
+
+      stack.id =
+        REQUERY_STACK_ID;
+
+      /*
+        기존 flex/grid 안에서 파란 버튼이 차지하던
+        배치 속성을 가능한 한 그대로 이어받는다.
+      */
+      if (
+        parentStyle.display.includes(
+          "flex"
+        )
+      ) {
+        stack.style.flex =
+          buttonStyle.flex;
+
+        stack.style.alignSelf =
+          buttonStyle.alignSelf;
+      }
+
+      if (
+        parentStyle.display.includes(
+          "grid"
+        )
+      ) {
+        stack.style.gridColumn =
+          buttonStyle.gridColumn;
+
+        stack.style.gridRow =
+          buttonStyle.gridRow;
+
+        stack.style.justifySelf =
+          buttonStyle.justifySelf;
+
+        stack.style.alignSelf =
+          buttonStyle.alignSelf;
+      }
+
+      parent.insertBefore(
+        stack,
+        queryButton
+      );
+
+      stack.append(
+        queryButton
+      );
+    }
+
+    let requeryButton =
+      document.getElementById(
+        REQUERY_BUTTON_ID
+      );
+
+    if (
+      !requeryButton
+    ) {
+      requeryButton =
+        document.createElement(
+          "button"
+        );
+
+      requeryButton.type =
+        "button";
+
+      requeryButton.id =
+        REQUERY_BUTTON_ID;
+
+      requeryButton.textContent =
+        "[재조회]";
+
+      requeryButton.title =
+        "현재 OIS 기준일 하루를 강제로 다시 조회합니다.";
+
+      requeryButton.setAttribute(
+        "aria-label",
+        "현재 OIS 기준일 하루 재조회"
+      );
+
+      stack.insertBefore(
+        requeryButton,
+        queryButton
+      );
+    }
+
+    return requeryButton;
+  }
+
+  function updateRequeryButtonState() {
+    const {
+      queryButton,
+      requeryButton,
+      periodModeInput
+    } =
+      getRequeryElements();
+
+    if (
+      !requeryButton
+    ) {
+      return;
+    }
+
+    const shouldHide =
+      isMobileMonitorMode() ||
+      Boolean(
+        periodModeInput
+          ?.checked
+      ) ||
+      Boolean(
+        queryButton?.hidden
+      );
+
+    requeryButton.hidden =
+      shouldHide;
+
+    requeryButton.disabled =
+      requeryRunning ||
+      isNormalOisQueryRunning();
+
+    requeryButton.textContent =
+      requeryRunning
+        ? "[재조회 중…]"
+        : "[재조회]";
+
+    if (
+      queryButton
+    ) {
+      if (
+        requeryRunning
+      ) {
+        queryButton.disabled =
+          true;
+      } else if (
+        !isNormalOisQueryRunning()
+      ) {
+        /*
+          재조회 종료 후에만 원래 버튼을 다시 활성화한다.
+          일반 OIS 조회가 진행 중이면 건드리지 않는다.
+        */
+        queryButton.disabled =
+          false;
+      }
+    }
+  }
+
+  /* =====================================================
+    현재 기준일 1일 강제 재조회 요청
+  ====================================================== */
+
+  async function createSingleDayRequery(
+    targetDate
+  ) {
+    const response =
+      await fetch(
+        "/api/ois-data-requests",
+        {
+          method:
+            "POST",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  Accept:
+                    "application/json",
+
+                  "Content-Type":
+                    "application/json"
+                },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              action:
+                "create_materials_batch",
+
+              startDate:
+                targetDate,
+
+              endDate:
+                targetDate,
+
+              /*
+                핵심:
+                일반 조회는 forceRefresh:false 유지.
+                이 재조회 버튼에서만 true를 사용한다.
+              */
+              forceRefresh:
+                true
+            })
+        }
+      );
+
+    const result =
+      await readJsonResponse(
+        response
+      );
+
+    const items =
+      (
+        Array.isArray(
+          result.items
+        )
+          ? result.items
+          : []
+      )
+        .map(
+          normalizeRequestItem
+        );
+
+    const targetItem =
+      items.find(
+        item => {
+          return (
+            item.targetDate ===
+            targetDate
+          );
+        }
+      ) ||
+      items[0] ||
+      null;
+
+    if (
+      !targetItem
+    ) {
+      throw new Error(
+        `${targetDate} 재조회 요청 정보를 확인하지 못했습니다.`
+      );
+    }
+
+    return {
+      result,
+      item:
+        targetItem
+    };
+  }
+
+  async function getRequeryStatus(
+    requestId
+  ) {
+    if (
+      typeof getAuxiliaryMaterialOisRequestStatus ===
+        "function"
+    ) {
+      const result =
+        await getAuxiliaryMaterialOisRequestStatus(
+          requestId
+        );
+
+      return normalizeRequestItem(
+        result?.item ||
+        result
+      );
+    }
+
+    const query =
+      new URLSearchParams({
+        id:
+          requestId,
+
+        _:
+          String(
+            Date.now()
+          )
+      });
+
+    const response =
+      await fetch(
+        (
+          "/api/ois-data-requests?" +
+          query.toString()
+        ),
+        {
+          method:
+            "GET",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders()
+              : {
+                  Accept:
+                    "application/json"
+                },
+
+          cache:
+            "no-store"
+        }
+      );
+
+    const result =
+      await readJsonResponse(
+        response
+      );
+
+    return normalizeRequestItem(
+      result?.item ||
+      result
+    );
+  }
+
+  async function waitForRequeryCompletion(
+    initialItem,
+    targetDate
+  ) {
+    let currentItem =
+      normalizeRequestItem(
+        initialItem
+      );
+
+    if (
+      currentItem.status ===
+        "complete"
+    ) {
+      return currentItem;
+    }
+
+    if (
+      currentItem.status ===
+        "failed"
+    ) {
+      const error =
+        new Error(
+          getRequestErrorMessage(
+            currentItem
+          )
+        );
+
+      error.code =
+        "OIS_REQUERY_FAILED";
+
+      throw error;
+    }
+
+    requeryRequestId =
+      String(
+        currentItem.id ||
+        ""
+      ).trim();
+
+    if (
+      !requeryRequestId
+    ) {
+      throw new Error(
+        `${targetDate} 재조회 요청 ID를 확인하지 못했습니다.`
+      );
+    }
+
+    let consecutiveStatusErrors =
+      0;
+
+    for (
+      let pollIndex = 1;
+      pollIndex <=
+        REQUERY_MAX_POLL_COUNT;
+      pollIndex += 1
+    ) {
+      await wait(
+        REQUERY_POLL_INTERVAL_MS
+      );
+
+      if (
+        !requeryRunning
+      ) {
+        const canceledError =
+          new Error(
+            "재조회 상태 확인이 중단되었습니다."
+          );
+
+        canceledError.code =
+          "OIS_REQUERY_CANCELED";
+
+        throw canceledError;
+      }
+
+      try {
+        currentItem =
+          await getRequeryStatus(
+            requeryRequestId
+          );
+
+        consecutiveStatusErrors =
+          0;
+
+      } catch (
+        statusError
+      ) {
+        consecutiveStatusErrors +=
+          1;
+
+        console.warn(
+          "부재료 재조회 상태 확인 실패:",
+          statusError
+        );
+
+        /*
+          일시적인 네트워크 오류는 최대 5회까지
+          요청이 계속 진행될 가능성을 열어둔다.
+        */
+        if (
+          consecutiveStatusErrors <
+          5
+        ) {
+          setRequeryStatus(
+            (
+              `${targetDate} OIS 재조회 상태 확인 중... ` +
+              `(연결 재시도 ${consecutiveStatusErrors}/5)`
+            ),
+            "loading"
+          );
+
+          continue;
+        }
+
+        const uncertainError =
+          new Error(
+            (
+              "재조회 완료 여부를 확인하지 못했습니다. " +
+              "서버 요청은 계속 진행 중일 수 있습니다."
+            )
+          );
+
+        uncertainError.code =
+          "OIS_REQUERY_STATUS_UNKNOWN";
+
+        throw uncertainError;
+      }
+
+      if (
+        currentItem.status ===
+          "complete"
+      ) {
+        return currentItem;
+      }
+
+      if (
+        currentItem.status ===
+          "failed"
+      ) {
+        const failedError =
+          new Error(
+            getRequestErrorMessage(
+              currentItem
+            )
+          );
+
+        failedError.code =
+          "OIS_REQUERY_FAILED";
+
+        throw failedError;
+      }
+
+      setRequeryStatus(
+        (
+          `${targetDate} OIS 재조회 중... ` +
+          `(${pollIndex}/${REQUERY_MAX_POLL_COUNT})`
+        ),
+        "loading"
+      );
+    }
+
+    const timeoutError =
+      new Error(
+        (
+          "재조회 완료 여부 확인 시간이 초과되었습니다. " +
+          "서버 요청은 계속 진행 중일 수 있습니다."
+        )
+      );
+
+    timeoutError.code =
+      "OIS_REQUERY_TIMEOUT";
+
+    throw timeoutError;
+  }
+
+  /* =====================================================
+    재조회 성공 후 저장 자료 다시 불러오기
+
+    loadAuxiliaryMaterialHistory()가 현재 조회 월의
+    표 + 월 평균을 다시 렌더링한다.
+  ====================================================== */
+
+  async function reloadHistoryAfterRequery(
+    targetDate
+  ) {
+    if (
+      typeof loadAuxiliaryMaterialHistory !==
+        "function"
+    ) {
+      return false;
+    }
+
+    try {
+      await loadAuxiliaryMaterialHistory({
+        silent:
+          true
+      });
+
+      return true;
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        `${targetDate} 재조회 완료 후 저장자료 새로고침 실패:`,
+        error
+      );
+
+      return false;
+    }
+  }
+
+  /* =====================================================
+    [재조회] 실제 실행
+  ====================================================== */
+
+  async function runSingleDayRequery() {
+    if (
+      requeryRunning
+    ) {
+      return;
+    }
+
+    if (
+      isNormalOisQueryRunning()
+    ) {
+      setRequeryStatus(
+        "일반 OIS 조회가 진행 중입니다. 완료 후 재조회를 실행해 주세요.",
+        "idle"
+      );
+
+      notifyRequery(
+        "일반 OIS 조회가 진행 중입니다."
+      );
+
+      return;
+    }
+
+    const {
+      queryDateInput,
+      periodModeInput
+    } =
+      getRequeryElements();
+
+    if (
+      periodModeInput
+        ?.checked
+    ) {
+      setRequeryStatus(
+        "재조회는 기간지정이 아닌 OIS 기준일 1일 모드에서만 사용할 수 있습니다.",
+        "idle"
+      );
+
+      return;
+    }
+
+    const targetDate =
+      String(
+        queryDateInput?.value ||
+        ""
+      ).trim();
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        targetDate
+      )
+    ) {
+      setRequeryStatus(
+        "재조회할 OIS 기준일을 선택해 주세요.",
+        "error"
+      );
+
+      queryDateInput?.focus();
+
+      return;
+    }
+
+    requeryRunning =
+      true;
+
+    requeryRequestId =
+      "";
+
+    updateRequeryButtonState();
+
+    setRequeryStatus(
+      (
+        `${targetDate} 저장자료를 유지한 상태로 ` +
+        "OIS 강제 재조회를 시작합니다."
+      ),
+      "loading"
+    );
+
+    try {
+      const {
+        item
+      } =
+        await createSingleDayRequery(
+          targetDate
+        );
+
+      const completedItem =
+        await waitForRequeryCompletion(
+          item,
+          targetDate
+        );
+
+      if (
+        completedItem.status !==
+          "complete"
+      ) {
+        throw new Error(
+          `${targetDate} 재조회 완료 상태를 확인하지 못했습니다.`
+        );
+      }
+
+      /*
+        서버는 complete가 되기 전에
+        해당 날짜 auxiliary_material_daily UPSERT를 완료한다.
+        이후 현재 저장자료를 다시 읽어 표와 월 평균을 재계산한다.
+      */
+      const historyReloaded =
+        await reloadHistoryAfterRequery(
+          targetDate
+        );
+
+      if (
+        historyReloaded
+      ) {
+        setRequeryStatus(
+          (
+            `${targetDate} OIS 재조회 완료 · ` +
+            "해당 날짜 최신 값 반영 · 월 평균 재계산 완료"
+          ),
+          "complete"
+        );
+
+        notifyRequery(
+          `${targetDate} OIS 재조회가 완료되었습니다.`
+        );
+
+      } else {
+        setRequeryStatus(
+          (
+            `${targetDate} OIS 재조회 저장 완료 · ` +
+            "최신 값은 저장되었으며 화면 새로고침만 필요합니다."
+          ),
+          "complete"
+        );
+
+        notifyRequery(
+          `${targetDate} 재조회 저장 완료`
+        );
+      }
+
+    } catch (
+      error
+    ) {
+      console.error(
+        "부재료 OIS 단일일 재조회 실패:",
+        error
+      );
+
+      const errorCode =
+        String(
+          error?.code ||
+          ""
+        );
+
+      if (
+        errorCode ===
+          "OIS_REQUERY_FAILED"
+      ) {
+        /*
+          서버가 failed로 확정한 경우에는
+          auxiliary_material_daily를 덮어쓰지 않으므로
+          기존 저장값이 그대로 유지된다.
+        */
+        setRequeryStatus(
+          (
+            `${targetDate} OIS 재조회 실패 · ` +
+            "기존 저장값을 유지합니다. " +
+            `${error?.message || ""}`
+          ).trim(),
+          "error"
+        );
+
+        notifyRequery(
+          `${targetDate} 재조회 실패 · 기존 저장값 유지`
+        );
+
+      } else if (
+        [
+          "OIS_REQUERY_TIMEOUT",
+          "OIS_REQUERY_STATUS_UNKNOWN"
+        ].includes(
+          errorCode
+        )
+      ) {
+        /*
+          완료 여부가 불확실한 경우에는
+          실패라고 단정하지 않는다.
+          화면의 기존 값은 그대로 둔다.
+        */
+        setRequeryStatus(
+          (
+            `${targetDate} 재조회 상태 확인이 끝나지 않았습니다. ` +
+            "현재 화면값은 유지되며 서버 요청은 계속될 수 있습니다. " +
+            "잠시 후 저장자료 새로고침으로 확인해 주세요."
+          ),
+          "idle"
+        );
+
+        notifyRequery(
+          `${targetDate} 재조회 상태 확인 필요`
+        );
+
+      } else {
+        /*
+          요청 생성 자체가 실패한 경우:
+          기존 저장자료는 건드리지 않는다.
+        */
+        setRequeryStatus(
+          (
+            `${targetDate} 재조회 요청 실패 · ` +
+            "기존 저장값을 유지합니다. " +
+            `${error?.message || ""}`
+          ).trim(),
+          "error"
+        );
+
+        notifyRequery(
+          `${targetDate} 재조회 요청에 실패했습니다.`
+        );
+      }
+
+    } finally {
+      requeryRunning =
+        false;
+
+      requeryRequestId =
+        "";
+
+      updateRequeryButtonState();
+    }
+  }
+
+  /* =====================================================
+    일반 OIS 조회와 상호 중복 방지
+
+    기존 setter를 감싸되 기존 동작은 그대로 실행한다.
+  ====================================================== */
+
+  function wrapNormalOisButtonStateSetter() {
+    if (
+      typeof setAuxiliaryMaterialOisQueryButtonState !==
+        "function" ||
+      setAuxiliaryMaterialOisQueryButtonState
+        .__singleDayRequeryWrapped ===
+        true
+    ) {
+      return;
+    }
+
+    const originalSetter =
+      setAuxiliaryMaterialOisQueryButtonState;
+
+    const wrappedSetter =
+      function setAuxiliaryMaterialOisQueryButtonStateWithRequery(
+        isRunning
+      ) {
+        originalSetter(
+          isRunning
+        );
+
+        updateRequeryButtonState();
+      };
+
+    wrappedSetter
+      .__singleDayRequeryWrapped =
+      true;
+
+    setAuxiliaryMaterialOisQueryButtonState =
+      wrappedSetter;
+  }
+
+  /* =====================================================
+    초기화
+  ====================================================== */
+
+  function initializeSingleDayRequery() {
+    const requeryButton =
+      ensureRequeryButton();
+
+    if (
+      !requeryButton
+    ) {
+      return false;
+    }
+
+    if (
+      requeryButton.dataset
+        .auxiliaryMaterialRequeryBound !==
+        "true"
+    ) {
+      requeryButton.addEventListener(
+        "click",
+        runSingleDayRequery
+      );
+
+      requeryButton.dataset
+        .auxiliaryMaterialRequeryBound =
+        "true";
+    }
+
+    const {
+      periodModeInput
+    } =
+      getRequeryElements();
+
+    if (
+      periodModeInput &&
+      periodModeInput.dataset
+        .auxiliaryMaterialRequeryBound !==
+        "true"
+    ) {
+      periodModeInput.addEventListener(
+        "change",
+        updateRequeryButtonState
+      );
+
+      periodModeInput.dataset
+        .auxiliaryMaterialRequeryBound =
+        "true";
+    }
+
+    wrapNormalOisButtonStateSetter();
+
+    updateRequeryButtonState();
+
+    return true;
+  }
+
+  function initializeWithRetry() {
+    let retryCount =
+      0;
+
+    const tryInitialize =
+      () => {
+        retryCount +=
+          1;
+
+        if (
+          initializeSingleDayRequery()
+        ) {
+          return;
+        }
+
+        if (
+          retryCount >=
+          20
+        ) {
+          console.warn(
+            "부재료 OIS 재조회 버튼 초기화 대상 요소를 찾지 못했습니다."
+          );
+
+          return;
+        }
+
+        window.setTimeout(
+          tryInitialize,
+          250
+        );
+      };
+
+    tryInitialize();
+  }
+
+  if (
+    document.readyState ===
+      "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      initializeWithRetry,
+      {
+        once:
+          true
+      }
+    );
+
+  } else {
+    initializeWithRetry();
+  }
+
+  /*
+    기간지정 UI가 동적으로 다시 구성되는 경우를 대비해
+    resize 후에도 표시 상태만 가볍게 맞춘다.
+  */
+  window.addEventListener(
+    "resize",
+    () => {
+      if (
+        document.getElementById(
+          REQUERY_BUTTON_ID
+        )
+      ) {
+        updateRequeryButtonState();
+      }
+    },
+    {
+      passive:
+        true
+    }
+  );
+})();
