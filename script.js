@@ -246146,13 +246146,17 @@ async function restoreSolarCumulativeFromD1() {
 
 
     const tagHtml =
-      isHandover
+      (
+        isIssue ||
+        isHandover
+      )
         ? `
           <label
             class="
               section-context-entry-field
               section-context-entry-field--tag
               ${
+                isHandover &&
                 handoverCategory ===
                   "인계사항"
                   ? "is-tag-hidden"
@@ -246605,8 +246609,12 @@ async function restoreSolarCumulativeFromD1() {
         )
           ? ""
           : (
-              definition.type ===
+              [
+                SECTION_TYPES.ISSUE,
                 SECTION_TYPES.HANDOVER
+              ].includes(
+                definition.type
+              )
                 ? String(
                     editor.querySelector(
                       ".section-context-entry-tag"
@@ -251831,3 +251839,14 @@ async function restoreSolarCumulativeFromD1() {
     initializePidDirectView();
   }
 })();
+/* =========================================================
+  [ISSUE-TAG-INSTRUCTION-UI-V1.2]
+
+  TM / BM / CM 발행:
+  - TAG 입력칸 표시
+  - TAG 선택 입력
+  - TAG 없이도 저장 가능
+  - TAG 입력 시 대문자 정규화
+
+  지시사항 화면 스타일은 style.css V1.1 블록에서 처리
+========================================================= */

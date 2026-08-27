@@ -118862,3 +118862,286 @@ html body
   }
 
 }
+
+/* =========================================================
+  [ISSUE-TAG-INSTRUCTION-UI-V1.2]
+
+  1. TM/BM/CM 발행 TAG 선택 입력칸
+  2. 지시사항 표 헤더 문구 숨김 + 회색 전체폭
+  3. 지시사항 이전일지 버튼 우측 여백
+========================================================= */
+
+html body
+.section-context-entry-editor.is-issue
+.section-context-entry-field--tag {
+  box-sizing:
+    border-box !important;
+
+  flex:
+    0 0 190px !important;
+
+  width:
+    190px !important;
+
+  min-width:
+    170px !important;
+
+  margin:
+    0 !important;
+}
+
+
+html body
+.section-context-entry-editor.is-issue
+.section-context-entry-tag {
+  box-sizing:
+    border-box !important;
+
+  width:
+    100% !important;
+
+  text-transform:
+    uppercase;
+}
+
+
+html body
+#instructionEntrySection
+.log-entry-group-header {
+  box-sizing:
+    border-box !important;
+
+  width:
+    100% !important;
+
+  margin:
+    0 !important;
+}
+
+
+html body
+#instructionEntrySection
+.log-entry-group-header__title {
+  box-sizing:
+    border-box !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  padding-right:
+    14px !important;
+}
+
+
+html body
+#instructionEntrySection
+#loadPreviousInstructionEntriesButton {
+  flex:
+    0 0 auto !important;
+
+  margin-left:
+    0 !important;
+
+  margin-right:
+    2px !important;
+}
+
+
+html body
+#instructionEntrySection
+.log-entry-table-wrap {
+  box-sizing:
+    border-box !important;
+
+  display:
+    block !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  max-width:
+    none !important;
+
+  overflow-x:
+    hidden !important;
+}
+
+
+html body
+#instructionEntrySection
+table.log-entry-table--instruction {
+  box-sizing:
+    border-box !important;
+
+  display:
+    table !important;
+
+  width:
+    100% !important;
+
+  min-width:
+    0 !important;
+
+  max-width:
+    none !important;
+
+  border-collapse:
+    collapse !important;
+
+  table-layout:
+    fixed !important;
+}
+
+
+html body
+#instructionEntrySection
+.log-entry-table--instruction
+thead {
+  display:
+    table-header-group !important;
+
+  width:
+    100% !important;
+
+  background:
+    #f3f6f9 !important;
+}
+
+
+html body
+#instructionEntrySection
+.log-entry-table--instruction
+thead
+tr {
+  display:
+    table-row !important;
+
+  width:
+    100% !important;
+
+  background:
+    #f3f6f9 !important;
+}
+
+
+html body
+#instructionEntrySection
+.log-entry-table--instruction
+thead
+th {
+  box-sizing:
+    border-box !important;
+
+  height:
+    34px !important;
+
+  padding:
+    0 !important;
+
+  border-right:
+    0 !important;
+
+  border-left:
+    0 !important;
+
+  background:
+    #f3f6f9 !important;
+
+  color:
+    transparent !important;
+
+  font-size:
+    0 !important;
+
+  line-height:
+    0 !important;
+}
+
+
+html body
+#instructionEntrySection
+.log-entry-table--instruction
+thead
+th.log-entry-table__time {
+  width:
+    76px !important;
+
+  min-width:
+    76px !important;
+}
+
+
+html body
+#instructionEntrySection
+.log-entry-table--instruction
+thead
+th.log-entry-table__content {
+  width:
+    auto !important;
+}
+
+
+html body
+#instructionEntrySection
+.log-entry-table--instruction
+thead
+th[hidden] {
+  display:
+    none !important;
+}
+
+
+@media (
+  max-width:
+    768px
+) {
+
+  html body
+  .section-context-entry-editor.is-issue
+  .section-context-entry-field--tag {
+    flex:
+      1 1 100% !important;
+
+    width:
+      100% !important;
+
+    min-width:
+      0 !important;
+  }
+
+
+  html body
+  #instructionEntrySection
+  .log-entry-group-header__title {
+    padding-right:
+      10px !important;
+  }
+
+
+  html body
+  #instructionEntrySection
+  #loadPreviousInstructionEntriesButton {
+    margin-right:
+      1px !important;
+  }
+
+
+  html body
+  #instructionEntrySection
+  .log-entry-table--instruction
+  thead
+  th.log-entry-table__time {
+    width:
+      64px !important;
+
+    min-width:
+      64px !important;
+  }
+
+}
