@@ -1,7 +1,8 @@
 "use strict";
-/* SOLID-FUEL-TROUBLE-V3.1 · readability + optional registration + company directory */
+/* SOLID-FUEL-TROUBLE-V3.1.3 · simple time entry + current Silo choices + legacy route preservation */
 (function(){
   const API="/api/solid-fuel-trouble",AUTH="gsShiftLog.currentUser";
+  const SILO_OPTIONS=[["","선택 안 함"],["#A","Storage #A"],["#B","Storage #B"],["Day","Day Silo"]];
   const state={troubles:[],unloads:[],companies:[],filterCompanies:[],companyDirectory:[],permissions:{canCreate:false,canEdit:false,canDelete:false,canUploadPhoto:false,canManageUnloading:false,canManageCompanies:false},loading:false,saving:false,mode:"month",tab:"trouble",photoScale:1};
   const $=id=>document.getElementById(id);
   const e={
@@ -28,13 +29,34 @@
   function monthBounds(month){if(!/^\d{4}-\d{2}$/.test(month))return {from:"",to:""};const [y,m]=month.split("-").map(Number),last=new Date(y,m,0).getDate();return {from:`${month}-01`,to:`${month}-${String(last).padStart(2,"0")}`}}
   function durationText(mins){if(mins===null||mins===undefined||mins==="")return "-";const n=Number(mins);if(!Number.isFinite(n))return "-";const h=Math.floor(n/60),m=n%60;return h?`${h}시간 ${m?`${m}분`:""}`.trim():`${m}분`}
   function durationShort(mins){if(mins===null||mins===undefined||mins==="")return "-";const n=Number(mins);if(!Number.isFinite(n))return "-";return `${Math.floor(n/60)}:${String(n%60).padStart(2,"0")}`}
-  function durationBetween(a,b){if(!/^\d{2}:\d{2}$/.test(a||"")||!/^\d{2}:\d{2}$/.test(b||""))return null;const [ah,am]=a.split(":").map(Number),[bh,bm]=b.split(":").map(Number);return ((bh*60+bm)-(ah*60+am)+1440)%1440}
+  function normalizeTimeValue(value){
+    const raw=String(value??"").trim();
+    if(!raw)return {valid:true,value:""};
+    let hour="",minute="";
+    if(/^\d{3,4}$/.test(raw)){
+      const digits=raw.padStart(4,"0");
+      hour=digits.slice(0,2);minute=digits.slice(2)
+    }else{
+      const parts=raw.match(/^(\d{1,2}):(\d{2})$/);
+      if(!parts)return {valid:false,value:""};
+      hour=parts[1].padStart(2,"0");minute=parts[2]
+    }
+    const h=Number(hour),m=Number(minute);
+    if(h<0||h>23||m<0||m>59)return {valid:false,value:""};
+    return {valid:true,value:`${hour}:${minute}`}
+  }
+  function durationBetween(a,b){
+    const start=normalizeTimeValue(a),end=normalizeTimeValue(b);
+    if(!start.valid||!end.valid||!start.value||!end.value)return null;
+    const [ah,am]=start.value.split(":").map(Number),[bh,bm]=end.value.split(":").map(Number);
+    return ((bh*60+bm)-(ah*60+am)+1440)%1440
+  }
   function durationValue(x){if(x?.durationKnown===false||x?.durationMinutes===null||x?.durationMinutes===undefined||x?.durationMinutes==="")return null;const n=Number(x.durationMinutes);return Number.isFinite(n)?n:null}
   function abnormal(x){return Boolean(x?.abnormal)||/Trouble|막힘|문제발생|문제 발생|불량|덩어리/i.test(String(x?.note||""))}
   function troubleById(id){return state.troubles.find(x=>x.id===id)||null}
   function unloadById(id){return state.unloads.find(x=>x.id===id)||null}
   function setText(el,v){if(el)el.textContent=String(v??"")}
-  function setEditorStatus(el,msg,show=true){if(!el)return;el.textContent=msg||"";el.hidden=!show}
+  function setEditorStatus(el,msg,show=true){if(!el)return;delete el.dataset.timeError;el.textContent=msg||"";el.hidden=!show}
   function setBusy(){const b=state.loading||state.saving;[e.refresh,e.createRecord,e.companyManage,e.rSave,e.tSave,e.uSave,e.companyAddButton].forEach(x=>{if(x)x.disabled=b})}
   function option(select,value,label){
     const o=document.createElement("option");o.value=value;o.textContent=label??value;select.append(o);return o
@@ -42,6 +64,16 @@
   function ensureOption(select,value){
     const v=String(value||"").trim();if(!select||!v)return;
     if(![...select.options].some(o=>o.value===v))option(select,v,v)
+  }
+  function populateSiloSelect(select,currentValue="",preserveLegacy=false){
+    if(!select)return;
+    const current=String(currentValue??"");
+    select.replaceChildren();
+    SILO_OPTIONS.forEach(([value,label])=>option(select,value,label));
+    if(preserveLegacy&&current.trim()&&!SILO_OPTIONS.some(([value])=>value===current)){
+      option(select,current,`기존 기록 · ${current}`)
+    }
+    select.value=[...select.options].some(item=>item.value===current)?current:""
   }
   function populateCompanySelect(select,items,emptyLabel,currentValue=""){
     if(!select)return;
@@ -60,6 +92,37 @@
     populateCompanySelect(e.rCompany,active,"선택 안 함");
     populateCompanySelect(e.tCompany,active,"선택 안 함",e.tCompany?.value||"");
     populateCompanySelect(e.uCompany,active,"선택 안 함",e.uCompany?.value||"")
+  }
+
+  /* SOLID-FUEL-TROUBLE-V3.1.3 · 숫자형 시간 입력 검증/정규화 */
+  function clearTimeInvalid(input,status){
+    input.classList.remove("is-invalid");
+    input.removeAttribute("aria-invalid");
+    if(status?.dataset.timeError==="true")setEditorStatus(status,"",false)
+  }
+  function normalizeTimeInput(input){
+    const result=normalizeTimeValue(input.value);
+    if(result.valid){input.value=result.value;input.classList.remove("is-invalid");input.removeAttribute("aria-invalid")}
+    else{input.classList.add("is-invalid");input.setAttribute("aria-invalid","true")}
+    return result
+  }
+  function validatedEditorTimes(arrival,departure,status){
+    const fields=[[arrival,"입고","arrivalTime"],[departure,"출고","departureTime"]],values={};
+    for(const [input,label,key] of fields){
+      const result=normalizeTimeInput(input);
+      if(!result.valid){
+        setEditorStatus(status,`${label} 시간을 확인해 주세요. 예: 0847`);
+        status.dataset.timeError="true";
+        input.focus();input.select();
+        return null
+      }
+      values[key]=result.value
+    }
+    return values
+  }
+  function bindSimpleTimeInput(input,status,updateDuration){
+    input.addEventListener("input",()=>{clearTimeInvalid(input,status);updateDuration()});
+    input.addEventListener("blur",()=>{normalizeTimeInput(input);updateDuration()})
   }
 
   function setMode(mode){state.mode=mode;document.querySelectorAll("[data-query-mode]").forEach(b=>b.classList.toggle("is-active",b.dataset.queryMode===mode));e.monthBox.hidden=mode!=="month";e.rangeBox.hidden=mode!=="range";if(mode==="range"&&!e.from.value&&!e.to.value){const b=monthBounds(e.month.value||currentMonth());e.from.value=b.from;e.to.value=b.to}}
@@ -174,6 +237,8 @@
   }
   function openRecord(){
     e.rForm.reset();
+    populateSiloSelect(e.rSilo);
+    clearTimeInvalid(e.rArrival,e.rStatus);clearTimeInvalid(e.rDeparture,e.rStatus);
     const defaultKind=document.querySelector('input[name="recordKind"][value="unloading"]');
     if(defaultKind)defaultKind.checked=true;
     e.rDate.value=today();
@@ -197,10 +262,12 @@
     ev.preventDefault();
     if(state.saving)return;
     const kind=recordKind();
+    const times=validatedEditorTimes(e.rArrival,e.rDeparture,e.rStatus);
+    if(!times)return updateRecordDuration();
     const common={
       unloadingDate:e.rDate.value,
-      arrivalTime:e.rArrival.value,
-      departureTime:e.rDeparture.value,
+      arrivalTime:times.arrivalTime,
+      departureTime:times.departureTime,
       companyName:e.rCompany.value.trim(),
       vehicleNo:e.rVehicle.value.trim(),
       siloRoute:e.rSilo.value,
@@ -239,9 +306,48 @@
   async function saveTrouble(ev){ev.preventDefault();if(state.saving)return;const id=e.tId.value.trim(),editing=!!id,p={entity:"trouble",occurrenceDate:e.tDate.value,companyName:e.tCompany.value.trim(),vehicleNo:e.tVehicle.value.trim(),equipment:e.tEquipment.value.trim(),note:e.tNote.value.trim()};if(editing){p.id=id;p.version=Number(e.tVersion.value||0)}state.saving=true;setBusy();setEditorStatus(e.tStatus,editing?"수정 내용을 저장하는 중입니다.":"Trouble 기록을 저장하는 중입니다.");try{const r=await api(API,{method:editing?"PUT":"POST",headers:headers({"Content-Type":"application/json"}),body:JSON.stringify(p)});const saved=editing?id:(r.recordId||r.id);if(e.tFiles.files.length){setEditorStatus(e.tStatus,"기록 저장 완료 · 샘플 사진 업로드 중...");await upload(saved,e.tFiles.files)}closeTrouble();await load()}catch(err){setEditorStatus(e.tStatus,err.message||"저장 실패");if(err.status===409)await load()}finally{state.saving=false;setBusy()}}
 
   function updateUnloadDuration(){const m=durationBetween(e.uArrival.value,e.uDeparture.value);e.uDuration.value=m==null?"미입력":durationText(m)}
-  function openUnload(x=null){e.uTitle.textContent="하역시간 수정";e.uId.value=x?.id||"";e.uVersion.value=x?.version||"";e.uDate.value=x?.unloadingDate||today();e.uArrival.value=x?.arrivalTime||"";e.uDeparture.value=x?.departureTime||"";companyLists();ensureOption(e.uCompany,x?.companyName||"");e.uCompany.value=x?.companyName||"";e.uVehicle.value=x?.vehicleNo||"";e.uSilo.value=x?.siloRoute||"";e.uNote.value=x?.note||"";updateUnloadDuration();setEditorStatus(e.uStatus,"",false);e.uModal.hidden=false;document.body.style.overflow="hidden";setTimeout(()=>e.uDate.focus(),0)}
+  function openUnload(x=null){
+    e.uTitle.textContent="하역시간 수정";
+    e.uId.value=x?.id||"";
+    e.uVersion.value=x?.version||"";
+    e.uDate.value=x?.unloadingDate||today();
+    e.uArrival.value=x?.arrivalTime||"";
+    e.uDeparture.value=x?.departureTime||"";
+    normalizeTimeInput(e.uArrival);normalizeTimeInput(e.uDeparture);
+    companyLists();ensureOption(e.uCompany,x?.companyName||"");e.uCompany.value=x?.companyName||"";
+    e.uVehicle.value=x?.vehicleNo||"";
+    populateSiloSelect(e.uSilo,x?.siloRoute||"",true);
+    e.uNote.value=x?.note||"";
+    updateUnloadDuration();setEditorStatus(e.uStatus,"",false);
+    e.uModal.hidden=false;document.body.style.overflow="hidden";setTimeout(()=>e.uDate.focus(),0)
+  }
   function closeUnload(){e.uModal.hidden=true;if(e.photoModal.hidden&&e.tModal.hidden&&e.rModal.hidden&&e.companyModal.hidden)document.body.style.overflow="";setEditorStatus(e.uStatus,"",false)}
-  async function saveUnload(ev){ev.preventDefault();if(state.saving)return;const id=e.uId.value.trim(),editing=!!id,p={entity:"unloading",unloadingDate:e.uDate.value,arrivalTime:e.uArrival.value,departureTime:e.uDeparture.value,companyName:e.uCompany.value.trim(),vehicleNo:e.uVehicle.value.trim(),siloRoute:e.uSilo.value,note:e.uNote.value.trim()};if(editing){p.id=id;p.version=Number(e.uVersion.value||0)}state.saving=true;setBusy();setEditorStatus(e.uStatus,editing?"하역시간 수정 중...":"하역시간 저장 중...");try{await api(API,{method:editing?"PUT":"POST",headers:headers({"Content-Type":"application/json"}),body:JSON.stringify(p)});closeUnload();await load()}catch(err){setEditorStatus(e.uStatus,err.message||"저장 실패");if(err.status===409)await load()}finally{state.saving=false;setBusy()}}
+  async function saveUnload(ev){
+    ev.preventDefault();
+    if(state.saving)return;
+    const times=validatedEditorTimes(e.uArrival,e.uDeparture,e.uStatus);
+    if(!times)return updateUnloadDuration();
+    const id=e.uId.value.trim(),editing=!!id,p={
+      entity:"unloading",
+      unloadingDate:e.uDate.value,
+      arrivalTime:times.arrivalTime,
+      departureTime:times.departureTime,
+      companyName:e.uCompany.value.trim(),
+      vehicleNo:e.uVehicle.value.trim(),
+      siloRoute:e.uSilo.value,
+      note:e.uNote.value.trim()
+    };
+    if(editing){p.id=id;p.version=Number(e.uVersion.value||0)}
+    state.saving=true;setBusy();setEditorStatus(e.uStatus,editing?"하역시간 수정 중...":"하역시간 저장 중...");
+    try{
+      await api(API,{method:editing?"PUT":"POST",headers:headers({"Content-Type":"application/json"}),body:JSON.stringify(p)});
+      closeUnload();await load()
+    }catch(err){
+      setEditorStatus(e.uStatus,err.message||"저장 실패");if(err.status===409)await load()
+    }finally{
+      state.saving=false;setBusy()
+    }
+  }
 
 
   function renderCompanyManager(){
@@ -354,7 +460,7 @@
     });
 
     document.querySelectorAll('input[name="recordKind"]').forEach(x=>x.addEventListener("change",syncRecordKind));
-    [e.rArrival,e.rDeparture].forEach(x=>x.addEventListener("input",updateRecordDuration));
+    [e.rArrival,e.rDeparture].forEach(x=>bindSimpleTimeInput(x,e.rStatus,updateRecordDuration));
     e.rForm.addEventListener("submit",saveRecord);
     e.rClose.addEventListener("click",closeRecord);
     e.rCancel.addEventListener("click",closeRecord);
@@ -390,7 +496,7 @@
     e.uForm.addEventListener("submit",saveUnload);
     e.uClose.addEventListener("click",closeUnload);
     e.uCancel.addEventListener("click",closeUnload);
-    [e.uArrival,e.uDeparture].forEach(x=>x.addEventListener("input",updateUnloadDuration));
+    [e.uArrival,e.uDeparture].forEach(x=>bindSimpleTimeInput(x,e.uStatus,updateUnloadDuration));
     e.uModal.addEventListener("click",ev=>{if(ev.target===e.uModal)closeUnload()});
 
     e.photoClose.addEventListener("click",closePhoto);

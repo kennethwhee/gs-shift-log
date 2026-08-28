@@ -1044,3 +1044,35 @@ body{
     height:62px;
   }
 }
+
+/* =========================================================
+  SOLID-FUEL-TROUBLE-V3.1.3
+  간단 시간 입력 · 현재 Silo 선택지
+========================================================= */
+
+.editor .simple-time-input{
+  border-color:#b7c9da;
+  background:#fff;
+  color:#173b59;
+  font-variant-numeric:tabular-nums;
+  font-weight:800;
+  letter-spacing:.045em;
+  text-align:center;
+}
+
+.editor .simple-time-input::placeholder{
+  color:#8192a3;
+  font-weight:650;
+  letter-spacing:0;
+}
+
+.editor .simple-time-input:focus{
+  border-color:#397db9;
+  box-shadow:0 0 0 3px rgba(47,111,171,.13);
+}
+
+.editor .simple-time-input.is-invalid{
+  border-color:#c75b5b;
+  background:#fff7f7;
+  box-shadow:0 0 0 3px rgba(184,75,75,.10);
+}

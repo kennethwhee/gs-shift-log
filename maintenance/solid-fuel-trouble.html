@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>고형연료 Trouble | GS Shift Log</title>
-  <link rel="stylesheet" href="/maintenance/solid-fuel-trouble.css?v=20260828-v3.1.2">
+  <link rel="stylesheet" href="/maintenance/solid-fuel-trouble.css?v=20260828-v3.1.3">
 </head>
 <body>
   <main class="page">
@@ -270,25 +270,22 @@
             <label>
               <span>하역 Silo</span>
               <select id="recordSilo">
-                <option value="">선택</option>
-                <option value="#A">#A Storage Silo</option>
-                <option value="#B">#B Storage Silo</option>
+                <option value="">선택 안 함</option>
+                <option value="#A">Storage #A</option>
+                <option value="#B">Storage #B</option>
                 <option value="Day">Day Silo</option>
-                <option value="#A → #B">#A → #B</option>
-                <option value="#A → Day">#A → Day</option>
-                <option value="#B → Day">#B → Day</option>
-                <option value="#A → #B → Day">#A → #B → Day</option>
               </select>
             </label>
 
+            <!-- SOLID-FUEL-TROUBLE-V3.1.3 · 간단 시간 입력 -->
             <label>
               <span>입고</span>
-              <input id="recordArrival" type="time">
+              <input id="recordArrival" class="simple-time-input" type="text" inputmode="numeric" maxlength="5" placeholder="예: 0847" autocomplete="off">
             </label>
 
             <label>
               <span>출고</span>
-              <input id="recordDeparture" type="time">
+              <input id="recordDeparture" class="simple-time-input" type="text" inputmode="numeric" maxlength="5" placeholder="예: 0847" autocomplete="off">
             </label>
 
             <label class="duration-field">
@@ -377,21 +374,18 @@
 
         <div class="unload-editor-grid">
           <label><span>일자</span><input id="unloadDate" type="date"></label>
-          <label><span>입고</span><input id="unloadArrival" type="time"></label>
-          <label><span>출고</span><input id="unloadDeparture" type="time"></label>
+          <!-- SOLID-FUEL-TROUBLE-V3.1.3 · 간단 시간 입력 + 현재 Silo 선택지 -->
+          <label><span>입고</span><input id="unloadArrival" class="simple-time-input" type="text" inputmode="numeric" maxlength="5" placeholder="예: 0847" autocomplete="off"></label>
+          <label><span>출고</span><input id="unloadDeparture" class="simple-time-input" type="text" inputmode="numeric" maxlength="5" placeholder="예: 0847" autocomplete="off"></label>
           <label><span>소요시간</span><input id="unloadDurationPreview" readonly></label>
           <label><span>업체명</span><select id="unloadCompany"><option value="">선택 안 함</option></select></label>
           <label><span>차량번호</span><input id="unloadVehicle" maxlength="40"></label>
           <label><span>하역 Silo</span>
             <select id="unloadSilo">
-              <option value="">선택</option>
-              <option value="#A">#A Storage Silo</option>
-              <option value="#B">#B Storage Silo</option>
+              <option value="">선택 안 함</option>
+              <option value="#A">Storage #A</option>
+              <option value="#B">Storage #B</option>
               <option value="Day">Day Silo</option>
-              <option value="#A → #B">#A → #B</option>
-              <option value="#A → Day">#A → Day</option>
-              <option value="#B → Day">#B → Day</option>
-              <option value="#A → #B → Day">#A → #B → Day</option>
             </select>
           </label>
         </div>
@@ -466,6 +460,6 @@
     </section>
   </div>
 
-  <script src="/maintenance/solid-fuel-trouble.js?v=20260828-v3.1.2" defer></script>
+  <script src="/maintenance/solid-fuel-trouble.js?v=20260828-v3.1.3" defer></script>
 </body>
 </html>
