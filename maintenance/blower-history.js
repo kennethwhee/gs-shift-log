@@ -4,6 +4,7 @@
   const API_URL = "/api/blower-history";
   const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
   const AVERAGE_PERIOD_STORAGE_KEY = "gsShiftLog.blowerHistory.averagePeriod";
+  const MOBILE_MONITORING_QUERY = "(max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse)";
 
   const state = {
     data: null,
@@ -133,6 +134,28 @@
       ...extra,
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     };
+  }
+
+  function isMobileMonitoringView() {
+    return Boolean(window.matchMedia?.(MOBILE_MONITORING_QUERY).matches);
+  }
+
+  function stopMobileMutation(event) {
+    if (!isMobileMonitoringView()) return false;
+    event?.preventDefault?.();
+    showToast("모바일에서는 현황과 이력 조회만 가능합니다.");
+    return true;
+  }
+
+  function applyMobileMonitoringMode() {
+    const mobile = isMobileMonitoringView();
+    document.body.classList.toggle("mobile-monitoring", mobile);
+
+    if (!mobile) return;
+
+    if (state.subview === "detect") switchSubview("overview");
+    if (elements.recordDialog?.open) elements.recordDialog.close();
+    if (elements.settingsDialog?.open) elements.settingsDialog.close();
   }
 
   function parseRetryAfterMs(value) {
@@ -517,6 +540,14 @@
   function renderTypeTabs() {
     if (!elements.typeTabs || !state.data) return;
 
+    const compactLabels = {
+      fbhe: "FBHE",
+      seal_pot: "Seal Pot",
+      organic_fuel: "유기성",
+      flyash_bag: "BAG",
+      flyash_silo: "SILO"
+    };
+
     elements.typeTabs.innerHTML = (state.data.types || [])
       .map(type => {
         const active = type.key === state.activeType;
@@ -529,10 +560,13 @@
             type="button"
             class="type-tab${active ? " is-active" : ""}${type.important ? " is-important" : ""}"
             data-type="${escapeHtml(type.key)}"
+            aria-label="${escapeHtml(type.label)}"
             aria-pressed="${active ? "true" : "false"}"
             ${active ? 'aria-current="page"' : ""}
           >
-            ${escapeHtml(type.label)}${typeAlerts > 0 ? ` · ${typeAlerts}` : ""}
+            <span class="type-label-full">${escapeHtml(type.label)}</span>
+            <span class="type-label-compact">${escapeHtml(compactLabels[type.key] || type.label)}</span>
+            ${typeAlerts > 0 ? `<span class="type-alert-count">${typeAlerts}</span>` : ""}
           </button>
         `;
       })
@@ -581,7 +615,9 @@
 
     if (!setting || !(Number(setting.cycleDays) > 0)) {
       elements.settingsSummary.textContent = "교체주기 미설정";
-      elements.settingsUpdated.textContent = "로그인 사용자 누구나 설정 가능 · 변경 이력 기록";
+      elements.settingsUpdated.textContent = isMobileMonitoringView()
+        ? "모바일 조회 전용"
+        : "로그인 사용자 누구나 설정 가능 · 변경 이력 기록";
     } else {
       const cycleHours = Number(setting.cycleDays) * 24;
       elements.settingsSummary.textContent = [
@@ -593,14 +629,16 @@
       const updatedText = setting.updatedAt
         ? `최근 변경 ${formatDate(setting.updatedAt)}${setting.updatedByName ? ` · ${setting.updatedByName}` : ""}`
         : "변경 이력 기록";
-      elements.settingsUpdated.textContent = `${updatedText} · 누구나 변경 가능`;
+      elements.settingsUpdated.textContent = isMobileMonitoringView()
+        ? `${updatedText} · 모바일 조회 전용`
+        : `${updatedText} · 누구나 변경 가능`;
     }
 
-    elements.settingsButton.hidden = !state.data?.user;
+    elements.settingsButton.hidden = !state.data?.user || isMobileMonitoringView();
   }
 
   function renderHeaderActions() {
-    elements.auditHistoryButton.hidden = !state.data?.user?.isSuperAdmin;
+    elements.auditHistoryButton.hidden = !state.data?.user?.isSuperAdmin || isMobileMonitoringView();
   }
 
   function renderMissingTags() {
@@ -613,13 +651,17 @@
     }
 
     elements.missingTagsNotice.hidden = false;
+    const hasIdentityPending = missing.some(item => item.identityPending);
     elements.missingTagsNotice.innerHTML = `
       <strong>TAG 확인 대기</strong>
       <span>${missing.map(item => {
-        const unitLabel = item.unitNo === "shared" ? "공용" : `#${item.unitNo}호기`;
+        const unitLabel = item.groupLabel
+          || (item.unitNo === "shared" ? "공용" : `#${item.unitNo}호기`);
         return `${escapeHtml(unitLabel)} ${item.missingCount}대`;
       }).join(" · ")}</span>
-      <small>정확한 전체 TAG가 업무일지에서 확인되면 자동 등록됩니다.</small>
+      <small>${hasIdentityPending
+        ? "축분 Blower는 정확한 TAG와 호기를 확인한 뒤 교체주기·이력을 연동합니다."
+        : "정확한 전체 TAG가 업무일지에서 확인되면 자동 등록됩니다."}</small>
     `;
   }
 
@@ -807,8 +849,8 @@
     const nextReplacementAt = cycleDays > 0 && asset.lastReplacementAt
       ? addDaysToDate(asset.lastReplacementAt, cycleDays)
       : "-";
-    const remainingLabel = cycleHours ? formatRemainingDday(nextReplacementAt) : "기준 미설정";
-    const remainingDetail = cycleHours ? formatSignedRemaining(asset) : "교체주기 설정 필요";
+    const remainingLabel = cycleHours ? formatRemainingDday(nextReplacementAt) : "-";
+    const remainingDetail = cycleHours ? formatSignedRemaining(asset) : "교체주기 미설정";
     const evidenceText = fullEvidence || emptyEvidenceMessage(replacementEvent);
     const evidencePreview = evidence || evidenceText;
 
@@ -823,25 +865,23 @@
         </div>
 
         ${confirmed ? `
-          <div class="cycle-overview">
+          <div class="cycle-overview" title="${escapeHtml(remainingDetail)}">
             <div class="cycle-primary-metric">
               <span>교체 경과</span>
               <strong>${escapeHtml(formatDaysHours(cycleElapsedHours))}</strong>
-              <small>최근 교체일 기준 자동계산</small>
             </div>
             <div class="cycle-deadline-metric ${escapeHtml(severity)}">
-              <span>다음 교체까지</span>
+              <span>D-day</span>
               <strong>${escapeHtml(remainingLabel)}</strong>
-              <small>${escapeHtml(remainingDetail)}</small>
+            </div>
+            <div class="cycle-usage-metric ${escapeHtml(severity)}">
+              <span>주기 사용</span>
+              <strong>${cycleHours ? `${Math.round(rawProgress).toLocaleString("ko-KR")}%` : "-"}</strong>
             </div>
           </div>
 
           ${cycleHours ? `
             <div class="cycle-progress-block">
-              <div class="progress-caption">
-                <span>주기 사용 ${Math.round(rawProgress).toLocaleString("ko-KR")}%</span>
-                <span>관리 기준 ${cycleDays.toLocaleString("ko-KR")}일</span>
-              </div>
               <div
                 class="progress-track"
                 role="progressbar"
@@ -853,25 +893,13 @@
                 <div class="progress-bar" style="width:${progress.toFixed(2)}%"></div>
               </div>
             </div>
-          ` : `
-            <div class="cycle-progress-block is-unset">
-              <strong>교체주기를 설정하면 잔여기간과 다음 교체 예정일을 자동 계산합니다.</strong>
-            </div>
-          `}
+          ` : ""}
 
-          <div class="asset-meta asset-meta-three">
-            <div>
-              <span>최근 교체일</span>
-              <strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong>
-            </div>
-            <div>
-              <span>다음 교체 예정</span>
-              <strong>${escapeHtml(nextReplacementAt)}</strong>
-            </div>
-            <div>
-              <span>관리 기준</span>
-              <strong>${cycleHours ? `${cycleDays.toLocaleString("ko-KR")}일` : "미설정"}</strong>
-            </div>
+          <div class="cycle-date-line">
+            <span><em>최근</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
+            <b aria-hidden="true">→</b>
+            <span><em>예정</em><strong>${escapeHtml(nextReplacementAt)}</strong></span>
+            <small>기준 ${cycleHours ? `${cycleDays.toLocaleString("ko-KR")}일` : "미설정"}</small>
           </div>
 
           <div class="asset-evidence${evidence ? "" : " is-empty"}">
@@ -880,12 +908,6 @@
               <em class="evidence-source-badge ${escapeHtml(evidenceMeta.className)}">${escapeHtml(evidenceMeta.label)}</em>
             </div>
             <p title="${escapeHtml(evidenceText)}">${escapeHtml(evidencePreview)}</p>
-            ${replacementEvent ? `
-              <small>
-                교체일 ${escapeHtml(formatDate(replacementEvent.eventDate))}
-                ${replacementEvent.createdByName ? ` · 등록 ${escapeHtml(replacementEvent.createdByName)}` : ""}
-              </small>
-            ` : ""}
           </div>
         ` : awaitingBackfill ? `
           <div class="unknown-cycle is-rebuild-pending">
@@ -902,12 +924,12 @@
         `}
 
         <div class="asset-actions">
-          <button type="button" class="asset-action primary" data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">V-Belt 교체 등록</button>
+          <button type="button" class="asset-action primary" data-mobile-write data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">V-Belt 교체 등록</button>
           <button type="button" class="asset-action" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}">이력 보기</button>
-          <details class="asset-more">
+          <details class="asset-more" data-mobile-write>
             <summary aria-label="추가 관리 메뉴">•••</summary>
             <div class="asset-more-menu">
-              <button type="button" data-asset-action="runtime" data-tag="${escapeHtml(asset.tagNumber)}">운전시간/상태 보정</button>
+              <button type="button" data-mobile-write data-asset-action="runtime" data-tag="${escapeHtml(asset.tagNumber)}">운전시간/상태 보정</button>
             </div>
           </details>
         </div>
@@ -916,18 +938,25 @@
   }
 
   function renderMissingAssetCard(slot) {
+    const identityPending = Boolean(slot.identityPending);
+    const positionLabel = identityPending ? (slot.displayName || "축분 Blower") : slot.positionLabel;
+    const tagLabel = identityPending ? "TAG · 호기 확인 대기" : "TAG 자동확인 대기";
+    const note = identityPending
+      ? "정확한 TAG와 호기가 확인되면 교체주기와 이력을 연동합니다."
+      : "정확한 전체 TAG가 업무일지에서 확인되면 설비 카드로 자동 전환됩니다.";
+
     return `
-      <article class="asset-card is-placeholder" data-severity="unknown">
+      <article class="asset-card is-placeholder${identityPending ? " is-identity-pending" : ""}" data-severity="unknown">
         <div class="asset-card-header">
           <div class="asset-identity">
-            <strong class="asset-position">${escapeHtml(slot.positionLabel)}</strong>
-            <span class="asset-tag">TAG 자동확인 대기</span>
+            <strong class="asset-position">${escapeHtml(positionLabel)}</strong>
+            <span class="asset-tag">${escapeHtml(tagLabel)}</span>
           </div>
           <span class="status-pill unknown">TAG 미확인</span>
         </div>
 
         <div class="placeholder-note">
-          정확한 전체 TAG가 업무일지에서 확인되면 설비 카드로 자동 전환됩니다.
+          ${escapeHtml(note)}
         </div>
       </article>
     `;
@@ -937,7 +966,7 @@
     const assets = getActiveAssets();
     const missingSlots = getActiveMissingSlots();
     const setting = getActiveSetting();
-    const groupOrder = ["1", "2", "shared"];
+    const groupOrder = ["1", "2", "manure", "shared"];
     const groups = new Map();
     const missingGroups = new Map();
 
@@ -947,14 +976,17 @@
     }
 
     for (const slot of missingSlots) {
-      if (!missingGroups.has(slot.unitNo)) missingGroups.set(slot.unitNo, []);
-      missingGroups.get(slot.unitNo).push(slot);
+      const groupKey = slot.groupKey || slot.unitNo;
+      if (!missingGroups.has(groupKey)) missingGroups.set(groupKey, []);
+      missingGroups.get(groupKey).push(slot);
     }
 
     const html = groupOrder
       .filter(unitNo => groups.has(unitNo) || missingGroups.has(unitNo))
       .map(unitNo => {
-        const label = unitNo === "shared" ? "#1 · #2호기 공용" : `#${unitNo}호기`;
+        const firstSlot = (missingGroups.get(unitNo) || [])[0];
+        const label = firstSlot?.groupLabel
+          || (unitNo === "shared" ? "#1 · #2호기 공용" : `#${unitNo}호기`);
         const actualCards = (groups.get(unitNo) || [])
           .filter(asset => state.statusFilter === "all" || displaySeverity(asset) === state.statusFilter)
           .sort((a, b) => Number(a.sortOrder) - Number(b.sortOrder))
@@ -1272,8 +1304,8 @@
             <p>${escapeHtml(candidate.sourceText)}</p>
           </div>
           <div class="candidate-actions">
-            <button type="button" class="button primary" data-candidate-action="confirm" data-id="${escapeHtml(candidate.id)}">확인/수정</button>
-            <button type="button" class="button secondary" data-candidate-action="exclude" data-id="${escapeHtml(candidate.id)}">제외</button>
+            <button type="button" class="button primary" data-mobile-write data-candidate-action="confirm" data-id="${escapeHtml(candidate.id)}">확인/수정</button>
+            <button type="button" class="button secondary" data-mobile-write data-candidate-action="exclude" data-id="${escapeHtml(candidate.id)}">제외</button>
           </div>
         </article>
       `)
@@ -1296,8 +1328,8 @@
     const sourceLabel = recovery?.sourceTable === "legacy_logs" ? "과거 업무일지" : "신규 업무일지";
     const cursor = Number(recovery?.cursorRowId || 0).toLocaleString("ko-KR");
 
-    elements.historicalBackfillButton.hidden = !isSuperAdmin;
-    elements.overviewBackfillButton.hidden = !isSuperAdmin;
+    elements.historicalBackfillButton.hidden = !isSuperAdmin || isMobileMonitoringView();
+    elements.overviewBackfillButton.hidden = !isSuperAdmin || isMobileMonitoringView();
     elements.overviewBackfillCallout.hidden = !showOverviewCallout;
     elements.overviewBackfillCallout.classList.toggle("is-catchup", false);
 
@@ -1367,6 +1399,7 @@
     renderHistory();
     renderCandidates();
     renderBackfillStatus();
+    applyMobileMonitoringMode();
   }
 
   function setBusy(isBusy) {
@@ -1415,6 +1448,7 @@
   }
 
   function switchSubview(subview) {
+    if (subview === "detect" && isMobileMonitoringView()) subview = "overview";
     state.subview = subview;
 
     document.querySelectorAll(".sub-tab").forEach(button => {
@@ -1447,6 +1481,7 @@
   }
 
   function openRecordDialog(mode, tagNumber, candidate = null) {
+    if (stopMobileMutation()) return;
     const asset = findAsset(tagNumber);
     if (!asset || !elements.recordDialog) return;
 
@@ -1512,6 +1547,7 @@
   }
 
   function openSettingsDialog() {
+    if (stopMobileMutation()) return;
     if (!state.data?.user) return;
 
     const type = getTypeDefinition();
@@ -1526,6 +1562,7 @@
 
   async function saveRecord(event) {
     event.preventDefault();
+    if (stopMobileMutation(event)) return;
     if (state.busy) return;
 
     const mode = elements.recordMode.value;
@@ -1593,6 +1630,7 @@
 
   async function saveSettings(event, clear = false) {
     event?.preventDefault?.();
+    if (stopMobileMutation(event)) return;
     if (state.busy) return;
 
     const cycleDays = clear ? null : (elements.cycleDays.value === "" ? null : Number(elements.cycleDays.value));
@@ -1662,6 +1700,7 @@
   }
 
   async function runHistoricalBackfill() {
+    if (stopMobileMutation()) return;
     if (
       state.busy
       || state.backfillRunning
@@ -1757,6 +1796,7 @@
   }
 
   async function downloadHistoricalAudit() {
+    if (stopMobileMutation()) return;
     if (
       state.busy
       || state.backfillRunning
@@ -1921,6 +1961,7 @@
   }
 
   async function scanShiftLogs() {
+    if (stopMobileMutation()) return;
     if (state.busy) return;
     setBusy(true);
     elements.scanButton.textContent = "분석 중...";
@@ -1945,6 +1986,7 @@
   }
 
   async function excludeCandidate(id) {
+    if (stopMobileMutation()) return;
     if (state.busy) return;
     setBusy(true);
 
@@ -2060,6 +2102,16 @@
     cacheElements();
     applySavedAveragePeriod();
     bindEvents();
+    applyMobileMonitoringMode();
+
+    const mobileMedia = window.matchMedia?.(MOBILE_MONITORING_QUERY);
+    const handleMobileModeChange = () => {
+      if (state.data) renderAll();
+      else applyMobileMonitoringMode();
+    };
+    if (mobileMedia?.addEventListener) mobileMedia.addEventListener("change", handleMobileModeChange);
+    else mobileMedia?.addListener?.(handleMobileModeChange);
+
     switchSubview("overview");
     await loadData();
   }

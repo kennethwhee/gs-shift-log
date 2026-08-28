@@ -33,6 +33,20 @@ const TYPE_DEFINITIONS = [
   }
 ];
 
+// 실제 TAG와 호기가 확인되지 않은 설비는 DB asset으로 만들지 않는다.
+// TAG가 확정되기 전까지는 조회 전용 placeholder로만 노출해 이력 오귀속을 막는다.
+const PENDING_ASSET_SLOTS = Object.freeze([
+  {
+    slotKey: "organic_fuel_manure_pending",
+    blowerType: "organic_fuel",
+    groupKey: "manure",
+    groupLabel: "축분 Blower",
+    positionLabel: "#1",
+    displayName: "축분 Blower",
+    identityPending: true
+  }
+]);
+
 const ASSET_SEEDS = [
   ["104HHL60AP611", "fbhe", "1", "#A", "#1 FBHE Blower #A", 101],
   ["104HHL60AP621", "fbhe", "1", "#B", "#1 FBHE Blower #B", 102],
@@ -1238,6 +1252,18 @@ function buildMissingTagSummary(assetStates) {
     }
   }
 
+  for (const slot of PENDING_ASSET_SLOTS) {
+    missing.push({
+      blowerType: slot.blowerType,
+      groupKey: slot.groupKey,
+      groupLabel: slot.groupLabel,
+      expectedCount: 1,
+      registeredCount: 0,
+      missingCount: 1,
+      identityPending: true
+    });
+  }
+
   return missing;
 }
 
@@ -1275,6 +1301,8 @@ function buildMissingSlotDetails(assetStates) {
       }
     }
   }
+
+  for (const slot of PENDING_ASSET_SLOTS) missingSlots.push({ ...slot });
 
   return missingSlots;
 }
