@@ -250,16 +250,19 @@ function durationMinutes(arrival,departure){
 }
 function abnormalText(v){ return /막힘|문제발생|문제 발생|불량|덩어리/i.test(text(v)); }
 
-async function auth(context){
+async function auth(context,{optional=false}={}){
   if(!context.env.DB) return {error:json({ok:false,message:"D1 바인딩 DB가 등록되지 않았습니다."},500)};
-  const token=bearer(context.request); if(!token) return {error:json({ok:false,message:"로그인이 필요합니다."},401)};
+  const token=bearer(context.request);
+  if(!token) return optional?{user:null}:{error:json({ok:false,message:"로그인이 필요합니다."},401)};
   const row=await context.env.DB.prepare(`
     SELECT s.employee_no,s.expires_at,u.name,u.role,u.is_active
     FROM shift_log_sessions s INNER JOIN users u ON u.employee_no=s.employee_no
     WHERE s.token_hash=? LIMIT 1
   `).bind(await tokenHash(token)).first();
   const expires=new Date(row?.expires_at||0);
-  if(!row||Number(row.is_active)!==1||Number.isNaN(expires.getTime())||expires<=new Date()) return {error:json({ok:false,message:"로그인 세션이 만료되었습니다. 다시 로그인해 주세요."},401)};
+  if(!row||Number(row.is_active)!==1||Number.isNaN(expires.getTime())||expires<=new Date()){
+    return optional?{user:null}:{error:json({ok:false,message:"로그인 세션이 만료되었습니다. 다시 로그인해 주세요."},401)};
+  }
   const no=employeeNo(row.employee_no),role=no===FORCED_SUPER_ADMIN_EMPLOYEE_NO?"super_admin":roleOf(row.role);
   return {user:{employeeNo:no,name:text(row.name),role,isAdmin:["admin","super_admin"].includes(role),isSuperAdmin:role==="super_admin"}};
 }
@@ -479,6 +482,35 @@ function troubleObj(r,map){
   };
 }
 function unloadObj(r){ const known=Number(r.duration_known??1)===1; return {id:text(r.id),sourceKey:text(r.source_key),unloadingDate:text(r.unloading_date),arrivalTime:text(r.arrival_time),departureTime:text(r.departure_time),durationKnown:known,durationMinutes:known?Number(r.duration_minutes||0):null,companyName:text(r.company_name),vehicleNo:text(r.vehicle_no),siloRoute:text(r.silo_route),note:text(r.note),version:Number(r.version||1),abnormal:abnormalText(r.note),createdAt:text(r.created_at),updatedAt:text(r.updated_at)}; }
+
+function publicTroubleObj(item){
+  return {
+    occurrenceDate:text(item?.occurrenceDate),
+    companyName:text(item?.companyName),
+    vehicleNo:text(item?.vehicleNo),
+    equipment:text(item?.equipment),
+    note:text(item?.note),
+    photos:(Array.isArray(item?.photos)?item.photos:[]).map(photo=>({
+      url:text(photo?.url)
+    }))
+  };
+}
+
+function publicUnloadObj(item){
+  const durationKnown=item?.durationKnown!==false;
+  return {
+    unloadingDate:text(item?.unloadingDate),
+    arrivalTime:text(item?.arrivalTime),
+    departureTime:text(item?.departureTime),
+    durationKnown,
+    durationMinutes:durationKnown&&item?.durationMinutes!==null?Number(item?.durationMinutes||0):null,
+    companyName:text(item?.companyName),
+    vehicleNo:text(item?.vehicleNo),
+    siloRoute:text(item?.siloRoute),
+    note:text(item?.note),
+    abnormal:Boolean(item?.abnormal)
+  };
+}
 
 function applyCommonFilters(url,dateField,companyField,vehicleField,searchFields){
   const clauses=[],binds=[];
@@ -864,44 +896,63 @@ async function reservePhotoUpload(db,photo){
 
 function photoKey(id,name,now=new Date()){ return ["solid-fuel-trouble",String(now.getUTCFullYear()),String(now.getUTCMonth()+1).padStart(2,"0"),id,`${crypto.randomUUID()}_${safeName(name)}`].join("/"); }
 
-async function servePhoto(context,id){
-  await initialize(context.env.DB);
+async function servePhoto(context,id,{publicAccess=false}={}){
   const p=await context.env.DB.prepare(`SELECT * FROM solid_fuel_trouble_photos WHERE id=? AND upload_state='ready' LIMIT 1`).bind(id).first();
   if(!p) return json({ok:false,message:"샘플 사진을 찾을 수 없습니다."},404);
   if(!context.env.ATTACHMENTS) return json({ok:false,message:"R2 바인딩 ATTACHMENTS가 등록되지 않았습니다."},500);
   const o=await context.env.ATTACHMENTS.get(p.r2_key); if(!o) return json({ok:false,message:"R2에서 샘플 사진을 찾을 수 없습니다."},404);
-  return new Response(o.body,{status:200,headers:{"Content-Type":imageType(p.original_name),"Content-Disposition":photoDisposition(p.original_name),"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
+  const originalExtension=ext(p.original_name);
+  const responseFilename=publicAccess
+    ? `sample-photo${PHOTO_EXTENSIONS.has(originalExtension)?`.${originalExtension}`:""}`
+    : p.original_name;
+  return new Response(o.body,{status:200,headers:{"Content-Type":imageType(p.original_name),"Content-Disposition":photoDisposition(responseFilename),"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
 }
 
 export async function onRequestGet(context){
   try{
     const url=new URL(context.request.url),photoId=text(url.searchParams.get("photoId"));
-    if(photoId) return servePhoto(context,photoId);
-    const a=await auth(context); if(a.error) return a.error;
-    await initialize(context.env.DB);
-    let photoRepair=null,photoConsistency=null;
-    try{
-      photoConsistency=await reconcilePendingPhotoUploads(context);
-    }catch(error){
-      console.error("solid fuel pending photo reconciliation",error);
-      photoConsistency={status:"failed",checkedCount:0,finalizedCount:0,removedCount:0,waitingCount:0};
+    const a=await auth(context,{optional:true}); if(a.error) return a.error;
+    if(photoId){
+      if(a.user) await initialize(context.env.DB);
+      return servePhoto(context,photoId,{publicAccess:!a.user});
     }
-    try{
-      photoRepair=await repairPhotoIndex(context);
-      if(Number(photoRepair?.recoveredCount||0)>0){
-        console.info("solid fuel photo index recovered",photoRepair);
+    if(a.user) await initialize(context.env.DB);
+    let photoRepair=null,photoConsistency=null;
+    if(a.user){
+      try{
+        photoConsistency=await reconcilePendingPhotoUploads(context);
+      }catch(error){
+        console.error("solid fuel pending photo reconciliation",error);
+        photoConsistency={status:"failed",checkedCount:0,finalizedCount:0,removedCount:0,waitingCount:0};
       }
-    }catch(error){
-      console.error("solid fuel photo index repair",error);
-      photoRepair={status:"failed",scannedCount:0,recoveredCount:0};
+      try{
+        photoRepair=await repairPhotoIndex(context);
+        if(Number(photoRepair?.recoveredCount||0)>0){
+          console.info("solid fuel photo index recovered",photoRepair);
+        }
+      }catch(error){
+        console.error("solid fuel photo index repair",error);
+        photoRepair={status:"failed",scannedCount:0,recoveredCount:0};
+      }
     }
     const [items,unloadingLogs,companyList,companyDir,filterCompanyList]=await Promise.all([
       listTroubles(context.env.DB,url),
       listUnloadings(context.env.DB,url),
       activeCompanies(context.env.DB),
-      companyDirectory(context.env.DB),
+      a.user?companyDirectory(context.env.DB):Promise.resolve(null),
       filterCompanies(context.env.DB)
     ]);
+    if(!a.user){
+      return json({
+        ok:true,
+        items:items.map(publicTroubleObj),
+        unloadingLogs:unloadingLogs.map(publicUnloadObj),
+        companies:companyList,
+        filterCompanies:filterCompanyList,
+        permissions:{canCreate:false,canEdit:false,canDelete:false,canUploadPhoto:false,canManageUnloading:false,canManageCompanies:false},
+        user:null
+      });
+    }
     return json({
       ok:true,
       items,

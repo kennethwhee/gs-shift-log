@@ -232,6 +232,7 @@
     year: 2027,
     view: initialView,
     sheetKey: "",
+    canWrite: false,
     version: 0,
     recordId: "",
     rows: [],
@@ -525,17 +526,35 @@
     const url = new URL(window.location.href);
     url.searchParams.set("view", state.view);
     url.searchParams.set("sheet", state.sheetKey);
-    history.replaceState(null, "", url);
+    const currentHistoryState =
+      history.state && typeof history.state === "object"
+        ? history.state
+        : {};
+
+    history.replaceState(
+      { ...currentHistoryState },
+      "",
+      url
+    );
 
     syncActionAvailability();
   }
 
   function syncActionAvailability() {
-    const authenticated = Boolean(management.getSessionToken());
+    const canWrite = state.canWrite === true;
 
-    elements.saveButton.disabled = state.loading || !authenticated;
-    elements.addRowButton.disabled = state.loading || !authenticated;
-    elements.excelUploadButton.disabled = state.loading || !authenticated;
+    document.body.classList.toggle(
+      "pm-public-readonly",
+      !canWrite
+    );
+
+    elements.saveButton.hidden = !canWrite;
+    elements.addRowButton.hidden = !canWrite;
+    elements.excelUploadButton.hidden = !canWrite;
+
+    elements.saveButton.disabled = state.loading || !canWrite;
+    elements.addRowButton.disabled = state.loading || !canWrite;
+    elements.excelUploadButton.disabled = state.loading || !canWrite;
     elements.excelDownloadButton.disabled = state.loading;
     elements.previewButton.disabled = state.loading;
     elements.reloadButton.disabled = state.loading;
@@ -545,6 +564,12 @@
       .querySelectorAll("[data-planned-maintenance-view], [data-planned-maintenance-sheet]")
       .forEach(button => {
         button.disabled = state.loading;
+      });
+
+    document
+      .querySelectorAll("[data-pm-field], [data-pm-delete-row]")
+      .forEach(control => {
+        control.disabled = state.loading || !canWrite;
       });
   }
 
@@ -836,6 +861,7 @@
 
     elements.tableHead = document.getElementById("plannedMaintenanceTableHead");
     elements.tableBody = document.getElementById("plannedMaintenanceTableBody");
+    syncActionAvailability();
   }
 
   async function fetchDocument() {
@@ -856,25 +882,27 @@
       throw new Error(data.message || "계획정비 기록을 불러오지 못했습니다.");
     }
 
-    return data.item || {};
+    return {
+      item: data.item || {},
+      permissions:
+        data.permissions && typeof data.permissions === "object"
+          ? data.permissions
+          : {}
+    };
   }
 
   async function loadDocument() {
-    const token = management.getSessionToken();
-
-    if (!token) {
-      elements.authWarning.hidden = false;
-      elements.statusText.textContent = "로그인 필요";
-      syncActionAvailability();
-      return;
-    }
-
-    elements.authWarning.hidden = true;
     setLoading(true);
     elements.statusText.textContent = "불러오는 중";
 
     try {
-      const item = await fetchDocument();
+      const result = await fetchDocument();
+      const item = result.item;
+
+      state.canWrite = result.permissions.canWrite === true;
+      elements.authWarning.hidden = state.canWrite;
+      elements.authWarning.textContent =
+        "공유 조회 전용입니다. 저장은 업무일지에서 로그인한 사용자만 가능합니다.";
 
       state.version = Number(item.version || 0);
       state.recordId = normalizeString(item.id);
@@ -897,6 +925,10 @@
       }
     } catch (error) {
       console.error("계획정비 불러오기 오류:", error);
+      state.canWrite = false;
+      elements.authWarning.hidden = false;
+      elements.authWarning.textContent =
+        "공유 자료를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
       management.showToast(
         error instanceof Error
           ? error.message
@@ -922,7 +954,7 @@
       return;
     }
 
-    if (!management.getSessionToken()) {
+    if (!state.canWrite || !management.getSessionToken()) {
       management.showToast("로그인 정보가 없습니다.", "error");
       return;
     }
@@ -989,6 +1021,10 @@
   }
 
   function addRow() {
+    if (!state.canWrite) {
+      return;
+    }
+
     const config = getActiveSheetConfig();
     const newRow =
       createBlankRow(
@@ -1326,6 +1362,10 @@
     );
   }
   async function importExcelFile(file) {
+    if (!state.canWrite) {
+      return;
+    }
+
     if (!file) {
       return;
     }
@@ -1586,6 +1626,10 @@
   }
 
   function handleTableInput(event) {
+    if (!state.canWrite) {
+      return;
+    }
+
     const fieldElement = event.target.closest("[data-pm-field]");
     if (!fieldElement) {
       return;
@@ -1637,6 +1681,10 @@
       return;
     }
 
+    if (!state.canWrite) {
+      return;
+    }
+
     const rowElement = deleteButton.closest("[data-pm-row-id]");
     if (!rowElement) {
       return;
@@ -1681,19 +1729,14 @@
 
     elements.previewButton.addEventListener("click", openPreview);
 
-    elements.homeButton.addEventListener("click", () => {
-      if (
-        window.matchMedia(
-          "(max-width: 760px)"
-        ).matches &&
-        window.opener &&
-        !window.opener.closed
-      ) {
-        window.close();
+    window.addEventListener("gs-shift-log-before-return", event => {
+      if (event.detail?.control !== elements.homeButton) {
         return;
       }
 
-      window.location.href = "../index.html";
+      if (!confirmContextChange()) {
+        event.preventDefault();
+      }
     });
 
     elements.excelUploadButton.addEventListener("click", () => {

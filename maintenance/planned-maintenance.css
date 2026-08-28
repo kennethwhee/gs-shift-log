@@ -9,6 +9,56 @@
   background: #eef1f4;
 }
 
+/* =========================================================
+   PLANNED_MAINTENANCE_PUBLIC_RETURN_V1
+
+   - 직접 공유 주소는 조회 전용
+   - 업무일지에서 같은 탭으로 들어온 경우에만 돌아가기 표시
+========================================================= */
+
+#plannedMaintenanceHomeButton[hidden],
+[data-shift-log-return][hidden] {
+  display: none !important;
+}
+
+#plannedMaintenanceHomeButton:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.38);
+  outline-offset: 2px;
+}
+
+body.pm-public-readonly #plannedMaintenanceSaveButton,
+body.pm-public-readonly #plannedMaintenanceAddRowButton,
+body.pm-public-readonly #plannedMaintenanceExcelUploadButton,
+body.pm-public-readonly [data-pm-action-column] {
+  display: none !important;
+}
+
+body.pm-public-readonly
+  .planned-maintenance-table
+  tr[data-pm-placeholder="true"] {
+  display: none !important;
+}
+
+body.pm-public-readonly .pm-mobile-monitoring-empty {
+  display: table-row !important;
+}
+
+body.pm-public-readonly .planned-maintenance-table input,
+body.pm-public-readonly .planned-maintenance-table select,
+body.pm-public-readonly .planned-maintenance-table textarea {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #24364d !important;
+  -webkit-text-fill-color: #24364d !important;
+  opacity: 1 !important;
+  resize: none !important;
+}
+
+body.pm-public-readonly .planned-maintenance-table textarea {
+  overflow: hidden !important;
+}
+
 .pm-sheet-tabs {
   display: flex;
   align-items: flex-end;

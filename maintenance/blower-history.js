@@ -62,7 +62,6 @@
       "candidateEmpty",
       "auditHistoryButton",
       "refreshButton",
-      "closeButton",
       "recordDialog",
       "recordForm",
       "recordMode",
@@ -173,15 +172,53 @@
     };
   }
 
+  function hasAuthenticatedWriteAccess(data = state.data) {
+    if (!data) return false;
+
+    const explicitPermission = data?.permissions?.canWrite;
+    return typeof explicitPermission === "boolean"
+      ? explicitPermission
+      : Boolean(data.user);
+  }
+
+  function isPublicMonitoringView() {
+    return Boolean(state.data) && !hasAuthenticatedWriteAccess();
+  }
+
   function isMobileMonitoringView() {
     return Boolean(window.matchMedia?.(MOBILE_MONITORING_QUERY).matches);
   }
 
   function stopMobileMutation(event) {
-    if (!isMobileMonitoringView()) return false;
+    if (isMobileMonitoringView()) {
+      event?.preventDefault?.();
+      showToast("모바일에서는 현황과 이력 조회만 가능합니다.");
+      return true;
+    }
+
+    if (hasAuthenticatedWriteAccess()) return false;
+
     event?.preventDefault?.();
-    showToast("모바일에서는 현황과 이력 조회만 가능합니다.");
+    showToast("공유 조회에서는 변경할 수 없습니다.");
     return true;
+  }
+
+  function applyPublicMonitoringMode() {
+    const publicMonitoring = isPublicMonitoringView();
+    document.body.classList.toggle("public-monitoring", publicMonitoring);
+
+    if (!publicMonitoring) return;
+
+    if (state.subview === "detect") switchSubview("overview");
+    if (elements.recordDialog?.open) elements.recordDialog.close();
+    if (elements.settingsDialog?.open) elements.settingsDialog.close();
+    if (elements.assetManagerDialog?.open) elements.assetManagerDialog.close();
+
+    elements.candidateCountBadge.hidden = true;
+    elements.candidateList.replaceChildren();
+    elements.candidateEmpty.hidden = true;
+    elements.overviewBackfillCallout.hidden = true;
+    elements.historicalBackfillNotice.hidden = true;
   }
 
   function applyMobileMonitoringMode() {
@@ -219,6 +256,11 @@
 
   async function apiRequest(options = {}) {
     const method = options.method || "GET";
+
+    if (method !== "GET" && !hasAuthenticatedWriteAccess()) {
+      throw new Error("공유 조회에서는 변경할 수 없습니다.");
+    }
+
     const timeoutMs = Math.max(0, Number(options.timeoutMs) || 0);
     const controller = timeoutMs > 0 && typeof AbortController !== "undefined"
       ? new AbortController()
@@ -718,14 +760,17 @@
   function renderSettings() {
     const type = getTypeDefinition();
     const setting = getActiveSetting();
+    const publicMonitoring = isPublicMonitoringView();
 
     elements.activeTypeTitle.textContent = type?.label || "Blower";
 
     if (!setting || !(Number(setting.cycleDays) > 0)) {
       elements.settingsSummary.textContent = "교체주기 미설정";
-      elements.settingsUpdated.textContent = isMobileMonitoringView()
-        ? "모바일 조회 전용"
-        : "로그인 사용자 누구나 설정 가능 · 변경 이력 기록";
+      elements.settingsUpdated.textContent = publicMonitoring
+        ? "공유 조회 전용"
+        : isMobileMonitoringView()
+          ? "모바일 조회 전용"
+          : "로그인 사용자 누구나 설정 가능 · 변경 이력 기록";
     } else {
       const cycleHours = Number(setting.cycleDays) * 24;
       elements.settingsSummary.textContent = [
@@ -737,17 +782,23 @@
       const updatedText = setting.updatedAt
         ? `최근 변경 ${formatDate(setting.updatedAt)}${setting.updatedByName ? ` · ${setting.updatedByName}` : ""}`
         : "변경 이력 기록";
-      elements.settingsUpdated.textContent = isMobileMonitoringView()
-        ? `${updatedText} · 모바일 조회 전용`
-        : `${updatedText} · 누구나 변경 가능`;
+      elements.settingsUpdated.textContent = publicMonitoring
+        ? `${updatedText} · 공유 조회 전용`
+        : isMobileMonitoringView()
+          ? `${updatedText} · 모바일 조회 전용`
+          : `${updatedText} · 누구나 변경 가능`;
     }
 
-    elements.settingsButton.hidden = !state.data?.user || isMobileMonitoringView();
-    elements.assetManagerButton.hidden = !state.data?.user?.isSuperAdmin || isMobileMonitoringView();
+    elements.settingsButton.hidden = !hasAuthenticatedWriteAccess() || isMobileMonitoringView();
+    elements.assetManagerButton.hidden = !hasAuthenticatedWriteAccess()
+      || !state.data?.user?.isSuperAdmin
+      || isMobileMonitoringView();
   }
 
   function renderHeaderActions() {
-    elements.auditHistoryButton.hidden = !state.data?.user?.isSuperAdmin || isMobileMonitoringView();
+    elements.auditHistoryButton.hidden = !hasAuthenticatedWriteAccess()
+      || !state.data?.user?.isSuperAdmin
+      || isMobileMonitoringView();
   }
 
   function renderMissingTags() {
@@ -1680,28 +1731,28 @@
     renderMissingTags();
     renderAssets();
     renderHistory();
-    renderCandidates();
-    renderBackfillStatus();
+
+    if (hasAuthenticatedWriteAccess()) {
+      renderCandidates();
+      renderBackfillStatus();
+    }
+
+    applyPublicMonitoringMode();
     applyMobileMonitoringMode();
   }
 
   function setBusy(isBusy) {
     state.busy = Boolean(isBusy);
     elements.refreshButton.disabled = state.busy;
-    elements.scanButton.disabled = state.busy || shouldHideAutomaticData();
-    elements.historicalBackfillButton.disabled = state.busy || state.backfillRunning;
-    elements.overviewBackfillButton.disabled = state.busy || state.backfillRunning;
-    elements.auditHistoryButton.disabled = state.busy || state.backfillRunning || state.auditRunning;
-    elements.assetManagerButton.disabled = state.busy;
+    const writeBlocked = !hasAuthenticatedWriteAccess();
+    elements.scanButton.disabled = writeBlocked || state.busy || shouldHideAutomaticData();
+    elements.historicalBackfillButton.disabled = writeBlocked || state.busy || state.backfillRunning;
+    elements.overviewBackfillButton.disabled = writeBlocked || state.busy || state.backfillRunning;
+    elements.auditHistoryButton.disabled = writeBlocked || state.busy || state.backfillRunning || state.auditRunning;
+    elements.assetManagerButton.disabled = writeBlocked || state.busy;
   }
 
   async function loadData(options = {}) {
-    if (!getSessionToken()) {
-      elements.authNotice.hidden = false;
-      elements.authNotice.textContent = "업무일지 로그인 세션을 확인할 수 없습니다. 업무일지에서 로그인한 뒤 다시 열어 주세요.";
-      return;
-    }
-
     if (!options.silent) setBusy(true);
 
     try {
@@ -1711,7 +1762,15 @@
         ? serverGeneratedAt - Date.now()
         : 0;
       state.data = data;
-      elements.authNotice.hidden = true;
+
+      if (hasAuthenticatedWriteAccess(data)) {
+        elements.authNotice.hidden = true;
+        elements.authNotice.removeAttribute("data-state");
+      } else {
+        elements.authNotice.hidden = false;
+        elements.authNotice.dataset.state = "public";
+        elements.authNotice.textContent = "공유 조회 전용 · Blower 현황과 교체 이력을 조회할 수 있습니다.";
+      }
 
       if (!(data.types || []).some(type => type.key === state.activeType)) {
         state.activeType = "fbhe";
@@ -1736,7 +1795,9 @@
   }
 
   function switchSubview(subview) {
-    if (subview === "detect" && isMobileMonitoringView()) subview = "overview";
+    if (subview === "detect" && (isMobileMonitoringView() || isPublicMonitoringView())) {
+      subview = "overview";
+    }
     state.subview = subview;
 
     document.querySelectorAll(".sub-tab").forEach(button => {
@@ -2106,7 +2167,7 @@
 
   function openSettingsDialog() {
     if (stopMobileMutation()) return;
-    if (!state.data?.user) return;
+    if (!hasAuthenticatedWriteAccess()) return;
 
     const type = getTypeDefinition();
     const setting = getActiveSetting();
@@ -2562,7 +2623,7 @@
     if (
       state.busy
       || state.backfillRunning
-      || !getSessionToken()
+      || !hasAuthenticatedWriteAccess()
       || !state.data?.user?.isSuperAdmin
     ) return;
 
@@ -2659,7 +2720,7 @@
       state.busy
       || state.backfillRunning
       || state.auditRunning
-      || !getSessionToken()
+      || !hasAuthenticatedWriteAccess()
       || !state.data?.user?.isSuperAdmin
     ) return;
 
@@ -2990,13 +3051,6 @@
       dialog?.close();
     });
 
-    elements.closeButton.addEventListener("click", () => {
-      if (window.opener && !window.opener.closed) {
-        window.close();
-        return;
-      }
-      window.location.assign("/");
-    });
   }
 
   async function initialize() {

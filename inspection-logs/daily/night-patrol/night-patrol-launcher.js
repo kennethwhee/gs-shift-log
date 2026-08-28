@@ -1942,9 +1942,8 @@
   window.__blowerHistoryManagementLauncherV1Installed = true;
 
   const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
-  const BLOWER_HISTORY_URL = "/maintenance/blower-history.html";
+  const BLOWER_HISTORY_URL = "/maintenance/blower-history";
   const BLOWER_HISTORY_API_URL = "/api/blower-history?action=summary";
-  const WINDOW_NAME = "GS_BLOWER_HISTORY";
 
   let hasLoadedSummary = false;
   let pendingRetryTimer = null;
@@ -1966,18 +1965,15 @@
       window.closeHeaderMoreMenu();
     }
 
-    const target = window.open(BLOWER_HISTORY_URL, WINDOW_NAME);
-
-    if (!target) {
-      window.location.assign(BLOWER_HISTORY_URL);
+    if (
+      window.GSShiftLogNavigation &&
+      typeof window.GSShiftLogNavigation.navigate === "function" &&
+      window.GSShiftLogNavigation.navigate(BLOWER_HISTORY_URL)
+    ) {
       return;
     }
 
-    try {
-      target.focus();
-    } catch {
-      // 창 포커스 실패는 기능에 영향을 주지 않는다.
-    }
+    window.location.assign(BLOWER_HISTORY_URL);
   }
 
   function ensureLauncherStyle() {
@@ -2190,10 +2186,11 @@
     let button = document.getElementById("blowerHistoryHeaderButton");
 
     if (!button) {
-      button = document.createElement("button");
-      button.type = "button";
+      button = document.createElement("a");
       button.className = "header-more-item header-more-item--owned";
       button.id = "blowerHistoryHeaderButton";
+      button.href = BLOWER_HISTORY_URL;
+      button.rel = "noopener";
       button.setAttribute("role", "menuitem");
       button.setAttribute("aria-label", "Blower 교체 이력 관리 열기");
       button.title = "Blower 교체 이력 관리";
@@ -2211,6 +2208,14 @@
     }
 
     button.classList.add("header-more-item", "header-more-item--owned");
+    button.dataset.shiftLogTarget = BLOWER_HISTORY_URL;
+    button.removeAttribute("target");
+
+    if (button instanceof HTMLAnchorElement) {
+      button.href = BLOWER_HISTORY_URL;
+      button.rel = "noopener";
+    }
+
     button.setAttribute("role", "menuitem");
     button.setAttribute(
       "aria-label",
@@ -2221,6 +2226,19 @@
     if (button.dataset.blowerHistoryBound !== "true") {
       button.dataset.blowerHistoryBound = "true";
       button.addEventListener("click", event => {
+        const isPlainClick =
+          typeof window.GSShiftLogNavigation?.isPlainPrimaryClick === "function"
+            ? window.GSShiftLogNavigation.isPlainPrimaryClick(event)
+            : event.button === 0 &&
+              !event.altKey &&
+              !event.ctrlKey &&
+              !event.metaKey &&
+              !event.shiftKey;
+
+        if (button instanceof HTMLAnchorElement && !isPlainClick) {
+          return;
+        }
+
         event.preventDefault();
         event.stopPropagation();
         openBlowerHistory();

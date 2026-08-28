@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-shift-log-page="planned">
 <head>
   <!-- [PLANNED-MAINTENANCE-SHEET-TABS-V2] -->
   <meta charset="UTF-8">
@@ -7,6 +7,7 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0"
   >
+  <meta name="robots" content="noindex, nofollow">
   <title>계획정비 관리 - GS Shift Log</title>
   <link
     rel="stylesheet"
@@ -14,8 +15,12 @@
   >
   <link
     rel="stylesheet"
-    href="planned-maintenance.css?v=20260826-mobile-reason-align-v20"
+    href="planned-maintenance.css?v=20260828-public-return-v1"
   >
+  <script
+    src="/maintenance/shift-log-navigation.js?v=20260828-navigation-public-v1"
+    defer
+  ></script>
   <script
     src="management-common.js?v=20260822-maintenance-v1"
     defer
@@ -29,7 +34,7 @@
     defer
   ></script>
   <script
-    src="planned-maintenance.js?v=20260826-logic-no-category-v24"
+    src="planned-maintenance.js?v=20260828-public-return-v1"
     defer
   ></script>
 </head>
@@ -54,8 +59,10 @@
             class="management-button"
             id="plannedMaintenanceHomeButton"
             aria-label="업무일지로 돌아가기"
+            data-shift-log-return
+            hidden
           >
-            <span class="pm-home-label-desktop">업무일지</span>
+            <span class="pm-home-label-desktop">업무일지로 돌아가기</span>
             <span class="pm-home-label-mobile">업무일지로 돌아가기</span>
           </button>
 
@@ -99,7 +106,7 @@
         id="plannedMaintenanceAuthWarning"
         hidden
       >
-        로그인 정보가 없습니다. GS Shift Log에서 로그인한 뒤 다시 열어 주세요.
+        공유 조회 전용입니다. 저장은 업무일지에서 로그인한 사용자만 가능합니다.
       </div>
 
       <section class="management-panel">

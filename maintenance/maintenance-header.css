@@ -25,6 +25,11 @@
   gap: 10px;
 }
 
+.header-more-menu a.header-more-item,
+.header-more-menu a.header-more-subitem {
+  text-decoration: none;
+}
+
 .header-more-item__label {
   min-width: 0;
   overflow: hidden;

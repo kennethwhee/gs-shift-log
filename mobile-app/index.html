@@ -381,6 +381,9 @@
                   "/mobile-app/mobile-runtime-v14.js"
                 ) ||
                 source.includes(
+                  "/maintenance/shift-log-navigation.js"
+                ) ||
+                source.includes(
                   "/mobile-app/mobile-startup.js"
                 )
               );
@@ -566,7 +569,7 @@
   -->
   <link
     rel="preload"
-    href="/mobile-app/mobile-runtime-v14.js?v=20260826-mobile-ux-v18"
+    href="/mobile-app/mobile-runtime-v14.js?v=20260828-navigation-public-v1"
     as="script"
   >
 
@@ -600,7 +603,7 @@
   <link
     rel="preload"
     as="style"
-    href="/maintenance/maintenance-header.css?v=20260828-menu-green-subgroup-v4"
+    href="/maintenance/maintenance-header.css?v=20260828-navigation-public-v1"
     onload="this.onload=null;this.rel='stylesheet';window.__markMobileAppBootResourceV13?.('maintenanceCss',true)"
     onerror="window.__markMobileAppBootResourceV13?.('maintenanceCss',false)"
   >
@@ -623,7 +626,7 @@
     >
     <link
       rel="stylesheet"
-      href="/maintenance/maintenance-header.css?v=20260828-menu-green-subgroup-v4"
+      href="/maintenance/maintenance-header.css?v=20260828-navigation-public-v1"
     >
     <link
       rel="stylesheet"
@@ -643,6 +646,10 @@
   기존 업무일지 JavaScript
 ====================================================== -->
 
+  <script
+    src="/maintenance/shift-log-navigation.js?v=20260828-navigation-public-v1"
+    defer
+  ></script>
 
 
   <!-- =====================================================
@@ -1242,13 +1249,12 @@
           <a
             class="header-more-item header-more-item--owned header-more-item--group-start"
             id="solidFuelTroubleHeaderLink"
-            href="/maintenance/solid-fuel-trouble.html"
-            target="_blank"
+            href="/maintenance/solid-fuel-trouble"
+            data-shift-log-target="/maintenance/solid-fuel-trouble"
             rel="noopener"
             role="menuitem"
             aria-label="직접 제작 메뉴, 고형연료 Trouble 관리 열기"
             title="고형연료 Trouble"
-            onclick="if (window.closeHeaderMoreMenu) window.closeHeaderMoreMenu();"
           >
             <span class="header-more-item__label">고형연료 Trouble</span>
           </a>
@@ -1256,13 +1262,12 @@
           <a
             class="header-more-item header-more-item--owned"
             id="blowerHistoryHeaderButton"
-            href="/maintenance/blower-history.html"
-            target="GS_BLOWER_HISTORY"
+            href="/maintenance/blower-history"
+            data-shift-log-target="/maintenance/blower-history"
             rel="noopener"
             role="menuitem"
             aria-label="직접 제작 메뉴, Blower 교체이력 관리 열기"
             title="Blower 교체이력 관리"
-            onclick="if (window.closeHeaderMoreMenu) window.closeHeaderMoreMenu();"
           >
             <span class="header-more-item__label">Blower 교체이력</span>
             <span class="header-more-item__meta">
@@ -1302,23 +1307,31 @@
             aria-label="계획정비대비 소메뉴"
             hidden
           >
-            <button
-              type="button"
+            <a
               class="header-more-subitem"
               id="plannedMaintenanceLogicHeaderButton"
+              href="/maintenance/planned-maintenance?view=logic&amp;sheet=logic-blr"
+              data-shift-log-target="/maintenance/planned-maintenance?view=logic&amp;sheet=logic-blr"
+              rel="noopener"
               role="menuitem"
+              aria-label="계획정비 Logic 개선 열기"
+              title="Logic 개선"
             >
               Logic 개선
-            </button>
+            </a>
 
-            <button
-              type="button"
+            <a
               class="header-more-subitem"
               id="plannedMaintenanceWorkHeaderButton"
+              href="/maintenance/planned-maintenance?view=work&amp;sheet=work-tbn-bop"
+              data-shift-log-target="/maintenance/planned-maintenance?view=work&amp;sheet=work-tbn-bop"
+              rel="noopener"
               role="menuitem"
+              aria-label="계획정비 작업필요사항 열기"
+              title="작업필요사항"
             >
               작업필요사항
-            </button>
+            </a>
 
             <button
               type="button"
@@ -14953,7 +14966,7 @@
 </script>
 
 <script
-  src="/mobile-app/mobile-runtime-v14.js?v=20260826-mobile-ux-v18"
+  src="/mobile-app/mobile-runtime-v14.js?v=20260828-navigation-public-v1"
   onload="window.__markMobileAppBootResourceV13?.('sharedScript',true)"
   onerror="window.__setMobileAppBootStageV13?.('shared-script-error','업무일지 프로그램을 불러오지 못했습니다.');window.__showMobileAppBootRecoveryV13?.('업무일지 프로그램을 불러오지 못했습니다. 다시 시도해 주세요.')"
 ></script>
@@ -15288,7 +15301,7 @@
             () => {
               return loadOptionalScript(
                 "mobileInspectionLauncherV15",
-                "/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260828-main-notification-rail-v1",
+                "/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260828-navigation-public-v1",
                 () => {
                   return window.__gsNightPatrolLauncherInstalled ===
                     true;

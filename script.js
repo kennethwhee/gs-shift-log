@@ -81081,6 +81081,7 @@ function initializeFacilityNavigatorHeaderMenu() {
       showToast(
         label + " 창이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요."
       );
+
       return;
     }
 
@@ -81092,6 +81093,31 @@ function initializeFacilityNavigatorHeaderMenu() {
         error
       );
     }
+  }
+
+  function openShiftLogTargetPage(path) {
+    if (
+      window.GSShiftLogNavigation &&
+      typeof window.GSShiftLogNavigation.navigate === "function" &&
+      window.GSShiftLogNavigation.navigate(path)
+    ) {
+      return;
+    }
+
+    window.location.assign(path);
+  }
+
+  function shouldUseDefaultHeaderLinkClick(event) {
+    return Boolean(
+      event.currentTarget instanceof HTMLAnchorElement &&
+      (
+        event.button !== 0 ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey
+      )
+    );
   }
 
   button.addEventListener(
@@ -81169,15 +81195,17 @@ function initializeFacilityNavigatorHeaderMenu() {
   plannedMaintenanceLogicItem?.addEventListener(
     "click",
     event => {
+      if (shouldUseDefaultHeaderLinkClick(event)) {
+        return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
 
       closeHeaderMoreMenu();
 
-      openHeaderManagementPage(
-        "/maintenance/planned-maintenance.html?view=logic",
-        "GS_PLANNED_MAINTENANCE",
-        "계획정비 Logic 개선"
+      openShiftLogTargetPage(
+        "/maintenance/planned-maintenance?view=logic&sheet=logic-blr"
       );
     }
   );
@@ -81185,15 +81213,17 @@ function initializeFacilityNavigatorHeaderMenu() {
   plannedMaintenanceWorkItem?.addEventListener(
     "click",
     event => {
+      if (shouldUseDefaultHeaderLinkClick(event)) {
+        return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
 
       closeHeaderMoreMenu();
 
-      openHeaderManagementPage(
-        "/maintenance/planned-maintenance.html?view=work",
-        "GS_PLANNED_MAINTENANCE",
-        "계획정비 작업필요사항"
+      openShiftLogTargetPage(
+        "/maintenance/planned-maintenance?view=work&sheet=work-tbn-bop"
       );
     }
   );

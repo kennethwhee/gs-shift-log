@@ -1,12 +1,14 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-shift-log-page="blower-history">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260830-runtime-history-edit-v92">
-  <script src="blower-history.js?v=20260830-runtime-history-edit-v92" defer></script>
+  <link rel="stylesheet" href="blower-history.css?v=20260830-runtime-history-edit-public-navigation-v93">
+  <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
+  <script src="blower-history.js?v=20260830-runtime-history-edit-public-navigation-v93" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -21,6 +23,12 @@
       <div class="header-actions">
         <button
           type="button"
+          class="button secondary"
+          data-shift-log-return
+          hidden
+        >업무일지로 돌아가기</button>
+        <button
+          type="button"
           class="button secondary audit-history-button"
           id="auditHistoryButton"
           data-mobile-write
@@ -28,7 +36,6 @@
           hidden
         >누락 진단</button>
         <button type="button" class="button secondary" id="refreshButton">새로고침</button>
-        <button type="button" class="button secondary" id="closeButton">업무일지로</button>
       </div>
     </header>
 

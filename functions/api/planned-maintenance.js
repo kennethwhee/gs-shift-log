@@ -6,6 +6,19 @@ const MAX_REQUEST_BYTES =
 const MAX_ROWS =
   300;
 
+const PUBLIC_SHEET_KEYS = [
+  "logic-blr",
+  "logic-tbn-bop",
+  "logic-aux-blr",
+  "logic-dcs",
+  "logic-realtime",
+  "work-tbn-bop",
+  "work-blr1",
+  "work-blr2",
+  "work-aux-blr",
+  "work-shutdown"
+];
+
 function jsonResponse(
   data,
   status = 200
@@ -33,6 +46,56 @@ function normalizeText(
   )
     .trim()
     .slice(0, maxLength);
+}
+
+function rowsForPublicView(
+  rows
+) {
+  return (Array.isArray(rows) ? rows : [])
+    .map(row => {
+      const source =
+        row && typeof row === "object"
+          ? row
+          : {};
+      const {
+        id: _id,
+        sheetKey: rawSheetKey,
+        __sheetKey: internalSheetKey,
+        __placeholder: _placeholder,
+        ...visibleRow
+      } = source;
+      const explicitSheetKey =
+        normalizeText(
+          rawSheetKey ||
+          internalSheetKey,
+          80
+        );
+      const rowId =
+        normalizeText(
+          source.id,
+          200
+        );
+      const inferredSheetKey =
+        PUBLIC_SHEET_KEYS.find(
+          key =>
+            rowId.startsWith(
+              `pmv2-${key}-`
+            )
+        ) || "";
+      const sheetKey =
+        PUBLIC_SHEET_KEYS.includes(
+          explicitSheetKey
+        )
+          ? explicitSheetKey
+          : inferredSheetKey;
+
+      return {
+        ...visibleRow,
+        ...(sheetKey
+          ? { sheetKey }
+          : {})
+      };
+    });
 }
 
 function getBearerToken(
@@ -86,8 +149,12 @@ async function hashSessionToken(
 }
 
 async function getAuthenticatedUser(
-  context
+  context,
+  options = {}
 ) {
+  const required =
+    options.required !== false;
+
   if (!context.env.DB) {
     return {
       error:
@@ -108,6 +175,12 @@ async function getAuthenticatedUser(
     );
 
   if (!token) {
+    if (!required) {
+      return {
+        user: null
+      };
+    }
+
     return {
       error:
         jsonResponse(
@@ -160,6 +233,12 @@ async function getAuthenticatedUser(
     ) ||
     expiresAt <= now
   ) {
+    if (!required) {
+      return {
+        user: null
+      };
+    }
+
     return {
       error:
         jsonResponse(
@@ -634,16 +713,21 @@ export async function onRequestGet(
   try {
     const authentication =
       await getAuthenticatedUser(
-        context
+        context,
+        {
+          required: false
+        }
       );
 
     if (authentication.error) {
       return authentication.error;
     }
 
-    await ensureSchema(
-      context.env.DB
-    );
+    if (authentication.user) {
+      await ensureSchema(
+        context.env.DB
+      );
+    }
 
     const url =
       new URL(
@@ -672,13 +756,41 @@ export async function onRequestGet(
         scope
       );
 
+    const item =
+      rowToItem(
+        row,
+        scope
+      );
+
+    const publicItem =
+      authentication.user
+        ? item
+        : (() => {
+            const {
+              id: _id,
+              author: _author,
+              createdAt: _createdAt,
+              ...visibleItem
+            } = item;
+
+            return {
+              ...visibleItem,
+              rows:
+                rowsForPublicView(
+                  visibleItem.rows
+                )
+            };
+          })();
+
     return jsonResponse({
       ok: true,
-      item:
-        rowToItem(
-          row,
-          scope
-        )
+      item: publicItem,
+      permissions: {
+        canWrite:
+          Boolean(
+            authentication.user
+          )
+      }
     });
 
   } catch (error) {

@@ -359,8 +359,9 @@ async function hashSessionToken(token) {
   return bytesToHex(new Uint8Array(digest));
 }
 
-async function getAuthenticatedUser(context) {
+async function getAuthenticatedUser(context, options = {}) {
   const database = context?.env?.DB;
+  const optional = options.optional === true;
 
   if (!database) {
     return {
@@ -377,6 +378,10 @@ async function getAuthenticatedUser(context) {
   const token = getBearerToken(context.request);
 
   if (!token) {
+    if (optional) {
+      return { user: null };
+    }
+
     return {
       error: jsonResponse(
         {
@@ -417,13 +422,19 @@ async function getAuthenticatedUser(context) {
     Number.isNaN(expiresAt.getTime()) ||
     expiresAt <= now
   ) {
-    await database
-      .prepare(`
-        DELETE FROM shift_log_sessions
-        WHERE token_hash = ?
-      `)
-      .bind(tokenHash)
-      .run();
+    if (!optional && session) {
+      await database
+        .prepare(`
+          DELETE FROM shift_log_sessions
+          WHERE token_hash = ?
+        `)
+        .bind(tokenHash)
+        .run();
+    }
+
+    if (optional) {
+      return { user: null };
+    }
 
     return {
       error: jsonResponse(
@@ -466,6 +477,89 @@ async function getAuthenticatedUser(context) {
       isAdmin: role === "admin" || role === "super_admin",
       isSuperAdmin: role === "super_admin"
     }
+  };
+}
+
+function buildPermissions(user) {
+  return {
+    canWrite: Boolean(user),
+    canReview: Boolean(user),
+    canAdmin: Boolean(user?.isSuperAdmin)
+  };
+}
+
+function sanitizeSettingsForAnonymous(settings) {
+  return Object.fromEntries(
+    Object.entries(settings || {}).map(([key, value]) => {
+      const {
+        updatedById: _updatedById,
+        updatedByName: _updatedByName,
+        ...publicValue
+      } = value || {};
+
+      return [key, publicValue];
+    })
+  );
+}
+
+function sanitizeEventsForAnonymous(events) {
+  return (events || []).map(event => {
+    const {
+      id: _id,
+      sourceLogId: _sourceLogId,
+      createdById: _createdById,
+      createdByName: _createdByName,
+      createdAt: _createdAt,
+      updatedAt: _updatedAt,
+      ...publicEvent
+    } = event || {};
+
+    return publicEvent;
+  });
+}
+
+function sanitizeAssetsForAnonymous(assets) {
+  return (assets || []).map(asset => {
+    if (!asset) return asset;
+
+    const publicReference = asset.latestReference
+      ? (() => {
+          const {
+            sourceLogId: _sourceLogId,
+            ...reference
+          } = asset.latestReference;
+          return reference;
+        })()
+      : null;
+
+    const publicProblem = asset.latestProblem
+      ? (() => {
+          const {
+            id: _id,
+            ...problem
+          } = asset.latestProblem;
+          return problem;
+        })()
+      : null;
+
+    return {
+      ...asset,
+      latestProblem: publicProblem,
+      latestReference: publicReference
+    };
+  });
+}
+
+function sanitizeBackfillForAnonymous(backfill) {
+  if (!backfill) return null;
+
+  return {
+    targetDate: normalizeText(backfill.targetDate),
+    status: normalizeText(backfill.status),
+    isCompleteForToday: backfill.isCompleteForToday === true,
+    hasRun: backfill.hasRun === true,
+    requiresInitialRebuild: backfill.requiresInitialRebuild === true,
+    requiresCatchUp: backfill.requiresCatchUp === true
   };
 }
 
@@ -1647,28 +1741,45 @@ function buildMissingSlotDetails(assetStates) {
 }
 
 async function buildFullData(database, user) {
+  const authenticated = Boolean(user);
   const settings = await loadSettings(database);
   const assets = await loadAssetStates(database, settings);
+  const responseAssets = authenticated
+    ? assets
+    : sanitizeAssetsForAnonymous(assets);
   const events = await loadEvents(database, 10000);
-  const candidates = await loadCandidates(database, "pending", 300);
-  const settingHistory = await loadSettingHistory(database, 60);
+  const candidates = authenticated
+    ? await loadCandidates(database, "pending", 300)
+    : [];
+  const settingHistory = authenticated
+    ? await loadSettingHistory(database, 60)
+    : [];
   const backfill = await loadBackfillState(database);
-  const recoveryV12 = await loadRecoveryV12StateForUi(database);
+  const recoveryV12 = authenticated
+    ? await loadRecoveryV12StateForUi(database)
+    : null;
 
   return {
     ok: true,
-    user,
+    user: user || null,
+    permissions: buildPermissions(user),
     types: TYPE_DEFINITIONS,
-    settings,
-    assets,
+    settings: authenticated
+      ? settings
+      : sanitizeSettingsForAnonymous(settings),
+    assets: responseAssets,
     assetCatalog: user?.isSuperAdmin ? await loadAssetCatalog(database) : [],
-    events,
+    events: authenticated
+      ? events
+      : sanitizeEventsForAnonymous(events),
     candidates,
     settingHistory,
-    backfill,
+    backfill: authenticated
+      ? backfill
+      : sanitizeBackfillForAnonymous(backfill),
     recoveryV12,
-    missingTags: buildMissingTagSummary(assets),
-    missingSlots: buildMissingSlotDetails(assets),
+    missingTags: buildMissingTagSummary(responseAssets),
+    missingSlots: buildMissingSlotDetails(responseAssets),
     generatedAt: new Date().toISOString()
   };
 }
@@ -1722,28 +1833,47 @@ async function handleGet(context, user) {
   const database = context.env.DB;
   const url = new URL(context.request.url);
   const action = normalizeText(url.searchParams.get("action")) || "data";
+  const permissions = buildPermissions(user);
+
+  if (action === "candidates" && !user) {
+    return jsonResponse(
+      { ok: false, message: "로그인이 필요합니다.", permissions },
+      401
+    );
+  }
 
   const settings = await loadSettings(database);
   const assets = await loadAssetStates(database, settings);
+  const responseAssets = user
+    ? assets
+    : sanitizeAssetsForAnonymous(assets);
 
   if (action === "summary") {
     return jsonResponse({
       ok: true,
-      ...buildSummaryFromAssets(assets),
+      permissions,
+      ...buildSummaryFromAssets(responseAssets),
       generatedAt: new Date().toISOString()
     });
   }
 
   if (action === "events") {
+    const events = await loadEvents(
+      database,
+      Number(url.searchParams.get("limit")) || 500
+    );
+
     return jsonResponse({
       ok: true,
-      events: await loadEvents(database, Number(url.searchParams.get("limit")) || 500)
+      permissions,
+      events: user ? events : sanitizeEventsForAnonymous(events)
     });
   }
 
   if (action === "candidates") {
     return jsonResponse({
       ok: true,
+      permissions,
       candidates: await loadCandidates(
         database,
         normalizeText(url.searchParams.get("status")) || "pending",
@@ -9551,13 +9681,18 @@ async function handlePost(context, user, body) {
 
 export async function onRequestGet(context) {
   try {
-    const authentication = await getAuthenticatedUser(context);
+    const authentication = await getAuthenticatedUser(
+      context,
+      { optional: true }
+    );
 
     if (authentication.error) {
       return authentication.error;
     }
 
-    await ensureBlowerHistorySchemaReady(context.env.DB);
+    if (authentication.user) {
+      await ensureBlowerHistorySchemaReady(context.env.DB);
+    }
     return await handleGet(context, authentication.user);
   } catch (error) {
     console.error("Blower 교체 이력 조회 오류:", error);

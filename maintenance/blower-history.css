@@ -101,7 +101,22 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 }
 .notice-bar[data-state="running"] { border-color: #9ec2e1; background: #eef6fd; color: #245d89; }
 .notice-bar[data-state="complete"] { border-color: #a9d6ba; background: #eef8f2; color: #256542; }
+.notice-bar[data-state="public"] { border-color: #b7cadb; background: #f3f7fa; color: #36566f; }
 .notice-bar.inline-notice { margin: 0 0 12px; }
+
+body.public-monitoring [data-mobile-write],
+body.public-monitoring [data-subview="detect"],
+body.public-monitoring [data-subview-panel="detect"],
+body.public-monitoring #recordDialog,
+body.public-monitoring #settingsDialog,
+body.public-monitoring #assetManagerDialog,
+body.public-monitoring #candidateCountBadge,
+body.public-monitoring #candidateList,
+body.public-monitoring #candidateEmpty,
+body.public-monitoring #overviewBackfillCallout,
+body.public-monitoring #historicalBackfillNotice {
+  display: none !important;
+}
 
 .type-tabs {
   display: flex;

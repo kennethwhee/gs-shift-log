@@ -2,8 +2,9 @@
 /* SOLID-FUEL-TROUBLE-V3.1.3 · simple time entry + current Silo choices + legacy route preservation */
 (function(){
   const API="/api/solid-fuel-trouble",AUTH="gsShiftLog.currentUser";
+  const MOBILE_READ_ONLY_QUERY="(max-width: 760px)";
   const SILO_OPTIONS=[["","선택 안 함"],["#A","Storage #A"],["#B","Storage #B"],["Day","Day Silo"]];
-  const state={troubles:[],unloads:[],companies:[],filterCompanies:[],companyDirectory:[],permissions:{canCreate:false,canEdit:false,canDelete:false,canUploadPhoto:false,canManageUnloading:false,canManageCompanies:false},loading:false,saving:false,mode:"month",tab:"trouble",photoScale:1};
+  const state={troubles:[],unloads:[],companies:[],filterCompanies:[],companyDirectory:[],user:null,permissions:{canCreate:false,canEdit:false,canDelete:false,canUploadPhoto:false,canManageUnloading:false,canManageCompanies:false},loading:false,saving:false,mode:"month",tab:"trouble",photoScale:1};
   const $=id=>document.getElementById(id);
   const e={
     refresh:$("refreshBtn"),createRecord:$("createRecordBtn"),companyManage:$("companyManageBtn"),
@@ -21,7 +22,7 @@
   function current(){try{return JSON.parse(localStorage.getItem(AUTH)||"null")}catch{return null}}
   function token(){const u=current();return String(u?.sessionToken||u?.session_token||u?.accessToken||u?.access_token||u?.token||u?.session?.token||"").trim()}
   function headers(extra={}){const t=token();return {Accept:"application/json",...(t?{Authorization:`Bearer ${t}`}:{ }),...extra}}
-  async function readResponse(r){const txt=await r.text();let o={};if(txt.trim()){try{o=JSON.parse(txt)}catch{throw new Error(`서버 응답 형식 오류 (HTTP ${r.status})`)}}if(r.status===401)setTimeout(()=>location.assign("/"),500);if(!r.ok||o.ok===false){const x=new Error(o.message||`요청 실패 (HTTP ${r.status})`);x.status=r.status;throw x}return o}
+  async function readResponse(r){const txt=await r.text();let o={};if(txt.trim()){try{o=JSON.parse(txt)}catch{throw new Error(`서버 응답 형식 오류 (HTTP ${r.status})`)}}if(!r.ok||o.ok===false){const x=new Error(o.message||`요청 실패 (HTTP ${r.status})`);x.status=r.status;throw x}return o}
   async function api(url,opt={}){return readResponse(await fetch(url,{cache:"no-store",...opt}))}
   function esc(v){return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;")}
   function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
@@ -57,7 +58,60 @@
   function unloadById(id){return state.unloads.find(x=>x.id===id)||null}
   function setText(el,v){if(el)el.textContent=String(v??"")}
   function setEditorStatus(el,msg,show=true){if(!el)return;delete el.dataset.timeError;el.textContent=msg||"";el.hidden=!show}
-  function setBusy(){const b=state.loading||state.saving;[e.refresh,e.createRecord,e.companyManage,e.rSave,e.tSave,e.uSave,e.companyAddButton].forEach(x=>{if(x)x.disabled=b})}
+  function isMobileReadOnly(){return Boolean(window.matchMedia?.(MOBILE_READ_ONLY_QUERY).matches)}
+  function isAnonymous(){return !state.user}
+  function hasPermission(name){return !isMobileReadOnly()&&!isAnonymous()&&state.permissions?.[name]===true}
+  function canCreateRecord(){return hasPermission("canCreate")}
+  function canEditTrouble(){return hasPermission("canEdit")}
+  function canEditUnloading(){return hasPermission("canEdit")&&hasPermission("canManageUnloading")}
+  function canDeleteRecord(){return hasPermission("canDelete")}
+  function canUploadPhoto(){return hasPermission("canUploadPhoto")}
+  function canManageCompanies(){return hasPermission("canManageCompanies")}
+  function normalizePermissions(value){
+    const source=value&&typeof value==="object"?value:{};
+    return {
+      canCreate:source.canCreate===true,
+      canEdit:source.canEdit===true,
+      canDelete:source.canDelete===true,
+      canUploadPhoto:source.canUploadPhoto===true,
+      canManageUnloading:source.canManageUnloading===true,
+      canManageCompanies:source.canManageCompanies===true
+    }
+  }
+  function syncAccessMode(){
+    const mobile=isMobileReadOnly(),anonymous=isAnonymous();
+    const rowActions=canEditTrouble()||canEditUnloading()||canDeleteRecord();
+    const mutationAccess=canCreateRecord()||rowActions||canUploadPhoto()||canManageCompanies();
+    const readOnly=mobile||anonymous||!mutationAccess;
+    document.body.classList.toggle("solid-fuel-readonly",readOnly);
+    document.body.classList.toggle("solid-fuel-mobile-readonly",mobile);
+    document.body.classList.toggle("solid-fuel-anonymous",anonymous);
+    document.body.classList.toggle("solid-fuel-no-row-actions",!rowActions);
+    e.createRecord.hidden=!canCreateRecord();
+    e.companyManage.hidden=!canManageCompanies();
+    e.rSave.hidden=!canCreateRecord();
+    e.tSave.hidden=!canEditTrouble();
+    e.uSave.hidden=!canEditUnloading();
+    e.companyAddForm.hidden=!canManageCompanies();
+    const recordPhotoField=e.rFiles?.closest("label");
+    const troublePhotoField=e.tFiles?.closest("label");
+    if(recordPhotoField)recordPhotoField.hidden=!canUploadPhoto();
+    if(troublePhotoField)troublePhotoField.hidden=!canUploadPhoto();
+    if(readOnly){
+      [e.rModal,e.tModal,e.uModal,e.companyModal].forEach(modal=>{if(modal)modal.hidden=true});
+      if(e.photoModal?.hidden)document.body.style.overflow=""
+    }
+  }
+  function setBusy(){
+    const b=state.loading||state.saving;
+    if(e.refresh)e.refresh.disabled=b;
+    if(e.createRecord)e.createRecord.disabled=b||!canCreateRecord();
+    if(e.companyManage)e.companyManage.disabled=b||!canManageCompanies();
+    if(e.rSave)e.rSave.disabled=b||!canCreateRecord();
+    if(e.tSave)e.tSave.disabled=b||!canEditTrouble();
+    if(e.uSave)e.uSave.disabled=b||!canEditUnloading();
+    if(e.companyAddButton)e.companyAddButton.disabled=b||!canManageCompanies()
+  }
   function option(select,value,label){
     const o=document.createElement("option");o.value=value;o.textContent=label??value;select.append(o);return o
   }
@@ -207,17 +261,29 @@
   }
 
   function photoHtml(x){const p=Array.isArray(x.photos)?x.photos:[];if(!p.length)return `<span class="photo-empty">-</span>`;let h=p.slice(0,2).map(v=>`<button class="thumb" type="button" data-action="photo" data-url="${esc(v.url)}"><img src="${esc(v.url)}" alt="샘플 사진" loading="lazy"></button>`);if(p.length>2)h.push(`<span class="more">+${p.length-2}</span>`);return `<div class="photo-list">${h.join("")}</div>`}
+  function troubleActionsHtml(x){
+    const actions=[];
+    if(canEditTrouble())actions.push(`<button class="btn ghost" type="button" data-action="edit-trouble" data-id="${esc(x.id)}">수정</button>`);
+    if(canDeleteRecord())actions.push(`<button class="btn danger" type="button" data-action="delete-trouble" data-id="${esc(x.id)}">삭제</button>`);
+    return actions.length?`<div class="row-actions">${actions.join("")}</div>`:""
+  }
+  function unloadActionsHtml(x){
+    const actions=[];
+    if(canEditUnloading())actions.push(`<button class="btn ghost" type="button" data-action="edit-unload" data-id="${esc(x.id)}">수정</button>`);
+    if(canDeleteRecord())actions.push(`<button class="btn danger" type="button" data-action="delete-unload" data-id="${esc(x.id)}">삭제</button>`);
+    return actions.length?`<div class="row-actions">${actions.join("")}</div>`:""
+  }
   function troubleTable(){
     e.troubleBody.replaceChildren();if(!state.troubles.length){e.troubleBody.innerHTML=`<tr><td colspan="8" class="empty">조회 조건에 해당하는 Trouble 내역이 없습니다.</td></tr>`;return}
-    state.troubles.forEach((x,i)=>{const tr=document.createElement("tr");tr.innerHTML=`<td class="no">${i+1}</td><td class="date">${esc(String(x.occurrenceDate||"").replace(/-/g,"."))}</td><td class="company">${esc(x.companyName||"-")}</td><td class="vehicle">${esc(x.vehicleNo||"-")}</td><td class="equipment">${esc(x.equipment||"-")}</td><td class="photo">${photoHtml(x)}</td><td class="note">${esc(x.note||"-")}</td><td class="actions"><div class="row-actions"><button class="btn ghost" type="button" data-action="edit-trouble" data-id="${esc(x.id)}">수정</button>${state.permissions.canDelete?`<button class="btn danger" type="button" data-action="delete-trouble" data-id="${esc(x.id)}">삭제</button>`:""}</div></td>`;e.troubleBody.append(tr)})
+    state.troubles.forEach((x,i)=>{const tr=document.createElement("tr");tr.innerHTML=`<td class="no">${i+1}</td><td class="date">${esc(String(x.occurrenceDate||"").replace(/-/g,"."))}</td><td class="company">${esc(x.companyName||"-")}</td><td class="vehicle">${esc(x.vehicleNo||"-")}</td><td class="equipment">${esc(x.equipment||"-")}</td><td class="photo">${photoHtml(x)}</td><td class="note">${esc(x.note||"-")}</td><td class="actions">${troubleActionsHtml(x)}</td>`;e.troubleBody.append(tr)})
   }
   function unloadTable(){
     e.unloadBody.replaceChildren();if(!state.unloads.length){e.unloadBody.innerHTML=`<tr><td colspan="10" class="empty">조회 조건에 해당하는 하역시간 내역이 없습니다.</td></tr>`;return}
-    state.unloads.forEach((x,i)=>{const tr=document.createElement("tr"),m=durationValue(x),cls=Number.isFinite(m)?(m>=180?"is-very-long":m>=120?"is-long":""):"";if(abnormal(x))tr.classList.add("abnormal-row");tr.innerHTML=`<td class="no">${i+1}</td><td class="date">${esc(String(x.unloadingDate||"").replace(/-/g,".")||"-")}</td><td class="clock">${esc(x.arrivalTime||"-")}</td><td class="clock">${esc(x.departureTime||"-")}</td><td class="duration"><span class="duration-badge ${cls}">${esc(durationShort(m))}</span></td><td class="company">${esc(x.companyName||"-")}</td><td class="vehicle">${esc(x.vehicleNo||"-")}</td><td class="silo"><span class="silo-pill">${esc(x.siloRoute||"-")}</span></td><td class="unload-note">${esc(x.note||"-")}</td><td class="actions"><div class="row-actions"><button class="btn ghost" type="button" data-action="edit-unload" data-id="${esc(x.id)}">수정</button>${state.permissions.canDelete?`<button class="btn danger" type="button" data-action="delete-unload" data-id="${esc(x.id)}">삭제</button>`:""}</div></td>`;e.unloadBody.append(tr)})
+    state.unloads.forEach((x,i)=>{const tr=document.createElement("tr"),m=durationValue(x),cls=Number.isFinite(m)?(m>=180?"is-very-long":m>=120?"is-long":""):"";if(abnormal(x))tr.classList.add("abnormal-row");tr.innerHTML=`<td class="no">${i+1}</td><td class="date">${esc(String(x.unloadingDate||"").replace(/-/g,".")||"-")}</td><td class="clock">${esc(x.arrivalTime||"-")}</td><td class="clock">${esc(x.departureTime||"-")}</td><td class="duration"><span class="duration-badge ${cls}">${esc(durationShort(m))}</span></td><td class="company">${esc(x.companyName||"-")}</td><td class="vehicle">${esc(x.vehicleNo||"-")}</td><td class="silo"><span class="silo-pill">${esc(x.siloRoute||"-")}</span></td><td class="unload-note">${esc(x.note||"-")}</td><td class="actions">${unloadActionsHtml(x)}</td>`;e.unloadBody.append(tr)})
   }
-  function render(){companyLists();summary();groupStats();troubleTable();unloadTable();setText(e.status,`${state.troubles.length}건 조회 완료`);setText(e.unloadStatus,`${state.unloads.length}건 조회 완료`);renderCompanyManager()}
+  function render(){syncAccessMode();companyLists();summary();groupStats();troubleTable();unloadTable();setText(e.status,`${state.troubles.length}건 조회 완료`);setText(e.unloadStatus,`${state.unloads.length}건 조회 완료`);renderCompanyManager();setBusy()}
 
-  async function load(){if(state.loading)return;state.loading=true;setBusy();setText(e.status,"조회 중...");setText(e.unloadStatus,"조회 중...");try{const r=await api(buildUrl(),{headers:headers()});state.troubles=Array.isArray(r.items)?r.items:[];state.unloads=Array.isArray(r.unloadingLogs)?r.unloadingLogs:[];state.companies=Array.isArray(r.companies)?r.companies:[];state.filterCompanies=Array.isArray(r.filterCompanies)?r.filterCompanies:state.companies;state.companyDirectory=Array.isArray(r.companyDirectory)?r.companyDirectory:state.companies.map(name=>({name,isActive:true}));state.permissions=r.permissions||state.permissions;render()}catch(err){console.error(err);state.troubles=[];state.unloads=[];render();setText(e.status,"조회 실패");setText(e.unloadStatus,"조회 실패");e.troubleBody.innerHTML=`<tr><td colspan="8" class="empty">${esc(err.message||"조회 실패")}</td></tr>`;e.unloadBody.innerHTML=`<tr><td colspan="10" class="empty">${esc(err.message||"조회 실패")}</td></tr>`}finally{state.loading=false;setBusy()}}
+  async function load(){if(state.loading)return;state.loading=true;setBusy();setText(e.status,"조회 중...");setText(e.unloadStatus,"조회 중...");try{const r=await api(buildUrl(),{headers:headers()});state.troubles=Array.isArray(r.items)?r.items:[];state.unloads=Array.isArray(r.unloadingLogs)?r.unloadingLogs:[];state.companies=Array.isArray(r.companies)?r.companies:[];state.filterCompanies=Array.isArray(r.filterCompanies)?r.filterCompanies:state.companies;state.companyDirectory=Array.isArray(r.companyDirectory)?r.companyDirectory:state.companies.map(name=>({name,isActive:true}));state.user=r.user&&typeof r.user==="object"?r.user:null;state.permissions=normalizePermissions(r.permissions);render()}catch(err){console.error(err);state.troubles=[];state.unloads=[];state.user=null;state.permissions=normalizePermissions(null);render();setText(e.status,"조회 실패");setText(e.unloadStatus,"조회 실패");e.troubleBody.innerHTML=`<tr><td colspan="8" class="empty">${esc(err.message||"조회 실패")}</td></tr>`;e.unloadBody.innerHTML=`<tr><td colspan="10" class="empty">${esc(err.message||"조회 실패")}</td></tr>`}finally{state.loading=false;setBusy()}}
   function switchTab(tab){state.tab=tab;document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("is-active",b.dataset.tab===tab));document.querySelectorAll("[data-tab-panel]").forEach(p=>{const active=p.dataset.tabPanel===tab;p.classList.toggle("is-active",active);p.hidden=!active})}
 
 
@@ -228,7 +294,7 @@
     const trouble=recordKind()==="trouble";
     e.rTroubleFields.hidden=!trouble;
     e.rEquipment.required=false;
-    e.rFiles.disabled=!trouble;
+    e.rFiles.disabled=!trouble||!canUploadPhoto();
     setText(e.rSave,trouble?"Trouble 기록 저장":"하역 기록 저장")
   }
   function updateRecordDuration(){
@@ -236,6 +302,7 @@
     e.rDuration.value=m==null?"미입력":durationText(m)
   }
   function openRecord(){
+    if(!canCreateRecord())return;
     e.rForm.reset();
     populateSiloSelect(e.rSilo);
     clearTimeInvalid(e.rArrival,e.rStatus);clearTimeInvalid(e.rDeparture,e.rStatus);
@@ -260,7 +327,7 @@
   }
   async function saveRecord(ev){
     ev.preventDefault();
-    if(state.saving)return;
+    if(state.saving||!canCreateRecord())return;
     const kind=recordKind();
     const times=validatedEditorTimes(e.rArrival,e.rDeparture,e.rStatus);
     if(!times)return updateRecordDuration();
@@ -282,7 +349,7 @@
     setEditorStatus(e.rStatus,kind==="trouble"?"하역시간과 Trouble을 함께 저장하는 중입니다.":"하역 기록을 저장하는 중입니다.");
     try{
       const r=await api(API,{method:"POST",headers:headers({"Content-Type":"application/json"}),body:JSON.stringify(payload)});
-      if(kind==="trouble"&&e.rFiles.files.length){
+      if(kind==="trouble"&&canUploadPhoto()&&e.rFiles.files.length){
         const troubleId=r.troubleId||r.recordId||r.id;
         if(!troubleId)throw new Error("Trouble 사진 연결 ID를 확인하지 못했습니다.");
         setEditorStatus(e.rStatus,"기록 저장 완료 · 샘플 사진 업로드 중...");
@@ -299,14 +366,15 @@
     }
   }
 
-  function existingPhotos(x){const p=Array.isArray(x?.photos)?x.photos:[];e.existing.replaceChildren();e.existing.hidden=!p.length;p.forEach(v=>{const d=document.createElement("div");d.className="existing-photo";d.innerHTML=`<button class="thumb" style="width:100%;height:90px;border:0;border-radius:0" type="button" data-action="photo" data-url="${esc(v.url)}"><img src="${esc(v.url)}" alt="샘플 사진"></button><div class="existing-meta"><span>${esc(v.name||"샘플 사진")}</span>${v.legacy?`<span>원본</span>`:`<button class="photo-delete" type="button" data-action="delete-photo" data-photo-id="${esc(v.id)}">삭제</button>`}</div>`;e.existing.append(d)})}
-  function openTrouble(x=null){e.tTitle.textContent="Trouble 수정";e.tId.value=x?.id||"";e.tVersion.value=x?.version||"";e.tDate.value=x?.occurrenceDate||today();companyLists();ensureOption(e.tCompany,x?.companyName||"");e.tCompany.value=x?.companyName||"";e.tVehicle.value=x?.vehicleNo||"";e.tEquipment.value=x?.equipment||"";e.tNote.value=x?.note||"";e.tFiles.value="";existingPhotos(x);setEditorStatus(e.tStatus,"",false);e.tModal.hidden=false;document.body.style.overflow="hidden";setTimeout(()=>e.tDate.focus(),0)}
+  function existingPhotos(x){const p=Array.isArray(x?.photos)?x.photos:[];e.existing.replaceChildren();e.existing.hidden=!p.length;p.forEach(v=>{const d=document.createElement("div");d.className="existing-photo";const deleteControl=!v.legacy&&canUploadPhoto()?`<button class="photo-delete" type="button" data-action="delete-photo" data-photo-id="${esc(v.id)}">삭제</button>`:`<span>${v.legacy?"원본":""}</span>`;d.innerHTML=`<button class="thumb" style="width:100%;height:90px;border:0;border-radius:0" type="button" data-action="photo" data-url="${esc(v.url)}"><img src="${esc(v.url)}" alt="샘플 사진"></button><div class="existing-meta"><span>${esc(v.name||"샘플 사진")}</span>${deleteControl}</div>`;e.existing.append(d)})}
+  function openTrouble(x=null){if(!canEditTrouble())return;e.tTitle.textContent="Trouble 수정";e.tId.value=x?.id||"";e.tVersion.value=x?.version||"";e.tDate.value=x?.occurrenceDate||today();companyLists();ensureOption(e.tCompany,x?.companyName||"");e.tCompany.value=x?.companyName||"";e.tVehicle.value=x?.vehicleNo||"";e.tEquipment.value=x?.equipment||"";e.tNote.value=x?.note||"";e.tFiles.value="";e.tFiles.disabled=!canUploadPhoto();existingPhotos(x);setEditorStatus(e.tStatus,"",false);e.tModal.hidden=false;document.body.style.overflow="hidden";setTimeout(()=>e.tDate.focus(),0)}
   function closeTrouble(){e.tModal.hidden=true;if(e.photoModal.hidden&&e.uModal.hidden&&e.rModal.hidden&&e.companyModal.hidden)document.body.style.overflow="";setEditorStatus(e.tStatus,"",false)}
-  async function upload(id,files){const a=[...(files||[])];if(!a.length)return;const f=new FormData();f.set("recordId",id);a.forEach(x=>f.append("files",x));await api(API,{method:"POST",headers:headers(),body:f})}
-  async function saveTrouble(ev){ev.preventDefault();if(state.saving)return;const id=e.tId.value.trim(),editing=!!id,p={entity:"trouble",occurrenceDate:e.tDate.value,companyName:e.tCompany.value.trim(),vehicleNo:e.tVehicle.value.trim(),equipment:e.tEquipment.value.trim(),note:e.tNote.value.trim()};if(editing){p.id=id;p.version=Number(e.tVersion.value||0)}state.saving=true;setBusy();setEditorStatus(e.tStatus,editing?"수정 내용을 저장하는 중입니다.":"Trouble 기록을 저장하는 중입니다.");try{const r=await api(API,{method:editing?"PUT":"POST",headers:headers({"Content-Type":"application/json"}),body:JSON.stringify(p)});const saved=editing?id:(r.recordId||r.id);if(e.tFiles.files.length){setEditorStatus(e.tStatus,"기록 저장 완료 · 샘플 사진 업로드 중...");await upload(saved,e.tFiles.files)}closeTrouble();await load()}catch(err){setEditorStatus(e.tStatus,err.message||"저장 실패");if(err.status===409)await load()}finally{state.saving=false;setBusy()}}
+  async function upload(id,files){if(!canUploadPhoto())return;const a=[...(files||[])];if(!a.length)return;const f=new FormData();f.set("recordId",id);a.forEach(x=>f.append("files",x));await api(API,{method:"POST",headers:headers(),body:f})}
+  async function saveTrouble(ev){ev.preventDefault();if(state.saving||!canEditTrouble())return;const id=e.tId.value.trim(),editing=!!id,p={entity:"trouble",occurrenceDate:e.tDate.value,companyName:e.tCompany.value.trim(),vehicleNo:e.tVehicle.value.trim(),equipment:e.tEquipment.value.trim(),note:e.tNote.value.trim()};if(editing){p.id=id;p.version=Number(e.tVersion.value||0)}state.saving=true;setBusy();setEditorStatus(e.tStatus,editing?"수정 내용을 저장하는 중입니다.":"Trouble 기록을 저장하는 중입니다.");try{const r=await api(API,{method:editing?"PUT":"POST",headers:headers({"Content-Type":"application/json"}),body:JSON.stringify(p)});const saved=editing?id:(r.recordId||r.id);if(canUploadPhoto()&&e.tFiles.files.length){setEditorStatus(e.tStatus,"기록 저장 완료 · 샘플 사진 업로드 중...");await upload(saved,e.tFiles.files)}closeTrouble();await load()}catch(err){setEditorStatus(e.tStatus,err.message||"저장 실패");if(err.status===409)await load()}finally{state.saving=false;setBusy()}}
 
   function updateUnloadDuration(){const m=durationBetween(e.uArrival.value,e.uDeparture.value);e.uDuration.value=m==null?"미입력":durationText(m)}
   function openUnload(x=null){
+    if(!canEditUnloading())return;
     e.uTitle.textContent="하역시간 수정";
     e.uId.value=x?.id||"";
     e.uVersion.value=x?.version||"";
@@ -324,7 +392,7 @@
   function closeUnload(){e.uModal.hidden=true;if(e.photoModal.hidden&&e.tModal.hidden&&e.rModal.hidden&&e.companyModal.hidden)document.body.style.overflow="";setEditorStatus(e.uStatus,"",false)}
   async function saveUnload(ev){
     ev.preventDefault();
-    if(state.saving)return;
+    if(state.saving||!canEditUnloading())return;
     const times=validatedEditorTimes(e.uArrival,e.uDeparture,e.uStatus);
     if(!times)return updateUnloadDuration();
     const id=e.uId.value.trim(),editing=!!id,p={
@@ -362,22 +430,22 @@
     rows.forEach(item=>{
       const row=document.createElement("div");
       row.className="company-manager__row";
-      row.innerHTML=`
-        <strong>${esc(item.name||"-")}</strong>
-        <span class="company-status ${item.isActive?"":"is-inactive"}">${item.isActive?"사용중":"사용중지"}</span>
+      const toggleControl=canManageCompanies()?`
         <button class="btn ${item.isActive?"ghost":"secondary"}" type="button" data-company-action="toggle" data-company-name="${esc(item.name||"")}" data-next-active="${item.isActive?"0":"1"}">
           ${item.isActive?"사용중지":"다시사용"}
         </button>
+      `:"";
+      row.innerHTML=`
+        <strong>${esc(item.name||"-")}</strong>
+        <span class="company-status ${item.isActive?"":"is-inactive"}">${item.isActive?"사용중":"사용중지"}</span>
+        ${toggleControl}
       `;
       e.companyManagerList.append(row)
     })
   }
 
   function openCompanyManager(){
-    if(!state.permissions.canManageCompanies){
-      alert("업체 관리 권한이 없습니다.");
-      return
-    }
+    if(!canManageCompanies())return;
     renderCompanyManager();
     if(e.companyNameInput)e.companyNameInput.value="";
     e.companyModal.hidden=false;
@@ -392,7 +460,7 @@
 
   async function addCompany(ev){
     ev.preventDefault();
-    if(state.saving)return;
+    if(state.saving||!canManageCompanies())return;
     const name=String(e.companyNameInput?.value||"").trim();
     if(!name){
       setText(e.companyManagerStatus,"업체명을 입력해 주세요.");
@@ -412,7 +480,7 @@
   }
 
   async function toggleCompany(name,isActive){
-    if(state.saving||!name)return;
+    if(state.saving||!name||!canManageCompanies())return;
     state.saving=true;setBusy();setText(e.companyManagerStatus,"업체 상태 변경 중...");
     try{
       await api(API,{method:"PUT",headers:headers({"Content-Type":"application/json"}),body:JSON.stringify({entity:"company",companyName:name,isActive})});
@@ -425,8 +493,8 @@
     }
   }
 
-  async function delRecord(entity,x){if(!x||!state.permissions.canDelete)return;if(!confirm(`${entity==="unloading"?"하역시간":"Trouble"} 기록을 삭제할까요?`))return;try{const u=new URL(API,location.origin);u.searchParams.set("id",x.id);u.searchParams.set("entity",entity);await api(u,{method:"DELETE",headers:headers()});await load()}catch(err){alert(err.message||"삭제 실패")}}
-  async function delPhoto(id){if(!id||!confirm("이 샘플 사진을 삭제할까요?"))return;try{const u=new URL(API,location.origin);u.searchParams.set("photoId",id);await api(u,{method:"DELETE",headers:headers()});const rid=e.tId.value.trim();await load();const x=troubleById(rid);if(x){e.tVersion.value=x.version;existingPhotos(x)}}catch(err){setEditorStatus(e.tStatus,err.message||"사진 삭제 실패")}}
+  async function delRecord(entity,x){if(!x||!canDeleteRecord())return;if(!confirm(`${entity==="unloading"?"하역시간":"Trouble"} 기록을 삭제할까요?`))return;try{const u=new URL(API,location.origin);u.searchParams.set("id",x.id);u.searchParams.set("entity",entity);await api(u,{method:"DELETE",headers:headers()});await load()}catch(err){alert(err.message||"삭제 실패")}}
+  async function delPhoto(id){if(!id||!canUploadPhoto()||!confirm("이 샘플 사진을 삭제할까요?"))return;try{const u=new URL(API,location.origin);u.searchParams.set("photoId",id);await api(u,{method:"DELETE",headers:headers()});const rid=e.tId.value.trim();await load();const x=troubleById(rid);if(x){e.tVersion.value=x.version;existingPhotos(x)}}catch(err){setEditorStatus(e.tStatus,err.message||"사진 삭제 실패")}}
 
   function applyZoom(scale){const s=Math.min(4,Math.max(.25,Number(scale)||1));state.photoScale=s;e.zoomRange.value=String(Math.round(s*100));setText(e.zoomText,`${Math.round(s*100)}%`);if(e.photo.naturalWidth)e.photo.style.width=`${Math.max(1,Math.round(e.photo.naturalWidth*s))}px`}
   function fitPhoto(){if(!e.photo.naturalWidth||!e.photoStage.clientWidth)return;const sx=(e.photoStage.clientWidth-36)/e.photo.naturalWidth,sy=(e.photoStage.clientHeight-36)/e.photo.naturalHeight;applyZoom(Math.min(sx,sy))}
@@ -518,6 +586,19 @@
       if(!e.companyModal.hidden)closeCompanyManager()
     })
   }
-  async function init(){if(!token()){setText(e.status,"로그인이 필요합니다.");return setTimeout(()=>location.assign("/"),1000)}e.month.value=currentMonth();setMode("month");bind();await load()}
+  async function init(){
+    e.month.value=currentMonth();
+    setMode("month");
+    syncAccessMode();
+    bind();
+    const mobileMedia=window.matchMedia?.(MOBILE_READ_ONLY_QUERY);
+    const handleAccessChange=()=>{
+      if(state.loading)syncAccessMode();
+      else render()
+    };
+    if(mobileMedia?.addEventListener)mobileMedia.addEventListener("change",handleAccessChange);
+    else mobileMedia?.addListener?.(handleAccessChange);
+    await load()
+  }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();

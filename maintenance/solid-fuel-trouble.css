@@ -1076,3 +1076,39 @@ body{
   background:#fff7f7;
   box-shadow:0 0 0 3px rgba(184,75,75,.10);
 }
+
+/* =========================================================
+  SOLID-FUEL-PUBLIC-READONLY-V1
+
+  Anonymous visitors and mobile screens keep every lookup,
+  filter and photo-viewing control while all mutations stay hidden.
+========================================================= */
+
+body.solid-fuel-no-row-actions .data-table .actions{
+  display:none!important;
+}
+
+body.solid-fuel-readonly #createRecordBtn,
+body.solid-fuel-readonly #companyManageBtn,
+body.solid-fuel-readonly .photo-delete,
+body.solid-fuel-readonly [data-company-action],
+body.solid-fuel-readonly #recordModal,
+body.solid-fuel-readonly #troubleModal,
+body.solid-fuel-readonly #unloadModal,
+body.solid-fuel-readonly #companyModal{
+  display:none!important;
+}
+
+@media(max-width:760px){
+  #createRecordBtn,
+  #companyManageBtn,
+  .data-table .actions,
+  .photo-delete,
+  [data-company-action],
+  #recordModal,
+  #troubleModal,
+  #unloadModal,
+  #companyModal{
+    display:none!important;
+  }
+}
