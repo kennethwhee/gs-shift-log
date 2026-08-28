@@ -1177,3 +1177,29 @@ select:focus, input:focus, textarea:focus { border-color: #6ca6d8; box-shadow: 0
   .history-dialog-footer { display: block; }
   .history-dialog-footer [data-close-dialog] { width: 100%; }
 }
+
+/* V5 unified four-card desktop grid */
+.asset-grid.is-unified-grid,
+.asset-grid.is-pending-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.unit-group.is-pending-assets { margin-top: 10px; }
+.asset-position {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) and (min-width: 701px) {
+  .asset-grid.is-unified-grid,
+  .asset-grid.is-pending-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .asset-grid.is-unified-grid,
+  .asset-grid.is-pending-grid {
+    grid-template-columns: 1fr;
+  }
+}

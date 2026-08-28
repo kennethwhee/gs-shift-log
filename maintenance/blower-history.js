@@ -853,12 +853,16 @@
     const remainingDetail = cycleHours ? formatSignedRemaining(asset) : "교체주기 미설정";
     const evidenceText = fullEvidence || emptyEvidenceMessage(replacementEvent);
     const evidencePreview = evidence || evidenceText;
+    const cardPosition = formatCardPosition(asset);
+    const unitAttribute = ["1", "2", "shared"].includes(String(asset.unitNo || ""))
+      ? ` data-unit="${escapeHtml(asset.unitNo)}"`
+      : "";
 
     return `
-      <article class="asset-card" data-severity="${escapeHtml(severity)}" data-tag="${escapeHtml(asset.tagNumber)}">
+      <article class="asset-card" data-severity="${escapeHtml(severity)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}>
         <div class="asset-card-header">
           <div class="asset-identity">
-            <strong class="asset-position">${escapeHtml(asset.positionLabel)}</strong>
+            <strong class="asset-position">${escapeHtml(cardPosition)}</strong>
             <span class="asset-tag">${escapeHtml(asset.tagNumber)}</span>
           </div>
           <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(awaitingBackfill ? "재구성 대기" : severityLabel(severity))}</span>
@@ -937,16 +941,62 @@
     `;
   }
 
+  function formatCardPosition(item) {
+    const position = String(item?.positionLabel || "").trim();
+    const unitNo = String(item?.unitNo || "").trim();
+
+    if (unitNo === "shared") return position ? `1·2호기 공용 · ${position}` : "1·2호기 공용";
+    if (/^[12]$/.test(unitNo)) return position ? `#${unitNo}호기 · ${position}` : `#${unitNo}호기`;
+    return position || String(item?.displayName || "Blower").trim();
+  }
+
+  function unitDisplayRank(unitNo) {
+    return ({ "1": 1, "2": 2, shared: 3 })[String(unitNo || "")] || 9;
+  }
+
+  function positionDisplayRank(positionLabel) {
+    const value = String(positionLabel || "").trim().replace(/^#/, "").toUpperCase();
+    if (/^[A-Z]$/.test(value)) return value.charCodeAt(0) - 64;
+    if (/^\d+$/.test(value)) return Number(value);
+    return 99;
+  }
+
+  function compareAssetDisplayEntries(left, right) {
+    const leftItem = left.item;
+    const rightItem = right.item;
+    const unitDifference = unitDisplayRank(leftItem.unitNo) - unitDisplayRank(rightItem.unitNo);
+    if (unitDifference !== 0) return unitDifference;
+
+    const positionDifference = positionDisplayRank(leftItem.positionLabel) - positionDisplayRank(rightItem.positionLabel);
+    if (positionDifference !== 0) return positionDifference;
+
+    const sortDifference = Number(leftItem.sortOrder || 0) - Number(rightItem.sortOrder || 0);
+    if (sortDifference !== 0) return sortDifference;
+    return String(leftItem.tagNumber || leftItem.slotKey || "").localeCompare(String(rightItem.tagNumber || rightItem.slotKey || ""));
+  }
+
+  function unifiedGroupLabel(items) {
+    const units = new Set(items.map(item => String(item?.unitNo || "")).filter(Boolean));
+    if (units.has("1") && units.has("2")) return "#1 · #2호기";
+    if (units.has("1")) return "#1호기";
+    if (units.has("2")) return "#2호기";
+    if (units.has("shared")) return "#1 · #2호기 공용";
+    return "Blower";
+  }
+
   function renderMissingAssetCard(slot) {
     const identityPending = Boolean(slot.identityPending);
-    const positionLabel = identityPending ? (slot.displayName || "축분 Blower") : slot.positionLabel;
+    const positionLabel = identityPending ? (slot.displayName || "축분 Blower") : formatCardPosition(slot);
     const tagLabel = identityPending ? "TAG · 호기 확인 대기" : "TAG 자동확인 대기";
     const note = identityPending
       ? "정확한 TAG와 호기가 확인되면 교체주기와 이력을 연동합니다."
       : "정확한 전체 TAG가 업무일지에서 확인되면 설비 카드로 자동 전환됩니다.";
+    const unitAttribute = !identityPending && ["1", "2", "shared"].includes(String(slot.unitNo || ""))
+      ? ` data-unit="${escapeHtml(slot.unitNo)}"`
+      : "";
 
     return `
-      <article class="asset-card is-placeholder${identityPending ? " is-identity-pending" : ""}" data-severity="unknown">
+      <article class="asset-card is-placeholder${identityPending ? " is-identity-pending" : ""}" data-severity="unknown"${unitAttribute}>
         <div class="asset-card-header">
           <div class="asset-identity">
             <strong class="asset-position">${escapeHtml(positionLabel)}</strong>
@@ -962,52 +1012,57 @@
     `;
   }
 
+  function buildAssetSectionsHtml(assets, missingSlots, setting, statusFilter = "all") {
+    const visibleAssets = assets
+      .filter(asset => statusFilter === "all" || displaySeverity(asset) === statusFilter)
+      .map(item => ({ kind: "asset", item }));
+    const visibleStandardSlots = missingSlots
+      .filter(slot => !slot.identityPending && ["all", "unknown"].includes(statusFilter))
+      .map(item => ({ kind: "missing", item }));
+    const visiblePendingSlots = missingSlots
+      .filter(slot => slot.identityPending && ["all", "unknown"].includes(statusFilter))
+      .slice()
+      .sort((left, right) => String(left.slotKey || "").localeCompare(String(right.slotKey || "")));
+    const standardEntries = [...visibleAssets, ...visibleStandardSlots].sort(compareAssetDisplayEntries);
+    const sections = [];
+
+    if (standardEntries.length > 0) {
+      const inventoryItems = [
+        ...assets,
+        ...missingSlots.filter(slot => !slot.identityPending)
+      ];
+      const cards = standardEntries
+        .map(entry => entry.kind === "asset"
+          ? renderAssetCard(entry.item, setting)
+          : renderMissingAssetCard(entry.item))
+        .join("");
+
+      sections.push(`
+        <section class="unit-group is-unified-assets">
+          <h3 class="unit-heading">${escapeHtml(unifiedGroupLabel(inventoryItems))} <span>${standardEntries.length}대</span></h3>
+          <div class="asset-grid is-unified-grid">${cards}</div>
+        </section>
+      `);
+    }
+
+    if (visiblePendingSlots.length > 0) {
+      const pendingLabel = visiblePendingSlots[0].groupLabel || "TAG 확인 대기";
+      sections.push(`
+        <section class="unit-group is-pending-assets">
+          <h3 class="unit-heading">${escapeHtml(pendingLabel)} <span>${visiblePendingSlots.length}대</span></h3>
+          <div class="asset-grid is-pending-grid">${visiblePendingSlots.map(renderMissingAssetCard).join("")}</div>
+        </section>
+      `);
+    }
+
+    return sections.join("");
+  }
+
   function renderAssets() {
     const assets = getActiveAssets();
     const missingSlots = getActiveMissingSlots();
     const setting = getActiveSetting();
-    const groupOrder = ["1", "2", "manure", "shared"];
-    const groups = new Map();
-    const missingGroups = new Map();
-
-    for (const asset of assets) {
-      if (!groups.has(asset.unitNo)) groups.set(asset.unitNo, []);
-      groups.get(asset.unitNo).push(asset);
-    }
-
-    for (const slot of missingSlots) {
-      const groupKey = slot.groupKey || slot.unitNo;
-      if (!missingGroups.has(groupKey)) missingGroups.set(groupKey, []);
-      missingGroups.get(groupKey).push(slot);
-    }
-
-    const html = groupOrder
-      .filter(unitNo => groups.has(unitNo) || missingGroups.has(unitNo))
-      .map(unitNo => {
-        const firstSlot = (missingGroups.get(unitNo) || [])[0];
-        const label = firstSlot?.groupLabel
-          || (unitNo === "shared" ? "#1 · #2호기 공용" : `#${unitNo}호기`);
-        const actualCards = (groups.get(unitNo) || [])
-          .filter(asset => state.statusFilter === "all" || displaySeverity(asset) === state.statusFilter)
-          .sort((a, b) => Number(a.sortOrder) - Number(b.sortOrder))
-          .map(asset => renderAssetCard(asset, setting));
-        const placeholderCards = (missingGroups.get(unitNo) || [])
-          .filter(() => ["all", "unknown"].includes(state.statusFilter))
-          .sort((a, b) => String(a.positionLabel).localeCompare(String(b.positionLabel)))
-          .map(renderMissingAssetCard);
-        const visibleCards = [...actualCards, ...placeholderCards];
-        const cards = visibleCards.join("");
-
-        if (!cards) return "";
-
-        return `
-          <section class="unit-group">
-            <h3 class="unit-heading">${escapeHtml(label)} <span>${actualCards.length + placeholderCards.length}대</span></h3>
-            <div class="asset-grid${visibleCards.length === 2 ? " is-two" : visibleCards.length === 1 ? " is-single" : ""}">${cards}</div>
-          </section>
-        `;
-      })
-      .join("");
+    const html = buildAssetSectionsHtml(assets, missingSlots, setting, state.statusFilter);
 
     const total = assets.length + missingSlots.length;
     const visible = state.statusFilter === "all"

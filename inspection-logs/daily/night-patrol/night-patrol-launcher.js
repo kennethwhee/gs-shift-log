@@ -2031,18 +2031,26 @@
       }
 
       .blower-history-main-alert {
-        display: flex;
+        display: inline-flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        width: 100%;
-        margin: 10px 0 0;
-        padding: 10px 12px;
+        flex: 0 1 auto;
+        gap: 7px;
+        width: auto;
+        max-width: min(470px, 42vw);
+        min-height: 34px;
+        margin: 0;
+        padding: 0 6px 0 10px;
         border: 1px solid #e6cc78;
-        border-radius: 10px;
-        background: #fff8dc;
+        border-radius: 999px;
+        background: #fffdf7;
         color: #76570f;
+        cursor: pointer;
         text-align: left;
+        white-space: nowrap;
+      }
+
+      .blower-history-main-alert:hover {
+        background: #fff8e3;
       }
 
       .blower-history-main-alert[hidden] {
@@ -2052,64 +2060,98 @@
       .blower-history-main-alert.is-critical,
       .blower-history-main-alert.is-overdue {
         border-color: #e8a7ad;
-        background: #fff0f1;
+        background: #fff8f8;
         color: #9f2632;
       }
 
+      .blower-history-main-alert.is-critical:hover,
+      .blower-history-main-alert.is-overdue:hover {
+        background: #fff0f1;
+      }
+
+      .blower-history-main-alert__dot {
+        flex: 0 0 auto;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+
       .blower-history-main-alert__content {
+        display: flex;
+        align-items: center;
+        gap: 6px;
         min-width: 0;
       }
 
       .blower-history-main-alert__content small,
       .blower-history-main-alert__content strong {
-        display: block;
+        display: inline-block;
       }
 
       .blower-history-main-alert__content small {
-        margin-bottom: 2px;
-        font-size: 10px;
-        font-weight: 800;
-        letter-spacing: .04em;
+        flex: 0 0 auto;
+        margin: 0;
+        font-size: 11px;
+        font-weight: 850;
+        letter-spacing: -.02em;
       }
 
       .blower-history-main-alert__content strong {
+        min-width: 0;
+        max-width: 270px;
         overflow: hidden;
+        color: #6a5a32;
+        font-size: 10.5px;
+        font-weight: 750;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-size: 13px;
+      }
+
+      .blower-history-main-alert.is-critical .blower-history-main-alert__content strong,
+      .blower-history-main-alert.is-overdue .blower-history-main-alert__content strong {
+        color: #7f3b43;
       }
 
       .blower-history-main-alert__count {
         flex: 0 0 auto;
-        min-width: 29px;
-        height: 29px;
+        min-width: 24px;
+        height: 24px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 0 8px;
+        padding: 0 7px;
         border-radius: 999px;
-        background: rgba(111, 79, 4, .12);
-        font-size: 12px;
+        background: #a87906;
+        color: #fff;
+        font-size: 10.5px;
         font-weight: 900;
       }
 
       .blower-history-main-alert.is-critical .blower-history-main-alert__count,
       .blower-history-main-alert.is-overdue .blower-history-main-alert__count {
-        background: rgba(157, 38, 51, .12);
+        background: #b42331;
+        color: #fff;
+      }
+
+      @media (max-width: 1100px) {
+        .blower-history-main-alert {
+          max-width: none;
+        }
+
+        .blower-history-main-alert__content strong {
+          display: none;
+        }
       }
 
       @media (max-width: 768px) {
         .blower-history-main-alert {
-          margin-top: 7px;
-          padding: 8px 9px;
-        }
-
-        .blower-history-main-alert__content strong {
-          font-size: 11px;
+          min-height: 34px;
+          padding: 0 5px 0 8px;
         }
 
         .blower-history-main-alert__content small {
-          font-size: 9px;
+          font-size: 10px;
         }
       }
     `;
@@ -2158,6 +2200,27 @@
     return button;
   }
 
+  function mountMainAlert(alertButton, section) {
+    const heading = section.querySelector(":scope > .section-heading");
+    const headingRight = heading?.querySelector(":scope > .shift-heading-right");
+
+    if (headingRight) {
+      const currentShiftGroup = Array.from(headingRight.children).find(
+        child => child.classList?.contains("shift-heading-right")
+      );
+      headingRight.insertBefore(alertButton, currentShiftGroup || null);
+      return;
+    }
+
+    if (heading?.nextSibling) {
+      section.insertBefore(alertButton, heading.nextSibling);
+    } else if (heading) {
+      heading.insertAdjacentElement("afterend", alertButton);
+    } else {
+      section.prepend(alertButton);
+    }
+  }
+
   function ensureMainAlert() {
     const section = document.querySelector(".shift-status-section");
 
@@ -2168,6 +2231,7 @@
     let alertButton = document.getElementById("blowerHistoryMainAlert");
 
     if (alertButton) {
+      mountMainAlert(alertButton, section);
       return alertButton;
     }
 
@@ -2175,26 +2239,20 @@
     alertButton.type = "button";
     alertButton.className = "blower-history-main-alert";
     alertButton.id = "blowerHistoryMainAlert";
+    alertButton.setAttribute("aria-live", "polite");
+    alertButton.setAttribute("aria-label", "Blower 교체 알림 확인");
     alertButton.hidden = true;
     alertButton.innerHTML = `
+      <span class="blower-history-main-alert__dot" aria-hidden="true"></span>
       <span class="blower-history-main-alert__content">
-        <small id="blowerHistoryMainAlertLabel">BLOWER 교체 알림</small>
+        <small id="blowerHistoryMainAlertLabel">Blower 교체 알림</small>
         <strong id="blowerHistoryMainAlertText">교체 예정 설비가 있습니다.</strong>
       </span>
       <span class="blower-history-main-alert__count" id="blowerHistoryMainAlertCount">0</span>
     `;
 
     alertButton.addEventListener("click", openBlowerHistory);
-
-    const heading = section.querySelector(":scope > .section-heading");
-
-    if (heading?.nextSibling) {
-      section.insertBefore(alertButton, heading.nextSibling);
-    } else if (heading) {
-      heading.insertAdjacentElement("afterend", alertButton);
-    } else {
-      section.prepend(alertButton);
-    }
+    mountMainAlert(alertButton, section);
 
     return alertButton;
   }
@@ -2249,24 +2307,25 @@
     alertButton.classList.remove("is-warning", "is-critical", "is-overdue");
     alertButton.classList.add(`is-${strongest}`);
 
-    if (label) {
-      label.textContent =
-        strongest === "overdue"
-          ? "BLOWER 교체주기 초과"
-          : strongest === "critical"
-            ? "BLOWER 교체 임박"
-            : "BLOWER 교체 예정";
-    }
+    const labelText = strongest === "overdue"
+      ? "Blower 교체 초과"
+      : strongest === "critical"
+        ? "Blower 교체 임박"
+        : "Blower 교체 예정";
+    const detailText = first
+      ? `${first.displayName} · ${formatRemaining(first)}`
+      : `교체 확인이 필요한 Blower ${alertCount}대`;
 
-    if (text) {
-      text.textContent = first
-        ? `${first.displayName} · ${formatRemaining(first)}`
-        : `교체 확인이 필요한 Blower ${alertCount}대`;
-    }
+    if (label) label.textContent = labelText;
+    if (text) text.textContent = detailText;
 
     if (count) {
       count.textContent = String(alertCount);
     }
+
+    const accessibleText = `${labelText}. ${detailText}. 총 ${alertCount}대`;
+    alertButton.title = accessibleText;
+    alertButton.setAttribute("aria-label", accessibleText);
   }
 
   async function refreshSummary() {
