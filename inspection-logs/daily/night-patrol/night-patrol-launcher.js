@@ -2113,7 +2113,7 @@
         color: #fff;
       }
 
-      @media (min-width: 1151px) {
+      @media (min-width: 1151px) and (max-width: 1839px) {
         #statusView
         .shift-status-section
         > .section-heading {
@@ -2131,6 +2131,12 @@
         .shift-status-section
         > .section-heading
         > .shift-heading-right.has-blower-history-main-alert
+        > .blower-history-main-alert,
+        #statusView
+        .shift-status-section
+        > .section-heading
+        > .shift-heading-right.has-blower-history-main-alert
+        > .main-notification-rail
         > .blower-history-main-alert {
           position: absolute;
           top: 0;
@@ -2251,6 +2257,19 @@
     const headingRight = heading?.querySelector(":scope > .shift-heading-right");
 
     if (headingRight) {
+      const notificationRail = headingRight.querySelector(
+        ":scope > #mainNotificationRail"
+      );
+
+      if (notificationRail) {
+        notificationRail.append(alertButton);
+        headingRight.classList.toggle(
+          "has-blower-history-main-alert",
+          !alertButton.hidden
+        );
+        return;
+      }
+
       const currentShiftGroup = Array.from(headingRight.children).find(
         child => child.classList?.contains("shift-heading-right")
       );
@@ -2274,7 +2293,12 @@
   function setMainAlertVisibility(alertButton, isVisible) {
     alertButton.hidden = !isVisible;
 
-    const headingRight = alertButton.parentElement;
+    const notificationRail = alertButton.closest(
+      "#mainNotificationRail"
+    );
+    const headingRight =
+      notificationRail?.parentElement ||
+      alertButton.parentElement;
 
     if (headingRight?.classList.contains("shift-heading-right")) {
       headingRight.classList.toggle(

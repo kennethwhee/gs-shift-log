@@ -69417,6 +69417,15 @@ body.is-efficiency-daily-work-printing
   gap: 14px;
 }
 
+/*
+  화면 공용 운영 알림의 단일 마운트 지점이다.
+  오른쪽 여백이 없는 화면에서는 래퍼가 별도 칸을 만들지 않고
+  기존 근무자 현황 헤더 배치를 그대로 사용한다.
+*/
+.main-notification-rail {
+  display: contents;
+}
+
 
 /* =========================================================
   BOX 교체 권고 버튼
@@ -69670,76 +69679,84 @@ body.is-efficiency-daily-work-printing
 }
 
 /* =========================================================
-  BOX 교체 권고 우측 여백 배치
+  주요 운영 알림 우측 레일
 
   넓은 PC:
-  - 본문 오른쪽 남는 공간에 컴팩트하게 표시
-  - 스크롤해도 우측에 유지
+  - 1480px 본문 오른쪽 회색 여백에 고정
+  - 알림이 늘어나면 아래로 누적하고 화면 높이를 넘으면 스크롤
 
   여백이 부족한 화면:
-  - 기존 근무자 현황 제목 옆 위치 유지
+  - display: contents로 기존 근무자 현황 헤더 배치 유지
 ========================================================= */
 
 @media (min-width: 1840px) {
+  .main-notification-rail {
+    --main-notification-rail-width:
+      clamp(
+        150px,
+        calc(
+          (
+            100vw -
+            var(--content-width)
+          ) /
+          2 -
+          24px
+        ),
+        210px
+      );
 
-  /*
-    알림이 빠져나간 뒤
-    현재 근무 정보만 오른쪽에 정렬한다.
-  */
-  .shift-heading-right {
-    flex: 0 0 auto !important;
-  }
-
-
-  /* =====================================================
-    우측 BOX 교체 권고
-  ====================================================== */
-
-  .arm-roll-box-main-alert {
-    position: fixed !important;
-
-    /*
-      헤더 72px
-      상단 탭 52px
-      메인 위쪽 여백을 고려한 위치
-    */
-    top: 154px !important;
-
-    /*
-      본문 최대폭 1480px의 오른쪽 끝에서
-      약 12px 떨어진 위치
-    */
+    position: fixed;
+    top: 154px;
     right:
       max(
         12px,
         calc(
           (
             100vw -
-            1480px
+            var(--content-width)
           ) /
           2 -
-          222px
+          var(--main-notification-rail-width) -
+          12px
         )
-      ) !important;
+      );
+    z-index: 60;
 
-    z-index: 60 !important;
+    display: flex;
+    width: var(--main-notification-rail-width);
+    min-width: 0;
+    max-width: 210px;
+    max-height: calc(100vh - 166px);
+    max-height: calc(100dvh - 166px);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 0;
 
-    width:
-      clamp(
-        150px,
-        calc(
-          (
-            100vw -
-            1480px
-          ) /
-          2 -
-          24px
-        ),
-        210px
-      ) !important;
+    pointer-events: none;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
 
+  .main-notification-rail > * {
+    flex: 0 0 auto;
+    pointer-events: auto;
+  }
+
+  /* =====================================================
+    BOX 교체 권고 레일 카드
+  ====================================================== */
+
+  .main-notification-rail
+  > .arm-roll-box-main-alert {
+    position: relative !important;
+    inset: auto !important;
+
+    width: 100% !important;
     min-width: 0 !important;
-    max-width: 210px !important;
+    max-width: none !important;
     min-height: 58px !important;
 
     grid-template-columns:
@@ -69750,11 +69767,7 @@ body.is-efficiency-daily-work-printing
       ) !important;
 
     gap: 7px !important;
-
-    padding:
-      8px
-      9px !important;
-
+    padding: 8px 9px !important;
     border-radius: 10px !important;
 
     box-shadow:
@@ -69767,101 +69780,133 @@ body.is-efficiency-daily-work-printing
       ) !important;
   }
 
-
-  /* =====================================================
-    아이콘
-  ====================================================== */
-
+  .main-notification-rail
   .arm-roll-box-main-alert__icon {
     width: 25px !important;
     height: 25px !important;
-
     font-size: 14px !important;
   }
 
-
-  /* =====================================================
-    문구
-  ====================================================== */
-
+  .main-notification-rail
   .arm-roll-box-main-alert__content {
     min-width: 0 !important;
   }
 
-
+  .main-notification-rail
   .arm-roll-box-main-alert__content small {
     margin-bottom: 2px !important;
-
+    padding-right: 31px !important;
     font-size: 8px !important;
     line-height: 1.1 !important;
-
     letter-spacing: 0.06em !important;
   }
 
-
+  .main-notification-rail
   .arm-roll-box-main-alert__content strong {
     display: -webkit-box !important;
-
     overflow: hidden !important;
-
+    padding-right: 0 !important;
     font-size: 10px !important;
     line-height: 1.35 !important;
-
     white-space: normal !important;
     word-break: keep-all !important;
     overflow-wrap: anywhere !important;
-
     -webkit-box-orient: vertical !important;
     -webkit-line-clamp: 2 !important;
     line-clamp: 2;
   }
 
+  .main-notification-rail
+  .arm-roll-box-main-alert__count {
+    position: absolute !important;
+    top: 6px !important;
+    right: 7px !important;
+    bottom: auto !important;
+    min-width: 27px !important;
+    min-height: 18px !important;
+    padding: 0 5px !important;
+    border-radius: 999px !important;
+    font-size: 8px !important;
+    line-height: 1 !important;
+    z-index: 2 !important;
+  }
 
-/* =====================================================
-  건수
+  /* =====================================================
+    Blower 교체 초과 레일 카드
+  ====================================================== */
 
-  오른쪽 상단 작은 배지로 표시
-====================================================== */
+  .main-notification-rail
+  > .blower-history-main-alert {
+    position: relative !important;
+    inset: auto !important;
 
-.arm-roll-box-main-alert__count {
-  position: absolute !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 58px !important;
+    align-items: center !important;
+    gap: 7px !important;
+    padding: 8px 9px !important;
+    border-radius: 10px !important;
+    white-space: normal !important;
 
-  top: 6px !important;
-  right: 7px !important;
-  bottom: auto !important;
+    box-shadow:
+      0 5px 16px
+      rgba(
+        180,
+        35,
+        49,
+        0.12
+      );
+  }
 
-  min-width: 27px !important;
-  min-height: 18px !important;
+  .main-notification-rail
+  .blower-history-main-alert__content {
+    display: block !important;
+    width: 100%;
+    min-width: 0;
+    padding-right: 30px;
+  }
 
-  padding:
-    0
-    5px !important;
+  .main-notification-rail
+  .blower-history-main-alert__content small {
+    display: block !important;
+    margin: 0 0 2px !important;
+    font-size: 9px !important;
+    line-height: 1.15 !important;
+  }
 
-  border-radius: 999px !important;
+  .main-notification-rail
+  .blower-history-main-alert__content strong {
+    display: -webkit-box !important;
+    max-width: none !important;
+    overflow: hidden !important;
+    font-size: 9px !important;
+    line-height: 1.35 !important;
+    white-space: normal !important;
+    word-break: keep-all !important;
+    overflow-wrap: anywhere !important;
+    -webkit-box-orient: vertical !important;
+    -webkit-line-clamp: 2 !important;
+    line-clamp: 2;
+  }
 
-  font-size: 8px !important;
-  line-height: 1 !important;
-
-  z-index: 2 !important;
+  .main-notification-rail
+  .blower-history-main-alert__count {
+    position: absolute;
+    top: 6px;
+    right: 7px;
+    min-width: 27px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 8px;
+    line-height: 1;
+  }
 }
 
-
-/*
-  상단의 BOX 교체 권고 문구와
-  건수 배지가 겹치지 않도록 여백 확보
-*/
-.arm-roll-box-main-alert__content small {
-  padding-right: 31px !important;
-}
-
-
-/*
-  본문과 일정 문구는 오른쪽 공간을
-  모두 사용할 수 있도록 기존 여백 제거
-*/
-.arm-roll-box-main-alert__content strong {
-  padding-right: 0 !important;
-}
+@media print {
+  .main-notification-rail {
+    display: none !important;
+  }
 }
 
 /* =====================================================

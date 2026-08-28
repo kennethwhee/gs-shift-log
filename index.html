@@ -141,7 +141,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260827-handover-tag-inline-v1"
+    href="style.css?v=20260828-main-notification-rail-v1"
   >
   <link
     rel="stylesheet"
@@ -188,7 +188,7 @@
     점검일지 메뉴 및 팝업 실행기
   ====================================================== -->
   <script
-    src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260828-alert-right-slot-v1"
+    src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260828-main-notification-rail-v1"
     defer
   ></script>
 
@@ -933,13 +933,23 @@
 <!-- =====================================================
   근무자 현황 우측 정보
 
-  왼쪽:
-  - ARM ROLL · SCRAP BOX 교체 권고
-
-  오른쪽:
+  - 주요 운영 알림 공용 영역
   - 현재 날짜와 근무
+  - 넓은 화면의 알림은 오른쪽 회색 여백으로 이동
 ====================================================== -->
 <div class="shift-heading-right">
+
+  <!-- =================================================
+    주요 운영 알림 공용 영역
+
+    넓은 화면에서는 본문 오른쪽 회색 여백에 세로로 표시하고,
+    여백이 부족하면 현재 근무 정보 옆의 기존 위치로 돌아간다.
+    앞으로 추가되는 화면 공용 알림도 이 영역에 배치한다.
+  ================================================== -->
+  <div
+    class="main-notification-rail"
+    id="mainNotificationRail"
+  >
 
   <!-- =================================================
     BOX 교체 권고
@@ -994,6 +1004,8 @@
     </span>
 
   </button>
+
+  </div>
 
 
 <!-- =====================================================

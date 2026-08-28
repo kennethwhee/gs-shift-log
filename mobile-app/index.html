@@ -594,7 +594,7 @@
 
   <link
     rel="stylesheet"
-    href="/mobile-app/mobile-layout-v17.css?v=20260826-mobile-search-legacy-checkbox-v21"
+    href="/mobile-app/mobile-layout-v17.css?v=20260828-main-notification-rail-v1"
   >
 
   <link
@@ -619,7 +619,7 @@
     >
     <link
       rel="stylesheet"
-      href="/mobile-app/mobile-layout-v17.css?v=20260826-mobile-search-legacy-checkbox-v21"
+      href="/mobile-app/mobile-layout-v17.css?v=20260828-main-notification-rail-v1"
     >
     <link
       rel="stylesheet"
@@ -1519,13 +1519,22 @@
 <!-- =====================================================
   근무자 현황 우측 정보
 
-  왼쪽:
-  - ARM ROLL · SCRAP BOX 교체 권고
-
-  오른쪽:
+  - 주요 운영 알림 공용 영역
   - 현재 날짜와 근무
+  - 모바일은 각 알림의 전용 배치 유지
 ====================================================== -->
 <div class="shift-heading-right">
+
+  <!-- =================================================
+    주요 운영 알림 공용 영역
+
+    PC의 오른쪽 알림 영역과 같은 DOM 계약을 사용한다.
+    모바일에서는 각 알림의 기존 모바일 배치를 유지한다.
+  ================================================== -->
+  <div
+    class="main-notification-rail"
+    id="mainNotificationRail"
+  >
 
   <!-- =================================================
     BOX 교체 권고
@@ -1580,6 +1589,8 @@
     </span>
 
   </button>
+
+  </div>
 
 
 <!-- =====================================================
@@ -15277,7 +15288,7 @@
             () => {
               return loadOptionalScript(
                 "mobileInspectionLauncherV15",
-                "/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260828-alert-right-slot-v1",
+                "/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260828-main-notification-rail-v1",
                 () => {
                   return window.__gsNightPatrolLauncherInstalled ===
                     true;

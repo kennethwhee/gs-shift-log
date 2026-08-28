@@ -127,6 +127,15 @@
   }
 }
 
+/*
+  MAIN-NOTIFICATION-RAIL-V1
+  PC와 같은 알림 마운트 지점을 쓰되 모바일 레이아웃에는
+  별도 래퍼 칸을 만들지 않는다.
+*/
+#statusView .main-notification-rail {
+  display: contents !important;
+}
+
 /* =========================================================
    MOBILE SEARCH LEGACY CHECKBOX V21
 
