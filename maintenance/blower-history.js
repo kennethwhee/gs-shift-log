@@ -554,19 +554,22 @@
         const typeAlerts = (state.data.assets || []).filter(
           asset => asset.blowerType === type.key && ["warning", "critical", "overdue"].includes(displaySeverity(asset))
         ).length;
+        const alertLabel = typeAlerts > 0 ? `교체주기 알림 ${typeAlerts}건` : "";
+        const accessibleLabel = alertLabel ? `${type.label}, ${alertLabel}` : type.label;
 
         return `
           <button
             type="button"
-            class="type-tab${active ? " is-active" : ""}${type.important ? " is-important" : ""}"
+            class="type-tab${active ? " is-active" : ""}${type.important ? " is-important" : ""}${typeAlerts > 0 ? " has-alert" : ""}"
             data-type="${escapeHtml(type.key)}"
-            aria-label="${escapeHtml(type.label)}"
+            aria-label="${escapeHtml(accessibleLabel)}"
+            title="${escapeHtml(accessibleLabel)}"
             aria-pressed="${active ? "true" : "false"}"
             ${active ? 'aria-current="page"' : ""}
           >
             <span class="type-label-full">${escapeHtml(type.label)}</span>
             <span class="type-label-compact">${escapeHtml(compactLabels[type.key] || type.label)}</span>
-            ${typeAlerts > 0 ? `<span class="type-alert-count">${typeAlerts}</span>` : ""}
+            ${typeAlerts > 0 ? `<span class="type-alert-count" aria-hidden="true">${typeAlerts}</span>` : ""}
           </button>
         `;
       })
@@ -984,6 +987,23 @@
     return "Blower";
   }
 
+  function usesUnitRows(blowerType) {
+    return ["fbhe", "seal_pot"].includes(String(blowerType || ""));
+  }
+
+  function unitRowLabel(unitNo, items) {
+    if (String(unitNo) === "1") return "#1호기";
+    if (String(unitNo) === "2") return "#2호기";
+    if (String(unitNo) === "shared") return "#1 · #2호기 공용";
+    return unifiedGroupLabel(items);
+  }
+
+  function renderDisplayEntry(entry, setting) {
+    return entry.kind === "asset"
+      ? renderAssetCard(entry.item, setting)
+      : renderMissingAssetCard(entry.item);
+  }
+
   function renderMissingAssetCard(slot) {
     const identityPending = Boolean(slot.identityPending);
     const positionLabel = identityPending ? (slot.displayName || "축분 Blower") : formatCardPosition(slot);
@@ -1031,18 +1051,44 @@
         ...assets,
         ...missingSlots.filter(slot => !slot.identityPending)
       ];
-      const cards = standardEntries
-        .map(entry => entry.kind === "asset"
-          ? renderAssetCard(entry.item, setting)
-          : renderMissingAssetCard(entry.item))
-        .join("");
+      const blowerType = inventoryItems.find(item => item?.blowerType)?.blowerType || state.activeType;
 
-      sections.push(`
-        <section class="unit-group is-unified-assets">
-          <h3 class="unit-heading">${escapeHtml(unifiedGroupLabel(inventoryItems))} <span>${standardEntries.length}대</span></h3>
-          <div class="asset-grid is-unified-grid">${cards}</div>
-        </section>
-      `);
+      if (usesUnitRows(blowerType)) {
+        const entriesByUnit = new Map();
+        for (const entry of standardEntries) {
+          const unitNo = String(entry.item?.unitNo || "other");
+          if (!entriesByUnit.has(unitNo)) entriesByUnit.set(unitNo, []);
+          entriesByUnit.get(unitNo).push(entry);
+        }
+
+        const orderedUnitKeys = ["1", "2", "shared"];
+        for (const unitNo of entriesByUnit.keys()) {
+          if (!orderedUnitKeys.includes(unitNo)) orderedUnitKeys.push(unitNo);
+        }
+
+        for (const unitNo of orderedUnitKeys) {
+          const unitEntries = entriesByUnit.get(unitNo) || [];
+          if (unitEntries.length === 0) continue;
+          const unitItems = unitEntries.map(entry => entry.item);
+          const cards = unitEntries.map(entry => renderDisplayEntry(entry, setting)).join("");
+
+          sections.push(`
+            <section class="unit-group is-unit-assets" data-unit-group="${escapeHtml(unitNo)}">
+              <h3 class="unit-heading">${escapeHtml(unitRowLabel(unitNo, unitItems))} <span>${unitEntries.length}대</span></h3>
+              <div class="asset-grid is-unit-grid">${cards}</div>
+            </section>
+          `);
+        }
+      } else {
+        const cards = standardEntries.map(entry => renderDisplayEntry(entry, setting)).join("");
+
+        sections.push(`
+          <section class="unit-group is-unified-assets">
+            <h3 class="unit-heading">${escapeHtml(unifiedGroupLabel(inventoryItems))} <span>${standardEntries.length}대</span></h3>
+            <div class="asset-grid is-unified-grid">${cards}</div>
+          </section>
+        `);
+      }
     }
 
     if (visiblePendingSlots.length > 0) {

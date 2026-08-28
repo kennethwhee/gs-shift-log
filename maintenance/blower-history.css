@@ -1203,3 +1203,103 @@ select:focus, input:focus, textarea:focus { border-color: #6ca6d8; box-shadow: 0
     grid-template-columns: 1fr;
   }
 }
+
+/* V6 unit rows, equal-height cards and explicit type alerts */
+.asset-grid {
+  align-items: stretch;
+}
+.asset-grid.is-unit-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.asset-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.asset-actions {
+  margin-top: auto;
+  padding-top: 6px;
+}
+.asset-evidence p {
+  min-height: 2.8em;
+}
+.asset-card.is-identity-pending {
+  height: auto;
+}
+
+.type-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.type-tab.has-alert:not(.is-active) {
+  border-color: #e4a2ac;
+  background: #fff8f9;
+}
+.type-alert-count::before {
+  content: "알림";
+  margin-right: 4px;
+  font-size: 9px;
+  font-weight: 800;
+}
+.type-alert-count,
+.type-tab.is-active .type-alert-count,
+.type-tab.is-active.has-alert .type-alert-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 23px;
+  height: 22px;
+  margin-left: 0;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #c81e34;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 0 0 2px #fff, 0 2px 5px rgba(160, 15, 35, .25);
+}
+
+@media (max-width: 1180px) and (min-width: 701px) {
+  .asset-grid.is-unit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .asset-grid.is-unit-grid {
+    grid-template-columns: 1fr;
+  }
+  .asset-card {
+    height: auto;
+  }
+  .asset-evidence p {
+    min-height: 0;
+  }
+  .type-tab {
+    gap: 5px;
+    min-height: 33px;
+    padding: 0 10px;
+    border-radius: 7px;
+    font-size: 11px;
+  }
+  .type-alert-count::before {
+    content: "!";
+    margin-right: 2px;
+    font-size: 9px;
+  }
+  .type-alert-count,
+  .type-tab.is-active .type-alert-count,
+  .type-tab.is-active.has-alert .type-alert-count {
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    font-size: 10px;
+  }
+}
