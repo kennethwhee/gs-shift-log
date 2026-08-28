@@ -350,7 +350,7 @@ export async function onRequestGet(context){
     await initialize(context.env.DB);
     const [items,unloadingLogs,companyList]=await Promise.all([listTroubles(context.env.DB,url),listUnloadings(context.env.DB,url),companies(context.env.DB)]);
     return json({ok:true,items,unloadingLogs,companies:companyList,permissions:{canCreate:true,canEdit:true,canDelete:a.user.isAdmin,canUploadPhoto:true,canManageUnloading:true},user:a.user,seed:{trouble:21,unloading:309}});
-  }catch(e){console.error("solid fuel V2 GET",e);return json({ok:false,message:e?.message||"조회 중 오류가 발생했습니다."},Number(e?.status)||500);}
+  }catch(e){console.error("solid fuel V3 GET",e);return json({ok:false,message:e?.message||"조회 중 오류가 발생했습니다."},Number(e?.status)||500);}
 }
 
 export async function onRequestPost(context){
@@ -377,6 +377,66 @@ export async function onRequestPost(context){
       return json({ok:true,recordId,uploadedCount:files.length},201);
     }
     const b=await context.request.json(),entity=text(b.entity||"trouble").toLowerCase();
+
+    /*
+      V3 통합 등록
+      - 일반 하역: 기존 unloading branch 사용
+      - Trouble: 하역시간 + Trouble을 D1 batch로 한 번에 생성
+      - 공통 필드는 사용자가 한 번만 입력한다.
+      - 두 INSERT 중 하나가 실패하면 batch 전체가 실패한다.
+    */
+    if(entity==="combined"){
+      const date=text(b.unloadingDate||b.occurrenceDate),
+        arrival=text(b.arrivalTime),
+        departure=text(b.departureTime),
+        duration=durationMinutes(arrival,departure),
+        company=limited(b.companyName,80),
+        vehicle=limited(b.vehicleNo,40),
+        silo=limited(b.siloRoute,80),
+        equipment=limited(b.equipment,500),
+        note=limited(b.note,3000);
+
+      if(!isoDate(date)) return json({ok:false,message:"일자를 선택해 주세요."},400);
+      if(duration===null) return json({ok:false,message:"입고/출고 시간을 확인해 주세요."},400);
+      if(!company) return json({ok:false,message:"업체명을 입력해 주세요."},400);
+      if(!vehicle) return json({ok:false,message:"차량번호를 입력해 주세요."},400);
+      if(!silo) return json({ok:false,message:"하역 Silo를 선택해 주세요."},400);
+      if(!equipment) return json({ok:false,message:"Trouble 발생 설비/내용을 입력해 주세요."},400);
+
+      const unloadingId=crypto.randomUUID(),
+        troubleId=crypto.randomUUID(),
+        now=new Date().toISOString(),
+        unloadingNote=limited(`[Trouble] ${equipment}${note?`\n${note}`:""}`,3000);
+
+      const unloadingStatement=context.env.DB.prepare(`INSERT INTO solid_fuel_unloading_logs(
+        id,source_key,unloading_date,arrival_time,departure_time,duration_minutes,company_name,vehicle_no,silo_route,
+        silo_a_company,silo_a_vehicle,silo_b_company,silo_b_vehicle,day_company,day_vehicle,note,version,
+        created_by_id,created_by_name,updated_by_id,updated_by_name,created_at,updated_at
+      ) VALUES(?,NULL,?,?,?,?,?,?,?,'','','','','','',?,1,?,?,?,?,?,?)`)
+      .bind(unloadingId,date,arrival,departure,duration,company,vehicle,silo,unloadingNote,user.employeeNo,user.name,user.employeeNo,user.name,now,now);
+
+      const troubleStatement=context.env.DB.prepare(`INSERT INTO solid_fuel_trouble_records(
+        id,source_key,occurrence_date,company_name,vehicle_no,equipment,note,legacy_photo_path,version,
+        created_by_id,created_by_name,updated_by_id,updated_by_name,created_at,updated_at
+      ) VALUES(?,NULL,?,?,?,?,?,'',1,?,?,?,?,?,?)`)
+      .bind(troubleId,date,company,vehicle,equipment,note,user.employeeNo,user.name,user.employeeNo,user.name,now,now);
+
+      await context.env.DB.batch([
+        unloadingStatement,
+        troubleStatement
+      ]);
+
+      return json({
+        ok:true,
+        entity:"combined",
+        unloadingId,
+        troubleId,
+        recordId:troubleId,
+        durationMinutes:duration,
+        version:1
+      },201);
+    }
+
     if(entity==="unloading"){
       const date=text(b.unloadingDate),arrival=text(b.arrivalTime),departure=text(b.departureTime),duration=durationMinutes(arrival,departure);
       if(!isoDate(date)) return json({ok:false,message:"하역 일자를 선택해 주세요."},400);
@@ -402,7 +462,7 @@ export async function onRequestPost(context){
   }catch(e){
     for(const id of photoIds){try{await context.env.DB?.prepare(`DELETE FROM solid_fuel_trouble_photos WHERE id=?`).bind(id).run();}catch{}}
     for(const key of uploadedKeys){try{await context.env.ATTACHMENTS?.delete(key);}catch{}}
-    console.error("solid fuel V2 POST",e);return json({ok:false,message:e?.message||"저장 중 오류가 발생했습니다."},500);
+    console.error("solid fuel V3 POST",e);return json({ok:false,message:e?.message||"저장 중 오류가 발생했습니다."},500);
   }
 }
 
@@ -424,7 +484,7 @@ export async function onRequestPut(context){
     .bind(date,limited(b.companyName,80),limited(b.vehicleNo,40),equipment,limited(b.note,3000),u.employeeNo,u.name,now,id,version).run();
     if(Number(r?.meta?.changes||0)!==1) return json({ok:false,code:"VERSION_CONFLICT",message:"다른 사용자가 먼저 수정했습니다. 새로고침 후 다시 시도해 주세요."},409);
     return json({ok:true,id,version:version+1});
-  }catch(e){console.error("solid fuel V2 PUT",e);return json({ok:false,message:e?.message||"수정 중 오류가 발생했습니다."},500);}
+  }catch(e){console.error("solid fuel V3 PUT",e);return json({ok:false,message:e?.message||"수정 중 오류가 발생했습니다."},500);}
 }
 
 export async function onRequestDelete(context){
@@ -444,5 +504,5 @@ export async function onRequestDelete(context){
     const r=await context.env.DB.prepare(`UPDATE ${table} SET deleted_at=?,deleted_by_id=?,deleted_by_name=?,updated_at=? WHERE id=? AND deleted_at IS NULL`).bind(now,a.user.employeeNo,a.user.name,now,id).run();
     if(Number(r?.meta?.changes||0)!==1) return json({ok:false,message:"삭제할 기록을 찾을 수 없습니다."},404);
     return json({ok:true,deletedId:id,entity});
-  }catch(e){console.error("solid fuel V2 DELETE",e);return json({ok:false,message:e?.message||"삭제 중 오류가 발생했습니다."},500);}
+  }catch(e){console.error("solid fuel V3 DELETE",e);return json({ok:false,message:e?.message||"삭제 중 오류가 발생했습니다."},500);}
 }
