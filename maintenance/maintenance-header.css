@@ -147,6 +147,11 @@
   transform: rotate(180deg);
 }
 
+.header-more-menu
+  #plannedMaintenanceHeaderButton[aria-expanded="true"] {
+  border-radius: 0;
+}
+
 .header-more-submenu-panel {
   display: grid;
   gap: 2px;
@@ -155,6 +160,14 @@
 
 .header-more-submenu-panel[hidden] {
   display: none !important;
+}
+
+.header-more-menu #plannedMaintenanceHeaderSubmenuPanel {
+  gap: 0;
+  padding: 3px 5px 6px 10px;
+  border-radius: 0 0 7px 7px;
+  background: #f3faf6;
+  box-shadow: inset 3px 0 #4d9a6c;
 }
 
 .header-more-subitem {
@@ -181,6 +194,26 @@
   border-left-color: #2e73bd;
   background: #f3f7fb;
   color: #185b9f;
+}
+
+.header-more-menu
+  #plannedMaintenanceHeaderSubmenuPanel
+  .header-more-subitem {
+  padding: 0 10px 0 14px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #4f675a;
+}
+
+.header-more-menu
+  #plannedMaintenanceHeaderSubmenuPanel
+  .header-more-subitem:hover,
+.header-more-menu
+  #plannedMaintenanceHeaderSubmenuPanel
+  .header-more-subitem:focus-visible {
+  background: #e9f6ef;
+  color: #174d36;
 }
 
 .header-more-item--admin {
