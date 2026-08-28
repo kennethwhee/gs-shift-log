@@ -14,7 +14,8 @@
     subview: "overview",
     busy: false,
     backfillRunning: false,
-    auditRunning: false
+    auditRunning: false,
+    assetManagerAutoName: true
   };
 
   const elements = {};
@@ -37,6 +38,7 @@
       "visibleAssetCount",
       "settingsSummary",
       "settingsUpdated",
+      "assetManagerButton",
       "settingsButton",
       "missingTagsNotice",
       "averagePanel",
@@ -89,6 +91,24 @@
       "warningDays",
       "criticalDays",
       "clearSettingsButton",
+      "assetManagerDialog",
+      "assetManagerForm",
+      "assetManagerTarget",
+      "assetManagerUpdated",
+      "assetManagerMode",
+      "assetOriginalTag",
+      "assetExpectedUpdatedAt",
+      "assetBlowerType",
+      "assetUnitNo",
+      "assetGroup",
+      "assetPositionLabel",
+      "assetDisplayName",
+      "assetTagNumber",
+      "assetTagHelp",
+      "assetSortOrder",
+      "assetEnabled",
+      "assetChangeNote",
+      "assetManagerSaveButton",
       "historyDialog",
       "historyDialogTitle",
       "historyDialogAsset",
@@ -131,6 +151,7 @@
 
     return {
       Accept: "application/json",
+      "X-GS-Client-Mode": isMobileMonitoringView() ? "mobile-monitoring" : "desktop",
       ...extra,
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     };
@@ -156,6 +177,7 @@
     if (state.subview === "detect") switchSubview("overview");
     if (elements.recordDialog?.open) elements.recordDialog.close();
     if (elements.settingsDialog?.open) elements.settingsDialog.close();
+    if (elements.assetManagerDialog?.open) elements.assetManagerDialog.close();
   }
 
   function parseRetryAfterMs(value) {
@@ -638,6 +660,7 @@
     }
 
     elements.settingsButton.hidden = !state.data?.user || isMobileMonitoringView();
+    elements.assetManagerButton.hidden = !state.data?.user?.isSuperAdmin || isMobileMonitoringView();
   }
 
   function renderHeaderActions() {
@@ -970,6 +993,11 @@
     const unitDifference = unitDisplayRank(leftItem.unitNo) - unitDisplayRank(rightItem.unitNo);
     if (unitDifference !== 0) return unitDifference;
 
+    if (left.kind === "asset" && right.kind === "asset") {
+      const managedSortDifference = Number(leftItem.sortOrder || 0) - Number(rightItem.sortOrder || 0);
+      if (managedSortDifference !== 0) return managedSortDifference;
+    }
+
     const positionDifference = positionDisplayRank(leftItem.positionLabel) - positionDisplayRank(rightItem.positionLabel);
     if (positionDifference !== 0) return positionDifference;
 
@@ -1036,6 +1064,11 @@
     const visibleAssets = assets
       .filter(asset => statusFilter === "all" || displaySeverity(asset) === statusFilter)
       .map(item => ({ kind: "asset", item }));
+    const visibleGroupedAssets = visibleAssets
+      .filter(entry => String(entry.item?.assetGroup || "") === "manure")
+      .sort(compareAssetDisplayEntries);
+    const visibleStandardAssets = visibleAssets
+      .filter(entry => String(entry.item?.assetGroup || "") !== "manure");
     const visibleStandardSlots = missingSlots
       .filter(slot => !slot.identityPending && ["all", "unknown"].includes(statusFilter))
       .map(item => ({ kind: "missing", item }));
@@ -1043,7 +1076,7 @@
       .filter(slot => slot.identityPending && ["all", "unknown"].includes(statusFilter))
       .slice()
       .sort((left, right) => String(left.slotKey || "").localeCompare(String(right.slotKey || "")));
-    const standardEntries = [...visibleAssets, ...visibleStandardSlots].sort(compareAssetDisplayEntries);
+    const standardEntries = [...visibleStandardAssets, ...visibleStandardSlots].sort(compareAssetDisplayEntries);
     const sections = [];
 
     if (standardEntries.length > 0) {
@@ -1089,6 +1122,15 @@
           </section>
         `);
       }
+    }
+
+    if (visibleGroupedAssets.length > 0) {
+      sections.push(`
+        <section class="unit-group is-pending-assets is-managed-group-assets" data-asset-group="manure">
+          <h3 class="unit-heading">축분 Blower <span>${visibleGroupedAssets.length}대</span></h3>
+          <div class="asset-grid is-pending-grid is-managed-group-grid">${visibleGroupedAssets.map(entry => renderDisplayEntry(entry, setting)).join("")}</div>
+        </section>
+      `);
     }
 
     if (visiblePendingSlots.length > 0) {
@@ -1510,6 +1552,7 @@
     elements.historicalBackfillButton.disabled = state.busy || state.backfillRunning;
     elements.overviewBackfillButton.disabled = state.busy || state.backfillRunning;
     elements.auditHistoryButton.disabled = state.busy || state.backfillRunning || state.auditRunning;
+    elements.assetManagerButton.disabled = state.busy;
   }
 
   async function loadData(options = {}) {
@@ -1659,6 +1702,203 @@
     elements.warningDays.value = setting?.warningDays ?? "";
     elements.criticalDays.value = setting?.criticalDays ?? "";
     elements.settingsDialog.showModal();
+  }
+
+  function assetTypeLabel(typeKey) {
+    return state.data?.types?.find(type => type.key === typeKey)?.label || typeKey || "Blower";
+  }
+
+  function assetUnitLabel(unitNo) {
+    if (unitNo === "1") return "#1호기";
+    if (unitNo === "2") return "#2호기";
+    if (unitNo === "shared") return "1·2호기 공용";
+    return unitNo || "호기 미설정";
+  }
+
+  function suggestAssetDisplayName() {
+    if (elements.assetManagerMode.value !== "create" || !state.assetManagerAutoName) return;
+    const typeLabel = assetTypeLabel(elements.assetBlowerType.value);
+    const unitLabel = elements.assetUnitNo.value === "shared"
+      ? ""
+      : `${assetUnitLabel(elements.assetUnitNo.value)} `;
+    const groupLabel = elements.assetGroup.value === "manure" ? "축분 " : "";
+    const position = elements.assetPositionLabel.value.trim();
+    elements.assetDisplayName.value = `${unitLabel}${groupLabel}${typeLabel}${position ? ` ${position}` : ""}`.trim();
+  }
+
+  function syncAssetGroupOptions() {
+    const manureOption = elements.assetGroup.querySelector('option[value="manure"]');
+    const organic = elements.assetBlowerType.value === "organic_fuel";
+    if (manureOption) manureOption.disabled = !organic;
+    if (!organic && elements.assetGroup.value === "manure") elements.assetGroup.value = "";
+
+    if (elements.assetManagerMode.value === "create" && elements.assetBlowerType.value === "flyash_silo") {
+      elements.assetUnitNo.value = "shared";
+    }
+
+    suggestAssetDisplayName();
+  }
+
+  function nextAssetSortOrder(blowerType) {
+    const orders = (state.data?.assetCatalog || [])
+      .filter(asset => asset.blowerType === blowerType)
+      .map(asset => Number(asset.sortOrder || 0))
+      .filter(Number.isFinite);
+    return orders.length > 0 ? Math.min(9999, Math.max(...orders) + 1) : 1;
+  }
+
+  function populateAssetManagerTargets(selectedTag = "__new__") {
+    const catalog = [...(state.data?.assetCatalog || [])].sort((left, right) => {
+      const typeDifference = String(left.blowerType).localeCompare(String(right.blowerType));
+      if (typeDifference !== 0) return typeDifference;
+      const sortDifference = Number(left.sortOrder || 0) - Number(right.sortOrder || 0);
+      if (sortDifference !== 0) return sortDifference;
+      return String(left.tagNumber).localeCompare(String(right.tagNumber));
+    });
+
+    elements.assetManagerTarget.innerHTML = [
+      '<option value="__new__">＋ 새 Blower 추가</option>',
+      ...catalog.map(asset => {
+        const status = asset.enabled ? "" : " · 사용 중지";
+        return `<option value="${escapeHtml(asset.tagNumber)}">${escapeHtml(assetTypeLabel(asset.blowerType))} · ${escapeHtml(assetUnitLabel(asset.unitNo))} · ${escapeHtml(asset.positionLabel)} · ${escapeHtml(asset.tagNumber)}${escapeHtml(status)}</option>`;
+      })
+    ].join("");
+
+    elements.assetManagerTarget.value = catalog.some(asset => asset.tagNumber === selectedTag)
+      ? selectedTag
+      : "__new__";
+  }
+
+  function fillAssetManagerForm(tagNumber = "__new__") {
+    const asset = (state.data?.assetCatalog || []).find(item => item.tagNumber === tagNumber) || null;
+    elements.assetChangeNote.value = "";
+
+    if (!asset) {
+      state.assetManagerAutoName = true;
+      elements.assetManagerMode.value = "create";
+      elements.assetOriginalTag.value = "";
+      elements.assetExpectedUpdatedAt.value = "";
+      elements.assetBlowerType.disabled = false;
+      elements.assetUnitNo.disabled = false;
+      elements.assetGroup.disabled = false;
+      elements.assetBlowerType.value = state.activeType;
+      elements.assetUnitNo.value = state.activeType === "flyash_silo" ? "shared" : "1";
+      elements.assetGroup.value = "";
+      elements.assetPositionLabel.value = "";
+      elements.assetPositionLabel.readOnly = false;
+      elements.assetPositionLabel.classList.remove("is-readonly");
+      elements.assetDisplayName.value = "";
+      elements.assetTagNumber.value = "";
+      elements.assetTagNumber.readOnly = false;
+      elements.assetTagNumber.classList.remove("is-readonly");
+      elements.assetSortOrder.value = String(nextAssetSortOrder(state.activeType));
+      elements.assetEnabled.checked = true;
+      elements.assetTagHelp.textContent = "TAG는 추가 후 교체이력 연결 보호를 위해 변경할 수 없습니다.";
+      elements.assetManagerUpdated.textContent = "새 Blower는 가짜 교체일이나 운전시간 없이 추가됩니다.";
+      syncAssetGroupOptions();
+      return;
+    }
+
+    state.assetManagerAutoName = false;
+    elements.assetManagerMode.value = "update";
+    elements.assetOriginalTag.value = asset.tagNumber;
+    elements.assetExpectedUpdatedAt.value = asset.updatedAt;
+    elements.assetBlowerType.value = asset.blowerType;
+    elements.assetUnitNo.value = asset.unitNo;
+    elements.assetGroup.value = asset.assetGroup || "";
+    elements.assetBlowerType.disabled = true;
+    elements.assetUnitNo.disabled = true;
+    elements.assetGroup.disabled = true;
+    elements.assetPositionLabel.value = asset.positionLabel;
+    elements.assetPositionLabel.readOnly = true;
+    elements.assetPositionLabel.classList.add("is-readonly");
+    elements.assetDisplayName.value = asset.displayName;
+    elements.assetTagNumber.value = asset.tagNumber;
+    elements.assetTagNumber.readOnly = true;
+    elements.assetTagNumber.classList.add("is-readonly");
+    elements.assetSortOrder.value = String(asset.sortOrder || 0);
+    elements.assetEnabled.checked = Boolean(asset.enabled);
+    elements.assetTagHelp.textContent = "기존 TAG·종류·호기·그룹·위치는 이력 보호를 위해 변경할 수 없습니다.";
+    elements.assetManagerUpdated.textContent = asset.updatedAt
+      ? `최근 변경 ${formatDate(asset.updatedAt)}${asset.lastModifiedByName ? ` · ${asset.lastModifiedByName}` : ""}`
+      : "기존 설비정보 수정";
+    syncAssetGroupOptions();
+  }
+
+  function openAssetManagerDialog() {
+    if (stopMobileMutation()) return;
+    if (!state.data?.user?.isSuperAdmin || !elements.assetManagerDialog) return;
+
+    elements.assetBlowerType.innerHTML = (state.data.types || [])
+      .map(type => `<option value="${escapeHtml(type.key)}">${escapeHtml(type.label)}</option>`)
+      .join("");
+    populateAssetManagerTargets();
+    fillAssetManagerForm();
+    elements.assetManagerDialog.showModal();
+  }
+
+  function assetIdentityChanged(current, body) {
+    if (!current) return false;
+    return (
+      current.blowerType !== body.blowerType ||
+      current.unitNo !== body.unitNo ||
+      String(current.assetGroup || "") !== String(body.assetGroup || "") ||
+      current.positionLabel !== body.positionLabel ||
+      (current.enabled && !body.enabled)
+    );
+  }
+
+  async function saveManagedAsset(event) {
+    event.preventDefault();
+    if (stopMobileMutation(event)) return;
+    if (state.busy || !state.data?.user?.isSuperAdmin) return;
+
+    const body = {
+      action: "asset_save",
+      mode: elements.assetManagerMode.value,
+      originalTag: elements.assetOriginalTag.value,
+      expectedUpdatedAt: elements.assetExpectedUpdatedAt.value,
+      tagNumber: elements.assetTagNumber.value.trim().toUpperCase(),
+      blowerType: elements.assetBlowerType.value,
+      unitNo: elements.assetUnitNo.value,
+      assetGroup: elements.assetGroup.value,
+      positionLabel: elements.assetPositionLabel.value.trim(),
+      displayName: elements.assetDisplayName.value.trim(),
+      sortOrder: Number(elements.assetSortOrder.value),
+      enabled: elements.assetEnabled.checked,
+      changeNote: elements.assetChangeNote.value.trim()
+    };
+    const current = (state.data?.assetCatalog || []).find(asset => asset.tagNumber === body.originalTag) || null;
+
+    if (assetIdentityChanged(current, body)) {
+      const confirmed = window.confirm(
+        body.enabled
+          ? "종류·호기·그룹·위치 정보가 바뀝니다. 기존 교체이력은 같은 TAG에 그대로 연결됩니다. 저장할까요?"
+          : "이 Blower를 사용 중지하면 현황과 알림에서 제외됩니다. 기존 이력은 보존됩니다. 저장할까요?"
+      );
+      if (!confirmed) return;
+    }
+
+    setBusy(true);
+    elements.assetManagerSaveButton.disabled = true;
+
+    try {
+      const result = await apiRequest({ method: "POST", body });
+      state.activeType = body.blowerType;
+      elements.assetManagerDialog.close();
+      showToast(result.message || "Blower 정보를 저장했습니다.");
+      await loadData({ silent: true });
+    } catch (error) {
+      showToast(error.message || "Blower 정보를 저장하지 못했습니다.", "error");
+      if (error?.code === "ASSET_EDIT_CONFLICT") {
+        await loadData({ silent: true });
+        populateAssetManagerTargets(body.originalTag);
+        fillAssetManagerForm(body.originalTag);
+      }
+    } finally {
+      elements.assetManagerSaveButton.disabled = false;
+      setBusy(false);
+    }
   }
 
   async function saveRecord(event) {
@@ -2158,6 +2398,7 @@
       renderAverageStats();
     });
     elements.settingsButton.addEventListener("click", openSettingsDialog);
+    elements.assetManagerButton.addEventListener("click", openAssetManagerDialog);
     elements.auditHistoryButton.addEventListener("click", downloadHistoricalAudit);
     elements.refreshButton.addEventListener("click", () => loadData());
     elements.scanButton.addEventListener("click", scanShiftLogs);
@@ -2181,6 +2422,22 @@
 
     elements.recordForm.addEventListener("submit", saveRecord);
     elements.settingsForm.addEventListener("submit", saveSettings);
+    elements.assetManagerForm.addEventListener("submit", saveManagedAsset);
+    elements.assetManagerTarget.addEventListener("change", () => {
+      fillAssetManagerForm(elements.assetManagerTarget.value);
+    });
+    elements.assetBlowerType.addEventListener("change", () => {
+      if (elements.assetManagerMode.value === "create") {
+        elements.assetSortOrder.value = String(nextAssetSortOrder(elements.assetBlowerType.value));
+      }
+      syncAssetGroupOptions();
+    });
+    elements.assetUnitNo.addEventListener("change", suggestAssetDisplayName);
+    elements.assetGroup.addEventListener("change", suggestAssetDisplayName);
+    elements.assetPositionLabel.addEventListener("input", suggestAssetDisplayName);
+    elements.assetDisplayName.addEventListener("input", () => {
+      if (elements.assetManagerMode.value === "create") state.assetManagerAutoName = false;
+    });
     elements.clearSettingsButton.addEventListener("click", () => saveSettings(null, true));
 
     document.addEventListener("click", event => {

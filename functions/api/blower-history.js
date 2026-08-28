@@ -76,6 +76,9 @@ const ASSET_SEEDS = [
   ["104ETH03AN602", "flyash_silo", "shared", "#B", "Fly Ash Silo Aeration Blower #B", 602]
 ];
 
+const ASSET_SEED_TAG_SET = new Set(ASSET_SEEDS.map(seed => seed[0]));
+const ASSET_SEED_TAG_ASSETS = ASSET_SEEDS.map(seed => ({ tag_number: seed[0] }));
+
 const PROBLEM_KEYWORDS = [
   ["파손", "파손"],
   ["소손", "소손"],
@@ -304,6 +307,10 @@ function normalizeText(value) {
   return String(value ?? "").trim();
 }
 
+function isMobileMonitoringRequest(context) {
+  return normalizeText(context?.request?.headers?.get("X-GS-Client-Mode")) === "mobile-monitoring";
+}
+
 function normalizeEmployeeNo(value) {
   return normalizeText(value).replace(/\s+/g, "");
 }
@@ -495,10 +502,12 @@ async function ensureSchema(database) {
         tag_number TEXT PRIMARY KEY NOT NULL,
         blower_type TEXT NOT NULL,
         unit_no TEXT NOT NULL,
+        asset_group TEXT NOT NULL DEFAULT '',
         position_label TEXT NOT NULL,
         display_name TEXT NOT NULL,
         sort_order INTEGER NOT NULL DEFAULT 0,
         enabled INTEGER NOT NULL DEFAULT 1,
+        asset_revision TEXT NOT NULL DEFAULT '',
         last_replacement_at TEXT,
         runtime_hours REAL NOT NULL DEFAULT 0,
         runtime_anchor_at TEXT,
@@ -508,6 +517,23 @@ async function ensureSchema(database) {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
+    `),
+    database.prepare(`
+      CREATE TABLE IF NOT EXISTS blower_history_asset_history (
+        id TEXT PRIMARY KEY NOT NULL,
+        action_type TEXT NOT NULL,
+        tag_number TEXT NOT NULL,
+        before_json TEXT NOT NULL DEFAULT '',
+        after_json TEXT NOT NULL DEFAULT '',
+        change_note TEXT NOT NULL DEFAULT '',
+        changed_by_id TEXT NOT NULL,
+        changed_by_name TEXT NOT NULL,
+        changed_at TEXT NOT NULL
+      )
+    `),
+    database.prepare(`
+      CREATE INDEX IF NOT EXISTS idx_blower_history_asset_history_tag_date
+      ON blower_history_asset_history (tag_number, changed_at DESC)
     `),
     database.prepare(`
       CREATE TABLE IF NOT EXISTS blower_history_events (
@@ -647,6 +673,8 @@ async function ensureSchema(database) {
     `)
   ]);
 
+  await ensureAssetManagementSchema(database);
+
   const now = new Date().toISOString();
 
   const settingSeeds = [
@@ -704,6 +732,71 @@ async function ensureSchema(database) {
   }
 }
 
+async function ensureAssetManagementSchema(database) {
+  const columnResult = await database
+    .prepare(`PRAGMA table_info(blower_history_assets)`)
+    .all();
+  let columns = Array.isArray(columnResult.results) ? columnResult.results : [];
+  const requiredColumns = [
+    { name: "asset_group", definition: "asset_group TEXT NOT NULL DEFAULT ''" },
+    { name: "asset_revision", definition: "asset_revision TEXT NOT NULL DEFAULT ''" }
+  ];
+
+  for (const required of requiredColumns) {
+    if (columns.some(column => normalizeText(column.name) === required.name)) continue;
+    try {
+      await database
+        .prepare(`ALTER TABLE blower_history_assets ADD COLUMN ${required.definition}`)
+        .run();
+    } catch (error) {
+      const retryResult = await database
+        .prepare(`PRAGMA table_info(blower_history_assets)`)
+        .all();
+      const retryColumns = Array.isArray(retryResult.results) ? retryResult.results : [];
+      if (!retryColumns.some(column => normalizeText(column.name) === required.name)) {
+        throw error;
+      }
+      columns = retryColumns;
+    }
+  }
+
+  await database.batch([
+    database.prepare(`
+      CREATE TABLE IF NOT EXISTS blower_history_asset_history (
+        id TEXT PRIMARY KEY NOT NULL,
+        action_type TEXT NOT NULL,
+        tag_number TEXT NOT NULL,
+        before_json TEXT NOT NULL DEFAULT '',
+        after_json TEXT NOT NULL DEFAULT '',
+        change_note TEXT NOT NULL DEFAULT '',
+        changed_by_id TEXT NOT NULL,
+        changed_by_name TEXT NOT NULL,
+        changed_at TEXT NOT NULL
+      )
+    `),
+    database.prepare(`
+      CREATE INDEX IF NOT EXISTS idx_blower_history_asset_history_tag_date
+      ON blower_history_asset_history (tag_number, changed_at DESC)
+    `),
+    database.prepare(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_blower_history_assets_active_slot
+      ON blower_history_assets (
+        blower_type,
+        unit_no,
+        asset_group,
+        position_label COLLATE NOCASE
+      )
+      WHERE enabled = 1
+    `),
+    database.prepare(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_blower_history_assets_canonical_tag
+      ON blower_history_assets (
+        UPPER(REPLACE(REPLACE(REPLACE(REPLACE(tag_number, '.', ''), '_', ''), '/', ''), '-', ''))
+      )
+    `)
+  ]);
+}
+
 async function ensureBlowerHistorySchemaReady(database) {
   // 운영 GET/POST마다 전체 CREATE TABLE/INDEX + seed INSERT를 반복하지 않는다.
   // 이미 운영 스키마/필수 seed가 준비되어 있으면 읽기 1회로 바로 진행한다.
@@ -729,9 +822,34 @@ async function ensureBlowerHistorySchemaReady(database) {
         ) AS sentinel_asset_count
     `).first();
 
+    await database
+      .prepare(`SELECT asset_group, asset_revision FROM blower_history_assets LIMIT 1`)
+      .first();
+    await database
+      .prepare(`SELECT id FROM blower_history_asset_history LIMIT 1`)
+      .first();
+    const activeSlotIndex = await database
+      .prepare(`
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'index' AND name = 'idx_blower_history_assets_active_slot'
+        LIMIT 1
+      `)
+      .first();
+    const canonicalTagIndex = await database
+      .prepare(`
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'index' AND name = 'idx_blower_history_assets_canonical_tag'
+        LIMIT 1
+      `)
+      .first();
+
     if (
       Number(ready?.setting_count || 0) >= 5 &&
-      Number(ready?.sentinel_asset_count || 0) >= 5
+      Number(ready?.sentinel_asset_count || 0) >= 5 &&
+      activeSlotIndex?.name === "idx_blower_history_assets_active_slot" &&
+      canonicalTagIndex?.name === "idx_blower_history_assets_canonical_tag"
     ) {
       return;
     }
@@ -902,6 +1020,7 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
     tagNumber: asset.tag_number,
     blowerType: asset.blower_type,
     unitNo: asset.unit_no,
+    assetGroup: normalizeText(asset.asset_group),
     positionLabel: asset.position_label,
     displayName: asset.display_name,
     sortOrder: Number(asset.sort_order || 0),
@@ -916,6 +1035,35 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
     latestReference: latestReference || null,
     referenceElapsedHours
   };
+}
+
+function assetCatalogItem(row) {
+  return {
+    tagNumber: normalizeText(row.tag_number),
+    blowerType: normalizeText(row.blower_type),
+    unitNo: normalizeText(row.unit_no),
+    assetGroup: normalizeText(row.asset_group),
+    positionLabel: normalizeText(row.position_label),
+    displayName: normalizeText(row.display_name),
+    sortOrder: Number(row.sort_order || 0),
+    enabled: Number(row.enabled) === 1,
+    lastModifiedById: normalizeText(row.last_modified_by_id),
+    lastModifiedByName: normalizeText(row.last_modified_by_name),
+    createdAt: normalizeText(row.created_at),
+    updatedAt: normalizeText(row.updated_at)
+  };
+}
+
+async function loadAssetCatalog(database) {
+  const result = await database
+    .prepare(`
+      SELECT *
+      FROM blower_history_assets
+      ORDER BY enabled DESC, blower_type ASC, sort_order ASC, tag_number ASC
+    `)
+    .all();
+
+  return (Array.isArray(result.results) ? result.results : []).map(assetCatalogItem);
 }
 
 async function loadSettings(database) {
@@ -1230,6 +1378,7 @@ function buildMissingTagSummary(assetStates) {
   const counts = new Map();
 
   for (const asset of assetStates) {
+    if (asset.assetGroup) continue;
     const key = `${asset.blowerType}::${asset.unitNo}`;
     counts.set(key, (counts.get(key) || 0) + 1);
   }
@@ -1253,6 +1402,12 @@ function buildMissingTagSummary(assetStates) {
   }
 
   for (const slot of PENDING_ASSET_SLOTS) {
+    const resolved = assetStates.some(asset => (
+      asset.blowerType === slot.blowerType &&
+      asset.assetGroup === slot.groupKey
+    ));
+    if (resolved) continue;
+
     missing.push({
       blowerType: slot.blowerType,
       groupKey: slot.groupKey,
@@ -1277,6 +1432,7 @@ function buildMissingSlotDetails(assetStates) {
   const registered = new Map();
 
   for (const asset of assetStates) {
+    if (asset.assetGroup) continue;
     const key = `${asset.blowerType}::${asset.unitNo}`;
     if (!registered.has(key)) registered.set(key, new Set());
     registered.get(key).add(asset.positionLabel);
@@ -1302,7 +1458,13 @@ function buildMissingSlotDetails(assetStates) {
     }
   }
 
-  for (const slot of PENDING_ASSET_SLOTS) missingSlots.push({ ...slot });
+  for (const slot of PENDING_ASSET_SLOTS) {
+    const resolved = assetStates.some(asset => (
+      asset.blowerType === slot.blowerType &&
+      asset.assetGroup === slot.groupKey
+    ));
+    if (!resolved) missingSlots.push({ ...slot });
+  }
 
   return missingSlots;
 }
@@ -1322,6 +1484,7 @@ async function buildFullData(database, user) {
     types: TYPE_DEFINITIONS,
     settings,
     assets,
+    assetCatalog: user?.isSuperAdmin ? await loadAssetCatalog(database) : [],
     events,
     candidates,
     settingHistory,
@@ -1536,6 +1699,394 @@ async function updateSettings(database, user, body) {
     ok: true,
     message: "교체주기 설정을 저장했습니다.",
     settings: await loadSettings(database)
+  });
+}
+
+function validateAssetInput(body) {
+  const mode = normalizeText(body.mode);
+  const originalTag = normalizeText(body.originalTag).toUpperCase();
+  const tagNumber = normalizeText(body.tagNumber).toUpperCase();
+  const blowerType = normalizeText(body.blowerType);
+  const unitNo = normalizeText(body.unitNo);
+  const assetGroup = normalizeText(body.assetGroup);
+  const rawPositionLabel = normalizeText(body.positionLabel);
+  const compactPositionLabel = rawPositionLabel.replace(/\s+/g, "").toUpperCase();
+  const positionLabel = /^#?[ABC]$/.test(compactPositionLabel)
+    ? `#${compactPositionLabel.slice(-1)}`
+    : rawPositionLabel;
+  const displayName = normalizeText(body.displayName);
+  const sortOrder = Number(body.sortOrder);
+  const enabled = body.enabled;
+  const expectedUpdatedAt = normalizeText(body.expectedUpdatedAt);
+  const changeNote = normalizeText(body.changeNote).slice(0, 300);
+
+  if (!["create", "update"].includes(mode)) {
+    return { error: "추가 또는 수정 모드를 확인해 주세요." };
+  }
+
+  if (!/^[A-Z0-9](?:[A-Z0-9._/-]{1,78}[A-Z0-9])$/.test(tagNumber)) {
+    return { error: "TAG는 영문 대문자·숫자로 시작하고 끝나는 3~80자로 입력해 주세요. 중간에는 . _ / -를 사용할 수 있습니다." };
+  }
+
+  if (tagNumber.replace(/[^A-Z0-9]/g, "").length < 3) {
+    return { error: "TAG는 구분기호를 제외한 영문 대문자·숫자를 3자 이상 포함해야 합니다." };
+  }
+
+  const compactSlashTag = tagNumber.replace(/[._-]/g, "");
+  const ambiguousGroupedTag = [
+    /^(?:104|204)HHL60AP(?:611|621|631)(?:\/(?:(?:104|204)HHL60AP)?(?:611|621|631))+$/,
+    /^(?:104|204)HHL10AN(?:611|621|631)(?:\/(?:(?:104|204)HHL10AN)?(?:611|621|631))+$/,
+    /^(?:104|204)SDF01AN(?:001|002)(?:\/(?:(?:104|204)SDF01AN)?(?:001|002))+$/,
+    /^(?:104|204)ETG30AN(?:601|602)(?:\/(?:(?:104|204)ETG30AN)?(?:601|602))+$/,
+    /^104ETH03AN(?:601|602)(?:\/(?:104ETH03AN)?(?:601|602))+$/
+  ].some(pattern => pattern.test(compactSlashTag));
+  if (ambiguousGroupedTag) {
+    return { error: "여러 기존 TAG의 묶음 표기와 구분할 수 없는 TAG입니다. 개별 설비를 식별하는 TAG를 입력해 주세요." };
+  }
+
+  if (mode === "update" && (!originalTag || tagNumber !== originalTag)) {
+    return { error: "기존 TAG는 교체이력 연결을 위해 변경할 수 없습니다. 기존 설비를 사용 중지하고 새 TAG를 추가해 주세요." };
+  }
+
+  if (!typeExists(blowerType)) {
+    return { error: "Blower 종류를 확인해 주세요." };
+  }
+
+  if (!["", "manure"].includes(assetGroup)) {
+    return { error: "카드 그룹을 확인해 주세요." };
+  }
+
+  if (!["1", "2", "shared"].includes(unitNo)) {
+    return { error: "호기는 #1호기, #2호기 또는 1·2호기 공용 중에서 선택해 주세요." };
+  }
+
+  if (assetGroup === "manure" && blowerType !== "organic_fuel") {
+    return { error: "축분 그룹은 유기성 고형연료 Blower에서만 사용할 수 있습니다." };
+  }
+
+  if (!positionLabel || positionLabel.length > 30) {
+    return { error: "카드 위치명은 1~30자로 입력해 주세요." };
+  }
+
+  if (!displayName || displayName.length > 120) {
+    return { error: "설비명은 1~120자로 입력해 주세요." };
+  }
+
+  if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 9999) {
+    return { error: "표시 순서는 0~9,999 사이의 정수로 입력해 주세요." };
+  }
+
+  if (typeof enabled !== "boolean") {
+    return { error: "사용 여부를 확인해 주세요." };
+  }
+
+  if (mode === "update" && !expectedUpdatedAt) {
+    return { error: "수정 기준시각이 없어 최신 설비정보를 다시 불러와야 합니다." };
+  }
+
+  return {
+    mode,
+    originalTag,
+    tagNumber,
+    blowerType,
+    unitNo,
+    assetGroup,
+    positionLabel,
+    displayName,
+    sortOrder,
+    enabled,
+    expectedUpdatedAt,
+    changeNote
+  };
+}
+
+function isAssetUniquenessError(error) {
+  return /(?:unique|constraint|idx_blower_history_assets_(?:active_slot|canonical_tag))/i.test(
+    error instanceof Error ? error.message : String(error || "")
+  );
+}
+
+function nextAssetUpdatedAt(expectedUpdatedAt = "") {
+  const expectedTime = Date.parse(normalizeText(expectedUpdatedAt));
+  const minimumTime = Number.isFinite(expectedTime) ? expectedTime + 1 : 0;
+  return new Date(Math.max(Date.now(), minimumTime)).toISOString();
+}
+
+async function saveAsset(database, user, body) {
+  const validated = validateAssetInput(body);
+
+  if (validated.error) {
+    return jsonResponse({ ok: false, message: validated.error }, 400);
+  }
+
+  const existing = await database
+    .prepare(`SELECT * FROM blower_history_assets WHERE tag_number = ? LIMIT 1`)
+    .bind(validated.mode === "create" ? validated.tagNumber : validated.originalTag)
+    .first();
+
+  if (validated.mode === "create" && existing) {
+    return jsonResponse({ ok: false, message: "이미 등록된 TAG입니다." }, 409);
+  }
+
+  if (validated.mode === "update" && !existing) {
+    return jsonResponse({ ok: false, message: "수정할 Blower를 찾을 수 없습니다." }, 404);
+  }
+
+  if (validated.mode === "update") {
+    const existingPositionRaw = normalizeText(existing.position_label);
+    const existingPositionCompact = existingPositionRaw.replace(/\s+/g, "").toUpperCase();
+    const existingPosition = /^#?[ABC]$/.test(existingPositionCompact)
+      ? `#${existingPositionCompact.slice(-1)}`
+      : existingPositionRaw;
+    const structuralIdentityChanged = (
+      normalizeText(existing.blower_type) !== validated.blowerType ||
+      normalizeText(existing.unit_no) !== validated.unitNo ||
+      normalizeText(existing.asset_group) !== validated.assetGroup ||
+      existingPosition !== validated.positionLabel
+    );
+
+    if (structuralIdentityChanged) {
+      return jsonResponse({
+        ok: false,
+        code: "ASSET_IDENTITY_IMMUTABLE",
+        message: "기존 Blower의 종류·호기·그룹·위치는 과거 이력 보호를 위해 변경할 수 없습니다. 기존 설비를 사용 중지하고 새 TAG를 추가해 주세요."
+      }, 400);
+    }
+  }
+
+  const canonicalTag = compactEquipmentText(validated.tagNumber);
+  const canonicalCollision = validated.mode === "create"
+    ? await database
+      .prepare(`
+        SELECT tag_number
+        FROM blower_history_assets
+        WHERE tag_number <> ?
+          AND (
+            UPPER(REPLACE(REPLACE(REPLACE(REPLACE(tag_number, '.', ''), '_', ''), '/', ''), '-', '')) = ?
+            OR INSTR(UPPER(REPLACE(REPLACE(REPLACE(REPLACE(tag_number, '.', ''), '_', ''), '/', ''), '-', '')), ?) > 0
+            OR INSTR(?, UPPER(REPLACE(REPLACE(REPLACE(REPLACE(tag_number, '.', ''), '_', ''), '/', ''), '-', ''))) > 0
+          )
+        LIMIT 1
+      `)
+      .bind(validated.tagNumber, canonicalTag, canonicalTag, canonicalTag)
+      .first()
+    : null;
+
+  if (canonicalCollision) {
+    return jsonResponse({
+      ok: false,
+      code: "ASSET_UNIQUENESS_CONFLICT",
+      message: `${canonicalCollision.tag_number}와 문자 구성이 겹치는 TAG입니다. 서로 포함되지 않는 새 TAG를 입력해 주세요.`
+    }, 409);
+  }
+
+  if (
+    validated.mode === "update" &&
+    normalizeText(existing.updated_at) !== validated.expectedUpdatedAt
+  ) {
+    return jsonResponse({
+      ok: false,
+      code: "ASSET_EDIT_CONFLICT",
+      message: "다른 사용자가 먼저 설비정보를 변경했습니다. 새로고침 후 다시 수정해 주세요."
+    }, 409);
+  }
+
+  if (validated.enabled) {
+    const duplicatePosition = await database
+      .prepare(`
+        SELECT tag_number
+        FROM blower_history_assets
+        WHERE tag_number <> ?
+          AND enabled = 1
+          AND blower_type = ?
+          AND unit_no = ?
+          AND COALESCE(asset_group, '') = ?
+          AND UPPER(position_label) = UPPER(?)
+        LIMIT 1
+      `)
+      .bind(
+        validated.tagNumber,
+        validated.blowerType,
+        validated.unitNo,
+        validated.assetGroup,
+        validated.positionLabel
+      )
+      .first();
+
+    if (duplicatePosition) {
+      return jsonResponse({
+        ok: false,
+        message: `같은 종류·그룹·호기에 ${validated.positionLabel} 위치가 이미 등록되어 있습니다.`
+      }, 409);
+    }
+  }
+
+  const now = nextAssetUpdatedAt(
+    validated.mode === "update" ? validated.expectedUpdatedAt : ""
+  );
+  const assetRevision = crypto.randomUUID();
+  const after = {
+    tagNumber: validated.tagNumber,
+    blowerType: validated.blowerType,
+    unitNo: validated.unitNo,
+    assetGroup: validated.assetGroup,
+    positionLabel: validated.positionLabel,
+    displayName: validated.displayName,
+    sortOrder: validated.sortOrder,
+    enabled: validated.enabled,
+    lastModifiedById: user.employeeNo,
+    lastModifiedByName: user.name,
+    createdAt: normalizeText(existing?.created_at) || now,
+    updatedAt: now
+  };
+  const historyValues = [
+    crypto.randomUUID(),
+    validated.mode,
+    validated.tagNumber,
+    existing ? JSON.stringify(assetCatalogItem(existing)) : "",
+    JSON.stringify(after),
+    validated.changeNote,
+    user.employeeNo,
+    user.name,
+    now
+  ];
+
+  if (validated.mode === "create") {
+    let results;
+    try {
+      results = await database.batch([
+        database
+          .prepare(`
+            INSERT INTO blower_history_assets (
+              tag_number, blower_type, unit_no, asset_group, position_label,
+              display_name, sort_order, enabled, asset_revision, last_modified_by_id,
+              last_modified_by_name, created_at, updated_at
+            )
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            WHERE NOT EXISTS (
+              SELECT 1
+              FROM blower_history_assets
+              WHERE
+                INSTR(UPPER(REPLACE(REPLACE(REPLACE(REPLACE(tag_number, '.', ''), '_', ''), '/', ''), '-', '')), ?) > 0
+                OR INSTR(?, UPPER(REPLACE(REPLACE(REPLACE(REPLACE(tag_number, '.', ''), '_', ''), '/', ''), '-', ''))) > 0
+            )
+          `)
+          .bind(
+            validated.tagNumber,
+            validated.blowerType,
+            validated.unitNo,
+            validated.assetGroup,
+            validated.positionLabel,
+            validated.displayName,
+            validated.sortOrder,
+            validated.enabled ? 1 : 0,
+            assetRevision,
+            user.employeeNo,
+            user.name,
+            now,
+            now,
+            canonicalTag,
+            canonicalTag
+          ),
+        database
+          .prepare(`
+            INSERT INTO blower_history_asset_history (
+              id, action_type, tag_number, before_json, after_json, change_note,
+              changed_by_id, changed_by_name, changed_at
+            )
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+            WHERE EXISTS (
+              SELECT 1 FROM blower_history_assets
+              WHERE tag_number = ? AND asset_revision = ?
+            )
+          `)
+          .bind(...historyValues, validated.tagNumber, assetRevision)
+      ]);
+    } catch (error) {
+      if (isAssetUniquenessError(error)) {
+        return jsonResponse({
+          ok: false,
+          code: "ASSET_UNIQUENESS_CONFLICT",
+          message: "같거나 구분할 수 없는 TAG 또는 같은 종류·그룹·호기·위치가 먼저 등록되었습니다. 새로고침 후 다시 확인해 주세요."
+        }, 409);
+      }
+      throw error;
+    }
+
+    if (Number(results?.[0]?.meta?.changes || 0) === 0) {
+      return jsonResponse({
+        ok: false,
+        code: "ASSET_UNIQUENESS_CONFLICT",
+        message: "같거나 문자 구성이 겹치는 TAG가 먼저 등록되었습니다. 새로고침 후 다시 확인해 주세요."
+      }, 409);
+    }
+  } else {
+    let results;
+    try {
+      results = await database.batch([
+        database
+          .prepare(`
+            UPDATE blower_history_assets
+            SET blower_type = ?, unit_no = ?, asset_group = ?, position_label = ?,
+                display_name = ?, sort_order = ?, enabled = ?,
+                asset_revision = ?, last_modified_by_id = ?, last_modified_by_name = ?, updated_at = ?
+            WHERE tag_number = ? AND updated_at = ?
+          `)
+          .bind(
+            validated.blowerType,
+            validated.unitNo,
+            validated.assetGroup,
+            validated.positionLabel,
+            validated.displayName,
+            validated.sortOrder,
+            validated.enabled ? 1 : 0,
+            assetRevision,
+            user.employeeNo,
+            user.name,
+            now,
+            validated.originalTag,
+            validated.expectedUpdatedAt
+          ),
+        database
+          .prepare(`
+            INSERT INTO blower_history_asset_history (
+              id, action_type, tag_number, before_json, after_json, change_note,
+              changed_by_id, changed_by_name, changed_at
+            )
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+            WHERE EXISTS (
+              SELECT 1 FROM blower_history_assets
+              WHERE tag_number = ? AND asset_revision = ?
+            )
+          `)
+          .bind(...historyValues, validated.originalTag, assetRevision)
+      ]);
+    } catch (error) {
+      if (isAssetUniquenessError(error)) {
+        return jsonResponse({
+          ok: false,
+          code: "ASSET_UNIQUENESS_CONFLICT",
+          message: "같은 종류·그룹·호기·위치가 먼저 사용 중으로 등록되었습니다. 새로고침 후 다시 확인해 주세요."
+        }, 409);
+      }
+      throw error;
+    }
+
+    if (Number(results?.[0]?.meta?.changes || 0) === 0) {
+      return jsonResponse({
+        ok: false,
+        code: "ASSET_EDIT_CONFLICT",
+        message: "다른 사용자가 먼저 설비정보를 변경했습니다. 새로고침 후 다시 수정해 주세요."
+      }, 409);
+    }
+  }
+
+  return jsonResponse({
+    ok: true,
+    message: validated.mode === "create"
+      ? "새 Blower를 추가했습니다. 교체이력은 별도로 등록할 때까지 비어 있습니다."
+      : (validated.enabled ? "Blower 정보를 수정했습니다." : "Blower를 사용 중지했습니다. 기존 이력은 보존됩니다."),
+    assetCatalog: await loadAssetCatalog(database)
   });
 }
 
@@ -1883,9 +2434,26 @@ function fragmentAnalysisText(fragment) {
     .trim();
 }
 
+function fragmentHasIdentityConflict(fragment, assets = []) {
+  if (fragment && typeof fragment === "object" && !Array.isArray(fragment)) {
+    if (Object.prototype.hasOwnProperty.call(fragment, "identityConflict")) {
+      return fragment.identityConflict === true;
+    }
+  }
+
+  const identityTags = extractRecognizedBlowerTags(fragmentIdentityText(fragment), assets);
+  const sourceTags = extractRecognizedBlowerTags(fragmentSourceText(fragment), assets);
+  if (identityTags.length === 0 || sourceTags.length === 0) return false;
+  return (
+    identityTags.length !== sourceTags.length ||
+    identityTags.some(tag => !sourceTags.includes(tag))
+  );
+}
+
 function fragmentStableKey(fragment) {
   return [
     compactEquipmentText(fragmentIdentityText(fragment)),
+    fragmentHasIdentityConflict(fragment) ? "identity-conflict" : "identity-ok",
     fragmentSourceRole(fragment),
     fragmentSourceTime(fragment),
     normalizeSimilarityText(fragmentSourceText(fragment))
@@ -1984,7 +2552,7 @@ function splitCanonicalEntryClauses(value) {
   return clauses;
 }
 
-function collectCanonicalShiftLogFragments(parsedLog, row) {
+function collectCanonicalShiftLogFragments(parsedLog, row, assets = []) {
   const fragments = [];
   const usedEntries = new Set();
   const usedFragments = new Set();
@@ -2022,52 +2590,312 @@ function collectCanonicalShiftLogFragments(parsedLog, row) {
 
       const entryTime = normalizeCanonicalEntryTime(entry.time) ||
         normalizeCanonicalEntryTime(content.split(/\r?\n/, 1)[0]);
+      const entryEquipmentValues = [
+        entry.equipmentName,
+        entry.equipment,
+        entry.title,
+        entry.name,
+        entry.category
+      ].filter(Boolean);
+      const entryEquipmentIdentity = entryEquipmentValues.join(" ");
       const structuredTags = extractRecognizedBlowerTags(
-        entry.tag || entry.tagNumber || entry.equipmentTag || ""
+        [
+          entry.tag,
+          entry.tagNumber,
+          entry.equipmentTag,
+          entryEquipmentIdentity
+        ].filter(Boolean).join(" "),
+        assets
       );
-      const contentTags = extractRecognizedBlowerTags(content);
-      const entryContentTag = contentTags.length === 1 ? contentTags[0] : "";
       const structuredUnitRaw = normalizeText(entry.unitNo || entry.unit || "");
       const structuredUnit = /^[12]$/.test(structuredUnitRaw)
         ? structuredUnitRaw
         : detectUnitNo(structuredUnitRaw);
       const sourceRole = normalizeDutyPosition(entry.importedFromRole || row?.role);
       const roleUnit = DUTY_ROLE_UNIT[sourceRole] || "";
-      const entryTypes = detectBlowerTypes(content);
-      const entryType = entryTypes.length === 1 ? entryTypes[0] : "";
-      const entryUnits = detectUnitNos(content);
-      const entryUnit = entryUnits.length === 1 ? entryUnits[0] : "";
-      const entryPositions = detectPositionLabels(content);
-      const entryPosition = entryPositions.length === 1 ? entryPositions[0] : "";
+      const entryEquipmentSemanticValues = entryEquipmentValues.map(value => (
+        textWithoutRecognizedTagSpans(value, assets)
+      ));
+      const entryEquipmentSemanticIdentity = entryEquipmentSemanticValues.join(" ");
+      const structuredTypes = detectBlowerTypes(entryEquipmentSemanticIdentity);
+      const structuredType = structuredTypes.length === 1 ? structuredTypes[0] : "";
+      const structuredManureContext = entryEquipmentSemanticValues.some(label => (
+        hasManureBlowerContext(label) || isStandaloneManureGroupLabel(label)
+      ));
+      const structuredPositionText = [
+        entry.positionLabel,
+        entry.position,
+        entryEquipmentSemanticIdentity
+      ].filter(Boolean).join(" ");
+      const structuredPositions = detectPositionLabels(structuredPositionText);
+      const structuredPosition = structuredPositions.length === 1
+        ? structuredPositions[0]
+        : "";
+      const structuredTagResolution = structuredTags.length > 0
+        ? resolveExplicitTagIdentity([
+          structuredTags.join(" "),
+          entryEquipmentSemanticIdentity,
+          structuredUnit ? `#${structuredUnit} BLR` : "",
+          structuredPosition,
+          structuredManureContext ? "축분 Blower" : ""
+        ].filter(Boolean).join(" "), structuredTags, assets)
+        : null;
+      const structuredTagIdentityConflict = (
+        structuredTags.length > 0 &&
+        !structuredTagResolution?.consistent
+      );
+      const effectiveStructuredTags = (
+        structuredTags.length > 0 && structuredTagResolution?.consistent
+      )
+        ? structuredTagResolution.tags
+        : structuredTags;
+      let runningContentTags = [];
+      let runningType = structuredType;
+      let runningUnit = structuredUnit;
+      let runningPosition = structuredPosition;
+      let runningAssetGroup = structuredManureContext
+        ? "manure"
+        : (structuredType === "organic_fuel" ? "" : null);
+      let runningStructuredTags = [...effectiveStructuredTags];
+      let structuredTagConflictActive = structuredTagIdentityConflict;
+      let contentTagConflictActive = false;
 
       for (const clause of splitCanonicalEntryClauses(content)) {
         const inlineTime = normalizeCanonicalEntryTime(clause);
         const evidence = clause;
-        const explicitTags = extractRecognizedBlowerTags(evidence);
-        const explicitUnits = detectUnitNos(evidence);
-        const explicitTypes = detectBlowerTypes(evidence);
-        const explicitPositions = detectPositionLabels(evidence);
-        const inheritedContentTag = (
-          structuredTags.length === 0 &&
-          explicitTags.length === 0 &&
-          entryContentTag
-        )
-          ? entryContentTag
-          : "";
-        const identityTags = structuredTags.length > 0
-          ? structuredTags
-          : (inheritedContentTag ? [inheritedContentTag] : []);
+        const explicitTags = extractRecognizedBlowerTags(evidence, assets);
+        const explicitTagResolution = resolveExplicitTagIdentity(evidence, explicitTags, assets);
+        const explicitUnits = explicitTagResolution.units;
+        const explicitTypes = explicitTagResolution.types;
+        const explicitManureContext = (
+          explicitTagResolution.manureContext ||
+          isStandaloneManureGroupLabel(explicitTagResolution.semanticText)
+        );
+        const explicitPositions = explicitTagResolution.positions;
+        const explicitTagAssets = explicitTagResolution.assets;
+        const compatibleExplicitTags = explicitTagResolution.tags;
+        const explicitTagIdentityConflict = (
+          explicitTags.length > 0 && !explicitTagResolution.consistent
+        );
+        const hasExplicitSemanticSelector = (
+          explicitTypes.length > 0 ||
+          explicitUnits.length > 0 ||
+          explicitPositions.length > 0 ||
+          explicitManureContext
+        );
+        if (structuredTags.length > 0) {
+          structuredTagConflictActive = (
+            structuredTagConflictActive || explicitTagIdentityConflict
+          );
+        } else if (explicitTags.length > 0) {
+          // Without a structured entry TAG, poison only the conflicting
+          // content context. A later fully explicit valid TAG starts a new
+          // context, while a generic continuation remains blocked.
+          contentTagConflictActive = explicitTagIdentityConflict;
+        } else if (contentTagConflictActive && hasExplicitSemanticSelector) {
+          const semanticIdentity = {
+            types: explicitTypes,
+            units: explicitUnits,
+            positions: explicitPositions,
+            assetGroup: explicitManureContext
+              ? "manure"
+              : (explicitTypes.includes("organic_fuel") ? "" : undefined)
+          };
+          const semanticTags = new Set((assets || [])
+            .filter(asset => recognizedTagsMatchIdentity([
+              normalizeText(asset?.tag_number || asset?.tagNumber).toUpperCase()
+            ], semanticIdentity, assets))
+            .map(asset => normalizeText(asset?.tag_number || asset?.tagNumber).toUpperCase())
+            .filter(Boolean));
+          if (semanticTags.size === 1) contentTagConflictActive = false;
+        }
+        if (structuredTags.length > 0 && explicitTags.length > 0) {
+          const rawTagSetConflict = (
+            structuredTags.length !== explicitTags.length ||
+            structuredTags.some(tag => !explicitTags.includes(tag))
+          );
+          const narrowedStructuredTags = compatibleExplicitTags.filter(tag => (
+            effectiveStructuredTags.includes(tag)
+          ));
+          const contentTagConflict = (
+            !explicitTagResolution.consistent ||
+            rawTagSetConflict ||
+            narrowedStructuredTags.length === 0
+          );
+          structuredTagConflictActive = structuredTagConflictActive || contentTagConflict;
+          if (!contentTagConflict) runningStructuredTags = narrowedStructuredTags;
+        } else if (
+          structuredTags.length > 0 &&
+          (
+            hasExplicitSemanticSelector
+          )
+        ) {
+          // A clause may select one member of a structured TAG group without
+          // repeating the TAG (for example "#A V-Belt 교체 완료"). Resolve
+          // against the complete structured set on every selector clause so
+          // a later #B clause can switch intentionally; generic continuation
+          // clauses keep the last compatible subset.
+          const structuredClauseResolution = resolveExplicitTagIdentity(
+            evidence,
+            effectiveStructuredTags,
+            assets
+          );
+          const narrowedStructuredTags = structuredClauseResolution.tags;
+          const contentIdentityConflict = !structuredClauseResolution.consistent;
+          structuredTagConflictActive = (
+            structuredTagConflictActive || contentIdentityConflict
+          );
+          if (!contentIdentityConflict) {
+            const keepsRunningSubset = (
+              runningStructuredTags.length > 0 &&
+              runningStructuredTags.every(tag => narrowedStructuredTags.includes(tag))
+            );
+            if (!keepsRunningSubset || narrowedStructuredTags.length < effectiveStructuredTags.length) {
+              runningStructuredTags = narrowedStructuredTags;
+            }
+          }
+        }
+        const tagTypes = new Set(explicitTagAssets.map(asset => normalizeText(
+          asset.blower_type || asset.blowerType
+        )).filter(Boolean));
+        const tagUnits = new Set(explicitTagAssets.map(asset => normalizeText(
+          asset.unit_no || asset.unitNo
+        )).filter(Boolean));
+        const tagPositions = new Set(explicitTagAssets.map(asset => normalizeText(
+          asset.position_label || asset.positionLabel
+        ).toUpperCase()).filter(Boolean));
+        const explicitTagGroups = new Set(
+          explicitTagAssets.map(asset => assetGroupKey(asset))
+        );
+        let explicitTextAssetGroup;
+        if (explicitManureContext) {
+          explicitTextAssetGroup = "manure";
+        } else if (explicitTagResolution.assetGroup !== undefined) {
+          explicitTextAssetGroup = explicitTagResolution.assetGroup;
+        } else if (explicitTags.length === 0 && explicitTypes.length === 1) {
+          explicitTextAssetGroup = explicitTypes[0] === "organic_fuel" ? "" : null;
+        }
+        const explicitTagIdentityConsistent = explicitTagResolution.consistent;
+        let explicitAssetGroup = explicitTextAssetGroup;
+        if (explicitTags.length > 0 && explicitTextAssetGroup === undefined) {
+          explicitAssetGroup = explicitTagIdentityConsistent && explicitTagGroups.size === 1
+            ? [...explicitTagGroups][0]
+            : null;
+        } else if (explicitTypes.length === 1) {
+          explicitAssetGroup ??= explicitTypes[0] === "organic_fuel" ? "" : null;
+        }
+
+        const typeBoundaryChanged = (
+          explicitTypes.length > 0 &&
+          runningType &&
+          !explicitTypes.includes(runningType)
+        );
+        const unitBoundaryChanged = (
+          explicitUnits.length > 0 &&
+          runningUnit &&
+          !explicitUnits.includes(runningUnit)
+        );
+        const groupBoundaryChanged = (
+          explicitAssetGroup !== undefined &&
+          runningAssetGroup !== null &&
+          explicitAssetGroup !== runningAssetGroup
+        );
+        let tagBoundaryChanged = false;
+
+        if (structuredTags.length === 0) {
+          if (explicitTags.length > 0) {
+            tagBoundaryChanged = (
+              !explicitTagIdentityConsistent ||
+              runningContentTags.length > 0 &&
+              (
+                runningContentTags.length !== compatibleExplicitTags.length ||
+                runningContentTags.some(tag => !compatibleExplicitTags.includes(tag))
+              )
+            );
+            runningContentTags = explicitTagIdentityConsistent ? [...compatibleExplicitTags] : [];
+          } else if (
+            runningContentTags.length > 0 &&
+            !recognizedTagsMatchIdentity(runningContentTags, {
+              types: explicitTypes,
+              units: explicitUnits,
+              positions: explicitPositions,
+              assetGroup: explicitManureContext
+                ? "manure"
+                : (explicitTypes.includes("organic_fuel") ? "" : undefined)
+              }, assets)
+          ) {
+            tagBoundaryChanged = true;
+            runningContentTags = [];
+          }
+        }
+
+        if (
+          explicitPositions.length === 0 &&
+          (typeBoundaryChanged || unitBoundaryChanged || groupBoundaryChanged || tagBoundaryChanged)
+        ) {
+          runningPosition = structuredPosition;
+        }
+        if (
+          explicitUnits.length === 0 &&
+          (typeBoundaryChanged || groupBoundaryChanged || tagBoundaryChanged)
+        ) {
+          runningUnit = structuredUnit;
+        }
+
+        if (explicitTypes.length > 0) {
+          runningType = explicitTypes.length === 1 ? explicitTypes[0] : "";
+        } else if (explicitTags.length > 0) {
+          runningType = explicitTagIdentityConsistent && tagTypes.size === 1
+            ? [...tagTypes][0]
+            : "";
+        }
+        if (explicitUnits.length > 0) {
+          runningUnit = explicitUnits.length === 1 ? explicitUnits[0] : "";
+        } else if (explicitTags.length > 0) {
+          runningUnit = explicitTagIdentityConsistent && tagUnits.size === 1
+            ? [...tagUnits][0]
+            : "";
+        }
+        if (explicitPositions.length > 0) {
+          runningPosition = explicitPositions.length === 1 ? explicitPositions[0] : "";
+        } else if (explicitTags.length > 0) {
+          runningPosition = explicitTagIdentityConsistent && tagPositions.size === 1
+            ? [...tagPositions][0]
+            : "";
+        }
+        if (explicitAssetGroup !== undefined) runningAssetGroup = explicitAssetGroup;
+
+        if (explicitTags.length > 0 && !explicitTagIdentityConsistent) {
+          runningContentTags = [];
+          runningType = structuredType;
+          runningUnit = structuredUnit;
+          runningPosition = structuredPosition;
+          runningAssetGroup = structuredManureContext
+            ? "manure"
+            : (structuredType === "organic_fuel" ? "" : null);
+        }
+
+        const identityTags = runningStructuredTags.length > 0
+          ? runningStructuredTags
+          : runningContentTags;
         const trustedUnit = identityTags.length > 0 || explicitUnits.length > 0
           ? ""
-          : (structuredUnit || entryUnit || roleUnit);
+          : (runningUnit || roleUnit);
         const trustedType = identityTags.length > 0 || explicitTypes.length > 0
           ? ""
-          : entryType;
+          : runningType;
         const trustedPosition = identityTags.length > 0 || explicitPositions.length > 0
           ? ""
-          : entryPosition;
+          : runningPosition;
+        const trustedManureGroup = structuredManureContext || (
+          runningAssetGroup === "manure" &&
+          !explicitManureContext &&
+          identityTags.length === 0 &&
+          explicitTypes.length === 0
+        );
         const identityText = [
           identityTags.join(" "),
+          trustedManureGroup ? "축분 Blower" : "",
           trustedType ? TYPE_IDENTITY_LABELS[trustedType] : "",
           trustedUnit ? `#${trustedUnit} BLR` : "",
           trustedPosition
@@ -2084,7 +2912,8 @@ function collectCanonicalShiftLogFragments(parsedLog, row) {
           sourceText: evidence,
           identityText,
           sourceTime: inlineTime || entryTime,
-          sourceRole
+          sourceRole,
+          identityConflict: structuredTagConflictActive || contentTagConflictActive
         });
       }
   };
@@ -2140,7 +2969,7 @@ function collectCanonicalShiftLogFragments(parsedLog, row) {
   return fragments;
 }
 
-function parseShiftLogFragments(row) {
+function parseShiftLogFragments(row, assets = []) {
   let parsed;
 
   try {
@@ -2153,15 +2982,15 @@ function parseShiftLogFragments(row) {
     return [];
   }
 
-  return collectCanonicalShiftLogFragments(parsed, row);
+  return collectCanonicalShiftLogFragments(parsed, row, assets);
 }
 
-function isBlowerScanRelevantFragment(text) {
+function isBlowerScanRelevantFragment(text, assets = []) {
   const normalized = fragmentAnalysisText(text);
   if (!normalized) return false;
 
   return (
-    extractRecognizedBlowerTags(normalized).length > 0 ||
+    extractRecognizedBlowerTags(normalized, assets).length > 0 ||
     detectBlowerTypes(normalized).length > 0 ||
     /(?:blower|fan|블로워|브로워)/i.test(normalized) ||
     hasBeltWord(normalized) ||
@@ -2213,51 +3042,103 @@ function contentSimilarity(left, right) {
 }
 
 
-function hasSetOverlap(left, right) {
+function identitySetCoveredBy(left, right) {
+  if (left.length === 0) return true;
+  if (right.length === 0) return false;
   const rightSet = new Set(right);
-  return left.some(item => rightSet.has(item));
+  return left.every(item => rightSet.has(item));
 }
 
-function duplicateIdentityCompatible(left, right) {
+function duplicateAssetGroupKeys(text, tags, types, assets) {
+  const tagGroups = new Set();
+  for (const tag of tags || []) {
+    const asset = recognizedTagAsset(tag, assets);
+    const assetType = normalizeText(asset?.blower_type || asset?.blowerType);
+    if (asset && assetType === "organic_fuel") tagGroups.add(assetGroupKey(asset));
+  }
+  if (tagGroups.size > 0) return [...tagGroups];
+
+  if ((types || []).length === 1 && types[0] === "organic_fuel") {
+    return [hasManureBlowerContext(text) ? "manure" : ""];
+  }
+  return [];
+}
+
+function duplicateIdentityDescriptor(text, assets = []) {
+  const tags = extractRecognizedBlowerTags(text, assets);
+  const types = new Set(detectBlowerTypes(text));
+  const units = new Set(detectUnitNos(text));
+  const positions = new Set(detectPositionLabels(text));
+  const groups = new Set(duplicateAssetGroupKeys(text, tags, [...types], assets));
+
+  for (const tag of tags) {
+    const asset = recognizedTagAsset(tag, assets);
+    if (!asset) continue;
+
+    const type = normalizeText(asset.blower_type || asset.blowerType);
+    const unit = normalizeText(asset.unit_no || asset.unitNo);
+    const position = normalizeText(asset.position_label || asset.positionLabel).toUpperCase();
+    if (type) types.add(type);
+    if (unit) units.add(unit);
+    if (position) positions.add(position);
+    if (type === "organic_fuel") groups.add(assetGroupKey(asset));
+  }
+
+  return {
+    tags,
+    types: [...types],
+    groups: [...groups],
+    units: [...units],
+    positions: [...positions]
+  };
+}
+
+function duplicateIdentityCompatible(left, right, assets = []) {
+  if (
+    fragmentHasIdentityConflict(left, assets) ||
+    fragmentHasIdentityConflict(right, assets)
+  ) {
+    return false;
+  }
+
   const leftText = fragmentAnalysisText(left);
   const rightText = fragmentAnalysisText(right);
-  const leftTags = extractRecognizedBlowerTags(leftText);
-  const rightTags = extractRecognizedBlowerTags(rightText);
+  const leftIdentity = duplicateIdentityDescriptor(leftText, assets);
+  const rightIdentity = duplicateIdentityDescriptor(rightText, assets);
 
-  if (leftTags.length > 0 && rightTags.length > 0 && !hasSetOverlap(leftTags, rightTags)) {
+  if (
+    leftIdentity.tags.length > 0 &&
+    rightIdentity.tags.length > 0 &&
+    !identitySetCoveredBy(leftIdentity.tags, rightIdentity.tags)
+  ) {
     return false;
   }
 
-  const leftTypes = detectBlowerTypes(leftText);
-  const rightTypes = detectBlowerTypes(rightText);
-
-  if (leftTypes.length > 0 && rightTypes.length > 0 && !hasSetOverlap(leftTypes, rightTypes)) {
+  if (!identitySetCoveredBy(leftIdentity.types, rightIdentity.types)) {
     return false;
   }
 
-  const leftUnits = detectUnitNos(leftText);
-  const rightUnits = detectUnitNos(rightText);
-
-  if (leftUnits.length > 0 && rightUnits.length > 0 && !hasSetOverlap(leftUnits, rightUnits)) {
+  if (!identitySetCoveredBy(leftIdentity.groups, rightIdentity.groups)) {
     return false;
   }
 
-  const leftPositions = detectPositionLabels(leftText);
-  const rightPositions = detectPositionLabels(rightText);
+  if (!identitySetCoveredBy(leftIdentity.units, rightIdentity.units)) {
+    return false;
+  }
 
-  if (leftPositions.length > 0 && rightPositions.length > 0 && !hasSetOverlap(leftPositions, rightPositions)) {
+  if (!identitySetCoveredBy(leftIdentity.positions, rightIdentity.positions)) {
     return false;
   }
 
   return true;
 }
 
-function buildRolePriorityContext(rows) {
+function buildRolePriorityContext(rows, assets = []) {
   const context = new Map();
 
   for (const row of rows || []) {
-    const fragments = parseShiftLogFragments(row)
-      .filter(isBlowerScanRelevantFragment);
+    const fragments = parseShiftLogFragments(row, assets)
+      .filter(fragment => isBlowerScanRelevantFragment(fragment, assets));
 
     if (fragments.length === 0) continue;
 
@@ -2285,7 +3166,7 @@ function buildRolePriorityContext(rows) {
   return context;
 }
 
-function applyDutyRolePriority(row, fragments, rolePriorityContext) {
+function applyDutyRolePriority(row, fragments, rolePriorityContext, assets = []) {
   const containerRole = normalizeDutyPosition(row?.role);
   let suppressedDuplicateFragments = 0;
   const retained = [];
@@ -2304,13 +3185,13 @@ function applyDutyRolePriority(row, fragments, rolePriorityContext) {
       ? (rolePriorityContext.get(rolePriorityGroupKey(row, higherRole)) || [])
       : [];
 
-    if (!isBlowerScanRelevantFragment(fragment)) {
+    if (!isBlowerScanRelevantFragment(fragment, assets)) {
       retained.push(fragment);
       continue;
     }
 
     const duplicated = higherFragments.length > 0 && higherFragments.some(higherFragment =>
-      duplicateIdentityCompatible(fragment, higherFragment) &&
+      duplicateIdentityCompatible(fragment, higherFragment, assets) &&
       contentSimilarity(fragment, higherFragment) >= DUPLICATE_SIMILARITY_THRESHOLD
     );
 
@@ -2525,38 +3406,225 @@ function classifyRecognizedBlowerTag(tagNumber) {
   return null;
 }
 
-function extractRecognizedBlowerTags(text) {
-  const compact = compactEquipmentText(text);
-  const pattern = /(?:104|204)HHL60AP(?:611|621|631)|(?:104|204)HHL10AN(?:611|621|631)|(?:104|204)SDF01AN(?:001|002)|(?:104|204)ETG30AN(?:601|602)|104ETH03AN(?:601|602)/g;
-  const found = new Set(compact.match(pattern) || []);
-  const groupedSource = normalizeText(text)
-    .toUpperCase()
-    .replace(/[\s[\](){}_\-]+/g, "");
+function extractCatalogBlowerTagMatches(text, assets = []) {
+  const source = normalizeText(text).toUpperCase();
+  if (!source) return { tags: [], matches: [] };
+
+  const candidates = [];
+  const seenCanonical = new Set();
+  const byCanonical = new Map();
+  const tagNumbers = (assets || [])
+    .map(asset => normalizeText(asset?.tag_number || asset?.tagNumber).toUpperCase())
+    .filter(Boolean);
+
+  for (const tagNumber of tagNumbers) {
+    const compactTag = compactEquipmentText(tagNumber);
+    if (compactTag.length < 3 || seenCanonical.has(compactTag)) continue;
+    seenCanonical.add(compactTag);
+    byCanonical.set(compactTag, tagNumber);
+
+    const boundaryPattern = catalogTagBoundaryPattern(compactTag);
+    boundaryPattern.lastIndex = 0;
+    let match;
+    while ((match = boundaryPattern.exec(source)) !== null) {
+      const matchedTag = match[1] || "";
+      const start = match.index + match[0].length - matchedTag.length;
+      candidates.push({
+        tagNumber,
+        compactTag,
+        start,
+        end: start + matchedTag.length
+      });
+    }
+    boundaryPattern.lastIndex = 0;
+
+    const broadPattern = catalogTagBoundaryPattern(compactTag, false);
+    broadPattern.lastIndex = 0;
+    while ((match = broadPattern.exec(source)) !== null) {
+      const matchedTag = match[1] || "";
+      const start = match.index + match[0].length - matchedTag.length;
+      const end = start + matchedTag.length;
+      if (!isLegacyFixedTagContext(source, start, end)) continue;
+      candidates.push({ tagNumber, compactTag, start, end });
+    }
+    broadPattern.lastIndex = 0;
+  }
+
+  for (const tokenMatch of source.matchAll(/[A-Z0-9][A-Z0-9._/-]*/g)) {
+    const token = tokenMatch[0];
+    if (!token.includes("/")) continue;
+    const tokenStart = tokenMatch.index;
+    const fullCanonical = compactEquipmentText(token);
+    const fullTagNumber = byCanonical.get(fullCanonical);
+    if (fullTagNumber) {
+      candidates.push({
+        tagNumber: fullTagNumber,
+        compactTag: fullCanonical,
+        start: tokenStart,
+        end: tokenStart + token.length
+      });
+      continue;
+    }
+
+    const segmentMatches = [...token.matchAll(/[^/]+/g)];
+    const resolvedSegments = segmentMatches.map(segmentMatch => {
+      const segmentCanonical = compactEquipmentText(segmentMatch[0]);
+      return {
+        segmentMatch,
+        segmentCanonical,
+        segmentTagNumber: byCanonical.get(segmentCanonical)
+      };
+    });
+
+    // Treat a slash token as an equipment list only when every segment is a
+    // registered TAG.  This preserves "P101/Q202" while rejecting path-like
+    // text such as "DOC/P101/ARCHIVE" or an incomplete "P101/UNKNOWN" list.
+    if (resolvedSegments.length < 2 || resolvedSegments.some(item => !item.segmentTagNumber)) {
+      continue;
+    }
+
+    for (const { segmentMatch, segmentCanonical, segmentTagNumber } of resolvedSegments) {
+      const start = tokenStart + segmentMatch.index;
+      candidates.push({
+        tagNumber: segmentTagNumber,
+        compactTag: segmentCanonical,
+        start,
+        end: start + segmentMatch[0].length
+      });
+    }
+  }
+
+  candidates.sort((left, right) => (
+    right.compactTag.length - left.compactTag.length ||
+    (right.end - right.start) - (left.end - left.start) ||
+    left.start - right.start ||
+    left.tagNumber.localeCompare(right.tagNumber)
+  ));
+
+  const selected = [];
+  for (const candidate of candidates) {
+    const overlapsLongerMatch = selected.some(match => (
+      candidate.start < match.end && candidate.end > match.start
+    ));
+    if (!overlapsLongerMatch) selected.push(candidate);
+  }
+  selected.sort((left, right) => left.start - right.start || left.tagNumber.localeCompare(right.tagNumber));
+
+  return {
+    tags: [...new Set(selected.map(match => match.tagNumber))],
+    matches: selected
+  };
+}
+
+function extractCatalogBlowerTags(text, assets = []) {
+  return extractCatalogBlowerTagMatches(text, assets).tags;
+}
+
+function flexibleCanonicalTagPattern(tagNumber, separatorPattern = "[\\s._/-]*") {
+  return [...compactEquipmentText(tagNumber)].join(separatorPattern);
+}
+
+const CATALOG_TAG_PATTERN_CACHE = new Map();
+
+function catalogTagBoundaryPattern(compactTag, strictTagBoundary = true) {
+  const cacheKey = `${strictTagBoundary ? "strict" : "broad"}:${compactTag}`;
+  let pattern = CATALOG_TAG_PATTERN_CACHE.get(cacheKey);
+  if (pattern) return pattern;
+
+  const boundary = strictTagBoundary ? "[^A-Z0-9._/-]" : "[^A-Z0-9]";
+  pattern = new RegExp(
+    `(?:^|${boundary})(${flexibleCanonicalTagPattern(compactTag)})(?=$|${boundary})`,
+    "giu"
+  );
+  if (CATALOG_TAG_PATTERN_CACHE.size >= 512) CATALOG_TAG_PATTERN_CACHE.clear();
+  CATALOG_TAG_PATTERN_CACHE.set(cacheKey, pattern);
+  return pattern;
+}
+
+function isLegacyFixedTagContext(source, start, end) {
+  const isTagCharacter = character => /[A-Z0-9._/-]/.test(character || "");
+  let tokenStart = start;
+  let tokenEnd = end;
+  while (tokenStart > 0 && isTagCharacter(source[tokenStart - 1])) tokenStart -= 1;
+  while (tokenEnd < source.length && isTagCharacter(source[tokenEnd])) tokenEnd += 1;
+
+  const surroundingTokens = [
+    ...source.slice(tokenStart, start).split(/[._/-]+/),
+    ...source.slice(end, tokenEnd).split(/[._/-]+/)
+  ].map(value => value.trim()).filter(Boolean);
+  const allowed = new Set([
+    "TAG", "TAGNO", "NO", "A", "B", "C", "V", "VBELT", "BELT",
+    "1", "2", "FBHE", "FHBE", "SEAL", "SEALPOT", "POT", "BLOWER", "BLR", "FAN",
+    "ORGANIC", "FUEL", "FLY", "ASH", "BAG", "FILTER", "AERATION", "SILO"
+  ]);
+  if (surroundingTokens.some(token => !allowed.has(token))) return false;
+  if (surroundingTokens.length > 0) return true;
+
+  const leftAdjacent = source.slice(Math.max(0, tokenStart - 24), tokenStart);
+  const rightAdjacent = source.slice(tokenEnd, Math.min(source.length, tokenEnd + 24));
+  const koreanContext = "(?:벨트|교체|교환|블로워|브로워|유기성|고형연료|축분)";
+  return (
+    new RegExp(`${koreanContext}\\s*$`, "i").test(leftAdjacent) ||
+    new RegExp(`^\\s*${koreanContext}`, "i").test(rightAdjacent)
+  );
+}
+
+function extractRecognizedBlowerTags(text, assets = []) {
+  const groupedSource = normalizeText(text).toUpperCase();
+  const dynamicAssets = (assets || []).filter(asset => (
+    !ASSET_SEED_TAG_SET.has(
+      normalizeText(asset?.tag_number || asset?.tagNumber).toUpperCase()
+    )
+  ));
+  const catalogMatches = extractCatalogBlowerTagMatches(
+    text,
+    [...ASSET_SEED_TAG_ASSETS, ...dynamicAssets]
+  );
+  const found = new Set(catalogMatches.tags);
   const groupedFamilies = [
-    { prefix: "(?:104|204)HHL60AP", suffix: "(?:611|621|631)" },
-    { prefix: "(?:104|204)HHL10AN", suffix: "(?:611|621|631)" },
-    { prefix: "(?:104|204)SDF01AN", suffix: "(?:001|002)" },
-    { prefix: "(?:104|204)ETG30AN", suffix: "(?:601|602)" },
-    { prefix: "104ETH03AN", suffix: "(?:601|602)" }
+    { prefixes: ["104HHL60AP", "204HHL60AP"], suffixes: ["611", "621", "631"] },
+    { prefixes: ["104HHL10AN", "204HHL10AN"], suffixes: ["611", "621", "631"] },
+    { prefixes: ["104SDF01AN", "204SDF01AN"], suffixes: ["001", "002"] },
+    { prefixes: ["104ETG30AN", "204ETG30AN"], suffixes: ["601", "602"] },
+    { prefixes: ["104ETH03AN"], suffixes: ["601", "602"] }
   ];
 
   for (const family of groupedFamilies) {
+    const prefix = `(?:${family.prefixes.map(value => flexibleCanonicalTagPattern(value, "[\\s._-]*")).join("|")})`;
+    const suffix = `(?:${family.suffixes.map(value => flexibleCanonicalTagPattern(value, "[\\s._-]*")).join("|")})`;
     const groupPattern = new RegExp(
-      `(${family.prefix})(${family.suffix})((?:[/,&+·](?:${family.prefix})?${family.suffix})+)`,
-      "g"
+      `(?:^|[^A-Z0-9])(${prefix})(${suffix})((?:\\s*[/,&+·]\\s*(?:${prefix})?${suffix})+)(?=$|[^A-Z0-9])`,
+      "giu"
     );
 
     for (const groupMatch of groupedSource.matchAll(groupPattern)) {
-      const basePrefix = groupMatch[1];
-      const firstTag = `${basePrefix}${groupMatch[2]}`;
+      const basePrefix = compactEquipmentText(groupMatch[1]);
+      const firstTag = `${basePrefix}${compactEquipmentText(groupMatch[2])}`;
+      const groupStart = groupMatch.index + groupMatch[0].length - (
+        groupMatch[1].length + groupMatch[2].length + groupMatch[3].length
+      );
+      const groupEnd = groupMatch.index + groupMatch[0].length;
+      const strictGroupBoundary = (
+        (groupStart === 0 || !/[A-Z0-9._/-]/.test(groupedSource[groupStart - 1])) &&
+        (groupEnd === groupedSource.length || !/[A-Z0-9._/-]/.test(groupedSource[groupEnd]))
+      );
+      if (!strictGroupBoundary && !isLegacyFixedTagContext(groupedSource, groupStart, groupEnd)) {
+        continue;
+      }
+      const coveredByLongerCatalogTag = catalogMatches.matches.some(match => (
+        match.compactTag.length > compactEquipmentText(firstTag).length &&
+        match.start <= groupStart &&
+        match.end >= groupEnd
+      ));
+      if (coveredByLongerCatalogTag) continue;
       if (classifyRecognizedBlowerTag(firstTag)) found.add(firstTag);
 
       const tailPattern = new RegExp(
-        `[/,&+·](${family.prefix})?(${family.suffix})`,
-        "g"
+        `[/,&+·]\\s*(${prefix})?(${suffix})`,
+        "giu"
       );
       for (const tailMatch of groupMatch[3].matchAll(tailPattern)) {
-        const tagNumber = `${tailMatch[1] || basePrefix}${tailMatch[2]}`;
+        const tagNumber = `${tailMatch[1] ? compactEquipmentText(tailMatch[1]) : basePrefix}${compactEquipmentText(tailMatch[2])}`;
         if (classifyRecognizedBlowerTag(tagNumber)) found.add(tagNumber);
       }
     }
@@ -2565,11 +3633,17 @@ function extractRecognizedBlowerTags(text) {
   return [...found];
 }
 
+const DISCOVERED_ASSET_TAG_CACHE = new WeakMap();
+
 async function ensureDiscoveredAssets(database, text, assets) {
-  const known = new Set(assets.map(asset => normalizeText(asset.tag_number).toUpperCase()));
+  let known = DISCOVERED_ASSET_TAG_CACHE.get(assets);
+  if (!known) {
+    known = new Set(assets.map(asset => normalizeText(asset.tag_number).toUpperCase()));
+    DISCOVERED_ASSET_TAG_CACHE.set(assets, known);
+  }
   const now = new Date().toISOString();
 
-  for (const tagNumber of extractRecognizedBlowerTags(text)) {
+  for (const tagNumber of extractRecognizedBlowerTags(text, assets)) {
     if (known.has(tagNumber)) continue;
 
     const definition = classifyRecognizedBlowerTag(tagNumber);
@@ -2602,14 +3676,15 @@ async function ensureDiscoveredAssets(database, text, assets) {
       .run();
 
     const inserted = await database
-      .prepare(`SELECT * FROM blower_history_assets WHERE tag_number = ? LIMIT 1`)
+      .prepare(`SELECT * FROM blower_history_assets WHERE tag_number = ? AND enabled = 1 LIMIT 1`)
       .bind(definition.tagNumber)
       .first();
 
     if (inserted) {
       assets.push(inserted);
-      known.add(definition.tagNumber);
     }
+    // disabled 기존 seed도 같은 요청에서 다시 INSERT/SELECT하지 않도록 기억한다.
+    known.add(definition.tagNumber);
   }
 }
 
@@ -2641,7 +3716,7 @@ function addPositionTokens(raw, output) {
   }
 }
 
-function detectPositionLabels(text) {
+function detectExplicitPositionLabels(text) {
   const normalized = normalizeText(text).toUpperCase();
   const found = new Set();
 
@@ -2674,6 +3749,13 @@ function detectPositionLabels(text) {
     }
   }
 
+  return ["#A", "#B", "#C"].filter(position => found.has(position));
+}
+
+function detectPositionLabels(text) {
+  const normalized = normalizeText(text).toUpperCase();
+  const found = new Set(detectExplicitPositionLabels(normalized));
+
   for (const [suffix, position] of [
     ["AP611", "#A"], ["AP621", "#B"], ["AP631", "#C"],
     ["AN611", "#A"], ["AN621", "#B"], ["AN631", "#C"],
@@ -2681,6 +3763,19 @@ function detectPositionLabels(text) {
     ["AN601", "#A"], ["AN602", "#B"]
   ]) {
     if (normalized.includes(suffix)) found.add(position);
+  }
+
+  for (const groupMatch of normalized.matchAll(
+    /(?:AP|AN)(?:611|621|631|001|002|601|602)(?:\s*[/,&+·]\s*(?:(?:AP|AN))?(?:611|621|631|001|002|601|602))+/g
+  )) {
+    for (const suffixMatch of groupMatch[0].matchAll(/(?:AP|AN)?(611|621|631|001|002|601|602)/g)) {
+      const position = ({
+        "611": "#A", "621": "#B", "631": "#C",
+        "001": "#A", "002": "#B",
+        "601": "#A", "602": "#B"
+      })[suffixMatch[1]];
+      if (position) found.add(position);
+    }
   }
 
   return ["#A", "#B", "#C"].filter(position => found.has(position));
@@ -2701,7 +3796,161 @@ function detectBlowerTypes(text) {
     }
   }
 
+  if (hasManureBlowerContext(text) && !matches.includes("organic_fuel")) {
+    matches.push("organic_fuel");
+  }
+
   return matches;
+}
+
+function assetGroupKey(asset) {
+  const value = asset && Object.prototype.hasOwnProperty.call(asset, "asset_group")
+    ? asset.asset_group
+    : asset?.assetGroup;
+  return normalizeText(value);
+}
+
+function recognizedTagAsset(tagNumber, assets = []) {
+  const tag = normalizeText(tagNumber).toUpperCase();
+  const catalogAsset = (assets || []).find(asset => (
+    normalizeText(asset?.tag_number || asset?.tagNumber).toUpperCase() === tag
+  ));
+  return catalogAsset || classifyRecognizedBlowerTag(tag);
+}
+
+function recognizedTagsMatchIdentity(tags, identity, assets = []) {
+  const tagAssets = (tags || []).map(tag => recognizedTagAsset(tag, assets));
+  if (tagAssets.length === 0) return true;
+  if (tagAssets.some(asset => !asset)) return false;
+
+  const types = identity?.types || [];
+  if (types.length > 0 && tagAssets.some(asset => (
+    !types.includes(normalizeText(asset.blower_type || asset.blowerType))
+  ))) {
+    return false;
+  }
+
+  const units = identity?.units || [];
+  if (units.length > 0 && tagAssets.some(asset => (
+    !units.includes(normalizeText(asset.unit_no || asset.unitNo))
+  ))) {
+    return false;
+  }
+
+  const positions = (identity?.positions || []).map(value => normalizeText(value).toUpperCase());
+  if (positions.length > 0 && tagAssets.some(asset => (
+    !positions.includes(normalizeText(asset.position_label || asset.positionLabel).toUpperCase())
+  ))) {
+    return false;
+  }
+
+  if (identity && identity.assetGroup !== undefined && tagAssets.some(asset => (
+    assetGroupKey(asset) !== identity.assetGroup
+  ))) {
+    return false;
+  }
+
+  return true;
+}
+
+function textWithoutRecognizedTagSpans(text, assets = []) {
+  const source = normalizeText(text);
+  if (!source) return "";
+
+  const recognitionAssets = [...ASSET_SEED_TAG_ASSETS, ...(assets || [])];
+  const matches = extractCatalogBlowerTagMatches(source, recognitionAssets).matches;
+  if (matches.length === 0) return source;
+
+  const characters = source.split("");
+  for (const match of matches) {
+    for (let index = match.start; index < match.end && index < characters.length; index += 1) {
+      characters[index] = " ";
+    }
+  }
+  return normalizeText(characters.join(""));
+}
+
+function detectTextPositionLabels(text) {
+  const normalized = normalizeText(text).toUpperCase();
+  const found = new Set(detectExplicitPositionLabels(normalized));
+
+  for (const match of normalized.matchAll(/#\s*([ABC])(?=$|[^A-Z0-9])/g)) {
+    found.add(`#${match[1]}`);
+  }
+  for (const [range, positions] of [
+    [/(?:#\s*)?A\s*(?:~|－|–|—|-)\s*(?:#\s*)?C\b/, ["#A", "#B", "#C"]],
+    [/(?:#\s*)?A\s*(?:~|－|–|—|-)\s*(?:#\s*)?B\b/, ["#A", "#B"]],
+    [/(?:#\s*)?B\s*(?:~|－|–|—|-)\s*(?:#\s*)?C\b/, ["#B", "#C"]]
+  ]) {
+    if (range.test(normalized)) positions.forEach(position => found.add(position));
+  }
+
+  return ["#A", "#B", "#C"].filter(position => found.has(position));
+}
+
+function resolveExplicitTagIdentity(text, tags, assets = []) {
+  const semanticText = textWithoutRecognizedTagSpans(text, assets);
+  const types = detectBlowerTypes(semanticText);
+  const units = detectUnitNos(semanticText);
+  const positions = detectTextPositionLabels(semanticText);
+  const manureContext = hasManureBlowerContext(semanticText);
+  // "유기성 고형연료 Blower"는 축분 설비에도 쓰이는 상위 종류명이다.
+  // exact TAG가 있을 때는 명시적인 축분 문맥만 group constraint로 사용한다.
+  const assetGroup = manureContext ? "manure" : undefined;
+  const pairs = (tags || []).map(tag => ({
+    tag,
+    asset: recognizedTagAsset(tag, assets)
+  }));
+  const compatiblePairs = pairs.filter(({ asset }) => {
+    if (!asset) return false;
+    const type = normalizeText(asset.blower_type || asset.blowerType);
+    const unit = normalizeText(asset.unit_no || asset.unitNo);
+    const position = normalizeText(asset.position_label || asset.positionLabel).toUpperCase();
+    if (types.length > 0 && !types.includes(type)) return false;
+    if (units.length > 0 && !units.includes(unit)) return false;
+    if (positions.length > 0 && !positions.includes(position)) return false;
+    if (assetGroup !== undefined && assetGroupKey(asset) !== assetGroup) return false;
+    return true;
+  });
+  const compatibleTypes = new Set(compatiblePairs.map(({ asset }) => normalizeText(
+    asset.blower_type || asset.blowerType
+  )));
+  const compatibleUnits = new Set(compatiblePairs.map(({ asset }) => normalizeText(
+    asset.unit_no || asset.unitNo
+  )));
+
+  return {
+    semanticText,
+    types,
+    units,
+    positions,
+    assetGroup,
+    manureContext,
+    tags: compatiblePairs.map(pair => pair.tag),
+    assets: compatiblePairs.map(pair => pair.asset),
+    consistent: (
+      pairs.length > 0 &&
+      pairs.every(pair => Boolean(pair.asset)) &&
+      compatiblePairs.length > 0 &&
+      types.every(type => compatibleTypes.has(type)) &&
+      units.every(unit => compatibleUnits.has(unit))
+    )
+  };
+}
+
+function hasManureBlowerContext(text) {
+  const normalized = normalizeText(text);
+  const blower = "(?:blower|blwr|fan|블로워|브로워)";
+  const manurePrefix = "(?:축분(?:용|계통)?|manure)";
+  const organicLabel = "(?:(?:유기성\\s*)?고형연료\\s*)?";
+  return (
+    new RegExp(`${manurePrefix}\\s*${organicLabel}${blower}`, "i").test(normalized) ||
+    new RegExp(`${blower}\\s*(?:[([\\-]\\s*)?${manurePrefix}`, "i").test(normalized)
+  );
+}
+
+function isStandaloneManureGroupLabel(text) {
+  return /^(?:축분\s*(?:용|계통)?|manure)$/i.test(normalizeText(text));
 }
 
 function splitSemanticClauses(text) {
@@ -2939,9 +4188,9 @@ function hasCompletedForeignComponentReplacement(text) {
   });
 }
 
-function hasDirectTagBeltReplacement(text) {
+function hasDirectTagBeltReplacement(text, assets = []) {
   const normalized = normalizeText(text);
-  if (extractRecognizedBlowerTags(normalized).length === 0) return false;
+  if (extractRecognizedBlowerTags(normalized, assets).length === 0) return false;
   if (!hasBeltReplacementPhrase(normalized)) return false;
   if (hasReplacementPlanContext(normalized)) return false;
   if (hasReplacementExclusionContext(normalized)) return false;
@@ -2969,7 +4218,7 @@ function hasContextualBlowerBeltReplacement(text) {
   return hasBlowerWord || positions.length > 0 || hasShortTag;
 }
 
-function hasActualBlowerBeltReplacementSignal(text) {
+function hasActualBlowerBeltReplacementSignal(text, assets = []) {
   for (const clause of splitSemanticClauses(text)) {
     if (!hasBeltWord(clause)) continue;
     if (!hasReplacementKeyword(clause)) continue;
@@ -2979,51 +4228,77 @@ function hasActualBlowerBeltReplacementSignal(text) {
     if (hasReplacementPlanContext(clause)) continue;
     if (hasReplacementExclusionContext(clause)) continue;
 
-    if (hasDirectTagBeltReplacement(clause)) return true;
+    if (hasDirectTagBeltReplacement(clause, assets)) return true;
     if (hasContextualBlowerBeltReplacement(clause)) return true;
   }
 
   return false;
 }
 
-function hasComponentReplacementContext(text) {
-  if (hasActualBlowerBeltReplacementSignal(text)) return false;
+function hasComponentReplacementContext(text, assets = []) {
+  if (hasActualBlowerBeltReplacementSignal(text, assets)) return false;
   return splitSemanticClauses(text).some(componentReplacementPhrase);
 }
 
-function findAssetMatches(fragment, assets) {
+function managedAssetAllowsContextualMatch(asset, workDate) {
+  const tagNumber = normalizeText(asset?.tag_number).toUpperCase();
+  if (ASSET_SEED_TAG_SET.has(tagNumber) || !normalizeText(asset?.asset_revision)) return true;
+
+  const sourceDate = normalizeText(workDate).slice(0, 10);
+  const createdAt = new Date(normalizeText(asset?.created_at));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(sourceDate) || Number.isNaN(createdAt.getTime())) return false;
+  return sourceDate >= formatKstDate(createdAt);
+}
+
+function findAssetMatches(fragment, assets, recognitionAssets = assets, workDate = "") {
+  if (fragmentHasIdentityConflict(fragment, recognitionAssets)) return [];
   const sourceText = fragmentSourceText(fragment);
-  const structuredTags = extractRecognizedBlowerTags(fragmentIdentityText(fragment));
+  const structuredTags = extractRecognizedBlowerTags(fragmentIdentityText(fragment), recognitionAssets);
   const analysisText = fragmentAnalysisText(fragment);
   const compact = compactEquipmentText(analysisText);
+  const recognizedTags = new Set(extractRecognizedBlowerTags(analysisText, recognitionAssets));
+  const explicitTagResolution = recognizedTags.size > 0
+    ? resolveExplicitTagIdentity(analysisText, [...recognizedTags], recognitionAssets)
+    : null;
   const unitNos = detectUnitNos(analysisText);
   const positions = detectPositionLabels(analysisText);
   const typeMatches = detectBlowerTypes(analysisText);
-  const explicitUnitNos = detectUnitNos(sourceText);
-  const explicitPositions = detectPositionLabels(sourceText);
-  const explicitTypeMatches = detectBlowerTypes(sourceText);
+  const explicitUnitNos = explicitTagResolution?.units || detectUnitNos(sourceText);
+  const explicitPositions = explicitTagResolution?.positions || detectExplicitPositionLabels(sourceText);
+  const explicitTypeMatches = explicitTagResolution?.types || detectBlowerTypes(sourceText);
+  const manureContext = explicitTagResolution
+    ? explicitTagResolution.assetGroup === "manure"
+    : hasManureBlowerContext(analysisText);
+  const compatibleExplicitTags = new Set(explicitTagResolution?.tags || []);
   const exact = [];
+
+  if (recognizedTags.size > 0 && !explicitTagResolution?.consistent) {
+    return [];
+  }
 
   for (const asset of assets) {
     const tag = normalizeText(asset.tag_number).toUpperCase();
-    const compactTag = compactEquipmentText(tag);
 
     const conflictsWithContent = (
       (explicitTypeMatches.length > 0 && !explicitTypeMatches.includes(asset.blower_type)) ||
       (asset.unit_no !== "shared" && explicitUnitNos.length > 0 && !explicitUnitNos.includes(asset.unit_no)) ||
-      (explicitPositions.length > 0 && !explicitPositions.includes(asset.position_label))
+      (explicitPositions.length > 0 && !explicitPositions.includes(asset.position_label)) ||
+      (manureContext && assetGroupKey(asset) !== "manure")
     );
 
-    if (compactTag && compact.includes(compactTag) && !conflictsWithContent) {
+    if (compatibleExplicitTags.has(tag) && !conflictsWithContent) {
       exact.push({ asset, strong: true, reason: "full_tag" });
     }
   }
 
   if (exact.length > 0) {
+    const exactTagSet = new Set(exact.map(match => normalizeText(match.asset.tag_number).toUpperCase()));
+    const hasUnresolvedRecognizedTag = [...recognizedTags].some(tag => !exactTagSet.has(tag));
     const exactPositionsAreExplicit = exact.every(match =>
       explicitPositions.includes(match.asset.position_label)
     );
     const groupIdentityIsConsistent = (
+      !hasUnresolvedRecognizedTag &&
       exact.length === 1 &&
       structuredTags.length === 1 &&
       explicitPositions.length > 1 &&
@@ -3040,18 +4315,29 @@ function findAssetMatches(fragment, assets) {
     if (groupIdentityIsConsistent) {
       const blowerType = exact[0].asset.blower_type;
       const unitNo = exact[0].asset.unit_no;
+      const groupKey = assetGroupKey(exact[0].asset);
       const exactTags = new Set(exact.map(match => match.asset.tag_number));
 
       for (const asset of assets) {
         if (asset.blower_type !== blowerType || asset.unit_no !== unitNo) continue;
+        if (assetGroupKey(asset) !== groupKey) continue;
         if (!explicitPositions.includes(asset.position_label)) continue;
         if (exactTags.has(asset.tag_number)) continue;
+        if (!managedAssetAllowsContextualMatch(asset, workDate)) continue;
         exact.push({ asset, strong: true, reason: "structured_tag_group_position" });
         exactTags.add(asset.tag_number);
       }
     }
 
     return exact;
+  }
+
+  // A recognized TAG is an explicit equipment identity.  If that TAG is not
+  // present in the active catalog (for example, a disabled predecessor), do
+  // not fall back to type/unit/position and accidentally attribute its old
+  // log entry to a replacement asset in the same slot.
+  if (recognizedTags.size > 0) {
+    return [];
   }
 
   if (structuredTags.length > 0) {
@@ -3061,19 +4347,26 @@ function findAssetMatches(fragment, assets) {
   const contextual = [];
 
   for (const asset of assets) {
+    if (!managedAssetAllowsContextualMatch(asset, workDate)) continue;
     if (typeMatches.length !== 1 || !typeMatches.includes(asset.blower_type)) {
       continue;
     }
+
+    const requiredGroup = asset.blower_type === "organic_fuel" && manureContext
+      ? "manure"
+      : "";
+    if (assetGroupKey(asset) !== requiredGroup) continue;
 
     if (asset.unit_no !== "shared") {
       if (unitNos.length !== 1 || unitNos[0] !== asset.unit_no) continue;
     }
 
     const tag = normalizeText(asset.tag_number).toUpperCase();
+    const fixedTagDefinition = classifyRecognizedBlowerTag(tag);
     const suffix = compactEquipmentText(tag.slice(3));
     const shortToken = compactEquipmentText(tag.slice(-5));
-    const suffixMatched = suffix && compact.includes(suffix);
-    const shortMatched = shortToken && compact.includes(shortToken);
+    const suffixMatched = Boolean(fixedTagDefinition && suffix && compact.includes(suffix));
+    const shortMatched = Boolean(fixedTagDefinition && shortToken && compact.includes(shortToken));
     const positionMatched = positions.includes(asset.position_label);
 
     if (suffixMatched || shortMatched || positionMatched) {
@@ -3102,7 +4395,7 @@ function isGroupedContextReference(fragment, matches) {
   return positions.every(position => matchedPositions.has(position));
 }
 
-function detectedEventSpecs(fragment) {
+function detectedEventSpecs(fragment, assets = []) {
   const sourceText = fragmentSourceText(fragment);
   const analysisText = fragmentAnalysisText(fragment);
   const hasBeltReplacement = (
@@ -3118,7 +4411,7 @@ function detectedEventSpecs(fragment) {
     return [];
   }
 
-  const autoEligible = hasActualBlowerBeltReplacementSignal(analysisText);
+  const autoEligible = hasActualBlowerBeltReplacementSignal(analysisText, assets);
 
   if (
     !autoEligible &&
@@ -3527,10 +4820,16 @@ async function insertHistoricalEvent(database, row, candidate, spec) {
   return { inserted: eventResult.inserted, duplicate: !eventResult.inserted };
 }
 
-async function processHistoricalLog(database, row, assets, fragmentsOverride = null) {
+async function processHistoricalLog(
+  database,
+  row,
+  assets,
+  fragmentsOverride = null,
+  recognitionAssets = assets
+) {
   const sourceFragments = Array.isArray(fragmentsOverride)
     ? fragmentsOverride
-    : parseShiftLogFragments(row);
+    : parseShiftLogFragments(row, recognitionAssets);
   const uniqueFragments = new Map();
 
   for (const fragment of sourceFragments) {
@@ -3550,8 +4849,13 @@ async function processHistoricalLog(database, row, assets, fragmentsOverride = n
   for (const fragment of fragments) {
     await ensureDiscoveredAssets(database, fragmentAnalysisText(fragment), assets);
 
-    const matches = findAssetMatches(fragment, assets);
-    const specs = detectedEventSpecs(fragment);
+    const matches = findAssetMatches(
+      fragment,
+      assets,
+      recognitionAssets,
+      row?.work_date
+    );
+    const specs = detectedEventSpecs(fragment, recognitionAssets);
     if (specs.length === 0 || matches.length === 0) {
       continue;
     }
@@ -3830,24 +5134,43 @@ async function resetHistoricalAutoDataForV9(database, today) {
           ELSE last_modified_by_name
         END,
         updated_at = ?
-      WHERE EXISTS (
-        SELECT 1
-        FROM blower_history_events AS event
-        WHERE event.tag_number = blower_history_assets.tag_number
-          AND event.event_type = 'replacement'
-          AND event.source_type IN ('shift_log_auto', 'shift_log_history_auto')
-      )
+      WHERE enabled = 1
+        AND EXISTS (
+          SELECT 1
+          FROM blower_history_events AS event
+          WHERE event.tag_number = blower_history_assets.tag_number
+            AND event.event_type = 'replacement'
+            AND event.source_type IN ('shift_log_auto', 'shift_log_history_auto')
+        )
     `).bind(now),
     database.prepare(`
       DELETE FROM blower_history_candidates
       WHERE status IN ('pending', 'confirmed', 'auto_confirmed')
+        AND EXISTS (
+          SELECT 1
+          FROM blower_history_assets AS asset
+          WHERE asset.tag_number = blower_history_candidates.tag_number
+            AND asset.enabled = 1
+        )
     `),
     database.prepare(`
       DELETE FROM blower_history_events
       WHERE source_type IN ('shift_log_auto', 'shift_log_history_auto')
+        AND EXISTS (
+          SELECT 1
+          FROM blower_history_assets AS asset
+          WHERE asset.tag_number = blower_history_events.tag_number
+            AND asset.enabled = 1
+        )
     `),
     database.prepare(`
       DELETE FROM blower_history_references
+      WHERE EXISTS (
+        SELECT 1
+        FROM blower_history_assets AS asset
+        WHERE asset.tag_number = blower_history_references.tag_number
+          AND asset.enabled = 1
+      )
     `),
     database.prepare(`
       UPDATE blower_history_backfill_state
@@ -4214,24 +5537,24 @@ async function historicalBackfillStep(database) {
     .prepare(`
       SELECT *
       FROM blower_history_assets
-      WHERE enabled = 1
       ORDER BY sort_order ASC, tag_number ASC
     `)
     .all();
-  const assets = Array.isArray(assetResult.results) ? assetResult.results : [];
+  const recognitionAssets = Array.isArray(assetResult.results) ? assetResult.results : [];
+  const assets = recognitionAssets.filter(asset => Number(asset.enabled) === 1);
   const upperRoleRows = await loadUpperRoleRowsForDates(database, logs);
   const rolePriorityContext = buildRolePriorityContext([
     ...logs,
     ...upperRoleRows
-  ]);
+  ], recognitionAssets);
   let autoEvents = 0;
   let pending = 0;
   let excludedPartLeaderLogs = 0;
   let suppressedDuplicateFragments = 0;
 
   for (const row of logs) {
-    const fragments = parseShiftLogFragments(row);
-    const prioritized = applyDutyRolePriority(row, fragments, rolePriorityContext);
+    const fragments = parseShiftLogFragments(row, recognitionAssets);
+    const prioritized = applyDutyRolePriority(row, fragments, rolePriorityContext, recognitionAssets);
 
     if (prioritized.excludedPartLeader) {
       excludedPartLeaderLogs += 1;
@@ -4244,7 +5567,8 @@ async function historicalBackfillStep(database) {
       database,
       row,
       assets,
-      prioritized.fragments
+      prioritized.fragments,
+      recognitionAssets
     );
     autoEvents += processed.autoEvents;
     pending += processed.pending;
@@ -4355,24 +5679,24 @@ async function scanShiftLogs(database, user, body) {
     .prepare(`
       SELECT *
       FROM blower_history_assets
-      WHERE enabled = 1
       ORDER BY sort_order ASC, tag_number ASC
     `)
     .all();
-  const assets = Array.isArray(assetResult.results) ? assetResult.results : [];
+  const recognitionAssets = Array.isArray(assetResult.results) ? assetResult.results : [];
+  const assets = recognitionAssets.filter(asset => Number(asset.enabled) === 1);
   const upperRoleRows = await loadUpperRoleRowsForDates(database, logs);
   const rolePriorityContext = buildRolePriorityContext([
     ...logs,
     ...upperRoleRows
-  ]);
+  ], recognitionAssets);
   let detectedCount = 0;
   let insertedCount = 0;
   let excludedPartLeaderLogs = 0;
   let suppressedDuplicateFragments = 0;
 
   for (const row of logs) {
-    const rawFragments = parseShiftLogFragments(row);
-    const prioritized = applyDutyRolePriority(row, rawFragments, rolePriorityContext);
+    const rawFragments = parseShiftLogFragments(row, recognitionAssets);
+    const prioritized = applyDutyRolePriority(row, rawFragments, rolePriorityContext, recognitionAssets);
 
     if (prioritized.excludedPartLeader) {
       excludedPartLeaderLogs += 1;
@@ -4380,7 +5704,7 @@ async function scanShiftLogs(database, user, body) {
     }
 
     suppressedDuplicateFragments += prioritized.suppressedDuplicateFragments;
-    const fragments = v13ContextualizeScanFragments(prioritized.fragments, row, assets);
+    const fragments = v13ContextualizeScanFragments(prioritized.fragments, row, recognitionAssets);
     const seen = new Set();
 
     for (const fragment of fragments) {
@@ -4395,7 +5719,7 @@ async function scanShiftLogs(database, user, body) {
         workDate: row.work_date,
         v13Context: fragment.v13Context
       };
-      const targets = v13ResolveTargets(v13Record, assets);
+      const targets = v13ResolveTargets(v13Record, assets, recognitionAssets);
       if (targets.length === 0) continue;
 
       const spec = {
@@ -4704,22 +6028,29 @@ function auditJsonValue(value) {
   }
 }
 
-function auditIdentityFromObject(value, inheritedIdentity, fallbackRole) {
+function auditIdentityFromObject(value, inheritedIdentity, fallbackRole, assets = []) {
   const tagText = [
     value?.tag,
     value?.tagNumber,
     value?.equipmentTag,
     value?.tag_number
   ].filter(Boolean).join(" ");
-  const tags = extractRecognizedBlowerTags(tagText);
-  const labelText = [
+  const tags = extractRecognizedBlowerTags(tagText, assets);
+  const labelValues = [
     value?.equipmentName,
     value?.equipment,
     value?.title,
     value?.name,
     value?.category
-  ].filter(Boolean).join(" ");
+  ].filter(Boolean);
+  const labelSemanticValues = labelValues.map(label => (
+    textWithoutRecognizedTagSpans(label, assets)
+  ));
+  const labelText = labelSemanticValues.join(" ");
   const types = detectBlowerTypes(labelText);
+  const manureContext = labelSemanticValues.some(label => (
+    hasManureBlowerContext(label) || isStandaloneManureGroupLabel(label)
+  ));
   const positions = detectPositionLabels(labelText);
   const explicitUnits = detectUnitNos(labelText);
   const sourceRole = normalizeDutyPosition(
@@ -4730,11 +6061,12 @@ function auditIdentityFromObject(value, inheritedIdentity, fallbackRole) {
   return [
     inheritedIdentity,
     tags.join(" "),
-    types.length === 1 ? TYPE_IDENTITY_LABELS[types[0]] : "",
-    explicitUnits.length === 1
-      ? `#${explicitUnits[0]} BLR`
+    manureContext ? "축분 Blower" : "",
+    types.map(type => TYPE_IDENTITY_LABELS[type]).filter(Boolean).join(" "),
+    explicitUnits.length > 0
+      ? explicitUnits.map(unit => `#${unit} BLR`).join(" ")
       : (roleUnit ? `#${roleUnit} BLR` : ""),
-    positions.length === 1 ? positions[0] : ""
+    positions.join(" ")
   ].filter(Boolean).join(" ");
 }
 
@@ -4797,7 +6129,8 @@ function collectUnknownHistoricalAuditFragments(value, options = {}) {
     const identityText = auditIdentityFromObject(
       item,
       inheritedIdentity,
-      sourceRole
+      sourceRole,
+      options.assets || []
     );
 
     for (const [key, nested] of Object.entries(item)) {
@@ -4812,10 +6145,10 @@ function collectUnknownHistoricalAuditFragments(value, options = {}) {
   return fragments;
 }
 
-function historicalAuditReasons(fragment, matches, resolvedMatches) {
+function historicalAuditReasons(fragment, matches, resolvedMatches, assets = []) {
   const analysisText = fragmentAnalysisText(fragment);
   const reasons = [];
-  const tags = extractRecognizedBlowerTags(analysisText);
+  const tags = extractRecognizedBlowerTags(analysisText, assets);
   const types = detectBlowerTypes(analysisText);
   const units = detectUnitNos(analysisText);
   const positions = detectPositionLabels(analysisText);
@@ -4831,12 +6164,23 @@ function historicalAuditReasons(fragment, matches, resolvedMatches) {
   return reasons;
 }
 
-function analyzeHistoricalAuditFragment(fragment, row, sourceTable, auditAssets) {
+function analyzeHistoricalAuditFragment(
+  fragment,
+  row,
+  sourceTable,
+  auditAssets,
+  recognitionAssets = auditAssets
+) {
   const sourceText = fragmentSourceText(fragment);
   if (!hasBeltWord(sourceText) || !hasReplacementKeyword(sourceText)) return null;
 
-  const specs = detectedEventSpecs(fragment);
-  const matches = findAssetMatches(fragment, auditAssets);
+  const specs = detectedEventSpecs(fragment, recognitionAssets);
+  const matches = findAssetMatches(
+    fragment,
+    auditAssets,
+    recognitionAssets,
+    row?.work_date || row?.event_date
+  );
   const resolved = [];
 
   for (const spec of specs) {
@@ -4894,8 +6238,9 @@ function analyzeHistoricalAuditFragment(fragment, row, sourceTable, auditAssets)
     sourceTime: fragmentSourceTime(fragment),
     sourceText,
     identityText: fragmentIdentityText(fragment),
+    identityConflict: fragmentHasIdentityConflict(fragment, recognitionAssets),
     classification,
-    detectedTags: extractRecognizedBlowerTags(analysisText),
+    detectedTags: extractRecognizedBlowerTags(analysisText, recognitionAssets),
     detectedTypes: detectBlowerTypes(analysisText),
     detectedUnits: detectUnitNos(analysisText),
     detectedPositions: detectPositionLabels(analysisText),
@@ -4907,7 +6252,7 @@ function analyzeHistoricalAuditFragment(fragment, row, sourceTable, auditAssets)
       registered: match.asset.audit_registered !== false,
       reason: match.reason
     })),
-    reasons: historicalAuditReasons(fragment, matches, resolved)
+    reasons: historicalAuditReasons(fragment, matches, resolved, recognitionAssets)
   };
 }
 
@@ -4927,18 +6272,24 @@ function summarizeHistoricalAuditRecords(records) {
   };
 }
 
-function analyzeHistoricalAuditRows(rows, sourceTable, auditAssets) {
+function analyzeHistoricalAuditRows(
+  rows,
+  sourceTable,
+  auditAssets,
+  recognitionAssets = auditAssets
+) {
   const records = [];
 
   for (const row of rows || []) {
     let fragments;
 
     if (sourceTable === "shift_logs") {
-      fragments = parseShiftLogFragments(row);
+      fragments = parseShiftLogFragments(row, recognitionAssets);
     } else if (sourceTable === "legacy_logs") {
       fragments = collectUnknownHistoricalAuditFragments(row, {
         sourceField: "legacy_row",
-        role: row?.role
+        role: row?.role,
+        assets: recognitionAssets
       });
     } else {
       const sourceText = normalizeText(row?.source_text);
@@ -5014,7 +6365,13 @@ function analyzeHistoricalAuditRows(rows, sourceTable, auditAssets) {
     }
 
     for (const fragment of fragments || []) {
-      const record = analyzeHistoricalAuditFragment(fragment, row, sourceTable, auditAssets);
+      const record = analyzeHistoricalAuditFragment(
+        fragment,
+        row,
+        sourceTable,
+        auditAssets,
+        recognitionAssets
+      );
       if (record) records.push(record);
     }
   }
@@ -5172,7 +6529,6 @@ async function historicalAuditStep(database, body) {
       .prepare(`
         SELECT *
         FROM blower_history_assets
-        WHERE enabled = 1
         ORDER BY sort_order ASC, tag_number ASC
       `)
       .all();
@@ -5193,8 +6549,14 @@ async function historicalAuditStep(database, body) {
 
   const rows = Array.isArray(page?.rows) ? page.rows : [];
   const storedAssets = Array.isArray(storedResult.results) ? storedResult.results : [];
-  const auditAssets = buildHistoricalAuditAssets(storedAssets);
-  const records = analyzeHistoricalAuditRows(rows, cursor.source, auditAssets);
+  const recognitionAssets = buildHistoricalAuditAssets(storedAssets);
+  const auditAssets = recognitionAssets.filter(asset => Number(asset.enabled) === 1);
+  const records = analyzeHistoricalAuditRows(
+    rows,
+    cursor.source,
+    auditAssets,
+    recognitionAssets
+  );
   const lastRowId = Number(page?.cursorRowId || cursor.rowId);
   const sourceComplete = page?.sourceComplete === true;
   const nextSource = sourceComplete ? nextHistoricalAuditSource(cursor.source) : cursor.source;
@@ -5406,9 +6768,9 @@ async function ensureHistoryRecoveryV12Ready(database) {
 }
 
 
-function v13CanonicalTagNumbers(text) {
+function v13CanonicalTagNumbers(text, assets = []) {
   const normalized = normalizeText(text).toUpperCase();
-  const tags = new Set(extractRecognizedBlowerTags(normalized));
+  const tags = new Set(extractRecognizedBlowerTags(normalized, assets));
 
   for (const [legacyTag, canonicalTag] of Object.entries(HISTORY_RECOVERY_V13_TAG_ALIASES)) {
     if (normalized.includes(legacyTag)) tags.add(canonicalTag);
@@ -5424,6 +6786,7 @@ function v13DetectTypes(text) {
   if (/(?:\bfbhe\b|\bfhbe\b|hhl60)/i.test(normalized)) found.add('fbhe');
   if (/(?:seal\s*pot|sealpot|hhl10)/i.test(normalized)) found.add('seal_pot');
   if (/(?:유기성\s*고형연료|유기성고형연료|organic\s*fuel|sdf01)/i.test(normalized)) found.add('organic_fuel');
+  if (hasManureBlowerContext(text)) found.add('organic_fuel');
 
   if (/(?:fly\s*ash\s*silo\s*aeration|silo\s*aeration|eth03)/i.test(normalized)) {
     found.add('flyash_silo');
@@ -5555,11 +6918,20 @@ function v13IdentityFromText(text, role, assets, structuredText = '') {
   const source = normalizeText(text);
   const structured = normalizeText(structuredText);
   const combined = [structured, source].filter(Boolean).join(' ');
-  const tags = new Set(v13CanonicalTagNumbers(combined));
-  const types = new Set(v13DetectTypes(combined));
-  const explicitUnits = new Set(detectUnitNos(combined));
-  const directPositions = new Set(v13DirectBeltPositions(source));
-  const broadPositions = new Set(v13HistoricalPositionLabels(combined));
+  const detectedTags = v13CanonicalTagNumbers(combined, assets);
+  const tagResolution = detectedTags.length > 0
+    ? resolveExplicitTagIdentity(combined, detectedTags, assets)
+    : null;
+  const identityConflict = detectedTags.length > 0 && !tagResolution?.consistent;
+  const tags = new Set(identityConflict ? [] : (tagResolution?.tags || []));
+  const semanticCombined = tagResolution?.semanticText || combined;
+  const semanticSource = textWithoutRecognizedTagSpans(source, assets);
+  const types = new Set(v13DetectTypes(semanticCombined));
+  const explicitManureGroup = hasManureBlowerContext(semanticCombined);
+  const tagGroups = new Set();
+  const explicitUnits = new Set(detectUnitNos(semanticCombined));
+  const directPositions = new Set(v13DirectBeltPositions(semanticSource));
+  const broadPositions = new Set(detectTextPositionLabels(semanticCombined));
   const switchLike = /(?:교체운전|교체\s*운전|->|→)/i.test(source);
   const sourceHasBeltAction = v13HasDirectBeltAction(source) || hasBeltReplacementPhrase(source);
   const explicitPositions = new Set(
@@ -5567,7 +6939,7 @@ function v13IdentityFromText(text, role, assets, structuredText = '') {
       ? directPositions
       : (switchLike && sourceHasBeltAction ? [] : broadPositions)
   );
-  const pairs = v13DetectUnitPositionPairs(combined);
+  const pairs = v13DetectUnitPositionPairs(semanticCombined);
 
   for (const pair of pairs) {
     explicitUnits.add(pair.unit);
@@ -5578,17 +6950,18 @@ function v13IdentityFromText(text, role, assets, structuredText = '') {
     const asset = (assets || []).find(item => normalizeText(item?.tag_number).toUpperCase() === tag);
     if (!asset) continue;
     types.add(asset.blower_type);
+    tagGroups.add(assetGroupKey(asset));
     explicitUnits.add(asset.unit_no);
     if (directPositions.size === 0) explicitPositions.add(asset.position_label);
   }
 
-  if (directPositions.size === 0) {
-    for (const position of v13SuffixPositions([...types], combined)) {
+  if (directPositions.size === 0 && broadPositions.size === 0) {
+    for (const position of v13SuffixPositions([...types], semanticCombined)) {
       explicitPositions.add(position);
     }
   }
 
-  if (v13HasExplicitMultiUnit(combined)) {
+  if (v13HasExplicitMultiUnit(semanticCombined)) {
     explicitUnits.add('1');
     explicitUnits.add('2');
   }
@@ -5601,17 +6974,23 @@ function v13IdentityFromText(text, role, assets, structuredText = '') {
     units.add('shared');
   }
 
+  let assetGroup = explicitManureGroup ? 'manure' : null;
+  if (!explicitManureGroup && tagGroups.size === 1) assetGroup = [...tagGroups][0];
+  if (assetGroup === null && tags.size === 0 && types.size === 1 && types.has('organic_fuel')) assetGroup = '';
+
   return {
     tags: [...tags],
     types: [...types],
     units: [...units],
     positions: ['#A', '#B', '#C'].filter(position => explicitPositions.has(position)),
+    assetGroup,
     directPositions: ['#A', '#B', '#C'].filter(position => directPositions.has(position)),
     explicitUnits: [...explicitUnits],
     explicitPositions: ['#A', '#B', '#C'].filter(position => explicitPositions.has(position)),
     roleUnit,
-    hasManagedIdentity: tags.size > 0 || types.size > 0,
-    explicitMultiUnit: v13HasExplicitMultiUnit(combined)
+    hasManagedIdentity: !identityConflict && (tags.size > 0 || types.size > 0),
+    explicitMultiUnit: v13HasExplicitMultiUnit(semanticCombined),
+    identityConflict
   };
 }
 
@@ -5680,12 +7059,27 @@ function v13ContextualizeAuditRecords(records, assets) {
   for (const record of records || []) {
     const role = normalizeDutyPosition(record?.role);
     const key = [record?.sourceTable, record?.sourceRowId, role, v13ContextBucket(record)].join('::');
+    if (fragmentHasIdentityConflict(record, assets)) {
+      active.delete(key);
+      output.push({
+        ...record,
+        v13Context: { identityConflict: true, hasManagedIdentity: false },
+        v13EvidenceText: normalizeText(record?.sourceText)
+      });
+      continue;
+    }
     const own = v13IdentityFromText(
       record?.sourceText,
       role,
       assets,
       record?.identityText || (record?.detectedTags || []).join(' ')
     );
+
+    if (own.identityConflict) {
+      active.delete(key);
+      output.push({ ...record, v13Context: own, v13EvidenceText: normalizeText(record?.sourceText) });
+      continue;
+    }
 
     if (v13IsForeignEquipmentText(record?.sourceText, own)) {
       active.delete(key);
@@ -5716,6 +7110,7 @@ function v13ContextIdentityText(context) {
   const units = (context.units || []).filter(unit => unit !== 'shared').map(unit => `#${unit} BLR`);
   return [
     ...(context.tags || []),
+    context.assetGroup === 'manure' ? '축분 Blower' : '',
     ...typeLabels,
     ...units,
     ...(context.positions || [])
@@ -5728,12 +7123,31 @@ function v13ContextualizeScanFragments(fragments, row, assets) {
 
   for (const fragment of fragments || []) {
     const role = fragmentSourceRole(fragment) || normalizeDutyPosition(row?.role);
+    if (fragmentHasIdentityConflict(fragment, assets)) {
+      active = null;
+      output.push({
+        ...fragment,
+        v13Context: { identityConflict: true, hasManagedIdentity: false },
+        v13EvidenceText: fragmentSourceText(fragment)
+      });
+      continue;
+    }
     const own = v13IdentityFromText(
       fragmentSourceText(fragment),
       role,
       assets,
       fragmentIdentityText(fragment)
     );
+
+    if (own.identityConflict) {
+      active = null;
+      output.push({
+        ...fragment,
+        v13Context: own,
+        v13EvidenceText: fragmentSourceText(fragment)
+      });
+      continue;
+    }
 
     if (v13IsForeignEquipmentText(fragmentSourceText(fragment), own)) {
       active = null;
@@ -5851,13 +7265,15 @@ function v13ActualBeltReplacement(text, workDate, allowHistoricalReference = tru
   return v13BareReplacementAction(normalized);
 }
 
-function v13ResolveTargets(record, assets) {
+function v13ResolveTargets(record, assets, recognitionAssets = assets) {
+  if (fragmentHasIdentityConflict(record, recognitionAssets)) return [];
   const context = record?.v13Context || v13IdentityFromText(
     record?.sourceText,
     record?.role,
-    assets,
+    recognitionAssets,
     record?.identityText || ''
   );
+  if (context?.identityConflict) return [];
   const targets = new Map();
   const directPositions = new Set(context?.directPositions || []);
 
@@ -5866,21 +7282,39 @@ function v13ResolveTargets(record, assets) {
     if (!asset) continue;
     // 같은 문장 안에서 TAG와 Belt 대상 위치가 충돌하면 자동 확정하지 않는다.
     if (directPositions.size > 0 && !directPositions.has(asset.position_label)) continue;
+    if (context?.assetGroup !== null && context?.assetGroup !== undefined && assetGroupKey(asset) !== context.assetGroup) continue;
     targets.set(asset.tag_number, asset);
   }
 
-  if ((context?.tags || []).length > 0 && directPositions.size > 0 && targets.size === 0) {
+  const unresolvedExplicitTag = (context?.tags || []).some(tag => !targets.has(tag));
+
+  // An explicit TAG that is no longer active must never fall through to
+  // type/unit/position matching, or an old log can be assigned to a successor
+  // occupying the same slot.
+  if ((context?.tags || []).length > 0 && targets.size === 0) {
     return [];
   }
 
   if (targets.size > 0) {
+    if (unresolvedExplicitTag) {
+      return [...targets.values()].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+    }
+
     const types = new Set([...targets.values()].map(item => item.blower_type));
     const units = new Set([...targets.values()].map(item => item.unit_no));
-    if (types.size === 1 && units.size === 1 && (context?.positions || []).length > 1) {
+    const groups = new Set([...targets.values()].map(item => assetGroupKey(item)));
+    if (types.size === 1 && units.size === 1 && groups.size === 1 && (context?.positions || []).length > 1) {
       const type = [...types][0];
       const unit = [...units][0];
+      const group = [...groups][0];
       for (const asset of assets || []) {
-        if (asset.blower_type === type && asset.unit_no === unit && context.positions.includes(asset.position_label)) {
+        if (
+          asset.blower_type === type &&
+          asset.unit_no === unit &&
+          assetGroupKey(asset) === group &&
+          context.positions.includes(asset.position_label)
+        ) {
+          if (!targets.has(asset.tag_number) && !managedAssetAllowsContextualMatch(asset, record?.workDate)) continue;
           targets.set(asset.tag_number, asset);
         }
       }
@@ -5898,7 +7332,12 @@ function v13ResolveTargets(record, assets) {
   if (units.length > 1 && !context?.explicitMultiUnit) return [];
 
   for (const asset of assets || []) {
+    if (!managedAssetAllowsContextualMatch(asset, record?.workDate)) continue;
     if (asset.blower_type !== type) continue;
+    const requiredGroup = type === 'organic_fuel' && context?.assetGroup === 'manure'
+      ? 'manure'
+      : '';
+    if (assetGroupKey(asset) !== requiredGroup) continue;
     if (!units.includes(asset.unit_no)) continue;
     if (!positions.includes(asset.position_label)) continue;
     targets.set(asset.tag_number, asset);
@@ -6073,32 +7512,56 @@ function v12SwitchOperationHasSeparateReplacement(text) {
   return /(?:belt|벨트).{0,28}(?:교체\s*(?:완료|실시|시행|작업\s*실시)|교체\s*작업\s*완료)/i.test(normalized);
 }
 
-function v12ResolveTargets(record, assets) {
+function v12ResolveTargets(record, assets, recognitionAssets = assets) {
+  if (fragmentHasIdentityConflict(record, recognitionAssets)) return [];
   const text = normalizeText(record?.sourceText);
-  const recognizedTags = extractRecognizedBlowerTags(text);
+  const detectedTags = extractRecognizedBlowerTags(text, recognitionAssets);
+  const tagResolution = detectedTags.length > 0
+    ? resolveExplicitTagIdentity(text, detectedTags, recognitionAssets)
+    : null;
+  if (detectedTags.length > 0 && !tagResolution?.consistent) return [];
+  const recognizedTags = tagResolution?.tags || [];
+  const semanticText = tagResolution?.semanticText || text;
+  const manureContext = hasManureBlowerContext(semanticText);
   const targets = new Map();
 
   for (const tag of recognizedTags) {
     const asset = assets.find(item => normalizeText(item.tag_number).toUpperCase() === tag);
-    if (asset) targets.set(asset.tag_number, asset);
+    if (asset && (!manureContext || assetGroupKey(asset) === 'manure')) {
+      targets.set(asset.tag_number, asset);
+    }
   }
 
-  const types = v12DetectTypes(text);
-  let units = v12DetectUnits(text, record?.role);
-  let positions = v12DirectBeltTargetPositions(text);
-  if (positions.length === 0) positions = v12ExpandPositionRange(text);
+  const types = v12DetectTypes(semanticText);
+  let units = v12DetectUnits(semanticText, record?.role);
+  let positions = v12DirectBeltTargetPositions(semanticText);
+  if (positions.length === 0) positions = v12ExpandPositionRange(semanticText);
 
-  if (recognizedTags.length > 0 && targets.size > 0 && positions.length > 1) {
+  const unresolvedExplicitTag = detectedTags.some(tag => !targets.has(tag));
+
+  if (
+    recognizedTags.length > 0 &&
+    targets.size > 0 &&
+    !unresolvedExplicitTag &&
+    positions.length > 1
+  ) {
     const existing = [...targets.values()][0];
     const oneType = new Set([...targets.values()].map(item => item.blower_type));
     const oneUnit = new Set([...targets.values()].map(item => item.unit_no));
-    if (oneType.size === 1 && oneUnit.size === 1) {
+    const oneGroup = new Set([...targets.values()].map(item => assetGroupKey(item)));
+    if (oneType.size === 1 && oneUnit.size === 1 && oneGroup.size === 1) {
       for (const asset of assets) {
         if (asset.blower_type === existing.blower_type && asset.unit_no === existing.unit_no && positions.includes(asset.position_label)) {
+          if (assetGroupKey(asset) !== assetGroupKey(existing)) continue;
+          if (!targets.has(asset.tag_number) && !managedAssetAllowsContextualMatch(asset, record?.workDate)) continue;
           targets.set(asset.tag_number, asset);
         }
       }
     }
+  }
+
+  if (detectedTags.length > 0) {
+    return [...targets.values()].sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
   }
 
   if (targets.size === 0) {
@@ -6110,7 +7573,10 @@ function v12ResolveTargets(record, assets) {
     if (explicitMultiUnit && !/(?:#\s*)?1\s*[,/&+·]\s*(?:#\s*)?2|양\s*호기|1\s*,\s*2\s*호기/i.test(text)) return [];
 
     for (const asset of assets) {
+      if (!managedAssetAllowsContextualMatch(asset, record?.workDate)) continue;
       if (asset.blower_type !== type) continue;
+      const requiredGroup = type === 'organic_fuel' && manureContext ? 'manure' : '';
+      if (assetGroupKey(asset) !== requiredGroup) continue;
       if (!units.includes(asset.unit_no)) continue;
       if (!positions.includes(asset.position_label)) continue;
       targets.set(asset.tag_number, asset);
@@ -6372,13 +7838,21 @@ async function v12ReleaseLock(database, token) {
 }
 
 async function v12ApplyConfirmedEvents(database) {
-  const counts = await v12RefreshCounts(database);
-  if (counts.staged <= 0) {
+  const activeStage = await database.prepare(`
+    SELECT COUNT(*) AS count
+    FROM blower_history_recovery_v12_stage AS stage
+    WHERE EXISTS (
+      SELECT 1 FROM blower_history_assets AS asset
+      WHERE asset.tag_number = stage.tag_number AND asset.enabled = 1
+    )
+  `).first();
+  const activeStagedEvents = Number(activeStage?.count || 0);
+  if (activeStagedEvents <= 0) {
     return { ok: false, blocked: true, message: 'V13에서 확정된 V-Belt 교체 이력이 없어 실제 이력은 변경하지 않았습니다.' };
   }
   const now = new Date().toISOString();
   const today = formatKstDate(new Date());
-  await database.batch([
+  const applyResults = await database.batch([
     database.prepare(`
       INSERT OR IGNORE INTO blower_history_asset_archive_v12 (
         migration_id, tag_number, blower_type, unit_no, position_label, display_name, sort_order,
@@ -6388,6 +7862,13 @@ async function v12ApplyConfirmedEvents(database) {
         enabled, last_replacement_at, runtime_hours, runtime_anchor_at, is_running,
         last_modified_by_id, last_modified_by_name, created_at, updated_at, ?
         FROM blower_history_assets
+        WHERE EXISTS (
+          SELECT 1
+          FROM blower_history_recovery_v12_stage AS stage
+          JOIN blower_history_assets AS active_asset
+            ON active_asset.tag_number = stage.tag_number
+          WHERE active_asset.enabled = 1
+        )
     `).bind(HISTORY_RECOVERY_V12_ID, now),
     database.prepare(`
       INSERT OR IGNORE INTO blower_history_event_archive (
@@ -6397,6 +7878,13 @@ async function v12ApplyConfirmedEvents(database) {
         note, source_type, source_log_id, source_text, created_by_id, created_by_name, created_at, updated_at, ?
         FROM blower_history_events
         WHERE event_type = 'replacement' AND source_type IN ('shift_log_auto','shift_log_history_auto','shift_log_history_v12','shift_log_history_v13')
+          AND EXISTS (
+            SELECT 1
+            FROM blower_history_recovery_v12_stage AS stage
+            JOIN blower_history_assets AS active_asset
+              ON active_asset.tag_number = stage.tag_number
+            WHERE active_asset.enabled = 1
+          )
     `).bind(HISTORY_RECOVERY_V12_ID, now),
     database.prepare(`
       INSERT OR IGNORE INTO blower_history_candidate_archive (
@@ -6409,15 +7897,44 @@ async function v12ApplyConfirmedEvents(database) {
         FROM blower_history_candidates
         WHERE detected_type = 'replacement'
           AND ((status = 'auto_confirmed' AND reviewed_by_id = 'history_auto') OR (status = 'pending' AND COALESCE(reviewed_by_id,'') = ''))
+          AND EXISTS (
+            SELECT 1
+            FROM blower_history_recovery_v12_stage AS stage
+            JOIN blower_history_assets AS active_asset
+              ON active_asset.tag_number = stage.tag_number
+            WHERE active_asset.enabled = 1
+          )
     `).bind(HISTORY_RECOVERY_V12_ID, now),
     database.prepare(`
       DELETE FROM blower_history_candidates
       WHERE detected_type = 'replacement'
         AND ((status = 'auto_confirmed' AND reviewed_by_id = 'history_auto') OR (status = 'pending' AND COALESCE(reviewed_by_id,'') = ''))
+        AND EXISTS (
+          SELECT 1 FROM blower_history_assets AS asset
+          WHERE asset.tag_number = blower_history_candidates.tag_number AND asset.enabled = 1
+        )
+        AND EXISTS (
+          SELECT 1
+          FROM blower_history_recovery_v12_stage AS stage
+          JOIN blower_history_assets AS active_asset
+            ON active_asset.tag_number = stage.tag_number
+          WHERE active_asset.enabled = 1
+        )
     `),
     database.prepare(`
       DELETE FROM blower_history_events
       WHERE event_type = 'replacement' AND source_type IN ('shift_log_auto','shift_log_history_auto','shift_log_history_v12','shift_log_history_v13')
+        AND EXISTS (
+          SELECT 1 FROM blower_history_assets AS asset
+          WHERE asset.tag_number = blower_history_events.tag_number AND asset.enabled = 1
+        )
+        AND EXISTS (
+          SELECT 1
+          FROM blower_history_recovery_v12_stage AS stage
+          JOIN blower_history_assets AS active_asset
+            ON active_asset.tag_number = stage.tag_number
+          WHERE active_asset.enabled = 1
+        )
     `),
     database.prepare(`
       INSERT OR IGNORE INTO blower_history_events (
@@ -6427,6 +7944,10 @@ async function v12ApplyConfirmedEvents(database) {
         'V13 업무일지 문맥 복구', 'shift_log_history_v13', source_log_id, source_text,
         'history_v13', '업무일지 V13 문맥복구', ?, ?
         FROM blower_history_recovery_v12_stage
+        WHERE EXISTS (
+          SELECT 1 FROM blower_history_assets AS asset
+          WHERE asset.tag_number = blower_history_recovery_v12_stage.tag_number AND asset.enabled = 1
+        )
     `).bind(now, now),
     database.prepare(`
       UPDATE blower_history_assets AS asset
@@ -6480,7 +8001,15 @@ async function v12ApplyConfirmedEvents(database) {
           THEN COALESCE((SELECT snap.last_modified_by_name FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number), asset.last_modified_by_name)
           ELSE '업무일지 V13 문맥복구' END,
         updated_at = ?
-      WHERE EXISTS (SELECT 1 FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number)
+      WHERE asset.enabled = 1
+        AND EXISTS (SELECT 1 FROM blower_history_asset_archive_v12 snap WHERE snap.migration_id = ? AND snap.tag_number = asset.tag_number)
+        AND EXISTS (
+          SELECT 1
+          FROM blower_history_recovery_v12_stage AS stage
+          JOIN blower_history_assets AS active_asset
+            ON active_asset.tag_number = stage.tag_number
+          WHERE active_asset.enabled = 1
+        )
     `).bind(
       HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID,
       HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID,
@@ -6492,20 +8021,65 @@ async function v12ApplyConfirmedEvents(database) {
       INSERT INTO blower_history_backfill_state (
         id, target_date, cursor_date, cursor_id, status, scanned_logs, auto_confirmed_events,
         pending_candidates, started_at, completed_at, updated_at
-      ) VALUES (?, ?, ?, '', 'complete', ?, ?, 0, ?, ?, ?)
+      )
+      SELECT ?, ?, ?, '', 'complete', active.count, active.count, 0, ?, ?, ?
+      FROM (
+        SELECT COUNT(*) AS count
+        FROM blower_history_recovery_v12_stage AS stage
+        WHERE EXISTS (
+          SELECT 1
+          FROM blower_history_assets AS asset
+          WHERE asset.tag_number = stage.tag_number AND asset.enabled = 1
+        )
+      ) AS active
+      WHERE active.count > 0
       ON CONFLICT(id) DO UPDATE SET
         target_date = excluded.target_date, cursor_date = excluded.cursor_date, cursor_id = '',
         status = 'complete', scanned_logs = excluded.scanned_logs,
         auto_confirmed_events = excluded.auto_confirmed_events,
         pending_candidates = 0, completed_at = excluded.completed_at, updated_at = excluded.updated_at
-    `).bind(HISTORY_BACKFILL_ID, today, HISTORY_RECOVERY_V12_CUTOFF_DATE, counts.staged, counts.staged, now, now, now),
+    `).bind(HISTORY_BACKFILL_ID, today, HISTORY_RECOVERY_V12_CUTOFF_DATE, now, now, now),
     database.prepare(`
       UPDATE blower_history_recovery_v12_state
-      SET status = 'complete', staged_events = ?, completed_at = ?, message = ?, updated_at = ?
+      SET
+        status = 'complete',
+        staged_events = (
+          SELECT COUNT(*)
+          FROM blower_history_recovery_v12_stage AS stage
+          WHERE EXISTS (
+            SELECT 1
+            FROM blower_history_assets AS asset
+            WHERE asset.tag_number = stage.tag_number AND asset.enabled = 1
+          )
+        ),
+        completed_at = ?,
+        message = 'V13 업무일지 문맥 복구 ' || (
+          SELECT COUNT(*)
+          FROM blower_history_recovery_v12_stage AS stage
+          WHERE EXISTS (
+            SELECT 1
+            FROM blower_history_assets AS asset
+            WHERE asset.tag_number = stage.tag_number AND asset.enabled = 1
+          )
+        ) || '건 적용 완료',
+        updated_at = ?
       WHERE id = ?
-    `).bind(counts.staged, now, `V13 업무일지 문맥 복구 ${counts.staged}건 적용 완료`, now, HISTORY_RECOVERY_V12_ID)
+        AND EXISTS (
+          SELECT 1
+          FROM blower_history_recovery_v12_stage AS stage
+          JOIN blower_history_assets AS asset
+            ON asset.tag_number = stage.tag_number
+          WHERE asset.enabled = 1
+        )
+    `).bind(now, now, HISTORY_RECOVERY_V12_ID)
   ]);
-  return { ok: true, applied: true, message: `업무일지에서 확정된 V-Belt 교체 이력 ${counts.staged}건을 V13으로 복구했습니다.` };
+  const recoveryUpdate = applyResults[applyResults.length - 1];
+  if (Number(recoveryUpdate?.meta?.changes || 0) === 0) {
+    return { ok: false, blocked: true, message: 'V13에서 확정된 V-Belt 교체 이력이 없어 실제 이력은 변경하지 않았습니다.' };
+  }
+  const appliedState = await v12LoadState(database);
+  const appliedEvents = Number(appliedState?.stagedEvents || 0);
+  return { ok: true, applied: true, message: `업무일지에서 확정된 V-Belt 교체 이력 ${appliedEvents}건을 V13으로 복구했습니다.` };
 }
 
 async function historicalRecoveryV12Step(database) {
@@ -6536,10 +8110,11 @@ async function historicalRecoveryV12Step(database) {
       return jsonResponse({ ok: false, retryable: true, code: 'V13_SOURCE_UNAVAILABLE', message: 'V13 업무일지 원문 조회가 일시적으로 실패했습니다. 같은 위치에서 재시도합니다.', detail: error instanceof Error ? error.message : String(error), recovery: state }, 503);
     }
 
-    const stored = await database.prepare(`SELECT * FROM blower_history_assets WHERE enabled = 1 ORDER BY sort_order, tag_number`).all();
-    const assets = buildHistoricalAuditAssets(Array.isArray(stored.results) ? stored.results : []);
-    const rawRecords = analyzeHistoricalAuditRows(page.rows, source, assets);
-    const contextualRecords = v13ContextualizeAuditRecords(rawRecords, assets);
+    const stored = await database.prepare(`SELECT * FROM blower_history_assets ORDER BY sort_order, tag_number`).all();
+    const recognitionAssets = buildHistoricalAuditAssets(Array.isArray(stored.results) ? stored.results : []);
+    const assets = recognitionAssets.filter(asset => Number(asset.enabled) === 1);
+    const rawRecords = analyzeHistoricalAuditRows(page.rows, source, assets, recognitionAssets);
+    const contextualRecords = v13ContextualizeAuditRecords(rawRecords, recognitionAssets);
     // 문맥 승계 계산은 모든 fragment로 수행하되, D1 write는 실제 V-Belt 교체 후보/제외 후보에만 수행한다.
     // 한 업무일지에 unrelated fragment가 많아도 매 STEP에서 수십~수백 건의 audit INSERT가 발생하지 않게 한다.
     const records = contextualRecords.filter(v13AuditRelevantRecord);
@@ -6614,8 +8189,22 @@ async function handlePost(context, user, body) {
   const action = normalizeText(body.action);
   const database = context.env.DB;
 
+  if (isMobileMonitoringRequest(context)) {
+    return jsonResponse({
+      ok: false,
+      message: "모바일에서는 Blower 현황과 이력만 조회할 수 있습니다."
+    }, 403);
+  }
+
   if (action === "settings") {
     return updateSettings(database, user, body);
+  }
+
+  if (action === "asset_save") {
+    if (!user.isSuperAdmin) {
+      return jsonResponse({ ok: false, message: "Blower 추가·수정은 최고관리자만 할 수 있습니다." }, 403);
+    }
+    return saveAsset(database, user, body);
   }
 
   if (action === "replacement") {

@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260828-unit-row-equal-card-alert-v6">
-  <script src="blower-history.js?v=20260828-unit-row-equal-card-alert-v6" defer></script>
+  <link rel="stylesheet" href="blower-history.css?v=20260828-asset-manager-numeric-alert-v7">
+  <script src="blower-history.js?v=20260828-asset-manager-numeric-alert-v7" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -66,9 +66,14 @@
               <strong id="settingsSummary">설정 확인 중</strong>
               <small id="settingsUpdated"></small>
             </div>
-            <button type="button" class="button secondary" id="settingsButton" data-mobile-write hidden>
-              교체주기 설정
-            </button>
+            <div class="settings-actions">
+              <button type="button" class="button secondary" id="assetManagerButton" data-mobile-write hidden>
+                Blower 관리
+              </button>
+              <button type="button" class="button secondary" id="settingsButton" data-mobile-write hidden>
+                교체주기 설정
+              </button>
+            </div>
           </section>
 
           <details class="average-panel" id="averagePanel" hidden>
@@ -301,6 +306,95 @@
         <span class="footer-spacer"></span>
         <button type="button" class="button secondary" data-close-dialog="settingsDialog">취소</button>
         <button type="submit" class="button primary" data-mobile-write>저장</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="dialog asset-manager-dialog" id="assetManagerDialog">
+    <form method="dialog" id="assetManagerForm">
+      <header class="dialog-header">
+        <div>
+          <p class="eyebrow">BLOWER INVENTORY</p>
+          <h2>Blower 관리</h2>
+          <p>새 설비 추가와 기존 설비 수정을 한 곳에서 관리합니다. 기존 TAG와 교체이력은 삭제하지 않습니다.</p>
+        </div>
+        <button type="button" class="icon-button" data-close-dialog="assetManagerDialog" aria-label="닫기">×</button>
+      </header>
+
+      <div class="dialog-body asset-manager-grid">
+        <label class="field asset-manager-target-field">
+          <span>관리 대상</span>
+          <select id="assetManagerTarget"></select>
+          <small id="assetManagerUpdated">새 Blower를 추가하거나 기존 설비를 선택하세요.</small>
+        </label>
+
+        <input type="hidden" id="assetManagerMode" value="create">
+        <input type="hidden" id="assetOriginalTag">
+        <input type="hidden" id="assetExpectedUpdatedAt">
+
+        <label class="field">
+          <span>Blower 종류</span>
+          <select id="assetBlowerType" required></select>
+        </label>
+
+        <label class="field">
+          <span>호기</span>
+          <select id="assetUnitNo" required>
+            <option value="1">#1호기</option>
+            <option value="2">#2호기</option>
+            <option value="shared">1·2호기 공용</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>카드 그룹</span>
+          <select id="assetGroup">
+            <option value="">일반 Blower</option>
+            <option value="manure">축분 Blower (유기성 탭 하단)</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>카드 위치명</span>
+          <input type="text" id="assetPositionLabel" maxlength="30" placeholder="예: #A" required>
+        </label>
+
+        <label class="field asset-manager-wide">
+          <span>설비명</span>
+          <input type="text" id="assetDisplayName" maxlength="120" placeholder="예: #1 FBHE Blower #A" required>
+        </label>
+
+        <label class="field">
+          <span>TAG</span>
+          <input type="text" id="assetTagNumber" maxlength="80" autocomplete="off" spellcheck="false" placeholder="예: 104HHL60AP611" required>
+          <small id="assetTagHelp">추가 후 TAG는 이력 연결 보호를 위해 변경할 수 없습니다.</small>
+        </label>
+
+        <label class="field">
+          <span>표시 순서</span>
+          <input type="number" id="assetSortOrder" min="0" max="9999" step="1" value="0" required>
+        </label>
+
+        <label class="field checkbox-field asset-manager-wide">
+          <input type="checkbox" id="assetEnabled" checked>
+          <span>사용 중 · 현황과 알림에 표시</span>
+        </label>
+
+        <label class="field asset-manager-wide">
+          <span>변경 메모 (선택)</span>
+          <input type="text" id="assetChangeNote" maxlength="300" placeholder="예: 축분 Blower TAG 확인 후 등록">
+        </label>
+
+        <p class="asset-manager-help asset-manager-wide">
+          기존 TAG·종류·호기·그룹·위치를 바꿔야 한다면 해당 설비를 <strong>사용 중지</strong>한 뒤 새 TAG를 추가하세요.
+          기존 교체이력·등록 근거·운전시간 보정은 그대로 보존됩니다.
+        </p>
+      </div>
+
+      <footer class="dialog-footer">
+        <button type="button" class="button secondary" data-close-dialog="assetManagerDialog">취소</button>
+        <span class="footer-spacer"></span>
+        <button type="submit" class="button primary" id="assetManagerSaveButton" data-mobile-write>저장</button>
       </footer>
     </form>
   </dialog>

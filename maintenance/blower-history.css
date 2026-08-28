@@ -1303,3 +1303,79 @@ select:focus, input:focus, textarea:focus { border-color: #6ca6d8; box-shadow: 0
     font-size: 10px;
   }
 }
+
+/* V7 single asset manager + numeric-only alert badge */
+.settings-strip > .settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+
+.type-alert-count::before,
+.type-tab.is-active .type-alert-count::before,
+.type-tab.is-active.has-alert .type-alert-count::before {
+  content: none;
+  display: none;
+}
+
+.type-alert-count,
+.type-tab.is-active .type-alert-count,
+.type-tab.is-active.has-alert .type-alert-count {
+  min-width: 22px;
+  width: auto;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+
+.asset-manager-dialog {
+  width: min(760px, calc(100vw - 24px));
+}
+.asset-manager-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.asset-manager-target-field,
+.asset-manager-wide {
+  grid-column: 1 / -1;
+}
+.asset-manager-target-field select {
+  font-weight: 750;
+}
+.asset-manager-help {
+  margin: 0;
+  padding: 10px 11px;
+  border: 1px solid #dce4eb;
+  border-radius: 8px;
+  background: #f6f8fa;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.asset-manager-help strong { color: #334454; }
+.field input.is-readonly,
+.field input[readonly],
+.field select:disabled {
+  background: #eef2f5;
+  color: #566675;
+  cursor: not-allowed;
+}
+
+@media (max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse) {
+  body.mobile-monitoring #assetManagerDialog { display: none !important; }
+}
+
+@media (max-width: 700px) {
+  .asset-manager-grid { grid-template-columns: 1fr; }
+  .asset-manager-target-field,
+  .asset-manager-wide { grid-column: auto; }
+  .type-alert-count,
+  .type-tab.is-active .type-alert-count,
+  .type-tab.is-active.has-alert .type-alert-count {
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+  }
+}
