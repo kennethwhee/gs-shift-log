@@ -2113,6 +2113,32 @@
         color: #fff;
       }
 
+      @media (min-width: 1151px) {
+        #statusView
+        .shift-status-section
+        > .section-heading {
+          position: relative;
+        }
+
+        #statusView
+        .shift-status-section
+        > .section-heading
+        > .shift-heading-right.has-blower-history-main-alert {
+          padding-top: 40px;
+        }
+
+        #statusView
+        .shift-status-section
+        > .section-heading
+        > .shift-heading-right.has-blower-history-main-alert
+        > .blower-history-main-alert {
+          position: absolute;
+          top: 0;
+          right: 0;
+          z-index: 2;
+        }
+      }
+
       @media (max-width: 1100px) {
         .blower-history-main-alert {
           max-width: none;
@@ -2229,6 +2255,10 @@
         child => child.classList?.contains("shift-heading-right")
       );
       headingRight.insertBefore(alertButton, currentShiftGroup || null);
+      headingRight.classList.toggle(
+        "has-blower-history-main-alert",
+        !alertButton.hidden
+      );
       return;
     }
 
@@ -2238,6 +2268,19 @@
       heading.insertAdjacentElement("afterend", alertButton);
     } else {
       section.prepend(alertButton);
+    }
+  }
+
+  function setMainAlertVisibility(alertButton, isVisible) {
+    alertButton.hidden = !isVisible;
+
+    const headingRight = alertButton.parentElement;
+
+    if (headingRight?.classList.contains("shift-heading-right")) {
+      headingRight.classList.toggle(
+        "has-blower-history-main-alert",
+        isVisible
+      );
     }
   }
 
@@ -2325,7 +2368,7 @@
     }
 
     if (alertCount === 0) {
-      alertButton.hidden = true;
+      setMainAlertVisibility(alertButton, false);
       alertButton.classList.remove("is-warning", "is-critical", "is-overdue");
       return;
     }
@@ -2336,7 +2379,7 @@
     const text = document.getElementById("blowerHistoryMainAlertText");
     const count = document.getElementById("blowerHistoryMainAlertCount");
 
-    alertButton.hidden = false;
+    setMainAlertVisibility(alertButton, true);
     alertButton.classList.remove("is-warning", "is-critical", "is-overdue");
     alertButton.classList.add(`is-${strongest}`);
 
