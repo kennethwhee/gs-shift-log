@@ -1432,16 +1432,6 @@ function validateSettingsInput(body) {
 }
 
 async function updateSettings(database, user, body) {
-  if (!user.isAdmin) {
-    return jsonResponse(
-      {
-        ok: false,
-        message: "교체주기 설정은 관리자만 변경할 수 있습니다."
-      },
-      403
-    );
-  }
-
   const validated = validateSettingsInput(body);
 
   if (validated.error) {

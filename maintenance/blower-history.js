@@ -425,6 +425,36 @@
     return `${days}일 ${remainingHours}시간`;
   }
 
+  function addDaysToDate(value, days) {
+    const text = formatDate(value);
+    const safeDays = Number(days);
+
+    if (text === "-" || !Number.isFinite(safeDays)) return "-";
+
+    const [year, month, day] = text.split("-").map(Number);
+    if (![year, month, day].every(Number.isFinite)) return "-";
+
+    const date = new Date(Date.UTC(year, month - 1, day));
+    date.setUTCDate(date.getUTCDate() + Math.round(safeDays));
+    return date.toISOString().slice(0, 10);
+  }
+
+  function formatRemainingDday(nextReplacementAt, now = new Date()) {
+    const dueDate = formatDate(nextReplacementAt);
+    const today = formatKstDateInput(now);
+    if (dueDate === "-") return "기준 미설정";
+
+    const [dueYear, dueMonth, dueDay] = dueDate.split("-").map(Number);
+    const [todayYear, todayMonth, todayDay] = today.split("-").map(Number);
+    const dueUtc = Date.UTC(dueYear, dueMonth - 1, dueDay);
+    const todayUtc = Date.UTC(todayYear, todayMonth - 1, todayDay);
+    const dayDifference = Math.round((dueUtc - todayUtc) / 86400000);
+
+    if (!Number.isFinite(dayDifference)) return "기준 미설정";
+    if (dayDifference === 0) return "D-DAY";
+    return dayDifference > 0 ? `D-${dayDifference}` : `D+${Math.abs(dayDifference)}`;
+  }
+
   function formatSignedRemaining(asset) {
     if (!asset.lastReplacementAt) return "확정된 V-Belt 교체 이력이 없습니다.";
     if (asset.severity === "unset") return "교체주기 설정 필요";
@@ -551,7 +581,7 @@
 
     if (!setting || !(Number(setting.cycleDays) > 0)) {
       elements.settingsSummary.textContent = "교체주기 미설정";
-      elements.settingsUpdated.textContent = "";
+      elements.settingsUpdated.textContent = "로그인 사용자 누구나 설정 가능 · 변경 이력 기록";
     } else {
       const cycleHours = Number(setting.cycleDays) * 24;
       elements.settingsSummary.textContent = [
@@ -560,12 +590,13 @@
         `임박 D-${setting.criticalDays}`
       ].join(" · ");
 
-      elements.settingsUpdated.textContent = setting.updatedAt
+      const updatedText = setting.updatedAt
         ? `최근 변경 ${formatDate(setting.updatedAt)}${setting.updatedByName ? ` · ${setting.updatedByName}` : ""}`
-        : "";
+        : "변경 이력 기록";
+      elements.settingsUpdated.textContent = `${updatedText} · 누구나 변경 가능`;
     }
 
-    elements.settingsButton.hidden = !state.data?.user?.isAdmin;
+    elements.settingsButton.hidden = !state.data?.user;
   }
 
   function renderHeaderActions() {
@@ -644,17 +675,85 @@
   }
 
   function isShiftLogEvent(event) {
-    return ["shift_log_auto", "shift_log_history_auto", "shift_log_history_v12"].includes(event?.sourceType);
+    return [
+      "shift_log_auto",
+      "shift_log_history_auto",
+      "shift_log_history_v12",
+      "shift_log_history_v13"
+    ].includes(event?.sourceType);
+  }
+
+  function evidenceSourceMeta(event) {
+    if (!event) {
+      return { label: "근거 미연결", className: "other" };
+    }
+
+    const sourceType = String(event?.sourceType || "").trim();
+
+    if (sourceType === "shift_log_history_v13") {
+      return { label: "업무일지 V13 문맥복구", className: "v13" };
+    }
+    if (sourceType === "shift_log_history_v12") {
+      return { label: "업무일지 V12 복구", className: "v12" };
+    }
+    if (sourceType === "shift_log_history_auto") {
+      return { label: "업무일지 과거 자동", className: "history" };
+    }
+    if (sourceType === "shift_log_auto") {
+      return { label: "업무일지 자동감지", className: "auto" };
+    }
+    if (sourceType === "manual") {
+      return { label: "수동 등록", className: "manual" };
+    }
+
+    return {
+      label: sourceType ? sourceType : "등록 이력",
+      className: "other"
+    };
+  }
+
+  function emptyEvidenceMessage(event) {
+    if (!event) {
+      return "최근 교체 이력과 연결된 등록 근거가 없습니다.";
+    }
+
+    if (isShiftLogEvent(event)) {
+      return "업무일지 기반 교체 이력이지만 이 이벤트에는 원문 근거가 저장되지 않았습니다.";
+    }
+
+    if (event.sourceType === "manual") {
+      return "수동 등록 시 작업내용(비고)이 입력되지 않았습니다.";
+    }
+
+    return "등록 이력은 확인되지만 원문 근거가 저장되지 않았습니다.";
+  }
+
+  function fullEvidenceText(event) {
+    if (!event) return "";
+
+    const raw = isShiftLogEvent(event)
+      ? event.sourceText
+      : event.sourceType === "manual"
+        ? event.note
+        : (event.note || event.sourceText);
+
+    return String(raw || "")
+      .replace(/\s*\n\s*/g, " · ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   function readableEvidence(event) {
-    if (!event) return "";
+    const fullText = fullEvidenceText(event);
+    if (!fullText) return "";
 
-    const raw = String(
-      isShiftLogEvent(event)
-        ? (event.sourceText || event.note || "")
-        : (event.note || event.sourceText || "")
-    )
+    if (isShiftLogEvent(event)) {
+      return fullText.length > 240
+        ? `${fullText.slice(0, 237).trim()}…`
+        : fullText;
+    }
+
+    const raw = fullText
       .replace(/legacy-entry-[^|\s]+/gi, " ")
       .replace(/\s+/g, " ")
       .trim();
@@ -687,11 +786,9 @@
       return isBeltWork && hasCompletion && !hasHardExclusion && !hasUnresolvedPlan;
     });
 
-    if (isShiftLogEvent(event) && !replacementFragment) return "";
-
     const text = replacementFragment || fragments.join(" · ") || raw;
 
-    return text.length > 180 ? `${text.slice(0, 177).trim()}…` : text;
+    return text.length > 240 ? `${text.slice(0, 237).trim()}…` : text;
   }
 
   function renderAssetCard(asset, setting) {
@@ -702,13 +799,18 @@
     const confirmed = Boolean(asset.lastReplacementAt) && !awaitingBackfill;
     const severity = displaySeverity(asset);
     const evidence = readableEvidence(replacementEvent);
+    const fullEvidence = fullEvidenceText(replacementEvent);
+    const evidenceMeta = evidenceSourceMeta(replacementEvent);
     const cycleHours = cycleDays > 0 ? cycleDays * 24 : null;
-    const progress = cycleHours
-      ? Math.max(0, Math.min(100, (cycleElapsedHours / cycleHours) * 100))
-      : 0;
-    const cycleHeadline = cycleHours
-      ? `교체 후 ${formatDaysHours(cycleElapsedHours)} / ${cycleDays.toLocaleString("ko-KR")}일`
-      : `교체 후 ${formatDaysHours(cycleElapsedHours)}`;
+    const rawProgress = cycleHours ? (cycleElapsedHours / cycleHours) * 100 : 0;
+    const progress = Math.max(0, Math.min(100, rawProgress));
+    const nextReplacementAt = cycleDays > 0 && asset.lastReplacementAt
+      ? addDaysToDate(asset.lastReplacementAt, cycleDays)
+      : "-";
+    const remainingLabel = cycleHours ? formatRemainingDday(nextReplacementAt) : "기준 미설정";
+    const remainingDetail = cycleHours ? formatSignedRemaining(asset) : "교체주기 설정 필요";
+    const evidenceText = fullEvidence || emptyEvidenceMessage(replacementEvent);
+    const evidencePreview = evidence || evidenceText;
 
     return `
       <article class="asset-card" data-severity="${escapeHtml(severity)}" data-tag="${escapeHtml(asset.tagNumber)}">
@@ -721,14 +823,24 @@
         </div>
 
         ${confirmed ? `
-          <div class="runtime-main">
-            <span class="cycle-label">현재 교체주기</span>
-            <strong>${escapeHtml(cycleHeadline)}</strong>
-            <small>${escapeHtml(formatSignedRemaining(asset))}</small>
-            ${cycleHours ? `
+          <div class="cycle-overview">
+            <div class="cycle-primary-metric">
+              <span>교체 경과</span>
+              <strong>${escapeHtml(formatDaysHours(cycleElapsedHours))}</strong>
+              <small>최근 교체일 기준 자동계산</small>
+            </div>
+            <div class="cycle-deadline-metric ${escapeHtml(severity)}">
+              <span>다음 교체까지</span>
+              <strong>${escapeHtml(remainingLabel)}</strong>
+              <small>${escapeHtml(remainingDetail)}</small>
+            </div>
+          </div>
+
+          ${cycleHours ? `
+            <div class="cycle-progress-block">
               <div class="progress-caption">
-                <span>${escapeHtml(formatDaysHours(cycleElapsedHours))}</span>
-                <span>${cycleDays.toLocaleString("ko-KR")}일</span>
+                <span>주기 사용 ${Math.round(rawProgress).toLocaleString("ko-KR")}%</span>
+                <span>관리 기준 ${cycleDays.toLocaleString("ko-KR")}일</span>
               </div>
               <div
                 class="progress-track"
@@ -740,18 +852,40 @@
               >
                 <div class="progress-bar" style="width:${progress.toFixed(2)}%"></div>
               </div>
-            ` : ""}
-          </div>
+            </div>
+          ` : `
+            <div class="cycle-progress-block is-unset">
+              <strong>교체주기를 설정하면 잔여기간과 다음 교체 예정일을 자동 계산합니다.</strong>
+            </div>
+          `}
 
-          <div class="asset-meta">
-            <div><span>최근 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
-            <div><span>계산 기준</span><strong>교체일 기준 자동계산</strong></div>
+          <div class="asset-meta asset-meta-three">
+            <div>
+              <span>최근 교체일</span>
+              <strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong>
+            </div>
+            <div>
+              <span>다음 교체 예정</span>
+              <strong>${escapeHtml(nextReplacementAt)}</strong>
+            </div>
+            <div>
+              <span>관리 기준</span>
+              <strong>${cycleHours ? `${cycleDays.toLocaleString("ko-KR")}일` : "미설정"}</strong>
+            </div>
           </div>
 
           <div class="asset-evidence${evidence ? "" : " is-empty"}">
-            <span>${isShiftLogEvent(replacementEvent) ? "업무일지 근거" : "등록 근거"}</span>
-            <p>${escapeHtml(evidence || "교체 이력은 확인되었지만 등록된 근거 문장이 없습니다.")}</p>
-            ${replacementEvent ? `<small>${escapeHtml(formatDate(replacementEvent.eventDate))} · ${escapeHtml(historySourceLabel(replacementEvent))}</small>` : ""}
+            <div class="evidence-heading">
+              <span>등록 근거</span>
+              <em class="evidence-source-badge ${escapeHtml(evidenceMeta.className)}">${escapeHtml(evidenceMeta.label)}</em>
+            </div>
+            <p title="${escapeHtml(evidenceText)}">${escapeHtml(evidencePreview)}</p>
+            ${replacementEvent ? `
+              <small>
+                교체일 ${escapeHtml(formatDate(replacementEvent.eventDate))}
+                ${replacementEvent.createdByName ? ` · 등록 ${escapeHtml(replacementEvent.createdByName)}` : ""}
+              </small>
+            ` : ""}
           </div>
         ` : awaitingBackfill ? `
           <div class="unknown-cycle is-rebuild-pending">
@@ -996,19 +1130,11 @@
   }
 
   function historySourceLabel(event) {
-    if (event.sourceType === "shift_log_history_auto") {
-      return "업무일지 과거 자동반영";
-    }
-
-    if (event.sourceType === "shift_log_auto") {
-      return "업무일지 자동감지";
-    }
-
-    return "수동";
+    return evidenceSourceMeta(event).label;
   }
 
   function historyRuntimeLabel(event) {
-    if (event.sourceType === "shift_log_history_auto") {
+    if (isShiftLogEvent(event)) {
       return Number(event.runtimeHours) > 0
         ? `약 ${formatHours(event.runtimeHours)}`
         : "-";
@@ -1022,10 +1148,9 @@
       return event?.note || event?.sourceText || "-";
     }
 
-    const evidence = readableEvidence(event);
+    const evidence = fullEvidenceText(event);
     if (evidence) return evidence;
-    if (isShiftLogEvent(event)) return "업무일지 교체 근거 확인 필요";
-    return event?.note || event?.sourceText || "-";
+    return emptyEvidenceMessage(event);
   }
 
   function renderHistory() {
@@ -1387,7 +1512,7 @@
   }
 
   function openSettingsDialog() {
-    if (!state.data?.user?.isAdmin) return;
+    if (!state.data?.user) return;
 
     const type = getTypeDefinition();
     const setting = getActiveSetting();
