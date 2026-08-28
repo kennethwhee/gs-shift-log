@@ -2,6 +2,110 @@
   계획정비 상단 햄버거 소메뉴
 ========================================================= */
 
+/* =========================================================
+  상단 햄버거 메뉴 출처 구분
+
+  - 핵심: 대표 메뉴
+  - 자체: 사용자가 직접 제작한 메뉴
+  - 사내: 회사 서버
+  - 연결: 다른 제작자가 만든 연결 사이트
+========================================================= */
+
+.header-more-menu .header-more-dropdown {
+  width: 228px;
+  min-width: 228px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.header-more-menu .header-more-item {
+  position: relative;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.header-more-item__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-more-item__meta {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.header-menu-kind-badge {
+  display: inline-flex;
+  min-width: 31px;
+  height: 19px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.header-menu-kind-badge--featured {
+  border-color: #174f82;
+  background: #174f82;
+  color: #fff;
+}
+
+.header-menu-kind-badge--owned {
+  border-color: #c4e4d2;
+  background: #e9f6ef;
+  color: #216444;
+}
+
+.header-menu-kind-badge--internal {
+  border-color: #d5ddfb;
+  background: #eef2ff;
+  color: #374da1;
+}
+
+.header-menu-kind-badge--connected {
+  border-color: #d9dde3;
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.header-more-menu .header-more-item--featured {
+  box-shadow: inset 3px 0 #174f82;
+  background: #eff6fd;
+  color: #174f82;
+}
+
+.header-more-menu .header-more-item--featured:hover,
+.header-more-menu .header-more-item--featured:focus-visible {
+  background: #e3f0fb;
+  color: #123f69;
+}
+
+.header-more-item--group-start {
+  margin-top: 7px;
+}
+
+.header-more-item--group-start::before {
+  position: absolute;
+  top: -4px;
+  right: 6px;
+  left: 6px;
+  height: 1px;
+  background: #dfe6ee;
+  content: "";
+  pointer-events: none;
+}
+
 .header-more-submenu {
   display: block;
   width: 100%;
@@ -83,6 +187,18 @@
 }
 
 @media screen and (max-width: 760px) {
+  .header-more-menu .header-more-dropdown {
+    width: min(228px, calc(100vw - 20px));
+    min-width: min(228px, calc(100vw - 20px));
+  }
+
+  .header-menu-kind-badge {
+    min-width: 29px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 10px;
+  }
+
   .header-more-submenu-panel {
     padding-left: 10px;
   }

@@ -145,7 +145,7 @@
   >
   <link
     rel="stylesheet"
-    href="maintenance/maintenance-header.css?v=20260826-text-menu-v25"
+    href="maintenance/maintenance-header.css?v=20260828-menu-origin-v1"
   >
 
 
@@ -188,7 +188,7 @@
     점검일지 메뉴 및 팝업 실행기
   ====================================================== -->
   <script
-    src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260826-text-menu-v25"
+    src="inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260828-menu-origin-v1"
     defer
   ></script>
 
@@ -594,12 +594,11 @@
       공통:
       기존 네비게이터 위치에 더보기 햄버거 메뉴 배치
 
-      PC:
-      점검일지는 직접 표시
-      더보기 메뉴에는 네비게이터 표시
+      PC / 모바일 공통:
+      출처별 배지와 지정 순서로 주요 메뉴 표시
 
       모바일:
-      점검일지는 같은 더보기 메뉴에 추가
+      공통 메뉴 다음에 점검일지 추가
       관리자는 기존 권한 판정을 유지하며 메뉴 최하단 배치
     ====================================================== -->
 
@@ -655,30 +654,142 @@
         >
           <button
             type="button"
-            class="header-more-item"
+            class="header-more-item header-more-item--featured"
             id="facilityNavigatorHeaderButton"
             role="menuitem"
-            aria-label="설비 네비게이터 열기"
+            aria-label="핵심 메뉴, 설비 네비게이터 열기"
             title="네비게이터"
           >
-            네비게이터
+            <span class="header-more-item__label">네비게이터</span>
+            <span
+              class="header-menu-kind-badge header-menu-kind-badge--featured"
+              aria-hidden="true"
+            >핵심</span>
           </button>
 
           <a
+            class="header-more-item header-more-item--group-start"
+            id="solidFuelTroubleHeaderLink"
+            href="/maintenance/solid-fuel-trouble.html"
+            target="_blank"
+            rel="noopener"
+            role="menuitem"
+            aria-label="직접 제작 메뉴, 고형연료 Trouble 관리 열기"
+            title="고형연료 Trouble"
+            onclick="if (window.closeHeaderMoreMenu) window.closeHeaderMoreMenu();"
+          >
+            <span class="header-more-item__label">고형연료 Trouble</span>
+            <span
+              class="header-menu-kind-badge header-menu-kind-badge--owned"
+              aria-hidden="true"
+            >자체</span>
+          </a>
+
+          <a
             class="header-more-item"
+            id="blowerHistoryHeaderButton"
+            href="/maintenance/blower-history.html"
+            target="GS_BLOWER_HISTORY"
+            rel="noopener"
+            role="menuitem"
+            aria-label="직접 제작 메뉴, Blower 교체이력 관리 열기"
+            title="Blower 교체이력 관리"
+            onclick="if (window.closeHeaderMoreMenu) window.closeHeaderMoreMenu();"
+          >
+            <span class="header-more-item__label">Blower 교체이력</span>
+            <span class="header-more-item__meta">
+              <span
+                class="header-menu-kind-badge header-menu-kind-badge--owned"
+                aria-hidden="true"
+              >자체</span>
+              <span
+                class="blower-history-menu-badge"
+                id="blowerHistoryMenuBadge"
+                aria-label="Blower 교체 알림 0건"
+                hidden
+              >0</span>
+            </span>
+          </a>
+
+          <button
+            type="button"
+            class="header-more-item header-more-item--submenu-toggle"
+            id="plannedMaintenanceHeaderButton"
+            role="menuitem"
+            aria-label="직접 제작 메뉴, 계획정비대비 하위 메뉴 열기"
+            aria-haspopup="true"
+            aria-expanded="false"
+            aria-controls="plannedMaintenanceHeaderSubmenuPanel"
+            title="계획정비대비"
+          >
+            <span class="header-more-item__label">계획정비대비</span>
+            <span class="header-more-item__meta">
+              <span
+                class="header-menu-kind-badge header-menu-kind-badge--owned"
+                aria-hidden="true"
+              >자체</span>
+              <span
+                class="header-more-item__chevron"
+                aria-hidden="true"
+              >⌄</span>
+            </span>
+          </button>
+
+          <div
+            class="header-more-submenu-panel"
+            id="plannedMaintenanceHeaderSubmenuPanel"
+            role="group"
+            aria-label="계획정비대비 소메뉴"
+            hidden
+          >
+            <button
+              type="button"
+              class="header-more-subitem"
+              id="plannedMaintenanceLogicHeaderButton"
+              role="menuitem"
+            >
+              Logic 개선
+            </button>
+
+            <button
+              type="button"
+              class="header-more-subitem"
+              id="plannedMaintenanceWorkHeaderButton"
+              role="menuitem"
+            >
+              작업필요사항
+            </button>
+
+            <button
+              type="button"
+              class="header-more-subitem"
+              id="manholeManagementHeaderButton"
+              role="menuitem"
+              aria-label="맨홀개폐관리 열기"
+              title="맨홀개폐관리"
+            >
+              맨홀개폐관리
+            </button>
+          </div>
+
+          <a
+            class="header-more-item header-more-item--group-start"
             id="operationInfoHeaderLink"
             href="http://ois.gspoge.com/jsp/login/index"
             target="_blank"
             rel="noopener"
             role="menuitem"
-            aria-label="GS 포천그린에너지 운영정보 열기"
+            aria-label="회사 서버, GS 포천그린에너지 운영정보 열기"
             title="GS 포천그린에너지 운영정보"
             onclick="if (window.closeHeaderMoreMenu) window.closeHeaderMoreMenu();"
           >
-            운영정보
+            <span class="header-more-item__label">운영정보</span>
+            <span
+              class="header-menu-kind-badge header-menu-kind-badge--internal"
+              aria-hidden="true"
+            >사내</span>
           </a>
 
-                <div class="header-more-submenu">
           <a
             class="header-more-item"
             id="tmIssueHeaderLink"
@@ -686,95 +797,51 @@
             target="_blank"
             rel="noopener"
             role="menuitem"
-            aria-label="TM 발행 사이트 열기"
+            aria-label="회사 서버, TM 발행 사이트 열기"
             title="TM 발행"
             onclick="if (window.closeHeaderMoreMenu) window.closeHeaderMoreMenu();"
           >
-            TM 발행
+            <span class="header-more-item__label">TM 발행</span>
+            <span
+              class="header-menu-kind-badge header-menu-kind-badge--internal"
+              aria-hidden="true"
+            >사내</span>
           </a>
+
           <a
-            class="header-more-item"
+            class="header-more-item header-more-item--group-start"
             id="boisoHeaderLink"
             href="https://ssongproject.com/"
             target="_blank"
             rel="noopener"
             role="menuitem"
-            aria-label="보이소 사이트 열기"
+            aria-label="다른 제작자가 만든 연결 사이트, 보이소 열기"
             title="보이소"
             onclick="if (window.closeHeaderMoreMenu) window.closeHeaderMoreMenu();"
           >
-            보이소
+            <span class="header-more-item__label">보이소</span>
+            <span
+              class="header-menu-kind-badge header-menu-kind-badge--connected"
+              aria-hidden="true"
+            >연결</span>
           </a>
-          <a
+
+          <button
+            type="button"
             class="header-more-item"
-            id="solidFuelTroubleHeaderLink"
-            href="/maintenance/solid-fuel-trouble.html"
-            target="_blank"
-            rel="noopener"
+            id="vacationReplacementHeaderButton"
             role="menuitem"
-            aria-label="고형연료 Trouble 관리 열기"
-            title="고형연료 Trouble"
-            onclick="if (window.closeHeaderMoreMenu) window.closeHeaderMoreMenu();"
+            aria-label="다른 제작자가 만든 연결 사이트, 운전파트 휴가·대근 관리 열기"
+            title="운전파트 휴가·대근 관리"
           >
-            고형연료 Trouble
-          </a>
-
-        <button
-          type="button"
-          class="header-more-item header-more-item--submenu-toggle"
-          id="plannedMaintenanceHeaderButton"
-          role="menuitem"
-          aria-haspopup="true"
-          aria-expanded="false"
-          aria-controls="plannedMaintenanceHeaderSubmenuPanel"
-          title="계획정비"
-        >
-          <span>계획정비</span>
-          <span
-            class="header-more-item__chevron"
-            aria-hidden="true"
-          >⌄</span>
-        </button>
-
-        <div
-          class="header-more-submenu-panel"
-          id="plannedMaintenanceHeaderSubmenuPanel"
-          role="group"
-          aria-label="계획정비 소메뉴"
-          hidden
-        >
-          <button
-            type="button"
-            class="header-more-subitem"
-            id="plannedMaintenanceLogicHeaderButton"
-            role="menuitem"
-          >
-            Logic 개선
+            <span class="header-more-item__label">휴가·대근 관리</span>
+            <span
+              class="header-menu-kind-badge header-menu-kind-badge--connected"
+              aria-hidden="true"
+            >연결</span>
           </button>
 
           <button
-            type="button"
-            class="header-more-subitem"
-            id="plannedMaintenanceWorkHeaderButton"
-            role="menuitem"
-          >
-            작업필요사항
-          </button>
-
-          <button
-            type="button"
-            class="header-more-subitem"
-            id="manholeManagementHeaderButton"
-            role="menuitem"
-            aria-label="맨홀개폐관리 열기"
-            title="맨홀개폐관리"
-          >
-            맨홀개폐관리
-          </button>
-        </div>
-      </div>
-
-                    <button
             type="button"
             class="
               header-more-item

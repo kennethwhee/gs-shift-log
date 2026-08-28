@@ -362,46 +362,41 @@
       inspectionItem.type =
         "button";
 
-      inspectionItem.textContent =
-        "점검일지";
+      inspectionItem.innerHTML = `
+        <span class="header-more-item__label">점검일지</span>
+        <span
+          class="header-menu-kind-badge header-menu-kind-badge--owned"
+          aria-hidden="true"
+        >자체</span>
+      `;
     }
 
 
     inspectionItem.className =
       mobileMenuLazyV15
-        ? "header-more-item"
-        : "header-more-item header-more-item--mobile-only";
+        ? "header-more-item header-more-item--group-start"
+        : "header-more-item header-more-item--mobile-only header-more-item--group-start";
 
     inspectionItem.setAttribute(
       "role",
       "menuitem"
     );
 
+    inspectionItem.setAttribute(
+      "aria-label",
+      "직접 제작 메뉴, 점검일지 열기"
+    );
+
 
     /*
-      모바일 메뉴 순서:
-
-      네비게이터
-      계획정비
-      맨홀개폐관리
-      점검일지
-      관리자
-
-      관리자는 PC / 모바일 모두 항상 마지막이다.
+      요청된 8개 공통 메뉴 다음에 모바일 점검일지를 두고,
+      관리자는 PC / 모바일 모두 항상 마지막에 둔다.
     */
-    const vacationReplacementItem =
-      document.getElementById(
-        "vacationReplacementHeaderButton"
-      );
-
     const inspectionReference =
-      vacationReplacementItem?.parentElement ===
+      adminButton?.parentElement ===
         dropdown
-        ? vacationReplacementItem
-        : adminButton?.parentElement ===
-            dropdown
-          ? adminButton
-          : null;
+        ? adminButton
+        : null;
 
     if (
       inspectionItem.parentElement !==
@@ -1434,8 +1429,8 @@
 
   운전파트 휴가·대근 관리
 
-  PC / 모바일 공통 햄버거 메뉴에
-  맨홀개폐관리 다음, 관리자 앞에 표시한다.
+  PC / 모바일 공통 햄버거 메뉴에서
+  보이소 다음, 모바일 점검일지 또는 관리자 앞에 표시한다.
 ========================================================= */
 
 (() => {
@@ -1756,8 +1751,13 @@
       item.type =
         "button";
 
-      item.textContent =
-        "휴가·대근 관리";
+      item.innerHTML = `
+        <span class="header-more-item__label">휴가·대근 관리</span>
+        <span
+          class="header-menu-kind-badge header-menu-kind-badge--connected"
+          aria-hidden="true"
+        >연결</span>
+      `;
     }
 
 
@@ -1771,7 +1771,7 @@
 
     item.setAttribute(
       "aria-label",
-      "운전파트 휴가·대근 관리 열기"
+      "다른 제작자가 만든 연결 사이트, 운전파트 휴가·대근 관리 열기"
     );
 
     item.title =
@@ -1802,9 +1802,9 @@
     }
 
 
-    const manholeItem =
+    const mobileInspectionItem =
       document.getElementById(
-        "manholeManagementHeaderButton"
+        "mobileHeaderInspectionItem"
       );
 
     const adminButton =
@@ -1814,48 +1814,31 @@
 
 
     /*
-      우선 순서
-
-      맨홀개폐관리
-      휴가·대근 관리
-      관리자
+      공통 메뉴의 마지막 항목으로 유지한다.
+      모바일 점검일지가 있으면 그 앞, 아니면 관리자 앞이다.
     */
+    const referenceElement =
+      mobileInspectionItem?.parentElement ===
+        dropdown
+        ? mobileInspectionItem
+        : adminButton?.parentElement ===
+            dropdown
+          ? adminButton
+          : null;
 
-    if (
-      manholeItem?.parentElement ===
-      dropdown
-    ) {
 
-      const referenceElement =
-        manholeItem.nextElementSibling;
-
-
-      if (
-        referenceElement !==
-        item
-      ) {
-
-        dropdown.insertBefore(
-          item,
-          referenceElement
-        );
-      }
-
-    } else if (
-      adminButton?.parentElement ===
-      dropdown
-    ) {
+    if (referenceElement) {
 
       if (
         item.parentElement !==
           dropdown ||
         item.nextElementSibling !==
-          adminButton
+          referenceElement
       ) {
 
         dropdown.insertBefore(
           item,
-          adminButton
+          referenceElement
         );
       }
 
@@ -2161,6 +2144,15 @@
 
   function ensureMenuItem() {
     const dropdown = document.getElementById("headerMoreDropdown");
+    const plannedMaintenanceButton = document.getElementById(
+      "plannedMaintenanceHeaderButton"
+    );
+    const vacationReplacementButton = document.getElementById(
+      "vacationReplacementHeaderButton"
+    );
+    const mobileInspectionButton = document.getElementById(
+      "mobileHeaderInspectionItem"
+    );
     const adminButton = document.getElementById("adminButton");
 
     if (!dropdown) {
@@ -2178,10 +2170,32 @@
       button.setAttribute("aria-label", "Blower 교체 이력 관리 열기");
       button.title = "Blower 교체 이력 관리";
       button.innerHTML = `
-        <span>Blower 교체 이력</span>
-        <span class="blower-history-menu-badge" id="blowerHistoryMenuBadge" hidden>0</span>
+        <span class="header-more-item__label">Blower 교체이력</span>
+        <span class="header-more-item__meta">
+          <span
+            class="header-menu-kind-badge header-menu-kind-badge--owned"
+            aria-hidden="true"
+          >자체</span>
+          <span
+            class="blower-history-menu-badge"
+            id="blowerHistoryMenuBadge"
+            aria-label="Blower 교체 알림 0건"
+            hidden
+          >0</span>
+        </span>
       `;
+    }
 
+    button.classList.add("header-more-item");
+    button.setAttribute("role", "menuitem");
+    button.setAttribute(
+      "aria-label",
+      "직접 제작 메뉴, Blower 교체이력 관리 열기"
+    );
+    button.title = "Blower 교체이력 관리";
+
+    if (button.dataset.blowerHistoryBound !== "true") {
+      button.dataset.blowerHistoryBound = "true";
       button.addEventListener("click", event => {
         event.preventDefault();
         event.stopPropagation();
@@ -2189,9 +2203,23 @@
       });
     }
 
-    if (adminButton?.parentElement === dropdown) {
-      if (button.parentElement !== dropdown || button.nextElementSibling !== adminButton) {
-        dropdown.insertBefore(button, adminButton);
+    const referenceButton =
+      plannedMaintenanceButton?.parentElement === dropdown
+        ? plannedMaintenanceButton
+        : vacationReplacementButton?.parentElement === dropdown
+          ? vacationReplacementButton
+          : mobileInspectionButton?.parentElement === dropdown
+            ? mobileInspectionButton
+            : adminButton?.parentElement === dropdown
+              ? adminButton
+              : null;
+
+    if (referenceButton) {
+      if (
+        button.parentElement !== dropdown ||
+        button.nextElementSibling !== referenceButton
+      ) {
+        dropdown.insertBefore(button, referenceButton);
       }
     } else if (button.parentElement !== dropdown) {
       dropdown.append(button);
@@ -2277,14 +2305,27 @@
   }
 
   function renderSummary(summary) {
-    ensureMenuItem();
+    const menuItem = ensureMenuItem();
     const alertButton = ensureMainAlert();
     const badge = document.getElementById("blowerHistoryMenuBadge");
     const alertCount = Math.max(0, Number(summary?.alertCount || 0));
 
+    if (menuItem) {
+      menuItem.setAttribute(
+        "aria-label",
+        alertCount > 0
+          ? `직접 제작 메뉴, Blower 교체이력 관리 열기, 알림 ${alertCount}건`
+          : "직접 제작 메뉴, Blower 교체이력 관리 열기"
+      );
+    }
+
     if (badge) {
       badge.hidden = alertCount === 0;
       badge.textContent = String(alertCount);
+      badge.setAttribute(
+        "aria-label",
+        `Blower 교체 알림 ${alertCount}건`
+      );
     }
 
     if (!alertButton) {
