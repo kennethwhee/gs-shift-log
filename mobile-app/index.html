@@ -600,7 +600,7 @@
   <link
     rel="preload"
     as="style"
-    href="/maintenance/maintenance-header.css?v=20260828-menu-origin-v1"
+    href="/maintenance/maintenance-header.css?v=20260828-menu-color-v2"
     onload="this.onload=null;this.rel='stylesheet';window.__markMobileAppBootResourceV13?.('maintenanceCss',true)"
     onerror="window.__markMobileAppBootResourceV13?.('maintenanceCss',false)"
   >
@@ -623,7 +623,7 @@
     >
     <link
       rel="stylesheet"
-      href="/maintenance/maintenance-header.css?v=20260828-menu-origin-v1"
+      href="/maintenance/maintenance-header.css?v=20260828-menu-color-v2"
     >
     <link
       rel="stylesheet"
@@ -1233,18 +1233,14 @@
             class="header-more-item header-more-item--featured"
             id="facilityNavigatorHeaderButton"
             role="menuitem"
-            aria-label="핵심 메뉴, 설비 네비게이터 열기"
+            aria-label="특별 메뉴, 설비 네비게이터 열기"
             title="네비게이터"
           >
             <span class="header-more-item__label">네비게이터</span>
-            <span
-              class="header-menu-kind-badge header-menu-kind-badge--featured"
-              aria-hidden="true"
-            >핵심</span>
           </button>
 
           <a
-            class="header-more-item header-more-item--group-start"
+            class="header-more-item header-more-item--owned header-more-item--group-start"
             id="solidFuelTroubleHeaderLink"
             href="/maintenance/solid-fuel-trouble.html"
             target="_blank"
@@ -1255,14 +1251,10 @@
             onclick="if (window.closeHeaderMoreMenu) window.closeHeaderMoreMenu();"
           >
             <span class="header-more-item__label">고형연료 Trouble</span>
-            <span
-              class="header-menu-kind-badge header-menu-kind-badge--owned"
-              aria-hidden="true"
-            >자체</span>
           </a>
 
           <a
-            class="header-more-item"
+            class="header-more-item header-more-item--owned"
             id="blowerHistoryHeaderButton"
             href="/maintenance/blower-history.html"
             target="GS_BLOWER_HISTORY"
@@ -1275,10 +1267,6 @@
             <span class="header-more-item__label">Blower 교체이력</span>
             <span class="header-more-item__meta">
               <span
-                class="header-menu-kind-badge header-menu-kind-badge--owned"
-                aria-hidden="true"
-              >자체</span>
-              <span
                 class="blower-history-menu-badge"
                 id="blowerHistoryMenuBadge"
                 aria-label="Blower 교체 알림 0건"
@@ -1289,7 +1277,7 @@
 
           <button
             type="button"
-            class="header-more-item header-more-item--submenu-toggle"
+            class="header-more-item header-more-item--owned header-more-item--submenu-toggle"
             id="plannedMaintenanceHeaderButton"
             role="menuitem"
             aria-label="직접 제작 메뉴, 계획정비대비 하위 메뉴 열기"
@@ -1300,10 +1288,6 @@
           >
             <span class="header-more-item__label">계획정비대비</span>
             <span class="header-more-item__meta">
-              <span
-                class="header-menu-kind-badge header-menu-kind-badge--owned"
-                aria-hidden="true"
-              >자체</span>
               <span
                 class="header-more-item__chevron"
                 aria-hidden="true"
@@ -1419,16 +1403,12 @@
 
           <button
             type="button"
-            class="header-more-item header-more-item--group-start"
+            class="header-more-item header-more-item--owned header-more-item--group-start"
             id="mobileHeaderInspectionItem"
             role="menuitem"
             aria-label="직접 제작 메뉴, 점검일지 열기"
           >
             <span class="header-more-item__label">점검일지</span>
-            <span
-              class="header-menu-kind-badge header-menu-kind-badge--owned"
-              aria-hidden="true"
-            >자체</span>
           </button>
 
           <button
@@ -15297,7 +15277,7 @@
             () => {
               return loadOptionalScript(
                 "mobileInspectionLauncherV15",
-                "/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260828-menu-origin-v1",
+                "/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260828-menu-color-v2",
                 () => {
                   return window.__gsNightPatrolLauncherInstalled ===
                     true;

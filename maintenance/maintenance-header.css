@@ -5,10 +5,10 @@
 /* =========================================================
   상단 햄버거 메뉴 출처 구분
 
-  - 핵심: 대표 메뉴
-  - 자체: 사용자가 직접 제작한 메뉴
-  - 사내: 회사 서버
-  - 연결: 다른 제작자가 만든 연결 사이트
+  - 네비게이터: 파란색 강조 행
+  - 직접 제작 메뉴: 초록색 강조 행
+  - 사내: 회사 서버 배지
+  - 연결: 다른 제작자가 만든 연결 사이트 배지
 ========================================================= */
 
 .header-more-menu .header-more-dropdown {
@@ -55,18 +55,6 @@
   letter-spacing: -0.02em;
 }
 
-.header-menu-kind-badge--featured {
-  border-color: #174f82;
-  background: #174f82;
-  color: #fff;
-}
-
-.header-menu-kind-badge--owned {
-  border-color: #c4e4d2;
-  background: #e9f6ef;
-  color: #216444;
-}
-
 .header-menu-kind-badge--internal {
   border-color: #d5ddfb;
   background: #eef2ff;
@@ -89,6 +77,18 @@
 .header-more-menu .header-more-item--featured:focus-visible {
   background: #e3f0fb;
   color: #123f69;
+}
+
+.header-more-menu .header-more-item--owned {
+  box-shadow: inset 3px 0 #4d9a6c;
+  background: #f3faf6;
+  color: #216444;
+}
+
+.header-more-menu .header-more-item--owned:hover,
+.header-more-menu .header-more-item--owned:focus-visible {
+  background: #e9f6ef;
+  color: #174d36;
 }
 
 .header-more-item--group-start {

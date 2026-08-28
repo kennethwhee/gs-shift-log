@@ -364,18 +364,14 @@
 
       inspectionItem.innerHTML = `
         <span class="header-more-item__label">점검일지</span>
-        <span
-          class="header-menu-kind-badge header-menu-kind-badge--owned"
-          aria-hidden="true"
-        >자체</span>
       `;
     }
 
 
     inspectionItem.className =
       mobileMenuLazyV15
-        ? "header-more-item header-more-item--group-start"
-        : "header-more-item header-more-item--mobile-only header-more-item--group-start";
+        ? "header-more-item header-more-item--owned header-more-item--group-start"
+        : "header-more-item header-more-item--owned header-more-item--mobile-only header-more-item--group-start";
 
     inspectionItem.setAttribute(
       "role",
@@ -2164,7 +2160,7 @@
     if (!button) {
       button = document.createElement("button");
       button.type = "button";
-      button.className = "header-more-item";
+      button.className = "header-more-item header-more-item--owned";
       button.id = "blowerHistoryHeaderButton";
       button.setAttribute("role", "menuitem");
       button.setAttribute("aria-label", "Blower 교체 이력 관리 열기");
@@ -2172,10 +2168,6 @@
       button.innerHTML = `
         <span class="header-more-item__label">Blower 교체이력</span>
         <span class="header-more-item__meta">
-          <span
-            class="header-menu-kind-badge header-menu-kind-badge--owned"
-            aria-hidden="true"
-          >자체</span>
           <span
             class="blower-history-menu-badge"
             id="blowerHistoryMenuBadge"
@@ -2186,7 +2178,7 @@
       `;
     }
 
-    button.classList.add("header-more-item");
+    button.classList.add("header-more-item", "header-more-item--owned");
     button.setAttribute("role", "menuitem");
     button.setAttribute(
       "aria-label",
