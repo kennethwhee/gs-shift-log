@@ -91,6 +91,19 @@
   color: #174d36;
 }
 
+/* 직접 제작 메뉴 3개를 하나의 연속된 초록색 그룹으로 표시 */
+.header-more-menu #solidFuelTroubleHeaderLink {
+  border-radius: 7px 7px 0 0;
+}
+
+.header-more-menu #blowerHistoryHeaderButton {
+  border-radius: 0;
+}
+
+.header-more-menu #plannedMaintenanceHeaderButton {
+  border-radius: 0 0 7px 7px;
+}
+
 .header-more-item--group-start {
   margin-top: 7px;
 }
