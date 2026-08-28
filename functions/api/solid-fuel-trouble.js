@@ -1,4 +1,4 @@
-/* GS Shift Log · 고형연료 Trouble + 하역시간 V2 */
+/* GS Shift Log · 고형연료 Trouble + 하역시간 V3.1 */
 const FORCED_SUPER_ADMIN_EMPLOYEE_NO = "2014081";
 const MAX_PHOTO_COUNT = 4;
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024;
@@ -25,7 +25,7 @@ const TROUBLE_SEED_ROWS = [
   [
     "excel-20260624-003",
     "2026-06-24",
-    "중랑(추정)",
+    "중랑",
     "4202",
     "13:50 Storage #A 이송중 막힘",
     "현장 역가압 후 해소",
@@ -34,7 +34,7 @@ const TROUBLE_SEED_ROWS = [
   [
     "excel-20260624-004",
     "2026-06-24",
-    "수원그린(추정)",
+    "수원그린",
     "2655",
     "16:20 Storage #A 이송중 막힘",
     "현장 역가압 후 해소",
@@ -43,7 +43,7 @@ const TROUBLE_SEED_ROWS = [
   [
     "excel-20260701-005",
     "2026-07-01",
-    "수도권(추정)",
+    "수도권",
     "1310",
     "23:00 Storage #A 이송중 막힘",
     "현장 역가압 후 해소",
@@ -142,7 +142,7 @@ const TROUBLE_SEED_ROWS = [
   [
     "excel-20260731-016",
     "2026-07-31",
-    "난지(추정)",
+    "난지",
     "2109",
     "20:40 Storage #A 이송중 막힘",
     "현장 역가압 후 해소",
@@ -169,7 +169,7 @@ const TROUBLE_SEED_ROWS = [
   [
     "excel-20260808-019",
     "2026-08-08",
-    "난지(추정)",
+    "난지",
     "4202",
     "19:07 Storage #A 이송중 막힘",
     "현장 역가압 후 해소 및 Storage Silo Slide Gate 조절 (추후 원복)",
@@ -204,6 +204,9 @@ function roleOf(v){ const r=text(v).toLowerCase().replace(/[\s-]+/g,"_"); if(["s
 function isoDate(v){ const s=text(v); if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false; const d=new Date(`${s}T00:00:00Z`); return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===s; }
 function clock(v){ const s=text(v); return /^([01]\d|2[0-3]):[0-5]\d$/.test(s); }
 function limited(v,n){ return text(v).slice(0,n); }
+function cleanCompany(v){ return limited(text(v).replace(/\s*\(추정\)\s*/g,"").trim(),80); }
+function optionalDate(v){ const s=text(v); return !s||isoDate(s)?s:null; }
+function optionalClock(v){ const s=text(v); return !s||clock(s)?s:null; }
 function ext(name){ const s=text(name),i=s.lastIndexOf("."); return i<0?"":s.slice(i+1).toLowerCase(); }
 function safeName(name){ return text(name).replace(/[\/\\:*?"<>|]/g,"_").replace(/\s+/g,"_")||"photo"; }
 function imageType(name,supplied){ const t=text(supplied).toLowerCase(); if(t.startsWith("image/")) return t; return ({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",heic:"image/heic",heif:"image/heif"})[ext(name)]||"application/octet-stream"; }
@@ -257,6 +260,12 @@ async function initialize(db){
         created_by_name TEXT NOT NULL DEFAULT '',updated_by_id TEXT NOT NULL DEFAULT '',updated_by_name TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL,updated_at TEXT NOT NULL,deleted_at TEXT,deleted_by_id TEXT NOT NULL DEFAULT '',deleted_by_name TEXT NOT NULL DEFAULT ''
       )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS solid_fuel_companies(
+        company_name TEXT PRIMARY KEY COLLATE NOCASE,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`),
       db.prepare(`CREATE INDEX IF NOT EXISTS idx_sft_date ON solid_fuel_trouble_records(occurrence_date)`),
       db.prepare(`CREATE INDEX IF NOT EXISTS idx_sft_company ON solid_fuel_trouble_records(company_name)`),
       db.prepare(`CREATE INDEX IF NOT EXISTS idx_sft_vehicle ON solid_fuel_trouble_records(vehicle_no)`),
@@ -265,6 +274,12 @@ async function initialize(db){
       db.prepare(`CREATE INDEX IF NOT EXISTS idx_sfu_company ON solid_fuel_unloading_logs(company_name)`),
       db.prepare(`CREATE INDEX IF NOT EXISTS idx_sfu_vehicle ON solid_fuel_unloading_logs(vehicle_no)`)
     ]);
+
+    const unloadingColumns=await db.prepare(`PRAGMA table_info(solid_fuel_unloading_logs)`).all();
+    const hasDurationKnown=(unloadingColumns.results||[]).some(row=>text(row.name)==="duration_known");
+    if(!hasDurationKnown){
+      await db.prepare(`ALTER TABLE solid_fuel_unloading_logs ADD COLUMN duration_known INTEGER NOT NULL DEFAULT 1`).run();
+    }
 
     const troubleSeed=TROUBLE_SEED_ROWS.map((r,i)=>db.prepare(`
       INSERT OR IGNORE INTO solid_fuel_trouble_records(
@@ -282,6 +297,31 @@ async function initialize(db){
       ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,'excel-import','Excel 원본','excel-import','Excel 원본',?,?)
     `).bind(`solid-fuel-unloading-seed-${String(i+1).padStart(3,"0")}`,r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],r[8],r[9],r[10],r[11],r[12],r[13],r[14],`${r[1]}T00:00:00.000Z`,`${r[1]}T00:00:00.000Z`));
     for(let i=0;i<unloadSeed.length;i+=50) await db.batch(unloadSeed.slice(i,i+50));
+
+    /*
+      기존 Excel 원본에서 "(추정)"으로 적힌 업체명은
+      실제 업체명만 남기고 표준화한다.
+      source_key/원본 기록 자체는 유지된다.
+    */
+    await db.batch([
+      db.prepare(`UPDATE solid_fuel_trouble_records SET company_name=TRIM(REPLACE(company_name,'(추정)','')) WHERE company_name LIKE '%(추정)%'`),
+      db.prepare(`UPDATE solid_fuel_unloading_logs SET company_name=TRIM(REPLACE(company_name,'(추정)','')) WHERE company_name LIKE '%(추정)%'`)
+    ]);
+
+    /*
+      업체 목록은 별도 관리 테이블로 운용한다.
+      기존 기록에 존재하는 업체는 최초 1회 자동 등록한다.
+    */
+    await db.prepare(`
+      INSERT OR IGNORE INTO solid_fuel_companies(company_name,is_active)
+      SELECT company_name,1
+      FROM (
+        SELECT DISTINCT company_name FROM solid_fuel_trouble_records WHERE deleted_at IS NULL AND company_name<>''
+        UNION
+        SELECT DISTINCT company_name FROM solid_fuel_unloading_logs WHERE deleted_at IS NULL AND company_name<>''
+      )
+      WHERE company_name<>''
+    `).run();
   })().catch(e=>{initPromise=null;throw e;});
   return initPromise;
 }
@@ -289,7 +329,7 @@ async function initialize(db){
 async function allPhotos(db){ const r=await db.prepare(`SELECT * FROM solid_fuel_trouble_photos ORDER BY created_at,id`).all(); return Array.isArray(r?.results)?r.results:[]; }
 function photoObj(r){ const id=text(r.id); return {id,recordId:text(r.trouble_id),name:text(r.original_name)||"샘플 사진",contentType:text(r.content_type),fileSize:Number(r.file_size||0),createdAt:text(r.created_at),url:`/api/solid-fuel-trouble?photoId=${encodeURIComponent(id)}`}; }
 function troubleObj(r,map){ const id=text(r.id),legacy=text(r.legacy_photo_path); return {id,sourceKey:text(r.source_key),occurrenceDate:text(r.occurrence_date),companyName:text(r.company_name),vehicleNo:text(r.vehicle_no),equipment:text(r.equipment),note:text(r.note),version:Number(r.version||1),photos:[...(legacy?[{id:`legacy-${id}`,recordId:id,name:"Excel 샘플 사진",contentType:"image/jpeg",fileSize:0,createdAt:text(r.created_at),url:legacy,legacy:true}]:[]),...(map.get(id)||[])],createdAt:text(r.created_at),updatedAt:text(r.updated_at)}; }
-function unloadObj(r){ return {id:text(r.id),sourceKey:text(r.source_key),unloadingDate:text(r.unloading_date),arrivalTime:text(r.arrival_time),departureTime:text(r.departure_time),durationMinutes:Number(r.duration_minutes||0),companyName:text(r.company_name),vehicleNo:text(r.vehicle_no),siloRoute:text(r.silo_route),note:text(r.note),version:Number(r.version||1),abnormal:abnormalText(r.note),createdAt:text(r.created_at),updatedAt:text(r.updated_at)}; }
+function unloadObj(r){ const known=Number(r.duration_known??1)===1; return {id:text(r.id),sourceKey:text(r.source_key),unloadingDate:text(r.unloading_date),arrivalTime:text(r.arrival_time),departureTime:text(r.departure_time),durationKnown:known,durationMinutes:known?Number(r.duration_minutes||0):null,companyName:text(r.company_name),vehicleNo:text(r.vehicle_no),siloRoute:text(r.silo_route),note:text(r.note),version:Number(r.version||1),abnormal:abnormalText(r.note),createdAt:text(r.created_at),updatedAt:text(r.updated_at)}; }
 
 function applyCommonFilters(url,dateField,companyField,vehicleField,searchFields){
   const clauses=[],binds=[];
@@ -321,14 +361,58 @@ async function listUnloadings(db,url){
   const stmt=db.prepare(q),res=f.binds.length?await stmt.bind(...f.binds).all():await stmt.all();
   return (Array.isArray(res?.results)?res.results:[]).map(unloadObj);
 }
-async function companies(db){
+async function companyDirectory(db){
   const r=await db.prepare(`
+    SELECT company_name,is_active
+    FROM solid_fuel_companies
+    ORDER BY company_name COLLATE NOCASE
+  `).all();
+  return (r.results||[]).map(x=>({name:text(x.company_name),isActive:Number(x.is_active)===1})).filter(x=>x.name);
+}
+
+async function activeCompanies(db){
+  const r=await db.prepare(`
+    SELECT company_name
+    FROM solid_fuel_companies
+    WHERE is_active=1
+    ORDER BY company_name COLLATE NOCASE
+  `).all();
+  return (r.results||[]).map(x=>text(x.company_name)).filter(Boolean);
+}
+
+async function filterCompanies(db){
+  const r=await db.prepare(`
+    SELECT company_name FROM solid_fuel_companies
+    UNION
     SELECT company_name FROM solid_fuel_trouble_records WHERE deleted_at IS NULL AND company_name<>''
     UNION
     SELECT company_name FROM solid_fuel_unloading_logs WHERE deleted_at IS NULL AND company_name<>''
     ORDER BY company_name COLLATE NOCASE
   `).all();
   return (r.results||[]).map(x=>text(x.company_name)).filter(Boolean);
+}
+
+async function ensureCompanyPresent(db,name){
+  const company=cleanCompany(name);
+  if(!company) return "";
+  await db.prepare(`
+    INSERT OR IGNORE INTO solid_fuel_companies(company_name,is_active)
+    VALUES(?,1)
+  `).bind(company).run();
+  return company;
+}
+
+async function ensureCompanyActive(db,name){
+  const company=cleanCompany(name);
+  if(!company) return "";
+  await db.prepare(`
+    INSERT INTO solid_fuel_companies(company_name,is_active,updated_at)
+    VALUES(?,1,CURRENT_TIMESTAMP)
+    ON CONFLICT(company_name) DO UPDATE SET
+      is_active=1,
+      updated_at=CURRENT_TIMESTAMP
+  `).bind(company).run();
+  return company;
 }
 async function findTrouble(db,id){ return db.prepare(`SELECT * FROM solid_fuel_trouble_records WHERE id=? AND deleted_at IS NULL LIMIT 1`).bind(id).first(); }
 function photoKey(id,name,now=new Date()){ return ["solid-fuel-trouble",String(now.getUTCFullYear()),String(now.getUTCMonth()+1).padStart(2,"0"),id,`${crypto.randomUUID()}_${safeName(name)}`].join("/"); }
@@ -348,8 +432,24 @@ export async function onRequestGet(context){
     if(photoId) return servePhoto(context,photoId);
     const a=await auth(context); if(a.error) return a.error;
     await initialize(context.env.DB);
-    const [items,unloadingLogs,companyList]=await Promise.all([listTroubles(context.env.DB,url),listUnloadings(context.env.DB,url),companies(context.env.DB)]);
-    return json({ok:true,items,unloadingLogs,companies:companyList,permissions:{canCreate:true,canEdit:true,canDelete:a.user.isAdmin,canUploadPhoto:true,canManageUnloading:true},user:a.user,seed:{trouble:21,unloading:309}});
+    const [items,unloadingLogs,companyList,companyDir,filterCompanyList]=await Promise.all([
+      listTroubles(context.env.DB,url),
+      listUnloadings(context.env.DB,url),
+      activeCompanies(context.env.DB),
+      companyDirectory(context.env.DB),
+      filterCompanies(context.env.DB)
+    ]);
+    return json({
+      ok:true,
+      items,
+      unloadingLogs,
+      companies:companyList,
+      companyDirectory:companyDir,
+      filterCompanies:filterCompanyList,
+      permissions:{canCreate:true,canEdit:true,canDelete:a.user.isAdmin,canUploadPhoto:true,canManageUnloading:true,canManageCompanies:true},
+      user:a.user,
+      seed:{trouble:21,unloading:309}
+    });
   }catch(e){console.error("solid fuel V3 GET",e);return json({ok:false,message:e?.message||"조회 중 오류가 발생했습니다."},Number(e?.status)||500);}
 }
 
@@ -378,42 +478,50 @@ export async function onRequestPost(context){
     }
     const b=await context.request.json(),entity=text(b.entity||"trouble").toLowerCase();
 
+    if(entity==="company"){
+      const companyName=cleanCompany(b.companyName);
+      if(!companyName) return json({ok:false,message:"추가할 업체명을 입력해 주세요."},400);
+      await ensureCompanyActive(context.env.DB,companyName);
+      return json({ok:true,entity:"company",companyName,isActive:true},201);
+    }
+
     /*
-      V3 통합 등록
-      - 일반 하역: 기존 unloading branch 사용
-      - Trouble: 하역시간 + Trouble을 D1 batch로 한 번에 생성
-      - 공통 필드는 사용자가 한 번만 입력한다.
-      - 두 INSERT 중 하나가 실패하면 batch 전체가 실패한다.
+      V3.1 선택 입력
+      - 모든 공통 입력값은 선택사항
+      - 일자/시간이 비어 있어도 저장 가능
+      - 입고/출고가 모두 있을 때만 소요시간 계산
+      - Trouble 상세도 선택사항
     */
     if(entity==="combined"){
-      const date=text(b.unloadingDate||b.occurrenceDate),
-        arrival=text(b.arrivalTime),
-        departure=text(b.departureTime),
-        duration=durationMinutes(arrival,departure),
-        company=limited(b.companyName,80),
+      const date=optionalDate(b.unloadingDate||b.occurrenceDate),
+        arrival=optionalClock(b.arrivalTime),
+        departure=optionalClock(b.departureTime),
+        company=cleanCompany(b.companyName),
         vehicle=limited(b.vehicleNo,40),
         silo=limited(b.siloRoute,80),
         equipment=limited(b.equipment,500),
         note=limited(b.note,3000);
 
-      if(!isoDate(date)) return json({ok:false,message:"일자를 선택해 주세요."},400);
-      if(duration===null) return json({ok:false,message:"입고/출고 시간을 확인해 주세요."},400);
-      if(!company) return json({ok:false,message:"업체명을 입력해 주세요."},400);
-      if(!vehicle) return json({ok:false,message:"차량번호를 입력해 주세요."},400);
-      if(!silo) return json({ok:false,message:"하역 Silo를 선택해 주세요."},400);
-      if(!equipment) return json({ok:false,message:"Trouble 발생 설비/내용을 입력해 주세요."},400);
+      if(date===null) return json({ok:false,message:"일자 형식을 확인해 주세요."},400);
+      if(arrival===null||departure===null) return json({ok:false,message:"입고/출고 시간 형식을 확인해 주세요."},400);
 
-      const unloadingId=crypto.randomUUID(),
+      const duration=durationMinutes(arrival,departure),
+        durationKnown=Number.isFinite(duration)?1:0,
+        durationStored=durationKnown?duration:0,
+        unloadingId=crypto.randomUUID(),
         troubleId=crypto.randomUUID(),
         now=new Date().toISOString(),
-        unloadingNote=limited(`[Trouble] ${equipment}${note?`\n${note}`:""}`,3000);
+        troublePrefix=equipment?`[Trouble] ${equipment}`:"[Trouble]",
+        unloadingNote=limited(`${troublePrefix}${note?`\n${note}`:""}`,3000);
+
+      if(company) await ensureCompanyPresent(context.env.DB,company);
 
       const unloadingStatement=context.env.DB.prepare(`INSERT INTO solid_fuel_unloading_logs(
-        id,source_key,unloading_date,arrival_time,departure_time,duration_minutes,company_name,vehicle_no,silo_route,
+        id,source_key,unloading_date,arrival_time,departure_time,duration_minutes,duration_known,company_name,vehicle_no,silo_route,
         silo_a_company,silo_a_vehicle,silo_b_company,silo_b_vehicle,day_company,day_vehicle,note,version,
         created_by_id,created_by_name,updated_by_id,updated_by_name,created_at,updated_at
-      ) VALUES(?,NULL,?,?,?,?,?,?,?,'','','','','','',?,1,?,?,?,?,?,?)`)
-      .bind(unloadingId,date,arrival,departure,duration,company,vehicle,silo,unloadingNote,user.employeeNo,user.name,user.employeeNo,user.name,now,now);
+      ) VALUES(?,NULL,?,?,?,?,?,?,?,?,'','','','','','',?,1,?,?,?,?,?,?)`)
+      .bind(unloadingId,date,arrival,departure,durationStored,durationKnown,company,vehicle,silo,unloadingNote,user.employeeNo,user.name,user.employeeNo,user.name,now,now);
 
       const troubleStatement=context.env.DB.prepare(`INSERT INTO solid_fuel_trouble_records(
         id,source_key,occurrence_date,company_name,vehicle_no,equipment,note,legacy_photo_path,version,
@@ -432,32 +540,52 @@ export async function onRequestPost(context){
         unloadingId,
         troubleId,
         recordId:troubleId,
-        durationMinutes:duration,
+        durationKnown:Boolean(durationKnown),
+        durationMinutes:durationKnown?duration:null,
         version:1
       },201);
     }
 
     if(entity==="unloading"){
-      const date=text(b.unloadingDate),arrival=text(b.arrivalTime),departure=text(b.departureTime),duration=durationMinutes(arrival,departure);
-      if(!isoDate(date)) return json({ok:false,message:"하역 일자를 선택해 주세요."},400);
-      if(duration===null) return json({ok:false,message:"입고/출고 시간을 확인해 주세요."},400);
-      const id=crypto.randomUUID(),now=new Date().toISOString();
+      const date=optionalDate(b.unloadingDate),
+        arrival=optionalClock(b.arrivalTime),
+        departure=optionalClock(b.departureTime),
+        company=cleanCompany(b.companyName);
+
+      if(date===null) return json({ok:false,message:"하역 일자 형식을 확인해 주세요."},400);
+      if(arrival===null||departure===null) return json({ok:false,message:"입고/출고 시간 형식을 확인해 주세요."},400);
+
+      const duration=durationMinutes(arrival,departure),
+        durationKnown=Number.isFinite(duration)?1:0,
+        durationStored=durationKnown?duration:0,
+        id=crypto.randomUUID(),
+        now=new Date().toISOString();
+
+      if(company) await ensureCompanyPresent(context.env.DB,company);
+
       await context.env.DB.prepare(`INSERT INTO solid_fuel_unloading_logs(
-        id,source_key,unloading_date,arrival_time,departure_time,duration_minutes,company_name,vehicle_no,silo_route,
+        id,source_key,unloading_date,arrival_time,departure_time,duration_minutes,duration_known,company_name,vehicle_no,silo_route,
         silo_a_company,silo_a_vehicle,silo_b_company,silo_b_vehicle,day_company,day_vehicle,note,version,
         created_by_id,created_by_name,updated_by_id,updated_by_name,created_at,updated_at
-      ) VALUES(?,NULL,?,?,?,?,?,?,?,'','','','','','',?,1,?,?,?,?,?,?)`)
-      .bind(id,date,arrival,departure,duration,limited(b.companyName,80),limited(b.vehicleNo,40),limited(b.siloRoute,80),limited(b.note,3000),user.employeeNo,user.name,user.employeeNo,user.name,now,now).run();
-      return json({ok:true,id,recordId:id,version:1,durationMinutes:duration},201);
+      ) VALUES(?,NULL,?,?,?,?,?,?,?,?,'','','','','','',?,1,?,?,?,?,?,?)`)
+      .bind(id,date,arrival,departure,durationStored,durationKnown,company,limited(b.vehicleNo,40),limited(b.siloRoute,80),limited(b.note,3000),user.employeeNo,user.name,user.employeeNo,user.name,now,now).run();
+
+      return json({ok:true,id,recordId:id,version:1,durationKnown:Boolean(durationKnown),durationMinutes:durationKnown?duration:null},201);
     }
-    const date=text(b.occurrenceDate),equipment=limited(b.equipment,500);
-    if(!isoDate(date)) return json({ok:false,message:"발생 날짜를 선택해 주세요."},400);
-    if(!equipment) return json({ok:false,message:"발생 설비 또는 Trouble 내용을 입력해 주세요."},400);
+
+    const date=optionalDate(b.occurrenceDate),
+      equipment=limited(b.equipment,500),
+      company=cleanCompany(b.companyName);
+
+    if(date===null) return json({ok:false,message:"발생 날짜 형식을 확인해 주세요."},400);
+    if(company) await ensureCompanyPresent(context.env.DB,company);
+
     const id=crypto.randomUUID(),now=new Date().toISOString();
     await context.env.DB.prepare(`INSERT INTO solid_fuel_trouble_records(
       id,source_key,occurrence_date,company_name,vehicle_no,equipment,note,legacy_photo_path,version,
       created_by_id,created_by_name,updated_by_id,updated_by_name,created_at,updated_at
-    ) VALUES(?,NULL,?,?,?,?,?,'',1,?,?,?,?,?,?)`).bind(id,date,limited(b.companyName,80),limited(b.vehicleNo,40),equipment,limited(b.note,3000),user.employeeNo,user.name,user.employeeNo,user.name,now,now).run();
+    ) VALUES(?,NULL,?,?,?,?,?,'',1,?,?,?,?,?,?)`).bind(id,date,company,limited(b.vehicleNo,40),equipment,limited(b.note,3000),user.employeeNo,user.name,user.employeeNo,user.name,now,now).run();
+
     return json({ok:true,id,recordId:id,version:1},201);
   }catch(e){
     for(const id of photoIds){try{await context.env.DB?.prepare(`DELETE FROM solid_fuel_trouble_photos WHERE id=?`).bind(id).run();}catch{}}
@@ -468,23 +596,127 @@ export async function onRequestPost(context){
 
 export async function onRequestPut(context){
   try{
-    const a=await auth(context); if(a.error) return a.error; await initialize(context.env.DB); const b=await context.request.json(),entity=text(b.entity||"trouble").toLowerCase(),id=text(b.id||b.recordId),version=Number(b.version),u=a.user,now=new Date().toISOString();
-    if(!id||!Number.isInteger(version)||version<1) return json({ok:false,message:"수정 대상/버전 정보가 올바르지 않습니다."},400);
-    if(entity==="unloading"){
-      const date=text(b.unloadingDate),arrival=text(b.arrivalTime),departure=text(b.departureTime),duration=durationMinutes(arrival,departure);
-      if(!isoDate(date)||duration===null) return json({ok:false,message:"하역 일자와 입고/출고 시간을 확인해 주세요."},400);
-      const r=await context.env.DB.prepare(`UPDATE solid_fuel_unloading_logs SET unloading_date=?,arrival_time=?,departure_time=?,duration_minutes=?,company_name=?,vehicle_no=?,silo_route=?,note=?,version=version+1,updated_by_id=?,updated_by_name=?,updated_at=? WHERE id=? AND version=? AND deleted_at IS NULL`)
-      .bind(date,arrival,departure,duration,limited(b.companyName,80),limited(b.vehicleNo,40),limited(b.siloRoute,80),limited(b.note,3000),u.employeeNo,u.name,now,id,version).run();
-      if(Number(r?.meta?.changes||0)!==1) return json({ok:false,code:"VERSION_CONFLICT",message:"다른 사용자가 먼저 수정했습니다. 새로고침 후 다시 시도해 주세요."},409);
-      return json({ok:true,id,version:version+1,durationMinutes:duration});
+    const a=await auth(context);
+    if(a.error) return a.error;
+    await initialize(context.env.DB);
+
+    const b=await context.request.json(),
+      entity=text(b.entity||"trouble").toLowerCase(),
+      u=a.user,
+      now=new Date().toISOString();
+
+    if(entity==="company"){
+      const companyName=cleanCompany(b.companyName),
+        isActive=b.isActive===true||b.isActive===1||b.isActive==="1";
+
+      if(!companyName) return json({ok:false,message:"업체명을 확인해 주세요."},400);
+
+      const result=await context.env.DB.prepare(`
+        UPDATE solid_fuel_companies
+        SET is_active=?,updated_at=CURRENT_TIMESTAMP
+        WHERE company_name=?
+      `).bind(isActive?1:0,companyName).run();
+
+      if(Number(result?.meta?.changes||0)!==1){
+        if(isActive){
+          await ensureCompanyActive(context.env.DB,companyName);
+        }else{
+          return json({ok:false,message:"업체 목록에서 대상을 찾을 수 없습니다."},404);
+        }
+      }
+
+      return json({ok:true,entity:"company",companyName,isActive});
     }
-    const date=text(b.occurrenceDate),equipment=limited(b.equipment,500);
-    if(!isoDate(date)||!equipment) return json({ok:false,message:"날짜와 Trouble 내용을 확인해 주세요."},400);
-    const r=await context.env.DB.prepare(`UPDATE solid_fuel_trouble_records SET occurrence_date=?,company_name=?,vehicle_no=?,equipment=?,note=?,version=version+1,updated_by_id=?,updated_by_name=?,updated_at=? WHERE id=? AND version=? AND deleted_at IS NULL`)
-    .bind(date,limited(b.companyName,80),limited(b.vehicleNo,40),equipment,limited(b.note,3000),u.employeeNo,u.name,now,id,version).run();
-    if(Number(r?.meta?.changes||0)!==1) return json({ok:false,code:"VERSION_CONFLICT",message:"다른 사용자가 먼저 수정했습니다. 새로고침 후 다시 시도해 주세요."},409);
+
+    const id=text(b.id||b.recordId),
+      version=Number(b.version);
+
+    if(!id||!Number.isInteger(version)||version<1){
+      return json({ok:false,message:"수정 대상/버전 정보가 올바르지 않습니다."},400);
+    }
+
+    if(entity==="unloading"){
+      const date=optionalDate(b.unloadingDate),
+        arrival=optionalClock(b.arrivalTime),
+        departure=optionalClock(b.departureTime),
+        company=cleanCompany(b.companyName);
+
+      if(date===null) return json({ok:false,message:"하역 일자 형식을 확인해 주세요."},400);
+      if(arrival===null||departure===null) return json({ok:false,message:"입고/출고 시간 형식을 확인해 주세요."},400);
+
+      const duration=durationMinutes(arrival,departure),
+        durationKnown=Number.isFinite(duration)?1:0,
+        durationStored=durationKnown?duration:0;
+
+      if(company) await ensureCompanyPresent(context.env.DB,company);
+
+      const r=await context.env.DB.prepare(`
+        UPDATE solid_fuel_unloading_logs
+        SET unloading_date=?,arrival_time=?,departure_time=?,duration_minutes=?,duration_known=?,company_name=?,vehicle_no=?,silo_route=?,note=?,
+            version=version+1,updated_by_id=?,updated_by_name=?,updated_at=?
+        WHERE id=? AND version=? AND deleted_at IS NULL
+      `)
+      .bind(
+        date,
+        arrival,
+        departure,
+        durationStored,
+        durationKnown,
+        company,
+        limited(b.vehicleNo,40),
+        limited(b.siloRoute,80),
+        limited(b.note,3000),
+        u.employeeNo,
+        u.name,
+        now,
+        id,
+        version
+      )
+      .run();
+
+      if(Number(r?.meta?.changes||0)!==1){
+        return json({ok:false,code:"VERSION_CONFLICT",message:"다른 사용자가 먼저 수정했습니다. 새로고침 후 다시 시도해 주세요."},409);
+      }
+
+      return json({ok:true,id,version:version+1,durationKnown:Boolean(durationKnown),durationMinutes:durationKnown?duration:null});
+    }
+
+    const date=optionalDate(b.occurrenceDate),
+      equipment=limited(b.equipment,500),
+      company=cleanCompany(b.companyName);
+
+    if(date===null) return json({ok:false,message:"날짜 형식을 확인해 주세요."},400);
+    if(company) await ensureCompanyPresent(context.env.DB,company);
+
+    const r=await context.env.DB.prepare(`
+      UPDATE solid_fuel_trouble_records
+      SET occurrence_date=?,company_name=?,vehicle_no=?,equipment=?,note=?,
+          version=version+1,updated_by_id=?,updated_by_name=?,updated_at=?
+      WHERE id=? AND version=? AND deleted_at IS NULL
+    `)
+    .bind(
+      date,
+      company,
+      limited(b.vehicleNo,40),
+      equipment,
+      limited(b.note,3000),
+      u.employeeNo,
+      u.name,
+      now,
+      id,
+      version
+    )
+    .run();
+
+    if(Number(r?.meta?.changes||0)!==1){
+      return json({ok:false,code:"VERSION_CONFLICT",message:"다른 사용자가 먼저 수정했습니다. 새로고침 후 다시 시도해 주세요."},409);
+    }
+
     return json({ok:true,id,version:version+1});
-  }catch(e){console.error("solid fuel V3 PUT",e);return json({ok:false,message:e?.message||"수정 중 오류가 발생했습니다."},500);}
+  }catch(e){
+    console.error("solid fuel V3.1 PUT",e);
+    return json({ok:false,message:e?.message||"수정 중 오류가 발생했습니다."},500);
+  }
 }
 
 export async function onRequestDelete(context){

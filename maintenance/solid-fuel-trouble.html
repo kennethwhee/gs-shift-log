@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>고형연료 Trouble | GS Shift Log</title>
-  <link rel="stylesheet" href="/maintenance/solid-fuel-trouble.css?v=20260827-v3">
+  <link rel="stylesheet" href="/maintenance/solid-fuel-trouble.css?v=20260828-v3.1">
 </head>
 <body>
   <main class="page">
@@ -18,6 +18,7 @@
       <div class="head-actions">
         <button class="btn ghost" id="refreshBtn" type="button">새로고침</button>
         <button class="btn primary" id="createRecordBtn" type="button">+ 기록 등록</button>
+        <button class="btn ghost" id="companyManageBtn" type="button">업체 관리</button>
         <a class="btn ghost" href="/">업무일지</a>
       </div>
     </header>
@@ -42,7 +43,9 @@
 
         <label>
           <span>업체명</span>
-          <input id="filterCompany" list="companyList" placeholder="전체">
+          <select id="filterCompany">
+            <option value="">전체</option>
+          </select>
         </label>
 
         <label>
@@ -69,7 +72,6 @@
         </div>
       </form>
 
-      <datalist id="companyList"></datalist>
     </section>
 
     <section class="summary-strip" aria-label="조회 요약">
@@ -237,31 +239,37 @@
           </label>
         </fieldset>
 
+        <p class="record-optional-guide">
+          모든 입력 항목은 선택사항입니다. 일자는 기본값으로 오늘이 입력되며, 모르는 항목은 비워둔 채 등록할 수 있습니다.
+        </p>
+
         <section class="editor-section">
           <header>
             <strong>차량 · 하역 정보</strong>
-            <small>분류와 관계없이 같은 형식으로 입력합니다.</small>
+            <small>필수항목 없음 · 확인된 내용만 입력해도 저장됩니다.</small>
           </header>
 
           <div class="record-grid">
             <label>
-              <span>일자 <em>필수</em></span>
-              <input id="recordDate" type="date" required>
+              <span>일자</span>
+              <input id="recordDate" type="date">
             </label>
 
             <label>
-              <span>업체명 <em>필수</em></span>
-              <input id="recordCompany" list="companyList" maxlength="80" placeholder="예: 수도권" required>
+              <span>업체명</span>
+              <select id="recordCompany">
+                <option value="">선택 안 함</option>
+              </select>
             </label>
 
             <label>
-              <span>차량번호 <em>필수</em></span>
-              <input id="recordVehicle" maxlength="40" placeholder="예: 4202" required>
+              <span>차량번호</span>
+              <input id="recordVehicle" maxlength="40" placeholder="예: 4202">
             </label>
 
             <label>
-              <span>하역 Silo <em>필수</em></span>
-              <select id="recordSilo" required>
+              <span>하역 Silo</span>
+              <select id="recordSilo">
                 <option value="">선택</option>
                 <option value="#A">#A Storage Silo</option>
                 <option value="#B">#B Storage Silo</option>
@@ -274,18 +282,18 @@
             </label>
 
             <label>
-              <span>입고 <em>필수</em></span>
-              <input id="recordArrival" type="time" required>
+              <span>입고</span>
+              <input id="recordArrival" type="time">
             </label>
 
             <label>
-              <span>출고 <em>필수</em></span>
-              <input id="recordDeparture" type="time" required>
+              <span>출고</span>
+              <input id="recordDeparture" type="time">
             </label>
 
             <label class="duration-field">
               <span>소요시간</span>
-              <input id="recordDurationPreview" readonly placeholder="자동 계산">
+              <input id="recordDurationPreview" readonly placeholder="입·출고 입력 시 자동 계산">
             </label>
           </div>
 
@@ -302,7 +310,7 @@
           </header>
 
           <label>
-            <span>발생 설비 / Trouble 내용 <em>필수</em></span>
+            <span>발생 설비 / Trouble 내용</span>
             <textarea id="recordEquipment" rows="3" maxlength="500" placeholder="예: Storage Silo #A 하역라인 곡관부 막힘"></textarea>
           </label>
 
@@ -335,12 +343,12 @@
         <input id="troubleVersion" type="hidden">
 
         <div class="editor-grid">
-          <label><span>날짜 <em>필수</em></span><input id="troubleDate" type="date" required></label>
-          <label><span>업체명</span><input id="troubleCompany" list="companyList" maxlength="80"></label>
+          <label><span>날짜</span><input id="troubleDate" type="date"></label>
+          <label><span>업체명</span><select id="troubleCompany"><option value="">선택 안 함</option></select></label>
           <label><span>차량번호</span><input id="troubleVehicle" maxlength="40"></label>
         </div>
 
-        <label><span>발생 설비 / Trouble <em>필수</em></span><textarea id="troubleEquipment" rows="3" maxlength="500" required></textarea></label>
+        <label><span>발생 설비 / Trouble</span><textarea id="troubleEquipment" rows="3" maxlength="500"></textarea></label>
         <label><span>비고 / 조치내용</span><textarea id="troubleNote" rows="5" maxlength="3000"></textarea></label>
         <label><span>샘플 사진 <small>신규 사진 최대 4장 · 장당 10MB</small></span><input id="troubleFiles" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple></label>
 
@@ -368,11 +376,11 @@
         <input id="unloadVersion" type="hidden">
 
         <div class="unload-editor-grid">
-          <label><span>일자 <em>필수</em></span><input id="unloadDate" type="date" required></label>
-          <label><span>입고 <em>필수</em></span><input id="unloadArrival" type="time" required></label>
-          <label><span>출고 <em>필수</em></span><input id="unloadDeparture" type="time" required></label>
+          <label><span>일자</span><input id="unloadDate" type="date"></label>
+          <label><span>입고</span><input id="unloadArrival" type="time"></label>
+          <label><span>출고</span><input id="unloadDeparture" type="time"></label>
           <label><span>소요시간</span><input id="unloadDurationPreview" readonly></label>
-          <label><span>업체명</span><input id="unloadCompany" list="companyList" maxlength="80"></label>
+          <label><span>업체명</span><select id="unloadCompany"><option value="">선택 안 함</option></select></label>
           <label><span>차량번호</span><input id="unloadVehicle" maxlength="40"></label>
           <label><span>하역 Silo</span>
             <select id="unloadSilo">
@@ -399,6 +407,45 @@
     </section>
   </div>
 
+  <!-- 업체 관리 -->
+  <div class="modal" id="companyModal" hidden>
+    <section class="modal-card company-manager-card" role="dialog" aria-modal="true" aria-labelledby="companyManagerTitle">
+      <header class="modal-head">
+        <div>
+          <span>COMPANY DIRECTORY</span>
+          <h2 id="companyManagerTitle">업체 관리</h2>
+        </div>
+        <button class="icon-btn" id="companyClose" type="button" aria-label="닫기">×</button>
+      </header>
+
+      <div class="company-manager">
+        <div class="company-manager__guide">
+          <strong>신규 하역 업체 목록</strong>
+          <p>새 업체는 추가하고, 더 이상 사용하지 않는 업체는 <b>사용중지</b>할 수 있습니다. 사용중지해도 과거 기록은 그대로 유지됩니다.</p>
+        </div>
+
+        <form class="company-manager__add" id="companyAddForm">
+          <label>
+            <span>업체명</span>
+            <input id="companyNameInput" maxlength="80" placeholder="예: 신규 업체명" autocomplete="off">
+          </label>
+          <button class="btn primary" id="companyAddButton" type="submit">+ 업체 추가</button>
+        </form>
+
+        <div class="company-manager__list-head">
+          <strong>업체 목록</strong>
+          <span id="companyManagerStatus">조회 대기</span>
+        </div>
+
+        <div class="company-manager__list" id="companyManagerList"></div>
+
+        <footer class="modal-foot">
+          <button class="btn ghost" id="companyCancel" type="button">닫기</button>
+        </footer>
+      </div>
+    </section>
+  </div>
+
   <div class="modal photo-modal" id="photoModal" hidden>
     <section class="photo-viewer">
       <header class="photo-toolbar">
@@ -419,6 +466,6 @@
     </section>
   </div>
 
-  <script src="/maintenance/solid-fuel-trouble.js?v=20260827-v3" defer></script>
+  <script src="/maintenance/solid-fuel-trouble.js?v=20260828-v3.1" defer></script>
 </body>
 </html>
