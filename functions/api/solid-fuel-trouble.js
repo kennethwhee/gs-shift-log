@@ -322,6 +322,56 @@ async function initialize(db){
       )
       WHERE company_name<>''
     `).run();
+
+    /*
+      V3.1.2
+      기존 Excel Trouble 샘플 사진 4건 복구.
+
+      이전 버전에서 legacy_photo_path가 비어 있더라도
+      source_key가 같은 원본 Trouble 행에 사진 경로만 다시 연결한다.
+      날짜/업체/차량/설비/비고 등 사용자가 수정한 다른 값은 건드리지 않는다.
+    */
+    await db.batch([
+      db.prepare(`
+        UPDATE solid_fuel_trouble_records
+        SET legacy_photo_path=?
+        WHERE source_key=?
+          AND deleted_at IS NULL
+      `).bind(
+        "/maintenance/solid-fuel-trouble-assets/excel-001.jpeg",
+        "excel-20260623-001"
+      ),
+
+      db.prepare(`
+        UPDATE solid_fuel_trouble_records
+        SET legacy_photo_path=?
+        WHERE source_key=?
+          AND deleted_at IS NULL
+      `).bind(
+        "/maintenance/solid-fuel-trouble-assets/excel-002.jpeg",
+        "excel-20260623-002"
+      ),
+
+      db.prepare(`
+        UPDATE solid_fuel_trouble_records
+        SET legacy_photo_path=?
+        WHERE source_key=?
+          AND deleted_at IS NULL
+      `).bind(
+        "/maintenance/solid-fuel-trouble-assets/excel-005.jpeg",
+        "excel-20260701-005"
+      ),
+
+      db.prepare(`
+        UPDATE solid_fuel_trouble_records
+        SET legacy_photo_path=?
+        WHERE source_key=?
+          AND deleted_at IS NULL
+      `).bind(
+        "/maintenance/solid-fuel-trouble-assets/excel-013.jpeg",
+        "excel-20260724-013"
+      )
+    ]);
   })().catch(e=>{initPromise=null;throw e;});
   return initPromise;
 }

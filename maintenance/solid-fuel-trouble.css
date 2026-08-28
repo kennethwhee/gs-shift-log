@@ -793,3 +793,254 @@ body{
     grid-template-columns:minmax(0,1fr) 72px 88px;
   }
 }
+/* =========================================================
+  SOLID-FUEL-TROUBLE-V3.1.2
+  가독성 2차 강화 + 사진 없음 표시 단순화
+========================================================= */
+
+/*
+  화면 핵심 데이터는 13px 이하로 내려가지 않도록 한다.
+  얇은 보조문구보다 실제 표/통계 값을 우선한다.
+*/
+.analytics-block h2{
+  margin-bottom:9px;
+  color:#294a68;
+  font-size:14px;
+  font-weight:900;
+  letter-spacing:-.015em;
+}
+
+.analytics-table th,
+.analytics-table td{
+  height:46px;
+  padding:10px 12px;
+  font-size:14px;
+  line-height:1.45;
+}
+
+.analytics-table th{
+  color:#294a67;
+  font-size:13px;
+  font-weight:900;
+}
+
+.analytics-table td{
+  color:#173b59;
+  font-weight:700;
+}
+
+.analytics-table td:first-child{
+  font-weight:900;
+}
+
+.silo-summary{
+  gap:7px;
+}
+
+.silo-summary__row{
+  min-height:48px;
+  padding:10px 13px;
+}
+
+.silo-summary__row span{
+  color:#294861;
+  font-size:14px;
+  font-weight:900;
+}
+
+.silo-summary__row strong{
+  color:#145a93;
+  font-size:17px;
+  font-weight:900;
+}
+
+.silo-summary__row small{
+  font-size:12px;
+  font-weight:700;
+}
+
+.section-head,
+.sheet-head{
+  min-height:48px;
+  padding:11px 14px;
+}
+
+.section-head strong,
+.sheet-head strong{
+  color:#1d3d58;
+  font-size:14px;
+  font-weight:900;
+}
+
+.section-head span,
+.sheet-head span,
+.section-head small,
+.sheet-head small{
+  font-size:11.5px;
+  font-weight:650;
+}
+
+.tab{
+  min-height:42px;
+  padding:0 17px;
+  font-size:13px;
+  font-weight:900;
+}
+
+.tab span{
+  min-width:22px;
+  padding:2px 6px;
+  font-size:10.5px;
+}
+
+.data-table thead th{
+  height:46px;
+  padding:9px 9px;
+  color:#173650;
+  font-size:13.5px;
+  font-weight:900;
+  letter-spacing:-.01em;
+}
+
+.data-table tbody td{
+  min-height:56px;
+  padding:13px 11px;
+  color:#183a56;
+  font-size:14.5px;
+  font-weight:650;
+  line-height:1.62;
+}
+
+.data-table tbody tr:nth-child(even) td{
+  background:#fbfcfe;
+}
+
+.data-table td.no,
+.data-table td.date,
+.data-table td.company,
+.data-table td.vehicle,
+.data-table td.clock,
+.data-table td.duration,
+.data-table td.silo{
+  font-weight:800;
+}
+
+.data-table td.equipment,
+.data-table td.note{
+  font-size:14.5px;
+  font-weight:700;
+  line-height:1.65;
+}
+
+.duration-badge,
+.silo-pill{
+  font-size:12px;
+  font-weight:900;
+}
+
+/* Trouble 사진 열 */
+.data-table td.photo{
+  text-align:center;
+  vertical-align:middle;
+}
+
+.photo-list{
+  align-items:center;
+  justify-content:center;
+}
+
+.thumb{
+  width:72px;
+  height:72px;
+  border-radius:8px;
+}
+
+/*
+  사진이 없으면 동그란 badge를 만들지 않고
+  칸 중앙에 '-' 문자 하나만 표시한다.
+*/
+.photo-empty{
+  display:inline-block;
+  min-width:0;
+  margin:0;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:#7d8d9d;
+  font-size:15px;
+  font-weight:800;
+  line-height:1;
+  text-align:center;
+}
+
+.row-actions{
+  gap:7px;
+}
+
+.row-actions .btn{
+  min-height:34px;
+  padding:0 8px;
+  font-size:11.5px;
+  font-weight:850;
+}
+
+/* 등록창도 본문과 비슷한 크기로 유지 */
+.modal-head h2{
+  font-size:23px;
+}
+
+.record-kind legend,
+.editor label>span{
+  font-size:12.5px;
+  font-weight:900;
+}
+
+.record-kind__option strong{
+  font-size:15px;
+}
+
+.record-kind__option small,
+.record-optional-guide,
+.editor-section>header small{
+  font-size:12px;
+}
+
+.editor-section>header strong{
+  font-size:14px;
+}
+
+.editor input,
+.editor select{
+  font-size:14px;
+  font-weight:650;
+}
+
+.editor textarea{
+  font-size:14px;
+  font-weight:650;
+  line-height:1.65;
+}
+
+/* 작은 화면에서는 과도한 확대만 제한 */
+@media(max-width:760px){
+  .analytics-table th,
+  .analytics-table td{
+    font-size:12.5px;
+  }
+
+  .data-table thead th{
+    font-size:12px;
+  }
+
+  .data-table tbody td,
+  .data-table td.equipment,
+  .data-table td.note{
+    font-size:13px;
+  }
+
+  .thumb{
+    width:62px;
+    height:62px;
+  }
+}
