@@ -1544,6 +1544,7 @@
     const actualStarted = cycleStartState === "started" && Boolean(asset.cycleStartedAt);
     const events = getAssetEvents(tagNumber)
       .filter(event => ["replacement", "startup", "operation_start", "operation_stop"].includes(event.eventType));
+    const latestRuntimeEvent = latestExplicitRuntimeEvent(asset);
 
     elements.historyDialogTitle.textContent = `${asset.positionLabel} 이력`;
     elements.historyDialogAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
@@ -1553,7 +1554,12 @@
         <div><span>최근 V-Belt 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
         <div><span>현재 운전상태</span><strong>${asset.isRunning ? "운전중" : "정지"}</strong></div>
         <div><span>누적 운전시간</span><strong>${startupPending ? "0시간" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
-        <div><span>상태 변경 방식</span><strong>카드 기동·정지 / 업무일지 교체운전 자동</strong></div>
+        <div>
+          <span>누적시간 관리</span>
+          ${hasAuthenticatedWriteAccess() && !startupPending
+            ? `<button type="button" class="button secondary history-runtime-edit" data-mobile-write data-history-action="runtime">누적시간 수정</button>`
+            : `<strong>${startupPending ? "기동 후 수정 가능" : "조회 전용"}</strong>`}
+        </div>
       `
       : awaitingBackfill
         ? `
@@ -1569,6 +1575,18 @@
       ? events.map(event => {
           const content = displayEventContent(event) || "등록 내용 없음";
           const detail = [event.issueType, event.actionType].filter(Boolean).join(" → ");
+          const expectedState = event.eventType === "operation_stop" ? "stopped" : "running";
+          const currentState = asset.isRunning ? "running" : "stopped";
+          const editableRuntimeEvent = (
+            hasAuthenticatedWriteAccess() &&
+            Boolean(event.id) &&
+            latestRuntimeEvent?.id === event.id &&
+            ["operation_start", "operation_stop"].includes(event.eventType) &&
+            event.sourceType === "manual" &&
+            cycleStartState !== "pending" &&
+            expectedState === currentState
+          );
+          const edited = Boolean(event.updatedAt && event.createdAt && event.updatedAt !== event.createdAt);
 
           return `
             <article class="asset-history-item">
@@ -1577,6 +1595,12 @@
                 <div class="asset-history-heading">
                   <span class="event-badge ${escapeHtml(event.eventType)}">${escapeHtml(eventLabel(event.eventType))}</span>
                   ${detail ? `<strong>${escapeHtml(detail)}</strong>` : ""}
+                  ${edited ? `<span class="event-edited">수정됨</span>` : ""}
+                  ${editableRuntimeEvent ? `
+                    <span class="asset-history-actions">
+                      <button type="button" class="button asset-history-edit" data-mobile-write data-history-action="runtime_state_edit" data-event-id="${escapeHtml(event.id)}">시간 수정</button>
+                    </span>
+                  ` : ""}
                 </div>
                 <p>${escapeHtml(content)}</p>
                 <small>${escapeHtml(historySourceLabel(event))}${event.createdByName ? ` · ${escapeHtml(event.createdByName)}` : ""}${Number(event.runtimeHours) > 0 ? ` · 당시 ${escapeHtml(historyRuntimeLabel(event))}` : ""}</small>
@@ -3151,6 +3175,16 @@
       if (!button || !state.historyAssetTag) return;
       const action = button.dataset.historyAction;
       const tagNumber = state.historyAssetTag;
+      if (action === "runtime_state_edit") {
+        const editedEvent = findEvent(button.dataset.eventId);
+        if (!editedEvent) {
+          showToast("수정할 운전상태 이력을 찾을 수 없습니다.", "error");
+          return;
+        }
+        elements.historyDialog.close();
+        openRecordDialog(action, tagNumber, editedEvent);
+        return;
+      }
       elements.historyDialog.close();
       openRecordDialog(action, tagNumber);
     });
