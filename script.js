@@ -153231,7 +153231,7 @@ function buildMorningMeetingShiftPartRows(
 
 
           return (
-            `${itemNumber}) ${cleanText}`
+            ` ${itemNumber}) ${cleanText}`
           );
         }
       )
@@ -157099,8 +157099,8 @@ const itemNumber =
 const firstLine =
   isWeekendMode &&
   shortDate
-    ? `${itemNumber}) ${shortDate} ${mainText}`
-    : `${itemNumber}) ${mainText}`;
+    ? ` ${itemNumber}) ${shortDate} ${mainText}`
+    : ` ${itemNumber}) ${mainText}`;
 
 
 const outputText = [
@@ -158323,7 +158323,7 @@ function formatMorningMeetingTmItemText(
   */
 
   const numberText =
-    `${itemIndex + 1})`;
+    ` ${itemIndex + 1})`;
 
 
   const firstLine = [
@@ -181181,6 +181181,7 @@ async function loadSavedLimestoneUsageRecords(
   - 일반 작업의 "TM 발행" 문구는 가져오지 않음
 ===================================================== */
 
+/* [MORNING-MEETING-EXPORT-INDENT-COAL-TM-SCOPE-V1] */
 function findDedicatedCoalTmText(
   worksheet
 ) {
@@ -181283,9 +181284,139 @@ function findDedicatedCoalTmText(
 
 
   /*
-    TM 영역 다음에 나오는
-    "금일 주요작업" 제목을 경계로 사용한다.
+    중요:
+    행 범위만으로 검색하지 않고
+    같은 제목 행의 "T M" 열과 "Red Tag" 열을 찾아
+    실제 TM 전용 열 범위만 검사한다.
   */
+
+  const sameHeadingRowEntries =
+    entries.filter(
+      entry => {
+        return entry.row ===
+          heading.row;
+      }
+    );
+
+
+  const tmHeading =
+    sameHeadingRowEntries.find(
+      entry => {
+        return normalizeSearchText(
+          entry.text
+        ) ===
+          "tm";
+      }
+    );
+
+
+  if (
+    !tmHeading
+  ) {
+    return "";
+  }
+
+
+  const redTagHeading =
+    sameHeadingRowEntries.find(
+      entry => {
+        return normalizeSearchText(
+          entry.text
+        ).includes(
+          "redtag"
+        );
+      }
+    );
+
+
+  const mergeRanges =
+    Array.isArray(
+      worksheet["!merges"]
+    )
+      ? worksheet["!merges"]
+      : [];
+
+
+  const findMergeRange =
+    (
+      row,
+      column
+    ) => {
+      return (
+        mergeRanges.find(
+          range => {
+            return (
+              row >=
+                range.s.r &&
+              row <=
+                range.e.r &&
+              column >=
+                range.s.c &&
+              column <=
+                range.e.c
+            );
+          }
+        ) ||
+        null
+      );
+    };
+
+
+  const tmHeadingMerge =
+    findMergeRange(
+      tmHeading.row,
+      tmHeading.column
+    );
+
+
+  const redTagHeadingMerge =
+    redTagHeading
+      ? findMergeRange(
+          redTagHeading.row,
+          redTagHeading.column
+        )
+      : null;
+
+
+  const tmStartColumn =
+    tmHeadingMerge
+      ? tmHeadingMerge.s.c
+      : tmHeading.column;
+
+
+  const redTagStartColumn =
+    redTagHeading
+      ? (
+          redTagHeadingMerge
+            ? redTagHeadingMerge.s.c
+            : redTagHeading.column
+        )
+      : null;
+
+
+  const tmEndColumn =
+    Number.isInteger(
+      redTagStartColumn
+    ) &&
+    redTagStartColumn >
+      tmStartColumn
+      ? redTagStartColumn -
+        1
+      : (
+          tmHeadingMerge
+            ? tmHeadingMerge.e.c
+            : tmStartColumn +
+              8
+        );
+
+
+  if (
+    tmEndColumn <
+      tmStartColumn
+  ) {
+    return "";
+  }
+
 
   const nextWorkHeading =
     entries.find(
@@ -181315,25 +181446,63 @@ function findDedicatedCoalTmText(
         6;
 
 
+  const getNumberedLineCount =
+    value => {
+      return String(
+        value ||
+        ""
+      )
+        .split(
+          /\r?\n/
+        )
+        .filter(
+          line => {
+            return /^\s*\d+\s*[.)]\s*\S+/.test(
+              line
+            );
+          }
+        ).length;
+    };
+
+
   const tmCandidates =
-    entries.filter(
-      entry => {
-        return (
-          entry.address !==
-            heading.address &&
-
-          entry.row >=
-            heading.row &&
-
-          entry.row <=
-            lastTmRow &&
-
-          /^\s*1\s*[.)]\s*\S+/.test(
-            entry.text
-          )
-        );
-      }
-    );
+    entries
+      .filter(
+        entry => {
+          return (
+            entry.row >
+              heading.row &&
+            entry.row <=
+              lastTmRow &&
+            entry.column >=
+              tmStartColumn &&
+            entry.column <=
+              tmEndColumn &&
+            /^\s*1\s*[.)]\s*\S+/.test(
+              entry.text
+            )
+          );
+        }
+      )
+      .sort(
+        (
+          first,
+          second
+        ) => {
+          return (
+            getNumberedLineCount(
+              second.text
+            ) -
+              getNumberedLineCount(
+                first.text
+              ) ||
+            first.row -
+              second.row ||
+            first.column -
+              second.column
+          );
+        }
+      );
 
 
   if (
@@ -181344,19 +181513,10 @@ function findDedicatedCoalTmText(
   }
 
 
-  return tmCandidates[
-    0
-  ].text;
+  return tmCandidates[0]
+    .text;
 }
 
-/* =====================================================
-  운탄일지 TM 실제 추출
-
-  중요:
-  - TM 및 RED TAG 발행 전용 칸만 사용
-  - 전용 칸이 비어 있으면 0건
-  - 일반 주요작업의 "TM 발행" 문구는 제외
-===================================================== */
 
 async function extractCoalTmItems(
   file
@@ -181410,8 +181570,9 @@ async function extractCoalTmItems(
 
 
   /*
-    전용 TM 칸이 비어 있으면
-    반드시 0건으로 처리한다.
+    TM 전용 칸이 비어 있으면 0건이다.
+    일반 주요작업이나 특이사항의
+    "TM 발행" 문구는 대체 자료로 사용하지 않는다.
   */
 
   if (
@@ -181426,6 +181587,7 @@ async function extractCoalTmItems(
     "coal-tm"
   );
 }
+
 
   /* =====================================================
     항목 조회
