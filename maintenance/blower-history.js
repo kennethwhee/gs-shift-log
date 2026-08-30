@@ -77,6 +77,8 @@
       "actionType",
       "replacementRunningField",
       "replacementRunning",
+      "replacementStartupAtField",
+      "replacementStartupAt",
       "runtimeHoursField",
       "runtimeHours",
       "runtimeStateField",
@@ -422,6 +424,40 @@
     return `${values.year}-${values.month}-${values.day}`;
   }
 
+  function formatKstDateTimeInput(date = new Date()) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23"
+    }).formatToParts(date);
+    const values = Object.fromEntries(
+      parts.filter(part => part.type !== "literal").map(part => [part.type, part.value])
+    );
+    return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+  }
+
+  function formatKstDateTimeDisplay(value) {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "-";
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23"
+    }).formatToParts(parsed);
+    const values = Object.fromEntries(
+      parts.filter(part => part.type !== "literal").map(part => [part.type, part.value])
+    );
+    return `${values.year}-${values.month}-${values.day} ${values.hour}:${values.minute}`;
+  }
+
   function formatKstDownloadTimestamp(date = new Date()) {
     const parts = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Seoul",
@@ -502,6 +538,7 @@
 
   function formatSignedRemaining(asset) {
     if (!asset.lastReplacementAt) return "확정된 V-Belt 교체 이력이 없습니다.";
+    if (!asset.cycleStartedAt) return "기동 등록 전 · 주기 계산 대기";
     if (asset.severity === "unset") return "교체주기 설정 필요";
 
     const remaining = Number(asset.remainingHours);
@@ -521,6 +558,7 @@
       warning: "교체 예정",
       critical: "교체 임박",
       overdue: "교체주기 초과",
+      startup_pending: "기동 대기",
       unset: "기준 미설정",
       unknown: "교체일 미확인"
     }[severity] || "확인 필요";
@@ -529,7 +567,7 @@
   function displaySeverity(asset) {
     if (!asset?.lastReplacementAt) return "unknown";
     if (isAssetAwaitingBackfill(asset)) return "unknown";
-    return ["normal", "warning", "critical", "overdue", "unset"].includes(asset.severity)
+    return ["normal", "warning", "critical", "overdue", "startup_pending", "unset"].includes(asset.severity)
       ? asset.severity
       : "normal";
   }
@@ -537,6 +575,7 @@
   function eventLabel(type) {
     return {
       replacement: "V-Belt 교체",
+      startup: "기동",
       problem: "문제발생",
       runtime_correction: "운전시간 보정",
       note: "메모"
@@ -612,6 +651,7 @@
       ["warning", "교체 예정", counts.warning || 0],
       ["critical", "교체 임박", counts.critical || 0],
       ["overdue", "주기 초과", counts.overdue || 0],
+      ["startup_pending", "기동 대기", counts.startup_pending || 0],
       ["unknown", "교체일 미확인", counts.unknown || 0],
       ["unset", "기준 미설정", counts.unset || 0]
     ];
@@ -865,6 +905,10 @@
     const replacementEvent = asset.lastReplacementAt ? getLatestReplacementEvent(asset) : null;
     const awaitingBackfill = isAssetAwaitingBackfill(asset);
     const confirmed = Boolean(asset.lastReplacementAt) && !awaitingBackfill;
+    const cycleStartState = String(asset.cycleStartState || "legacy");
+    const startupPending = confirmed && cycleStartState === "pending";
+    const actualStarted = confirmed && cycleStartState === "started" && Boolean(asset.cycleStartedAt);
+    const cycleAnchorAt = actualStarted ? asset.cycleStartedAt : (startupPending ? "" : asset.lastReplacementAt);
     const severity = displaySeverity(asset);
     const evidence = readableEvidence(replacementEvent);
     const fullEvidence = fullEvidenceText(replacementEvent);
@@ -872,10 +916,10 @@
     const cycleHours = cycleDays > 0 ? cycleDays * 24 : null;
     const rawProgress = cycleHours ? (cycleElapsedHours / cycleHours) * 100 : 0;
     const progress = Math.max(0, Math.min(100, rawProgress));
-    const nextReplacementAt = cycleDays > 0 && asset.lastReplacementAt
-      ? addDaysToDate(asset.lastReplacementAt, cycleDays)
+    const nextReplacementAt = cycleDays > 0 && cycleAnchorAt
+      ? addDaysToDate(cycleAnchorAt, cycleDays)
       : "-";
-    const remainingLabel = cycleHours ? formatRemainingDday(nextReplacementAt) : "-";
+    const remainingLabel = cycleHours && !startupPending ? formatRemainingDday(nextReplacementAt) : "-";
     const remainingDetail = cycleHours ? formatSignedRemaining(asset) : "교체주기 미설정";
     const evidenceText = fullEvidence || emptyEvidenceMessage(replacementEvent);
     const evidencePreview = evidence || evidenceText;
@@ -895,10 +939,10 @@
         </div>
 
         ${confirmed ? `
-          <div class="cycle-overview" title="${escapeHtml(remainingDetail)}">
+          <div class="cycle-overview${startupPending ? " is-startup-pending" : ""}" title="${escapeHtml(remainingDetail)}">
             <div class="cycle-primary-metric">
-              <span>교체 경과</span>
-              <strong>${escapeHtml(formatDaysHours(cycleElapsedHours))}</strong>
+              <span>${startupPending ? "주기 상태" : (actualStarted ? "기동 경과" : "교체 경과")}</span>
+              <strong>${startupPending ? "기동 대기" : escapeHtml(formatDaysHours(cycleElapsedHours))}</strong>
             </div>
             <div class="cycle-deadline-metric ${escapeHtml(severity)}">
               <span>D-day</span>
@@ -906,11 +950,11 @@
             </div>
             <div class="cycle-usage-metric ${escapeHtml(severity)}">
               <span>주기 사용</span>
-              <strong>${cycleHours ? `${Math.round(rawProgress).toLocaleString("ko-KR")}%` : "-"}</strong>
+              <strong>${cycleHours && !startupPending ? `${Math.round(rawProgress).toLocaleString("ko-KR")}%` : "-"}</strong>
             </div>
           </div>
 
-          ${cycleHours ? `
+          ${cycleHours && !startupPending ? `
             <div class="cycle-progress-block">
               <div
                 class="progress-track"
@@ -923,14 +967,24 @@
                 <div class="progress-bar" style="width:${progress.toFixed(2)}%"></div>
               </div>
             </div>
-          ` : ""}
+          ` : (startupPending && cycleHours ? `<div class="cycle-progress-block is-placeholder" aria-hidden="true"><div class="progress-track"></div></div>` : "")}
 
-          <div class="cycle-date-line">
-            <span><em>최근</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
-            <b aria-hidden="true">→</b>
-            <span><em>예정</em><strong>${escapeHtml(nextReplacementAt)}</strong></span>
-            <small>기준 ${cycleHours ? `${cycleDays.toLocaleString("ko-KR")}일` : "미설정"}</small>
-          </div>
+          ${actualStarted || startupPending ? `
+            <div class="cycle-date-line${startupPending ? " is-startup-pending" : " has-cycle-start"}">
+              <span><em>교체</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
+              <b aria-hidden="true">→</b>
+              <span><em>기동</em><strong>${startupPending ? "미등록" : escapeHtml(formatDate(asset.cycleStartedAt))}</strong></span>
+              ${startupPending ? "" : `<b aria-hidden="true">→</b><span><em>예정</em><strong>${escapeHtml(nextReplacementAt)}</strong></span>`}
+              <small>기준 ${cycleHours ? `${cycleDays.toLocaleString("ko-KR")}일` : "미설정"}</small>
+            </div>
+          ` : `
+            <div class="cycle-date-line">
+              <span><em>최근</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
+              <b aria-hidden="true">→</b>
+              <span><em>예정</em><strong>${escapeHtml(nextReplacementAt)}</strong></span>
+              <small>기준 ${cycleHours ? `${cycleDays.toLocaleString("ko-KR")}일` : "미설정"}</small>
+            </div>
+          `}
 
           <div class="asset-evidence${evidence ? "" : " is-empty"}">
             <div class="evidence-heading">
@@ -954,11 +1008,13 @@
         `}
 
         <div class="asset-actions">
-          <button type="button" class="asset-action primary" data-mobile-write data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">V-Belt 교체 등록</button>
+          ${startupPending ? `<button type="button" class="asset-action primary" data-mobile-write data-asset-action="startup" data-tag="${escapeHtml(asset.tagNumber)}">기동 등록</button>` : ""}
+          ${startupPending ? "" : `<button type="button" class="asset-action primary" data-mobile-write data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">V-Belt 교체 등록</button>`}
           <button type="button" class="asset-action" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}">이력 보기</button>
           <details class="asset-more" data-mobile-write>
             <summary aria-label="추가 관리 메뉴">•••</summary>
             <div class="asset-more-menu">
+              ${startupPending ? `<button type="button" data-mobile-write data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">V-Belt 교체 다시 등록</button>` : ""}
               <button type="button" data-mobile-write data-asset-action="runtime" data-tag="${escapeHtml(asset.tagNumber)}">운전시간/상태 보정</button>
             </div>
           </details>
@@ -1342,7 +1398,7 @@
     elements.historyBody.innerHTML = events
       .map(event => `
         <tr>
-          <td>${escapeHtml(formatDate(event.eventDate))}</td>
+          <td>${escapeHtml(event.eventType === "startup" ? formatKstDateTimeDisplay(event.eventDate) : formatDate(event.eventDate))}</td>
           <td>
             <strong>${escapeHtml(event.displayName || event.positionLabel)}</strong><br>
             <span class="history-tag">${escapeHtml(event.tagNumber)}</span>
@@ -1365,8 +1421,11 @@
     state.historyAssetTag = tagNumber;
     const severity = displaySeverity(asset);
     const awaitingBackfill = isAssetAwaitingBackfill(asset);
+    const cycleStartState = String(asset.cycleStartState || "legacy");
+    const startupPending = cycleStartState === "pending";
+    const actualStarted = cycleStartState === "started" && Boolean(asset.cycleStartedAt);
     const events = getAssetEvents(tagNumber)
-      .filter(event => event.eventType === "replacement");
+      .filter(event => ["replacement", "startup"].includes(event.eventType));
 
     elements.historyDialogTitle.textContent = `${asset.positionLabel} 이력`;
     elements.historyDialogAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
@@ -1374,7 +1433,8 @@
       ? `
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         <div><span>최근 V-Belt 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
-        <div><span>교체 후 경과시간</span><strong>${escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
+        <div><span>${actualStarted || startupPending ? "실제 기동일시" : "기존 주기 기준"}</span><strong>${actualStarted ? escapeHtml(formatKstDateTimeDisplay(asset.cycleStartedAt)) : (startupPending ? "미등록" : "교체일 기준 유지")}</strong></div>
+        <div><span>${actualStarted ? "기동 후 경과시간" : (startupPending ? "주기 계산" : "교체 후 경과시간")}</span><strong>${startupPending ? "계산 대기" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
         <div><span>현재 주기</span><strong>${escapeHtml(formatSignedRemaining(asset))}</strong></div>
       `
       : awaitingBackfill
@@ -1394,7 +1454,7 @@
 
           return `
             <article class="asset-history-item">
-              <div class="asset-history-date">${escapeHtml(formatDate(event.eventDate))}</div>
+              <div class="asset-history-date">${escapeHtml(event.eventType === "startup" ? formatKstDateTimeDisplay(event.eventDate) : formatDate(event.eventDate))}</div>
               <div class="asset-history-content">
                 <div class="asset-history-heading">
                   <span class="event-badge ${escapeHtml(event.eventType)}">${escapeHtml(eventLabel(event.eventType))}</span>
@@ -1616,9 +1676,12 @@
   function resetRecordDialogVisibility() {
     const dateField = elements.recordDate?.closest(".field");
     if (dateField) dateField.hidden = false;
+    elements.recordDate.type = "date";
     elements.issueTypeField.hidden = false;
     elements.actionTypeField.hidden = false;
     elements.replacementRunningField.hidden = true;
+    elements.replacementStartupAtField.hidden = true;
+    elements.replacementStartupAt.required = false;
     elements.runtimeHoursField.hidden = true;
     elements.runtimeStateField.hidden = true;
     elements.candidateSourcePreview.hidden = true;
@@ -1648,7 +1711,18 @@
       elements.actionType.value = "V-Belt 교체";
       elements.actionTypeField.hidden = true;
       elements.replacementRunningField.hidden = false;
-      elements.replacementRunning.checked = Boolean(asset.isRunning);
+      elements.replacementRunning.checked = false;
+      elements.replacementStartupAt.value = formatKstDateTimeInput();
+    }
+
+    if (mode === "startup") {
+      elements.recordDialogEyebrow.textContent = "CYCLE START";
+      elements.recordDialogTitle.textContent = "실제 기동 등록";
+      elements.recordDateLabel.textContent = "실제 기동일시";
+      elements.recordDate.type = "datetime-local";
+      elements.recordDate.value = formatKstDateTimeInput();
+      elements.issueTypeField.hidden = true;
+      elements.actionTypeField.hidden = true;
     }
 
     if (mode === "problem") {
@@ -1679,7 +1753,8 @@
       elements.issueType.value = candidate?.issueType || (replacement ? "정기주기" : "기타");
       elements.actionType.value = candidate?.actionType || (replacement ? "V-Belt 교체" : "확인");
       elements.replacementRunningField.hidden = !replacement;
-      elements.replacementRunning.checked = Boolean(asset.isRunning);
+      elements.replacementRunning.checked = false;
+      elements.replacementStartupAt.value = formatKstDateTimeInput();
       elements.candidateSourcePreview.hidden = false;
       elements.candidateSourcePreview.innerHTML = `
         <strong>업무일지 원문</strong><br>
@@ -1921,7 +1996,17 @@
           eventDate: elements.recordDate.value,
           issueType: elements.issueType.value,
           actionType: "V-Belt 교체",
-          isRunning: elements.replacementRunning.checked,
+          startImmediately: elements.replacementRunning.checked,
+          startupAt: elements.replacementRunning.checked ? elements.replacementStartupAt.value : "",
+          note: elements.recordNote.value
+        };
+      } else if (mode === "startup") {
+        const asset = findAsset(tagNumber);
+        body = {
+          action: "startup",
+          tagNumber,
+          eventDate: elements.recordDate.value,
+          expectedLastReplacementAt: asset?.lastReplacementAt || "",
           note: elements.recordNote.value
         };
       } else if (mode === "problem") {
@@ -1949,7 +2034,8 @@
           eventDate: elements.recordDate.value,
           issueType: elements.issueType.value,
           actionType: elements.actionType.value,
-          isRunning: elements.replacementRunning.checked,
+          startImmediately: elements.replacementRunning.checked,
+          startupAt: elements.replacementRunning.checked ? elements.replacementStartupAt.value : "",
           note: elements.recordNote.value
         };
       } else {
@@ -2421,6 +2507,13 @@
     });
 
     elements.recordForm.addEventListener("submit", saveRecord);
+    elements.replacementRunning.addEventListener("change", () => {
+      elements.replacementStartupAtField.hidden = !elements.replacementRunning.checked;
+      elements.replacementStartupAt.required = elements.replacementRunning.checked;
+      if (elements.replacementRunning.checked && !elements.replacementStartupAt.value) {
+        elements.replacementStartupAt.value = formatKstDateTimeInput();
+      }
+    });
     elements.settingsForm.addEventListener("submit", saveSettings);
     elements.assetManagerForm.addEventListener("submit", saveManagedAsset);
     elements.assetManagerTarget.addEventListener("change", () => {

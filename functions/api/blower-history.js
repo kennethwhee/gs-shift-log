@@ -509,6 +509,9 @@ async function ensureSchema(database) {
         enabled INTEGER NOT NULL DEFAULT 1,
         asset_revision TEXT NOT NULL DEFAULT '',
         last_replacement_at TEXT,
+        cycle_started_at TEXT,
+        cycle_start_state TEXT NOT NULL DEFAULT 'legacy',
+        cycle_start_revision TEXT NOT NULL DEFAULT '',
         runtime_hours REAL NOT NULL DEFAULT 0,
         runtime_anchor_at TEXT,
         is_running INTEGER NOT NULL DEFAULT 0,
@@ -739,7 +742,10 @@ async function ensureAssetManagementSchema(database) {
   let columns = Array.isArray(columnResult.results) ? columnResult.results : [];
   const requiredColumns = [
     { name: "asset_group", definition: "asset_group TEXT NOT NULL DEFAULT ''" },
-    { name: "asset_revision", definition: "asset_revision TEXT NOT NULL DEFAULT ''" }
+    { name: "asset_revision", definition: "asset_revision TEXT NOT NULL DEFAULT ''" },
+    { name: "cycle_started_at", definition: "cycle_started_at TEXT" },
+    { name: "cycle_start_state", definition: "cycle_start_state TEXT NOT NULL DEFAULT 'legacy'" },
+    { name: "cycle_start_revision", definition: "cycle_start_revision TEXT NOT NULL DEFAULT ''" }
   ];
 
   for (const required of requiredColumns) {
@@ -823,7 +829,7 @@ async function ensureBlowerHistorySchemaReady(database) {
     `).first();
 
     await database
-      .prepare(`SELECT asset_group, asset_revision FROM blower_history_assets LIMIT 1`)
+      .prepare(`SELECT asset_group, asset_revision, cycle_started_at, cycle_start_state, cycle_start_revision FROM blower_history_assets LIMIT 1`)
       .first();
     await database
       .prepare(`SELECT id FROM blower_history_asset_history LIMIT 1`)
@@ -878,6 +884,11 @@ function normalizeDateTime(value) {
 
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
     return `${text}T00:00:00+09:00`;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(text)) {
+    const kstParsed = new Date(`${text}+09:00`);
+    return Number.isNaN(kstParsed.getTime()) ? "" : kstParsed.toISOString();
   }
 
   const parsed = new Date(text);
@@ -973,7 +984,11 @@ function cycleElapsedHoursSince(lastReplacementAt, now = new Date()) {
 
 function buildAssetState(asset, setting, latestProblem, latestReference, now = new Date()) {
   const runtimeHours = currentRuntimeHours(asset, now);
-  const cycleElapsedHours = cycleElapsedHoursSince(asset.last_replacement_at, now);
+  const cycleStartState = normalizeText(asset.cycle_start_state) || "legacy";
+  const cycleStartedAt = cycleStartState === "started"
+    ? normalizeText(asset.cycle_started_at)
+    : (cycleStartState === "pending" ? "" : normalizeText(asset.last_replacement_at));
+  const cycleElapsedHours = cycleElapsedHoursSince(cycleStartedAt, now);
   const cycleDays = toNullableNumber(setting?.cycleDays ?? setting?.cycle_days);
   const warningDays = toNullableNumber(setting?.warningDays ?? setting?.warning_days);
   const criticalDays = toNullableNumber(setting?.criticalDays ?? setting?.critical_days);
@@ -990,7 +1005,9 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
     }
   }
 
-  if (cycleElapsedHours === null) {
+  if (normalizeText(asset.last_replacement_at) && cycleStartState === "pending") {
+    severity = "startup_pending";
+  } else if (cycleElapsedHours === null) {
     severity = latestReference ? "reference" : "uninitialized";
   } else if (!(cycleDays > 0)) {
     severity = "unset";
@@ -1025,6 +1042,8 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
     displayName: asset.display_name,
     sortOrder: Number(asset.sort_order || 0),
     lastReplacementAt: normalizeText(asset.last_replacement_at),
+    cycleStartedAt,
+    cycleStartState,
     runtimeHours,
     isRunning: Number(asset.is_running) === 1,
     cycleElapsedHours,
@@ -1502,6 +1521,7 @@ function buildSummaryFromAssets(assets) {
     critical: 3,
     warning: 2,
     unset: 1,
+    startup_pending: 1,
     reference: 1,
     uninitialized: 1,
     normal: 0
@@ -1521,6 +1541,7 @@ function buildSummaryFromAssets(assets) {
     critical: 0,
     overdue: 0,
     unset: 0,
+    startup_pending: 0,
     reference: 0,
     uninitialized: 0
   };
@@ -2176,9 +2197,27 @@ async function registerReplacement(database, user, body, source = {}) {
   const issueType = normalizeText(body.issueType) || "정기주기";
   const actionType = normalizeText(body.actionType) || "교체";
   const note = normalizeText(body.note);
-  const shouldRun = typeof body.isRunning === "boolean"
-    ? body.isRunning
-    : Number(asset.is_running) === 1;
+  const startImmediately = body.startImmediately === true;
+  const cycleStartAt = startImmediately
+    ? normalizeDateTime(body.startupAt)
+    : "";
+
+  if (startImmediately) {
+    if (!normalizeText(body.startupAt) || !cycleStartAt) {
+      return jsonResponse({ ok: false, message: "실제 기동일시를 입력해 주세요." }, 400);
+    }
+    const startupValue = new Date(cycleStartAt);
+    if (
+      !cycleStartAt ||
+      Number.isNaN(startupValue.getTime()) ||
+      startupValue < eventDateValue
+    ) {
+      return jsonResponse({ ok: false, message: "실제 기동일시는 V-Belt 교체일보다 빠를 수 없습니다." }, 400);
+    }
+    if (startupValue > new Date(Date.now() + 5 * 60000)) {
+      return jsonResponse({ ok: false, message: "실제 기동일시는 현재 이후로 등록할 수 없습니다." }, 400);
+    }
+  }
 
   await insertEvent(database, user, {
     tagNumber,
@@ -2193,6 +2232,21 @@ async function registerReplacement(database, user, body, source = {}) {
     sourceText: source.sourceText || ""
   });
 
+  if (startImmediately) {
+    await insertEvent(database, user, {
+      tagNumber,
+      eventType: "startup",
+      eventDate: cycleStartAt,
+      runtimeHours: 0,
+      issueType: "",
+      actionType: "교체 후 즉시 기동",
+      note,
+      sourceType: source.sourceType || "manual",
+      sourceLogId: source.sourceLogId || "",
+      sourceText: source.sourceText || ""
+    });
+  }
+
   const currentReplacement = asset.last_replacement_at
     ? new Date(asset.last_replacement_at)
     : null;
@@ -2204,12 +2258,16 @@ async function registerReplacement(database, user, body, source = {}) {
 
   if (shouldUpdateCurrentState) {
     const now = new Date().toISOString();
+    const cycleStartRevision = crypto.randomUUID();
 
     await database
       .prepare(`
         UPDATE blower_history_assets
         SET
           last_replacement_at = ?,
+          cycle_started_at = ?,
+          cycle_start_state = ?,
+          cycle_start_revision = ?,
           runtime_hours = 0,
           runtime_anchor_at = ?,
           is_running = ?,
@@ -2220,8 +2278,11 @@ async function registerReplacement(database, user, body, source = {}) {
       `)
       .bind(
         eventDate,
-        shouldRun ? eventDate : null,
-        shouldRun ? 1 : 0,
+        startImmediately ? cycleStartAt : null,
+        startImmediately ? "started" : "pending",
+        cycleStartRevision,
+        startImmediately ? cycleStartAt : null,
+        startImmediately ? 1 : 0,
         user.employeeNo,
         user.name,
         now,
@@ -2233,8 +2294,134 @@ async function registerReplacement(database, user, body, source = {}) {
   return jsonResponse({
     ok: true,
     message: shouldUpdateCurrentState
-      ? "교체 이력을 등록하고 새 Cycle을 시작했습니다."
+      ? (startImmediately
+        ? "교체 이력과 기동을 함께 등록하고 새 Cycle을 시작했습니다."
+        : "교체 이력을 등록했습니다. 실제 기동 전까지 Cycle 계산은 시작하지 않습니다.")
       : "과거 교체 이력을 등록했습니다. 현재 Cycle은 변경하지 않았습니다."
+  });
+}
+
+async function registerStartup(database, user, body) {
+  const tagNumber = normalizeText(body.tagNumber).toUpperCase();
+  const asset = await findAsset(database, tagNumber);
+
+  if (!asset) {
+    return jsonResponse({ ok: false, message: "등록된 Blower TAG를 찾을 수 없습니다." }, 404);
+  }
+
+  if (!normalizeText(asset.last_replacement_at)) {
+    return jsonResponse({ ok: false, message: "먼저 V-Belt 교체 이력을 등록해 주세요." }, 409);
+  }
+
+  if (normalizeText(asset.cycle_start_state) !== "pending") {
+    return jsonResponse({ ok: false, message: "이미 이 Cycle의 기동이 등록되어 있습니다." }, 409);
+  }
+
+  const expectedLastReplacementAt = normalizeDateTime(body.expectedLastReplacementAt);
+  const currentLastReplacementAt = normalizeText(asset.last_replacement_at);
+  if (!expectedLastReplacementAt || expectedLastReplacementAt !== normalizeDateTime(currentLastReplacementAt)) {
+    return jsonResponse({ ok: false, message: "최근 교체 이력이 변경되었습니다. 새로고침 후 다시 등록해 주세요." }, 409);
+  }
+
+  const eventDate = normalizeDateTime(body.eventDate || body.date);
+
+  if (!eventDate) {
+    return jsonResponse({ ok: false, message: "실제 기동일을 확인해 주세요." }, 400);
+  }
+
+  const replacementAt = new Date(asset.last_replacement_at);
+  const startupAt = new Date(eventDate);
+  const futureLimit = new Date(Date.now() + 5 * 60000);
+
+  if (
+    Number.isNaN(replacementAt.getTime()) ||
+    Number.isNaN(startupAt.getTime()) ||
+    startupAt < replacementAt
+  ) {
+    return jsonResponse({ ok: false, message: "기동일은 최근 V-Belt 교체일보다 빠를 수 없습니다." }, 400);
+  }
+
+  if (startupAt > futureLimit) {
+    return jsonResponse({ ok: false, message: "기동일은 현재 이후로 등록할 수 없습니다." }, 400);
+  }
+
+  const note = normalizeText(body.note);
+  const now = new Date().toISOString();
+  const currentCycleRevision = normalizeText(asset.cycle_start_revision);
+  const nextCycleRevision = crypto.randomUUID();
+  const startupEventId = crypto.randomUUID();
+  const results = await database.batch([
+    database
+      .prepare(`
+        UPDATE blower_history_assets
+        SET
+          cycle_started_at = ?,
+          cycle_start_state = 'started',
+          cycle_start_revision = ?,
+          runtime_hours = 0,
+          runtime_anchor_at = ?,
+          is_running = 1,
+          last_modified_by_id = ?,
+          last_modified_by_name = ?,
+          updated_at = ?
+        WHERE tag_number = ?
+          AND cycle_start_state = 'pending'
+          AND cycle_start_revision = ?
+          AND last_replacement_at = ?
+      `)
+      .bind(
+        eventDate,
+        nextCycleRevision,
+        eventDate,
+        user.employeeNo,
+        user.name,
+        now,
+        tagNumber,
+        currentCycleRevision,
+        currentLastReplacementAt
+      ),
+    database
+      .prepare(`
+        INSERT INTO blower_history_events (
+          id, tag_number, event_type, event_date, runtime_hours,
+          issue_type, action_type, note, source_type, source_log_id,
+          source_text, created_by_id, created_by_name, created_at, updated_at
+        )
+        SELECT ?, ?, 'startup', ?, 0, '', '기동', ?, 'manual', '', '', ?, ?, ?, ?
+        WHERE EXISTS (
+          SELECT 1 FROM blower_history_assets
+          WHERE tag_number = ?
+            AND cycle_start_state = 'started'
+            AND cycle_start_revision = ?
+            AND last_replacement_at = ?
+        )
+      `)
+      .bind(
+        startupEventId,
+        tagNumber,
+        eventDate,
+        note,
+        user.employeeNo,
+        user.name,
+        now,
+        now,
+        tagNumber,
+        nextCycleRevision,
+        currentLastReplacementAt
+      )
+  ]);
+
+  if (Number(results?.[0]?.meta?.changes || 0) === 0) {
+    return jsonResponse({ ok: false, message: "기동 상태가 이미 변경되었습니다. 새로고침 후 확인해 주세요." }, 409);
+  }
+
+  if (Number(results?.[1]?.meta?.changes || 0) !== 1) {
+    throw new Error("기동 상태와 기동 이력을 함께 저장하지 못했습니다.");
+  }
+
+  return jsonResponse({
+    ok: true,
+    message: "실제 기동을 등록했습니다. 이 시점부터 Cycle 계산을 시작합니다."
   });
 }
 
@@ -5848,8 +6035,11 @@ async function reviewCandidate(database, user, body) {
     note: normalizeText(body.note)
   };
 
-  if (typeof body.isRunning === "boolean") {
-    mergedBody.isRunning = body.isRunning;
+  if (typeof body.startImmediately === "boolean") {
+    mergedBody.startImmediately = body.startImmediately;
+  }
+  if (body.startupAt !== undefined) {
+    mergedBody.startupAt = body.startupAt;
   }
 
   const source = {
@@ -8209,6 +8399,10 @@ async function handlePost(context, user, body) {
 
   if (action === "replacement") {
     return registerReplacement(database, user, body);
+  }
+
+  if (action === "startup") {
+    return registerStartup(database, user, body);
   }
 
   if (action === "problem") {

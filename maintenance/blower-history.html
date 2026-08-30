@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260828-asset-manager-numeric-alert-v7">
-  <script src="blower-history.js?v=20260828-asset-manager-numeric-alert-v7" defer></script>
+  <link rel="stylesheet" href="blower-history.css?v=20260830-startup-cycle-v8">
+  <script src="blower-history.js?v=20260830-startup-cycle-v8" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -121,6 +121,7 @@
               <div class="filter-actions">
                 <select id="historyFilter" aria-label="이력 종류">
                   <option value="replacement" selected>V-Belt 교체</option>
+                  <option value="startup">기동</option>
                   <option value="all">전체 관리 이력</option>
                   <option value="problem">문제발생</option>
                   <option value="runtime_correction">운전시간 보정</option>
@@ -238,8 +239,13 @@
         </label>
 
         <label class="field checkbox-field" id="replacementRunningField">
-          <input type="checkbox" id="replacementRunning" checked>
-          <span>V-Belt 교체일부터 운전시간 자동 누적</span>
+          <input type="checkbox" id="replacementRunning">
+          <span>교체 후 바로 기동함</span>
+        </label>
+
+        <label class="field" id="replacementStartupAtField" hidden>
+          <span>실제 기동일시</span>
+          <input type="datetime-local" id="replacementStartupAt">
         </label>
 
         <label class="field" id="runtimeHoursField" hidden>
