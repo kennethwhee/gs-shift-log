@@ -16,7 +16,8 @@
     backfillRunning: false,
     auditRunning: false,
     assetManagerAutoName: true,
-    serverClockOffsetMs: 0
+    serverClockOffsetMs: 0,
+    runtimeEditOriginalDate: ""
   };
 
   const elements = {};
@@ -67,6 +68,9 @@
       "recordMode",
       "recordTag",
       "candidateId",
+      "recordEventId",
+      "recordExpectedEventUpdatedAt",
+      "runtimeEditResetToPending",
       "recordDialogEyebrow",
       "recordDialogTitle",
       "recordAssetLabel",
@@ -86,6 +90,9 @@
       "runtimeState",
       "runtimeStateLabel",
       "runtimeCycleSummary",
+      "runtimeEditPendingField",
+      "runtimeEditPendingButton",
+      "recordNoteLabel",
       "recordNote",
       "candidateSourcePreview",
       "recordSaveButton",
@@ -1486,6 +1493,7 @@
     const actualStarted = cycleStartState === "started" && Boolean(asset.cycleStartedAt);
     const events = getAssetEvents(tagNumber)
       .filter(event => ["replacement", "startup", "operation_start", "operation_stop"].includes(event.eventType));
+    const latestRuntimeEvent = latestExplicitRuntimeEvent(asset);
 
     elements.historyDialogTitle.textContent = `${asset.positionLabel} 이력`;
     elements.historyDialogAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
@@ -1511,6 +1519,16 @@
       ? events.map(event => {
           const content = displayEventContent(event) || "등록 내용 없음";
           const detail = [event.issueType, event.actionType].filter(Boolean).join(" → ");
+          const expectedState = event.eventType === "operation_stop" ? "stopped" : "running";
+          const currentState = asset.isRunning ? "running" : "stopped";
+          const editableRuntimeEvent = (
+            latestRuntimeEvent?.id === event.id &&
+            ["operation_start", "operation_stop"].includes(event.eventType) &&
+            event.sourceType === "manual" &&
+            cycleStartState !== "pending" &&
+            expectedState === currentState
+          );
+          const edited = Boolean(event.updatedAt && event.createdAt && event.updatedAt !== event.createdAt);
 
           return `
             <article class="asset-history-item">
@@ -1519,6 +1537,8 @@
                 <div class="asset-history-heading">
                   <span class="event-badge ${escapeHtml(event.eventType)}">${escapeHtml(eventLabel(event.eventType))}</span>
                   ${detail ? `<strong>${escapeHtml(detail)}</strong>` : ""}
+                  ${edited ? `<span class="event-edited">수정됨</span>` : ""}
+                  ${editableRuntimeEvent ? `<button type="button" class="button asset-history-edit" data-mobile-write data-history-action="runtime_state_edit" data-event-id="${escapeHtml(event.id)}">시간 수정</button>` : ""}
                 </div>
                 <p>${escapeHtml(content)}</p>
                 <small>${escapeHtml(historySourceLabel(event))}${event.createdByName ? ` · ${escapeHtml(event.createdByName)}` : ""}${Number(event.runtimeHours) > 0 ? ` · 당시 ${escapeHtml(historyRuntimeLabel(event))}` : ""}</small>
@@ -1737,15 +1757,45 @@
     return (state.data?.assets || []).find(asset => asset.tagNumber === tag) || null;
   }
 
-  function latestExplicitRuntimeBoundary(asset) {
+  function explicitRuntimeEvents(asset) {
     const replacementAt = new Date(asset?.lastReplacementAt);
-    const events = getAssetEvents(asset?.tagNumber)
-      .filter(event => ["operation_start", "operation_stop", "runtime_correction"].includes(event.eventType))
+    return getAssetEvents(asset?.tagNumber)
+      .filter(event => ["startup", "operation_start", "operation_stop", "runtime_correction"].includes(event.eventType))
       .map(event => ({ event, parsed: new Date(event.eventDate) }))
       .filter(item => !Number.isNaN(item.parsed.getTime()))
       .filter(item => Number.isNaN(replacementAt.getTime()) || item.parsed >= replacementAt)
-      .sort((left, right) => right.parsed.getTime() - left.parsed.getTime());
-    return events[0]?.parsed || null;
+      .sort((left, right) => {
+        const timeDifference = right.parsed.getTime() - left.parsed.getTime();
+        if (timeDifference !== 0) return timeDifference;
+        return String(right.event.createdAt || "").localeCompare(String(left.event.createdAt || ""));
+      });
+  }
+
+  function latestExplicitRuntimeEvent(asset) {
+    return explicitRuntimeEvents(asset)[0]?.event || null;
+  }
+
+  function latestExplicitRuntimeBoundary(asset) {
+    const event = latestExplicitRuntimeEvent(asset);
+    const parsed = new Date(event?.eventDate);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  function previousExplicitRuntimeEvent(asset, selectedEvent) {
+    const events = explicitRuntimeEvents(asset);
+    const selectedIndex = events.findIndex(item => item.event.id === selectedEvent?.id);
+    return selectedIndex >= 0 ? (events[selectedIndex + 1]?.event || null) : null;
+  }
+
+  function findEvent(eventId) {
+    return (state.data?.events || []).find(event => event.id === eventId) || null;
+  }
+
+  function runtimeEventState(event) {
+    if (["startup", "operation_start"].includes(event?.eventType)) return "running";
+    if (event?.eventType === "operation_stop") return "stopped";
+    if (event?.eventType !== "runtime_correction") return "";
+    return /(?:정지|stop)/i.test(String(event.actionType || "")) ? "stopped" : "running";
   }
 
   function resetRecordDialogVisibility() {
@@ -1754,6 +1804,11 @@
     elements.recordDate.type = "date";
     elements.recordDate.min = "";
     elements.recordDate.max = "";
+    elements.recordDate.disabled = false;
+    elements.recordEventId.value = "";
+    elements.recordExpectedEventUpdatedAt.value = "";
+    elements.runtimeEditResetToPending.value = "";
+    state.runtimeEditOriginalDate = "";
     elements.issueTypeField.hidden = false;
     elements.actionTypeField.hidden = false;
     elements.replacementRunningField.hidden = true;
@@ -1764,7 +1819,114 @@
     elements.runtimeStateLabel.textContent = "변경할 운전상태";
     elements.runtimeCycleSummary.hidden = true;
     elements.runtimeCycleSummary.innerHTML = "";
+    elements.runtimeEditPendingField.hidden = true;
+    elements.runtimeEditPendingField.classList.remove("is-selected");
+    elements.runtimeEditPendingButton.textContent = "교체 당시부터 정지 · 0시간";
+    elements.recordNoteLabel.textContent = "비고 / 작업내용";
+    elements.recordSaveButton.textContent = "저장";
     elements.candidateSourcePreview.hidden = true;
+  }
+
+  function canResetRuntimeEventToPending(asset, event) {
+    return Boolean(
+      asset &&
+      event?.eventType === "operation_stop" &&
+      String(event.sourceType || "") === "manual" &&
+      String(asset.cycleStartState || "legacy") === "legacy" &&
+      latestExplicitRuntimeEvent(asset)?.id === event.id &&
+      !previousExplicitRuntimeEvent(asset, event)
+    );
+  }
+
+  function runtimeEditMinimumAt(asset, event) {
+    const previous = previousExplicitRuntimeEvent(asset, event);
+    if (previous) return new Date(previous.eventDate);
+    const replacementAt = new Date(asset?.lastReplacementAt);
+    if (
+      event?.eventType === "operation_start" &&
+      String(asset?.cycleStartState || "legacy") === "started" &&
+      Math.abs(Number(event.runtimeHours || 0)) < 0.000001
+    ) {
+      return Number.isNaN(replacementAt.getTime()) ? null : replacementAt;
+    }
+    const cycleStartedAt = new Date(asset?.cycleStartedAt);
+    if (String(asset?.cycleStartState || "legacy") === "started" && !Number.isNaN(cycleStartedAt.getTime())) {
+      return cycleStartedAt;
+    }
+    return Number.isNaN(replacementAt.getTime()) ? null : replacementAt;
+  }
+
+  function updateRuntimeEditPreview() {
+    if (elements.recordMode.value !== "runtime_state_edit") return;
+    const asset = findAsset(elements.recordTag.value);
+    const editedEvent = findEvent(elements.recordEventId.value);
+    if (!asset || !editedEvent) return;
+
+    const resetToPending = elements.runtimeEditResetToPending.value === "true";
+    const editedAt = new Date(kstDateTimeInputToIso(elements.recordDate.value));
+    const replacementAt = new Date(asset.lastReplacementAt);
+    const previous = previousExplicitRuntimeEvent(asset, editedEvent);
+    const restorePending = canResetRuntimeEventToPending(asset, editedEvent) && (
+      resetToPending ||
+      (!Number.isNaN(editedAt.getTime()) && !Number.isNaN(replacementAt.getTime()) && editedAt <= replacementAt)
+    );
+    let previewHtml;
+
+    if (restorePending) {
+      previewHtml = `
+        <span>수정 후</span>
+        <strong>기동 대기 · 누적 0시간</strong>
+        <small>${escapeHtml(formatDate(asset.lastReplacementAt))} 교체 후 아직 기동하지 않은 상태로 반영합니다.</small>
+        <small>D-day·사용률·알림은 다음 기동 등록 전까지 계산하지 않습니다.</small>
+      `;
+    } else if (Number.isNaN(editedAt.getTime())) {
+      previewHtml = `<span>수정 후</span><strong>시각을 확인해 주세요.</strong>`;
+    } else if (editedEvent.eventType === "operation_start") {
+      const baseHours = Number(editedEvent.runtimeHours || 0);
+      const previewHours = Math.max(0, baseHours + ((currentServerDate().getTime() - editedAt.getTime()) / 3600000));
+      previewHtml = `
+        <span>수정 후</span>
+        <strong>운전중 · 현재 누적 ${escapeHtml(formatDaysHours(previewHours))}</strong>
+        <small>수정한 재기동시각부터 현재까지 Cycle 계산을 이어갑니다.</small>
+      `;
+    } else {
+      const baseAt = previous
+        ? new Date(previous.eventDate)
+        : runtimeEditMinimumAt(asset, editedEvent);
+      const baseHours = previous ? Number(previous.runtimeHours || 0) : 0;
+      const previewHours = baseAt && !Number.isNaN(baseAt.getTime())
+        ? Math.max(0, baseHours + ((editedAt.getTime() - baseAt.getTime()) / 3600000))
+        : 0;
+      previewHtml = `
+        <span>수정 후</span>
+        <strong>정지 · 누적 ${escapeHtml(formatDaysHours(previewHours))}</strong>
+        <small>입력한 시각에서 Cycle 경과·D-day·사용률·알림을 고정합니다.</small>
+      `;
+    }
+
+    elements.runtimeCycleSummary.hidden = false;
+    elements.runtimeCycleSummary.innerHTML = `
+      <span>현재 기록</span>
+      <strong>${escapeHtml(formatKstDateTimeDisplay(editedEvent.eventDate))} · ${escapeHtml(eventLabel(editedEvent.eventType))} · 당시 ${escapeHtml(formatDaysHours(editedEvent.runtimeHours))}</strong>
+      ${previewHtml}
+      <small>기존 값과 수정자·수정일은 감사이력에 보존됩니다.</small>
+    `;
+  }
+
+  function toggleRuntimeEditStartupPending() {
+    if (elements.recordMode.value !== "runtime_state_edit") return;
+    const asset = findAsset(elements.recordTag.value);
+    const selected = elements.runtimeEditResetToPending.value !== "true";
+    elements.runtimeEditResetToPending.value = selected ? "true" : "";
+    elements.runtimeEditPendingField.classList.toggle("is-selected", selected);
+    elements.runtimeEditPendingButton.textContent = selected
+      ? "선택됨 · 교체 당시부터 정지"
+      : "교체 당시부터 정지 · 0시간";
+    elements.recordDate.disabled = selected;
+    elements.recordDate.value = selected
+      ? formatKstDateTimeInput(new Date(asset?.lastReplacementAt))
+      : state.runtimeEditOriginalDate;
+    updateRuntimeEditPreview();
   }
 
   function openRecordDialog(mode, tagNumber, candidate = null) {
@@ -1873,6 +2035,53 @@
               ? `<small>최근 교체: ${escapeHtml(formatKstDateTimeDisplay(replacementAt))}</small>`
               : ""}
       `;
+    }
+
+    if (mode === "runtime_state_edit") {
+      const editedEvent = candidate;
+      const latestEvent = latestExplicitRuntimeEvent(asset);
+      const expectedState = editedEvent?.eventType === "operation_stop" ? "stopped" : "running";
+      const currentState = asset.isRunning ? "running" : "stopped";
+
+      if (
+        !editedEvent ||
+        latestEvent?.id !== editedEvent.id ||
+        !["operation_start", "operation_stop"].includes(editedEvent.eventType) ||
+        editedEvent.sourceType !== "manual" ||
+        String(asset.cycleStartState || "legacy") === "pending" ||
+        expectedState !== currentState
+      ) {
+        showToast("현재 Cycle의 최신 수동 정지·재기동 이력만 수정할 수 있습니다.", "error");
+        return;
+      }
+
+      const resetAvailable = canResetRuntimeEventToPending(asset, editedEvent);
+      const minimumAt = runtimeEditMinimumAt(asset, editedEvent);
+      const originalValue = formatKstDateTimeInput(new Date(editedEvent.eventDate));
+      elements.recordEventId.value = editedEvent.id;
+      elements.recordExpectedEventUpdatedAt.value = editedEvent.updatedAt || "";
+      elements.recordDialogEyebrow.textContent = "OPERATION HISTORY EDIT";
+      elements.recordDialogTitle.textContent = editedEvent.eventType === "operation_stop"
+        ? "정지일시 수정"
+        : "재기동일시 수정";
+      elements.recordDateLabel.textContent = editedEvent.eventType === "operation_stop"
+        ? "실제 정지일시 (한국시간)"
+        : "실제 재기동일시 (한국시간)";
+      elements.recordDate.type = "datetime-local";
+      elements.recordDate.value = originalValue;
+      elements.recordDate.min = resetAvailable
+        ? ""
+        : (minimumAt && !Number.isNaN(minimumAt.getTime()) ? formatKstDateTimeInput(minimumAt) : "");
+      elements.recordDate.max = formatKstDateTimeInput();
+      elements.issueTypeField.hidden = true;
+      elements.actionTypeField.hidden = true;
+      elements.runtimeStateField.hidden = true;
+      elements.runtimeEditPendingField.hidden = !resetAvailable;
+      elements.recordNoteLabel.textContent = "비고 / 수정 사유";
+      elements.recordNote.value = editedEvent.note || "";
+      elements.recordSaveButton.textContent = "수정 저장";
+      state.runtimeEditOriginalDate = originalValue;
+      updateRuntimeEditPreview();
     }
 
     if (mode === "candidate") {
@@ -2208,6 +2417,45 @@
           expectedCycleRuntimeRevision: asset?.cycleRuntimeRevision || "",
           note: elements.recordNote.value
         };
+      } else if (mode === "runtime_state_edit") {
+        const asset = findAsset(tagNumber);
+        const editedEvent = findEvent(elements.recordEventId.value);
+        const correctionAt = new Date(kstDateTimeInputToIso(elements.recordDate.value));
+        const replacementAt = new Date(asset?.lastReplacementAt);
+        const resetToStartupPending = elements.runtimeEditResetToPending.value === "true";
+        const requiresZeroHourConfirmation = (
+          resetToStartupPending ||
+          (
+            canResetRuntimeEventToPending(asset, editedEvent) &&
+            !Number.isNaN(correctionAt.getTime()) &&
+            !Number.isNaN(replacementAt.getTime()) &&
+            correctionAt <= replacementAt
+          )
+        );
+
+        if (!asset || !editedEvent) {
+          throw new Error("수정할 운전상태 이력을 찾을 수 없습니다.");
+        }
+
+        if (requiresZeroHourConfirmation) {
+          const confirmed = window.confirm(
+            "이 Blower는 최근 V-Belt 교체 당시부터 정지 상태였던 것으로 바로잡습니다.\n\n현재 Cycle은 기동 대기·누적 0시간이 되고, 다음 기동 등록 전까지 D-day·사용률·알림을 계산하지 않습니다. 계속할까요?"
+          );
+          if (!confirmed) return;
+        }
+
+        body = {
+          action: "runtime_event_edit",
+          tagNumber,
+          eventId: editedEvent.id,
+          eventDate: kstDateTimeInputToIso(elements.recordDate.value),
+          resetToStartupPending,
+          expectedEventUpdatedAt: elements.recordExpectedEventUpdatedAt.value,
+          expectedCycleRuntimeRevision: asset.cycleRuntimeRevision || "",
+          expectedLastReplacementAt: asset.lastReplacementAt || "",
+          changeNote: elements.recordNote.value || "운전상태 이력 시각 수정",
+          note: elements.recordNote.value
+        };
       } else if (mode === "candidate") {
         body = {
           action: "candidate_review",
@@ -2228,6 +2476,7 @@
       elements.recordDialog.close();
       showToast(result.message || "저장했습니다.");
       await loadData({ silent: true });
+      if (mode === "runtime_state_edit") openAssetHistory(tagNumber);
     } catch (error) {
       console.error("Blower 이력 저장 실패:", error);
       showToast(error.message || "저장하지 못했습니다.", "error");
@@ -2657,6 +2906,16 @@
       if (!button || !state.historyAssetTag) return;
       const action = button.dataset.historyAction;
       const tagNumber = state.historyAssetTag;
+      if (action === "runtime_state_edit") {
+        const editedEvent = findEvent(button.dataset.eventId);
+        if (!editedEvent) {
+          showToast("수정할 운전상태 이력을 찾을 수 없습니다.", "error");
+          return;
+        }
+        elements.historyDialog.close();
+        openRecordDialog(action, tagNumber, editedEvent);
+        return;
+      }
       elements.historyDialog.close();
       openRecordDialog(action, tagNumber);
     });
@@ -2695,6 +2954,9 @@
     });
 
     elements.recordForm.addEventListener("submit", saveRecord);
+    elements.runtimeEditPendingButton.addEventListener("click", toggleRuntimeEditStartupPending);
+    elements.recordDate.addEventListener("input", updateRuntimeEditPreview);
+    elements.recordDate.addEventListener("change", updateRuntimeEditPreview);
     elements.replacementRunning.addEventListener("change", () => {
       elements.replacementStartupAtField.hidden = !elements.replacementRunning.checked;
       elements.replacementStartupAt.required = elements.replacementRunning.checked;

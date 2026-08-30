@@ -543,6 +543,12 @@ async function ensureSchema(database) {
       ON blower_history_asset_history (tag_number, changed_at DESC)
     `),
     database.prepare(`
+      CREATE TABLE IF NOT EXISTS blower_history_atomic_guard (
+        id TEXT PRIMARY KEY NOT NULL,
+        valid INTEGER NOT NULL CHECK(valid = 1)
+      )
+    `),
+    database.prepare(`
       CREATE TABLE IF NOT EXISTS blower_history_events (
         id TEXT PRIMARY KEY NOT NULL,
         tag_number TEXT NOT NULL,
@@ -793,6 +799,12 @@ async function ensureAssetManagementSchema(database) {
       ON blower_history_asset_history (tag_number, changed_at DESC)
     `),
     database.prepare(`
+      CREATE TABLE IF NOT EXISTS blower_history_atomic_guard (
+        id TEXT PRIMARY KEY NOT NULL,
+        valid INTEGER NOT NULL CHECK(valid = 1)
+      )
+    `),
+    database.prepare(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_blower_history_assets_active_slot
       ON blower_history_assets (
         blower_type,
@@ -847,6 +859,14 @@ async function ensureBlowerHistorySchemaReady(database) {
     await database
       .prepare(`SELECT id FROM blower_history_asset_history LIMIT 1`)
       .first();
+    const atomicGuardTable = await database
+      .prepare(`
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table' AND name = 'blower_history_atomic_guard'
+        LIMIT 1
+      `)
+      .first();
     const activeSlotIndex = await database
       .prepare(`
         SELECT name
@@ -868,6 +888,7 @@ async function ensureBlowerHistorySchemaReady(database) {
       Number(ready?.setting_count || 0) >= 5 &&
       Number(ready?.sentinel_asset_count || 0) >= 5 &&
       Number(uninitializedCycleRuntime?.count || 0) === 0 &&
+      atomicGuardTable?.name === "blower_history_atomic_guard" &&
       activeSlotIndex?.name === "idx_blower_history_assets_active_slot" &&
       canonicalTagIndex?.name === "idx_blower_history_assets_canonical_tag"
     ) {
@@ -2715,16 +2736,480 @@ async function loadLatestExplicitRuntimeBoundary(database, asset) {
 
   return database
     .prepare(`
-      SELECT id, event_type, event_date, runtime_hours, action_type, created_at
+      SELECT *
       FROM blower_history_events
       WHERE tag_number = ?
-        AND event_type IN ('operation_start', 'operation_stop', 'runtime_correction')
+        AND event_type IN ('startup', 'operation_start', 'operation_stop', 'runtime_correction')
         AND datetime(event_date) >= datetime(?)
       ORDER BY datetime(event_date) DESC, created_at DESC, id DESC
       LIMIT 1
     `)
     .bind(asset.tag_number, lastReplacementAt)
     .first();
+}
+
+function runtimeBoundaryState(event) {
+  const eventType = normalizeText(event?.event_type);
+  if (["startup", "operation_start"].includes(eventType)) return "running";
+  if (eventType === "operation_stop") return "stopped";
+  if (eventType !== "runtime_correction") return "";
+  return /(?:정지|stop)/i.test(normalizeText(event?.action_type)) ? "stopped" : "running";
+}
+
+async function loadPreviousExplicitRuntimeBoundary(database, asset, selectedEvent) {
+  const lastReplacementAt = normalizeText(asset?.last_replacement_at);
+  if (!lastReplacementAt || !selectedEvent) return null;
+
+  return database
+    .prepare(`
+      SELECT *
+      FROM blower_history_events
+      WHERE tag_number = ?
+        AND event_type IN ('startup', 'operation_start', 'operation_stop', 'runtime_correction')
+        AND datetime(event_date) >= datetime(?)
+        AND id <> ?
+        AND (
+          datetime(event_date) < datetime(?)
+          OR (
+            datetime(event_date) = datetime(?)
+            AND (
+              created_at < ?
+              OR (created_at = ? AND id < ?)
+            )
+          )
+        )
+      ORDER BY datetime(event_date) DESC, created_at DESC, id DESC
+      LIMIT 1
+    `)
+    .bind(
+      asset.tag_number,
+      lastReplacementAt,
+      selectedEvent.id,
+      selectedEvent.event_date,
+      selectedEvent.event_date,
+      selectedEvent.created_at,
+      selectedEvent.created_at,
+      selectedEvent.id
+    )
+    .first();
+}
+
+async function editLatestRuntimeBoundary(database, user, body) {
+  const tagNumber = normalizeText(body.tagNumber).toUpperCase();
+  const eventId = normalizeText(body.eventId);
+  const expectedEventUpdatedAt = normalizeText(body.expectedEventUpdatedAt);
+  const expectedRuntimeRevision = normalizeText(body.expectedCycleRuntimeRevision);
+  const expectedLastReplacementAt = normalizeText(body.expectedLastReplacementAt);
+  const resetToStartupPending = body.resetToStartupPending === true;
+  const asset = await findAsset(database, tagNumber);
+
+  if (!asset) {
+    return jsonResponse({ ok: false, message: "등록된 Blower TAG를 찾을 수 없습니다." }, 404);
+  }
+
+  if (!eventId || !expectedEventUpdatedAt || !expectedRuntimeRevision || !expectedLastReplacementAt) {
+    return jsonResponse({ ok: false, message: "수정할 운전상태 이력 정보를 확인해 주세요." }, 400);
+  }
+
+  if (
+    expectedRuntimeRevision !== normalizeText(asset.cycle_runtime_revision) ||
+    expectedLastReplacementAt !== normalizeText(asset.last_replacement_at)
+  ) {
+    return jsonResponse({ ok: false, message: "교체 또는 운전상태 이력이 변경되었습니다. 새로고침 후 다시 수정해 주세요." }, 409);
+  }
+
+  const selectedEvent = await database
+    .prepare(`
+      SELECT *
+      FROM blower_history_events
+      WHERE id = ? AND tag_number = ?
+      LIMIT 1
+    `)
+    .bind(eventId, tagNumber)
+    .first();
+
+  if (!selectedEvent) {
+    return jsonResponse({ ok: false, message: "수정할 운전상태 이력을 찾을 수 없습니다." }, 404);
+  }
+
+  if (
+    !["operation_start", "operation_stop"].includes(normalizeText(selectedEvent.event_type)) ||
+    normalizeText(selectedEvent.source_type) !== "manual"
+  ) {
+    return jsonResponse({ ok: false, message: "수동으로 등록한 최신 정지·재기동 이력만 수정할 수 있습니다." }, 409);
+  }
+
+  if (normalizeText(selectedEvent.updated_at) !== expectedEventUpdatedAt) {
+    return jsonResponse({ ok: false, message: "이 운전상태 이력이 먼저 수정되었습니다. 새로고침 후 다시 확인해 주세요." }, 409);
+  }
+
+  const latestBoundary = await loadLatestExplicitRuntimeBoundary(database, asset);
+  if (!latestBoundary || normalizeText(latestBoundary.id) !== eventId) {
+    return jsonResponse({ ok: false, message: "이후 운전상태 또는 누적시간 이력이 있어 최신 이력만 수정할 수 있습니다." }, 409);
+  }
+
+  const eventType = normalizeText(selectedEvent.event_type);
+  const cycleStartState = normalizeText(asset.cycle_start_state) || "legacy";
+  if (cycleStartState === "pending") {
+    return jsonResponse({
+      ok: false,
+      message: "이미 교체 당시 정지·누적 0시간으로 정정된 Cycle입니다. 다음 기동 등록 전에는 이력을 다시 수정할 수 없습니다."
+    }, 409);
+  }
+  const expectedState = eventType === "operation_stop" ? "stopped" : "running";
+  const currentState = normalizeText(asset.cycle_runtime_state);
+  if (currentState !== expectedState) {
+    return jsonResponse({ ok: false, message: "현재 운전상태와 선택한 이력이 일치하지 않습니다. 새로고침 후 확인해 주세요." }, 409);
+  }
+
+  const oldEventAt = new Date(selectedEvent.event_date);
+  const currentAnchorAt = new Date(asset.cycle_runtime_anchor_at);
+  if (
+    Number.isNaN(oldEventAt.getTime()) ||
+    Number.isNaN(currentAnchorAt.getTime()) ||
+    oldEventAt.getTime() !== currentAnchorAt.getTime()
+  ) {
+    return jsonResponse({ ok: false, message: "현재 Cycle 기준시각과 선택한 이력이 일치하지 않습니다." }, 409);
+  }
+
+  const previousBoundary = await loadPreviousExplicitRuntimeBoundary(database, asset, selectedEvent);
+  const previousState = runtimeBoundaryState(previousBoundary);
+  const cycleStartRevision = normalizeText(asset.cycle_start_revision);
+  const replacementAt = new Date(asset.last_replacement_at);
+  const cycleStartedAt = new Date(
+    cycleStartState === "started"
+      ? (normalizeText(asset.cycle_started_at) || asset.last_replacement_at)
+      : asset.last_replacement_at
+  );
+  const requestedEventDate = resetToStartupPending
+    ? normalizeDateTime(asset.last_replacement_at)
+    : normalizeDateTime(body.eventDate || body.date);
+  const requestedEventAt = new Date(requestedEventDate);
+
+  if (!requestedEventDate || Number.isNaN(requestedEventAt.getTime())) {
+    return jsonResponse({ ok: false, message: "수정할 한국시간을 확인해 주세요." }, 400);
+  }
+
+  if (requestedEventAt > new Date(Date.now() + 5 * 60000)) {
+    return jsonResponse({ ok: false, message: "수정할 시각은 현재 이후로 지정할 수 없습니다." }, 400);
+  }
+
+  const canRestoreStartupPending = (
+    eventType === "operation_stop" &&
+    !previousBoundary &&
+    cycleStartState === "legacy"
+  );
+  const beforeReplacement = !Number.isNaN(replacementAt.getTime()) && requestedEventAt < replacementAt;
+  const restoreStartupPending = canRestoreStartupPending && (
+    resetToStartupPending ||
+    beforeReplacement ||
+    requestedEventAt.getTime() === replacementAt.getTime()
+  );
+
+  if (resetToStartupPending && !canRestoreStartupPending) {
+    return jsonResponse({
+      ok: false,
+      message: "이후 기동·정지 또는 누적시간 보정 이력이 있어 교체 당시 정지 상태로 되돌릴 수 없습니다."
+    }, 409);
+  }
+
+  if (beforeReplacement && !restoreStartupPending) {
+    return jsonResponse({ ok: false, message: "수정 시각은 최근 V-Belt 교체일보다 빠를 수 없습니다." }, 400);
+  }
+
+  const firstCycleStartupEdit = (
+    eventType === "operation_start" &&
+    !previousBoundary &&
+    cycleStartState === "started" &&
+    Math.abs(Number(selectedEvent.runtime_hours)) < 0.000001
+  );
+  const minimumBoundaryAt = previousBoundary
+    ? new Date(previousBoundary.event_date)
+    : (firstCycleStartupEdit ? replacementAt : cycleStartedAt);
+  if (
+    !restoreStartupPending &&
+    !Number.isNaN(minimumBoundaryAt.getTime()) &&
+    requestedEventAt < minimumBoundaryAt
+  ) {
+    return jsonResponse({
+      ok: false,
+      message: previousBoundary
+        ? "수정 시각은 직전 운전상태 이력보다 빠를 수 없습니다."
+        : "수정 시각은 현재 V-Belt Cycle 시작보다 빠를 수 없습니다."
+    }, 400);
+  }
+
+  if (
+    eventType === "operation_stop" &&
+    previousBoundary &&
+    previousState !== "running"
+  ) {
+    return jsonResponse({ ok: false, message: "직전 이력이 운전중 상태가 아니어서 정지시각을 다시 계산할 수 없습니다." }, 409);
+  }
+
+  if (
+    eventType === "operation_start" &&
+    previousBoundary &&
+    previousState !== "stopped"
+  ) {
+    return jsonResponse({ ok: false, message: "직전 이력이 정지 상태가 아니어서 재기동시각을 수정할 수 없습니다." }, 409);
+  }
+
+  let revisedHours;
+  if (restoreStartupPending) {
+    revisedHours = 0;
+  } else if (eventType === "operation_start") {
+    revisedHours = Number(selectedEvent.runtime_hours);
+  } else {
+    const baseAt = previousBoundary ? new Date(previousBoundary.event_date) : cycleStartedAt;
+    const baseHours = previousBoundary ? Number(previousBoundary.runtime_hours) : 0;
+    revisedHours = Number.isFinite(baseHours) && !Number.isNaN(baseAt.getTime())
+      ? Math.max(0, baseHours + ((requestedEventAt.getTime() - baseAt.getTime()) / 3600000))
+      : null;
+  }
+
+  if (!Number.isFinite(revisedHours)) {
+    return jsonResponse({ ok: false, message: "수정 후 누적 운전시간을 계산하지 못했습니다." }, 409);
+  }
+
+  const now = new Date().toISOString();
+  const nextRuntimeRevision = crypto.randomUUID();
+  const nextCycleStartRevision = restoreStartupPending ? crypto.randomUUID() : cycleStartRevision;
+  const nextCycleStartState = restoreStartupPending ? "pending" : cycleStartState;
+  const nextCycleStartedAt = restoreStartupPending
+    ? null
+    : (firstCycleStartupEdit ? requestedEventDate : asset.cycle_started_at);
+  const nextActionType = restoreStartupPending
+    ? (beforeReplacement ? "교체 전 정지 지속" : "교체 당시 정지")
+    : normalizeText(selectedEvent.action_type);
+  const nextNote = normalizeText(body.note);
+  const beforeJson = JSON.stringify({
+    eventId,
+    eventType,
+    eventDate: normalizeText(selectedEvent.event_date),
+    runtimeHours: Number(selectedEvent.runtime_hours),
+    actionType: normalizeText(selectedEvent.action_type),
+    note: normalizeText(selectedEvent.note),
+    cycleStartState,
+    cycleRuntimeHours: Number(asset.cycle_runtime_hours),
+    cycleRuntimeAnchorAt: normalizeText(asset.cycle_runtime_anchor_at),
+    cycleRuntimeState: currentState
+  });
+  const afterJson = JSON.stringify({
+    eventId,
+    eventType,
+    eventDate: requestedEventDate,
+    runtimeHours: revisedHours,
+    actionType: nextActionType,
+    note: nextNote,
+    cycleStartState: nextCycleStartState,
+    cycleRuntimeHours: revisedHours,
+    cycleRuntimeAnchorAt: requestedEventDate,
+    cycleRuntimeState: currentState
+  });
+  const auditId = crypto.randomUUID();
+  const guardId = crypto.randomUUID();
+  let results;
+
+  try {
+    results = await database.batch([
+      database
+      .prepare(`
+        UPDATE blower_history_assets
+        SET
+          cycle_started_at = ?,
+          cycle_start_state = ?,
+          cycle_start_revision = ?,
+          cycle_runtime_hours = ?,
+          cycle_runtime_anchor_at = ?,
+          cycle_runtime_state = ?,
+          cycle_runtime_revision = ?,
+          runtime_hours = ?,
+          runtime_anchor_at = ?,
+          is_running = ?,
+          last_modified_by_id = ?,
+          last_modified_by_name = ?,
+          updated_at = ?
+        WHERE tag_number = ?
+          AND enabled = 1
+          AND cycle_start_state = ?
+          AND cycle_start_revision = ?
+          AND cycle_runtime_state = ?
+          AND cycle_runtime_revision = ?
+          AND last_replacement_at = ?
+          AND cycle_runtime_anchor_at = ?
+          AND EXISTS (
+            SELECT 1 FROM blower_history_events
+            WHERE id = ?
+              AND tag_number = ?
+              AND event_type = ?
+              AND source_type = 'manual'
+              AND event_date = ?
+              AND updated_at = ?
+          )
+          AND ? = (
+            SELECT id
+            FROM blower_history_events
+            WHERE tag_number = ?
+              AND event_type IN ('startup', 'operation_start', 'operation_stop', 'runtime_correction')
+              AND datetime(event_date) >= datetime(?)
+            ORDER BY datetime(event_date) DESC, created_at DESC, id DESC
+            LIMIT 1
+          )
+      `)
+      .bind(
+        nextCycleStartedAt,
+        nextCycleStartState,
+        nextCycleStartRevision,
+        revisedHours,
+        requestedEventDate,
+        currentState,
+        nextRuntimeRevision,
+        revisedHours,
+        currentState === "running" ? requestedEventDate : null,
+        currentState === "running" ? 1 : 0,
+        user.employeeNo,
+        user.name,
+        now,
+        tagNumber,
+        cycleStartState,
+        cycleStartRevision,
+        currentState,
+        expectedRuntimeRevision,
+        expectedLastReplacementAt,
+        selectedEvent.event_date,
+        eventId,
+        tagNumber,
+        eventType,
+        selectedEvent.event_date,
+        expectedEventUpdatedAt,
+        eventId,
+        tagNumber,
+        expectedLastReplacementAt
+      ),
+      database
+      .prepare(`
+        UPDATE blower_history_events
+        SET event_date = ?, runtime_hours = ?, action_type = ?, note = ?, updated_at = ?
+        WHERE id = ?
+          AND tag_number = ?
+          AND event_type = ?
+          AND source_type = 'manual'
+          AND event_date = ?
+          AND updated_at = ?
+          AND EXISTS (
+            SELECT 1 FROM blower_history_assets
+            WHERE tag_number = ? AND cycle_runtime_revision = ?
+          )
+      `)
+      .bind(
+        requestedEventDate,
+        revisedHours,
+        nextActionType,
+        nextNote,
+        now,
+        eventId,
+        tagNumber,
+        eventType,
+        selectedEvent.event_date,
+        expectedEventUpdatedAt,
+        tagNumber,
+        nextRuntimeRevision
+      ),
+      database
+      .prepare(`
+        INSERT INTO blower_history_asset_history (
+          id, action_type, tag_number, before_json, after_json, change_note,
+          changed_by_id, changed_by_name, changed_at
+        )
+        SELECT ?, 'runtime_event_edit', ?, ?, ?, ?, ?, ?, ?
+        WHERE EXISTS (
+          SELECT 1 FROM blower_history_assets
+          WHERE tag_number = ? AND cycle_runtime_revision = ?
+        )
+          AND EXISTS (
+            SELECT 1 FROM blower_history_events
+            WHERE id = ? AND updated_at = ?
+          )
+      `)
+      .bind(
+        auditId,
+        tagNumber,
+        beforeJson,
+        afterJson,
+        normalizeText(body.changeNote) || "운전상태 이력 시각 수정",
+        user.employeeNo,
+        user.name,
+        now,
+        tagNumber,
+        nextRuntimeRevision,
+        eventId,
+        now
+      ),
+      database
+        .prepare(`
+          INSERT INTO blower_history_atomic_guard (id, valid)
+          VALUES (
+            ?,
+            CASE WHEN
+              EXISTS (
+                SELECT 1 FROM blower_history_assets
+                WHERE tag_number = ? AND cycle_runtime_revision = ?
+              )
+              AND EXISTS (
+                SELECT 1 FROM blower_history_events
+                WHERE id = ? AND updated_at = ?
+              )
+              AND EXISTS (
+                SELECT 1 FROM blower_history_asset_history
+                WHERE id = ?
+              )
+            THEN 1 ELSE 0 END
+          )
+        `)
+        .bind(
+          guardId,
+          tagNumber,
+          nextRuntimeRevision,
+          eventId,
+          now,
+          auditId
+        ),
+      database
+        .prepare(`DELETE FROM blower_history_atomic_guard WHERE id = ?`)
+        .bind(guardId)
+    ]);
+  } catch (error) {
+    if (/CHECK constraint failed(?:: valid = 1|.*blower_history_atomic_guard)/i.test(String(error?.message || error))) {
+      return jsonResponse({ ok: false, message: "이력이 동시에 변경되었습니다. 새로고침 후 다시 수정해 주세요." }, 409);
+    }
+    throw error;
+  }
+
+  if (Number(results?.[0]?.meta?.changes || 0) !== 1) {
+    return jsonResponse({ ok: false, message: "Cycle 상태가 먼저 변경되었습니다. 새로고침 후 다시 수정해 주세요." }, 409);
+  }
+  if (Number(results?.[1]?.meta?.changes || 0) !== 1) {
+    throw new Error("운전상태 이력 시각을 함께 수정하지 못했습니다.");
+  }
+  if (Number(results?.[2]?.meta?.changes || 0) !== 1) {
+    throw new Error("운전상태 이력 수정 감사기록을 저장하지 못했습니다.");
+  }
+  if (
+    Number(results?.[3]?.meta?.changes || 0) !== 1 ||
+    Number(results?.[4]?.meta?.changes || 0) !== 1
+  ) {
+    throw new Error("운전상태 이력 수정 원자성 검증을 완료하지 못했습니다.");
+  }
+
+  return jsonResponse({
+    ok: true,
+    message: restoreStartupPending
+      ? "교체 당시부터 정지 상태로 바로잡았습니다. 현재 Cycle은 기동 대기·누적 0시간입니다."
+      : eventType === "operation_stop"
+        ? `정지시각을 수정하고 누적 운전시간을 ${revisedHours.toFixed(1)}시간으로 다시 계산했습니다.`
+        : "재기동시각을 수정했습니다. 수정한 시각부터 Cycle 계산을 이어갑니다."
+  });
 }
 
 async function changeRuntimeState(database, user, body) {
@@ -9007,6 +9492,10 @@ async function handlePost(context, user, body) {
 
   if (action === "runtime_state") {
     return changeRuntimeState(database, user, body);
+  }
+
+  if (action === "runtime_event_edit") {
+    return editLatestRuntimeBoundary(database, user, body);
   }
 
   if (action === "historical_backfill_step") {

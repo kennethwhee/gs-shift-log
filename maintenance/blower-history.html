@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260830-initial-state-v91">
-  <script src="blower-history.js?v=20260830-initial-state-v91" defer></script>
+  <link rel="stylesheet" href="blower-history.css?v=20260830-runtime-history-edit-v92">
+  <script src="blower-history.js?v=20260830-runtime-history-edit-v92" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -200,6 +200,9 @@
         <input type="hidden" id="recordMode">
         <input type="hidden" id="recordTag">
         <input type="hidden" id="candidateId">
+        <input type="hidden" id="recordEventId">
+        <input type="hidden" id="recordExpectedEventUpdatedAt">
+        <input type="hidden" id="runtimeEditResetToPending">
 
         <label class="field">
           <span id="recordDateLabel">일자</span>
@@ -265,8 +268,15 @@
 
         <div class="runtime-cycle-summary" id="runtimeCycleSummary" hidden></div>
 
+        <div class="runtime-edit-pending" id="runtimeEditPendingField" hidden>
+          <button type="button" class="button secondary" id="runtimeEditPendingButton" data-mobile-write>
+            교체 당시부터 정지 · 0시간
+          </button>
+          <small>교체 후 한 번도 기동하지 않았다면 선택하세요. 다음 기동 등록 전까지 D-day·사용률·알림을 계산하지 않습니다.</small>
+        </div>
+
         <label class="field">
-          <span>비고 / 작업내용</span>
+          <span id="recordNoteLabel">비고 / 작업내용</span>
           <textarea id="recordNote" rows="4" placeholder="필요한 내용을 입력하세요."></textarea>
         </label>
 
