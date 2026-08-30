@@ -1009,6 +1009,9 @@
     const actualStarted = confirmed && cycleStartState === "started" && Boolean(asset.cycleStartedAt);
     const cycleRuntimeTracked = confirmed && !startupPending && Boolean(asset.cycleRuntimeTracked);
     const operationRunning = cycleRuntimeTracked && Boolean(asset.isRunning);
+    const operationState = confirmed
+      ? (startupPending ? "startup_pending" : (operationRunning ? "running" : "stopped"))
+      : "unconfirmed";
     const cycleAnchorAt = actualStarted ? asset.cycleStartedAt : (startupPending ? "" : asset.lastReplacementAt);
     const severity = displaySeverity(asset);
     const evidence = readableEvidence(replacementEvent);
@@ -1037,12 +1040,16 @@
         ? `${cycleHours.toLocaleString("ko-KR")}h`
         : `${cycleDays.toLocaleString("ko-KR")}일`)
       : "미설정";
+    const operationActionLabel = operationRunning ? "정지" : "기동";
+    const operationActionTitle = operationRunning
+      ? "클릭하면 현재 시각으로 운전을 정지합니다."
+      : "클릭하면 현재 시각으로 운전을 기동합니다.";
     const operationAction = confirmed
-      ? `<button type="button" class="asset-action runtime-state-action ${operationRunning ? "stop" : "start"}" data-mobile-write data-asset-action="operation_toggle" data-tag="${escapeHtml(asset.tagNumber)}">${operationRunning ? "정지" : "기동"}</button>`
+      ? `<button type="button" class="asset-action runtime-state-action ${operationRunning ? "stop" : "start"}" data-mobile-write data-asset-action="operation_toggle" data-tag="${escapeHtml(asset.tagNumber)}" title="${escapeHtml(operationActionTitle)}" aria-label="${escapeHtml(`${cardPosition} ${operationActionLabel}`)}">${operationActionLabel}</button>`
       : "";
 
     return `
-      <article class="asset-card" data-severity="${escapeHtml(severity)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}>
+      <article class="asset-card" data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(operationState)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}>
         <div class="asset-card-header">
           <div class="asset-identity">
             <strong class="asset-position">${escapeHtml(cardPosition)}</strong>
