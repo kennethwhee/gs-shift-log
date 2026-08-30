@@ -7,7 +7,7 @@ const childProcess = require("child_process");
 
 const repositoryPath = path.resolve(process.argv[2] || process.cwd());
 const navigationCacheVersion = "20260828-navigation-public-v1";
-const blowerCacheVersion = "20260830-initial-state-public-navigation-v92";
+const blowerCacheVersion = "20260830-runtime-history-edit-public-navigation-v93";
 
 function read(relativePath) {
   return fs
@@ -227,6 +227,12 @@ for (const token of [
   "실제 재기동일시 (한국시간)",
   "recordDate.max",
   "latestExplicitRuntimeBoundary",
+  "latestExplicitRuntimeEvent",
+  "previousExplicitRuntimeEvent",
+  "canResetRuntimeEventToPending",
+  'action: "runtime_event_edit"',
+  "recordExpectedEventUpdatedAt",
+  "resetToStartupPending",
   "initialCycleCorrection",
   "assetManagerButton.hidden = !hasAuthenticatedWriteAccess()",
   'method !== "GET" && !hasAuthenticatedWriteAccess()'
@@ -241,7 +247,9 @@ for (const token of [
   "body.public-monitoring #assetManagerDialog",
   "body.mobile-monitoring #assetManagerDialog",
   ".operation-pill",
-  ".runtime-state-action"
+  ".runtime-state-action",
+  ".asset-history-edit",
+  ".runtime-edit-pending"
 ]) {
   assert(
     blowerPageCss.includes(token),
@@ -301,6 +309,13 @@ for (const token of [
   "changeRuntimeState",
   "expectedCycleRuntimeRevision",
   "loadLatestExplicitRuntimeBoundary",
+  "loadPreviousExplicitRuntimeBoundary",
+  "runtimeBoundaryState",
+  "editLatestRuntimeBoundary",
+  "blower_history_atomic_guard",
+  'action === "runtime_event_edit"',
+  "resetToStartupPending",
+  "runtime_event_edit",
   "initialCycleCorrection",
   "INITIAL_CYCLE_CORRECTION_NOT_ALLOWED",
   "INITIAL_CYCLE_CORRECTION_REQUIRED",
@@ -407,8 +422,11 @@ assert(
     blowerPageHtml.includes('<option value="operation">기동·정지</option>') &&
     blowerPageHtml.includes('id="replacementStartupAt"') &&
     blowerPageHtml.includes('id="runtimeCycleSummary"') &&
+    blowerPageHtml.includes('id="recordEventId"') &&
+    blowerPageHtml.includes('id="recordExpectedEventUpdatedAt"') &&
+    blowerPageHtml.includes('id="runtimeEditPendingButton"') &&
     blowerPageHtml.includes('data-shift-log-return'),
-  "Blower initial-state/KST/public-navigation HTML integration is incomplete."
+  "Blower runtime-edit/initial-state/KST/public-navigation HTML integration is incomplete."
 );
 
 console.log("Same-tab public-pages V3 verification passed.");
