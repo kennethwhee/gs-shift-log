@@ -99826,6 +99826,430 @@ async function pollAuxiliaryMaterialOisProgress() {
   }
 }
 
+
+/* =========================================================
+  [AUXILIARY-LIMESTONE-UNIFIED-QUERY-V2]
+  부재료 OIS 조회 시 석회석 미계산 날짜도 함께 등록
+
+  기존 서버 API를 그대로 사용한다.
+  - 일반 부재료: create_materials_batch
+  - 석회석 저장 확인: usage_history
+  - 석회석 미계산 날짜: create_usage_batch
+
+  이미 1·2호기 사용량이 모두 저장된 날짜는
+  다시 계산하지 않는다.
+========================================================= */
+
+function getAuxiliaryMaterialLinkedLimestoneHeaders() {
+  return (
+    typeof getShiftLogAuthHeaders ===
+      "function"
+      ? getShiftLogAuthHeaders({
+          "Content-Type":
+            "application/json"
+        })
+      : {
+          Accept:
+            "application/json",
+
+          "Content-Type":
+            "application/json"
+        }
+  );
+}
+
+function addAuxiliaryMaterialLinkedLimestoneDate(
+  dateText,
+  dayCount
+) {
+  const dateValue =
+    new Date(
+      `${dateText}T00:00:00.000Z`
+    );
+
+  if (
+    !Number.isFinite(
+      dateValue.getTime()
+    )
+  ) {
+    return "";
+  }
+
+  dateValue.setUTCDate(
+    dateValue.getUTCDate() +
+      Number(
+        dayCount ||
+        0
+      )
+  );
+
+  return dateValue
+    .toISOString()
+    .slice(
+      0,
+      10
+    );
+}
+
+function createAuxiliaryMaterialLinkedLimestoneMissingRanges(
+  dateValues
+) {
+  const dates = [
+    ...new Set(
+      (
+        Array.isArray(
+          dateValues
+        )
+          ? dateValues
+          : []
+      )
+        .map(
+          value => {
+            return String(
+              value ||
+              ""
+            ).trim();
+          }
+        )
+        .filter(
+          Boolean
+        )
+    )
+  ].sort();
+
+  const ranges = [];
+
+  dates.forEach(
+    dateValue => {
+      const currentRange =
+        ranges[
+          ranges.length -
+          1
+        ] ||
+        null;
+
+      if (
+        !currentRange ||
+        addAuxiliaryMaterialLinkedLimestoneDate(
+          currentRange.endDate,
+          1
+        ) !==
+          dateValue
+      ) {
+        ranges.push({
+          startDate:
+            dateValue,
+
+          endDate:
+            dateValue
+        });
+
+        return;
+      }
+
+      currentRange.endDate =
+        dateValue;
+    }
+  );
+
+  return ranges;
+}
+
+function hasAuxiliaryMaterialLinkedLimestoneNumber(
+  value
+) {
+  if (
+    value ===
+      null ||
+    value ===
+      undefined ||
+    String(
+      value
+    ).trim() ===
+      ""
+  ) {
+    return false;
+  }
+
+  return Number.isFinite(
+    Number(
+      value
+    )
+  );
+}
+
+async function createAuxiliaryMaterialLinkedLimestoneUsageBatch(
+  range
+) {
+  const configuredLinkStartDate =
+    typeof AUXILIARY_MATERIAL_LIMESTONE_LINK_START_DATE ===
+      "string"
+      ? String(
+          AUXILIARY_MATERIAL_LIMESTONE_LINK_START_DATE
+        ).trim()
+      : "";
+
+  const linkStartDate =
+    configuredLinkStartDate ||
+    "2026-08-10";
+
+  if (
+    range.endDate <
+      linkStartDate
+  ) {
+    return {
+      skipped:
+        true,
+
+      checkedDateCount:
+        0,
+
+      savedDateCount:
+        0,
+
+      requestedDateCount:
+        0,
+
+      batchCount:
+        0,
+
+      batches:
+        []
+    };
+  }
+
+  const startDate =
+    range.startDate <
+      linkStartDate
+      ? linkStartDate
+      : range.startDate;
+
+  const endDate =
+    range.endDate;
+
+  const query =
+    new URLSearchParams({
+      action:
+        "usage_history",
+
+      startDate,
+      endDate,
+
+      _:
+        String(
+          Date.now()
+        )
+    });
+
+  const historyResponse =
+    await fetch(
+      (
+        "/api/ois-data-requests?" +
+        query.toString()
+      ),
+      {
+        method:
+          "GET",
+
+        headers:
+          getAuxiliaryMaterialLinkedLimestoneHeaders(),
+
+        cache:
+          "no-store"
+      }
+    );
+
+  const historyResult =
+    await readAuxiliaryMaterialOisJsonResponse(
+      historyResponse
+    );
+
+  const historyByDate =
+    new Map();
+
+  (
+    Array.isArray(
+      historyResult?.items
+    )
+      ? historyResult.items
+      : []
+  ).forEach(
+    item => {
+      const usageDate =
+        String(
+          item?.usageDate ||
+          ""
+        ).trim();
+
+      if (
+        usageDate
+      ) {
+        historyByDate.set(
+          usageDate,
+          item
+        );
+      }
+    }
+  );
+
+  const expectedDates = [];
+
+  for (
+    let cursor = startDate;
+    cursor &&
+    cursor <= endDate;
+    cursor =
+      addAuxiliaryMaterialLinkedLimestoneDate(
+        cursor,
+        1
+      )
+  ) {
+    expectedDates.push(
+      cursor
+    );
+
+    if (
+      expectedDates.length >
+        366
+    ) {
+      throw new Error(
+        "석회석 사용량 저장 확인 기간이 366일을 초과했습니다."
+      );
+    }
+  }
+
+  const missingDates =
+    expectedDates.filter(
+      usageDate => {
+        const item =
+          historyByDate.get(
+            usageDate
+          ) ||
+          null;
+
+        const hasUnitOne =
+          hasAuxiliaryMaterialLinkedLimestoneNumber(
+            item?.unitOneUsage
+          );
+
+        const hasUnitTwo =
+          hasAuxiliaryMaterialLinkedLimestoneNumber(
+            item?.unitTwoUsage
+          );
+
+        return !(
+          hasUnitOne &&
+          hasUnitTwo
+        );
+      }
+    );
+
+  const missingRanges =
+    createAuxiliaryMaterialLinkedLimestoneMissingRanges(
+      missingDates
+    );
+
+  const batches = [];
+
+  for (
+    const missingRange of
+      missingRanges
+  ) {
+    const response =
+      await fetch(
+        "/api/ois-data-requests",
+        {
+          method:
+            "POST",
+
+          headers:
+            getAuxiliaryMaterialLinkedLimestoneHeaders(),
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              action:
+                "create_usage_batch",
+
+              startDate:
+                missingRange.startDate,
+
+              endDate:
+                missingRange.endDate
+            })
+        }
+      );
+
+    batches.push(
+      await readAuxiliaryMaterialOisJsonResponse(
+        response
+      )
+    );
+  }
+
+  return {
+    skipped:
+      false,
+
+    startDate,
+    endDate,
+
+    checkedDateCount:
+      expectedDates.length,
+
+    savedDateCount:
+      Math.max(
+        0,
+        expectedDates.length -
+          missingDates.length
+      ),
+
+    requestedDateCount:
+      missingDates.length,
+
+    batchCount:
+      missingRanges.length,
+
+    batchRanges:
+      missingRanges,
+
+    batches
+  };
+}
+
+function getAuxiliaryMaterialLinkedLimestoneNotice(
+  result
+) {
+  if (
+    result?.skipped ===
+      true
+  ) {
+    return "석회석 사용량 연동 기준일 이전 자료입니다.";
+  }
+
+  const requestedDateCount =
+    Math.max(
+      0,
+      Number(
+        result?.requestedDateCount
+      ) ||
+      0
+    );
+
+  if (
+    requestedDateCount >
+      0
+  ) {
+    return (
+      `석회석 미계산 ${requestedDateCount}일도 함께 등록했습니다.`
+    );
+  }
+
+  return "석회석 사용량은 모두 저장자료를 사용합니다.";
+}
+
 async function createAuxiliaryMaterialOisQuery() {
   try {
     const range =
@@ -99930,6 +100354,33 @@ async function createAuxiliaryMaterialOisQuery() {
         response
       );
 
+    /*
+      일반 부재료 요청이 정상 등록되면
+      석회석 저장 이력을 먼저 확인한다.
+
+      이미 1·2호기 사용량이 모두 저장된 날짜는 건너뛰고,
+      미계산·부분 저장 날짜만 기존 create_usage_batch로 등록한다.
+      실패를 숨기지 않고 기존 catch 구역으로 전달한다.
+    */
+
+    const limestoneUsageBatchResult =
+      await createAuxiliaryMaterialLinkedLimestoneUsageBatch(
+        range
+      );
+
+    const limestoneUsageNotice =
+      getAuxiliaryMaterialLinkedLimestoneNotice(
+        limestoneUsageBatchResult
+      );
+
+    setAuxiliaryMaterialStatus(
+      (
+        `${range.startDate} ~ ${range.endDate} ` +
+        limestoneUsageNotice
+      ),
+      "loading"
+    );
+
     const createdCount =
       Math.max(
         0,
@@ -100006,7 +100457,7 @@ async function createAuxiliaryMaterialOisQuery() {
         (
           `선택 범위 ${savedCount}일은 ` +
           "모두 저장자료를 사용합니다. " +
-          "새 OIS 요청은 없습니다."
+          limestoneUsageNotice
         ),
         "complete"
       );
