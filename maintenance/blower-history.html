@@ -6,9 +6,9 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260830-runtime-history-edit-public-navigation-v93">
+  <link rel="stylesheet" href="blower-history.css?v=20260830-runtime-history-edit-public-navigation-v93&amp;r=20260830-direct-zero-reset-v931">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="blower-history.js?v=20260830-runtime-history-edit-public-navigation-v93" defer></script>
+  <script src="blower-history.js?v=20260830-runtime-history-edit-public-navigation-v93&amp;r=20260830-direct-zero-reset-v931" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -211,6 +211,13 @@
         <input type="hidden" id="recordExpectedEventUpdatedAt">
         <input type="hidden" id="runtimeEditResetToPending">
 
+        <div class="runtime-edit-pending" id="runtimeEditPendingField" hidden>
+          <button type="button" class="button secondary" id="runtimeEditPendingButton" data-mobile-write>
+            교체 당시부터 정지 · 0시간
+          </button>
+          <small>날짜 선택 없이 바로 정정하려면 선택하세요. 다음 실제 기동 전까지 D-day·사용률·알림을 계산하지 않습니다.</small>
+        </div>
+
         <label class="field">
           <span id="recordDateLabel">일자</span>
           <input type="date" id="recordDate" required>
@@ -274,13 +281,6 @@
         </label>
 
         <div class="runtime-cycle-summary" id="runtimeCycleSummary" hidden></div>
-
-        <div class="runtime-edit-pending" id="runtimeEditPendingField" hidden>
-          <button type="button" class="button secondary" id="runtimeEditPendingButton" data-mobile-write>
-            교체 당시부터 정지 · 0시간
-          </button>
-          <small>교체 후 한 번도 기동하지 않았다면 선택하세요. 다음 기동 등록 전까지 D-day·사용률·알림을 계산하지 않습니다.</small>
-        </div>
 
         <label class="field">
           <span id="recordNoteLabel">비고 / 작업내용</span>

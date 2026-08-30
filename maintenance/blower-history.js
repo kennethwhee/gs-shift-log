@@ -1573,12 +1573,15 @@
           const expectedState = event.eventType === "operation_stop" ? "stopped" : "running";
           const currentState = asset.isRunning ? "running" : "stopped";
           const editableRuntimeEvent = (
+            hasAuthenticatedWriteAccess() &&
+            Boolean(event.id) &&
             latestRuntimeEvent?.id === event.id &&
             ["operation_start", "operation_stop"].includes(event.eventType) &&
             event.sourceType === "manual" &&
             cycleStartState !== "pending" &&
             expectedState === currentState
           );
+          const resettableRuntimeEvent = editableRuntimeEvent && canResetRuntimeEventToPending(asset, event);
           const edited = Boolean(event.updatedAt && event.createdAt && event.updatedAt !== event.createdAt);
 
           return `
@@ -1589,7 +1592,12 @@
                   <span class="event-badge ${escapeHtml(event.eventType)}">${escapeHtml(eventLabel(event.eventType))}</span>
                   ${detail ? `<strong>${escapeHtml(detail)}</strong>` : ""}
                   ${edited ? `<span class="event-edited">수정됨</span>` : ""}
-                  ${editableRuntimeEvent ? `<button type="button" class="button asset-history-edit" data-mobile-write data-history-action="runtime_state_edit" data-event-id="${escapeHtml(event.id)}">시간 수정</button>` : ""}
+                  ${editableRuntimeEvent ? `
+                    <span class="asset-history-actions">
+                      ${resettableRuntimeEvent ? `<button type="button" class="button asset-history-reset" data-mobile-write data-history-action="runtime_reset_pending" data-event-id="${escapeHtml(event.id)}">미기동 · 0시간</button>` : ""}
+                      <button type="button" class="button asset-history-edit" data-mobile-write data-history-action="runtime_state_edit" data-event-id="${escapeHtml(event.id)}">시간 수정</button>
+                    </span>
+                  ` : ""}
                 </div>
                 <p>${escapeHtml(content)}</p>
                 <small>${escapeHtml(historySourceLabel(event))}${event.createdByName ? ` · ${escapeHtml(event.createdByName)}` : ""}${Number(event.runtimeHours) > 0 ? ` · 당시 ${escapeHtml(historyRuntimeLabel(event))}` : ""}</small>
@@ -1848,6 +1856,12 @@
     return selectedIndex >= 0 ? (events[selectedIndex + 1]?.event || null) : null;
   }
 
+  function previousExplicitRuntimeEvents(asset, selectedEvent) {
+    const events = explicitRuntimeEvents(asset);
+    const selectedIndex = events.findIndex(item => item.event.id === selectedEvent?.id);
+    return selectedIndex >= 0 ? events.slice(selectedIndex + 1).map(item => item.event) : [];
+  }
+
   function findEvent(eventId) {
     return (state.data?.events || []).find(event => event.id === eventId) || null;
   }
@@ -1889,13 +1903,31 @@
   }
 
   function canResetRuntimeEventToPending(asset, event) {
+    const eventAt = new Date(event?.eventDate);
+    const anchorAt = new Date(asset?.cycleRuntimeAnchorAt);
+    const eventHours = Number(event?.runtimeHours);
+    const cycleHours = Number(asset?.cycleElapsedHours);
     return Boolean(
       asset &&
       event?.eventType === "operation_stop" &&
       String(event.sourceType || "") === "manual" &&
-      String(asset.cycleStartState || "legacy") === "legacy" &&
+      String(asset.cycleStartState || "legacy") !== "pending" &&
+      asset.isRunning === false &&
       latestExplicitRuntimeEvent(asset)?.id === event.id &&
-      !previousExplicitRuntimeEvent(asset, event)
+      !Number.isNaN(eventAt.getTime()) &&
+      !Number.isNaN(anchorAt.getTime()) &&
+      eventAt.getTime() === anchorAt.getTime() &&
+      Number.isFinite(eventHours) &&
+      Number.isFinite(cycleHours) &&
+      Math.abs(eventHours - cycleHours) <= 0.05
+    );
+  }
+
+  function canInferRuntimeEventPendingByDate(asset, event) {
+    return Boolean(
+      canResetRuntimeEventToPending(asset, event) &&
+      String(asset?.cycleStartState || "legacy") === "legacy" &&
+      previousExplicitRuntimeEvents(asset, event).length === 0
     );
   }
 
@@ -1927,8 +1959,8 @@
     const editedAt = new Date(kstDateTimeInputToIso(elements.recordDate.value));
     const replacementAt = new Date(asset.lastReplacementAt);
     const previous = previousExplicitRuntimeEvent(asset, editedEvent);
-    const restorePending = canResetRuntimeEventToPending(asset, editedEvent) && (
-      resetToPending ||
+    const restorePending = resetToPending || (
+      canInferRuntimeEventPendingByDate(asset, editedEvent) &&
       (!Number.isNaN(editedAt.getTime()) && !Number.isNaN(replacementAt.getTime()) && editedAt <= replacementAt)
     );
     let previewHtml;
@@ -1990,6 +2022,63 @@
     updateRuntimeEditPreview();
   }
 
+  async function resetRuntimeEventToStartupPending(tagNumber, eventId, event) {
+    if (stopMobileMutation(event)) return;
+    if (state.busy) return;
+
+    const asset = findAsset(tagNumber);
+    const editedEvent = findEvent(eventId);
+    if (!asset || !editedEvent || !canResetRuntimeEventToPending(asset, editedEvent)) {
+      showToast("최신 정지 이력 또는 현재 Cycle이 변경되었습니다. 새로고침 후 다시 확인해 주세요.", "error");
+      return;
+    }
+
+    const previousBoundaries = previousExplicitRuntimeEvents(asset, editedEvent);
+    const hasRunningBoundary = previousBoundaries.some(boundary => runtimeEventState(boundary) === "running");
+    const warning = hasRunningBoundary
+      ? "\n\n이전 기동·재기동 또는 운전중 보정 기록이 있습니다. 해당 기록은 감사이력에 보존하지만 현재 Cycle 기준에서는 제외합니다."
+      : "";
+    const confirmed = window.confirm(
+      `${formatDate(asset.lastReplacementAt)} V-Belt 교체 후 한 번도 기동하지 않은 상태로 정정합니다.\n\n` +
+      `현재: ${formatKstDateTimeDisplay(editedEvent.eventDate)} 정지 · 누적 ${formatDaysHours(editedEvent.runtimeHours)}\n` +
+      "변경: 기동 대기 · 누적 0시간\n\n" +
+      "교체일과 등록 근거는 유지되며 다음 실제 기동부터 다시 계산합니다." +
+      warning +
+      "\n\n계속할까요?"
+    );
+    if (!confirmed) return;
+
+    setBusy(true);
+    elements.historyDialog.close();
+    try {
+      const result = await apiRequest({
+        method: "POST",
+        body: {
+          action: "runtime_event_edit",
+          tagNumber,
+          eventId: editedEvent.id,
+          eventDate: editedEvent.eventDate,
+          resetToStartupPending: true,
+          confirmRuntimeBoundaryOverride: true,
+          expectedEventUpdatedAt: editedEvent.updatedAt || "",
+          expectedCycleRuntimeRevision: asset.cycleRuntimeRevision || "",
+          expectedLastReplacementAt: asset.lastReplacementAt || "",
+          changeNote: "교체 후 미기동 상태로 0시간 복원",
+          note: editedEvent.note || ""
+        }
+      });
+      showToast(result.message || "기동 대기·누적 0시간으로 정정했습니다.");
+      await loadData({ silent: true });
+      openAssetHistory(tagNumber);
+    } catch (error) {
+      console.error("Blower 미기동·0시간 복원 실패:", error);
+      showToast(error.message || "0시간으로 복원하지 못했습니다.", "error");
+      openAssetHistory(tagNumber);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function openRecordDialog(mode, tagNumber, candidate = null) {
     if (stopMobileMutation()) return;
     const asset = findAsset(tagNumber);
@@ -2026,7 +2115,8 @@
       elements.recordDate.value = formatKstDateTimeInput();
       const replacementAt = new Date(asset.lastReplacementAt);
       const runtimeAnchorAt = new Date(asset.cycleRuntimeAnchorAt);
-      const minimumStartupAt = [replacementAt, runtimeAnchorAt]
+      const explicitBoundaryAt = latestExplicitRuntimeBoundary(asset);
+      const minimumStartupAt = [replacementAt, runtimeAnchorAt, explicitBoundaryAt]
         .filter(value => !Number.isNaN(value.getTime()))
         .sort((left, right) => right.getTime() - left.getTime())[0];
       elements.recordDate.min = !minimumStartupAt
@@ -2117,6 +2207,8 @@
       }
 
       const resetAvailable = canResetRuntimeEventToPending(asset, editedEvent);
+      const resetShortcutAvailable = resetAvailable && previousExplicitRuntimeEvents(asset, editedEvent).length === 0;
+      const dateInferenceAvailable = canInferRuntimeEventPendingByDate(asset, editedEvent);
       const minimumAt = runtimeEditMinimumAt(asset, editedEvent);
       const originalValue = formatKstDateTimeInput(new Date(editedEvent.eventDate));
       elements.recordEventId.value = editedEvent.id;
@@ -2130,14 +2222,14 @@
         : "실제 재기동일시 (한국시간)";
       elements.recordDate.type = "datetime-local";
       elements.recordDate.value = originalValue;
-      elements.recordDate.min = resetAvailable
+      elements.recordDate.min = dateInferenceAvailable
         ? ""
         : (minimumAt && !Number.isNaN(minimumAt.getTime()) ? formatKstDateTimeInput(minimumAt) : "");
       elements.recordDate.max = formatKstDateTimeInput();
       elements.issueTypeField.hidden = true;
       elements.actionTypeField.hidden = true;
       elements.runtimeStateField.hidden = true;
-      elements.runtimeEditPendingField.hidden = !resetAvailable;
+      elements.runtimeEditPendingField.hidden = !resetShortcutAvailable;
       elements.recordNoteLabel.textContent = "비고 / 수정 사유";
       elements.recordNote.value = editedEvent.note || "";
       elements.recordSaveButton.textContent = "수정 저장";
@@ -2487,7 +2579,7 @@
         const requiresZeroHourConfirmation = (
           resetToStartupPending ||
           (
-            canResetRuntimeEventToPending(asset, editedEvent) &&
+            canInferRuntimeEventPendingByDate(asset, editedEvent) &&
             !Number.isNaN(correctionAt.getTime()) &&
             !Number.isNaN(replacementAt.getTime()) &&
             correctionAt <= replacementAt
@@ -2511,6 +2603,7 @@
           eventId: editedEvent.id,
           eventDate: kstDateTimeInputToIso(elements.recordDate.value),
           resetToStartupPending,
+          confirmRuntimeBoundaryOverride: resetToStartupPending,
           expectedEventUpdatedAt: elements.recordExpectedEventUpdatedAt.value,
           expectedCycleRuntimeRevision: asset.cycleRuntimeRevision || "",
           expectedLastReplacementAt: asset.lastReplacementAt || "",
@@ -2967,6 +3060,10 @@
       if (!button || !state.historyAssetTag) return;
       const action = button.dataset.historyAction;
       const tagNumber = state.historyAssetTag;
+      if (action === "runtime_reset_pending") {
+        resetRuntimeEventToStartupPending(tagNumber, button.dataset.eventId, event);
+        return;
+      }
       if (action === "runtime_state_edit") {
         const editedEvent = findEvent(button.dataset.eventId);
         if (!editedEvent) {

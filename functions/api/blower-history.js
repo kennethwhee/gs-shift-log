@@ -2736,6 +2736,19 @@ async function registerStartup(database, user, body) {
     return jsonResponse({ ok: false, message: "기동일은 현재 이후로 등록할 수 없습니다." }, 400);
   }
 
+  const latestRuntimeBoundary = await loadLatestExplicitRuntimeBoundary(database, asset);
+  const latestRuntimeBoundaryAt = new Date(latestRuntimeBoundary?.event_date);
+  if (
+    latestRuntimeBoundary &&
+    !Number.isNaN(latestRuntimeBoundaryAt.getTime()) &&
+    startupAt < latestRuntimeBoundaryAt
+  ) {
+    return jsonResponse({
+      ok: false,
+      message: "기동일은 현재 Cycle에 보존된 최신 정지·상태보정 시각보다 빠를 수 없습니다."
+    }, 400);
+  }
+
   const note = normalizeText(body.note);
   const now = new Date().toISOString();
   const currentCycleRevision = normalizeText(asset.cycle_start_revision);
@@ -2887,10 +2900,15 @@ function runtimeBoundaryState(event) {
 }
 
 async function loadPreviousExplicitRuntimeBoundary(database, asset, selectedEvent) {
-  const lastReplacementAt = normalizeText(asset?.last_replacement_at);
-  if (!lastReplacementAt || !selectedEvent) return null;
+  const boundaries = await loadPreviousExplicitRuntimeBoundaries(database, asset, selectedEvent);
+  return boundaries[0] || null;
+}
 
-  return database
+async function loadPreviousExplicitRuntimeBoundaries(database, asset, selectedEvent) {
+  const lastReplacementAt = normalizeText(asset?.last_replacement_at);
+  if (!lastReplacementAt || !selectedEvent) return [];
+
+  const result = await database
     .prepare(`
       SELECT *
       FROM blower_history_events
@@ -2909,7 +2927,6 @@ async function loadPreviousExplicitRuntimeBoundary(database, asset, selectedEven
           )
         )
       ORDER BY datetime(event_date) DESC, created_at DESC, id DESC
-      LIMIT 1
     `)
     .bind(
       asset.tag_number,
@@ -2921,7 +2938,9 @@ async function loadPreviousExplicitRuntimeBoundary(database, asset, selectedEven
       selectedEvent.created_at,
       selectedEvent.id
     )
-    .first();
+    .all();
+
+  return Array.isArray(result.results) ? result.results : [];
 }
 
 async function editLatestRuntimeBoundary(database, user, body) {
@@ -2931,6 +2950,7 @@ async function editLatestRuntimeBoundary(database, user, body) {
   const expectedRuntimeRevision = normalizeText(body.expectedCycleRuntimeRevision);
   const expectedLastReplacementAt = normalizeText(body.expectedLastReplacementAt);
   const resetToStartupPending = body.resetToStartupPending === true;
+  const confirmRuntimeBoundaryOverride = body.confirmRuntimeBoundaryOverride === true;
   const asset = await findAsset(database, tagNumber);
 
   if (!asset) {
@@ -3002,8 +3022,10 @@ async function editLatestRuntimeBoundary(database, user, body) {
     return jsonResponse({ ok: false, message: "현재 Cycle 기준시각과 선택한 이력이 일치하지 않습니다." }, 409);
   }
 
-  const previousBoundary = await loadPreviousExplicitRuntimeBoundary(database, asset, selectedEvent);
+  const previousBoundaries = await loadPreviousExplicitRuntimeBoundaries(database, asset, selectedEvent);
+  const previousBoundary = previousBoundaries[0] || null;
   const previousState = runtimeBoundaryState(previousBoundary);
+  const hasRunningBoundary = previousBoundaries.some(boundary => runtimeBoundaryState(boundary) === "running");
   const cycleStartRevision = normalizeText(asset.cycle_start_revision);
   const replacementAt = new Date(asset.last_replacement_at);
   const cycleStartedAt = new Date(
@@ -3012,7 +3034,9 @@ async function editLatestRuntimeBoundary(database, user, body) {
       : asset.last_replacement_at
   );
   const requestedEventDate = resetToStartupPending
-    ? normalizeDateTime(asset.last_replacement_at)
+    ? (previousBoundary
+      ? normalizeDateTime(selectedEvent.event_date)
+      : normalizeDateTime(asset.last_replacement_at))
     : normalizeDateTime(body.eventDate || body.date);
   const requestedEventAt = new Date(requestedEventDate);
 
@@ -3026,20 +3050,44 @@ async function editLatestRuntimeBoundary(database, user, body) {
 
   const canRestoreStartupPending = (
     eventType === "operation_stop" &&
-    !previousBoundary &&
-    cycleStartState === "legacy"
+    cycleStartState !== "pending"
+  );
+  const canInferStartupPendingFromDate = (
+    canRestoreStartupPending &&
+    cycleStartState === "legacy" &&
+    !previousBoundary
   );
   const beforeReplacement = !Number.isNaN(replacementAt.getTime()) && requestedEventAt < replacementAt;
   const restoreStartupPending = canRestoreStartupPending && (
     resetToStartupPending ||
-    beforeReplacement ||
-    requestedEventAt.getTime() === replacementAt.getTime()
+    (canInferStartupPendingFromDate && (
+      beforeReplacement ||
+      requestedEventAt.getTime() === replacementAt.getTime()
+    ))
   );
 
   if (resetToStartupPending && !canRestoreStartupPending) {
     return jsonResponse({
       ok: false,
-      message: "이후 기동·정지 또는 누적시간 보정 이력이 있어 교체 당시 정지 상태로 되돌릴 수 없습니다."
+      message: "현재 Cycle 상태에서는 교체 후 미기동·0시간 복원을 실행할 수 없습니다."
+    }, 409);
+  }
+
+  if (resetToStartupPending && hasRunningBoundary && !confirmRuntimeBoundaryOverride) {
+    return jsonResponse({
+      ok: false,
+      code: "RUNTIME_RESET_OVERRIDE_CONFIRMATION_REQUIRED",
+      message: "최근 교체 후 기동·재기동 또는 운전중 보정 이력이 있습니다. 해당 기록을 감사이력에 보존한 채 현재 Cycle을 미기동·0시간으로 복원하려면 다시 확인해 주세요."
+    }, 409);
+  }
+
+  if (
+    resetToStartupPending &&
+    Math.abs(Number(selectedEvent.runtime_hours) - Number(asset.cycle_runtime_hours)) > 0.05
+  ) {
+    return jsonResponse({
+      ok: false,
+      message: "선택한 정지 이력의 누적시간과 현재 Cycle이 일치하지 않습니다. 새로고침 후 다시 확인해 주세요."
     }, 409);
   }
 
@@ -3070,6 +3118,7 @@ async function editLatestRuntimeBoundary(database, user, body) {
   }
 
   if (
+    !restoreStartupPending &&
     eventType === "operation_stop" &&
     previousBoundary &&
     previousState !== "running"
@@ -3078,6 +3127,7 @@ async function editLatestRuntimeBoundary(database, user, body) {
   }
 
   if (
+    !restoreStartupPending &&
     eventType === "operation_start" &&
     previousBoundary &&
     previousState !== "stopped"
@@ -3110,9 +3160,14 @@ async function editLatestRuntimeBoundary(database, user, body) {
     ? null
     : (firstCycleStartupEdit ? requestedEventDate : asset.cycle_started_at);
   const nextActionType = restoreStartupPending
-    ? (beforeReplacement ? "교체 전 정지 지속" : "교체 당시 정지")
+    ? (resetToStartupPending && previousBoundary
+      ? "교체 후 미기동 · 0시간 정정"
+      : (beforeReplacement ? "교체 전 정지 지속" : "교체 당시 정지"))
     : normalizeText(selectedEvent.action_type);
   const nextNote = normalizeText(body.note);
+  const nextRuntimeAnchorAt = restoreStartupPending
+    ? normalizeDateTime(asset.last_replacement_at)
+    : requestedEventDate;
   const beforeJson = JSON.stringify({
     eventId,
     eventType,
@@ -3123,7 +3178,15 @@ async function editLatestRuntimeBoundary(database, user, body) {
     cycleStartState,
     cycleRuntimeHours: Number(asset.cycle_runtime_hours),
     cycleRuntimeAnchorAt: normalizeText(asset.cycle_runtime_anchor_at),
-    cycleRuntimeState: currentState
+    cycleRuntimeState: currentState,
+    previousRuntimeBoundaries: previousBoundaries.map(boundary => ({
+      id: normalizeText(boundary.id),
+      eventType: normalizeText(boundary.event_type),
+      eventDate: normalizeText(boundary.event_date),
+      runtimeHours: Number(boundary.runtime_hours),
+      actionType: normalizeText(boundary.action_type),
+      sourceType: normalizeText(boundary.source_type)
+    }))
   });
   const afterJson = JSON.stringify({
     eventId,
@@ -3134,11 +3197,12 @@ async function editLatestRuntimeBoundary(database, user, body) {
     note: nextNote,
     cycleStartState: nextCycleStartState,
     cycleRuntimeHours: revisedHours,
-    cycleRuntimeAnchorAt: requestedEventDate,
+    cycleRuntimeAnchorAt: nextRuntimeAnchorAt,
     cycleRuntimeState: currentState
   });
   const auditId = crypto.randomUUID();
   const guardId = crypto.randomUUID();
+  const skipLatestBoundaryGuard = restoreStartupPending && beforeReplacement ? 1 : 0;
   let results;
 
   try {
@@ -3192,7 +3256,7 @@ async function editLatestRuntimeBoundary(database, user, body) {
         nextCycleStartState,
         nextCycleStartRevision,
         revisedHours,
-        requestedEventDate,
+        nextRuntimeAnchorAt,
         currentState,
         nextRuntimeRevision,
         revisedHours,
@@ -3284,15 +3348,41 @@ async function editLatestRuntimeBoundary(database, user, body) {
             CASE WHEN
               EXISTS (
                 SELECT 1 FROM blower_history_assets
-                WHERE tag_number = ? AND cycle_runtime_revision = ?
+                WHERE tag_number = ?
+                  AND cycle_runtime_revision = ?
+                  AND cycle_start_state = ?
+                  AND COALESCE(cycle_started_at, '') = COALESCE(?, '')
+                  AND ABS(COALESCE(cycle_runtime_hours, 0) - ?) < 0.000001
+                  AND cycle_runtime_anchor_at = ?
+                  AND cycle_runtime_state = ?
+                  AND ABS(COALESCE(runtime_hours, 0) - ?) < 0.000001
+                  AND COALESCE(runtime_anchor_at, '') = COALESCE(?, '')
+                  AND is_running = ?
               )
               AND EXISTS (
                 SELECT 1 FROM blower_history_events
-                WHERE id = ? AND updated_at = ?
+                WHERE id = ?
+                  AND event_date = ?
+                  AND ABS(COALESCE(runtime_hours, 0) - ?) < 0.000001
+                  AND action_type = ?
+                  AND note = ?
+                  AND updated_at = ?
               )
               AND EXISTS (
                 SELECT 1 FROM blower_history_asset_history
                 WHERE id = ?
+              )
+              AND (
+                ? = 1
+                OR ? = (
+                  SELECT id
+                  FROM blower_history_events
+                  WHERE tag_number = ?
+                    AND event_type IN ('startup', 'operation_start', 'operation_stop', 'runtime_correction')
+                    AND datetime(event_date) >= datetime(?)
+                  ORDER BY datetime(event_date) DESC, created_at DESC, id DESC
+                  LIMIT 1
+                )
               )
             THEN 1 ELSE 0 END
           )
@@ -3301,9 +3391,25 @@ async function editLatestRuntimeBoundary(database, user, body) {
           guardId,
           tagNumber,
           nextRuntimeRevision,
+          nextCycleStartState,
+          nextCycleStartedAt,
+          revisedHours,
+          nextRuntimeAnchorAt,
+          currentState,
+          revisedHours,
+          currentState === "running" ? requestedEventDate : null,
+          currentState === "running" ? 1 : 0,
           eventId,
+          requestedEventDate,
+          revisedHours,
+          nextActionType,
+          nextNote,
           now,
-          auditId
+          auditId,
+          skipLatestBoundaryGuard,
+          eventId,
+          tagNumber,
+          expectedLastReplacementAt
         ),
       database
         .prepare(`DELETE FROM blower_history_atomic_guard WHERE id = ?`)
