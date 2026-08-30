@@ -83,6 +83,8 @@
       "runtimeHours",
       "runtimeStateField",
       "runtimeState",
+      "runtimeStateLabel",
+      "runtimeCycleSummary",
       "recordNote",
       "candidateSourcePreview",
       "recordSaveButton",
@@ -95,6 +97,8 @@
       "clearSettingsButton",
       "assetManagerDialog",
       "assetManagerForm",
+      "assetManagerDialogTitle",
+      "assetManagerDialogIntro",
       "assetManagerTarget",
       "assetManagerUpdated",
       "assetManagerMode",
@@ -103,6 +107,7 @@
       "assetBlowerType",
       "assetUnitNo",
       "assetGroup",
+      "assetGroupField",
       "assetPositionLabel",
       "assetDisplayName",
       "assetTagNumber",
@@ -110,6 +115,7 @@
       "assetSortOrder",
       "assetEnabled",
       "assetChangeNote",
+      "assetManagerHelp",
       "assetManagerSaveButton",
       "historyDialog",
       "historyDialogTitle",
@@ -536,9 +542,25 @@
     return dayDifference > 0 ? `D-${dayDifference}` : `D+${Math.abs(dayDifference)}`;
   }
 
+  function formatOperatingDday(remainingHours) {
+    const hours = Number(remainingHours);
+    if (!Number.isFinite(hours)) return "기준 미설정";
+    if (Math.abs(hours) < 24) return "D-DAY";
+
+    const days = Math.ceil(Math.abs(hours) / 24);
+    return hours > 0 ? `D-${days}` : `D+${days}`;
+  }
+
+  function projectedOperatingDueDate(remainingHours, now = new Date()) {
+    const hours = Number(remainingHours);
+    if (!Number.isFinite(hours)) return "-";
+    if (hours <= 0) return formatKstDateInput(now);
+    return formatKstDateInput(new Date(now.getTime() + hours * 3600000));
+  }
+
   function formatSignedRemaining(asset) {
     if (!asset.lastReplacementAt) return "확정된 V-Belt 교체 이력이 없습니다.";
-    if (!asset.cycleStartedAt) return "기동 등록 전 · 주기 계산 대기";
+    if (asset.cycleStartState === "pending") return "기동 등록 전 · 주기 계산 대기";
     if (asset.severity === "unset") return "교체주기 설정 필요";
 
     const remaining = Number(asset.remainingHours);
@@ -576,6 +598,8 @@
     return {
       replacement: "V-Belt 교체",
       startup: "기동",
+      operation_start: "재기동",
+      operation_stop: "정지",
       problem: "문제발생",
       runtime_correction: "운전시간 보정",
       note: "메모"
@@ -686,9 +710,9 @@
     } else {
       const cycleHours = Number(setting.cycleDays) * 24;
       elements.settingsSummary.textContent = [
-        `${setting.cycleDays}일 (${cycleHours.toLocaleString("ko-KR")}h)`,
-        `예정 D-${setting.warningDays}`,
-        `임박 D-${setting.criticalDays}`
+        `누적 운전 ${setting.cycleDays}일 (${cycleHours.toLocaleString("ko-KR")}h)`,
+        `예정 ${Number(setting.warningDays) * 24}h 전`,
+        `임박 ${Number(setting.criticalDays) * 24}h 전`
       ].join(" · ");
 
       const updatedText = setting.updatedAt
@@ -908,6 +932,8 @@
     const cycleStartState = String(asset.cycleStartState || "legacy");
     const startupPending = confirmed && cycleStartState === "pending";
     const actualStarted = confirmed && cycleStartState === "started" && Boolean(asset.cycleStartedAt);
+    const cycleRuntimeTracked = confirmed && !startupPending && Boolean(asset.cycleRuntimeTracked);
+    const operationRunning = cycleRuntimeTracked && Boolean(asset.isRunning);
     const cycleAnchorAt = actualStarted ? asset.cycleStartedAt : (startupPending ? "" : asset.lastReplacementAt);
     const severity = displaySeverity(asset);
     const evidence = readableEvidence(replacementEvent);
@@ -916,10 +942,14 @@
     const cycleHours = cycleDays > 0 ? cycleDays * 24 : null;
     const rawProgress = cycleHours ? (cycleElapsedHours / cycleHours) * 100 : 0;
     const progress = Math.max(0, Math.min(100, rawProgress));
-    const nextReplacementAt = cycleDays > 0 && cycleAnchorAt
-      ? addDaysToDate(cycleAnchorAt, cycleDays)
+    const nextReplacementAt = cycleRuntimeTracked
+      ? (operationRunning ? projectedOperatingDueDate(asset.remainingHours) : "재기동 후 산정")
+      : (cycleDays > 0 && cycleAnchorAt ? addDaysToDate(cycleAnchorAt, cycleDays) : "-");
+    const remainingLabel = cycleHours && !startupPending
+      ? (cycleRuntimeTracked
+        ? formatOperatingDday(asset.remainingHours)
+        : formatRemainingDday(nextReplacementAt))
       : "-";
-    const remainingLabel = cycleHours && !startupPending ? formatRemainingDday(nextReplacementAt) : "-";
     const remainingDetail = cycleHours ? formatSignedRemaining(asset) : "교체주기 미설정";
     const evidenceText = fullEvidence || emptyEvidenceMessage(replacementEvent);
     const evidencePreview = evidence || evidenceText;
@@ -927,6 +957,19 @@
     const unitAttribute = ["1", "2", "shared"].includes(String(asset.unitNo || ""))
       ? ` data-unit="${escapeHtml(asset.unitNo)}"`
       : "";
+    const cycleBasisLabel = cycleHours
+      ? (cycleRuntimeTracked
+        ? `${cycleHours.toLocaleString("ko-KR")}h`
+        : `${cycleDays.toLocaleString("ko-KR")}일`)
+      : "미설정";
+    const runtimeStateAction = cycleRuntimeTracked
+      ? `<button type="button" class="asset-action runtime-state-action ${operationRunning ? "stop" : "start"}" data-mobile-write data-asset-action="runtime_state" data-target-state="${operationRunning ? "stopped" : "running"}" data-tag="${escapeHtml(asset.tagNumber)}">${operationRunning ? "정지 등록" : "재기동 등록"}</button>`
+      : "";
+    const moreActions = startupPending
+      ? `<button type="button" data-mobile-write data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">V-Belt 교체 다시 등록</button>`
+      : (confirmed
+        ? `<button type="button" data-mobile-write data-asset-action="runtime" data-tag="${escapeHtml(asset.tagNumber)}">누적시간 직접 보정</button>`
+        : "");
 
     return `
       <article class="asset-card" data-severity="${escapeHtml(severity)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}>
@@ -935,17 +978,20 @@
             <strong class="asset-position">${escapeHtml(cardPosition)}</strong>
             <span class="asset-tag">${escapeHtml(asset.tagNumber)}</span>
           </div>
-          <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(awaitingBackfill ? "재구성 대기" : severityLabel(severity))}</span>
+          <div class="asset-status-group">
+            <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(awaitingBackfill ? "재구성 대기" : severityLabel(severity))}</span>
+            ${cycleRuntimeTracked ? `<span class="operation-pill ${operationRunning ? "running" : "stopped"}">${operationRunning ? "운전중" : "정지"}</span>` : ""}
+          </div>
         </div>
 
         ${confirmed ? `
           <div class="cycle-overview${startupPending ? " is-startup-pending" : ""}" title="${escapeHtml(remainingDetail)}">
             <div class="cycle-primary-metric">
-              <span>${startupPending ? "주기 상태" : (actualStarted ? "기동 경과" : "교체 경과")}</span>
+              <span>${startupPending ? "주기 상태" : (cycleRuntimeTracked ? "누적 운전" : (actualStarted ? "기동 경과" : "교체 경과"))}</span>
               <strong>${startupPending ? "기동 대기" : escapeHtml(formatDaysHours(cycleElapsedHours))}</strong>
             </div>
             <div class="cycle-deadline-metric ${escapeHtml(severity)}">
-              <span>D-day</span>
+              <span>${cycleRuntimeTracked && !operationRunning ? "D-day · 정지" : "D-day"}</span>
               <strong>${escapeHtml(remainingLabel)}</strong>
             </div>
             <div class="cycle-usage-metric ${escapeHtml(severity)}">
@@ -974,15 +1020,15 @@
               <span><em>교체</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
               <b aria-hidden="true">→</b>
               <span><em>기동</em><strong>${startupPending ? "미등록" : escapeHtml(formatDate(asset.cycleStartedAt))}</strong></span>
-              ${startupPending ? "" : `<b aria-hidden="true">→</b><span><em>예정</em><strong>${escapeHtml(nextReplacementAt)}</strong></span>`}
-              <small>기준 ${cycleHours ? `${cycleDays.toLocaleString("ko-KR")}일` : "미설정"}</small>
+              ${startupPending ? "" : `<b aria-hidden="true">→</b><span><em>${cycleRuntimeTracked ? "예상" : "예정"}</em><strong>${escapeHtml(nextReplacementAt)}</strong></span>`}
+              <small>기준 ${cycleHours ? cycleBasisLabel : "미설정"}</small>
             </div>
           ` : `
             <div class="cycle-date-line">
               <span><em>최근</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
               <b aria-hidden="true">→</b>
-              <span><em>예정</em><strong>${escapeHtml(nextReplacementAt)}</strong></span>
-              <small>기준 ${cycleHours ? `${cycleDays.toLocaleString("ko-KR")}일` : "미설정"}</small>
+              <span><em>${cycleRuntimeTracked ? "예상" : "예정"}</em><strong>${escapeHtml(nextReplacementAt)}</strong></span>
+              <small>기준 ${cycleHours ? cycleBasisLabel : "미설정"}</small>
             </div>
           `}
 
@@ -1010,14 +1056,14 @@
         <div class="asset-actions">
           ${startupPending ? `<button type="button" class="asset-action primary" data-mobile-write data-asset-action="startup" data-tag="${escapeHtml(asset.tagNumber)}">기동 등록</button>` : ""}
           ${startupPending ? "" : `<button type="button" class="asset-action primary" data-mobile-write data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">V-Belt 교체 등록</button>`}
+          ${runtimeStateAction}
           <button type="button" class="asset-action" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}">이력 보기</button>
-          <details class="asset-more" data-mobile-write>
+          ${moreActions ? `<details class="asset-more" data-mobile-write>
             <summary aria-label="추가 관리 메뉴">•••</summary>
             <div class="asset-more-menu">
-              ${startupPending ? `<button type="button" data-mobile-write data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">V-Belt 교체 다시 등록</button>` : ""}
-              <button type="button" data-mobile-write data-asset-action="runtime" data-tag="${escapeHtml(asset.tagNumber)}">운전시간/상태 보정</button>
+              ${moreActions}
             </div>
-          </details>
+          </details>` : ""}
         </div>
       </article>
     `;
@@ -1388,7 +1434,9 @@
     const filter = elements.historyFilter?.value || "replacement";
     const events = getVisibleEvents().filter(event => {
       if (event.blowerType !== state.activeType) return false;
-      return filter === "all" || event.eventType === filter;
+      return filter === "all" ||
+        event.eventType === filter ||
+        (filter === "operation" && ["operation_start", "operation_stop"].includes(event.eventType));
     });
 
     elements.historyEmpty.hidden = events.length > 0;
@@ -1398,7 +1446,7 @@
     elements.historyBody.innerHTML = events
       .map(event => `
         <tr>
-          <td>${escapeHtml(event.eventType === "startup" ? formatKstDateTimeDisplay(event.eventDate) : formatDate(event.eventDate))}</td>
+          <td>${escapeHtml(["startup", "operation_start", "operation_stop"].includes(event.eventType) ? formatKstDateTimeDisplay(event.eventDate) : formatDate(event.eventDate))}</td>
           <td>
             <strong>${escapeHtml(event.displayName || event.positionLabel)}</strong><br>
             <span class="history-tag">${escapeHtml(event.tagNumber)}</span>
@@ -1425,7 +1473,7 @@
     const startupPending = cycleStartState === "pending";
     const actualStarted = cycleStartState === "started" && Boolean(asset.cycleStartedAt);
     const events = getAssetEvents(tagNumber)
-      .filter(event => ["replacement", "startup"].includes(event.eventType));
+      .filter(event => ["replacement", "startup", "operation_start", "operation_stop"].includes(event.eventType));
 
     elements.historyDialogTitle.textContent = `${asset.positionLabel} 이력`;
     elements.historyDialogAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
@@ -1434,8 +1482,8 @@
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         <div><span>최근 V-Belt 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
         <div><span>${actualStarted || startupPending ? "실제 기동일시" : "기존 주기 기준"}</span><strong>${actualStarted ? escapeHtml(formatKstDateTimeDisplay(asset.cycleStartedAt)) : (startupPending ? "미등록" : "교체일 기준 유지")}</strong></div>
-        <div><span>${actualStarted ? "기동 후 경과시간" : (startupPending ? "주기 계산" : "교체 후 경과시간")}</span><strong>${startupPending ? "계산 대기" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
-        <div><span>현재 주기</span><strong>${escapeHtml(formatSignedRemaining(asset))}</strong></div>
+        <div><span>${startupPending ? "주기 계산" : "누적 운전시간"}</span><strong>${startupPending ? "계산 대기" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
+        <div><span>현재 상태·주기</span><strong>${startupPending ? "기동 대기" : `${asset.isRunning ? "운전중" : "정지"} · ${escapeHtml(formatSignedRemaining(asset))}`}</strong></div>
       `
       : awaitingBackfill
         ? `
@@ -1454,7 +1502,7 @@
 
           return `
             <article class="asset-history-item">
-              <div class="asset-history-date">${escapeHtml(event.eventType === "startup" ? formatKstDateTimeDisplay(event.eventDate) : formatDate(event.eventDate))}</div>
+              <div class="asset-history-date">${escapeHtml(["startup", "operation_start", "operation_stop"].includes(event.eventType) ? formatKstDateTimeDisplay(event.eventDate) : formatDate(event.eventDate))}</div>
               <div class="asset-history-content">
                 <div class="asset-history-heading">
                   <span class="event-badge ${escapeHtml(event.eventType)}">${escapeHtml(eventLabel(event.eventType))}</span>
@@ -1677,6 +1725,8 @@
     const dateField = elements.recordDate?.closest(".field");
     if (dateField) dateField.hidden = false;
     elements.recordDate.type = "date";
+    elements.recordDate.min = "";
+    elements.recordDate.max = "";
     elements.issueTypeField.hidden = false;
     elements.actionTypeField.hidden = false;
     elements.replacementRunningField.hidden = true;
@@ -1684,6 +1734,9 @@
     elements.replacementStartupAt.required = false;
     elements.runtimeHoursField.hidden = true;
     elements.runtimeStateField.hidden = true;
+    elements.runtimeStateLabel.textContent = "변경할 운전상태";
+    elements.runtimeCycleSummary.hidden = true;
+    elements.runtimeCycleSummary.innerHTML = "";
     elements.candidateSourcePreview.hidden = true;
   }
 
@@ -1721,6 +1774,11 @@
       elements.recordDateLabel.textContent = "실제 기동일시";
       elements.recordDate.type = "datetime-local";
       elements.recordDate.value = formatKstDateTimeInput();
+      const lastBoundaryAt = new Date(asset.cycleRuntimeAnchorAt);
+      elements.recordDate.min = Number.isNaN(lastBoundaryAt.getTime())
+        ? ""
+        : formatKstDateTimeInput(lastBoundaryAt);
+      elements.recordDate.max = formatKstDateTimeInput();
       elements.issueTypeField.hidden = true;
       elements.actionTypeField.hidden = true;
     }
@@ -1735,14 +1793,35 @@
 
     if (mode === "runtime") {
       elements.recordDialogEyebrow.textContent = "RUNTIME CORRECTION";
-      elements.recordDialogTitle.textContent = "운전시간 / 상태 보정";
+      elements.recordDialogTitle.textContent = "누적시간 직접 보정";
       elements.recordDate.closest(".field").hidden = true;
       elements.issueTypeField.hidden = true;
       elements.actionTypeField.hidden = true;
       elements.runtimeHoursField.hidden = false;
-      elements.runtimeStateField.hidden = false;
-      elements.runtimeHours.value = roundHours(asset.runtimeHours).toFixed(1);
+      elements.runtimeStateField.hidden = true;
+      elements.runtimeHours.value = roundHours(asset.cycleElapsedHours ?? asset.runtimeHours).toFixed(1);
       elements.runtimeState.value = asset.isRunning ? "running" : "stopped";
+    }
+
+    if (mode === "runtime_state") {
+      const targetRunning = candidate?.targetState === "running";
+      elements.recordDialogEyebrow.textContent = targetRunning ? "OPERATION START" : "OPERATION STOP";
+      elements.recordDialogTitle.textContent = targetRunning ? "재기동 등록" : "정지 등록";
+      elements.recordDateLabel.textContent = targetRunning ? "실제 재기동일시" : "실제 정지일시";
+      elements.recordDate.type = "datetime-local";
+      elements.recordDate.value = formatKstDateTimeInput();
+      elements.issueTypeField.hidden = true;
+      elements.actionTypeField.hidden = true;
+      elements.runtimeStateField.hidden = true;
+      elements.runtimeState.value = targetRunning ? "running" : "stopped";
+      elements.runtimeCycleSummary.hidden = false;
+      elements.runtimeCycleSummary.innerHTML = `
+        <span>현재</span>
+        <strong>${asset.isRunning ? "운전중" : "정지"} · 누적 ${escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong>
+        <small>${targetRunning
+          ? "등록한 시각부터 정지 전 누적시간에 이어서 계산합니다."
+          : "등록한 시각에 Cycle 경과·D-day·사용률·알림을 모두 고정합니다."}</small>
+      `;
     }
 
     if (mode === "candidate") {
@@ -1811,7 +1890,30 @@
       elements.assetUnitNo.value = "shared";
     }
 
+    syncAssetManagerVisibility();
     suggestAssetDisplayName();
+  }
+
+  function syncAssetManagerVisibility() {
+    const createMode = elements.assetManagerMode.value === "create";
+    const organicCreate = createMode && elements.assetBlowerType.value === "organic_fuel";
+
+    elements.assetManagerDialog.dataset.mode = createMode ? "create" : "update";
+    elements.assetManagerDialog.querySelectorAll(".asset-manager-create-only").forEach(field => {
+      field.hidden = !createMode;
+    });
+    elements.assetGroupField.hidden = !organicCreate;
+
+    if (createMode && !organicCreate) elements.assetGroup.value = "";
+
+    elements.assetManagerDialogTitle.textContent = createMode ? "새 Blower 추가" : "Blower 정보 수정";
+    elements.assetManagerDialogIntro.textContent = createMode
+      ? "새 설비의 식별정보를 한 번 등록합니다. 등록 후 TAG와 위치는 잠깁니다."
+      : "설비명·표시 순서·사용 상태만 간단히 관리합니다.";
+    elements.assetManagerSaveButton.textContent = createMode ? "추가" : "저장";
+    elements.assetManagerHelp.innerHTML = createMode
+      ? "TAG·종류·호기·위치는 기존 이력 연결을 위해 추가 후 변경할 수 없습니다."
+      : "TAG·종류·호기·그룹·위치는 그대로 보호됩니다. 사용 중지해도 기존 교체이력과 운전기록은 보존됩니다.";
   }
 
   function nextAssetSortOrder(blowerType) {
@@ -1907,20 +2009,22 @@
     elements.assetBlowerType.innerHTML = (state.data.types || [])
       .map(type => `<option value="${escapeHtml(type.key)}">${escapeHtml(type.label)}</option>`)
       .join("");
-    populateAssetManagerTargets();
-    fillAssetManagerForm();
+    const activeCatalog = (state.data?.assetCatalog || [])
+      .filter(asset => asset.blowerType === state.activeType)
+      .sort((left, right) => {
+        if (Boolean(left.enabled) !== Boolean(right.enabled)) return left.enabled ? -1 : 1;
+        const sortDifference = Number(left.sortOrder || 0) - Number(right.sortOrder || 0);
+        return sortDifference || String(left.tagNumber).localeCompare(String(right.tagNumber));
+      });
+    const initialTag = activeCatalog[0]?.tagNumber || "__new__";
+    populateAssetManagerTargets(initialTag);
+    fillAssetManagerForm(initialTag);
     elements.assetManagerDialog.showModal();
   }
 
   function assetIdentityChanged(current, body) {
     if (!current) return false;
-    return (
-      current.blowerType !== body.blowerType ||
-      current.unitNo !== body.unitNo ||
-      String(current.assetGroup || "") !== String(body.assetGroup || "") ||
-      current.positionLabel !== body.positionLabel ||
-      (current.enabled && !body.enabled)
-    );
+    return current.enabled && !body.enabled;
   }
 
   async function saveManagedAsset(event) {
@@ -1928,29 +2032,27 @@
     if (stopMobileMutation(event)) return;
     if (state.busy || !state.data?.user?.isSuperAdmin) return;
 
+    const mode = elements.assetManagerMode.value;
+    const current = (state.data?.assetCatalog || [])
+      .find(asset => asset.tagNumber === elements.assetOriginalTag.value) || null;
     const body = {
       action: "asset_save",
-      mode: elements.assetManagerMode.value,
+      mode,
       originalTag: elements.assetOriginalTag.value,
       expectedUpdatedAt: elements.assetExpectedUpdatedAt.value,
-      tagNumber: elements.assetTagNumber.value.trim().toUpperCase(),
-      blowerType: elements.assetBlowerType.value,
-      unitNo: elements.assetUnitNo.value,
-      assetGroup: elements.assetGroup.value,
-      positionLabel: elements.assetPositionLabel.value.trim(),
+      tagNumber: mode === "update" ? current?.tagNumber || "" : elements.assetTagNumber.value.trim().toUpperCase(),
+      blowerType: mode === "update" ? current?.blowerType || "" : elements.assetBlowerType.value,
+      unitNo: mode === "update" ? current?.unitNo || "" : elements.assetUnitNo.value,
+      assetGroup: mode === "update" ? current?.assetGroup || "" : elements.assetGroup.value,
+      positionLabel: mode === "update" ? current?.positionLabel || "" : elements.assetPositionLabel.value.trim(),
       displayName: elements.assetDisplayName.value.trim(),
       sortOrder: Number(elements.assetSortOrder.value),
       enabled: elements.assetEnabled.checked,
       changeNote: elements.assetChangeNote.value.trim()
     };
-    const current = (state.data?.assetCatalog || []).find(asset => asset.tagNumber === body.originalTag) || null;
 
     if (assetIdentityChanged(current, body)) {
-      const confirmed = window.confirm(
-        body.enabled
-          ? "종류·호기·그룹·위치 정보가 바뀝니다. 기존 교체이력은 같은 TAG에 그대로 연결됩니다. 저장할까요?"
-          : "이 Blower를 사용 중지하면 현황과 알림에서 제외됩니다. 기존 이력은 보존됩니다. 저장할까요?"
-      );
+      const confirmed = window.confirm("이 Blower를 사용 중지하면 현황과 알림에서 제외됩니다. 기존 이력은 보존됩니다. 저장할까요?");
       if (!confirmed) return;
     }
 
@@ -2024,6 +2126,16 @@
           tagNumber,
           runtimeHours: Number(elements.runtimeHours.value),
           isRunning: elements.runtimeState.value === "running",
+          expectedCycleRuntimeRevision: findAsset(tagNumber)?.cycleRuntimeRevision || "",
+          note: elements.recordNote.value
+        };
+      } else if (mode === "runtime_state") {
+        body = {
+          action: "runtime_state",
+          tagNumber,
+          eventDate: elements.recordDate.value,
+          isRunning: elements.runtimeState.value === "running",
+          expectedCycleRuntimeRevision: findAsset(tagNumber)?.cycleRuntimeRevision || "",
           note: elements.recordNote.value
         };
       } else if (mode === "candidate") {
@@ -2461,7 +2573,13 @@
         openAssetHistory(button.dataset.tag);
         return;
       }
-      openRecordDialog(button.dataset.assetAction, button.dataset.tag);
+      openRecordDialog(
+        button.dataset.assetAction,
+        button.dataset.tag,
+        button.dataset.assetAction === "runtime_state"
+          ? { targetState: button.dataset.targetState }
+          : null
+      );
     });
 
     elements.historyDialog.addEventListener("click", event => {

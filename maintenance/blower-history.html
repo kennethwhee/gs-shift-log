@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260830-startup-cycle-v8">
-  <script src="blower-history.js?v=20260830-startup-cycle-v8" defer></script>
+  <link rel="stylesheet" href="blower-history.css?v=20260830-runtime-pause-v9">
+  <script src="blower-history.js?v=20260830-runtime-pause-v9" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -122,6 +122,7 @@
                 <select id="historyFilter" aria-label="이력 종류">
                   <option value="replacement" selected>V-Belt 교체</option>
                   <option value="startup">기동</option>
+                  <option value="operation">기동·정지</option>
                   <option value="all">전체 관리 이력</option>
                   <option value="problem">문제발생</option>
                   <option value="runtime_correction">운전시간 보정</option>
@@ -249,17 +250,20 @@
         </label>
 
         <label class="field" id="runtimeHoursField" hidden>
-          <span>현재 누적 운전시간(h)</span>
+          <span>누적 Cycle 운전시간 직접 보정(h)</span>
           <input type="number" id="runtimeHours" min="0" step="0.1" inputmode="decimal">
+          <small>일반 기동·정지는 카드의 상태 버튼으로 등록하세요.</small>
         </label>
 
         <label class="field" id="runtimeStateField" hidden>
-          <span>현재 운전상태</span>
+          <span id="runtimeStateLabel">변경할 운전상태</span>
           <select id="runtimeState">
             <option value="running">운전중</option>
             <option value="stopped">정지</option>
           </select>
         </label>
+
+        <div class="runtime-cycle-summary" id="runtimeCycleSummary" hidden></div>
 
         <label class="field">
           <span>비고 / 작업내용</span>
@@ -288,17 +292,17 @@
       </header>
       <div class="dialog-body settings-grid">
         <label class="field">
-          <span>최대 교체주기 (일)</span>
+          <span>최대 교체주기 (누적 운전일)</span>
           <input type="number" id="cycleDays" min="1" step="1" placeholder="예: 90">
-          <small>90일 = 2,160시간</small>
+          <small>90일 = 실제 누적 운전 2,160시간</small>
         </label>
         <label class="field">
-          <span>교체 예정 알림 (남은 일수)</span>
+          <span>교체 예정 알림 (남은 누적 운전일)</span>
           <input type="number" id="warningDays" min="0" step="1" placeholder="예: 7">
           <small>노란색 경고 시작</small>
         </label>
         <label class="field">
-          <span>교체 임박 알림 (남은 일수)</span>
+          <span>교체 임박 알림 (남은 누적 운전일)</span>
           <input type="number" id="criticalDays" min="0" step="1" placeholder="예: 3">
           <small>빨간색 강력 경고 시작</small>
         </label>
@@ -321,8 +325,8 @@
       <header class="dialog-header">
         <div>
           <p class="eyebrow">BLOWER INVENTORY</p>
-          <h2>Blower 관리</h2>
-          <p>새 설비 추가와 기존 설비 수정을 한 곳에서 관리합니다. 기존 TAG와 교체이력은 삭제하지 않습니다.</p>
+          <h2 id="assetManagerDialogTitle">Blower 정보 수정</h2>
+          <p id="assetManagerDialogIntro">설비명·표시 순서·사용 상태만 간단히 관리합니다.</p>
         </div>
         <button type="button" class="icon-button" data-close-dialog="assetManagerDialog" aria-label="닫기">×</button>
       </header>
@@ -338,12 +342,12 @@
         <input type="hidden" id="assetOriginalTag">
         <input type="hidden" id="assetExpectedUpdatedAt">
 
-        <label class="field">
+        <label class="field asset-manager-create-only">
           <span>Blower 종류</span>
           <select id="assetBlowerType" required></select>
         </label>
 
-        <label class="field">
+        <label class="field asset-manager-create-only">
           <span>호기</span>
           <select id="assetUnitNo" required>
             <option value="1">#1호기</option>
@@ -352,7 +356,7 @@
           </select>
         </label>
 
-        <label class="field">
+        <label class="field asset-manager-create-only" id="assetGroupField">
           <span>카드 그룹</span>
           <select id="assetGroup">
             <option value="">일반 Blower</option>
@@ -360,7 +364,7 @@
           </select>
         </label>
 
-        <label class="field">
+        <label class="field asset-manager-create-only">
           <span>카드 위치명</span>
           <input type="text" id="assetPositionLabel" maxlength="30" placeholder="예: #A" required>
         </label>
@@ -370,7 +374,7 @@
           <input type="text" id="assetDisplayName" maxlength="120" placeholder="예: #1 FBHE Blower #A" required>
         </label>
 
-        <label class="field">
+        <label class="field asset-manager-create-only">
           <span>TAG</span>
           <input type="text" id="assetTagNumber" maxlength="80" autocomplete="off" spellcheck="false" placeholder="예: 104HHL60AP611" required>
           <small id="assetTagHelp">추가 후 TAG는 이력 연결 보호를 위해 변경할 수 없습니다.</small>
@@ -391,7 +395,7 @@
           <input type="text" id="assetChangeNote" maxlength="300" placeholder="예: 축분 Blower TAG 확인 후 등록">
         </label>
 
-        <p class="asset-manager-help asset-manager-wide">
+        <p class="asset-manager-help asset-manager-wide" id="assetManagerHelp">
           기존 TAG·종류·호기·그룹·위치를 바꿔야 한다면 해당 설비를 <strong>사용 중지</strong>한 뒤 새 TAG를 추가하세요.
           기존 교체이력·등록 근거·운전시간 보정은 그대로 보존됩니다.
         </p>

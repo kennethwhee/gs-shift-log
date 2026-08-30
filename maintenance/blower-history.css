@@ -914,6 +914,71 @@ select:focus, input:focus, textarea:focus { border-color: #6ca6d8; box-shadow: 0
   }
 }
 
+/* V9 operating-time cycle pause/resume + simplified asset manager */
+.asset-status-group {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+.operation-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 7px;
+  border: 1px solid #c7d7e5;
+  border-radius: 999px;
+  background: #f2f7fb;
+  color: #315b7a;
+  font-size: 9px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+.operation-pill.running {
+  border-color: #b8ddc5;
+  background: #eef9f1;
+  color: #176538;
+}
+.operation-pill.stopped {
+  border-color: #d6dce2;
+  background: #f1f3f5;
+  color: #596671;
+}
+.runtime-state-action.stop {
+  border-color: #d6c79f;
+  background: #fffaf0;
+  color: #7a5700;
+}
+.runtime-state-action.start {
+  border-color: #acd7bb;
+  background: #f1faf4;
+  color: #176538;
+}
+.runtime-cycle-summary {
+  padding: 10px 11px;
+  border: 1px solid #dce5ec;
+  border-radius: 8px;
+  background: #f6f9fb;
+}
+.runtime-cycle-summary span,
+.runtime-cycle-summary small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+}
+.runtime-cycle-summary strong {
+  display: block;
+  margin: 3px 0 4px;
+  font-size: 14px;
+}
+.asset-manager-dialog[data-mode="update"] {
+  width: min(620px, calc(100vw - 24px));
+}
+
+@media (max-width: 700px) {
+  .asset-status-group { gap: 2px; }
+  .operation-pill { min-height: 16px; padding: 0 5px; font-size: 8.5px; }
+}
+
 /* V8 replacement date and actual startup date are separate Cycle boundaries */
 .asset-card[data-severity="startup_pending"] {
   border-left-color: #52708a;

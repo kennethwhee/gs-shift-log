@@ -512,6 +512,10 @@ async function ensureSchema(database) {
         cycle_started_at TEXT,
         cycle_start_state TEXT NOT NULL DEFAULT 'legacy',
         cycle_start_revision TEXT NOT NULL DEFAULT '',
+        cycle_runtime_hours REAL,
+        cycle_runtime_anchor_at TEXT,
+        cycle_runtime_state TEXT NOT NULL DEFAULT '',
+        cycle_runtime_revision TEXT NOT NULL DEFAULT '',
         runtime_hours REAL NOT NULL DEFAULT 0,
         runtime_anchor_at TEXT,
         is_running INTEGER NOT NULL DEFAULT 0,
@@ -745,7 +749,11 @@ async function ensureAssetManagementSchema(database) {
     { name: "asset_revision", definition: "asset_revision TEXT NOT NULL DEFAULT ''" },
     { name: "cycle_started_at", definition: "cycle_started_at TEXT" },
     { name: "cycle_start_state", definition: "cycle_start_state TEXT NOT NULL DEFAULT 'legacy'" },
-    { name: "cycle_start_revision", definition: "cycle_start_revision TEXT NOT NULL DEFAULT ''" }
+    { name: "cycle_start_revision", definition: "cycle_start_revision TEXT NOT NULL DEFAULT ''" },
+    { name: "cycle_runtime_hours", definition: "cycle_runtime_hours REAL" },
+    { name: "cycle_runtime_anchor_at", definition: "cycle_runtime_anchor_at TEXT" },
+    { name: "cycle_runtime_state", definition: "cycle_runtime_state TEXT NOT NULL DEFAULT ''" },
+    { name: "cycle_runtime_revision", definition: "cycle_runtime_revision TEXT NOT NULL DEFAULT ''" }
   ];
 
   for (const required of requiredColumns) {
@@ -801,6 +809,8 @@ async function ensureAssetManagementSchema(database) {
       )
     `)
   ]);
+
+  await initializeCycleRuntimeTracking(database);
 }
 
 async function ensureBlowerHistorySchemaReady(database) {
@@ -829,7 +839,10 @@ async function ensureBlowerHistorySchemaReady(database) {
     `).first();
 
     await database
-      .prepare(`SELECT asset_group, asset_revision, cycle_started_at, cycle_start_state, cycle_start_revision FROM blower_history_assets LIMIT 1`)
+      .prepare(`SELECT asset_group, asset_revision, cycle_started_at, cycle_start_state, cycle_start_revision, cycle_runtime_hours, cycle_runtime_anchor_at, cycle_runtime_state, cycle_runtime_revision FROM blower_history_assets LIMIT 1`)
+      .first();
+    const uninitializedCycleRuntime = await database
+      .prepare(`SELECT COUNT(*) AS count FROM blower_history_assets WHERE cycle_runtime_hours IS NULL`)
       .first();
     await database
       .prepare(`SELECT id FROM blower_history_asset_history LIMIT 1`)
@@ -854,6 +867,7 @@ async function ensureBlowerHistorySchemaReady(database) {
     if (
       Number(ready?.setting_count || 0) >= 5 &&
       Number(ready?.sentinel_asset_count || 0) >= 5 &&
+      Number(uninitializedCycleRuntime?.count || 0) === 0 &&
       activeSlotIndex?.name === "idx_blower_history_assets_active_slot" &&
       canonicalTagIndex?.name === "idx_blower_history_assets_canonical_tag"
     ) {
@@ -982,13 +996,129 @@ function cycleElapsedHoursSince(lastReplacementAt, now = new Date()) {
   return Math.max(0, (currentAt.getTime() - replacementAt.getTime()) / 3600000);
 }
 
+async function initializeCycleRuntimeTracking(database) {
+  const uninitializedResult = await database
+    .prepare(`
+      SELECT *
+      FROM blower_history_assets
+      WHERE cycle_runtime_hours IS NULL
+      ORDER BY tag_number
+    `)
+    .all();
+  const assets = Array.isArray(uninitializedResult.results) ? uninitializedResult.results : [];
+
+  if (assets.length === 0) return;
+
+  const correctionResult = await database
+    .prepare(`
+      SELECT tag_number, action_type, event_date, created_at
+      FROM blower_history_events
+      WHERE event_type = 'runtime_correction'
+        AND source_type = 'manual'
+      ORDER BY event_date DESC, created_at DESC
+    `)
+    .all();
+  const corrections = Array.isArray(correctionResult.results) ? correctionResult.results : [];
+  const baselineNow = new Date();
+  const baselineAt = baselineNow.toISOString();
+  const statements = assets.map(asset => {
+    const cycleStartState = normalizeText(asset.cycle_start_state) || "legacy";
+    const lastReplacementAt = normalizeText(asset.last_replacement_at);
+    const effectiveStartAt = cycleStartState === "started"
+      ? (normalizeText(asset.cycle_started_at) || lastReplacementAt)
+      : lastReplacementAt;
+    const cycleActive = Boolean(effectiveStartAt) && cycleStartState !== "pending";
+    const elapsedHours = cycleActive
+      ? (cycleElapsedHoursSince(effectiveStartAt, baselineNow) || 0)
+      : 0;
+    const startValue = new Date(effectiveStartAt);
+    const latestCorrection = cycleActive
+      ? corrections.find(correction => {
+        if (normalizeText(correction.tag_number) !== normalizeText(asset.tag_number)) return false;
+        const correctionAt = new Date(correction.event_date);
+        return !Number.isNaN(correctionAt.getTime()) && (
+          Number.isNaN(startValue.getTime()) || correctionAt >= startValue
+        );
+      })
+      : null;
+    const correctedStopped = /(?:정지|stop)/i.test(normalizeText(latestCorrection?.action_type));
+    const operationState = cycleActive
+      ? (latestCorrection && correctedStopped ? "stopped" : "running")
+      : "stopped";
+
+    return database
+      .prepare(`
+        UPDATE blower_history_assets
+        SET
+          cycle_runtime_hours = ?,
+          cycle_runtime_anchor_at = ?,
+          cycle_runtime_state = ?,
+          cycle_runtime_revision = ?
+        WHERE tag_number = ?
+          AND cycle_runtime_hours IS NULL
+      `)
+      .bind(
+        elapsedHours,
+        baselineAt,
+        operationState,
+        crypto.randomUUID(),
+        asset.tag_number
+      );
+  });
+
+  await database.batch(statements);
+}
+
+function cycleRuntimeHoursAt(asset, eventDate) {
+  const at = eventDate instanceof Date ? eventDate : new Date(eventDate);
+
+  if (Number.isNaN(at.getTime())) return null;
+
+  const storedHours = Number(asset.cycle_runtime_hours);
+  if (!Number.isFinite(storedHours)) return null;
+
+  let hours = Math.max(0, storedHours);
+  const operationState = normalizeText(asset.cycle_runtime_state);
+  const anchorAt = new Date(asset.cycle_runtime_anchor_at);
+
+  if (
+    operationState === "running" &&
+    !Number.isNaN(anchorAt.getTime()) &&
+    anchorAt <= at
+  ) {
+    hours += (at.getTime() - anchorAt.getTime()) / 3600000;
+  }
+
+  return Math.max(0, hours);
+}
+
+function eventRuntimeHoursAt(asset, eventDate) {
+  const cycleHours = cycleRuntimeHoursAt(asset, eventDate);
+  return normalizeText(asset.last_replacement_at) && Number.isFinite(cycleHours)
+    ? cycleHours
+    : runtimeHoursAt(asset, eventDate);
+}
+
 function buildAssetState(asset, setting, latestProblem, latestReference, now = new Date()) {
   const runtimeHours = currentRuntimeHours(asset, now);
   const cycleStartState = normalizeText(asset.cycle_start_state) || "legacy";
+  const hasConfirmedReplacement = Boolean(normalizeText(asset.last_replacement_at));
   const cycleStartedAt = cycleStartState === "started"
     ? normalizeText(asset.cycle_started_at)
     : (cycleStartState === "pending" ? "" : normalizeText(asset.last_replacement_at));
-  const cycleElapsedHours = cycleElapsedHoursSince(cycleStartedAt, now);
+  const cycleRuntimeTracked = (
+    hasConfirmedReplacement &&
+    asset.cycle_runtime_hours !== null &&
+    asset.cycle_runtime_hours !== undefined &&
+    asset.cycle_runtime_hours !== "" &&
+    Number.isFinite(Number(asset.cycle_runtime_hours))
+  );
+  const cycleRuntimeState = normalizeText(asset.cycle_runtime_state) || "stopped";
+  const cycleElapsedHours = !hasConfirmedReplacement || cycleStartState === "pending"
+    ? null
+    : (cycleRuntimeTracked
+      ? cycleRuntimeHoursAt(asset, now)
+      : cycleElapsedHoursSince(cycleStartedAt, now));
   const cycleDays = toNullableNumber(setting?.cycleDays ?? setting?.cycle_days);
   const warningDays = toNullableNumber(setting?.warningDays ?? setting?.warning_days);
   const criticalDays = toNullableNumber(setting?.criticalDays ?? setting?.critical_days);
@@ -1044,8 +1174,15 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
     lastReplacementAt: normalizeText(asset.last_replacement_at),
     cycleStartedAt,
     cycleStartState,
+    cycleStartRevision: normalizeText(asset.cycle_start_revision),
+    cycleRuntimeTracked,
+    cycleRuntimeState,
+    cycleRuntimeAnchorAt: normalizeText(asset.cycle_runtime_anchor_at),
+    cycleRuntimeRevision: normalizeText(asset.cycle_runtime_revision),
     runtimeHours,
-    isRunning: Number(asset.is_running) === 1,
+    isRunning: cycleRuntimeTracked
+      ? cycleRuntimeState === "running"
+      : Number(asset.is_running) === 1,
     cycleElapsedHours,
     remainingHours,
     progressPct,
@@ -1946,6 +2083,7 @@ async function saveAsset(database, user, body) {
     validated.mode === "update" ? validated.expectedUpdatedAt : ""
   );
   const assetRevision = crypto.randomUUID();
+  const cycleRuntimeRevision = crypto.randomUUID();
   const after = {
     tagNumber: validated.tagNumber,
     blowerType: validated.blowerType,
@@ -1980,10 +2118,11 @@ async function saveAsset(database, user, body) {
           .prepare(`
             INSERT INTO blower_history_assets (
               tag_number, blower_type, unit_no, asset_group, position_label,
-              display_name, sort_order, enabled, asset_revision, last_modified_by_id,
-              last_modified_by_name, created_at, updated_at
+              display_name, sort_order, enabled, asset_revision,
+              cycle_runtime_hours, cycle_runtime_anchor_at, cycle_runtime_state, cycle_runtime_revision,
+              last_modified_by_id, last_modified_by_name, created_at, updated_at
             )
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'stopped', ?, ?, ?, ?, ?
             WHERE NOT EXISTS (
               SELECT 1
               FROM blower_history_assets
@@ -2002,6 +2141,8 @@ async function saveAsset(database, user, body) {
             validated.sortOrder,
             validated.enabled ? 1 : 0,
             assetRevision,
+            now,
+            cycleRuntimeRevision,
             user.employeeNo,
             user.name,
             now,
@@ -2193,7 +2334,7 @@ async function registerReplacement(database, user, body, source = {}) {
     return jsonResponse({ ok: false, message: "교체날짜가 현재보다 너무 미래입니다." }, 400);
   }
 
-  const beforeRuntime = runtimeHoursAt(asset, eventDate);
+  const beforeRuntime = eventRuntimeHoursAt(asset, eventDate);
   const issueType = normalizeText(body.issueType) || "정기주기";
   const actionType = normalizeText(body.actionType) || "교체";
   const note = normalizeText(body.note);
@@ -2219,34 +2360,6 @@ async function registerReplacement(database, user, body, source = {}) {
     }
   }
 
-  await insertEvent(database, user, {
-    tagNumber,
-    eventType: "replacement",
-    eventDate,
-    runtimeHours: beforeRuntime,
-    issueType,
-    actionType,
-    note,
-    sourceType: source.sourceType || "manual",
-    sourceLogId: source.sourceLogId || "",
-    sourceText: source.sourceText || ""
-  });
-
-  if (startImmediately) {
-    await insertEvent(database, user, {
-      tagNumber,
-      eventType: "startup",
-      eventDate: cycleStartAt,
-      runtimeHours: 0,
-      issueType: "",
-      actionType: "교체 후 즉시 기동",
-      note,
-      sourceType: source.sourceType || "manual",
-      sourceLogId: source.sourceLogId || "",
-      sourceText: source.sourceText || ""
-    });
-  }
-
   const currentReplacement = asset.last_replacement_at
     ? new Date(asset.last_replacement_at)
     : null;
@@ -2259,15 +2372,27 @@ async function registerReplacement(database, user, body, source = {}) {
   if (shouldUpdateCurrentState) {
     const now = new Date().toISOString();
     const cycleStartRevision = crypto.randomUUID();
-
-    await database
-      .prepare(`
+    const cycleRuntimeRevision = crypto.randomUUID();
+    const replacementEventId = crypto.randomUUID();
+    const startupEventId = crypto.randomUUID();
+    const currentCycleStartRevision = normalizeText(asset.cycle_start_revision);
+    const currentCycleRuntimeRevision = normalizeText(asset.cycle_runtime_revision);
+    const currentLastReplacementAt = normalizeText(asset.last_replacement_at);
+    const sourceType = normalizeText(source.sourceType) || "manual";
+    const sourceLogId = normalizeText(source.sourceLogId);
+    const sourceText = normalizeText(source.sourceText).slice(0, 2000);
+    const statements = [
+      database.prepare(`
         UPDATE blower_history_assets
         SET
           last_replacement_at = ?,
           cycle_started_at = ?,
           cycle_start_state = ?,
           cycle_start_revision = ?,
+          cycle_runtime_hours = 0,
+          cycle_runtime_anchor_at = ?,
+          cycle_runtime_state = ?,
+          cycle_runtime_revision = ?,
           runtime_hours = 0,
           runtime_anchor_at = ?,
           is_running = ?,
@@ -2275,20 +2400,135 @@ async function registerReplacement(database, user, body, source = {}) {
           last_modified_by_name = ?,
           updated_at = ?
         WHERE tag_number = ?
+          AND enabled = 1
+          AND COALESCE(last_replacement_at, '') = ?
+          AND cycle_start_revision = ?
+          AND cycle_runtime_revision = ?
       `)
       .bind(
         eventDate,
         startImmediately ? cycleStartAt : null,
         startImmediately ? "started" : "pending",
         cycleStartRevision,
+        startImmediately ? cycleStartAt : eventDate,
+        startImmediately ? "running" : "stopped",
+        cycleRuntimeRevision,
         startImmediately ? cycleStartAt : null,
         startImmediately ? 1 : 0,
         user.employeeNo,
         user.name,
         now,
-        tagNumber
+        tagNumber,
+        currentLastReplacementAt,
+        currentCycleStartRevision,
+        currentCycleRuntimeRevision
+      ),
+      database.prepare(`
+        INSERT INTO blower_history_events (
+          id, tag_number, event_type, event_date, runtime_hours,
+          issue_type, action_type, note, source_type, source_log_id,
+          source_text, created_by_id, created_by_name, created_at, updated_at
+        )
+        SELECT ?, ?, 'replacement', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE EXISTS (
+          SELECT 1 FROM blower_history_assets
+          WHERE tag_number = ?
+            AND last_replacement_at = ?
+            AND cycle_start_revision = ?
+            AND cycle_runtime_revision = ?
+        )
+      `).bind(
+        replacementEventId,
+        tagNumber,
+        eventDate,
+        beforeRuntime,
+        issueType,
+        actionType,
+        note,
+        sourceType,
+        sourceLogId,
+        sourceText,
+        user.employeeNo,
+        user.name,
+        now,
+        now,
+        tagNumber,
+        eventDate,
+        cycleStartRevision,
+        cycleRuntimeRevision
       )
-      .run();
+    ];
+
+    if (startImmediately) {
+      statements.push(database.prepare(`
+        INSERT INTO blower_history_events (
+          id, tag_number, event_type, event_date, runtime_hours,
+          issue_type, action_type, note, source_type, source_log_id,
+          source_text, created_by_id, created_by_name, created_at, updated_at
+        )
+        SELECT ?, ?, 'startup', ?, 0, '', '교체 후 즉시 기동', ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE EXISTS (
+          SELECT 1 FROM blower_history_assets
+          WHERE tag_number = ?
+            AND last_replacement_at = ?
+            AND cycle_start_state = 'started'
+            AND cycle_start_revision = ?
+            AND cycle_runtime_revision = ?
+        )
+      `).bind(
+        startupEventId,
+        tagNumber,
+        cycleStartAt,
+        note,
+        sourceType,
+        sourceLogId,
+        sourceText,
+        user.employeeNo,
+        user.name,
+        now,
+        now,
+        tagNumber,
+        eventDate,
+        cycleStartRevision,
+        cycleRuntimeRevision
+      ));
+    }
+
+    const results = await database.batch(statements);
+    if (Number(results?.[0]?.meta?.changes || 0) !== 1) {
+      return jsonResponse({ ok: false, message: "최근 Cycle이 변경되었습니다. 새로고침 후 교체 이력을 다시 등록해 주세요." }, 409);
+    }
+    if (Number(results?.[1]?.meta?.changes || 0) !== 1 || (startImmediately && Number(results?.[2]?.meta?.changes || 0) !== 1)) {
+      throw new Error("교체 상태와 교체·기동 이력을 함께 저장하지 못했습니다.");
+    }
+  } else {
+    await insertEvent(database, user, {
+      tagNumber,
+      eventType: "replacement",
+      eventDate,
+      runtimeHours: beforeRuntime,
+      issueType,
+      actionType,
+      note,
+      sourceType: source.sourceType || "manual",
+      sourceLogId: source.sourceLogId || "",
+      sourceText: source.sourceText || ""
+    });
+
+    if (startImmediately) {
+      await insertEvent(database, user, {
+        tagNumber,
+        eventType: "startup",
+        eventDate: cycleStartAt,
+        runtimeHours: 0,
+        issueType: "",
+        actionType: "교체 후 즉시 기동",
+        note,
+        sourceType: source.sourceType || "manual",
+        sourceLogId: source.sourceLogId || "",
+        sourceText: source.sourceText || ""
+      });
+    }
   }
 
   return jsonResponse({
@@ -2349,6 +2589,7 @@ async function registerStartup(database, user, body) {
   const now = new Date().toISOString();
   const currentCycleRevision = normalizeText(asset.cycle_start_revision);
   const nextCycleRevision = crypto.randomUUID();
+  const nextCycleRuntimeRevision = crypto.randomUUID();
   const startupEventId = crypto.randomUUID();
   const results = await database.batch([
     database
@@ -2358,6 +2599,10 @@ async function registerStartup(database, user, body) {
           cycle_started_at = ?,
           cycle_start_state = 'started',
           cycle_start_revision = ?,
+          cycle_runtime_hours = 0,
+          cycle_runtime_anchor_at = ?,
+          cycle_runtime_state = 'running',
+          cycle_runtime_revision = ?,
           runtime_hours = 0,
           runtime_anchor_at = ?,
           is_running = 1,
@@ -2372,6 +2617,8 @@ async function registerStartup(database, user, body) {
       .bind(
         eventDate,
         nextCycleRevision,
+        eventDate,
+        nextCycleRuntimeRevision,
         eventDate,
         user.employeeNo,
         user.name,
@@ -2439,7 +2686,7 @@ async function registerProblem(database, user, body, source = {}) {
     return jsonResponse({ ok: false, message: "문제 발생일을 확인해 주세요." }, 400);
   }
 
-  const runtimeHours = runtimeHoursAt(asset, eventDate);
+  const runtimeHours = eventRuntimeHoursAt(asset, eventDate);
   const issueType = normalizeText(body.issueType) || "기타";
   const actionType = normalizeText(body.actionType) || "확인";
 
@@ -2462,6 +2709,173 @@ async function registerProblem(database, user, body, source = {}) {
   });
 }
 
+async function changeRuntimeState(database, user, body) {
+  const tagNumber = normalizeText(body.tagNumber).toUpperCase();
+  const asset = await findAsset(database, tagNumber);
+
+  if (!asset) {
+    return jsonResponse({ ok: false, message: "등록된 Blower TAG를 찾을 수 없습니다." }, 404);
+  }
+
+  if (!normalizeText(asset.last_replacement_at)) {
+    return jsonResponse({ ok: false, message: "먼저 V-Belt 교체 이력을 등록해 주세요." }, 409);
+  }
+
+  if (normalizeText(asset.cycle_start_state) === "pending") {
+    return jsonResponse({ ok: false, message: "기동 대기 Cycle은 [기동 등록]으로 시작해 주세요." }, 409);
+  }
+
+  const storedCycleHours = Number(asset.cycle_runtime_hours);
+  const currentState = normalizeText(asset.cycle_runtime_state);
+  const currentRevision = normalizeText(asset.cycle_runtime_revision);
+  const expectedRevision = normalizeText(body.expectedCycleRuntimeRevision);
+
+  if (
+    !Number.isFinite(storedCycleHours) ||
+    !["running", "stopped"].includes(currentState) ||
+    !currentRevision
+  ) {
+    return jsonResponse({ ok: false, message: "Cycle 운전상태를 준비 중입니다. 새로고침 후 다시 시도해 주세요." }, 409);
+  }
+
+  if (!expectedRevision || expectedRevision !== currentRevision) {
+    return jsonResponse({ ok: false, message: "Cycle 상태가 변경되었습니다. 새로고침 후 다시 등록해 주세요." }, 409);
+  }
+
+  if (typeof body.isRunning !== "boolean") {
+    return jsonResponse({ ok: false, message: "변경할 운전상태를 확인해 주세요." }, 400);
+  }
+
+  const targetState = body.isRunning ? "running" : "stopped";
+  if (targetState === currentState) {
+    return jsonResponse({
+      ok: false,
+      message: targetState === "running" ? "이미 운전중입니다." : "이미 정지 상태입니다."
+    }, 409);
+  }
+
+  const eventDate = normalizeDateTime(body.eventDate || body.date);
+  if (!eventDate) {
+    return jsonResponse({ ok: false, message: "상태 변경일시를 확인해 주세요." }, 400);
+  }
+
+  const eventAt = new Date(eventDate);
+  const anchorAt = new Date(asset.cycle_runtime_anchor_at);
+  const replacementAt = new Date(asset.last_replacement_at);
+  const futureLimit = new Date(Date.now() + 5 * 60000);
+
+  if (Number.isNaN(eventAt.getTime()) || eventAt > futureLimit) {
+    return jsonResponse({ ok: false, message: "상태 변경일시는 현재 이후로 등록할 수 없습니다." }, 400);
+  }
+
+  if (!Number.isNaN(replacementAt.getTime()) && eventAt < replacementAt) {
+    return jsonResponse({ ok: false, message: "상태 변경일시는 최근 V-Belt 교체일보다 빠를 수 없습니다." }, 400);
+  }
+
+  if (!Number.isNaN(anchorAt.getTime()) && eventAt < anchorAt) {
+    return jsonResponse({ ok: false, message: "상태 변경일시는 직전 기동·정지 시각보다 빠를 수 없습니다." }, 400);
+  }
+
+  const elapsedHours = cycleRuntimeHoursAt(asset, eventAt);
+  if (!Number.isFinite(elapsedHours)) {
+    return jsonResponse({ ok: false, message: "누적 운전시간을 계산하지 못했습니다. 새로고침 후 다시 시도해 주세요." }, 409);
+  }
+
+  const now = new Date().toISOString();
+  const nextRevision = crypto.randomUUID();
+  const eventId = crypto.randomUUID();
+  const eventType = targetState === "running" ? "operation_start" : "operation_stop";
+  const actionType = targetState === "running" ? "재기동" : "정지";
+  const note = normalizeText(body.note);
+  const results = await database.batch([
+    database
+      .prepare(`
+        UPDATE blower_history_assets
+        SET
+          cycle_runtime_hours = ?,
+          cycle_runtime_anchor_at = ?,
+          cycle_runtime_state = ?,
+          cycle_runtime_revision = ?,
+          runtime_hours = ?,
+          runtime_anchor_at = ?,
+          is_running = ?,
+          last_modified_by_id = ?,
+          last_modified_by_name = ?,
+          updated_at = ?
+        WHERE tag_number = ?
+          AND enabled = 1
+          AND cycle_start_state <> 'pending'
+          AND cycle_runtime_state = ?
+          AND cycle_runtime_revision = ?
+          AND last_replacement_at = ?
+      `)
+      .bind(
+        elapsedHours,
+        eventDate,
+        targetState,
+        nextRevision,
+        elapsedHours,
+        targetState === "running" ? eventDate : null,
+        targetState === "running" ? 1 : 0,
+        user.employeeNo,
+        user.name,
+        now,
+        tagNumber,
+        currentState,
+        currentRevision,
+        asset.last_replacement_at
+      ),
+    database
+      .prepare(`
+        INSERT INTO blower_history_events (
+          id, tag_number, event_type, event_date, runtime_hours,
+          issue_type, action_type, note, source_type, source_log_id,
+          source_text, created_by_id, created_by_name, created_at, updated_at
+        )
+        SELECT ?, ?, ?, ?, ?, '', ?, ?, 'manual', '', '', ?, ?, ?, ?
+        WHERE EXISTS (
+          SELECT 1 FROM blower_history_assets
+          WHERE tag_number = ?
+            AND cycle_runtime_state = ?
+            AND cycle_runtime_revision = ?
+            AND last_replacement_at = ?
+        )
+      `)
+      .bind(
+        eventId,
+        tagNumber,
+        eventType,
+        eventDate,
+        elapsedHours,
+        actionType,
+        note,
+        user.employeeNo,
+        user.name,
+        now,
+        now,
+        tagNumber,
+        targetState,
+        nextRevision,
+        asset.last_replacement_at
+      )
+  ]);
+
+  if (Number(results?.[0]?.meta?.changes || 0) !== 1) {
+    return jsonResponse({ ok: false, message: "Cycle 상태가 이미 변경되었습니다. 새로고침 후 확인해 주세요." }, 409);
+  }
+
+  if (Number(results?.[1]?.meta?.changes || 0) !== 1) {
+    throw new Error("운전상태와 변경 이력을 함께 저장하지 못했습니다.");
+  }
+
+  return jsonResponse({
+    ok: true,
+    message: targetState === "running"
+      ? "재기동을 등록했습니다. 정지 전 누적시간부터 Cycle 계산을 다시 시작합니다."
+      : "정지를 등록했습니다. 재기동 전까지 Cycle 경과·D-day·알림을 멈춥니다."
+  });
+}
+
 async function correctRuntime(database, user, body) {
   const tagNumber = normalizeText(body.tagNumber).toUpperCase();
   const asset = await findAsset(database, tagNumber);
@@ -2470,52 +2884,122 @@ async function correctRuntime(database, user, body) {
     return jsonResponse({ ok: false, message: "등록된 Blower TAG를 찾을 수 없습니다." }, 404);
   }
 
+  if (normalizeText(asset.cycle_start_state) === "pending") {
+    return jsonResponse({ ok: false, message: "기동 대기 Cycle은 누적시간을 보정할 수 없습니다. 먼저 [기동 등록]을 완료해 주세요." }, 409);
+  }
+
+  if (!normalizeText(asset.last_replacement_at)) {
+    return jsonResponse({ ok: false, message: "확정된 V-Belt 교체 이력이 없어 Cycle 누적시간을 보정할 수 없습니다." }, 409);
+  }
+
   const runtimeHours = Number(body.runtimeHours);
 
   if (!Number.isFinite(runtimeHours) || runtimeHours < 0 || runtimeHours > 200000) {
     return jsonResponse({ ok: false, message: "누적 운전시간을 확인해 주세요." }, 400);
   }
 
-  const isRunning = body.isRunning === true;
   const now = new Date().toISOString();
+  const cycleEligible = (
+    Boolean(normalizeText(asset.last_replacement_at)) &&
+    normalizeText(asset.cycle_start_state) !== "pending" &&
+    asset.cycle_runtime_hours !== null &&
+    asset.cycle_runtime_hours !== undefined &&
+    asset.cycle_runtime_hours !== "" &&
+    Number.isFinite(Number(asset.cycle_runtime_hours)) &&
+    Boolean(normalizeText(asset.cycle_runtime_revision))
+  );
+  const isRunning = cycleEligible
+    ? normalizeText(asset.cycle_runtime_state) === "running"
+    : Number(asset.is_running) === 1;
+  const currentRevision = normalizeText(asset.cycle_runtime_revision);
+  const expectedRevision = normalizeText(body.expectedCycleRuntimeRevision);
+  const nextRevision = cycleEligible ? crypto.randomUUID() : currentRevision;
+  const eventId = crypto.randomUUID();
 
-  await database
+  if (!cycleEligible) {
+    return jsonResponse({ ok: false, message: "Cycle 운전시간을 준비 중입니다. 새로고침 후 다시 보정해 주세요." }, 409);
+  }
+
+  if (!expectedRevision || expectedRevision !== currentRevision) {
+    return jsonResponse({ ok: false, message: "Cycle 상태가 변경되었습니다. 새로고침 후 다시 보정해 주세요." }, 409);
+  }
+
+  const updateStatement = database
     .prepare(`
-      UPDATE blower_history_assets
-      SET
-        runtime_hours = ?,
-        runtime_anchor_at = ?,
-        is_running = ?,
-        last_modified_by_id = ?,
-        last_modified_by_name = ?,
-        updated_at = ?
-      WHERE tag_number = ?
-    `)
+        UPDATE blower_history_assets
+        SET
+          runtime_hours = ?,
+          runtime_anchor_at = ?,
+          is_running = ?,
+          cycle_runtime_hours = ?,
+          cycle_runtime_anchor_at = ?,
+          cycle_runtime_state = ?,
+          cycle_runtime_revision = ?,
+          last_modified_by_id = ?,
+          last_modified_by_name = ?,
+          updated_at = ?
+        WHERE tag_number = ?
+          AND enabled = 1
+          AND cycle_start_state <> 'pending'
+          AND cycle_runtime_revision = ?
+      `)
     .bind(
       runtimeHours,
       isRunning ? now : null,
       isRunning ? 1 : 0,
+      runtimeHours,
+      now,
+      isRunning ? "running" : "stopped",
+      nextRevision,
       user.employeeNo,
       user.name,
       now,
-      tagNumber
-    )
-    .run();
+      tagNumber,
+      currentRevision
+    );
+  const results = await database.batch([
+    updateStatement,
+    database
+      .prepare(`
+        INSERT INTO blower_history_events (
+          id, tag_number, event_type, event_date, runtime_hours,
+          issue_type, action_type, note, source_type, source_log_id,
+          source_text, created_by_id, created_by_name, created_at, updated_at
+        )
+        SELECT ?, ?, 'runtime_correction', ?, ?, '', ?, ?, 'manual', '', '', ?, ?, ?, ?
+        WHERE EXISTS (
+          SELECT 1 FROM blower_history_assets
+          WHERE tag_number = ?
+            AND cycle_runtime_revision = ?
+        )
+      `)
+      .bind(
+        eventId,
+        tagNumber,
+        now,
+        runtimeHours,
+        isRunning ? "운전중" : "정지",
+        normalizeText(body.note),
+        user.employeeNo,
+        user.name,
+        now,
+        now,
+        tagNumber,
+        nextRevision
+      )
+  ]);
 
-  await insertEvent(database, user, {
-    tagNumber,
-    eventType: "runtime_correction",
-    eventDate: now,
-    runtimeHours,
-    issueType: "",
-    actionType: isRunning ? "운전중" : "정지",
-    note: normalizeText(body.note),
-    sourceType: "manual"
-  });
+  if (Number(results?.[0]?.meta?.changes || 0) !== 1) {
+    return jsonResponse({ ok: false, message: "Cycle 상태가 이미 변경되었습니다. 새로고침 후 다시 보정해 주세요." }, 409);
+  }
+
+  if (Number(results?.[1]?.meta?.changes || 0) !== 1) {
+    throw new Error("누적 운전시간과 보정 이력을 함께 저장하지 못했습니다.");
+  }
 
   return jsonResponse({
     ok: true,
-    message: "누적 운전시간과 운전상태를 보정했습니다."
+    message: "누적 운전시간을 보정했습니다. 현재 Cycle에도 같은 값을 반영했습니다."
   });
 }
 
@@ -8411,6 +8895,10 @@ async function handlePost(context, user, body) {
 
   if (action === "runtime") {
     return correctRuntime(database, user, body);
+  }
+
+  if (action === "runtime_state") {
+    return changeRuntimeState(database, user, body);
   }
 
   if (action === "historical_backfill_step") {
