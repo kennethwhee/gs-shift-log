@@ -602,7 +602,7 @@
 
   <link
     rel="stylesheet"
-    href="/efficiency/bed-ash-discharge.css?v=20260830-bed-ash-discharge-v4"
+    href="/efficiency/bed-ash-discharge.css?v=20260831-bed-ash-amount-v5"
   >
 
   <link
@@ -11091,8 +11091,8 @@
       <span>BED ASH DISCHARGE</span>
       <h3>Bed Ash 반출</h3>
       <p>
-        1·2호기 Silo 중량이 5.0t 이상 하락하면 반출 후보로 감지하고,
-        연속 하락은 차량 1대 단위 후보로 분리합니다.
+        1·2호기 Silo 중량이 5.0t 이상 하락하면 반출량으로 기록하고,
+        연속 하락은 실제 시간별 OIS 경계에서 차량 단위로 분리합니다.
       </p>
     </div>
 
@@ -11101,7 +11101,7 @@
       class="secondary-button bed-ash-discharge-refresh-button"
       id="refreshBedAshDischargeButton"
     >
-      OIS 최신 조회
+      누락 OIS 조회
     </button>
   </header>
 
@@ -11208,19 +11208,19 @@
       <article class="bed-ash-discharge-summary-card is-total">
         <span>반출량 합계</span>
         <strong id="bedAshDischargeTotalAmount">0.0t</strong>
-        <small>선택 기간 · 확인 완료</small>
+        <small>선택 기간 · 반출 합계</small>
       </article>
 
       <article class="bed-ash-discharge-summary-card is-unit-one">
         <span>1호기 반출량</span>
         <strong id="bedAshDischargeUnitOneAmount">0.0t</strong>
-        <small>확인 완료 합계</small>
+        <small>선택 기간 합계</small>
       </article>
 
       <article class="bed-ash-discharge-summary-card is-unit-two">
         <span>2호기 반출량</span>
         <strong id="bedAshDischargeUnitTwoAmount">0.0t</strong>
-        <small>확인 완료 합계</small>
+        <small>선택 기간 합계</small>
       </article>
 
       <article class="bed-ash-discharge-summary-card is-pending">
@@ -11263,7 +11263,7 @@
       <header class="bed-ash-discharge-events-heading">
         <div>
           <span>DISCHARGE HISTORY</span>
-          <h4>반출 감지 · 확인 내역</h4>
+          <h4>반출 내역</h4>
         </div>
 
         <div class="bed-ash-discharge-events-toolbar">
@@ -11282,13 +11282,13 @@
       </header>
 
       <div class="bed-ash-discharge-table-wrap">
-        <table aria-label="Bed Ash 반출 자동 감지 및 효율팀 확인 내역">
+        <table aria-label="Bed Ash 반출량 내역">
           <thead>
             <tr>
-              <th>반출 · 감지 시간</th>
+              <th>반출 시간</th>
               <th>호기</th>
               <th>중량 변화</th>
-              <th>차량별 추정량</th>
+              <th>반출량</th>
               <th>확인 상태</th>
               <th>처리</th>
             </tr>
@@ -11312,7 +11312,7 @@
           class="bed-ash-discharge-table-state is-empty"
           id="bedAshDischargeEmptyState"
         >
-          선택한 기간에 5.0t 이상 하락한 반출 후보가 없습니다.
+          선택한 기간에 5.0t 이상 하락한 반출 내역이 없습니다.
         </div>
       </div>
     </section>
@@ -15293,7 +15293,7 @@
 ></script>
 
 <script
-  src="/efficiency/bed-ash-discharge.js?v=20260830-bed-ash-discharge-v4"
+  src="/efficiency/bed-ash-discharge.js?v=20260831-bed-ash-amount-v5"
 ></script>
 
 <script>

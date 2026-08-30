@@ -1304,3 +1304,69 @@
     display: none !important;
   }
 }
+
+/* BED-ASH-AMOUNT-ONLY-V5 */
+#efficiencyTeamModal .bed-ash-discharge-summary-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+#efficiencyTeamModal .bed-ash-discharge-summary-card.is-pending,
+#efficiencyTeamModal .bed-ash-discharge-events-toolbar > label,
+#efficiencyTeamModal .bed-ash-discharge-table-wrap th:nth-child(5),
+#efficiencyTeamModal .bed-ash-discharge-table-wrap th:nth-child(6),
+#efficiencyTeamModal .bed-ash-discharge-table-wrap td:nth-child(5),
+#efficiencyTeamModal .bed-ash-discharge-table-wrap td:nth-child(6),
+#efficiencyTeamModal .bed-ash-discharge-review-row,
+#efficiencyBedAshDischargeBadge,
+.bed-ash-discharge-main-alert {
+  display: none !important;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap col:nth-child(5),
+#efficiencyTeamModal .bed-ash-discharge-table-wrap col:nth-child(6) {
+  visibility: collapse;
+  width: 0;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap table {
+  min-width: 620px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap th:first-child {
+  width: 220px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap th:nth-child(2) {
+  width: 70px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap th:nth-child(3) {
+  width: 210px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap th:nth-child(4) {
+  width: 150px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-estimated-cell.is-truck-boundary-unresolved {
+  background: transparent;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-estimated-cell > strong {
+  font-size: 16px;
+}
+
+@media screen and (max-width: 768px) {
+  #efficiencyTeamModal .bed-ash-discharge-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-table-wrap table {
+    min-width: 580px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-table-wrap th,
+  #efficiencyTeamModal .bed-ash-discharge-table-wrap td {
+    font-size: 12px;
+  }
+}

@@ -501,7 +501,11 @@
   }
 
   function formatTon(value) {
-    return `${number(value).toFixed(1)}t`;
+    const numericValue = number(value);
+    return `${numericValue.toLocaleString("ko-KR", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 2
+    })}t`;
   }
 
   function normalizeEvent(rawEvent) {
@@ -554,6 +558,34 @@
     };
   }
 
+  function summarizeVisibleEvents(events) {
+    const summary = emptySummary();
+    const visibleEvents = Array.isArray(events)
+      ? events.filter(event => event.status !== "excluded")
+      : [];
+
+    visibleEvents.forEach(event => {
+      const selectedTon =
+        event.status === "confirmed" && event.confirmedTon !== null
+          ? event.confirmedTon
+          : event.estimatedTon;
+      const eventTon = Math.max(0, number(selectedTon));
+
+      summary.confirmedCount += 1;
+      summary.confirmedTon += eventTon;
+      if (event.unitNo === "2") {
+        summary.unit2Ton += eventTon;
+      } else {
+        summary.unit1Ton += eventTon;
+      }
+    });
+
+    ["confirmedTon", "unit1Ton", "unit2Ton"].forEach(key => {
+      summary[key] = Math.round(summary[key] * 1000) / 1000;
+    });
+
+    return summary;
+  }
   function normalizeLatestLevel(rawLevel) {
     if (!rawLevel || typeof rawLevel !== "object") {
       return null;
@@ -694,16 +726,16 @@
       elements.totalAmount.textContent = formatTon(summary.confirmedTon);
       setCardSupportingText(
         elements.totalAmount,
-        `확인 완료 ${summary.confirmedCount}건 기준`
+        `${summary.confirmedCount}건 기준`
       );
     }
     if (elements.unitOneAmount) {
       elements.unitOneAmount.textContent = formatTon(summary.unit1Ton);
-      setCardSupportingText(elements.unitOneAmount, "확인 완료 기준");
+      setCardSupportingText(elements.unitOneAmount, "선택 기간 기준");
     }
     if (elements.unitTwoAmount) {
       elements.unitTwoAmount.textContent = formatTon(summary.unit2Ton);
-      setCardSupportingText(elements.unitTwoAmount, "확인 완료 기준");
+      setCardSupportingText(elements.unitTwoAmount, "선택 기간 기준");
     }
     if (elements.pendingCount) {
       elements.pendingCount.textContent = `${summary.pendingCount}건`;
@@ -1039,8 +1071,8 @@
     if (isTruckBoundaryUnresolved) {
       estimatedCell.classList.add("is-truck-boundary-unresolved");
       estimatedCell.append(
-        createElement("strong", "", "복수 차량 추정"),
-        createElement("small", "", `총 하락량 ${formatTon(event.estimatedTon)}`)
+        createElement("strong", "", formatTon(event.estimatedTon)),
+        createElement("small", "", "반출량")
       );
     } else if (isLegacyReviewedEvent) {
       const legacyTon = event.status === "confirmed" && event.confirmedTon !== null
@@ -1064,7 +1096,7 @@
     } else {
       estimatedCell.append(
         createElement("strong", "", formatTon(event.estimatedTon)),
-        createElement("small", "", "차량별 추정량 · 자동 감지")
+        createElement("small", "", "반출량")
       );
     }
     row.appendChild(estimatedCell);
@@ -1200,7 +1232,7 @@
     state.renderEventsQueued = false;
 
     const visibleEvents = state.events.filter(event => {
-      return state.filter === "all" || event.status === state.filter;
+      return event.status !== "excluded";
     });
     const expandedEvent = visibleEvents.find(event => {
       return (
@@ -1234,7 +1266,7 @@
         elements.emptyState.textContent = "선택한 확인 상태에 해당하는 내역이 없습니다.";
       } else {
         elements.emptyState.textContent =
-          "선택한 기간에 5.0t 이상 하락한 반출 후보가 없습니다.";
+          "선택한 기간에 5.0t 이상 하락한 반출 내역이 없습니다.";
       }
     }
   }
@@ -1273,7 +1305,7 @@
     state.events = events.sort((first, second) => {
       return text(second.endAt).localeCompare(text(first.endAt));
     });
-    state.summary = normalizeSummary(data?.summary);
+    state.summary = summarizeVisibleEvents(state.events);
     state.latestLevels = {
       1: normalizeLatestLevel(data?.latestLevels?.["1"]),
       2: normalizeLatestLevel(data?.latestLevels?.["2"])
@@ -1535,7 +1567,7 @@
         : "";
       return `조회 완료 · ${eventCount}건 감지 · 자료 없음 ${missing}일 · 수집 실패 ${failed}일${baselineMessage}${lookaheadMessage}`;
     }
-    return `조회 완료 · ${complete}/${total}일 자료 · 반출 후보 ${eventCount}건`;
+    return `조회 완료 · ${complete}/${total}일 자료 · 반출 내역 ${eventCount}건`;
   }
 
   function delay(milliseconds) {
@@ -2370,7 +2402,7 @@
     elements.refreshButton?.addEventListener("click", () => {
       if (!isMobileClient()) {
         state.expandedReviewEventKey = "";
-        loadSelectedRange({ forceRefresh: true });
+        loadSelectedRange();
       }
     });
 

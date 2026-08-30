@@ -54,6 +54,14 @@ const MINIMUM_SPLIT_TRUCK_TON =
   9;
 
 
+/*
+  2대 분량의 총 하락과 실제 시간별 OIS 경계가 함께 확인되면
+  첫 차량이 9t보다 작더라도 반출 감지 하한인 5t까지 경계로 인정한다.
+*/
+const MINIMUM_REAL_BOUNDARY_TRUCK_TON =
+  DISCHARGE_THRESHOLD_TON;
+
+
 const LEVEL_NOISE_TOLERANCE_TON =
   0.5;
 
@@ -1834,11 +1842,27 @@ function findTruckSplitBoundaryIndices(
   }
 
 
+  /*
+    2대 분량(약 20.9t 이상)의 연속 하락은 실제 OIS 표본 경계가 있을 때
+    5t 이상인 작은 첫 차량도 보존한다. 그보다 작은 총 하락은 기존 9t
+    분할 하한을 유지해 15.1t 같은 단일 차량 기록의 과분할을 막는다.
+  */
+  const minimumSegmentTon =
+    totalDropTon >=
+      (
+        NOMINAL_SINGLE_TRUCK_TON *
+          2 -
+        LEVEL_NOISE_TOLERANCE_TON
+      )
+      ? MINIMUM_REAL_BOUNDARY_TRUCK_TON
+      : MINIMUM_SPLIT_TRUCK_TON;
+
+
   const maximumSegmentCount =
     Math.min(
       Math.floor(
         totalDropTon /
-        MINIMUM_SPLIT_TRUCK_TON
+        minimumSegmentTon
       ),
       eligibleIndices.length -
         1
@@ -1932,7 +1956,7 @@ function findTruckSplitBoundaryIndices(
 
             if (
               finalDropTon <
-                MINIMUM_SPLIT_TRUCK_TON ||
+                minimumSegmentTon ||
               finalDropTon >
                 MAXIMUM_SINGLE_TRUCK_TON
             ) {
@@ -1992,7 +2016,7 @@ function findTruckSplitBoundaryIndices(
 
             if (
               segmentDropTon <
-                MINIMUM_SPLIT_TRUCK_TON
+                minimumSegmentTon
             ) {
               continue;
             }

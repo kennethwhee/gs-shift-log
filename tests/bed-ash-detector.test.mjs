@@ -425,6 +425,63 @@ test(
 
 
 test(
+  "a real hourly boundary keeps 8.24 t and 13.22 t as separate trucks",
+  () => {
+    const samples = [
+      makeSample(7, 80),
+      makeSample(8, 79.6),
+      makeSample(9, 74.2),
+      makeSample(10, 71.76),
+      makeSample(11, 58.54),
+      makeSample(12, 58.54),
+      makeSample(13, 58.54)
+    ];
+
+    const events =
+      detectBedAshEventsForUnit(
+        1,
+        samples
+      );
+
+    assert.equal(
+      events.length,
+      2
+    );
+
+    assert.deepEqual(
+      events.map(event => event.estimatedTon),
+      [
+        8.24,
+        13.22
+      ]
+    );
+
+    assert.equal(
+      events[0].endAt,
+      "2026-08-01T10:00:00+09:00"
+    );
+
+    assert.equal(
+      events[1].startAt,
+      events[0].endAt
+    );
+
+    assert.equal(
+      Math.round(
+        events.reduce(
+          (totalTon, event) => totalTon + event.estimatedTon,
+          0
+        ) *
+          100
+      ) /
+        100,
+      21.46
+    );
+  }
+);
+
+
+test(
   "a gradual 14.2 t run remains one truck event",
   () => {
     const events =

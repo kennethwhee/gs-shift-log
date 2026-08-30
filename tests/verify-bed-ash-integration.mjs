@@ -72,11 +72,11 @@ for (const [label, html] of [
 
   assert.match(
     html,
-    /efficiency\/bed-ash-discharge\.css\?v=20260830-bed-ash-discharge-v4/
+    /efficiency\/bed-ash-discharge\.css\?v=20260831-bed-ash-amount-v5/
   );
   assert.match(
     html,
-    /efficiency\/bed-ash-discharge\.js\?v=20260830-bed-ash-discharge-v4/
+    /efficiency\/bed-ash-discharge\.js\?v=20260831-bed-ash-amount-v5/
   );
 
   const viewStart = html.indexOf('id="efficiencyBedAshDischargeView"');
@@ -88,15 +88,15 @@ for (const [label, html] of [
     `${label}: event table must have six compact columns`
   );
   assert.match(viewMarkup, /<th>중량 변화<\/th>/);
-  assert.match(viewMarkup, /<th>차량별 추정량<\/th>/);
-  assert.match(viewMarkup, /연속 하락은 차량 1대 단위 후보로 분리/);
+  assert.match(viewMarkup, /<th>반출량<\/th>/);
+  assert.match(viewMarkup, /연속 하락은 실제 시간별 OIS 경계에서 차량 단위로 분리/);
   assert.doesNotMatch(viewMarkup, /<th>감지 전<\/th>/);
 }
 
 
 assert.match(
   desktopHtml,
-  /script\.js\?v=20260830-bed-ash-discharge-v1/
+  /script\.js\?v=20260831-morning-meeting-indent-tm-scope-v1/
 );
 assert.equal(
   (
@@ -173,7 +173,7 @@ assert.match(client, /cell\.colSpan\s*=\s*6/);
 assert.match(client, /"aria-controls",\s*getReviewPanelId\(event\.eventKey\)/);
 assert.match(client, /dataset\.bedAshPeriod\s*=\s*state\.period/);
 assert.match(client, /truck_boundary_unresolved/);
-assert.match(client, /복수 차량 추정/);
+assert.match(client, /createElement\("small", "", "반출량"\)/);
 assert.match(client, /시간 경계 확인 필요/);
 assert.match(client, /DETECTOR_ALGORITHM_VERSION\s*=\s*"bed-ash-drop-v2"/);
 assert.match(client, /기존 방식 확정 합계/);
@@ -186,6 +186,28 @@ assert.match(
   client,
   /forceRefresh:\s*missing\.has\(date\) \|\| failed\.has\(date\)/
 );
+assert.match(client, /maximumFractionDigits:\s*2/);
+assert.match(client, /function summarizeVisibleEvents\(events\)/);
+assert.match(
+  client,
+  /state\.summary\s*=\s*summarizeVisibleEvents\(state\.events\)/
+);
+const refreshHandlerStart = client.indexOf(
+  'elements.refreshButton?.addEventListener("click"'
+);
+const refreshHandlerEnd = client.indexOf(
+  'elements.statusFilter?.addEventListener("change"',
+  refreshHandlerStart
+);
+const refreshHandlerSource = client.slice(
+  refreshHandlerStart,
+  refreshHandlerEnd
+);
+assert.ok(
+  refreshHandlerStart >= 0 && refreshHandlerEnd > refreshHandlerStart
+);
+assert.match(refreshHandlerSource, /loadSelectedRange\(\)/);
+assert.doesNotMatch(refreshHandlerSource, /forceRefresh:\s*true/);
 assert.match(client, /window\.openBedAshDischargeView/);
 assert.match(client, /window\.refreshBedAshDischargeSummary/);
 assert.doesNotMatch(client, /\.innerHTML\s*=/);
@@ -202,6 +224,15 @@ assert.match(style, /bed-ash-discharge-review-toggle/);
 assert.match(style, /is-truck-boundary-unresolved/);
 assert.match(style, /is-boundary-unresolved/);
 assert.match(style, /is-legacy-reviewed-event/);
+assert.match(style, /BED-ASH-AMOUNT-ONLY-V5/);
+assert.match(
+  style,
+  /bed-ash-discharge-summary-card\.is-pending,[\s\S]{0,700}?display:\s*none\s*!important/
+);
+assert.match(
+  style,
+  /bed-ash-discharge-summary-grid \{\s*grid-template-columns:\s*repeat\(3/
+);
 assert.match(
   style,
   /bed-ash-discharge-table-wrap th,\s*#efficiencyTeamModal \.bed-ash-discharge-table-wrap td \{[\s\S]{0,700}?font-size:\s*14px;/
@@ -292,6 +323,11 @@ assert.ok(
 
 assert.match(api, /const MAXIMUM_QUERY_DAYS\s*=\s*\n\s*31/);
 assert.match(api, /const DISCHARGE_THRESHOLD_TON\s*=\s*\n\s*5/);
+assert.match(
+  api,
+  /const MINIMUM_REAL_BOUNDARY_TRUCK_TON\s*=\s*\n\s*DISCHARGE_THRESHOLD_TON/
+);
+assert.match(api, /const minimumSegmentTon\s*=/);
 assert.match(api, /FROM json_each\(\?\)/);
 assert.match(api, /status = 'pending'/);
 assert.match(api, /status = 'confirmed'/);
