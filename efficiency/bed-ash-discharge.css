@@ -565,6 +565,12 @@
   color: #8a6217;
 }
 
+#efficiencyTeamModal .bed-ash-discharge-status-badge.is-provisional {
+  border-color: #bdc8d4;
+  background: #f0f3f6;
+  color: #4f6074;
+}
+
 #efficiencyTeamModal .bed-ash-discharge-status-badge.is-confirmed {
   border-color: #8fc4ae;
   background: #eaf7f1;
@@ -625,6 +631,16 @@
   grid-template-columns: minmax(132px, 1fr) 68px;
   align-items: end;
   gap: 5px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-provisional-note {
+  display: inline-block;
+  max-width: 180px;
+  color: #4f6074;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.45;
+  word-break: keep-all;
 }
 
 #efficiencyTeamModal .bed-ash-discharge-review-field {

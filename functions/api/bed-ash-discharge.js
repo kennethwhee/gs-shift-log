@@ -49,10 +49,6 @@ const MAXIMUM_QUERY_DAYS =
   31;
 
 
-const EVENT_UPSERT_CHUNK_SIZE =
-  6;
-
-
 const KST_OFFSET_MILLISECONDS =
   9 * 60 * 60 * 1000;
 
@@ -63,6 +59,105 @@ const HOUR_MILLISECONDS =
 
 const SAMPLE_SETTLING_GRACE_MILLISECONDS =
   5 * 60 * 1000;
+
+
+const REQUEST_SNAPSHOT_CTES_SQL = `
+  expected_requests AS (
+    SELECT
+      COALESCE(
+        json_extract(value, '$.id'),
+        ''
+      ) AS id,
+      COALESCE(
+        json_extract(value, '$.date'),
+        ''
+      ) AS target_date,
+      COALESCE(
+        json_extract(value, '$.status'),
+        ''
+      ) AS status,
+      COALESCE(
+        json_extract(value, '$.requestedAt'),
+        ''
+      ) AS requested_at,
+      COALESCE(
+        json_extract(value, '$.completedAt'),
+        ''
+      ) AS completed_at,
+      COALESCE(
+        json_extract(value, '$.updatedAt'),
+        ''
+      ) AS updated_at
+
+    FROM json_each(?)
+  ),
+
+  current_requests AS (
+    SELECT
+      COALESCE(id, '') AS id,
+      COALESCE(target_date, '') AS target_date,
+      COALESCE(status, '') AS status,
+      COALESCE(requested_at, '') AS requested_at,
+      COALESCE(completed_at, '') AS completed_at,
+      COALESCE(updated_at, '') AS updated_at
+
+    FROM ois_data_requests
+
+    WHERE request_type = 'bed_ash_level'
+      AND target_date >= ?
+      AND target_date <= ?
+  ),
+
+  snapshot_guard AS (
+    SELECT
+      NOT EXISTS (
+        SELECT
+          id,
+          target_date,
+          status,
+          requested_at,
+          completed_at,
+          updated_at
+
+        FROM current_requests
+
+        EXCEPT
+
+        SELECT
+          id,
+          target_date,
+          status,
+          requested_at,
+          completed_at,
+          updated_at
+
+        FROM expected_requests
+      )
+      AND NOT EXISTS (
+        SELECT
+          id,
+          target_date,
+          status,
+          requested_at,
+          completed_at,
+          updated_at
+
+        FROM expected_requests
+
+        EXCEPT
+
+        SELECT
+          id,
+          target_date,
+          status,
+          requested_at,
+          completed_at,
+          updated_at
+
+        FROM current_requests
+      ) AS ok
+  )
+`;
 
 
 const UNIT_DEFINITIONS = {
@@ -828,12 +923,65 @@ async function ensureSchema(
           reviewed_at TEXT,
           revision INTEGER NOT NULL DEFAULT 1,
           candidate_active INTEGER NOT NULL DEFAULT 1,
+          review_ready INTEGER NOT NULL DEFAULT 0,
           first_detected_at TEXT NOT NULL,
           last_detected_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         )
     `)
     .run();
+
+
+  const eventColumnResult =
+    await database
+      .prepare(`
+        PRAGMA table_info(
+          bed_ash_discharge_events
+        )
+      `)
+      .all();
+
+
+  const eventColumns =
+    Array.isArray(
+      eventColumnResult.results
+    )
+      ? eventColumnResult.results
+      : [];
+
+
+  if (
+    !eventColumns.some(
+      column => {
+        return normalizeText(
+          column.name
+        ) ===
+          "review_ready";
+      }
+    )
+  ) {
+    try {
+      await database
+        .prepare(`
+          ALTER TABLE bed_ash_discharge_events
+          ADD COLUMN review_ready INTEGER NOT NULL DEFAULT 0
+        `)
+        .run();
+
+    } catch (
+      error
+    ) {
+      if (
+        !/duplicate column|already exists/i.test(
+          normalizeText(
+            error?.message
+          )
+        )
+      ) {
+        throw error;
+      }
+    }
+  }
 
 
   await database
@@ -884,26 +1032,13 @@ async function ensureSchema(
 }
 
 
-function normalizeCompletedRequestSamples(
+function getRequestImmutableCutoffMilliseconds(
   requestRow,
   nowMilliseconds =
-    Date.now()
+    Date.now(),
+  allowNowFallback =
+    false
 ) {
-  const targetDate =
-    normalizeText(
-      requestRow?.target_date
-    );
-
-
-  if (
-    !isValidIsoDate(
-      targetDate
-    )
-  ) {
-    return [];
-  }
-
-
   const result =
     parseJsonObject(
       requestRow?.result_json
@@ -944,11 +1079,132 @@ function normalizeCompletedRequestSamples(
   );
 
 
+  if (
+    immutableCutoffCandidates.length ===
+      1
+  ) {
+    return allowNowFallback
+      ? Number(
+          nowMilliseconds
+        ) -
+        SAMPLE_SETTLING_GRACE_MILLISECONDS
+      : Number.NaN;
+  }
+
+
+  return Math.min(
+    ...immutableCutoffCandidates
+  ) -
+  SAMPLE_SETTLING_GRACE_MILLISECONDS;
+}
+
+
+function hasRequestCoverageThrough(
+  requestRow,
+  requiredTimestamp,
+  nowMilliseconds =
+    Date.now(),
+  requiredUnitNumbers = [
+    1,
+    2
+  ]
+) {
+  const requiredTime =
+    Date.parse(
+      requiredTimestamp
+    );
+
+
+  const immutableCutoff =
+    getRequestImmutableCutoffMilliseconds(
+      requestRow,
+      nowMilliseconds
+    );
+
+
+  if (
+    !(
+    Number.isFinite(
+      requiredTime
+    ) &&
+    Number.isFinite(
+      immutableCutoff
+    ) &&
+    immutableCutoff >=
+      requiredTime
+    )
+  ) {
+    return false;
+  }
+
+
+  const samples =
+    normalizeCompletedRequestSamples(
+      requestRow,
+      nowMilliseconds
+    );
+
+
+  return requiredUnitNumbers.every(
+    unitNo => {
+      return samples.some(
+        sample => {
+          return (
+            sample.unitNo ===
+              Number(
+                unitNo
+              ) &&
+            sample.sampledAt ===
+              requiredTimestamp
+          );
+        }
+      );
+    }
+  );
+}
+
+
+function normalizeCompletedRequestSamples(
+  requestRow,
+  nowMilliseconds =
+    Date.now()
+) {
+  const targetDate =
+    normalizeText(
+      requestRow?.target_date
+    );
+
+
+  if (
+    !isValidIsoDate(
+      targetDate
+    )
+  ) {
+    return [];
+  }
+
+
+  const result =
+    parseJsonObject(
+      requestRow?.result_json
+    );
+
+
   const maximumSampleTime =
-    Math.min(
-      ...immutableCutoffCandidates
-    ) -
-    SAMPLE_SETTLING_GRACE_MILLISECONDS;
+    getRequestImmutableCutoffMilliseconds(
+      requestRow,
+      nowMilliseconds,
+      true
+    );
+
+
+  if (
+    !Number.isFinite(
+      maximumSampleTime
+    )
+  ) {
+    return [];
+  }
 
 
   const resultTargetDate =
@@ -1171,28 +1427,80 @@ function normalizeCompletedRequestSamples(
 }
 
 
-async function runStatementsInChunks(
-  database,
-  statements,
-  chunkSize =
-    75
+function hasRequestHourRangeCoverage(
+  requestRow,
+  startHour,
+  endHour,
+  requiredUnitNumbers = [
+    1,
+    2
+  ],
+  nowMilliseconds =
+    Date.now()
 ) {
-  for (
-    let statementIndex =
-      0;
-    statementIndex <
-      statements.length;
-    statementIndex +=
-      chunkSize
+  const targetDate =
+    normalizeText(
+      requestRow?.target_date
+    );
+
+
+  if (
+    !isValidIsoDate(
+      targetDate
+    )
   ) {
-    await database.batch(
-      statements.slice(
-        statementIndex,
-        statementIndex +
-        chunkSize
+    return false;
+  }
+
+
+  const samples =
+    normalizeCompletedRequestSamples(
+      requestRow,
+      nowMilliseconds
+    );
+
+
+  const sampleKeys =
+    new Set(
+      samples.map(
+        sample => {
+          return `${sample.unitNo}:${sample.sampledAt}`;
+        }
       )
     );
-  }
+
+
+  return requiredUnitNumbers.every(
+    unitNo => {
+      for (
+        let hour =
+          startHour;
+        hour <=
+          endHour;
+        hour +=
+          1
+      ) {
+        const expectedSample =
+          getExpectedSample(
+            targetDate,
+            hour
+          );
+
+
+        if (
+          !expectedSample ||
+          !sampleKeys.has(
+            `${unitNo}:${expectedSample.sampledAt}`
+          )
+        ) {
+          return false;
+        }
+      }
+
+
+      return true;
+    }
+  );
 }
 
 
@@ -1983,11 +2291,285 @@ function selectRequestRowsByDate(
 }
 
 
+function normalizeRequestSnapshot(
+  requestSnapshot
+) {
+  const startDate =
+    normalizeText(
+      requestSnapshot?.startDate ??
+      requestSnapshot?.start_date
+    );
+
+
+  const endDate =
+    normalizeText(
+      requestSnapshot?.endDate ??
+      requestSnapshot?.end_date
+    );
+
+
+  if (
+    !isValidIsoDate(
+      startDate
+    ) ||
+    !isValidIsoDate(
+      endDate
+    ) ||
+    getDateRangeDayCount(
+      startDate,
+      endDate
+    ) <
+      1
+  ) {
+    return {
+      startDate:
+        "",
+      endDate:
+        "",
+      requests:
+        []
+    };
+  }
+
+
+  const snapshotById =
+    new Map();
+
+
+  (
+    Array.isArray(
+      requestSnapshot?.requests
+    )
+      ? requestSnapshot.requests
+      : []
+  ).forEach(
+    item => {
+      const date =
+        normalizeText(
+          item?.date ??
+          item?.target_date
+        );
+
+
+      const id =
+        normalizeText(
+          item?.id
+        );
+
+
+      if (
+        !id ||
+        !isValidIsoDate(
+          date
+        ) ||
+        date <
+          startDate ||
+        date >
+          endDate
+      ) {
+        return;
+      }
+
+
+      snapshotById.set(
+        id,
+        {
+          id,
+          date,
+
+          status:
+            normalizeText(
+              item?.status
+            ),
+
+          requestedAt:
+            normalizeText(
+              item?.requestedAt ??
+              item?.requested_at
+            ),
+
+          completedAt:
+            normalizeText(
+              item?.completedAt ??
+              item?.completed_at
+            ),
+
+          updatedAt:
+            normalizeText(
+              item?.updatedAt ??
+              item?.updated_at
+            )
+        }
+      );
+    }
+  );
+
+
+  return {
+    startDate,
+    endDate,
+
+    requests:
+      [
+        ...snapshotById.values()
+      ].sort(
+        (
+          firstItem,
+          secondItem
+        ) => {
+          return (
+            firstItem.date.localeCompare(
+              secondItem.date
+            ) ||
+            firstItem.id.localeCompare(
+              secondItem.id
+            )
+          );
+        }
+      )
+  };
+}
+
+
+function createRequestSnapshot(
+  startDate,
+  endDate,
+  requestRows
+) {
+  return normalizeRequestSnapshot(
+    {
+      startDate,
+      endDate,
+
+      requests:
+        requestRows.map(
+          row => {
+            return {
+              id:
+                normalizeText(
+                  row.id
+                ),
+              date:
+                normalizeText(
+                  row.target_date
+                ),
+              status:
+                normalizeText(
+                  row.status
+                ),
+              requestedAt:
+                normalizeText(
+                  row.requested_at
+                ),
+              completedAt:
+                normalizeText(
+                  row.completed_at
+                ),
+              updatedAt:
+                normalizeText(
+                  row.updated_at
+                )
+            };
+          }
+        )
+    }
+  );
+}
+
+
+async function isRequestSnapshotCurrent(
+  database,
+  requestSnapshot
+) {
+  const normalizedSnapshot =
+    normalizeRequestSnapshot(
+      requestSnapshot
+    );
+
+
+  if (
+    !normalizedSnapshot.startDate ||
+    !normalizedSnapshot.endDate
+  ) {
+    return true;
+  }
+
+
+  const result =
+    await database
+      .prepare(`
+        WITH
+          ${REQUEST_SNAPSHOT_CTES_SQL}
+
+        SELECT ok AS snapshot_current
+        FROM snapshot_guard
+      `)
+      .bind(
+        JSON.stringify(
+          normalizedSnapshot.requests
+        ),
+        normalizedSnapshot.startDate,
+        normalizedSnapshot.endDate
+      )
+      .first();
+
+
+  return Number(
+    result?.snapshot_current
+  ) ===
+    1;
+}
+
+
+function getSettledCompletedRequest(
+  date,
+  latestByDate,
+  completedByDate
+) {
+  const latestRequest =
+    latestByDate.get(
+      date
+    ) ||
+    null;
+
+
+  const completedRequest =
+    completedByDate.get(
+      date
+    ) ||
+    null;
+
+
+  if (
+    !latestRequest ||
+    !completedRequest ||
+    normalizeText(
+      latestRequest.status
+    ) !==
+      "complete" ||
+    normalizeText(
+      latestRequest.id
+    ) !==
+      normalizeText(
+        completedRequest.id
+      )
+  ) {
+    return null;
+  }
+
+
+  return completedRequest;
+}
+
+
 function buildCoverage(
   dates,
   latestByDate,
   completedByDate,
-  baselineDate
+  baselineDate,
+  lookaheadDate,
+  nowMilliseconds =
+    Date.now()
 ) {
   const completeDates =
     [];
@@ -2019,14 +2601,33 @@ function buildCoverage(
 
 
       const completedRequest =
-        completedByDate.get(
-          date
-        ) ||
-        null;
+        getSettledCompletedRequest(
+          date,
+          latestByDate,
+          completedByDate
+        );
+
+
+      const complete =
+        Boolean(
+          completedRequest
+        ) &&
+        hasRequestCoverageThrough(
+          completedRequest,
+          `${addIsoDateDays(
+            date,
+            1
+          )}T00:00:00+09:00`
+        ) &&
+        hasRequestHourRangeCoverage(
+          completedRequest,
+          1,
+          24
+        );
 
 
       if (
-        completedRequest
+        complete
       ) {
         completeDates.push(
           date
@@ -2035,7 +2636,14 @@ function buildCoverage(
 
 
       if (
-        !latestRequest
+        !latestRequest ||
+        (
+          !complete &&
+          normalizeText(
+            latestRequest.status
+          ) ===
+            "complete"
+        )
       ) {
         missingDates.push(
           date
@@ -2097,16 +2705,154 @@ function buildCoverage(
   );
 
 
-  const baselineRequest =
-    latestByDate.get(
-      baselineDate
-    ) ||
-    null;
+  const buildSupportCoverage =
+    (
+      date,
+      available =
+        true,
+      requiredTimestamp =
+        `${addIsoDateDays(
+          date,
+          1
+        )}T00:00:00+09:00`,
+      requiredStartHour =
+        1,
+      requiredEndHour =
+        24
+    ) => {
+      const latestRequest =
+        latestByDate.get(
+          date
+        ) ||
+        null;
 
 
-  const baselineComplete =
-    completedByDate.has(
-      baselineDate
+      const complete =
+        available &&
+        hasRequestCoverageThrough(
+          getSettledCompletedRequest(
+            date,
+            latestByDate,
+            completedByDate
+          ),
+          requiredTimestamp
+        ) &&
+        hasRequestHourRangeCoverage(
+          getSettledCompletedRequest(
+            date,
+            latestByDate,
+            completedByDate
+          ),
+          requiredStartHour,
+          requiredEndHour
+        );
+
+
+      const status =
+        available
+          ? normalizeText(
+              latestRequest?.status
+            ) ||
+            "missing"
+          : "future";
+
+
+      const pending =
+        available &&
+        [
+          "pending",
+          "processing"
+        ].includes(
+          status
+        );
+
+
+      const failed =
+        available &&
+        [
+          "failed",
+          "expired"
+        ].includes(
+          status
+        );
+
+
+      return {
+        date,
+        available,
+        status,
+        complete,
+        missing:
+          available &&
+          !complete &&
+          !pending &&
+          !failed,
+        pending,
+        failed,
+
+        requestId:
+          normalizeText(
+            latestRequest?.id
+          ) ||
+          null,
+
+        updatedAt:
+          normalizeText(
+            latestRequest?.completed_at ||
+            latestRequest?.updated_at ||
+            latestRequest?.requested_at
+          ) ||
+          null,
+
+        errorMessage:
+          normalizeText(
+            latestRequest?.error_message
+          )
+      };
+    };
+
+
+  const baseline =
+    buildSupportCoverage(
+      baselineDate,
+      true,
+      `${addIsoDateDays(
+        baselineDate,
+        1
+      )}T00:00:00+09:00`,
+      16,
+      24
+    );
+
+
+  const lookahead =
+    buildSupportCoverage(
+      lookaheadDate,
+      nowMilliseconds >=
+        Date.parse(
+          `${lookaheadDate}T${padTwoDigits(
+            MAXIMUM_EVENT_WINDOW_HOURS
+          )}:00:00+09:00`
+        ) +
+        SAMPLE_SETTLING_GRACE_MILLISECONDS,
+      `${lookaheadDate}T${padTwoDigits(
+        MAXIMUM_EVENT_WINDOW_HOURS
+      )}:00:00+09:00`,
+      1,
+      MAXIMUM_EVENT_WINDOW_HOURS
+    );
+
+
+  const selectedDatesReviewReady =
+    dates.every(
+      date => {
+        return isEventDateReviewReady(
+          date,
+          latestByDate,
+          completedByDate,
+          nowMilliseconds
+        );
+      }
     );
 
 
@@ -2118,42 +2864,230 @@ function buildCoverage(
     failedDates,
     requests,
 
-    baseline: {
-      date:
-        baselineDate,
+    baseline,
+    lookahead,
 
-      status:
-        normalizeText(
-          baselineRequest?.status
-        ) ||
-        "missing",
-
-      complete:
-        baselineComplete,
-
-      missing:
-        !baselineComplete,
-
-      requestId:
-        normalizeText(
-          baselineRequest?.id
-        ) ||
-        null,
-
-      updatedAt:
-        normalizeText(
-          baselineRequest?.completed_at ||
-          baselineRequest?.updated_at ||
-          baselineRequest?.requested_at
-        ) ||
-        null,
-
-      errorMessage:
-        normalizeText(
-          baselineRequest?.error_message
-        )
-    }
+    reviewReady:
+      selectedDatesReviewReady
   };
+}
+
+
+function isEventDateReviewReady(
+  eventDate,
+  latestByDate,
+  completedByDate,
+  nowMilliseconds =
+    Date.now(),
+  requiredUnitNo =
+    null
+) {
+  if (
+    !isValidIsoDate(
+      eventDate
+    )
+  ) {
+    return false;
+  }
+
+
+  const baselineDate =
+    addIsoDateDays(
+      eventDate,
+      -1
+    );
+
+
+  const lookaheadDate =
+    addIsoDateDays(
+      eventDate,
+      1
+    );
+
+
+  const lookaheadBoundary =
+    `${lookaheadDate}T${padTwoDigits(
+      MAXIMUM_EVENT_WINDOW_HOURS
+    )}:00:00+09:00`;
+
+
+  const requiredUnitNumbers =
+    [
+      1,
+      2
+    ].includes(
+      Number(
+        requiredUnitNo
+      )
+    )
+      ? [
+          Number(
+            requiredUnitNo
+          )
+        ]
+      : [
+          1,
+          2
+        ];
+
+
+  const baselineRequest =
+    getSettledCompletedRequest(
+      baselineDate,
+      latestByDate,
+      completedByDate
+    );
+
+
+  const eventDateRequest =
+    getSettledCompletedRequest(
+      eventDate,
+      latestByDate,
+      completedByDate
+    );
+
+
+  const lookaheadRequest =
+    getSettledCompletedRequest(
+      lookaheadDate,
+      latestByDate,
+      completedByDate
+    );
+
+
+  return (
+    nowMilliseconds >=
+      Date.parse(
+        lookaheadBoundary
+      ) +
+      SAMPLE_SETTLING_GRACE_MILLISECONDS &&
+    hasRequestCoverageThrough(
+      baselineRequest,
+      `${eventDate}T00:00:00+09:00`,
+      nowMilliseconds,
+      requiredUnitNumbers
+    ) &&
+    hasRequestCoverageThrough(
+      eventDateRequest,
+      `${lookaheadDate}T00:00:00+09:00`,
+      nowMilliseconds,
+      requiredUnitNumbers
+    ) &&
+    hasRequestCoverageThrough(
+      lookaheadRequest,
+      lookaheadBoundary,
+      nowMilliseconds,
+      requiredUnitNumbers
+    ) &&
+    hasContinuousEventDateSupport(
+      eventDate,
+      [
+        baselineRequest,
+        eventDateRequest,
+        lookaheadRequest
+      ],
+      requiredUnitNumbers,
+      nowMilliseconds
+    )
+  );
+}
+
+
+function hasContinuousEventDateSupport(
+  eventDate,
+  requestRows,
+  requiredUnitNumbers,
+  nowMilliseconds =
+    Date.now()
+) {
+  const supportStartTime =
+    Date.parse(
+      `${eventDate}T00:00:00+09:00`
+    ) -
+    MAXIMUM_EVENT_WINDOW_HOURS *
+    HOUR_MILLISECONDS;
+
+
+  const supportEndTime =
+    Date.parse(
+      `${addIsoDateDays(
+        eventDate,
+        1
+      )}T00:00:00+09:00`
+    ) +
+    MAXIMUM_EVENT_WINDOW_HOURS *
+    HOUR_MILLISECONDS;
+
+
+  const sampleKeys =
+    new Set(
+      requestRows.flatMap(
+        requestRow => {
+          return normalizeCompletedRequestSamples(
+            requestRow,
+            nowMilliseconds
+          );
+        }
+      ).map(
+        sample => {
+          return `${sample.unitNo}:${sample.sampledAt}`;
+        }
+      )
+    );
+
+
+  return requiredUnitNumbers.every(
+    unitNo => {
+      for (
+        let sampleTime =
+          supportStartTime;
+        sampleTime <=
+          supportEndTime;
+        sampleTime +=
+          HOUR_MILLISECONDS
+      ) {
+        if (
+          !sampleKeys.has(
+            `${unitNo}:${formatKstIsoFromEpoch(
+              sampleTime
+            )}`
+          )
+        ) {
+          return false;
+        }
+      }
+
+
+      return true;
+    }
+  );
+}
+
+
+function isDetectedEventReviewReady(
+  event,
+  latestByDate,
+  completedByDate,
+  nowMilliseconds =
+    Date.now()
+) {
+  return isEventDateReviewReady(
+    getKstDateFromTimestamp(
+      event?.thresholdCrossedAt
+    ),
+    latestByDate,
+    completedByDate,
+    nowMilliseconds,
+    event?.unitNo
+  ) &&
+  ![
+    "data_end",
+    "data_gap"
+  ].includes(
+    normalizeText(
+      event?.closeReason
+    )
+  );
 }
 
 
@@ -2161,15 +3095,160 @@ async function synchronizeDetectedEvents(
   database,
   startTimestamp,
   endTimestampExclusive,
-  detectedEvents
+  detectedEvents,
+  authoritativeDates =
+    [],
+  blockedReviewDates =
+    [],
+  requestSnapshot =
+    []
 ) {
   const now =
     new Date()
       .toISOString();
 
 
-  await database
-    .prepare(`
+  const normalizedAuthoritativeDates =
+    [
+      ...new Set(
+        Array.isArray(
+          authoritativeDates
+        )
+          ? authoritativeDates.filter(
+              isValidIsoDate
+            )
+          : []
+      )
+    ];
+
+
+  const authoritativeDateClause =
+    normalizedAuthoritativeDates.length >
+      0
+      ? `
+          OR substr(
+            threshold_crossed_at,
+            1,
+            10
+          ) IN (${normalizedAuthoritativeDates.map(
+            () => {
+              return "?";
+            }
+          ).join(
+            ", "
+          )})
+        `
+      : "";
+
+
+  const normalizedBlockedReviewDates =
+    [
+      ...new Set(
+        Array.isArray(
+          blockedReviewDates
+        )
+          ? blockedReviewDates.filter(
+              isValidIsoDate
+            )
+          : []
+      )
+    ];
+
+
+  const normalizedRequestSnapshot =
+    normalizeRequestSnapshot(
+      requestSnapshot
+    );
+
+
+  const hasRequestSnapshot =
+    Boolean(
+      normalizedRequestSnapshot.startDate &&
+      normalizedRequestSnapshot.endDate
+    );
+
+
+  const requestSnapshotJson =
+    JSON.stringify(
+      normalizedRequestSnapshot
+        .requests
+    );
+
+
+  const requestSnapshotBindings =
+    hasRequestSnapshot
+      ? [
+          requestSnapshotJson,
+          normalizedRequestSnapshot.startDate,
+          normalizedRequestSnapshot.endDate
+        ]
+      : [];
+
+
+  const requestSnapshotCtePrefix =
+    hasRequestSnapshot
+      ? `WITH ${REQUEST_SNAPSHOT_CTES_SQL}`
+      : "";
+
+
+  const requestSnapshotWhereClause =
+    hasRequestSnapshot
+      ? "AND (SELECT ok FROM snapshot_guard) = 1"
+      : "";
+
+
+  const statements =
+    [];
+
+
+  if (
+    normalizedBlockedReviewDates.length >
+      0
+  ) {
+    statements.push(
+      database
+        .prepare(`
+          ${requestSnapshotCtePrefix}
+
+          UPDATE bed_ash_discharge_events
+
+          SET
+            review_ready = 0,
+            updated_at = ?
+
+          WHERE threshold_crossed_at >= ?
+            AND threshold_crossed_at < ?
+            AND status = 'pending'
+            AND candidate_active = 1
+            AND substr(
+              threshold_crossed_at,
+              1,
+              10
+            ) IN (${normalizedBlockedReviewDates.map(
+              () => {
+                return "?";
+              }
+            ).join(
+              ", "
+            )})
+            ${requestSnapshotWhereClause}
+        `)
+        .bind(
+          ...requestSnapshotBindings,
+          now,
+          startTimestamp,
+          endTimestampExclusive,
+          ...normalizedBlockedReviewDates
+        )
+    );
+  }
+
+
+  statements.push(
+    database
+      .prepare(`
+      ${requestSnapshotCtePrefix}
+
       UPDATE bed_ash_discharge_events
 
       SET
@@ -2179,77 +3258,99 @@ async function synchronizeDetectedEvents(
       WHERE threshold_crossed_at >= ?
         AND threshold_crossed_at < ?
         AND status = 'pending'
-    `)
-    .bind(
-      now,
-      startTimestamp,
-      endTimestampExclusive
-    )
-    .run();
+        AND (
+          review_ready = 0
+          ${authoritativeDateClause}
+        )
+        ${requestSnapshotWhereClause}
+      `)
+      .bind(
+        ...requestSnapshotBindings,
+        now,
+        startTimestamp,
+        endTimestampExclusive,
+        ...normalizedAuthoritativeDates
+      )
+  );
 
 
-  const statements =
-    [];
-
-
-  for (
-    let eventIndex =
-      0;
-    eventIndex <
-      detectedEvents.length;
-    eventIndex +=
-      EVENT_UPSERT_CHUNK_SIZE
+  if (
+    detectedEvents.length >
+      0
   ) {
-    const eventChunk =
-      detectedEvents.slice(
-        eventIndex,
-        eventIndex +
-        EVENT_UPSERT_CHUNK_SIZE
-      );
-
-
-    const valueClauses =
-      eventChunk.map(
-        () => {
-          return `(
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            'pending', NULL, NULL, '', '', '', NULL,
-            1, 1, ?, ?, ?
-          )`;
-        }
-      ).join(
-        ",\n"
-      );
-
-
-    const bindings =
-      eventChunk.flatMap(
-        event => {
-          return [
-            event.eventKey,
-            event.algorithmVersion,
-            event.unitNo,
-            event.tagNumber,
-            event.startAt,
-            event.endAt,
-            event.thresholdCrossedAt,
-            event.startLevelTon,
-            event.endLevelTon,
-            event.estimatedTon,
-            event.confidence,
-            event.evidenceFingerprint,
-            event.closeReason,
-            now,
-            now,
-            now
-          ];
-        }
+    const eventPayload =
+      JSON.stringify(
+        detectedEvents.map(
+          event => {
+            return {
+              eventKey:
+                event.eventKey,
+              algorithmVersion:
+                event.algorithmVersion,
+              unitNo:
+                event.unitNo,
+              tagNumber:
+                event.tagNumber,
+              startAt:
+                event.startAt,
+              endAt:
+                event.endAt,
+              thresholdCrossedAt:
+                event.thresholdCrossedAt,
+              startLevelTon:
+                event.startLevelTon,
+              endLevelTon:
+                event.endLevelTon,
+              estimatedTon:
+                event.estimatedTon,
+              confidence:
+                event.confidence,
+              evidenceFingerprint:
+                event.evidenceFingerprint,
+              closeReason:
+                event.closeReason,
+              reviewReady:
+                event.reviewReady ===
+                  true
+            };
+          }
+        )
       );
 
 
     statements.push(
       database
         .prepare(`
+            WITH
+              ${
+                hasRequestSnapshot
+                  ? `${REQUEST_SNAPSHOT_CTES_SQL},`
+                  : ""
+              }
+
+              incoming AS (
+              SELECT
+                json_extract(value, '$.eventKey') AS event_key,
+                json_extract(value, '$.algorithmVersion') AS algorithm_version,
+                json_extract(value, '$.unitNo') AS unit_no,
+                json_extract(value, '$.tagNumber') AS tag_number,
+                json_extract(value, '$.startAt') AS event_start_at,
+                json_extract(value, '$.endAt') AS event_end_at,
+                json_extract(value, '$.thresholdCrossedAt') AS threshold_crossed_at,
+                json_extract(value, '$.startLevelTon') AS start_level_ton,
+                json_extract(value, '$.endLevelTon') AS end_level_ton,
+                json_extract(value, '$.estimatedTon') AS estimated_ton,
+                json_extract(value, '$.confidence') AS confidence,
+                json_extract(value, '$.evidenceFingerprint') AS evidence_fingerprint,
+                json_extract(value, '$.closeReason') AS close_reason,
+                CASE
+                  WHEN json_extract(value, '$.reviewReady') = 1
+                    THEN 1
+                  ELSE 0
+                END AS review_ready
+              FROM json_each(?)
+            )
+
             INSERT INTO bed_ash_discharge_events (
               event_key,
               algorithm_version,
@@ -2273,11 +3374,44 @@ async function synchronizeDetectedEvents(
               reviewed_at,
               revision,
               candidate_active,
+              review_ready,
               first_detected_at,
               last_detected_at,
               updated_at
             )
-            VALUES ${valueClauses}
+
+            SELECT
+              event_key,
+              algorithm_version,
+              unit_no,
+              tag_number,
+              event_start_at,
+              event_end_at,
+              threshold_crossed_at,
+              start_level_ton,
+              end_level_ton,
+              estimated_ton,
+              confidence,
+              evidence_fingerprint,
+              close_reason,
+              'pending',
+              NULL,
+              NULL,
+              '',
+              '',
+              '',
+              NULL,
+              1,
+              1,
+              review_ready,
+              ?,
+              ?,
+              ?
+
+            FROM incoming
+
+            WHERE 1 = 1
+              ${requestSnapshotWhereClause}
 
             ON CONFLICT (event_key)
             DO UPDATE SET
@@ -2300,22 +3434,40 @@ async function synchronizeDetectedEvents(
                 ELSE bed_ash_discharge_events.revision
               END,
               candidate_active = 1,
+              review_ready = excluded.review_ready,
               last_detected_at = excluded.last_detected_at,
               updated_at = excluded.updated_at
 
             WHERE bed_ash_discharge_events.status = 'pending'
+              AND (
+                bed_ash_discharge_events.review_ready = 0
+                OR excluded.review_ready = 1
+              )
           `)
         .bind(
-          ...bindings
+          ...requestSnapshotBindings,
+          eventPayload,
+          now,
+          now,
+          now
         )
     );
   }
 
 
-  await runStatementsInChunks(
-    database,
+  await database.batch(
     statements
   );
+
+
+  return {
+    synchronized:
+      !hasRequestSnapshot ||
+      await isRequestSnapshotCurrent(
+        database,
+        normalizedRequestSnapshot
+      )
+  };
 }
 
 
@@ -2361,6 +3513,12 @@ function convertEventRow(
         ) ||
         1
       ),
+
+    reviewReady:
+      Number(
+        row.review_ready
+      ) ===
+        1,
 
     unitNo:
       Number(
@@ -2564,8 +3722,12 @@ function buildSummary(
   const pendingEvents =
     events.filter(
       event => {
-        return event.status ===
-          "pending";
+        return (
+          event.status ===
+            "pending" &&
+          event.reviewReady ===
+            true
+        );
       }
     );
 
@@ -2724,6 +3886,7 @@ async function handleSummaryGet(
 
         WHERE candidate_active = 1
           AND status = 'pending'
+          AND review_ready = 1
 
         ORDER BY
           threshold_crossed_at DESC,
@@ -2762,7 +3925,9 @@ async function handleSummaryGet(
 
 async function handleRangeGet(
   context,
-  requestUrl
+  requestUrl,
+  snapshotRetryCount =
+    0
 ) {
   const startDate =
     normalizeText(
@@ -2871,6 +4036,42 @@ async function handleRangeGet(
     );
 
 
+  const requestSnapshot =
+    createRequestSnapshot(
+      baselineDate,
+      detectorEndDate,
+      requestRows
+    );
+
+
+  const evaluationTime =
+    Date.now();
+
+
+  const coverage =
+    buildCoverage(
+      dates,
+      latestByDate,
+      completedByDate,
+      baselineDate,
+      detectorEndDate,
+      evaluationTime
+    );
+
+
+  const authoritativeDates =
+    dates.filter(
+      date => {
+        return isEventDateReviewReady(
+          date,
+          latestByDate,
+          completedByDate,
+          evaluationTime
+        );
+      }
+    );
+
+
   const normalizedSamples =
     [];
 
@@ -2940,15 +4141,97 @@ async function handleRangeGet(
             endTimestampExclusive
         );
       }
+    ).map(
+      event => {
+        return {
+          ...event,
+
+          reviewReady:
+            isDetectedEventReviewReady(
+              event,
+              latestByDate,
+              completedByDate,
+              evaluationTime
+            )
+        };
+      }
     );
 
 
-  await synchronizeDetectedEvents(
-    context.env.DB,
-    startTimestamp,
-    endTimestampExclusive,
-    rangeDetectedEvents
-  );
+  const authoritativeDateSet =
+    new Set(
+      authoritativeDates
+    );
+
+
+  const blockedReviewDates =
+    [
+      ...new Set([
+        ...dates.filter(
+          date => {
+            return !authoritativeDateSet.has(
+              date
+            );
+          }
+        ),
+        ...rangeDetectedEvents.filter(
+          event => {
+            return event.reviewReady !==
+              true;
+          }
+        ).map(
+          event => {
+            return getKstDateFromTimestamp(
+              event.thresholdCrossedAt
+            );
+          }
+        )
+      ])
+    ].filter(
+      isValidIsoDate
+    );
+
+
+  const synchronizationResult =
+    await synchronizeDetectedEvents(
+      context.env.DB,
+      startTimestamp,
+      endTimestampExclusive,
+      rangeDetectedEvents,
+      authoritativeDates,
+      blockedReviewDates,
+      requestSnapshot
+    );
+
+
+  if (
+    synchronizationResult.synchronized !==
+      true
+  ) {
+    if (
+      snapshotRetryCount <
+        1
+    ) {
+      return await handleRangeGet(
+        context,
+        requestUrl,
+        snapshotRetryCount +
+          1
+      );
+    }
+
+
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "OIS 자료가 갱신되어 최신 Bed Ash 자료를 다시 불러와 주세요."
+      },
+      409
+    );
+  }
 
 
   const events =
@@ -2984,12 +4267,7 @@ async function handleRangeGet(
         ),
 
       coverage:
-        buildCoverage(
-          dates,
-          latestByDate,
-          completedByDate,
-          baselineDate
-        )
+        coverage
     }
   });
 }
@@ -3218,6 +4496,103 @@ async function recomputeEventByKey(
 }
 
 
+async function isStoredEventReviewReady(
+  database,
+  eventRow
+) {
+  const eventDate =
+    getKstDateFromTimestamp(
+      eventRow?.threshold_crossed_at
+    );
+
+
+  if (
+    !isValidIsoDate(
+      eventDate
+    )
+  ) {
+    return {
+      ready:
+        false,
+      requests:
+        []
+    };
+  }
+
+
+  const requestRows =
+    await findOisRequestRows(
+      database,
+      addIsoDateDays(
+        eventDate,
+        -1
+      ),
+      addIsoDateDays(
+        eventDate,
+        1
+      )
+    );
+
+
+  const {
+    latestByDate,
+    completedByDate
+  } =
+    selectRequestRowsByDate(
+      requestRows
+    );
+
+
+  const supportDates = [
+    addIsoDateDays(
+      eventDate,
+      -1
+    ),
+    eventDate,
+    addIsoDateDays(
+      eventDate,
+      1
+    )
+  ];
+
+
+  return {
+    ready:
+      isDetectedEventReviewReady(
+        {
+          thresholdCrossedAt:
+            eventRow.threshold_crossed_at,
+          unitNo:
+            Number(
+              eventRow.unit_no
+            ),
+          closeReason:
+            normalizeText(
+              eventRow.close_reason
+            )
+        },
+        latestByDate,
+        completedByDate
+      ),
+
+    requests:
+      supportDates.map(
+        date => {
+          return {
+            date,
+            requestId:
+              normalizeText(
+                latestByDate.get(
+                  date
+                )?.id
+              )
+          };
+        }
+      )
+  };
+}
+
+
 async function handleReviewPost(
   context,
   body,
@@ -3333,6 +4708,78 @@ async function handleReviewPost(
   }
 
 
+  if (
+    Number(
+      existingRow.review_ready
+    ) !==
+      1
+  ) {
+    return createConflictResponse(
+      convertEventRow(
+        existingRow
+      ),
+      "첫날 기준 자료와 마지막 날 후속 자료가 모두 수집된 뒤 확인할 수 있습니다."
+    );
+  }
+
+
+  const supportValidation =
+    await isStoredEventReviewReady(
+      context.env.DB,
+      existingRow
+    );
+
+
+  if (
+    supportValidation.ready !==
+      true
+  ) {
+    await context.env.DB
+      .prepare(`
+        UPDATE bed_ash_discharge_events
+
+        SET
+          review_ready = 0,
+          updated_at = ?
+
+        WHERE event_key = ?
+          AND revision = ?
+          AND updated_at = ?
+          AND candidate_active = 1
+          AND status = 'pending'
+      `)
+      .bind(
+        new Date()
+          .toISOString(),
+        eventKey,
+        Number(
+          existingRow.revision
+        ),
+        normalizeText(
+          existingRow.updated_at
+        )
+      )
+      .run();
+
+
+    return createConflictResponse(
+      convertEventRow(
+        await findEventRowByKey(
+          context.env.DB,
+          eventKey
+        )
+      ),
+      "OIS 최신 자료 수집이 끝난 뒤 다시 확인해 주세요."
+    );
+  }
+
+
+  const supportRequestSnapshot =
+    JSON.stringify(
+      supportValidation.requests
+    );
+
+
   const recomputedEvent =
     await recomputeEventByKey(
       context.env.DB,
@@ -3343,9 +4790,41 @@ async function handleReviewPost(
   if (
     !recomputedEvent
   ) {
+    await context.env.DB
+      .prepare(`
+        UPDATE bed_ash_discharge_events
+
+        SET
+          candidate_active = 0,
+          review_ready = 0,
+          updated_at = ?
+
+        WHERE event_key = ?
+          AND revision = ?
+          AND updated_at = ?
+          AND candidate_active = 1
+          AND status = 'pending'
+      `)
+      .bind(
+        new Date()
+          .toISOString(),
+        eventKey,
+        Number(
+          existingRow.revision
+        ),
+        normalizeText(
+          existingRow.updated_at
+        )
+      )
+      .run();
+
+
     return createConflictResponse(
       convertEventRow(
-        existingRow
+        await findEventRowByKey(
+          context.env.DB,
+          eventKey
+        )
       ),
       "현재 시간별 Level에서 해당 반출 후보를 다시 확인할 수 없습니다."
     );
@@ -3363,7 +4842,8 @@ async function handleReviewPost(
         .toISOString();
 
 
-    await context.env.DB
+    const refreshResult =
+      await context.env.DB
       .prepare(`
         UPDATE bed_ash_discharge_events
 
@@ -3384,6 +4864,43 @@ async function handleReviewPost(
 
         WHERE event_key = ?
           AND revision = ?
+          AND candidate_active = 1
+          AND review_ready = 1
+          AND NOT EXISTS (
+            SELECT 1
+
+            FROM json_each(?) AS expected
+
+            WHERE COALESCE(
+              (
+                SELECT request.id
+
+                FROM ois_data_requests AS request
+
+                WHERE request.request_type = 'bed_ash_level'
+                  AND request.target_date = json_extract(
+                    expected.value,
+                    '$.date'
+                  )
+
+                ORDER BY
+                  COALESCE(
+                    request.completed_at,
+                    request.updated_at,
+                    request.requested_at,
+                    ''
+                  ) DESC,
+                  request.requested_at DESC,
+                  request.id DESC
+
+                LIMIT 1
+              ),
+              ''
+            ) <> json_extract(
+              expected.value,
+              '$.requestId'
+            )
+          )
           AND status = 'pending'
       `)
       .bind(
@@ -3401,9 +4918,56 @@ async function handleReviewPost(
         eventKey,
         Number(
           existingRow.revision
-        )
+        ),
+        supportRequestSnapshot
       )
       .run();
+
+
+    if (
+      Number(
+        refreshResult?.meta?.changes ||
+        0
+      ) !==
+        1
+    ) {
+      await context.env.DB
+        .prepare(`
+          UPDATE bed_ash_discharge_events
+
+          SET
+            review_ready = 0,
+            updated_at = ?
+
+          WHERE event_key = ?
+            AND revision = ?
+            AND updated_at = ?
+            AND candidate_active = 1
+            AND status = 'pending'
+        `)
+        .bind(
+          new Date()
+            .toISOString(),
+          eventKey,
+          Number(
+            existingRow.revision
+          ),
+          normalizeText(
+            existingRow.updated_at
+          )
+        )
+        .run();
+
+
+      return createConflictResponse(
+        convertEventRow(
+          await findEventRowByKey(
+            context.env.DB,
+            eventKey
+          )
+        )
+      );
+    }
 
 
     return createConflictResponse(
@@ -3597,6 +5161,42 @@ async function handleReviewPost(
         WHERE event_key = ?
           AND revision = ?
           AND candidate_active = 1
+          AND review_ready = 1
+          AND NOT EXISTS (
+            SELECT 1
+
+            FROM json_each(?) AS expected
+
+            WHERE COALESCE(
+              (
+                SELECT request.id
+
+                FROM ois_data_requests AS request
+
+                WHERE request.request_type = 'bed_ash_level'
+                  AND request.target_date = json_extract(
+                    expected.value,
+                    '$.date'
+                  )
+
+                ORDER BY
+                  COALESCE(
+                    request.completed_at,
+                    request.updated_at,
+                    request.requested_at,
+                    ''
+                  ) DESC,
+                  request.requested_at DESC,
+                  request.id DESC
+
+                LIMIT 1
+              ),
+              ''
+            ) <> json_extract(
+              expected.value,
+              '$.requestId'
+            )
+          )
           AND status = 'pending'
         `)
         .bind(
@@ -3609,7 +5209,8 @@ async function handleReviewPost(
           reviewedAt,
           reviewedAt,
           eventKey,
-          expectedRevision
+          expectedRevision,
+          supportRequestSnapshot
         ),
 
       context.env.DB
@@ -3679,6 +5280,34 @@ async function handleReviewPost(
     ) !==
       1
   ) {
+    await context.env.DB
+      .prepare(`
+        UPDATE bed_ash_discharge_events
+
+        SET
+          review_ready = 0,
+          updated_at = ?
+
+        WHERE event_key = ?
+          AND revision = ?
+          AND updated_at = ?
+          AND candidate_active = 1
+          AND status = 'pending'
+      `)
+      .bind(
+        new Date()
+          .toISOString(),
+        eventKey,
+        Number(
+          existingRow.revision
+        ),
+        normalizeText(
+          existingRow.updated_at
+        )
+      )
+      .run();
+
+
     return createConflictResponse(
       convertEventRow(
         await findEventRowByKey(
@@ -3879,9 +5508,13 @@ export async function onRequestPost(
   Node 회귀 테스트가 판정 경계값을 직접 검증할 수 있게 한다.
 */
 export const __bedAshTest = {
+  buildCoverage,
   detectBedAshEvents,
   detectBedAshEventsForUnit,
+  ensureSchema,
   getExpectedSample,
+  handleReviewPost,
+  isDetectedEventReviewReady,
   normalizeCompletedRequestSamples,
   synchronizeDetectedEvents
 };

@@ -489,7 +489,8 @@
             reviewedAt: text(event.reviewer.reviewedAt)
           }
         : null,
-      evidenceFingerprint: text(event.evidenceFingerprint)
+      evidenceFingerprint: text(event.evidenceFingerprint),
+      reviewReady: event.reviewReady === true
     };
   }
 
@@ -540,36 +541,57 @@
       ...allDates.filter(date => !occupied.has(date))
     ]).filter(date => !occupied.has(date));
 
-    const rawBaseline = coverage.baseline && typeof coverage.baseline === "object"
-      ? coverage.baseline
-      : null;
-    const baselineStatus = text(rawBaseline?.status).toLowerCase();
-    const baselinePending = Boolean(
-      rawBaseline?.pending === true ||
-      ["pending", "processing"].includes(baselineStatus)
+    const normalizeSupportCoverage = (rawSupport, defaultAvailable = true) => {
+      if (
+        !rawSupport ||
+        typeof rawSupport !== "object" ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(text(rawSupport.date))
+      ) {
+        return null;
+      }
+
+      const status = text(rawSupport.status).toLowerCase() || "missing";
+      const available = rawSupport.available !== false && defaultAvailable;
+      const pending = Boolean(
+        available &&
+        (
+          rawSupport.pending === true ||
+          ["pending", "processing"].includes(status)
+        )
+      );
+      const failed = Boolean(
+        available &&
+        (
+          rawSupport.failed === true ||
+          ["failed", "expired"].includes(status)
+        )
+      );
+      const complete = available && rawSupport.complete === true;
+
+      return {
+        date: text(rawSupport.date),
+        available,
+        status,
+        complete,
+        missing: Boolean(
+          available &&
+          !complete &&
+          !pending &&
+          !failed
+        ),
+        pending,
+        failed,
+        requestId: text(rawSupport.requestId),
+        updatedAt: text(rawSupport.updatedAt),
+        errorMessage: text(rawSupport.errorMessage)
+      };
+    };
+
+    const baseline = normalizeSupportCoverage(coverage.baseline);
+    const lookahead = normalizeSupportCoverage(
+      coverage.lookahead,
+      coverage.lookahead?.available !== false
     );
-    const baselineFailed = Boolean(
-      rawBaseline?.failed === true ||
-      ["failed", "expired"].includes(baselineStatus)
-    );
-    const baseline = rawBaseline && /^\d{4}-\d{2}-\d{2}$/.test(text(rawBaseline.date))
-      ? {
-          date: text(rawBaseline.date),
-          status: baselineStatus || "missing",
-          complete: rawBaseline.complete === true,
-          missing: Boolean(
-            rawBaseline.complete !== true &&
-            !baselinePending &&
-            !baselineFailed &&
-            (rawBaseline.missing === true || baselineStatus === "missing")
-          ),
-          pending: baselinePending,
-          failed: baselineFailed,
-          requestId: text(rawBaseline.requestId),
-          updatedAt: text(rawBaseline.updatedAt),
-          errorMessage: text(rawBaseline.errorMessage)
-        }
-      : null;
 
     return {
       dates: allDates,
@@ -578,7 +600,9 @@
       pendingDates,
       failedDates,
       requests: Array.isArray(coverage.requests) ? coverage.requests : [],
-      baseline
+      baseline,
+      lookahead,
+      reviewReady: coverage.reviewReady === true
     };
   }
 
@@ -825,11 +849,14 @@
     row.appendChild(detectedCell);
 
     const statusCell = createElement("td", "bed-ash-discharge-status-cell");
+    const isProvisional = event.status === "pending" && !event.reviewReady;
     statusCell.appendChild(
       createElement(
         "span",
-        `bed-ash-discharge-status-badge is-${event.status}`,
-        getStatusLabel(event.status)
+        `bed-ash-discharge-status-badge is-${
+          isProvisional ? "provisional" : event.status
+        }`,
+        isProvisional ? "자료 확인 중" : getStatusLabel(event.status)
       )
     );
     if (event.status === "confirmed" && event.confirmedTon !== null) {
@@ -859,7 +886,15 @@
     row.appendChild(reviewerCell);
 
     const actionCell = createElement("td", "bed-ash-discharge-action-cell");
-    if (event.status === "pending" && !isMobileClient()) {
+    if (event.status === "pending" && !event.reviewReady) {
+      actionCell.appendChild(
+        createElement(
+          "span",
+          "bed-ash-discharge-provisional-note",
+          "첫날 기준·마지막 날 후속 자료 수집 후 확인 가능"
+        )
+      );
+    } else if (event.status === "pending" && !isMobileClient()) {
       actionCell.appendChild(createReviewControls(event));
     } else if (event.status === "pending") {
       actionCell.appendChild(createElement("span", "", "PC에서 확인"));
@@ -1014,22 +1049,35 @@
     const normalizedCoverage = coverage || {
       missingDates: [],
       failedDates: [],
-      baseline: null
+      baseline: null,
+      lookahead: null,
+      requests: []
     };
     const baseline = normalizedCoverage.baseline;
+    const lookahead = normalizedCoverage.lookahead;
     let plans = [];
 
     if (forceRefresh) {
       plans = requestedDates.map(date => ({
         date,
         forceRefresh: true,
-        baseline: false
+        baseline: false,
+        lookahead: false
       }));
       if (baseline?.date) {
         plans.unshift({
           date: baseline.date,
           forceRefresh: true,
-          baseline: true
+          baseline: true,
+          lookahead: false
+        });
+      }
+      if (lookahead?.date && lookahead.available) {
+        plans.push({
+          date: lookahead.date,
+          forceRefresh: true,
+          baseline: false,
+          lookahead: true
         });
       }
       return plans;
@@ -1041,15 +1089,30 @@
       .filter((date, index, values) => values.indexOf(date) === index)
       .map(date => ({
         date,
-        forceRefresh: failed.has(date),
-        baseline: false
+        forceRefresh: missing.has(date) || failed.has(date),
+        baseline: false,
+        lookahead: false
       }));
 
     if (baseline?.date && (baseline.missing || baseline.failed)) {
       plans.unshift({
         date: baseline.date,
-        forceRefresh: baseline.failed,
-        baseline: true
+        forceRefresh: baseline.failed || baseline.status === "complete",
+        baseline: true,
+        lookahead: false
+      });
+    }
+
+    if (
+      lookahead?.date &&
+      lookahead.available &&
+      (lookahead.missing || lookahead.failed)
+    ) {
+      plans.push({
+        date: lookahead.date,
+        forceRefresh: lookahead.failed || lookahead.status === "complete",
+        baseline: false,
+        lookahead: true
       });
     }
 
@@ -1088,18 +1151,43 @@
     const failed = coverage.failedDates.length;
     const missing = coverage.missingDates.length;
     const baseline = coverage.baseline;
+    const lookahead = coverage.lookahead;
 
-    if (pending > 0 || baseline?.pending) {
+    if (pending > 0 || baseline?.pending || lookahead?.pending) {
       const baselineMessage = baseline?.pending ? " · 첫날 자정 기준 처리 중" : "";
-      return `OIS 자료 수집 중 · ${complete}/${total}일 완료 · ${pending}일 처리 중${baselineMessage}`;
+      const lookaheadMessage = lookahead?.pending
+        ? " · 마지막 날 후속 자료 처리 중"
+        : "";
+      return `OIS 자료 수집 중 · ${complete}/${total}일 완료 · ${pending}일 처리 중${baselineMessage}${lookaheadMessage}`;
     }
-    if (failed > 0 || missing > 0 || (baseline && !baseline.complete)) {
+    if (lookahead && !lookahead.available) {
+      const selectedDataMessage = missing > 0 || failed > 0
+        ? ` · 자료 없음 ${missing}일 · 수집 실패 ${failed}일`
+        : "";
       const baselineMessage = baseline && !baseline.complete
         ? baseline.failed
           ? " · 첫날 자정 기준 수집 실패"
           : " · 첫날 자정 기준 자료 없음"
         : "";
-      return `조회 완료 · ${eventCount}건 감지 · 자료 없음 ${missing}일 · 수집 실패 ${failed}일${baselineMessage}`;
+      return `조회 완료 · ${eventCount}건 감지 · 마지막 날 반출량은 다음 날 08시 자료 수집 후 확인 가능${selectedDataMessage}${baselineMessage}`;
+    }
+    if (
+      failed > 0 ||
+      missing > 0 ||
+      (baseline && !baseline.complete) ||
+      (lookahead?.available && !lookahead.complete)
+    ) {
+      const baselineMessage = baseline && !baseline.complete
+        ? baseline.failed
+          ? " · 첫날 자정 기준 수집 실패"
+          : " · 첫날 자정 기준 자료 없음"
+        : "";
+      const lookaheadMessage = lookahead?.available && !lookahead.complete
+        ? lookahead.failed
+          ? " · 마지막 날 후속 자료 수집 실패"
+          : " · 마지막 날 후속 자료 보완 필요"
+        : "";
+      return `조회 완료 · ${eventCount}건 감지 · 자료 없음 ${missing}일 · 수집 실패 ${failed}일${baselineMessage}${lookaheadMessage}`;
     }
     return `조회 완료 · ${complete}/${total}일 자료 · 반출 후보 ${eventCount}건`;
   }
@@ -1113,7 +1201,8 @@
     sequence,
     requestedDates,
     minimumPolls = 0,
-    waitForBaseline = false
+    waitForBaseline = false,
+    waitForLookahead = false
   ) {
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     let polls = 0;
@@ -1124,15 +1213,19 @@
       const baselineAwaiting = Boolean(
         waitForBaseline &&
         state.coverage?.baseline &&
-        (
-          state.coverage.baseline.pending ||
-          (
-            !state.coverage.baseline.complete &&
-            !state.coverage.baseline.failed
-          )
-        )
+        state.coverage.baseline.pending
       );
-      if (polls >= minimumPolls && pendingCount === 0 && !baselineAwaiting) {
+      const lookaheadAwaiting = Boolean(
+        waitForLookahead &&
+        state.coverage?.lookahead?.available &&
+        state.coverage.lookahead.pending
+      );
+      if (
+        polls >= minimumPolls &&
+        pendingCount === 0 &&
+        !baselineAwaiting &&
+        !lookaheadAwaiting
+      ) {
         return "complete";
       }
 
@@ -1217,13 +1310,17 @@
 
       let minimumPolls = 0;
       let successfulBaselineRequest = false;
+      let successfulLookaheadRequest = false;
       if (requestPlans.length > 0) {
-        const selectedRequestCount = requestPlans.filter(plan => !plan.baseline).length;
-        const baselineRequestCount = requestPlans.length - selectedRequestCount;
+        const selectedRequestCount = requestPlans.filter(plan => {
+          return !plan.baseline && !plan.lookahead;
+        }).length;
+        const baselineRequestCount = requestPlans.filter(plan => plan.baseline).length;
+        const lookaheadRequestCount = requestPlans.filter(plan => plan.lookahead).length;
         setStatus(
           `OIS 조회 요청 중 · 선택기간 ${selectedRequestCount}일${
             baselineRequestCount ? " · 첫날 자정 기준 1건" : ""
-          }`,
+          }${lookaheadRequestCount ? " · 마지막 날 후속 1건" : ""}`,
           "loading"
         );
         const results = await mapWithConcurrency(
@@ -1247,6 +1344,9 @@
         successfulBaselineRequest = results.some(result => {
           return result.item?.baseline === true && !result.error;
         });
+        successfulLookaheadRequest = results.some(result => {
+          return result.item?.lookahead === true && !result.error;
+        });
         if (failedRequests.length > 0) {
           setStatus(
             `OIS 조회 요청 일부 실패 · ${failedRequests.length}/${requestPlans.length}일`,
@@ -1265,9 +1365,16 @@
       const waitForBaseline = Boolean(
         state.coverage.baseline?.pending || successfulBaselineRequest
       );
+      const waitForLookahead = Boolean(
+        state.coverage.lookahead?.available &&
+        (
+          state.coverage.lookahead.pending || successfulLookaheadRequest
+        )
+      );
       const shouldPoll =
         state.coverage.pendingDates.length > 0 ||
         waitForBaseline ||
+        waitForLookahead ||
         requestPlans.length > 0;
       if (shouldPoll) {
         const pollResult = await pollRange(
@@ -1275,7 +1382,8 @@
           sequence,
           requestedDates,
           minimumPolls,
-          waitForBaseline
+          waitForBaseline,
+          waitForLookahead
         );
         if (pollResult === "cancelled") {
           return;
@@ -1296,13 +1404,15 @@
       state.loadedAt = Date.now();
       if (
         (state.coverage?.pendingDates?.length || 0) === 0 &&
-        !state.coverage?.baseline?.pending
+        !state.coverage?.baseline?.pending &&
+        !state.coverage?.lookahead?.pending
       ) {
         setStatus(
           coverageStatusMessage(state.coverage, state.events.length),
           state.coverage.failedDates.length ||
               state.coverage.missingDates.length ||
-              (state.coverage.baseline && !state.coverage.baseline.complete)
+              (state.coverage.baseline && !state.coverage.baseline.complete) ||
+              (state.coverage.lookahead && !state.coverage.lookahead.complete)
             ? "warning"
             : "success"
         );
