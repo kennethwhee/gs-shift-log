@@ -971,15 +971,18 @@ select:focus, input:focus, textarea:focus { border-color: #6ca6d8; box-shadow: 0
   color: #596671;
 }
 .runtime-state-action.stop {
-  border-color: #d6c79f;
-  background: #fffaf0;
-  color: #7a5700;
+  border-color: #d5b866;
+  background: #fff8e6;
+  color: #6f4d00;
+  font-weight: 900;
 }
 .runtime-state-action.start {
-  border-color: #acd7bb;
-  background: #f1faf4;
-  color: #176538;
+  border-color: #77bf91;
+  background: #eaf8ef;
+  color: #0d6132;
+  font-weight: 900;
 }
+.runtime-state-action:disabled { opacity: .58; cursor: wait; }
 .runtime-cycle-summary {
   padding: 10px 11px;
   border: 1px solid #dce5ec;

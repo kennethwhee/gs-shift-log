@@ -6,9 +6,9 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260830-runtime-history-edit-public-navigation-v93&amp;r=20260830-direct-zero-reset-v931">
+  <link rel="stylesheet" href="blower-history.css?v=20260831-operation-changeover-v94">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="blower-history.js?v=20260830-runtime-history-edit-public-navigation-v93&amp;r=20260830-direct-zero-reset-v931" defer></script>
+  <script src="blower-history.js?v=20260831-operation-changeover-v94" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -17,7 +17,7 @@
         <p class="eyebrow">EQUIPMENT LIFE MANAGEMENT</p>
         <h1>Blower V-Belt 교체 이력 관리</h1>
         <p class="page-description">
-          업무일지에서 확인된 실제 V-Belt 교체 이력을 기준으로 현재 교체주기를 관리합니다.
+          카드의 기동·정지와 업무일지 교체운전을 기준으로 실제 운전시간을 관리합니다.
         </p>
       </div>
       <div class="header-actions">
@@ -132,7 +132,6 @@
                   <option value="operation">기동·정지</option>
                   <option value="all">전체 관리 이력</option>
                   <option value="problem">문제발생</option>
-                  <option value="runtime_correction">운전시간 보정</option>
                 </select>
               </div>
             </div>
@@ -164,7 +163,7 @@
               <div>
                 <p class="eyebrow">SHIFT LOG DETECTION</p>
                 <h2>업무일지 자동감지</h2>
-                <p>TAG뿐 아니라 호기, Blower 종류, #A/#B/#C와 업무내용을 함께 읽되, 교체 이력은 V-Belt / V Belt / Belt 교체만 이력화합니다.</p>
+                <p>V-Belt 교체 이력은 별도로 관리하고, “#A → #C 교체운전”처럼 운전 전환이 기록되면 기존 Blower 정지와 새 Blower 기동을 자동 반영합니다.</p>
               </div>
               <div class="scan-controls">
                 <label>
@@ -182,7 +181,7 @@
               </div>
             </div>
             <div class="detect-guide">
-              확정 이력 복구 V12은 최고관리자가 필요할 때 직접 실행합니다. 파트장 직접 작성 문구는 자동확정에서 제외하되, 취합 항목에 원래 보직이 보존된 경우에는 원 업무일지 항목으로 분석합니다. 같은 날짜·교대에서 BCO1↔BO1, BCO2↔BO2, TGO↔TO 내용이 70% 이상 중복되면 하위보직의 중복 구절은 제외하고 상위보직(BCO1·BCO2·TGO) 내용을 기준으로 이력화합니다. 70% 미만의 하위보직 고유 내용은 그대로 분석합니다. 교체 이력은 V-Belt / V Belt / Belt 교체만 포함하며 Suction Filter, Oil, Bearing, Motor 등 다른 부품 교체는 자동감지에서 제외합니다.
+              업무일지의 시간·Blower 종류·호기·#A/#B/#C를 함께 확인합니다. “교체운전”, “절체운전”, “#A 정지 후 #C 기동”처럼 출발기와 도착기가 명확할 때만 자동 반영하며, 예정·요청·보류 문구와 시간이 없는 기록은 상태를 바꾸지 않습니다. 사용자가 카드에서 직접 누른 기동·정지 기록은 자동감지보다 우선합니다. V-Belt 교체 후보 감지 기준은 기존과 동일하게 유지됩니다.
             </div>
             <div class="candidate-list" id="candidateList"></div>
             <div class="empty-state" id="candidateEmpty">검토 대기 중인 자동감지 후보가 없습니다.</div>

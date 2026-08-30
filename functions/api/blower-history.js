@@ -241,6 +241,10 @@ const HISTORY_RECOVERY_V12_LOCK_STALE_MS = 35 * 1000;
 const HISTORY_RECOVERY_V13_SOURCE_TYPE = "shift_log_history_v13";
 const HISTORY_RECOVERY_V13_CREATED_BY_ID = "history_v13";
 const HISTORY_RECOVERY_V13_CREATED_BY_NAME = "업무일지 V13 문맥복구";
+const OPERATION_AUTO_SOURCE_TYPE = "shift_log_operation_auto";
+const OPERATION_AUTO_CREATED_BY_ID = "operation_auto";
+const OPERATION_AUTO_CREATED_BY_NAME = "업무일지 교체운전 자동";
+const OPERATION_SYNC_DEFAULT_DAYS = 14;
 const HISTORY_RECOVERY_V13_TAG_ALIASES = Object.freeze({
   "103ETG30AN601": "104ETG30AN601",
   "103ETG30AN602": "104ETG30AN602",
@@ -2692,7 +2696,7 @@ async function registerReplacement(database, user, body, source = {}) {
   });
 }
 
-async function registerStartup(database, user, body) {
+async function registerStartup(database, user, body, source = {}) {
   const tagNumber = normalizeText(body.tagNumber).toUpperCase();
   const asset = await findAsset(database, tagNumber);
 
@@ -2750,11 +2754,15 @@ async function registerStartup(database, user, body) {
   }
 
   const note = normalizeText(body.note);
+  const sourceType = normalizeText(source.sourceType) || "manual";
+  const sourceLogId = normalizeText(source.sourceLogId);
+  const sourceText = normalizeText(source.sourceText).slice(0, 2000);
+  const startupActionType = normalizeText(source.actionType) || "기동";
   const now = new Date().toISOString();
   const currentCycleRevision = normalizeText(asset.cycle_start_revision);
   const nextCycleRevision = crypto.randomUUID();
   const nextCycleRuntimeRevision = crypto.randomUUID();
-  const startupEventId = crypto.randomUUID();
+  const startupEventId = normalizeText(source.eventId) || crypto.randomUUID();
   const results = await database.batch([
     database
       .prepare(`
@@ -2798,7 +2806,7 @@ async function registerStartup(database, user, body) {
           issue_type, action_type, note, source_type, source_log_id,
           source_text, created_by_id, created_by_name, created_at, updated_at
         )
-        SELECT ?, ?, 'startup', ?, 0, '', '기동', ?, 'manual', '', '', ?, ?, ?, ?
+        SELECT ?, ?, 'startup', ?, 0, '', ?, ?, ?, ?, ?, ?, ?, ?, ?
         WHERE EXISTS (
           SELECT 1 FROM blower_history_assets
           WHERE tag_number = ?
@@ -2811,7 +2819,11 @@ async function registerStartup(database, user, body) {
         startupEventId,
         tagNumber,
         eventDate,
+        startupActionType,
         note,
+        sourceType,
+        sourceLogId,
+        sourceText,
         user.employeeNo,
         user.name,
         now,
@@ -3448,7 +3460,7 @@ async function editLatestRuntimeBoundary(database, user, body) {
   });
 }
 
-async function changeRuntimeState(database, user, body) {
+async function changeRuntimeState(database, user, body, source = {}) {
   const tagNumber = normalizeText(body.tagNumber).toUpperCase();
   const asset = await findAsset(database, tagNumber);
 
@@ -3588,13 +3600,17 @@ async function changeRuntimeState(database, user, body) {
   const nextCycleStartRevision = canRestorePreReplacementStop
     ? crypto.randomUUID()
     : cycleStartRevision;
-  const eventId = crypto.randomUUID();
+  const eventId = normalizeText(source.eventId) || crypto.randomUUID();
   const eventType = targetState === "running" ? "operation_start" : "operation_stop";
-  const actionType = targetState === "running"
+  const defaultActionType = targetState === "running"
     ? "재기동"
     : (canRestorePreReplacementStop
       ? "교체 전 정지 지속"
       : (historicalInitialStop ? "초기 정지시각 정정" : "정지"));
+  const actionType = normalizeText(source.actionType) || defaultActionType;
+  const sourceType = normalizeText(source.sourceType) || "manual";
+  const sourceLogId = normalizeText(source.sourceLogId);
+  const sourceText = normalizeText(source.sourceText).slice(0, 2000);
   const note = normalizeText(body.note) || (canRestorePreReplacementStop
     ? "최근 V-Belt 교체 전부터 정지 상태였으며 교체 후 아직 기동하지 않음"
     : (historicalInitialStop ? "V9 적용 전 실제 정지시각 반영" : ""));
@@ -3653,7 +3669,7 @@ async function changeRuntimeState(database, user, body) {
           issue_type, action_type, note, source_type, source_log_id,
           source_text, created_by_id, created_by_name, created_at, updated_at
         )
-        SELECT ?, ?, ?, ?, ?, '', ?, ?, 'manual', '', '', ?, ?, ?, ?
+        SELECT ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?
         WHERE EXISTS (
           SELECT 1 FROM blower_history_assets
           WHERE tag_number = ?
@@ -3672,6 +3688,9 @@ async function changeRuntimeState(database, user, body) {
         elapsedHours,
         actionType,
         note,
+        sourceType,
+        sourceLogId,
+        sourceText,
         user.employeeNo,
         user.name,
         now,
@@ -7150,6 +7169,545 @@ async function historicalBackfillStep(database) {
   });
 }
 
+
+const OPERATION_POSITION_TOKEN_SOURCE = "(?:#\\s*[ABC]\\b|(?:AP|AN)?\\s*(?:611|621|631|001|002|601|602)\\b)";
+const OPERATION_START_KEYWORD_SOURCE = "(?:재?기동|가동|START(?:ED)?|운전\\s*(?:시작|개시))";
+const OPERATION_STOP_KEYWORD_SOURCE = "(?:정지|STOP(?:PED)?|SHUT\\s*DOWN)";
+
+function operationPositionFromToken(value) {
+  const normalized = normalizeText(value).toUpperCase().replace(/\s+/g, "");
+  const letter = normalized.match(/#?([ABC])\b/);
+  if (letter) return `#${letter[1]}`;
+
+  const suffix = normalized.match(/(611|621|631|001|002|601|602)$/)?.[1] || "";
+  return ({
+    "611": "#A", "621": "#B", "631": "#C",
+    "001": "#A", "002": "#B",
+    "601": "#A", "602": "#B"
+  })[suffix] || "";
+}
+
+function operationPositionTokens(text) {
+  const source = normalizeText(text);
+  const pattern = new RegExp(OPERATION_POSITION_TOKEN_SOURCE, "gi");
+  return [...source.matchAll(pattern)]
+    .map(match => ({
+      position: operationPositionFromToken(match[0]),
+      start: Number(match.index || 0),
+      end: Number(match.index || 0) + match[0].length,
+      raw: match[0]
+    }))
+    .filter(item => item.position);
+}
+
+function operationPositionsNearKeyword(text, keywordSource) {
+  const source = normalizeText(text);
+  const tokens = operationPositionTokens(source);
+  const keywords = [...source.matchAll(new RegExp(keywordSource, "gi"))];
+  const found = new Set();
+
+  for (const keyword of keywords) {
+    const keywordStart = Number(keyword.index || 0);
+    const keywordEnd = keywordStart + keyword[0].length;
+    let best = null;
+
+    for (const token of tokens) {
+      const distance = token.end <= keywordStart
+        ? keywordStart - token.end
+        : (token.start >= keywordEnd ? token.start - keywordEnd : 0);
+      if (distance > 24) continue;
+      if (!best || distance < best.distance) best = { token, distance };
+    }
+
+    if (best) found.add(best.token.position);
+  }
+
+  return [...found];
+}
+
+function operationArrowPair(text) {
+  const source = normalizeText(text);
+  const tokens = operationPositionTokens(source);
+
+  for (let index = 0; index < tokens.length - 1; index += 1) {
+    const from = tokens[index];
+    const to = tokens[index + 1];
+    if (from.position === to.position) continue;
+
+    const bridge = source.slice(from.end, to.start);
+    const afterTo = source.slice(to.end, Math.min(source.length, to.end + 5));
+    const arrow = /(?:->|=>|→|➡|⇒)/.test(bridge);
+    const fromTo = /에서\s*$/.test(bridge) && /^\s*로/.test(afterTo);
+    if (arrow || fromTo) {
+      return { fromPosition: from.position, toPosition: to.position };
+    }
+  }
+
+  return null;
+}
+
+function operationSwitchTargetPosition(text) {
+  const source = normalizeText(text);
+  const tokens = operationPositionTokens(source);
+  const switchMatches = [...source.matchAll(/(?:교체\s*운전|절체\s*운전|운전\s*(?:교체|절체|전환)|change\s*over|changeover|switch\s*over)/gi)];
+  const targets = new Set();
+
+  for (const switchMatch of switchMatches) {
+    const start = Number(switchMatch.index || 0);
+    const end = start + switchMatch[0].length;
+    let best = null;
+
+    for (const token of tokens) {
+      const before = token.end <= start;
+      const distance = before
+        ? start - token.end
+        : (token.start >= end ? token.start - end : 0);
+      if (distance > 36) continue;
+
+      const bridge = before
+        ? source.slice(token.end, start)
+        : source.slice(end, token.start);
+      if (/[\n:;]/.test(bridge)) continue;
+      if (/(?:V\s*[-/]?\s*Belt|V-Belt|Belt|V\s*[-/]?\s*벨트|V벨트|벨트)/i.test(bridge)) continue;
+
+      const score = distance + (before ? 0 : 8);
+      if (!best || score < best.score) best = { position: token.position, score };
+    }
+
+    if (best) targets.add(best.position);
+  }
+
+  return targets.size === 1 ? [...targets][0] : "";
+}
+
+function operationChangeoverPair(text) {
+  const source = normalizeText(text);
+  const stopPositions = operationPositionsNearKeyword(source, OPERATION_STOP_KEYWORD_SOURCE);
+  const startPositions = operationPositionsNearKeyword(source, OPERATION_START_KEYWORD_SOURCE);
+
+  if (
+    stopPositions.length === 1 &&
+    startPositions.length === 1 &&
+    stopPositions[0] !== startPositions[0]
+  ) {
+    return { fromPosition: stopPositions[0], toPosition: startPositions[0] };
+  }
+
+  return operationArrowPair(source);
+}
+
+function hasCompletedOperationChangeover(text) {
+  const source = normalizeText(text);
+  const hasSwitchWording = /(?:교체\s*운전|교체운전|절체\s*운전|절체운전|운전\s*(?:교체|절체|전환)|change\s*over|changeover|switch\s*over)/i.test(source);
+  const hasExplicitStates = (
+    new RegExp(OPERATION_START_KEYWORD_SOURCE, "i").test(source) &&
+    new RegExp(OPERATION_STOP_KEYWORD_SOURCE, "i").test(source)
+  );
+  if (!hasSwitchWording && !hasExplicitStates) return false;
+
+  // 예정·요청 문구에 "정지 후 기동"이 포함돼도 실제 운전 전환으로 처리하지 않는다.
+  if (/(?:예정|계획|요청|검토|필요|문의|준비|보류|취소|불가|미실시|미완료|하지\s*않|안\s*함)/i.test(source)) {
+    return false;
+  }
+
+  const completed = /(?:실시|시행|완료|변경\s*(?:함|완료|실시)?|전환\s*(?:함|완료|실시)?|교체\s*운전\s*(?:함|하였|했)|절체\s*운전\s*(?:함|하였|했)|재?기동|정지|가동|운전\s*중|START(?:ED)?|STOP(?:PED)?)/i.test(source);
+  return hasExplicitStates || completed;
+}
+
+function operationContextAsset(context, position, assets, workDate) {
+  const enabledAssets = (assets || []).filter(asset => Number(asset?.enabled) === 1);
+  const taggedAssets = (context?.tags || [])
+    .map(tag => enabledAssets.find(asset => normalizeText(asset?.tag_number).toUpperCase() === tag))
+    .filter(Boolean);
+  const taggedMatches = taggedAssets.filter(asset => normalizeText(asset.position_label).toUpperCase() === position);
+
+  if (taggedMatches.length === 1) return taggedMatches[0];
+  if (taggedMatches.length > 1) return null;
+
+  const types = [...new Set([
+    ...(context?.types || []),
+    ...taggedAssets.map(asset => normalizeText(asset.blower_type))
+  ].filter(Boolean))];
+  if (types.length !== 1) return null;
+  const blowerType = types[0];
+  const taggedUnits = taggedAssets.map(asset => normalizeText(asset.unit_no)).filter(Boolean);
+  const contextUnits = (context?.units || []).filter(Boolean);
+  const units = blowerType === "flyash_silo"
+    ? ["shared"]
+    : [...new Set([...contextUnits, ...taggedUnits])];
+  if (units.length !== 1) return null;
+
+  const taggedGroups = [...new Set(taggedAssets.map(assetGroupKey))];
+  const requiredGroup = blowerType === "organic_fuel"
+    ? (context?.assetGroup === "manure" || taggedGroups[0] === "manure" ? "manure" : "")
+    : "";
+  if (taggedGroups.length > 1 || (taggedGroups.length === 1 && taggedGroups[0] !== requiredGroup)) return null;
+
+  const matches = enabledAssets.filter(asset => (
+    managedAssetAllowsContextualMatch(asset, workDate) &&
+    normalizeText(asset.blower_type) === blowerType &&
+    normalizeText(asset.unit_no) === units[0] &&
+    assetGroupKey(asset) === requiredGroup &&
+    normalizeText(asset.position_label).toUpperCase() === position
+  ));
+
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function detectOperationChangeover(fragment, row, assets) {
+  const sourceText = fragmentSourceText(fragment);
+  if (!sourceText || !hasCompletedOperationChangeover(sourceText)) return null;
+
+  const pair = operationChangeoverPair(sourceText);
+  const targetPosition = pair ? pair.toPosition : operationSwitchTargetPosition(sourceText);
+  if (!pair && !targetPosition) return null;
+
+  const sourceTime = fragmentSourceTime(fragment);
+  if (!sourceTime) return { skippedReason: "missing_time" };
+
+  const role = fragmentSourceRole(fragment) || normalizeDutyPosition(row?.role);
+  const context = fragment?.v13Context || v13IdentityFromText(
+    sourceText,
+    role,
+    assets,
+    fragmentIdentityText(fragment)
+  );
+  if (!context || context.identityConflict) return { skippedReason: "identity_conflict" };
+
+  const workDate = normalizeText(row?.work_date).slice(0, 10);
+  const fromAsset = pair
+    ? operationContextAsset(context, pair.fromPosition, assets, workDate)
+    : null;
+  const toAsset = operationContextAsset(context, targetPosition, assets, workDate);
+  if (!toAsset || (pair && (!fromAsset || fromAsset.tag_number === toAsset.tag_number))) {
+    return { skippedReason: "unresolved_asset" };
+  }
+
+  const eventDate = detectionDateTime({
+    ...row,
+    sourceTime,
+    sourceText
+  });
+  if (!eventDate) return { skippedReason: "invalid_time" };
+
+  return {
+    fromAsset,
+    toAsset,
+    targetOnly: !pair,
+    eventDate,
+    sourceText: normalizeText(fragment?.v13EvidenceText || sourceText),
+    sourceLogId: normalizeText(row?.id),
+    workDate,
+    shift: normalizeText(row?.shift),
+    role
+  };
+}
+
+async function inferRunningOperationSource(database, targetAsset) {
+  const result = await database
+    .prepare(`
+      SELECT *
+      FROM blower_history_assets
+      WHERE enabled = 1
+        AND blower_type = ?
+        AND unit_no = ?
+        AND asset_group = ?
+        AND tag_number <> ?
+        AND cycle_start_state <> 'pending'
+        AND cycle_runtime_state = 'running'
+        AND is_running = 1
+      ORDER BY sort_order ASC, tag_number ASC
+      LIMIT 2
+    `)
+    .bind(
+      normalizeText(targetAsset.blower_type),
+      normalizeText(targetAsset.unit_no),
+      assetGroupKey(targetAsset),
+      normalizeText(targetAsset.tag_number).toUpperCase()
+    )
+    .all();
+  const matches = Array.isArray(result.results) ? result.results : [];
+  return matches.length === 1 ? matches[0] : null;
+}
+
+async function automaticOperationEventExists(database, eventId) {
+  if (!eventId) return false;
+  const existing = await database
+    .prepare(`SELECT id FROM blower_history_events WHERE id = ? LIMIT 1`)
+    .bind(eventId)
+    .first();
+  return Boolean(existing);
+}
+
+async function hasManualRuntimeBoundaryAtOrAfter(database, tagNumber, eventDate) {
+  const existing = await database
+    .prepare(`
+      SELECT id
+      FROM blower_history_events
+      WHERE tag_number = ?
+        AND source_type = 'manual'
+        AND event_type IN ('startup', 'operation_start', 'operation_stop', 'runtime_correction')
+        AND datetime(event_date) >= datetime(?)
+      ORDER BY datetime(event_date) DESC, created_at DESC, id DESC
+      LIMIT 1
+    `)
+    .bind(tagNumber, eventDate)
+    .first();
+  return Boolean(existing);
+}
+
+async function responseMessage(response) {
+  try {
+    const payload = await response.clone().json();
+    return normalizeText(payload?.message);
+  } catch {
+    return "";
+  }
+}
+
+async function planAutomaticOperationState(database, change, targetAsset, targetRunning, eventId) {
+  const asset = await findAsset(database, targetAsset.tag_number);
+  if (!asset || !normalizeText(asset.last_replacement_at)) {
+    return { allowed: false, needed: false, reason: "no_replacement" };
+  }
+
+  const eventAt = new Date(change.eventDate);
+  const replacementAt = new Date(asset.last_replacement_at);
+  if (
+    Number.isNaN(eventAt.getTime()) ||
+    Number.isNaN(replacementAt.getTime()) ||
+    eventAt < replacementAt
+  ) {
+    return { allowed: false, needed: false, reason: "before_replacement" };
+  }
+
+  if (await hasManualRuntimeBoundaryAtOrAfter(database, asset.tag_number, change.eventDate)) {
+    return { allowed: false, needed: false, reason: "manual_priority" };
+  }
+
+  const duplicate = await automaticOperationEventExists(database, eventId);
+  const latestBoundary = await loadLatestExplicitRuntimeBoundary(database, asset);
+  const latestBoundaryAt = new Date(latestBoundary?.event_date);
+  if (
+    latestBoundary &&
+    !Number.isNaN(latestBoundaryAt.getTime()) &&
+    latestBoundaryAt >= eventAt &&
+    !duplicate
+  ) {
+    return { allowed: false, needed: false, reason: "newer_boundary" };
+  }
+
+  const pending = normalizeText(asset.cycle_start_state) === "pending";
+  const currentRunning = !pending && normalizeText(asset.cycle_runtime_state) === "running";
+  const desiredSatisfied = targetRunning ? currentRunning : !currentRunning;
+  if (duplicate || desiredSatisfied || (pending && !targetRunning)) {
+    return {
+      allowed: true,
+      needed: false,
+      reason: duplicate
+        ? "duplicate"
+        : (targetRunning ? "already_running" : "already_stopped"),
+      asset
+    };
+  }
+
+  return {
+    allowed: true,
+    needed: true,
+    reason: targetRunning ? "start_required" : "stop_required",
+    asset,
+    pending
+  };
+}
+
+async function applyAutomaticOperationState(database, change, plan, targetRunning, eventId) {
+  if (!plan?.allowed || !plan?.needed || !plan.asset) {
+    return { applied: false, reason: plan?.reason || "not_required" };
+  }
+
+  const asset = plan.asset;
+  const source = {
+    eventId,
+    sourceType: OPERATION_AUTO_SOURCE_TYPE,
+    sourceLogId: change.sourceLogId,
+    sourceText: change.sourceText,
+    actionType: targetRunning ? "교체운전 자동 기동" : "교체운전 자동 정지"
+  };
+  const systemUser = {
+    employeeNo: OPERATION_AUTO_CREATED_BY_ID,
+    name: OPERATION_AUTO_CREATED_BY_NAME
+  };
+  let response;
+
+  if (plan.pending) {
+    response = await registerStartup(database, systemUser, {
+      tagNumber: asset.tag_number,
+      eventDate: change.eventDate,
+      expectedLastReplacementAt: asset.last_replacement_at,
+      note: "업무일지 교체운전 문구에서 자동 반영"
+    }, source);
+  } else {
+    response = await changeRuntimeState(database, systemUser, {
+      tagNumber: asset.tag_number,
+      eventDate: change.eventDate,
+      isRunning: targetRunning,
+      expectedCycleRuntimeRevision: normalizeText(asset.cycle_runtime_revision),
+      note: "업무일지 교체운전 문구에서 자동 반영"
+    }, source);
+  }
+
+  if (!response.ok) {
+    const refreshed = await findAsset(database, asset.tag_number);
+    const refreshedPending = normalizeText(refreshed?.cycle_start_state) === "pending";
+    const refreshedRunning = !refreshedPending && normalizeText(refreshed?.cycle_runtime_state) === "running";
+    if ((targetRunning && refreshedRunning) || (!targetRunning && !refreshedRunning)) {
+      return { applied: false, reason: "concurrent_desired_state" };
+    }
+    return {
+      applied: false,
+      reason: "rejected",
+      message: await responseMessage(response)
+    };
+  }
+
+  return { applied: true, reason: targetRunning ? "started" : "stopped" };
+}
+
+async function syncOperationChanges(database, user, body = {}) {
+  const days = Math.max(1, Math.min(365, Number(body.days) || OPERATION_SYNC_DEFAULT_DAYS));
+  const fromDate = new Date(Date.now() - days * 24 * 3600000);
+  const fromDateText = formatKstDate(fromDate);
+  const logResult = await database
+    .prepare(`
+      SELECT id, work_date, shift, role, author, status, log_json, updated_at
+      FROM shift_logs
+      WHERE work_date >= ?
+        AND status = '결재완료'
+      ORDER BY work_date ASC, updated_at ASC, id ASC
+      LIMIT 5000
+    `)
+    .bind(fromDateText)
+    .all();
+  const logs = Array.isArray(logResult.results) ? logResult.results : [];
+  const assetResult = await database
+    .prepare(`SELECT * FROM blower_history_assets ORDER BY sort_order ASC, tag_number ASC`)
+    .all();
+  const recognitionAssets = Array.isArray(assetResult.results) ? assetResult.results : [];
+  const assets = recognitionAssets.filter(asset => Number(asset.enabled) === 1);
+  const upperRoleRows = await loadUpperRoleRowsForDates(database, logs);
+  const rolePriorityContext = buildRolePriorityContext([...logs, ...upperRoleRows], recognitionAssets);
+  const seen = new Set();
+  const skipped = {};
+  let detectedChangeovers = 0;
+  let appliedChangeovers = 0;
+  let appliedStateChanges = 0;
+
+  const addSkip = reason => {
+    const key = normalizeText(reason) || "unknown";
+    skipped[key] = Number(skipped[key] || 0) + 1;
+  };
+
+  for (const row of logs) {
+    const rawFragments = parseShiftLogFragments(row, recognitionAssets);
+    const prioritized = applyDutyRolePriority(row, rawFragments, rolePriorityContext, recognitionAssets);
+    const fragments = v13ContextualizeScanFragments(prioritized.fragments, row, recognitionAssets);
+
+    for (const fragment of fragments) {
+      const analysisText = fragmentAnalysisText(fragment);
+      if (!/(?:교체\s*운전|교체운전|절체\s*운전|절체운전|운전\s*(?:교체|절체|전환)|change\s*over|changeover|switch\s*over|재?기동|정지)/i.test(analysisText)) {
+        continue;
+      }
+
+      const change = detectOperationChangeover(fragment, row, recognitionAssets);
+      if (!change || change.skippedReason) {
+        if (change?.skippedReason) addSkip(change.skippedReason);
+        continue;
+      }
+
+      if (!change.fromAsset && change.targetOnly) {
+        change.fromAsset = await inferRunningOperationSource(database, change.toAsset);
+        if (!change.fromAsset) {
+          addSkip("unresolved_running_source");
+          continue;
+        }
+      }
+
+      const fingerprint = fingerprintText([
+        "operation_v2",
+        change.sourceLogId,
+        change.eventDate,
+        change.fromAsset.tag_number,
+        change.toAsset.tag_number
+      ].join("||"));
+      if (seen.has(fingerprint)) continue;
+      seen.add(fingerprint);
+      detectedChangeovers += 1;
+
+      const stopEventId = `operation-auto:${fingerprint}:stop`;
+      const startEventId = `operation-auto:${fingerprint}:start`;
+      const stopPlan = await planAutomaticOperationState(
+        database,
+        change,
+        change.fromAsset,
+        false,
+        stopEventId
+      );
+      const startPlan = await planAutomaticOperationState(
+        database,
+        change,
+        change.toAsset,
+        true,
+        startEventId
+      );
+
+      if (!stopPlan.allowed || !startPlan.allowed) {
+        addSkip(!stopPlan.allowed ? stopPlan.reason : startPlan.reason);
+        continue;
+      }
+
+      // 새 운전기를 먼저 기동한 뒤 기존 운전기를 정지한다. 동시 수동조작이 발생해도
+      // CAS 검증과 재조회로 사용자의 최신 상태가 최종 우선권을 갖는다.
+      const startResult = await applyAutomaticOperationState(
+        database,
+        change,
+        startPlan,
+        true,
+        startEventId
+      );
+      if (startPlan.needed && !startResult.applied && startResult.reason !== "concurrent_desired_state") {
+        addSkip(startResult.reason);
+        continue;
+      }
+
+      const stopResult = await applyAutomaticOperationState(
+        database,
+        change,
+        stopPlan,
+        false,
+        stopEventId
+      );
+      const pairApplied = Number(startResult.applied) + Number(stopResult.applied);
+      if (pairApplied > 0) appliedChangeovers += 1;
+      appliedStateChanges += pairApplied;
+      if (!startResult.applied) addSkip(startResult.reason);
+      if (!stopResult.applied) addSkip(stopResult.reason);
+    }
+  }
+
+  return jsonResponse({
+    ok: true,
+    message: appliedStateChanges > 0
+      ? `업무일지 교체운전 ${appliedChangeovers}건에서 기동·정지 ${appliedStateChanges}건을 자동 반영했습니다.`
+      : "새로 반영할 업무일지 교체운전 상태가 없습니다.",
+    scannedDays: days,
+    scannedLogCount: logs.length,
+    detectedChangeovers,
+    appliedChangeovers,
+    appliedStateChanges,
+    skipped
+  });
+}
+
 async function scanShiftLogs(database, user, body) {
   const days = Math.max(1, Math.min(3650, Number(body.days) || 180));
   const fromDate = new Date(Date.now() - days * 24 * 3600000);
@@ -9992,6 +10550,10 @@ async function handlePost(context, user, body) {
     return historicalAuditStep(database, body);
   }
 
+  if (action === "operation_sync") {
+    return syncOperationChanges(database, user, body);
+  }
+
   if (action === "scan") {
     return scanShiftLogs(database, user, body);
   }
@@ -10069,5 +10631,10 @@ export async function onRequestPost(context) {
 export const __blowerHistoryTest = {
   ensureSchema,
   ensureHistoryRecoveryV12Schema,
-  v12ApplyConfirmedEvents
+  v12ApplyConfirmedEvents,
+  operationPositionFromToken,
+  operationChangeoverPair,
+  operationSwitchTargetPosition,
+  hasCompletedOperationChangeover,
+  detectOperationChangeover
 };

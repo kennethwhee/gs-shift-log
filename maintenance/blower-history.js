@@ -15,6 +15,7 @@
     busy: false,
     backfillRunning: false,
     auditRunning: false,
+    operationSyncCompleted: false,
     assetManagerAutoName: true,
     serverClockOffsetMs: 0,
     runtimeEditOriginalDate: ""
@@ -881,7 +882,8 @@
       "shift_log_auto",
       "shift_log_history_auto",
       "shift_log_history_v12",
-      "shift_log_history_v13"
+      "shift_log_history_v13",
+      "shift_log_operation_auto"
     ].includes(event?.sourceType);
   }
 
@@ -903,6 +905,9 @@
     }
     if (sourceType === "shift_log_auto") {
       return { label: "업무일지 자동감지", className: "auto" };
+    }
+    if (sourceType === "shift_log_operation_auto") {
+      return { label: "업무일지 교체운전 자동", className: "auto" };
     }
     if (sourceType === "manual") {
       return { label: "수동 등록", className: "manual" };
@@ -1032,14 +1037,9 @@
         ? `${cycleHours.toLocaleString("ko-KR")}h`
         : `${cycleDays.toLocaleString("ko-KR")}일`)
       : "미설정";
-    const runtimeStateAction = cycleRuntimeTracked
-      ? `<button type="button" class="asset-action runtime-state-action ${operationRunning ? "stop" : "start"}" data-mobile-write data-asset-action="runtime_state" data-target-state="${operationRunning ? "stopped" : "running"}" data-tag="${escapeHtml(asset.tagNumber)}">${operationRunning ? "정지 등록" : "재기동 등록"}</button>`
+    const operationAction = confirmed
+      ? `<button type="button" class="asset-action runtime-state-action ${operationRunning ? "stop" : "start"}" data-mobile-write data-asset-action="operation_toggle" data-tag="${escapeHtml(asset.tagNumber)}">${operationRunning ? "정지" : "기동"}</button>`
       : "";
-    const moreActions = startupPending
-      ? `<button type="button" data-mobile-write data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">V-Belt 교체 다시 등록</button>`
-      : (confirmed
-        ? `<button type="button" data-mobile-write data-asset-action="runtime" data-tag="${escapeHtml(asset.tagNumber)}">누적시간 직접 보정</button>`
-        : "");
 
     return `
       <article class="asset-card" data-severity="${escapeHtml(severity)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}>
@@ -1050,7 +1050,7 @@
           </div>
           <div class="asset-status-group">
             <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(awaitingBackfill ? "재구성 대기" : severityLabel(severity))}</span>
-            ${cycleRuntimeTracked ? `<span class="operation-pill ${operationRunning ? "running" : "stopped"}">${operationRunning ? "운전중" : "정지"}</span>` : ""}
+            ${confirmed ? `<span class="operation-pill ${operationRunning ? "running" : "stopped"}">${operationRunning ? "운전중" : "정지"}</span>` : ""}
           </div>
         </div>
 
@@ -1124,16 +1124,9 @@
         `}
 
         <div class="asset-actions">
-          ${startupPending ? `<button type="button" class="asset-action primary" data-mobile-write data-asset-action="startup" data-tag="${escapeHtml(asset.tagNumber)}">기동 등록</button>` : ""}
-          ${startupPending ? "" : `<button type="button" class="asset-action primary" data-mobile-write data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">V-Belt 교체 등록</button>`}
-          ${runtimeStateAction}
+          ${operationAction}
+          <button type="button" class="asset-action ${confirmed ? "" : "primary"}" data-mobile-write data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">${startupPending ? "V-Belt 교체 다시 등록" : "V-Belt 교체 등록"}</button>
           <button type="button" class="asset-action" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}">이력 보기</button>
-          ${moreActions ? `<details class="asset-more" data-mobile-write>
-            <summary aria-label="추가 관리 메뉴">•••</summary>
-            <div class="asset-more-menu">
-              ${moreActions}
-            </div>
-          </details>` : ""}
         </div>
       </article>
     `;
@@ -1544,7 +1537,6 @@
     const actualStarted = cycleStartState === "started" && Boolean(asset.cycleStartedAt);
     const events = getAssetEvents(tagNumber)
       .filter(event => ["replacement", "startup", "operation_start", "operation_stop"].includes(event.eventType));
-    const latestRuntimeEvent = latestExplicitRuntimeEvent(asset);
 
     elements.historyDialogTitle.textContent = `${asset.positionLabel} 이력`;
     elements.historyDialogAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
@@ -1552,9 +1544,9 @@
       ? `
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         <div><span>최근 V-Belt 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
-        <div><span>${actualStarted || startupPending ? "실제 기동일시" : "기존 주기 기준"}</span><strong>${actualStarted ? escapeHtml(formatKstDateTimeDisplay(asset.cycleStartedAt)) : (startupPending ? "미등록" : "교체일 기준 유지")}</strong></div>
-        <div><span>${startupPending ? "주기 계산" : "누적 운전시간"}</span><strong>${startupPending ? "계산 대기" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
-        <div><span>현재 상태·주기</span><strong>${startupPending ? "기동 대기" : `${asset.isRunning ? "운전중" : "정지"} · ${escapeHtml(formatSignedRemaining(asset))}`}</strong></div>
+        <div><span>현재 운전상태</span><strong>${asset.isRunning ? "운전중" : "정지"}</strong></div>
+        <div><span>누적 운전시간</span><strong>${startupPending ? "0시간" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
+        <div><span>상태 변경 방식</span><strong>카드 기동·정지 / 업무일지 교체운전 자동</strong></div>
       `
       : awaitingBackfill
         ? `
@@ -1570,19 +1562,6 @@
       ? events.map(event => {
           const content = displayEventContent(event) || "등록 내용 없음";
           const detail = [event.issueType, event.actionType].filter(Boolean).join(" → ");
-          const expectedState = event.eventType === "operation_stop" ? "stopped" : "running";
-          const currentState = asset.isRunning ? "running" : "stopped";
-          const editableRuntimeEvent = (
-            hasAuthenticatedWriteAccess() &&
-            Boolean(event.id) &&
-            latestRuntimeEvent?.id === event.id &&
-            ["operation_start", "operation_stop"].includes(event.eventType) &&
-            event.sourceType === "manual" &&
-            cycleStartState !== "pending" &&
-            expectedState === currentState
-          );
-          const resettableRuntimeEvent = editableRuntimeEvent && canResetRuntimeEventToPending(asset, event);
-          const edited = Boolean(event.updatedAt && event.createdAt && event.updatedAt !== event.createdAt);
 
           return `
             <article class="asset-history-item">
@@ -1591,13 +1570,6 @@
                 <div class="asset-history-heading">
                   <span class="event-badge ${escapeHtml(event.eventType)}">${escapeHtml(eventLabel(event.eventType))}</span>
                   ${detail ? `<strong>${escapeHtml(detail)}</strong>` : ""}
-                  ${edited ? `<span class="event-edited">수정됨</span>` : ""}
-                  ${editableRuntimeEvent ? `
-                    <span class="asset-history-actions">
-                      ${resettableRuntimeEvent ? `<button type="button" class="button asset-history-reset" data-mobile-write data-history-action="runtime_reset_pending" data-event-id="${escapeHtml(event.id)}">미기동 · 0시간</button>` : ""}
-                      <button type="button" class="button asset-history-edit" data-mobile-write data-history-action="runtime_state_edit" data-event-id="${escapeHtml(event.id)}">시간 수정</button>
-                    </span>
-                  ` : ""}
                 </div>
                 <p>${escapeHtml(content)}</p>
                 <small>${escapeHtml(historySourceLabel(event))}${event.createdByName ? ` · ${escapeHtml(event.createdByName)}` : ""}${Number(event.runtimeHours) > 0 ? ` · 당시 ${escapeHtml(historyRuntimeLabel(event))}` : ""}</small>
@@ -1760,16 +1732,64 @@
     elements.assetManagerButton.disabled = writeBlocked || state.busy;
   }
 
+  async function syncOperationChanges(days = 14) {
+    if (
+      isMobileMonitoringView() ||
+      !hasAuthenticatedWriteAccess() ||
+      state.busy && !state.data
+    ) {
+      return null;
+    }
+
+    return apiRequest({
+      method: "POST",
+      timeoutMs: 30000,
+      body: {
+        action: "operation_sync",
+        days
+      }
+    });
+  }
+
   async function loadData(options = {}) {
     if (!options.silent) setBusy(true);
 
     try {
-      const data = await apiRequest();
-      const serverGeneratedAt = Date.parse(data?.generatedAt || "");
-      state.serverClockOffsetMs = Number.isFinite(serverGeneratedAt)
-        ? serverGeneratedAt - Date.now()
-        : 0;
+      let data = await apiRequest();
+      const applyServerClock = payload => {
+        const serverGeneratedAt = Date.parse(payload?.generatedAt || "");
+        state.serverClockOffsetMs = Number.isFinite(serverGeneratedAt)
+          ? serverGeneratedAt - Date.now()
+          : 0;
+      };
+
+      applyServerClock(data);
       state.data = data;
+
+      const shouldSyncOperations = (
+        options.syncOperations !== false &&
+        hasAuthenticatedWriteAccess(data) &&
+        !isMobileMonitoringView() &&
+        (options.forceOperationSync === true || !state.operationSyncCompleted)
+      );
+      let operationSyncResult = null;
+
+      if (shouldSyncOperations) {
+        state.operationSyncCompleted = true;
+        try {
+          operationSyncResult = await syncOperationChanges(14);
+          if (Number(operationSyncResult?.appliedStateChanges || 0) > 0) {
+            data = await apiRequest();
+            applyServerClock(data);
+            state.data = data;
+          }
+        } catch (syncError) {
+          console.warn("업무일지 교체운전 자동 동기화 실패:", syncError);
+          if (options.forceOperationSync) {
+            showToast(syncError.message || "교체운전 자동 동기화에 실패했습니다.", "error");
+          }
+        }
+      }
 
       if (hasAuthenticatedWriteAccess(data)) {
         elements.authNotice.hidden = true;
@@ -1785,6 +1805,10 @@
       }
 
       renderAll();
+
+      if (Number(operationSyncResult?.appliedStateChanges || 0) > 0) {
+        showToast(operationSyncResult.message || "업무일지 교체운전을 자동 반영했습니다.");
+      }
     } catch (error) {
       console.error("Blower 이력 데이터 조회 실패:", error);
       elements.authNotice.hidden = false;
@@ -2075,6 +2099,53 @@
       showToast(error.message || "0시간으로 복원하지 못했습니다.", "error");
       openAssetHistory(tagNumber);
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleAssetOperation(tagNumber, button = null) {
+    if (stopMobileMutation()) return;
+    if (state.busy) return;
+
+    const asset = findAsset(tagNumber);
+    if (!asset || !asset.lastReplacementAt) {
+      showToast("먼저 V-Belt 교체 이력을 등록해 주세요.", "error");
+      return;
+    }
+
+    const startupPending = String(asset.cycleStartState || "legacy") === "pending";
+    const targetRunning = startupPending || !asset.isRunning;
+    const eventDate = currentServerDate().toISOString();
+    const body = startupPending
+      ? {
+          action: "startup",
+          tagNumber,
+          eventDate,
+          expectedLastReplacementAt: asset.lastReplacementAt,
+          note: "카드에서 직접 기동"
+        }
+      : {
+          action: "runtime_state",
+          tagNumber,
+          eventDate,
+          isRunning: targetRunning,
+          expectedCycleRuntimeRevision: asset.cycleRuntimeRevision || "",
+          note: targetRunning ? "카드에서 직접 기동" : "카드에서 직접 정지"
+        };
+
+    setBusy(true);
+    if (button) button.disabled = true;
+
+    try {
+      const result = await apiRequest({ method: "POST", body });
+      showToast(result.message || (targetRunning ? "기동했습니다." : "정지했습니다."));
+      state.operationSyncCompleted = true;
+      await loadData({ silent: true, syncOperations: false });
+    } catch (error) {
+      console.error("Blower 기동·정지 저장 실패:", error);
+      showToast(error.message || "기동·정지 상태를 변경하지 못했습니다.", "error");
+    } finally {
+      if (button) button.disabled = false;
       setBusy(false);
     }
   }
@@ -2979,16 +3050,25 @@
     elements.scanButton.textContent = "분석 중...";
 
     try {
+      const days = Number(elements.scanDays.value) || 180;
       const result = await apiRequest({
         method: "POST",
         body: {
           action: "scan",
-          days: Number(elements.scanDays.value) || 180
+          days
+        }
+      });
+      const operationResult = await apiRequest({
+        method: "POST",
+        body: {
+          action: "operation_sync",
+          days
         }
       });
 
-      showToast(`${result.message} 새 후보 ${result.insertedCount || 0}건`);
-      await loadData({ silent: true });
+      state.operationSyncCompleted = true;
+      showToast(`${result.message} 새 후보 ${result.insertedCount || 0}건 · 교체운전 상태 ${operationResult.appliedStateChanges || 0}건`);
+      await loadData({ silent: true, syncOperations: false });
     } catch (error) {
       showToast(error.message || "업무일지 분석에 실패했습니다.", "error");
     } finally {
@@ -3046,6 +3126,10 @@
         openAssetHistory(button.dataset.tag);
         return;
       }
+      if (button.dataset.assetAction === "operation_toggle") {
+        toggleAssetOperation(button.dataset.tag, button);
+        return;
+      }
       openRecordDialog(
         button.dataset.assetAction,
         button.dataset.tag,
@@ -3060,20 +3144,6 @@
       if (!button || !state.historyAssetTag) return;
       const action = button.dataset.historyAction;
       const tagNumber = state.historyAssetTag;
-      if (action === "runtime_reset_pending") {
-        resetRuntimeEventToStartupPending(tagNumber, button.dataset.eventId, event);
-        return;
-      }
-      if (action === "runtime_state_edit") {
-        const editedEvent = findEvent(button.dataset.eventId);
-        if (!editedEvent) {
-          showToast("수정할 운전상태 이력을 찾을 수 없습니다.", "error");
-          return;
-        }
-        elements.historyDialog.close();
-        openRecordDialog(action, tagNumber, editedEvent);
-        return;
-      }
       elements.historyDialog.close();
       openRecordDialog(action, tagNumber);
     });
@@ -3091,7 +3161,7 @@
     elements.settingsButton.addEventListener("click", openSettingsDialog);
     elements.assetManagerButton.addEventListener("click", openAssetManagerDialog);
     elements.auditHistoryButton.addEventListener("click", downloadHistoricalAudit);
-    elements.refreshButton.addEventListener("click", () => loadData());
+    elements.refreshButton.addEventListener("click", () => loadData({ forceOperationSync: true }));
     elements.scanButton.addEventListener("click", scanShiftLogs);
     elements.historicalBackfillButton.addEventListener("click", runHistoricalBackfill);
     elements.overviewBackfillButton.addEventListener("click", runHistoricalBackfill);
