@@ -7987,6 +7987,43 @@ async function historicalAuditStep(database, body) {
 }
 
 
+async function ensureHistoryRecoveryV12ArchiveCycleSchema(database) {
+  const columnResult = await database
+    .prepare(`PRAGMA table_info(blower_history_asset_archive_v12)`)
+    .all();
+  let columns = Array.isArray(columnResult.results) ? columnResult.results : [];
+  const requiredColumns = [
+    { name: "cycle_started_at", definition: "cycle_started_at TEXT" },
+    { name: "cycle_start_state", definition: "cycle_start_state TEXT NOT NULL DEFAULT 'legacy'" },
+    { name: "cycle_start_revision", definition: "cycle_start_revision TEXT NOT NULL DEFAULT ''" },
+    { name: "cycle_runtime_hours", definition: "cycle_runtime_hours REAL" },
+    { name: "cycle_runtime_anchor_at", definition: "cycle_runtime_anchor_at TEXT" },
+    { name: "cycle_runtime_state", definition: "cycle_runtime_state TEXT NOT NULL DEFAULT ''" },
+    { name: "cycle_runtime_revision", definition: "cycle_runtime_revision TEXT NOT NULL DEFAULT ''" }
+  ];
+
+  for (const required of requiredColumns) {
+    if (columns.some(column => normalizeText(column.name) === required.name)) continue;
+
+    try {
+      await database
+        .prepare(`ALTER TABLE blower_history_asset_archive_v12 ADD COLUMN ${required.definition}`)
+        .run();
+    } catch (error) {
+      const retryResult = await database
+        .prepare(`PRAGMA table_info(blower_history_asset_archive_v12)`)
+        .all();
+      const retryColumns = Array.isArray(retryResult.results) ? retryResult.results : [];
+
+      if (!retryColumns.some(column => normalizeText(column.name) === required.name)) {
+        throw error;
+      }
+
+      columns = retryColumns;
+    }
+  }
+}
+
 async function ensureHistoryRecoveryV12Schema(database) {
   await database.batch([
     database.prepare(`
@@ -8062,6 +8099,13 @@ async function ensureHistoryRecoveryV12Schema(database) {
         sort_order INTEGER NOT NULL DEFAULT 0,
         enabled INTEGER NOT NULL DEFAULT 1,
         last_replacement_at TEXT,
+        cycle_started_at TEXT,
+        cycle_start_state TEXT NOT NULL DEFAULT 'legacy',
+        cycle_start_revision TEXT NOT NULL DEFAULT '',
+        cycle_runtime_hours REAL,
+        cycle_runtime_anchor_at TEXT,
+        cycle_runtime_state TEXT NOT NULL DEFAULT '',
+        cycle_runtime_revision TEXT NOT NULL DEFAULT '',
         runtime_hours REAL NOT NULL DEFAULT 0,
         runtime_anchor_at TEXT,
         is_running INTEGER NOT NULL DEFAULT 0,
@@ -8074,6 +8118,8 @@ async function ensureHistoryRecoveryV12Schema(database) {
       )
     `)
   ]);
+
+  await ensureHistoryRecoveryV12ArchiveCycleSchema(database);
 
   const now = new Date().toISOString();
   await database.prepare(`
@@ -9253,10 +9299,16 @@ async function v12ApplyConfirmedEvents(database) {
     database.prepare(`
       INSERT OR IGNORE INTO blower_history_asset_archive_v12 (
         migration_id, tag_number, blower_type, unit_no, position_label, display_name, sort_order,
-        enabled, last_replacement_at, runtime_hours, runtime_anchor_at, is_running,
+        enabled, last_replacement_at,
+        cycle_started_at, cycle_start_state, cycle_start_revision,
+        cycle_runtime_hours, cycle_runtime_anchor_at, cycle_runtime_state, cycle_runtime_revision,
+        runtime_hours, runtime_anchor_at, is_running,
         last_modified_by_id, last_modified_by_name, created_at, updated_at, archived_at
       ) SELECT ?, tag_number, blower_type, unit_no, position_label, display_name, sort_order,
-        enabled, last_replacement_at, runtime_hours, runtime_anchor_at, is_running,
+        enabled, last_replacement_at,
+        cycle_started_at, cycle_start_state, cycle_start_revision,
+        cycle_runtime_hours, cycle_runtime_anchor_at, cycle_runtime_state, cycle_runtime_revision,
+        runtime_hours, runtime_anchor_at, is_running,
         last_modified_by_id, last_modified_by_name, created_at, updated_at, ?
         FROM blower_history_assets
         WHERE EXISTS (
@@ -9267,6 +9319,52 @@ async function v12ApplyConfirmedEvents(database) {
           WHERE active_asset.enabled = 1
         )
     `).bind(HISTORY_RECOVERY_V12_ID, now),
+    database.prepare(`
+      UPDATE blower_history_asset_archive_v12 AS snapshot
+      SET
+        cycle_started_at = (
+          SELECT asset.cycle_started_at
+          FROM blower_history_assets AS asset
+          WHERE asset.tag_number = snapshot.tag_number
+        ),
+        cycle_start_state = COALESCE((
+          SELECT asset.cycle_start_state
+          FROM blower_history_assets AS asset
+          WHERE asset.tag_number = snapshot.tag_number
+        ), 'legacy'),
+        cycle_start_revision = COALESCE((
+          SELECT asset.cycle_start_revision
+          FROM blower_history_assets AS asset
+          WHERE asset.tag_number = snapshot.tag_number
+        ), ''),
+        cycle_runtime_hours = (
+          SELECT asset.cycle_runtime_hours
+          FROM blower_history_assets AS asset
+          WHERE asset.tag_number = snapshot.tag_number
+        ),
+        cycle_runtime_anchor_at = (
+          SELECT asset.cycle_runtime_anchor_at
+          FROM blower_history_assets AS asset
+          WHERE asset.tag_number = snapshot.tag_number
+        ),
+        cycle_runtime_state = COALESCE((
+          SELECT asset.cycle_runtime_state
+          FROM blower_history_assets AS asset
+          WHERE asset.tag_number = snapshot.tag_number
+        ), ''),
+        cycle_runtime_revision = COALESCE((
+          SELECT asset.cycle_runtime_revision
+          FROM blower_history_assets AS asset
+          WHERE asset.tag_number = snapshot.tag_number
+        ), '')
+      WHERE snapshot.migration_id = ?
+        AND COALESCE(snapshot.cycle_runtime_revision, '') = ''
+        AND EXISTS (
+          SELECT 1
+          FROM blower_history_assets AS asset
+          WHERE asset.tag_number = snapshot.tag_number
+        )
+    `).bind(HISTORY_RECOVERY_V12_ID),
     database.prepare(`
       INSERT OR IGNORE INTO blower_history_event_archive (
         migration_id, id, tag_number, event_type, event_date, runtime_hours, issue_type, action_type,
@@ -9406,7 +9504,7 @@ async function v12ApplyConfirmedEvents(database) {
           JOIN blower_history_assets AS active_asset
             ON active_asset.tag_number = stage.tag_number
           WHERE active_asset.enabled = 1
-        )
+      )
     `).bind(
       HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID,
       HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID,
@@ -9414,6 +9512,126 @@ async function v12ApplyConfirmedEvents(database) {
       HISTORY_RECOVERY_V12_ID, HISTORY_RECOVERY_V12_ID,
       now, HISTORY_RECOVERY_V12_ID
     ),
+    database.prepare(`
+      WITH archived_cycle AS (
+        SELECT *
+        FROM blower_history_asset_archive_v12
+        WHERE migration_id = ?
+      ),
+      cycle_context AS (
+        SELECT
+          asset.tag_number,
+          asset.last_replacement_at AS recovered_last_replacement_at,
+          asset.runtime_hours AS recovered_runtime_hours,
+          asset.runtime_anchor_at AS recovered_runtime_anchor_at,
+          asset.is_running AS recovered_is_running,
+          snapshot.last_replacement_at AS archived_last_replacement_at,
+          snapshot.cycle_started_at AS archived_cycle_started_at,
+          snapshot.cycle_start_state AS archived_cycle_start_state,
+          snapshot.cycle_start_revision AS archived_cycle_start_revision,
+          snapshot.cycle_runtime_hours AS archived_cycle_runtime_hours,
+          snapshot.cycle_runtime_anchor_at AS archived_cycle_runtime_anchor_at,
+          snapshot.cycle_runtime_state AS archived_cycle_runtime_state,
+          snapshot.cycle_runtime_revision AS archived_cycle_runtime_revision,
+          CASE
+            WHEN snapshot.last_replacement_at IS NULL
+              AND asset.last_replacement_at IS NULL
+              THEN 1
+            WHEN JULIANDAY(snapshot.last_replacement_at) IS NOT NULL
+              AND JULIANDAY(asset.last_replacement_at) IS NOT NULL
+              AND ABS(
+                JULIANDAY(snapshot.last_replacement_at)
+                - JULIANDAY(asset.last_replacement_at)
+              ) < 0.000000001
+              THEN 1
+            ELSE 0
+          END AS same_latest_replacement,
+          CASE WHEN EXISTS (
+            SELECT 1
+            FROM blower_history_events AS correction
+            WHERE correction.tag_number = asset.tag_number
+              AND correction.event_type = 'runtime_correction'
+              AND correction.source_type = 'manual'
+              AND JULIANDAY(correction.event_date) >= JULIANDAY(asset.last_replacement_at)
+          ) THEN 1 ELSE 0 END AS has_current_cycle_correction,
+          asset.last_replacement_at AS reinitialized_cycle_anchor_at
+        FROM blower_history_assets AS asset
+        INNER JOIN archived_cycle AS snapshot
+          ON snapshot.tag_number = asset.tag_number
+        WHERE asset.enabled = 1
+      )
+      UPDATE blower_history_assets AS asset
+      SET
+        cycle_started_at = CASE
+          WHEN (SELECT context.same_latest_replacement FROM cycle_context AS context WHERE context.tag_number = asset.tag_number) = 1
+            THEN (SELECT context.archived_cycle_started_at FROM cycle_context AS context WHERE context.tag_number = asset.tag_number)
+          ELSE NULL
+        END,
+        cycle_start_state = CASE
+          WHEN (SELECT context.same_latest_replacement FROM cycle_context AS context WHERE context.tag_number = asset.tag_number) = 1
+            THEN COALESCE(NULLIF((SELECT context.archived_cycle_start_state FROM cycle_context AS context WHERE context.tag_number = asset.tag_number), ''), 'legacy')
+          ELSE 'legacy'
+        END,
+        cycle_start_revision = CASE
+          WHEN (SELECT context.same_latest_replacement FROM cycle_context AS context WHERE context.tag_number = asset.tag_number) = 1
+            THEN (SELECT context.archived_cycle_start_revision FROM cycle_context AS context WHERE context.tag_number = asset.tag_number)
+          ELSE LOWER(HEX(RANDOMBLOB(16)))
+        END,
+        cycle_runtime_hours = CASE
+          WHEN (SELECT context.same_latest_replacement FROM cycle_context AS context WHERE context.tag_number = asset.tag_number) = 1
+            THEN (SELECT context.archived_cycle_runtime_hours FROM cycle_context AS context WHERE context.tag_number = asset.tag_number)
+          WHEN (SELECT context.recovered_last_replacement_at FROM cycle_context AS context WHERE context.tag_number = asset.tag_number) IS NULL
+            THEN 0
+          WHEN (SELECT context.has_current_cycle_correction FROM cycle_context AS context WHERE context.tag_number = asset.tag_number) = 1
+            THEN COALESCE(
+              (SELECT context.archived_cycle_runtime_hours FROM cycle_context AS context WHERE context.tag_number = asset.tag_number),
+              (SELECT context.recovered_runtime_hours FROM cycle_context AS context WHERE context.tag_number = asset.tag_number),
+              0
+            )
+          ELSE 0
+        END,
+        cycle_runtime_anchor_at = CASE
+          WHEN (SELECT context.same_latest_replacement FROM cycle_context AS context WHERE context.tag_number = asset.tag_number) = 1
+            THEN (SELECT context.archived_cycle_runtime_anchor_at FROM cycle_context AS context WHERE context.tag_number = asset.tag_number)
+          WHEN (SELECT context.recovered_last_replacement_at FROM cycle_context AS context WHERE context.tag_number = asset.tag_number) IS NULL
+            THEN NULL
+          WHEN (SELECT context.has_current_cycle_correction FROM cycle_context AS context WHERE context.tag_number = asset.tag_number) = 1
+            THEN (SELECT context.archived_cycle_runtime_anchor_at FROM cycle_context AS context WHERE context.tag_number = asset.tag_number)
+          ELSE (SELECT context.reinitialized_cycle_anchor_at FROM cycle_context AS context WHERE context.tag_number = asset.tag_number)
+        END,
+        cycle_runtime_state = CASE
+          WHEN (SELECT context.same_latest_replacement FROM cycle_context AS context WHERE context.tag_number = asset.tag_number) = 1
+            THEN COALESCE(NULLIF((SELECT context.archived_cycle_runtime_state FROM cycle_context AS context WHERE context.tag_number = asset.tag_number), ''), 'stopped')
+          WHEN (SELECT context.recovered_last_replacement_at FROM cycle_context AS context WHERE context.tag_number = asset.tag_number) IS NULL
+            THEN 'stopped'
+          ELSE COALESCE(
+            NULLIF((SELECT context.archived_cycle_runtime_state FROM cycle_context AS context WHERE context.tag_number = asset.tag_number), ''),
+            CASE
+              WHEN (SELECT context.recovered_is_running FROM cycle_context AS context WHERE context.tag_number = asset.tag_number) = 1
+                THEN 'running'
+              ELSE 'stopped'
+            END
+          )
+        END,
+        cycle_runtime_revision = CASE
+          WHEN (SELECT context.same_latest_replacement FROM cycle_context AS context WHERE context.tag_number = asset.tag_number) = 1
+            THEN (SELECT context.archived_cycle_runtime_revision FROM cycle_context AS context WHERE context.tag_number = asset.tag_number)
+          ELSE LOWER(HEX(RANDOMBLOB(16)))
+        END
+      WHERE asset.enabled = 1
+        AND EXISTS (
+          SELECT 1
+          FROM cycle_context AS context
+          WHERE context.tag_number = asset.tag_number
+        )
+        AND EXISTS (
+          SELECT 1
+          FROM blower_history_recovery_v12_stage AS stage
+          JOIN blower_history_assets AS active_asset
+            ON active_asset.tag_number = stage.tag_number
+          WHERE active_asset.enabled = 1
+        )
+    `).bind(HISTORY_RECOVERY_V12_ID),
     database.prepare(`
       INSERT INTO blower_history_backfill_state (
         id, target_date, cursor_date, cursor_id, status, scanned_logs, auto_confirmed_events,
@@ -9740,3 +9958,10 @@ export async function onRequestPost(context) {
     );
   }
 }
+
+/* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
+export const __blowerHistoryTest = {
+  ensureSchema,
+  ensureHistoryRecoveryV12Schema,
+  v12ApplyConfirmedEvents
+};
