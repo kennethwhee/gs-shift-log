@@ -72,11 +72,11 @@ for (const [label, html] of [
 
   assert.match(
     html,
-    /efficiency\/bed-ash-discharge\.css\?v=20260830-bed-ash-discharge-v1/
+    /efficiency\/bed-ash-discharge\.css\?v=20260830-bed-ash-discharge-v2/
   );
   assert.match(
     html,
-    /efficiency\/bed-ash-discharge\.js\?v=20260830-bed-ash-discharge-v1/
+    /efficiency\/bed-ash-discharge\.js\?v=20260830-bed-ash-discharge-v2/
   );
 
   const viewStart = html.indexOf('id="efficiencyBedAshDischargeView"');
@@ -131,6 +131,12 @@ assert.match(client, /X-GS-Client-Mode/);
 assert.match(client, /window\.openBedAshDischargeView/);
 assert.match(client, /window\.refreshBedAshDischargeSummary/);
 assert.doesNotMatch(client, /\.innerHTML\s*=/);
+const mainAlertStart = client.indexOf("function openFromMainAlert()");
+const mainAlertEnd = client.indexOf("function updateEventFromConflict", mainAlertStart);
+const mainAlertSource = client.slice(mainAlertStart, mainAlertEnd);
+assert.ok(mainAlertStart >= 0 && mainAlertEnd > mainAlertStart);
+assert.match(mainAlertSource, /loadSelectedRange\(\)/);
+assert.doesNotMatch(mainAlertSource, /openBedAshDischargeView\(\)/);
 assert.match(style, /@media screen and \(min-width: 1840px\)/);
 assert.match(style, /data-bed-ash-mobile-client="true"/);
 

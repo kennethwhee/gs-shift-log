@@ -1498,7 +1498,10 @@
       if (typeof window.switchEfficiencyTeamView === "function") {
         window.switchEfficiencyTeamView(ROUTE_KEY);
       }
-      openBedAshDischargeView();
+      // A previous weekly/monthly request may still be polling OIS. Loading
+      // directly increments loadSequence so that stale work cannot overwrite
+      // the pending event day selected by this alert.
+      loadSelectedRange();
     }, 0);
   }
 
