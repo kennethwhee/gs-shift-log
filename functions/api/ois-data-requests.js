@@ -783,6 +783,7 @@ async function authenticateOisAgent(
   - turbine_gear_pinion
   - auxiliary_materials
   - silo_level
+  - bed_ash_level
   - daily_data_excel
   - steam_status
   - logsheet_approval
@@ -794,6 +795,7 @@ const OIS_REQUEST_TYPES = [
   "turbine_gear_pinion",
   "auxiliary_materials",
   "silo_level",
+  "bed_ash_level",
   "daily_data_excel",
   "steam_status",
   "logsheet_approval",
@@ -815,11 +817,18 @@ function normalizeRequestType(
       );
 
 
+  if (
+    !requestType
+  ) {
+    return DEFAULT_REQUEST_TYPE;
+  }
+
+
   return OIS_REQUEST_TYPES.includes(
     requestType
   )
     ? requestType
-    : DEFAULT_REQUEST_TYPE;
+    : "";
 }
 
 
@@ -913,6 +922,440 @@ function normalizeOisNumber(
       ) /
       1000
     : null;
+}
+
+
+/* =========================================================
+  효율팀 Bed Ash Level 에이전트 결과 검증
+
+  - 요청 날짜와 결과 날짜가 같아야 한다.
+  - 1·2호기의 허용된 TAG가 모두 있어야 한다.
+  - 각 호기에 유효한 시간별 표본이 하나 이상 있어야 한다.
+  - 반출 판정은 전용 API에서 수행하므로 여기서는 원시 Level만
+    허용 목록 형태로 정규화한다.
+========================================================= */
+
+const BED_ASH_LEVEL_UNIT_DEFINITIONS = [
+  {
+    unitNo:
+      1,
+
+    tagNumber:
+      "104HDC01CW101XQ01",
+
+    itemName:
+      "#1 UNIT BED ASH SILO WE WT-2011"
+  },
+
+  {
+    unitNo:
+      2,
+
+    tagNumber:
+      "204HDC01CW101XQ01",
+
+    itemName:
+      "#2 UNIT BED ASH SILO WE WT-2012"
+  }
+];
+
+
+function getBedAshExpectedSampleAt(
+  targetDate,
+  hour
+) {
+  const normalizedHour =
+    Number(
+      hour
+    );
+
+
+  if (
+    !Number.isInteger(
+      normalizedHour
+    ) ||
+    normalizedHour <
+      1 ||
+    normalizedHour >
+      24
+  ) {
+    return null;
+  }
+
+
+  const epochMilliseconds =
+    Date.parse(
+      `${targetDate}T00:00:00+09:00`
+    ) +
+    normalizedHour *
+    60 *
+    60 *
+    1000;
+
+
+  const shiftedDate =
+    new Date(
+      epochMilliseconds +
+      9 *
+      60 *
+      60 *
+      1000
+    );
+
+
+  const pad =
+    value => {
+      return String(
+        value
+      ).padStart(
+        2,
+        "0"
+      );
+    };
+
+
+  return {
+    epochMilliseconds,
+
+    sampledAt:
+      [
+        shiftedDate.getUTCFullYear(),
+        "-",
+        pad(
+          shiftedDate.getUTCMonth() +
+          1
+        ),
+        "-",
+        pad(
+          shiftedDate.getUTCDate()
+        ),
+        "T",
+        pad(
+          shiftedDate.getUTCHours()
+        ),
+        ":00:00+09:00"
+      ].join(
+        ""
+      )
+  };
+}
+
+
+function normalizeBedAshLevelResult(
+  rawResult,
+  targetDate
+) {
+  if (
+    !rawResult ||
+    typeof rawResult !==
+      "object" ||
+    Array.isArray(
+      rawResult
+    )
+  ) {
+    return {
+      error:
+        "Bed Ash Level 결과가 올바른 객체 형식이 아닙니다."
+    };
+  }
+
+
+  const resultTargetDate =
+    normalizeText(
+      rawResult.targetDate ||
+      rawResult.target_date
+    );
+
+
+  if (
+    resultTargetDate !==
+      targetDate
+  ) {
+    return {
+      error:
+        "Bed Ash Level 결과 날짜가 요청 날짜와 다릅니다."
+    };
+  }
+
+
+  const rawUnits =
+    Array.isArray(
+      rawResult.units
+    )
+      ? rawResult.units
+      : [];
+
+
+  const validationNow =
+    Date.now();
+
+
+  const rawCollectedAt =
+    normalizeText(
+      rawResult.collectedAt ||
+      rawResult.collected_at
+    );
+
+
+  const parsedCollectedAt =
+    Date.parse(
+      rawCollectedAt
+    );
+
+
+  const collectedAtMilliseconds =
+    Number.isFinite(
+      parsedCollectedAt
+    )
+      ? Math.min(
+          parsedCollectedAt,
+          validationNow
+        )
+      : validationNow;
+
+
+  const maximumSampleTime =
+    collectedAtMilliseconds -
+    5 *
+    60 *
+    1000;
+
+
+  const normalizedUnits =
+    [];
+
+
+  for (
+    const definition of
+      BED_ASH_LEVEL_UNIT_DEFINITIONS
+  ) {
+    const rawUnit =
+      rawUnits.find(
+        candidate => {
+          return Number(
+            candidate?.unitNo ??
+            candidate?.unit_no
+          ) ===
+            definition.unitNo;
+        }
+      );
+
+
+    const tagNumber =
+      normalizeText(
+        rawUnit?.tagNumber ||
+        rawUnit?.tag_number ||
+        rawUnit?.tag
+      ).toUpperCase();
+
+
+    if (
+      !rawUnit ||
+      tagNumber !==
+        definition.tagNumber
+    ) {
+      return {
+        error:
+          `${definition.unitNo}호기 Bed Ash TAG 결과가 없거나 올바르지 않습니다.`
+      };
+    }
+
+
+    const sampleMap =
+      new Map();
+
+
+    const rawSamples =
+      Array.isArray(
+        rawUnit.samples
+      )
+        ? rawUnit.samples
+        : [];
+
+
+    rawSamples.forEach(
+      rawSample => {
+        const expectedSample =
+          getBedAshExpectedSampleAt(
+            targetDate,
+            rawSample?.hour
+          );
+
+
+        const rawLevelTon =
+          rawSample?.levelTon ??
+          rawSample?.level_ton;
+
+
+        if (
+          !expectedSample ||
+          rawLevelTon ===
+            null ||
+          typeof rawLevelTon ===
+            "undefined" ||
+          normalizeText(
+            rawLevelTon
+          ) ===
+            ""
+        ) {
+          return;
+        }
+
+
+        const levelTon =
+          normalizeOisNumber(
+            rawLevelTon
+          );
+
+
+        if (
+          levelTon ===
+            null
+        ) {
+          return;
+        }
+
+
+        const suppliedSampledAt =
+          normalizeText(
+            rawSample?.sampledAt ||
+            rawSample?.sampled_at
+          );
+
+
+        if (
+          suppliedSampledAt
+        ) {
+          const suppliedTime =
+            Date.parse(
+              suppliedSampledAt
+            );
+
+
+          if (
+            !Number.isFinite(
+              suppliedTime
+            ) ||
+            Math.abs(
+              suppliedTime -
+              expectedSample.epochMilliseconds
+            ) >
+              60 *
+              1000
+          ) {
+            return;
+          }
+        }
+
+
+        if (
+          expectedSample.epochMilliseconds >
+            maximumSampleTime
+        ) {
+          return;
+        }
+
+
+        sampleMap.set(
+          Number(
+            rawSample.hour
+          ),
+          {
+            hour:
+              Number(
+                rawSample.hour
+              ),
+
+            sampledAt:
+              expectedSample.sampledAt,
+
+            levelTon
+          }
+        );
+      }
+    );
+
+
+    const samples =
+      [
+        ...sampleMap.values()
+      ].sort(
+        (
+          firstSample,
+          secondSample
+        ) => {
+          return firstSample.hour -
+            secondSample.hour;
+        }
+      );
+
+
+    if (
+      samples.length ===
+        0
+    ) {
+      return {
+        error:
+          `${definition.unitNo}호기 Bed Ash 시간별 Level 값이 없습니다.`
+      };
+    }
+
+
+    normalizedUnits.push({
+      unitNo:
+        definition.unitNo,
+
+      tag:
+        definition.tagNumber,
+
+      tagNumber:
+        definition.tagNumber,
+
+      itemName:
+        normalizeText(
+          rawUnit.itemName ||
+          rawUnit.item_name
+        ).slice(
+          0,
+          200
+        ) ||
+        definition.itemName,
+
+      unit:
+        "t",
+
+      samples,
+
+      sampleCount:
+        samples.length
+    });
+  }
+
+
+  return {
+    result: {
+      source:
+        normalizeText(
+          rawResult.source
+        ).slice(
+          0,
+          200
+        ),
+
+      targetDate,
+
+      thresholdTon:
+        5,
+
+      units:
+        normalizedUnits,
+
+      collectedAt:
+        new Date(
+          collectedAtMilliseconds
+        ).toISOString()
+    }
+  };
 }
 
 /* =========================================================
@@ -7264,20 +7707,108 @@ async function handleAgentNextRequest(
   );
 
 
+  const rawRequestedTypeOrder =
+    requestUrl.searchParams.get(
+      "requestTypes"
+    );
+
+
   const requestedTypeOrder =
     normalizeRequestTypeList(
-      requestUrl.searchParams.get(
-        "requestTypes"
-      )
+      rawRequestedTypeOrder
+    );
+
+
+  const rawLegacyRequestType =
+    requestUrl.searchParams.get(
+      "requestType"
     );
 
 
   const legacyRequestTypeText =
     normalizeText(
-      requestUrl.searchParams.get(
-        "requestType"
-      )
+      rawLegacyRequestType
     );
+
+
+  if (
+    rawRequestedTypeOrder !==
+      null
+  ) {
+    const rawRequestTypes =
+      String(
+        rawRequestedTypeOrder
+      )
+        .split(
+          ","
+        )
+        .map(
+          value => {
+            return normalizeText(
+              value
+            )
+              .toLowerCase()
+              .replace(
+                /[\s-]+/g,
+                "_"
+              );
+          }
+        );
+
+
+    if (
+      rawRequestTypes.some(
+        requestType => {
+          return (
+            !requestType ||
+            !OIS_REQUEST_TYPES.includes(
+              requestType
+            )
+          );
+        }
+      )
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+
+          message:
+            "requestTypes에 허용되지 않은 OIS 요청 유형이 포함되어 있습니다."
+        },
+        400
+      );
+    }
+  }
+
+
+  const legacyRequestType =
+    legacyRequestTypeText
+      ? normalizeRequestType(
+          legacyRequestTypeText
+        )
+      : "";
+
+
+  if (
+    rawLegacyRequestType !==
+      null &&
+    (
+      !legacyRequestTypeText ||
+      !legacyRequestType
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "requestType에 허용되지 않은 OIS 요청 유형이 지정되었습니다."
+      },
+      400
+    );
+  }
 
 
   const requestTypes =
@@ -7286,9 +7817,7 @@ async function handleAgentNextRequest(
       ? requestedTypeOrder
       : legacyRequestTypeText
         ? [
-            normalizeRequestType(
-              legacyRequestTypeText
-            )
+            legacyRequestType
           ]
         : [
             ...OIS_REQUEST_TYPES
@@ -7495,6 +8024,7 @@ const OIS_AGENT_OIS_LANE_REQUEST_TYPES = [
   "limestone_stock",
   "turbine_gear_pinion",
   "silo_level",
+  "bed_ash_level",
   "auxiliary_materials",
   "logsheet_approval"
 ];
@@ -11275,16 +11805,54 @@ async function createUserRequest(
     );
 
 
+  const hasExplicitRequestType =
+    Object.prototype.hasOwnProperty.call(
+      body,
+      "requestType"
+    ) ||
+    Object.prototype.hasOwnProperty.call(
+      body,
+      "request_type"
+    );
+
+
+  const rawRequestType =
+    normalizeText(
+      body.requestType ??
+      body.request_type ??
+      ""
+    );
+
+
   const requestType =
     normalizeRequestType(
-      body.requestType ||
-      body.request_type
+      rawRequestType
     );
 
 
   const forceRefresh =
     body.forceRefresh ===
       true;
+
+
+  if (
+    hasExplicitRequestType &&
+    (
+      !rawRequestType ||
+      !requestType
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "지원하지 않는 OIS 요청 유형입니다."
+      },
+      400
+    );
+  }
 
 
   if (
@@ -11745,6 +12313,36 @@ limestoneUsageRecords =
 
 } else if (
   existingRequest.requestType ===
+    "bed_ash_level"
+) {
+  const validation =
+    normalizeBedAshLevelResult(
+      body.result,
+      existingRequest.targetDate
+    );
+
+
+  if (
+    validation.error
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          validation.error
+      },
+      400
+    );
+  }
+
+
+  normalizedResult =
+    validation.result;
+
+} else if (
+  existingRequest.requestType ===
     "logsheet_approval"
 ) {
   const validation =
@@ -11880,6 +12478,9 @@ return jsonResponse({
       : existingRequest.requestType ===
           "auxiliary_materials"
         ? "OIS 부재료 일별 자료를 D1에 저장했습니다."
+        : existingRequest.requestType ===
+            "bed_ash_level"
+          ? "OIS Bed Ash 시간별 Level을 D1에 저장했습니다."
         : existingRequest.requestType ===
             "logsheet_approval"
           ? "OIS 과거 업무일지를 D1에 저장했습니다."

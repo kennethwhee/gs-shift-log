@@ -1,0 +1,1092 @@
+/* =========================================================
+  Bed Ash 반출 · 효율팀 확인
+========================================================= */
+
+#efficiencyTeamModal .efficiency-bed-ash-tab {
+  grid-template-columns: 23px minmax(0, 1fr) auto;
+  color: #5f4b34 !important;
+  border-color: #d8c7ad !important;
+  background: #f4eee4 !important;
+}
+
+#efficiencyTeamModal .efficiency-bed-ash-tab:hover {
+  border-color: #c5ae8a !important;
+  background: #eee3d4 !important;
+}
+
+#efficiencyTeamModal .efficiency-bed-ash-tab:is(
+  .is-active,
+  .active,
+  [aria-selected="true"]
+) {
+  border-color: #9d7b4e !important;
+  background: #e9ddcc !important;
+}
+
+#efficiencyTeamModal .efficiency-team-tab__badge {
+  display: inline-flex;
+  min-width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #cf4545;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+#efficiencyTeamModal .efficiency-team-tab__badge[hidden] {
+  display: none !important;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView {
+  min-width: 0;
+  min-height: 0;
+  background: #f5f7fa;
+}
+
+#efficiencyTeamModal #efficiencyBedAshDischargeView.is-active {
+  display: flex;
+  flex-direction: column;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-heading {
+  flex: 0 0 auto;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-heading > div {
+  min-width: 0;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-heading p {
+  margin: 5px 0 0;
+  color: #718096;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-refresh-button {
+  min-width: 112px;
+  min-height: 38px;
+  border-color: #b79b73;
+  background: #ffffff;
+  color: #60492c;
+  font-weight: 850;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-dashboard {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+/* 조회 기간 */
+
+#efficiencyTeamModal .bed-ash-discharge-query-card {
+  display: grid;
+  grid-template-columns: auto minmax(300px, auto) minmax(220px, 1fr);
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px;
+  border: 1px solid #d9e1eb;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 4px 13px rgba(40, 51, 66, 0.05);
+}
+
+#efficiencyTeamModal .bed-ash-discharge-period-buttons {
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(54px, 1fr));
+  overflow: hidden;
+  border: 1px solid #ccb895;
+  border-radius: 9px;
+  background: #f8f4ee;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-period-buttons button {
+  min-height: 36px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-right: 1px solid #ddcfb8;
+  background: transparent;
+  color: #725a39;
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-period-buttons button:last-child {
+  border-right: 0;
+}
+
+#efficiencyTeamModal
+  .bed-ash-discharge-period-buttons
+  button[aria-pressed="true"] {
+  background: #725839;
+  color: #ffffff;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-date-navigation {
+  display: grid;
+  grid-template-columns: 38px minmax(145px, 1fr) 52px 38px;
+  align-items: end;
+  gap: 6px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-date-navigation > button {
+  height: 38px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid #cdd7e3;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #41536b;
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-date-navigation > button:first-child,
+#efficiencyTeamModal .bed-ash-discharge-date-navigation > button:last-child {
+  font-size: 22px;
+  line-height: 1;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-date-navigation label {
+  display: grid;
+  gap: 4px;
+  color: #6b7788;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-date-navigation input {
+  width: 100%;
+  height: 38px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid #cdd7e3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #293c53;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-query-state {
+  min-width: 0;
+  padding-left: 13px;
+  border-left: 1px solid #e0e6ee;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-query-state strong {
+  display: block;
+  overflow: hidden;
+  color: #34465b;
+  font-size: 12px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-query-state p {
+  margin: 4px 0 0;
+  color: #748196;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-read-only-notice {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: #edf3f8;
+  color: #546b80;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-read-only-notice[hidden] {
+  display: none;
+}
+
+#efficiencyTeamModal
+  #efficiencyBedAshDischargeView[data-bed-ash-mobile-client="true"]
+  .bed-ash-discharge-read-only-notice {
+  display: block !important;
+}
+
+/* 요약 */
+
+#efficiencyTeamModal .bed-ash-discharge-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-summary-card {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  padding: 12px 13px;
+  border: 1px solid #d8e1eb;
+  border-radius: 11px;
+  background: #ffffff;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-summary-card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: #866946;
+  content: "";
+}
+
+#efficiencyTeamModal .bed-ash-discharge-summary-card.is-unit-one::before {
+  background: #316ca7;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-summary-card.is-unit-two::before {
+  background: #2a8070;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-summary-card.is-pending::before {
+  background: #d45252;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-summary-card > span {
+  display: block;
+  color: #68778b;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-summary-card > strong {
+  display: block;
+  margin-top: 4px;
+  color: #263b53;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-summary-card > small {
+  display: block;
+  margin-top: 2px;
+  color: #92a0af;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+/* 최신 Silo 중량 */
+
+#efficiencyTeamModal .bed-ash-discharge-level-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-level-card {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px;
+  border: 1px solid #d4dfeb;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #ffffff, #f5f9fd);
+}
+
+#efficiencyTeamModal .bed-ash-discharge-level-card.is-unit-two {
+  background: linear-gradient(135deg, #ffffff, #f2faf8);
+}
+
+#efficiencyTeamModal .bed-ash-discharge-level-card > div:first-child {
+  min-width: 0;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-level-card > div:first-child span {
+  display: block;
+  color: #53718f;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-level-card > div:first-child strong {
+  display: block;
+  margin-top: 4px;
+  color: #31465c;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-level-card__value {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-level-card__value strong {
+  display: block;
+  color: #255e91;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+#efficiencyTeamModal .is-unit-two .bed-ash-discharge-level-card__value strong {
+  color: #267363;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-level-card__value small {
+  display: block;
+  margin-top: 2px;
+  color: #8996a7;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+/* 반출 감지 표 */
+
+#efficiencyTeamModal .bed-ash-discharge-events-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #d5dfe9;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-events-heading {
+  display: flex;
+  min-height: 55px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid #e0e6ed;
+  background: #fbfcfd;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-events-heading > div:first-child span {
+  display: block;
+  color: #856a47;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-events-heading h4 {
+  margin: 3px 0 0;
+  color: #2e4258;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-events-toolbar {
+  display: flex;
+  align-items: end;
+  gap: 9px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-events-toolbar label {
+  display: grid;
+  gap: 3px;
+  color: #718095;
+  font-size: 8px;
+  font-weight: 850;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-events-toolbar select {
+  height: 32px;
+  min-width: 105px;
+  padding: 0 28px 0 9px;
+  border: 1px solid #ccd6e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #405268;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-events-toolbar > strong {
+  display: inline-flex;
+  min-width: 42px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border-radius: 7px;
+  background: #edf1f5;
+  color: #4e6075;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap {
+  position: relative;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap table {
+  width: 100%;
+  min-width: 1040px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap th,
+#efficiencyTeamModal .bed-ash-discharge-table-wrap td {
+  box-sizing: border-box;
+  padding: 8px 7px;
+  border-right: 1px solid #e2e7ed;
+  border-bottom: 1px solid #e3e8ee;
+  color: #43566d;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  word-break: keep-all;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #eef2f6;
+  color: #415267;
+  font-size: 9px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap th:first-child {
+  width: 140px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap th:nth-child(2) {
+  width: 54px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap th:nth-child(8) {
+  width: 135px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap th:last-child {
+  width: 230px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap th:last-child,
+#efficiencyTeamModal .bed-ash-discharge-table-wrap td:last-child {
+  border-right: 0;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-wrap tbody tr:hover {
+  background: #fbf8f3;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-time-cell > strong,
+#efficiencyTeamModal .bed-ash-discharge-estimated-cell > strong,
+#efficiencyTeamModal .bed-ash-discharge-reviewer-cell > strong {
+  display: block;
+  color: #354a61;
+  font-weight: 900;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-time-cell > small,
+#efficiencyTeamModal .bed-ash-discharge-estimated-cell > small,
+#efficiencyTeamModal .bed-ash-discharge-detected-cell > small,
+#efficiencyTeamModal .bed-ash-discharge-status-cell > small,
+#efficiencyTeamModal .bed-ash-discharge-reviewer-cell > small {
+  display: block;
+  margin-top: 3px;
+  color: #8794a4;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-unit-cell > span,
+#efficiencyTeamModal .bed-ash-discharge-auto-badge,
+#efficiencyTeamModal .bed-ash-discharge-status-badge {
+  display: inline-flex;
+  min-height: 21px;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-unit-cell > span.is-unit-1 {
+  border-color: #9dbbd8;
+  background: #edf5fc;
+  color: #2c6497;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-unit-cell > span.is-unit-2 {
+  border-color: #97c7bd;
+  background: #ecf8f5;
+  color: #267063;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-auto-badge {
+  border-color: #cbb28d;
+  background: #f5ede1;
+  color: #6f5330;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-status-badge.is-pending {
+  border-color: #e0bf79;
+  background: #fff7df;
+  color: #8a6217;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-status-badge.is-confirmed {
+  border-color: #8fc4ae;
+  background: #eaf7f1;
+  color: #216b55;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-status-badge.is-excluded {
+  border-color: #d6aaaa;
+  background: #fff0f0;
+  color: #a04646;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-state {
+  display: flex;
+  min-height: 100px;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  color: #7b899a;
+  font-size: 11px;
+  font-weight: 750;
+  text-align: center;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-state[hidden] {
+  display: none !important;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-table-state.is-loading::before {
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  border: 2px solid #d6c7af;
+  border-top-color: #785d38;
+  border-radius: 50%;
+  animation: bed-ash-discharge-spin 0.8s linear infinite;
+  content: "";
+}
+
+@keyframes bed-ash-discharge-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* JS에서 생성하는 효율팀 검토 조작 */
+
+#efficiencyTeamModal .bed-ash-discharge-review-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-review-controls {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(132px, 1fr) 68px;
+  align-items: end;
+  gap: 5px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-review-field {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  margin: 0;
+  text-align: left;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-review-field > span {
+  overflow: hidden;
+  color: #758397;
+  font-size: 8px;
+  font-weight: 850;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-review-field > input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 6px;
+  border: 1px solid #c8d3df;
+  border-radius: 6px;
+  outline: 0;
+  background: #ffffff;
+  color: #354a61;
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 750;
+  line-height: normal;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-review-field > input:focus {
+  border-color: #9b7b51;
+  box-shadow: 0 0 0 2px rgba(155, 123, 81, 0.14);
+}
+
+#efficiencyTeamModal .bed-ash-discharge-review-at {
+  min-width: 132px;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-review-ton {
+  min-width: 0;
+  text-align: right;
+}
+
+#efficiencyTeamModal
+  .bed-ash-discharge-review-field:has(.bed-ash-discharge-review-note),
+#efficiencyTeamModal .bed-ash-discharge-review-actions {
+  grid-column: 1 / -1;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-review-note {
+  min-width: 0;
+}
+
+#efficiencyTeamModal [data-bed-ash-review-action] {
+  min-height: 27px;
+  margin: 0;
+  padding: 0 7px;
+  border: 1px solid #c9d3de;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #455970;
+  font-size: 9px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+#efficiencyTeamModal [data-bed-ash-review-action="confirm"] {
+  border-color: #84b7a7;
+  background: #e9f7f2;
+  color: #216a58;
+}
+
+#efficiencyTeamModal [data-bed-ash-review-action="exclude"] {
+  border-color: #d7a4a4;
+  background: #fff1f1;
+  color: #a34242;
+}
+
+#efficiencyTeamModal [data-bed-ash-review-action]:disabled {
+  border-color: #d7dde4;
+  background: #eef1f4;
+  color: #8c98a6;
+  cursor: wait;
+  opacity: 0.72;
+}
+
+/* =========================================================
+  메인 오른쪽 알림 레일 · 넓은 PC 전용
+========================================================= */
+
+.bed-ash-discharge-main-alert {
+  display: none;
+}
+
+.bed-ash-discharge-main-alert[hidden] {
+  display: none !important;
+}
+
+.bed-ash-discharge-main-alert[data-bed-ash-mobile-client="true"] {
+  display: none !important;
+}
+
+@media screen and (min-width: 1840px) {
+  .main-notification-rail > .bed-ash-discharge-main-alert {
+    position: relative;
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    min-height: 58px;
+    box-sizing: border-box;
+    grid-template-columns: 25px minmax(0, 1fr);
+    align-items: center;
+    gap: 7px;
+    padding: 8px 9px;
+    border: 1px solid #c8ab7d;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #fffdf8, #f2e8d8);
+    color: #654b27;
+    text-align: left;
+    cursor: pointer;
+    box-shadow: 0 5px 16px rgba(112, 78, 35, 0.13);
+  }
+
+  .main-notification-rail > .bed-ash-discharge-main-alert:hover {
+    border-color: #ae8954;
+    transform: translateY(-1px);
+  }
+
+  .bed-ash-discharge-main-alert__mark {
+    display: inline-flex;
+    width: 25px;
+    height: 25px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #83643e;
+    color: #ffffff;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+  }
+
+  .bed-ash-discharge-main-alert__content {
+    display: block;
+    min-width: 0;
+    padding-right: 30px;
+  }
+
+  .bed-ash-discharge-main-alert__content small {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 8px;
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: 0.04em;
+  }
+
+  .bed-ash-discharge-main-alert__content strong {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 9px;
+    font-weight: 900;
+    line-height: 1.35;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  .bed-ash-discharge-main-alert__count {
+    position: absolute;
+    top: 6px;
+    right: 7px;
+    display: inline-flex;
+    min-width: 27px;
+    height: 18px;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5px;
+    border: 1px solid rgba(101, 75, 39, 0.22);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.75);
+    color: inherit;
+    font-size: 8px;
+    font-weight: 900;
+    line-height: 1;
+  }
+}
+
+/* =========================================================
+  좁은 효율팀 팝업
+========================================================= */
+
+@media screen and (max-width: 1100px) {
+  #efficiencyTeamModal .bed-ash-discharge-query-card {
+    grid-template-columns: auto minmax(280px, 1fr);
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-query-state {
+    grid-column: 1 / -1;
+    padding: 8px 0 0;
+    border-top: 1px solid #e0e6ee;
+    border-left: 0;
+  }
+}
+
+/* =========================================================
+  모바일 · 모니터링 전용
+========================================================= */
+
+@media screen and (max-width: 768px) {
+  #efficiencyTeamModal .efficiency-team-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  #efficiencyTeamModal
+    .efficiency-team-tabs
+    > .efficiency-morning-meeting-menu {
+    grid-column: span 2 !important;
+  }
+
+  #efficiencyTeamModal .efficiency-bed-ash-tab {
+    grid-template-columns: 16px minmax(0, 1fr) auto !important;
+  }
+
+  #efficiencyTeamModal .efficiency-team-tab__badge {
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 8px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-heading {
+    display: block !important;
+    min-height: 0 !important;
+    padding: 7px 9px !important;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-heading > div > span,
+  #efficiencyTeamModal .bed-ash-discharge-heading p,
+  #efficiencyTeamModal .bed-ash-discharge-refresh-button {
+    display: none !important;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-heading h3 {
+    font-size: 15px !important;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-dashboard {
+    gap: 7px;
+    padding: 7px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-query-card {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 7px;
+    padding: 7px;
+    border-radius: 9px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-period-buttons {
+    width: 100%;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-period-buttons button {
+    min-height: 33px;
+    padding: 0 7px;
+    font-size: 10px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation {
+    grid-template-columns: 34px minmax(0, 1fr) 45px 34px;
+    gap: 4px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation > button,
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation input {
+    height: 35px;
+    min-height: 35px;
+    padding: 0 5px;
+    border-radius: 7px;
+    font-size: 10px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation label > span {
+    display: none;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-query-state {
+    grid-column: auto;
+    padding: 6px 0 0;
+    border-top: 1px solid #e2e7ed;
+    border-left: 0;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-query-state strong {
+    font-size: 10px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-query-state p {
+    font-size: 9px;
+  }
+
+  #efficiencyTeamModal
+    #efficiencyBedAshDischargeView[data-bed-ash-mobile-client="true"]
+    .bed-ash-discharge-read-only-notice {
+    display: block !important;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-summary-card {
+    padding: 8px 9px;
+    border-radius: 8px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-summary-card > span,
+  #efficiencyTeamModal .bed-ash-discharge-summary-card > small {
+    font-size: 8px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-summary-card > strong {
+    margin-top: 2px;
+    font-size: 17px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-level-grid {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-level-card {
+    padding: 7px 9px;
+    border-radius: 8px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-level-card > div:first-child strong {
+    margin-top: 2px;
+    font-size: 10px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-level-card__value strong {
+    font-size: 16px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-events-card {
+    border-radius: 9px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-events-heading {
+    min-height: 45px;
+    padding: 6px 8px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-events-heading > div:first-child span {
+    display: none;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-events-heading h4 {
+    margin: 0;
+    font-size: 12px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-events-toolbar {
+    gap: 5px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-events-toolbar label > span {
+    display: none;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-events-toolbar select,
+  #efficiencyTeamModal .bed-ash-discharge-events-toolbar > strong {
+    height: 29px;
+    min-height: 29px;
+    font-size: 9px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-table-wrap table {
+    min-width: 790px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-table-wrap th,
+  #efficiencyTeamModal .bed-ash-discharge-table-wrap td {
+    padding: 6px 5px;
+    font-size: 8px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-unit-cell > span,
+  #efficiencyTeamModal .bed-ash-discharge-auto-badge,
+  #efficiencyTeamModal .bed-ash-discharge-status-badge {
+    min-height: 18px;
+    padding: 1px 5px;
+    font-size: 7px;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-table-wrap th:last-child,
+  #efficiencyTeamModal .bed-ash-discharge-table-wrap td:last-child {
+    display: none;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-table-state {
+    min-height: 74px;
+    padding: 12px;
+    font-size: 9px;
+  }
+
+  #efficiencyTeamModal [data-bed-ash-review-action],
+  #efficiencyTeamModal .bed-ash-discharge-review-actions,
+  #efficiencyTeamModal .bed-ash-discharge-actual-amount-input {
+    display: none !important;
+  }
+}
+
+#efficiencyTeamModal.is-mobile-monitor-only
+  #efficiencyBedAshDischargeView
+  .bed-ash-discharge-refresh-button,
+#efficiencyTeamModal.is-mobile-monitor-only
+  #efficiencyBedAshDischargeView
+  [data-bed-ash-review-action],
+#efficiencyTeamModal.is-mobile-monitor-only
+  #efficiencyBedAshDischargeView
+  .bed-ash-discharge-review-actions,
+#efficiencyTeamModal.is-mobile-monitor-only
+  #efficiencyBedAshDischargeView
+  .bed-ash-discharge-actual-amount-input {
+  display: none !important;
+}
+
+#efficiencyTeamModal
+  #efficiencyBedAshDischargeView[data-bed-ash-mobile-client="true"]
+  .bed-ash-discharge-refresh-button,
+#efficiencyTeamModal
+  #efficiencyBedAshDischargeView[data-bed-ash-mobile-client="true"]
+  [data-bed-ash-review-action],
+#efficiencyTeamModal
+  #efficiencyBedAshDischargeView[data-bed-ash-mobile-client="true"]
+  .bed-ash-discharge-review-actions,
+#efficiencyTeamModal
+  #efficiencyBedAshDischargeView[data-bed-ash-mobile-client="true"]
+  .bed-ash-discharge-actual-amount-input {
+  display: none !important;
+}
+
+@media print {
+  .bed-ash-discharge-main-alert {
+    display: none !important;
+  }
+}

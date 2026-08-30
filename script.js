@@ -88200,6 +88200,7 @@ function scheduleMemberFooterRefresh() {
   - morning-meeting
   - limestone
   - auxiliary-materials
+  - bed-ash-discharge
   - arm-roll
 
   동작:
@@ -88234,6 +88235,8 @@ function switchEfficiencyTeamView(
       "limestone",
 
       "auxiliary-materials",
+
+      "bed-ash-discharge",
 
       "arm-roll"
     ]);
@@ -88419,6 +88422,26 @@ function switchEfficiencyTeamView(
   ) {
     window
       .openEfficiencyMorningMeetingAutoHistoryView();
+  }
+
+
+  /*
+    Bed Ash 반출 화면은 선택될 때만
+    OIS 저장자료와 확인 이력을 읽는다.
+
+    모바일에서는 전용 모듈이 조회 전용으로 동작하며
+    신규 OIS 요청이나 확인 변경을 실행하지 않는다.
+  */
+
+  if (
+    selectedView ===
+      "bed-ash-discharge" &&
+    typeof window
+      .openBedAshDischargeView ===
+      "function"
+  ) {
+    window
+      .openBedAshDischargeView();
   }
 
 
@@ -238953,7 +238976,8 @@ function initialize() {
     "efficiencyMorningMeetingView",
     "efficiencyMorningMeetingAutoHistoryView",
     "efficiencyAuxiliaryMaterialsView",
-    "efficiencyLimestoneView"
+    "efficiencyLimestoneView",
+    "efficiencyBedAshDischargeView"
   ];
 
   const mutatingControlSelector = [
@@ -239002,7 +239026,12 @@ function initialize() {
     "#refreshLimestoneUsageReceiptButton",
     "#loadLimestoneUsageOisButton",
     "#runLimestoneUsageBatchButton",
-    "#limestoneUsageCalculatorView .limestone-usage-number-input input"
+    "#limestoneUsageCalculatorView .limestone-usage-number-input input",
+
+    /* Bed Ash 반출 */
+    "#refreshBedAshDischargeButton",
+    "#efficiencyBedAshDischargeView [data-bed-ash-review-action]",
+    "#efficiencyBedAshDischargeView [data-bed-ash-review-field]"
   ].join(",");
 
   const mutatingFormSelector = [
@@ -239017,7 +239046,8 @@ function initialize() {
     "#efficiencyMorningMeetingAutoHistoryView textarea",
     "#efficiencyAuxiliaryMaterialsView .auxiliary-material-value-input",
     "#efficiencyAuxiliaryMaterialsView .auxiliary-material-remarks-input",
-    "#limestoneUsageCalculatorView .limestone-usage-number-input input"
+    "#limestoneUsageCalculatorView .limestone-usage-number-input input",
+    "#efficiencyBedAshDischargeView [data-bed-ash-review-field]"
   ].join(",");
 
   function rememberDisabledState(element) {

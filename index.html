@@ -147,6 +147,10 @@
     rel="stylesheet"
     href="maintenance/maintenance-header.css?v=20260828-navigation-public-v1"
   >
+  <link
+    rel="stylesheet"
+    href="/efficiency/bed-ash-discharge.css?v=20260830-bed-ash-discharge-v1"
+  >
 
 
   <!-- =====================================================
@@ -184,7 +188,12 @@
 ></script>
 
 <script
-  src="script.js?v=20260828-navigation-public-v1"
+  src="script.js?v=20260830-bed-ash-discharge-v1"
+  defer
+></script>
+
+<script
+  src="/efficiency/bed-ash-discharge.js?v=20260830-bed-ash-discharge-v1"
   defer
 ></script>
 
@@ -1014,6 +1023,45 @@
       0건
     </span>
 
+  </button>
+
+  <!-- =================================================
+    Bed Ash 반출 미확인 알림
+
+    넓은 PC의 공용 알림 레일에서만 표시하며,
+    누르면 효율팀의 Bed Ash 반출 화면으로 이동한다.
+  ================================================== -->
+  <button
+    type="button"
+    class="bed-ash-discharge-main-alert"
+    id="bedAshDischargeMainAlert"
+    aria-label="확인이 필요한 Bed Ash 반출 내역 보기"
+    aria-live="polite"
+    hidden
+  >
+    <span
+      class="bed-ash-discharge-main-alert__mark"
+      aria-hidden="true"
+    >
+      BA
+    </span>
+
+    <span class="bed-ash-discharge-main-alert__content">
+      <small>
+        BED ASH 반출 확인
+      </small>
+
+      <strong id="bedAshDischargeMainAlertDetail">
+        효율팀 확인이 필요한 반출 내역이 있습니다.
+      </strong>
+    </span>
+
+    <span
+      class="bed-ash-discharge-main-alert__count"
+      id="bedAshDischargeMainAlertCount"
+    >
+      0건
+    </span>
   </button>
 
   </div>
@@ -4887,6 +4935,37 @@
 
     <span class="efficiency-team-tab__label">
       부재료
+    </span>
+  </button>
+
+  <!-- Bed Ash 반출 -->
+  <button
+    type="button"
+    class="efficiency-team-tab efficiency-bed-ash-tab"
+    id="efficiencyBedAshDischargeTab"
+    data-efficiency-tab="bed-ash-discharge"
+    role="tab"
+    aria-selected="false"
+    aria-controls="efficiencyBedAshDischargeView"
+  >
+    <span class="efficiency-team-tab__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <path d="M5 5h14l-1.5 15h-11z" />
+        <path d="M8 9h8M9 13h6M10 17h4" />
+      </svg>
+    </span>
+
+    <span class="efficiency-team-tab__label">
+      Bed Ash 반출
+    </span>
+
+    <span
+      class="efficiency-team-tab__badge"
+      id="efficiencyBedAshDischargeBadge"
+      aria-label="확인 대기 0건"
+      hidden
+    >
+      0
     </span>
   </button>
 
@@ -10352,6 +10431,253 @@
 
   </section>
 
+</article>
+
+<!-- =================================================
+  Bed Ash 반출 자동 감지 · 효율팀 확인
+================================================== -->
+<article
+  class="efficiency-team-view bed-ash-discharge-view"
+  id="efficiencyBedAshDischargeView"
+  data-efficiency-view="bed-ash-discharge"
+  role="tabpanel"
+  aria-labelledby="efficiencyBedAshDischargeTab"
+  hidden
+>
+  <header class="efficiency-team-view__heading bed-ash-discharge-heading">
+    <div>
+      <span>BED ASH DISCHARGE</span>
+      <h3>Bed Ash 반출</h3>
+      <p>
+        1·2호기 Silo 중량이 연속 구간에서 5.0t 이상 하락하면
+        반출 후보로 자동 감지합니다.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      class="secondary-button bed-ash-discharge-refresh-button"
+      id="refreshBedAshDischargeButton"
+    >
+      OIS 최신 조회
+    </button>
+  </header>
+
+  <div class="bed-ash-discharge-dashboard">
+    <section
+      class="bed-ash-discharge-query-card"
+      aria-label="Bed Ash 반출 조회 기간"
+    >
+      <div
+        class="bed-ash-discharge-period-buttons"
+        role="group"
+        aria-label="조회 단위"
+      >
+        <button
+          type="button"
+          id="bedAshDischargePeriodDaily"
+          data-bed-ash-period="daily"
+          aria-pressed="true"
+        >
+          일별
+        </button>
+
+        <button
+          type="button"
+          id="bedAshDischargePeriodWeekly"
+          data-bed-ash-period="weekly"
+          aria-pressed="false"
+        >
+          주별
+        </button>
+
+        <button
+          type="button"
+          id="bedAshDischargePeriodMonthly"
+          data-bed-ash-period="monthly"
+          aria-pressed="false"
+        >
+          월별
+        </button>
+      </div>
+
+      <div class="bed-ash-discharge-date-navigation">
+        <button
+          type="button"
+          id="bedAshDischargePreviousPeriodButton"
+          aria-label="이전 조회 기간"
+          title="이전 조회 기간"
+        >
+          ‹
+        </button>
+
+        <label for="bedAshDischargeAnchorDate">
+          <span>기준일</span>
+          <input
+            type="date"
+            id="bedAshDischargeAnchorDate"
+          />
+        </label>
+
+        <button
+          type="button"
+          id="bedAshDischargeTodayButton"
+        >
+          오늘
+        </button>
+
+        <button
+          type="button"
+          id="bedAshDischargeNextPeriodButton"
+          aria-label="다음 조회 기간"
+          title="다음 조회 기간"
+        >
+          ›
+        </button>
+      </div>
+
+      <div class="bed-ash-discharge-query-state">
+        <strong id="bedAshDischargeRangeLabel">
+          조회 기간을 계산하는 중입니다.
+        </strong>
+
+        <p
+          id="bedAshDischargeStatus"
+          role="status"
+          aria-live="polite"
+        >
+          저장된 Bed Ash Silo 자료를 불러옵니다.
+        </p>
+      </div>
+
+      <p
+        class="bed-ash-discharge-read-only-notice"
+        id="bedAshDischargeReadOnlyNotice"
+        hidden
+      >
+        모바일에서는 조회 결과만 확인할 수 있습니다.
+      </p>
+    </section>
+
+    <section
+      class="bed-ash-discharge-summary-grid"
+      aria-label="Bed Ash 반출 요약"
+    >
+      <article class="bed-ash-discharge-summary-card is-total">
+        <span>반출량 합계</span>
+        <strong id="bedAshDischargeTotalAmount">0.0t</strong>
+        <small>선택 기간 · 확인 완료</small>
+      </article>
+
+      <article class="bed-ash-discharge-summary-card is-unit-one">
+        <span>1호기 반출량</span>
+        <strong id="bedAshDischargeUnitOneAmount">0.0t</strong>
+        <small>확인 완료 합계</small>
+      </article>
+
+      <article class="bed-ash-discharge-summary-card is-unit-two">
+        <span>2호기 반출량</span>
+        <strong id="bedAshDischargeUnitTwoAmount">0.0t</strong>
+        <small>확인 완료 합계</small>
+      </article>
+
+      <article class="bed-ash-discharge-summary-card is-pending">
+        <span>확인 대기</span>
+        <strong id="bedAshDischargePendingCount">0건</strong>
+        <small>효율팀 확인 필요</small>
+      </article>
+    </section>
+
+    <section
+      class="bed-ash-discharge-level-grid"
+      aria-label="1·2호기 최신 Bed Ash Silo 중량"
+    >
+      <article class="bed-ash-discharge-level-card is-unit-one">
+        <div>
+          <span>UNIT 1 · WT-2011</span>
+          <strong>1호기 Bed Ash Silo</strong>
+        </div>
+
+        <div class="bed-ash-discharge-level-card__value">
+          <strong id="bedAshDischargeUnitOneLatestLevel">--.-t</strong>
+          <small id="bedAshDischargeUnitOneLatestAt">최신 자료 없음</small>
+        </div>
+      </article>
+
+      <article class="bed-ash-discharge-level-card is-unit-two">
+        <div>
+          <span>UNIT 2 · WT-2012</span>
+          <strong>2호기 Bed Ash Silo</strong>
+        </div>
+
+        <div class="bed-ash-discharge-level-card__value">
+          <strong id="bedAshDischargeUnitTwoLatestLevel">--.-t</strong>
+          <small id="bedAshDischargeUnitTwoLatestAt">최신 자료 없음</small>
+        </div>
+      </article>
+    </section>
+
+    <section class="bed-ash-discharge-events-card">
+      <header class="bed-ash-discharge-events-heading">
+        <div>
+          <span>DISCHARGE HISTORY</span>
+          <h4>반출 감지 · 확인 내역</h4>
+        </div>
+
+        <div class="bed-ash-discharge-events-toolbar">
+          <label for="bedAshDischargeStatusFilter">
+            <span>상태</span>
+            <select id="bedAshDischargeStatusFilter">
+              <option value="all">전체</option>
+              <option value="pending">확인 대기</option>
+              <option value="confirmed">반출 확인</option>
+              <option value="excluded">반출 제외</option>
+            </select>
+          </label>
+
+          <strong id="bedAshDischargeEventCount">0건</strong>
+        </div>
+      </header>
+
+      <div class="bed-ash-discharge-table-wrap">
+        <table aria-label="Bed Ash 반출 자동 감지 및 효율팀 확인 내역">
+          <thead>
+            <tr>
+              <th>반출 · 감지 시간</th>
+              <th>호기</th>
+              <th>감지 전</th>
+              <th>감지 후</th>
+              <th>추정 반출량</th>
+              <th>자동 감지</th>
+              <th>확인 상태</th>
+              <th>확인자 · 시각</th>
+              <th>효율팀 확인</th>
+            </tr>
+          </thead>
+
+          <tbody id="bedAshDischargeEventTableBody">
+          </tbody>
+        </table>
+
+        <div
+          class="bed-ash-discharge-table-state is-loading"
+          id="bedAshDischargeLoadingState"
+          role="status"
+          aria-live="polite"
+          hidden
+        >
+          Bed Ash Silo 자료와 반출 이력을 불러오는 중입니다.
+        </div>
+
+        <div
+          class="bed-ash-discharge-table-state is-empty"
+          id="bedAshDischargeEmptyState"
+        >
+          선택한 기간에 5.0t 이상 하락한 반출 후보가 없습니다.
+        </div>
+      </div>
+    </section>
+  </div>
 </article>
 
 <!-- =================================================

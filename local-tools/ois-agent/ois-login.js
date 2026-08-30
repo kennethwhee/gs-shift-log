@@ -514,6 +514,50 @@ const OIS_SILO_LEVEL_DEFINITIONS = [
   }
 ];
 
+
+/* =========================================================
+  효율팀 Bed Ash Silo 시간별 Level 조회 정의
+
+  조회 화면:
+  운영정보
+  → LOG SHEET
+  → TAG별 LOG 조회
+
+  대상:
+  - #1 UNIT BED ASH SILO WE WT-2011
+    104HDC01CW101XQ01
+
+  - #2 UNIT BED ASH SILO WE WT-2012
+    204HDC01CW101XQ01
+
+  결과에는 hd_01 ~ hd_24의 숫자값만 담는다.
+  반출 여부 판단은 업무일지 API에서 수행한다.
+========================================================= */
+
+const OIS_BED_ASH_LEVEL_DEFINITIONS = [
+  {
+    unitNo:
+      1,
+
+    tag:
+      "104HDC01CW101XQ01",
+
+    itemName:
+      "#1 UNIT BED ASH SILO WE WT-2011"
+  },
+
+  {
+    unitNo:
+      2,
+
+    tag:
+      "204HDC01CW101XQ01",
+
+    itemName:
+      "#2 UNIT BED ASH SILO WE WT-2012"
+  }
+];
+
 /* =========================================================
   오전회의 월간 일일DATA관리 Excel 조회 정의
 
@@ -3826,6 +3870,849 @@ async function collectOisSiloLevelValues(
 
 
   return await collectOisSiloLevelValuesUi(
+    page,
+    config,
+    targetDate
+  );
+}
+
+/* =========================================================
+  효율팀 Bed Ash Silo 시간별 Level 실제 조회
+
+  - 기존 Silo Level 수집기는 변경하지 않는다.
+  - Direct API는 이 요청에만 30초 AbortController를 둔다.
+  - Direct 응답이 없거나 올바르지 않으면 기존 TAG별 LOG
+    화면을 이용하는 UI 경로로 자동 전환한다.
+  - 반출 이벤트 판정은 에이전트에서 수행하지 않는다.
+========================================================= */
+
+function getOisBedAshRowDate(
+  row
+) {
+  return String(
+    row?.base_date ||
+    row?.schbase_date ||
+    row?.date ||
+    row?.work_date ||
+    ""
+  )
+    .replace(
+      /[^0-9]/g,
+      ""
+    )
+    .slice(
+      0,
+      8
+    );
+}
+
+
+function getOisBedAshRowTag(
+  row
+) {
+  return normalizeOisAgentText(
+    row?.tag_no ||
+    row?.tag ||
+    row?.tagno ||
+    ""
+  ).toUpperCase();
+}
+
+
+function getOisBedAshSamplesFromRow(
+  row,
+  targetDate
+) {
+  const samples = [];
+
+
+  const normalizedTargetDate =
+    normalizeOisAgentText(
+      targetDate
+    );
+
+
+  for (
+    let hour = 1;
+    hour <= 24;
+    hour += 1
+  ) {
+    const hourField =
+      `hd_${String(hour).padStart(2, "0")}`;
+
+
+    const levelTon =
+      parseOisAgentNumber(
+        row?.[hourField]
+      );
+
+
+    if (
+      levelTon ===
+        null ||
+      !Number.isFinite(
+        levelTon
+      )
+    ) {
+      continue;
+    }
+
+
+    samples.push({
+      hour,
+
+      sampledAt:
+        hour ===
+          24
+          ? `${addOisAgentDateDays(
+              normalizedTargetDate,
+              1
+            )}T00:00:00+09:00`
+          : `${normalizedTargetDate}T${String(hour).padStart(2, "0")}:00:00+09:00`,
+
+      levelTon
+    });
+  }
+
+
+  return samples;
+}
+
+
+function findOisBedAshTargetRow(
+  rows,
+  targetTag,
+  compactTargetDate,
+  allowMissingTag =
+    false
+) {
+  const normalizedTargetTag =
+    normalizeOisAgentText(
+      targetTag
+    ).toUpperCase();
+
+
+  const targetDate =
+    compactTargetDate.replace(
+      /^(\d{4})(\d{2})(\d{2})$/,
+      "$1-$2-$3"
+    );
+
+
+  return (
+    rows.find(
+      row => {
+        const rowTag =
+          getOisBedAshRowTag(
+            row
+          );
+
+
+        if (
+          rowTag
+            ? rowTag !==
+              normalizedTargetTag
+            : !allowMissingTag
+        ) {
+          return false;
+        }
+
+
+        const rowDate =
+          getOisBedAshRowDate(
+            row
+          );
+
+
+        if (
+          rowDate &&
+          rowDate !==
+            compactTargetDate
+        ) {
+          return false;
+        }
+
+
+        return (
+          getOisBedAshSamplesFromRow(
+            row,
+            targetDate
+          ).length >
+            0
+        );
+      }
+    ) ||
+    null
+  );
+}
+
+
+async function requestOisBedAshTagLogDirect(
+  page,
+  targetTag,
+  compactTargetDate
+) {
+  const requestResult =
+    await page.evaluate(
+      async (
+        {
+          targetTag,
+          compactTargetDate,
+          timeoutMilliseconds
+        }
+      ) => {
+        const parameters =
+          new URLSearchParams();
+
+
+        parameters.set(
+          "tossdata",
+          JSON.stringify({
+            select: [
+              {
+                schepow_stat_code:
+                  "8000",
+
+                outtime:
+                  "1",
+
+                tag_no:
+                  targetTag,
+
+                startdate:
+                  compactTargetDate,
+
+                enddate:
+                  compactTargetDate,
+
+                rowstatus:
+                  "C"
+              }
+            ]
+          })
+        );
+
+
+        parameters.set(
+          "cmd",
+          "oi.LogSheetService.listTagLog"
+        );
+
+
+        const abortController =
+          new AbortController();
+
+
+        const timeoutId =
+          setTimeout(
+            () => {
+              abortController.abort();
+            },
+
+            timeoutMilliseconds
+          );
+
+
+        try {
+          const response =
+            await fetch(
+              "/ajax/data",
+              {
+                method:
+                  "POST",
+
+                headers: {
+                  Accept:
+                    "application/json, text/javascript, */*; q=0.01",
+
+                  "Content-Type":
+                    "application/x-www-form-urlencoded; charset=UTF-8",
+
+                  "X-Requested-With":
+                    "XMLHttpRequest"
+                },
+
+                credentials:
+                  "same-origin",
+
+                cache:
+                  "no-store",
+
+                signal:
+                  abortController.signal,
+
+                body:
+                  parameters.toString()
+              }
+            );
+
+
+          const responseText =
+            await response.text();
+
+
+          return {
+            ok:
+              response.ok,
+
+            status:
+              response.status,
+
+            responseText
+          };
+
+        } finally {
+          clearTimeout(
+            timeoutId
+          );
+        }
+      },
+
+      {
+        targetTag,
+        compactTargetDate,
+        timeoutMilliseconds:
+          30000
+      }
+    );
+
+
+  if (
+    !requestResult?.ok
+  ) {
+    throw new Error(
+      `Bed Ash OIS 내부 API 요청 실패 (HTTP ${requestResult?.status || 0})`
+    );
+  }
+
+
+  const responseText =
+    String(
+      requestResult.responseText ||
+      ""
+    ).trim();
+
+
+  if (
+    !responseText
+  ) {
+    throw new Error(
+      `Bed Ash Direct API 응답이 비어 있습니다: ${targetTag}`
+    );
+  }
+
+
+  try {
+    return JSON.parse(
+      responseText
+    );
+
+  } catch {
+    throw new Error(
+      `Bed Ash Direct API 응답이 JSON 형식이 아닙니다: ${targetTag}`
+    );
+  }
+}
+
+
+function buildOisBedAshUnitResult(
+  definition,
+  row,
+  targetDate
+) {
+  const samples =
+    getOisBedAshSamplesFromRow(
+      row,
+      targetDate
+    );
+
+
+  if (
+    samples.length ===
+      0
+  ) {
+    throw new Error(
+      `Bed Ash 시간별 값이 없습니다: ${definition.tag}`
+    );
+  }
+
+
+  return {
+    unitNo:
+      definition.unitNo,
+
+    tag:
+      definition.tag,
+
+    tagNumber:
+      definition.tag,
+
+    itemName:
+      normalizeOisAgentText(
+        row?.tag_name ||
+        row?.tag_name_kor ||
+        row?.mid_name ||
+        definition.itemName
+      ) ||
+      definition.itemName,
+
+    unit:
+      "t",
+
+    samples,
+
+    sampleCount:
+      samples.length
+  };
+}
+
+
+function buildOisBedAshResult(
+  source,
+  targetDate,
+  units
+) {
+  return {
+    source,
+
+    targetDate,
+
+    thresholdTon:
+      5,
+
+    units,
+
+    collectedAt:
+      new Date()
+        .toISOString()
+  };
+}
+
+
+async function collectOisBedAshLevelValuesDirect(
+  page,
+  targetDate
+) {
+  const compactTargetDate =
+    targetDate.replace(
+      /-/g,
+      ""
+    );
+
+
+  const units = [];
+
+
+  for (
+    const definition of
+      OIS_BED_ASH_LEVEL_DEFINITIONS
+  ) {
+    const responseData =
+      await requestOisBedAshTagLogDirect(
+        page,
+        definition.tag,
+        compactTargetDate
+      );
+
+
+    const rows =
+      Array.isArray(
+        responseData?.result
+      )
+        ? responseData.result
+        : [];
+
+
+    const targetRow =
+      findOisBedAshTargetRow(
+        rows,
+        definition.tag,
+        compactTargetDate,
+        true
+      );
+
+
+    if (
+      !targetRow
+    ) {
+      throw new Error(
+        `Bed Ash Direct API 행이 없습니다: ${definition.tag}`
+      );
+    }
+
+
+    units.push(
+      buildOisBedAshUnitResult(
+        definition,
+        targetRow,
+        targetDate
+      )
+    );
+  }
+
+
+  return buildOisBedAshResult(
+    "OIS TAG Log Direct API",
+    targetDate,
+    units
+  );
+}
+
+
+async function captureOisBedAshHourlySamplesFromApi(
+  page,
+  definition,
+  targetDate,
+  triggerSearch
+) {
+  const normalizedTargetTag =
+    definition.tag.toUpperCase();
+
+
+  const compactTargetDate =
+    targetDate.replace(
+      /-/g,
+      ""
+    );
+
+
+  return await new Promise(
+    (
+      resolve,
+      reject
+    ) => {
+      let isSettled =
+        false;
+
+
+      let timeoutId =
+        null;
+
+
+      const cleanup = () => {
+        if (
+          timeoutId
+        ) {
+          clearTimeout(
+            timeoutId
+          );
+
+
+          timeoutId =
+            null;
+        }
+
+
+        page.off(
+          "response",
+          handleResponse
+        );
+      };
+
+
+      const finishResolve =
+        value => {
+          if (
+            isSettled
+          ) {
+            return;
+          }
+
+
+          isSettled =
+            true;
+
+
+          cleanup();
+
+
+          resolve(
+            value
+          );
+        };
+
+
+      const finishReject =
+        error => {
+          if (
+            isSettled
+          ) {
+            return;
+          }
+
+
+          isSettled =
+            true;
+
+
+          cleanup();
+
+
+          reject(
+            error
+          );
+        };
+
+
+      const handleResponse =
+        async response => {
+          try {
+            const responseUrl =
+              String(
+                response.url() ||
+                ""
+              );
+
+
+            const request =
+              response.request();
+
+
+            if (
+              !responseUrl.includes(
+                "/ajax/data"
+              ) ||
+              String(
+                request.method() ||
+                ""
+              ).toUpperCase() !==
+                "POST"
+            ) {
+              return;
+            }
+
+
+            const requestBody =
+              String(
+                request.postData() ||
+                ""
+              ).toUpperCase();
+
+
+            const responseText =
+              await response.text();
+
+
+            if (
+              !responseText.trim()
+            ) {
+              return;
+            }
+
+
+            let responseData;
+
+
+            try {
+              responseData =
+                JSON.parse(
+                  responseText
+                );
+
+            } catch {
+              return;
+            }
+
+
+            const rows =
+              Array.isArray(
+                responseData?.result
+              )
+                ? responseData.result
+                : [];
+
+
+            const responseContainsTag =
+              responseText
+                .toUpperCase()
+                .includes(
+                  normalizedTargetTag
+                );
+
+
+            const requestContainsTag =
+              requestBody.includes(
+                normalizedTargetTag
+              );
+
+
+            const targetRow =
+              findOisBedAshTargetRow(
+                rows,
+                definition.tag,
+                compactTargetDate,
+                requestContainsTag ||
+                  responseContainsTag
+              );
+
+
+            if (
+              !targetRow
+            ) {
+              return;
+            }
+
+
+            finishResolve(
+              buildOisBedAshUnitResult(
+                definition,
+                targetRow,
+                targetDate
+              )
+            );
+
+          } catch (
+            error
+          ) {
+            finishReject(
+              error
+            );
+          }
+        };
+
+
+      page.on(
+        "response",
+        handleResponse
+      );
+
+
+      timeoutId =
+        setTimeout(
+          () => {
+            finishReject(
+              new Error(
+                `${definition.tag}의 ${targetDate} 시간별 Bed Ash 값을 읽지 못했습니다.`
+              )
+            );
+          },
+
+          OIS_QUERY_TIMEOUT
+        );
+
+
+      Promise.resolve()
+        .then(
+          triggerSearch
+        )
+        .catch(
+          finishReject
+        );
+    }
+  );
+}
+
+
+async function collectOisBedAshLevelValuesUi(
+  page,
+  config,
+  targetDate
+) {
+  await ensureOisAgentLoggedIn(
+    page,
+    config
+  );
+
+
+  const units = [];
+
+
+  for (
+    const definition of
+      OIS_BED_ASH_LEVEL_DEFINITIONS
+  ) {
+    let frame =
+      await openOisTagLogLookup(
+        page
+      );
+
+
+    await setOisTagLogSearchConditions(
+      frame,
+      definition.tag,
+      targetDate
+    );
+
+
+    await page.waitForTimeout(
+      200
+    );
+
+
+    frame =
+      await findOisTagLogFrame(
+        page,
+        3000
+      ) ||
+      frame;
+
+
+    units.push(
+      await captureOisBedAshHourlySamplesFromApi(
+        page,
+        definition,
+        targetDate,
+
+        async () => {
+          await clickOisLogSheetSearchButton(
+            frame
+          );
+        }
+      )
+    );
+  }
+
+
+  return buildOisBedAshResult(
+    "OIS TAG별 LOG 조회",
+    targetDate,
+    units
+  );
+}
+
+
+async function collectOisBedAshLevelValues(
+  page,
+  config,
+  targetDate
+) {
+  if (
+    !isValidOisAgentDate(
+      targetDate
+    )
+  ) {
+    throw new Error(
+      "Bed Ash Level 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+
+  await ensureOisAgentLoggedIn(
+    page,
+    config
+  );
+
+
+  try {
+    return await collectOisBedAshLevelValuesDirect(
+      page,
+      targetDate
+    );
+
+  } catch (
+    directError
+  ) {
+    console.warn(
+      "Bed Ash Direct API failed; using UI fallback:",
+      directError instanceof
+        Error
+        ? directError.message
+        : directError
+    );
+  }
+
+
+  return await collectOisBedAshLevelValuesUi(
     page,
     config,
     targetDate
@@ -9150,6 +10037,7 @@ async function collectOisLegacyLogApprovalValues(
   - auxiliary_materials
   - turbine_gear_pinion
   - silo_level
+  - bed_ash_level
   - daily_data_excel
   - steam_status
   - logsheet_approval
@@ -9160,7 +10048,7 @@ async function collectOisLegacyLogApprovalValues(
   steam_status:
   - 배포 전 생성된 기존 요청 호환용
 
-  여덟 요청 유형을 번갈아 확인한다.
+  지원 요청 유형을 번갈아 확인한다.
 ========================================================= */
 
 async function getNextOisAgentRequest(
@@ -9178,6 +10066,7 @@ async function getNextOisAgentRequest(
     "limestone_stock",
     "turbine_gear_pinion",
     "silo_level",
+    "bed_ash_level",
     "daily_data_excel",
     "steam_status"
   ];
@@ -9377,6 +10266,7 @@ async function getNextOisAgentLaneRequests(
     "limestone_stock",
     "turbine_gear_pinion",
     "silo_level",
+    "bed_ash_level",
     "auxiliary_materials",
     "logsheet_approval"
   ];
@@ -9788,6 +10678,14 @@ if (
       "silo_level"
   ) {
     return "Silo Level";
+  }
+
+
+  if (
+    requestType ===
+      "bed_ash_level"
+  ) {
+    return "Bed Ash 반출";
   }
 
 
@@ -14258,6 +15156,18 @@ if (
   }
 
 
+  if (
+    requestType ===
+      "bed_ash_level"
+  ) {
+    return await collectOisBedAshLevelValues(
+      page,
+      config,
+      targetDate
+    );
+  }
+
+
 
   if (
     requestType ===
@@ -14434,6 +15344,59 @@ function printOisAgentRequestResult(
       "Bio Storage 단위":
         result.bioStorageUnit
     });
+
+
+    return;
+  }
+
+
+  if (
+    requestType ===
+      "bed_ash_level"
+  ) {
+    console.table(
+      Array.isArray(
+        result.units
+      )
+        ? result.units.map(
+            unitResult => {
+              const samples =
+                Array.isArray(
+                  unitResult.samples
+                )
+                  ? unitResult.samples
+                  : [];
+
+
+              const latestSample =
+                samples.at(
+                  -1
+                ) ||
+                null;
+
+
+              return {
+                "호기":
+                  unitResult.unitNo,
+
+                "TAG":
+                  unitResult.tag,
+
+                "수집 건수":
+                  unitResult.sampleCount,
+
+                "최종 시각":
+                  latestSample?.sampledAt ||
+                  "",
+
+                "최종 Level(t)":
+                  latestSample?.levelTon ??
+                  ""
+              };
+            }
+          )
+        : []
+    );
 
 
     return;
