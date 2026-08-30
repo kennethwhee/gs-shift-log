@@ -7,7 +7,7 @@ const childProcess = require("child_process");
 
 const repositoryPath = path.resolve(process.argv[2] || process.cwd());
 const navigationCacheVersion = "20260828-navigation-public-v1";
-const blowerCacheVersion = "20260830-runtime-pause-public-navigation-v10";
+const blowerCacheVersion = "20260830-initial-state-public-navigation-v92";
 
 function read(relativePath) {
   return fs
@@ -218,6 +218,16 @@ for (const token of [
   "operation_start",
   "operation_stop",
   "expectedCycleRuntimeRevision",
+  "serverClockOffsetMs",
+  "currentServerDate",
+  "serverGeneratedAt - Date.now()",
+  "kstDateTimeInputToIso",
+  "+09:00",
+  "실제 정지일시 (한국시간)",
+  "실제 재기동일시 (한국시간)",
+  "recordDate.max",
+  "latestExplicitRuntimeBoundary",
+  "initialCycleCorrection",
   "assetManagerButton.hidden = !hasAuthenticatedWriteAccess()",
   'method !== "GET" && !hasAuthenticatedWriteAccess()'
 ]) {
@@ -289,7 +299,18 @@ for (const token of [
   "initializeCycleRuntimeTracking",
   "cycleRuntimeHoursAt",
   "changeRuntimeState",
-  "expectedCycleRuntimeRevision"
+  "expectedCycleRuntimeRevision",
+  "loadLatestExplicitRuntimeBoundary",
+  "initialCycleCorrection",
+  "INITIAL_CYCLE_CORRECTION_NOT_ALLOWED",
+  "INITIAL_CYCLE_CORRECTION_REQUIRED",
+  "historicalInitialStop",
+  "cycleStartRevision",
+  "runtime_correction",
+  "교체 전 정지 지속",
+  "초기 정지시각 정정",
+  "ensureHistoryRecoveryV12ArchiveCycleSchema",
+  "__blowerHistoryTest"
 ]) {
   assert(
     blowerApi.includes(token),
@@ -313,6 +334,10 @@ assertMutationAuthentication(
   blowerApi,
   "onRequestPost",
   "getAuthenticatedUser(context)"
+);
+assert(
+  !blowerPageJs.includes("toISOString().slice(0, 16)"),
+  "Blower frontend must not copy a UTC ISO value directly into datetime-local."
 );
 
 assert(
@@ -383,7 +408,7 @@ assert(
     blowerPageHtml.includes('id="replacementStartupAt"') &&
     blowerPageHtml.includes('id="runtimeCycleSummary"') &&
     blowerPageHtml.includes('data-shift-log-return'),
-  "Blower runtime-pause/public-navigation HTML integration is incomplete."
+  "Blower initial-state/KST/public-navigation HTML integration is incomplete."
 );
 
 console.log("Same-tab public-pages V3 verification passed.");
