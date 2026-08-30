@@ -15,7 +15,8 @@
     busy: false,
     backfillRunning: false,
     auditRunning: false,
-    assetManagerAutoName: true
+    assetManagerAutoName: true,
+    serverClockOffsetMs: 0
   };
 
   const elements = {};
@@ -415,7 +416,11 @@
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
   }
 
-  function formatKstDateInput(date = new Date()) {
+  function currentServerDate() {
+    return new Date(Date.now() + Number(state.serverClockOffsetMs || 0));
+  }
+
+  function formatKstDateInput(date = currentServerDate()) {
     const parts = new Intl.DateTimeFormat("ko-KR", {
       timeZone: "Asia/Seoul",
       year: "numeric",
@@ -430,7 +435,7 @@
     return `${values.year}-${values.month}-${values.day}`;
   }
 
-  function formatKstDateTimeInput(date = new Date()) {
+  function formatKstDateTimeInput(date = currentServerDate()) {
     const parts = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Seoul",
       year: "numeric",
@@ -444,6 +449,13 @@
       parts.filter(part => part.type !== "literal").map(part => [part.type, part.value])
     );
     return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+  }
+
+  function kstDateTimeInputToIso(value) {
+    const text = String(value || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(text)) return "";
+    const parsed = new Date(`${text.length === 16 ? `${text}:00` : text}+09:00`);
+    return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
   }
 
   function formatKstDateTimeDisplay(value) {
@@ -1674,6 +1686,10 @@
 
     try {
       const data = await apiRequest();
+      const serverGeneratedAt = Date.parse(data?.generatedAt || "");
+      state.serverClockOffsetMs = Number.isFinite(serverGeneratedAt)
+        ? serverGeneratedAt - Date.now()
+        : 0;
       state.data = data;
       elements.authNotice.hidden = true;
 
@@ -1719,6 +1735,17 @@
 
   function findAsset(tag) {
     return (state.data?.assets || []).find(asset => asset.tagNumber === tag) || null;
+  }
+
+  function latestExplicitRuntimeBoundary(asset) {
+    const replacementAt = new Date(asset?.lastReplacementAt);
+    const events = getAssetEvents(asset?.tagNumber)
+      .filter(event => ["operation_start", "operation_stop", "runtime_correction"].includes(event.eventType))
+      .map(event => ({ event, parsed: new Date(event.eventDate) }))
+      .filter(item => !Number.isNaN(item.parsed.getTime()))
+      .filter(item => Number.isNaN(replacementAt.getTime()) || item.parsed >= replacementAt)
+      .sort((left, right) => right.parsed.getTime() - left.parsed.getTime());
+    return events[0]?.parsed || null;
   }
 
   function resetRecordDialogVisibility() {
@@ -1774,10 +1801,14 @@
       elements.recordDateLabel.textContent = "실제 기동일시";
       elements.recordDate.type = "datetime-local";
       elements.recordDate.value = formatKstDateTimeInput();
-      const lastBoundaryAt = new Date(asset.cycleRuntimeAnchorAt);
-      elements.recordDate.min = Number.isNaN(lastBoundaryAt.getTime())
+      const replacementAt = new Date(asset.lastReplacementAt);
+      const runtimeAnchorAt = new Date(asset.cycleRuntimeAnchorAt);
+      const minimumStartupAt = [replacementAt, runtimeAnchorAt]
+        .filter(value => !Number.isNaN(value.getTime()))
+        .sort((left, right) => right.getTime() - left.getTime())[0];
+      elements.recordDate.min = !minimumStartupAt
         ? ""
-        : formatKstDateTimeInput(lastBoundaryAt);
+        : formatKstDateTimeInput(minimumStartupAt);
       elements.recordDate.max = formatKstDateTimeInput();
       elements.issueTypeField.hidden = true;
       elements.actionTypeField.hidden = true;
@@ -1805,11 +1836,23 @@
 
     if (mode === "runtime_state") {
       const targetRunning = candidate?.targetState === "running";
+      const explicitBoundary = latestExplicitRuntimeBoundary(asset);
+      const replacementAt = new Date(asset.lastReplacementAt);
+      const startedAt = new Date(asset.cycleStartedAt);
+      const minimumAt = explicitBoundary || (
+        targetRunning
+          ? new Date(asset.cycleRuntimeAnchorAt)
+          : (String(asset.cycleStartState || "legacy") === "started" ? startedAt : null)
+      );
       elements.recordDialogEyebrow.textContent = targetRunning ? "OPERATION START" : "OPERATION STOP";
       elements.recordDialogTitle.textContent = targetRunning ? "재기동 등록" : "정지 등록";
-      elements.recordDateLabel.textContent = targetRunning ? "실제 재기동일시" : "실제 정지일시";
+      elements.recordDateLabel.textContent = targetRunning ? "실제 재기동일시 (한국시간)" : "실제 정지일시 (한국시간)";
       elements.recordDate.type = "datetime-local";
       elements.recordDate.value = formatKstDateTimeInput();
+      elements.recordDate.min = minimumAt && !Number.isNaN(minimumAt.getTime())
+        ? formatKstDateTimeInput(minimumAt)
+        : "";
+      elements.recordDate.max = formatKstDateTimeInput();
       elements.issueTypeField.hidden = true;
       elements.actionTypeField.hidden = true;
       elements.runtimeStateField.hidden = true;
@@ -1821,6 +1864,14 @@
         <small>${targetRunning
           ? "등록한 시각부터 정지 전 누적시간에 이어서 계산합니다."
           : "등록한 시각에 Cycle 경과·D-day·사용률·알림을 모두 고정합니다."}</small>
+        <small>모든 입력·표시는 한국시간(KST) 기준입니다.</small>
+        ${!targetRunning && String(asset.cycleStartState || "legacy") === "legacy" && !explicitBoundary
+          ? `<small>최근 교체 전부터 정지였다면 실제 정지시각을 그대로 입력하세요. 현재 Cycle은 기동 대기·0시간으로 바로잡습니다.</small>`
+          : minimumAt && !Number.isNaN(minimumAt.getTime())
+            ? `<small>입력 가능: ${escapeHtml(formatKstDateTimeDisplay(minimumAt))} 이후</small>`
+            : !Number.isNaN(replacementAt.getTime())
+              ? `<small>최근 교체: ${escapeHtml(formatKstDateTimeDisplay(replacementAt))}</small>`
+              : ""}
       `;
     }
 
@@ -2099,7 +2150,7 @@
           issueType: elements.issueType.value,
           actionType: "V-Belt 교체",
           startImmediately: elements.replacementRunning.checked,
-          startupAt: elements.replacementRunning.checked ? elements.replacementStartupAt.value : "",
+          startupAt: elements.replacementRunning.checked ? kstDateTimeInputToIso(elements.replacementStartupAt.value) : "",
           note: elements.recordNote.value
         };
       } else if (mode === "startup") {
@@ -2107,7 +2158,7 @@
         body = {
           action: "startup",
           tagNumber,
-          eventDate: elements.recordDate.value,
+          eventDate: kstDateTimeInputToIso(elements.recordDate.value),
           expectedLastReplacementAt: asset?.lastReplacementAt || "",
           note: elements.recordNote.value
         };
@@ -2130,12 +2181,31 @@
           note: elements.recordNote.value
         };
       } else if (mode === "runtime_state") {
+        const asset = findAsset(tagNumber);
+        const targetRunning = elements.runtimeState.value === "running";
+        const eventDate = kstDateTimeInputToIso(elements.recordDate.value);
+        const eventAt = new Date(eventDate);
+        const replacementAt = new Date(asset?.lastReplacementAt);
+        const beforeReplacement = !targetRunning &&
+          !Number.isNaN(eventAt.getTime()) &&
+          !Number.isNaN(replacementAt.getTime()) &&
+          eventAt < replacementAt;
+        let initialCycleCorrection = false;
+
+        if (beforeReplacement) {
+          initialCycleCorrection = window.confirm(
+            "입력한 정지시각은 최근 V-Belt 교체 전입니다.\n\n교체 당시 이미 정지 중이었던 것으로 반영하면 현재 V-Belt Cycle은 기동 대기·누적 0시간이 됩니다. 계속할까요?"
+          );
+          if (!initialCycleCorrection) return;
+        }
+
         body = {
           action: "runtime_state",
           tagNumber,
-          eventDate: elements.recordDate.value,
-          isRunning: elements.runtimeState.value === "running",
-          expectedCycleRuntimeRevision: findAsset(tagNumber)?.cycleRuntimeRevision || "",
+          eventDate,
+          isRunning: targetRunning,
+          initialCycleCorrection,
+          expectedCycleRuntimeRevision: asset?.cycleRuntimeRevision || "",
           note: elements.recordNote.value
         };
       } else if (mode === "candidate") {
@@ -2147,7 +2217,7 @@
           issueType: elements.issueType.value,
           actionType: elements.actionType.value,
           startImmediately: elements.replacementRunning.checked,
-          startupAt: elements.replacementRunning.checked ? elements.replacementStartupAt.value : "",
+          startupAt: elements.replacementRunning.checked ? kstDateTimeInputToIso(elements.replacementStartupAt.value) : "",
           note: elements.recordNote.value
         };
       } else {

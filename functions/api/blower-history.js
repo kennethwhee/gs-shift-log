@@ -2709,6 +2709,24 @@ async function registerProblem(database, user, body, source = {}) {
   });
 }
 
+async function loadLatestExplicitRuntimeBoundary(database, asset) {
+  const lastReplacementAt = normalizeText(asset?.last_replacement_at);
+  if (!lastReplacementAt) return null;
+
+  return database
+    .prepare(`
+      SELECT id, event_type, event_date, runtime_hours, action_type, created_at
+      FROM blower_history_events
+      WHERE tag_number = ?
+        AND event_type IN ('operation_start', 'operation_stop', 'runtime_correction')
+        AND datetime(event_date) >= datetime(?)
+      ORDER BY datetime(event_date) DESC, created_at DESC, id DESC
+      LIMIT 1
+    `)
+    .bind(asset.tag_number, lastReplacementAt)
+    .first();
+}
+
 async function changeRuntimeState(database, user, body) {
   const tagNumber = normalizeText(body.tagNumber).toUpperCase();
   const asset = await findAsset(database, tagNumber);
@@ -2726,6 +2744,8 @@ async function changeRuntimeState(database, user, body) {
   }
 
   const storedCycleHours = Number(asset.cycle_runtime_hours);
+  const cycleStartState = normalizeText(asset.cycle_start_state) || "legacy";
+  const cycleStartRevision = normalizeText(asset.cycle_start_revision);
   const currentState = normalizeText(asset.cycle_runtime_state);
   const currentRevision = normalizeText(asset.cycle_runtime_revision);
   const expectedRevision = normalizeText(body.expectedCycleRuntimeRevision);
@@ -2762,36 +2782,110 @@ async function changeRuntimeState(database, user, body) {
   const eventAt = new Date(eventDate);
   const anchorAt = new Date(asset.cycle_runtime_anchor_at);
   const replacementAt = new Date(asset.last_replacement_at);
+  const cycleStartedAt = new Date(
+    cycleStartState === "started"
+      ? (normalizeText(asset.cycle_started_at) || asset.last_replacement_at)
+      : asset.last_replacement_at
+  );
   const futureLimit = new Date(Date.now() + 5 * 60000);
 
   if (Number.isNaN(eventAt.getTime()) || eventAt > futureLimit) {
     return jsonResponse({ ok: false, message: "상태 변경일시는 현재 이후로 등록할 수 없습니다." }, 400);
   }
 
-  if (!Number.isNaN(replacementAt.getTime()) && eventAt < replacementAt) {
-    return jsonResponse({ ok: false, message: "상태 변경일시는 최근 V-Belt 교체일보다 빠를 수 없습니다." }, 400);
+  const latestBoundary = await loadLatestExplicitRuntimeBoundary(database, asset);
+  const latestBoundaryAt = new Date(latestBoundary?.event_date);
+  const hasExplicitBoundary = Boolean(latestBoundary) && !Number.isNaN(latestBoundaryAt.getTime());
+  const beforeReplacement = !Number.isNaN(replacementAt.getTime()) && eventAt < replacementAt;
+  const initialCycleCorrection = body.initialCycleCorrection === true;
+  const canRestorePreReplacementStop = (
+    beforeReplacement &&
+    targetState === "stopped" &&
+    initialCycleCorrection &&
+    cycleStartState === "legacy" &&
+    !hasExplicitBoundary
+  );
+
+  if (initialCycleCorrection && !canRestorePreReplacementStop) {
+    return jsonResponse({
+      ok: false,
+      code: "INITIAL_CYCLE_CORRECTION_NOT_ALLOWED",
+      message: "현재 Cycle에는 이미 기동·정지 또는 누적시간 보정 이력이 있어 교체 후 미기동 상태로 정정할 수 없습니다."
+    }, 409);
   }
 
-  if (!Number.isNaN(anchorAt.getTime()) && eventAt < anchorAt) {
-    return jsonResponse({ ok: false, message: "상태 변경일시는 직전 기동·정지 시각보다 빠를 수 없습니다." }, 400);
+  if (beforeReplacement && !canRestorePreReplacementStop) {
+    return jsonResponse({
+      ok: false,
+      code: targetState === "stopped" ? "INITIAL_CYCLE_CORRECTION_REQUIRED" : "PRE_REPLACEMENT_RUNTIME_STATE",
+      message: targetState === "stopped"
+        ? "이 정지는 최근 교체 전입니다. 교체 당시 이미 정지 중이었다면 기동 대기 상태로 정정해 주세요."
+        : "상태 변경일시는 최근 V-Belt 교체일보다 빠를 수 없습니다."
+    }, targetState === "stopped" ? 409 : 400);
   }
 
-  const elapsedHours = cycleRuntimeHoursAt(asset, eventAt);
+  const minimumBoundaryAt = hasExplicitBoundary ? latestBoundaryAt : cycleStartedAt;
+  if (
+    !canRestorePreReplacementStop &&
+    !Number.isNaN(minimumBoundaryAt.getTime()) &&
+    eventAt < minimumBoundaryAt
+  ) {
+    return jsonResponse({
+      ok: false,
+      message: hasExplicitBoundary
+        ? "상태 변경일시는 직전 기동·정지 시각보다 빠를 수 없습니다."
+        : "상태 변경일시는 현재 V-Belt Cycle 시작 시각보다 빠를 수 없습니다."
+    }, 400);
+  }
+
+  const historicalInitialStop = (
+    targetState === "stopped" &&
+    !canRestorePreReplacementStop &&
+    !Number.isNaN(anchorAt.getTime()) &&
+    eventAt < anchorAt
+  );
+  let elapsedHours;
+
+  if (canRestorePreReplacementStop) {
+    elapsedHours = 0;
+  } else if (historicalInitialStop) {
+    const boundaryHours = hasExplicitBoundary ? Number(latestBoundary.runtime_hours) : 0;
+    const boundaryAt = hasExplicitBoundary ? latestBoundaryAt : cycleStartedAt;
+    elapsedHours = Number.isFinite(boundaryHours) && !Number.isNaN(boundaryAt.getTime())
+      ? Math.max(0, boundaryHours + ((eventAt.getTime() - boundaryAt.getTime()) / 3600000))
+      : null;
+  } else {
+    elapsedHours = cycleRuntimeHoursAt(asset, eventAt);
+  }
+
   if (!Number.isFinite(elapsedHours)) {
     return jsonResponse({ ok: false, message: "누적 운전시간을 계산하지 못했습니다. 새로고침 후 다시 시도해 주세요." }, 409);
   }
 
   const now = new Date().toISOString();
   const nextRevision = crypto.randomUUID();
+  const nextCycleStartRevision = canRestorePreReplacementStop
+    ? crypto.randomUUID()
+    : cycleStartRevision;
   const eventId = crypto.randomUUID();
   const eventType = targetState === "running" ? "operation_start" : "operation_stop";
-  const actionType = targetState === "running" ? "재기동" : "정지";
-  const note = normalizeText(body.note);
+  const actionType = targetState === "running"
+    ? "재기동"
+    : (canRestorePreReplacementStop
+      ? "교체 전 정지 지속"
+      : (historicalInitialStop ? "초기 정지시각 정정" : "정지"));
+  const note = normalizeText(body.note) || (canRestorePreReplacementStop
+    ? "최근 V-Belt 교체 전부터 정지 상태였으며 교체 후 아직 기동하지 않음"
+    : (historicalInitialStop ? "V9 적용 전 실제 정지시각 반영" : ""));
+  const nextCycleStartState = canRestorePreReplacementStop ? "pending" : cycleStartState;
   const results = await database.batch([
     database
       .prepare(`
         UPDATE blower_history_assets
         SET
+          cycle_started_at = ?,
+          cycle_start_state = ?,
+          cycle_start_revision = ?,
           cycle_runtime_hours = ?,
           cycle_runtime_anchor_at = ?,
           cycle_runtime_state = ?,
@@ -2804,12 +2898,16 @@ async function changeRuntimeState(database, user, body) {
           updated_at = ?
         WHERE tag_number = ?
           AND enabled = 1
-          AND cycle_start_state <> 'pending'
+          AND cycle_start_state = ?
+          AND cycle_start_revision = ?
           AND cycle_runtime_state = ?
           AND cycle_runtime_revision = ?
           AND last_replacement_at = ?
       `)
       .bind(
+        canRestorePreReplacementStop ? null : asset.cycle_started_at,
+        nextCycleStartState,
+        nextCycleStartRevision,
         elapsedHours,
         eventDate,
         targetState,
@@ -2821,6 +2919,8 @@ async function changeRuntimeState(database, user, body) {
         user.name,
         now,
         tagNumber,
+        cycleStartState,
+        cycleStartRevision,
         currentState,
         currentRevision,
         asset.last_replacement_at
@@ -2836,6 +2936,8 @@ async function changeRuntimeState(database, user, body) {
         WHERE EXISTS (
           SELECT 1 FROM blower_history_assets
           WHERE tag_number = ?
+            AND cycle_start_state = ?
+            AND cycle_start_revision = ?
             AND cycle_runtime_state = ?
             AND cycle_runtime_revision = ?
             AND last_replacement_at = ?
@@ -2854,6 +2956,8 @@ async function changeRuntimeState(database, user, body) {
         now,
         now,
         tagNumber,
+        nextCycleStartState,
+        nextCycleStartRevision,
         targetState,
         nextRevision,
         asset.last_replacement_at
@@ -2870,9 +2974,13 @@ async function changeRuntimeState(database, user, body) {
 
   return jsonResponse({
     ok: true,
-    message: targetState === "running"
-      ? "재기동을 등록했습니다. 정지 전 누적시간부터 Cycle 계산을 다시 시작합니다."
-      : "정지를 등록했습니다. 재기동 전까지 Cycle 경과·D-day·알림을 멈춥니다."
+    message: canRestorePreReplacementStop
+      ? "교체 전부터 정지 중이었던 상태를 반영했습니다. 현재 V-Belt Cycle은 기동 대기·누적 0시간입니다."
+      : historicalInitialStop
+        ? "V9 적용 전 실제 정지시각을 반영했습니다. 해당 시각에서 Cycle 계산과 알림을 멈췄습니다."
+        : targetState === "running"
+          ? "재기동을 등록했습니다. 정지 전 누적시간부터 Cycle 계산을 다시 시작합니다."
+          : "정지를 등록했습니다. 재기동 전까지 Cycle 경과·D-day·알림을 멈춥니다."
   });
 }
 
