@@ -602,7 +602,7 @@
 
   <link
     rel="stylesheet"
-    href="/efficiency/bed-ash-discharge.css?v=20260830-bed-ash-discharge-v3"
+    href="/efficiency/bed-ash-discharge.css?v=20260830-bed-ash-discharge-v4"
   >
 
   <link
@@ -11091,8 +11091,8 @@
       <span>BED ASH DISCHARGE</span>
       <h3>Bed Ash 반출</h3>
       <p>
-        1·2호기 Silo 중량이 연속 구간에서 5.0t 이상 하락하면
-        반출 후보로 자동 감지합니다.
+        1·2호기 Silo 중량이 5.0t 이상 하락하면 반출 후보로 감지하고,
+        연속 하락은 차량 1대 단위 후보로 분리합니다.
       </p>
     </div>
 
@@ -11287,13 +11287,10 @@
             <tr>
               <th>반출 · 감지 시간</th>
               <th>호기</th>
-              <th>감지 전</th>
-              <th>감지 후</th>
-              <th>추정 반출량</th>
-              <th>자동 감지</th>
+              <th>중량 변화</th>
+              <th>차량별 추정량</th>
               <th>확인 상태</th>
-              <th>확인자 · 시각</th>
-              <th>효율팀 확인</th>
+              <th>처리</th>
             </tr>
           </thead>
 
@@ -15296,7 +15293,7 @@
 ></script>
 
 <script
-  src="/efficiency/bed-ash-discharge.js?v=20260830-bed-ash-discharge-v3"
+  src="/efficiency/bed-ash-discharge.js?v=20260830-bed-ash-discharge-v4"
 ></script>
 
 <script>

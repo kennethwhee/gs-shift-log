@@ -20,6 +20,7 @@
   const OIS_REQUEST_API_URL = "/api/ois-data-requests";
   const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
   const ROUTE_KEY = "bed-ash-discharge";
+  const DETECTOR_ALGORITHM_VERSION = "bed-ash-drop-v2";
   const PERIODS = new Set(["daily", "weekly", "monthly"]);
   const FILTERS = new Set(["all", "pending", "confirmed", "excluded"]);
   const RANGE_STALE_MS = 5 * 60 * 1000;
@@ -61,6 +62,13 @@
     summaryNextAttemptAt: 0,
     latestPendingSummary: null,
     lastSessionToken: "",
+    expandedReviewEventKey: "",
+    reviewDrafts: new Map(),
+    submittingEventKeys: new Set(),
+    reviewSubmissionControlsLocked: false,
+    reviewSubmissionControlStates: new Map(),
+    composingReviewEventKey: "",
+    renderEventsQueued: false,
     bound: false,
     initialized: false
   };
@@ -124,6 +132,44 @@
       window.__GS_MOBILE_RUNTIME_V14 === true ||
       /^\/mobile-app(?:\/|$)/.test(window.location.pathname)
     );
+  }
+
+  function getReviewSubmissionControls(elements = getElements()) {
+    return [
+      ...new Set([
+        ...elements.periodButtons,
+        elements.previousButton,
+        elements.anchorDate,
+        elements.todayButton,
+        elements.nextButton,
+        elements.refreshButton,
+        elements.statusFilter
+      ].filter(Boolean))
+    ];
+  }
+
+  function setReviewSubmissionControlsLocked(isLocked) {
+    if (isLocked) {
+      if (state.reviewSubmissionControlsLocked) {
+        return;
+      }
+
+      state.reviewSubmissionControlsLocked = true;
+      state.reviewSubmissionControlStates.clear();
+      getReviewSubmissionControls().forEach(control => {
+        state.reviewSubmissionControlStates.set(control, control.disabled);
+        control.disabled = true;
+      });
+      return;
+    }
+
+    state.reviewSubmissionControlsLocked = false;
+    state.reviewSubmissionControlStates.forEach((wasDisabled, control) => {
+      if (control.isConnected) {
+        control.disabled = wasDisabled;
+      }
+    });
+    state.reviewSubmissionControlStates.clear();
   }
 
   function loadStoredCurrentUser() {
@@ -476,6 +522,8 @@
       endLevelTon: number(event.endLevelTon),
       estimatedTon: number(event.estimatedTon),
       confidence: text(event.confidence) || "medium",
+      algorithmVersion: text(event.algorithmVersion),
+      closeReason: text(event.closeReason),
       status: normalizedStatus,
       confirmedAt: text(event.confirmedAt),
       confirmedTon: event.confirmedTon === null || event.confirmedTon === undefined
@@ -710,13 +758,6 @@
     return element;
   }
 
-  function appendMetricCell(row, value, suffix = "t") {
-    const cell = createElement("td", "bed-ash-discharge-metric-cell");
-    const strong = createElement("strong", "", `${number(value).toFixed(1)}${suffix}`);
-    cell.appendChild(strong);
-    row.appendChild(cell);
-  }
-
   function getStatusLabel(status) {
     if (status === "confirmed") {
       return "확인 완료";
@@ -742,14 +783,19 @@
 
   function createReviewControls(event) {
     const wrapper = createElement("div", "bed-ash-discharge-review-controls");
+    const draft = state.reviewDrafts.get(event.eventKey);
+    const isSubmitting = state.submittingEventKeys.has(event.eventKey);
     const actualAt = createReviewInput(
       "실제 반출시각",
       "datetime-local",
       "bed-ash-discharge-review-at",
-      toDateTimeLocalValue(
-        event.confirmedAt || event.thresholdCrossedAt || event.endAt
-      )
+      draft
+        ? draft.actualAt
+        : toDateTimeLocalValue(
+            event.confirmedAt || event.thresholdCrossedAt || event.endAt
+          )
     );
+    actualAt.input.dataset.bedAshReviewField = "actualAt";
     actualAt.input.step = "60";
     actualAt.input.max = getKstNowDateTimeLocal();
     actualAt.input.addEventListener("focus", () => {
@@ -760,8 +806,11 @@
       "실제 반출량",
       "number",
       "bed-ash-discharge-review-ton bed-ash-discharge-actual-amount-input",
-      number(event.confirmedTon ?? event.estimatedTon).toFixed(1)
+      draft
+        ? draft.actualTon
+        : number(event.confirmedTon ?? event.estimatedTon).toFixed(1)
     );
+    actualTon.input.dataset.bedAshReviewField = "actualTon";
     actualTon.input.min = "0.1";
     actualTon.input.max = "10000";
     actualTon.input.step = "0.1";
@@ -771,8 +820,9 @@
       "확인 메모",
       "text",
       "bed-ash-discharge-review-note",
-      event.note
+      draft ? draft.note : event.note
     );
+    note.input.dataset.bedAshReviewField = "note";
     note.input.maxLength = 200;
     note.input.placeholder = "선택 입력";
 
@@ -795,13 +845,149 @@
     excludeButton.dataset.bedAshReviewAction = "exclude";
     excludeButton.dataset.eventKey = event.eventKey;
 
+    [actualAt.input, actualTon.input, note.input].forEach(input => {
+      input.disabled = isSubmitting;
+    });
+    confirmButton.disabled = isSubmitting;
+    excludeButton.disabled = isSubmitting;
+
     actions.append(confirmButton, excludeButton);
     wrapper.append(actualAt.label, actualTon.label, note.label, actions);
     return wrapper;
   }
 
+  function storeReviewDraft(reviewRow) {
+    if (!(reviewRow instanceof Element)) {
+      return;
+    }
+
+    const eventKey = text(reviewRow.dataset.eventKey);
+    const wrapper = reviewRow.querySelector(".bed-ash-discharge-review-controls");
+    if (!eventKey || !wrapper) {
+      return;
+    }
+
+    state.reviewDrafts.set(eventKey, {
+      actualAt: String(
+        wrapper.querySelector(".bed-ash-discharge-review-at")?.value ?? ""
+      ),
+      actualTon: String(
+        wrapper.querySelector(".bed-ash-discharge-review-ton")?.value ?? ""
+      ),
+      note: String(
+        wrapper.querySelector(".bed-ash-discharge-review-note")?.value ?? ""
+      )
+    });
+  }
+
+  function captureReviewEditorFocus(tableBody) {
+    const activeElement = document.activeElement;
+    if (
+      !(tableBody instanceof Element) ||
+      !(activeElement instanceof Element) ||
+      !tableBody.contains(activeElement) ||
+      !activeElement.matches("[data-bed-ash-review-field]")
+    ) {
+      return null;
+    }
+
+    const reviewRow = activeElement.closest(".bed-ash-discharge-review-row");
+    const eventKey = text(reviewRow?.dataset.eventKey);
+    const fieldName = text(activeElement.dataset.bedAshReviewField);
+    if (!eventKey || !fieldName) {
+      return null;
+    }
+
+    let selectionStart = null;
+    let selectionEnd = null;
+    let selectionDirection = "none";
+    try {
+      selectionStart = activeElement.selectionStart;
+      selectionEnd = activeElement.selectionEnd;
+      selectionDirection = activeElement.selectionDirection || "none";
+    } catch {
+      selectionStart = null;
+      selectionEnd = null;
+    }
+
+    return {
+      eventKey,
+      fieldName,
+      selectionStart,
+      selectionEnd,
+      selectionDirection
+    };
+  }
+
+  function restoreReviewEditorFocus(tableBody, focusState) {
+    if (!(tableBody instanceof Element) || !focusState) {
+      return;
+    }
+
+    const reviewRow = [...tableBody.querySelectorAll(
+      ".bed-ash-discharge-review-row"
+    )].find(row => text(row.dataset.eventKey) === focusState.eventKey);
+    const field = reviewRow?.querySelector(
+      `[data-bed-ash-review-field="${focusState.fieldName}"]`
+    );
+    if (!field || field.disabled) {
+      return;
+    }
+
+    try {
+      field.focus({ preventScroll: true });
+    } catch {
+      field.focus();
+    }
+
+    if (
+      Number.isInteger(focusState.selectionStart) &&
+      Number.isInteger(focusState.selectionEnd)
+    ) {
+      try {
+        field.setSelectionRange(
+          focusState.selectionStart,
+          focusState.selectionEnd,
+          focusState.selectionDirection
+        );
+      } catch {
+        // number/datetime-local inputs do not expose text selection APIs.
+      }
+    }
+  }
+
+  function createReviewRow(event) {
+    const row = createElement(
+      "tr",
+      "bed-ash-discharge-review-row"
+    );
+    row.id = getReviewPanelId(event.eventKey);
+    row.dataset.eventKey = event.eventKey;
+
+    const cell = createElement(
+      "td",
+      "bed-ash-discharge-review-panel-cell"
+    );
+    cell.colSpan = 6;
+    cell.appendChild(createReviewControls(event));
+    row.appendChild(cell);
+    return row;
+  }
+
+  function getReviewPanelId(eventKey) {
+    let hash = 2166136261;
+    for (const character of text(eventKey)) {
+      hash ^= character.codePointAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    return `bedAshDischargeReviewPanel-${(hash >>> 0).toString(36)}`;
+  }
+
   function createEventRow(event) {
-    const row = createElement("tr", `is-${event.status}`);
+    const row = createElement(
+      "tr",
+      `bed-ash-discharge-event-row is-${event.status}`
+    );
     row.dataset.eventKey = event.eventKey;
 
     const timeCell = createElement("td", "bed-ash-discharge-time-cell");
@@ -831,22 +1017,57 @@
     );
     row.appendChild(unitCell);
 
-    appendMetricCell(row, event.startLevelTon);
-    appendMetricCell(row, event.endLevelTon);
+    const levelChangeCell = createElement(
+      "td",
+      "bed-ash-discharge-level-change-cell"
+    );
+    levelChangeCell.appendChild(
+      createElement(
+        "strong",
+        "",
+        `${formatTon(event.startLevelTon)} → ${formatTon(event.endLevelTon)}`
+      )
+    );
+    row.appendChild(levelChangeCell);
 
     const estimatedCell = createElement("td", "bed-ash-discharge-estimated-cell");
-    estimatedCell.append(
-      createElement("strong", "", formatTon(event.estimatedTon)),
-      createElement("small", "", "추정 반출량")
-    );
+    const isTruckBoundaryUnresolved =
+      event.closeReason === "truck_boundary_unresolved";
+    const isLegacyReviewedEvent =
+      event.algorithmVersion !== DETECTOR_ALGORITHM_VERSION &&
+      ["confirmed", "excluded"].includes(event.status);
+    if (isTruckBoundaryUnresolved) {
+      estimatedCell.classList.add("is-truck-boundary-unresolved");
+      estimatedCell.append(
+        createElement("strong", "", "복수 차량 추정"),
+        createElement("small", "", `총 하락량 ${formatTon(event.estimatedTon)}`)
+      );
+    } else if (isLegacyReviewedEvent) {
+      const legacyTon = event.status === "confirmed" && event.confirmedTon !== null
+        ? event.confirmedTon
+        : event.estimatedTon;
+      estimatedCell.classList.add("is-legacy-reviewed-event");
+      estimatedCell.append(
+        createElement(
+          "strong",
+          "",
+          event.status === "confirmed"
+            ? "기존 방식 확정 합계"
+            : "기존 방식 제외 기록"
+        ),
+        createElement(
+          "small",
+          "",
+          `${event.status === "confirmed" ? "확정량" : "기록 하락량"} ${formatTon(legacyTon)}`
+        )
+      );
+    } else {
+      estimatedCell.append(
+        createElement("strong", "", formatTon(event.estimatedTon)),
+        createElement("small", "", "차량별 추정량 · 자동 감지")
+      );
+    }
     row.appendChild(estimatedCell);
-
-    const detectedCell = createElement("td", "bed-ash-discharge-detected-cell");
-    detectedCell.append(
-      createElement("span", "bed-ash-discharge-auto-badge", "자동 감지"),
-      createElement("small", "", "5.0t 이상 하락")
-    );
-    row.appendChild(detectedCell);
 
     const statusCell = createElement("td", "bed-ash-discharge-status-cell");
     const isProvisional = event.status === "pending" && !event.reviewReady;
@@ -854,9 +1075,17 @@
       createElement(
         "span",
         `bed-ash-discharge-status-badge is-${
-          isProvisional ? "provisional" : event.status
+          isTruckBoundaryUnresolved
+            ? "boundary-unresolved"
+            : isProvisional
+              ? "provisional"
+              : event.status
         }`,
-        isProvisional ? "자료 확인 중" : getStatusLabel(event.status)
+        isTruckBoundaryUnresolved
+          ? "시간 경계 확인 필요"
+          : isProvisional
+            ? "자료 확인 중"
+            : getStatusLabel(event.status)
       )
     );
     if (event.status === "confirmed" && event.confirmedTon !== null) {
@@ -864,11 +1093,12 @@
         createElement("small", "", `실제 반출량 ${formatTon(event.confirmedTon)}`)
       );
     }
-    row.appendChild(statusCell);
-
-    const reviewerCell = createElement("td", "bed-ash-discharge-reviewer-cell");
     if (event.reviewer) {
-      reviewerCell.append(
+      const reviewerSummary = createElement(
+        "span",
+        "bed-ash-discharge-reviewer-summary"
+      );
+      reviewerSummary.append(
         createElement(
           "strong",
           "",
@@ -880,26 +1110,67 @@
           formatTimestamp(event.reviewer.reviewedAt || event.confirmedAt)
         )
       );
-    } else {
-      reviewerCell.textContent = "-";
+      statusCell.appendChild(reviewerSummary);
     }
-    row.appendChild(reviewerCell);
+    row.appendChild(statusCell);
 
     const actionCell = createElement("td", "bed-ash-discharge-action-cell");
-    if (event.status === "pending" && !event.reviewReady) {
+    if (isTruckBoundaryUnresolved) {
       actionCell.appendChild(
         createElement(
           "span",
-          "bed-ash-discharge-provisional-note",
-          "첫날 기준·마지막 날 후속 자료 수집 후 확인 가능"
+          "bed-ash-discharge-boundary-note",
+          "시간 경계 확인 필요"
         )
       );
+    } else if (event.status === "pending" && !event.reviewReady) {
+      const provisionalNote = createElement(
+        "span",
+        "bed-ash-discharge-provisional-note",
+        "후속 자료 수집 후 확인"
+      );
+      provisionalNote.title = "첫날 기준·마지막 날 후속 자료 수집 후 확인 가능";
+      actionCell.appendChild(provisionalNote);
     } else if (event.status === "pending" && !isMobileClient()) {
-      actionCell.appendChild(createReviewControls(event));
+      const isSubmitting = state.submittingEventKeys.has(event.eventKey);
+      const isAnotherEventSubmitting =
+        !isSubmitting && state.submittingEventKeys.size > 0;
+      const toggleButton = createElement(
+        "button",
+        "bed-ash-discharge-review-toggle",
+        isSubmitting
+          ? "저장 중"
+          : isAnotherEventSubmitting
+            ? "저장 대기"
+          : state.expandedReviewEventKey === event.eventKey
+            ? "입력 닫기"
+            : "확인 입력"
+      );
+      toggleButton.type = "button";
+      toggleButton.disabled = isSubmitting || isAnotherEventSubmitting;
+      toggleButton.dataset.bedAshReviewToggle = "";
+      toggleButton.dataset.eventKey = event.eventKey;
+      toggleButton.setAttribute(
+        "aria-expanded",
+        String(state.expandedReviewEventKey === event.eventKey)
+      );
+      toggleButton.setAttribute(
+        "aria-controls",
+        getReviewPanelId(event.eventKey)
+      );
+      actionCell.appendChild(toggleButton);
     } else if (event.status === "pending") {
-      actionCell.appendChild(createElement("span", "", "PC에서 확인"));
+      actionCell.appendChild(
+        createElement("span", "bed-ash-discharge-action-state", "PC에서 확인")
+      );
     } else {
-      actionCell.appendChild(createElement("span", "", getStatusLabel(event.status)));
+      actionCell.appendChild(
+        createElement(
+          "span",
+          "bed-ash-discharge-action-state",
+          "-"
+        )
+      );
     }
     row.appendChild(actionCell);
 
@@ -911,13 +1182,48 @@
     if (!elements.tableBody) {
       return;
     }
+    if (state.composingReviewEventKey) {
+      state.renderEventsQueued = true;
+      return;
+    }
+
+    const currentReviewRow = elements.tableBody.querySelector(
+      ".bed-ash-discharge-review-row"
+    );
+    if (
+      currentReviewRow &&
+      text(currentReviewRow.dataset.eventKey) === state.expandedReviewEventKey
+    ) {
+      storeReviewDraft(currentReviewRow);
+    }
+    const focusState = captureReviewEditorFocus(elements.tableBody);
+    state.renderEventsQueued = false;
 
     const visibleEvents = state.events.filter(event => {
       return state.filter === "all" || event.status === state.filter;
     });
+    const expandedEvent = visibleEvents.find(event => {
+      return (
+        event.eventKey === state.expandedReviewEventKey &&
+        event.status === "pending" &&
+        event.reviewReady &&
+        event.closeReason !== "truck_boundary_unresolved" &&
+        !isMobileClient()
+      );
+    });
+    if (!expandedEvent) {
+      state.expandedReviewEventKey = "";
+    }
+
     const fragment = document.createDocumentFragment();
-    visibleEvents.forEach(event => fragment.appendChild(createEventRow(event)));
+    visibleEvents.forEach(event => {
+      fragment.appendChild(createEventRow(event));
+      if (event.eventKey === state.expandedReviewEventKey) {
+        fragment.appendChild(createReviewRow(event));
+      }
+    });
     elements.tableBody.replaceChildren(fragment);
+    restoreReviewEditorFocus(elements.tableBody, focusState);
 
     if (elements.eventCount) {
       elements.eventCount.textContent = `${visibleEvents.length}건`;
@@ -931,6 +1237,35 @@
           "선택한 기간에 5.0t 이상 하락한 반출 후보가 없습니다.";
       }
     }
+  }
+
+  function preserveReviewedEventInRangeData(data, savedEvent) {
+    if (
+      !data ||
+      typeof data !== "object" ||
+      !Array.isArray(data.events) ||
+      !savedEvent ||
+      !["confirmed", "excluded"].includes(savedEvent.status)
+    ) {
+      return data;
+    }
+
+    let matched = false;
+    const events = data.events.map(rawEvent => {
+      if (text(rawEvent?.eventKey) !== savedEvent.eventKey) {
+        return rawEvent;
+      }
+      matched = true;
+      const refreshedEvent = normalizeEvent(rawEvent);
+      return refreshedEvent.status === "pending"
+        ? {
+            ...(rawEvent && typeof rawEvent === "object" ? rawEvent : {}),
+            ...savedEvent
+          }
+        : rawEvent;
+    });
+
+    return matched ? { ...data, events } : data;
   }
 
   function renderData(data, requestedDates) {
@@ -952,6 +1287,10 @@
 
   function clearDetailData(message = "저장된 Bed Ash Silo 자료를 불러옵니다.") {
     state.events = [];
+    state.expandedReviewEventKey = "";
+    state.reviewDrafts.clear();
+    state.composingReviewEventKey = "";
+    state.renderEventsQueued = false;
     state.summary = emptySummary();
     state.latestLevels = { 1: null, 2: null };
     state.coverage = null;
@@ -982,20 +1321,27 @@
       elements.rangeLabel.textContent = formatPeriodLabel(range);
     }
     if (elements.nextButton) {
-      elements.nextButton.disabled = range.endDate >= range.today || state.loading;
+      elements.nextButton.disabled =
+        state.reviewSubmissionControlsLocked ||
+        range.endDate >= range.today ||
+        state.loading;
     }
     if (elements.readOnlyNotice) {
       elements.readOnlyNotice.hidden = !isMobileClient();
     }
     if (elements.view) {
       elements.view.dataset.bedAshMobileClient = String(isMobileClient());
+      elements.view.dataset.bedAshPeriod = state.period;
     }
     if (elements.mainAlert) {
       elements.mainAlert.dataset.bedAshMobileClient = String(isMobileClient());
     }
     if (elements.refreshButton) {
       elements.refreshButton.hidden = isMobileClient();
-      elements.refreshButton.disabled = isMobileClient() || state.loading;
+      elements.refreshButton.disabled =
+        state.reviewSubmissionControlsLocked ||
+        isMobileClient() ||
+        state.loading;
     }
 
     return range;
@@ -1202,7 +1548,8 @@
     requestedDates,
     minimumPolls = 0,
     waitForBaseline = false,
-    waitForLookahead = false
+    waitForLookahead = false,
+    preservedReviewedEvent = null
   ) {
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     let polls = 0;
@@ -1242,6 +1589,9 @@
         );
         consecutiveFailures = 0;
       } catch (error) {
+        if (sequence !== state.loadSequence) {
+          return "cancelled";
+        }
         if (error.status === 401 || error.status === 403) {
           throw error;
         }
@@ -1256,12 +1606,95 @@
         return "cancelled";
       }
 
-      renderData(data, requestedDates);
+      renderData(
+        preserveReviewedEventInRangeData(data, preservedReviewedEvent),
+        requestedDates
+      );
       setStatus(coverageStatusMessage(state.coverage, state.events.length), "loading");
       polls += 1;
     }
 
     return sequence === state.loadSequence ? "timeout" : "cancelled";
+  }
+
+  function scheduleReviewRangePolling(options) {
+    const {
+      range,
+      sequence,
+      requestedDates,
+      waitForBaseline,
+      waitForLookahead,
+      savedEvent,
+      selectedRangeKey
+    } = options;
+
+    window.setTimeout(() => {
+      if (
+        sequence !== state.loadSequence ||
+        state.submittingEventKeys.size > 0 ||
+        !getSessionToken()
+      ) {
+        return;
+      }
+
+      pollRange(
+        range,
+        sequence,
+        requestedDates,
+        0,
+        waitForBaseline,
+        waitForLookahead,
+        savedEvent
+      ).then(result => {
+        if (sequence !== state.loadSequence || result === "cancelled") {
+          return;
+        }
+        state.loadedRangeKey = selectedRangeKey;
+        state.loadedAt = Date.now();
+        if (result === "timeout") {
+          setStatus(
+            "확인은 저장됐지만 OIS 자료 수집이 10분 이상 지연되고 있습니다.",
+            "warning"
+          );
+          return;
+        }
+        setStatus(
+          coverageStatusMessage(state.coverage, state.events.length),
+          "success"
+        );
+      }).catch(error => {
+        if (sequence !== state.loadSequence) {
+          return;
+        }
+        setStatus(
+          error.status === 401
+            ? "로그인 정보가 만료되었습니다. 다시 로그인해 주세요."
+            : `OIS 처리 상태 자동 조회 실패 · ${text(error.message)}`,
+          "warning"
+        );
+        if (error.status === 401) {
+          clearSummaryAlert();
+        }
+      });
+    }, 0);
+  }
+
+  function scheduleAuthoritativeRangeReload() {
+    window.setTimeout(() => {
+      if (
+        state.submittingEventKeys.size > 0 ||
+        state.loading ||
+        !getSessionToken()
+      ) {
+        return;
+      }
+      loadSelectedRange().catch(error => {
+        setStatus(
+          `Bed Ash 반출 자료 재조회 실패 · ${text(error.message)}`,
+          "warning"
+        );
+      });
+    }, 0);
   }
 
   async function loadSelectedRange(options = {}) {
@@ -1593,6 +2026,10 @@
       state.period = "daily";
       state.anchorDate = latestPendingDate;
       state.filter = "pending";
+      state.expandedReviewEventKey = "";
+      state.reviewDrafts.clear();
+      state.composingReviewEventKey = "";
+      state.renderEventsQueued = false;
       const { statusFilter } = getElements();
       if (statusFilter) {
         statusFilter.value = "pending";
@@ -1616,6 +2053,12 @@
   }
 
   function updateEventFromConflict(currentEvent, requestedEventKey = "") {
+    if (requestedEventKey === state.expandedReviewEventKey) {
+      state.expandedReviewEventKey = "";
+    }
+    if (requestedEventKey) {
+      state.reviewDrafts.delete(requestedEventKey);
+    }
     if (!currentEvent) {
       if (requestedEventKey) {
         state.events = state.events.filter(event => {
@@ -1640,7 +2083,21 @@
     if (isMobileClient() || !event || event.status !== "pending") {
       return;
     }
+    if (state.submittingEventKeys.size > 0) {
+      if (!state.submittingEventKeys.has(event.eventKey)) {
+        setStatus("다른 반출 확인을 저장하고 있습니다.", "warning");
+      }
+      return;
+    }
+    if (event.closeReason === "truck_boundary_unresolved") {
+      setStatus(
+        "복수 차량 가능성이 있어 시간 경계 확인 전에는 반출 확인을 저장할 수 없습니다.",
+        "warning"
+      );
+      return;
+    }
 
+    storeReviewDraft(actionCell.closest(".bed-ash-discharge-review-row"));
     const wrapper = actionCell.querySelector(".bed-ash-discharge-review-controls");
     const actualAt = text(wrapper?.querySelector(".bed-ash-discharge-review-at")?.value);
     const actualTonValue = wrapper?.querySelector(".bed-ash-discharge-review-ton")?.value;
@@ -1666,16 +2123,38 @@
       return;
     }
 
-    const buttons = [...actionCell.querySelectorAll("button")];
-    buttons.forEach(button => {
-      button.disabled = true;
-    });
-    setStatus(
-      status === "confirmed" ? "반출 확인 내용을 저장하고 있습니다." : "자동 감지 내역을 제외하고 있습니다.",
-      "loading"
+    const reviewRange = calculatePeriod(
+      state.period,
+      state.anchorDate || getKstToday()
     );
+    const reviewRangeKey = `${reviewRange.period}:${reviewRange.queryStartDate}:${reviewRange.queryEndDate}`;
+    const reviewRequestedDates = enumerateDates(
+      reviewRange.queryStartDate,
+      reviewRange.queryEndDate
+    );
+    const reviewLoadSequence = ++state.loadSequence;
+    setLoading(false);
+    const interactiveControls = [
+      ...actionCell.querySelectorAll("input, button")
+    ];
+    let savedEvent = null;
+    let authoritativeReviewRefreshComplete = false;
+    let backgroundPollingOptions = null;
+    state.submittingEventKeys.add(event.eventKey);
 
     try {
+      setReviewSubmissionControlsLocked(true);
+      interactiveControls.forEach(control => {
+        control.disabled = true;
+      });
+      renderEvents();
+      setStatus(
+        status === "confirmed"
+          ? "반출 확인 내용을 저장하고 있습니다."
+          : "자동 감지 내역을 제외하고 있습니다.",
+        "loading"
+      );
+
       const data = await requestJson(API_URL, {
         method: "POST",
         headers: getRequestHeaders(true),
@@ -1694,62 +2173,117 @@
         })
       });
 
-      const savedEvent = normalizeEvent(data?.event);
-      const index = state.events.findIndex(item => item.eventKey === savedEvent.eventKey);
-      if (index >= 0) {
-        state.events.splice(index, 1, savedEvent);
-      }
-      renderEvents();
-      setStatus(
-        status === "confirmed"
-          ? `확인 완료 · 실제 반출량 ${formatTon(savedEvent.confirmedTon)}`
-          : "자동 감지 내역을 반출 대상에서 제외했습니다.",
-        "success"
-      );
-
-      const range = renderPeriodControls();
-      const requestedDates = enumerateDates(range.queryStartDate, range.queryEndDate);
-      try {
-        const refreshed = await fetchRangeData(range);
-        renderData(refreshed, requestedDates);
-        state.loadedAt = Date.now();
-      } catch (refreshError) {
+      savedEvent = normalizeEvent(data?.event);
+      state.reviewDrafts.delete(event.eventKey);
+      if (reviewLoadSequence === state.loadSequence) {
+        const index = state.events.findIndex(item => {
+          return item.eventKey === savedEvent.eventKey;
+        });
+        if (index >= 0) {
+          state.events.splice(index, 1, savedEvent);
+        }
+        if (state.expandedReviewEventKey === event.eventKey) {
+          state.expandedReviewEventKey = "";
+        }
+        renderEvents();
         setStatus(
-          `확인은 저장됐지만 최신 목록 조회에 실패했습니다. · ${text(
-            refreshError.message
-          )}`,
-          "warning"
+          status === "confirmed"
+            ? `확인 완료 · 실제 반출량 ${formatTon(savedEvent.confirmedTon)}`
+            : "자동 감지 내역을 반출 대상에서 제외했습니다.",
+          "success"
         );
+
+        try {
+          const refreshed = await fetchRangeData(reviewRange);
+          if (reviewLoadSequence === state.loadSequence) {
+            renderData(
+              preserveReviewedEventInRangeData(refreshed, savedEvent),
+              reviewRequestedDates
+            );
+            state.loadedRangeKey = reviewRangeKey;
+            state.loadedAt = Date.now();
+
+            const waitForBaseline = Boolean(
+              state.coverage?.baseline?.pending
+            );
+            const waitForLookahead = Boolean(
+              state.coverage?.lookahead?.available &&
+              state.coverage.lookahead.pending
+            );
+            const shouldResumePolling = Boolean(
+              state.coverage?.pendingDates?.length ||
+              waitForBaseline ||
+              waitForLookahead
+            );
+            if (shouldResumePolling) {
+              backgroundPollingOptions = {
+                range: reviewRange,
+                sequence: reviewLoadSequence,
+                requestedDates: reviewRequestedDates,
+                waitForBaseline,
+                waitForLookahead,
+                savedEvent,
+                selectedRangeKey: reviewRangeKey
+              };
+            }
+            authoritativeReviewRefreshComplete = true;
+          }
+        } catch (refreshError) {
+          if (reviewLoadSequence === state.loadSequence) {
+            setStatus(
+              `확인은 저장됐지만 최신 목록 조회에 실패했습니다. · ${text(
+                refreshError.message
+              )}`,
+              "warning"
+            );
+          }
+        }
       }
-      await refreshSummary({ silent: true, force: true });
+      refreshSummary({ silent: true, force: true }).catch(error => {
+        console.warn("Bed Ash 반출 확인 대기 갱신 실패:", error);
+      });
     } catch (error) {
       if (error.status === 409) {
-        updateEventFromConflict(
-          error.payload?.data?.currentEvent,
-          event.eventKey
-        );
-        setStatus(
-          "다른 사용자가 먼저 확인했습니다. 최신 확인 상태로 갱신했습니다.",
-          "warning"
-        );
-        await refreshSummary({ silent: true, force: true });
+        if (reviewLoadSequence === state.loadSequence) {
+          updateEventFromConflict(
+            error.payload?.data?.currentEvent,
+            event.eventKey
+          );
+          setStatus(
+            "다른 사용자가 먼저 확인했습니다. 최신 확인 상태로 갱신했습니다.",
+            "warning"
+          );
+        }
+        refreshSummary({ silent: true, force: true }).catch(summaryError => {
+          console.warn("Bed Ash 반출 확인 대기 갱신 실패:", summaryError);
+        });
       } else {
-        setStatus(
-          error.status === 401
-            ? "로그인 정보가 만료되었습니다. 다시 로그인해 주세요."
-            : `효율팀 확인 저장 실패 · ${text(error.message)}`,
-          "error"
-        );
+        if (reviewLoadSequence === state.loadSequence) {
+          setStatus(
+            error.status === 401
+              ? "로그인 정보가 만료되었습니다. 다시 로그인해 주세요."
+              : `효율팀 확인 저장 실패 · ${text(error.message)}`,
+            "error"
+          );
+        }
         if (error.status === 401) {
           clearSummaryAlert();
         }
       }
     } finally {
-      buttons.forEach(button => {
-        if (button.isConnected) {
-          button.disabled = false;
+      state.submittingEventKeys.delete(event.eventKey);
+      setReviewSubmissionControlsLocked(false);
+      interactiveControls.forEach(control => {
+        if (control.isConnected) {
+          control.disabled = false;
         }
       });
+      renderEvents();
+      if (backgroundPollingOptions) {
+        scheduleReviewRangePolling(backgroundPollingOptions);
+      } else if (!authoritativeReviewRefreshComplete && getSessionToken()) {
+        scheduleAuthoritativeRangeReload();
+      }
     }
   }
 
@@ -1771,6 +2305,10 @@
         }
         state.period = requested;
         state.filter = "all";
+        state.expandedReviewEventKey = "";
+        state.reviewDrafts.clear();
+        state.composingReviewEventKey = "";
+        state.renderEventsQueued = false;
         if (elements.statusFilter) {
           elements.statusFilter.value = "all";
         }
@@ -1780,6 +2318,10 @@
     });
 
     elements.previousButton?.addEventListener("click", () => {
+      state.expandedReviewEventKey = "";
+      state.reviewDrafts.clear();
+      state.composingReviewEventKey = "";
+      state.renderEventsQueued = false;
       state.anchorDate = state.period === "monthly"
         ? addMonths(state.anchorDate, -1)
         : addDays(state.anchorDate, state.period === "weekly" ? -7 : -1);
@@ -1791,6 +2333,10 @@
       if (elements.nextButton.disabled) {
         return;
       }
+      state.expandedReviewEventKey = "";
+      state.reviewDrafts.clear();
+      state.composingReviewEventKey = "";
+      state.renderEventsQueued = false;
       state.anchorDate = state.period === "monthly"
         ? addMonths(state.anchorDate, 1)
         : addDays(state.anchorDate, state.period === "weekly" ? 7 : 1);
@@ -1799,12 +2345,20 @@
     });
 
     elements.todayButton?.addEventListener("click", () => {
+      state.expandedReviewEventKey = "";
+      state.reviewDrafts.clear();
+      state.composingReviewEventKey = "";
+      state.renderEventsQueued = false;
       state.anchorDate = getKstToday();
       renderPeriodControls();
       loadSelectedRange();
     });
 
     elements.anchorDate?.addEventListener("change", () => {
+      state.expandedReviewEventKey = "";
+      state.reviewDrafts.clear();
+      state.composingReviewEventKey = "";
+      state.renderEventsQueued = false;
       const chosenDate = text(elements.anchorDate.value);
       state.anchorDate = parseDate(chosenDate) && chosenDate <= getKstToday()
         ? chosenDate
@@ -1815,6 +2369,7 @@
 
     elements.refreshButton?.addEventListener("click", () => {
       if (!isMobileClient()) {
+        state.expandedReviewEventKey = "";
         loadSelectedRange({ forceRefresh: true });
       }
     });
@@ -1822,11 +2377,77 @@
     elements.statusFilter?.addEventListener("change", () => {
       const requestedFilter = text(elements.statusFilter.value);
       state.filter = FILTERS.has(requestedFilter) ? requestedFilter : "all";
+      state.expandedReviewEventKey = "";
       renderEvents();
+    });
+
+    const captureReviewDraft = event => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.matches("[data-bed-ash-review-field]")) {
+        return;
+      }
+      storeReviewDraft(target.closest(".bed-ash-discharge-review-row"));
+    };
+    elements.tableBody?.addEventListener("input", captureReviewDraft);
+    elements.tableBody?.addEventListener("change", captureReviewDraft);
+    elements.tableBody?.addEventListener("compositionstart", event => {
+      const target = event.target instanceof Element ? event.target : null;
+      const reviewRow = target?.closest(".bed-ash-discharge-review-row");
+      if (target?.matches("[data-bed-ash-review-field]") && reviewRow) {
+        state.composingReviewEventKey = text(reviewRow.dataset.eventKey);
+      }
+    });
+    elements.tableBody?.addEventListener("compositionend", event => {
+      const target = event.target instanceof Element ? event.target : null;
+      const reviewRow = target?.closest(".bed-ash-discharge-review-row");
+      storeReviewDraft(reviewRow);
+      if (
+        reviewRow &&
+        state.composingReviewEventKey === text(reviewRow.dataset.eventKey)
+      ) {
+        state.composingReviewEventKey = "";
+      }
+      if (state.renderEventsQueued) {
+        window.setTimeout(() => {
+          if (!state.composingReviewEventKey && state.renderEventsQueued) {
+            renderEvents();
+          }
+        }, 0);
+      }
     });
 
     elements.tableBody?.addEventListener("click", event => {
       const target = event.target instanceof Element ? event.target : null;
+      const toggleButton = target?.closest("[data-bed-ash-review-toggle]");
+      if (toggleButton && !isMobileClient()) {
+        const eventKey = text(toggleButton.dataset.eventKey);
+        const detectedEvent = state.events.find(item => item.eventKey === eventKey);
+        if (
+          detectedEvent &&
+          detectedEvent.status === "pending" &&
+          detectedEvent.reviewReady &&
+          detectedEvent.closeReason !== "truck_boundary_unresolved" &&
+          state.submittingEventKeys.size === 0
+        ) {
+          storeReviewDraft(
+            elements.tableBody.querySelector(".bed-ash-discharge-review-row")
+          );
+          state.expandedReviewEventKey =
+            state.expandedReviewEventKey === eventKey ? "" : eventKey;
+          renderEvents();
+          if (state.expandedReviewEventKey) {
+            window.requestAnimationFrame(() => {
+              elements.tableBody
+                ?.querySelector(
+                  ".bed-ash-discharge-review-row .bed-ash-discharge-review-at"
+                )
+                ?.focus();
+            });
+          }
+        }
+        return;
+      }
+
       const button = target?.closest("[data-bed-ash-review-action]");
       if (!button) {
         return;

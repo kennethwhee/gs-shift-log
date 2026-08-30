@@ -26,11 +26,32 @@ const REQUEST_TYPE =
 
 
 const ALGORITHM_VERSION =
-  "bed-ash-drop-v1";
+  "bed-ash-drop-v2";
 
 
 const DISCHARGE_THRESHOLD_TON =
   5;
+
+
+/*
+  현장 차량 1대의 Bed Ash 반출량은 10 t를 조금 넘는 수준이다.
+  계측 오차와 반출 중 Silo 유입량을 감안해 15 t까지는 한 차량 후보로
+  보존하되, 이를 초과한 연속 하락은 실제 OIS 표본 경계에서만 나눈다.
+*/
+const MAXIMUM_SINGLE_TRUCK_TON =
+  15;
+
+
+const NOMINAL_SINGLE_TRUCK_TON =
+  10.7;
+
+
+/*
+  5 t는 반출 감지 민감도이고 차량 분할량의 의미 있는 하한은 아니다.
+  여러 차량으로 나눌 때는 계측·운전 오차를 허용한 9 t 이상만 채택한다.
+*/
+const MINIMUM_SPLIT_TRUCK_TON =
+  9;
 
 
 const LEVEL_NOISE_TOLERANCE_TON =
@@ -999,6 +1020,35 @@ async function ensureSchema(
     .run();
 
 
+  /*
+    차량 분할 동기화는 확정·제외 이력과 시간 구간이 겹치는지 확인한다.
+    이 부분 인덱스는 장기간 누적된 pending 후보를 제외하고 검토 완료 이력만
+    unit/status별로 좁혀, 월 단위 JSON upsert의 상관 서브쿼리 비용을 제한한다.
+  */
+  await database
+    .prepare(`
+      CREATE INDEX IF NOT EXISTS
+        idx_bed_ash_events_reviewed_overlap_v2
+
+      ON bed_ash_discharge_events (
+        unit_no,
+        status,
+        datetime(
+          event_end_at
+        ),
+        datetime(
+          event_start_at
+        )
+      )
+
+      WHERE status IN (
+        'confirmed',
+        'excluded'
+      )
+    `)
+    .run();
+
+
   await database
     .prepare(`
       CREATE TABLE IF NOT EXISTS
@@ -1663,6 +1713,552 @@ function buildEventCandidate(
 }
 
 
+function getCandidateDescentPoints(
+  candidate
+) {
+  const points =
+    Array.isArray(
+      candidate?.points
+    )
+      ? candidate.points
+      : [];
+
+
+  const troughIndex =
+    points.findIndex(
+      point => {
+        return point.sampledAt ===
+          candidate?.trough?.sampledAt;
+      }
+    );
+
+
+  return troughIndex >=
+    0
+    ? points.slice(
+        0,
+        troughIndex +
+          1
+      )
+    : [];
+}
+
+
+function findTruckSplitBoundaryIndices(
+  points
+) {
+  if (
+    points.length <
+      3
+  ) {
+    return [];
+  }
+
+
+  const totalDropTon =
+    getLevelDifferenceTon(
+      points[0].levelTon,
+      points[
+        points.length -
+        1
+      ].levelTon
+    );
+
+
+  if (
+    totalDropTon <=
+      MAXIMUM_SINGLE_TRUCK_TON
+  ) {
+    return [
+      points.length -
+        1
+    ];
+  }
+
+
+  /*
+    경계는 임의의 시각이나 균등 분할값을 만들지 않고 실제 OIS 표본 중
+    새 최저값이 기록된 지점만 사용한다. 이렇게 하면 분할된 반출량의 합이
+    원래 관측 하락량과 정확히 일치한다.
+  */
+  const eligibleIndices = [
+    0
+  ];
+
+
+  let lowestLevelTon =
+    points[0].levelTon;
+
+
+  for (
+    let pointIndex =
+      1;
+    pointIndex <
+      points.length;
+    pointIndex +=
+      1
+  ) {
+    if (
+      points[
+        pointIndex
+      ].levelTon <
+        lowestLevelTon
+    ) {
+      eligibleIndices.push(
+        pointIndex
+      );
+
+      lowestLevelTon =
+        points[
+          pointIndex
+        ].levelTon;
+    }
+  }
+
+
+  const finalIndex =
+    points.length -
+    1;
+
+
+  if (
+    eligibleIndices[
+      eligibleIndices.length -
+      1
+    ] !==
+      finalIndex
+  ) {
+    eligibleIndices.push(
+      finalIndex
+    );
+  }
+
+
+  const maximumSegmentCount =
+    Math.min(
+      Math.floor(
+        totalDropTon /
+        MINIMUM_SPLIT_TRUCK_TON
+      ),
+      eligibleIndices.length -
+        1
+    );
+
+
+  const candidateSegmentCounts =
+    Array.from(
+      {
+        length:
+          Math.max(
+            0,
+            maximumSegmentCount -
+            1
+          )
+      },
+      (
+        unused,
+        countIndex
+      ) => {
+        return countIndex +
+          2;
+      }
+    ).filter(
+      segmentCount => {
+        return totalDropTon /
+          segmentCount <=
+            MAXIMUM_SINGLE_TRUCK_TON;
+      }
+    ).sort(
+      (
+        firstCount,
+        secondCount
+      ) => {
+        const firstDistance =
+          Math.abs(
+            totalDropTon /
+              firstCount -
+            NOMINAL_SINGLE_TRUCK_TON
+          );
+
+
+        const secondDistance =
+          Math.abs(
+            totalDropTon /
+              secondCount -
+            NOMINAL_SINGLE_TRUCK_TON
+          );
+
+
+        return firstDistance -
+          secondDistance ||
+          firstCount -
+          secondCount;
+      }
+    );
+
+
+  const findBestPath =
+    segmentCount => {
+      const idealSegmentTon =
+        totalDropTon /
+        segmentCount;
+
+
+      const search =
+        (
+          eligiblePosition,
+          remainingSegments
+        ) => {
+          const startPointIndex =
+            eligibleIndices[
+              eligiblePosition
+            ];
+
+
+          if (
+            remainingSegments ===
+              1
+          ) {
+            const finalDropTon =
+              getLevelDifferenceTon(
+                points[
+                  startPointIndex
+                ].levelTon,
+                points[
+                  finalIndex
+                ].levelTon
+              );
+
+
+            if (
+              finalDropTon <
+                MINIMUM_SPLIT_TRUCK_TON ||
+              finalDropTon >
+                MAXIMUM_SINGLE_TRUCK_TON
+            ) {
+              return null;
+            }
+
+
+            return {
+              boundaries: [
+                finalIndex
+              ],
+
+              cost:
+                (
+                  finalDropTon -
+                  idealSegmentTon
+                ) **
+                2
+            };
+          }
+
+
+          let bestPath =
+            null;
+
+
+          const finalBoundaryPosition =
+            eligibleIndices.length -
+            remainingSegments;
+
+
+          for (
+            let boundaryPosition =
+              eligiblePosition +
+              1;
+            boundaryPosition <=
+              finalBoundaryPosition;
+            boundaryPosition +=
+              1
+          ) {
+            const boundaryPointIndex =
+              eligibleIndices[
+                boundaryPosition
+              ];
+
+
+            const segmentDropTon =
+              getLevelDifferenceTon(
+                points[
+                  startPointIndex
+                ].levelTon,
+                points[
+                  boundaryPointIndex
+                ].levelTon
+              );
+
+
+            if (
+              segmentDropTon <
+                MINIMUM_SPLIT_TRUCK_TON
+            ) {
+              continue;
+            }
+
+
+            if (
+              segmentDropTon >
+                MAXIMUM_SINGLE_TRUCK_TON
+            ) {
+              break;
+            }
+
+
+            const remainingPath =
+              search(
+                boundaryPosition,
+                remainingSegments -
+                  1
+              );
+
+
+            if (
+              !remainingPath
+            ) {
+              continue;
+            }
+
+
+            const path = {
+              boundaries: [
+                boundaryPointIndex,
+                ...remainingPath.boundaries
+              ],
+
+              cost:
+                remainingPath.cost +
+                (
+                  segmentDropTon -
+                  idealSegmentTon
+                ) **
+                2
+            };
+
+
+            if (
+              !bestPath ||
+              path.cost <
+                bestPath.cost
+            ) {
+              bestPath =
+                path;
+            }
+          }
+
+
+          return bestPath;
+        };
+
+
+      return search(
+        0,
+        segmentCount
+      );
+    };
+
+
+  for (
+    const segmentCount of
+      candidateSegmentCounts
+  ) {
+    const bestPath =
+      findBestPath(
+        segmentCount
+      );
+
+
+    if (
+      bestPath
+    ) {
+      return bestPath.boundaries;
+    }
+  }
+
+
+  return [];
+}
+
+
+function buildEventCandidates(
+  unitNo,
+  candidate,
+  closeReason
+) {
+  if (
+    !candidate?.thresholdCrossedAt
+  ) {
+    return [];
+  }
+
+
+  const descentPoints =
+    getCandidateDescentPoints(
+      candidate
+    );
+
+
+  if (
+    descentPoints.length <
+      2
+  ) {
+    return [];
+  }
+
+
+  const totalDropTon =
+    getLevelDifferenceTon(
+      descentPoints[0].levelTon,
+      descentPoints[
+        descentPoints.length -
+        1
+      ].levelTon
+    );
+
+
+  if (
+    totalDropTon <=
+      MAXIMUM_SINGLE_TRUCK_TON
+  ) {
+    const event =
+      buildEventCandidate(
+        unitNo,
+        candidate,
+        closeReason
+      );
+
+
+    return event
+      ? [
+          event
+        ]
+      : [];
+  }
+
+
+  const boundaryIndices =
+    findTruckSplitBoundaryIndices(
+      descentPoints
+    );
+
+
+  if (
+    boundaryIndices.length <
+      2
+  ) {
+    const unresolvedEvent =
+      buildEventCandidate(
+        unitNo,
+        candidate,
+        "truck_boundary_unresolved"
+      );
+
+
+    return unresolvedEvent
+      ? [
+          {
+            ...unresolvedEvent,
+            confidence:
+              "low"
+          }
+        ]
+      : [];
+  }
+
+
+  const events =
+    [];
+
+
+  let startIndex =
+    0;
+
+
+  boundaryIndices.forEach(
+    (
+      boundaryIndex,
+      boundaryOrder
+    ) => {
+      const segmentPoints =
+        descentPoints.slice(
+          startIndex,
+          boundaryIndex +
+            1
+        );
+
+
+      const segmentStart =
+        segmentPoints[0];
+
+
+      const segmentTrough =
+        segmentPoints[
+          segmentPoints.length -
+          1
+        ];
+
+
+      const thresholdPoint =
+        segmentPoints.find(
+          point => {
+            return getLevelDifferenceTon(
+              segmentStart.levelTon,
+              point.levelTon
+            ) >=
+              DISCHARGE_THRESHOLD_TON;
+          }
+        );
+
+
+      const segmentEvent =
+        buildEventCandidate(
+          unitNo,
+          {
+            start:
+              segmentStart,
+            trough:
+              segmentTrough,
+            thresholdCrossedAt:
+              thresholdPoint?.sampledAt ||
+              "",
+            points:
+              segmentPoints
+          },
+          [
+            "data_end",
+            "data_gap"
+          ].includes(
+            closeReason
+          )
+            ? closeReason
+            : boundaryOrder ===
+                boundaryIndices.length -
+                1
+              ? closeReason
+              : "truck_split"
+        );
+
+
+      if (
+        segmentEvent
+      ) {
+        events.push(
+          segmentEvent
+        );
+      }
+
+
+      startIndex =
+        boundaryIndex;
+    }
+  );
+
+
+  return events;
+}
+
+
 function detectBedAshEventsForUnit(
   unitNo,
   rawSamples
@@ -1761,21 +2357,17 @@ function detectBedAshEventsForUnit(
 
   const appendCandidate =
     closeReason => {
-      const detectedEvent =
-        buildEventCandidate(
+      const candidateEvents =
+        buildEventCandidates(
           unitNo,
           candidate,
           closeReason
         );
 
 
-      if (
-        detectedEvent
-      ) {
-        detectedEvents.push(
-          detectedEvent
-        );
-      }
+      detectedEvents.push(
+        ...candidateEvents
+      );
     };
 
 
@@ -3082,7 +3674,8 @@ function isDetectedEventReviewReady(
   ) &&
   ![
     "data_end",
-    "data_gap"
+    "data_gap",
+    "truck_boundary_unresolved"
   ].includes(
     normalizeText(
       event?.closeReason
@@ -3106,6 +3699,21 @@ async function synchronizeDetectedEvents(
   const now =
     new Date()
       .toISOString();
+
+
+  const currentDetectedEvents =
+    Array.isArray(
+      detectedEvents
+    )
+      ? detectedEvents.filter(
+          event => {
+            return normalizeText(
+              event?.algorithmVersion
+            ) ===
+              ALGORITHM_VERSION;
+          }
+        )
+      : [];
 
 
   const normalizedAuthoritativeDates =
@@ -3253,13 +3861,37 @@ async function synchronizeDetectedEvents(
 
       SET
         candidate_active = 0,
+        review_ready = 0,
         updated_at = ?
 
       WHERE threshold_crossed_at >= ?
         AND threshold_crossed_at < ?
         AND status = 'pending'
         AND (
-          review_ready = 0
+          algorithm_version <> ?
+          OR review_ready = 0
+          OR EXISTS (
+            SELECT 1
+
+            FROM bed_ash_discharge_events AS reviewed
+
+            WHERE reviewed.status IN (
+                'confirmed',
+                'excluded'
+              )
+              AND reviewed.unit_no =
+                bed_ash_discharge_events.unit_no
+              AND datetime(
+                reviewed.event_start_at
+              ) < datetime(
+                bed_ash_discharge_events.event_end_at
+              )
+              AND datetime(
+                reviewed.event_end_at
+              ) > datetime(
+                bed_ash_discharge_events.event_start_at
+              )
+          )
           ${authoritativeDateClause}
         )
         ${requestSnapshotWhereClause}
@@ -3269,18 +3901,19 @@ async function synchronizeDetectedEvents(
         now,
         startTimestamp,
         endTimestampExclusive,
+        ALGORITHM_VERSION,
         ...normalizedAuthoritativeDates
       )
   );
 
 
   if (
-    detectedEvents.length >
+    currentDetectedEvents.length >
       0
   ) {
     const eventPayload =
       JSON.stringify(
-        detectedEvents.map(
+        currentDetectedEvents.map(
           event => {
             return {
               eventKey:
@@ -3411,6 +4044,27 @@ async function synchronizeDetectedEvents(
             FROM incoming
 
             WHERE 1 = 1
+              AND NOT EXISTS (
+                SELECT 1
+
+                FROM bed_ash_discharge_events AS reviewed
+
+                WHERE reviewed.status IN (
+                    'confirmed',
+                    'excluded'
+                  )
+                  AND reviewed.unit_no = incoming.unit_no
+                  AND datetime(
+                    reviewed.event_start_at
+                  ) < datetime(
+                    incoming.event_end_at
+                  )
+                  AND datetime(
+                    reviewed.event_end_at
+                  ) > datetime(
+                    incoming.event_start_at
+                  )
+              )
               ${requestSnapshotWhereClause}
 
             ON CONFLICT (event_key)
@@ -3505,6 +4159,11 @@ function convertEventRow(
         row.event_key
       ),
 
+    algorithmVersion:
+      normalizeText(
+        row.algorithm_version
+      ),
+
     revision:
       Math.max(
         1,
@@ -3565,6 +4224,11 @@ function convertEventRow(
         row.confidence
       ) ||
       "medium",
+
+    closeReason:
+      normalizeText(
+        row.close_reason
+      ),
 
     status:
       [
@@ -3641,6 +4305,7 @@ async function findActiveEventRows(
         WHERE (
           status = 'pending'
           AND candidate_active = 1
+          AND algorithm_version = ?
           AND datetime(
             threshold_crossed_at
           ) >= datetime(?)
@@ -3685,6 +4350,7 @@ async function findActiveEventRows(
           event_key ASC
       `)
       .bind(
+        ALGORITHM_VERSION,
         startTimestamp,
         endTimestampExclusive,
         startTimestamp,
@@ -3880,18 +4546,61 @@ async function handleSummaryGet(
   const queryResult =
     await context.env.DB
       .prepare(`
-        SELECT *
+        SELECT legacy_or_current.*
 
-        FROM bed_ash_discharge_events
+        FROM bed_ash_discharge_events AS legacy_or_current
 
-        WHERE candidate_active = 1
-          AND status = 'pending'
-          AND review_ready = 1
+        WHERE legacy_or_current.candidate_active = 1
+          AND legacy_or_current.status = 'pending'
+          AND legacy_or_current.review_ready = 1
+          AND (
+            legacy_or_current.algorithm_version = ?
+
+            OR NOT EXISTS (
+              SELECT 1
+
+              FROM bed_ash_discharge_events AS current_event
+
+              WHERE current_event.algorithm_version = ?
+                AND current_event.unit_no =
+                  legacy_or_current.unit_no
+                AND (
+                  (
+                    current_event.status = 'pending'
+                    AND current_event.candidate_active = 1
+                  )
+                  OR current_event.status IN (
+                    'confirmed',
+                    'excluded'
+                  )
+                )
+                AND datetime(
+                  current_event.event_start_at
+                ) < datetime(
+                  legacy_or_current.event_end_at
+                )
+                AND datetime(
+                  current_event.event_end_at
+                ) > datetime(
+                  legacy_or_current.event_start_at
+                )
+            )
+          )
 
         ORDER BY
-          threshold_crossed_at DESC,
-          unit_no ASC
+          legacy_or_current.threshold_crossed_at DESC,
+          CASE
+            WHEN legacy_or_current.algorithm_version = ?
+              THEN 0
+            ELSE 1
+          END ASC,
+          legacy_or_current.unit_no ASC
       `)
+      .bind(
+        ALGORITHM_VERSION,
+        ALGORITHM_VERSION,
+        ALGORITHM_VERSION
+      )
       .all();
 
 
@@ -4685,6 +5394,54 @@ async function handleReviewPost(
     return createConflictResponse(
       null,
       "확인할 Bed Ash 반출 후보가 더 이상 존재하지 않습니다."
+    );
+  }
+
+
+  if (
+    normalizeText(
+      existingRow.algorithm_version
+    ) !==
+      ALGORITHM_VERSION &&
+    normalizeText(
+      existingRow.status
+    ) ===
+      "pending"
+  ) {
+    await context.env.DB
+      .prepare(`
+        UPDATE bed_ash_discharge_events
+
+        SET
+          candidate_active = 0,
+          review_ready = 0,
+          updated_at = ?
+
+        WHERE event_key = ?
+          AND revision = ?
+          AND status = 'pending'
+          AND algorithm_version <> ?
+      `)
+      .bind(
+        new Date()
+          .toISOString(),
+        eventKey,
+        Number(
+          existingRow.revision
+        ),
+        ALGORITHM_VERSION
+      )
+      .run();
+
+
+    return createConflictResponse(
+      convertEventRow(
+        await findEventRowByKey(
+          context.env.DB,
+          eventKey
+        )
+      ),
+      "이전 판정 방식의 후보입니다. 최신 Level을 조회해 차량별 후보로 갱신해 주세요."
     );
   }
 
@@ -5509,11 +6266,14 @@ export async function onRequestPost(
 */
 export const __bedAshTest = {
   buildCoverage,
+  buildSummary,
   detectBedAshEvents,
   detectBedAshEventsForUnit,
   ensureSchema,
+  findActiveEventRows,
   getExpectedSample,
   handleReviewPost,
+  handleSummaryGet,
   isDetectedEventReviewReady,
   normalizeCompletedRequestSamples,
   synchronizeDetectedEvents
