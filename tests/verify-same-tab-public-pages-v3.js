@@ -214,6 +214,10 @@ for (const token of [
   "replacementStartupAt",
   'action: "asset_save"',
   "expectedUpdatedAt",
+  'data-asset-action="runtime_state"',
+  "operation_start",
+  "operation_stop",
+  "expectedCycleRuntimeRevision",
   "assetManagerButton.hidden = !hasAuthenticatedWriteAccess()",
   'method !== "GET" && !hasAuthenticatedWriteAccess()'
 ]) {
@@ -225,7 +229,9 @@ for (const token of [
 for (const token of [
   "V7 single asset manager + numeric-only alert badge",
   "body.public-monitoring #assetManagerDialog",
-  "body.mobile-monitoring #assetManagerDialog"
+  "body.mobile-monitoring #assetManagerDialog",
+  ".operation-pill",
+  ".runtime-state-action"
 ]) {
   assert(
     blowerPageCss.includes(token),
@@ -279,7 +285,11 @@ for (const token of [
   "isMobileMonitoringRequest(context)",
   "ASSET_EDIT_CONFLICT",
   "기존 TAG는 교체이력 연결을 위해 변경할 수 없습니다",
-  "expectedUpdatedAt"
+  "expectedUpdatedAt",
+  "initializeCycleRuntimeTracking",
+  "cycleRuntimeHoursAt",
+  "changeRuntimeState",
+  "expectedCycleRuntimeRevision"
 ]) {
   assert(
     blowerApi.includes(token),
@@ -369,9 +379,11 @@ for (const file of ["index.html", "mobile-app/index.html"]) {
 
 assert(
   blowerPageHtml.includes('<option value="startup">기동</option>') &&
+    blowerPageHtml.includes('<option value="operation">기동·정지</option>') &&
     blowerPageHtml.includes('id="replacementStartupAt"') &&
+    blowerPageHtml.includes('id="runtimeCycleSummary"') &&
     blowerPageHtml.includes('data-shift-log-return'),
-  "Blower startup-cycle/public-navigation HTML integration is incomplete."
+  "Blower runtime-pause/public-navigation HTML integration is incomplete."
 );
 
 console.log("Same-tab public-pages V3 verification passed.");
