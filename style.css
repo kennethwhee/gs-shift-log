@@ -120490,3 +120490,16 @@ html body
 }
 
 /* ARM_ROLL_BOX_ALERT_HIERARCHY_MATCH_BLOWER_V1_END */
+
+
+/* ARM_ROLL_BOX_ALERT_TITLE_BOLD_V1_START */
+
+@media (min-width: 1840px) {
+  .main-notification-rail
+  .arm-roll-box-main-alert:not(.is-mobile-top-alert)
+  .arm-roll-box-main-alert__content small {
+    font-weight: 850 !important;
+  }
+}
+
+/* ARM_ROLL_BOX_ALERT_TITLE_BOLD_V1_END */
