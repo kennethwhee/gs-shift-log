@@ -120401,3 +120401,92 @@ html body
 }
 
 /* ARM_ROLL_BOX_ALERT_FONT_MATCH_BLOWER_V1_END */
+
+
+/* ARM_ROLL_BOX_ALERT_HIERARCHY_MATCH_BLOWER_V1_START */
+
+/*
+  PC right notification rail only.
+
+  Match ARM ROLL BOX title/body hierarchy to the Blower alert:
+  - vertically center the content block like Blower
+  - align title start with body text start
+  - reduce ARM-specific extra-bold weights
+  - keep the small state dot in front of the body
+  - keep existing card color/state/count behavior
+*/
+@media (min-width: 1840px) {
+  .main-notification-rail
+  > .arm-roll-box-main-alert:not(.is-mobile-top-alert) {
+    display: flex !important;
+    align-items: center !important;
+    grid-template-columns: none !important;
+    gap: 0 !important;
+  }
+
+  .main-notification-rail
+  .arm-roll-box-main-alert:not(.is-mobile-top-alert)
+  .arm-roll-box-main-alert__content {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 30px 0 0 !important;
+  }
+
+  .main-notification-rail
+  .arm-roll-box-main-alert:not(.is-mobile-top-alert)
+  .arm-roll-box-main-alert__content small {
+    display: block !important;
+    margin: 0 0 2px !important;
+    padding: 0 0 0 12px !important;
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    line-height: 1.15 !important;
+    letter-spacing: 0 !important;
+    text-align: left !important;
+  }
+
+  .main-notification-rail
+  .arm-roll-box-main-alert:not(.is-mobile-top-alert)
+  .arm-roll-box-main-alert__content strong {
+    display: flex !important;
+    min-width: 0 !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    line-height: 1.35 !important;
+    letter-spacing: 0 !important;
+    text-align: left !important;
+    white-space: normal !important;
+    word-break: keep-all !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .main-notification-rail
+  .arm-roll-box-main-alert:not(.is-mobile-top-alert)
+  .arm-roll-box-main-alert__content strong::before {
+    flex: 0 0 6px !important;
+    width: 6px !important;
+    height: 6px !important;
+    margin-top: 3px !important;
+  }
+
+  .main-notification-rail
+  .arm-roll-box-main-alert:not(.is-mobile-top-alert)
+  .arm-roll-box-main-alert__count {
+    top: 6px !important;
+    right: 7px !important;
+    min-width: 27px !important;
+    height: 18px !important;
+    min-height: 18px !important;
+    padding: 0 5px !important;
+    font-size: 8px !important;
+    line-height: 1 !important;
+  }
+}
+
+/* ARM_ROLL_BOX_ALERT_HIERARCHY_MATCH_BLOWER_V1_END */
