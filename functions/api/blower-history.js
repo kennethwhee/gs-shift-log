@@ -2932,52 +2932,207 @@ function buildFbheVibrationAssetShadow(assetState, rawAsset, operationEvents = [
 }
 
 /* [FBHE-OIS-RESUME-TIMEOUT-V4-R3] */
-async function loadFbheVibrationRequestRows(database, startDate, endDate) {
-  const chunks = buildFbheVibrationRangeChunks(startDate, endDate);
-  if (chunks.length === 0) return { chunks: [], rows: [] };
 
-  const targetDates = chunks.map(chunk => chunk.targetDate);
-  const placeholders = targetDates.map(() => "?").join(", ");
-  const result = await database
-    .prepare(`
-      SELECT
-        id, request_type, target_date, status,
-        requested_by_id, requested_by_name,
-        requested_at, started_at, completed_at,
-        agent_id, result_json, error_message,
-        expires_at, updated_at
-      FROM ois_data_requests
-      WHERE request_type = ?
-        AND target_date IN (${placeholders})
-      ORDER BY datetime(requested_at) DESC, id DESC
-    `)
-    .bind(FBHE_VIBRATION_REQUEST_TYPE, ...targetDates)
-    .all();
+/* [FBHE-OIS-SAVED-SLICE-ANALYSIS-V6] */
+async function loadFbheVibrationRequestRows(
+  database,
+  startDate,
+  endDate,
+  sourceTargetDate = ""
+) {
+  const normalizedSourceTarget =
+    normalizeText(sourceTargetDate);
 
-  const latestByTargetDate = new Map();
-  const latestCompleteByTargetDate = new Map();
+  if (normalizedSourceTarget) {
+    const sourceRange =
+      parseFbheVibrationRangeKey(
+        normalizedSourceTarget
+      );
 
-  for (const row of Array.isArray(result.results) ? result.results : []) {
-    const targetDate = normalizeText(row.target_date);
-    if (!latestByTargetDate.has(targetDate)) {
-      latestByTargetDate.set(targetDate, row);
+    const validSlice =
+      sourceRange &&
+      startDate >= sourceRange.startDate &&
+      endDate <= sourceRange.endDate &&
+      countFbheVibrationRangeDays(
+        startDate,
+        endDate
+      ) > 0;
+
+    if (!validSlice) {
+      return {
+        chunks: [],
+        rows: []
+      };
     }
+
+    const result =
+      await database
+        .prepare(`
+          SELECT
+            id, request_type, target_date, status,
+            requested_by_id, requested_by_name,
+            requested_at, started_at, completed_at,
+            agent_id, result_json, error_message,
+            expires_at, updated_at
+          FROM ois_data_requests
+          WHERE request_type = ?
+            AND target_date = ?
+          ORDER BY
+            datetime(requested_at) DESC,
+            id DESC
+        `)
+        .bind(
+          FBHE_VIBRATION_REQUEST_TYPE,
+          normalizedSourceTarget
+        )
+        .all();
+
+    const rows =
+      Array.isArray(
+        result.results
+      )
+        ? result.results
+        : [];
+
+    const completedRow =
+      rows.find(
+        row =>
+          normalizeText(
+            row.status
+          ) === "complete"
+      ) ||
+      null;
+
+    const latestRow =
+      rows[0] ||
+      null;
+
+    return {
+      chunks: [
+        {
+          startDate,
+          endDate,
+          targetDate:
+            normalizedSourceTarget,
+          dayCount:
+            countFbheVibrationRangeDays(
+              startDate,
+              endDate
+            )
+        }
+      ],
+      rows: [
+        completedRow ||
+        latestRow ||
+        null
+      ]
+    };
+  }
+
+  const chunks =
+    buildFbheVibrationRangeChunks(
+      startDate,
+      endDate
+    );
+
+  if (chunks.length === 0) {
+    return {
+      chunks: [],
+      rows: []
+    };
+  }
+
+  const targetDates =
+    chunks.map(
+      chunk =>
+        chunk.targetDate
+    );
+
+  const placeholders =
+    targetDates
+      .map(() => "?")
+      .join(", ");
+
+  const result =
+    await database
+      .prepare(`
+        SELECT
+          id, request_type, target_date, status,
+          requested_by_id, requested_by_name,
+          requested_at, started_at, completed_at,
+          agent_id, result_json, error_message,
+          expires_at, updated_at
+        FROM ois_data_requests
+        WHERE request_type = ?
+          AND target_date IN (${placeholders})
+        ORDER BY
+          datetime(requested_at) DESC,
+          id DESC
+      `)
+      .bind(
+        FBHE_VIBRATION_REQUEST_TYPE,
+        ...targetDates
+      )
+      .all();
+
+  const latestByTargetDate =
+    new Map();
+
+  const latestCompleteByTargetDate =
+    new Map();
+
+  for (
+    const row of
+    Array.isArray(
+      result.results
+    )
+      ? result.results
+      : []
+  ) {
+    const targetDate =
+      normalizeText(
+        row.target_date
+      );
+
     if (
-      normalizeText(row.status) === "complete" &&
-      !latestCompleteByTargetDate.has(targetDate)
+      !latestByTargetDate.has(
+        targetDate
+      )
     ) {
-      latestCompleteByTargetDate.set(targetDate, row);
+      latestByTargetDate.set(
+        targetDate,
+        row
+      );
+    }
+
+    if (
+      normalizeText(
+        row.status
+      ) === "complete" &&
+      !latestCompleteByTargetDate.has(
+        targetDate
+      )
+    ) {
+      latestCompleteByTargetDate.set(
+        targetDate,
+        row
+      );
     }
   }
 
   return {
     chunks,
-    rows: chunks.map(
-      chunk =>
-        latestCompleteByTargetDate.get(chunk.targetDate) ||
-        latestByTargetDate.get(chunk.targetDate) ||
-        null
-    )
+    rows:
+      chunks.map(
+        chunk =>
+          latestCompleteByTargetDate.get(
+            chunk.targetDate
+          ) ||
+          latestByTargetDate.get(
+            chunk.targetDate
+          ) ||
+          null
+      )
   };
 }
 
@@ -3106,7 +3261,13 @@ async function loadFbheVibrationOperationEvents(database) {
   return Array.isArray(result.results) ? result.results : [];
 }
 
-async function buildFbheVibrationShadowResponse(database, assetStates, startDate, endDate) {
+async function buildFbheVibrationShadowResponse(
+  database,
+  assetStates,
+  startDate,
+  endDate,
+  sourceTargetDate = ""
+) {
   const dayCount = countFbheVibrationRangeDays(startDate, endDate);
   if (dayCount < 1 || dayCount > FBHE_VIBRATION_RANGE_MAX_DAYS) {
     return {
@@ -3125,7 +3286,13 @@ async function buildFbheVibrationShadowResponse(database, assetStates, startDate
     };
   }
 
-  const requestSet = await loadFbheVibrationRequestRows(database, startDate, endDate);
+  const requestSet =
+    await loadFbheVibrationRequestRows(
+      database,
+      startDate,
+      endDate,
+      sourceTargetDate
+    );
   const chunks = requestSet.chunks;
   const rows = requestSet.rows;
   const queueItems = chunks.map((chunk, index) => {
@@ -3320,8 +3487,30 @@ async function handleGet(context, user) {
 
     const legacyTargetDate = normalizeText(url.searchParams.get("targetDate"));
     const startDate = normalizeText(url.searchParams.get("startDate")) || legacyTargetDate;
-    const endDate = normalizeText(url.searchParams.get("endDate")) || legacyTargetDate || startDate;
-    const result = await buildFbheVibrationShadowResponse(database, assets, startDate, endDate);
+    const endDate =
+      normalizeText(
+        url.searchParams.get(
+          "endDate"
+        )
+      ) ||
+      legacyTargetDate ||
+      startDate;
+
+    const sourceTargetDate =
+      normalizeText(
+        url.searchParams.get(
+          "sourceTargetDate"
+        )
+      );
+
+    const result =
+      await buildFbheVibrationShadowResponse(
+        database,
+        assets,
+        startDate,
+        endDate,
+        sourceTargetDate
+      );
     if (result.ok === false) {
       return jsonResponse({ ...result, permissions }, Number(result.status || 400));
     }

@@ -3262,34 +3262,205 @@
     };
   }
 
-  async function requestFbheSavedChunkAnalysis(
-    chunk
+
+/* [FBHE-OIS-SAVED-SLICE-ANALYSIS-V6] */
+  function buildFbheSavedAnalysisSlices(
+    startDate,
+    endDate,
+    maximumDays = 7
+  ) {
+    const output = [];
+    let cursor =
+      startDate;
+    let guard = 0;
+
+    const safeMaximumDays =
+      Math.max(
+        1,
+        Math.min(
+          7,
+          Number(
+            maximumDays
+          ) || 7
+        )
+      );
+
+    while (
+      cursor &&
+      cursor <= endDate &&
+      guard < 64
+    ) {
+      const candidateEnd =
+        addFbheVibrationDays(
+          cursor,
+          safeMaximumDays - 1
+        );
+
+      const sliceEnd =
+        candidateEnd &&
+        candidateEnd < endDate
+          ? candidateEnd
+          : endDate;
+
+      output.push({
+        startDate:
+          cursor,
+        endDate:
+          sliceEnd,
+        dayCount:
+          countFbheVibrationDays(
+            cursor,
+            sliceEnd
+          )
+      });
+
+      cursor =
+        addFbheVibrationDays(
+          sliceEnd,
+          1
+        );
+
+      guard += 1;
+    }
+
+    return output;
+  }
+
+  function splitFbheSavedAnalysisSlice(
+    slice
+  ) {
+    const dayCount =
+      countFbheVibrationDays(
+        slice.startDate,
+        slice.endDate
+      );
+
+    if (dayCount <= 1) {
+      return [
+        slice
+      ];
+    }
+
+    const leftDays =
+      Math.max(
+        1,
+        Math.floor(
+          dayCount / 2
+        )
+      );
+
+    const leftEnd =
+      addFbheVibrationDays(
+        slice.startDate,
+        leftDays - 1
+      );
+
+    const rightStart =
+      addFbheVibrationDays(
+        leftEnd,
+        1
+      );
+
+    return [
+      {
+        startDate:
+          slice.startDate,
+        endDate:
+          leftEnd,
+        dayCount:
+          countFbheVibrationDays(
+            slice.startDate,
+            leftEnd
+          )
+      },
+      {
+        startDate:
+          rightStart,
+        endDate:
+          slice.endDate,
+        dayCount:
+          countFbheVibrationDays(
+            rightStart,
+            slice.endDate
+          )
+      }
+    ];
+  }
+
+  async function requestFbheSavedSliceAnalysis(
+    sourceChunk,
+    slice
   ) {
     const waits =
-      [0, 1200, 3000];
+      [0, 700, 1800];
 
-    let lastError = null;
+    let lastError =
+      null;
 
     for (
       let attempt = 0;
       attempt < waits.length;
       attempt += 1
     ) {
-      if (waits[attempt] > 0) {
+      if (
+        waits[attempt] > 0
+      ) {
         await waitForMilliseconds(
           waits[attempt]
         );
       }
 
       try {
-        return await apiRequest({
-          url:
-            `${API_URL}?action=vibration_shadow&startDate=${encodeURIComponent(chunk.startDate)}&endDate=${encodeURIComponent(chunk.endDate)}`,
-          timeoutMs:
-            30000
-        });
+        const report =
+          await apiRequest({
+            url:
+              API_URL +
+              "?action=vibration_shadow" +
+              "&startDate=" +
+              encodeURIComponent(
+                slice.startDate
+              ) +
+              "&endDate=" +
+              encodeURIComponent(
+                slice.endDate
+              ) +
+              "&sourceTargetDate=" +
+              encodeURIComponent(
+                sourceChunk.targetDate
+              ),
+            timeoutMs:
+              20000
+          });
+
+        if (
+          Number(
+            report
+              ?.queue
+              ?.completeCount ||
+            0
+          ) < 1
+        ) {
+          const missingError =
+            new Error(
+              "저장된 OIS 원본 구간(" +
+              sourceChunk.startDate +
+              " ~ " +
+              sourceChunk.endDate +
+              ")을 찾지 못했습니다."
+            );
+
+          missingError.code =
+            "FBHE_SAVED_SOURCE_MISSING";
+          missingError.retryable =
+            false;
+
+          throw missingError;
+        }
+
+        return report;
       } catch (error) {
-        lastError = error;
+        lastError =
+          error;
 
         const retryable =
           error?.retryable ===
@@ -3301,7 +3472,11 @@
               )
             );
 
-        if (!retryable) {
+        if (
+          !retryable ||
+          attempt >=
+            waits.length - 1
+        ) {
           throw error;
         }
       }
@@ -3310,10 +3485,153 @@
     throw (
       lastError ||
       new Error(
-        "FBHE 저장자료 구간 분석에 실패했습니다."
+        "FBHE 저장자료 세부 분석에 실패했습니다."
       )
     );
   }
+
+  async function analyzeFbheSavedSourceChunk(
+    sourceChunk,
+    sourceIndex,
+    sourceCount
+  ) {
+    const pending =
+      buildFbheSavedAnalysisSlices(
+        sourceChunk.startDate,
+        sourceChunk.endDate,
+        7
+      );
+
+    const reports = [];
+    const errors = [];
+
+    let index = 0;
+
+    while (
+      index < pending.length
+    ) {
+      const slice =
+        pending[index];
+
+      elements.vibrationHeadline
+        .textContent =
+          "저장자료 세부 분석 중 · " +
+          (sourceIndex + 1) +
+          "/" +
+          sourceCount +
+          " · " +
+          (index + 1) +
+          "/" +
+          pending.length;
+
+      elements.vibrationStatus
+        .dataset.state =
+          "running";
+
+      elements.vibrationStatus
+        .textContent =
+          "OIS 재조회 없이 저장된 " +
+          sourceChunk.startDate +
+          " ~ " +
+          sourceChunk.endDate +
+          " 원본에서 " +
+          slice.startDate +
+          " ~ " +
+          slice.endDate +
+          " 구간을 분석하고 있습니다.";
+
+      if (
+        elements
+          .vibrationQueryButton
+      ) {
+        elements
+          .vibrationQueryButton
+          .textContent =
+            "저장자료 분석 중...";
+      }
+
+      try {
+        const report =
+          await requestFbheSavedSliceAnalysis(
+            sourceChunk,
+            slice
+          );
+
+        reports.push(
+          report
+        );
+
+        index += 1;
+      } catch (error) {
+        const retryable =
+          error?.retryable ===
+            true ||
+          [0, 429, 502, 503, 504]
+            .includes(
+              Number(
+                error?.status
+              )
+            );
+
+        if (
+          retryable &&
+          slice.dayCount > 1
+        ) {
+          const smaller =
+            splitFbheSavedAnalysisSlice(
+              slice
+            );
+
+          pending.splice(
+            index,
+            1,
+            ...smaller
+          );
+
+          continue;
+        }
+
+        errors.push({
+          sourceTargetDate:
+            sourceChunk.targetDate,
+          sourceStartDate:
+            sourceChunk.startDate,
+          sourceEndDate:
+            sourceChunk.endDate,
+          ...slice,
+          message:
+            error?.message ||
+            "저장자료 세부 분석 실패"
+        });
+
+        index += 1;
+      }
+    }
+
+    return {
+      reports,
+      errors
+    };
+  }
+
+  async function requestFbheSavedChunkAnalysis(
+    chunk
+  ) {
+    return await requestFbheSavedSliceAnalysis(
+      {
+        ...chunk,
+        targetDate:
+          chunk.targetDate ||
+          (
+            chunk.startDate +
+            "~" +
+            chunk.endDate
+          )
+      },
+      chunk
+    );
+  }
+
 
   async function loadFbheVibrationShadowReport(
     options = {}
@@ -3341,83 +3659,96 @@
         const report =
           await apiRequest({
             url:
-              `${API_URL}?action=vibration_shadow&startDate=${encodeURIComponent(range.startDate)}&endDate=${encodeURIComponent(range.endDate)}`,
+              API_URL +
+              "?action=vibration_shadow" +
+              "&startDate=" +
+              encodeURIComponent(
+                range.startDate
+              ) +
+              "&endDate=" +
+              encodeURIComponent(
+                range.endDate
+              ),
             timeoutMs:
               30000
           });
 
         state.vibrationReport =
           report;
+
         state.vibrationReportRangeKey =
           range.key;
+
         renderFbheVibrationShadow();
 
         return report;
       }
 
       /*
-        Long ranges are analyzed one SAVED 31-day chunk at a time.
-        No OIS request is created here.
+        [FBHE-OIS-SAVED-SLICE-ANALYSIS-V6]
+        Reuse exact saved 31-day source rows.
+        Analyze each source in <=7-day slices.
+        Retryable server-limit failures split smaller, down to 1 day.
+        No OIS collection request is created here.
       */
-      const chunks =
+      const sourceChunks =
         buildFbheVibrationAnalysisChunks(
           range.startDate,
           range.endDate
+        ).map(
+          chunk => ({
+            ...chunk,
+            targetDate:
+              chunk.startDate +
+              "~" +
+              chunk.endDate
+          })
         );
 
       const reports = [];
       const analysisErrors = [];
+      let successfulSourceCount = 0;
 
       for (
-        let index = 0;
-        index < chunks.length;
-        index += 1
+        let sourceIndex = 0;
+        sourceIndex <
+          sourceChunks.length;
+        sourceIndex += 1
       ) {
-        const chunk =
-          chunks[index];
+        const sourceChunk =
+          sourceChunks[
+            sourceIndex
+          ];
 
-        elements.vibrationHeadline
-          .textContent =
-            `저장자료 구간 분석 중 · ${index + 1}/${chunks.length}`;
-
-        elements.vibrationStatus
-          .dataset.state =
-            "running";
-
-        elements.vibrationStatus
-          .textContent =
-            `OIS 재조회 없이 저장된 ${chunk.startDate} ~ ${chunk.endDate} 진동자료를 분석하고 있습니다.`;
-
-        try {
-          const report =
-            await requestFbheSavedChunkAnalysis(
-              chunk
-            );
-
-          reports.push(
-            report
+        const result =
+          await analyzeFbheSavedSourceChunk(
+            sourceChunk,
+            sourceIndex,
+            sourceChunks.length
           );
-        } catch (error) {
-          analysisErrors.push({
-            ...chunk,
-            message:
-              error?.message ||
-              "저장자료 구간 분석 실패"
-          });
 
-          console.warn(
-            "FBHE saved chunk analysis failed:",
-            chunk,
-            error
-          );
+        reports.push(
+          ...result.reports
+        );
+
+        analysisErrors.push(
+          ...result.errors
+        );
+
+        if (
+          result.reports.length > 0
+        ) {
+          successfulSourceCount += 1;
         }
       }
 
-      if (reports.length === 0) {
+      if (
+        reports.length === 0
+      ) {
         throw new Error(
           analysisErrors[0]
             ?.message ||
-          "FBHE 저장자료를 구간별로 분석하지 못했습니다."
+          "FBHE 저장자료를 세부 구간으로 분석하지 못했습니다."
         );
       }
 
@@ -3428,8 +3759,77 @@
           analysisErrors
         );
 
+      if (
+        report.queue
+      ) {
+        const failedSourceCount =
+          Math.max(
+            0,
+            sourceChunks.length -
+            successfulSourceCount
+          );
+
+        report.queue.chunkCount =
+          sourceChunks.length;
+
+        report.queue.completeCount =
+          successfulSourceCount;
+
+        report.queue.pendingCount =
+          0;
+
+        report.queue.processingCount =
+          0;
+
+        report.queue.failedCount =
+          failedSourceCount;
+
+        report.queue.missingCount =
+          failedSourceCount;
+
+        report.queue.status =
+          failedSourceCount === 0
+            ? "complete"
+            : successfulSourceCount > 0
+              ? "partial_failed"
+              : "failed";
+      }
+
+      if (
+        report.summary
+      ) {
+        report.summary.chunkCount =
+          sourceChunks.length;
+
+        report.summary.completeChunkCount =
+          successfulSourceCount;
+
+        report.summary.analyzedSliceCount =
+          reports.length;
+
+        report.summary.analysisFailedSliceCount =
+          analysisErrors.length;
+      }
+
+      if (
+        report.analysis
+      ) {
+        report.analysis.mode =
+          "client_saved_slice_merge";
+
+        report.analysis.analyzedSliceCount =
+          reports.length;
+
+        report.analysis.failedSliceCount =
+          analysisErrors.length;
+
+        report.analysis.sourceChunkCount =
+          sourceChunks.length;
+      }
+
       state.vibrationReport =
         report;
+
       state.vibrationReportRangeKey =
         range.key;
 
@@ -3440,14 +3840,22 @@
         !options.silent
       ) {
         showToast(
-          `저장자료 ${reports.length}/${chunks.length}구간을 분석했습니다. 실패한 ${analysisErrors.length}구간은 다음 화면 갱신 때 다시 분석할 수 있습니다.`,
+          "저장자료 " +
+          successfulSourceCount +
+          "/" +
+          sourceChunks.length +
+          "개 원본 구간을 분석했습니다. 세부 분석 실패 " +
+          analysisErrors.length +
+          "건은 결과에서 제외했습니다.",
           "error"
         );
       }
 
       return report;
     } catch (error) {
-      if (!options.silent) {
+      if (
+        !options.silent
+      ) {
         showToast(
           error.message ||
           "FBHE OIS 운전시간 분석을 불러오지 못했습니다.",
@@ -3458,6 +3866,7 @@
       throw error;
     }
   }
+
   /* [FBHE-OIS-RESUME-TIMEOUT-V4-R3] */
   async function cancelFbheVibrationRequests(requestIds, reason) {
     const ids = [...new Set((requestIds || []).filter(Boolean))];
