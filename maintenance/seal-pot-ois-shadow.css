@@ -167,3 +167,35 @@
     max-height: calc(100vh - 16px);
   }
 }
+
+/* Seal Pot OIS V2 apply states */
+.seal-pot-ois-status[data-state="running"] {
+  border-color: #b9d1e6;
+  background: #f3f8fc;
+  color: #365d7c;
+}
+
+.seal-pot-ois-status[data-state="complete"] {
+  border-color: #b9d7c5;
+  background: #f4faf6;
+  color: #356548;
+}
+
+.seal-pot-ois-status[data-state="warning"] {
+  border-color: #ead19b;
+  background: #fff9e9;
+  color: #80621f;
+}
+
+.seal-pot-ois-apply {
+  min-width: 142px;
+  font-weight: 800;
+}
+
+.seal-pot-ois-table-wrap tr.is-blocked td {
+  background: #fafbfc;
+}
+
+.seal-pot-ois-table-wrap tr.is-blocked td:first-child {
+  box-shadow: inset 3px 0 0 #d8a0a0;
+}
