@@ -1,326 +1,81 @@
-/* Morning Meeting Co-firing Adjustment V1 */
-
-#efficiencyMorningMeetingAutoCofiringCard .morning-meeting-cofiring-card__meta {
-  max-width: 265px !important;
-}
-
-.morning-meeting-cofiring-adjustment-button {
-  min-width: 50px;
-  height: 22px;
-  padding: 0 6px;
-  border: 1px solid #b8acd0;
-  border-radius: 6px;
-  background: #ffffff;
-  color: #66547f;
-  font: inherit;
-  font-size: 8.5px;
-  font-weight: 850;
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.morning-meeting-cofiring-adjustment-button:hover,
-.morning-meeting-cofiring-adjustment-button.is-active {
-  border-color: #8a6ab4;
-  background: #8a6ab4;
-  color: #ffffff;
-}
-
-.morning-meeting-cofiring-adjustment-modal[hidden] {
-  display: none !important;
-}
-
-.morning-meeting-cofiring-adjustment-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 10090;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 18px;
-  background: rgba(19, 30, 45, 0.46);
-}
-
-.morning-meeting-cofiring-adjustment-dialog {
-  width: min(540px, 100%);
-  max-height: calc(100vh - 36px);
-  overflow: auto;
-  border: 1px solid #cfd8e5;
-  border-radius: 13px;
-  background: #ffffff;
-  box-shadow: 0 20px 55px rgba(20, 34, 53, 0.22);
-}
-
-.morning-meeting-cofiring-adjustment-dialog > header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 13px 15px 11px;
-  border-bottom: 1px solid #e1e7ef;
-  background: #fafbfe;
-}
-
-.morning-meeting-cofiring-adjustment-dialog > header span {
-  display: block;
-  margin-bottom: 3px;
-  color: #785f9a;
-  font-size: 8.5px;
-  font-weight: 900;
-  letter-spacing: 0.11em;
-}
-
-.morning-meeting-cofiring-adjustment-dialog > header h4 {
-  margin: 0;
-  color: #26364c;
-  font-size: 16px;
-  font-weight: 900;
-}
-
-.morning-meeting-cofiring-adjustment-dialog > header p {
-  margin: 4px 0 0;
-  color: #758298;
-  font-size: 10px;
-  font-weight: 650;
-}
-
-.morning-meeting-cofiring-adjustment-close {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 auto;
-  border: 1px solid #d2dbe6;
-  border-radius: 7px;
-  background: #ffffff;
-  color: #64748a;
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-#morningMeetingCofiringAdjustmentForm {
-  display: grid;
-  gap: 10px;
-  padding: 13px 15px 15px;
-}
-
-.morning-meeting-cofiring-adjustment-date {
-  color: #718096;
-  font-size: 9.5px;
-  font-weight: 800;
-}
-
-.morning-meeting-cofiring-adjustment-direction {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.morning-meeting-cofiring-adjustment-direction button {
-  height: 32px;
-  border: 1px solid #d4dce7;
-  border-radius: 7px;
-  background: #ffffff;
-  color: #596a80;
-  font-size: 10.5px;
-  font-weight: 850;
-  cursor: pointer;
-}
-
-.morning-meeting-cofiring-adjustment-direction button.is-active {
-  border-color: #8a6ab4;
-  background: #f1edf7;
-  color: #634c84;
-}
-
-.morning-meeting-cofiring-adjustment-input {
-  display: grid;
-  grid-template-columns: 86px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-}
-
-.morning-meeting-cofiring-adjustment-input > span {
-  color: #56667c;
-  font-size: 10px;
-  font-weight: 850;
-}
-
-.morning-meeting-cofiring-adjustment-input > div {
-  position: relative;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-}
-
-.morning-meeting-cofiring-adjustment-input input {
-  width: 248px;
-  max-width: 100%;
-  height: 34px;
-  box-sizing: border-box;
-  margin-left: auto;
-  padding: 0 42px 0 9px;
-  border: 1px solid #cbd6e3;
-  border-radius: 7px;
-  background: #ffffff;
-  color: #26384f;
-  font-size: 12px;
-  font-weight: 850;
-  text-align: right;
-}
-
-.morning-meeting-cofiring-adjustment-input small {
-  position: absolute;
-  top: 50%;
-  right: 9px;
-  transform: translateY(-50%);
-  color: #8a96a6;
-  font-size: 8.5px;
-  font-weight: 750;
-  pointer-events: none;
-}
-
-.morning-meeting-cofiring-adjustment-summary {
-  padding: 7px 9px;
-  border-radius: 7px;
-  background: #f5f2fa;
-  color: #66547f;
-  font-size: 9.5px;
-  font-weight: 750;
-  line-height: 1.35;
-}
-
-.morning-meeting-cofiring-adjustment-summary.is-error {
-  background: #fff1f1;
-  color: #b13a3a;
-}
-
-.morning-meeting-cofiring-adjustment-preview {
-  overflow: hidden;
-  border: 1px solid #e0e5ec;
-  border-radius: 8px;
-}
-
-.morning-meeting-cofiring-adjustment-preview > div {
-  display: grid;
-  grid-template-columns: 48px repeat(4, minmax(0, 1fr));
-  align-items: stretch;
-}
-
-.morning-meeting-cofiring-adjustment-preview > div + div {
-  border-top: 1px solid #e8edf3;
-}
-
-.morning-meeting-cofiring-adjustment-preview > div > * {
-  display: flex;
-  min-height: 38px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 4px 3px;
-  box-sizing: border-box;
-  border-left: 1px solid #edf1f5;
-  color: #304258;
-  font-size: 9px;
-  font-weight: 800;
-  text-align: center;
-}
-
-.morning-meeting-cofiring-adjustment-preview > div > *:first-child {
-  border-left: 0;
-}
-
-.morning-meeting-cofiring-adjustment-preview > .is-head > span {
-  min-height: 26px;
-  background: #f5f7fa;
-  color: #69788b;
-  font-size: 8px;
-  font-weight: 850;
-}
-
-.morning-meeting-cofiring-adjustment-preview small {
-  color: #9aa5b3;
-  font-size: 7.5px;
-  font-weight: 700;
-}
-
-.morning-meeting-cofiring-adjustment-preview b {
-  color: #31445b;
-  font-size: 9px;
-  font-weight: 900;
-}
-
-.morning-meeting-cofiring-adjustment-formula {
-  margin: 0;
-  color: #7d8998;
-  font-size: 8.5px;
-  font-weight: 650;
-}
-
-#morningMeetingCofiringAdjustmentForm footer {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding-top: 1px;
-}
-
-#morningMeetingCofiringAdjustmentForm footer .is-spacer {
-  flex: 1;
-}
-
-#morningMeetingCofiringAdjustmentForm footer button {
-  min-width: 62px;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid #cbd6e3;
-  border-radius: 7px;
-  background: #ffffff;
-  color: #506176;
-  font-size: 10px;
-  font-weight: 850;
-  cursor: pointer;
-}
-
-#morningMeetingCofiringAdjustmentForm footer button.is-primary {
-  border-color: #755ba1;
-  background: #755ba1;
-  color: #ffffff;
-}
-
-#morningMeetingCofiringAdjustmentForm footer button.is-reset {
-  border-color: #d8c6c6;
-  color: #9b5151;
-}
-
-#morningMeetingCofiringAdjustmentForm footer button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-body.is-morning-meeting-cofiring-adjustment-open {
-  overflow: hidden;
-}
-
-@media (max-width: 600px) {
-  .morning-meeting-cofiring-adjustment-dialog {
-    width: 100%;
-  }
-
-  .morning-meeting-cofiring-adjustment-input {
-    grid-template-columns: 1fr;
-  }
-
-  .morning-meeting-cofiring-adjustment-input > div {
-    justify-content: stretch;
-  }
-
-  .morning-meeting-cofiring-adjustment-input input {
-    width: 100%;
-    margin-left: 0;
-  }
-
-  .morning-meeting-cofiring-adjustment-preview > div {
-    grid-template-columns: 44px repeat(4, minmax(0, 1fr));
-  }
+/* Morning Meeting Co-firing Adjustment V2 */
+#efficiencyMorningMeetingAutoCofiringCard .morning-meeting-cofiring-card__meta { max-width: 265px !important; }
+.morning-meeting-cofiring-adjustment-button { min-width: 50px; height: 22px; padding: 0 6px; border: 1px solid #b8acd0; border-radius: 6px; background: #fff; color: #66547f; font: inherit; font-size: 8.5px; font-weight: 850; line-height: 1; white-space: nowrap; cursor: pointer; }
+.morning-meeting-cofiring-adjustment-button:hover,.morning-meeting-cofiring-adjustment-button.is-active { border-color: #8a6ab4; background: #8a6ab4; color: #fff; }
+.morning-meeting-cofiring-adjustment-modal[hidden] { display: none !important; }
+.morning-meeting-cofiring-adjustment-modal { position: fixed; inset: 0; z-index: 10090; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(19,30,45,.48); }
+.morning-meeting-cofiring-adjustment-dialog { width: min(780px, calc(100vw - 36px)); max-height: calc(100vh - 36px); overflow: auto; border: 1px solid #cfd8e5; border-radius: 15px; background: #fff; box-shadow: 0 22px 60px rgba(20,34,53,.24); }
+.morning-meeting-cofiring-adjustment-dialog > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 17px 19px 14px; border-bottom: 1px solid #dfe6ef; background: #fafbfe; }
+.morning-meeting-cofiring-adjustment-dialog > header span { display: block; margin-bottom: 4px; color: #785f9a; font-size: 10px; font-weight: 900; letter-spacing: .11em; }
+.morning-meeting-cofiring-adjustment-dialog > header h4 { margin: 0; color: #26364c; font-size: 20px; font-weight: 900; }
+.morning-meeting-cofiring-adjustment-dialog > header p { margin: 6px 0 0; color: #758298; font-size: 12px; font-weight: 700; }
+.morning-meeting-cofiring-adjustment-close { width: 34px; height: 34px; flex: 0 0 auto; border: 1px solid #d2dbe6; border-radius: 9px; background: #fff; color: #64748a; font-size: 22px; line-height: 1; cursor: pointer; }
+#morningMeetingCofiringAdjustmentForm { display: grid; gap: 12px; padding: 16px 19px 18px; }
+.morning-meeting-cofiring-adjustment-topline { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 40px; }
+.morning-meeting-cofiring-adjustment-date { color: #65758a; font-size: 11px; font-weight: 850; }
+.morning-meeting-cofiring-adjustment-limit { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.morning-meeting-cofiring-adjustment-limit > label { color: #43546b; font-size: 11.5px; font-weight: 900; white-space: nowrap; }
+.morning-meeting-cofiring-adjustment-limit > div,.morning-meeting-cofiring-final-editor label > div { position: relative; }
+.morning-meeting-cofiring-adjustment-limit input { width: 126px; height: 36px; box-sizing: border-box; padding: 0 36px 0 9px; border: 1px solid #c7d3e0; border-radius: 8px; font-size: 12.5px; font-weight: 900; text-align: right; }
+.morning-meeting-cofiring-adjustment-limit small,.morning-meeting-cofiring-final-editor small { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); color: #8a96a6; font-size: 9px; font-weight: 800; pointer-events: none; }
+.morning-meeting-cofiring-adjustment-limit button { height: 36px; padding: 0 11px; border: 1px solid #cbd6e3; border-radius: 8px; background: #fff; color: #506176; font-size: 10.5px; font-weight: 850; cursor: pointer; }
+.morning-meeting-cofiring-adjustment-section-title { display: flex; align-items: baseline; gap: 8px; }
+.morning-meeting-cofiring-adjustment-section-title strong { color: #34465d; font-size: 12px; font-weight: 900; }
+.morning-meeting-cofiring-adjustment-section-title span { color: #8996a7; font-size: 9.5px; font-weight: 700; }
+.morning-meeting-cofiring-adjustment-direction { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.morning-meeting-cofiring-adjustment-direction button { height: 39px; border: 1px solid #cfd9e6; border-radius: 9px; background: #fff; color: #53657c; font-size: 12px; font-weight: 900; cursor: pointer; }
+.morning-meeting-cofiring-adjustment-direction button.is-active { border-color: #8a6ab4; background: #f1edf7; color: #60467f; }
+.morning-meeting-cofiring-adjustment-input { display: grid; grid-template-columns: 110px minmax(0,1fr); align-items: center; gap: 10px; }
+.morning-meeting-cofiring-adjustment-input > span { color: #4c5f76; font-size: 11.5px; font-weight: 900; }
+.morning-meeting-cofiring-adjustment-input > div { position: relative; display: flex; justify-content: flex-end; }
+.morning-meeting-cofiring-adjustment-input input { width: 260px; max-width: 100%; height: 38px; box-sizing: border-box; padding: 0 42px 0 10px; border: 1px solid #c7d3e0; border-radius: 8px; background: #fff; color: #26384f; font-size: 13px; font-weight: 900; text-align: right; }
+.morning-meeting-cofiring-adjustment-input small { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); color: #8a96a6; font-size: 9px; font-weight: 800; pointer-events: none; }
+.morning-meeting-cofiring-adjustment-auto-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 12px; border: 1px solid #ddd5ea; border-radius: 9px; background: #faf8fd; }
+.morning-meeting-cofiring-adjustment-auto-row > div { display: grid; gap: 3px; }
+.morning-meeting-cofiring-adjustment-auto-row strong { color: #5c4878; font-size: 12px; font-weight: 900; }
+.morning-meeting-cofiring-adjustment-auto-row span { color: #7f8b9a; font-size: 10px; font-weight: 700; line-height: 1.35; }
+.morning-meeting-cofiring-adjustment-auto-row button { min-width: 132px; height: 39px; border: 1px solid #795da5; border-radius: 9px; background: #795da5; color: #fff; font-size: 11px; font-weight: 900; cursor: pointer; }
+.morning-meeting-cofiring-adjustment-summary { padding: 9px 11px; border-radius: 8px; background: #f5f2fa; color: #66547f; font-size: 11px; font-weight: 800; line-height: 1.45; }
+.morning-meeting-cofiring-adjustment-summary.is-error { background: #fff1f1; color: #b13a3a; }
+.morning-meeting-cofiring-adjustment-preview-toolbar { display: flex; align-items: center; justify-content: space-between; margin-top: 1px; }
+.morning-meeting-cofiring-adjustment-preview-toolbar strong { color: #33475e; font-size: 12.5px; font-weight: 900; }
+.morning-meeting-cofiring-adjustment-preview-toolbar button { min-width: 58px; height: 30px; border: 1px solid #c7d3e0; border-radius: 7px; background: #fff; color: #52657c; font-size: 10.5px; font-weight: 900; cursor: pointer; }
+.morning-meeting-cofiring-adjustment-preview-toolbar button:disabled { opacity: .45; cursor: default; }
+.morning-meeting-cofiring-adjustment-preview { overflow: hidden; border: 1px solid #dbe3ec; border-radius: 9px; }
+.morning-meeting-cofiring-adjustment-preview > div { display: grid; grid-template-columns: 62px repeat(4,minmax(0,1fr)); align-items: stretch; }
+.morning-meeting-cofiring-adjustment-preview > div + div { border-top: 1px solid #e8edf3; }
+.morning-meeting-cofiring-adjustment-preview > div > * { display: flex; min-height: 49px; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 6px 4px; box-sizing: border-box; border-left: 1px solid #edf1f5; color: #304258; font-size: 10.5px; font-weight: 850; text-align: center; }
+.morning-meeting-cofiring-adjustment-preview > div > *:first-child { border-left: 0; }
+.morning-meeting-cofiring-adjustment-preview > .is-head > span { min-height: 32px; background: #f5f7fa; color: #657589; font-size: 9.5px; font-weight: 900; }
+.morning-meeting-cofiring-adjustment-preview small { color: #97a2b0; font-size: 8.5px; font-weight: 750; }
+.morning-meeting-cofiring-adjustment-preview b { color: #273d56; font-size: 11px; font-weight: 900; }
+.morning-meeting-cofiring-final-editor[hidden] { display: none !important; }
+.morning-meeting-cofiring-final-editor { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 12px; padding: 12px; border: 1px solid #cfdae6; border-radius: 9px; background: #f8fafc; }
+.morning-meeting-cofiring-final-editor .morning-meeting-cofiring-adjustment-section-title { grid-column: 1 / -1; }
+.morning-meeting-cofiring-final-editor label { display: grid; grid-template-columns: 86px 1fr; align-items: center; gap: 8px; }
+.morning-meeting-cofiring-final-editor label > span { color: #475a71; font-size: 11px; font-weight: 900; }
+.morning-meeting-cofiring-final-editor input { width: 100%; height: 37px; box-sizing: border-box; padding: 0 38px 0 9px; border: 1px solid #c7d3e0; border-radius: 8px; background: #fff; color: #243950; font-size: 12.5px; font-weight: 900; text-align: right; }
+.morning-meeting-cofiring-excluded-note[hidden] { display: none !important; }
+.morning-meeting-cofiring-excluded-note { padding: 9px 11px; border: 1px solid #ead9a7; border-radius: 8px; background: #fff9e8; color: #7c6023; font-size: 10.5px; font-weight: 850; line-height: 1.45; }
+.morning-meeting-cofiring-adjustment-formula { margin: 0; color: #7d8998; font-size: 9.5px; font-weight: 700; }
+#morningMeetingCofiringAdjustmentForm footer { display: flex; align-items: center; gap: 8px; padding-top: 2px; }
+#morningMeetingCofiringAdjustmentForm footer .is-spacer { flex: 1; }
+#morningMeetingCofiringAdjustmentForm footer button { min-width: 72px; height: 36px; padding: 0 12px; border: 1px solid #cbd6e3; border-radius: 8px; background: #fff; color: #506176; font-size: 11px; font-weight: 900; cursor: pointer; }
+#morningMeetingCofiringAdjustmentForm footer button.is-primary { border-color: #755ba1; background: #755ba1; color: #fff; }
+#morningMeetingCofiringAdjustmentForm footer button.is-reset { border-color: #d8c6c6; color: #9b5151; }
+#morningMeetingCofiringAdjustmentForm footer button:disabled { opacity: .5; cursor: default; }
+body.is-morning-meeting-cofiring-adjustment-open { overflow: hidden; }
+@media (max-width: 700px) {
+  .morning-meeting-cofiring-adjustment-dialog { width: 100%; }
+  .morning-meeting-cofiring-adjustment-topline,.morning-meeting-cofiring-adjustment-auto-row { align-items: stretch; flex-direction: column; }
+  .morning-meeting-cofiring-adjustment-limit { justify-content: stretch; flex-wrap: wrap; }
+  .morning-meeting-cofiring-adjustment-limit > div { flex: 1; }
+  .morning-meeting-cofiring-adjustment-limit input { width: 100%; }
+  .morning-meeting-cofiring-adjustment-auto-row button { width: 100%; }
+  .morning-meeting-cofiring-adjustment-input { grid-template-columns: 1fr; }
+  .morning-meeting-cofiring-adjustment-input > div { justify-content: stretch; }
+  .morning-meeting-cofiring-adjustment-input input { width: 100%; }
+  .morning-meeting-cofiring-adjustment-preview > div { grid-template-columns: 52px repeat(4,minmax(0,1fr)); }
+  .morning-meeting-cofiring-final-editor { grid-template-columns: 1fr; }
+  .morning-meeting-cofiring-final-editor .morning-meeting-cofiring-adjustment-section-title { grid-column: auto; }
 }
