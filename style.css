@@ -120082,3 +120082,141 @@ html body
   }
 
 }
+
+
+/* SHIFT_LOG_SEARCH_MATCHED_ITEMS_V1_CSS_START */
+
+.search-result-matches {
+  display: grid;
+  gap: 0;
+  width: 100%;
+}
+
+.search-result-match {
+  display: grid;
+  gap: 7px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(36, 88, 142, 0.16);
+}
+
+.search-result-match:first-child {
+  padding-top: 2px;
+}
+
+.search-result-match:last-of-type {
+  border-bottom: 0;
+  padding-bottom: 4px;
+}
+
+.search-result-match__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 800;
+}
+
+.search-result-match__role {
+  color: #087a57;
+}
+
+.search-result-match__category {
+  color: #9a5a00;
+}
+
+.search-result-match__time {
+  color: #245f9e;
+  font-variant-numeric: tabular-nums;
+}
+
+.search-result-match__body {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+}
+
+.search-result-match__content {
+  min-width: 0;
+  flex: 1 1 520px;
+  color: #152c47;
+  font-size: 14px;
+  line-height: 1.62;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.search-result-match__tag {
+  flex: 0 0 auto;
+  border: 0;
+  padding: 1px 0;
+  background: transparent;
+  color: #165fc1;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.search-result-match__tag:hover {
+  text-decoration: underline;
+}
+
+.search-match-highlight {
+  display: inline;
+  padding: 1px 2px;
+  border-radius: 3px;
+  background: #ffe58a;
+  color: inherit;
+  font-weight: inherit;
+}
+
+.search-result-matches__hint {
+  padding-top: 5px;
+  color: #7c8c9f;
+  font-size: 10.5px;
+  line-height: 1.4;
+  font-weight: 650;
+}
+
+.search-result-matches__empty {
+  color: #7c8c9f;
+  font-size: 12px;
+}
+
+.search-log-preview-cell .search-result-matches {
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .search-result-match {
+    padding: 8px 0;
+  }
+
+  .search-result-match__meta {
+    gap: 5px;
+    font-size: 11px;
+  }
+
+  .search-result-match__content {
+    flex-basis: 100%;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .search-result-match__tag {
+    font-size: 11px;
+  }
+
+  .search-result-matches__hint {
+    font-size: 10px;
+  }
+}
+
+/* SHIFT_LOG_SEARCH_MATCHED_ITEMS_V1_CSS_END */
