@@ -105,6 +105,65 @@
     return status ? (status.textContent || '').trim() : '';
   }
 
+  function syncTurbineQueryButton(turbineCard) {
+    const meta = turbineCard.querySelector(CARD_META_SELECTOR);
+
+    if (!(meta instanceof Element)) {
+      return null;
+    }
+
+    const candidates = Array.from(meta.querySelectorAll('button')).filter(
+      (button) => !button.classList.contains(PROXY_BUTTON_CLASS)
+    );
+    const button =
+      candidates.find((candidate) => /개별\s*조회/.test(candidate.textContent || '')) ||
+      candidates.find((candidate) => /터빈\s*조회/.test(candidate.textContent || '')) ||
+      null;
+
+    if (!(button instanceof HTMLButtonElement)) {
+      return null;
+    }
+
+    button.textContent = '터빈조회';
+    button.setAttribute('aria-label', 'TURBINE 조회');
+    button.title = 'TURBINE 조회';
+
+    return button;
+  }
+
+  function syncProxyButtonPresentation(proxy, turbineQueryButton) {
+    proxy.textContent = 'Silo 조회';
+    proxy.setAttribute('aria-label', 'Silo Level 조회');
+
+    if (!(turbineQueryButton instanceof HTMLButtonElement)) {
+      proxy.style.removeProperty('width');
+      proxy.style.removeProperty('min-width');
+      proxy.style.removeProperty('height');
+      return;
+    }
+
+    const style = window.getComputedStyle(turbineQueryButton);
+    const rect = turbineQueryButton.getBoundingClientRect();
+
+    proxy.style.boxSizing = style.boxSizing;
+    proxy.style.padding = style.padding;
+    proxy.style.borderRadius = style.borderRadius;
+    proxy.style.fontFamily = style.fontFamily;
+    proxy.style.fontSize = style.fontSize;
+    proxy.style.fontWeight = style.fontWeight;
+    proxy.style.lineHeight = style.lineHeight;
+    proxy.style.letterSpacing = style.letterSpacing;
+
+    if (rect.width > 0) {
+      const width = `${Math.round(rect.width * 100) / 100}px`;
+      proxy.style.width = width;
+      proxy.style.minWidth = width;
+    }
+
+    if (rect.height > 0) {
+      proxy.style.height = `${Math.round(rect.height * 100) / 100}px`;
+    }
+  }
   function ensureProxyButton(turbineCard, sourceCard) {
     const meta = turbineCard.querySelector(CARD_META_SELECTOR);
 
@@ -114,6 +173,7 @@
 
     let proxy = meta.querySelector(`.${PROXY_BUTTON_CLASS}`);
     const sourceButton = findSourceQueryButton(sourceCard);
+    const turbineQueryButton = syncTurbineQueryButton(turbineCard);
 
     if (!(sourceButton instanceof HTMLButtonElement)) {
       if (proxy) {
@@ -126,8 +186,7 @@
       proxy = document.createElement('button');
       proxy.type = 'button';
       proxy.className = PROXY_BUTTON_CLASS;
-      proxy.textContent = 'SILO 조회';
-      proxy.setAttribute('aria-label', 'SILO LEVEL 개별조회');
+      proxy.setAttribute('aria-label', 'Silo Level 조회');
       proxy.addEventListener('click', () => {
         const currentSource = getSourceCard();
         const currentSourceButton = findSourceQueryButton(currentSource);
@@ -146,11 +205,12 @@
     const ariaDisabled = sourceButton.getAttribute('aria-disabled') === 'true';
     proxy.disabled = sourceButton.disabled || ariaDisabled;
     proxy.setAttribute('aria-disabled', proxy.disabled ? 'true' : 'false');
+    syncProxyButtonPresentation(proxy, turbineQueryButton);
 
     const sourceStatus = findSourceStatusText(sourceCard);
     proxy.title = sourceStatus
-      ? `SILO LEVEL 개별조회 · ${sourceStatus}`
-      : 'SILO LEVEL 개별조회';
+      ? `Silo Level 조회 · ${sourceStatus}`
+      : 'Silo Level 조회';
   }
 
   function buildMirrorBody(sourceBody) {
@@ -324,6 +384,7 @@
     bindSourceCard();
     syncMergedCard();
     observeLayout();
+    window.addEventListener('resize', queueSync, { passive: true });
 
     let attempts = 0;
     const startupTimer = window.setInterval(() => {

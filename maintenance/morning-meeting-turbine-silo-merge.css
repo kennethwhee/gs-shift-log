@@ -64,3 +64,52 @@
     font-size: 9px;
   }
 }
+/* =========================================================
+   TURBINE / SILO UI V1.8.1
+   - Silo Level uses the same title typography as TURBINE.
+   - The mirrored Silo rows sit directly under the section title.
+   - Query button exact size is synchronized from the turbine button in JS.
+   ========================================================= */
+.efficiency-morning-meeting-auto-card.is-gear-pinion.is-turbine-silo-merged
+  > .efficiency-morning-meeting-auto-card__body:not(.efficiency-morning-meeting-turbine-silo-merge__body)
+  > .efficiency-morning-meeting-auto-row.is-emphasis {
+  min-height: 31px !important;
+  margin: 4px -10px 0 -12px !important;
+  padding: 6px 10px 5px 12px !important;
+  border-top: 1px solid #e7edf4 !important;
+  border-bottom: 1px solid #e7edf4 !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+}
+
+.efficiency-morning-meeting-auto-card.is-gear-pinion.is-turbine-silo-merged
+  > .efficiency-morning-meeting-auto-card__body:not(.efficiency-morning-meeting-turbine-silo-merge__body)
+  > .efficiency-morning-meeting-auto-row.is-emphasis
+  > span {
+  color: #23354d !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  line-height: 1.25 !important;
+}
+
+.efficiency-morning-meeting-turbine-silo-merge__body
+  > .efficiency-morning-meeting-auto-row.is-silo-merge-start {
+  margin-top: 0 !important;
+  border-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+.efficiency-morning-meeting-turbine-silo-merge__query {
+  box-sizing: border-box;
+}
+
+@media (max-width: 700px) {
+  .efficiency-morning-meeting-auto-card.is-gear-pinion.is-turbine-silo-merged
+    > .efficiency-morning-meeting-auto-card__body:not(.efficiency-morning-meeting-turbine-silo-merge__body)
+    > .efficiency-morning-meeting-auto-row.is-emphasis {
+    margin-right: -9px !important;
+    margin-left: -11px !important;
+    padding-right: 9px !important;
+    padding-left: 11px !important;
+  }
+}
