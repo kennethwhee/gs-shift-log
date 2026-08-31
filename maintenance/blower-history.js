@@ -1965,7 +1965,14 @@
     elements.vibrationQueryButton.disabled = state.vibrationPolling || state.busy;
     elements.vibrationRequeryButton.disabled = state.vibrationPolling || state.busy;
     /* [FBHE-OIS-RESUME-TIMEOUT-V4-R3] */
-    elements.vibrationQueryButton.textContent = state.vibrationPolling ? "OIS 수집 중..." : "OIS 이어조회";
+    elements.vibrationQueryButton.textContent =
+      state.vibrationPolling
+        ? (
+            state.vibrationClientAnalysis
+              ? "저장자료 분석 중..."
+              : "OIS 수집 중..."
+          )
+        : "OIS 이어조회";
     elements.vibrationRequeryButton.textContent = "전체 재조회";
 
     if (!reportMatchesRange) {
@@ -3633,6 +3640,2129 @@
   }
 
 
+
+  /* [FBHE-OIS-BROWSER-RAW-ANALYSIS-V7] */
+  const FBHE_BROWSER_SENSOR_ROLES_V7 =
+    Object.freeze([
+      "blower_de",
+      "blower_nde",
+      "motor_de",
+      "motor_nde"
+    ]);
+
+  const FBHE_BROWSER_RUN_MIN_V7 =
+    1.0;
+
+  const FBHE_BROWSER_STOP_MAX_V7 =
+    0.5;
+
+  const FBHE_BROWSER_RUNTIME_GAP_MS_V7 =
+    90 * 60 * 1000;
+
+  function finiteFbheBrowserNumberV7(
+    value
+  ) {
+    if (
+      value === null ||
+      value === undefined ||
+      String(value).trim() === ""
+    ) {
+      return null;
+    }
+
+    const numberValue =
+      Number(value);
+
+    return Number.isFinite(
+      numberValue
+    )
+      ? Math.abs(
+          numberValue
+        )
+      : null;
+  }
+
+  function roundFbheBrowserNumberV7(
+    value,
+    digits = 3
+  ) {
+    const numberValue =
+      finiteFbheBrowserNumberV7(
+        value
+      );
+
+    if (
+      numberValue === null
+    ) {
+      return null;
+    }
+
+    const factor =
+      10 **
+      Math.max(
+        0,
+        Number(digits) || 0
+      );
+
+    return (
+      Math.round(
+        numberValue *
+        factor
+      ) /
+      factor
+    );
+  }
+
+  function medianFbheBrowserV7(
+    values
+  ) {
+    const numbers =
+      (values || [])
+        .map(
+          finiteFbheBrowserNumberV7
+        )
+        .filter(
+          value =>
+            value !== null
+        )
+        .sort(
+          (left, right) =>
+            left - right
+        );
+
+    if (
+      numbers.length === 0
+    ) {
+      return null;
+    }
+
+    const middle =
+      Math.floor(
+        numbers.length / 2
+      );
+
+    return (
+      numbers.length % 2 === 1
+        ? numbers[middle]
+        : (
+            numbers[
+              middle - 1
+            ] +
+            numbers[middle]
+          ) /
+          2
+    );
+  }
+
+  function normalizeFbheBrowserDateTimeV7(
+    value
+  ) {
+    const parsed =
+      new Date(
+        value || 0
+      );
+
+    return Number.isNaN(
+      parsed.getTime()
+    )
+      ? ""
+      : parsed.toISOString();
+  }
+
+  function buildFbheBrowserBoundsV7(
+    startDate,
+    endDate
+  ) {
+    const startAt =
+      new Date(
+        `${startDate}T00:00:00+09:00`
+      );
+
+    const nextDate =
+      addFbheVibrationDays(
+        endDate,
+        1
+      );
+
+    const endExclusive =
+      new Date(
+        `${nextDate}T00:00:00+09:00`
+      );
+
+    const now =
+      currentServerDate();
+
+    const endAt =
+      endExclusive > now
+        ? now
+        : endExclusive;
+
+    return {
+      startAt,
+      endAt
+    };
+  }
+
+  function normalizeFbheBrowserSensorV7(
+    sensor,
+    bounds
+  ) {
+    const role =
+      String(
+        sensor?.role ||
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+    if (
+      !FBHE_BROWSER_SENSOR_ROLES_V7
+        .includes(
+          role
+        )
+    ) {
+      return null;
+    }
+
+    const sampleMap =
+      new Map();
+
+    for (
+      const sample of
+      Array.isArray(
+        sensor?.samples
+      )
+        ? sensor.samples
+        : []
+    ) {
+      const sampledAt =
+        normalizeFbheBrowserDateTimeV7(
+          sample?.sampledAt ||
+          sample?.sampled_at
+        );
+
+      const value =
+        finiteFbheBrowserNumberV7(
+          sample?.value
+        );
+
+      if (
+        !sampledAt ||
+        value === null
+      ) {
+        continue;
+      }
+
+      const sampleTime =
+        new Date(
+          sampledAt
+        ).getTime();
+
+      if (
+        bounds &&
+        (
+          sampleTime <
+            bounds.startAt
+              .getTime() ||
+          sampleTime >
+            bounds.endAt
+              .getTime()
+        )
+      ) {
+        continue;
+      }
+
+      sampleMap.set(
+        sampledAt,
+        {
+          sampledAt,
+          value
+        }
+      );
+    }
+
+    const samples =
+      [...sampleMap.values()]
+        .sort(
+          (left, right) =>
+            left.sampledAt
+              .localeCompare(
+                right.sampledAt
+              )
+        );
+
+    return {
+      role,
+      label:
+        String(
+          sensor?.label ||
+          role
+        ),
+      tag:
+        String(
+          sensor?.tag ||
+          ""
+        ),
+      itemName:
+        String(
+          sensor?.itemName ||
+          sensor?.item_name ||
+          ""
+        ),
+      unit:
+        String(
+          sensor?.unit ||
+          ""
+        ),
+      samples,
+      sampleCount:
+        samples.length,
+      error:
+        String(
+          sensor?.error ||
+          ""
+        )
+    };
+  }
+
+  function buildFbheBrowserPointsV7(
+    rawAsset,
+    bounds
+  ) {
+    const sensors =
+      (
+        Array.isArray(
+          rawAsset?.sensors
+        )
+          ? rawAsset.sensors
+          : []
+      )
+        .map(
+          sensor =>
+            normalizeFbheBrowserSensorV7(
+              sensor,
+              bounds
+            )
+        )
+        .filter(Boolean);
+
+    const sampleMaps =
+      new Map(
+        sensors.map(
+          sensor => [
+            sensor.role,
+            new Map(
+              sensor.samples.map(
+                sample => [
+                  sample.sampledAt,
+                  sample.value
+                ]
+              )
+            )
+          ]
+        )
+      );
+
+    const sampledAtSet =
+      new Set();
+
+    for (
+      const sensor of sensors
+    ) {
+      for (
+        const sample of
+        sensor.samples
+      ) {
+        sampledAtSet.add(
+          sample.sampledAt
+        );
+      }
+    }
+
+    const points =
+      [...sampledAtSet]
+        .sort()
+        .map(
+          sampledAt => {
+            const values =
+              Object.fromEntries(
+                FBHE_BROWSER_SENSOR_ROLES_V7
+                  .map(
+                    role => [
+                      role,
+                      sampleMaps
+                        .get(role)
+                        ?.get(
+                          sampledAt
+                        ) ??
+                        null
+                    ]
+                  )
+              );
+
+            const blowerValues =
+              [
+                values.blower_de,
+                values.blower_nde
+              ]
+                .filter(
+                  value =>
+                    value !== null
+                );
+
+            const motorValues =
+              [
+                values.motor_de,
+                values.motor_nde
+              ]
+                .filter(
+                  value =>
+                    value !== null
+                );
+
+            const allValues =
+              [
+                ...blowerValues,
+                ...motorValues
+              ];
+
+            const blowerIndex =
+              medianFbheBrowserV7(
+                blowerValues
+              );
+
+            const motorIndex =
+              medianFbheBrowserV7(
+                motorValues
+              );
+
+            const combinedIndex =
+              blowerIndex !== null &&
+              motorIndex !== null
+                ? Math.sqrt(
+                    Math.max(
+                      0,
+                      blowerIndex *
+                      motorIndex
+                    )
+                  )
+                : medianFbheBrowserV7(
+                    allValues
+                  );
+
+            return {
+              sampledAt,
+              values,
+              validSensorCount:
+                allValues.length,
+              blowerIndex,
+              motorIndex,
+              combinedIndex
+            };
+          }
+        );
+
+    return {
+      sensors,
+      points
+    };
+  }
+
+  function findFbheBrowserClusterV7(
+    points
+  ) {
+    const values =
+      (points || [])
+        .map(
+          point =>
+            finiteFbheBrowserNumberV7(
+              point?.combinedIndex
+            )
+        )
+        .filter(
+          value =>
+            value !== null
+        )
+        .sort(
+          (left, right) =>
+            left - right
+        );
+
+    if (
+      values.length < 8
+    ) {
+      return null;
+    }
+
+    const clusterSize =
+      Math.max(
+        3,
+        Math.floor(
+          values.length *
+          0.25
+        )
+      );
+
+    const lowerValues =
+      values.slice(
+        0,
+        clusterSize
+      );
+
+    const upperValues =
+      values.slice(
+        -clusterSize
+      );
+
+    const lowerMedian =
+      medianFbheBrowserV7(
+        lowerValues
+      );
+
+    const upperMedian =
+      medianFbheBrowserV7(
+        upperValues
+      );
+
+    if (
+      lowerMedian === null ||
+      upperMedian === null ||
+      upperMedian <=
+        lowerMedian
+    ) {
+      return null;
+    }
+
+    const separationRatio =
+      lowerMedian <= 1e-9
+        ? (
+            upperMedian >
+            1e-9
+              ? Number.POSITIVE_INFINITY
+              : 1
+          )
+        : (
+            upperMedian /
+            lowerMedian
+          );
+
+    if (
+      separationRatio < 2.5
+    ) {
+      return null;
+    }
+
+    const threshold =
+      lowerMedian <= 1e-9
+        ? upperMedian *
+          0.25
+        : Math.sqrt(
+            lowerMedian *
+            upperMedian
+          );
+
+    return {
+      threshold,
+      lowerMedian,
+      upperMedian,
+      separationRatio,
+      lowerCount:
+        lowerValues.length,
+      upperCount:
+        upperValues.length
+    };
+  }
+
+  function absoluteFbheBrowserClassV7(
+    point
+  ) {
+    if (
+      !point ||
+      point.blowerIndex === null ||
+      point.motorIndex === null
+    ) {
+      return "unknown";
+    }
+
+    if (
+      point.motorIndex >=
+        FBHE_BROWSER_RUN_MIN_V7 &&
+      point.blowerIndex <=
+        FBHE_BROWSER_STOP_MAX_V7
+    ) {
+      return "drive_anomaly";
+    }
+
+    if (
+      point.blowerIndex >=
+        FBHE_BROWSER_RUN_MIN_V7 &&
+      point.motorIndex >=
+        FBHE_BROWSER_RUN_MIN_V7
+    ) {
+      return "high";
+    }
+
+    if (
+      point.blowerIndex <=
+        FBHE_BROWSER_STOP_MAX_V7 &&
+      point.motorIndex <=
+        FBHE_BROWSER_STOP_MAX_V7
+    ) {
+      return "low";
+    }
+
+    return "unknown";
+  }
+
+  function classifyFbheBrowserPointV7(
+    point,
+    cluster
+  ) {
+    const absoluteClass =
+      absoluteFbheBrowserClassV7(
+        point
+      );
+
+    if (
+      absoluteClass !==
+      "unknown"
+    ) {
+      return absoluteClass;
+    }
+
+    if (
+      !point ||
+      point.blowerIndex === null ||
+      point.motorIndex === null ||
+      !cluster ||
+      point.combinedIndex === null
+    ) {
+      return "unknown";
+    }
+
+    if (
+      point.motorIndex >
+        cluster.threshold &&
+      point.blowerIndex <=
+        cluster.threshold &&
+      point.motorIndex >=
+        Math.max(
+          point.blowerIndex * 3,
+          cluster.threshold
+        )
+    ) {
+      return "drive_anomaly";
+    }
+
+    return (
+      point.combinedIndex <=
+      cluster.threshold
+        ? "low"
+        : "high"
+    );
+  }
+
+  function runtimeFbheBrowserStateV7(
+    point,
+    cluster
+  ) {
+    if (!point) {
+      return "unknown";
+    }
+
+    const validValues =
+      Object.values(
+        point.values ||
+        {}
+      )
+        .filter(
+          value =>
+            value !== null &&
+            Number.isFinite(
+              Number(value)
+            )
+        );
+
+    if (
+      point.validSensorCount >= 3 &&
+      validValues.length >= 3 &&
+      validValues.every(
+        value =>
+          Math.abs(
+            Number(value)
+          ) <= 1e-9
+      )
+    ) {
+      return "stopped";
+    }
+
+    const classified =
+      classifyFbheBrowserPointV7(
+        point,
+        cluster
+      );
+
+    if (
+      classified === "high"
+    ) {
+      return "running";
+    }
+
+    if (
+      classified === "low"
+    ) {
+      return "stopped";
+    }
+
+    if (
+      classified ===
+      "drive_anomaly"
+    ) {
+      return "anomaly";
+    }
+
+    return "unknown";
+  }
+
+  function stabilizeFbheBrowserStatesV7(
+    points,
+    cluster
+  ) {
+    const states =
+      (points || []).map(
+        point =>
+          runtimeFbheBrowserStateV7(
+            point,
+            cluster
+          )
+      );
+
+    const output =
+      [...states];
+
+    for (
+      let index = 1;
+      index <
+        states.length - 1;
+      index += 1
+    ) {
+      const previous =
+        states[
+          index - 1
+        ];
+
+      const current =
+        states[index];
+
+      const next =
+        states[
+          index + 1
+        ];
+
+      const previousAt =
+        new Date(
+          points[
+            index - 1
+          ]?.sampledAt ||
+          0
+        ).getTime();
+
+      const nextAt =
+        new Date(
+          points[
+            index + 1
+          ]?.sampledAt ||
+          0
+        ).getTime();
+
+      const localSpan =
+        nextAt -
+        previousAt;
+
+      if (
+        !Number.isFinite(
+          localSpan
+        ) ||
+        localSpan >
+          2 *
+          FBHE_BROWSER_RUNTIME_GAP_MS_V7
+      ) {
+        continue;
+      }
+
+      if (
+        [
+          "running",
+          "stopped"
+        ].includes(
+          previous
+        ) &&
+        previous === next &&
+        current !== previous &&
+        current !== "anomaly"
+      ) {
+        output[index] =
+          previous;
+      }
+    }
+
+    return output;
+  }
+
+  function appendFbheBrowserSegmentV7(
+    segments,
+    stateValue,
+    startAtValue,
+    endAtValue
+  ) {
+    const startAt =
+      startAtValue instanceof
+      Date
+        ? startAtValue
+        : new Date(
+            startAtValue
+          );
+
+    const endAt =
+      endAtValue instanceof
+      Date
+        ? endAtValue
+        : new Date(
+            endAtValue
+          );
+
+    if (
+      Number.isNaN(
+        startAt.getTime()
+      ) ||
+      Number.isNaN(
+        endAt.getTime()
+      ) ||
+      endAt <= startAt
+    ) {
+      return;
+    }
+
+    const startText =
+      startAt.toISOString();
+
+    const endText =
+      endAt.toISOString();
+
+    const previous =
+      segments.at(-1);
+
+    if (
+      previous &&
+      previous.state ===
+        stateValue &&
+      previous.endAt ===
+        startText
+    ) {
+      previous.endAt =
+        endText;
+
+      previous.hours =
+        roundFbheBrowserNumberV7(
+          (
+            new Date(
+              previous.endAt
+            ).getTime() -
+            new Date(
+              previous.startAt
+            ).getTime()
+          ) /
+          3600000,
+          3
+        );
+
+      return;
+    }
+
+    segments.push({
+      state:
+        stateValue,
+      startAt:
+        startText,
+      endAt:
+        endText,
+      hours:
+        roundFbheBrowserNumberV7(
+          (
+            endAt.getTime() -
+            startAt.getTime()
+          ) /
+          3600000,
+          3
+        )
+    });
+  }
+
+  function buildFbheBrowserRuntimeV7(
+    points,
+    cluster,
+    startAt,
+    endAt
+  ) {
+    const safePoints =
+      (points || [])
+        .filter(
+          point => {
+            const time =
+              new Date(
+                point?.sampledAt ||
+                0
+              ).getTime();
+
+            return (
+              Number.isFinite(
+                time
+              ) &&
+              time >=
+                startAt.getTime() &&
+              time <=
+                endAt.getTime()
+            );
+          }
+        )
+        .sort(
+          (left, right) =>
+            left.sampledAt
+              .localeCompare(
+                right.sampledAt
+              )
+        );
+
+    const segments = [];
+
+    const totalHours =
+      Math.max(
+        0,
+        (
+          endAt.getTime() -
+          startAt.getTime()
+        ) /
+        3600000
+      );
+
+    if (
+      safePoints.length === 0
+    ) {
+      return {
+        segments,
+        runningHours: 0,
+        stoppedHours: 0,
+        anomalyHours: 0,
+        unknownHours:
+          roundFbheBrowserNumberV7(
+            totalHours,
+            3
+          ) || 0,
+        totalHours:
+          roundFbheBrowserNumberV7(
+            totalHours,
+            3
+          ) || 0,
+        coveragePct: 0,
+        currentState:
+          "unknown",
+        lastStartAt: "",
+        lastStopAt: "",
+        transitions: []
+      };
+    }
+
+    const states =
+      stabilizeFbheBrowserStatesV7(
+        safePoints,
+        cluster
+      );
+
+    const pointTimes =
+      safePoints.map(
+        point =>
+          new Date(
+            point.sampledAt
+          )
+      );
+
+    const firstTime =
+      pointTimes[0];
+
+    const firstState =
+      states[0];
+
+    const leadingGap =
+      firstTime.getTime() -
+      startAt.getTime();
+
+    appendFbheBrowserSegmentV7(
+      segments,
+      (
+        leadingGap >= 0 &&
+        leadingGap <=
+          FBHE_BROWSER_RUNTIME_GAP_MS_V7 &&
+        [
+          "running",
+          "stopped",
+          "anomaly"
+        ].includes(
+          firstState
+        )
+      )
+        ? firstState
+        : "unknown",
+      startAt,
+      firstTime
+    );
+
+    for (
+      let index = 0;
+      index <
+        safePoints.length - 1;
+      index += 1
+    ) {
+      const leftTime =
+        pointTimes[index];
+
+      const rightTime =
+        pointTimes[
+          index + 1
+        ];
+
+      const gapMs =
+        rightTime.getTime() -
+        leftTime.getTime();
+
+      const leftState =
+        states[index];
+
+      const rightState =
+        states[
+          index + 1
+        ];
+
+      if (
+        !Number.isFinite(
+          gapMs
+        ) ||
+        gapMs <= 0
+      ) {
+        continue;
+      }
+
+      if (
+        gapMs >
+        FBHE_BROWSER_RUNTIME_GAP_MS_V7
+      ) {
+        appendFbheBrowserSegmentV7(
+          segments,
+          "unknown",
+          leftTime,
+          rightTime
+        );
+        continue;
+      }
+
+      if (
+        leftState ===
+          rightState &&
+        [
+          "running",
+          "stopped",
+          "anomaly"
+        ].includes(
+          leftState
+        )
+      ) {
+        appendFbheBrowserSegmentV7(
+          segments,
+          leftState,
+          leftTime,
+          rightTime
+        );
+        continue;
+      }
+
+      if (
+        [
+          "running",
+          "stopped"
+        ].includes(
+          leftState
+        ) &&
+        [
+          "running",
+          "stopped"
+        ].includes(
+          rightState
+        )
+      ) {
+        const midpoint =
+          new Date(
+            (
+              leftTime.getTime() +
+              rightTime.getTime()
+            ) /
+            2
+          );
+
+        appendFbheBrowserSegmentV7(
+          segments,
+          leftState,
+          leftTime,
+          midpoint
+        );
+
+        appendFbheBrowserSegmentV7(
+          segments,
+          rightState,
+          midpoint,
+          rightTime
+        );
+
+        continue;
+      }
+
+      if (
+        leftState ===
+          "anomaly" ||
+        rightState ===
+          "anomaly"
+      ) {
+        appendFbheBrowserSegmentV7(
+          segments,
+          "anomaly",
+          leftTime,
+          rightTime
+        );
+        continue;
+      }
+
+      appendFbheBrowserSegmentV7(
+        segments,
+        "unknown",
+        leftTime,
+        rightTime
+      );
+    }
+
+    const lastTime =
+      pointTimes.at(-1);
+
+    const lastState =
+      states.at(-1);
+
+    const trailingGap =
+      endAt.getTime() -
+      lastTime.getTime();
+
+    appendFbheBrowserSegmentV7(
+      segments,
+      (
+        trailingGap >= 0 &&
+        trailingGap <=
+          FBHE_BROWSER_RUNTIME_GAP_MS_V7 &&
+        [
+          "running",
+          "stopped",
+          "anomaly"
+        ].includes(
+          lastState
+        )
+      )
+        ? lastState
+        : "unknown",
+      lastTime,
+      endAt
+    );
+
+    const totals = {
+      running: 0,
+      stopped: 0,
+      anomaly: 0,
+      unknown: 0
+    };
+
+    for (
+      const segment of
+      segments
+    ) {
+      totals[
+        segment.state
+      ] =
+        (
+          totals[
+            segment.state
+          ] ||
+          0
+        ) +
+        Number(
+          segment.hours ||
+          0
+        );
+    }
+
+    const transitions = [];
+
+    for (
+      let index = 1;
+      index <
+        segments.length;
+      index += 1
+    ) {
+      const previous =
+        segments[
+          index - 1
+        ];
+
+      const current =
+        segments[index];
+
+      if (
+        [
+          "running",
+          "stopped"
+        ].includes(
+          previous.state
+        ) &&
+        [
+          "running",
+          "stopped"
+        ].includes(
+          current.state
+        ) &&
+        previous.state !==
+          current.state
+      ) {
+        transitions.push({
+          type:
+            current.state ===
+            "running"
+              ? "start"
+              : "stop",
+          estimatedAt:
+            current.startAt,
+          method:
+            "browser_hourly_runtime",
+          confidence:
+            "high"
+        });
+      }
+    }
+
+    const classifiedHours =
+      totals.running +
+      totals.stopped;
+
+    const latestSegment =
+      segments.at(-1);
+
+    const currentState =
+      latestSegment &&
+      [
+        "running",
+        "stopped"
+      ].includes(
+        latestSegment.state
+      ) &&
+      latestSegment.endAt ===
+        endAt.toISOString()
+        ? latestSegment.state
+        : "unknown";
+
+    return {
+      segments,
+      runningHours:
+        roundFbheBrowserNumberV7(
+          totals.running,
+          3
+        ) || 0,
+      stoppedHours:
+        roundFbheBrowserNumberV7(
+          totals.stopped,
+          3
+        ) || 0,
+      anomalyHours:
+        roundFbheBrowserNumberV7(
+          totals.anomaly,
+          3
+        ) || 0,
+      unknownHours:
+        roundFbheBrowserNumberV7(
+          totals.unknown,
+          3
+        ) || 0,
+      totalHours:
+        roundFbheBrowserNumberV7(
+          totalHours,
+          3
+        ) || 0,
+      coveragePct:
+        totalHours > 0
+          ? (
+              roundFbheBrowserNumberV7(
+                (
+                  classifiedHours /
+                  totalHours
+                ) *
+                100,
+                1
+              ) || 0
+            )
+          : 0,
+      currentState,
+      lastStartAt:
+        transitions
+          .filter(
+            item =>
+              item.type ===
+              "start"
+          )
+          .at(-1)
+          ?.estimatedAt ||
+        "",
+      lastStopAt:
+        transitions
+          .filter(
+            item =>
+              item.type ===
+              "stop"
+          )
+          .at(-1)
+          ?.estimatedAt ||
+        "",
+      transitions
+    };
+  }
+
+  function sumFbheBrowserSegmentHoursV7(
+    segments,
+    stateValue,
+    startAt,
+    endAt
+  ) {
+    let total = 0;
+
+    for (
+      const segment of
+      segments || []
+    ) {
+      if (
+        segment.state !==
+        stateValue
+      ) {
+        continue;
+      }
+
+      const segmentStart =
+        new Date(
+          segment.startAt
+        );
+
+      const segmentEnd =
+        new Date(
+          segment.endAt
+        );
+
+      const clippedStart =
+        segmentStart >
+        startAt
+          ? segmentStart
+          : startAt;
+
+      const clippedEnd =
+        segmentEnd <
+        endAt
+          ? segmentEnd
+          : endAt;
+
+      if (
+        clippedEnd >
+        clippedStart
+      ) {
+        total +=
+          (
+            clippedEnd.getTime() -
+            clippedStart.getTime()
+          ) /
+          3600000;
+      }
+    }
+
+    return (
+      roundFbheBrowserNumberV7(
+        total,
+        3
+      ) || 0
+    );
+  }
+
+  function analyzeFbheRawAssetV7(
+    rawAsset,
+    assetState,
+    sourceChunk
+  ) {
+    const bounds =
+      buildFbheBrowserBoundsV7(
+        sourceChunk.startDate,
+        sourceChunk.endDate
+      );
+
+    const normalized =
+      buildFbheBrowserPointsV7(
+        rawAsset || {},
+        bounds
+      );
+
+    const cluster =
+      findFbheBrowserClusterV7(
+        normalized.points
+      );
+
+    const runtime =
+      buildFbheBrowserRuntimeV7(
+        normalized.points,
+        cluster,
+        bounds.startAt,
+        bounds.endAt
+      );
+
+    const latestPoint =
+      normalized.points.at(-1) ||
+      null;
+
+    const latestClass =
+      classifyFbheBrowserPointV7(
+        latestPoint,
+        cluster
+      );
+
+    const shadowState =
+      latestClass === "high"
+        ? "running"
+        : latestClass === "low"
+          ? "stopped"
+          : runtime.currentState;
+
+    const currentCardState =
+      assetState?.isRunning ===
+        true
+        ? "running"
+        : "stopped";
+
+    const comparison =
+      ![
+        "running",
+        "stopped"
+      ].includes(
+        shadowState
+      )
+        ? "unknown"
+        : shadowState ===
+            currentCardState
+          ? "match"
+          : "mismatch";
+
+    const replacementText =
+      String(
+        assetState
+          ?.lastReplacementAt ||
+        ""
+      );
+
+    const replacementAt =
+      new Date(
+        replacementText
+      );
+
+    const hasReplacement =
+      Boolean(
+        replacementText
+      ) &&
+      !Number.isNaN(
+        replacementAt.getTime()
+      );
+
+    const cycleWindowStartAt =
+      hasReplacement &&
+      replacementAt <
+        bounds.endAt
+        ? (
+            replacementAt >
+            bounds.startAt
+              ? replacementAt
+              : bounds.startAt
+          )
+        : null;
+
+    const cycleWindowEndAt =
+      cycleWindowStartAt
+        ? bounds.endAt
+        : null;
+
+    const cycleWindowHours =
+      cycleWindowStartAt &&
+      cycleWindowEndAt &&
+      cycleWindowEndAt >
+        cycleWindowStartAt
+        ? (
+            cycleWindowEndAt
+              .getTime() -
+            cycleWindowStartAt
+              .getTime()
+          ) /
+          3600000
+        : 0;
+
+    const cycleRuntimeHours =
+      cycleWindowStartAt &&
+      cycleWindowEndAt
+        ? sumFbheBrowserSegmentHoursV7(
+            runtime.segments,
+            "running",
+            cycleWindowStartAt,
+            cycleWindowEndAt
+          )
+        : null;
+
+    const cycleCoverageHours =
+      cycleWindowStartAt &&
+      cycleWindowEndAt
+        ? (
+            sumFbheBrowserSegmentHoursV7(
+              runtime.segments,
+              "running",
+              cycleWindowStartAt,
+              cycleWindowEndAt
+            ) +
+            sumFbheBrowserSegmentHoursV7(
+              runtime.segments,
+              "stopped",
+              cycleWindowStartAt,
+              cycleWindowEndAt
+            )
+          )
+        : null;
+
+    const cycleCoveragePct =
+      cycleWindowHours > 0 &&
+      cycleCoverageHours !==
+        null
+        ? (
+            roundFbheBrowserNumberV7(
+              (
+                cycleCoverageHours /
+                cycleWindowHours
+              ) *
+              100,
+              1
+            ) || 0
+          )
+        : 0;
+
+    const registeredRuntime =
+      finiteFbheReportNumber(
+        assetState
+          ?.cycleElapsedHours
+      );
+
+    const runtimeDifferenceHours =
+      cycleRuntimeHours !==
+        null &&
+      registeredRuntime !==
+        null
+        ? roundFbheReportNumber(
+            cycleRuntimeHours -
+            registeredRuntime,
+            3
+          )
+        : null;
+
+    const sensorByRole =
+      new Map(
+        normalized.sensors.map(
+          sensor => [
+            sensor.role,
+            sensor
+          ]
+        )
+      );
+
+    const failedSensors =
+      FBHE_BROWSER_SENSOR_ROLES_V7
+        .filter(
+          role =>
+            Number(
+              sensorByRole
+                .get(role)
+                ?.sampleCount ||
+              0
+            ) === 0
+        )
+        .map(
+          role => ({
+            role,
+            tag:
+              String(
+                sensorByRole
+                  .get(role)
+                  ?.tag ||
+                ""
+              ),
+            error:
+              String(
+                sensorByRole
+                  .get(role)
+                  ?.error ||
+                "TAG 응답 없음"
+              )
+          })
+        );
+
+    const units =
+      [
+        ...new Set(
+          normalized.sensors
+            .map(
+              sensor =>
+                sensor.unit
+            )
+            .filter(Boolean)
+        )
+      ];
+
+    const anomalyCount =
+      runtime.segments.filter(
+        segment =>
+          segment.state ===
+          "anomaly"
+      ).length;
+
+    return {
+      tagNumber:
+        String(
+          assetState
+            ?.tagNumber ||
+          rawAsset
+            ?.assetTag ||
+          rawAsset
+            ?.tagNumber ||
+          ""
+        ),
+      displayName:
+        String(
+          assetState
+            ?.displayName ||
+          rawAsset
+            ?.displayName ||
+          ""
+        ),
+      unitNo:
+        String(
+          assetState
+            ?.unitNo ||
+          rawAsset
+            ?.unitNo ||
+          ""
+        ),
+      positionLabel:
+        String(
+          assetState
+            ?.positionLabel ||
+          rawAsset
+            ?.positionLabel ||
+          ""
+        ),
+      lastReplacementAt:
+        replacementText,
+      currentCardState,
+      manualState:
+        currentCardState,
+      shadowState,
+      shadowReason:
+        shadowState ===
+          "running"
+          ? "브라우저에서 저장 RAW 진동값의 Blower/Motor 운전 기준을 확인했습니다."
+          : shadowState ===
+              "stopped"
+            ? "브라우저에서 저장 RAW 진동값의 Blower/Motor 정지 기준을 확인했습니다."
+            : "저장 RAW 진동값의 현재 상태를 확정하지 못했습니다.",
+      signalState:
+        latestClass ===
+          "drive_anomaly"
+          ? "drive_anomaly"
+          : latestPoint
+            ? "vibration_present"
+            : "insufficient",
+      comparison,
+      successfulSensorCount:
+        FBHE_BROWSER_SENSOR_ROLES_V7
+          .filter(
+            role =>
+              Number(
+                sensorByRole
+                  .get(role)
+                  ?.sampleCount ||
+                0
+              ) > 0
+          )
+          .length,
+      failedSensorCount:
+        failedSensors.length,
+      failedSensors,
+      samplePointCount:
+        normalized.points.length,
+      latestSampleAt:
+        latestPoint
+          ?.sampledAt ||
+        "",
+      latest:
+        latestPoint
+          ? {
+              blowerIndex:
+                roundFbheBrowserNumberV7(
+                  latestPoint
+                    .blowerIndex,
+                  4
+                ),
+              motorIndex:
+                roundFbheBrowserNumberV7(
+                  latestPoint
+                    .motorIndex,
+                  4
+                ),
+              combinedIndex:
+                roundFbheBrowserNumberV7(
+                  latestPoint
+                    .combinedIndex,
+                  4
+                ),
+              validSensorCount:
+                latestPoint
+                  .validSensorCount,
+              values:
+                Object.fromEntries(
+                  Object.entries(
+                    latestPoint.values
+                  ).map(
+                    ([
+                      key,
+                      value
+                    ]) => [
+                      key,
+                      roundFbheBrowserNumberV7(
+                        value,
+                        4
+                      )
+                    ]
+                  )
+                ),
+              unit:
+                units.length === 1
+                  ? units[0]
+                  : ""
+            }
+          : null,
+      cluster:
+        cluster
+          ? {
+              threshold:
+                roundFbheBrowserNumberV7(
+                  cluster.threshold,
+                  4
+                ),
+              lowerMedian:
+                roundFbheBrowserNumberV7(
+                  cluster.lowerMedian,
+                  4
+                ),
+              upperMedian:
+                roundFbheBrowserNumberV7(
+                  cluster.upperMedian,
+                  4
+                ),
+              separationRatio:
+                roundFbheBrowserNumberV7(
+                  cluster
+                    .separationRatio,
+                  2
+                ),
+              lowerCount:
+                cluster.lowerCount,
+              upperCount:
+                cluster.upperCount
+            }
+          : null,
+      runtime: {
+        rangeRunningHours:
+          runtime.runningHours,
+        rangeStoppedHours:
+          runtime.stoppedHours,
+        rangeAnomalyHours:
+          runtime.anomalyHours,
+        rangeUnknownHours:
+          runtime.unknownHours,
+        rangeCoveragePct:
+          runtime.coveragePct,
+        rangeTotalHours:
+          runtime.totalHours,
+        oisState:
+          runtime.currentState,
+        latestStartAt:
+          runtime.lastStartAt,
+        latestStopAt:
+          runtime.lastStopAt,
+        transitionCount:
+          runtime.transitions.length,
+        segments:
+          runtime.segments
+            .slice(-500),
+        cycleStartAt:
+          hasReplacement
+            ? replacementAt
+                .toISOString()
+            : "",
+        cycleWindowStartAt:
+          cycleWindowStartAt
+            ? cycleWindowStartAt
+                .toISOString()
+            : "",
+        cycleWindowHours:
+          roundFbheReportNumber(
+            cycleWindowHours,
+            3
+          ) || 0,
+        cycleRuntimeHours,
+        cycleCoverageHours:
+          cycleCoverageHours ===
+            null
+            ? null
+            : roundFbheReportNumber(
+                cycleCoverageHours,
+                3
+              ),
+        cycleCoveragePct,
+        cycleRangeComplete:
+          hasReplacement
+            ? replacementAt >=
+              bounds.startAt
+            : false,
+        registeredCycleRuntimeHours:
+          registeredRuntime,
+        runtimeDifferenceHours
+      },
+      transitions:
+        runtime.transitions,
+      unrecordedTransitionCount:
+        0,
+      anomalyCount
+    };
+  }
+
+  function analyzeFbheRawChunkV7(
+    rawResult,
+    sourceChunk
+  ) {
+    const rawAssets =
+      Array.isArray(
+        rawResult?.assets
+      )
+        ? rawResult.assets
+        : [];
+
+    const rawByTag =
+      new Map(
+        rawAssets.map(
+          rawAsset => [
+            String(
+              rawAsset
+                ?.assetTag ||
+              rawAsset
+                ?.tagNumber ||
+              ""
+            )
+              .trim()
+              .toUpperCase(),
+            rawAsset
+          ]
+        )
+      );
+
+    const assetStates =
+      (
+        state.data?.assets ||
+        []
+      )
+        .filter(
+          asset =>
+            asset.blowerType ===
+            "fbhe"
+        )
+        .sort(
+          (left, right) =>
+            Number(
+              left.sortOrder ||
+              0
+            ) -
+            Number(
+              right.sortOrder ||
+              0
+            )
+        );
+
+    const assets =
+      assetStates.map(
+        assetState => {
+          const tagNumber =
+            String(
+              assetState
+                ?.tagNumber ||
+              ""
+            )
+              .trim()
+              .toUpperCase();
+
+          return analyzeFbheRawAssetV7(
+            rawByTag.get(
+              tagNumber
+            ) ||
+            {
+              assetTag:
+                tagNumber,
+              sensors: []
+            },
+            assetState,
+            sourceChunk
+          );
+        }
+      );
+
+    const coverageValues =
+      assets
+        .map(
+          asset =>
+            finiteFbheReportNumber(
+              asset.runtime
+                ?.rangeCoveragePct
+            )
+        )
+        .filter(
+          value =>
+            value !== null
+        );
+
+    const summary = {
+      assetCount:
+        assets.length,
+      shadowDecidedCount:
+        assets.filter(
+          asset =>
+            [
+              "running",
+              "stopped"
+            ].includes(
+              asset.runtime
+                ?.oisState ||
+              asset.shadowState
+            )
+        ).length,
+      matchCount:
+        assets.filter(
+          asset =>
+            asset.comparison ===
+            "match"
+        ).length,
+      mismatchCount:
+        assets.filter(
+          asset =>
+            asset.comparison ===
+            "mismatch"
+        ).length,
+      unknownCount:
+        assets.filter(
+          asset =>
+            ![
+              "running",
+              "stopped"
+            ].includes(
+              asset.runtime
+                ?.oisState ||
+              asset.shadowState
+            )
+        ).length,
+      transitionCount:
+        assets.reduce(
+          (sum, asset) =>
+            sum +
+            Number(
+              asset.runtime
+                ?.transitionCount ||
+              0
+            ),
+          0
+        ),
+      unrecordedTransitionCount:
+        0,
+      anomalyCount:
+        assets.reduce(
+          (sum, asset) =>
+            sum +
+            Number(
+              asset.anomalyCount ||
+              0
+            ),
+          0
+        ),
+      successfulSensorChunkCount:
+        Number(
+          rawResult
+            ?.successfulSensorCount ||
+          0
+        ),
+      failedSensorChunkCount:
+        Number(
+          rawResult
+            ?.failedSensorCount ||
+          0
+        ),
+      averageCoveragePct:
+        coverageValues.length > 0
+          ? (
+              roundFbheReportNumber(
+                coverageValues.reduce(
+                  (sum, value) =>
+                    sum + value,
+                  0
+                ) /
+                coverageValues.length,
+                1
+              ) || 0
+            )
+          : 0,
+      completeChunkCount: 1,
+      chunkCount: 1
+    };
+
+    const bounds =
+      buildFbheBrowserBoundsV7(
+        sourceChunk.startDate,
+        sourceChunk.endDate
+      );
+
+    return {
+      ok: true,
+      startDate:
+        sourceChunk.startDate,
+      endDate:
+        sourceChunk.endDate,
+      dayCount:
+        sourceChunk.dayCount,
+      queue: {
+        status:
+          "complete",
+        chunkCount: 1,
+        completeCount: 1,
+        pendingCount: 0,
+        processingCount: 0,
+        failedCount: 0,
+        missingCount: 0,
+        items: [
+          {
+            id: "",
+            targetDate:
+              sourceChunk.targetDate,
+            status:
+              "complete",
+            requestedAt: "",
+            startedAt: "",
+            completedAt:
+              String(
+                rawResult
+                  ?.collectedAt ||
+                ""
+              ),
+            errorMessage: "",
+            expiresAt: "",
+            updatedAt: ""
+          }
+        ]
+      },
+      automaticApply: false,
+      actualStateChanged: false,
+      runtimeChanged: false,
+      cycleChanged: false,
+      source: {
+        source:
+          "OIS TAG Log Direct API · Browser RAW 분석",
+        collectedAt:
+          String(
+            rawResult
+              ?.collectedAt ||
+            ""
+          ),
+        outputIntervalHours:
+          Number(
+            rawResult
+              ?.outputIntervalHours ||
+            1
+          ),
+        requestedSensorCountPerChunk:
+          Number(
+            rawResult
+              ?.requestedSensorCount ||
+            24
+          ),
+        successfulSensorChunkCount:
+          Number(
+            rawResult
+              ?.successfulSensorCount ||
+            0
+          ),
+        failedSensorChunkCount:
+          Number(
+            rawResult
+              ?.failedSensorCount ||
+            0
+          )
+      },
+      analysis: {
+        startAt:
+          bounds.startAt
+            .toISOString(),
+        endAt:
+          bounds.endAt
+            .toISOString(),
+        readOnly: true,
+        runtimeUnit:
+          "hour",
+        transitionEstimate:
+          "hourly_midpoint",
+        mode:
+          "browser_raw_chunk"
+      },
+      assets,
+      summary
+    };
+  }
+
+  async function requestFbheRawSourceV7(
+    sourceChunk
+  ) {
+    return await apiRequest({
+      url:
+        API_URL +
+        "?action=vibration_raw" +
+        "&targetDate=" +
+        encodeURIComponent(
+          sourceChunk.targetDate
+        ),
+      timeoutMs:
+        30000
+    });
+  }
+
+
   async function loadFbheVibrationShadowReport(
     options = {}
   ) {
@@ -3652,45 +5782,10 @@
       return null;
     }
 
+    state.vibrationClientAnalysis =
+      true;
+
     try {
-      if (
-        range.dayCount <= 31
-      ) {
-        const report =
-          await apiRequest({
-            url:
-              API_URL +
-              "?action=vibration_shadow" +
-              "&startDate=" +
-              encodeURIComponent(
-                range.startDate
-              ) +
-              "&endDate=" +
-              encodeURIComponent(
-                range.endDate
-              ),
-            timeoutMs:
-              30000
-          });
-
-        state.vibrationReport =
-          report;
-
-        state.vibrationReportRangeKey =
-          range.key;
-
-        renderFbheVibrationShadow();
-
-        return report;
-      }
-
-      /*
-        [FBHE-OIS-SAVED-SLICE-ANALYSIS-V6]
-        Reuse exact saved 31-day source rows.
-        Analyze each source in <=7-day slices.
-        Retryable server-limit failures split smaller, down to 1 day.
-        No OIS collection request is created here.
-      */
       const sourceChunks =
         buildFbheVibrationAnalysisChunks(
           range.startDate,
@@ -3707,39 +5802,75 @@
 
       const reports = [];
       const analysisErrors = [];
-      let successfulSourceCount = 0;
 
       for (
-        let sourceIndex = 0;
-        sourceIndex <
+        let index = 0;
+        index <
           sourceChunks.length;
-        sourceIndex += 1
+        index += 1
       ) {
         const sourceChunk =
-          sourceChunks[
-            sourceIndex
-          ];
+          sourceChunks[index];
 
-        const result =
-          await analyzeFbheSavedSourceChunk(
-            sourceChunk,
-            sourceIndex,
-            sourceChunks.length
-          );
+        elements.vibrationHeadline
+          .textContent =
+            "브라우저 저장 RAW 분석 중 · " +
+            (index + 1) +
+            "/" +
+            sourceChunks.length;
 
-        reports.push(
-          ...result.reports
-        );
+        elements.vibrationStatus
+          .dataset.state =
+            "running";
 
-        analysisErrors.push(
-          ...result.errors
-        );
+        elements.vibrationStatus
+          .textContent =
+            "Cloudflare에서 분석하지 않고 저장된 " +
+            sourceChunk.startDate +
+            " ~ " +
+            sourceChunk.endDate +
+            " OIS 원본을 이 PC 브라우저에서 계산하고 있습니다.";
 
         if (
-          result.reports.length > 0
+          elements
+            .vibrationQueryButton
         ) {
-          successfulSourceCount += 1;
+          elements
+            .vibrationQueryButton
+            .textContent =
+              "저장자료 분석 중...";
         }
+
+        try {
+          const rawResult =
+            await requestFbheRawSourceV7(
+              sourceChunk
+            );
+
+          reports.push(
+            analyzeFbheRawChunkV7(
+              rawResult,
+              sourceChunk
+            )
+          );
+        } catch (error) {
+          analysisErrors.push({
+            ...sourceChunk,
+            message:
+              error?.message ||
+              "저장 RAW 원본을 불러오지 못했습니다."
+          });
+
+          console.warn(
+            "FBHE browser RAW analysis source failed:",
+            sourceChunk,
+            error
+          );
+        }
+
+        await waitForMilliseconds(
+          20
+        );
       }
 
       if (
@@ -3748,7 +5879,7 @@
         throw new Error(
           analysisErrors[0]
             ?.message ||
-          "FBHE 저장자료를 세부 구간으로 분석하지 못했습니다."
+          "저장된 FBHE OIS 원본을 브라우저에서 분석하지 못했습니다."
         );
       }
 
@@ -3760,39 +5891,16 @@
         );
 
       if (
-        report.queue
+        report.analysis
       ) {
-        const failedSourceCount =
-          Math.max(
-            0,
-            sourceChunks.length -
-            successfulSourceCount
-          );
+        report.analysis.mode =
+          "browser_raw_merge";
 
-        report.queue.chunkCount =
-          sourceChunks.length;
+        report.analysis.rawChunkCount =
+          reports.length;
 
-        report.queue.completeCount =
-          successfulSourceCount;
-
-        report.queue.pendingCount =
-          0;
-
-        report.queue.processingCount =
-          0;
-
-        report.queue.failedCount =
-          failedSourceCount;
-
-        report.queue.missingCount =
-          failedSourceCount;
-
-        report.queue.status =
-          failedSourceCount === 0
-            ? "complete"
-            : successfulSourceCount > 0
-              ? "partial_failed"
-              : "failed";
+        report.analysis.failedRawChunkCount =
+          analysisErrors.length;
       }
 
       if (
@@ -3802,29 +5910,93 @@
           sourceChunks.length;
 
         report.summary.completeChunkCount =
-          successfulSourceCount;
-
-        report.summary.analyzedSliceCount =
           reports.length;
 
-        report.summary.analysisFailedSliceCount =
+        report.summary.analysisFailedChunkCount =
           analysisErrors.length;
       }
 
       if (
-        report.analysis
+        report.queue
       ) {
-        report.analysis.mode =
-          "client_saved_slice_merge";
+        report.queue.chunkCount =
+          sourceChunks.length;
 
-        report.analysis.analyzedSliceCount =
+        report.queue.completeCount =
           reports.length;
 
-        report.analysis.failedSliceCount =
+        report.queue.failedCount =
           analysisErrors.length;
 
-        report.analysis.sourceChunkCount =
-          sourceChunks.length;
+        report.queue.missingCount =
+          analysisErrors.length;
+
+        report.queue.pendingCount =
+          0;
+
+        report.queue.processingCount =
+          0;
+
+        report.queue.status =
+          analysisErrors.length === 0
+            ? "complete"
+            : reports.length > 0
+              ? "partial_failed"
+              : "failed";
+      }
+
+      const finalTargetDate =
+        sourceChunks
+          .at(-1)
+          ?.targetDate ||
+        "";
+
+      const finalSourceAvailable =
+        reports.some(
+          chunkReport =>
+            chunkReport
+              ?.queue
+              ?.items
+              ?.some(
+                item =>
+                  item.targetDate ===
+                  finalTargetDate &&
+                  item.status ===
+                  "complete"
+              )
+        );
+
+      if (
+        !finalSourceAvailable
+      ) {
+        for (
+          const asset of
+          report.assets ||
+          []
+        ) {
+          asset.shadowState =
+            "unknown";
+
+          if (
+            asset.runtime
+          ) {
+            asset.runtime.oisState =
+              "unknown";
+          }
+        }
+
+        if (
+          report.summary
+        ) {
+          report.summary.shadowDecidedCount =
+            0;
+
+          report.summary.unknownCount =
+            Number(
+              report.summary.assetCount ||
+              6
+            );
+        }
       }
 
       state.vibrationReport =
@@ -3840,13 +6012,13 @@
         !options.silent
       ) {
         showToast(
-          "저장자료 " +
-          successfulSourceCount +
+          "저장 RAW " +
+          reports.length +
           "/" +
           sourceChunks.length +
-          "개 원본 구간을 분석했습니다. 세부 분석 실패 " +
+          "구간을 브라우저에서 계산했습니다. 누락 " +
           analysisErrors.length +
-          "건은 결과에서 제외했습니다.",
+          "구간은 OIS 이어조회로 보완할 수 있습니다.",
           "error"
         );
       }
@@ -3858,12 +6030,15 @@
       ) {
         showToast(
           error.message ||
-          "FBHE OIS 운전시간 분석을 불러오지 못했습니다.",
+          "FBHE 저장 RAW 브라우저 분석에 실패했습니다.",
           "error"
         );
       }
 
       throw error;
+    } finally {
+      state.vibrationClientAnalysis =
+        false;
     }
   }
 

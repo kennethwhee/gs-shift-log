@@ -3458,6 +3458,109 @@ async function buildFbheVibrationShadowResponse(
   };
 }
 
+
+/* [FBHE-OIS-BROWSER-RAW-ANALYSIS-V7] */
+async function loadFbheVibrationRawResponse(
+  database,
+  targetDate
+) {
+  const range =
+    parseFbheVibrationRangeKey(
+      targetDate
+    );
+
+  if (
+    !range ||
+    range.dayCount < 1 ||
+    range.dayCount > 31
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        code: "FBHE_RAW_RANGE_INVALID",
+        message:
+          "FBHE 저장 원본은 31일 이하의 정확한 저장 구간으로 조회해 주세요."
+      },
+      400
+    );
+  }
+
+  const row =
+    await database
+      .prepare(`
+        SELECT
+          id,
+          target_date,
+          completed_at,
+          result_json
+        FROM ois_data_requests
+        WHERE request_type = ?
+          AND target_date = ?
+          AND status = 'complete'
+        ORDER BY
+          datetime(completed_at) DESC,
+          datetime(requested_at) DESC,
+          id DESC
+        LIMIT 1
+      `)
+      .bind(
+        FBHE_VIBRATION_REQUEST_TYPE,
+        targetDate
+      )
+      .first();
+
+  if (
+    !row ||
+    !String(
+      row.result_json ||
+      ""
+    ).trim()
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        code: "FBHE_RAW_NOT_FOUND",
+        message:
+          `저장된 FBHE OIS 원본이 없습니다: ${targetDate}`
+      },
+      404
+    );
+  }
+
+  /*
+    Important:
+    Do not JSON.parse or re-stringify result_json in Cloudflare.
+    The browser receives the already-stored JSON text and performs
+    all vibration/runtime analysis locally.
+  */
+  return new Response(
+    String(
+      row.result_json
+    ),
+    {
+      status: 200,
+      headers: {
+        "Content-Type":
+          "application/json; charset=utf-8",
+        "Cache-Control":
+          "no-store",
+        "X-FBHE-Target-Date":
+          normalizeText(
+            row.target_date
+          ),
+        "X-FBHE-Request-Id":
+          normalizeText(
+            row.id
+          ),
+        "X-FBHE-Completed-At":
+          normalizeText(
+            row.completed_at
+          )
+      }
+    }
+  );
+}
+
 async function handleGet(context, user) {
   const database = context.env.DB;
   const url = new URL(context.request.url);
@@ -3468,6 +3571,31 @@ async function handleGet(context, user) {
     return jsonResponse(
       { ok: false, message: "로그인이 필요합니다.", permissions },
       401
+    );
+  }
+
+  if (action === "vibration_raw") {
+    if (!user) {
+      return jsonResponse(
+        {
+          ok: false,
+          message: "FBHE OIS 저장 원본 조회는 로그인이 필요합니다.",
+          permissions
+        },
+        401
+      );
+    }
+
+    const targetDate =
+      normalizeText(
+        url.searchParams.get(
+          "targetDate"
+        )
+      );
+
+    return await loadFbheVibrationRawResponse(
+      database,
+      targetDate
     );
   }
 
