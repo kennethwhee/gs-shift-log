@@ -304,6 +304,42 @@ const OIS_QUERY_TIMEOUT =
   30000;
 
 
+
+/* [MORNING-MEETING-FINAL-EXCEL-OPEN-EXPLORER-V2.1] */
+const MORNING_MEETING_FINAL_EXCEL_FOLDER_CONFIG_PATH =
+  path.resolve(__dirname, "..", "..", ".git", "morning-meeting-final-excel-folder.json");
+
+function readMorningMeetingFinalExcelFolderConfig() {
+  if (!fs.existsSync(MORNING_MEETING_FINAL_EXCEL_FOLDER_CONFIG_PATH)) {
+    throw new Error(`최종 Excel 저장 폴더 설정 파일을 찾지 못했습니다: ${MORNING_MEETING_FINAL_EXCEL_FOLDER_CONFIG_PATH}`);
+  }
+  const config = JSON.parse(fs.readFileSync(MORNING_MEETING_FINAL_EXCEL_FOLDER_CONFIG_PATH, "utf8").replace(/^\uFEFF/, ""));
+  const parentFolder = String(config?.parentFolder || "").trim();
+  if (!parentFolder || !fs.existsSync(parentFolder)) {
+    throw new Error(`최종 Excel 저장 상위 폴더를 찾지 못했습니다: ${parentFolder}`);
+  }
+  return { parentFolder };
+}
+
+function openMorningMeetingFinalExcelFolder(targetDate) {
+  if (process.platform !== "win32") {
+    throw new Error("Windows 탐색기 열기는 회사 Windows PC에서만 지원합니다.");
+  }
+  const match = String(targetDate || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    throw new Error(`최종 Excel 저장 폴더 날짜가 올바르지 않습니다: ${targetDate}`);
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const { parentFolder } = readMorningMeetingFinalExcelFolderConfig();
+  const monthFolder = path.join(parentFolder, `${year}년 일일발전운전 현황`, `${year}년 ${month}월`);
+  if (!fs.existsSync(monthFolder)) {
+    throw new Error(`방금 저장한 월 폴더를 찾지 못했습니다: ${monthFolder}`);
+  }
+  const explorer = spawn("explorer.exe", [monthFolder], { detached: true, stdio: "ignore", windowsHide: false });
+  explorer.unref();
+  return { targetDate, opened: true, folderPath: monthFolder, openedAt: new Date().toISOString() };
+}
 const OIS_SESSION_FILE_PATH =
   path.join(
     process.cwd(),
@@ -10953,8 +10989,9 @@ async function getNextOisAgentRequest(
   const excelRequestTypes = [
     "daily_data_excel",
     "steam_status",
-    "logsheet_pdf"
-  ];
+    "logsheet_pdf",
+    "open_final_excel_folder"
+];
 
 
   const morningMeetingRequestTypes = [
@@ -10973,8 +11010,9 @@ async function getNextOisAgentRequest(
     "logsheet_approval",
     "fbhe_vibration",
     "logsheet_pdf",
-    "seal_pot_runtime"
-  ];
+    "seal_pot_runtime",
+    "open_final_excel_folder"
+];
 
 
   const requestTypes =
@@ -11175,8 +11213,9 @@ async function getNextOisAgentLaneRequests(
   const excelRequestTypes = [
     "daily_data_excel",
     "steam_status",
-    "logsheet_pdf"
-  ];
+    "logsheet_pdf",
+    "open_final_excel_folder"
+];
 
 
   const oisStartIndex =
@@ -11604,6 +11643,13 @@ if (
     return "Seal Pot Blower OIS Shadow";
   }
 
+
+  if (
+    requestType ===
+      "open_final_excel_folder"
+  ) {
+    return "최종 Excel 저장 폴더 열기";
+  }
 
   if (
     requestType ===
@@ -16512,6 +16558,13 @@ if (
     );
   }
 
+
+  if (
+    requestType ===
+      "open_final_excel_folder"
+  ) {
+    return openMorningMeetingFinalExcelFolder(targetDate);
+  }
 
   if (
     requestType ===
@@ -22102,6 +22155,9 @@ async function loginOis() {
           ) ||
           requestType ===
             "logsheet_pdf"
+          ||
+          requestType ===
+            "open_final_excel_folder"
         );
 
 

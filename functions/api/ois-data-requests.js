@@ -895,7 +895,8 @@ const OIS_REQUEST_TYPES = [
   "steam_status",
   "logsheet_approval",
   "logsheet_pdf",
-  "seal_pot_runtime"
+  "seal_pot_runtime",
+  "open_final_excel_folder"
 ];
 
 
@@ -8144,7 +8145,8 @@ const OIS_AGENT_OIS_LANE_REQUEST_TYPES = [
 const OIS_AGENT_EXCEL_LANE_REQUEST_TYPES = [
   "daily_data_excel",
   "steam_status",
-  "logsheet_pdf"
+  "logsheet_pdf",
+  "open_final_excel_folder"
 ];
 
 
