@@ -698,8 +698,38 @@
     element.innerHTML = `<small>${formatter(beforeValue)}</small><b>→ ${formatter(afterValue)}</b>`;
   }
 
+  function setSaveEnabled(enabled) {
+    const button = document.getElementById("morningMeetingCofiringAdjustmentSave");
+    if (button instanceof HTMLButtonElement) {
+      button.disabled = !enabled;
+    }
+  }
+
+  function renderCurrentBasePreview(message = "현재 일일DATA 기준값입니다. Bio 이동량을 입력하거나 최대혼소 조정 또는 수정을 선택해 주세요.") {
+    if (!currentContext?.baseFuelData || !currentContext?.settings) {
+      clearPreview(message);
+      return;
+    }
+    const base = currentContext.baseFuelData;
+    const result = calculateFinalBioAdjustment(base, currentContext.settings, base.unitOne.bio, base.unitTwo.bio, {
+      mode: "current"
+    });
+    if (!result?.ok) {
+      renderPreview(result);
+      return;
+    }
+    result.mode = "current";
+    renderPreview(result);
+    const summary = document.getElementById("morningMeetingCofiringAdjustmentSummary");
+    if (summary instanceof HTMLElement) {
+      summary.textContent = message;
+      summary.classList.remove("is-error");
+    }
+  }
+
   function clearPreview(message = "이동량을 입력하거나 최대혼소 조정을 실행해 주세요.") {
     previewResult = null;
+    setSaveEnabled(false);
     setText("morningMeetingCofiringAdjustmentSummary", message);
     const summary = document.getElementById("morningMeetingCofiringAdjustmentSummary");
     summary?.classList.remove("is-error");
@@ -719,14 +749,19 @@
     previewResult = result?.ok ? result : null;
     const summary = document.getElementById("morningMeetingCofiringAdjustmentSummary");
     if (!result?.ok) {
+      setSaveEnabled(false);
       if (summary instanceof HTMLElement) {
         summary.textContent = result?.message || "조정값을 계산하지 못했습니다.";
         summary.classList.add("is-error");
       }
       return;
     }
+    const isCurrentBase = result.mode === "current";
+    setSaveEnabled(!isCurrentBase);
     if (summary instanceof HTMLElement) {
-      if (result.mode === "manual_transfer") {
+      if (isCurrentBase) {
+        summary.textContent = "현재 일일DATA 기준값입니다. Bio 이동량을 입력하거나 최대혼소 조정 또는 수정을 선택해 주세요.";
+      } else if (result.mode === "manual_transfer") {
         const from = Number(result.fromUnit) === 2 ? 2 : 1;
         summary.textContent = `${from}호기 → ${from === 1 ? 2 : 1}호기 Bio ${formatUsagePlain(result.bioTransferTons)} t/d 이동 · Coal 열량 자동 보정`;
       } else if (result.mode === "max_auto") {
@@ -739,14 +774,27 @@
 
     const base = currentContext?.baseFuelData;
     if (base) {
-      previewCell("cofAdjU1Coal", base.unitOne.coal, result.fuelData.unitOne.coal, formatUsagePlain);
-      previewCell("cofAdjU1Bio", base.unitOne.bio, result.fuelData.unitOne.bio, formatUsagePlain);
-      previewCell("cofAdjU1BioRatio", calculateUnitRatios(base.unitOne, currentContext.settings)?.bioRatio, result.unitOneRatios.bioRatio, formatRatio);
-      previewCell("cofAdjU1TotalRatio", calculateUnitRatios(base.unitOne, currentContext.settings)?.totalRatio, result.unitOneRatios.totalRatio, formatRatio);
-      previewCell("cofAdjU2Coal", base.unitTwo.coal, result.fuelData.unitTwo.coal, formatUsagePlain);
-      previewCell("cofAdjU2Bio", base.unitTwo.bio, result.fuelData.unitTwo.bio, formatUsagePlain);
-      previewCell("cofAdjU2BioRatio", calculateUnitRatios(base.unitTwo, currentContext.settings)?.bioRatio, result.unitTwoRatios.bioRatio, formatRatio);
-      previewCell("cofAdjU2TotalRatio", calculateUnitRatios(base.unitTwo, currentContext.settings)?.totalRatio, result.unitTwoRatios.totalRatio, formatRatio);
+      const baseUnitOneRatios = calculateUnitRatios(base.unitOne, currentContext.settings);
+      const baseUnitTwoRatios = calculateUnitRatios(base.unitTwo, currentContext.settings);
+      if (isCurrentBase) {
+        setText("cofAdjU1Coal", formatUsagePlain(base.unitOne.coal));
+        setText("cofAdjU1Bio", formatUsagePlain(base.unitOne.bio));
+        setText("cofAdjU1BioRatio", formatRatio(baseUnitOneRatios?.bioRatio));
+        setText("cofAdjU1TotalRatio", formatRatio(baseUnitOneRatios?.totalRatio));
+        setText("cofAdjU2Coal", formatUsagePlain(base.unitTwo.coal));
+        setText("cofAdjU2Bio", formatUsagePlain(base.unitTwo.bio));
+        setText("cofAdjU2BioRatio", formatRatio(baseUnitTwoRatios?.bioRatio));
+        setText("cofAdjU2TotalRatio", formatRatio(baseUnitTwoRatios?.totalRatio));
+      } else {
+        previewCell("cofAdjU1Coal", base.unitOne.coal, result.fuelData.unitOne.coal, formatUsagePlain);
+        previewCell("cofAdjU1Bio", base.unitOne.bio, result.fuelData.unitOne.bio, formatUsagePlain);
+        previewCell("cofAdjU1BioRatio", baseUnitOneRatios?.bioRatio, result.unitOneRatios.bioRatio, formatRatio);
+        previewCell("cofAdjU1TotalRatio", baseUnitOneRatios?.totalRatio, result.unitOneRatios.totalRatio, formatRatio);
+        previewCell("cofAdjU2Coal", base.unitTwo.coal, result.fuelData.unitTwo.coal, formatUsagePlain);
+        previewCell("cofAdjU2Bio", base.unitTwo.bio, result.fuelData.unitTwo.bio, formatUsagePlain);
+        previewCell("cofAdjU2BioRatio", baseUnitTwoRatios?.bioRatio, result.unitTwoRatios.bioRatio, formatRatio);
+        previewCell("cofAdjU2TotalRatio", baseUnitTwoRatios?.totalRatio, result.unitTwoRatios.totalRatio, formatRatio);
+      }
     }
 
     const editButton = document.getElementById("morningMeetingCofiringFinalEdit");
@@ -800,7 +848,7 @@
     }
     const amount = normalizeNumber(input.value);
     if (amount === null || amount <= 0) {
-      clearPreview("Bio 이동량을 입력하면 조정 결과가 표시됩니다.");
+      renderCurrentBasePreview("현재 일일DATA 기준값입니다. Bio 이동량을 입력하면 조정 결과가 표시됩니다.");
       return;
     }
     renderPreview(calculateAdjustment(currentContext.baseFuelData, currentContext.settings, selectedDirection, amount));
@@ -840,6 +888,7 @@
     setText("morningMeetingCofiringAdjustmentDate", targetDate);
     setText("morningMeetingCofiringAdjustmentSummary", "데이터를 확인하는 중입니다...");
     hideFinalEditor();
+    setSaveEnabled(false);
     try {
       currentContext = await loadContext(targetDate);
       if (!currentContext.baseFuelData || !allRequiredFuelValuesPresent(currentContext.baseFuelData)) {
@@ -881,9 +930,10 @@
         if (transferInput instanceof HTMLInputElement) {
           transferInput.value = "";
         }
-        clearPreview();
+        renderCurrentBasePreview();
       }
     } catch (error) {
+      setSaveEnabled(false);
       const summary = document.getElementById("morningMeetingCofiringAdjustmentSummary");
       if (summary instanceof HTMLElement) {
         summary.textContent = error?.message || "혼소 조정 데이터를 불러오지 못했습니다.";
