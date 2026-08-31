@@ -184654,6 +184654,7 @@ async function createWaterRequest(
     requestItem,
     expectedDate
   ) {
+    /* MORNING-MEETING-PARTIAL-VALUES-V1: preserve valid water metrics when another one is missing. */
     const result =
       requestItem?.result;
 
@@ -184765,9 +184766,7 @@ async function createWaterRequest(
         }
       )
     ) {
-      throw new Error(
-        "OIS 수처리 9개 값 중 일부를 읽지 못했습니다."
-      );
+      console.warn("OIS 수처리 9개 값 중 일부를 읽지 못했습니다.");
     }
 
 
@@ -186648,6 +186647,7 @@ async function createGearPinionRequest(
     requestItem,
     expectedDate
   ) {
+    /* MORNING-MEETING-PARTIAL-VALUES-V1: Gear Wheel and Pinion are independent nullable metrics. */
     const result =
       requestItem?.result &&
       typeof requestItem.result ===
@@ -186676,9 +186676,7 @@ async function createGearPinionRequest(
       gearWheel ===
         null
     ) {
-      throw new Error(
-        "Gear Wheel 전일 값을 확인하지 못했습니다."
-      );
+      console.warn("Gear Wheel 전일 값을 확인하지 못했습니다.");
     }
 
 
@@ -186686,9 +186684,7 @@ async function createGearPinionRequest(
       pinion ===
         null
     ) {
-      throw new Error(
-        "Pinion 전일 값을 확인하지 못했습니다."
-      );
+      console.warn("Pinion 전일 값을 확인하지 못했습니다.");
     }
 
 
@@ -188124,6 +188120,7 @@ async function createGearPinionRequest(
     requestItem,
     expectedDate
   ) {
+    /* MORNING-MEETING-PARTIAL-VALUES-V1: each Silo metric can succeed independently. */
     const result =
       requestItem?.result &&
       typeof requestItem.result ===
@@ -188152,9 +188149,7 @@ async function createGearPinionRequest(
       flyAshSiloLevel ===
         null
     ) {
-      throw new Error(
-        "Fly Ash Silo Level 24시 값을 확인하지 못했습니다."
-      );
+      console.warn("Fly Ash Silo Level 24시 값을 확인하지 못했습니다.");
     }
 
 
@@ -188162,9 +188157,7 @@ async function createGearPinionRequest(
       bioStorageSiloLevel ===
         null
     ) {
-      throw new Error(
-        "Bio Storage Silo Level 24시 값을 확인하지 못했습니다."
-      );
+      console.warn("Bio Storage Silo Level 24시 값을 확인하지 못했습니다.");
     }
 
 
@@ -215707,6 +215700,7 @@ function formatRate(
   function isCompleteDailyDataResult(
     result
   ) {
+    /* MORNING-MEETING-PARTIAL-VALUES-V1: any valid metric makes Daily DATA usable; null metrics render as '-'. */
     if (
       !result ||
       typeof result !==
@@ -215742,7 +215736,7 @@ function formatRate(
       result.unitTwoProduction,
       result.totalProduction,
       result.salesRate,
-    ].every(
+    ].some(
       value => {
         return normalizeNumber(
           value
@@ -216907,27 +216901,15 @@ if (
 }
 
 
+    /* MORNING-MEETING-PARTIAL-VALUES-V1: individual missing values are nullable. */
     function requireNumber(
       value,
       label
     ) {
-      const numericValue =
-        normalizeNumber(
-          value
-        );
-
-
-      if (
-        numericValue ===
-          null
-      ) {
-        throw new Error(
-          `${label} 값을 확인하지 못했습니다.`
-        );
-      }
-
-
-      return numericValue;
+      void label;
+      return normalizeNumber(
+        value
+      );
     }
 
 
@@ -217160,9 +217142,7 @@ if (
       ) >
         0.001
     ) {
-      throw new Error(
-        "증기 생산·판매 계산값이 월간 일일DATA 결과와 일치하지 않습니다."
-      );
+      console.warn("증기 생산·판매 계산값이 월간 일일DATA 결과와 일치하지 않습니다.");
     }
 
 
