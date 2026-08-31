@@ -673,6 +673,110 @@ const OIS_FBHE_VIBRATION_DEFINITIONS = Object.freeze(
 ========================================================= */
 
 const DAILY_DATA_WORKBOOK_FIELD_DEFINITIONS = [
+  /* [MORNING_MEETING_COFIRING_DATA_V1] optional fuel usage fields */
+  {
+    resultKey:
+      "coalUsageUnitOne",
+
+    label:
+      "보정 #1 BLR TOTAL",
+
+    row:
+      17,
+
+    unit:
+      "ton/day",
+
+    optional:
+      true
+  },
+
+  {
+    resultKey:
+      "coalUsageUnitTwo",
+
+    label:
+      "보정 #2 BLR TOTAL",
+
+    row:
+      18,
+
+    unit:
+      "ton/day",
+
+    optional:
+      true
+  },
+
+  {
+    resultKey:
+      "bioUsageUnitOne",
+
+    label:
+      "#1 CFBC BLR(Feeder 기준) 보정",
+
+    row:
+      34,
+
+    unit:
+      "ton/day",
+
+    optional:
+      true
+  },
+
+  {
+    resultKey:
+      "bioUsageUnitTwo",
+
+    label:
+      "#2 CFBC BLR(Feeder 기준) 보정",
+
+    row:
+      35,
+
+    unit:
+      "ton/day",
+
+    optional:
+      true
+  },
+
+  {
+    resultKey:
+      "organicUsageUnitOne",
+
+    label:
+      "1호기 실제 투입계산량",
+
+    row:
+      298,
+
+    unit:
+      "ton/day",
+
+    optional:
+      true
+  },
+
+  {
+    resultKey:
+      "organicUsageUnitTwo",
+
+    label:
+      "2호기 실제 투입계산량",
+
+    row:
+      299,
+
+    unit:
+      "ton/day",
+
+    optional:
+      true
+  },
+
+
   {
     resultKey:
       "unitOneProduction",
@@ -12900,6 +13004,19 @@ try {
     $resultKey =
       [string]$definition.resultKey
 
+    $optionalField =
+      $false
+
+    if (
+      $null -ne
+        $definition.PSObject.Properties[
+          "optional"
+        ]
+    ) {
+      $optionalField =
+        [bool]$definition.optional
+    }
+
     $expectedLabel =
       Normalize-ExcelText -Value (
         $definition.label
@@ -12918,6 +13035,26 @@ try {
       $actualLabel -ne
         $expectedLabel
     ) {
+      if (
+        $optionalField
+      ) {
+        $manualValues[$resultKey] =
+          $null
+
+        $cellMap[$resultKey] =
+          ""
+
+        Write-DailyDataStage -Message (
+          "Optional co-firing field label mismatch; skipped: " +
+          $resultKey +
+          " (Plant!" +
+          $labelAddress +
+          ")"
+        )
+
+        continue
+      }
+
       throw (
         $workbookName +
         "의 Plant!" +
@@ -12934,8 +13071,11 @@ try {
       [string]$rowNumber
 
     $allowBlank =
-      $resultKey -eq
-        "solarDailyGeneration"
+      (
+        $resultKey -eq
+          "solarDailyGeneration"
+      ) -or
+      $optionalField
 
     $numericValue =
       Get-FiniteExcelNumber -Value (
@@ -12951,14 +13091,29 @@ try {
       $null -ne $numericValue -and
       $numericValue -lt 0
     ) {
-      throw (
-        $expectedLabel +
-        " 값이 0보다 작습니다: " +
-        $numericValue +
-        " (Plant!" +
-        $valueAddress +
-        ")"
-      )
+      if (
+        $optionalField
+      ) {
+        Write-DailyDataStage -Message (
+          "Optional co-firing field negative; skipped: " +
+          $resultKey +
+          " = " +
+          $numericValue
+        )
+
+        $numericValue =
+          $null
+      }
+      else {
+        throw (
+          $expectedLabel +
+          " 값이 0보다 작습니다: " +
+          $numericValue +
+          " (Plant!" +
+          $valueAddress +
+          ")"
+        )
+      }
     }
 
     $manualValues[$resultKey] =
@@ -13891,6 +14046,24 @@ try {
 
       hourRange =
         "00:00~24:00"
+
+      coalUsageUnitOne =
+        $manualValues.coalUsageUnitOne
+
+      coalUsageUnitTwo =
+        $manualValues.coalUsageUnitTwo
+
+      bioUsageUnitOne =
+        $manualValues.bioUsageUnitOne
+
+      bioUsageUnitTwo =
+        $manualValues.bioUsageUnitTwo
+
+      organicUsageUnitOne =
+        $manualValues.organicUsageUnitOne
+
+      organicUsageUnitTwo =
+        $manualValues.organicUsageUnitTwo
 
       generatorEcmsGen1 =
         [double]$manualValues.generatorEcmsGen1
@@ -15019,6 +15192,74 @@ async function collectDailyDataWorkbookValues(
   }
 
 
+  const parseOptionalCofiringUsage =
+    (
+      value,
+      label
+    ) => {
+      if (
+        value === null ||
+        value === undefined ||
+        normalizeOisAgentText(
+          value
+        ) ===
+          ""
+      ) {
+        return null;
+      }
+
+      return roundDailyDataNumber(
+        parseDailyDataWorkbookNumber(
+          value,
+          label
+        ),
+        6
+      );
+    };
+
+
+  const coalUsageUnitOne =
+    parseOptionalCofiringUsage(
+      capturedResult.coalUsageUnitOne,
+      "1호기 Coal 사용량"
+    );
+
+
+  const coalUsageUnitTwo =
+    parseOptionalCofiringUsage(
+      capturedResult.coalUsageUnitTwo,
+      "2호기 Coal 사용량"
+    );
+
+
+  const bioUsageUnitOne =
+    parseOptionalCofiringUsage(
+      capturedResult.bioUsageUnitOne,
+      "1호기 Bio-SRF 사용량"
+    );
+
+
+  const bioUsageUnitTwo =
+    parseOptionalCofiringUsage(
+      capturedResult.bioUsageUnitTwo,
+      "2호기 Bio-SRF 사용량"
+    );
+
+
+  const organicUsageUnitOne =
+    parseOptionalCofiringUsage(
+      capturedResult.organicUsageUnitOne,
+      "1호기 유기성 고형연료 투입량"
+    );
+
+
+  const organicUsageUnitTwo =
+    parseOptionalCofiringUsage(
+      capturedResult.organicUsageUnitTwo,
+      "2호기 유기성 고형연료 투입량"
+    );
+
+
   const unitOneProduction =
     roundDailyDataNumber(
       parseDailyDataWorkbookNumber(
@@ -15506,6 +15747,18 @@ async function collectDailyDataWorkbookValues(
 
     salesUnit:
       "ton",
+
+    coalUsageUnitOne,
+
+    coalUsageUnitTwo,
+
+    bioUsageUnitOne,
+
+    bioUsageUnitTwo,
+
+    organicUsageUnitOne,
+
+    organicUsageUnitTwo,
 
     generatorEcmsGen1,
 

@@ -1,0 +1,370 @@
+/* =========================================================
+   Morning Meeting Co-firing Card V1
+   - reserved SILO slot below Water Treatment
+   - daily_data_excel fuel values + calorific-value calculation
+   ========================================================= */
+
+#efficiencyMorningMeetingAutoCofiringCard {
+  grid-area: silo;
+  z-index: 2;
+  align-self: stretch;
+  min-width: 0;
+  overflow: hidden;
+}
+
+#efficiencyMorningMeetingAutoCofiringCard::before {
+  background: #8a6ab4;
+}
+
+#efficiencyMorningMeetingAutoCofiringCard
+  > .efficiency-morning-meeting-auto-card__header {
+  min-height: 58px;
+}
+
+.morning-meeting-cofiring-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 5px;
+  max-width: 155px;
+}
+
+.morning-meeting-cofiring-status.is-loading {
+  border-color: #a8c7e6 !important;
+  background: #eef6ff !important;
+  color: #256cae !important;
+}
+
+.morning-meeting-cofiring-status.is-complete {
+  border-color: #9bd5b6 !important;
+  background: #eefbf4 !important;
+  color: #24754d !important;
+}
+
+.morning-meeting-cofiring-status.is-warning {
+  border-color: #e8cf8a !important;
+  background: #fff9e9 !important;
+  color: #8a641f !important;
+}
+
+.morning-meeting-cofiring-status.is-error {
+  border-color: #efb5b5 !important;
+  background: #fff1f1 !important;
+  color: #b13a3a !important;
+}
+
+.morning-meeting-cofiring-calorific-button {
+  min-width: 43px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid #b8acd0;
+  border-radius: 6px;
+  background: #f7f4fb;
+  color: #66547f;
+  font: inherit;
+  font-size: 8.5px;
+  font-weight: 850;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.morning-meeting-cofiring-calorific-button:hover {
+  border-color: #927eb8;
+  background: #f0ebf8;
+}
+
+.morning-meeting-cofiring-card__body {
+  display: grid;
+  gap: 5px !important;
+  padding: 5px 7px 7px 9px !important;
+  background: #fcfbff;
+}
+
+.morning-meeting-cofiring-table {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 3px;
+  border: 1px solid #e1dcea;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.morning-meeting-cofiring-table.is-organic {
+  border-color: #dce7e4;
+  background: #fbfdfc;
+}
+
+.morning-meeting-cofiring-table__head,
+.morning-meeting-cofiring-table__row {
+  display: grid;
+  grid-template-columns:
+    34px
+    minmax(0, 1.18fr)
+    minmax(0, 1.12fr)
+    minmax(0, 0.96fr);
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.morning-meeting-cofiring-table__head {
+  min-height: 18px;
+}
+
+.morning-meeting-cofiring-table__head > span {
+  display: flex;
+  min-width: 0;
+  min-height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1px;
+  border-radius: 4px;
+  background: #f1edf7;
+  color: #67587d;
+  font-size: 7.5px;
+  font-weight: 850;
+  line-height: 1.05;
+  text-align: center;
+  word-break: keep-all;
+}
+
+.morning-meeting-cofiring-table__head > span:first-child {
+  background: transparent;
+}
+
+.morning-meeting-cofiring-table.is-organic
+  .morning-meeting-cofiring-table__head > span:not(:first-child) {
+  background: #edf5f3;
+  color: #4f7068;
+}
+
+.morning-meeting-cofiring-table__row {
+  min-height: 24px;
+}
+
+.morning-meeting-cofiring-table__row > strong {
+  display: flex;
+  min-width: 0;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px;
+  border-radius: 4px;
+  background: #f8f7fa;
+  color: #304258;
+  font-size: 9px;
+  font-weight: 850;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.morning-meeting-cofiring-table__row > strong.is-unit {
+  justify-content: flex-start;
+  padding-left: 2px;
+  background: transparent;
+  color: #66768a;
+  font-size: 8.5px;
+}
+
+.morning-meeting-cofiring-table__row > strong.is-ratio {
+  color: #4d3f72;
+}
+
+.morning-meeting-cofiring-table__row > strong.is-total-ratio {
+  background: #eef4fb;
+  color: #245b94;
+  font-weight: 900;
+}
+
+.morning-meeting-cofiring-table.is-organic
+  .morning-meeting-cofiring-table__row > strong:not(.is-unit) {
+  background: #f5f9f8;
+}
+
+.morning-meeting-cofiring-table.is-organic
+  .morning-meeting-cofiring-table__row > strong.is-total-ratio {
+  background: #edf4fb;
+}
+
+/* =========================================================
+   Calorific-value settings modal
+   ========================================================= */
+
+.morning-meeting-cofiring-settings-modal[hidden] {
+  display: none !important;
+}
+
+.morning-meeting-cofiring-settings-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10080;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(19, 30, 45, 0.48);
+}
+
+.morning-meeting-cofiring-settings-dialog {
+  width: min(480px, 100%);
+  overflow: hidden;
+  border: 1px solid #cfd8e5;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 20px 55px rgba(20, 34, 53, 0.22);
+}
+
+.morning-meeting-cofiring-settings-dialog > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 17px 13px;
+  border-bottom: 1px solid #e1e7ef;
+  background: #fafbfe;
+}
+
+.morning-meeting-cofiring-settings-dialog > header span {
+  display: block;
+  margin-bottom: 3px;
+  color: #785f9a;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.morning-meeting-cofiring-settings-dialog > header h4 {
+  margin: 0;
+  color: #26364c;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.morning-meeting-cofiring-settings-dialog > header p {
+  margin: 4px 0 0;
+  color: #758298;
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.morning-meeting-cofiring-settings-close {
+  width: 29px;
+  height: 29px;
+  border: 1px solid #d2dbe6;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #64748a;
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#morningMeetingCofiringSettingsForm {
+  display: grid;
+  gap: 13px;
+  padding: 15px 17px 17px;
+}
+
+#morningMeetingCofiringSettingsForm label {
+  display: grid;
+  gap: 5px;
+}
+
+#morningMeetingCofiringSettingsForm label > span {
+  color: #56667c;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+#morningMeetingCofiringSettingsForm input {
+  width: 100%;
+  height: 35px;
+  box-sizing: border-box;
+  padding: 0 9px;
+  border: 1px solid #cbd6e3;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #26384f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.morning-meeting-cofiring-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.morning-meeting-cofiring-settings-grid label > div {
+  position: relative;
+}
+
+.morning-meeting-cofiring-settings-grid input {
+  padding-right: 47px !important;
+}
+
+.morning-meeting-cofiring-settings-grid small {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  color: #8a96a6;
+  font-size: 8px;
+  font-weight: 750;
+  pointer-events: none;
+}
+
+.morning-meeting-cofiring-settings-current {
+  margin: 0;
+  padding: 8px 9px;
+  border-radius: 7px;
+  background: #f5f7fa;
+  color: #68778a;
+  font-size: 9.5px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+#morningMeetingCofiringSettingsForm footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  padding-top: 2px;
+}
+
+#morningMeetingCofiringSettingsForm footer button {
+  min-width: 65px;
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid #cbd6e3;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #506176;
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+#morningMeetingCofiringSettingsForm footer button.is-primary {
+  border-color: #755ba1;
+  background: #755ba1;
+  color: #ffffff;
+}
+
+#morningMeetingCofiringSettingsForm footer button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (max-width: 700px) {
+  .morning-meeting-cofiring-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .morning-meeting-cofiring-card__meta {
+    max-width: none;
+  }
+}
