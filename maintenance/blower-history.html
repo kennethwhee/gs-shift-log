@@ -8,7 +8,7 @@
   <title>Blower V-Belt 교체 이력 관리</title>
   <link rel="stylesheet" href="blower-history.css?v=20260831-fbhe-ois-runtime-v3">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="blower-history.js?v=20260831-fbhe-ois-browser-raw-analysis-v7" defer></script>
+  <script src="blower-history.js?v=20260831-fbhe-ois-calculated-apply-v8-r5" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -88,15 +88,15 @@
           <details class="vibration-shadow-panel" id="vibrationShadowPanel" open hidden>
             <summary class="vibration-shadow-summary">
               <div>
-                <span class="settings-label">FBHE OIS 운전상태 · 누적시간 분석 V3</span>
+                <span class="settings-label">FBHE OIS 운전상태 · 누적시간 분석 V8 R5</span>
                 <strong id="vibrationHeadline">기동·정지·누적시간 분석 대기</strong>
               </div>
               <span class="vibration-shadow-summary-action">상세 보기</span>
             </summary>
             <div class="vibration-shadow-detail">
               <div class="vibration-shadow-guide">
-                <strong>기간 OIS 조회 · 자동 반영 없음</strong>
-                <span>Blower·Motor DE/NDE 시간별 진동으로 현재 기동/정지와 장기 운전구간을 판정합니다. Blower·Motor가 모두 1.0 이상이면 운전, 모두 0.5 이하이면 정지로 우선 판정하고 중간영역은 장기 데이터 군집으로 보완합니다. 카드 상태와 저장 누적시간은 아직 자동 변경하지 않습니다.</span>
+                <strong>기간 OIS 조회 · 계산값 선택 적용</strong>
+                <span>Blower·Motor DE/NDE 시간별 진동으로 현재 기동/정지와 교체 후 실제 운전시간을 계산합니다. 모든 OIS 구간과 판정률을 확인한 뒤 [OIS 계산값 적용]을 누르면 검증된 설비의 카드 상태와 누적시간을 반영합니다. 교체일·교체주기는 변경하지 않습니다.</span>
               </div>
               <div class="vibration-range-presets" aria-label="FBHE 진동 빠른 조회기간">
                 <button type="button" class="vibration-range-preset is-active" data-vibration-preset="cycle">교체일~현재</button>
@@ -119,6 +119,7 @@
                 </label>
                 <button type="button" class="button primary" id="vibrationQueryButton" data-mobile-write>OIS 이어조회</button>
                 <button type="button" class="button secondary" id="vibrationRequeryButton" data-mobile-write>전체 재조회</button>
+                <button type="button" class="button secondary" id="vibrationApplyButton" data-mobile-write hidden>OIS 계산값 적용</button>
               </div>
               <div class="vibration-shadow-status" id="vibrationStatus" role="status" aria-live="polite">
                 기본값은 6대 중 가장 오래된 최근 V-Belt 교체일부터 현재까지입니다.

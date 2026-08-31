@@ -65,6 +65,7 @@
       "vibrationEndDate",
       "vibrationQueryButton",
       "vibrationRequeryButton",
+      "vibrationApplyButton",
       "vibrationStatus",
       "vibrationMetrics",
       "vibrationTableWrap",
@@ -1945,9 +1946,648 @@
     };
   }
 
+
+  /* [FBHE-OIS-CALCULATED-APPLY-V8] */
+  function finiteFbheApplyNumber(value) {
+    if (
+      value === null ||
+      value === undefined ||
+      String(value).trim() === ""
+    ) {
+      return null;
+    }
+
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue)
+      ? numberValue
+      : null;
+  }
+
+  function firstFbheOisRunningAtAfterReplacement(reportAsset) {
+    const replacementAt = new Date(
+      reportAsset?.lastReplacementAt || ""
+    );
+
+    if (Number.isNaN(replacementAt.getTime())) {
+      return "";
+    }
+
+    const segments = Array.isArray(
+      reportAsset?.runtime?.segments
+    )
+      ? reportAsset.runtime.segments
+      : [];
+
+    for (const segment of segments) {
+      if (String(segment?.state || "") !== "running") {
+        continue;
+      }
+
+      const startAt = new Date(segment.startAt);
+      const endAt = new Date(segment.endAt);
+
+      if (
+        Number.isNaN(startAt.getTime()) ||
+        Number.isNaN(endAt.getTime()) ||
+        endAt <= replacementAt
+      ) {
+        continue;
+      }
+
+      return new Date(
+        Math.max(
+          startAt.getTime(),
+          replacementAt.getTime()
+        )
+      ).toISOString();
+    }
+
+    return "";
+  }
+
+  function buildFbheOisApplyPlan(
+    reportAsset,
+    report = state.vibrationReport
+  ) {
+    const tagNumber = String(
+      reportAsset?.tagNumber || ""
+    )
+      .trim()
+      .toUpperCase();
+
+    const currentAsset = findAsset(tagNumber);
+    const runtime = reportAsset?.runtime || {};
+    const queue = report?.queue || {};
+
+    const chunkCount = Number(queue.chunkCount || 0);
+    const completeCount = Number(queue.completeCount || 0);
+    const failedCount =
+      Number(queue.failedCount || 0) +
+      Number(queue.missingCount || 0);
+
+    const selected = selectedFbheVibrationRange();
+
+    const oisState = String(
+      runtime.oisState ||
+      reportAsset?.shadowState ||
+      "unknown"
+    );
+
+    const cycleRuntimeHours =
+      finiteFbheApplyNumber(
+        runtime.cycleRuntimeHours
+      );
+
+    const registeredRuntimeHours =
+      finiteFbheApplyNumber(
+        runtime.registeredCycleRuntimeHours
+      );
+
+    const cycleCoveragePct =
+      Number(runtime.cycleCoveragePct || 0);
+
+    const rangeCoveragePct =
+      Number(runtime.rangeCoveragePct || 0);
+
+    const latestSampleAt = String(
+      reportAsset?.latestSampleAt || ""
+    );
+
+    const latestSampleDate = new Date(latestSampleAt);
+    const now = currentServerDate();
+
+    const latestAgeHours = Number.isNaN(
+      latestSampleDate.getTime()
+    )
+      ? Number.POSITIVE_INFINITY
+      : (
+          now.getTime() -
+          latestSampleDate.getTime()
+        ) /
+        3600000;
+
+    const startupPending =
+      String(
+        currentAsset?.cycleStartState ||
+        "legacy"
+      ) === "pending";
+
+    const targetRunning =
+      oisState === "running";
+
+    const currentRunning =
+      Boolean(currentAsset?.isRunning);
+
+    const firstRunningAt =
+      firstFbheOisRunningAtAfterReplacement(
+        reportAsset
+      );
+
+    const requiresStartup =
+      startupPending &&
+      (
+        (cycleRuntimeHours || 0) > 0.01 ||
+        targetRunning
+      );
+
+    let reason = "";
+
+    if (
+      !currentAsset ||
+      currentAsset.blowerType !== "fbhe"
+    ) {
+      reason = "현재 FBHE 설비정보가 없습니다.";
+    } else if (
+      chunkCount < 1 ||
+      completeCount !== chunkCount ||
+      failedCount > 0
+    ) {
+      reason =
+        "선택기간 OIS 구간을 모두 완료한 뒤 적용할 수 있습니다.";
+    } else if (
+      !currentAsset.lastReplacementAt
+    ) {
+      reason =
+        "확정된 V-Belt 교체일이 없습니다.";
+    } else if (
+      runtime.cycleRangeComplete !== true
+    ) {
+      reason =
+        "선택기간이 최근 V-Belt 교체일부터 현재까지를 모두 포함하지 않습니다.";
+    } else if (
+      !["running", "stopped"].includes(
+        oisState
+      )
+    ) {
+      reason =
+        "현재 OIS 상태가 판정보류입니다.";
+    } else if (
+      cycleRuntimeHours === null ||
+      cycleRuntimeHours < 0
+    ) {
+      reason =
+        "교체 후 OIS 누적시간을 계산하지 못했습니다.";
+    } else if (
+      rangeCoveragePct < 95 ||
+      cycleCoveragePct < 95
+    ) {
+      reason =
+        "OIS 판정률이 95% 미만입니다.";
+    } else if (
+      latestAgeHours < -0.1 ||
+      latestAgeHours > 3
+    ) {
+      reason =
+        "최신 OIS 진동값이 3시간 이내 자료가 아닙니다.";
+    } else if (
+      !startupPending &&
+      !String(
+        currentAsset.cycleRuntimeRevision ||
+        ""
+      )
+    ) {
+      reason =
+        "현재 Cycle revision을 확인할 수 없습니다.";
+    } else if (
+      requiresStartup &&
+      !firstRunningAt
+    ) {
+      reason =
+        "교체 후 첫 기동시각을 OIS 운전구간에서 찾지 못했습니다.";
+    }
+
+    const runtimeDifferenceHours =
+      registeredRuntimeHours === null ||
+      cycleRuntimeHours === null
+        ? null
+        : cycleRuntimeHours -
+          registeredRuntimeHours;
+
+    const needsRuntimeCorrection =
+      !startupPending &&
+      (
+        registeredRuntimeHours === null ||
+        Math.abs(
+          runtimeDifferenceHours || 0
+        ) > 0.05
+      );
+
+    const needsStateChange =
+      startupPending
+        ? (
+            requiresStartup &&
+            !targetRunning
+          )
+        : currentRunning !== targetRunning;
+
+    const hasChanges = Boolean(
+      requiresStartup ||
+      needsRuntimeCorrection ||
+      needsStateChange
+    );
+
+    if (!reason && !hasChanges) {
+      reason = startupPending
+        ? "기동 대기·누적 0시간이 OIS 계산과 일치합니다."
+        : "현재 카드 상태와 누적시간이 OIS 계산과 일치합니다.";
+    }
+
+    return {
+      tagNumber,
+      displayName:
+        reportAsset?.displayName ||
+        currentAsset?.displayName ||
+        tagNumber,
+      currentAsset,
+      reportAsset,
+      runtime,
+      oisState,
+      targetRunning,
+      currentRunning,
+      cycleRuntimeHours,
+      registeredRuntimeHours,
+      runtimeDifferenceHours,
+      rangeCoveragePct,
+      cycleCoveragePct,
+      latestSampleAt,
+      latestAgeHours,
+      startupPending,
+      requiresStartup,
+      firstRunningAt,
+      needsRuntimeCorrection,
+      needsStateChange,
+      hasChanges,
+      eligible: !reason || !hasChanges,
+      reason
+    };
+  }
+
+  function formatFbheOisApplyPlanLine(plan) {
+    const beforeState =
+      plan.startupPending
+        ? "기동 대기"
+        : (
+            plan.currentRunning
+              ? "운전"
+              : "정지"
+          );
+
+    const beforeRuntime =
+      plan.registeredRuntimeHours === null
+        ? "-"
+        : formatFbheRuntimeHours(
+            plan.registeredRuntimeHours
+          );
+
+    const afterState =
+      plan.targetRunning
+        ? "운전"
+        : "정지";
+
+    const afterRuntime =
+      formatFbheRuntimeHours(
+        plan.cycleRuntimeHours
+      );
+
+    return (
+      plan.displayName +
+      " : " +
+      beforeState +
+      " / " +
+      beforeRuntime +
+      " → " +
+      afterState +
+      " / " +
+      afterRuntime
+    );
+  }
+
+  async function applyFbheOisPlanMutations(plan) {
+    const range = selectedFbheVibrationRange();
+
+    if (plan.requiresStartup) {
+      const current = findAsset(plan.tagNumber);
+
+      if (
+        !current ||
+        String(
+          current.cycleStartState || ""
+        ) !== "pending"
+      ) {
+        throw new Error(
+          plan.displayName +
+          "의 기동 대기 상태가 변경되었습니다. 새로고침 후 다시 적용해 주세요."
+        );
+      }
+
+      await apiRequest({
+        method: "POST",
+        body: {
+          action: "startup",
+          tagNumber: plan.tagNumber,
+          eventDate: plan.firstRunningAt,
+          expectedLastReplacementAt:
+            current.lastReplacementAt,
+          note:
+            "OIS 진동 계산 적용 · 교체 후 첫 운전구간 감지"
+        }
+      });
+
+      await loadData({
+        silent: true,
+        syncOperations: false
+      });
+    }
+
+    let current = findAsset(plan.tagNumber);
+
+    if (!current) {
+      throw new Error(
+        plan.displayName +
+        "의 최신 카드 상태를 불러오지 못했습니다."
+      );
+    }
+
+    if (
+      String(
+        current.cycleStartState || ""
+      ) === "pending"
+    ) {
+      if (
+        (plan.cycleRuntimeHours || 0) <= 0.01 &&
+        !plan.targetRunning
+      ) {
+        return;
+      }
+
+      throw new Error(
+        plan.displayName +
+        "의 Cycle이 아직 기동 대기 상태입니다."
+      );
+    }
+
+    const note =
+      "OIS 진동 계산값 적용 · " +
+      range.startDate +
+      "~" +
+      range.endDate +
+      " · OIS " +
+      (
+        plan.targetRunning
+          ? "운전"
+          : "정지"
+      ) +
+      " · 누적 " +
+      Number(plan.cycleRuntimeHours)
+        .toFixed(2) +
+      "h · Cycle 판정률 " +
+      Number(plan.cycleCoveragePct)
+        .toFixed(1) +
+      "%";
+
+    await apiRequest({
+      method: "POST",
+      body: {
+        action: "runtime",
+        tagNumber: plan.tagNumber,
+        runtimeHours:
+          plan.cycleRuntimeHours,
+        expectedCycleRuntimeRevision:
+          current.cycleRuntimeRevision || "",
+        note
+      }
+    });
+
+    await loadData({
+      silent: true,
+      syncOperations: false
+    });
+
+    current = findAsset(plan.tagNumber);
+
+    if (!current) {
+      throw new Error(
+        plan.displayName +
+        "의 누적시간 적용 후 상태를 불러오지 못했습니다."
+      );
+    }
+
+    if (
+      Boolean(current.isRunning) !==
+      plan.targetRunning
+    ) {
+      await apiRequest({
+        method: "POST",
+        body: {
+          action: "runtime_state",
+          tagNumber: plan.tagNumber,
+          eventDate:
+            currentServerDate()
+              .toISOString(),
+          isRunning:
+            plan.targetRunning,
+          expectedCycleRuntimeRevision:
+            current.cycleRuntimeRevision || "",
+          note:
+            "OIS 진동 계산 적용 · 현재 상태 " +
+            (
+              plan.targetRunning
+                ? "운전"
+                : "정지"
+            )
+        }
+      });
+
+      await loadData({
+        silent: true,
+        syncOperations: false
+      });
+    }
+  }
+
+  async function applyFbheOisCalculatedResults() {
+    if (
+      stopMobileMutation() ||
+      state.busy ||
+      state.vibrationPolling ||
+      state.vibrationApplying
+    ) {
+      return;
+    }
+
+    const report = state.vibrationReport;
+    const selected =
+      selectedFbheVibrationRange();
+
+    if (
+      !report ||
+      report.startDate !== selected.startDate ||
+      report.endDate !== selected.endDate
+    ) {
+      showToast(
+        "현재 선택기간의 OIS 계산 결과를 먼저 조회해 주세요.",
+        "error"
+      );
+      return;
+    }
+
+    const plans = (
+      report.assets || []
+    ).map(
+      asset =>
+        buildFbheOisApplyPlan(
+          asset,
+          report
+        )
+    );
+
+    const blocked = plans.filter(
+      plan =>
+        !plan.eligible &&
+        plan.hasChanges
+    );
+
+    const changed = plans.filter(
+      plan =>
+        plan.eligible &&
+        plan.hasChanges
+    );
+
+    if (changed.length === 0) {
+      showToast(
+        blocked[0]?.reason ||
+        "현재 카드 상태와 누적시간이 OIS 계산값과 이미 일치합니다."
+      );
+      return;
+    }
+
+    const preview = changed
+      .map(formatFbheOisApplyPlanLine)
+      .join("\n");
+
+    const excludedText =
+      blocked.length > 0
+        ? (
+            "\n\n적용 제외 " +
+            blocked.length +
+            "대:\n" +
+            blocked
+              .map(
+                plan =>
+                  plan.displayName +
+                  " · " +
+                  plan.reason
+              )
+              .join("\n")
+          )
+        : "";
+
+    const confirmed = window.confirm(
+      "OIS 진동으로 계산한 현재 상태와 V-Belt 교체 후 누적 운전시간을 실제 카드에 적용합니다.\n\n" +
+      preview +
+      excludedText +
+      "\n\n교체일·교체주기는 변경하지 않습니다. 누적시간 보정과 필요한 기동/정지 변경은 기존 이력에 기록됩니다.\n\n계속할까요?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    state.vibrationApplying = true;
+    setBusy(true);
+    renderFbheVibrationShadow();
+
+    const failures = [];
+    let appliedCount = 0;
+
+    try {
+      for (
+        let index = 0;
+        index < changed.length;
+        index += 1
+      ) {
+        const plan = changed[index];
+
+        elements.vibrationStatus.dataset.state =
+          "running";
+
+        elements.vibrationStatus.textContent =
+          "OIS 계산값 적용 중 · " +
+          (index + 1) +
+          "/" +
+          changed.length +
+          " · " +
+          plan.displayName;
+
+        try {
+          await applyFbheOisPlanMutations(
+            plan
+          );
+
+          appliedCount += 1;
+        } catch (error) {
+          failures.push({
+            displayName:
+              plan.displayName,
+            message:
+              error?.message ||
+              "적용 실패"
+          });
+
+          console.error(
+            "FBHE OIS 계산값 적용 실패:",
+            plan,
+            error
+          );
+        }
+      }
+
+      await loadData({
+        silent: true,
+        syncOperations: false
+      });
+
+      await loadFbheVibrationShadowReport({
+        silent: true
+      }).catch(
+        error => {
+          console.warn(
+            "FBHE OIS 적용 후 재분석 실패:",
+            error
+          );
+        }
+      );
+
+      if (failures.length > 0) {
+        showToast(
+          "OIS 계산값 " +
+          appliedCount +
+          "대 적용 완료 · " +
+          failures.length +
+          "대 실패. 새로고침 후 다시 확인해 주세요.",
+          "error"
+        );
+      } else {
+        showToast(
+          "OIS 계산값 " +
+          appliedCount +
+          "대를 실제 카드 상태와 누적시간에 적용했습니다."
+        );
+      }
+    } finally {
+      state.vibrationApplying = false;
+      setBusy(false);
+      renderFbheVibrationShadow();
+    }
+  }
+
   function renderFbheVibrationShadow() {
     const allowed = canUseFbheVibrationShadow();
     elements.vibrationShadowPanel.hidden = !allowed;
+    if (elements.vibrationApplyButton) {
+      elements.vibrationApplyButton.hidden = true;
+      elements.vibrationApplyButton.disabled = true;
+    }
     if (!allowed) return;
 
     if (!elements.vibrationStartDate.value || !elements.vibrationEndDate.value) {
@@ -2008,6 +2648,36 @@
     }
 
     const assets = Array.isArray(report.assets) ? report.assets : [];
+    const applyPlans = assets.map(asset =>
+      buildFbheOisApplyPlan(
+        asset,
+        report
+      )
+    );
+    const applyChangeCount = applyPlans.filter(
+      plan => plan.eligible && plan.hasChanges
+    ).length;
+    const applyBlockedCount = applyPlans.filter(
+      plan => !plan.eligible && plan.hasChanges
+    ).length;
+    if (elements.vibrationApplyButton) {
+      elements.vibrationApplyButton.hidden = false;
+      elements.vibrationApplyButton.disabled =
+        state.busy ||
+        state.vibrationPolling ||
+        state.vibrationApplying ||
+        applyChangeCount < 1;
+      elements.vibrationApplyButton.textContent =
+        state.vibrationApplying
+          ? "OIS 계산값 적용 중..."
+          : applyChangeCount > 0
+            ? "OIS 계산값 적용 " + applyChangeCount + "대"
+            : "계산값 반영 완료";
+      elements.vibrationApplyButton.title =
+        applyBlockedCount > 0
+          ? "검증 조건 미충족 " + applyBlockedCount + "대는 제외됩니다."
+          : "OIS 현재상태와 교체 후 누적시간을 실제 카드에 반영합니다.";
+    }
     if (assets.length === 0) {
       elements.vibrationHeadline.textContent = failedCount > 0
         ? "OIS 기간조회 실패 · 자동 반영 없음"
@@ -2028,7 +2698,9 @@
       `${selected.startDate} ~ ${selected.endDate}`,
       `${selected.dayCount}일`,
       `OIS 상태 ${Number(summary.shadowDecidedCount || 0)}/6대`,
-      "자동 반영 없음"
+      applyChangeCount > 0
+        ? `적용 가능 ${applyChangeCount}대`
+        : "계산값 반영 완료"
     ].join(" · ");
 
     const warnings = [];
@@ -2039,8 +2711,10 @@
 
     elements.vibrationStatus.dataset.state = warnings.length > 0 ? "warning" : "complete";
     elements.vibrationStatus.textContent = warnings.length > 0
-      ? `${warnings.join(" · ")}입니다. OIS 계산값만 표시하며 실제 카드 상태와 누적시간은 변경하지 않았습니다.`
-      : `시간별 진동으로 기동·정지 구간과 교체 후 누적 운전시간을 계산했습니다. 실제 카드 상태와 누적시간은 변경하지 않았습니다.`;
+      ? `${warnings.join(" · ")}입니다. 검증 조건을 통과한 설비만 [OIS 계산값 적용]으로 반영할 수 있습니다.`
+      : applyChangeCount > 0
+        ? `시간별 진동으로 현재 상태와 교체 후 누적 운전시간을 계산했습니다. [OIS 계산값 적용]을 누르면 실제 카드에 반영됩니다.`
+        : `현재 카드 상태와 누적시간이 OIS 계산값과 일치합니다.`;
 
     const metrics = [
       ["OIS 구간", `${Number(summary.completeChunkCount || 0)}/${Number(summary.chunkCount || 0)}`],
@@ -6240,6 +6914,11 @@
     elements.assetManagerButton.disabled = writeBlocked || state.busy;
     if (elements.vibrationQueryButton) elements.vibrationQueryButton.disabled = writeBlocked || state.busy || state.vibrationPolling;
     if (elements.vibrationRequeryButton) elements.vibrationRequeryButton.disabled = writeBlocked || state.busy || state.vibrationPolling;
+    if (elements.vibrationApplyButton) elements.vibrationApplyButton.disabled =
+      writeBlocked ||
+      state.busy ||
+      state.vibrationPolling ||
+      state.vibrationApplying;
   }
 
   async function syncOperationChanges(days = 14) {
@@ -7695,6 +8374,7 @@
     elements.refreshButton.addEventListener("click", () => loadData({ forceOperationSync: true }));
     elements.vibrationQueryButton.addEventListener("click", () => requestFbheVibrationShadow(false));
     elements.vibrationRequeryButton.addEventListener("click", () => requestFbheVibrationShadow(true));
+    elements.vibrationApplyButton.addEventListener("click", applyFbheOisCalculatedResults);
     document.querySelectorAll("[data-vibration-preset]").forEach(button => {
       button.addEventListener("click", () => applyFbheVibrationPreset(button.dataset.vibrationPreset));
     });

@@ -98,8 +98,20 @@ test("ships period and one-year FBHE OIS runtime analysis", () => {
   assert.match(frontend, /data-vibration-preset/);
   assert.match(html, /data-vibration-preset="365"/);
   assert.match(html, /data-vibration-preset="month"/);
-  assert.match(html, /FBHE OIS 운전상태 · 누적시간 분석 V3/);
+  assert.match(html, /FBHE OIS 운전상태 · 누적시간 분석/);
   assert.match(blowerApi, /FBHE_VIBRATION_ABSOLUTE_STOP_MAX\s*=\s*0\.5/);
   assert.match(blowerApi, /FBHE_VIBRATION_ABSOLUTE_RUN_MIN\s*=\s*1\.0/);
   assert.match(html, /교체일~현재/);
+});
+
+test("ships explicit FBHE OIS calculated apply controls", () => {
+  assert.match(html, /id="vibrationApplyButton"/);
+  assert.match(html, /OIS 계산값 적용/);
+  assert.match(frontend, /applyFbheOisCalculatedResults/);
+  assert.match(frontend, /action:\s*"runtime"/);
+  assert.match(frontend, /action:\s*"runtime_state"/);
+  assert.match(frontend, /action:\s*"startup"/);
+  assert.match(frontend, /rangeCoveragePct\s*<\s*95/);
+  assert.match(frontend, /cycleCoveragePct\s*<\s*95/);
+  assert.match(frontend, /latestAgeHours\s*>\s*3/);
 });
