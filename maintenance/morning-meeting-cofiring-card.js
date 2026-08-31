@@ -30,9 +30,8 @@
 
   const watchedElementIds = [
     "efficiencyMorningMeetingAutoDailyPowerDate",
-    "efficiencyMorningMeetingAutoDailyPowerStatus",
     "efficiencyMorningMeetingAutoSteamDate",
-    "efficiencyMorningMeetingAutoSteamStatus"
+    "efficiencyMorningMeetingWaterDate"
   ];
 
   let activeRefreshToken = 0;
@@ -203,7 +202,10 @@
     const dateElement = document.getElementById("efficiencyMorningMeetingCofiringDate");
 
     if (dateElement instanceof HTMLElement) {
-      dateElement.textContent = targetDate || "-";
+      dateElement.textContent =
+        targetDate
+          ? `${targetDate} · 일일DATA`
+          : "-";
     }
   }
 
@@ -224,8 +226,20 @@
             class="efficiency-morning-meeting-auto-card__badge morning-meeting-cofiring-status"
             id="efficiencyMorningMeetingCofiringStatus"
           >
-            대기
+            조회 대기
           </span>
+          <button
+            type="button"
+            class="morning-meeting-daily-mini-refresh"
+            id="morningMeetingCofiringRefreshButton"
+            title="혼소율 자료 재조회"
+            aria-label="혼소율 자료 재조회"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 6v5h-5"></path>
+              <path d="M19.2 15a8 8 0 1 1-.6-7.6L20 11"></path>
+            </svg>
+          </button>
           <button
             type="button"
             class="morning-meeting-cofiring-calorific-button"
@@ -663,6 +677,141 @@
     return true;
   }
 
+
+  function setRefreshButtonLoading(isLoading) {
+    const button = document.getElementById("morningMeetingCofiringRefreshButton");
+
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    button.disabled = isLoading;
+    button.classList.toggle("is-loading", isLoading);
+    button.setAttribute("aria-busy", isLoading ? "true" : "false");
+  }
+
+  function waitForMilliseconds(delayMs) {
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, delayMs);
+    });
+  }
+
+  async function fetchOisRequestStatus(requestId) {
+    const requestUrl = new URL(OIS_REQUEST_API_URL, window.location.origin);
+    requestUrl.searchParams.set("id", requestId);
+    requestUrl.searchParams.set("_", String(Date.now()));
+
+    const response = await fetch(requestUrl, {
+      method: "GET",
+      headers: getAuthHeaders(false),
+      cache: "no-store"
+    });
+
+    const payload = await readJsonResponse(
+      response,
+      "OIS 재조회 상태를 확인하지 못했습니다."
+    );
+
+    return payload.item && typeof payload.item === "object"
+      ? payload.item
+      : null;
+  }
+
+  async function waitForDailyDataRequest(requestId) {
+    for (let attempt = 0; attempt < 90; attempt += 1) {
+      const item = await fetchOisRequestStatus(requestId);
+      const status = String(item?.status || "").trim().toLowerCase();
+
+      if (status === "complete") {
+        return item;
+      }
+
+      if (status === "failed" || status === "expired") {
+        throw new Error(
+          item?.errorMessage ||
+          "일일DATA 재조회에 실패했습니다."
+        );
+      }
+
+      await waitForMilliseconds(1000);
+    }
+
+    throw new Error("일일DATA 재조회 시간이 초과되었습니다.");
+  }
+
+  async function forceRefreshDailyData() {
+    const targetDate = getTargetDate();
+
+    if (!targetDate) {
+      setStatus("idle", "조회 대기");
+      return;
+    }
+
+    setRefreshButtonLoading(true);
+    setStatus("idle", "조회 대기");
+
+    try {
+      const response = await fetch(OIS_REQUEST_API_URL, {
+        method: "POST",
+        headers: getAuthHeaders(true),
+        cache: "no-store",
+        body: JSON.stringify({
+          targetDate,
+          requestType: "daily_data_excel",
+          forceRefresh: true
+        })
+      });
+
+      const payload = await readJsonResponse(
+        response,
+        "일일DATA 재조회 요청에 실패했습니다."
+      );
+
+      const item =
+        payload.item && typeof payload.item === "object"
+          ? payload.item
+          : null;
+
+      const requestId = String(item?.id || "").trim();
+
+      if (!requestId) {
+        throw new Error("일일DATA 재조회 요청 ID가 없습니다.");
+      }
+
+      if (String(item?.status || "").trim().toLowerCase() !== "complete") {
+        await waitForDailyDataRequest(requestId);
+      }
+
+      await refreshCard();
+    } catch (error) {
+      console.error("혼소율 자료 재조회 실패:", error);
+      setStatus("error", "조회 실패");
+
+      if (typeof window.showToast === "function") {
+        window.showToast(
+          error?.message ||
+          "혼소율 자료 재조회에 실패했습니다."
+        );
+      }
+    } finally {
+      setRefreshButtonLoading(false);
+    }
+  }
+
+  function handleCofiringRefreshClick(event) {
+    const target =
+      event.target instanceof Element
+        ? event.target.closest("#morningMeetingCofiringRefreshButton")
+        : null;
+
+    if (!(target instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    event.preventDefault();
+    forceRefreshDailyData();
+  }
+
   async function refreshCard() {
     const card = ensureCard();
 
@@ -672,18 +821,20 @@
 
     const targetDate = getTargetDate();
     const refreshToken = ++activeRefreshToken;
+    const dateChanged = currentTargetDate !== targetDate;
 
     currentTargetDate = targetDate;
     currentSettings = null;
     setCardDate(targetDate);
-    clearAllValues();
 
-    if (!targetDate) {
-      setStatus("idle", "일일DATA 대기");
-      return;
+    if (dateChanged) {
+      clearAllValues();
     }
 
-    setStatus("loading", "확인 중");
+    if (!targetDate) {
+      setStatus("idle", "조회 대기");
+      return;
+    }
 
     try {
       const [dailyResult, settings] = await Promise.all([
@@ -697,13 +848,9 @@
 
       currentSettings = settings;
 
-      if (!dailyResult) {
-        setStatus("idle", "일일DATA 없음");
-        return;
-      }
-
-      if (!hasCofiringFields(dailyResult)) {
-        setStatus("warning", "재조회 필요");
+      if (!dailyResult || !hasCofiringFields(dailyResult)) {
+        clearAllValues();
+        setStatus("idle", "조회 대기");
         return;
       }
 
@@ -721,28 +868,27 @@
 
       if (!allFuelValuesPresent) {
         clearRatios();
-        setStatus("warning", "연료값 없음");
+        setStatus("error", "조회 실패");
         return;
       }
 
       if (!settings) {
         clearRatios();
-        setStatus("warning", "발열량 필요");
+        setStatus("complete", "조회 완료");
         return;
       }
 
-      if (!renderCalculatedRatios(fuelData, settings)) {
-        setStatus("warning", "계산 확인");
-        return;
-      }
+      renderCalculatedRatios(fuelData, settings);
 
-      const settingsButton = document.getElementById("morningMeetingCofiringCalorificButton");
+      const settingsButton =
+        document.getElementById("morningMeetingCofiringCalorificButton");
 
       if (settingsButton instanceof HTMLButtonElement) {
-        settingsButton.title = `발열량 · ${settings.effectiveDate}부터 · Coal ${settings.coalKcalPerKg} / Bio ${settings.bioKcalPerKg} / 유기성 ${settings.organicKcalPerKg} kcal/kg`;
+        settingsButton.title =
+          `발열량 · ${settings.effectiveDate}부터 · Coal ${settings.coalKcalPerKg} / Bio ${settings.bioKcalPerKg} / 유기성 ${settings.organicKcalPerKg} kcal/kg`;
       }
 
-      setStatus("complete", "계산 완료");
+      setStatus("complete", "조회 완료");
     } catch (error) {
       if (refreshToken !== activeRefreshToken) {
         return;
@@ -834,19 +980,33 @@
   }
 
   function initialize() {
-    ensureCard();
+    document.addEventListener(
+      "click",
+      handleCofiringRefreshClick
+    );
+
+    const card = ensureCard();
+
     bindWatchedElements();
     observeLayout();
-    scheduleRefresh(250);
+
+    if (card) {
+      scheduleRefresh(100);
+      return;
+    }
 
     let attempts = 0;
+
     const startupTimer = window.setInterval(() => {
       attempts += 1;
-      const card = ensureCard();
+
+      const delayedCard = ensureCard();
       bindWatchedElements();
 
-      if (card) {
+      if (delayedCard) {
         scheduleRefresh(100);
+        window.clearInterval(startupTimer);
+        return;
       }
 
       if (attempts >= 40) {
@@ -864,3 +1024,5 @@
     initialize();
   }
 })();
+
+/* MORNING_MEETING_COFIRING_STABLE_REFRESH_V1_R2 */

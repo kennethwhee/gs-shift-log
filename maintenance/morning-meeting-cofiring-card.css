@@ -412,3 +412,23 @@
 }
 
 /* MORNING_MEETING_COFIRING_FULL_WIDTH_V1_END */
+
+/* MORNING_MEETING_COFIRING_STABLE_REFRESH_V1_R2_CSS_START */
+
+.morning-meeting-cofiring-card__meta {
+  max-width: 220px !important;
+  flex-wrap: nowrap !important;
+  gap: 4px !important;
+}
+
+.morning-meeting-cofiring-card__meta > small {
+  white-space: nowrap;
+}
+
+.morning-meeting-cofiring-status.is-idle {
+  border-color: #cbd8e6 !important;
+  background: #ffffff !important;
+  color: #64758a !important;
+}
+
+/* MORNING_MEETING_COFIRING_STABLE_REFRESH_V1_R2_CSS_END */
