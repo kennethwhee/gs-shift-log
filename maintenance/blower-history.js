@@ -7,6 +7,9 @@
   const OIS_REQUEST_API_URL = "/api/ois-data-requests";
   const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
   const AVERAGE_PERIOD_STORAGE_KEY = "gsShiftLog.blowerHistory.averagePeriod";
+  const FBHE_OIS_REPORT_CACHE_KEY = "gsShiftLog.blowerHistory.fbheOisReportCache.v1";
+  const FBHE_OIS_LAST_RANGE_KEY = "gsShiftLog.blowerHistory.fbheOisLastRange.v1";
+  const FBHE_OIS_LEGACY_MIGRATION_KEY = "gsShiftLog.blowerHistory.fbheOisLegacyMigration.v1";
   const MOBILE_MONITORING_QUERY = "(max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse)";
 
   const state = {
@@ -1840,6 +1843,623 @@
     };
   }
 
+  function readFbheOisReportCache() {
+    try {
+      const parsed =
+        JSON.parse(
+          localStorage.getItem(
+            FBHE_OIS_REPORT_CACHE_KEY
+          ) ||
+          "{}"
+        );
+
+      return (
+        parsed &&
+        typeof parsed === "object"
+      )
+        ? parsed
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+
+  function writeFbheOisReportCache(cache) {
+    try {
+      localStorage.setItem(
+        FBHE_OIS_REPORT_CACHE_KEY,
+        JSON.stringify(cache)
+      );
+
+      return true;
+    } catch (error) {
+      console.warn(
+        "FBHE OIS result cache save failed:",
+        error
+      );
+
+      return false;
+    }
+  }
+
+
+  function isCompleteFbheVibrationReport(report) {
+    if (
+      !report ||
+      !Array.isArray(
+        report.assets
+      ) ||
+      report.assets.length <
+        1
+    ) {
+      return false;
+    }
+
+    const queue =
+      report.queue ||
+      {};
+
+    const activeCount =
+      Number(
+        queue.pendingCount ||
+        0
+      ) +
+      Number(
+        queue.processingCount ||
+        0
+      );
+
+    const failedCount =
+      Number(
+        queue.failedCount ||
+        0
+      ) +
+      Number(
+        queue.missingCount ||
+        0
+      );
+
+    const chunkCount =
+      Number(
+        queue.chunkCount ||
+        0
+      );
+
+    const completeCount =
+      Number(
+        queue.completeCount ||
+        0
+      );
+
+    return (
+      activeCount ===
+        0 &&
+      failedCount ===
+        0 &&
+      (
+        chunkCount <
+          1 ||
+        completeCount >=
+          chunkCount
+      )
+    );
+  }
+
+
+  function inferFbheVibrationPresetForRange(
+    startDate,
+    endDate
+  ) {
+    if (
+      endDate !==
+      maximumFbheVibrationDate()
+    ) {
+      return "custom";
+    }
+
+    const presets = [
+      "7",
+      "30",
+      "90",
+      "180",
+      "365"
+    ];
+
+    for (
+      const preset of
+      presets
+    ) {
+      const days =
+        Number(preset);
+
+      if (
+        startDate ===
+        addFbheVibrationDays(
+          endDate,
+          -(days - 1)
+        )
+      ) {
+        return preset;
+      }
+    }
+
+    const cycle =
+      defaultFbheVibrationRange();
+
+    if (
+      cycle.startDate ===
+      startDate &&
+      cycle.endDate ===
+      endDate
+    ) {
+      return "cycle";
+    }
+
+    if (
+      startDate ===
+      `${endDate.slice(0, 7)}-01`
+    ) {
+      return "month";
+    }
+
+    return "custom";
+  }
+
+
+  function rememberFbheVibrationRange(
+    range,
+    preset = state.vibrationPreset
+  ) {
+    if (
+      !range?.startDate ||
+      !range?.endDate ||
+      range.dayCount <
+        1 ||
+      range.dayCount >
+        366
+    ) {
+      return;
+    }
+
+    try {
+      localStorage.setItem(
+        FBHE_OIS_LAST_RANGE_KEY,
+        JSON.stringify({
+          startDate:
+            range.startDate,
+          endDate:
+            range.endDate,
+          preset:
+            String(
+              preset ||
+              "custom"
+            ),
+          savedAt:
+            new Date()
+              .toISOString()
+        })
+      );
+    } catch (error) {
+      console.warn(
+        "FBHE OIS last range save failed:",
+        error
+      );
+    }
+  }
+
+
+  function cacheFbheVibrationReport(
+    report,
+    preset = state.vibrationPreset
+  ) {
+    if (
+      !isCompleteFbheVibrationReport(
+        report
+      )
+    ) {
+      return false;
+    }
+
+    const startDate =
+      String(
+        report.startDate ||
+        ""
+      );
+
+    const endDate =
+      String(
+        report.endDate ||
+        ""
+      );
+
+    const key =
+      startDate &&
+      endDate
+        ? `${startDate}~${endDate}`
+        : "";
+
+    if (!key) {
+      return false;
+    }
+
+    const cache =
+      readFbheOisReportCache();
+
+    const entries =
+      cache.entries &&
+      typeof cache.entries ===
+        "object"
+        ? cache.entries
+        : {};
+
+    entries[key] = {
+      savedAt:
+        new Date()
+          .toISOString(),
+      preset:
+        String(
+          preset ||
+          inferFbheVibrationPresetForRange(
+            startDate,
+            endDate
+          )
+        ),
+      report
+    };
+
+    const sortedKeys =
+      Object.keys(
+        entries
+      )
+        .sort(
+          (left, right) =>
+            String(
+              entries[right]
+                ?.savedAt ||
+              ""
+            ).localeCompare(
+              String(
+                entries[left]
+                  ?.savedAt ||
+                ""
+              )
+            )
+        );
+
+    const trimmedEntries =
+      Object.fromEntries(
+        sortedKeys
+          .slice(
+            0,
+            4
+          )
+          .map(
+            keyValue => [
+              keyValue,
+              entries[keyValue]
+            ]
+          )
+      );
+
+    const nextCache = {
+      version:
+        1,
+      entries:
+        trimmedEntries
+    };
+
+    let saved =
+      writeFbheOisReportCache(
+        nextCache
+      );
+
+    if (!saved) {
+      const newest =
+        sortedKeys[0];
+
+      saved =
+        writeFbheOisReportCache({
+          version:
+            1,
+          entries:
+            newest
+              ? {
+                  [newest]:
+                    entries[newest]
+                }
+              : {}
+        });
+    }
+
+    rememberFbheVibrationRange(
+      {
+        startDate,
+        endDate,
+        dayCount:
+          countFbheVibrationDays(
+            startDate,
+            endDate
+          )
+      },
+      preset
+    );
+
+    return saved;
+  }
+
+
+  function restoreCachedFbheVibrationReport(
+    startDate,
+    endDate
+  ) {
+    const key =
+      startDate &&
+      endDate
+        ? `${startDate}~${endDate}`
+        : "";
+
+    if (!key) {
+      return false;
+    }
+
+    const cache =
+      readFbheOisReportCache();
+
+    const entry =
+      cache.entries?.[key];
+
+    const report =
+      entry?.report;
+
+    if (
+      !isCompleteFbheVibrationReport(
+        report
+      ) ||
+      report.startDate !==
+        startDate ||
+      report.endDate !==
+        endDate
+    ) {
+      return false;
+    }
+
+    state.vibrationReport =
+      report;
+
+    state.vibrationReportRangeKey =
+      key;
+
+    state.vibrationPreset =
+      String(
+        entry.preset ||
+        inferFbheVibrationPresetForRange(
+          startDate,
+          endDate
+        )
+      );
+
+    return true;
+  }
+
+
+  function restoreLastFbheVibrationRange() {
+    try {
+      const item =
+        JSON.parse(
+          localStorage.getItem(
+            FBHE_OIS_LAST_RANGE_KEY
+          ) ||
+          "null"
+        );
+
+      const startDate =
+        String(
+          item?.startDate ||
+          ""
+        );
+
+      const endDate =
+        String(
+          item?.endDate ||
+          ""
+        );
+
+      const dayCount =
+        countFbheVibrationDays(
+          startDate,
+          endDate
+        );
+
+      if (
+        dayCount <
+          1 ||
+        dayCount >
+          366 ||
+        endDate >
+          maximumFbheVibrationDate()
+      ) {
+        return false;
+      }
+
+      elements
+        .vibrationStartDate
+        .value =
+          startDate;
+
+      elements
+        .vibrationEndDate
+        .value =
+          endDate;
+
+      state.vibrationPreset =
+        String(
+          item?.preset ||
+          inferFbheVibrationPresetForRange(
+            startDate,
+            endDate
+          )
+        );
+
+      restoreCachedFbheVibrationReport(
+        startDate,
+        endDate
+      );
+
+      state.vibrationReportRangeKey =
+        `${startDate}~${endDate}`;
+
+      updateFbheVibrationPresetButtons();
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+
+  function tryRestoreCachedReportForSelectedRange() {
+    const range =
+      selectedFbheVibrationRange();
+
+    const restored =
+      restoreCachedFbheVibrationReport(
+        range.startDate,
+        range.endDate
+      );
+
+    if (restored) {
+      rememberFbheVibrationRange(
+        range,
+        state.vibrationPreset
+      );
+
+      renderFbheVibrationShadow();
+    }
+
+    return restored;
+  }
+
+
+  async function migrateLegacySavedOneYearAnalysis() {
+    if (
+      localStorage.getItem(
+        FBHE_OIS_LEGACY_MIGRATION_KEY
+      ) ===
+        "done"
+    ) {
+      return false;
+    }
+
+    localStorage.setItem(
+      FBHE_OIS_LEGACY_MIGRATION_KEY,
+      "done"
+    );
+
+    const originalRange =
+      selectedFbheVibrationRange();
+
+    const originalPreset =
+      state.vibrationPreset;
+
+    const endDate =
+      maximumFbheVibrationDate();
+
+    const startDate =
+      addFbheVibrationDays(
+        endDate,
+        -364
+      );
+
+    elements
+      .vibrationStartDate
+      .value =
+        startDate;
+
+    elements
+      .vibrationEndDate
+      .value =
+        endDate;
+
+    state.vibrationPreset =
+      "365";
+
+    state.vibrationReport =
+      null;
+
+    state.vibrationReportRangeKey =
+      `${startDate}~${endDate}`;
+
+    updateFbheVibrationPresetButtons();
+    renderFbheVibrationShadow();
+
+    try {
+      elements
+        .vibrationStatus
+        .dataset
+        .state =
+          "running";
+
+      elements
+        .vibrationStatus
+        .textContent =
+          "기존에 저장된 1년 OIS 조회내역을 불러오고 있습니다. OIS 재조회는 하지 않습니다.";
+
+      const report =
+        await loadFbheVibrationShadowReport({
+          silent:
+            true
+        });
+
+      if (
+        isCompleteFbheVibrationReport(
+          report
+        )
+      ) {
+        cacheFbheVibrationReport(
+          report,
+          "365"
+        );
+
+        showToast(
+          "기존 1년 OIS 조회내역을 복원했습니다."
+        );
+
+        return true;
+      }
+    } catch (error) {
+      console.info(
+        "Legacy saved one-year OIS analysis was not available:",
+        error
+      );
+    }
+
+    elements
+      .vibrationStartDate
+      .value =
+        originalRange.startDate;
+
+    elements
+      .vibrationEndDate
+      .value =
+        originalRange.endDate;
+
+    state.vibrationPreset =
+      originalPreset;
+
+    state.vibrationReport =
+      null;
+
+    state.vibrationReportRangeKey =
+      originalRange.key;
+
+    updateFbheVibrationPresetButtons();
+    renderFbheVibrationShadow();
+
+    return false;
+  }
+
+
   function updateFbheVibrationPresetButtons() {
     document.querySelectorAll("[data-vibration-preset]").forEach(button => {
       button.classList.toggle("is-active", button.dataset.vibrationPreset === state.vibrationPreset);
@@ -1866,6 +2486,12 @@
     state.vibrationPreset = String(preset);
     state.vibrationReport = null;
     state.vibrationReportRangeKey = `${startDate}~${endDate}`;
+
+    restoreCachedFbheVibrationReport(
+      startDate,
+      endDate
+    );
+
     updateFbheVibrationPresetButtons();
     renderFbheVibrationShadow();
   }
@@ -7046,6 +7672,11 @@
       state.vibrationReportRangeKey =
         range.key;
 
+      cacheFbheVibrationReport(
+        report,
+        state.vibrationPreset
+      );
+
       renderFbheVibrationShadow();
 
       if (
@@ -7211,14 +7842,46 @@
   }
 
 
-  function handleFbheVibrationQuery() {
+  async function handleFbheVibrationQuery() {
     if (
       !canUseFbheVibrationShadow()
     ) {
       return;
     }
 
-    elements.vibrationShadowPanel.open = true;
+    elements
+      .vibrationShadowPanel
+      .open =
+        true;
+
+    if (
+      hasCompletedFbheVibrationReportForSelectedRange()
+    ) {
+      renderFbheVibrationShadow();
+      return;
+    }
+
+    if (
+      restoreLastFbheVibrationRange()
+    ) {
+      if (
+        hasCompletedFbheVibrationReportForSelectedRange()
+      ) {
+        renderFbheVibrationShadow();
+        return;
+      }
+    }
+
+    if (
+      tryRestoreCachedReportForSelectedRange()
+    ) {
+      return;
+    }
+
+    renderFbheVibrationShadow();
+
+    await migrateLegacySavedOneYearAnalysis();
+
     renderFbheVibrationShadow();
   }
 
@@ -8865,6 +9528,9 @@
       state.vibrationPreset = "custom";
       state.vibrationReport = null;
       state.vibrationReportRangeKey = selectedFbheVibrationRange().key;
+
+      tryRestoreCachedReportForSelectedRange();
+
       updateFbheVibrationPresetButtons();
       renderFbheVibrationShadow();
     };
@@ -8963,3 +9629,5 @@
 /* FBHE_OIS_EXPLICIT_QUERY_COMPACT_V1 */
 
 /* FBHE_OIS_QUERY_WINDOW_V862 */
+
+/* FBHE_OIS_RESULT_CACHE_V863 */
