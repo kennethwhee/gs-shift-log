@@ -243059,14 +243059,153 @@ async function restoreSolarCumulativeFromD1() {
       새로 계산한 경우에만 저장한다.
     ====================================================== */
 
-    const shouldSave =
-      !hadStoredMonthly ||
-      !hadStoredYearly ||
+    /*
+      DAILY_DATA_SOLAR_HISTORY_CORRECTION_V1_R1
+
+      The mapping and renderer are already correct.
+
+      The bug is that a stale non-null current-date D1 value
+      wins forever and the old shouldSave rule never rewrites it.
+
+      At this point currentDailyData is the fresh Daily DATA state
+      for sourceDate, before this restore module writes D1 values
+      back to the card.
+    */
+
+    const storedSolarDaily =
       numberOrNull(
         currentValues
           .powerSolar
-      ) ===
+      );
+
+
+    const storedMonthlyCumulative =
+      numberOrNull(
+        currentValues
+          .powerSolarMonthly
+      );
+
+
+    const storedYearlyCumulative =
+      numberOrNull(
+        currentValues
+          .powerSolarYearly
+      );
+
+
+    const liveMonthlyCumulative =
+      numberOrNull(
+        currentDailyData
+          ?.solarMonthlyCumulative ??
+        currentDailyData
+          ?.solarCumulative
+          ?.month
+          ?.total
+      );
+
+
+    const liveYearlyCumulative =
+      numberOrNull(
+        currentDailyData
+          ?.solarYearlyCumulative ??
+        currentDailyData
+          ?.solarCumulative
+          ?.year
+          ?.total
+      );
+
+
+    const hasAuthoritativeDailyDataCumulative =
+      liveMonthlyCumulative !==
+        null &&
+      liveYearlyCumulative !==
         null;
+
+
+    if (
+      hasAuthoritativeDailyDataCumulative
+    ) {
+      solarMonthlyCumulative =
+        roundSolarValue(
+          liveMonthlyCumulative
+        );
+
+      solarYearlyCumulative =
+        roundSolarValue(
+          liveYearlyCumulative
+        );
+    }
+
+
+    const desiredSolarDaily =
+      roundSolarValue(
+        solarDailyGeneration
+      );
+
+
+    const isSameSolarHistoryValue =
+      (
+        storedValue,
+        desiredValue
+      ) => {
+        const left =
+          numberOrNull(
+            storedValue
+          );
+
+        const right =
+          numberOrNull(
+            desiredValue
+          );
+
+
+        if (
+          left ===
+            null ||
+          right ===
+            null
+        ) {
+          return (
+            left ===
+            right
+          );
+        }
+
+
+        return (
+          Math.abs(
+            left -
+            right
+          ) <
+          0.0005
+        );
+      };
+
+
+    const shouldSave =
+      hasAuthoritativeDailyDataCumulative
+        ? (
+            !isSameSolarHistoryValue(
+              storedSolarDaily,
+              desiredSolarDaily
+            ) ||
+
+            !isSameSolarHistoryValue(
+              storedMonthlyCumulative,
+              solarMonthlyCumulative
+            ) ||
+
+            !isSameSolarHistoryValue(
+              storedYearlyCumulative,
+              solarYearlyCumulative
+            )
+          )
+        : (
+            !hadStoredMonthly ||
+            !hadStoredYearly ||
+            storedSolarDaily ===
+              null
+          );
 
 
     if (
@@ -243362,11 +243501,13 @@ async function restoreSolarCumulativeFromD1() {
       },
 
       solarCumulativeSource:
-        (
-          hadStoredMonthly &&
-          hadStoredYearly
-        )
-          ? "자동수치 기록 D1"
+        hasAuthoritativeDailyDataCumulative
+          ? "일일DATA"
+          : (
+              hadStoredMonthly &&
+              hadStoredYearly
+            )
+              ? "자동수치 기록 D1"
           : "전일 누적 + 일일 태양광 자동계산",
 
       solarCumulativeSourceDate:
@@ -254547,3 +254688,5 @@ async function restoreSolarCumulativeFromD1() {
   }
 })();
 /* SHIFT_LOG_SEARCH_MATCHED_ITEMS_V1_END */
+
+/* DAILY_DATA_SOLAR_HISTORY_CORRECTION_V1_R1 */
