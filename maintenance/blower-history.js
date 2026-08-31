@@ -1,7 +1,9 @@
 "use strict";
 
+/* [FBHE-VIBRATION-SHADOW-V1] */
 (() => {
   const API_URL = "/api/blower-history";
+  const OIS_REQUEST_API_URL = "/api/ois-data-requests";
   const AUTH_STORAGE_KEY = "gsShiftLog.currentUser";
   const AVERAGE_PERIOD_STORAGE_KEY = "gsShiftLog.blowerHistory.averagePeriod";
   const MOBILE_MONITORING_QUERY = "(max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse)";
@@ -18,7 +20,11 @@
     operationSyncCompleted: false,
     assetManagerAutoName: true,
     serverClockOffsetMs: 0,
-    runtimeEditOriginalDate: ""
+    runtimeEditOriginalDate: "",
+    vibrationReport: null,
+    vibrationReportDate: "",
+    vibrationPolling: false,
+    vibrationPollRequestId: ""
   };
 
   const elements = {};
@@ -51,6 +57,16 @@
       "averagePeriodUnit",
       "averageMetrics",
       "averageAssets",
+      "vibrationShadowPanel",
+      "vibrationHeadline",
+      "vibrationDate",
+      "vibrationQueryButton",
+      "vibrationRequeryButton",
+      "vibrationStatus",
+      "vibrationMetrics",
+      "vibrationTableWrap",
+      "vibrationBody",
+      "vibrationEmpty",
       "activeTypeTitle",
       "assetGroups",
       "historyFilter",
@@ -1731,6 +1747,349 @@
     notice.textContent = "V13 업무일지 문맥 복구 필요 · 아직 V13 검증을 실행하지 않음";
   }
 
+
+  /* =======================================================
+    [FBHE-VIBRATION-SHADOW-V1]
+    OIS 진동값 조회·표시
+
+    실제 기동·정지, 누적시간, V-Belt Cycle은 변경하지 않는다.
+  ======================================================= */
+
+  function defaultFbheVibrationDate() {
+    const yesterday = new Date(currentServerDate().getTime() - 24 * 60 * 60 * 1000);
+    return formatKstDateInput(yesterday);
+  }
+
+  function maximumFbheVibrationDate() {
+    return formatKstDateInput(currentServerDate());
+  }
+
+  function canUseFbheVibrationShadow() {
+    return Boolean(
+      state.data?.permissions?.canAdmin &&
+      state.activeType === "fbhe" &&
+      !isMobileMonitoringView() &&
+      !isPublicMonitoringView()
+    );
+  }
+
+  function fbheVibrationStateLabel(stateValue) {
+    return ({
+      running: "운전 후보",
+      stopped: "정지 후보",
+      unknown: "판정보류"
+    })[stateValue] || "판정보류";
+  }
+
+  function fbheVibrationManualStateLabel(stateValue) {
+    return ({
+      running: "운전",
+      stopped: "정지",
+      unknown: "이력 없음"
+    })[stateValue] || "이력 없음";
+  }
+
+  function fbheVibrationSignalLabel(signalState) {
+    return ({
+      vibration_present: "진동값 수집",
+      no_vibration: "진동 없음",
+      drive_anomaly: "전달 이상 의심",
+      insufficient: "센서 부족",
+      unknown: "자료 없음"
+    })[signalState] || "자료 없음";
+  }
+
+  function fbheVibrationComparisonLabel(comparison) {
+    return ({
+      match: "등록상태와 일치",
+      mismatch: "등록상태와 다름",
+      unknown: "비교 보류"
+    })[comparison] || "비교 보류";
+  }
+
+  function formatFbheVibrationValue(value) {
+    if (value === null || value === undefined || value === "") return "-";
+    const numberValue = Number(value);
+    if (!Number.isFinite(numberValue)) return "-";
+    return numberValue.toLocaleString("ko-KR", {
+      maximumFractionDigits: 4
+    });
+  }
+
+  function formatFbheVibrationTransition(transition) {
+    const typeLabel = ({
+      start: "기동 후보",
+      stop: "정지 후보",
+      drive_anomaly: "동력전달 이상 후보"
+    })[transition?.type] || "변화 후보";
+    const matchLabel = ({
+      matched: "등록이력 일치",
+      conflict: "등록이력 상충",
+      unrecorded: "등록이력 없음",
+      not_applicable: ""
+    })[transition?.manualMatch] || "";
+    const confidenceLabel = transition?.confidence === "high" ? "높음" : "참고";
+    const time = transition?.estimatedAt
+      ? formatKstDateTimeDisplay(transition.estimatedAt).slice(11)
+      : "-";
+
+    return `${time} ${typeLabel} · 신뢰 ${confidenceLabel}${matchLabel ? ` · ${matchLabel}` : ""}`;
+  }
+
+  function renderFbheVibrationShadow() {
+    const allowed = canUseFbheVibrationShadow();
+    elements.vibrationShadowPanel.hidden = !allowed;
+
+    if (!allowed) return;
+    if (!elements.vibrationDate.value) elements.vibrationDate.value = defaultFbheVibrationDate();
+
+    const report = state.vibrationReport;
+    const selectedDate = elements.vibrationDate.value;
+    const reportMatchesDate = report && report.targetDate === selectedDate;
+
+    elements.vibrationQueryButton.disabled = state.vibrationPolling || state.busy;
+    elements.vibrationRequeryButton.disabled = state.vibrationPolling || state.busy;
+    elements.vibrationQueryButton.textContent = state.vibrationPolling ? "OIS 조회 중..." : "진동 조회";
+
+    if (!reportMatchesDate) {
+      elements.vibrationHeadline.textContent = "자동 반영 없음 · 조회 대기";
+      elements.vibrationStatus.dataset.state = "idle";
+      elements.vibrationStatus.textContent = `${selectedDate} 저장자료를 불러오거나 새로 조회할 수 있습니다.`;
+      elements.vibrationMetrics.hidden = true;
+      elements.vibrationMetrics.replaceChildren();
+      elements.vibrationTableWrap.hidden = true;
+      elements.vibrationBody.replaceChildren();
+      elements.vibrationEmpty.hidden = false;
+      return;
+    }
+
+    const queueStatus = report.queue?.status || "none";
+    if (["pending", "processing"].includes(queueStatus)) {
+      elements.vibrationHeadline.textContent = queueStatus === "processing"
+        ? "OIS 진동 수집 중 · 실제 상태 변경 없음"
+        : "OIS Agent 처리 대기 · 실제 상태 변경 없음";
+      elements.vibrationStatus.dataset.state = "running";
+      elements.vibrationStatus.textContent = queueStatus === "processing"
+        ? "회사 PC OIS Agent가 FBHE 진동 TAG 24개를 수집하고 있습니다."
+        : "회사 PC OIS Agent가 요청을 가져가기를 기다리고 있습니다.";
+      elements.vibrationMetrics.hidden = true;
+      elements.vibrationTableWrap.hidden = true;
+      elements.vibrationEmpty.hidden = true;
+      return;
+    }
+
+    if (["failed", "expired"].includes(queueStatus)) {
+      elements.vibrationHeadline.textContent = "진동 조회 실패 · 자동 반영 없음";
+      elements.vibrationStatus.dataset.state = "error";
+      elements.vibrationStatus.textContent = report.queue?.errorMessage || "OIS 진동 조회에 실패했습니다. 재조회를 실행하세요.";
+      elements.vibrationMetrics.hidden = true;
+      elements.vibrationTableWrap.hidden = true;
+      elements.vibrationEmpty.hidden = false;
+      return;
+    }
+
+    if (queueStatus !== "complete") {
+      elements.vibrationHeadline.textContent = "저장자료 없음 · 자동 반영 없음";
+      elements.vibrationStatus.dataset.state = "idle";
+      elements.vibrationStatus.textContent = "이 날짜의 FBHE 진동 자료가 아직 없습니다.";
+      elements.vibrationMetrics.hidden = true;
+      elements.vibrationTableWrap.hidden = true;
+      elements.vibrationEmpty.hidden = false;
+      return;
+    }
+
+    const summary = report.summary || {};
+    const sensorSuccess = Number(summary.successfulSensorCount || 0);
+    const sensorFailed = Number(summary.failedSensorCount || 0);
+    const mismatchCount = Number(summary.mismatchCount || 0);
+    const anomalyCount = Number(summary.anomalyCount || 0);
+
+    elements.vibrationHeadline.textContent = [
+      `${selectedDate}`,
+      `TAG ${sensorSuccess}/${sensorSuccess + sensorFailed || 24}`,
+      `상태판정 ${Number(summary.shadowDecidedCount || 0)}/6대`,
+      "자동 반영 없음"
+    ].join(" · ");
+    const statusWarnings = [];
+    if (sensorFailed > 0) statusWarnings.push(`TAG 실패 ${sensorFailed}개`);
+    if (mismatchCount > 0) statusWarnings.push(`등록상태 불일치 ${mismatchCount}대`);
+    if (anomalyCount > 0) statusWarnings.push(`동력전달 이상 후보 ${anomalyCount}건`);
+
+    elements.vibrationStatus.dataset.state = statusWarnings.length > 0 ? "warning" : "complete";
+    elements.vibrationStatus.textContent = statusWarnings.length > 0
+      ? `${statusWarnings.join(" · ")}입니다. Shadow 결과만 표시하며 실제 상태는 바꾸지 않았습니다.`
+      : `급락·급상승 후보 ${Number(summary.transitionCount || 0)}건을 확인했습니다. 실제 상태와 누적시간은 변경하지 않았습니다.`;
+
+    const metrics = [
+      ["TAG 응답", `${sensorSuccess}/${sensorSuccess + sensorFailed || 24}`],
+      ["상태 판정", `${Number(summary.shadowDecidedCount || 0)}/6대`],
+      ["변화 후보", `${Number(summary.transitionCount || 0)}건`],
+      ["미기록 후보", `${Number(summary.unrecordedTransitionCount || 0)}건`]
+    ];
+    elements.vibrationMetrics.innerHTML = metrics.map(([label, value]) => `
+      <div class="vibration-shadow-metric">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value)}</strong>
+      </div>
+    `).join("");
+    elements.vibrationMetrics.hidden = false;
+
+    const rows = (report.assets || []).map(asset => {
+      const transitions = (asset.transitions || []).map(formatFbheVibrationTransition);
+      const latest = asset.latest || null;
+      const latestValue = latest
+        ? `B ${formatFbheVibrationValue(latest.blowerIndex)} / M ${formatFbheVibrationValue(latest.motorIndex)}${latest.unit ? ` ${latest.unit}` : ""}`
+        : "-";
+      const latestTime = asset.latestSampleAt
+        ? formatKstDateTimeDisplay(asset.latestSampleAt).slice(11)
+        : "-";
+      const stateClass = asset.shadowState === "running"
+        ? "running"
+        : asset.shadowState === "stopped"
+          ? "stopped"
+          : "unknown";
+      const rowClasses = [
+        asset.comparison === "mismatch" ? "mismatch" : "",
+        Number(asset.anomalyCount || 0) > 0 ? "anomaly" : ""
+      ].filter(Boolean).join(" ");
+      const failedTagText = (asset.failedSensors || [])
+        .map(sensor => sensor.tag || sensor.role)
+        .filter(Boolean)
+        .join(", ");
+
+      return `
+        <tr class="${rowClasses}">
+          <td>
+            <strong>${escapeHtml(asset.displayName || asset.tagNumber)}</strong>
+            <small>${escapeHtml(asset.tagNumber || "-")}</small>
+          </td>
+          <td>
+            <span class="vibration-shadow-pill ${stateClass}">${escapeHtml(fbheVibrationStateLabel(asset.shadowState))}</span>
+            <small>${escapeHtml(fbheVibrationComparisonLabel(asset.comparison))}</small>
+          </td>
+          <td>
+            <strong>${escapeHtml(fbheVibrationManualStateLabel(asset.manualState))}</strong>
+            <small>현재 카드 ${escapeHtml(fbheVibrationManualStateLabel(asset.currentCardState))}</small>
+          </td>
+          <td>
+            <strong>${escapeHtml(fbheVibrationSignalLabel(asset.signalState))}</strong>
+            <small>${escapeHtml(latestTime)} · ${escapeHtml(latestValue)}</small>
+          </td>
+          <td>
+            ${transitions.length > 0
+              ? transitions.map(text => `<small class="vibration-transition-line">${escapeHtml(text)}</small>`).join("")
+              : `<small>급격한 변화 없음</small>`}
+          </td>
+          <td>
+            <strong>${Number(asset.successfulSensorCount || 0)}/4</strong>
+            <small>${Number(asset.failedSensorCount || 0) > 0
+              ? `실패 ${Number(asset.failedSensorCount)}개${failedTagText ? ` · ${escapeHtml(failedTagText)}` : ""}`
+              : "정상"}</small>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    elements.vibrationBody.innerHTML = rows;
+    elements.vibrationTableWrap.hidden = rows.length === 0;
+    elements.vibrationEmpty.hidden = rows.length > 0;
+  }
+
+  async function loadFbheVibrationShadowReport(options = {}) {
+    if (!canUseFbheVibrationShadow()) return null;
+    const targetDate = elements.vibrationDate.value || defaultFbheVibrationDate();
+
+    try {
+      const report = await apiRequest({
+        url: `${API_URL}?action=vibration_shadow&targetDate=${encodeURIComponent(targetDate)}`
+      });
+      state.vibrationReport = report;
+      state.vibrationReportDate = targetDate;
+      renderFbheVibrationShadow();
+      return report;
+    } catch (error) {
+      if (!options.silent) showToast(error.message || "진동 Shadow 결과를 불러오지 못했습니다.", "error");
+      throw error;
+    }
+  }
+
+  async function pollFbheVibrationRequest(requestId, targetDate) {
+    const maximumAttempts = 320;
+
+    for (let attempt = 0; attempt < maximumAttempts; attempt += 1) {
+      const result = await apiRequest({
+        url: `${OIS_REQUEST_API_URL}?id=${encodeURIComponent(requestId)}`
+      });
+      const item = result.item || {};
+      state.vibrationReport = {
+        ok: true,
+        targetDate,
+        queue: item,
+        automaticApply: false,
+        assets: [],
+        summary: {}
+      };
+      renderFbheVibrationShadow();
+
+      if (item.status === "complete") return item;
+      if (["failed", "expired"].includes(item.status)) {
+        throw new Error(item.errorMessage || "FBHE 진동 OIS 조회에 실패했습니다.");
+      }
+
+      await waitForMilliseconds(3000);
+    }
+
+    throw new Error("FBHE 진동 조회 대기시간을 초과했습니다. OIS Agent 상태를 확인해 주세요.");
+  }
+
+  async function requestFbheVibrationShadow(forceRefresh = false) {
+    if (stopMobileMutation() || !canUseFbheVibrationShadow() || state.vibrationPolling) return;
+    const targetDate = elements.vibrationDate.value || defaultFbheVibrationDate();
+    elements.vibrationDate.value = targetDate;
+    state.vibrationPolling = true;
+    state.vibrationReportDate = targetDate;
+    renderFbheVibrationShadow();
+
+    try {
+      const created = await apiRequest({
+        url: OIS_REQUEST_API_URL,
+        method: "POST",
+        body: {
+          requestType: "fbhe_vibration",
+          targetDate,
+          forceRefresh
+        }
+      });
+      const item = created.item || {};
+      state.vibrationPollRequestId = item.id || "";
+      state.vibrationReport = {
+        ok: true,
+        targetDate,
+        queue: item,
+        automaticApply: false,
+        assets: [],
+        summary: {}
+      };
+      renderFbheVibrationShadow();
+
+      if (item.status !== "complete") {
+        await pollFbheVibrationRequest(item.id, targetDate);
+      }
+
+      await loadFbheVibrationShadowReport();
+      showToast(forceRefresh
+        ? "FBHE 진동 자료를 다시 수집해 Shadow 판정을 갱신했습니다."
+        : "FBHE 진동 Shadow 판정을 불러왔습니다.");
+    } catch (error) {
+      showToast(error.message || "FBHE 진동 조회에 실패했습니다.", "error");
+      await loadFbheVibrationShadowReport({ silent: true }).catch(() => null);
+    } finally {
+      state.vibrationPolling = false;
+      state.vibrationPollRequestId = "";
+      renderFbheVibrationShadow();
+    }
+  }
+
   function renderAll() {
     if (!state.data) return;
 
@@ -1738,6 +2097,7 @@
     renderTypeTabs();
     renderStatusFilters();
     renderSettings();
+    renderFbheVibrationShadow();
     renderAverageStats();
     renderMissingTags();
     renderAssets();
@@ -1761,6 +2121,8 @@
     elements.overviewBackfillButton.disabled = writeBlocked || state.busy || state.backfillRunning;
     elements.auditHistoryButton.disabled = writeBlocked || state.busy || state.backfillRunning || state.auditRunning;
     elements.assetManagerButton.disabled = writeBlocked || state.busy;
+    if (elements.vibrationQueryButton) elements.vibrationQueryButton.disabled = writeBlocked || state.busy || state.vibrationPolling;
+    if (elements.vibrationRequeryButton) elements.vibrationRequeryButton.disabled = writeBlocked || state.busy || state.vibrationPolling;
   }
 
   async function syncOperationChanges(days = 14) {
@@ -3203,6 +3565,21 @@
     elements.assetManagerButton.addEventListener("click", openAssetManagerDialog);
     elements.auditHistoryButton.addEventListener("click", downloadHistoricalAudit);
     elements.refreshButton.addEventListener("click", () => loadData({ forceOperationSync: true }));
+    elements.vibrationQueryButton.addEventListener("click", () => requestFbheVibrationShadow(false));
+    elements.vibrationRequeryButton.addEventListener("click", () => requestFbheVibrationShadow(true));
+    elements.vibrationDate.addEventListener("change", () => {
+      state.vibrationReport = null;
+      state.vibrationReportDate = elements.vibrationDate.value;
+      renderFbheVibrationShadow();
+      if (elements.vibrationShadowPanel.open) {
+        loadFbheVibrationShadowReport({ silent: true }).catch(() => null);
+      }
+    });
+    elements.vibrationShadowPanel.addEventListener("toggle", () => {
+      if (elements.vibrationShadowPanel.open && !state.vibrationPolling) {
+        loadFbheVibrationShadowReport({ silent: true }).catch(() => null);
+      }
+    });
     elements.scanButton.addEventListener("click", scanShiftLogs);
     elements.historicalBackfillButton.addEventListener("click", runHistoricalBackfill);
     elements.overviewBackfillButton.addEventListener("click", runHistoricalBackfill);
@@ -3263,6 +3640,8 @@
 
   async function initialize() {
     cacheElements();
+    elements.vibrationDate.max = maximumFbheVibrationDate();
+    elements.vibrationDate.value = defaultFbheVibrationDate();
     applySavedAveragePeriod();
     bindEvents();
     applyMobileMonitoringMode();

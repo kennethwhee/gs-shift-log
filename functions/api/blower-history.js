@@ -245,6 +245,28 @@ const OPERATION_AUTO_SOURCE_TYPE = "shift_log_operation_auto";
 const OPERATION_AUTO_CREATED_BY_ID = "operation_auto";
 const OPERATION_AUTO_CREATED_BY_NAME = "업무일지 교체운전 자동";
 const OPERATION_SYNC_DEFAULT_DAYS = 14;
+
+/* [FBHE-VIBRATION-SHADOW-V1]
+  OIS 진동값은 Shadow 검증에만 사용한다.
+  이 버전은 실제 기동·정지, 누적시간, V-Belt Cycle을 자동 변경하지 않는다.
+*/
+const FBHE_VIBRATION_REQUEST_TYPE = "fbhe_vibration";
+const FBHE_VIBRATION_ASSET_TAGS = Object.freeze(
+  ASSET_SEEDS
+    .filter(seed => seed[1] === "fbhe")
+    .map(seed => seed[0])
+);
+const FBHE_VIBRATION_SENSOR_ROLES = Object.freeze([
+  "blower_de",
+  "blower_nde",
+  "motor_de",
+  "motor_nde"
+]);
+const FBHE_VIBRATION_STOP_DROP_RATIO = 0.35;
+const FBHE_VIBRATION_START_RISE_RATIO = 2.8;
+const FBHE_VIBRATION_MANUAL_MATCH_WINDOW_MS = 90 * 60 * 1000;
+const FBHE_VIBRATION_MAX_TRANSITION_GAP_MS = 90 * 60 * 1000;
+
 const HISTORY_RECOVERY_V13_TAG_ALIASES = Object.freeze({
   "103ETG30AN601": "104ETG30AN601",
   "103ETG30AN602": "104ETG30AN602",
@@ -1833,6 +1855,865 @@ function buildSummaryFromAssets(assets) {
   };
 }
 
+
+/* =========================================================
+  [FBHE-VIBRATION-SHADOW-V1]
+  FBHE Blower 진동 Shadow 판정
+
+  판정 원칙:
+  - 4개 센서의 절대값 단위를 임의로 가정하지 않는다.
+  - 하루 자료에서 저진동/고진동 군집이 뚜렷할 때만 상태 후보를 만든다.
+  - 급락·급상승은 Blower와 Motor가 함께 변할 때만 기동·정지 후보로 본다.
+  - Motor 진동은 유지되고 Blower 진동만 급락하면 동력전달 이상 후보로 분리한다.
+  - 결과는 읽기 전용 Shadow이며 실제 상태·누적시간을 변경하지 않는다.
+========================================================= */
+
+function isValidFbheVibrationDate(value) {
+  const text = normalizeText(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+  const parsed = new Date(`${text}T00:00:00+09:00`);
+  return !Number.isNaN(parsed.getTime()) && formatKstDate(parsed) === text;
+}
+
+function parseFbheVibrationJson(value) {
+  const text = normalizeText(value);
+  if (!text) return null;
+
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function finiteFbheVibrationNumber(value) {
+  if (value === null || value === undefined || normalizeText(value) === "") return null;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? Math.abs(numberValue) : null;
+}
+
+function medianFbheVibration(values) {
+  const numbers = (values || [])
+    .map(finiteFbheVibrationNumber)
+    .filter(value => value !== null)
+    .sort((left, right) => left - right);
+
+  if (numbers.length === 0) return null;
+  const middle = Math.floor(numbers.length / 2);
+  return numbers.length % 2 === 1
+    ? numbers[middle]
+    : (numbers[middle - 1] + numbers[middle]) / 2;
+}
+
+function roundFbheVibration(value, digits = 4) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) return null;
+  const factor = 10 ** Math.max(0, Number(digits) || 0);
+  return Math.round(numberValue * factor) / factor;
+}
+
+function normalizeFbheVibrationSensor(sensor) {
+  const role = normalizeText(sensor?.role).toLowerCase();
+  if (!FBHE_VIBRATION_SENSOR_ROLES.includes(role)) return null;
+
+  const samples = (Array.isArray(sensor?.samples) ? sensor.samples : [])
+    .map(sample => {
+      const sampledAt = normalizeDateTime(sample?.sampledAt || sample?.sampled_at);
+      const value = finiteFbheVibrationNumber(sample?.value);
+      if (!sampledAt || value === null) return null;
+      return {
+        sampledAt,
+        value
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.sampledAt.localeCompare(right.sampledAt));
+
+  return {
+    role,
+    label: normalizeText(sensor?.label) || role,
+    tag: normalizeText(sensor?.tag),
+    itemName: normalizeText(sensor?.itemName || sensor?.item_name),
+    unit: normalizeText(sensor?.unit),
+    samples,
+    sampleCount: samples.length,
+    error: normalizeText(sensor?.error)
+  };
+}
+
+function buildFbheVibrationHourlyPoints(rawAsset) {
+  const sensors = (Array.isArray(rawAsset?.sensors) ? rawAsset.sensors : [])
+    .map(normalizeFbheVibrationSensor)
+    .filter(Boolean);
+  const sensorByRole = new Map(sensors.map(sensor => [sensor.role, sensor]));
+  const sampledAtSet = new Set();
+
+  for (const sensor of sensors) {
+    for (const sample of sensor.samples) sampledAtSet.add(sample.sampledAt);
+  }
+
+  const sampleMaps = new Map(
+    sensors.map(sensor => [
+      sensor.role,
+      new Map(sensor.samples.map(sample => [sample.sampledAt, sample.value]))
+    ])
+  );
+
+  const points = [...sampledAtSet]
+    .sort()
+    .map(sampledAt => {
+      const values = Object.fromEntries(
+        FBHE_VIBRATION_SENSOR_ROLES.map(role => [
+          role,
+          sampleMaps.get(role)?.get(sampledAt) ?? null
+        ])
+      );
+      const blowerValues = [values.blower_de, values.blower_nde]
+        .filter(value => value !== null);
+      const motorValues = [values.motor_de, values.motor_nde]
+        .filter(value => value !== null);
+      const allValues = [...blowerValues, ...motorValues];
+      const blowerIndex = medianFbheVibration(blowerValues);
+      const motorIndex = medianFbheVibration(motorValues);
+      const combinedIndex = blowerIndex !== null && motorIndex !== null
+        ? Math.sqrt(Math.max(0, blowerIndex * motorIndex))
+        : medianFbheVibration(allValues);
+
+      return {
+        sampledAt,
+        values,
+        validSensorCount: allValues.length,
+        blowerValidCount: blowerValues.length,
+        motorValidCount: motorValues.length,
+        blowerIndex,
+        motorIndex,
+        combinedIndex
+      };
+    });
+
+  return {
+    sensors,
+    sensorByRole,
+    points
+  };
+}
+
+function findFbheVibrationCluster(points) {
+  const values = (points || [])
+    .map(point => finiteFbheVibrationNumber(point?.combinedIndex))
+    .filter(value => value !== null)
+    .sort((left, right) => left - right);
+
+  if (values.length < 8) return null;
+
+  let best = null;
+  const minimumClusterCount = Math.max(3, Math.floor(values.length * 0.2));
+
+  for (
+    let lowerEnd = minimumClusterCount - 1;
+    lowerEnd <= values.length - minimumClusterCount - 1;
+    lowerEnd += 1
+  ) {
+    const lowerEdge = values[lowerEnd];
+    const upperEdge = values[lowerEnd + 1];
+    const lowerValues = values.slice(0, lowerEnd + 1);
+    const upperValues = values.slice(lowerEnd + 1);
+    const lowerMedian = medianFbheVibration(lowerValues);
+    const upperMedian = medianFbheVibration(upperValues);
+    const edgeRatio = lowerEdge <= 1e-9
+      ? (upperEdge > 1e-9 ? Number.POSITIVE_INFINITY : 1)
+      : upperEdge / lowerEdge;
+    const separationRatio = (lowerMedian ?? 0) <= 1e-9
+      ? ((upperMedian ?? 0) > 1e-9 ? Number.POSITIVE_INFINITY : 1)
+      : (upperMedian ?? 0) / lowerMedian;
+
+    if (edgeRatio < 1.8 || separationRatio < 2.5) continue;
+
+    const balance = Math.min(lowerValues.length, upperValues.length)
+      / Math.max(lowerValues.length, upperValues.length);
+    const finiteEdgeRatio = Number.isFinite(edgeRatio) ? edgeRatio : 1000;
+    const score = Math.log(finiteEdgeRatio) * balance;
+
+    if (!best || score > best.score) {
+      best = {
+        threshold: lowerEdge <= 1e-9
+          ? upperEdge * 0.25
+          : Math.sqrt(lowerEdge * upperEdge),
+        lowerMedian,
+        upperMedian,
+        edgeRatio,
+        separationRatio,
+        lowerCount: lowerValues.length,
+        upperCount: upperValues.length,
+        score
+      };
+    }
+  }
+
+  return best;
+}
+
+function midpointFbheVibrationTime(leftValue, rightValue) {
+  const left = new Date(leftValue);
+  const right = new Date(rightValue);
+  if (Number.isNaN(left.getTime()) || Number.isNaN(right.getTime())) return "";
+  return new Date((left.getTime() + right.getTime()) / 2).toISOString();
+}
+
+function classifyFbheVibrationPoint(point, cluster) {
+  if (!point || point.blowerIndex === null || point.motorIndex === null) return "unknown";
+
+  if (
+    cluster &&
+    point.motorIndex > cluster.threshold &&
+    point.blowerIndex <= cluster.threshold &&
+    point.motorIndex >= Math.max(point.blowerIndex * 3, cluster.threshold)
+  ) {
+    return "drive_anomaly";
+  }
+
+  if (!cluster || point.combinedIndex === null) return "unknown";
+  return point.combinedIndex <= cluster.threshold ? "low" : "high";
+}
+
+function dedupeFbheVibrationTransitions(transitions) {
+  const sorted = [...(transitions || [])]
+    .filter(item => item?.type && item?.estimatedAt)
+    .sort((left, right) => left.estimatedAt.localeCompare(right.estimatedAt));
+  const output = [];
+
+  for (const transition of sorted) {
+    const previous = output.at(-1);
+    const previousAt = new Date(previous?.estimatedAt || 0);
+    const currentAt = new Date(transition.estimatedAt);
+    const tooClose = previous && previous.type === transition.type &&
+      !Number.isNaN(previousAt.getTime()) && !Number.isNaN(currentAt.getTime()) &&
+      currentAt.getTime() - previousAt.getTime() <= 2 * 60 * 60 * 1000;
+
+    if (!tooClose) {
+      output.push(transition);
+      continue;
+    }
+
+    if (transition.confidence === "high" && previous.confidence !== "high") {
+      output[output.length - 1] = transition;
+    }
+  }
+
+  return output;
+}
+
+function buildFbheVibrationTransitions(points, cluster) {
+  const transitions = [];
+  const classified = (points || []).map(point => classifyFbheVibrationPoint(point, cluster));
+
+  if (cluster) {
+    let stableState = "";
+    let stableIndex = -1;
+
+    for (let index = 0; index < classified.length; index += 1) {
+      const currentState = classified[index];
+      if (!["low", "high"].includes(currentState)) continue;
+
+      if (!stableState) {
+        stableState = currentState;
+        stableIndex = index;
+        continue;
+      }
+
+      if (currentState === stableState) {
+        stableIndex = index;
+        continue;
+      }
+
+      const nextState = classified[index + 1];
+      if (nextState !== currentState) continue;
+
+      const previousPoint = points[Math.max(0, stableIndex)];
+      const currentPoint = points[index];
+      const nextPoint = points[index + 1];
+      const previousTime = new Date(previousPoint?.sampledAt || 0).getTime();
+      const currentTime = new Date(currentPoint?.sampledAt || 0).getTime();
+      const nextTime = new Date(nextPoint?.sampledAt || 0).getTime();
+      const transitionGap = currentTime - previousTime;
+      const confirmationGap = nextTime - currentTime;
+
+      if (
+        !Number.isFinite(transitionGap) ||
+        !Number.isFinite(confirmationGap) ||
+        transitionGap <= 0 ||
+        confirmationGap <= 0 ||
+        transitionGap > FBHE_VIBRATION_MAX_TRANSITION_GAP_MS ||
+        confirmationGap > FBHE_VIBRATION_MAX_TRANSITION_GAP_MS
+      ) {
+        stableState = currentState;
+        stableIndex = index;
+        continue;
+      }
+
+      transitions.push({
+        type: currentState === "low" ? "stop" : "start",
+        confidence: "high",
+        fromAt: previousPoint.sampledAt,
+        toAt: currentPoint.sampledAt,
+        estimatedAt: midpointFbheVibrationTime(previousPoint.sampledAt, currentPoint.sampledAt),
+        blowerBefore: roundFbheVibration(previousPoint.blowerIndex),
+        blowerAfter: roundFbheVibration(currentPoint.blowerIndex),
+        motorBefore: roundFbheVibration(previousPoint.motorIndex),
+        motorAfter: roundFbheVibration(currentPoint.motorIndex),
+        method: "two_cluster"
+      });
+
+      stableState = currentState;
+      stableIndex = index;
+    }
+  }
+
+  for (let index = 1; index < points.length; index += 1) {
+    const currentPoint = points[index];
+    if (
+      currentPoint.blowerIndex === null ||
+      currentPoint.motorIndex === null
+    ) {
+      continue;
+    }
+
+    const currentTime = new Date(currentPoint.sampledAt).getTime();
+    const previousWindow = points
+      .slice(Math.max(0, index - 3), index)
+      .filter(point => {
+        if (point.blowerIndex === null || point.motorIndex === null) return false;
+        const pointTime = new Date(point.sampledAt).getTime();
+        const gapMs = currentTime - pointTime;
+        return Number.isFinite(gapMs) && gapMs > 0 && gapMs <= 3 * FBHE_VIBRATION_MAX_TRANSITION_GAP_MS;
+      });
+    const previousPoint = previousWindow.at(-1) || null;
+    const previousPointTime = new Date(previousPoint?.sampledAt || 0).getTime();
+
+    if (
+      !previousPoint ||
+      !Number.isFinite(currentTime) ||
+      !Number.isFinite(previousPointTime) ||
+      currentTime - previousPointTime > FBHE_VIBRATION_MAX_TRANSITION_GAP_MS
+    ) {
+      continue;
+    }
+
+    const previousBlower = medianFbheVibration(previousWindow.map(point => point.blowerIndex));
+    const previousMotor = medianFbheVibration(previousWindow.map(point => point.motorIndex));
+
+    if (
+      previousBlower === null ||
+      previousMotor === null ||
+      previousBlower <= 1e-9 ||
+      previousMotor <= 1e-9
+    ) {
+      continue;
+    }
+
+    const blowerRatio = currentPoint.blowerIndex / previousBlower;
+    const motorRatio = currentPoint.motorIndex / previousMotor;
+    const common = {
+      fromAt: previousPoint.sampledAt,
+      toAt: currentPoint.sampledAt,
+      estimatedAt: midpointFbheVibrationTime(previousPoint.sampledAt, currentPoint.sampledAt),
+      blowerBefore: roundFbheVibration(previousBlower),
+      blowerAfter: roundFbheVibration(currentPoint.blowerIndex),
+      motorBefore: roundFbheVibration(previousMotor),
+      motorAfter: roundFbheVibration(currentPoint.motorIndex),
+      method: "relative_change"
+    };
+
+    if (
+      blowerRatio <= 0.3 &&
+      motorRatio >= 0.65 &&
+      currentPoint.motorIndex >= Math.max(currentPoint.blowerIndex * 3, 1e-9)
+    ) {
+      transitions.push({
+        ...common,
+        type: "drive_anomaly",
+        confidence: "high"
+      });
+      continue;
+    }
+
+    if (
+      blowerRatio <= FBHE_VIBRATION_STOP_DROP_RATIO &&
+      motorRatio <= FBHE_VIBRATION_STOP_DROP_RATIO &&
+      Math.min(blowerRatio, motorRatio) <= 0.2
+    ) {
+      transitions.push({
+        ...common,
+        type: "stop",
+        confidence: "medium"
+      });
+      continue;
+    }
+
+    if (
+      blowerRatio >= FBHE_VIBRATION_START_RISE_RATIO &&
+      motorRatio >= FBHE_VIBRATION_START_RISE_RATIO &&
+      Math.max(blowerRatio, motorRatio) >= 4
+    ) {
+      transitions.push({
+        ...common,
+        type: "start",
+        confidence: "medium"
+      });
+    }
+  }
+
+  return dedupeFbheVibrationTransitions(transitions);
+}
+
+function fbheVibrationOperationEventState(event) {
+  const eventType = normalizeText(event?.event_type || event?.eventType);
+  if (["startup", "operation_start"].includes(eventType)) return "running";
+  if (["replacement", "operation_stop"].includes(eventType)) return "stopped";
+  if (eventType === "runtime_correction") {
+    const correctionText = [
+      normalizeText(event?.action_type || event?.actionType),
+      normalizeText(event?.note)
+    ].filter(Boolean).join(" ");
+
+    if (/(?:미기동|정지|stop|stopped)/i.test(correctionText)) return "stopped";
+    if (/(?:운전중|재기동|기동|start|started|run|running)/i.test(correctionText)) return "running";
+  }
+  return "";
+}
+
+function matchFbheVibrationTransitionsToEvents(transitions, events) {
+  const normalizedEvents = (events || [])
+    .map(event => {
+      const eventDate = normalizeDateTime(event?.event_date || event?.eventDate);
+      const targetState = fbheVibrationOperationEventState(event);
+      return eventDate && targetState
+        ? {
+            eventDate,
+            targetState,
+            eventType: normalizeText(event?.event_type || event?.eventType),
+            sourceType: normalizeText(event?.source_type || event?.sourceType),
+            createdAt: normalizeDateTime(event?.created_at || event?.createdAt),
+            id: normalizeText(event?.id)
+          }
+        : null;
+    })
+    .filter(Boolean);
+
+  return (transitions || []).map(transition => {
+    if (!["start", "stop"].includes(transition.type)) {
+      return {
+        ...transition,
+        manualMatch: "not_applicable",
+        manualEvent: null
+      };
+    }
+
+    const targetState = transition.type === "start" ? "running" : "stopped";
+    const transitionAt = new Date(transition.estimatedAt);
+    const nearest = normalizedEvents
+      .map(event => ({
+        ...event,
+        distanceMs: Math.abs(new Date(event.eventDate).getTime() - transitionAt.getTime())
+      }))
+      .filter(event => Number.isFinite(event.distanceMs) && event.distanceMs <= FBHE_VIBRATION_MANUAL_MATCH_WINDOW_MS)
+      .sort((left, right) => {
+        const distanceOrder = left.distanceMs - right.distanceMs;
+        if (distanceOrder !== 0) return distanceOrder;
+        const targetOrder = Number(right.targetState === targetState) - Number(left.targetState === targetState);
+        if (targetOrder !== 0) return targetOrder;
+        const createdOrder = normalizeText(right.createdAt).localeCompare(normalizeText(left.createdAt));
+        if (createdOrder !== 0) return createdOrder;
+        return normalizeText(right.id).localeCompare(normalizeText(left.id));
+      })[0] || null;
+
+    return {
+      ...transition,
+      manualMatch: !nearest
+        ? "unrecorded"
+        : nearest.targetState === targetState
+          ? "matched"
+          : "conflict",
+      manualEvent: nearest
+        ? {
+            eventDate: nearest.eventDate,
+            targetState: nearest.targetState,
+            eventType: nearest.eventType,
+            sourceType: nearest.sourceType,
+            distanceMinutes: Math.round(nearest.distanceMs / 60000)
+          }
+        : null
+    };
+  });
+}
+
+function manualFbheVibrationStateAt(events, sampledAt) {
+  const targetTime = new Date(sampledAt);
+  if (Number.isNaN(targetTime.getTime())) return "unknown";
+
+  const latest = (events || [])
+    .map(event => {
+      const eventDate = normalizeDateTime(event?.event_date || event?.eventDate);
+      const state = fbheVibrationOperationEventState(event);
+      const parsed = new Date(eventDate);
+      if (!eventDate || !state || Number.isNaN(parsed.getTime()) || parsed > targetTime) return null;
+
+      const createdAt = normalizeDateTime(event?.created_at || event?.createdAt);
+      const createdTime = new Date(createdAt).getTime();
+      return {
+        eventDate,
+        state,
+        time: parsed.getTime(),
+        createdAt,
+        createdTime: Number.isNaN(createdTime) ? 0 : createdTime,
+        id: normalizeText(event?.id)
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (left.time !== right.time) return left.time - right.time;
+      if (left.createdTime !== right.createdTime) return left.createdTime - right.createdTime;
+      return left.id.localeCompare(right.id);
+    })
+    .at(-1) || null;
+
+  return latest?.state || "unknown";
+}
+
+function latestStableFbheVibrationClass(points, cluster) {
+  if (!cluster) return "unknown";
+
+  const stableClasses = (points || [])
+    .map(point => classifyFbheVibrationPoint(point, cluster))
+    .filter(value => ["low", "high", "drive_anomaly"].includes(value));
+
+  const latest = stableClasses.at(-1) || "unknown";
+  const previous = stableClasses.at(-2) || "unknown";
+
+  return latest === previous && ["low", "high"].includes(latest)
+    ? latest
+    : latest === "drive_anomaly"
+      ? "drive_anomaly"
+      : "unknown";
+}
+
+function buildFbheVibrationAssetShadow(assetState, rawAsset, operationEvents = []) {
+  const normalized = buildFbheVibrationHourlyPoints(rawAsset || {});
+  const cluster = findFbheVibrationCluster(normalized.points);
+  const rawTransitions = buildFbheVibrationTransitions(normalized.points, cluster);
+  const transitions = matchFbheVibrationTransitionsToEvents(rawTransitions, operationEvents);
+  const latestPoint = normalized.points.at(-1) || null;
+  const latestClass = latestStableFbheVibrationClass(normalized.points, cluster);
+  const latestTransition = transitions
+    .filter(transition => ["start", "stop"].includes(transition.type))
+    .at(-1) || null;
+
+  let shadowState = "unknown";
+  let shadowReason = "운전·정지 기준 분리가 충분하지 않습니다.";
+
+  if (latestClass === "high") {
+    shadowState = "running";
+    shadowReason = "하루 진동값이 저진동·고진동 두 군집으로 분리되어 최신 값이 고진동 군집에 있습니다.";
+  } else if (latestClass === "low") {
+    shadowState = "stopped";
+    shadowReason = "하루 진동값이 저진동·고진동 두 군집으로 분리되어 최신 값이 저진동 군집에 있습니다.";
+  } else if (latestTransition?.type === "start") {
+    shadowState = "running";
+    shadowReason = "Blower와 Motor 진동의 동시 급상승 이후 반대 전환이 없습니다.";
+  } else if (latestTransition?.type === "stop") {
+    shadowState = "stopped";
+    shadowReason = "Blower와 Motor 진동의 동시 급락 이후 반대 전환이 없습니다.";
+  } else if (
+    latestPoint &&
+    latestPoint.validSensorCount >= 3 &&
+    Object.values(latestPoint.values).filter(value => value !== null).every(value => value <= 1e-9)
+  ) {
+    shadowState = "stopped";
+    shadowReason = "최신 시간대의 유효 진동값이 모두 0입니다.";
+  }
+
+  let signalState = "unknown";
+  if (latestPoint?.validSensorCount >= 3) {
+    if (
+      Object.values(latestPoint.values).filter(value => value !== null).every(value => value <= 1e-9)
+    ) {
+      signalState = "no_vibration";
+    } else if (
+      latestClass === "drive_anomaly"
+    ) {
+      signalState = "drive_anomaly";
+    } else {
+      signalState = "vibration_present";
+    }
+  } else if (latestPoint) {
+    signalState = "insufficient";
+  }
+
+  const manualState = latestPoint
+    ? manualFbheVibrationStateAt(operationEvents, latestPoint.sampledAt)
+    : "unknown";
+  const comparison = shadowState === "unknown" || manualState === "unknown"
+    ? "unknown"
+    : shadowState === manualState
+      ? "match"
+      : "mismatch";
+  const sensorByRole = new Map(normalized.sensors.map(sensor => [sensor.role, sensor]));
+  const successfulSensorCount = FBHE_VIBRATION_SENSOR_ROLES
+    .filter(role => Number(sensorByRole.get(role)?.sampleCount || 0) > 0)
+    .length;
+  const failedSensors = FBHE_VIBRATION_SENSOR_ROLES
+    .filter(role => Number(sensorByRole.get(role)?.sampleCount || 0) === 0)
+    .map(role => {
+      const sensor = sensorByRole.get(role);
+      return {
+        role,
+        tag: normalizeText(sensor?.tag),
+        error: normalizeText(sensor?.error) || "TAG 응답 없음"
+      };
+    });
+  const units = [...new Set(normalized.sensors.map(sensor => sensor.unit).filter(Boolean))];
+
+  return {
+    tagNumber: normalizeText(assetState?.tagNumber || rawAsset?.assetTag || rawAsset?.tagNumber),
+    displayName: normalizeText(assetState?.displayName || rawAsset?.displayName),
+    unitNo: normalizeText(assetState?.unitNo || rawAsset?.unitNo),
+    positionLabel: normalizeText(assetState?.positionLabel || rawAsset?.positionLabel),
+    currentCardState: assetState?.isRunning === true ? "running" : "stopped",
+    manualState,
+    shadowState,
+    shadowReason,
+    signalState,
+    comparison,
+    successfulSensorCount,
+    failedSensorCount: failedSensors.length,
+    failedSensors,
+    samplePointCount: normalized.points.length,
+    latestSampleAt: latestPoint?.sampledAt || "",
+    latest: latestPoint
+      ? {
+          blowerIndex: roundFbheVibration(latestPoint.blowerIndex),
+          motorIndex: roundFbheVibration(latestPoint.motorIndex),
+          combinedIndex: roundFbheVibration(latestPoint.combinedIndex),
+          validSensorCount: latestPoint.validSensorCount,
+          values: Object.fromEntries(
+            Object.entries(latestPoint.values).map(([key, value]) => [key, roundFbheVibration(value)])
+          ),
+          unit: units.length === 1 ? units[0] : ""
+        }
+      : null,
+    cluster: cluster
+      ? {
+          threshold: roundFbheVibration(cluster.threshold),
+          lowerMedian: roundFbheVibration(cluster.lowerMedian),
+          upperMedian: roundFbheVibration(cluster.upperMedian),
+          separationRatio: roundFbheVibration(cluster.separationRatio, 2),
+          lowerCount: cluster.lowerCount,
+          upperCount: cluster.upperCount
+        }
+      : null,
+    transitions,
+    unrecordedTransitionCount: transitions.filter(transition => transition.manualMatch === "unrecorded").length,
+    anomalyCount: transitions.filter(transition => transition.type === "drive_anomaly").length
+  };
+}
+
+async function loadFbheVibrationRequestRow(database, targetDate) {
+  const normalizedTargetDate = normalizeText(targetDate);
+
+  if (normalizedTargetDate) {
+    return await database
+      .prepare(`
+        SELECT
+          id, request_type, target_date, status,
+          requested_by_id, requested_by_name,
+          requested_at, started_at, completed_at,
+          agent_id, result_json, error_message,
+          expires_at, updated_at
+        FROM ois_data_requests
+        WHERE request_type = ? AND target_date = ?
+        ORDER BY
+          CASE
+            WHEN status = 'processing' AND (expires_at IS NULL OR datetime(expires_at) > datetime('now')) THEN 0
+            WHEN status = 'pending' AND (expires_at IS NULL OR datetime(expires_at) > datetime('now')) THEN 1
+            WHEN status = 'complete' THEN 2
+            WHEN status = 'failed' THEN 3
+            WHEN status = 'expired' THEN 4
+            ELSE 5
+          END,
+          requested_at DESC
+        LIMIT 1
+      `)
+      .bind(FBHE_VIBRATION_REQUEST_TYPE, normalizedTargetDate)
+      .first();
+  }
+
+  return await database
+    .prepare(`
+      SELECT
+        id, request_type, target_date, status,
+        requested_by_id, requested_by_name,
+        requested_at, started_at, completed_at,
+        agent_id, result_json, error_message,
+        expires_at, updated_at
+      FROM ois_data_requests
+      WHERE request_type = ?
+      ORDER BY
+        CASE
+          WHEN status = 'processing' AND (expires_at IS NULL OR datetime(expires_at) > datetime('now')) THEN 0
+          WHEN status = 'pending' AND (expires_at IS NULL OR datetime(expires_at) > datetime('now')) THEN 1
+          WHEN status = 'complete' THEN 2
+          WHEN status = 'failed' THEN 3
+          WHEN status = 'expired' THEN 4
+          ELSE 5
+        END,
+        requested_at DESC
+      LIMIT 1
+    `)
+    .bind(FBHE_VIBRATION_REQUEST_TYPE)
+    .first();
+}
+
+async function loadFbheVibrationOperationEvents(database) {
+  const placeholders = FBHE_VIBRATION_ASSET_TAGS.map(() => "?").join(", ");
+  const result = await database
+    .prepare(`
+      SELECT
+        id, tag_number, event_type, event_date, action_type, note,
+        source_type, created_at
+      FROM blower_history_events
+      WHERE tag_number IN (${placeholders})
+        AND event_type IN ('replacement', 'startup', 'operation_start', 'operation_stop', 'runtime_correction')
+      ORDER BY datetime(event_date) DESC, created_at DESC, id DESC
+      LIMIT 2000
+    `)
+    .bind(...FBHE_VIBRATION_ASSET_TAGS)
+    .all();
+
+  return Array.isArray(result.results) ? result.results : [];
+}
+
+async function buildFbheVibrationShadowResponse(database, assetStates, targetDate) {
+  if (targetDate && !isValidFbheVibrationDate(targetDate)) {
+    return {
+      ok: false,
+      message: "FBHE 진동 조회 날짜를 확인해 주세요.",
+      status: 400
+    };
+  }
+
+  const requestRow = await loadFbheVibrationRequestRow(database, targetDate);
+  const resolvedTargetDate = normalizeText(requestRow?.target_date || targetDate);
+  const queue = requestRow
+    ? {
+        id: normalizeText(requestRow.id),
+        status: normalizeText(requestRow.status),
+        targetDate: resolvedTargetDate,
+        requestedAt: normalizeText(requestRow.requested_at),
+        startedAt: normalizeText(requestRow.started_at),
+        completedAt: normalizeText(requestRow.completed_at),
+        agentId: normalizeText(requestRow.agent_id),
+        errorMessage: normalizeText(requestRow.error_message),
+        expiresAt: normalizeText(requestRow.expires_at),
+        updatedAt: normalizeText(requestRow.updated_at)
+      }
+    : {
+        status: "none",
+        targetDate: normalizeText(targetDate)
+      };
+
+  const baseResponse = {
+    ok: true,
+    targetDate: resolvedTargetDate || normalizeText(targetDate),
+    queue,
+    automaticApply: false,
+    actualStateChanged: false,
+    runtimeChanged: false,
+    cycleChanged: false,
+    assets: [],
+    summary: {
+      assetCount: 0,
+      shadowDecidedCount: 0,
+      matchCount: 0,
+      mismatchCount: 0,
+      unknownCount: 0,
+      transitionCount: 0,
+      unrecordedTransitionCount: 0,
+      anomalyCount: 0,
+      successfulSensorCount: 0,
+      failedSensorCount: 0
+    }
+  };
+
+  if (!requestRow || normalizeText(requestRow.status) !== "complete") {
+    return baseResponse;
+  }
+
+  const rawResult = parseFbheVibrationJson(requestRow.result_json);
+  const rawAssets = Array.isArray(rawResult?.assets) ? rawResult.assets : [];
+  const rawAssetByTag = new Map(
+    rawAssets.map(rawAsset => [
+      normalizeText(rawAsset?.assetTag || rawAsset?.tagNumber).toUpperCase(),
+      rawAsset
+    ])
+  );
+  const operationEvents = await loadFbheVibrationOperationEvents(database);
+  const eventsByTag = new Map();
+
+  for (const event of operationEvents) {
+    const tagNumber = normalizeText(event.tag_number).toUpperCase();
+    if (!eventsByTag.has(tagNumber)) eventsByTag.set(tagNumber, []);
+    eventsByTag.get(tagNumber).push(event);
+  }
+
+  const fbheAssets = (assetStates || [])
+    .filter(asset => asset.blowerType === "fbhe")
+    .sort((left, right) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0));
+  const assets = fbheAssets.map(asset => {
+    const tagNumber = normalizeText(asset.tagNumber).toUpperCase();
+    return buildFbheVibrationAssetShadow(
+      asset,
+      rawAssetByTag.get(tagNumber) || {
+        assetTag: asset.tagNumber,
+        displayName: asset.displayName,
+        unitNo: asset.unitNo,
+        positionLabel: asset.positionLabel,
+        sensors: []
+      },
+      eventsByTag.get(tagNumber) || []
+    );
+  });
+
+  const summary = {
+    assetCount: assets.length,
+    shadowDecidedCount: assets.filter(asset => asset.shadowState !== "unknown").length,
+    matchCount: assets.filter(asset => asset.comparison === "match").length,
+    mismatchCount: assets.filter(asset => asset.comparison === "mismatch").length,
+    unknownCount: assets.filter(asset => asset.shadowState === "unknown").length,
+    transitionCount: assets.reduce((sum, asset) => sum + asset.transitions.length, 0),
+    unrecordedTransitionCount: assets.reduce((sum, asset) => sum + asset.unrecordedTransitionCount, 0),
+    anomalyCount: assets.reduce((sum, asset) => sum + asset.anomalyCount, 0),
+    successfulSensorCount: Number(rawResult?.successfulSensorCount || 0),
+    failedSensorCount: Number(rawResult?.failedSensorCount || 0)
+  };
+
+  return {
+    ...baseResponse,
+    source: {
+      source: normalizeText(rawResult?.source),
+      collectedAt: normalizeText(rawResult?.collectedAt),
+      outputIntervalHours: Number(rawResult?.outputIntervalHours || 1),
+      requestedSensorCount: Number(rawResult?.requestedSensorCount || 24),
+      successfulSensorCount: summary.successfulSensorCount,
+      failedSensorCount: summary.failedSensorCount
+    },
+    assets,
+    summary
+  };
+}
+
 async function handleGet(context, user) {
   const database = context.env.DB;
   const url = new URL(context.request.url);
@@ -1851,6 +2732,22 @@ async function handleGet(context, user) {
   const responseAssets = user
     ? assets
     : sanitizeAssetsForAnonymous(assets);
+
+  if (action === "vibration_shadow") {
+    if (!user?.isSuperAdmin) {
+      return jsonResponse(
+        { ok: false, message: "FBHE 진동 Shadow 검증은 최고관리자만 사용할 수 있습니다.", permissions },
+        403
+      );
+    }
+
+    const targetDate = normalizeText(url.searchParams.get("targetDate"));
+    const result = await buildFbheVibrationShadowResponse(database, assets, targetDate);
+    if (result.ok === false) {
+      return jsonResponse({ ...result, permissions }, Number(result.status || 400));
+    }
+    return jsonResponse({ ...result, permissions, generatedAt: new Date().toISOString() });
+  }
 
   if (action === "summary") {
     return jsonResponse({
@@ -10636,5 +11533,10 @@ export const __blowerHistoryTest = {
   operationChangeoverPair,
   operationSwitchTargetPosition,
   hasCompletedOperationChangeover,
-  detectOperationChangeover
+  detectOperationChangeover,
+  findFbheVibrationCluster,
+  buildFbheVibrationTransitions,
+  matchFbheVibrationTransitionsToEvents,
+  manualFbheVibrationStateAt,
+  buildFbheVibrationAssetShadow
 };

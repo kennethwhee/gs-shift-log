@@ -558,6 +558,97 @@ const OIS_BED_ASH_LEVEL_DEFINITIONS = [
   }
 ];
 
+
+/* =========================================================
+  [FBHE-VIBRATION-SHADOW-V1]
+  FBHE Blower 시간별 진동 TAG 정의
+
+  - Blower DE / NDE
+  - Motor DE / NDE
+  - 1시간 간격 hd_01 ~ hd_24
+  - 실제 운전상태와 누적시간은 변경하지 않고 Shadow 검증에만 사용
+========================================================= */
+
+const OIS_FBHE_VIBRATION_POSITION_DEFINITIONS = Object.freeze([
+  {
+    positionLabel: "#A",
+    assetSuffix: "611",
+    sensorPrefix: "21"
+  },
+  {
+    positionLabel: "#B",
+    assetSuffix: "621",
+    sensorPrefix: "22"
+  },
+  {
+    positionLabel: "#C",
+    assetSuffix: "631",
+    sensorPrefix: "23"
+  }
+]);
+
+const OIS_FBHE_VIBRATION_SENSOR_DEFINITIONS = Object.freeze([
+  {
+    role: "blower_de",
+    label: "Blower DE",
+    sensorOffset: "1"
+  },
+  {
+    role: "blower_nde",
+    label: "Blower NDE",
+    sensorOffset: "2"
+  },
+  {
+    role: "motor_de",
+    label: "Motor DE",
+    sensorOffset: "3"
+  },
+  {
+    role: "motor_nde",
+    label: "Motor NDE",
+    sensorOffset: "4"
+  }
+]);
+
+const OIS_FBHE_VIBRATION_DEFINITIONS = Object.freeze(
+  [
+    {
+      unitNo: 1,
+      tagPrefix: "104"
+    },
+    {
+      unitNo: 2,
+      tagPrefix: "204"
+    }
+  ].flatMap(
+    unitDefinition => {
+      return OIS_FBHE_VIBRATION_POSITION_DEFINITIONS.map(
+        positionDefinition => {
+          return {
+            unitNo: unitDefinition.unitNo,
+            positionLabel: positionDefinition.positionLabel,
+            assetTag:
+              `${unitDefinition.tagPrefix}HHL60AP${positionDefinition.assetSuffix}`,
+            displayName:
+              `#${unitDefinition.unitNo} FBHE Blower ${positionDefinition.positionLabel}`,
+            sensors:
+              OIS_FBHE_VIBRATION_SENSOR_DEFINITIONS.map(
+                sensorDefinition => {
+                  return {
+                    role: sensorDefinition.role,
+                    label: sensorDefinition.label,
+                    tag:
+                      `${unitDefinition.tagPrefix}HHL60CS${positionDefinition.sensorPrefix}${sensorDefinition.sensorOffset}`
+                  };
+                }
+              )
+          };
+        }
+      );
+    }
+  )
+);
+
 /* =========================================================
   오전회의 월간 일일DATA관리 Excel 조회 정의
 
@@ -4717,6 +4808,295 @@ async function collectOisBedAshLevelValues(
     config,
     targetDate
   );
+}
+
+
+/* =========================================================
+  [FBHE-VIBRATION-SHADOW-V1]
+  FBHE Blower 진동 시간별 자료 수집
+
+  중요:
+  - 개별 TAG 실패는 전체 요청 실패로 확대하지 않는다.
+  - 24개 TAG 중 성공한 자료를 우선 저장해 #2호기 TAG도 실제 응답으로 검증한다.
+  - 실제 카드 상태·누적시간·V-Belt Cycle은 변경하지 않는다.
+========================================================= */
+
+function getOisFbheVibrationSamplesFromRow(
+  row,
+  targetDate
+) {
+  const samples = [];
+
+  for (
+    let hour = 1;
+    hour <= 24;
+    hour += 1
+  ) {
+    const hourField =
+      `hd_${String(hour).padStart(2, "0")}`;
+
+    const value =
+      parseOisAgentNumber(
+        row?.[hourField]
+      );
+
+    if (
+      value === null ||
+      !Number.isFinite(value)
+    ) {
+      continue;
+    }
+
+    samples.push({
+      hour,
+      sampledAt:
+        hour === 24
+          ? `${addOisAgentDateDays(targetDate, 1)}T00:00:00+09:00`
+          : `${targetDate}T${String(hour).padStart(2, "0")}:00:00+09:00`,
+      value
+    });
+  }
+
+  return samples;
+}
+
+function findOisFbheVibrationTargetRow(
+  rows,
+  targetTag,
+  compactTargetDate,
+  targetDate
+) {
+  const normalizedTargetTag =
+    normalizeOisAgentText(targetTag).toUpperCase();
+
+  const matchesDate = row => {
+    const rowDate =
+      String(
+        row?.base_date ||
+        row?.schbase_date ||
+        row?.date ||
+        row?.work_date ||
+        ""
+      )
+        .replace(/[^0-9]/g, "")
+        .slice(0, 8);
+
+    return !rowDate || rowDate === compactTargetDate;
+  };
+
+  const exactRow =
+    rows.find(
+      row => {
+        const rowTag =
+          normalizeOisAgentText(
+            row?.tag_no ||
+            row?.tag ||
+            row?.tagno ||
+            ""
+          ).toUpperCase();
+
+        return (
+          rowTag === normalizedTargetTag &&
+          matchesDate(row) &&
+          getOisFbheVibrationSamplesFromRow(row, targetDate).length > 0
+        );
+      }
+    ) ||
+    null;
+
+  if (exactRow) {
+    return exactRow;
+  }
+
+  if (rows.length === 1) {
+    const onlyRow = rows[0];
+
+    if (
+      matchesDate(onlyRow) &&
+      getOisFbheVibrationSamplesFromRow(onlyRow, targetDate).length > 0
+    ) {
+      return onlyRow;
+    }
+  }
+
+  return null;
+}
+
+async function collectOisFbheVibrationSensor(
+  page,
+  sensorDefinition,
+  targetDate,
+  compactTargetDate
+) {
+  const responseData =
+    await requestOisInternalAjaxData(
+      page,
+      "oi.LogSheetService.listTagLog",
+      {
+        schepow_stat_code: "8000",
+        outtime: "1",
+        tag_no: sensorDefinition.tag,
+        startdate: compactTargetDate,
+        enddate: compactTargetDate,
+        rowstatus: "C"
+      }
+    );
+
+  const rows =
+    Array.isArray(responseData?.result)
+      ? responseData.result
+      : [];
+
+  const targetRow =
+    findOisFbheVibrationTargetRow(
+      rows,
+      sensorDefinition.tag,
+      compactTargetDate,
+      targetDate
+    );
+
+  if (!targetRow) {
+    throw new Error(
+      `시간별 진동 행이 없습니다: ${sensorDefinition.tag}`
+    );
+  }
+
+  const samples =
+    getOisFbheVibrationSamplesFromRow(
+      targetRow,
+      targetDate
+    );
+
+  if (samples.length === 0) {
+    throw new Error(
+      `시간별 진동값이 없습니다: ${sensorDefinition.tag}`
+    );
+  }
+
+  return {
+    role: sensorDefinition.role,
+    label: sensorDefinition.label,
+    tag: sensorDefinition.tag,
+    itemName:
+      normalizeOisAgentText(
+        targetRow?.tag_name ||
+        targetRow?.tag_name_kor ||
+        targetRow?.mid_name ||
+        sensorDefinition.label
+      ) ||
+      sensorDefinition.label,
+    unit:
+      normalizeOisAgentText(
+        targetRow?.unit_code ||
+        targetRow?.unit ||
+        ""
+      ),
+    samples,
+    sampleCount: samples.length,
+    error: ""
+  };
+}
+
+async function collectOisFbheVibrationValues(
+  page,
+  config,
+  targetDate
+) {
+  if (!isValidOisAgentDate(targetDate)) {
+    throw new Error(
+      "FBHE Blower 진동 조회 날짜가 올바르지 않습니다."
+    );
+  }
+
+  await ensureOisAgentLoggedIn(
+    page,
+    config
+  );
+
+  const compactTargetDate =
+    targetDate.replace(/-/g, "");
+
+  const assets = [];
+  let successfulSensorCount = 0;
+  let failedSensorCount = 0;
+
+  for (const definition of OIS_FBHE_VIBRATION_DEFINITIONS) {
+    const sensors = [];
+
+    for (const sensorDefinition of definition.sensors) {
+      try {
+        const sensorResult =
+          await collectOisFbheVibrationSensor(
+            page,
+            sensorDefinition,
+            targetDate,
+            compactTargetDate
+          );
+
+        sensors.push(sensorResult);
+        successfulSensorCount += 1;
+
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : String(error || "진동 TAG 조회 실패");
+
+        sensors.push({
+          role: sensorDefinition.role,
+          label: sensorDefinition.label,
+          tag: sensorDefinition.tag,
+          itemName: sensorDefinition.label,
+          unit: "",
+          samples: [],
+          sampleCount: 0,
+          error: errorMessage
+        });
+
+        failedSensorCount += 1;
+
+        console.warn(
+          "FBHE 진동 TAG 조회 실패:",
+          sensorDefinition.tag,
+          errorMessage
+        );
+      }
+
+      await page.waitForTimeout(80);
+    }
+
+    assets.push({
+      assetTag: definition.assetTag,
+      tagNumber: definition.assetTag,
+      unitNo: definition.unitNo,
+      positionLabel: definition.positionLabel,
+      displayName: definition.displayName,
+      sensors,
+      successfulSensorCount:
+        sensors.filter(sensor => sensor.sampleCount > 0).length,
+      failedSensorCount:
+        sensors.filter(sensor => sensor.sampleCount === 0).length
+    });
+  }
+
+  if (successfulSensorCount === 0) {
+    throw new Error(
+      "FBHE Blower 진동 TAG 24개를 모두 조회하지 못했습니다."
+    );
+  }
+
+  return {
+    source: "OIS TAG Log Direct API",
+    requestType: "fbhe_vibration",
+    targetDate,
+    outputIntervalHours: 1,
+    requestedSensorCount: 24,
+    successfulSensorCount,
+    failedSensorCount,
+    assets,
+    collectedAt:
+      new Date().toISOString()
+  };
 }
 
 /* =========================================================
@@ -10038,6 +10418,7 @@ async function collectOisLegacyLogApprovalValues(
   - turbine_gear_pinion
   - silo_level
   - bed_ash_level
+  - fbhe_vibration
   - daily_data_excel
   - steam_status
   - logsheet_approval
@@ -10075,6 +10456,7 @@ async function getNextOisAgentRequest(
   const backgroundRequestTypes = [
     "auxiliary_materials",
     "logsheet_approval",
+    "fbhe_vibration",
     "logsheet_pdf"
   ];
 
@@ -10268,7 +10650,8 @@ async function getNextOisAgentLaneRequests(
     "silo_level",
     "bed_ash_level",
     "auxiliary_materials",
-    "logsheet_approval"
+    "logsheet_approval",
+    "fbhe_vibration"
   ];
 
 
@@ -10688,6 +11071,14 @@ if (
     return "Bed Ash 반출";
   }
 
+
+
+  if (
+    requestType ===
+      "fbhe_vibration"
+  ) {
+    return "FBHE Blower 진동 Shadow";
+  }
 
 
   if (
@@ -15171,6 +15562,18 @@ if (
 
   if (
     requestType ===
+      "fbhe_vibration"
+  ) {
+    return await collectOisFbheVibrationValues(
+      page,
+      config,
+      targetDate
+    );
+  }
+
+
+  if (
+    requestType ===
       "logsheet_pdf"
   ) {
     return await processLogSheetPdfRequest(
@@ -15396,6 +15799,43 @@ function printOisAgentRequestResult(
             }
           )
         : []
+    );
+
+
+    return;
+  }
+
+
+  if (
+    requestType ===
+      "fbhe_vibration"
+  ) {
+    console.table(
+      Array.isArray(result.assets)
+        ? result.assets.map(asset => {
+            return {
+              "설비": asset.displayName,
+              "설비 TAG": asset.assetTag,
+              "성공 TAG": asset.successfulSensorCount,
+              "실패 TAG": asset.failedSensorCount,
+              "시간별 최대 건수": Math.max(
+                0,
+                ...(Array.isArray(asset.sensors)
+                  ? asset.sensors.map(sensor => Number(sensor.sampleCount || 0))
+                  : [0])
+              )
+            };
+          })
+        : []
+    );
+
+
+    console.log(
+      [
+        `FBHE 진동 TAG ${result.successfulSensorCount || 0}/${result.requestedSensorCount || 24} 성공`,
+        `실패 ${result.failedSensorCount || 0}`,
+        "Shadow 저장만 수행 · 실제 기동/정지 및 누적시간 변경 없음"
+      ].join(" · ")
     );
 
 

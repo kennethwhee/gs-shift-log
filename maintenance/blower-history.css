@@ -750,6 +750,135 @@ select:focus, input:focus, textarea:focus { border-color: #6ca6d8; box-shadow: 0
   .average-assets { grid-template-columns: 1fr; }
 }
 
+
+
+/* =========================================================
+   [FBHE-VIBRATION-SHADOW-V1]
+   FBHE 진동 Shadow 검증 패널
+========================================================= */
+.vibration-shadow-panel {
+  margin: 8px 0 10px;
+  overflow: hidden;
+  border: 1px solid #cdddea;
+  border-radius: 10px;
+  background: #f8fbfd;
+}
+.vibration-shadow-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 46px;
+  padding: 8px 11px;
+  list-style: none;
+  cursor: pointer;
+}
+.vibration-shadow-summary::-webkit-details-marker { display: none; }
+.vibration-shadow-summary > div { min-width: 0; }
+.vibration-shadow-summary strong {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: #254b68;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vibration-shadow-summary-action {
+  color: #35698f;
+  font-size: 10px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.vibration-shadow-panel[open] .vibration-shadow-summary-action { font-size: 0; }
+.vibration-shadow-panel[open] .vibration-shadow-summary-action::after { content: "접기"; font-size: 10px; }
+.vibration-shadow-detail { padding: 10px 11px 11px; border-top: 1px solid #dfe9f0; }
+.vibration-shadow-guide {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #526878;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.vibration-shadow-guide strong {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #e6f1f9;
+  color: #1e5c87;
+  font-size: 9px;
+}
+.vibration-shadow-controls {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 8px;
+}
+.vibration-shadow-controls label { display: grid; gap: 4px; }
+.vibration-shadow-controls label span { color: var(--muted); font-size: 10px; font-weight: 700; }
+.vibration-shadow-controls input { min-height: 38px; }
+.vibration-shadow-status {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid #d8e3eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #526575;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+.vibration-shadow-status[data-state="running"] { border-color: #9ec2e1; background: #eef6fd; color: #245d89; }
+.vibration-shadow-status[data-state="complete"] { border-color: #a9d6ba; background: #eef8f2; color: #256542; }
+.vibration-shadow-status[data-state="warning"] { border-color: #dfbd64; background: #fff9e8; color: #735514; }
+.vibration-shadow-status[data-state="error"] { border-color: #e4a6ad; background: #fff2f3; color: #9e2634; }
+.vibration-shadow-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 8px;
+}
+.vibration-shadow-metric {
+  padding: 8px 9px;
+  border: 1px solid #dfe6ec;
+  border-radius: 8px;
+  background: #fff;
+}
+.vibration-shadow-metric span { display: block; color: var(--muted); font-size: 9px; font-weight: 700; }
+.vibration-shadow-metric strong { display: block; margin-top: 2px; color: #263947; font-size: 14px; }
+.vibration-shadow-table-wrap { margin-top: 8px; }
+.vibration-shadow-table { width: 100%; min-width: 930px; border-collapse: collapse; font-size: 11px; }
+.vibration-shadow-table th,
+.vibration-shadow-table td { padding: 8px 9px; border-bottom: 1px solid #e5eaee; text-align: left; vertical-align: top; }
+.vibration-shadow-table th { background: #f2f6f9; color: #536776; font-size: 10px; }
+.vibration-shadow-table td strong,
+.vibration-shadow-table td small { display: block; }
+.vibration-shadow-table td small { margin-top: 2px; color: var(--muted); line-height: 1.4; }
+.vibration-shadow-table tr.mismatch { background: #fff8e8; }
+.vibration-shadow-table tr.anomaly { box-shadow: inset 3px 0 0 #c94a56; }
+.vibration-shadow-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 21px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #eef1f3;
+  color: #52616e;
+  font-size: 10px;
+  font-weight: 800;
+}
+.vibration-shadow-pill.running { background: #e9f6ee; color: #236742; }
+.vibration-shadow-pill.stopped { background: #eef1f3; color: #4c5b67; }
+.vibration-transition-line + .vibration-transition-line { margin-top: 4px; }
+body.mobile-monitoring #vibrationShadowPanel,
+body.public-monitoring #vibrationShadowPanel { display: none !important; }
+
+@media (max-width: 900px) {
+  .vibration-shadow-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 /* V13 UI3: 등록 근거 + 직관형 교체주기 카드 + 전체 사용자 설정 */
 .settings-strip {
   border-color: #d8e3ec;

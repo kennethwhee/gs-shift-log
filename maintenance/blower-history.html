@@ -6,9 +6,9 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260831-runtime-edit-restore-v942">
+  <link rel="stylesheet" href="blower-history.css?v=20260831-fbhe-vibration-shadow-v1">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="blower-history.js?v=20260831-runtime-edit-restore-v942" defer></script>
+  <script src="blower-history.js?v=20260831-fbhe-vibration-shadow-v1" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -82,6 +82,52 @@
               </button>
             </div>
           </section>
+
+
+
+          <details class="vibration-shadow-panel" id="vibrationShadowPanel" hidden>
+            <summary class="vibration-shadow-summary">
+              <div>
+                <span class="settings-label">FBHE 진동 Shadow 검증</span>
+                <strong id="vibrationHeadline">자동 반영 없음 · 조회 대기</strong>
+              </div>
+              <span class="vibration-shadow-summary-action">상세 보기</span>
+            </summary>
+            <div class="vibration-shadow-detail">
+              <div class="vibration-shadow-guide">
+                <strong>검증 전용</strong>
+                <span>Blower·Motor DE/NDE 시간별 진동으로 급락·급상승을 찾습니다. 실제 카드 상태, 누적 운전시간, V-Belt Cycle은 변경하지 않습니다.</span>
+              </div>
+              <div class="vibration-shadow-controls">
+                <label>
+                  <span>조회일</span>
+                  <input type="date" id="vibrationDate">
+                </label>
+                <button type="button" class="button primary" id="vibrationQueryButton" data-mobile-write>진동 조회</button>
+                <button type="button" class="button secondary" id="vibrationRequeryButton" data-mobile-write>재조회</button>
+              </div>
+              <div class="vibration-shadow-status" id="vibrationStatus" role="status" aria-live="polite">
+                조회일을 선택한 뒤 진동 조회를 실행하세요.
+              </div>
+              <div class="vibration-shadow-metrics" id="vibrationMetrics" hidden></div>
+              <div class="table-wrap vibration-shadow-table-wrap" id="vibrationTableWrap" hidden>
+                <table class="vibration-shadow-table">
+                  <thead>
+                    <tr>
+                      <th>설비</th>
+                      <th>진동 Shadow</th>
+                      <th>당시 등록상태</th>
+                      <th>최신 진동</th>
+                      <th>변화 후보</th>
+                      <th>TAG</th>
+                    </tr>
+                  </thead>
+                  <tbody id="vibrationBody"></tbody>
+                </table>
+              </div>
+              <div class="empty-state" id="vibrationEmpty" hidden>저장된 진동 조회 결과가 없습니다.</div>
+            </div>
+          </details>
 
           <details class="average-panel" id="averagePanel" hidden>
             <summary class="average-summary">

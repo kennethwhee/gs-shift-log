@@ -784,11 +784,13 @@ async function authenticateOisAgent(
   - auxiliary_materials
   - silo_level
   - bed_ash_level
+  - fbhe_vibration
   - daily_data_excel
   - steam_status
   - logsheet_approval
 ========================================================= */
 
+/* [FBHE-VIBRATION-SHADOW-V1] OIS queue request type */
 const OIS_REQUEST_TYPES = [
   "limestone_stock",
   "water_environment",
@@ -796,6 +798,7 @@ const OIS_REQUEST_TYPES = [
   "auxiliary_materials",
   "silo_level",
   "bed_ash_level",
+  "fbhe_vibration",
   "daily_data_excel",
   "steam_status",
   "logsheet_approval",
@@ -8026,7 +8029,8 @@ const OIS_AGENT_OIS_LANE_REQUEST_TYPES = [
   "silo_level",
   "bed_ash_level",
   "auxiliary_materials",
-  "logsheet_approval"
+  "logsheet_approval",
+  "fbhe_vibration"
 ];
 
 
@@ -11855,6 +11859,26 @@ async function createUserRequest(
   }
 
 
+  /* [FBHE-VIBRATION-SHADOW-V1] raw vibration requests are restricted to super admin. */
+  if (
+    requestType ===
+      "fbhe_vibration" &&
+    user.role !==
+      "super_admin"
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+
+        message:
+          "FBHE 진동 Shadow 조회는 최고관리자만 실행할 수 있습니다."
+      },
+      403
+    );
+  }
+
+
   if (
     !isValidIsoDate(
       targetDate
@@ -11870,6 +11894,40 @@ async function createUserRequest(
       },
       400
     );
+  }
+
+
+  if (
+    requestType ===
+      "fbhe_vibration"
+  ) {
+    const todayKst =
+      new Date(
+        Date.now() +
+        9 * 60 * 60 * 1000
+      )
+        .toISOString()
+        .slice(
+          0,
+          10
+        );
+
+
+    if (
+      targetDate >
+        todayKst
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+
+          message:
+            "미래 날짜의 FBHE 진동은 조회할 수 없습니다."
+        },
+        400
+      );
+    }
   }
 
 
