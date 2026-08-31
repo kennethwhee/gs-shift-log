@@ -61,7 +61,8 @@ test("allows authenticated desktop users to request and read FBHE vibration", ()
 
 test("ships the desktop-only FBHE validation panel", () => {
   for (const id of [
-    "vibrationShadowPanel", "vibrationDate", "vibrationQueryButton", "vibrationRequeryButton",
+    "vibrationShadowPanel", "vibrationStartDate", "vibrationEndDate",
+    "vibrationQueryButton", "vibrationRequeryButton",
     "vibrationStatus", "vibrationMetrics", "vibrationBody"
   ]) {
     assert.match(html, new RegExp(`id="${id}"`));
@@ -82,4 +83,19 @@ test("ships direct runtime and history management controls for logged-in desktop
   assert.match(frontend, /정지 이력 추가/);
   assert.match(frontend, /runtime_correction/);
   assert.match(frontend, /이력 수정/);
+});
+
+
+test("ships period and one-year FBHE OIS runtime analysis", () => {
+  assert.match(queueApi, /create_fbhe_vibration_batch/);
+  assert.match(queueApi, /FBHE_VIBRATION_RANGE_CHUNK_DAYS\s*=\s*31/);
+  assert.match(queueApi, /FBHE_VIBRATION_RANGE_MAX_DAYS\s*=\s*366/);
+  assert.match(agent, /\[FBHE-OIS-RUNTIME-ANALYSIS-V2\]/);
+  assert.match(agent, /startdate:\s*compactStartDate/);
+  assert.match(agent, /enddate:\s*compactEndDate/);
+  assert.match(blowerApi, /buildFbheVibrationRuntimeAnalysis/);
+  assert.match(blowerApi, /cycleRuntimeHours/);
+  assert.match(frontend, /data-vibration-preset/);
+  assert.match(html, /data-vibration-preset="365"/);
+  assert.match(html, /교체일~현재/);
 });

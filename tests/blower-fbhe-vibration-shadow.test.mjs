@@ -13,7 +13,8 @@ export const __fbheVibrationShadowInstrumentation = {
   buildFbheVibrationTransitions,
   matchFbheVibrationTransitionsToEvents,
   manualFbheVibrationStateAt,
-  buildFbheVibrationAssetShadow
+  buildFbheVibrationAssetShadow,
+  buildFbheVibrationRangeChunks
 };
 `;
 const api = await import(
@@ -23,7 +24,8 @@ const {
   buildFbheVibrationTransitions,
   matchFbheVibrationTransitionsToEvents,
   manualFbheVibrationStateAt,
-  buildFbheVibrationAssetShadow
+  buildFbheVibrationAssetShadow,
+  buildFbheVibrationRangeChunks
 } = api.__fbheVibrationShadowInstrumentation;
 
 const asset = {
@@ -189,4 +191,32 @@ test("equal-distance manual matches prefer the event with the same target state"
 
   assert.equal(matched[0].manualMatch, "matched");
   assert.equal(matched[0].manualEvent.eventType, "operation_start");
+});
+
+
+test("splits a one-year query into at most twelve 31-day OIS chunks", () => {
+  const chunks = buildFbheVibrationRangeChunks("2025-09-01", "2026-08-31");
+  assert.equal(chunks.length, 12);
+  assert.equal(chunks[0].dayCount, 31);
+  assert.ok(chunks.every(chunk => chunk.dayCount >= 1 && chunk.dayCount <= 31));
+  assert.equal(chunks.at(-1).endDate, "2026-08-31");
+});
+
+test("calculates OIS running hours and replacement-cycle running hours without applying them", () => {
+  const report = buildFbheVibrationAssetShadow({
+    ...asset,
+    isRunning: false,
+    lastReplacementAt: "2026-08-30T03:00:00+09:00",
+    cycleElapsedHours: 4
+  }, rawAsset(highThenLow), [], {
+    startAt: new Date("2026-08-30T00:00:00+09:00"),
+    endAt: new Date("2026-08-30T13:00:00+09:00")
+  });
+
+  assert.equal(report.runtime.oisState, "stopped");
+  assert.equal(report.runtime.rangeRunningHours, 6.5);
+  assert.equal(report.runtime.rangeStoppedHours, 6.5);
+  assert.equal(report.runtime.cycleRuntimeHours, 3.5);
+  assert.equal(report.runtime.runtimeDifferenceHours, -0.5);
+  assert.equal(report.currentCardState, "stopped");
 });

@@ -1732,3 +1732,59 @@ body.public-monitoring #vibrationShadowPanel { display: none !important; }
     flex: 1 1 140px;
   }
 }
+
+/* [FBHE-OIS-RUNTIME-ANALYSIS-V2] period presets + runtime analysis table */
+.vibration-range-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+.vibration-range-preset {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #cbd9e4;
+  border-radius: 999px;
+  background: #fff;
+  color: #4c6272;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.vibration-range-preset:hover {
+  border-color: #8eb5d2;
+  background: #f3f8fc;
+}
+.vibration-range-preset.is-active {
+  border-color: #4f8fbd;
+  background: #e8f3fb;
+  color: #175e91;
+}
+.vibration-range-separator {
+  align-self: center;
+  margin-bottom: 8px;
+  color: #7b8b97;
+  font-weight: 900;
+}
+.vibration-runtime-table {
+  min-width: 1080px;
+}
+.vibration-runtime-table td:nth-child(3) strong,
+.vibration-runtime-table td:nth-child(4) strong {
+  color: #203f56;
+  font-size: 13px;
+}
+.vibration-runtime-table td:nth-child(5) b {
+  color: #415d70;
+  font-size: 9px;
+}
+.vibration-runtime-table .vibration-shadow-pill.unknown {
+  background: #fff6dc;
+  color: #735b18;
+}
+@media (max-width: 1100px) {
+  .vibration-shadow-controls {
+    flex-wrap: wrap;
+  }
+}

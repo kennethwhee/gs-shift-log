@@ -50,6 +50,20 @@ const REQUEST_TIMEOUT_MINUTES =
 const REQUEST_PROCESSING_TIMEOUT_MINUTES =
   30;
 
+
+/* [FBHE-OIS-RUNTIME-ANALYSIS-V2]
+  FBHE 진동 장기 분석은 31일 단위로 최대 12개 요청(약 1년)으로 나눈다.
+  한 요청은 TAG 24개를 기간 API로 조회하므로 날짜별 24개 요청을 만들지 않는다.
+*/
+const FBHE_VIBRATION_RANGE_CHUNK_DAYS =
+  31;
+
+const FBHE_VIBRATION_RANGE_MAX_DAYS =
+  366;
+
+const FBHE_VIBRATION_RANGE_QUEUE_HOURS =
+  12;
+
 /*
   기간 일괄 계산:
   한 번에 최대 62일까지 허용한다.
@@ -216,6 +230,103 @@ function isValidIsoDate(
   );
 }
 
+
+
+/* [FBHE-OIS-RUNTIME-ANALYSIS-V2] */
+function addIsoDateDays(
+  value,
+  days
+) {
+  if (!isValidIsoDate(value)) return "";
+
+  const parsed =
+    new Date(`${value}T00:00:00.000Z`);
+
+  parsed.setUTCDate(
+    parsed.getUTCDate() +
+      Number(days || 0)
+  );
+
+  return parsed
+    .toISOString()
+    .slice(0, 10);
+}
+
+function inclusiveIsoDateCount(
+  startDate,
+  endDate
+) {
+  if (
+    !isValidIsoDate(startDate) ||
+    !isValidIsoDate(endDate)
+  ) {
+    return 0;
+  }
+
+  const start =
+    new Date(`${startDate}T00:00:00.000Z`).getTime();
+  const end =
+    new Date(`${endDate}T00:00:00.000Z`).getTime();
+
+  if (
+    !Number.isFinite(start) ||
+    !Number.isFinite(end) ||
+    end < start
+  ) {
+    return 0;
+  }
+
+  return Math.floor((end - start) / 86400000) + 1;
+}
+
+function buildFbheVibrationRangeChunks(
+  startDate,
+  endDate
+) {
+  const dayCount =
+    inclusiveIsoDateCount(
+      startDate,
+      endDate
+    );
+
+  if (
+    dayCount < 1 ||
+    dayCount > FBHE_VIBRATION_RANGE_MAX_DAYS
+  ) {
+    return [];
+  }
+
+  const chunks = [];
+  let cursor = startDate;
+
+  while (cursor <= endDate) {
+    const candidateEnd =
+      addIsoDateDays(
+        cursor,
+        FBHE_VIBRATION_RANGE_CHUNK_DAYS - 1
+      );
+    const chunkEnd =
+      candidateEnd && candidateEnd < endDate
+        ? candidateEnd
+        : endDate;
+
+    chunks.push({
+      startDate: cursor,
+      endDate: chunkEnd,
+      targetDate: `${cursor}~${chunkEnd}`,
+      dayCount:
+        inclusiveIsoDateCount(cursor, chunkEnd)
+    });
+
+    cursor =
+      addIsoDateDays(
+        chunkEnd,
+        1
+      );
+  }
+
+  return chunks;
+}
 
 /* =========================================================
   날짜 더하기
@@ -7480,6 +7591,15 @@ async function handleStatusBatchGet(
     );
 
 
+  const compact =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "compact"
+      )
+    ) ===
+      "1";
+
+
   const items =
     requestIds
       .map(
@@ -7493,7 +7613,11 @@ async function handleStatusBatchGet(
         Boolean
       )
       .map(
-        convertRequestRow
+        row => {
+          return compact
+            ? compactFbheVibrationRequestRow(row)
+            : convertRequestRow(row);
+        }
       );
 
 
@@ -11778,6 +11902,281 @@ async function createOisLegacyLogBatchRequest(
 }
 
 /* =========================================================
+  [FBHE-OIS-RUNTIME-ANALYSIS-V2]
+  FBHE 진동 기간 일괄 요청
+
+  - 최대 366일
+  - 31일 단위 최대 12개 요청
+  - 같은 구간의 완료자료는 일반 조회에서 재사용
+  - 재조회(forceRefresh)는 새 요청을 만들되 진행 중 요청은 중복 생성하지 않음
+========================================================= */
+
+function compactFbheVibrationRequestRow(
+  row,
+  disposition = ""
+) {
+  if (!row) return null;
+
+  return {
+    id: normalizeText(row.id),
+    requestType: normalizeText(row.request_type),
+    targetDate: normalizeText(row.target_date),
+    status: normalizeText(row.status),
+    requestedAt: normalizeText(row.requested_at),
+    startedAt: normalizeText(row.started_at),
+    completedAt: normalizeText(row.completed_at),
+    errorMessage: normalizeText(row.error_message),
+    disposition
+  };
+}
+
+async function createFbheVibrationBatchRequest(
+  context,
+  body
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+  if (authentication.error) {
+    return authentication.error;
+  }
+
+  const user = authentication.user;
+  const startDate =
+    normalizeText(
+      body.startDate ||
+      body.start_date
+    );
+  const endDate =
+    normalizeText(
+      body.endDate ||
+      body.end_date
+    );
+  const forceRefresh =
+    body.forceRefresh === true;
+  const dayCount =
+    inclusiveIsoDateCount(
+      startDate,
+      endDate
+    );
+
+  if (
+    dayCount < 1 ||
+    dayCount > FBHE_VIBRATION_RANGE_MAX_DAYS
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message: `FBHE 진동 조회기간은 1일 이상 ${FBHE_VIBRATION_RANGE_MAX_DAYS}일 이하로 선택해 주세요.`
+      },
+      400
+    );
+  }
+
+  const todayKst =
+    new Date(
+      Date.now() +
+      9 * 60 * 60 * 1000
+    )
+      .toISOString()
+      .slice(0, 10);
+
+  if (endDate > todayKst) {
+    return jsonResponse(
+      {
+        ok: false,
+        message: "미래 날짜의 FBHE 진동은 조회할 수 없습니다."
+      },
+      400
+    );
+  }
+
+  const chunks =
+    buildFbheVibrationRangeChunks(
+      startDate,
+      endDate
+    );
+
+  if (
+    chunks.length < 1 ||
+    chunks.length > MAXIMUM_STATUS_BATCH_IDS
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message: "FBHE 진동 조회기간을 안전한 OIS 요청 단위로 나누지 못했습니다."
+      },
+      400
+    );
+  }
+
+  await expireOldRequests(
+    context.env.DB
+  );
+
+  const requestedAt = new Date();
+  const requestedAtText = requestedAt.toISOString();
+  const expiresAtText =
+    new Date(
+      requestedAt.getTime() +
+      FBHE_VIBRATION_RANGE_QUEUE_HOURS * 60 * 60 * 1000
+    ).toISOString();
+
+  const items = [];
+  let createdCount = 0;
+  let reusedActiveCount = 0;
+  let reusedCompleteCount = 0;
+
+  for (const chunk of chunks) {
+    const activeRow =
+      await context.env.DB
+        .prepare(`
+          SELECT *
+          FROM ois_data_requests
+          WHERE request_type = ?
+            AND target_date = ?
+            AND status IN ('pending', 'processing')
+          ORDER BY requested_at DESC
+          LIMIT 1
+        `)
+        .bind(
+          "fbhe_vibration",
+          chunk.targetDate
+        )
+        .first();
+
+    if (activeRow) {
+      reusedActiveCount += 1;
+      items.push(
+        compactFbheVibrationRequestRow(
+          activeRow,
+          "reused_active"
+        )
+      );
+      continue;
+    }
+
+    if (!forceRefresh) {
+      const completedRow =
+        await context.env.DB
+          .prepare(`
+            SELECT *
+            FROM ois_data_requests
+            WHERE request_type = ?
+              AND target_date = ?
+              AND status = 'complete'
+            ORDER BY completed_at DESC, requested_at DESC
+            LIMIT 1
+          `)
+          .bind(
+            "fbhe_vibration",
+            chunk.targetDate
+          )
+          .first();
+
+      if (completedRow) {
+        reusedCompleteCount += 1;
+        items.push(
+          compactFbheVibrationRequestRow(
+            completedRow,
+            "reused_complete"
+          )
+        );
+        continue;
+      }
+    }
+
+    const requestId = crypto.randomUUID();
+
+    await context.env.DB
+      .prepare(`
+        INSERT INTO ois_data_requests (
+          id,
+          request_type,
+          target_date,
+          status,
+          requested_by_id,
+          requested_by_name,
+          requested_at,
+          started_at,
+          completed_at,
+          agent_id,
+          result_json,
+          error_message,
+          expires_at,
+          updated_at
+        )
+        VALUES (
+          ?,
+          'fbhe_vibration',
+          ?,
+          'pending',
+          ?,
+          ?,
+          ?,
+          NULL,
+          NULL,
+          '',
+          NULL,
+          '',
+          ?,
+          ?
+        )
+      `)
+      .bind(
+        requestId,
+        chunk.targetDate,
+        user.employeeNo,
+        user.name,
+        requestedAtText,
+        expiresAtText,
+        requestedAtText
+      )
+      .run();
+
+    createdCount += 1;
+    items.push({
+      id: requestId,
+      requestType: "fbhe_vibration",
+      targetDate: chunk.targetDate,
+      status: "pending",
+      requestedAt: requestedAtText,
+      startedAt: "",
+      completedAt: "",
+      errorMessage: "",
+      disposition: "created"
+    });
+  }
+
+  return jsonResponse(
+    {
+      ok: true,
+      range: {
+        startDate,
+        endDate,
+        dayCount,
+        chunkCount: chunks.length,
+        chunkDays: FBHE_VIBRATION_RANGE_CHUNK_DAYS
+      },
+      forceRefresh,
+      createdCount,
+      reusedActiveCount,
+      reusedCompleteCount,
+      items,
+      message: [
+        `FBHE 진동 ${dayCount}일을 ${chunks.length}개 구간으로 확인합니다.`,
+        `신규 ${createdCount}구간`,
+        `진행 중 재사용 ${reusedActiveCount}구간`,
+        `완료자료 재사용 ${reusedCompleteCount}구간`
+      ].join(" ")
+    },
+    createdCount > 0 ? 201 : 200
+  );
+}
+
+/* =========================================================
   업무일지에서 새 OIS 요청 생성
 ========================================================= */
 
@@ -12761,6 +13160,20 @@ if (
     body
   );
 }    
+
+    /*
+      FBHE 진동 기간 OIS 조회
+    */
+    if (
+      action ===
+        "create_fbhe_vibration_batch"
+    ) {
+      return await createFbheVibrationBatchRequest(
+        context,
+        body
+      );
+    }
+
 
     /*
       기존 부재료 엑셀 자료 등록

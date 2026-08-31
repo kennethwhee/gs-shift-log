@@ -4821,10 +4821,104 @@ async function collectOisBedAshLevelValues(
   - 실제 카드 상태·누적시간·V-Belt Cycle은 변경하지 않는다.
 ========================================================= */
 
+/* [FBHE-OIS-RUNTIME-ANALYSIS-V2]
+  기간 조회는 최대 31일을 한 요청으로 묶는다.
+  OIS listTagLog는 TAG당 1회 호출하고, 반환된 날짜별 행을 시간축으로 합친다.
+*/
+function parseOisFbheVibrationRangeKey(
+  value
+) {
+  const text =
+    normalizeOisAgentText(
+      value
+    );
+
+  const matched =
+    /^(\d{4}-\d{2}-\d{2})(?:~(\d{4}-\d{2}-\d{2}))?$/.exec(
+      text
+    );
+
+  if (!matched) {
+    return null;
+  }
+
+  const startDate = matched[1];
+  const endDate = matched[2] || matched[1];
+
+  if (
+    !isValidOisAgentDate(startDate) ||
+    !isValidOisAgentDate(endDate)
+  ) {
+    return null;
+  }
+
+  const startTime =
+    new Date(`${startDate}T00:00:00Z`).getTime();
+  const endTime =
+    new Date(`${endDate}T00:00:00Z`).getTime();
+
+  if (
+    !Number.isFinite(startTime) ||
+    !Number.isFinite(endTime) ||
+    endTime < startTime
+  ) {
+    return null;
+  }
+
+  const dayCount =
+    Math.floor((endTime - startTime) / 86400000) + 1;
+
+  return {
+    key: text,
+    startDate,
+    endDate,
+    dayCount
+  };
+}
+
+function getOisFbheVibrationRowDate(
+  row,
+  fallbackDate = ""
+) {
+  const compact =
+    String(
+      row?.base_date ||
+      row?.schbase_date ||
+      row?.date ||
+      row?.work_date ||
+      ""
+    )
+      .replace(/[^0-9]/g, "")
+      .slice(0, 8);
+
+  if (/^\d{8}$/.test(compact)) {
+    const iso =
+      `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)}`;
+
+    if (isValidOisAgentDate(iso)) {
+      return iso;
+    }
+  }
+
+  return isValidOisAgentDate(fallbackDate)
+    ? fallbackDate
+    : "";
+}
+
 function getOisFbheVibrationSamplesFromRow(
   row,
-  targetDate
+  fallbackDate = ""
 ) {
+  const rowDate =
+    getOisFbheVibrationRowDate(
+      row,
+      fallbackDate
+    );
+
+  if (!rowDate) {
+    return [];
+  }
+
   const samples = [];
 
   for (
@@ -4851,8 +4945,8 @@ function getOisFbheVibrationSamplesFromRow(
       hour,
       sampledAt:
         hour === 24
-          ? `${addOisAgentDateDays(targetDate, 1)}T00:00:00+09:00`
-          : `${targetDate}T${String(hour).padStart(2, "0")}:00:00+09:00`,
+          ? `${addOisAgentDateDays(rowDate, 1)}T00:00:00+09:00`
+          : `${rowDate}T${String(hour).padStart(2, "0")}:00:00+09:00`,
       value
     });
   }
@@ -4860,32 +4954,24 @@ function getOisFbheVibrationSamplesFromRow(
   return samples;
 }
 
-function findOisFbheVibrationTargetRow(
+function findOisFbheVibrationTargetRows(
   rows,
   targetTag,
-  compactTargetDate,
-  targetDate
+  range
 ) {
   const normalizedTargetTag =
     normalizeOisAgentText(targetTag).toUpperCase();
 
-  const matchesDate = row => {
-    const rowDate =
-      String(
-        row?.base_date ||
-        row?.schbase_date ||
-        row?.date ||
-        row?.work_date ||
-        ""
-      )
-        .replace(/[^0-9]/g, "")
-        .slice(0, 8);
-
-    return !rowDate || rowDate === compactTargetDate;
+  const inRange = rowDate => {
+    return Boolean(
+      rowDate &&
+      rowDate >= range.startDate &&
+      rowDate <= range.endDate
+    );
   };
 
-  const exactRow =
-    rows.find(
+  let matchedRows =
+    rows.filter(
       row => {
         const rowTag =
           normalizeOisAgentText(
@@ -4894,40 +4980,56 @@ function findOisFbheVibrationTargetRow(
             row?.tagno ||
             ""
           ).toUpperCase();
+        const rowDate =
+          getOisFbheVibrationRowDate(
+            row,
+            range.startDate
+          );
 
         return (
-          rowTag === normalizedTargetTag &&
-          matchesDate(row) &&
-          getOisFbheVibrationSamplesFromRow(row, targetDate).length > 0
+          (!rowTag || rowTag === normalizedTargetTag) &&
+          inRange(rowDate) &&
+          getOisFbheVibrationSamplesFromRow(row, rowDate).length > 0
         );
       }
-    ) ||
-    null;
+    );
 
-  if (exactRow) {
-    return exactRow;
-  }
-
-  if (rows.length === 1) {
+  if (
+    matchedRows.length === 0 &&
+    rows.length === 1
+  ) {
     const onlyRow = rows[0];
+    const rowDate =
+      getOisFbheVibrationRowDate(
+        onlyRow,
+        range.startDate
+      );
 
     if (
-      matchesDate(onlyRow) &&
-      getOisFbheVibrationSamplesFromRow(onlyRow, targetDate).length > 0
+      inRange(rowDate) &&
+      getOisFbheVibrationSamplesFromRow(onlyRow, rowDate).length > 0
     ) {
-      return onlyRow;
+      matchedRows = [onlyRow];
     }
   }
 
-  return null;
+  return matchedRows.sort((left, right) => {
+    const leftDate = getOisFbheVibrationRowDate(left, range.startDate);
+    const rightDate = getOisFbheVibrationRowDate(right, range.startDate);
+    return leftDate.localeCompare(rightDate);
+  });
 }
 
 async function collectOisFbheVibrationSensor(
   page,
   sensorDefinition,
-  targetDate,
-  compactTargetDate
+  range
 ) {
+  const compactStartDate =
+    range.startDate.replace(/-/g, "");
+  const compactEndDate =
+    range.endDate.replace(/-/g, "");
+
   const responseData =
     await requestOisInternalAjaxData(
       page,
@@ -4936,8 +5038,8 @@ async function collectOisFbheVibrationSensor(
         schepow_stat_code: "8000",
         outtime: "1",
         tag_no: sensorDefinition.tag,
-        startdate: compactTargetDate,
-        enddate: compactTargetDate,
+        startdate: compactStartDate,
+        enddate: compactEndDate,
         rowstatus: "C"
       }
     );
@@ -4947,25 +5049,36 @@ async function collectOisFbheVibrationSensor(
       ? responseData.result
       : [];
 
-  const targetRow =
-    findOisFbheVibrationTargetRow(
+  const targetRows =
+    findOisFbheVibrationTargetRows(
       rows,
       sensorDefinition.tag,
-      compactTargetDate,
-      targetDate
+      range
     );
 
-  if (!targetRow) {
+  if (targetRows.length === 0) {
     throw new Error(
       `시간별 진동 행이 없습니다: ${sensorDefinition.tag}`
     );
   }
 
+  const sampleMap = new Map();
+
+  for (const row of targetRows) {
+    const rowDate =
+      getOisFbheVibrationRowDate(
+        row,
+        range.startDate
+      );
+
+    for (const sample of getOisFbheVibrationSamplesFromRow(row, rowDate)) {
+      sampleMap.set(sample.sampledAt, sample);
+    }
+  }
+
   const samples =
-    getOisFbheVibrationSamplesFromRow(
-      targetRow,
-      targetDate
-    );
+    [...sampleMap.values()]
+      .sort((left, right) => left.sampledAt.localeCompare(right.sampledAt));
 
   if (samples.length === 0) {
     throw new Error(
@@ -4973,26 +5086,35 @@ async function collectOisFbheVibrationSensor(
     );
   }
 
+  const firstRow = targetRows[0] || {};
+  const coveredDates =
+    new Set(
+      targetRows
+        .map(row => getOisFbheVibrationRowDate(row, range.startDate))
+        .filter(Boolean)
+    );
+
   return {
     role: sensorDefinition.role,
     label: sensorDefinition.label,
     tag: sensorDefinition.tag,
     itemName:
       normalizeOisAgentText(
-        targetRow?.tag_name ||
-        targetRow?.tag_name_kor ||
-        targetRow?.mid_name ||
+        firstRow?.tag_name ||
+        firstRow?.tag_name_kor ||
+        firstRow?.mid_name ||
         sensorDefinition.label
       ) ||
       sensorDefinition.label,
     unit:
       normalizeOisAgentText(
-        targetRow?.unit_code ||
-        targetRow?.unit ||
+        firstRow?.unit_code ||
+        firstRow?.unit ||
         ""
       ),
     samples,
     sampleCount: samples.length,
+    coveredDateCount: coveredDates.size,
     error: ""
   };
 }
@@ -5002,9 +5124,20 @@ async function collectOisFbheVibrationValues(
   config,
   targetDate
 ) {
-  if (!isValidOisAgentDate(targetDate)) {
+  const range =
+    parseOisFbheVibrationRangeKey(
+      targetDate
+    );
+
+  if (!range) {
     throw new Error(
-      "FBHE Blower 진동 조회 날짜가 올바르지 않습니다."
+      "FBHE Blower 진동 조회 기간이 올바르지 않습니다."
+    );
+  }
+
+  if (range.dayCount > 31) {
+    throw new Error(
+      "FBHE 진동 OIS 단일 요청은 최대 31일까지 처리할 수 있습니다."
     );
   }
 
@@ -5012,9 +5145,6 @@ async function collectOisFbheVibrationValues(
     page,
     config
   );
-
-  const compactTargetDate =
-    targetDate.replace(/-/g, "");
 
   const assets = [];
   let successfulSensorCount = 0;
@@ -5029,8 +5159,7 @@ async function collectOisFbheVibrationValues(
           await collectOisFbheVibrationSensor(
             page,
             sensorDefinition,
-            targetDate,
-            compactTargetDate
+            range
           );
 
         sensors.push(sensorResult);
@@ -5050,6 +5179,7 @@ async function collectOisFbheVibrationValues(
           unit: "",
           samples: [],
           sampleCount: 0,
+          coveredDateCount: 0,
           error: errorMessage
         });
 
@@ -5088,7 +5218,10 @@ async function collectOisFbheVibrationValues(
   return {
     source: "OIS TAG Log Direct API",
     requestType: "fbhe_vibration",
-    targetDate,
+    targetDate: range.key,
+    startDate: range.startDate,
+    endDate: range.endDate,
+    dayCount: range.dayCount,
     outputIntervalHours: 1,
     requestedSensorCount: 24,
     successfulSensorCount,

@@ -266,6 +266,9 @@ const FBHE_VIBRATION_STOP_DROP_RATIO = 0.35;
 const FBHE_VIBRATION_START_RISE_RATIO = 2.8;
 const FBHE_VIBRATION_MANUAL_MATCH_WINDOW_MS = 90 * 60 * 1000;
 const FBHE_VIBRATION_MAX_TRANSITION_GAP_MS = 90 * 60 * 1000;
+const FBHE_VIBRATION_RANGE_CHUNK_DAYS = 31;
+const FBHE_VIBRATION_RANGE_MAX_DAYS = 366;
+const FBHE_VIBRATION_RUNTIME_GAP_MS = 90 * 60 * 1000;
 
 const HISTORY_RECOVERY_V13_TAG_ALIASES = Object.freeze({
   "103ETG30AN601": "104ETG30AN601",
@@ -1876,6 +1879,66 @@ function isValidFbheVibrationDate(value) {
   return !Number.isNaN(parsed.getTime()) && formatKstDate(parsed) === text;
 }
 
+
+/* [FBHE-OIS-RUNTIME-ANALYSIS-V2] */
+function addFbheVibrationDateDays(value, days) {
+  if (!isValidFbheVibrationDate(value)) return "";
+  const parsed = new Date(`${value}T00:00:00+09:00`);
+  parsed.setUTCDate(parsed.getUTCDate() + Number(days || 0));
+  return formatKstDate(parsed);
+}
+
+function countFbheVibrationRangeDays(startDate, endDate) {
+  if (!isValidFbheVibrationDate(startDate) || !isValidFbheVibrationDate(endDate)) return 0;
+  const start = new Date(`${startDate}T00:00:00+09:00`).getTime();
+  const end = new Date(`${endDate}T00:00:00+09:00`).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return 0;
+  return Math.floor((end - start) / 86400000) + 1;
+}
+
+function buildFbheVibrationRangeChunks(startDate, endDate) {
+  const dayCount = countFbheVibrationRangeDays(startDate, endDate);
+  if (dayCount < 1 || dayCount > FBHE_VIBRATION_RANGE_MAX_DAYS) return [];
+
+  const chunks = [];
+  let cursor = startDate;
+  while (cursor <= endDate) {
+    const candidateEnd = addFbheVibrationDateDays(cursor, FBHE_VIBRATION_RANGE_CHUNK_DAYS - 1);
+    const chunkEnd = candidateEnd && candidateEnd < endDate ? candidateEnd : endDate;
+    chunks.push({
+      startDate: cursor,
+      endDate: chunkEnd,
+      targetDate: `${cursor}~${chunkEnd}`,
+      dayCount: countFbheVibrationRangeDays(cursor, chunkEnd)
+    });
+    cursor = addFbheVibrationDateDays(chunkEnd, 1);
+  }
+  return chunks;
+}
+
+function parseFbheVibrationRangeKey(value) {
+  const text = normalizeText(value);
+  const matched = /^(\d{4}-\d{2}-\d{2})(?:~(\d{4}-\d{2}-\d{2}))?$/.exec(text);
+  if (!matched) return null;
+  const startDate = matched[1];
+  const endDate = matched[2] || matched[1];
+  const dayCount = countFbheVibrationRangeDays(startDate, endDate);
+  if (dayCount < 1 || dayCount > FBHE_VIBRATION_RANGE_MAX_DAYS) return null;
+  return { key: text, startDate, endDate, dayCount };
+}
+
+function fbheVibrationRangeBounds(startDate, endDate, now = new Date()) {
+  const startAt = new Date(`${startDate}T00:00:00+09:00`);
+  const endExclusive = new Date(`${addFbheVibrationDateDays(endDate, 1)}T00:00:00+09:00`);
+  const safeEnd = endExclusive > now ? now : endExclusive;
+  return {
+    startAt,
+    endAt: safeEnd,
+    startAtText: startAt.toISOString(),
+    endAtText: safeEnd.toISOString()
+  };
+}
+
 function parseFbheVibrationJson(value) {
   const text = normalizeText(value);
   if (!text) return null;
@@ -2078,6 +2141,240 @@ function classifyFbheVibrationPoint(point, cluster) {
 
   if (!cluster || point.combinedIndex === null) return "unknown";
   return point.combinedIndex <= cluster.threshold ? "low" : "high";
+}
+
+
+function fbheVibrationRuntimeState(point, cluster) {
+  if (!point) return "unknown";
+  const validValues = Object.values(point.values || {}).filter(value => value !== null && Number.isFinite(Number(value)));
+
+  if (
+    point.validSensorCount >= 3 &&
+    validValues.length >= 3 &&
+    validValues.every(value => Math.abs(Number(value)) <= 1e-9)
+  ) {
+    return "stopped";
+  }
+
+  const classified = classifyFbheVibrationPoint(point, cluster);
+  if (classified === "high") return "running";
+  if (classified === "low") return "stopped";
+  if (classified === "drive_anomaly") return "anomaly";
+  return "unknown";
+}
+
+function stabilizeFbheVibrationRuntimeStates(points, cluster) {
+  const states = (points || []).map(point => fbheVibrationRuntimeState(point, cluster));
+  const output = [...states];
+
+  for (let index = 1; index < states.length - 1; index += 1) {
+    const previous = states[index - 1];
+    const current = states[index];
+    const next = states[index + 1];
+    const previousAt = new Date(points[index - 1]?.sampledAt || 0).getTime();
+    const nextAt = new Date(points[index + 1]?.sampledAt || 0).getTime();
+    const localSpan = nextAt - previousAt;
+
+    if (!Number.isFinite(localSpan) || localSpan > 2 * FBHE_VIBRATION_RUNTIME_GAP_MS) continue;
+
+    if (
+      ["running", "stopped"].includes(previous) &&
+      previous === next &&
+      current !== previous &&
+      current !== "anomaly"
+    ) {
+      output[index] = previous;
+    }
+  }
+
+  return output;
+}
+
+function appendFbheVibrationRuntimeSegment(segments, state, startAt, endAt) {
+  const start = startAt instanceof Date ? startAt : new Date(startAt);
+  const end = endAt instanceof Date ? endAt : new Date(endAt);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return;
+
+  const previous = segments.at(-1);
+  if (previous && previous.state === state && previous.endAt === start.toISOString()) {
+    previous.endAt = end.toISOString();
+    previous.hours = roundFbheVibration((new Date(previous.endAt).getTime() - new Date(previous.startAt).getTime()) / 3600000, 3);
+    return;
+  }
+
+  segments.push({
+    state,
+    startAt: start.toISOString(),
+    endAt: end.toISOString(),
+    hours: roundFbheVibration((end.getTime() - start.getTime()) / 3600000, 3)
+  });
+}
+
+function buildFbheVibrationRuntimeAnalysis(points, cluster, startAtValue, endAtValue) {
+  const startAt = startAtValue instanceof Date ? startAtValue : new Date(startAtValue);
+  const endAt = endAtValue instanceof Date ? endAtValue : new Date(endAtValue);
+  const safePoints = (points || [])
+    .filter(point => {
+      const time = new Date(point?.sampledAt || 0).getTime();
+      return Number.isFinite(time) && time >= startAt.getTime() && time <= endAt.getTime();
+    })
+    .sort((left, right) => left.sampledAt.localeCompare(right.sampledAt));
+  const segments = [];
+
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || endAt <= startAt || safePoints.length === 0) {
+    return {
+      segments,
+      runningHours: 0,
+      stoppedHours: 0,
+      anomalyHours: 0,
+      unknownHours: Math.max(0, Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) ? 0 : (endAt.getTime() - startAt.getTime()) / 3600000),
+      classifiedHours: 0,
+      totalHours: Math.max(0, Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) ? 0 : (endAt.getTime() - startAt.getTime()) / 3600000),
+      coveragePct: 0,
+      currentState: "unknown",
+      lastStartAt: "",
+      lastStopAt: "",
+      transitions: []
+    };
+  }
+
+  const states = stabilizeFbheVibrationRuntimeStates(safePoints, cluster);
+  const pointTimes = safePoints.map(point => new Date(point.sampledAt));
+  const firstTime = pointTimes[0];
+  const firstState = states[0];
+  const leadingGap = firstTime.getTime() - startAt.getTime();
+  appendFbheVibrationRuntimeSegment(
+    segments,
+    leadingGap >= 0 && leadingGap <= FBHE_VIBRATION_RUNTIME_GAP_MS && ["running", "stopped", "anomaly"].includes(firstState)
+      ? firstState
+      : "unknown",
+    startAt,
+    firstTime
+  );
+
+  for (let index = 0; index < safePoints.length - 1; index += 1) {
+    const leftTime = pointTimes[index];
+    const rightTime = pointTimes[index + 1];
+    const gapMs = rightTime.getTime() - leftTime.getTime();
+    const leftState = states[index];
+    const rightState = states[index + 1];
+
+    if (!Number.isFinite(gapMs) || gapMs <= 0) continue;
+
+    if (gapMs > FBHE_VIBRATION_RUNTIME_GAP_MS) {
+      appendFbheVibrationRuntimeSegment(segments, "unknown", leftTime, rightTime);
+      continue;
+    }
+
+    if (leftState === rightState && ["running", "stopped", "anomaly"].includes(leftState)) {
+      appendFbheVibrationRuntimeSegment(segments, leftState, leftTime, rightTime);
+      continue;
+    }
+
+    if (
+      ["running", "stopped"].includes(leftState) &&
+      ["running", "stopped"].includes(rightState)
+    ) {
+      const midpoint = new Date((leftTime.getTime() + rightTime.getTime()) / 2);
+      appendFbheVibrationRuntimeSegment(segments, leftState, leftTime, midpoint);
+      appendFbheVibrationRuntimeSegment(segments, rightState, midpoint, rightTime);
+      continue;
+    }
+
+    if (leftState === "anomaly" || rightState === "anomaly") {
+      appendFbheVibrationRuntimeSegment(segments, "anomaly", leftTime, rightTime);
+      continue;
+    }
+
+    appendFbheVibrationRuntimeSegment(segments, "unknown", leftTime, rightTime);
+  }
+
+  const lastTime = pointTimes.at(-1);
+  const lastState = states.at(-1);
+  const trailingGap = endAt.getTime() - lastTime.getTime();
+  appendFbheVibrationRuntimeSegment(
+    segments,
+    trailingGap >= 0 && trailingGap <= FBHE_VIBRATION_RUNTIME_GAP_MS && ["running", "stopped", "anomaly"].includes(lastState)
+      ? lastState
+      : "unknown",
+    lastTime,
+    endAt
+  );
+
+  const totals = {
+    running: 0,
+    stopped: 0,
+    anomaly: 0,
+    unknown: 0
+  };
+  for (const segment of segments) {
+    totals[segment.state] = (totals[segment.state] || 0) + Number(segment.hours || 0);
+  }
+
+  const transitions = [];
+  for (let index = 1; index < segments.length; index += 1) {
+    const previous = segments[index - 1];
+    const current = segments[index];
+    if (
+      ["running", "stopped"].includes(previous.state) &&
+      ["running", "stopped"].includes(current.state) &&
+      previous.state !== current.state
+    ) {
+      transitions.push({
+        type: current.state === "running" ? "start" : "stop",
+        estimatedAt: current.startAt,
+        method: "hourly_runtime_timeline",
+        confidence: "high"
+      });
+    }
+  }
+
+  const totalHours = Math.max(0, (endAt.getTime() - startAt.getTime()) / 3600000);
+  const classifiedHours = totals.running + totals.stopped;
+  const latestSegment = segments.at(-1);
+  const currentState = latestSegment && ["running", "stopped"].includes(latestSegment.state) && latestSegment.endAt === endAt.toISOString()
+    ? latestSegment.state
+    : "unknown";
+
+  return {
+    segments,
+    runningHours: roundFbheVibration(totals.running, 3),
+    stoppedHours: roundFbheVibration(totals.stopped, 3),
+    anomalyHours: roundFbheVibration(totals.anomaly, 3),
+    unknownHours: roundFbheVibration(totals.unknown, 3),
+    classifiedHours: roundFbheVibration(classifiedHours, 3),
+    totalHours: roundFbheVibration(totalHours, 3),
+    coveragePct: totalHours > 0 ? roundFbheVibration((classifiedHours / totalHours) * 100, 1) : 0,
+    currentState,
+    lastStartAt: transitions.filter(item => item.type === "start").at(-1)?.estimatedAt || "",
+    lastStopAt: transitions.filter(item => item.type === "stop").at(-1)?.estimatedAt || "",
+    transitions
+  };
+}
+
+function sumFbheVibrationSegmentHours(segments, state, startAtValue, endAtValue) {
+  const startAt = startAtValue instanceof Date ? startAtValue : new Date(startAtValue);
+  const endAt = endAtValue instanceof Date ? endAtValue : new Date(endAtValue);
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || endAt <= startAt) return 0;
+
+  let total = 0;
+  for (const segment of segments || []) {
+    if (segment.state !== state) continue;
+    const segmentStart = new Date(segment.startAt);
+    const segmentEnd = new Date(segment.endAt);
+    const clippedStart = segmentStart > startAt ? segmentStart : startAt;
+    const clippedEnd = segmentEnd < endAt ? segmentEnd : endAt;
+    if (clippedEnd > clippedStart) total += (clippedEnd.getTime() - clippedStart.getTime()) / 3600000;
+  }
+  return roundFbheVibration(total, 3);
+}
+
+function coverageFbheVibrationSegmentHours(segments, startAtValue, endAtValue) {
+  return roundFbheVibration(
+    sumFbheVibrationSegmentHours(segments, "running", startAtValue, endAtValue) +
+    sumFbheVibrationSegmentHours(segments, "stopped", startAtValue, endAtValue),
+    3
+  );
 }
 
 function dedupeFbheVibrationTransitions(transitions) {
@@ -2401,7 +2698,7 @@ function latestStableFbheVibrationClass(points, cluster) {
       : "unknown";
 }
 
-function buildFbheVibrationAssetShadow(assetState, rawAsset, operationEvents = []) {
+function buildFbheVibrationAssetShadow(assetState, rawAsset, operationEvents = [], analysisRange = null) {
   const normalized = buildFbheVibrationHourlyPoints(rawAsset || {});
   const cluster = findFbheVibrationCluster(normalized.points);
   const rawTransitions = buildFbheVibrationTransitions(normalized.points, cluster);
@@ -2476,6 +2773,40 @@ function buildFbheVibrationAssetShadow(assetState, rawAsset, operationEvents = [
       };
     });
   const units = [...new Set(normalized.sensors.map(sensor => sensor.unit).filter(Boolean))];
+  const runtimeAnalysis = analysisRange?.startAt && analysisRange?.endAt
+    ? buildFbheVibrationRuntimeAnalysis(
+        normalized.points,
+        cluster,
+        analysisRange.startAt,
+        analysisRange.endAt
+      )
+    : null;
+  const replacementText = normalizeText(assetState?.lastReplacementAt);
+  const replacementAt = new Date(replacementText);
+  const hasReplacementAt = Boolean(replacementText) && !Number.isNaN(replacementAt.getTime());
+  const analysisStartAt = analysisRange?.startAt instanceof Date
+    ? analysisRange.startAt
+    : new Date(analysisRange?.startAt || 0);
+  const analysisEndAt = analysisRange?.endAt instanceof Date
+    ? analysisRange.endAt
+    : new Date(analysisRange?.endAt || 0);
+  const cycleWindowStartAt = hasReplacementAt && !Number.isNaN(analysisStartAt.getTime())
+    ? (replacementAt > analysisStartAt ? replacementAt : analysisStartAt)
+    : null;
+  const cycleWindowEndAt = !Number.isNaN(analysisEndAt.getTime())
+    ? analysisEndAt
+    : null;
+  const cycleWindowHours = cycleWindowStartAt && cycleWindowEndAt && cycleWindowEndAt > cycleWindowStartAt
+    ? (cycleWindowEndAt.getTime() - cycleWindowStartAt.getTime()) / 3600000
+    : 0;
+  const oisCycleRuntimeHours = runtimeAnalysis && cycleWindowStartAt && cycleWindowEndAt
+    ? sumFbheVibrationSegmentHours(runtimeAnalysis.segments, "running", cycleWindowStartAt, cycleWindowEndAt)
+    : null;
+  const oisCycleCoverageHours = runtimeAnalysis && cycleWindowStartAt && cycleWindowEndAt
+    ? coverageFbheVibrationSegmentHours(runtimeAnalysis.segments, cycleWindowStartAt, cycleWindowEndAt)
+    : null;
+  const registeredCycleRuntimeHours = Number(assetState?.cycleElapsedHours);
+  const hasRegisteredCycleRuntime = Number.isFinite(registeredCycleRuntimeHours);
 
   return {
     tagNumber: normalizeText(assetState?.tagNumber || rawAsset?.assetTag || rawAsset?.tagNumber),
@@ -2515,43 +2846,51 @@ function buildFbheVibrationAssetShadow(assetState, rawAsset, operationEvents = [
           upperCount: cluster.upperCount
         }
       : null,
+    runtime: runtimeAnalysis
+      ? {
+          rangeRunningHours: runtimeAnalysis.runningHours,
+          rangeStoppedHours: runtimeAnalysis.stoppedHours,
+          rangeAnomalyHours: runtimeAnalysis.anomalyHours,
+          rangeUnknownHours: runtimeAnalysis.unknownHours,
+          rangeCoveragePct: runtimeAnalysis.coveragePct,
+          rangeTotalHours: runtimeAnalysis.totalHours,
+          oisState: runtimeAnalysis.currentState,
+          latestStartAt: runtimeAnalysis.lastStartAt,
+          latestStopAt: runtimeAnalysis.lastStopAt,
+          transitionCount: runtimeAnalysis.transitions.length,
+          segments: runtimeAnalysis.segments.slice(-500),
+          cycleStartAt: hasReplacementAt ? replacementAt.toISOString() : "",
+          cycleWindowStartAt: cycleWindowStartAt?.toISOString?.() || "",
+          cycleWindowHours: roundFbheVibration(cycleWindowHours, 3),
+          cycleRuntimeHours: oisCycleRuntimeHours,
+          cycleCoverageHours: oisCycleCoverageHours,
+          cycleCoveragePct: cycleWindowHours > 0 && oisCycleCoverageHours !== null
+            ? roundFbheVibration((oisCycleCoverageHours / cycleWindowHours) * 100, 1)
+            : 0,
+          cycleRangeComplete: hasReplacementAt && !Number.isNaN(analysisStartAt.getTime())
+            ? replacementAt >= analysisStartAt
+            : false,
+          registeredCycleRuntimeHours: hasRegisteredCycleRuntime
+            ? roundFbheVibration(registeredCycleRuntimeHours, 3)
+            : null,
+          runtimeDifferenceHours: oisCycleRuntimeHours !== null && hasRegisteredCycleRuntime
+            ? roundFbheVibration(oisCycleRuntimeHours - registeredCycleRuntimeHours, 3)
+            : null
+        }
+      : null,
     transitions,
     unrecordedTransitionCount: transitions.filter(transition => transition.manualMatch === "unrecorded").length,
     anomalyCount: transitions.filter(transition => transition.type === "drive_anomaly").length
   };
 }
 
-async function loadFbheVibrationRequestRow(database, targetDate) {
-  const normalizedTargetDate = normalizeText(targetDate);
+async function loadFbheVibrationRequestRows(database, startDate, endDate) {
+  const chunks = buildFbheVibrationRangeChunks(startDate, endDate);
+  if (chunks.length === 0) return { chunks: [], rows: [] };
 
-  if (normalizedTargetDate) {
-    return await database
-      .prepare(`
-        SELECT
-          id, request_type, target_date, status,
-          requested_by_id, requested_by_name,
-          requested_at, started_at, completed_at,
-          agent_id, result_json, error_message,
-          expires_at, updated_at
-        FROM ois_data_requests
-        WHERE request_type = ? AND target_date = ?
-        ORDER BY
-          CASE
-            WHEN status = 'processing' AND (expires_at IS NULL OR datetime(expires_at) > datetime('now')) THEN 0
-            WHEN status = 'pending' AND (expires_at IS NULL OR datetime(expires_at) > datetime('now')) THEN 1
-            WHEN status = 'complete' THEN 2
-            WHEN status = 'failed' THEN 3
-            WHEN status = 'expired' THEN 4
-            ELSE 5
-          END,
-          requested_at DESC
-        LIMIT 1
-      `)
-      .bind(FBHE_VIBRATION_REQUEST_TYPE, normalizedTargetDate)
-      .first();
-  }
-
-  return await database
+  const targetDates = chunks.map(chunk => chunk.targetDate);
+  const placeholders = targetDates.map(() => "?").join(", ");
+  const result = await database
     .prepare(`
       SELECT
         id, request_type, target_date, status,
@@ -2561,20 +2900,128 @@ async function loadFbheVibrationRequestRow(database, targetDate) {
         expires_at, updated_at
       FROM ois_data_requests
       WHERE request_type = ?
-      ORDER BY
-        CASE
-          WHEN status = 'processing' AND (expires_at IS NULL OR datetime(expires_at) > datetime('now')) THEN 0
-          WHEN status = 'pending' AND (expires_at IS NULL OR datetime(expires_at) > datetime('now')) THEN 1
-          WHEN status = 'complete' THEN 2
-          WHEN status = 'failed' THEN 3
-          WHEN status = 'expired' THEN 4
-          ELSE 5
-        END,
-        requested_at DESC
-      LIMIT 1
+        AND target_date IN (${placeholders})
+      ORDER BY datetime(requested_at) DESC, id DESC
     `)
-    .bind(FBHE_VIBRATION_REQUEST_TYPE)
-    .first();
+    .bind(FBHE_VIBRATION_REQUEST_TYPE, ...targetDates)
+    .all();
+
+  const latestByTargetDate = new Map();
+  for (const row of Array.isArray(result.results) ? result.results : []) {
+    const targetDate = normalizeText(row.target_date);
+    if (!latestByTargetDate.has(targetDate)) latestByTargetDate.set(targetDate, row);
+  }
+
+  return {
+    chunks,
+    rows: chunks.map(chunk => latestByTargetDate.get(chunk.targetDate) || null)
+  };
+}
+
+function mergeFbheVibrationRawResults(rows, startDate, endDate) {
+  const rangeBounds = fbheVibrationRangeBounds(startDate, endDate, new Date("9999-12-31T00:00:00Z"));
+  const startTime = rangeBounds.startAt.getTime();
+  const endTime = new Date(`${addFbheVibrationDateDays(endDate, 1)}T00:00:00+09:00`).getTime();
+  const assetMap = new Map();
+  let successfulSensorChunkCount = 0;
+  let failedSensorChunkCount = 0;
+
+  for (const row of rows || []) {
+    if (!row || normalizeText(row.status) !== "complete") continue;
+    const rawResult = parseFbheVibrationJson(row.result_json);
+    if (!rawResult) continue;
+
+    successfulSensorChunkCount += Number(rawResult.successfulSensorCount || 0);
+    failedSensorChunkCount += Number(rawResult.failedSensorCount || 0);
+
+    for (const rawAsset of Array.isArray(rawResult.assets) ? rawResult.assets : []) {
+      const assetTag = normalizeText(rawAsset?.assetTag || rawAsset?.tagNumber).toUpperCase();
+      if (!assetTag) continue;
+
+      if (!assetMap.has(assetTag)) {
+        assetMap.set(assetTag, {
+          assetTag,
+          tagNumber: assetTag,
+          displayName: normalizeText(rawAsset?.displayName),
+          unitNo: normalizeText(rawAsset?.unitNo),
+          positionLabel: normalizeText(rawAsset?.positionLabel),
+          sensorMap: new Map()
+        });
+      }
+
+      const mergedAsset = assetMap.get(assetTag);
+      for (const rawSensor of Array.isArray(rawAsset?.sensors) ? rawAsset.sensors : []) {
+        const role = normalizeText(rawSensor?.role).toLowerCase();
+        if (!FBHE_VIBRATION_SENSOR_ROLES.includes(role)) continue;
+
+        if (!mergedAsset.sensorMap.has(role)) {
+          mergedAsset.sensorMap.set(role, {
+            role,
+            label: normalizeText(rawSensor?.label) || role,
+            tag: normalizeText(rawSensor?.tag),
+            itemName: normalizeText(rawSensor?.itemName || rawSensor?.item_name),
+            unit: normalizeText(rawSensor?.unit),
+            sampleMap: new Map(),
+            errors: []
+          });
+        }
+
+        const mergedSensor = mergedAsset.sensorMap.get(role);
+        if (!mergedSensor.tag) mergedSensor.tag = normalizeText(rawSensor?.tag);
+        if (!mergedSensor.itemName) mergedSensor.itemName = normalizeText(rawSensor?.itemName || rawSensor?.item_name);
+        if (!mergedSensor.unit) mergedSensor.unit = normalizeText(rawSensor?.unit);
+        const error = normalizeText(rawSensor?.error);
+        if (error && !mergedSensor.errors.includes(error)) mergedSensor.errors.push(error);
+
+        for (const sample of Array.isArray(rawSensor?.samples) ? rawSensor.samples : []) {
+          const sampledAt = normalizeDateTime(sample?.sampledAt || sample?.sampled_at);
+          const value = finiteFbheVibrationNumber(sample?.value);
+          const sampleTime = new Date(sampledAt).getTime();
+          if (!sampledAt || value === null || !Number.isFinite(sampleTime)) continue;
+          if (sampleTime < startTime || sampleTime > endTime) continue;
+          mergedSensor.sampleMap.set(sampledAt, { sampledAt, value });
+        }
+      }
+    }
+  }
+
+  const assets = [...assetMap.values()].map(asset => ({
+    assetTag: asset.assetTag,
+    tagNumber: asset.tagNumber,
+    displayName: asset.displayName,
+    unitNo: asset.unitNo,
+    positionLabel: asset.positionLabel,
+    sensors: FBHE_VIBRATION_SENSOR_ROLES.map(role => {
+      const sensor = asset.sensorMap.get(role);
+      return sensor
+        ? {
+            role: sensor.role,
+            label: sensor.label,
+            tag: sensor.tag,
+            itemName: sensor.itemName,
+            unit: sensor.unit,
+            samples: [...sensor.sampleMap.values()].sort((left, right) => left.sampledAt.localeCompare(right.sampledAt)),
+            sampleCount: sensor.sampleMap.size,
+            error: sensor.sampleMap.size > 0 ? "" : sensor.errors.join(" · ")
+          }
+        : {
+            role,
+            label: role,
+            tag: "",
+            itemName: "",
+            unit: "",
+            samples: [],
+            sampleCount: 0,
+            error: "TAG 응답 없음"
+          };
+    })
+  }));
+
+  return {
+    assets,
+    successfulSensorChunkCount,
+    failedSensorChunkCount
+  };
 }
 
 async function loadFbheVibrationOperationEvents(database) {
@@ -2596,38 +3043,79 @@ async function loadFbheVibrationOperationEvents(database) {
   return Array.isArray(result.results) ? result.results : [];
 }
 
-async function buildFbheVibrationShadowResponse(database, assetStates, targetDate) {
-  if (targetDate && !isValidFbheVibrationDate(targetDate)) {
+async function buildFbheVibrationShadowResponse(database, assetStates, startDate, endDate) {
+  const dayCount = countFbheVibrationRangeDays(startDate, endDate);
+  if (dayCount < 1 || dayCount > FBHE_VIBRATION_RANGE_MAX_DAYS) {
     return {
       ok: false,
-      message: "FBHE 진동 조회 날짜를 확인해 주세요.",
+      message: `FBHE 진동 조회기간은 1일 이상 ${FBHE_VIBRATION_RANGE_MAX_DAYS}일 이하로 선택해 주세요.`,
       status: 400
     };
   }
 
-  const requestRow = await loadFbheVibrationRequestRow(database, targetDate);
-  const resolvedTargetDate = normalizeText(requestRow?.target_date || targetDate);
-  const queue = requestRow
-    ? {
-        id: normalizeText(requestRow.id),
-        status: normalizeText(requestRow.status),
-        targetDate: resolvedTargetDate,
-        requestedAt: normalizeText(requestRow.requested_at),
-        startedAt: normalizeText(requestRow.started_at),
-        completedAt: normalizeText(requestRow.completed_at),
-        agentId: normalizeText(requestRow.agent_id),
-        errorMessage: normalizeText(requestRow.error_message),
-        expiresAt: normalizeText(requestRow.expires_at),
-        updatedAt: normalizeText(requestRow.updated_at)
-      }
-    : {
-        status: "none",
-        targetDate: normalizeText(targetDate)
-      };
+  const today = formatKstDate(new Date());
+  if (endDate > today) {
+    return {
+      ok: false,
+      message: "미래 날짜의 FBHE 진동은 조회할 수 없습니다.",
+      status: 400
+    };
+  }
+
+  const requestSet = await loadFbheVibrationRequestRows(database, startDate, endDate);
+  const chunks = requestSet.chunks;
+  const rows = requestSet.rows;
+  const queueItems = chunks.map((chunk, index) => {
+    const row = rows[index];
+    return row
+      ? {
+          id: normalizeText(row.id),
+          targetDate: normalizeText(row.target_date),
+          status: normalizeText(row.status),
+          requestedAt: normalizeText(row.requested_at),
+          startedAt: normalizeText(row.started_at),
+          completedAt: normalizeText(row.completed_at),
+          errorMessage: normalizeText(row.error_message),
+          expiresAt: normalizeText(row.expires_at),
+          updatedAt: normalizeText(row.updated_at)
+        }
+      : {
+          id: "",
+          targetDate: chunk.targetDate,
+          status: "missing",
+          requestedAt: "",
+          startedAt: "",
+          completedAt: "",
+          errorMessage: "",
+          expiresAt: "",
+          updatedAt: ""
+        };
+  });
+  const statusCount = status => queueItems.filter(item => item.status === status).length;
+  const queue = {
+    status: statusCount("processing") > 0
+      ? "processing"
+      : statusCount("pending") > 0
+        ? "pending"
+        : statusCount("failed") + statusCount("expired") > 0
+          ? "partial_failed"
+          : statusCount("complete") === chunks.length && chunks.length > 0
+            ? "complete"
+            : "partial",
+    chunkCount: chunks.length,
+    completeCount: statusCount("complete"),
+    pendingCount: statusCount("pending"),
+    processingCount: statusCount("processing"),
+    failedCount: statusCount("failed") + statusCount("expired"),
+    missingCount: statusCount("missing"),
+    items: queueItems
+  };
 
   const baseResponse = {
     ok: true,
-    targetDate: resolvedTargetDate || normalizeText(targetDate),
+    startDate,
+    endDate,
+    dayCount,
     queue,
     automaticApply: false,
     actualStateChanged: false,
@@ -2643,32 +3131,37 @@ async function buildFbheVibrationShadowResponse(database, assetStates, targetDat
       transitionCount: 0,
       unrecordedTransitionCount: 0,
       anomalyCount: 0,
-      successfulSensorCount: 0,
-      failedSensorCount: 0
+      successfulSensorChunkCount: 0,
+      failedSensorChunkCount: 0,
+      averageCoveragePct: 0,
+      completeChunkCount: queue.completeCount,
+      chunkCount: queue.chunkCount
     }
   };
 
-  if (!requestRow || normalizeText(requestRow.status) !== "complete") {
-    return baseResponse;
-  }
+  const completeRows = rows.filter(row => row && normalizeText(row.status) === "complete");
+  if (completeRows.length === 0) return baseResponse;
 
-  const rawResult = parseFbheVibrationJson(requestRow.result_json);
-  const rawAssets = Array.isArray(rawResult?.assets) ? rawResult.assets : [];
+  const merged = mergeFbheVibrationRawResults(completeRows, startDate, endDate);
   const rawAssetByTag = new Map(
-    rawAssets.map(rawAsset => [
+    merged.assets.map(rawAsset => [
       normalizeText(rawAsset?.assetTag || rawAsset?.tagNumber).toUpperCase(),
       rawAsset
     ])
   );
   const operationEvents = await loadFbheVibrationOperationEvents(database);
   const eventsByTag = new Map();
-
   for (const event of operationEvents) {
     const tagNumber = normalizeText(event.tag_number).toUpperCase();
     if (!eventsByTag.has(tagNumber)) eventsByTag.set(tagNumber, []);
     eventsByTag.get(tagNumber).push(event);
   }
 
+  const bounds = fbheVibrationRangeBounds(startDate, endDate, new Date());
+  const analysisRange = {
+    startAt: bounds.startAt,
+    endAt: bounds.endAt
+  };
   const fbheAssets = (assetStates || [])
     .filter(asset => asset.blowerType === "fbhe")
     .sort((left, right) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0));
@@ -2683,32 +3176,52 @@ async function buildFbheVibrationShadowResponse(database, assetStates, targetDat
         positionLabel: asset.positionLabel,
         sensors: []
       },
-      eventsByTag.get(tagNumber) || []
+      eventsByTag.get(tagNumber) || [],
+      analysisRange
     );
   });
 
+  const coverageValues = assets
+    .map(asset => Number(asset.runtime?.rangeCoveragePct))
+    .filter(Number.isFinite);
   const summary = {
     assetCount: assets.length,
-    shadowDecidedCount: assets.filter(asset => asset.shadowState !== "unknown").length,
+    shadowDecidedCount: assets.filter(asset => (asset.runtime?.oisState || asset.shadowState) !== "unknown").length,
     matchCount: assets.filter(asset => asset.comparison === "match").length,
     mismatchCount: assets.filter(asset => asset.comparison === "mismatch").length,
-    unknownCount: assets.filter(asset => asset.shadowState === "unknown").length,
-    transitionCount: assets.reduce((sum, asset) => sum + asset.transitions.length, 0),
+    unknownCount: assets.filter(asset => (asset.runtime?.oisState || asset.shadowState) === "unknown").length,
+    transitionCount: assets.reduce((sum, asset) => sum + Number(asset.runtime?.transitionCount || asset.transitions.length || 0), 0),
     unrecordedTransitionCount: assets.reduce((sum, asset) => sum + asset.unrecordedTransitionCount, 0),
     anomalyCount: assets.reduce((sum, asset) => sum + asset.anomalyCount, 0),
-    successfulSensorCount: Number(rawResult?.successfulSensorCount || 0),
-    failedSensorCount: Number(rawResult?.failedSensorCount || 0)
+    successfulSensorChunkCount: merged.successfulSensorChunkCount,
+    failedSensorChunkCount: merged.failedSensorChunkCount,
+    averageCoveragePct: coverageValues.length > 0
+      ? roundFbheVibration(coverageValues.reduce((sum, value) => sum + value, 0) / coverageValues.length, 1)
+      : 0,
+    completeChunkCount: queue.completeCount,
+    chunkCount: queue.chunkCount
   };
 
   return {
     ...baseResponse,
     source: {
-      source: normalizeText(rawResult?.source),
-      collectedAt: normalizeText(rawResult?.collectedAt),
-      outputIntervalHours: Number(rawResult?.outputIntervalHours || 1),
-      requestedSensorCount: Number(rawResult?.requestedSensorCount || 24),
-      successfulSensorCount: summary.successfulSensorCount,
-      failedSensorCount: summary.failedSensorCount
+      source: "OIS TAG Log Direct API",
+      collectedAt: completeRows
+        .map(row => parseFbheVibrationJson(row.result_json)?.collectedAt)
+        .filter(Boolean)
+        .sort()
+        .at(-1) || "",
+      outputIntervalHours: 1,
+      requestedSensorCountPerChunk: 24,
+      successfulSensorChunkCount: merged.successfulSensorChunkCount,
+      failedSensorChunkCount: merged.failedSensorChunkCount
+    },
+    analysis: {
+      startAt: bounds.startAtText,
+      endAt: bounds.endAtText,
+      readOnly: true,
+      runtimeUnit: "hour",
+      transitionEstimate: "hourly_midpoint"
     },
     assets,
     summary
@@ -2742,8 +3255,10 @@ async function handleGet(context, user) {
       );
     }
 
-    const targetDate = normalizeText(url.searchParams.get("targetDate"));
-    const result = await buildFbheVibrationShadowResponse(database, assets, targetDate);
+    const legacyTargetDate = normalizeText(url.searchParams.get("targetDate"));
+    const startDate = normalizeText(url.searchParams.get("startDate")) || legacyTargetDate;
+    const endDate = normalizeText(url.searchParams.get("endDate")) || legacyTargetDate || startDate;
+    const result = await buildFbheVibrationShadowResponse(database, assets, startDate, endDate);
     if (result.ok === false) {
       return jsonResponse({ ...result, permissions }, Number(result.status || 400));
     }
