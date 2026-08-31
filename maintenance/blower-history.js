@@ -2110,25 +2110,1354 @@
     elements.vibrationEmpty.hidden = rows.length > 0;
   }
 
-  async function loadFbheVibrationShadowReport(options = {}) {
-    if (!canUseFbheVibrationShadow()) return null;
-    const range = selectedFbheVibrationRange();
-    if (range.dayCount < 1 || range.dayCount > 366) return null;
+
+  /* [FBHE-OIS-CHUNK-ANALYSIS-V5] */
+  function buildFbheVibrationAnalysisChunks(startDate, endDate) {
+    const chunks = [];
+    let cursor = startDate;
+    let guard = 0;
+
+    while (
+      cursor &&
+      cursor <= endDate &&
+      guard < 12
+    ) {
+      const candidateEnd =
+        addFbheVibrationDays(
+          cursor,
+          30
+        );
+      const chunkEnd =
+        candidateEnd &&
+        candidateEnd < endDate
+          ? candidateEnd
+          : endDate;
+
+      chunks.push({
+        startDate: cursor,
+        endDate: chunkEnd,
+        dayCount:
+          countFbheVibrationDays(
+            cursor,
+            chunkEnd
+          )
+      });
+
+      cursor =
+        addFbheVibrationDays(
+          chunkEnd,
+          1
+        );
+      guard += 1;
+    }
+
+    return chunks;
+  }
+
+  function finiteFbheReportNumber(value) {
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      return null;
+    }
+
+    const numberValue =
+      Number(value);
+
+    return Number.isFinite(numberValue)
+      ? numberValue
+      : null;
+  }
+
+  function roundFbheReportNumber(
+    value,
+    digits = 3
+  ) {
+    const numberValue =
+      finiteFbheReportNumber(value);
+
+    if (numberValue === null) {
+      return null;
+    }
+
+    const factor =
+      10 ** Math.max(
+        0,
+        Number(digits) || 0
+      );
+
+    return (
+      Math.round(
+        numberValue *
+        factor
+      ) /
+      factor
+    );
+  }
+
+  function latestFbheReportDateTime(
+    values
+  ) {
+    return (values || [])
+      .filter(Boolean)
+      .sort(
+        (left, right) =>
+          String(left).localeCompare(
+            String(right)
+          )
+      )
+      .at(-1) || "";
+  }
+
+  function mergeFbheRuntimeSegmentsClient(
+    segments
+  ) {
+    const output = [];
+
+    for (
+      const segment of
+      (segments || [])
+        .filter(Boolean)
+        .sort(
+          (left, right) =>
+            String(left.startAt || "")
+              .localeCompare(
+                String(right.startAt || "")
+              )
+        )
+    ) {
+      const state =
+        String(segment.state || "");
+      const startAt =
+        String(segment.startAt || "");
+      const endAt =
+        String(segment.endAt || "");
+
+      if (
+        !state ||
+        !startAt ||
+        !endAt ||
+        new Date(endAt) <=
+          new Date(startAt)
+      ) {
+        continue;
+      }
+
+      const previous =
+        output.at(-1);
+
+      if (
+        previous &&
+        previous.state === state &&
+        previous.endAt === startAt
+      ) {
+        previous.endAt = endAt;
+        previous.hours =
+          roundFbheReportNumber(
+            (
+              new Date(endAt).getTime() -
+              new Date(
+                previous.startAt
+              ).getTime()
+            ) /
+            3600000,
+            3
+          );
+        continue;
+      }
+
+      output.push({
+        state,
+        startAt,
+        endAt,
+        hours:
+          roundFbheReportNumber(
+            finiteFbheReportNumber(
+              segment.hours
+            ) ??
+            (
+              (
+                new Date(
+                  endAt
+                ).getTime() -
+                new Date(
+                  startAt
+                ).getTime()
+              ) /
+              3600000
+            ),
+            3
+          )
+      });
+    }
+
+    return output;
+  }
+
+  function firstFbheDefiniteRuntimeState(
+    segments
+  ) {
+    const segment =
+      (segments || []).find(
+        item =>
+          ["running", "stopped"]
+            .includes(
+              String(
+                item?.state ||
+                ""
+              )
+            )
+      );
+
+    return segment
+      ? {
+          state:
+            String(segment.state),
+          at:
+            String(
+              segment.startAt ||
+              ""
+            )
+        }
+      : null;
+  }
+
+  function lastFbheDefiniteRuntimeState(
+    segments
+  ) {
+    const safe =
+      [...(segments || [])]
+        .reverse();
+
+    const segment =
+      safe.find(
+        item =>
+          ["running", "stopped"]
+            .includes(
+              String(
+                item?.state ||
+                ""
+              )
+            )
+      );
+
+    return segment
+      ? {
+          state:
+            String(segment.state),
+          at:
+            String(
+              segment.endAt ||
+              segment.startAt ||
+              ""
+            )
+        }
+      : null;
+  }
+
+  function aggregateFbheVibrationChunkReports(
+    reports,
+    range,
+    analysisErrors = []
+  ) {
+    const orderedReports =
+      (reports || [])
+        .filter(
+          report =>
+            report &&
+            report.ok !== false
+        )
+        .sort(
+          (left, right) =>
+            String(
+              left.startDate ||
+              ""
+            ).localeCompare(
+              String(
+                right.startDate ||
+                ""
+              )
+            )
+        );
+
+    const queueItems = [];
+
+    for (
+      const report of
+      orderedReports
+    ) {
+      const items =
+        Array.isArray(
+          report?.queue?.items
+        )
+          ? report.queue.items
+          : [];
+
+      if (items.length > 0) {
+        queueItems.push(
+          ...items
+        );
+      }
+    }
+
+    for (
+      const failed of
+      analysisErrors || []
+    ) {
+      queueItems.push({
+        id: "",
+        targetDate:
+          `${failed.startDate || ""}~${failed.endDate || ""}`,
+        status:
+          "failed",
+        requestedAt: "",
+        startedAt: "",
+        completedAt: "",
+        errorMessage:
+          failed.message ||
+          "저장자료 구간 분석 실패",
+        expiresAt: "",
+        updatedAt: ""
+      });
+    }
+
+    const queue =
+      buildFbheVibrationQueueSummary(
+        queueItems
+      );
+
+    const selectedChunks =
+      buildFbheVibrationAnalysisChunks(
+        range.startDate,
+        range.endDate
+      );
+
+    queue.chunkCount =
+      selectedChunks.length;
+
+    const assetMap =
+      new Map();
+
+    for (
+      const report of
+      orderedReports
+    ) {
+      for (
+        const asset of
+        Array.isArray(
+          report.assets
+        )
+          ? report.assets
+          : []
+      ) {
+        const tagNumber =
+          String(
+            asset?.tagNumber ||
+            ""
+          ).toUpperCase();
+
+        if (!tagNumber) {
+          continue;
+        }
+
+        if (
+          !assetMap.has(
+            tagNumber
+          )
+        ) {
+          assetMap.set(
+            tagNumber,
+            []
+          );
+        }
+
+        assetMap
+          .get(tagNumber)
+          .push({
+            report,
+            asset
+          });
+      }
+    }
+
+    const assets = [];
+
+    for (
+      const [
+        tagNumber,
+        parts
+      ] of assetMap
+    ) {
+      const orderedParts =
+        [...parts].sort(
+          (left, right) =>
+            String(
+              left.report.startDate ||
+              ""
+            ).localeCompare(
+              String(
+                right.report.startDate ||
+                ""
+              )
+            )
+        );
+
+      const latestPart =
+        orderedParts.at(-1);
+      const latestAsset =
+        latestPart?.asset || {};
+      const runtimes =
+        orderedParts
+          .map(
+            part =>
+              part.asset?.runtime ||
+              null
+          )
+          .filter(Boolean);
+
+      const sumRuntime =
+        field =>
+          roundFbheReportNumber(
+            runtimes.reduce(
+              (sum, runtime) => {
+                const value =
+                  finiteFbheReportNumber(
+                    runtime?.[field]
+                  );
+
+                return (
+                  sum +
+                  (
+                    value === null
+                      ? 0
+                      : value
+                  )
+                );
+              },
+              0
+            ),
+            3
+          ) || 0;
+
+      const rangeRunningHours =
+        sumRuntime(
+          "rangeRunningHours"
+        );
+      const rangeStoppedHours =
+        sumRuntime(
+          "rangeStoppedHours"
+        );
+      const rangeAnomalyHours =
+        sumRuntime(
+          "rangeAnomalyHours"
+        );
+      const rangeUnknownHours =
+        sumRuntime(
+          "rangeUnknownHours"
+        );
+      const rangeTotalHours =
+        sumRuntime(
+          "rangeTotalHours"
+        );
+
+      const classifiedHours =
+        rangeRunningHours +
+        rangeStoppedHours;
+
+      const rangeCoveragePct =
+        rangeTotalHours > 0
+          ? roundFbheReportNumber(
+              (
+                classifiedHours /
+                rangeTotalHours
+              ) *
+              100,
+              1
+            ) || 0
+          : 0;
+
+      const cycleWindowHours =
+        sumRuntime(
+          "cycleWindowHours"
+        );
+
+      const cycleRuntimeValues =
+        runtimes
+          .map(
+            runtime =>
+              finiteFbheReportNumber(
+                runtime
+                  ?.cycleRuntimeHours
+              )
+          )
+          .filter(
+            value =>
+              value !== null
+          );
+
+      const cycleCoverageValues =
+        runtimes
+          .map(
+            runtime =>
+              finiteFbheReportNumber(
+                runtime
+                  ?.cycleCoverageHours
+              )
+          )
+          .filter(
+            value =>
+              value !== null
+          );
+
+      const cycleRuntimeHours =
+        cycleRuntimeValues.length > 0
+          ? roundFbheReportNumber(
+              cycleRuntimeValues.reduce(
+                (sum, value) =>
+                  sum + value,
+                0
+              ),
+              3
+            )
+          : null;
+
+      const cycleCoverageHours =
+        cycleCoverageValues.length > 0
+          ? roundFbheReportNumber(
+              cycleCoverageValues.reduce(
+                (sum, value) =>
+                  sum + value,
+                0
+              ),
+              3
+            )
+          : null;
+
+      const cycleCoveragePct =
+        cycleWindowHours > 0 &&
+        cycleCoverageHours !== null
+          ? roundFbheReportNumber(
+              (
+                cycleCoverageHours /
+                cycleWindowHours
+              ) *
+              100,
+              1
+            ) || 0
+          : 0;
+
+      const cycleStartAt =
+        runtimes
+          .map(
+            runtime =>
+              String(
+                runtime
+                  ?.cycleStartAt ||
+                ""
+              )
+          )
+          .find(Boolean) || "";
+
+      const rangeStartAt =
+        new Date(
+          `${range.startDate}T00:00:00+09:00`
+        );
+
+      const cycleStartDate =
+        new Date(
+          cycleStartAt
+        );
+
+      const cycleRangeComplete =
+        Boolean(
+          cycleStartAt
+        ) &&
+        !Number.isNaN(
+          rangeStartAt.getTime()
+        ) &&
+        !Number.isNaN(
+          cycleStartDate.getTime()
+        )
+          ? cycleStartDate >=
+            rangeStartAt
+          : false;
+
+      const registeredRuntime =
+        [...runtimes]
+          .reverse()
+          .map(
+            runtime =>
+              finiteFbheReportNumber(
+                runtime
+                  ?.registeredCycleRuntimeHours
+              )
+          )
+          .find(
+            value =>
+              value !== null
+          );
+
+      const runtimeDifferenceHours =
+        cycleRuntimeHours !== null &&
+        registeredRuntime !==
+          undefined &&
+        registeredRuntime !== null
+          ? roundFbheReportNumber(
+              cycleRuntimeHours -
+              registeredRuntime,
+              3
+            )
+          : null;
+
+      const combinedSegments =
+        mergeFbheRuntimeSegmentsClient(
+          runtimes.flatMap(
+            runtime =>
+              Array.isArray(
+                runtime?.segments
+              )
+                ? runtime.segments
+                : []
+          )
+        );
+
+      let transitionCount =
+        runtimes.reduce(
+          (sum, runtime) =>
+            sum +
+            Number(
+              runtime
+                ?.transitionCount ||
+              0
+            ),
+          0
+        );
+
+      const boundaryTransitions = [];
+      let previousDefinite = null;
+
+      for (
+        const part of
+        orderedParts
+      ) {
+        const runtime =
+          part.asset?.runtime ||
+          {};
+        const segments =
+          Array.isArray(
+            runtime.segments
+          )
+            ? runtime.segments
+            : [];
+
+        const first =
+          firstFbheDefiniteRuntimeState(
+            segments
+          );
+        const last =
+          lastFbheDefiniteRuntimeState(
+            segments
+          );
+
+        if (
+          previousDefinite &&
+          first &&
+          previousDefinite.state !==
+            first.state
+        ) {
+          transitionCount += 1;
+
+          boundaryTransitions.push({
+            type:
+              first.state ===
+              "running"
+                ? "start"
+                : "stop",
+            estimatedAt:
+              first.at ||
+              part.report
+                ?.analysis
+                ?.startAt ||
+              "",
+            method:
+              "chunk_boundary",
+            confidence:
+              "estimated"
+          });
+        }
+
+        if (last) {
+          previousDefinite =
+            last;
+        }
+      }
+
+      const latestStartAt =
+        latestFbheReportDateTime(
+          [
+            ...runtimes.map(
+              runtime =>
+                runtime
+                  ?.latestStartAt
+            ),
+            ...boundaryTransitions
+              .filter(
+                item =>
+                  item.type ===
+                  "start"
+              )
+              .map(
+                item =>
+                  item.estimatedAt
+              )
+          ]
+        );
+
+      const latestStopAt =
+        latestFbheReportDateTime(
+          [
+            ...runtimes.map(
+              runtime =>
+                runtime
+                  ?.latestStopAt
+            ),
+            ...boundaryTransitions
+              .filter(
+                item =>
+                  item.type ===
+                  "stop"
+              )
+              .map(
+                item =>
+                  item.estimatedAt
+              )
+          ]
+        );
+
+      const combinedTransitions =
+        [
+          ...orderedParts.flatMap(
+            part =>
+              Array.isArray(
+                part.asset
+                  ?.transitions
+              )
+                ? part.asset
+                    .transitions
+                : []
+          ),
+          ...boundaryTransitions
+        ]
+          .filter(
+            item =>
+              item &&
+              item.type &&
+              item.estimatedAt
+          )
+          .filter(
+            (
+              item,
+              index,
+              array
+            ) =>
+              array.findIndex(
+                candidate =>
+                  candidate.type ===
+                    item.type &&
+                  candidate
+                    .estimatedAt ===
+                    item.estimatedAt
+              ) === index
+          )
+          .sort(
+            (left, right) =>
+              String(
+                left.estimatedAt
+              ).localeCompare(
+                String(
+                  right.estimatedAt
+                )
+              )
+          );
+
+      const latestSampleAt =
+        latestFbheReportDateTime(
+          orderedParts.map(
+            part =>
+              part.asset
+                ?.latestSampleAt
+          )
+        );
+
+      const latestSamplePart =
+        [...orderedParts]
+          .reverse()
+          .find(
+            part =>
+              part.asset
+                ?.latestSampleAt ===
+              latestSampleAt
+          ) ||
+        latestPart;
+
+      const latestRuntime =
+        latestPart?.asset
+          ?.runtime || {};
+
+      assets.push({
+        ...latestAsset,
+        tagNumber,
+        lastReplacementAt:
+          latestAsset
+            .lastReplacementAt ||
+          cycleStartAt,
+        successfulSensorCount:
+          Math.max(
+            0,
+            ...orderedParts.map(
+              part =>
+                Number(
+                  part.asset
+                    ?.successfulSensorCount ||
+                  0
+                )
+            )
+          ),
+        failedSensorCount:
+          Number(
+            latestAsset
+              ?.failedSensorCount ||
+            0
+          ),
+        failedSensors:
+          Array.isArray(
+            latestAsset
+              ?.failedSensors
+          )
+            ? latestAsset
+                .failedSensors
+            : [],
+        samplePointCount:
+          orderedParts.reduce(
+            (sum, part) =>
+              sum +
+              Number(
+                part.asset
+                  ?.samplePointCount ||
+                0
+              ),
+            0
+          ),
+        latestSampleAt,
+        latest:
+          latestSamplePart
+            ?.asset
+            ?.latest ||
+          latestAsset.latest ||
+          null,
+        cluster:
+          latestAsset.cluster ||
+          null,
+        runtime: {
+          ...latestRuntime,
+          rangeRunningHours,
+          rangeStoppedHours,
+          rangeAnomalyHours,
+          rangeUnknownHours,
+          rangeCoveragePct,
+          rangeTotalHours,
+          oisState:
+            latestRuntime
+              ?.oisState ||
+            latestAsset
+              ?.shadowState ||
+            "unknown",
+          latestStartAt,
+          latestStopAt,
+          transitionCount,
+          segments:
+            combinedSegments
+              .slice(-500),
+          cycleStartAt,
+          cycleWindowStartAt:
+            runtimes
+              .map(
+                runtime =>
+                  String(
+                    runtime
+                      ?.cycleWindowStartAt ||
+                    ""
+                  )
+              )
+              .find(Boolean) ||
+            "",
+          cycleWindowHours,
+          cycleRuntimeHours,
+          cycleCoverageHours,
+          cycleCoveragePct,
+          cycleRangeComplete,
+          registeredCycleRuntimeHours:
+            registeredRuntime ===
+              undefined
+              ? null
+              : registeredRuntime,
+          runtimeDifferenceHours
+        },
+        transitions:
+          combinedTransitions
+            .slice(-1000),
+        unrecordedTransitionCount:
+          orderedParts.reduce(
+            (sum, part) =>
+              sum +
+              Number(
+                part.asset
+                  ?.unrecordedTransitionCount ||
+                0
+              ),
+            0
+          ),
+        anomalyCount:
+          orderedParts.reduce(
+            (sum, part) =>
+              sum +
+              Number(
+                part.asset
+                  ?.anomalyCount ||
+                0
+              ),
+            0
+          )
+      });
+    }
+
+    assets.sort(
+      (left, right) => {
+        const unitOrder =
+          String(
+            left.unitNo ||
+            ""
+          ).localeCompare(
+            String(
+              right.unitNo ||
+              ""
+            )
+          );
+
+        if (unitOrder !== 0) {
+          return unitOrder;
+        }
+
+        return String(
+          left.positionLabel ||
+          left.tagNumber ||
+          ""
+        ).localeCompare(
+          String(
+            right.positionLabel ||
+            right.tagNumber ||
+            ""
+          )
+        );
+      }
+    );
+
+    const coverageValues =
+      assets
+        .map(
+          asset =>
+            finiteFbheReportNumber(
+              asset.runtime
+                ?.rangeCoveragePct
+            )
+        )
+        .filter(
+          value =>
+            value !== null
+        );
+
+    const sourceReports =
+      orderedReports
+        .map(
+          report =>
+            report.source ||
+            null
+        )
+        .filter(Boolean);
+
+    const summary = {
+      assetCount:
+        assets.length,
+      shadowDecidedCount:
+        assets.filter(
+          asset =>
+            (
+              asset.runtime
+                ?.oisState ||
+              asset.shadowState ||
+              "unknown"
+            ) !== "unknown"
+        ).length,
+      matchCount:
+        assets.filter(
+          asset =>
+            asset.comparison ===
+            "match"
+        ).length,
+      mismatchCount:
+        assets.filter(
+          asset =>
+            asset.comparison ===
+            "mismatch"
+        ).length,
+      unknownCount:
+        assets.filter(
+          asset =>
+            (
+              asset.runtime
+                ?.oisState ||
+              asset.shadowState ||
+              "unknown"
+            ) === "unknown"
+        ).length,
+      transitionCount:
+        assets.reduce(
+          (sum, asset) =>
+            sum +
+            Number(
+              asset.runtime
+                ?.transitionCount ||
+              0
+            ),
+          0
+        ),
+      unrecordedTransitionCount:
+        assets.reduce(
+          (sum, asset) =>
+            sum +
+            Number(
+              asset
+                .unrecordedTransitionCount ||
+              0
+            ),
+          0
+        ),
+      anomalyCount:
+        assets.reduce(
+          (sum, asset) =>
+            sum +
+            Number(
+              asset.anomalyCount ||
+              0
+            ),
+          0
+        ),
+      successfulSensorChunkCount:
+        sourceReports.reduce(
+          (sum, source) =>
+            sum +
+            Number(
+              source
+                ?.successfulSensorChunkCount ||
+              0
+            ),
+          0
+        ),
+      failedSensorChunkCount:
+        sourceReports.reduce(
+          (sum, source) =>
+            sum +
+            Number(
+              source
+                ?.failedSensorChunkCount ||
+              0
+            ),
+          0
+        ),
+      averageCoveragePct:
+        coverageValues.length > 0
+          ? roundFbheReportNumber(
+              coverageValues.reduce(
+                (sum, value) =>
+                  sum + value,
+                0
+              ) /
+              coverageValues.length,
+              1
+            ) || 0
+          : 0,
+      completeChunkCount:
+        Number(
+          queue.completeCount ||
+          0
+        ),
+      chunkCount:
+        selectedChunks.length,
+      analyzedChunkCount:
+        orderedReports.length,
+      analysisFailedChunkCount:
+        analysisErrors.length
+    };
+
+    return {
+      ok: true,
+      startDate:
+        range.startDate,
+      endDate:
+        range.endDate,
+      dayCount:
+        range.dayCount,
+      queue,
+      automaticApply: false,
+      actualStateChanged: false,
+      runtimeChanged: false,
+      cycleChanged: false,
+      source: {
+        source:
+          "OIS TAG Log Direct API · 31일 구간별 분석",
+        collectedAt:
+          latestFbheReportDateTime(
+            sourceReports.map(
+              source =>
+                source
+                  ?.collectedAt
+            )
+          ),
+        outputIntervalHours: 1,
+        requestedSensorCountPerChunk:
+          24,
+        successfulSensorChunkCount:
+          summary
+            .successfulSensorChunkCount,
+        failedSensorChunkCount:
+          summary
+            .failedSensorChunkCount
+      },
+      analysis: {
+        startAt:
+          orderedReports[0]
+            ?.analysis
+            ?.startAt ||
+          "",
+        endAt:
+          orderedReports.at(-1)
+            ?.analysis
+            ?.endAt ||
+          "",
+        readOnly: true,
+        runtimeUnit: "hour",
+        transitionEstimate:
+          "hourly_midpoint",
+        mode:
+          "client_chunk_merge",
+        analyzedChunkCount:
+          orderedReports.length,
+        failedChunkCount:
+          analysisErrors.length
+      },
+      assets,
+      summary
+    };
+  }
+
+  async function requestFbheSavedChunkAnalysis(
+    chunk
+  ) {
+    const waits =
+      [0, 1200, 3000];
+
+    let lastError = null;
+
+    for (
+      let attempt = 0;
+      attempt < waits.length;
+      attempt += 1
+    ) {
+      if (waits[attempt] > 0) {
+        await waitForMilliseconds(
+          waits[attempt]
+        );
+      }
+
+      try {
+        return await apiRequest({
+          url:
+            `${API_URL}?action=vibration_shadow&startDate=${encodeURIComponent(chunk.startDate)}&endDate=${encodeURIComponent(chunk.endDate)}`,
+          timeoutMs:
+            30000
+        });
+      } catch (error) {
+        lastError = error;
+
+        const retryable =
+          error?.retryable ===
+            true ||
+          [0, 429, 502, 503, 504]
+            .includes(
+              Number(
+                error?.status
+              )
+            );
+
+        if (!retryable) {
+          throw error;
+        }
+      }
+    }
+
+    throw (
+      lastError ||
+      new Error(
+        "FBHE 저장자료 구간 분석에 실패했습니다."
+      )
+    );
+  }
+
+  async function loadFbheVibrationShadowReport(
+    options = {}
+  ) {
+    if (
+      !canUseFbheVibrationShadow()
+    ) {
+      return null;
+    }
+
+    const range =
+      selectedFbheVibrationRange();
+
+    if (
+      range.dayCount < 1 ||
+      range.dayCount > 366
+    ) {
+      return null;
+    }
 
     try {
-      const report = await apiRequest({
-        url: `${API_URL}?action=vibration_shadow&startDate=${encodeURIComponent(range.startDate)}&endDate=${encodeURIComponent(range.endDate)}`
-      });
-      state.vibrationReport = report;
-      state.vibrationReportRangeKey = range.key;
+      if (
+        range.dayCount <= 31
+      ) {
+        const report =
+          await apiRequest({
+            url:
+              `${API_URL}?action=vibration_shadow&startDate=${encodeURIComponent(range.startDate)}&endDate=${encodeURIComponent(range.endDate)}`,
+            timeoutMs:
+              30000
+          });
+
+        state.vibrationReport =
+          report;
+        state.vibrationReportRangeKey =
+          range.key;
+        renderFbheVibrationShadow();
+
+        return report;
+      }
+
+      /*
+        Long ranges are analyzed one SAVED 31-day chunk at a time.
+        No OIS request is created here.
+      */
+      const chunks =
+        buildFbheVibrationAnalysisChunks(
+          range.startDate,
+          range.endDate
+        );
+
+      const reports = [];
+      const analysisErrors = [];
+
+      for (
+        let index = 0;
+        index < chunks.length;
+        index += 1
+      ) {
+        const chunk =
+          chunks[index];
+
+        elements.vibrationHeadline
+          .textContent =
+            `저장자료 구간 분석 중 · ${index + 1}/${chunks.length}`;
+
+        elements.vibrationStatus
+          .dataset.state =
+            "running";
+
+        elements.vibrationStatus
+          .textContent =
+            `OIS 재조회 없이 저장된 ${chunk.startDate} ~ ${chunk.endDate} 진동자료를 분석하고 있습니다.`;
+
+        try {
+          const report =
+            await requestFbheSavedChunkAnalysis(
+              chunk
+            );
+
+          reports.push(
+            report
+          );
+        } catch (error) {
+          analysisErrors.push({
+            ...chunk,
+            message:
+              error?.message ||
+              "저장자료 구간 분석 실패"
+          });
+
+          console.warn(
+            "FBHE saved chunk analysis failed:",
+            chunk,
+            error
+          );
+        }
+      }
+
+      if (reports.length === 0) {
+        throw new Error(
+          analysisErrors[0]
+            ?.message ||
+          "FBHE 저장자료를 구간별로 분석하지 못했습니다."
+        );
+      }
+
+      const report =
+        aggregateFbheVibrationChunkReports(
+          reports,
+          range,
+          analysisErrors
+        );
+
+      state.vibrationReport =
+        report;
+      state.vibrationReportRangeKey =
+        range.key;
+
       renderFbheVibrationShadow();
+
+      if (
+        analysisErrors.length > 0 &&
+        !options.silent
+      ) {
+        showToast(
+          `저장자료 ${reports.length}/${chunks.length}구간을 분석했습니다. 실패한 ${analysisErrors.length}구간은 다음 화면 갱신 때 다시 분석할 수 있습니다.`,
+          "error"
+        );
+      }
+
       return report;
     } catch (error) {
-      if (!options.silent) showToast(error.message || "FBHE OIS 운전시간 분석을 불러오지 못했습니다.", "error");
+      if (!options.silent) {
+        showToast(
+          error.message ||
+          "FBHE OIS 운전시간 분석을 불러오지 못했습니다.",
+          "error"
+        );
+      }
+
       throw error;
     }
   }
-
   /* [FBHE-OIS-RESUME-TIMEOUT-V4-R3] */
   async function cancelFbheVibrationRequests(requestIds, reason) {
     const ids = [...new Set((requestIds || []).filter(Boolean))];
