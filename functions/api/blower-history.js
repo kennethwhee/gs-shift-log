@@ -264,6 +264,8 @@ const FBHE_VIBRATION_SENSOR_ROLES = Object.freeze([
 ]);
 const FBHE_VIBRATION_STOP_DROP_RATIO = 0.35;
 const FBHE_VIBRATION_START_RISE_RATIO = 2.8;
+const FBHE_VIBRATION_ABSOLUTE_STOP_MAX = 0.5;
+const FBHE_VIBRATION_ABSOLUTE_RUN_MIN = 1.0;
 const FBHE_VIBRATION_MANUAL_MATCH_WINDOW_MS = 90 * 60 * 1000;
 const FBHE_VIBRATION_MAX_TRANSITION_GAP_MS = 90 * 60 * 1000;
 const FBHE_VIBRATION_RANGE_CHUNK_DAYS = 31;
@@ -2127,7 +2129,37 @@ function midpointFbheVibrationTime(leftValue, rightValue) {
   return new Date((left.getTime() + right.getTime()) / 2).toISOString();
 }
 
+function absoluteFbheVibrationClass(point) {
+  if (!point || point.blowerIndex === null || point.motorIndex === null) return "unknown";
+
+  if (
+    point.motorIndex >= FBHE_VIBRATION_ABSOLUTE_RUN_MIN &&
+    point.blowerIndex <= FBHE_VIBRATION_ABSOLUTE_STOP_MAX
+  ) {
+    return "drive_anomaly";
+  }
+
+  if (
+    point.blowerIndex >= FBHE_VIBRATION_ABSOLUTE_RUN_MIN &&
+    point.motorIndex >= FBHE_VIBRATION_ABSOLUTE_RUN_MIN
+  ) {
+    return "high";
+  }
+
+  if (
+    point.blowerIndex <= FBHE_VIBRATION_ABSOLUTE_STOP_MAX &&
+    point.motorIndex <= FBHE_VIBRATION_ABSOLUTE_STOP_MAX
+  ) {
+    return "low";
+  }
+
+  return "unknown";
+}
+
 function classifyFbheVibrationPoint(point, cluster) {
+  const absoluteClass = absoluteFbheVibrationClass(point);
+  if (absoluteClass !== "unknown") return absoluteClass;
+
   if (!point || point.blowerIndex === null || point.motorIndex === null) return "unknown";
 
   if (
@@ -2682,9 +2714,20 @@ function manualFbheVibrationStateAt(events, sampledAt) {
 }
 
 function latestStableFbheVibrationClass(points, cluster) {
+  const safePoints = Array.isArray(points) ? points : [];
+  const latestPoint = safePoints.at(-1) || null;
+  const latestAbsoluteClass = absoluteFbheVibrationClass(latestPoint);
+
+  // FBHE measured values show a wide stop/run separation. When the latest
+  // Blower and Motor indices are both inside the conservative absolute band,
+  // a single fresh hourly sample is enough for the current-state Shadow.
+  if (["low", "high", "drive_anomaly"].includes(latestAbsoluteClass)) {
+    return latestAbsoluteClass;
+  }
+
   if (!cluster) return "unknown";
 
-  const stableClasses = (points || [])
+  const stableClasses = safePoints
     .map(point => classifyFbheVibrationPoint(point, cluster))
     .filter(value => ["low", "high", "drive_anomaly"].includes(value));
 
@@ -2714,10 +2757,14 @@ function buildFbheVibrationAssetShadow(assetState, rawAsset, operationEvents = [
 
   if (latestClass === "high") {
     shadowState = "running";
-    shadowReason = "하루 진동값이 저진동·고진동 두 군집으로 분리되어 최신 값이 고진동 군집에 있습니다.";
+    shadowReason = latestPoint && absoluteFbheVibrationClass(latestPoint) === "high"
+      ? `최신 Blower/Motor 진동이 운전 기준(${FBHE_VIBRATION_ABSOLUTE_RUN_MIN} 이상)을 함께 충족합니다.`
+      : "기간 진동값이 저진동·고진동 두 군집으로 분리되어 최신 값이 고진동 군집에 있습니다.";
   } else if (latestClass === "low") {
     shadowState = "stopped";
-    shadowReason = "하루 진동값이 저진동·고진동 두 군집으로 분리되어 최신 값이 저진동 군집에 있습니다.";
+    shadowReason = latestPoint && absoluteFbheVibrationClass(latestPoint) === "low"
+      ? `최신 Blower/Motor 진동이 정지 기준(${FBHE_VIBRATION_ABSOLUTE_STOP_MAX} 이하)을 함께 충족합니다.`
+      : "기간 진동값이 저진동·고진동 두 군집으로 분리되어 최신 값이 저진동 군집에 있습니다.";
   } else if (latestTransition?.type === "start") {
     shadowState = "running";
     shadowReason = "Blower와 Motor 진동의 동시 급상승 이후 반대 전환이 없습니다.";

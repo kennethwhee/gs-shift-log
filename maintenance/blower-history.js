@@ -1852,6 +1852,8 @@
     if (preset === "cycle") {
       const range = defaultFbheVibrationRange();
       startDate = range.startDate;
+    } else if (preset === "month") {
+      startDate = `${endDate.slice(0, 7)}-01`;
     } else {
       const days = Number(preset);
       if (!Number.isFinite(days) || days < 1) return;
@@ -1965,7 +1967,7 @@
     elements.vibrationQueryButton.textContent = state.vibrationPolling ? "OIS 수집 중..." : "OIS 기간조회";
 
     if (!reportMatchesRange) {
-      elements.vibrationHeadline.textContent = `기동·정지·누적시간 분석 대기 · ${selected.dayCount || 0}일`;
+      elements.vibrationHeadline.textContent = `현재상태·기동/정지·누적시간 분석 대기 · ${selected.dayCount || 0}일`;
       elements.vibrationStatus.dataset.state = "idle";
       elements.vibrationStatus.textContent = selected.dayCount > 366
         ? "한 번에 최대 1년(366일)까지 조회할 수 있습니다."

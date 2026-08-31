@@ -10,6 +10,8 @@ assert.match(apiSource, /\[FBHE-VIBRATION-SHADOW-V1\]/);
 const instrumentedSource = `${apiSource}
 export const __fbheVibrationShadowInstrumentation = {
   findFbheVibrationCluster,
+  absoluteFbheVibrationClass,
+  absoluteFbheVibrationClass,
   buildFbheVibrationTransitions,
   matchFbheVibrationTransitionsToEvents,
   manualFbheVibrationStateAt,
@@ -21,6 +23,7 @@ const api = await import(
   `data:text/javascript;base64,${Buffer.from(instrumentedSource).toString("base64")}`
 );
 const {
+  absoluteFbheVibrationClass,
   buildFbheVibrationTransitions,
   matchFbheVibrationTransitionsToEvents,
   manualFbheVibrationStateAt,
@@ -66,6 +69,32 @@ const lowThenHigh = Object.fromEntries(
   Object.entries(highThenLow).map(([role, values]) => [role, [...values.slice(6), ...values.slice(0, 6)]])
 );
 
+
+
+test("classifies the observed FBHE run/stop levels even without a two-cluster day", () => {
+  const observed = [
+    [4.873, 2.692, "high"],
+    [8.101, 4.8215, "high"],
+    [0.154, 0.1335, "low"],
+    [8.9105, 6.0815, "high"],
+    [0.158, 0.152, "low"],
+    [6.4, 5.68, "high"]
+  ];
+  for (const [blowerIndex, motorIndex, expected] of observed) {
+    assert.equal(absoluteFbheVibrationClass({ blowerIndex, motorIndex }), expected);
+  }
+});
+
+test("uses a single fresh absolute-band sample for current-state shadow", () => {
+  const running = rawAsset({
+    blower_de: [4.8], blower_nde: [4.9], motor_de: [2.7], motor_nde: [2.6]
+  });
+  const stopped = rawAsset({
+    blower_de: [0.15], blower_nde: [0.16], motor_de: [0.13], motor_nde: [0.14]
+  });
+  assert.equal(buildFbheVibrationAssetShadow(asset, running, []).shadowState, "running");
+  assert.equal(buildFbheVibrationAssetShadow(asset, stopped, []).shadowState, "stopped");
+});
 test("detects a conservative stop shadow without changing actual state", () => {
   const report = buildFbheVibrationAssetShadow(asset, rawAsset(highThenLow), []);
   assert.equal(report.shadowState, "stopped");
