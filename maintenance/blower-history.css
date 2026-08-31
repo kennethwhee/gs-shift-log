@@ -1788,3 +1788,79 @@ body.public-monitoring #vibrationShadowPanel { display: none !important; }
     flex-wrap: wrap;
   }
 }
+
+/* =========================================================
+   FBHE OIS explicit query + compact details V8.6.1
+   ========================================================= */
+
+.vibration-toolbar-query {
+  min-width: 94px !important;
+}
+
+.vibration-shadow-panel.is-compact {
+  margin: 6px 0 8px;
+}
+
+.vibration-shadow-panel.is-compact
+.vibration-shadow-summary {
+  min-height: 34px;
+  padding: 5px 9px;
+  gap: 8px;
+}
+
+.vibration-shadow-panel.is-compact
+.vibration-shadow-summary
+> div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.vibration-shadow-panel.is-compact
+.vibration-shadow-summary
+.settings-label {
+  flex: 0 0 auto;
+  font-size: 10px;
+}
+
+.vibration-shadow-panel.is-compact
+.vibration-shadow-summary
+strong {
+  min-width: 0;
+  margin-top: 0;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.vibration-shadow-panel.is-compact
+.vibration-shadow-summary-action {
+  font-size: 9px;
+}
+
+.vibration-shadow-panel.is-compact[open]
+.vibration-shadow-summary-action {
+  font-size: 0;
+}
+
+.vibration-shadow-panel.is-compact[open]
+.vibration-shadow-summary-action::after {
+  content: "접기";
+  font-size: 9px;
+}
+
+@media (max-width: 900px) {
+  .vibration-shadow-panel.is-compact
+  .vibration-shadow-summary
+  > div {
+    display: block;
+  }
+
+  .vibration-shadow-panel.is-compact
+  .vibration-shadow-summary
+  strong {
+    margin-top: 1px;
+  }
+}
+
+/* FBHE_OIS_EXPLICIT_QUERY_COMPACT_V1 */

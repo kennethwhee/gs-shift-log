@@ -2837,6 +2837,10 @@
   function renderFbheVibrationShadow() {
     const allowed = canUseFbheVibrationShadow();
     elements.vibrationShadowPanel.hidden = !allowed;
+
+    if (elements.vibrationQueryButton) {
+      elements.vibrationQueryButton.hidden = !allowed;
+    }
     if (elements.vibrationApplyButton) {
       elements.vibrationApplyButton.hidden = true;
       elements.vibrationApplyButton.disabled = true;
@@ -2862,10 +2866,10 @@
       state.vibrationPolling
         ? (
             state.vibrationClientAnalysis
-              ? "저장자료 분석 중..."
-              : "OIS 수집 중..."
+              ? "분석 중..."
+              : "조회 중..."
           )
-        : "OIS 이어조회";
+        : "조회하기";
     elements.vibrationRequeryButton.textContent = "전체 재조회";
 
     if (!reportMatchesRange) {
@@ -7152,6 +7156,73 @@
     );
   }
 
+  function hasCompletedFbheVibrationReportForSelectedRange() {
+    const range = selectedFbheVibrationRange();
+    const report = state.vibrationReport;
+
+    if (
+      !report ||
+      report.startDate !== range.startDate ||
+      report.endDate !== range.endDate
+    ) {
+      return false;
+    }
+
+    const assets = Array.isArray(report.assets)
+      ? report.assets
+      : [];
+
+    if (assets.length < 1) {
+      return false;
+    }
+
+    const queue = report.queue || {};
+    const chunkCount = Number(queue.chunkCount || 0);
+    const completeCount = Number(queue.completeCount || 0);
+    const activeCount =
+      Number(queue.pendingCount || 0) +
+      Number(queue.processingCount || 0);
+    const failedCount =
+      Number(queue.failedCount || 0) +
+      Number(queue.missingCount || 0);
+
+    return (
+      activeCount === 0 &&
+      failedCount === 0 &&
+      (
+        chunkCount < 1 ||
+        completeCount >= chunkCount
+      )
+    );
+  }
+
+
+  async function handleFbheVibrationQuery() {
+    if (
+      stopMobileMutation() ||
+      !canUseFbheVibrationShadow() ||
+      state.vibrationPolling
+    ) {
+      return;
+    }
+
+    if (
+      hasCompletedFbheVibrationReportForSelectedRange()
+    ) {
+      elements.vibrationShadowPanel.open = true;
+      renderFbheVibrationShadow();
+
+      showToast(
+        "이미 조회된 OIS 계산 결과를 표시합니다."
+      );
+
+      return;
+    }
+
+    await requestFbheVibrationShadow(false);
+  }
+
+
   async function requestFbheVibrationShadow(forceRefresh = false) {
     if (stopMobileMutation() || !canUseFbheVibrationShadow() || state.vibrationPolling) return;
 
@@ -8721,7 +8792,7 @@
     elements.assetManagerButton.addEventListener("click", openAssetManagerDialog);
     elements.auditHistoryButton.addEventListener("click", downloadHistoricalAudit);
     elements.refreshButton.addEventListener("click", () => loadData({ forceOperationSync: true }));
-    elements.vibrationQueryButton.addEventListener("click", () => requestFbheVibrationShadow(false));
+    elements.vibrationQueryButton.addEventListener("click", handleFbheVibrationQuery);
     elements.vibrationRequeryButton.addEventListener("click", () => requestFbheVibrationShadow(true));
     elements.vibrationApplyButton.addEventListener("click", applyFbheOisCalculatedResults);
     document.querySelectorAll("[data-vibration-preset]").forEach(button => {
@@ -8733,16 +8804,11 @@
       state.vibrationReportRangeKey = selectedFbheVibrationRange().key;
       updateFbheVibrationPresetButtons();
       renderFbheVibrationShadow();
-      if (elements.vibrationShadowPanel.open) {
-        loadFbheVibrationShadowReport({ silent: true }).catch(() => null);
-      }
     };
     elements.vibrationStartDate.addEventListener("change", handleVibrationRangeChange);
     elements.vibrationEndDate.addEventListener("change", handleVibrationRangeChange);
     elements.vibrationShadowPanel.addEventListener("toggle", () => {
-      if (elements.vibrationShadowPanel.open && !state.vibrationPolling) {
-        loadFbheVibrationShadowReport({ silent: true }).catch(() => null);
-      }
+      renderFbheVibrationShadow();
     });
     elements.scanButton.addEventListener("click", scanShiftLogs);
     elements.historicalBackfillButton.addEventListener("click", runHistoricalBackfill);
@@ -8830,3 +8896,5 @@
 })();
 
 /* FBHE_OIS_RUNTIME_STATE_SPLIT_V1 */
+
+/* FBHE_OIS_EXPLICIT_QUERY_COMPACT_V1 */
