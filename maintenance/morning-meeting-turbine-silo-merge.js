@@ -168,6 +168,16 @@
 
       stripIdentifiers(clone);
 
+      clone.querySelectorAll('span').forEach((label) => {
+        const text = (label.textContent || '').trim();
+
+        if (text.startsWith('Fly Ash Silo Level')) {
+          label.textContent = 'Fly Ash Silo';
+        } else if (text.startsWith('Bio Storage Silo Level')) {
+          label.textContent = 'Bio Storage Silo';
+        }
+      });
+
       if (index === 0) {
         clone.classList.add('is-silo-merge-start');
       }
