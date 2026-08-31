@@ -11859,24 +11859,7 @@ async function createUserRequest(
   }
 
 
-  /* [FBHE-VIBRATION-SHADOW-V1] raw vibration requests are restricted to super admin. */
-  if (
-    requestType ===
-      "fbhe_vibration" &&
-    user.role !==
-      "super_admin"
-  ) {
-    return jsonResponse(
-      {
-        ok:
-          false,
-
-        message:
-          "FBHE 진동 Shadow 조회는 최고관리자만 실행할 수 있습니다."
-      },
-      403
-    );
-  }
+  /* [FBHE-OPERATIONS-CONTROL-V1] Any authenticated desktop user may request FBHE vibration data. */
 
 
   if (

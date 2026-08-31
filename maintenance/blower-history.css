@@ -1712,3 +1712,23 @@ body.public-monitoring #vibrationShadowPanel { display: none !important; }
   background: #e6f6ec;
   color: #0b512d;
 }
+
+
+/* =========================================================
+   [FBHE-OPERATIONS-CONTROL-V1]
+   Logged-in desktop management controls
+========================================================= */
+.history-dialog-footer {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.asset-actions .asset-action[data-asset-action="runtime"] {
+  min-width: 76px;
+}
+
+@media (max-width: 900px) {
+  .history-dialog-footer .button {
+    flex: 1 1 140px;
+  }
+}

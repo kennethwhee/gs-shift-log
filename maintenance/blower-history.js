@@ -1,6 +1,7 @@
 "use strict";
 
 /* [FBHE-VIBRATION-SHADOW-V1] */
+/* [FBHE-OPERATIONS-CONTROL-V1] */
 (() => {
   const API_URL = "/api/blower-history";
   const OIS_REQUEST_API_URL = "/api/ois-data-requests";
@@ -145,6 +146,8 @@
       "historyDialogTitle",
       "historyDialogAsset",
       "historyCycleSummary",
+      "historyRuntimeStateButton",
+      "historyRuntimeCorrectionButton",
       "assetHistoryList",
       "toast"
     ].forEach(id => {
@@ -1149,6 +1152,7 @@
         <div class="asset-actions">
           ${operationAction}
           <button type="button" class="asset-action ${confirmed ? "" : "primary"}" data-mobile-write data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">${startupPending ? "V-Belt 교체 다시 등록" : "V-Belt 교체 등록"}</button>
+          ${confirmed && !startupPending ? `<button type="button" class="asset-action" data-mobile-write data-asset-action="runtime" data-tag="${escapeHtml(asset.tagNumber)}">누적시간</button>` : ""}
           <button type="button" class="asset-action" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}">이력 보기</button>
         </div>
       </article>
@@ -1559,7 +1563,7 @@
     const startupPending = cycleStartState === "pending";
     const actualStarted = cycleStartState === "started" && Boolean(asset.cycleStartedAt);
     const events = getAssetEvents(tagNumber)
-      .filter(event => ["replacement", "startup", "operation_start", "operation_stop"].includes(event.eventType));
+      .filter(event => ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction"].includes(event.eventType));
     const latestRuntimeEvent = latestExplicitRuntimeEvent(asset);
 
     elements.historyDialogTitle.textContent = `${asset.positionLabel} 이력`;
@@ -1587,6 +1591,26 @@
         <div class="history-unknown"><strong>확정된 V-Belt 교체 이력이 없습니다.</strong><span>검토 대기 후보를 확인하거나 최초 이력을 직접 등록해 주세요.</span></div>
       `;
 
+    if (elements.historyRuntimeStateButton) {
+      const canManageRuntime = hasAuthenticatedWriteAccess() && Boolean(asset.lastReplacementAt) && !awaitingBackfill;
+      elements.historyRuntimeStateButton.hidden = !canManageRuntime;
+      elements.historyRuntimeStateButton.disabled = !canManageRuntime;
+      if (canManageRuntime) {
+        const nextAction = startupPending ? "startup" : "runtime_state_add";
+        elements.historyRuntimeStateButton.dataset.historyAction = nextAction;
+        elements.historyRuntimeStateButton.dataset.targetState = startupPending || !asset.isRunning ? "running" : "stopped";
+        elements.historyRuntimeStateButton.textContent = startupPending || !asset.isRunning
+          ? "기동 이력 추가"
+          : "정지 이력 추가";
+      }
+    }
+
+    if (elements.historyRuntimeCorrectionButton) {
+      const canCorrectRuntime = hasAuthenticatedWriteAccess() && Boolean(asset.lastReplacementAt) && !awaitingBackfill && !startupPending;
+      elements.historyRuntimeCorrectionButton.hidden = !canCorrectRuntime;
+      elements.historyRuntimeCorrectionButton.disabled = !canCorrectRuntime;
+    }
+
     elements.assetHistoryList.innerHTML = events.length
       ? events.map(event => {
           const content = displayEventContent(event) || "등록 내용 없음";
@@ -1606,7 +1630,7 @@
 
           return `
             <article class="asset-history-item">
-              <div class="asset-history-date">${escapeHtml(["startup", "operation_start", "operation_stop"].includes(event.eventType) ? formatKstDateTimeDisplay(event.eventDate) : formatDate(event.eventDate))}</div>
+              <div class="asset-history-date">${escapeHtml(["startup", "operation_start", "operation_stop", "runtime_correction"].includes(event.eventType) ? formatKstDateTimeDisplay(event.eventDate) : formatDate(event.eventDate))}</div>
               <div class="asset-history-content">
                 <div class="asset-history-heading">
                   <span class="event-badge ${escapeHtml(event.eventType)}">${escapeHtml(eventLabel(event.eventType))}</span>
@@ -1614,7 +1638,7 @@
                   ${edited ? `<span class="event-edited">수정됨</span>` : ""}
                   ${editableRuntimeEvent ? `
                     <span class="asset-history-actions">
-                      <button type="button" class="button asset-history-edit" data-mobile-write data-history-action="runtime_state_edit" data-event-id="${escapeHtml(event.id)}">시간 수정</button>
+                      <button type="button" class="button asset-history-edit" data-mobile-write data-history-action="runtime_state_edit" data-event-id="${escapeHtml(event.id)}">이력 수정</button>
                     </span>
                   ` : ""}
                 </div>
@@ -1766,7 +1790,7 @@
 
   function canUseFbheVibrationShadow() {
     return Boolean(
-      state.data?.permissions?.canAdmin &&
+      hasAuthenticatedWriteAccess() &&
       state.activeType === "fbhe" &&
       !isMobileMonitoringView() &&
       !isPublicMonitoringView()
@@ -2190,7 +2214,7 @@
       } else {
         elements.authNotice.hidden = false;
         elements.authNotice.dataset.state = "public";
-        elements.authNotice.textContent = "공유 조회 전용 · Blower 현황과 교체 이력을 조회할 수 있습니다.";
+        elements.authNotice.textContent = "공유 조회 전용 · 로그인된 업무일지에서 이 메뉴를 열면 OIS 조회·기동/정지·이력 추가/수정·누적시간 보정이 활성화됩니다.";
       }
 
       if (!(data.types || []).some(type => type.key === state.activeType)) {
@@ -3545,6 +3569,17 @@
         }
         elements.historyDialog.close();
         openRecordDialog(action, tagNumber, editedEvent);
+        return;
+      }
+      if (action === "runtime_state_add") {
+        const targetState = button.dataset.targetState === "running" ? "running" : "stopped";
+        elements.historyDialog.close();
+        openRecordDialog("runtime_state", tagNumber, { targetState });
+        return;
+      }
+      if (action === "startup") {
+        elements.historyDialog.close();
+        openRecordDialog("startup", tagNumber);
         return;
       }
       elements.historyDialog.close();

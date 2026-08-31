@@ -6,9 +6,9 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260831-fbhe-vibration-shadow-v1">
+  <link rel="stylesheet" href="blower-history.css?v=20260831-fbhe-operations-control-v1">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="blower-history.js?v=20260831-fbhe-vibration-shadow-v1" defer></script>
+  <script src="blower-history.js?v=20260831-fbhe-operations-control-v1" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -45,7 +45,7 @@
     <div class="workspace">
       <nav class="sub-tabs" aria-label="관리 화면">
         <button type="button" class="sub-tab is-active" data-subview="overview" aria-current="page">현황</button>
-        <button type="button" class="sub-tab" data-subview="history">교체 이력</button>
+        <button type="button" class="sub-tab" data-subview="history">이력 관리</button>
         <button type="button" class="sub-tab" data-subview="detect" data-mobile-write>
           검토 대기
           <span class="count-badge" id="candidateCountBadge" hidden>0</span>
@@ -88,15 +88,15 @@
           <details class="vibration-shadow-panel" id="vibrationShadowPanel" hidden>
             <summary class="vibration-shadow-summary">
               <div>
-                <span class="settings-label">FBHE 진동 Shadow 검증</span>
+                <span class="settings-label">FBHE OIS 진동 조회 · Shadow 검증</span>
                 <strong id="vibrationHeadline">자동 반영 없음 · 조회 대기</strong>
               </div>
               <span class="vibration-shadow-summary-action">상세 보기</span>
             </summary>
             <div class="vibration-shadow-detail">
               <div class="vibration-shadow-guide">
-                <strong>검증 전용</strong>
-                <span>Blower·Motor DE/NDE 시간별 진동으로 급락·급상승을 찾습니다. 실제 카드 상태, 누적 운전시간, V-Belt Cycle은 변경하지 않습니다.</span>
+                <strong>OIS 수동 조회 · 자동 반영 없음</strong>
+                <span>로그인된 PC 사용자는 직접 조회할 수 있습니다. Blower·Motor DE/NDE 시간별 진동으로 운전·정지 후보를 확인하되 실제 카드 상태, 누적 운전시간, V-Belt Cycle은 자동 변경하지 않습니다.</span>
               </div>
               <div class="vibration-shadow-controls">
                 <label>
@@ -169,14 +169,14 @@
             <div class="section-title-row">
               <div>
                 <p class="eyebrow">EVENT HISTORY</p>
-                <h2>V-Belt 교체 이력</h2>
+                <h2>운전·교체 이력</h2>
               </div>
               <div class="filter-actions">
                 <select id="historyFilter" aria-label="이력 종류">
-                  <option value="replacement" selected>V-Belt 교체</option>
+                  <option value="all" selected>전체 관리 이력</option>
+                  <option value="replacement">V-Belt 교체</option>
                   <option value="startup">기동</option>
                   <option value="operation">기동·정지</option>
-                  <option value="all">전체 관리 이력</option>
                   <option value="problem">문제발생</option>
                 </select>
               </div>
@@ -487,6 +487,8 @@
       </div>
       <footer class="dialog-footer history-dialog-footer">
         <button type="button" class="button primary" data-mobile-write data-history-action="replacement">V-Belt 교체 등록</button>
+        <button type="button" class="button secondary" id="historyRuntimeStateButton" data-mobile-write data-history-action="runtime_state_add" hidden>운전 이력 추가</button>
+        <button type="button" class="button secondary" id="historyRuntimeCorrectionButton" data-mobile-write data-history-action="runtime" hidden>누적시간 수정</button>
         <button type="button" class="button secondary" data-close-dialog="historyDialog">닫기</button>
       </footer>
     </div>

@@ -50,12 +50,13 @@ test("keeps Shadow processing read-only", () => {
   assert.match(body, /cycleChanged:\s*false/);
 });
 
-test("restricts queue creation and Shadow report to super admin", () => {
+test("allows authenticated desktop users to request and read FBHE vibration", () => {
   const createStart = queueApi.indexOf("async function createUserRequest");
   const createEnd = queueApi.indexOf("async function completeAgentRequest", createStart);
   const createBody = queueApi.slice(createStart, createEnd);
-  assert.match(createBody, /requestType ===\s*"fbhe_vibration"[\s\S]*?user\.role !==\s*"super_admin"/);
-  assert.match(blowerApi, /action === "vibration_shadow"[\s\S]*?!user\?\.isSuperAdmin/);
+  assert.match(createBody, /const user =\s*authentication\.user/);
+  assert.doesNotMatch(createBody, /user\.role !==\s*"super_admin"/);
+  assert.match(blowerApi, /action === "vibration_shadow"[\s\S]*?if \(!user\)/);
 });
 
 test("ships the desktop-only FBHE validation panel", () => {
@@ -68,5 +69,17 @@ test("ships the desktop-only FBHE validation panel", () => {
   }
   assert.match(css, /body\.mobile-monitoring #vibrationShadowPanel/);
   assert.match(css, /body\.public-monitoring #vibrationShadowPanel/);
-  assert.match(frontend, /state\.data\?\.permissions\?\.canAdmin/);
+  assert.match(frontend, /hasAuthenticatedWriteAccess\(\)/);
+});
+
+
+test("ships direct runtime and history management controls for logged-in desktop users", () => {
+  assert.match(html, /id="historyRuntimeStateButton"/);
+  assert.match(html, /id="historyRuntimeCorrectionButton"/);
+  assert.match(frontend, /data-asset-action="runtime"/);
+  assert.match(frontend, /runtime_state_add/);
+  assert.match(frontend, /기동 이력 추가/);
+  assert.match(frontend, /정지 이력 추가/);
+  assert.match(frontend, /runtime_correction/);
+  assert.match(frontend, /이력 수정/);
 });

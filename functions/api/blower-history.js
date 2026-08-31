@@ -1856,6 +1856,7 @@ function buildSummaryFromAssets(assets) {
 }
 
 
+/* [FBHE-OPERATIONS-CONTROL-V1] */
 /* =========================================================
   [FBHE-VIBRATION-SHADOW-V1]
   FBHE Blower 진동 Shadow 판정
@@ -2734,10 +2735,10 @@ async function handleGet(context, user) {
     : sanitizeAssetsForAnonymous(assets);
 
   if (action === "vibration_shadow") {
-    if (!user?.isSuperAdmin) {
+    if (!user) {
       return jsonResponse(
-        { ok: false, message: "FBHE 진동 Shadow 검증은 최고관리자만 사용할 수 있습니다.", permissions },
-        403
+        { ok: false, message: "FBHE OIS 진동 조회는 로그인이 필요합니다.", permissions },
+        401
       );
     }
 
