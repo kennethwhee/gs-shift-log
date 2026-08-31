@@ -13077,6 +13077,14 @@ try {
       ) -or
       $optionalField
 
+    if (
+      $resultKey -eq
+        "ismartReception"
+    ) {
+      $allowBlank =
+        $true
+    }
+
     $numericValue =
       Get-FiniteExcelNumber -Value (
         Read-ExcelCellValue -Worksheet $plantWorksheet -Address $valueAddress
@@ -14069,10 +14077,10 @@ try {
         [double]$manualValues.generatorEcmsGen1
 
       ismartReception =
-        [double]$manualValues.ismartReception
+        $manualValues.ismartReception
 
       electricityReceived =
-        [double]$manualValues.ismartReception
+        $manualValues.ismartReception
 
       epowerTransmission =
         [double]$manualValues.epowerTransmission
@@ -15344,14 +15352,28 @@ async function collectDailyDataWorkbookValues(
     );
 
 
+  const rawIsmartReception =
+    capturedResult.ismartReception ??
+      capturedResult.electricityReceived;
+
+
   const ismartReception =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.ismartReception ??
-          capturedResult.electricityReceived,
-        "수전량 (I-Smart)"
-      )
-    );
+    rawIsmartReception ===
+        null ||
+      rawIsmartReception ===
+        undefined ||
+      normalizeOisAgentText(
+        rawIsmartReception
+      ) ===
+        ""
+      ? null
+      : roundDailyDataNumber(
+          parseDailyDataWorkbookNumber(
+            rawIsmartReception,
+            "수전량 (I-Smart)"
+          )
+        );
+
 
 
   const epowerTransmission =
@@ -21989,3 +22011,5 @@ oisAgentStartPromise
         1;
     }
   );
+
+/* [DAILY_DATA_ISMART_BLANK_TOLERANT_V1_R1] */
