@@ -230,28 +230,6 @@ function isValidIsoDate(
   );
 }
 
-
-
-/* [FBHE-OIS-RUNTIME-ANALYSIS-V2] */
-function addIsoDateDays(
-  value,
-  days
-) {
-  if (!isValidIsoDate(value)) return "";
-
-  const parsed =
-    new Date(`${value}T00:00:00.000Z`);
-
-  parsed.setUTCDate(
-    parsed.getUTCDate() +
-      Number(days || 0)
-  );
-
-  return parsed
-    .toISOString()
-    .slice(0, 10);
-}
-
 function inclusiveIsoDateCount(
   startDate,
   endDate
