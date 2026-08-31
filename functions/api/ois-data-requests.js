@@ -13505,8 +13505,8 @@ async function rebuildSolarHistoryOverridesFromDailyData(
   let updatedCount =
     0;
 
-  let conflictCount =
-    0;
+  const conflictDates =
+    [];
 
   const batchSize =
     50;
@@ -13555,12 +13555,322 @@ async function rebuildSolarHistoryOverridesFromDailyData(
             1;
         }
         else {
-          conflictCount +=
-            1;
+          conflictDates.push(
+            job.date
+          );
         }
       }
     );
   }
+
+
+  const initialConflictCount =
+    conflictDates.length;
+
+  let retryRoundCount =
+    0;
+
+  let retryAttemptedCount =
+    0;
+
+  let retryUpdatedCount =
+    0;
+
+  let retryAlreadyCorrectCount =
+    0;
+
+  let pendingConflictDates =
+    [
+      ...new Set(
+        conflictDates
+      )
+    ];
+
+
+  for (
+    let retryRound =
+      1;
+    retryRound <=
+        2 &&
+    pendingConflictDates.length >
+      0;
+    retryRound +=
+      1
+  ) {
+    retryRoundCount =
+      retryRound;
+
+    const latestItems =
+      await findMorningMeetingAutoHistoryOverrides(
+        database,
+        validation.startDate,
+        validation.endDate
+      );
+
+    const latestByDate =
+      new Map(
+        latestItems.map(
+          item => [
+            item.targetDate,
+            item
+          ]
+        )
+      );
+
+    const sourceByDate =
+      new Map(
+        validation.rows.map(
+          row => [
+            row.date,
+            row
+          ]
+        )
+      );
+
+    const retryJobs =
+      [];
+
+    const unresolvedWithoutRow =
+      [];
+
+
+    /*
+      Prefer the current request date first because that is the
+      row most likely to be racing with the foreground auto-save.
+    */
+    pendingConflictDates.sort(
+      (
+        left,
+        right
+      ) => {
+        const targetDate =
+          normalizeText(
+            requestItem.targetDate
+          );
+
+        if (
+          left ===
+            targetDate &&
+          right !==
+            targetDate
+        ) {
+          return -1;
+        }
+
+        if (
+          right ===
+            targetDate &&
+          left !==
+            targetDate
+        ) {
+          return 1;
+        }
+
+        return left.localeCompare(
+          right
+        );
+      }
+    );
+
+
+    for (
+      const date of
+      pendingConflictDates
+    ) {
+      const latestItem =
+        latestByDate.get(
+          date
+        );
+
+      const sourceRow =
+        sourceByDate.get(
+          date
+        );
+
+      if (
+        !latestItem ||
+        !sourceRow
+      ) {
+        unresolvedWithoutRow.push(
+          date
+        );
+
+        continue;
+      }
+
+      const latestValues =
+        latestItem.values &&
+        typeof latestItem.values ===
+          "object" &&
+        !Array.isArray(
+          latestItem.values
+        )
+          ? latestItem.values
+          : {};
+
+      const desiredSolarValues =
+        normalizeMorningMeetingAutoHistoryOverrideValues({
+          powerSolar:
+            sourceRow.daily,
+
+          powerSolarMonthly:
+            sourceRow.monthly,
+
+          powerSolarYearly:
+            sourceRow.yearly
+        });
+
+      const isAlreadyCorrect =
+        isSameSolarHistoryRebuildNumber(
+          latestValues.powerSolar,
+          desiredSolarValues.powerSolar
+        ) &&
+        isSameSolarHistoryRebuildNumber(
+          latestValues.powerSolarMonthly,
+          desiredSolarValues.powerSolarMonthly
+        ) &&
+        isSameSolarHistoryRebuildNumber(
+          latestValues.powerSolarYearly,
+          desiredSolarValues.powerSolarYearly
+        );
+
+      if (
+        isAlreadyCorrect
+      ) {
+        retryAlreadyCorrectCount +=
+          1;
+
+        continue;
+      }
+
+      const latestRevision =
+        Number.isInteger(
+          Number(
+            latestItem.revision
+          )
+        ) &&
+        Number(
+          latestItem.revision
+        ) >
+          0
+          ? Number(
+              latestItem.revision
+            )
+          : 1;
+
+      const mergedValues = {
+        ...latestValues,
+        ...desiredSolarValues
+      };
+
+      retryJobs.push({
+        date,
+
+        statement:
+          database
+            .prepare(`
+              UPDATE
+                morning_meeting_auto_history_overrides
+
+              SET
+                values_json = ?,
+                updated_by_id = ?,
+                updated_by_name = ?,
+                updated_at = ?,
+                revision = revision + 1
+
+              WHERE
+                target_date = ?
+                AND revision = ?
+            `)
+            .bind(
+              JSON.stringify(
+                mergedValues
+              ),
+              actorId,
+              actorName,
+              new Date()
+                .toISOString(),
+              date,
+              latestRevision
+            )
+      });
+    }
+
+
+    retryAttemptedCount +=
+      retryJobs.length;
+
+    const nextConflictDates =
+      [
+        ...unresolvedWithoutRow
+      ];
+
+
+    for (
+      let offset =
+        0;
+      offset <
+        retryJobs.length;
+      offset +=
+        batchSize
+    ) {
+      const chunk =
+        retryJobs.slice(
+          offset,
+          offset +
+            batchSize
+        );
+
+      const results =
+        await database.batch(
+          chunk.map(
+            job =>
+              job.statement
+          )
+        );
+
+      chunk.forEach(
+        (
+          job,
+          index
+        ) => {
+          const changes =
+            Number(
+              results?.[index]
+                ?.meta
+                ?.changes ||
+              0
+            );
+
+          if (
+            changes ===
+              1
+          ) {
+            retryUpdatedCount +=
+              1;
+          }
+          else {
+            nextConflictDates.push(
+              job.date
+            );
+          }
+        }
+      );
+    }
+
+
+    pendingConflictDates =
+      [
+        ...new Set(
+          nextConflictDates
+        )
+      ];
+  }
+
+
+  const conflictCount =
+    pendingConflictDates.length;
 
   return {
     ok:
@@ -13580,6 +13890,16 @@ async function rebuildSolarHistoryOverridesFromDailyData(
     updatedCount,
     unchangedCount,
     absentCount,
+    initialConflictCount,
+
+    retryRoundCount,
+
+    retryAttemptedCount,
+
+    retryUpdatedCount,
+
+    retryAlreadyCorrectCount,
+
     conflictCount,
     complete:
       conflictCount ===
@@ -14434,3 +14754,5 @@ if (
 }
 
 /* DAILY_DATA_SOLAR_HISTORY_REBUILD_API_V1 */
+
+/* DAILY_DATA_SOLAR_HISTORY_REBUILD_REVISION_RETRY_V101 */
