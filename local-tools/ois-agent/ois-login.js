@@ -15610,6 +15610,232 @@ async function collectDailyDataWorkbookValues(
         );
 
 
+
+  const parseOptionalSolarCumulativeNumber =
+    (
+      value,
+      label
+    ) => {
+      if (
+        value ===
+          null ||
+        value ===
+          undefined ||
+        normalizeOisAgentText(
+          value
+        ) ===
+          ""
+      ) {
+        return null;
+      }
+
+      const numericValue =
+        roundDailyDataNumber(
+          parseDailyDataWorkbookNumber(
+            value,
+            label
+          ),
+          3
+        );
+
+      if (
+        numericValue <
+          0
+      ) {
+        throw new Error(
+          `${label} is below zero.`
+        );
+      }
+
+      return numericValue;
+    };
+
+
+  const capturedSolarCumulative =
+    capturedResult.solarCumulative &&
+    typeof capturedResult.solarCumulative ===
+      "object"
+      ? capturedResult.solarCumulative
+      : {};
+
+
+  const solarWeeklyCumulative =
+    parseOptionalSolarCumulativeNumber(
+      capturedResult.solarWeeklyCumulative ??
+        capturedSolarCumulative.week?.total,
+      "solarWeeklyCumulative"
+    );
+
+
+  const solarMonthlyCumulative =
+    parseOptionalSolarCumulativeNumber(
+      capturedResult.solarMonthlyCumulative ??
+        capturedSolarCumulative.month?.total,
+      "solarMonthlyCumulative"
+    );
+
+
+  const solarYearlyCumulative =
+    parseOptionalSolarCumulativeNumber(
+      capturedResult.solarYearlyCumulative ??
+        capturedSolarCumulative.year?.total,
+      "solarYearlyCumulative"
+    );
+
+
+  const normalizeSolarRangeMetadata =
+    (
+      range,
+      total
+    ) => {
+      const sourceRange =
+        range &&
+        typeof range ===
+          "object"
+          ? range
+          : {};
+
+      return {
+        startDate:
+          normalizeOisAgentText(
+            sourceRange.startDate
+          ),
+
+        endDate:
+          normalizeOisAgentText(
+            sourceRange.endDate
+          ),
+
+        complete:
+          sourceRange.complete ===
+            true,
+
+        total,
+
+        missingDates:
+          Array.isArray(
+            sourceRange.missingDates
+          )
+            ? sourceRange.missingDates
+                .map(
+                  item =>
+                    normalizeOisAgentText(
+                      item
+                    )
+                )
+                .filter(Boolean)
+            : []
+      };
+    };
+
+
+  const solarCumulative = {
+    source:
+      normalizeOisAgentText(
+        capturedSolarCumulative.source
+      ) ||
+      "Plant!55 태양광 일일 발전량",
+
+    week:
+      normalizeSolarRangeMetadata(
+        capturedSolarCumulative.week,
+        solarWeeklyCumulative
+      ),
+
+    month:
+      normalizeSolarRangeMetadata(
+        capturedSolarCumulative.month,
+        solarMonthlyCumulative
+      ),
+
+    year:
+      normalizeSolarRangeMetadata(
+        capturedSolarCumulative.year,
+        solarYearlyCumulative
+      ),
+
+    sourceWorkbooks:
+      Array.isArray(
+        capturedSolarCumulative.sourceWorkbooks
+      )
+        ? capturedSolarCumulative.sourceWorkbooks
+            .map(
+              item =>
+                normalizeOisAgentText(
+                  item
+                )
+            )
+            .filter(Boolean)
+        : [],
+
+    missingWorkbooks:
+      Array.isArray(
+        capturedSolarCumulative.missingWorkbooks
+      )
+        ? capturedSolarCumulative.missingWorkbooks
+            .map(
+              item =>
+                normalizeOisAgentText(
+                  item
+                )
+            )
+            .filter(Boolean)
+        : [],
+
+    errors:
+      Array.isArray(
+        capturedSolarCumulative.errors
+      )
+        ? capturedSolarCumulative.errors
+            .map(
+              item =>
+                normalizeOisAgentText(
+                  item
+                )
+            )
+            .filter(Boolean)
+        : []
+  };
+
+
+  if (
+    solarDailyGeneration !==
+      null
+  ) {
+    for (
+      const [
+        label,
+        cumulativeValue
+      ] of [
+        [
+          "solarWeeklyCumulative",
+          solarWeeklyCumulative
+        ],
+        [
+          "solarMonthlyCumulative",
+          solarMonthlyCumulative
+        ],
+        [
+          "solarYearlyCumulative",
+          solarYearlyCumulative
+        ]
+      ]
+    ) {
+      if (
+        cumulativeValue !==
+          null &&
+        cumulativeValue +
+          0.001 <
+          solarDailyGeneration
+      ) {
+        throw new Error(
+          `${label} is smaller than solarDailyGeneration.`
+        );
+      }
+    }
+  }
+
+
   const parseOptionalOrganicNumber =
     (
       value,
@@ -15999,6 +16225,15 @@ async function collectDailyDataWorkbookValues(
 
     solarDaily:
       solarDailyGeneration,
+
+
+    solarWeeklyCumulative,
+
+    solarMonthlyCumulative,
+
+    solarYearlyCumulative,
+
+    solarCumulative,
 
     steamSalesLowPressure,
 
@@ -22225,3 +22460,5 @@ oisAgentStartPromise
   );
 
 /* [DAILY_DATA_ISMART_BLANK_TOLERANT_V1_R1] */
+
+/* DAILY_DATA_SOLAR_CUMULATIVE_PASS_THROUGH_V1 */
