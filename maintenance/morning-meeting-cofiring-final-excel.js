@@ -215,12 +215,93 @@
     return withDerivedAverages(displayed || {});
   }
 
-  function applyValuesToWorksheet(worksheetDocument) {
-    const writer = window.setMorningMeetingNumericCellValue;
+  /* =====================================================
+    Final Excel numeric cell writer compatibility
 
-    if (typeof writer !== "function") {
-      throw new Error("최종 Excel 숫자 셀 기록 함수를 찾지 못했습니다.");
+    script.js keeps setMorningMeetingNumericCellValue in its
+    own script scope, so it is not guaranteed to exist on window.
+    Use the global writer when available; otherwise use the same
+    worksheet-cell overwrite behavior locally.
+  ====================================================== */
+
+  function findWorksheetCellByAddress(worksheetDocument, address) {
+    const normalizedAddress = String(address || "").trim().toUpperCase();
+    if (!worksheetDocument || !normalizedAddress) {
+      return null;
     }
+
+    const spreadsheetNamespace =
+      worksheetDocument.documentElement?.namespaceURI ||
+      "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+    let cells = [];
+
+    if (typeof worksheetDocument.getElementsByTagNameNS === "function") {
+      cells = Array.from(
+        worksheetDocument.getElementsByTagNameNS(spreadsheetNamespace, "c")
+      );
+    }
+
+    if (cells.length === 0 && typeof worksheetDocument.getElementsByTagName === "function") {
+      cells = Array.from(worksheetDocument.getElementsByTagName("c"));
+    }
+
+    return (
+      cells.find((cellElement) => {
+        return (
+          String(cellElement?.getAttribute?.("r") || "")
+            .trim()
+            .toUpperCase() === normalizedAddress
+        );
+      }) || null
+    );
+  }
+
+  function setNumericCellValueFallback(worksheetDocument, address, sourceValue) {
+    const cellElement = findWorksheetCellByAddress(worksheetDocument, address);
+
+    if (!cellElement) {
+      return { found: false, written: false, cleared: false };
+    }
+
+    while (cellElement.firstChild) {
+      cellElement.removeChild(cellElement.firstChild);
+    }
+
+    cellElement.removeAttribute("t");
+
+    const hasSourceValue =
+      sourceValue !== null &&
+      sourceValue !== undefined &&
+      String(sourceValue).trim() !== "";
+
+    const numericValue = hasSourceValue ? Number(sourceValue) : Number.NaN;
+
+    if (!Number.isFinite(numericValue)) {
+      return { found: true, written: false, cleared: true };
+    }
+
+    const spreadsheetNamespace =
+      cellElement.namespaceURI ||
+      worksheetDocument.documentElement?.namespaceURI ||
+      "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+    const valueElement = worksheetDocument.createElementNS(
+      spreadsheetNamespace,
+      "v"
+    );
+
+    valueElement.textContent = String(numericValue);
+    cellElement.appendChild(valueElement);
+
+    return { found: true, written: true, cleared: false };
+  }
+
+  function applyValuesToWorksheet(worksheetDocument) {
+    const writer =
+      typeof window.setMorningMeetingNumericCellValue === "function"
+        ? window.setMorningMeetingNumericCellValue
+        : setNumericCellValueFallback;
 
     const values = getExcelValues();
     const results = [];
