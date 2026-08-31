@@ -1,0 +1,66 @@
+﻿/* =========================================================
+   Morning meeting: merge TURBINE + SILO LEVEL into one card.
+   The original SILO card stays in the DOM as the live OIS
+   source, but is hidden from the grid so its slot is reserved.
+   ========================================================= */
+
+#efficiencyMorningMeetingAutoSiloCard.is-turbine-silo-source-hidden {
+  /* Keep the original SILO grid cell reserved so SMP/Weather do not shift.
+     The card remains the live OIS source in the DOM, but is visually blank. */
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.efficiency-morning-meeting-auto-card.is-gear-pinion.is-turbine-silo-merged {
+  overflow: hidden;
+}
+
+.efficiency-morning-meeting-auto-card.is-gear-pinion.is-turbine-silo-merged
+  > .efficiency-morning-meeting-auto-card__body:not(.efficiency-morning-meeting-turbine-silo-merge__body) {
+  padding-bottom: 0 !important;
+}
+
+.efficiency-morning-meeting-turbine-silo-merge__body {
+  padding-top: 0 !important;
+}
+
+.efficiency-morning-meeting-turbine-silo-merge__body
+  > .efficiency-morning-meeting-auto-row.is-silo-merge-start {
+  margin-top: 3px;
+  border-top: 1px solid #dfe7f0;
+  padding-top: 3px;
+}
+
+.efficiency-morning-meeting-turbine-silo-merge__query {
+  min-width: 56px;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid #3f7fd8;
+  border-radius: 7px;
+  background: #3c7fe7;
+  color: #ffffff;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.efficiency-morning-meeting-turbine-silo-merge__query:hover:not(:disabled) {
+  background: #326fcf;
+}
+
+.efficiency-morning-meeting-turbine-silo-merge__query:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+@media (max-width: 768px) {
+  .efficiency-morning-meeting-turbine-silo-merge__query {
+    min-width: 52px;
+    height: 23px;
+    padding: 0 6px;
+    font-size: 9px;
+  }
+}
