@@ -148,12 +148,17 @@
 
 .morning-meeting-cofiring-adjustment-input > div {
   position: relative;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 }
 
 .morning-meeting-cofiring-adjustment-input input {
-  width: 100%;
+  width: 248px;
+  max-width: 100%;
   height: 34px;
   box-sizing: border-box;
+  margin-left: auto;
   padding: 0 42px 0 9px;
   border: 1px solid #cbd6e3;
   border-radius: 7px;
@@ -161,6 +166,7 @@
   color: #26384f;
   font-size: 12px;
   font-weight: 850;
+  text-align: right;
 }
 
 .morning-meeting-cofiring-adjustment-input small {
@@ -299,6 +305,19 @@ body.is-morning-meeting-cofiring-adjustment-open {
 @media (max-width: 600px) {
   .morning-meeting-cofiring-adjustment-dialog {
     width: 100%;
+  }
+
+  .morning-meeting-cofiring-adjustment-input {
+    grid-template-columns: 1fr;
+  }
+
+  .morning-meeting-cofiring-adjustment-input > div {
+    justify-content: stretch;
+  }
+
+  .morning-meeting-cofiring-adjustment-input input {
+    width: 100%;
+    margin-left: 0;
   }
 
   .morning-meeting-cofiring-adjustment-preview > div {
