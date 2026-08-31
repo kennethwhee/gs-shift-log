@@ -12849,6 +12849,745 @@ async function createUserRequest(
   5. OIS 요청 완료 처리
 ========================================================= */
 
+
+/* =========================================================
+  DAILY DATA SOLAR HISTORY REBUILD V1
+
+  - source: Plant row 55 daily solar values
+  - validate Jan-1 -> target date recurrence
+  - update existing history rows only
+  - preserve every non-solar value in values_json
+========================================================= */
+
+function roundSolarHistoryRebuildNumber(
+  value
+) {
+  return Math.round(
+    (
+      Number(value) +
+      Number.EPSILON
+    ) *
+      1000
+  ) /
+    1000;
+}
+
+
+function normalizeSolarHistoryRebuildNumber(
+  value
+) {
+  if (
+    value ===
+      null ||
+    value ===
+      undefined ||
+    normalizeText(
+      value
+    ) ===
+      ""
+  ) {
+    return null;
+  }
+
+  const number =
+    Number(
+      value
+    );
+
+  if (
+    !Number.isFinite(
+      number
+    ) ||
+    number <
+      0 ||
+    number >
+      1000000000000
+  ) {
+    return null;
+  }
+
+  return roundSolarHistoryRebuildNumber(
+    number
+  );
+}
+
+
+function isSameSolarHistoryRebuildNumber(
+  left,
+  right
+) {
+  const a =
+    normalizeSolarHistoryRebuildNumber(
+      left
+    );
+
+  const b =
+    normalizeSolarHistoryRebuildNumber(
+      right
+    );
+
+  if (
+    a ===
+      null ||
+    b ===
+      null
+  ) {
+    return (
+      a ===
+      b
+    );
+  }
+
+  return (
+    Math.abs(
+      a -
+      b
+    ) <=
+      0.002
+  );
+}
+
+
+function validateSolarHistoryRebuildRows(
+  rawRows,
+  targetDate,
+  normalizedResult
+) {
+  const normalizedTargetDate =
+    normalizeText(
+      targetDate
+    );
+
+  if (
+    !isValidIsoDate(
+      normalizedTargetDate
+    )
+  ) {
+    return {
+      ok:
+        false,
+      reason:
+        "invalid_target_date",
+      rows:
+        []
+    };
+  }
+
+  if (
+    !Array.isArray(
+      rawRows
+    )
+  ) {
+    return {
+      ok:
+        false,
+      reason:
+        "history_rows_missing",
+      rows:
+        []
+    };
+  }
+
+  const yearStart =
+    normalizedTargetDate.slice(
+      0,
+      4
+    ) +
+    "-01-01";
+
+  const expectedCount =
+    inclusiveIsoDateCount(
+      yearStart,
+      normalizedTargetDate
+    );
+
+  if (
+    expectedCount <
+      1 ||
+    expectedCount >
+      366 ||
+    rawRows.length !==
+      expectedCount
+  ) {
+    return {
+      ok:
+        false,
+      reason:
+        "history_row_count_mismatch",
+      expectedCount,
+      receivedCount:
+        rawRows.length,
+      rows:
+        []
+    };
+  }
+
+  if (
+    normalizedResult
+      ?.solarCumulative
+      ?.year
+      ?.complete !==
+        true
+  ) {
+    return {
+      ok:
+        false,
+      reason:
+        "year_source_incomplete",
+      rows:
+        []
+    };
+  }
+
+  const rows = [];
+
+  let runningYear =
+    0;
+
+  let runningMonth =
+    0;
+
+  let currentMonthKey =
+    "";
+
+  for (
+    let index =
+      0;
+    index <
+      rawRows.length;
+    index +=
+      1
+  ) {
+    const expectedDate =
+      addIsoDateDays(
+        yearStart,
+        index
+      );
+
+    const rawRow =
+      rawRows[index] &&
+      typeof rawRows[index] ===
+        "object" &&
+      !Array.isArray(
+        rawRows[index]
+      )
+        ? rawRows[index]
+        : {};
+
+    const date =
+      normalizeText(
+        rawRow.date
+      );
+
+    if (
+      date !==
+        expectedDate
+    ) {
+      return {
+        ok:
+          false,
+        reason:
+          "history_date_sequence_mismatch",
+        index,
+        expectedDate,
+        receivedDate:
+          date,
+        rows:
+          []
+      };
+    }
+
+    const daily =
+      normalizeSolarHistoryRebuildNumber(
+        rawRow.daily
+      );
+
+    const monthly =
+      normalizeSolarHistoryRebuildNumber(
+        rawRow.monthly
+      );
+
+    const yearly =
+      normalizeSolarHistoryRebuildNumber(
+        rawRow.yearly
+      );
+
+    if (
+      daily ===
+        null ||
+      monthly ===
+        null ||
+      yearly ===
+        null
+    ) {
+      return {
+        ok:
+          false,
+        reason:
+          "history_value_invalid",
+        index,
+        date,
+        rows:
+          []
+      };
+    }
+
+    const monthKey =
+      date.slice(
+        0,
+        7
+      );
+
+    if (
+      monthKey !==
+        currentMonthKey
+    ) {
+      currentMonthKey =
+        monthKey;
+
+      runningMonth =
+        0;
+    }
+
+    runningMonth +=
+      daily;
+
+    runningYear +=
+      daily;
+
+    const expectedMonthly =
+      roundSolarHistoryRebuildNumber(
+        runningMonth
+      );
+
+    const expectedYearly =
+      roundSolarHistoryRebuildNumber(
+        runningYear
+      );
+
+    if (
+      !isSameSolarHistoryRebuildNumber(
+        monthly,
+        expectedMonthly
+      ) ||
+      !isSameSolarHistoryRebuildNumber(
+        yearly,
+        expectedYearly
+      )
+    ) {
+      return {
+        ok:
+          false,
+        reason:
+          "history_recurrence_mismatch",
+        index,
+        date,
+        expectedMonthly,
+        receivedMonthly:
+          monthly,
+        expectedYearly,
+        receivedYearly:
+          yearly,
+        rows:
+          []
+      };
+    }
+
+    rows.push({
+      date,
+      daily,
+      monthly:
+        expectedMonthly,
+      yearly:
+        expectedYearly
+    });
+  }
+
+  const finalRow =
+    rows[
+      rows.length -
+      1
+    ];
+
+  const resultDaily =
+    normalizeSolarHistoryRebuildNumber(
+      normalizedResult
+        ?.solarDailyGeneration ??
+      normalizedResult
+        ?.solarDaily
+    );
+
+  const resultMonthly =
+    normalizeSolarHistoryRebuildNumber(
+      normalizedResult
+        ?.solarMonthlyCumulative ??
+      normalizedResult
+        ?.solarCumulative
+        ?.month
+        ?.total
+    );
+
+  const resultYearly =
+    normalizeSolarHistoryRebuildNumber(
+      normalizedResult
+        ?.solarYearlyCumulative ??
+      normalizedResult
+        ?.solarCumulative
+        ?.year
+        ?.total
+    );
+
+  if (
+    !finalRow ||
+    resultDaily ===
+      null ||
+    resultMonthly ===
+      null ||
+    resultYearly ===
+      null ||
+    !isSameSolarHistoryRebuildNumber(
+      finalRow.daily,
+      resultDaily
+    ) ||
+    !isSameSolarHistoryRebuildNumber(
+      finalRow.monthly,
+      resultMonthly
+    ) ||
+    !isSameSolarHistoryRebuildNumber(
+      finalRow.yearly,
+      resultYearly
+    )
+  ) {
+    return {
+      ok:
+        false,
+      reason:
+        "target_totals_mismatch",
+      rows:
+        []
+    };
+  }
+
+  return {
+    ok:
+      true,
+    startDate:
+      yearStart,
+    endDate:
+      normalizedTargetDate,
+    rows
+  };
+}
+
+
+async function rebuildSolarHistoryOverridesFromDailyData(
+  database,
+  options = {}
+) {
+  const requestItem =
+    options.requestItem ||
+    {};
+
+  const normalizedResult =
+    options.normalizedResult &&
+    typeof options.normalizedResult ===
+      "object" &&
+    !Array.isArray(
+      options.normalizedResult
+    )
+      ? options.normalizedResult
+      : {};
+
+  const validation =
+    validateSolarHistoryRebuildRows(
+      options.rawRows,
+      requestItem.targetDate,
+      normalizedResult
+    );
+
+  if (
+    !validation.ok
+  ) {
+    return {
+      ok:
+        false,
+      applied:
+        false,
+      reason:
+        validation.reason,
+      expectedCount:
+        validation.expectedCount ??
+        null,
+      receivedCount:
+        validation.receivedCount ??
+        (
+          Array.isArray(
+            options.rawRows
+          )
+            ? options.rawRows.length
+            : 0
+        )
+    };
+  }
+
+  await ensureMorningMeetingAutoHistoryOverridesTable(
+    database
+  );
+
+  const existingItems =
+    await findMorningMeetingAutoHistoryOverrides(
+      database,
+      validation.startDate,
+      validation.endDate
+    );
+
+  const existingByDate =
+    new Map(
+      existingItems.map(
+        item => [
+          item.targetDate,
+          item
+        ]
+      )
+    );
+
+  const actorId =
+    normalizeText(
+      requestItem.requestedById
+    ) ||
+    (
+      "ois-agent:" +
+      (
+        normalizeText(
+          options.agentId
+        ) ||
+        "unknown"
+      )
+    );
+
+  const actorName =
+    normalizeText(
+      requestItem.requestedByName
+    ) ||
+    "OIS Agent";
+
+  const now =
+    new Date()
+      .toISOString();
+
+  const jobs = [];
+
+  let absentCount =
+    0;
+
+  let unchangedCount =
+    0;
+
+  for (
+    const row of
+    validation.rows
+  ) {
+    const existingItem =
+      existingByDate.get(
+        row.date
+      );
+
+    /*
+      Do not create dates that were not already part of the
+      saved history. This avoids solar-only synthetic rows.
+    */
+    if (
+      !existingItem
+    ) {
+      absentCount +=
+        1;
+
+      continue;
+    }
+
+    const existingValues =
+      existingItem.values &&
+      typeof existingItem.values ===
+        "object" &&
+      !Array.isArray(
+        existingItem.values
+      )
+        ? existingItem.values
+        : {};
+
+    const desiredSolarValues =
+      normalizeMorningMeetingAutoHistoryOverrideValues({
+        powerSolar:
+          row.daily,
+        powerSolarMonthly:
+          row.monthly,
+        powerSolarYearly:
+          row.yearly
+      });
+
+    const unchanged =
+      isSameSolarHistoryRebuildNumber(
+        existingValues.powerSolar,
+        desiredSolarValues.powerSolar
+      ) &&
+      isSameSolarHistoryRebuildNumber(
+        existingValues.powerSolarMonthly,
+        desiredSolarValues.powerSolarMonthly
+      ) &&
+      isSameSolarHistoryRebuildNumber(
+        existingValues.powerSolarYearly,
+        desiredSolarValues.powerSolarYearly
+      );
+
+    if (
+      unchanged
+    ) {
+      unchangedCount +=
+        1;
+
+      continue;
+    }
+
+    const mergedValues = {
+      ...existingValues,
+      ...desiredSolarValues
+    };
+
+    const revision =
+      Number.isInteger(
+        Number(
+          existingItem.revision
+        )
+      ) &&
+      Number(
+        existingItem.revision
+      ) >
+        0
+        ? Number(
+            existingItem.revision
+          )
+        : 1;
+
+    jobs.push({
+      date:
+        row.date,
+
+      statement:
+        database
+          .prepare(`
+            UPDATE
+              morning_meeting_auto_history_overrides
+
+            SET
+              values_json = ?,
+              updated_by_id = ?,
+              updated_by_name = ?,
+              updated_at = ?,
+              revision = revision + 1
+
+            WHERE
+              target_date = ?
+              AND revision = ?
+          `)
+          .bind(
+            JSON.stringify(
+              mergedValues
+            ),
+            actorId,
+            actorName,
+            now,
+            row.date,
+            revision
+          )
+    });
+  }
+
+  let updatedCount =
+    0;
+
+  let conflictCount =
+    0;
+
+  const batchSize =
+    50;
+
+  for (
+    let offset =
+      0;
+    offset <
+      jobs.length;
+    offset +=
+      batchSize
+  ) {
+    const chunk =
+      jobs.slice(
+        offset,
+        offset +
+          batchSize
+      );
+
+    const results =
+      await database.batch(
+        chunk.map(
+          job =>
+            job.statement
+        )
+      );
+
+    chunk.forEach(
+      (
+        job,
+        index
+      ) => {
+        const changes =
+          Number(
+            results?.[index]
+              ?.meta
+              ?.changes ||
+            0
+          );
+
+        if (
+          changes ===
+            1
+        ) {
+          updatedCount +=
+            1;
+        }
+        else {
+          conflictCount +=
+            1;
+        }
+      }
+    );
+  }
+
+  return {
+    ok:
+      true,
+    applied:
+      true,
+    source:
+      "Plant row 55",
+    startDate:
+      validation.startDate,
+    endDate:
+      validation.endDate,
+    sourceRowCount:
+      validation.rows.length,
+    existingRowCount:
+      existingItems.length,
+    updatedCount,
+    unchangedCount,
+    absentCount,
+    conflictCount,
+    complete:
+      conflictCount ===
+        0
+  };
+}
+
+
 async function completeAgentRequest(
   context,
   body
@@ -12941,6 +13680,9 @@ let limestoneUsageRecords = [];
 let auxiliaryMaterialRecords = [];
 
 let oisLegacySaveResult =
+  null;
+
+let solarHistoryRowsForRepair =
   null;
 
 
@@ -13118,6 +13860,58 @@ limestoneUsageRecords =
       : {};
 }
 
+
+  if (
+    [
+      "daily_data_excel",
+      "steam_status"
+    ].includes(
+      existingRequest.requestType
+    )
+  ) {
+    solarHistoryRowsForRepair =
+      Array.isArray(
+        normalizedResult
+          ?.solarHistoryRows
+      )
+        ? normalizedResult
+            .solarHistoryRows
+        : Array.isArray(
+            normalizedResult
+              ?.solarCumulative
+              ?.historyRows
+          )
+          ? normalizedResult
+              .solarCumulative
+              .historyRows
+          : null;
+
+    normalizedResult = {
+      ...normalizedResult
+    };
+
+    delete normalizedResult
+      .solarHistoryRows;
+
+    if (
+      normalizedResult.solarCumulative &&
+      typeof normalizedResult.solarCumulative ===
+        "object" &&
+      !Array.isArray(
+        normalizedResult.solarCumulative
+      )
+    ) {
+      normalizedResult.solarCumulative = {
+        ...normalizedResult.solarCumulative
+      };
+
+      delete normalizedResult
+        .solarCumulative
+        .historyRows;
+    }
+  }
+
+
   const now =
     new Date()
       .toISOString();
@@ -13170,6 +13964,60 @@ limestoneUsageRecords =
           "OIS 요청 상태가 변경되어 완료 처리하지 못했습니다."
       },
       409
+    );
+  }
+
+
+
+  if (
+    [
+      "daily_data_excel",
+      "steam_status"
+    ].includes(
+      existingRequest.requestType
+    )
+  ) {
+    let solarHistoryRepair =
+      null;
+
+    try {
+      solarHistoryRepair =
+        await rebuildSolarHistoryOverridesFromDailyData(
+          context.env.DB,
+          {
+            requestItem:
+              existingRequest,
+            normalizedResult,
+            rawRows:
+              solarHistoryRowsForRepair,
+            agentId:
+              authentication.agentId
+          }
+        );
+    }
+    catch (
+      error
+    ) {
+      solarHistoryRepair = {
+        ok:
+          false,
+        applied:
+          false,
+        reason:
+          "repair_exception",
+        message:
+          error instanceof Error
+            ? error.message
+            : String(
+                error ||
+                "unknown solar history rebuild error"
+              )
+      };
+    }
+
+    console.log(
+      "Daily DATA solar history rebuild:",
+      solarHistoryRepair
     );
   }
 
@@ -13584,3 +14432,5 @@ if (
     );
   }
 }
+
+/* DAILY_DATA_SOLAR_HISTORY_REBUILD_API_V1 */

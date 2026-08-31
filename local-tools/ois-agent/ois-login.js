@@ -12742,6 +12742,118 @@ function Get-SolarCumulativeWorkbookResult {
   $yearlyResult =
     Get-SolarCumulativeRangeResult -DailyValues $dailyValues -StartDate $yearStart -EndDate $TargetDateValue
 
+
+  $historyRows =
+    @()
+
+  if (
+    $yearlyResult.complete -eq
+      $true
+  ) {
+    $historyCursor =
+      $yearStart.Date
+
+    $historyYearTotal =
+      0.0
+
+    $historyMonthTotal =
+      0.0
+
+    $historyMonthKey =
+      ""
+
+    while (
+      $historyCursor -le
+        $TargetDateValue.Date
+    ) {
+      $historyDateKey =
+        $historyCursor.ToString(
+          "yyyy-MM-dd",
+          [Globalization.CultureInfo]::InvariantCulture
+        )
+
+      $historyDailyValue =
+        $dailyValues[
+          $historyDateKey
+        ]
+
+      if (
+        $null -eq
+          $historyDailyValue
+      ) {
+        throw (
+          "Solar history rebuild daily value is missing: " +
+          $historyDateKey
+        )
+      }
+
+      $historyDailyNumber =
+        [double]$historyDailyValue
+
+      if (
+        $historyDailyNumber -lt
+          0
+      ) {
+        throw (
+          "Solar history rebuild daily value is below zero: " +
+          $historyDateKey
+        )
+      }
+
+      $currentHistoryMonthKey =
+        $historyCursor.ToString(
+          "yyyy-MM",
+          [Globalization.CultureInfo]::InvariantCulture
+        )
+
+      if (
+        $currentHistoryMonthKey -ne
+          $historyMonthKey
+      ) {
+        $historyMonthKey =
+          $currentHistoryMonthKey
+
+        $historyMonthTotal =
+          0.0
+      }
+
+      $historyMonthTotal +=
+        $historyDailyNumber
+
+      $historyYearTotal +=
+        $historyDailyNumber
+
+      $historyRows +=
+        [ordered]@{
+          date =
+            $historyDateKey
+
+          daily =
+            [Math]::Round(
+              $historyDailyNumber,
+              3
+            )
+
+          monthly =
+            [Math]::Round(
+              $historyMonthTotal,
+              3
+            )
+
+          yearly =
+            [Math]::Round(
+              $historyYearTotal,
+              3
+            )
+        }
+
+      $historyCursor =
+        $historyCursor.AddDays(
+          1
+        )
+    }
+  }
+
   $targetSolarValue =
     $dailyValues[$TargetDate]
 
@@ -12767,6 +12879,10 @@ function Get-SolarCumulativeWorkbookResult {
 
     year =
       $yearlyResult
+
+
+    historyRows =
+      $historyRows
 
     sourceWorkbooks =
       @(
@@ -15705,6 +15821,70 @@ async function collectDailyDataWorkbookValues(
       : {};
 
 
+
+  const solarHistoryRows =
+    Array.isArray(
+      capturedSolarCumulative.historyRows
+    )
+      ? capturedSolarCumulative.historyRows
+          .slice(
+            0,
+            366
+          )
+          .map(
+            (
+              item,
+              index
+            ) => {
+              const date =
+                normalizeOisAgentText(
+                  item?.date
+                );
+
+              const daily =
+                parseOptionalSolarCumulativeNumber(
+                  item?.daily,
+                  `solarHistoryRows[${index}].daily`
+                );
+
+              const monthly =
+                parseOptionalSolarCumulativeNumber(
+                  item?.monthly,
+                  `solarHistoryRows[${index}].monthly`
+                );
+
+              const yearly =
+                parseOptionalSolarCumulativeNumber(
+                  item?.yearly,
+                  `solarHistoryRows[${index}].yearly`
+                );
+
+              if (
+                !/^\d{4}-\d{2}-\d{2}$/.test(
+                  date
+                ) ||
+                daily ===
+                  null ||
+                monthly ===
+                  null ||
+                yearly ===
+                  null
+              ) {
+                throw new Error(
+                  `Invalid solar history rebuild row at index ${index}.`
+                );
+              }
+
+              return {
+                date,
+                daily,
+                monthly,
+                yearly
+              };
+            }
+          )
+      : [];
+
   const solarWeeklyCumulative =
     parseOptionalSolarCumulativeNumber(
       capturedResult.solarWeeklyCumulative ??
@@ -16278,6 +16458,9 @@ async function collectDailyDataWorkbookValues(
     solarMonthlyCumulative,
 
     solarYearlyCumulative,
+
+
+    solarHistoryRows,
 
     solarCumulative,
 
@@ -22518,3 +22701,5 @@ oisAgentStartPromise
 /* [DAILY_DATA_ISMART_BLANK_TOLERANT_V1_R1] */
 
 /* DAILY_DATA_SOLAR_CUMULATIVE_PASS_THROUGH_V1 */
+
+/* DAILY_DATA_SOLAR_HISTORY_REBUILD_AGENT_V1 */
