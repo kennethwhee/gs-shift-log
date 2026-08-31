@@ -120367,3 +120367,37 @@ html body
 }
 
 /* ARM_ROLL_BOX_MAIN_ALERT_COMPACT_V1_END */
+
+
+/* ARM_ROLL_BOX_ALERT_FONT_MATCH_BLOWER_V1_START */
+
+/*
+  Right notification rail only.
+  Match ARM ROLL BOX typography to the existing Blower alert:
+  - title: 9px / 1.15 (already same, re-asserted)
+  - message: 9px / 1.35
+  - count badge: 8px
+*/
+@media (min-width: 1840px) {
+  .main-notification-rail
+  .arm-roll-box-main-alert:not(.is-mobile-top-alert)
+  .arm-roll-box-main-alert__content small {
+    font-size: 9px !important;
+    line-height: 1.15 !important;
+  }
+
+  .main-notification-rail
+  .arm-roll-box-main-alert:not(.is-mobile-top-alert)
+  .arm-roll-box-main-alert__content strong {
+    font-size: 9px !important;
+    line-height: 1.35 !important;
+  }
+
+  .main-notification-rail
+  .arm-roll-box-main-alert:not(.is-mobile-top-alert)
+  .arm-roll-box-main-alert__count {
+    font-size: 8px !important;
+  }
+}
+
+/* ARM_ROLL_BOX_ALERT_FONT_MATCH_BLOWER_V1_END */
