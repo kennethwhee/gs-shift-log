@@ -163699,17 +163699,10 @@ async function applyMorningMeetingManualInputCellFills(
     이곳만 사용자가 직접 입력한다.
   ====================================================== */
 
-  const manualInputRanges = [
-    "I7:K8",
-
-    "N7:T8",
-
-    "X7:AB8",
-
-    "X9:Y9",
-
-    "AE7:AF9"
-  ];
+  /* MORNING MEETING COFIRING FINAL EXCEL V1.1 AUTO CELLS NO YELLOW
+     Coal / Bio / ratio / organic values are now auto-written.
+     Keep the template border/font/number formats, but do not re-apply the pale-yellow fill. */
+  const manualInputRanges = [];
 
 
   /*
@@ -166710,6 +166703,37 @@ const previewAutoValueResult =
 console.log(
   "오전회의 SMP·날씨 최종 엑셀 반영:",
   previewAutoValueResult
+);
+
+/* ===================================================
+  MORNING MEETING COFIRING FINAL EXCEL V1.1 DIRECT FINAL HOOK
+
+  IMPORTANT:
+  - This is the final numeric overwrite point for the co-firing table.
+  - Earlier Coal/Bio/template writers may write the same cells.
+  - Therefore the displayed effective co-firing values are written here,
+    immediately before final input-cell styling and worksheet serialization.
+=================================================== */
+
+if (
+  typeof window
+    .applyMorningMeetingCofiringExcelValues !==
+    "function"
+) {
+  throw new Error(
+    "최종 엑셀 혼소율·연료 반영 모듈을 찾지 못했습니다."
+  );
+}
+
+const cofiringFinalExcelResult =
+  window
+    .applyMorningMeetingCofiringExcelValues(
+      worksheetDocument
+    );
+
+console.log(
+  "최종 엑셀 혼소율·연료 사용량 최종 반영 완료:",
+  cofiringFinalExcelResult
 );
 
 /* ===================================================
