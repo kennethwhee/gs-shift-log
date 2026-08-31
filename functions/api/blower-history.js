@@ -251,6 +251,7 @@ const OPERATION_SYNC_DEFAULT_DAYS = 14;
   이 버전은 실제 기동·정지, 누적시간, V-Belt Cycle을 자동 변경하지 않는다.
 */
 const FBHE_VIBRATION_REQUEST_TYPE = "fbhe_vibration";
+const SEAL_POT_RUNTIME_REQUEST_TYPE = "seal_pot_runtime";
 const FBHE_VIBRATION_ASSET_TAGS = Object.freeze(
   ASSET_SEEDS
     .filter(seed => seed[1] === "fbhe")
@@ -3561,6 +3562,64 @@ async function loadFbheVibrationRawResponse(
   );
 }
 
+
+async function loadSealPotRuntimeRawResponse(
+  database,
+  targetDate
+) {
+  const row = await database
+    .prepare(`
+      SELECT
+        id,
+        target_date,
+        completed_at,
+        result_json
+      FROM ois_data_requests
+      WHERE request_type = ?
+        AND target_date = ?
+        AND status = 'complete'
+      ORDER BY
+        datetime(completed_at) DESC,
+        datetime(requested_at) DESC,
+        id DESC
+      LIMIT 1
+    `)
+    .bind(
+      SEAL_POT_RUNTIME_REQUEST_TYPE,
+      targetDate
+    )
+    .first();
+
+  if (
+    !row ||
+    !String(row.result_json || "").trim()
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        code: "SEAL_POT_RAW_NOT_FOUND",
+        message: `저장된 Seal Pot OIS 원본이 없습니다: ${targetDate}`
+      },
+      404
+    );
+  }
+
+  return new Response(
+    String(row.result_json),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+        "X-Seal-Pot-Target-Date": normalizeText(row.target_date),
+        "X-Seal-Pot-Request-Id": normalizeText(row.id),
+        "X-Seal-Pot-Completed-At": normalizeText(row.completed_at)
+      }
+    }
+  );
+}
+
+
 async function handleGet(context, user) {
   const database = context.env.DB;
   const url = new URL(context.request.url);
@@ -3571,6 +3630,28 @@ async function handleGet(context, user) {
     return jsonResponse(
       { ok: false, message: "로그인이 필요합니다.", permissions },
       401
+    );
+  }
+
+    if (action === "seal_pot_raw") {
+    if (!user) {
+      return jsonResponse(
+        {
+          ok: false,
+          message: "Seal Pot OIS 저장 원본 조회는 로그인이 필요합니다.",
+          permissions
+        },
+        401
+      );
+    }
+
+    const targetDate = normalizeText(
+      url.searchParams.get("targetDate")
+    );
+
+    return await loadSealPotRuntimeRawResponse(
+      database,
+      targetDate
     );
   }
 

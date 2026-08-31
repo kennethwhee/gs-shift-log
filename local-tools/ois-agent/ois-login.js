@@ -672,6 +672,78 @@ const OIS_FBHE_VIBRATION_DEFINITIONS = Object.freeze(
   기존 steam_status 요청형과 호환 필드를 유지한다.
 ========================================================= */
 
+
+/* [SEAL-POT-OIS-SHADOW-V1] */
+const OIS_SEAL_POT_RUNTIME_POSITION_DEFINITIONS = Object.freeze([
+  {
+    positionLabel: "#A",
+    assetSuffix: "611",
+    sensorPrefix: "21",
+    pressureSuffix: "011"
+  },
+  {
+    positionLabel: "#B",
+    assetSuffix: "621",
+    sensorPrefix: "22",
+    pressureSuffix: "021"
+  },
+  {
+    positionLabel: "#C",
+    assetSuffix: "631",
+    sensorPrefix: "23",
+    pressureSuffix: "031"
+  }
+]);
+
+const OIS_SEAL_POT_RUNTIME_DEFINITIONS = Object.freeze(
+  [
+    {unitNo: 1, tagPrefix: "104"},
+    {unitNo: 2, tagPrefix: "204"}
+  ].flatMap(unitDefinition =>
+    OIS_SEAL_POT_RUNTIME_POSITION_DEFINITIONS.map(positionDefinition => ({
+      unitNo: unitDefinition.unitNo,
+      positionLabel: positionDefinition.positionLabel,
+      assetTag:
+        `${unitDefinition.tagPrefix}HHL10AN${positionDefinition.assetSuffix}`,
+      displayName:
+        `#${unitDefinition.unitNo} Seal Pot Blower ${positionDefinition.positionLabel}`,
+      sensors: [
+        {
+          role: "discharge_pressure",
+          label: "Discharge Pressure",
+          tag:
+            `${unitDefinition.tagPrefix}HHL10CP${positionDefinition.pressureSuffix}`
+        },
+        {
+          role: "blower_de_temp",
+          label: "Blower DE Temp",
+          tag:
+            `${unitDefinition.tagPrefix}HHL10CT${positionDefinition.sensorPrefix}5XQ01`
+        },
+        {
+          role: "blower_nde_temp",
+          label: "Blower NDE Temp",
+          tag:
+            `${unitDefinition.tagPrefix}HHL10CT${positionDefinition.sensorPrefix}6XQ01`
+        },
+        {
+          role: "motor_de_temp",
+          label: "Motor DE Temp",
+          tag:
+            `${unitDefinition.tagPrefix}HHL10CT${positionDefinition.sensorPrefix}7XQ01`
+        },
+        {
+          role: "motor_nde_temp",
+          label: "Motor NDE Temp",
+          tag:
+            `${unitDefinition.tagPrefix}HHL10CT${positionDefinition.sensorPrefix}8XQ01`
+        }
+      ]
+    }))
+  )
+);
+
+
 const DAILY_DATA_WORKBOOK_FIELD_DEFINITIONS = [
   /* [MORNING_MEETING_COFIRING_DATA_V1] optional fuel usage fields */
   {
@@ -5437,6 +5509,126 @@ async function collectOisFbheVibrationValues(
   대상 보직:
   TGO / BCO1 / BCO2 / TO / BO1 / BO2
 ========================================================= */
+
+
+async function collectOisSealPotRuntimeValues(
+  page,
+  config,
+  targetDate
+) {
+  const range =
+    parseOisFbheVibrationRangeKey(
+      targetDate
+    );
+
+  if (!range) {
+    throw new Error(
+      "Seal Pot OIS 조회 기간이 올바르지 않습니다."
+    );
+  }
+
+  if (range.dayCount > 31) {
+    throw new Error(
+      "Seal Pot OIS 단일 요청은 최대 31일까지 처리할 수 있습니다."
+    );
+  }
+
+  await ensureOisAgentLoggedIn(
+    page,
+    config
+  );
+
+  const assets = [];
+  let successfulSensorCount = 0;
+  let failedSensorCount = 0;
+
+  for (
+    const definition of
+    OIS_SEAL_POT_RUNTIME_DEFINITIONS
+  ) {
+    const sensors = [];
+
+    for (
+      const sensorDefinition of
+      definition.sensors
+    ) {
+      try {
+        const sensorResult =
+          await collectOisFbheVibrationSensor(
+            page,
+            sensorDefinition,
+            range
+          );
+
+        sensors.push(sensorResult);
+        successfulSensorCount += 1;
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : String(error || "Seal Pot TAG 조회 실패");
+
+        sensors.push({
+          role: sensorDefinition.role,
+          label: sensorDefinition.label,
+          tag: sensorDefinition.tag,
+          itemName: sensorDefinition.label,
+          unit: "",
+          samples: [],
+          sampleCount: 0,
+          coveredDateCount: 0,
+          error: errorMessage
+        });
+
+        failedSensorCount += 1;
+
+        console.warn(
+          "Seal Pot OIS TAG 조회 실패:",
+          sensorDefinition.tag,
+          errorMessage
+        );
+      }
+
+      await page.waitForTimeout(80);
+    }
+
+    assets.push({
+      assetTag: definition.assetTag,
+      tagNumber: definition.assetTag,
+      unitNo: definition.unitNo,
+      positionLabel: definition.positionLabel,
+      displayName: definition.displayName,
+      sensors,
+      successfulSensorCount:
+        sensors.filter(sensor => sensor.sampleCount > 0).length,
+      failedSensorCount:
+        sensors.filter(sensor => sensor.sampleCount === 0).length
+    });
+  }
+
+  if (successfulSensorCount === 0) {
+    throw new Error(
+      "Seal Pot OIS TAG 30개를 모두 조회하지 못했습니다."
+    );
+  }
+
+  return {
+    source: "OIS TAG Log Direct API",
+    requestType: "seal_pot_runtime",
+    targetDate: range.key,
+    startDate: range.startDate,
+    endDate: range.endDate,
+    dayCount: range.dayCount,
+    outputIntervalHours: 1,
+    requestedSensorCount: 30,
+    successfulSensorCount,
+    failedSensorCount,
+    assets,
+    collectedAt:
+      new Date().toISOString()
+  };
+}
+
 
 const OIS_LEGACY_LOG_DEFINITION = {
   command:
@@ -10780,7 +10972,8 @@ async function getNextOisAgentRequest(
     "auxiliary_materials",
     "logsheet_approval",
     "fbhe_vibration",
-    "logsheet_pdf"
+    "logsheet_pdf",
+    "seal_pot_runtime"
   ];
 
 
@@ -10974,7 +11167,8 @@ async function getNextOisAgentLaneRequests(
     "bed_ash_level",
     "auxiliary_materials",
     "logsheet_approval",
-    "fbhe_vibration"
+    "fbhe_vibration",
+    "seal_pot_runtime"
   ];
 
 
@@ -11401,6 +11595,13 @@ if (
       "fbhe_vibration"
   ) {
     return "FBHE Blower 진동 Shadow";
+  }
+
+  if (
+    requestType ===
+      "seal_pot_runtime"
+  ) {
+    return "Seal Pot Blower OIS Shadow";
   }
 
 
@@ -16059,6 +16260,17 @@ if (
       "fbhe_vibration"
   ) {
     return await collectOisFbheVibrationValues(
+      page,
+      config,
+      targetDate
+    );
+  }
+
+  if (
+    requestType ===
+      "seal_pot_runtime"
+  ) {
+    return await collectOisSealPotRuntimeValues(
       page,
       config,
       targetDate

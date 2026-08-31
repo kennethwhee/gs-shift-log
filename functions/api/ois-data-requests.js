@@ -894,7 +894,8 @@ const OIS_REQUEST_TYPES = [
   "daily_data_excel",
   "steam_status",
   "logsheet_approval",
-  "logsheet_pdf"
+  "logsheet_pdf",
+  "seal_pot_runtime"
 ];
 
 
@@ -8135,7 +8136,8 @@ const OIS_AGENT_OIS_LANE_REQUEST_TYPES = [
   "bed_ash_level",
   "auxiliary_materials",
   "logsheet_approval",
-  "fbhe_vibration"
+  "fbhe_vibration",
+  "seal_pot_runtime"
 ];
 
 
@@ -11965,6 +11967,279 @@ async function failActiveFbheVibrationTarget(database, targetDate, reason) {
   return await failFbheVibrationRequestIds(database, ids, reason);
 }
 
+
+/* [SEAL-POT-OIS-SHADOW-V1-R3] */
+async function failSealPotRuntimeRequestIds(database, requestIds, reason) {
+  const ids = [...new Set((requestIds || []).map(normalizeText).filter(Boolean))];
+  if (ids.length === 0) return 0;
+
+  const placeholders = ids.map(() => "?").join(", ");
+  const now = new Date().toISOString();
+
+  const result = await database
+    .prepare([
+      "UPDATE ois_data_requests",
+      "SET status = 'failed', completed_at = ?, error_message = ?, updated_at = ?",
+      "WHERE request_type = 'seal_pot_runtime'",
+      "AND id IN (" + placeholders + ")",
+      "AND status IN ('pending', 'processing')"
+    ].join("\n"))
+    .bind(
+      now,
+      normalizeText(reason).slice(0, 1000) || "Seal Pot OIS request stopped.",
+      now,
+      ...ids
+    )
+    .run();
+
+  return Number(result?.meta?.changes || 0);
+}
+
+async function failActiveSealPotRuntimeTarget(database, targetDate, reason) {
+  const result = await database
+    .prepare(`
+      SELECT id
+      FROM ois_data_requests
+      WHERE request_type = 'seal_pot_runtime'
+        AND target_date = ?
+        AND status IN ('pending', 'processing')
+    `)
+    .bind(targetDate)
+    .all();
+
+  const ids = (Array.isArray(result.results) ? result.results : [])
+    .map(row => normalizeText(row.id))
+    .filter(Boolean);
+
+  return await failSealPotRuntimeRequestIds(database, ids, reason);
+}
+
+async function cancelSealPotRuntimeBatchRequests(context, body) {
+  const authentication = await getAuthenticatedUser(context);
+  if (authentication.error) return authentication.error;
+
+  const requestIds = [...new Set(
+    (Array.isArray(body.requestIds || body.request_ids)
+      ? (body.requestIds || body.request_ids)
+      : [])
+      .map(normalizeText)
+      .filter(Boolean)
+  )];
+
+  if (requestIds.length < 1 || requestIds.length > MAXIMUM_STATUS_BATCH_IDS) {
+    return jsonResponse(
+      {ok: false, message: "중단할 Seal Pot OIS 요청을 확인해 주세요."},
+      400
+    );
+  }
+
+  const canceledCount = await failSealPotRuntimeRequestIds(
+    context.env.DB,
+    requestIds,
+    normalizeText(body.reason) ||
+      "Seal Pot OIS 기간조회가 진행되지 않아 자동 종료했습니다."
+  );
+
+  return jsonResponse({
+    ok: true,
+    canceledCount,
+    message: "진행 중이던 Seal Pot OIS 요청만 종료했습니다. 완료자료는 보존됩니다."
+  });
+}
+
+async function createSealPotRuntimeBatchRequest(context, body) {
+  const authentication = await getAuthenticatedUser(context);
+  if (authentication.error) return authentication.error;
+
+  const user = authentication.user;
+  const startDate = normalizeText(body.startDate || body.start_date);
+  const endDate = normalizeText(body.endDate || body.end_date);
+  const forceRefresh = body.forceRefresh === true;
+  const dayCount = inclusiveIsoDateCount(startDate, endDate);
+
+  if (dayCount < 1 || dayCount > FBHE_VIBRATION_RANGE_MAX_DAYS) {
+    return jsonResponse(
+      {
+        ok: false,
+        message: `Seal Pot 조회기간은 1일 이상 ${FBHE_VIBRATION_RANGE_MAX_DAYS}일 이하로 선택해 주세요.`
+      },
+      400
+    );
+  }
+
+  const todayKst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+
+  if (endDate > todayKst) {
+    return jsonResponse(
+      {ok: false, message: "미래 날짜의 Seal Pot OIS는 조회할 수 없습니다."},
+      400
+    );
+  }
+
+  const chunks = buildFbheVibrationRangeChunks(startDate, endDate);
+
+  if (chunks.length < 1 || chunks.length > MAXIMUM_STATUS_BATCH_IDS) {
+    return jsonResponse(
+      {ok: false, message: "Seal Pot 조회기간을 OIS 요청 단위로 나누지 못했습니다."},
+      400
+    );
+  }
+
+  await expireOldRequests(context.env.DB);
+
+  const requestedAt = new Date();
+  const expiresAtText = new Date(
+    requestedAt.getTime() + FBHE_VIBRATION_RANGE_QUEUE_HOURS * 60 * 60 * 1000
+  ).toISOString();
+
+  const items = [];
+  let createdCount = 0;
+  let reusedActiveCount = 0;
+  let reusedCompleteCount = 0;
+  let canceledCount = 0;
+
+  for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex += 1) {
+    const chunk = chunks[chunkIndex];
+
+    if (!forceRefresh) {
+      const completedRow = await context.env.DB
+        .prepare(`
+          SELECT *
+          FROM ois_data_requests
+          WHERE request_type = 'seal_pot_runtime'
+            AND target_date = ?
+            AND status = 'complete'
+          ORDER BY datetime(completed_at) DESC, datetime(requested_at) DESC, id DESC
+          LIMIT 1
+        `)
+        .bind(chunk.targetDate)
+        .first();
+
+      if (completedRow) {
+        canceledCount += await failActiveSealPotRuntimeTarget(
+          context.env.DB,
+          chunk.targetDate,
+          "이미 완료된 Seal Pot OIS 구간이 있어 중복 진행 요청을 종료했습니다."
+        );
+
+        reusedCompleteCount += 1;
+        items.push(compactFbheVibrationRequestRow(completedRow, "reused_complete"));
+        continue;
+      }
+    } else {
+      canceledCount += await failActiveSealPotRuntimeTarget(
+        context.env.DB,
+        chunk.targetDate,
+        "Seal Pot 전체 재조회로 기존 진행 요청을 종료했습니다."
+      );
+    }
+
+    if (!forceRefresh) {
+      let activeRow = await context.env.DB
+        .prepare(`
+          SELECT *
+          FROM ois_data_requests
+          WHERE request_type = 'seal_pot_runtime'
+            AND target_date = ?
+            AND status IN ('pending', 'processing')
+          ORDER BY datetime(requested_at) DESC, id DESC
+          LIMIT 1
+        `)
+        .bind(chunk.targetDate)
+        .first();
+
+      if (activeRow && isStaleFbheVibrationRequest(activeRow)) {
+        canceledCount += await failSealPotRuntimeRequestIds(
+          context.env.DB,
+          [activeRow.id],
+          "Seal Pot OIS 요청이 장시간 진행되지 않아 이어조회를 위해 종료했습니다."
+        );
+        activeRow = null;
+      }
+
+      if (activeRow) {
+        reusedActiveCount += 1;
+        items.push(compactFbheVibrationRequestRow(activeRow, "reused_active"));
+        continue;
+      }
+    }
+
+    const requestId = crypto.randomUUID();
+    const requestedAtText = new Date(
+      requestedAt.getTime() + chunkIndex
+    ).toISOString();
+
+    await context.env.DB
+      .prepare(`
+        INSERT INTO ois_data_requests (
+          id, request_type, target_date, status,
+          requested_by_id, requested_by_name, requested_at,
+          started_at, completed_at, agent_id,
+          result_json, error_message, expires_at, updated_at
+        )
+        VALUES (
+          ?, 'seal_pot_runtime', ?, 'pending',
+          ?, ?, ?,
+          NULL, NULL, '',
+          NULL, '', ?, ?
+        )
+      `)
+      .bind(
+        requestId,
+        chunk.targetDate,
+        user.employeeNo,
+        user.name,
+        requestedAtText,
+        expiresAtText,
+        requestedAtText
+      )
+      .run();
+
+    createdCount += 1;
+
+    items.push({
+      id: requestId,
+      requestType: "seal_pot_runtime",
+      targetDate: chunk.targetDate,
+      status: "pending",
+      requestedAt: requestedAtText,
+      startedAt: "",
+      completedAt: "",
+      errorMessage: "",
+      disposition: "created"
+    });
+  }
+
+  return jsonResponse(
+    {
+      ok: true,
+      range: {
+        startDate,
+        endDate,
+        dayCount,
+        chunkCount: chunks.length,
+        chunkDays: FBHE_VIBRATION_RANGE_CHUNK_DAYS
+      },
+      forceRefresh,
+      createdCount,
+      reusedActiveCount,
+      reusedCompleteCount,
+      canceledCount,
+      items,
+      message: [
+        `Seal Pot ${dayCount}일을 ${chunks.length}개 구간으로 확인합니다.`,
+        forceRefresh ? "전체 재조회" : `완료자료 재사용 ${reusedCompleteCount}구간`,
+        `신규 ${createdCount}구간`,
+        `진행 중 재사용 ${reusedActiveCount}구간`
+      ].join(" ")
+    },
+    createdCount > 0 ? 201 : 200
+  );
+}
+
+
 async function cancelFbheVibrationBatchRequests(context, body) {
   const authentication = await getAuthenticatedUser(context);
   if (authentication.error) return authentication.error;
@@ -13204,6 +13479,26 @@ if (
     /*
       기존 부재료 엑셀 자료 등록
     */
+        if (
+      action ===
+        "cancel_seal_pot_runtime_batch"
+    ) {
+      return await cancelSealPotRuntimeBatchRequests(
+        context,
+        body
+      );
+    }
+
+    if (
+      action ===
+        "create_seal_pot_runtime_batch"
+    ) {
+      return await createSealPotRuntimeBatchRequest(
+        context,
+        body
+      );
+    }
+
     if (
       action ===
         "import_auxiliary_material_excel"
