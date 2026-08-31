@@ -2859,17 +2859,31 @@
     const report = state.vibrationReport;
     const reportMatchesRange = report && report.startDate === selected.startDate && report.endDate === selected.endDate;
 
-    elements.vibrationQueryButton.disabled = state.vibrationPolling || state.busy;
-    elements.vibrationRequeryButton.disabled = state.vibrationPolling || state.busy;
-    /* [FBHE-OIS-RESUME-TIMEOUT-V4-R3] */
-    elements.vibrationQueryButton.textContent =
-      state.vibrationPolling
-        ? (
-            state.vibrationClientAnalysis
-              ? "분석 중..."
-              : "조회 중..."
-          )
-        : "조회하기";
+    elements.vibrationQueryButton.disabled = false;
+    elements.vibrationQueryButton.textContent = "조회하기";
+
+    const vibrationRunButton =
+      document.getElementById("vibrationRunButton");
+
+    if (vibrationRunButton instanceof HTMLButtonElement) {
+      vibrationRunButton.disabled =
+        state.vibrationPolling ||
+        state.busy;
+
+      vibrationRunButton.textContent =
+        state.vibrationPolling
+          ? (
+              state.vibrationClientAnalysis
+                ? "분석 중..."
+                : "조회 중..."
+            )
+          : "OIS 조회";
+    }
+
+    elements.vibrationRequeryButton.disabled =
+      state.vibrationPolling ||
+      state.busy;
+
     elements.vibrationRequeryButton.textContent = "전체 재조회";
 
     if (!reportMatchesRange) {
@@ -7197,7 +7211,24 @@
   }
 
 
-  async function handleFbheVibrationQuery() {
+  function handleFbheVibrationQuery() {
+    if (
+      !canUseFbheVibrationShadow()
+    ) {
+      return;
+    }
+
+    elements.vibrationShadowPanel.open = true;
+    renderFbheVibrationShadow();
+  }
+
+
+  function closeFbheVibrationQueryWindow() {
+    elements.vibrationShadowPanel.open = false;
+  }
+
+
+  async function handleFbheVibrationRun() {
     if (
       stopMobileMutation() ||
       !canUseFbheVibrationShadow() ||
@@ -7209,11 +7240,10 @@
     if (
       hasCompletedFbheVibrationReportForSelectedRange()
     ) {
-      elements.vibrationShadowPanel.open = true;
       renderFbheVibrationShadow();
 
       showToast(
-        "이미 조회된 OIS 계산 결과를 표시합니다."
+        "현재 기간은 이미 조회된 계산 결과를 사용합니다."
       );
 
       return;
@@ -8793,6 +8823,39 @@
     elements.auditHistoryButton.addEventListener("click", downloadHistoricalAudit);
     elements.refreshButton.addEventListener("click", () => loadData({ forceOperationSync: true }));
     elements.vibrationQueryButton.addEventListener("click", handleFbheVibrationQuery);
+
+    const vibrationRunButton =
+      document.getElementById("vibrationRunButton");
+
+    if (vibrationRunButton instanceof HTMLButtonElement) {
+      vibrationRunButton.addEventListener("click", handleFbheVibrationRun);
+    }
+
+    const vibrationQueryCloseButton =
+      document.getElementById("vibrationQueryCloseButton");
+
+    if (vibrationQueryCloseButton instanceof HTMLButtonElement) {
+      vibrationQueryCloseButton.addEventListener(
+        "click",
+        closeFbheVibrationQueryWindow
+      );
+    }
+
+    elements.vibrationShadowPanel.addEventListener("click", event => {
+      if (event.target === elements.vibrationShadowPanel) {
+        closeFbheVibrationQueryWindow();
+      }
+    });
+
+    document.addEventListener("keydown", event => {
+      if (
+        event.key === "Escape" &&
+        elements.vibrationShadowPanel.open
+      ) {
+        closeFbheVibrationQueryWindow();
+      }
+    });
+
     elements.vibrationRequeryButton.addEventListener("click", () => requestFbheVibrationShadow(true));
     elements.vibrationApplyButton.addEventListener("click", applyFbheOisCalculatedResults);
     document.querySelectorAll("[data-vibration-preset]").forEach(button => {
@@ -8898,3 +8961,5 @@
 /* FBHE_OIS_RUNTIME_STATE_SPLIT_V1 */
 
 /* FBHE_OIS_EXPLICIT_QUERY_COMPACT_V1 */
+
+/* FBHE_OIS_QUERY_WINDOW_V862 */
