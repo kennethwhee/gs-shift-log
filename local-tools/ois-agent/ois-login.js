@@ -5020,6 +5020,91 @@ function findOisFbheVibrationTargetRows(
   });
 }
 
+/* [FBHE-OIS-RESUME-TIMEOUT-V4-R3] */
+async function requestOisInternalAjaxDataWithTimeout(
+  page,
+  command,
+  selectItem,
+  timeoutMilliseconds = 10000
+) {
+  const timeoutMs = Math.max(1000, Number(timeoutMilliseconds || 10000));
+
+  const requestResult = await page.evaluate(
+    async ({ command, selectItem, timeoutMs }) => {
+      const parameters = new URLSearchParams();
+      parameters.set(
+        "tossdata",
+        JSON.stringify({ select: [selectItem] })
+      );
+      parameters.set("cmd", command);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const response = await fetch(
+          "/ajax/data",
+          {
+            method: "POST",
+            headers: {
+              Accept: "application/json, text/javascript, */*; q=0.01",
+              "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+              "X-Requested-With": "XMLHttpRequest"
+            },
+            credentials: "same-origin",
+            cache: "no-store",
+            signal: controller.signal,
+            body: parameters.toString()
+          }
+        );
+        const responseText = await response.text();
+        return {
+          ok: response.ok,
+          status: response.status,
+          responseText,
+          timedOut: false
+        };
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return {
+            ok: false,
+            status: 0,
+            responseText: "",
+            timedOut: true
+          };
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    },
+    { command, selectItem, timeoutMs }
+  );
+
+  if (requestResult?.timedOut) {
+    const error = new Error(
+      `OIS 진동 TAG 응답이 ${Math.ceil(timeoutMs / 1000)}초를 초과했습니다.`
+    );
+    error.code = "OIS_INTERNAL_AJAX_TIMEOUT";
+    throw error;
+  }
+
+  if (!requestResult?.ok) {
+    throw new Error(
+      `OIS 내부 API 요청 실패 (HTTP ${requestResult?.status || 0})`
+    );
+  }
+
+  const responseText = String(requestResult.responseText || "").trim();
+  if (!responseText) return {};
+
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    throw new Error("OIS 과거 업무일지 응답이 JSON 형식이 아닙니다.");
+  }
+}
+
 async function collectOisFbheVibrationSensor(
   page,
   sensorDefinition,
@@ -5031,7 +5116,7 @@ async function collectOisFbheVibrationSensor(
     range.endDate.replace(/-/g, "");
 
   const responseData =
-    await requestOisInternalAjaxData(
+    await requestOisInternalAjaxDataWithTimeout(
       page,
       "oi.LogSheetService.listTagLog",
       {
@@ -5041,7 +5126,8 @@ async function collectOisFbheVibrationSensor(
         startdate: compactStartDate,
         enddate: compactEndDate,
         rowstatus: "C"
-      }
+      },
+      10000
     );
 
   const rows =

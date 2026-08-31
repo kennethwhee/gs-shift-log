@@ -2931,6 +2931,7 @@ function buildFbheVibrationAssetShadow(assetState, rawAsset, operationEvents = [
   };
 }
 
+/* [FBHE-OIS-RESUME-TIMEOUT-V4-R3] */
 async function loadFbheVibrationRequestRows(database, startDate, endDate) {
   const chunks = buildFbheVibrationRangeChunks(startDate, endDate);
   if (chunks.length === 0) return { chunks: [], rows: [] };
@@ -2954,14 +2955,29 @@ async function loadFbheVibrationRequestRows(database, startDate, endDate) {
     .all();
 
   const latestByTargetDate = new Map();
+  const latestCompleteByTargetDate = new Map();
+
   for (const row of Array.isArray(result.results) ? result.results : []) {
     const targetDate = normalizeText(row.target_date);
-    if (!latestByTargetDate.has(targetDate)) latestByTargetDate.set(targetDate, row);
+    if (!latestByTargetDate.has(targetDate)) {
+      latestByTargetDate.set(targetDate, row);
+    }
+    if (
+      normalizeText(row.status) === "complete" &&
+      !latestCompleteByTargetDate.has(targetDate)
+    ) {
+      latestCompleteByTargetDate.set(targetDate, row);
+    }
   }
 
   return {
     chunks,
-    rows: chunks.map(chunk => latestByTargetDate.get(chunk.targetDate) || null)
+    rows: chunks.map(
+      chunk =>
+        latestCompleteByTargetDate.get(chunk.targetDate) ||
+        latestByTargetDate.get(chunk.targetDate) ||
+        null
+    )
   };
 }
 

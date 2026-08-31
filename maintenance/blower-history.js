@@ -1964,7 +1964,9 @@
 
     elements.vibrationQueryButton.disabled = state.vibrationPolling || state.busy;
     elements.vibrationRequeryButton.disabled = state.vibrationPolling || state.busy;
-    elements.vibrationQueryButton.textContent = state.vibrationPolling ? "OIS 수집 중..." : "OIS 기간조회";
+    /* [FBHE-OIS-RESUME-TIMEOUT-V4-R3] */
+    elements.vibrationQueryButton.textContent = state.vibrationPolling ? "OIS 수집 중..." : "OIS 이어조회";
+    elements.vibrationRequeryButton.textContent = "전체 재조회";
 
     if (!reportMatchesRange) {
       elements.vibrationHeadline.textContent = `현재상태·기동/정지·누적시간 분석 대기 · ${selected.dayCount || 0}일`;
@@ -2005,7 +2007,7 @@
         : "저장자료 없음 · 자동 반영 없음";
       elements.vibrationStatus.dataset.state = failedCount > 0 ? "error" : "idle";
       elements.vibrationStatus.textContent = failedCount > 0
-        ? `${failedCount}개 구간 조회에 실패했습니다. 재조회를 실행하세요.`
+        ? `${failedCount}개 구간 조회에 실패했습니다. OIS 이어조회를 실행하세요.`
         : "이 기간의 FBHE 진동 분석자료가 아직 없습니다.";
       elements.vibrationMetrics.hidden = true;
       elements.vibrationTableWrap.hidden = true;
@@ -2127,20 +2129,52 @@
     }
   }
 
+  /* [FBHE-OIS-RESUME-TIMEOUT-V4-R3] */
+  async function cancelFbheVibrationRequests(requestIds, reason) {
+    const ids = [...new Set((requestIds || []).filter(Boolean))];
+    if (ids.length === 0) return null;
+    return await apiRequest({
+      url: OIS_REQUEST_API_URL,
+      method: "POST",
+      body: {
+        action: "cancel_fbhe_vibration_batch",
+        requestIds: ids,
+        reason: reason ||
+          "FBHE OIS 기간조회가 5분간 진행되지 않아 자동 종료했습니다."
+      }
+    });
+  }
+
   async function pollFbheVibrationRequests(requestIds, range, initialItems = []) {
     const uniqueIds = [...new Set((requestIds || []).filter(Boolean))];
     if (uniqueIds.length === 0) return [];
-    if (uniqueIds.length > 12) throw new Error("FBHE 진동 요청 구간이 12개를 초과했습니다.");
+    if (uniqueIds.length > 12) {
+      throw new Error("FBHE 진동 요청 구간이 12개를 초과했습니다.");
+    }
 
     const itemMap = new Map(initialItems.map(item => [item.id, item]));
-    const maximumAttempts = 900;
+    const maximumAttempts = 2400;
+    const noProgressTimeoutMs = 5 * 60 * 1000;
+    let lastFingerprint = "";
+    let lastProgressAt = Date.now();
 
     for (let attempt = 0; attempt < maximumAttempts; attempt += 1) {
       const result = await apiRequest({
         url: `${OIS_REQUEST_API_URL}?action=status_batch&compact=1&ids=${encodeURIComponent(uniqueIds.join(","))}`
       });
+
       for (const item of result.items || []) itemMap.set(item.id, item);
       const items = [...itemMap.values()];
+      const fingerprint = items
+        .map(item => `${item.id}:${item.status}:${item.completedAt || ""}:${item.updatedAt || ""}`)
+        .sort()
+        .join("|");
+
+      if (!lastFingerprint || fingerprint !== lastFingerprint) {
+        lastFingerprint = fingerprint;
+        lastProgressAt = Date.now();
+      }
+
       state.vibrationReport = {
         ok: true,
         startDate: range.startDate,
@@ -2153,16 +2187,46 @@
       };
       renderFbheVibrationShadow();
 
-      const active = items.filter(item => ["pending", "processing"].includes(item.status));
+      const active = items.filter(
+        item => ["pending", "processing"].includes(item.status)
+      );
       if (active.length === 0) return items;
+
+      if (Date.now() - lastProgressAt >= noProgressTimeoutMs) {
+        const activeIds = active.map(item => item.id).filter(Boolean);
+        await cancelFbheVibrationRequests(
+          activeIds,
+          "FBHE OIS 기간조회가 5분간 진행되지 않아 자동 종료했습니다."
+        ).catch(error => {
+          console.warn("FBHE OIS auto-stop failed:", error);
+        });
+
+        const timeoutError = new Error(
+          "5분간 진행이 없어 FBHE OIS 조회를 자동 종료했습니다. 이미 완료된 구간은 보존되며, 다음 OIS 이어조회에서 미완료 구간만 다시 조회합니다."
+        );
+        timeoutError.code = "FBHE_NO_PROGRESS_AUTO_STOP";
+        throw timeoutError;
+      }
+
       await waitForMilliseconds(3000);
     }
 
-    throw new Error("FBHE 진동 기간조회 대기시간을 초과했습니다. OIS Agent 상태를 확인해 주세요.");
+    throw new Error(
+      "FBHE OIS 조회가 최대 대기시간을 초과했습니다. 완료된 구간은 그대로 보존됩니다."
+    );
   }
 
   async function requestFbheVibrationShadow(forceRefresh = false) {
     if (stopMobileMutation() || !canUseFbheVibrationShadow() || state.vibrationPolling) return;
+
+    if (
+      forceRefresh &&
+      !window.confirm(
+        "선택한 FBHE OIS 기간을 처음부터 전체 재조회합니다.\n\n기존 완료자료는 삭제하지 않으며 새 완료자료가 생기면 최신값으로 사용합니다. 계속할까요?"
+      )
+    ) {
+      return;
+    }
     const range = selectedFbheVibrationRange();
 
     if (range.dayCount < 1) {
