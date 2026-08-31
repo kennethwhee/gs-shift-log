@@ -120220,3 +120220,150 @@ html body
 }
 
 /* SHIFT_LOG_SEARCH_MATCHED_ITEMS_V1_CSS_END */
+
+
+/* ARM_ROLL_BOX_MAIN_ALERT_COMPACT_V1_START */
+
+/*
+  PC right notification rail:
+  Match ARM ROLL BOX alert density to the compact Blower alert.
+
+  Data / thresholds / click behavior are unchanged.
+*/
+
+.arm-roll-box-main-alert {
+  min-height: 0 !important;
+  padding: 7px 9px !important;
+  border-radius: 9px !important;
+  box-shadow: none !important;
+}
+
+.arm-roll-box-main-alert:not([hidden]):not(.is-mobile-top-alert) {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: start !important;
+  column-gap: 7px !important;
+  row-gap: 0 !important;
+}
+
+.arm-roll-box-main-alert:not(.is-mobile-top-alert)
+.arm-roll-box-main-alert__icon {
+  display: none !important;
+}
+
+.arm-roll-box-main-alert:not(.is-mobile-top-alert)
+.arm-roll-box-main-alert__content {
+  display: flex !important;
+  min-width: 0 !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  padding: 0 !important;
+}
+
+.arm-roll-box-main-alert:not(.is-mobile-top-alert)
+.arm-roll-box-main-alert__content small {
+  display: block !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  font-size: 9px !important;
+  font-weight: 850 !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.arm-roll-box-main-alert:not(.is-mobile-top-alert)
+.arm-roll-box-main-alert__content strong {
+  display: flex !important;
+  min-width: 0 !important;
+  align-items: flex-start !important;
+  gap: 6px !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  line-height: 1.32 !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+}
+
+.arm-roll-box-main-alert:not(.is-mobile-top-alert)
+.arm-roll-box-main-alert__content strong::before {
+  content: "";
+  display: block;
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: #d98a24;
+}
+
+.arm-roll-box-main-alert.is-critical:not(.is-mobile-top-alert)
+.arm-roll-box-main-alert__content strong::before {
+  background: #c43b48;
+}
+
+.arm-roll-box-main-alert:not(.is-mobile-top-alert)
+.arm-roll-box-main-alert__count {
+  display: inline-flex !important;
+  min-width: 22px !important;
+  height: 18px !important;
+  min-height: 18px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: start !important;
+  margin: 0 !important;
+  padding: 0 5px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  font-size: 9px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  letter-spacing: -0.02em !important;
+  white-space: nowrap !important;
+}
+
+.arm-roll-box-main-alert.is-recommend:not(.is-mobile-top-alert)
+.arm-roll-box-main-alert__count {
+  background: #d98a24 !important;
+  color: #ffffff !important;
+}
+
+.arm-roll-box-main-alert.is-critical:not(.is-mobile-top-alert)
+.arm-roll-box-main-alert__count {
+  background: #c43b48 !important;
+  color: #ffffff !important;
+}
+
+.arm-roll-box-main-alert:not(.is-mobile-top-alert)
+.arm-roll-box-main-alert__reference {
+  display: none !important;
+}
+
+/*
+  Keep the existing state meaning.
+  Only make the surfaces a little lighter and closer to the Blower card.
+*/
+.arm-roll-box-main-alert.is-recommend:not(.is-mobile-top-alert) {
+  border-color: #e7a144 !important;
+  background: #fff9ef !important;
+}
+
+.arm-roll-box-main-alert.is-critical:not(.is-mobile-top-alert) {
+  border-color: #e39ba3 !important;
+  background: #fff2f3 !important;
+}
+
+/*
+  Mobile has its own top-tab alert layout.
+  Do not override it here.
+*/
+@media screen and (max-width: 768px) {
+  #armRollBoxMainAlert.is-mobile-top-alert {
+    padding: 0 !important;
+  }
+}
+
+/* ARM_ROLL_BOX_MAIN_ALERT_COMPACT_V1_END */
