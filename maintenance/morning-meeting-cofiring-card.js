@@ -204,7 +204,7 @@
     if (dateElement instanceof HTMLElement) {
       dateElement.textContent =
         targetDate
-          ? `${targetDate} · 일일DATA`
+          ? `${targetDate}\n일일DATA`
           : "-";
     }
   }

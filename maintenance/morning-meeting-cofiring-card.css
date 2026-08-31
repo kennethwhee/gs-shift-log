@@ -432,3 +432,30 @@
 }
 
 /* MORNING_MEETING_COFIRING_STABLE_REFRESH_V1_R2_CSS_END */
+
+/* MORNING_MEETING_COFIRING_HEADER_META_STACK_V1_START */
+#efficiencyMorningMeetingAutoCofiringCard
+  .morning-meeting-cofiring-card__meta
+  > #efficiencyMorningMeetingCofiringDate {
+  display: inline-block;
+  width: 50px;
+  flex: 0 0 50px;
+  white-space: pre-line !important;
+  text-align: center;
+  line-height: 1.08;
+}
+
+#efficiencyMorningMeetingAutoCofiringCard
+  > .efficiency-morning-meeting-auto-card__header
+  > div:first-child {
+  flex: 1 1 auto;
+  min-width: 64px;
+}
+
+#efficiencyMorningMeetingAutoCofiringCard
+  > .efficiency-morning-meeting-auto-card__header
+  > div:first-child
+  > strong {
+  white-space: nowrap;
+}
+/* MORNING_MEETING_COFIRING_HEADER_META_STACK_V1_END */
