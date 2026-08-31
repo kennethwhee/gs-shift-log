@@ -1370,3 +1370,105 @@
     font-size: 12px;
   }
 }
+
+
+/* BED_ASH_TOP_BAR_ALIGN_V1_START */
+
+/*
+  Bed Ash 반출 상단 조회바 정렬 정리.
+  목표:
+  - 일별/주별/월별 버튼 그룹과 날짜 이동 컨트롤을 같은 한 줄 기준으로 정렬
+  - 기준일 라벨과 날짜 입력을 가로 한 줄로 정리
+  - 오른쪽 조회 상태 블록을 세로 가운데 정렬
+  - 기존 색상/크기/기능/모바일 동작은 유지
+*/
+#efficiencyTeamModal .bed-ash-discharge-query-card {
+  grid-template-columns: auto auto minmax(300px, 1fr) !important;
+  align-items: center !important;
+  gap: 10px 14px !important;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-period-buttons {
+  align-self: center !important;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-period-buttons button {
+  min-height: 40px !important;
+  line-height: 1 !important;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-date-navigation {
+  display: grid !important;
+  grid-template-columns: 38px minmax(215px, 1fr) 52px 38px !important;
+  align-items: center !important;
+  align-self: center !important;
+  gap: 6px !important;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-date-navigation > button {
+  height: 40px !important;
+  align-self: center !important;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-date-navigation label {
+  display: flex !important;
+  min-height: 40px !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 0 !important;
+  color: #6b7788 !important;
+  font-size: 11px !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-date-navigation input {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 40px !important;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-query-state {
+  display: flex !important;
+  min-height: 44px !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-self: center !important;
+  padding-left: 13px !important;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-query-state strong {
+  line-height: 1.2 !important;
+}
+
+#efficiencyTeamModal .bed-ash-discharge-query-state p {
+  margin-top: 3px !important;
+}
+
+/* 태블릿/협폭에서는 기존 세로 레이아웃 유지 */
+@media (max-width: 1180px) {
+  #efficiencyTeamModal .bed-ash-discharge-query-card {
+    grid-template-columns: 1fr !important;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation {
+    grid-template-columns: 38px minmax(145px, 1fr) 52px 38px !important;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation label {
+    display: grid !important;
+    gap: 4px !important;
+    min-height: auto !important;
+    line-height: normal !important;
+    white-space: normal !important;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-query-state {
+    min-height: 0 !important;
+    align-self: stretch !important;
+  }
+}
+
+/* BED_ASH_TOP_BAR_ALIGN_V1_END */
