@@ -100,8 +100,19 @@
       periodButtons: [
         ...document.querySelectorAll("[data-bed-ash-period]")
       ],
+      weekSelector: document.getElementById("bedAshDischargeWeekSelector"),
+      weekButtons: [
+        ...document.querySelectorAll("[data-bed-ash-week]")
+      ],
+      monthSelector: document.getElementById("bedAshDischargeMonthSelector"),
+      monthButtons: [
+        ...document.querySelectorAll("[data-bed-ash-month]")
+      ],
       previousButton: document.getElementById("bedAshDischargePreviousPeriodButton"),
       anchorDate: document.getElementById("bedAshDischargeAnchorDate"),
+      anchorDateLabel: document.querySelector(
+        'label[for="bedAshDischargeAnchorDate"]'
+      ),
       todayButton: document.getElementById("bedAshDischargeTodayButton"),
       nextButton: document.getElementById("bedAshDischargeNextPeriodButton"),
       refreshButton: document.getElementById("refreshBedAshDischargeButton"),
@@ -138,6 +149,8 @@
     return [
       ...new Set([
         ...elements.periodButtons,
+        ...elements.weekButtons,
+        ...elements.monthButtons,
         elements.previousButton,
         elements.anchorDate,
         elements.todayButton,
@@ -306,20 +319,74 @@
     return formatInputDate(date);
   }
 
-  function addMonths(value, amount) {
-    const date = parseDate(value);
-    if (!date) {
-      return "";
+  function getMonthLastDay(year, monthIndex) {
+    return new Date(Date.UTC(year, monthIndex + 1, 0, 12)).getUTCDate();
+  }
+
+  function getFixedWeekRange(year, monthIndex, weekNumber) {
+    const normalizedWeek = Math.min(5, Math.max(1, Math.trunc(number(weekNumber, 1))));
+    const lastDay = getMonthLastDay(year, monthIndex);
+    const startDay = (normalizedWeek - 1) * 7 + 1;
+    const available = startDay <= lastDay;
+    const endDay = Math.min(startDay + 6, lastDay);
+
+    return {
+      weekNumber: normalizedWeek,
+      startDate: available
+        ? formatInputDate(new Date(Date.UTC(year, monthIndex, startDay, 12)))
+        : "",
+      endDate: available
+        ? formatInputDate(new Date(Date.UTC(year, monthIndex, endDay, 12)))
+        : "",
+      available
+    };
+  }
+
+  function getFixedWeekNumber(date) {
+    return Math.min(5, Math.floor((date.getUTCDate() - 1) / 7) + 1);
+  }
+
+  function shiftWeeklyMonth(value, amount) {
+    const date = parseDate(value) || parseDate(getKstToday());
+    const today = parseDate(getKstToday());
+    const weekNumber = getFixedWeekNumber(date);
+    const targetMonth = new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + amount, 1, 12)
+    );
+    let targetRange = getFixedWeekRange(
+      targetMonth.getUTCFullYear(),
+      targetMonth.getUTCMonth(),
+      weekNumber
+    );
+
+    if (!targetRange.available) {
+      targetRange = getFixedWeekRange(
+        targetMonth.getUTCFullYear(),
+        targetMonth.getUTCMonth(),
+        4
+      );
     }
 
-    const originalDay = date.getUTCDate();
-    date.setUTCDate(1);
-    date.setUTCMonth(date.getUTCMonth() + amount);
-    const lastDay = new Date(
-      Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0, 12)
-    ).getUTCDate();
-    date.setUTCDate(Math.min(originalDay, lastDay));
-    return formatInputDate(date);
+    if (targetRange.startDate > formatInputDate(today)) {
+      targetRange = getFixedWeekRange(
+        targetMonth.getUTCFullYear(),
+        targetMonth.getUTCMonth(),
+        getFixedWeekNumber(today)
+      );
+    }
+
+    return targetRange.startDate;
+  }
+
+  function shiftMonthlyYear(value, amount) {
+    const date = parseDate(value) || parseDate(getKstToday());
+    const today = parseDate(getKstToday());
+    const targetYear = date.getUTCFullYear() + amount;
+    const targetMonth = targetYear === today.getUTCFullYear()
+      ? Math.min(date.getUTCMonth(), today.getUTCMonth())
+      : date.getUTCMonth();
+
+    return formatInputDate(new Date(Date.UTC(targetYear, targetMonth, 1, 12)));
   }
 
   function getKstToday() {
@@ -341,11 +408,13 @@
     let end = new Date(anchor.getTime());
 
     if (period === "weekly") {
-      const day = anchor.getUTCDay();
-      const daysSinceMonday = day === 0 ? 6 : day - 1;
-      start.setUTCDate(anchor.getUTCDate() - daysSinceMonday);
-      end = new Date(start.getTime());
-      end.setUTCDate(start.getUTCDate() + 6);
+      const fixedWeek = getFixedWeekRange(
+        anchor.getUTCFullYear(),
+        anchor.getUTCMonth(),
+        getFixedWeekNumber(anchor)
+      );
+      start = parseDate(fixedWeek.startDate);
+      end = parseDate(fixedWeek.endDate);
     } else if (period === "monthly") {
       start.setUTCDate(1);
       end = new Date(
@@ -709,6 +778,7 @@
     if (elements.refreshButton) {
       elements.refreshButton.disabled = isLoading || isMobileClient();
     }
+    renderPeriodControls();
   }
 
   function setCardSupportingText(valueElement, value) {
@@ -1063,6 +1133,10 @@
     row.appendChild(levelChangeCell);
 
     const estimatedCell = createElement("td", "bed-ash-discharge-estimated-cell");
+    const visibleAmountTon =
+      event.status === "confirmed" && event.confirmedTon !== null
+        ? event.confirmedTon
+        : event.estimatedTon;
     const isTruckBoundaryUnresolved =
       event.closeReason === "truck_boundary_unresolved";
     const isLegacyReviewedEvent =
@@ -1071,13 +1145,10 @@
     if (isTruckBoundaryUnresolved) {
       estimatedCell.classList.add("is-truck-boundary-unresolved");
       estimatedCell.append(
-        createElement("strong", "", formatTon(event.estimatedTon)),
+        createElement("strong", "", formatTon(visibleAmountTon)),
         createElement("small", "", "반출량")
       );
     } else if (isLegacyReviewedEvent) {
-      const legacyTon = event.status === "confirmed" && event.confirmedTon !== null
-        ? event.confirmedTon
-        : event.estimatedTon;
       estimatedCell.classList.add("is-legacy-reviewed-event");
       estimatedCell.append(
         createElement(
@@ -1090,12 +1161,12 @@
         createElement(
           "small",
           "",
-          `${event.status === "confirmed" ? "확정량" : "기록 하락량"} ${formatTon(legacyTon)}`
+          `${event.status === "confirmed" ? "확정량" : "기록 하락량"} ${formatTon(visibleAmountTon)}`
         )
       );
     } else {
       estimatedCell.append(
-        createElement("strong", "", formatTon(event.estimatedTon)),
+        createElement("strong", "", formatTon(visibleAmountTon)),
         createElement("small", "", "반출량")
       );
     }
@@ -1338,6 +1409,16 @@
     const elements = getElements();
     const range = calculatePeriod(state.period, state.anchorDate || getKstToday());
     state.anchorDate = range.anchorDate;
+    const anchor = parseDate(state.anchorDate);
+    const today = parseDate(range.today);
+    const selectedWeek = getFixedWeekNumber(anchor);
+    const selectedMonth = anchor.getUTCMonth() + 1;
+    const displayedMonthStart = formatInputDate(
+      new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1, 12))
+    );
+    const todayMonthStart = formatInputDate(
+      new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1, 12))
+    );
 
     elements.periodButtons.forEach(button => {
       const isSelected = button.dataset.bedAshPeriod === state.period;
@@ -1345,18 +1426,85 @@
       button.setAttribute("aria-pressed", String(isSelected));
     });
 
+    if (elements.weekSelector) {
+      elements.weekSelector.hidden = state.period !== "weekly";
+      elements.weekSelector.setAttribute(
+        "aria-label",
+        `${anchor.getUTCFullYear()}년 ${anchor.getUTCMonth() + 1}월 주 선택`
+      );
+    }
+    elements.weekButtons.forEach(button => {
+      const weekNumber = Math.trunc(number(button.dataset.bedAshWeek, 0));
+      const fixedWeek = getFixedWeekRange(
+        anchor.getUTCFullYear(),
+        anchor.getUTCMonth(),
+        weekNumber
+      );
+      const isSelected = state.period === "weekly" && weekNumber === selectedWeek;
+      const isFuture = fixedWeek.available && fixedWeek.startDate > range.today;
+
+      button.hidden = weekNumber === 5 && !fixedWeek.available;
+      button.disabled =
+        state.reviewSubmissionControlsLocked ||
+        state.loading ||
+        !fixedWeek.available ||
+        isFuture;
+      button.classList.toggle("is-active", isSelected);
+      button.setAttribute("aria-pressed", String(isSelected));
+    });
+
+    if (elements.monthSelector) {
+      elements.monthSelector.hidden = state.period !== "monthly";
+      elements.monthSelector.setAttribute(
+        "aria-label",
+        `${anchor.getUTCFullYear()}년 월 선택`
+      );
+    }
+    elements.monthButtons.forEach(button => {
+      const monthNumber = Math.trunc(number(button.dataset.bedAshMonth, 0));
+      const monthStart = formatInputDate(
+        new Date(Date.UTC(anchor.getUTCFullYear(), monthNumber - 1, 1, 12))
+      );
+      const isSelected = state.period === "monthly" && monthNumber === selectedMonth;
+
+      button.disabled =
+        state.reviewSubmissionControlsLocked ||
+        state.loading ||
+        monthNumber < 1 ||
+        monthNumber > 12 ||
+        monthStart > range.today;
+      button.classList.toggle("is-active", isSelected);
+      button.setAttribute("aria-pressed", String(isSelected));
+    });
+
     if (elements.anchorDate) {
       elements.anchorDate.value = state.anchorDate;
       elements.anchorDate.max = range.today;
+      elements.anchorDate.disabled =
+        state.reviewSubmissionControlsLocked ||
+        state.loading ||
+        state.period !== "daily";
+    }
+    if (elements.anchorDateLabel) {
+      elements.anchorDateLabel.hidden = state.period !== "daily";
     }
     if (elements.rangeLabel) {
       elements.rangeLabel.textContent = formatPeriodLabel(range);
     }
     if (elements.nextButton) {
+      const hasNextPeriod = state.period === "daily"
+        ? state.anchorDate < range.today
+        : state.period === "weekly"
+          ? displayedMonthStart < todayMonthStart
+          : anchor.getUTCFullYear() < today.getUTCFullYear();
       elements.nextButton.disabled =
         state.reviewSubmissionControlsLocked ||
-        range.endDate >= range.today ||
+        !hasNextPeriod ||
         state.loading;
+    }
+    if (elements.previousButton) {
+      elements.previousButton.disabled =
+        state.reviewSubmissionControlsLocked || state.loading;
     }
     if (elements.readOnlyNotice) {
       elements.readOnlyNotice.hidden = !isMobileClient();
@@ -2349,14 +2497,67 @@
       });
     });
 
+    elements.weekButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        if (state.period !== "weekly" || button.disabled) {
+          return;
+        }
+
+        const anchor = parseDate(state.anchorDate) || parseDate(getKstToday());
+        const fixedWeek = getFixedWeekRange(
+          anchor.getUTCFullYear(),
+          anchor.getUTCMonth(),
+          button.dataset.bedAshWeek
+        );
+        if (!fixedWeek.available || fixedWeek.startDate > getKstToday()) {
+          return;
+        }
+
+        state.expandedReviewEventKey = "";
+        state.reviewDrafts.clear();
+        state.composingReviewEventKey = "";
+        state.renderEventsQueued = false;
+        state.anchorDate = fixedWeek.startDate;
+        renderPeriodControls();
+        loadSelectedRange();
+      });
+    });
+
+    elements.monthButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        if (state.period !== "monthly" || button.disabled) {
+          return;
+        }
+
+        const anchor = parseDate(state.anchorDate) || parseDate(getKstToday());
+        const monthNumber = Math.trunc(number(button.dataset.bedAshMonth, 0));
+        const monthStart = formatInputDate(
+          new Date(Date.UTC(anchor.getUTCFullYear(), monthNumber - 1, 1, 12))
+        );
+        if (monthNumber < 1 || monthNumber > 12 || monthStart > getKstToday()) {
+          return;
+        }
+
+        state.expandedReviewEventKey = "";
+        state.reviewDrafts.clear();
+        state.composingReviewEventKey = "";
+        state.renderEventsQueued = false;
+        state.anchorDate = monthStart;
+        renderPeriodControls();
+        loadSelectedRange();
+      });
+    });
+
     elements.previousButton?.addEventListener("click", () => {
       state.expandedReviewEventKey = "";
       state.reviewDrafts.clear();
       state.composingReviewEventKey = "";
       state.renderEventsQueued = false;
       state.anchorDate = state.period === "monthly"
-        ? addMonths(state.anchorDate, -1)
-        : addDays(state.anchorDate, state.period === "weekly" ? -7 : -1);
+        ? shiftMonthlyYear(state.anchorDate, -1)
+        : state.period === "weekly"
+          ? shiftWeeklyMonth(state.anchorDate, -1)
+          : addDays(state.anchorDate, -1);
       renderPeriodControls();
       loadSelectedRange();
     });
@@ -2370,8 +2571,10 @@
       state.composingReviewEventKey = "";
       state.renderEventsQueued = false;
       state.anchorDate = state.period === "monthly"
-        ? addMonths(state.anchorDate, 1)
-        : addDays(state.anchorDate, state.period === "weekly" ? 7 : 1);
+        ? shiftMonthlyYear(state.anchorDate, 1)
+        : state.period === "weekly"
+          ? shiftWeeklyMonth(state.anchorDate, 1)
+          : addDays(state.anchorDate, 1);
       renderPeriodControls();
       loadSelectedRange();
     });
@@ -2387,6 +2590,9 @@
     });
 
     elements.anchorDate?.addEventListener("change", () => {
+      if (state.period !== "daily") {
+        return;
+      }
       state.expandedReviewEventKey = "";
       state.reviewDrafts.clear();
       state.composingReviewEventKey = "";

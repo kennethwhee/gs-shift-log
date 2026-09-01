@@ -4,6 +4,46 @@ import { readFileSync } from "node:fs";
 
 const read = path => readFileSync(path, "utf8");
 
+const BED_ASH_V6_CACHE_KEY = "20260901-bed-ash-compact-period-v6";
+
+function extractFunction(source, name) {
+  const start = source.indexOf(`function ${name}(`);
+  assert.ok(start >= 0, `${name} helper must exist`);
+
+  const parametersStart = source.indexOf("(", start);
+  let parameterDepth = 0;
+  let parametersEnd = -1;
+  for (let index = parametersStart; index < source.length; index += 1) {
+    if (source[index] === "(") {
+      parameterDepth += 1;
+    } else if (source[index] === ")") {
+      parameterDepth -= 1;
+      if (parameterDepth === 0) {
+        parametersEnd = index;
+        break;
+      }
+    }
+  }
+  assert.ok(parametersEnd >= 0, `${name} helper parameters must be balanced`);
+
+  const bodyStart = source.indexOf("{", parametersEnd);
+  assert.ok(bodyStart >= 0, `${name} helper must have a function body`);
+
+  let depth = 0;
+  for (let index = bodyStart; index < source.length; index += 1) {
+    if (source[index] === "{") {
+      depth += 1;
+    } else if (source[index] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(start, index + 1);
+      }
+    }
+  }
+
+  assert.fail(`${name} helper body must be balanced`);
+}
+
 
 const desktopHtml = read("index.html");
 const mobileHtml = read("mobile-app/index.html");
@@ -31,6 +71,8 @@ const requiredIds = [
   "bedAshDischargeAnchorDate",
   "bedAshDischargeTodayButton",
   "bedAshDischargeNextPeriodButton",
+  "bedAshDischargeWeekSelector",
+  "bedAshDischargeMonthSelector",
   "bedAshDischargeRangeLabel",
   "bedAshDischargeStatus",
   "bedAshDischargeReadOnlyNotice",
@@ -70,14 +112,47 @@ for (const [label, html] of [
     `${label}: Bed Ash tab must precede ARM ROLL`
   );
 
-  assert.match(
-    html,
-    /efficiency\/bed-ash-discharge\.css\?v=20260831-bed-ash-amount-v5/
+  const stylesheetCacheKeys = [
+    ...html.matchAll(/efficiency\/bed-ash-discharge\.css\?v=([^"'&\s>]+)/g)
+  ].map(match => match[1]);
+  const clientCacheKeys = [
+    ...html.matchAll(/efficiency\/bed-ash-discharge\.js\?v=([^"'&\s>]+)/g)
+  ].map(match => match[1]);
+  assert.deepEqual(
+    stylesheetCacheKeys,
+    [BED_ASH_V6_CACHE_KEY],
+    `${label}: Bed Ash stylesheet must use only the V6 cache key`
   );
-  assert.match(
-    html,
-    /efficiency\/bed-ash-discharge\.js\?v=20260831-bed-ash-amount-v5/
+  assert.deepEqual(
+    clientCacheKeys,
+    [BED_ASH_V6_CACHE_KEY],
+    `${label}: Bed Ash client must use only the V6 cache key`
   );
+
+  assert.equal(
+    (html.match(/data-bed-ash-week="[1-5]"/g) || []).length,
+    5,
+    `${label}: weekly selector must contain exactly five options`
+  );
+  assert.equal(
+    (html.match(/data-bed-ash-month="(?:[1-9]|1[0-2])"/g) || []).length,
+    12,
+    `${label}: monthly selector must contain exactly twelve options`
+  );
+
+  for (let week = 1; week <= 5; week += 1) {
+    const weekButton = new RegExp(
+      `<button[^>]*data-bed-ash-week="${week}"[^>]*>[\\s\\S]*?${week}주[\\s\\S]*?<\\/button>`
+    );
+    assert.match(html, weekButton, `${label}: ${week}주 selector must exist`);
+  }
+
+  for (let month = 1; month <= 12; month += 1) {
+    const monthButton = new RegExp(
+      `<button[^>]*data-bed-ash-month="${month}"[^>]*>[\\s\\S]*?${month}월[\\s\\S]*?<\\/button>`
+    );
+    assert.match(html, monthButton, `${label}: ${month}월 selector must exist`);
+  }
 
   const viewStart = html.indexOf('id="efficiencyBedAshDischargeView"');
   const viewEnd = html.indexOf('id="efficiencyArmRollView"', viewStart);
@@ -187,6 +262,87 @@ assert.match(
   /forceRefresh:\s*missing\.has\(date\) \|\| failed\.has\(date\)/
 );
 assert.match(client, /maximumFractionDigits:\s*2/);
+
+const periodHelpers = new Function(`
+  ${extractFunction(client, "text")}
+  ${extractFunction(client, "number")}
+  ${extractFunction(client, "parseDate")}
+  ${extractFunction(client, "formatInputDate")}
+  ${extractFunction(client, "getMonthLastDay")}
+  ${extractFunction(client, "getFixedWeekRange")}
+  ${extractFunction(client, "getFixedWeekNumber")}
+  ${extractFunction(client, "getKstToday")}
+  ${extractFunction(client, "calculatePeriod")}
+  return { getFixedWeekRange, calculatePeriod };
+`)();
+
+const august2026Weeks = [
+  ["2026-08-01", "2026-08-07"],
+  ["2026-08-08", "2026-08-14"],
+  ["2026-08-15", "2026-08-21"],
+  ["2026-08-22", "2026-08-28"],
+  ["2026-08-29", "2026-08-31"]
+];
+august2026Weeks.forEach(([startDate, endDate], index) => {
+  const weekNumber = index + 1;
+  assert.deepEqual(periodHelpers.getFixedWeekRange(2026, 7, weekNumber), {
+    weekNumber,
+    startDate,
+    endDate,
+    available: true
+  });
+});
+assert.deepEqual(periodHelpers.getFixedWeekRange(2026, 1, 4), {
+  weekNumber: 4,
+  startDate: "2026-02-22",
+  endDate: "2026-02-28",
+  available: true
+});
+assert.deepEqual(periodHelpers.getFixedWeekRange(2026, 1, 5), {
+  weekNumber: 5,
+  startDate: "",
+  endDate: "",
+  available: false
+});
+assert.deepEqual(periodHelpers.getFixedWeekRange(2028, 1, 5), {
+  weekNumber: 5,
+  startDate: "2028-02-29",
+  endDate: "2028-02-29",
+  available: true
+});
+
+const augustFifthWeek = periodHelpers.calculatePeriod("weekly", "2026-08-31");
+assert.equal(augustFifthWeek.startDate, "2026-08-29");
+assert.equal(augustFifthWeek.endDate, "2026-08-31");
+const augustMonth = periodHelpers.calculatePeriod("monthly", "2026-08-25");
+assert.equal(augustMonth.startDate, "2026-08-01");
+assert.equal(augustMonth.endDate, "2026-08-31");
+
+const createEventRowSource = extractFunction(client, "createEventRow");
+assert.match(
+  createEventRowSource,
+  /const visibleAmountTon\s*=\s*event\.status\s*===\s*"confirmed"\s*&&\s*event\.confirmedTon\s*!==\s*null\s*\?\s*event\.confirmedTon\s*:\s*event\.estimatedTon/,
+  "confirmed history rows must show confirmedTon and all other rows estimatedTon"
+);
+assert.ok(
+  (createEventRowSource.match(/formatTon\(visibleAmountTon\)/g) || []).length >= 2,
+  "visible history amount cells must render the selected amount"
+);
+assert.doesNotMatch(
+  createEventRowSource,
+  /formatTon\(event\.estimatedTon\)/,
+  "history amount cells must not bypass the confirmed amount selection"
+);
+
+const setLoadingSource = extractFunction(client, "setLoading");
+assert.ok(
+  setLoadingSource.indexOf("state.loading = isLoading") <
+    setLoadingSource.indexOf("renderPeriodControls()"),
+  "loading state must be applied before period controls are rerendered"
+);
+const loadSelectedRangeSource = extractFunction(client, "loadSelectedRange");
+assert.match(loadSelectedRangeSource, /setLoading\(true\)/);
+
 assert.match(client, /function summarizeVisibleEvents\(events\)/);
 assert.match(
   client,
@@ -210,6 +366,15 @@ assert.match(refreshHandlerSource, /loadSelectedRange\(\)/);
 assert.doesNotMatch(refreshHandlerSource, /forceRefresh:\s*true/);
 assert.match(client, /window\.openBedAshDischargeView/);
 assert.match(client, /window\.refreshBedAshDischargeSummary/);
+assert.match(client, /document\.getElementById\("bedAshDischargeWeekSelector"\)/);
+assert.match(client, /document\.querySelectorAll\("\[data-bed-ash-week\]"\)/);
+assert.match(client, /document\.getElementById\("bedAshDischargeMonthSelector"\)/);
+assert.match(client, /document\.querySelectorAll\("\[data-bed-ash-month\]"\)/);
+assert.match(client, /button\.hidden\s*=\s*weekNumber\s*===\s*5\s*&&\s*!fixedWeek\.available/);
+assert.match(client, /shiftWeeklyMonth\(state\.anchorDate,\s*-1\)/);
+assert.match(client, /shiftWeeklyMonth\(state\.anchorDate,\s*1\)/);
+assert.match(client, /shiftMonthlyYear\(state\.anchorDate,\s*-1\)/);
+assert.match(client, /shiftMonthlyYear\(state\.anchorDate,\s*1\)/);
 assert.doesNotMatch(client, /\.innerHTML\s*=/);
 const mainAlertStart = client.indexOf("function openFromMainAlert()");
 const mainAlertEnd = client.indexOf("function updateEventFromConflict", mainAlertStart);
@@ -224,7 +389,7 @@ assert.match(style, /bed-ash-discharge-review-toggle/);
 assert.match(style, /is-truck-boundary-unresolved/);
 assert.match(style, /is-boundary-unresolved/);
 assert.match(style, /is-legacy-reviewed-event/);
-assert.match(style, /BED-ASH-AMOUNT-ONLY-V5/);
+assert.match(style, /BED ASH COMPACT PERIOD V6/);
 assert.match(
   style,
   /bed-ash-discharge-summary-card\.is-pending,[\s\S]{0,700}?display:\s*none\s*!important/
@@ -259,10 +424,6 @@ assert.match(
 );
 assert.match(
   style,
-  /@media screen and \(max-width: 768px\)[\s\S]*?bed-ash-discharge-table-wrap table \{\s*min-width:\s*640px;/
-);
-assert.match(
-  style,
   /bed-ash-discharge-table-wrap th,\s*#efficiencyTeamModal \.bed-ash-discharge-table-wrap td \{\s*padding:\s*6px 5px;\s*font-size:\s*11px;/
 );
 assert.match(
@@ -272,6 +433,58 @@ assert.match(
 assert.match(
   style,
   /@media screen and \(max-width: 768px\)[\s\S]*?bed-ash-discharge-time-cell > small,[\s\S]{0,450}?font-size:\s*10\.5px;/
+);
+
+const compactV6Style = style.slice(style.indexOf("BED ASH COMPACT PERIOD V6"));
+assert.match(
+  compactV6Style,
+  /bed-ash-discharge-summary-grid\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/,
+  "mobile V6 summary must keep total, unit 1 and unit 2 on one row"
+);
+assert.match(
+  compactV6Style,
+  /bed-ash-discharge-level-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
+  "mobile V6 inventory must keep unit 1 and unit 2 on one row"
+);
+assert.match(
+  compactV6Style,
+  /bed-ash-discharge-summary-card > strong\s*\{[^}]*font-size:\s*18px/,
+  "mobile V6 summary values must remain readable"
+);
+assert.match(
+  compactV6Style,
+  /bed-ash-discharge-level-card__value strong\s*\{[^}]*font-size:\s*18px/,
+  "mobile V6 inventory values must remain readable"
+);
+assert.match(
+  compactV6Style,
+  /bed-ash-discharge-table-wrap\s*\{[^}]*overflow-x:\s*hidden/,
+  "mobile V6 history wrapper must not horizontally scroll"
+);
+assert.match(
+  compactV6Style,
+  /bed-ash-discharge-table-wrap table\s*\{[^}]*width:\s*100%[^}]*min-width:\s*0[^}]*table-layout:\s*fixed/,
+  "mobile V6 history table must fit the viewport"
+);
+assert.doesNotMatch(
+  compactV6Style,
+  /(?:min-width:\s*(?:580|620|640)px|overflow-x:\s*auto)/,
+  "mobile V6 must not restore a wide or horizontally scrolling history table"
+);
+assert.match(
+  compactV6Style,
+  /bed-ash-discharge-time-cell > small,[\s\S]{0,260}?bed-ash-discharge-estimated-cell:not\(\.is-legacy-reviewed-event\)[\s\S]{0,80}?> small\s*\{\s*display:\s*none/,
+  "mobile V6 history must hide repeated detector-detail sublines"
+);
+assert.match(
+  compactV6Style,
+  /bed-ash-discharge-estimated-cell\.is-legacy-reviewed-event[\s\S]{0,80}?> strong\s*\{\s*display:\s*none/,
+  "mobile V6 history must hide the verbose legacy amount heading"
+);
+assert.match(
+  compactV6Style,
+  /bed-ash-discharge-estimated-cell\.is-legacy-reviewed-event[\s\S]{0,80}?> small\s*\{[^}]*display:\s*block/,
+  "mobile V6 history must preserve the legacy reviewed amount"
 );
 
 const submitReviewStart = client.indexOf("async function submitReview(");
