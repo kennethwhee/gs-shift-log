@@ -1,0 +1,930 @@
+/* =========================================================
+   MAIN FLOATING NOTIFICATION DOCK V1
+
+   Blower / BOX alerts keep their existing data and click
+   handlers. Only their visual mount point is detached from
+   the current-shift heading so browser zoom cannot move it.
+========================================================= */
+
+html body
+#mainNotificationRail.main-floating-notification-dock {
+  box-sizing: border-box !important;
+  position: fixed !important;
+  inset: auto
+    max(20px, env(safe-area-inset-right))
+    max(20px, env(safe-area-inset-bottom))
+    auto !important;
+  z-index: 300 !important;
+
+  display: flex !important;
+  width: clamp(360px, 28vw, 420px) !important;
+  min-width: 0 !important;
+  max-width: calc(100dvw - 40px) !important;
+  max-height: min(55dvh, 480px) !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 10px !important;
+
+  margin: 0 !important;
+  padding: 13px !important;
+  overflow: hidden !important;
+
+  border: 1px solid rgba(186, 199, 214, 0.88) !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  background: rgba(255, 255, 255, 0.93) !important;
+  color: #24364d !important;
+  box-shadow:
+    0 18px 48px rgba(25, 43, 66, 0.18),
+    0 3px 12px rgba(25, 43, 66, 0.08) !important;
+
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: translateY(0) !important;
+
+  -webkit-backdrop-filter: blur(12px) saturate(1.08);
+  backdrop-filter: blur(12px) saturate(1.08);
+
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease !important;
+}
+
+
+html body
+#mainNotificationRail.main-floating-notification-dock[data-active="false"],
+
+html body
+#mainNotificationRail.main-floating-notification-dock.is-floating-closed {
+  display: none !important;
+}
+
+
+/* The old Blower layout reserved heading space at zoomed widths. */
+html body
+#statusView
+.shift-status-section
+> .section-heading
+> .shift-heading-right.has-blower-history-main-alert {
+  padding-top: 0 !important;
+}
+
+
+/* Avoid a one-frame flash if the legacy mobile code reparents BOX. */
+html body
+.top-tabs__inner
+> #armRollBoxMainAlert.is-mobile-top-alert {
+  display: none !important;
+}
+
+
+.main-floating-notification-dock__header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+
+.main-floating-notification-dock__heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+
+.main-floating-notification-dock__heading-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #d28a24;
+  box-shadow: 0 0 0 4px rgba(210, 138, 36, 0.11);
+}
+
+
+.main-floating-notification-dock.has-critical-alert
+.main-floating-notification-dock__heading-dot {
+  background: #bc2837;
+  box-shadow: 0 0 0 4px rgba(188, 40, 55, 0.11);
+}
+
+
+.main-floating-notification-dock__heading strong {
+  overflow: hidden;
+  color: #24364d;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.main-floating-notification-dock__total {
+  display: inline-flex;
+  min-width: 27px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #945d00;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+
+.main-floating-notification-dock.has-critical-alert
+.main-floating-notification-dock__total {
+  background: #bc2837;
+}
+
+
+.main-floating-notification-dock__close {
+  display: inline-flex;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #d3dde7;
+  border-radius: 10px;
+  background: rgba(247, 249, 252, 0.92);
+  color: #5f7187;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+}
+
+
+.main-floating-notification-dock__close:hover {
+  border-color: #aebdcd;
+  background: #eef3f7;
+  color: #263b53;
+}
+
+
+.main-floating-notification-dock__summary {
+  display: none;
+}
+
+
+.main-floating-notification-dock__list {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+
+.main-floating-notification-dock__live {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+}
+
+
+/* =========================================================
+   Existing alert buttons as readable dock rows
+========================================================= */
+
+html body
+#mainNotificationRailList
+> .blower-history-main-alert,
+
+html body
+#mainNotificationRailList
+> .arm-roll-box-main-alert {
+  box-sizing: border-box !important;
+  position: relative !important;
+  inset: auto !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  min-height: 58px !important;
+  align-items: center !important;
+  gap: 9px !important;
+
+  margin: 0 !important;
+  padding: 10px 11px !important;
+  overflow: hidden !important;
+
+  border-radius: 12px !important;
+  text-align: left !important;
+  white-space: normal !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+  transform: none !important;
+}
+
+
+html body
+#mainNotificationRailList
+> .blower-history-main-alert:not([hidden]),
+
+html body
+#mainNotificationRailList
+> .arm-roll-box-main-alert:not([hidden]) {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+}
+
+
+html body
+#mainNotificationRailList
+> .blower-history-main-alert[hidden],
+
+html body
+#mainNotificationRailList
+> .arm-roll-box-main-alert[hidden] {
+  display: none !important;
+}
+
+
+html body
+#mainNotificationRailList
+> .blower-history-main-alert {
+  border: 1px solid #e7bdc2 !important;
+  background: rgba(255, 246, 247, 0.94) !important;
+  color: #9f2632 !important;
+}
+
+
+html body
+#mainNotificationRailList
+> .blower-history-main-alert.is-warning {
+  border-color: #e7c46f !important;
+  background: rgba(255, 250, 235, 0.95) !important;
+  color: #805d0c !important;
+}
+
+
+html body
+#mainNotificationRailList
+> .arm-roll-box-main-alert {
+  border: 1px solid #e5b25f !important;
+  background: rgba(255, 249, 239, 0.95) !important;
+  color: #80520f !important;
+}
+
+
+html body
+#mainNotificationRailList
+> .arm-roll-box-main-alert.is-critical {
+  border-color: #e39ba3 !important;
+  background: rgba(255, 242, 243, 0.95) !important;
+  color: #a52e3a !important;
+}
+
+
+html body
+#mainNotificationRailList
+.blower-history-main-alert__dot,
+
+html body
+#mainNotificationRailList
+.arm-roll-box-main-alert__icon {
+  display: none !important;
+}
+
+
+html body
+#mainNotificationRailList
+.blower-history-main-alert__content,
+
+html body
+#mainNotificationRailList
+.arm-roll-box-main-alert__content {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+}
+
+
+html body
+#mainNotificationRailList
+.blower-history-main-alert__content small,
+
+html body
+#mainNotificationRailList
+.arm-roll-box-main-alert__content small {
+  display: block !important;
+  margin: 0 0 3px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  color: inherit !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+  letter-spacing: -0.015em !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+
+html body
+#mainNotificationRailList
+.blower-history-main-alert__content strong,
+
+html body
+#mainNotificationRailList
+.arm-roll-box-main-alert__content strong {
+  display: -webkit-box !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  color: inherit !important;
+  font-size: 13px !important;
+  font-weight: 780 !important;
+  line-height: 1.38 !important;
+  letter-spacing: -0.02em !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+  line-clamp: 2 !important;
+}
+
+
+html body
+#mainNotificationRailList
+.arm-roll-box-main-alert__content strong::before {
+  display: none !important;
+  content: none !important;
+}
+
+
+html body
+#mainNotificationRailList
+.arm-roll-box-main-alert__reference {
+  display: none !important;
+}
+
+
+html body
+#mainNotificationRailList
+.blower-history-main-alert__count,
+
+html body
+#mainNotificationRailList
+.arm-roll-box-main-alert__count {
+  position: static !important;
+  inset: auto !important;
+  display: inline-flex !important;
+  min-width: 31px !important;
+  height: 25px !important;
+  min-height: 25px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: center !important;
+  margin: 0 !important;
+  padding: 0 7px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: #bd2938 !important;
+  color: #ffffff !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+
+html body
+#mainNotificationRailList
+> .blower-history-main-alert.is-warning
+.blower-history-main-alert__count,
+
+html body
+#mainNotificationRailList
+> .arm-roll-box-main-alert.is-recommend
+.arm-roll-box-main-alert__count {
+  background: #945d00 !important;
+}
+
+
+html body
+#mainNotificationRailList
+> button:hover {
+  filter: brightness(0.985);
+}
+
+
+html body
+#mainNotificationRailList
+> button:focus-visible,
+
+.main-floating-notification-dock__close:focus-visible,
+.main-floating-notification-dock__summary:focus-visible,
+.main-floating-notification-launcher:focus-visible {
+  outline: 2px solid #2c6fbd !important;
+  outline-offset: 2px !important;
+}
+
+
+/* =========================================================
+   Closed launcher
+========================================================= */
+
+html body
+.main-floating-notification-launcher {
+  box-sizing: border-box;
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 300;
+
+  display: inline-flex;
+  width: 56px;
+  height: 56px;
+  align-items: center;
+  justify-content: center;
+
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(200, 63, 76, 0.72);
+  border-radius: 50%;
+  background: rgba(255, 247, 248, 0.94);
+  color: #b42331;
+  box-shadow: 0 12px 30px rgba(45, 58, 77, 0.2);
+
+  font: inherit;
+  cursor: pointer;
+
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+
+html body
+.main-floating-notification-launcher[hidden] {
+  display: none !important;
+}
+
+
+.main-floating-notification-launcher__mark {
+  font-size: 25px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+
+.main-floating-notification-launcher__count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: inline-flex;
+  min-width: 23px;
+  height: 23px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: #b42331;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* =========================================================
+   Mobile and high browser zoom
+========================================================= */
+
+@media screen and (max-width: 768px) {
+  html body
+  #mainNotificationRail.main-floating-notification-dock {
+    inset: auto
+      max(12px, env(safe-area-inset-right))
+      max(12px, env(safe-area-inset-bottom))
+      max(12px, env(safe-area-inset-left)) !important;
+
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    max-height: min(60dvh, 440px) !important;
+    gap: 7px !important;
+    padding: 10px !important;
+    border-radius: 15px !important;
+    background: rgba(255, 255, 255, 0.91) !important;
+    box-shadow:
+      0 14px 38px rgba(24, 42, 64, 0.2),
+      0 2px 9px rgba(24, 42, 64, 0.08) !important;
+  }
+
+
+  .main-floating-notification-dock__header {
+    gap: 8px;
+  }
+
+
+  .main-floating-notification-dock__heading {
+    gap: 7px;
+  }
+
+
+  .main-floating-notification-dock__heading-dot {
+    width: 8px;
+    height: 8px;
+  }
+
+
+  .main-floating-notification-dock__heading strong {
+    font-size: 14px;
+  }
+
+
+  .main-floating-notification-dock__total {
+    min-width: 25px;
+    height: 22px;
+    padding: 0 7px;
+    font-size: 10px;
+  }
+
+
+  .main-floating-notification-dock__close {
+    flex-basis: 40px;
+    width: 40px;
+    height: 40px;
+    border-radius: 9px;
+    font-size: 19px;
+  }
+
+
+  .main-floating-notification-dock__summary {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    min-height: 31px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0;
+    padding: 3px 2px 1px;
+    border: 0;
+    background: transparent;
+    color: #52647a;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+
+  .main-floating-notification-dock__summary span {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+
+  .main-floating-notification-dock__summary strong {
+    flex: 0 0 auto;
+    color: #2a65a8;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+
+  #mainNotificationRail.main-floating-notification-dock
+  .main-floating-notification-dock__list {
+    display: none !important;
+  }
+
+
+  #mainNotificationRail.main-floating-notification-dock[data-mobile-expanded="true"]
+  .main-floating-notification-dock__list {
+    display: grid !important;
+    max-height: calc(min(60dvh, 440px) - 102px);
+  }
+
+
+  html body
+  #mainNotificationRailList
+  > .blower-history-main-alert,
+
+  html body
+  #mainNotificationRailList
+  > .arm-roll-box-main-alert {
+    min-height: 52px !important;
+    gap: 7px !important;
+    padding: 8px 9px !important;
+    border-radius: 10px !important;
+  }
+
+
+  html body
+  #mainNotificationRailList
+  .blower-history-main-alert__content small,
+
+  html body
+  #mainNotificationRailList
+  .arm-roll-box-main-alert__content small {
+    margin-bottom: 2px !important;
+    font-size: 10.5px !important;
+  }
+
+
+  html body
+  #mainNotificationRailList
+  .blower-history-main-alert__content strong,
+
+  html body
+  #mainNotificationRailList
+  .arm-roll-box-main-alert__content strong {
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+  }
+
+
+  html body
+  #mainNotificationRailList
+  .blower-history-main-alert__count,
+
+  html body
+  #mainNotificationRailList
+  .arm-roll-box-main-alert__count {
+    min-width: 29px !important;
+    height: 23px !important;
+    min-height: 23px !important;
+    padding: 0 6px !important;
+    font-size: 9px !important;
+  }
+
+
+  html body
+  .main-floating-notification-launcher {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: 50px;
+    height: 50px;
+  }
+
+
+  .main-floating-notification-launcher__mark {
+    font-size: 23px;
+  }
+
+
+  .main-floating-notification-launcher__count {
+    top: -4px;
+    right: -4px;
+    min-width: 22px;
+    height: 22px;
+    font-size: 8.5px;
+  }
+}
+
+
+/* The dedicated mobile client can be wider than 768px in landscape. */
+html.main-floating-notification-mobile-client body
+#mainNotificationRail.main-floating-notification-dock {
+  inset: auto
+    max(12px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left)) !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  max-height: min(60dvh, 440px) !important;
+  gap: 7px !important;
+  padding: 10px !important;
+  border-radius: 15px !important;
+  background: rgba(255, 255, 255, 0.91) !important;
+  box-shadow:
+    0 14px 38px rgba(24, 42, 64, 0.2),
+    0 2px 9px rgba(24, 42, 64, 0.08) !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__header {
+  gap: 8px;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__heading {
+  gap: 7px;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__heading-dot {
+  width: 8px;
+  height: 8px;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__heading strong {
+  font-size: 14px;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__total {
+  min-width: 25px;
+  height: 22px;
+  padding: 0 7px;
+  font-size: 10px;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__close {
+  flex-basis: 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  font-size: 19px;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__summary {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 31px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 3px 2px 1px;
+  border: 0;
+  background: transparent;
+  color: #52647a;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__summary span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__summary strong {
+  flex: 0 0 auto;
+  color: #2a65a8;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+
+html.main-floating-notification-mobile-client
+#mainNotificationRail.main-floating-notification-dock
+.main-floating-notification-dock__list {
+  display: none !important;
+}
+
+
+html.main-floating-notification-mobile-client
+#mainNotificationRail.main-floating-notification-dock[data-mobile-expanded="true"]
+.main-floating-notification-dock__list {
+  display: grid !important;
+  max-height: calc(min(60dvh, 440px) - 102px);
+}
+
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRailList
+> .blower-history-main-alert,
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRailList
+> .arm-roll-box-main-alert {
+  min-height: 52px !important;
+  gap: 7px !important;
+  padding: 8px 9px !important;
+  border-radius: 10px !important;
+}
+
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRailList
+.blower-history-main-alert__content small,
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRailList
+.arm-roll-box-main-alert__content small {
+  margin-bottom: 2px !important;
+  font-size: 10.5px !important;
+}
+
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRailList
+.blower-history-main-alert__content strong,
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRailList
+.arm-roll-box-main-alert__content strong {
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}
+
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRailList
+.blower-history-main-alert__count,
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRailList
+.arm-roll-box-main-alert__count {
+  min-width: 29px !important;
+  height: 23px !important;
+  min-height: 23px !important;
+  padding: 0 6px !important;
+  font-size: 9px !important;
+}
+
+
+html.main-floating-notification-mobile-client body
+.main-floating-notification-launcher {
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  width: 50px;
+  height: 50px;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-launcher__mark {
+  font-size: 23px;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-launcher__count {
+  top: -4px;
+  right: -4px;
+  min-width: 22px;
+  height: 22px;
+  font-size: 8.5px;
+}
+
+
+@media print {
+  html body
+  #mainNotificationRail.main-floating-notification-dock,
+
+  html body
+  .main-floating-notification-launcher {
+    display: none !important;
+  }
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  html body
+  #mainNotificationRail.main-floating-notification-dock {
+    transition: none !important;
+  }
+}

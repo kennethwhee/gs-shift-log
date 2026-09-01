@@ -2271,6 +2271,21 @@
   }
 
   function mountMainAlert(alertButton, section) {
+    const floatingList = document.getElementById(
+      "mainNotificationRailList"
+    );
+
+    if (
+      window.__mainFloatingNotificationDockV1Installed === true &&
+      floatingList
+    ) {
+      if (alertButton.parentElement !== floatingList) {
+        floatingList.append(alertButton);
+      }
+
+      return;
+    }
+
     const heading = section.querySelector(":scope > .section-heading");
     const headingRight = heading?.querySelector(":scope > .shift-heading-right");
 
@@ -2309,7 +2324,15 @@
   }
 
   function setMainAlertVisibility(alertButton, isVisible) {
-    alertButton.hidden = !isVisible;
+    if (!isVisible && document.activeElement === alertButton) {
+      document.querySelector(".top-tab.is-active")?.focus({
+        preventScroll: true
+      });
+    }
+
+    if (alertButton.hidden === isVisible) {
+      alertButton.hidden = !isVisible;
+    }
 
     const notificationRail = alertButton.closest(
       "#mainNotificationRail"
@@ -2381,6 +2404,30 @@
     return `${days}일 ${hours}시간 남음`;
   }
 
+  function buildMainAlertIdentity(summary) {
+    const alerts = Array.isArray(summary?.alerts) ? summary.alerts : [];
+
+    const identities = alerts
+      .map(asset => {
+        return String(
+          asset?.tagNumber ||
+          asset?.assetTag ||
+          asset?.id ||
+          [
+            asset?.blowerType,
+            asset?.unitNo,
+            asset?.positionLabel
+          ].filter(Boolean).join(":") ||
+          asset?.displayName ||
+          ""
+        ).trim();
+      })
+      .filter(Boolean)
+      .sort();
+
+    return JSON.stringify(identities);
+  }
+
   function renderSummary(summary) {
     const menuItem = ensureMenuItem();
     const alertButton = ensureMainAlert();
@@ -2407,6 +2454,12 @@
 
     if (!alertButton) {
       return;
+    }
+
+    const floatingIdentity = buildMainAlertIdentity(summary);
+
+    if (alertButton.dataset.mainFloatingIdentity !== floatingIdentity) {
+      alertButton.dataset.mainFloatingIdentity = floatingIdentity;
     }
 
     if (alertCount === 0) {
@@ -2484,6 +2537,15 @@
   function initialize() {
     ensureLauncherStyle();
     ensureMenuItem();
+
+    if (
+      window.__mobileBlowerMainAlertV1Installed === true &&
+      typeof window.GSMobileBlowerMainAlert?.sync === "function"
+    ) {
+      window.GSMobileBlowerMainAlert.sync();
+      return;
+    }
+
     ensureMainAlert();
     refreshSummary();
 

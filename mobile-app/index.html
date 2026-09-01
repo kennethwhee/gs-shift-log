@@ -569,7 +569,7 @@
   -->
   <link
     rel="preload"
-    href="/mobile-app/mobile-runtime-v14.js?v=20260830-bed-ash-discharge-v1"
+    href="/mobile-app/mobile-runtime-v14.js?v=20260901-floating-notification-v1"
     as="script"
   >
 
@@ -603,6 +603,10 @@
   <link
     rel="stylesheet"
     href="/efficiency/bed-ash-discharge.css?v=20260901-bed-ash-compact-period-v6"
+  >
+  <link
+    rel="stylesheet"
+    href="/maintenance/main-floating-notification-dock.css?v=20260901-v2"
   >
 
   <link
@@ -653,6 +657,14 @@
 
   <script
     src="/maintenance/shift-log-navigation.js?v=20260828-navigation-public-v1"
+    defer
+  ></script>
+  <script
+    src="/maintenance/main-floating-notification-dock.js?v=20260901-v2"
+    defer
+  ></script>
+  <script
+    src="/maintenance/mobile-blower-main-alert.js?v=20260901-v1"
     defer
   ></script>
 
@@ -15407,7 +15419,7 @@
 </script>
 
 <script
-  src="/mobile-app/mobile-runtime-v14.js?v=20260830-bed-ash-discharge-v1"
+  src="/mobile-app/mobile-runtime-v14.js?v=20260901-floating-notification-v1"
   onload="window.__markMobileAppBootResourceV13?.('sharedScript',true)"
   onerror="window.__setMobileAppBootStageV13?.('shared-script-error','업무일지 프로그램을 불러오지 못했습니다.');window.__showMobileAppBootRecoveryV13?.('업무일지 프로그램을 불러오지 못했습니다. 다시 시도해 주세요.')"
 ></script>
@@ -15746,7 +15758,7 @@
             () => {
               return loadOptionalScript(
                 "mobileInspectionLauncherV15",
-                "/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260828-navigation-public-v1",
+                "/inspection-logs/daily/night-patrol/night-patrol-launcher.js?v=20260901-floating-notification-v1",
                 () => {
                   return window.__gsNightPatrolLauncherInstalled ===
                     true;

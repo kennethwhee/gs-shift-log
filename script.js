@@ -127678,6 +127678,36 @@ function renderArmRollBoxMainAlert() {
     getArmRollBoxMainRecommendationItems();
 
 
+  const floatingIdentity =
+    JSON.stringify(
+      requestItems
+        .map(
+          item => {
+            return String(
+              item.key ||
+              item.label ||
+              ""
+            ).trim();
+          }
+        )
+        .filter(
+          Boolean
+        )
+        .sort()
+    );
+
+
+  if (
+    alertButton.dataset
+      .mainFloatingIdentity !==
+      floatingIdentity
+  ) {
+    alertButton.dataset
+      .mainFloatingIdentity =
+      floatingIdentity;
+  }
+
+
   /*
     50% 이상인 BOX가 없으면 알림 숨김
   */
@@ -127685,6 +127715,21 @@ function renderArmRollBoxMainAlert() {
     requestItems.length ===
       0
   ) {
+    if (
+      document.activeElement ===
+        alertButton
+    ) {
+      document
+        .querySelector(
+          ".top-tab.is-active"
+        )
+        ?.focus({
+          preventScroll:
+            true
+        });
+    }
+
+
     alertButton.hidden =
       true;
 
@@ -129601,6 +129646,44 @@ function bindArmRollBoxEvents() {
     }
 
 
+    if (
+      window
+        .__mainFloatingNotificationDockV1Installed ===
+        true
+    ) {
+      const dockList =
+        document.getElementById(
+          "mainNotificationRailList"
+        );
+
+
+      if (
+        dockList &&
+        alertButton.parentElement !==
+          dockList
+      ) {
+        dockList.appendChild(
+          alertButton
+        );
+      }
+
+
+      document
+        .getElementById(
+          "armRollBoxMainAlertMobilePlaceholder"
+        )
+        ?.remove();
+
+
+      alertButton.classList.remove(
+        "is-mobile-top-alert"
+      );
+
+
+      return;
+    }
+
+
     ensureArmRollBoxMobileAlertUi();
 
 
@@ -129705,7 +129788,10 @@ function bindArmRollBoxEvents() {
     "click",
     event => {
       if (
-        isArmRollBoxMobileAlertMode()
+        isArmRollBoxMobileAlertMode() &&
+        window
+          .__mainFloatingNotificationDockV1Installed !==
+          true
       ) {
         event.preventDefault();
         event.stopPropagation();
