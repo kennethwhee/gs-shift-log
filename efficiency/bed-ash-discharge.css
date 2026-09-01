@@ -1474,8 +1474,9 @@
 /* BED_ASH_TOP_BAR_ALIGN_V1_END */
 
 /* =========================================================
-  BED ASH COMPACT PERIOD V6
+  BED ASH COMPACT PERIOD V6.1
   - 주별 1~5주 / 월별 1~12월 선택기
+  - 주별·월별에서는 중복 날짜 이동줄 숨김
   - 모바일 요약 3열, 재고 2열, 반출 내역 한 화면 표시
 ========================================================= */
 
@@ -1496,14 +1497,12 @@
 }
 
 #efficiencyTeamModal
-  .bed-ash-discharge-date-navigation:has(> label[hidden]),
-#efficiencyTeamModal
   #efficiencyBedAshDischargeView[data-bed-ash-period="weekly"]
   .bed-ash-discharge-date-navigation,
 #efficiencyTeamModal
   #efficiencyBedAshDischargeView[data-bed-ash-period="monthly"]
   .bed-ash-discharge-date-navigation {
-  grid-template-columns: 38px minmax(145px, 1fr) 38px !important;
+  display: none !important;
 }
 
 #efficiencyTeamModal #bedAshDischargeWeekSelector {
@@ -1546,6 +1545,15 @@
 }
 
 @media screen and (min-width: 1181px) {
+  #efficiencyTeamModal
+    #efficiencyBedAshDischargeView:is(
+      [data-bed-ash-period="weekly"],
+      [data-bed-ash-period="monthly"]
+    )
+    .bed-ash-discharge-query-card {
+    grid-template-columns: auto minmax(300px, 1fr) !important;
+  }
+
   #efficiencyTeamModal .bed-ash-discharge-period-buttons {
     grid-column: 1;
     grid-row: 1;
@@ -1559,6 +1567,15 @@
   #efficiencyTeamModal .bed-ash-discharge-query-state {
     grid-column: 3;
     grid-row: 1;
+  }
+
+  #efficiencyTeamModal
+    #efficiencyBedAshDischargeView:is(
+      [data-bed-ash-period="weekly"],
+      [data-bed-ash-period="monthly"]
+    )
+    .bed-ash-discharge-query-state {
+    grid-column: 2;
   }
 
   #efficiencyTeamModal .bed-ash-discharge-period-option-strip {
@@ -1594,17 +1611,6 @@
   #efficiencyTeamModal .bed-ash-discharge-date-navigation {
     grid-template-columns: 32px minmax(0, 1fr) 44px 32px !important;
     gap: 4px !important;
-  }
-
-  #efficiencyTeamModal
-    .bed-ash-discharge-date-navigation:has(> label[hidden]),
-  #efficiencyTeamModal
-    #efficiencyBedAshDischargeView[data-bed-ash-period="weekly"]
-    .bed-ash-discharge-date-navigation,
-  #efficiencyTeamModal
-    #efficiencyBedAshDischargeView[data-bed-ash-period="monthly"]
-    .bed-ash-discharge-date-navigation {
-    grid-template-columns: 32px minmax(0, 1fr) 32px !important;
   }
 
   #efficiencyTeamModal .bed-ash-discharge-date-navigation > button,

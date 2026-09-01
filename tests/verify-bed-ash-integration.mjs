@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const read = path => readFileSync(path, "utf8");
 
-const BED_ASH_V6_CACHE_KEY = "20260901-bed-ash-compact-period-v6";
+const BED_ASH_V6_CACHE_KEY = "20260901-bed-ash-no-period-nav-v6-1";
 
 function extractFunction(source, name) {
   const start = source.indexOf(`function ${name}(`);
@@ -171,12 +171,12 @@ for (const [label, html] of [
 
 assert.match(
   desktopHtml,
-  /script\.js\?v=20260831-morning-meeting-indent-tm-scope-v1/
+  /script\.js\?v=20260901-floating-notification-v1/
 );
 assert.equal(
   (
     mobileHtml.match(
-      /mobile-runtime-v14\.js\?v=20260830-bed-ash-discharge-v1/g
+      /mobile-runtime-v14\.js\?v=20260901-floating-notification-v1/g
     ) || []
   ).length,
   2
@@ -389,7 +389,7 @@ assert.match(style, /bed-ash-discharge-review-toggle/);
 assert.match(style, /is-truck-boundary-unresolved/);
 assert.match(style, /is-boundary-unresolved/);
 assert.match(style, /is-legacy-reviewed-event/);
-assert.match(style, /BED ASH COMPACT PERIOD V6/);
+assert.match(style, /BED ASH COMPACT PERIOD V6\.1/);
 assert.match(
   style,
   /bed-ash-discharge-summary-card\.is-pending,[\s\S]{0,700}?display:\s*none\s*!important/
@@ -435,7 +435,12 @@ assert.match(
   /@media screen and \(max-width: 768px\)[\s\S]*?bed-ash-discharge-time-cell > small,[\s\S]{0,450}?font-size:\s*10\.5px;/
 );
 
-const compactV6Style = style.slice(style.indexOf("BED ASH COMPACT PERIOD V6"));
+const compactV6Style = style.slice(style.indexOf("BED ASH COMPACT PERIOD V6.1"));
+assert.match(
+  compactV6Style,
+  /#efficiencyBedAshDischargeView\[data-bed-ash-period="weekly"\][\s\S]{0,100}?\.bed-ash-discharge-date-navigation,[\s\S]{0,140}?#efficiencyBedAshDischargeView\[data-bed-ash-period="monthly"\][\s\S]{0,100}?\.bed-ash-discharge-date-navigation\s*\{\s*display:\s*none\s*!important/,
+  "weekly and monthly views must remove the redundant previous/today/next row"
+);
 assert.match(
   compactV6Style,
   /bed-ash-discharge-summary-grid\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/,
