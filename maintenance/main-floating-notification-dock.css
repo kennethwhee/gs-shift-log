@@ -1602,3 +1602,407 @@ html.main-floating-notification-mobile-client
   border-radius: 9px !important;
   background: rgba(242, 247, 252, 0.34) !important;
 }
+
+
+/* =========================================================
+   MOBILE NOTIFICATION CENTER V1.2
+
+   - Replaces nested alert cards with flat source groups.
+   - Keeps one compact detail link in each source header.
+   - The original alert buttons remain mobile data sources only.
+========================================================= */
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRail.main-floating-notification-dock {
+  width: min(132px, calc(100dvw - 24px)) !important;
+  max-height: 52px !important;
+  padding: 4px !important;
+  border-radius: 13px !important;
+  background: rgba(248, 250, 253, 0.42) !important;
+}
+
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRail.main-floating-notification-dock[data-mobile-expanded="true"] {
+  width: min(304px, calc(100dvw - 24px)) !important;
+  max-height: min(52dvh, 360px) !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border-color: rgba(157, 175, 195, 0.38) !important;
+  border-radius: 14px !important;
+  background: rgba(248, 250, 253, 0.46) !important;
+  box-shadow: 0 10px 28px rgba(48, 68, 91, 0.16) !important;
+  backdrop-filter: blur(14px) saturate(112%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(112%) !important;
+}
+
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRail.main-floating-notification-dock[data-mobile-expanded="false"]
+> .main-floating-notification-dock__header,
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRail.main-floating-notification-dock[data-mobile-expanded="false"]
+> .main-floating-notification-dock__list {
+  display: none !important;
+}
+
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRail.main-floating-notification-dock[data-mobile-expanded="false"]
+> .main-floating-notification-dock__summary {
+  display: grid !important;
+  min-height: 44px !important;
+  grid-template-columns: 24px 24px minmax(0, 1fr) !important;
+  gap: 4px !important;
+  padding: 0 7px 0 3px !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__summary-mark {
+  display: inline-flex !important;
+  width: 22px !important;
+  height: 22px !important;
+  font-size: 14px !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__summary-count {
+  display: inline-flex !important;
+  min-width: 22px !important;
+  height: 20px !important;
+  padding: 0 4px !important;
+  font-size: 9px !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__summary
+#mainNotificationRailSummaryAction {
+  font-size: 10px !important;
+}
+
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRail.main-floating-notification-dock[data-mobile-expanded="true"]
+> .main-floating-notification-dock__header {
+  box-sizing: border-box !important;
+  display: flex !important;
+  min-height: 44px !important;
+  padding: 2px 4px 2px 10px !important;
+  border-bottom: 1px solid rgba(169, 184, 201, 0.34) !important;
+  outline: 0 !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__heading {
+  gap: 6px !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__heading-dot {
+  width: 7px !important;
+  height: 7px !important;
+  box-shadow: none !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__heading strong {
+  font-size: 12.5px !important;
+  line-height: 1 !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__total {
+  min-width: 20px !important;
+  height: 20px !important;
+  padding: 0 5px !important;
+  font-size: 9px !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__controls {
+  gap: 0 !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__collapse,
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__close {
+  box-sizing: border-box !important;
+  flex: 0 0 40px !important;
+  width: 40px !important;
+  min-width: 40px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__collapse {
+  color: #43658b !important;
+  font-size: 10px !important;
+  font-weight: 850 !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__close {
+  color: #5e6f84 !important;
+  font-size: 21px !important;
+  font-weight: 400 !important;
+}
+
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRail.main-floating-notification-dock[data-mobile-expanded="true"]
+> .main-floating-notification-dock__list {
+  box-sizing: border-box !important;
+  display: block !important;
+  max-height: min(43dvh, 318px) !important;
+  padding: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  scrollbar-gutter: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRail.main-floating-notification-dock[data-mobile-notification-center="true"]
+#mainNotificationRailList
+> #blowerHistoryMainAlert,
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRail.main-floating-notification-dock[data-mobile-notification-center="true"]
+#mainNotificationRailList
+> #armRollBoxMainAlert,
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRail.main-floating-notification-dock[data-mobile-notification-center="true"]
+#mainNotificationRailList
+> #bedAshDischargeMainAlert {
+  display: none !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-group {
+  display: block !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-top: 1px solid rgba(169, 184, 201, 0.3) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-group[hidden] {
+  display: none !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-group:first-of-type {
+  border-top: 0 !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-header {
+  box-sizing: border-box !important;
+  display: grid !important;
+  min-height: 36px !important;
+  grid-template-columns: minmax(0, auto) auto minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 2px 8px 2px 10px !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-header::before {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+  background: #bd2f3b !important;
+  content: "" !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-header {
+  grid-template-columns: 6px minmax(0, auto) auto minmax(0, 1fr) !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-title {
+  overflow: hidden !important;
+  color: #263b53 !important;
+  font-size: 11.5px !important;
+  font-weight: 900 !important;
+  line-height: 1.15 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-count {
+  display: inline-flex !important;
+  min-width: 19px !important;
+  height: 18px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 5px !important;
+  border-radius: 999px !important;
+  background: rgba(184, 39, 53, 0.1) !important;
+  color: #af2633 !important;
+  font-size: 8.5px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-header
+.main-floating-notification-dock__detail-action {
+  justify-self: end !important;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 36px !important;
+  margin: 0 !important;
+  padding: 0 3px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #2f659f !important;
+  font-size: 10.5px !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-rows {
+  display: block !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 10px !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-row {
+  position: relative !important;
+  box-sizing: border-box !important;
+  display: grid !important;
+  min-height: 42px !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 5px 1px !important;
+  border: 0 !important;
+  border-top: 1px solid rgba(174, 188, 204, 0.24) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-row:first-child {
+  border-top: 0 !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-row-title,
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-row-meta {
+  display: block !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-row-title {
+  display: -webkit-box !important;
+  overflow: hidden !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+  text-overflow: ellipsis !important;
+  white-space: normal !important;
+  color: #31475f !important;
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+  line-height: 1.25 !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-row-meta {
+  color: #718094 !important;
+  font-size: 10px !important;
+  font-weight: 750 !important;
+  line-height: 1.2 !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-row.is-overdue
+.main-floating-notification-dock__source-row-meta,
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-row.is-critical
+.main-floating-notification-dock__source-row-meta {
+  color: #b12b38 !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-row.is-remainder {
+  display: block !important;
+  min-height: 30px !important;
+  padding: 8px 1px !important;
+  text-align: center !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__source-row.is-remainder
+.main-floating-notification-dock__source-row-title {
+  color: #748398 !important;
+  font-size: 9px !important;
+  font-weight: 750 !important;
+}

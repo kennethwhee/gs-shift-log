@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 const read = path => readFileSync(path, "utf8");
 
 const CACHE_KEY =
-  "20260902-mobile-notification-center-v1-1";
+  "20260902-mobile-notification-center-v1-2";
 
 
 function extractFunction(
@@ -197,6 +197,11 @@ assert.doesNotMatch(
   /20260902-mobile-blower-preview-v1/
 );
 
+assert.doesNotMatch(
+  `${desktopHtml}\n${mobileHtml}`,
+  /20260902-mobile-notification-center-v1-1/
+);
+
 assert.match(
   mobileHtml,
   /id="bedAshDischargeMainAlert"/
@@ -330,6 +335,27 @@ assert.match(
 
 assert.match(
   mobileDetail,
+  /document\.createElement\(\s*"section"\s*\)/,
+  "mobile preview must project each source into a compact section"
+);
+
+for (
+  const className of [
+    "main-floating-notification-dock__source-group",
+    "main-floating-notification-dock__source-header",
+    "main-floating-notification-dock__source-title",
+    "main-floating-notification-dock__source-count",
+    "main-floating-notification-dock__source-rows"
+  ]
+) {
+  assert.match(
+    mobileDetail,
+    new RegExp(className)
+  );
+}
+
+assert.match(
+  mobileDetail,
   /mainNotificationRailDetail-\$\{definition\.id\}/,
   "each source must own a stable detail button"
 );
@@ -351,7 +377,7 @@ assert.match(
 
 assert.match(
   mobileDetail,
-  /\$\{definition\.detailLabel\}\s+상세보기/
+  /"상세보기 ›"/
 );
 
 assert.match(
@@ -361,14 +387,100 @@ assert.match(
 
 assert.match(
   mobileDetail,
-  /source\.insertAdjacentElement\(\s*"afterend"\s*,\s*action\s*\)/,
-  "the explicit detail action must follow the inert preview source"
+  /source\.insertAdjacentElement\(\s*"afterend"\s*,\s*group\s*\)/,
+  "the compact source group must follow its original data source"
+);
+
+assert.match(
+  mobileDetail,
+  /groupHeader\?\.appendChild\(\s*action\s*\)/,
+  "the detail action must stay inline inside the compact source header"
 );
 
 assert.match(
   mobileDetail,
   /setHidden\(\s*action\s*,\s*!sourceIsVisible\s*\)/,
   "a hidden source must not leave an orphan detail action"
+);
+
+assert.match(
+  mobileDetail,
+  /setHidden\(\s*group\s*,\s*!sourceIsVisible\s*\)/,
+  "a hidden source must also hide its compact source group"
+);
+
+const mobileRows =
+  extractFunction(
+    dockScript,
+    "getMobileSourceRows"
+  );
+
+assert.match(
+  mobileRows,
+  /const normalizePreviewText/
+);
+
+assert.doesNotMatch(
+  mobileRows,
+  /normalizeIdentityText/,
+  "display rows must preserve percentage and remaining-time numbers"
+);
+
+assert.match(
+  mobileRows,
+  /blower-history-main-alert__preview-item/
+);
+
+assert.match(
+  mobileRows,
+  /\.forEach\(/
+);
+
+assert.doesNotMatch(
+  mobileRows,
+  /\.slice\(/,
+  "the compact projection must keep every Blower preview supplied by the API"
+);
+
+assert.match(
+  mobileRows,
+  /\.split\(\s*\/\\s\*·\\s\*\//,
+  "ARM ROLL BOX summaries must split into individual flat rows"
+);
+
+assert.match(
+  mobileRows,
+  /\(\.\*\?BOX\)[\s\S]{0,120}?요청\\s\*필요/
+);
+
+const mobileGroupSync =
+  extractFunction(
+    dockScript,
+    "syncMobileSourceGroup"
+  );
+
+for (
+  const className of [
+    "main-floating-notification-dock__source-row",
+    "main-floating-notification-dock__source-row-title",
+    "main-floating-notification-dock__source-row-meta"
+  ]
+) {
+  assert.match(
+    mobileGroupSync,
+    new RegExp(className)
+  );
+}
+
+assert.match(
+  mobileGroupSync,
+  /mainFloatingRowsSignature/
+);
+
+assert.match(
+  mobileGroupSync,
+  /rowsNode\?\.replaceChildren\(\s*fragment\s*\)/,
+  "projection rows must update only through the signature-guarded fragment"
 );
 
 const openMobileDetail =
@@ -504,8 +616,8 @@ assert.match(
 
 assert.match(
   dockScript,
-  /main-floating-notification-dock__detail-action:not\(\[hidden\]\)/,
-  "opening an ARM-only preview must not focus the hidden Blower action"
+  /rail[\s\S]{0,120}?\.querySelector\(\s*":scope > \.main-floating-notification-dock__header"\s*\)[\s\S]{0,100}?\.focus/,
+  "opening the preview must focus the neutral header instead of drawing a blue detail-button outline"
 );
 
 const bindingStart =
@@ -661,13 +773,13 @@ assert.match(
 const mobileStyle =
   dockStyle.slice(
     dockStyle.lastIndexOf(
-      "MOBILE NOTIFICATION CENTER V1.1"
+      "MOBILE NOTIFICATION CENTER V1.2"
     )
   );
 
 assert.ok(
   mobileStyle.length > 0,
-  "mobile notification center V1.1 style marker must exist"
+  "mobile notification center V1.2 style marker must exist"
 );
 
 assert.match(
@@ -683,12 +795,12 @@ assert.match(
 
 assert.match(
   mobileStyle,
-  /width:\s*min\(148px,\s*calc\(100dvw\s*-\s*24px\)\)[\s\S]{0,100}?max-height:\s*56px/
+  /width:\s*min\(132px,\s*calc\(100dvw\s*-\s*24px\)\)[\s\S]{0,100}?max-height:\s*52px/
 );
 
 assert.match(
   mobileStyle,
-  /data-mobile-expanded="true"\][\s\S]{0,180}?width:\s*min\(330px/
+  /data-mobile-expanded="true"\][\s\S]{0,180}?width:\s*min\(304px/
 );
 
 assert.match(
@@ -718,37 +830,72 @@ assert.match(
 
 assert.match(
   mobileStyle,
-  /main-floating-notification-dock__collapse[\s\S]{0,280}?display:\s*inline-flex\s*!important[\s\S]{0,240}?height:\s*44px\s*!important/
+  /main-floating-notification-dock__collapse,[\s\S]{0,180}?main-floating-notification-dock__close[\s\S]{0,420}?width:\s*40px\s*!important[\s\S]{0,160}?height:\s*40px\s*!important[\s\S]{0,160}?border:\s*0\s*!important[\s\S]{0,160}?background:\s*transparent\s*!important/
 );
 
 assert.match(
   mobileStyle,
-  /data-mobile-expanded="true"\][\s\S]{0,220}?main-floating-notification-dock__list[\s\S]{0,220}?max-height:\s*min\(45dvh,\s*330px\)\s*!important[\s\S]{0,220}?overflow-y:\s*auto\s*!important[\s\S]{0,160}?overscroll-behavior:\s*contain\s*!important[\s\S]{0,160}?-webkit-overflow-scrolling:\s*touch\s*!important/
+  /data-mobile-expanded="true"\][\s\S]{0,220}?main-floating-notification-dock__list[\s\S]{0,260}?max-height:\s*min\(43dvh,\s*318px\)\s*!important[\s\S]{0,220}?overflow-y:\s*auto\s*!important[\s\S]{0,160}?overscroll-behavior:\s*contain\s*!important[\s\S]{0,160}?-webkit-overflow-scrolling:\s*touch\s*!important/
 );
 
 assert.match(
   mobileStyle,
-  />\s*#bedAshDischargeMainAlert[\s\S]{0,80}?display:\s*none\s*!important/
+  /#mainNotificationRail\.main-floating-notification-dock\[data-mobile-notification-center="true"\][\s\S]{0,140}?#mainNotificationRailList[\s\S]{0,80}?>\s*#blowerHistoryMainAlert,[\s\S]{0,240}?data-mobile-notification-center="true"[\s\S]{0,140}?>\s*#armRollBoxMainAlert,[\s\S]{0,240}?data-mobile-notification-center="true"[\s\S]{0,140}?>\s*#bedAshDischargeMainAlert[\s\S]{0,100}?display:\s*none\s*!important/,
+  "mobile must use a stronger rail-scoped rule to hide the original nested cards and keep Bed Ash excluded"
+);
+
+for (
+  const className of [
+    "main-floating-notification-dock__source-group",
+    "main-floating-notification-dock__source-header",
+    "main-floating-notification-dock__source-title",
+    "main-floating-notification-dock__source-count",
+    "main-floating-notification-dock__source-rows",
+    "main-floating-notification-dock__source-row",
+    "main-floating-notification-dock__source-row-title",
+    "main-floating-notification-dock__source-row-meta"
+  ]
+) {
+  assert.match(
+    mobileStyle,
+    new RegExp(className)
+  );
+}
+
+assert.match(
+  mobileStyle,
+  /main-floating-notification-dock__source-group[\s\S]{0,320}?border:\s*0\s*!important[\s\S]{0,180}?border-top:\s*1px[\s\S]{0,180}?border-radius:\s*0\s*!important[\s\S]{0,160}?background:\s*transparent\s*!important/,
+  "source groups must use one divider instead of another rounded card"
 );
 
 assert.match(
   mobileStyle,
-  />\s*#armRollBoxMainAlert:not\(\[hidden\]\)[\s\S]{0,140}?display:\s*grid\s*!important/
+  /main-floating-notification-dock__source-header[\s\S]{0,180}?main-floating-notification-dock__detail-action[\s\S]{0,300}?width:\s*auto\s*!important[\s\S]{0,180}?min-height:\s*36px\s*!important[\s\S]{0,180}?border:\s*0\s*!important[\s\S]{0,180}?border-radius:\s*0\s*!important[\s\S]{0,180}?background:\s*transparent\s*!important/,
+  "detail navigation must be a small inline text action"
 );
 
 assert.match(
   mobileStyle,
-  />\s*#blowerHistoryMainAlert:not\(\[hidden\]\),[\s\S]{0,180}?>\s*#armRollBoxMainAlert:not\(\[hidden\]\)[\s\S]{0,300}?pointer-events:\s*none\s*!important/
+  /data-mobile-expanded="true"\][\s\S]{0,420}?background:\s*rgba\(248,\s*250,\s*253,\s*0\.46\)\s*!important/,
+  "expanded mobile notification center must stay translucent"
 );
 
 assert.match(
   mobileStyle,
-  /blower-history-main-alert__preview-list[\s\S]{0,180}?display:\s*grid\s*!important/
+  /main-floating-notification-dock__source-row-title\s*\{[\s\S]{0,300}?-webkit-line-clamp:\s*2\s*!important[\s\S]{0,180}?white-space:\s*normal\s*!important/,
+  "long Blower names must retain enough room to distinguish their suffixes"
 );
 
 assert.match(
   mobileStyle,
-  /main-floating-notification-dock__detail-action[\s\S]{0,180}?min-height:\s*44px\s*!important/
+  /main-floating-notification-dock__source-row\s*\{[\s\S]{0,520}?border:\s*0\s*!important[\s\S]{0,180}?border-top:\s*1px[\s\S]{0,180}?border-radius:\s*0\s*!important[\s\S]{0,160}?background:\s*transparent\s*!important/,
+  "individual notifications must be flat rows separated by one line"
+);
+
+assert.doesNotMatch(
+  mobileStyle,
+  /main-floating-notification-dock__detail-action\s*\{[\s\S]{0,220}?min-height:\s*44px/,
+  "V1.2 must not restore the large full-width detail buttons"
 );
 
 assert.match(

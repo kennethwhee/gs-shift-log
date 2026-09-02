@@ -494,6 +494,9 @@
     header.className =
       "main-floating-notification-dock__header";
 
+    header.tabIndex =
+      -1;
+
     header.innerHTML = `
       <div class="main-floating-notification-dock__heading">
         <span
@@ -807,9 +810,17 @@
     const actionId =
       `mainNotificationRailDetail-${definition.id}`;
 
+    const groupId =
+      `mainNotificationRailGroup-${definition.id}`;
+
     let action =
       document.getElementById(
         actionId
+      );
+
+    let group =
+      document.getElementById(
+        groupId
       );
 
     const shouldShow =
@@ -819,6 +830,7 @@
       !shouldShow
     ) {
       action?.remove();
+      group?.remove();
 
       const previousState =
         mobileSourceInteractionStates
@@ -860,6 +872,63 @@
 
       return;
     }
+
+    if (
+      !group
+    ) {
+      group =
+        document.createElement(
+          "section"
+        );
+
+      group.id =
+        groupId;
+
+      group.className =
+        "main-floating-notification-dock__source-group";
+
+      setDataValue(
+        group,
+        "mainFloatingSourceGroup",
+        definition.id
+      );
+
+      setAttributeValue(
+        group,
+        "aria-label",
+        `${definition.detailLabel} 알림`
+      );
+
+      group.innerHTML = `
+        <div class="main-floating-notification-dock__source-header">
+          <span class="main-floating-notification-dock__source-title"></span>
+          <span class="main-floating-notification-dock__source-count">0</span>
+        </div>
+        <div
+          class="main-floating-notification-dock__source-rows"
+          role="list"
+        ></div>
+      `;
+    }
+
+    if (
+      group.parentElement !==
+        list ||
+      group.previousElementSibling !==
+        source
+    ) {
+      source.insertAdjacentElement(
+        "afterend",
+        group
+      );
+    }
+
+    setNodeText(
+      group.querySelector(
+        ".main-floating-notification-dock__source-title"
+      ),
+      definition.detailLabel
+    );
 
     if (
       !mobileSourceInteractionStates
@@ -936,14 +1005,16 @@
       );
     }
 
+    const groupHeader =
+      group.querySelector(
+        ".main-floating-notification-dock__source-header"
+      );
+
     if (
       action.parentElement !==
-        list ||
-      action.previousElementSibling !==
-        source
+        groupHeader
     ) {
-      source.insertAdjacentElement(
-        "afterend",
+      groupHeader?.appendChild(
         action
       );
     }
@@ -959,15 +1030,304 @@
       !sourceIsVisible
     );
 
+    setHidden(
+      group,
+      !sourceIsVisible
+    );
+
     setNodeText(
       action,
-      `${definition.detailLabel} 상세보기`
+      "상세보기 ›"
     );
 
     setAttributeValue(
       action,
       "aria-label",
       `${definition.detailLabel} 알림 상세보기`
+    );
+  }
+
+
+  function getMobileSourceRows(
+    state
+  ) {
+    const rows = [];
+
+    const normalizePreviewText =
+      value => {
+        return String(
+          value == null
+            ? ""
+            : value
+        )
+          .replace(
+            /\s+/g,
+            " "
+          )
+          .trim();
+      };
+
+    if (
+      state.definition.id ===
+        "blowerHistoryMainAlert"
+    ) {
+      state.source
+        .querySelectorAll(
+          ".blower-history-main-alert__preview-item"
+        )
+        .forEach(
+          item => {
+            const title =
+              normalizePreviewText(
+                item.querySelector(
+                  "strong"
+                )?.textContent
+              );
+
+            const meta =
+              normalizePreviewText(
+                item.querySelector(
+                  "small"
+                )?.textContent
+              );
+
+            if (
+              title ||
+              meta
+            ) {
+              rows.push({
+                meta,
+                severity:
+                  getSeverity(
+                    item
+                  ),
+                title:
+                  title ||
+                  state.definition.detailLabel
+              });
+            }
+          }
+        );
+
+      const remainder =
+        normalizePreviewText(
+          state.source
+            .querySelector(
+              ".blower-history-main-alert__preview-remainder"
+            )
+            ?.textContent
+        );
+
+      if (
+        remainder
+      ) {
+        rows.push({
+          isRemainder: true,
+          meta: "",
+          severity: "notice",
+          title: remainder
+        });
+      }
+
+      return rows;
+    }
+
+    const identityNode =
+      state.source.querySelector(
+        state.definition.identitySelector
+      );
+
+    const entries =
+      normalizePreviewText(
+        identityNode?.textContent ||
+        state.identity
+      )
+        .split(
+          /\s*·\s*/
+        )
+        .filter(
+          Boolean
+        );
+
+    entries.forEach(
+      entry => {
+        const match =
+          entry.match(
+            /^(.*?BOX)\s+(\d+(?:\.\d+)?)%\s*요청\s*필요$/i
+          );
+
+        rows.push({
+          meta:
+            match
+              ? "교체 권고"
+              : "",
+          severity:
+            state.severity,
+          title:
+            match
+              ? `${match[1]} ${match[2]}%`
+              : entry
+        });
+      }
+    );
+
+    if (
+      rows.length === 0
+    ) {
+      rows.push({
+        meta: "확인 필요",
+        severity:
+          state.severity,
+        title:
+          state.definition.detailLabel
+      });
+    }
+
+    return rows;
+  }
+
+
+  function syncMobileSourceGroup(
+    state
+  ) {
+    if (
+      !isMobileDockMode() ||
+      !state
+    ) {
+      return;
+    }
+
+    const group =
+      document.getElementById(
+        `mainNotificationRailGroup-${state.definition.id}`
+      );
+
+    if (
+      !group
+    ) {
+      return;
+    }
+
+    const rows =
+      getMobileSourceRows(
+        state
+      );
+
+    const signature =
+      JSON.stringify(
+        rows
+      );
+
+    setNodeText(
+      group.querySelector(
+        ".main-floating-notification-dock__source-count"
+      ),
+      formatBadgeCount(
+        state.count
+      )
+    );
+
+    setDataValue(
+      group,
+      "severity",
+      state.severity
+    );
+
+    setHidden(
+      group,
+      false
+    );
+
+    if (
+      group.dataset
+        .mainFloatingRowsSignature ===
+        signature
+    ) {
+      return;
+    }
+
+    const rowsNode =
+      group.querySelector(
+        ".main-floating-notification-dock__source-rows"
+      );
+
+    const fragment =
+      document.createDocumentFragment();
+
+    rows.forEach(
+      rowData => {
+        const row =
+          document.createElement(
+            "div"
+          );
+
+        row.className = [
+          "main-floating-notification-dock__source-row",
+          `is-${rowData.severity}`,
+          rowData.isRemainder
+            ? "is-remainder"
+            : ""
+        ]
+          .filter(
+            Boolean
+          )
+          .join(
+            " "
+          );
+
+        row.setAttribute(
+          "role",
+          "listitem"
+        );
+
+        const title =
+          document.createElement(
+            "strong"
+          );
+
+        title.className =
+          "main-floating-notification-dock__source-row-title";
+
+        title.textContent =
+          rowData.title;
+
+        row.appendChild(
+          title
+        );
+
+        if (
+          rowData.meta
+        ) {
+          const meta =
+            document.createElement(
+              "small"
+            );
+
+          meta.className =
+            "main-floating-notification-dock__source-row-meta";
+
+          meta.textContent =
+            rowData.meta;
+
+          row.appendChild(
+            meta
+          );
+        }
+
+        fragment.appendChild(
+          row
+        );
+      }
+    );
+
+    rowsNode?.replaceChildren(
+      fragment
+    );
+
+    setDataValue(
+      group,
+      "mainFloatingRowsSignature",
+      signature
     );
   }
 
@@ -1112,7 +1472,7 @@
     setNodeText(
       heading,
       isMobile
-        ? "알림 미리보기"
+        ? "알림"
         : "운영 알림"
     );
 
@@ -1360,9 +1720,9 @@
           ) {
             window.setTimeout(
               () => {
-                document
+                rail
                   .querySelector(
-                    ".main-floating-notification-dock__detail-action:not([hidden])"
+                    ":scope > .main-floating-notification-dock__header"
                   )
                   ?.focus({
                     preventScroll:
@@ -1831,10 +2191,28 @@
             }
           );
 
+        const sourceGroup =
+          document.getElementById(
+            `mainNotificationRailGroup-${definition.id}`
+          );
+
+        setHidden(
+          sourceGroup,
+          !state
+        );
+
         setHidden(
           detailAction,
           !state
         );
+
+        if (
+          state
+        ) {
+          syncMobileSourceGroup(
+            state
+          );
+        }
 
         if (
           !detailAction ||
