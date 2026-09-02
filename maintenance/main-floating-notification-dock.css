@@ -2007,3 +2007,47 @@ html.main-floating-notification-mobile-client
   font-size: 9px !important;
   font-weight: 750 !important;
 }
+
+
+/* =========================================================
+   MOBILE NOTIFICATION CENTER V1.3
+
+   - Uses the circular ! launcher as the only closed state.
+   - Removes the intermediate summary pill and collapse action.
+========================================================= */
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRail.main-floating-notification-dock[data-mobile-notification-center="true"][data-mobile-expanded="false"] {
+  display: none !important;
+}
+
+
+html.main-floating-notification-mobile-client body
+#mainNotificationRail.main-floating-notification-dock[data-mobile-notification-center="true"][data-mobile-expanded]
+> .main-floating-notification-dock__summary {
+  display: none !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__collapse {
+  display: none !important;
+}
+
+
+html.main-floating-notification-mobile-client
+.main-floating-notification-dock__close {
+  flex: 0 0 44px !important;
+  width: 44px !important;
+  min-width: 44px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+}
+
+
+html.main-floating-notification-mobile-client body
+.main-floating-notification-launcher {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 50% !important;
+}

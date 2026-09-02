@@ -513,14 +513,6 @@
       <div class="main-floating-notification-dock__controls">
         <button
           type="button"
-          class="main-floating-notification-dock__collapse"
-          id="mainNotificationRailCollapse"
-          aria-label="알림 미리보기 접기"
-          title="알림 미리보기 접기"
-        >접기</button>
-
-        <button
-          type="button"
           class="main-floating-notification-dock__close"
           id="mainNotificationRailClose"
           aria-label="운영 알림 닫기"
@@ -572,7 +564,7 @@
         id="mainNotificationRailSummaryText"
       >알림</span>
       <strong id="mainNotificationRailSummaryAction">
-        미리보기
+        보기
       </strong>
     `;
 
@@ -733,11 +725,7 @@
       mobileExpanded =
         false;
 
-      updateExpandedState(
-        document.getElementById(
-          RAIL_ID
-        )
-      );
+      syncDock();
 
       if (
         typeof window
@@ -1444,11 +1432,6 @@
         "mainNotificationRailClose"
       );
 
-    const collapse =
-      document.getElementById(
-        "mainNotificationRailCollapse"
-      );
-
     const isMobile =
       isMobileDockMode();
 
@@ -1458,16 +1441,10 @@
       mobileExpanded
     );
 
-    if (
-      action
-    ) {
-      setNodeText(
-        action,
-        isMobile
-          ? "미리보기"
-          : "보기"
-      );
-    }
+    setNodeText(
+      action,
+      "보기"
+    );
 
     setNodeText(
       heading,
@@ -1496,13 +1473,6 @@
         closeLabel;
     }
 
-    setAttributeValue(
-      collapse,
-      "aria-hidden",
-      isMobile
-        ? "false"
-        : "true"
-    );
   }
 
 
@@ -1573,6 +1543,12 @@
       );
 
     if (
+      isMobileDockMode()
+    ) {
+      summary?.remove();
+      summary =
+        null;
+    } else if (
       !summary
     ) {
       summary =
@@ -1595,7 +1571,10 @@
       list =
         createDockList();
 
-      summary.insertAdjacentElement(
+      (
+        summary ||
+        header
+      ).insertAdjacentElement(
         "afterend",
         list
       );
@@ -1645,30 +1624,6 @@
 
       document
         .getElementById(
-          "mainNotificationRailCollapse"
-        )
-        ?.addEventListener(
-          "click",
-          event => {
-            event.preventDefault();
-            event.stopPropagation();
-
-            mobileExpanded =
-              false;
-
-            updateExpandedState(
-              rail
-            );
-
-            summary.focus({
-              preventScroll:
-                true
-            });
-          }
-        );
-
-      document
-        .getElementById(
           "mainNotificationRailClose"
         )
         ?.addEventListener(
@@ -1680,28 +1635,23 @@
             mobileExpanded =
               false;
 
-            updateExpandedState(
-              rail
-            );
+            if (
+              !isMobileDockMode()
+            ) {
+              dismissedSignature =
+                currentSignature;
+            }
 
-            dismissedSignature =
-              currentSignature;
-
-            setHidden(
-              launcher,
-              false
-            );
+            syncDock();
 
             launcher.focus({
               preventScroll:
                 true
             });
-
-            syncDock();
           }
         );
 
-      summary.addEventListener(
+      summary?.addEventListener(
         "click",
         event => {
           event.preventDefault();
@@ -1709,66 +1659,6 @@
 
           mobileExpanded =
             !mobileExpanded;
-
-          updateExpandedState(
-            rail
-          );
-
-          if (
-            isMobileDockMode() &&
-            mobileExpanded
-          ) {
-            window.setTimeout(
-              () => {
-                rail
-                  .querySelector(
-                    ":scope > .main-floating-notification-dock__header"
-                  )
-                  ?.focus({
-                    preventScroll:
-                      true
-                  });
-              },
-              0
-            );
-          }
-        }
-      );
-
-      rail.addEventListener(
-        "click",
-        event => {
-          if (
-            !isMobileDockMode() ||
-            mobileExpanded
-          ) {
-            return;
-          }
-
-          const target =
-            event.target instanceof
-              Element
-              ? event.target
-              : null;
-
-          if (
-            !target ||
-            target.closest(
-              [
-                ".main-floating-notification-dock__collapse",
-                ".main-floating-notification-dock__close",
-                ".main-floating-notification-dock__list",
-                ".main-floating-notification-dock__summary"
-              ].join(
-                ","
-              )
-            )
-          ) {
-            return;
-          }
-
-          mobileExpanded =
-            true;
 
           updateExpandedState(
             rail
@@ -1782,8 +1672,15 @@
           event.preventDefault();
           event.stopPropagation();
 
-          dismissedSignature =
-            "";
+          if (
+            isMobileDockMode()
+          ) {
+            mobileExpanded =
+              true;
+          } else {
+            dismissedSignature =
+              "";
+          }
 
           syncDock();
 
@@ -1791,9 +1688,7 @@
             () => {
               document
                 .getElementById(
-                  isMobileDockMode()
-                    ? "mainNotificationRailSummary"
-                    : "mainNotificationRailClose"
+                  "mainNotificationRailClose"
                 )
                 ?.focus({
                   preventScroll:
@@ -1836,6 +1731,8 @@
           updateExpandedState(
             rail
           );
+
+          syncDock();
         }
       );
 
@@ -1860,7 +1757,9 @@
             rail
           );
 
-          summary.focus({
+          syncDock();
+
+          launcher.focus({
             preventScroll:
               true
           });
@@ -2048,8 +1947,10 @@
       signature;
 
     const isDismissed =
-      dismissedSignature ===
-      signature;
+      isMobileDockMode()
+        ? !mobileExpanded
+        : dismissedSignature ===
+          signature;
 
     const launcherHadFocus =
       document.activeElement ===
@@ -2107,9 +2008,7 @@
         () => {
           document
             .getElementById(
-              isMobileDockMode()
-                ? "mainNotificationRailSummary"
-                : "mainNotificationRailClose"
+              "mainNotificationRailClose"
             )
             ?.focus({
               preventScroll:
@@ -2162,17 +2061,15 @@
 
     setNodeText(
       summaryText,
-      isMobileDockMode()
-        ? "알림"
-        : states
-            .map(
-              state => {
-                return `${state.definition.summaryLabel} ${state.count}`;
-              }
-            )
-            .join(
-              " · "
-            )
+      states
+        .map(
+          state => {
+            return `${state.definition.summaryLabel} ${state.count}`;
+          }
+        )
+        .join(
+          " · "
+        )
     );
 
     SOURCE_DEFINITIONS.forEach(
@@ -2267,17 +2164,17 @@
     );
 
     setAttributeValue(
+      dock.launcher,
+      "aria-label",
+      `운영 알림 ${total}건 열기`
+    );
+
+    setAttributeValue(
       document.getElementById(
         "mainNotificationRailSummary"
       ),
       "aria-label",
-      `운영 알림 ${total}건 미리보기`
-    );
-
-    setAttributeValue(
-      dock.launcher,
-      "aria-label",
-      `운영 알림 ${total}건 열기`
+      `운영 알림 ${total}건 보기`
     );
 
     const launcherTitle =

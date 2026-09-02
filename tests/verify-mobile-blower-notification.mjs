@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 const read = path => readFileSync(path, "utf8");
 
 const CACHE_KEY =
-  "20260902-arm-roll-compact-v2";
+  "20260902-mobile-notification-center-v1-3-r1";
 
 
 function extractFunction(
@@ -202,6 +202,11 @@ assert.doesNotMatch(
   /20260902-mobile-notification-center-v1-1/
 );
 
+assert.doesNotMatch(
+  `${desktopHtml}\n${mobileHtml}`,
+  /20260902-mobile-notification-center-v1-2/
+);
+
 assert.match(
   mobileHtml,
   /id="bedAshDischargeMainAlert"/
@@ -233,7 +238,7 @@ assert.doesNotMatch(
 assert.match(
   dockScript,
   /let mobileExpanded\s*=\s*false/,
-  "mobile notification preview must start folded"
+  "mobile notification center must start on the circular launcher"
 );
 
 
@@ -496,6 +501,12 @@ assert.match(
 
 assert.match(
   openMobileDetail,
+  /mobileExpanded\s*=\s*false[\s\S]{0,100}?syncDock\(\)/,
+  "opening the ARM detail modal must return the notification center to its launcher"
+);
+
+assert.match(
+  openMobileDetail,
   /openEfficiencyTeamModal/
 );
 
@@ -528,22 +539,20 @@ const dockSummary =
 
 assert.match(
   dockSummary,
-  /main-floating-notification-dock__summary-mark/
+  /main-floating-notification-dock__summary-mark|mainNotificationRailSummaryCount/,
+  "the non-mobile narrow-width fallback must retain its exclamation mark and count"
 );
 
 assert.match(
-  dockSummary,
-  />!<\/span>/
+  dockScript,
+  /const summaryCount\s*=\s*document\.getElementById\(\s*"mainNotificationRailSummaryCount"\s*\)[\s\S]{0,420}?setNodeText\(\s*summaryCount,\s*badgeCount\s*\)/,
+  "desktop summary count must continue updating while mobile removes the summary DOM"
 );
 
 assert.match(
-  dockSummary,
-  /mainNotificationRailSummaryCount/
-);
-
-assert.match(
-  dockSummary,
-  /"aria-expanded"\s*,\s*"false"/
+  dockScript,
+  /if\s*\(\s*isMobileDockMode\(\)\s*\)[\s\S]{0,100}?summary\?\.remove\(\)[\s\S]{0,120}?else if[\s\S]{0,120}?createDockSummary\(\)/,
+  "the summary fallback must be created only for non-mobile narrow desktop layouts"
 );
 
 const badgeFormatterSource =
@@ -578,19 +587,15 @@ assert.match(
   /main-floating-notification-dock__controls/
 );
 
-assert.ok(
-  dockHeader.indexOf(
-    "mainNotificationRailCollapse"
-  ) <
-    dockHeader.indexOf(
-      "mainNotificationRailClose"
-    ),
-  "collapse must sit immediately before close in the expanded header"
+assert.doesNotMatch(
+  dockHeader,
+  /mainNotificationRailCollapse|>접기<\/button>/,
+  "the expanded mobile alert must not expose an intermediate collapse action"
 );
 
 assert.match(
   dockHeader,
-  />접기<\/button>/
+  /mainNotificationRailClose/
 );
 
 assert.match(
@@ -611,13 +616,13 @@ assert.match(
 assert.match(
   dockScript,
   /rail\.contains\(\s*target\s*\)/,
-  "tapping outside the expanded preview must collapse it"
+  "tapping outside the expanded preview must return to the launcher"
 );
 
 assert.match(
   dockScript,
-  /rail[\s\S]{0,120}?\.querySelector\(\s*":scope > \.main-floating-notification-dock__header"\s*\)[\s\S]{0,100}?\.focus/,
-  "opening the preview must focus the neutral header instead of drawing a blue detail-button outline"
+  /document[\s\S]{0,100}?\.getElementById\(\s*"mainNotificationRailClose"\s*\)[\s\S]{0,100}?\.focus/,
+  "opening the preview must focus the close control"
 );
 
 const bindingStart =
@@ -625,49 +630,22 @@ const bindingStart =
     ".mainFloatingNotificationBound"
   );
 
-const collapseHandlerStart =
-  dockScript.indexOf(
-    '"mainNotificationRailCollapse"',
-    bindingStart
-  );
-
 const closeHandlerStart =
   dockScript.indexOf(
     '"mainNotificationRailClose"',
-    collapseHandlerStart
+    bindingStart
   );
 
-const collapseHandler =
-  dockScript.slice(
-    collapseHandlerStart,
-    closeHandlerStart
-  );
-
-assert.match(
-  collapseHandler,
-  /mobileExpanded\s*=\s*false/
-);
-
-assert.match(
-  collapseHandler,
-  /summary\.focus/
-);
-
-assert.doesNotMatch(
-  collapseHandler,
-  /dismissedSignature/
-);
-
-const closeHandlerEnd =
+const launcherHandlerStart =
   dockScript.indexOf(
-    "summary.addEventListener",
+    "launcher.addEventListener",
     closeHandlerStart
   );
 
 const closeHandler =
   dockScript.slice(
     closeHandlerStart,
-    closeHandlerEnd
+    launcherHandlerStart
   );
 
 assert.match(
@@ -675,14 +653,52 @@ assert.match(
   /mobileExpanded\s*=\s*false/
 );
 
-assert.ok(
-  closeHandler.indexOf(
-    "mobileExpanded"
-  ) <
-    closeHandler.indexOf(
-      "dismissedSignature"
-    ),
-  "closing the alert must also reset preview expansion"
+assert.match(
+  closeHandler,
+  /!isMobileDockMode\(\)[\s\S]{0,120}?dismissedSignature/,
+  "desktop dismissal signatures must stay isolated from the mobile two-state flow"
+);
+
+assert.match(
+  closeHandler,
+  /syncDock\(\)/,
+  "X must immediately return the mobile notification center to its launcher"
+);
+
+const launcherHandlerEnd =
+  dockScript.indexOf(
+    "document.addEventListener",
+    launcherHandlerStart
+  );
+
+const launcherHandler =
+  dockScript.slice(
+    launcherHandlerStart,
+    launcherHandlerEnd
+  );
+
+assert.match(
+  launcherHandler,
+  /isMobileDockMode\(\)[\s\S]{0,100}?mobileExpanded\s*=\s*true[\s\S]{0,160}?syncDock\(\)/,
+  "the circular exclamation launcher must open the full preview directly"
+);
+
+assert.doesNotMatch(
+  dockScript,
+  /mainNotificationRailCollapse/,
+  "the removed collapse state must not retain markup or event handlers"
+);
+
+assert.match(
+  dockScript,
+  /summary\?\.addEventListener\([\s\S]{0,260}?mobileExpanded\s*=\s*!mobileExpanded/,
+  "the summary toggle must remain available only when ensureDock creates the non-mobile fallback"
+);
+
+assert.match(
+  dockScript,
+  /const isDismissed\s*=\s*isMobileDockMode\(\)\s*\?\s*!mobileExpanded\s*:\s*dismissedSignature\s*===\s*signature/,
+  "mobile closed state must depend only on expansion while desktop keeps signature dismissal"
 );
 
 const readiness =
@@ -782,6 +798,18 @@ assert.ok(
   "mobile notification center V1.2 style marker must exist"
 );
 
+const mobileV13Style =
+  dockStyle.slice(
+    dockStyle.lastIndexOf(
+      "MOBILE NOTIFICATION CENTER V1.3"
+    )
+  );
+
+assert.ok(
+  mobileV13Style.length > 0,
+  "mobile notification center V1.3 state override must exist"
+);
+
 assert.match(
   mobileStyle,
   /html\.main-floating-notification-mobile-client/
@@ -795,42 +823,36 @@ assert.match(
 
 assert.match(
   mobileStyle,
-  /width:\s*min\(132px,\s*calc\(100dvw\s*-\s*24px\)\)[\s\S]{0,100}?max-height:\s*52px/
-);
-
-assert.match(
-  mobileStyle,
   /data-mobile-expanded="true"\][\s\S]{0,180}?width:\s*min\(304px/
 );
 
 assert.match(
-  mobileStyle,
-  /data-mobile-expanded="false"\][\s\S]{0,240}?main-floating-notification-dock__header,[\s\S]{0,240}?main-floating-notification-dock__list[\s\S]{0,80}?display:\s*none\s*!important/
+  mobileV13Style,
+  /data-mobile-notification-center="true"\]\[data-mobile-expanded="false"\][\s\S]{0,100}?display:\s*none\s*!important/,
+  "the intermediate collapsed rail must be removed entirely"
 );
 
 assert.match(
-  mobileStyle,
-  /data-mobile-expanded="false"\][\s\S]{0,220}?main-floating-notification-dock__summary[\s\S]{0,160}?display:\s*grid\s*!important/
+  mobileV13Style,
+  /data-mobile-notification-center="true"\]\[data-mobile-expanded\][\s\S]{0,120}?main-floating-notification-dock__summary[\s\S]{0,80}?display:\s*none\s*!important/,
+  "the old long summary pill must never be a visible mobile state"
 );
 
 assert.match(
-  mobileStyle,
-  /data-mobile-expanded="false"\][\s\S]{0,380}?main-floating-notification-dock__summary[\s\S]{0,260}?min-height:\s*44px\s*!important/
+  mobileV13Style,
+  /main-floating-notification-dock__collapse[\s\S]{0,80}?display:\s*none\s*!important/,
+  "the collapse action must stay removed even if stale markup is cached"
 );
 
 assert.match(
-  mobileStyle,
-  /main-floating-notification-dock__summary-mark[\s\S]{0,300}?display:\s*inline-flex\s*!important/
+  mobileV13Style,
+  /main-floating-notification-dock__close[\s\S]{0,220}?width:\s*44px\s*!important[\s\S]{0,160}?height:\s*44px\s*!important/
 );
 
 assert.match(
-  mobileStyle,
-  /main-floating-notification-dock__summary-count[\s\S]{0,300}?display:\s*inline-flex\s*!important/
-);
-
-assert.match(
-  mobileStyle,
-  /main-floating-notification-dock__collapse,[\s\S]{0,180}?main-floating-notification-dock__close[\s\S]{0,420}?width:\s*40px\s*!important[\s\S]{0,160}?height:\s*40px\s*!important[\s\S]{0,160}?border:\s*0\s*!important[\s\S]{0,160}?background:\s*transparent\s*!important/
+  mobileV13Style,
+  /main-floating-notification-launcher[\s\S]{0,180}?width:\s*44px\s*!important[\s\S]{0,100}?height:\s*44px\s*!important[\s\S]{0,100}?border-radius:\s*50%\s*!important/,
+  "the circular exclamation launcher must be the sole compact state"
 );
 
 assert.match(
@@ -895,7 +917,7 @@ assert.match(
 assert.doesNotMatch(
   mobileStyle,
   /main-floating-notification-dock__detail-action\s*\{[\s\S]{0,220}?min-height:\s*44px/,
-  "V1.2 must not restore the large full-width detail buttons"
+  "V1.3 must not restore the large full-width detail buttons"
 );
 
 assert.match(
