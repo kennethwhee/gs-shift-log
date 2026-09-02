@@ -193,6 +193,84 @@
     return `${days}일 ${hours}시간 남음`;
   }
 
+  function getSeverityLabel(asset) {
+    const severity = String(asset?.severity || "warning");
+
+    if (severity === "overdue") {
+      return "교체 초과";
+    }
+
+    if (severity === "critical") {
+      return "교체 임박";
+    }
+
+    return "교체 예정";
+  }
+
+  function renderMainAlertPreviewItems(alertButton, summary) {
+    if (!alertButton) {
+      return;
+    }
+
+    let list = alertButton.querySelector(
+      ".blower-history-main-alert__preview-list"
+    );
+
+    if (!list) {
+      list = document.createElement("span");
+      list.className = "blower-history-main-alert__preview-list";
+      list.setAttribute("role", "list");
+      alertButton.append(list);
+    }
+
+    const alerts = Array.isArray(summary?.alerts)
+      ? summary.alerts
+      : [];
+    const total = Math.max(0, Number(summary?.alertCount || 0));
+
+    list.replaceChildren();
+    list.hidden = alerts.length === 0;
+    alertButton.classList.toggle(
+      "has-main-floating-preview-items",
+      alerts.length > 0
+    );
+
+    alerts.forEach(asset => {
+      const item = document.createElement("span");
+      const severity = String(asset?.severity || "warning");
+      const title = document.createElement("strong");
+      const detail = document.createElement("small");
+      const displayName = String(
+        asset?.displayName ||
+          [asset?.blowerType, asset?.unitNo, asset?.positionLabel]
+            .filter(Boolean)
+            .join(" ") ||
+          "Blower"
+      ).trim();
+      const remaining = formatRemaining(asset);
+
+      item.className = [
+        "blower-history-main-alert__preview-item",
+        `is-${severity}`
+      ].join(" ");
+      item.setAttribute("role", "listitem");
+      title.textContent = displayName;
+      detail.textContent = [getSeverityLabel(asset), remaining]
+        .filter(Boolean)
+        .join(" · ");
+      item.append(title, detail);
+      list.append(item);
+    });
+
+    if (total > alerts.length) {
+      const remainder = document.createElement("span");
+      remainder.className =
+        "blower-history-main-alert__preview-remainder";
+      remainder.textContent = `외 ${total - alerts.length}건은 상세보기에서 확인`;
+      list.append(remainder);
+    }
+  }
+
   function buildMainAlertIdentity(summary) {
     const alerts = Array.isArray(summary?.alerts) ? summary.alerts : [];
 
@@ -223,6 +301,8 @@
     const alertButton = ensureMainAlert();
     const alertCount = Math.max(0, Number(summary?.alertCount || 0));
     const floatingIdentity = buildMainAlertIdentity(summary);
+
+    renderMainAlertPreviewItems(alertButton, summary);
 
     if (alertButton.dataset.mainFloatingIdentity !== floatingIdentity) {
       alertButton.dataset.mainFloatingIdentity = floatingIdentity;

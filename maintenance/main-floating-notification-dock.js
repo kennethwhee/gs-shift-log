@@ -36,9 +36,6 @@
       window.location.pathname
     );
 
-  const MOBILE_SOURCE_ID =
-    "blowerHistoryMainAlert";
-
   const SOURCE_DEFINITIONS = [
     {
       id:
@@ -47,6 +44,10 @@
         "#blowerHistoryMainAlertCount",
       identitySelector:
         "#blowerHistoryMainAlertText",
+      detailLabel:
+        "Blower",
+      detailType:
+        "blower-history",
       summaryLabel:
         "Blower"
     },
@@ -57,6 +58,10 @@
         "#armRollBoxMainAlertCount",
       identitySelector:
         "#armRollBoxMainAlertText",
+      detailLabel:
+        "ARM ROLL BOX",
+      detailType:
+        "arm-roll-box",
       summaryLabel:
         "BOX"
     }
@@ -83,6 +88,15 @@
   let liveTimer =
     0;
 
+  let mobileArmRollBoxRefreshState =
+    "idle";
+
+  let mobileArmRollBoxRefreshAttempts =
+    0;
+
+  let mobileArmRollBoxRefreshTimer =
+    0;
+
   const mobileSourceInteractionStates =
     new WeakMap();
 
@@ -93,18 +107,7 @@
 
 
   function getActiveSourceDefinitions() {
-    if (
-      !isMobileDockMode()
-    ) {
-      return SOURCE_DEFINITIONS;
-    }
-
-    return SOURCE_DEFINITIONS.filter(
-      definition => {
-        return definition.id ===
-          MOBILE_SOURCE_ID;
-      }
-    );
+    return SOURCE_DEFINITIONS;
   }
 
 
@@ -357,6 +360,24 @@
   }
 
 
+  function formatBadgeCount(
+    count
+  ) {
+    return Number(
+      count
+    ) > 99
+      ? "99+"
+      : String(
+          Math.max(
+            0,
+            Number(
+              count
+            ) || 0
+          )
+        );
+  }
+
+
   function getSeverity(
     source
   ) {
@@ -486,13 +507,23 @@
         >0</span>
       </div>
 
-      <button
-        type="button"
-        class="main-floating-notification-dock__close"
-        id="mainNotificationRailClose"
-        aria-label="운영 알림 닫기"
-        title="운영 알림 닫기"
-      >×</button>
+      <div class="main-floating-notification-dock__controls">
+        <button
+          type="button"
+          class="main-floating-notification-dock__collapse"
+          id="mainNotificationRailCollapse"
+          aria-label="알림 미리보기 접기"
+          title="알림 미리보기 접기"
+        >접기</button>
+
+        <button
+          type="button"
+          class="main-floating-notification-dock__close"
+          id="mainNotificationRailClose"
+          aria-label="운영 알림 닫기"
+          title="운영 알림 닫기"
+        >×</button>
+      </div>
     `;
 
     return header;
@@ -525,11 +556,20 @@
     );
 
     summary.innerHTML = `
-      <span id="mainNotificationRailSummaryText">
-        확인이 필요한 알림이 있습니다.
-      </span>
+      <span
+        class="main-floating-notification-dock__summary-mark"
+        aria-hidden="true"
+      >!</span>
+      <span
+        class="main-floating-notification-dock__summary-count"
+        id="mainNotificationRailSummaryCount"
+      >0</span>
+      <span
+        class="main-floating-notification-dock__summary-text"
+        id="mainNotificationRailSummaryText"
+      >알림</span>
       <strong id="mainNotificationRailSummaryAction">
-        보기
+        미리보기
       </strong>
     `;
 
@@ -680,6 +720,79 @@
   }
 
 
+  function openMobileDetail(
+    definition
+  ) {
+    if (
+      definition.detailType ===
+        "arm-roll-box"
+    ) {
+      mobileExpanded =
+        false;
+
+      updateExpandedState(
+        document.getElementById(
+          RAIL_ID
+        )
+      );
+
+      if (
+        typeof window
+          .openEfficiencyTeamModal ===
+          "function"
+      ) {
+        window.openEfficiencyTeamModal();
+      }
+
+      window.setTimeout(
+        () => {
+          if (
+            typeof window
+              .switchEfficiencyTeamView ===
+              "function"
+          ) {
+            window.switchEfficiencyTeamView(
+              "arm-roll"
+            );
+          }
+        },
+        0
+      );
+
+      return;
+    }
+
+    if (
+      typeof window
+        .closeHeaderMoreMenu ===
+        "function"
+    ) {
+      window.closeHeaderMoreMenu();
+    }
+
+    const blowerUrl =
+      "/maintenance/blower-history";
+
+    if (
+      window.GSShiftLogNavigation &&
+      typeof window
+        .GSShiftLogNavigation
+        .navigate ===
+        "function" &&
+      window.GSShiftLogNavigation
+        .navigate(
+          blowerUrl
+        )
+    ) {
+      return;
+    }
+
+    window.location.assign(
+      blowerUrl
+    );
+  }
+
+
   function syncMobileDetailAction(
     source,
     definition,
@@ -691,16 +804,12 @@
       return;
     }
 
-    if (
-      definition.id !==
-        MOBILE_SOURCE_ID
-    ) {
-      return;
-    }
+    const actionId =
+      `mainNotificationRailDetail-${definition.id}`;
 
     let action =
-      document.querySelector(
-        ".main-floating-notification-dock__detail-action"
+      document.getElementById(
+        actionId
       );
 
     const shouldShow =
@@ -802,12 +911,16 @@
       action.type =
         "button";
 
+      action.id =
+        actionId;
+
       action.className =
         "main-floating-notification-dock__detail-action";
 
-      action.setAttribute(
-        "aria-label",
-        "Blower 교체이력 상세보기"
+      setDataValue(
+        action,
+        "mainFloatingDetailSource",
+        definition.id
       );
 
       action.addEventListener(
@@ -816,33 +929,8 @@
           event.preventDefault();
           event.stopPropagation();
 
-          if (
-            typeof window
-              .closeHeaderMoreMenu ===
-              "function"
-          ) {
-            window.closeHeaderMoreMenu();
-          }
-
-          const blowerUrl =
-            "/maintenance/blower-history";
-
-          if (
-            window.GSShiftLogNavigation &&
-            typeof window
-              .GSShiftLogNavigation
-              .navigate ===
-              "function" &&
-            window.GSShiftLogNavigation
-              .navigate(
-                blowerUrl
-              )
-          ) {
-            return;
-          }
-
-          window.location.assign(
-            blowerUrl
+          openMobileDetail(
+            definition
           );
         }
       );
@@ -860,9 +948,26 @@
       );
     }
 
+    const sourceIsVisible =
+      !source.hidden &&
+      source.getAttribute(
+        "aria-hidden"
+      ) !== "true";
+
+    setHidden(
+      action,
+      !sourceIsVisible
+    );
+
     setNodeText(
       action,
-      "상세보기"
+      `${definition.detailLabel} 상세보기`
+    );
+
+    setAttributeValue(
+      action,
+      "aria-label",
+      `${definition.detailLabel} 알림 상세보기`
     );
   }
 
@@ -979,6 +1084,11 @@
         "mainNotificationRailClose"
       );
 
+    const collapse =
+      document.getElementById(
+        "mainNotificationRailCollapse"
+      );
+
     const isMobile =
       isMobileDockMode();
 
@@ -993,26 +1103,22 @@
     ) {
       setNodeText(
         action,
-        mobileExpanded
-          ? "접기"
-          : (
-              isMobile
-                ? "미리보기"
-                : "보기"
-            )
+        isMobile
+          ? "미리보기"
+          : "보기"
       );
     }
 
     setNodeText(
       heading,
       isMobile
-        ? "Blower 알림"
+        ? "알림 미리보기"
         : "운영 알림"
     );
 
     const closeLabel =
       isMobile
-        ? "Blower 알림 닫기"
+        ? "알림창 닫기"
         : "운영 알림 닫기";
 
     setAttributeValue(
@@ -1029,6 +1135,14 @@
       close.title =
         closeLabel;
     }
+
+    setAttributeValue(
+      collapse,
+      "aria-hidden",
+      isMobile
+        ? "false"
+        : "true"
+    );
   }
 
 
@@ -1067,13 +1181,13 @@
       rail,
       "aria-label",
       isMobileDockMode()
-        ? "Blower 알림"
+        ? "운영 알림 미리보기"
         : "운영 알림"
     );
 
     setDataValue(
       rail,
-      "mobileBlowerOnly",
+      "mobileNotificationCenter",
       isMobileDockMode()
     );
 
@@ -1171,6 +1285,30 @@
 
       document
         .getElementById(
+          "mainNotificationRailCollapse"
+        )
+        ?.addEventListener(
+          "click",
+          event => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            mobileExpanded =
+              false;
+
+            updateExpandedState(
+              rail
+            );
+
+            summary.focus({
+              preventScroll:
+                true
+            });
+          }
+        );
+
+      document
+        .getElementById(
           "mainNotificationRailClose"
         )
         ?.addEventListener(
@@ -1224,7 +1362,7 @@
               () => {
                 document
                   .querySelector(
-                    ".main-floating-notification-dock__detail-action"
+                    ".main-floating-notification-dock__detail-action:not([hidden])"
                   )
                   ?.focus({
                     preventScroll:
@@ -1257,6 +1395,7 @@
             !target ||
             target.closest(
               [
+                ".main-floating-notification-dock__collapse",
                 ".main-floating-notification-dock__close",
                 ".main-floating-notification-dock__list",
                 ".main-floating-notification-dock__summary"
@@ -1292,7 +1431,9 @@
             () => {
               document
                 .getElementById(
-                  "mainNotificationRailClose"
+                  isMobileDockMode()
+                    ? "mainNotificationRailSummary"
+                    : "mainNotificationRailClose"
                 )
                 ?.focus({
                   preventScroll:
@@ -1606,7 +1747,9 @@
         () => {
           document
             .getElementById(
-              "mainNotificationRailClose"
+              isMobileDockMode()
+                ? "mainNotificationRailSummary"
+                : "mainNotificationRailClose"
             )
             ?.focus({
               preventScroll:
@@ -1627,30 +1770,40 @@
         "mainNotificationRailLauncherCount"
       );
 
+    const summaryCount =
+      document.getElementById(
+        "mainNotificationRailSummaryCount"
+      );
+
     const summaryText =
       document.getElementById(
         "mainNotificationRailSummaryText"
       );
 
-    const detailAction =
-      document.querySelector(
-        ".main-floating-notification-dock__detail-action"
+    const badgeCount =
+      formatBadgeCount(
+        total
       );
 
     setNodeText(
       totalNode,
-      total
+      badgeCount
     );
 
     setNodeText(
       launcherCount,
-      total
+      badgeCount
+    );
+
+    setNodeText(
+      summaryCount,
+      badgeCount
     );
 
     setNodeText(
       summaryText,
       isMobileDockMode()
-        ? `Blower ${total}`
+        ? "알림"
         : states
             .map(
               state => {
@@ -1662,39 +1815,95 @@
             )
     );
 
-    if (
-      isMobileDockMode() &&
-      detailAction &&
-      states[0]
-    ) {
-      const sourceDescription =
-        String(
-          states[0].source
-            .getAttribute(
-              "aria-label"
-            ) ||
-          "Blower 교체 알림"
-        ).trim();
+    SOURCE_DEFINITIONS.forEach(
+      definition => {
+        const detailAction =
+          document.getElementById(
+            `mainNotificationRailDetail-${definition.id}`
+          );
 
-      setAttributeValue(
-        detailAction,
-        "aria-label",
-        `${sourceDescription}. 상세보기`
-      );
-    }
+        const state =
+          states.find(
+            currentState => {
+              return currentState
+                .definition.id ===
+                definition.id;
+            }
+          );
+
+        setHidden(
+          detailAction,
+          !state
+        );
+
+        if (
+          !detailAction ||
+          !state
+        ) {
+          return;
+        }
+
+        const previewDescription =
+          Array.from(
+            state.source
+              .querySelectorAll(
+                ".blower-history-main-alert__preview-item"
+              )
+          )
+            .map(
+              item => {
+                return String(
+                  item.textContent ||
+                  ""
+                )
+                  .replace(
+                    /\s+/g,
+                    " "
+                  )
+                  .trim();
+              }
+            )
+            .filter(
+              Boolean
+            )
+            .join(
+              ". "
+            );
+
+        const sourceDescription =
+          previewDescription ||
+          String(
+            state.source
+              .getAttribute(
+                "aria-label"
+              ) ||
+            `${definition.detailLabel} 알림`
+          ).trim();
+
+        setAttributeValue(
+          detailAction,
+          "aria-label",
+          `${sourceDescription}. 상세보기`
+        );
+      }
+    );
+
+    setAttributeValue(
+      document.getElementById(
+        "mainNotificationRailSummary"
+      ),
+      "aria-label",
+      `운영 알림 ${total}건 미리보기`
+    );
 
     setAttributeValue(
       dock.launcher,
       "aria-label",
-      isMobileDockMode()
-        ? `Blower 알림 ${total}건 열기`
-        : `운영 알림 ${total}건 열기`
+      `운영 알림 ${total}건 열기`
     );
 
     const launcherTitle =
-      isMobileDockMode()
-        ? `Blower 알림 ${total}건 열기`
-        : `운영 알림 ${total}건 열기`;
+      `운영 알림 ${total}건 열기`;
 
     if (
       dock.launcher.title !==
@@ -1716,9 +1925,7 @@
     ) {
       announceLive(
         live,
-        isMobileDockMode()
-          ? `Blower 알림이 ${total}건 있습니다.`
-          : `운영 알림이 ${total}건 있습니다.`,
+        `운영 알림이 ${total}건 있습니다.`,
         signature
       );
 
@@ -1746,6 +1953,206 @@
   }
 
 
+  function isMobileArmRollBoxRefreshReady() {
+    if (
+      !isMobileDockMode() ||
+      typeof window
+        .refreshArmRollBoxDashboard !==
+        "function"
+    ) {
+      return false;
+    }
+
+    const appShell =
+      document.getElementById(
+        "appShell"
+      );
+
+    if (
+      !appShell ||
+      appShell.hidden ||
+      appShell.getAttribute(
+        "aria-hidden"
+      ) === "true"
+    ) {
+      return false;
+    }
+
+    let currentUser =
+      null;
+
+    let sessionToken =
+      "";
+
+    try {
+      currentUser =
+        typeof window
+          .loadCurrentUser ===
+          "function"
+          ? window.loadCurrentUser()
+          : null;
+
+      sessionToken =
+        typeof window
+          .getShiftLogSessionToken ===
+          "function"
+          ? String(
+              window
+                .getShiftLogSessionToken() ||
+              ""
+            ).trim()
+          : "";
+    } catch {
+      return false;
+    }
+
+    const startDate =
+      String(
+        document.getElementById(
+          "armRollBoxStartDate"
+        )?.value ||
+        ""
+      ).trim();
+
+    const endDate =
+      String(
+        document.getElementById(
+          "armRollBoxEndDate"
+        )?.value ||
+        ""
+      ).trim();
+
+    return Boolean(
+      currentUser &&
+      sessionToken &&
+      /^\d{4}-\d{2}-\d{2}$/.test(
+        startDate
+      ) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(
+        endDate
+      )
+    );
+  }
+
+
+  function runMobileArmRollBoxAlertRefresh() {
+    mobileArmRollBoxRefreshTimer =
+      0;
+
+    if (
+      mobileArmRollBoxRefreshState !==
+        "idle"
+    ) {
+      return;
+    }
+
+    mobileArmRollBoxRefreshAttempts +=
+      1;
+
+    if (
+      !isMobileArmRollBoxRefreshReady()
+    ) {
+      if (
+        mobileArmRollBoxRefreshAttempts >=
+          120
+      ) {
+        mobileArmRollBoxRefreshState =
+          "done";
+
+        return;
+      }
+
+      mobileArmRollBoxRefreshTimer =
+        window.setTimeout(
+          runMobileArmRollBoxAlertRefresh,
+          1000
+        );
+
+      return;
+    }
+
+    mobileArmRollBoxRefreshState =
+      "scheduled";
+
+    const executeRefresh =
+      () => {
+        if (
+          mobileArmRollBoxRefreshState !==
+            "scheduled"
+        ) {
+          return;
+        }
+
+        mobileArmRollBoxRefreshState =
+          "loading";
+
+        Promise.resolve()
+          .then(
+            () => {
+              return window
+                .refreshArmRollBoxDashboard();
+            }
+          )
+          .catch(
+            error => {
+              console.warn(
+                "모바일 ARM ROLL BOX 알림 조회 실패:",
+                error
+              );
+            }
+          )
+          .finally(
+            () => {
+              mobileArmRollBoxRefreshState =
+                "done";
+
+              scheduleSync();
+            }
+          );
+      };
+
+    if (
+      typeof window
+        .requestIdleCallback ===
+        "function"
+    ) {
+      window.requestIdleCallback(
+        executeRefresh,
+        {
+          timeout:
+            3500
+        }
+      );
+
+      return;
+    }
+
+    mobileArmRollBoxRefreshTimer =
+      window.setTimeout(
+        executeRefresh,
+        1600
+      );
+  }
+
+
+  function scheduleMobileArmRollBoxAlertRefresh() {
+    if (
+      !isMobileDockMode() ||
+      mobileArmRollBoxRefreshState !==
+        "idle" ||
+      mobileArmRollBoxRefreshTimer
+    ) {
+      return;
+    }
+
+    mobileArmRollBoxRefreshTimer =
+      window.setTimeout(
+        runMobileArmRollBoxAlertRefresh,
+        800
+      );
+  }
+
+
   function start() {
     document.documentElement
       .classList.toggle(
@@ -1754,6 +2161,8 @@
       );
 
     syncDock();
+
+    scheduleMobileArmRollBoxAlertRefresh();
 
     if (
       observer
