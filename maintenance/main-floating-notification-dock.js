@@ -36,6 +36,9 @@
       window.location.pathname
     );
 
+  const MOBILE_SOURCE_ID =
+    "blowerHistoryMainAlert";
+
   const SOURCE_DEFINITIONS = [
     {
       id:
@@ -79,6 +82,30 @@
 
   let liveTimer =
     0;
+
+  const mobileSourceInteractionStates =
+    new WeakMap();
+
+
+  function isMobileDockMode() {
+    return IS_MOBILE_CLIENT;
+  }
+
+
+  function getActiveSourceDefinitions() {
+    if (
+      !isMobileDockMode()
+    ) {
+      return SOURCE_DEFINITIONS;
+    }
+
+    return SOURCE_DEFINITIONS.filter(
+      definition => {
+        return definition.id ===
+          MOBILE_SOURCE_ID;
+      }
+    );
+  }
 
 
   function setNodeText(
@@ -653,6 +680,193 @@
   }
 
 
+  function syncMobileDetailAction(
+    source,
+    definition,
+    list
+  ) {
+    if (
+      !source
+    ) {
+      return;
+    }
+
+    if (
+      definition.id !==
+        MOBILE_SOURCE_ID
+    ) {
+      return;
+    }
+
+    let action =
+      document.querySelector(
+        ".main-floating-notification-dock__detail-action"
+      );
+
+    const shouldShow =
+      isMobileDockMode();
+
+    if (
+      !shouldShow
+    ) {
+      action?.remove();
+
+      const previousState =
+        mobileSourceInteractionStates
+          .get(
+            source
+          );
+
+      if (
+        previousState
+      ) {
+        if (
+          !previousState.inert
+        ) {
+          source.removeAttribute(
+            "inert"
+          );
+        }
+
+        if (
+          previousState.tabindex ==
+            null
+        ) {
+          source.removeAttribute(
+            "tabindex"
+          );
+        } else {
+          setAttributeValue(
+            source,
+            "tabindex",
+            previousState.tabindex
+          );
+        }
+
+        mobileSourceInteractionStates
+          .delete(
+            source
+          );
+      }
+
+      return;
+    }
+
+    if (
+      !mobileSourceInteractionStates
+        .has(
+          source
+        )
+    ) {
+      mobileSourceInteractionStates
+        .set(
+          source,
+          {
+            inert:
+              source.hasAttribute(
+                "inert"
+              ),
+            tabindex:
+              source.getAttribute(
+                "tabindex"
+              )
+          }
+        );
+    }
+
+    if (
+      !source.hasAttribute(
+        "inert"
+      )
+    ) {
+      source.setAttribute(
+        "inert",
+        ""
+      );
+    }
+
+    setAttributeValue(
+      source,
+      "tabindex",
+      "-1"
+    );
+
+    if (
+      !action
+    ) {
+      action =
+        document.createElement(
+          "button"
+        );
+
+      action.type =
+        "button";
+
+      action.className =
+        "main-floating-notification-dock__detail-action";
+
+      action.setAttribute(
+        "aria-label",
+        "Blower 교체이력 상세보기"
+      );
+
+      action.addEventListener(
+        "click",
+        event => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          if (
+            typeof window
+              .closeHeaderMoreMenu ===
+              "function"
+          ) {
+            window.closeHeaderMoreMenu();
+          }
+
+          const blowerUrl =
+            "/maintenance/blower-history";
+
+          if (
+            window.GSShiftLogNavigation &&
+            typeof window
+              .GSShiftLogNavigation
+              .navigate ===
+              "function" &&
+            window.GSShiftLogNavigation
+              .navigate(
+                blowerUrl
+              )
+          ) {
+            return;
+          }
+
+          window.location.assign(
+            blowerUrl
+          );
+        }
+      );
+    }
+
+    if (
+      action.parentElement !==
+        list ||
+      action.previousElementSibling !==
+        source
+    ) {
+      source.insertAdjacentElement(
+        "afterend",
+        action
+      );
+    }
+
+    setNodeText(
+      action,
+      "상세보기"
+    );
+  }
+
+
   function moveSourcesIntoList(
     rail,
     list
@@ -696,6 +910,12 @@
             source
           );
         }
+
+        syncMobileDetailAction(
+          source,
+          definition,
+          list
+        );
       }
     );
 
@@ -749,6 +969,19 @@
         "mainNotificationRailSummaryAction"
       );
 
+    const heading =
+      document.querySelector(
+        ".main-floating-notification-dock__heading strong"
+      );
+
+    const close =
+      document.getElementById(
+        "mainNotificationRailClose"
+      );
+
+    const isMobile =
+      isMobileDockMode();
+
     setAttributeValue(
       summary,
       "aria-expanded",
@@ -762,8 +995,39 @@
         action,
         mobileExpanded
           ? "접기"
-          : "보기"
+          : (
+              isMobile
+                ? "미리보기"
+                : "보기"
+            )
       );
+    }
+
+    setNodeText(
+      heading,
+      isMobile
+        ? "Blower 알림"
+        : "운영 알림"
+    );
+
+    const closeLabel =
+      isMobile
+        ? "Blower 알림 닫기"
+        : "운영 알림 닫기";
+
+    setAttributeValue(
+      close,
+      "aria-label",
+      closeLabel
+    );
+
+    if (
+      close &&
+      close.title !==
+        closeLabel
+    ) {
+      close.title =
+        closeLabel;
     }
   }
 
@@ -802,7 +1066,15 @@
     setAttributeValue(
       rail,
       "aria-label",
-      "운영 알림"
+      isMobileDockMode()
+        ? "Blower 알림"
+        : "운영 알림"
+    );
+
+    setDataValue(
+      rail,
+      "mobileBlowerOnly",
+      isMobileDockMode()
     );
 
     let header =
@@ -907,6 +1179,13 @@
             event.preventDefault();
             event.stopPropagation();
 
+            mobileExpanded =
+              false;
+
+            updateExpandedState(
+              rail
+            );
+
             dismissedSignature =
               currentSignature;
 
@@ -932,6 +1211,65 @@
 
           mobileExpanded =
             !mobileExpanded;
+
+          updateExpandedState(
+            rail
+          );
+
+          if (
+            isMobileDockMode() &&
+            mobileExpanded
+          ) {
+            window.setTimeout(
+              () => {
+                document
+                  .querySelector(
+                    ".main-floating-notification-dock__detail-action"
+                  )
+                  ?.focus({
+                    preventScroll:
+                      true
+                  });
+              },
+              0
+            );
+          }
+        }
+      );
+
+      rail.addEventListener(
+        "click",
+        event => {
+          if (
+            !isMobileDockMode() ||
+            mobileExpanded
+          ) {
+            return;
+          }
+
+          const target =
+            event.target instanceof
+              Element
+              ? event.target
+              : null;
+
+          if (
+            !target ||
+            target.closest(
+              [
+                ".main-floating-notification-dock__close",
+                ".main-floating-notification-dock__list",
+                ".main-floating-notification-dock__summary"
+              ].join(
+                ","
+              )
+            )
+          ) {
+            return;
+          }
+
+          mobileExpanded =
+            true;
 
           updateExpandedState(
             rail
@@ -965,6 +1303,68 @@
           );
         }
       );
+
+      document.addEventListener(
+        "click",
+        event => {
+          if (
+            !isMobileDockMode() ||
+            !mobileExpanded
+          ) {
+            return;
+          }
+
+          const target =
+            event.target instanceof
+              Node
+              ? event.target
+              : null;
+
+          if (
+            target &&
+            rail.contains(
+              target
+            )
+          ) {
+            return;
+          }
+
+          mobileExpanded =
+            false;
+
+          updateExpandedState(
+            rail
+          );
+        }
+      );
+
+      document.addEventListener(
+        "keydown",
+        event => {
+          if (
+            !isMobileDockMode() ||
+            !mobileExpanded ||
+            event.key !==
+              "Escape"
+          ) {
+            return;
+          }
+
+          event.preventDefault();
+
+          mobileExpanded =
+            false;
+
+          updateExpandedState(
+            rail
+          );
+
+          summary.focus({
+            preventScroll:
+              true
+          });
+        }
+      );
     }
 
     updateExpandedState(
@@ -993,7 +1393,7 @@
     }
 
     const states =
-      SOURCE_DEFINITIONS
+      getActiveSourceDefinitions()
         .map(
           getSourceState
         )
@@ -1232,6 +1632,11 @@
         "mainNotificationRailSummaryText"
       );
 
+    const detailAction =
+      document.querySelector(
+        ".main-floating-notification-dock__detail-action"
+      );
+
     setNodeText(
       totalNode,
       total
@@ -1244,25 +1649,52 @@
 
     setNodeText(
       summaryText,
-      states
-        .map(
-          state => {
-            return `${state.definition.summaryLabel} ${state.count}`;
-          }
-        )
-        .join(
-          " · "
-        )
+      isMobileDockMode()
+        ? `Blower ${total}`
+        : states
+            .map(
+              state => {
+                return `${state.definition.summaryLabel} ${state.count}`;
+              }
+            )
+            .join(
+              " · "
+            )
     );
+
+    if (
+      isMobileDockMode() &&
+      detailAction &&
+      states[0]
+    ) {
+      const sourceDescription =
+        String(
+          states[0].source
+            .getAttribute(
+              "aria-label"
+            ) ||
+          "Blower 교체 알림"
+        ).trim();
+
+      setAttributeValue(
+        detailAction,
+        "aria-label",
+        `${sourceDescription}. 상세보기`
+      );
+    }
 
     setAttributeValue(
       dock.launcher,
       "aria-label",
-      `운영 알림 ${total}건 열기`
+      isMobileDockMode()
+        ? `Blower 알림 ${total}건 열기`
+        : `운영 알림 ${total}건 열기`
     );
 
     const launcherTitle =
-      `운영 알림 ${total}건 열기`;
+      isMobileDockMode()
+        ? `Blower 알림 ${total}건 열기`
+        : `운영 알림 ${total}건 열기`;
 
     if (
       dock.launcher.title !==
@@ -1284,7 +1716,9 @@
     ) {
       announceLive(
         live,
-        `운영 알림이 ${total}건 있습니다.`,
+        isMobileDockMode()
+          ? `Blower 알림이 ${total}건 있습니다.`
+          : `운영 알림이 ${total}건 있습니다.`,
         signature
       );
 
