@@ -1,5 +1,5 @@
 /* =========================================================
-   MAIN FLOATING NOTIFICATION DOCK V2
+   MAIN FLOATING NOTIFICATION DOCK V3
 
    Blower / BOX alerts keep their existing data and click
    handlers. Only their visual mount point is detached from
@@ -29,20 +29,20 @@ html body
   padding: 13px !important;
   overflow: hidden !important;
 
-  border: 1px solid rgba(166, 183, 201, 0.44) !important;
+  border: 1px solid rgba(166, 183, 201, 0.38) !important;
   border-radius: 16px !important;
-  background: rgba(248, 250, 253, 0.52) !important;
+  background: rgba(248, 250, 253, 0.44) !important;
   color: #24364d !important;
   box-shadow:
-    0 12px 32px rgba(25, 43, 66, 0.10),
-    0 2px 8px rgba(25, 43, 66, 0.04) !important;
+    0 12px 32px rgba(25, 43, 66, 0.08),
+    0 2px 8px rgba(25, 43, 66, 0.03) !important;
 
   opacity: 1 !important;
   pointer-events: auto !important;
   transform: translateY(0) !important;
 
-  -webkit-backdrop-filter: blur(7px) saturate(1.02);
-  backdrop-filter: blur(7px) saturate(1.02);
+  -webkit-backdrop-filter: blur(4px) saturate(1.01);
+  backdrop-filter: blur(4px) saturate(1.01);
 
   transition:
     opacity 0.18s ease,
@@ -170,7 +170,7 @@ html body
   padding: 0;
   border: 1px solid #d3dde7;
   border-radius: 10px;
-  background: rgba(247, 249, 252, 0.52);
+  background: rgba(247, 249, 252, 0.38);
   color: #5f7187;
   font: inherit;
   font-size: 20px;
@@ -279,8 +279,8 @@ html body
 html body
 #mainNotificationRailList
 > .blower-history-main-alert {
-  border: 1px solid rgba(207, 99, 111, 0.58) !important;
-  background: rgba(255, 241, 243, 0.38) !important;
+  border: 1px solid rgba(207, 99, 111, 0.48) !important;
+  background: rgba(255, 241, 243, 0.20) !important;
   color: #9f2632 !important;
 }
 
@@ -288,8 +288,8 @@ html body
 html body
 #mainNotificationRailList
 > .blower-history-main-alert.is-warning {
-  border-color: rgba(201, 151, 38, 0.58) !important;
-  background: rgba(255, 248, 232, 0.40) !important;
+  border-color: rgba(201, 151, 38, 0.48) !important;
+  background: rgba(255, 248, 232, 0.22) !important;
   color: #805d0c !important;
 }
 
@@ -297,8 +297,8 @@ html body
 html body
 #mainNotificationRailList
 > .arm-roll-box-main-alert {
-  border: 1px solid rgba(205, 132, 27, 0.58) !important;
-  background: rgba(255, 248, 232, 0.40) !important;
+  border: 1px solid rgba(205, 132, 27, 0.48) !important;
+  background: rgba(255, 248, 232, 0.22) !important;
   color: #80520f !important;
 }
 
@@ -306,8 +306,8 @@ html body
 html body
 #mainNotificationRailList
 > .arm-roll-box-main-alert.is-critical {
-  border-color: rgba(199, 69, 83, 0.58) !important;
-  background: rgba(255, 241, 243, 0.38) !important;
+  border-color: rgba(199, 69, 83, 0.48) !important;
+  background: rgba(255, 241, 243, 0.20) !important;
   color: #a52e3a !important;
 }
 
@@ -486,15 +486,15 @@ html body
   padding: 0;
   border: 1px solid rgba(200, 63, 76, 0.72);
   border-radius: 50%;
-  background: rgba(255, 247, 248, 0.60);
+  background: rgba(255, 247, 248, 0.48);
   color: #b42331;
   box-shadow: 0 10px 25px rgba(45, 58, 77, 0.15);
 
   font: inherit;
   cursor: pointer;
 
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
 }
 
 
@@ -551,12 +551,12 @@ html body
     gap: 7px !important;
     padding: 10px !important;
     border-radius: 15px !important;
-    background: rgba(248, 250, 253, 0.62) !important;
+    background: rgba(248, 250, 253, 0.52) !important;
     box-shadow:
       0 12px 32px rgba(24, 42, 64, 0.12),
       0 2px 8px rgba(24, 42, 64, 0.05) !important;
-    -webkit-backdrop-filter: blur(9px) saturate(1.02);
-    backdrop-filter: blur(9px) saturate(1.02);
+    -webkit-backdrop-filter: blur(5px) saturate(1.01);
+    backdrop-filter: blur(5px) saturate(1.01);
   }
 
 
@@ -741,12 +741,12 @@ html.main-floating-notification-mobile-client body
   gap: 7px !important;
   padding: 10px !important;
   border-radius: 15px !important;
-  background: rgba(248, 250, 253, 0.62) !important;
+  background: rgba(248, 250, 253, 0.52) !important;
   box-shadow:
     0 12px 32px rgba(24, 42, 64, 0.12),
     0 2px 8px rgba(24, 42, 64, 0.05) !important;
-  -webkit-backdrop-filter: blur(9px) saturate(1.02);
-  backdrop-filter: blur(9px) saturate(1.02);
+  -webkit-backdrop-filter: blur(5px) saturate(1.01);
+  backdrop-filter: blur(5px) saturate(1.01);
 }
 
 
@@ -1138,7 +1138,7 @@ html.main-floating-notification-mobile-client body
   padding: 8px 9px 7px !important;
   border-color: rgba(199, 70, 83, 0.43) !important;
   border-radius: 10px !important;
-  background: rgba(255, 241, 243, 0.28) !important;
+  background: rgba(255, 241, 243, 0.20) !important;
   cursor: default !important;
   pointer-events: none !important;
 }
@@ -1148,7 +1148,7 @@ html.main-floating-notification-mobile-client body
 #mainNotificationRailList
 > #blowerHistoryMainAlert.is-warning:not([hidden]) {
   border-color: rgba(193, 146, 36, 0.43) !important;
-  background: rgba(255, 248, 232, 0.28) !important;
+  background: rgba(255, 248, 232, 0.20) !important;
 }
 
 
@@ -1260,9 +1260,9 @@ html.main-floating-notification-mobile-client body
   gap: 0 !important;
   padding: 5px !important;
   overflow: hidden !important;
-  border-color: rgba(157, 175, 195, 0.34) !important;
+  border-color: rgba(157, 175, 195, 0.28) !important;
   border-radius: 14px !important;
-  background: rgba(248, 250, 253, 0.34) !important;
+  background: rgba(248, 250, 253, 0.24) !important;
   cursor: default !important;
 }
 
@@ -1274,7 +1274,7 @@ html.main-floating-notification-mobile-client body
   gap: 8px !important;
   padding: 10px !important;
   border-radius: 16px !important;
-  background: rgba(248, 250, 253, 0.46) !important;
+  background: rgba(248, 250, 253, 0.34) !important;
 }
 
 
@@ -1303,7 +1303,7 @@ html.main-floating-notification-mobile-client body
   padding: 0 7px 0 4px !important;
   border: 0 !important;
   border-radius: 10px !important;
-  background: rgba(247, 249, 252, 0.18) !important;
+  background: rgba(247, 249, 252, 0.12) !important;
   color: #40546e !important;
   cursor: pointer !important;
 }
@@ -1399,7 +1399,7 @@ html.main-floating-notification-mobile-client
   padding: 0 10px !important;
   border: 1px solid rgba(171, 188, 206, 0.42) !important;
   border-radius: 10px !important;
-  background: rgba(247, 249, 252, 0.34) !important;
+  background: rgba(247, 249, 252, 0.24) !important;
   color: #3f638d !important;
   font: inherit !important;
   font-size: 10.5px !important;
@@ -1482,7 +1482,7 @@ html.main-floating-notification-mobile-client body
 #mainNotificationRailList
 > #armRollBoxMainAlert:not([hidden]) {
   border-color: rgba(205, 132, 27, 0.43) !important;
-  background: rgba(255, 248, 232, 0.28) !important;
+  background: rgba(255, 248, 232, 0.20) !important;
 }
 
 
@@ -1490,7 +1490,7 @@ html.main-floating-notification-mobile-client body
 #mainNotificationRailList
 > #armRollBoxMainAlert.is-critical:not([hidden]) {
   border-color: rgba(199, 69, 83, 0.43) !important;
-  background: rgba(255, 241, 243, 0.28) !important;
+  background: rgba(255, 241, 243, 0.20) !important;
 }
 
 
@@ -1543,7 +1543,7 @@ html.main-floating-notification-mobile-client
   padding: 6px 7px !important;
   border: 1px solid rgba(198, 84, 97, 0.19) !important;
   border-radius: 8px !important;
-  background: rgba(255, 255, 255, 0.24) !important;
+  background: rgba(255, 255, 255, 0.16) !important;
 }
 
 
@@ -1600,7 +1600,7 @@ html.main-floating-notification-mobile-client
 .main-floating-notification-dock__detail-action {
   min-height: 44px !important;
   border-radius: 9px !important;
-  background: rgba(242, 247, 252, 0.34) !important;
+  background: rgba(242, 247, 252, 0.24) !important;
 }
 
 
@@ -1617,8 +1617,9 @@ html.main-floating-notification-mobile-client body
   width: min(132px, calc(100dvw - 24px)) !important;
   max-height: 52px !important;
   padding: 4px !important;
+  border-color: rgba(157, 175, 195, 0.28) !important;
   border-radius: 13px !important;
-  background: rgba(248, 250, 253, 0.42) !important;
+  background: rgba(248, 250, 253, 0.24) !important;
 }
 
 
@@ -1629,12 +1630,12 @@ html.main-floating-notification-mobile-client body
   gap: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
-  border-color: rgba(157, 175, 195, 0.38) !important;
+  border-color: rgba(157, 175, 195, 0.28) !important;
   border-radius: 14px !important;
-  background: rgba(248, 250, 253, 0.46) !important;
-  box-shadow: 0 10px 28px rgba(48, 68, 91, 0.16) !important;
-  backdrop-filter: blur(14px) saturate(112%) !important;
-  -webkit-backdrop-filter: blur(14px) saturate(112%) !important;
+  background: rgba(248, 250, 253, 0.34) !important;
+  box-shadow: 0 10px 28px rgba(48, 68, 91, 0.08) !important;
+  backdrop-filter: blur(5px) saturate(101%) !important;
+  -webkit-backdrop-filter: blur(5px) saturate(101%) !important;
 }
 
 

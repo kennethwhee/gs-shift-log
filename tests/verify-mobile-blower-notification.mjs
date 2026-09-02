@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 const read = path => readFileSync(path, "utf8");
 
 const CACHE_KEY =
-  "20260902-mobile-notification-center-v1-2";
+  "20260902-arm-roll-compact-v2";
 
 
 function extractFunction(
@@ -876,8 +876,8 @@ assert.match(
 
 assert.match(
   mobileStyle,
-  /data-mobile-expanded="true"\][\s\S]{0,420}?background:\s*rgba\(248,\s*250,\s*253,\s*0\.46\)\s*!important/,
-  "expanded mobile notification center must stay translucent"
+  /data-mobile-expanded="true"\][\s\S]{0,420}?background:\s*rgba\(248,\s*250,\s*253,\s*0\.34\)\s*!important/,
+  "expanded mobile notification center must use the lighter translucent surface"
 );
 
 assert.match(
@@ -1000,6 +1000,41 @@ const blowerRenderSummary =
 assert.match(
   blowerRenderSummary,
   /renderMainAlertPreviewItems\(alertButton,\s*summary\)/
+);
+
+assert.match(
+  dockStyle,
+  /MAIN FLOATING NOTIFICATION DOCK V3/
+);
+
+assert.match(
+  dockStyle,
+  /MOBILE NOTIFICATION CENTER V1\.2/
+);
+
+assert.match(
+  dockStyle,
+  /#mainNotificationRail\.main-floating-notification-dock\s*\{[\s\S]{0,1200}?background:\s*rgba\(248, 250, 253, 0\.44\)\s*!important/
+);
+
+assert.match(
+  dockStyle,
+  /> \.blower-history-main-alert\s*\{[\s\S]{0,240}?background:\s*rgba\(255, 241, 243, 0\.20\)\s*!important/
+);
+
+assert.match(
+  dockStyle,
+  /> \.arm-roll-box-main-alert\s*\{[\s\S]{0,240}?background:\s*rgba\(255, 248, 232, 0\.22\)\s*!important/
+);
+
+assert.match(
+  dockStyle,
+  /MOBILE NOTIFICATION CENTER V1\.2[\s\S]{0,900}?background:\s*rgba\(248, 250, 253, 0\.24\)\s*!important/
+);
+
+assert.match(
+  dockStyle,
+  /> #blowerHistoryMainAlert:not\(\[hidden\]\)\s*\{[\s\S]{0,360}?background:\s*rgba\(255, 241, 243, 0\.20\)\s*!important/
 );
 
 
