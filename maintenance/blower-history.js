@@ -599,6 +599,13 @@
     return `${days}일 ${remainingHours}시간`;
   }
 
+  function formatCompactDaysHours(value) {
+    const hours = Math.max(0, roundHours(value));
+    const days = Math.floor(hours / 24);
+    const remainingHours = Math.floor(hours % 24);
+    return `${days}일·${remainingHours}h`;
+  }
+
   function addDaysToDate(value, days) {
     const text = formatDate(value);
     const safeDays = Number(days);
@@ -1072,12 +1079,20 @@
     const operationAction = confirmed
       ? `<button type="button" class="asset-action runtime-state-action ${operationRunning ? "stop" : "start"}" data-mobile-write data-asset-action="operation_toggle" data-tag="${escapeHtml(asset.tagNumber)}" title="${escapeHtml(operationActionTitle)}" aria-label="${escapeHtml(`${cardPosition} ${operationActionLabel}`)}">${operationActionLabel}</button>`
       : "";
+    const cyclePrimaryLabel = startupPending
+      ? "주기 상태"
+      : (cycleRuntimeTracked ? "누적 운전" : (actualStarted ? "기동 경과" : "교체 경과"));
+    const cyclePrimaryMobileLabel = startupPending
+      ? "상태"
+      : (cycleRuntimeTracked ? "누적" : (actualStarted ? "기동" : "교체"));
+    const cyclePrimaryValue = startupPending ? "기동 대기" : formatDaysHours(cycleElapsedHours);
+    const cyclePrimaryMobileValue = startupPending ? "기동 대기" : formatCompactDaysHours(cycleElapsedHours);
 
     return `
       <article class="asset-card" data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(operationState)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}>
         <div class="asset-card-header">
           <div class="asset-identity">
-            <strong class="asset-position">${escapeHtml(cardPosition)}</strong>
+            <strong class="asset-position" data-mobile-position="${escapeHtml(String(asset.positionLabel || "").trim() || cardPosition)}">${escapeHtml(cardPosition)}</strong>
             <span class="asset-tag">${escapeHtml(asset.tagNumber)}</span>
           </div>
           <div class="asset-status-group">
@@ -1089,8 +1104,8 @@
         ${confirmed ? `
           <div class="cycle-overview${startupPending ? " is-startup-pending" : ""}" title="${escapeHtml(remainingDetail)}">
             <div class="cycle-primary-metric">
-              <span>${startupPending ? "주기 상태" : (cycleRuntimeTracked ? "누적 운전" : (actualStarted ? "기동 경과" : "교체 경과"))}</span>
-              <strong>${startupPending ? "기동 대기" : escapeHtml(formatDaysHours(cycleElapsedHours))}</strong>
+              <span data-mobile-label="${escapeHtml(cyclePrimaryMobileLabel)}">${escapeHtml(cyclePrimaryLabel)}</span>
+              <strong data-mobile-value="${escapeHtml(cyclePrimaryMobileValue)}">${escapeHtml(cyclePrimaryValue)}</strong>
             </div>
             <div class="cycle-deadline-metric ${escapeHtml(severity)}">
               <span>${cycleRuntimeTracked && !operationRunning ? "D-day · 정지" : "D-day"}</span>
@@ -1159,7 +1174,7 @@
           ${operationAction}
           <button type="button" class="asset-action ${confirmed ? "" : "primary"}" data-mobile-write data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">${startupPending ? "V-Belt 교체 다시 등록" : "V-Belt 교체 등록"}</button>
           ${confirmed && !startupPending ? `<button type="button" class="asset-action" data-mobile-write data-asset-action="runtime" data-tag="${escapeHtml(asset.tagNumber)}">누적시간</button>` : ""}
-          <button type="button" class="asset-action" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}">이력 보기</button>
+          <button type="button" class="asset-action" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}" aria-label="${escapeHtml(`${cardPosition} 이력 보기`)}">이력 보기</button>
         </div>
       </article>
     `;
@@ -1245,7 +1260,7 @@
       <article class="asset-card is-placeholder${identityPending ? " is-identity-pending" : ""}" data-severity="unknown"${unitAttribute}>
         <div class="asset-card-header">
           <div class="asset-identity">
-            <strong class="asset-position">${escapeHtml(positionLabel)}</strong>
+            <strong class="asset-position" data-mobile-position="${escapeHtml(String(slot.positionLabel || "").trim() || positionLabel)}">${escapeHtml(positionLabel)}</strong>
             <span class="asset-tag">${escapeHtml(tagLabel)}</span>
           </div>
           <span class="status-pill unknown">TAG 미확인</span>
@@ -1311,12 +1326,34 @@
           `);
         }
       } else {
-        const cards = standardEntries.map(entry => renderDisplayEntry(entry, setting)).join("");
+        const entriesByUnit = new Map();
+        for (const entry of standardEntries) {
+          const unitNo = String(entry.item?.unitNo || "other");
+          if (!entriesByUnit.has(unitNo)) entriesByUnit.set(unitNo, []);
+          entriesByUnit.get(unitNo).push(entry);
+        }
+
+        const orderedUnitKeys = ["1", "2", "shared"];
+        for (const unitNo of entriesByUnit.keys()) {
+          if (!orderedUnitKeys.includes(unitNo)) orderedUnitKeys.push(unitNo);
+        }
+
+        const unitRows = orderedUnitKeys
+          .map(unitNo => {
+            const unitEntries = entriesByUnit.get(unitNo) || [];
+            if (unitEntries.length === 0) return "";
+            return `
+              <div class="asset-unit-row" data-unit-row="${escapeHtml(unitNo)}">
+                ${unitEntries.map(entry => renderDisplayEntry(entry, setting)).join("")}
+              </div>
+            `;
+          })
+          .join("");
 
         sections.push(`
           <section class="unit-group is-unified-assets">
             <h3 class="unit-heading">${escapeHtml(unifiedGroupLabel(inventoryItems))} <span>${standardEntries.length}대</span></h3>
-            <div class="asset-grid is-unified-grid">${cards}</div>
+            <div class="asset-grid is-unified-grid">${unitRows}</div>
           </section>
         `);
       }

@@ -1966,3 +1966,366 @@ strong {
 }
 
 /* FBHE_OIS_QUERY_WINDOW_V862 */
+
+/* =========================================================
+   MOBILE_BLOWER_COMPACT_GRID_V1
+   - FBHE / Seal Pot: three cards in each unit row
+   - Other standard Blowers: two cards in each sorted unit row
+   ========================================================= */
+.asset-unit-row {
+  display: contents;
+}
+
+@media (max-width: 700px),
+  (max-width: 1024px) and (hover: none) and (pointer: coarse) {
+  .asset-grid.is-unit-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .asset-grid.is-unified-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .asset-grid.is-unified-grid .asset-unit-row {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 5px;
+  }
+}
+
+@media (max-width: 700px),
+  (max-width: 1024px) and (hover: none) and (pointer: coarse) {
+  .asset-grid.is-unit-grid .asset-card,
+  .asset-grid.is-unified-grid .asset-card {
+    min-width: 0;
+    height: 100%;
+    padding: 6px;
+    border-left-width: 3px;
+    border-radius: 7px;
+  }
+
+  .asset-grid.is-unit-grid .asset-card-header,
+  .asset-grid.is-unified-grid .asset-card-header {
+    display: block;
+  }
+
+  .asset-grid.is-unit-grid .asset-position {
+    font-size: 0;
+  }
+
+  .asset-grid.is-unit-grid .asset-position::after {
+    content: attr(data-mobile-position);
+    font-size: 13px;
+    line-height: 1.15;
+  }
+
+  .asset-grid.is-unified-grid .asset-position {
+    font-size: 12px;
+    line-height: 1.2;
+  }
+
+  .asset-grid.is-unit-grid .asset-tag,
+  .asset-grid.is-unified-grid .asset-tag {
+    overflow: hidden;
+    margin-top: 1px;
+    font-size: 9px;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .asset-grid.is-unit-grid .asset-status-group,
+  .asset-grid.is-unified-grid .asset-status-group {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 2px;
+    margin-top: 4px;
+  }
+
+  .asset-grid.is-unit-grid .status-pill,
+  .asset-grid.is-unified-grid .status-pill,
+  .asset-grid.is-unit-grid .operation-pill,
+  .asset-grid.is-unified-grid .operation-pill {
+    min-height: 16px;
+    padding: 0 4px;
+    font-size: 9px;
+    line-height: 1;
+  }
+
+  .asset-grid.is-unit-grid .cycle-overview,
+  .asset-grid.is-unified-grid .cycle-overview {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+    margin-top: 4px;
+  }
+
+  .asset-grid.is-unit-grid .cycle-primary-metric,
+  .asset-grid.is-unified-grid .cycle-primary-metric {
+    grid-column: 1 / -1;
+  }
+
+  .asset-grid.is-unit-grid .cycle-primary-metric,
+  .asset-grid.is-unit-grid .cycle-deadline-metric,
+  .asset-grid.is-unit-grid .cycle-usage-metric,
+  .asset-grid.is-unified-grid .cycle-primary-metric,
+  .asset-grid.is-unified-grid .cycle-deadline-metric,
+  .asset-grid.is-unified-grid .cycle-usage-metric {
+    padding: 4px 5px;
+    border-radius: 5px;
+    text-align: left;
+  }
+
+  .asset-grid.is-unit-grid .cycle-deadline-metric,
+  .asset-grid.is-unit-grid .cycle-usage-metric,
+  .asset-grid.is-unified-grid .cycle-deadline-metric,
+  .asset-grid.is-unified-grid .cycle-usage-metric {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 3px;
+  }
+
+  .asset-grid.is-unit-grid .cycle-primary-metric > span,
+  .asset-grid.is-unit-grid .cycle-deadline-metric > span,
+  .asset-grid.is-unit-grid .cycle-usage-metric > span,
+  .asset-grid.is-unified-grid .cycle-primary-metric > span,
+  .asset-grid.is-unified-grid .cycle-deadline-metric > span,
+  .asset-grid.is-unified-grid .cycle-usage-metric > span {
+    font-size: 0;
+    line-height: 1.15;
+  }
+
+  .asset-grid.is-unit-grid .cycle-primary-metric > span::after,
+  .asset-grid.is-unified-grid .cycle-primary-metric > span::after,
+  .asset-grid.is-unit-grid .cycle-deadline-metric > span::after,
+  .asset-grid.is-unified-grid .cycle-deadline-metric > span::after,
+  .asset-grid.is-unit-grid .cycle-usage-metric > span::after,
+  .asset-grid.is-unified-grid .cycle-usage-metric > span::after {
+    color: #667684;
+    font-size: 9px;
+    font-weight: 800;
+  }
+
+  .asset-grid.is-unit-grid .cycle-primary-metric > span::after,
+  .asset-grid.is-unified-grid .cycle-primary-metric > span::after {
+    content: attr(data-mobile-label);
+  }
+
+  .asset-grid.is-unit-grid .cycle-deadline-metric > span::after,
+  .asset-grid.is-unified-grid .cycle-deadline-metric > span::after {
+    content: "D-day";
+  }
+
+  .asset-grid.is-unit-grid .cycle-usage-metric > span::after,
+  .asset-grid.is-unified-grid .cycle-usage-metric > span::after {
+    content: "사용";
+  }
+
+  .asset-grid.is-unit-grid .cycle-primary-metric > strong,
+  .asset-grid.is-unit-grid .cycle-deadline-metric > strong,
+  .asset-grid.is-unit-grid .cycle-usage-metric > strong,
+  .asset-grid.is-unified-grid .cycle-primary-metric > strong,
+  .asset-grid.is-unified-grid .cycle-deadline-metric > strong,
+  .asset-grid.is-unified-grid .cycle-usage-metric > strong {
+    min-width: 0;
+    margin-top: 1px;
+    overflow: hidden;
+    font-size: 12px;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .asset-grid.is-unit-grid .cycle-primary-metric > strong,
+  .asset-grid.is-unified-grid .cycle-primary-metric > strong {
+    font-size: 0;
+  }
+
+  .asset-grid.is-unit-grid .cycle-primary-metric > strong::after,
+  .asset-grid.is-unified-grid .cycle-primary-metric > strong::after {
+    content: attr(data-mobile-value);
+    font-size: 12px;
+  }
+
+  .asset-grid.is-unit-grid .cycle-progress-block,
+  .asset-grid.is-unified-grid .cycle-progress-block {
+    margin-top: 3px;
+  }
+
+  .asset-grid.is-unit-grid .cycle-progress-block .progress-track,
+  .asset-grid.is-unified-grid .cycle-progress-block .progress-track {
+    height: 3px;
+  }
+
+  .asset-grid.is-unit-grid .cycle-date-line,
+  .asset-grid.is-unified-grid .cycle-date-line {
+    display: flex;
+    min-height: 21px;
+    gap: 2px;
+    margin-top: 3px;
+    padding: 3px 4px;
+  }
+
+  .asset-grid.is-unit-grid .cycle-date-line > span,
+  .asset-grid.is-unified-grid .cycle-date-line > span {
+    width: 100%;
+    gap: 2px;
+  }
+
+  .asset-grid.is-unit-grid .cycle-date-line > span:not(:first-of-type),
+  .asset-grid.is-unified-grid .cycle-date-line > span:not(:first-of-type),
+  .asset-grid.is-unit-grid .cycle-date-line > b,
+  .asset-grid.is-unified-grid .cycle-date-line > b,
+  .asset-grid.is-unit-grid .cycle-date-line > small,
+  .asset-grid.is-unified-grid .cycle-date-line > small {
+    display: none;
+  }
+
+  .asset-grid.is-unit-grid .cycle-date-line em,
+  .asset-grid.is-unified-grid .cycle-date-line em {
+    font-size: 8px;
+  }
+
+  .asset-grid.is-unit-grid .cycle-date-line strong,
+  .asset-grid.is-unified-grid .cycle-date-line strong {
+    font-size: 9px;
+  }
+
+  .asset-grid.is-unit-grid .asset-evidence,
+  .asset-grid.is-unified-grid .asset-evidence {
+    display: none;
+  }
+
+  .asset-grid.is-unit-grid .unknown-cycle,
+  .asset-grid.is-unified-grid .unknown-cycle {
+    margin-top: 4px;
+    padding: 6px;
+    border-radius: 6px;
+  }
+
+  .asset-grid.is-unit-grid .unknown-cycle strong,
+  .asset-grid.is-unified-grid .unknown-cycle strong {
+    font-size: 10px;
+    line-height: 1.25;
+  }
+
+  .asset-grid.is-unit-grid .unknown-cycle p,
+  .asset-grid.is-unit-grid .unknown-cycle small,
+  .asset-grid.is-unified-grid .unknown-cycle p,
+  .asset-grid.is-unified-grid .unknown-cycle small {
+    display: none;
+  }
+
+  .asset-grid.is-unit-grid .placeholder-note,
+  .asset-grid.is-unified-grid .placeholder-note {
+    display: none;
+  }
+
+  .asset-grid.is-unit-grid .asset-actions,
+  .asset-grid.is-unified-grid .asset-actions {
+    margin-top: auto;
+    padding-top: 4px;
+  }
+
+  .asset-grid.is-unit-grid .asset-action,
+  .asset-grid.is-unified-grid .asset-action {
+    min-width: 0;
+    min-height: 32px;
+    padding: 0 4px;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 360px) {
+  .asset-grid.is-unit-grid {
+    gap: 3px;
+  }
+
+  .asset-grid.is-unit-grid .asset-card {
+    padding: 5px;
+  }
+
+  .asset-grid.is-unit-grid .cycle-deadline-metric > strong,
+  .asset-grid.is-unit-grid .cycle-usage-metric > strong {
+    font-size: 11px;
+  }
+
+  .asset-grid.is-unit-grid .cycle-primary-metric > strong::after {
+    font-size: 11px;
+  }
+}
+
+@media (min-width: 701px) and (max-width: 1024px) and (hover: none) and (pointer: coarse) {
+  .asset-grid.is-unit-grid .asset-card,
+  .asset-grid.is-unified-grid .asset-card {
+    padding: 8px;
+  }
+
+  .asset-grid.is-unit-grid .asset-position::after,
+  .asset-grid.is-unified-grid .asset-position {
+    font-size: 14px;
+  }
+
+  .asset-grid.is-unit-grid .asset-tag,
+  .asset-grid.is-unified-grid .asset-tag {
+    font-size: 10px;
+  }
+
+  .asset-grid.is-unit-grid .status-pill,
+  .asset-grid.is-unified-grid .status-pill,
+  .asset-grid.is-unit-grid .operation-pill,
+  .asset-grid.is-unified-grid .operation-pill {
+    min-height: 18px;
+    font-size: 9.5px;
+  }
+
+  .asset-grid.is-unit-grid .cycle-primary-metric,
+  .asset-grid.is-unit-grid .cycle-deadline-metric,
+  .asset-grid.is-unit-grid .cycle-usage-metric,
+  .asset-grid.is-unified-grid .cycle-primary-metric,
+  .asset-grid.is-unified-grid .cycle-deadline-metric,
+  .asset-grid.is-unified-grid .cycle-usage-metric {
+    padding: 6px 7px;
+  }
+
+  .asset-grid.is-unit-grid .cycle-primary-metric > span::after,
+  .asset-grid.is-unified-grid .cycle-primary-metric > span::after,
+  .asset-grid.is-unit-grid .cycle-deadline-metric > span::after,
+  .asset-grid.is-unified-grid .cycle-deadline-metric > span::after,
+  .asset-grid.is-unit-grid .cycle-usage-metric > span::after,
+  .asset-grid.is-unified-grid .cycle-usage-metric > span::after {
+    font-size: 10px;
+  }
+
+  .asset-grid.is-unit-grid .cycle-primary-metric > strong,
+  .asset-grid.is-unit-grid .cycle-deadline-metric > strong,
+  .asset-grid.is-unit-grid .cycle-usage-metric > strong,
+  .asset-grid.is-unified-grid .cycle-primary-metric > strong,
+  .asset-grid.is-unified-grid .cycle-deadline-metric > strong,
+  .asset-grid.is-unified-grid .cycle-usage-metric > strong {
+    font-size: 15px;
+  }
+
+  .asset-grid.is-unit-grid .cycle-primary-metric > strong,
+  .asset-grid.is-unified-grid .cycle-primary-metric > strong {
+    font-size: 0;
+  }
+
+  .asset-grid.is-unit-grid .cycle-primary-metric > strong::after,
+  .asset-grid.is-unified-grid .cycle-primary-metric > strong::after {
+    font-size: 15px;
+  }
+
+  .asset-grid.is-unit-grid .asset-action,
+  .asset-grid.is-unified-grid .asset-action {
+    min-height: 34px;
+    font-size: 11px;
+  }
+}
+
+/* MOBILE_BLOWER_COMPACT_GRID_V1 */
