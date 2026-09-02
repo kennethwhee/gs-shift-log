@@ -141,7 +141,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260831-arm-roll-box-alert-title-bold-v1"
+    href="style.css?v=20260901-limestone-pc-entry-modal-v1"
   >
   <!-- Morning meeting: TURBINE + SILO LEVEL merged card -->
   <link
@@ -199,7 +199,7 @@
 ></script>
 
 <script
-  src="script.js?v=20260901-floating-notification-v1"
+  src="script.js?v=20260901-limestone-pc-entry-modal-v1"
   defer
 ></script>
   <script
@@ -9691,8 +9691,17 @@
     <section
       class="limestone-editor-panel"
       id="limestoneReceiptEditorPanel"
+      aria-hidden="true"
       hidden
     >
+
+      <div
+        class="limestone-editor-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="limestoneReceiptEditorTitle"
+        aria-describedby="limestoneReceiptEditorDescription"
+      >
 
       <header class="limestone-editor-header">
 
@@ -9705,6 +9714,13 @@
           <h4 id="limestoneReceiptEditorTitle">
             석회석 입고기록 추가
           </h4>
+
+          <p
+            class="limestone-editor-description"
+            id="limestoneReceiptEditorDescription"
+          >
+            호기와 입고량을 선택하면 바로 등록할 수 있습니다.
+          </p>
 
         </div>
 
@@ -9733,51 +9749,46 @@
         id="limestoneReceiptEditorForm"
       >
 
-        <!-- 입고일자 -->
-        <label class="form-field">
-
-          <span class="form-field__label">
-            입고일자
-          </span>
-
-          <input
-            type="date"
-            id="limestoneReceiptDate"
-            name="limestoneReceiptDate"
-            required
-          />
-
-        </label>
-
-
-        <!-- 입고시간 -->
-        <label class="form-field">
-
-          <span class="form-field__label">
-            입고시간
-          </span>
-
-          <input
-            type="time"
-            id="limestoneReceiptTime"
-            name="limestoneReceiptTime"
-            required
-          />
-
-        </label>
-
-
         <!-- 호기 -->
-        <label class="form-field">
+        <div class="form-field limestone-editor-unit-field">
 
-          <span class="form-field__label">
+          <span
+            class="form-field__label"
+            id="limestoneReceiptUnitLabel"
+          >
             호기
           </span>
 
+          <div
+            class="limestone-editor-unit-options"
+            role="group"
+            aria-labelledby="limestoneReceiptUnitLabel"
+          >
+
+            <button
+              type="button"
+              class="limestone-editor-unit-button is-unit-one"
+              data-limestone-editor-unit="1"
+              aria-pressed="false"
+            >
+              1호기
+            </button>
+
+            <button
+              type="button"
+              class="limestone-editor-unit-button is-unit-two"
+              data-limestone-editor-unit="2"
+              aria-pressed="false"
+            >
+              2호기
+            </button>
+
+          </div>
+
           <select
+            class="limestone-editor-unit-select"
             id="limestoneReceiptUnit"
             name="limestoneReceiptUnit"
-            required
           >
 
             <option value="">
@@ -9794,11 +9805,11 @@
 
           </select>
 
-        </label>
+        </div>
 
 
         <!-- 입고량 -->
-        <label class="form-field">
+        <label class="form-field limestone-editor-quantity-field">
 
           <span class="form-field__label">
             입고량
@@ -9823,6 +9834,40 @@
             </span>
 
           </div>
+
+        </label>
+
+
+        <!-- 입고일자 -->
+        <label class="form-field limestone-editor-date-field">
+
+          <span class="form-field__label">
+            입고일자
+          </span>
+
+          <input
+            type="date"
+            id="limestoneReceiptDate"
+            name="limestoneReceiptDate"
+            required
+          />
+
+        </label>
+
+
+        <!-- 입고시간 -->
+        <label class="form-field limestone-editor-time-field">
+
+          <span class="form-field__label">
+            입고시간
+          </span>
+
+          <input
+            type="time"
+            id="limestoneReceiptTime"
+            name="limestoneReceiptTime"
+            required
+          />
 
         </label>
 
@@ -9867,7 +9912,7 @@
             class="primary-button"
             id="saveLimestoneReceiptButton"
           >
-            저장
+            입고 등록
           </button>
 
         </div>
@@ -9882,6 +9927,8 @@
         hidden
       >
       </p>
+
+      </div>
 
     </section>
 

@@ -171,7 +171,7 @@ for (const [label, html] of [
 
 assert.match(
   desktopHtml,
-  /script\.js\?v=20260901-floating-notification-v1/
+  /script\.js\?v=20260901-limestone-pc-entry-modal-v1/
 );
 assert.equal(
   (

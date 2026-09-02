@@ -112105,6 +112105,14 @@ const limestoneReceiptState = {
     false
 };
 
+
+let limestoneReceiptEditorReturnFocus =
+  null;
+
+
+let limestoneReceiptSaveSequence =
+  0;
+
 /* =====================================================
   석회석 입고 현황 HTML 요소
 ===================================================== */
@@ -112317,9 +112325,22 @@ function getLimestoneReceiptElements() {
         "limestoneReceiptEditorPanel"
       ),
 
+    editorDialog:
+      document.querySelector(
+        `
+          #limestoneReceiptEditorPanel
+          .limestone-editor-dialog
+        `
+      ),
+
     editorTitle:
       document.getElementById(
         "limestoneReceiptEditorTitle"
+      ),
+
+    editorDescription:
+      document.getElementById(
+        "limestoneReceiptEditorDescription"
       ),
 
     closeEditorButton:
@@ -112356,6 +112377,12 @@ function getLimestoneReceiptElements() {
       document.getElementById(
         "limestoneReceiptUnit"
       ),
+
+    receiptUnitButtons: [
+      ...document.querySelectorAll(
+        "[data-limestone-editor-unit]"
+      )
+    ],
 
     receiptQuantityInput:
       document.getElementById(
@@ -118500,6 +118527,106 @@ function getLimestoneManualEntryQuantity() {
   );
 }
 
+
+  /* =====================================================
+    PC 팝업 호기 선택 상태
+  ====================================================== */
+
+  function syncLimestoneReceiptUnitButtons() {
+    const {
+      receiptUnitInput,
+      receiptUnitButtons
+    } =
+      getLimestoneReceiptElements();
+
+
+    const selectedUnit =
+      String(
+        receiptUnitInput?.value ||
+        ""
+      ).trim();
+
+
+    receiptUnitButtons.forEach(
+      button => {
+        const isSelected =
+          String(
+            button.dataset
+              .limestoneEditorUnit ||
+            ""
+          ) === selectedUnit;
+
+
+        button.classList.toggle(
+          "is-selected",
+          isSelected
+        );
+
+
+        button.setAttribute(
+          "aria-pressed",
+          String(
+            isSelected
+          )
+        );
+      }
+    );
+  }
+
+
+  function selectLimestoneReceiptUnit(
+    unitNo,
+    {
+      focusQuantity =
+        true
+    } = {}
+  ) {
+    const {
+      receiptUnitInput,
+      receiptQuantityInput
+    } =
+      getLimestoneReceiptElements();
+
+
+    const normalizedUnit =
+      String(
+        unitNo ||
+        ""
+      );
+
+
+    if (
+      !receiptUnitInput ||
+      ![
+        "1",
+        "2"
+      ].includes(
+        normalizedUnit
+      )
+    ) {
+      return;
+    }
+
+
+    receiptUnitInput.value =
+      normalizedUnit;
+
+
+    syncLimestoneReceiptUnitButtons();
+
+
+    showLimestoneEditorMessage(
+      ""
+    );
+
+
+    if (
+      focusQuantity
+    ) {
+      receiptQuantityInput?.focus();
+    }
+  }
+
   /* =====================================================
     입력창 초기화
   ====================================================== */
@@ -118512,7 +118639,8 @@ function getLimestoneManualEntryQuantity() {
       receiptTimeInput,
       receiptUnitInput,
       receiptQuantityInput,
-      receiptNoteInput
+      receiptNoteInput,
+      saveButton
     } =
       getLimestoneReceiptElements();
 
@@ -118537,7 +118665,18 @@ function getLimestoneManualEntryQuantity() {
       receiptDateInput
     ) {
       receiptDateInput.value =
-        getLimestoneToday();
+        (
+          limestoneReceiptState
+            .queryMode ===
+              "day" &&
+          isValidLimestoneDate(
+            limestoneReceiptState
+              .selectedDay
+          )
+        )
+          ? limestoneReceiptState
+              .selectedDay
+          : getLimestoneToday();
     }
 
 
@@ -118557,6 +118696,9 @@ function getLimestoneManualEntryQuantity() {
     }
 
 
+    syncLimestoneReceiptUnitButtons();
+
+
     if (
       receiptQuantityInput
     ) {
@@ -118570,6 +118712,14 @@ function getLimestoneManualEntryQuantity() {
     ) {
       receiptNoteInput.value =
         "";
+    }
+
+
+    if (
+      saveButton
+    ) {
+      saveButton.textContent =
+        "입고 등록";
     }
 
 
@@ -118589,13 +118739,15 @@ function getLimestoneManualEntryQuantity() {
     const {
       editorPanel,
       editorTitle,
+      editorDescription,
       editingIdInput,
       receiptDateInput,
       receiptTimeInput,
       receiptUnitInput,
       receiptQuantityInput,
       receiptNoteInput,
-
+      receiptUnitButtons,
+      saveButton
     } =
       getLimestoneReceiptElements();
 
@@ -118612,7 +118764,19 @@ function getLimestoneManualEntryQuantity() {
     }
 
 
-resetLimestoneReceiptEditor();
+    if (
+      document.activeElement instanceof
+        HTMLElement &&
+      !editorPanel.contains(
+        document.activeElement
+      )
+    ) {
+      limestoneReceiptEditorReturnFocus =
+        document.activeElement;
+    }
+
+
+    resetLimestoneReceiptEditor();
 
 
     if (
@@ -118623,6 +118787,22 @@ resetLimestoneReceiptEditor();
       ) {
         editorTitle.textContent =
           "석회석 입고기록 수정";
+      }
+
+
+      if (
+        editorDescription
+      ) {
+        editorDescription.textContent =
+          "변경할 항목만 확인한 뒤 저장해 주세요.";
+      }
+
+
+      if (
+        saveButton
+      ) {
+        saveButton.textContent =
+          "수정 저장";
       }
 
 
@@ -118668,6 +118848,9 @@ resetLimestoneReceiptEditor();
       }
 
 
+      syncLimestoneReceiptUnitButtons();
+
+
       if (
         receiptQuantityInput
       ) {
@@ -118694,6 +118877,15 @@ resetLimestoneReceiptEditor();
     }
 
 
+    if (
+      !receipt &&
+      editorDescription
+    ) {
+      editorDescription.textContent =
+        "호기와 입고량을 선택하면 바로 등록할 수 있습니다.";
+    }
+
+
     editorPanel.hidden =
       false;
 
@@ -118703,15 +118895,43 @@ resetLimestoneReceiptEditor();
     );
 
 
+    editorPanel.setAttribute(
+      "aria-hidden",
+      "false"
+    );
+
+
+    document.body.classList.add(
+      "is-limestone-receipt-editor-open"
+    );
+
+
     window.requestAnimationFrame(
       () => {
-        editorPanel.scrollIntoView({
-          behavior:
-            "smooth",
+        const isDesktop =
+          window.matchMedia(
+            "(min-width: 769px)"
+          ).matches;
 
-          block:
-            "nearest"
-        });
+
+        if (
+          receipt
+        ) {
+          receiptQuantityInput?.focus();
+
+          receiptQuantityInput?.select();
+
+          return;
+        }
+
+
+        if (
+          isDesktop
+        ) {
+          receiptUnitButtons[0]?.focus();
+
+          return;
+        }
 
 
         receiptDateInput?.focus();
@@ -118738,11 +118958,62 @@ resetLimestoneReceiptEditor();
     }
 
 
+    if (
+      editorPanel.dataset
+        .saving ===
+        "true"
+    ) {
+      return;
+    }
+
+
+    const wasOpen =
+      !editorPanel.hidden;
+
+
     editorPanel.hidden =
       true;
 
 
+    editorPanel.setAttribute(
+      "hidden",
+      ""
+    );
+
+
+    editorPanel.setAttribute(
+      "aria-hidden",
+      "true"
+    );
+
+
+    document.body.classList.remove(
+      "is-limestone-receipt-editor-open"
+    );
+
+
     resetLimestoneReceiptEditor();
+
+
+    if (
+      wasOpen &&
+      limestoneReceiptEditorReturnFocus
+        ?.isConnected
+    ) {
+      const returnFocus =
+        limestoneReceiptEditorReturnFocus;
+
+
+      window.requestAnimationFrame(
+        () => {
+          returnFocus.focus();
+        }
+      );
+    }
+
+
+    limestoneReceiptEditorReturnFocus =
+      null;
   }
 
 
@@ -118804,6 +119075,7 @@ resetLimestoneReceiptEditor();
       receiptDateInput,
       receiptTimeInput,
       receiptUnitInput,
+      receiptUnitButtons,
       receiptQuantityInput,
       receiptNoteInput
     } =
@@ -118857,7 +119129,17 @@ resetLimestoneReceiptEditor();
       );
 
 
-      receiptUnitInput?.focus();
+      if (
+        window.matchMedia(
+          "(min-width: 769px)"
+        ).matches &&
+        receiptUnitButtons[0]
+      ) {
+        receiptUnitButtons[0].focus();
+
+      } else {
+        receiptUnitInput?.focus();
+      }
 
 
       return false;
@@ -118916,10 +119198,20 @@ resetLimestoneReceiptEditor();
 
 
     const {
+      editorPanel,
       editingIdInput,
       saveButton
     } =
       getLimestoneReceiptElements();
+
+
+    if (
+      editorPanel?.dataset
+        .saving ===
+        "true"
+    ) {
+      return;
+    }
 
 
     const receipt =
@@ -118962,6 +119254,59 @@ resetLimestoneReceiptEditor();
       );
 
 
+    const saveRequestToken =
+      String(
+        ++limestoneReceiptSaveSequence
+      );
+
+
+    const releaseSaveState =
+      () => {
+        if (
+          editorPanel &&
+          editorPanel.dataset
+            .savingToken !==
+              saveRequestToken
+        ) {
+          return false;
+        }
+
+
+        if (
+          editorPanel
+        ) {
+          delete editorPanel.dataset
+            .saving;
+
+
+          delete editorPanel.dataset
+            .savingToken;
+
+
+          editorPanel.removeAttribute(
+            "aria-busy"
+          );
+        }
+
+
+        if (
+          saveButton
+        ) {
+          saveButton.disabled =
+            false;
+
+
+          saveButton.textContent =
+            isEditing
+              ? "수정 저장"
+              : "입고 등록";
+        }
+
+
+        return true;
+      };
+
+
     if (
       saveButton
     ) {
@@ -118973,6 +119318,25 @@ resetLimestoneReceiptEditor();
         isEditing
           ? "수정 중..."
           : "저장 중...";
+    }
+
+
+    if (
+      editorPanel
+    ) {
+      editorPanel.dataset.saving =
+        "true";
+
+
+      editorPanel.dataset
+        .savingToken =
+        saveRequestToken;
+
+
+      editorPanel.setAttribute(
+        "aria-busy",
+        "true"
+      );
     }
 
 
@@ -119011,10 +119375,10 @@ resetLimestoneReceiptEditor();
         );
 
 
+      releaseSaveState();
+
+
       closeLimestoneReceiptEditor();
-
-
-      await loadLimestoneReceipts();
 
 
       showLimestoneToast(
@@ -119025,6 +119389,24 @@ resetLimestoneReceiptEditor();
             : "석회석 입고기록을 등록했습니다."
         )
       );
+
+
+      try {
+        await loadLimestoneReceipts();
+
+      } catch (
+        refreshError
+      ) {
+        console.error(
+          "석회석 입고기록 저장 후 목록 갱신 실패:",
+          refreshError
+        );
+
+
+        showLimestoneToast(
+          "입고기록은 저장됐지만 목록을 새로 불러오지 못했습니다. 새로고침해 주세요."
+        );
+      }
 
     } catch (
       error
@@ -119039,7 +119421,17 @@ resetLimestoneReceiptEditor();
         error.status ===
           409
       ) {
-        await loadLimestoneReceipts();
+        try {
+          await loadLimestoneReceipts();
+
+        } catch (
+          refreshError
+        ) {
+          console.error(
+            "석회석 입고기록 충돌 후 목록 갱신 실패:",
+            refreshError
+          );
+        }
       }
 
 
@@ -119049,16 +119441,7 @@ resetLimestoneReceiptEditor();
       );
 
     } finally {
-      if (
-        saveButton
-      ) {
-        saveButton.disabled =
-          false;
-
-
-        saveButton.textContent =
-          "저장";
-      }
+      releaseSaveState();
     }
   }
 
@@ -119584,9 +119967,15 @@ const {
 
     groupModeButtons,
 
+    editorPanel,
+    editorDialog,
     closeEditorButton,
     cancelEditorButton,
     editorForm,
+    receiptUnitInput,
+    receiptUnitButtons,
+    receiptQuantityInput,
+    receiptNoteInput,
     receiptTableBody
   } =
     elements;
@@ -120032,6 +120421,261 @@ document.addEventListener(
   },
   true
 );
+
+
+  /* ===================================================
+    PC 입고기록 팝업 호기 선택
+  ==================================================== */
+
+  receiptUnitButtons.forEach(
+    (
+      button,
+      buttonIndex
+    ) => {
+      button.addEventListener(
+        "click",
+        event => {
+          event.preventDefault();
+
+
+          selectLimestoneReceiptUnit(
+            button.dataset
+              .limestoneEditorUnit
+          );
+        }
+      );
+
+
+      button.addEventListener(
+        "keydown",
+        event => {
+          if (
+            ![
+              "ArrowLeft",
+              "ArrowRight"
+            ].includes(
+              event.key
+            )
+          ) {
+            return;
+          }
+
+
+          event.preventDefault();
+
+
+          const direction =
+            event.key ===
+              "ArrowRight"
+              ? 1
+              : -1;
+
+
+          const nextIndex =
+            (
+              buttonIndex +
+              direction +
+              receiptUnitButtons.length
+            ) %
+            receiptUnitButtons.length;
+
+
+          const nextButton =
+            receiptUnitButtons[
+              nextIndex
+            ];
+
+
+          selectLimestoneReceiptUnit(
+            nextButton?.dataset
+              .limestoneEditorUnit,
+            {
+              focusQuantity:
+                false
+            }
+          );
+
+
+          nextButton?.focus();
+        }
+      );
+    }
+  );
+
+
+  receiptUnitInput?.addEventListener(
+    "change",
+    () => {
+      syncLimestoneReceiptUnitButtons();
+
+
+      showLimestoneEditorMessage(
+        ""
+      );
+    }
+  );
+
+
+  editorForm?.addEventListener(
+    "input",
+    () => {
+      showLimestoneEditorMessage(
+        ""
+      );
+    }
+  );
+
+
+  /* ===================================================
+    PC 팝업 바깥 영역 클릭
+  ==================================================== */
+
+  editorPanel?.addEventListener(
+    "click",
+    event => {
+      if (
+        event.target !==
+          editorPanel
+      ) {
+        return;
+      }
+
+
+      closeLimestoneReceiptEditor();
+    }
+  );
+
+
+  /* ===================================================
+    ESC + 포커스 순환
+
+    ESC 한 번으로 바깥 효율팀 모달까지
+    같이 닫히지 않도록 캡처 단계에서 처리한다.
+  ==================================================== */
+
+  document.addEventListener(
+    "keydown",
+    event => {
+      if (
+        !editorPanel ||
+        editorPanel.hidden
+      ) {
+        return;
+      }
+
+
+      if (
+        event.key ===
+          "Escape"
+      ) {
+        event.preventDefault();
+
+        event.stopImmediatePropagation();
+
+
+        closeLimestoneReceiptEditor();
+
+
+        return;
+      }
+
+
+      if (
+        event.key !==
+          "Tab" ||
+        !editorDialog ||
+        !window.matchMedia(
+          "(min-width: 769px)"
+        ).matches
+      ) {
+        return;
+      }
+
+
+      const focusableElements = [
+        ...editorDialog.querySelectorAll(
+          [
+            "button:not([disabled])",
+            "input:not([disabled]):not([type=\"hidden\"])",
+            "select:not([disabled])"
+          ].join(
+            ","
+          )
+        )
+      ].filter(
+        element => {
+          return (
+            element instanceof
+              HTMLElement &&
+            element.tabIndex >=
+              0 &&
+            !element.hidden &&
+            window.getComputedStyle(
+              element
+            ).display !==
+              "none"
+          );
+        }
+      );
+
+
+      if (
+        focusableElements.length ===
+          0
+      ) {
+        return;
+      }
+
+
+      const firstElement =
+        focusableElements[0];
+
+
+      const lastElement =
+        focusableElements[
+          focusableElements.length -
+          1
+        ];
+
+
+      if (
+        event.shiftKey &&
+        (
+          document.activeElement ===
+            firstElement ||
+          !editorDialog.contains(
+            document.activeElement
+          )
+        )
+      ) {
+        event.preventDefault();
+
+
+        lastElement.focus();
+
+
+        return;
+      }
+
+
+      if (
+        !event.shiftKey &&
+        (
+          document.activeElement ===
+            lastElement ||
+          !editorDialog.contains(
+            document.activeElement
+          )
+        )
+      ) {
+        event.preventDefault();
+
+
+        firstElement.focus();
+      }
+    },
+    true
+  );
 
   closeEditorButton?.addEventListener(
     "click",
