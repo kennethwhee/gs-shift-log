@@ -1,0 +1,46 @@
+/* BED ASH MOBILE DATE + BADGE CLEANUP V1 */
+
+/* Bed Ash is an amount/history view, not an alert menu. Keep its tab badge hidden. */
+#efficiencyBedAshDischargeBadge {
+  display: none !important;
+}
+
+@media screen and (max-width: 768px) {
+  /*
+    Keep previous / date / today / next compact and visually balanced.
+    The date field no longer expands to consume the full remaining row width.
+  */
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation {
+    grid-template-columns: 34px minmax(150px, 180px) 54px 34px !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    width: 100% !important;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation > button {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    padding-inline: 4px !important;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation label {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation input {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    padding-inline: 6px !important;
+    text-align: center !important;
+  }
+}
+
+@media screen and (max-width: 390px) {
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation {
+    grid-template-columns: 32px minmax(140px, 168px) 50px 32px !important;
+    gap: 4px !important;
+  }
+}
