@@ -21,6 +21,12 @@
   const FORM_ID = "limestoneReceiptEditorForm";
   const PANEL_ID = "limestoneReceiptEditorPanel";
 
+  const MANUAL_MODAL_ID = "limestoneManualEntryModal";
+  const MANUAL_WEIGHT_ID = "limestoneManualEntryWeightInput";
+  const MANUAL_ERROR_ID = "limestoneManualEntryError";
+  const MANUAL_UNIT_ONE_BUTTON_ID = "submitLimestoneManualEntryUnit1Button";
+  const MANUAL_UNIT_TWO_BUTTON_ID = "submitLimestoneManualEntryUnit2Button";
+
   function normalizeTime(rawValue) {
     const raw = String(rawValue == null ? "" : rawValue)
       .trim()
@@ -30,7 +36,6 @@
 
     let hour;
     let minute;
-
     if (/^\d{1,2}:\d{2}$/.test(raw)) {
       const parts = raw.split(":");
       hour = Number(parts[0]);
@@ -66,7 +71,6 @@
     if (!raw) return null;
 
     let value;
-
     if (/^\d{1,2}(?:\.\d{1,2})?$/.test(raw)) {
       value = Number(raw);
     } else if (/^\d{1,4}$/.test(raw)) {
@@ -137,9 +141,7 @@
     }
   }
 
-  function start(doc) {
-    if (!doc || typeof doc.getElementById !== "function") return false;
-
+  function bindReceiptEditor(doc) {
     const form = doc.getElementById(FORM_ID);
     const panel = doc.getElementById(PANEL_ID);
     const timeInput = doc.getElementById(TIME_ID);
@@ -160,6 +162,10 @@
 
     quantityInput.addEventListener("input", function () {
       setValidity(quantityInput, "");
+      if (/^\d{4}$/.test(String(quantityInput.value || "").trim())) {
+        const normalized = normalizeQuantity(quantityInput.value);
+        if (normalized) quantityInput.value = normalized;
+      }
     });
 
     timeInput.addEventListener("blur", function () {
@@ -185,7 +191,6 @@
 
         event.preventDefault();
         event.stopImmediatePropagation();
-
         const invalidInput = !timeOk ? timeInput : quantityInput;
         if (typeof invalidInput.reportValidity === "function") {
           invalidInput.reportValidity();
@@ -216,6 +221,125 @@
 
     refreshVisibleValues();
     return true;
+  }
+
+  function bindManualDirectEntry(doc) {
+    const modal = doc.getElementById(MANUAL_MODAL_ID);
+    const weightInput = doc.getElementById(MANUAL_WEIGHT_ID);
+    const errorNode = doc.getElementById(MANUAL_ERROR_ID);
+    const unitOneButton = doc.getElementById(MANUAL_UNIT_ONE_BUTTON_ID);
+    const unitTwoButton = doc.getElementById(MANUAL_UNIT_TWO_BUTTON_ID);
+
+    if (!modal || !weightInput || !unitOneButton || !unitTwoButton) return false;
+    if (modal.getAttribute("data-limestone-fast-manual-bound") === "1") return true;
+
+    modal.setAttribute("data-limestone-fast-manual-bound", "1");
+
+    const invalidMessage = "실중량은 0.01 ~ 99.99 ton 범위로 입력해 주세요. 예: 30.10 또는 3010";
+
+    function setManualError(message) {
+      if (errorNode) errorNode.textContent = message || "";
+    }
+
+    function configureManualInput() {
+      weightInput.type = "text";
+      weightInput.inputMode = "decimal";
+      weightInput.maxLength = 5;
+      weightInput.placeholder = "예: 30.10 또는 3010";
+      weightInput.autocomplete = "off";
+      weightInput.removeAttribute("min");
+      weightInput.removeAttribute("max");
+      weightInput.removeAttribute("step");
+      weightInput.setAttribute("data-limestone-fast-manual-weight", "1");
+
+      const helper = modal.querySelector(".limestone-manual-entry-modal__helper");
+      if (helper) {
+        helper.textContent = "0.01 ~ 99.99 ton · 3010 → 30.10";
+      }
+    }
+
+    function normalizeManualWeight(report) {
+      configureManualInput();
+      const raw = String(weightInput.value || "").trim();
+      const normalized = normalizeQuantity(raw);
+
+      if (!normalized) {
+        setValidity(weightInput, invalidMessage);
+        setManualError(invalidMessage);
+        if (report && typeof weightInput.reportValidity === "function") {
+          weightInput.reportValidity();
+        }
+        return false;
+      }
+
+      weightInput.value = normalized;
+      setValidity(weightInput, "");
+      setManualError("");
+      return true;
+    }
+
+    weightInput.addEventListener("input", function () {
+      configureManualInput();
+      setValidity(weightInput, "");
+      setManualError("");
+
+      const raw = String(weightInput.value || "").trim();
+      if (/^\d{4}$/.test(raw)) {
+        const normalized = normalizeQuantity(raw);
+        if (normalized) {
+          weightInput.value = normalized;
+        }
+      }
+    });
+
+    weightInput.addEventListener("blur", function () {
+      if (String(weightInput.value || "").trim()) {
+        normalizeManualWeight(false);
+      }
+    });
+
+    function guardRegistration(event) {
+      if (normalizeManualWeight(true)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      weightInput.focus();
+    }
+
+    unitOneButton.addEventListener("click", guardRegistration, true);
+    unitTwoButton.addEventListener("click", guardRegistration, true);
+
+    function refreshManualModal() {
+      configureManualInput();
+      setValidity(weightInput, "");
+      setManualError("");
+      if (String(weightInput.value || "").trim()) {
+        const normalized = normalizeQuantity(weightInput.value);
+        if (normalized) weightInput.value = normalized;
+      }
+    }
+
+    if (typeof MutationObserver !== "undefined") {
+      const observer = new MutationObserver(function () {
+        if (!modal.hidden && modal.getAttribute("aria-hidden") !== "true") {
+          setTimeout(refreshManualModal, 0);
+          setTimeout(refreshManualModal, 60);
+        }
+      });
+      observer.observe(modal, {
+        attributes: true,
+        attributeFilter: ["hidden", "aria-hidden"],
+      });
+    }
+
+    refreshManualModal();
+    return true;
+  }
+
+  function start(doc) {
+    if (!doc || typeof doc.getElementById !== "function") return false;
+    const receiptBound = bindReceiptEditor(doc);
+    const manualBound = bindManualDirectEntry(doc);
+    return receiptBound || manualBound;
   }
 
   return {
