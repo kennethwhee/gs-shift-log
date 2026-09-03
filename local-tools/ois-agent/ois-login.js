@@ -1124,7 +1124,7 @@ const BLOWER_RUNTIME_PROBE_STAGE_MARKER =
 
 
 const BLOWER_RUNTIME_PROBE_PROCESS_TIMEOUT =
-  90000;
+  300000;
 
 
 const BLOWER_RUNTIME_PROBE_CHUNK_DAYS =
@@ -11763,7 +11763,8 @@ if (
 
   - 서버가 고정한 RFC3339 시작·종료 시각만 사용한다.
   - 정확히 31일 이하인 구간으로 나눠 fnValTime을 실행한다.
-  - 사용자 Excel에 임시 통합문서만 만들고 저장하지 않는다.
+  - 사용자 Excel과 분리된 숨김 Excel을 /x로 실행하고 PID-HWND NativeOM으로 직접 연결한다.
+  - 기존 사용자 Excel/DataPARC Host는 저장·종료하지 않고 자동조회 소유 PID만 정리한다.
   - 업무일지 API나 DB에는 직접 쓰지 않는다.
 ========================================================= */
 
@@ -11776,15 +11777,27 @@ $OutputEncoding = [Text.Encoding]::UTF8
 
 $excel = $null
 $workbooks = $null
-$originalWorkbook = $null
-$originalWorksheet = $null
 $queryWorkbook = $null
 $worksheets = $null
 $querySheet = $null
 $cells = $null
 $queryRange = $null
+$launchedExcelProcess = $null
+$ownedExcelPid = 0
+$ownedExcelStartTicks = 0L
+$ownedExcelPath = ""
+$ownedExcelSessionId = -1
+$attachedExcelPid = 0
+$ownedHostSnapshot = $null
+$baselineExcelSignatures = @()
+$baselineExcelPids = @()
+$baselineHostSignatures = @()
+$baselineHostPids = @()
 $finalResult = $null
-$cleanupError = ""
+$queryFailure = $null
+$cleanupErrors = New-Object System.Collections.Generic.List[string]
+$probeMutex = $null
+$probeMutexAcquired = $false
 
 $stageMarker = [string]$env:GS_BLOWER_STAGE_MARKER
 $resultMarker = [string]$env:GS_BLOWER_RESULT_MARKER
@@ -11798,7 +11811,7 @@ $expectedCycleStartState = [string]$env:GS_BLOWER_EXPECTED_CYCLE_START_STATE
 $expectedCycleStartedAt = [string]$env:GS_BLOWER_EXPECTED_CYCLE_STARTED_AT
 $expectedCycleStartRevision = [string]$env:GS_BLOWER_EXPECTED_CYCLE_START_REVISION
 $expectedCycleRuntimeRevision = [string]$env:GS_BLOWER_EXPECTED_CYCLE_RUNTIME_REVISION
-$probeWorkbookMarker = "__GS_BLOWER_RUNTIME_PROBE_TEMP_V1__"
+$probeWorkbookMarker = "__GS_BLOWER_RUNTIME_NATIVEOM_TEMP_V1__"
 
 function Write-ProbeStage([string]$Message) {
   [Console]::WriteLine($stageMarker + $Message)
@@ -11889,6 +11902,441 @@ function Format-ProbeResultTime(
   )
 }
 
+function Resolve-ProbeExcelExecutable {
+  $candidates = New-Object System.Collections.Generic.List[string]
+
+  try {
+    $command = Get-Command "EXCEL.EXE" -ErrorAction Stop
+    if (-not [string]::IsNullOrWhiteSpace([string]$command.Source)) {
+      $candidates.Add([string]$command.Source)
+    }
+  } catch {
+  }
+
+  $registryPaths = @(
+    "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\excel.exe",
+    "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\excel.exe",
+    "Registry::HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\excel.exe"
+  )
+
+  foreach ($registryPath in $registryPaths) {
+    try {
+      $registryKey = Get-Item -LiteralPath $registryPath -ErrorAction Stop
+      $registryValue = [string]$registryKey.GetValue("")
+      if (-not [string]::IsNullOrWhiteSpace($registryValue)) {
+        $candidates.Add($registryValue)
+      }
+    } catch {
+    }
+  }
+
+  foreach ($officeRoot in @([string]$env:ProgramFiles, [string]([Environment]::GetEnvironmentVariable("ProgramFiles(x86)")))) {
+    if ([string]::IsNullOrWhiteSpace($officeRoot)) { continue }
+    $candidates.Add((Join-Path $officeRoot "Microsoft Office\root\Office16\EXCEL.EXE"))
+    $candidates.Add((Join-Path $officeRoot "Microsoft Office\Office16\EXCEL.EXE"))
+    $candidates.Add((Join-Path $officeRoot "Microsoft Office\Office15\EXCEL.EXE"))
+  }
+
+  foreach ($candidate in $candidates) {
+    if (
+      -not [string]::IsNullOrWhiteSpace($candidate) -and
+      (Test-Path -LiteralPath $candidate -PathType Leaf)
+    ) {
+      return [IO.Path]::GetFullPath($candidate)
+    }
+  }
+
+  throw "Excel 실행 파일(EXCEL.EXE)을 찾지 못했습니다. Office 설치 상태를 확인해 주세요."
+}
+
+if (-not ("GsBlowerRuntimeNativeOmV1" -as [type])) {
+  Add-Type -TypeDefinition @"
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class GsBlowerRuntimeNativeOmV1
+{
+    private const uint OBJID_NATIVEOM = 0xFFFFFFF0;
+    private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("oleacc.dll", PreserveSig = true)]
+    private static extern int AccessibleObjectFromWindow(
+        IntPtr hwnd,
+        uint dwId,
+        ref Guid riid,
+        [MarshalAs(UnmanagedType.Interface)] out object ppvObject
+    );
+
+    private static string WindowClass(IntPtr hwnd)
+    {
+        StringBuilder builder = new StringBuilder(256);
+        int length = GetClassName(hwnd, builder, builder.Capacity);
+        return length <= 0 ? "" : builder.ToString();
+    }
+
+    public static IntPtr[] FindNativeObjectWindows(int processId)
+    {
+        List<IntPtr> result = new List<IntPtr>();
+
+        EnumWindows(
+            delegate(IntPtr top, IntPtr state)
+            {
+                uint topPid;
+                GetWindowThreadProcessId(top, out topPid);
+                if (topPid != (uint)processId) return true;
+
+                if (String.Equals(WindowClass(top), "XLMAIN", StringComparison.OrdinalIgnoreCase)) {
+                    result.Add(top);
+                }
+
+                EnumChildWindows(
+                    top,
+                    delegate(IntPtr child, IntPtr childState)
+                    {
+                        uint childPid;
+                        GetWindowThreadProcessId(child, out childPid);
+                        if (
+                            childPid == (uint)processId &&
+                            String.Equals(WindowClass(child), "EXCEL7", StringComparison.OrdinalIgnoreCase)
+                        ) {
+                            result.Add(child);
+                        }
+                        return true;
+                    },
+                    IntPtr.Zero
+                );
+
+                return true;
+            },
+            IntPtr.Zero
+        );
+
+        return result.ToArray();
+    }
+
+    public static object GetNativeObject(IntPtr hwnd)
+    {
+        Guid iidDispatch = new Guid("00020400-0000-0000-C000-000000000046");
+        object nativeObject;
+        int hr = AccessibleObjectFromWindow(hwnd, OBJID_NATIVEOM, ref iidDispatch, out nativeObject);
+        return hr == 0 ? nativeObject : null;
+    }
+}
+"@
+}
+
+function Get-ProbeExcelProcessId($ExcelApplication) {
+  if ($null -eq $ExcelApplication) { return 0 }
+
+  [uint32]$processId = 0
+  $windowHandle = [IntPtr]([int64]$ExcelApplication.Hwnd)
+  if ($windowHandle -eq [IntPtr]::Zero) { return 0 }
+
+  [void][GsBlowerRuntimeNativeOmV1]::GetWindowThreadProcessId(
+    $windowHandle,
+    [ref]$processId
+  )
+  return [int]$processId
+}
+
+function New-ProbeProcessSignature([System.Diagnostics.Process]$ProcessObject) {
+  $path = ""
+  try { $path = [string]$ProcessObject.Path } catch {
+  }
+
+  return [pscustomobject][ordered]@{
+    ProcessId = [int]$ProcessObject.Id
+    ProcessName = [string]$ProcessObject.ProcessName
+    StartTicks = [long]$ProcessObject.StartTime.ToUniversalTime().Ticks
+    SessionId = [int]$ProcessObject.SessionId
+    Path = $path
+  }
+}
+
+function Test-ProbeProcessSignature($Signature) {
+  if ($null -eq $Signature) { return $false }
+  $process = Get-Process -Id ([int]$Signature.ProcessId) -ErrorAction SilentlyContinue
+  if ($null -eq $process) { return $false }
+
+  try {
+    if (-not [string]::Equals(
+      [string]$process.ProcessName,
+      [string]$Signature.ProcessName,
+      [StringComparison]::OrdinalIgnoreCase
+    )) { return $false }
+
+    if ([long]$process.StartTime.ToUniversalTime().Ticks -ne [long]$Signature.StartTicks) {
+      return $false
+    }
+
+    if ([int]$process.SessionId -ne [int]$Signature.SessionId) { return $false }
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$Signature.Path)) {
+      $currentPath = ""
+      try { $currentPath = [string]$process.Path } catch { return $false }
+      if (-not [string]::Equals(
+        [IO.Path]::GetFullPath($currentPath),
+        [IO.Path]::GetFullPath([string]$Signature.Path),
+        [StringComparison]::OrdinalIgnoreCase
+      )) { return $false }
+    }
+
+    return $true
+  } catch {
+    return $false
+  } finally {
+    $process.Dispose()
+  }
+}
+
+function Test-ProbeProcessSignatureSet([object[]]$Signatures) {
+  foreach ($signature in @($Signatures)) {
+    if (-not (Test-ProbeProcessSignature $signature)) { return $false }
+  }
+  return $true
+}
+
+function Test-OwnedProbeExcelIdentity {
+  param(
+    [int]$ProcessId,
+    [long]$ExpectedStartTicks,
+    [string]$ExpectedPath,
+    [int]$ExpectedSessionId
+  )
+
+  $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+  if ($null -eq $process) { return $false }
+
+  try {
+    if (-not [string]::Equals([string]$process.ProcessName, "EXCEL", [StringComparison]::OrdinalIgnoreCase)) {
+      return $false
+    }
+    if ([long]$process.StartTime.ToUniversalTime().Ticks -ne $ExpectedStartTicks) { return $false }
+    if ([int]$process.SessionId -ne $ExpectedSessionId) { return $false }
+    $actualPath = [string]$process.Path
+    if ([string]::IsNullOrWhiteSpace($actualPath)) { return $false }
+    return [string]::Equals(
+      [IO.Path]::GetFullPath($actualPath),
+      [IO.Path]::GetFullPath($ExpectedPath),
+      [StringComparison]::OrdinalIgnoreCase
+    )
+  } catch {
+    return $false
+  } finally {
+    $process.Dispose()
+  }
+}
+
+function Wait-OwnedProbeExcelNativeObject {
+  param(
+    [int]$ExcelProcessId,
+    [datetime]$Deadline,
+    [int[]]$AllowedBaselineExcelPids
+  )
+
+  do {
+    $runningExcel = @(Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue)
+    $unexpected = @(
+      $runningExcel | Where-Object {
+        [int]$_.Id -ne $ExcelProcessId -and
+        $AllowedBaselineExcelPids -notcontains [int]$_.Id
+      }
+    )
+    if ($unexpected.Count -gt 0) {
+      throw (
+        "DataPARC 조회 중 등록되지 않은 Excel 인스턴스가 시작되었습니다. PID=" +
+        (($unexpected | Select-Object -ExpandProperty Id) -join ", ")
+      )
+    }
+
+    if ($null -eq (Get-Process -Id $ExcelProcessId -ErrorAction SilentlyContinue)) {
+      throw "자동조회용 Excel이 COM 연결 전에 종료되었습니다."
+    }
+
+    foreach ($nativeWindow in @([GsBlowerRuntimeNativeOmV1]::FindNativeObjectWindows($ExcelProcessId))) {
+      $nativeObject = $null
+      $candidateApplication = $null
+      $keep = $false
+
+      try {
+        $nativeObject = [GsBlowerRuntimeNativeOmV1]::GetNativeObject([IntPtr]$nativeWindow)
+        if ($null -eq $nativeObject) { continue }
+        try { $candidateApplication = $nativeObject.Application } catch { $candidateApplication = $null }
+        if ($null -eq $candidateApplication) { continue }
+
+        if ((Get-ProbeExcelProcessId $candidateApplication) -eq $ExcelProcessId) {
+          $keep = $true
+          return $candidateApplication
+        }
+      } catch {
+      } finally {
+        Release-ProbeCom $nativeObject
+        if (-not $keep -and $null -ne $candidateApplication) {
+          Release-ProbeCom $candidateApplication
+        }
+      }
+    }
+
+    Start-Sleep -Milliseconds 300
+  } while ([datetime]::UtcNow -lt $Deadline)
+
+  return $null
+}
+
+function Get-ProbeDataParcHosts {
+  return @(
+    Get-CimInstance -ClassName Win32_Process -Filter "Name='CTCExcelAddIn.PARCviewHost.exe'" -ErrorAction Stop
+  )
+}
+
+function Test-ProbeAllowedHostPath([string]$Path) {
+  if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+
+  try {
+    $normalized = [IO.Path]::GetFullPath($Path)
+    if (-not [string]::Equals(
+      [IO.Path]::GetFileName($normalized),
+      "CTCExcelAddIn.PARCviewHost.exe",
+      [StringComparison]::OrdinalIgnoreCase
+    )) { return $false }
+
+    foreach ($root in @([string]$env:ProgramFiles, [string]([Environment]::GetEnvironmentVariable("ProgramFiles(x86)")))) {
+      if ([string]::IsNullOrWhiteSpace($root)) { continue }
+      $allowed = [IO.Path]::GetFullPath((Join-Path $root "Capstone\PARCView")).TrimEnd('\') + '\'
+      if ($normalized.StartsWith($allowed, [StringComparison]::OrdinalIgnoreCase)) {
+        return $true
+      }
+    }
+  } catch {
+  }
+
+  return $false
+}
+
+function New-ProbeHostSignature {
+  param(
+    $CimProcess,
+    [int]$ExpectedParentPid,
+    [long]$MinimumStartTicks,
+    [int]$ExpectedSessionId
+  )
+
+  if (
+    [int]$CimProcess.ParentProcessId -ne $ExpectedParentPid -or
+    [int]$CimProcess.SessionId -ne $ExpectedSessionId
+  ) {
+    throw "자동조회용 DataPARC Host의 부모 PID 또는 세션이 일치하지 않습니다."
+  }
+
+  $process = Get-Process -Id ([int]$CimProcess.ProcessId) -ErrorAction Stop
+  try {
+    $startTicks = [long]$process.StartTime.ToUniversalTime().Ticks
+    $path = [string]$process.Path
+    if ($startTicks -lt $MinimumStartTicks -or -not (Test-ProbeAllowedHostPath $path)) {
+      throw "자동조회용 DataPARC Host의 생성시각 또는 실행경로를 신뢰할 수 없습니다."
+    }
+
+    return [pscustomobject][ordered]@{
+      ProcessId = [int]$process.Id
+      ProcessName = [string]$process.ProcessName
+      ParentProcessId = [int]$CimProcess.ParentProcessId
+      StartTicks = $startTicks
+      SessionId = [int]$process.SessionId
+      Path = [IO.Path]::GetFullPath($path)
+    }
+  } finally {
+    $process.Dispose()
+  }
+}
+
+function Test-ProbeHostSignature($Signature) {
+  if ($null -eq $Signature) { return $false }
+  $process = Get-Process -Id ([int]$Signature.ProcessId) -ErrorAction SilentlyContinue
+  if ($null -eq $process) { return $false }
+
+  try {
+    if (-not [string]::Equals(
+      [string]$process.ProcessName,
+      [string]$Signature.ProcessName,
+      [StringComparison]::OrdinalIgnoreCase
+    )) { return $false }
+    if ([long]$process.StartTime.ToUniversalTime().Ticks -ne [long]$Signature.StartTicks) { return $false }
+    if ([int]$process.SessionId -ne [int]$Signature.SessionId) { return $false }
+    $currentPath = [string]$process.Path
+    if (-not [string]::Equals(
+      [IO.Path]::GetFullPath($currentPath),
+      [string]$Signature.Path,
+      [StringComparison]::OrdinalIgnoreCase
+    )) { return $false }
+
+    $cim = @(Get-CimInstance -ClassName Win32_Process -Filter ("ProcessId=" + [string]$Signature.ProcessId) -ErrorAction Stop)
+    return (
+      $cim.Count -eq 1 -and
+      [int]$cim[0].ParentProcessId -eq [int]$Signature.ParentProcessId -and
+      [int]$cim[0].SessionId -eq [int]$Signature.SessionId
+    )
+  } catch {
+    return $false
+  } finally {
+    $process.Dispose()
+  }
+}
+
+function Wait-OwnedProbeDataParcHost {
+  param(
+    [int]$ExcelProcessId,
+    [int[]]$BaselineExcelPids,
+    [datetime]$Deadline
+  )
+
+  do {
+    $hosts = @(Get-ProbeDataParcHosts)
+    $owned = @($hosts | Where-Object { [int]$_.ParentProcessId -eq $ExcelProcessId })
+    $unexpected = @(
+      $hosts | Where-Object {
+        [int]$_.SessionId -eq $ownedExcelSessionId -and
+        [int]$_.ParentProcessId -ne $ExcelProcessId -and
+        $BaselineExcelPids -notcontains [int]$_.ParentProcessId
+      }
+    )
+
+    if ($unexpected.Count -gt 0) {
+      throw (
+        "DataPARC 조회 중 소유관계를 확인할 수 없는 Host가 시작되었습니다. PID=" +
+        (($unexpected | Select-Object -ExpandProperty ProcessId) -join ", ")
+      )
+    }
+
+    if ($owned.Count -eq 1) { return $owned[0] }
+    if ($owned.Count -gt 1) { throw "자동조회용 Excel에 DataPARC Host가 둘 이상 연결되었습니다." }
+    Start-Sleep -Milliseconds 400
+  } while ([datetime]::UtcNow -lt $Deadline)
+
+  return $null
+}
+
+function Wait-ProbeProcessExit([int]$ProcessId, [datetime]$Deadline) {
+  do {
+    if ($null -eq (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) { return $true }
+    Start-Sleep -Milliseconds 250
+  } while ([datetime]::UtcNow -lt $Deadline)
+  return ($null -eq (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue))
+}
+
 if (
   [string]::IsNullOrWhiteSpace($stageMarker) -or
   [string]::IsNullOrWhiteSpace($resultMarker) -or
@@ -11946,83 +12394,134 @@ while ($cursor -lt $endInstant) {
 }
 $chunkDefinitions[0].ResultStart = $startAt
 $chunkDefinitions[-1].ResultEnd = $endAt
-$calculationDeadline = [datetime]::UtcNow.AddSeconds(70)
-
-Write-ProbeStage (
-  "Excel 연결 준비 · chunk " + [string]$chunkDefinitions.Count
-)
 
 try {
-  $excelProcesses = @(Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue)
-  if ($excelProcesses.Count -ne 1) {
-    throw (
-      "DataPARC Excel 인스턴스는 정확히 1개여야 합니다. 현재: " +
-      [string]$excelProcesses.Count
-    )
-  }
-
+  $probeMutex = [System.Threading.Mutex]::new(
+    $false,
+    "Local\GSShiftLog.BlowerRuntimeDataParcHiddenExcelNativeOmV1"
+  )
   try {
-    $excel = [Runtime.InteropServices.Marshal]::GetActiveObject(
-      "Excel.Application"
+    $probeMutexAcquired = [bool]$probeMutex.WaitOne(0, $false)
+  } catch [Threading.AbandonedMutexException] {
+    $probeMutexAcquired = $true
+  }
+  if (-not $probeMutexAcquired) {
+    throw "다른 Blower DataPARC 숨김 Excel 조회가 이미 실행 중입니다."
+  }
+
+  $powerShellProcess = Get-Process -Id $PID -ErrorAction Stop
+  try { $currentSessionId = [int]$powerShellProcess.SessionId } finally { $powerShellProcess.Dispose() }
+
+  $baselineExcelProcesses = @(
+    Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue |
+      Where-Object { [int]$_.SessionId -eq $currentSessionId }
+  )
+  if ($baselineExcelProcesses.Count -gt 1) {
+    throw (
+      "Blower DataPARC 자동조회는 기존 Excel 인스턴스 0~1개에서만 검증되었습니다. 현재=" +
+      [string]$baselineExcelProcesses.Count
     )
-  } catch {
-    throw "실행 중인 DataPARC Excel을 찾지 못했습니다."
   }
 
-  if (
-    $null -eq $excel -or
-    -not (Get-Process -Name "CTCExcelAddIn.PARCviewHost" -ErrorAction SilentlyContinue)
-  ) {
-    throw "DataPARC Excel Add-In 실행 상태를 확인하지 못했습니다."
-  }
+  $baselineExcelSignatures = @(
+    $baselineExcelProcesses | ForEach-Object { New-ProbeProcessSignature $_ }
+  )
+  $baselineExcelPids = @($baselineExcelSignatures | ForEach-Object { [int]$_.ProcessId })
 
-  $workbooks = $excel.Workbooks
-  for ($workbookIndex = $workbooks.Count; $workbookIndex -ge 1; $workbookIndex -= 1) {
-    $candidateWorkbook = $null
-    $candidateWorksheets = $null
-    $candidateWorksheet = $null
-    $candidateMarkerCell = $null
-
-    try {
-      $candidateWorkbook = $workbooks.Item($workbookIndex)
-      $candidateWorksheets = $candidateWorkbook.Worksheets
-      if (
-        $candidateWorksheets.Count -eq 1 -and
-        [string]::IsNullOrWhiteSpace([string]$candidateWorkbook.Path) -and
-        $candidateWorkbook.Saved -eq $false
-      ) {
-        $candidateWorksheet = $candidateWorksheets.Item(1)
-        $candidateMarkerCell = $candidateWorksheet.Range("XFD1")
-        if (
-          $candidateWorksheet.Name -eq "Blower Runtime Probe" -and
-          [string]$candidateMarkerCell.Value2 -eq $probeWorkbookMarker
-        ) {
-          $candidateWorkbook.Close($false)
-          Write-ProbeStage "이전 중단 실행의 임시 통합문서 정리"
-        }
-      }
-    } finally {
-      Release-ProbeCom $candidateMarkerCell
-      Release-ProbeCom $candidateWorksheet
-      Release-ProbeCom $candidateWorksheets
-      Release-ProbeCom $candidateWorkbook
+  $baselineHosts = @(
+    Get-ProbeDataParcHosts | Where-Object {
+      [int]$_.SessionId -eq $currentSessionId -and
+      $baselineExcelPids -contains [int]$_.ParentProcessId
     }
+  )
+  $unexpectedBaselineHosts = @(
+    Get-ProbeDataParcHosts | Where-Object {
+      [int]$_.SessionId -eq $currentSessionId -and
+      $baselineExcelPids -notcontains [int]$_.ParentProcessId
+    }
+  )
+  if ($unexpectedBaselineHosts.Count -gt 0) {
+    throw (
+      "기존 DataPARC Host의 부모 Excel을 확인할 수 없습니다. PID=" +
+      (($unexpectedBaselineHosts | Select-Object -ExpandProperty ProcessId) -join ", ")
+    )
   }
 
-  $originalWorkbook = $excel.ActiveWorkbook
-  $originalWorksheet = $excel.ActiveSheet
-  if ($null -eq $originalWorkbook) {
-    throw "활성 Excel 통합문서를 찾지 못했습니다."
+  $baselineHostSignatures = @(
+    foreach ($baselineHost in $baselineHosts) {
+      $process = Get-Process -Id ([int]$baselineHost.ProcessId) -ErrorAction Stop
+      try { New-ProbeProcessSignature $process } finally { $process.Dispose() }
+    }
+  )
+  $baselineHostPids = @($baselineHostSignatures | ForEach-Object { [int]$_.ProcessId })
+
+  Write-ProbeStage (
+    "사용자 Excel 공존 기준 확인 · existing " + [string]$baselineExcelPids.Count
+  )
+
+  $ownedExcelPath = Resolve-ProbeExcelExecutable
+  Write-ProbeStage "별도 숨김 Excel 시작"
+  $launchedExcelProcess = Start-Process -FilePath $ownedExcelPath -ArgumentList @("/x") -WindowStyle Hidden -PassThru
+  [void]$launchedExcelProcess.Handle
+  $ownedExcelPid = [int]$launchedExcelProcess.Id
+  $ownedExcelStartTicks = [long]$launchedExcelProcess.StartTime.ToUniversalTime().Ticks
+  $ownedExcelSessionId = [int]$launchedExcelProcess.SessionId
+
+  if (-not (Test-OwnedProbeExcelIdentity $ownedExcelPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId)) {
+    throw "자동조회용 Excel 프로세스 신원을 확인하지 못했습니다."
   }
 
-  Write-ProbeStage "읽기 전용 임시 통합문서 생성"
+  Write-ProbeStage "PID 고유 창에서 Excel COM 직접 연결"
+  $excel = Wait-OwnedProbeExcelNativeObject $ownedExcelPid ([datetime]::UtcNow.AddSeconds(45)) $baselineExcelPids
+  if ($null -eq $excel) {
+    throw ("자동조회용 Excel PID " + [string]$ownedExcelPid + "의 COM 객체를 얻지 못했습니다.")
+  }
+
+  $attachedExcelPid = Get-ProbeExcelProcessId $excel
+  if ($attachedExcelPid -ne $ownedExcelPid) {
+    throw "연결한 Excel COM PID가 자동조회용 PID와 다릅니다."
+  }
+
+  $excel.Visible = $false
+  $excel.DisplayAlerts = $false
+  $excel.AskToUpdateLinks = $false
+  $excel.ScreenUpdating = $false
+  $excel.EnableEvents = $false
+
+  $startupWorkbooks = $null
+  try {
+    $startupWorkbooks = $excel.Workbooks
+    for ($startupIndex = [int]$startupWorkbooks.Count; $startupIndex -ge 1; $startupIndex -= 1) {
+      $startupWorkbook = $null
+      try {
+        $startupWorkbook = $startupWorkbooks.Item($startupIndex)
+        if (-not [bool]$startupWorkbook.IsAddin) { $startupWorkbook.Close($false) }
+      } finally {
+        Release-ProbeCom $startupWorkbook
+      }
+    }
+  } finally {
+    Release-ProbeCom $startupWorkbooks
+  }
+
+  Write-ProbeStage "DataPARC Add-In 자동 시작 확인"
+  $ownedHostCim = Wait-OwnedProbeDataParcHost $ownedExcelPid $baselineExcelPids ([datetime]::UtcNow.AddSeconds(60))
+  if ($null -eq $ownedHostCim) {
+    throw "자동조회용 숨김 Excel에서 DataPARC Add-In Host가 시작되지 않았습니다."
+  }
+  $ownedHostSnapshot = New-ProbeHostSignature $ownedHostCim $ownedExcelPid $ownedExcelStartTicks $ownedExcelSessionId
+
+  Write-ProbeStage (
+    "읽기 전용 임시 통합문서 생성 · chunk " + [string]$chunkDefinitions.Count
+  )
+  $workbooks = $excel.Workbooks
   $queryWorkbook = $workbooks.Add()
   $worksheets = $queryWorkbook.Worksheets
   $querySheet = $worksheets.Item(1)
   $querySheet.Name = "Blower Runtime Probe"
   $querySheet.EnableCalculation = $false
   $cells = $querySheet.Cells
-  $safeTag = $dataParcTag.Replace('"', '""')
+
   $markerCell = $null
   try {
     $markerCell = $querySheet.Range("XFD1")
@@ -12031,6 +12530,7 @@ try {
     Release-ProbeCom $markerCell
   }
 
+  $safeTag = $dataParcTag.Replace('"', '""')
   foreach ($chunk in $chunkDefinitions) {
     $row = (($chunk.Index - 1) * 202) + 1
     $intervalRange = $null
@@ -12076,13 +12576,10 @@ try {
 
   $lastRow = (($chunkDefinitions.Count - 1) * 202) + 200
   $queryRange = $querySheet.Range("A1:E" + [string]$lastRow)
+  $calculationDeadline = [datetime]::UtcNow.AddSeconds(90)
   Write-ProbeStage "DataPARC fnValTime 계산 요청"
   $querySheet.EnableCalculation = $true
   [void]$queryRange.Calculate()
-
-  if ([datetime]::UtcNow -ge $calculationDeadline) {
-    throw "DataPARC 계산이 내부 70초 제한을 초과했습니다."
-  }
 
   do {
     Start-Sleep -Milliseconds 400
@@ -12093,7 +12590,6 @@ try {
       $startCell = $null
       $endCell = $null
       $totalCell = $null
-
       try {
         $startCell = $cells.Item($row, 3)
         $endCell = $cells.Item($row, 4)
@@ -12115,7 +12611,7 @@ try {
   } while (-not $allStatesReady -and [datetime]::UtcNow -lt $calculationDeadline)
 
   if (-not $allStatesReady) {
-    throw "DataPARC State·운전시간 sentinel이 70초 안에 반환되지 않았습니다."
+    throw "DataPARC State·운전시간 sentinel이 90초 안에 반환되지 않았습니다."
   }
 
   Write-ProbeStage "chunk 결과 검증·합산"
@@ -12139,11 +12635,7 @@ try {
       $startValue = Read-ProbeCellNumber $startCell
       $endValue = Read-ProbeCellNumber $endCell
       $sentinelHours = Read-ProbeCellNumber $totalCell
-      if (
-        $null -eq $startValue -or
-        $null -eq $endValue -or
-        $null -eq $sentinelHours
-      ) {
+      if ($null -eq $startValue -or $null -eq $endValue -or $null -eq $sentinelHours) {
         throw ("chunk " + [string]$chunk.Index + " 결과 sentinel이 비어 있습니다.")
       }
 
@@ -12160,24 +12652,15 @@ try {
           $valueRow += 1
         ) {
           $intervalStart = $values.GetValue($valueRow, 1)
-          $durationHours = Convert-ProbeNumber (
-            $values.GetValue($valueRow, 2)
-          )
+          $durationHours = Convert-ProbeNumber ($values.GetValue($valueRow, 2))
           $hasStart = Test-ProbeValuePresent $intervalStart
 
           if (-not $hasStart -and $null -eq $durationHours) { continue }
-          if (
-            -not $hasStart -and
-            $null -ne $durationHours -and
-            [Math]::Abs($durationHours) -lt 0.0000001
-          ) {
+          if (-not $hasStart -and $null -ne $durationHours -and [Math]::Abs($durationHours) -lt 0.0000001) {
             continue
           }
           if (-not $hasStart -or $null -eq $durationHours -or $durationHours -lt 0) {
-            throw (
-              "chunk " + [string]$chunk.Index +
-              " 운전구간 배열에 올바르지 않은 값이 있습니다."
-            )
+            throw ("chunk " + [string]$chunk.Index + " 운전구간 배열에 올바르지 않은 값이 있습니다.")
           }
 
           $intervalCount += 1
@@ -12186,10 +12669,7 @@ try {
       }
 
       if ($intervalCount -ge 200) {
-        throw (
-          "chunk " + [string]$chunk.Index +
-          " 운전구간이 200행에 도달해 결과 잘림 여부를 확인할 수 없습니다."
-        )
+        throw ("chunk " + [string]$chunk.Index + " 운전구간이 200행에 도달해 결과 잘림 여부를 확인할 수 없습니다.")
       }
 
       $rangeHours = ($chunk.End - $chunk.Start).TotalHours
@@ -12198,10 +12678,7 @@ try {
         $sentinelHours -gt ($rangeHours + 0.01) -or
         [Math]::Abs(($runningHours - $sentinelHours) * 3600.0) -gt 2
       ) {
-        throw (
-          "chunk " + [string]$chunk.Index +
-          " 운전시간 sentinel과 상세구간 합계가 일치하지 않습니다."
-        )
+        throw ("chunk " + [string]$chunk.Index + " 운전시간 sentinel과 상세구간 합계가 일치하지 않습니다.")
       }
 
       [long]$runningSeconds = [Math]::Round(
@@ -12267,64 +12744,140 @@ try {
     endState = $chunkResults[-1].endState
     totalRunningHours = [Math]::Round($totalRunningSeconds / 3600.0, 6)
     runningSeconds = $totalRunningSeconds
-    collectedAt = [datetime]::UtcNow.ToString(
-      "o",
-      [Globalization.CultureInfo]::InvariantCulture
-    )
+    collectedAt = [datetime]::UtcNow.ToString("o", [Globalization.CultureInfo]::InvariantCulture)
     chunks = @($chunkResults)
+    collectorRevision = "nativeom-coexistence-v1"
+    excelAttachMethod = "pid_hwnd_objid_nativeom"
   }
+} catch {
+  $queryFailure = $_.Exception
 } finally {
+  Write-ProbeStage "시험용 Excel·DataPARC Host 정리"
+
   if ($querySheet) {
     try { $querySheet.EnableCalculation = $false } catch {
     }
   }
-
   if ($queryWorkbook) {
     try { $queryWorkbook.Close($false) } catch {
-      $cleanupError = $_.Exception.Message
+      $cleanupErrors.Add("임시 통합문서 종료: " + $_.Exception.Message)
     }
   }
 
-  if ($originalWorkbook) {
+  if ($excel) {
     try {
-      $originalWorkbook.Activate()
-      if ($originalWorksheet) { $originalWorksheet.Activate() }
+      if ((Get-ProbeExcelProcessId $excel) -ne $ownedExcelPid) {
+        $cleanupErrors.Add("종료 직전 Excel COM PID가 소유 PID와 다릅니다.")
+      } else {
+        $excel.DisplayAlerts = $false
+        $excel.Quit()
+      }
     } catch {
+      $cleanupErrors.Add("자동조회용 Excel Quit: " + $_.Exception.Message)
     }
   }
 
-  foreach (
-    $comObject in @(
-      $queryRange,
-      $cells,
-      $querySheet,
-      $worksheets,
-      $queryWorkbook,
-      $originalWorksheet,
-      $originalWorkbook,
-      $workbooks,
-      $excel
-    )
-  ) {
+  foreach ($comObject in @(
+    $queryRange,
+    $cells,
+    $querySheet,
+    $worksheets,
+    $queryWorkbook,
+    $workbooks,
+    $excel
+  )) {
     Release-ProbeCom $comObject
   }
 
   [GC]::Collect()
   [GC]::WaitForPendingFinalizers()
+  [GC]::Collect()
+  [GC]::WaitForPendingFinalizers()
+
+  if ($ownedExcelPid -gt 0) {
+    $excelExited = Wait-ProbeProcessExit $ownedExcelPid ([datetime]::UtcNow.AddSeconds(12))
+    if (-not $excelExited) {
+      if (Test-OwnedProbeExcelIdentity $ownedExcelPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId) {
+        try {
+          Stop-Process -Id $ownedExcelPid -Force -ErrorAction Stop
+          $excelExited = Wait-ProbeProcessExit $ownedExcelPid ([datetime]::UtcNow.AddSeconds(5))
+        } catch {
+          $cleanupErrors.Add("자동조회용 Excel 강제 종료: " + $_.Exception.Message)
+        }
+      } else {
+        $cleanupErrors.Add("자동조회용 Excel PID 신원이 바뀌어 강제 종료하지 않았습니다.")
+      }
+    }
+    if (-not $excelExited) { $cleanupErrors.Add("자동조회용 Excel이 종료되지 않았습니다.") }
+  }
+
+  if ($null -eq $ownedHostSnapshot -and $ownedExcelPid -gt 0) {
+    try {
+      $lateOwnedHosts = @(
+        Get-ProbeDataParcHosts | Where-Object { [int]$_.ParentProcessId -eq $ownedExcelPid }
+      )
+      if ($lateOwnedHosts.Count -eq 1) {
+        $ownedHostSnapshot = New-ProbeHostSignature $lateOwnedHosts[0] $ownedExcelPid $ownedExcelStartTicks $ownedExcelSessionId
+      }
+    } catch {
+      $cleanupErrors.Add("DataPARC Host 지연 신원확인: " + $_.Exception.Message)
+    }
+  }
+
+  if ($null -ne $ownedHostSnapshot) {
+    $hostExitDeadline = [datetime]::UtcNow.AddSeconds(25)
+    do {
+      if ($null -eq (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue)) { break }
+      Start-Sleep -Milliseconds 500
+    } while ([datetime]::UtcNow -lt $hostExitDeadline)
+
+    if ($null -ne (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue)) {
+      if (Test-ProbeHostSignature $ownedHostSnapshot) {
+        try {
+          Stop-Process -Id ([int]$ownedHostSnapshot.ProcessId) -Force -ErrorAction Stop
+          [void](Wait-ProbeProcessExit ([int]$ownedHostSnapshot.ProcessId) ([datetime]::UtcNow.AddSeconds(5)))
+        } catch {
+          $cleanupErrors.Add("자동조회용 DataPARC Host 강제 종료: " + $_.Exception.Message)
+        }
+      } else {
+        $cleanupErrors.Add("DataPARC Host PID 신원이 바뀌어 강제 종료하지 않았습니다.")
+      }
+    }
+
+    if ($null -ne (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue)) {
+      $cleanupErrors.Add("자동조회용 DataPARC Host가 종료되지 않았습니다.")
+    }
+  }
+
+  if (-not (Test-ProbeProcessSignatureSet $baselineExcelSignatures)) {
+    $cleanupErrors.Add("기존 사용자 Excel 프로세스가 조회 중 변경되거나 종료되었습니다.")
+  }
+  if (-not (Test-ProbeProcessSignatureSet $baselineHostSignatures)) {
+    $cleanupErrors.Add("기존 사용자 DataPARC Host가 조회 중 변경되거나 종료되었습니다.")
+  }
+
+  if ($probeMutex) {
+    if ($probeMutexAcquired) {
+      try { $probeMutex.ReleaseMutex() } catch {
+      }
+    }
+    try { $probeMutex.Dispose() } catch {
+    }
+  }
 }
 
-if (-not [string]::IsNullOrWhiteSpace($cleanupError)) {
-  throw ("Blower Runtime 임시 통합문서를 닫지 못했습니다: " + $cleanupError)
+if ($cleanupErrors.Count -gt 0) {
+  throw ("Blower Runtime 자동조회 정리 실패: " + ($cleanupErrors -join " | "))
 }
-if ($null -eq $finalResult) {
-  throw "Blower Runtime 결과가 생성되지 않았습니다."
-}
+if ($null -ne $queryFailure) { throw $queryFailure }
+if ($null -eq $finalResult) { throw "Blower Runtime 결과가 생성되지 않았습니다." }
 
-Write-ProbeStage "임시 통합문서 정리 완료"
+Write-ProbeStage "숨김 Excel 공존 조회·정리 완료"
 [Console]::WriteLine(
   $resultMarker + ($finalResult | ConvertTo-Json -Compress -Depth 8)
 )
 [Console]::Out.Flush()
+
 `;
 
 /* =========================================================
