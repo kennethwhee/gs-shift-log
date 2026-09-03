@@ -241,6 +241,7 @@
   ></script>
 
   <link rel="stylesheet" href="maintenance/bed-ash-mobile-date-badge-cleanup-v1.css?v=1" />
+  <script src="/maintenance/limestone-receipt-manual-input-v1.js?v=20260903-v1" defer></script>
 </head>
 
 <body>
@@ -9812,14 +9813,13 @@
           <div class="limestone-quantity-input-wrap">
 
             <input
-              type="number"
+              type="text"
               id="limestoneReceiptQuantity"
               name="limestoneReceiptQuantity"
-              min="0.01"
-              max="999.99"
-              step="0.01"
               inputmode="decimal"
-              placeholder="예: 30.20"
+              maxlength="5"
+              placeholder="예: 30.10 또는 3010"
+              autocomplete="off"
               required
             />
 
@@ -9857,9 +9857,13 @@
           </span>
 
           <input
-            type="time"
+            type="text"
             id="limestoneReceiptTime"
             name="limestoneReceiptTime"
+            inputmode="numeric"
+            maxlength="5"
+            placeholder="예: 1200 또는 12:00"
+            autocomplete="off"
             required
           />
 
