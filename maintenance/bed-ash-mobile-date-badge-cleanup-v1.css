@@ -1,4 +1,4 @@
-/* BED ASH MOBILE DATE + BADGE CLEANUP V1 */
+/* BED ASH MOBILE DATE + BADGE CLEANUP V1.2 */
 
 /* Bed Ash is an amount/history view, not an alert menu. Keep its tab badge hidden. */
 #efficiencyBedAshDischargeBadge {
@@ -7,40 +7,114 @@
 
 @media screen and (max-width: 768px) {
   /*
-    Keep previous / date / today / next compact and visually balanced.
-    The date field no longer expands to consume the full remaining row width.
+    Compact, non-overlapping mobile date navigation.
+    The visual date box is the label itself so iOS native date-input
+    intrinsic sizing cannot overlap the Today button.
   */
   #efficiencyTeamModal .bed-ash-discharge-date-navigation {
-    grid-template-columns: 34px minmax(150px, 180px) 54px 34px !important;
+    grid-template-columns: 36px 180px 58px 36px !important;
     justify-content: center !important;
-    gap: 5px !important;
+    align-items: center !important;
+    gap: 6px !important;
     width: 100% !important;
+    min-width: 0 !important;
   }
 
   #efficiencyTeamModal .bed-ash-discharge-date-navigation > button {
     width: 100% !important;
     min-width: 0 !important;
+    height: 36px !important;
+    min-height: 36px !important;
     box-sizing: border-box !important;
     padding-inline: 4px !important;
   }
 
+  #efficiencyTeamModal #bedAshDischargePreviousPeriodButton,
+  #efficiencyTeamModal #bedAshDischargeNextPeriodButton {
+    font-size: 20px !important;
+    line-height: 1 !important;
+  }
+
+  #efficiencyTeamModal #bedAshDischargeTodayButton {
+    font-size: 13px !important;
+    font-weight: 900 !important;
+  }
+
   #efficiencyTeamModal .bed-ash-discharge-date-navigation label {
-    width: 100% !important;
+    position: relative !important;
+    display: block !important;
+    width: 180px !important;
+    max-width: 180px !important;
     min-width: 0 !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+    border: 1px solid #cdd7e3 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation label > span {
+    display: none !important;
   }
 
   #efficiencyTeamModal .bed-ash-discharge-date-navigation input {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
     width: 100% !important;
+    max-width: 100% !important;
     min-width: 0 !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
     box-sizing: border-box !important;
-    padding-inline: 6px !important;
+    padding: 0 8px !important;
+    overflow: hidden !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: #293c53 !important;
+    font-family: inherit !important;
+    font-size: 15.5px !important;
+    font-weight: 900 !important;
+    line-height: 36px !important;
     text-align: center !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation input::-webkit-date-and-time-value {
+    margin: 0 !important;
+    padding: 0 !important;
+    text-align: center !important;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation input::-webkit-calendar-picker-indicator {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    opacity: 0 !important;
+    cursor: pointer !important;
   }
 }
 
 @media screen and (max-width: 390px) {
   #efficiencyTeamModal .bed-ash-discharge-date-navigation {
-    grid-template-columns: 32px minmax(140px, 168px) 50px 32px !important;
-    gap: 4px !important;
+    grid-template-columns: 34px 168px 54px 34px !important;
+    gap: 5px !important;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation label {
+    width: 168px !important;
+    max-width: 168px !important;
+  }
+
+  #efficiencyTeamModal .bed-ash-discharge-date-navigation input {
+    font-size: 14.5px !important;
   }
 }
