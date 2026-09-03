@@ -1102,6 +1102,34 @@ const DATAPARC_STEAM_STAGE_MARKER =
 const DATAPARC_STEAM_PROCESS_TIMEOUT =
   DAILY_DATA_WORKBOOK_PROCESS_TIMEOUT;
 
+
+const BLOWER_RUNTIME_PROBE_REQUEST_TYPE =
+  "blower_runtime_probe";
+
+
+const BLOWER_RUNTIME_PROBE_ASSET_TAG =
+  "104ETH03AN602";
+
+
+const BLOWER_RUNTIME_PROBE_DATAPARC_TAG =
+  "GSPOGE.ABB_DCS.003ETH03AN602XB04";
+
+
+const BLOWER_RUNTIME_PROBE_RESULT_MARKER =
+  "__BLOWER_RUNTIME_PROBE_RESULT__";
+
+
+const BLOWER_RUNTIME_PROBE_STAGE_MARKER =
+  "__BLOWER_RUNTIME_PROBE_STAGE__";
+
+
+const BLOWER_RUNTIME_PROBE_PROCESS_TIMEOUT =
+  90000;
+
+
+const BLOWER_RUNTIME_PROBE_CHUNK_DAYS =
+  31;
+
 /* =========================================================
   DataPARC Tag Browser 통신 진단
 
@@ -10989,6 +11017,7 @@ async function getNextOisAgentRequest(
   const excelRequestTypes = [
     "daily_data_excel",
     "steam_status",
+    BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
     "logsheet_pdf",
     "open_final_excel_folder"
 ];
@@ -11213,6 +11242,7 @@ async function getNextOisAgentLaneRequests(
   const excelRequestTypes = [
     "daily_data_excel",
     "steam_status",
+    BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
     "logsheet_pdf",
     "open_final_excel_folder"
 ];
@@ -11573,6 +11603,48 @@ function isDailyDataExcelRequestType(
   );
 }
 
+
+function isExcelComRequestType(
+  requestType
+) {
+  const normalizedRequestType =
+    normalizeOisAgentText(
+      requestType
+    )
+      .toLowerCase();
+
+
+  return (
+    isDailyDataExcelRequestType(
+      normalizedRequestType
+    ) ||
+    normalizedRequestType ===
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+  );
+}
+
+
+function isExcelOnlyRequestType(
+  requestType
+) {
+  const normalizedRequestType =
+    normalizeOisAgentText(
+      requestType
+    )
+      .toLowerCase();
+
+
+  return (
+    isExcelComRequestType(
+      normalizedRequestType
+    ) ||
+    normalizedRequestType ===
+      "logsheet_pdf" ||
+    normalizedRequestType ===
+      "open_final_excel_folder"
+  );
+}
+
 /* =========================================================
   요청 유형 표시 이름
 ========================================================= */
@@ -11646,6 +11718,14 @@ if (
 
   if (
     requestType ===
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+  ) {
+    return "Blower 602 DataPARC 운전시간";
+  }
+
+
+  if (
+    requestType ===
       "open_final_excel_folder"
   ) {
     return "최종 Excel 저장 폴더 열기";
@@ -11677,6 +11757,575 @@ if (
 
   return requestType;
 }
+
+/* =========================================================
+  Blower 602 DataPARC 운전시간 읽기 전용 Probe
+
+  - 서버가 고정한 RFC3339 시작·종료 시각만 사용한다.
+  - 정확히 31일 이하인 구간으로 나눠 fnValTime을 실행한다.
+  - 사용자 Excel에 임시 통합문서만 만들고 저장하지 않는다.
+  - 업무일지 API나 DB에는 직접 쓰지 않는다.
+========================================================= */
+
+const DATAPARC_BLOWER_RUNTIME_PROBE_POWERSHELL_SCRIPT =
+  String.raw`
+$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+$OutputEncoding = [Text.Encoding]::UTF8
+
+$excel = $null
+$workbooks = $null
+$originalWorkbook = $null
+$originalWorksheet = $null
+$queryWorkbook = $null
+$worksheets = $null
+$querySheet = $null
+$cells = $null
+$queryRange = $null
+$finalResult = $null
+$cleanupError = ""
+
+$stageMarker = [string]$env:GS_BLOWER_STAGE_MARKER
+$resultMarker = [string]$env:GS_BLOWER_RESULT_MARKER
+$requestId = [string]$env:GS_BLOWER_REQUEST_ID
+$assetTag = [string]$env:GS_BLOWER_ASSET_TAG
+$dataParcTag = [string]$env:GS_BLOWER_DATAPARC_TAG
+$startAt = [string]$env:GS_BLOWER_START_AT
+$endAt = [string]$env:GS_BLOWER_END_AT
+$expectedLastReplacementAt = [string]$env:GS_BLOWER_EXPECTED_LAST_REPLACEMENT_AT
+$expectedCycleStartState = [string]$env:GS_BLOWER_EXPECTED_CYCLE_START_STATE
+$expectedCycleStartedAt = [string]$env:GS_BLOWER_EXPECTED_CYCLE_STARTED_AT
+$expectedCycleStartRevision = [string]$env:GS_BLOWER_EXPECTED_CYCLE_START_REVISION
+$expectedCycleRuntimeRevision = [string]$env:GS_BLOWER_EXPECTED_CYCLE_RUNTIME_REVISION
+$probeWorkbookMarker = "__GS_BLOWER_RUNTIME_PROBE_TEMP_V1__"
+
+function Write-ProbeStage([string]$Message) {
+  [Console]::WriteLine($stageMarker + $Message)
+  [Console]::Out.Flush()
+}
+
+function Release-ProbeCom($Value) {
+  if ($null -eq $Value) { return }
+  try {
+    if ([Runtime.InteropServices.Marshal]::IsComObject($Value)) {
+      [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($Value)
+    }
+  } catch {
+  }
+}
+
+function Convert-ProbeNumber($Value) {
+  if (
+    $null -eq $Value -or
+    $Value -is [bool] -or
+    $Value -is [Runtime.InteropServices.ErrorWrapper]
+  ) {
+    return $null
+  }
+
+  try {
+    $number = [Convert]::ToDouble(
+      $Value,
+      [Globalization.CultureInfo]::InvariantCulture
+    )
+  } catch {
+    return $null
+  }
+
+  if ([double]::IsNaN($number) -or [double]::IsInfinity($number)) {
+    return $null
+  }
+
+  return $number
+}
+
+function Read-ProbeCellNumber($Cell) {
+  try {
+    $text = [string]$Cell.Text
+    if ([string]::IsNullOrWhiteSpace($text) -or $text.StartsWith("#")) {
+      return $null
+    }
+    return Convert-ProbeNumber $Cell.Value2
+  } catch {
+    return $null
+  }
+}
+
+function Test-ProbeValuePresent($Value) {
+  return (
+    $null -ne $Value -and
+    $Value -isnot [Runtime.InteropServices.ErrorWrapper] -and
+    -not (
+      $Value -is [string] -and
+      [string]::IsNullOrWhiteSpace($Value)
+    )
+  )
+}
+
+function Convert-ProbeState([double]$Value, [string]$Label) {
+  if ([Math]::Abs($Value - 1) -lt 0.001) { return "running" }
+  if ([Math]::Abs($Value) -lt 0.001) { return "stopped" }
+  throw ($Label + " RUN 값이 0 또는 1이 아닙니다: " + [string]$Value)
+}
+
+function Format-ProbeFormulaTime(
+  [DateTimeOffset]$Value,
+  [TimeZoneInfo]$KoreaZone
+) {
+  return [TimeZoneInfo]::ConvertTime($Value, $KoreaZone).ToString(
+    "yyyy-MM-dd HH:mm:ss",
+    [Globalization.CultureInfo]::InvariantCulture
+  )
+}
+
+function Format-ProbeResultTime(
+  [DateTimeOffset]$Value,
+  [TimeZoneInfo]$KoreaZone
+) {
+  return [TimeZoneInfo]::ConvertTime($Value, $KoreaZone).ToString(
+    "yyyy-MM-ddTHH:mm:sszzz",
+    [Globalization.CultureInfo]::InvariantCulture
+  )
+}
+
+if (
+  [string]::IsNullOrWhiteSpace($stageMarker) -or
+  [string]::IsNullOrWhiteSpace($resultMarker) -or
+  [string]::IsNullOrWhiteSpace($requestId) -or
+  $assetTag -ne "104ETH03AN602" -or
+  $dataParcTag -ne "GSPOGE.ABB_DCS.003ETH03AN602XB04"
+) {
+  throw "Blower Runtime 요청 ID, marker 또는 고정 TAG가 올바르지 않습니다."
+}
+
+$chunkDays = 0
+if (
+  -not [int]::TryParse(
+    [string]$env:GS_BLOWER_CHUNK_DAYS,
+    [Globalization.NumberStyles]::Integer,
+    [Globalization.CultureInfo]::InvariantCulture,
+    [ref]$chunkDays
+  ) -or
+  $chunkDays -ne 31
+) {
+  throw "Blower Runtime chunkDays는 31이어야 합니다."
+}
+
+$startInstant = [DateTimeOffset]::Parse(
+  $startAt,
+  [Globalization.CultureInfo]::InvariantCulture,
+  [Globalization.DateTimeStyles]::None
+)
+$endInstant = [DateTimeOffset]::Parse(
+  $endAt,
+  [Globalization.CultureInfo]::InvariantCulture,
+  [Globalization.DateTimeStyles]::None
+)
+if ($startInstant -ge $endInstant) {
+  throw "Blower Runtime 시작시각은 종료시각보다 빨라야 합니다."
+}
+
+$koreaZone = [TimeZoneInfo]::FindSystemTimeZoneById("Korea Standard Time")
+$chunkDefinitions = @()
+$cursor = $startInstant
+while ($cursor -lt $endInstant) {
+  $next = $cursor.AddDays($chunkDays)
+  if ($next -gt $endInstant) { $next = $endInstant }
+
+  $chunkDefinitions += [pscustomobject][ordered]@{
+    Index = $chunkDefinitions.Count + 1
+    Start = $cursor
+    End = $next
+    FormulaStart = Format-ProbeFormulaTime $cursor $koreaZone
+    FormulaEnd = Format-ProbeFormulaTime $next $koreaZone
+    ResultStart = Format-ProbeResultTime $cursor $koreaZone
+    ResultEnd = Format-ProbeResultTime $next $koreaZone
+  }
+  $cursor = $next
+}
+$chunkDefinitions[0].ResultStart = $startAt
+$chunkDefinitions[-1].ResultEnd = $endAt
+$calculationDeadline = [datetime]::UtcNow.AddSeconds(70)
+
+Write-ProbeStage (
+  "Excel 연결 준비 · chunk " + [string]$chunkDefinitions.Count
+)
+
+try {
+  $excelProcesses = @(Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue)
+  if ($excelProcesses.Count -ne 1) {
+    throw (
+      "DataPARC Excel 인스턴스는 정확히 1개여야 합니다. 현재: " +
+      [string]$excelProcesses.Count
+    )
+  }
+
+  try {
+    $excel = [Runtime.InteropServices.Marshal]::GetActiveObject(
+      "Excel.Application"
+    )
+  } catch {
+    throw "실행 중인 DataPARC Excel을 찾지 못했습니다."
+  }
+
+  if (
+    $null -eq $excel -or
+    -not (Get-Process -Name "CTCExcelAddIn.PARCviewHost" -ErrorAction SilentlyContinue)
+  ) {
+    throw "DataPARC Excel Add-In 실행 상태를 확인하지 못했습니다."
+  }
+
+  $workbooks = $excel.Workbooks
+  for ($workbookIndex = $workbooks.Count; $workbookIndex -ge 1; $workbookIndex -= 1) {
+    $candidateWorkbook = $null
+    $candidateWorksheets = $null
+    $candidateWorksheet = $null
+    $candidateMarkerCell = $null
+
+    try {
+      $candidateWorkbook = $workbooks.Item($workbookIndex)
+      $candidateWorksheets = $candidateWorkbook.Worksheets
+      if (
+        $candidateWorksheets.Count -eq 1 -and
+        [string]::IsNullOrWhiteSpace([string]$candidateWorkbook.Path) -and
+        $candidateWorkbook.Saved -eq $false
+      ) {
+        $candidateWorksheet = $candidateWorksheets.Item(1)
+        $candidateMarkerCell = $candidateWorksheet.Range("XFD1")
+        if (
+          $candidateWorksheet.Name -eq "Blower Runtime Probe" -and
+          [string]$candidateMarkerCell.Value2 -eq $probeWorkbookMarker
+        ) {
+          $candidateWorkbook.Close($false)
+          Write-ProbeStage "이전 중단 실행의 임시 통합문서 정리"
+        }
+      }
+    } finally {
+      Release-ProbeCom $candidateMarkerCell
+      Release-ProbeCom $candidateWorksheet
+      Release-ProbeCom $candidateWorksheets
+      Release-ProbeCom $candidateWorkbook
+    }
+  }
+
+  $originalWorkbook = $excel.ActiveWorkbook
+  $originalWorksheet = $excel.ActiveSheet
+  if ($null -eq $originalWorkbook) {
+    throw "활성 Excel 통합문서를 찾지 못했습니다."
+  }
+
+  Write-ProbeStage "읽기 전용 임시 통합문서 생성"
+  $queryWorkbook = $workbooks.Add()
+  $worksheets = $queryWorkbook.Worksheets
+  $querySheet = $worksheets.Item(1)
+  $querySheet.Name = "Blower Runtime Probe"
+  $querySheet.EnableCalculation = $false
+  $cells = $querySheet.Cells
+  $safeTag = $dataParcTag.Replace('"', '""')
+  $markerCell = $null
+  try {
+    $markerCell = $querySheet.Range("XFD1")
+    $markerCell.Value2 = $probeWorkbookMarker
+  } finally {
+    Release-ProbeCom $markerCell
+  }
+
+  foreach ($chunk in $chunkDefinitions) {
+    $row = (($chunk.Index - 1) * 202) + 1
+    $intervalRange = $null
+    $startCell = $null
+    $endCell = $null
+    $totalCell = $null
+
+    try {
+      $intervalRange = $querySheet.Range(
+        "A" + [string]$row + ":B" + [string]($row + 199)
+      )
+      $intervalRange.FormulaArray = (
+        '=fnValTime("' + $safeTag + '","' +
+        $chunk.FormulaStart + '","' + $chunk.FormulaEnd +
+        '",1,"=",,"H",200,TRUE)'
+      )
+
+      $startCell = $cells.Item($row, 3)
+      $startCell.Formula = (
+        '=fnAtTimeArray("' + $safeTag + '","' +
+        $chunk.FormulaStart + '","State","Value")'
+      )
+
+      $endCell = $cells.Item($row, 4)
+      $endCell.Formula = (
+        '=fnAtTimeArray("' + $safeTag + '","' +
+        $chunk.FormulaEnd + '","State","Value")'
+      )
+
+      $totalCell = $cells.Item($row, 5)
+      $totalCell.Formula = (
+        '=fnValTime("' + $safeTag + '","' +
+        $chunk.FormulaStart + '","' + $chunk.FormulaEnd +
+        '",1,"=",,"H")'
+      )
+    } finally {
+      Release-ProbeCom $totalCell
+      Release-ProbeCom $endCell
+      Release-ProbeCom $startCell
+      Release-ProbeCom $intervalRange
+    }
+  }
+
+  $lastRow = (($chunkDefinitions.Count - 1) * 202) + 200
+  $queryRange = $querySheet.Range("A1:E" + [string]$lastRow)
+  Write-ProbeStage "DataPARC fnValTime 계산 요청"
+  $querySheet.EnableCalculation = $true
+  [void]$queryRange.Calculate()
+
+  if ([datetime]::UtcNow -ge $calculationDeadline) {
+    throw "DataPARC 계산이 내부 70초 제한을 초과했습니다."
+  }
+
+  do {
+    Start-Sleep -Milliseconds 400
+    $allStatesReady = $true
+
+    foreach ($chunk in $chunkDefinitions) {
+      $row = (($chunk.Index - 1) * 202) + 1
+      $startCell = $null
+      $endCell = $null
+      $totalCell = $null
+
+      try {
+        $startCell = $cells.Item($row, 3)
+        $endCell = $cells.Item($row, 4)
+        $totalCell = $cells.Item($row, 5)
+        if (
+          $null -eq (Read-ProbeCellNumber $startCell) -or
+          $null -eq (Read-ProbeCellNumber $endCell) -or
+          $null -eq (Read-ProbeCellNumber $totalCell)
+        ) {
+          $allStatesReady = $false
+          break
+        }
+      } finally {
+        Release-ProbeCom $totalCell
+        Release-ProbeCom $endCell
+        Release-ProbeCom $startCell
+      }
+    }
+  } while (-not $allStatesReady -and [datetime]::UtcNow -lt $calculationDeadline)
+
+  if (-not $allStatesReady) {
+    throw "DataPARC State·운전시간 sentinel이 70초 안에 반환되지 않았습니다."
+  }
+
+  Write-ProbeStage "chunk 결과 검증·합산"
+  $chunkResults = @()
+  [long]$totalRunningSeconds = 0
+
+  foreach ($chunk in $chunkDefinitions) {
+    $row = (($chunk.Index - 1) * 202) + 1
+    $intervalRange = $null
+    $startCell = $null
+    $endCell = $null
+    $totalCell = $null
+
+    try {
+      $intervalRange = $querySheet.Range(
+        "A" + [string]$row + ":B" + [string]($row + 199)
+      )
+      $startCell = $cells.Item($row, 3)
+      $endCell = $cells.Item($row, 4)
+      $totalCell = $cells.Item($row, 5)
+      $startValue = Read-ProbeCellNumber $startCell
+      $endValue = Read-ProbeCellNumber $endCell
+      $sentinelHours = Read-ProbeCellNumber $totalCell
+      if (
+        $null -eq $startValue -or
+        $null -eq $endValue -or
+        $null -eq $sentinelHours
+      ) {
+        throw ("chunk " + [string]$chunk.Index + " 결과 sentinel이 비어 있습니다.")
+      }
+
+      $startState = Convert-ProbeState $startValue "chunk 시작"
+      $endState = Convert-ProbeState $endValue "chunk 종료"
+      $values = $intervalRange.Value2
+      $intervalCount = 0
+      $runningHours = 0.0
+
+      if ($values -is [System.Array]) {
+        for (
+          $valueRow = $values.GetLowerBound(0);
+          $valueRow -le $values.GetUpperBound(0);
+          $valueRow += 1
+        ) {
+          $intervalStart = $values.GetValue($valueRow, 1)
+          $durationHours = Convert-ProbeNumber (
+            $values.GetValue($valueRow, 2)
+          )
+          $hasStart = Test-ProbeValuePresent $intervalStart
+
+          if (-not $hasStart -and $null -eq $durationHours) { continue }
+          if (
+            -not $hasStart -and
+            $null -ne $durationHours -and
+            [Math]::Abs($durationHours) -lt 0.0000001
+          ) {
+            continue
+          }
+          if (-not $hasStart -or $null -eq $durationHours -or $durationHours -lt 0) {
+            throw (
+              "chunk " + [string]$chunk.Index +
+              " 운전구간 배열에 올바르지 않은 값이 있습니다."
+            )
+          }
+
+          $intervalCount += 1
+          $runningHours += $durationHours
+        }
+      }
+
+      if ($intervalCount -ge 200) {
+        throw (
+          "chunk " + [string]$chunk.Index +
+          " 운전구간이 200행에 도달해 결과 잘림 여부를 확인할 수 없습니다."
+        )
+      }
+
+      $rangeHours = ($chunk.End - $chunk.Start).TotalHours
+      if (
+        $sentinelHours -lt 0 -or
+        $sentinelHours -gt ($rangeHours + 0.01) -or
+        [Math]::Abs(($runningHours - $sentinelHours) * 3600.0) -gt 2
+      ) {
+        throw (
+          "chunk " + [string]$chunk.Index +
+          " 운전시간 sentinel과 상세구간 합계가 일치하지 않습니다."
+        )
+      }
+
+      [long]$runningSeconds = [Math]::Round(
+        $sentinelHours * 3600.0,
+        0,
+        [MidpointRounding]::AwayFromZero
+      )
+      $totalRunningSeconds += $runningSeconds
+
+      $chunkResults += [ordered]@{
+        index = [int]$chunk.Index
+        startAt = $chunk.ResultStart
+        endAt = $chunk.ResultEnd
+        startState = $startState
+        endState = $endState
+        totalRunningHours = [Math]::Round($runningSeconds / 3600.0, 6)
+        runningSeconds = $runningSeconds
+      }
+    } finally {
+      Release-ProbeCom $totalCell
+      Release-ProbeCom $endCell
+      Release-ProbeCom $startCell
+      Release-ProbeCom $intervalRange
+    }
+  }
+
+  for ($index = 1; $index -lt $chunkResults.Count; $index += 1) {
+    if (
+      $chunkResults[$index - 1].endAt -ne $chunkResults[$index].startAt -or
+      $chunkResults[$index - 1].endState -ne $chunkResults[$index].startState
+    ) {
+      throw "Blower Runtime chunk 경계 또는 State가 연속되지 않습니다."
+    }
+  }
+
+  if (
+    $totalRunningSeconds -lt 0 -or
+    $totalRunningSeconds -gt (($endInstant - $startInstant).TotalSeconds + 1)
+  ) {
+    throw "Blower Runtime 합계 운전시간이 전체 조회 범위를 벗어났습니다."
+  }
+
+  $finalResult = [ordered]@{
+    schemaVersion = 1
+    requestType = "blower_runtime_probe"
+    requestId = $requestId
+    ok = $true
+    readOnly = $true
+    assetTag = $assetTag
+    dataParcTag = $dataParcTag
+    startAt = $startAt
+    endAt = $endAt
+    observedAt = $endAt
+    expectedLastReplacementAt = $expectedLastReplacementAt
+    expectedCycleStartState = $expectedCycleStartState
+    expectedCycleStartedAt = $expectedCycleStartedAt
+    expectedCycleStartRevision = $expectedCycleStartRevision
+    expectedCycleRuntimeRevision = $expectedCycleRuntimeRevision
+    chunkDays = $chunkDays
+    chunkCount = $chunkResults.Count
+    completedChunkCount = $chunkResults.Count
+    startState = $chunkResults[0].startState
+    endState = $chunkResults[-1].endState
+    totalRunningHours = [Math]::Round($totalRunningSeconds / 3600.0, 6)
+    runningSeconds = $totalRunningSeconds
+    collectedAt = [datetime]::UtcNow.ToString(
+      "o",
+      [Globalization.CultureInfo]::InvariantCulture
+    )
+    chunks = @($chunkResults)
+  }
+} finally {
+  if ($querySheet) {
+    try { $querySheet.EnableCalculation = $false } catch {
+    }
+  }
+
+  if ($queryWorkbook) {
+    try { $queryWorkbook.Close($false) } catch {
+      $cleanupError = $_.Exception.Message
+    }
+  }
+
+  if ($originalWorkbook) {
+    try {
+      $originalWorkbook.Activate()
+      if ($originalWorksheet) { $originalWorksheet.Activate() }
+    } catch {
+    }
+  }
+
+  foreach (
+    $comObject in @(
+      $queryRange,
+      $cells,
+      $querySheet,
+      $worksheets,
+      $queryWorkbook,
+      $originalWorksheet,
+      $originalWorkbook,
+      $workbooks,
+      $excel
+    )
+  ) {
+    Release-ProbeCom $comObject
+  }
+
+  [GC]::Collect()
+  [GC]::WaitForPendingFinalizers()
+}
+
+if (-not [string]::IsNullOrWhiteSpace($cleanupError)) {
+  throw ("Blower Runtime 임시 통합문서를 닫지 못했습니다: " + $cleanupError)
+}
+if ($null -eq $finalResult) {
+  throw "Blower Runtime 결과가 생성되지 않았습니다."
+}
+
+Write-ProbeStage "임시 통합문서 정리 완료"
+[Console]::WriteLine(
+  $resultMarker + ($finalResult | ConvertTo-Json -Compress -Depth 8)
+)
+[Console]::Out.Flush()
+`;
 
 /* =========================================================
   DataPARC 증기 생산량 자동 조회
@@ -14617,7 +15266,9 @@ finally {
 `;
 
 function runDataParcSteamPowerShell(
-  environment
+  environment,
+  options =
+    {}
 ) {
   return new Promise(
     (
@@ -14637,6 +15288,53 @@ function runDataParcSteamPowerShell(
           "v1.0",
           "powershell.exe"
         );
+
+
+      const sourcePowerShellScript =
+        options.powerShellScript ||
+        DATAPARC_STEAM_OPEN_WORKBOOK_POWERSHELL_SCRIPT;
+
+
+      const operationLabel =
+        normalizeOisAgentText(
+          options.operationLabel
+        ) ||
+        "월간 일일DATA관리 Excel 조회";
+
+
+      const temporaryFilePrefix =
+        normalizeOisAgentText(
+          options.temporaryFilePrefix
+        ) ||
+        "gs-shift-dataparc-steam";
+
+
+      const stageMarker =
+        normalizeOisAgentText(
+          options.stageMarker
+        ) ||
+        DATAPARC_STEAM_STAGE_MARKER;
+
+
+      const processTimeout =
+        Number.isFinite(
+          Number(
+            options.processTimeout
+          )
+        ) &&
+        Number(
+          options.processTimeout
+        ) >
+          0
+          ? Number(
+              options.processTimeout
+            )
+          : DATAPARC_STEAM_PROCESS_TIMEOUT;
+
+
+      const resolveOnResultMarker =
+        options.resolveOnResultMarker !==
+          false;
 
 
       /* =====================================================
@@ -14722,12 +15420,19 @@ function runDataParcSteamPowerShell(
 `;
 
 
+      const shouldPatchDailyCalculationState =
+        sourcePowerShellScript ===
+          DATAPARC_STEAM_OPEN_WORKBOOK_POWERSHELL_SCRIPT;
+
+
       const effectivePowerShellScript =
-        DATAPARC_STEAM_OPEN_WORKBOOK_POWERSHELL_SCRIPT
-          .replace(
-            calculationStateBlockPattern,
-            relaxedCalculationStateBlock
-          );
+        shouldPatchDailyCalculationState
+          ? sourcePowerShellScript
+              .replace(
+                calculationStateBlockPattern,
+                relaxedCalculationStateBlock
+              )
+          : sourcePowerShellScript;
 
 
       /*
@@ -14735,6 +15440,7 @@ function runDataParcSteamPowerShell(
         조용히 기존 15초 차단 방식으로 실행되는 것을 막는다.
       */
       if (
+        shouldPatchDailyCalculationState &&
         effectivePowerShellScript ===
           DATAPARC_STEAM_OPEN_WORKBOOK_POWERSHELL_SCRIPT
       ) {
@@ -14764,7 +15470,7 @@ function runDataParcSteamPowerShell(
           temporaryDirectory,
 
           [
-            "gs-shift-dataparc-steam",
+            temporaryFilePrefix,
             process.pid,
             Date.now(),
             Math.random()
@@ -14787,7 +15493,7 @@ function runDataParcSteamPowerShell(
       ) {
         reject(
           new Error(
-            `일일DATA관리 임시 실행파일을 만들지 못했습니다: ${error.message}`
+            `${operationLabel} 임시 실행파일을 만들지 못했습니다: ${error.message}`
           )
         );
 
@@ -14874,6 +15580,7 @@ function runDataParcSteamPowerShell(
 
       const resultMarker =
         normalizeOisAgentText(
+          options.resultMarker ||
           environment
             .GS_STEAM_RESULT_MARKER
         );
@@ -15042,7 +15749,10 @@ function runDataParcSteamPowerShell(
             finish(
               new Error(
                 [
-                  "월간 일일DATA관리 Excel 조회가 45초를 초과해 중단되었습니다.",
+                  `${operationLabel}가 ${Math.round(
+                    processTimeout /
+                      1000
+                  )}초를 초과해 중단되었습니다.`,
                   `마지막 단계: ${lastStage}`
                 ].join(
                   " "
@@ -15051,7 +15761,7 @@ function runDataParcSteamPowerShell(
             );
           },
 
-          DATAPARC_STEAM_PROCESS_TIMEOUT
+          processTimeout
         );
 
 
@@ -15095,13 +15805,13 @@ function runDataParcSteamPowerShell(
           if (
             normalizedLine
               .startsWith(
-                DATAPARC_STEAM_STAGE_MARKER
+                stageMarker
               )
           ) {
             lastStage =
               normalizedLine
                 .slice(
-                  DATAPARC_STEAM_STAGE_MARKER
+                  stageMarker
                     .length
                 )
                 .trim() ||
@@ -15128,6 +15838,13 @@ function runDataParcSteamPowerShell(
                 resultMarker
               )
           ) {
+            if (
+              !resolveOnResultMarker
+            ) {
+              return;
+            }
+
+
             /*
               정상 결과가 나왔는데
               COM 정리 때문에 프로세스가 오래 남아 있으면
@@ -15348,6 +16065,482 @@ function runDataParcSteamPowerShell(
       );
     }
   );
+}
+
+function parseBlowerRuntimeProbeTimestamp(
+  value,
+  label
+) {
+  const text = String(value ?? "").trim();
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,7}))?(Z|[+-]\d{2}:\d{2})$/.exec(
+      text
+    );
+
+  if (!match) {
+    throw new Error(
+      `${label}은 명시적 UTC offset이 있는 RFC3339 시각이어야 합니다.`
+    );
+  }
+
+  const [year, month, day, hour, minute, second] =
+    match.slice(1, 7).map(Number);
+  const millisecond = Number(
+    `${match[7] || ""}000`.slice(0, 3)
+  );
+  const localMilliseconds = Date.UTC(
+    year,
+    month - 1,
+    day,
+    hour,
+    minute,
+    second,
+    millisecond
+  );
+  const localDate = new Date(localMilliseconds);
+
+  if (
+    Number.isNaN(localMilliseconds) ||
+    localDate.getUTCFullYear() !== year ||
+    localDate.getUTCMonth() !== month - 1 ||
+    localDate.getUTCDate() !== day ||
+    localDate.getUTCHours() !== hour ||
+    localDate.getUTCMinutes() !== minute ||
+    localDate.getUTCSeconds() !== second
+  ) {
+    throw new Error(`${label}이 실제 달력 시각이 아닙니다.`);
+  }
+
+  let offsetMinutes = 0;
+  if (match[8] !== "Z") {
+    const sign = match[8][0] === "-" ? -1 : 1;
+    const offsetHour = Number(match[8].slice(1, 3));
+    const offsetMinute = Number(match[8].slice(4, 6));
+
+    if (
+      offsetHour > 14 ||
+      offsetMinute > 59 ||
+      (offsetHour === 14 && offsetMinute !== 0)
+    ) {
+      throw new Error(`${label}의 UTC offset이 올바르지 않습니다.`);
+    }
+
+    offsetMinutes = sign * (offsetHour * 60 + offsetMinute);
+  }
+
+  return {
+    text,
+    milliseconds:
+      localMilliseconds - offsetMinutes * 60000
+  };
+}
+
+
+function parseBlowerRuntimeProbeRequest(
+  requestItem
+) {
+  const text = value => String(value ?? "").trim();
+  const requestId = text(requestItem?.id);
+  if (!requestId) {
+    throw new Error("Blower Runtime Probe 요청 ID가 비어 있습니다.");
+  }
+
+  const targetPayload = text(
+    requestItem?.targetDate ??
+    requestItem?.target_date
+  );
+  const parts = targetPayload.split("|");
+  if (
+    parts.length !== 4 ||
+    parts[0] !== "v1" ||
+    parts[1] !== BLOWER_RUNTIME_PROBE_ASSET_TAG
+  ) {
+    throw new Error(
+      "Blower Runtime Probe payload는 v1|104ETH03AN602|<start RFC3339>|<end RFC3339> 형식이어야 합니다."
+    );
+  }
+
+  const start = parseBlowerRuntimeProbeTimestamp(
+    parts[2],
+    "Blower Runtime 시작시각"
+  );
+  const end = parseBlowerRuntimeProbeTimestamp(
+    parts[3],
+    "Blower Runtime 종료시각"
+  );
+  if (/\.\d/.test(start.text) || /\.\d/.test(end.text)) {
+    throw new Error(
+      "Blower Runtime 시작·종료시각은 초 단위여야 합니다."
+    );
+  }
+  if (start.milliseconds >= end.milliseconds) {
+    throw new Error(
+      "Blower Runtime 시작시각은 종료시각보다 빨라야 합니다."
+    );
+  }
+
+  const probe =
+    requestItem?.probe ??
+    requestItem?.probeIntent ??
+    requestItem?.probe_intent;
+  if (
+    !probe ||
+    typeof probe !== "object" ||
+    Array.isArray(probe)
+  ) {
+    throw new Error(
+      "Blower Runtime Probe claim item에 probe intent가 없습니다."
+    );
+  }
+
+  const field = (camelName, snakeName) => text(
+    probe[camelName] ??
+    probe[snakeName]
+  );
+  const chunkDays = Number(
+    probe.chunkDays ??
+    probe.chunk_days
+  );
+  const expectedChunkCount = Math.ceil(
+    (end.milliseconds - start.milliseconds) /
+    (BLOWER_RUNTIME_PROBE_CHUNK_DAYS * 86400000)
+  );
+
+  if (
+    field("requestId", "request_id") !== requestId ||
+    probe.schemaVersion !== 1 ||
+    field("requestType", "request_type") !==
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE ||
+    probe.readOnly !== true ||
+    field("assetTag", "asset_tag") !==
+      BLOWER_RUNTIME_PROBE_ASSET_TAG ||
+    field("dataParcTag", "data_parc_tag") !==
+      BLOWER_RUNTIME_PROBE_DATAPARC_TAG ||
+    field("startAt", "start_at") !== start.text ||
+    field("endAt", "end_at") !== end.text ||
+    chunkDays !== BLOWER_RUNTIME_PROBE_CHUNK_DAYS ||
+    probe.chunkCount !== expectedChunkCount
+  ) {
+    throw new Error(
+      "Blower Runtime Probe intent가 queue payload 또는 고정 계약과 다릅니다."
+    );
+  }
+
+  const expected = {
+    requestId,
+    assetTag: BLOWER_RUNTIME_PROBE_ASSET_TAG,
+    dataParcTag: BLOWER_RUNTIME_PROBE_DATAPARC_TAG,
+    startAt: start.text,
+    endAt: end.text,
+    startMilliseconds: start.milliseconds,
+    endMilliseconds: end.milliseconds,
+    expectedLastReplacementAt:
+      field(
+        "expectedLastReplacementAt",
+        "expected_last_replacement_at"
+      ),
+    expectedCycleStartState:
+      field(
+        "expectedCycleStartState",
+        "expected_cycle_start_state"
+      ),
+    expectedCycleStartedAt:
+      field(
+        "expectedCycleStartedAt",
+        "expected_cycle_started_at"
+      ),
+    expectedCycleStartRevision:
+      field(
+        "expectedCycleStartRevision",
+        "expected_cycle_start_revision"
+      ),
+    expectedCycleRuntimeRevision:
+      field(
+        "expectedCycleRuntimeRevision",
+        "expected_cycle_runtime_revision"
+      ),
+    chunkDays,
+    expectedChunkCount
+  };
+
+  if (
+    expected.expectedCycleStartState !== "started" ||
+    !expected.expectedCycleStartRevision ||
+    !expected.expectedCycleRuntimeRevision
+  ) {
+    throw new Error(
+      "Blower Runtime Probe cycle snapshot이 비어 있거나 올바르지 않습니다."
+    );
+  }
+  parseBlowerRuntimeProbeTimestamp(
+    expected.expectedLastReplacementAt,
+    "기대 최종 교체시각"
+  );
+  parseBlowerRuntimeProbeTimestamp(
+    expected.expectedCycleStartedAt,
+    "기대 cycle 시작시각"
+  );
+
+  return expected;
+}
+
+
+function normalizeBlowerRuntimeProbeResult(
+  raw,
+  expected
+) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(
+      "Blower Runtime Probe 결과 JSON이 객체가 아닙니다."
+    );
+  }
+
+  const exact = (key, expectedValue) => {
+    if (typeof raw[key] !== "string" || raw[key] !== expectedValue) {
+      throw new Error(
+        `Blower Runtime Probe ${key}가 요청과 일치하지 않습니다.`
+      );
+    }
+  };
+
+  if (
+    raw.schemaVersion !== 1 ||
+    raw.ok !== true ||
+    raw.readOnly !== true
+  ) {
+    throw new Error(
+      "Blower Runtime Probe 결과 버전 또는 읽기 전용 표지가 올바르지 않습니다."
+    );
+  }
+
+  [
+    ["requestType", BLOWER_RUNTIME_PROBE_REQUEST_TYPE],
+    ["requestId", expected.requestId],
+    ["assetTag", expected.assetTag],
+    ["dataParcTag", expected.dataParcTag],
+    ["startAt", expected.startAt],
+    ["endAt", expected.endAt],
+    ["observedAt", expected.endAt],
+    ["expectedLastReplacementAt", expected.expectedLastReplacementAt],
+    ["expectedCycleStartState", expected.expectedCycleStartState],
+    ["expectedCycleStartedAt", expected.expectedCycleStartedAt],
+    ["expectedCycleStartRevision", expected.expectedCycleStartRevision],
+    ["expectedCycleRuntimeRevision", expected.expectedCycleRuntimeRevision]
+  ].forEach(([key, value]) => exact(key, value));
+
+  const chunks = Array.isArray(raw.chunks) ? raw.chunks : [];
+  if (
+    raw.chunkDays !== expected.chunkDays ||
+    !Number.isSafeInteger(raw.chunkCount) ||
+    raw.chunkCount !== expected.expectedChunkCount ||
+    raw.completedChunkCount !== raw.chunkCount ||
+    chunks.length !== raw.chunkCount ||
+    chunks.length < 1
+  ) {
+    throw new Error("Blower Runtime Probe chunk 수가 올바르지 않습니다.");
+  }
+
+  const validState = value =>
+    value === "running" || value === "stopped";
+  const roundedHours = seconds =>
+    Math.round(seconds / 3600 * 1000000) / 1000000;
+  let previous = null;
+  let summedSeconds = 0;
+
+  const normalizedChunks = chunks.map((chunk, index) => {
+    const start = parseBlowerRuntimeProbeTimestamp(
+      chunk?.startAt,
+      `chunk ${index + 1} 시작시각`
+    );
+    const end = parseBlowerRuntimeProbeTimestamp(
+      chunk?.endAt,
+      `chunk ${index + 1} 종료시각`
+    );
+    const rangeMilliseconds = end.milliseconds - start.milliseconds;
+    const isLast = index === chunks.length - 1;
+
+    if (
+      chunk?.index !== index + 1 ||
+      rangeMilliseconds <= 0 ||
+      rangeMilliseconds > expected.chunkDays * 86400000 ||
+      (!isLast &&
+        rangeMilliseconds !== expected.chunkDays * 86400000) ||
+      !validState(chunk?.startState) ||
+      !validState(chunk?.endState) ||
+      !Number.isSafeInteger(chunk?.runningSeconds) ||
+      chunk.runningSeconds < 0 ||
+      chunk.runningSeconds > Math.round(rangeMilliseconds / 1000) + 1 ||
+      !Number.isFinite(chunk?.totalRunningHours) ||
+      Math.abs(
+        chunk.totalRunningHours - roundedHours(chunk.runningSeconds)
+      ) > 0.000001
+    ) {
+      throw new Error(
+        `Blower Runtime Probe chunk ${index + 1} 결과가 올바르지 않습니다.`
+      );
+    }
+
+    if (
+      (index === 0 && start.text !== expected.startAt) ||
+      (previous && (
+        previous.endAt !== start.text ||
+        previous.endState !== chunk.startState
+      ))
+    ) {
+      throw new Error(
+        `Blower Runtime Probe chunk ${index + 1} 경계가 연속되지 않습니다.`
+      );
+    }
+
+    const normalized = {
+      index: chunk.index,
+      startAt: start.text,
+      endAt: end.text,
+      startState: chunk.startState,
+      endState: chunk.endState,
+      totalRunningHours: chunk.totalRunningHours,
+      runningSeconds: chunk.runningSeconds
+    };
+    previous = normalized;
+    summedSeconds += chunk.runningSeconds;
+    return normalized;
+  });
+
+  if (
+    normalizedChunks.at(-1).endAt !== expected.endAt ||
+    raw.startState !== normalizedChunks[0].startState ||
+    raw.endState !== normalizedChunks.at(-1).endState ||
+    !Number.isSafeInteger(raw.runningSeconds) ||
+    raw.runningSeconds !== summedSeconds ||
+    !Number.isFinite(raw.totalRunningHours) ||
+    Math.abs(
+      raw.totalRunningHours - roundedHours(raw.runningSeconds)
+    ) > 0.000001
+  ) {
+    throw new Error(
+      "Blower Runtime Probe 합계 또는 시작·종료 State가 chunk 결과와 다릅니다."
+    );
+  }
+
+  const collected = parseBlowerRuntimeProbeTimestamp(
+    raw.collectedAt,
+    "Blower Runtime 수집시각"
+  );
+  if (collected.milliseconds < expected.endMilliseconds) {
+    throw new Error(
+      "Blower Runtime Probe 수집시각이 관측 종료시각보다 빠릅니다."
+    );
+  }
+
+  return {
+    schemaVersion: 1,
+    requestType: BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+    requestId: expected.requestId,
+    ok: true,
+    readOnly: true,
+    assetTag: expected.assetTag,
+    dataParcTag: expected.dataParcTag,
+    startAt: expected.startAt,
+    endAt: expected.endAt,
+    observedAt: expected.endAt,
+    expectedLastReplacementAt: expected.expectedLastReplacementAt,
+    expectedCycleStartState: expected.expectedCycleStartState,
+    expectedCycleStartedAt: expected.expectedCycleStartedAt,
+    expectedCycleStartRevision: expected.expectedCycleStartRevision,
+    expectedCycleRuntimeRevision: expected.expectedCycleRuntimeRevision,
+    chunkDays: expected.chunkDays,
+    chunkCount: raw.chunkCount,
+    completedChunkCount: raw.completedChunkCount,
+    startState: raw.startState,
+    endState: raw.endState,
+    totalRunningHours: raw.totalRunningHours,
+    runningSeconds: raw.runningSeconds,
+    collectedAt: collected.text,
+    chunks: normalizedChunks
+  };
+}
+
+
+async function collectBlowerRuntimeProbeValues(
+  config,
+  requestItem
+) {
+  const expected = parseBlowerRuntimeProbeRequest(requestItem);
+  console.log(
+    [
+      "Blower 602 DataPARC 운전시간 조회 시작",
+      expected.startAt,
+      expected.endAt,
+      `chunk ${expected.chunkDays}일`
+    ].join(" · ")
+  );
+
+  const standardOutput = await runDataParcSteamPowerShell(
+    {
+      GS_BLOWER_STAGE_MARKER: BLOWER_RUNTIME_PROBE_STAGE_MARKER,
+      GS_BLOWER_RESULT_MARKER: BLOWER_RUNTIME_PROBE_RESULT_MARKER,
+      GS_BLOWER_REQUEST_ID: expected.requestId,
+      GS_BLOWER_ASSET_TAG: expected.assetTag,
+      GS_BLOWER_DATAPARC_TAG: expected.dataParcTag,
+      GS_BLOWER_START_AT: expected.startAt,
+      GS_BLOWER_END_AT: expected.endAt,
+      GS_BLOWER_EXPECTED_LAST_REPLACEMENT_AT:
+        expected.expectedLastReplacementAt,
+      GS_BLOWER_EXPECTED_CYCLE_START_STATE:
+        expected.expectedCycleStartState,
+      GS_BLOWER_EXPECTED_CYCLE_STARTED_AT:
+        expected.expectedCycleStartedAt,
+      GS_BLOWER_EXPECTED_CYCLE_START_REVISION:
+        expected.expectedCycleStartRevision,
+      GS_BLOWER_EXPECTED_CYCLE_RUNTIME_REVISION:
+        expected.expectedCycleRuntimeRevision,
+      GS_BLOWER_CHUNK_DAYS: String(expected.chunkDays)
+    },
+    {
+      powerShellScript: DATAPARC_BLOWER_RUNTIME_PROBE_POWERSHELL_SCRIPT,
+      resultMarker: BLOWER_RUNTIME_PROBE_RESULT_MARKER,
+      stageMarker: BLOWER_RUNTIME_PROBE_STAGE_MARKER,
+      processTimeout: BLOWER_RUNTIME_PROBE_PROCESS_TIMEOUT,
+      temporaryFilePrefix: "gs-shift-blower-runtime-probe",
+      operationLabel: "Blower 602 DataPARC 운전시간 조회",
+      resolveOnResultMarker: false
+    }
+  );
+
+  const resultLine = standardOutput
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .reverse()
+    .find(line =>
+      line.startsWith(BLOWER_RUNTIME_PROBE_RESULT_MARKER)
+    );
+  if (!resultLine) {
+    throw new Error(
+      "Blower Runtime Probe 결과 JSON을 확인하지 못했습니다."
+    );
+  }
+
+  let captured;
+  try {
+    captured = JSON.parse(
+      resultLine.slice(BLOWER_RUNTIME_PROBE_RESULT_MARKER.length)
+    );
+  } catch (error) {
+    throw new Error(
+      `Blower Runtime Probe 결과 JSON을 해석하지 못했습니다: ${error.message}`
+    );
+  }
+
+  const result = normalizeBlowerRuntimeProbeResult(captured, expected);
+  console.log(
+    [
+      "Blower 602 DataPARC 운전시간 조회 완료",
+      `${result.chunkCount} chunk`,
+      `${result.runningSeconds}초`,
+      result.endState
+    ].join(" · ")
+  );
+  return result;
 }
 
 function parseDailyDataWorkbookNumber(
@@ -16759,6 +17952,17 @@ if (
     );
   }
 
+
+  if (
+    requestType ===
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+  ) {
+    return await collectBlowerRuntimeProbeValues(
+      config,
+      requestItem
+    );
+  }
+
   if (
     isDailyDataExcelRequestType(
       requestType
@@ -17014,6 +18218,44 @@ function printOisAgentRequestResult(
         "Shadow 저장만 수행 · 실제 기동/정지 및 누적시간 변경 없음"
       ].join(" · ")
     );
+
+
+    return;
+  }
+
+
+  if (
+    requestType ===
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+  ) {
+    console.table({
+      "설비 TAG":
+        result.assetTag,
+
+      "DataPARC TAG":
+        result.dataParcTag,
+
+      "시작시각":
+        result.startAt,
+
+      "종료시각":
+        result.endAt,
+
+      "시작 State":
+        result.startState,
+
+      "종료 State":
+        result.endState,
+
+      "운전시간(h)":
+        result.totalRunningHours,
+
+      "운전시간(s)":
+        result.runningSeconds,
+
+      "완료 chunk":
+        `${result.completedChunkCount}/${result.chunkCount}`
+    });
 
 
     return;
@@ -22290,7 +23532,7 @@ async function loginOis() {
       if (
         phase27aHasWaterRequest &&
         !phase27aWaterFinished &&
-        isDailyDataExcelRequestType(
+        isExcelComRequestType(
           requestType
         )
       ) {
@@ -22332,15 +23574,8 @@ async function loginOis() {
 
 
       const requestNeedsOisBrowser =
-        !(
-          isDailyDataExcelRequestType(
-            requestType
-          ) ||
-          requestType ===
-            "logsheet_pdf"
-          ||
-          requestType ===
-            "open_final_excel_folder"
+        !isExcelOnlyRequestType(
+          requestType
         );
 
 

@@ -1076,6 +1076,30 @@ body.public-monitoring #vibrationShadowPanel { display: none !important; }
   justify-items: end;
   gap: 3px;
 }
+.dataparc-runtime-action {
+  min-height: 23px;
+  padding: 0 8px;
+  border: 1px solid #9bbfe0;
+  border-radius: 6px;
+  background: #f2f8fd;
+  color: #155f9a;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 850;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dataparc-runtime-action:hover:not(:disabled) {
+  border-color: #5f96c5;
+  background: #e5f2fc;
+}
+.dataparc-runtime-action.is-running,
+.dataparc-runtime-action:disabled {
+  border-color: #c5d2dc;
+  background: #f2f5f7;
+  color: #627587;
+  cursor: wait;
+}
 .operation-pill {
   display: inline-flex;
   align-items: center;

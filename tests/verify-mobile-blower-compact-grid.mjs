@@ -133,6 +133,6 @@ test("desktop layout remains unchanged and mobile assets are cache-busted", () =
     /\.asset-grid\.is-unified-grid,\s*\n\.asset-grid\.is-pending-grid\s*\{\s*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/,
     "desktop four-card grid must remain intact"
   );
-  assert.match(html, /blower-history\.css\?v=20260903-mobile-compact-grid-v1/);
-  assert.match(html, /blower-history\.js\?v=20260903-mobile-compact-grid-v1/);
+  assert.match(html, /blower-history\.css\?v=20260903-dataparc-runtime-pilot-v1/);
+  assert.match(html, /blower-history\.js\?v=20260903-dataparc-runtime-pilot-v1/);
 });

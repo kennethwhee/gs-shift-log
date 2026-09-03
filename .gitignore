@@ -1,1 +1,9 @@
-﻿local-tools/ois-agent/ois-agent.log
+﻿local-tools/ois-agent/.env
+local-tools/ois-agent/ois-session.json
+local-tools/ois-agent/ois-water-values.json
+ois-session.json
+ois-water-values.json
+local-tools/ois-agent/ois-agent.log
+local-tools/ois-agent/ois-agent-error-*.png
+.patch-backup/
+ois-agent-error-*.png

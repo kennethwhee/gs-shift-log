@@ -1,10 +1,11 @@
 # OIS 로컬 에이전트 비밀정보
-local-tools/ois-agent/.env
-local-tools/ois-agent/ois-session.json
+.env
+ois-session.json
+ois-water-values.json
 
 # 실행 중 생성되는 기록과 오류 이미지
-local-tools/ois-agent/ois-agent.log
-local-tools/ois-agent/ois-agent-error-*.png
+ois-agent.log
+ois-agent-error-*.png
 
 # 설치된 Node 모듈
-local-tools/ois-agent/node_modules/
+node_modules/

@@ -11,6 +11,7 @@
   const FBHE_OIS_LAST_RANGE_KEY = "gsShiftLog.blowerHistory.fbheOisLastRange.v1";
   const FBHE_OIS_LEGACY_MIGRATION_KEY = "gsShiftLog.blowerHistory.fbheOisLegacyMigration.v1";
   const MOBILE_MONITORING_QUERY = "(max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse)";
+  const DATAPARC_RUNTIME_PILOT_TAG = "104ETH03AN602";
 
   const state = {
     data: null,
@@ -29,7 +30,10 @@
     vibrationReportRangeKey: "",
     vibrationPolling: false,
     vibrationPollRequestIds: [],
-    vibrationPreset: "cycle"
+    vibrationPreset: "cycle",
+    dataparcRuntimeBusy: false,
+    dataparcRuntimeTag: "",
+    dataparcRuntimeStatus: ""
   };
 
   const elements = {};
@@ -1079,6 +1083,16 @@
     const operationAction = confirmed
       ? `<button type="button" class="asset-action runtime-state-action ${operationRunning ? "stop" : "start"}" data-mobile-write data-asset-action="operation_toggle" data-tag="${escapeHtml(asset.tagNumber)}" title="${escapeHtml(operationActionTitle)}" aria-label="${escapeHtml(`${cardPosition} ${operationActionLabel}`)}">${operationActionLabel}</button>`
       : "";
+    const isDataparcRuntimePilot = asset.tagNumber === DATAPARC_RUNTIME_PILOT_TAG;
+    const dataparcRuntimeActive = state.dataparcRuntimeBusy && state.dataparcRuntimeTag === asset.tagNumber;
+    const dataparcRuntimeAction = (
+      isDataparcRuntimePilot &&
+      actualStarted &&
+      hasAuthenticatedWriteAccess() &&
+      !isMobileMonitoringView()
+    )
+      ? `<button type="button" class="dataparc-runtime-action${dataparcRuntimeActive ? " is-running" : ""}" data-mobile-write data-asset-action="dataparc_runtime_probe" data-tag="${escapeHtml(asset.tagNumber)}"${dataparcRuntimeActive ? " disabled aria-busy=\"true\"" : ""}>${dataparcRuntimeActive ? escapeHtml(state.dataparcRuntimeStatus || "조회 중") : "DataPARC 조회"}</button>`
+      : "";
     const cyclePrimaryLabel = startupPending
       ? "주기 상태"
       : (cycleRuntimeTracked ? "누적 운전" : (actualStarted ? "기동 경과" : "교체 경과"));
@@ -1096,6 +1110,7 @@
             <span class="asset-tag">${escapeHtml(asset.tagNumber)}</span>
           </div>
           <div class="asset-status-group">
+            ${dataparcRuntimeAction}
             <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(awaitingBackfill ? "재구성 대기" : severityLabel(severity))}</span>
             ${confirmed ? `<span class="operation-pill ${operationRunning ? "running" : "stopped"}">${operationRunning ? "운전중" : "정지"}</span>` : ""}
           </div>
@@ -8489,6 +8504,98 @@
     }
   }
 
+  function setDataparcRuntimeStatus(tagNumber, statusText) {
+    state.dataparcRuntimeTag = String(tagNumber || "");
+    state.dataparcRuntimeStatus = String(statusText || "");
+    renderAssets();
+  }
+
+  async function waitForDataparcRuntimeProbe(requestId) {
+    const deadline = Date.now() + (2 * 60 * 60 * 1000);
+
+    while (Date.now() < deadline) {
+      const payload = await apiRequest({
+        url: `${OIS_REQUEST_API_URL}?action=status_batch&compact=1&ids=${encodeURIComponent(requestId)}&_=${Date.now()}`
+      });
+      const item = (Array.isArray(payload.items) ? payload.items : [])
+        .find(candidate => String(candidate?.id || "") === requestId);
+
+      if (!item) {
+        throw new Error("DataPARC 조회 요청 상태를 찾지 못했습니다.");
+      }
+
+      if (item.status === "complete") return item;
+      if (item.status === "failed") {
+        throw new Error(item.errorMessage || "회사 PC에서 DataPARC 조회를 완료하지 못했습니다.");
+      }
+
+      setDataparcRuntimeStatus(
+        DATAPARC_RUNTIME_PILOT_TAG,
+        item.status === "processing" ? "계산 중" : "대기 중"
+      );
+      await waitForMilliseconds(3000);
+    }
+
+    throw new Error("DataPARC 조회 대기시간이 초과되었습니다. 회사 PC Agent 상태를 확인해 주세요.");
+  }
+
+  async function syncDataParcBlowerRuntime(tagNumber) {
+    if (stopMobileMutation() || state.dataparcRuntimeBusy) return;
+
+    const normalizedTag = String(tagNumber || "").trim().toUpperCase();
+    if (normalizedTag !== DATAPARC_RUNTIME_PILOT_TAG) {
+      showToast("현재 시험 조회는 Silo Aeration Blower 602만 지원합니다.", "error");
+      return;
+    }
+
+    state.dataparcRuntimeBusy = true;
+    setDataparcRuntimeStatus(normalizedTag, "요청 중");
+
+    try {
+      const created = await apiRequest({
+        method: "POST",
+        url: OIS_REQUEST_API_URL,
+        body: {
+          action: "create_blower_runtime_probe"
+        }
+      });
+      const requestId = String(
+        created?.item?.id ||
+        created?.items?.[0]?.id ||
+        created?.requestId ||
+        ""
+      ).trim();
+
+      if (!requestId) {
+        throw new Error("DataPARC 조회 요청 ID를 받지 못했습니다.");
+      }
+
+      setDataparcRuntimeStatus(normalizedTag, "대기 중");
+      await waitForDataparcRuntimeProbe(requestId);
+      setDataparcRuntimeStatus(normalizedTag, "저장 중");
+
+      const applied = await apiRequest({
+        method: "POST",
+        body: {
+          action: "dataparc_runtime_sync",
+          requestId
+        }
+      });
+
+      state.operationSyncCompleted = true;
+      await loadData({ silent: true, syncOperations: false });
+      showToast(applied.message || "DataPARC 누적 운전시간과 현재 상태를 저장했습니다.");
+    } catch (error) {
+      console.error("DataPARC Blower 운전시간 동기화 실패:", error);
+      showToast(error.message || "DataPARC 운전시간을 저장하지 못했습니다.", "error");
+    } finally {
+      state.dataparcRuntimeBusy = false;
+      state.dataparcRuntimeTag = "";
+      state.dataparcRuntimeStatus = "";
+      renderAssets();
+    }
+  }
+
   function openRecordDialog(mode, tagNumber, candidate = null) {
     if (stopMobileMutation()) return;
     const asset = findAsset(tagNumber);
@@ -9467,6 +9574,10 @@
       }
       if (button.dataset.assetAction === "operation_toggle") {
         toggleAssetOperation(button.dataset.tag, button);
+        return;
+      }
+      if (button.dataset.assetAction === "dataparc_runtime_probe") {
+        syncDataParcBlowerRuntime(button.dataset.tag);
         return;
       }
       openRecordDialog(

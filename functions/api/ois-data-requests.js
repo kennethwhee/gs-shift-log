@@ -51,6 +51,47 @@ const REQUEST_PROCESSING_TIMEOUT_MINUTES =
   30;
 
 
+/* =========================================================
+  Silo Aeration Blower #B DataPARC read-only probe
+
+  - The browser never supplies either tag.
+  - The server freezes the exact cycle/revision window.
+  - One Agent request may span a long cycle; the Agent reads it
+    in consecutive chunks of at most 31 days.
+========================================================= */
+
+const BLOWER_RUNTIME_PROBE_REQUEST_TYPE =
+  "blower_runtime_probe";
+
+
+const BLOWER_RUNTIME_PROBE_ASSET_TAG =
+  "104ETH03AN602";
+
+
+const BLOWER_RUNTIME_PROBE_DATAPARC_TAG =
+  "GSPOGE.ABB_DCS.003ETH03AN602XB04";
+
+
+const BLOWER_RUNTIME_PROBE_SCHEMA_VERSION =
+  1;
+
+
+const BLOWER_RUNTIME_PROBE_CHUNK_DAYS =
+  31;
+
+
+const BLOWER_RUNTIME_PROBE_LEASE_HOURS =
+  2;
+
+
+const BLOWER_RUNTIME_PROBE_COMPLETE_FRESH_MINUTES =
+  15;
+
+
+const BLOWER_RUNTIME_PROBE_MAX_RESULT_BYTES =
+  256 * 1024;
+
+
 /* [FBHE-OIS-RUNTIME-ANALYSIS-V2]
   FBHE 진동 장기 분석은 31일 단위로 최대 12개 요청(약 1년)으로 나눈다.
   한 요청은 TAG 24개를 기간 API로 조회하므로 날짜별 24개 요청을 만들지 않는다.
@@ -231,6 +272,263 @@ function isValidIsoDate(
       ) ===
       normalizedDate
   );
+}
+
+
+function parseStrictRfc3339(
+  value
+) {
+  const text =
+    normalizeText(
+      value
+    );
+
+
+  const match =
+    text.match(
+      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/
+    );
+
+
+  if (
+    !match
+  ) {
+    return null;
+  }
+
+
+  const timestamp =
+    Date.parse(
+      text
+    );
+
+
+  if (
+    !Number.isFinite(
+      timestamp
+    )
+  ) {
+    return null;
+  }
+
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
+  ) {
+    return null;
+  }
+
+
+  /*
+    Date.parse normalizes invalid calendar dates such as February 30.
+    Rebuild the local date portion with the submitted offset and compare it
+    so only real RFC3339 calendar timestamps are accepted.
+  */
+  const offsetText = match[8];
+  let offsetMinutes = 0;
+
+
+  if (
+    offsetText !==
+      "Z"
+  ) {
+    const sign =
+      offsetText[0] ===
+        "-"
+        ? -1
+        : 1;
+
+
+    offsetMinutes =
+      sign *
+      (
+        Number(offsetText.slice(1, 3)) * 60 +
+        Number(offsetText.slice(4, 6))
+      );
+  }
+
+
+  const localDate =
+    new Date(
+      timestamp +
+      offsetMinutes * 60 * 1000
+    );
+
+
+  if (
+    localDate.getUTCFullYear() !== year ||
+    localDate.getUTCMonth() + 1 !== month ||
+    localDate.getUTCDate() !== day ||
+    localDate.getUTCHours() !== hour ||
+    localDate.getUTCMinutes() !== minute ||
+    localDate.getUTCSeconds() !== second
+  ) {
+    return null;
+  }
+
+
+  return {
+    text,
+    timestamp,
+    date:
+      new Date(
+        timestamp
+      )
+  };
+}
+
+
+function formatKstRfc3339(
+  value
+) {
+  const date =
+    value instanceof Date
+      ? value
+      : new Date(
+          value
+        );
+
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "";
+  }
+
+
+  return new Date(
+    Math.floor(
+      date.getTime() /
+      1000
+    ) *
+      1000 +
+    9 * 60 * 60 * 1000
+  )
+    .toISOString()
+    .slice(
+      0,
+      19
+    ) +
+    "+09:00";
+}
+
+
+function buildBlowerRuntimeProbeTargetDate(
+  startAt,
+  endAt
+) {
+  return [
+    `v${BLOWER_RUNTIME_PROBE_SCHEMA_VERSION}`,
+    BLOWER_RUNTIME_PROBE_ASSET_TAG,
+    normalizeText(startAt),
+    normalizeText(endAt)
+  ].join(
+    "|"
+  );
+}
+
+
+function buildBlowerRuntimeProbeChunks(
+  startAt,
+  endAt
+) {
+  const parsedStart =
+    parseStrictRfc3339(
+      startAt
+    );
+
+
+  const parsedEnd =
+    parseStrictRfc3339(
+      endAt
+    );
+
+
+  if (
+    !parsedStart ||
+    !parsedEnd ||
+    parsedEnd.timestamp <=
+      parsedStart.timestamp
+  ) {
+    return [];
+  }
+
+
+  const chunkMilliseconds =
+    BLOWER_RUNTIME_PROBE_CHUNK_DAYS *
+    24 *
+    60 *
+    60 *
+    1000;
+
+
+  const chunks = [];
+  let cursor =
+    parsedStart.timestamp;
+
+
+  while (
+    cursor <
+    parsedEnd.timestamp
+  ) {
+    const next =
+      Math.min(
+        parsedEnd.timestamp,
+        cursor +
+          chunkMilliseconds
+      );
+
+
+    chunks.push({
+      index:
+        chunks.length +
+        1,
+      startAt:
+        formatKstRfc3339(
+          cursor
+        ),
+      endAt:
+        formatKstRfc3339(
+          next
+        )
+    });
+
+
+    cursor =
+      next;
+  }
+
+
+  return chunks;
+}
+
+
+function getRequestProcessingTimeoutMinutes(
+  requestType
+) {
+  return normalizeText(
+    requestType
+  ) ===
+    BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+      ? BLOWER_RUNTIME_PROBE_LEASE_HOURS *
+        60
+      : REQUEST_PROCESSING_TIMEOUT_MINUTES;
 }
 
 function inclusiveIsoDateCount(
@@ -896,6 +1194,7 @@ const OIS_REQUEST_TYPES = [
   "logsheet_approval",
   "logsheet_pdf",
   "seal_pot_runtime",
+  BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
   "open_final_excel_folder"
 ];
 
@@ -3007,6 +3306,235 @@ function convertRequestRow(
 }
 
 
+const blowerRuntimeProbeSchemaPromises =
+  new WeakMap();
+
+
+async function ensureBlowerRuntimeProbeSchema(
+  database
+) {
+  const existingPromise =
+    blowerRuntimeProbeSchemaPromises.get(
+      database
+    );
+
+
+  if (
+    existingPromise
+  ) {
+    return await existingPromise;
+  }
+
+
+  const schemaPromise =
+    database
+      .batch([
+        database.prepare(`
+          CREATE TABLE IF NOT EXISTS blower_runtime_probe_intents (
+            request_id TEXT PRIMARY KEY NOT NULL,
+            reuse_key TEXT UNIQUE,
+            schema_version INTEGER NOT NULL,
+            asset_tag TEXT NOT NULL,
+            dataparc_tag TEXT NOT NULL,
+            window_start TEXT NOT NULL,
+            window_end TEXT NOT NULL,
+            chunk_days INTEGER NOT NULL,
+            chunk_count INTEGER NOT NULL,
+            expected_last_replacement_at TEXT NOT NULL,
+            expected_cycle_start_state TEXT NOT NULL,
+            expected_cycle_started_at TEXT NOT NULL,
+            expected_cycle_start_revision TEXT NOT NULL,
+            expected_cycle_runtime_revision TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            CHECK(schema_version = 1),
+            CHECK(asset_tag = '104ETH03AN602'),
+            CHECK(dataparc_tag = 'GSPOGE.ABB_DCS.003ETH03AN602XB04'),
+            CHECK(expected_cycle_start_state = 'started'),
+            CHECK(chunk_days = 31),
+            CHECK(chunk_count >= 1)
+          )
+        `),
+
+        database.prepare(`
+          CREATE INDEX IF NOT EXISTS
+            idx_blower_runtime_probe_intents_asset_revision_v1
+
+          ON blower_runtime_probe_intents (
+            asset_tag,
+            expected_cycle_start_revision,
+            expected_cycle_runtime_revision,
+            created_at DESC
+          )
+        `)
+      ])
+      .catch(
+        error => {
+          blowerRuntimeProbeSchemaPromises.delete(
+            database
+          );
+
+          throw error;
+        }
+      );
+
+
+  blowerRuntimeProbeSchemaPromises.set(
+    database,
+    schemaPromise
+  );
+
+
+  return await schemaPromise;
+}
+
+
+function convertBlowerRuntimeProbeIntentRow(
+  row
+) {
+  if (
+    !row
+  ) {
+    return null;
+  }
+
+
+  return {
+    requestId:
+      normalizeText(
+        row.request_id
+      ),
+
+    schemaVersion:
+      Number(
+        row.schema_version
+      ) ||
+      BLOWER_RUNTIME_PROBE_SCHEMA_VERSION,
+
+    requestType:
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+
+    assetTag:
+      normalizeText(
+        row.asset_tag
+      ),
+
+    dataParcTag:
+      normalizeText(
+        row.dataparc_tag
+      ),
+
+    startAt:
+      normalizeText(
+        row.window_start
+      ),
+
+    endAt:
+      normalizeText(
+        row.window_end
+      ),
+
+    chunkDays:
+      Number(
+        row.chunk_days
+      ) ||
+      BLOWER_RUNTIME_PROBE_CHUNK_DAYS,
+
+    chunkCount:
+      Number(
+        row.chunk_count
+      ) ||
+      0,
+
+    expectedLastReplacementAt:
+      normalizeText(
+        row.expected_last_replacement_at
+      ),
+
+    expectedCycleStartState:
+      normalizeText(
+        row.expected_cycle_start_state
+      ),
+
+    expectedCycleStartedAt:
+      normalizeText(
+        row.expected_cycle_started_at
+      ),
+
+    expectedCycleStartRevision:
+      normalizeText(
+        row.expected_cycle_start_revision
+      ),
+
+    expectedCycleRuntimeRevision:
+      normalizeText(
+        row.expected_cycle_runtime_revision
+      ),
+
+    readOnly:
+      true
+  };
+}
+
+
+async function findBlowerRuntimeProbeIntent(
+  database,
+  requestId
+) {
+  await ensureBlowerRuntimeProbeSchema(
+    database
+  );
+
+
+  const row =
+    await database
+      .prepare(`
+        SELECT *
+        FROM blower_runtime_probe_intents
+        WHERE request_id = ?
+        LIMIT 1
+      `)
+      .bind(
+        requestId
+      )
+      .first();
+
+
+  return convertBlowerRuntimeProbeIntentRow(
+    row
+  );
+}
+
+
+async function attachBlowerRuntimeProbeIntent(
+  database,
+  requestItem
+) {
+  if (
+    !requestItem ||
+    normalizeText(
+      requestItem.requestType
+    ) !==
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+  ) {
+    return requestItem;
+  }
+
+
+  const probe =
+    await findBlowerRuntimeProbeIntent(
+      database,
+      requestItem.id
+    );
+
+
+  return {
+    ...requestItem,
+    probe
+  };
+}
+
+
 /* =========================================================
   요청 한 건 조회
 ========================================================= */
@@ -3033,8 +3561,11 @@ async function findRequestById(
       .first();
 
 
-  return convertRequestRow(
-    row
+  return await attachBlowerRuntimeProbeIntent(
+    database,
+    convertRequestRow(
+      row
+    )
   );
 }
 
@@ -8040,7 +8571,9 @@ async function handleAgentNextRequest(
       new Date(
         processingStartedAt.getTime() +
         (
-          REQUEST_PROCESSING_TIMEOUT_MINUTES *
+          getRequestProcessingTimeoutMinutes(
+            pendingRow.request_type
+          ) *
           60 *
           1000
         )
@@ -8146,6 +8679,7 @@ const OIS_AGENT_EXCEL_LANE_REQUEST_TYPES = [
   "daily_data_excel",
   "steam_status",
   "logsheet_pdf",
+  BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
   "open_final_excel_folder"
 ];
 
@@ -8464,7 +8998,9 @@ async function claimOisAgentLaneCandidate(
     new Date(
       processingStartedAt.getTime() +
       (
-        REQUEST_PROCESSING_TIMEOUT_MINUTES *
+        getRequestProcessingTimeoutMinutes(
+          pendingRow.request_type
+        ) *
         60 *
         1000
       )
@@ -8520,24 +9056,27 @@ async function claimOisAgentLaneCandidate(
     응답하지 못하는 고아 처리 상태를 줄이기 위해,
     방금 선택한 행에 처리 정보를 반영해 즉시 반환한다.
   */
-  return convertRequestRow({
-    ...pendingRow,
+  return await attachBlowerRuntimeProbeIntent(
+    database,
+    convertRequestRow({
+      ...pendingRow,
 
-    status:
-      "processing",
+      status:
+        "processing",
 
-    started_at:
-      processingStartedAtText,
+      started_at:
+        processingStartedAtText,
 
-    agent_id:
-      agentId,
+      agent_id:
+        agentId,
 
-    expires_at:
-      processingExpiresAtText,
+      expires_at:
+        processingExpiresAtText,
 
-    updated_at:
-      processingStartedAtText
-  });
+      updated_at:
+        processingStartedAtText
+    })
+  );
 }
 
 
@@ -12016,6 +12555,1440 @@ async function failActiveSealPotRuntimeTarget(database, targetDate, reason) {
   return await failSealPotRuntimeRequestIds(database, ids, reason);
 }
 
+
+function isPlainJsonObject(
+  value
+) {
+  return Boolean(
+    value &&
+    typeof value ===
+      "object" &&
+    !Array.isArray(
+      value
+    )
+  );
+}
+
+
+function blowerRuntimeProbeValidationError(
+  message
+) {
+  return {
+    error:
+      normalizeText(
+        message
+      ) ||
+      "DataPARC Blower 운전시간 결과를 확인해 주세요."
+  };
+}
+
+
+function normalizeBlowerRuntimeProbeState(
+  value
+) {
+  const state =
+    normalizeText(
+      value
+    )
+      .toLowerCase();
+
+
+  return [
+    "running",
+    "stopped"
+  ].includes(
+    state
+  )
+    ? state
+    : "";
+}
+
+
+function normalizeBlowerRuntimeProbeResult(
+  rawResult,
+  probe,
+  requestId,
+  validationNow = new Date()
+) {
+  if (
+    !isPlainJsonObject(
+      rawResult
+    ) ||
+    !probe
+  ) {
+    return blowerRuntimeProbeValidationError(
+      "DataPARC Blower 운전시간 결과 형식이 올바르지 않습니다."
+    );
+  }
+
+
+  let rawResultText =
+    "";
+
+
+  try {
+    rawResultText =
+      JSON.stringify(
+        rawResult
+      );
+  } catch {
+    return blowerRuntimeProbeValidationError(
+      "DataPARC Blower 운전시간 결과를 JSON으로 확인하지 못했습니다."
+    );
+  }
+
+
+  if (
+    new TextEncoder()
+      .encode(
+        rawResultText
+      )
+      .byteLength >
+      BLOWER_RUNTIME_PROBE_MAX_RESULT_BYTES
+  ) {
+    return blowerRuntimeProbeValidationError(
+      "DataPARC Blower 운전시간 결과가 허용 크기를 초과했습니다."
+    );
+  }
+
+
+  const exactTextFields = [
+    ["requestType", BLOWER_RUNTIME_PROBE_REQUEST_TYPE],
+    ["requestId", requestId],
+    ["assetTag", BLOWER_RUNTIME_PROBE_ASSET_TAG],
+    ["dataParcTag", BLOWER_RUNTIME_PROBE_DATAPARC_TAG],
+    ["startAt", probe.startAt],
+    ["endAt", probe.endAt],
+    ["observedAt", probe.endAt],
+    ["expectedLastReplacementAt", probe.expectedLastReplacementAt],
+    ["expectedCycleStartState", probe.expectedCycleStartState],
+    ["expectedCycleStartedAt", probe.expectedCycleStartedAt],
+    ["expectedCycleStartRevision", probe.expectedCycleStartRevision],
+    ["expectedCycleRuntimeRevision", probe.expectedCycleRuntimeRevision]
+  ];
+
+
+  for (
+    const [
+      fieldName,
+      expectedValue
+    ] of
+      exactTextFields
+  ) {
+    if (
+      typeof rawResult[fieldName] !==
+        "string" ||
+      rawResult[fieldName] !==
+        normalizeText(
+          expectedValue
+        )
+    ) {
+      return blowerRuntimeProbeValidationError(
+        `DataPARC Blower 결과의 ${fieldName} 값이 요청과 일치하지 않습니다.`
+      );
+    }
+  }
+
+
+  if (
+    rawResult.schemaVersion !==
+      BLOWER_RUNTIME_PROBE_SCHEMA_VERSION ||
+    rawResult.ok !==
+      true ||
+    rawResult.readOnly !==
+      true
+  ) {
+    return blowerRuntimeProbeValidationError(
+      "DataPARC Blower 결과의 버전 또는 read-only 표식을 확인해 주세요."
+    );
+  }
+
+
+  const expectedChunks =
+    buildBlowerRuntimeProbeChunks(
+      probe.startAt,
+      probe.endAt
+    );
+
+
+  const chunks =
+    Array.isArray(
+      rawResult.chunks
+    )
+      ? rawResult.chunks
+      : [];
+
+
+  if (
+    rawResult.chunkDays !==
+      BLOWER_RUNTIME_PROBE_CHUNK_DAYS ||
+    !Number.isInteger(
+      rawResult.chunkCount
+    ) ||
+    rawResult.chunkCount !==
+      expectedChunks.length ||
+    !Number.isInteger(
+      rawResult.completedChunkCount
+    ) ||
+    rawResult.completedChunkCount !==
+      expectedChunks.length ||
+    Number(
+      probe.chunkCount
+    ) !==
+      expectedChunks.length ||
+    chunks.length !==
+      expectedChunks.length ||
+    chunks.length <
+      1
+  ) {
+    return blowerRuntimeProbeValidationError(
+      "DataPARC Blower 31일 분할 조회가 모두 완료되지 않았습니다."
+    );
+  }
+
+
+  const normalizedChunks = [];
+  let chunkRunningSeconds =
+    0;
+  let chunkRunningHours =
+    0;
+  let previousEndState =
+    "";
+
+
+  for (
+    let chunkIndex = 0;
+    chunkIndex <
+      chunks.length;
+    chunkIndex +=
+      1
+  ) {
+    const rawChunk =
+      chunks[chunkIndex];
+
+
+    const expectedChunk =
+      expectedChunks[chunkIndex];
+
+
+    if (
+      !isPlainJsonObject(
+        rawChunk
+      ) ||
+      !Number.isInteger(
+        rawChunk.index
+      ) ||
+      rawChunk.index !==
+        chunkIndex +
+        1 ||
+      normalizeText(
+        rawChunk.startAt
+      ) !==
+        expectedChunk.startAt ||
+      normalizeText(
+        rawChunk.endAt
+      ) !==
+        expectedChunk.endAt
+    ) {
+      return blowerRuntimeProbeValidationError(
+        `DataPARC Blower ${chunkIndex + 1}번 분할구간이 요청 범위와 일치하지 않습니다.`
+      );
+    }
+
+
+    const startState =
+      normalizeBlowerRuntimeProbeState(
+        rawChunk.startState
+      );
+
+
+    const endState =
+      normalizeBlowerRuntimeProbeState(
+        rawChunk.endState
+      );
+
+
+    if (
+      !startState ||
+      !endState ||
+      (
+        previousEndState &&
+        previousEndState !==
+          startState
+      )
+    ) {
+      return blowerRuntimeProbeValidationError(
+        `DataPARC Blower ${chunkIndex + 1}번 분할구간의 RUN 상태 연결을 확인해 주세요.`
+      );
+    }
+
+
+    const runningSeconds =
+      Number(
+        rawChunk.runningSeconds
+      );
+
+
+    const totalRunningHours =
+      Number(
+        rawChunk.totalRunningHours
+      );
+
+
+    const parsedChunkStart =
+      parseStrictRfc3339(
+        expectedChunk.startAt
+      );
+
+
+    const parsedChunkEnd =
+      parseStrictRfc3339(
+        expectedChunk.endAt
+      );
+
+
+    const chunkRangeSeconds =
+      (
+        parsedChunkEnd.timestamp -
+        parsedChunkStart.timestamp
+      ) /
+      1000;
+
+
+    if (
+      typeof rawChunk.runningSeconds !==
+        "number" ||
+      !Number.isFinite(
+        runningSeconds
+      ) ||
+      !Number.isInteger(
+        runningSeconds
+      ) ||
+      runningSeconds <
+        0 ||
+      runningSeconds >
+        chunkRangeSeconds +
+        2 ||
+      typeof rawChunk.totalRunningHours !==
+        "number" ||
+      !Number.isFinite(
+        totalRunningHours
+      ) ||
+      totalRunningHours <
+        0 ||
+      Math.abs(
+        totalRunningHours *
+        3600 -
+        runningSeconds
+      ) >
+        2
+    ) {
+      return blowerRuntimeProbeValidationError(
+        `DataPARC Blower ${chunkIndex + 1}번 분할구간의 운전시간이 범위를 벗어났습니다.`
+      );
+    }
+
+
+    normalizedChunks.push({
+      index:
+        chunkIndex +
+        1,
+      startAt:
+        expectedChunk.startAt,
+      endAt:
+        expectedChunk.endAt,
+      startState,
+      endState,
+      totalRunningHours:
+        Math.round(
+          totalRunningHours *
+          1000000
+        ) /
+        1000000,
+      runningSeconds:
+        Math.round(
+          runningSeconds
+        )
+    });
+
+
+    chunkRunningSeconds +=
+      runningSeconds;
+
+
+    chunkRunningHours +=
+      totalRunningHours;
+
+
+    previousEndState =
+      endState;
+  }
+
+
+  const startState =
+    normalizeBlowerRuntimeProbeState(
+      rawResult.startState
+    );
+
+
+  const endState =
+    normalizeBlowerRuntimeProbeState(
+      rawResult.endState
+    );
+
+
+  if (
+    startState !==
+      normalizedChunks[0].startState ||
+    endState !==
+      normalizedChunks[
+        normalizedChunks.length -
+        1
+      ].endState
+  ) {
+    return blowerRuntimeProbeValidationError(
+      "DataPARC Blower 전체 구간의 시작·현재 RUN 상태가 분할 결과와 일치하지 않습니다."
+    );
+  }
+
+
+  if (
+    Object.prototype.hasOwnProperty.call(
+      rawResult,
+      "currentState"
+    ) &&
+    normalizeBlowerRuntimeProbeState(
+      rawResult.currentState
+    ) !==
+      endState
+  ) {
+    return blowerRuntimeProbeValidationError(
+      "DataPARC Blower 현재 상태 값이 서로 일치하지 않습니다."
+    );
+  }
+
+
+  if (
+    Object.prototype.hasOwnProperty.call(
+      rawResult,
+      "isRunning"
+    ) &&
+    rawResult.isRunning !==
+      (
+        endState ===
+          "running"
+      )
+  ) {
+    return blowerRuntimeProbeValidationError(
+      "DataPARC Blower 현재 운전 여부가 RUN 상태와 일치하지 않습니다."
+    );
+  }
+
+
+  const runningSeconds =
+    Number(
+      rawResult.runningSeconds
+    );
+
+
+  const totalRunningHours =
+    Number(
+      rawResult.totalRunningHours
+    );
+
+
+  const parsedStart =
+    parseStrictRfc3339(
+      probe.startAt
+    );
+
+
+  const parsedEnd =
+    parseStrictRfc3339(
+      probe.endAt
+    );
+
+
+  const rangeSeconds =
+    (
+      parsedEnd.timestamp -
+      parsedStart.timestamp
+    ) /
+    1000;
+
+
+  const aggregateToleranceSeconds =
+    Math.max(
+      2,
+      chunks.length *
+        2
+    );
+
+
+  if (
+    typeof rawResult.runningSeconds !==
+      "number" ||
+    !Number.isFinite(
+      runningSeconds
+    ) ||
+    !Number.isInteger(
+      runningSeconds
+    ) ||
+    runningSeconds <
+      0 ||
+    runningSeconds >
+      rangeSeconds +
+      aggregateToleranceSeconds ||
+    typeof rawResult.totalRunningHours !==
+      "number" ||
+    !Number.isFinite(
+      totalRunningHours
+    ) ||
+    totalRunningHours <
+      0 ||
+    Math.abs(
+      totalRunningHours *
+      3600 -
+      runningSeconds
+    ) >
+      aggregateToleranceSeconds ||
+    Math.abs(
+      chunkRunningSeconds -
+      runningSeconds
+    ) >
+      aggregateToleranceSeconds ||
+    Math.abs(
+      chunkRunningHours *
+      3600 -
+      runningSeconds
+    ) >
+      aggregateToleranceSeconds
+  ) {
+    return blowerRuntimeProbeValidationError(
+      "DataPARC Blower 전체 운전시간이 조회기간 또는 분할 합계와 일치하지 않습니다."
+    );
+  }
+
+
+  const parsedCollectedAt =
+    parseStrictRfc3339(
+      rawResult.collectedAt
+    );
+
+
+  const now =
+    validationNow instanceof Date
+      ? validationNow
+      : new Date(
+          validationNow
+        );
+
+
+  if (
+    !parsedCollectedAt ||
+    Number.isNaN(
+      now.getTime()
+    ) ||
+    parsedCollectedAt.timestamp <
+      parsedEnd.timestamp -
+      5 *
+      60 *
+      1000 ||
+    parsedCollectedAt.timestamp >
+      now.getTime() +
+      5 *
+      60 *
+      1000
+  ) {
+    return blowerRuntimeProbeValidationError(
+      "DataPARC Blower 수집시각을 확인해 주세요."
+    );
+  }
+
+
+  return {
+    result: {
+      schemaVersion:
+        BLOWER_RUNTIME_PROBE_SCHEMA_VERSION,
+      requestType:
+        BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+      requestId:
+        normalizeText(
+          requestId
+        ),
+      ok:
+        true,
+      readOnly:
+        true,
+      assetTag:
+        BLOWER_RUNTIME_PROBE_ASSET_TAG,
+      dataParcTag:
+        BLOWER_RUNTIME_PROBE_DATAPARC_TAG,
+      startAt:
+        probe.startAt,
+      endAt:
+        probe.endAt,
+      observedAt:
+        probe.endAt,
+      expectedLastReplacementAt:
+        probe.expectedLastReplacementAt,
+      expectedCycleStartState:
+        probe.expectedCycleStartState,
+      expectedCycleStartedAt:
+        probe.expectedCycleStartedAt,
+      expectedCycleStartRevision:
+        probe.expectedCycleStartRevision,
+      expectedCycleRuntimeRevision:
+        probe.expectedCycleRuntimeRevision,
+      chunkDays:
+        BLOWER_RUNTIME_PROBE_CHUNK_DAYS,
+      chunkCount:
+        expectedChunks.length,
+      completedChunkCount:
+        expectedChunks.length,
+      chunks:
+        normalizedChunks,
+      startState,
+      endState,
+      currentState:
+        endState,
+      isRunning:
+        endState ===
+          "running",
+      totalRunningHours:
+        Math.round(
+          totalRunningHours *
+          1000000
+        ) /
+        1000000,
+      runningSeconds:
+        Math.round(
+          runningSeconds
+        ),
+      collectedAt:
+        parsedCollectedAt.text
+    }
+  };
+}
+
+
+async function findActiveBlowerRuntimeProbeRequest(
+  database,
+  reuseKey,
+  requestedById
+) {
+  const row =
+    await database
+      .prepare(`
+        SELECT request.*
+        FROM ois_data_requests AS request
+        INNER JOIN blower_runtime_probe_intents AS intent
+          ON intent.request_id = request.id
+        WHERE request.request_type = ?
+          AND request.requested_by_id = ?
+          AND intent.asset_tag = ?
+          AND intent.reuse_key = ?
+          AND request.status IN ('pending', 'processing')
+        ORDER BY datetime(request.requested_at) DESC, request.id DESC
+        LIMIT 1
+      `)
+      .bind(
+        BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+        requestedById,
+        BLOWER_RUNTIME_PROBE_ASSET_TAG,
+        reuseKey
+      )
+      .first();
+
+
+  return row
+    ? await findRequestById(
+        database,
+        row.id
+      )
+    : null;
+}
+
+
+async function retireStaleActiveBlowerRuntimeProbeRequests(
+  database,
+  reuseKey,
+  staleRequestId,
+  requestedById,
+  now
+) {
+  await database.batch([
+    database
+      .prepare(`
+        UPDATE ois_data_requests
+        SET status = 'failed',
+            completed_at = ?,
+            error_message = ?,
+            updated_at = ?
+        WHERE request_type = ?
+          AND requested_by_id = ?
+          AND status IN ('pending', 'processing')
+          AND id IN (
+            SELECT request_id
+            FROM blower_runtime_probe_intents
+            WHERE asset_tag = ?
+              AND (
+                COALESCE(reuse_key, '') <> ?
+                OR request_id = ?
+              )
+          )
+      `)
+      .bind(
+        now,
+        "Blower Cycle snapshot changed before DataPARC probe completion.",
+        now,
+        BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+        requestedById,
+        BLOWER_RUNTIME_PROBE_ASSET_TAG,
+        reuseKey,
+        staleRequestId
+      ),
+
+    database
+      .prepare(`
+        UPDATE blower_runtime_probe_intents
+        SET reuse_key = NULL,
+            updated_at = ?
+        WHERE asset_tag = ?
+          AND (
+            COALESCE(reuse_key, '') <> ?
+            OR request_id = ?
+          )
+          AND EXISTS (
+            SELECT 1
+            FROM ois_data_requests
+            WHERE id = blower_runtime_probe_intents.request_id
+              AND requested_by_id = ?
+              AND status = 'failed'
+          )
+      `)
+      .bind(
+        now,
+        BLOWER_RUNTIME_PROBE_ASSET_TAG,
+        reuseKey,
+        staleRequestId,
+        requestedById
+      )
+  ]);
+}
+
+
+async function findCompleteBlowerRuntimeProbeRequest(
+  database,
+  reuseKey,
+  requestedById
+) {
+  const row =
+    await database
+      .prepare(`
+        SELECT request.*
+        FROM ois_data_requests AS request
+        INNER JOIN blower_runtime_probe_intents AS intent
+          ON intent.request_id = request.id
+        WHERE request.request_type = ?
+          AND request.requested_by_id = ?
+          AND intent.reuse_key = ?
+          AND request.status = 'complete'
+        ORDER BY datetime(request.completed_at) DESC, request.id DESC
+        LIMIT 1
+      `)
+      .bind(
+        BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+        requestedById,
+        reuseKey
+      )
+      .first();
+
+
+  return row
+    ? await findRequestById(
+        database,
+        row.id
+      )
+    : null;
+}
+
+
+function isFreshBlowerRuntimeProbeWindow(
+  requestItem,
+  now = new Date()
+) {
+  const windowEnd =
+    parseStrictRfc3339(
+      requestItem?.probe?.endAt
+    );
+
+
+  const currentTime =
+    now instanceof Date
+      ? now.getTime()
+      : new Date(
+          now
+        ).getTime();
+
+
+  if (
+    !windowEnd ||
+    !Number.isFinite(
+      currentTime
+    )
+  ) {
+    return false;
+  }
+
+
+  const age =
+    currentTime -
+    windowEnd.timestamp;
+
+
+  return (
+    age >=
+      0 &&
+    age <=
+      BLOWER_RUNTIME_PROBE_COMPLETE_FRESH_MINUTES *
+      60 *
+      1000
+  );
+}
+
+
+function isFreshCompleteBlowerRuntimeProbeRequest(
+  requestItem,
+  now = new Date()
+) {
+  if (
+    !requestItem ||
+    requestItem.status !==
+      "complete"
+  ) {
+    return false;
+  }
+
+
+  const windowEnd =
+    parseStrictRfc3339(
+      requestItem.probe?.endAt
+    );
+
+
+  const observedAt =
+    parseStrictRfc3339(
+      requestItem.result?.observedAt
+    );
+
+
+  const currentTime =
+    now instanceof Date
+      ? now.getTime()
+      : new Date(
+          now
+        ).getTime();
+
+
+  if (
+    !windowEnd ||
+    !observedAt ||
+    !Number.isFinite(
+      currentTime
+    ) ||
+    observedAt.timestamp !==
+      windowEnd.timestamp
+  ) {
+    return false;
+  }
+
+
+  const freshnessMilliseconds =
+    BLOWER_RUNTIME_PROBE_COMPLETE_FRESH_MINUTES *
+    60 *
+    1000;
+
+
+  const windowAge =
+    currentTime -
+    windowEnd.timestamp;
+
+
+  const observedAge =
+    currentTime -
+    observedAt.timestamp;
+
+
+  return (
+    windowAge >=
+      0 &&
+    windowAge <=
+      freshnessMilliseconds &&
+    observedAge >=
+      0 &&
+    observedAge <=
+      freshnessMilliseconds
+  );
+}
+
+
+function blowerRuntimeProbeCreateResponse(
+  item,
+  disposition,
+  status = 200
+) {
+  return jsonResponse(
+    {
+      ok:
+        true,
+      reused:
+        disposition !==
+          "created",
+      disposition,
+      item,
+      message:
+        disposition ===
+          "created"
+          ? "Silo Aeration Blower #B DataPARC read-only 조회를 요청했습니다."
+          : disposition ===
+              "reused_complete"
+            ? "같은 Blower Cycle·Revision의 완료된 DataPARC 조회를 재사용합니다."
+            : "진행 중인 Silo Aeration Blower #B DataPARC 조회를 이어서 확인합니다."
+    },
+    status
+  );
+}
+
+
+async function createBlowerRuntimeProbeRequest(
+  context,
+  body
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const forbiddenClientTagFields = [
+    "tagNumber",
+    "tag_number",
+    "assetTag",
+    "asset_tag",
+    "dataParcTag",
+    "dataparcTag",
+    "dataparc_tag",
+    "sourceTag",
+    "source_tag"
+  ];
+
+
+  if (
+    forbiddenClientTagFields.some(
+      fieldName => {
+        return Object.prototype.hasOwnProperty.call(
+          body,
+          fieldName
+        );
+      }
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+        code:
+          "BLOWER_RUNTIME_PROBE_SERVER_TAG_ONLY",
+        message:
+          "Blower 및 DataPARC TAG는 서버 고정값을 사용합니다."
+      },
+      400
+    );
+  }
+
+
+  const database =
+    context.env.DB;
+
+
+  const requestedById =
+    normalizeEmployeeNo(
+      authentication.user.employeeNo
+    );
+
+
+  await ensureBlowerRuntimeProbeSchema(
+    database
+  );
+
+
+  await expireOldRequests(
+    database
+  );
+
+  const asset =
+    await database
+      .prepare(`
+        SELECT
+          tag_number,
+          enabled,
+          last_replacement_at,
+          cycle_start_state,
+          cycle_started_at,
+          cycle_start_revision,
+          cycle_runtime_revision
+        FROM blower_history_assets
+        WHERE tag_number = ?
+        LIMIT 1
+      `)
+      .bind(
+        BLOWER_RUNTIME_PROBE_ASSET_TAG
+      )
+      .first();
+
+
+  if (
+    !asset ||
+    Number(
+      asset.enabled
+    ) !==
+      1
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+        code:
+          "BLOWER_RUNTIME_PROBE_ASSET_UNAVAILABLE",
+        message:
+          "Silo Aeration Blower #B 활성 설비를 찾을 수 없습니다."
+      },
+      409
+    );
+  }
+
+
+  const expectedLastReplacementAt =
+    normalizeText(
+      asset.last_replacement_at
+    );
+
+
+  const expectedCycleStartState =
+    normalizeText(
+      asset.cycle_start_state
+    );
+
+
+  const expectedCycleStartedAt =
+    normalizeText(
+      asset.cycle_started_at
+    );
+
+
+  const expectedCycleStartRevision =
+    normalizeText(
+      asset.cycle_start_revision
+    );
+
+
+  const expectedCycleRuntimeRevision =
+    normalizeText(
+      asset.cycle_runtime_revision
+    );
+
+
+  if (
+    !expectedLastReplacementAt ||
+    expectedCycleStartState !==
+      "started" ||
+    !expectedCycleStartedAt ||
+    !expectedCycleStartRevision ||
+    !expectedCycleRuntimeRevision
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+        code:
+          "BLOWER_RUNTIME_PROBE_CYCLE_NOT_READY",
+        message:
+          "V-Belt 교체 후 기동시각과 Cycle Revision이 확정된 Blower만 조회할 수 있습니다."
+      },
+      409
+    );
+  }
+
+
+  const parsedCycleStartedAt =
+    parseStrictRfc3339(
+      expectedCycleStartedAt
+    );
+
+
+  const parsedLastReplacementAt =
+    parseStrictRfc3339(
+      expectedLastReplacementAt
+    );
+
+
+  const now =
+    new Date();
+
+
+  const startAt =
+    parsedCycleStartedAt
+      ? formatKstRfc3339(
+          parsedCycleStartedAt.date
+        )
+      : "";
+
+
+  const endAt =
+    formatKstRfc3339(
+      now
+    );
+
+
+  const parsedEndAt =
+    parseStrictRfc3339(
+      endAt
+    );
+
+
+  if (
+    !parsedCycleStartedAt ||
+    !parsedLastReplacementAt ||
+    !startAt ||
+    !parsedEndAt ||
+    parsedCycleStartedAt.timestamp <
+      parsedLastReplacementAt.timestamp ||
+    parsedCycleStartedAt.timestamp >=
+      parsedEndAt.timestamp
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+        code:
+          "BLOWER_RUNTIME_PROBE_INVALID_CYCLE_WINDOW",
+        message:
+          "Blower 교체·기동시각의 순서 또는 현재 조회구간을 확인해 주세요."
+      },
+      409
+    );
+  }
+
+
+  const chunks =
+    buildBlowerRuntimeProbeChunks(
+      startAt,
+      endAt
+    );
+
+
+  if (
+    chunks.length <
+      1
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+        code:
+          "BLOWER_RUNTIME_PROBE_CHUNK_FAILED",
+        message:
+          "Blower Cycle 전체기간을 31일 단위로 나누지 못했습니다."
+      },
+      409
+    );
+  }
+
+
+  const reuseKey =
+    await hashText(
+      JSON.stringify([
+        BLOWER_RUNTIME_PROBE_SCHEMA_VERSION,
+        requestedById,
+        BLOWER_RUNTIME_PROBE_ASSET_TAG,
+        expectedLastReplacementAt,
+        expectedCycleStartState,
+        expectedCycleStartedAt,
+        expectedCycleStartRevision,
+        expectedCycleRuntimeRevision
+      ])
+    );
+
+
+  const activeRequest =
+    await findActiveBlowerRuntimeProbeRequest(
+      database,
+      reuseKey,
+      requestedById
+    );
+
+
+  if (
+    activeRequest &&
+    isFreshBlowerRuntimeProbeWindow(
+      activeRequest,
+      now
+    )
+  ) {
+    return blowerRuntimeProbeCreateResponse(
+      activeRequest,
+      "reused_active"
+    );
+  }
+
+
+  await retireStaleActiveBlowerRuntimeProbeRequests(
+    database,
+    reuseKey,
+    activeRequest?.id ||
+      "",
+    requestedById,
+    now.toISOString()
+  );
+
+
+  const completeRequest =
+    await findCompleteBlowerRuntimeProbeRequest(
+      database,
+      reuseKey,
+      requestedById
+    );
+
+
+  if (
+    isFreshCompleteBlowerRuntimeProbeRequest(
+      completeRequest,
+      now
+    )
+  ) {
+    return blowerRuntimeProbeCreateResponse(
+      completeRequest,
+      "reused_complete"
+    );
+  }
+
+
+  const requestedAt =
+    now.toISOString();
+
+
+  const expiresAt =
+    new Date(
+      now.getTime() +
+      BLOWER_RUNTIME_PROBE_LEASE_HOURS *
+      60 *
+      60 *
+      1000
+    )
+      .toISOString();
+
+
+  const requestId =
+    crypto.randomUUID();
+
+
+  const targetDate =
+    buildBlowerRuntimeProbeTargetDate(
+      startAt,
+      endAt
+    );
+
+
+  await database
+    .prepare(`
+      UPDATE blower_runtime_probe_intents
+      SET reuse_key = NULL,
+          updated_at = ?
+      WHERE reuse_key = ?
+        AND (
+          EXISTS (
+            SELECT 1
+            FROM ois_data_requests
+            WHERE id = blower_runtime_probe_intents.request_id
+              AND status = 'failed'
+          )
+          OR (
+            request_id = ?
+            AND EXISTS (
+              SELECT 1
+              FROM ois_data_requests
+              WHERE id = blower_runtime_probe_intents.request_id
+                AND status = 'complete'
+            )
+          )
+        )
+    `)
+    .bind(
+      requestedAt,
+      reuseKey,
+      completeRequest?.id ||
+        ""
+    )
+    .run();
+
+
+  try {
+    await database.batch([
+      database
+        .prepare(`
+          INSERT INTO ois_data_requests (
+            id, request_type, target_date, status,
+            requested_by_id, requested_by_name, requested_at,
+            started_at, completed_at, agent_id,
+            result_json, error_message, expires_at, updated_at
+          )
+          VALUES (
+            ?, ?, ?, 'pending',
+            ?, ?, ?,
+            NULL, NULL, '',
+            NULL, '', ?, ?
+          )
+        `)
+        .bind(
+          requestId,
+          BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+          targetDate,
+          requestedById,
+          authentication.user.name,
+          requestedAt,
+          expiresAt,
+          requestedAt
+        ),
+
+      database
+        .prepare(`
+          INSERT INTO blower_runtime_probe_intents (
+            request_id,
+            reuse_key,
+            schema_version,
+            asset_tag,
+            dataparc_tag,
+            window_start,
+            window_end,
+            chunk_days,
+            chunk_count,
+            expected_last_replacement_at,
+            expected_cycle_start_state,
+            expected_cycle_started_at,
+            expected_cycle_start_revision,
+            expected_cycle_runtime_revision,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .bind(
+          requestId,
+          reuseKey,
+          BLOWER_RUNTIME_PROBE_SCHEMA_VERSION,
+          BLOWER_RUNTIME_PROBE_ASSET_TAG,
+          BLOWER_RUNTIME_PROBE_DATAPARC_TAG,
+          startAt,
+          endAt,
+          BLOWER_RUNTIME_PROBE_CHUNK_DAYS,
+          chunks.length,
+          expectedLastReplacementAt,
+          expectedCycleStartState,
+          expectedCycleStartedAt,
+          expectedCycleStartRevision,
+          expectedCycleRuntimeRevision,
+          requestedAt,
+          requestedAt
+        )
+    ]);
+  } catch (
+    error
+  ) {
+    if (
+      /UNIQUE constraint failed: blower_runtime_probe_intents\.reuse_key/i.test(
+        String(
+          error?.message ||
+          error
+        )
+      )
+    ) {
+      const concurrentRequest =
+        await findActiveBlowerRuntimeProbeRequest(
+          database,
+          reuseKey,
+          requestedById
+        );
+
+
+      const reusableConcurrentActive =
+        isFreshBlowerRuntimeProbeWindow(
+          concurrentRequest
+        )
+          ? concurrentRequest
+          : null;
+
+
+      const concurrentCompleteRequest =
+        reusableConcurrentActive
+          ? null
+          : await findCompleteBlowerRuntimeProbeRequest(
+              database,
+              reuseKey,
+              requestedById
+            );
+
+
+      const reusableConcurrentRequest =
+        reusableConcurrentActive ||
+        (
+          isFreshCompleteBlowerRuntimeProbeRequest(
+            concurrentCompleteRequest
+          )
+            ? concurrentCompleteRequest
+            : null
+        );
+
+
+      if (
+        reusableConcurrentRequest
+      ) {
+        return blowerRuntimeProbeCreateResponse(
+          reusableConcurrentRequest,
+          reusableConcurrentRequest.status ===
+            "complete"
+            ? "reused_complete"
+            : "reused_active"
+        );
+      }
+    }
+
+
+    throw error;
+  }
+
+
+  const createdRequest =
+    await findRequestById(
+      database,
+      requestId
+    );
+
+
+  return blowerRuntimeProbeCreateResponse(
+    createdRequest,
+    "created",
+    201
+  );
+}
+
 async function cancelSealPotRuntimeBatchRequests(context, body) {
   const authentication = await getAuthenticatedUser(context);
   if (authentication.error) return authentication.error;
@@ -13972,6 +15945,109 @@ async function completeAgentRequest(
 
 
   if (
+    existingRequest.requestType ===
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE &&
+    existingRequest.status ===
+      "complete"
+  ) {
+    const replayValidation =
+      normalizeBlowerRuntimeProbeResult(
+        body.result,
+        existingRequest.probe,
+        requestId
+      );
+
+
+    if (
+      replayValidation.error
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+          code:
+            "BLOWER_RUNTIME_PROBE_INVALID_RESULT",
+          message:
+            replayValidation.error
+        },
+        400
+      );
+    }
+
+
+    if (
+      JSON.stringify(
+        replayValidation.result
+      ) !==
+        JSON.stringify(
+          existingRequest.result
+        )
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+          code:
+            "BLOWER_RUNTIME_PROBE_RESULT_CONFLICT",
+          message:
+            "이미 완료된 DataPARC Blower 요청과 다른 결과는 저장할 수 없습니다."
+        },
+        409
+      );
+    }
+
+
+    return jsonResponse({
+      ok:
+        true,
+      replayed:
+        true,
+      item:
+        existingRequest,
+      message:
+        "이미 저장된 DataPARC Blower read-only 결과를 확인했습니다."
+    });
+  }
+
+
+  if (
+    existingRequest.requestType ===
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+  ) {
+    const expiresAt =
+      new Date(
+        existingRequest.expiresAt
+      );
+
+
+    if (
+      existingRequest.status !==
+        "processing" ||
+      !existingRequest.agentId ||
+      existingRequest.agentId !==
+        authentication.agentId ||
+      Number.isNaN(
+        expiresAt.getTime()
+      ) ||
+      expiresAt <=
+        new Date()
+    ) {
+      return jsonResponse(
+        {
+          ok:
+            false,
+          code:
+            "BLOWER_RUNTIME_PROBE_CLAIM_REQUIRED",
+          message:
+            "이 DataPARC Blower 요청을 가져간 Excel Agent만 처리시간 안에 완료할 수 있습니다."
+        },
+        409
+      );
+    }
+  }
+
+
+  if (
     ![
       "pending",
       "processing"
@@ -14124,6 +16200,38 @@ limestoneUsageRecords =
         ok:
           false,
 
+        message:
+          validation.error
+      },
+      400
+    );
+  }
+
+
+  normalizedResult =
+    validation.result;
+
+} else if (
+  existingRequest.requestType ===
+    BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+) {
+  const validation =
+    normalizeBlowerRuntimeProbeResult(
+      body.result,
+      existingRequest.probe,
+      requestId
+    );
+
+
+  if (
+    validation.error
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+        code:
+          "BLOWER_RUNTIME_PROBE_INVALID_RESULT",
         message:
           validation.error
       },
@@ -14384,6 +16492,9 @@ return jsonResponse({
         : existingRequest.requestType ===
             "logsheet_approval"
           ? "OIS 과거 업무일지를 D1에 저장했습니다."
+        : existingRequest.requestType ===
+            BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+          ? "Silo Aeration Blower #B DataPARC read-only 결과를 저장했습니다."
           : "OIS 조회 결과를 저장했습니다."
 });
 }
@@ -14647,6 +16758,23 @@ if (
 
 
     /*
+      Silo Aeration Blower #B DataPARC read-only probe
+
+      Client body:
+      { action: "create_blower_runtime_probe" }
+    */
+    if (
+      action ===
+        "create_blower_runtime_probe"
+    ) {
+      return await createBlowerRuntimeProbeRequest(
+        context,
+        body
+      );
+    }
+
+
+    /*
       기존 부재료 엑셀 자료 등록
     */
         if (
@@ -14752,6 +16880,18 @@ if (
     );
   }
 }
+
+
+export const __oisDataRequestsTest = {
+  formatKstRfc3339,
+  parseStrictRfc3339,
+  buildBlowerRuntimeProbeTargetDate,
+  buildBlowerRuntimeProbeChunks,
+  getRequestProcessingTimeoutMinutes,
+  isFreshBlowerRuntimeProbeWindow,
+  isFreshCompleteBlowerRuntimeProbeRequest,
+  normalizeBlowerRuntimeProbeResult
+};
 
 /* DAILY_DATA_SOLAR_HISTORY_REBUILD_API_V1 */
 

@@ -252,6 +252,14 @@ const OPERATION_SYNC_DEFAULT_DAYS = 14;
 */
 const FBHE_VIBRATION_REQUEST_TYPE = "fbhe_vibration";
 const SEAL_POT_RUNTIME_REQUEST_TYPE = "seal_pot_runtime";
+const DATAPARC_RUNTIME_PROBE_REQUEST_TYPE = "blower_runtime_probe";
+const DATAPARC_RUNTIME_SYNC_ASSET_TAG = "104ETH03AN602";
+const DATAPARC_RUNTIME_SYNC_SOURCE_TAG = "GSPOGE.ABB_DCS.003ETH03AN602XB04";
+const DATAPARC_RUNTIME_SYNC_SOURCE_TYPE = "dataparc_runtime";
+const DATAPARC_RUNTIME_SYNC_CHUNK_DAYS = 31;
+const DATAPARC_RUNTIME_SYNC_MAX_HOURS = 200000;
+const DATAPARC_RUNTIME_SYNC_MAX_AGE_MINUTES = 15;
+const DATAPARC_RUNTIME_SYNC_FUTURE_SKEW_MINUTES = 5;
 const FBHE_VIBRATION_ASSET_TAGS = Object.freeze(
   ASSET_SEEDS
     .filter(seed => seed[1] === "fbhe")
@@ -1954,6 +1962,340 @@ function parseFbheVibrationJson(value) {
   } catch {
     return null;
   }
+}
+
+function dataParcRuntimeValidationFailure(
+  message,
+  code = "DATAPARC_RUNTIME_PROBE_INVALID"
+) {
+  return {
+    error: message,
+    code,
+    result: null
+  };
+}
+
+function parseDataParcRuntimeInstant(value) {
+  if (typeof value !== "string") return null;
+
+  const text = value.trim();
+  const matched = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|[+-]\d{2}:\d{2})$/.exec(text);
+  if (!matched) return null;
+
+  const year = Number(matched[1]);
+  const month = Number(matched[2]);
+  const day = Number(matched[3]);
+  const hour = Number(matched[4]);
+  const minute = Number(matched[5]);
+  const second = Number(matched[6]);
+  const maximumDay = month >= 1 && month <= 12
+    ? new Date(Date.UTC(year, month, 0)).getUTCDate()
+    : 0;
+
+  if (
+    year < 2000 || year > 9999 ||
+    month < 1 || month > 12 ||
+    day < 1 || day > maximumDay ||
+    hour < 0 || hour > 23 ||
+    minute < 0 || minute > 59 ||
+    second < 0 || second > 59
+  ) {
+    return null;
+  }
+
+  if (matched[8] !== "Z") {
+    const offsetHour = Number(matched[8].slice(1, 3));
+    const offsetMinute = Number(matched[8].slice(4, 6));
+    if (
+      offsetHour > 14 ||
+      offsetMinute > 59 ||
+      (offsetHour === 14 && offsetMinute !== 0)
+    ) {
+      return null;
+    }
+  }
+
+  const time = Date.parse(text.replace(" ", "T"));
+  if (!Number.isFinite(time)) return null;
+
+  return {
+    text,
+    time,
+    iso: new Date(time).toISOString()
+  };
+}
+
+function isDataParcRuntimeState(value) {
+  return value === "running" || value === "stopped";
+}
+
+function isDataParcRuntimeNumber(value) {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function normalizeDataParcRuntimeProbeResult(value, requestId, now = new Date(), options) {
+  const validationOptions = options && typeof options === "object"
+    ? options
+    : {};
+  const normalizedRequestId = normalizeText(requestId);
+  if (!normalizedRequestId || normalizedRequestId.length > 200) {
+    return dataParcRuntimeValidationFailure("DataPARC 조회 요청 ID를 확인해 주세요.");
+  }
+
+  let raw = value;
+
+  if (typeof value === "string") {
+    try {
+      raw = JSON.parse(value);
+    } catch {
+      return dataParcRuntimeValidationFailure("DataPARC 조회 결과 JSON을 읽을 수 없습니다.");
+    }
+  }
+
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return dataParcRuntimeValidationFailure("DataPARC 조회 결과 형식이 올바르지 않습니다.");
+  }
+
+  if (
+    raw.schemaVersion !== 1 ||
+    raw.requestType !== DATAPARC_RUNTIME_PROBE_REQUEST_TYPE ||
+    raw.requestId !== normalizedRequestId ||
+    raw.ok !== true ||
+    raw.readOnly !== true
+  ) {
+    return dataParcRuntimeValidationFailure("완료된 Blower 운전시간 조회 결과의 식별값이 일치하지 않습니다.");
+  }
+
+  if (
+    raw.assetTag !== DATAPARC_RUNTIME_SYNC_ASSET_TAG ||
+    raw.dataParcTag !== DATAPARC_RUNTIME_SYNC_SOURCE_TAG
+  ) {
+    return dataParcRuntimeValidationFailure("DataPARC TAG와 Blower 설비 매핑이 일치하지 않습니다.");
+  }
+
+  const startAt = parseDataParcRuntimeInstant(raw.startAt);
+  const endAt = parseDataParcRuntimeInstant(raw.endAt);
+  const observedAt = parseDataParcRuntimeInstant(raw.observedAt);
+  const collectedAt = parseDataParcRuntimeInstant(raw.collectedAt);
+
+  if (!startAt || !endAt || !observedAt || !collectedAt) {
+    return dataParcRuntimeValidationFailure("DataPARC 조회·관측 시각은 시간대가 포함된 정확한 시각이어야 합니다.");
+  }
+
+  if (
+    endAt.time <= startAt.time ||
+    raw.observedAt !== raw.endAt ||
+    observedAt.time !== endAt.time ||
+    collectedAt.time < observedAt.time - 5 * 60 * 1000
+  ) {
+    return dataParcRuntimeValidationFailure("DataPARC 조회기간과 관측시각의 순서가 올바르지 않습니다.");
+  }
+
+  const safeNow = now instanceof Date && !Number.isNaN(now.getTime())
+    ? now
+    : new Date();
+  const oldestAllowed = safeNow.getTime() - DATAPARC_RUNTIME_SYNC_MAX_AGE_MINUTES * 60 * 1000;
+  const futureLimit = safeNow.getTime() + DATAPARC_RUNTIME_SYNC_FUTURE_SKEW_MINUTES * 60 * 1000;
+
+  if (
+    validationOptions.skipFreshness !== true &&
+    (
+      observedAt.time < oldestAllowed ||
+      collectedAt.time < oldestAllowed ||
+      observedAt.time > futureLimit ||
+      collectedAt.time > futureLimit
+    )
+  ) {
+    return dataParcRuntimeValidationFailure(
+      "DataPARC 관측·수집시각은 서버 현재시각 기준 15분 이내여야 합니다.",
+      "DATAPARC_RUNTIME_PROBE_STALE"
+    );
+  }
+
+  if (
+    typeof raw.expectedLastReplacementAt !== "string" ||
+    !normalizeText(raw.expectedLastReplacementAt) ||
+    typeof raw.expectedCycleStartState !== "string" ||
+    raw.expectedCycleStartState !== "started" ||
+    typeof raw.expectedCycleStartedAt !== "string" ||
+    !normalizeText(raw.expectedCycleStartedAt) ||
+    typeof raw.expectedCycleStartRevision !== "string" ||
+    !normalizeText(raw.expectedCycleStartRevision) ||
+    normalizeText(raw.expectedCycleStartRevision).length > 200 ||
+    typeof raw.expectedCycleRuntimeRevision !== "string" ||
+    !normalizeText(raw.expectedCycleRuntimeRevision) ||
+    normalizeText(raw.expectedCycleRuntimeRevision).length > 200
+  ) {
+    return dataParcRuntimeValidationFailure("DataPARC 조회에 저장된 Blower Cycle 기준값이 올바르지 않습니다.");
+  }
+
+  const replacementAt = normalizeDateTime(raw.expectedLastReplacementAt);
+  const cycleStartedAt = normalizeDateTime(raw.expectedCycleStartedAt);
+  const replacementTime = Date.parse(replacementAt);
+  const cycleStartedTime = Date.parse(cycleStartedAt);
+
+  if (
+    !replacementAt ||
+    !cycleStartedAt ||
+    !Number.isFinite(replacementTime) ||
+    !Number.isFinite(cycleStartedTime) ||
+    cycleStartedTime < replacementTime ||
+    Math.abs(startAt.time - cycleStartedTime) >= 1000
+  ) {
+    return dataParcRuntimeValidationFailure("DataPARC 조회 시작시각이 현재 Cycle 기동시각과 일치하지 않습니다.");
+  }
+
+  if (
+    !isDataParcRuntimeState(raw.startState) ||
+    !isDataParcRuntimeState(raw.endState)
+  ) {
+    return dataParcRuntimeValidationFailure("DataPARC RUN 상태는 running 또는 stopped여야 합니다.");
+  }
+
+  if (
+    (
+      Object.prototype.hasOwnProperty.call(raw, "currentState") &&
+      raw.currentState !== raw.endState
+    ) ||
+    (
+      Object.prototype.hasOwnProperty.call(raw, "isRunning") &&
+      raw.isRunning !== (raw.endState === "running")
+    )
+  ) {
+    return dataParcRuntimeValidationFailure("DataPARC 현재 RUN 상태 값이 서로 일치하지 않습니다.");
+  }
+
+  if (
+    !isDataParcRuntimeNumber(raw.totalRunningHours) ||
+    raw.totalRunningHours < 0 ||
+    raw.totalRunningHours > DATAPARC_RUNTIME_SYNC_MAX_HOURS ||
+    !Number.isInteger(raw.runningSeconds) ||
+    raw.runningSeconds < 0 ||
+    raw.runningSeconds > DATAPARC_RUNTIME_SYNC_MAX_HOURS * 3600
+  ) {
+    return dataParcRuntimeValidationFailure("DataPARC 누적 운전시간을 확인해 주세요.");
+  }
+
+  if (
+    raw.chunkDays !== DATAPARC_RUNTIME_SYNC_CHUNK_DAYS ||
+    !Number.isInteger(raw.chunkCount) ||
+    raw.chunkCount < 1 ||
+    raw.chunkCount > 400 ||
+    raw.completedChunkCount !== raw.chunkCount ||
+    !Array.isArray(raw.chunks) ||
+    raw.chunks.length !== raw.chunkCount
+  ) {
+    return dataParcRuntimeValidationFailure("DataPARC 분할 조회 완료정보가 올바르지 않습니다.");
+  }
+
+  const aggregateToleranceSeconds = Math.max(2, raw.chunkCount * 2);
+  const totalWindowSeconds = (endAt.time - startAt.time) / 1000;
+  if (
+    raw.runningSeconds > totalWindowSeconds + aggregateToleranceSeconds ||
+    Math.abs(raw.totalRunningHours * 3600 - raw.runningSeconds) > aggregateToleranceSeconds
+  ) {
+    return dataParcRuntimeValidationFailure("DataPARC 누적 운전시간이 조회기간과 일치하지 않습니다.");
+  }
+
+  let chunkHourSum = 0;
+  let chunkSecondSum = 0;
+  let previousChunk = null;
+
+  for (let index = 0; index < raw.chunks.length; index += 1) {
+    const chunk = raw.chunks[index];
+
+    if (!chunk || typeof chunk !== "object" || Array.isArray(chunk) || chunk.index !== index + 1) {
+      return dataParcRuntimeValidationFailure("DataPARC 분할 조회 순서가 올바르지 않습니다.");
+    }
+
+    const chunkStartAt = parseDataParcRuntimeInstant(chunk.startAt);
+    const chunkEndAt = parseDataParcRuntimeInstant(chunk.endAt);
+
+    if (
+      !chunkStartAt ||
+      !chunkEndAt ||
+      chunkEndAt.time <= chunkStartAt.time ||
+      chunkEndAt.time - chunkStartAt.time > DATAPARC_RUNTIME_SYNC_CHUNK_DAYS * 24 * 60 * 60 * 1000 + 1000 ||
+      !isDataParcRuntimeState(chunk.startState) ||
+      !isDataParcRuntimeState(chunk.endState) ||
+      !isDataParcRuntimeNumber(chunk.totalRunningHours) ||
+      chunk.totalRunningHours < 0 ||
+      !Number.isInteger(chunk.runningSeconds) ||
+      chunk.runningSeconds < 0
+    ) {
+      return dataParcRuntimeValidationFailure("DataPARC 분할 조회 결과값이 올바르지 않습니다.");
+    }
+
+    const chunkWindowSeconds = (chunkEndAt.time - chunkStartAt.time) / 1000;
+    if (
+      chunk.runningSeconds > chunkWindowSeconds + 2 ||
+      Math.abs(chunk.totalRunningHours * 3600 - chunk.runningSeconds) > 2
+    ) {
+      return dataParcRuntimeValidationFailure("DataPARC 분할 운전시간이 조회기간과 일치하지 않습니다.");
+    }
+
+    if (
+      previousChunk &&
+      (
+        previousChunk.endAt !== chunk.startAt ||
+        previousChunk.endState !== chunk.startState
+      )
+    ) {
+      return dataParcRuntimeValidationFailure("DataPARC 분할 조회 구간이 연속되지 않습니다.");
+    }
+
+    previousChunk = chunk;
+    chunkHourSum += chunk.totalRunningHours;
+    chunkSecondSum += chunk.runningSeconds;
+  }
+
+  const firstChunk = raw.chunks[0];
+  const lastChunk = raw.chunks[raw.chunks.length - 1];
+  if (
+    raw.startAt !== firstChunk.startAt ||
+    raw.endAt !== lastChunk.endAt ||
+    raw.startState !== firstChunk.startState ||
+    raw.endState !== lastChunk.endState
+  ) {
+    return dataParcRuntimeValidationFailure("DataPARC 전체 조회 경계가 분할 조회 결과와 일치하지 않습니다.");
+  }
+
+  if (
+    Math.abs(chunkHourSum * 3600 - raw.runningSeconds) > aggregateToleranceSeconds ||
+    Math.abs(chunkSecondSum - raw.runningSeconds) > aggregateToleranceSeconds
+  ) {
+    return dataParcRuntimeValidationFailure("DataPARC 전체 운전시간 합계가 분할 조회 결과와 일치하지 않습니다.");
+  }
+
+  return {
+    error: "",
+    code: "",
+    result: {
+      schemaVersion: 1,
+      requestType: DATAPARC_RUNTIME_PROBE_REQUEST_TYPE,
+      requestId: normalizedRequestId,
+      assetTag: DATAPARC_RUNTIME_SYNC_ASSET_TAG,
+      dataParcTag: DATAPARC_RUNTIME_SYNC_SOURCE_TAG,
+      rawStartAt: raw.startAt,
+      rawEndAt: raw.endAt,
+      startAt: startAt.iso,
+      endAt: endAt.iso,
+      observedAt: observedAt.iso,
+      collectedAt: collectedAt.iso,
+      expectedLastReplacementAt: normalizeText(raw.expectedLastReplacementAt),
+      expectedCycleStartState: raw.expectedCycleStartState,
+      expectedCycleStartedAt: normalizeText(raw.expectedCycleStartedAt),
+      expectedCycleStartRevision: normalizeText(raw.expectedCycleStartRevision),
+      expectedCycleRuntimeRevision: normalizeText(raw.expectedCycleRuntimeRevision),
+      startState: raw.startState,
+      endState: raw.endState,
+      totalRunningHours: raw.totalRunningHours,
+      runningSeconds: raw.runningSeconds,
+      runtimeHours: raw.runningSeconds / 3600,
+      chunkCount: raw.chunkCount,
+      isRunning: raw.endState === "running"
+    }
+  };
 }
 
 function finiteFbheVibrationNumber(value) {
@@ -5596,6 +5938,531 @@ async function changeRuntimeState(database, user, body, source = {}) {
           ? "재기동을 등록했습니다. 정지 전 누적시간부터 Cycle 계산을 다시 시작합니다."
           : "정지를 등록했습니다. 재기동 전까지 Cycle 경과·D-day·알림을 멈춥니다."
   });
+}
+
+function dataParcRuntimeSyncEventId(requestId) {
+  return `dataparc_runtime:${normalizeText(requestId)}`;
+}
+
+function dataParcRuntimeSyncActionType(probe) {
+  return probe.isRunning
+    ? "DataPARC 운전중 동기화"
+    : "DataPARC 정지 동기화";
+}
+
+function dataParcRuntimeSyncNote(probe) {
+  return `DataPARC RUN 조회 ${probe.startAt} ~ ${probe.observedAt} · 누적 ${probe.runtimeHours}시간`;
+}
+
+function dataParcRuntimeSyncSourceText(probe) {
+  return JSON.stringify({
+    schemaVersion: probe.schemaVersion,
+    requestType: probe.requestType,
+    requestId: probe.requestId,
+    assetTag: probe.assetTag,
+    dataParcTag: probe.dataParcTag,
+    startAt: probe.startAt,
+    endAt: probe.endAt,
+    observedAt: probe.observedAt,
+    expectedLastReplacementAt: probe.expectedLastReplacementAt,
+    expectedCycleStartState: probe.expectedCycleStartState,
+    expectedCycleStartedAt: probe.expectedCycleStartedAt,
+    expectedCycleStartRevision: probe.expectedCycleStartRevision,
+    expectedCycleRuntimeRevision: probe.expectedCycleRuntimeRevision,
+    startState: probe.startState,
+    endState: probe.endState,
+    totalRunningHours: probe.totalRunningHours,
+    runningSeconds: probe.runningSeconds,
+    chunkCount: probe.chunkCount,
+    collectedAt: probe.collectedAt
+  });
+}
+
+async function loadDataParcRuntimeSyncEvents(database, requestId) {
+  const eventId = dataParcRuntimeSyncEventId(requestId);
+  const result = await database
+    .prepare(`
+      SELECT *
+      FROM blower_history_events
+      WHERE id = ?
+        OR (
+          source_type = ?
+          AND source_log_id = ?
+        )
+      ORDER BY created_at ASC, id ASC
+    `)
+    .bind(
+      eventId,
+      DATAPARC_RUNTIME_SYNC_SOURCE_TYPE,
+      requestId
+    )
+    .all();
+
+  return Array.isArray(result.results) ? result.results : [];
+}
+
+function isMatchingDataParcRuntimeSyncEvent(event, probe, sourceText) {
+  if (!event) return false;
+
+  return (
+    normalizeText(event.id) === dataParcRuntimeSyncEventId(probe.requestId) &&
+    normalizeText(event.tag_number) === DATAPARC_RUNTIME_SYNC_ASSET_TAG &&
+    normalizeText(event.event_type) === "runtime_correction" &&
+    normalizeText(event.event_date) === probe.observedAt &&
+    Number.isFinite(Number(event.runtime_hours)) &&
+    Math.abs(Number(event.runtime_hours) - probe.runtimeHours) < 0.000001 &&
+    normalizeText(event.issue_type) === "DataPARC" &&
+    normalizeText(event.action_type) === dataParcRuntimeSyncActionType(probe) &&
+    normalizeText(event.note) === dataParcRuntimeSyncNote(probe) &&
+    normalizeText(event.source_type) === DATAPARC_RUNTIME_SYNC_SOURCE_TYPE &&
+    normalizeText(event.source_log_id) === probe.requestId &&
+    normalizeText(event.source_text) === sourceText
+  );
+}
+
+function dataParcRuntimeSyncSuccessResponse(probe, replayed) {
+  return jsonResponse({
+    ok: true,
+    applied: !replayed,
+    replayed,
+    requestId: probe.requestId,
+    assetTag: DATAPARC_RUNTIME_SYNC_ASSET_TAG,
+    dataParcTag: DATAPARC_RUNTIME_SYNC_SOURCE_TAG,
+    eventId: dataParcRuntimeSyncEventId(probe.requestId),
+    observedAt: probe.observedAt,
+    runtimeHours: probe.runtimeHours,
+    isRunning: probe.isRunning,
+    message: replayed
+      ? "이미 반영된 DataPARC 운전시간 조회입니다. 기존 결과를 유지했습니다."
+      : "DataPARC 운전시간과 현재 RUN 상태를 Blower Cycle에 반영했습니다."
+  });
+}
+
+async function applyDataParcRuntimeSync(database, user, body, options) {
+  const runtimeOptions = options && typeof options === "object"
+    ? options
+    : {};
+  const actorId = normalizeEmployeeNo(user?.employeeNo);
+  const actorName = normalizeText(user?.name);
+  const requestId = typeof body?.requestId === "string"
+    ? body.requestId.trim()
+    : "";
+
+  if (!requestId || requestId.length > 200) {
+    return jsonResponse({
+      ok: false,
+      code: "DATAPARC_RUNTIME_REQUEST_ID_REQUIRED",
+      message: "반영할 DataPARC 조회 요청 ID를 확인해 주세요."
+    }, 400);
+  }
+
+  const requestRow = await database
+    .prepare(`
+      SELECT
+        id,
+        request_type,
+        status,
+        target_date,
+        requested_by_id,
+        result_json,
+        completed_at
+      FROM ois_data_requests
+      WHERE id = ?
+      LIMIT 1
+    `)
+    .bind(requestId)
+    .first();
+
+  if (!requestRow) {
+    return jsonResponse({
+      ok: false,
+      code: "DATAPARC_RUNTIME_PROBE_NOT_FOUND",
+      message: "DataPARC Blower 운전시간 조회 결과를 찾을 수 없습니다."
+    }, 404);
+  }
+
+  if (
+    !actorId ||
+    (
+      normalizeEmployeeNo(requestRow.requested_by_id) !== actorId &&
+      user?.isSuperAdmin !== true
+    )
+  ) {
+    return jsonResponse({
+      ok: false,
+      code: "DATAPARC_RUNTIME_PROBE_FORBIDDEN",
+      message: "본인이 요청한 DataPARC 조회만 Blower Cycle에 반영할 수 있습니다."
+    }, 403);
+  }
+
+  if (
+    normalizeText(requestRow.request_type) !== DATAPARC_RUNTIME_PROBE_REQUEST_TYPE ||
+    normalizeText(requestRow.status) !== "complete"
+  ) {
+    return jsonResponse({
+      ok: false,
+      code: "DATAPARC_RUNTIME_PROBE_NOT_COMPLETE",
+      message: "완료된 Blower 운전시간 조회만 반영할 수 있습니다."
+    }, 409);
+  }
+
+  let validation = normalizeDataParcRuntimeProbeResult(
+    requestRow.result_json,
+    requestId,
+    runtimeOptions.now
+  );
+
+  const freshnessFailure = validation.code === "DATAPARC_RUNTIME_PROBE_STALE"
+    ? validation
+    : null;
+
+  if (freshnessFailure) {
+    validation = normalizeDataParcRuntimeProbeResult(
+      requestRow.result_json,
+      requestId,
+      runtimeOptions.now,
+      { skipFreshness: true }
+    );
+  }
+
+  if (validation.error) {
+    return jsonResponse({
+      ok: false,
+      code: validation.code,
+      message: validation.error
+    }, 400);
+  }
+
+  const probe = validation.result;
+
+  if (
+    normalizeText(requestRow.target_date) !==
+      `v1|${DATAPARC_RUNTIME_SYNC_ASSET_TAG}|${probe.rawStartAt}|${probe.rawEndAt}`
+  ) {
+    return jsonResponse({
+      ok: false,
+      code: "DATAPARC_RUNTIME_PROBE_INVALID",
+      message: "DataPARC 조회 요청의 고정 기간과 저장 결과가 일치하지 않습니다."
+    }, 400);
+  }
+
+  const sourceText = dataParcRuntimeSyncSourceText(probe);
+
+  if (sourceText.length > 2000) {
+    return jsonResponse({
+      ok: false,
+      code: "DATAPARC_RUNTIME_PROBE_INVALID",
+      message: "DataPARC 조회 감사자료가 허용 길이를 초과했습니다."
+    }, 400);
+  }
+
+  const existingEvents = await loadDataParcRuntimeSyncEvents(database, requestId);
+
+  if (existingEvents.length > 0) {
+    if (
+      existingEvents.length === 1 &&
+      isMatchingDataParcRuntimeSyncEvent(existingEvents[0], probe, sourceText)
+    ) {
+      return dataParcRuntimeSyncSuccessResponse(probe, true);
+    }
+
+    return jsonResponse({
+      ok: false,
+      code: "DATAPARC_RUNTIME_IDEMPOTENCY_CONFLICT",
+      message: "같은 DataPARC 요청 ID에 다른 반영 이력이 이미 존재합니다."
+    }, 409);
+  }
+
+  if (freshnessFailure) {
+    return jsonResponse({
+      ok: false,
+      code: freshnessFailure.code,
+      message: freshnessFailure.error
+    }, 409);
+  }
+
+  const asset = await findAsset(database, DATAPARC_RUNTIME_SYNC_ASSET_TAG);
+
+  if (!asset) {
+    return jsonResponse({
+      ok: false,
+      code: "DATAPARC_RUNTIME_ASSET_NOT_FOUND",
+      message: "Silo Aeration Blower 602 설비를 찾을 수 없습니다."
+    }, 404);
+  }
+
+  const currentCycleStartState = normalizeText(asset.cycle_start_state);
+  if (currentCycleStartState === "pending") {
+    return jsonResponse({
+      ok: false,
+      code: "DATAPARC_RUNTIME_CYCLE_PENDING",
+      message: "기동 대기 Cycle에는 DataPARC 운전시간을 반영할 수 없습니다. 먼저 기동을 등록해 주세요."
+    }, 409);
+  }
+
+  const currentLastReplacementAt = normalizeText(asset.last_replacement_at);
+  const currentCycleStartedAt = normalizeText(asset.cycle_started_at);
+  const currentCycleStartRevision = normalizeText(asset.cycle_start_revision);
+  const currentCycleRuntimeRevision = normalizeText(asset.cycle_runtime_revision);
+  const cycleRuntimeHours = Number(asset.cycle_runtime_hours);
+
+  if (
+    currentLastReplacementAt !== probe.expectedLastReplacementAt ||
+    currentCycleStartState !== probe.expectedCycleStartState ||
+    currentCycleStartedAt !== probe.expectedCycleStartedAt ||
+    currentCycleStartRevision !== probe.expectedCycleStartRevision ||
+    currentCycleRuntimeRevision !== probe.expectedCycleRuntimeRevision ||
+    !Number.isFinite(cycleRuntimeHours)
+  ) {
+    return jsonResponse({
+      ok: false,
+      code: "DATAPARC_RUNTIME_CYCLE_CONFLICT",
+      message: "조회 후 Blower 교체·기동·운전 상태가 변경되었습니다. 새 DataPARC 조회로 다시 확인해 주세요."
+    }, 409);
+  }
+
+  const nowDate = runtimeOptions.now instanceof Date && !Number.isNaN(runtimeOptions.now.getTime())
+    ? runtimeOptions.now
+    : new Date();
+  const now = nowDate.toISOString();
+  const nextCycleRuntimeRevision = crypto.randomUUID();
+  const eventId = dataParcRuntimeSyncEventId(requestId);
+  const guardId = crypto.randomUUID();
+  const runtimeHours = probe.runtimeHours;
+  const runtimeState = probe.isRunning ? "running" : "stopped";
+  const runtimeAnchorAt = probe.isRunning ? probe.observedAt : null;
+  const actionType = dataParcRuntimeSyncActionType(probe);
+  const note = dataParcRuntimeSyncNote(probe);
+  let results;
+
+  try {
+    results = await database.batch([
+      database
+        .prepare(`
+          UPDATE blower_history_assets
+          SET
+            runtime_hours = ?,
+            runtime_anchor_at = ?,
+            is_running = ?,
+            cycle_runtime_hours = ?,
+            cycle_runtime_anchor_at = ?,
+            cycle_runtime_state = ?,
+            cycle_runtime_revision = ?,
+            last_modified_by_id = ?,
+            last_modified_by_name = ?,
+            updated_at = ?
+          WHERE tag_number = ?
+            AND enabled = 1
+            AND COALESCE(last_replacement_at, '') = ?
+            AND cycle_start_state = ?
+            AND COALESCE(cycle_started_at, '') = ?
+            AND cycle_start_revision = ?
+            AND cycle_runtime_revision = ?
+            AND cycle_runtime_hours IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1
+              FROM blower_history_events
+              WHERE id = ?
+                OR (
+                  source_type = ?
+                  AND source_log_id = ?
+                )
+            )
+        `)
+        .bind(
+          runtimeHours,
+          runtimeAnchorAt,
+          probe.isRunning ? 1 : 0,
+          runtimeHours,
+          probe.observedAt,
+          runtimeState,
+          nextCycleRuntimeRevision,
+          actorId,
+          actorName,
+          now,
+          DATAPARC_RUNTIME_SYNC_ASSET_TAG,
+          probe.expectedLastReplacementAt,
+          probe.expectedCycleStartState,
+          probe.expectedCycleStartedAt,
+          probe.expectedCycleStartRevision,
+          probe.expectedCycleRuntimeRevision,
+          eventId,
+          DATAPARC_RUNTIME_SYNC_SOURCE_TYPE,
+          requestId
+        ),
+      database
+        .prepare(`
+          INSERT INTO blower_history_events (
+            id, tag_number, event_type, event_date, runtime_hours,
+            issue_type, action_type, note, source_type, source_log_id,
+            source_text, created_by_id, created_by_name, created_at, updated_at
+          )
+          SELECT
+            ?, ?, 'runtime_correction', ?, ?,
+            'DataPARC', ?, ?, ?, ?,
+            ?, ?, ?, ?, ?
+          WHERE EXISTS (
+            SELECT 1
+            FROM blower_history_assets
+            WHERE tag_number = ?
+              AND COALESCE(last_replacement_at, '') = ?
+              AND cycle_start_state = ?
+              AND COALESCE(cycle_started_at, '') = ?
+              AND cycle_start_revision = ?
+              AND cycle_runtime_revision = ?
+              AND ABS(COALESCE(cycle_runtime_hours, 0) - ?) < 0.000001
+              AND cycle_runtime_anchor_at = ?
+              AND cycle_runtime_state = ?
+          )
+        `)
+        .bind(
+          eventId,
+          DATAPARC_RUNTIME_SYNC_ASSET_TAG,
+          probe.observedAt,
+          runtimeHours,
+          actionType,
+          note,
+          DATAPARC_RUNTIME_SYNC_SOURCE_TYPE,
+          requestId,
+          sourceText,
+          actorId,
+          actorName,
+          now,
+          now,
+          DATAPARC_RUNTIME_SYNC_ASSET_TAG,
+          probe.expectedLastReplacementAt,
+          probe.expectedCycleStartState,
+          probe.expectedCycleStartedAt,
+          probe.expectedCycleStartRevision,
+          nextCycleRuntimeRevision,
+          runtimeHours,
+          probe.observedAt,
+          runtimeState
+        ),
+      database
+        .prepare(`
+          INSERT INTO blower_history_atomic_guard (id, valid)
+          VALUES (
+            ?,
+            CASE WHEN
+              EXISTS (
+                SELECT 1
+                FROM blower_history_assets
+                WHERE tag_number = ?
+                  AND COALESCE(last_replacement_at, '') = ?
+                  AND cycle_start_state = ?
+                  AND COALESCE(cycle_started_at, '') = ?
+                  AND cycle_start_revision = ?
+                  AND cycle_runtime_revision = ?
+                  AND ABS(COALESCE(cycle_runtime_hours, 0) - ?) < 0.000001
+                  AND cycle_runtime_anchor_at = ?
+                  AND cycle_runtime_state = ?
+                  AND ABS(COALESCE(runtime_hours, 0) - ?) < 0.000001
+                  AND COALESCE(runtime_anchor_at, '') = COALESCE(?, '')
+                  AND is_running = ?
+                  AND last_modified_by_id = ?
+                  AND last_modified_by_name = ?
+                  AND updated_at = ?
+              )
+              AND 1 = (
+                SELECT COUNT(*)
+                FROM blower_history_events
+                WHERE id = ?
+                  AND tag_number = ?
+                  AND event_type = 'runtime_correction'
+                  AND event_date = ?
+                  AND ABS(COALESCE(runtime_hours, 0) - ?) < 0.000001
+                  AND issue_type = 'DataPARC'
+                  AND action_type = ?
+                  AND note = ?
+                  AND source_type = ?
+                  AND source_log_id = ?
+                  AND source_text = ?
+                  AND created_by_id = ?
+                  AND created_by_name = ?
+                  AND created_at = ?
+                  AND updated_at = ?
+              )
+              AND 1 = (
+                SELECT COUNT(*)
+                FROM blower_history_events
+                WHERE source_type = ?
+                  AND source_log_id = ?
+              )
+            THEN 1 ELSE 0 END
+          )
+        `)
+        .bind(
+          guardId,
+          DATAPARC_RUNTIME_SYNC_ASSET_TAG,
+          probe.expectedLastReplacementAt,
+          probe.expectedCycleStartState,
+          probe.expectedCycleStartedAt,
+          probe.expectedCycleStartRevision,
+          nextCycleRuntimeRevision,
+          runtimeHours,
+          probe.observedAt,
+          runtimeState,
+          runtimeHours,
+          runtimeAnchorAt,
+          probe.isRunning ? 1 : 0,
+          actorId,
+          actorName,
+          now,
+          eventId,
+          DATAPARC_RUNTIME_SYNC_ASSET_TAG,
+          probe.observedAt,
+          runtimeHours,
+          actionType,
+          note,
+          DATAPARC_RUNTIME_SYNC_SOURCE_TYPE,
+          requestId,
+          sourceText,
+          actorId,
+          actorName,
+          now,
+          now,
+          DATAPARC_RUNTIME_SYNC_SOURCE_TYPE,
+          requestId
+        ),
+      database
+        .prepare(`DELETE FROM blower_history_atomic_guard WHERE id = ?`)
+        .bind(guardId)
+    ]);
+  } catch (error) {
+    const retryEvents = await loadDataParcRuntimeSyncEvents(database, requestId);
+
+    if (
+      retryEvents.length === 1 &&
+      isMatchingDataParcRuntimeSyncEvent(retryEvents[0], probe, sourceText)
+    ) {
+      return dataParcRuntimeSyncSuccessResponse(probe, true);
+    }
+
+    if (
+      /CHECK constraint failed(?:: valid = 1|.*blower_history_atomic_guard)/i.test(String(error?.message || error)) ||
+      /(?:UNIQUE|constraint).*blower_history_events/i.test(String(error?.message || error))
+    ) {
+      return jsonResponse({
+        ok: false,
+        code: "DATAPARC_RUNTIME_CYCLE_CONFLICT",
+        message: "DataPARC 반영 중 Blower Cycle이 변경되었습니다. 새로 조회해 주세요."
+      }, 409);
+    }
+
+    throw error;
+  }
+
+  if (
+    Number(results?.[0]?.meta?.changes || 0) !== 1 ||
+    Number(results?.[1]?.meta?.changes || 0) !== 1 ||
+    Number(results?.[2]?.meta?.changes || 0) !== 1 ||
+    Number(results?.[3]?.meta?.changes || 0) !== 1
+  ) {
+    throw new Error("DataPARC 운전시간과 감사 이력을 하나의 작업으로 저장하지 못했습니다.");
+  }
+
+  return dataParcRuntimeSyncSuccessResponse(probe, false);
 }
 
 async function correctRuntime(database, user, body) {
@@ -12372,6 +13239,10 @@ async function handlePost(context, user, body) {
     return registerProblem(database, user, body);
   }
 
+  if (action === "dataparc_runtime_sync") {
+    return applyDataParcRuntimeSync(database, user, body);
+  }
+
   if (action === "runtime") {
     return correctRuntime(database, user, body);
   }
@@ -12505,6 +13376,8 @@ export async function onRequestPost(context) {
 export const __blowerHistoryTest = {
   ensureSchema,
   ensureHistoryRecoveryV12Schema,
+  normalizeDataParcRuntimeProbeResult,
+  applyDataParcRuntimeSync,
   v12ApplyConfirmedEvents,
   operationPositionFromToken,
   operationChangeoverPair,
