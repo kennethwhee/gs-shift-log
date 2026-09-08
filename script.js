@@ -145716,7 +145716,7 @@ async function analyzeAllMorningMeetingFiles() {
               false,
 
             userInitiated:
-              true
+              false
           });
 
         } else {
@@ -217258,6 +217258,7 @@ if (
     );
 
     window.organicSiloDataParc?.render({ baseRendered: true });
+    window.morningMeetingQuerySources?.render();
   }
 
   /* =====================================================
@@ -217344,6 +217345,16 @@ if (
     - 저장자료를 사용하지 않고 다시 조회
   ====================================================== */
 
+  // Fresh workbook reads originate only from the source-specific desktop action.
+  function isExplicitDailyWorkbookQuery(options = {}) {
+    const nav = window.navigator || {};
+    return options.userInitiated === true && options.querySource === "daily_data_excel" &&
+      typeof getShiftLogSessionToken === "function" && Boolean(String(getShiftLogSessionToken() || "").trim()) &&
+      !window.matchMedia?.("(max-width: 900px)").matches &&
+      !/Android|iPhone|iPad|iPod|Mobile/i.test(nav.userAgent || "") &&
+      !(nav.platform === "MacIntel" && Number(nav.maxTouchPoints) > 0);
+  }
+
   async function createSteamStatusRequest(
     targetDate,
     options =
@@ -217358,6 +217369,10 @@ if (
     } =
       options;
 
+
+    if (!isExplicitDailyWorkbookQuery(options)) {
+      throw new Error("일일 DATA 엑셀의 [조회하기] 버튼에서 조회해 주세요.");
+    }
 
     const response =
       await fetch(
@@ -218443,8 +218458,7 @@ if (
 실제 요청 생성 단계로 진행한다.
 */
     if (
-      userInitiated !==
-      true
+      !isExplicitDailyWorkbookQuery(options)
     ) {
       renderSteamStatus();
 
@@ -218486,8 +218500,8 @@ if (
       runToken;
 
 
-    delete state
-      .steamStatus;
+    // A failed refresh must retain this date's last completed file values.
+    if (existingDate !== targetDate) delete state.steamStatus;
 
 
     delete state
@@ -218538,7 +218552,9 @@ if (
         await createSteamStatusRequest(
           targetDate,
           {
-            forceRefresh
+            forceRefresh,
+            userInitiated: true,
+            querySource: "daily_data_excel"
           }
         );
 
@@ -218558,7 +218574,7 @@ if (
 
       if (
         runToken !==
-        activeRunToken
+        activeRunToken || targetDate !== resolveTargetDate()
       ) {
         return null;
       }
@@ -218638,7 +218654,7 @@ if (
       if (
         !completedItem ||
         runToken !==
-          activeRunToken
+          activeRunToken || targetDate !== resolveTargetDate()
       ) {
         return null;
       }
@@ -218658,7 +218674,7 @@ if (
     ) {
       if (
         runToken !==
-        activeRunToken
+        activeRunToken || targetDate !== resolveTargetDate()
       ) {
         return null;
       }
@@ -219163,8 +219179,10 @@ async function waitForDailyDataSectionCompletion(
 
 
 async function refreshDailyDataSection(
-  sectionValue
+  sectionValue,
+  options = {}
 ) {
+  if (!isExplicitDailyWorkbookQuery(options)) return null;
   const section =
     normalizeText(
       sectionValue
@@ -219252,7 +219270,8 @@ async function refreshDailyDataSection(
           true,
 
         userInitiated:
-          true
+          true,
+        querySource: "daily_data_excel"
       }
     );
 
@@ -229484,34 +229503,8 @@ function initializeLimestoneSlipCameraPicker() {
 
 
 
-      {
-        key:
-          "daily-data",
+      // Workbook reads have their own source-specific [조회하기] button.
 
-        requireResult:
-          true,
-
-        label:
-          "월간 일일 DATA",
-
-        statusIds: [
-          "efficiencyMorningMeetingAutoDailyPowerStatus",
-          "efficiencyMorningMeetingAutoSolarStatus",
-          "efficiencyMorningMeetingAutoSteamStatus",
-          "efficiencyMorningMeetingAutoDailySludgeStatus"
-        ],
-
-        load:
-          () =>
-            window
-              .loadEfficiencyMorningMeetingSteamStatus?.({
-                forceRefresh:
-                  false,
-
-                userInitiated:
-                  true
-              })
-      }
     ];
   }
 

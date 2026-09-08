@@ -160,7 +160,8 @@
       controls.className = "organic-silo-dataparc-controls";
       const label = document.createElement("span");
       label.className = "organic-silo-dataparc-label";
-      label.textContent = "Silo 재고";
+      label.id = "organicSiloDataParcSourceLabel";
+      label.textContent = "DataPARC · Silo 재고";
       const badge = document.createElement("span");
       badge.id = "organicSiloDataParcStatus";
       badge.className = "efficiency-morning-meeting-auto-card__badge";
@@ -170,7 +171,7 @@
       button.id = "organicSiloDataParcQueryButton";
       button.type = "button";
       button.className = "organic-silo-dataparc-query";
-      button.textContent = "Silo 조회";
+      button.textContent = "조회하기";
       button.addEventListener("click", () => { void load({ userInitiated: true }); });
       controls.append(label, badge, button);
       row.parentElement.insertBefore(controls, row);
@@ -188,7 +189,15 @@
     const button = byId("organicSiloDataParcQueryButton");
     const status = state.busy ? "loading" : state.status === "error" ? "error" : result ? "complete" : "idle";
     const label = status === "loading" ? "조회 중" : status === "error" ? "조회 실패" : result ? "조회 완료" : "조회 대기";
+    badge.dataset.queryTargetDate = date;
     setText(badge, label);
+    const daily = window.efficiencyMorningMeetingUploadState?.steamStatus;
+    const fileValues = daily && text(daily.sourceDate || daily.targetDate) === date &&
+      [...FIELDS, "organicDaySiloLevel", "organicStorageSiloALevel", "organicStorageSiloBLevel"].some(key => numeric(daily[key]));
+    controls.dataset.valueSource = result ? "dataparc" : fileValues ? "daily_data_excel" : "";
+    setText(byId("organicSiloDataParcSourceLabel"), !result && fileValues
+      ? "일일 DATA 엑셀 · Silo 재고" : "DataPARC · Silo 재고");
+    if (!result && fileValues && status === "idle") setText(badge, "파일 값");
     badge.classList.toggle("is-loading", status === "loading");
     badge.classList.toggle("is-error", status === "error");
     badge.classList.toggle("is-complete", status === "complete");
@@ -198,7 +207,8 @@
     button.disabled = Boolean(state.busy) || !queryDateAllowed(date) || !canQuery();
     button.title = !queryDateAllowed(date) ? "조회가 완료된 날짜(어제까지)를 선택해 주세요." :
       result ? "선택일의 Silo 재고를 다시 조회합니다." : "선택일의 Silo 재고를 조회합니다.";
-    setText(button, state.busy ? "조회 중…" : "Silo 조회");
+    setText(button, state.busy ? "조회 중…" : "조회하기");
+    button.setAttribute("aria-label", "DataPARC에서 Silo 재고 조회하기");
     // The existing badge belongs to receipts/daily DATA, never to the new Silo request.
     const receiptStatus = byId("efficiencyMorningMeetingAutoDailySludgeStatus");
     if (receiptStatus && !text(receiptStatus.textContent).startsWith("입고 ")) {
@@ -221,6 +231,7 @@
         delete element.dataset.organicDataParcDate;
       }
     });
+    window.morningMeetingQuerySources?.render();
   }
 
   async function readResponse(response) {

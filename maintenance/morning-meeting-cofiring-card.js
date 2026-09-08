@@ -740,62 +740,7 @@
   }
 
   async function forceRefreshDailyData() {
-    const targetDate = getTargetDate();
-
-    if (!targetDate) {
-      setStatus("idle", "조회 대기");
-      return;
-    }
-
-    setRefreshButtonLoading(true);
-    setStatus("idle", "조회 대기");
-
-    try {
-      const response = await fetch(OIS_REQUEST_API_URL, {
-        method: "POST",
-        headers: getAuthHeaders(true),
-        cache: "no-store",
-        body: JSON.stringify({
-          targetDate,
-          requestType: "daily_data_excel",
-          forceRefresh: true
-        })
-      });
-
-      const payload = await readJsonResponse(
-        response,
-        "일일DATA 재조회 요청에 실패했습니다."
-      );
-
-      const item =
-        payload.item && typeof payload.item === "object"
-          ? payload.item
-          : null;
-
-      const requestId = String(item?.id || "").trim();
-
-      if (!requestId) {
-        throw new Error("일일DATA 재조회 요청 ID가 없습니다.");
-      }
-
-      if (String(item?.status || "").trim().toLowerCase() !== "complete") {
-        await waitForDailyDataRequest(requestId);
-      }
-
-      await refreshCard();
-    } catch (error) {
-      console.error("혼소율 자료 재조회 실패:", error);
-      setStatus("error", "조회 실패");
-
-      if (typeof window.showToast === "function") {
-        window.showToast(
-          error?.message ||
-          "혼소율 자료 재조회에 실패했습니다."
-        );
-      }
-    } finally {
-      setRefreshButtonLoading(false);
-    }
+    return window.morningMeetingQuerySources?.query("workbook", { userInitiated: true });
   }
 
   function handleCofiringRefreshClick(event) {
