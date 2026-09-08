@@ -297,8 +297,10 @@ test("ships the browser query-poll-sync contract without legacy split writes", (
 
   assert.match(
     pageClient,
-    /dataparc_runtime_probe[\s\S]{0,500}syncDataParcBlowerRuntime\s*\(/
+    /dataparc_runtime_probe[\s\S]{0,500}openDataParcRuntimeDialog\s*\(/
   );
+  assert.match(pageHtml, /<input[^>]*(?:id=["']dataparcRuntimeStartAt["'][^>]*type=["']datetime-local["']|type=["']datetime-local["'][^>]*id=["']dataparcRuntimeStartAt["'])[^>]*>/);
+  assert.match(pageClient, /createBody\.startAt\s*=\s*normalizedStartAt/);
 
   assert.match(syncSource, new RegExp(`["']${SYNC_ACTION}["']`));
   assert.match(syncSource, /requestId/);

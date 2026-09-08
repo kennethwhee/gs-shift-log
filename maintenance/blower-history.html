@@ -6,11 +6,11 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260903-dataparc-runtime-pilot-v1">
+  <link rel="stylesheet" href="blower-history.css?v=20260908-dataparc-runtime-range-v2">
   <link rel="stylesheet" href="blower-history-mobile-dialog-close-v1.css?v=20260903-v1">
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="blower-history.js?v=20260903-dataparc-runtime-pilot-v1" defer></script>
+  <script src="blower-history.js?v=20260908-dataparc-runtime-range-v2" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260901-v2" defer></script>
 </head>
 <body>
@@ -375,6 +375,51 @@
       <footer class="dialog-footer">
         <button type="button" class="button secondary" data-close-dialog="recordDialog">취소</button>
         <button type="submit" class="button primary" id="recordSaveButton" data-mobile-write>저장</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="dialog dataparc-runtime-dialog" id="dataparcRuntimeDialog">
+    <form method="dialog" id="dataparcRuntimeForm">
+      <header class="dialog-header">
+        <div>
+          <p class="eyebrow">DATAPARC RUNTIME RANGE</p>
+          <h2>DataPARC 기간조회</h2>
+          <p id="dataparcRuntimeDialogAsset"></p>
+        </div>
+        <button type="button" class="icon-button" data-close-dialog="dataparcRuntimeDialog" aria-label="닫기">×</button>
+      </header>
+
+      <div class="dialog-body dataparc-runtime-dialog-body">
+        <input type="hidden" id="dataparcRuntimeDialogTag">
+
+        <div class="dataparc-runtime-range-intro">
+          <strong>계획정비 이후의 기준시각부터 현재까지 조회합니다.</strong>
+          <span>선택한 기준 이전의 DataPARC 운전시간은 누적값에 포함하지 않습니다.</span>
+        </div>
+
+        <label class="field">
+          <span>조회 시작일시</span>
+          <input type="datetime-local" id="dataparcRuntimeStartAt" required step="60">
+          <small id="dataparcRuntimeMinimum"></small>
+        </label>
+
+        <div class="dataparc-runtime-range-end">
+          <span>조회 종료</span>
+          <strong>현재 시각까지 자동</strong>
+          <small>조회할 때의 최신 RUN 상태까지 함께 반영합니다.</small>
+        </div>
+
+        <div class="dataparc-runtime-previous-basis" id="dataparcRuntimePreviousBasis" hidden></div>
+
+        <p class="dataparc-runtime-range-warning">
+          이 조회는 V-Belt 교체일 자체를 변경하지 않습니다. 선택한 시각 이후의 실제 RUN 누적시간과 현재 운전/정지 상태만 DataPARC 기준으로 다시 계산합니다.
+        </p>
+      </div>
+
+      <footer class="dialog-footer">
+        <button type="button" class="button secondary" data-close-dialog="dataparcRuntimeDialog">취소</button>
+        <button type="submit" class="button primary" id="dataparcRuntimeSubmitButton" data-mobile-write>조회 시작</button>
       </footer>
     </form>
   </dialog>

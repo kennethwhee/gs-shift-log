@@ -257,6 +257,7 @@ const DATAPARC_RUNTIME_SYNC_ASSET_TAG = "104ETH03AN602";
 const DATAPARC_RUNTIME_SYNC_SOURCE_TAG = "GSPOGE.ABB_DCS.003ETH03AN602XB04";
 const DATAPARC_RUNTIME_SYNC_SOURCE_TYPE = "dataparc_runtime";
 const DATAPARC_RUNTIME_SYNC_CHUNK_DAYS = 31;
+const DATAPARC_RUNTIME_SYNC_MAX_RANGE_DAYS = 366;
 const DATAPARC_RUNTIME_SYNC_MAX_HOURS = 200000;
 const DATAPARC_RUNTIME_SYNC_MAX_AGE_MINUTES = 15;
 const DATAPARC_RUNTIME_SYNC_FUTURE_SKEW_MINUTES = 5;
@@ -2112,37 +2113,71 @@ function normalizeDataParcRuntimeProbeResult(value, requestId, now = new Date(),
     );
   }
 
+  const expectedCycleStartState = normalizeText(
+    raw.expectedCycleStartState
+  );
+  const expectedCycleStartedAt = normalizeText(
+    raw.expectedCycleStartedAt
+  );
+  const expectedCycleStartRevision = normalizeText(
+    raw.expectedCycleStartRevision
+  );
+  const expectedCycleRuntimeRevision = normalizeText(
+    raw.expectedCycleRuntimeRevision
+  );
+
   if (
     typeof raw.expectedLastReplacementAt !== "string" ||
     !normalizeText(raw.expectedLastReplacementAt) ||
     typeof raw.expectedCycleStartState !== "string" ||
-    raw.expectedCycleStartState !== "started" ||
+    !["legacy", "started"].includes(expectedCycleStartState) ||
     typeof raw.expectedCycleStartedAt !== "string" ||
-    !normalizeText(raw.expectedCycleStartedAt) ||
     typeof raw.expectedCycleStartRevision !== "string" ||
-    !normalizeText(raw.expectedCycleStartRevision) ||
-    normalizeText(raw.expectedCycleStartRevision).length > 200 ||
+    expectedCycleStartRevision.length > 200 ||
     typeof raw.expectedCycleRuntimeRevision !== "string" ||
-    !normalizeText(raw.expectedCycleRuntimeRevision) ||
-    normalizeText(raw.expectedCycleRuntimeRevision).length > 200
+    !expectedCycleRuntimeRevision ||
+    expectedCycleRuntimeRevision.length > 200 ||
+    (
+      expectedCycleStartState === "started" &&
+      (
+        !expectedCycleStartedAt ||
+        !expectedCycleStartRevision
+      )
+    ) ||
+    (
+      expectedCycleStartState === "legacy" &&
+      expectedCycleStartedAt
+    )
   ) {
-    return dataParcRuntimeValidationFailure("DataPARC 조회에 저장된 Blower Cycle 기준값이 올바르지 않습니다.");
+    return dataParcRuntimeValidationFailure(
+      "DataPARC 조회에 저장된 Blower Cycle 기준값이 올바르지 않습니다."
+    );
   }
 
-  const replacementAt = normalizeDateTime(raw.expectedLastReplacementAt);
-  const cycleStartedAt = normalizeDateTime(raw.expectedCycleStartedAt);
-  const replacementTime = Date.parse(replacementAt);
-  const cycleStartedTime = Date.parse(cycleStartedAt);
+  const replacementAt = parseDataParcRuntimeInstant(
+    normalizeText(raw.expectedLastReplacementAt)
+  );
+  const cycleStartedAt = expectedCycleStartState === "started"
+    ? parseDataParcRuntimeInstant(expectedCycleStartedAt)
+    : null;
+  const maximumRangeMilliseconds =
+    DATAPARC_RUNTIME_SYNC_MAX_RANGE_DAYS * 24 * 60 * 60 * 1000;
 
   if (
     !replacementAt ||
-    !cycleStartedAt ||
-    !Number.isFinite(replacementTime) ||
-    !Number.isFinite(cycleStartedTime) ||
-    cycleStartedTime < replacementTime ||
-    Math.abs(startAt.time - cycleStartedTime) >= 1000
+    (
+      expectedCycleStartState === "started" &&
+      (
+        !cycleStartedAt ||
+        cycleStartedAt.time < replacementAt.time
+      )
+    ) ||
+    startAt.time < replacementAt.time ||
+    endAt.time - startAt.time > maximumRangeMilliseconds
   ) {
-    return dataParcRuntimeValidationFailure("DataPARC 조회 시작시각이 현재 Cycle 기동시각과 일치하지 않습니다.");
+    return dataParcRuntimeValidationFailure(
+      `DataPARC 조회 시작은 현재 V-Belt 교체 이후여야 하며 최대 ${DATAPARC_RUNTIME_SYNC_MAX_RANGE_DAYS}일까지 조회할 수 있습니다.`
+    );
   }
 
   if (
@@ -2283,10 +2318,10 @@ function normalizeDataParcRuntimeProbeResult(value, requestId, now = new Date(),
       observedAt: observedAt.iso,
       collectedAt: collectedAt.iso,
       expectedLastReplacementAt: normalizeText(raw.expectedLastReplacementAt),
-      expectedCycleStartState: raw.expectedCycleStartState,
-      expectedCycleStartedAt: normalizeText(raw.expectedCycleStartedAt),
-      expectedCycleStartRevision: normalizeText(raw.expectedCycleStartRevision),
-      expectedCycleRuntimeRevision: normalizeText(raw.expectedCycleRuntimeRevision),
+      expectedCycleStartState,
+      expectedCycleStartedAt,
+      expectedCycleStartRevision,
+      expectedCycleRuntimeRevision,
       startState: raw.startState,
       endState: raw.endState,
       totalRunningHours: raw.totalRunningHours,
@@ -5951,7 +5986,7 @@ function dataParcRuntimeSyncActionType(probe) {
 }
 
 function dataParcRuntimeSyncNote(probe) {
-  return `DataPARC RUN 조회 ${probe.startAt} ~ ${probe.observedAt} · 누적 ${probe.runtimeHours}시간`;
+  return `DataPARC 기간조회 ${probe.startAt} ~ ${probe.observedAt} · 누적 ${probe.runtimeHours}시간`;
 }
 
 function dataParcRuntimeSyncSourceText(probe) {
@@ -6004,6 +6039,9 @@ async function loadDataParcRuntimeSyncEvents(database, requestId) {
 function isMatchingDataParcRuntimeSyncEvent(event, probe, sourceText) {
   if (!event) return false;
 
+  const note = normalizeText(event.note);
+  const legacyNote = `DataPARC RUN 조회 ${probe.startAt} ~ ${probe.observedAt} · 누적 ${probe.runtimeHours}시간`;
+
   return (
     normalizeText(event.id) === dataParcRuntimeSyncEventId(probe.requestId) &&
     normalizeText(event.tag_number) === DATAPARC_RUNTIME_SYNC_ASSET_TAG &&
@@ -6013,7 +6051,7 @@ function isMatchingDataParcRuntimeSyncEvent(event, probe, sourceText) {
     Math.abs(Number(event.runtime_hours) - probe.runtimeHours) < 0.000001 &&
     normalizeText(event.issue_type) === "DataPARC" &&
     normalizeText(event.action_type) === dataParcRuntimeSyncActionType(probe) &&
-    normalizeText(event.note) === dataParcRuntimeSyncNote(probe) &&
+    (note === dataParcRuntimeSyncNote(probe) || note === legacyNote) &&
     normalizeText(event.source_type) === DATAPARC_RUNTIME_SYNC_SOURCE_TYPE &&
     normalizeText(event.source_log_id) === probe.requestId &&
     normalizeText(event.source_text) === sourceText
@@ -6033,8 +6071,8 @@ function dataParcRuntimeSyncSuccessResponse(probe, replayed) {
     runtimeHours: probe.runtimeHours,
     isRunning: probe.isRunning,
     message: replayed
-      ? "이미 반영된 DataPARC 운전시간 조회입니다. 기존 결과를 유지했습니다."
-      : "DataPARC 운전시간과 현재 RUN 상태를 Blower Cycle에 반영했습니다."
+      ? "이미 반영된 DataPARC 기간조회입니다. 기존 결과를 유지했습니다."
+      : "선택한 기준시각 이후 DataPARC 운전시간과 현재 RUN 상태를 Blower Cycle에 반영했습니다."
   });
 }
 
@@ -6196,7 +6234,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
     return jsonResponse({
       ok: false,
       code: "DATAPARC_RUNTIME_CYCLE_PENDING",
-      message: "기동 대기 Cycle에는 DataPARC 운전시간을 반영할 수 없습니다. 먼저 기동을 등록해 주세요."
+      message: "기동 대기 Cycle에는 DataPARC 기간조회 결과를 반영할 수 없습니다. 실제 기동 후 조회해 주세요."
     }, 409);
   }
 

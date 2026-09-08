@@ -16817,22 +16817,38 @@ function parseBlowerRuntimeProbeRequest(
   };
 
   if (
-    expected.expectedCycleStartState !== "started" ||
-    !expected.expectedCycleStartRevision ||
-    !expected.expectedCycleRuntimeRevision
+    !["legacy", "started"].includes(expected.expectedCycleStartState) ||
+    !expected.expectedCycleRuntimeRevision ||
+    (
+      expected.expectedCycleStartState === "started" &&
+      (
+        !expected.expectedCycleStartRevision ||
+        !expected.expectedCycleStartedAt
+      )
+    )
   ) {
     throw new Error(
       "Blower Runtime Probe cycle snapshot이 비어 있거나 올바르지 않습니다."
     );
   }
+
   parseBlowerRuntimeProbeTimestamp(
     expected.expectedLastReplacementAt,
     "기대 최종 교체시각"
   );
-  parseBlowerRuntimeProbeTimestamp(
-    expected.expectedCycleStartedAt,
-    "기대 cycle 시작시각"
-  );
+
+  if (expected.expectedCycleStartState === "started") {
+    parseBlowerRuntimeProbeTimestamp(
+      expected.expectedCycleStartedAt,
+      "기대 cycle 시작시각"
+    );
+  } else if (
+    expected.expectedCycleStartedAt
+  ) {
+    throw new Error(
+      "legacy Blower Runtime Probe에는 cycle 시작시각이 없어야 합니다."
+    );
+  }
 
   return expected;
 }

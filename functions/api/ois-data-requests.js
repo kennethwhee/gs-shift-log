@@ -80,6 +80,10 @@ const BLOWER_RUNTIME_PROBE_CHUNK_DAYS =
   31;
 
 
+const BLOWER_RUNTIME_PROBE_MAX_RANGE_DAYS =
+  366;
+
+
 const BLOWER_RUNTIME_PROBE_LEASE_HOURS =
   2;
 
@@ -3329,6 +3333,10 @@ async function ensureBlowerRuntimeProbeSchema(
   const schemaPromise =
     database
       .batch([
+        /*
+          V1 table is kept only as a migration source so requests created
+          before the range-query rollout can still be copied forward.
+        */
         database.prepare(`
           CREATE TABLE IF NOT EXISTS blower_runtime_probe_intents (
             request_id TEXT PRIMARY KEY NOT NULL,
@@ -3356,11 +3364,82 @@ async function ensureBlowerRuntimeProbeSchema(
           )
         `),
 
+        /*
+          V2 intent storage permits the existing legacy Cycle to be used as
+          a read-only DataPARC range baseline. Pending Cycles are still
+          rejected by the request creator.
+        */
+        database.prepare(`
+          CREATE TABLE IF NOT EXISTS blower_runtime_probe_intents_v2 (
+            request_id TEXT PRIMARY KEY NOT NULL,
+            reuse_key TEXT UNIQUE,
+            schema_version INTEGER NOT NULL,
+            asset_tag TEXT NOT NULL,
+            dataparc_tag TEXT NOT NULL,
+            window_start TEXT NOT NULL,
+            window_end TEXT NOT NULL,
+            chunk_days INTEGER NOT NULL,
+            chunk_count INTEGER NOT NULL,
+            expected_last_replacement_at TEXT NOT NULL,
+            expected_cycle_start_state TEXT NOT NULL,
+            expected_cycle_started_at TEXT NOT NULL,
+            expected_cycle_start_revision TEXT NOT NULL,
+            expected_cycle_runtime_revision TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            CHECK(schema_version = 1),
+            CHECK(asset_tag = '104ETH03AN602'),
+            CHECK(dataparc_tag = 'GSPOGE.ABB_DCS.003ETH03AN602XB04'),
+            CHECK(expected_cycle_start_state IN ('legacy', 'started')),
+            CHECK(chunk_days = 31),
+            CHECK(chunk_count >= 1)
+          )
+        `),
+
+        database.prepare(`
+          INSERT OR IGNORE INTO blower_runtime_probe_intents_v2 (
+            request_id,
+            reuse_key,
+            schema_version,
+            asset_tag,
+            dataparc_tag,
+            window_start,
+            window_end,
+            chunk_days,
+            chunk_count,
+            expected_last_replacement_at,
+            expected_cycle_start_state,
+            expected_cycle_started_at,
+            expected_cycle_start_revision,
+            expected_cycle_runtime_revision,
+            created_at,
+            updated_at
+          )
+          SELECT
+            request_id,
+            reuse_key,
+            schema_version,
+            asset_tag,
+            dataparc_tag,
+            window_start,
+            window_end,
+            chunk_days,
+            chunk_count,
+            expected_last_replacement_at,
+            expected_cycle_start_state,
+            expected_cycle_started_at,
+            expected_cycle_start_revision,
+            expected_cycle_runtime_revision,
+            created_at,
+            updated_at
+          FROM blower_runtime_probe_intents
+        `),
+
         database.prepare(`
           CREATE INDEX IF NOT EXISTS
-            idx_blower_runtime_probe_intents_asset_revision_v1
+            idx_blower_runtime_probe_intents_v2_asset_revision
 
-          ON blower_runtime_probe_intents (
+          ON blower_runtime_probe_intents_v2 (
             asset_tag,
             expected_cycle_start_revision,
             expected_cycle_runtime_revision,
@@ -3490,7 +3569,7 @@ async function findBlowerRuntimeProbeIntent(
     await database
       .prepare(`
         SELECT *
-        FROM blower_runtime_probe_intents
+        FROM blower_runtime_probe_intents_v2
         WHERE request_id = ?
         LIMIT 1
       `)
@@ -13182,7 +13261,7 @@ async function findActiveBlowerRuntimeProbeRequest(
       .prepare(`
         SELECT request.*
         FROM ois_data_requests AS request
-        INNER JOIN blower_runtime_probe_intents AS intent
+        INNER JOIN blower_runtime_probe_intents_v2 AS intent
           ON intent.request_id = request.id
         WHERE request.request_type = ?
           AND request.requested_by_id = ?
@@ -13230,7 +13309,7 @@ async function retireStaleActiveBlowerRuntimeProbeRequests(
           AND status IN ('pending', 'processing')
           AND id IN (
             SELECT request_id
-            FROM blower_runtime_probe_intents
+            FROM blower_runtime_probe_intents_v2
             WHERE asset_tag = ?
               AND (
                 COALESCE(reuse_key, '') <> ?
@@ -13251,7 +13330,7 @@ async function retireStaleActiveBlowerRuntimeProbeRequests(
 
     database
       .prepare(`
-        UPDATE blower_runtime_probe_intents
+        UPDATE blower_runtime_probe_intents_v2
         SET reuse_key = NULL,
             updated_at = ?
         WHERE asset_tag = ?
@@ -13262,7 +13341,7 @@ async function retireStaleActiveBlowerRuntimeProbeRequests(
           AND EXISTS (
             SELECT 1
             FROM ois_data_requests
-            WHERE id = blower_runtime_probe_intents.request_id
+            WHERE id = blower_runtime_probe_intents_v2.request_id
               AND requested_by_id = ?
               AND status = 'failed'
           )
@@ -13288,7 +13367,7 @@ async function findCompleteBlowerRuntimeProbeRequest(
       .prepare(`
         SELECT request.*
         FROM ois_data_requests AS request
-        INNER JOIN blower_runtime_probe_intents AS intent
+        INNER JOIN blower_runtime_probe_intents_v2 AS intent
           ON intent.request_id = request.id
         WHERE request.request_type = ?
           AND request.requested_by_id = ?
@@ -13450,7 +13529,7 @@ function blowerRuntimeProbeCreateResponse(
       message:
         disposition ===
           "created"
-          ? "Silo Aeration Blower #B DataPARC read-only 조회를 요청했습니다."
+          ? "선택한 기준시각 이후 Silo Aeration Blower #B DataPARC read-only 조회를 요청했습니다."
           : disposition ===
               "reused_complete"
             ? "같은 Blower Cycle·Revision의 완료된 DataPARC 조회를 재사용합니다."
@@ -13534,6 +13613,7 @@ async function createBlowerRuntimeProbeRequest(
     database
   );
 
+
   const asset =
     await database
       .prepare(`
@@ -13585,7 +13665,8 @@ async function createBlowerRuntimeProbeRequest(
   const expectedCycleStartState =
     normalizeText(
       asset.cycle_start_state
-    );
+    ) ||
+    "legacy";
 
 
   const expectedCycleStartedAt =
@@ -13607,12 +13688,40 @@ async function createBlowerRuntimeProbeRequest(
 
 
   if (
+    expectedCycleStartState ===
+      "pending"
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+        code:
+          "BLOWER_RUNTIME_PROBE_CYCLE_PENDING",
+        message:
+          "기동 대기 Cycle은 DataPARC 기간조회 대상에서 제외됩니다. 실제 기동 후 조회해 주세요."
+      },
+      409
+    );
+  }
+
+
+  if (
+    ![
+      "legacy",
+      "started"
+    ].includes(
+      expectedCycleStartState
+    ) ||
     !expectedLastReplacementAt ||
-    expectedCycleStartState !==
-      "started" ||
-    !expectedCycleStartedAt ||
-    !expectedCycleStartRevision ||
-    !expectedCycleRuntimeRevision
+    !expectedCycleRuntimeRevision ||
+    (
+      expectedCycleStartState ===
+        "started" &&
+      (
+        !expectedCycleStartedAt ||
+        !expectedCycleStartRevision
+      )
+    )
   ) {
     return jsonResponse(
       {
@@ -13621,17 +13730,11 @@ async function createBlowerRuntimeProbeRequest(
         code:
           "BLOWER_RUNTIME_PROBE_CYCLE_NOT_READY",
         message:
-          "V-Belt 교체 후 기동시각과 Cycle Revision이 확정된 Blower만 조회할 수 있습니다."
+          "V-Belt 교체 이력과 Cycle Revision을 확인한 뒤 DataPARC 기간조회를 실행해 주세요."
       },
       409
     );
   }
-
-
-  const parsedCycleStartedAt =
-    parseStrictRfc3339(
-      expectedCycleStartedAt
-    );
 
 
   const parsedLastReplacementAt =
@@ -13640,16 +13743,17 @@ async function createBlowerRuntimeProbeRequest(
     );
 
 
+  const parsedCycleStartedAt =
+    expectedCycleStartState ===
+      "started"
+      ? parseStrictRfc3339(
+          expectedCycleStartedAt
+        )
+      : null;
+
+
   const now =
     new Date();
-
-
-  const startAt =
-    parsedCycleStartedAt
-      ? formatKstRfc3339(
-          parsedCycleStartedAt.date
-        )
-      : "";
 
 
   const endAt =
@@ -13664,24 +13768,117 @@ async function createBlowerRuntimeProbeRequest(
     );
 
 
+  const requestedStartText =
+    normalizeText(
+      body.startAt ??
+      body.start_at ??
+      body.windowStart ??
+      body.window_start ??
+      ""
+    );
+
+
+  const parsedRequestedStart =
+    requestedStartText
+      ? parseStrictRfc3339(
+          requestedStartText
+        )
+      : null;
+
+
   if (
-    !parsedCycleStartedAt ||
-    !parsedLastReplacementAt ||
-    !startAt ||
-    !parsedEndAt ||
-    parsedCycleStartedAt.timestamp <
-      parsedLastReplacementAt.timestamp ||
-    parsedCycleStartedAt.timestamp >=
-      parsedEndAt.timestamp
+    requestedStartText &&
+    !parsedRequestedStart
   ) {
     return jsonResponse(
       {
         ok:
           false,
         code:
-          "BLOWER_RUNTIME_PROBE_INVALID_CYCLE_WINDOW",
+          "BLOWER_RUNTIME_PROBE_INVALID_START",
         message:
-          "Blower 교체·기동시각의 순서 또는 현재 조회구간을 확인해 주세요."
+          "DataPARC 조회 시작일시는 시간대가 포함된 정확한 시각으로 선택해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const startAt =
+    parsedRequestedStart
+      ? formatKstRfc3339(
+          parsedRequestedStart.date
+        )
+      : (
+          parsedCycleStartedAt
+            ? formatKstRfc3339(
+                parsedCycleStartedAt.date
+              )
+            : ""
+        );
+
+
+  if (
+    !startAt
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+        code:
+          "BLOWER_RUNTIME_PROBE_START_REQUIRED",
+        message:
+          "계획정비 이후의 DataPARC 조회 시작일시를 선택해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const parsedStartAt =
+    parseStrictRfc3339(
+      startAt
+    );
+
+
+  const minimumStartTimestamp =
+    parsedLastReplacementAt?.timestamp ||
+    Number.POSITIVE_INFINITY;
+
+
+  const maximumRangeMilliseconds =
+    BLOWER_RUNTIME_PROBE_MAX_RANGE_DAYS *
+    24 *
+    60 *
+    60 *
+    1000;
+
+
+  if (
+    !parsedLastReplacementAt ||
+    !parsedStartAt ||
+    !parsedEndAt ||
+    (
+      parsedCycleStartedAt &&
+      parsedCycleStartedAt.timestamp <
+        parsedLastReplacementAt.timestamp
+    ) ||
+    parsedStartAt.timestamp <
+      minimumStartTimestamp ||
+    parsedStartAt.timestamp >=
+      parsedEndAt.timestamp ||
+    parsedEndAt.timestamp -
+      parsedStartAt.timestamp >
+        maximumRangeMilliseconds
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+        code:
+          "BLOWER_RUNTIME_PROBE_INVALID_RANGE",
+        message:
+          `DataPARC 조회 시작은 현재 V-Belt 교체 이후여야 하며 최대 ${BLOWER_RUNTIME_PROBE_MAX_RANGE_DAYS}일까지 조회할 수 있습니다.`
       },
       409
     );
@@ -13706,7 +13903,7 @@ async function createBlowerRuntimeProbeRequest(
         code:
           "BLOWER_RUNTIME_PROBE_CHUNK_FAILED",
         message:
-          "Blower Cycle 전체기간을 31일 단위로 나누지 못했습니다."
+          "선택한 DataPARC 조회기간을 31일 단위로 나누지 못했습니다."
       },
       409
     );
@@ -13719,6 +13916,7 @@ async function createBlowerRuntimeProbeRequest(
         BLOWER_RUNTIME_PROBE_SCHEMA_VERSION,
         requestedById,
         BLOWER_RUNTIME_PROBE_ASSET_TAG,
+        startAt,
         expectedLastReplacementAt,
         expectedCycleStartState,
         expectedCycleStartedAt,
@@ -13809,7 +14007,7 @@ async function createBlowerRuntimeProbeRequest(
 
   await database
     .prepare(`
-      UPDATE blower_runtime_probe_intents
+      UPDATE blower_runtime_probe_intents_v2
       SET reuse_key = NULL,
           updated_at = ?
       WHERE reuse_key = ?
@@ -13817,7 +14015,7 @@ async function createBlowerRuntimeProbeRequest(
           EXISTS (
             SELECT 1
             FROM ois_data_requests
-            WHERE id = blower_runtime_probe_intents.request_id
+            WHERE id = blower_runtime_probe_intents_v2.request_id
               AND status = 'failed'
           )
           OR (
@@ -13825,7 +14023,7 @@ async function createBlowerRuntimeProbeRequest(
             AND EXISTS (
               SELECT 1
               FROM ois_data_requests
-              WHERE id = blower_runtime_probe_intents.request_id
+              WHERE id = blower_runtime_probe_intents_v2.request_id
                 AND status = 'complete'
             )
           )
@@ -13870,7 +14068,7 @@ async function createBlowerRuntimeProbeRequest(
 
       database
         .prepare(`
-          INSERT INTO blower_runtime_probe_intents (
+          INSERT INTO blower_runtime_probe_intents_v2 (
             request_id,
             reuse_key,
             schema_version,
@@ -13913,7 +14111,7 @@ async function createBlowerRuntimeProbeRequest(
     error
   ) {
     if (
-      /UNIQUE constraint failed: blower_runtime_probe_intents\.reuse_key/i.test(
+      /UNIQUE constraint failed: blower_runtime_probe_intents_v2\.reuse_key/i.test(
         String(
           error?.message ||
           error
@@ -16761,7 +16959,10 @@ if (
       Silo Aeration Blower #B DataPARC read-only probe
 
       Client body:
-      { action: "create_blower_runtime_probe" }
+      {
+        action: "create_blower_runtime_probe",
+        startAt: "RFC3339 start selected after planned maintenance"
+      }
     */
     if (
       action ===

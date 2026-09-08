@@ -90,6 +90,14 @@
       "candidateEmpty",
       "auditHistoryButton",
       "refreshButton",
+      "dataparcRuntimeDialog",
+      "dataparcRuntimeForm",
+      "dataparcRuntimeDialogTag",
+      "dataparcRuntimeDialogAsset",
+      "dataparcRuntimeStartAt",
+      "dataparcRuntimeMinimum",
+      "dataparcRuntimePreviousBasis",
+      "dataparcRuntimeSubmitButton",
       "recordDialog",
       "recordForm",
       "recordMode",
@@ -241,6 +249,7 @@
 
     if (state.subview === "detect") switchSubview("overview");
     if (elements.recordDialog?.open) elements.recordDialog.close();
+    if (elements.dataparcRuntimeDialog?.open) elements.dataparcRuntimeDialog.close();
     if (elements.settingsDialog?.open) elements.settingsDialog.close();
     if (elements.assetManagerDialog?.open) elements.assetManagerDialog.close();
 
@@ -259,6 +268,7 @@
 
     if (state.subview === "detect") switchSubview("overview");
     if (elements.recordDialog?.open) elements.recordDialog.close();
+    if (elements.dataparcRuntimeDialog?.open) elements.dataparcRuntimeDialog.close();
     if (elements.settingsDialog?.open) elements.settingsDialog.close();
     if (elements.assetManagerDialog?.open) elements.assetManagerDialog.close();
   }
@@ -866,6 +876,69 @@
     return (state.data?.events || []).filter(event => event.tagNumber === tagNumber);
   }
 
+  function getLatestDataParcRuntimeBasis(tagNumber) {
+    const asset = findAsset(tagNumber);
+    const replacementTime = new Date(asset?.lastReplacementAt || "").getTime();
+    const cycleStartState = String(asset?.cycleStartState || "legacy").trim();
+    const cycleStartRevision = String(asset?.cycleStartRevision || "").trim();
+    if (!asset || !Number.isFinite(replacementTime) || cycleStartState === "pending") {
+      return null;
+    }
+
+    const events = getRawAssetEvents(tagNumber)
+      .filter(event => (
+        event.eventType === "runtime_correction" &&
+        event.sourceType === "dataparc_runtime"
+      ))
+      .sort((left, right) => {
+        const leftTime = new Date(left.eventDate || left.createdAt || 0).getTime();
+        const rightTime = new Date(right.eventDate || right.createdAt || 0).getTime();
+        return rightTime - leftTime;
+      });
+
+    for (const event of events) {
+      try {
+        const source = JSON.parse(String(event.sourceText || ""));
+        const startAt = String(source?.startAt || "").trim();
+        const observedAt = String(source?.observedAt || source?.endAt || "").trim();
+        const startTime = new Date(startAt).getTime();
+        const observedTime = new Date(observedAt).getTime();
+        const eventTime = new Date(event.eventDate || event.createdAt || "").getTime();
+        const expectedReplacementTime = new Date(source?.expectedLastReplacementAt || "").getTime();
+
+        // The start revision distinguishes different replacement cycles at the same time.
+        // Runtime revisions change after every sync and cannot identify the replacement cycle.
+        if (
+          !Number.isFinite(startTime) ||
+          !Number.isFinite(observedTime) ||
+          !Number.isFinite(eventTime) ||
+          startTime < replacementTime ||
+          observedTime < startTime ||
+          eventTime < replacementTime ||
+          expectedReplacementTime !== replacementTime ||
+          String(source?.expectedCycleStartState || "").trim() !== cycleStartState ||
+          typeof source?.expectedCycleStartRevision !== "string" ||
+          source.expectedCycleStartRevision.trim() !== cycleStartRevision
+        ) {
+          continue;
+        }
+
+        if (
+          cycleStartState === "started" &&
+          new Date(source?.expectedCycleStartedAt || "").getTime() !==
+            new Date(asset.cycleStartedAt || "").getTime()
+        ) {
+          continue;
+        }
+
+        return { startAt, observedAt, event };
+      } catch {
+      }
+    }
+
+    return null;
+  }
+
   function shouldHideAutomaticData(backfill = state.data?.backfill) {
     return !hasCanonicalBackfill(backfill) && !backfill?.requiresCatchUp;
   }
@@ -1085,13 +1158,20 @@
       : "";
     const isDataparcRuntimePilot = asset.tagNumber === DATAPARC_RUNTIME_PILOT_TAG;
     const dataparcRuntimeActive = state.dataparcRuntimeBusy && state.dataparcRuntimeTag === asset.tagNumber;
+    const dataparcRuntimeBasis = isDataparcRuntimePilot
+      ? getLatestDataParcRuntimeBasis(asset.tagNumber)
+      : null;
+    const dataparcRuntimeBasisLine = dataparcRuntimeBasis
+      ? `<div class="dataparc-runtime-basis" title="${escapeHtml(`조회 기준 ${formatKstDateTimeDisplay(dataparcRuntimeBasis.startAt)}부터 현재까지의 DataPARC RUN 누적시간입니다.`)}"><span>DataPARC 기준</span><strong>${escapeHtml(formatKstDateTimeDisplay(dataparcRuntimeBasis.startAt))} → 현재</strong></div>`
+      : "";
     const dataparcRuntimeAction = (
       isDataparcRuntimePilot &&
-      actualStarted &&
+      confirmed &&
+      !startupPending &&
       hasAuthenticatedWriteAccess() &&
       !isMobileMonitoringView()
     )
-      ? `<button type="button" class="dataparc-runtime-action${dataparcRuntimeActive ? " is-running" : ""}" data-mobile-write data-asset-action="dataparc_runtime_probe" data-tag="${escapeHtml(asset.tagNumber)}"${dataparcRuntimeActive ? " disabled aria-busy=\"true\"" : ""}>${dataparcRuntimeActive ? escapeHtml(state.dataparcRuntimeStatus || "조회 중") : "DataPARC 조회"}</button>`
+      ? `<button type="button" class="dataparc-runtime-action${dataparcRuntimeActive ? " is-running" : ""}" data-mobile-write data-asset-action="dataparc_runtime_probe" data-tag="${escapeHtml(asset.tagNumber)}"${dataparcRuntimeActive ? " disabled aria-busy=\"true\"" : ""}>${dataparcRuntimeActive ? escapeHtml(state.dataparcRuntimeStatus || "조회 중") : "DataPARC 기간조회"}</button>`
       : "";
     const cyclePrimaryLabel = startupPending
       ? "주기 상태"
@@ -1115,6 +1195,8 @@
             ${confirmed ? `<span class="operation-pill ${operationRunning ? "running" : "stopped"}">${operationRunning ? "운전중" : "정지"}</span>` : ""}
           </div>
         </div>
+
+        ${dataparcRuntimeBasisLine}
 
         ${confirmed ? `
           <div class="cycle-overview${startupPending ? " is-startup-pending" : ""}" title="${escapeHtml(remainingDetail)}">
@@ -8539,7 +8621,7 @@
     throw new Error("DataPARC 조회 대기시간이 초과되었습니다. 회사 PC Agent 상태를 확인해 주세요.");
   }
 
-  async function syncDataParcBlowerRuntime(tagNumber) {
+  async function syncDataParcBlowerRuntime(tagNumber, requestedStartAt = "") {
     if (stopMobileMutation() || state.dataparcRuntimeBusy) return;
 
     const normalizedTag = String(tagNumber || "").trim().toUpperCase();
@@ -8552,12 +8634,16 @@
     setDataparcRuntimeStatus(normalizedTag, "요청 중");
 
     try {
+      const createBody = {
+        action: "create_blower_runtime_probe"
+      };
+      const normalizedStartAt = String(requestedStartAt || "").trim();
+      if (normalizedStartAt) createBody.startAt = normalizedStartAt;
+
       const created = await apiRequest({
         method: "POST",
         url: OIS_REQUEST_API_URL,
-        body: {
-          action: "create_blower_runtime_probe"
-        }
+        body: createBody
       });
       const requestId = String(
         created?.item?.id ||
@@ -8594,6 +8680,93 @@
       state.dataparcRuntimeStatus = "";
       renderAssets();
     }
+  }
+
+  function openDataParcRuntimeDialog(tagNumber) {
+    if (stopMobileMutation() || state.dataparcRuntimeBusy) return;
+
+    const normalizedTag = String(tagNumber || "").trim().toUpperCase();
+    const asset = findAsset(normalizedTag);
+
+    if (
+      normalizedTag !== DATAPARC_RUNTIME_PILOT_TAG ||
+      !asset ||
+      !asset.lastReplacementAt
+    ) {
+      showToast("DataPARC 기간조회 대상 설비를 확인할 수 없습니다.", "error");
+      return;
+    }
+
+    if (String(asset.cycleStartState || "legacy") === "pending") {
+      showToast("기동 대기 Cycle은 실제 기동 후 DataPARC 기간조회가 가능합니다.", "error");
+      return;
+    }
+
+    const replacementDate = new Date(asset.lastReplacementAt);
+    const replacementMinuteCeiling = Number.isNaN(replacementDate.getTime())
+      ? null
+      : new Date(
+          Math.ceil(replacementDate.getTime() / 60000) * 60000
+        );
+    const minimumInput = replacementMinuteCeiling
+      ? formatKstDateTimeInput(replacementMinuteCeiling)
+      : "";
+    const previousBasis = getLatestDataParcRuntimeBasis(normalizedTag);
+    const previousBasisDate = previousBasis
+      ? new Date(previousBasis.startAt)
+      : null;
+    const previousInput = previousBasisDate && !Number.isNaN(previousBasisDate.getTime())
+      ? formatKstDateTimeInput(previousBasisDate)
+      : "";
+
+    elements.dataparcRuntimeDialogTag.value = normalizedTag;
+    elements.dataparcRuntimeDialogAsset.textContent =
+      `${asset.displayName} · ${asset.tagNumber}`;
+    elements.dataparcRuntimeStartAt.value = previousInput;
+    elements.dataparcRuntimeStartAt.min = minimumInput;
+    elements.dataparcRuntimeStartAt.max = formatKstDateTimeInput();
+    elements.dataparcRuntimeMinimum.textContent = minimumInput
+      ? `현재 V-Belt 교체 이후(${formatKstDateTimeDisplay(asset.lastReplacementAt)})의 시각만 선택할 수 있습니다.`
+      : "현재 V-Belt 교체 이후의 시각을 선택해 주세요.";
+    elements.dataparcRuntimePreviousBasis.hidden = !previousBasis;
+    elements.dataparcRuntimePreviousBasis.textContent = previousBasis
+      ? `최근 DataPARC 기준: ${formatKstDateTimeDisplay(previousBasis.startAt)} → 현재`
+      : "";
+
+    elements.dataparcRuntimeDialog.showModal();
+    window.setTimeout(() => elements.dataparcRuntimeStartAt.focus(), 0);
+  }
+
+  async function submitDataParcRuntimeRange(event) {
+    event?.preventDefault?.();
+    if (stopMobileMutation(event) || state.dataparcRuntimeBusy) return;
+
+    const tagNumber = String(elements.dataparcRuntimeDialogTag.value || "").trim().toUpperCase();
+    const startAt = kstDateTimeInputToIso(elements.dataparcRuntimeStartAt.value);
+
+    if (!startAt) {
+      showToast("계획정비 이후 DataPARC 조회 시작일시를 선택해 주세요.", "error");
+      elements.dataparcRuntimeStartAt.focus();
+      return;
+    }
+
+    const asset = findAsset(tagNumber);
+    const replacementTime = new Date(asset?.lastReplacementAt || "").getTime();
+    const selectedTime = new Date(startAt).getTime();
+    if (
+      !Number.isFinite(selectedTime) ||
+      (
+        Number.isFinite(replacementTime) &&
+        selectedTime < replacementTime
+      )
+    ) {
+      showToast("DataPARC 조회 시작은 현재 V-Belt 교체 이후로 선택해 주세요.", "error");
+      elements.dataparcRuntimeStartAt.focus();
+      return;
+    }
+
+    elements.dataparcRuntimeDialog.close();
+    await syncDataParcBlowerRuntime(tagNumber, startAt);
   }
 
   function openRecordDialog(mode, tagNumber, candidate = null) {
@@ -9577,7 +9750,7 @@
         return;
       }
       if (button.dataset.assetAction === "dataparc_runtime_probe") {
-        syncDataParcBlowerRuntime(button.dataset.tag);
+        openDataParcRuntimeDialog(button.dataset.tag);
         return;
       }
       openRecordDialog(
@@ -9706,6 +9879,7 @@
       openRecordDialog("candidate", candidate.tagNumber, candidate);
     });
 
+    elements.dataparcRuntimeForm.addEventListener("submit", submitDataParcRuntimeRange);
     elements.recordForm.addEventListener("submit", saveRecord);
     elements.runtimeEditPendingButton.addEventListener("click", toggleRuntimeEditStartupPending);
     elements.recordDate.addEventListener("input", updateRuntimeEditPreview);

@@ -228,6 +228,29 @@ test("queue intent becomes canonical item.probe and the Agent consumes it unchan
 });
 
 
+test("Agent accepts a legacy cycle range intent with blank start metadata", () => {
+  const probe = buildQueueProbe(intentRow({
+    expected_cycle_start_state: "legacy",
+    expected_cycle_started_at: "",
+    expected_cycle_start_revision: ""
+  }));
+  const expected = parseAgentClaim(claimItem(probe));
+
+  assert.equal(expected.expectedCycleStartState, "legacy");
+  assert.equal(expected.expectedCycleStartedAt, "");
+  assert.equal(expected.expectedCycleStartRevision, "");
+  assert.equal(expected.expectedCycleRuntimeRevision, "cycle-runtime-r1");
+
+  const normalized = normalizeAgentResult(
+    zeroRuntimeCapture(expected),
+    expected
+  );
+  assert.equal(normalized.expectedCycleStartState, "legacy");
+  assert.equal(normalized.expectedCycleStartedAt, "");
+  assert.equal(normalized.expectedCycleStartRevision, "");
+});
+
+
 test("Agent fails closed when canonical claim data is absent or conflicts with the queue key", () => {
   const probe = buildQueueProbe(intentRow());
 

@@ -475,6 +475,148 @@ test("atomically applies canonical seconds, preserves manual history, and replay
 });
 
 
+test("replays a previously applied V1 RUN note without changing stored history", async () => {
+  const fixture = await createFixture();
+
+  try {
+    const applied = await invokeSync(fixture.database);
+    assert.equal(applied.status, 200);
+
+    const previousNote = `DataPARC RUN 조회 ${RAW_START_AT} ~ ${RAW_END_AT} · 누적 ${9001 / 3600}시간`;
+    fixture.sqlite.prepare(`
+      UPDATE blower_history_events SET note = ? WHERE id = ?
+    `).run(previousNote, `dataparc_runtime:${REQUEST_ID}`);
+    const before = readState(fixture.sqlite);
+
+    const replay = await invokeSync(
+      fixture.database,
+      OWNER,
+      { requestId: REQUEST_ID },
+      new Date("2026-09-03T13:00:00.000Z")
+    );
+    assert.equal(replay.status, 200);
+    assert.equal(replay.body.applied, false);
+    assert.equal(replay.body.replayed, true);
+    assert.deepEqual(readState(fixture.sqlite), before);
+
+    fixture.sqlite.prepare(`
+      UPDATE blower_history_events SET note = ? WHERE id = ?
+    `).run(`${previousNote} changed`, `dataparc_runtime:${REQUEST_ID}`);
+    const changed = readState(fixture.sqlite);
+    const conflict = await invokeSync(fixture.database);
+    assert.equal(conflict.status, 409);
+    assert.equal(conflict.body.code, "DATAPARC_RUNTIME_IDEMPOTENCY_CONFLICT");
+    assert.deepEqual(readState(fixture.sqlite), changed);
+  } finally {
+    fixture.database.close();
+  }
+});
+
+
+test("preserves and checks the nonempty legacy revision created by V13 recovery", async () => {
+  const revision = "a14e35df76aa4b59a841fa1a02718c50";
+  const result = probeResult({
+    expectedCycleStartState: "legacy",
+    expectedCycleStartedAt: "",
+    expectedCycleStartRevision: revision,
+    expectedCycleRuntimeRevision: "cycle-runtime-legacy-r1"
+  });
+  const fixture = await createFixture({
+    result,
+    asset: {
+      cycleStartState: "legacy",
+      cycleStartedAt: null,
+      cycleStartRevision: revision,
+      cycleRuntimeRevision: "cycle-runtime-legacy-r1"
+    }
+  });
+
+  try {
+    fixture.sqlite.prepare(`
+      UPDATE blower_history_assets SET cycle_start_revision = ? WHERE tag_number = ?
+    `).run("changed-legacy-revision", ASSET_TAG);
+    const changed = readState(fixture.sqlite);
+    const conflict = await invokeSync(fixture.database);
+    assert.equal(conflict.status, 409);
+    assert.equal(conflict.body.code, "DATAPARC_RUNTIME_CYCLE_CONFLICT");
+    assert.deepEqual(readState(fixture.sqlite), changed);
+
+    fixture.sqlite.prepare(`
+      UPDATE blower_history_assets SET cycle_start_revision = ? WHERE tag_number = ?
+    `).run(revision, ASSET_TAG);
+    const response = await invokeSync(fixture.database);
+    assert.equal(response.status, 200);
+    assert.equal(response.body.applied, true);
+    assert.equal(response.body.runtimeHours, 9001 / 3600);
+
+    const after = readState(fixture.sqlite);
+    assert.equal(after.asset.cycle_start_state, "legacy");
+    assert.equal(after.asset.cycle_started_at, null);
+    assert.equal(after.asset.cycle_start_revision, revision);
+    const event = after.events.find(candidate => candidate.id === `dataparc_runtime:${REQUEST_ID}`);
+    assert.equal(JSON.parse(event.source_text).expectedCycleStartRevision, revision);
+    assert.deepEqual(after.guards, []);
+  } finally {
+    fixture.database.close();
+  }
+});
+
+
+test("applies a selected DataPARC baseline to a legacy cycle without inventing a cycle start", async () => {
+  const result = probeResult({
+    expectedCycleStartState: "legacy",
+    expectedCycleStartedAt: "",
+    expectedCycleStartRevision: "",
+    expectedCycleRuntimeRevision: "cycle-runtime-legacy-r1"
+  });
+  const fixture = await createFixture({
+    result,
+    asset: {
+      cycleStartState: "legacy",
+      cycleStartedAt: null,
+      cycleStartRevision: "",
+      cycleRuntimeRevision: "cycle-runtime-legacy-r1"
+    }
+  });
+
+  try {
+    const before = readState(fixture.sqlite);
+    const response = await invokeSync(fixture.database);
+
+    assert.equal(response.status, 200);
+    assert.equal(response.body.ok, true);
+    assert.equal(response.body.runtimeHours, 9001 / 3600);
+    assert.equal(response.body.isRunning, true);
+
+    const after = readState(fixture.sqlite);
+    assert.equal(after.asset.cycle_start_state, "legacy");
+    assert.equal(after.asset.cycle_started_at, null);
+    assert.equal(after.asset.cycle_start_revision, "");
+    assert.equal(after.asset.last_replacement_at, before.asset.last_replacement_at);
+    assert.equal(after.asset.cycle_runtime_hours, 9001 / 3600);
+    assert.equal(after.asset.runtime_hours, 9001 / 3600);
+    assert.equal(after.asset.cycle_runtime_state, "running");
+    assert.equal(after.asset.is_running, 1);
+    assert.notEqual(
+      after.asset.cycle_runtime_revision,
+      "cycle-runtime-legacy-r1"
+    );
+
+    const event = after.events.find(candidate =>
+      candidate.id === `dataparc_runtime:${REQUEST_ID}`
+    );
+    assert.ok(event);
+    const source = JSON.parse(event.source_text);
+    assert.equal(source.startAt, RAW_START_AT);
+    assert.equal(source.expectedCycleStartState, "legacy");
+    assert.equal(source.expectedCycleStartedAt, "");
+    assert.equal(source.expectedCycleStartRevision, "");
+  } finally {
+    fixture.database.close();
+  }
+});
+
+
 test("accepts a zero-runtime stopped probe with the correct stopped anchors", async () => {
   const result = probeResult({
     runningSeconds: 0,

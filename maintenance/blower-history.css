@@ -108,6 +108,7 @@ body.public-monitoring [data-mobile-write],
 body.public-monitoring [data-subview="detect"],
 body.public-monitoring [data-subview-panel="detect"],
 body.public-monitoring #recordDialog,
+body.public-monitoring #dataparcRuntimeDialog,
 body.public-monitoring #settingsDialog,
 body.public-monitoring #assetManagerDialog,
 body.public-monitoring #candidateCountBadge,
@@ -1077,14 +1078,14 @@ body.public-monitoring #vibrationShadowPanel { display: none !important; }
   gap: 3px;
 }
 .dataparc-runtime-action {
-  min-height: 23px;
+  min-height: 28px;
   padding: 0 8px;
   border: 1px solid #9bbfe0;
   border-radius: 6px;
   background: #f2f8fd;
   color: #155f9a;
   font: inherit;
-  font-size: 9px;
+  font-size: 11.5px;
   font-weight: 850;
   white-space: nowrap;
   cursor: pointer;
@@ -1099,6 +1100,86 @@ body.public-monitoring #vibrationShadowPanel { display: none !important; }
   background: #f2f5f7;
   color: #627587;
   cursor: wait;
+}
+
+.dataparc-runtime-basis {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 3px 0 1px;
+  padding: 5px 8px;
+  border: 1px solid #d6e5f1;
+  border-radius: 7px;
+  background: #f7fbfe;
+  color: #45667e;
+  font-size: 9px;
+  line-height: 1.25;
+}
+.dataparc-runtime-basis span {
+  font-weight: 750;
+}
+.dataparc-runtime-basis strong {
+  color: #155f9a;
+  font-weight: 850;
+  text-align: right;
+}
+.dataparc-runtime-dialog-body {
+  display: grid;
+  gap: 14px;
+}
+.dataparc-runtime-range-intro {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid #cfe0ee;
+  border-radius: 10px;
+  background: #f4f9fd;
+  color: #244f70;
+}
+.dataparc-runtime-range-intro strong {
+  font-size: 14px;
+}
+.dataparc-runtime-range-intro span {
+  color: #5c7283;
+  font-size: 12px;
+}
+.dataparc-runtime-range-end {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #e1e7ec;
+  border-radius: 9px;
+  background: #fafcfd;
+}
+.dataparc-runtime-range-end > span {
+  color: #62717d;
+  font-size: 12px;
+  font-weight: 750;
+}
+.dataparc-runtime-range-end > strong {
+  color: #203f58;
+  font-size: 13px;
+}
+.dataparc-runtime-range-end > small {
+  grid-column: 1 / -1;
+  color: #72818d;
+}
+.dataparc-runtime-previous-basis {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #eef6fb;
+  color: #1d628f;
+  font-size: 12px;
+  font-weight: 750;
+}
+.dataparc-runtime-range-warning {
+  margin: 0;
+  color: #65727c;
+  font-size: 11px;
+  line-height: 1.5;
 }
 .operation-pill {
   display: inline-flex;
@@ -1335,6 +1416,7 @@ body.public-monitoring #vibrationShadowPanel { display: none !important; }
   [data-mobile-write] { display: none !important; }
   body.mobile-monitoring [data-subview-panel="detect"] { display: none !important; }
   body.mobile-monitoring #recordDialog,
+  body.mobile-monitoring #dataparcRuntimeDialog,
   body.mobile-monitoring #settingsDialog { display: none !important; }
 }
 

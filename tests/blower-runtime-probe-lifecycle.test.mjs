@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import vm from "node:vm";
 
 import {
   onRequestGet,
   onRequestPost
 } from "../functions/api/ois-data-requests.js";
+import { __blowerHistoryTest } from "../functions/api/blower-history.js";
 
 
 const ASSET_TAG = "104ETH03AN602";
@@ -466,6 +469,160 @@ test("queue lifecycle creates, reuses, claims canonical item.probe, completes, a
 });
 
 
+test("legacy 602 requires an explicit maintenance baseline and freezes it in the probe", async () => {
+  const fixture = createFixture();
+
+  try {
+    fixture.sqlite.prepare(`
+      UPDATE blower_history_assets
+      SET
+        cycle_start_state = 'legacy',
+        cycle_started_at = NULL,
+        cycle_start_revision = '',
+        cycle_runtime_revision = 'cycle-runtime-legacy-r1'
+      WHERE tag_number = ?
+    `).run(ASSET_TAG);
+
+    const withoutStart = await browserCreate(fixture.database);
+    assert.equal(withoutStart.status, 400);
+    assert.equal(
+      withoutStart.body.code,
+      "BLOWER_RUNTIME_PROBE_START_REQUIRED"
+    );
+
+    const selectedStart = new Date(
+      Date.parse(fixture.replacementAt) + 12 * 60 * 60 * 1000
+    ).toISOString();
+    const created = await browserCreate(
+      fixture.database,
+      {
+        action: "create_blower_runtime_probe",
+        startAt: selectedStart
+      }
+    );
+
+    assert.equal(created.status, 201);
+    assert.equal(created.body.item.probe.expectedCycleStartState, "legacy");
+    assert.equal(created.body.item.probe.expectedCycleStartedAt, "");
+    assert.equal(created.body.item.probe.expectedCycleStartRevision, "");
+    assert.equal(
+      created.body.item.probe.expectedCycleRuntimeRevision,
+      "cycle-runtime-legacy-r1"
+    );
+    assert.equal(
+      Date.parse(created.body.item.probe.startAt),
+      Date.parse(selectedStart)
+    );
+    assert.ok(
+      Date.parse(created.body.item.probe.endAt) >
+      Date.parse(created.body.item.probe.startAt)
+    );
+  } finally {
+    fixture.database.close();
+  }
+});
+
+
+test("V13 legacy revision survives queue, Agent validation, completion and atomic runtime sync", async () => {
+  const fixture = createFixture();
+  const revision = "a14e35df76aa4b59a841fa1a02718c50";
+
+  try {
+    // Use the real Blower schema so the final synchronization executes its
+    // production asset/event/atomic-guard SQL against the same queue database.
+    fixture.sqlite.exec("DROP TABLE blower_history_assets");
+    await __blowerHistoryTest.ensureSchema(fixture.database);
+    fixture.sqlite.prepare(`
+      UPDATE blower_history_assets
+      SET enabled = 1,
+          last_replacement_at = ?,
+          cycle_start_state = 'legacy',
+          cycle_started_at = NULL,
+          cycle_start_revision = ?,
+          cycle_runtime_revision = 'cycle-runtime-legacy-r1',
+          cycle_runtime_hours = 77,
+          runtime_hours = 77
+      WHERE tag_number = ?
+    `).run(fixture.replacementAt, revision, ASSET_TAG);
+
+    const selectedStart = new Date(
+      Date.parse(fixture.replacementAt) + 36 * 60 * 60 * 1000
+    ).toISOString();
+    const created = await browserCreate(fixture.database, {
+      action: "create_blower_runtime_probe",
+      startAt: selectedStart
+    });
+    assert.equal(created.status, 201);
+    assert.equal(created.body.item.probe.expectedCycleStartRevision, revision);
+    assert.equal(Date.parse(created.body.item.probe.startAt), Date.parse(selectedStart));
+
+    const claim = await agentClaim(fixture.database);
+    assert.equal(claim.status, 200);
+    const item = claim.body.items.excel;
+    assert.equal(item.id, created.body.item.id);
+
+    const agentSource = await readFile(
+      new URL("../local-tools/ois-agent/ois-login.js", import.meta.url),
+      "utf8"
+    );
+    const parserStart = agentSource.indexOf("function parseBlowerRuntimeProbeTimestamp(");
+    const parserEnd = agentSource.indexOf("async function collectBlowerRuntimeProbeValues(", parserStart);
+    assert.ok(parserStart >= 0 && parserEnd > parserStart);
+    const agent = vm.createContext({ Array, Date, Error, Math, Number, String });
+    vm.runInContext(`
+      const BLOWER_RUNTIME_PROBE_REQUEST_TYPE = "blower_runtime_probe";
+      const BLOWER_RUNTIME_PROBE_ASSET_TAG = "104ETH03AN602";
+      const BLOWER_RUNTIME_PROBE_DATAPARC_TAG = "GSPOGE.ABB_DCS.003ETH03AN602XB04";
+      const BLOWER_RUNTIME_PROBE_CHUNK_DAYS = 31;
+      ${agentSource.slice(parserStart, parserEnd)}
+      this.parseClaim = parseBlowerRuntimeProbeRequest;
+      this.normalizeResult = normalizeBlowerRuntimeProbeResult;
+    `, agent);
+
+    const expected = agent.parseClaim(item);
+    assert.equal(expected.expectedCycleStartRevision, revision);
+    assert.equal(expected.expectedCycleStartedAt, "");
+    const capture = zeroRuntimeResult(item);
+    capture.runningSeconds = capture.chunks[0].runningSeconds = 7200;
+    capture.totalRunningHours = capture.chunks[0].totalRunningHours = 2;
+    const normalized = JSON.parse(JSON.stringify(agent.normalizeResult(capture, expected)));
+    assert.equal(normalized.expectedCycleStartRevision, revision);
+
+    const completed = await agentComplete(fixture.database, item.id, normalized);
+    assert.equal(completed.status, 200);
+    assert.equal(completed.body.item.result.expectedCycleStartRevision, revision);
+    const response = await __blowerHistoryTest.applyDataParcRuntimeSync(
+      fixture.database,
+      { employeeNo: BROWSER_EMPLOYEE_NO, name: "Probe Browser Owner", isSuperAdmin: false },
+      { requestId: item.id }
+    );
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    assert.equal(body.applied, true);
+    assert.equal(body.runtimeHours, 2);
+
+    const asset = fixture.sqlite.prepare(`
+      SELECT * FROM blower_history_assets WHERE tag_number = ?
+    `).get(ASSET_TAG);
+    assert.equal(asset.cycle_start_state, "legacy");
+    assert.equal(asset.cycle_started_at, null);
+    assert.equal(asset.cycle_start_revision, revision);
+    assert.equal(asset.cycle_runtime_hours, 2);
+    assert.equal(asset.runtime_hours, 2);
+    const event = fixture.sqlite.prepare(`
+      SELECT * FROM blower_history_events WHERE id = ?
+    `).get(`dataparc_runtime:${item.id}`);
+    const source = JSON.parse(event.source_text);
+    assert.equal(Date.parse(source.startAt), Date.parse(selectedStart));
+    assert.equal(source.expectedCycleStartRevision, revision);
+    assert.equal(source.runningSeconds, 7200);
+    assert.equal(fixture.sqlite.prepare("SELECT COUNT(*) AS count FROM blower_history_atomic_guard").get().count, 0);
+  } finally {
+    fixture.database.close();
+  }
+});
+
+
 test("an unchanged cycle creates a new request when its completed probe is stale", async () => {
   const fixture = createFixture();
 
@@ -475,7 +632,7 @@ test("an unchanged cycle creates a new request when its completed probe is stale
 
     const staleEndAt = new Date(Date.now() - 20 * 60 * 1000).toISOString();
     fixture.sqlite.prepare(`
-      UPDATE blower_runtime_probe_intents
+      UPDATE blower_runtime_probe_intents_v2
       SET window_end = ?
       WHERE request_id = ?
     `).run(staleEndAt, original.body.item.id);
@@ -510,7 +667,7 @@ test("an unchanged cycle creates a new request when its completed probe is stale
 
     const intents = fixture.sqlite.prepare(`
       SELECT request_id, reuse_key
-      FROM blower_runtime_probe_intents
+      FROM blower_runtime_probe_intents_v2
       ORDER BY created_at, request_id
     `).all();
     const oldIntent = intents.find(row =>
@@ -535,7 +692,7 @@ test("retires an active request whose frozen observation window is stale", async
     assert.equal(original.status, 201);
     const staleEndAt = new Date(Date.now() - 20 * 60 * 1000).toISOString();
     fixture.sqlite.prepare(`
-      UPDATE blower_runtime_probe_intents
+      UPDATE blower_runtime_probe_intents_v2
       SET window_end = ?
       WHERE request_id = ?
     `).run(staleEndAt, original.body.item.id);
@@ -554,7 +711,7 @@ test("retires an active request whose frozen observation window is stale", async
     assert.equal(
       fixture.sqlite.prepare(`
         SELECT reuse_key
-        FROM blower_runtime_probe_intents
+        FROM blower_runtime_probe_intents_v2
         WHERE request_id = ?
       `).get(original.body.item.id).reuse_key,
       null
@@ -666,7 +823,7 @@ test("a different browser never reuses or retires another owner's completed prob
 
     const ownerBReuseKey = fixture.sqlite.prepare(`
       SELECT reuse_key
-      FROM blower_runtime_probe_intents
+      FROM blower_runtime_probe_intents_v2
       WHERE request_id = ?
     `).get(ownerB.body.item.id).reuse_key;
     assert.ok(ownerBReuseKey);
@@ -679,7 +836,7 @@ test("a different browser never reuses or retires another owner's completed prob
     const ownerBAfter = fixture.sqlite.prepare(`
       SELECT request.status, intent.reuse_key
       FROM ois_data_requests AS request
-      INNER JOIN blower_runtime_probe_intents AS intent
+      INNER JOIN blower_runtime_probe_intents_v2 AS intent
         ON intent.request_id = request.id
       WHERE request.id = ?
     `).get(ownerB.body.item.id);
