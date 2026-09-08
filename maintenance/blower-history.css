@@ -1100,9 +1100,11 @@ body.public-monitoring #vibrationShadowPanel { display: none !important; }
 
 /* V9 operating-time cycle pause/resume + simplified asset manager */
 .asset-status-group {
-  display: grid;
-  justify-items: end;
-  gap: 3px;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
 }
 .dataparc-runtime-action {
   min-height: 32px;
@@ -1129,36 +1131,85 @@ body.public-monitoring #vibrationShadowPanel { display: none !important; }
   cursor: wait;
 }
 
-.dataparc-runtime-basis {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 8px;
-  margin: 3px 0 1px;
-  padding: 5px 8px;
+.dataparc-runtime-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin: 7px 0 0;
+  padding: 7px 8px;
   border: 1px solid #d6e5f1;
   border-radius: 7px;
-  background: #f7fbfe;
-  color: #45667e;
-  font-size: 9px;
-  line-height: 1.25;
+  background: rgba(247, 251, 254, .82);
 }
-.dataparc-runtime-basis span {
-  font-size: 12px;
-  font-weight: 750;
-}
-.dataparc-runtime-basis strong {
+.dataparc-runtime-basis {
+  display: grid;
+  flex: 1 1 0;
   min-width: 0;
-  color: #155f9a;
+  gap: 2px;
+  color: #45667e;
+  line-height: 1.35;
+}
+.dataparc-runtime-basis > span {
   font-size: 11px;
-  font-weight: 850;
+  font-weight: 800;
+}
+.dataparc-runtime-basis strong,
+.dataparc-runtime-basis small {
+  min-width: 0;
+  font-size: 11px;
   line-height: 1.4;
   overflow-wrap: anywhere;
-  text-align: right;
 }
+.dataparc-runtime-basis strong {
+  color: #155f9a;
+  font-weight: 750;
+}
+.dataparc-runtime-basis small {
+  color: #657887;
+}
+.dataparc-runtime-row > .dataparc-runtime-action {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 10px;
+}
+
 .dataparc-runtime-dialog-body {
   display: grid;
   gap: 14px;
+}
+.dataparc-runtime-source-settings {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #dbe4ec;
+  border-radius: 8px;
+  background: #f7f9fb;
+}
+.dataparc-runtime-source-settings > summary {
+  color: #405b72;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.dataparc-runtime-source-settings > .field {
+  margin-top: 10px;
+}
+.dataparc-runtime-source-settings .checkbox-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+.dataparc-runtime-source-settings .checkbox-field input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+}
+.dataparc-runtime-source-settings .checkbox-field > span {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
 }
 .dataparc-runtime-range-intro {
   display: grid;
@@ -1796,46 +1847,47 @@ body.public-monitoring #vibrationShadowPanel { display: none !important; }
   }
 }
 
-/* V9.4.1 current-operation state clarity
-   - The card communicates the current state.
-   - The button communicates only the next action.
-   - Warning / critical / overdue colors keep priority over the running tint. */
-.asset-card[data-operation-state="running"][data-severity="normal"] {
-  border-color: #bddfc8;
-  border-left-color: #2d9552;
-  background: linear-gradient(135deg, #edf9f1 0%, #f6fcf8 58%, #ffffff 100%);
-  box-shadow: 0 3px 12px rgba(29, 112, 61, .08);
+/* Current operation uses the card background; replacement urgency keeps its left border. */
+.asset-card[data-operation-state="running"] {
+  border-top-color: #c9e3d2;
+  border-right-color: #c9e3d2;
+  border-bottom-color: #c9e3d2;
+  background: #f1faf4;
 }
-.asset-card[data-operation-state="running"][data-severity="normal"] .cycle-primary-metric,
-.asset-card[data-operation-state="running"][data-severity="normal"] .cycle-deadline-metric,
-.asset-card[data-operation-state="running"][data-severity="normal"] .cycle-usage-metric,
-.asset-card[data-operation-state="running"][data-severity="normal"] .cycle-date-line,
-.asset-card[data-operation-state="running"][data-severity="normal"] .asset-evidence {
-  border-color: #d5e9dc;
-  background: rgba(255, 255, 255, .78);
+.asset-card[data-operation-state="stopped"] {
+  border-top-color: #efd2d2;
+  border-right-color: #efd2d2;
+  border-bottom-color: #efd2d2;
+  background: #fff3f3;
 }
-.asset-card[data-operation-state="running"][data-severity="normal"] .progress-track {
+.asset-card:is([data-operation-state="startup_pending"], [data-operation-state="unknown"], [data-operation-state="unconfirmed"]) {
+  background: #f7f9fb;
+}
+.asset-card:is([data-operation-state="running"], [data-operation-state="stopped"]) :is(.cycle-primary-metric, .cycle-deadline-metric, .cycle-usage-metric, .cycle-date-line, .asset-evidence) {
+  background: rgba(255, 255, 255, .48);
+}
+.asset-card[data-operation-state="running"] .progress-track {
   background: #dcebe1;
 }
-.asset-card[data-operation-state="stopped"][data-severity="normal"] {
-  border-color: #d7dee4;
-  border-left-color: #9aa6b0;
-  background: #ffffff;
-  box-shadow: none;
-}
-.asset-card[data-operation-state="stopped"][data-severity="normal"] .progress-bar {
-  background: #8795a0;
+.asset-card[data-operation-state="stopped"] .progress-track {
+  background: #f1dddd;
 }
 .operation-pill.running {
   border-color: #91cfa5;
   background: #dff4e6;
   color: #0f6333;
-  box-shadow: 0 0 0 1px rgba(15, 99, 51, .04);
 }
 .operation-pill.stopped {
-  border-color: #cfd6dc;
-  background: #f1f3f5;
-  color: #596671;
+  border-color: #e6a8a8;
+  background: #fde4e4;
+  color: #9c3030;
+}
+.operation-pill.startup_pending,
+.operation-pill.unknown,
+.operation-pill.unconfirmed {
+  border-color: #d4dde4;
+  background: #f1f4f6;
+  color: #596b78;
 }
 .runtime-state-action.stop {
   border-color: #c4ccd3;

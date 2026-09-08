@@ -6,12 +6,12 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260908-compact-ui-v1">
+  <link rel="stylesheet" href="blower-history.css?v=20260908-runtime-all-v1">
   <link rel="stylesheet" href="blower-history-mobile-dialog-close-v1.css?v=20260903-v1">
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="blower-history.js?v=20260908-compact-ui-v1" defer></script>
-  <script src="/maintenance/seal-pot-ois-shadow.js?v=20260908-compact-ui-v1" defer></script>
+  <script src="blower-history.js?v=20260908-runtime-all-v1" defer></script>
+  <script src="/maintenance/seal-pot-ois-shadow.js?v=20260908-runtime-all-v1" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -405,6 +405,19 @@
           <input type="datetime-local" id="dataparcRuntimeStartAt" required step="60">
           <small id="dataparcRuntimeMinimum"></small>
         </label>
+
+        <details class="dataparc-runtime-source-settings" id="dataparcRuntimeSourceSettings">
+          <summary id="dataparcRuntimeSourceSummary">운전 신호 설정 · 최초 1회</summary>
+          <label class="field">
+            <span>DataPARC RUN TAG</span>
+            <input type="text" id="dataparcRuntimeSourceTag" maxlength="200" autocomplete="off" spellcheck="false" placeholder="GSPOGE.ABB_DCS.전체_RUN_TAG">
+            <small id="dataparcRuntimeSourceHelp"></small>
+          </label>
+          <label class="field checkbox-field" id="dataparcRuntimeConfirmField">
+            <input type="checkbox" id="dataparcRuntimeConfirmSignal">
+            <span>이 설비의 1=기동 · 0=정지 신호임을 확인했습니다.</span>
+          </label>
+        </details>
 
         <div class="dataparc-runtime-range-end">
           <span>조회 종료</span>

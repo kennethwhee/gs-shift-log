@@ -11733,7 +11733,7 @@ if (
     requestType ===
       BLOWER_RUNTIME_PROBE_REQUEST_TYPE
   ) {
-    return "Blower 602 DataPARC 운전시간";
+    return "Blower DataPARC 운전시간";
   }
 
 
@@ -11772,7 +11772,7 @@ if (
 }
 
 /* =========================================================
-  Blower 602 DataPARC 운전시간 읽기 전용 Probe
+  Blower DataPARC 운전시간 읽기 전용 Probe
 
   - 서버가 고정한 RFC3339 시작·종료 시각만 사용한다.
   - 정확히 31일 이하인 구간으로 나눠 fnValTime을 실행한다.
@@ -12417,14 +12417,31 @@ function Wait-ProbeProcessExit([int]$ProcessId, [datetime]$Deadline) {
   return ($null -eq (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue))
 }
 
+$allowedProbeAssetTags = @(
+  "104ETH03AN601", "104ETH03AN602",
+  "104ETG30AN601", "104ETG30AN602",
+  "204ETG30AN601", "204ETG30AN602",
+  "104SDF01AN001", "104SDF01AN002",
+  "204SDF01AN001", "204SDF01AN002",
+  "204LMDF01AN001"
+)
 if (
   [string]::IsNullOrWhiteSpace($stageMarker) -or
   [string]::IsNullOrWhiteSpace($resultMarker) -or
   [string]::IsNullOrWhiteSpace($requestId) -or
-  $assetTag -ne "104ETH03AN602" -or
-  $dataParcTag -ne "GSPOGE.ABB_DCS.003ETH03AN602XB04"
+  $allowedProbeAssetTags -cnotcontains $assetTag -or
+  $dataParcTag.Length -gt 200 -or
+  -not [regex]::IsMatch($dataParcTag, '\AGSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*\z') -or
+  (
+    $assetTag -ceq "104ETH03AN602" -and
+    $dataParcTag -cne "GSPOGE.ABB_DCS.003ETH03AN602XB04"
+  ) -or
+  (
+    $assetTag -cne "104ETH03AN602" -and
+    $dataParcTag -ceq "GSPOGE.ABB_DCS.003ETH03AN602XB04"
+  )
 ) {
-  throw "Blower Runtime 요청 ID, marker 또는 고정 TAG가 올바르지 않습니다."
+  throw "Blower Runtime 요청 ID, marker 또는 확정 TAG가 올바르지 않습니다."
 }
 
 $chunkDays = 0
@@ -15869,13 +15886,22 @@ function parseBlowerRuntimeProbeRequest(
     requestItem?.target_date
   );
   const parts = targetPayload.split("|");
+  const allowedAssetTags = new Set([
+    "104ETH03AN601", "104ETH03AN602",
+    "104ETG30AN601", "104ETG30AN602",
+    "204ETG30AN601", "204ETG30AN602",
+    "104SDF01AN001", "104SDF01AN002",
+    "204SDF01AN001", "204SDF01AN002",
+    "204LMDF01AN001"
+  ]);
+  const assetTag = parts[1];
   if (
     parts.length !== 4 ||
     parts[0] !== "v1" ||
-    parts[1] !== BLOWER_RUNTIME_PROBE_ASSET_TAG
+    !allowedAssetTags.has(assetTag)
   ) {
     throw new Error(
-      "Blower Runtime Probe payload는 v1|104ETH03AN602|<start RFC3339>|<end RFC3339> 형식이어야 합니다."
+      "Blower Runtime Probe payload는 v1|<지원 설비 TAG>|<start RFC3339>|<end RFC3339> 형식이어야 합니다."
     );
   }
 
@@ -15924,6 +15950,18 @@ function parseBlowerRuntimeProbeRequest(
     (end.milliseconds - start.milliseconds) /
     (BLOWER_RUNTIME_PROBE_CHUNK_DAYS * 86400000)
   );
+  // Source TAGs come from the server's confirmed intent, never from equipment-name rules.
+  const dataParcTag = probe.dataParcTag ?? probe.data_parc_tag;
+  const validDataParcTag =
+    typeof dataParcTag === "string" &&
+    dataParcTag.length <= 200 &&
+    dataParcTag === dataParcTag.trim() &&
+    /^GSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*$/.test(dataParcTag) &&
+    (
+      assetTag === BLOWER_RUNTIME_PROBE_ASSET_TAG
+        ? dataParcTag === BLOWER_RUNTIME_PROBE_DATAPARC_TAG
+        : dataParcTag !== BLOWER_RUNTIME_PROBE_DATAPARC_TAG
+    );
 
   if (
     field("requestId", "request_id") !== requestId ||
@@ -15931,24 +15969,22 @@ function parseBlowerRuntimeProbeRequest(
     field("requestType", "request_type") !==
       BLOWER_RUNTIME_PROBE_REQUEST_TYPE ||
     probe.readOnly !== true ||
-    field("assetTag", "asset_tag") !==
-      BLOWER_RUNTIME_PROBE_ASSET_TAG ||
-    field("dataParcTag", "data_parc_tag") !==
-      BLOWER_RUNTIME_PROBE_DATAPARC_TAG ||
+    (probe.assetTag ?? probe.asset_tag) !== assetTag ||
+    !validDataParcTag ||
     field("startAt", "start_at") !== start.text ||
     field("endAt", "end_at") !== end.text ||
     chunkDays !== BLOWER_RUNTIME_PROBE_CHUNK_DAYS ||
     probe.chunkCount !== expectedChunkCount
   ) {
     throw new Error(
-      "Blower Runtime Probe intent가 queue payload 또는 고정 계약과 다릅니다."
+      "Blower Runtime Probe intent가 queue payload 또는 확정 TAG 계약과 다릅니다."
     );
   }
 
   const expected = {
     requestId,
-    assetTag: BLOWER_RUNTIME_PROBE_ASSET_TAG,
-    dataParcTag: BLOWER_RUNTIME_PROBE_DATAPARC_TAG,
+    assetTag,
+    dataParcTag,
     startAt: start.text,
     endAt: end.text,
     startMilliseconds: start.milliseconds,
@@ -16203,7 +16239,7 @@ async function collectBlowerRuntimeProbeValues(
   const expected = parseBlowerRuntimeProbeRequest(requestItem);
   console.log(
     [
-      "Blower 602 DataPARC 운전시간 조회 시작",
+      `Blower ${expected.assetTag} DataPARC 운전시간 조회 시작`,
       expected.startAt,
       expected.endAt,
       `chunk ${expected.chunkDays}일`
@@ -16237,7 +16273,7 @@ async function collectBlowerRuntimeProbeValues(
       stageMarker: BLOWER_RUNTIME_PROBE_STAGE_MARKER,
       processTimeout: BLOWER_RUNTIME_PROBE_PROCESS_TIMEOUT,
       temporaryFilePrefix: "gs-shift-blower-runtime-probe",
-      operationLabel: "Blower 602 DataPARC 운전시간 조회",
+      operationLabel: `Blower ${expected.assetTag} DataPARC 운전시간 조회`,
       resolveOnResultMarker: false
     }
   );
@@ -16269,7 +16305,7 @@ async function collectBlowerRuntimeProbeValues(
   const result = normalizeBlowerRuntimeProbeResult(captured, expected);
   console.log(
     [
-      "Blower 602 DataPARC 운전시간 조회 완료",
+      `Blower ${expected.assetTag} DataPARC 운전시간 조회 완료`,
       `${result.chunkCount} chunk`,
       `${result.runningSeconds}초`,
       result.endState

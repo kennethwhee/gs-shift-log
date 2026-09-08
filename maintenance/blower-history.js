@@ -12,6 +12,28 @@
   const FBHE_OIS_LEGACY_MIGRATION_KEY = "gsShiftLog.blowerHistory.fbheOisLegacyMigration.v1";
   const MOBILE_MONITORING_QUERY = "(max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse)";
   const DATAPARC_RUNTIME_PILOT_TAG = "104ETH03AN602";
+  const DATAPARC_RUNTIME_ASSET_TAGS = new Set([
+    "104ETH03AN601", "104ETH03AN602",
+    "104ETG30AN601", "104ETG30AN602", "204ETG30AN601", "204ETG30AN602",
+    "104SDF01AN001", "104SDF01AN002", "204SDF01AN001", "204SDF01AN002",
+    "204LMDF01AN001"
+  ]);
+  const DATAPARC_RUNTIME_KNOWN_SOURCE = "GSPOGE.ABB_DCS.003ETH03AN602XB04";
+
+  function isDataParcRuntimeAsset(asset) {
+    return DATAPARC_RUNTIME_ASSET_TAGS.has(String(asset?.tagNumber || "").trim().toUpperCase());
+  }
+
+  function isDataParcRunSignalTag(tag) {
+    return typeof tag === "string" && tag.length <= 200 &&
+      /^GSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*$/.test(tag);
+  }
+
+  function savedDataParcRunSignal(asset) {
+    if (asset?.tagNumber === DATAPARC_RUNTIME_PILOT_TAG) return DATAPARC_RUNTIME_KNOWN_SOURCE;
+    const saved = String(asset?.dataParcTag || "").trim();
+    return isDataParcRuntimeAsset(asset) && isDataParcRunSignalTag(saved) && saved !== DATAPARC_RUNTIME_KNOWN_SOURCE ? saved : "";
+  }
 
   const state = {
     data: null,
@@ -98,6 +120,12 @@
       "dataparcRuntimeDialogTag",
       "dataparcRuntimeDialogAsset",
       "dataparcRuntimeStartAt",
+      "dataparcRuntimeSourceSettings",
+      "dataparcRuntimeSourceTag",
+      "dataparcRuntimeSourceSummary",
+      "dataparcRuntimeSourceHelp",
+      "dataparcRuntimeConfirmSignal",
+      "dataparcRuntimeConfirmField",
       "dataparcRuntimeMinimum",
       "dataparcRuntimePreviousBasis",
       "dataparcRuntimeSubmitButton",
@@ -1117,10 +1145,18 @@
     const startupPending = confirmed && cycleStartState === "pending";
     const actualStarted = confirmed && cycleStartState === "started" && Boolean(asset.cycleStartedAt);
     const cycleRuntimeTracked = confirmed && !startupPending && Boolean(asset.cycleRuntimeTracked);
-    const operationRunning = cycleRuntimeTracked && Boolean(asset.isRunning);
+    const operationKnown = cycleRuntimeTracked && asset.operationState !== "unknown" && asset.cycleRuntimeState !== "unknown";
+    const operationRunning = operationKnown && Boolean(asset.isRunning);
     const operationState = confirmed
-      ? (startupPending ? "startup_pending" : (operationRunning ? "running" : "stopped"))
+      ? (startupPending ? "startup_pending" : (operationKnown ? (operationRunning ? "running" : "stopped") : "unknown"))
       : "unconfirmed";
+    const operationStateLabel = {
+      running: "기동중",
+      stopped: "정지중",
+      startup_pending: "기동 대기",
+      unknown: "상태 미확인",
+      unconfirmed: awaitingBackfill ? "재구성 대기" : "교체일 미확인"
+    }[operationState];
     const cycleAnchorAt = actualStarted ? asset.cycleStartedAt : (startupPending ? "" : asset.lastReplacementAt);
     const severity = displaySeverity(asset);
     const evidence = readableEvidence(replacementEvent);
@@ -1150,29 +1186,36 @@
         ? `${cycleHours.toLocaleString("ko-KR")}h`
         : `${cycleDays.toLocaleString("ko-KR")}일`)
       : "미설정";
-    const operationActionLabel = operationRunning ? "정지" : "기동";
-    const operationActionTitle = operationRunning
+    const actionRunning = !startupPending && Boolean(asset.isRunning);
+    const operationActionLabel = actionRunning ? "정지" : "기동";
+    const operationActionTitle = actionRunning
       ? "클릭하면 현재 시각으로 운전을 정지합니다."
       : "클릭하면 현재 시각으로 운전을 기동합니다.";
     const operationAction = confirmed
-      ? `<button type="button" class="asset-action runtime-state-action ${operationRunning ? "stop" : "start"}" data-mobile-write data-asset-action="operation_toggle" data-tag="${escapeHtml(asset.tagNumber)}" title="${escapeHtml(operationActionTitle)}" aria-label="${escapeHtml(`${cardPosition} ${operationActionLabel}`)}">${operationActionLabel}</button>`
+      ? `<button type="button" class="asset-action runtime-state-action ${actionRunning ? "stop" : "start"}" data-mobile-write data-asset-action="operation_toggle" data-tag="${escapeHtml(asset.tagNumber)}" title="${escapeHtml(operationActionTitle)}" aria-label="${escapeHtml(`${cardPosition} ${operationActionLabel}`)}">${operationActionLabel}</button>`
       : "";
-    const isDataparcRuntimePilot = asset.tagNumber === DATAPARC_RUNTIME_PILOT_TAG;
+    const isDataparcRuntimeAsset = isDataParcRuntimeAsset(asset);
     const dataparcRuntimeActive = state.dataparcRuntimeBusy && state.dataparcRuntimeTag === asset.tagNumber;
-    const dataparcRuntimeBasis = isDataparcRuntimePilot
+    const dataparcRuntimeBasis = isDataparcRuntimeAsset
       ? getLatestDataParcRuntimeBasis(asset.tagNumber)
       : null;
-    const dataparcRuntimeBasisLine = dataparcRuntimeBasis
-      ? `<div class="dataparc-runtime-basis" title="${escapeHtml(`DataPARC에서 실제 확인한 기간입니다. 마지막 조회 이후 누적시간은 저장된 기동·정지 상태에 따라 계산됩니다.`)}"><span>DataPARC 조회</span><strong>${escapeHtml(formatKstDateTimeDisplay(dataparcRuntimeBasis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(dataparcRuntimeBasis.observedAt))}</strong></div>`
-      : "";
     const dataparcRuntimeAction = (
-      isDataparcRuntimePilot &&
+      isDataparcRuntimeAsset &&
       confirmed &&
       !startupPending &&
       hasAuthenticatedWriteAccess() &&
       !isMobileMonitoringView()
     )
-      ? `<button type="button" class="dataparc-runtime-action${dataparcRuntimeActive ? " is-running" : ""}" data-mobile-write data-asset-action="dataparc_runtime_probe" data-tag="${escapeHtml(asset.tagNumber)}"${dataparcRuntimeActive ? " disabled aria-busy=\"true\"" : ""}>${dataparcRuntimeActive ? escapeHtml(state.dataparcRuntimeStatus || "조회 중") : "DataPARC 기간조회"}</button>`
+      ? `<button type="button" class="dataparc-runtime-action${dataparcRuntimeActive ? " is-running" : ""}" data-mobile-write data-asset-action="dataparc_runtime_probe" data-tag="${escapeHtml(asset.tagNumber)}" title="${escapeHtml(dataparcRuntimeActive ? (state.dataparcRuntimeStatus || "DataPARC 운전시간 조회 중") : "DataPARC 운전시간 기간조회")}"${dataparcRuntimeActive ? " disabled aria-busy=\"true\"" : ""}>${dataparcRuntimeActive ? "조회 중" : "기간조회"}</button>`
+      : "";
+    const dataparcRuntimeBasisLine = dataparcRuntimeBasis || dataparcRuntimeAction
+      ? `<div class="dataparc-runtime-row">
+          <div class="dataparc-runtime-basis" title="${escapeHtml(dataparcRuntimeBasis ? "DataPARC에서 실제 확인한 기간입니다. 마지막 조회 이후 누적시간은 저장된 기동·정지 상태에 따라 계산됩니다." : "조회할 시작일시를 선택해 실제 누적 운전시간을 확인합니다.")}">
+            <span>DataPARC</span>
+            ${dataparcRuntimeBasis ? `<strong>${escapeHtml(formatKstDateTimeDisplay(dataparcRuntimeBasis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(dataparcRuntimeBasis.observedAt))}</strong>` : `<small>기간을 선택해 조회</small>`}
+          </div>
+          ${dataparcRuntimeAction}
+        </div>`
       : "";
     const cyclePrimaryLabel = startupPending
       ? "주기 상태"
@@ -1191,9 +1234,7 @@
             <span class="asset-tag">${escapeHtml(asset.tagNumber)}</span>
           </div>
           <div class="asset-status-group">
-            ${dataparcRuntimeAction}
-            <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(awaitingBackfill ? "재구성 대기" : severityLabel(severity))}</span>
-            ${confirmed && !startupPending ? `<span class="operation-pill ${operationRunning ? "running" : "stopped"}">${operationRunning ? "운전중" : "정지"}</span>` : ""}
+            <span class="operation-pill ${escapeHtml(operationState)}">${escapeHtml(operationStateLabel)}</span>
           </div>
         </div>
 
@@ -1206,7 +1247,7 @@
               <strong data-mobile-value="${escapeHtml(cyclePrimaryMobileValue)}">${escapeHtml(cyclePrimaryValue)}</strong>
             </div>
             ${cycleHours ? `<div class="cycle-deadline-metric ${escapeHtml(severity)}">
-              <span>${cycleRuntimeTracked && !operationRunning ? "D-day · 정지" : "D-day"}</span>
+              <span>${["warning", "critical", "overdue"].includes(severity) ? escapeHtml(severityLabel(severity)) : (cycleRuntimeTracked && !operationRunning ? "D-day · 정지" : "D-day")}</span>
               <strong>${escapeHtml(remainingLabel)}</strong>
             </div>
             <div class="cycle-usage-metric ${escapeHtml(severity)}">
@@ -8566,7 +8607,7 @@
     renderAssets();
   }
 
-  async function waitForDataparcRuntimeProbe(requestId) {
+  async function waitForDataparcRuntimeProbe(requestId, assetTag = DATAPARC_RUNTIME_PILOT_TAG) {
     const deadline = Date.now() + (2 * 60 * 60 * 1000);
     const retryWaits = [1000, 2000, 4000, 8000];
     let consecutiveFailures = 0;
@@ -8591,7 +8632,7 @@
           Math.max(retryWaits[consecutiveFailures], Number(error?.retryAfterMs) || 0)
         );
         consecutiveFailures += 1;
-        setDataparcRuntimeStatus(DATAPARC_RUNTIME_PILOT_TAG, "재연결 중");
+        setDataparcRuntimeStatus(assetTag, "재연결 중");
         await waitForMilliseconds(waitMs);
         continue;
       }
@@ -8608,7 +8649,7 @@
       }
 
       setDataparcRuntimeStatus(
-        DATAPARC_RUNTIME_PILOT_TAG,
+        assetTag,
         item.status === "processing" ? "계산 중" : "대기 중"
       );
       await waitForMilliseconds(Math.min(3000, Math.max(0, deadline - Date.now())));
@@ -8617,12 +8658,19 @@
     throw new Error("DataPARC 조회 대기시간이 초과되었습니다. 회사 PC Agent 상태를 확인해 주세요.");
   }
 
-  async function syncDataParcBlowerRuntime(tagNumber, requestedStartAt = "") {
+  async function syncDataParcBlowerRuntime(tagNumber, requestedStartAt = "", signalOptions = {}) {
     if (stopMobileMutation() || state.dataparcRuntimeBusy) return;
 
     const normalizedTag = String(tagNumber || "").trim().toUpperCase();
-    if (normalizedTag !== DATAPARC_RUNTIME_PILOT_TAG) {
-      showToast("현재 시험 조회는 Silo Aeration Blower 602만 지원합니다.", "error");
+    if (!DATAPARC_RUNTIME_ASSET_TAGS.has(normalizedTag)) {
+      showToast("DataPARC 기간조회 대상 설비를 확인해 주세요.", "error");
+      return;
+    }
+    const dataParcTag = normalizedTag === DATAPARC_RUNTIME_PILOT_TAG
+      ? DATAPARC_RUNTIME_KNOWN_SOURCE : String(signalOptions.dataParcTag || "").trim();
+    if (!isDataParcRunSignalTag(dataParcTag) ||
+      (normalizedTag !== DATAPARC_RUNTIME_PILOT_TAG && (signalOptions.confirmRunSignal !== true || dataParcTag === DATAPARC_RUNTIME_KNOWN_SOURCE))) {
+      showToast("이 설비의 DataPARC RUN TAG와 1=기동 · 0=정지 신호를 확인해 주세요.", "error");
       return;
     }
 
@@ -8633,6 +8681,11 @@
       const createBody = {
         action: "create_blower_runtime_probe"
       };
+      if (normalizedTag !== DATAPARC_RUNTIME_PILOT_TAG) {
+        createBody.assetTag = normalizedTag;
+        createBody.dataParcTag = dataParcTag;
+        createBody.confirmRunSignal = true;
+      }
       const normalizedStartAt = String(requestedStartAt || "").trim();
       if (normalizedStartAt) createBody.startAt = normalizedStartAt;
 
@@ -8653,7 +8706,7 @@
       }
 
       setDataparcRuntimeStatus(normalizedTag, "대기 중");
-      await waitForDataparcRuntimeProbe(requestId);
+      await waitForDataparcRuntimeProbe(requestId, normalizedTag);
       setDataparcRuntimeStatus(normalizedTag, "저장 중");
 
       const applied = await apiRequest({
@@ -8685,7 +8738,7 @@
     const asset = findAsset(normalizedTag);
 
     if (
-      normalizedTag !== DATAPARC_RUNTIME_PILOT_TAG ||
+      !isDataParcRuntimeAsset(asset) ||
       !asset ||
       !asset.lastReplacementAt
     ) {
@@ -8726,11 +8779,23 @@
       : "현재 V-Belt 교체 이후의 시각을 선택해 주세요.";
     elements.dataparcRuntimePreviousBasis.hidden = !previousBasis;
     elements.dataparcRuntimePreviousBasis.textContent = previousBasis
-      ? `최근 DataPARC 기준: ${formatKstDateTimeDisplay(previousBasis.startAt)} → 현재`
+      ? `최근 조회: ${formatKstDateTimeDisplay(previousBasis.startAt)} → ${formatKstDateTimeDisplay(previousBasis.observedAt)}`
       : "";
 
+    const savedSignal = savedDataParcRunSignal(asset);
+    const fixedSignal = normalizedTag === DATAPARC_RUNTIME_PILOT_TAG;
+    elements.dataparcRuntimeSourceTag.value = savedSignal;
+    elements.dataparcRuntimeSourceTag.readOnly = fixedSignal;
+    elements.dataparcRuntimeSourceTag.dataset.savedSignal = savedSignal;
+    elements.dataparcRuntimeSourceSummary.textContent = savedSignal ? "운전 신호 설정 · 연결됨" : "운전 신호 설정 · 최초 1회";
+    elements.dataparcRuntimeSourceSettings.open = !savedSignal;
+    elements.dataparcRuntimeConfirmSignal.checked = Boolean(savedSignal);
+    elements.dataparcRuntimeConfirmField.hidden = fixedSignal;
+    elements.dataparcRuntimeSourceHelp.textContent = fixedSignal
+      ? "Silo #B에서 확인된 운전 신호입니다."
+      : "DataPARC에서 해당 설비의 RUN 신호 전체 TAG를 복사해 주세요. 조회·저장에 성공하면 다음부터 자동 입력됩니다.";
     elements.dataparcRuntimeDialog.showModal();
-    window.setTimeout(() => elements.dataparcRuntimeStartAt.focus(), 0);
+    window.setTimeout(() => (savedSignal ? elements.dataparcRuntimeStartAt : elements.dataparcRuntimeSourceTag).focus(), 0);
   }
 
   async function submitDataParcRuntimeRange(event) {
@@ -8761,8 +8826,33 @@
       return;
     }
 
+    if (!isDataParcRuntimeAsset(asset) || !Number.isFinite(replacementTime) ||
+      String(asset.cycleStartState || "legacy") === "pending") {
+      showToast("교체일과 실제 기동 상태를 확인한 후 조회해 주세요.", "error");
+      return;
+    }
+    const dataParcTag = tagNumber === DATAPARC_RUNTIME_PILOT_TAG
+      ? DATAPARC_RUNTIME_KNOWN_SOURCE : String(elements.dataparcRuntimeSourceTag.value || "").trim();
+    if (!isDataParcRunSignalTag(dataParcTag)) {
+      elements.dataparcRuntimeSourceSettings.open = true;
+      showToast("GSPOGE.ABB_DCS.로 시작하는 실제 RUN TAG 전체를 입력해 주세요.", "error");
+      elements.dataparcRuntimeSourceTag.focus();
+      return;
+    }
+    if (tagNumber !== DATAPARC_RUNTIME_PILOT_TAG && dataParcTag === DATAPARC_RUNTIME_KNOWN_SOURCE) {
+      elements.dataparcRuntimeSourceSettings.open = true;
+      showToast("이 신호는 Silo #B 전용입니다. 선택한 설비의 RUN TAG를 입력해 주세요.", "error");
+      elements.dataparcRuntimeSourceTag.focus();
+      return;
+    }
+    if (tagNumber !== DATAPARC_RUNTIME_PILOT_TAG && !elements.dataparcRuntimeConfirmSignal.checked) {
+      elements.dataparcRuntimeSourceSettings.open = true;
+      showToast("해당 설비의 1=기동 · 0=정지 신호인지 확인해 주세요.", "error");
+      elements.dataparcRuntimeConfirmSignal.focus();
+      return;
+    }
     elements.dataparcRuntimeDialog.close();
-    await syncDataParcBlowerRuntime(tagNumber, startAt);
+    await syncDataParcBlowerRuntime(tagNumber, startAt, { dataParcTag, confirmRunSignal: true });
   }
 
   function openRecordDialog(mode, tagNumber, candidate = null) {
@@ -9884,6 +9974,12 @@
       openRecordDialog("candidate", candidate.tagNumber, candidate);
     });
 
+    elements.dataparcRuntimeSourceTag.addEventListener("input", () => {
+      const unchanged = elements.dataparcRuntimeSourceTag.value.trim() === elements.dataparcRuntimeSourceTag.dataset.savedSignal;
+      elements.dataparcRuntimeConfirmSignal.checked = unchanged && Boolean(elements.dataparcRuntimeSourceTag.dataset.savedSignal);
+      elements.dataparcRuntimeSourceSummary.textContent = unchanged && elements.dataparcRuntimeConfirmSignal.checked
+        ? "운전 신호 설정 · 연결됨" : "운전 신호 설정 · 확인 필요";
+    });
     elements.dataparcRuntimeForm.addEventListener("submit", submitDataParcRuntimeRange);
     elements.recordForm.addEventListener("submit", saveRecord);
     elements.runtimeEditPendingButton.addEventListener("click", toggleRuntimeEditStartupPending);

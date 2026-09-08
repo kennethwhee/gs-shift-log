@@ -167,7 +167,7 @@ test("registers the read-only probe in the Excel lane and never in the OIS brows
 });
 
 
-test("creates a dedicated probe request and does not trust a client source TAG", () => {
+test("creates a dedicated probe request and validates explicit RUN signals before freezing the intent", () => {
   assert.match(queueApi, new RegExp(`["']${CREATE_ACTION}["']`));
 
   const createFunctionName = [
@@ -178,12 +178,17 @@ test("creates a dedicated probe request and does not trust a client source TAG",
   assert.ok(createFunctionName, "a dedicated blower runtime probe creator is missing");
 
   const createSource = functionSource(queueApi, createFunctionName);
-  assert.match(createSource, /BLOWER_RUNTIME_PROBE_ASSET_TAG/);
-  assert.match(createSource, /BLOWER_RUNTIME_PROBE_DATAPARC_TAG/);
+  assert.match(createSource, /resolveBlowerRuntimeProbeMapping\s*\(body\)/);
+  const mappingSource = functionSource(queueApi, "resolveBlowerRuntimeProbeMapping");
+  assert.match(mappingSource, /BLOWER_RUNTIME_PROBE_ASSET_TAG/);
+  assert.match(mappingSource, /BLOWER_RUNTIME_PROBE_DATAPARC_TAG/);
+  assert.match(mappingSource, /BLOWER_RUNTIME_PROBE_ALLOWED_ASSET_TAGS\.includes/);
+  assert.match(mappingSource, /body\.confirmRunSignal\s*!==\s*true/);
+  assert.match(mappingSource, /isValidBlowerRuntimeProbeMapping\s*\(assetTag, body\.dataParcTag\)/);
   assert.doesNotMatch(
     createSource,
     /body\s*\.\s*(?:dataParcTag|dataparcTag|sourceTag|source_tag)/,
-    "the queue must derive the source TAG instead of accepting it from the browser"
+    "raw client source TAGs must pass the mapping validator before entering the queue"
   );
   assert.match(createSource, /buildBlowerRuntimeProbeChunks\s*\(/);
   assert.match(
@@ -258,14 +263,10 @@ test("validates binary end state, bounded runtime, and the exact queued identity
     .find(candidate => candidate.includes(`function ${validatorName}(`));
   const validatorSource = functionSource(source, validatorName);
 
-  assert.match(
-    validatorSource,
-    /(?:BLOWER_RUNTIME_PROBE_ASSET_TAG|DATAPARC_RUNTIME_SYNC_ASSET_TAG)/
-  );
-  assert.match(
-    validatorSource,
-    /(?:BLOWER_RUNTIME_PROBE_DATAPARC_TAG|DATAPARC_RUNTIME_SYNC_SOURCE_TAG)/
-  );
+  assert.match(validatorSource, /isSupportedDataParcRuntimePair\s*\(raw\.assetTag, raw\.dataParcTag\)/);
+  const pairSource = functionSource(blowerApi, "isSupportedDataParcRuntimePair");
+  assert.match(pairSource, /DATAPARC_RUNTIME_SYNC_ASSET_TAG/);
+  assert.match(pairSource, /DATAPARC_RUNTIME_SYNC_SOURCE_TAG/);
   assert.match(validatorSource, /run(?:ning)?Seconds/i);
   assert.match(validatorSource, /range|window|startAt|windowStart/i);
   assert.match(validatorSource, /(?:normalize|is).*Runtime.*State\s*\(/i);
@@ -325,7 +326,8 @@ test("the server sync uses trusted probe data, CAS, idempotent provenance, and a
   assert.match(syncSource, /DATAPARC_RUNTIME_PROBE_REQUEST_TYPE/);
   assert.match(syncSource, /normalizeDataParcRuntimeProbeResult\s*\(/);
   assert.match(syncSource, /status\s*=\s*['"]complete['"]|status[\s\S]{0,80}complete/i);
-  assert.match(syncSource, /DATAPARC_RUNTIME_SYNC_ASSET_TAG/);
+  assert.match(syncSource, /findAsset\s*\(database, probe\.assetTag\)/);
+  assert.match(syncSource, /isMatchingDataParcRuntimeSyncIntent\s*\(/);
   assert.match(syncSource, /cycle_start_revision/i);
   assert.match(syncSource, /cycle_runtime_revision/i);
   assert.match(syncSource, /last_replacement_at/i);

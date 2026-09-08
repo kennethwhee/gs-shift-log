@@ -268,6 +268,20 @@ function insertProbeRequest(sqlite, rawResult, overrides = {}) {
     ...overrides
   };
 
+  sqlite.exec(`CREATE TABLE IF NOT EXISTS blower_runtime_probe_intents_v2 (
+    request_id TEXT PRIMARY KEY, schema_version INTEGER, asset_tag TEXT, dataparc_tag TEXT,
+    window_start TEXT, window_end TEXT, chunk_days INTEGER, chunk_count INTEGER,
+    expected_last_replacement_at TEXT, expected_cycle_start_state TEXT,
+    expected_cycle_started_at TEXT, expected_cycle_start_revision TEXT,
+    expected_cycle_runtime_revision TEXT
+  )`);
+  sqlite.prepare(`INSERT INTO blower_runtime_probe_intents_v2 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(rawResult.requestId, rawResult.schemaVersion, rawResult.assetTag, rawResult.dataParcTag,
+      rawResult.startAt, rawResult.endAt, rawResult.chunkDays, rawResult.chunkCount,
+      rawResult.expectedLastReplacementAt, rawResult.expectedCycleStartState,
+      rawResult.expectedCycleStartedAt, rawResult.expectedCycleStartRevision,
+      rawResult.expectedCycleRuntimeRevision);
+
   sqlite.prepare(`
     INSERT INTO ois_data_requests (
       id, request_type, target_date, status,

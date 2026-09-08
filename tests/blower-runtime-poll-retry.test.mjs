@@ -6,11 +6,14 @@ import vm from "node:vm";
 
 const root = path.resolve(process.argv[2] || process.cwd());
 const source = fs.readFileSync(path.join(root, "maintenance/blower-history.js"), "utf8");
-const pollStart = source.indexOf("  async function waitForDataparcRuntimeProbe(requestId) {");
+const pollStart = source.indexOf("  async function waitForDataparcRuntimeProbe(");
 const syncStart = source.indexOf("  async function syncDataParcBlowerRuntime(", pollStart);
 const nextStart = source.indexOf("  function openDataParcRuntimeDialog(", syncStart);
 assert.ok(pollStart >= 0 && syncStart > pollStart && nextStart > syncStart);
-const functions = source.slice(pollStart, nextStart);
+const signalStart = source.indexOf("  const DATAPARC_RUNTIME_PILOT_TAG =");
+const signalEnd = source.indexOf("  const state =", signalStart);
+assert.ok(signalStart >= 0 && signalEnd > signalStart);
+const functions = source.slice(signalStart, signalEnd) + "\n" + source.slice(pollStart, nextStart);
 const requestId = "probe/42 +alpha";
 const deadlineMs = 2 * 60 * 60 * 1000;
 const httpError = (status, extra = {}) => Object.assign(new Error(`HTTP ${status}`), { status, ...extra });

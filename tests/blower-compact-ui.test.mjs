@@ -192,7 +192,8 @@ test("an old replacement cycle cannot supply the displayed DataPARC basis", () =
   const item = asset();
   const oldEvent = dataParcEvent({ ...item, cycleStartRevision: "previous-replacement" });
   const markup = render(ui, item, { cycleDays: null }, [replacementEvent(item), oldEvent]);
-  assert.doesNotMatch(markup, /class="dataparc-runtime-basis"/);
+  assert.equal(ui.getLatestDataParcRuntimeBasis(item.tagNumber), null);
+  assert.doesNotMatch(markup, /2026-05-10 00:00|2026-09-08 21:10/, "old query dates must not appear on the new cycle");
 });
 
 test("manual runtime correction remains available once in the history footer and respects pending/public access", () => {
@@ -217,11 +218,15 @@ test("manual runtime correction remains available once in the history footer and
   assert.equal(ui.elements.historyRuntimeCorrectionButton.hidden, true);
 });
 
-test("only the verified DataPARC TAG has a query action and pending cycles remain excluded", async () => {
+test("supported DataPARC cards expose query setup while unsupported assets and unconfirmed signals cannot start", async () => {
   const { ui, fetchCount } = harness();
   const item = asset();
   assert.match(render(ui, item), /data-asset-action="dataparc_runtime_probe"/);
   for (const tagNumber of ["104ETH03AN601", "104ETG30AN602", "104SDF01AN001"]) {
+    assert.match(render(ui, asset({ tagNumber })), /data-asset-action="dataparc_runtime_probe"/);
+    await ui.syncDataParcBlowerRuntime(tagNumber, "2026-05-10T00:00:00+09:00");
+  }
+  for (const tagNumber of ["104HHL60AP611", "104HHL10AN611", "INVALID-TAG"]) {
     assert.doesNotMatch(render(ui, asset({ tagNumber })), /data-asset-action="dataparc_runtime_probe"/);
     await ui.syncDataParcBlowerRuntime(tagNumber, "2026-05-10T00:00:00+09:00");
   }

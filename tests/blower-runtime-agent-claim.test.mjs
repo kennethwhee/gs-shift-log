@@ -31,6 +31,19 @@ function balancedBlock(source, openingIndex, openCharacter, closeCharacter) {
       continue;
     }
 
+    // Comments can contain quotes; they do not begin JavaScript strings.
+    if (character === "/" && source[index + 1] === "/") {
+      const newline = source.indexOf("\n", index + 2);
+      index = newline < 0 ? source.length : newline;
+      continue;
+    }
+    if (character === "/" && source[index + 1] === "*") {
+      const commentEnd = source.indexOf("*/", index + 2);
+      assert.ok(commentEnd >= 0, "unterminated comment");
+      index = commentEnd + 1;
+      continue;
+    }
+
     if (["\"", "'", "`"].includes(character)) {
       quote = character;
       continue;

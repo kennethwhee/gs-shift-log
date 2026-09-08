@@ -11,6 +11,10 @@ const clientSource = fs.readFileSync(
   "utf8"
 );
 const SYNC_FUNCTION_NAME = "syncDataParcBlowerRuntime";
+const signalSetupStart = clientSource.indexOf("  const DATAPARC_RUNTIME_PILOT_TAG =");
+const signalSetupEnd = clientSource.indexOf("  const state =", signalSetupStart);
+assert.ok(signalSetupStart >= 0 && signalSetupEnd > signalSetupStart);
+const signalSetup = clientSource.slice(signalSetupStart, signalSetupEnd);
 
 
 function extractFunction(source, name) {
@@ -18,7 +22,30 @@ function extractFunction(source, name) {
   assert.ok(declaration, `${name} function is missing`);
 
   const start = declaration.index;
-  const bodyStart = source.indexOf("{", start);
+  // Skip the entire parameter list, including default object literals.
+  const parametersStart = source.indexOf("(", start);
+  let parameterDepth = 0;
+  let parameterQuote = "";
+  let parameterEscaped = false;
+  let bodyStart = -1;
+  for (let index = parametersStart; index < source.length; index += 1) {
+    const character = source[index];
+    if (parameterQuote) {
+      if (parameterEscaped) parameterEscaped = false;
+      else if (character === "\\") parameterEscaped = true;
+      else if (character === parameterQuote) parameterQuote = "";
+      continue;
+    }
+    if (["\"", "'", "`"].includes(character)) { parameterQuote = character; continue; }
+    if (character === "(") parameterDepth += 1;
+    if (character === ")") parameterDepth -= 1;
+    if (parameterDepth === 0) {
+      bodyStart = index + 1;
+      while (/\s/.test(source[bodyStart] || "")) bodyStart += 1;
+      break;
+    }
+  }
+  assert.equal(source[bodyStart], "{", `${name} body must follow its full signature`);
   let depth = 0;
   let quote = "";
   let escaped = false;
@@ -94,7 +121,7 @@ test("frontend performs create, poll, then one request-id-only atomic sync", asy
   });
 
   vm.runInContext(
-    `${extractFunction(clientSource, SYNC_FUNCTION_NAME)}\n` +
+    `${signalSetup}\n${extractFunction(clientSource, SYNC_FUNCTION_NAME)}\n` +
       `this.${SYNC_FUNCTION_NAME} = ${SYNC_FUNCTION_NAME};`,
     context
   );
@@ -157,7 +184,7 @@ test("frontend sends a selected maintenance baseline only with the create reques
   });
 
   vm.runInContext(
-    `${extractFunction(clientSource, SYNC_FUNCTION_NAME)}\n` +
+    `${signalSetup}\n${extractFunction(clientSource, SYNC_FUNCTION_NAME)}\n` +
       `this.${SYNC_FUNCTION_NAME} = ${SYNC_FUNCTION_NAME};`,
     context
   );
@@ -203,12 +230,12 @@ test("frontend blocks unsupported assets and concurrent duplicate clicks", async
   });
 
   vm.runInContext(
-    `${extractFunction(clientSource, SYNC_FUNCTION_NAME)}\n` +
+    `${signalSetup}\n${extractFunction(clientSource, SYNC_FUNCTION_NAME)}\n` +
       `this.${SYNC_FUNCTION_NAME} = ${SYNC_FUNCTION_NAME};`,
     context
   );
 
-  await context[SYNC_FUNCTION_NAME]("104ETH03AN601");
+  await context[SYNC_FUNCTION_NAME]("104HHL60AP611");
   assert.equal(apiCount, 0);
   assert.equal(toasts.length, 1);
 
@@ -221,7 +248,7 @@ test("frontend blocks unsupported assets and concurrent duplicate clicks", async
 test("DataPARC range action is desktop-only, confirmed, and excludes startup-pending cycles", () => {
   assert.match(
     clientSource,
-    /isDataparcRuntimePilot\s*&&\s*confirmed\s*&&\s*!startupPending\s*&&[\s\S]*?!isMobileMonitoringView\(\)/
+    /isDataparcRuntimeAsset\s*&&\s*confirmed\s*&&\s*!startupPending\s*&&[\s\S]*?!isMobileMonitoringView\(\)/
   );
   assert.match(clientSource, /DataPARC 기간조회/);
   assert.match(clientSource, /openDataParcRuntimeDialog\s*\(/);
@@ -339,11 +366,16 @@ function runtimeUiFixture(options = {}) {
     "dataparcRuntimeDialogAsset",
     "dataparcRuntimeStartAt",
     "dataparcRuntimeMinimum",
-    "dataparcRuntimePreviousBasis"
+    "dataparcRuntimePreviousBasis",
+    "dataparcRuntimeSourceTag", "dataparcRuntimeSourceSummary",
+    "dataparcRuntimeSourceSettings", "dataparcRuntimeConfirmSignal",
+    "dataparcRuntimeConfirmField", "dataparcRuntimeSourceHelp"
   ].map(key => [key, {
     value: "",
     textContent: "",
     hidden: false,
+    dataset: {},
+    checked: false,
     focus() { this.focused = true; }
   }]));
   elements.dataparcRuntimeDialog = {
@@ -411,7 +443,7 @@ function runtimeUiFixture(options = {}) {
     "openDataParcRuntimeDialog", "submitDataParcRuntimeRange", "syncDataParcBlowerRuntime"
   ];
   vm.runInContext(
-    realFunctions.map(name => extractFunction(clientSource, name)).join("\n") +
+    signalSetup + "\n" + realFunctions.map(name => extractFunction(clientSource, name)).join("\n") +
       `\nthis.ui = { ${realFunctions.join(", ")} };`,
     context
   );
@@ -444,7 +476,7 @@ function dataParcBasisEvent(overrides = {}, sourceOverrides = {}) {
 test("legacy 602 card exposes a period query without a separately registered startup", () => {
   const ui = runtimeUiFixture();
   const html = ui.renderAssetCard(ui.asset, null);
-  assert.match(html, /data-asset-action="dataparc_runtime_probe"[^>]*>DataPARC 기간조회/);
+  assert.match(html, /data-asset-action="dataparc_runtime_probe"[^>]*>기간조회/);
   assert.equal(ui.asset.cycleStartState, "legacy");
   assert.equal(ui.openDataParcRuntimeDialog(ui.asset.tagNumber), undefined);
   assert.equal(ui.elements.dataparcRuntimeDialog.open, true);
@@ -546,7 +578,8 @@ test("old or unverifiable cycle baselines never label a new cycle or prefill its
   for (const event of cases) {
     const ui = runtimeUiFixture({ events: [event] });
     assert.equal(ui.getLatestDataParcRuntimeBasis(ui.asset.tagNumber), null);
-    assert.doesNotMatch(ui.renderAssetCard(ui.asset, null), /class="dataparc-runtime-basis"/);
+    const markup = ui.renderAssetCard(ui.asset, null);
+    assert.doesNotMatch(markup, /<strong>[^<]* → [^<]*<\/strong>/, "an invalid baseline must not render a query date range");
     ui.openDataParcRuntimeDialog(ui.asset.tagNumber);
     assert.equal(ui.elements.dataparcRuntimeStartAt.value, "");
     assert.equal(ui.elements.dataparcRuntimePreviousBasis.hidden, true);

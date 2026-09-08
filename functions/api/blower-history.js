@@ -33,19 +33,8 @@ const TYPE_DEFINITIONS = [
   }
 ];
 
-// 실제 TAG와 호기가 확인되지 않은 설비는 DB asset으로 만들지 않는다.
-// TAG가 확정되기 전까지는 조회 전용 placeholder로만 노출해 이력 오귀속을 막는다.
-const PENDING_ASSET_SLOTS = Object.freeze([
-  {
-    slotKey: "organic_fuel_manure_pending",
-    blowerType: "organic_fuel",
-    groupKey: "manure",
-    groupLabel: "축분 Blower",
-    positionLabel: "#1",
-    displayName: "축분 Blower",
-    identityPending: true
-  }
-]);
+// 확인 대기 설비는 여기에만 표시한다. 축분 Blower는 204LMDF01AN001로 확정되어 seed로 관리한다.
+const PENDING_ASSET_SLOTS = Object.freeze([]);
 
 const ASSET_SEEDS = [
   ["104HHL60AP611", "fbhe", "1", "#A", "#1 FBHE Blower #A", 101],
@@ -66,6 +55,7 @@ const ASSET_SEEDS = [
   ["104SDF01AN002", "organic_fuel", "1", "#B", "#1 유기성 고형연료 Blower #B", 402],
   ["204SDF01AN001", "organic_fuel", "2", "#A", "#2 유기성 고형연료 Blower #A", 451],
   ["204SDF01AN002", "organic_fuel", "2", "#B", "#2 유기성 고형연료 Blower #B", 452],
+  ["204LMDF01AN001", "organic_fuel", "2", "#1", "축분 Blower", 471, "manure"],
 
   ["104ETG30AN601", "flyash_bag", "1", "#A", "#1 Fly Ash Bag Filter Aeration Blower #A", 501],
   ["104ETG30AN602", "flyash_bag", "1", "#B", "#1 Fly Ash Bag Filter Aeration Blower #B", 502],
@@ -255,6 +245,10 @@ const SEAL_POT_RUNTIME_REQUEST_TYPE = "seal_pot_runtime";
 const DATAPARC_RUNTIME_PROBE_REQUEST_TYPE = "blower_runtime_probe";
 const DATAPARC_RUNTIME_SYNC_ASSET_TAG = "104ETH03AN602";
 const DATAPARC_RUNTIME_SYNC_SOURCE_TAG = "GSPOGE.ABB_DCS.003ETH03AN602XB04";
+const DATAPARC_RUNTIME_SYNC_ASSET_TAGS = Object.freeze(
+  ASSET_SEEDS.filter(seed => ["organic_fuel", "flyash_bag", "flyash_silo"].includes(seed[1]))
+    .map(seed => seed[0])
+);
 const DATAPARC_RUNTIME_SYNC_SOURCE_TYPE = "dataparc_runtime";
 const DATAPARC_RUNTIME_SYNC_CHUNK_DAYS = 31;
 const DATAPARC_RUNTIME_SYNC_MAX_RANGE_DAYS = 366;
@@ -850,7 +844,8 @@ async function ensureSchema(database) {
   }
 
   for (const seed of ASSET_SEEDS) {
-    const [tag, type, unitNo, position, displayName, sortOrder] = seed;
+    const [tag, type, unitNo, position, displayName, sortOrder, assetGroup = ""] = seed;
+    const isNewManure = tag === "204LMDF01AN001";
 
     await database
       .prepare(`
@@ -861,10 +856,15 @@ async function ensureSchema(database) {
           position_label,
           display_name,
           sort_order,
+          asset_group,
+          cycle_start_state,
+          cycle_runtime_hours,
+          cycle_runtime_state,
+          cycle_runtime_revision,
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .bind(
         tag,
@@ -873,6 +873,11 @@ async function ensureSchema(database) {
         position,
         displayName,
         sortOrder,
+        assetGroup,
+        isNewManure ? "pending" : "legacy",
+        isNewManure ? 0 : null,
+        isNewManure ? "unknown" : "",
+        isNewManure ? crypto.randomUUID() : "",
         now,
         now
       )
@@ -980,7 +985,8 @@ async function ensureBlowerHistorySchemaReady(database) {
             '204HHL10AN631',
             '204SDF01AN002',
             '204ETG30AN602',
-            '104ETH03AN602'
+            '104ETH03AN602',
+            '204LMDF01AN001'
           )
         ) AS sentinel_asset_count
     `).first();
@@ -1021,7 +1027,7 @@ async function ensureBlowerHistorySchemaReady(database) {
 
     if (
       Number(ready?.setting_count || 0) >= 5 &&
-      Number(ready?.sentinel_asset_count || 0) >= 5 &&
+      Number(ready?.sentinel_asset_count || 0) >= 6 &&
       Number(uninitializedCycleRuntime?.count || 0) === 0 &&
       atomicGuardTable?.name === "blower_history_atomic_guard" &&
       activeSlotIndex?.name === "idx_blower_history_assets_active_slot" &&
@@ -1333,6 +1339,8 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
     cycleStartRevision: normalizeText(asset.cycle_start_revision),
     cycleRuntimeTracked,
     cycleRuntimeState,
+    operationState: !hasConfirmedReplacement && cycleRuntimeState === "unknown"
+      ? "unknown" : (cycleRuntimeState === "running" ? "running" : "stopped"),
     cycleRuntimeAnchorAt: normalizeText(asset.cycle_runtime_anchor_at),
     cycleRuntimeRevision: normalizeText(asset.cycle_runtime_revision),
     runtimeHours,
@@ -1612,6 +1620,21 @@ async function loadSettingHistory(database, limit = 50) {
   }));
 }
 
+function latestSuccessfulDataParcTag(assetTag, rows) {
+  if (assetTag === DATAPARC_RUNTIME_SYNC_ASSET_TAG) return DATAPARC_RUNTIME_SYNC_SOURCE_TAG;
+  for (const row of rows || []) {
+    if (row.tag_number !== assetTag || row.source_type !== DATAPARC_RUNTIME_SYNC_SOURCE_TYPE ||
+        row.event_type !== "runtime_correction") continue;
+    let evidence;
+    try { evidence = JSON.parse(row.source_text); } catch { continue; }
+    if (evidence?.assetTag === assetTag && evidence.requestType === DATAPARC_RUNTIME_PROBE_REQUEST_TYPE &&
+        evidence.requestId === row.source_log_id &&
+        row.id === dataParcRuntimeSyncEventId(evidence.requestId) &&
+        isSupportedDataParcRuntimePair(assetTag, evidence.dataParcTag)) return evidence.dataParcTag;
+  }
+  return "";
+}
+
 async function loadAssetStates(database, settings) {
   const assetResult = await database
     .prepare(`
@@ -1644,6 +1667,13 @@ async function loadAssetStates(database, settings) {
     .all();
 
   const referenceRows = Array.isArray(referenceResult.results) ? referenceResult.results : [];
+  const runtimeResult = await database.prepare(`
+    SELECT id, tag_number, event_type, source_type, source_log_id, source_text
+    FROM blower_history_events
+    WHERE source_type = ? AND event_type = 'runtime_correction'
+    ORDER BY created_at DESC, event_date DESC, id DESC
+  `).bind(DATAPARC_RUNTIME_SYNC_SOURCE_TYPE).all();
+  const runtimeRows = Array.isArray(runtimeResult.results) ? runtimeResult.results : [];
   const now = new Date();
 
   return assets.map(asset => {
@@ -1676,13 +1706,13 @@ async function loadAssetStates(database, settings) {
         }
       : null;
 
-    return buildAssetState(
+    return { ...buildAssetState(
       asset,
       settings[asset.blower_type],
       latestProblem,
       latestReference,
       now
-    );
+    ), dataParcTag: latestSuccessfulDataParcTag(asset.tag_number, runtimeRows) };
   });
 }
 
@@ -2034,6 +2064,17 @@ function isDataParcRuntimeNumber(value) {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function isSupportedDataParcRuntimePair(assetTag, dataParcTag) {
+  return (
+    typeof assetTag === "string" && DATAPARC_RUNTIME_SYNC_ASSET_TAGS.includes(assetTag) &&
+    typeof dataParcTag === "string" && dataParcTag.length <= 200 &&
+    dataParcTag === dataParcTag.trim() &&
+    /^GSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*$/.test(dataParcTag) &&
+    (assetTag !== DATAPARC_RUNTIME_SYNC_ASSET_TAG || dataParcTag === DATAPARC_RUNTIME_SYNC_SOURCE_TAG) &&
+    (dataParcTag !== DATAPARC_RUNTIME_SYNC_SOURCE_TAG || assetTag === DATAPARC_RUNTIME_SYNC_ASSET_TAG)
+  );
+}
+
 function normalizeDataParcRuntimeProbeResult(value, requestId, now = new Date(), options) {
   const validationOptions = options && typeof options === "object"
     ? options
@@ -2068,8 +2109,7 @@ function normalizeDataParcRuntimeProbeResult(value, requestId, now = new Date(),
   }
 
   if (
-    raw.assetTag !== DATAPARC_RUNTIME_SYNC_ASSET_TAG ||
-    raw.dataParcTag !== DATAPARC_RUNTIME_SYNC_SOURCE_TAG
+    !isSupportedDataParcRuntimePair(raw.assetTag, raw.dataParcTag)
   ) {
     return dataParcRuntimeValidationFailure("DataPARC TAG와 Blower 설비 매핑이 일치하지 않습니다.");
   }
@@ -2309,8 +2349,8 @@ function normalizeDataParcRuntimeProbeResult(value, requestId, now = new Date(),
       schemaVersion: 1,
       requestType: DATAPARC_RUNTIME_PROBE_REQUEST_TYPE,
       requestId: normalizedRequestId,
-      assetTag: DATAPARC_RUNTIME_SYNC_ASSET_TAG,
-      dataParcTag: DATAPARC_RUNTIME_SYNC_SOURCE_TAG,
+      assetTag: raw.assetTag,
+      dataParcTag: raw.dataParcTag,
       rawStartAt: raw.startAt,
       rawEndAt: raw.endAt,
       startAt: startAt.iso,
@@ -6044,7 +6084,7 @@ function isMatchingDataParcRuntimeSyncEvent(event, probe, sourceText) {
 
   return (
     normalizeText(event.id) === dataParcRuntimeSyncEventId(probe.requestId) &&
-    normalizeText(event.tag_number) === DATAPARC_RUNTIME_SYNC_ASSET_TAG &&
+    normalizeText(event.tag_number) === probe.assetTag &&
     normalizeText(event.event_type) === "runtime_correction" &&
     normalizeText(event.event_date) === probe.observedAt &&
     Number.isFinite(Number(event.runtime_hours)) &&
@@ -6064,8 +6104,8 @@ function dataParcRuntimeSyncSuccessResponse(probe, replayed) {
     applied: !replayed,
     replayed,
     requestId: probe.requestId,
-    assetTag: DATAPARC_RUNTIME_SYNC_ASSET_TAG,
-    dataParcTag: DATAPARC_RUNTIME_SYNC_SOURCE_TAG,
+    assetTag: probe.assetTag,
+    dataParcTag: probe.dataParcTag,
     eventId: dataParcRuntimeSyncEventId(probe.requestId),
     observedAt: probe.observedAt,
     runtimeHours: probe.runtimeHours,
@@ -6074,6 +6114,47 @@ function dataParcRuntimeSyncSuccessResponse(probe, replayed) {
       ? "이미 반영된 DataPARC 기간조회입니다. 기존 결과를 유지했습니다."
       : "선택한 기준시각 이후 DataPARC 운전시간과 현재 RUN 상태를 Blower Cycle에 반영했습니다."
   });
+}
+
+async function loadDataParcRuntimeSyncIntent(database, requestId) {
+  // V2 has a database-level fixed 602 pair constraint. A missing V3 row can be
+  // an already-completed pilot request created before the V3 queue migration.
+  for (const table of ["blower_runtime_probe_intents_v3", "blower_runtime_probe_intents_v2"]) {
+    let intent;
+    try {
+      intent = await database.prepare(`SELECT * FROM ${table} WHERE request_id = ? LIMIT 1`)
+        .bind(requestId).first();
+    } catch (error) {
+      if (/no such table:/i.test(String(error?.message || error))) continue;
+      throw error;
+    }
+    if (intent) {
+      if (table.endsWith("_v2") && (
+        intent.asset_tag !== DATAPARC_RUNTIME_SYNC_ASSET_TAG ||
+        intent.dataparc_tag !== DATAPARC_RUNTIME_SYNC_SOURCE_TAG
+      )) return null;
+      return intent;
+    }
+  }
+  return null;
+}
+
+function isMatchingDataParcRuntimeSyncIntent(intent, probe) {
+  return Boolean(intent &&
+    intent.request_id === probe.requestId &&
+    Number(intent.schema_version) === probe.schemaVersion &&
+    intent.asset_tag === probe.assetTag &&
+    intent.dataparc_tag === probe.dataParcTag &&
+    intent.window_start === probe.rawStartAt &&
+    intent.window_end === probe.rawEndAt &&
+    Number(intent.chunk_days) === DATAPARC_RUNTIME_SYNC_CHUNK_DAYS &&
+    Number(intent.chunk_count) === probe.chunkCount &&
+    intent.expected_last_replacement_at === probe.expectedLastReplacementAt &&
+    intent.expected_cycle_start_state === probe.expectedCycleStartState &&
+    intent.expected_cycle_started_at === probe.expectedCycleStartedAt &&
+    intent.expected_cycle_start_revision === probe.expectedCycleStartRevision &&
+    intent.expected_cycle_runtime_revision === probe.expectedCycleRuntimeRevision
+  );
 }
 
 async function applyDataParcRuntimeSync(database, user, body, options) {
@@ -6175,13 +6256,22 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
 
   if (
     normalizeText(requestRow.target_date) !==
-      `v1|${DATAPARC_RUNTIME_SYNC_ASSET_TAG}|${probe.rawStartAt}|${probe.rawEndAt}`
+      `v1|${probe.assetTag}|${probe.rawStartAt}|${probe.rawEndAt}`
   ) {
     return jsonResponse({
       ok: false,
       code: "DATAPARC_RUNTIME_PROBE_INVALID",
       message: "DataPARC 조회 요청의 고정 기간과 저장 결과가 일치하지 않습니다."
     }, 400);
+  }
+
+  const intent = await loadDataParcRuntimeSyncIntent(database, requestId);
+  if (!isMatchingDataParcRuntimeSyncIntent(intent, probe)) {
+    return jsonResponse({
+      ok: false,
+      code: "DATAPARC_RUNTIME_INTENT_CONFLICT",
+      message: "DataPARC 요청에 확정한 설비·운전 TAG·기간·Cycle 기준과 조회 결과가 일치하지 않습니다. 새로 조회해 주세요."
+    }, 409);
   }
 
   const sourceText = dataParcRuntimeSyncSourceText(probe);
@@ -6219,13 +6309,13 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
     }, 409);
   }
 
-  const asset = await findAsset(database, DATAPARC_RUNTIME_SYNC_ASSET_TAG);
+  const asset = await findAsset(database, probe.assetTag);
 
   if (!asset) {
     return jsonResponse({
       ok: false,
       code: "DATAPARC_RUNTIME_ASSET_NOT_FOUND",
-      message: "Silo Aeration Blower 602 설비를 찾을 수 없습니다."
+      message: "DataPARC 조회 대상 Blower 설비를 찾을 수 없습니다."
     }, 404);
   }
 
@@ -6318,7 +6408,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
           actorId,
           actorName,
           now,
-          DATAPARC_RUNTIME_SYNC_ASSET_TAG,
+          probe.assetTag,
           probe.expectedLastReplacementAt,
           probe.expectedCycleStartState,
           probe.expectedCycleStartedAt,
@@ -6355,7 +6445,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
         `)
         .bind(
           eventId,
-          DATAPARC_RUNTIME_SYNC_ASSET_TAG,
+          probe.assetTag,
           probe.observedAt,
           runtimeHours,
           actionType,
@@ -6367,7 +6457,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
           actorName,
           now,
           now,
-          DATAPARC_RUNTIME_SYNC_ASSET_TAG,
+          probe.assetTag,
           probe.expectedLastReplacementAt,
           probe.expectedCycleStartState,
           probe.expectedCycleStartedAt,
@@ -6432,7 +6522,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
         `)
         .bind(
           guardId,
-          DATAPARC_RUNTIME_SYNC_ASSET_TAG,
+          probe.assetTag,
           probe.expectedLastReplacementAt,
           probe.expectedCycleStartState,
           probe.expectedCycleStartedAt,
@@ -6448,7 +6538,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
           actorName,
           now,
           eventId,
-          DATAPARC_RUNTIME_SYNC_ASSET_TAG,
+          probe.assetTag,
           probe.observedAt,
           runtimeHours,
           actionType,
@@ -6766,6 +6856,7 @@ function splitMixedAssetLine(value) {
     "#\\s*[ABC]\\b",
     "(?:104|204)(?:HHL(?:60AP|10AN)(?:611|621|631)|SDF01AN(?:001|002)|ETG30AN(?:601|602))",
     "104ETH03AN(?:601|602)",
+    "204LMDF01AN001",
     "(?:FBHE|SEAL\\s*POT|SEALPOT|유기성\\s*고형연료|FLY\\s*ASH\\s*(?:BAG\\s*FILTER|SILO))"
   ].join("|");
   const separator = new RegExp(`\\s*(?:/|,|→|➡|⇒)\\s*(?=${marker})`, "gi");
@@ -7672,6 +7763,18 @@ function classifyRecognizedBlowerTag(tagNumber) {
     };
   }
 
+  if (tag === "204LMDF01AN001") {
+    return {
+      tagNumber: tag,
+      blowerType: "organic_fuel",
+      unitNo: "2",
+      assetGroup: "manure",
+      positionLabel: "#1",
+      displayName: "축분 Blower",
+      sortOrder: 471
+    };
+  }
+
   match = tag.match(/^([12])04ETG30AN(601|602)$/);
   if (match) {
     const positionMap = { "601": "#A", "602": "#B" };
@@ -7884,7 +7987,8 @@ function extractRecognizedBlowerTags(text, assets = []) {
     { prefixes: ["104HHL10AN", "204HHL10AN"], suffixes: ["611", "621", "631"] },
     { prefixes: ["104SDF01AN", "204SDF01AN"], suffixes: ["001", "002"] },
     { prefixes: ["104ETG30AN", "204ETG30AN"], suffixes: ["601", "602"] },
-    { prefixes: ["104ETH03AN"], suffixes: ["601", "602"] }
+    { prefixes: ["104ETH03AN"], suffixes: ["601", "602"] },
+    { prefixes: ["204LMDF01AN"], suffixes: ["001"] }
   ];
 
   for (const family of groupedFamilies) {
@@ -7956,10 +8060,11 @@ async function ensureDiscoveredAssets(database, text, assets) {
           position_label,
           display_name,
           sort_order,
+          asset_group,
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .bind(
         definition.tagNumber,
@@ -7968,6 +8073,7 @@ async function ensureDiscoveredAssets(database, text, assets) {
         definition.positionLabel,
         definition.displayName,
         definition.sortOrder,
+        definition.assetGroup || "",
         now,
         now
       )
@@ -10844,6 +10950,7 @@ function buildHistoricalAuditAssets(storedAssets) {
     byTag.set(tagNumber, {
       tag_number: definition.tagNumber,
       blower_type: definition.blowerType,
+      asset_group: definition.assetGroup || "",
       unit_no: definition.unitNo,
       position_label: definition.positionLabel,
       display_name: definition.displayName,
@@ -13413,6 +13520,13 @@ export async function onRequestPost(context) {
 /* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
 export const __blowerHistoryTest = {
   ensureSchema,
+  ensureBlowerHistorySchemaReady,
+  loadAssetStates,
+  buildMissingTagSummary,
+  classifyRecognizedBlowerTag,
+  extractRecognizedBlowerTags,
+  findAssetMatches,
+  latestSuccessfulDataParcTag,
   ensureHistoryRecoveryV12Schema,
   normalizeDataParcRuntimeProbeResult,
   applyDataParcRuntimeSync,
