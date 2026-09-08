@@ -11962,8 +11962,74 @@ function Resolve-ProbeExcelExecutable {
   throw "Excel 실행 파일(EXCEL.EXE)을 찾지 못했습니다. Office 설치 상태를 확인해 주세요."
 }
 
+function Test-ProbeNativeOmCompileLock([object[]]$Records, [string]$CompileDirectory) {
+  $messages = New-Object System.Collections.Generic.List[string]
+  foreach ($record in @($Records)) {
+    if ($null -eq $record) { continue }
+    $messages.Add([string]$record)
+    if ($record -is [Management.Automation.ErrorRecord]) {
+      if ($null -ne $record.ErrorDetails) { $messages.Add([string]$record.ErrorDetails.Message) }
+      $exception = $record.Exception
+      while ($null -ne $exception) {
+        $messages.Add([string]$exception.Message)
+        $exception = $exception.InnerException
+      }
+      $target = $record.TargetObject
+      if ($null -ne $target) {
+        foreach ($property in @("ErrorNumber", "ErrorText")) {
+          if ($null -ne $target.PSObject.Properties[$property]) { $messages.Add([string]$target.$property) }
+        }
+      }
+    }
+  }
+  $diagnostic = $messages -join " "
+  $codes = @([regex]::Matches($diagnostic, '(?i)\bCS[0-9]{4}\b') | ForEach-Object { $_.Value.ToUpperInvariant() })
+  if ($codes.Count -eq 0 -or @($codes | Where-Object { $_ -ne "CS0016" }).Count -gt 0) { return $false }
+  if ($diagnostic -match '(?i)access\s+(?:is\s+)?denied|액세스[^.]*거부|권한[^.]*없') { return $false }
+  $directoryPrefix = [IO.Path]::GetFullPath($CompileDirectory).TrimEnd('\') + '\'
+  if ($diagnostic.IndexOf($directoryPrefix, [StringComparison]::OrdinalIgnoreCase) -lt 0 -or $diagnostic -notmatch '(?i)\.dll\b') { return $false }
+  return ($diagnostic -match '(?i)(?:being\s+)?used\s+by\s+another\s+process|sharing\s+violation|lock\s+violation|다른\s*프로세스[^.]*사용')
+}
+
+function Initialize-ProbeNativeOm([string]$TypeDefinition) {
+  $createdDirectories = New-Object System.Collections.Generic.List[string]
+  $retryWaits = @(1000, 2000)
+  try {
+    for ($attempt = 0; $attempt -lt 3; $attempt += 1) {
+      $compileDirectory = Join-Path ([IO.Path]::GetTempPath()) ("gs-blower-nativeom-" + [Guid]::NewGuid().ToString("N"))
+      if (Test-Path -LiteralPath $compileDirectory) { throw "Excel 연결모듈 임시 폴더가 이미 존재합니다." }
+      [void][IO.Directory]::CreateDirectory($compileDirectory)
+      $createdDirectories.Add($compileDirectory)
+      $parameters = New-Object System.CodeDom.Compiler.CompilerParameters
+      $parameters.GenerateInMemory = $true
+      $parameters.GenerateExecutable = $false
+      $parameters.IncludeDebugInformation = $false
+      $parameters.TempFiles = [System.CodeDom.Compiler.TempFileCollection]::new($compileDirectory, $false)
+      [void]$parameters.ReferencedAssemblies.Add("System.dll")
+      $compileErrors = @()
+      try {
+        Write-ProbeStage ("Excel 연결모듈 준비 · " + [string]($attempt + 1) + "/3")
+        Add-Type -TypeDefinition $TypeDefinition -CompilerParameters $parameters -ErrorVariable +compileErrors -ErrorAction Stop
+        return
+      } catch {
+        if ($attempt -ge 2 -or -not (Test-ProbeNativeOmCompileLock (@($compileErrors) + @($_)) $compileDirectory)) { throw }
+        Write-ProbeStage "Excel 연결모듈 임시 DLL 잠금 · 잠시 후 다시 준비"
+        Start-Sleep -Milliseconds $retryWaits[$attempt]
+      }
+    }
+  } finally {
+    foreach ($directory in $createdDirectories) {
+      try {
+        if (Test-Path -LiteralPath $directory) { Remove-Item -LiteralPath $directory -Recurse -Force -ErrorAction Stop }
+      } catch {
+        try { Write-ProbeStage ("Excel 연결모듈 임시 폴더 정리 대기: " + $directory) } catch {}
+      }
+    }
+  }
+}
+
 if (-not ("GsBlowerRuntimeNativeOmV1" -as [type])) {
-  Add-Type -TypeDefinition @"
+  $nativeOmTypeDefinition = @"
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -12050,6 +12116,7 @@ public static class GsBlowerRuntimeNativeOmV1
     }
 }
 "@
+  Initialize-ProbeNativeOm $nativeOmTypeDefinition
 }
 
 function Get-ProbeExcelProcessId($ExcelApplication) {
