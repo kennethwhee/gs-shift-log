@@ -45,5 +45,5 @@ test('host navigation exposes the development label and keeps the same view targ
  assert.match(button,/>혼소율 \(개발중\)<\/span>/);
  assert.match(button,/aria-label="혼소율 \(개발중\)"/);
  assert.match(button,/data-efficiency-tab="cofiring-draft"/);
- assert.match(html,/cofiring-draft\.js\?v=20260909-organic-manual-v1/);
+ assert.match(html,/cofiring-draft\.js\?v=20260909-web-bridge-v1/);
 });

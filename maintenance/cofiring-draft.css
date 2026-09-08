@@ -92,3 +92,15 @@
 .cofiring-draft .cf-organic-secondary button { font-size:12px; min-height:30px; padding:3px 6px; margin-top:5px; }
 .cofiring-draft .cf-organic-secondary [data-cf-organic-clear] { color:#a53d37; }
 @media (max-width:768px) { .cofiring-draft .cf-organic-controls input { max-width:180px; } }
+
+/* COFIRING_WEB_BRIDGE_V1: compact query controls; manual unit cards stay unchanged. */
+.cf-live-panel {border-top:1px solid #e0e7f3;padding-top:12px;margin-top:12px;}
+.cf-live-actions {display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.cf-live-actions [data-cf-live-saved] {font-size:12px;color:#567093;margin-left:auto;}
+.cf-live-panel [data-cf-live-status] {font-size:13px;line-height:1.6;margin:10px 0 0;color:#284b7a;overflow-wrap:anywhere;}
+.cf-test-tools {margin-top:12px;font-size:12px;color:#617494;}
+.cf-test-tools>summary {cursor:pointer;}
+.cf-test-tools>button {margin-top:10px;}
+.cf-test-tools .cf-actions {margin-top:8px;}
+.cf-live-panel[hidden] {display:none!important;}
+@media(max-width:768px){.cf-live-actions [data-cf-live-saved]{margin-left:0;flex-basis:100%;}.cf-live-actions button{min-height:38px;}}

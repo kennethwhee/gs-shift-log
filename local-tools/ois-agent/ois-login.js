@@ -1,4 +1,6 @@
 "use strict";
+// [COFIRING-WEB-BRIDGE-V1] Shares the existing Excel lane; no startup query.
+const { COFIRING_REQUEST_TYPE, collectCofiringDailyValues, isCofiringExcelBlocked } = require("./cofiring-dataparc-agent");
 
 // [ORGANIC-SILO-DATAPARC-V1] Query-only hidden Excel collector.
 const { ORGANIC_SILO_REQUEST_TYPE, collectOrganicSiloDataParcValues } =
@@ -11019,6 +11021,7 @@ async function getNextOisAgentRequest(
   config
 ) {
   const excelRequestTypes = [
+    "cofiring_daily",
     "daily_data_excel",
     "steam_status",
     BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
@@ -11041,6 +11044,7 @@ async function getNextOisAgentRequest(
 
 
   const backgroundRequestTypes = [
+    "cofiring_daily",
     "auxiliary_materials",
     "logsheet_approval",
     "fbhe_vibration",
@@ -11214,6 +11218,7 @@ async function getNextOisAgentRequest(
 async function getNextOisAgentLaneRequests(
   config
 ) {
+  if (isCofiringExcelBlocked()) throw new Error("혼소율 조회용 Excel 종료 확인이 필요합니다. 추가 Agent 요청을 보류합니다.");
   if (
     config.agentMode ===
       "excel"
@@ -11246,6 +11251,7 @@ async function getNextOisAgentLaneRequests(
 
 
   const excelRequestTypes = [
+    "cofiring_daily",
     "daily_data_excel",
     "steam_status",
     BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
@@ -11622,6 +11628,7 @@ function isExcelComRequestType(
 
 
   return (
+    normalizedRequestType === "cofiring_daily" ||
     isDailyDataExcelRequestType(
       normalizedRequestType
     ) ||
@@ -11661,6 +11668,7 @@ function isExcelOnlyRequestType(
 function getOisAgentRequestLabel(
   requestType
 ) {
+  if (requestType === "cofiring_daily") return "혼소율 하루 DataPARC";
   if (requestType === ORGANIC_SILO_REQUEST_TYPE) {
     return "유기성 Silo DataPARC";
   }
@@ -17488,6 +17496,15 @@ if (
   }
 
 
+  if (requestType === "cofiring_daily") {
+    return await collectCofiringDailyValues(config, requestItem, {
+      postProgress: progress => requestOisAgentApi(config, getOisAgentApiUrl(config), {
+        method: "POST", timeoutMilliseconds: 8000,
+        body: { action: "cofiring_progress", requestId: requestItem.id, ...progress }
+      })
+    });
+  }
+
   if (requestType === ORGANIC_SILO_REQUEST_TYPE) {
     return await collectOrganicSiloDataParcValues(config, requestItem);
   }
@@ -17540,6 +17557,7 @@ function printOisAgentRequestResult(
   requestType,
   result
 ) {
+  if (requestType === "cofiring_daily")  { console.log("혼소율 결과 서버 저장 완료 ·", result?.targetDate, result?.report?.status); return; }
   if (requestType === ORGANIC_SILO_REQUEST_TYPE) {
     console.table({ "조회일": result.targetDate, "Day Silo": result.organicDaySilo, "Storage A": result.organicStorageSiloA, "Storage B": result.organicStorageSiloB, "총 재고량": result.organicSiloTotal });
     return;
@@ -17984,6 +18002,24 @@ async function completeOisAgentRequest(
   requestId,
   result
 ) {
+  if (result?.kind === "cofiring_live_result") {
+    let lastError;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const ack = await requestOisAgentApi(config, getOisAgentApiUrl(config), {
+          method: "POST", timeoutMilliseconds: 30000,
+          body: { action: "complete", requestId, result }
+        });
+        if (ack?.stored !== true || ack.requestId !== requestId || ack.targetDate !== result.targetDate) throw new Error("혼소율 서버 저장 확인 응답이 다릅니다.");
+        return ack;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) await waitOisAgent(1000 * (attempt + 1));
+      }
+    }
+    throw lastError;
+  }
+
   return await requestOisAgentApi(
     config,
 

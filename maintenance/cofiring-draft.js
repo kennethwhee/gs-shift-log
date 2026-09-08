@@ -112,6 +112,7 @@
     return `<header class="cofiring-draft__header"><div><span class="cf-eyebrow">CO-FIRING</span><h2>혼소율 (개발중)</h2><p class="cf-muted">날짜를 하나 선택해 하루 연료 사용량과 열량 기준 혼소율을 확인합니다.</p></div><span class="cf-draft-tag">개발중 · 자동조회 미연결</span></header>
       <p class="cf-notice" data-cf-development>개발중입니다. 웹 자동조회는 아직 연결되지 않았습니다. 9/7 참고자료 또는 별도로 조회한 시험 결과로만 계산하며, 운영 확정값으로 사용하지 마세요.</p>
       <div class="cf-panel"><div class="cf-period"><label class="cf-field">계산일<input data-cf-date type="date" value="2026-09-07" aria-describedby="cofiringDailyQueryRange"></label><span class="cf-day-badge">1일 단위</span><button type="button" data-cf-original>원본 하루 조건 보기</button></div><div class="cf-query-window"><span>DataPARC 시험 조회 범위</span><strong id="cofiringDailyQueryRange" data-cf-query-range></strong></div><p class="cf-period-meta" data-cf-period></p>
+      <div class="cf-live-panel" data-cf-live-panel hidden><div class="cf-live-actions"><button type="button" class="cf-primary" data-cf-live-query>DataPARC 조회</button><button type="button" data-cf-live-requery>재조회</button><button type="button" data-cf-live-load>저장 결과 불러오기</button><span data-cf-live-saved></span></div><p data-cf-live-status role="status" aria-live="polite"></p></div>
       <div class="cf-actions"><button type="button" class="cf-primary" data-cf-calculate>첨부자료로 계산</button><button type="button" data-cf-import>시험 결과 열기</button><input data-cf-file type="file" accept="application/json,.json" hidden></div></div>
       <p class="cf-notice" data-cf-status role="status" aria-live="polite">첨부 엑셀의 2026-09-07 자료로 계산하는 초안입니다. 실제 DataPARC 조회는 아직 연결하지 않았습니다.</p>
       <div class="cf-source"><span class="cf-source-name" data-cf-source>원본 1분 누적값 · 석탄 8개 / 바이오 2개 계측값</span><span class="cf-source-status" data-cf-quality>계산 전</span></div>
@@ -154,6 +155,7 @@
     let reference=config.reference||root.COFIRING_DRAFT_REFERENCE||null,referencePromise=null;
     let sourceLabel='첨부 엑셀',sourceFilename='',pilotVerified=false,referenceVerified=false,gapSummary=null;
     let busy=false,calculated=false,lastResult=null,loadToken=0,savedSignature='',disposed=false;
+    let live=null,sourceLive=false,sourceMode='live',displayedLiveId='';
     const panels={};
     function authHeaders(){return typeof root.getShiftLogAuthHeaders==='function'?root.getShiftLogAuthHeaders():{};}
     function isMobile(){
@@ -226,8 +228,11 @@
         try{display(core.analyzeDay(reference,numericOptions()));}catch(e){resetResults();status(e.message,'error');}
       }
     }
-    function invalidatePeriod(){
+    function invalidatePeriod(skipLive=false){
       ++loadToken;resetResults();updatePeriod();organic.select(date.value);organic.load();
+      sourceLive=false;displayedLiveId='';
+      if(live&&skipLive===true){live.select(date.value);live.pause();}
+      if(live && skipLive!==true){sourceMode='live';reference=null;pilotVerified=false;referenceVerified=false;gapSummary=null;live.select(date.value);if(visible())live.load();}
       find('[data-cf-source]').textContent='선택일의 하루 자료로 다시 계산해 주세요.';
       status('계산일이 변경되었습니다. 날짜 변경만으로 자동조회하지 않습니다. 유기성은 선택일의 서버 저장값만 불러옵니다. 연료 계산은 선택일의 시험 결과를 열어 주세요.');
     }
@@ -250,17 +255,18 @@
     function display(result){
       calculated=true;lastResult=result;renderCards(result);
       const warnings=(result.warnings||[]).map(item=>typeof item==='string'?item:JSON.stringify(item));
-      if(pilotVerified&&!referenceVerified&&!gapSummary)warnings.unshift('하루 값·품질·시각과 조회용 Excel 종료는 확인했지만 원본 Excel 전체 대조는 미완료입니다. 연료 조회 결과와 혼소율은 운영 저장하지 않습니다.');
+      if(pilotVerified&&!referenceVerified&&!gapSummary&&!sourceLive)warnings.unshift('하루 값·품질·시각과 조회용 Excel 종료는 확인했지만 원본 Excel 전체 대조는 미완료입니다. 연료 조회 결과와 혼소율은 운영 저장하지 않습니다.');
       if(gapSummary)warnings.unshift(`10개 TAG 수신과 Excel 종료 확인 · 정상 숫자 ${gapSummary.validSamples.toLocaleString('ko-KR')}개 · 자료 없음 ${gapSummary.missingSamples}개. 누락은 0이나 보간값으로 채우지 않았습니다.`,`원본 대조 ${gapSummary.comparedSamples.toLocaleString('ko-KR')}/${gapSummary.expectedSamples.toLocaleString('ko-KR')}개는 조회 개수가 아닙니다. 누락 연료는 미확정이며 해당 호기 혼소율을 계산하지 않습니다. 유기성 수기 저장은 이 판정을 바꾸지 않습니다.`);
+      if(sourceLive)warnings.unshift('서버 저장된 하루 조회 자료입니다. 혼소율은 현재 유기성 저장값과 화면 발열량으로 계산하며, 확정 혼소율 기록으로 저장하지 않습니다.');
       const complete=Object.values(result.units).every(unit=>isNumber(unit.ratios?.total));
       find('[data-cf-source]').textContent=`${sourceLabel} · ${sourceFilename||reference.source?.filename||'1분 누적 자료'} · ${localTime(result.period.start).replace('T',' ')} ~ ${localTime(result.period.end).replace('T',' ')}`;
       find('[data-cf-quality]').textContent=gapSummary?`조회 완료 · 누락 ${gapSummary.missingSamples}개 / 원본 대조 ${gapSummary.comparedSamples.toLocaleString('ko-KR')}/${gapSummary.expectedSamples.toLocaleString('ko-KR')}`:result.qualityVerified&&pilotVerified?(referenceVerified?'품질·종료·원본 대조 확인':'값·품질·종료 확인 / 원본 대조 미완료'):'품질 정보 미검증';
       find('[data-cf-check-panel]').hidden=warnings.length===0;find('[data-cf-checks]').innerHTML=warnings.map(value=>`<li>${escapeHtml(value)}</li>`).join('');
-      status(gapSummary?`조회 완료 · ${gapSummary.missingSamples}개 분 표본 누락. 정상 연료는 사용량을, 누락 연료는 조회값 참고(미확정)를 표시했습니다. 누락이 있는 호기의 혼소율은 표시하지 않습니다.`:complete?'서버에 저장된 유기성 사용량으로 혼소율을 계산했습니다. 연료 조회 결과·혼소율 자체는 아직 서버에 저장하지 않습니다.':'확인 가능한 사용량을 표시했습니다. 누락 자료 또는 유기성 저장값이 없는 호기는 혼소율을 표시하지 않습니다.',complete?'success':'');
+      status(sourceLive&&!gapSummary?'서버 저장 결과를 표시했습니다. 혼소율은 저장된 유기성과 현재 발열량으로 계산합니다.':gapSummary?`조회 완료 · ${gapSummary.missingSamples}개 분 표본 누락. 정상 연료는 사용량을, 누락 연료는 조회값 참고(미확정)를 표시했습니다. 누락이 있는 호기의 혼소율은 표시하지 않습니다.`:complete?'서버에 저장된 유기성 사용량으로 혼소율을 계산했습니다. 연료 조회 결과·혼소율 자체는 아직 서버에 저장하지 않습니다.':'확인 가능한 사용량을 표시했습니다. 누락 자료 또는 유기성 저장값이 없는 호기는 혼소율을 표시하지 않습니다.',complete?'success':'');
     }
     async function calculate(){
       if(busy)return;const token=++loadToken;busy=true;find('[data-cf-calculate]').disabled=true;
-      try{period();const data=await loadReference();if(token!==loadToken)return;const values=numericOptions();values.requireQuality=data.source?.kind==='dataparc_hidden_excel';const result=core.analyzeDay(data,values);reference=data;display(result);}
+      try{period();if(live&&sourceMode==='live'&&!reference)throw new Error('선택일의 서버 저장 결과가 없습니다. [DataPARC 조회]를 눌러 주세요.');const data=await loadReference();if(token!==loadToken)return;const values=numericOptions();values.requireQuality=data.source?.kind==='dataparc_hidden_excel';const result=core.analyzeDay(data,values);reference=data;display(result);}
       catch(e){if(token===loadToken){resetResults();status(e.message||'자료를 계산하지 못했습니다.','error');}}
       finally{busy=false;find('[data-cf-calculate]').disabled=false;}
     }
@@ -269,7 +275,8 @@
     for(const field of container.querySelectorAll('[data-cf-calorific]'))field.addEventListener('input',()=>{++loadToken;if(calculated)resetResults();status('발열량이 변경되었습니다. 다시 계산해 주세요.');});
     find('[data-cf-original]').addEventListener('click',async()=>{
       if(busy)return;const token=++loadToken;
-      try{const data=await loadReference();if(token!==loadToken)return;const sourceDay=core.validateDailySource(data);reference=data;date.value=sourceDay.targetDate;invalidatePeriod();
+      if(live){sourceMode='reference';sourceLive=false;sourceLabel='첨부 엑셀';sourceFilename='';reference=null;pilotVerified=false;referenceVerified=false;gapSummary=null;live.pause();}
+      try{const data=await loadReference();if(token!==loadToken)return;const sourceDay=core.validateDailySource(data);reference=data;date.value=sourceDay.targetDate;invalidatePeriod(true);
         for(const field of container.querySelectorAll('[data-cf-calorific]')){const [unit,fuel]=field.dataset.cfCalorific.split(':');const value=data.calorifics?.[unit]?.[fuel];if(isNumber(value))field.value=String(value);}
         // Original manualOrganic (including 59.84) is NEVER used as a default or a save.
         await calculate();
@@ -284,21 +291,68 @@
         // Validate first; a bad import must leave current values/drafts untouched.
         core.analyzeDay(data,{targetDate:imported.day.targetDate,organic:{start:data.start,end:data.end,unit1:null,unit2:null},requireQuality:imported.pilotVerified});
         accepted=true;++loadToken;reference=data;pilotVerified=imported.pilotVerified;referenceVerified=imported.referenceVerified;gapSummary=imported.gapSummary;
-        sourceLabel=pilotVerified?'불러온 하루 조회 자료':'불러온 참고 자료';sourceFilename=file.name;date.value=imported.day.targetDate;invalidatePeriod();
+        sourceMode='import';sourceLive=false;live?.pause();sourceLabel=pilotVerified?'불러온 하루 조회 자료':'불러온 참고 자료';sourceFilename=file.name;date.value=imported.day.targetDate;invalidatePeriod(true);
         display(core.analyzeDay(data,numericOptions()));find('[data-cf-calculate]').textContent=pilotVerified?'시험 자료로 계산':'불러온 자료로 계산';
       }catch(e){if(accepted||token===loadToken)status(e.message||'시험 결과 파일을 읽지 못했습니다.','error');}
       finally{event.target.value='';}
     });
     function visible(){return !container.closest?.('[hidden], [aria-hidden="true"]');}
-    function activate(){onOrganicChange();if(visible())return organic.load({force:true});return Promise.resolve(false);}
+    function activate(){onOrganicChange();if(visible()){if(live&&sourceMode==='live'){live.select(date.value);live.load({force:true});}return organic.load({force:true});}live?.pause();return Promise.resolve(false);} 
     const view=container.closest?.('[data-efficiency-view]'),modal=root.document.getElementById?.('efficiencyTeamModal');
     let observer=null;
-    if(root.MutationObserver&&view){observer=new root.MutationObserver(()=>{if(visible())activate();});for(const node of [view,modal])if(node)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});}
+    if(root.MutationObserver&&view){observer=new root.MutationObserver(()=>{if(visible())activate();else live?.pause();});for(const node of [view,modal])if(node)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});}
     const focus=()=>{activate();},resize=()=>{onOrganicChange();},storageChanged=e=>{if(!e.key||e.key==='gsShiftLog.currentUser')activate();};
     root.addEventListener?.('focus',focus);root.addEventListener?.('storage',storageChanged);root.addEventListener?.('resize',resize);
     container.addEventListener('focusin',()=>{onOrganicChange();});
+    if(root.CofiringLive&&root.CofiringLiveContract) {
+      const maxDay=new Date(Date.now()+9*3600000-60000-86400000).toISOString().slice(0,10);
+      date.value=maxDay;date.max=maxDay;
+      find('[data-cf-live-panel]').hidden=false;
+      const tag=container.querySelector('.cf-draft-tag');if(tag)tag.textContent='개발중 · 웹 조회 연결';
+      find('[data-cf-development]').textContent='개발중입니다. [DataPARC 조회]를 누를 때만 회사 PC에서 하루 자료를 읽습니다. 조회 완료와 누락 없는 확정 자료는 구분합니다.';
+      const foot=container.querySelector('.cf-footer');if(foot)foot.textContent='조회 결과는 날짜별로 서버에 저장합니다. 날짜 변경·저장 결과 확인만으로 Excel을 실행하지 않습니다. 유기성 수기 저장값은 재조회해도 유지합니다. 누락이 있는 호기는 혼소율을 확정하지 않습니다.';
+      const rangeLabel=container.querySelector('.cf-query-window > span');if(rangeLabel)rangeLabel.textContent='DataPARC 하루 조회 범위';
+      // Keep sample/import tools available, but out of the normal query workflow.
+      const actions=container.querySelector('.cf-actions');
+      if(actions){const details=root.document.createElement('details');details.className='cf-test-tools';const summary=root.document.createElement('summary');summary.textContent='참고자료·시험 결과';details.appendChild(summary);actions.parentNode.insertBefore(details,actions);details.appendChild(find('[data-cf-original]'));details.appendChild(actions);}
+      function paintLive(s) {
+        if(!live||disposed)return;
+        if(!s.authenticated&&sourceLive){sourceLive=false;reference=null;displayedLiveId='';resetResults();find('[data-cf-source]').textContent='로그인 후 서버 저장 결과를 확인해 주세요.';}
+        const d=s.day,active=d?.active,p=active?.progress;
+        const disabled=!s.canQuery||!!d?.loading||!!d?.submitting||!!active;
+        find('[data-cf-live-query]').disabled=disabled;
+        find('[data-cf-live-query]').textContent=active?'조회 진행 중':d?.saved?'저장 결과 보기':'DataPARC 조회';
+        find('[data-cf-live-requery]').disabled=disabled||!d?.saved;
+        find('[data-cf-live-load]').disabled=!s.authenticated||!!d?.loading||!!d?.submitting;
+        find('[data-cf-live-saved]').textContent=d?.saved?'서버 저장 '+localTime(d.saved.completedAt).replace('T',' ')+' (KST)':'선택일 저장 결과 없음';
+        for(const key of ['import','original','calculate'])find('[data-cf-'+key+']').disabled=!!active||!!d?.submitting;
+        let message=!s.authenticated?'로그인 후 저장 결과를 확인할 수 있습니다.':d?.error?d.error:d?.submitting?'하루 조회 요청을 등록하고 있습니다.':
+          active?.status==='pending'?'회사 PC Agent 요청 대기 중입니다. PC와 Agent가 실행 중이어야 합니다.':active?.status==='processing'?
+          p?.phase==='cleanup'?'10개 TAG 수신 후 값 검증·조회용 Excel 종료를 확인하고 있습니다.':`회사 PC 조회 중 · 완료 TAG ${p?.completedTags||0}/10 · 숨김 Excel 종료 후 서버에 저장합니다.`:
+          d?.lastAttempt?.status==='failed'?`최근 조회 실패: ${d.lastAttempt.errorMessage}${d.saved?' 기존 저장 결과는 유지했습니다.':''}`:
+          d?.loading?'서버 저장 결과를 확인하고 있습니다.':d?.saved?`서버 저장 완료 · ${d.result?.report?.noDataRows?'누락 '+d.result.report.noDataRows+'개 (미확정 포함)':'분별 자료 정상'} · 다시 열 때 Excel을 실행하지 않습니다.`:
+          !s.eligible?'다음 날 00:01이 지난 날짜를 선택해 주세요.':!s.canQuery?'모바일 조회 전용 · 새 조회는 로그인한 PC에서 실행해 주세요.':'[DataPARC 조회]로 선택일 하루를 읽습니다. 조회가 끝나면 결과가 자동으로 표시됩니다.';
+        find('[data-cf-live-status]').textContent=message;
+      }
+      live=root.CofiringLive.create({getHeaders:authHeaders,canQuery:()=>!isMobile(),isVisible:()=>visible()&&sourceMode==='live',onChange:paintLive,
+        onResult:(value,saved)=>{
+          if(sourceMode!=='live'||date.value!==value.targetDate||disposed)return;
+          if(sourceLive&&displayedLiveId===saved.id)return;
+          const imported=parseImportedReport(value.report);++loadToken;reference=imported.reference;pilotVerified=true;referenceVerified=imported.referenceVerified;gapSummary=imported.gapSummary;
+          sourceLabel='서버 저장 · DataPARC 하루 조회';sourceFilename='조회 완료 '+localTime(saved.completedAt).replace('T',' ')+' (KST)';sourceLive=true;displayedLiveId=saved.id;
+          display(core.analyzeDay(reference,numericOptions()));find('[data-cf-calculate]').textContent='현재 자료로 다시 계산';
+        }});
+      find('[data-cf-live-query]').addEventListener('click',()=>{sourceMode='live';live.select(date.value);return live.query({explicit:true});});
+      find('[data-cf-live-load]').addEventListener('click',()=>{sourceMode='live';sourceLive=false;live.select(date.value);return live.load({force:true});});
+      find('[data-cf-live-requery]').addEventListener('click',()=>{
+        live.select(date.value);if(!live.state().canQuery)return;
+        if(root.confirm?.(`${date.value} 하루 DataPARC 자료를 새로 조회할까요? 저장한 유기성 값은 유지합니다. 기존 결과는 새 조회·종료·저장이 확인될 때까지 보존합니다.`)){sourceMode='live';return live.query({explicit:true,force:true});}
+      });
+      live.select(date.value);if(visible())live.load();
+      status('선택일의 저장 결과를 확인합니다. 날짜를 선택하는 것만으로 회사 PC 조회를 시작하지 않습니다.');
+    }
     resetResults();updatePeriod();organic.select(date.value);if(visible())organic.load();
-    return {calculate,resetResults,activate,organic,dispose(){disposed=true;++loadToken;observer?.disconnect();organic.dispose();root.removeEventListener?.('focus',focus);root.removeEventListener?.('storage',storageChanged);root.removeEventListener?.('resize',resize);}};
+    return {calculate,resetResults,activate,organic,live,dispose(){disposed=true;++loadToken;observer?.disconnect();organic.dispose();live?.dispose();root.removeEventListener?.('focus',focus);root.removeEventListener?.('storage',storageChanged);root.removeEventListener?.('resize',resize);}};
   }
   root.CofiringDraft={mount,unitMarkup,numericInput,asKst,parseImportedReport,toKstInput:localTime};
   if(typeof module==='object'&&module.exports) module.exports=root.CofiringDraft;
