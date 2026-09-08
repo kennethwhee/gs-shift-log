@@ -11013,11 +11013,11 @@ async function applyAutomaticOperationState(database, change, plan, targetRunnin
   return { applied: true, reason: targetRunning ? "started" : "stopped" };
 }
 
-async function syncOperationChanges(database, user, body = {}) {
+async function syncOperationChanges(database, user, body = {}, prepared = null) {
   const days = Math.max(1, Math.min(365, Number(body.days) || OPERATION_SYNC_DEFAULT_DAYS));
   const fromDate = new Date(Date.now() - days * 24 * 3600000);
   const fromDateText = formatKstDate(fromDate);
-  const logResult = await database
+  const logResult = prepared ? { results: prepared.logs } : await database
     .prepare(`
       SELECT id, work_date, shift, role, author, status, log_json, updated_at
       FROM shift_logs
@@ -11148,12 +11148,12 @@ async function syncOperationChanges(database, user, body = {}) {
   });
 }
 
-async function scanShiftLogs(database, user, body) {
+async function scanShiftLogs(database, user, body, prepared = null) {
   const days = Math.max(1, Math.min(3650, Number(body.days) || 180));
   const fromDate = new Date(Date.now() - days * 24 * 3600000);
   const fromDateText = formatKstDate(fromDate);
 
-  const logResult = await database
+  const logResult = prepared ? { results: prepared.logs } : await database
     .prepare(`
       SELECT
         id,
@@ -11263,7 +11263,8 @@ async function scanShiftLogs(database, user, body) {
     duplicateSimilarityThreshold: DUPLICATE_SIMILARITY_THRESHOLD,
     detectedCount,
     insertedCount,
-    pendingCandidates: await loadCandidates(database, "pending", 300)
+    // Bounded refresh needs counts only; the final overview reads candidates once.
+    ...(prepared ? {} : { pendingCandidates: await loadCandidates(database, "pending", 300) })
   });
 }
 
@@ -14034,6 +14035,119 @@ async function applyOisRuntimeRefresh(database, user, body, options = {}) {
   return jsonResponse({ ok: true, tagNumber: tag, runtimeHours: hours, message: note, stateKept: body.targetState === 'keep' });
 }
 
+
+/* BLOWER_UNIFIED_REFRESH_503_FIX_V1
+ * The interactive refresh must not parse 365 days of log_json in one Worker.
+ * A stable keyset page (not OFFSET) retains the original approved-only window.
+ * Replayed pages use the existing candidate fingerprint and operation event IDs.
+ * No new DB table, checkpoint row, migration or replacement auto-confirmation.
+ */
+const LATEST_LOG_PAGE_MAX = 8;
+const LATEST_LOG_PAGE_DEFAULT = 4;
+
+function latestLogWindow(body, now = new Date()) {
+  const fail = message => {
+    const error = new Error(message);
+    error.code = 'BLOWER_LOG_PAGE_INVALID';
+    error.status = 400;
+    throw error;
+  };
+  if (!['replacement', 'operation'].includes(body?.phase)) fail('업무일지 최신화 단계를 확인해 주세요.');
+  const requestedLimit = body?.limit === undefined ? LATEST_LOG_PAGE_DEFAULT : body.limit;
+  if (!Number.isInteger(requestedLimit) || requestedLimit < 1 || requestedLimit > LATEST_LOG_PAGE_MAX) {
+    fail('업무일지 최신화는 요청당 1~8건으로 나누어 처리합니다.');
+  }
+  const dateOnly = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    Number.isFinite(Date.parse(value + 'T00:00:00Z')) && new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value;
+  let window;
+  if (body.window == null) {
+    if (body.cursor != null) fail('업무일지 조회기간 없이 이어서 처리할 수 없습니다.');
+    window = {
+      fromDate: formatKstDate(new Date(now.getTime() - 365 * 86400000)),
+      endDate: formatKstDate(now), snapshotAt: now.toISOString()
+    };
+  } else {
+    const w = body.window, snapshot = Date.parse(w?.snapshotAt || '');
+    if (!dateOnly(w?.fromDate) || !dateOnly(w?.endDate) || !Number.isFinite(snapshot) ||
+        snapshot > now.getTime() + 60000 || now.getTime() - snapshot > 24 * 3600000 ||
+        w.endDate !== formatKstDate(new Date(snapshot)) ||
+        w.fromDate !== formatKstDate(new Date(snapshot - 365 * 86400000))) {
+      fail('업무일지 조회기간이 만료되었거나 올바르지 않습니다. 최신화를 다시 시작해 주세요.');
+    }
+    window = { fromDate: w.fromDate, endDate: w.endDate, snapshotAt: new Date(snapshot).toISOString() };
+  }
+  let cursor = null;
+  if (body.cursor != null) {
+    const c = body.cursor;
+    if (!dateOnly(c?.workDate) || c.workDate < window.fromDate || c.workDate > window.endDate ||
+        typeof c.id !== 'string' || !c.id.length || c.id.length > 256 ||
+        typeof c.updatedAt !== 'string' || c.updatedAt.length > 64) {
+      fail('업무일지 이어보기 위치가 올바르지 않습니다.');
+    }
+    cursor = { workDate: c.workDate, updatedAt: c.updatedAt, id: c.id };
+  }
+  return { window, cursor, limit: requestedLimit };
+}
+
+async function loadLatestLogPage(database, body, options = {}) {
+  const page = latestLogWindow(body, options.now || new Date());
+  const { window, cursor, limit } = page;
+  const params = [window.fromDate, window.endDate, window.snapshotAt];
+  // New/edited approvals after this refresh began are picked up on the next pass.
+  // Empty/legacy timestamps are retained rather than silently losing old records.
+  let after = '';
+  if (cursor) {
+    after = `AND (work_date, COALESCE(updated_at, ''), id) > (?, ?, ?)`;
+    params.push(cursor.workDate, cursor.updatedAt, cursor.id);
+  }
+  params.push(limit + 1);
+  const result = await database.prepare(`
+    SELECT id, work_date, shift, role, author, status, log_json, updated_at
+    FROM shift_logs
+    WHERE work_date >= ? AND work_date <= ? AND status = '결재완료'
+      AND (julianday(updated_at) IS NULL OR julianday(updated_at) <= julianday(?))
+      ${after}
+    ORDER BY work_date ASC, COALESCE(updated_at, '') ASC, id ASC
+    LIMIT ?
+  `).bind(...params).all();
+  const rows = Array.isArray(result.results) ? result.results : [];
+  const logs = rows.slice(0, limit);
+  const last = logs.at(-1);
+  const done = rows.length <= limit;
+  const nextCursor = done ? null : {
+    workDate: String(last.work_date), updatedAt: String(last.updated_at || ''), id: String(last.id)
+  };
+  return { ...page, logs, done, nextCursor };
+}
+
+async function latestLogsStep(database, user, body, options = {}) {
+  try {
+    const page = await loadLatestLogPage(database, body, options);
+    const response = body.phase === 'replacement'
+      ? await scanShiftLogs(database, user, { days: 365 }, page)
+      : await syncOperationChanges(database, user, { days: 365 }, page);
+    if (!response.ok) return response;
+    const result = await response.json();
+    return jsonResponse({
+      ok: true, version: 'bounded-logs-v1', phase: body.phase, window: page.window,
+      limit: page.limit, done: page.done, nextCursor: page.nextCursor,
+      scannedLogCount: page.logs.length,
+      detectedCount: Number(result.detectedCount || 0), insertedCount: Number(result.insertedCount || 0),
+      detectedChangeovers: Number(result.detectedChangeovers || 0),
+      appliedStateChanges: Number(result.appliedStateChanges || 0),
+      appliedChangeovers: Number(result.appliedChangeovers || 0),
+      excludedPartLeaderLogs: Number(result.excludedPartLeaderLogs || 0),
+      suppressedDuplicateFragments: Number(result.suppressedDuplicateFragments || 0)
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '업무일지 묶음 처리 중 오류가 발생했습니다.';
+    const retryable = /D1_ERROR|SQLITE_BUSY|database is locked|overload|too many (?:subrequests|queries)|temporar|timeout|timed out/i.test(message);
+    console.error('Blower bounded log refresh:', body?.phase, error);
+    return jsonResponse({ ok: false, code: error?.code || 'BLOWER_LOG_PAGE_FAILED', phase: body?.phase,
+      message, retryable }, Number(error?.status) || (retryable ? 503 : 500));
+  }
+}
+
 async function handlePost(context, user, body) {
   const action = normalizeText(body.action);
   const database = context.env.DB;
@@ -14140,6 +14254,10 @@ async function handlePost(context, user, body) {
     return historicalAuditStep(database, body);
   }
 
+  if (action === "latest_logs_step") {
+    return latestLogsStep(database, user, body);
+  }
+
   if (action === "operation_sync") {
     return syncOperationChanges(database, user, body);
   }
@@ -14219,6 +14337,7 @@ export async function onRequestPost(context) {
 
 /* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
 export const __blowerHistoryTest = {
+  latestLogWindow, loadLatestLogPage, latestLogsStep, scanShiftLogs, syncOperationChanges,
   isIntermittentBlower, currentDataParcRuntimeBasis, currentRuntimeHours, runtimeHoursAt, cycleRuntimeHoursAt,
   applyOisRuntimeRefresh, loadFbheVibrationRawResponse, loadSealPotRuntimeRawResponse,
 

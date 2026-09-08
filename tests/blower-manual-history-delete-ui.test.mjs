@@ -103,5 +103,5 @@ test('unknown current runtime stays unknown in cards and history with no fabrica
 test('delete dialog ids are unique, errors accessible, cancel is default and cache versions match',()=>{
  for(const id of ['historyDeleteDialog','historyDeleteForm','historyDeleteAsset','historyDeleteTarget','historyDeletePreview','historyDeleteReason','historyDeleteError','historyDeleteConfirm','historyDeleteCancel'])assert.equal((html.match(new RegExp(`id="${id}"`,'g'))||[]).length,1);
  assert.match(html,/id="historyDeleteCancel"[^>]*autofocus/);assert.match(html,/id="historyDeleteConfirm"[^>]*disabled/);assert.match(html,/id="historyDeleteError" role="alert" hidden/);assert.match(css,/body\.mobile-monitoring #historyDeleteDialog/);assert.match(css,/body\.public-monitoring #historyDeleteDialog/);
- assert.match(html,/blower-history\.js\?v=20260909-unified-refresh-v1/);
+ assert.match(html,/blower-history\.js\?v=20260909-unified-refresh-503-fix-v1/);
 });

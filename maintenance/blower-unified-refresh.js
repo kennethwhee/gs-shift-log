@@ -146,6 +146,103 @@
       stateSource: task.kind === 'seal_pot' ? (p.pressureState ? 'pressure' : 'temperature') : 'vibration',
       firstRunningAt: p.firstRunningAt || '', ...Object.fromEntries(Object.entries(s).filter(([k]) => k !== 'tagNumber').map(([k,v]) => ['expected' + k[0].toUpperCase() + k.slice(1),v])) };
   }
+
+  /* BLOWER_UNIFIED_REFRESH_503_FIX_V1 — only replay bounded/idempotent log pages.
+   * Never use this retry path for runtime-create, manual edits or deletions.
+   * A failed page does not advance its cursor and never starts an Agent request.
+   */
+  function errorLabel(e) {
+    const parts = [String(e?.message || '연결 오류')];
+    const status = Number(e?.status || 0);
+    if (status && !parts[0].includes(String(status))) parts.push(`HTTP ${status}`);
+    if (e?.code && !['HTTP_ERROR','NETWORK_ERROR','REQUEST_TIMEOUT'].includes(e.code)) parts.push(String(e.code));
+    if (e?.cfRay) parts.push(`Ray ${String(e.cfRay).slice(0, 100)}`);
+    return parts.join(' · ');
+  }
+  function transient(e) {
+    return [0,429,502,503,504].includes(Number(e?.status || 0)) &&
+      !['INVALID_LOG_PAGE','BLOWER_LOG_PAGE_INVALID','WRITE_ACCESS_CHANGED'].includes(e?.code);
+  }
+  async function readWithRetry(read, io, label = '현황 다시 읽기', options = {}) {
+    const sleep = options.sleep || (ms => new Promise(r => setTimeout(r, ms)));
+    for (let retry = 0; ; retry++) {
+      io.assertWritable?.();
+      try { return await read(); }
+      catch (e) {
+        if (!transient(e) || retry >= 3) throw e;
+        io.progress?.(`${label} · ${errorLabel(e)} · 재시도 ${retry + 1}/3`);
+        await sleep(Math.min(30000, Math.max(1000 * 2 ** retry, Number(e.retryAfterMs) || 0)));
+      }
+    }
+  }
+  function logCursorKey(cursor) {
+    return cursor ? JSON.stringify([cursor.workDate, cursor.updatedAt, cursor.id]) : '';
+  }
+  function logPageError(message) { return error(message, 'INVALID_LOG_PAGE'); }
+  async function refreshLogs(io, options = {}) {
+    const sleep = options.sleep || (ms => new Promise(r => setTimeout(r, ms)));
+    const initial = options.resume;
+    let phase = initial?.phase === 'operation' ? 'operation' : 'replacement';
+    let window = initial?.window || null, cursor = initial?.cursor || null;
+    let limit = Math.max(1, Math.min(8, Number(initial?.limit || 4)));
+    const totals = { scannedReplacementLogs: 0, scannedOperationLogs: 0, insertedCount: 0, appliedStateChanges: 0, ...initial?.totals };
+    let pages = 0;
+    const checkpoint = () => io.checkpoint?.({ phase, window, cursor, limit, totals: { ...totals } });
+    checkpoint();
+    while (pages++ < 20000) {
+      const label = phase === 'replacement' ? '교체 기록 확인' : '교체운전 확인';
+      const countKey = phase === 'replacement' ? 'scannedReplacementLogs' : 'scannedOperationLogs';
+      const position = `${label} · ${totals[countKey]}건 확인${cursor?.workDate ? ' · ' + cursor.workDate : ''}`;
+      let payload;
+      for (let retry = 0; ; retry++) {
+        io.assertWritable?.();
+        io.progress?.(`${position} · ${limit}건씩 처리${retry ? ` · 재시도 ${retry}/4` : ''}`);
+        try {
+          payload = await io.api({ method: 'POST', timeoutMs: 30000,
+            body: { action: 'latest_logs_step', phase, limit, window, cursor } });
+          break;
+        } catch (e) {
+          if (!transient(e) || retry >= 4) {
+            e.message = `${position}에서 중단 · ${e.message || '요청 실패'}`;
+            throw e;
+          }
+          // Smaller replay after overload/timeout; the successful cursor is unchanged.
+          limit = Math.max(1, Math.floor(limit / 2));
+          checkpoint();
+          io.progress?.(`${position} · ${errorLabel(e)} · ${limit}건으로 줄여 재시도 ${retry + 1}/4`);
+          await sleep(Math.min(30000, Math.max(1000 * 2 ** retry, Number(e.retryAfterMs) || 0)));
+        }
+      }
+      io.assertWritable?.();
+      if (payload?.ok !== true || payload.version !== 'bounded-logs-v1' || payload.phase !== phase ||
+          typeof payload.done !== 'boolean' || !payload.window ||
+          !Number.isInteger(payload.scannedLogCount) || payload.scannedLogCount < 0 || payload.scannedLogCount > limit ||
+          !['fromDate','endDate','snapshotAt'].every(key => typeof payload.window[key] === 'string') ||
+          (window && ['fromDate','endDate','snapshotAt'].some(key => payload.window[key] !== window[key]))) {
+        throw logPageError('업무일지 묶음 응답을 확인할 수 없습니다. 배포 완료 후 Ctrl+F5로 다시 확인해 주세요.');
+      }
+      const next = payload.nextCursor;
+      if (!payload.done && (!next || !payload.scannedLogCount || typeof next.workDate !== 'string' ||
+          typeof next.updatedAt !== 'string' || typeof next.id !== 'string' || !next.id ||
+          logCursorKey(next) === logCursorKey(cursor))) {
+        throw logPageError('업무일지 이어보기 위치가 진행되지 않았습니다. 기존 값은 유지합니다.');
+      }
+      window = payload.window;
+      totals[countKey] += payload.scannedLogCount;
+      totals.insertedCount += Math.max(0, Number(payload.insertedCount) || 0);
+      totals.appliedStateChanges += Math.max(0, Number(payload.appliedStateChanges) || 0);
+      io.progress?.(`${label} · ${totals[countKey]}건 확인`);
+      if (payload.done) {
+        if (phase === 'operation') { io.checkpoint?.(null); return totals; }
+        phase = 'operation'; cursor = null;
+      } else cursor = next;
+      checkpoint();
+      await sleep(20);
+    }
+    throw logPageError('업무일지 묶음 처리 횟수 한도에 도달했습니다. 완료된 위치는 유지합니다.');
+  }
+
   return { plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeOis, oisBody,
+    refreshLogs, readWithRetry, errorLabel,
     register(kind, fn) { if (!['fbhe','seal_pot'].includes(kind) || typeof fn !== 'function') throw new Error('Invalid OIS bridge'); bridges[kind] = fn; } };
 });

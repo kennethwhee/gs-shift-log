@@ -60,6 +60,8 @@
     unifiedRefreshBusy: false,
     unifiedRefreshToken: "",
     unifiedRefreshResults: [],
+    unifiedLogResume: null,
+    unifiedLogResumeOwner: "",
     dataparcRuntimeBusy: false,
     dataparcRuntimeTag: "",
     dataparcRuntimeStatus: ""
@@ -379,6 +381,7 @@
       : null;
     let timeoutId = null;
     let response;
+    let text;
 
     if (controller && timeoutMs > 0) {
       timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -396,6 +399,7 @@
         body: options.body ? JSON.stringify(options.body) : undefined,
         ...(controller ? { signal: controller.signal } : {})
       });
+      text = await response.text();
     } catch (cause) {
       const timedOut = cause?.name === "AbortError" && timeoutMs > 0;
       const error = new Error(timedOut ? "서버 응답 시간이 초과되었습니다. 자동으로 다시 시도합니다." : "서버에 연결할 수 없습니다.");
@@ -408,13 +412,13 @@
       if (timeoutId !== null) window.clearTimeout(timeoutId);
     }
 
-    const text = await response.text();
     let result = {};
     let invalidJson = false;
 
     if (text.trim()) {
       try {
         result = JSON.parse(text);
+        if (!result || typeof result !== "object" || Array.isArray(result)) { result = {}; invalidJson = true; }
       } catch {
         invalidJson = true;
       }
@@ -8504,7 +8508,7 @@
     if (!options.silent) setBusy(true);
 
     try {
-      let data = await apiRequest();
+      let data = await apiRequest({ timeoutMs: Number(options.timeoutMs) || 0 });
       const applyServerClock = payload => {
         const serverGeneratedAt = Date.parse(payload?.generatedAt || "");
         state.serverClockOffsetMs = Number.isFinite(serverGeneratedAt)
@@ -10130,7 +10134,7 @@
     if (!state.unifiedRefreshBusy || isMobileMonitoringView() || !hasAuthenticatedWriteAccess() ||
         !getSessionToken() || getSessionToken() !== state.unifiedRefreshToken) {
       const error = new Error("로그인 또는 조회 권한이 변경되어 최신화를 중단했습니다. 완료된 값은 유지합니다.");
-      error.status = 403; throw error;
+      error.status = 403; error.code = "WRITE_ACCESS_CHANGED"; throw error;
     }
   }
 
@@ -10148,24 +10152,28 @@
       setBusy(true);
       elements.refreshButton.textContent = "최신화 중…";
       elements.refreshButton.setAttribute("aria-busy", "true");
+      if (elements.unifiedRefreshStatus) elements.unifiedRefreshStatus.dataset.state = "running";
       const core = window.BlowerUnifiedRefresh;
       let phase = "업무일지", stopped = false, logNote = "";
       const progress = text => renderUnifiedRefreshProgress(`${phase} · ${text}`);
+      // Resume only in this page/session, never trust a persisted browser checkpoint.
+      if (state.unifiedLogResumeOwner !== state.unifiedRefreshToken ||
+          (state.unifiedLogResume?.window && Date.now() - Date.parse(state.unifiedLogResume.window.snapshotAt) > 23 * 3600000)) {
+        state.unifiedLogResume = null;
+      }
+      state.unifiedLogResumeOwner = state.unifiedRefreshToken;
       const io = { api: apiRequest, assertWritable: assertUnifiedRefreshWritable, progress,
-        reload: () => loadData({ silent: true, syncOperations: false, strict: true }) };
+        checkpoint: value => { state.unifiedLogResume = value; },
+        reload: () => core.readWithRetry(() => loadData({ silent: true, syncOperations: false, strict: true, timeoutMs: 20000 }), io) };
       try {
         if (!core) throw new Error("최신화 모듈이 없습니다. Ctrl+F5 후 다시 확인해 주세요.");
         assertUnifiedRefreshWritable();
-        progress("교체·교체운전 확인 중");
-        // Preserve the existing V13 candidate review policy: do not turn ambiguous new candidates into replacements.
-        const scan = await apiRequest({ method: "POST", timeoutMs: 180000, body: { action: "scan", days: 365 } });
-        assertUnifiedRefreshWritable();
-        const operation = await apiRequest({ method: "POST", timeoutMs: 180000, body: { action: "operation_sync", days: 365 } });
+        progress("교체·교체운전 묶음 확인 중");
+        // Preserve V13 candidate review, without parsing 365 days in a single request.
+        const logs = await core.refreshLogs(io, { resume: state.unifiedLogResume });
         state.operationSyncCompleted = true;
-        logNote = `업무일지 새 교체 후보 ${Number(scan.insertedCount || 0)}건 · 교체운전 ${Number(operation.appliedStateChanges || 0)}건`;
-        if (Number(scan.scannedLogCount) >= 10000 || Number(operation.scannedLogCount) >= 5000) {
-          throw new Error("업무일지 조회한도에 도달했습니다. 누락 가능성이 있어 운전시간 최신화를 중단했습니다.");
-        }
+        logNote = `업무일지 새 교체 후보 ${Number(logs.insertedCount || 0)}건 · 교체운전 ${Number(logs.appliedStateChanges || 0)}건`;
+        phase = "현황 확인";
         await io.reload();
         const planned = core.plan(state.data?.assets || [], currentServerDate(), getLatestDataParcRuntimeBasis);
         state.unifiedRefreshResults.push(...planned.skipped);
@@ -10185,7 +10193,7 @@
             state.unifiedRefreshResults.push(...(Array.isArray(result) ? result : [result]));
           } catch (e) {
             state.unifiedRefreshResults.push(...assets.map(a => ({ tagNumber: a.tagNumber, displayName: a.displayName,
-              status: "failed", message: e.message || "조회 실패 · 기존 값 유지" })));
+              status: "failed", message: core.errorLabel(e) + " · 기존 값 유지" })));
             if (e.code === "AGENT_UNAVAILABLE") agentUnavailable = true;
             if ([401,403].includes(Number(e.status))) throw e;
           }
@@ -10203,9 +10211,10 @@
         showToast(failures ? `최신화 처리 완료 · 미반영 ${failures}대는 결과를 확인해 주세요.` : "전체 Blower 최신화를 완료했습니다.");
       } catch (e) {
         stopped = true;
-        renderUnifiedRefreshProgress(`최신화 중단 · ${e.message || "연결 오류"}${logNote ? ` · ${logNote}` : ""}`);
-        showToast(e.message || "최신화를 완료하지 못했습니다.", "error");
-        await loadData({ silent: true, syncOperations: false }).catch(() => null);
+        const detail = core?.errorLabel ? core.errorLabel(e) : (e.message || "연결 오류");
+        renderUnifiedRefreshProgress(`최신화 중단 · ${phase} · ${detail}${logNote ? ` · ${logNote}` : ""}`);
+        showToast(`${phase} · ${detail}`, "error");
+        await loadData({ silent: true, syncOperations: false, timeoutMs: 15000 }).catch(() => null);
       } finally {
         state.unifiedRefreshBusy = false;
         state.unifiedRefreshToken = "";
