@@ -199,7 +199,7 @@
 ></script>
 
 <script
-  src="script.js?v=20260908-query-modes-v1"
+  src="script.js?v=20260908-cofiring-daily-v2"
   defer
 ></script>
   <script
@@ -215,6 +215,9 @@
   defer
 ></script>
 
+  <link rel="stylesheet" href="/maintenance/cofiring-draft.css?v=20260908-daily-v2">
+  <script src="/maintenance/cofiring-core.js?v=20260908-daily-v2" defer></script>
+  <script src="/maintenance/cofiring-draft.js?v=20260908-daily-v2" defer></script>
   <link rel="stylesheet" href="/maintenance/morning-meeting-query-sources.css?v=20260908-query-modes-v1">
   <script src="/maintenance/morning-meeting-query-sources.js?v=20260908-query-modes-v1" defer></script>
   <script src="/maintenance/morning-meeting-cofiring-adjustment.js?v=20260901-v1" defer></script>
@@ -4932,6 +4935,16 @@
 </div>
 
 
+<!-- 혼소율 하루 계산 초안 -->
+  <button type="button" class="efficiency-team-tab" id="efficiencyCofiringDraftTab"
+    data-efficiency-tab="cofiring-draft" role="tab" aria-selected="false"
+    aria-controls="efficiencyCofiringDraftView">
+    <span class="efficiency-team-tab__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M6 20V12M12 20V4M18 20V8M3 20h18" /></svg>
+    </span>
+    <span class="efficiency-team-tab__label">혼소율</span>
+  </button>
+
 <!-- 석회석 -->
   <button
     type="button"
@@ -5028,6 +5041,12 @@
   효율팀 메뉴별 내용
 ==================================================== -->
 <section class="efficiency-team-workspace">
+
+<section class="efficiency-team-view" id="efficiencyCofiringDraftView"
+  data-efficiency-view="cofiring-draft" role="tabpanel"
+  aria-labelledby="efficiencyCofiringDraftTab" aria-hidden="true" hidden>
+  <div data-cofiring-draft-root></div>
+</section>
 
 <!-- =================================================
   효율팀 최초 안내 화면

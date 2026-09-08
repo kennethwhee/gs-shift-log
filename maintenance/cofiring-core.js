@@ -1,0 +1,246 @@
+(function (root, factory) {
+  'use strict';
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.CofiringCore = factory();
+}(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  const MINUTE = 60000;
+  const UNIT_IDS = ['unit1', 'unit2'];
+  const FUELS = ['coal', 'bio', 'organic'];
+  const REQUIRED_SERIES = Object.freeze(UNIT_IDS.flatMap(function (unit, index) {
+    return ['A-1', 'A-2', 'B-1', 'B-2'].map(function (feeder) {
+      const queryTag = 'GSPOGE.ABB_DCS.BLR' + (index + 1) + ' COAL FEEDER ' + feeder + ' REFERENSE';
+      return Object.freeze({ id: unit + 'Coal' + feeder.replace('-', ''), unit: unit, fuel: 'coal', queryTag: queryTag, tag: queryTag + '/PLOT' });
+    }).concat([Object.freeze({ id: unit + 'Bio', unit: unit, fuel: 'bio', queryTag: 'GSPOGE.ABB_DCS.BLR' + (index + 1) + ' BIO SRF REFERENCE', tag: 'GSPOGE.ABB_DCS.BLR' + (index + 1) + ' BIO SRF REFERENCE/PLOT' })]);
+  }));
+
+  function instant(value) {
+    if (typeof value !== 'string') throw new Error('시작·끝 시각을 시간대가 포함된 날짜로 지정해 주세요.');
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):00(Z|[+-]\d{2}:\d{2})$/.exec(value);
+    if (!m) throw new Error('시각은 초가 00인 분 단위이며 시간대가 있어야 합니다.');
+    const year = Number(m[1]), month = Number(m[2]), day = Number(m[3]), hour = Number(m[4]), minute = Number(m[5]);
+    const wall = new Date(Date.UTC(year, month - 1, day, hour, minute));
+    if (year < 2000 || month < 1 || month > 12 || day < 1 || hour > 23 || minute > 59 || wall.getUTCFullYear() !== year || wall.getUTCMonth() !== month - 1 || wall.getUTCDate() !== day) {
+      throw new Error('유효한 날짜와 시각을 지정해 주세요.');
+    }
+    const zone = m[6];
+    let offset = 0;
+    if (zone !== 'Z') {
+      const oh = Number(zone.slice(1, 3)), om = Number(zone.slice(4, 6));
+      if (oh > 14 || om > 59 || (oh === 14 && om !== 0)) throw new Error('시간대가 올바르지 않습니다.');
+      offset = (oh * 60 + om) * (zone[0] === '-' ? -1 : 1);
+    }
+    return wall.getTime() - offset * MINUTE;
+  }
+
+  function validateRange(start, end) {
+    const startMs = instant(start), endMs = instant(end);
+    const durationMinutes = (endMs - startMs) / MINUTE;
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) {
+      throw new Error('조회 기간은 1분 이상, 24시간 이내로 지정해 주세요.');
+    }
+    return { start: start, end: end, startMs: startMs, endMs: endMs, durationMinutes: durationMinutes, durationHours: durationMinutes / 60, boundaryCount: durationMinutes + 1 };
+  }
+
+  // Calendar dates and wall-clock times are always Asia/Seoul, regardless of browser timezone.
+  // DataPARC's one-minute, Start-based buckets exclude queryEnd. Padding once to 00:01
+  // exposes the next midnight boundary; it does not make the accounting day 24h 1m.
+  function dailyRange(targetDate) {
+    if (typeof targetDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) throw new Error('계산일을 YYYY-MM-DD 형식의 날짜 하나로 선택해 주세요.');
+    const start = targetDate + 'T00:00:00+09:00';
+    const startMs = instant(start);
+    const nextDate = new Date(startMs + (24 * 60 + 9 * 60) * MINUTE).toISOString().slice(0, 10);
+    const end = nextDate + 'T00:00:00+09:00';
+    const range = validateRange(start, end);
+    return Object.assign(range, { mode: 'daily', targetDate: targetDate, timeZone: 'Asia/Seoul',
+      queryStart: start, queryEnd: nextDate + 'T00:01:00+09:00', queryDurationMinutes: 1441, stepSeconds: 60 });
+  }
+
+  function validateDailySource(reference) {
+    const source = validateSource(reference);
+    const date = new Date(source.range.startMs + 9 * 60 * MINUTE).toISOString().slice(0, 10);
+    const day = dailyRange(date);
+    if (source.range.startMs !== day.startMs || source.range.endMs !== day.endMs) {
+      throw new Error('하루 전체 자료만 열 수 있습니다. 해당일 00:00부터 다음 날 00:00 경계값까지 필요합니다. 5분 연결 시험은 일별 계산 자료가 아닙니다.');
+    }
+    if ((reference.targetDate != null && reference.targetDate !== day.targetDate) ||
+        (reference.queryStart != null && instant(reference.queryStart) !== day.startMs) ||
+        (reference.queryEnd != null && instant(reference.queryEnd) !== instant(day.queryEnd))) {
+      throw new Error('자료의 계산일 또는 DataPARC 조회 범위가 일별 기준과 다릅니다. 다음 날 00:01까지 한 번만 확장해야 합니다.');
+    }
+    return day;
+  }
+
+  function analyzeDay(reference, options) {
+    options = options || {};
+    const sourceDay = validateDailySource(reference);
+    const day = dailyRange(options.targetDate || sourceDay.targetDate);
+    if ((options.start != null && instant(options.start) !== day.startMs) ||
+        (options.end != null && instant(options.end) !== day.endMs)) {
+      throw new Error('혼소율은 하루 단위로만 계산합니다. 조회 종료 00:01은 계산 종료에 더하지 않습니다.');
+    }
+    if (day.targetDate !== sourceDay.targetDate) {
+      throw new Error('선택일 ' + day.targetDate + '의 자료가 없습니다. 현재 자료는 ' + sourceDay.targetDate + ' 하루입니다. 선택일의 하루 조회 결과를 열어 주세요.');
+    }
+    const result = analyze(reference, Object.assign({}, options, { start: day.start, end: day.end }));
+    result.period = day;
+    return result;
+  }
+
+  function qualityGood(value) {
+    if (typeof value !== 'string') return false;
+    const parts = value.trim().toLowerCase().split(',').map(function (part) { return part.trim(); });
+    return (parts.length === 1 && parts[0] === 'good') || (parts.length === 2 && ((parts[0] === 'raw' && parts[1] === 'good') || (parts[0] === 'good' && parts[1] === 'raw')));
+  }
+
+  function validateSource(reference) {
+    if (!reference || !Array.isArray(reference.timestamps) || !Array.isArray(reference.series)) throw new Error('분별 원본 데이터 형식이 올바르지 않습니다.');
+    const range = validateRange(reference.start, reference.end);
+    if (reference.stepSeconds !== 60 || reference.timestamps.length !== range.boundaryCount) throw new Error('원본 시각 개수가 1분 간격의 시작·끝 경계 개수와 다릅니다.');
+    reference.timestamps.forEach(function (timestamp, index) {
+      if (instant(timestamp) !== range.startMs + index * MINUTE) throw new Error('원본 시각에 누락·중복·역순 또는 잘못된 간격이 있습니다.');
+    });
+    const entries = new Map();
+    reference.series.forEach(function (series) {
+      if (!series || typeof series.id !== 'string' || entries.has(series.id)) throw new Error('중복되거나 잘못된 연료 TAG가 있습니다.');
+      entries.set(series.id, series);
+    });
+    return { range: range, entries: entries };
+  }
+
+  function positiveSetting(config, defaults, unit, fuel, title) {
+    const group = config && config[unit];
+    const fallback = defaults && defaults[unit];
+    const value = group && Object.prototype.hasOwnProperty.call(group, fuel) ? group[fuel] : fallback && fallback[fuel];
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) throw new Error(unit + ' ' + fuel + ' ' + title + '은 0보다 큰 숫자여야 합니다.');
+    return value;
+  }
+
+  function inspectCounter(definition, series, firstIndex, lastIndex, expectedSourceCount, requireQuality) {
+    const count = lastIndex - firstIndex + 1;
+    const issues = [];
+    if (!series) return { id: definition.id, tag: definition.tag, quantity: null, referenceQuantity: null, complete: false, missingSamples: count, observedSamples: 0, qualityVerified: false, issues: ['missing_tag'] };
+    if (series.tag !== definition.tag || series.queryTag !== definition.queryTag || series.unit !== definition.unit || series.fuel !== definition.fuel || series.unitOfMeasure !== 'ton') {
+      return { id: definition.id, tag: definition.tag, quantity: null, referenceQuantity: null, complete: false, missingSamples: count, observedSamples: 0, qualityVerified: false, issues: ['tag_identity_mismatch'] };
+    }
+    if (!Array.isArray(series.values) || series.values.length !== expectedSourceCount) {
+      return { id: definition.id, tag: definition.tag, quantity: null, referenceQuantity: null, complete: false, missingSamples: count, observedSamples: 0, qualityVerified: false, issues: ['sample_count_mismatch'] };
+    }
+    let missingSamples = 0, observedSamples = 0, minimum = Infinity, maximum = -Infinity, previous = null;
+    let badNumber = false, negative = false, reset = false, badQuality = false;
+    const hasQualities = Array.isArray(series.qualities) && series.qualities.length === expectedSourceCount;
+    for (let i = firstIndex; i <= lastIndex; i += 1) {
+      const value = series.values[i];
+      if (hasQualities && !qualityGood(series.qualities[i])) badQuality = true;
+      if (value == null) { missingSamples += 1; continue; }
+      if (typeof value !== 'number' || !Number.isFinite(value)) { badNumber = true; missingSamples += 1; continue; }
+      observedSamples += 1;
+      if (value < 0) negative = true;
+      if (previous !== null && value < previous) reset = true;
+      previous = value;
+      minimum = Math.min(minimum, value);
+      maximum = Math.max(maximum, value);
+    }
+    if (missingSamples) issues.push('missing_samples');
+    if (badNumber) issues.push('invalid_number');
+    if (negative) issues.push('negative_counter');
+    if (reset) issues.push('counter_reset');
+    if (badQuality) issues.push('bad_quality');
+    if (requireQuality && !hasQualities) issues.push('quality_not_recorded');
+    const referenceQuantity = observedSamples >= 2 && !badNumber && !negative && !reset ? maximum - minimum : null;
+    const complete = issues.length === 0 && referenceQuantity !== null;
+    return { id: definition.id, tag: definition.tag, quantity: complete ? referenceQuantity : null, referenceQuantity: referenceQuantity, complete: complete, missingSamples: missingSamples, observedSamples: observedSamples, qualityVerified: hasQualities && !badQuality && missingSamples === 0, issues: issues };
+  }
+
+  function sumKnown(values) {
+    return values.every(function (value) { return typeof value === 'number' && Number.isFinite(value); }) ? values.reduce(function (sum, value) { return sum + value; }, 0) : null;
+  }
+
+  function aggregateFuel(counters, coefficient, durationHours) {
+    const measuredQuantity = sumKnown(counters.map(function (item) { return item.quantity; }));
+    const referenceMeasuredQuantity = sumKnown(counters.map(function (item) { return item.referenceQuantity; }));
+    const quantity = measuredQuantity === null ? null : measuredQuantity * coefficient;
+    return {
+      quantity: quantity,
+      measuredQuantity: measuredQuantity,
+      referenceQuantity: referenceMeasuredQuantity === null ? null : referenceMeasuredQuantity * coefficient,
+      averageTonPerHour: quantity === null ? null : quantity / durationHours,
+      complete: counters.every(function (item) { return item.complete; }),
+      missingSamples: counters.reduce(function (sum, item) { return sum + item.missingSamples; }, 0),
+      issues: Array.from(new Set(counters.flatMap(function (item) { return item.issues; }))),
+      coefficient: coefficient,
+      counters: counters
+    };
+  }
+
+  function organicFuel(organic, unit, period, coefficient) {
+    let issues = [], value = null;
+    if (!organic || organic[unit] == null || organic[unit] === '') issues.push('organic_not_entered');
+    else {
+      let matchingPeriod = false;
+      try { matchingPeriod = instant(organic.start) === period.startMs && instant(organic.end) === period.endMs; } catch (_) { /* Missing period cannot authorize reuse. */ }
+      if (!matchingPeriod) issues.push('stale_organic_period');
+      else if (typeof organic[unit] !== 'number' || !Number.isFinite(organic[unit]) || organic[unit] < 0) issues.push('invalid_organic');
+      else value = organic[unit];
+    }
+    const quantity = value === null ? null : value * coefficient;
+    return { quantity: quantity, enteredQuantity: value, complete: quantity !== null, coefficient: coefficient, averageTonPerHour: quantity === null ? null : quantity / period.durationHours, issues: issues, source: 'period-user-input' };
+  }
+
+  function heatResult(quantities, calorifics) {
+    const heats = {};
+    FUELS.forEach(function (fuel) { heats[fuel] = quantities[fuel] === null ? null : quantities[fuel] * calorifics[fuel] / 1000; });
+    heats.total = sumKnown(FUELS.map(function (fuel) { return heats[fuel]; }));
+    const ratios = { bio: null, organic: null, total: null };
+    if (heats.total !== null && heats.total > 0) {
+      ratios.bio = heats.bio / heats.total * 100;
+      ratios.organic = heats.organic / heats.total * 100;
+      ratios.total = (heats.bio + heats.organic) / heats.total * 100;
+    }
+    return { heats: heats, ratios: ratios };
+  }
+
+  function analyze(reference, options) {
+    options = options || {};
+    const source = validateSource(reference);
+    const period = validateRange(options.start || reference.start, options.end || reference.end);
+    if (period.startMs < source.range.startMs || period.endMs > source.range.endMs) throw new Error('선택한 기간이 첨부 원본에 저장된 기간을 벗어납니다.');
+    const firstIndex = (period.startMs - source.range.startMs) / MINUTE;
+    const lastIndex = (period.endMs - source.range.startMs) / MINUTE;
+    const counters = REQUIRED_SERIES.map(function (definition) { return inspectCounter(definition, source.entries.get(definition.id), firstIndex, lastIndex, source.range.boundaryCount, options.requireQuality === true); });
+    const units = {}, warnings = [];
+    const actualCalorifics = {}, actualCoefficients = {};
+    UNIT_IDS.forEach(function (unit, index) {
+      const calorifics = {}, coefficients = {};
+      FUELS.forEach(function (fuel) {
+        calorifics[fuel] = positiveSetting(options.calorifics, reference.calorifics, unit, fuel, '발열량');
+        coefficients[fuel] = positiveSetting(options.coefficients, reference.coefficients, unit, fuel, '보정계수');
+      });
+      actualCalorifics[unit] = calorifics;
+      actualCoefficients[unit] = coefficients;
+      const coal = aggregateFuel(counters.filter(function (item) { return item.id.startsWith(unit + 'Coal'); }), coefficients.coal, period.durationHours);
+      const bio = aggregateFuel(counters.filter(function (item) { return item.id === unit + 'Bio'; }), coefficients.bio, period.durationHours);
+      const organic = organicFuel(options.organic, unit, period, coefficients.organic);
+      const result = heatResult({ coal: coal.quantity, bio: bio.quantity, organic: organic.quantity }, calorifics);
+      units[unit] = { coal: coal, bio: bio, organic: organic, calorifics: calorifics, heats: result.heats, ratios: result.ratios, complete: coal.complete && bio.complete && organic.complete, referenceOnly: true };
+      if (!coal.complete) warnings.push((index + 1) + '호기 석탄: 누락 또는 비정상 데이터로 사용량을 확정하지 않았습니다.');
+      if (!bio.complete) warnings.push((index + 1) + '호기 바이오: 누락 또는 비정상 데이터로 사용량을 확정하지 않았습니다.');
+      if (!organic.complete) warnings.push((index + 1) + '호기 유기성: 선택한 기간의 사용량 입력이 필요합니다.');
+      if (result.heats.total === 0) warnings.push((index + 1) + '호기: 총 투입열량이 0이므로 혼소율을 계산하지 않았습니다.');
+    });
+    const combinedHeats = {};
+    FUELS.concat(['total']).forEach(function (fuel) { combinedHeats[fuel] = sumKnown(UNIT_IDS.map(function (unit) { return units[unit].heats[fuel]; })); });
+    const combinedRatios = { bio: null, organic: null, total: null };
+    if (combinedHeats.total !== null && combinedHeats.total > 0) {
+      combinedRatios.bio = combinedHeats.bio / combinedHeats.total * 100;
+      combinedRatios.organic = combinedHeats.organic / combinedHeats.total * 100;
+      combinedRatios.total = (combinedHeats.bio + combinedHeats.organic) / combinedHeats.total * 100;
+    }
+    const qualityVerified = counters.every(function (counter) { return counter.qualityVerified; });
+    if (!qualityVerified) warnings.push('원본에 모든 시점의 품질 정보가 확인되지 않아 운영 저장용 결과로 판정하지 않았습니다.');
+    return { period: period, units: units, combined: { heats: combinedHeats, ratios: combinedRatios }, warnings: warnings, sourceKind: reference.source && reference.source.kind || 'reference-data', qualityVerified: qualityVerified, productionReady: false, databaseWritten: false, calorifics: actualCalorifics, coefficients: actualCoefficients };
+  }
+
+  return Object.freeze({ dailyRange: dailyRange, validateDailySource: validateDailySource, analyzeDay: analyzeDay, validateRange: validateRange, analyze: analyze, qualityGood: qualityGood, requiredSeries: REQUIRED_SERIES });
+}));

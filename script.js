@@ -88232,6 +88232,8 @@ function switchEfficiencyTeamView(
 
       "morning-meeting-auto-history",
 
+      "cofiring-draft",
+
       "limestone",
 
       "auxiliary-materials",
