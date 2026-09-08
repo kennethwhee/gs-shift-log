@@ -271,7 +271,7 @@ function assertRejectedWithoutWrites(before, after, result) {
 
 
 test(
-  "V9.2 edits the latest manual stop and aligns recomputed runtime with its audit record",
+  "FBHE RUN mode edits the latest manual stop without inventing hours; audit remains aligned",
   async () => {
     const fixture = await createFixture({
       events: [
@@ -298,7 +298,7 @@ test(
 
       assert.equal(result.status, 200);
       assert.equal(result.body.ok, true);
-      assert.match(result.body.message, /12\.5시간/);
+      assert.match(result.body.message, /RUN 최신화/);
 
       const state = readState(fixture.sqlite);
       const liveEvent = state.events.find(event => event.id === selected.id);
@@ -306,8 +306,8 @@ test(
       const beforeAudit = JSON.parse(audit.before_json);
       const afterAudit = JSON.parse(audit.after_json);
 
-      assert.equal(state.asset.cycle_runtime_hours, 12.5);
-      assert.equal(state.asset.runtime_hours, 12.5);
+      assert.equal(state.asset.cycle_runtime_hours, 10);
+      assert.equal(state.asset.runtime_hours, 10);
       assert.equal(state.asset.cycle_runtime_anchor_at, EDITED_STOP_AT);
       assert.equal(state.asset.cycle_runtime_state, "stopped");
       assert.equal(state.asset.runtime_anchor_at, null);
@@ -317,7 +317,7 @@ test(
       assert.equal(state.asset.last_modified_by_name, USER.name);
 
       assert.equal(liveEvent.event_date, EDITED_STOP_AT);
-      assert.equal(liveEvent.runtime_hours, 12.5);
+      assert.equal(liveEvent.runtime_hours, 10);
       assert.equal(liveEvent.note, "corrected stop");
       assert.equal(liveEvent.updated_at, state.asset.updated_at);
 

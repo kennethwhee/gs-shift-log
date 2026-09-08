@@ -28,6 +28,37 @@
   function intermittent(a) {
     return a?.blowerType === 'organic_fuel' || a?.assetGroup === 'manure' || a?.tagNumber === '204LMDF01AN001';
   }
+
+  function fbheSealRunAsset(a) {
+    return /^(?:104|204)HHL(?:60AP|10AN)(?:611|621|631)$/.test(String(a?.tagNumber || '').trim().toUpperCase());
+  }
+  function fbheSealRunView(a, basis = null) {
+    if (!fbheSealRunAsset(a)) return null;
+    const p = a.runRuntime || {};
+    const verified = p.verified === true && ['dataparc','manual'].includes(p.source) &&
+      a.measurementRequired !== true && a.cycleElapsedHours !== null && a.cycleElapsedHours !== undefined &&
+      Number.isFinite(Number(a.cycleElapsedHours)) && Number(a.cycleElapsedHours) >= 0;
+    const configured = Boolean(a.dataParcTag);
+    const pending = a.cycleStartState === 'pending';
+    const manual = verified && p.source === 'manual';
+    const state = pending ? 'startup_pending' : verified && ['running','stopped'].includes(p.state) ? p.state : 'unknown';
+    const hours = verified ? Number(a.cycleElapsedHours) : null;
+    const primary = pending ? '기동 대기' : verified
+      ? `${hours.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`
+      : configured ? 'RUN 재조회 필요' : 'RUN 조회 전';
+    const message = !a.lastReplacementAt ? '교체일 등록 후 RUN TAG를 연결해 주세요.'
+      : manual ? (configured ? '직접 입력한 누적시간 · 다음 최신화에서 RUN 구간으로 재계산' : '직접 입력한 누적시간 · RUN TAG 연결 필요 · 이력 보기 → 조회 기준·상세')
+      : verified ? 'RUN=1인 구간만 합산 · 상태는 조회 시점 기준'
+      : !configured ? 'RUN TAG 연결 필요 · 이력 보기 → 조회 기준·상세'
+      : pending ? '기동 대기 · 실제 첫 기동 이력 등록 후 RUN 조회'
+      : '현재 교체 기준의 RUN 최신화 필요 · 이전 기록은 이력에 보존';
+    return { verified, manual, pending, state, hours, primary, message,
+      measuredAt: p.measuredAt || '', sourceLabel: manual ? '수동 보정' : 'DataPARC · RUN 1/0',
+      basis: verified && !manual ? basis : null,
+      stateLabel: pending ? '기동 대기' : !verified ? 'RUN 미확인' :
+        `${manual ? '수동 ' : ''}${state === 'running' ? '기동중' : '정지중'}` };
+  }
+
   function snapshot(a) {
     return { tagNumber: a.tagNumber, lastReplacementAt: a.lastReplacementAt || '',
       cycleStartState: a.cycleStartState || 'legacy', cycleStartedAt: a.cycleStoredStartedAt ?? a.cycleStartedAt ?? '',
@@ -56,7 +87,7 @@
       }
       const previous = a.dataParcRuntimeBasis || basisFor(a.tagNumber);
       // A cycle-local successful query owns its start. Never use the latest state/anchor as a new start.
-      const startAt = previous?.startAt || (a.cycleStartState === 'started' && a.cycleStartedAt) || a.lastReplacementAt;
+      const startAt = previous?.startAt || (!fbheSealRunAsset(a) && a.cycleStartState === 'started' && a.cycleStartedAt) || a.lastReplacementAt;
       const start = time(startAt);
       if (!Number.isFinite(start) || start < replacement || start >= end || end - start > 366 * DAY) {
         skip('조회 기준이 현재 교체 Cycle 또는 366일 한도와 맞지 않습니다.'); continue;
@@ -253,7 +284,7 @@
     }
   }
 
-  return { plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeOis, oisBody,
+  return { fbheSealRunAsset, fbheSealRunView, plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeOis, oisBody,
     refreshLogs, refreshLogsForRuntime, readWithRetry, errorLabel,
     register(kind, fn) { if (!['fbhe','seal_pot'].includes(kind) || typeof fn !== 'function') throw new Error('Invalid OIS bridge'); bridges[kind] = fn; } };
 });

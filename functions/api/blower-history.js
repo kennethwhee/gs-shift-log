@@ -1677,6 +1677,64 @@ function currentDataParcRuntimeBasis(asset, rows) {
   return null;
 }
 
+
+/* BLOWER_FBHE_SEAL_RUN_RECONCILE_V1
+ * Read projection only: old OIS-derived/manual-start values remain in their
+ * original rows, but are not proof of measured RUN hours. Never seed a signal
+ * from the asset tag (FBHE AP asset keys are intentionally preserved).
+ */
+function isFbheSealRunAsset(asset) {
+  const tag = normalizeText(asset?.tag_number || asset?.tagNumber).toUpperCase();
+  return /^(?:104|204)HHL(?:60AP|10AN)(?:611|621|631)$/.test(tag);
+}
+function fbheSealRunProvenance(asset, rows, now = new Date()) {
+  if (!isFbheSealRunAsset(asset)) return null;
+  const numeric = value => value !== null && value !== undefined && typeof value !== "boolean" &&
+    String(value).trim() !== "" && Number.isFinite(Number(value)) && Number(value) >= 0;
+  const replacement = Date.parse(asset.last_replacement_at || "");
+  const anchor = Date.parse(asset.cycle_runtime_anchor_at || "");
+  const stored = numeric(asset.cycle_runtime_hours) ? Number(asset.cycle_runtime_hours) : null;
+  const dataParcTag = latestSuccessfulDataParcTag(asset.tag_number, rows);
+  const base = { version: 1, source: "unverified", verified: false, needsQuery: true,
+    signalConfigured: Boolean(dataParcTag), measuredAt: "", state: "unknown",
+    legacyStoredHours: stored, reason: dataParcTag ? "refresh_required" : "signal_required" };
+  if (!Number.isFinite(replacement)) return { ...base, reason: "replacement_required" };
+  if (asset.cycle_start_state === "pending") return { ...base, source: "pending", reason: "startup_pending" };
+  if (!Number.isFinite(anchor) || anchor < replacement || anchor > now.getTime() || stored === null) return base;
+  // The current anchor and value must be owned by the same event. Merely
+  // finding ANY older manual row with an equal number is not verification.
+  const matching = (rows || []).filter(row => row.tag_number === asset.tag_number &&
+    ["runtime_correction", "startup", "operation_start", "operation_stop"].includes(row.event_type) &&
+    Date.parse(row.event_date) === anchor && numeric(row.runtime_hours) &&
+    Math.abs(Number(row.runtime_hours) - stored) < 0.000001)
+    .sort((a,b) => Date.parse(b.updated_at || b.created_at || b.event_date) - Date.parse(a.updated_at || a.created_at || a.event_date) ||
+      String(b.created_at || "").localeCompare(String(a.created_at || "")) || String(b.id || "").localeCompare(String(a.id || "")));
+  const owner = matching[0];
+  if (!owner) return base;
+  let evidence = {}; try { evidence = JSON.parse(owner.source_text || "{}"); } catch { /* legacy plain text */ }
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) evidence = {};
+  const state = asset.cycle_runtime_state;
+  const basis = currentDataParcRuntimeBasis(asset, [owner]);
+  if (owner.source_type === DATAPARC_RUNTIME_SYNC_SOURCE_TYPE && basis && numeric(basis.runtimeHours) &&
+      ["running", "stopped"].includes(evidence.endState) && state === evidence.endState &&
+      Date.parse(basis.observedAt) === anchor && Math.abs(basis.runtimeHours - stored) < 0.000001) {
+    return { ...base, source: "dataparc", verified: true, needsQuery: false, reason: "verified_run",
+      measuredAt: basis.observedAt, state };
+  }
+  const descriptive = [owner.issue_type, owner.action_type, owner.note, owner.source_text].map(normalizeText).join(" ");
+  const legacyOis = /ois|vibration|진동\s*(?:계산|누적|적용)|온도\s*(?:계산|누적|적용)/i.test(descriptive) || owner.source_type === "ois_runtime_refresh";
+  if (legacyOis) return { ...base, source: "legacy_ois" };
+  // A user-entered numeric correction is retained and clearly labelled manual.
+  // Replacement-date edits and start/stop timestamps are NOT measurements.
+  if (owner.source_type === "manual" && owner.event_type === "runtime_correction" &&
+      !evidence.replacementEdit && !evidence.requiresRunRefresh &&
+      ["running", "stopped"].includes(state) && runtimeBoundaryState(owner) === state) {
+    return { ...base, source: "manual", verified: true, needsQuery: true, reason: "manual_correction",
+      measuredAt: owner.event_date, state };
+  }
+  return base;
+}
+
 async function loadAssetStates(database, settings) {
   const assetResult = await database
     .prepare(`
@@ -1710,9 +1768,9 @@ async function loadAssetStates(database, settings) {
 
   const referenceRows = Array.isArray(referenceResult.results) ? referenceResult.results : [];
   const runtimeResult = await database.prepare(`
-    SELECT id, tag_number, event_type, event_date, runtime_hours, source_type, source_log_id, source_text, created_at
+    SELECT id, tag_number, event_type, event_date, runtime_hours, source_type, source_log_id, source_text, created_at, updated_at, issue_type, action_type, note
     FROM blower_history_events
-    WHERE event_type IN ('runtime_correction', 'startup')
+    WHERE event_type IN ('runtime_correction', 'startup', 'operation_start', 'operation_stop')
     ORDER BY created_at DESC, event_date DESC, id DESC
   `).all();
   const runtimeRows = Array.isArray(runtimeResult.results) ? runtimeResult.results : [];
@@ -1749,7 +1807,11 @@ async function loadAssetStates(database, settings) {
       : null;
 
     const runtimeBasis = currentDataParcRuntimeBasis(asset, runtimeRows);
-    if (usesMeasuredBlowerRuntime(asset)) {
+    const runRuntime = fbheSealRunProvenance(asset, runtimeRows, now);
+    if (runRuntime) {
+      asset.runtime_measurement_verified = runRuntime.verified || asset.cycle_start_state === "pending";
+      asset.runtime_measured_at = runRuntime.measuredAt;
+    } else if (usesMeasuredBlowerRuntime(asset)) {
       const manual = runtimeRows.find(row => row.tag_number === asset.tag_number && row.source_type === "manual" &&
         ["runtime_correction", "startup"].includes(row.event_type) &&
         new Date(row.event_date).getTime() >= new Date(asset.last_replacement_at || "").getTime() &&
@@ -1765,7 +1827,8 @@ async function loadAssetStates(database, settings) {
       latestProblem,
       latestReference,
       now
-    ), dataParcTag: latestSuccessfulDataParcTag(asset.tag_number, runtimeRows), dataParcRuntimeBasis: runtimeBasis };
+    ), dataParcTag: latestSuccessfulDataParcTag(asset.tag_number, runtimeRows), dataParcRuntimeBasis: runtimeBasis,
+      ...(runRuntime ? { runRuntime } : {}) };
   });
 }
 
@@ -5139,7 +5202,9 @@ async function editCurrentManualReplacement(database, user, body, options = {}) 
   if (rebasesCycle) {
     const pending = operationMode === "pending" || (operationMode === "preserve" && wasPending);
     const running = operationMode === "running";
-    const hours = pending ? 0 : ((stopped?.time ?? capturedAt.getTime()) - startup.time) / 3600000;
+    // New RUN-only groups need a fresh query after changing a cycle boundary.
+    // Zero is a storage sentinel; the read projection never presents it as measured zero.
+    const hours = pending || isFbheSealRunAsset(asset) ? 0 : ((stopped?.time ?? capturedAt.getTime()) - startup.time) / 3600000;
     Object.assign(assetPatch, {
       cycle_started_at: pending ? null : startup.iso,
       cycle_start_state: pending ? "pending" : "started",
@@ -5188,10 +5253,12 @@ async function editCurrentManualReplacement(database, user, body, options = {}) 
     action_type: operationMode === "running" ? "교체 수정 · 기동중 보정"
       : operationMode === "stopped" ? "교체 수정 · 정지 보정" : "교체 수정 · 미기동 정지 · 0시간",
     note: operationMode === "pending" ? "교체 후 미기동 · 누적 0시간으로 수정"
+      : isFbheSealRunAsset(asset) ? "교체·기동·정지 시각 수정 · 누적시간은 RUN 최신화 후 확정 (0은 미확정 저장값)"
       : `교체 이력 수정 · ${operationMode === "running" ? "기동중" : "정지중"} · 누적 ${afterAsset.cycle_runtime_hours.toFixed(1)}시간 (입력한 연속 운전 구간 기준)`,
     source_type: "manual", source_log_id: "",
     source_text: JSON.stringify({
       schemaVersion: 1, replacementEdit: true, replacementEventId: eventId, auditId,
+      ...(isFbheSealRunAsset(asset) && operationMode !== "pending" ? { requiresRunRefresh: true } : {}),
       operationMode, capturedAt: now, startupAt: startup?.iso || "", stoppedAt: stopped?.iso || "",
       before: runtimeSnapshot(asset), after: runtimeSnapshot(afterAsset)
     }),
@@ -5351,12 +5418,15 @@ function historyDeleteRestoreBoundary(boundary, replacement, now, fallbackAsset 
       historyDeleteTime(startedAt) < historyDeleteTime(replacement.event_date) || historyDeleteTime(startedAt) > at)) {
     startState = "legacy"; startedAt = null;
   }
-  const measuredOnly = isIntermittentBlower(fallbackAsset || { tag_number: boundary.tag_number, blower_type: ASSET_SEEDS.find(row => row[0] === boundary.tag_number)?.[1] });
+  const runAsset = isFbheSealRunAsset({ tag_number: boundary.tag_number });
+  if (runAsset && source.requiresRunRefresh) return historyDeleteUnknownState(replacement);
+  const measuredOnly = runAsset || isIntermittentBlower(fallbackAsset || { tag_number: boundary.tag_number, blower_type: ASSET_SEEDS.find(row => row[0] === boundary.tag_number)?.[1] });
+  const restoreAt = runAsset ? new Date(at).toISOString() : now.toISOString();
   const total = hours + (state === "running" && !measuredOnly ? (now.getTime() - at) / 3600000 : 0);
   return { ...historyDeleteUnknownState(replacement),
     cycle_start_state: startState === "started" ? "started" : "legacy", cycle_started_at: startedAt || null,
-    cycle_runtime_hours: total, cycle_runtime_anchor_at: now.toISOString(), cycle_runtime_state: state,
-    runtime_hours: total, runtime_anchor_at: state === "running" ? now.toISOString() : null,
+    cycle_runtime_hours: total, cycle_runtime_anchor_at: restoreAt, cycle_runtime_state: state,
+    runtime_hours: total, runtime_anchor_at: state === "running" ? restoreAt : null,
     is_running: state === "running" ? 1 : 0
   };
 }
@@ -5368,15 +5438,17 @@ function historyDeleteRestoreBeforeSnapshot(event, replacement, now) {
   if (!Number.isFinite(anchor) || anchor < historyDeleteTime(replacement.event_date) || anchor > now.getTime() ||
       !Number.isFinite(hours) || hours < 0 || !["running", "stopped"].includes(before.cycleRuntimeState)) return null;
   const running = before.cycleRuntimeState === "running";
-  const measuredOnly = isIntermittentBlower({ tag_number: event.tag_number, blower_type: ASSET_SEEDS.find(row => row[0] === event.tag_number)?.[1] });
+  const runAsset = isFbheSealRunAsset({ tag_number: event.tag_number });
+  const measuredOnly = runAsset || isIntermittentBlower({ tag_number: event.tag_number, blower_type: ASSET_SEEDS.find(row => row[0] === event.tag_number)?.[1] });
+  const restoreAt = runAsset ? new Date(anchor).toISOString() : now.toISOString();
   const total = hours + (running && !measuredOnly ? (now.getTime() - anchor) / 3600000 : 0);
   const started = historyDeleteTime(before.cycleStartedAt);
   if (before.cycleStartState === "started" && (!Number.isFinite(started) || started < historyDeleteTime(replacement.event_date) || started > anchor)) return null;
   return { ...historyDeleteUnknownState(replacement),
     cycle_start_state: before.cycleStartState === "started" ? "started" : "legacy",
     cycle_started_at: before.cycleStartState === "started" ? before.cycleStartedAt : null,
-    cycle_runtime_hours: total, cycle_runtime_anchor_at: now.toISOString(), cycle_runtime_state: before.cycleRuntimeState,
-    runtime_hours: total, runtime_anchor_at: running ? now.toISOString() : null, is_running: running ? 1 : 0
+    cycle_runtime_hours: total, cycle_runtime_anchor_at: restoreAt, cycle_runtime_state: before.cycleRuntimeState,
+    runtime_hours: total, runtime_anchor_at: running ? restoreAt : null, is_running: running ? 1 : 0
   };
 }
 function planManualHistoryDeletion(asset, events, eventId, options = {}) {
@@ -5997,7 +6069,7 @@ async function editLatestRuntimeBoundary(database, user, body) {
   let revisedHours;
   if (restoreStartupPending) {
     revisedHours = 0;
-  } else if (eventType === "operation_start") {
+  } else if (eventType === "operation_start" || isFbheSealRunAsset(asset)) {
     revisedHours = Number(selectedEvent.runtime_hours);
   } else {
     const baseAt = previousBoundary ? new Date(previousBoundary.event_date) : cycleStartedAt;
@@ -6301,6 +6373,8 @@ async function editLatestRuntimeBoundary(database, user, body) {
     ok: true,
     message: restoreStartupPending
       ? "교체 당시부터 정지 상태로 바로잡았습니다. 현재 Cycle은 기동 대기·누적 0시간입니다."
+      : isFbheSealRunAsset(asset)
+        ? "운전 이력 시각을 수정했습니다. 기존 누적값은 임의로 늘리지 않았으며 RUN 최신화 후 확정됩니다."
       : eventType === "operation_stop"
         ? `정지시각을 수정하고 누적 운전시간을 ${revisedHours.toFixed(1)}시간으로 다시 계산했습니다.`
         : "재기동시각을 수정했습니다. 수정한 시각부터 Cycle 계산을 이어갑니다."
@@ -6432,7 +6506,7 @@ async function changeRuntimeState(database, user, body, source = {}) {
     const boundaryHours = hasExplicitBoundary ? Number(latestBoundary.runtime_hours) : 0;
     const boundaryAt = hasExplicitBoundary ? latestBoundaryAt : cycleStartedAt;
     elapsedHours = Number.isFinite(boundaryHours) && !Number.isNaN(boundaryAt.getTime())
-      ? Math.max(0, boundaryHours + ((eventAt.getTime() - boundaryAt.getTime()) / 3600000))
+      ? Math.max(0, boundaryHours + (isFbheSealRunAsset(asset) ? 0 : (eventAt.getTime() - boundaryAt.getTime()) / 3600000))
       : null;
   } else {
     elapsedHours = cycleRuntimeHoursAt(asset, eventAt);
@@ -14354,6 +14428,7 @@ export async function onRequestPost(context) {
 
 /* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
 export const __blowerHistoryTest = {
+  isFbheSealRunAsset, fbheSealRunProvenance, historyDeleteRestoreBoundary, historyDeleteRestoreBeforeSnapshot,
   latestLogWindow, loadLatestLogPage, latestLogsStep, scanShiftLogs, syncOperationChanges,
   isIntermittentBlower, usesMeasuredBlowerRuntime, createLogFragmentReader, currentDataParcRuntimeBasis, currentRuntimeHours, runtimeHoursAt, cycleRuntimeHoursAt,
   applyOisRuntimeRefresh, loadFbheVibrationRawResponse, loadSealPotRuntimeRawResponse,

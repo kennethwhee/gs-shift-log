@@ -35,3 +35,21 @@
 .unified-refresh-status[data-state="failed"] { border-color: #c97474; background: #fff4f4; }
 
 .refresh-result-tag { display: block; margin-top: 2px; font-size: 11px; font-weight: 500; color: #53677b; overflow-wrap: anywhere; }
+
+/* FBHE / Seal: explicit provenance; unverified legacy values never appear normal. */
+.asset-card[data-run-view] .run-source-row { min-height:66px; }
+.asset-card[data-run-view] .run-source-mobile { display:none; }
+.asset-card[data-run-view] .run-source-row .dataparc-runtime-basis small { display:block; line-height:1.55; white-space:normal; overflow-wrap:anywhere; color:#53677b; }
+.asset-card[data-run-view="unverified"] { border-left-color:#8393a4; background:#f7f9fc; }
+.asset-card[data-run-view="unverified"] .cycle-primary-metric strong { font-size:clamp(17px,1.6vw,22px); }
+.asset-card[data-run-view] .run-cycle-date { flex-wrap:wrap; gap:6px 12px; }
+.run-history-note { flex-basis:100%; width:100%; display:flex; flex-direction:column; gap:4px; line-height:1.6; }
+.run-history-note small { color:#53677b; }
+@media (max-width:700px), (max-width:1024px) and (hover:none) and (pointer:coarse) {
+ .asset-card[data-run-view] .run-source-row { min-width:0; min-height:42px; }
+ .asset-card[data-run-view] .run-source-row .dataparc-runtime-basis { display:none; }
+ .asset-card[data-run-view] .run-source-mobile { display:flex; flex-direction:column; gap:3px; font-size:10px; line-height:1.3; font-weight:700; }
+ .asset-card[data-run-view] .run-source-mobile small { font-size:9px; font-weight:500; }
+ .asset-card[data-run-view] .cycle-primary-metric > strong { font-size:clamp(12px,3.3vw,18px) !important; white-space:normal; line-height:1.15; overflow:visible; word-break:keep-all; }
+ .asset-card[data-run-view] .cycle-primary-metric > strong::after { content:none !important; }
+}

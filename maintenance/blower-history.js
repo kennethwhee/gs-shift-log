@@ -1189,6 +1189,10 @@
   }
 
   function renderAssetCard(asset, setting) {
+    const runView = window.BlowerUnifiedRefresh?.fbheSealRunView(asset, getLatestDataParcRuntimeBasis(asset.tagNumber));
+    // Fail closed during a mixed deployment; never display the legacy value as a RUN measurement.
+    if (runView && !runView.verified && !runView.pending) asset = { ...asset,
+      measurementRequired: true, cycleElapsedHours: null, severity: "runtime_unknown" };
     const intermittent = asset.blowerType === "organic_fuel" || asset.assetGroup === "manure";
     const cycleDays = Number(setting?.cycleDays);
     const cycleElapsedHours = roundHours(asset.cycleElapsedHours);
@@ -1206,7 +1210,7 @@
     const operationState = intermittent ? "measured" : confirmed
       ? (startupPending ? "startup_pending" : (operationKnown ? (operationRunning ? "running" : "stopped") : "unknown"))
       : "unconfirmed";
-    const operationStateLabel = {
+    const operationStateLabel = runView?.stateLabel || {
       running: "기동중",
       stopped: "정지중",
       startup_pending: "기동 대기",
@@ -1224,7 +1228,7 @@
     const nextReplacementAt = !cycleHours || runtimeUnknown
       ? "-"
       : cycleRuntimeTracked
-        ? (operationRunning ? projectedOperatingDueDate(asset.remainingHours, currentServerDate()) : "재기동 후 산정")
+        ? (operationRunning ? projectedOperatingDueDate(asset.remainingHours, runView?.measuredAt ? new Date(runView.measuredAt) : currentServerDate()) : "재기동 후 산정")
         : (cycleAnchorAt ? addDaysToDate(cycleAnchorAt, cycleDays) : "-");
     const remainingLabel = cycleHours && !startupPending && !runtimeUnknown
       ? (cycleRuntimeTracked
@@ -1244,7 +1248,17 @@
       : "미설정";
     const isDataparcRuntimeAsset = isDataParcRuntimeAsset(asset);
     const dataparcRuntimeBasis = isDataparcRuntimeAsset ? getLatestDataParcRuntimeBasis(asset.tagNumber) : null;
-    const dataparcRuntimeBasisLine = dataparcRuntimeBasis
+    const dataparcRuntimeBasisLine = runView
+      ? `<div class="dataparc-runtime-row run-source-row" data-run-source="${escapeHtml(asset.runRuntime?.source || "unverified")}">
+          <div class="dataparc-runtime-basis">
+            <span>${escapeHtml(runView.sourceLabel)}</span>
+            ${runView.basis ? `<strong>${escapeHtml(formatKstDateTimeDisplay(runView.basis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(runView.basis.observedAt))}</strong>`
+              : runView.manual ? `<strong>${escapeHtml(formatKstDateTimeDisplay(runView.measuredAt))} 기준</strong>` : ""}
+            <small>${escapeHtml(runView.message)}</small>
+          </div>
+          <div class="run-source-mobile"><span>${escapeHtml(runView.manual ? "수동 보정" : runView.verified ? "DataPARC RUN" : asset.dataParcTag ? "RUN 확인 필요" : "RUN 미연결")}</span><small>${escapeHtml(runView.manual && !asset.dataParcTag ? "RUN 연결 필요" : runView.measuredAt ? formatKstDateTimeDisplay(runView.measuredAt).slice(5) : "이력에서 확인")}</small></div>
+        </div>`
+      : dataparcRuntimeBasis
       ? `<div class="dataparc-runtime-row">
           <div class="dataparc-runtime-basis" title="${escapeHtml(dataparcRuntimeBasis ? "DataPARC에서 확인한 기동 구간의 합계입니다. 모든 Blower는 마지막 조회 이후 시간을 자동으로 더하지 않습니다." : "조회할 시작일시를 선택해 실제 누적 운전시간을 확인합니다.")}">
             <span>DataPARC</span>
@@ -1259,11 +1273,11 @@
       ? "상태"
       : (cycleRuntimeTracked ? "누적" : (actualStarted ? "기동" : "교체"));
     const measuredLabel = `${(startupPending ? 0 : cycleElapsedHours).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`;
-    const cyclePrimaryValue = runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : startupPending ? "기동 대기" : formatDaysHours(cycleElapsedHours);
-    const cyclePrimaryMobileValue = runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : startupPending ? "기동 대기" : formatCompactDaysHours(cycleElapsedHours);
+    const cyclePrimaryValue = runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : startupPending ? "기동 대기" : formatDaysHours(cycleElapsedHours);
+    const cyclePrimaryMobileValue = runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : startupPending ? "기동 대기" : formatCompactDaysHours(cycleElapsedHours);
 
     return `
-      <article class="asset-card" data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(operationState)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}>
+      <article class="asset-card" data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(operationState)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}${runView ? ` data-run-view="${runView.verified ? "verified" : "unverified"}"` : ""}>
         <div class="asset-card-header">
           <div class="asset-identity">
             <strong class="asset-position" data-mobile-position="${escapeHtml(String(asset.positionLabel || "").trim() || cardPosition)}">${escapeHtml(cardPosition)}</strong>
@@ -1307,7 +1321,10 @@
             </div>
           ` : (startupPending && cycleHours ? `<div class="cycle-progress-block is-placeholder" aria-hidden="true"><div class="progress-track"></div></div>` : "")}
 
-          ${intermittent ? `<div class="cycle-date-line"><span><em>최근 교체</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span></div>` : actualStarted || startupPending ? `
+          ${intermittent ? `<div class="cycle-date-line"><span><em>최근 교체</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span></div>` : runView ? `
+            <div class="cycle-date-line run-cycle-date"><span><em>최근 교체</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
+              ${cycleHours ? `<span title="조회 시점부터 연속 운전한다고 가정한 예상일입니다."><em>예상</em><strong>${escapeHtml(nextReplacementAt)}</strong></span><small>기준 ${cycleBasisLabel}</small>` : ""}
+            </div>` : actualStarted || startupPending ? `
             <div class="cycle-date-line${startupPending ? " is-startup-pending" : " has-cycle-start"}">
               <span><em>교체</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
               <b aria-hidden="true">→</b>
@@ -1715,6 +1732,9 @@
   }
 
   function historyRuntimeLabel(event) {
+    if (window.BlowerUnifiedRefresh?.fbheSealRunAsset({ tagNumber: event?.tagNumber })) {
+      try { if (JSON.parse(event.sourceText || "{}").requiresRunRefresh) return "RUN 재조회 필요"; } catch { /* plain text */ }
+    }
     if (isShiftLogEvent(event)) {
       return Number(event.runtimeHours) > 0
         ? `약 ${formatHours(event.runtimeHours)}`
@@ -1797,6 +1817,7 @@
     const events = getAssetEvents(tagNumber)
       .filter(event => ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction", "problem"].includes(event.eventType));
     const latestRuntimeEvent = latestExplicitRuntimeEvent(asset);
+    const runView = window.BlowerUnifiedRefresh?.fbheSealRunView(asset, getLatestDataParcRuntimeBasis(tagNumber));
 
     elements.historyDialogTitle.textContent = `${asset.positionLabel} 이력`;
     elements.historyDialogAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
@@ -1804,8 +1825,8 @@
       ? `
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         <div><span>최근 V-Belt 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
-        ${asset.runtimeAccumulationMode === "measured_only" || asset.blowerType === "organic_fuel" ? "" : `<div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.cycleRuntimeState === "unknown" ? "확인 필요" : asset.isRunning ? "기동중" : "정지중"}</strong></div>`}
-        <div><span>${asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
+        ${runView ? `<div><span>확인 상태</span><strong>${escapeHtml(runView.stateLabel)}</strong></div>` : asset.runtimeAccumulationMode === "measured_only" || asset.blowerType === "organic_fuel" ? "" : `<div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.cycleRuntimeState === "unknown" ? "확인 필요" : asset.isRunning ? "기동중" : "정지중"}</strong></div>`}
+        <div><span>${runView || asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${runView ? escapeHtml(startupPending ? "0시간" : runView.primary) : startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
       `
       : awaitingBackfill
         ? `
@@ -1817,6 +1838,10 @@
         <div class="history-unknown"><strong>확정된 V-Belt 교체 이력이 없습니다.</strong><span>검토 대기 후보를 확인하거나 최초 이력을 직접 등록해 주세요.</span></div>
       `;
 
+    if (runView && asset.lastReplacementAt) {
+      const legacy = asset.runRuntime?.legacyStoredHours;
+      elements.historyCycleSummary.innerHTML += `<div class="run-history-note"><strong>${escapeHtml(runView.sourceLabel)}</strong>${runView.basis ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.basis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(runView.basis.observedAt))}</small>` : runView.manual ? `<small>${escapeHtml(formatKstDateTimeDisplay(runView.measuredAt))} 기준</small>` : ""}<span>${escapeHtml(runView.message)}</span>${!runView.verified && !runView.pending && Number.isFinite(legacy) ? `<small>기존 저장값 ${Number(legacy).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}시간은 RUN 확인값이 아닙니다. 원본 이력과 변경 기록은 보존됩니다.</small>` : ""}</div>`;
+    }
     if (elements.historyRuntimeQueryButton) {
       const allowed = hasAuthenticatedWriteAccess() && !isMobileMonitoringView() &&
         (isDataParcRuntimeAsset(asset) || ["fbhe", "seal_pot"].includes(asset.blowerType));
@@ -1932,7 +1957,7 @@
       const operation = { unknown: "확인 필요", startup_pending: "기동 대기", running: "기동중", stopped: "정지중" }[p.operationState] || "확인 필요";
       const hours = p.runtimeHours === null || p.runtimeHours === undefined ? "확인 필요"
         : `${Number(p.runtimeHours).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}시간`;
-      elements.historyDeletePreview.textContent = `${p.detail}\n\n교체일: ${p.lastReplacementAt ? formatDate(p.lastReplacementAt) : "미등록"}\n운전상태: ${operation}\n누적 운전시간: ${hours}${p.operationState === "running" ? " (기동중 · 계속 누적)" : ""}\n기준시각: ${formatKstDateTimeDisplay(p.asOf)}`;
+      elements.historyDeletePreview.textContent = `${p.detail}\n\n교체일: ${p.lastReplacementAt ? formatDate(p.lastReplacementAt) : "미등록"}\n운전상태: ${operation}\n누적 운전시간: ${hours}${p.operationState === "running" ? (window.BlowerUnifiedRefresh?.fbheSealRunAsset(asset) ? " (마지막 확인값 · 다음 RUN 최신화 때 갱신)" : " (기동중 · 계속 누적)") : ""}\n기준시각: ${formatKstDateTimeDisplay(p.asOf)}`;
       state.historyDeleteToken = result.previewToken;
       elements.historyDeleteConfirm.disabled = false;
     } catch (error) {
@@ -2031,7 +2056,9 @@
         : "현재 운전상태와 누적시간을 유지합니다."
       : mode === "pending"
         ? "기동 대기 · 누적 0시간으로 바로잡습니다."
-        : "입력한 기동~정지(현재) 기간 전체를 운전시간으로 계산합니다. 중간 정지가 있으면 저장 후 DataPARC를 재조회해 주세요.";
+        : window.BlowerUnifiedRefresh?.fbheSealRunAsset(findAsset(snapshot.tagNumber))
+          ? "교체·기동·정지 시각만 수정합니다. 누적시간은 교체일부터 RUN=1인 구간을 최신화해 확정하며, 입력한 기간 전체를 운전시간으로 더하지 않습니다."
+          : "입력한 기동~정지(현재) 기간 전체를 운전시간으로 계산합니다. 중간 정지가 있으면 저장 후 DataPARC를 재조회해 주세요.";
     elements.replacementEditPreview.textContent = preview;
   }
 
@@ -8757,6 +8784,13 @@
       `;
     } else if (Number.isNaN(editedAt.getTime())) {
       previewHtml = `<span>수정 후</span><strong>시각을 확인해 주세요.</strong>`;
+    } else if (window.BlowerUnifiedRefresh?.fbheSealRunAsset(asset)) {
+      previewHtml = `
+        <span>수정 후</span>
+        <strong>${editedEvent.eventType === "operation_start" ? "수동 기동시각" : "수동 정지시각"} 수정 · RUN 재조회 필요</strong>
+        <small>운전 이력 시각만 수정하며, 수정한 시각부터 현재까지를 기동시간으로 더하지 않습니다.</small>
+        <small>기존 저장값은 보존하고, 누적 기동시간은 [최신화]의 RUN 1/0 조회 후 확정합니다.</small>
+      `;
     } else if (editedEvent.eventType === "operation_start") {
       const baseHours = Number(editedEvent.runtimeHours || 0);
       const previewHours = Math.max(0, baseHours + ((currentServerDate().getTime() - editedAt.getTime()) / 3600000));
@@ -9079,7 +9113,7 @@
     elements.dataparcRuntimeDialogTag.value = normalizedTag;
     elements.dataparcRuntimeDialogAsset.textContent =
       `${asset.displayName} · ${asset.tagNumber}`;
-    elements.dataparcRuntimeStartAt.value = previousInput;
+    elements.dataparcRuntimeStartAt.value = previousInput || (window.BlowerUnifiedRefresh?.fbheSealRunAsset(asset) ? minimumInput : "");
     elements.dataparcRuntimeStartAt.min = minimumInput;
     elements.dataparcRuntimeStartAt.max = formatKstDateTimeInput();
     elements.dataparcRuntimeMinimum.textContent = minimumInput
@@ -9101,7 +9135,9 @@
     elements.dataparcRuntimeConfirmField.hidden = fixedSignal;
     elements.dataparcRuntimeSourceHelp.textContent = fixedSignal
       ? "Silo #B에서 확인된 운전 신호입니다."
-      : "DataPARC에서 해당 설비의 RUN 신호 전체 TAG를 복사해 주세요. 조회·저장에 성공하면 다음부터 자동 입력됩니다.";
+      : window.BlowerUnifiedRefresh?.fbheSealRunAsset(asset)
+        ? "현재 설비 TAG는 이력의 식별번호입니다. 임의로 AP/AN 또는 XB04를 바꾸지 말고 실제 1=기동·0=정지 RUN 전체 TAG를 입력해 주세요. 최초 조회는 교체일부터 시작하며, 성공 후에는 [최신화]만 사용합니다."
+        : "DataPARC에서 해당 설비의 RUN 신호 전체 TAG를 복사해 주세요. 조회·저장에 성공하면 다음부터 자동 입력됩니다.";
     elements.dataparcRuntimeDialog.showModal();
     window.setTimeout(() => (savedSignal ? elements.dataparcRuntimeStartAt : elements.dataparcRuntimeSourceTag).focus(), 0);
   }
