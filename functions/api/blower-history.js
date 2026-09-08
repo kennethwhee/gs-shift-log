@@ -1293,8 +1293,9 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
   );
   const cycleRuntimeState = normalizeText(asset.cycle_runtime_state) || "stopped";
   const runtimeUnknown = cycleRuntimeState === "unknown";
-  const measurementRequired = usesMeasuredBlowerRuntime(asset) && asset.runtime_measurement_verified === false && cycleStartState !== "pending";
-  const cycleElapsedHours = !hasConfirmedReplacement || runtimeUnknown || measurementRequired || cycleStartState === "pending"
+  const measurementRequired = usesMeasuredBlowerRuntime(asset) && asset.runtime_measurement_verified === false;
+  const measuredPending = usesMeasuredBlowerRuntime(asset) && cycleStartState === "pending";
+  const cycleElapsedHours = !hasConfirmedReplacement || runtimeUnknown || measurementRequired || (!measuredPending && cycleStartState === "pending")
     ? null
     : (cycleRuntimeTracked
       ? cycleRuntimeHoursAt(asset, now)
@@ -1315,7 +1316,7 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
     }
   }
 
-  if (normalizeText(asset.last_replacement_at) && cycleStartState === "pending") {
+  if (normalizeText(asset.last_replacement_at) && cycleStartState === "pending" && !usesMeasuredBlowerRuntime(asset)) {
     severity = "startup_pending";
   } else if (hasConfirmedReplacement && (runtimeUnknown || measurementRequired)) {
     severity = "runtime_unknown";
@@ -1451,6 +1452,7 @@ async function loadEvents(database, limit = 300) {
       FROM blower_history_events AS event
       INNER JOIN blower_history_assets AS asset
         ON asset.tag_number = event.tag_number
+      WHERE event.event_type <> '_deleted'
       ORDER BY event.event_date DESC, event.created_at DESC
       LIMIT ?
     `)
@@ -1660,8 +1662,9 @@ function latestSuccessfulDataParcTag(assetTag, rows) {
 }
 
 function currentDataParcRuntimeBasis(asset, rows) {
-  if (!asset?.last_replacement_at || asset.cycle_start_state === "pending") return null;
+  if (!asset?.last_replacement_at) return null;
   const replacement = Date.parse(asset.last_replacement_at);
+  const explicitCycleStart = asset.cycle_start_state === "started" ? Date.parse(asset.cycle_started_at || "") : NaN;
   for (const row of rows || []) {
     if (row.tag_number !== asset.tag_number || row.source_type !== DATAPARC_RUNTIME_SYNC_SOURCE_TYPE || row.event_type !== "runtime_correction") continue;
     let source; try { source = JSON.parse(row.source_text); } catch { continue; }
@@ -1669,14 +1672,23 @@ function currentDataParcRuntimeBasis(asset, rows) {
     if (source.incremental && !incremental) continue;
     const coverageStartAt = incremental ? incremental.coverageStartAt : source.startAt;
     const start = Date.parse(coverageStartAt), observed = Date.parse(source.observedAt || source.endAt);
+    const actualCycleStartState = asset.cycle_start_state || "legacy";
+    const signalOnlyPending = isFbheSealRunAsset(asset) &&
+      actualCycleStartState === "pending" &&
+      source.expectedCycleStartState === "legacy" &&
+      source.signalOnlyCycle === true &&
+      !normalizeText(source.expectedCycleStartedAt);
     if (source.assetTag !== asset.tag_number || source.requestType !== DATAPARC_RUNTIME_PROBE_REQUEST_TYPE ||
         row.id !== dataParcRuntimeSyncEventId(source.requestId) || row.source_log_id !== source.requestId ||
         !isSupportedDataParcRuntimePair(asset.tag_number, source.dataParcTag) ||
         !Number.isFinite(start) || !Number.isFinite(observed) || start < replacement || observed < start ||
+        (Number.isFinite(explicitCycleStart) && start < explicitCycleStart) ||
+        source.manualOverride === true || Boolean(source.manualOverride?.changedAt) ||
+        normalizeText(row.updated_at) !== normalizeText(row.created_at) ||
         Date.parse(source.expectedLastReplacementAt) !== replacement ||
-        source.expectedCycleStartState !== (asset.cycle_start_state || "legacy") ||
+        (source.expectedCycleStartState !== actualCycleStartState && !signalOnlyPending) ||
         String(source.expectedCycleStartRevision || "") !== String(asset.cycle_start_revision || "") ||
-        (asset.cycle_start_state === "started" && Date.parse(source.expectedCycleStartedAt) !== Date.parse(asset.cycle_started_at))) continue;
+        (actualCycleStartState === "started" && Date.parse(source.expectedCycleStartedAt) !== Date.parse(asset.cycle_started_at))) continue;
     const append = verifiedAppendBase(asset, rows, source.dataParcTag);
     return { startAt: coverageStartAt, observedAt: source.observedAt || source.endAt, requestId: source.requestId,
       runtimeHours: Number(row.runtime_hours), dataParcTag: source.dataParcTag,
@@ -1709,7 +1721,6 @@ function fbheSealRunProvenance(asset, rows, now = new Date()) {
     signalConfigured: Boolean(dataParcTag), measuredAt: "", state: "unknown",
     legacyStoredHours: stored, reason: dataParcTag ? "refresh_required" : "signal_required" };
   if (!Number.isFinite(replacement)) return { ...base, reason: "replacement_required" };
-  if (asset.cycle_start_state === "pending") return { ...base, source: "pending", reason: "startup_pending" };
   if (!Number.isFinite(anchor) || anchor < replacement || anchor > now.getTime() || stored === null) return base;
   // The current anchor and value must be owned by the same event. Merely
   // finding ANY older manual row with an equal number is not verification.
@@ -1819,7 +1830,7 @@ async function loadAssetStates(database, settings) {
     const runtimeBasis = currentDataParcRuntimeBasis(asset, runtimeRows);
     const runRuntime = fbheSealRunProvenance(asset, runtimeRows, now);
     if (runRuntime) {
-      asset.runtime_measurement_verified = runRuntime.verified || asset.cycle_start_state === "pending";
+      asset.runtime_measurement_verified = runRuntime.verified;
       asset.runtime_measured_at = runRuntime.measuredAt;
     } else if (usesMeasuredBlowerRuntime(asset)) {
       const manual = runtimeRows.find(row => row.tag_number === asset.tag_number && row.source_type === "manual" &&
@@ -1827,7 +1838,7 @@ async function loadAssetStates(database, settings) {
         new Date(row.event_date).getTime() >= new Date(asset.last_replacement_at || "").getTime() &&
         Number.isFinite(Number(row.runtime_hours)) && Number(row.runtime_hours) >= 0 &&
         Math.abs(Number(row.runtime_hours) - Number(asset.cycle_runtime_hours)) < 0.000001);
-      asset.runtime_measurement_verified = Boolean((runtimeBasis && Number.isFinite(runtimeBasis.runtimeHours) && Math.abs(runtimeBasis.runtimeHours - Number(asset.cycle_runtime_hours)) < 0.000001) || manual || asset.cycle_start_state === "pending");
+      asset.runtime_measurement_verified = Boolean((runtimeBasis && Number.isFinite(runtimeBasis.runtimeHours) && Math.abs(runtimeBasis.runtimeHours - Number(asset.cycle_runtime_hours)) < 0.000001) || manual);
       asset.runtime_measured_at = manual && (!runtimeBasis || Date.parse(manual.event_date) > Date.parse(runtimeBasis.observedAt))
         ? manual.event_date : runtimeBasis?.observedAt || "";
     }
@@ -2339,6 +2350,8 @@ function normalizeDataParcRuntimeProbeResult(value, requestId, now = new Date(),
       )
     ) ||
     startAt.time < replacementAt.time ||
+    (/^(?:104|204)HHL(?:60AP|10AN)(?:611|621|631)$/.test(raw.assetTag) && cycleStartedAt &&
+      startAt.time < Math.floor(cycleStartedAt.time / 1000) * 1000) ||
     endAt.time - startAt.time > maximumRangeMilliseconds
   ) {
     return dataParcRuntimeValidationFailure(
@@ -5358,6 +5371,7 @@ const HISTORY_DELETE_EVENT_COLUMNS = [
   "source_type", "source_log_id", "source_text", "created_by_id", "created_by_name", "created_at", "updated_at"
 ];
 const HISTORY_DELETE_BOUNDARIES = new Set(["startup", "operation_start", "operation_stop", "runtime_correction"]);
+const HISTORY_HIDDEN_EVENT_TYPE = "_deleted";
 function historyDeleteTime(value) {
   const text = normalizeText(value);
   if (!text) return NaN;
@@ -5461,76 +5475,80 @@ function historyDeleteRestoreBeforeSnapshot(event, replacement, now) {
     runtime_hours: total, runtime_anchor_at: running ? restoreAt : null, is_running: running ? 1 : 0
   };
 }
+function historyMutationProjection(asset, activeEvents, beforeEvent, afterEvent = null) {
+  const currentReplacementTime = historyDeleteTime(asset.last_replacement_at);
+  const replacements = (activeEvents || []).filter(event => event.event_type === "replacement").sort(historyDeleteOrder);
+  const latestReplacement = replacements[0] || null;
+  const latestReplacementTime = historyDeleteTime(latestReplacement?.event_date);
+  const currentChanged = (Number.isFinite(currentReplacementTime) || Number.isFinite(latestReplacementTime)) &&
+    (!Number.isFinite(currentReplacementTime) || !Number.isFinite(latestReplacementTime) || currentReplacementTime !== latestReplacementTime);
+  const touchesCurrent = [beforeEvent, afterEvent].filter(Boolean).some(event => {
+    if (event.event_type === "replacement") {
+      return historyDeleteSameTime(event.event_date, asset.last_replacement_at) || currentChanged;
+    }
+    if (!HISTORY_DELETE_BOUNDARIES.has(event.event_type) || !Number.isFinite(currentReplacementTime)) return false;
+    return historyDeleteTime(event.event_date) >= currentReplacementTime;
+  });
+  if (!currentChanged && !touchesCurrent) return null;
+  if (!latestReplacement || !Number.isFinite(latestReplacementTime)) {
+    return {
+      last_replacement_at: null,
+      cycle_started_at: null,
+      cycle_start_state: "legacy",
+      cycle_runtime_hours: 0,
+      cycle_runtime_anchor_at: null,
+      cycle_runtime_state: "unknown",
+      runtime_hours: 0,
+      runtime_anchor_at: null,
+      is_running: 0
+    };
+  }
+  const explicitStarts = (activeEvents || []).filter(event =>
+    ["startup", "operation_start"].includes(event.event_type) &&
+    historyDeleteTime(event.event_date) >= latestReplacementTime
+  ).sort((left, right) => historyDeleteTime(left.event_date) - historyDeleteTime(right.event_date) ||
+    normalizeText(left.created_at).localeCompare(normalizeText(right.created_at)) ||
+    normalizeText(left.id).localeCompare(normalizeText(right.id)));
+  const firstStart = explicitStarts[0] || null;
+  return {
+    last_replacement_at: latestReplacement.event_date,
+    cycle_started_at: firstStart?.event_date || null,
+    cycle_start_state: firstStart ? "started" : "legacy",
+    cycle_runtime_hours: 0,
+    cycle_runtime_anchor_at: null,
+    cycle_runtime_state: "unknown",
+    runtime_hours: 0,
+    runtime_anchor_at: null,
+    is_running: 0
+  };
+}
 function planManualHistoryDeletion(asset, events, eventId, options = {}) {
   const now = options.now instanceof Date && Number.isFinite(options.now.getTime()) ? options.now : new Date();
   const fail = (message, code = "HISTORY_DELETE_BLOCKED", status = 409, extra = {}) => ({ ok: false, message, code, status, ...extra });
-  const selected = events.find(event => event.id === eventId);
+  const selected = events.find(event => event.id === eventId && event.event_type !== HISTORY_HIDDEN_EVENT_TYPE);
   if (!selected) return fail("삭제할 이력을 찾을 수 없습니다. 이력을 다시 열어 주세요.", "HISTORY_DELETE_NOT_FOUND", 404);
-  if (selected.source_type !== "manual" || normalizeText(selected.source_log_id) ||
-      !["replacement", "problem", ...HISTORY_DELETE_BOUNDARIES].includes(selected.event_type)) {
-    return fail("직접 등록한 이력만 삭제할 수 있습니다. 업무일지 자동감지·DataPARC 원본은 삭제하지 않습니다.", "HISTORY_DELETE_MANUAL_ONLY", 403);
-  }
   if (selected.tag_number !== asset.tag_number || !selected.updated_at || !Number.isFinite(historyDeleteTime(selected.event_date))) {
     return fail("이력의 TAG·일시·수정정보를 확인할 수 없어 삭제하지 않았습니다.");
   }
-  const replacements = events.filter(event => event.event_type === "replacement").sort(historyDeleteOrder);
-  const current = replacements.find(event => historyDeleteSameTime(event.event_date, asset.last_replacement_at));
-  const remaining = events.filter(event => event.id !== selected.id);
-  let patch = null, basisEventId = "", effect = "history_only";
-  let detail = "선택한 이력만 삭제합니다. 현재 교체일·운전상태·누적시간은 유지됩니다.";
-  if (selected.event_type === "replacement" && current?.id === selected.id) {
-    const blockers = events.filter(event => historyDeleteCycleBoundary(event, selected)).sort(historyDeleteOrder);
-    if (blockers.length) {
-      const first = blockers[0];
-      return fail(first.source_type === "manual"
-        ? "이 교체 뒤에 등록한 기동·정지·누적시간 보정 이력이 남아 있습니다. 가장 나중 운전 이력부터 삭제한 뒤 교체 이력을 삭제해 주세요."
-        : "이 교체를 기준으로 반영된 자동 운전·DataPARC 이력이 남아 있어 삭제할 수 없습니다. 교체 이력의 [수정]으로 바로잡아 주세요.",
-        "HISTORY_DELETE_DEPENDENT_EVENTS", 409, { blockingEventId: first.id });
-    }
-    const previous = replacements.filter(event => event.id !== selected.id)[0] || null;
-    if (previous && (!Number.isFinite(historyDeleteTime(previous.event_date)) ||
-        historyDeleteTime(previous.event_date) > historyDeleteTime(selected.event_date))) {
-      return fail("현재 교체일과 이력 순서가 일치하지 않습니다. 새로고침 후 확인해 주세요.");
-    }
-    const oldBoundaries = previous ? remaining.filter(event => historyDeleteCycleBoundary(event, previous) &&
-      normalizeText(event.created_at) <= normalizeText(selected.created_at)).sort(historyDeleteOrder) : [];
-    patch = historyDeleteRestoreBoundary(oldBoundaries[0], previous, now) || historyDeleteUnknownState(previous);
-    basisEventId = oldBoundaries[0]?.id || "";
-    effect = previous ? "previous_replacement" : "no_replacement";
-    detail = previous ? "직전 V-Belt 교체일로 돌아갑니다. 남은 운전 이력을 기준으로 상태와 누적시간을 반영합니다."
-      : "남은 교체 이력이 없어 교체일을 비웁니다. 현재 주기의 누적시간·D-day 계산을 중단합니다.";
-  } else if (HISTORY_DELETE_BOUNDARIES.has(selected.event_type) && historyDeleteCycleBoundary(selected, current)) {
-    const boundaries = events.filter(event => historyDeleteCycleBoundary(event, current)).sort(historyDeleteOrder);
-    if (boundaries[0]?.id !== selected.id) {
-      return fail("선택한 이력 뒤에 운전·보정 이력이 있습니다. 가장 나중 운전 이력부터 삭제해 주세요.",
-        "HISTORY_DELETE_LATEST_FIRST", 409, { blockingEventId: boundaries[0]?.id || "" });
-    }
-    const previous = boundaries[1] || null;
-    const beforeSnapshot = historyDeleteRestoreBeforeSnapshot(selected, current, now);
-    patch = beforeSnapshot || historyDeleteRestoreBoundary(previous, current, now, asset);
-    basisEventId = beforeSnapshot ? selected.id : (previous?.id || "");
-    const firstStartup = !previous && (selected.event_type === "startup" ||
-      (selected.event_type === "operation_start" && Number(selected.runtime_hours) === 0 &&
-        historyDeleteSameTime(asset.cycle_started_at, selected.event_date)));
-    if (!patch) patch = firstStartup ? historyDeletePendingState(current) : historyDeleteUnknownState(current);
-    effect = patch.cycle_start_state === "pending" ? "startup_pending" : "previous_runtime";
-    detail = effect === "startup_pending" ? "기동 등록 전으로 돌아갑니다. 교체일은 유지하고 기동 대기·누적 0시간으로 반영합니다."
-      : "남은 직전 운전 이력으로 돌아갑니다. 삭제한 구간의 누적시간은 계산 근거에서 제외합니다.";
-  } else if (selected.event_type !== "problem" && !current && asset.last_replacement_at) {
-    return fail("현재 교체일에 해당하는 이력이 없어 주기를 확인할 수 없습니다. 새로고침 후 확인해 주세요.");
-  }
+  const remaining = events.filter(event => event.id !== selected.id && event.event_type !== HISTORY_HIDDEN_EVENT_TYPE);
+  const patch = historyMutationProjection(asset, remaining, selected, null);
   const after = patch ? { ...asset, ...patch } : asset;
-  const unknown = after.cycle_runtime_state === "unknown";
-  if (patch && unknown && after.last_replacement_at) {
-    detail += " 운전시간을 복원할 근거가 부족하므로 '확인 필요'로 표시합니다. 기간조회 또는 누적시간 직접 보정으로 확인해 주세요.";
+  let detail = "선택한 이력만 숨김 삭제합니다. 현재 교체 Cycle과 누적시간은 유지됩니다.";
+  let effect = "history_only";
+  if (patch) {
+    effect = after.last_replacement_at ? "run_requery" : "no_replacement";
+    detail = after.last_replacement_at
+      ? "선택한 이력이 현재 교체 Cycle 계산에 영향을 줍니다. 남은 이력으로 교체·기동 기준을 다시 잡고 누적시간은 RUN 재조회 후 확정합니다."
+      : "남은 V-Belt 교체 이력이 없어 현재 교체 기준을 비웁니다. 삭제 원본은 변경 기록에 보존됩니다.";
   }
-  return { ok: true, selected, remaining, patch, basisEventId, effect,
+  const unknown = normalizeText(after.cycle_runtime_state) === "unknown";
+  return { ok: true, selected, remaining, patch, basisEventId: "", effect,
     preview: { eventId: selected.id, eventType: selected.event_type, eventDate: selected.event_date,
       note: selected.note, effect, detail, lastReplacementAt: normalizeText(after.last_replacement_at),
-      operationState: !after.last_replacement_at || unknown ? "unknown" : after.cycle_start_state === "pending" ? "startup_pending" : after.cycle_runtime_state,
-      runtimeHours: !after.last_replacement_at || unknown ? null : after.cycle_start_state === "pending" ? 0 : cycleRuntimeHoursAt(after, now),
-      asOf: now.toISOString(), currentCycleChanged: Boolean(patch), basisEventId,
-      auditNotice: "삭제 원본·삭제자·삭제시각은 변경 기록에 보존됩니다." }
+      operationState: !after.last_replacement_at || unknown ? "unknown" : normalizeText(after.cycle_runtime_state) || "unknown",
+      runtimeHours: !after.last_replacement_at || unknown ? null : cycleRuntimeHoursAt(after, now),
+      asOf: now.toISOString(), currentCycleChanged: Boolean(patch), basisEventId: "",
+      auditNotice: "삭제 원본·삭제자·삭제시각은 변경 기록에 보존되며 자동수집이 같은 ID를 다시 만들지 못하도록 원본 ID를 보존합니다." }
   };
 }
 async function prepareManualHistoryDeletion(database, body, options = {}) {
@@ -5542,7 +5560,7 @@ async function prepareManualHistoryDeletion(database, body, options = {}) {
   }
   const asset = await findAsset(database, tagNumber);
   if (!asset) return fail("등록된 Blower TAG를 찾을 수 없습니다.", 404);
-  const result = await database.prepare(`SELECT * FROM blower_history_events WHERE tag_number = ? ORDER BY id`).bind(tagNumber).all();
+  const result = await database.prepare(`SELECT * FROM blower_history_events WHERE tag_number = ? AND event_type <> '_deleted' ORDER BY id`).bind(tagNumber).all();
   const events = Array.isArray(result.results) ? result.results : [];
   const selected = events.find(event => event.id === eventId);
   if (!selected) return fail("삭제할 이력을 찾을 수 없습니다. 이미 삭제되었는지 확인해 주세요.", 404);
@@ -5582,7 +5600,7 @@ async function deleteManualHistoryEvent(database, user, body, options = {}) {
   const audit = { id: crypto.randomUUID(), action_type: "history_event_delete", tag_number: asset.tag_number,
     before_json: JSON.stringify({ schemaVersion: 1, asset, event: selected }),
     after_json: JSON.stringify({ schemaVersion: 1, asset: afterAsset, deletedEventId: selected.id, effect, basisEventId, preview }),
-    change_note: normalizeText(body.changeNote).slice(0, 500) || "잘못 등록한 수동 이력 삭제",
+    change_note: normalizeText(body.changeNote).slice(0, 500) || "이력 삭제",
     changed_by_id: user.employeeNo, changed_by_name: user.name, changed_at: now };
   const col = name => `"${name.replace(/"/g, '""')}"`;
   const rowCondition = row => Object.keys(row).map(key => `${col(key)} IS ?`).join(" AND ");
@@ -5591,10 +5609,10 @@ async function deleteManualHistoryEvent(database, user, body, options = {}) {
   // This checks insertions, removals, and edits of EVERY row on the selected TAG,
   // without exceeding D1's 100-parameter limit for a SQL statement.
   const eventsEqual = rows => ({ sql: `
-    (SELECT COUNT(*) FROM blower_history_events WHERE tag_number = ?) = json_array_length(?)
+    (SELECT COUNT(*) FROM blower_history_events WHERE tag_number = ? AND event_type <> '_deleted') = json_array_length(?)
     AND NOT EXISTS (
       SELECT 1 FROM blower_history_events e LEFT JOIN json_each(?) j ON e.id = json_extract(j.value, '$.id')
-      WHERE e.tag_number = ? AND (j.value IS NULL OR NOT (${HISTORY_DELETE_EVENT_COLUMNS.map(key => `e.${col(key)} IS json_extract(j.value, '$.${key}')`).join(" AND ")}))
+      WHERE e.tag_number = ? AND e.event_type <> '_deleted' AND (j.value IS NULL OR NOT (${HISTORY_DELETE_EVENT_COLUMNS.map(key => `e.${col(key)} IS json_extract(j.value, '$.${key}')`).join(" AND ")}))
     )`, values: [asset.tag_number, JSON.stringify(rows), JSON.stringify(rows), asset.tag_number] });
   const guardIds = [crypto.randomUUID(), crypto.randomUUID()];
   const guard = (id, checks) => database.prepare(`INSERT INTO blower_history_atomic_guard (id, valid)
@@ -5605,7 +5623,8 @@ async function deleteManualHistoryEvent(database, user, body, options = {}) {
   const statements = [guard(guardIds[0], [rowExists("blower_history_assets", asset), eventsEqual(events)]),
     ...(patch ? [database.prepare(`UPDATE blower_history_assets SET ${Object.keys(patch).map(key => `${col(key)} = ?`).join(", ")}
       WHERE ${rowCondition(asset)}`).bind(...Object.values(patch), ...Object.values(asset))] : []),
-    database.prepare(`DELETE FROM blower_history_events WHERE ${rowCondition(selected)}`).bind(...Object.values(selected)),
+    database.prepare(`UPDATE blower_history_events SET event_type = '_deleted', updated_at = ? WHERE ${rowCondition(selected)}`)
+      .bind(now, ...Object.values(selected)),
     insertRow("blower_history_asset_history", audit),
     guard(guardIds[1], [rowExists("blower_history_assets", afterAsset), eventsEqual(remaining), rowExists("blower_history_asset_history", audit)]),
     database.prepare(`DELETE FROM blower_history_atomic_guard WHERE id IN (?, ?)`).bind(...guardIds)];
@@ -5618,12 +5637,101 @@ async function deleteManualHistoryEvent(database, user, body, options = {}) {
     throw error;
   }
   return jsonResponse({ ok: true, deletedEventId: selected.id, auditId: audit.id, preview,
-    message: preview.operationState === "startup_pending" && patch
-      ? "이력을 삭제했습니다. 기동 대기·누적 0시간으로 돌아갔습니다."
-      : patch && preview.operationState === "unknown" ? "이력을 삭제했습니다. 남은 이력에 맞춰 교체일을 반영했고, 운전시간은 확인이 필요합니다."
-        : "이력을 삭제하고 남은 이력을 반영했습니다." });
+    message: patch && preview.operationState === "unknown"
+      ? "이력을 삭제했습니다. 남은 이력 기준으로 Cycle을 다시 잡았으며 RUN 최신화가 필요합니다."
+      : "이력을 삭제했습니다. 원본은 변경 기록에 보존됩니다." });
 }
 // [/BLOWER-MANUAL-HISTORY-DELETE-V1]
+
+
+// [BLOWER-HISTORY-OPEN-EDIT-V1]
+function historyEditEventDate(value) {
+  const normalized = normalizeDateTime(value);
+  const parsed = historyDeleteTime(normalized);
+  return normalized && Number.isFinite(parsed) ? normalized : "";
+}
+async function editAnyHistoryEvent(database, user, body, options = {}) {
+  const fail = (message, status = 400, code = "HISTORY_EDIT_INVALID") => jsonResponse({ ok: false, message, code }, status);
+  const tagNumber = normalizeText(body.tagNumber).toUpperCase();
+  const eventId = normalizeText(body.eventId);
+  const expectedEventUpdatedAt = normalizeText(body.expectedEventUpdatedAt);
+  const expectedCycleStartRevision = normalizeText(body.expectedCycleStartRevision);
+  const expectedCycleRuntimeRevision = normalizeText(body.expectedCycleRuntimeRevision);
+  if (!tagNumber || !eventId || !expectedEventUpdatedAt || !expectedCycleStartRevision || !expectedCycleRuntimeRevision) {
+    return fail("수정할 이력 정보를 다시 확인해 주세요.");
+  }
+  const asset = await findAsset(database, tagNumber);
+  if (!asset) return fail("등록된 Blower TAG를 찾을 수 없습니다.", 404, "HISTORY_EDIT_ASSET_NOT_FOUND");
+  if (expectedCycleStartRevision !== normalizeText(asset.cycle_start_revision) ||
+      expectedCycleRuntimeRevision !== normalizeText(asset.cycle_runtime_revision) ||
+      normalizeText(body.expectedLastReplacementAt) !== normalizeText(asset.last_replacement_at)) {
+    return fail("교체 또는 RUN 기준이 변경되었습니다. 이력을 다시 열고 수정해 주세요.", 409, "HISTORY_EDIT_STALE");
+  }
+  const result = await database.prepare(`SELECT * FROM blower_history_events WHERE tag_number = ? AND event_type <> '_deleted' ORDER BY id`).bind(tagNumber).all();
+  const events = Array.isArray(result.results) ? result.results : [];
+  const selected = events.find(event => event.id === eventId);
+  if (!selected) return fail("수정할 이력을 찾을 수 없습니다.", 404, "HISTORY_EDIT_NOT_FOUND");
+  if (normalizeText(selected.updated_at) !== expectedEventUpdatedAt) {
+    return fail("선택한 이력이 이미 변경되었습니다. 이력을 다시 열어 주세요.", 409, "HISTORY_EDIT_STALE");
+  }
+  const capturedAt = options.now instanceof Date && Number.isFinite(options.now.getTime()) ? new Date(options.now.getTime()) : new Date();
+  const eventType = normalizeText(body.eventType);
+  if (!["replacement", "startup", "operation_start", "operation_stop", "runtime_correction", "problem"].includes(eventType)) {
+    return fail("이력 종류를 확인해 주세요.");
+  }
+  const eventDate = historyEditEventDate(body.eventDate);
+  const eventTime = historyDeleteTime(eventDate);
+  if (!eventDate || eventTime > capturedAt.getTime() + 5 * 60000) return fail("이력 일시는 현재 이후로 저장할 수 없습니다.");
+  const runtimeHours = Number(body.runtimeHours);
+  if (!Number.isFinite(runtimeHours) || runtimeHours < 0 || runtimeHours > 1000000) return fail("누적 운전시간은 0 이상 숫자로 입력해 주세요.");
+  const issueType = normalizeText(body.issueType).slice(0, 100);
+  const actionType = normalizeText(body.actionType).slice(0, 200);
+  const note = normalizeText(body.note).slice(0, 2000);
+  const oldUpdatedTime = Date.parse(selected.updated_at);
+  const modifiedAt = new Date(Math.max(capturedAt.getTime(), Number.isFinite(oldUpdatedTime) ? oldUpdatedTime + 1 : capturedAt.getTime())).toISOString();
+  const eventPatch = { event_type: eventType, event_date: eventDate, runtime_hours: runtimeHours, issue_type: issueType, action_type: actionType, note, updated_at: modifiedAt };
+  const afterEvent = { ...selected, ...eventPatch };
+  const afterEvents = events.map(event => event.id === eventId ? afterEvent : event);
+  const projection = historyMutationProjection(asset, afterEvents, selected, afterEvent);
+  const assetPatch = projection ? { ...projection,
+    cycle_start_revision: crypto.randomUUID(), cycle_runtime_revision: crypto.randomUUID(),
+    last_modified_by_id: user.employeeNo, last_modified_by_name: user.name, updated_at: modifiedAt } : null;
+  const afterAsset = assetPatch ? { ...asset, ...assetPatch } : asset;
+  const audit = { id: crypto.randomUUID(), action_type: "history_event_edit", tag_number: tagNumber,
+    before_json: JSON.stringify({ schemaVersion: 1, asset, event: selected }),
+    after_json: JSON.stringify({ schemaVersion: 1, asset: afterAsset, event: afterEvent, runtimeInvalidated: Boolean(assetPatch) }),
+    change_note: normalizeText(body.changeNote).slice(0, 500) || "이력 수정",
+    changed_by_id: user.employeeNo, changed_by_name: user.name, changed_at: modifiedAt };
+  const col = name => `"${name.replace(/"/g, '""')}"`;
+  const rowCondition = row => Object.keys(row).map(key => `${col(key)} IS ?`).join(" AND ");
+  const rowExists = (table, row) => ({ sql: `EXISTS (SELECT 1 FROM ${table} WHERE ${rowCondition(row)})`, values: Object.values(row) });
+  const eventsEqual = rows => ({ sql: `
+    (SELECT COUNT(*) FROM blower_history_events WHERE tag_number = ? AND event_type <> '_deleted') = json_array_length(?)
+    AND NOT EXISTS (
+      SELECT 1 FROM blower_history_events e LEFT JOIN json_each(?) j ON e.id = json_extract(j.value, '$.id')
+      WHERE e.tag_number = ? AND e.event_type <> '_deleted' AND (j.value IS NULL OR NOT (${HISTORY_DELETE_EVENT_COLUMNS.map(key => `e.${col(key)} IS json_extract(j.value, '$.${key}')`).join(" AND ")}))
+    )`, values: [tagNumber, JSON.stringify(rows), JSON.stringify(rows), tagNumber] });
+  const guardIds = [crypto.randomUUID(), crypto.randomUUID()];
+  const guard = (id, checks) => database.prepare(`INSERT INTO blower_history_atomic_guard (id, valid)
+    VALUES (?, CASE WHEN ${checks.map(check => `(${check.sql})`).join(" AND ")} THEN 1 ELSE 0 END)`).bind(id, ...checks.flatMap(check => check.values));
+  const insertRow = (table, row) => database.prepare(`INSERT INTO ${table} (${Object.keys(row).map(col).join(", ")}) VALUES (${Object.keys(row).map(() => "?").join(", ")})`).bind(...Object.values(row));
+  const statements = [guard(guardIds[0], [rowExists("blower_history_assets", asset), eventsEqual(events)]),
+    ...(assetPatch ? [database.prepare(`UPDATE blower_history_assets SET ${Object.keys(assetPatch).map(key => `${col(key)} = ?`).join(", ")} WHERE ${rowCondition(asset)}`).bind(...Object.values(assetPatch), ...Object.values(asset))] : []),
+    database.prepare(`UPDATE blower_history_events SET ${Object.keys(eventPatch).map(key => `${col(key)} = ?`).join(", ")} WHERE ${rowCondition(selected)}`).bind(...Object.values(eventPatch), ...Object.values(selected)),
+    insertRow("blower_history_asset_history", audit),
+    guard(guardIds[1], [rowExists("blower_history_assets", afterAsset), eventsEqual(afterEvents), rowExists("blower_history_asset_history", audit)]),
+    database.prepare(`DELETE FROM blower_history_atomic_guard WHERE id IN (?, ?)`).bind(...guardIds)];
+  try { await database.batch(statements); }
+  catch (error) {
+    if (/CHECK constraint failed(?:: valid = 1|.*blower_history_atomic_guard)/i.test(String(error?.message || error))) {
+      return fail("수정 중 다른 이력이 변경되어 저장하지 않았습니다. 이력을 다시 열어 주세요.", 409, "HISTORY_EDIT_CONFLICT");
+    }
+    throw error;
+  }
+  return jsonResponse({ ok: true, eventId, runtimeInvalidated: Boolean(assetPatch),
+    message: assetPatch ? "이력을 수정했습니다. 현재 Cycle 기준이 바뀌어 누적시간은 RUN 최신화 후 다시 확정합니다." : "이력을 수정했습니다." });
+}
+// [/BLOWER-HISTORY-OPEN-EDIT-V1]
 
 async function registerStartup(database, user, body, source = {}) {
   const tagNumber = normalizeText(body.tagNumber).toUpperCase();
@@ -6692,6 +6800,7 @@ function dataParcRuntimeSyncSourceText(probe) {
     runningSeconds: probe.runningSeconds,
     chunkCount: probe.chunkCount,
     collectedAt: probe.collectedAt,
+    ...(probe.signalOnlyCycle === true ? { signalOnlyCycle: true } : {}),
     ...(probe.incremental ? { incremental: probe.incremental } : {})
   });
 }
@@ -6921,6 +7030,20 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
     }, 409);
   }
 
+  const signalOnlyPrefix = "signal-only-v1:";
+  const signalOnlyWireRevision = normalizeText(intent.expected_cycle_start_revision);
+  const signalOnlyCycle =
+    probe.expectedCycleStartState === "legacy" &&
+    !probe.expectedCycleStartedAt &&
+    signalOnlyWireRevision.startsWith(signalOnlyPrefix);
+  if (signalOnlyCycle) {
+    probe = {
+      ...probe,
+      signalOnlyCycle: true,
+      expectedCycleStartRevision: signalOnlyWireRevision.slice(signalOnlyPrefix.length)
+    };
+  }
+
   const appendIntent = await loadAppendIntent(database, requestId);
   const appendWireRevision = String(intent.expected_cycle_runtime_revision || '').startsWith('append-v1:');
   if ((String(intent.reuse_key || '').startsWith('append-v1:') || appendWireRevision) && !appendIntent) {
@@ -6980,13 +7103,6 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
   }
 
   const currentCycleStartState = normalizeText(asset.cycle_start_state);
-  if (currentCycleStartState === "pending") {
-    return jsonResponse({
-      ok: false,
-      code: "DATAPARC_RUNTIME_CYCLE_PENDING",
-      message: "기동 대기 Cycle에는 DataPARC 기간조회 결과를 반영할 수 없습니다. 실제 기동 후 조회해 주세요."
-    }, 409);
-  }
 
   const currentLastReplacementAt = normalizeText(asset.last_replacement_at);
   const currentCycleStartedAt = normalizeText(asset.cycle_started_at);
@@ -6994,10 +7110,17 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
   const currentCycleRuntimeRevision = normalizeText(asset.cycle_runtime_revision);
   const cycleRuntimeHours = Number(asset.cycle_runtime_hours);
 
+  const signalOnlyPending =
+    probe.signalOnlyCycle === true &&
+    isFbheSealRunAsset(asset) &&
+    currentCycleStartState === "pending" &&
+    probe.expectedCycleStartState === "legacy" &&
+    !probe.expectedCycleStartedAt;
+
   if (
     currentLastReplacementAt !== probe.expectedLastReplacementAt ||
-    currentCycleStartState !== probe.expectedCycleStartState ||
-    currentCycleStartedAt !== probe.expectedCycleStartedAt ||
+    (currentCycleStartState !== probe.expectedCycleStartState && !signalOnlyPending) ||
+    (!signalOnlyPending && currentCycleStartedAt !== probe.expectedCycleStartedAt) ||
     currentCycleStartRevision !== probe.expectedCycleStartRevision ||
     currentCycleRuntimeRevision !== probe.expectedCycleRuntimeRevision ||
     !Number.isFinite(cycleRuntimeHours)
@@ -7081,11 +7204,11 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
           actorName,
           now,
           probe.assetTag,
-          probe.expectedLastReplacementAt,
-          probe.expectedCycleStartState,
-          probe.expectedCycleStartedAt,
-          probe.expectedCycleStartRevision,
-          probe.expectedCycleRuntimeRevision,
+          currentLastReplacementAt,
+          currentCycleStartState,
+          currentCycleStartedAt,
+          currentCycleStartRevision,
+          currentCycleRuntimeRevision,
           eventId,
           DATAPARC_RUNTIME_SYNC_SOURCE_TYPE,
           requestId
@@ -7130,10 +7253,10 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
           now,
           now,
           probe.assetTag,
-          probe.expectedLastReplacementAt,
-          probe.expectedCycleStartState,
-          probe.expectedCycleStartedAt,
-          probe.expectedCycleStartRevision,
+          currentLastReplacementAt,
+          currentCycleStartState,
+          currentCycleStartedAt,
+          currentCycleStartRevision,
           nextCycleRuntimeRevision,
           runtimeHours,
           probe.observedAt,
@@ -7195,10 +7318,10 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
         .bind(
           guardId,
           probe.assetTag,
-          probe.expectedLastReplacementAt,
-          probe.expectedCycleStartState,
-          probe.expectedCycleStartedAt,
-          probe.expectedCycleStartRevision,
+          currentLastReplacementAt,
+          currentCycleStartState,
+          currentCycleStartedAt,
+          currentCycleStartRevision,
           nextCycleRuntimeRevision,
           runtimeHours,
           probe.observedAt,
@@ -14365,6 +14488,10 @@ async function handlePost(context, user, body) {
     return editCurrentManualReplacement(database, user, body);
   }
 
+  if (action === "history_event_edit") {
+    return editAnyHistoryEvent(database, user, body);
+  }
+
   if (action === "history_event_delete_preview") {
     return previewManualHistoryDeletion(database, user, body);
   }
@@ -14530,6 +14657,8 @@ export const __blowerHistoryTest = {
   isIntermittentBlower, usesMeasuredBlowerRuntime, createLogFragmentReader, currentDataParcRuntimeBasis, currentRuntimeHours, runtimeHoursAt, cycleRuntimeHoursAt,
   applyOisRuntimeRefresh, loadFbheVibrationRawResponse, loadSealPotRuntimeRawResponse,
 
+  historyMutationProjection,
+  editAnyHistoryEvent,
   planManualHistoryDeletion,
   previewManualHistoryDeletion,
   deleteManualHistoryEvent,

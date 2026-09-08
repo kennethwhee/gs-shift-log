@@ -19,7 +19,10 @@ export function incrementalEvidence(source) {
   return x;
 }
 export function verifiedAppendBase(asset, rows, dataParcTag) {
-  if (!asset?.last_replacement_at || asset.cycle_start_state === 'pending') return null;
+  if (!asset?.last_replacement_at) return null;
+  const assetTag = String(asset.tag_number || '').trim().toUpperCase();
+  const fbheSealBinaryRun = /^(?:104|204)HHL(?:60AP|10AN)(?:611|621|631)$/.test(assetTag);
+  if (asset.cycle_start_state === 'pending' && !fbheSealBinaryRun) return null;
   const stored = number(asset.cycle_runtime_hours), anchor = instant(asset.cycle_runtime_anchor_at);
   if (!Number.isFinite(stored) || stored < 0 || !Number.isFinite(anchor)) return null;
   // Latest timestamp-owned event, not just ANY historical row with equal hours.
@@ -31,12 +34,16 @@ export function verifiedAppendBase(asset, rows, dataParcTag) {
   const row = matching[0];
   if (!row || row.source_type !== 'dataparc_runtime' || row.event_type !== 'runtime_correction') return null;
   let s; try { s = JSON.parse(row.source_text); } catch { return null; }
-  if (!s || s.schemaVersion !== 1 || s.assetTag !== asset.tag_number || s.dataParcTag !== dataParcTag ||
+  if (!s || typeof s !== 'object' || Array.isArray(s)) return null;
+  const actualCycleStartState = asset.cycle_start_state || 'legacy';
+  const signalOnlyPending = fbheSealBinaryRun && actualCycleStartState === 'pending' &&
+    s.expectedCycleStartState === 'legacy' && s.signalOnlyCycle === true && !String(s.expectedCycleStartedAt || '');
+  if (s.schemaVersion !== 1 || s.assetTag !== asset.tag_number || s.dataParcTag !== dataParcTag ||
       s.requestType !== 'blower_runtime_probe' || s.requestId !== row.source_log_id || row.id !== `dataparc_runtime:${s.requestId}` ||
       instant(s.expectedLastReplacementAt) !== instant(asset.last_replacement_at) ||
-      s.expectedCycleStartState !== (asset.cycle_start_state || 'legacy') ||
+      (s.expectedCycleStartState !== actualCycleStartState && !signalOnlyPending) ||
       String(s.expectedCycleStartRevision || '') !== String(asset.cycle_start_revision || '') ||
-      (asset.cycle_start_state === 'started' && instant(s.expectedCycleStartedAt) !== instant(asset.cycle_started_at)) ||
+      (actualCycleStartState === 'started' && instant(s.expectedCycleStartedAt) !== instant(asset.cycle_started_at)) ||
       instant(s.observedAt || s.endAt) !== anchor || s.endState !== asset.cycle_runtime_state ||
       !['running','stopped'].includes(s.endState)) return null;
   const x = incrementalEvidence(s);

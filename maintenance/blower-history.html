@@ -11,8 +11,8 @@
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
   <link rel="stylesheet" href="blower-unified-refresh.css?v=20260909-fbhe-seal-run-reconcile-v1">
-  <script src="blower-unified-refresh.js?v=20260909-incremental-v1" defer></script>
-  <script src="blower-history.js?v=20260909-incremental-v1" defer></script>
+  <script src="blower-unified-refresh.js?v=20260909-run-history-v1" defer></script>
+  <script src="blower-history.js?v=20260909-run-history-v1" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
 </head>
 <body>
@@ -631,6 +631,38 @@
       <footer class="dialog-footer">
         <button type="button" class="button secondary" data-close-dialog="replacementEditDialog">취소</button>
         <button type="submit" class="button primary" id="replacementEditSaveButton" data-mobile-write>수정 저장</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="dialog replacement-edit-dialog" id="historyEventEditDialog" aria-labelledby="historyEventEditTitle">
+    <form id="historyEventEditForm">
+      <header class="dialog-header">
+        <div><p class="eyebrow">HISTORY</p><h2 id="historyEventEditTitle">이력 수정</h2><p id="historyEventEditAsset"></p></div>
+        <button type="button" class="icon-button" data-close-dialog="historyEventEditDialog" aria-label="닫기">×</button>
+      </header>
+      <div class="dialog-body replacement-edit-grid">
+        <p class="replacement-edit-preview replacement-edit-full" id="historyEventEditSource"></p>
+        <label class="field"><span>이력 종류</span><select id="historyEventEditType" required>
+          <option value="replacement">V-Belt 교체</option>
+          <option value="startup">기동 기준</option>
+          <option value="operation_start">기동</option>
+          <option value="operation_stop">정지</option>
+          <option value="runtime_correction">운전시간 보정</option>
+          <option value="problem">문제 / Trouble</option>
+        </select></label>
+        <label class="field"><span>일시</span><input type="datetime-local" id="historyEventEditDate" required></label>
+        <label class="field"><span>당시 누적 기동시간</span><input type="number" id="historyEventEditRuntime" min="0" max="1000000" step="0.1" required></label>
+        <label class="field"><span>구분 / 사유</span><input type="text" id="historyEventEditIssue" maxlength="100"></label>
+        <label class="field"><span>작업 / 상태</span><input type="text" id="historyEventEditAction" maxlength="200"></label>
+        <label class="field replacement-edit-full"><span>내용 / 비고</span><textarea id="historyEventEditNote" rows="4" maxlength="2000"></textarea></label>
+        <label class="field replacement-edit-full"><span>수정 사유</span><input type="text" id="historyEventEditReason" maxlength="500" value="이력 내용 정정"></label>
+        <p class="replacement-edit-preview replacement-edit-full">원본 출처와 최초 등록자는 변경하지 않습니다. 현재 Cycle의 교체·기동·정지·RUN 이력을 수정하면 누적시간은 임의 계산하지 않고 다음 RUN 최신화에서 다시 확정합니다.</p>
+        <p class="replacement-edit-error replacement-edit-full" id="historyEventEditError" role="alert" hidden></p>
+      </div>
+      <footer class="dialog-footer">
+        <button type="button" class="button secondary" data-close-dialog="historyEventEditDialog">취소</button>
+        <button type="submit" class="button primary" id="historyEventEditSave" data-mobile-write>수정 저장</button>
       </footer>
     </form>
   </dialog>

@@ -13908,18 +13908,43 @@ async function createBlowerRuntimeProbeRequest(
     );
 
 
+  const fbheSealBinaryRun =
+    ["fbhe", "seal_pot"].includes(
+      normalizeText(asset.blower_type)
+    ) ||
+    /^(?:104|204)HHL(?:60AP|10AN)(?:611|621|631)$/.test(assetTag);
+
+
+  // FBHE / Seal Pot do not need a manually registered startup before a
+  // DataPARC RUN=1/0 probe.  The existing Agent only accepts the historical
+  // `legacy|started` wire contract, so an actual pending cycle is carried over
+  // the wire as `legacy` while its exact revisions remain pinned.  Apply-time
+  // CAS maps it back to the real pending row; no Agent restart is required.
+  const signalOnlyCycle =
+    fbheSealBinaryRun &&
+    expectedCycleStartState === "pending";
+
+  const probeExpectedCycleStartState =
+    signalOnlyCycle ? "legacy" : expectedCycleStartState;
+
+  const probeExpectedCycleStartedAt =
+    signalOnlyCycle ? "" : expectedCycleStartedAt;
+
+  const probeExpectedCycleStartRevision =
+    signalOnlyCycle
+      ? `signal-only-v1:${expectedCycleStartRevision}`
+      : expectedCycleStartRevision;
+
+
   if (
-    expectedCycleStartState ===
-      "pending"
+    expectedCycleStartState === "pending" &&
+    !fbheSealBinaryRun
   ) {
     return jsonResponse(
       {
-        ok:
-          false,
-        code:
-          "BLOWER_RUNTIME_PROBE_CYCLE_PENDING",
-        message:
-          "기동 대기 Cycle은 DataPARC 기간조회 대상에서 제외됩니다. 실제 기동 후 조회해 주세요."
+        ok: false,
+        code: "BLOWER_RUNTIME_PROBE_CYCLE_PENDING",
+        message: "기동 대기 Cycle은 DataPARC 기간조회 대상에서 제외됩니다. 실제 기동 후 조회해 주세요."
       },
       409
     );
@@ -13929,7 +13954,8 @@ async function createBlowerRuntimeProbeRequest(
   if (
     ![
       "legacy",
-      "started"
+      "started",
+      ...(fbheSealBinaryRun ? ["pending"] : [])
     ].includes(
       expectedCycleStartState
     ) ||
@@ -14063,7 +14089,11 @@ async function createBlowerRuntimeProbeRequest(
             ? formatKstRfc3339(
                 parsedCycleStartedAt.date
               )
-            : ""
+            : (
+                fbheSealBinaryRun && parsedLastReplacementAt
+                  ? formatKstRfc3339(parsedLastReplacementAt.date)
+                  : ""
+              )
         );
 
 
@@ -14091,8 +14121,9 @@ async function createBlowerRuntimeProbeRequest(
 
 
   const minimumStartTimestamp =
-    parsedLastReplacementAt?.timestamp ||
-    Number.POSITIVE_INFINITY;
+    fbheSealBinaryRun && parsedCycleStartedAt
+      ? Math.floor(parsedCycleStartedAt.timestamp / 1000) * 1000
+      : (parsedLastReplacementAt?.timestamp ?? Number.POSITIVE_INFINITY);
 
 
   const maximumRangeMilliseconds =
@@ -14160,7 +14191,9 @@ async function createBlowerRuntimeProbeRequest(
 
 
   const reuseKey =
-    (appendBase ? "append-v1:" : "") + await hashText(
+    (appendBase ? "append-v1:" : "") +
+    (signalOnlyCycle ? "signal-only-v1:" : "") +
+    await hashText(
       JSON.stringify([
         BLOWER_RUNTIME_PROBE_SCHEMA_VERSION,
         requestedById,
@@ -14354,9 +14387,9 @@ async function createBlowerRuntimeProbeRequest(
           BLOWER_RUNTIME_PROBE_CHUNK_DAYS,
           chunks.length,
           expectedLastReplacementAt,
-          expectedCycleStartState,
-          expectedCycleStartedAt,
-          expectedCycleStartRevision,
+          probeExpectedCycleStartState,
+          probeExpectedCycleStartedAt,
+          probeExpectedCycleStartRevision,
           // Older history deployments will reject this synthetic revision rather
           // than mistake a delta for a full-cycle total. The Agent just echoes it.
           appendBase ? `append-v1:${expectedCycleRuntimeRevision}` : expectedCycleRuntimeRevision,

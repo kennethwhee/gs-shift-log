@@ -53,6 +53,7 @@
     serverClockOffsetMs: 0,
     runtimeEditOriginalDate: "",
     replacementEditSnapshot: null,
+    historyEventEditSnapshot: null,
     historyDeleteSnapshot: null,
     historyDeleteToken: "",
     historyDeleteSubmitting: false,
@@ -221,6 +222,19 @@
       "replacementEditPreview",
       "replacementEditError",
       "replacementEditSaveButton",
+      "historyEventEditDialog",
+      "historyEventEditForm",
+      "historyEventEditAsset",
+      "historyEventEditSource",
+      "historyEventEditType",
+      "historyEventEditDate",
+      "historyEventEditRuntime",
+      "historyEventEditIssue",
+      "historyEventEditAction",
+      "historyEventEditNote",
+      "historyEventEditReason",
+      "historyEventEditError",
+      "historyEventEditSave",
       "historyDeleteDialog",
       "historyDeleteForm",
       "historyDeleteAsset",
@@ -320,6 +334,8 @@
     if (state.subview === "detect") switchSubview("overview");
     if (elements.recordDialog?.open) elements.recordDialog.close();
     if (elements.replacementEditDialog?.open) elements.replacementEditDialog.close();
+    if (elements.historyEventEditDialog?.open) elements.historyEventEditDialog.close();
+    state.historyEventEditSnapshot = null;
     if (elements.historyDeleteDialog?.open) elements.historyDeleteDialog.close();
     state.historyDeleteSnapshot = null;
     state.historyDeleteToken = "";
@@ -343,6 +359,8 @@
     if (state.subview === "detect") switchSubview("overview");
     if (elements.recordDialog?.open) elements.recordDialog.close();
     if (elements.replacementEditDialog?.open) elements.replacementEditDialog.close();
+    if (elements.historyEventEditDialog?.open) elements.historyEventEditDialog.close();
+    state.historyEventEditSnapshot = null;
     if (elements.historyDeleteDialog?.open) elements.historyDeleteDialog.close();
     state.historyDeleteSnapshot = null;
     state.historyDeleteToken = "";
@@ -958,7 +976,9 @@
     const replacementTime = new Date(asset?.lastReplacementAt || "").getTime();
     const cycleStartState = String(asset?.cycleStartState || "legacy").trim();
     const cycleStartRevision = String(asset?.cycleStartRevision || "").trim();
-    if (!asset || !Number.isFinite(replacementTime) || cycleStartState === "pending") {
+    const explicitCycleStartTime = cycleStartState === "started"
+      ? new Date(asset?.cycleStoredStartedAt || asset?.cycleStartedAt || "").getTime() : NaN;
+    if (!asset || !Number.isFinite(replacementTime)) {
       return null;
     }
 
@@ -990,6 +1010,8 @@
           !Number.isFinite(observedTime) ||
           !Number.isFinite(eventTime) ||
           startTime < replacementTime ||
+          (Number.isFinite(explicitCycleStartTime) && startTime < explicitCycleStartTime) ||
+          Boolean(event.updatedAt && event.createdAt && event.updatedAt !== event.createdAt) ||
           observedTime < startTime ||
           eventTime < replacementTime ||
           expectedReplacementTime !== replacementTime ||
@@ -1201,14 +1223,15 @@
     const confirmed = Boolean(asset.lastReplacementAt) && !awaitingBackfill;
     const cycleStartState = String(asset.cycleStartState || "legacy");
     const startupPending = confirmed && cycleStartState === "pending";
+    const effectiveStartupPending = startupPending && !runView?.verified;
     const actualStarted = confirmed && cycleStartState === "started" && Boolean(asset.cycleStartedAt);
-    const cycleRuntimeTracked = confirmed && !startupPending && Boolean(asset.cycleRuntimeTracked);
+    const cycleRuntimeTracked = confirmed && !effectiveStartupPending && Boolean(asset.cycleRuntimeTracked);
     const runtimeUnknown = confirmed && (asset.cycleRuntimeState === "unknown" || asset.measurementRequired === true ||
-      (intermittent && asset.cycleElapsedHours === null && !startupPending));
+      (intermittent && asset.cycleElapsedHours === null && !effectiveStartupPending));
     const operationKnown = !runtimeUnknown && cycleRuntimeTracked && asset.operationState !== "unknown" && asset.cycleRuntimeState !== "unknown";
     const operationRunning = operationKnown && Boolean(asset.isRunning);
     const operationState = intermittent ? "measured" : confirmed
-      ? (startupPending ? "startup_pending" : (operationKnown ? (operationRunning ? "running" : "stopped") : "unknown"))
+      ? (effectiveStartupPending ? "startup_pending" : (runView?.verified && ["running", "stopped"].includes(runView.state) ? runView.state : (operationKnown ? (operationRunning ? "running" : "stopped") : "unknown")))
       : "unconfirmed";
     const operationStateLabel = runView?.stateLabel || {
       running: "기동중",
@@ -1217,7 +1240,7 @@
       unknown: "상태 미확인",
       unconfirmed: awaitingBackfill ? "재구성 대기" : "교체일 미확인"
     }[operationState];
-    const cycleAnchorAt = actualStarted ? asset.cycleStartedAt : (startupPending ? "" : asset.lastReplacementAt);
+    const cycleAnchorAt = actualStarted ? asset.cycleStartedAt : (effectiveStartupPending ? "" : asset.lastReplacementAt);
     const severity = displaySeverity(asset);
     const evidence = readableEvidence(replacementEvent);
     const fullEvidence = fullEvidenceText(replacementEvent);
@@ -1230,7 +1253,7 @@
       : cycleRuntimeTracked
         ? (operationRunning ? projectedOperatingDueDate(asset.remainingHours, runView?.measuredAt ? new Date(runView.measuredAt) : currentServerDate()) : "재기동 후 산정")
         : (cycleAnchorAt ? addDaysToDate(cycleAnchorAt, cycleDays) : "-");
-    const remainingLabel = cycleHours && !startupPending && !runtimeUnknown
+    const remainingLabel = cycleHours && !effectiveStartupPending && !runtimeUnknown
       ? (cycleRuntimeTracked
         ? formatOperatingDday(asset.remainingHours)
         : formatRemainingDday(nextReplacementAt))
@@ -1266,15 +1289,15 @@
           </div>
         </div>`
       : "";
-    const cyclePrimaryLabel = isDataparcRuntimeAsset && !startupPending ? "누적 기동시간" : startupPending
+    const cyclePrimaryLabel = isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동시간" : effectiveStartupPending
       ? "주기 상태"
       : (cycleRuntimeTracked ? "누적 운전" : (actualStarted ? "기동 경과" : "교체 경과"));
-    const cyclePrimaryMobileLabel = isDataparcRuntimeAsset && !startupPending ? "누적 기동" : startupPending
+    const cyclePrimaryMobileLabel = isDataparcRuntimeAsset && !effectiveStartupPending ? "누적 기동" : effectiveStartupPending
       ? "상태"
       : (cycleRuntimeTracked ? "누적" : (actualStarted ? "기동" : "교체"));
-    const measuredLabel = `${(startupPending ? 0 : cycleElapsedHours).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`;
-    const cyclePrimaryValue = runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : startupPending ? "기동 대기" : formatDaysHours(cycleElapsedHours);
-    const cyclePrimaryMobileValue = runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : startupPending ? "기동 대기" : formatCompactDaysHours(cycleElapsedHours);
+    const measuredLabel = `${(effectiveStartupPending ? 0 : cycleElapsedHours).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`;
+    const cyclePrimaryValue = runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : effectiveStartupPending ? "기동 대기" : formatDaysHours(cycleElapsedHours);
+    const cyclePrimaryMobileValue = runView ? runView.primary : runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : effectiveStartupPending ? "기동 대기" : formatCompactDaysHours(cycleElapsedHours);
 
     return `
       <article class="asset-card" data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(operationState)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}${runView ? ` data-run-view="${runView.verified ? "verified" : "unverified"}"` : ""}>
@@ -1291,7 +1314,7 @@
         ${dataparcRuntimeBasisLine}
 
         ${confirmed ? `
-          <div class="cycle-overview${startupPending ? " is-startup-pending" : ""}${!cycleHours ? " is-policy-unset" : ""}" title="${escapeHtml(remainingDetail)}">
+          <div class="cycle-overview${effectiveStartupPending ? " is-startup-pending" : ""}${!cycleHours ? " is-policy-unset" : ""}" title="${escapeHtml(remainingDetail)}">
             <div class="cycle-primary-metric">
               <span data-mobile-label="${escapeHtml(cyclePrimaryMobileLabel)}">${escapeHtml(cyclePrimaryLabel)}</span>
               <strong data-mobile-value="${escapeHtml(cyclePrimaryMobileValue)}">${escapeHtml(cyclePrimaryValue)}</strong>
@@ -1302,11 +1325,11 @@
             </div>
             <div class="cycle-usage-metric ${escapeHtml(severity)}">
               <span>주기 사용</span>
-              <strong>${cycleHours && !startupPending && !runtimeUnknown ? `${Math.round(rawProgress).toLocaleString("ko-KR")}%` : "-"}</strong>
+              <strong>${cycleHours && !effectiveStartupPending && !runtimeUnknown ? `${Math.round(rawProgress).toLocaleString("ko-KR")}%` : "-"}</strong>
             </div>` : ""}
           </div>
 
-          ${cycleHours && !startupPending && !runtimeUnknown ? `
+          ${cycleHours && !effectiveStartupPending && !runtimeUnknown ? `
             <div class="cycle-progress-block">
               <div
                 class="progress-track"
@@ -1319,7 +1342,7 @@
                 <div class="progress-bar" style="width:${progress.toFixed(2)}%"></div>
               </div>
             </div>
-          ` : (startupPending && cycleHours ? `<div class="cycle-progress-block is-placeholder" aria-hidden="true"><div class="progress-track"></div></div>` : "")}
+          ` : (effectiveStartupPending && cycleHours ? `<div class="cycle-progress-block is-placeholder" aria-hidden="true"><div class="progress-track"></div></div>` : "")}
 
           ${intermittent ? `<div class="cycle-date-line"><span><em>최근 교체</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span></div>` : runView ? `
             <div class="cycle-date-line run-cycle-date"><span><em>최근 교체</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
@@ -1826,7 +1849,7 @@
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         <div><span>최근 V-Belt 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
         ${runView ? `<div><span>확인 상태</span><strong>${escapeHtml(runView.stateLabel)}</strong></div>` : asset.runtimeAccumulationMode === "measured_only" || asset.blowerType === "organic_fuel" ? "" : `<div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.cycleRuntimeState === "unknown" ? "확인 필요" : asset.isRunning ? "기동중" : "정지중"}</strong></div>`}
-        <div><span>${runView || asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${runView ? escapeHtml(startupPending ? "0시간" : runView.primary) : startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
+        <div><span>${runView || asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${runView ? escapeHtml(runView.primary) : startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
       `
       : awaitingBackfill
         ? `
@@ -1873,19 +1896,7 @@
       ? events.map(event => {
           const content = displayEventContent(event) || "등록 내용 없음";
           const detail = [event.issueType, event.actionType].filter(Boolean).join(" → ");
-          const expectedState = event.eventType === "operation_stop" ? "stopped" : "running";
-          const currentState = asset.isRunning ? "running" : "stopped";
-          const editableRuntimeEvent = (
-            hasAuthenticatedWriteAccess() &&
-            Boolean(event.id) &&
-            latestRuntimeEvent?.id === event.id &&
-            ["operation_start", "operation_stop"].includes(event.eventType) &&
-            event.sourceType === "manual" &&
-            cycleStartState !== "pending" &&
-            asset.cycleRuntimeState !== "unknown" &&
-            expectedState === currentState
-          );
-          const editableReplacement = canEditManualReplacement(asset, event);
+          const editableEvent = canEditAnyHistoryEvent(asset, event);
           const deletableEvent = canDeleteManualHistoryEvent(asset, event);
           const edited = Boolean(event.updatedAt && event.createdAt && event.updatedAt !== event.createdAt);
 
@@ -1897,19 +1908,10 @@
                   <span class="event-badge ${escapeHtml(event.eventType)}">${escapeHtml(eventLabel(event.eventType))}</span>
                   ${detail ? `<strong>${escapeHtml(detail)}</strong>` : ""}
                   ${edited ? `<span class="event-edited">수정됨</span>` : ""}
-                  ${editableReplacement ? `
-                    <span class="asset-history-actions">
-                      <button type="button" class="button asset-history-edit replacement-history-edit" data-mobile-write data-history-action="replacement_event_edit" data-event-id="${escapeHtml(event.id)}" ${state.busy || state.dataparcRuntimeBusy ? "disabled" : ""}>수정</button>
-                    </span>
-                  ` : ""}
-                  ${editableRuntimeEvent ? `
-                    <span class="asset-history-actions">
-                      <button type="button" class="button asset-history-edit" data-mobile-write data-history-action="runtime_state_edit" data-event-id="${escapeHtml(event.id)}">이력 수정</button>
-                    </span>
-                  ` : ""}
-                  ${deletableEvent ? `
-                    <button type="button" class="button asset-history-delete" data-mobile-write data-history-action="history_event_delete" data-event-id="${escapeHtml(event.id)}" aria-label="${escapeHtml(eventLabel(event.eventType))} 이력 삭제" ${state.busy || state.dataparcRuntimeBusy ? "disabled" : ""}>삭제</button>
-                  ` : ""}
+                  ${(editableEvent || deletableEvent) ? `<span class="asset-history-actions">
+                    ${editableEvent ? `<button type="button" class="button asset-history-edit" data-mobile-write data-history-action="history_event_edit" data-event-id="${escapeHtml(event.id)}" ${state.busy || state.dataparcRuntimeBusy ? "disabled" : ""}>수정</button>` : ""}
+                    ${deletableEvent ? `<button type="button" class="button asset-history-delete" data-mobile-write data-history-action="history_event_delete" data-event-id="${escapeHtml(event.id)}" aria-label="${escapeHtml(eventLabel(event.eventType))} 이력 삭제" ${state.busy || state.dataparcRuntimeBusy ? "disabled" : ""}>삭제</button>` : ""}
+                  </span>` : ""}
                 </div>
                 <p>${escapeHtml(content)}</p>
                 <small>${escapeHtml(historySourceLabel(event))}${event.createdByName ? ` · ${escapeHtml(event.createdByName)}` : ""}${Number(event.runtimeHours) > 0 ? ` · 당시 ${escapeHtml(historyRuntimeLabel(event))}` : ""}</small>
@@ -1922,12 +1924,80 @@
     elements.historyDialog.showModal();
   }
 
+  // [BLOWER-HISTORY-OPEN-EDIT-V1]
+  function historyEditDateInput(value) {
+    const date = new Date(value || "");
+    return Number.isNaN(date.getTime()) ? "" : formatKstDateTimeInput(date);
+  }
+
+  function openHistoryEventEditDialog(tagNumber, eventId) {
+    if (stopMobileMutation() || state.busy || state.dataparcRuntimeBusy) return;
+    const asset = findAsset(tagNumber), event = findEvent(eventId);
+    if (!canEditAnyHistoryEvent(asset, event) || !elements.historyEventEditDialog) return;
+    const snapshot = Object.freeze({ tagNumber, eventId,
+      expectedEventUpdatedAt: event.updatedAt,
+      expectedLastReplacementAt: asset.lastReplacementAt || "",
+      expectedCycleStartRevision: asset.cycleStartRevision,
+      expectedCycleRuntimeRevision: asset.cycleRuntimeRevision });
+    state.historyEventEditSnapshot = snapshot;
+    elements.historyEventEditAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
+    elements.historyEventEditSource.textContent = `${eventLabel(event.eventType)} · ${historySourceLabel(event)}${event.sourceLogId ? ` · 원본 ${event.sourceLogId}` : ""}`;
+    elements.historyEventEditType.value = ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction", "problem"].includes(event.eventType) ? event.eventType : "problem";
+    elements.historyEventEditDate.value = historyEditDateInput(event.eventDate);
+    elements.historyEventEditDate.max = formatKstDateTimeInput();
+    elements.historyEventEditRuntime.value = Number.isFinite(Number(event.runtimeHours)) ? String(Number(event.runtimeHours)) : "0";
+    elements.historyEventEditIssue.value = event.issueType || "";
+    elements.historyEventEditAction.value = event.actionType || "";
+    elements.historyEventEditNote.value = event.note || "";
+    elements.historyEventEditReason.value = "이력 내용 정정";
+    elements.historyEventEditError.hidden = true;
+    elements.historyEventEditSave.disabled = false;
+    elements.historyDialog.close();
+    elements.historyEventEditDialog.showModal();
+    elements.historyEventEditDate.focus();
+  }
+
+  async function submitHistoryEventEdit(event) {
+    event.preventDefault();
+    if (stopMobileMutation(event) || state.busy || state.dataparcRuntimeBusy) return;
+    const snapshot = state.historyEventEditSnapshot;
+    if (!snapshot || !elements.historyEventEditDialog.open) return;
+    const eventDate = kstDateTimeInputToIso(elements.historyEventEditDate.value);
+    const runtimeHours = Number(elements.historyEventEditRuntime.value);
+    if (!eventDate) { elements.historyEventEditError.textContent = "이력 일시를 확인해 주세요."; elements.historyEventEditError.hidden = false; return; }
+    if (!Number.isFinite(runtimeHours) || runtimeHours < 0) { elements.historyEventEditError.textContent = "누적 기동시간은 0 이상 숫자로 입력해 주세요."; elements.historyEventEditError.hidden = false; return; }
+    elements.historyEventEditError.hidden = true;
+    elements.historyEventEditSave.disabled = true;
+    setBusy(true);
+    try {
+      const result = await apiRequest({ method: "POST", body: { action: "history_event_edit", ...snapshot,
+        eventType: elements.historyEventEditType.value, eventDate, runtimeHours, issueType: elements.historyEventEditIssue.value,
+        actionType: elements.historyEventEditAction.value, note: elements.historyEventEditNote.value,
+        changeNote: elements.historyEventEditReason.value } });
+      elements.historyEventEditDialog.close();
+      state.historyEventEditSnapshot = null;
+      showToast(result.message || "이력을 수정했습니다.");
+      await loadData({ silent: true, syncOperations: false });
+      openAssetHistory(snapshot.tagNumber);
+    } catch (error) {
+      elements.historyEventEditError.textContent = error.message || "이력을 수정하지 못했습니다.";
+      elements.historyEventEditError.hidden = false;
+    } finally {
+      elements.historyEventEditSave.disabled = false;
+      setBusy(false);
+    }
+  }
+  // [/BLOWER-HISTORY-OPEN-EDIT-V1]
+
   // [BLOWER-MANUAL-HISTORY-DELETE-V1]
-  function canDeleteManualHistoryEvent(asset, event) {
+  function canEditAnyHistoryEvent(asset, event) {
     return Boolean(hasAuthenticatedWriteAccess() && !isMobileMonitoringView() && asset && event &&
-      !isAssetAwaitingBackfill(asset) && event.tagNumber === asset.tagNumber && event.id && event.updatedAt &&
-      asset.cycleStartRevision && asset.cycleRuntimeRevision && event.sourceType === "manual" && !event.sourceLogId &&
-      ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction", "problem"].includes(event.eventType));
+      event.tagNumber === asset.tagNumber && event.id && event.updatedAt &&
+      asset.cycleStartRevision && asset.cycleRuntimeRevision);
+  }
+
+  function canDeleteManualHistoryEvent(asset, event) {
+    return canEditAnyHistoryEvent(asset, event);
   }
 
   async function openHistoryDeleteDialog(tagNumber, eventId) {
@@ -9088,20 +9158,18 @@
       return;
     }
 
-    if (String(asset.cycleStartState || "legacy") === "pending") {
-      showToast("기동 대기 Cycle은 실제 기동 후 DataPARC 기간조회가 가능합니다.", "error");
-      return;
-    }
-
     const replacementDate = new Date(asset.lastReplacementAt);
     const replacementMinuteCeiling = Number.isNaN(replacementDate.getTime())
       ? null
       : new Date(
           Math.ceil(replacementDate.getTime() / 60000) * 60000
         );
-    const minimumInput = replacementMinuteCeiling
-      ? formatKstDateTimeInput(replacementMinuteCeiling)
-      : "";
+    const explicitStartDate = String(asset.cycleStartState || "") === "started" && asset.cycleStoredStartedAt
+      ? new Date(asset.cycleStoredStartedAt) : null;
+    const minimumDate = explicitStartDate && !Number.isNaN(explicitStartDate.getTime()) && replacementMinuteCeiling
+      ? new Date(Math.max(replacementMinuteCeiling.getTime(), Math.ceil(explicitStartDate.getTime() / 60000) * 60000))
+      : replacementMinuteCeiling;
+    const minimumInput = minimumDate ? formatKstDateTimeInput(minimumDate) : "";
     const previousBasis = getLatestDataParcRuntimeBasis(normalizedTag);
     const previousBasisDate = previousBasis
       ? new Date(previousBasis.startAt)
@@ -9113,7 +9181,7 @@
     elements.dataparcRuntimeDialogTag.value = normalizedTag;
     elements.dataparcRuntimeDialogAsset.textContent =
       `${asset.displayName} · ${asset.tagNumber}`;
-    elements.dataparcRuntimeStartAt.value = previousInput || (window.BlowerUnifiedRefresh?.fbheSealRunAsset(asset) ? minimumInput : "");
+    elements.dataparcRuntimeStartAt.value = previousInput || minimumInput;
     elements.dataparcRuntimeStartAt.min = minimumInput;
     elements.dataparcRuntimeStartAt.max = formatKstDateTimeInput();
     elements.dataparcRuntimeMinimum.textContent = minimumInput
@@ -9136,7 +9204,7 @@
     elements.dataparcRuntimeSourceHelp.textContent = fixedSignal
       ? "Silo #B에서 확인된 운전 신호입니다."
       : window.BlowerUnifiedRefresh?.fbheSealRunAsset(asset)
-        ? "현재 설비 TAG는 이력의 식별번호입니다. 임의로 AP/AN 또는 XB04를 바꾸지 말고 실제 1=기동·0=정지 RUN 전체 TAG를 입력해 주세요. 최초 조회는 교체일부터 시작하며, 성공 후에는 [최신화]만 사용합니다."
+        ? "현재 설비 TAG는 이력의 식별번호입니다. 임의로 AP/AN 또는 XB04를 바꾸지 말고 실제 1=기동·0=정지 RUN 전체 TAG를 입력해 주세요. 첫 조회는 확인된 실제 기동일이 있으면 그 시각부터, 없으면 교체일부터 RUN=1 구간만 합산합니다. 성공 후에는 [최신화]만 사용합니다."
         : "DataPARC에서 해당 설비의 RUN 신호 전체 TAG를 복사해 주세요. 조회·저장에 성공하면 다음부터 자동 입력됩니다.";
     elements.dataparcRuntimeDialog.showModal();
     window.setTimeout(() => (savedSignal ? elements.dataparcRuntimeStartAt : elements.dataparcRuntimeSourceTag).focus(), 0);
@@ -9170,9 +9238,8 @@
       return;
     }
 
-    if (!isDataParcRuntimeAsset(asset) || !Number.isFinite(replacementTime) ||
-      String(asset.cycleStartState || "legacy") === "pending") {
-      showToast("교체일과 실제 기동 상태를 확인한 후 조회해 주세요.", "error");
+    if (!isDataParcRuntimeAsset(asset) || !Number.isFinite(replacementTime)) {
+      showToast("현재 V-Belt 교체일을 확인한 후 조회해 주세요.", "error");
       return;
     }
     const dataParcTag = tagNumber === DATAPARC_RUNTIME_PILOT_TAG
@@ -10384,6 +10451,10 @@
         else showToast("이 설비는 RUN TAG 연결 대상이 아닙니다.", "error");
         return;
       }
+      if (action === "history_event_edit") {
+        openHistoryEventEditDialog(tagNumber, button.dataset.eventId);
+        return;
+      }
       if (action === "history_event_delete") {
         openHistoryDeleteDialog(tagNumber, button.dataset.eventId);
         return;
@@ -10511,6 +10582,8 @@
         ? "운전 신호 설정 · 연결됨" : "운전 신호 설정 · 확인 필요";
     });
     elements.dataparcRuntimeForm.addEventListener("submit", submitDataParcRuntimeRange);
+    elements.historyEventEditForm.addEventListener("submit", submitHistoryEventEdit);
+    elements.historyEventEditDialog.addEventListener("close", () => { state.historyEventEditSnapshot = null; });
     elements.historyDeleteForm.addEventListener("submit", submitHistoryDelete);
     elements.historyDeleteDialog.addEventListener("close", () => {
       state.historyDeleteSnapshot = null;

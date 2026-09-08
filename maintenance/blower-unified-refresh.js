@@ -39,23 +39,23 @@
       a.measurementRequired !== true && a.cycleElapsedHours !== null && a.cycleElapsedHours !== undefined &&
       Number.isFinite(Number(a.cycleElapsedHours)) && Number(a.cycleElapsedHours) >= 0;
     const configured = Boolean(a.dataParcTag);
-    const pending = a.cycleStartState === 'pending';
+    const pending = a.cycleStartState === 'pending' && !verified;
     const manual = verified && p.source === 'manual';
     const state = pending ? 'startup_pending' : verified && ['running','stopped'].includes(p.state) ? p.state : 'unknown';
     const hours = verified ? Number(a.cycleElapsedHours) : null;
-    const primary = pending ? '기동 대기' : verified
+    const primary = pending ? (configured ? 'RUN 재조회 필요' : 'RUN 조회 전') : verified
       ? `${hours.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`
       : configured ? 'RUN 재조회 필요' : 'RUN 조회 전';
     const message = !a.lastReplacementAt ? '교체일 등록 후 RUN TAG를 연결해 주세요.'
       : manual ? (configured ? '직접 입력한 누적시간 · 다음 최신화에서 RUN 구간으로 재계산' : '직접 입력한 누적시간 · RUN TAG 연결 필요 · 이력 보기 → 조회 기준·상세')
       : verified ? 'RUN=1인 구간만 합산 · 상태는 조회 시점 기준'
       : !configured ? 'RUN TAG 연결 필요 · 이력 보기 → 조회 기준·상세'
-      : pending ? '기동 대기 · 실제 첫 기동 이력 등록 후 RUN 조회'
+      : pending ? 'RUN 조회 전 · 수동 기동등록 없이 DataPARC 1/0 신호로 확인'
       : '현재 교체 기준의 RUN 최신화 필요 · 이전 기록은 이력에 보존';
     return { verified, manual, pending, state, hours, primary, message,
       measuredAt: p.measuredAt || '', sourceLabel: manual ? '수동 보정' : 'DataPARC · RUN 1/0',
       basis: verified && !manual ? basis : null,
-      stateLabel: pending ? '기동 대기' : !verified ? 'RUN 미확인' :
+      stateLabel: pending ? 'RUN 미확인' : !verified ? 'RUN 미확인' :
         `${manual ? '수동 ' : ''}${state === 'running' ? '기동중' : '정지중'}` };
   }
 
@@ -80,14 +80,13 @@
       if (!Number.isFinite(replacement)) { skip('교체일 등록 필요 · 이력 보기 / V-Belt 교체 등록'); continue; }
       if (replacement >= end) { skip('교체일이 현재 시각 이후입니다.'); continue; }
       if (!DP_TAGS.has(a.tagNumber)) { skip('연결된 운전시간 조회 방식이 없습니다.'); continue; }
-      if (a.cycleStartState === 'pending') { skip('기동 대기 · 이력에서 실제 첫 기동을 등록한 뒤 최신화'); continue; }
       const dataParcTag = a.tagNumber === '104ETH03AN602' ? SIGNAL : String(a.dataParcTag || '').trim();
       if (!/^GSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*$/.test(dataParcTag) || dataParcTag.length > 200 || (a.tagNumber !== '104ETH03AN602' && dataParcTag === SIGNAL)) {
         skip('RUN TAG 설정 필요 · 이력 보기 → 조회 기준·상세'); continue;
       }
       const previous = a.dataParcRuntimeBasis || basisFor(a.tagNumber);
       // Preserve the coverage baseline; only a server-verified owner can append at its end.
-      const startAt = previous?.startAt || (!fbheSealRunAsset(a) && a.cycleStartState === 'started' && a.cycleStartedAt) || a.lastReplacementAt;
+      const startAt = previous?.startAt || (a.cycleStartState === 'started' && a.cycleStartedAt) || a.lastReplacementAt;
       const incremental = previous?.appendReady === true && previous?.dataParcTag === dataParcTag;
       const queryStartAt = incremental ? previous.observedAt : startAt;
       const start = time(startAt), queryStart = time(queryStartAt);
