@@ -12,10 +12,73 @@
     if (!Number.isFinite(parsed) || parsed < 0) throw new Error(`${label}은 0 이상의 숫자로 입력해 주세요.`);
     return parsed;
   }
+  // V7 completed-with-gaps reports are DISPLAYABLE, never promoted to validated data.
+  // Recompute identities, rows, qualities, returned times and gaps rather than trusting status alone.
+  function validateGapReport(report, data, day, core) {
+    const fail = message => { throw new Error('누락 포함 하루 결과를 열 수 없습니다: ' + message); };
+    if (report.schemaVersion !== 2 || report.pilotVersion !== 7 || report.dataValidated !== false ||
+        report.executionSucceeded !== true || report.resultReceived !== true || report.timedOut !== false ||
+        report.workerExitCode !== 0 || report.completedTagCount !== 10 || report.cleanupVerified !== true ||
+        report.processCleanupVerified !== true || report.safeToStartNextDay !== true ||
+        report.databaseWritten !== false || report.productionReady !== false ||
+        !Array.isArray(report.cleanupErrors) || report.cleanupErrors.length !== 0) fail('V7 전체 수신·조회용 프로세스 종료 확인이 필요합니다.');
+    if (typeof report.runId !== 'string' || !report.runId || data.source.kind !== 'dataparc_hidden_excel' ||
+        data.source.qualityRecorded !== true || data.source.runId !== report.runId ||
+        report.mode !== 'daily' || report.timeZone !== 'Asia/Seoul' || report.durationMinutes !== 1440 ||
+        report.queryDurationMinutes !== 1441 || report.boundaryCount !== 1441 ||
+        report.start !== localTime(day.start).replace('T',' ') || report.end !== localTime(day.end).replace('T',' ') ||
+        data.aggregation !== 'Start' || data.boundaryCount !== 1441 || data.mode !== 'daily') fail('실행 ID 또는 하루 조회 계약이 다릅니다.');
+    const definitions = core.requiredSeries;
+    if (data.series.length !== definitions.length || !Array.isArray(report.tagSummary) || report.tagSummary.length !== definitions.length) fail('10개 TAG 전체가 필요합니다.');
+    const entries = new Map(data.series.map(series => [series.id, series]));
+    const summaries = new Map(report.tagSummary.map(item => [item.key, item]));
+    if (entries.size !== 10 || summaries.size !== 10) fail('중복 TAG가 있습니다.');
+    let goodRows = 0, gaps = 0;
+    const gapTags = [];
+    for (const definition of definitions) {
+      const series = entries.get(definition.id), summary = summaries.get(definition.id);
+      if (!series || !summary || series.tag !== definition.tag || series.queryTag !== definition.queryTag ||
+          series.unit !== definition.unit || series.fuel !== definition.fuel || series.unitOfMeasure !== 'ton' ||
+          summary.tag !== definition.queryTag) fail('TAG 식별 정보가 일치하지 않습니다.');
+      if (!['values','qualities','returnedTimes'].every(key => Array.isArray(series[key]) && series[key].length === 1441)) fail('분별 값·품질·시각 배열 크기가 다릅니다.');
+      let previous = null;
+      const missingTimes = [];
+      for (let i = 0; i < 1441; i += 1) {
+        const value = series.values[i], quality = series.qualities[i], time = series.returnedTimes[i];
+        const at = typeof time === 'string' && /T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(time) ? Date.parse(time) : NaN;
+        if (!Number.isFinite(at) || at < day.startMs + i*60000 || at >= day.startMs + (i+1)*60000) fail('반환 시각이 해당 분과 다릅니다.');
+        if (value === null) {
+          const parts = typeof quality === 'string' ? quality.toLowerCase().split(',').map(part => part.trim()).sort() : [];
+          if (JSON.stringify(parts) !== JSON.stringify(['bad','no data'])) fail('명시적인 No Data, Bad 이외의 누락/오류가 있습니다.');
+          if (i === 0 || i === 1440) fail('하루 시작·끝 누적 경계값이 누락됐습니다.');
+          missingTimes.push(data.timestamps[i]); gaps += 1;
+        } else {
+          if (!isNumber(value) || value < 0 || !core.qualityGood(quality)) fail('비정상 누적값 또는 품질이 있습니다.');
+          if (previous !== null && value < previous) fail('누적값 감소/초기화가 있습니다.');
+          previous = value; goodRows += 1;
+        }
+      }
+      if (summary.expectedRows !== 1441 || summary.receivedRows !== 1441 || summary.validRows !== 1441-missingTimes.length ||
+          summary.noDataRows !== missingTimes.length || summary.minuteDataComplete !== (missingTimes.length === 0) ||
+          !Array.isArray(summary.missingTimes) || summary.missingTimes.length !== missingTimes.length ||
+          summary.missingTimes.some((time,i) => time !== missingTimes[i])) fail('TAG별 집계와 실제 배열이 다릅니다.');
+      if (missingTimes.length) gapTags.push({id: definition.id, count: missingTimes.length, times: missingTimes});
+    }
+    const response = report.response, compared = report.referenceComparison;
+    if (gaps <= 0 || report.noDataRows !== gaps || !response || response.rows !== 14410 || response.shapeValid !== true ||
+        response.readState !== 'READ_OK' || response.complete !== true || response.returnedRows !== 14410 ||
+        response.valueRows !== goodRows || response.noDataRows !== gaps ||
+        !['errorRows','pendingRows','metadataPendingRows','otherPendingRows'].every(key => response[key] === 0)) fail('전체 응답 집계가 실제 배열과 다릅니다.');
+    if (!compared || compared.expectedSamples !== 14410 || compared.mismatchSamples !== 0 ||
+        !Number.isInteger(compared.comparedSamples) || compared.comparedSamples < 0 || compared.comparedSamples > goodRows ||
+        compared.matched !== false) fail('원본 대조 집계가 유효하지 않습니다.');
+    return {missingSamples:gaps, validSamples:goodRows, expectedSamples:14410, comparedSamples:compared.comparedSamples, gapTags};
+  }
   function parseImportedReport(report) {
     const isPilot = report?.kind === 'cofiring_dataparc_pilot';
     const unverified = isPilot && report.schemaVersion === 2 && report.status === 'REFERENCE_UNVERIFIED';
-    if (isPilot && ((!unverified && report.status !== 'PASS') || report.cleanupVerified !== true || report.databaseWritten !== false || report.productionReady !== false)) {
+    const hasDataGaps = isPilot && report.status === 'DATA_GAPS';
+    if (isPilot && ((!unverified && !hasDataGaps && report.status !== 'PASS') || report.cleanupVerified !== true || report.databaseWritten !== false || report.productionReady !== false)) {
       throw new Error('조회와 시험용 Excel 정리가 확인된 읽기 전용 결과만 열 수 있습니다.');
     }
     if (unverified && (report.dataValidated !== true || report.referenceComparison?.mismatchSamples !== 0 ||
@@ -23,7 +86,7 @@
         report.referenceComparison.comparedSamples < 0 || report.referenceComparison.comparedSamples >= 14410)) {
       throw new Error('원본 대조 미완료 자료는 하루 값·품질·시각 검증과 불일치 0건이 확인되어야 합니다.');
     }
-    if (report?.status && !unverified && !['PASS','OK','SUCCESS'].includes(String(report.status).toUpperCase())) throw new Error('실패한 시험 결과는 계산 자료로 사용할 수 없습니다.');
+    if (report?.status && !unverified && !hasDataGaps && !['PASS','OK','SUCCESS'].includes(String(report.status).toUpperCase())) throw new Error('실패한 시험 결과는 계산 자료로 사용할 수 없습니다.');
     if (report?.reference && !isPilot) throw new Error('지원하는 혼소율 읽기 전용 시험 결과가 아닙니다.');
     const data = isPilot ? report.reference : report;
     if (!data || !Array.isArray(data.timestamps) || !Array.isArray(data.series) || !data.source) throw new Error('1분 누적값이 포함된 혼소율 시험 결과 JSON을 선택해 주세요.');
@@ -42,7 +105,8 @@
             series.returnedTimes.some((time, i) => { const at=Date.parse(time); return !Number.isFinite(at) || at < day.startMs+i*60000 || at >= day.startMs+(i+1)*60000; })) throw new Error('반환 시각이 하루 분 경계와 일치하지 않습니다.');
       }
     }
-    return { reference: data, pilotVerified: isPilot, referenceVerified: isPilot && !unverified, day };
+    const gapSummary = hasDataGaps ? validateGapReport(report, data, day, core) : null;
+    return { reference: data, pilotVerified: isPilot, referenceVerified: isPilot && !unverified && !hasDataGaps, hasDataGaps, gapSummary, day };
   }
   function inputMarkup() {
     return `<header class="cofiring-draft__header"><div><span class="cf-eyebrow">CO-FIRING</span><h2>혼소율 (개발중)</h2><p class="cf-muted">날짜를 하나 선택해 하루 연료 사용량과 열량 기준 혼소율을 확인합니다.</p></div><span class="cf-draft-tag">개발중 · 자동조회 미연결</span></header>
@@ -57,14 +121,15 @@
       <details class="cf-panel cf-details" data-cf-check-panel hidden><summary>자료 확인 내용</summary><ul class="cf-checks" data-cf-checks></ul></details>
       <p class="cf-footer">숨김 Excel 조회·자동 종료는 별도 읽기 전용 시험으로 확인한 뒤 연결합니다. 이 초안은 오전회의 값이나 업무일지 DB를 변경하지 않습니다.</p>`;
   }
-  function unitMarkup(unit, index, durationHours) {
+  function unitMarkup(unit, index, durationHours, options) {
     const data = unit || {};
+    const referenceLabel = options?.live ? '조회값 참고 (미확정)' : '원본 참고';
     const valid = ['coal', 'bio', 'organic'].every(key => isNumber(data[key]?.quantity));
     const rows = [['coal','석탄 사용량'],['bio','바이오 사용량'],['organic','유기성 사용량']].map(([key,label]) => {
       const fuel = data[key] || {};
       const average = isNumber(fuel.quantity) && durationHours > 0 ? `${number(fuel.quantity / durationHours)} ton/h · 하루 평균` : key === 'organic' ? '해당일 사용량 입력' : '자료를 계산해 주세요';
       const reason = fuel.missingSamples > 0 ? `${fuel.missingSamples}개 시각 누락` : '품질 확인 필요';
-      const reference = !isNumber(fuel.quantity) && isNumber(fuel.referenceQuantity) ? `<span class="cf-subvalue cf-reference-value">원본 참고 ${number(fuel.referenceQuantity)} ton · ${escapeHtml(reason)}</span>` : `<span class="cf-subvalue">${escapeHtml(average)}</span>`;
+      const reference = !isNumber(fuel.quantity) && isNumber(fuel.referenceQuantity) ? `<span class="cf-subvalue cf-reference-value">${referenceLabel} ${number(fuel.referenceQuantity)} ton · ${escapeHtml(reason)}</span>` : `<span class="cf-subvalue">${escapeHtml(average)}</span>`;
       return `<div class="cf-fuel-row"><span class="cf-fuel-name">${label}</span><div class="cf-value-block"><span class="cf-value">${number(fuel.quantity)}</span><span class="cf-unit-label">ton</span>${reference}</div></div>`;
     }).join('');
     const ratio = key => isNumber(data.ratios?.[key]) ? `${number(data.ratios[key], 2)}%` : '—';
@@ -85,6 +150,7 @@
     let sourceLabel = '첨부 엑셀';
     let pilotVerified = false;
     let referenceVerified = false;
+    let gapSummary = null;
     let busy = false;
     let calculated = false;
     let organicPeriod = null;
@@ -129,15 +195,16 @@
     }
     function display(result) {
       calculated=true;
-      find('[data-cf-results]').innerHTML=unitMarkup(result.units.unit1,1,result.period.durationHours)+unitMarkup(result.units.unit2,2,result.period.durationHours);
+      find('[data-cf-results]').innerHTML=unitMarkup(result.units.unit1,1,result.period.durationHours,{live:pilotVerified})+unitMarkup(result.units.unit2,2,result.period.durationHours,{live:pilotVerified});
       const warnings=(result.warnings||[]).map(item=>typeof item==='string'?item:JSON.stringify(item));
-      if(pilotVerified&&!referenceVerified) warnings.unshift('하루 값·품질·시각과 조회용 Excel 종료는 확인했지만 원본 Excel 전체 대조는 미완료입니다. 참고 계산이며 운영 저장하지 않습니다.');
+      if(pilotVerified&&!referenceVerified&&!gapSummary) warnings.unshift('하루 값·품질·시각과 조회용 Excel 종료는 확인했지만 원본 Excel 전체 대조는 미완료입니다. 참고 계산이며 운영 저장하지 않습니다.');
+      if(gapSummary) warnings.unshift(`10개 TAG 수신과 Excel 종료 확인 · 정상 숫자 ${gapSummary.validSamples.toLocaleString('ko-KR')}개 · 자료 없음 ${gapSummary.missingSamples}개. 누락은 0이나 보간값으로 채우지 않았습니다.`, `원본 대조 ${gapSummary.comparedSamples.toLocaleString('ko-KR')}/${gapSummary.expectedSamples.toLocaleString('ko-KR')}개는 조회 개수가 아닙니다. 누락 연료의 조회값 참고는 미확정이며, 해당 호기 혼소율을 계산하거나 운영 저장하지 않습니다.`);
       const complete=Object.values(result.units).every(unit=>isNumber(unit.ratios?.total));
       find('[data-cf-source]').textContent=`${sourceLabel} · ${reference.source?.filename||'1분 누적 자료'} · ${localTime(result.period.start).replace('T',' ')} ~ ${localTime(result.period.end).replace('T',' ')}`;
-      find('[data-cf-quality]').textContent=result.qualityVerified&&pilotVerified?(referenceVerified?'품질·종료·원본 대조 확인':'값·품질·종료 확인 / 원본 대조 미완료'):'품질 정보 미검증';
+      find('[data-cf-quality]').textContent=gapSummary?`조회 완료 · 누락 ${gapSummary.missingSamples}개 / 원본 대조 ${gapSummary.comparedSamples.toLocaleString('ko-KR')}/${gapSummary.expectedSamples.toLocaleString('ko-KR')}`:result.qualityVerified&&pilotVerified?(referenceVerified?'품질·종료·원본 대조 확인':'값·품질·종료 확인 / 원본 대조 미완료'):'품질 정보 미검증';
       find('[data-cf-check-panel]').hidden=warnings.length===0;
       find('[data-cf-checks]').innerHTML=warnings.map(value=>`<li>${escapeHtml(value)}</li>`).join('');
-      status(complete ? '하루 사용량과 혼소율을 계산했습니다. 초안의 계산 결과이며 운영 저장은 하지 않습니다.' : '확인 가능한 사용량을 표시했습니다. 누락 자료 또는 유기성 입력이 없는 호기는 혼소율을 표시하지 않습니다.', complete?'success':'');
+      status(gapSummary ? `조회 완료 · ${gapSummary.missingSamples}개 분 표본 누락. 정상 연료는 사용량을, 누락 연료는 조회값 참고(미확정)를 표시했습니다. 누락이 있는 호기의 혼소율은 표시하지 않습니다.` : complete ? '하루 사용량과 혼소율을 계산했습니다. 초안의 계산 결과이며 운영 저장은 하지 않습니다.' : '확인 가능한 사용량을 표시했습니다. 누락 자료 또는 유기성 입력이 없는 호기는 혼소율을 표시하지 않습니다.', complete?'success':'');
     }
     async function calculate() {
       if(busy)return;
@@ -167,11 +234,12 @@
         const text=await file.text(); if(token!==loadToken)return;
         const imported=parseImportedReport(JSON.parse(text));
         const data=imported.reference;
-        core.analyzeDay(data,{targetDate:imported.day.targetDate,organic:{start:data.start,end:data.end,unit1:null,unit2:null},requireQuality:imported.pilotVerified});
-        ++loadToken; reference=data; pilotVerified=imported.pilotVerified; referenceVerified=imported.referenceVerified; sourceLabel=pilotVerified?'불러온 하루 조회 자료':'불러온 참고 자료'; date.value=imported.day.targetDate; invalidatePeriod();
-        find('[data-cf-source]').textContent=`${sourceLabel} · ${file.name}`;
+        const importedResult=core.analyzeDay(data,{targetDate:imported.day.targetDate,organic:{start:data.start,end:data.end,unit1:null,unit2:null},requireQuality:imported.pilotVerified});
+        ++loadToken; reference=data; pilotVerified=imported.pilotVerified; referenceVerified=imported.referenceVerified; gapSummary=imported.gapSummary; sourceLabel=pilotVerified?'불러온 하루 조회 자료':'불러온 참고 자료'; date.value=imported.day.targetDate; invalidatePeriod();
+        display(importedResult);
+        find('[data-cf-source]').textContent=`${sourceLabel} · ${file.name} · ${imported.day.targetDate}`;
         find('[data-cf-calculate]').textContent=pilotVerified?'시험 자료로 계산':'불러온 자료로 계산';
-        status(referenceVerified?'하루 시험 자료를 불러왔습니다. 해당일의 유기성 사용량을 입력한 뒤 계산해 주세요. 운영 저장은 하지 않습니다.':'하루 참고 자료를 불러왔습니다. 해당일의 유기성 사용량을 입력해 계산할 수 있습니다. 원본 대조 미완료이며 운영 저장하지 않습니다.');
+        if(!gapSummary) status(referenceVerified?'하루 시험 자료를 불러왔습니다. 해당일의 유기성 사용량을 입력한 뒤 계산해 주세요. 운영 저장은 하지 않습니다.':'하루 참고 자료를 불러왔습니다. 해당일의 유기성 사용량을 입력해 계산할 수 있습니다. 원본 대조 미완료이며 운영 저장하지 않습니다.');
       } catch(error){if(token===loadToken)status(error.message||'시험 결과 파일을 읽지 못했습니다.','error');}
       finally{event.target.value='';}
     });
