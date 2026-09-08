@@ -10,22 +10,7 @@ const source=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-draft.
 const original=JSON.parse(fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-draft-reference.json'),'utf8'));
 const clone=value=>JSON.parse(JSON.stringify(value));
 function deferred(){let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};}
-class Element {
-  constructor(attributes={}){this.attributes=attributes;this.dataset={};for(const [name,value]of Object.entries(attributes))if(name.startsWith('data-'))this.dataset[name.slice(5).replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase())]=value;this.value=attributes.value||'';this.listeners={};this.disabled=false;this.hidden=false;this.textContent='';this.classList={add(){}};this._html='';this.children=[];}
-  set innerHTML(value){this._html=value;this.children=[];for(const match of value.matchAll(/<[a-z][^>]*\bdata-cf-[^>]*>/g)){const attrs={};for(const attr of match[0].matchAll(/([a-z][a-z0-9-]*)(?:="([^"]*)")?/g))attrs[attr[1]]=attr[2]||'';this.children.push(new Element(attrs));}}
-  get innerHTML(){return this._html;}
-  querySelectorAll(selector){const match=/^\[([^=\]]+)(?:="([^\"]+)")?\]$/.exec(selector);return this.children.filter(child=>match&&Object.hasOwn(child.attributes,match[1])&&(match[2]===undefined||child.attributes[match[1]]===match[2]));}
-  querySelector(selector){return this.querySelectorAll(selector)[0]||null;}
-  addEventListener(type,callback){(this.listeners[type] ||= []).push(callback);}
-  async fire(type,event={target:this}){for(const fn of this.listeners[type]||[])await fn(event);}
-  click(){return this.fire('click');}
-}
-function harness({reference,fetch}={}){
-  let calls=0;const container=new Element();const context=vm.createContext({CofiringCore:core,console,fetch:async(...args)=>{calls++;if(fetch)return fetch(...args);return {ok:true,json:async()=>clone(original)};}});
-  vm.runInContext(source,context);
-  const controller=context.CofiringDraft.mount(container,{reference});
-  return {container,controller,find:s=>container.querySelector(`[data-cf-${s}]`),all:s=>container.querySelectorAll(`[data-cf-${s}]`),get calls(){return calls;}};
-}
+const {makeHarness:harness}=require('./helpers/cofiring-ui-harness.cjs');
 function pilot(){const reference=clone(original);reference.source.kind='dataparc_hidden_excel';return {kind:'cofiring_dataparc_pilot',status:'PASS',cleanupVerified:true,databaseWritten:false,productionReady:false,reference};}
 
 test('draft initialization starts no request and offers only a calendar date',()=>{
@@ -41,12 +26,12 @@ test('zero is a real organic input while blank and incomplete source ratios rema
  const result=core.analyze(original,{start:original.start,end:original.end,organic:original.manualOrganic});const one=api.unitMarkup(result.units.unit1,1,24);const two=api.unitMarkup(result.units.unit2,2,24);
  assert.match(one,/29\.03%/);assert.match(two,/305\.934 ton/);assert.match(two,/10개 시각 누락/);assert.doesNotMatch(two,/25\.49%/);
 });
-test('period changes discard the original full-day organic amount',async()=>{
- const h=harness({reference:clone(original)});await h.find('original').click();assert.equal(h.all('organic')[0].value,'59.84');assert.match(h.find('results').innerHTML,/29\.03%/);
- h.find('date').value='2026-09-08';await h.find('date').fire('change');assert.match(h.find('query-range').textContent,/2026-09-09 00:01/);assert.equal(h.all('organic')[0].value,'');await h.controller.calculate();assert.doesNotMatch(h.find('results').innerHTML,/29\.03%/);assert.match(h.find('results').innerHTML,/해당일 사용량 입력/);
+test('original preset never populates manual organic and changing days stays unentered',async()=>{
+ const h=harness({reference:clone(original)});await h.find('original').click();assert.equal(h.all('organic')[0].value,'');assert.doesNotMatch(h.find('results').innerHTML,/29\.03%/);
+ h.find('date').value='2026-09-08';await h.find('date').fire('change');assert.match(h.find('query-range').textContent,/2026-09-09 00:01/);assert.equal(h.all('organic')[0].value,'');await h.controller.calculate();assert.doesNotMatch(h.find('results').innerHTML,/29\.03%/);assert.equal(h.all('organic')[0].value,'');
 });
 test('an input or date change during the initial source fetch cannot render stale calculation options',async()=>{
- for(const kind of ['organic','calorific','date']){const wait=deferred();const h=harness({fetch:()=>wait.promise});const pending=h.controller.calculate();const field=kind==='date'?h.find('date'):h.all(kind)[0];field.value=kind==='date'?'2026-09-08':'100';await field.fire(kind==='date'?'change':'input');wait.resolve({ok:true,json:async()=>clone(original)});await pending;assert.match(h.find('results').innerHTML,/계산 대기/);assert.equal(h.find('calculate').disabled,false);}
+ for(const kind of ['calorific','date']){const wait=deferred();const h=harness({fetch:()=>wait.promise});const pending=h.controller.calculate();const field=kind==='date'?h.find('date'):h.all(kind)[0];field.value=kind==='date'?'2026-09-08':'100';await field.fire(kind==='date'?'change':'input');wait.resolve({ok:true,json:async()=>clone(original)});await pending;assert.match(h.find('results').innerHTML,/계산 대기/);assert.equal(h.find('calculate').disabled,false);}
 });
 test('a delayed original preset cannot overwrite a newer period',async()=>{
  const wait=deferred();const h=harness({fetch:()=>wait.promise});const pending=h.find('original').click();h.find('date').value='2026-09-08';await h.find('date').fire('change');wait.resolve({ok:true,json:async()=>clone(original)});await pending;assert.equal(h.find('date').value,'2026-09-08');assert.equal(h.all('organic')[0].value,'');

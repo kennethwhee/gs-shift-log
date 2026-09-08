@@ -10,22 +10,7 @@ const source=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-draft.
 const original=JSON.parse(fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-draft-reference.json'),'utf8'));
 const clone=value=>JSON.parse(JSON.stringify(value));
 function deferred(){let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};}
-class Element {
-  constructor(attributes={}){this.attributes=attributes;this.dataset={};for(const [name,value]of Object.entries(attributes))if(name.startsWith('data-'))this.dataset[name.slice(5).replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase())]=value;this.value=attributes.value||'';this.listeners={};this.disabled=false;this.hidden=false;this.textContent='';this.classList={add(){}};this._html='';this.children=[];}
-  set innerHTML(value){this._html=value;this.children=[];for(const match of value.matchAll(/<[a-z][^>]*\bdata-cf-[^>]*>/g)){const attrs={};for(const attr of match[0].matchAll(/([a-z][a-z0-9-]*)(?:="([^"]*)")?/g))attrs[attr[1]]=attr[2]||'';this.children.push(new Element(attrs));}}
-  get innerHTML(){return this._html;}
-  querySelectorAll(selector){const match=/^\[([^=\]]+)(?:="([^\"]+)")?\]$/.exec(selector);return this.children.filter(child=>match&&Object.hasOwn(child.attributes,match[1])&&(match[2]===undefined||child.attributes[match[1]]===match[2]));}
-  querySelector(selector){return this.querySelectorAll(selector)[0]||null;}
-  addEventListener(type,callback){(this.listeners[type] ||= []).push(callback);}
-  async fire(type,event={target:this}){for(const fn of this.listeners[type]||[])await fn(event);}
-  click(){return this.fire('click');}
-}
-function harness({reference,fetch}={}){
-  let calls=0;const container=new Element();const context=vm.createContext({CofiringCore:core,console,fetch:async(...args)=>{calls++;if(fetch)return fetch(...args);return {ok:true,json:async()=>clone(original)};}});
-  vm.runInContext(source,context);
-  const controller=context.CofiringDraft.mount(container,{reference});
-  return {container,controller,find:s=>container.querySelector(`[data-cf-${s}]`),all:s=>container.querySelectorAll(`[data-cf-${s}]`),get calls(){return calls;}};
-}
+const {makeHarness:harness}=require('./helpers/cofiring-ui-harness.cjs');
 function pilot(){const reference=clone(original);reference.source.kind='dataparc_hidden_excel';return {kind:'cofiring_dataparc_pilot',status:'PASS',cleanupVerified:true,databaseWritten:false,productionReady:false,reference};}
 
 function gapReport() {

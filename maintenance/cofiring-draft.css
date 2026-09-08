@@ -75,3 +75,20 @@
 .cf-query-window>span { display:block; font-size:13px; color:var(--cf-muted); margin-bottom:3px; }
 .cf-query-window>strong { display:block; font-size:18px; line-height:1.6; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
 @media(max-width:700px) { .cf-query-window>strong { font-size:16px; } }
+
+/* Manual organic usage V1: keep editing beside the fuel, not below the cards. */
+.cofiring-draft .cf-organic-editor { padding:13px 0; border-bottom:1px solid #e7edf5; min-width:0; }
+.cofiring-draft .cf-organic-title { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.cofiring-draft .cf-manual-tag { font-size:12px; color:#365987; background:#eff5fe; padding:2px 6px; border-radius:4px; white-space:nowrap; }
+.cofiring-draft .cf-organic-controls { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:6px; }
+.cofiring-draft .cf-organic-controls input { flex:1 1 100px; width:120px; max-width:180px; min-width:80px; min-height:38px; border:1px solid #aebed5; border-radius:7px; padding:7px 9px; color:var(--cf-ink); background:#fff; text-align:right; font-size:18px; font-weight:700; }
+.cofiring-draft .cf-organic-controls input:disabled { opacity:1; color:#364e6c; -webkit-text-fill-color:#364e6c; background:#f4f7fc; }
+.cofiring-draft .cf-organic-controls button { min-height:38px; padding:6px 10px; }
+.cofiring-draft .cf-organic-meta { margin-top:7px!important; color:var(--cf-muted); font-size:12px; overflow-wrap:anywhere; text-align:right; }
+.cofiring-draft .cf-organic-message { margin-top:5px!important; color:var(--cf-muted); font-size:13px; min-height:20px; overflow-wrap:anywhere; }
+.cofiring-draft .cf-organic-message[data-tone="error"] { color:#a53d37; }
+.cofiring-draft .cf-organic-message[data-tone="success"] { color:#25734d; }
+.cofiring-draft .cf-organic-secondary { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
+.cofiring-draft .cf-organic-secondary button { font-size:12px; min-height:30px; padding:3px 6px; margin-top:5px; }
+.cofiring-draft .cf-organic-secondary [data-cf-organic-clear] { color:#a53d37; }
+@media (max-width:768px) { .cofiring-draft .cf-organic-controls input { max-width:180px; } }
