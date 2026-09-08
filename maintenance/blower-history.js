@@ -49,6 +49,9 @@
     serverClockOffsetMs: 0,
     runtimeEditOriginalDate: "",
     replacementEditSnapshot: null,
+    historyDeleteSnapshot: null,
+    historyDeleteToken: "",
+    historyDeleteSubmitting: false,
     vibrationReport: null,
     vibrationReportRangeKey: "",
     vibrationPolling: false,
@@ -207,6 +210,15 @@
       "replacementEditPreview",
       "replacementEditError",
       "replacementEditSaveButton",
+      "historyDeleteDialog",
+      "historyDeleteForm",
+      "historyDeleteAsset",
+      "historyDeleteTarget",
+      "historyDeletePreview",
+      "historyDeleteReason",
+      "historyDeleteError",
+      "historyDeleteConfirm",
+      "historyDeleteCancel",
       "historyDialog",
       "historyDialogTitle",
       "historyDialogAsset",
@@ -297,6 +309,9 @@
     if (state.subview === "detect") switchSubview("overview");
     if (elements.recordDialog?.open) elements.recordDialog.close();
     if (elements.replacementEditDialog?.open) elements.replacementEditDialog.close();
+    if (elements.historyDeleteDialog?.open) elements.historyDeleteDialog.close();
+    state.historyDeleteSnapshot = null;
+    state.historyDeleteToken = "";
     if (elements.dataparcRuntimeDialog?.open) elements.dataparcRuntimeDialog.close();
     if (elements.settingsDialog?.open) elements.settingsDialog.close();
     if (elements.assetManagerDialog?.open) elements.assetManagerDialog.close();
@@ -317,6 +332,9 @@
     if (state.subview === "detect") switchSubview("overview");
     if (elements.recordDialog?.open) elements.recordDialog.close();
     if (elements.replacementEditDialog?.open) elements.replacementEditDialog.close();
+    if (elements.historyDeleteDialog?.open) elements.historyDeleteDialog.close();
+    state.historyDeleteSnapshot = null;
+    state.historyDeleteToken = "";
     if (elements.dataparcRuntimeDialog?.open) elements.dataparcRuntimeDialog.close();
     if (elements.settingsDialog?.open) elements.settingsDialog.close();
     if (elements.assetManagerDialog?.open) elements.assetManagerDialog.close();
@@ -720,6 +738,7 @@
     if (!asset.lastReplacementAt) return "확정된 V-Belt 교체 이력이 없습니다.";
     if (asset.cycleStartState === "pending") return "기동 등록 전 · 주기 계산 대기";
     if (asset.severity === "unset") return "교체주기 설정 필요";
+    if (asset.cycleRuntimeState === "unknown") return "운전시간 확인 필요 · 기간조회 또는 누적시간 직접 보정";
 
     const remaining = Number(asset.remainingHours);
 
@@ -739,6 +758,7 @@
       critical: "교체 임박",
       overdue: "교체주기 초과",
       startup_pending: "기동 대기",
+      runtime_unknown: "운전시간 확인 필요",
       unset: "기준 미설정",
       unknown: "교체일 미확인"
     }[severity] || "확인 필요";
@@ -747,7 +767,7 @@
   function displaySeverity(asset) {
     if (!asset?.lastReplacementAt) return "unknown";
     if (isAssetAwaitingBackfill(asset)) return "unknown";
-    return ["normal", "warning", "critical", "overdue", "startup_pending", "unset"].includes(asset.severity)
+    return ["normal", "warning", "critical", "overdue", "startup_pending", "runtime_unknown", "unset"].includes(asset.severity)
       ? asset.severity
       : "normal";
   }
@@ -1163,6 +1183,7 @@
     const startupPending = confirmed && cycleStartState === "pending";
     const actualStarted = confirmed && cycleStartState === "started" && Boolean(asset.cycleStartedAt);
     const cycleRuntimeTracked = confirmed && !startupPending && Boolean(asset.cycleRuntimeTracked);
+    const runtimeUnknown = confirmed && asset.cycleRuntimeState === "unknown";
     const operationKnown = cycleRuntimeTracked && asset.operationState !== "unknown" && asset.cycleRuntimeState !== "unknown";
     const operationRunning = operationKnown && Boolean(asset.isRunning);
     const operationState = confirmed
@@ -1183,12 +1204,12 @@
     const cycleHours = cycleDays > 0 ? cycleDays * 24 : null;
     const rawProgress = cycleHours ? (cycleElapsedHours / cycleHours) * 100 : 0;
     const progress = Math.max(0, Math.min(100, rawProgress));
-    const nextReplacementAt = !cycleHours
+    const nextReplacementAt = !cycleHours || runtimeUnknown
       ? "-"
       : cycleRuntimeTracked
         ? (operationRunning ? projectedOperatingDueDate(asset.remainingHours, currentServerDate()) : "재기동 후 산정")
         : (cycleAnchorAt ? addDaysToDate(cycleAnchorAt, cycleDays) : "-");
-    const remainingLabel = cycleHours && !startupPending
+    const remainingLabel = cycleHours && !startupPending && !runtimeUnknown
       ? (cycleRuntimeTracked
         ? formatOperatingDday(asset.remainingHours)
         : formatRemainingDday(nextReplacementAt))
@@ -1209,7 +1230,7 @@
     const operationActionTitle = actionRunning
       ? "클릭하면 현재 시각으로 운전을 정지합니다."
       : "클릭하면 현재 시각으로 운전을 기동합니다.";
-    const operationAction = confirmed
+    const operationAction = confirmed && !runtimeUnknown
       ? `<button type="button" class="asset-action runtime-state-action ${actionRunning ? "stop" : "start"}" data-mobile-write data-asset-action="operation_toggle" data-tag="${escapeHtml(asset.tagNumber)}" title="${escapeHtml(operationActionTitle)}" aria-label="${escapeHtml(`${cardPosition} ${operationActionLabel}`)}">${operationActionLabel}</button>`
       : "";
     const isDataparcRuntimeAsset = isDataParcRuntimeAsset(asset);
@@ -1241,8 +1262,8 @@
     const cyclePrimaryMobileLabel = startupPending
       ? "상태"
       : (cycleRuntimeTracked ? "누적" : (actualStarted ? "기동" : "교체"));
-    const cyclePrimaryValue = startupPending ? "기동 대기" : formatDaysHours(cycleElapsedHours);
-    const cyclePrimaryMobileValue = startupPending ? "기동 대기" : formatCompactDaysHours(cycleElapsedHours);
+    const cyclePrimaryValue = runtimeUnknown ? "확인 필요" : startupPending ? "기동 대기" : formatDaysHours(cycleElapsedHours);
+    const cyclePrimaryMobileValue = runtimeUnknown ? "확인 필요" : startupPending ? "기동 대기" : formatCompactDaysHours(cycleElapsedHours);
 
     return `
       <article class="asset-card" data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(operationState)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}>
@@ -1265,16 +1286,16 @@
               <strong data-mobile-value="${escapeHtml(cyclePrimaryMobileValue)}">${escapeHtml(cyclePrimaryValue)}</strong>
             </div>
             ${cycleHours ? `<div class="cycle-deadline-metric ${escapeHtml(severity)}">
-              <span>${["warning", "critical", "overdue"].includes(severity) ? escapeHtml(severityLabel(severity)) : (cycleRuntimeTracked && !operationRunning ? "D-day · 정지" : "D-day")}</span>
+              <span>${["warning", "critical", "overdue"].includes(severity) ? escapeHtml(severityLabel(severity)) : (cycleRuntimeTracked && !operationRunning && !runtimeUnknown ? "D-day · 정지" : "D-day")}</span>
               <strong>${escapeHtml(remainingLabel)}</strong>
             </div>
             <div class="cycle-usage-metric ${escapeHtml(severity)}">
               <span>주기 사용</span>
-              <strong>${cycleHours && !startupPending ? `${Math.round(rawProgress).toLocaleString("ko-KR")}%` : "-"}</strong>
+              <strong>${cycleHours && !startupPending && !runtimeUnknown ? `${Math.round(rawProgress).toLocaleString("ko-KR")}%` : "-"}</strong>
             </div>` : ""}
           </div>
 
-          ${cycleHours && !startupPending ? `
+          ${cycleHours && !startupPending && !runtimeUnknown ? `
             <div class="cycle-progress-block">
               <div
                 class="progress-track"
@@ -1778,7 +1799,7 @@
     const startupPending = cycleStartState === "pending";
     const actualStarted = cycleStartState === "started" && Boolean(asset.cycleStartedAt);
     const events = getAssetEvents(tagNumber)
-      .filter(event => ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction"].includes(event.eventType));
+      .filter(event => ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction", "problem"].includes(event.eventType));
     const latestRuntimeEvent = latestExplicitRuntimeEvent(asset);
 
     elements.historyDialogTitle.textContent = `${asset.positionLabel} 이력`;
@@ -1787,8 +1808,8 @@
       ? `
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         <div><span>최근 V-Belt 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
-        <div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.isRunning ? "기동중" : "정지중"}</strong></div>
-        <div><span>누적 운전시간</span><strong>${startupPending ? "0시간" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
+        <div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.cycleRuntimeState === "unknown" ? "확인 필요" : asset.isRunning ? "기동중" : "정지중"}</strong></div>
+        <div><span>누적 운전시간</span><strong>${startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" ? "확인 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
       `
       : awaitingBackfill
         ? `
@@ -1801,7 +1822,7 @@
       `;
 
     if (elements.historyRuntimeStateButton) {
-      const canManageRuntime = hasAuthenticatedWriteAccess() && Boolean(asset.lastReplacementAt) && !awaitingBackfill;
+      const canManageRuntime = hasAuthenticatedWriteAccess() && Boolean(asset.lastReplacementAt) && !awaitingBackfill && asset.cycleRuntimeState !== "unknown";
       elements.historyRuntimeStateButton.hidden = !canManageRuntime;
       elements.historyRuntimeStateButton.disabled = !canManageRuntime;
       if (canManageRuntime) {
@@ -1833,9 +1854,11 @@
             ["operation_start", "operation_stop"].includes(event.eventType) &&
             event.sourceType === "manual" &&
             cycleStartState !== "pending" &&
+            asset.cycleRuntimeState !== "unknown" &&
             expectedState === currentState
           );
           const editableReplacement = canEditManualReplacement(asset, event);
+          const deletableEvent = canDeleteManualHistoryEvent(asset, event);
           const edited = Boolean(event.updatedAt && event.createdAt && event.updatedAt !== event.createdAt);
 
           return `
@@ -1856,6 +1879,9 @@
                       <button type="button" class="button asset-history-edit" data-mobile-write data-history-action="runtime_state_edit" data-event-id="${escapeHtml(event.id)}">이력 수정</button>
                     </span>
                   ` : ""}
+                  ${deletableEvent ? `
+                    <button type="button" class="button asset-history-delete" data-mobile-write data-history-action="history_event_delete" data-event-id="${escapeHtml(event.id)}" aria-label="${escapeHtml(eventLabel(event.eventType))} 이력 삭제" ${state.busy || state.dataparcRuntimeBusy ? "disabled" : ""}>삭제</button>
+                  ` : ""}
                 </div>
                 <p>${escapeHtml(content)}</p>
                 <small>${escapeHtml(historySourceLabel(event))}${event.createdByName ? ` · ${escapeHtml(event.createdByName)}` : ""}${Number(event.runtimeHours) > 0 ? ` · 당시 ${escapeHtml(historyRuntimeLabel(event))}` : ""}</small>
@@ -1867,6 +1893,90 @@
 
     elements.historyDialog.showModal();
   }
+
+  // [BLOWER-MANUAL-HISTORY-DELETE-V1]
+  function canDeleteManualHistoryEvent(asset, event) {
+    return Boolean(hasAuthenticatedWriteAccess() && !isMobileMonitoringView() && asset && event &&
+      !isAssetAwaitingBackfill(asset) && event.tagNumber === asset.tagNumber && event.id && event.updatedAt &&
+      asset.cycleStartRevision && asset.cycleRuntimeRevision && event.sourceType === "manual" && !event.sourceLogId &&
+      ["replacement", "startup", "operation_start", "operation_stop", "runtime_correction", "problem"].includes(event.eventType));
+  }
+
+  async function openHistoryDeleteDialog(tagNumber, eventId) {
+    if (stopMobileMutation() || state.busy || state.dataparcRuntimeBusy) return;
+    const asset = findAsset(tagNumber), event = findEvent(eventId);
+    if (!canDeleteManualHistoryEvent(asset, event)) return;
+    const snapshot = Object.freeze({ tagNumber, eventId, expectedEventUpdatedAt: event.updatedAt,
+      expectedLastReplacementAt: asset.lastReplacementAt || "", expectedCycleStartRevision: asset.cycleStartRevision,
+      expectedCycleRuntimeRevision: asset.cycleRuntimeRevision });
+    state.historyDeleteSnapshot = snapshot;
+    state.historyDeleteToken = "";
+    elements.historyDeleteAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
+    elements.historyDeleteTarget.textContent = `${formatKstDateTimeDisplay(event.eventDate)} · ${eventLabel(event.eventType)}${event.note ? ` · ${event.note}` : ""}`;
+    elements.historyDeletePreview.textContent = "삭제 후 교체일·운전상태·누적시간을 확인하고 있습니다.";
+    elements.historyDeleteError.hidden = true;
+    elements.historyDeleteConfirm.disabled = true;
+    elements.historyDeleteReason.value = "잘못 등록한 이력";
+    elements.historyDialog.close();
+    elements.historyDeleteDialog.showModal();
+    elements.historyDeleteCancel.focus();
+    try {
+      const result = await apiRequest({ method: "POST", body: { action: "history_event_delete_preview", ...snapshot } });
+      if (state.historyDeleteSnapshot !== snapshot || !elements.historyDeleteDialog.open ||
+          !canDeleteManualHistoryEvent(findAsset(tagNumber), findEvent(eventId))) return;
+      if (!result.preview || !/^[a-f0-9]{64}$/.test(result.previewToken || "")) throw new Error("삭제 결과를 확인하지 못했습니다. 이력을 다시 열어 주세요.");
+      const p = result.preview;
+      const operation = { unknown: "확인 필요", startup_pending: "기동 대기", running: "기동중", stopped: "정지중" }[p.operationState] || "확인 필요";
+      const hours = p.runtimeHours === null || p.runtimeHours === undefined ? "확인 필요"
+        : `${Number(p.runtimeHours).toLocaleString("ko-KR", { maximumFractionDigits: 1 })}시간`;
+      elements.historyDeletePreview.textContent = `${p.detail}\n\n교체일: ${p.lastReplacementAt ? formatDate(p.lastReplacementAt) : "미등록"}\n운전상태: ${operation}\n누적 운전시간: ${hours}${p.operationState === "running" ? " (기동중 · 계속 누적)" : ""}\n기준시각: ${formatKstDateTimeDisplay(p.asOf)}`;
+      state.historyDeleteToken = result.previewToken;
+      elements.historyDeleteConfirm.disabled = false;
+    } catch (error) {
+      if (state.historyDeleteSnapshot !== snapshot || !elements.historyDeleteDialog.open) return;
+      elements.historyDeletePreview.textContent = "이 항목은 현재 삭제할 수 없습니다.";
+      elements.historyDeleteError.textContent = error.message || "삭제 결과 확인 중 오류가 발생했습니다.";
+      elements.historyDeleteError.hidden = false;
+      elements.historyDeleteConfirm.disabled = true;
+    }
+  }
+
+  async function submitHistoryDelete(event) {
+    event.preventDefault();
+    if (stopMobileMutation() || state.busy || state.dataparcRuntimeBusy) return;
+    const snapshot = state.historyDeleteSnapshot, token = state.historyDeleteToken;
+    if (!snapshot || !token || !elements.historyDeleteDialog.open ||
+        !canDeleteManualHistoryEvent(findAsset(snapshot.tagNumber), findEvent(snapshot.eventId))) return;
+    elements.historyDeleteError.hidden = true;
+    elements.historyDeleteConfirm.disabled = true;
+    state.historyDeleteSubmitting = true;
+    setBusy(true);
+    let saved = false;
+    try {
+      const result = await apiRequest({ method: "POST", body: { action: "history_event_delete", ...snapshot,
+        previewToken: token, confirmDelete: true, changeNote: elements.historyDeleteReason.value.trim() } });
+      saved = true;
+      state.historyDeleteSnapshot = null;
+      state.historyDeleteToken = "";
+      elements.historyDeleteDialog.close();
+      showToast(result.message || "이력을 삭제했습니다.");
+      await loadData({ silent: true, syncOperations: false });
+      openAssetHistory(snapshot.tagNumber);
+    } catch (error) {
+      if (saved) {
+        showToast("삭제는 완료됐지만 화면을 새로 불러오지 못했습니다. 새로고침해 주세요.", "error");
+      } else {
+        state.historyDeleteToken = ""; // a new preview is required after ANY failed commit
+        elements.historyDeleteError.textContent = `${error.message || "삭제하지 못했습니다."} 이력을 다시 열어 확인해 주세요.`;
+        elements.historyDeleteError.hidden = false;
+      }
+    } finally {
+      state.historyDeleteSubmitting = false;
+      setBusy(false);
+      elements.historyDeleteConfirm.disabled = true;
+    }
+  }
+  // [/BLOWER-MANUAL-HISTORY-DELETE-V1]
 
   function replacementEventTime(value) {
     const text = String(value || "").trim();
@@ -9109,9 +9219,14 @@
       elements.issueTypeField.hidden = true;
       elements.actionTypeField.hidden = true;
       elements.runtimeHoursField.hidden = false;
-      elements.runtimeStateField.hidden = true;
-      elements.runtimeHours.value = roundHours(asset.cycleElapsedHours ?? asset.runtimeHours).toFixed(1);
-      elements.runtimeState.value = asset.isRunning ? "running" : "stopped";
+      const unknownRuntime = asset.cycleRuntimeState === "unknown";
+      elements.runtimeStateField.hidden = !unknownRuntime;
+      elements.runtimeHours.value = unknownRuntime ? "" : roundHours(asset.cycleElapsedHours ?? asset.runtimeHours).toFixed(1);
+      elements.runtimeState.value = unknownRuntime ? "" : asset.isRunning ? "running" : "stopped";
+      if (unknownRuntime) {
+        elements.runtimeCycleSummary.hidden = false;
+        elements.runtimeCycleSummary.textContent = "삭제 후 운전시간을 확인할 근거가 부족합니다. 확인한 누적시간과 현재 운전상태를 함께 입력하세요.";
+      }
     }
 
     if (mode === "runtime_state") {
@@ -9498,6 +9613,10 @@
           note: elements.recordNote.value
         };
       } else if (mode === "runtime") {
+        if (findAsset(tagNumber)?.cycleRuntimeState === "unknown" &&
+            (!elements.runtimeHours.value.trim() || !["running", "stopped"].includes(elements.runtimeState.value))) {
+          throw new Error("확인한 누적시간과 현재 운전상태를 함께 입력해 주세요.");
+        }
         body = {
           action: "runtime",
           tagNumber,
@@ -10053,6 +10172,10 @@
       if (!button || !state.historyAssetTag) return;
       const action = button.dataset.historyAction;
       const tagNumber = state.historyAssetTag;
+      if (action === "history_event_delete") {
+        openHistoryDeleteDialog(tagNumber, button.dataset.eventId);
+        return;
+      }
       if (action === "replacement_event_edit") {
         openReplacementEditDialog(tagNumber, button.dataset.eventId);
         return;
@@ -10176,6 +10299,14 @@
         ? "운전 신호 설정 · 연결됨" : "운전 신호 설정 · 확인 필요";
     });
     elements.dataparcRuntimeForm.addEventListener("submit", submitDataParcRuntimeRange);
+    elements.historyDeleteForm.addEventListener("submit", submitHistoryDelete);
+    elements.historyDeleteDialog.addEventListener("close", () => {
+      state.historyDeleteSnapshot = null;
+      state.historyDeleteToken = "";
+    });
+    elements.historyDeleteDialog.addEventListener("cancel", event => {
+      if (state.historyDeleteSubmitting) event.preventDefault();
+    });
     elements.replacementEditForm.addEventListener("submit", saveReplacementEdit);
     elements.replacementEditOperation.addEventListener("change", updateReplacementEditFields);
     elements.replacementEditDate.addEventListener("change", updateReplacementEditFields);
@@ -10213,6 +10344,7 @@
       const button = event.target.closest("[data-close-dialog]");
       if (!button) return;
       const dialog = byId(button.dataset.closeDialog);
+      if (dialog === elements.historyDeleteDialog && state.historyDeleteSubmitting) return;
       dialog?.close();
     });
 

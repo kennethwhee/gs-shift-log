@@ -6,11 +6,11 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260908-manual-edit-v1">
+  <link rel="stylesheet" href="blower-history.css?v=20260909-history-delete-v1">
   <link rel="stylesheet" href="blower-history-mobile-dialog-close-v1.css?v=20260903-v1">
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="blower-history.js?v=20260908-manual-edit-v1" defer></script>
+  <script src="blower-history.js?v=20260909-history-delete-v1" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260908-runtime-all-v1" defer></script>
 </head>
 <body>
@@ -625,6 +625,26 @@
       <footer class="dialog-footer">
         <button type="button" class="button secondary" data-close-dialog="replacementEditDialog">취소</button>
         <button type="submit" class="button primary" id="replacementEditSaveButton" data-mobile-write>수정 저장</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="dialog history-delete-dialog" id="historyDeleteDialog" aria-labelledby="historyDeleteTitle" aria-describedby="historyDeletePreview">
+    <form id="historyDeleteForm">
+      <header class="dialog-header">
+        <div><p class="eyebrow">HISTORY</p><h2 id="historyDeleteTitle">이력을 삭제할까요?</h2><p id="historyDeleteAsset"></p></div>
+        <button type="button" class="icon-button" data-close-dialog="historyDeleteDialog" aria-label="닫기">×</button>
+      </header>
+      <div class="dialog-body history-delete-body">
+        <p class="history-delete-target" id="historyDeleteTarget"></p>
+        <div class="history-delete-preview" id="historyDeletePreview" role="status" aria-live="polite"></div>
+        <label class="field"><span>삭제 사유</span><input id="historyDeleteReason" maxlength="500" value="잘못 등록한 이력"></label>
+        <p class="history-delete-audit">삭제 원본·삭제자·삭제시각은 변경 기록에 보존됩니다.</p>
+        <p class="history-delete-error" id="historyDeleteError" role="alert" hidden></p>
+      </div>
+      <footer class="dialog-footer">
+        <button type="button" class="button secondary" id="historyDeleteCancel" data-close-dialog="historyDeleteDialog" autofocus>취소</button>
+        <button type="submit" class="button history-delete-confirm" id="historyDeleteConfirm" data-mobile-write disabled>삭제</button>
       </footer>
     </form>
   </dialog>

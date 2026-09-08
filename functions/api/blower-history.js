@@ -1276,7 +1276,8 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
     Number.isFinite(Number(asset.cycle_runtime_hours))
   );
   const cycleRuntimeState = normalizeText(asset.cycle_runtime_state) || "stopped";
-  const cycleElapsedHours = !hasConfirmedReplacement || cycleStartState === "pending"
+  const runtimeUnknown = cycleRuntimeState === "unknown";
+  const cycleElapsedHours = !hasConfirmedReplacement || runtimeUnknown || cycleStartState === "pending"
     ? null
     : (cycleRuntimeTracked
       ? cycleRuntimeHoursAt(asset, now)
@@ -1299,6 +1300,8 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
 
   if (normalizeText(asset.last_replacement_at) && cycleStartState === "pending") {
     severity = "startup_pending";
+  } else if (hasConfirmedReplacement && runtimeUnknown) {
+    severity = "runtime_unknown";
   } else if (cycleElapsedHours === null) {
     severity = latestReference ? "reference" : "uninitialized";
   } else if (!(cycleDays > 0)) {
@@ -1339,12 +1342,12 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
     cycleStartRevision: normalizeText(asset.cycle_start_revision),
     cycleRuntimeTracked,
     cycleRuntimeState,
-    operationState: !hasConfirmedReplacement && cycleRuntimeState === "unknown"
+    operationState: cycleRuntimeState === "unknown"
       ? "unknown" : (cycleRuntimeState === "running" ? "running" : "stopped"),
     cycleRuntimeAnchorAt: normalizeText(asset.cycle_runtime_anchor_at),
     cycleRuntimeRevision: normalizeText(asset.cycle_runtime_revision),
-    runtimeHours,
-    isRunning: cycleRuntimeTracked
+    runtimeHours: runtimeUnknown ? null : runtimeHours,
+    isRunning: runtimeUnknown ? false : cycleRuntimeTracked
       ? cycleRuntimeState === "running"
       : Number(asset.is_running) === 1,
     cycleElapsedHours,
@@ -5214,6 +5217,274 @@ async function editCurrentManualReplacement(database, user, body, options = {}) 
   });
 }
 
+// [BLOWER-MANUAL-HISTORY-DELETE-V1]
+// Manual rows only. Preview is read-only; commit rechecks the entire asset history
+// in one guarded D1 batch so concurrent edits cannot produce a partial deletion.
+const HISTORY_DELETE_EVENT_COLUMNS = [
+  "id", "tag_number", "event_type", "event_date", "runtime_hours", "issue_type", "action_type", "note",
+  "source_type", "source_log_id", "source_text", "created_by_id", "created_by_name", "created_at", "updated_at"
+];
+const HISTORY_DELETE_BOUNDARIES = new Set(["startup", "operation_start", "operation_stop", "runtime_correction"]);
+function historyDeleteTime(value) {
+  const text = normalizeText(value);
+  if (!text) return NaN;
+  return Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(text) ? `${text}T00:00:00+09:00` : text);
+}
+function historyDeleteOrder(left, right) {
+  return historyDeleteTime(right.event_date) - historyDeleteTime(left.event_date) ||
+    normalizeText(right.created_at).localeCompare(normalizeText(left.created_at)) ||
+    normalizeText(right.id).localeCompare(normalizeText(left.id));
+}
+function historyDeleteSource(event) {
+  try { const value = JSON.parse(event?.source_text || "{}"); return value && typeof value === "object" ? value : {}; }
+  catch { return {}; }
+}
+function historyDeleteSameTime(left, right) {
+  return Number.isFinite(historyDeleteTime(left)) && historyDeleteTime(left) === historyDeleteTime(right);
+}
+function historyDeleteCycleBoundary(event, replacement) {
+  if (!replacement || !HISTORY_DELETE_BOUNDARIES.has(event.event_type)) return false;
+  const source = historyDeleteSource(event);
+  if (source.replacementEdit && source.replacementEventId) return source.replacementEventId === replacement.id;
+  if (source.expectedLastReplacementAt) return historyDeleteSameTime(source.expectedLastReplacementAt, replacement.event_date);
+  if (!Number.isFinite(historyDeleteTime(event.event_date)) ||
+      historyDeleteTime(event.event_date) < historyDeleteTime(replacement.event_date)) return false;
+  // A backdated manual replacement must NOT absorb a DataPARC/operation row
+  // that had already been registered for the preceding replacement cycle.
+  if (replacement.source_type === "manual" &&
+      normalizeText(event.created_at) < normalizeText(replacement.created_at)) return false;
+  return true;
+}
+function historyDeleteUnknownState(replacement) {
+  return {
+    last_replacement_at: replacement?.event_date || null,
+    cycle_started_at: null, cycle_start_state: "legacy",
+    // Keep a non-null storage sentinel: the legacy initializer otherwise invents
+    // elapsed hours. buildAssetState hides this sentinel when state is unknown.
+    cycle_runtime_hours: 0, cycle_runtime_anchor_at: null, cycle_runtime_state: "unknown",
+    runtime_hours: 0, runtime_anchor_at: null, is_running: 0
+  };
+}
+function historyDeletePendingState(replacement) {
+  return { ...historyDeleteUnknownState(replacement), cycle_start_state: "pending",
+    cycle_runtime_anchor_at: replacement.event_date, cycle_runtime_state: "stopped" };
+}
+function historyDeleteRestoreBoundary(boundary, replacement, now, fallbackAsset = null) {
+  if (!boundary || !replacement) return null;
+  const source = historyDeleteSource(boundary);
+  const snapshot = source.replacementEdit ? source.after : null;
+  if (snapshot?.cycleStartState === "pending" ||
+      (Number(boundary.runtime_hours) === 0 && /교체.*(?:미기동|당시 정지|전 정지)/.test(normalizeText(boundary.action_type)))) {
+    return historyDeletePendingState(replacement);
+  }
+  const at = historyDeleteTime(boundary.event_date);
+  const hours = Number(boundary.runtime_hours);
+  const state = runtimeBoundaryState(boundary);
+  if (!Number.isFinite(at) || at < historyDeleteTime(replacement.event_date) || at > now.getTime() ||
+      !Number.isFinite(hours) || hours < 0 || !["running", "stopped"].includes(state)) return null;
+  // Snapshots on replacement edits carry the actual startup time; DataPARC has
+  // its expected cycle start. Plain transitions retain the current cycle start.
+  let startState = snapshot?.cycleStartState || source.expectedCycleStartState ||
+    (fallbackAsset && historyDeleteSameTime(fallbackAsset.last_replacement_at, replacement.event_date)
+      ? fallbackAsset.cycle_start_state : "legacy");
+  let startedAt = snapshot?.cycleStartedAt || source.expectedCycleStartedAt ||
+    (startState === "started" ? fallbackAsset?.cycle_started_at : null);
+  if (boundary.event_type === "startup") { startState = "started"; startedAt = boundary.event_date; }
+  if (startState === "pending") return null; // no inferred running period on a pending cycle
+  if (startState === "started" && (!Number.isFinite(historyDeleteTime(startedAt)) ||
+      historyDeleteTime(startedAt) < historyDeleteTime(replacement.event_date) || historyDeleteTime(startedAt) > at)) {
+    startState = "legacy"; startedAt = null;
+  }
+  const total = hours + (state === "running" ? (now.getTime() - at) / 3600000 : 0);
+  return { ...historyDeleteUnknownState(replacement),
+    cycle_start_state: startState === "started" ? "started" : "legacy", cycle_started_at: startedAt || null,
+    cycle_runtime_hours: total, cycle_runtime_anchor_at: now.toISOString(), cycle_runtime_state: state,
+    runtime_hours: total, runtime_anchor_at: state === "running" ? now.toISOString() : null,
+    is_running: state === "running" ? 1 : 0
+  };
+}
+function historyDeleteRestoreBeforeSnapshot(event, replacement, now) {
+  const source = historyDeleteSource(event), before = source.replacementEdit ? source.before : null;
+  if (!before || !historyDeleteSameTime(before.lastReplacementAt, replacement.event_date)) return null;
+  if (before.cycleStartState === "pending") return historyDeletePendingState(replacement);
+  const anchor = historyDeleteTime(before.cycleRuntimeAnchorAt), hours = Number(before.cycleRuntimeHours);
+  if (!Number.isFinite(anchor) || anchor < historyDeleteTime(replacement.event_date) || anchor > now.getTime() ||
+      !Number.isFinite(hours) || hours < 0 || !["running", "stopped"].includes(before.cycleRuntimeState)) return null;
+  const running = before.cycleRuntimeState === "running";
+  const total = hours + (running ? (now.getTime() - anchor) / 3600000 : 0);
+  const started = historyDeleteTime(before.cycleStartedAt);
+  if (before.cycleStartState === "started" && (!Number.isFinite(started) || started < historyDeleteTime(replacement.event_date) || started > anchor)) return null;
+  return { ...historyDeleteUnknownState(replacement),
+    cycle_start_state: before.cycleStartState === "started" ? "started" : "legacy",
+    cycle_started_at: before.cycleStartState === "started" ? before.cycleStartedAt : null,
+    cycle_runtime_hours: total, cycle_runtime_anchor_at: now.toISOString(), cycle_runtime_state: before.cycleRuntimeState,
+    runtime_hours: total, runtime_anchor_at: running ? now.toISOString() : null, is_running: running ? 1 : 0
+  };
+}
+function planManualHistoryDeletion(asset, events, eventId, options = {}) {
+  const now = options.now instanceof Date && Number.isFinite(options.now.getTime()) ? options.now : new Date();
+  const fail = (message, code = "HISTORY_DELETE_BLOCKED", status = 409, extra = {}) => ({ ok: false, message, code, status, ...extra });
+  const selected = events.find(event => event.id === eventId);
+  if (!selected) return fail("삭제할 이력을 찾을 수 없습니다. 이력을 다시 열어 주세요.", "HISTORY_DELETE_NOT_FOUND", 404);
+  if (selected.source_type !== "manual" || normalizeText(selected.source_log_id) ||
+      !["replacement", "problem", ...HISTORY_DELETE_BOUNDARIES].includes(selected.event_type)) {
+    return fail("직접 등록한 이력만 삭제할 수 있습니다. 업무일지 자동감지·DataPARC 원본은 삭제하지 않습니다.", "HISTORY_DELETE_MANUAL_ONLY", 403);
+  }
+  if (selected.tag_number !== asset.tag_number || !selected.updated_at || !Number.isFinite(historyDeleteTime(selected.event_date))) {
+    return fail("이력의 TAG·일시·수정정보를 확인할 수 없어 삭제하지 않았습니다.");
+  }
+  const replacements = events.filter(event => event.event_type === "replacement").sort(historyDeleteOrder);
+  const current = replacements.find(event => historyDeleteSameTime(event.event_date, asset.last_replacement_at));
+  const remaining = events.filter(event => event.id !== selected.id);
+  let patch = null, basisEventId = "", effect = "history_only";
+  let detail = "선택한 이력만 삭제합니다. 현재 교체일·운전상태·누적시간은 유지됩니다.";
+  if (selected.event_type === "replacement" && current?.id === selected.id) {
+    const blockers = events.filter(event => historyDeleteCycleBoundary(event, selected)).sort(historyDeleteOrder);
+    if (blockers.length) {
+      const first = blockers[0];
+      return fail(first.source_type === "manual"
+        ? "이 교체 뒤에 등록한 기동·정지·누적시간 보정 이력이 남아 있습니다. 가장 나중 운전 이력부터 삭제한 뒤 교체 이력을 삭제해 주세요."
+        : "이 교체를 기준으로 반영된 자동 운전·DataPARC 이력이 남아 있어 삭제할 수 없습니다. 교체 이력의 [수정]으로 바로잡아 주세요.",
+        "HISTORY_DELETE_DEPENDENT_EVENTS", 409, { blockingEventId: first.id });
+    }
+    const previous = replacements.filter(event => event.id !== selected.id)[0] || null;
+    if (previous && (!Number.isFinite(historyDeleteTime(previous.event_date)) ||
+        historyDeleteTime(previous.event_date) > historyDeleteTime(selected.event_date))) {
+      return fail("현재 교체일과 이력 순서가 일치하지 않습니다. 새로고침 후 확인해 주세요.");
+    }
+    const oldBoundaries = previous ? remaining.filter(event => historyDeleteCycleBoundary(event, previous) &&
+      normalizeText(event.created_at) <= normalizeText(selected.created_at)).sort(historyDeleteOrder) : [];
+    patch = historyDeleteRestoreBoundary(oldBoundaries[0], previous, now) || historyDeleteUnknownState(previous);
+    basisEventId = oldBoundaries[0]?.id || "";
+    effect = previous ? "previous_replacement" : "no_replacement";
+    detail = previous ? "직전 V-Belt 교체일로 돌아갑니다. 남은 운전 이력을 기준으로 상태와 누적시간을 반영합니다."
+      : "남은 교체 이력이 없어 교체일을 비웁니다. 현재 주기의 누적시간·D-day 계산을 중단합니다.";
+  } else if (HISTORY_DELETE_BOUNDARIES.has(selected.event_type) && historyDeleteCycleBoundary(selected, current)) {
+    const boundaries = events.filter(event => historyDeleteCycleBoundary(event, current)).sort(historyDeleteOrder);
+    if (boundaries[0]?.id !== selected.id) {
+      return fail("선택한 이력 뒤에 운전·보정 이력이 있습니다. 가장 나중 운전 이력부터 삭제해 주세요.",
+        "HISTORY_DELETE_LATEST_FIRST", 409, { blockingEventId: boundaries[0]?.id || "" });
+    }
+    const previous = boundaries[1] || null;
+    const beforeSnapshot = historyDeleteRestoreBeforeSnapshot(selected, current, now);
+    patch = beforeSnapshot || historyDeleteRestoreBoundary(previous, current, now, asset);
+    basisEventId = beforeSnapshot ? selected.id : (previous?.id || "");
+    const firstStartup = !previous && (selected.event_type === "startup" ||
+      (selected.event_type === "operation_start" && Number(selected.runtime_hours) === 0 &&
+        historyDeleteSameTime(asset.cycle_started_at, selected.event_date)));
+    if (!patch) patch = firstStartup ? historyDeletePendingState(current) : historyDeleteUnknownState(current);
+    effect = patch.cycle_start_state === "pending" ? "startup_pending" : "previous_runtime";
+    detail = effect === "startup_pending" ? "기동 등록 전으로 돌아갑니다. 교체일은 유지하고 기동 대기·누적 0시간으로 반영합니다."
+      : "남은 직전 운전 이력으로 돌아갑니다. 삭제한 구간의 누적시간은 계산 근거에서 제외합니다.";
+  } else if (selected.event_type !== "problem" && !current && asset.last_replacement_at) {
+    return fail("현재 교체일에 해당하는 이력이 없어 주기를 확인할 수 없습니다. 새로고침 후 확인해 주세요.");
+  }
+  const after = patch ? { ...asset, ...patch } : asset;
+  const unknown = after.cycle_runtime_state === "unknown";
+  if (patch && unknown && after.last_replacement_at) {
+    detail += " 운전시간을 복원할 근거가 부족하므로 '확인 필요'로 표시합니다. 기간조회 또는 누적시간 직접 보정으로 확인해 주세요.";
+  }
+  return { ok: true, selected, remaining, patch, basisEventId, effect,
+    preview: { eventId: selected.id, eventType: selected.event_type, eventDate: selected.event_date,
+      note: selected.note, effect, detail, lastReplacementAt: normalizeText(after.last_replacement_at),
+      operationState: !after.last_replacement_at || unknown ? "unknown" : after.cycle_start_state === "pending" ? "startup_pending" : after.cycle_runtime_state,
+      runtimeHours: !after.last_replacement_at || unknown ? null : after.cycle_start_state === "pending" ? 0 : cycleRuntimeHoursAt(after, now),
+      asOf: now.toISOString(), currentCycleChanged: Boolean(patch), basisEventId,
+      auditNotice: "삭제 원본·삭제자·삭제시각은 변경 기록에 보존됩니다." }
+  };
+}
+async function prepareManualHistoryDeletion(database, body, options = {}) {
+  const tagNumber = normalizeText(body.tagNumber).toUpperCase(), eventId = normalizeText(body.eventId);
+  const fail = (message, status = 409) => ({ ok: false, message, status, code: "HISTORY_DELETE_CONFLICT" });
+  if (!tagNumber || !eventId || !normalizeText(body.expectedEventUpdatedAt) ||
+      !normalizeText(body.expectedCycleStartRevision) || !normalizeText(body.expectedCycleRuntimeRevision)) {
+    return fail("삭제할 이력 정보를 확인해 주세요.", 400);
+  }
+  const asset = await findAsset(database, tagNumber);
+  if (!asset) return fail("등록된 Blower TAG를 찾을 수 없습니다.", 404);
+  const result = await database.prepare(`SELECT * FROM blower_history_events WHERE tag_number = ? ORDER BY id`).bind(tagNumber).all();
+  const events = Array.isArray(result.results) ? result.results : [];
+  const selected = events.find(event => event.id === eventId);
+  if (!selected) return fail("삭제할 이력을 찾을 수 없습니다. 이미 삭제되었는지 확인해 주세요.", 404);
+  if (normalizeText(body.expectedEventUpdatedAt) !== normalizeText(selected.updated_at) ||
+      normalizeText(body.expectedLastReplacementAt) !== normalizeText(asset.last_replacement_at) ||
+      normalizeText(body.expectedCycleStartRevision) !== normalizeText(asset.cycle_start_revision) ||
+      normalizeText(body.expectedCycleRuntimeRevision) !== normalizeText(asset.cycle_runtime_revision)) {
+    return fail("교체 또는 운전 이력이 변경되었습니다. 이력을 다시 열고 삭제해 주세요.");
+  }
+  const plan = planManualHistoryDeletion(asset, events, eventId, options);
+  if (!plan.ok) return plan;
+  const snapshot = JSON.stringify({ asset, events, eventId });
+  if (new TextEncoder().encode(snapshot).length > 1200000) return fail("이 설비의 이력량이 커서 안전한 삭제 범위를 넘었습니다. 삭제하지 않았습니다.");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(snapshot));
+  const previewToken = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+  return { ...plan, asset, events, previewToken };
+}
+async function previewManualHistoryDeletion(database, user, body, options = {}) {
+  const prepared = await prepareManualHistoryDeletion(database, body, options);
+  if (!prepared.ok) return jsonResponse({ ok: false, message: prepared.message, code: prepared.code, blockingEventId: prepared.blockingEventId || "" }, prepared.status || 409);
+  return jsonResponse({ ok: true, previewToken: prepared.previewToken, preview: prepared.preview });
+}
+async function deleteManualHistoryEvent(database, user, body, options = {}) {
+  if (body.confirmDelete !== true || !/^[a-f0-9]{64}$/.test(normalizeText(body.previewToken))) {
+    return jsonResponse({ ok: false, message: "삭제 확인창에서 결과를 확인한 뒤 [삭제]를 눌러 주세요." }, 400);
+  }
+  const prepared = await prepareManualHistoryDeletion(database, body, options);
+  if (!prepared.ok) return jsonResponse({ ok: false, message: prepared.message, code: prepared.code, blockingEventId: prepared.blockingEventId || "" }, prepared.status || 409);
+  if (body.previewToken !== prepared.previewToken) return jsonResponse({ ok: false, code: "HISTORY_DELETE_PREVIEW_STALE",
+    message: "삭제 확인 후 이력이 변경되어 삭제하지 않았습니다. 이력을 다시 열어 주세요." }, 409);
+  const { asset, selected, events, remaining, preview, effect, basisEventId } = prepared;
+  const now = preview.asOf;
+  const patch = prepared.patch ? { ...prepared.patch,
+    cycle_start_revision: crypto.randomUUID(), cycle_runtime_revision: crypto.randomUUID(),
+    last_modified_by_id: user.employeeNo, last_modified_by_name: user.name, updated_at: now } : null;
+  const afterAsset = patch ? { ...asset, ...patch } : asset;
+  const audit = { id: crypto.randomUUID(), action_type: "history_event_delete", tag_number: asset.tag_number,
+    before_json: JSON.stringify({ schemaVersion: 1, asset, event: selected }),
+    after_json: JSON.stringify({ schemaVersion: 1, asset: afterAsset, deletedEventId: selected.id, effect, basisEventId, preview }),
+    change_note: normalizeText(body.changeNote).slice(0, 500) || "잘못 등록한 수동 이력 삭제",
+    changed_by_id: user.employeeNo, changed_by_name: user.name, changed_at: now };
+  const col = name => `"${name.replace(/"/g, '""')}"`;
+  const rowCondition = row => Object.keys(row).map(key => `${col(key)} IS ?`).join(" AND ");
+  const rowExists = (table, row) => ({ sql: `EXISTS (SELECT 1 FROM ${table} WHERE ${rowCondition(row)})`, values: Object.values(row) });
+  // Compare typed JSON values, not JSON text: SQLite writes 0.0 while JS writes 0.
+  // This checks insertions, removals, and edits of EVERY row on the selected TAG,
+  // without exceeding D1's 100-parameter limit for a SQL statement.
+  const eventsEqual = rows => ({ sql: `
+    (SELECT COUNT(*) FROM blower_history_events WHERE tag_number = ?) = json_array_length(?)
+    AND NOT EXISTS (
+      SELECT 1 FROM blower_history_events e LEFT JOIN json_each(?) j ON e.id = json_extract(j.value, '$.id')
+      WHERE e.tag_number = ? AND (j.value IS NULL OR NOT (${HISTORY_DELETE_EVENT_COLUMNS.map(key => `e.${col(key)} IS json_extract(j.value, '$.${key}')`).join(" AND ")}))
+    )`, values: [asset.tag_number, JSON.stringify(rows), JSON.stringify(rows), asset.tag_number] });
+  const guardIds = [crypto.randomUUID(), crypto.randomUUID()];
+  const guard = (id, checks) => database.prepare(`INSERT INTO blower_history_atomic_guard (id, valid)
+    VALUES (?, CASE WHEN ${checks.map(check => `(${check.sql})`).join(" AND ")} THEN 1 ELSE 0 END)`)
+    .bind(id, ...checks.flatMap(check => check.values));
+  const insertRow = (table, row) => database.prepare(`INSERT INTO ${table} (${Object.keys(row).map(col).join(", ")})
+    VALUES (${Object.keys(row).map(() => "?").join(", ")})`).bind(...Object.values(row));
+  const statements = [guard(guardIds[0], [rowExists("blower_history_assets", asset), eventsEqual(events)]),
+    ...(patch ? [database.prepare(`UPDATE blower_history_assets SET ${Object.keys(patch).map(key => `${col(key)} = ?`).join(", ")}
+      WHERE ${rowCondition(asset)}`).bind(...Object.values(patch), ...Object.values(asset))] : []),
+    database.prepare(`DELETE FROM blower_history_events WHERE ${rowCondition(selected)}`).bind(...Object.values(selected)),
+    insertRow("blower_history_asset_history", audit),
+    guard(guardIds[1], [rowExists("blower_history_assets", afterAsset), eventsEqual(remaining), rowExists("blower_history_asset_history", audit)]),
+    database.prepare(`DELETE FROM blower_history_atomic_guard WHERE id IN (?, ?)`).bind(...guardIds)];
+  try { await database.batch(statements); }
+  catch (error) {
+    if (/CHECK constraint failed(?:: valid = 1|.*blower_history_atomic_guard)/i.test(String(error?.message || error))) {
+      return jsonResponse({ ok: false, code: "HISTORY_DELETE_CONFLICT",
+        message: "삭제 중 교체 또는 운전 이력이 변경되어 삭제하지 않았습니다. 이력을 다시 열어 주세요." }, 409);
+    }
+    throw error;
+  }
+  return jsonResponse({ ok: true, deletedEventId: selected.id, auditId: audit.id, preview,
+    message: preview.operationState === "startup_pending" && patch
+      ? "이력을 삭제했습니다. 기동 대기·누적 0시간으로 돌아갔습니다."
+      : patch && preview.operationState === "unknown" ? "이력을 삭제했습니다. 남은 이력에 맞춰 교체일을 반영했고, 운전시간은 확인이 필요합니다."
+        : "이력을 삭제하고 남은 이력을 반영했습니다." });
+}
+// [/BLOWER-MANUAL-HISTORY-DELETE-V1]
+
 async function registerStartup(database, user, body, source = {}) {
   const tagNumber = normalizeText(body.tagNumber).toUpperCase();
   const asset = await findAsset(database, tagNumber);
@@ -6852,7 +7123,12 @@ async function correctRuntime(database, user, body) {
     Number.isFinite(Number(asset.cycle_runtime_hours)) &&
     Boolean(normalizeText(asset.cycle_runtime_revision))
   );
-  const isRunning = cycleEligible
+  const unknownState = normalizeText(asset.cycle_runtime_state) === "unknown";
+  if (unknownState && (typeof body.isRunning !== "boolean" || body.runtimeHours === null ||
+      body.runtimeHours === undefined || typeof body.runtimeHours === "boolean" || String(body.runtimeHours).trim() === "")) {
+    return jsonResponse({ ok: false, message: "확인한 현재 운전상태와 누적시간을 함께 입력해 주세요." }, 400);
+  }
+  const isRunning = unknownState ? body.isRunning : cycleEligible
     ? normalizeText(asset.cycle_runtime_state) === "running"
     : Number(asset.is_running) === 1;
   const currentRevision = normalizeText(asset.cycle_runtime_revision);
@@ -13607,6 +13883,14 @@ async function handlePost(context, user, body) {
     return editCurrentManualReplacement(database, user, body);
   }
 
+  if (action === "history_event_delete_preview") {
+    return previewManualHistoryDeletion(database, user, body);
+  }
+
+  if (action === "history_event_delete") {
+    return deleteManualHistoryEvent(database, user, body);
+  }
+
   if (action === "startup") {
     return registerStartup(database, user, body);
   }
@@ -13750,6 +14034,11 @@ export async function onRequestPost(context) {
 
 /* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
 export const __blowerHistoryTest = {
+  planManualHistoryDeletion,
+  previewManualHistoryDeletion,
+  deleteManualHistoryEvent,
+  buildAssetState,
+  handlePost,
   editCurrentManualReplacement,
   ensureSchema,
   ensureBlowerHistorySchemaReady,
