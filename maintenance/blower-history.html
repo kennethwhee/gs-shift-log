@@ -6,21 +6,20 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260908-dataparc-runtime-range-v2">
+  <link rel="stylesheet" href="blower-history.css?v=20260908-compact-ui-v1">
   <link rel="stylesheet" href="blower-history-mobile-dialog-close-v1.css?v=20260903-v1">
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="blower-history.js?v=20260908-runtime-save-v1" defer></script>
-  <script src="/maintenance/seal-pot-ois-shadow.js?v=20260901-v2" defer></script>
+  <script src="blower-history.js?v=20260908-compact-ui-v1" defer></script>
+  <script src="/maintenance/seal-pot-ois-shadow.js?v=20260908-compact-ui-v1" defer></script>
 </head>
 <body>
   <div class="page-shell">
     <header class="page-header">
       <div>
-        <p class="eyebrow">EQUIPMENT LIFE MANAGEMENT</p>
         <h1>Blower V-Belt 교체 이력 관리</h1>
         <p class="page-description">
-          카드의 기동·정지와 업무일지 교체운전을 기준으로 실제 운전시간을 관리합니다.
+          설비별 실제 운전시간과 V-Belt 교체 이력을 확인합니다.
         </p>
       </div>
       <div class="header-actions">
@@ -30,14 +29,6 @@
           data-shift-log-return
           hidden
         >업무일지로 돌아가기</button>
-        <button
-          type="button"
-          class="button secondary audit-history-button"
-          id="auditHistoryButton"
-          data-mobile-write
-          title="업무일지 누락 후보를 읽기 전용으로 진단해 JSON으로 내려받습니다."
-          hidden
-        >누락 진단</button>
         <button type="button" class="button secondary" id="refreshButton">새로고침</button>
       </div>
     </header>
@@ -48,11 +39,36 @@
     <div class="workspace">
       <nav class="sub-tabs" aria-label="관리 화면">
         <button type="button" class="sub-tab is-active" data-subview="overview" aria-current="page">현황</button>
-        <button type="button" class="sub-tab" data-subview="history">이력 관리</button>
+        <button type="button" class="sub-tab" data-subview="history">이력</button>
+        <details class="management-menu" id="managementMenu" data-mobile-write hidden>
+          <summary>관리<span class="count-badge" id="managementCandidateBadge" hidden>0</span></summary>
+          <div class="management-menu-items">
+              <button type="button" class="button secondary" id="settingsButton" data-mobile-write hidden>
+                교체주기 설정
+              </button>
+              <button type="button" class="button secondary" id="assetManagerButton" data-mobile-write hidden>
+                Blower 관리
+              </button>
         <button type="button" class="sub-tab" data-subview="detect" data-mobile-write>
           검토 대기
           <span class="count-badge" id="candidateCountBadge" hidden>0</span>
         </button>
+            <details class="advanced-management-tools" id="advancedManagementTools" hidden>
+              <summary>진단·복구</summary>
+              <div class="advanced-management-actions">
+        <button
+          type="button"
+          class="button secondary audit-history-button"
+          id="auditHistoryButton"
+          data-mobile-write
+          title="업무일지 누락 후보를 읽기 전용으로 진단해 JSON으로 내려받습니다."
+          hidden
+        >누락 진단</button>
+                <button type="button" class="button secondary" id="historicalBackfillButton" data-mobile-write hidden>과거 이력 복구</button>
+              </div>
+            </details>
+          </div>
+        </details>
       </nav>
 
       <main>
@@ -62,7 +78,7 @@
               <strong id="overviewBackfillTitle">과거 교체 이력 확인 필요</strong>
               <span id="overviewBackfillSummary">재구성 완료 전에는 기존 자동감지 이력을 확정값으로 표시하지 않습니다.</span>
             </div>
-            <button type="button" class="button primary" id="overviewBackfillButton" data-mobile-write hidden>확정 이력 복구 V12</button>
+            <button type="button" class="button primary" id="overviewBackfillButton" data-mobile-write hidden>과거 이력 복구</button>
           </section>
 
           <section class="status-toolbar" aria-label="설비 상태 필터">
@@ -76,20 +92,14 @@
               <strong id="settingsSummary">설정 확인 중</strong>
               <small id="settingsUpdated"></small>
             </div>
-            <div class="settings-actions">
-              <button type="button" class="button secondary" id="assetManagerButton" data-mobile-write hidden>
-                Blower 관리
-              </button>
+            <div class="settings-actions" id="blowerQueryActions">
               <button
                 type="button"
                 class="button primary vibration-toolbar-query"
                 id="vibrationQueryButton"
                 data-mobile-write
                 hidden
-              >조회하기</button>
-              <button type="button" class="button secondary" id="settingsButton" data-mobile-write hidden>
-                교체주기 설정
-              </button>
+              >진동 조회</button>
             </div>
           </section>
 
@@ -102,7 +112,7 @@
             <div class="vibration-shadow-detail">
               <div class="vibration-query-window-head">
                 <div>
-                  <span class="settings-label">FBHE OIS 운전상태 · 누적시간 분석 V8 R6.3</span>
+                  <span class="settings-label">FBHE 진동 조회</span>
                   <strong id="vibrationHeadline">기동·정지·누적시간 분석 대기</strong>
                 </div>
                 <button
@@ -112,17 +122,13 @@
                 >닫기</button>
               </div>
               <div class="vibration-shadow-guide">
-                <strong>OIS 조회 · 계산값 선택 적용</strong>
-                <span>Blower·Motor DE/NDE 시간별 진동으로 현재 기동/정지와 교체 후 실제 운전시간을 계산합니다. 누적시간은 판정률과 Cycle 검증을 통과하면 현재상태 판정보류와 별도로 적용할 수 있습니다. 기동·정지는 최신 OIS 상태가 확정된 경우에만 변경하며, 판정보류 시 기존 카드 상태를 유지합니다. 교체일·교체주기는 변경하지 않습니다.</span>
+                <strong>진동으로 운전시간 계산</strong>
+                <span>Blower·Motor DE/NDE 시간별 진동으로 운전시간을 계산합니다. 검증된 누적시간을 적용하고, 최신 상태가 확정되지 않으면 기존 기동·정지 상태를 유지합니다. 교체일과 교체주기는 유지됩니다.</span>
               </div>
               <div class="vibration-range-presets" aria-label="FBHE 진동 빠른 조회기간">
                 <button type="button" class="vibration-range-preset is-active" data-vibration-preset="cycle">교체일~현재</button>
                 <button type="button" class="vibration-range-preset" data-vibration-preset="month">이번달</button>
-                <button type="button" class="vibration-range-preset" data-vibration-preset="7">7일</button>
                 <button type="button" class="vibration-range-preset" data-vibration-preset="30">30일</button>
-                <button type="button" class="vibration-range-preset" data-vibration-preset="90">3개월</button>
-                <button type="button" class="vibration-range-preset" data-vibration-preset="180">6개월</button>
-                <button type="button" class="vibration-range-preset" data-vibration-preset="365">1년</button>
               </div>
               <div class="vibration-shadow-controls">
                 <label>
@@ -140,11 +146,17 @@
                   id="vibrationRunButton"
                   data-mobile-write
                 >OIS 조회</button>
-                <button type="button" class="button secondary" id="vibrationRequeryButton" data-mobile-write>전체 재조회</button>
-                <button type="button" class="button secondary" id="vibrationApplyButton" data-mobile-write hidden>OIS 계산값 적용</button>
+                <button type="button" class="button secondary" id="vibrationApplyButton" data-mobile-write hidden>계산값 적용</button>
               </div>
+              <details class="vibration-extra-query" data-mobile-write>
+                <summary>추가 조회</summary>
+                <div>
+                  <span>이미 조회한 기간도 다시 가져옵니다.</span>
+                <button type="button" class="button secondary" id="vibrationRequeryButton" data-mobile-write>전체 재조회</button>
+                </div>
+              </details>
               <div class="vibration-shadow-status" id="vibrationStatus" role="status" aria-live="polite">
-                기본값은 6대 중 가장 오래된 최근 V-Belt 교체일부터 현재까지입니다.
+                6대의 최근 교체일 중 가장 오래된 날부터 조회합니다.
               </div>
               <div class="vibration-shadow-metrics" id="vibrationMetrics" hidden></div>
               <div class="table-wrap vibration-shadow-table-wrap" id="vibrationTableWrap" hidden>
@@ -162,40 +174,12 @@
                   <tbody id="vibrationBody"></tbody>
                 </table>
               </div>
-              <div class="empty-state" id="vibrationEmpty" hidden>선택 기간의 계산 결과가 없습니다. 이전에 조회한 기간은 자동 복원되며, 처음 조회하는 기간만 [OIS 조회]를 눌러주세요.</div>
-            </div>
-          </details>
-
-          <details class="average-panel" id="averagePanel" hidden>
-            <summary class="average-summary">
-              <div>
-                <span class="settings-label">평균 V-Belt 교체주기</span>
-                <strong id="averageHeadline">계산 중</strong>
-              </div>
-              <span class="average-summary-action">상세 보기</span>
-            </summary>
-            <div class="average-detail">
-              <small id="averageSubline">확정된 V-Belt 교체일과 다음 교체일 사이의 달력 일수를 계산합니다.</small>
-              <div class="average-controls" aria-label="평균 교체주기 계산기간">
-                <span>최근</span>
-                <input type="number" id="averagePeriodValue" min="1" max="120" step="1" value="12" inputmode="numeric" aria-label="평균 계산 기간">
-                <select id="averagePeriodUnit" aria-label="평균 계산 기간 단위">
-                  <option value="months" selected>개월</option>
-                  <option value="years">년</option>
-                </select>
-              </div>
-              <div class="average-metrics" id="averageMetrics"></div>
-              <div class="average-assets" id="averageAssets"></div>
+              <div class="empty-state" id="vibrationEmpty" hidden>저장된 결과가 없습니다. 기간을 선택하고 [OIS 조회]를 눌러주세요.</div>
             </div>
           </details>
 
           <section class="asset-section">
-            <div class="section-title-row">
-              <div>
-                <p class="eyebrow">현재 교체주기</p>
-                <h2 id="activeTypeTitle">FBHE Blower</h2>
-              </div>
-            </div>
+            <h2 class="sr-only" id="activeTypeTitle">FBHE Blower</h2>
             <div id="assetGroups"></div>
             <section class="missing-tags" id="missingTagsNotice" hidden></section>
           </section>
@@ -205,7 +189,6 @@
           <section class="panel-card">
             <div class="section-title-row">
               <div>
-                <p class="eyebrow">EVENT HISTORY</p>
                 <h2>운전·교체 이력</h2>
               </div>
               <div class="filter-actions">
@@ -236,6 +219,28 @@
               </table>
             </div>
             <div class="empty-state" id="historyEmpty" hidden>등록된 이력이 없습니다.</div>
+          <details class="average-panel" id="averagePanel" hidden>
+            <summary class="average-summary">
+              <div>
+                <span class="settings-label">평균 V-Belt 교체주기</span>
+                <strong id="averageHeadline">계산 중</strong>
+              </div>
+              <span class="average-summary-action">상세 보기</span>
+            </summary>
+            <div class="average-detail">
+              <small id="averageSubline">확정된 V-Belt 교체일과 다음 교체일 사이의 달력 일수를 계산합니다.</small>
+              <div class="average-controls" aria-label="평균 교체주기 계산기간">
+                <span>최근</span>
+                <input type="number" id="averagePeriodValue" min="1" max="120" step="1" value="12" inputmode="numeric" aria-label="평균 계산 기간">
+                <select id="averagePeriodUnit" aria-label="평균 계산 기간 단위">
+                  <option value="months" selected>개월</option>
+                  <option value="years">년</option>
+                </select>
+              </div>
+              <div class="average-metrics" id="averageMetrics"></div>
+              <div class="average-assets" id="averageAssets"></div>
+            </div>
+          </details>
           </section>
         </section>
 
@@ -244,9 +249,8 @@
             <section class="notice-bar inline-notice" id="historicalBackfillNotice" role="status" aria-live="polite" hidden></section>
             <div class="section-title-row detect-heading">
               <div>
-                <p class="eyebrow">SHIFT LOG DETECTION</p>
                 <h2>업무일지 자동감지</h2>
-                <p>V-Belt 교체 이력은 별도로 관리하고, “#A → #C 교체운전”처럼 운전 전환이 기록되면 기존 Blower 정지와 새 Blower 기동을 자동 반영합니다.</p>
+                <p>업무일지에서 교체 이력과 기동·정지 기록을 확인합니다.</p>
               </div>
               <div class="scan-controls">
                 <label>
@@ -260,11 +264,10 @@
                   </select>
                 </label>
                 <button type="button" class="button primary" id="scanButton" data-mobile-write>업무일지 분석</button>
-                <button type="button" class="button secondary" id="historicalBackfillButton" data-mobile-write hidden>확정 이력 복구 V12</button>
               </div>
             </div>
             <div class="detect-guide">
-              업무일지의 시간·Blower 종류·호기·#A/#B/#C를 함께 확인합니다. “교체운전”, “절체운전”, “#A 정지 후 #C 기동”처럼 출발기와 도착기가 명확할 때만 자동 반영하며, 예정·요청·보류 문구와 시간이 없는 기록은 상태를 바꾸지 않습니다. 사용자가 카드에서 직접 누른 기동·정지 기록은 자동감지보다 우선합니다. V-Belt 교체 후보 감지 기준은 기존과 동일하게 유지됩니다.
+              설비와 시각이 명확한 교체운전 기록만 기동·정지에 반영합니다. 예정·요청·보류 기록은 제외하며, 카드에서 직접 등록한 상태가 우선합니다.
             </div>
             <div class="candidate-list" id="candidateList"></div>
             <div class="empty-state" id="candidateEmpty">검토 대기 중인 자동감지 후보가 없습니다.</div>
@@ -349,7 +352,7 @@
         </label>
 
         <label class="field" id="runtimeHoursField" hidden>
-          <span>누적 Cycle 운전시간 직접 보정(h)</span>
+          <span>누적 운전시간 수정(h)</span>
           <input type="number" id="runtimeHours" min="0" step="0.1" inputmode="decimal">
           <small>일반 기동·정지는 카드의 상태 버튼으로 등록하세요.</small>
         </label>
@@ -383,7 +386,6 @@
     <form method="dialog" id="dataparcRuntimeForm">
       <header class="dialog-header">
         <div>
-          <p class="eyebrow">DATAPARC RUNTIME RANGE</p>
           <h2>DataPARC 기간조회</h2>
           <p id="dataparcRuntimeDialogAsset"></p>
         </div>
@@ -413,7 +415,7 @@
         <div class="dataparc-runtime-previous-basis" id="dataparcRuntimePreviousBasis" hidden></div>
 
         <p class="dataparc-runtime-range-warning">
-          이 조회는 V-Belt 교체일 자체를 변경하지 않습니다. 선택한 시각 이후의 실제 RUN 누적시간과 현재 운전/정지 상태만 DataPARC 기준으로 다시 계산합니다.
+          선택한 시각 이후의 RUN 누적시간과 현재 상태를 갱신합니다. V-Belt 교체일은 유지됩니다.
         </p>
       </div>
 
@@ -428,31 +430,29 @@
     <form method="dialog" id="settingsForm">
       <header class="dialog-header">
         <div>
-          <p class="eyebrow">REPLACEMENT POLICY</p>
           <h2 id="settingsDialogTitle">교체주기 설정</h2>
-          <p>종류별 기준이며 로그인한 사용자라면 누구나 변경할 수 있습니다. 변경자와 변경일은 자동 기록됩니다.</p>
+          <p>종류별 실제 누적 운전시간 기준입니다. 변경자와 변경일은 자동 기록됩니다.</p>
         </div>
         <button type="button" class="icon-button" data-close-dialog="settingsDialog" aria-label="닫기">×</button>
       </header>
       <div class="dialog-body settings-grid">
         <label class="field">
-          <span>최대 교체주기 (누적 운전일)</span>
+          <span>교체주기 (운전일)</span>
           <input type="number" id="cycleDays" min="1" step="1" placeholder="예: 90">
-          <small>90일 = 실제 누적 운전 2,160시간</small>
+          <small>1일 = 실제 운전 24시간</small>
         </label>
         <label class="field">
-          <span>교체 예정 알림 (남은 누적 운전일)</span>
+          <span>경고 시작 (잔여일)</span>
           <input type="number" id="warningDays" min="0" step="1" placeholder="예: 7">
-          <small>노란색 경고 시작</small>
+          <small>예: 교체 7운전일 전</small>
         </label>
         <label class="field">
-          <span>교체 임박 알림 (남은 누적 운전일)</span>
+          <span>임박 시작 (잔여일)</span>
           <input type="number" id="criticalDays" min="0" step="1" placeholder="예: 3">
-          <small>빨간색 강력 경고 시작</small>
+          <small>예: 교체 3운전일 전</small>
         </label>
         <p class="settings-help">
-          다른 Blower의 교체주기가 아직 정해지지 않았다면 값을 비워 둘 수 있습니다. FBHE 기본값은 90일 / 7일 / 3일입니다.
-          <strong>로그인 사용자 누구나 변경 가능</strong>하며, 변경자·변경일은 설정 이력에 자동 저장됩니다.
+          기준이 정해지지 않았다면 비워 두세요. FBHE 기본값은 교체 90일 · 경고 7일 · 임박 3일입니다.
         </p>
       </div>
       <footer class="dialog-footer">
@@ -468,7 +468,6 @@
     <form method="dialog" id="assetManagerForm">
       <header class="dialog-header">
         <div>
-          <p class="eyebrow">BLOWER INVENTORY</p>
           <h2 id="assetManagerDialogTitle">Blower 정보 수정</h2>
           <p id="assetManagerDialogIntro">설비명·표시 순서·사용 상태만 간단히 관리합니다.</p>
         </div>
@@ -557,7 +556,6 @@
     <div class="history-dialog-shell">
       <header class="dialog-header">
         <div>
-          <p class="eyebrow">ASSET HISTORY</p>
           <h2 id="historyDialogTitle">설비 이력</h2>
           <p id="historyDialogAsset"></p>
         </div>

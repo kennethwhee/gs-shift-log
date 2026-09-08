@@ -45,6 +45,9 @@
   function cacheElements() {
     [
       "authNotice",
+      "managementMenu",
+      "managementCandidateBadge",
+      "advancedManagementTools",
       "historicalBackfillNotice",
       "overviewBackfillCallout",
       "overviewBackfillTitle",
@@ -660,6 +663,7 @@
   }
 
   function projectedOperatingDueDate(remainingHours, now = new Date()) {
+    if (remainingHours === null || remainingHours === undefined || remainingHours === "") return "-";
     const hours = Number(remainingHours);
     if (!Number.isFinite(hours)) return "-";
     if (hours <= 0) return formatKstDateInput(now);
@@ -741,6 +745,10 @@
       flyash_silo: "SILO"
     };
 
+    const displayLabels = {
+      fbhe: "FBHE Blower", seal_pot: "Seal Pot Blower", organic_fuel: "유기성 Blower",
+      flyash_bag: "Fly Ash Bag Filter", flyash_silo: "Fly Ash Silo"
+    };
     elements.typeTabs.innerHTML = (state.data.types || [])
       .map(type => {
         const active = type.key === state.activeType;
@@ -760,7 +768,7 @@
             aria-pressed="${active ? "true" : "false"}"
             ${active ? 'aria-current="page"' : ""}
           >
-            <span class="type-label-full">${escapeHtml(type.label)}</span>
+            <span class="type-label-full">${escapeHtml(displayLabels[type.key] || type.label)}</span>
             <span class="type-label-compact">${escapeHtml(compactLabels[type.key] || type.label)}</span>
             ${typeAlerts > 0 ? `<span class="type-alert-count" aria-hidden="true">${typeAlerts}</span>` : ""}
           </button>
@@ -788,8 +796,13 @@
       ["unset", "기준 미설정", counts.unset || 0]
     ];
 
-    elements.statusFilters.innerHTML = definitions
-      .filter(([key, , count]) => key === "all" || count > 0 || state.statusFilter === key)
+    const visibleDefinitions = definitions.filter(([key, , count]) => (
+      key === "all" || state.statusFilter === key ||
+      count > 0 && !(count === assets.length + missingSlots.length && ["normal", "unset"].includes(key))
+    ));
+    const toolbar = elements.statusFilters.closest?.(".status-toolbar");
+    if (toolbar) toolbar.hidden = visibleDefinitions.length === 1;
+    elements.statusFilters.innerHTML = visibleDefinitions
       .map(([key, label, count]) => `
         <button
           type="button"
@@ -807,49 +820,33 @@
   function renderSettings() {
     const type = getTypeDefinition();
     const setting = getActiveSetting();
-    const publicMonitoring = isPublicMonitoringView();
-
+    const canManage = hasAuthenticatedWriteAccess() && !isMobileMonitoringView();
     elements.activeTypeTitle.textContent = type?.label || "Blower";
-
-    if (!setting || !(Number(setting.cycleDays) > 0)) {
-      elements.settingsSummary.textContent = "교체주기 미설정";
-      elements.settingsUpdated.textContent = publicMonitoring
-        ? "공유 조회 전용"
-        : isMobileMonitoringView()
-          ? "모바일 조회 전용"
-          : "로그인 사용자 누구나 설정 가능 · 변경 이력 기록";
-    } else {
-      const cycleHours = Number(setting.cycleDays) * 24;
-      elements.settingsSummary.textContent = [
-        `누적 운전 ${setting.cycleDays}일 (${cycleHours.toLocaleString("ko-KR")}h)`,
-        `예정 ${Number(setting.warningDays) * 24}h 전`,
-        `임박 ${Number(setting.criticalDays) * 24}h 전`
-      ].join(" · ");
-
-      const updatedText = setting.updatedAt
-        ? `최근 변경 ${formatDate(setting.updatedAt)}${setting.updatedByName ? ` · ${setting.updatedByName}` : ""}`
-        : "변경 이력 기록";
-      elements.settingsUpdated.textContent = publicMonitoring
-        ? `${updatedText} · 공유 조회 전용`
-        : isMobileMonitoringView()
-          ? `${updatedText} · 모바일 조회 전용`
-          : `${updatedText} · 누구나 변경 가능`;
-    }
-
-    elements.settingsButton.hidden = !hasAuthenticatedWriteAccess() || isMobileMonitoringView();
-    elements.assetManagerButton.hidden = !hasAuthenticatedWriteAccess()
-      || !state.data?.user?.isSuperAdmin
-      || isMobileMonitoringView();
+    elements.settingsSummary.textContent = Number(setting?.cycleDays) > 0
+      ? `누적 ${Number(setting.cycleDays).toLocaleString("ko-KR")}일 · 예정 ${Number(setting.warningDays)}일 / 임박 ${Number(setting.criticalDays)}일 전`
+      : "교체주기 미설정";
+    elements.settingsSummary.title = setting?.updatedAt
+      ? `최근 변경 ${formatDate(setting.updatedAt)}${setting.updatedByName ? ` · ${setting.updatedByName}` : ""}`
+      : "누적 운전시간을 기준으로 교체주기를 계산합니다.";
+    elements.settingsUpdated.textContent = isPublicMonitoringView()
+      ? "공유 조회" : isMobileMonitoringView() ? "조회 전용" : "";
+    elements.settingsButton.hidden = !canManage;
+    elements.assetManagerButton.hidden = !canManage || !state.data?.user?.isSuperAdmin;
   }
 
   function renderHeaderActions() {
-    elements.auditHistoryButton.hidden = !hasAuthenticatedWriteAccess()
-      || !state.data?.user?.isSuperAdmin
-      || isMobileMonitoringView();
+    const canManage = hasAuthenticatedWriteAccess() && !isMobileMonitoringView();
+    const canDiagnose = canManage && Boolean(state.data?.user?.isSuperAdmin);
+    elements.auditHistoryButton.hidden = !canDiagnose;
+    if (elements.managementMenu) {
+      elements.managementMenu.hidden = !canManage;
+      if (!canManage) elements.managementMenu.open = false;
+    }
+    if (elements.advancedManagementTools) elements.advancedManagementTools.hidden = !canDiagnose;
   }
 
   function renderMissingTags() {
-    const missing = (state.data?.missingTags || []).filter(item => item.blowerType === state.activeType);
+    const missing = (state.data?.missingTags || []).filter(item => item.blowerType === state.activeType && !item.identityPending);
 
     if (missing.length === 0) {
       elements.missingTagsNotice.hidden = true;
@@ -1004,26 +1001,29 @@
     const sourceType = String(event?.sourceType || "").trim();
 
     if (sourceType === "shift_log_history_v13") {
-      return { label: "업무일지 V13 문맥복구", className: "v13" };
+      return { label: "업무일지", className: "v13" };
     }
     if (sourceType === "shift_log_history_v12") {
-      return { label: "업무일지 V12 복구", className: "v12" };
+      return { label: "업무일지", className: "v12" };
     }
     if (sourceType === "shift_log_history_auto") {
-      return { label: "업무일지 과거 자동", className: "history" };
+      return { label: "과거 업무일지", className: "history" };
     }
     if (sourceType === "shift_log_auto") {
       return { label: "업무일지 자동감지", className: "auto" };
     }
     if (sourceType === "shift_log_operation_auto") {
-      return { label: "업무일지 교체운전 자동", className: "auto" };
+      return { label: "업무일지 교체운전", className: "auto" };
+    }
+    if (sourceType === "dataparc_runtime") {
+      return { label: "DataPARC 조회", className: "dataparc" };
     }
     if (sourceType === "manual") {
       return { label: "수동 등록", className: "manual" };
     }
 
     return {
-      label: sourceType ? sourceType : "등록 이력",
+      label: "등록 이력",
       className: "other"
     };
   }
@@ -1129,9 +1129,11 @@
     const cycleHours = cycleDays > 0 ? cycleDays * 24 : null;
     const rawProgress = cycleHours ? (cycleElapsedHours / cycleHours) * 100 : 0;
     const progress = Math.max(0, Math.min(100, rawProgress));
-    const nextReplacementAt = cycleRuntimeTracked
-      ? (operationRunning ? projectedOperatingDueDate(asset.remainingHours) : "재기동 후 산정")
-      : (cycleDays > 0 && cycleAnchorAt ? addDaysToDate(cycleAnchorAt, cycleDays) : "-");
+    const nextReplacementAt = !cycleHours
+      ? "-"
+      : cycleRuntimeTracked
+        ? (operationRunning ? projectedOperatingDueDate(asset.remainingHours, currentServerDate()) : "재기동 후 산정")
+        : (cycleAnchorAt ? addDaysToDate(cycleAnchorAt, cycleDays) : "-");
     const remainingLabel = cycleHours && !startupPending
       ? (cycleRuntimeTracked
         ? formatOperatingDday(asset.remainingHours)
@@ -1139,7 +1141,6 @@
       : "-";
     const remainingDetail = cycleHours ? formatSignedRemaining(asset) : "교체주기 미설정";
     const evidenceText = fullEvidence || emptyEvidenceMessage(replacementEvent);
-    const evidencePreview = evidence || evidenceText;
     const cardPosition = formatCardPosition(asset);
     const unitAttribute = ["1", "2", "shared"].includes(String(asset.unitNo || ""))
       ? ` data-unit="${escapeHtml(asset.unitNo)}"`
@@ -1162,7 +1163,7 @@
       ? getLatestDataParcRuntimeBasis(asset.tagNumber)
       : null;
     const dataparcRuntimeBasisLine = dataparcRuntimeBasis
-      ? `<div class="dataparc-runtime-basis" title="${escapeHtml(`조회 기준 ${formatKstDateTimeDisplay(dataparcRuntimeBasis.startAt)}부터 현재까지의 DataPARC RUN 누적시간입니다.`)}"><span>DataPARC 기준</span><strong>${escapeHtml(formatKstDateTimeDisplay(dataparcRuntimeBasis.startAt))} → 현재</strong></div>`
+      ? `<div class="dataparc-runtime-basis" title="${escapeHtml(`DataPARC에서 실제 확인한 기간입니다. 마지막 조회 이후 누적시간은 저장된 기동·정지 상태에 따라 계산됩니다.`)}"><span>DataPARC 조회</span><strong>${escapeHtml(formatKstDateTimeDisplay(dataparcRuntimeBasis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(dataparcRuntimeBasis.observedAt))}</strong></div>`
       : "";
     const dataparcRuntimeAction = (
       isDataparcRuntimePilot &&
@@ -1192,26 +1193,26 @@
           <div class="asset-status-group">
             ${dataparcRuntimeAction}
             <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(awaitingBackfill ? "재구성 대기" : severityLabel(severity))}</span>
-            ${confirmed ? `<span class="operation-pill ${operationRunning ? "running" : "stopped"}">${operationRunning ? "운전중" : "정지"}</span>` : ""}
+            ${confirmed && !startupPending ? `<span class="operation-pill ${operationRunning ? "running" : "stopped"}">${operationRunning ? "운전중" : "정지"}</span>` : ""}
           </div>
         </div>
 
         ${dataparcRuntimeBasisLine}
 
         ${confirmed ? `
-          <div class="cycle-overview${startupPending ? " is-startup-pending" : ""}" title="${escapeHtml(remainingDetail)}">
+          <div class="cycle-overview${startupPending ? " is-startup-pending" : ""}${!cycleHours ? " is-policy-unset" : ""}" title="${escapeHtml(remainingDetail)}">
             <div class="cycle-primary-metric">
               <span data-mobile-label="${escapeHtml(cyclePrimaryMobileLabel)}">${escapeHtml(cyclePrimaryLabel)}</span>
               <strong data-mobile-value="${escapeHtml(cyclePrimaryMobileValue)}">${escapeHtml(cyclePrimaryValue)}</strong>
             </div>
-            <div class="cycle-deadline-metric ${escapeHtml(severity)}">
+            ${cycleHours ? `<div class="cycle-deadline-metric ${escapeHtml(severity)}">
               <span>${cycleRuntimeTracked && !operationRunning ? "D-day · 정지" : "D-day"}</span>
               <strong>${escapeHtml(remainingLabel)}</strong>
             </div>
             <div class="cycle-usage-metric ${escapeHtml(severity)}">
               <span>주기 사용</span>
               <strong>${cycleHours && !startupPending ? `${Math.round(rawProgress).toLocaleString("ko-KR")}%` : "-"}</strong>
-            </div>
+            </div>` : ""}
           </div>
 
           ${cycleHours && !startupPending ? `
@@ -1234,25 +1235,23 @@
               <span><em>교체</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
               <b aria-hidden="true">→</b>
               <span><em>기동</em><strong>${startupPending ? "미등록" : escapeHtml(formatDate(asset.cycleStartedAt))}</strong></span>
-              ${startupPending ? "" : `<b aria-hidden="true">→</b><span><em>${cycleRuntimeTracked ? "예상" : "예정"}</em><strong>${escapeHtml(nextReplacementAt)}</strong></span>`}
-              <small>기준 ${cycleHours ? cycleBasisLabel : "미설정"}</small>
+              ${startupPending || !cycleHours ? "" : `<b aria-hidden="true">→</b><span><em>${cycleRuntimeTracked ? "예상" : "예정"}</em><strong>${escapeHtml(nextReplacementAt)}</strong></span>`}
+              ${cycleHours ? `<small>기준 ${cycleBasisLabel}</small>` : ""}
             </div>
           ` : `
             <div class="cycle-date-line">
-              <span><em>최근</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
-              <b aria-hidden="true">→</b>
-              <span><em>${cycleRuntimeTracked ? "예상" : "예정"}</em><strong>${escapeHtml(nextReplacementAt)}</strong></span>
-              <small>기준 ${cycleHours ? cycleBasisLabel : "미설정"}</small>
+              <span><em>최근 교체</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
+              ${cycleHours ? `<b aria-hidden="true">→</b><span><em>${cycleRuntimeTracked ? "예상" : "예정"}</em><strong>${escapeHtml(nextReplacementAt)}</strong></span><small>기준 ${cycleBasisLabel}</small>` : ""}
             </div>
           `}
 
-          <div class="asset-evidence${evidence ? "" : " is-empty"}">
-            <div class="evidence-heading">
-              <span>등록 근거</span>
+          <details class="asset-evidence${evidence ? "" : " is-empty"}">
+            <summary class="evidence-heading">
+              <span>교체 등록 근거</span>
               <em class="evidence-source-badge ${escapeHtml(evidenceMeta.className)}">${escapeHtml(evidenceMeta.label)}</em>
-            </div>
-            <p title="${escapeHtml(evidenceText)}">${escapeHtml(evidencePreview)}</p>
-          </div>
+            </summary>
+            <p>${escapeHtml(evidenceText)}</p>
+          </details>
         ` : awaitingBackfill ? `
           <div class="unknown-cycle is-rebuild-pending">
             <strong>자동 이력 재확인 중</strong>
@@ -1270,7 +1269,6 @@
         <div class="asset-actions">
           ${operationAction}
           <button type="button" class="asset-action ${confirmed ? "" : "primary"}" data-mobile-write data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">${startupPending ? "V-Belt 교체 다시 등록" : "V-Belt 교체 등록"}</button>
-          ${confirmed && !startupPending ? `<button type="button" class="asset-action" data-mobile-write data-asset-action="runtime" data-tag="${escapeHtml(asset.tagNumber)}">누적시간</button>` : ""}
           <button type="button" class="asset-action" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}" aria-label="${escapeHtml(`${cardPosition} 이력 보기`)}">이력 보기</button>
         </div>
       </article>
@@ -1651,6 +1649,24 @@
   }
 
   function displayEventContent(event) {
+    if (event?.sourceType === "dataparc_runtime") {
+      try {
+        const source = JSON.parse(String(event.sourceText || ""));
+        const startAt = String(source?.startAt || "").trim();
+        const observedAt = String(source?.observedAt || source?.endAt || "").trim();
+        if (startAt && observedAt && Number.isFinite(Date.parse(startAt)) && Number.isFinite(Date.parse(observedAt))) {
+          const runtimeHours = Number(event.runtimeHours);
+          return `조회 ${formatKstDateTimeDisplay(startAt)} ~ ${formatKstDateTimeDisplay(observedAt)}${Number.isFinite(runtimeHours) && runtimeHours >= 0 ? ` · 누적 ${formatDaysHours(runtimeHours)}` : ""}`;
+        }
+      } catch {
+      }
+      // Keep older notes readable when their structured source is unavailable.
+      return String(event.note || "DataPARC 운전시간 조회").replace(
+        /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})/g,
+        instant => Number.isFinite(Date.parse(instant)) ? formatKstDateTimeDisplay(instant) : instant
+      );
+    }
+
     if (event?.eventType !== "replacement") {
       return event?.note || event?.sourceText || "-";
     }
@@ -1676,7 +1692,7 @@
     elements.historyBody.innerHTML = events
       .map(event => `
         <tr>
-          <td>${escapeHtml(["startup", "operation_start", "operation_stop"].includes(event.eventType) ? formatKstDateTimeDisplay(event.eventDate) : formatDate(event.eventDate))}</td>
+          <td>${escapeHtml(["startup", "operation_start", "operation_stop", "runtime_correction"].includes(event.eventType) ? formatKstDateTimeDisplay(event.eventDate) : formatDate(event.eventDate))}</td>
           <td>
             <strong>${escapeHtml(event.displayName || event.positionLabel)}</strong><br>
             <span class="history-tag">${escapeHtml(event.tagNumber)}</span>
@@ -1712,14 +1728,8 @@
       ? `
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         <div><span>최근 V-Belt 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
-        <div><span>현재 운전상태</span><strong>${asset.isRunning ? "운전중" : "정지"}</strong></div>
+        <div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.isRunning ? "운전중" : "정지"}</strong></div>
         <div><span>누적 운전시간</span><strong>${startupPending ? "0시간" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
-        <div>
-          <span>누적시간 관리</span>
-          ${hasAuthenticatedWriteAccess() && !startupPending
-            ? `<button type="button" class="button secondary history-runtime-edit" data-mobile-write data-history-action="runtime">누적시간 수정</button>`
-            : `<strong>${startupPending ? "기동 후 수정 가능" : "조회 전용"}</strong>`}
-        </div>
       `
       : awaitingBackfill
         ? `
@@ -1796,10 +1806,11 @@
   function renderCandidates() {
     if (shouldHideAutomaticData()) {
       elements.candidateCountBadge.hidden = true;
+      if (elements.managementCandidateBadge) elements.managementCandidateBadge.hidden = true;
       elements.candidateEmpty.hidden = true;
       elements.candidateList.innerHTML = `
         <div class="candidate-rebuild-lock">
-          <strong>V13 업무일지 이력 복구를 먼저 완료해 주세요.</strong>
+          <strong>과거 교체 이력 복구를 먼저 완료해 주세요.</strong>
           <span>기존 자동감지 후보는 재구성 완료 후 새 기준으로 다시 표시됩니다. 수동 등록 이력은 영향을 받지 않습니다.</span>
         </div>
       `;
@@ -1810,8 +1821,13 @@
       .filter(candidate => candidate.detectedType === "replacement");
     const candidates = allCandidates.filter(candidate => candidate.blowerType === state.activeType);
 
-    elements.candidateCountBadge.hidden = allCandidates.length === 0;
-    elements.candidateCountBadge.textContent = String(allCandidates.length);
+    elements.candidateCountBadge.hidden = candidates.length === 0;
+    elements.candidateCountBadge.textContent = String(candidates.length);
+    if (elements.managementCandidateBadge) {
+      elements.managementCandidateBadge.hidden = candidates.length === 0;
+      elements.managementCandidateBadge.textContent = String(candidates.length);
+      elements.managementCandidateBadge.setAttribute("aria-label", `업무일지 검토 ${candidates.length}건`);
+    }
     elements.candidateEmpty.hidden = candidates.length > 0;
 
     elements.candidateList.innerHTML = candidates
@@ -1840,75 +1856,32 @@
   function renderBackfillStatus(backfill = state.data?.backfill) {
     const notice = elements.historicalBackfillNotice;
     if (!notice) return;
-
-    const isSuperAdmin = Boolean(state.data?.user?.isSuperAdmin);
     const recovery = state.data?.recoveryV12 || null;
     const recoveryStatus = String(recovery?.status || "pending");
-    const recoveryComplete = recoveryStatus === "complete";
-    const recoveryBlocked = recoveryStatus === "blocked";
-    const recoveryStarted = Boolean(recovery?.hasRun) || !["", "pending"].includes(recoveryStatus);
-    const staged = Number(recovery?.stagedEvents || 0);
-    const scanned = Number(recovery?.scannedRows || 0);
-    const showOverviewCallout = !recoveryComplete || state.backfillRunning;
-    const sourceLabel = recovery?.sourceTable === "legacy_logs" ? "과거 업무일지" : "신규 업무일지";
-    const cursor = Number(recovery?.cursorRowId || 0).toLocaleString("ko-KR");
-
-    elements.historicalBackfillButton.hidden = !isSuperAdmin || isMobileMonitoringView();
-    elements.overviewBackfillButton.hidden = !isSuperAdmin || isMobileMonitoringView();
-    elements.overviewBackfillCallout.hidden = !showOverviewCallout;
+    const complete = recoveryStatus === "complete";
+    const blocked = recoveryStatus === "blocked";
+    const started = Boolean(recovery?.hasRun) || !["", "pending"].includes(recoveryStatus);
+    const canRecover = hasAuthenticatedWriteAccess() && Boolean(state.data?.user?.isSuperAdmin) && !isMobileMonitoringView();
+    const needed = !complete || state.backfillRunning;
+    const count = Number(recovery?.stagedEvents || 0).toLocaleString("ko-KR");
+    elements.historicalBackfillButton.hidden = !canRecover || !needed;
+    elements.overviewBackfillButton.hidden = !canRecover || !needed;
+    elements.overviewBackfillCallout.hidden = !needed;
     elements.overviewBackfillCallout.classList.toggle("is-catchup", false);
-
-    if (showOverviewCallout) {
-      elements.overviewBackfillTitle.textContent = recoveryBlocked
-        ? "V13 안전 차단"
-        : "업무일지 교체 이력 복구 V13";
-      elements.overviewBackfillSummary.textContent = state.backfillRunning
-        ? `업무일지 한 건 전체 문맥으로 설비를 판정하고 있습니다. 확정 ${staged.toLocaleString("ko-KR")}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인 · ${sourceLabel} #${cursor}`
-        : recoveryBlocked
-          ? (recovery?.message || "자동 확정 가능한 교체이력이 없어 기존 저장값을 유지했습니다. 감사자료를 확인해 주세요.")
-          : isSuperAdmin
-            ? "TAG·설비명·호기·A/B/C 위치와 같은 업무일지 안의 앞뒤 문맥을 함께 읽어 실제 V-Belt 교체만 복구합니다. 고정 건수 목표는 사용하지 않습니다."
-            : "최고관리자의 V13 업무일지 문맥 복구가 완료되면 검증된 교체주기가 표시됩니다.";
-
-      const buttonLabel = state.backfillRunning
-        ? "V13 검증·복구 중..."
-        : recoveryBlocked
-          ? "V13 감사자료 확인"
-          : recoveryStarted
-            ? "V13 이어서 복구"
-            : "업무일지 이력 복구 V13";
-      elements.overviewBackfillButton.textContent = buttonLabel;
-      elements.historicalBackfillButton.textContent = buttonLabel;
-    }
-
-    notice.hidden = false;
-
-    if (state.backfillRunning) {
-      notice.dataset.state = "running";
-      notice.textContent = `V13 문맥 복구 진행 중 · 확정 ${staged.toLocaleString("ko-KR")}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인 · ${sourceLabel} #${cursor}`;
-      return;
-    }
-
-    if (recoveryComplete) {
-      notice.dataset.state = "complete";
-      notice.textContent = `V13 업무일지 복구 완료 · 교체 이력 ${staged.toLocaleString("ko-KR")}건 반영`;
-      return;
-    }
-
-    if (recoveryBlocked) {
-      notice.dataset.state = "required";
-      notice.textContent = `V13 안전 차단 · 확정 ${staged.toLocaleString("ko-KR")}건 · 기존 저장 이력 유지`;
-      return;
-    }
-
-    if (recoveryStarted) {
-      notice.dataset.state = "required";
-      notice.textContent = `V13 문맥 복구 필요 · 확정 ${staged.toLocaleString("ko-KR")}건 · 원문 ${scanned.toLocaleString("ko-KR")}건 확인 · 이어서 실행 가능`;
-      return;
-    }
-
-    notice.dataset.state = "required";
-    notice.textContent = "V13 업무일지 문맥 복구 필요 · 아직 V13 검증을 실행하지 않음";
+    notice.hidden = !needed;
+    if (!needed) { notice.textContent = ""; return; }
+    const title = state.backfillRunning ? "교체 이력 복구 중" : blocked ? "교체 이력 복구 확인" : "과거 교체 이력 복구";
+    const summary = state.backfillRunning ? `확정 ${count}건 · 원문을 확인하고 있습니다.`
+      : blocked ? (recovery?.message || "복구 결과를 확인해 주세요. 기존 이력은 보존됩니다.")
+      : canRecover ? "업무일지에 기록된 V-Belt 교체 이력을 확인합니다."
+      : "관리자가 과거 교체 이력을 확인하고 있습니다.";
+    elements.overviewBackfillTitle.textContent = title;
+    elements.overviewBackfillSummary.textContent = summary;
+    const buttonLabel = state.backfillRunning ? "복구 중…" : blocked ? "진단 결과 확인" : started ? "이어서 복구" : "교체 이력 복구";
+    elements.overviewBackfillButton.textContent = buttonLabel;
+    elements.historicalBackfillButton.textContent = buttonLabel;
+    notice.dataset.state = state.backfillRunning ? "running" : "required";
+    notice.textContent = `${title} · ${summary}`;
   }
 
 
@@ -8233,7 +8206,7 @@
       } else {
         elements.authNotice.hidden = false;
         elements.authNotice.dataset.state = "public";
-        elements.authNotice.textContent = "공유 조회 전용 · 로그인된 업무일지에서 이 메뉴를 열면 OIS 조회·기동/정지·이력 추가/수정·누적시간 보정이 활성화됩니다.";
+        elements.authNotice.textContent = "공유 조회 전용 · 변경하려면 업무일지에서 로그인해 주세요.";
       }
 
       if (!(data.types || []).some(type => type.key === state.activeType)) {
@@ -8267,6 +8240,7 @@
       subview = "overview";
     }
     state.subview = subview;
+    if (elements.managementMenu) elements.managementMenu.open = false;
 
     document.querySelectorAll(".sub-tab").forEach(button => {
       const active = button.dataset.subview === subview;
@@ -9050,25 +9024,22 @@
   }
 
   function populateAssetManagerTargets(selectedTag = "__new__") {
-    const catalog = [...(state.data?.assetCatalog || [])].sort((left, right) => {
-      const typeDifference = String(left.blowerType).localeCompare(String(right.blowerType));
-      if (typeDifference !== 0) return typeDifference;
-      const sortDifference = Number(left.sortOrder || 0) - Number(right.sortOrder || 0);
-      if (sortDifference !== 0) return sortDifference;
-      return String(left.tagNumber).localeCompare(String(right.tagNumber));
-    });
-
+    const catalog = [...(state.data?.assetCatalog || [])].sort((left, right) => (
+      Number(left.sortOrder || 0) - Number(right.sortOrder || 0) || String(left.tagNumber).localeCompare(String(right.tagNumber))
+    ));
+    const typeKeys = [state.activeType, ...(state.data?.types || []).map(type => type.key)]
+      .filter((key, index, all) => all.indexOf(key) === index);
     elements.assetManagerTarget.innerHTML = [
       '<option value="__new__">＋ 새 Blower 추가</option>',
-      ...catalog.map(asset => {
-        const status = asset.enabled ? "" : " · 사용 중지";
-        return `<option value="${escapeHtml(asset.tagNumber)}">${escapeHtml(assetTypeLabel(asset.blowerType))} · ${escapeHtml(assetUnitLabel(asset.unitNo))} · ${escapeHtml(asset.positionLabel)} · ${escapeHtml(asset.tagNumber)}${escapeHtml(status)}</option>`;
+      ...typeKeys.map(key => {
+        const assets = catalog.filter(asset => asset.blowerType === key);
+        if (!assets.length) return "";
+        return `<optgroup label="${escapeHtml(assetTypeLabel(key))}">${assets.map(asset => (
+          `<option value="${escapeHtml(asset.tagNumber)}">${escapeHtml(assetUnitLabel(asset.unitNo))} · ${escapeHtml(asset.positionLabel)} · ${escapeHtml(asset.tagNumber)}${asset.enabled ? "" : " · 사용 중지"}</option>`
+        )).join("")}</optgroup>`;
       })
     ].join("");
-
-    elements.assetManagerTarget.value = catalog.some(asset => asset.tagNumber === selectedTag)
-      ? selectedTag
-      : "__new__";
+    elements.assetManagerTarget.value = catalog.some(asset => asset.tagNumber === selectedTag) ? selectedTag : "__new__";
   }
 
   function fillAssetManagerForm(tagNumber = "__new__") {
@@ -9743,6 +9714,18 @@
   }
 
   function bindEvents() {
+    elements.managementMenu?.addEventListener("click", event => {
+      if (event.target.closest("button")) elements.managementMenu.open = false;
+    });
+    document.addEventListener("click", event => {
+      if (elements.managementMenu?.open && !elements.managementMenu.contains(event.target)) elements.managementMenu.open = false;
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && elements.managementMenu?.open) {
+        elements.managementMenu.open = false;
+        elements.managementMenu.querySelector("summary")?.focus();
+      }
+    });
     elements.typeTabs.addEventListener("click", event => {
       const button = event.target.closest("[data-type]");
       if (button) switchType(button.dataset.type);

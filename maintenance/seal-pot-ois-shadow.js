@@ -1890,7 +1890,7 @@
       <div class="seal-pot-ois-window">
         <header>
           <div>
-            <span>SEAL POT OIS 운전상태 · 누적시간 분석 V2</span>
+            <span>Seal Pot 운영정보 조회</span>
             <strong id="sealPotOisHeadline">Seal Pot OIS 운전시간 분석 대기</strong>
           </div>
           <button type="button" class="button secondary" id="sealPotOisClose">닫기</button>
@@ -1905,8 +1905,6 @@
           <button type="button" data-days="7">7일</button>
           <button type="button" data-days="30">30일</button>
           <button type="button" data-days="90">3개월</button>
-          <button type="button" data-days="180">6개월</button>
-          <button type="button" data-days="365">1년</button>
         </div>
 
         <div class="seal-pot-ois-controls">
@@ -1914,9 +1912,15 @@
           <span>~</span>
           <label>종료일 <input type="date" id="sealPotOisEnd"></label>
           <button type="button" class="button primary" id="sealPotOisRun">OIS 조회</button>
-          <button type="button" class="button secondary" id="sealPotOisRequery">전체 재조회</button>
           <button type="button" class="button secondary seal-pot-ois-apply" id="sealPotOisApply" disabled>적용 가능한 계산값 없음</button>
         </div>
+
+        <details class="vibration-extra-query" data-mobile-write>
+          <summary>추가 조회</summary>
+          <div><span>이미 조회한 기간도 다시 가져옵니다.</span>
+            <button type="button" class="button secondary" id="sealPotOisRequery">전체 재조회</button>
+          </div>
+        </details>
 
         <div class="seal-pot-ois-status" id="sealPotOisStatus" data-state="idle">
           조회할 기간을 선택해 주세요.
@@ -2048,21 +2052,33 @@
   }
 
   function syncButton() {
+    const queryActions = document.getElementById("blowerQueryActions");
     const assetManager = document.getElementById("assetManagerButton");
-    if (!assetManager) return;
+    if (!queryActions && !assetManager) return;
 
     if (!button) {
       button = document.createElement("button");
       button.type = "button";
       button.className = "button primary seal-pot-ois-launch";
-      button.textContent = "OIS 조회";
+      button.setAttribute("data-mobile-write", "");
+      button.textContent = "운영정보 조회";
+      button.title = "운영정보(OIS) 토출압력·베어링온도로 Seal Pot 운전시간을 조회합니다.";
       button.addEventListener("click", openAnalysis);
+    }
+
+    if (queryActions) {
+      if (button.parentElement !== queryActions) queryActions.appendChild(button);
+    } else if (
+      button.parentElement !== assetManager.parentElement ||
+      button.previousElementSibling !== assetManager
+    ) {
       assetManager.insertAdjacentElement("afterend", button);
     }
 
     button.hidden =
       activeType() !== "seal_pot" ||
       !currentUser() ||
+      document.body.classList.contains("public-monitoring") ||
       isMobileMonitoring();
   }
 
