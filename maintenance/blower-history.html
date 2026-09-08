@@ -6,12 +6,14 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260909-history-delete-v1">
+  <link rel="stylesheet" href="blower-history.css?v=20260909-unified-refresh-v1">
   <link rel="stylesheet" href="blower-history-mobile-dialog-close-v1.css?v=20260903-v1">
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="blower-history.js?v=20260909-history-delete-v1" defer></script>
-  <script src="/maintenance/seal-pot-ois-shadow.js?v=20260908-runtime-all-v1" defer></script>
+  <link rel="stylesheet" href="blower-unified-refresh.css?v=20260909-v1">
+  <script src="blower-unified-refresh.js?v=20260909-v1" defer></script>
+  <script src="blower-history.js?v=20260909-unified-refresh-v1" defer></script>
+  <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -29,11 +31,15 @@
           data-shift-log-return
           hidden
         >업무일지로 돌아가기</button>
-        <button type="button" class="button secondary" id="refreshButton">새로고침</button>
+        <button type="button" class="button secondary" id="refreshButton" title="전체 Blower 업무일지·누적시간 최신화">최신화</button>
       </div>
     </header>
 
     <section class="notice-bar" id="authNotice" role="status" aria-live="polite" hidden></section>
+    <section class="unified-refresh-status" id="unifiedRefreshStatus" aria-label="전체 최신화 결과" hidden>
+      <p id="unifiedRefreshText" role="status" aria-live="polite"></p>
+      <details id="unifiedRefreshDetails" hidden><summary id="unifiedRefreshSummary">최신화 결과</summary><div id="unifiedRefreshList"></div></details>
+    </section>
     <nav class="type-tabs" id="typeTabs" aria-label="Blower 종류"></nav>
 
     <div class="workspace">
@@ -665,6 +671,7 @@
       <footer class="dialog-footer history-dialog-footer">
         <button type="button" class="button primary" data-mobile-write data-history-action="replacement">V-Belt 교체 등록</button>
         <button type="button" class="button secondary" id="historyRuntimeStateButton" data-mobile-write data-history-action="runtime_state_add" hidden>운전 이력 추가</button>
+        <button type="button" class="button secondary" id="historyRuntimeQueryButton" data-mobile-write data-history-action="runtime_query_settings" hidden>조회 기준·상세</button>
         <button type="button" class="button secondary" id="historyRuntimeCorrectionButton" data-mobile-write data-history-action="runtime" hidden>누적시간 수정</button>
         <button type="button" class="button secondary" data-close-dialog="historyDialog">닫기</button>
       </footer>

@@ -54,7 +54,8 @@ test('latest active manual operation retains its original edit alongside the rep
   ui.openAssetHistory(tag);
   assert.match(ui.elements.assetHistoryList.innerHTML, /data-history-action="runtime_state_edit"/);
   assert.match(ui.elements.assetHistoryList.innerHTML, /data-history-action="replacement_event_edit"/);
-  assert.match(ui.elements.historyCycleSummary.innerHTML, /정지중/);
+  assert.match(ui.elements.historyCycleSummary.innerHTML, /누적 기동시간/);
+  assert.doesNotMatch(ui.elements.historyCycleSummary.innerHTML, /정지중|기동중/);
 });
 test('mobile, public, automatic, superseded and unverifiable replacements cannot expose or force open editing', () => {
   for (const options of [{ mobile: true }, { canWrite: false }]) {
@@ -142,5 +143,5 @@ test('dialog fields use a compact responsive grid and distinct cache versions', 
     assert.equal((html.match(new RegExp(`id="${id}"`, 'g')) || []).length, 1);
   }
   assert.match(css, /@media \(min-width: 600px\)[\s\S]*?\.replacement-edit-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(html, /blower-history\.css\?v=20260909-history-delete-v1/); assert.match(html, /blower-history\.js\?v=20260909-history-delete-v1/);
+  assert.match(html, /blower-history\.css\?v=20260909-unified-refresh-v1/); assert.match(html, /blower-history\.js\?v=20260909-unified-refresh-v1/);
 });

@@ -1,0 +1,31 @@
+/* BLOWER_UNIFIED_REFRESH_V1 — two card actions, one global refresh. */
+#refreshButton { min-width: 90px; font-weight: 800; }
+#blowerQueryActions { display: none !important; }
+.unified-refresh-status { margin: 0 0 12px; padding: 11px 14px; border: 1px solid #cfdbeb; border-radius: 10px; background: #fff; color: #244361; font-size: 13px; }
+.unified-refresh-status[hidden], .unified-refresh-status [hidden] { display: none !important; }
+.unified-refresh-status p { margin: 0; line-height: 1.65; font-weight: 650; }
+.unified-refresh-status details { margin-top: 6px; }
+.unified-refresh-status summary { cursor: pointer; font-weight: 750; padding: 3px 0; }
+#unifiedRefreshList { display: grid; gap: 5px; margin-top: 8px; max-height: 280px; overflow: auto; }
+.unified-refresh-result { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(0, 1.8fr); gap: 10px; padding: 6px 8px; border-radius: 5px; background: #f4f7fa; }
+.unified-refresh-result strong { font-weight: 700; }
+.unified-refresh-result span { overflow-wrap: anywhere; }
+.unified-refresh-result[data-result="failed"] { background: #fff1f1; }
+.unified-refresh-result[data-result="skipped"] { background: #fff8e9; }
+.asset-card .asset-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.asset-card[data-operation-state="measured"] { background: #fff; border-color: #ced9e6; border-left-color: #758ba0; }
+.asset-card[data-operation-state="measured"] .cycle-overview { background: #f6f9fc; border-color: #dce5ee; }
+.asset-card[data-operation-state="measured"] .cycle-primary-metric strong { font-variant-numeric: tabular-nums; }
+.asset-card[data-operation-state="measured"] .cycle-primary-metric span { color: #49637a; }
+.asset-card .dataparc-runtime-row { grid-template-columns: minmax(0, 1fr); }
+.asset-card .dataparc-runtime-basis strong { white-space: normal; overflow-wrap: anywhere; }
+.history-dialog-footer { flex-wrap: wrap; }
+@media (max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse) {
+  .unified-refresh-status { font-size: 12px; padding: 8px 10px; }
+  .unified-refresh-result { grid-template-columns: 1fr; gap: 2px; }
+  .asset-card[data-operation-state="measured"] .cycle-primary-metric strong { font-size: clamp(17px, 3.8vw, 23px); }
+}
+@media (max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse) {
+  /* Measured values are already compact; do not render the legacy pseudo-value twice. */
+  .asset-card[data-operation-state="measured"] .cycle-primary-metric > strong::after { content: none !important; }
+}

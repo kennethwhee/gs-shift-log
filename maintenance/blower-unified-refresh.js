@@ -1,0 +1,151 @@
+/* BLOWER_UNIFIED_REFRESH_V1 — deterministic planning and serial request handling. */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.BlowerUnifiedRefresh = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+  const DAY = 86400000;
+  const SIGNAL = 'GSPOGE.ABB_DCS.003ETH03AN602XB04';
+  const DP_TAGS = new Set(['104ETH03AN601','104ETH03AN602','104ETG30AN601','104ETG30AN602',
+    '204ETG30AN601','204ETG30AN602','104SDF01AN001','104SDF01AN002','204SDF01AN001','204SDF01AN002','204LMDF01AN001']);
+  const OIS_TAGS = {
+    fbhe: new Set(['104HHL60AP611','104HHL60AP621','104HHL60AP631','204HHL60AP611','204HHL60AP621','204HHL60AP631']),
+    seal_pot: new Set(['104HHL10AN611','104HHL10AN621','104HHL10AN631','204HHL10AN611','204HHL10AN621','204HHL10AN631'])
+  };
+  const bridges = Object.create(null);
+  const time = value => value ? Date.parse(value) : NaN;
+  const day = value => { const n = value instanceof Date ? value.getTime() : time(value); return Number.isFinite(n) ? new Date(n + 9 * 3600000).toISOString().slice(0,10) : ''; };
+  function intermittent(a) {
+    return a?.blowerType === 'organic_fuel' || a?.assetGroup === 'manure' || a?.tagNumber === '204LMDF01AN001';
+  }
+  function snapshot(a) {
+    return { tagNumber: a.tagNumber, lastReplacementAt: a.lastReplacementAt || '',
+      cycleStartState: a.cycleStartState || 'legacy', cycleStartedAt: a.cycleStoredStartedAt ?? a.cycleStartedAt ?? '',
+      cycleStartRevision: a.cycleStartRevision || '', cycleRuntimeRevision: a.cycleRuntimeRevision || '' };
+  }
+  function sameCycle(a, b) {
+    if (!a || !b) return false;
+    const left = snapshot(a), right = snapshot(b);
+    return Object.keys(left).every(k => left[k] === right[k]);
+  }
+  function plan(assets, now, basisFor = () => null) {
+    const end = now instanceof Date ? now.getTime() : time(now), today = day(new Date(end));
+    if (!Number.isFinite(end)) throw new Error('서버 기준시각을 확인할 수 없습니다.');
+    const tasks = [], skipped = [], groups = { fbhe: [], seal_pot: [] };
+    for (const a of assets || []) {
+      if (a.enabled === false || a.enabled === 0) continue;
+      const skip = reason => skipped.push({ tagNumber: a.tagNumber, displayName: a.displayName || a.tagNumber, status: 'skipped', message: reason });
+      const replacement = time(a.lastReplacementAt);
+      if (!Number.isFinite(replacement)) { skip('교체일 등록 필요 · 이력 보기 / V-Belt 교체 등록'); continue; }
+      if (replacement >= end) { skip('교체일이 현재 시각 이후입니다.'); continue; }
+      if (OIS_TAGS[a.blowerType]?.has(a.tagNumber)) {
+        const first = day(a.lastReplacementAt);
+        if (Math.floor((time(today + 'T00:00:00+09:00') - time(first + 'T00:00:00+09:00')) / DAY) + 1 > 366) {
+          skip('OIS 366일 조회한도 초과 · 이력에서 교체 기준 확인'); continue;
+        }
+        groups[a.blowerType].push(a); continue;
+      }
+      if (!DP_TAGS.has(a.tagNumber)) { skip('연결된 운전시간 조회 방식이 없습니다.'); continue; }
+      if (a.cycleStartState === 'pending') { skip('기동 대기 · 이력에서 실제 첫 기동을 등록한 뒤 최신화'); continue; }
+      const dataParcTag = a.tagNumber === '104ETH03AN602' ? SIGNAL : String(a.dataParcTag || '').trim();
+      if (!/^GSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*$/.test(dataParcTag) || dataParcTag.length > 200 || (a.tagNumber !== '104ETH03AN602' && dataParcTag === SIGNAL)) {
+        skip('RUN TAG 설정 필요 · 이력 보기 → 조회 기준·상세'); continue;
+      }
+      const previous = a.dataParcRuntimeBasis || basisFor(a.tagNumber);
+      // A cycle-local successful query owns its start. Never use the latest state/anchor as a new start.
+      const startAt = previous?.startAt || (a.cycleStartState === 'started' && a.cycleStartedAt) || a.lastReplacementAt;
+      const start = time(startAt);
+      if (!Number.isFinite(start) || start < replacement || start >= end || end - start > 366 * DAY) {
+        skip('조회 기준이 현재 교체 Cycle 또는 366일 한도와 맞지 않습니다.'); continue;
+      }
+      tasks.push({ kind: 'dataparc', asset: a, snapshot: snapshot(a), startAt, dataParcTag });
+    }
+    for (const kind of ['fbhe', 'seal_pot']) {
+      if (groups[kind].length) {
+        const starts = groups[kind].map(a => day(a.lastReplacementAt)).sort();
+        tasks.push({ kind, assets: groups[kind], snapshots: groups[kind].map(snapshot), startDate: starts[0], endDate: today });
+      }
+    }
+    return { tasks, skipped, targetCount: (assets || []).filter(a => a.enabled !== false && a.enabled !== 0).length };
+  }
+  function error(message, code) { const e = new Error(message); e.code = code; return e; }
+  async function waitRequests(items, io, options = {}) {
+    const map = new Map((items || []).filter(x => x?.id).map(x => [String(x.id), x]));
+    if (!map.size || map.size > 12) throw error('운전시간 요청 ID를 확인할 수 없습니다.', 'INVALID_REQUEST_IDS');
+    const ids = [...map.keys()], clock = options.clock || Date.now, sleep = options.sleep || (ms => new Promise(r => setTimeout(r, ms)));
+    const start = clock(), deadline = start + (options.timeoutMs || 2 * 3600000);
+    let retry = 0;
+    while (clock() < deadline) {
+      io.assertWritable?.();
+      const all = [...map.values()];
+      const failed = all.find(x => x.status === 'failed');
+      if (failed) throw error(failed.errorMessage || '회사 PC 조회에 실패했습니다.', 'REQUEST_FAILED');
+      if (all.every(x => x.status === 'complete')) return all;
+      if (all.some(x => !['pending', 'processing', 'complete'].includes(x.status))) throw error('알 수 없는 조회 상태입니다.', 'INVALID_REQUEST_STATUS');
+      // No Agent response: do not enqueue another eleven long-running requests.
+      if (all.every(x => x.status === 'pending') && clock() - start >= (options.pendingTimeoutMs || 180000)) {
+        throw error('회사 PC Agent 응답 대기시간을 초과했습니다. 완료된 값은 유지합니다.', 'AGENT_UNAVAILABLE');
+      }
+      io.progress?.(`${all.filter(x => x.status === 'complete').length}/${all.length} · ${all.some(x => x.status === 'processing') ? '계산 중' : '대기 중'}`);
+      await sleep(Math.min(3000, Math.max(0, deadline - clock())));
+      let payload;
+      try {
+        payload = await io.api({ url: `/api/ois-data-requests?action=status_batch&compact=1&ids=${encodeURIComponent(ids.join(','))}&_=${clock()}`, timeoutMs: 20000 });
+        retry = 0;
+      } catch (e) {
+        if (![0,429,502,503,504].includes(Number(e?.status || 0)) || retry >= 4) throw e;
+        await sleep(Math.min(30000, Math.max(1000 * 2 ** retry++, Number(e.retryAfterMs) || 0))); continue;
+      }
+      const returned = Array.isArray(payload?.items) ? payload.items : [];
+      if (ids.some(id => !returned.some(x => String(x.id) === id))) throw error('조회 요청 상태가 누락되었습니다.', 'REQUEST_MISSING');
+      for (const item of returned) if (map.has(String(item.id))) map.set(String(item.id), item);
+    }
+    throw error('운전시간 조회가 최대 대기시간을 초과했습니다.', 'REQUEST_TIMEOUT');
+  }
+  async function executeDataParc(task, io) {
+    io.assertWritable?.();
+    const s = task.snapshot;
+    const created = await io.api({ method: 'POST', url: '/api/ois-data-requests', body: {
+      action: 'create_blower_runtime_probe', unifiedRefresh: true, assetTag: s.tagNumber,
+      dataParcTag: task.dataParcTag, confirmRunSignal: true, startAt: task.startAt,
+      expectedLastReplacementAt: s.lastReplacementAt, expectedCycleStartState: s.cycleStartState,
+      expectedCycleStartedAt: s.cycleStartedAt, expectedCycleStartRevision: s.cycleStartRevision,
+      expectedCycleRuntimeRevision: s.cycleRuntimeRevision
+    }});
+    const item = created?.item || created?.items?.[0];
+    if (!item?.id) throw error('DataPARC 조회 요청 ID를 받지 못했습니다.', 'REQUEST_MISSING');
+    await waitRequests([item], io);
+    io.assertWritable?.();
+    io.progress?.('조회 결과 저장 중');
+    const applied = await io.api({ method: 'POST', body: { action: 'dataparc_runtime_sync', requestId: item.id } });
+    return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'complete', message: applied.message || '실제 누적 기동시간 반영' };
+  }
+  async function executeOis(task, io) {
+    const bridge = bridges[task.kind];
+    if (!bridge) throw error('OIS 분석 모듈을 불러오지 못했습니다. Ctrl+F5 후 다시 확인해 주세요.', 'MODULE_MISSING');
+    io.assertWritable?.();
+    const created = await io.api({ method: 'POST', url: '/api/ois-data-requests', body: {
+      action: task.kind === 'fbhe' ? 'create_fbhe_vibration_batch' : 'create_seal_pot_runtime_batch',
+      startDate: task.startDate, endDate: task.endDate, refreshLatest: true
+    }});
+    const items = await waitRequests(created?.items || [], io);
+    return bridge(task, items, io);
+  }
+  function oisBody(task, items, a, p, observedAt) {
+    const s = task.snapshots.find(x => x.tagNumber === a.tagNumber);
+    if (!sameCycle(a, s)) throw error('조회 중 교체·운전 이력이 변경되었습니다. 다음 최신화에서 다시 조회합니다.', 'CYCLE_CONFLICT');
+    // Reject an invalid/no-change plan too; equality with a bad report is not verification.
+    if (p.runtimeReason) throw error(p.runtimeReason, 'OIS_NOT_VERIFIED');
+    if (!p.stateFresh) throw error('최신 OIS 자료가 3시간 이내가 아닙니다.', 'OIS_STALE');
+    return { action: 'ois_runtime_refresh_apply', tagNumber: a.tagNumber, requestType: task.kind === 'fbhe' ? 'fbhe_vibration' : 'seal_pot_runtime',
+      requestIds: items.map(x => x.id), startDate: task.startDate, endDate: task.endDate,
+      runtimeHours: p.cycleRuntimeHours, observedAt, latestSampleAt: p.latestSampleAt,
+      cycleCoveragePct: p.cycleCoveragePct, rangeCoveragePct: p.rangeCoveragePct,
+      cycleRangeComplete: true, targetState: p.stateEligible ? (p.targetRunning ? 'running' : 'stopped') : 'keep',
+      stateSource: task.kind === 'seal_pot' ? (p.pressureState ? 'pressure' : 'temperature') : 'vibration',
+      firstRunningAt: p.firstRunningAt || '', ...Object.fromEntries(Object.entries(s).filter(([k]) => k !== 'tagNumber').map(([k,v]) => ['expected' + k[0].toUpperCase() + k.slice(1),v])) };
+  }
+  return { plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeOis, oisBody,
+    register(kind, fn) { if (!['fbhe','seal_pot'].includes(kind) || typeof fn !== 'function') throw new Error('Invalid OIS bridge'); bridges[kind] = fn; } };
+});

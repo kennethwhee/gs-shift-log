@@ -97,11 +97,11 @@ test('failed commit clears preview token, keeps failure visible and does not sil
 });
 test('unknown current runtime stays unknown in cards and history with no fabricated zero, D-day or progress',()=>{
  const h=harness();Object.assign(h.asset,{cycleStartState:'legacy',cycleRuntimeState:'unknown',operationState:'unknown',severity:'runtime_unknown',cycleElapsedHours:null,runtimeHours:null,remainingHours:null,progressPct:null});
- h.ui.openAssetHistory(tag);assert.match(h.ui.elements.historyCycleSummary.innerHTML,/확인 필요/);assert.doesNotMatch(h.ui.elements.historyCycleSummary.innerHTML,/0시간|정지중|기동중/);
- const card=h.ui.renderAssetCard(h.asset,{cycleDays:90});assert.match(card,/확인 필요/);assert.doesNotMatch(card,/aria-valuenow|0%|D-DAY|data-asset-action="operation_toggle"/);assert.match(card,/data-asset-action="dataparc_runtime_probe"/);
+ h.ui.openAssetHistory(tag);assert.match(h.ui.elements.historyCycleSummary.innerHTML,/최신화 필요/);assert.doesNotMatch(h.ui.elements.historyCycleSummary.innerHTML,/0시간|정지중|기동중/);
+ const card=h.ui.renderAssetCard(h.asset,{cycleDays:90});assert.match(card,/최신화 필요/);assert.doesNotMatch(card,/aria-valuenow|0%|D-DAY|data-asset-action="operation_toggle"/);assert.doesNotMatch(card,/data-asset-action="dataparc_runtime_probe"/);
 });
 test('delete dialog ids are unique, errors accessible, cancel is default and cache versions match',()=>{
  for(const id of ['historyDeleteDialog','historyDeleteForm','historyDeleteAsset','historyDeleteTarget','historyDeletePreview','historyDeleteReason','historyDeleteError','historyDeleteConfirm','historyDeleteCancel'])assert.equal((html.match(new RegExp(`id="${id}"`,'g'))||[]).length,1);
  assert.match(html,/id="historyDeleteCancel"[^>]*autofocus/);assert.match(html,/id="historyDeleteConfirm"[^>]*disabled/);assert.match(html,/id="historyDeleteError" role="alert" hidden/);assert.match(css,/body\.mobile-monitoring #historyDeleteDialog/);assert.match(css,/body\.public-monitoring #historyDeleteDialog/);
- assert.match(html,/blower-history\.js\?v=20260909-history-delete-v1/);
+ assert.match(html,/blower-history\.js\?v=20260909-unified-refresh-v1/);
 });

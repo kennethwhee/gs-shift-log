@@ -110,18 +110,18 @@ test('backdated replacement does not absorb a pre-existing DataPARC row and rest
         created_at:'2026-09-08T14:16:00.000Z',updated_at:'2026-09-08T14:16:00.000Z'});
       const p=await f.confirm(); assert.equal(p.status,200,p.message); assert.deepEqual({...f.row('old-query')},e);
       assert.equal(f.asset().cycle_runtime_state,running?'running':'stopped');
-      assert.equal(f.asset().cycle_runtime_hours,running?1235.5:1234.5);
+      assert.equal(f.asset().cycle_runtime_hours,1234.5);
       assert.equal(f.asset().last_replacement_at,OLD); assert.equal(f.asset().cycle_start_state,'legacy');
     } finally {f.sqlite.close();}
   });
 });
-test('latest stop removal resumes from surviving startup rather than retaining the deleted stop total', async()=>{
+test('intermittent stop deletion restores measured startup total without wall-clock addition', async()=>{
   const f=await use({running:true}); try {
     f.add({id:'stop',event_type:'operation_stop',event_date:'2026-09-08T14:45:00.000Z',runtime_hours:999,action_type:'정지',created_at:'2026-09-08T14:46:00.000Z',updated_at:'2026-09-08T14:46:00.000Z'});
     f.sqlite.prepare("UPDATE blower_history_assets SET cycle_runtime_state='stopped', cycle_runtime_hours=999, runtime_hours=999, is_running=0 WHERE tag_number=?").run(TAG);
     const blocked=await f.confirm('startup'); assert.equal(blocked.code,'HISTORY_DELETE_LATEST_FIRST'); assert.equal(blocked.blockingEventId,'stop');
     const p=await f.confirm('stop'); assert.equal(p.status,200,p.message);
-    assert.equal(f.asset().cycle_runtime_hours,0.5); assert.equal(f.asset().is_running,1);
+    assert.equal(f.asset().cycle_runtime_hours,0); assert.equal(f.asset().is_running,1);
   } finally{f.sqlite.close();}
 });
 test('latest restart removal restores the previous stopped total with no elapsed-time addition',async()=>{

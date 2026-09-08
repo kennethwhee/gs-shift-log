@@ -280,7 +280,7 @@ test("ships the browser query-poll-sync contract without legacy split writes", (
   assert.match(combinedFrontend, new RegExp(ASSET_TAG));
   assert.match(
     combinedFrontend,
-    /data-asset-action=["']dataparc_runtime_probe["']/
+    /data-history-action=["']runtime_query_settings["']/
   );
   assert.match(combinedFrontend, new RegExp(CREATE_ACTION));
   assert.match(combinedFrontend, /status_batch/);

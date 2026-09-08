@@ -248,7 +248,7 @@ test("frontend blocks unsupported assets and concurrent duplicate clicks", async
 test("DataPARC range action is desktop-only, confirmed, and excludes startup-pending cycles", () => {
   assert.match(
     clientSource,
-    /isDataparcRuntimeAsset\s*&&\s*confirmed\s*&&\s*!startupPending\s*&&[\s\S]*?!isMobileMonitoringView\(\)/
+    /historyRuntimeQueryButton\.hidden/
   );
   assert.match(clientSource, /DataPARC 기간조회/);
   assert.match(clientSource, /openDataParcRuntimeDialog\s*\(/);
@@ -473,10 +473,11 @@ function dataParcBasisEvent(overrides = {}, sourceOverrides = {}) {
 }
 
 
-test("legacy 602 card exposes a period query without a separately registered startup", () => {
+test("legacy 602 card keeps history without restoring a separate overview period button", () => {
   const ui = runtimeUiFixture();
   const html = ui.renderAssetCard(ui.asset, null);
-  assert.match(html, /data-asset-action="dataparc_runtime_probe"[^>]*>기간조회/);
+  assert.doesNotMatch(html, /data-asset-action="dataparc_runtime_probe"/);
+  assert.match(html, /data-asset-action="history"/);
   assert.equal(ui.asset.cycleStartState, "legacy");
   assert.equal(ui.openDataParcRuntimeDialog(ui.asset.tagNumber), undefined);
   assert.equal(ui.elements.dataparcRuntimeDialog.open, true);

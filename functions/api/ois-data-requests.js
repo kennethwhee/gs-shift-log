@@ -13898,6 +13898,17 @@ async function createBlowerRuntimeProbeRequest(
   }
 
 
+  if (body.unifiedRefresh === true && (
+    body.expectedLastReplacementAt !== expectedLastReplacementAt ||
+    body.expectedCycleStartState !== expectedCycleStartState ||
+    body.expectedCycleStartedAt !== expectedCycleStartedAt ||
+    body.expectedCycleStartRevision !== expectedCycleStartRevision ||
+    body.expectedCycleRuntimeRevision !== expectedCycleRuntimeRevision
+  )) {
+    return jsonResponse({ ok: false, code: "BLOWER_RUNTIME_REFRESH_CYCLE_CONFLICT",
+      message: "최신화 대기 중 교체·운전 이력이 변경되었습니다. 다시 최신화해 주세요." }, 409);
+  }
+
   const parsedLastReplacementAt =
     parseStrictRfc3339(
       expectedLastReplacementAt
@@ -14388,6 +14399,12 @@ async function cancelSealPotRuntimeBatchRequests(context, body) {
   });
 }
 
+/* BLOWER_UNIFIED_REFRESH_V1: never reuse an unfinished-day snapshot as a closed day. */
+function completedOisChunkCoversEnd(row, endDate) {
+  const bound = new Date(`${endDate}T00:00:00+09:00`).getTime() + 86400000;
+  return Number.isFinite(bound) && Date.parse(row.started_at || row.requested_at || "") >= bound;
+}
+
 async function createSealPotRuntimeBatchRequest(context, body) {
   const authentication = await getAuthenticatedUser(context);
   if (authentication.error) return authentication.error;
@@ -14458,7 +14475,8 @@ async function createSealPotRuntimeBatchRequest(context, body) {
         .bind(chunk.targetDate)
         .first();
 
-      if (completedRow) {
+      if (completedRow && !(body.refreshLatest === true &&
+          (chunk.endDate >= todayKst || !completedOisChunkCoversEnd(completedRow, chunk.endDate)))) {
         canceledCount += await failActiveSealPotRuntimeTarget(
           context.env.DB,
           chunk.targetDate,
@@ -14683,7 +14701,8 @@ async function createFbheVibrationBatchRequest(context, body) {
         .bind(chunk.targetDate)
         .first();
 
-      if (completedRow) {
+      if (completedRow && !(body.refreshLatest === true &&
+          (chunk.endDate >= todayKst || !completedOisChunkCoversEnd(completedRow, chunk.endDate)))) {
         canceledCount += await failActiveFbheVibrationTarget(
           context.env.DB,
           chunk.targetDate,
@@ -17299,6 +17318,7 @@ if (
 
 
 export const __oisDataRequestsTest = {
+  completedOisChunkCoversEnd, createFbheVibrationBatchRequest, createSealPotRuntimeBatchRequest,
   formatKstRfc3339,
   parseStrictRfc3339,
   buildBlowerRuntimeProbeTargetDate,

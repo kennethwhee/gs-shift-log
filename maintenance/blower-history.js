@@ -57,6 +57,9 @@
     vibrationPolling: false,
     vibrationPollRequestIds: [],
     vibrationPreset: "cycle",
+    unifiedRefreshBusy: false,
+    unifiedRefreshToken: "",
+    unifiedRefreshResults: [],
     dataparcRuntimeBusy: false,
     dataparcRuntimeTag: "",
     dataparcRuntimeStatus: ""
@@ -119,6 +122,8 @@
       "candidateEmpty",
       "auditHistoryButton",
       "refreshButton",
+      "unifiedRefreshStatus", "unifiedRefreshText", "unifiedRefreshDetails", "unifiedRefreshSummary", "unifiedRefreshList",
+      "historyRuntimeQueryButton",
       "dataparcRuntimeDialog",
       "dataparcRuntimeForm",
       "dataparcRuntimeDialogTag",
@@ -941,6 +946,7 @@
 
   function getLatestDataParcRuntimeBasis(tagNumber) {
     const asset = findAsset(tagNumber);
+    if (asset?.dataParcRuntimeBasis) return asset.dataParcRuntimeBasis;
     const replacementTime = new Date(asset?.lastReplacementAt || "").getTime();
     const cycleStartState = String(asset?.cycleStartState || "legacy").trim();
     const cycleStartRevision = String(asset?.cycleStartRevision || "").trim();
@@ -1081,6 +1087,7 @@
     if (sourceType === "shift_log_operation_auto") {
       return { label: "업무일지 교체운전", className: "auto" };
     }
+    if (sourceType === "ois_runtime_refresh") return { label: "OIS 최신화", className: "dataparc" };
     if (sourceType === "dataparc_runtime") {
       return { label: "DataPARC 조회", className: "dataparc" };
     }
@@ -1174,6 +1181,7 @@
   }
 
   function renderAssetCard(asset, setting) {
+    const intermittent = asset.blowerType === "organic_fuel" || asset.assetGroup === "manure";
     const cycleDays = Number(setting?.cycleDays);
     const cycleElapsedHours = roundHours(asset.cycleElapsedHours);
     const replacementEvent = asset.lastReplacementAt ? getLatestReplacementEvent(asset) : null;
@@ -1183,10 +1191,11 @@
     const startupPending = confirmed && cycleStartState === "pending";
     const actualStarted = confirmed && cycleStartState === "started" && Boolean(asset.cycleStartedAt);
     const cycleRuntimeTracked = confirmed && !startupPending && Boolean(asset.cycleRuntimeTracked);
-    const runtimeUnknown = confirmed && asset.cycleRuntimeState === "unknown";
+    const runtimeUnknown = confirmed && (asset.cycleRuntimeState === "unknown" || asset.measurementRequired === true ||
+      (intermittent && asset.cycleElapsedHours === null && !startupPending));
     const operationKnown = cycleRuntimeTracked && asset.operationState !== "unknown" && asset.cycleRuntimeState !== "unknown";
     const operationRunning = operationKnown && Boolean(asset.isRunning);
-    const operationState = confirmed
+    const operationState = intermittent ? "measured" : confirmed
       ? (startupPending ? "startup_pending" : (operationKnown ? (operationRunning ? "running" : "stopped") : "unknown"))
       : "unconfirmed";
     const operationStateLabel = {
@@ -1201,7 +1210,7 @@
     const evidence = readableEvidence(replacementEvent);
     const fullEvidence = fullEvidenceText(replacementEvent);
     const evidenceMeta = evidenceSourceMeta(replacementEvent);
-    const cycleHours = cycleDays > 0 ? cycleDays * 24 : null;
+    const cycleHours = !intermittent && cycleDays > 0 ? cycleDays * 24 : null;
     const rawProgress = cycleHours ? (cycleElapsedHours / cycleHours) * 100 : 0;
     const progress = Math.max(0, Math.min(100, rawProgress));
     const nextReplacementAt = !cycleHours || runtimeUnknown
@@ -1225,45 +1234,25 @@
         ? `${cycleHours.toLocaleString("ko-KR")}h`
         : `${cycleDays.toLocaleString("ko-KR")}일`)
       : "미설정";
-    const actionRunning = !startupPending && Boolean(asset.isRunning);
-    const operationActionLabel = actionRunning ? "정지" : "기동";
-    const operationActionTitle = actionRunning
-      ? "클릭하면 현재 시각으로 운전을 정지합니다."
-      : "클릭하면 현재 시각으로 운전을 기동합니다.";
-    const operationAction = confirmed && !runtimeUnknown
-      ? `<button type="button" class="asset-action runtime-state-action ${actionRunning ? "stop" : "start"}" data-mobile-write data-asset-action="operation_toggle" data-tag="${escapeHtml(asset.tagNumber)}" title="${escapeHtml(operationActionTitle)}" aria-label="${escapeHtml(`${cardPosition} ${operationActionLabel}`)}">${operationActionLabel}</button>`
-      : "";
     const isDataparcRuntimeAsset = isDataParcRuntimeAsset(asset);
-    const dataparcRuntimeActive = state.dataparcRuntimeBusy && state.dataparcRuntimeTag === asset.tagNumber;
-    const dataparcRuntimeBasis = isDataparcRuntimeAsset
-      ? getLatestDataParcRuntimeBasis(asset.tagNumber)
-      : null;
-    const dataparcRuntimeAction = (
-      isDataparcRuntimeAsset &&
-      confirmed &&
-      !startupPending &&
-      hasAuthenticatedWriteAccess() &&
-      !isMobileMonitoringView()
-    )
-      ? `<button type="button" class="dataparc-runtime-action${dataparcRuntimeActive ? " is-running" : ""}" data-mobile-write data-asset-action="dataparc_runtime_probe" data-tag="${escapeHtml(asset.tagNumber)}" title="${escapeHtml(dataparcRuntimeActive ? (state.dataparcRuntimeStatus || "DataPARC 운전시간 조회 중") : "DataPARC 운전시간 기간조회")}"${dataparcRuntimeActive ? " disabled aria-busy=\"true\"" : ""}>${dataparcRuntimeActive ? "조회 중" : "기간조회"}</button>`
-      : "";
-    const dataparcRuntimeBasisLine = dataparcRuntimeBasis || dataparcRuntimeAction
+    const dataparcRuntimeBasis = isDataparcRuntimeAsset ? getLatestDataParcRuntimeBasis(asset.tagNumber) : null;
+    const dataparcRuntimeBasisLine = dataparcRuntimeBasis
       ? `<div class="dataparc-runtime-row">
-          <div class="dataparc-runtime-basis" title="${escapeHtml(dataparcRuntimeBasis ? "DataPARC에서 실제 확인한 기간입니다. 마지막 조회 이후 누적시간은 저장된 기동·정지 상태에 따라 계산됩니다." : "조회할 시작일시를 선택해 실제 누적 운전시간을 확인합니다.")}">
+          <div class="dataparc-runtime-basis" title="${escapeHtml(dataparcRuntimeBasis ? "DataPARC에서 확인한 기동 구간의 합계입니다. 유기성·축분은 마지막 조회 이후 시간을 자동으로 더하지 않습니다." : "조회할 시작일시를 선택해 실제 누적 운전시간을 확인합니다.")}">
             <span>DataPARC</span>
             ${dataparcRuntimeBasis ? `<strong>${escapeHtml(formatKstDateTimeDisplay(dataparcRuntimeBasis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(dataparcRuntimeBasis.observedAt))}</strong>` : `<small>기간을 선택해 조회</small>`}
           </div>
-          ${dataparcRuntimeAction}
         </div>`
       : "";
-    const cyclePrimaryLabel = startupPending
+    const cyclePrimaryLabel = intermittent ? "누적 기동시간" : startupPending
       ? "주기 상태"
       : (cycleRuntimeTracked ? "누적 운전" : (actualStarted ? "기동 경과" : "교체 경과"));
-    const cyclePrimaryMobileLabel = startupPending
+    const cyclePrimaryMobileLabel = intermittent ? "누적 기동" : startupPending
       ? "상태"
       : (cycleRuntimeTracked ? "누적" : (actualStarted ? "기동" : "교체"));
-    const cyclePrimaryValue = runtimeUnknown ? "확인 필요" : startupPending ? "기동 대기" : formatDaysHours(cycleElapsedHours);
-    const cyclePrimaryMobileValue = runtimeUnknown ? "확인 필요" : startupPending ? "기동 대기" : formatCompactDaysHours(cycleElapsedHours);
+    const measuredLabel = `${(startupPending ? 0 : cycleElapsedHours).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`;
+    const cyclePrimaryValue = runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : startupPending ? "기동 대기" : formatDaysHours(cycleElapsedHours);
+    const cyclePrimaryMobileValue = runtimeUnknown ? "최신화 필요" : intermittent ? measuredLabel : startupPending ? "기동 대기" : formatCompactDaysHours(cycleElapsedHours);
 
     return `
       <article class="asset-card" data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(operationState)}" data-tag="${escapeHtml(asset.tagNumber)}"${unitAttribute}>
@@ -1272,9 +1261,9 @@
             <strong class="asset-position" data-mobile-position="${escapeHtml(String(asset.positionLabel || "").trim() || cardPosition)}">${escapeHtml(cardPosition)}</strong>
             <span class="asset-tag">${escapeHtml(asset.tagNumber)}</span>
           </div>
-          <div class="asset-status-group">
+          ${intermittent ? "" : `<div class="asset-status-group">
             <span class="operation-pill ${escapeHtml(operationState)}">${escapeHtml(operationStateLabel)}</span>
-          </div>
+          </div>`}
         </div>
 
         ${dataparcRuntimeBasisLine}
@@ -1310,7 +1299,7 @@
             </div>
           ` : (startupPending && cycleHours ? `<div class="cycle-progress-block is-placeholder" aria-hidden="true"><div class="progress-track"></div></div>` : "")}
 
-          ${actualStarted || startupPending ? `
+          ${intermittent ? `<div class="cycle-date-line"><span><em>최근 교체</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span></div>` : actualStarted || startupPending ? `
             <div class="cycle-date-line${startupPending ? " is-startup-pending" : " has-cycle-start"}">
               <span><em>교체</em><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></span>
               <b aria-hidden="true">→</b>
@@ -1347,8 +1336,7 @@
         `}
 
         <div class="asset-actions">
-          ${operationAction}
-          <button type="button" class="asset-action ${confirmed ? "" : "primary"}" data-mobile-write data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">${startupPending ? "V-Belt 교체 다시 등록" : "V-Belt 교체 등록"}</button>
+          <button type="button" class="asset-action ${confirmed ? "" : "primary"}" data-mobile-write data-asset-action="replacement" data-tag="${escapeHtml(asset.tagNumber)}">V-Belt 교체 등록</button>
           <button type="button" class="asset-action" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}" aria-label="${escapeHtml(`${cardPosition} 이력 보기`)}">이력 보기</button>
         </div>
       </article>
@@ -1808,8 +1796,8 @@
       ? `
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         <div><span>최근 V-Belt 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
-        <div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.cycleRuntimeState === "unknown" ? "확인 필요" : asset.isRunning ? "기동중" : "정지중"}</strong></div>
-        <div><span>누적 운전시간</span><strong>${startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" ? "확인 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
+        ${asset.runtimeAccumulationMode === "measured_only" || asset.blowerType === "organic_fuel" ? "" : `<div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.cycleRuntimeState === "unknown" ? "확인 필요" : asset.isRunning ? "기동중" : "정지중"}</strong></div>`}
+        <div><span>${asset.blowerType === "organic_fuel" ? "누적 기동시간" : "누적 운전시간"}</span><strong>${startupPending ? "0시간" : asset.cycleRuntimeState === "unknown" || asset.measurementRequired ? "최신화 필요" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
       `
       : awaitingBackfill
         ? `
@@ -1820,6 +1808,13 @@
         <span class="status-pill unknown">교체일 미확인</span>
         <div class="history-unknown"><strong>확정된 V-Belt 교체 이력이 없습니다.</strong><span>검토 대기 후보를 확인하거나 최초 이력을 직접 등록해 주세요.</span></div>
       `;
+
+    if (elements.historyRuntimeQueryButton) {
+      const allowed = hasAuthenticatedWriteAccess() && !isMobileMonitoringView() &&
+        (isDataParcRuntimeAsset(asset) || ["fbhe", "seal_pot"].includes(asset.blowerType));
+      elements.historyRuntimeQueryButton.hidden = !allowed;
+      elements.historyRuntimeQueryButton.disabled = !allowed || state.unifiedRefreshBusy;
+    }
 
     if (elements.historyRuntimeStateButton) {
       const canManageRuntime = hasAuthenticatedWriteAccess() && Boolean(asset.lastReplacementAt) && !awaitingBackfill && asset.cycleRuntimeState !== "unknown";
@@ -3914,7 +3909,7 @@
     elements.vibrationShadowPanel.hidden = !allowed;
 
     if (elements.vibrationQueryButton) {
-      elements.vibrationQueryButton.hidden = !allowed;
+      elements.vibrationQueryButton.hidden = true;
     }
     if (elements.vibrationApplyButton) {
       elements.vibrationApplyButton.hidden = true;
@@ -7872,7 +7867,7 @@
         "&targetDate=" +
         encodeURIComponent(
           sourceChunk.targetDate
-        ),
+        ) + (sourceChunk.requestId ? "&requestId=" + encodeURIComponent(sourceChunk.requestId) : ""),
       timeoutMs:
         30000
     });
@@ -7883,7 +7878,7 @@
     options = {}
   ) {
     if (
-      !canUseFbheVibrationShadow()
+      !canUseFbheVibrationShadow() && !(options.unified === true && state.unifiedRefreshBusy && hasAuthenticatedWriteAccess() && !isMobileMonitoringView())
     ) {
       return null;
     }
@@ -7909,6 +7904,7 @@
         ).map(
           chunk => ({
             ...chunk,
+            requestId: (options.requestItems || []).find(item => item.targetDate === chunk.startDate + "~" + chunk.endDate)?.id || "",
             targetDate:
               chunk.startDate +
               "~" +
@@ -7918,6 +7914,8 @@
 
       const reports = [];
       const analysisErrors = [];
+
+      if (options.unified && sourceChunks.some(chunk => !chunk.requestId)) throw new Error("FBHE 원본 요청 ID가 누락되었습니다.");
 
       for (
         let index = 0;
@@ -8467,7 +8465,7 @@
 
   function setBusy(isBusy) {
     state.busy = Boolean(isBusy);
-    elements.refreshButton.disabled = state.busy;
+    elements.refreshButton.disabled = state.busy || state.unifiedRefreshBusy;
     const writeBlocked = !hasAuthenticatedWriteAccess();
     elements.scanButton.disabled = writeBlocked || state.busy || shouldHideAutomaticData();
     elements.historicalBackfillButton.disabled = writeBlocked || state.busy || state.backfillRunning;
@@ -8518,7 +8516,7 @@
       state.data = data;
 
       const shouldSyncOperations = (
-        options.syncOperations !== false &&
+        options.forceOperationSync === true && options.syncOperations !== false &&
         hasAuthenticatedWriteAccess(data) &&
         !isMobileMonitoringView() &&
         (options.forceOperationSync === true || !state.operationSyncCompleted)
@@ -8561,6 +8559,7 @@
         showToast(operationSyncResult.message || "업무일지 교체운전을 자동 반영했습니다.");
       }
     } catch (error) {
+      if (options.strict) throw error;
       console.error("Blower 이력 데이터 조회 실패:", error);
       elements.authNotice.hidden = false;
       elements.authNotice.textContent = error.message || "Blower 이력을 불러오지 못했습니다.";
@@ -9884,7 +9883,7 @@
       elements.overviewBackfillButton.disabled = state.busy;
       elements.overviewBackfillButton.textContent = "업무일지 이력 복구 V13";
       elements.scanButton.disabled = state.busy || shouldHideAutomaticData();
-      elements.refreshButton.disabled = state.busy;
+      elements.refreshButton.disabled = state.busy || state.unifiedRefreshBusy;
       elements.auditHistoryButton.disabled = state.busy || state.auditRunning;
       renderBackfillStatus();
     }
@@ -10113,7 +10112,158 @@
     }
   }
 
+  /* BLOWER_UNIFIED_REFRESH_V1 */
+  function renderUnifiedRefreshProgress(text, results = state.unifiedRefreshResults || []) {
+    if (!elements.unifiedRefreshStatus) return;
+    elements.unifiedRefreshStatus.hidden = false;
+    elements.unifiedRefreshText.textContent = text;
+    elements.unifiedRefreshDetails.hidden = results.length === 0;
+    const complete = results.filter(x => x.status === "complete").length;
+    const failed = results.filter(x => x.status === "failed").length;
+    const skipped = results.filter(x => x.status === "skipped").length;
+    elements.unifiedRefreshSummary.textContent = `결과 · 반영 ${complete}대 · 미반영 ${failed + skipped}대`;
+    elements.unifiedRefreshList.innerHTML = results.map(item => `<div class="unified-refresh-result" data-result="${escapeHtml(item.status)}">
+      <strong>${escapeHtml(item.displayName || item.tagNumber)}</strong><span>${escapeHtml(item.message)}</span></div>`).join("");
+  }
+
+  function assertUnifiedRefreshWritable() {
+    if (!state.unifiedRefreshBusy || isMobileMonitoringView() || !hasAuthenticatedWriteAccess() ||
+        !getSessionToken() || getSessionToken() !== state.unifiedRefreshToken) {
+      const error = new Error("로그인 또는 조회 권한이 변경되어 최신화를 중단했습니다. 완료된 값은 유지합니다.");
+      error.status = 403; throw error;
+    }
+  }
+
+  async function refreshAllBlowers() {
+    if (state.busy || state.unifiedRefreshBusy || state.dataparcRuntimeBusy || state.vibrationPolling || state.vibrationApplying) return;
+    // Public/mobile readers only reload stored results. Opening the page never starts Excel.
+    if (isMobileMonitoringView() || !hasAuthenticatedWriteAccess()) {
+      await loadData({ syncOperations: false }); return;
+    }
+    const run = async () => {
+      if (state.busy || state.unifiedRefreshBusy) return;
+      state.unifiedRefreshBusy = true;
+      state.unifiedRefreshToken = getSessionToken();
+      state.unifiedRefreshResults = [];
+      setBusy(true);
+      elements.refreshButton.textContent = "최신화 중…";
+      elements.refreshButton.setAttribute("aria-busy", "true");
+      const core = window.BlowerUnifiedRefresh;
+      let phase = "업무일지", stopped = false, logNote = "";
+      const progress = text => renderUnifiedRefreshProgress(`${phase} · ${text}`);
+      const io = { api: apiRequest, assertWritable: assertUnifiedRefreshWritable, progress,
+        reload: () => loadData({ silent: true, syncOperations: false, strict: true }) };
+      try {
+        if (!core) throw new Error("최신화 모듈이 없습니다. Ctrl+F5 후 다시 확인해 주세요.");
+        assertUnifiedRefreshWritable();
+        progress("교체·교체운전 확인 중");
+        // Preserve the existing V13 candidate review policy: do not turn ambiguous new candidates into replacements.
+        const scan = await apiRequest({ method: "POST", timeoutMs: 180000, body: { action: "scan", days: 365 } });
+        assertUnifiedRefreshWritable();
+        const operation = await apiRequest({ method: "POST", timeoutMs: 180000, body: { action: "operation_sync", days: 365 } });
+        state.operationSyncCompleted = true;
+        logNote = `업무일지 새 교체 후보 ${Number(scan.insertedCount || 0)}건 · 교체운전 ${Number(operation.appliedStateChanges || 0)}건`;
+        if (Number(scan.scannedLogCount) >= 10000 || Number(operation.scannedLogCount) >= 5000) {
+          throw new Error("업무일지 조회한도에 도달했습니다. 누락 가능성이 있어 운전시간 최신화를 중단했습니다.");
+        }
+        await io.reload();
+        const planned = core.plan(state.data?.assets || [], currentServerDate(), getLatestDataParcRuntimeBasis);
+        state.unifiedRefreshResults.push(...planned.skipped);
+        let agentUnavailable = false;
+        for (const task of planned.tasks) {
+          assertUnifiedRefreshWritable();
+          const assets = task.kind === "dataparc" ? [task.asset] : task.assets;
+          phase = task.kind === "dataparc" ? (task.asset.displayName || task.asset.tagNumber) : task.kind === "fbhe" ? "FBHE 6대" : "Seal Pot 6대";
+          if (agentUnavailable) {
+            state.unifiedRefreshResults.push(...assets.map(a => ({ tagNumber: a.tagNumber, displayName: a.displayName,
+              status: "skipped", message: "회사 PC Agent 응답 없음 · 기존 값 유지" })));
+            continue;
+          }
+          progress("요청 준비 중");
+          try {
+            const result = task.kind === "dataparc" ? await core.executeDataParc(task, io) : await core.executeOis(task, io);
+            state.unifiedRefreshResults.push(...(Array.isArray(result) ? result : [result]));
+          } catch (e) {
+            state.unifiedRefreshResults.push(...assets.map(a => ({ tagNumber: a.tagNumber, displayName: a.displayName,
+              status: "failed", message: e.message || "조회 실패 · 기존 값 유지" })));
+            if (e.code === "AGENT_UNAVAILABLE") agentUnavailable = true;
+            if ([401,403].includes(Number(e.status))) throw e;
+          }
+          // Read-back failure must never be reported as successful display refresh.
+          await io.reload();
+          const done = state.unifiedRefreshResults.length;
+          elements.refreshButton.textContent = `최신화 ${done}/${planned.targetCount}`;
+          progress(`${done}/${planned.targetCount}대 처리`);
+        }
+        await io.reload();
+        const counts = state.unifiedRefreshResults;
+        const failures = counts.filter(x => x.status !== "complete").length;
+        const completion = `${formatKstDateTimeDisplay(currentServerDate().toISOString())} · 반영 ${counts.length - failures}대 / 전체 ${planned.targetCount}대`;
+        renderUnifiedRefreshProgress(`${completion} · ${logNote}${failures ? " · 미반영 설비는 결과 확인" : ""}`);
+        showToast(failures ? `최신화 처리 완료 · 미반영 ${failures}대는 결과를 확인해 주세요.` : "전체 Blower 최신화를 완료했습니다.");
+      } catch (e) {
+        stopped = true;
+        renderUnifiedRefreshProgress(`최신화 중단 · ${e.message || "연결 오류"}${logNote ? ` · ${logNote}` : ""}`);
+        showToast(e.message || "최신화를 완료하지 못했습니다.", "error");
+        await loadData({ silent: true, syncOperations: false }).catch(() => null);
+      } finally {
+        state.unifiedRefreshBusy = false;
+        state.unifiedRefreshToken = "";
+        elements.refreshButton.textContent = "최신화";
+        elements.refreshButton.removeAttribute("aria-busy");
+        setBusy(false);
+        if (elements.unifiedRefreshStatus) elements.unifiedRefreshStatus.dataset.state = stopped ? "failed" : "complete";
+        renderAssets();
+      }
+    };
+    if (navigator.locks?.request) {
+      await navigator.locks.request("gsShiftLog.blower-unified-refresh", { ifAvailable: true }, async lock => {
+        if (!lock) { showToast("다른 탭에서 Blower 최신화를 진행 중입니다."); return; }
+        await run();
+      });
+    } else await run();
+  }
+
+  async function refreshFbheForUnified(task, items, io) {
+    const core = window.BlowerUnifiedRefresh;
+    await io.reload();
+    elements.vibrationStartDate.value = task.startDate;
+    elements.vibrationEndDate.value = task.endDate;
+    const report = await loadFbheVibrationShadowReport({ silent: true, unified: true, requestItems: items });
+    if (!report || !Array.isArray(report.assets)) throw new Error("FBHE 분석 결과가 없습니다.");
+    const observedAt = currentServerDate().toISOString();
+    const results = [];
+    for (const target of task.assets) {
+      io.assertWritable();
+      try {
+        const current = findAsset(target.tagNumber);
+        const reportAsset = report.assets.find(a => a.tagNumber === target.tagNumber);
+        if (!reportAsset || !core.sameCycle(current, task.snapshots.find(a => a.tagNumber === target.tagNumber))) {
+          throw new Error("조회 중 교체·운전 이력이 변경되었거나 분석자료가 없습니다.");
+        }
+        const plan = buildFbheOisApplyPlan(reportAsset, report);
+        const body = core.oisBody(task, items, current, plan, observedAt);
+        const applied = await apiRequest({ method: "POST", body });
+        results.push({ tagNumber: target.tagNumber, displayName: target.displayName, status: "complete", message: applied.message });
+      } catch (e) {
+        if ([401,403].includes(Number(e.status))) throw e;
+        results.push({ tagNumber: target.tagNumber, displayName: target.displayName, status: "failed", message: e.message });
+      }
+      await io.reload();
+    }
+    return results;
+  }
+
   function bindEvents() {
+    document.addEventListener("click", event => {
+      if (state.unifiedRefreshBusy && event.target.closest?.("[data-mobile-write]")) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        showToast("최신화 중에는 이력을 변경할 수 없습니다. 완료 후 수정해 주세요.");
+      }
+    }, true);
+    window.addEventListener?.("beforeunload", event => {
+      if (state.unifiedRefreshBusy) { event.preventDefault(); event.returnValue = ""; }
+    });
     elements.managementMenu?.addEventListener("click", event => {
       if (event.target.closest("button")) elements.managementMenu.open = false;
     });
@@ -10172,6 +10322,14 @@
       if (!button || !state.historyAssetTag) return;
       const action = button.dataset.historyAction;
       const tagNumber = state.historyAssetTag;
+      if (action === "runtime_query_settings") {
+        elements.historyDialog.close();
+        const asset = findAsset(tagNumber);
+        if (isDataParcRuntimeAsset(asset)) openDataParcRuntimeDialog(tagNumber);
+        else if (asset?.blowerType === "fbhe") handleFbheVibrationQuery();
+        else if (asset?.blowerType === "seal_pot") window.BlowerSealPotDetails?.();
+        return;
+      }
       if (action === "history_event_delete") {
         openHistoryDeleteDialog(tagNumber, button.dataset.eventId);
         return;
@@ -10218,7 +10376,7 @@
     elements.settingsButton.addEventListener("click", openSettingsDialog);
     elements.assetManagerButton.addEventListener("click", openAssetManagerDialog);
     elements.auditHistoryButton.addEventListener("click", downloadHistoricalAudit);
-    elements.refreshButton.addEventListener("click", () => loadData({ forceOperationSync: true }));
+    elements.refreshButton.addEventListener("click", refreshAllBlowers);
     elements.vibrationQueryButton.addEventListener("click", handleFbheVibrationQuery);
 
     const vibrationRunButton =
@@ -10352,6 +10510,7 @@
 
   async function initialize() {
     cacheElements();
+    window.BlowerUnifiedRefresh?.register("fbhe", refreshFbheForUnified);
     elements.vibrationStartDate.max = maximumFbheVibrationDate();
     elements.vibrationEndDate.max = maximumFbheVibrationDate();
     applySavedAveragePeriod();

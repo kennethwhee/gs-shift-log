@@ -70,7 +70,7 @@ test("dedicated query anchor works without the management button and preserves t
   assert.match(button.title, /토출압력·베어링온도/);
   assert.doesNotMatch(button.title, /진동/);
   assert.equal(button.attributes.has("data-mobile-write"), true);
-  assert.equal(button.hidden, false);
+  assert.equal(button.hidden, true);
   assert.equal(button.handlers.length, 1);
   assert.equal(button.handlers[0][0], "click");
   button.handlers[0][1](); assert.equal(f.opened(), 1);
@@ -120,7 +120,7 @@ test("mobile, anonymous, public with stale local user, and other tabs cannot exp
   assert.equal(f.context.button.attributes.has("data-mobile-write"), true);
   f.classes.delete("public-monitoring"); f.set.type("fbhe"); f.sync();
   assert.equal(f.context.button.hidden, true);
-  f.set.type("seal_pot"); f.sync(); assert.equal(f.context.button.hidden, false);
+  f.set.type("seal_pot"); f.sync(); assert.equal(f.context.button.hidden, true);
 });
 
 test("missing anchors produce no detached launch control", () => {

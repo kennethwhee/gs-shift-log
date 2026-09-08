@@ -1110,10 +1110,17 @@ function detectionDateTime(row) {
   return normalizeDateTime(`${workDate}T${time}:00+09:00`);
 }
 
+/* BLOWER_UNIFIED_REFRESH_V1: intermittent loads never accrue unsampled wall-clock time. */
+function isIntermittentBlower(asset) {
+  return normalizeText(asset?.blower_type || asset?.blowerType) === "organic_fuel" ||
+    normalizeText(asset?.asset_group || asset?.assetGroup) === "manure" ||
+    normalizeText(asset?.tag_number || asset?.tagNumber) === "204LMDF01AN001";
+}
+
 function currentRuntimeHours(asset, now = new Date()) {
   let hours = Math.max(0, Number(asset.runtime_hours || 0));
 
-  if (Number(asset.is_running) === 1 && asset.runtime_anchor_at) {
+  if (!isIntermittentBlower(asset) && Number(asset.is_running) === 1 && asset.runtime_anchor_at) {
     const anchor = new Date(asset.runtime_anchor_at);
 
     if (!Number.isNaN(anchor.getTime()) && anchor <= now) {
@@ -1133,7 +1140,7 @@ function runtimeHoursAt(asset, eventDate) {
 
   let hours = Math.max(0, Number(asset.runtime_hours || 0));
 
-  if (Number(asset.is_running) === 1 && asset.runtime_anchor_at) {
+  if (!isIntermittentBlower(asset) && Number(asset.is_running) === 1 && asset.runtime_anchor_at) {
     const anchor = new Date(asset.runtime_anchor_at);
 
     if (!Number.isNaN(anchor.getTime()) && anchor <= at) {
@@ -1244,6 +1251,7 @@ function cycleRuntimeHoursAt(asset, eventDate) {
   const anchorAt = new Date(asset.cycle_runtime_anchor_at);
 
   if (
+    !isIntermittentBlower(asset) &&
     operationState === "running" &&
     !Number.isNaN(anchorAt.getTime()) &&
     anchorAt <= at
@@ -1277,11 +1285,12 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
   );
   const cycleRuntimeState = normalizeText(asset.cycle_runtime_state) || "stopped";
   const runtimeUnknown = cycleRuntimeState === "unknown";
-  const cycleElapsedHours = !hasConfirmedReplacement || runtimeUnknown || cycleStartState === "pending"
+  const measurementRequired = isIntermittentBlower(asset) && asset.runtime_measurement_verified === false && cycleStartState !== "pending";
+  const cycleElapsedHours = !hasConfirmedReplacement || runtimeUnknown || measurementRequired || cycleStartState === "pending"
     ? null
     : (cycleRuntimeTracked
       ? cycleRuntimeHoursAt(asset, now)
-      : cycleElapsedHoursSince(cycleStartedAt, now));
+      : (isIntermittentBlower(asset) ? null : cycleElapsedHoursSince(cycleStartedAt, now)));
   const cycleDays = toNullableNumber(setting?.cycleDays ?? setting?.cycle_days);
   const warningDays = toNullableNumber(setting?.warningDays ?? setting?.warning_days);
   const criticalDays = toNullableNumber(setting?.criticalDays ?? setting?.critical_days);
@@ -1300,7 +1309,7 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
 
   if (normalizeText(asset.last_replacement_at) && cycleStartState === "pending") {
     severity = "startup_pending";
-  } else if (hasConfirmedReplacement && runtimeUnknown) {
+  } else if (hasConfirmedReplacement && (runtimeUnknown || measurementRequired)) {
     severity = "runtime_unknown";
   } else if (cycleElapsedHours === null) {
     severity = latestReference ? "reference" : "uninitialized";
@@ -1338,6 +1347,7 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
     sortOrder: Number(asset.sort_order || 0),
     lastReplacementAt: normalizeText(asset.last_replacement_at),
     cycleStartedAt,
+    cycleStoredStartedAt: normalizeText(asset.cycle_started_at),
     cycleStartState,
     cycleStartRevision: normalizeText(asset.cycle_start_revision),
     cycleRuntimeTracked,
@@ -1346,11 +1356,14 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
       ? "unknown" : (cycleRuntimeState === "running" ? "running" : "stopped"),
     cycleRuntimeAnchorAt: normalizeText(asset.cycle_runtime_anchor_at),
     cycleRuntimeRevision: normalizeText(asset.cycle_runtime_revision),
-    runtimeHours: runtimeUnknown ? null : runtimeHours,
+    runtimeHours: runtimeUnknown || measurementRequired ? null : runtimeHours,
     isRunning: runtimeUnknown ? false : cycleRuntimeTracked
       ? cycleRuntimeState === "running"
       : Number(asset.is_running) === 1,
     cycleElapsedHours,
+    runtimeAccumulationMode: isIntermittentBlower(asset) ? "measured_only" : "state_elapsed",
+    measurementRequired,
+    runtimeMeasuredAt: normalizeText(asset.runtime_measured_at),
     remainingHours,
     progressPct,
     severity,
@@ -1638,6 +1651,26 @@ function latestSuccessfulDataParcTag(assetTag, rows) {
   return "";
 }
 
+function currentDataParcRuntimeBasis(asset, rows) {
+  if (!asset?.last_replacement_at || asset.cycle_start_state === "pending") return null;
+  const replacement = Date.parse(asset.last_replacement_at);
+  for (const row of rows || []) {
+    if (row.tag_number !== asset.tag_number || row.source_type !== DATAPARC_RUNTIME_SYNC_SOURCE_TYPE || row.event_type !== "runtime_correction") continue;
+    let source; try { source = JSON.parse(row.source_text); } catch { continue; }
+    const start = Date.parse(source.startAt), observed = Date.parse(source.observedAt || source.endAt);
+    if (source.assetTag !== asset.tag_number || source.requestType !== DATAPARC_RUNTIME_PROBE_REQUEST_TYPE ||
+        row.id !== dataParcRuntimeSyncEventId(source.requestId) || row.source_log_id !== source.requestId ||
+        !isSupportedDataParcRuntimePair(asset.tag_number, source.dataParcTag) ||
+        !Number.isFinite(start) || !Number.isFinite(observed) || start < replacement || observed < start ||
+        Date.parse(source.expectedLastReplacementAt) !== replacement ||
+        source.expectedCycleStartState !== (asset.cycle_start_state || "legacy") ||
+        String(source.expectedCycleStartRevision || "") !== String(asset.cycle_start_revision || "") ||
+        (asset.cycle_start_state === "started" && Date.parse(source.expectedCycleStartedAt) !== Date.parse(asset.cycle_started_at))) continue;
+    return { startAt: source.startAt, observedAt: source.observedAt || source.endAt, requestId: source.requestId, runtimeHours: Number(row.runtime_hours) };
+  }
+  return null;
+}
+
 async function loadAssetStates(database, settings) {
   const assetResult = await database
     .prepare(`
@@ -1671,11 +1704,11 @@ async function loadAssetStates(database, settings) {
 
   const referenceRows = Array.isArray(referenceResult.results) ? referenceResult.results : [];
   const runtimeResult = await database.prepare(`
-    SELECT id, tag_number, event_type, source_type, source_log_id, source_text
+    SELECT id, tag_number, event_type, event_date, runtime_hours, source_type, source_log_id, source_text, created_at
     FROM blower_history_events
-    WHERE source_type = ? AND event_type = 'runtime_correction'
+    WHERE event_type IN ('runtime_correction', 'startup')
     ORDER BY created_at DESC, event_date DESC, id DESC
-  `).bind(DATAPARC_RUNTIME_SYNC_SOURCE_TYPE).all();
+  `).all();
   const runtimeRows = Array.isArray(runtimeResult.results) ? runtimeResult.results : [];
   const now = new Date();
 
@@ -1709,13 +1742,24 @@ async function loadAssetStates(database, settings) {
         }
       : null;
 
+    const runtimeBasis = currentDataParcRuntimeBasis(asset, runtimeRows);
+    if (isIntermittentBlower(asset)) {
+      const manual = runtimeRows.find(row => row.tag_number === asset.tag_number && row.source_type === "manual" &&
+        ["runtime_correction", "startup"].includes(row.event_type) &&
+        new Date(row.event_date).getTime() >= new Date(asset.last_replacement_at || "").getTime() &&
+        Number.isFinite(Number(row.runtime_hours)) && Number(row.runtime_hours) >= 0 &&
+        Math.abs(Number(row.runtime_hours) - Number(asset.cycle_runtime_hours)) < 0.000001);
+      asset.runtime_measurement_verified = Boolean((runtimeBasis && Number.isFinite(runtimeBasis.runtimeHours) && Math.abs(runtimeBasis.runtimeHours - Number(asset.cycle_runtime_hours)) < 0.000001) || manual || asset.cycle_start_state === "pending");
+      asset.runtime_measured_at = manual && (!runtimeBasis || Date.parse(manual.event_date) > Date.parse(runtimeBasis.observedAt))
+        ? manual.event_date : runtimeBasis?.observedAt || "";
+    }
     return { ...buildAssetState(
       asset,
       settings[asset.blower_type],
       latestProblem,
       latestReference,
       now
-    ), dataParcTag: latestSuccessfulDataParcTag(asset.tag_number, runtimeRows) };
+    ), dataParcTag: latestSuccessfulDataParcTag(asset.tag_number, runtimeRows), dataParcRuntimeBasis: runtimeBasis };
   });
 }
 
@@ -3883,7 +3927,8 @@ async function buildFbheVibrationShadowResponse(
 /* [FBHE-OIS-BROWSER-RAW-ANALYSIS-V7] */
 async function loadFbheVibrationRawResponse(
   database,
-  targetDate
+  targetDate,
+  requestId = ""
 ) {
   const range =
     parseFbheVibrationRangeKey(
@@ -3918,6 +3963,7 @@ async function loadFbheVibrationRawResponse(
         WHERE request_type = ?
           AND target_date = ?
           AND status = 'complete'
+          AND (? = '' OR id = ?)
         ORDER BY
           datetime(completed_at) DESC,
           datetime(requested_at) DESC,
@@ -3926,7 +3972,7 @@ async function loadFbheVibrationRawResponse(
       `)
       .bind(
         FBHE_VIBRATION_REQUEST_TYPE,
-        targetDate
+        targetDate, requestId, requestId
       )
       .first();
 
@@ -3985,7 +4031,8 @@ async function loadFbheVibrationRawResponse(
 
 async function loadSealPotRuntimeRawResponse(
   database,
-  targetDate
+  targetDate,
+  requestId = ""
 ) {
   const row = await database
     .prepare(`
@@ -3998,6 +4045,7 @@ async function loadSealPotRuntimeRawResponse(
       WHERE request_type = ?
         AND target_date = ?
         AND status = 'complete'
+          AND (? = '' OR id = ?)
       ORDER BY
         datetime(completed_at) DESC,
         datetime(requested_at) DESC,
@@ -4006,7 +4054,7 @@ async function loadSealPotRuntimeRawResponse(
     `)
     .bind(
       SEAL_POT_RUNTIME_REQUEST_TYPE,
-      targetDate
+      targetDate, requestId, requestId
     )
     .first();
 
@@ -4071,7 +4119,8 @@ async function handleGet(context, user) {
 
     return await loadSealPotRuntimeRawResponse(
       database,
-      targetDate
+      targetDate,
+      normalizeText(url.searchParams.get("requestId"))
     );
   }
 
@@ -4096,7 +4145,8 @@ async function handleGet(context, user) {
 
     return await loadFbheVibrationRawResponse(
       database,
-      targetDate
+      targetDate,
+      normalizeText(url.searchParams.get("requestId"))
     );
   }
 
@@ -5295,7 +5345,8 @@ function historyDeleteRestoreBoundary(boundary, replacement, now, fallbackAsset 
       historyDeleteTime(startedAt) < historyDeleteTime(replacement.event_date) || historyDeleteTime(startedAt) > at)) {
     startState = "legacy"; startedAt = null;
   }
-  const total = hours + (state === "running" ? (now.getTime() - at) / 3600000 : 0);
+  const measuredOnly = isIntermittentBlower(fallbackAsset || { tag_number: boundary.tag_number, blower_type: ASSET_SEEDS.find(row => row[0] === boundary.tag_number)?.[1] });
+  const total = hours + (state === "running" && !measuredOnly ? (now.getTime() - at) / 3600000 : 0);
   return { ...historyDeleteUnknownState(replacement),
     cycle_start_state: startState === "started" ? "started" : "legacy", cycle_started_at: startedAt || null,
     cycle_runtime_hours: total, cycle_runtime_anchor_at: now.toISOString(), cycle_runtime_state: state,
@@ -5311,7 +5362,8 @@ function historyDeleteRestoreBeforeSnapshot(event, replacement, now) {
   if (!Number.isFinite(anchor) || anchor < historyDeleteTime(replacement.event_date) || anchor > now.getTime() ||
       !Number.isFinite(hours) || hours < 0 || !["running", "stopped"].includes(before.cycleRuntimeState)) return null;
   const running = before.cycleRuntimeState === "running";
-  const total = hours + (running ? (now.getTime() - anchor) / 3600000 : 0);
+  const measuredOnly = isIntermittentBlower({ tag_number: event.tag_number, blower_type: ASSET_SEEDS.find(row => row[0] === event.tag_number)?.[1] });
+  const total = hours + (running && !measuredOnly ? (now.getTime() - anchor) / 3600000 : 0);
   const started = historyDeleteTime(before.cycleStartedAt);
   if (before.cycleStartState === "started" && (!Number.isFinite(started) || started < historyDeleteTime(replacement.event_date) || started > anchor)) return null;
   return { ...historyDeleteUnknownState(replacement),
@@ -13853,6 +13905,135 @@ async function exportHistoricalRecoveryV12(database, category) {
   return jsonResponse({ ok: true, version: HISTORY_RECOVERY_V12_VERSION, category: safeCategory, expectedConfirmed: HISTORY_RECOVERY_V12_EXPECTED_EVENTS, recovery: await v12LoadState(database), records: rows });
 }
 
+/* BLOWER_UNIFIED_REFRESH_V1 — one atomic, audited OIS update per unchanged cycle. */
+async function applyOisRuntimeRefresh(database, user, body, options = {}) {
+  const fail = (message, code = "OIS_REFRESH_INVALID", status = 400) => jsonResponse({ ok: false, code, message }, status);
+  const now = options.now instanceof Date ? options.now : new Date();
+  const tag = normalizeText(body.tagNumber), type = normalizeText(body.requestType);
+  const expectedType = ASSET_SEEDS.find(row => row[0] === tag)?.[1];
+  if (!((type === FBHE_VIBRATION_REQUEST_TYPE && expectedType === "fbhe") ||
+        (type === SEAL_POT_RUNTIME_REQUEST_TYPE && expectedType === "seal_pot"))) return fail("OIS 최신화 대상 설비를 확인해 주세요.");
+  const ids = body.requestIds;
+  if (!Array.isArray(ids) || !ids.length || ids.length > 12 || new Set(ids).size !== ids.length ||
+      ids.some(id => typeof id !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(id))) return fail("OIS 원본 요청 ID가 올바르지 않습니다.");
+  const chunks = buildFbheVibrationRangeChunks(body.startDate, body.endDate);
+  if (!chunks.length || chunks.length !== ids.length || body.endDate !== formatKstDate(now)) return fail("OIS 최신화는 교체일부터 오늘까지의 전체 구간이 필요합니다.");
+  const observed = parseDataParcRuntimeInstant(body.observedAt), latest = parseDataParcRuntimeInstant(body.latestSampleAt);
+  const hours = body.runtimeHours;
+  if (typeof hours !== "number" || !Number.isFinite(hours) || hours < 0 || hours > 366 * 24 ||
+      !observed || !latest || observed.time > now.getTime() + 60000 ||
+      now.getTime() - observed.time > 15 * 60000 || latest.time > observed.time + 60000 ||
+      observed.time - latest.time > 3 * 3600000 || body.cycleRangeComplete !== true ||
+      ![body.rangeCoveragePct, body.cycleCoveragePct].every(n => typeof n === "number" && Number.isFinite(n) && n >= 95 && n <= 100) ||
+      !["running", "stopped", "keep"].includes(body.targetState)) return fail("OIS 최신시각·95% 판정률·누적시간 검증에 실패했습니다. 기존 값은 유지합니다.");
+  if (type === FBHE_VIBRATION_REQUEST_TYPE && body.stateSource !== "vibration") return fail("FBHE 최신화는 진동 분석자료가 필요합니다.");
+  if (type === SEAL_POT_RUNTIME_REQUEST_TYPE && body.targetState !== "keep" && body.stateSource !== "pressure") {
+    return fail("Seal Pot 기동·정지 상태는 토출압력으로 확인한 경우에만 변경할 수 있습니다.");
+  }
+  const asset = await findAsset(database, tag);
+  if (!asset) return fail("활성 설비를 찾지 못했습니다.", "OIS_REFRESH_ASSET_MISSING", 404);
+  const replacement = Date.parse(asset.last_replacement_at || "");
+  if (!Number.isFinite(replacement) || replacement < Date.parse(`${body.startDate}T00:00:00+09:00`) ||
+      replacement > observed.time || hours > (observed.time - replacement) / 3600000 + 0.01) return fail("교체일 이후의 누적시간 범위를 벗어났습니다.");
+  const expected = [body.expectedLastReplacementAt, body.expectedCycleStartState, body.expectedCycleStartedAt,
+    body.expectedCycleStartRevision, body.expectedCycleRuntimeRevision];
+  if (expected.some(x => typeof x !== "string") || !body.expectedCycleRuntimeRevision ||
+      !["legacy", "started", "pending"].includes(body.expectedCycleStartState)) return fail("최신화 시작 시점의 Cycle 기준이 없습니다.");
+  const eventId = 'ois-refresh:' + await hashSessionToken(JSON.stringify([tag, ids, ...expected, body.observedAt]));
+  const sourceText = JSON.stringify({ version: 1, requestType: type, requestIds: ids, startDate: body.startDate,
+    endDate: body.endDate, observedAt: body.observedAt, latestSampleAt: body.latestSampleAt,
+    cycleCoveragePct: body.cycleCoveragePct, rangeCoveragePct: body.rangeCoveragePct,
+    stateSource: body.stateSource, targetState: body.targetState, firstRunningAt: body.firstRunningAt || '',
+    expectedLastReplacementAt: body.expectedLastReplacementAt, expectedCycleStartState: body.expectedCycleStartState,
+    expectedCycleStartedAt: body.expectedCycleStartedAt, expectedCycleStartRevision: body.expectedCycleStartRevision,
+    expectedCycleRuntimeRevision: body.expectedCycleRuntimeRevision });
+  if (sourceText.length > 4000) return fail("OIS 감사자료 길이를 초과했습니다.");
+  const existing = await database.prepare('SELECT * FROM blower_history_events WHERE id = ?').bind(eventId).first();
+  if (existing) {
+    if (existing.source_type === 'ois_runtime_refresh' && existing.source_text === sourceText &&
+        Math.abs(Number(existing.runtime_hours) - hours) < 0.000001) return jsonResponse({ ok: true, unchanged: true, message: "이미 반영한 OIS 최신화입니다." });
+    return fail("같은 최신화 요청에 다른 저장 결과가 있습니다.", "OIS_REFRESH_IDEMPOTENCY_CONFLICT", 409);
+  }
+  const actual = [asset.last_replacement_at || '', asset.cycle_start_state || 'legacy', asset.cycle_started_at || '',
+    asset.cycle_start_revision || '', asset.cycle_runtime_revision || ''];
+  if (actual.some((v,i) => v !== expected[i])) return fail("조회 중 교체·운전 이력이 변경되었습니다. 다시 최신화해 주세요.", "OIS_REFRESH_CYCLE_CONFLICT", 409);
+  // Pin every raw snapshot to the exact completed request used by the browser analysis.
+  const result = await database.prepare(`SELECT id, request_type, target_date, status, started_at, requested_at, completed_at
+    FROM ois_data_requests WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all();
+  const rows = result.results || [];
+  if (rows.length !== ids.length || chunks.some((chunk, i) => !rows.some(row =>
+      row.id === ids[i] && row.request_type === type && row.target_date === chunk.targetDate && row.status === 'complete'))) {
+    return fail("OIS 완료 원본과 분석 구간이 일치하지 않습니다.", "OIS_REFRESH_SOURCE_CONFLICT", 409);
+  }
+  const lastRow = rows.find(row => row.id === ids.at(-1));
+  if (!Number.isFinite(Date.parse(lastRow.completed_at)) || now.getTime() - Date.parse(lastRow.completed_at) > 3 * 3600000) {
+    return fail("오늘 OIS 원본이 오래되었습니다. 다시 최신화해 주세요.", "OIS_REFRESH_STALE", 409);
+  }
+  const pending = asset.cycle_start_state === 'pending';
+  const first = parseDataParcRuntimeInstant(body.firstRunningAt);
+  const starts = pending && (hours > 0.01 || body.targetState === 'running');
+  if (starts && (!first || first.time < replacement || first.time > observed.time || body.targetState === 'keep')) {
+    return fail("첫 기동시각과 현재 운전상태가 확인되지 않아 기동 대기를 유지합니다.");
+  }
+  if (pending && !starts) {
+    if (hours > 0.01) return fail("기동 대기의 누적시간을 확인해 주세요.");
+    return jsonResponse({ ok: true, unchanged: true, message: "기동 대기 · 실제 누적 0시간 확인" });
+  }
+  const nextState = body.targetState === 'keep' ? asset.cycle_runtime_state : body.targetState;
+  if (!["running", "stopped"].includes(nextState)) return fail("현재 상태가 미확인입니다. 실제 운전상태를 먼저 확인해 주세요.");
+  const running = nextState === 'running', nowText = now.toISOString();
+  const runtimeRevision = crypto.randomUUID(), startRevision = starts ? crypto.randomUUID() : asset.cycle_start_revision;
+  const startedAt = starts ? first.iso : asset.cycle_started_at;
+  const startState = starts ? 'started' : asset.cycle_start_state;
+  const note = `${expectedType === 'fbhe' ? 'FBHE 진동' : 'Seal Pot OIS'} 최신화 · ${body.startDate}~${body.endDate} · ${hours.toFixed(2)}h`;
+  const after = { ...asset, runtime_hours: hours, runtime_anchor_at: running ? body.observedAt : null, is_running: running ? 1 : 0,
+    cycle_runtime_hours: hours, cycle_runtime_anchor_at: body.observedAt, cycle_runtime_state: nextState,
+    cycle_runtime_revision: runtimeRevision, cycle_start_state: startState, cycle_started_at: startedAt,
+    cycle_start_revision: startRevision, last_modified_by_id: user.employeeNo, last_modified_by_name: user.name, updated_at: nowText };
+  const guardId = crypto.randomUUID();
+  const mutations = [
+    database.prepare(`UPDATE blower_history_assets SET runtime_hours=?, runtime_anchor_at=?, is_running=?,
+      cycle_runtime_hours=?, cycle_runtime_anchor_at=?, cycle_runtime_state=?, cycle_runtime_revision=?,
+      cycle_start_state=?, cycle_started_at=?, cycle_start_revision=?, last_modified_by_id=?, last_modified_by_name=?, updated_at=?
+      WHERE tag_number=? AND enabled=1 AND COALESCE(last_replacement_at,'')=? AND cycle_start_state=?
+      AND COALESCE(cycle_started_at,'')=? AND COALESCE(cycle_start_revision,'')=? AND cycle_runtime_revision=?`)
+      .bind(hours, running ? body.observedAt : null, running ? 1 : 0, hours, body.observedAt, nextState, runtimeRevision,
+        startState, startedAt || null, startRevision || '', user.employeeNo, user.name, nowText, tag, ...expected),
+    database.prepare(`INSERT INTO blower_history_events (id, tag_number, event_type, event_date, runtime_hours,
+      issue_type, action_type, note, source_type, source_log_id, source_text, created_by_id, created_by_name, created_at, updated_at)
+      SELECT ?, ?, 'runtime_correction', ?, ?, 'OIS', ?, ?, 'ois_runtime_refresh', ?, ?, ?, ?, ?, ?
+      WHERE EXISTS (SELECT 1 FROM blower_history_assets WHERE tag_number=? AND cycle_runtime_revision=?)`)
+      .bind(eventId, tag, body.observedAt, hours, running ? 'OIS 최신화 · 기동중' : 'OIS 최신화 · 정지중', note,
+        ids.at(-1), sourceText, user.employeeNo, user.name, nowText, nowText, tag, runtimeRevision),
+    database.prepare(`INSERT INTO blower_history_asset_history (id, action_type, tag_number, before_json, after_json,
+      change_note, changed_by_id, changed_by_name, changed_at)
+      SELECT ?, 'ois_runtime_refresh', ?, ?, ?, ?, ?, ?, ?
+      WHERE EXISTS (SELECT 1 FROM blower_history_assets WHERE tag_number=? AND cycle_runtime_revision=?)`)
+      .bind(eventId, tag, JSON.stringify(asset), JSON.stringify(after), note, user.employeeNo, user.name, nowText, tag, runtimeRevision)
+  ];
+  if (starts) mutations.push(database.prepare(`INSERT INTO blower_history_events (id, tag_number, event_type, event_date,
+      runtime_hours, issue_type, action_type, note, source_type, source_log_id, source_text, created_by_id, created_by_name, created_at, updated_at)
+      SELECT ?, ?, 'startup', ?, 0, 'OIS', '첫 기동 확인', ?, 'ois_runtime_refresh', ?, ?, ?, ?, ?, ?
+      WHERE EXISTS (SELECT 1 FROM blower_history_assets WHERE tag_number=? AND cycle_runtime_revision=?)`)
+    .bind(eventId + ':start', tag, first.iso, note, ids.at(-1), sourceText, user.employeeNo, user.name, nowText, nowText, tag, runtimeRevision));
+  mutations.push(database.prepare(`INSERT INTO blower_history_atomic_guard (id, valid)
+    VALUES (?, CASE WHEN EXISTS (SELECT 1 FROM blower_history_assets WHERE tag_number=? AND cycle_runtime_revision=?
+      AND ABS(cycle_runtime_hours-?)<0.000001 AND cycle_runtime_state=? AND cycle_runtime_anchor_at=?)
+      AND EXISTS (SELECT 1 FROM blower_history_events WHERE id=? AND source_text=? AND ABS(runtime_hours-?)<0.000001)
+      AND EXISTS (SELECT 1 FROM blower_history_asset_history WHERE id=?)
+      AND (?=0 OR EXISTS (SELECT 1 FROM blower_history_events WHERE id=? AND event_type='startup')) THEN 1 ELSE 0 END)`)
+    .bind(guardId, tag, runtimeRevision, hours, nextState, body.observedAt, eventId, sourceText, hours, eventId, starts ? 1 : 0, eventId + ':start'));
+  mutations.push(database.prepare('DELETE FROM blower_history_atomic_guard WHERE id=?').bind(guardId));
+  try {
+    const applied = await database.batch(mutations);
+    if (applied.some(row => Number(row?.meta?.changes) !== 1)) throw new Error('OIS atomic update did not change exactly one row per statement');
+  } catch (e) {
+    if (/constraint|atomic update/i.test(String(e?.message || e))) return fail("최신화 저장 중 다른 변경이 있었습니다. 현재 값은 덮어쓰지 않았습니다.", "OIS_REFRESH_CYCLE_CONFLICT", 409);
+    throw e;
+  }
+  return jsonResponse({ ok: true, tagNumber: tag, runtimeHours: hours, message: note, stateKept: body.targetState === 'keep' });
+}
+
 async function handlePost(context, user, body) {
   const action = normalizeText(body.action);
   const database = context.env.DB;
@@ -13901,6 +14082,10 @@ async function handlePost(context, user, body) {
 
   if (action === "dataparc_runtime_sync") {
     return applyDataParcRuntimeSync(database, user, body);
+  }
+
+  if (action === "ois_runtime_refresh_apply") {
+    return applyOisRuntimeRefresh(database, user, body);
   }
 
   if (action === "runtime") {
@@ -14034,6 +14219,9 @@ export async function onRequestPost(context) {
 
 /* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
 export const __blowerHistoryTest = {
+  isIntermittentBlower, currentDataParcRuntimeBasis, currentRuntimeHours, runtimeHoursAt, cycleRuntimeHoursAt,
+  applyOisRuntimeRefresh, loadFbheVibrationRawResponse, loadSealPotRuntimeRawResponse,
+
   planManualHistoryDeletion,
   previewManualHistoryDeletion,
   deleteManualHistoryEvent,

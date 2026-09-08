@@ -110,7 +110,7 @@ function footerActions(markup) {
   return [...footer.matchAll(/data-asset-action="([^"]+)"/g)].map(match => match[1]);
 }
 
-test("all five Blower categories retain direct state, replacement, and history actions", () => {
+test("all five categories retain replacement/history and move direct state management into history", () => {
   const { ui } = harness();
   const identities = [
     ["fbhe", "104HHL60AP611", "1"],
@@ -121,7 +121,7 @@ test("all five Blower categories retain direct state, replacement, and history a
   ];
   for (const [blowerType, tagNumber, unitNo] of identities) {
     const markup = render(ui, asset({ blowerType, tagNumber, unitNo }));
-    assert.deepEqual(footerActions(markup), ["operation_toggle", "replacement", "history"], blowerType);
+    assert.deepEqual(footerActions(markup), ["replacement", "history"], blowerType);
     assert.ok(markup.includes(`data-tag="${tagNumber}"`));
     assert.ok(markup.includes(`data-unit="${unitNo}"`));
   }
@@ -152,7 +152,7 @@ test("a configured policy keeps remaining time, utilization, and progress while 
   assert.match(markup, /<em>예상<\/em>/);
   const stopped = render(ui, { ...configured, isRunning: false }, { cycleDays: 90 });
   assert.match(stopped, /data-operation-state="stopped"/);
-  assert.match(stopped, /data-asset-action="operation_toggle"/);
+  assert.doesNotMatch(stopped, /data-asset-action="operation_toggle"/);
 });
 
 test("replacement evidence starts collapsed, preserves its full text, and escapes markup", () => {
@@ -221,9 +221,11 @@ test("manual runtime correction remains available once in the history footer and
 test("supported DataPARC cards expose query setup while unsupported assets and unconfirmed signals cannot start", async () => {
   const { ui, fetchCount } = harness();
   const item = asset();
-  assert.match(render(ui, item), /data-asset-action="dataparc_runtime_probe"/);
+  assert.doesNotMatch(render(ui, item), /data-asset-action="dataparc_runtime_probe"/);
+  ui.openAssetHistory(item.tagNumber);
+  assert.equal(ui.elements.historyRuntimeQueryButton.hidden, false);
   for (const tagNumber of ["104ETH03AN601", "104ETG30AN602", "104SDF01AN001"]) {
-    assert.match(render(ui, asset({ tagNumber })), /data-asset-action="dataparc_runtime_probe"/);
+    assert.doesNotMatch(render(ui, asset({ tagNumber })), /data-asset-action="dataparc_runtime_probe"/);
     await ui.syncDataParcBlowerRuntime(tagNumber, "2026-05-10T00:00:00+09:00");
   }
   for (const tagNumber of ["104HHL60AP611", "104HHL10AN611", "INVALID-TAG"]) {

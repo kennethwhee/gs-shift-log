@@ -21,6 +21,8 @@
   let polling = false;
   let applying = false;
   let restoringSaved = false;
+  let unifiedClockOffsetMs = 0;
+  const sealNow = () => new Date(Date.now() + unifiedClockOffsetMs);
 
   function currentUser() {
     try {
@@ -85,7 +87,7 @@
   }
 
   function isoToday() {
-    const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const now = new Date(sealNow().getTime() + 9 * 60 * 60 * 1000);
     return now.toISOString().slice(0, 10);
   }
 
@@ -146,7 +148,7 @@
     const startAt = new Date(`${startDate}T00:00:00+09:00`);
     const nextDate = addDays(endDate, 1);
     const endExclusive = new Date(`${nextDate}T00:00:00+09:00`);
-    const now = new Date();
+    const now = sealNow();
     const endAt = endExclusive > now ? now : endExclusive;
 
     return {startAt, endAt};
@@ -682,7 +684,7 @@
         ? new Date(rangeRuntime.latestAt)
         : null;
       const latestAgeHours = latest && !Number.isNaN(latest.getTime())
-        ? (Date.now() - latest.getTime()) / 3600000
+        ? (sealNow().getTime() - latest.getTime()) / 3600000
         : Infinity;
       const currentState = latestAgeHours >= -0.1 && latestAgeHours <= STATE_FRESH_HOURS
         ? rangeRuntime.currentState
@@ -944,10 +946,11 @@
       : Boolean(blowerData?.user && currentUser());
   }
 
-  async function fetchRaw(targetDate, allowMissing = false) {
+  async function fetchRaw(targetDate, allowMissing = false, requestId = "") {
     const url = new URL(API_URL, window.location.origin);
     url.searchParams.set("action", "seal_pot_raw");
     url.searchParams.set("targetDate", targetDate);
+    if (requestId) url.searchParams.set("requestId", requestId);
     url.searchParams.set("_", String(Date.now()));
 
     const response = await fetch(url, {
@@ -1098,7 +1101,7 @@
         ? new Date(rangeRuntime.latestAt)
         : null;
       const latestAgeHours = latest && !Number.isNaN(latest.getTime())
-        ? (Date.now() - latest.getTime()) / 3600000
+        ? (sealNow().getTime() - latest.getTime()) / 3600000
         : Infinity;
       const oisState = latestAgeHours >= -0.1 && latestAgeHours <= STATE_FRESH_HOURS
         ? rangeRuntime.currentState
@@ -1165,7 +1168,7 @@
         "running"
       );
 
-      rawResults.push(await fetchRaw(targetDate));
+      rawResults.push(await fetchRaw(targetDate, false, item.id || ""));
     }
 
     renderStatus(
@@ -1387,7 +1390,7 @@
     const latestDate = new Date(latestSampleAt);
     const latestAgeHours = Number.isNaN(latestDate.getTime())
       ? Infinity
-      : (Date.now() - latestDate.getTime()) / 3600000;
+      : (sealNow().getTime() - latestDate.getTime()) / 3600000;
     const startupPending = String(currentAsset?.cycleStartState || "legacy") === "pending";
     const currentRunning = Boolean(currentAsset?.isRunning);
     const stateDecided = ["running", "stopped"].includes(oisState);
@@ -2047,6 +2050,43 @@
     }
   }
 
+  /* BLOWER_UNIFIED_REFRESH_V1: use the existing pressure/temperature classifier, without a dialog or reload. */
+  async function refreshSealPotForUnified(task, items, io) {
+    if (polling || applying || restoringSaved) throw new Error("Seal Pot 상세 조회가 진행 중입니다.");
+    const core = window.BlowerUnifiedRefresh;
+    applying = true;
+    try {
+      blowerData = await io.api();
+      const generated = Date.parse(blowerData?.generatedAt || "");
+      unifiedClockOffsetMs = Number.isFinite(generated) ? generated - Date.now() : 0;
+      if (!hasWriteAccess() || isMobileMonitoring()) throw new Error("Seal Pot 최신화 권한이 없습니다.");
+      const range = { startDate: task.startDate, endDate: task.endDate, dayCount: countDays(task.startDate, task.endDate), key: rangeKey(task.startDate, task.endDate) };
+      currentReport = await analyseItems(items, range, task.assets.map(a => findCurrentAsset(a.tagNumber)).filter(Boolean), "최신 RAW");
+      const observedAt = sealNow().toISOString();
+      const results = [];
+      for (const target of task.assets) {
+        io.assertWritable();
+        try {
+          const current = findCurrentAsset(target.tagNumber);
+          const reportAsset = currentReport.assets.find(a => a.tagNumber === target.tagNumber);
+          if (!reportAsset) throw new Error("Seal Pot 분석자료가 없습니다.");
+          const plan = buildApplyPlan(reportAsset, currentReport);
+          const body = core.oisBody(task, items, current, plan, observedAt);
+          const applied = await io.api({ method: "POST", body });
+          results.push({ tagNumber: target.tagNumber, displayName: target.displayName, status: "complete", message: applied.message });
+        } catch (e) {
+          if ([401,403].includes(Number(e.status))) throw e;
+          results.push({ tagNumber: target.tagNumber, displayName: target.displayName, status: "failed", message: e.message });
+        }
+        blowerData = await io.api();
+      }
+      saveCache(currentReport);
+      return results;
+    } finally { applying = false; unifiedClockOffsetMs = 0; }
+  }
+  window.BlowerUnifiedRefresh?.register("seal_pot", refreshSealPotForUnified);
+  window.BlowerSealPotDetails = openAnalysis;
+
   function activeType() {
     return document.querySelector(".type-tab.is-active")?.dataset?.type || "";
   }
@@ -2075,7 +2115,7 @@
       assetManager.insertAdjacentElement("afterend", button);
     }
 
-    button.hidden =
+    button.hidden = true ||
       activeType() !== "seal_pot" ||
       !currentUser() ||
       document.body.classList.contains("public-monitoring") ||
