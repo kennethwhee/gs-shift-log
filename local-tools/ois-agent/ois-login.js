@@ -12985,6 +12985,8 @@ $usedRows = $null
 $usedColumns = $null
 $headerRange = $null
 $dateRange = $null
+$fieldWarnings = New-Object 'System.Collections.Generic.List[string]'
+$openConnection = $null
 
 $stageMarker = "__DAILY_DATA_WORKBOOK_STAGE__"
 
@@ -13736,6 +13738,46 @@ function Get-SolarCumulativeRangeResult {
   }
 }
 
+# [DAILY-DATA-MONTHLY-OPEN-V1] Read the workbook values without updating Excel.
+function ConvertTo-DailyWorkbookRowValues {
+  param($Value, [int]$ColumnCount)
+  if ($ColumnCount -lt 1) { throw '조회 열 개수가 올바르지 않습니다.' }
+  $rowValues = New-Object 'object[]' $ColumnCount
+  if ($Value -is [Array]) {
+    if ($Value.Rank -ne 2 -or $Value.GetLength(0) -ne 1 -or $Value.GetLength(1) -ne $ColumnCount) {
+      throw '엑셀 행 범위 크기가 조회일 수와 다릅니다.'
+    }
+    for ($offset = 0; $offset -lt $ColumnCount; $offset += 1) {
+      $rowValues[$offset] = $Value.GetValue($Value.GetLowerBound(0), $Value.GetLowerBound(1) + $offset)
+    }
+  } elseif ($ColumnCount -eq 1) { $rowValues[0] = $Value }
+  else { throw '여러 날짜 범위가 한 셀 값으로 반환됐습니다.' }
+  return ,$rowValues
+}
+
+function Test-DailyWorkbookMonth {
+  param($MonthText, [datetime]$Target)
+  $monthMatch = [regex]::Match((Normalize-ExcelText $MonthText), '^(?<year>[0-9]{4})년\s*(?<month>[0-9]{1,2})월$')
+  return ($monthMatch.Success -and [int]$monthMatch.Groups['year'].Value -eq $Target.Year -and
+    [int]$monthMatch.Groups['month'].Value -eq $Target.Month)
+}
+
+function Read-DailyPlantNumber {
+  param($Worksheet, [string]$ColumnName, [int]$Row, [string]$ExpectedLabel, [string]$Key)
+  $address = $ColumnName + [string]$Row
+  try {
+    $label = Normalize-ExcelText (Read-ExcelCellValue $Worksheet ('C' + [string]$Row))
+    if ($label -ne (Normalize-ExcelText $ExpectedLabel)) { throw ('항목명 불일치: ' + $label) }
+    $raw = Read-ExcelCellValue $Worksheet $address
+    $value = Get-FiniteExcelNumber -Value $raw -Label ('Plant!' + $address) -AllowBlank $true
+    if ($null -ne $value -and $value -lt 0) { throw '음수 또는 Excel 오류값' }
+    return $value
+  } catch {
+    $fieldWarnings.Add($Key + ' / Plant!' + $address + ' / ' + $_.Exception.Message)
+    return $null
+  }
+}
+
 function Get-SolarCumulativeWorkbookResult {
   param(
     $PlantWorksheet,
@@ -13787,27 +13829,7 @@ function Get-SolarCumulativeWorkbookResult {
     $solarDailyRangeValues =
       $solarDailyRange.Value2
 
-    if (
-      $solarDailyRangeValues -isnot
-        [Array] -or
-      $solarDailyRangeValues.Rank -lt
-        2
-    ) {
-      throw (
-        "Solar bulk read did not return a 2D array: Plant!" +
-        $solarDailyRangeAddress
-      )
-    }
-
-    $solarRowLower =
-      $solarDailyRangeValues.GetLowerBound(
-        0
-      )
-
-    $solarColumnLower =
-      $solarDailyRangeValues.GetLowerBound(
-        1
-      )
+    $solarRowValues = ConvertTo-DailyWorkbookRowValues -Value $solarDailyRangeValues -ColumnCount $TargetDateValue.Day
 
     $day =
       1
@@ -13835,15 +13857,7 @@ function Get-SolarCumulativeWorkbookResult {
           [Globalization.CultureInfo]::InvariantCulture
         )
 
-      $rawSolarValue =
-        $solarDailyRangeValues.GetValue(
-          $solarRowLower,
-          (
-            $solarColumnLower +
-            $day -
-            1
-          )
-        )
+      $rawSolarValue = $solarRowValues[$day - 1]
 
       try {
         $solarValue =
@@ -14252,135 +14266,17 @@ try {
       [Globalization.CultureInfo]::InvariantCulture
     )
 
-  Write-DailyDataStage -Message (
-    "실행 중인 Excel 연결 시도"
-  )
-
-  try {
-    $excel =
-      [Runtime.InteropServices.Marshal]::GetActiveObject(
-        "Excel.Application"
-      )
+  $helperPath = [string]$env:GS_DAILY_OPEN_WORKBOOK_HELPER
+  if ([string]::IsNullOrWhiteSpace($helperPath) -or -not (Test-Path -LiteralPath $helperPath -PathType Leaf)) {
+    throw '열린 월간 엑셀 연결 도우미가 없습니다. Agent 적용 상태를 확인해 주세요.'
   }
-  catch {
-    throw (
-      "실행 중인 Excel을 찾지 못했습니다. " +
-      $expectedWorkbookName +
-      "를 먼저 열어 주세요."
-    )
-  }
-
-  if (
-    $null -eq $excel
-  ) {
-    throw "실행 중인 Excel 연결 결과가 비어 있습니다."
-  }
-
-  Write-DailyDataStage -Message (
-    "실행 중인 Excel 연결 완료"
-  )
-
-  $workbooks =
-    $excel.Workbooks
-
-  $openWorkbookNames =
-    @()
-
-  Write-DailyDataStage -Message (
-    "대상 월 통합문서 찾기 · " +
-    $expectedWorkbookName
-  )
-
-  for (
-    $workbookIndex = 1;
-    $workbookIndex -le
-      [int]$workbooks.Count;
-    $workbookIndex += 1
-  ) {
-    $candidateWorkbook =
-      $null
-
-    try {
-      $candidateWorkbook =
-        $workbooks.Item(
-          $workbookIndex
-        )
-
-      $candidateName =
-        [string]$candidateWorkbook.Name
-
-      $openWorkbookNames +=
-        $candidateName
-
-      $normalizedCandidateName =
-        $candidateName.Normalize(
-          [Text.NormalizationForm]::FormC
-        )
-
-      if (
-        $normalizedCandidateName -ieq
-          $expectedWorkbookName
-      ) {
-        if (
-          $null -ne $workbook
-        ) {
-          throw (
-            "같은 이름의 대상 월 통합문서가 두 개 이상 열려 있습니다: " +
-            $expectedWorkbookName
-          )
-        }
-
-        $workbook =
-          $candidateWorkbook
-
-        $candidateWorkbook =
-          $null
-      }
-    }
-    finally {
-      Release-ExcelComObject -Value $candidateWorkbook
-    }
-  }
-
-  if (
-    $null -eq $workbook
-  ) {
-    $openWorkbookText =
-      if (
-        $openWorkbookNames.Count -gt 0
-      ) {
-        $openWorkbookNames -join ", "
-      }
-      else {
-        "없음"
-      }
-
-    $excelProcessCount =
-      @(
-        Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue
-      ).Count
-
-    $multipleInstanceHelp =
-      if (
-        $excelProcessCount -gt 1
-      ) {
-        " Excel이 여러 창으로 따로 실행 중입니다. 대상 파일이 있는 Excel 창만 남기고 다시 확인해 주세요."
-      }
-      else {
-        ""
-      }
-
-    throw (
-      "조회일 " +
-      $targetDate +
-      "에 필요한 " +
-      $expectedWorkbookName +
-      "를 찾지 못했습니다. 현재 열린 파일: " +
-      $openWorkbookText +
-      "." +
-      $multipleInstanceHelp
-    )
-  }
+  . $helperPath
+  Write-DailyDataStage -Message ('열린 Excel 전체에서 대상 월 찾기 · ' + $expectedWorkbookName)
+  $openConnection = Resolve-DailyDataOpenWorkbook -TargetDate $targetDate
+  $excel = $openConnection.Excel
+  $workbooks = $openConnection.Workbooks
+  $workbook = $openConnection.Workbook
+  Write-DailyDataStage -Message ('대상 월 파일 연결 · PID ' + [string]$openConnection.ProcessId)
 
   $workbookName =
     [string]$workbook.Name
@@ -14436,8 +14332,7 @@ try {
     )
 
   if (
-    $actualMonthText -ne
-      $expectedMonthText
+    -not (Test-DailyWorkbookMonth -MonthText $actualMonthText -Target $targetDateValue)
   ) {
     throw (
       $workbookName +
@@ -14635,142 +14530,10 @@ try {
   $cellMap =
     [ordered]@{}
 
-  foreach (
-    $definition in
-      $fieldDefinitions
-  ) {
-    $rowNumber =
-      [int]$definition.row
-
-    $resultKey =
-      [string]$definition.resultKey
-
-    $optionalField =
-      $false
-
-    if (
-      $null -ne
-        $definition.PSObject.Properties[
-          "optional"
-        ]
-    ) {
-      $optionalField =
-        [bool]$definition.optional
-    }
-
-    $expectedLabel =
-      Normalize-ExcelText -Value (
-        $definition.label
-      )
-
-    $labelAddress =
-      "C" +
-      [string]$rowNumber
-
-    $actualLabel =
-      Normalize-ExcelText -Value (
-        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $labelAddress
-      )
-
-    if (
-      $actualLabel -ne
-        $expectedLabel
-    ) {
-      if (
-        $optionalField
-      ) {
-        $manualValues[$resultKey] =
-          $null
-
-        $cellMap[$resultKey] =
-          ""
-
-        Write-DailyDataStage -Message (
-          "Optional co-firing field label mismatch; skipped: " +
-          $resultKey +
-          " (Plant!" +
-          $labelAddress +
-          ")"
-        )
-
-        continue
-      }
-
-      throw (
-        $workbookName +
-        "의 Plant!" +
-        $labelAddress +
-        " 항목명이 다릅니다. 기대값: " +
-        $expectedLabel +
-        ", 실제값: " +
-        $actualLabel
-      )
-    }
-
-    $valueAddress =
-      $targetColumnName +
-      [string]$rowNumber
-
-    $allowBlank =
-      (
-        $resultKey -eq
-          "solarDailyGeneration"
-      ) -or
-      $optionalField
-
-    if (
-      $resultKey -eq
-        "ismartReception"
-    ) {
-      $allowBlank =
-        $true
-    }
-
-    $numericValue =
-      Get-FiniteExcelNumber -Value (
-        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $valueAddress
-      ) -Label (
-        $expectedLabel +
-        " (Plant!" +
-        $valueAddress +
-        ")"
-      ) -AllowBlank $allowBlank
-
-    if (
-      $null -ne $numericValue -and
-      $numericValue -lt 0
-    ) {
-      if (
-        $optionalField
-      ) {
-        Write-DailyDataStage -Message (
-          "Optional co-firing field negative; skipped: " +
-          $resultKey +
-          " = " +
-          $numericValue
-        )
-
-        $numericValue =
-          $null
-      }
-      else {
-        throw (
-          $expectedLabel +
-          " 값이 0보다 작습니다: " +
-          $numericValue +
-          " (Plant!" +
-          $valueAddress +
-          ")"
-        )
-      }
-    }
-
-    $manualValues[$resultKey] =
-      $numericValue
-
-    $cellMap[$resultKey] =
-      "Plant!" +
-      $valueAddress
+  foreach ($definition in $fieldDefinitions) {
+    $key = [string]$definition.resultKey
+    $manualValues[$key] = Read-DailyPlantNumber -Worksheet $plantWorksheet -ColumnName $targetColumnName -Row ([int]$definition.row) -ExpectedLabel ([string]$definition.label) -Key $key
+    $cellMap[$key] = 'Plant!' + $targetColumnName + [string]$definition.row
   }
 
   Write-DailyDataStage -Message (
@@ -14862,62 +14625,8 @@ try {
     $rowNumber =
       [int]$definition.row
 
-    $expectedLabel =
-      Normalize-ExcelText -Value (
-        $definition.label
-      )
-
-    $labelAddress =
-      "C" +
-      [string]$rowNumber
-
-    $actualLabel =
-      Normalize-ExcelText -Value (
-        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $labelAddress
-      )
-
-    if (
-      $actualLabel -ne
-        $expectedLabel
-    ) {
-      throw (
-        $workbookName +
-        "의 Plant!" +
-        $labelAddress +
-        " 항목명이 다릅니다. 기대값: " +
-        $expectedLabel +
-        ", 실제값: " +
-        $actualLabel
-      )
-    }
-
-    $valueAddress =
-      $targetColumnName +
-      [string]$rowNumber
-
-    $amount =
-      Get-FiniteExcelNumber -Value (
-        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $valueAddress
-      ) -Label (
-        $expectedLabel +
-        " (Plant!" +
-        $valueAddress +
-        ")"
-      ) -AllowBlank $true
-
-    if (
-      $null -ne $amount -and
-      $amount -lt 0
-    ) {
-      throw (
-        $expectedLabel +
-        " 값이 0보다 작습니다: " +
-        $amount +
-        " (Plant!" +
-        $valueAddress +
-        ")"
-      )
-    }
+    $valueAddress = $targetColumnName + [string]$rowNumber
+    $amount = Read-DailyPlantNumber -Worksheet $plantWorksheet -ColumnName $targetColumnName -Row $rowNumber -ExpectedLabel ([string]$definition.label) -Key ('sludgeReceipt' + [string]$sequence)
 
     if (
       $null -ne $amount
@@ -14969,653 +14678,34 @@ try {
       $null
   }
 
-  $organicValues =
-    [ordered]@{
-      organicDaySilo = $null
-      organicStorageSiloA = $null
-      organicStorageSiloB = $null
-    }
-
-  $organicMetadata =
-    [ordered]@{}
-
-  $organicSiloTotal =
-    $null
-
-  $dataDateCell =
-    ""
-
-  try {
-  $plantOrganicValues =
-    [ordered]@{}
-
-  foreach (
-    $definition in
-      $organicDefinitions
-  ) {
-    $rowNumber =
-      [int]$definition.row
-
-    $resultKey =
-      [string]$definition.resultKey
-
-    $expectedLabel =
-      Normalize-ExcelText -Value (
-        $definition.label
-      )
-
-    $labelAddress =
-      "C" +
-      [string]$rowNumber
-
-    $actualLabel =
-      Normalize-ExcelText -Value (
-        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $labelAddress
-      )
-
-    if (
-      $actualLabel -ne
-        $expectedLabel
-    ) {
-      throw (
-        $workbookName +
-        "의 Plant!" +
-        $labelAddress +
-        " 항목명이 다릅니다. 기대값: " +
-        $expectedLabel +
-        ", 실제값: " +
-        $actualLabel
-      )
-    }
-
-    $valueAddress =
-      $targetColumnName +
-      [string]$rowNumber
-
-    $plantValue =
-      Get-FiniteExcelNumber -Value (
-        Read-ExcelCellValue -Worksheet $plantWorksheet -Address $valueAddress
-      ) -Label (
-        $expectedLabel +
-        " (Plant!" +
-        $valueAddress +
-        ")"
-      )
-
-    if (
-      $plantValue -lt 0
-    ) {
-      throw (
-        $expectedLabel +
-        " 값이 0보다 작습니다: " +
-        $plantValue
-      )
-    }
-
-    $plantOrganicValues[$resultKey] =
-      $plantValue
-
-    $cellMap[$resultKey + "Plant"] =
-      "Plant!" +
-      $valueAddress
+  # The card uses Plant's entered/calculated values, including the entered total.
+  # Data Normalize (2) may still show a prior month; it is not a prerequisite.
+  $organicValues = [ordered]@{}
+  $organicMetadata = [ordered]@{}
+  foreach ($definition in $organicDefinitions) {
+    $key = [string]$definition.resultKey
+    $cellAddress = 'Plant!' + $targetColumnName + [string]$definition.row
+    $value = Read-DailyPlantNumber -Worksheet $plantWorksheet -ColumnName $targetColumnName -Row ([int]$definition.row) -ExpectedLabel ([string]$definition.label) -Key $key
+    $organicValues[$key] = $value
+    $cellMap[$key] = $cellAddress
+    $cellMap[$key + 'Plant'] = $cellAddress
+    $organicMetadata[$key] = [ordered]@{ source='Plant'; valueCell=$cellAddress; plantCell=$cellAddress; plantValue=$value }
   }
-
-  $organicTotalAddress =
-    $targetColumnName +
-    "287"
-
-  $organicTotalLabel =
-    Normalize-ExcelText -Value (
-      Read-ExcelCellValue -Worksheet $plantWorksheet -Address "C287"
-    )
-
-  if (
-    $organicTotalLabel -ne
-      "총 재고량 *Day Silo + Storage Silo"
-  ) {
-    throw (
-      $workbookName +
-      "의 Plant!C287 항목명이 다릅니다. 실제값: " +
-      $organicTotalLabel
-    )
-  }
-
-  $plantOrganicTotal =
-    Get-FiniteExcelNumber -Value (
-      Read-ExcelCellValue -Worksheet $plantWorksheet -Address $organicTotalAddress
-    ) -Label (
-      "유기성 Silo 총 재고량 (Plant!" +
-      $organicTotalAddress +
-      ")"
-    )
-
-  if (
-    $plantOrganicTotal -lt 0
-  ) {
-    throw "유기성 Silo 총 재고량이 0보다 작습니다."
-  }
-
-  try {
-    $dataWorksheet =
-      $worksheets.Item(
-        "Data Normalize (2)"
-      )
-  }
-  catch {
-    throw (
-      $workbookName +
-      "에서 Data Normalize (2) 시트를 찾지 못했습니다."
-    )
-  }
-
-  Write-DailyDataStage -Message (
-    "DataPARC 유기성 Silo TAG 위치 확인"
-  )
-
-  $usedRange =
-    $dataWorksheet.UsedRange
-
-  $usedRows =
-    $usedRange.Rows
-
-  $usedColumns =
-    $usedRange.Columns
-
-  $rowCount =
-    [int]$usedRows.Count
-
-  $columnCount =
-    [int]$usedColumns.Count
-
-  $firstRow =
-    [int]$usedRange.Row
-
-  $firstColumn =
-    [int]$usedRange.Column
-
-  $lastRow =
-    $firstRow +
-    $rowCount -
-    1
-
-  $lastColumn =
-    $firstColumn +
-    $columnCount -
-    1
-
-  if (
-    $rowCount -lt 2 -or
-    $columnCount -lt 2
-  ) {
-    throw "Data Normalize (2) 시트의 자료 범위가 비어 있습니다."
-  }
-
-  $headerEndRow =
-    [Math]::Min(
-      $firstRow +
-        17,
-      $lastRow
-    )
-
-  $headerRangeAddress =
-    (
-      ConvertTo-ExcelColumnName -ColumnNumber $firstColumn
-    ) +
-    [string]$firstRow +
-    ":" +
-    (
-      ConvertTo-ExcelColumnName -ColumnNumber $lastColumn
-    ) +
-    [string]$headerEndRow
-
-  $headerRange =
-    $dataWorksheet.Range(
-      $headerRangeAddress
-    )
-
-  $headerValues =
-    $headerRange.Value2
-
-  if (
-    $headerValues -isnot [array] -or
-    $headerValues.Rank -ne 2
-  ) {
-    throw "Data Normalize (2) 헤더 범위를 읽지 못했습니다."
-  }
-
-  $headerFirstRow =
-    [int]$headerRange.Row
-
-  $headerFirstColumn =
-    [int]$headerRange.Column
-
-  $headerRowLower =
-    $headerValues.GetLowerBound(
-      0
-    )
-
-  $headerRowUpper =
-    $headerValues.GetUpperBound(
-      0
-    )
-
-  $headerColumnLower =
-    $headerValues.GetLowerBound(
-      1
-    )
-
-  $headerColumnUpper =
-    $headerValues.GetUpperBound(
-      1
-    )
-
-  $dateHeaderMatches =
-    @()
-
-  $tagMatches =
-    @{}
-
-  foreach (
-    $definition in
-      $organicDefinitions
-  ) {
-    $tagMatches[
-      [string]$definition.resultKey
-    ] =
-      @()
-  }
-
-  for (
-    $arrayRow = $headerRowLower;
-    $arrayRow -le $headerRowUpper;
-    $arrayRow += 1
-  ) {
-    for (
-      $arrayColumn = $headerColumnLower;
-      $arrayColumn -le $headerColumnUpper;
-      $arrayColumn += 1
-    ) {
-      $cellText =
-        [string](
-          $headerValues[
-            $arrayRow,
-            $arrayColumn
-          ]
-        )
-
-      $sheetRow =
-        $headerFirstRow +
-        (
-          $arrayRow -
-          $headerRowLower
-        )
-
-      $sheetColumn =
-        $headerFirstColumn +
-        (
-          $arrayColumn -
-          $headerColumnLower
-        )
-
-      if (
-        $cellText -eq
-          "Tag Name"
-      ) {
-        $dateHeaderMatches +=
-          [pscustomobject]@{
-            RowNumber =
-              $sheetRow
-
-            ColumnNumber =
-              $sheetColumn
-          }
-      }
-
-      foreach (
-        $definition in
-          $organicDefinitions
-      ) {
-        if (
-          $cellText -ceq
-            [string]$definition.tag
-        ) {
-          $resultKey =
-            [string]$definition.resultKey
-
-          $tagMatches[$resultKey] +=
-            [pscustomobject]@{
-              RowNumber =
-                $sheetRow
-
-              ColumnNumber =
-                $sheetColumn
-            }
-        }
-      }
-    }
-  }
-
-  if (
-    $dateHeaderMatches.Count -ne 1
-  ) {
-    throw (
-      "Data Normalize (2)의 Tag Name 헤더를 정확히 한 곳 찾지 못했습니다. 확인 건수: " +
-      $dateHeaderMatches.Count
-    )
-  }
-
-  $dateHeaderPosition =
-    $dateHeaderMatches[0]
-
-  $tagPositions =
-    @{}
-
-  foreach (
-    $definition in
-      $organicDefinitions
-  ) {
-    $resultKey =
-      [string]$definition.resultKey
-
-    $matches =
-      @(
-        $tagMatches[$resultKey]
-      )
-
-    if (
-      $matches.Count -ne 1
-    ) {
-      throw (
-        [string]$definition.tag +
-        " TAG를 정확히 한 곳 찾지 못했습니다. 확인 건수: " +
-        $matches.Count
-      )
-    }
-
-    if (
-      [int]$matches[0].RowNumber -ne
-        [int]$dateHeaderPosition.RowNumber
-    ) {
-      throw (
-        [string]$definition.tag +
-        " TAG와 Tag Name이 같은 헤더 행에 있지 않습니다."
-      )
-    }
-
-    $tagPositions[$resultKey] =
-      $matches[0]
-  }
-
-  $dateColumnNumber =
-    [int]$dateHeaderPosition.ColumnNumber
-
-  $dateStartRow =
-    [int]$dateHeaderPosition.RowNumber +
-    1
-
-  $dateColumnName =
-    ConvertTo-ExcelColumnName -ColumnNumber $dateColumnNumber
-
-  $dateRangeAddress =
-    $dateColumnName +
-    [string]$dateStartRow +
-    ":" +
-    $dateColumnName +
-    [string]$lastRow
-
-  $dateRange =
-    $dataWorksheet.Range(
-      $dateRangeAddress
-    )
-
-  $dateValues =
-    $dateRange.Value2
-
-  if (
-    $dateValues -isnot [array] -or
-    $dateValues.Rank -ne 2
-  ) {
-    throw "Data Normalize (2)의 날짜축 범위를 읽지 못했습니다."
-  }
-
-  $dateRowLower =
-    $dateValues.GetLowerBound(
-      0
-    )
-
-  $dateRowUpper =
-    $dateValues.GetUpperBound(
-      0
-    )
-
-  $dateColumnLower =
-    $dateValues.GetLowerBound(
-      1
-    )
-
-  $dateRangeFirstRow =
-    [int]$dateRange.Row
-
-  $date1904 =
-    [bool]$workbook.Date1904
-
-  $targetDateRows =
-    @()
-
-  for (
-    $arrayRow = $dateRowLower;
-    $arrayRow -le $dateRowUpper;
-    $arrayRow += 1
-  ) {
-    $candidateDateValue =
-      $dateValues[
-        $arrayRow,
-        $dateColumnLower
-      ]
-
-    if (
-      Test-ExcelTimestamp -Value $candidateDateValue -Target $targetDateValue -Date1904 $date1904
-    ) {
-      $targetDateRows +=
-        (
-          $dateRangeFirstRow +
-          (
-            $arrayRow -
-            $dateRowLower
-          )
-        )
-    }
-  }
-
-  if (
-    $targetDateRows.Count -ne 1
-  ) {
-    throw (
-      "Data Normalize (2)에서 " +
-      $targetDate +
-      " 날짜 행을 정확히 한 곳 찾지 못했습니다. 확인 건수: " +
-      $targetDateRows.Count +
-      ". DataPARC Get Data 완료 여부를 확인해 주세요."
-    )
-  }
-
-  $dataTargetRow =
-    [int]$targetDateRows[0]
-
-  $dataDateCell =
-    Get-ExcelAddress -RowNumber $dataTargetRow -ColumnNumber $dateColumnNumber
-
-  $organicValues =
-    [ordered]@{}
-
-  $organicMetadata =
-    [ordered]@{}
-
-  foreach (
-    $definition in
-      $organicDefinitions
-  ) {
-    $resultKey =
-      [string]$definition.resultKey
-
-    $tagPosition =
-      $tagPositions[$resultKey]
-
-    $tagColumnNumber =
-      [int]$tagPosition.ColumnNumber
-
-    $tagCell =
-      Get-ExcelAddress -RowNumber (
-        [int]$tagPosition.RowNumber
-      ) -ColumnNumber $tagColumnNumber
-
-    $valueCell =
-      Get-ExcelAddress -RowNumber $dataTargetRow -ColumnNumber $tagColumnNumber
-
-    $dataValue =
-      Get-FiniteExcelNumber -Value (
-        Read-ExcelCellValue -Worksheet $dataWorksheet -Address $valueCell
-      ) -Label (
-        [string]$definition.label +
-        " DataPARC 값 (Data Normalize (2)!" +
-        $valueCell +
-        ")"
-      )
-
-    if (
-      $dataValue -lt 0
-    ) {
-      throw (
-        [string]$definition.label +
-        " DataPARC 값이 0보다 작습니다: " +
-        $dataValue
-      )
-    }
-
-    $plantValue =
-      [double]$plantOrganicValues[$resultKey]
-
-    if (
-      [Math]::Abs(
-        $dataValue -
-        $plantValue
-      ) -gt 0.001
-    ) {
-      throw (
-        [string]$definition.label +
-        "의 Plant 값과 DataPARC 값이 다릅니다. Plant: " +
-        $plantValue +
-        ", DataPARC: " +
-        $dataValue
-      )
-    }
-
-    $organicValues[$resultKey] =
-      $dataValue
-
-    $organicMetadata[$resultKey] =
-      [ordered]@{
-        tag =
-          [string]$definition.tag
-
-        tagCell =
-          "Data Normalize (2)!" +
-          $tagCell
-
-        valueCell =
-          "Data Normalize (2)!" +
-          $valueCell
-
-        plantCell =
-          $cellMap[$resultKey + "Plant"]
-
-        plantValue =
-          $plantValue
-
-        dataParcValue =
-          $dataValue
-      }
-  }
-
-  $organicSiloTotal =
-    $organicValues.organicDaySilo +
-    $organicValues.organicStorageSiloA +
-    $organicValues.organicStorageSiloB
-
-  if (
-    [Math]::Abs(
-      $organicSiloTotal -
-      $plantOrganicTotal
-    ) -gt 0.001
-  ) {
-    throw (
-      "유기성 Silo 3개 합계와 Plant 총 재고량이 다릅니다. 3개 합계: " +
-      $organicSiloTotal +
-      ", Plant!" +
-      $organicTotalAddress +
-      ": " +
-      $plantOrganicTotal
-    )
-  }
-
-  }
-  catch {
-    $organicValues =
-      [ordered]@{
-        organicDaySilo = $null
-        organicStorageSiloA = $null
-        organicStorageSiloB = $null
-      }
-
-    $organicMetadata =
-      [ordered]@{}
-
-    $organicSiloTotal =
-      $null
-
-    $dataDateCell =
-      ""
-
-    Write-DailyDataStage -Message (
-      "Optional organic Silo data unavailable; continuing with other Daily DATA"
-    )
-  }
-
-  $unitOneProduction =
-    [double]$manualValues.unitOneProduction
-
-  $unitTwoProduction =
-    [double]$manualValues.unitTwoProduction
-
-  $totalProduction =
-    $unitOneProduction +
-    $unitTwoProduction
-
-  $steamSalesLowPressure =
-    [double]$manualValues.steamSalesLowPressure
-
-  $steamSalesHighPressure =
-    [double]$manualValues.steamSalesHighPressure
-
-  $steamSales =
-    $steamSalesLowPressure +
-    $steamSalesHighPressure
-
-  $averageSteamSales =
-    $steamSales /
-    24
-
-  $salesRate =
-    if (
-      $totalProduction -gt 0
-    ) {
-      $steamSales /
-      $totalProduction *
-      100
-    }
-    else {
-      $null
-    }
+  $organicSiloTotal = Read-DailyPlantNumber -Worksheet $plantWorksheet -ColumnName $targetColumnName -Row 287 -ExpectedLabel '총 재고량 *Day Silo + Storage Silo' -Key 'organicSiloTotal'
+  $cellMap['organicSiloTotal'] = 'Plant!' + $targetColumnName + '287'
+  $dataDateCell = ''
+
+  $unitOneProduction = $manualValues.unitOneProduction
+  $unitTwoProduction = $manualValues.unitTwoProduction
+  $steamSalesLowPressure = $manualValues.steamSalesLowPressure
+  $steamSalesHighPressure = $manualValues.steamSalesHighPressure
+  $totalProduction = $null
+  $steamSales = $null
+  $averageSteamSales = $null
+  $salesRate = $null
+  if ($null -ne $unitOneProduction -and $null -ne $unitTwoProduction) { $totalProduction = $unitOneProduction + $unitTwoProduction }
+  if ($null -ne $steamSalesLowPressure -and $null -ne $steamSalesHighPressure) { $steamSales = $steamSalesLowPressure + $steamSalesHighPressure; $averageSteamSales = $steamSales / 24 }
+  if ($null -ne $steamSales -and $null -ne $totalProduction -and $totalProduction -gt 0) { $salesRate = $steamSales / $totalProduction * 100 }
 
   $result =
     [ordered]@{
@@ -15631,8 +14721,11 @@ try {
       salesSource =
         "Plant 저압·고압증기 수기값"
 
-      organicSiloSource =
-        "DataPARC / Data Normalize (2)"
+      organicSiloSource = 'Plant 수기·계산 완료값'
+      readerVersion = 'monthly-open-v1'
+      workbookSource = 'open_workbook'
+      workbookProcessId = [int]$openConnection.ProcessId
+      fieldWarnings = @($fieldWarnings.ToArray())
 
       targetDate =
         $targetDate
@@ -15658,8 +14751,7 @@ try {
       plantWorksheet =
         "Plant"
 
-      dataParcWorksheet =
-        "Data Normalize (2)"
+      dataParcWorksheet = ''
 
       monthCell =
         "Plant!F4"
@@ -15674,9 +14766,7 @@ try {
       targetColumn =
         $targetColumnName
 
-      dataParcDateCell =
-        "Data Normalize (2)!" +
-        $dataDateCell
+      dataParcDateCell = ''
 
       cellMap =
         $cellMap
@@ -15715,7 +14805,7 @@ try {
         $manualValues.organicUsageUnitTwo
 
       generatorEcmsGen1 =
-        [double]$manualValues.generatorEcmsGen1
+        $manualValues.generatorEcmsGen1
 
       ismartReception =
         $manualValues.ismartReception
@@ -15724,10 +14814,10 @@ try {
         $manualValues.ismartReception
 
       epowerTransmission =
-        [double]$manualValues.epowerTransmission
+        $manualValues.epowerTransmission
 
       electricityTransmitted =
-        [double]$manualValues.epowerTransmission
+        $manualValues.epowerTransmission
 
       solarDailyGeneration =
         $solarDailyGeneration
@@ -17276,6 +16366,9 @@ async function collectDailyDataWorkbookValues(
       GS_STEAM_TARGET_DATE:
         targetDate,
 
+      GS_DAILY_OPEN_WORKBOOK_HELPER:
+        path.join(__dirname, "daily-data-open-workbook.ps1"),
+
       GS_STEAM_RESULT_MARKER:
         DAILY_DATA_WORKBOOK_RESULT_MARKER,
 
@@ -17401,214 +16494,43 @@ async function collectDailyDataWorkbookValues(
   }
 
 
-  const parseOptionalCofiringUsage =
-    (
-      value,
-      label
-    ) => {
-      if (
-        value === null ||
-        value === undefined ||
-        normalizeOisAgentText(
-          value
-        ) ===
-          ""
-      ) {
-        return null;
-      }
+  // [MONTHLY-OPEN-WORKBOOK-V1] A blank cell is missing data, never zero.
+  // Preserve the workbook's numeric precision; formatting belongs to the card.
+  const parseOptionalWorkbookValue = (value, label) => {
+    if (value === null || value === undefined ||
+        (typeof value === "string" && value.trim() === "")) return null;
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+      throw new Error(`${label}이 올바른 0 이상의 Excel 숫자가 아닙니다.`);
+    }
+    return value;
+  };
 
-      return roundDailyDataNumber(
-        parseDailyDataWorkbookNumber(
-          value,
-          label
-        ),
-        6
-      );
-    };
+  const coalUsageUnitOne = parseOptionalWorkbookValue(capturedResult.coalUsageUnitOne, "1호기 Coal 사용량");
+  const coalUsageUnitTwo = parseOptionalWorkbookValue(capturedResult.coalUsageUnitTwo, "2호기 Coal 사용량");
+  const bioUsageUnitOne = parseOptionalWorkbookValue(capturedResult.bioUsageUnitOne, "1호기 Bio-SRF 사용량");
+  const bioUsageUnitTwo = parseOptionalWorkbookValue(capturedResult.bioUsageUnitTwo, "2호기 Bio-SRF 사용량");
+  const organicUsageUnitOne = parseOptionalWorkbookValue(capturedResult.organicUsageUnitOne, "1호기 유기성 고형연료 투입량");
+  const organicUsageUnitTwo = parseOptionalWorkbookValue(capturedResult.organicUsageUnitTwo, "2호기 유기성 고형연료 투입량");
+  const unitOneProduction = parseOptionalWorkbookValue(capturedResult.unitOneProduction, "1호기 증기생산량");
+  const unitTwoProduction = parseOptionalWorkbookValue(capturedResult.unitTwoProduction, "2호기 증기생산량");
+  const steamSalesLowPressure = parseOptionalWorkbookValue(capturedResult.steamSalesLowPressure, "저압증기 판매량");
+  const steamSalesHighPressure = parseOptionalWorkbookValue(capturedResult.steamSalesHighPressure, "고압증기 판매량");
 
+  const productionComplete = unitOneProduction !== null && unitTwoProduction !== null;
+  const salesComplete = steamSalesLowPressure !== null && steamSalesHighPressure !== null;
+  const totalProduction = productionComplete ? unitOneProduction + unitTwoProduction : null;
+  const steamSales = salesComplete ? steamSalesLowPressure + steamSalesHighPressure : null;
+  const averageSteamSales = steamSales === null ? null : roundDailyDataNumber(steamSales / 24);
+  const salesRate = totalProduction !== null && totalProduction > 0 && steamSales !== null
+    ? roundDailyDataNumber(steamSales / totalProduction * 100) : null;
 
-  const coalUsageUnitOne =
-    parseOptionalCofiringUsage(
-      capturedResult.coalUsageUnitOne,
-      "1호기 Coal 사용량"
-    );
-
-
-  const coalUsageUnitTwo =
-    parseOptionalCofiringUsage(
-      capturedResult.coalUsageUnitTwo,
-      "2호기 Coal 사용량"
-    );
-
-
-  const bioUsageUnitOne =
-    parseOptionalCofiringUsage(
-      capturedResult.bioUsageUnitOne,
-      "1호기 Bio-SRF 사용량"
-    );
-
-
-  const bioUsageUnitTwo =
-    parseOptionalCofiringUsage(
-      capturedResult.bioUsageUnitTwo,
-      "2호기 Bio-SRF 사용량"
-    );
-
-
-  const organicUsageUnitOne =
-    parseOptionalCofiringUsage(
-      capturedResult.organicUsageUnitOne,
-      "1호기 유기성 고형연료 투입량"
-    );
-
-
-  const organicUsageUnitTwo =
-    parseOptionalCofiringUsage(
-      capturedResult.organicUsageUnitTwo,
-      "2호기 유기성 고형연료 투입량"
-    );
-
-
-  const unitOneProduction =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.unitOneProduction,
-        "1호기 증기생산량"
-      )
-    );
-
-
-  const unitTwoProduction =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.unitTwoProduction,
-        "2호기 증기생산량"
-      )
-    );
-
-
-  const steamSalesLowPressure =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.steamSalesLowPressure,
-        "저압증기 판매량"
-      )
-    );
-
-
-  const steamSalesHighPressure =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.steamSalesHighPressure,
-        "고압증기 판매량"
-      )
-    );
-
-
-  const totalProduction =
-    roundDailyDataNumber(
-      unitOneProduction +
-      unitTwoProduction
-    );
-
-
-  const steamSales =
-    roundDailyDataNumber(
-      steamSalesLowPressure +
-      steamSalesHighPressure
-    );
-
-
-  if (
-    totalProduction <=
-      0
-  ) {
-    throw new Error(
-      "총 증기생산량이 0 이하이므로 판매율을 계산할 수 없습니다."
-    );
-  }
-
-
-  const averageSteamSales =
-    roundDailyDataNumber(
-      steamSales /
-      24
-    );
-
-
-  const salesRate =
-    roundDailyDataNumber(
-      steamSales /
-      totalProduction *
-      100
-    );
-
-
-  const generatorEcmsGen1 =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.generatorEcmsGen1,
-        "발전량 (Generator) / ECMS gen1"
-      )
-    );
-
-
-  const rawIsmartReception =
-    capturedResult.ismartReception ??
-      capturedResult.electricityReceived;
-
-
-  const ismartReception =
-    rawIsmartReception ===
-        null ||
-      rawIsmartReception ===
-        undefined ||
-      normalizeOisAgentText(
-        rawIsmartReception
-      ) ===
-        ""
-      ? null
-      : roundDailyDataNumber(
-          parseDailyDataWorkbookNumber(
-            rawIsmartReception,
-            "수전량 (I-Smart)"
-          )
-        );
-
-
-
-  const epowerTransmission =
-    roundDailyDataNumber(
-      parseDailyDataWorkbookNumber(
-        capturedResult.epowerTransmission ??
-          capturedResult.electricityTransmitted,
-        "송전량 (ePower)"
-      )
-    );
-
-
-  const rawSolarDailyGeneration =
-    capturedResult.solarDailyGeneration ??
-      capturedResult.solarDaily;
-
-
-  const solarDailyGeneration =
-    rawSolarDailyGeneration ===
-        null ||
-      rawSolarDailyGeneration ===
-        undefined ||
-      normalizeOisAgentText(
-        rawSolarDailyGeneration
-      ) ===
-        ""
-      ? null
-      : roundDailyDataNumber(
-          parseDailyDataWorkbookNumber(
-            rawSolarDailyGeneration,
-            "solarDailyGeneration"
-          )
-        );
-
+  const generatorEcmsGen1 = parseOptionalWorkbookValue(capturedResult.generatorEcmsGen1, "발전량 (Generator) / ECMS gen1");
+  const ismartReception = parseOptionalWorkbookValue(
+    capturedResult.ismartReception ?? capturedResult.electricityReceived, "수전량 (I-Smart)");
+  const epowerTransmission = parseOptionalWorkbookValue(
+    capturedResult.epowerTransmission ?? capturedResult.electricityTransmitted, "송전량 (ePower)");
+  const solarDailyGeneration = parseOptionalWorkbookValue(
+    capturedResult.solarDailyGeneration ?? capturedResult.solarDaily, "태양광 일일 발전량");
 
 
   const parseOptionalSolarCumulativeNumber =
@@ -17900,89 +16822,15 @@ async function collectDailyDataWorkbookValues(
   }
 
 
-  const parseOptionalOrganicNumber =
-    (
-      value,
-      fractionDigits =
-        6
-    ) => {
-      if (
-        value ===
-          null ||
-        value ===
-          undefined ||
-        normalizeOisAgentText(
-          value
-        ) ===
-          ""
-      ) {
-        return null;
-      }
-
-      const numericValue =
-        Number(
-          value
-        );
-
-      if (
-        !Number.isFinite(
-          numericValue
-        )
-      ) {
-        return null;
-      }
-
-      return roundDailyDataNumber(
-        numericValue,
-        fractionDigits
-      );
-    };
-
-
-  const organicDaySilo =
-    parseOptionalOrganicNumber(
-      capturedResult.organicDaySilo ??
-        capturedResult.organicDaySiloLevel
-    );
-
-
-  const organicStorageSiloA =
-    parseOptionalOrganicNumber(
-      capturedResult.organicStorageSiloA ??
-        capturedResult.organicStorageSiloALevel
-    );
-
-
-  const organicStorageSiloB =
-    parseOptionalOrganicNumber(
-      capturedResult.organicStorageSiloB ??
-        capturedResult.organicStorageSiloBLevel
-    );
-
-
-  const hasCompleteOrganicSiloValues =
-    [
-      organicDaySilo,
-      organicStorageSiloA,
-      organicStorageSiloB
-    ].every(
-      value => {
-        return Number.isFinite(
-          value
-        );
-      }
-    );
-
-
-  const organicSiloTotal =
-    hasCompleteOrganicSiloValues
-      ? roundDailyDataNumber(
-          organicDaySilo +
-          organicStorageSiloA +
-          organicStorageSiloB,
-          6
-        )
-      : null;
+  const organicDaySilo = parseOptionalWorkbookValue(
+    capturedResult.organicDaySilo ?? capturedResult.organicDaySiloLevel, "Day Silo 재고량");
+  const organicStorageSiloA = parseOptionalWorkbookValue(
+    capturedResult.organicStorageSiloA ?? capturedResult.organicStorageSiloALevel, "Storage Silo A 재고량");
+  const organicStorageSiloB = parseOptionalWorkbookValue(
+    capturedResult.organicStorageSiloB ?? capturedResult.organicStorageSiloBLevel, "Storage Silo B 재고량");
+  // Plant!287 is the entered/calculated workbook total. Do not replace it
+  // with a sum of values that may be missing, rounded, or manually corrected.
+  const organicSiloTotal = parseOptionalWorkbookValue(capturedResult.organicSiloTotal, "유기성 총 재고량 (Plant!287)");
 
   const sludgeEntries =
     Array.isArray(
@@ -18002,22 +16850,8 @@ async function collectDailyDataWorkbookValues(
                 item?.amount;
 
 
-              const amount =
-                rawAmount ===
-                    null ||
-                  rawAmount ===
-                    undefined ||
-                  normalizeOisAgentText(
-                    rawAmount
-                  ) ===
-                    ""
-                  ? null
-                  : roundDailyDataNumber(
-                      parseDailyDataWorkbookNumber(
-                        rawAmount,
-                        `${index + 1}번째 하수슬러지 입고량`
-                      )
-                    );
+              const amount = parseOptionalWorkbookValue(
+                rawAmount, `${index + 1}번째 하수슬러지 입고량`);
 
 
               return {
@@ -18079,25 +16913,8 @@ async function collectDailyDataWorkbookValues(
     ).length;
 
 
-  const calculatedSludgeTotal =
-    roundDailyDataNumber(
-      sludgeEntries.reduce(
-        (
-          sum,
-          item
-        ) => {
-          return sum +
-            (
-              Number.isFinite(
-                item.amount
-              )
-                ? item.amount
-                : 0
-            );
-        },
-        0
-      )
-    );
+  const calculatedSludgeTotal = sludgeEntries.reduce(
+    (sum, item) => sum + (Number.isFinite(item.amount) ? item.amount : 0), 0);
 
 
   const capturedSludgeTruckCount =
@@ -18166,8 +16983,29 @@ async function collectDailyDataWorkbookValues(
 
   const sludgeTotal =
     hasOrganicReceiptData
-      ? calculatedSludgeTotal
+      ? capturedSludgeTotal
       : null;
+
+  // A workbook containing only blank/error cells for this date must not
+  // replace a previously saved valid result. Historical totals do not count.
+  const selectedDayValues = [
+    coalUsageUnitOne, coalUsageUnitTwo, bioUsageUnitOne, bioUsageUnitTwo,
+    organicUsageUnitOne, organicUsageUnitTwo,
+    generatorEcmsGen1, ismartReception, epowerTransmission, solarDailyGeneration,
+    unitOneProduction, unitTwoProduction, steamSalesLowPressure, steamSalesHighPressure,
+    organicDaySilo, organicStorageSiloA, organicStorageSiloB, organicSiloTotal,
+    ...sludgeEntries.map(item => item.amount)
+  ];
+  if (!selectedDayValues.some(value => Number.isFinite(value))) {
+    const warnings = Array.isArray(capturedResult.fieldWarnings) ? capturedResult.fieldWarnings : [];
+    const warningDetails = warnings.slice(0, 3).map(warning => normalizeOisAgentText(
+      typeof warning === "string" ? warning : warning?.message || warning?.reason || warning?.field || ""
+    ).slice(0, 300)).filter(Boolean).join(" / ");
+    throw new Error(
+      `선택일 ${targetDate}의 ${capturedResult.workbook}에 기입된 숫자값이 없습니다. 해당 날짜의 셀을 확인해 주세요.` +
+      (warningDetails ? ` 확인 내용: ${warningDetails}` : "")
+    );
+  }
 
   const result = {
     schemaVersion:
@@ -18183,7 +17021,20 @@ async function collectDailyDataWorkbookValues(
       "Plant 저압·고압증기 수기값",
 
     organicSiloSource:
-      "DataPARC / Data Normalize (2)",
+      "Plant 수기·계산 완료값",
+
+    workbookSource:
+      "open_workbook",
+
+    readerVersion:
+      "monthly-open-v1",
+
+    workbookProcessId:
+      Number.isInteger(capturedResult.workbookProcessId) && capturedResult.workbookProcessId > 0
+        ? capturedResult.workbookProcessId : null,
+
+    fieldWarnings:
+      Array.isArray(capturedResult.fieldWarnings) ? capturedResult.fieldWarnings : [],
 
     targetDate,
 
@@ -18212,7 +17063,7 @@ async function collectDailyDataWorkbookValues(
       "Plant",
 
     dataParcWorksheet:
-      "Data Normalize (2)",
+      "",
 
     monthCell:
       normalizeOisAgentText(
@@ -18235,9 +17086,7 @@ async function collectDailyDataWorkbookValues(
       ),
 
     dataParcDateCell:
-      normalizeOisAgentText(
-        capturedResult.dataParcDateCell
-      ),
+      "",
 
     cellMap:
       capturedResult.cellMap &&
@@ -18395,8 +17244,7 @@ async function collectDailyDataWorkbookValues(
         : {},
 
     dataParcHost:
-      capturedResult.dataParcHost ===
-        true,
+      false,
 
     collectedAt:
       normalizeOisAgentText(
@@ -18405,11 +17253,9 @@ async function collectDailyDataWorkbookValues(
       new Date()
         .toISOString(),
 
-    productionComplete:
-      true,
+    productionComplete,
 
-    salesComplete:
-      true
+    salesComplete
   };
 
 

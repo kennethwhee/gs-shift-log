@@ -165759,9 +165759,7 @@ function applyMorningMeetingDailyDataValues(
   dailyData
 ) {
   const source =
-    window.organicSiloDataParc?.valuesForWorkbook
-      ? window.organicSiloDataParc.valuesForWorkbook(dailyData)
-      : (dailyData && typeof dailyData === "object" ? dailyData : {});
+    dailyData && typeof dailyData === "object" ? dailyData : {};
 
 
   /* =====================================================
@@ -167062,12 +167060,8 @@ let dailyDataForWorkbook =
 if (
   !dailyData
 ) {
-  const hasOrganicSiloInventory = Number.isFinite(
-    window.organicSiloDataParc?.valuesForWorkbook({})?.organicSiloTotal
-  );
-  const missingDailyDataMessage = hasOrganicSiloInventory
-    ? "전력·태양광·증기·유기성 입고 자동수치가 없습니다. 조회한 Silo 재고는 포함됩니다."
-    : "전력·태양광·증기·유기성 고형연료 자동수치가 없습니다.";
+  const missingDailyDataMessage =
+    "전력·태양광·증기·유기성 고형연료 자동수치가 없습니다.";
 
 
   let shouldContinueWithoutDailyData =
@@ -201945,10 +201939,6 @@ const readSavedSmpNumber =
       과거자료는 steam_status도 호환
     ================================================= */
 
-    if (window.organicSiloDataParc?.restoreCompleted(items, normalizedDate)) {
-      restored = true;
-    }
-
     const dailyItem =
       findCompletedItem([
         "daily_data_excel"
@@ -216496,6 +216486,21 @@ function formatRate(
       result.unitTwoProduction,
       result.totalProduction,
       result.salesRate,
+      result.solarDailyGeneration ?? result.solarDaily,
+      result.solarMonthlyCumulative,
+      result.solarYearlyCumulative,
+      result.sludgeTotal,
+      result.sludgeTruckCount,
+      result.organicDaySilo ?? result.organicDaySiloLevel,
+      result.organicStorageSiloA ?? result.organicStorageSiloALevel,
+      result.organicStorageSiloB ?? result.organicStorageSiloBLevel,
+      result.organicSiloTotal,
+      result.coalUsageUnitOne,
+      result.coalUsageUnitTwo,
+      result.bioUsageUnitOne,
+      result.bioUsageUnitTwo,
+      result.organicUsageUnitOne,
+      result.organicUsageUnitTwo,
     ].some(
       value => {
         return normalizeNumber(
@@ -217257,7 +217262,6 @@ if (
       }
     );
 
-    window.organicSiloDataParc?.render({ baseRendered: true });
     window.morningMeetingQuerySources?.render();
   }
 
@@ -217345,7 +217349,7 @@ if (
     - 저장자료를 사용하지 않고 다시 조회
   ====================================================== */
 
-  // Fresh workbook reads originate only from the source-specific desktop action.
+  // Fresh workbook reads originate only from the explicit desktop Excel action.
   function isExplicitDailyWorkbookQuery(options = {}) {
     const nav = window.navigator || {};
     return options.userInitiated === true && options.querySource === "daily_data_excel" &&
@@ -217371,7 +217375,7 @@ if (
 
 
     if (!isExplicitDailyWorkbookQuery(options)) {
-      throw new Error("일일 DATA 엑셀의 [조회하기] 버튼에서 조회해 주세요.");
+      throw new Error("[엑셀 조회하기] 버튼에서 조회해 주세요.");
     }
 
     const response =
@@ -217999,7 +218003,11 @@ if (
       );
 
 
-    if (
+    if (rawResult.readerVersion === "monthly-open-v1") {
+      // Preserve the opened workbook's entered totals and blanks exactly.
+      sludgeTruckCount = normalizeNumber(rawResult.sludgeTruckCount);
+      sludgeTotal = normalizeNumber(rawResult.sludgeTotal);
+    } else if (
       hasOrganicReceiptData
     ) {
       sludgeTruckCount =
@@ -218059,7 +218067,9 @@ if (
       );
 
 
-    if (
+    if (rawResult.readerVersion === "monthly-open-v1") {
+      organicSiloTotal = normalizeNumber(rawResult.organicSiloTotal);
+    } else if (
       hasCompleteOrganicSiloValues
     ) {
       organicSiloTotal =
@@ -235524,8 +235534,6 @@ function mergeSavedRows(
     }
   );
 
-  window.organicSiloDataParc?.mergeHistoryRows(rowsByDate, completedItems, isDateInRange);
-
   /*
     석회석 저장값
   */
@@ -242452,10 +242460,6 @@ function initializeDailyControls() {
   ];
 
 
-  let loading =
-    false;
-
-
   function createIcon() {
     return `
       <svg
@@ -242474,107 +242478,9 @@ function initializeDailyControls() {
   }
 
 
-  function setLoading(
-    activeButton
-  ) {
-    TARGETS.forEach(
-      item => {
-        const button =
-          document.getElementById(
-            item.buttonId
-          );
-
-
-        if (
-          !button
-        ) {
-          return;
-        }
-
-
-        /*
-          동시에 두 개의 Excel 조회가 실행되지 않도록
-          조회 중에는 세 버튼 모두 잠근다.
-
-          단, 회전 아이콘은
-          실제 누른 버튼에만 표시한다.
-        */
-
-        button.disabled =
-          loading;
-
-
-        button.classList.toggle(
-          "is-loading",
-          loading &&
-          button ===
-            activeButton
-        );
-      }
-    );
-  }
-
-
-  async function refreshDailyData(
-    item,
-    button
-  ) {
-    if (
-      loading
-    ) {
-      return;
-    }
-
-
-    const loader =
-      window
-        .refreshEfficiencyMorningMeetingDailyDataSection;
-
-
-    if (
-      typeof loader !==
-        "function"
-    ) {
-      console.warn(
-        "일일 DATA 카드별 재조회 함수를 찾지 못했습니다."
-      );
-
-
-      return;
-    }
-
-
-    loading =
-      true;
-
-
-    setLoading(
-      button
-    );
-
-
-    try {
-      await loader(
-        item.section
-      );
-
-    } catch (
-      error
-    ) {
-      console.error(
-        `${item.label} 실패:`,
-        error
-      );
-
-    } finally {
-      loading =
-        false;
-
-
-      setLoading(
-        null
-      );
-    }
+  async function refreshDailyData() {
+    // Every card reads the same selected-month workbook through one guarded request.
+    return window.morningMeetingQuerySources?.query("workbook", { userInitiated: true });
   }
 
 
