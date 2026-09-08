@@ -1,0 +1,92 @@
+/* BLOWER_INCREMENTAL_REFRESH_V1
+ * Server-owned append receipts. The Agent still reads a fixed [start,end] RUN
+ * interval; only this server may attach that interval to a verified predecessor.
+ * A request CAS revision and the existing atomic history guard prevent double-adds.
+ */
+const instant = v => typeof v === 'string' && /(?:Z|[+-]\d{2}:\d{2})$/.test(v) ? Date.parse(v) : NaN;
+const number = v => v !== null && v !== undefined && v !== '' && typeof v !== 'boolean' && Number.isFinite(Number(v)) ? Number(v) : NaN;
+const near = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 0.000001;
+export function incrementalEvidence(source) {
+  const x = source?.incremental;
+  if (!x) return null;
+  const from = instant(x.coverageStartAt), baseAt = instant(x.baseObservedAt), end = instant(source.observedAt || source.endAt);
+  if (x.version !== 1 || typeof x.baseEventId !== 'string' || !x.baseEventId.startsWith('dataparc_runtime:') ||
+      !Number.isFinite(from) || !Number.isFinite(baseAt) || !Number.isFinite(end) || from >= baseAt || baseAt !== instant(source.startAt) || end <= baseAt ||
+      !Number.isSafeInteger(x.baseRunningSeconds) || x.baseRunningSeconds < 0 ||
+      !Number.isSafeInteger(x.deltaRunningSeconds) || x.deltaRunningSeconds < 0 ||
+      x.deltaRunningSeconds !== source.runningSeconds || !Number.isSafeInteger(x.totalRunningSeconds) ||
+      x.totalRunningSeconds !== x.baseRunningSeconds + x.deltaRunningSeconds) return null;
+  return x;
+}
+export function verifiedAppendBase(asset, rows, dataParcTag) {
+  if (!asset?.last_replacement_at || asset.cycle_start_state === 'pending') return null;
+  const stored = number(asset.cycle_runtime_hours), anchor = instant(asset.cycle_runtime_anchor_at);
+  if (!Number.isFinite(stored) || stored < 0 || !Number.isFinite(anchor)) return null;
+  // Latest timestamp-owned event, not just ANY historical row with equal hours.
+  const matching = (rows || []).filter(r => r.tag_number === asset.tag_number &&
+    ['runtime_correction','startup','operation_start','operation_stop'].includes(r.event_type) &&
+    instant(r.event_date) === anchor && near(number(r.runtime_hours), stored))
+    .sort((a,b) => (instant(b.updated_at || b.created_at || b.event_date) - instant(a.updated_at || a.created_at || a.event_date)) ||
+      String(b.created_at || '').localeCompare(String(a.created_at || '')) || String(b.id).localeCompare(String(a.id)));
+  const row = matching[0];
+  if (!row || row.source_type !== 'dataparc_runtime' || row.event_type !== 'runtime_correction') return null;
+  let s; try { s = JSON.parse(row.source_text); } catch { return null; }
+  if (!s || s.schemaVersion !== 1 || s.assetTag !== asset.tag_number || s.dataParcTag !== dataParcTag ||
+      s.requestType !== 'blower_runtime_probe' || s.requestId !== row.source_log_id || row.id !== `dataparc_runtime:${s.requestId}` ||
+      instant(s.expectedLastReplacementAt) !== instant(asset.last_replacement_at) ||
+      s.expectedCycleStartState !== (asset.cycle_start_state || 'legacy') ||
+      String(s.expectedCycleStartRevision || '') !== String(asset.cycle_start_revision || '') ||
+      (asset.cycle_start_state === 'started' && instant(s.expectedCycleStartedAt) !== instant(asset.cycle_started_at)) ||
+      instant(s.observedAt || s.endAt) !== anchor || s.endState !== asset.cycle_runtime_state ||
+      !['running','stopped'].includes(s.endState)) return null;
+  const x = incrementalEvidence(s);
+  if (s.incremental && !x) return null;
+  const seconds = x ? x.totalRunningSeconds : s.runningSeconds;
+  const startAt = x ? x.coverageStartAt : s.startAt;
+  const start = instant(startAt);
+  if (!Number.isSafeInteger(seconds) || seconds < 0 || !Number.isFinite(start) || start < instant(asset.last_replacement_at) || start >= anchor ||
+      // Compare raw stored hours, retaining exact integer seconds across appends.
+      !near(seconds / 3600, stored)) return null;
+  return { eventId: row.id, requestId: s.requestId, startAt, observedAt: s.observedAt || s.endAt,
+    dataParcTag: s.dataParcTag, runningSeconds: seconds, runtimeHours: stored,
+    state: s.endState, cycleRuntimeRevision: asset.cycle_runtime_revision };
+}
+export async function loadAppendBase(database, asset, dataParcTag) {
+  const result = await database.prepare(`SELECT * FROM blower_history_events
+    WHERE tag_number = ? AND event_type IN ('runtime_correction','startup','operation_start','operation_stop')
+    AND event_date = ? ORDER BY updated_at DESC, created_at DESC, id DESC`)
+    .bind(asset.tag_number, asset.cycle_runtime_anchor_at || '').all();
+  return verifiedAppendBase(asset, result.results || [], dataParcTag);
+}
+export async function ensureAppendSchema(database) {
+  await database.prepare(`CREATE TABLE IF NOT EXISTS blower_runtime_append_v1 (
+    request_id TEXT PRIMARY KEY, base_event_id TEXT NOT NULL, base_revision TEXT NOT NULL,
+    base_observed_at TEXT NOT NULL, coverage_start_at TEXT NOT NULL,
+    base_running_seconds INTEGER NOT NULL CHECK(base_running_seconds >= 0), created_at TEXT NOT NULL
+  )`).run();
+}
+export function appendIntentStatement(database, requestId, base, createdAt) {
+  return database.prepare(`INSERT INTO blower_runtime_append_v1
+    (request_id, base_event_id, base_revision, base_observed_at, coverage_start_at, base_running_seconds, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    .bind(requestId, base.eventId, base.cycleRuntimeRevision, base.observedAt, base.startAt, base.runningSeconds, createdAt);
+}
+export async function loadAppendIntent(database, requestId) {
+  try { return await database.prepare('SELECT * FROM blower_runtime_append_v1 WHERE request_id = ? LIMIT 1').bind(requestId).first(); }
+  catch (e) { if (/no such table:.*blower_runtime_append_v1/i.test(String(e?.message || e))) return null; throw e; }
+}
+export function combineAppendProbe(probe, receipt) {
+  if (!receipt) return { ...probe };
+  const seconds = number(receipt.base_running_seconds);
+  const from = instant(receipt.coverage_start_at), base = instant(receipt.base_observed_at);
+  if (receipt.request_id !== probe.requestId || receipt.base_revision !== probe.expectedCycleRuntimeRevision ||
+      base !== instant(probe.startAt) || !Number.isFinite(from) || from < instant(probe.expectedLastReplacementAt) || from >= base ||
+      !Number.isSafeInteger(seconds) || seconds < 0 || !Number.isSafeInteger(seconds + probe.runningSeconds)) {
+    throw Object.assign(new Error('증분 조회의 마지막 성공 시각·누적 기준이 일치하지 않습니다. 기존 값은 유지합니다.'), {code:'DATAPARC_APPEND_INTENT_CONFLICT'});
+  }
+  const total = seconds + probe.runningSeconds;
+  return { ...probe, runtimeHours: total / 3600,
+    incremental: { version: 1, baseEventId: receipt.base_event_id, baseObservedAt: receipt.base_observed_at,
+      coverageStartAt: receipt.coverage_start_at, baseRunningSeconds: seconds,
+      deltaRunningSeconds: probe.runningSeconds, totalRunningSeconds: total } };
+}

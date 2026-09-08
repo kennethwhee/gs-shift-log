@@ -1,3 +1,5 @@
+import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendIntent, combineAppendProbe } from "../_shared/blower-incremental.js";
+
 const FORCED_SUPER_ADMIN_EMPLOYEE_NO = "2014081";
 
 const TYPE_DEFINITIONS = [
@@ -1663,7 +1665,10 @@ function currentDataParcRuntimeBasis(asset, rows) {
   for (const row of rows || []) {
     if (row.tag_number !== asset.tag_number || row.source_type !== DATAPARC_RUNTIME_SYNC_SOURCE_TYPE || row.event_type !== "runtime_correction") continue;
     let source; try { source = JSON.parse(row.source_text); } catch { continue; }
-    const start = Date.parse(source.startAt), observed = Date.parse(source.observedAt || source.endAt);
+    const incremental = incrementalEvidence(source);
+    if (source.incremental && !incremental) continue;
+    const coverageStartAt = incremental ? incremental.coverageStartAt : source.startAt;
+    const start = Date.parse(coverageStartAt), observed = Date.parse(source.observedAt || source.endAt);
     if (source.assetTag !== asset.tag_number || source.requestType !== DATAPARC_RUNTIME_PROBE_REQUEST_TYPE ||
         row.id !== dataParcRuntimeSyncEventId(source.requestId) || row.source_log_id !== source.requestId ||
         !isSupportedDataParcRuntimePair(asset.tag_number, source.dataParcTag) ||
@@ -1672,7 +1677,12 @@ function currentDataParcRuntimeBasis(asset, rows) {
         source.expectedCycleStartState !== (asset.cycle_start_state || "legacy") ||
         String(source.expectedCycleStartRevision || "") !== String(asset.cycle_start_revision || "") ||
         (asset.cycle_start_state === "started" && Date.parse(source.expectedCycleStartedAt) !== Date.parse(asset.cycle_started_at))) continue;
-    return { startAt: source.startAt, observedAt: source.observedAt || source.endAt, requestId: source.requestId, runtimeHours: Number(row.runtime_hours) };
+    const append = verifiedAppendBase(asset, rows, source.dataParcTag);
+    return { startAt: coverageStartAt, observedAt: source.observedAt || source.endAt, requestId: source.requestId,
+      runtimeHours: Number(row.runtime_hours), dataParcTag: source.dataParcTag,
+      appendReady: Boolean(append && append.requestId === source.requestId),
+      runningSeconds: incremental ? incremental.totalRunningSeconds : source.runningSeconds,
+      lastQueryStartAt: source.startAt, lastAddedSeconds: incremental ? incremental.deltaRunningSeconds : null };
   }
   return null;
 }
@@ -6656,7 +6666,9 @@ function dataParcRuntimeSyncActionType(probe) {
 }
 
 function dataParcRuntimeSyncNote(probe) {
-  return `DataPARC 기간조회 ${probe.startAt} ~ ${probe.observedAt} · 누적 ${probe.runtimeHours}시간`;
+  return probe.incremental
+    ? `DataPARC 증분조회 ${probe.startAt} ~ ${probe.observedAt} · 추가 ${probe.runningSeconds / 3600}시간 · 누적 ${probe.runtimeHours}시간`
+    : `DataPARC 기간조회 ${probe.startAt} ~ ${probe.observedAt} · 누적 ${probe.runtimeHours}시간`;
 }
 
 function dataParcRuntimeSyncSourceText(probe) {
@@ -6679,7 +6691,8 @@ function dataParcRuntimeSyncSourceText(probe) {
     totalRunningHours: probe.totalRunningHours,
     runningSeconds: probe.runningSeconds,
     chunkCount: probe.chunkCount,
-    collectedAt: probe.collectedAt
+    collectedAt: probe.collectedAt,
+    ...(probe.incremental ? { incremental: probe.incremental } : {})
   });
 }
 
@@ -6739,10 +6752,14 @@ function dataParcRuntimeSyncSuccessResponse(probe, replayed) {
     eventId: dataParcRuntimeSyncEventId(probe.requestId),
     observedAt: probe.observedAt,
     runtimeHours: probe.runtimeHours,
+    ...(probe.incremental ? { incremental: true, addedRunningSeconds: probe.runningSeconds,
+      coverageStartAt: probe.incremental.coverageStartAt } : {}),
     isRunning: probe.isRunning,
     message: replayed
       ? "이미 반영된 DataPARC 기간조회입니다. 기존 결과를 유지했습니다."
-      : "선택한 기준시각 이후 DataPARC 운전시간과 현재 RUN 상태를 Blower Cycle에 반영했습니다."
+      : probe.incremental
+        ? `이후 구간 +${(probe.runningSeconds / 3600).toFixed(1)}시간 · 누적 ${probe.runtimeHours.toFixed(1)}시간 · 이전 조회값 보존`
+        : "선택한 기준시각 이후 DataPARC 운전시간과 현재 RUN 상태를 Blower Cycle에 반영했습니다."
   });
 }
 
@@ -6882,7 +6899,7 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
     }, 400);
   }
 
-  const probe = validation.result;
+  let probe = validation.result;
 
   if (
     normalizeText(requestRow.target_date) !==
@@ -6904,6 +6921,19 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
     }, 409);
   }
 
+  const appendIntent = await loadAppendIntent(database, requestId);
+  const appendWireRevision = String(intent.expected_cycle_runtime_revision || '').startsWith('append-v1:');
+  if ((String(intent.reuse_key || '').startsWith('append-v1:') || appendWireRevision) && !appendIntent) {
+    return jsonResponse({ ok: false, code: "DATAPARC_APPEND_INTENT_MISSING", message: "증분 조회 기준자료가 없습니다. 기존 값은 유지합니다." }, 409);
+  }
+  if (appendWireRevision) {
+    if (probe.expectedCycleRuntimeRevision !== `append-v1:${appendIntent.base_revision}`) {
+      return jsonResponse({ ok: false, code: "DATAPARC_APPEND_REVISION_CONFLICT", message: "증분 조회 Revision을 확인할 수 없습니다. 기존 값은 유지합니다." }, 409);
+    }
+    probe = { ...probe, expectedCycleRuntimeRevision: appendIntent.base_revision };
+  }
+  try { probe = combineAppendProbe(probe, appendIntent); }
+  catch (e) { return jsonResponse({ ok: false, code: e.code, message: e.message }, 409); }
   const sourceText = dataParcRuntimeSyncSourceText(probe);
 
   if (sourceText.length > 2000) {
@@ -6977,6 +7007,18 @@ async function applyDataParcRuntimeSync(database, user, body, options) {
       code: "DATAPARC_RUNTIME_CYCLE_CONFLICT",
       message: "조회 후 Blower 교체·기동·운전 상태가 변경되었습니다. 새 DataPARC 조회로 다시 확인해 주세요."
     }, 409);
+  }
+
+  if (appendIntent) {
+    const base = await loadAppendBase(database, asset, probe.dataParcTag);
+    if (!base || base.eventId !== appendIntent.base_event_id || base.cycleRuntimeRevision !== appendIntent.base_revision ||
+        Date.parse(base.observedAt) !== Date.parse(appendIntent.base_observed_at) ||
+        Date.parse(base.startAt) !== Date.parse(appendIntent.coverage_start_at) || base.runningSeconds !== Number(appendIntent.base_running_seconds)) {
+      return jsonResponse({ ok: false, code: "DATAPARC_APPEND_BASE_CHANGED",
+        message: "증분 조회 중 이전 누적시간·교체 기준이 변경되었습니다. 기존 값은 유지하며 조회 기준을 다시 확인해 주세요." }, 409);
+    }
+    if (base.state !== probe.startState) return jsonResponse({ ok: false, code: "DATAPARC_APPEND_BOUNDARY_CHANGED",
+      message: "이전 조회 종료 상태와 새 구간 시작 상태가 다릅니다. 이력 보기에서 RUN 재조회가 필요합니다. 기존 누적값은 유지합니다." }, 409);
   }
 
   const nowDate = runtimeOptions.now instanceof Date && !Number.isNaN(runtimeOptions.now.getTime())
@@ -14211,16 +14253,70 @@ async function loadLatestLogPage(database, body, options = {}) {
   return { ...page, logs, done, nextCursor };
 }
 
+/* BLOWER_INCREMENTAL_LOG_RECEIPTS_V1
+ * A single current source snapshot per log lets SQLite exclude unchanged logs
+ * without trusting updated_at (late approvals, null stamps and same-stamp edits
+ * are all supported). Two phase flags share the snapshot; nothing is marked
+ * complete until the existing idempotent analysis has succeeded.
+ * Source snapshots are internal DB metadata, never returned to the browser.
+ */
+async function ensureIncrementalLogSchema(database) {
+  await database.prepare(`CREATE TABLE IF NOT EXISTS blower_log_receipts_v1 (
+    log_id TEXT PRIMARY KEY, source_snapshot TEXT NOT NULL,
+    replacement_done INTEGER NOT NULL DEFAULT 0 CHECK(replacement_done IN (0,1)),
+    operation_done INTEGER NOT NULL DEFAULT 0 CHECK(operation_done IN (0,1)),
+    processed_at TEXT NOT NULL
+  )`).run();
+}
+const incrementalLogSnapshotSql = "json_array(l.id,l.work_date,l.shift,l.role,l.author,l.status,l.log_json,l.updated_at)";
+async function loadIncrementalLogPage(database, body, options = {}) {
+  // The durable receipts, not a browser cursor, are the source of truth.
+  const page = latestLogWindow({ ...body, cursor: null }, options.now || new Date());
+  await ensureIncrementalLogSchema(database);
+  const phaseColumn = body.phase === 'replacement' ? 'replacement_done' : 'operation_done';
+  const result = await database.prepare(`SELECT l.id,l.work_date,l.shift,l.role,l.author,l.status,l.log_json,l.updated_at,
+      ${incrementalLogSnapshotSql} AS source_snapshot
+    FROM shift_logs AS l LEFT JOIN blower_log_receipts_v1 AS r ON r.log_id=l.id
+    WHERE l.work_date >= ? AND l.work_date <= ? AND l.status='결재완료'
+      AND (julianday(l.updated_at) IS NULL OR julianday(l.updated_at)<=julianday(?))
+      AND (r.log_id IS NULL OR r.${phaseColumn}<>1 OR r.source_snapshot <> ${incrementalLogSnapshotSql})
+    ORDER BY l.work_date ASC, COALESCE(l.updated_at,'') ASC,l.id ASC LIMIT ?`)
+    .bind(page.window.fromDate, page.window.endDate, page.window.snapshotAt, page.limit + 1).all();
+  const rows = result.results || [], logs = rows.slice(0, page.limit), last = logs.at(-1), done = rows.length <= page.limit;
+  // Content fingerprint makes progress unambiguous even for same-stamp edits.
+  const digest = last ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(last.source_snapshot))))
+    .map(b => b.toString(16).padStart(2, '0')).join('') : '';
+  return { ...page, logs, done, nextCursor: done ? null : {
+    workDate: String(last.work_date), updatedAt: String(last.updated_at || ''), id: digest
+  } };
+}
+async function storeIncrementalLogReceipts(database, phase, logs, now = new Date()) {
+  if (!logs.length) return;
+  const replacement = phase === 'replacement' ? 1 : 0, operation = phase === 'operation' ? 1 : 0;
+  await database.batch(logs.map(row => database.prepare(`INSERT INTO blower_log_receipts_v1
+    (log_id,source_snapshot,replacement_done,operation_done,processed_at) VALUES(?,?,?,?,?)
+    ON CONFLICT(log_id) DO UPDATE SET
+      replacement_done = CASE WHEN blower_log_receipts_v1.source_snapshot=excluded.source_snapshot
+        THEN MAX(blower_log_receipts_v1.replacement_done,excluded.replacement_done) ELSE excluded.replacement_done END,
+      operation_done = CASE WHEN blower_log_receipts_v1.source_snapshot=excluded.source_snapshot
+        THEN MAX(blower_log_receipts_v1.operation_done,excluded.operation_done) ELSE excluded.operation_done END,
+      source_snapshot=excluded.source_snapshot,processed_at=excluded.processed_at`)
+    .bind(row.id, row.source_snapshot, replacement, operation, now.toISOString())));
+}
+
 async function latestLogsStep(database, user, body, options = {}) {
   try {
-    const page = await loadLatestLogPage(database, body, options);
+    const incremental = body.incrementalLogs === true;
+    const page = incremental ? await loadIncrementalLogPage(database, body, options)
+      : await loadLatestLogPage(database, body, options);
     const response = body.phase === 'replacement'
       ? await scanShiftLogs(database, user, { days: 365 }, page)
       : await syncOperationChanges(database, user, { days: 365 }, page);
     if (!response.ok) return response;
     const result = await response.json();
+    if (incremental) await storeIncrementalLogReceipts(database, body.phase, page.logs, options.now || new Date());
     return jsonResponse({
-      ok: true, version: 'bounded-logs-v1', phase: body.phase, window: page.window,
+      ok: true, version: 'bounded-logs-v1', incrementalLogs: incremental, phase: body.phase, window: page.window,
       limit: page.limit, done: page.done, nextCursor: page.nextCursor,
       scannedLogCount: page.logs.length,
       detectedCount: Number(result.detectedCount || 0), insertedCount: Number(result.insertedCount || 0),
@@ -14429,6 +14525,7 @@ export async function onRequestPost(context) {
 /* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
 export const __blowerHistoryTest = {
   isFbheSealRunAsset, fbheSealRunProvenance, historyDeleteRestoreBoundary, historyDeleteRestoreBeforeSnapshot,
+  ensureIncrementalLogSchema, loadIncrementalLogPage, storeIncrementalLogReceipts,
   latestLogWindow, loadLatestLogPage, latestLogsStep, scanShiftLogs, syncOperationChanges,
   isIntermittentBlower, usesMeasuredBlowerRuntime, createLogFragmentReader, currentDataParcRuntimeBasis, currentRuntimeHours, runtimeHoursAt, cycleRuntimeHoursAt,
   applyOisRuntimeRefresh, loadFbheVibrationRawResponse, loadSealPotRuntimeRawResponse,

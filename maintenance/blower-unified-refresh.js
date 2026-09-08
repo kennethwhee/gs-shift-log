@@ -86,13 +86,18 @@
         skip('RUN TAG 설정 필요 · 이력 보기 → 조회 기준·상세'); continue;
       }
       const previous = a.dataParcRuntimeBasis || basisFor(a.tagNumber);
-      // A cycle-local successful query owns its start. Never use the latest state/anchor as a new start.
+      // Preserve the coverage baseline; only a server-verified owner can append at its end.
       const startAt = previous?.startAt || (!fbheSealRunAsset(a) && a.cycleStartState === 'started' && a.cycleStartedAt) || a.lastReplacementAt;
-      const start = time(startAt);
-      if (!Number.isFinite(start) || start < replacement || start >= end || end - start > 366 * DAY) {
+      const incremental = previous?.appendReady === true && previous?.dataParcTag === dataParcTag;
+      const queryStartAt = incremental ? previous.observedAt : startAt;
+      const start = time(startAt), queryStart = time(queryStartAt);
+      if (incremental && Number.isFinite(queryStart) && Math.floor(end / 1000) <= Math.floor(queryStart / 1000)) {
+        skipped.push({ tagNumber: a.tagNumber, displayName: a.displayName || a.tagNumber, status: 'complete', unchanged: true, message: '새 조회 구간 없음 · 기존 값 유지' }); continue;
+      }
+      if (!Number.isFinite(start) || !Number.isFinite(queryStart) || start < replacement || queryStart < start || queryStart >= end || end - queryStart > 366 * DAY) {
         skip('조회 기준이 현재 교체 Cycle 또는 366일 한도와 맞지 않습니다.'); continue;
       }
-      tasks.push({ kind: 'dataparc', asset: a, snapshot: snapshot(a), startAt, dataParcTag });
+      tasks.push({ kind: 'dataparc', asset: a, snapshot: snapshot(a), startAt, queryStartAt, incremental, dataParcTag });
     }
     return { tasks, skipped, targetCount: (assets || []).filter(a => a.enabled !== false && a.enabled !== 0).length };
   }
@@ -134,12 +139,14 @@
     io.assertWritable?.();
     const s = task.snapshot;
     const created = await io.api({ method: 'POST', url: '/api/ois-data-requests', body: {
-      action: 'create_blower_runtime_probe', unifiedRefresh: true, assetTag: s.tagNumber,
+      action: 'create_blower_runtime_probe', unifiedRefresh: true, incrementalRefresh: true, assetTag: s.tagNumber,
       dataParcTag: task.dataParcTag, confirmRunSignal: true, startAt: task.startAt,
       expectedLastReplacementAt: s.lastReplacementAt, expectedCycleStartState: s.cycleStartState,
       expectedCycleStartedAt: s.cycleStartedAt, expectedCycleStartRevision: s.cycleStartRevision,
       expectedCycleRuntimeRevision: s.cycleRuntimeRevision
     }});
+    if (created?.upToDate === true) return { tagNumber: s.tagNumber,
+      displayName: task.asset.displayName || s.tagNumber, status: 'complete', unchanged: true, message: created.message || '기존 값 유지' };
     const item = created?.item || created?.items?.[0];
     if (!item?.id) throw error('DataPARC 조회 요청 ID를 받지 못했습니다.', 'REQUEST_MISSING');
     await waitRequests([item], io);
@@ -226,7 +233,7 @@
         io.progress?.(`${position} · ${limit}건씩 처리${retry ? ` · 재시도 ${retry}/4` : ''}`);
         try {
           payload = await io.api({ method: 'POST', timeoutMs: 30000,
-            body: { action: 'latest_logs_step', phase, limit, window, cursor } });
+            body: { action: 'latest_logs_step', incrementalLogs: true, phase, limit, window, cursor } });
           break;
         } catch (e) {
           if (!transient(e) || retry >= 4) {

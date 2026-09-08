@@ -1,3 +1,5 @@
+import { loadAppendBase, ensureAppendSchema, appendIntentStatement } from "../_shared/blower-incremental.js";
+
 "use strict";
 
 
@@ -13828,14 +13830,7 @@ async function createBlowerRuntimeProbeRequest(
   const asset =
     await database
       .prepare(`
-        SELECT
-          tag_number,
-          enabled,
-          last_replacement_at,
-          cycle_start_state,
-          cycle_started_at,
-          cycle_start_revision,
-          cycle_runtime_revision
+        SELECT *
         FROM blower_history_assets
         WHERE tag_number = ?
         LIMIT 1
@@ -13990,7 +13985,7 @@ async function createBlowerRuntimeProbeRequest(
     );
 
 
-  const requestedStartText =
+  let requestedStartText =
     normalizeText(
       body.startAt ??
       body.start_at ??
@@ -13999,6 +13994,23 @@ async function createBlowerRuntimeProbeRequest(
       ""
     );
 
+
+  // BLOWER_INCREMENTAL_REFRESH_V1: only the top Latest action may append.
+  // Never trust client-provided totals, checkpoints, or a manually entered start.
+  let appendBase = null;
+  if (body.incrementalRefresh === true) {
+    if (body.unifiedRefresh !== true) return jsonResponse({ ok: false, code: "BLOWER_INCREMENTAL_MODE_INVALID",
+      message: "증분 조회는 상단 최신화에서만 실행할 수 있습니다." }, 400);
+    appendBase = await loadAppendBase(database, asset, dataParcTag);
+    if (appendBase) {
+      requestedStartText = appendBase.observedAt;
+      if (Date.parse(requestedStartText) >= parsedEndAt.timestamp) {
+        return jsonResponse({ ok: true, upToDate: true, disposition: "already_current",
+          message: "새 조회 구간 없음 · 마지막 성공값 유지" });
+      }
+      await ensureAppendSchema(database);
+    }
+  }
 
   const parsedRequestedStart =
     requestedStartText
@@ -14133,7 +14145,7 @@ async function createBlowerRuntimeProbeRequest(
 
 
   const reuseKey =
-    await hashText(
+    (appendBase ? "append-v1:" : "") + await hashText(
       JSON.stringify([
         BLOWER_RUNTIME_PROBE_SCHEMA_VERSION,
         requestedById,
@@ -14144,7 +14156,8 @@ async function createBlowerRuntimeProbeRequest(
         expectedCycleStartedAt,
         expectedCycleStartRevision,
         expectedCycleRuntimeRevision,
-        ...(assetTag === BLOWER_RUNTIME_PROBE_ASSET_TAG ? [] : [dataParcTag])
+        ...(assetTag === BLOWER_RUNTIME_PROBE_ASSET_TAG ? [] : [dataParcTag]),
+        ...(appendBase ? ["incremental-v1", appendBase.eventId, appendBase.runningSeconds, appendBase.startAt] : [])
       ])
     );
 
@@ -14329,10 +14342,13 @@ async function createBlowerRuntimeProbeRequest(
           expectedCycleStartState,
           expectedCycleStartedAt,
           expectedCycleStartRevision,
-          expectedCycleRuntimeRevision,
+          // Older history deployments will reject this synthetic revision rather
+          // than mistake a delta for a full-cycle total. The Agent just echoes it.
+          appendBase ? `append-v1:${expectedCycleRuntimeRevision}` : expectedCycleRuntimeRevision,
           requestedAt,
           requestedAt
-        )
+        ),
+      ...(appendBase ? [appendIntentStatement(database, requestId, appendBase, requestedAt)] : [])
     ]);
   } catch (
     error

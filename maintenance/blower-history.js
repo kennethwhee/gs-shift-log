@@ -10165,7 +10165,8 @@
     const complete = results.filter(x => x.status === "complete").length;
     const failed = results.filter(x => x.status === "failed").length;
     const skipped = results.filter(x => x.status === "skipped").length;
-    elements.unifiedRefreshSummary.textContent = `결과 · 반영 ${complete}대 · 미반영 ${failed + skipped}대`;
+    const unchanged = results.filter(x => x.status === "complete" && x.unchanged === true).length;
+    elements.unifiedRefreshSummary.textContent = `결과 · 반영 ${complete - unchanged}대${unchanged ? ` · 유지 ${unchanged}대` : ""} · 미반영 ${failed + skipped}대`;
     elements.unifiedRefreshList.innerHTML = results.map(item => `<div class="unified-refresh-result" data-result="${escapeHtml(item.status)}">
       <strong>${escapeHtml(item.displayName || item.tagNumber)}<small class="refresh-result-tag">${escapeHtml(item.tagNumber || "")}</small></strong><span>${escapeHtml(item.message)}</span></div>`).join("");
   }
@@ -10208,13 +10209,13 @@
       try {
         if (!core) throw new Error("최신화 모듈이 없습니다. Ctrl+F5 후 다시 확인해 주세요.");
         assertUnifiedRefreshWritable();
-        progress("교체·교체운전 묶음 확인 중");
+        progress("새로 등록·수정된 업무일지 확인 중");
         // Preserve V13 candidate review, without parsing 365 days in a single request.
         const logResult = await core.refreshLogsForRuntime(io, { resume: state.unifiedLogResume });
         partial = !logResult.complete;
         state.operationSyncCompleted = logResult.complete;
         logNote = logResult.complete
-          ? `업무일지 새 교체 후보 ${Number(logResult.totals.insertedCount || 0)}건 · 교체운전 ${Number(logResult.totals.appliedStateChanges || 0)}건`
+          ? `업무일지 신규·변경분 확인 · 새 교체 후보 ${Number(logResult.totals.insertedCount || 0)}건 · 교체운전 ${Number(logResult.totals.appliedStateChanges || 0)}건`
           : `업무일지 확인 미완료 · ${logResult.warning} · 운전시간은 저장된 교체 기준`;
         phase = "현황 확인";
         await io.reload();
@@ -10230,7 +10231,7 @@
               status: "skipped", message: "회사 PC Agent 응답 없음 · 기존 값 유지" })));
             continue;
           }
-          progress("요청 준비 중");
+          progress(task.incremental ? `이후 구간 조회 · ${formatKstDateTimeDisplay(task.queryStartAt)} → 현재` : "조회 기준 확인 · 최초/재설정 기간 조회");
           try {
             const result = await core.executeDataParc(task, io);
             state.unifiedRefreshResults.push(...(Array.isArray(result) ? result : [result]));
@@ -10249,7 +10250,8 @@
         await io.reload();
         const counts = state.unifiedRefreshResults;
         const failures = counts.filter(x => x.status !== "complete").length;
-        const completion = `${formatKstDateTimeDisplay(currentServerDate().toISOString())} · 반영 ${counts.length - failures}대 / 전체 ${planned.targetCount}대`;
+        const unchanged = counts.filter(x => x.status === "complete" && x.unchanged === true).length;
+        const completion = `${formatKstDateTimeDisplay(currentServerDate().toISOString())} · 반영 ${counts.length - failures - unchanged}대${unchanged ? ` · 유지 ${unchanged}대` : ""} / 전체 ${planned.targetCount}대`;
         partial = partial || failures > 0;
         renderUnifiedRefreshProgress(`${partial ? "부분 최신화" : "최신화 완료"} · ${completion} · ${logNote}${failures ? " · 미반영 설비는 결과 확인" : ""}`);
         showToast(partial ? "부분 최신화 · 업무일지 또는 미반영 설비의 결과를 확인해 주세요." : "전체 Blower 최신화를 완료했습니다.");

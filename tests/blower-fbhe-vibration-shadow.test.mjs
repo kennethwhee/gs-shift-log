@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const apiUrl = new URL("../functions/api/blower-history.js", import.meta.url);
-const apiSource = await readFile(apiUrl, "utf8");
+const apiSource = (await readFile(apiUrl, "utf8")).replaceAll(
+  '"../_shared/blower-incremental.js"', JSON.stringify(new URL('../_shared/blower-incremental.js', apiUrl).href));
 
 assert.match(apiSource, /\[FBHE-VIBRATION-SHADOW-V1\]/);
 
