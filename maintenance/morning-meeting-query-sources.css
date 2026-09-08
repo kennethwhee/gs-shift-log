@@ -1,10 +1,10 @@
-/* One compact workbook action serves all four Daily DATA cards. */
+/* Three source actions share one compact row. */
 #efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query {
   display: flex;
   align-items: center;
   grid-column: 1 / -1;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 7px 12px;
   padding: 3px 0 6px;
 }
 #efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__caption {
@@ -15,34 +15,58 @@
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
-#efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__status {
-  flex-shrink: 0;
-  color: #65758a;
+#efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__statuses,
+#efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__statuses { gap: 12px; }
+#efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__source-status {
+  display: inline-flex;
+  gap: 5px;
   font-size: 12px;
-  font-weight: 600;
   white-space: nowrap;
+}
+#efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__source-label { color: #65758a; }
+#efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__status {
+  color: #65758a;
+  font-weight: 600;
 }
 #efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__status.is-complete { color: #187449; }
 #efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__status.is-loading { color: #245fb6; }
-#efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__status.is-error { color: #bd3333; }
+#efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__status.is-error,
+#efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__status.is-partial { color: #bd3333; }
 #efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__button {
   flex-shrink: 0;
-  border: 1px solid #2469e7;
+  border: 1px solid #8caee9;
   border-radius: 5px;
-  background: #3478f6;
-  color: #fff;
+  background: #fff;
+  color: #245fb6;
   font-size: 12px;
   font-weight: 700;
-  min-height: 30px;
-  padding: 4px 10px;
+  min-height: 32px;
+  padding: 4px 11px;
   cursor: pointer;
   white-space: nowrap;
+}
+#efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__button.is-primary {
+  border-color: #2469e7;
+  background: #3478f6;
+  color: #fff;
 }
 #efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__button:disabled { opacity: .55; cursor: default; }
 #efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__button:focus-visible { outline: 2px solid #173d77; outline-offset: 2px; }
 #efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__button[hidden],
 #efficiencyMorningMeetingAutoPreview .morning-meeting-daily-mini-refresh[hidden],
-#efficiencyMorningMeetingAutoPreview #morningMeetingCofiringRefreshButton[hidden] { display: none; }
+#efficiencyMorningMeetingAutoPreview #morningMeetingCofiringRefreshButton[hidden],
+#efficiencyMorningMeetingAutoPreview #loadEfficiencyMorningMeetingWaterButton[hidden],
+#efficiencyMorningMeetingAutoPreview #efficiencyMorningMeetingAutoPreviewStatus[hidden] { display: none; }
+@media (min-width: 901px) and (max-width: 1180px) {
+  #efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__caption { flex-basis: 100%; }
+  #efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__actions { margin-left: auto; }
+}
 @media (max-width: 900px) {
   #efficiencyMorningMeetingAutoPreview .morning-meeting-workbook-query__button,
   #efficiencyMorningMeetingAutoPreview .morning-meeting-daily-mini-refresh,

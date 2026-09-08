@@ -228635,7 +228635,7 @@ function initializeLimestoneSlipCameraPicker() {
     "loadEfficiencyMorningMeetingWaterButton";
 
   const BULK_BUTTON_LABEL =
-    "전체 자료 일괄조회";
+    "운영정보조회";
 
   let syncTimerId =
     null;
@@ -228683,15 +228683,29 @@ function initializeLimestoneSlipCameraPicker() {
     "efficiencyMorningMeetingAutoRetry-limestone",
     "efficiencyMorningMeetingAutoRetry-gear-pinion",
     "efficiencyMorningMeetingAutoRetry-silo-level",
-    "efficiencyMorningMeetingAutoDailyPowerRefreshButton",
-    "efficiencyMorningMeetingAutoSteamRefreshButton",
-    "efficiencyMorningMeetingAutoDailySludgeRefreshButton",
     "efficiencyMorningMeetingAutoSmpRefreshButton",
     "efficiencyMorningMeetingAutoWeatherRefreshButton",
     "loadLimestoneUsageOisButton",
     "resetEfficiencyMorningMeetingButton"
   ];
 
+
+  // [MORNING-MEETING-QUERY-MODES-V1] Keep controls locked through both source tasks.
+  function isMorningMeetingQueryBusy() {
+    return bulkLookupActive || window.morningMeetingQuerySources?.isBusy?.() === true;
+  }
+
+  function canStartOperationsQuery(options = {}) {
+    const date = getBulkCurrentBaseDate();
+    const parsed = new Date(`${date}T00:00:00Z`);
+    return options.userInitiated === true &&
+      typeof getShiftLogSessionToken === "function" && Boolean(String(getShiftLogSessionToken() || "").trim()) &&
+      !window.matchMedia?.("(max-width: 900px)").matches &&
+      !/Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator?.userAgent || "") &&
+      !(window.navigator?.platform === "MacIntel" && Number(window.navigator?.maxTouchPoints) > 0) &&
+      Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date &&
+      (!options.targetDate || options.targetDate === date);
+  }
 
   const BULK_STATUS_LOADING_CLASSES = [
     "is-loading",
@@ -228940,6 +228954,7 @@ function initializeLimestoneSlipCameraPicker() {
   function setBulkControlsLocked(
     locked
   ) {
+    locked = locked || isMorningMeetingQueryBusy();
     if (
       locked
     ) {
@@ -228991,7 +229006,7 @@ function initializeLimestoneSlipCameraPicker() {
                 lockState.blocker =
                   event => {
                     if (
-                      !bulkLookupActive
+                      !isMorningMeetingQueryBusy()
                     ) {
                       return;
                     }
@@ -229034,8 +229049,7 @@ function initializeLimestoneSlipCameraPicker() {
               lockState
                 .supportsDisabled
             ) {
-              control.disabled =
-                true;
+              if (control.disabled !== true) control.disabled = true;
 
             } else {
               control.setAttribute(
@@ -229875,7 +229889,7 @@ function initializeLimestoneSlipCameraPicker() {
   ) {
     if (
       button.disabled ||
-      bulkLookupActive
+      isMorningMeetingQueryBusy()
     ) {
       return;
     }
@@ -230065,7 +230079,7 @@ function initializeLimestoneSlipCameraPicker() {
 
 
     const shouldDisable =
-      bulkLookupActive ||
+      isMorningMeetingQueryBusy() ||
       isLookupRunning ||
       isStatusLoading;
 
@@ -230155,9 +230169,11 @@ function initializeLimestoneSlipCameraPicker() {
           }
 
 
-          void runBulkLookup(
-            button
-          );
+          if (typeof window.morningMeetingQuerySources?.query === "function") {
+            void window.morningMeetingQuerySources.query("all", { userInitiated: true });
+            return;
+          }
+          void window.runEfficiencyMorningMeetingBulkLookup?.({ userInitiated: true, targetDate: getBulkCurrentBaseDate() });
         }
       );
 
@@ -230181,7 +230197,7 @@ function initializeLimestoneSlipCameraPicker() {
 
 
     if (
-      !button.disabled
+      !button.disabled && button.textContent !== BULK_BUTTON_LABEL
     ) {
       button.textContent =
         BULK_BUTTON_LABEL;
@@ -230197,14 +230213,7 @@ function initializeLimestoneSlipCameraPicker() {
     syncBulkButton();
 
 
-    if (
-      bulkLookupActive
-    ) {
-      setBulkControlsLocked(
-        true
-      );
-    }
-
+    setBulkControlsLocked(isMorningMeetingQueryBusy());
 
     retryItems.forEach(
       ensureRetryButton
@@ -230248,7 +230257,8 @@ function initializeLimestoneSlipCameraPicker() {
 
     window
       .runEfficiencyMorningMeetingBulkLookup =
-      () => {
+      (options = {}) => {
+        if (!canStartOperationsQuery(options)) return Promise.resolve(null);
         const button =
           document.getElementById(
             BULK_BUTTON_ID
@@ -230264,6 +230274,8 @@ function initializeLimestoneSlipCameraPicker() {
             );
       };
 
+
+    document.addEventListener("morningMeetingQueryModeStateChanged", syncAll);
 
     const observer =
       new MutationObserver(

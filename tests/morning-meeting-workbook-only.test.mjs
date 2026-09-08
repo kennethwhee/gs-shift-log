@@ -103,7 +103,7 @@ const select = (start, end) => {
 const normalizeNumber = value => value === null || value === undefined || String(value).trim() === '' ? null :
   Number.isFinite(Number(value)) ? Number(value) : null;
 
-test('one compact Excel action replaces the two-source toolbar and four source strips', () => {
+test('workbook action stays in the compact toolbar without DataPARC source strips', () => {
   const h = harness();
   assert.equal(h.dateBar.nextSibling.id, 'morningMeetingQuerySources');
   assert.equal(h.byId('morningMeetingWorkbookQueryButton').textContent, '엑셀 조회하기');
