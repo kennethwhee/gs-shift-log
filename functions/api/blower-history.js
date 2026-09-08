@@ -246,7 +246,7 @@ const DATAPARC_RUNTIME_PROBE_REQUEST_TYPE = "blower_runtime_probe";
 const DATAPARC_RUNTIME_SYNC_ASSET_TAG = "104ETH03AN602";
 const DATAPARC_RUNTIME_SYNC_SOURCE_TAG = "GSPOGE.ABB_DCS.003ETH03AN602XB04";
 const DATAPARC_RUNTIME_SYNC_ASSET_TAGS = Object.freeze(
-  ASSET_SEEDS.filter(seed => ["organic_fuel", "flyash_bag", "flyash_silo"].includes(seed[1]))
+  ASSET_SEEDS.filter(seed => ["fbhe", "seal_pot", "organic_fuel", "flyash_bag", "flyash_silo"].includes(seed[1]))
     .map(seed => seed[0])
 );
 const DATAPARC_RUNTIME_SYNC_SOURCE_TYPE = "dataparc_runtime";
@@ -1117,10 +1117,16 @@ function isIntermittentBlower(asset) {
     normalizeText(asset?.tag_number || asset?.tagNumber) === "204LMDF01AN001";
 }
 
+/* BLOWER_ALL_RUN_SIGNAL_V1 — measured RUN durations, never a live wall-clock estimate. */
+function usesMeasuredBlowerRuntime(asset) {
+  const tag = normalizeText(asset?.tag_number || asset?.tagNumber);
+  return DATAPARC_RUNTIME_SYNC_ASSET_TAGS.includes(tag) || isIntermittentBlower(asset);
+}
+
 function currentRuntimeHours(asset, now = new Date()) {
   let hours = Math.max(0, Number(asset.runtime_hours || 0));
 
-  if (!isIntermittentBlower(asset) && Number(asset.is_running) === 1 && asset.runtime_anchor_at) {
+  if (!usesMeasuredBlowerRuntime(asset) && Number(asset.is_running) === 1 && asset.runtime_anchor_at) {
     const anchor = new Date(asset.runtime_anchor_at);
 
     if (!Number.isNaN(anchor.getTime()) && anchor <= now) {
@@ -1140,7 +1146,7 @@ function runtimeHoursAt(asset, eventDate) {
 
   let hours = Math.max(0, Number(asset.runtime_hours || 0));
 
-  if (!isIntermittentBlower(asset) && Number(asset.is_running) === 1 && asset.runtime_anchor_at) {
+  if (!usesMeasuredBlowerRuntime(asset) && Number(asset.is_running) === 1 && asset.runtime_anchor_at) {
     const anchor = new Date(asset.runtime_anchor_at);
 
     if (!Number.isNaN(anchor.getTime()) && anchor <= at) {
@@ -1251,7 +1257,7 @@ function cycleRuntimeHoursAt(asset, eventDate) {
   const anchorAt = new Date(asset.cycle_runtime_anchor_at);
 
   if (
-    !isIntermittentBlower(asset) &&
+    !usesMeasuredBlowerRuntime(asset) &&
     operationState === "running" &&
     !Number.isNaN(anchorAt.getTime()) &&
     anchorAt <= at
@@ -1285,12 +1291,12 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
   );
   const cycleRuntimeState = normalizeText(asset.cycle_runtime_state) || "stopped";
   const runtimeUnknown = cycleRuntimeState === "unknown";
-  const measurementRequired = isIntermittentBlower(asset) && asset.runtime_measurement_verified === false && cycleStartState !== "pending";
+  const measurementRequired = usesMeasuredBlowerRuntime(asset) && asset.runtime_measurement_verified === false && cycleStartState !== "pending";
   const cycleElapsedHours = !hasConfirmedReplacement || runtimeUnknown || measurementRequired || cycleStartState === "pending"
     ? null
     : (cycleRuntimeTracked
       ? cycleRuntimeHoursAt(asset, now)
-      : (isIntermittentBlower(asset) ? null : cycleElapsedHoursSince(cycleStartedAt, now)));
+      : (usesMeasuredBlowerRuntime(asset) ? null : cycleElapsedHoursSince(cycleStartedAt, now)));
   const cycleDays = toNullableNumber(setting?.cycleDays ?? setting?.cycle_days);
   const warningDays = toNullableNumber(setting?.warningDays ?? setting?.warning_days);
   const criticalDays = toNullableNumber(setting?.criticalDays ?? setting?.critical_days);
@@ -1361,7 +1367,7 @@ function buildAssetState(asset, setting, latestProblem, latestReference, now = n
       ? cycleRuntimeState === "running"
       : Number(asset.is_running) === 1,
     cycleElapsedHours,
-    runtimeAccumulationMode: isIntermittentBlower(asset) ? "measured_only" : "state_elapsed",
+    runtimeAccumulationMode: usesMeasuredBlowerRuntime(asset) ? "measured_only" : "state_elapsed",
     measurementRequired,
     runtimeMeasuredAt: normalizeText(asset.runtime_measured_at),
     remainingHours,
@@ -1743,7 +1749,7 @@ async function loadAssetStates(database, settings) {
       : null;
 
     const runtimeBasis = currentDataParcRuntimeBasis(asset, runtimeRows);
-    if (isIntermittentBlower(asset)) {
+    if (usesMeasuredBlowerRuntime(asset)) {
       const manual = runtimeRows.find(row => row.tag_number === asset.tag_number && row.source_type === "manual" &&
         ["runtime_correction", "startup"].includes(row.event_type) &&
         new Date(row.event_date).getTime() >= new Date(asset.last_replacement_at || "").getTime() &&
@@ -6669,7 +6675,7 @@ function dataParcRuntimeSyncSuccessResponse(probe, replayed) {
 async function loadDataParcRuntimeSyncIntent(database, requestId) {
   // V2 has a database-level fixed 602 pair constraint. A missing V3 row can be
   // an already-completed pilot request created before the V3 queue migration.
-  for (const table of ["blower_runtime_probe_intents_v3", "blower_runtime_probe_intents_v2"]) {
+  for (const table of ["blower_runtime_probe_intents_v4", "blower_runtime_probe_intents_v3", "blower_runtime_probe_intents_v2"]) {
     let intent;
     try {
       intent = await database.prepare(`SELECT * FROM ${table} WHERE request_id = ? LIMIT 1`)
@@ -8077,11 +8083,11 @@ function duplicateIdentityCompatible(left, right, assets = []) {
   return true;
 }
 
-function buildRolePriorityContext(rows, assets = []) {
+function buildRolePriorityContext(rows, assets = [], parse = parseShiftLogFragments) {
   const context = new Map();
 
   for (const row of rows || []) {
-    const fragments = parseShiftLogFragments(row, assets)
+    const fragments = parse(row, assets)
       .filter(fragment => isBlowerScanRelevantFragment(fragment, assets));
 
     if (fragments.length === 0) continue;
@@ -11013,6 +11019,15 @@ async function applyAutomaticOperationState(database, change, plan, targetRunnin
   return { applied: true, reason: targetRunning ? "started" : "stopped" };
 }
 
+// Request-scoped cache only. No cross-request cached approvals or global evidence.
+function createLogFragmentReader(assets) {
+  const cache = new Map();
+  return row => {
+    if (!cache.has(row)) cache.set(row, parseShiftLogFragments(row, assets));
+    return cache.get(row);
+  };
+}
+
 async function syncOperationChanges(database, user, body = {}, prepared = null) {
   const days = Math.max(1, Math.min(365, Number(body.days) || OPERATION_SYNC_DEFAULT_DAYS));
   const fromDate = new Date(Date.now() - days * 24 * 3600000);
@@ -11035,7 +11050,8 @@ async function syncOperationChanges(database, user, body = {}, prepared = null) 
   const recognitionAssets = Array.isArray(assetResult.results) ? assetResult.results : [];
   const assets = recognitionAssets.filter(asset => Number(asset.enabled) === 1);
   const upperRoleRows = await loadUpperRoleRowsForDates(database, logs);
-  const rolePriorityContext = buildRolePriorityContext([...logs, ...upperRoleRows], recognitionAssets);
+  const parseOnce = createLogFragmentReader(recognitionAssets);
+  const rolePriorityContext = buildRolePriorityContext([...logs, ...upperRoleRows], recognitionAssets, parseOnce);
   const seen = new Set();
   const skipped = {};
   let detectedChangeovers = 0;
@@ -11048,7 +11064,7 @@ async function syncOperationChanges(database, user, body = {}, prepared = null) 
   };
 
   for (const row of logs) {
-    const rawFragments = parseShiftLogFragments(row, recognitionAssets);
+    const rawFragments = parseOnce(row);
     const prioritized = applyDutyRolePriority(row, rawFragments, rolePriorityContext, recognitionAssets);
     const fragments = v13ContextualizeScanFragments(prioritized.fragments, row, recognitionAssets);
 
@@ -11183,17 +11199,18 @@ async function scanShiftLogs(database, user, body, prepared = null) {
   const recognitionAssets = Array.isArray(assetResult.results) ? assetResult.results : [];
   const assets = recognitionAssets.filter(asset => Number(asset.enabled) === 1);
   const upperRoleRows = await loadUpperRoleRowsForDates(database, logs);
+  const parseOnce = createLogFragmentReader(recognitionAssets);
   const rolePriorityContext = buildRolePriorityContext([
     ...logs,
     ...upperRoleRows
-  ], recognitionAssets);
+  ], recognitionAssets, parseOnce);
   let detectedCount = 0;
   let insertedCount = 0;
   let excludedPartLeaderLogs = 0;
   let suppressedDuplicateFragments = 0;
 
   for (const row of logs) {
-    const rawFragments = parseShiftLogFragments(row, recognitionAssets);
+    const rawFragments = parseOnce(row);
     const prioritized = applyDutyRolePriority(row, rawFragments, rolePriorityContext, recognitionAssets);
 
     if (prioritized.excludedPartLeader) {
@@ -14338,7 +14355,7 @@ export async function onRequestPost(context) {
 /* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
 export const __blowerHistoryTest = {
   latestLogWindow, loadLatestLogPage, latestLogsStep, scanShiftLogs, syncOperationChanges,
-  isIntermittentBlower, currentDataParcRuntimeBasis, currentRuntimeHours, runtimeHoursAt, cycleRuntimeHoursAt,
+  isIntermittentBlower, usesMeasuredBlowerRuntime, createLogFragmentReader, currentDataParcRuntimeBasis, currentRuntimeHours, runtimeHoursAt, cycleRuntimeHoursAt,
   applyOisRuntimeRefresh, loadFbheVibrationRawResponse, loadSealPotRuntimeRawResponse,
 
   planManualHistoryDeletion,

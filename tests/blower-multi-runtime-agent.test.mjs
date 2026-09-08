@@ -23,7 +23,7 @@ const ASSETS = [
   "104ETG30AN601", "104ETG30AN602", "204ETG30AN601", "204ETG30AN602",
   "104SDF01AN001", "104SDF01AN002", "204SDF01AN001", "204SDF01AN002",
   "204LMDF01AN001"
-];
+, "104HHL60AP611", "104HHL60AP621", "104HHL60AP631", "204HHL60AP611", "204HHL60AP621", "204HHL60AP631", "104HHL10AN611", "104HHL10AN621", "104HHL10AN631", "204HHL10AN611", "204HHL10AN621", "204HHL10AN631"];
 const FIXED_ASSET = "104ETH03AN602";
 const FIXED_SOURCE = "GSPOGE.ABB_DCS.003ETH03AN602XB04";
 // Synthetic fixture sources deliberately cannot be inferred from the equipment TAG.
@@ -72,7 +72,7 @@ function rawResult(claim, state = "running") {
   };
 }
 
-test("all eleven supported assets use the exact confirmed queue source without deriving it", () => {
+test("all twenty-three supported assets use the exact confirmed queue source without deriving it", () => {
   for (const asset of ASSETS) {
     const claim = item(asset);
     const expected = agent.parseClaim(claim);
@@ -97,7 +97,7 @@ test("the working Silo B source stays fixed and legacy cycle metadata remains ac
 });
 
 test("the Agent rejects unsupported assets and conflicting canonical queue identities", () => {
-  for (const asset of ["104HHL60AP611", "104HHL10AN611", "204LMDF01AN002", "104ETH03AN603", "", "104eth03an601"]) {
+  for (const asset of ["104HHL60AP612", "104HHL10AN612", "204LMDF01AN002", "104ETH03AN603", "", "104eth03an601"]) {
     assert.throws(() => agent.parseClaim(item(asset)), /payload/);
   }
   for (const mutation of [
@@ -159,7 +159,7 @@ test("every dynamic result must match its requested asset, source, window, and b
   }
 });
 
-test("the PowerShell boundary has the same eleven assets, strict source grammar, and immutable B mapping", () => {
+test("the PowerShell boundary has the same twenty-three assets, strict source grammar, and immutable B mapping", () => {
   const start = source.indexOf("$allowedProbeAssetTags = @(");
   const end = source.indexOf("$chunkDays = 0", start);
   assert.ok(start > 0 && end > start);

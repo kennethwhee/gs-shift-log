@@ -96,12 +96,12 @@ test('error details retain stage diagnostics without HTML response text',()=>{
 test('UI calls bounded refresh rather than the monolithic scan and never auto-launches at page load',()=>{
  const text=readFileSync(new URL('../maintenance/blower-history.js',import.meta.url),'utf8');
  const refresh=text.slice(text.indexOf('  async function refreshAllBlowers()'),text.indexOf('  async function refreshFbheForUnified('));
- assert.match(refresh,/core\.refreshLogs\(io/);assert.doesNotMatch(refresh,/action:\s*"(?:scan|operation_sync)"/);
+ assert.match(refresh,/core\.refreshLogsForRuntime\(io/);assert.doesNotMatch(refresh,/action:\s*"(?:scan|operation_sync)"/);
  assert.match(refresh,/최신화 중단 · \$\{phase\}/);assert.match(refresh,/unifiedLogResumeOwner/);
  assert.match(refresh,/isMobileMonitoringView\(\) \|\| !hasAuthenticatedWriteAccess\(\)/);
  const request=text.slice(text.indexOf('  async function apiRequest('),text.indexOf('  async function apiRequest(')+4000);
  assert.ok(request.indexOf('text = await response.text()')<request.indexOf('finally'));
  const html=readFileSync(new URL('../maintenance/blower-history.html',import.meta.url),'utf8');
- assert.match(html,/blower-unified-refresh\.js\?v=20260909-503-fix-v1/);
- assert.match(html,/blower-history\.js\?v=20260909-unified-refresh-503-fix-v1/);
+ assert.match(html,/blower-unified-refresh\.js\?v=20260909-all-run-signal-v1/);
+ assert.match(html,/blower-history\.js\?v=20260909-all-run-signal-v1/);
 });

@@ -76,7 +76,11 @@ const BLOWER_RUNTIME_PROBE_ALLOWED_ASSET_TAGS = Object.freeze([
   "104ETH03AN601", "104ETH03AN602",
   "104ETG30AN601", "104ETG30AN602", "204ETG30AN601", "204ETG30AN602",
   "104SDF01AN001", "104SDF01AN002", "204SDF01AN001", "204SDF01AN002",
-  "204LMDF01AN001"
+  "204LMDF01AN001",
+  "104HHL60AP611", "104HHL60AP621", "104HHL60AP631",
+  "204HHL60AP611", "204HHL60AP621", "204HHL60AP631",
+  "104HHL10AN611", "104HHL10AN621", "104HHL10AN631",
+  "204HHL10AN611", "204HHL10AN621", "204HHL10AN631"
 ]);
 
 function isValidBlowerRuntimeProbeMapping(assetTag, dataParcTag) {
@@ -3629,6 +3633,52 @@ async function ensureBlowerRuntimeProbeSchema(
             asset_tag, expected_cycle_start_revision,
             expected_cycle_runtime_revision, created_at DESC
           )
+        `),
+
+        // V4 adds FBHE/Seal Pot equipment without rebuilding or dropping the V3 table.
+        database.prepare(`
+          CREATE TABLE IF NOT EXISTS blower_runtime_probe_intents_v4 (
+            request_id TEXT PRIMARY KEY NOT NULL,
+            reuse_key TEXT UNIQUE,
+            schema_version INTEGER NOT NULL,
+            asset_tag TEXT NOT NULL,
+            dataparc_tag TEXT NOT NULL,
+            window_start TEXT NOT NULL,
+            window_end TEXT NOT NULL,
+            chunk_days INTEGER NOT NULL,
+            chunk_count INTEGER NOT NULL,
+            expected_last_replacement_at TEXT NOT NULL,
+            expected_cycle_start_state TEXT NOT NULL,
+            expected_cycle_started_at TEXT NOT NULL,
+            expected_cycle_start_revision TEXT NOT NULL,
+            expected_cycle_runtime_revision TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            CHECK(schema_version = 1),
+            CHECK(asset_tag IN ('104ETH03AN601', '104ETH03AN602', '104ETG30AN601', '104ETG30AN602', '204ETG30AN601', '204ETG30AN602', '104SDF01AN001', '104SDF01AN002', '204SDF01AN001', '204SDF01AN002', '204LMDF01AN001', '104HHL60AP611', '104HHL60AP621', '104HHL60AP631', '204HHL60AP611', '204HHL60AP621', '204HHL60AP631', '104HHL10AN611', '104HHL10AN621', '104HHL10AN631', '204HHL10AN611', '204HHL10AN621', '204HHL10AN631')),
+            CHECK(length(dataparc_tag) BETWEEN 16 AND 200),
+            CHECK(substr(dataparc_tag, 1, 15) = 'GSPOGE.ABB_DCS.'),
+            CHECK(substr(dataparc_tag, 16, 1) GLOB '[A-Z0-9]'),
+            CHECK(dataparc_tag NOT GLOB '*[^A-Z0-9._-]*'),
+            CHECK(asset_tag <> '104ETH03AN602' OR dataparc_tag = 'GSPOGE.ABB_DCS.003ETH03AN602XB04'),
+            CHECK(dataparc_tag <> 'GSPOGE.ABB_DCS.003ETH03AN602XB04' OR asset_tag = '104ETH03AN602'),
+            CHECK(expected_cycle_start_state IN ('legacy', 'started')),
+            CHECK(chunk_days = 31),
+            CHECK(chunk_count >= 1)
+          )
+        `),
+
+        database.prepare(`
+          INSERT OR IGNORE INTO blower_runtime_probe_intents_v4
+          SELECT * FROM blower_runtime_probe_intents_v3
+        `),
+
+        database.prepare(`
+          CREATE INDEX IF NOT EXISTS idx_blower_runtime_probe_intents_v4_asset_revision
+          ON blower_runtime_probe_intents_v4 (
+            asset_tag, expected_cycle_start_revision,
+            expected_cycle_runtime_revision, created_at DESC
+          )
         `)
       ])
       .catch(
@@ -3753,7 +3803,7 @@ async function findBlowerRuntimeProbeIntent(
     await database
       .prepare(`
         SELECT *
-        FROM blower_runtime_probe_intents_v3
+        FROM blower_runtime_probe_intents_v4
         WHERE request_id = ?
         LIMIT 1
       `)
@@ -13448,7 +13498,7 @@ async function findActiveBlowerRuntimeProbeRequest(
       .prepare(`
         SELECT request.*
         FROM ois_data_requests AS request
-        INNER JOIN blower_runtime_probe_intents_v3 AS intent
+        INNER JOIN blower_runtime_probe_intents_v4 AS intent
           ON intent.request_id = request.id
         WHERE request.request_type = ?
           AND request.requested_by_id = ?
@@ -13497,7 +13547,7 @@ async function retireStaleActiveBlowerRuntimeProbeRequests(
           AND status IN ('pending', 'processing')
           AND id IN (
             SELECT request_id
-            FROM blower_runtime_probe_intents_v3
+            FROM blower_runtime_probe_intents_v4
             WHERE asset_tag = ?
               AND (
                 COALESCE(reuse_key, '') <> ?
@@ -13518,7 +13568,7 @@ async function retireStaleActiveBlowerRuntimeProbeRequests(
 
     database
       .prepare(`
-        UPDATE blower_runtime_probe_intents_v3
+        UPDATE blower_runtime_probe_intents_v4
         SET reuse_key = NULL,
             updated_at = ?
         WHERE asset_tag = ?
@@ -13529,7 +13579,7 @@ async function retireStaleActiveBlowerRuntimeProbeRequests(
           AND EXISTS (
             SELECT 1
             FROM ois_data_requests
-            WHERE id = blower_runtime_probe_intents_v3.request_id
+            WHERE id = blower_runtime_probe_intents_v4.request_id
               AND requested_by_id = ?
               AND status = 'failed'
           )
@@ -13556,7 +13606,7 @@ async function findCompleteBlowerRuntimeProbeRequest(
       .prepare(`
         SELECT request.*
         FROM ois_data_requests AS request
-        INNER JOIN blower_runtime_probe_intents_v3 AS intent
+        INNER JOIN blower_runtime_probe_intents_v4 AS intent
           ON intent.request_id = request.id
         WHERE request.request_type = ?
           AND request.requested_by_id = ?
@@ -14184,7 +14234,7 @@ async function createBlowerRuntimeProbeRequest(
 
   await database
     .prepare(`
-      UPDATE blower_runtime_probe_intents_v3
+      UPDATE blower_runtime_probe_intents_v4
       SET reuse_key = NULL,
           updated_at = ?
       WHERE reuse_key = ?
@@ -14192,7 +14242,7 @@ async function createBlowerRuntimeProbeRequest(
           EXISTS (
             SELECT 1
             FROM ois_data_requests
-            WHERE id = blower_runtime_probe_intents_v3.request_id
+            WHERE id = blower_runtime_probe_intents_v4.request_id
               AND status = 'failed'
           )
           OR (
@@ -14200,7 +14250,7 @@ async function createBlowerRuntimeProbeRequest(
             AND EXISTS (
               SELECT 1
               FROM ois_data_requests
-              WHERE id = blower_runtime_probe_intents_v3.request_id
+              WHERE id = blower_runtime_probe_intents_v4.request_id
                 AND status = 'complete'
             )
           )
@@ -14245,7 +14295,7 @@ async function createBlowerRuntimeProbeRequest(
 
       database
         .prepare(`
-          INSERT INTO blower_runtime_probe_intents_v3 (
+          INSERT INTO blower_runtime_probe_intents_v4 (
             request_id,
             reuse_key,
             schema_version,
@@ -14288,7 +14338,7 @@ async function createBlowerRuntimeProbeRequest(
     error
   ) {
     if (
-      /UNIQUE constraint failed: blower_runtime_probe_intents_v3\.reuse_key/i.test(
+      /UNIQUE constraint failed: blower_runtime_probe_intents_v4\.reuse_key/i.test(
         String(
           error?.message ||
           error

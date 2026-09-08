@@ -63,9 +63,9 @@ test('verified first OIS startup changes cycle only once with a separate startup
 test('pending with verified stopped zero stays pending; unknown first startup cannot write',async()=>{const f=await fixture({pending:true});try{const before=f.snapshot();assert.equal((await f.apply({runtimeHours:0,targetState:'stopped'})).status,200);assert.equal(f.snapshot(),before);assert.equal((await f.apply()).status,400);assert.equal(f.snapshot(),before);}finally{f.close();}});
 test('cycle changed immediately before transaction is preserved and no audit leaks',async()=>{const f=await fixture();try{f.db.beforeBatch=sql=>sql.prepare("UPDATE blower_history_assets SET cycle_runtime_revision='concurrent',cycle_runtime_hours=123 WHERE tag_number=?").run(f.tag);const out=await f.apply();assert.equal(out.status,409,out.message);assert.equal(f.asset().cycle_runtime_hours,123);assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM blower_history_events').get().n,0);assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM blower_history_asset_history').get().n,0);}finally{f.close();}});
 test('SQL failure midway rolls back runtime and event as one transaction',async()=>{const f=await fixture();try{const before=f.snapshot();f.db.afterStatement=(_,i)=>{if(i===1)throw new Error('injected disk failure');};await assert.rejects(()=>f.apply(),/injected/);assert.equal(f.snapshot(),before);}finally{f.close();}});
-for(const type of ['organic_fuel','fbhe'])test(`${type} running accumulation follows measured/continuous policy`,()=>{
+for(const type of ['organic_fuel','fbhe'])test(`${type} running accumulation uses measured time only`,()=>{
  const asset={blower_type:type,tag_number:type==='fbhe'?'104HHL60AP611':'104SDF01AN001',runtime_hours:33.3,runtime_anchor_at:'2026-09-08T06:00:00.000Z',is_running:1,cycle_runtime_hours:33.3,cycle_runtime_state:'running',cycle_runtime_anchor_at:'2026-09-08T06:00:00.000Z'};
- for(const fn of [api.currentRuntimeHours,api.runtimeHoursAt,api.cycleRuntimeHoursAt])assert.ok(Math.abs(fn(asset,NOW)-(type==='organic_fuel'?33.3:57.3))<1e-8);
+ for(const fn of [api.currentRuntimeHours,api.runtimeHoursAt,api.cycleRuntimeHoursAt])assert.ok(Math.abs(fn(asset,NOW)-33.3)<1e-8);
  assert.equal(api.isIntermittentBlower({tag_number:'204LMDF01AN001'}),true);
 });
 test('unmeasured organic legacy totals cannot surface as verified cumulative values',()=>{

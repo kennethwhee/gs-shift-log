@@ -9,10 +9,19 @@
   const SIGNAL = 'GSPOGE.ABB_DCS.003ETH03AN602XB04';
   const DP_TAGS = new Set(['104ETH03AN601','104ETH03AN602','104ETG30AN601','104ETG30AN602',
     '204ETG30AN601','204ETG30AN602','104SDF01AN001','104SDF01AN002','204SDF01AN001','204SDF01AN002','204LMDF01AN001']);
-  const OIS_TAGS = {
-    fbhe: new Set(['104HHL60AP611','104HHL60AP621','104HHL60AP631','204HHL60AP611','204HHL60AP621','204HHL60AP631']),
-    seal_pot: new Set(['104HHL10AN611','104HHL10AN621','104HHL10AN631','204HHL10AN611','204HHL10AN621','204HHL10AN631'])
-  };
+  // Equipment identities only; actual 1/0 RUN signals must be field-confirmed.
+  DP_TAGS.add("104HHL60AP611");
+  DP_TAGS.add("104HHL60AP621");
+  DP_TAGS.add("104HHL60AP631");
+  DP_TAGS.add("204HHL60AP611");
+  DP_TAGS.add("204HHL60AP621");
+  DP_TAGS.add("204HHL60AP631");
+  DP_TAGS.add("104HHL10AN611");
+  DP_TAGS.add("104HHL10AN621");
+  DP_TAGS.add("104HHL10AN631");
+  DP_TAGS.add("204HHL10AN611");
+  DP_TAGS.add("204HHL10AN621");
+  DP_TAGS.add("204HHL10AN631");
   const bridges = Object.create(null);
   const time = value => value ? Date.parse(value) : NaN;
   const day = value => { const n = value instanceof Date ? value.getTime() : time(value); return Number.isFinite(n) ? new Date(n + 9 * 3600000).toISOString().slice(0,10) : ''; };
@@ -32,20 +41,13 @@
   function plan(assets, now, basisFor = () => null) {
     const end = now instanceof Date ? now.getTime() : time(now), today = day(new Date(end));
     if (!Number.isFinite(end)) throw new Error('서버 기준시각을 확인할 수 없습니다.');
-    const tasks = [], skipped = [], groups = { fbhe: [], seal_pot: [] };
+    const tasks = [], skipped = [];
     for (const a of assets || []) {
       if (a.enabled === false || a.enabled === 0) continue;
       const skip = reason => skipped.push({ tagNumber: a.tagNumber, displayName: a.displayName || a.tagNumber, status: 'skipped', message: reason });
       const replacement = time(a.lastReplacementAt);
       if (!Number.isFinite(replacement)) { skip('교체일 등록 필요 · 이력 보기 / V-Belt 교체 등록'); continue; }
       if (replacement >= end) { skip('교체일이 현재 시각 이후입니다.'); continue; }
-      if (OIS_TAGS[a.blowerType]?.has(a.tagNumber)) {
-        const first = day(a.lastReplacementAt);
-        if (Math.floor((time(today + 'T00:00:00+09:00') - time(first + 'T00:00:00+09:00')) / DAY) + 1 > 366) {
-          skip('OIS 366일 조회한도 초과 · 이력에서 교체 기준 확인'); continue;
-        }
-        groups[a.blowerType].push(a); continue;
-      }
       if (!DP_TAGS.has(a.tagNumber)) { skip('연결된 운전시간 조회 방식이 없습니다.'); continue; }
       if (a.cycleStartState === 'pending') { skip('기동 대기 · 이력에서 실제 첫 기동을 등록한 뒤 최신화'); continue; }
       const dataParcTag = a.tagNumber === '104ETH03AN602' ? SIGNAL : String(a.dataParcTag || '').trim();
@@ -60,12 +62,6 @@
         skip('조회 기준이 현재 교체 Cycle 또는 366일 한도와 맞지 않습니다.'); continue;
       }
       tasks.push({ kind: 'dataparc', asset: a, snapshot: snapshot(a), startAt, dataParcTag });
-    }
-    for (const kind of ['fbhe', 'seal_pot']) {
-      if (groups[kind].length) {
-        const starts = groups[kind].map(a => day(a.lastReplacementAt)).sort();
-        tasks.push({ kind, assets: groups[kind], snapshots: groups[kind].map(snapshot), startDate: starts[0], endDate: today });
-      }
     }
     return { tasks, skipped, targetCount: (assets || []).filter(a => a.enabled !== false && a.enabled !== 0).length };
   }
@@ -242,7 +238,22 @@
     throw logPageError('업무일지 묶음 처리 횟수 한도에 도달했습니다. 완료된 위치는 유지합니다.');
   }
 
+  /* A failed log page remains incomplete and its checkpoint is retained.
+   * Runtime can still use the freshly-read CONFIRMED cycle with server-side CAS.
+   * Authentication/protocol errors are not bypassed, and no failed page is skipped.
+   */
+  async function refreshLogsForRuntime(io, options = {}) {
+    try { return { complete: true, totals: await refreshLogs(io, options), warning: '' }; }
+    catch (e) {
+      if (!transient(e)) throw e;
+      io.assertWritable?.();
+      const warning = errorLabel(e);
+      io.progress?.(`업무일지 확인 미완료 · ${warning} · 저장된 교체 기준으로 운전시간 조회 계속`);
+      return { complete: false, totals: null, warning };
+    }
+  }
+
   return { plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeOis, oisBody,
-    refreshLogs, readWithRetry, errorLabel,
+    refreshLogs, refreshLogsForRuntime, readWithRetry, errorLabel,
     register(kind, fn) { if (!['fbhe','seal_pot'].includes(kind) || typeof fn !== 'function') throw new Error('Invalid OIS bridge'); bridges[kind] = fn; } };
 });

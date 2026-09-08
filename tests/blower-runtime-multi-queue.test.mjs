@@ -308,7 +308,7 @@ const ALL_ASSETS = [
   "104ETH03AN601", "104ETH03AN602", "104ETG30AN601", "104ETG30AN602",
   "204ETG30AN601", "204ETG30AN602", "104SDF01AN001", "104SDF01AN002",
   "204SDF01AN001", "204SDF01AN002", "204LMDF01AN001"
-];
+, "104HHL60AP611", "104HHL60AP621", "104HHL60AP631", "204HHL60AP611", "204HHL60AP621", "204HHL60AP631", "104HHL10AN611", "104HHL10AN621", "104HHL10AN631", "204HHL10AN611", "204HHL10AN621", "204HHL10AN631"];
 // Deliberately synthetic test-only signals; these are not production mappings.
 const testSignal = tag => `GSPOGE.ABB_DCS.TEST_ONLY_${ALL_ASSETS.indexOf(tag)}_RUN`;
 const createBody = (tag, extra = {}) => ({
@@ -317,7 +317,7 @@ const createBody = (tag, extra = {}) => ({
 });
 const requestCount = fixture => fixture.sqlite.prepare("SELECT COUNT(*) AS count FROM ois_data_requests").get().count;
 
-test("all eleven supported assets queue their exact confirmed signal without retiring another asset", async () => {
+test("all twenty-three supported assets queue their exact confirmed signal without retiring another asset", async () => {
   const f = createFixture();
   try {
     const ids = new Set();
@@ -333,8 +333,8 @@ test("all eleven supported assets queue their exact confirmed signal without ret
       assert.equal(again.body.item.id, item.id);
       assert.equal(again.body.disposition, "reused_active");
     }
-    assert.equal(ids.size, 11);
-    assert.equal(f.sqlite.prepare("SELECT COUNT(*) AS count FROM ois_data_requests WHERE status = 'pending'").get().count, 11);
+    assert.equal(ids.size, 23);
+    assert.equal(f.sqlite.prepare("SELECT COUNT(*) AS count FROM ois_data_requests WHERE status = 'pending'").get().count, 23);
   } finally { f.database.close(); }
 });
 
@@ -365,7 +365,7 @@ test("non-pilot signals require an explicit binary RUN confirmation and safe lit
       createBody(tag, { dataParcTag: null }),
       createBody(tag, { dataParcTag: "" }),
       ...['GSPOGE.ABB_DCS.TEST RUN', 'GSPOGE.ABB_DCS.X"', "GSPOGE.ABB_DCS.X'", "GSPOGE.ABB_DCS.X\n", "GSPOGE.ABB_DCS.X;STOP", "GSPOGE.ABB_DCS.$(X)", "GSPOGE.ABB_DCS.<X>", "GSPOGE.ABB_DCS./X", "GSPOGE.ABB_DCS.X/Y", "GSPOGE.ABB_DCS.lowercase", "GSPOGE.ABB_DCS.X|Y", "OTHER.ABB_DCS.TEST", "GSPOGE.ABB_DCS." + "X".repeat(186)].map(dataParcTag => createBody(tag, { dataParcTag })),
-      createBody("104HHL60AP611"), createBody("204LMDF01AN002"), createBody(null),
+      createBody("104HHL60AP612"), createBody("204LMDF01AN002"), createBody(null),
       createBody(tag, { tagNumber: tag }), createBody(tag, { sourceTag: testSignal(tag) })
     ];
     for (const body of invalidBodies) {
@@ -388,7 +388,7 @@ test("changing one asset signal or cycle retires only that asset and source-spec
     assert.notEqual(sourceChange.body.item.id, first.id);
     assert.equal(f.sqlite.prepare("SELECT status FROM ois_data_requests WHERE id=?").get(first.id).status, "failed");
     assert.equal(f.sqlite.prepare("SELECT status FROM ois_data_requests WHERE id=?").get(other.id).status, "pending");
-    assert.equal(f.sqlite.prepare("SELECT dataparc_tag FROM blower_runtime_probe_intents_v3 WHERE request_id=?").get(first.id).dataparc_tag, testSignal(tag));
+    assert.equal(f.sqlite.prepare("SELECT dataparc_tag FROM blower_runtime_probe_intents_v4 WHERE request_id=?").get(first.id).dataparc_tag, testSignal(tag));
     f.sqlite.prepare("UPDATE blower_history_assets SET cycle_runtime_revision='changed' WHERE tag_number=?").run(tag);
     const revisionChange = await browserCreate(f.database, createBody(tag, { dataParcTag: "GSPOGE.ABB_DCS.TEST_ONLY_REPLACED_SIGNAL" }));
     assert.equal(revisionChange.status, 201);
@@ -444,19 +444,19 @@ test("V2 migration preserves existing B intent exactly, retains old tables, and 
   const f = createFixture();
   try {
     const old = (await browserCreate(f.database)).body.item;
-    f.sqlite.exec("INSERT INTO blower_runtime_probe_intents_v2 SELECT * FROM blower_runtime_probe_intents_v3; DROP TABLE blower_runtime_probe_intents_v3;");
+    f.sqlite.exec("INSERT INTO blower_runtime_probe_intents_v2 SELECT * FROM blower_runtime_probe_intents_v4; DROP TABLE blower_runtime_probe_intents_v4;");
     const oldRow = f.sqlite.prepare("SELECT * FROM blower_runtime_probe_intents_v2 WHERE request_id=?").get(old.id);
     const freshDatabase = { prepare: f.database.prepare, batch: f.database.batch };
     await __oisDataRequestsTest.ensureBlowerRuntimeProbeSchema(freshDatabase);
-    assert.deepEqual(f.sqlite.prepare("SELECT * FROM blower_runtime_probe_intents_v3 WHERE request_id=?").get(old.id), oldRow);
+    assert.deepEqual(f.sqlite.prepare("SELECT * FROM blower_runtime_probe_intents_v4 WHERE request_id=?").get(old.id), oldRow);
     assert.deepEqual(f.sqlite.prepare("SELECT * FROM blower_runtime_probe_intents_v2 WHERE request_id=?").get(old.id), oldRow);
     const reused = await browserCreate(freshDatabase);
     assert.equal(reused.body.item.id, old.id);
     assert.equal(reused.body.disposition, "reused_active");
     await __oisDataRequestsTest.ensureBlowerRuntimeProbeSchema({ prepare: f.database.prepare, batch: f.database.batch });
-    assert.equal(f.sqlite.prepare("SELECT COUNT(*) AS count FROM blower_runtime_probe_intents_v3").get().count, 1);
-    assert.throws(() => f.sqlite.prepare("UPDATE blower_runtime_probe_intents_v3 SET asset_tag='104HHL60AP611' WHERE request_id=?").run(old.id), /CHECK constraint/);
-    assert.throws(() => f.sqlite.prepare("UPDATE blower_runtime_probe_intents_v3 SET dataparc_tag='GSPOGE.ABB_DCS.OTHER' WHERE request_id=?").run(old.id), /CHECK constraint/);
+    assert.equal(f.sqlite.prepare("SELECT COUNT(*) AS count FROM blower_runtime_probe_intents_v4").get().count, 1);
+    assert.throws(() => f.sqlite.prepare("UPDATE blower_runtime_probe_intents_v4 SET asset_tag='104HHL60AP612' WHERE request_id=?").run(old.id), /CHECK constraint/);
+    assert.throws(() => f.sqlite.prepare("UPDATE blower_runtime_probe_intents_v4 SET dataparc_tag='GSPOGE.ABB_DCS.OTHER' WHERE request_id=?").run(old.id), /CHECK constraint/);
   } finally { f.database.close(); }
 });
 

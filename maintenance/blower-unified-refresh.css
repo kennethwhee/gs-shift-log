@@ -29,3 +29,9 @@
   /* Measured values are already compact; do not render the legacy pseudo-value twice. */
   .asset-card[data-operation-state="measured"] .cycle-primary-metric > strong::after { content: none !important; }
 }
+
+/* Partial log scans must not look like a full successful refresh. */
+.unified-refresh-status[data-state="partial"] { border-color: #d4a64e; background: #fffbf0; }
+.unified-refresh-status[data-state="failed"] { border-color: #c97474; background: #fff4f4; }
+
+.refresh-result-tag { display: block; margin-top: 2px; font-size: 11px; font-weight: 500; color: #53677b; overflow-wrap: anywhere; }

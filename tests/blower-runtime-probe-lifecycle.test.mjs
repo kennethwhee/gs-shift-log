@@ -632,7 +632,7 @@ test("an unchanged cycle creates a new request when its completed probe is stale
 
     const staleEndAt = new Date(Date.now() - 20 * 60 * 1000).toISOString();
     fixture.sqlite.prepare(`
-      UPDATE blower_runtime_probe_intents_v3
+      UPDATE blower_runtime_probe_intents_v4
       SET window_end = ?
       WHERE request_id = ?
     `).run(staleEndAt, original.body.item.id);
@@ -667,7 +667,7 @@ test("an unchanged cycle creates a new request when its completed probe is stale
 
     const intents = fixture.sqlite.prepare(`
       SELECT request_id, reuse_key
-      FROM blower_runtime_probe_intents_v3
+      FROM blower_runtime_probe_intents_v4
       ORDER BY created_at, request_id
     `).all();
     const oldIntent = intents.find(row =>
@@ -692,7 +692,7 @@ test("retires an active request whose frozen observation window is stale", async
     assert.equal(original.status, 201);
     const staleEndAt = new Date(Date.now() - 20 * 60 * 1000).toISOString();
     fixture.sqlite.prepare(`
-      UPDATE blower_runtime_probe_intents_v3
+      UPDATE blower_runtime_probe_intents_v4
       SET window_end = ?
       WHERE request_id = ?
     `).run(staleEndAt, original.body.item.id);
@@ -711,7 +711,7 @@ test("retires an active request whose frozen observation window is stale", async
     assert.equal(
       fixture.sqlite.prepare(`
         SELECT reuse_key
-        FROM blower_runtime_probe_intents_v3
+        FROM blower_runtime_probe_intents_v4
         WHERE request_id = ?
       `).get(original.body.item.id).reuse_key,
       null
@@ -823,7 +823,7 @@ test("a different browser never reuses or retires another owner's completed prob
 
     const ownerBReuseKey = fixture.sqlite.prepare(`
       SELECT reuse_key
-      FROM blower_runtime_probe_intents_v3
+      FROM blower_runtime_probe_intents_v4
       WHERE request_id = ?
     `).get(ownerB.body.item.id).reuse_key;
     assert.ok(ownerBReuseKey);
@@ -836,7 +836,7 @@ test("a different browser never reuses or retires another owner's completed prob
     const ownerBAfter = fixture.sqlite.prepare(`
       SELECT request.status, intent.reuse_key
       FROM ois_data_requests AS request
-      INNER JOIN blower_runtime_probe_intents_v3 AS intent
+      INNER JOIN blower_runtime_probe_intents_v4 AS intent
         ON intent.request_id = request.id
       WHERE request.id = ?
     `).get(ownerB.body.item.id);

@@ -73,7 +73,7 @@ function createD1TestDatabase() {
 }
 
 
-const ASSETS = ["104ETH03AN601", "104ETH03AN602", "104ETG30AN601", "104ETG30AN602", "204ETG30AN601", "204ETG30AN602", "104SDF01AN001", "104SDF01AN002", "204SDF01AN001", "204SDF01AN002", "204LMDF01AN001"];
+const ASSETS = ["104ETH03AN601", "104ETH03AN602", "104ETG30AN601", "104ETG30AN602", "204ETG30AN601", "204ETG30AN602", "104SDF01AN001", "104SDF01AN002", "204SDF01AN001", "204SDF01AN002", "204LMDF01AN001", "104HHL60AP611", "104HHL60AP621", "104HHL60AP631", "204HHL60AP611", "204HHL60AP621", "204HHL60AP631", "104HHL10AN611", "104HHL10AN621", "104HHL10AN631", "204HHL10AN611", "204HHL10AN621", "204HHL10AN631"];
 const B = "104ETH03AN602";
 const B_SOURCE = "GSPOGE.ABB_DCS.003ETH03AN602XB04";
 const OWNER = { employeeNo: "test-owner", name: "조회자" };
@@ -93,7 +93,7 @@ const rawProbe = (tag, source = sourceFor(tag), stopped = false) => ({
   chunks: [{ index: 1, startAt: START, endAt: END, startState: "stopped", endState: stopped ? "stopped" : "running",
     totalRunningHours: stopped ? 0 : 3.500278, runningSeconds: stopped ? 0 : 12601 }]
 });
-function putIntent(sqlite, probe, table = "blower_runtime_probe_intents_v3") {
+function putIntent(sqlite, probe, table = "blower_runtime_probe_intents_v4") {
   sqlite.exec(`CREATE TABLE IF NOT EXISTS ${table} (
     request_id TEXT PRIMARY KEY, schema_version INTEGER, asset_tag TEXT, dataparc_tag TEXT,
     window_start TEXT, window_end TEXT, chunk_days INTEGER, chunk_count INTEGER,
@@ -109,7 +109,7 @@ function putRequest(sqlite, probe) {
     .run(probe.requestId, `v1|${probe.assetTag}|${probe.startAt}|${probe.endAt}`, OWNER.employeeNo,
       JSON.stringify(probe), probe.collectedAt);
 }
-async function fixture(tag = ASSETS[0], { table = "blower_runtime_probe_intents_v3", stopped = false } = {}) {
+async function fixture(tag = ASSETS[0], { table = "blower_runtime_probe_intents_v4", stopped = false } = {}) {
   const database = createD1TestDatabase();
   await api.ensureSchema(database);
   const sqlite = database.raw();
@@ -134,7 +134,7 @@ const state = sqlite => JSON.stringify({
   guards: sqlite.prepare("SELECT * FROM blower_history_atomic_guard").all()
 });
 
-test("all eleven confirmed pairs apply only to their asset and replay without changes", async t => {
+test("all twenty-three confirmed pairs apply only to their asset and replay without changes", async t => {
   for (const [index, tag] of ASSETS.entries()) await t.test(tag, async () => {
     const { database, sqlite, probe } = await fixture(tag, { stopped: index % 2 === 0 });
     try {
@@ -193,7 +193,7 @@ test("source, equipment, time boundaries and every cycle field are bound to the 
   for (const [field, value] of Object.entries(tampering)) await t.test(field, async () => {
     const { database, sqlite, probe } = await fixture();
     try {
-      sqlite.prepare(`UPDATE blower_runtime_probe_intents_v3 SET ${field} = ?`).run(value);
+      sqlite.prepare(`UPDATE blower_runtime_probe_intents_v4 SET ${field} = ?`).run(value);
       const before = state(sqlite);
       const result = await apply(database, probe);
       assert.equal(result.body.code, "DATAPARC_RUNTIME_INTENT_CONFLICT");
@@ -207,7 +207,7 @@ test("literal source grammar rejects formula characters, unqualified tags, extra
     "GSPOGE.ABB_DCS.RUN\"", "GSPOGE.ABB_DCS.RUN;", "GSPOGE.ABB_DCS.RUN\nX", "GSPOGE.ABB_DCS.RUN/STOP", "GSPOGE.ABB_DCS." + "A".repeat(190)]) {
     assert.ok(api.normalizeDataParcRuntimeProbeResult(rawProbe(ASSETS[0], bad), `multi-${ASSETS[0]}`, NOW).error, bad);
   }
-  for (const tag of ["104HHL60AP611", "104HHL10AN611", "204LMDF01AN002"]) {
+  for (const tag of ["104HHL60AP612", "104HHL10AN612", "204LMDF01AN002"]) {
     assert.ok(api.normalizeDataParcRuntimeProbeResult(rawProbe(tag), `multi-${tag}`, NOW).error);
   }
   assert.ok(api.normalizeDataParcRuntimeProbeResult(rawProbe(B, "GSPOGE.ABB_DCS.WRONG_RUN"), `multi-${B}`, NOW).error);

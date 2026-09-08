@@ -134,5 +134,5 @@ test("desktop layout remains unchanged and mobile assets are cache-busted", () =
     "desktop four-card grid must remain intact"
   );
   assert.match(html, /blower-history\.css\?v=20260909-unified-refresh-v1/);
-  assert.match(html, /blower-history\.js\?v=20260909-unified-refresh-503-fix-v1/);
+  assert.match(html, /blower-history\.js\?v=20260909-all-run-signal-v1/);
 });

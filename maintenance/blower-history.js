@@ -16,7 +16,11 @@
     "104ETH03AN601", "104ETH03AN602",
     "104ETG30AN601", "104ETG30AN602", "204ETG30AN601", "204ETG30AN602",
     "104SDF01AN001", "104SDF01AN002", "204SDF01AN001", "204SDF01AN002",
-    "204LMDF01AN001"
+    "204LMDF01AN001",
+  "104HHL60AP611", "104HHL60AP621", "104HHL60AP631",
+  "204HHL60AP611", "204HHL60AP621", "204HHL60AP631",
+  "104HHL10AN611", "104HHL10AN621", "104HHL10AN631",
+  "204HHL10AN611", "204HHL10AN621", "204HHL10AN631"
   ]);
   const DATAPARC_RUNTIME_KNOWN_SOURCE = "GSPOGE.ABB_DCS.003ETH03AN602XB04";
 
@@ -1197,7 +1201,7 @@
     const cycleRuntimeTracked = confirmed && !startupPending && Boolean(asset.cycleRuntimeTracked);
     const runtimeUnknown = confirmed && (asset.cycleRuntimeState === "unknown" || asset.measurementRequired === true ||
       (intermittent && asset.cycleElapsedHours === null && !startupPending));
-    const operationKnown = cycleRuntimeTracked && asset.operationState !== "unknown" && asset.cycleRuntimeState !== "unknown";
+    const operationKnown = !runtimeUnknown && cycleRuntimeTracked && asset.operationState !== "unknown" && asset.cycleRuntimeState !== "unknown";
     const operationRunning = operationKnown && Boolean(asset.isRunning);
     const operationState = intermittent ? "measured" : confirmed
       ? (startupPending ? "startup_pending" : (operationKnown ? (operationRunning ? "running" : "stopped") : "unknown"))
@@ -1242,16 +1246,16 @@
     const dataparcRuntimeBasis = isDataparcRuntimeAsset ? getLatestDataParcRuntimeBasis(asset.tagNumber) : null;
     const dataparcRuntimeBasisLine = dataparcRuntimeBasis
       ? `<div class="dataparc-runtime-row">
-          <div class="dataparc-runtime-basis" title="${escapeHtml(dataparcRuntimeBasis ? "DataPARC에서 확인한 기동 구간의 합계입니다. 유기성·축분은 마지막 조회 이후 시간을 자동으로 더하지 않습니다." : "조회할 시작일시를 선택해 실제 누적 운전시간을 확인합니다.")}">
+          <div class="dataparc-runtime-basis" title="${escapeHtml(dataparcRuntimeBasis ? "DataPARC에서 확인한 기동 구간의 합계입니다. 모든 Blower는 마지막 조회 이후 시간을 자동으로 더하지 않습니다." : "조회할 시작일시를 선택해 실제 누적 운전시간을 확인합니다.")}">
             <span>DataPARC</span>
             ${dataparcRuntimeBasis ? `<strong>${escapeHtml(formatKstDateTimeDisplay(dataparcRuntimeBasis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(dataparcRuntimeBasis.observedAt))}</strong>` : `<small>기간을 선택해 조회</small>`}
           </div>
         </div>`
       : "";
-    const cyclePrimaryLabel = intermittent ? "누적 기동시간" : startupPending
+    const cyclePrimaryLabel = isDataparcRuntimeAsset && !startupPending ? "누적 기동시간" : startupPending
       ? "주기 상태"
       : (cycleRuntimeTracked ? "누적 운전" : (actualStarted ? "기동 경과" : "교체 경과"));
-    const cyclePrimaryMobileLabel = intermittent ? "누적 기동" : startupPending
+    const cyclePrimaryMobileLabel = isDataparcRuntimeAsset && !startupPending ? "누적 기동" : startupPending
       ? "상태"
       : (cycleRuntimeTracked ? "누적" : (actualStarted ? "기동" : "교체"));
     const measuredLabel = `${(startupPending ? 0 : cycleElapsedHours).toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`;
@@ -10127,7 +10131,7 @@
     const skipped = results.filter(x => x.status === "skipped").length;
     elements.unifiedRefreshSummary.textContent = `결과 · 반영 ${complete}대 · 미반영 ${failed + skipped}대`;
     elements.unifiedRefreshList.innerHTML = results.map(item => `<div class="unified-refresh-result" data-result="${escapeHtml(item.status)}">
-      <strong>${escapeHtml(item.displayName || item.tagNumber)}</strong><span>${escapeHtml(item.message)}</span></div>`).join("");
+      <strong>${escapeHtml(item.displayName || item.tagNumber)}<small class="refresh-result-tag">${escapeHtml(item.tagNumber || "")}</small></strong><span>${escapeHtml(item.message)}</span></div>`).join("");
   }
 
   function assertUnifiedRefreshWritable() {
@@ -10154,7 +10158,7 @@
       elements.refreshButton.setAttribute("aria-busy", "true");
       if (elements.unifiedRefreshStatus) elements.unifiedRefreshStatus.dataset.state = "running";
       const core = window.BlowerUnifiedRefresh;
-      let phase = "업무일지", stopped = false, logNote = "";
+      let phase = "업무일지", stopped = false, partial = false, logNote = "";
       const progress = text => renderUnifiedRefreshProgress(`${phase} · ${text}`);
       // Resume only in this page/session, never trust a persisted browser checkpoint.
       if (state.unifiedLogResumeOwner !== state.unifiedRefreshToken ||
@@ -10170,9 +10174,12 @@
         assertUnifiedRefreshWritable();
         progress("교체·교체운전 묶음 확인 중");
         // Preserve V13 candidate review, without parsing 365 days in a single request.
-        const logs = await core.refreshLogs(io, { resume: state.unifiedLogResume });
-        state.operationSyncCompleted = true;
-        logNote = `업무일지 새 교체 후보 ${Number(logs.insertedCount || 0)}건 · 교체운전 ${Number(logs.appliedStateChanges || 0)}건`;
+        const logResult = await core.refreshLogsForRuntime(io, { resume: state.unifiedLogResume });
+        partial = !logResult.complete;
+        state.operationSyncCompleted = logResult.complete;
+        logNote = logResult.complete
+          ? `업무일지 새 교체 후보 ${Number(logResult.totals.insertedCount || 0)}건 · 교체운전 ${Number(logResult.totals.appliedStateChanges || 0)}건`
+          : `업무일지 확인 미완료 · ${logResult.warning} · 운전시간은 저장된 교체 기준`;
         phase = "현황 확인";
         await io.reload();
         const planned = core.plan(state.data?.assets || [], currentServerDate(), getLatestDataParcRuntimeBasis);
@@ -10180,8 +10187,8 @@
         let agentUnavailable = false;
         for (const task of planned.tasks) {
           assertUnifiedRefreshWritable();
-          const assets = task.kind === "dataparc" ? [task.asset] : task.assets;
-          phase = task.kind === "dataparc" ? (task.asset.displayName || task.asset.tagNumber) : task.kind === "fbhe" ? "FBHE 6대" : "Seal Pot 6대";
+          const assets = [task.asset];
+          phase = task.asset.displayName || task.asset.tagNumber;
           if (agentUnavailable) {
             state.unifiedRefreshResults.push(...assets.map(a => ({ tagNumber: a.tagNumber, displayName: a.displayName,
               status: "skipped", message: "회사 PC Agent 응답 없음 · 기존 값 유지" })));
@@ -10189,7 +10196,7 @@
           }
           progress("요청 준비 중");
           try {
-            const result = task.kind === "dataparc" ? await core.executeDataParc(task, io) : await core.executeOis(task, io);
+            const result = await core.executeDataParc(task, io);
             state.unifiedRefreshResults.push(...(Array.isArray(result) ? result : [result]));
           } catch (e) {
             state.unifiedRefreshResults.push(...assets.map(a => ({ tagNumber: a.tagNumber, displayName: a.displayName,
@@ -10207,8 +10214,9 @@
         const counts = state.unifiedRefreshResults;
         const failures = counts.filter(x => x.status !== "complete").length;
         const completion = `${formatKstDateTimeDisplay(currentServerDate().toISOString())} · 반영 ${counts.length - failures}대 / 전체 ${planned.targetCount}대`;
-        renderUnifiedRefreshProgress(`${completion} · ${logNote}${failures ? " · 미반영 설비는 결과 확인" : ""}`);
-        showToast(failures ? `최신화 처리 완료 · 미반영 ${failures}대는 결과를 확인해 주세요.` : "전체 Blower 최신화를 완료했습니다.");
+        partial = partial || failures > 0;
+        renderUnifiedRefreshProgress(`${partial ? "부분 최신화" : "최신화 완료"} · ${completion} · ${logNote}${failures ? " · 미반영 설비는 결과 확인" : ""}`);
+        showToast(partial ? "부분 최신화 · 업무일지 또는 미반영 설비의 결과를 확인해 주세요." : "전체 Blower 최신화를 완료했습니다.");
       } catch (e) {
         stopped = true;
         const detail = core?.errorLabel ? core.errorLabel(e) : (e.message || "연결 오류");
@@ -10221,7 +10229,7 @@
         elements.refreshButton.textContent = "최신화";
         elements.refreshButton.removeAttribute("aria-busy");
         setBusy(false);
-        if (elements.unifiedRefreshStatus) elements.unifiedRefreshStatus.dataset.state = stopped ? "failed" : "complete";
+        if (elements.unifiedRefreshStatus) elements.unifiedRefreshStatus.dataset.state = stopped ? "failed" : partial ? "partial" : "complete";
         renderAssets();
       }
     };
@@ -10335,8 +10343,7 @@
         elements.historyDialog.close();
         const asset = findAsset(tagNumber);
         if (isDataParcRuntimeAsset(asset)) openDataParcRuntimeDialog(tagNumber);
-        else if (asset?.blowerType === "fbhe") handleFbheVibrationQuery();
-        else if (asset?.blowerType === "seal_pot") window.BlowerSealPotDetails?.();
+        else showToast("이 설비는 RUN TAG 연결 대상이 아닙니다.", "error");
         return;
       }
       if (action === "history_event_delete") {
