@@ -48,10 +48,12 @@ test("runtime probe preserves baseline Excel/DataPARC and only force-stops verif
   assert.match(bridge, /기존 사용자 DataPARC Host가 조회 중 변경되거나 종료되었습니다/);
 });
 
-test("runtime probe supports the two field-validated baseline modes and fails closed beyond them", () => {
-  assert.match(bridge, /\$baselineExcelProcesses\.Count\s+-gt\s+1/);
+test("runtime probe snapshots every existing Excel without a count-only gate", () => {
+  assert.doesNotMatch(bridge, /\$baselineExcelProcesses\.Count\s+-gt\s+1/);
   assert.doesNotMatch(bridge, /\$baselineExcelProcesses\.Count\s+-ne\s+1/);
-  assert.match(bridge, /기존 Excel 인스턴스 0~1개에서만 검증/);
+  assert.doesNotMatch(bridge, /기존 Excel 인스턴스 0~1개에서만 검증/);
+  assert.match(bridge, /\$baselineExcelProcesses\s*\|\s*ForEach-Object\s*\{\s*New-ProbeProcessSignature\s+\$_\s*\}/);
+  assert.match(bridge, /\$BaselineExcelPids\s+-notcontains\s+\[int\]\$_.ParentProcessId/);
   assert.match(bridge, /excelAttachMethod\s*=\s*"pid_hwnd_objid_nativeom"/);
   assert.match(bridge, /collectorRevision\s*=\s*"nativeom-coexistence-v1"/);
 });

@@ -12416,12 +12416,8 @@ try {
     Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue |
       Where-Object { [int]$_.SessionId -eq $currentSessionId }
   )
-  if ($baselineExcelProcesses.Count -gt 1) {
-    throw (
-      "Blower DataPARC 자동조회는 기존 Excel 인스턴스 0~1개에서만 검증되었습니다. 현재=" +
-      [string]$baselineExcelProcesses.Count
-    )
-  }
+  # [BLOWER-MULTI-EXCEL-V1] Preserve every existing Excel, including the PDF worker.
+  # NativeOM attaches only to the newly launched PID; all baseline signatures are verified after cleanup.
 
   $baselineExcelSignatures = @(
     $baselineExcelProcesses | ForEach-Object { New-ProbeProcessSignature $_ }
