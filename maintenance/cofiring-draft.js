@@ -45,8 +45,9 @@
     return { reference: data, pilotVerified: isPilot, referenceVerified: isPilot && !unverified, day };
   }
   function inputMarkup() {
-    return `<header class="cofiring-draft__header"><div><span class="cf-eyebrow">CO-FIRING</span><h2>혼소율</h2><p class="cf-muted">날짜를 하나 선택해 하루 연료 사용량과 열량 기준 혼소율을 확인합니다.</p></div><span class="cf-draft-tag">화면 초안 · 첨부 엑셀 기준</span></header>
-      <div class="cf-panel"><div class="cf-period"><label class="cf-field">계산일<input data-cf-date type="date" value="2026-09-07" aria-describedby="cofiringDailyQueryRange"></label><span class="cf-day-badge">1일 단위</span><button type="button" data-cf-original>원본 하루 조건 보기</button></div><div class="cf-query-window"><span>DataPARC 자동 조회 범위</span><strong id="cofiringDailyQueryRange" data-cf-query-range></strong></div><p class="cf-period-meta" data-cf-period></p>
+    return `<header class="cofiring-draft__header"><div><span class="cf-eyebrow">CO-FIRING</span><h2>혼소율 (개발중)</h2><p class="cf-muted">날짜를 하나 선택해 하루 연료 사용량과 열량 기준 혼소율을 확인합니다.</p></div><span class="cf-draft-tag">개발중 · 자동조회 미연결</span></header>
+      <p class="cf-notice" data-cf-development>개발중입니다. 웹 자동조회는 아직 연결되지 않았습니다. 9/7 참고자료 또는 별도로 조회한 시험 결과로만 계산하며, 운영 확정값으로 사용하지 마세요.</p>
+      <div class="cf-panel"><div class="cf-period"><label class="cf-field">계산일<input data-cf-date type="date" value="2026-09-07" aria-describedby="cofiringDailyQueryRange"></label><span class="cf-day-badge">1일 단위</span><button type="button" data-cf-original>원본 하루 조건 보기</button></div><div class="cf-query-window"><span>DataPARC 시험 조회 범위</span><strong id="cofiringDailyQueryRange" data-cf-query-range></strong></div><p class="cf-period-meta" data-cf-period></p>
       <div class="cf-actions"><button type="button" class="cf-primary" data-cf-calculate>첨부자료로 계산</button><button type="button" data-cf-import>시험 결과 열기</button><input data-cf-file type="file" accept="application/json,.json" hidden></div></div>
       <p class="cf-notice" data-cf-status role="status" aria-live="polite">첨부 엑셀의 2026-09-07 자료로 계산하는 초안입니다. 실제 DataPARC 조회는 아직 연결하지 않았습니다.</p>
       <div class="cf-source"><span class="cf-source-name" data-cf-source>원본 1분 누적값 · 석탄 8개 / 바이오 2개 계측값</span><span class="cf-source-status" data-cf-quality>계산 전</span></div>
@@ -107,7 +108,7 @@
       find('[data-cf-organic-help]').textContent='원본은 유기성 사용량을 직접 입력합니다. 미입력 시 혼소율은 표시하지 않으며, 0 ton은 유효한 입력입니다.';
       resetResults(); updatePeriod();
       find('[data-cf-source]').textContent='선택일의 하루 자료로 다시 계산해 주세요.';
-      status('계산일이 변경되었습니다. 해당일의 유기성 사용량을 입력한 뒤 계산해 주세요.');
+      status('계산일이 변경되었습니다. 날짜 변경만으로 자동조회하지 않습니다. 선택일의 시험 결과를 연 뒤 해당일 유기성 사용량을 입력해 주세요.');
     }
     async function loadReference() {
       if(reference) return reference;
