@@ -17020,7 +17020,7 @@ function normalizeBlowerRuntimeProbeResult(
     endState: raw.endState,
     totalRunningHours: raw.totalRunningHours,
     runningSeconds: raw.runningSeconds,
-    collectedAt: collected.text,
+    collectedAt: new Date(collected.milliseconds).toISOString(),
     chunks: normalizedChunks
   };
 }

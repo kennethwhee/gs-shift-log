@@ -8594,11 +8594,33 @@
 
   async function waitForDataparcRuntimeProbe(requestId) {
     const deadline = Date.now() + (2 * 60 * 60 * 1000);
+    const retryWaits = [1000, 2000, 4000, 8000];
+    let consecutiveFailures = 0;
 
     while (Date.now() < deadline) {
-      const payload = await apiRequest({
-        url: `${OIS_REQUEST_API_URL}?action=status_batch&compact=1&ids=${encodeURIComponent(requestId)}&_=${Date.now()}`
-      });
+      let payload;
+      try {
+        payload = await apiRequest({
+          method: "GET",
+          url: `${OIS_REQUEST_API_URL}?action=status_batch&compact=1&ids=${encodeURIComponent(requestId)}&_=${Date.now()}`,
+          timeoutMs: Math.min(20000, Math.max(1, deadline - Date.now()))
+        });
+        consecutiveFailures = 0;
+      } catch (error) {
+        const retryable = [0, 429, 502, 503, 504].includes(Number(error?.status));
+        if (!retryable || consecutiveFailures >= retryWaits.length) throw error;
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) break;
+        const waitMs = Math.min(
+          remainingMs,
+          30000,
+          Math.max(retryWaits[consecutiveFailures], Number(error?.retryAfterMs) || 0)
+        );
+        consecutiveFailures += 1;
+        setDataparcRuntimeStatus(DATAPARC_RUNTIME_PILOT_TAG, "재연결 중");
+        await waitForMilliseconds(waitMs);
+        continue;
+      }
       const item = (Array.isArray(payload.items) ? payload.items : [])
         .find(candidate => String(candidate?.id || "") === requestId);
 
@@ -8615,7 +8637,7 @@
         DATAPARC_RUNTIME_PILOT_TAG,
         item.status === "processing" ? "계산 중" : "대기 중"
       );
-      await waitForMilliseconds(3000);
+      await waitForMilliseconds(Math.min(3000, Math.max(0, deadline - Date.now())));
     }
 
     throw new Error("DataPARC 조회 대기시간이 초과되었습니다. 회사 PC Agent 상태를 확인해 주세요.");
