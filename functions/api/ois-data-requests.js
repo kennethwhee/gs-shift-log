@@ -1180,6 +1180,7 @@ async function authenticateOisAgent(
   - bed_ash_level
   - fbhe_vibration
   - daily_data_excel
+  - organic_silo_dataparc
   - steam_status
   - logsheet_approval
 ========================================================= */
@@ -1194,6 +1195,7 @@ const OIS_REQUEST_TYPES = [
   "bed_ash_level",
   "fbhe_vibration",
   "daily_data_excel",
+  "organic_silo_dataparc",
   "steam_status",
   "logsheet_approval",
   "logsheet_pdf",
@@ -1322,6 +1324,94 @@ function normalizeOisNumber(
       ) /
       1000
     : null;
+}
+
+
+/* ORGANIC_SILO_DATAPARC_API_V1
+  A separate result type preserves all other Daily DATA card fields.
+  Store only a full, Good, correctly dated inventory after owned Excel cleanup.
+*/
+const ORGANIC_SILO_DATAPARC_REQUEST_TYPE = "organic_silo_dataparc";
+const ORGANIC_SILO_DATAPARC_TAGS = [
+  { key: "organicDaySilo", label: "Day Silo", tag: "GSPOGE.ABB_DCS.104SDF01CW001XQ01/PLOT" },
+  { key: "organicStorageSiloA", label: "Storage A", tag: "GSPOGE.ABB_DCS.003SDF01CW001XQ01/PLOT" },
+  { key: "organicStorageSiloB", label: "Storage B", tag: "GSPOGE.ABB_DCS.003SDF02CW001XQ01/PLOT" }
+];
+
+function isOrganicSiloQualityGood(value) {
+  if (typeof value !== "string") return false;
+  const tokens = value.split(",").map(token => token.trim().toLowerCase());
+  return (tokens.length === 1 && tokens[0] === "good") ||
+    (tokens.length === 2 && tokens.includes("raw") && tokens.includes("good"));
+}
+
+function normalizeOrganicSiloDataParcResult(rawResult, targetDate) {
+  const invalid = message => ({ error: `유기성 Silo DataPARC 결과: ${message}` });
+  const object = value => value && typeof value === "object" && !Array.isArray(value);
+  const number = value => typeof value === "number" && Number.isFinite(value) && value >= 0;
+  const equalNumber = (left, right) => number(left) && number(right) &&
+    Math.abs(left - right) <= 1e-9;
+  if (!object(rawResult) || !isValidIsoDate(targetDate) || rawResult.targetDate !== targetDate) {
+    return invalid("요청 날짜와 결과 날짜가 일치하지 않습니다.");
+  }
+  const intervalStartKst = `${targetDate}T00:00:00+09:00`;
+  const start = Date.parse(intervalStartKst);
+  const end = start + 86400000;
+  const intervalEndKst = formatKstRfc3339(new Date(end).toISOString());
+  if (rawResult.schemaVersion !== 1 || rawResult.source !== "dataparc_hidden_excel" ||
+      rawResult.aggregation !== "End" || rawResult.step !== "1D" ||
+      rawResult.intervalStartKst !== intervalStartKst || rawResult.intervalEndKst !== intervalEndKst) {
+    return invalid("조회 출처, 집계 방식 또는 하루 조회 구간이 일치하지 않습니다.");
+  }
+  if (rawResult.qualityValidationVersion !== "1.2" || rawResult.allQualitiesGood !== true ||
+      rawResult.cleanupVerified !== true) {
+    return invalid("정상 품질과 조회용 Excel 종료 확인이 필요합니다.");
+  }
+  if (!Array.isArray(rawResult.samples) || rawResult.samples.length !== 3) {
+    return invalid("조회일의 Silo 표본 3개가 필요합니다.");
+  }
+  const periodStartKst = intervalStartKst.replace("T", " ");
+  const periodEndKst = intervalEndKst.replace("T", " ");
+  const samples = [];
+  const values = {};
+  for (const definition of ORGANIC_SILO_DATAPARC_TAGS) {
+    const matches = rawResult.samples.filter(sample => object(sample) && sample.key === definition.key);
+    const sample = matches[0];
+    if (matches.length !== 1 || sample.date !== targetDate || sample.label !== definition.label ||
+        sample.tag !== definition.tag || !equalNumber(sample.value, rawResult[definition.key])) {
+      return invalid(`Silo TAG, 날짜 또는 재고값이 일치하지 않습니다: ${definition.key}`);
+    }
+    if (!isOrganicSiloQualityGood(sample.qualityText)) {
+      return invalid(`품질이 Good이 아닙니다: ${definition.label}`);
+    }
+    if ((sample.periodStartKst !== undefined && sample.periodStartKst !== periodStartKst) ||
+        (sample.periodEndKst !== undefined && sample.periodEndKst !== periodEndKst) ||
+        (sample.statistic !== undefined && sample.statistic !== "End")) {
+      return invalid(`표본의 하루 End 구간이 일치하지 않습니다: ${definition.label}`);
+    }
+    const timeText = sample.returnedTimeText;
+    const parsedTime = typeof timeText === "string" && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(timeText)
+      ? parseStrictRfc3339(`${timeText.replace(" ", "T")}+09:00`)
+      : null;
+    if (!parsedTime || parsedTime.timestamp < start || parsedTime.timestamp > end) {
+      return invalid(`반환 시각이 조회 구간에 없습니다: ${definition.label}`);
+    }
+    values[definition.key] = sample.value;
+    samples.push({
+      date: targetDate, key: definition.key, label: definition.label, tag: definition.tag,
+      value: sample.value, qualityText: sample.qualityText.trim(), qualityGood: true,
+      returnedTimeText: timeText, periodStartKst, periodEndKst, statistic: "End"
+    });
+  }
+  const total = values.organicDaySilo + values.organicStorageSiloA + values.organicStorageSiloB;
+  if (!equalNumber(rawResult.organicSiloTotal, total)) {
+    return invalid("총 재고량이 반올림 전 Silo 3개 값의 합계와 일치하지 않습니다.");
+  }
+  return { result: {
+    schemaVersion: 1, source: "dataparc_hidden_excel", targetDate, aggregation: "End", step: "1D",
+    intervalStartKst, intervalEndKst, ...values, organicSiloTotal: total, samples,
+    qualityValidationVersion: "1.2", allQualitiesGood: true, cleanupVerified: true
+  } };
 }
 
 
@@ -8756,6 +8846,7 @@ const OIS_AGENT_OIS_LANE_REQUEST_TYPES = [
 
 const OIS_AGENT_EXCEL_LANE_REQUEST_TYPES = [
   "daily_data_excel",
+  "organic_silo_dataparc",
   "steam_status",
   "logsheet_pdf",
   BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
@@ -10581,6 +10672,7 @@ async function handleCompletedHistoryGet(
             'turbine_gear_pinion',
             'silo_level',
             'daily_data_excel',
+            'organic_silo_dataparc',
             'steam_status'
           )
           AND result_json IS NOT NULL
@@ -14776,6 +14868,14 @@ async function createUserRequest(
   }
 
 
+  if (requestType === ORGANIC_SILO_DATAPARC_REQUEST_TYPE) {
+    const todayKst = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+    if (targetDate < "2021-01-01" || targetDate >= todayKst) {
+      return jsonResponse({ ok: false, message: "유기성 Silo는 2021-01-01 이후의 완료된 과거 날짜만 조회할 수 있습니다." }, 400);
+    }
+  }
+
+
   await expireOldRequests(
     context.env.DB
   );
@@ -16142,6 +16242,27 @@ async function completeAgentRequest(
   }
 
 
+  if (existingRequest.requestType === ORGANIC_SILO_DATAPARC_REQUEST_TYPE) {
+    if (!existingRequest.agentId || existingRequest.agentId !== authentication.agentId ||
+        !["processing", "complete"].includes(existingRequest.status) ||
+        (existingRequest.status === "processing" &&
+          !(Date.parse(existingRequest.expiresAt) > Date.now()))) {
+      return jsonResponse({ ok: false, code: "ORGANIC_SILO_CLAIM_REQUIRED",
+        message: "이 유기성 Silo 요청을 가져간 Excel Agent만 처리시간 안에 완료할 수 있습니다." }, 409);
+    }
+    if (existingRequest.status === "complete") {
+      const replay = normalizeOrganicSiloDataParcResult(body.result, existingRequest.targetDate);
+      if (replay.error) return jsonResponse({ ok: false, message: replay.error }, 400);
+      if (JSON.stringify(replay.result) !== JSON.stringify(existingRequest.result)) {
+        return jsonResponse({ ok: false, code: "ORGANIC_SILO_RESULT_CONFLICT",
+          message: "이미 완료된 유기성 Silo 요청과 다른 결과는 저장할 수 없습니다." }, 409);
+      }
+      return jsonResponse({ ok: true, replayed: true, item: existingRequest,
+        message: "이미 저장된 유기성 Silo 재고를 확인했습니다." });
+    }
+  }
+
+
   if (
     existingRequest.requestType ===
       BLOWER_RUNTIME_PROBE_REQUEST_TYPE &&
@@ -16409,6 +16530,13 @@ limestoneUsageRecords =
   normalizedResult =
     validation.result;
 
+} else if (existingRequest.requestType === ORGANIC_SILO_DATAPARC_REQUEST_TYPE) {
+  const validation = normalizeOrganicSiloDataParcResult(body.result, existingRequest.targetDate);
+  if (validation.error) {
+    return jsonResponse({ ok: false, code: "ORGANIC_SILO_INVALID_RESULT", message: validation.error }, 400);
+  }
+  normalizedResult = validation.result;
+
 } else if (
   existingRequest.requestType ===
     BLOWER_RUNTIME_PROBE_REQUEST_TYPE
@@ -16543,6 +16671,12 @@ limestoneUsageRecords =
       .toISOString();
 
 
+  const organicClaimGuard = existingRequest.requestType === ORGANIC_SILO_DATAPARC_REQUEST_TYPE
+    ? "AND request_type = 'organic_silo_dataparc' AND status = 'processing' AND agent_id = ? AND expires_at > ?"
+    : "";
+  const organicClaimBindings = organicClaimGuard ? [authentication.agentId, now] : [];
+
+
   const updateResult =
     await context.env.DB
       .prepare(`
@@ -16562,6 +16696,7 @@ limestoneUsageRecords =
             'pending',
             'processing'
           )
+          ${organicClaimGuard}
       `)
       .bind(
         now,
@@ -16570,7 +16705,8 @@ limestoneUsageRecords =
           normalizedResult
         ),
         now,
-        requestId
+        requestId,
+        ...organicClaimBindings
       )
       .run();
 
@@ -17091,7 +17227,9 @@ export const __oisDataRequestsTest = {
   getRequestProcessingTimeoutMinutes,
   isFreshBlowerRuntimeProbeWindow,
   isFreshCompleteBlowerRuntimeProbeRequest,
-  normalizeBlowerRuntimeProbeResult
+  normalizeBlowerRuntimeProbeResult,
+  normalizeOrganicSiloDataParcResult,
+  isOrganicSiloQualityGood
 };
 
 /* DAILY_DATA_SOLAR_HISTORY_REBUILD_API_V1 */

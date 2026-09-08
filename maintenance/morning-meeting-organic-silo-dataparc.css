@@ -1,0 +1,31 @@
+/* The organic card has independent receipt and Silo request states. */
+#efficiencyMorningMeetingAutoDailySludgeCard .organic-silo-dataparc-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+  padding: 5px 0 3px;
+  border-top: 1px solid #dfe7f1;
+}
+#efficiencyMorningMeetingAutoDailySludgeCard .organic-silo-dataparc-label {
+  color: #315f8c;
+  font-size: 11px;
+  font-weight: 700;
+  margin-right: auto;
+}
+#efficiencyMorningMeetingAutoDailySludgeCard .organic-silo-dataparc-query {
+  border: 1px solid #2469e7;
+  border-radius: 5px;
+  background: #3478f6;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  min-height: 24px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+#efficiencyMorningMeetingAutoDailySludgeCard .organic-silo-dataparc-query:disabled { opacity: .55; cursor: default; }
+#efficiencyMorningMeetingAutoDailySludgeCard .organic-silo-dataparc-query[hidden] { display: none; }
+#efficiencyMorningMeetingAutoDailySludgeCard .organic-silo-dataparc-query:focus-visible { outline: 2px solid #173d77; outline-offset: 2px; }
+@media (max-width: 900px) { #organicSiloDataParcQueryButton { display: none; } }

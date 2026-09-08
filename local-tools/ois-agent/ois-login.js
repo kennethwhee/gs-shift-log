@@ -1,5 +1,9 @@
 "use strict";
 
+// [ORGANIC-SILO-DATAPARC-V1] Query-only hidden Excel collector.
+const { ORGANIC_SILO_REQUEST_TYPE, collectOrganicSiloDataParcValues } =
+  require("./organic-silo-dataparc-agent");
+
 const {
   processLogSheetPdfRequest
 } =
@@ -11018,6 +11022,7 @@ async function getNextOisAgentRequest(
     "daily_data_excel",
     "steam_status",
     BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+    ORGANIC_SILO_REQUEST_TYPE,
     "logsheet_pdf",
     "open_final_excel_folder"
 ];
@@ -11030,7 +11035,8 @@ async function getNextOisAgentRequest(
     "silo_level",
     "bed_ash_level",
     "daily_data_excel",
-    "steam_status"
+    "steam_status",
+    ORGANIC_SILO_REQUEST_TYPE
   ];
 
 
@@ -11243,6 +11249,7 @@ async function getNextOisAgentLaneRequests(
     "daily_data_excel",
     "steam_status",
     BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+    ORGANIC_SILO_REQUEST_TYPE,
     "logsheet_pdf",
     "open_final_excel_folder"
 ];
@@ -11619,7 +11626,9 @@ function isExcelComRequestType(
       normalizedRequestType
     ) ||
     normalizedRequestType ===
-      BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE ||
+    normalizedRequestType ===
+      ORGANIC_SILO_REQUEST_TYPE
   );
 }
 
@@ -11652,6 +11661,10 @@ function isExcelOnlyRequestType(
 function getOisAgentRequestLabel(
   requestType
 ) {
+  if (requestType === ORGANIC_SILO_REQUEST_TYPE) {
+    return "유기성 Silo DataPARC";
+  }
+
   if (
     requestType ===
       "water_environment"
@@ -18518,6 +18531,10 @@ if (
   }
 
 
+  if (requestType === ORGANIC_SILO_REQUEST_TYPE) {
+    return await collectOrganicSiloDataParcValues(config, requestItem);
+  }
+
   if (
     requestType ===
       BLOWER_RUNTIME_PROBE_REQUEST_TYPE
@@ -18566,6 +18583,11 @@ function printOisAgentRequestResult(
   requestType,
   result
 ) {
+  if (requestType === ORGANIC_SILO_REQUEST_TYPE) {
+    console.table({ "조회일": result.targetDate, "Day Silo": result.organicDaySilo, "Storage A": result.organicStorageSiloA, "Storage B": result.organicStorageSiloB, "총 재고량": result.organicSiloTotal });
+    return;
+  }
+
   if (
     requestType ===
       "water_environment"

@@ -165759,11 +165759,9 @@ function applyMorningMeetingDailyDataValues(
   dailyData
 ) {
   const source =
-    dailyData &&
-    typeof dailyData ===
-      "object"
-      ? dailyData
-      : {};
+    window.organicSiloDataParc?.valuesForWorkbook
+      ? window.organicSiloDataParc.valuesForWorkbook(dailyData)
+      : (dailyData && typeof dailyData === "object" ? dailyData : {});
 
 
   /* =====================================================
@@ -167064,8 +167062,12 @@ let dailyDataForWorkbook =
 if (
   !dailyData
 ) {
-  const missingDailyDataMessage =
-    "전력·태양광·증기·유기성 고형연료 자동수치가 없습니다.";
+  const hasOrganicSiloInventory = Number.isFinite(
+    window.organicSiloDataParc?.valuesForWorkbook({})?.organicSiloTotal
+  );
+  const missingDailyDataMessage = hasOrganicSiloInventory
+    ? "전력·태양광·증기·유기성 입고 자동수치가 없습니다. 조회한 Silo 재고는 포함됩니다."
+    : "전력·태양광·증기·유기성 고형연료 자동수치가 없습니다.";
 
 
   let shouldContinueWithoutDailyData =
@@ -201943,6 +201945,10 @@ const readSavedSmpNumber =
       과거자료는 steam_status도 호환
     ================================================= */
 
+    if (window.organicSiloDataParc?.restoreCompleted(items, normalizedDate)) {
+      restored = true;
+    }
+
     const dailyItem =
       findCompletedItem([
         "daily_data_excel"
@@ -217250,6 +217256,8 @@ if (
           sourceTitle;
       }
     );
+
+    window.organicSiloDataParc?.render({ baseRendered: true });
   }
 
   /* =====================================================
@@ -235522,6 +235530,8 @@ function mergeSavedRows(
       }
     }
   );
+
+  window.organicSiloDataParc?.mergeHistoryRows(rowsByDate, completedItems, isDateInRange);
 
   /*
     석회석 저장값
