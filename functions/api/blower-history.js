@@ -4987,6 +4987,233 @@ async function registerReplacement(database, user, body, source = {}) {
   });
 }
 
+async function editCurrentManualReplacement(database, user, body, options = {}) {
+  const failure = (message, status = 400) => jsonResponse({ ok: false, message }, status);
+  const tagNumber = normalizeText(body.tagNumber).toUpperCase();
+  const eventId = normalizeText(body.eventId);
+  const expectedEventUpdatedAt = normalizeText(body.expectedEventUpdatedAt);
+  const expectedLastReplacementAt = normalizeText(body.expectedLastReplacementAt);
+  const expectedCycleStartRevision = normalizeText(body.expectedCycleStartRevision);
+  const expectedCycleRuntimeRevision = normalizeText(body.expectedCycleRuntimeRevision);
+  const operationMode = normalizeText(body.operationMode) || "preserve";
+  if (!eventId || !expectedEventUpdatedAt || !expectedLastReplacementAt ||
+      !expectedCycleStartRevision || !expectedCycleRuntimeRevision) {
+    return failure("수정할 교체 이력 정보를 확인해 주세요.");
+  }
+  if (!["preserve", "pending", "running", "stopped"].includes(operationMode)) {
+    return failure("교체 후 운전상태를 확인해 주세요.");
+  }
+  const asset = await findAsset(database, tagNumber);
+  if (!asset) return failure("등록된 Blower TAG를 찾을 수 없습니다.", 404);
+  if (expectedLastReplacementAt !== normalizeText(asset.last_replacement_at) ||
+      expectedCycleStartRevision !== normalizeText(asset.cycle_start_revision) ||
+      expectedCycleRuntimeRevision !== normalizeText(asset.cycle_runtime_revision)) {
+    return failure("교체 또는 운전상태가 변경되었습니다. 이력을 다시 열고 수정해 주세요.", 409);
+  }
+  const replacements = await database.prepare(`
+    SELECT * FROM blower_history_events
+    WHERE tag_number = ? AND event_type = 'replacement'
+    ORDER BY julianday(event_date) DESC, created_at DESC, id DESC
+  `).bind(tagNumber).all();
+  const rows = Array.isArray(replacements.results) ? replacements.results : [];
+  const selected = rows.find(event => event.id === eventId);
+  if (!selected) return failure("수정할 교체 이력을 찾을 수 없습니다.", 404);
+  if (selected.source_type !== "manual" || rows[0]?.id !== eventId) {
+    return failure("현재 주기의 최신 수동 교체 이력만 수정할 수 있습니다.", 409);
+  }
+  const currentReplacement = parseDataParcRuntimeInstant(asset.last_replacement_at);
+  const selectedReplacement = parseDataParcRuntimeInstant(selected.event_date);
+  if (!currentReplacement || !selectedReplacement ||
+      currentReplacement.time !== selectedReplacement.time ||
+      selected.updated_at !== expectedEventUpdatedAt) {
+    return failure("선택한 교체 이력과 현재 주기가 다릅니다. 이력을 다시 열어 주세요.", 409);
+  }
+  const capturedAt = options.now instanceof Date && Number.isFinite(options.now.getTime())
+    ? new Date(options.now.getTime()) : new Date();
+  const now = capturedAt.toISOString();
+  const replacement = parseDataParcRuntimeInstant(body.eventDate);
+  if (!replacement || replacement.time > capturedAt.getTime()) {
+    return failure("교체일시는 시간대를 포함한 실제 시각으로 입력해 주세요. 미래 시각은 사용할 수 없습니다.");
+  }
+  const dateChanged = replacement.time !== currentReplacement.time;
+  const previous = rows[1] ? parseDataParcRuntimeInstant(rows[1].event_date) : null;
+  if (dateChanged && rows[1] && (!previous || replacement.time <= previous.time)) {
+    return failure("수정할 교체일시는 직전 교체일시보다 뒤여야 합니다.");
+  }
+  const wasPending = asset.cycle_start_state === "pending";
+  if (operationMode === "preserve" && dateChanged && !wasPending) {
+    return failure("교체일을 바꾸려면 교체 후 운전상태와 실제 기동·정지일시를 함께 지정해 주세요.");
+  }
+  const issueType = normalizeText(body.issueType) || "정기주기";
+  const note = normalizeText(body.note);
+  if (issueType.length > 100 || note.length > 2000) {
+    return failure("교체 사유는 100자, 작업내용은 2,000자 이내로 입력해 주세요.");
+  }
+  let startup = null;
+  let stopped = null;
+  if (operationMode === "running" || operationMode === "stopped") {
+    startup = parseDataParcRuntimeInstant(body.startupAt);
+    if (!startup || startup.time < replacement.time || startup.time > capturedAt.getTime()) {
+      return failure("실제 기동일시는 교체일 이후부터 현재까지로 입력해 주세요.");
+    }
+    if (operationMode === "stopped") {
+      stopped = parseDataParcRuntimeInstant(body.stoppedAt);
+      if (!stopped || stopped.time < startup.time || stopped.time > capturedAt.getTime()) {
+        return failure("실제 정지일시는 기동일 이후부터 현재까지로 입력해 주세요.");
+      }
+    }
+  }
+  const explicitState = operationMode !== "preserve";
+  const rebasesCycle = explicitState || dateChanged;
+  const nextCycleStartRevision = rebasesCycle ? crypto.randomUUID() : asset.cycle_start_revision;
+  const nextCycleRuntimeRevision = rebasesCycle ? crypto.randomUUID() : asset.cycle_runtime_revision;
+  // Give metadata-only edits a distinct version even when two saves share a clock millisecond.
+  const oldUpdatedTime = Date.parse(selected.updated_at);
+  const modifiedAt = new Date(Math.max(capturedAt.getTime(),
+    Number.isFinite(oldUpdatedTime) ? oldUpdatedTime + 1 : capturedAt.getTime())).toISOString();
+  const assetPatch = {
+    last_replacement_at: dateChanged ? replacement.iso : asset.last_replacement_at,
+    last_modified_by_id: user.employeeNo,
+    last_modified_by_name: user.name,
+    updated_at: modifiedAt
+  };
+  if (rebasesCycle) {
+    const pending = operationMode === "pending" || (operationMode === "preserve" && wasPending);
+    const running = operationMode === "running";
+    const hours = pending ? 0 : ((stopped?.time ?? capturedAt.getTime()) - startup.time) / 3600000;
+    Object.assign(assetPatch, {
+      cycle_started_at: pending ? null : startup.iso,
+      cycle_start_state: pending ? "pending" : "started",
+      cycle_start_revision: nextCycleStartRevision,
+      cycle_runtime_hours: hours,
+      cycle_runtime_anchor_at: explicitState ? now : replacement.iso,
+      cycle_runtime_state: running ? "running" : "stopped",
+      cycle_runtime_revision: nextCycleRuntimeRevision,
+      runtime_hours: hours,
+      runtime_anchor_at: running ? now : null,
+      is_running: running ? 1 : 0
+    });
+  }
+  const eventPatch = {
+    event_date: dateChanged ? replacement.iso : selected.event_date,
+    issue_type: issueType,
+    note,
+    updated_at: modifiedAt
+  };
+  const afterAsset = { ...asset, ...assetPatch };
+  const afterEvent = { ...selected, ...eventPatch };
+  const auditId = crypto.randomUUID();
+  const correctionId = explicitState ? crypto.randomUUID() : "";
+  const changeNote = normalizeText(body.changeNote) || (explicitState
+    ? "수동 교체 이력 및 교체 후 운전상태 수정" : "수동 교체 이력 수정");
+  const beforeJson = JSON.stringify({ asset, event: selected });
+  const afterJson = JSON.stringify({
+    asset: afterAsset, event: afterEvent, operationMode,
+    startupAt: startup?.iso || "", stoppedAt: stopped?.iso || "",
+    runtimeCorrectionEventId: correctionId
+  });
+  const runtimeSnapshot = value => ({
+    lastReplacementAt: value.last_replacement_at,
+    cycleStartedAt: value.cycle_started_at,
+    cycleStartState: value.cycle_start_state,
+    cycleStartRevision: value.cycle_start_revision,
+    cycleRuntimeHours: value.cycle_runtime_hours,
+    cycleRuntimeAnchorAt: value.cycle_runtime_anchor_at,
+    cycleRuntimeState: value.cycle_runtime_state,
+    cycleRuntimeRevision: value.cycle_runtime_revision
+  });
+  const correction = explicitState ? {
+    id: correctionId, tag_number: tagNumber, event_type: "runtime_correction",
+    event_date: now, runtime_hours: afterAsset.cycle_runtime_hours,
+    issue_type: "교체 이력 수정",
+    action_type: operationMode === "running" ? "교체 수정 · 기동중 보정"
+      : operationMode === "stopped" ? "교체 수정 · 정지 보정" : "교체 수정 · 미기동 정지 · 0시간",
+    note: operationMode === "pending" ? "교체 후 미기동 · 누적 0시간으로 수정"
+      : `교체 이력 수정 · ${operationMode === "running" ? "기동중" : "정지중"} · 누적 ${afterAsset.cycle_runtime_hours.toFixed(1)}시간 (입력한 연속 운전 구간 기준)`,
+    source_type: "manual", source_log_id: "",
+    source_text: JSON.stringify({
+      schemaVersion: 1, replacementEdit: true, replacementEventId: eventId, auditId,
+      operationMode, capturedAt: now, startupAt: startup?.iso || "", stoppedAt: stopped?.iso || "",
+      before: runtimeSnapshot(asset), after: runtimeSnapshot(afterAsset)
+    }),
+    created_by_id: user.employeeNo, created_by_name: user.name,
+    created_at: modifiedAt, updated_at: modifiedAt
+  } : null;
+  const audit = {
+    id: auditId, action_type: "replacement_event_edit", tag_number: tagNumber,
+    before_json: beforeJson, after_json: afterJson, change_note: changeNote,
+    changed_by_id: user.employeeNo, changed_by_name: user.name, changed_at: modifiedAt
+  };
+  // Snapshot columns come only from rows read from our database or the fixed objects above.
+  const column = name => `"${name.replace(/"/g, '""')}"`;
+  const snapshotCondition = value => Object.keys(value).map(key => `${column(key)} IS ?`).join(" AND ");
+  const snapshotValues = value => Object.values(value);
+  const existsSnapshot = (table, value) => ({
+    sql: `EXISTS (SELECT 1 FROM ${table} WHERE ${snapshotCondition(value)})`,
+    values: snapshotValues(value)
+  });
+  const latestReplacementCondition = {
+    sql: `? = (SELECT id FROM blower_history_events WHERE tag_number = ? AND event_type = 'replacement'
+      ORDER BY julianday(event_date) DESC, created_at DESC, id DESC LIMIT 1)`,
+    values: [eventId, tagNumber]
+  };
+  const guard = (id, checks) => database.prepare(`
+    INSERT INTO blower_history_atomic_guard (id, valid)
+    VALUES (?, CASE WHEN ${checks.map(check => `(${check.sql})`).join(" AND ")} THEN 1 ELSE 0 END)
+  `).bind(id, ...checks.flatMap(check => check.values));
+  const updateSnapshot = (table, patch, before) => database.prepare(`
+    UPDATE ${table} SET ${Object.keys(patch).map(key => `${column(key)} = ?`).join(", ")}
+    WHERE ${snapshotCondition(before)}
+  `).bind(...snapshotValues(patch), ...snapshotValues(before));
+  const insertRow = (table, row) => database.prepare(`
+    INSERT INTO ${table} (${Object.keys(row).map(column).join(", ")})
+    VALUES (${Object.keys(row).map(() => "?").join(", ")})
+  `).bind(...snapshotValues(row));
+  const beforeGuardId = crypto.randomUUID();
+  const afterGuardId = crypto.randomUUID();
+  const beforeChecks = [
+    existsSnapshot("blower_history_assets", asset),
+    existsSnapshot("blower_history_events", selected), latestReplacementCondition
+  ];
+  const afterChecks = [
+    existsSnapshot("blower_history_assets", afterAsset),
+    existsSnapshot("blower_history_events", afterEvent),
+    existsSnapshot("blower_history_asset_history", audit), latestReplacementCondition
+  ];
+  if (correction) {
+    afterChecks.push(existsSnapshot("blower_history_events", correction), {
+      sql: `? = (SELECT id FROM blower_history_events
+        WHERE tag_number = ? AND event_type IN ('startup', 'operation_start', 'operation_stop', 'runtime_correction')
+          AND datetime(event_date) >= datetime(?)
+        ORDER BY datetime(event_date) DESC, created_at DESC, id DESC LIMIT 1)`,
+      values: [correctionId, tagNumber, afterAsset.last_replacement_at]
+    });
+  }
+  const statements = [
+    guard(beforeGuardId, beforeChecks),
+    updateSnapshot("blower_history_assets", assetPatch, asset),
+    updateSnapshot("blower_history_events", eventPatch, selected),
+    ...(correction ? [insertRow("blower_history_events", correction)] : []),
+    insertRow("blower_history_asset_history", audit), guard(afterGuardId, afterChecks),
+    database.prepare(`DELETE FROM blower_history_atomic_guard WHERE id IN (?, ?)`)
+      .bind(beforeGuardId, afterGuardId)
+  ];
+  try {
+    await database.batch(statements);
+  } catch (error) {
+    if (/CHECK constraint failed(?:: valid = 1|.*blower_history_atomic_guard)/i.test(String(error?.message || error))) {
+      return failure("교체 또는 운전 이력이 변경되어 저장하지 않았습니다. 이력을 다시 열고 확인해 주세요.", 409);
+    }
+    throw error;
+  }
+  return jsonResponse({
+    ok: true, eventId, runtimeCorrectionEventId: correctionId, operationMode,
+    message: explicitState
+      ? "교체 이력과 운전상태를 수정했습니다. 중간 정지가 있었다면 DataPARC 기간조회로 누적시간을 다시 확인해 주세요."
+      : "교체 이력을 수정했습니다. 현재 운전상태를 유지했습니다."
+  });
+}
+
 async function registerStartup(database, user, body, source = {}) {
   const tagNumber = normalizeText(body.tagNumber).toUpperCase();
   const asset = await findAsset(database, tagNumber);
@@ -13376,6 +13603,10 @@ async function handlePost(context, user, body) {
     return registerReplacement(database, user, body);
   }
 
+  if (action === "replacement_event_edit") {
+    return editCurrentManualReplacement(database, user, body);
+  }
+
   if (action === "startup") {
     return registerStartup(database, user, body);
   }
@@ -13519,6 +13750,7 @@ export async function onRequestPost(context) {
 
 /* Node 회귀 테스트에서 V13 복구와 Cycle 상태 경계를 실제 SQLite로 검증한다. */
 export const __blowerHistoryTest = {
+  editCurrentManualReplacement,
   ensureSchema,
   ensureBlowerHistorySchemaReady,
   loadAssetStates,

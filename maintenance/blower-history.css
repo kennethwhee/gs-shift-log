@@ -2528,3 +2528,18 @@ strong {
 }
 
 /* MOBILE_BLOWER_COMPACT_GRID_V1 */
+
+/* Latest manual replacement correction */
+.replacement-edit-dialog { width: min(640px, calc(100vw - 24px)); }
+.replacement-edit-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.replacement-edit-grid [hidden] { display: none; }
+.replacement-edit-preview, .replacement-edit-error { margin: 0; padding: 10px 12px; border-radius: 8px; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.replacement-edit-preview { color: #385973; background: #f0f6fb; }
+.replacement-edit-error { color: #9d2637; background: #fff0f2; }
+.replacement-history-edit { font-size: 12px; min-width: 46px; }
+@media (min-width: 600px) {
+  .replacement-edit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .replacement-edit-full { grid-column: 1 / -1; }
+}
+body.mobile-monitoring #replacementEditDialog,
+body.public-monitoring #replacementEditDialog { display: none !important; }

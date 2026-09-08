@@ -6,11 +6,11 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260908-runtime-all-v1">
+  <link rel="stylesheet" href="blower-history.css?v=20260908-manual-edit-v1">
   <link rel="stylesheet" href="blower-history-mobile-dialog-close-v1.css?v=20260903-v1">
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <script src="blower-history.js?v=20260908-runtime-all-v1" defer></script>
+  <script src="blower-history.js?v=20260908-manual-edit-v1" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260908-runtime-all-v1" defer></script>
 </head>
 <body>
@@ -561,6 +561,70 @@
         <button type="button" class="button secondary" data-close-dialog="assetManagerDialog">취소</button>
         <span class="footer-spacer"></span>
         <button type="submit" class="button primary" id="assetManagerSaveButton" data-mobile-write>저장</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="dialog replacement-edit-dialog" id="replacementEditDialog" aria-labelledby="replacementEditTitle">
+    <form method="dialog" id="replacementEditForm">
+      <header class="dialog-header">
+        <div>
+          <h2 id="replacementEditTitle">교체 이력 수정</h2>
+          <p id="replacementEditAsset"></p>
+        </div>
+        <button type="button" class="icon-button" data-close-dialog="replacementEditDialog" aria-label="닫기">×</button>
+      </header>
+      <div class="dialog-body replacement-edit-grid">
+        <label class="field">
+          <span>교체일</span>
+          <input type="date" id="replacementEditDate" required>
+        </label>
+        <label class="field">
+          <span>문제 / 교체사유</span>
+          <select id="replacementEditIssueType">
+            <option value="정기주기">정기주기</option>
+            <option value="파손">파손</option>
+            <option value="소손">소손</option>
+            <option value="끊김">끊김</option>
+            <option value="절손">절손</option>
+            <option value="크랙">크랙</option>
+            <option value="균열">균열</option>
+            <option value="손상">손상</option>
+            <option value="누설">누설</option>
+            <option value="마모">마모</option>
+            <option value="변형">변형</option>
+            <option value="파열">파열</option>
+            <option value="이상진동">이상진동</option>
+            <option value="기타">기타</option>
+                    </select>
+        </label>
+        <label class="field replacement-edit-full">
+          <span>운전상태</span>
+          <select id="replacementEditOperation">
+            <option value="preserve" id="replacementEditPreserveOption">현재 상태 유지</option>
+            <option value="pending">기동 대기 · 0시간</option>
+            <option value="running">기동중</option>
+            <option value="stopped">정지중</option>
+          </select>
+        </label>
+        <label class="field" id="replacementEditStartupField" hidden>
+          <span>실제 기동일시</span>
+          <input type="datetime-local" id="replacementEditStartupAt">
+        </label>
+        <label class="field" id="replacementEditStoppedField" hidden>
+          <span>실제 정지일시</span>
+          <input type="datetime-local" id="replacementEditStoppedAt">
+        </label>
+        <p class="replacement-edit-preview replacement-edit-full" id="replacementEditPreview" aria-live="polite"></p>
+        <label class="field replacement-edit-full">
+          <span>비고</span>
+          <textarea id="replacementEditNote" rows="3" maxlength="2000" placeholder="작업내용 또는 바로잡을 내용을 입력하세요."></textarea>
+        </label>
+        <p class="replacement-edit-error replacement-edit-full" id="replacementEditError" role="alert" hidden></p>
+      </div>
+      <footer class="dialog-footer">
+        <button type="button" class="button secondary" data-close-dialog="replacementEditDialog">취소</button>
+        <button type="submit" class="button primary" id="replacementEditSaveButton" data-mobile-write>수정 저장</button>
       </footer>
     </form>
   </dialog>

@@ -48,6 +48,7 @@
     assetManagerAutoName: true,
     serverClockOffsetMs: 0,
     runtimeEditOriginalDate: "",
+    replacementEditSnapshot: null,
     vibrationReport: null,
     vibrationReportRangeKey: "",
     vibrationPolling: false,
@@ -191,6 +192,21 @@
       "assetChangeNote",
       "assetManagerHelp",
       "assetManagerSaveButton",
+      "replacementEditDialog",
+      "replacementEditForm",
+      "replacementEditAsset",
+      "replacementEditDate",
+      "replacementEditIssueType",
+      "replacementEditOperation",
+      "replacementEditPreserveOption",
+      "replacementEditStartupField",
+      "replacementEditStartupAt",
+      "replacementEditStoppedField",
+      "replacementEditStoppedAt",
+      "replacementEditNote",
+      "replacementEditPreview",
+      "replacementEditError",
+      "replacementEditSaveButton",
       "historyDialog",
       "historyDialogTitle",
       "historyDialogAsset",
@@ -280,6 +296,7 @@
 
     if (state.subview === "detect") switchSubview("overview");
     if (elements.recordDialog?.open) elements.recordDialog.close();
+    if (elements.replacementEditDialog?.open) elements.replacementEditDialog.close();
     if (elements.dataparcRuntimeDialog?.open) elements.dataparcRuntimeDialog.close();
     if (elements.settingsDialog?.open) elements.settingsDialog.close();
     if (elements.assetManagerDialog?.open) elements.assetManagerDialog.close();
@@ -299,6 +316,7 @@
 
     if (state.subview === "detect") switchSubview("overview");
     if (elements.recordDialog?.open) elements.recordDialog.close();
+    if (elements.replacementEditDialog?.open) elements.replacementEditDialog.close();
     if (elements.dataparcRuntimeDialog?.open) elements.dataparcRuntimeDialog.close();
     if (elements.settingsDialog?.open) elements.settingsDialog.close();
     if (elements.assetManagerDialog?.open) elements.assetManagerDialog.close();
@@ -1769,7 +1787,7 @@
       ? `
         <span class="status-pill ${escapeHtml(severity)}">${escapeHtml(severityLabel(severity))}</span>
         <div><span>최근 V-Belt 교체</span><strong>${escapeHtml(formatDate(asset.lastReplacementAt))}</strong></div>
-        <div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.isRunning ? "운전중" : "정지"}</strong></div>
+        <div><span>현재 운전상태</span><strong>${startupPending ? "기동 대기" : asset.isRunning ? "기동중" : "정지중"}</strong></div>
         <div><span>누적 운전시간</span><strong>${startupPending ? "0시간" : escapeHtml(formatDaysHours(asset.cycleElapsedHours))}</strong></div>
       `
       : awaitingBackfill
@@ -1817,6 +1835,7 @@
             cycleStartState !== "pending" &&
             expectedState === currentState
           );
+          const editableReplacement = canEditManualReplacement(asset, event);
           const edited = Boolean(event.updatedAt && event.createdAt && event.updatedAt !== event.createdAt);
 
           return `
@@ -1827,6 +1846,11 @@
                   <span class="event-badge ${escapeHtml(event.eventType)}">${escapeHtml(eventLabel(event.eventType))}</span>
                   ${detail ? `<strong>${escapeHtml(detail)}</strong>` : ""}
                   ${edited ? `<span class="event-edited">수정됨</span>` : ""}
+                  ${editableReplacement ? `
+                    <span class="asset-history-actions">
+                      <button type="button" class="button asset-history-edit replacement-history-edit" data-mobile-write data-history-action="replacement_event_edit" data-event-id="${escapeHtml(event.id)}" ${state.busy || state.dataparcRuntimeBusy ? "disabled" : ""}>수정</button>
+                    </span>
+                  ` : ""}
                   ${editableRuntimeEvent ? `
                     <span class="asset-history-actions">
                       <button type="button" class="button asset-history-edit" data-mobile-write data-history-action="runtime_state_edit" data-event-id="${escapeHtml(event.id)}">이력 수정</button>
@@ -1842,6 +1866,173 @@
       : `<div class="empty-state compact">등록된 이력이 없습니다.</div>`;
 
     elements.historyDialog.showModal();
+  }
+
+  function replacementEventTime(value) {
+    const text = String(value || "").trim();
+    return Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(text) ? `${text}T00:00:00+09:00` : text);
+  }
+
+  function canEditManualReplacement(asset, event) {
+    if (!hasAuthenticatedWriteAccess() || isMobileMonitoringView() || !asset || !event) return false;
+    const replacementTime = replacementEventTime(asset.lastReplacementAt);
+    const latestReplacement = getRawAssetEvents(asset.tagNumber)
+      .filter(item => item.eventType === "replacement" && Number.isFinite(replacementEventTime(item.eventDate)))
+      .sort((left, right) =>
+        replacementEventTime(right.eventDate) - replacementEventTime(left.eventDate) ||
+        String(right.createdAt || "").localeCompare(String(left.createdAt || "")) ||
+        String(right.id || "").localeCompare(String(left.id || ""))
+      )[0];
+    return Boolean(
+      event.id && event.updatedAt && event.eventType === "replacement" && event.sourceType === "manual" &&
+      event.tagNumber === asset.tagNumber && !isAssetAwaitingBackfill(asset) &&
+      latestReplacement?.id === event.id &&
+      Number.isFinite(replacementTime) && replacementEventTime(event.eventDate) === replacementTime
+    );
+  }
+
+  function replacementEditTimestamp(value, original = "") {
+    const input = String(value || "").trim();
+    const iso = kstDateTimeInputToIso(input);
+    if (!iso || formatKstDateTimeInput(new Date(iso)) !== input.slice(0, 16)) return "";
+    // A minute-only control must not silently truncate the recorded seconds.
+    if (original && Number.isFinite(replacementEventTime(original)) &&
+        formatKstDateTimeInput(new Date(replacementEventTime(original))) === input) return original;
+    return iso;
+  }
+
+  function updateReplacementEditFields() {
+    const snapshot = state.replacementEditSnapshot;
+    if (!snapshot) return;
+    const mode = elements.replacementEditOperation.value;
+    const active = mode === "running" || mode === "stopped";
+    elements.replacementEditStartupField.hidden = !active;
+    elements.replacementEditStartupAt.required = active;
+    elements.replacementEditStoppedField.hidden = mode !== "stopped";
+    elements.replacementEditStoppedAt.required = mode === "stopped";
+    elements.replacementEditError.hidden = true;
+    const changedDate = elements.replacementEditDate.value !== snapshot.originalDateInput;
+    const preview = mode === "preserve"
+      ? changedDate && snapshot.originalCycleStartState !== "pending"
+        ? "교체일을 바꾸려면 운전상태와 실제 기동·정지일시를 선택해 주세요."
+        : "현재 운전상태와 누적시간을 유지합니다."
+      : mode === "pending"
+        ? "기동 대기 · 누적 0시간으로 바로잡습니다."
+        : "입력한 기동~정지(현재) 기간 전체를 운전시간으로 계산합니다. 중간 정지가 있으면 저장 후 DataPARC를 재조회해 주세요.";
+    elements.replacementEditPreview.textContent = preview;
+  }
+
+  function openReplacementEditDialog(tagNumber, eventId) {
+    if (stopMobileMutation() || state.busy || state.dataparcRuntimeBusy) return;
+    const asset = findAsset(tagNumber);
+    const event = findEvent(eventId);
+    if (!canEditManualReplacement(asset, event)) {
+      showToast("현재 교체주기의 최신 수동 교체 이력만 수정할 수 있습니다.", "error");
+      return;
+    }
+    // Guard values belong to the dialog-open snapshot, never to a later refresh.
+    state.replacementEditSnapshot = Object.freeze({
+      tagNumber,
+      eventId: event.id,
+      expectedEventUpdatedAt: event.updatedAt,
+      expectedLastReplacementAt: asset.lastReplacementAt,
+      expectedCycleStartRevision: String(asset.cycleStartRevision || ""),
+      expectedCycleRuntimeRevision: String(asset.cycleRuntimeRevision || ""),
+      originalEventDate: event.eventDate,
+      originalDateInput: formatDate(event.eventDate),
+      originalCycleStartState: String(asset.cycleStartState || "legacy"),
+      originalStartupAt: asset.cycleStartState === "started" ? String(asset.cycleStartedAt || "") : "",
+      // Runtime anchors can be observation times, so they do not prove an actual stop.
+      originalStoppedAt: ""
+    });
+    const snapshot = state.replacementEditSnapshot;
+    elements.replacementEditAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
+    elements.replacementEditDate.value = snapshot.originalDateInput;
+    elements.replacementEditDate.max = formatKstDateInput();
+    elements.replacementEditIssueType.value = event.issueType || "기타";
+    elements.replacementEditOperation.value = "preserve";
+    const currentOperation = asset.cycleStartState === "pending" ? "기동 대기"
+      : asset.operationState === "unknown" ? "상태 미확인" : asset.isRunning ? "기동중" : "정지중";
+    elements.replacementEditPreserveOption.textContent = `현재 상태 유지 · ${currentOperation}`;
+    elements.replacementEditStartupAt.value = Number.isFinite(replacementEventTime(snapshot.originalStartupAt))
+      ? formatKstDateTimeInput(new Date(snapshot.originalStartupAt)) : "";
+    elements.replacementEditStoppedAt.value = Number.isFinite(replacementEventTime(snapshot.originalStoppedAt))
+      ? formatKstDateTimeInput(new Date(snapshot.originalStoppedAt)) : "";
+    elements.replacementEditStartupAt.max = formatKstDateTimeInput();
+    elements.replacementEditStoppedAt.max = formatKstDateTimeInput();
+    elements.replacementEditNote.value = event.note || "";
+    elements.replacementEditSaveButton.disabled = false;
+    updateReplacementEditFields();
+    elements.historyDialog.close();
+    elements.replacementEditDialog.showModal();
+    elements.replacementEditOperation.focus();
+  }
+
+  async function saveReplacementEdit(event) {
+    event.preventDefault();
+    if (stopMobileMutation(event) || state.busy || state.dataparcRuntimeBusy) return;
+    const snapshot = state.replacementEditSnapshot;
+    if (!snapshot || !elements.replacementEditDialog.open) return;
+    elements.replacementEditError.hidden = true;
+    let body;
+    try {
+      const inputDate = elements.replacementEditDate.value;
+      const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(inputDate)
+        ? replacementEditTimestamp(`${inputDate}T00:00`) : "";
+      if (!parsedDate || new Date(parsedDate) > currentServerDate()) throw new Error("교체일을 확인해 주세요.");
+      const dateUnchanged = inputDate === snapshot.originalDateInput;
+      const eventDate = dateUnchanged && String(snapshot.originalEventDate).includes("T")
+        ? snapshot.originalEventDate : parsedDate;
+      const operationMode = elements.replacementEditOperation.value;
+      if (!["preserve", "pending", "running", "stopped"].includes(operationMode)) throw new Error("운전상태를 선택해 주세요.");
+      if (operationMode === "preserve" && !dateUnchanged && snapshot.originalCycleStartState !== "pending") {
+        throw new Error("교체일을 바꾸려면 운전상태와 실제 기동·정지일시를 선택해 주세요.");
+      }
+      const active = operationMode === "running" || operationMode === "stopped";
+      const startupAt = active ? replacementEditTimestamp(elements.replacementEditStartupAt.value, snapshot.originalStartupAt) : "";
+      const stoppedAt = operationMode === "stopped" ? replacementEditTimestamp(elements.replacementEditStoppedAt.value, snapshot.originalStoppedAt) : "";
+      if (active && (!startupAt || replacementEventTime(startupAt) < replacementEventTime(eventDate) || new Date(startupAt) > currentServerDate())) {
+        throw new Error("실제 기동일시는 교체 이후부터 현재까지 선택해 주세요.");
+      }
+      if (operationMode === "stopped" && (!stoppedAt || replacementEventTime(stoppedAt) < replacementEventTime(startupAt) || new Date(stoppedAt) > currentServerDate())) {
+        throw new Error("실제 정지일시는 기동 이후부터 현재까지 선택해 주세요.");
+      }
+      body = {
+        action: "replacement_event_edit",
+        tagNumber: snapshot.tagNumber,
+        eventId: snapshot.eventId,
+        eventDate,
+        issueType: elements.replacementEditIssueType.value,
+        note: elements.replacementEditNote.value,
+        operationMode,
+        startupAt,
+        stoppedAt,
+        expectedEventUpdatedAt: snapshot.expectedEventUpdatedAt,
+        expectedLastReplacementAt: snapshot.expectedLastReplacementAt,
+        expectedCycleStartRevision: snapshot.expectedCycleStartRevision,
+        expectedCycleRuntimeRevision: snapshot.expectedCycleRuntimeRevision
+      };
+    } catch (error) {
+      elements.replacementEditError.textContent = error.message;
+      elements.replacementEditError.hidden = false;
+      return;
+    }
+    setBusy(true);
+    elements.replacementEditSaveButton.disabled = true;
+    try {
+      const result = await apiRequest({ method: "POST", body });
+      elements.replacementEditDialog.close();
+      state.replacementEditSnapshot = null;
+      showToast(result.message || "교체 이력을 수정했습니다.");
+      await loadData({ silent: true, syncOperations: false });
+      openAssetHistory(snapshot.tagNumber);
+    } catch (error) {
+      elements.replacementEditError.textContent = error.message || "수정하지 못했습니다. 입력 내용을 확인해 주세요.";
+      elements.replacementEditError.hidden = false;
+    } finally {
+      elements.replacementEditSaveButton.disabled = false;
+      setBusy(false);
+    }
   }
 
   function renderCandidates() {
@@ -9862,6 +10053,10 @@
       if (!button || !state.historyAssetTag) return;
       const action = button.dataset.historyAction;
       const tagNumber = state.historyAssetTag;
+      if (action === "replacement_event_edit") {
+        openReplacementEditDialog(tagNumber, button.dataset.eventId);
+        return;
+      }
       if (action === "runtime_state_edit") {
         const editedEvent = findEvent(button.dataset.eventId);
         if (!editedEvent) {
@@ -9981,6 +10176,9 @@
         ? "운전 신호 설정 · 연결됨" : "운전 신호 설정 · 확인 필요";
     });
     elements.dataparcRuntimeForm.addEventListener("submit", submitDataParcRuntimeRange);
+    elements.replacementEditForm.addEventListener("submit", saveReplacementEdit);
+    elements.replacementEditOperation.addEventListener("change", updateReplacementEditFields);
+    elements.replacementEditDate.addEventListener("change", updateReplacementEditFields);
     elements.recordForm.addEventListener("submit", saveRecord);
     elements.runtimeEditPendingButton.addEventListener("click", toggleRuntimeEditStartupPending);
     elements.recordDate.addEventListener("input", updateRuntimeEditPreview);
