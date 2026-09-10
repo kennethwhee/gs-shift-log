@@ -5555,7 +5555,9 @@ async function prepareManualHistoryDeletion(database, body, options = {}) {
   const tagNumber = normalizeText(body.tagNumber).toUpperCase(), eventId = normalizeText(body.eventId);
   const fail = (message, status = 409) => ({ ok: false, message, status, code: "HISTORY_DELETE_CONFLICT" });
   if (!tagNumber || !eventId || !normalizeText(body.expectedEventUpdatedAt) ||
-      !normalizeText(body.expectedCycleStartRevision) || !normalizeText(body.expectedCycleRuntimeRevision)) {
+      typeof body.expectedLastReplacementAt !== "string" ||
+      typeof body.expectedCycleStartRevision !== "string" ||
+      typeof body.expectedCycleRuntimeRevision !== "string") {
     return fail("삭제할 이력 정보를 확인해 주세요.", 400);
   }
   const asset = await findAsset(database, tagNumber);
@@ -5657,7 +5659,10 @@ async function editAnyHistoryEvent(database, user, body, options = {}) {
   const expectedEventUpdatedAt = normalizeText(body.expectedEventUpdatedAt);
   const expectedCycleStartRevision = normalizeText(body.expectedCycleStartRevision);
   const expectedCycleRuntimeRevision = normalizeText(body.expectedCycleRuntimeRevision);
-  if (!tagNumber || !eventId || !expectedEventUpdatedAt || !expectedCycleStartRevision || !expectedCycleRuntimeRevision) {
+  if (!tagNumber || !eventId || !expectedEventUpdatedAt ||
+      typeof body.expectedLastReplacementAt !== "string" ||
+      typeof body.expectedCycleStartRevision !== "string" ||
+      typeof body.expectedCycleRuntimeRevision !== "string") {
     return fail("수정할 이력 정보를 다시 확인해 주세요.");
   }
   const asset = await findAsset(database, tagNumber);

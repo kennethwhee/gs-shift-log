@@ -41,7 +41,7 @@
 
   const state = {
     data: null,
-    activeType: "fbhe",
+    activeType: "all",
     statusFilter: "all",
     historyAssetTag: "",
     subview: "overview",
@@ -816,25 +816,30 @@
   }
 
   function getTypeDefinition(type = state.activeType) {
+    if (type === "all") return { key: "all", label: "전체 Blower 현황", important: true };
     return state.data?.types?.find(item => item.key === type) || null;
   }
 
   function getActiveSetting() {
+    if (state.activeType === "all") return null;
     return state.data?.settings?.[state.activeType] || null;
   }
 
   function getActiveAssets() {
-    return (state.data?.assets || []).filter(asset => asset.blowerType === state.activeType);
+    const assets = state.data?.assets || [];
+    return state.activeType === "all" ? assets : assets.filter(asset => asset.blowerType === state.activeType);
   }
 
   function getActiveMissingSlots() {
-    return (state.data?.missingSlots || []).filter(slot => slot.blowerType === state.activeType);
+    const slots = state.data?.missingSlots || [];
+    return state.activeType === "all" ? slots : slots.filter(slot => slot.blowerType === state.activeType);
   }
 
   function renderTypeTabs() {
     if (!elements.typeTabs || !state.data) return;
 
     const compactLabels = {
+      all: "전체",
       fbhe: "FBHE",
       seal_pot: "Seal Pot",
       organic_fuel: "유기성",
@@ -843,14 +848,19 @@
     };
 
     const displayLabels = {
+      all: "전체 현황",
       fbhe: "FBHE Blower", seal_pot: "Seal Pot Blower", organic_fuel: "유기성 Blower",
       flyash_bag: "Fly Ash Bag Filter", flyash_silo: "Fly Ash Silo"
     };
-    elements.typeTabs.innerHTML = (state.data.types || [])
+    const types = [{ key: "all", label: "전체 Blower 현황", important: true }, ...(state.data.types || [])];
+    elements.typeTabs.innerHTML = types
       .map(type => {
         const active = type.key === state.activeType;
-        const typeAlerts = (state.data.assets || []).filter(
-          asset => asset.blowerType === type.key && ["warning", "critical", "overdue"].includes(displaySeverity(asset))
+        const typeAssets = type.key === "all"
+          ? (state.data.assets || [])
+          : (state.data.assets || []).filter(asset => asset.blowerType === type.key);
+        const typeAlerts = typeAssets.filter(
+          asset => ["warning", "critical", "overdue"].includes(displaySeverity(asset))
         ).length;
         const alertLabel = typeAlerts > 0 ? `교체주기 알림 ${typeAlerts}건` : "";
         const accessibleLabel = alertLabel ? `${type.label}, ${alertLabel}` : type.label;
@@ -918,7 +928,19 @@
     const type = getTypeDefinition();
     const setting = getActiveSetting();
     const canManage = hasAuthenticatedWriteAccess() && !isMobileMonitoringView();
+    const settingsStrip = elements.settingsSummary?.closest?.(".settings-strip");
+    const allMode = state.activeType === "all";
+
     elements.activeTypeTitle.textContent = type?.label || "Blower";
+    if (settingsStrip) settingsStrip.hidden = allMode;
+    elements.settingsButton.hidden = !canManage || allMode;
+    elements.assetManagerButton.hidden = !canManage || !state.data?.user?.isSuperAdmin;
+    if (allMode) {
+      elements.settingsSummary.textContent = "";
+      elements.settingsUpdated.textContent = "";
+      return;
+    }
+
     elements.settingsSummary.textContent = Number(setting?.cycleDays) > 0
       ? `누적 ${Number(setting.cycleDays).toLocaleString("ko-KR")}일 · 예정 ${Number(setting.warningDays)}일 / 임박 ${Number(setting.criticalDays)}일 전`
       : "교체주기 미설정";
@@ -927,8 +949,6 @@
       : "누적 운전시간을 기준으로 교체주기를 계산합니다.";
     elements.settingsUpdated.textContent = isPublicMonitoringView()
       ? "공유 조회" : isMobileMonitoringView() ? "조회 전용" : "";
-    elements.settingsButton.hidden = !canManage;
-    elements.assetManagerButton.hidden = !canManage || !state.data?.user?.isSuperAdmin;
   }
 
   function renderHeaderActions() {
@@ -943,7 +963,9 @@
   }
 
   function renderMissingTags() {
-    const missing = (state.data?.missingTags || []).filter(item => item.blowerType === state.activeType && !item.identityPending);
+    const missing = (state.data?.missingTags || []).filter(item =>
+      (state.activeType === "all" || item.blowerType === state.activeType) && !item.identityPending
+    );
 
     if (missing.length === 0) {
       elements.missingTagsNotice.hidden = true;
@@ -1274,17 +1296,17 @@
     const dataparcRuntimeBasisLine = runView
       ? `<div class="dataparc-runtime-row run-source-row" data-run-source="${escapeHtml(asset.runRuntime?.source || "unverified")}">
           <div class="dataparc-runtime-basis">
-            <span>${escapeHtml(runView.sourceLabel)}</span>
+            <span>데이터 조회 기간</span>
             ${runView.basis ? `<strong>${escapeHtml(formatKstDateTimeDisplay(runView.basis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(runView.basis.observedAt))}</strong>`
               : runView.manual ? `<strong>${escapeHtml(formatKstDateTimeDisplay(runView.measuredAt))} 기준</strong>` : ""}
             <small>${escapeHtml(runView.message)}</small>
           </div>
-          <div class="run-source-mobile"><span>${escapeHtml(runView.manual ? "수동 보정" : runView.verified ? "DataPARC RUN" : asset.dataParcTag ? "RUN 확인 필요" : "RUN 미연결")}</span><small>${escapeHtml(runView.manual && !asset.dataParcTag ? "RUN 연결 필요" : runView.measuredAt ? formatKstDateTimeDisplay(runView.measuredAt).slice(5) : "이력에서 확인")}</small></div>
+          <div class="run-source-mobile"><span>데이터 조회 기간</span><small>${escapeHtml(runView.basis ? `${formatKstDateTimeDisplay(runView.basis.startAt).slice(5)} → ${formatKstDateTimeDisplay(runView.basis.observedAt).slice(5)}` : runView.manual && !asset.dataParcTag ? "RUN 연결 필요" : runView.measuredAt ? `${formatKstDateTimeDisplay(runView.measuredAt).slice(5)} 기준` : "이력에서 확인")}</small></div>
         </div>`
       : dataparcRuntimeBasis
       ? `<div class="dataparc-runtime-row">
-          <div class="dataparc-runtime-basis" title="${escapeHtml(dataparcRuntimeBasis ? "DataPARC에서 확인한 기동 구간의 합계입니다. 모든 Blower는 마지막 조회 이후 시간을 자동으로 더하지 않습니다." : "조회할 시작일시를 선택해 실제 누적 운전시간을 확인합니다.")}">
-            <span>DataPARC</span>
+          <div class="dataparc-runtime-basis" title="${escapeHtml(dataparcRuntimeBasis ? "데이터 조회로 확인한 기동 구간의 합계입니다. 모든 Blower는 마지막 조회 이후 시간을 자동으로 더하지 않습니다." : "조회할 시작일시를 선택해 실제 누적 운전시간을 확인합니다.")}">
+            <span>데이터 조회 기간</span>
             ${dataparcRuntimeBasis ? `<strong>${escapeHtml(formatKstDateTimeDisplay(dataparcRuntimeBasis.startAt))} → ${escapeHtml(formatKstDateTimeDisplay(dataparcRuntimeBasis.observedAt))}</strong>` : `<small>기간을 선택해 조회</small>`}
           </div>
         </div>`
@@ -1592,11 +1614,117 @@
     return sections.join("");
   }
 
+  function allOverviewOperation(asset) {
+    const runView = window.BlowerUnifiedRefresh?.fbheSealRunView(asset, getLatestDataParcRuntimeBasis(asset.tagNumber));
+    if (runView) {
+      return {
+        state: runView.state || "unknown",
+        label: runView.stateLabel || "확인 필요",
+        runtime: runView.primary || "최신화 필요",
+        basis: runView.basis || getLatestDataParcRuntimeBasis(asset.tagNumber)
+      };
+    }
+
+    const awaitingBackfill = isAssetAwaitingBackfill(asset);
+    const basis = getLatestDataParcRuntimeBasis(asset.tagNumber);
+    const hours = Number(asset.cycleElapsedHours);
+    const runtime = asset.lastReplacementAt && !awaitingBackfill && Number.isFinite(hours) && asset.measurementRequired !== true
+      ? `${hours.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`
+      : asset.lastReplacementAt && !awaitingBackfill ? "최신화 필요" : "교체일 미확인";
+    if (!asset.lastReplacementAt || awaitingBackfill) return { state: "unconfirmed", label: "교체일 미확인", runtime, basis };
+    if (String(asset.cycleStartState || "") === "pending") return { state: "startup_pending", label: "기동 대기", runtime, basis };
+    if (asset.cycleRuntimeState === "unknown" || asset.measurementRequired === true) return { state: "unknown", label: "확인 필요", runtime, basis };
+    if (asset.runtimeAccumulationMode === "measured_only" || asset.blowerType === "organic_fuel" || asset.assetGroup === "manure") {
+      return { state: "measured", label: basis ? "조회값 반영" : "기간조회 대상", runtime, basis };
+    }
+    return { state: asset.isRunning ? "running" : "stopped", label: asset.isRunning ? "기동중" : "정지중", runtime, basis };
+  }
+
+  function allOverviewBasisText(basis) {
+    if (!basis?.startAt || !basis?.observedAt) return "조회 이력 없음";
+    return `${formatKstDateTimeDisplay(basis.startAt)} → ${formatKstDateTimeDisplay(basis.observedAt)}`;
+  }
+
+  function renderAllOverviewCard(asset) {
+    const view = allOverviewOperation(asset);
+    const severity = displaySeverity(asset);
+    const position = formatCardPosition(asset);
+    const replacement = asset.lastReplacementAt && !isAssetAwaitingBackfill(asset)
+      ? formatDate(asset.lastReplacementAt) : "미확인";
+    return `
+      <button type="button" class="all-overview-card" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}"
+        data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(view.state)}"
+        aria-label="${escapeHtml(`${position} 이력 보기`)}">
+        <span class="all-overview-card-head">
+          <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small></span>
+          <span class="operation-pill ${escapeHtml(view.state)}">${escapeHtml(view.label)}</span>
+        </span>
+        <span class="all-overview-metrics">
+          <span><small>누적 기동시간</small><strong>${escapeHtml(view.runtime)}</strong></span>
+          <span><small>최근 V-Belt 교체</small><strong>${escapeHtml(replacement)}</strong></span>
+        </span>
+        <span class="all-overview-query-period">
+          <small>데이터 조회 기간</small>
+          <strong>${escapeHtml(allOverviewBasisText(view.basis))}</strong>
+        </span>
+      </button>`;
+  }
+
+  function renderAllOverviewMissingCard(slot) {
+    const position = slot.identityPending ? (slot.displayName || "축분 Blower") : formatCardPosition(slot);
+    return `
+      <article class="all-overview-card is-placeholder" data-severity="unknown" data-operation-state="unknown">
+        <span class="all-overview-card-head">
+          <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>TAG 확인 대기</small></span>
+          <span class="operation-pill unknown">확인 필요</span>
+        </span>
+        <span class="all-overview-missing">정확한 TAG 확인 후 현황과 이력이 연결됩니다.</span>
+      </article>`;
+  }
+
+  function renderAllOverviewDashboard(assets, missingSlots) {
+    const filteredAssets = assets.filter(asset => state.statusFilter === "all" || displaySeverity(asset) === state.statusFilter);
+    const filteredMissing = ["all", "unknown"].includes(state.statusFilter) ? missingSlots : [];
+    const types = state.data?.types || [];
+    const operationViews = assets.map(allOverviewOperation);
+    const running = operationViews.filter(view => view.state === "running").length;
+    const stopped = operationViews.filter(view => view.state === "stopped").length;
+    const needsCheck = operationViews.filter(view => ["unknown", "unconfirmed", "startup_pending"].includes(view.state)).length + missingSlots.length;
+    const replacementAlerts = assets.filter(asset => ["warning", "critical", "overdue"].includes(displaySeverity(asset))).length;
+    const summary = `
+      <section class="all-overview-summary" aria-label="전체 Blower 요약">
+        <div><span>전체</span><strong>${(assets.length + missingSlots.length).toLocaleString("ko-KR")}대</strong></div>
+        <div><span>기동중</span><strong>${running.toLocaleString("ko-KR")}대</strong></div>
+        <div><span>정지중</span><strong>${stopped.toLocaleString("ko-KR")}대</strong></div>
+        <div><span>확인 필요</span><strong>${needsCheck.toLocaleString("ko-KR")}대</strong></div>
+        <div><span>교체 알림</span><strong>${replacementAlerts.toLocaleString("ko-KR")}대</strong></div>
+      </section>`;
+    const groups = types.map(type => {
+      const typeAssets = filteredAssets
+        .filter(asset => asset.blowerType === type.key)
+        .slice().sort((left, right) => compareAssetDisplayEntries({ kind: "asset", item: left }, { kind: "asset", item: right }));
+      const typeMissing = filteredMissing.filter(slot => slot.blowerType === type.key);
+      const total = typeAssets.length + typeMissing.length;
+      if (!total) return "";
+      return `
+        <section class="all-overview-group" data-overview-type="${escapeHtml(type.key)}">
+          <header><h3>${escapeHtml(type.label)}</h3><span>${total.toLocaleString("ko-KR")}대</span></header>
+          <div class="all-overview-grid">
+            ${typeAssets.map(renderAllOverviewCard).join("")}
+            ${typeMissing.map(renderAllOverviewMissingCard).join("")}
+          </div>
+        </section>`;
+    }).join("");
+    return `<div class="all-overview-dashboard">${summary}${groups || '<div class="empty-state compact">선택한 상태의 Blower가 없습니다.</div>'}</div>`;
+  }
+
   function renderAssets() {
     const assets = getActiveAssets();
     const missingSlots = getActiveMissingSlots();
     const setting = getActiveSetting();
-    const html = buildAssetSectionsHtml(assets, missingSlots, setting, state.statusFilter);
+    const html = state.activeType === "all"
+      ? renderAllOverviewDashboard(assets, missingSlots)
+      : buildAssetSectionsHtml(assets, missingSlots, setting, state.statusFilter);
 
     const total = assets.length + missingSlots.length;
     const visible = state.statusFilter === "all"
@@ -1705,6 +1833,10 @@
 
   function renderAverageStats() {
     if (!elements.averageHeadline || !elements.averageMetrics || !elements.averageAssets) return;
+    if (state.activeType === "all") {
+      elements.averagePanel.hidden = true;
+      return;
+    }
 
     const { period, intervals, perAsset } = buildReplacementIntervals();
     const periodLabel = `최근 ${period.value}${period.unit === "years" ? "년" : "개월"}`;
@@ -1798,7 +1930,7 @@
   function renderHistory() {
     const filter = elements.historyFilter?.value || "replacement";
     const events = getVisibleEvents().filter(event => {
-      if (event.blowerType !== state.activeType) return false;
+      if (state.activeType !== "all" && event.blowerType !== state.activeType) return false;
       return filter === "all" ||
         event.eventType === filter ||
         (filter === "operation" && ["operation_start", "operation_stop"].includes(event.eventType));
@@ -1937,8 +2069,8 @@
     const snapshot = Object.freeze({ tagNumber, eventId,
       expectedEventUpdatedAt: event.updatedAt,
       expectedLastReplacementAt: asset.lastReplacementAt || "",
-      expectedCycleStartRevision: asset.cycleStartRevision,
-      expectedCycleRuntimeRevision: asset.cycleRuntimeRevision });
+      expectedCycleStartRevision: String(asset.cycleStartRevision || ""),
+      expectedCycleRuntimeRevision: String(asset.cycleRuntimeRevision || "") });
     state.historyEventEditSnapshot = snapshot;
     elements.historyEventEditAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
     elements.historyEventEditSource.textContent = `${eventLabel(event.eventType)} · ${historySourceLabel(event)}${event.sourceLogId ? ` · 원본 ${event.sourceLogId}` : ""}`;
@@ -1969,6 +2101,7 @@
     elements.historyEventEditError.hidden = true;
     elements.historyEventEditSave.disabled = true;
     setBusy(true);
+    let reopenTag = "";
     try {
       const result = await apiRequest({ method: "POST", body: { action: "history_event_edit", ...snapshot,
         eventType: elements.historyEventEditType.value, eventDate, runtimeHours, issueType: elements.historyEventEditIssue.value,
@@ -1977,8 +2110,8 @@
       elements.historyEventEditDialog.close();
       state.historyEventEditSnapshot = null;
       showToast(result.message || "이력을 수정했습니다.");
-      await loadData({ silent: true, syncOperations: false });
-      openAssetHistory(snapshot.tagNumber);
+      await loadData({ silent: true, syncOperations: false, strict: true });
+      reopenTag = snapshot.tagNumber;
     } catch (error) {
       elements.historyEventEditError.textContent = error.message || "이력을 수정하지 못했습니다.";
       elements.historyEventEditError.hidden = false;
@@ -1986,14 +2119,14 @@
       elements.historyEventEditSave.disabled = false;
       setBusy(false);
     }
+    if (reopenTag) openAssetHistory(reopenTag);
   }
   // [/BLOWER-HISTORY-OPEN-EDIT-V1]
 
   // [BLOWER-MANUAL-HISTORY-DELETE-V1]
   function canEditAnyHistoryEvent(asset, event) {
     return Boolean(hasAuthenticatedWriteAccess() && !isMobileMonitoringView() && asset && event &&
-      event.tagNumber === asset.tagNumber && event.id && event.updatedAt &&
-      asset.cycleStartRevision && asset.cycleRuntimeRevision);
+      event.tagNumber === asset.tagNumber && event.id && event.updatedAt);
   }
 
   function canDeleteManualHistoryEvent(asset, event) {
@@ -2005,8 +2138,8 @@
     const asset = findAsset(tagNumber), event = findEvent(eventId);
     if (!canDeleteManualHistoryEvent(asset, event)) return;
     const snapshot = Object.freeze({ tagNumber, eventId, expectedEventUpdatedAt: event.updatedAt,
-      expectedLastReplacementAt: asset.lastReplacementAt || "", expectedCycleStartRevision: asset.cycleStartRevision,
-      expectedCycleRuntimeRevision: asset.cycleRuntimeRevision });
+      expectedLastReplacementAt: asset.lastReplacementAt || "", expectedCycleStartRevision: String(asset.cycleStartRevision || ""),
+      expectedCycleRuntimeRevision: String(asset.cycleRuntimeRevision || "") });
     state.historyDeleteSnapshot = snapshot;
     state.historyDeleteToken = "";
     elements.historyDeleteAsset.textContent = `${asset.displayName} · ${asset.tagNumber}`;
@@ -2050,6 +2183,7 @@
     state.historyDeleteSubmitting = true;
     setBusy(true);
     let saved = false;
+    let reopenTag = "";
     try {
       const result = await apiRequest({ method: "POST", body: { action: "history_event_delete", ...snapshot,
         previewToken: token, confirmDelete: true, changeNote: elements.historyDeleteReason.value.trim() } });
@@ -2058,8 +2192,8 @@
       state.historyDeleteToken = "";
       elements.historyDeleteDialog.close();
       showToast(result.message || "이력을 삭제했습니다.");
-      await loadData({ silent: true, syncOperations: false });
-      openAssetHistory(snapshot.tagNumber);
+      await loadData({ silent: true, syncOperations: false, strict: true });
+      reopenTag = snapshot.tagNumber;
     } catch (error) {
       if (saved) {
         showToast("삭제는 완료됐지만 화면을 새로 불러오지 못했습니다. 새로고침해 주세요.", "error");
@@ -2073,6 +2207,7 @@
       setBusy(false);
       elements.historyDeleteConfirm.disabled = true;
     }
+    if (reopenTag) openAssetHistory(reopenTag);
   }
   // [/BLOWER-MANUAL-HISTORY-DELETE-V1]
 
@@ -2261,7 +2396,9 @@
 
     const allCandidates = (state.data?.candidates || [])
       .filter(candidate => candidate.detectedType === "replacement");
-    const candidates = allCandidates.filter(candidate => candidate.blowerType === state.activeType);
+    const candidates = state.activeType === "all"
+      ? allCandidates
+      : allCandidates.filter(candidate => candidate.blowerType === state.activeType);
 
     elements.candidateCountBadge.hidden = candidates.length === 0;
     elements.candidateCountBadge.textContent = String(candidates.length);
@@ -8654,8 +8791,8 @@
         elements.authNotice.textContent = "공유 조회 전용 · 변경하려면 업무일지에서 로그인해 주세요.";
       }
 
-      if (!(data.types || []).some(type => type.key === state.activeType)) {
-        state.activeType = "fbhe";
+      if (state.activeType !== "all" && !(data.types || []).some(type => type.key === state.activeType)) {
+        state.activeType = "all";
       }
 
       renderAll();
@@ -8675,7 +8812,7 @@
   }
 
   function switchType(type) {
-    if (!state.data?.types?.some(item => item.key === type)) return;
+    if (type !== "all" && !state.data?.types?.some(item => item.key === type)) return;
     state.activeType = type;
     state.statusFilter = "all";
     renderAll();
@@ -9534,6 +9671,7 @@
       Number(left.sortOrder || 0) - Number(right.sortOrder || 0) || String(left.tagNumber).localeCompare(String(right.tagNumber))
     ));
     const typeKeys = [state.activeType, ...(state.data?.types || []).map(type => type.key)]
+      .filter(key => key !== "all")
       .filter((key, index, all) => all.indexOf(key) === index);
     elements.assetManagerTarget.innerHTML = [
       '<option value="__new__">＋ 새 Blower 추가</option>',
@@ -9560,8 +9698,9 @@
       elements.assetBlowerType.disabled = false;
       elements.assetUnitNo.disabled = false;
       elements.assetGroup.disabled = false;
-      elements.assetBlowerType.value = state.activeType;
-      elements.assetUnitNo.value = state.activeType === "flyash_silo" ? "shared" : "1";
+      const managerType = state.activeType === "all" ? (state.data?.types?.[0]?.key || "fbhe") : state.activeType;
+      elements.assetBlowerType.value = managerType;
+      elements.assetUnitNo.value = managerType === "flyash_silo" ? "shared" : "1";
       elements.assetGroup.value = "";
       elements.assetPositionLabel.value = "";
       elements.assetPositionLabel.readOnly = false;
@@ -9570,7 +9709,7 @@
       elements.assetTagNumber.value = "";
       elements.assetTagNumber.readOnly = false;
       elements.assetTagNumber.classList.remove("is-readonly");
-      elements.assetSortOrder.value = String(nextAssetSortOrder(state.activeType));
+      elements.assetSortOrder.value = String(nextAssetSortOrder(elements.assetBlowerType.value));
       elements.assetEnabled.checked = true;
       elements.assetTagHelp.textContent = "TAG는 추가 후 교체이력 연결 보호를 위해 변경할 수 없습니다.";
       elements.assetManagerUpdated.textContent = "새 Blower는 가짜 교체일이나 운전시간 없이 추가됩니다.";
@@ -9611,8 +9750,9 @@
     elements.assetBlowerType.innerHTML = (state.data.types || [])
       .map(type => `<option value="${escapeHtml(type.key)}">${escapeHtml(type.label)}</option>`)
       .join("");
+    const managerType = state.activeType === "all" ? (state.data?.types?.[0]?.key || "fbhe") : state.activeType;
     const activeCatalog = (state.data?.assetCatalog || [])
-      .filter(asset => asset.blowerType === state.activeType)
+      .filter(asset => asset.blowerType === managerType)
       .sort((left, right) => {
         if (Boolean(left.enabled) !== Boolean(right.enabled)) return left.enabled ? -1 : 1;
         const sortDifference = Number(left.sortOrder || 0) - Number(right.sortOrder || 0);
