@@ -2574,7 +2574,7 @@ body.public-monitoring #historyDeleteDialog { display: none !important; }
 }
 .all-overview-summary {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 7px;
 }
 .all-overview-summary > div {
@@ -2639,7 +2639,12 @@ button.all-overview-card:hover { border-color: #9db8cf; box-shadow: 0 3px 10px r
 .all-overview-identity { min-width: 0; }
 .all-overview-identity strong { display: block; overflow: hidden; font-size: 13px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .all-overview-identity small { display: block; overflow: hidden; margin-top: 2px; color: var(--muted); font-size: 8px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
-.all-overview-card .operation-pill { flex: 0 0 auto; min-height: 18px; padding: 0 5px; font-size: 9px; }
+.all-overview-status-badges { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 3px; min-width: 0; }
+.all-overview-card .operation-pill,
+.all-overview-card .operation-mode-pill { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; min-height: 18px; padding: 0 5px; border: 1px solid #c9d3dd; border-radius: 999px; font-size: 9px; font-weight: 800; line-height: 1; white-space: nowrap; }
+.operation-mode-pill.intermittent { border-color: #b8cde0; background: #edf5fb; color: #315f82; }
+.all-overview-card[data-operation-mode="intermittent"][data-operation-state="stopped"] { background: #f7f9fb; }
+.all-overview-card[data-operation-mode="intermittent"][data-operation-state="stopped"] .operation-pill.stopped { border-color: #c9d3dd; background: #f0f3f5; color: #53616d; }
 .operation-pill.measured { border-color: #b8cde0; background: #edf5fb; color: #315f82; }
 .all-overview-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
 .all-overview-metrics > span { min-width: 0; padding: 5px 6px; border-radius: 5px; background: rgba(255,255,255,.72); }
@@ -2656,7 +2661,7 @@ button.all-overview-card:hover { border-color: #9db8cf; box-shadow: 0 3px 10px r
 
 @media (max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse) {
   .all-overview-dashboard { gap: 7px; margin-top: 4px; }
-  .all-overview-summary { grid-template-columns: repeat(5, minmax(62px, 1fr)); gap: 4px; overflow-x: auto; padding-bottom: 2px; }
+  .all-overview-summary { grid-template-columns: repeat(6, minmax(62px, 1fr)); gap: 4px; overflow-x: auto; padding-bottom: 2px; }
   .all-overview-summary > div { display: block; padding: 6px 7px; }
   .all-overview-summary span { font-size: 8px; }
   .all-overview-summary strong { display: block; margin-top: 2px; font-size: 12px; }
@@ -2667,7 +2672,8 @@ button.all-overview-card:hover { border-color: #9db8cf; box-shadow: 0 3px 10px r
   .all-overview-card { min-height: 96px; gap: 4px; padding: 6px; border-radius: 7px; }
   .all-overview-identity strong { font-size: 11px; }
   .all-overview-identity small { font-size: 7px; }
-  .all-overview-card .operation-pill { min-height: 16px; padding: 0 4px; font-size: 8px; }
+  .all-overview-card .operation-pill,
+  .all-overview-card .operation-mode-pill { min-height: 16px; padding: 0 4px; font-size: 8px; }
   .all-overview-metrics > span { padding: 4px; }
   .all-overview-metrics small,
   .all-overview-query-period small { font-size: 7px; }

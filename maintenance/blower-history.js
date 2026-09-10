@@ -1615,13 +1615,15 @@
   }
 
   function allOverviewOperation(asset) {
+    const intermittent = asset.blowerType === "organic_fuel" || asset.assetGroup === "manure";
     const runView = window.BlowerUnifiedRefresh?.fbheSealRunView(asset, getLatestDataParcRuntimeBasis(asset.tagNumber));
     if (runView) {
       return {
         state: runView.state || "unknown",
         label: runView.stateLabel || "확인 필요",
         runtime: runView.primary || "최신화 필요",
-        basis: runView.basis || getLatestDataParcRuntimeBasis(asset.tagNumber)
+        basis: runView.basis || getLatestDataParcRuntimeBasis(asset.tagNumber),
+        intermittent
       };
     }
 
@@ -1631,13 +1633,16 @@
     const runtime = asset.lastReplacementAt && !awaitingBackfill && Number.isFinite(hours) && asset.measurementRequired !== true
       ? `${hours.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}시간`
       : asset.lastReplacementAt && !awaitingBackfill ? "최신화 필요" : "교체일 미확인";
-    if (!asset.lastReplacementAt || awaitingBackfill) return { state: "unconfirmed", label: "교체일 미확인", runtime, basis };
-    if (String(asset.cycleStartState || "") === "pending") return { state: "startup_pending", label: "기동 대기", runtime, basis };
-    if (asset.cycleRuntimeState === "unknown" || asset.measurementRequired === true) return { state: "unknown", label: "확인 필요", runtime, basis };
-    if (asset.runtimeAccumulationMode === "measured_only" || asset.blowerType === "organic_fuel" || asset.assetGroup === "manure") {
-      return { state: "measured", label: basis ? "조회값 반영" : "기간조회 대상", runtime, basis };
-    }
-    return { state: asset.isRunning ? "running" : "stopped", label: asset.isRunning ? "기동중" : "정지중", runtime, basis };
+    if (!asset.lastReplacementAt || awaitingBackfill) return { state: "unconfirmed", label: "교체일 미확인", runtime, basis, intermittent };
+    if (String(asset.cycleStartState || "") === "pending") return { state: "startup_pending", label: "기동 대기", runtime, basis, intermittent };
+    if (asset.cycleRuntimeState === "unknown" || asset.measurementRequired === true) return { state: "unknown", label: "확인 필요", runtime, basis, intermittent };
+
+    // DataPARC measured-only assets still have a valid RUN 1/0 end-state at the
+    // end of the latest query. Do not hide that state behind "조회값 반영".
+    // Organic/manure Blowers remain marked as intermittent operating equipment,
+    // while their latest queried RUN state is shown separately as 기동중/정지중.
+    const runningNow = asset.cycleRuntimeState === "running" || (asset.cycleRuntimeState !== "stopped" && asset.isRunning === true);
+    return { state: runningNow ? "running" : "stopped", label: runningNow ? "기동중" : "정지중", runtime, basis, intermittent };
   }
 
   function allOverviewBasisText(basis) {
@@ -1653,11 +1658,14 @@
       ? formatDate(asset.lastReplacementAt) : "미확인";
     return `
       <button type="button" class="all-overview-card" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}"
-        data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(view.state)}"
+        data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(view.state)}" data-operation-mode="${view.intermittent ? "intermittent" : "standard"}"
         aria-label="${escapeHtml(`${position} 이력 보기`)}">
         <span class="all-overview-card-head">
           <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small></span>
-          <span class="operation-pill ${escapeHtml(view.state)}">${escapeHtml(view.label)}</span>
+          <span class="all-overview-status-badges">
+            ${view.intermittent ? '<span class="operation-mode-pill intermittent">간헐운전</span>' : ''}
+            <span class="operation-pill ${escapeHtml(view.state)}">${escapeHtml(view.label)}</span>
+          </span>
         </span>
         <span class="all-overview-metrics">
           <span><small>누적 기동시간</small><strong>${escapeHtml(view.runtime)}</strong></span>
@@ -1690,12 +1698,14 @@
     const running = operationViews.filter(view => view.state === "running").length;
     const stopped = operationViews.filter(view => view.state === "stopped").length;
     const needsCheck = operationViews.filter(view => ["unknown", "unconfirmed", "startup_pending"].includes(view.state)).length + missingSlots.length;
+    const intermittentCount = assets.filter(asset => asset.blowerType === "organic_fuel" || asset.assetGroup === "manure").length;
     const replacementAlerts = assets.filter(asset => ["warning", "critical", "overdue"].includes(displaySeverity(asset))).length;
     const summary = `
       <section class="all-overview-summary" aria-label="전체 Blower 요약">
         <div><span>전체</span><strong>${(assets.length + missingSlots.length).toLocaleString("ko-KR")}대</strong></div>
-        <div><span>기동중</span><strong>${running.toLocaleString("ko-KR")}대</strong></div>
-        <div><span>정지중</span><strong>${stopped.toLocaleString("ko-KR")}대</strong></div>
+        <div><span>현재 기동</span><strong>${running.toLocaleString("ko-KR")}대</strong></div>
+        <div><span>현재 정지</span><strong>${stopped.toLocaleString("ko-KR")}대</strong></div>
+        <div title="유기성 고형연료 및 축분 Blower처럼 운전 특성상 기동·정지를 반복하는 설비입니다. 현재 기동/정지 집계에도 실제 마지막 조회 상태로 포함됩니다."><span>간헐운전 대상</span><strong>${intermittentCount.toLocaleString("ko-KR")}대</strong></div>
         <div><span>확인 필요</span><strong>${needsCheck.toLocaleString("ko-KR")}대</strong></div>
         <div><span>교체 알림</span><strong>${replacementAlerts.toLocaleString("ko-KR")}대</strong></div>
       </section>`;
