@@ -40,19 +40,20 @@ test('all-status dashboard owns one large latest-query card, one refresh icon, a
   assert.match(html, /id="overviewRefreshPanel"[\s\S]*?<span>최신 조회<\/span>[\s\S]*?id="overviewLatestQueryAt"/);
   assert.match(html, /id="overviewRefreshPercent">0%<\/strong>/);
   assert.match(html, /role="progressbar"[\s\S]*?aria-valuemin="0"[\s\S]*?aria-valuemax="100"/);
-  assert.match(html, /class="overview-refresh-icon"[^>]*>↻<\/span>/);
+  assert.match(html, /<svg class="overview-refresh-icon"[^>]*>[\s\S]*?overview-refresh-icon-ring[\s\S]*?<\/svg>/);
+  assert.doesNotMatch(html, />↻<\/span>/);
   assert.match(css, /\.overview-refresh-latest\s*>\s*strong[\s\S]*?font-size:\s*clamp\(/);
   assert.match(css, /\.overview-refresh-button\.is-spinning[\s\S]*?animation:\s*blower-overview-refresh-spin/);
   assert.match(css, /@keyframes blower-overview-refresh-spin/);
   assert.match(css, /\.overview-refresh-progress-track\s*>\s*span[\s\S]*?transition:\s*width/);
-  assert.match(unifiedCss, /#refreshButton\.overview-refresh-button\s*\{\s*min-width:\s*52px/);
+  assert.match(unifiedCss, /#refreshButton\.overview-refresh-button\s*\{\s*min-width:\s*48px/);
   assert.doesNotMatch(uiSource, /elements\.refreshButton\.textContent\s*=\s*`?최신화/);
 });
 
 test('dashboard explains append-only behavior and computes percentage from actually processed Blowers', () => {
   assert.match(uiSource, /다음 통합조회는 각 설비의 마지막 조회 종료시각 이후 구간만 이어서 조회합니다/);
   assert.match(uiSource, /Math\.floor\(\(safeProcessed\s*\/\s*safeTarget\)\s*\*\s*100\)/);
-  assert.match(uiSource, /기존 누적값에 추가/);
+  assert.match(uiSource, /기존 저장값 유지|기존 누적값에 추가/);
   assert.match(uiSource, /기존 DataPARC 조회값 유지/);
   assert.match(uiSource, /setOverviewRefreshProcessed\(planned\.targetCount, planned\.targetCount/);
 });

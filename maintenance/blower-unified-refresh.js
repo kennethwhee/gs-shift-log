@@ -108,57 +108,140 @@
   function error(message, code) { const e = new Error(message); e.code = code; return e; }
   async function waitRequests(items, io, options = {}) {
     const map = new Map((items || []).filter(x => x?.id).map(x => [String(x.id), x]));
-    if (!map.size || map.size > 12) throw error('운전시간 요청 ID를 확인할 수 없습니다.', 'INVALID_REQUEST_IDS');
+    if (!map.size || map.size > 32) throw error('운전시간 요청 ID를 확인할 수 없습니다.', 'INVALID_REQUEST_IDS');
     const ids = [...map.keys()], clock = options.clock || Date.now, sleep = options.sleep || (ms => new Promise(r => setTimeout(r, ms)));
     const start = clock(), deadline = start + (options.timeoutMs || 2 * 3600000);
+    const settleFailures = options.settleFailures === true;
     let retry = 0;
     while (clock() < deadline) {
       io.assertWritable?.();
       const all = [...map.values()];
       const failed = all.find(x => x.status === 'failed');
-      if (failed) throw error(failed.errorMessage || '회사 PC 조회에 실패했습니다.', 'REQUEST_FAILED');
-      if (all.every(x => x.status === 'complete')) return all;
-      if (all.some(x => !['pending', 'processing', 'complete'].includes(x.status))) throw error('알 수 없는 조회 상태입니다.', 'INVALID_REQUEST_STATUS');
-      // No Agent response: do not enqueue another eleven long-running requests.
+      if (failed && !settleFailures) throw error(failed.errorMessage || '회사 PC 조회에 실패했습니다.', 'REQUEST_FAILED');
+      if (all.every(x => settleFailures ? ['complete', 'failed'].includes(x.status) : x.status === 'complete')) return all;
+      if (all.some(x => !['pending', 'processing', 'complete', ...(settleFailures ? ['failed'] : [])].includes(x.status))) {
+        throw error('알 수 없는 조회 상태입니다.', 'INVALID_REQUEST_STATUS');
+      }
+      // No Agent response: do not leave a large all-Blower queue waiting indefinitely.
       if (all.every(x => x.status === 'pending') && clock() - start >= (options.pendingTimeoutMs || 180000)) {
         throw error('회사 PC Agent 응답 대기시간을 초과했습니다. 완료된 값은 유지합니다.', 'AGENT_UNAVAILABLE');
       }
-      io.progress?.(`${all.filter(x => x.status === 'complete').length}/${all.length} · ${all.some(x => x.status === 'processing') ? '계산 중' : '대기 중'}`);
-      await sleep(Math.min(3000, Math.max(0, deadline - clock())));
-      let payload;
+      const terminal = all.filter(x => ['complete', 'failed'].includes(x.status)).length;
+      io.progress?.(`${terminal}/${all.length} · ${all.some(x => x.status === 'processing') ? 'DataPARC 일괄 계산 중' : '조회 대기 중'}`);
+      await sleep(Math.min(2500, Math.max(0, deadline - clock())));
+      let payloads;
       try {
-        payload = await io.api({ url: `/api/ois-data-requests?action=status_batch&compact=1&ids=${encodeURIComponent(ids.join(','))}&_=${clock()}`, timeoutMs: 20000 });
+        const groups = [];
+        for (let index = 0; index < ids.length; index += 12) groups.push(ids.slice(index, index + 12));
+        payloads = await Promise.all(groups.map((group, groupIndex) => io.api({
+          url: `/api/ois-data-requests?action=status_batch&compact=1&ids=${encodeURIComponent(group.join(','))}&_=${clock() + groupIndex}`,
+          timeoutMs: 20000
+        })));
         retry = 0;
       } catch (e) {
         if (![0,429,502,503,504].includes(Number(e?.status || 0)) || retry >= 4) throw e;
         await sleep(Math.min(30000, Math.max(1000 * 2 ** retry++, Number(e.retryAfterMs) || 0))); continue;
       }
-      const returned = Array.isArray(payload?.items) ? payload.items : [];
+      const returned = payloads.flatMap(payload => Array.isArray(payload?.items) ? payload.items : []);
       if (ids.some(id => !returned.some(x => String(x.id) === id))) throw error('조회 요청 상태가 누락되었습니다.', 'REQUEST_MISSING');
       for (const item of returned) if (map.has(String(item.id))) map.set(String(item.id), item);
     }
     throw error('운전시간 조회가 최대 대기시간을 초과했습니다.', 'REQUEST_TIMEOUT');
   }
-  async function executeDataParc(task, io) {
-    io.assertWritable?.();
+
+  function dataParcCreateBody(task) {
     const s = task.snapshot;
-    const created = await io.api({ method: 'POST', url: '/api/ois-data-requests', body: {
+    return {
       action: 'create_blower_runtime_probe', unifiedRefresh: true, incrementalRefresh: true,
       requireIncrementalAppend: task.incremental === true, assetTag: s.tagNumber,
       dataParcTag: task.dataParcTag, confirmRunSignal: true, startAt: task.startAt,
       expectedLastReplacementAt: s.lastReplacementAt, expectedCycleStartState: s.cycleStartState,
       expectedCycleStartedAt: s.cycleStartedAt, expectedCycleStartRevision: s.cycleStartRevision,
       expectedCycleRuntimeRevision: s.cycleRuntimeRevision
-    }});
-    if (created?.upToDate === true) return { tagNumber: s.tagNumber,
-      displayName: task.asset.displayName || s.tagNumber, status: 'complete', unchanged: true, message: created.message || '기존 값 유지' };
-    const item = created?.item || created?.items?.[0];
-    if (!item?.id) throw error('DataPARC 조회 요청 ID를 받지 못했습니다.', 'REQUEST_MISSING');
-    await waitRequests([item], io);
+    };
+  }
+
+  async function executeDataParcBatch(tasks, io) {
+    const source = (tasks || []).filter(task => task?.snapshot?.tagNumber);
+    if (!source.length) return [];
     io.assertWritable?.();
-    io.progress?.('조회 결과 저장 중');
-    const applied = await io.api({ method: 'POST', body: { action: 'dataparc_runtime_sync', requestId: item.id } });
-    return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'complete', message: applied.message || '실제 누적 기동시간 반영' };
+    io.progress?.(`${source.length}대 증분 조회 요청 등록 중`);
+
+    // Enqueue every asset first.  The local Agent can then coalesce adjacent
+    // blower_runtime_probe requests into one hidden-Excel session instead of
+    // starting/stopping Excel once per Blower.
+    const createOutcomes = await Promise.all(source.map(async task => {
+      try {
+        const created = await io.api({ method: 'POST', url: '/api/ois-data-requests', body: dataParcCreateBody(task) });
+        return { task, created };
+      } catch (cause) {
+        return { task, cause };
+      }
+    }));
+
+    const resultByTag = new Map();
+    const pending = [];
+    for (const outcome of createOutcomes) {
+      const task = outcome.task, s = task.snapshot;
+      if (outcome.cause) {
+        if ([401, 403].includes(Number(outcome.cause?.status))) throw outcome.cause;
+        resultByTag.set(s.tagNumber, { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
+          status: 'failed', message: outcome.cause?.message || 'DataPARC 조회 요청 생성 실패' });
+        continue;
+      }
+      if (outcome.created?.upToDate === true) {
+        resultByTag.set(s.tagNumber, { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
+          status: 'complete', unchanged: true, message: outcome.created.message || '새 조회 구간 없음 · 기존 값 유지' });
+        continue;
+      }
+      const item = outcome.created?.item || outcome.created?.items?.[0];
+      if (!item?.id) {
+        resultByTag.set(s.tagNumber, { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber,
+          status: 'failed', message: 'DataPARC 조회 요청 ID를 받지 못했습니다.' });
+        continue;
+      }
+      pending.push({ task, item });
+    }
+
+    if (pending.length) {
+      io.progress?.(`숨김 Excel 일괄 조회 준비 · ${pending.length}대`);
+      const settled = await waitRequests(pending.map(entry => entry.item), io, { settleFailures: true, sleep: io.sleep, clock: io.clock });
+      const statusById = new Map(settled.map(item => [String(item.id), item]));
+      io.assertWritable?.();
+
+      let appliedCount = 0;
+      const applyResults = await Promise.all(pending.map(async entry => {
+        const task = entry.task, s = task.snapshot, request = statusById.get(String(entry.item.id));
+        if (!request || request.status === 'failed') {
+          return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'failed',
+            message: request?.errorMessage || '회사 PC DataPARC 조회에 실패했습니다.' };
+        }
+        try {
+          const applied = await io.api({ method: 'POST', body: { action: 'dataparc_runtime_sync', requestId: entry.item.id } });
+          appliedCount += 1;
+          io.progress?.(`조회 결과 저장 중 · ${appliedCount}/${pending.length}`);
+          return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'complete',
+            message: applied.message || '증분 운전시간 반영 완료' };
+        } catch (cause) {
+          if ([401, 403].includes(Number(cause?.status))) throw cause;
+          return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'failed',
+            message: cause?.message || '조회 결과 저장 실패 · 기존 값 유지' };
+        }
+      }));
+      for (const item of applyResults) resultByTag.set(item.tagNumber, item);
+    }
+
+    return source.map(task => resultByTag.get(task.snapshot.tagNumber) || {
+      tagNumber: task.snapshot.tagNumber, displayName: task.asset.displayName || task.snapshot.tagNumber,
+      status: 'failed', message: '통합조회 결과를 확인하지 못했습니다.'
+    });
+  }
+
+  async function executeDataParc(task, io) {
+    const results = await executeDataParcBatch([task], io);
+    const result = results[0];
+    if (result?.status === 'failed') throw error(result.message || 'DataPARC 조회에 실패했습니다.', 'REQUEST_FAILED');
+    return result;
   }
   async function executeOis(task, io) {
     const bridge = bridges[task.kind];
@@ -296,7 +379,7 @@
     }
   }
 
-  return { fbheSealRunAsset, fbheSealRunView, plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeOis, oisBody,
+  return { fbheSealRunAsset, fbheSealRunView, plan, intermittent, snapshot, sameCycle, day, waitRequests, executeDataParc, executeDataParcBatch, executeOis, oisBody,
     refreshLogs, refreshLogsForRuntime, readWithRetry, errorLabel,
     register(kind, fn) { if (!['fbhe','seal_pot'].includes(kind) || typeof fn !== 'function') throw new Error('Invalid OIS bridge'); bridges[kind] = fn; } };
 });

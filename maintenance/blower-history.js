@@ -10525,35 +10525,30 @@
         state.unifiedRefreshResults.push(...planned.skipped);
         setOverviewRefreshProcessed(state.unifiedRefreshResults.length, planned.targetCount,
           planned.tasks.length ? `증분조회 시작 · ${state.unifiedRefreshResults.length}/${planned.targetCount}대 처리` : "새 조회 구간 확인 완료");
-        let agentUnavailable = false;
-        for (const task of planned.tasks) {
+        if (planned.tasks.length) {
           assertUnifiedRefreshWritable();
-          const assets = [task.asset];
-          phase = task.asset.displayName || task.asset.tagNumber;
-          if (agentUnavailable) {
-            state.unifiedRefreshResults.push(...assets.map(a => ({ tagNumber: a.tagNumber, displayName: a.displayName,
-              status: "skipped", message: "회사 PC Agent 응답 없음 · 기존 값 유지" })));
-            setOverviewRefreshProcessed(state.unifiedRefreshResults.length, planned.targetCount,
-              `${state.unifiedRefreshResults.length}/${planned.targetCount}대 처리 · 기존 값 유지`);
-            continue;
-          }
-          const rangeText = task.incremental
-            ? `이후 구간 조회 · ${formatKstDateTimeDisplay(task.queryStartAt)} → 현재 · 기존 누적값에 추가`
-            : "최초/재설정 조회 · 기존 확정 이력은 보존";
-          progress(rangeText);
+          phase = "DataPARC 일괄 조회";
+          const incrementalCount = planned.tasks.filter(task => task.incremental).length;
+          const initialCount = planned.tasks.length - incrementalCount;
+          progress(`증분 ${incrementalCount}대${initialCount ? ` · 최초/재설정 ${initialCount}대` : ""} 요청 일괄 전달 · 기존 저장값 유지`);
           try {
-            const result = await core.executeDataParc(task, io);
-            state.unifiedRefreshResults.push(...(Array.isArray(result) ? result : [result]));
+            const batchResults = await core.executeDataParcBatch(planned.tasks, io);
+            state.unifiedRefreshResults.push(...batchResults);
           } catch (e) {
-            state.unifiedRefreshResults.push(...assets.map(a => ({ tagNumber: a.tagNumber, displayName: a.displayName,
-              status: "failed", message: core.errorLabel(e) + " · 기존 값 유지" })));
-            if (e.code === "AGENT_UNAVAILABLE") agentUnavailable = true;
             if ([401,403].includes(Number(e.status))) throw e;
+            state.unifiedRefreshResults.push(...planned.tasks.map(task => ({
+              tagNumber: task.asset.tagNumber,
+              displayName: task.asset.displayName,
+              status: "failed",
+              message: core.errorLabel(e) + " · 기존 값 유지"
+            })));
           }
-          // Read-back failure must never be reported as successful display refresh.
+          // One read-back after every independent append has been committed. This avoids
+          // reloading the whole Blower payload once per asset while keeping the stored
+          // append-only results as the single source of truth.
           await io.reload();
           setOverviewRefreshProcessed(state.unifiedRefreshResults.length, planned.targetCount,
-            `${state.unifiedRefreshResults.length}/${planned.targetCount}대 처리 · ${task.incremental ? "이후 구간 추가 완료" : "조회 완료"}`);
+            `${state.unifiedRefreshResults.length}/${planned.targetCount}대 처리 · 일괄 조회 결과 반영`);
           renderUnifiedRefreshProgress(`${phase} · ${state.unifiedRefreshResults.length}/${planned.targetCount}대 처리`);
         }
         await io.reload();

@@ -6,13 +6,13 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260911-incremental-dashboard-v4">
+  <link rel="stylesheet" href="blower-history.css?v=20260911-incremental-dashboard-fast-v5">
   <link rel="stylesheet" href="blower-history-mobile-dialog-close-v1.css?v=20260903-v1">
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <link rel="stylesheet" href="blower-unified-refresh.css?v=20260911-incremental-dashboard-v4">
-  <script src="blower-unified-refresh.js?v=20260911-incremental-dashboard-v4" defer></script>
-  <script src="blower-history.js?v=20260911-incremental-dashboard-v4" defer></script>
+  <link rel="stylesheet" href="blower-unified-refresh.css?v=20260911-incremental-dashboard-fast-v5">
+  <script src="blower-unified-refresh.js?v=20260911-incremental-dashboard-fast-v5" defer></script>
+  <script src="blower-history.js?v=20260911-incremental-dashboard-fast-v5" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
 </head>
 <body>
@@ -94,7 +94,10 @@
             </div>
             <div class="overview-refresh-action">
               <button type="button" class="overview-refresh-button" id="refreshButton" title="전체 Blower를 저장된 마지막 조회시각 이후부터 통합조회" aria-label="전체 Blower 통합조회">
-                <span class="overview-refresh-icon" aria-hidden="true">↻</span>
+                <svg class="overview-refresh-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path class="overview-refresh-icon-arrow" d="M20 7.5V3.8m0 3.7h-3.7"></path>
+                  <path class="overview-refresh-icon-ring" d="M19.1 7.2A8.2 8.2 0 1 0 20 13"></path>
+                </svg>
               </button>
               <div class="overview-refresh-progress" aria-live="polite">
                 <div class="overview-refresh-progress-head">
