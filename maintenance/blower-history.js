@@ -1656,15 +1656,18 @@
     const position = formatCardPosition(asset);
     const replacement = asset.lastReplacementAt && !isAssetAwaitingBackfill(asset)
       ? formatDate(asset.lastReplacementAt) : "미확인";
+    const intermittentInstantState = view.intermittent && ["running", "stopped"].includes(view.state);
+    const overviewOperationState = intermittentInstantState ? "intermittent" : view.state;
+    const showOperationStateBadge = !intermittentInstantState;
     return `
       <button type="button" class="all-overview-card" data-asset-action="history" data-tag="${escapeHtml(asset.tagNumber)}"
-        data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(view.state)}" data-operation-mode="${view.intermittent ? "intermittent" : "standard"}"
+        data-severity="${escapeHtml(severity)}" data-operation-state="${escapeHtml(overviewOperationState)}" data-operation-mode="${view.intermittent ? "intermittent" : "standard"}"
         aria-label="${escapeHtml(`${position} 이력 보기`)}">
         <span class="all-overview-card-head">
           <span class="all-overview-identity"><strong>${escapeHtml(position)}</strong><small>${escapeHtml(asset.tagNumber)}</small></span>
           <span class="all-overview-status-badges">
             ${view.intermittent ? '<span class="operation-mode-pill intermittent">간헐운전</span>' : ''}
-            <span class="operation-pill ${escapeHtml(view.state)}">${escapeHtml(view.label)}</span>
+            ${showOperationStateBadge ? `<span class="operation-pill ${escapeHtml(view.state)}">${escapeHtml(view.label)}</span>` : ''}
           </span>
         </span>
         <span class="all-overview-metrics">
@@ -1695,8 +1698,10 @@
     const filteredMissing = ["all", "unknown"].includes(state.statusFilter) ? missingSlots : [];
     const types = state.data?.types || [];
     const operationViews = assets.map(allOverviewOperation);
-    const running = operationViews.filter(view => view.state === "running").length;
-    const stopped = operationViews.filter(view => view.state === "stopped").length;
+    // Intermittent organic/manure Blowers have their own operating-mode bucket.
+    // Their instantaneous RUN 1/0 end-state must not appear as a dashboard 기동중/정지중 status.
+    const running = operationViews.filter(view => !view.intermittent && view.state === "running").length;
+    const stopped = operationViews.filter(view => !view.intermittent && view.state === "stopped").length;
     const needsCheck = operationViews.filter(view => ["unknown", "unconfirmed", "startup_pending"].includes(view.state)).length + missingSlots.length;
     const intermittentCount = assets.filter(asset => asset.blowerType === "organic_fuel" || asset.assetGroup === "manure").length;
     const replacementAlerts = assets.filter(asset => ["warning", "critical", "overdue"].includes(displaySeverity(asset))).length;
@@ -1705,7 +1710,7 @@
         <div><span>전체</span><strong>${(assets.length + missingSlots.length).toLocaleString("ko-KR")}대</strong></div>
         <div><span>현재 기동</span><strong>${running.toLocaleString("ko-KR")}대</strong></div>
         <div><span>현재 정지</span><strong>${stopped.toLocaleString("ko-KR")}대</strong></div>
-        <div title="유기성 고형연료 및 축분 Blower처럼 운전 특성상 기동·정지를 반복하는 설비입니다. 현재 기동/정지 집계에도 실제 마지막 조회 상태로 포함됩니다."><span>간헐운전 대상</span><strong>${intermittentCount.toLocaleString("ko-KR")}대</strong></div>
+        <div title="유기성 고형연료 및 축분 Blower처럼 운전 특성상 기동·정지를 반복하는 설비입니다. 간헐운전 대상은 현재 기동/정지 표시와 집계에서 제외합니다."><span>간헐운전 대상</span><strong>${intermittentCount.toLocaleString("ko-KR")}대</strong></div>
         <div><span>확인 필요</span><strong>${needsCheck.toLocaleString("ko-KR")}대</strong></div>
         <div><span>교체 알림</span><strong>${replacementAlerts.toLocaleString("ko-KR")}대</strong></div>
       </section>`;

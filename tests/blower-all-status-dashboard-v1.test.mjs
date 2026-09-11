@@ -40,16 +40,19 @@ test('asset card visible source heading uses 데이터 조회 기간 instead of 
   assert.doesNotMatch(cardSection,/<span>DataPARC<\/span>/);
 });
 
-test('dashboard shows measured-only current RUN state and keeps organic intermittent identity separate',()=>{
+test('dashboard keeps intermittent equipment out of instantaneous running/stopped display while Fly Ash still shows queried RUN state',()=>{
   ui.renderAssets();
   const out=ui.elements.assetGroups.innerHTML;
   assert.match(out,/간헐운전 대상/);
-  assert.match(out,/현재 기동/);
-  assert.match(out,/현재 정지/);
+  assert.match(out,/<span>현재 기동<\/span><strong>2대<\/strong>/);
+  assert.match(out,/<span>현재 정지<\/span><strong>1대<\/strong>/);
+  assert.match(out,/<span>간헐운전 대상<\/span><strong>1대<\/strong>/);
   const organic=out.match(/<button[^>]*data-tag="204SDF01AN002"[\s\S]*?<\/button>/)?.[0]||'';
   assert.match(organic,/data-operation-mode="intermittent"/);
+  assert.match(organic,/data-operation-state="intermittent"/);
   assert.match(organic,/간헐운전/);
-  assert.match(organic,/정지중/);
+  assert.doesNotMatch(organic,/기동중|정지중/);
+  assert.doesNotMatch(organic,/operation-pill (?:running|stopped)/);
   assert.doesNotMatch(organic,/조회값 반영/);
   const flyash=out.match(/<button[^>]*data-tag="104ETG30AN601"[\s\S]*?<\/button>/)?.[0]||'';
   assert.match(flyash,/data-operation-state="running"/);
@@ -61,6 +64,6 @@ test('dashboard styles use compact six-column grids and cache is bumped',()=>{
   assert.match(css,/\.all-overview-summary\s*\{[\s\S]*?grid-template-columns:\s*repeat\(6,/);
   assert.match(css,/\.all-overview-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(6,/);
   assert.match(css,/operation-mode-pill\.intermittent/);
-  assert.match(html,/blower-history\.css\?v=20260911-overview-state-v2/);
-  assert.match(html,/blower-history\.js\?v=20260911-overview-state-v2/);
+  assert.match(html,/blower-history\.css\?v=20260911-overview-state-v3/);
+  assert.match(html,/blower-history\.js\?v=20260911-overview-state-v3/);
 });
