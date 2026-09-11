@@ -35,7 +35,7 @@ test('V5.2 markup is compact by default while keeping Excel detail tables',()=>{
  const css=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.css'),'utf8');assert.match(css,/\.cfv5-input-yellow\{background:#fff200/);assert.match(css,/\.cfv5-input-blue\{background:#8ec9e6/);assert.match(css,/\.cfv5-ratio\{color:#f00000/);assert.match(css,/\.cfv52-summary-grid\{display:grid/);assert.match(css,/max-width:1180px/);
 });
 test('host loads V5 period assets instead of the old daily draft UI',()=>{
- const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-period-compact-v52/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260911-bio-ratio-v54/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-period-compact-v52/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260911-manual-zero-v55/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
 });
 
 test('V5.1 calculate action is one-click saved-first and surfaces query progress/errors',()=>{
@@ -76,6 +76,20 @@ test('V5.4 Bio mix rate is calculated from Coal+Bio heat without waiting for org
  assert.ok(Math.abs(ui.combinedCoalBio(combined).ratio-26.625374866987112)<1e-9);
  const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');
  assert.match(js,/Bio 혼소율 \(Coal\+Bio\)/);
- assert.match(js,/종합 혼소율만 대기/);
  assert.match(ui.markup(),/Bio 혼소율<br><small>\(Coal\+Bio 기준\)<\/small>/);
+});
+
+
+test('V5.5 blank organic or manure fields are treated as zero for total co-firing calculation',()=>{
+ const normalized=ui.manualForCalculation({unit1:{organic:50,manure:null},unit2:{organic:50,manure:null}});
+ assert.deepEqual(normalized,{unit1:{organic:50,manure:0},unit2:{organic:50,manure:0}});
+ const ref=contract.validatePeriodReport(report(),spec).reference;
+ const result=core.analyzePeriodSummary(ref,{...spec,organic:{start:'2026-09-10T00:00:00+09:00',end:'2026-09-10T13:00:00+09:00',unit1:normalized.unit1.organic,unit2:normalized.unit2.organic},manure:{start:'2026-09-10T00:00:00+09:00',end:'2026-09-10T13:00:00+09:00',unit1:normalized.unit1.manure,unit2:normalized.unit2.manure}});
+ assert.ok(result.units.unit1.ratios.total>0);
+ assert.ok(result.units.unit2.ratios.total>0);
+ assert.ok(result.combined.ratios.total>0);
+ assert.match(ui.markup(),/빈칸=0t로 계산/);
+ const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');
+ assert.match(js,/manualForCalculation/);
+ assert.match(js,/빈칸 유기성·축분은 0t로 계산/);
 });

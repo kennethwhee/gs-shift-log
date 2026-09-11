@@ -24,7 +24,7 @@
     return `<div class="cfv5-sheet">
       <div class="cfv5-title-row">
         <div><strong>1. Bio 혼소율 추정</strong><span>Coal · Bio-SRF · 유기성 고형연료 · 축분</span></div>
-        <span class="cfv5-version">기간계산 V5.4</span>
+        <span class="cfv5-version">기간계산 V5.5</span>
       </div>
 
       <div class="cfv5-query-box">
@@ -43,7 +43,7 @@
 
       <div class="cfv52-manual-panel">
         <div class="cfv52-manual-head">
-          <div><strong>유기성 · 축분 사용량</strong><span>선택기간 기준 · 0=사용없음 · 빈칸=미입력</span></div>
+          <div><strong>유기성 · 축분 사용량</strong><span>선택기간 기준 · 빈칸=0t로 계산</span></div>
           <div class="cfv52-manual-actions"><button type="button" data-cfv5-manual-save>사용량 저장</button><span data-cfv5-manual-state>저장값 없음</span></div>
         </div>
         <div class="cfv52-manual-grid">
@@ -91,7 +91,7 @@
       </details>
 
       <details class="cfv5-warnings" data-cfv5-warning-box hidden><summary>자료 확인 내용</summary><ul data-cfv5-warnings></ul></details>
-      <p class="cfv5-foot">Bio 혼소율은 Coal+Bio 투입열량만으로 즉시 계산합니다. 종합 혼소율은 유기성·축분 입력 후 전체 연료 열량 기준으로 계산합니다. 세부값은 [상세 계산표 보기]에서 확인할 수 있습니다.</p>
+      <p class="cfv5-foot">Bio 혼소율은 Coal+Bio 투입열량만으로 즉시 계산합니다. 유기성·축분 빈칸은 0t로 계산하며, 입력값이 있으면 전체 연료 열량 기준의 종합 혼소율에 반영합니다. 세부값은 [상세 계산표 보기]에서 확인할 수 있습니다.</p>
     </div>`;
   }
   function summaryPlaceholder(){return `<article class="cfv52-card"><header>1호기</header><div class="cfv52-card-empty">조회 전</div></article><article class="cfv52-card"><header>2호기</header><div class="cfv52-card-empty">조회 전</div></article><article class="cfv52-card cfv52-card-total"><header>종합</header><div class="cfv52-card-empty">조회 전</div></article>`;}
@@ -100,6 +100,7 @@
   function readSettings(container){const output={unit1:{},unit2:{}};for(const unit of UNITS)for(const fuel of FUEL_KEYS){const c=Number(container.querySelector(`[data-cfv5-calorific="${unit}:${fuel}"]`)?.value),f=Number(container.querySelector(`[data-cfv5-coefficient="${unit}:${fuel}"]`)?.value);if(!Number.isFinite(c)||c<=0||c>50000||!Number.isFinite(f)||f<=0||f>100)throw new Error(`${unit==='unit1'?'1':'2'}호기 ${FUEL_LABEL[fuel]} 발열량·보정계수를 확인해 주세요.`);output[unit][fuel]={calorific:c,coefficient:f};}return output;}
   function writeSettings(container,settings){if(!settings)return;for(const unit of UNITS)for(const fuel of FUEL_KEYS){const s=settings?.[unit]?.[fuel];if(!s)continue;const c=container.querySelector(`[data-cfv5-calorific="${unit}:${fuel}"]`),f=container.querySelector(`[data-cfv5-coefficient="${unit}:${fuel}"]`);if(c)c.value=String(s.calorific);if(f)f.value=String(s.coefficient);}}
   function readManual(container){const out={unit1:{},unit2:{}};for(const unit of UNITS)for(const fuel of ['organic','manure'])out[unit][fuel]=manualApi.parseValue(container.querySelector(`[data-cfv5-manual="${unit}:${fuel}"]`)?.value??'');return out;}
+  function manualForCalculation(values){const out={unit1:{},unit2:{}};for(const unit of UNITS)for(const fuel of ['organic','manure']){const value=values?.[unit]?.[fuel];out[unit][fuel]=typeof value==='number'&&Number.isFinite(value)?value:0;}return out;}
   function writeManual(container,values){for(const unit of UNITS)for(const fuel of ['organic','manure']){const input=container.querySelector(`[data-cfv5-manual="${unit}:${fuel}"]`);if(input)input.value=values?.[unit]?.[fuel]==null?'':String(values[unit][fuel]);}}
   function average(q,hours){return typeof q==='number'&&Number.isFinite(q)&&hours>0?q/hours:null;}
   function coefficientCell(values){const a=values[0],b=values[1];return typeof a==='number'&&typeof b==='number'&&Math.abs(a-b)<1e-12?num(a,4):'—';}
@@ -111,7 +112,7 @@
     const one=result?.units?.unit1,two=result?.units?.unit2;
     rows.push(`<tr class="cfv5-sum"><th>계</th><td>${num(sum([one?.coal?.measuredQuantity,two?.coal?.measuredQuantity]))}</td><td>${num(sum([average(one?.coal?.measuredQuantity,hours),average(two?.coal?.measuredQuantity,hours)]))}</td><td>${coefficientCell([one?.coal?.coefficient,two?.coal?.coefficient])}</td><td class="cfv5-actual">${num(sum([one?.coal?.quantity,two?.coal?.quantity]))}</td><td>${num(sum([one?.coal?.averageTonPerHour,two?.coal?.averageTonPerHour]))}</td><td>${num(result?.combined?.heats?.coal,1)}</td><td>${num(sum([one?.bio?.measuredQuantity,two?.bio?.measuredQuantity]))}</td><td>${num(sum([average(one?.bio?.measuredQuantity,hours),average(two?.bio?.measuredQuantity,hours)]))}</td><td>${coefficientCell([one?.bio?.coefficient,two?.bio?.coefficient])}</td><td class="cfv5-actual">${num(sum([one?.bio?.quantity,two?.bio?.quantity]))}</td><td>${num(sum([one?.bio?.averageTonPerHour,two?.bio?.averageTonPerHour]))}</td><td>${num(result?.combined?.heats?.bio,1)}</td><td>${num(combinedCoalBio(result).heat,1)}</td><td class="cfv5-ratio">${pct(combinedCoalBio(result).ratio)}</td></tr>`);body.innerHTML=rows.join('');
   }
-  function manualInput(unit,fuel,value,disabled){return `<input class="cfv5-manual-input" type="text" inputmode="decimal" data-cfv5-manual="${unit}:${fuel}" value="${value==null?'':escapeHtml(value)}" placeholder="미입력" ${disabled?'disabled':''}>`;}
+  function manualInput(unit,fuel,value,disabled){return `<input class="cfv5-manual-input" type="text" inputmode="decimal" data-cfv5-manual="${unit}:${fuel}" value="${value==null?'':escapeHtml(value)}" placeholder="0" ${disabled?'disabled':''}>`;}
   function renderOrganic(container,result,manualValues){
     const body=container.querySelector('[data-cfv5-organic-body]');if(!body)return;const hours=result?.period?.durationHours||safeHours(container),rows=[];
     for(const [i,unit] of UNITS.entries()){
@@ -148,7 +149,7 @@
       ${summaryMetric('종합 혼소율',result?.combined?.ratios?.total,{ratio:true,emphasis:true})}
     </div></article>`);
     host.innerHTML=cards.join('');
-    if(note)note.textContent=result?.warnings?.length?'조회값 표시 · 미입력 항목 있음':'계산 완료';
+    if(note)note.textContent=result?.warnings?.length?'자료 확인 필요':'계산 완료';
   }
   function safeHours(container){try{return periodSpec(container).durationHours;}catch(_){return 0;}}
   function settingFactor(container,unit,fuel){const n=Number(container.querySelector(`[data-cfv5-coefficient="${unit}:${fuel}"]`)?.value);return Number.isFinite(n)?n:null;}
@@ -182,9 +183,9 @@
       else if(item?.submitting)setStatus(container,'기간 조회 요청을 등록하고 있습니다. 아직 계산 전입니다.','working');
       else if(active?.status==='pending')setStatus(container,'회사 PC Agent 대기 중입니다. 아직 계산 전입니다.','working');
       else if(active?.status==='processing')setStatus(container,'DataPARC 조회·Excel 정리 작업이 진행 중입니다. 서버에 저장 결과가 도착하면 숫자가 자동 표시됩니다. 아직 계산 완료가 아닙니다.','working');
-      else if(item?.saved&&reference)setStatus(container,qualityGapSaved?'DataPARC 중간 품질 공백이 있어도 시작·종료 누적 경계가 정상인 사용량은 표시합니다. [자료 확인 내용]에서 품질 공백 시간을 확인해 주세요.':lastResult?.warnings?.length?'Coal/Bio 사용량과 Bio 혼소율은 계산되었습니다. 유기성/축분 입력 후 종합 혼소율까지 계산됩니다.':'저장된 DataPARC 결과를 불러와 혼소율 계산까지 완료했습니다.','success');
+      else if(item?.saved&&reference)setStatus(container,qualityGapSaved?'DataPARC 중간 품질 공백이 있어도 시작·종료 누적 경계가 정상인 사용량은 표시합니다. [자료 확인 내용]에서 품질 공백 시간을 확인해 주세요.':lastResult?.warnings?.length?'저장값으로 혼소율을 계산했습니다. 빈칸 유기성·축분은 0t로 계산하며 자료 품질 경고는 [자료 확인 내용]에서 확인해 주세요.':'저장된 DataPARC 결과를 불러와 혼소율 계산까지 완료했습니다. 빈칸 유기성·축분은 0t로 계산됩니다.','success');
     }
-    function analyze(){if(!reference)return null;const p=periodSpec(container),setting=readSettings(container),mv=readManual(container),calorifics={unit1:{},unit2:{}},coefficients={unit1:{},unit2:{}};for(const u of UNITS)for(const fuel of FUEL_KEYS){calorifics[u][fuel]=setting[u][fuel].calorific;coefficients[u][fuel]=setting[u][fuel].coefficient;}return core.analyzePeriodSummary(reference,{startLocal:p.startLocal,endLocal:p.endLocal,calorifics,coefficients,organic:{start:p.start,end:p.end,unit1:mv.unit1.organic,unit2:mv.unit2.organic},manure:{start:p.start,end:p.end,unit1:mv.unit1.manure,unit2:mv.unit2.manure}});}
+    function analyze(){if(!reference)return null;const p=periodSpec(container),setting=readSettings(container),mv=manualForCalculation(readManual(container)),calorifics={unit1:{},unit2:{}},coefficients={unit1:{},unit2:{}};for(const u of UNITS)for(const fuel of FUEL_KEYS){calorifics[u][fuel]=setting[u][fuel].calorific;coefficients[u][fuel]=setting[u][fuel].coefficient;}return core.analyzePeriodSummary(reference,{startLocal:p.startLocal,endLocal:p.endLocal,calorifics,coefficients,organic:{start:p.start,end:p.end,unit1:mv.unit1.organic,unit2:mv.unit2.organic},manure:{start:p.start,end:p.end,unit1:mv.unit1.manure,unit2:mv.unit2.manure}});}
     function calculate(){
       try{
         lastResult=analyze();
@@ -193,7 +194,7 @@
         renderOrganic(container,lastResult,manualValues);
         renderSummary(container,lastResult,manualValues);
         renderWarnings(container,lastResult);
-        setStatus(container,lastResult.warnings?.length?'Coal/Bio 사용량과 Bio 혼소율을 계산했습니다. 유기성/축분 미입력 호기는 종합 혼소율만 대기합니다.':'선택 기간 혼소율 계산이 완료되었습니다.','success');
+        setStatus(container,lastResult.warnings?.length?'혼소율을 계산했습니다. 자료 품질 경고는 [자료 확인 내용]에서 확인해 주세요. 빈칸 유기성·축분은 0t로 계산됩니다.':'선택 기간 혼소율 계산이 완료되었습니다. 빈칸 유기성·축분은 0t로 계산됩니다.','success');
         return lastResult;
       }catch(e){setStatus(container,e.message||'혼소율을 계산하지 못했습니다.','error');return null;}
     }
@@ -221,6 +222,6 @@
     updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();selectStores().catch(e=>setStatus(container,e.message,'error'));
     return {calculate,periodChanged,settings,manual,live,dispose(){disposed=true;observer?.disconnect();settings?.dispose();manual?.dispose();live?.dispose();}};
   }
-  root.CofiringPeriodV5={mount,periodSpec,markup,readSettings,readManual,coalBioHeat,coalBioRatio,combinedCoalBio};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
+  root.CofiringPeriodV5={mount,periodSpec,markup,readSettings,readManual,manualForCalculation,coalBioHeat,coalBioRatio,combinedCoalBio};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
   if(root.document){const init=()=>{const container=root.document.querySelector('[data-cofiring-draft-root]');if(container)mount(container);};if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init,{once:true});else init();}
 })(typeof globalThis==='object'?globalThis:this);
