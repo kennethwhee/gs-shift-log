@@ -42,6 +42,6 @@ test('host navigation exposes the development label and loads V5 period workshee
   assert.match(html,/cofiring-live-contract\.js\?v=20260911-period-boundary-v53/);
   assert.match(html,/cofiring-period-adjustment-v56\.js\?v=20260911-fast-adjust-v56/);
   assert.match(html,/cofiring-live\.js\?v=20260912-session-recovery-v561/);
-  assert.match(html,/cofiring-period-ui-v5\.js\?v=20260912-session-recovery-v561/);
+  assert.match(html,/cofiring-period-ui-v5\.js\?v=20260912-safe-prep-v562/);
   assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
 });

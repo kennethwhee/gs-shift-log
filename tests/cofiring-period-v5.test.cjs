@@ -35,7 +35,7 @@ test('V5.2 markup is compact by default while keeping Excel detail tables',()=>{
  const css=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.css'),'utf8');assert.match(css,/\.cfv5-input-yellow\{background:#fff200/);assert.match(css,/\.cfv5-input-blue\{background:#8ec9e6/);assert.match(css,/\.cfv5-ratio\{color:#f00000/);assert.match(css,/\.cfv52-summary-grid\{display:grid/);assert.match(css,/max-width:1180px/);
 });
 test('host loads V5 period assets instead of the old daily draft UI',()=>{
- const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-fast-adjust-v56/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-adjustment-v56\.js\?v=20260911-fast-adjust-v56/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260912-session-recovery-v561/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-fast-adjust-v56/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-adjustment-v56\.js\?v=20260911-fast-adjust-v56/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260912-safe-prep-v562/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
 });
 
 test('V5.1 calculate action is one-click saved-first and surfaces query progress/errors',()=>{
@@ -43,7 +43,7 @@ test('V5.1 calculate action is one-click saved-first and surfaces query progress
  assert.match(js,/data-cfv5-query>계산하기</);
  assert.match(js,/저장된 기간 결과를 먼저 확인하고 있습니다/);
  assert.match(js,/await live\.load\(\{force:true\}\)/);
- assert.match(js,/await live\.query\(\{explicit:true\}\)/);
+ assert.match(js,/queryWithBusyRetry/);
  assert.match(js,/상태 확인 중\.\.\./);
  assert.match(js,/item\?\.error/);
 });
@@ -120,15 +120,15 @@ test('V5.6 final adjustment preserves organic/manure and recalculates combined t
  const r=adjust.adjustFinal(base,settings,280,270,{mode:'manual_final'});assert.equal(r.ok,true);assert.equal(r.result.units.unit1.organic.quantity,50);assert.equal(r.result.units.unit1.manure.quantity,5);assert.ok(r.result.units.unit1.fuelRatios.total>r.result.units.unit1.fuelRatios.bio);assert.ok(r.result.combined.fuelRatios.total>0);
 });
 
-test('V5.6 markup exposes fast preparation and the integrated co-firing adjustment entry',()=>{
- const html=ui.markup();assert.match(html,/기간계산 V5\.6/);assert.match(html,/data-cfv56-prep/);assert.match(html,/data-cfv56-adjust/);assert.match(html,/혼소 조정/);assert.match(html,/고속 준비/);
+test('V5.6.2 markup exposes read-only preparation and the integrated co-firing adjustment entry',()=>{
+ const html=ui.markup();assert.match(html,/기간계산 V5\.6/);assert.match(html,/data-cfv56-prep/);assert.match(html,/data-cfv56-adjust/);assert.match(html,/혼소 조정/);assert.match(html,/조회 준비/);
  const adj=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-adjustment-v56.js'),'utf8');assert.match(adj,/CO-FIRING ADJUSTMENT/);assert.match(adj,/1호기 → 2호기/);assert.match(adj,/최대혼소 자동 조정/);assert.match(adj,/Coal 자동 보정/);
 });
 
-test('V5.6 reduces period web/Agent polling to one second and auto-starts safe fast preparation',()=>{
+test('V5.6.2 keeps one-second polling but does not auto-create a period request',()=>{
  const live=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-live.js'),'utf8');assert.match(live,/createPeriod[\s\S]*?setTimer\(\(\)=>\{timer=null;load\(\{force:true\}\);\},1000\)/);
  const agent=fs.readFileSync(path.join(__dirname,'../local-tools/ois-agent/ois-login.js'),'utf8');assert.match(agent,/const OIS_AGENT_POLL_INTERVAL =\s*1000;/);
- const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');assert.match(js,/function scheduleFastPrep/);assert.match(js,/고속 준비: 선택기간 DataPARC 조회를 미리 시작합니다/);assert.match(js,/await live\.query\(\{explicit:true\}\)/);
+ const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');assert.match(js,/function scheduleFastPrep/);assert.match(js,/자동 DataPARC 조회는 시작하지 않습니다/);assert.match(js,/queryWithBusyRetry/);
 });
 
 
@@ -160,4 +160,15 @@ test('V5.6.1 keeps pending prep actionable and clearly labels expired authentica
  assert.match(js,/로그인 세션이 만료되었습니다\. 다시 로그인하면 고속 준비와 계산을 다시 시작할 수 있습니다/);
  const live=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-live.js'),'utf8');
  assert.match(live,/rejectedAuthKey/);assert.match(live,/AUTH_EXPIRED/);assert.match(live,/d\.active=null/);
+});
+
+
+test('V5.6.2 fast preparation is read-only and never auto-starts a conflicting DataPARC request', () => {
+  const source=fs.readFileSync(path.join(__dirname,'..','maintenance','cofiring-period-ui-v5.js'),'utf8');
+  const fast=/async function fastPrepare\(epoch\)\{([\s\S]*?)\n    function waitMs/.exec(source);
+  assert.ok(fast,'fastPrepare block is present');
+  assert.doesNotMatch(fast[1],/live\.query\s*\(/);
+  assert.match(fast[1],/저장된 결과가 없습니다\. 자동 DataPARC 조회는 시작하지 않습니다/);
+  assert.match(source,/queryWithBusyRetry/);
+  assert.match(source,/이전 자동 준비 조회가 아직 종료되지 않았습니다/);
 });
