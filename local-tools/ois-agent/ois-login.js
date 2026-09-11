@@ -1134,11 +1134,11 @@ const BLOWER_RUNTIME_PROBE_PROCESS_TIMEOUT =
 
 
 const BLOWER_RUNTIME_PROBE_BATCH_MAX_REQUESTS =
-  12;
+  24;
 
 
 const BLOWER_RUNTIME_PROBE_BATCH_COALESCE_MS =
-  650;
+  1200;
 
 
 const BLOWER_RUNTIME_PROBE_BATCH_RESULT_MARKER =
@@ -13004,7 +13004,7 @@ Write-ProbeStage "숨김 Excel 공존 조회·정리 완료"
 /* =========================================================
   Blower DataPARC 운전시간 일괄 Probe
 
-  - 통합 최신화에서 대기 중인 Blower 요청을 최대 12건 묶는다.
+  - 통합 최신화에서 대기 중인 Blower 요청을 최대 24건 묶는다.
   - 숨김 Excel / DataPARC Host는 묶음당 1회만 시작·종료한다.
   - 각 설비 결과는 기존 단건 Probe와 같은 계약으로 독립 검증한다.
   - 설치 시/조회 전 기존 누적값을 변경하지 않는다.
@@ -13666,7 +13666,7 @@ if (
   [string]$batchPayload.requestType -cne "blower_runtime_probe_batch" -or
   $batchPayload.readOnly -ne $true -or
   $rawProbes.Count -lt 1 -or
-  $rawProbes.Count -gt 12
+  $rawProbes.Count -gt 24
 ) {
   throw "Blower Runtime 일괄조회 요청 파일의 버전 또는 건수가 올바르지 않습니다."
 }
@@ -14107,7 +14107,7 @@ try {
         runningSeconds = $totalRunningSeconds
         collectedAt = [datetime]::UtcNow.ToString("o", [Globalization.CultureInfo]::InvariantCulture)
         chunks = @($chunkResults)
-        collectorRevision = "nativeom-batch-v1"
+        collectorRevision = "nativeom-batch-v2"
         excelAttachMethod = "pid_hwnd_objid_nativeom"
       }
       $batchItems += [ordered]@{

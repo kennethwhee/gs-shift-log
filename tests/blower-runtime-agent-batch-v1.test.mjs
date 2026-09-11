@@ -18,9 +18,9 @@ function extractRawPowerShell(constName) {
   return agent.slice(contentStart, end);
 }
 
-test('Agent coalesces up to 12 pending Blower probes before opening Excel', () => {
-  assert.match(agent, /const\s+BLOWER_RUNTIME_PROBE_BATCH_MAX_REQUESTS\s*=\s*12\s*;/);
-  assert.match(agent, /const\s+BLOWER_RUNTIME_PROBE_BATCH_COALESCE_MS\s*=\s*650\s*;/);
+test('Agent coalesces up to 24 pending Blower probes before opening Excel', () => {
+  assert.match(agent, /const\s+BLOWER_RUNTIME_PROBE_BATCH_MAX_REQUESTS\s*=\s*24\s*;/);
+  assert.match(agent, /const\s+BLOWER_RUNTIME_PROBE_BATCH_COALESCE_MS\s*=\s*1200\s*;/);
   assert.match(agent, /async function claimAdditionalBlowerRuntimeProbeRequests/);
   assert.match(agent, /action:\s*"next"[\s\S]*?requestTypes:\s*BLOWER_RUNTIME_PROBE_REQUEST_TYPE/);
   assert.match(agent, /const batchItems = \[requestItem, \.\.\.additional\]/);
@@ -31,12 +31,12 @@ test('Agent coalesces up to 12 pending Blower probes before opening Excel', () =
 test('batch PowerShell uses one owned hidden Excel session for every probe in the batch', () => {
   const script = extractRawPowerShell('DATAPARC_BLOWER_RUNTIME_BATCH_POWERSHELL_SCRIPT');
   assert.match(script, /blower_runtime_probe_batch/);
-  assert.match(script, /\$rawProbes\.Count\s+-gt\s+12/);
+  assert.match(script, /\$rawProbes\.Count\s+-gt\s+24/);
   assert.equal((script.match(/Start-Process\s+-FilePath\s+\$ownedExcelPath/g) || []).length, 1);
   assert.match(script, /foreach \(\$probe in \$probeDefinitions\)[\s\S]*?foreach \(\$chunk in @\(\$probe\.Chunks\)\)/);
   assert.ok(script.includes('1,"=",,"H",200,TRUE'));
   assert.ok(script.includes('1,"=",,"H")'));
-  assert.match(script, /collectorRevision\s*=\s*"nativeom-batch-v1"/);
+  assert.match(script, /collectorRevision\s*=\s*"nativeom-batch-v2"/);
   assert.match(script, /기존 사용자 Excel 프로세스가 조회 중 변경되거나 종료되었습니다/);
   assert.match(script, /기존 사용자 DataPARC Host가 조회 중 변경되거나 종료되었습니다/);
 });
