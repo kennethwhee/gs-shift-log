@@ -1,6 +1,6 @@
 ﻿'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const core=require('../maintenance/cofiring-core.js'),contract=require('../maintenance/cofiring-live-contract.js'),ui=require('../maintenance/cofiring-period-ui-v5.js');
+const core=require('../maintenance/cofiring-core.js'),contract=require('../maintenance/cofiring-live-contract.js'),ui=require('../maintenance/cofiring-period-ui-v5.js'),adjust=require('../maintenance/cofiring-period-adjustment-v56.js');
 const spec={startLocal:'2026-09-10T00:00',endLocal:'2026-09-10T13:00',stepUnit:'hour',stepValue:1};
 function report({bad=false}={}){
  const p=contract.period(spec,Number.MAX_SAFE_INTEGER),duration=p.durationMinutes*60;
@@ -35,7 +35,7 @@ test('V5.2 markup is compact by default while keeping Excel detail tables',()=>{
  const css=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.css'),'utf8');assert.match(css,/\.cfv5-input-yellow\{background:#fff200/);assert.match(css,/\.cfv5-input-blue\{background:#8ec9e6/);assert.match(css,/\.cfv5-ratio\{color:#f00000/);assert.match(css,/\.cfv52-summary-grid\{display:grid/);assert.match(css,/max-width:1180px/);
 });
 test('host loads V5 period assets instead of the old daily draft UI',()=>{
- const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-period-compact-v52/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260911-manual-zero-v55/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-fast-adjust-v56/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-adjustment-v56\.js\?v=20260911-fast-adjust-v56/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260911-fast-adjust-v56/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
 });
 
 test('V5.1 calculate action is one-click saved-first and surfaces query progress/errors',()=>{
@@ -92,4 +92,41 @@ test('V5.5 blank organic or manure fields are treated as zero for total co-firin
  const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');
  assert.match(js,/manualForCalculation/);
  assert.match(js,/빈칸 유기성·축분은 0t로 계산/);
+});
+
+
+test('V5.6 manual Bio transfer keeps Bio total and compensates Coal by heat equivalence',()=>{
+ const ref=contract.validatePeriodReport(report(),spec).reference;
+ const base=core.analyzePeriodSummary(ref,{...spec,organic:{start:'2026-09-10T00:00:00+09:00',end:'2026-09-10T13:00:00+09:00',unit1:50,unit2:50},manure:{start:'2026-09-10T00:00:00+09:00',end:'2026-09-10T13:00:00+09:00',unit1:0,unit2:0}});
+ const settings={unit1:{coal:{calorific:5868},bio:{calorific:3237},organic:{calorific:3487},manure:{calorific:3487}},unit2:{coal:{calorific:5868},bio:{calorific:3237},organic:{calorific:3487},manure:{calorific:3487}}};
+ const before=base.units.unit1.bio.quantity+base.units.unit2.bio.quantity;
+ const r=adjust.manualTransfer(base,settings,1,10);assert.equal(r.ok,true);assert.ok(Math.abs((r.result.units.unit1.bio.quantity+r.result.units.unit2.bio.quantity)-before)<1e-9);
+ assert.ok(Math.abs(r.result.units.unit1.coal.quantity-(base.units.unit1.coal.quantity+10*3237/5868))<1e-5);
+ assert.ok(Math.abs(r.result.units.unit2.coal.quantity-(base.units.unit2.coal.quantity-10*3237/5868))<1e-5);
+ assert.ok(r.result.units.unit1.fuelRatios.total>0);assert.ok(r.result.combined.fuelRatios.total>0);
+});
+
+test('V5.6 max Bio t/d is converted to the exact selected period and auto adjustment is deterministic',()=>{
+ assert.equal(adjust.periodCap(240,12),120);assert.equal(adjust.periodCap(361.74,24),361.74);
+ const base={period:{durationHours:12},units:{unit1:{coal:{quantity:400},bio:{quantity:150},organic:{quantity:0},manure:{quantity:0},heats:{}},unit2:{coal:{quantity:400},bio:{quantity:50},organic:{quantity:0},manure:{quantity:0},heats:{}}},combined:{}};
+ const settings={unit1:{coal:{calorific:5868},bio:{calorific:3237},organic:{calorific:3487},manure:{calorific:3487}},unit2:{coal:{calorific:5868},bio:{calorific:3237},organic:{calorific:3487},manure:{calorific:3487}}};
+ const r=adjust.autoMax(base,settings,240);assert.equal(r.ok,true);assert.equal(r.adjustment.periodCapTons,120);assert.equal(r.result.units.unit1.bio.quantity,120);assert.equal(r.result.units.unit2.bio.quantity,80);assert.equal(r.adjustment.excludedBioTons,0);
+ const r2=adjust.autoMax(base,settings,100);assert.equal(r2.ok,true);assert.equal(r2.adjustment.periodCapTons,50);assert.equal(r2.result.units.unit1.bio.quantity,50);assert.equal(r2.result.units.unit2.bio.quantity,50);assert.equal(r2.adjustment.excludedBioTons,100);
+});
+
+test('V5.6 final adjustment preserves organic/manure and recalculates combined total heat ratio',()=>{
+ const base={period:{durationHours:24},units:{unit1:{coal:{quantity:400},bio:{quantity:300},organic:{quantity:50},manure:{quantity:5},heats:{}},unit2:{coal:{quantity:450},bio:{quantity:250},organic:{quantity:40},manure:{quantity:0},heats:{}}},combined:{}};
+ const settings={unit1:{coal:{calorific:5868},bio:{calorific:3237},organic:{calorific:3487},manure:{calorific:3487}},unit2:{coal:{calorific:5868},bio:{calorific:3237},organic:{calorific:3487},manure:{calorific:3487}}};
+ const r=adjust.adjustFinal(base,settings,280,270,{mode:'manual_final'});assert.equal(r.ok,true);assert.equal(r.result.units.unit1.organic.quantity,50);assert.equal(r.result.units.unit1.manure.quantity,5);assert.ok(r.result.units.unit1.fuelRatios.total>r.result.units.unit1.fuelRatios.bio);assert.ok(r.result.combined.fuelRatios.total>0);
+});
+
+test('V5.6 markup exposes fast preparation and the integrated co-firing adjustment entry',()=>{
+ const html=ui.markup();assert.match(html,/기간계산 V5\.6/);assert.match(html,/data-cfv56-prep/);assert.match(html,/data-cfv56-adjust/);assert.match(html,/혼소 조정/);assert.match(html,/고속 준비/);
+ const adj=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-adjustment-v56.js'),'utf8');assert.match(adj,/CO-FIRING ADJUSTMENT/);assert.match(adj,/1호기 → 2호기/);assert.match(adj,/최대혼소 자동 조정/);assert.match(adj,/Coal 자동 보정/);
+});
+
+test('V5.6 reduces period web/Agent polling to one second and auto-starts safe fast preparation',()=>{
+ const live=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-live.js'),'utf8');assert.match(live,/createPeriod[\s\S]*?setTimer\(\(\)=>\{timer=null;load\(\{force:true\}\);\},1000\)/);
+ const agent=fs.readFileSync(path.join(__dirname,'../local-tools/ois-agent/ois-login.js'),'utf8');assert.match(agent,/const OIS_AGENT_POLL_INTERVAL =\s*1000;/);
+ const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');assert.match(js,/function scheduleFastPrep/);assert.match(js,/고속 준비: 선택기간 DataPARC 조회를 미리 시작합니다/);assert.match(js,/await live\.query\(\{explicit:true\}\)/);
 });

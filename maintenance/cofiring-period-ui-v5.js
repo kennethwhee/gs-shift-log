@@ -4,6 +4,7 @@
   const liveApi=root.CofiringLive;
   const settingsApi=root.CofiringCalculationSettingsStorage;
   const manualApi=root.CofiringPeriodManualStorage;
+  const adjustmentApi=root.CofiringPeriodAdjustmentV56||(typeof require==='function'?require('./cofiring-period-adjustment-v56.js'):null);
   const FUEL_LABEL={coal:'Coal',bio:'Bio',organic:'유기성',manure:'축분'};
   const FUEL_KEYS=['coal','bio','organic','manure'];
   const UNITS=['unit1','unit2'];
@@ -24,7 +25,7 @@
     return `<div class="cfv5-sheet">
       <div class="cfv5-title-row">
         <div><strong>1. Bio 혼소율 추정</strong><span>Coal · Bio-SRF · 유기성 고형연료 · 축분</span></div>
-        <span class="cfv5-version">기간계산 V5.5</span>
+        <span class="cfv5-version">기간계산 V5.6</span>
       </div>
 
       <div class="cfv5-query-box">
@@ -37,7 +38,7 @@
             <button type="button" class="cfv5-requery" data-cfv5-requery>재조회</button>
           </div>
         </div>
-        <div class="cfv5-query-meta"><span data-cfv5-range>—</span><strong data-cfv5-live-state>조회 전</strong></div>
+        <div class="cfv5-query-meta"><span data-cfv5-range>—</span><span class="cfv56-query-state"><em data-cfv56-prep>고속 준비 대기</em><strong data-cfv5-live-state>조회 전</strong></span></div>
         <p data-cfv5-status role="status" aria-live="polite">기간을 지정한 뒤 [계산하기]를 누르세요. 저장결과가 없으면 DataPARC 조회 후 자동 계산합니다.</p>
       </div>
 
@@ -58,7 +59,7 @@
 
       <div class="cfv52-summary-head">
         <strong>주요 계산값</strong>
-        <span data-cfv52-summary-note>DataPARC 조회 전</span>
+        <div class="cfv56-summary-actions"><span data-cfv52-summary-note>DataPARC 조회 전</span><button type="button" data-cfv56-adjust disabled>혼소 조정</button></div>
       </div>
       <div class="cfv52-summary-grid" data-cfv52-summary-grid>${summaryPlaceholder()}</div>
 
@@ -91,7 +92,7 @@
       </details>
 
       <details class="cfv5-warnings" data-cfv5-warning-box hidden><summary>자료 확인 내용</summary><ul data-cfv5-warnings></ul></details>
-      <p class="cfv5-foot">Bio 혼소율은 Coal+Bio 투입열량만으로 즉시 계산합니다. 유기성·축분 빈칸은 0t로 계산하며, 입력값이 있으면 전체 연료 열량 기준의 종합 혼소율에 반영합니다. 세부값은 [상세 계산표 보기]에서 확인할 수 있습니다.</p>
+      <p class="cfv5-foot">Bio 혼소율은 Coal+Bio 투입열량만으로 즉시 계산합니다. 유기성·축분 빈칸은 0t로 계산합니다. [혼소 조정]에서 Bio 이동·최대혼소·최종값 수정을 선택기간 결과에 적용할 수 있습니다. 기간 변경 후에는 DataPARC 고속 준비를 자동 시작합니다.</p>
     </div>`;
   }
   function summaryPlaceholder(){return `<article class="cfv52-card"><header>1호기</header><div class="cfv52-card-empty">조회 전</div></article><article class="cfv52-card"><header>2호기</header><div class="cfv52-card-empty">조회 전</div></article><article class="cfv52-card cfv52-card-total"><header>종합</header><div class="cfv52-card-empty">조회 전</div></article>`;}
@@ -158,16 +159,22 @@
   function renderWarnings(container,result){const box=container.querySelector('[data-cfv5-warning-box]'),list=container.querySelector('[data-cfv5-warnings]'),warnings=result?.warnings||[];box.hidden=!warnings.length;list.innerHTML=warnings.map(w=>`<li>${escapeHtml(w)}</li>`).join('');}
   function mount(container){
     if(!container||container.dataset.cofiringV5Mounted==='true')return null;container.dataset.cofiringV5Mounted='true';container.classList.add('cofiring-period-v5');container.innerHTML=markup();
-    const mobile=isMobile();let reference=null,lastResult=null,periodGeneration=0,settingsDirty=false,manualDirty=false,disposed=false;
+    const mobile=isMobile();let reference=null,lastResult=null,displayResult=null,periodGeneration=0,settingsDirty=false,manualDirty=false,disposed=false,fastPrepTimer=null,fastPrepGeneration=0,adjustmentActive=false;
     const settings=settingsApi?.create({getHeaders:authHeaders,canEdit:()=>!isMobile(),onChange:()=>paintSettings()})||null;
     const manual=manualApi?.create({getHeaders:authHeaders,canEdit:()=>!isMobile(),onChange:()=>paintManual()})||null;
     const live=liveApi?.createPeriod({getHeaders:authHeaders,canQuery:()=>!isMobile(),isVisible:()=>visible(),onChange:s=>paintLive(s),onResult:r=>{reference=r.report.reference;calculate();}})||null;
     function visible(){return !container.closest?.('[hidden], [aria-hidden="true"]');}
     function currentSpec(){const p=periodSpec(container);return {startLocal:p.startLocal,endLocal:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue};}
+    function prepLabel(text,tone=''){const el=container.querySelector('[data-cfv56-prep]');if(el){el.textContent=text;el.dataset.tone=tone;}}
+    function renderDisplay(result,{adjusted=false}={}){displayResult=result;const manualValues=readManual(container);renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues);renderWarnings(container,result);adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소 조정 적용중':'혼소 조정';}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
+    function adjustmentContext(){return {result:lastResult,settings:readSettings(container),spec:currentSpec()};}
+    let adjuster=null;
+    function scheduleFastPrep(delay=900){if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}const epoch=++fastPrepGeneration;if(disposed||mobile||!visible()||!live)return;prepLabel('고속 준비 예약');fastPrepTimer=root.setTimeout?.(()=>{fastPrepTimer=null;void fastPrepare(epoch);},delay);}
+    async function fastPrepare(epoch){if(disposed||epoch!==fastPrepGeneration||mobile||!visible()||!live)return;try{prepLabel('고속 준비 확인','working');live.select(currentSpec());await live.load({force:true});if(disposed||epoch!==fastPrepGeneration)return;let s=live.state();if(s.item?.saved&&reference){prepLabel('고속 준비 완료','ready');calculate();return;}if(s.item?.active){prepLabel('고속 준비 진행중','working');return;}if(!s.canQuery){prepLabel('고속 준비 불가');return;}prepLabel('고속 준비 조회중','working');setStatus(container,'고속 준비: 선택기간 DataPARC 조회를 미리 시작합니다. 계산하기를 눌러도 같은 요청을 재사용합니다.','working');await live.query({explicit:true});s=live.state();if(s.item?.active)prepLabel('고속 준비 진행중','working');else if(s.item?.saved)prepLabel('고속 준비 완료','ready');else if(s.item?.error)prepLabel('고속 준비 실패','error');}catch(e){prepLabel('고속 준비 실패','error');}}
     async function selectStores({force=false}={}){const p=periodSpec(container),epoch=++periodGeneration;settings?.select(p.targetDate);manual?.select(p.startLocal,p.endLocal);live?.select(currentSpec());settingsDirty=false;manualDirty=false;await Promise.all([settings?.load({force})||true,manual?.load({force})||true]);if(epoch!==periodGeneration)return false;paintSettings(true);paintManual(true);return true;}
     function paintSettings(force=false){if(!settings)return;const s=settings.state(),state=container.querySelector('[data-cfv5-settings-state]');if((force||!settingsDirty)&&s.loaded)writeSettings(container,s.settings);if(state)state.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':s.source==='saved'?`${s.effectiveDate} 적용값${s.updatedByName?' · '+s.updatedByName:''}`:'기본값';for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]'))el.disabled=mobile||s.saving;container.querySelector('[data-cfv5-settings-save]').disabled=mobile||!s.canEdit||s.saving;}
     function currentManualFromFields(){try{return readManual(container);}catch(_){return manual?.state().values||manualApi.blank();}}
-    function paintManual(force=false){if(!manual)return;const s=manual.state(),label=container.querySelector('[data-cfv5-manual-state]');if((force||!manualDirty)&&s.loaded)writeManual(container,s.values);if(label)label.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':s.revision?`저장 v${s.revision}${s.updatedByName?' · '+s.updatedByName:''}`:'저장값 없음';container.querySelector('[data-cfv5-manual-save]').disabled=mobile||!s.canEdit||s.saving;for(const el of container.querySelectorAll('[data-cfv5-manual]'))el.disabled=mobile||s.saving;const values=currentManualFromFields();renderOrganic(container,lastResult,values);renderSummary(container,lastResult,values);bindManualInputs();}
+    function paintManual(force=false){if(!manual)return;const s=manual.state(),label=container.querySelector('[data-cfv5-manual-state]');if((force||!manualDirty)&&s.loaded)writeManual(container,s.values);if(label)label.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':s.revision?`저장 v${s.revision}${s.updatedByName?' · '+s.updatedByName:''}`:'저장값 없음';container.querySelector('[data-cfv5-manual-save]').disabled=mobile||!s.canEdit||s.saving;for(const el of container.querySelectorAll('[data-cfv5-manual]'))el.disabled=mobile||s.saving;const values=currentManualFromFields();renderOrganic(container,displayResult||lastResult,values);renderSummary(container,displayResult||lastResult,values);bindManualInputs();}
     function bindManualInputs(){for(const el of container.querySelectorAll('[data-cfv5-manual]'))if(el.dataset.cfv5Bound!=='1'){el.dataset.cfv5Bound='1';el.addEventListener('input',()=>{manualDirty=true;});el.addEventListener('change',()=>{if(reference)calculate();});}}
     function paintLive(s){
       const item=s?.item,state=container.querySelector('[data-cfv5-live-state]'),active=item?.active,queryButton=container.querySelector('[data-cfv5-query]');
@@ -189,18 +196,17 @@
     function calculate(){
       try{
         lastResult=analyze();
-        const manualValues=readManual(container);
-        renderMain(container,lastResult);
-        renderOrganic(container,lastResult,manualValues);
-        renderSummary(container,lastResult,manualValues);
-        renderWarnings(container,lastResult);
-        setStatus(container,lastResult.warnings?.length?'혼소율을 계산했습니다. 자료 품질 경고는 [자료 확인 내용]에서 확인해 주세요. 빈칸 유기성·축분은 0t로 계산됩니다.':'선택 기간 혼소율 계산이 완료되었습니다. 빈칸 유기성·축분은 0t로 계산됩니다.','success');
-        return lastResult;
+        let shown=lastResult,adjusted=false;
+        if(adjuster){try{const stored=adjuster.resolve(lastResult,readSettings(container),currentSpec());if(stored?.ok){shown=stored.result;adjusted=true;}}catch(_){}}
+        renderDisplay(shown,{adjusted});
+        prepLabel('고속 준비 완료','ready');
+        setStatus(container,adjusted?'선택 기간 혼소율 계산과 저장된 혼소 조정을 적용했습니다.':lastResult.warnings?.length?'혼소율을 계산했습니다. 자료 품질 경고는 [자료 확인 내용]에서 확인해 주세요. 빈칸 유기성·축분은 0t로 계산됩니다.':'선택 기간 혼소율 계산이 완료되었습니다. 빈칸 유기성·축분은 0t로 계산됩니다.','success');
+        return shown;
       }catch(e){setStatus(container,e.message||'혼소율을 계산하지 못했습니다.','error');return null;}
     }
     async function periodChanged(){
-      reference=null;lastResult=null;renderMain(container,null);renderOrganic(container,null,currentManualFromFields());renderSummary(container,null,currentManualFromFields());updateRange(container);renderWarnings(container,null);
-      try{await selectStores();setStatus(container,'기간이 변경되었습니다. 수기값·설정값만 불러왔으며 DataPARC 조회는 시작하지 않았습니다.');}catch(e){setStatus(container,e.message,'error');}
+      fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}reference=null;lastResult=null;displayResult=null;adjustmentActive=false;renderMain(container,null);renderOrganic(container,null,currentManualFromFields());renderSummary(container,null,currentManualFromFields());updateRange(container);renderWarnings(container,null);const ab=container.querySelector('[data-cfv56-adjust]');if(ab){ab.disabled=true;ab.classList.remove('is-active');ab.textContent='혼소 조정';}
+      try{await selectStores();setStatus(container,'기간이 변경되었습니다. 고속 준비가 잠시 후 DataPARC 조회를 미리 시작합니다.','working');scheduleFastPrep(1500);}catch(e){setStatus(container,e.message,'error');}
     }
     for(const el of container.querySelectorAll('[data-cfv5-start],[data-cfv5-end],[data-cfv5-step-value],[data-cfv5-step-unit]'))el.addEventListener('change',periodChanged);
     for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]'))el.addEventListener('input',()=>{settingsDirty=true;if(reference)calculate();});
@@ -218,9 +224,11 @@
       if(!ok&&!liveState.item?.active&&!liveState.item?.saved)setStatus(container,liveState.item?.error||'기간 조회 요청을 시작하지 못했습니다. 로그인 상태와 조회 기간을 확인해 주세요.','error');
     }catch(e){setStatus(container,e.message,'error');}});
     container.querySelector('[data-cfv5-requery]').addEventListener('click',async()=>{try{if(!root.confirm||root.confirm('현재 저장 결과를 보존한 채 같은 기간을 다시 조회하시겠습니까?')){setStatus(container,'같은 기간을 다시 조회하도록 요청하고 있습니다.','working');await selectStores();live.select(currentSpec());const ok=await live.query({explicit:true,force:true});const liveState=live.state();if(!ok&&!liveState.item?.active)setStatus(container,liveState.item?.error||'재조회 요청을 시작하지 못했습니다.','error');}}catch(e){setStatus(container,e.message,'error');}});
-    const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible())live?.load({force:true});else live?.pause();}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
-    updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();selectStores().catch(e=>setStatus(container,e.message,'error'));
-    return {calculate,periodChanged,settings,manual,live,dispose(){disposed=true;observer?.disconnect();settings?.dispose();manual?.dispose();live?.dispose();}};
+    adjuster=adjustmentApi?.create({container,getHeaders:authHeaders,getContext:adjustmentContext,onMessage:m=>setStatus(container,m,'error'),onApply:(result)=>{renderDisplay(result,{adjusted:true});setStatus(container,'혼소 조정값을 선택기간 계산 화면에 적용했습니다. 원본 DataPARC 저장값은 변경하지 않습니다.','success');},onReset:()=>{if(lastResult){renderDisplay(lastResult,{adjusted:false});setStatus(container,'혼소 조정을 원복했습니다. DataPARC 원본 계산값을 표시합니다.','success');}}})||null;
+    const adjustButton=container.querySelector('[data-cfv56-adjust]');if(adjustButton){adjustButton.disabled=true;adjustButton.addEventListener('click',()=>adjuster?.open());}
+    const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){live?.load({force:true});scheduleFastPrep(1500);}else{fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
+    updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();selectStores().then(()=>scheduleFastPrep(2500)).catch(e=>setStatus(container,e.message,'error'));
+    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSpec:currentSpec,dispose(){disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();settings?.dispose();manual?.dispose();live?.dispose();}};
   }
   root.CofiringPeriodV5={mount,periodSpec,markup,readSettings,readManual,manualForCalculation,coalBioHeat,coalBioRatio,combinedCoalBio};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
   if(root.document){const init=()=>{const container=root.document.querySelector('[data-cofiring-draft-root]');if(container)mount(container);};if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init,{once:true});else init();}

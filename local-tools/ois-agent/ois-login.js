@@ -1,4 +1,4 @@
-"use strict";
+﻿"use strict";
 // [COFIRING-WEB-BRIDGE-V1] Shares the existing Excel lane; no startup query.
 const {
   COFIRING_REQUEST_TYPE,
@@ -305,7 +305,7 @@ const OIS_REQUEST_API_PATH =
 
 
 const OIS_AGENT_POLL_INTERVAL =
-  5000;
+  1000;
 
 
 const OIS_AGENT_ERROR_RETRY_INTERVAL =
