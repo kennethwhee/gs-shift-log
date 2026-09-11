@@ -30,12 +30,18 @@ test('period calculation uses heat shares and period-bound manual organic/manure
  assert.ok(gapResult.units.unit1.coal.quantity>0);assert.ok(gapResult.units.unit1.bio.quantity>0);assert.equal(gapResult.qualityVerified,false);assert.ok(gapResult.combined.ratios.total>0);assert.match(gapResult.warnings.join(' '),/품질 공백/);
 });
 test('V5.2 markup is compact by default while keeping Excel detail tables',()=>{
- const html=ui.markup();for(const text of ['Start date','End date','Step size','계산하기','Coal','Bio-SRF','유기성 고형연료','축분','계측 사용량','보정계수','실 사용량','주요 계산값','상세 계산표 보기'])assert.match(html,new RegExp(text));assert.match(html,/data-cfv52-summary-grid/);assert.match(html,/cfv52-manual-panel/);assert.doesNotMatch(html,/data-cfv5-load/);
+ const html=ui.markup();for(const text of ['조회 시작','조회 종료','집계 간격','계산하기','Coal','Bio-SRF','유기성 고형연료','축분','계측 사용량','보정계수','실 사용량','주요 계산값','상세 계산표 보기'])assert.match(html,new RegExp(text));assert.match(html,/data-cfv52-summary-grid/);assert.match(html,/cfv52-manual-panel/);assert.doesNotMatch(html,/data-cfv5-load/);
  assert.match(html,/value="minute"/);assert.match(html,/value="hour" selected/);assert.match(html,/value="day"/);
- const css=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.css'),'utf8');assert.match(css,/\.cfv5-input-yellow\{background:#fff200/);assert.match(css,/\.cfv5-input-blue\{background:#8ec9e6/);assert.match(css,/\.cfv5-ratio\{color:#f00000/);assert.match(css,/\.cfv52-summary-grid\{display:grid/);assert.match(css,/max-width:1180px/);
+ const css=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.css'),'utf8');assert.match(css,/\.cofiring-period-v5/);assert.match(css,/tabular-nums/);assert.match(css,/@media/);
+ for(const unit of ['unit1','unit2'])for(const fuel of ['organic','manure'])assert.equal((html.match(new RegExp('data-cfv5-manual="'+unit+':'+fuel+'"','g'))||[]).length,1);
 });
-test('host loads V5 period assets instead of the old daily draft UI',()=>{
- const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-fast-adjust-v56/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-adjustment-v56\.js\?v=20260911-fast-adjust-v56/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260912-safe-prep-v562/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
+test('host loads one existing versioned period asset per module',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+ for(const asset of ['cofiring-period-ui-v5.css','cofiring-period-manual-storage.js','cofiring-period-adjustment-v56.js','cofiring-period-ui-v5.js']){
+  const urls=[...html.matchAll(/(?:src|href)="(\/maintenance\/[^" ]+)"/g)].map(m=>m[1]).filter(url=>url.split('?')[0]==='/maintenance/'+asset);
+  assert.equal(urls.length,1,asset+' must load once');assert.ok(new URL(urls[0],'https://example.test').searchParams.get('v'));assert.ok(fs.existsSync(path.join(__dirname,'..',urls[0].split('?')[0])));
+ }
+ assert.doesNotMatch(html,/src="\/maintenance\/cofiring-draft\.js\?/);
 });
 
 test('V5.1 calculate action is one-click saved-first and surfaces query progress/errors',()=>{
@@ -59,8 +65,8 @@ test('V5.2 progress copy never calls an active period calculation complete',()=>
 
 test('V5.2 key view keeps manual fuel inputs visible and advanced sections folded',()=>{
  const html=ui.markup();
- assert.match(html,/유기성\(t\)[\s\S]*data-cfv5-manual="unit1:organic"/);
- assert.match(html,/축분\(t\)[\s\S]*data-cfv5-manual="unit2:manure"/);
+ assert.match(html,/유기성 고형연료/);assert.match(html,/data-cfv5-manual="unit1:organic"/);
+ assert.match(html,/data-cfv5-manual="unit2:manure"/);
  assert.match(html,/<details class="cfv52-fold">/);
  assert.match(html,/<details class="cfv52-fold cfv52-detail">/);
  assert.match(html,/Coal 실사용|주요 계산값/);
@@ -75,7 +81,7 @@ test('V5.4 Bio mix rate is calculated from Coal+Bio heat without waiting for org
  const combined={combined:{heats:{coal:unit1.heats.coal+unit2.heats.coal,bio:unit1.heats.bio+unit2.heats.bio}}};
  assert.ok(Math.abs(ui.combinedCoalBio(combined).ratio-26.625374866987112)<1e-9);
  const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');
- assert.match(js,/Bio 혼소율 \(Coal\+Bio\)/);
+ assert.match(js,/바이오 혼소율/);
  assert.match(ui.markup(),/Bio 혼소율<br><small>\(Coal\+Bio 기준\)<\/small>/);
 });
 
@@ -121,7 +127,7 @@ test('V5.6 final adjustment preserves organic/manure and recalculates combined t
 });
 
 test('V5.6.2 markup exposes read-only preparation and the integrated co-firing adjustment entry',()=>{
- const html=ui.markup();assert.match(html,/기간계산 V5\.6/);assert.match(html,/data-cfv56-prep/);assert.match(html,/data-cfv56-adjust/);assert.match(html,/혼소 조정/);assert.match(html,/조회 준비/);
+ const html=ui.markup();assert.match(html,/혼소율 분석/);assert.match(html,/data-cfv56-prep/);assert.match(html,/data-cfv56-adjust/);assert.match(html,/혼소 조정/);assert.match(html,/조회 준비/);
  const adj=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-adjustment-v56.js'),'utf8');assert.match(adj,/CO-FIRING ADJUSTMENT/);assert.match(adj,/1호기 → 2호기/);assert.match(adj,/최대혼소 자동 조정/);assert.match(adj,/Coal 자동 보정/);
 });
 

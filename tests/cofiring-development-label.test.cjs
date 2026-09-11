@@ -36,12 +36,9 @@ test('host navigation exposes the development label and loads V5 period workshee
   assert.match(button,/>혼소율 \(개발중\)<\/span>/);
   assert.match(button,/aria-label="혼소율 \(개발중\)"/);
   assert.match(button,/data-efficiency-tab="cofiring-draft"/);
-  assert.match(html,/cofiring-core\.js\?v=20260911-period-boundary-v53/);
-  assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);
-  assert.match(html,/cofiring-settings-storage\.js\?v=20260911-period-excel-v5/);
-  assert.match(html,/cofiring-live-contract\.js\?v=20260911-period-boundary-v53/);
-  assert.match(html,/cofiring-period-adjustment-v56\.js\?v=20260911-fast-adjust-v56/);
-  assert.match(html,/cofiring-live\.js\?v=20260912-session-recovery-v561/);
-  assert.match(html,/cofiring-period-ui-v5\.js\?v=20260912-safe-prep-v562/);
+  for(const asset of ['cofiring-core.js','cofiring-period-manual-storage.js','cofiring-settings-storage.js','cofiring-live-contract.js','cofiring-period-adjustment-v56.js','cofiring-live.js','cofiring-period-ui-v5.js']){
+    const urls=[...html.matchAll(/src="(\/maintenance\/[^" ]+)"/g)].map(m=>m[1]).filter(url=>url.split('?')[0]==='/maintenance/'+asset);
+    assert.equal(urls.length,1,asset+' must load once');assert.ok(new URL(urls[0],'https://example.test').searchParams.get('v'));assert.ok(fs.existsSync(path.join(__dirname,'..',urls[0].split('?')[0])));
+  }
   assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
 });
