@@ -25,10 +25,10 @@
           <label>Start date<input data-cfv5-start type="datetime-local" value="${d.start}" step="60"></label>
           <label>End date<input data-cfv5-end type="datetime-local" value="${d.end}" step="60"></label>
           <label>Step size<span class="cfv5-step"><input data-cfv5-step-value type="number" min="1" max="1440" step="1" value="1"><select data-cfv5-step-unit><option value="minute">분</option><option value="hour" selected>시간</option><option value="day">일</option></select></span></label>
-          <div class="cfv5-query-actions"><button type="button" class="cfv5-get" data-cfv5-query>Get Data</button><button type="button" data-cfv5-load>저장결과</button><button type="button" data-cfv5-requery>재조회</button></div>
+          <div class="cfv5-query-actions"><button type="button" class="cfv5-get" data-cfv5-query>계산하기</button><button type="button" data-cfv5-load>저장결과 불러오기</button><button type="button" data-cfv5-requery>재조회</button></div>
         </div>
         <div class="cfv5-query-meta"><span data-cfv5-range>—</span><strong data-cfv5-live-state>조회 전</strong></div>
-        <p data-cfv5-status role="status" aria-live="polite">기간을 지정한 뒤 Get Data를 누르세요. 날짜·간격 변경만으로 DataPARC 조회를 시작하지 않습니다.</p>
+        <p data-cfv5-status role="status" aria-live="polite">기간을 지정한 뒤 [계산하기]를 누르세요. 저장결과가 있으면 즉시 계산하고, 없으면 DataPARC 조회 후 자동 계산합니다.</p>
       </div>
 
       <div class="cfv5-basis-wrap">
@@ -102,7 +102,22 @@
     function currentManualFromFields(){try{return readManual(container);}catch(_){return manual?.state().values||manualApi.blank();}}
     function paintManual(force=false){if(!manual)return;const s=manual.state(),label=container.querySelector('[data-cfv5-manual-state]');if((force||!manualDirty)&&s.loaded)writeManual(container,s.values);if(label)label.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':s.revision?`저장 v${s.revision}${s.updatedByName?' · '+s.updatedByName:''}`:'저장값 없음';container.querySelector('[data-cfv5-manual-save]').disabled=mobile||!s.canEdit||s.saving;renderOrganic(container,lastResult,currentManualFromFields(),mobile||s.saving);bindManualInputs();}
     function bindManualInputs(){for(const el of container.querySelectorAll('[data-cfv5-manual]'))if(el.dataset.cfv5Bound!=='1'){el.dataset.cfv5Bound='1';el.addEventListener('input',()=>{manualDirty=true;});el.addEventListener('change',()=>{if(reference)calculate();});}}
-    function paintLive(s){const item=s?.item,state=container.querySelector('[data-cfv5-live-state]'),active=item?.active,p=active?.progress;container.querySelector('[data-cfv5-query]').disabled=mobile||!s?.canQuery||item?.submitting||item?.loading||!!active;container.querySelector('[data-cfv5-requery]').disabled=mobile||!s?.canQuery||!item?.saved||item?.submitting||item?.loading||!!active;container.querySelector('[data-cfv5-load]').disabled=!s?.authenticated||item?.loading||item?.submitting;if(state)state.textContent=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?(p?.phase==='cleanup'?'Excel 종료 확인':'DataPARC 조회 중'):item?.saved?`저장결과 ${item.saved.status}`:'저장결과 없음';}
+    function paintLive(s){
+      const item=s?.item,state=container.querySelector('[data-cfv5-live-state]'),active=item?.active,p=active?.progress,queryButton=container.querySelector('[data-cfv5-query]');
+      const busy=!!(item?.submitting||item?.loading||active);
+      queryButton.disabled=mobile||!s?.canQuery||busy;
+      queryButton.textContent=busy?'조회·계산 중...':'계산하기';
+      container.querySelector('[data-cfv5-requery]').disabled=mobile||!s?.canQuery||!item?.saved||busy;
+      container.querySelector('[data-cfv5-load]').disabled=!s?.authenticated||item?.loading||item?.submitting;
+      const stateText=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?(p?.phase==='cleanup'?'Excel 종료 확인':'DataPARC 조회 중'):item?.saved?`저장결과 ${item.saved.status}`:'저장결과 없음';
+      if(state)state.textContent=stateText;
+      if(!s?.authenticated)setStatus(container,'로그인 후 기간 계산을 실행해 주세요.','error');
+      else if(item?.error)setStatus(container,item.error,'error');
+      else if(item?.submitting)setStatus(container,'기간 조회 요청을 등록하고 있습니다. 완료되면 자동으로 계산합니다.','working');
+      else if(active?.status==='pending')setStatus(container,'요청이 등록되었습니다. 회사 PC Agent가 조회를 시작하기를 기다리고 있습니다.','working');
+      else if(active?.status==='processing')setStatus(container,p?.phase==='cleanup'?'DataPARC 조회가 끝났습니다. Excel 종료를 확인한 뒤 자동 계산합니다.':'DataPARC 기간 데이터를 조회 중입니다. 완료되면 자동으로 계산합니다.','working');
+      else if(item?.saved&&reference)setStatus(container,'저장된 DataPARC 결과를 불러와 혼소율 계산까지 완료했습니다.','success');
+    }
     function analyze(){if(!reference)return null;const p=periodSpec(container),setting=readSettings(container),mv=readManual(container),calorifics={unit1:{},unit2:{}},coefficients={unit1:{},unit2:{}};for(const u of UNITS)for(const fuel of FUEL_KEYS){calorifics[u][fuel]=setting[u][fuel].calorific;coefficients[u][fuel]=setting[u][fuel].coefficient;}return core.analyzePeriodSummary(reference,{startLocal:p.startLocal,endLocal:p.endLocal,calorifics,coefficients,organic:{start:p.start,end:p.end,unit1:mv.unit1.organic,unit2:mv.unit2.organic},manure:{start:p.start,end:p.end,unit1:mv.unit1.manure,unit2:mv.unit2.manure}});}
     function calculate(){try{lastResult=analyze();renderMain(container,lastResult);renderOrganic(container,lastResult,readManual(container),mobile);bindManualInputs();container.querySelector('[data-cfv5-total-heat]').textContent=num(lastResult?.combined?.heats?.total,1);container.querySelector('[data-cfv5-total-ratio]').textContent=pct(lastResult?.combined?.ratios?.total);renderWarnings(container,lastResult);setStatus(container,lastResult.warnings?.length?'조회 결과를 표시했습니다. 미입력 또는 검증 미통과 항목은 혼소율을 확정하지 않습니다.':'선택 기간 혼소율 계산이 완료되었습니다.','success');return lastResult;}catch(e){setStatus(container,e.message||'혼소율을 계산하지 못했습니다.','error');return null;}}
     async function periodChanged(){reference=null;lastResult=null;renderMain(container,null);updateRange(container);renderWarnings(container,null);container.querySelector('[data-cfv5-total-heat]').textContent='—';container.querySelector('[data-cfv5-total-ratio]').textContent='—';try{await selectStores();setStatus(container,'기간이 변경되었습니다. 저장된 수기값·설정값만 불러왔으며 DataPARC 조회는 시작하지 않았습니다.');}catch(e){setStatus(container,e.message,'error');}}
@@ -110,9 +125,19 @@
     for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]'))el.addEventListener('input',()=>{settingsDirty=true;if(reference)calculate();});
     container.querySelector('[data-cfv5-settings-save]').addEventListener('click',async()=>{try{const values=readSettings(container);const ok=await settings.save(values);if(ok){settingsDirty=false;paintSettings(true);if(reference)calculate();}}catch(e){setStatus(container,e.message,'error');}});
     container.querySelector('[data-cfv5-manual-save]').addEventListener('click',async()=>{try{const values=readManual(container),ok=await manual.save(values);if(ok){manualDirty=false;paintManual(true);if(reference)calculate();}}catch(e){setStatus(container,e.message,'error');}});
-    container.querySelector('[data-cfv5-load]').addEventListener('click',async()=>{try{await selectStores({force:true});await live.load({force:true});if(!live.state().item?.saved)setStatus(container,'선택 기간에 저장된 DataPARC 결과가 없습니다. Get Data를 눌러 조회해 주세요.');}catch(e){setStatus(container,e.message,'error');}});
-    container.querySelector('[data-cfv5-query]').addEventListener('click',async()=>{try{await selectStores();const s=currentSpec();live.select(s);await live.query({explicit:true});}catch(e){setStatus(container,e.message,'error');}});
-    container.querySelector('[data-cfv5-requery]').addEventListener('click',async()=>{try{if(!root.confirm||root.confirm('현재 저장 결과를 보존한 채 같은 기간을 다시 조회하시겠습니까?')){await selectStores();live.select(currentSpec());await live.query({explicit:true,force:true});}}catch(e){setStatus(container,e.message,'error');}});
+    container.querySelector('[data-cfv5-load]').addEventListener('click',async()=>{try{setStatus(container,'선택 기간의 저장된 DataPARC 결과를 확인하고 있습니다.','working');await selectStores({force:true});const ok=await live.load({force:true});const liveState=live.state();if(!ok&&liveState.item?.error)setStatus(container,liveState.item.error,'error');else if(!liveState.item?.saved&&!liveState.item?.active)setStatus(container,'선택 기간에 저장된 DataPARC 결과가 없습니다. [계산하기]를 누르면 새 조회를 시작합니다.');}catch(e){setStatus(container,e.message,'error');}});
+    container.querySelector('[data-cfv5-query]').addEventListener('click',async()=>{try{
+      setStatus(container,'저장된 기간 결과를 먼저 확인하고 있습니다.','working');
+      await selectStores();const s=currentSpec();live.select(s);
+      const loaded=await live.load({force:true});let liveState=live.state();
+      if(liveState.item?.saved&&reference){calculate();return;}
+      if(liveState.item?.active){setStatus(container,'이미 같은 기간의 DataPARC 조회가 진행 중입니다. 완료되면 자동 계산합니다.','working');return;}
+      if(!loaded&&liveState.item?.error){setStatus(container,liveState.item.error,'error');return;}
+      setStatus(container,'저장된 결과가 없어 DataPARC 기간 조회를 시작합니다. 완료되면 자동 계산합니다.','working');
+      const ok=await live.query({explicit:true});liveState=live.state();
+      if(!ok&&!liveState.item?.active&&!liveState.item?.saved)setStatus(container,liveState.item?.error||'기간 조회 요청을 시작하지 못했습니다. 로그인 상태와 조회 기간을 확인해 주세요.','error');
+    }catch(e){setStatus(container,e.message,'error');}});
+    container.querySelector('[data-cfv5-requery]').addEventListener('click',async()=>{try{if(!root.confirm||root.confirm('현재 저장 결과를 보존한 채 같은 기간을 다시 조회하시겠습니까?')){setStatus(container,'같은 기간을 다시 조회하도록 요청하고 있습니다.','working');await selectStores();live.select(currentSpec());const ok=await live.query({explicit:true,force:true});const liveState=live.state();if(!ok&&!liveState.item?.active)setStatus(container,liveState.item?.error||'재조회 요청을 시작하지 못했습니다.','error');}}catch(e){setStatus(container,e.message,'error');}});
     const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible())live?.load({force:true});else live?.pause();}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
     updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});renderMain(container,null);renderOrganic(container,null,manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}},mobile);bindManualInputs();selectStores().catch(e=>setStatus(container,e.message,'error'));
     return {calculate,periodChanged,settings,manual,live,dispose(){disposed=true;observer?.disconnect();settings?.dispose();manual?.dispose();live?.dispose();}};

@@ -41,6 +41,6 @@ test('host navigation exposes the development label and loads V5 period workshee
   assert.match(html,/cofiring-settings-storage\.js\?v=20260911-period-excel-v5/);
   assert.match(html,/cofiring-live-contract\.js\?v=20260911-period-excel-v5/);
   assert.match(html,/cofiring-live\.js\?v=20260911-period-excel-v5/);
-  assert.match(html,/cofiring-period-ui-v5\.js\?v=20260911-period-excel-v5/);
+  assert.match(html,/cofiring-period-ui-v5\.js\?v=20260911-period-calc-v51/);
   assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
 });

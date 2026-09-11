@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const core=require('../maintenance/cofiring-core.js'),contract=require('../maintenance/cofiring-live-contract.js'),ui=require('../maintenance/cofiring-period-ui-v5.js');
 const spec={startLocal:'2026-09-10T00:00',endLocal:'2026-09-10T13:00',stepUnit:'hour',stepValue:1};
@@ -25,10 +25,20 @@ test('period calculation uses heat shares and period-bound manual organic/manure
  const stale=core.analyzePeriodSummary(ref,{...spec,organic:{start:'2026-09-10T00:00:00+09:00',end:'2026-09-10T12:59:00+09:00',unit1:10,unit2:20},manure:{start:'2026-09-10T00:00:00+09:00',end:'2026-09-10T13:00:00+09:00',unit1:0,unit2:0}});assert.equal(stale.units.unit1.organic.quantity,null);assert.equal(stale.units.unit1.ratios.total,null);
 });
 test('V5 markup is worksheet-like and contains requested period controls and Excel headers',()=>{
- const html=ui.markup();for(const text of ['Start date','End date','Step size','Get Data','Coal','Bio-SRF','유기성 고형연료','축분','계측 사용량','보정계수','실 사용량'])assert.match(html,new RegExp(text));assert.ok(html.includes('총 혼소율(Bio+유기성+축분)'));
+ const html=ui.markup();for(const text of ['Start date','End date','Step size','계산하기','Coal','Bio-SRF','유기성 고형연료','축분','계측 사용량','보정계수','실 사용량'])assert.match(html,new RegExp(text));assert.ok(html.includes('총 혼소율(Bio+유기성+축분)'));
  assert.match(html,/value="minute"/);assert.match(html,/value="hour" selected/);assert.match(html,/value="day"/);
  const css=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.css'),'utf8');assert.match(css,/\.cfv5-input-yellow\{background:#fff200/);assert.match(css,/\.cfv5-input-blue\{background:#8ec9e6/);assert.match(css,/\.cfv5-ratio\{color:#f00000/);
 });
 test('host loads V5 period assets instead of the old daily draft UI',()=>{
- const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260911-period-excel-v5/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-period-calc-v51/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260911-period-calc-v51/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
+});
+
+test('V5.1 calculate action is one-click saved-first and surfaces query progress/errors',()=>{
+ const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');
+ assert.match(js,/data-cfv5-query>계산하기</);
+ assert.match(js,/저장된 기간 결과를 먼저 확인하고 있습니다/);
+ assert.match(js,/await live\.load\(\{force:true\}\)/);
+ assert.match(js,/await live\.query\(\{explicit:true\}\)/);
+ assert.match(js,/조회·계산 중\.\.\./);
+ assert.match(js,/item\?\.error/);
 });
