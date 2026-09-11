@@ -19,46 +19,79 @@
   function markup(){
     const d=defaultPeriod();
     return `<div class="cfv5-sheet">
-      <div class="cfv5-title-row"><div><strong>1. Bio 혼소율 추정</strong><span>Coal · Bio-SRF · 유기성 고형연료 · 축분</span></div><span class="cfv5-version">기간계산 V5</span></div>
+      <div class="cfv5-title-row">
+        <div><strong>1. Bio 혼소율 추정</strong><span>Coal · Bio-SRF · 유기성 고형연료 · 축분</span></div>
+        <span class="cfv5-version">기간계산 V5.2</span>
+      </div>
+
       <div class="cfv5-query-box">
         <div class="cfv5-query-grid">
           <label>Start date<input data-cfv5-start type="datetime-local" value="${d.start}" step="60"></label>
           <label>End date<input data-cfv5-end type="datetime-local" value="${d.end}" step="60"></label>
           <label>Step size<span class="cfv5-step"><input data-cfv5-step-value type="number" min="1" max="1440" step="1" value="1"><select data-cfv5-step-unit><option value="minute">분</option><option value="hour" selected>시간</option><option value="day">일</option></select></span></label>
-          <div class="cfv5-query-actions"><button type="button" class="cfv5-get" data-cfv5-query>계산하기</button><button type="button" data-cfv5-load>저장결과 불러오기</button><button type="button" data-cfv5-requery>재조회</button></div>
+          <div class="cfv5-query-actions">
+            <button type="button" class="cfv5-get" data-cfv5-query>계산하기</button>
+            <button type="button" class="cfv5-requery" data-cfv5-requery>재조회</button>
+          </div>
         </div>
         <div class="cfv5-query-meta"><span data-cfv5-range>—</span><strong data-cfv5-live-state>조회 전</strong></div>
-        <p data-cfv5-status role="status" aria-live="polite">기간을 지정한 뒤 [계산하기]를 누르세요. 저장결과가 있으면 즉시 계산하고, 없으면 DataPARC 조회 후 자동 계산합니다.</p>
+        <p data-cfv5-status role="status" aria-live="polite">기간을 지정한 뒤 [계산하기]를 누르세요. 저장결과가 없으면 DataPARC 조회 후 자동 계산합니다.</p>
       </div>
 
-      <div class="cfv5-basis-wrap">
-        <div class="cfv5-basis-title">1) #1 / #2 기준 발열량(Net Calorific Value) · 보정계수</div>
-        <table class="cfv5-basis-table"><thead><tr><th>연료</th><th colspan="2">1호기</th><th colspan="2">2호기</th></tr><tr><th></th><th>발열량<br><small>kcal/kg</small></th><th>보정계수</th><th>발열량<br><small>kcal/kg</small></th><th>보정계수</th></tr></thead><tbody>
-        ${FUEL_KEYS.map(f=>`<tr><th>${FUEL_LABEL[f]}</th>${UNITS.map(u=>`<td class="cfv5-input-yellow"><input type="number" min="1" max="50000" step="any" data-cfv5-calorific="${u}:${f}"></td><td class="cfv5-input-blue"><input type="number" min="0.000001" max="100" step="any" data-cfv5-coefficient="${u}:${f}"></td>`).join('')}</tr>`).join('')}
-        </tbody></table>
-        <div class="cfv5-basis-actions"><button type="button" data-cfv5-settings-save>발열량/보정계수 저장</button><span data-cfv5-settings-state>기본값</span></div>
+      <div class="cfv52-manual-panel">
+        <div class="cfv52-manual-head">
+          <div><strong>유기성 · 축분 사용량</strong><span>선택기간 기준 · 0=사용없음 · 빈칸=미입력</span></div>
+          <div class="cfv52-manual-actions"><button type="button" data-cfv5-manual-save>사용량 저장</button><span data-cfv5-manual-state>저장값 없음</span></div>
+        </div>
+        <div class="cfv52-manual-grid">
+          <strong>1호기</strong>
+          <label>유기성(t)${manualInput('unit1','organic',null,false)}</label>
+          <label>축분(t)${manualInput('unit1','manure',null,false)}</label>
+          <strong>2호기</strong>
+          <label>유기성(t)${manualInput('unit2','organic',null,false)}</label>
+          <label>축분(t)${manualInput('unit2','manure',null,false)}</label>
+        </div>
       </div>
 
-      <div class="cfv5-section-label">2) Coal &amp; Bio 별 사용량 +/- 소요 후 열량 및 혼소율</div>
-      <div class="cfv5-table-scroll"><table class="cfv5-grid cfv5-coal-bio"><thead>
-        <tr><th rowspan="3">설비구분</th><th colspan="6" class="cfv5-head-coal">Coal</th><th colspan="6" class="cfv5-head-bio">Bio-SRF</th><th colspan="2" class="cfv5-head-ratio">혼소율 산정</th></tr>
-        <tr><th colspan="2">계측 사용량</th><th rowspan="2">계측기<br>보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th colspan="2">계측 사용량</th><th rowspan="2">계측기<br>보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th rowspan="2">총투입열량<br>(Gcal)</th><th rowspan="2">Bio 혼소율<br>(%)</th></tr>
-        <tr><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th></tr>
-      </thead><tbody data-cfv5-main-body>${rowsPlaceholder(3,15)}</tbody></table></div>
+      <div class="cfv52-summary-head">
+        <strong>주요 계산값</strong>
+        <span data-cfv52-summary-note>DataPARC 조회 전</span>
+      </div>
+      <div class="cfv52-summary-grid" data-cfv52-summary-grid>${summaryPlaceholder()}</div>
 
-      <div class="cfv5-section-label">3) 유기성 고형연료 · 축분 사용량 및 혼소율</div>
-      <div class="cfv5-manual-actions"><span>선택 기간 직접 입력 · 빈칸=미입력 / 0=사용없음</span><button type="button" data-cfv5-manual-save>유기성/축분 저장</button><span data-cfv5-manual-state></span></div>
-      <div class="cfv5-table-scroll"><table class="cfv5-grid cfv5-organic"><thead>
-        <tr><th rowspan="3">설비구분</th><th colspan="6" class="cfv5-head-organic">유기성 고형연료</th><th colspan="6" class="cfv5-head-manure">축분</th><th colspan="2" class="cfv5-head-ratio">혼소율 산정</th></tr>
-        <tr><th colspan="2">사용량</th><th rowspan="2">보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th colspan="2">사용량</th><th rowspan="2">보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th rowspan="2">총투입열량<br>(Gcal)</th><th rowspan="2">유기성 혼소율<br>(%)</th></tr>
-        <tr><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th></tr>
-      </thead><tbody data-cfv5-organic-body>${manualRowsPlaceholder()}</tbody></table></div>
+      <details class="cfv52-fold">
+        <summary>발열량 · 보정계수 설정</summary>
+        <div class="cfv5-basis-wrap">
+          <div class="cfv5-basis-title">#1 / #2 기준 발열량(Net Calorific Value) · 보정계수</div>
+          <table class="cfv5-basis-table"><thead><tr><th>연료</th><th colspan="2">1호기</th><th colspan="2">2호기</th></tr><tr><th></th><th>발열량<br><small>kcal/kg</small></th><th>보정계수</th><th>발열량<br><small>kcal/kg</small></th><th>보정계수</th></tr></thead><tbody>
+          ${FUEL_KEYS.map(f=>`<tr><th>${FUEL_LABEL[f]}</th>${UNITS.map(u=>`<td class="cfv5-input-yellow"><input type="number" min="1" max="50000" step="any" data-cfv5-calorific="${u}:${f}"></td><td class="cfv5-input-blue"><input type="number" min="0.000001" max="100" step="any" data-cfv5-coefficient="${u}:${f}"></td>`).join('')}</tr>`).join('')}
+          </tbody></table>
+          <div class="cfv5-basis-actions"><button type="button" data-cfv5-settings-save>발열량/보정계수 저장</button><span data-cfv5-settings-state>기본값</span></div>
+        </div>
+      </details>
 
-      <div class="cfv5-total-wrap"><table class="cfv5-total"><thead><tr><th colspan="2">총 혼소율(Bio+유기성+축분)</th></tr></thead><tbody><tr><th>총투입열량<br>(Gcal)</th><th>혼소율<br>(%)</th></tr><tr><td data-cfv5-total-heat>—</td><td class="cfv5-ratio" data-cfv5-total-ratio>—</td></tr></tbody></table></div>
+      <details class="cfv52-fold cfv52-detail">
+        <summary>상세 계산표 보기 <small>계측량 · 보정계수 · 실사용량 · 열량</small></summary>
+        <div class="cfv5-section-label">Coal &amp; Bio-SRF 상세</div>
+        <div class="cfv5-table-scroll"><table class="cfv5-grid cfv5-coal-bio"><thead>
+          <tr><th rowspan="3">설비구분</th><th colspan="6" class="cfv5-head-coal">Coal</th><th colspan="6" class="cfv5-head-bio">Bio-SRF</th><th colspan="2" class="cfv5-head-ratio">혼소율 산정</th></tr>
+          <tr><th colspan="2">계측 사용량</th><th rowspan="2">계측기<br>보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th colspan="2">계측 사용량</th><th rowspan="2">계측기<br>보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th rowspan="2">총투입열량<br>(Gcal)</th><th rowspan="2">Bio 혼소율<br>(%)</th></tr>
+          <tr><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th></tr>
+        </thead><tbody data-cfv5-main-body>${rowsPlaceholder(3,15)}</tbody></table></div>
+
+        <div class="cfv5-section-label">유기성 고형연료 · 축분 상세</div>
+        <div class="cfv5-table-scroll"><table class="cfv5-grid cfv5-organic"><thead>
+          <tr><th rowspan="3">설비구분</th><th colspan="6" class="cfv5-head-organic">유기성 고형연료</th><th colspan="6" class="cfv5-head-manure">축분</th><th colspan="2" class="cfv5-head-ratio">혼소율 산정</th></tr>
+          <tr><th colspan="2">사용량</th><th rowspan="2">보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th colspan="2">사용량</th><th rowspan="2">보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th rowspan="2">총투입열량<br>(Gcal)</th><th rowspan="2">유기성 혼소율<br>(%)</th></tr>
+          <tr><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th></tr>
+        </thead><tbody data-cfv5-organic-body>${manualRowsPlaceholder()}</tbody></table></div>
+      </details>
+
       <details class="cfv5-warnings" data-cfv5-warning-box hidden><summary>자료 확인 내용</summary><ul data-cfv5-warnings></ul></details>
-      <p class="cfv5-foot">총 사용량은 누적계의 선택기간 시작/종료 경계 차이로 계산합니다. 분/시간/일 Step은 조회조건과 평균 표시 기준으로 함께 저장되며, 같은 시작·종료 경계라면 누적계 총 톤수는 Step 선택으로 바뀌지 않습니다.</p>
+      <p class="cfv5-foot">화면에는 실사용량과 혼소율 등 핵심값만 우선 표시합니다. 세부 계측값·보정계수·열량은 [상세 계산표 보기]에서 확인할 수 있습니다.</p>
     </div>`;
   }
+  function summaryPlaceholder(){return `<article class="cfv52-card"><header>1호기</header><div class="cfv52-card-empty">조회 전</div></article><article class="cfv52-card"><header>2호기</header><div class="cfv52-card-empty">조회 전</div></article><article class="cfv52-card cfv52-card-total"><header>종합</header><div class="cfv52-card-empty">조회 전</div></article>`;}
   function rowsPlaceholder(count,cols){return Array.from({length:count},(_,i)=>`<tr><th>${i<2?i+1+'호기':'계'}</th>${Array.from({length:cols-1},()=>'<td>—</td>').join('')}</tr>`).join('');}
   function manualRowsPlaceholder(){return `<tr data-cfv5-manual-row="unit1"><th>1호기</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr><tr data-cfv5-manual-row="unit2"><th>2호기</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr><tr data-cfv5-manual-row="sum"><th>계</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr>`;}
   function readSettings(container){const output={unit1:{},unit2:{}};for(const unit of UNITS)for(const fuel of FUEL_KEYS){const c=Number(container.querySelector(`[data-cfv5-calorific="${unit}:${fuel}"]`)?.value),f=Number(container.querySelector(`[data-cfv5-coefficient="${unit}:${fuel}"]`)?.value);if(!Number.isFinite(c)||c<=0||c>50000||!Number.isFinite(f)||f<=0||f>100)throw new Error(`${unit==='unit1'?'1':'2'}호기 ${FUEL_LABEL[fuel]} 발열량·보정계수를 확인해 주세요.`);output[unit][fuel]={calorific:c,coefficient:f};}return output;}
@@ -76,13 +109,43 @@
     rows.push(`<tr class="cfv5-sum"><th>계</th><td>${num(sum([one?.coal?.measuredQuantity,two?.coal?.measuredQuantity]))}</td><td>${num(sum([average(one?.coal?.measuredQuantity,hours),average(two?.coal?.measuredQuantity,hours)]))}</td><td>${coefficientCell([one?.coal?.coefficient,two?.coal?.coefficient])}</td><td class="cfv5-actual">${num(sum([one?.coal?.quantity,two?.coal?.quantity]))}</td><td>${num(sum([one?.coal?.averageTonPerHour,two?.coal?.averageTonPerHour]))}</td><td>${num(result?.combined?.heats?.coal,1)}</td><td>${num(sum([one?.bio?.measuredQuantity,two?.bio?.measuredQuantity]))}</td><td>${num(sum([average(one?.bio?.measuredQuantity,hours),average(two?.bio?.measuredQuantity,hours)]))}</td><td>${coefficientCell([one?.bio?.coefficient,two?.bio?.coefficient])}</td><td class="cfv5-actual">${num(sum([one?.bio?.quantity,two?.bio?.quantity]))}</td><td>${num(sum([one?.bio?.averageTonPerHour,two?.bio?.averageTonPerHour]))}</td><td>${num(result?.combined?.heats?.bio,1)}</td><td>${num(result?.combined?.heats?.total,1)}</td><td class="cfv5-ratio">${pct(result?.combined?.fuelRatios?.bio)}</td></tr>`);body.innerHTML=rows.join('');
   }
   function manualInput(unit,fuel,value,disabled){return `<input class="cfv5-manual-input" type="text" inputmode="decimal" data-cfv5-manual="${unit}:${fuel}" value="${value==null?'':escapeHtml(value)}" placeholder="미입력" ${disabled?'disabled':''}>`;}
-  function renderOrganic(container,result,manualValues,disabled){const body=container.querySelector('[data-cfv5-organic-body]');if(!body)return;const hours=result?.period?.durationHours||safeHours(container),rows=[];
+  function renderOrganic(container,result,manualValues){
+    const body=container.querySelector('[data-cfv5-organic-body]');if(!body)return;const hours=result?.period?.durationHours||safeHours(container),rows=[];
     for(const [i,unit] of UNITS.entries()){
       const u=result?.units?.[unit],ov=manualValues?.[unit]?.organic,mv=manualValues?.[unit]?.manure;
-      rows.push(`<tr><th>${i+1}호기</th><td class="cfv5-measured cfv5-editable">${manualInput(unit,'organic',ov,disabled)}</td><td>${num(average(ov,hours))}</td><td class="cfv5-factor">${num(u?.organic?.coefficient??settingFactor(container,unit,'organic'),4)}</td><td class="cfv5-actual">${num(u?.organic?.quantity)}</td><td>${num(u?.organic?.averageTonPerHour)}</td><td>${num(u?.heats?.organic,1)}</td><td class="cfv5-measured cfv5-editable">${manualInput(unit,'manure',mv,disabled)}</td><td>${num(average(mv,hours))}</td><td class="cfv5-factor">${num(u?.manure?.coefficient??settingFactor(container,unit,'manure'),4)}</td><td class="cfv5-actual">${num(u?.manure?.quantity)}</td><td>${num(u?.manure?.averageTonPerHour)}</td><td>${num(u?.heats?.manure,1)}</td><td>${num(u?.heats?.total,1)}</td><td class="cfv5-ratio">${pct(u?.fuelRatios?.organicGroup)}</td></tr>`);
+      rows.push(`<tr><th>${i+1}호기</th><td class="cfv5-measured">${num(ov)}</td><td>${num(average(ov,hours))}</td><td class="cfv5-factor">${num(u?.organic?.coefficient??settingFactor(container,unit,'organic'),4)}</td><td class="cfv5-actual">${num(u?.organic?.quantity)}</td><td>${num(u?.organic?.averageTonPerHour)}</td><td>${num(u?.heats?.organic,1)}</td><td class="cfv5-measured">${num(mv)}</td><td>${num(average(mv,hours))}</td><td class="cfv5-factor">${num(u?.manure?.coefficient??settingFactor(container,unit,'manure'),4)}</td><td class="cfv5-actual">${num(u?.manure?.quantity)}</td><td>${num(u?.manure?.averageTonPerHour)}</td><td>${num(u?.heats?.manure,1)}</td><td>${num(u?.heats?.total,1)}</td><td class="cfv5-ratio">${pct(u?.fuelRatios?.organicGroup)}</td></tr>`);
     }
     const one=result?.units?.unit1,two=result?.units?.unit2;
     rows.push(`<tr class="cfv5-sum"><th>계</th><td>${num(sum([manualValues?.unit1?.organic,manualValues?.unit2?.organic]))}</td><td>${num(sum([average(manualValues?.unit1?.organic,hours),average(manualValues?.unit2?.organic,hours)]))}</td><td>${coefficientCell([one?.organic?.coefficient??settingFactor(container,'unit1','organic'),two?.organic?.coefficient??settingFactor(container,'unit2','organic')])}</td><td class="cfv5-actual">${num(sum([one?.organic?.quantity,two?.organic?.quantity]))}</td><td>${num(sum([one?.organic?.averageTonPerHour,two?.organic?.averageTonPerHour]))}</td><td>${num(result?.combined?.heats?.organic,1)}</td><td>${num(sum([manualValues?.unit1?.manure,manualValues?.unit2?.manure]))}</td><td>${num(sum([average(manualValues?.unit1?.manure,hours),average(manualValues?.unit2?.manure,hours)]))}</td><td>${coefficientCell([one?.manure?.coefficient??settingFactor(container,'unit1','manure'),two?.manure?.coefficient??settingFactor(container,'unit2','manure')])}</td><td class="cfv5-actual">${num(sum([one?.manure?.quantity,two?.manure?.quantity]))}</td><td>${num(sum([one?.manure?.averageTonPerHour,two?.manure?.averageTonPerHour]))}</td><td>${num(result?.combined?.heats?.manure,1)}</td><td>${num(result?.combined?.heats?.total,1)}</td><td class="cfv5-ratio">${pct(result?.combined?.fuelRatios?.organicGroup)}</td></tr>`);body.innerHTML=rows.join('');
+  }
+  function summaryMetric(label,value,{digits=2,suffix='',ratio=false,emphasis=false}={}){
+    const ready=typeof value==='number'&&Number.isFinite(value);
+    const shown=ready?(ratio?value.toFixed(2)+'%':num(value,digits)+(suffix?' '+suffix:'')):'—';
+    return `<div class="cfv52-metric${ratio?' cfv52-metric-ratio':''}${emphasis?' cfv52-metric-emphasis':''}"><span>${label}</span><strong>${shown}</strong></div>`;
+  }
+  function renderSummary(container,result,manualValues){
+    const host=container.querySelector('[data-cfv52-summary-grid]'),note=container.querySelector('[data-cfv52-summary-note]');if(!host)return;
+    if(!result){host.innerHTML=summaryPlaceholder();if(note)note.textContent='DataPARC 조회 전';return;}
+    const cards=[];
+    for(const [i,unit] of UNITS.entries()){
+      const u=result?.units?.[unit],manualComplete=!!(u?.organic?.complete&&u?.manure?.complete);
+      cards.push(`<article class="cfv52-card"><header><strong>${i+1}호기</strong><span>${manualComplete?'계산 완료':'유기성/축분 입력 필요'}</span></header><div class="cfv52-metrics">
+        ${summaryMetric('Coal 실사용',u?.coal?.quantity,{suffix:'t'})}
+        ${summaryMetric('Bio 실사용',u?.bio?.quantity,{suffix:'t'})}
+        ${summaryMetric('Bio 혼소율',u?.fuelRatios?.bio,{ratio:true,emphasis:true})}
+        ${summaryMetric('총 혼소율',u?.fuelRatios?.total,{ratio:true,emphasis:true})}
+      </div></article>`);
+    }
+    const one=result?.units?.unit1,two=result?.units?.unit2;
+    const organicTotal=sum([one?.organic?.quantity,two?.organic?.quantity]),manureTotal=sum([one?.manure?.quantity,two?.manure?.quantity]);
+    cards.push(`<article class="cfv52-card cfv52-card-total"><header><strong>종합</strong><span>${result?.combined?.ratios?.total==null?'입력 확인':'열량 기준'}</span></header><div class="cfv52-metrics">
+      ${summaryMetric('Coal 합계',sum([one?.coal?.quantity,two?.coal?.quantity]),{suffix:'t'})}
+      ${summaryMetric('Bio 합계',sum([one?.bio?.quantity,two?.bio?.quantity]),{suffix:'t'})}
+      ${summaryMetric('유기성+축분',organicTotal==null||manureTotal==null?null:organicTotal+manureTotal,{suffix:'t'})}
+      ${summaryMetric('종합 혼소율',result?.combined?.ratios?.total,{ratio:true,emphasis:true})}
+    </div></article>`);
+    host.innerHTML=cards.join('');
+    if(note)note.textContent=result?.warnings?.length?'조회값 표시 · 미입력 항목 있음':'계산 완료';
   }
   function safeHours(container){try{return periodSpec(container).durationHours;}catch(_){return 0;}}
   function settingFactor(container,unit,fuel){const n=Number(container.querySelector(`[data-cfv5-coefficient="${unit}:${fuel}"]`)?.value);return Number.isFinite(n)?n:null;}
@@ -100,32 +163,44 @@
     async function selectStores({force=false}={}){const p=periodSpec(container),epoch=++periodGeneration;settings?.select(p.targetDate);manual?.select(p.startLocal,p.endLocal);live?.select(currentSpec());settingsDirty=false;manualDirty=false;await Promise.all([settings?.load({force})||true,manual?.load({force})||true]);if(epoch!==periodGeneration)return false;paintSettings(true);paintManual(true);return true;}
     function paintSettings(force=false){if(!settings)return;const s=settings.state(),state=container.querySelector('[data-cfv5-settings-state]');if((force||!settingsDirty)&&s.loaded)writeSettings(container,s.settings);if(state)state.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':s.source==='saved'?`${s.effectiveDate} 적용값${s.updatedByName?' · '+s.updatedByName:''}`:'기본값';for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]'))el.disabled=mobile||s.saving;container.querySelector('[data-cfv5-settings-save]').disabled=mobile||!s.canEdit||s.saving;}
     function currentManualFromFields(){try{return readManual(container);}catch(_){return manual?.state().values||manualApi.blank();}}
-    function paintManual(force=false){if(!manual)return;const s=manual.state(),label=container.querySelector('[data-cfv5-manual-state]');if((force||!manualDirty)&&s.loaded)writeManual(container,s.values);if(label)label.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':s.revision?`저장 v${s.revision}${s.updatedByName?' · '+s.updatedByName:''}`:'저장값 없음';container.querySelector('[data-cfv5-manual-save]').disabled=mobile||!s.canEdit||s.saving;renderOrganic(container,lastResult,currentManualFromFields(),mobile||s.saving);bindManualInputs();}
+    function paintManual(force=false){if(!manual)return;const s=manual.state(),label=container.querySelector('[data-cfv5-manual-state]');if((force||!manualDirty)&&s.loaded)writeManual(container,s.values);if(label)label.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':s.revision?`저장 v${s.revision}${s.updatedByName?' · '+s.updatedByName:''}`:'저장값 없음';container.querySelector('[data-cfv5-manual-save]').disabled=mobile||!s.canEdit||s.saving;for(const el of container.querySelectorAll('[data-cfv5-manual]'))el.disabled=mobile||s.saving;const values=currentManualFromFields();renderOrganic(container,lastResult,values);renderSummary(container,lastResult,values);bindManualInputs();}
     function bindManualInputs(){for(const el of container.querySelectorAll('[data-cfv5-manual]'))if(el.dataset.cfv5Bound!=='1'){el.dataset.cfv5Bound='1';el.addEventListener('input',()=>{manualDirty=true;});el.addEventListener('change',()=>{if(reference)calculate();});}}
     function paintLive(s){
-      const item=s?.item,state=container.querySelector('[data-cfv5-live-state]'),active=item?.active,p=active?.progress,queryButton=container.querySelector('[data-cfv5-query]');
-      const busy=!!(item?.submitting||item?.loading||active);
+      const item=s?.item,state=container.querySelector('[data-cfv5-live-state]'),active=item?.active,queryButton=container.querySelector('[data-cfv5-query]');
+      const busy=!!(item?.submitting||item?.loading||active),requery=container.querySelector('[data-cfv5-requery]');
       queryButton.disabled=mobile||!s?.canQuery||busy;
       queryButton.textContent=busy?'조회·계산 중...':'계산하기';
-      container.querySelector('[data-cfv5-requery]').disabled=mobile||!s?.canQuery||!item?.saved||busy;
-      container.querySelector('[data-cfv5-load]').disabled=!s?.authenticated||item?.loading||item?.submitting;
-      const stateText=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?(p?.phase==='cleanup'?'Excel 종료 확인':'DataPARC 조회 중'):item?.saved?`저장결과 ${item.saved.status}`:'저장결과 없음';
+      if(requery)requery.disabled=mobile||!s?.canQuery||!item?.saved||busy;
+      const stateText=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?'DataPARC 작업 중':item?.saved&&reference?'계산 완료':item?.saved?'결과 확인 중':'저장결과 없음';
       if(state)state.textContent=stateText;
       if(!s?.authenticated)setStatus(container,'로그인 후 기간 계산을 실행해 주세요.','error');
       else if(item?.error)setStatus(container,item.error,'error');
-      else if(item?.submitting)setStatus(container,'기간 조회 요청을 등록하고 있습니다. 완료되면 자동으로 계산합니다.','working');
-      else if(active?.status==='pending')setStatus(container,'요청이 등록되었습니다. 회사 PC Agent가 조회를 시작하기를 기다리고 있습니다.','working');
-      else if(active?.status==='processing')setStatus(container,p?.phase==='cleanup'?'DataPARC 조회가 끝났습니다. Excel 종료를 확인한 뒤 자동 계산합니다.':'DataPARC 기간 데이터를 조회 중입니다. 완료되면 자동으로 계산합니다.','working');
-      else if(item?.saved&&reference)setStatus(container,'저장된 DataPARC 결과를 불러와 혼소율 계산까지 완료했습니다.','success');
+      else if(item?.submitting)setStatus(container,'기간 조회 요청을 등록하고 있습니다. 아직 계산 전입니다.','working');
+      else if(active?.status==='pending')setStatus(container,'회사 PC Agent 대기 중입니다. 아직 계산 전입니다.','working');
+      else if(active?.status==='processing')setStatus(container,'DataPARC 조회·Excel 정리 작업이 진행 중입니다. 서버에 저장 결과가 도착하면 숫자가 자동 표시됩니다. 아직 계산 완료가 아닙니다.','working');
+      else if(item?.saved&&reference)setStatus(container,lastResult?.warnings?.length?'DataPARC 값은 표시되었습니다. 유기성/축분 미입력 항목을 입력하면 최종 혼소율이 계산됩니다.':'저장된 DataPARC 결과를 불러와 혼소율 계산까지 완료했습니다.','success');
     }
     function analyze(){if(!reference)return null;const p=periodSpec(container),setting=readSettings(container),mv=readManual(container),calorifics={unit1:{},unit2:{}},coefficients={unit1:{},unit2:{}};for(const u of UNITS)for(const fuel of FUEL_KEYS){calorifics[u][fuel]=setting[u][fuel].calorific;coefficients[u][fuel]=setting[u][fuel].coefficient;}return core.analyzePeriodSummary(reference,{startLocal:p.startLocal,endLocal:p.endLocal,calorifics,coefficients,organic:{start:p.start,end:p.end,unit1:mv.unit1.organic,unit2:mv.unit2.organic},manure:{start:p.start,end:p.end,unit1:mv.unit1.manure,unit2:mv.unit2.manure}});}
-    function calculate(){try{lastResult=analyze();renderMain(container,lastResult);renderOrganic(container,lastResult,readManual(container),mobile);bindManualInputs();container.querySelector('[data-cfv5-total-heat]').textContent=num(lastResult?.combined?.heats?.total,1);container.querySelector('[data-cfv5-total-ratio]').textContent=pct(lastResult?.combined?.ratios?.total);renderWarnings(container,lastResult);setStatus(container,lastResult.warnings?.length?'조회 결과를 표시했습니다. 미입력 또는 검증 미통과 항목은 혼소율을 확정하지 않습니다.':'선택 기간 혼소율 계산이 완료되었습니다.','success');return lastResult;}catch(e){setStatus(container,e.message||'혼소율을 계산하지 못했습니다.','error');return null;}}
-    async function periodChanged(){reference=null;lastResult=null;renderMain(container,null);updateRange(container);renderWarnings(container,null);container.querySelector('[data-cfv5-total-heat]').textContent='—';container.querySelector('[data-cfv5-total-ratio]').textContent='—';try{await selectStores();setStatus(container,'기간이 변경되었습니다. 저장된 수기값·설정값만 불러왔으며 DataPARC 조회는 시작하지 않았습니다.');}catch(e){setStatus(container,e.message,'error');}}
+    function calculate(){
+      try{
+        lastResult=analyze();
+        const manualValues=readManual(container);
+        renderMain(container,lastResult);
+        renderOrganic(container,lastResult,manualValues);
+        renderSummary(container,lastResult,manualValues);
+        renderWarnings(container,lastResult);
+        setStatus(container,lastResult.warnings?.length?'DataPARC 사용량을 표시했습니다. 유기성/축분이 미입력인 호기는 최종 혼소율을 확정하지 않습니다.':'선택 기간 혼소율 계산이 완료되었습니다.','success');
+        return lastResult;
+      }catch(e){setStatus(container,e.message||'혼소율을 계산하지 못했습니다.','error');return null;}
+    }
+    async function periodChanged(){
+      reference=null;lastResult=null;renderMain(container,null);renderOrganic(container,null,currentManualFromFields());renderSummary(container,null,currentManualFromFields());updateRange(container);renderWarnings(container,null);
+      try{await selectStores();setStatus(container,'기간이 변경되었습니다. 수기값·설정값만 불러왔으며 DataPARC 조회는 시작하지 않았습니다.');}catch(e){setStatus(container,e.message,'error');}
+    }
     for(const el of container.querySelectorAll('[data-cfv5-start],[data-cfv5-end],[data-cfv5-step-value],[data-cfv5-step-unit]'))el.addEventListener('change',periodChanged);
     for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]'))el.addEventListener('input',()=>{settingsDirty=true;if(reference)calculate();});
     container.querySelector('[data-cfv5-settings-save]').addEventListener('click',async()=>{try{const values=readSettings(container);const ok=await settings.save(values);if(ok){settingsDirty=false;paintSettings(true);if(reference)calculate();}}catch(e){setStatus(container,e.message,'error');}});
     container.querySelector('[data-cfv5-manual-save]').addEventListener('click',async()=>{try{const values=readManual(container),ok=await manual.save(values);if(ok){manualDirty=false;paintManual(true);if(reference)calculate();}}catch(e){setStatus(container,e.message,'error');}});
-    container.querySelector('[data-cfv5-load]').addEventListener('click',async()=>{try{setStatus(container,'선택 기간의 저장된 DataPARC 결과를 확인하고 있습니다.','working');await selectStores({force:true});const ok=await live.load({force:true});const liveState=live.state();if(!ok&&liveState.item?.error)setStatus(container,liveState.item.error,'error');else if(!liveState.item?.saved&&!liveState.item?.active)setStatus(container,'선택 기간에 저장된 DataPARC 결과가 없습니다. [계산하기]를 누르면 새 조회를 시작합니다.');}catch(e){setStatus(container,e.message,'error');}});
     container.querySelector('[data-cfv5-query]').addEventListener('click',async()=>{try{
       setStatus(container,'저장된 기간 결과를 먼저 확인하고 있습니다.','working');
       await selectStores();const s=currentSpec();live.select(s);
@@ -139,7 +214,7 @@
     }catch(e){setStatus(container,e.message,'error');}});
     container.querySelector('[data-cfv5-requery]').addEventListener('click',async()=>{try{if(!root.confirm||root.confirm('현재 저장 결과를 보존한 채 같은 기간을 다시 조회하시겠습니까?')){setStatus(container,'같은 기간을 다시 조회하도록 요청하고 있습니다.','working');await selectStores();live.select(currentSpec());const ok=await live.query({explicit:true,force:true});const liveState=live.state();if(!ok&&!liveState.item?.active)setStatus(container,liveState.item?.error||'재조회 요청을 시작하지 못했습니다.','error');}}catch(e){setStatus(container,e.message,'error');}});
     const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible())live?.load({force:true});else live?.pause();}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
-    updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});renderMain(container,null);renderOrganic(container,null,manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}},mobile);bindManualInputs();selectStores().catch(e=>setStatus(container,e.message,'error'));
+    updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();selectStores().catch(e=>setStatus(container,e.message,'error'));
     return {calculate,periodChanged,settings,manual,live,dispose(){disposed=true;observer?.disconnect();settings?.dispose();manual?.dispose();live?.dispose();}};
   }
   root.CofiringPeriodV5={mount,periodSpec,markup,readSettings,readManual};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;

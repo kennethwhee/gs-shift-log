@@ -24,13 +24,13 @@ test('period calculation uses heat shares and period-bound manual organic/manure
  assert.equal(result.period.durationHours,13);assert.equal(result.units.unit1.organic.enteredQuantity,10);assert.equal(result.units.unit2.manure.enteredQuantity,3);assert.ok(result.combined.ratios.total>0);assert.equal(result.qualityVerified,true);
  const stale=core.analyzePeriodSummary(ref,{...spec,organic:{start:'2026-09-10T00:00:00+09:00',end:'2026-09-10T12:59:00+09:00',unit1:10,unit2:20},manure:{start:'2026-09-10T00:00:00+09:00',end:'2026-09-10T13:00:00+09:00',unit1:0,unit2:0}});assert.equal(stale.units.unit1.organic.quantity,null);assert.equal(stale.units.unit1.ratios.total,null);
 });
-test('V5 markup is worksheet-like and contains requested period controls and Excel headers',()=>{
- const html=ui.markup();for(const text of ['Start date','End date','Step size','계산하기','Coal','Bio-SRF','유기성 고형연료','축분','계측 사용량','보정계수','실 사용량'])assert.match(html,new RegExp(text));assert.ok(html.includes('총 혼소율(Bio+유기성+축분)'));
+test('V5.2 markup is compact by default while keeping Excel detail tables',()=>{
+ const html=ui.markup();for(const text of ['Start date','End date','Step size','계산하기','Coal','Bio-SRF','유기성 고형연료','축분','계측 사용량','보정계수','실 사용량','주요 계산값','상세 계산표 보기'])assert.match(html,new RegExp(text));assert.match(html,/data-cfv52-summary-grid/);assert.match(html,/cfv52-manual-panel/);assert.doesNotMatch(html,/data-cfv5-load/);
  assert.match(html,/value="minute"/);assert.match(html,/value="hour" selected/);assert.match(html,/value="day"/);
- const css=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.css'),'utf8');assert.match(css,/\.cfv5-input-yellow\{background:#fff200/);assert.match(css,/\.cfv5-input-blue\{background:#8ec9e6/);assert.match(css,/\.cfv5-ratio\{color:#f00000/);
+ const css=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.css'),'utf8');assert.match(css,/\.cfv5-input-yellow\{background:#fff200/);assert.match(css,/\.cfv5-input-blue\{background:#8ec9e6/);assert.match(css,/\.cfv5-ratio\{color:#f00000/);assert.match(css,/\.cfv52-summary-grid\{display:grid/);assert.match(css,/max-width:1180px/);
 });
 test('host loads V5 period assets instead of the old daily draft UI',()=>{
- const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-period-calc-v51/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260911-period-calc-v51/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-period-compact-v52/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260911-period-compact-v52/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
 });
 
 test('V5.1 calculate action is one-click saved-first and surfaces query progress/errors',()=>{
@@ -41,4 +41,21 @@ test('V5.1 calculate action is one-click saved-first and surfaces query progress
  assert.match(js,/await live\.query\(\{explicit:true\}\)/);
  assert.match(js,/조회·계산 중\.\.\./);
  assert.match(js,/item\?\.error/);
+});
+
+test('V5.2 progress copy never calls an active period calculation complete',()=>{
+ const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');
+ assert.doesNotMatch(js,/DataPARC 조회가 끝났습니다/);
+ assert.match(js,/아직 계산 완료가 아닙니다/);
+ assert.match(js,/서버에 저장 결과가 도착하면 숫자가 자동 표시됩니다/);
+ assert.match(js,/active\?\.status==='processing'\?'DataPARC 작업 중'/);
+});
+
+test('V5.2 key view keeps manual fuel inputs visible and advanced sections folded',()=>{
+ const html=ui.markup();
+ assert.match(html,/유기성\(t\)[\s\S]*data-cfv5-manual="unit1:organic"/);
+ assert.match(html,/축분\(t\)[\s\S]*data-cfv5-manual="unit2:manure"/);
+ assert.match(html,/<details class="cfv52-fold">/);
+ assert.match(html,/<details class="cfv52-fold cfv52-detail">/);
+ assert.match(html,/Coal 실사용|주요 계산값/);
 });
