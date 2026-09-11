@@ -1,6 +1,6 @@
 ﻿'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const core=require('../maintenance/cofiring-core.js'),contract=require('../maintenance/cofiring-live-contract.js'),ui=require('../maintenance/cofiring-period-ui-v5.js'),adjust=require('../maintenance/cofiring-period-adjustment-v56.js');
+const core=require('../maintenance/cofiring-core.js'),contract=require('../maintenance/cofiring-live-contract.js'),liveApi=require('../maintenance/cofiring-live.js'),ui=require('../maintenance/cofiring-period-ui-v5.js'),adjust=require('../maintenance/cofiring-period-adjustment-v56.js');
 const spec={startLocal:'2026-09-10T00:00',endLocal:'2026-09-10T13:00',stepUnit:'hour',stepValue:1};
 function report({bad=false}={}){
  const p=contract.period(spec,Number.MAX_SAFE_INTEGER),duration=p.durationMinutes*60;
@@ -35,7 +35,7 @@ test('V5.2 markup is compact by default while keeping Excel detail tables',()=>{
  const css=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.css'),'utf8');assert.match(css,/\.cfv5-input-yellow\{background:#fff200/);assert.match(css,/\.cfv5-input-blue\{background:#8ec9e6/);assert.match(css,/\.cfv5-ratio\{color:#f00000/);assert.match(css,/\.cfv52-summary-grid\{display:grid/);assert.match(css,/max-width:1180px/);
 });
 test('host loads V5 period assets instead of the old daily draft UI',()=>{
- const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-fast-adjust-v56/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-adjustment-v56\.js\?v=20260911-fast-adjust-v56/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260911-fast-adjust-v56/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-fast-adjust-v56/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-adjustment-v56\.js\?v=20260911-fast-adjust-v56/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260912-session-recovery-v561/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
 });
 
 test('V5.1 calculate action is one-click saved-first and surfaces query progress/errors',()=>{
@@ -44,7 +44,7 @@ test('V5.1 calculate action is one-click saved-first and surfaces query progress
  assert.match(js,/저장된 기간 결과를 먼저 확인하고 있습니다/);
  assert.match(js,/await live\.load\(\{force:true\}\)/);
  assert.match(js,/await live\.query\(\{explicit:true\}\)/);
- assert.match(js,/조회·계산 중\.\.\./);
+ assert.match(js,/상태 확인 중\.\.\./);
  assert.match(js,/item\?\.error/);
 });
 
@@ -129,4 +129,35 @@ test('V5.6 reduces period web/Agent polling to one second and auto-starts safe f
  const live=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-live.js'),'utf8');assert.match(live,/createPeriod[\s\S]*?setTimer\(\(\)=>\{timer=null;load\(\{force:true\}\);\},1000\)/);
  const agent=fs.readFileSync(path.join(__dirname,'../local-tools/ois-agent/ois-login.js'),'utf8');assert.match(agent,/const OIS_AGENT_POLL_INTERVAL =\s*1000;/);
  const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');assert.match(js,/function scheduleFastPrep/);assert.match(js,/고속 준비: 선택기간 DataPARC 조회를 미리 시작합니다/);assert.match(js,/await live\.query\(\{explicit:true\}\)/);
+});
+
+
+test('V5.6.1 rejects an expired session without leaving an auto-prep request permanently active',async()=>{
+ let token='Bearer stale-token',calls=0;
+ const uuid='11111111-1111-4111-8111-111111111111';
+ const api=liveApi.createPeriod({
+   getHeaders:()=>({Authorization:token}),canQuery:()=>true,isVisible:()=>true,
+   setTimeout:()=>0,clearTimeout:()=>{},
+   fetch:async(_url,init={})=>{
+     calls++;
+     if(init.method==='POST')return {ok:true,status:200,json:async()=>({ok:true,periodKey:contract.periodKey(spec),item:{id:uuid,requestType:'cofiring_period',status:'pending'}})};
+     return {ok:false,status:401,json:async()=>({ok:false,message:'로그인 세션이 만료되었습니다. 다시 로그인해 주세요.'})};
+   }
+ });
+ api.select(spec);
+ const ok=await api.query({explicit:true});
+ assert.equal(ok,false);const state=api.state();
+ assert.equal(state.authenticated,false);assert.equal(state.canQuery,false);assert.equal(state.item.active,null);assert.match(state.item.error,/세션이 만료/);assert.ok(calls>=2);
+ token='Bearer fresh-token';
+ const recovered=api.state();assert.equal(recovered.authenticated,true);assert.equal(recovered.canQuery,true);
+ api.dispose();
+});
+
+test('V5.6.1 keeps pending prep actionable and clearly labels expired authentication',()=>{
+ const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');
+ assert.match(js,/active\?'상태 확인':'계산하기'/);
+ assert.match(js,/prepLabel\('로그인 필요','error'\)/);
+ assert.match(js,/로그인 세션이 만료되었습니다\. 다시 로그인하면 고속 준비와 계산을 다시 시작할 수 있습니다/);
+ const live=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-live.js'),'utf8');
+ assert.match(live,/rejectedAuthKey/);assert.match(live,/AUTH_EXPIRED/);assert.match(live,/d\.active=null/);
 });

@@ -170,7 +170,7 @@
     function adjustmentContext(){return {result:lastResult,settings:readSettings(container),spec:currentSpec()};}
     let adjuster=null;
     function scheduleFastPrep(delay=900){if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}const epoch=++fastPrepGeneration;if(disposed||mobile||!visible()||!live)return;prepLabel('고속 준비 예약');fastPrepTimer=root.setTimeout?.(()=>{fastPrepTimer=null;void fastPrepare(epoch);},delay);}
-    async function fastPrepare(epoch){if(disposed||epoch!==fastPrepGeneration||mobile||!visible()||!live)return;try{prepLabel('고속 준비 확인','working');live.select(currentSpec());await live.load({force:true});if(disposed||epoch!==fastPrepGeneration)return;let s=live.state();if(s.item?.saved&&reference){prepLabel('고속 준비 완료','ready');calculate();return;}if(s.item?.active){prepLabel('고속 준비 진행중','working');return;}if(!s.canQuery){prepLabel('고속 준비 불가');return;}prepLabel('고속 준비 조회중','working');setStatus(container,'고속 준비: 선택기간 DataPARC 조회를 미리 시작합니다. 계산하기를 눌러도 같은 요청을 재사용합니다.','working');await live.query({explicit:true});s=live.state();if(s.item?.active)prepLabel('고속 준비 진행중','working');else if(s.item?.saved)prepLabel('고속 준비 완료','ready');else if(s.item?.error)prepLabel('고속 준비 실패','error');}catch(e){prepLabel('고속 준비 실패','error');}}
+    async function fastPrepare(epoch){if(disposed||epoch!==fastPrepGeneration||mobile||!visible()||!live)return;try{prepLabel('고속 준비 확인','working');live.select(currentSpec());await live.load({force:true});if(disposed||epoch!==fastPrepGeneration)return;let s=live.state();if(s.item?.saved&&reference){prepLabel('고속 준비 완료','ready');calculate();return;}if(s.item?.active){prepLabel('고속 준비 진행중','working');return;}if(!s.canQuery){prepLabel(s.authenticated?'고속 준비 불가':'로그인 필요',s.authenticated?'':'error');return;}prepLabel('고속 준비 조회중','working');setStatus(container,'고속 준비: 선택기간 DataPARC 조회를 미리 시작합니다. 계산하기를 눌러도 같은 요청을 재사용합니다.','working');await live.query({explicit:true});s=live.state();if(s.item?.active)prepLabel('고속 준비 진행중','working');else if(s.item?.saved)prepLabel('고속 준비 완료','ready');else if(s.item?.error)prepLabel('고속 준비 실패','error');}catch(e){prepLabel('고속 준비 실패','error');}}
     async function selectStores({force=false}={}){const p=periodSpec(container),epoch=++periodGeneration;settings?.select(p.targetDate);manual?.select(p.startLocal,p.endLocal);live?.select(currentSpec());settingsDirty=false;manualDirty=false;await Promise.all([settings?.load({force})||true,manual?.load({force})||true]);if(epoch!==periodGeneration)return false;paintSettings(true);paintManual(true);return true;}
     function paintSettings(force=false){if(!settings)return;const s=settings.state(),state=container.querySelector('[data-cfv5-settings-state]');if((force||!settingsDirty)&&s.loaded)writeSettings(container,s.settings);if(state)state.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':s.source==='saved'?`${s.effectiveDate} 적용값${s.updatedByName?' · '+s.updatedByName:''}`:'기본값';for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]'))el.disabled=mobile||s.saving;container.querySelector('[data-cfv5-settings-save]').disabled=mobile||!s.canEdit||s.saving;}
     function currentManualFromFields(){try{return readManual(container);}catch(_){return manual?.state().values||manualApi.blank();}}
@@ -178,14 +178,14 @@
     function bindManualInputs(){for(const el of container.querySelectorAll('[data-cfv5-manual]'))if(el.dataset.cfv5Bound!=='1'){el.dataset.cfv5Bound='1';el.addEventListener('input',()=>{manualDirty=true;});el.addEventListener('change',()=>{if(reference)calculate();});}}
     function paintLive(s){
       const item=s?.item,state=container.querySelector('[data-cfv5-live-state]'),active=item?.active,queryButton=container.querySelector('[data-cfv5-query]');
-      const busy=!!(item?.submitting||item?.loading||active),requery=container.querySelector('[data-cfv5-requery]');
-      queryButton.disabled=mobile||!s?.canQuery||busy;
-      queryButton.textContent=busy?'조회·계산 중...':'계산하기';
-      if(requery)requery.disabled=mobile||!s?.canQuery||!item?.saved||busy;
+      const hardBusy=!!(item?.submitting||item?.loading),requery=container.querySelector('[data-cfv5-requery]');
+      queryButton.disabled=mobile||!s?.canQuery||hardBusy;
+      queryButton.textContent=!s?.authenticated?'로그인 필요':hardBusy?'상태 확인 중...':active?'상태 확인':'계산하기';
+      if(requery)requery.disabled=mobile||!s?.canQuery||!item?.saved||hardBusy||!!active;
       const qualityGapSaved=!!(item?.saved&&reference?.summaries?.some?.(x=>x?.dataComplete===false));
       const stateText=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?'DataPARC 작업 중':item?.saved&&reference?(qualityGapSaved?'경계값 계산 · 품질 공백':'계산 완료'):item?.saved?'결과 확인 중':'저장결과 없음';
       if(state)state.textContent=stateText;
-      if(!s?.authenticated)setStatus(container,'로그인 후 기간 계산을 실행해 주세요.','error');
+      if(!s?.authenticated){prepLabel('로그인 필요','error');setStatus(container,'로그인 세션이 만료되었습니다. 다시 로그인하면 고속 준비와 계산을 다시 시작할 수 있습니다.','error');}
       else if(item?.error)setStatus(container,item.error,'error');
       else if(item?.submitting)setStatus(container,'기간 조회 요청을 등록하고 있습니다. 아직 계산 전입니다.','working');
       else if(active?.status==='pending')setStatus(container,'회사 PC Agent 대기 중입니다. 아직 계산 전입니다.','working');
@@ -217,7 +217,7 @@
       await selectStores();const s=currentSpec();live.select(s);
       const loaded=await live.load({force:true});let liveState=live.state();
       if(liveState.item?.saved&&reference){calculate();return;}
-      if(liveState.item?.active){setStatus(container,'이미 같은 기간의 DataPARC 조회가 진행 중입니다. 완료되면 자동 계산합니다.','working');return;}
+      if(liveState.item?.active){setStatus(container,'같은 기간의 DataPARC 요청 상태를 다시 확인했습니다. Agent 대기/작업 중이면 완료 후 자동 계산합니다.','working');return;}
       if(!loaded&&liveState.item?.error){setStatus(container,liveState.item.error,'error');return;}
       setStatus(container,'저장된 결과가 없어 DataPARC 기간 조회를 시작합니다. 완료되면 자동 계산합니다.','working');
       const ok=await live.query({explicit:true});liveState=live.state();
