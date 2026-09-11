@@ -7,7 +7,7 @@
 
   const MINUTE = 60000;
   const UNIT_IDS = ['unit1', 'unit2'];
-  const FUELS = ['coal', 'bio', 'organic'];
+  const FUELS = ['coal', 'bio', 'organic', 'manure'];
   const REQUIRED_SERIES = Object.freeze(UNIT_IDS.flatMap(function (unit, index) {
     return ['A-1', 'A-2', 'B-1', 'B-2'].map(function (feeder) {
       const queryTag = 'GSPOGE.ABB_DCS.BLR' + (index + 1) + ' COAL FEEDER ' + feeder + ' REFERENSE';
@@ -112,7 +112,13 @@
   function positiveSetting(config, defaults, unit, fuel, title) {
     const group = config && config[unit];
     const fallback = defaults && defaults[unit];
-    const value = group && Object.prototype.hasOwnProperty.call(group, fuel) ? group[fuel] : fallback && fallback[fuel];
+    let value;
+    if (group && Object.prototype.hasOwnProperty.call(group, fuel)) value = group[fuel];
+    else if (fallback && Object.prototype.hasOwnProperty.call(fallback, fuel)) value = fallback[fuel];
+    // Older saved/reference data predates the separate manure row.
+    // Until an explicit manure setting is supplied, inherit the organic assumption.
+    else if (fuel === 'manure' && group && Object.prototype.hasOwnProperty.call(group, 'organic')) value = group.organic;
+    else if (fuel === 'manure' && fallback && Object.prototype.hasOwnProperty.call(fallback, 'organic')) value = fallback.organic;
     if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) throw new Error(unit + ' ' + fuel + ' ' + title + '은 0보다 큰 숫자여야 합니다.');
     return value;
   }
@@ -164,6 +170,7 @@
     return {
       quantity: quantity,
       measuredQuantity: measuredQuantity,
+      referenceMeasuredQuantity: referenceMeasuredQuantity,
       referenceQuantity: referenceMeasuredQuantity === null ? null : referenceMeasuredQuantity * coefficient,
       averageTonPerHour: quantity === null ? null : quantity / durationHours,
       complete: counters.every(function (item) { return item.complete; }),
@@ -174,31 +181,69 @@
     };
   }
 
-  function organicFuel(organic, unit, period, coefficient) {
-    let issues = [], value = null;
-    if (!organic || organic[unit] == null || organic[unit] === '') issues.push('organic_not_entered');
+  function manualFuel(input, unit, period, coefficient, fuelName) {
+    const issues = [];
+    let value = null;
+    const label = fuelName === 'manure' ? 'manure' : 'organic';
+    if (!input || input[unit] == null || input[unit] === '') issues.push(label + '_not_entered');
     else {
       let matchingPeriod = false;
-      try { matchingPeriod = instant(organic.start) === period.startMs && instant(organic.end) === period.endMs; } catch (_) { /* Missing period cannot authorize reuse. */ }
-      if (!matchingPeriod) issues.push('stale_organic_period');
-      else if (typeof organic[unit] !== 'number' || !Number.isFinite(organic[unit]) || organic[unit] < 0) issues.push('invalid_organic');
-      else value = organic[unit];
+      try { matchingPeriod = instant(input.start) === period.startMs && instant(input.end) === period.endMs; } catch (_) { /* Missing period cannot authorize reuse. */ }
+      if (!matchingPeriod) issues.push('stale_' + label + '_period');
+      else if (typeof input[unit] !== 'number' || !Number.isFinite(input[unit]) || input[unit] < 0) issues.push('invalid_' + label);
+      else value = input[unit];
     }
     const quantity = value === null ? null : value * coefficient;
-    return { quantity: quantity, enteredQuantity: value, complete: quantity !== null, coefficient: coefficient, averageTonPerHour: quantity === null ? null : quantity / period.durationHours, issues: issues, source: 'period-user-input' };
+    return {
+      quantity: quantity,
+      enteredQuantity: value,
+      measuredQuantity: value,
+      referenceQuantity: quantity,
+      complete: quantity !== null,
+      coefficient: coefficient,
+      averageTonPerHour: quantity === null ? null : quantity / period.durationHours,
+      issues: issues,
+      source: 'period-user-input'
+    };
+  }
+
+  function implicitZeroFuel(period, coefficient) {
+    return {
+      quantity: 0,
+      enteredQuantity: 0,
+      measuredQuantity: 0,
+      referenceQuantity: 0,
+      complete: true,
+      coefficient: coefficient,
+      averageTonPerHour: 0,
+      issues: [],
+      source: 'legacy-implicit-zero'
+    };
+  }
+
+  function organicFuel(organic, unit, period, coefficient) {
+    return manualFuel(organic, unit, period, coefficient, 'organic');
   }
 
   function heatResult(quantities, calorifics) {
     const heats = {};
     FUELS.forEach(function (fuel) { heats[fuel] = quantities[fuel] === null ? null : quantities[fuel] * calorifics[fuel] / 1000; });
     heats.total = sumKnown(FUELS.map(function (fuel) { return heats[fuel]; }));
+    // Keep the legacy ratios keys stable. `organic` now means the organic group
+    // (organic solid fuel + manure), while detailed shares are exposed separately.
     const ratios = { bio: null, organic: null, total: null };
+    const fuelRatios = { bio: null, organic: null, manure: null, organicGroup: null, total: null };
     if (heats.total !== null && heats.total > 0) {
-      ratios.bio = heats.bio / heats.total * 100;
-      ratios.organic = heats.organic / heats.total * 100;
-      ratios.total = (heats.bio + heats.organic) / heats.total * 100;
+      fuelRatios.bio = heats.bio / heats.total * 100;
+      fuelRatios.organic = heats.organic / heats.total * 100;
+      fuelRatios.manure = heats.manure / heats.total * 100;
+      fuelRatios.organicGroup = (heats.organic + heats.manure) / heats.total * 100;
+      fuelRatios.total = (heats.bio + heats.organic + heats.manure) / heats.total * 100;
+      ratios.bio = fuelRatios.bio;
+      ratios.organic = fuelRatios.organicGroup;
+      ratios.total = fuelRatios.total;
     }
-    return { heats: heats, ratios: ratios };
+    return { heats: heats, ratios: ratios, fuelRatios: fuelRatios };
   }
 
   function analyze(reference, options) {
@@ -222,24 +267,33 @@
       const coal = aggregateFuel(counters.filter(function (item) { return item.id.startsWith(unit + 'Coal'); }), coefficients.coal, period.durationHours);
       const bio = aggregateFuel(counters.filter(function (item) { return item.id === unit + 'Bio'; }), coefficients.bio, period.durationHours);
       const organic = organicFuel(options.organic, unit, period, coefficients.organic);
-      const result = heatResult({ coal: coal.quantity, bio: bio.quantity, organic: organic.quantity }, calorifics);
-      units[unit] = { coal: coal, bio: bio, organic: organic, calorifics: calorifics, heats: result.heats, ratios: result.ratios, complete: coal.complete && bio.complete && organic.complete, referenceOnly: true };
+      const hasManureInput = Object.prototype.hasOwnProperty.call(options, 'manure');
+      const manure = hasManureInput ? manualFuel(options.manure, unit, period, coefficients.manure, 'manure') : implicitZeroFuel(period, coefficients.manure);
+      const result = heatResult({ coal: coal.quantity, bio: bio.quantity, organic: organic.quantity, manure: manure.quantity }, calorifics);
+      units[unit] = { coal: coal, bio: bio, organic: organic, manure: manure, calorifics: calorifics, heats: result.heats, ratios: result.ratios, fuelRatios: result.fuelRatios, complete: coal.complete && bio.complete && organic.complete && manure.complete, referenceOnly: true };
       if (!coal.complete) warnings.push((index + 1) + '호기 석탄: 누락 또는 비정상 데이터로 사용량을 확정하지 않았습니다.');
       if (!bio.complete) warnings.push((index + 1) + '호기 바이오: 누락 또는 비정상 데이터로 사용량을 확정하지 않았습니다.');
-      if (!organic.complete) warnings.push((index + 1) + '호기 유기성: 선택한 기간의 사용량 입력이 필요합니다.');
+      if (!organic.complete) warnings.push((index + 1) + '호기 유기성 고형연료: 선택한 기간의 사용량 입력이 필요합니다.');
+      if (hasManureInput && !manure.complete) warnings.push((index + 1) + '호기 축분: 선택한 기간의 사용량 입력이 필요합니다.');
       if (result.heats.total === 0) warnings.push((index + 1) + '호기: 총 투입열량이 0이므로 혼소율을 계산하지 않았습니다.');
     });
     const combinedHeats = {};
     FUELS.concat(['total']).forEach(function (fuel) { combinedHeats[fuel] = sumKnown(UNIT_IDS.map(function (unit) { return units[unit].heats[fuel]; })); });
     const combinedRatios = { bio: null, organic: null, total: null };
+    const combinedFuelRatios = { bio: null, organic: null, manure: null, organicGroup: null, total: null };
     if (combinedHeats.total !== null && combinedHeats.total > 0) {
-      combinedRatios.bio = combinedHeats.bio / combinedHeats.total * 100;
-      combinedRatios.organic = combinedHeats.organic / combinedHeats.total * 100;
-      combinedRatios.total = (combinedHeats.bio + combinedHeats.organic) / combinedHeats.total * 100;
+      combinedFuelRatios.bio = combinedHeats.bio / combinedHeats.total * 100;
+      combinedFuelRatios.organic = combinedHeats.organic / combinedHeats.total * 100;
+      combinedFuelRatios.manure = combinedHeats.manure / combinedHeats.total * 100;
+      combinedFuelRatios.organicGroup = (combinedHeats.organic + combinedHeats.manure) / combinedHeats.total * 100;
+      combinedFuelRatios.total = (combinedHeats.bio + combinedHeats.organic + combinedHeats.manure) / combinedHeats.total * 100;
+      combinedRatios.bio = combinedFuelRatios.bio;
+      combinedRatios.organic = combinedFuelRatios.organicGroup;
+      combinedRatios.total = combinedFuelRatios.total;
     }
     const qualityVerified = counters.every(function (counter) { return counter.qualityVerified; });
     if (!qualityVerified) warnings.push('원본에 모든 시점의 품질 정보가 확인되지 않아 운영 저장용 결과로 판정하지 않았습니다.');
-    return { period: period, units: units, combined: { heats: combinedHeats, ratios: combinedRatios }, warnings: warnings, sourceKind: reference.source && reference.source.kind || 'reference-data', qualityVerified: qualityVerified, productionReady: false, databaseWritten: false, calorifics: actualCalorifics, coefficients: actualCoefficients };
+    return { period: period, units: units, combined: { heats: combinedHeats, ratios: combinedRatios, fuelRatios: combinedFuelRatios }, warnings: warnings, sourceKind: reference.source && reference.source.kind || 'reference-data', qualityVerified: qualityVerified, productionReady: false, databaseWritten: false, calorifics: actualCalorifics, coefficients: actualCoefficients };
   }
 
   return Object.freeze({ dailyRange: dailyRange, validateDailySource: validateDailySource, analyzeDay: analyzeDay, validateRange: validateRange, analyze: analyze, qualityGood: qualityGood, requiredSeries: REQUIRED_SERIES });

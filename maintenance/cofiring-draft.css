@@ -104,3 +104,98 @@
 .cf-test-tools .cf-actions {margin-top:8px;}
 .cf-live-panel[hidden] {display:none!important;}
 @media(max-width:768px){.cf-live-actions [data-cf-live-saved]{margin-left:0;flex-basis:100%;}.cf-live-actions button{min-height:38px;}}
+
+/* =========================================================
+   CO-FIRING CALCULATION LAYOUT V3
+   Excel-style measured -> correction -> actual -> heat flow
+   ========================================================= */
+.cofiring-draft {
+  --cf-line:#dbe4ef;
+  --cf-soft:#f6f8fc;
+  --cf-green:#267154;
+  --cf-orange:#9b6219;
+}
+.cofiring-draft .cf-calculation-settings { padding:0; overflow:hidden; }
+.cofiring-draft .cf-settings-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; padding:16px 18px 13px; border-bottom:1px solid var(--cf-line); background:#fbfcfe; }
+.cofiring-draft .cf-settings-heading h3 { margin:2px 0 3px; font-size:17px; }
+.cofiring-draft .cf-settings-heading p { color:var(--cf-muted); font-size:13px; }
+.cofiring-draft .cf-settings-kicker, .cofiring-draft .cf-unit-kicker { display:block; color:#7789a3; font-size:10px; font-weight:900; letter-spacing:1.3px; }
+.cofiring-draft .cf-settings-actions { display:flex; flex-direction:column; align-items:flex-end; gap:6px; min-width:210px; }
+.cofiring-draft .cf-settings-actions span { max-width:320px; color:var(--cf-muted); font-size:12px; text-align:right; overflow-wrap:anywhere; }
+.cofiring-draft .cf-settings-actions span[data-tone="error"] { color:#a53d37; }
+.cofiring-draft .cf-settings-actions span[data-tone="success"] { color:var(--cf-green); }
+.cofiring-draft .cf-table-scroll { width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.cofiring-draft .cf-settings--matrix { min-width:780px; margin:0; table-layout:fixed; }
+.cofiring-draft .cf-settings--matrix th,
+.cofiring-draft .cf-settings--matrix td { padding:8px 10px; border-right:1px solid #edf1f6; border-bottom:1px solid #e7edf5; text-align:center; vertical-align:middle; }
+.cofiring-draft .cf-settings--matrix thead th { background:#f1f5fa; color:#455d7b; font-size:12px; font-weight:900; }
+.cofiring-draft .cf-settings--matrix tbody th { width:150px; background:#fbfcfe; color:#263f5f; text-align:left; font-weight:800; }
+.cofiring-draft .cf-settings--matrix input { width:100%; max-width:118px; min-height:34px; margin:0 auto; border:1px solid #c7d4e5; border-radius:6px; padding:5px 7px; background:#fff; color:#172f4e; text-align:right; font-variant-numeric:tabular-nums; }
+.cofiring-draft .cf-setting-cell { display:flex; align-items:center; justify-content:center; gap:5px; white-space:nowrap; }
+.cofiring-draft .cf-setting-cell span { color:#8190a4; font-size:10px; }
+.cofiring-draft .cf-coefficient-input { font-weight:800; }
+.cofiring-draft .cf-calculation-settings > .cf-formula { margin:0!important; padding:11px 18px 13px; border-top:1px solid #edf1f6; background:#fbfcfe; font-size:12px; line-height:1.55; }
+
+.cofiring-draft .cf-combined-summary { grid-column:1/-1; display:grid; grid-template-columns:minmax(230px,.9fr) minmax(0,2.1fr); overflow:hidden; border:1px solid #cddcf0; border-radius:13px; background:#fff; box-shadow:0 4px 14px rgba(38,70,112,.06); }
+.cofiring-draft .cf-combined-main { display:flex; flex-direction:column; justify-content:center; min-height:116px; padding:18px 22px; background:linear-gradient(135deg,#eff5ff,#f7f9ff); border-right:1px solid #dbe6f5; }
+.cofiring-draft .cf-combined-main > span { color:#315b93; font-size:13px; font-weight:900; }
+.cofiring-draft .cf-combined-main > strong { margin:3px 0 1px; color:#214f9e; font-size:38px; line-height:1.12; font-variant-numeric:tabular-nums; letter-spacing:-1px; }
+.cofiring-draft .cf-combined-main > small { color:#7185a0; }
+.cofiring-draft .cf-combined-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:stretch; }
+.cofiring-draft .cf-combined-metrics > div { display:flex; flex-direction:column; justify-content:center; min-width:0; padding:16px 18px; }
+.cofiring-draft .cf-combined-metrics > div + div { border-left:1px solid #e5ebf3; }
+.cofiring-draft .cf-combined-metrics span { color:#647790; font-size:12px; font-weight:800; }
+.cofiring-draft .cf-combined-metrics strong { margin-top:4px; color:#1e3858; font-size:25px; font-variant-numeric:tabular-nums; }
+.cofiring-draft .cf-combined-metrics small { color:#8a98aa; font-size:11px; }
+
+.cofiring-draft .cf-unit__header { padding:13px 15px; }
+.cofiring-draft .cf-unit__header > div { display:flex; align-items:baseline; gap:8px; }
+.cofiring-draft .cf-unit__body { padding:13px 14px 14px; }
+.cofiring-draft .cf-manual-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-bottom:12px; }
+.cofiring-draft .cf-manual-grid .cf-manual-editor { padding:10px 11px; border:1px solid #e0e8f2; border-radius:9px; background:#fafbfd; }
+.cofiring-draft .cf-manual-grid .cf-organic-title { margin-bottom:6px; }
+.cofiring-draft .cf-manual-grid .cf-organic-controls { justify-content:flex-start; }
+.cofiring-draft .cf-manual-grid .cf-organic-meta { text-align:left; }
+.cofiring-draft .cf-manual-grid .cf-organic-secondary { justify-content:flex-start; }
+.cofiring-draft .cf-manual-editor--manure .cf-manual-tag { color:#765122; background:#fbf2e5; }
+.cofiring-draft .cf-organic-secondary [data-cf-manure-clear] { color:#a53d37; }
+
+.cofiring-draft .cf-fuel-table { width:100%; min-width:620px; border-collapse:separate; border-spacing:0; border:1px solid #dfe7f1; border-radius:9px; overflow:hidden; table-layout:fixed; }
+.cofiring-draft .cf-fuel-table th,
+.cofiring-draft .cf-fuel-table td { padding:9px 8px; border-right:1px solid #e8edf4; border-bottom:1px solid #e8edf4; text-align:right; vertical-align:middle; font-size:12px; font-variant-numeric:tabular-nums; }
+.cofiring-draft .cf-fuel-table thead th { background:#eef3f9; color:#536985; font-size:11px; font-weight:900; line-height:1.3; text-align:center; }
+.cofiring-draft .cf-fuel-table thead small { color:#8b98aa; font-size:9px; font-weight:700; }
+.cofiring-draft .cf-fuel-table tbody th { width:125px; background:#fafbfd; color:#294564; font-weight:800; text-align:left; }
+.cofiring-draft .cf-fuel-table tr:last-child th,
+.cofiring-draft .cf-fuel-table tr:last-child td { border-bottom:0; }
+.cofiring-draft .cf-fuel-table th:last-child,
+.cofiring-draft .cf-fuel-table td:last-child { border-right:0; }
+.cofiring-draft .cf-fuel-table .cf-actual-cell { background:#f2f7ff; }
+.cofiring-draft .cf-fuel-table .cf-actual-cell strong { color:#1d4e91; font-size:13px; }
+.cofiring-draft .cf-table-reference { display:block; margin-top:2px; color:var(--cf-orange); font-size:9px; line-height:1.3; white-space:normal; }
+
+.cofiring-draft .cf-ratios { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.cofiring-draft .cf-ratio { min-height:75px; display:flex; flex-direction:column; justify-content:center; }
+.cofiring-draft .cf-ratio strong { font-size:22px; }
+.cofiring-draft .cf-ratio small { color:#8896a8; font-size:10px; }
+.cofiring-draft .cf-ratio--total { grid-column:auto; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; }
+.cofiring-draft .cf-ratio--total strong { font-size:24px; margin-top:3px; }
+.cofiring-draft .cf-inputs { margin-top:0; }
+
+@media (max-width:1180px) {
+  .cofiring-draft .cf-units { grid-template-columns:1fr; }
+  .cofiring-draft .cf-combined-summary { grid-column:auto; }
+}
+@media (max-width:760px) {
+  .cofiring-draft .cf-settings-heading { flex-direction:column; }
+  .cofiring-draft .cf-settings-actions { width:100%; min-width:0; align-items:stretch; }
+  .cofiring-draft .cf-settings-actions span { max-width:none; text-align:left; }
+  .cofiring-draft .cf-combined-summary { grid-template-columns:1fr; }
+  .cofiring-draft .cf-combined-main { min-height:100px; border-right:0; border-bottom:1px solid #dbe6f5; }
+  .cofiring-draft .cf-combined-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .cofiring-draft .cf-combined-metrics > div { padding:12px 10px; }
+  .cofiring-draft .cf-combined-metrics strong { font-size:19px; }
+  .cofiring-draft .cf-manual-grid { grid-template-columns:1fr; }
+  .cofiring-draft .cf-ratios { grid-template-columns:1fr; }
+  .cofiring-draft .cf-ratio--total { grid-column:auto; }
+}

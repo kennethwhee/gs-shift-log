@@ -20,7 +20,7 @@ function makeHarness(options={}){
  const original=JSON.parse(fs.readFileSync(path.join(repo,'maintenance/cofiring-draft-reference.json'),'utf8'));
  let calls=0;const container=new Element(),document={readyState:'loading',addEventListener(){},createElement(){return new Element();},querySelector(){return null;},getElementById(){return null;}};
  const context=vm.createContext({CofiringCore:core,console,document,fetch:async(...args)=>{calls++;if(options.fetch)return options.fetch(...args);return {ok:true,json:async()=>JSON.parse(JSON.stringify(original))};}});
- for(const name of ['cofiring-organic-storage.js','cofiring-draft.js'])vm.runInContext(fs.readFileSync(path.join(repo,'maintenance',name),'utf8'),context);
+ for(const name of ['cofiring-organic-storage.js','cofiring-manure-storage.js','cofiring-settings-storage.js','cofiring-draft.js'])vm.runInContext(fs.readFileSync(path.join(repo,'maintenance',name),'utf8'),context);
  const controller=context.CofiringDraft.mount(container,{reference:options.reference});
  return {container,controller,find:s=>container.querySelector(`[data-cf-${s}]`),all:s=>container.querySelectorAll(`[data-cf-${s}]`),get calls(){return calls;}};
 }
