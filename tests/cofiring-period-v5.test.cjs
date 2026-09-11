@@ -35,7 +35,7 @@ test('V5.2 markup is compact by default while keeping Excel detail tables',()=>{
  const css=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.css'),'utf8');assert.match(css,/\.cfv5-input-yellow\{background:#fff200/);assert.match(css,/\.cfv5-input-blue\{background:#8ec9e6/);assert.match(css,/\.cfv5-ratio\{color:#f00000/);assert.match(css,/\.cfv52-summary-grid\{display:grid/);assert.match(css,/max-width:1180px/);
 });
 test('host loads V5 period assets instead of the old daily draft UI',()=>{
- const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-period-compact-v52/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260911-period-boundary-v53/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-period-compact-v52/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260911-bio-ratio-v54/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
 });
 
 test('V5.1 calculate action is one-click saved-first and surfaces query progress/errors',()=>{
@@ -64,4 +64,18 @@ test('V5.2 key view keeps manual fuel inputs visible and advanced sections folde
  assert.match(html,/<details class="cfv52-fold">/);
  assert.match(html,/<details class="cfv52-fold cfv52-detail">/);
  assert.match(html,/Coal 실사용|주요 계산값/);
+});
+
+
+test('V5.4 Bio mix rate is calculated from Coal+Bio heat without waiting for organic or manure',()=>{
+ const unit1={heats:{coal:409.93*5868/1000,bio:311.74*3237/1000,organic:null,manure:null,total:null}};
+ const unit2={heats:{coal:450.34*5868/1000,bio:254.15*3237/1000,organic:null,manure:null,total:null}};
+ assert.ok(Math.abs(ui.coalBioRatio(unit1)-29.55282513593901)<1e-9);
+ assert.ok(Math.abs(ui.coalBioRatio(unit2)-23.740761662899686)<1e-9);
+ const combined={combined:{heats:{coal:unit1.heats.coal+unit2.heats.coal,bio:unit1.heats.bio+unit2.heats.bio}}};
+ assert.ok(Math.abs(ui.combinedCoalBio(combined).ratio-26.625374866987112)<1e-9);
+ const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');
+ assert.match(js,/Bio 혼소율 \(Coal\+Bio\)/);
+ assert.match(js,/종합 혼소율만 대기/);
+ assert.match(ui.markup(),/Bio 혼소율<br><small>\(Coal\+Bio 기준\)<\/small>/);
 });

@@ -11,6 +11,9 @@
   const num=(v,p=2)=>typeof v==='number'&&Number.isFinite(v)?v.toLocaleString('ko-KR',{minimumFractionDigits:p,maximumFractionDigits:p}):'—';
   const pct=v=>typeof v==='number'&&Number.isFinite(v)?v.toFixed(2)+'%':'—';
   const sum=values=>values.every(v=>typeof v==='number'&&Number.isFinite(v))?values.reduce((a,b)=>a+b,0):null;
+  function coalBioHeat(unit){const coal=unit?.heats?.coal,bio=unit?.heats?.bio;return typeof coal==='number'&&Number.isFinite(coal)&&typeof bio==='number'&&Number.isFinite(bio)?coal+bio:null;}
+  function coalBioRatio(unit){const total=coalBioHeat(unit),bio=unit?.heats?.bio;return total!==null&&total>0&&typeof bio==='number'&&Number.isFinite(bio)?bio/total*100:null;}
+  function combinedCoalBio(result){const coal=result?.combined?.heats?.coal,bio=result?.combined?.heats?.bio;const total=typeof coal==='number'&&Number.isFinite(coal)&&typeof bio==='number'&&Number.isFinite(bio)?coal+bio:null;return {heat:total,ratio:total!==null&&total>0?bio/total*100:null};}
   function authHeaders(){return typeof root.getShiftLogAuthHeaders==='function'?root.getShiftLogAuthHeaders():{};}
   function isMobile(){try{return /^\/mobile(?:\/|$)/i.test(root.location?.pathname||'')||/Android|iPhone|iPad|iPod|Mobile/i.test(root.navigator?.userAgent||'')||(root.navigator?.platform==='MacIntel'&&Number(root.navigator?.maxTouchPoints)>0)||(typeof root.isShiftLogMobileView==='function'?root.isShiftLogMobileView():!!root.matchMedia?.('(max-width: 768px)').matches);}catch(_){return true;}}
   function kstNowMinute(offsetMinutes=0){const ms=Date.now()+9*3600000+offsetMinutes*60000;return new Date(ms).toISOString().slice(0,16);}
@@ -21,7 +24,7 @@
     return `<div class="cfv5-sheet">
       <div class="cfv5-title-row">
         <div><strong>1. Bio 혼소율 추정</strong><span>Coal · Bio-SRF · 유기성 고형연료 · 축분</span></div>
-        <span class="cfv5-version">기간계산 V5.2</span>
+        <span class="cfv5-version">기간계산 V5.4</span>
       </div>
 
       <div class="cfv5-query-box">
@@ -75,7 +78,7 @@
         <div class="cfv5-section-label">Coal &amp; Bio-SRF 상세</div>
         <div class="cfv5-table-scroll"><table class="cfv5-grid cfv5-coal-bio"><thead>
           <tr><th rowspan="3">설비구분</th><th colspan="6" class="cfv5-head-coal">Coal</th><th colspan="6" class="cfv5-head-bio">Bio-SRF</th><th colspan="2" class="cfv5-head-ratio">혼소율 산정</th></tr>
-          <tr><th colspan="2">계측 사용량</th><th rowspan="2">계측기<br>보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th colspan="2">계측 사용량</th><th rowspan="2">계측기<br>보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th rowspan="2">총투입열량<br>(Gcal)</th><th rowspan="2">Bio 혼소율<br>(%)</th></tr>
+          <tr><th colspan="2">계측 사용량</th><th rowspan="2">계측기<br>보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th colspan="2">계측 사용량</th><th rowspan="2">계측기<br>보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th rowspan="2">Coal+Bio<br>투입열량<br>(Gcal)</th><th rowspan="2">Bio 혼소율<br><small>(Coal+Bio 기준)</small><br>(%)</th></tr>
           <tr><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th></tr>
         </thead><tbody data-cfv5-main-body>${rowsPlaceholder(3,15)}</tbody></table></div>
 
@@ -88,7 +91,7 @@
       </details>
 
       <details class="cfv5-warnings" data-cfv5-warning-box hidden><summary>자료 확인 내용</summary><ul data-cfv5-warnings></ul></details>
-      <p class="cfv5-foot">화면에는 실사용량과 혼소율 등 핵심값만 우선 표시합니다. 세부 계측값·보정계수·열량은 [상세 계산표 보기]에서 확인할 수 있습니다.</p>
+      <p class="cfv5-foot">Bio 혼소율은 Coal+Bio 투입열량만으로 즉시 계산합니다. 종합 혼소율은 유기성·축분 입력 후 전체 연료 열량 기준으로 계산합니다. 세부값은 [상세 계산표 보기]에서 확인할 수 있습니다.</p>
     </div>`;
   }
   function summaryPlaceholder(){return `<article class="cfv52-card"><header>1호기</header><div class="cfv52-card-empty">조회 전</div></article><article class="cfv52-card"><header>2호기</header><div class="cfv52-card-empty">조회 전</div></article><article class="cfv52-card cfv52-card-total"><header>종합</header><div class="cfv52-card-empty">조회 전</div></article>`;}
@@ -103,10 +106,10 @@
   function renderMain(container,result){const body=container.querySelector('[data-cfv5-main-body]');if(!body)return;const hours=result?.period?.durationHours||0,rows=[];
     for(const [i,unit] of UNITS.entries()){
       const u=result?.units?.[unit];if(!u){rows.push(`<tr><th>${i+1}호기</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr>`);continue;}
-      rows.push(`<tr><th>${i+1}호기</th><td class="cfv5-measured">${num(u.coal.measuredQuantity)}</td><td>${num(average(u.coal.measuredQuantity,hours))}</td><td class="cfv5-factor">${num(u.coal.coefficient,4)}</td><td class="cfv5-actual">${num(u.coal.quantity)}</td><td>${num(u.coal.averageTonPerHour)}</td><td>${num(u.heats.coal,1)}</td><td class="cfv5-measured">${num(u.bio.measuredQuantity)}</td><td>${num(average(u.bio.measuredQuantity,hours))}</td><td class="cfv5-factor">${num(u.bio.coefficient,4)}</td><td class="cfv5-actual">${num(u.bio.quantity)}</td><td>${num(u.bio.averageTonPerHour)}</td><td>${num(u.heats.bio,1)}</td><td>${num(u.heats.total,1)}</td><td class="cfv5-ratio">${pct(u.fuelRatios?.bio)}</td></tr>`);
+      rows.push(`<tr><th>${i+1}호기</th><td class="cfv5-measured">${num(u.coal.measuredQuantity)}</td><td>${num(average(u.coal.measuredQuantity,hours))}</td><td class="cfv5-factor">${num(u.coal.coefficient,4)}</td><td class="cfv5-actual">${num(u.coal.quantity)}</td><td>${num(u.coal.averageTonPerHour)}</td><td>${num(u.heats.coal,1)}</td><td class="cfv5-measured">${num(u.bio.measuredQuantity)}</td><td>${num(average(u.bio.measuredQuantity,hours))}</td><td class="cfv5-factor">${num(u.bio.coefficient,4)}</td><td class="cfv5-actual">${num(u.bio.quantity)}</td><td>${num(u.bio.averageTonPerHour)}</td><td>${num(u.heats.bio,1)}</td><td>${num(coalBioHeat(u),1)}</td><td class="cfv5-ratio">${pct(coalBioRatio(u))}</td></tr>`);
     }
     const one=result?.units?.unit1,two=result?.units?.unit2;
-    rows.push(`<tr class="cfv5-sum"><th>계</th><td>${num(sum([one?.coal?.measuredQuantity,two?.coal?.measuredQuantity]))}</td><td>${num(sum([average(one?.coal?.measuredQuantity,hours),average(two?.coal?.measuredQuantity,hours)]))}</td><td>${coefficientCell([one?.coal?.coefficient,two?.coal?.coefficient])}</td><td class="cfv5-actual">${num(sum([one?.coal?.quantity,two?.coal?.quantity]))}</td><td>${num(sum([one?.coal?.averageTonPerHour,two?.coal?.averageTonPerHour]))}</td><td>${num(result?.combined?.heats?.coal,1)}</td><td>${num(sum([one?.bio?.measuredQuantity,two?.bio?.measuredQuantity]))}</td><td>${num(sum([average(one?.bio?.measuredQuantity,hours),average(two?.bio?.measuredQuantity,hours)]))}</td><td>${coefficientCell([one?.bio?.coefficient,two?.bio?.coefficient])}</td><td class="cfv5-actual">${num(sum([one?.bio?.quantity,two?.bio?.quantity]))}</td><td>${num(sum([one?.bio?.averageTonPerHour,two?.bio?.averageTonPerHour]))}</td><td>${num(result?.combined?.heats?.bio,1)}</td><td>${num(result?.combined?.heats?.total,1)}</td><td class="cfv5-ratio">${pct(result?.combined?.fuelRatios?.bio)}</td></tr>`);body.innerHTML=rows.join('');
+    rows.push(`<tr class="cfv5-sum"><th>계</th><td>${num(sum([one?.coal?.measuredQuantity,two?.coal?.measuredQuantity]))}</td><td>${num(sum([average(one?.coal?.measuredQuantity,hours),average(two?.coal?.measuredQuantity,hours)]))}</td><td>${coefficientCell([one?.coal?.coefficient,two?.coal?.coefficient])}</td><td class="cfv5-actual">${num(sum([one?.coal?.quantity,two?.coal?.quantity]))}</td><td>${num(sum([one?.coal?.averageTonPerHour,two?.coal?.averageTonPerHour]))}</td><td>${num(result?.combined?.heats?.coal,1)}</td><td>${num(sum([one?.bio?.measuredQuantity,two?.bio?.measuredQuantity]))}</td><td>${num(sum([average(one?.bio?.measuredQuantity,hours),average(two?.bio?.measuredQuantity,hours)]))}</td><td>${coefficientCell([one?.bio?.coefficient,two?.bio?.coefficient])}</td><td class="cfv5-actual">${num(sum([one?.bio?.quantity,two?.bio?.quantity]))}</td><td>${num(sum([one?.bio?.averageTonPerHour,two?.bio?.averageTonPerHour]))}</td><td>${num(result?.combined?.heats?.bio,1)}</td><td>${num(combinedCoalBio(result).heat,1)}</td><td class="cfv5-ratio">${pct(combinedCoalBio(result).ratio)}</td></tr>`);body.innerHTML=rows.join('');
   }
   function manualInput(unit,fuel,value,disabled){return `<input class="cfv5-manual-input" type="text" inputmode="decimal" data-cfv5-manual="${unit}:${fuel}" value="${value==null?'':escapeHtml(value)}" placeholder="미입력" ${disabled?'disabled':''}>`;}
   function renderOrganic(container,result,manualValues){
@@ -128,11 +131,11 @@
     if(!result){host.innerHTML=summaryPlaceholder();if(note)note.textContent='DataPARC 조회 전';return;}
     const cards=[];
     for(const [i,unit] of UNITS.entries()){
-      const u=result?.units?.[unit],manualComplete=!!(u?.organic?.complete&&u?.manure?.complete);
-      cards.push(`<article class="cfv52-card"><header><strong>${i+1}호기</strong><span>${manualComplete?'계산 완료':'유기성/축분 입력 필요'}</span></header><div class="cfv52-metrics">
+      const u=result?.units?.[unit],manualComplete=!!(u?.organic?.complete&&u?.manure?.complete),bioReady=coalBioRatio(u)!==null;
+      cards.push(`<article class="cfv52-card"><header><strong>${i+1}호기</strong><span>${manualComplete?'전체 계산 완료':bioReady?'Bio 계산 완료 · 종합 대기':'조회값 확인'}</span></header><div class="cfv52-metrics">
         ${summaryMetric('Coal 실사용',u?.coal?.quantity,{suffix:'t'})}
         ${summaryMetric('Bio 실사용',u?.bio?.quantity,{suffix:'t'})}
-        ${summaryMetric('Bio 혼소율',u?.fuelRatios?.bio,{ratio:true,emphasis:true})}
+        ${summaryMetric('Bio 혼소율 (Coal+Bio)',coalBioRatio(u),{ratio:true,emphasis:true})}
         ${summaryMetric('총 혼소율',u?.fuelRatios?.total,{ratio:true,emphasis:true})}
       </div></article>`);
     }
@@ -141,7 +144,7 @@
     cards.push(`<article class="cfv52-card cfv52-card-total"><header><strong>종합</strong><span>${result?.combined?.ratios?.total==null?'입력 확인':'열량 기준'}</span></header><div class="cfv52-metrics">
       ${summaryMetric('Coal 합계',sum([one?.coal?.quantity,two?.coal?.quantity]),{suffix:'t'})}
       ${summaryMetric('Bio 합계',sum([one?.bio?.quantity,two?.bio?.quantity]),{suffix:'t'})}
-      ${summaryMetric('유기성+축분',organicTotal==null||manureTotal==null?null:organicTotal+manureTotal,{suffix:'t'})}
+      ${summaryMetric('Bio 혼소율 (Coal+Bio)',combinedCoalBio(result).ratio,{ratio:true,emphasis:true})}
       ${summaryMetric('종합 혼소율',result?.combined?.ratios?.total,{ratio:true,emphasis:true})}
     </div></article>`);
     host.innerHTML=cards.join('');
@@ -179,7 +182,7 @@
       else if(item?.submitting)setStatus(container,'기간 조회 요청을 등록하고 있습니다. 아직 계산 전입니다.','working');
       else if(active?.status==='pending')setStatus(container,'회사 PC Agent 대기 중입니다. 아직 계산 전입니다.','working');
       else if(active?.status==='processing')setStatus(container,'DataPARC 조회·Excel 정리 작업이 진행 중입니다. 서버에 저장 결과가 도착하면 숫자가 자동 표시됩니다. 아직 계산 완료가 아닙니다.','working');
-      else if(item?.saved&&reference)setStatus(container,qualityGapSaved?'DataPARC 중간 품질 공백이 있어도 시작·종료 누적 경계가 정상인 사용량은 표시합니다. [자료 확인 내용]에서 품질 공백 시간을 확인해 주세요.':lastResult?.warnings?.length?'DataPARC 값은 표시되었습니다. 유기성/축분 미입력 항목을 입력하면 최종 혼소율이 계산됩니다.':'저장된 DataPARC 결과를 불러와 혼소율 계산까지 완료했습니다.','success');
+      else if(item?.saved&&reference)setStatus(container,qualityGapSaved?'DataPARC 중간 품질 공백이 있어도 시작·종료 누적 경계가 정상인 사용량은 표시합니다. [자료 확인 내용]에서 품질 공백 시간을 확인해 주세요.':lastResult?.warnings?.length?'Coal/Bio 사용량과 Bio 혼소율은 계산되었습니다. 유기성/축분 입력 후 종합 혼소율까지 계산됩니다.':'저장된 DataPARC 결과를 불러와 혼소율 계산까지 완료했습니다.','success');
     }
     function analyze(){if(!reference)return null;const p=periodSpec(container),setting=readSettings(container),mv=readManual(container),calorifics={unit1:{},unit2:{}},coefficients={unit1:{},unit2:{}};for(const u of UNITS)for(const fuel of FUEL_KEYS){calorifics[u][fuel]=setting[u][fuel].calorific;coefficients[u][fuel]=setting[u][fuel].coefficient;}return core.analyzePeriodSummary(reference,{startLocal:p.startLocal,endLocal:p.endLocal,calorifics,coefficients,organic:{start:p.start,end:p.end,unit1:mv.unit1.organic,unit2:mv.unit2.organic},manure:{start:p.start,end:p.end,unit1:mv.unit1.manure,unit2:mv.unit2.manure}});}
     function calculate(){
@@ -190,7 +193,7 @@
         renderOrganic(container,lastResult,manualValues);
         renderSummary(container,lastResult,manualValues);
         renderWarnings(container,lastResult);
-        setStatus(container,lastResult.warnings?.length?'DataPARC 사용량을 표시했습니다. 유기성/축분이 미입력인 호기는 최종 혼소율을 확정하지 않습니다.':'선택 기간 혼소율 계산이 완료되었습니다.','success');
+        setStatus(container,lastResult.warnings?.length?'Coal/Bio 사용량과 Bio 혼소율을 계산했습니다. 유기성/축분 미입력 호기는 종합 혼소율만 대기합니다.':'선택 기간 혼소율 계산이 완료되었습니다.','success');
         return lastResult;
       }catch(e){setStatus(container,e.message||'혼소율을 계산하지 못했습니다.','error');return null;}
     }
@@ -218,6 +221,6 @@
     updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();selectStores().catch(e=>setStatus(container,e.message,'error'));
     return {calculate,periodChanged,settings,manual,live,dispose(){disposed=true;observer?.disconnect();settings?.dispose();manual?.dispose();live?.dispose();}};
   }
-  root.CofiringPeriodV5={mount,periodSpec,markup,readSettings,readManual};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
+  root.CofiringPeriodV5={mount,periodSpec,markup,readSettings,readManual,coalBioHeat,coalBioRatio,combinedCoalBio};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
   if(root.document){const init=()=>{const container=root.document.querySelector('[data-cofiring-draft-root]');if(container)mount(container);};if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init,{once:true});else init();}
 })(typeof globalThis==='object'?globalThis:this);
