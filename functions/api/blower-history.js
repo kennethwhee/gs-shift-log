@@ -236,6 +236,8 @@ const HISTORY_RECOVERY_V13_CREATED_BY_NAME = "업무일지 V13 문맥복구";
 const OPERATION_AUTO_SOURCE_TYPE = "shift_log_operation_auto";
 const OPERATION_AUTO_CREATED_BY_ID = "operation_auto";
 const OPERATION_AUTO_CREATED_BY_NAME = "업무일지 교체운전 자동";
+const LATEST_REPLACEMENT_AUTO_CREATED_BY_ID = "latest_replacement_auto";
+const LATEST_REPLACEMENT_AUTO_CREATED_BY_NAME = "업무일지 최신화 V-Belt 자동반영";
 const OPERATION_SYNC_DEFAULT_DAYS = 14;
 
 /* [FBHE-VIBRATION-SHADOW-V1]
@@ -11450,8 +11452,16 @@ async function scanShiftLogs(database, user, body, prepared = null) {
   ], recognitionAssets, parseOnce);
   let detectedCount = 0;
   let insertedCount = 0;
+  let autoAppliedReplacementCount = 0;
+  let autoLinkedReplacementCount = 0;
+  let pendingReplacementTimeCount = 0;
   let excludedPartLeaderLogs = 0;
   let suppressedDuplicateFragments = 0;
+  const autoApplyConfirmedReplacements = prepared && body.autoApplyConfirmedReplacements === true;
+  const autoReplacementUser = {
+    employeeNo: LATEST_REPLACEMENT_AUTO_CREATED_BY_ID,
+    name: LATEST_REPLACEMENT_AUTO_CREATED_BY_NAME
+  };
 
   for (const row of logs) {
     const rawFragments = parseOnce(row);
@@ -11508,6 +11518,54 @@ async function scanShiftLogs(database, user, body, prepared = null) {
         );
 
         if (detection.inserted) insertedCount += 1;
+        if (!autoApplyConfirmedReplacements || detection.alreadyEvent) {
+          if (autoApplyConfirmedReplacements && detection.alreadyEvent) autoLinkedReplacementCount += 1;
+          continue;
+        }
+
+        const candidate = detection.candidate;
+        if (!candidate || candidate.status !== "pending") continue;
+
+        // A current-cycle reset needs the actual replacement instant. A date-only
+        // work-log entry remains a review candidate rather than assuming midnight,
+        // which could incorrectly count pre-replacement RUN time.
+        const exactSourceTime = normalizeCanonicalEntryTime(sourceRow.sourceTime) ||
+          normalizeCanonicalEntryTime(sourceRow.sourceText);
+        if (!exactSourceTime) {
+          pendingReplacementTimeCount += 1;
+          continue;
+        }
+
+        const eventDate = detectionDateTime(sourceRow);
+        const sameDayEvent = eventDate
+          ? await findSameDayEvent(database, asset.tag_number, "replacement", eventDate, spec.issueType)
+          : null;
+        if (sameDayEvent) {
+          const linkedAt = new Date().toISOString();
+          await database.prepare(`
+            UPDATE blower_history_candidates
+            SET status = 'auto_confirmed', reviewed_by_id = ?, reviewed_by_name = ?, reviewed_at = ?
+            WHERE id = ? AND status = 'pending'
+          `).bind(
+            LATEST_REPLACEMENT_AUTO_CREATED_BY_ID,
+            LATEST_REPLACEMENT_AUTO_CREATED_BY_NAME,
+            linkedAt,
+            candidate.id
+          ).run();
+          autoLinkedReplacementCount += 1;
+          continue;
+        }
+
+        const applied = await reviewCandidate(database, autoReplacementUser, {
+          id: candidate.id,
+          decision: "confirm",
+          eventDate,
+          issueType: spec.issueType,
+          actionType: spec.actionType,
+          note: "최신화 시 업무일지의 확정 V-Belt 교체 자동반영"
+        }, { autoConfirmed: true });
+        if (!applied.ok) return applied;
+        autoAppliedReplacementCount += 1;
       }
     }
   }
@@ -11524,12 +11582,15 @@ async function scanShiftLogs(database, user, body, prepared = null) {
     duplicateSimilarityThreshold: DUPLICATE_SIMILARITY_THRESHOLD,
     detectedCount,
     insertedCount,
+    autoAppliedReplacementCount,
+    autoLinkedReplacementCount,
+    pendingReplacementTimeCount,
     // Bounded refresh needs counts only; the final overview reads candidates once.
     ...(prepared ? {} : { pendingCandidates: await loadCandidates(database, "pending", 300) })
   });
 }
 
-async function reviewCandidate(database, user, body) {
+async function reviewCandidate(database, user, body, options = {}) {
   const id = normalizeText(body.id);
   const decision = normalizeText(body.decision);
 
@@ -11655,18 +11716,19 @@ async function reviewCandidate(database, user, body) {
     return result;
   }
 
+  const finalStatus = options.autoConfirmed === true ? "auto_confirmed" : "confirmed";
   const confirmed = await database
     .prepare(`
       UPDATE blower_history_candidates
       SET
-        status = 'confirmed',
+        status = ?,
         reviewed_at = ?
       WHERE id = ?
         AND status = 'pending'
         AND reviewed_by_id = ?
         AND reviewed_at = ?
     `)
-    .bind(now, id, user.employeeNo, now)
+    .bind(finalStatus, now, id, user.employeeNo, now)
     .run();
 
   if (Number(confirmed?.meta?.changes || 0) === 0) {
@@ -11675,7 +11737,10 @@ async function reviewCandidate(database, user, body) {
 
   return jsonResponse({
     ok: true,
-    message: "자동감지 내용을 확정하여 이력에 반영했습니다."
+    autoConfirmed: options.autoConfirmed === true,
+    message: options.autoConfirmed === true
+      ? "업무일지의 확정 V-Belt 교체를 자동 반영하고 새 Cycle을 시작했습니다."
+      : "자동감지 내용을 확정하여 이력에 반영했습니다."
   });
 }
 
@@ -14438,7 +14503,10 @@ async function latestLogsStep(database, user, body, options = {}) {
     const page = incremental ? await loadIncrementalLogPage(database, body, options)
       : await loadLatestLogPage(database, body, options);
     const response = body.phase === 'replacement'
-      ? await scanShiftLogs(database, user, { days: 365 }, page)
+      ? await scanShiftLogs(database, user, {
+          days: 365,
+          autoApplyConfirmedReplacements: incremental && body.autoApplyConfirmedReplacements === true
+        }, page)
       : await syncOperationChanges(database, user, { days: 365 }, page);
     if (!response.ok) return response;
     const result = await response.json();
@@ -14448,6 +14516,9 @@ async function latestLogsStep(database, user, body, options = {}) {
       limit: page.limit, done: page.done, nextCursor: page.nextCursor,
       scannedLogCount: page.logs.length,
       detectedCount: Number(result.detectedCount || 0), insertedCount: Number(result.insertedCount || 0),
+      autoAppliedReplacementCount: Number(result.autoAppliedReplacementCount || 0),
+      autoLinkedReplacementCount: Number(result.autoLinkedReplacementCount || 0),
+      pendingReplacementTimeCount: Number(result.pendingReplacementTimeCount || 0),
       detectedChangeovers: Number(result.detectedChangeovers || 0),
       appliedStateChanges: Number(result.appliedStateChanges || 0),
       appliedChangeovers: Number(result.appliedChangeovers || 0),

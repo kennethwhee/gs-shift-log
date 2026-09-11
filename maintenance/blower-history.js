@@ -10511,13 +10511,13 @@
       try {
         if (!core) throw new Error("통합조회 모듈이 없습니다. Ctrl+F5 후 다시 확인해 주세요.");
         assertUnifiedRefreshWritable();
-        progress("새로 등록·수정된 업무일지 확인 중 · 기존 DataPARC 조회값 유지");
+        progress("새로 등록·수정된 업무일지에서 V-Belt 교체 확인 중 · 기존 DataPARC 조회값 유지 · 확정 교체는 Cycle 0시간으로 반영 후 DataPARC 조회");
         // Preserve V13 candidate review, without parsing 365 days in a single request.
         const logResult = await core.refreshLogsForRuntime(io, { resume: state.unifiedLogResume });
         partial = !logResult.complete;
         state.operationSyncCompleted = logResult.complete;
         logNote = logResult.complete
-          ? `업무일지 신규·변경분 확인 · 새 교체 후보 ${Number(logResult.totals.insertedCount || 0)}건 · 교체운전 ${Number(logResult.totals.appliedStateChanges || 0)}건`
+          ? `업무일지 신규·변경분 확인 · 확정 V-Belt 교체 자동반영 포함 · 감지 ${Number(logResult.totals.insertedCount || 0)}건 · 교체운전 ${Number(logResult.totals.appliedStateChanges || 0)}건`
           : `업무일지 확인 미완료 · ${logResult.warning} · 운전시간은 저장된 교체 기준`;
         phase = "조회 계획";
         await io.reload();

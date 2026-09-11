@@ -312,7 +312,7 @@
     const checkpoint = () => io.checkpoint?.({ phase, window, cursor, limit, totals: { ...totals } });
     checkpoint();
     while (pages++ < 20000) {
-      const label = phase === 'replacement' ? '교체 기록 확인' : '교체운전 확인';
+      const label = phase === 'replacement' ? 'V-Belt 교체 기록 확인' : '교체운전 확인';
       const countKey = phase === 'replacement' ? 'scannedReplacementLogs' : 'scannedOperationLogs';
       const position = `${label} · ${totals[countKey]}건 확인${cursor?.workDate ? ' · ' + cursor.workDate : ''}`;
       let payload;
@@ -321,7 +321,8 @@
         io.progress?.(`${position} · ${limit}건씩 처리${retry ? ` · 재시도 ${retry}/4` : ''}`);
         try {
           payload = await io.api({ method: 'POST', timeoutMs: 30000,
-            body: { action: 'latest_logs_step', incrementalLogs: true, phase, limit, window, cursor } });
+            body: { action: 'latest_logs_step', incrementalLogs: true, phase, limit, window, cursor,
+              autoApplyConfirmedReplacements: phase === 'replacement' } });
           break;
         } catch (e) {
           if (!transient(e) || retry >= 4) {
