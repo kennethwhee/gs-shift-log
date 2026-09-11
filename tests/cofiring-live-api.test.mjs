@@ -114,3 +114,17 @@ test('expired restart guard does not block a later Agent claim',async()=>{
  const d=database(),token=crypto.randomUUID();await create(d);await call(d,{agent:true,body:{action:'cofiring_restart_guard',operation:'acquire',guardToken:token}});
  d.raw.prepare("UPDATE ois_data_requests SET expires_at='2021-01-01' WHERE request_type='cofiring_restart_guard'").run();assert.ok((await claim(d)).id);
 });
+
+test('period co-firing request is claimed on the Excel lane, validates summary boundaries, saves and reuses the exact range',async()=>{
+ const d=database(),spec={startLocal:'2026-09-10T00:00',endLocal:'2026-09-10T13:00',stepUnit:'hour',stepValue:1};
+ const body={action:'create',requestType:'cofiring_period',start:spec.startLocal,end:spec.endLocal,stepUnit:spec.stepUnit,stepValue:spec.stepValue,forceRefresh:false,clientRequestId:crypto.randomUUID(),expectedResultId:null};
+ let r=await call(d,{body});assert.equal(r.status,201,JSON.stringify(r.data));const created=r.data.item;assert.equal(created.requestType,'cofiring_period');assert.equal(created.request.startLocal,spec.startLocal);
+ r=await call(d,{agent:true,get:'action=next_lanes&oisRequestTypes=water_environment&excelRequestTypes=cofiring_period'});assert.equal(r.status,200,JSON.stringify(r.data));const item=r.data.items.excel;assert.equal(item.id,created.id);assert.equal(item.requestType,'cofiring_period');
+ r=await call(d,{agent:true,body:{action:'cofiring_period_progress',requestId:item.id,phase:'reading',completedTags:3}});assert.equal(r.status,200,JSON.stringify(r.data));
+ const contract=api.__cofiringLiveTest.contract,p=contract.period(spec,Number.MAX_SAFE_INTEGER),duration=p.durationMinutes*60;
+ const summaries=contract.definitions.map((def,i)=>{const usage=10+i;return {key:def.id,unit:def.unit,fuel:def.fuel,tag:def.queryTag,startValue:100+i*100,endValue:100+i*100+usage,min:100+i*100,max:100+i*100+usage,delta:usage,usageTon:usage,startQuality:'Raw, Good',endQuality:'Raw, Good',startTime:spec.startLocal+':00+09:00',endTime:spec.endLocal+':00+09:00',durationGoodSeconds:duration,durationBadSeconds:0,boundaryValid:true,durationCoverageValid:true};});
+ const value={kind:'cofiring_period_live_result',schemaVersion:1,requestId:item.id,request:spec,report:{kind:'cofiring_dataparc_period_report',schemaVersion:1,status:'PERIOD_READY',runId:'0123456789abcdef0123456789abcdef',...spec,queryEndLocal:p.queryEndLocal,executionSucceeded:true,cleanupVerified:true,processCleanupVerified:true,timedOut:false,workerExitCode:0,cleanupErrors:[],completedAtUtc:new Date().toISOString(),summaries}};
+ r=await call(d,{agent:true,body:{action:'complete',requestId:item.id,result:value}});assert.equal(r.status,200,JSON.stringify(r.data));
+ r=await call(d,{get:'action=cofiring_period&start='+encodeURIComponent(spec.startLocal)+'&end='+encodeURIComponent(spec.endLocal)+'&stepUnit=hour&stepValue=1'});assert.equal(r.status,200,JSON.stringify(r.data));assert.equal(r.data.bridgeVersion,2);assert.equal(r.data.saved.id,item.id);assert.equal(r.data.result.report.status,'PERIOD_READY');assert.equal(r.data.result.report.reference.summaries.length,10);
+ const reused=await call(d,{body:{...body,clientRequestId:crypto.randomUUID()}});assert.equal(reused.status,200);assert.equal(reused.data.item.id,item.id);
+});

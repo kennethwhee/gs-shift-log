@@ -1,4 +1,4 @@
-import { loadAppendBase, ensureAppendSchema, appendIntentStatement } from "../_shared/blower-incremental.js";
+﻿import { loadAppendBase, ensureAppendSchema, appendIntentStatement } from "../_shared/blower-incremental.js";
 
 "use strict";
 
@@ -1243,6 +1243,7 @@ async function authenticateOisAgent(
 /* [FBHE-VIBRATION-SHADOW-V1] OIS queue request type */
 const OIS_REQUEST_TYPES = [
   "cofiring_daily",
+  "cofiring_period",
   "limestone_stock",
   "water_environment",
   "turbine_gear_pinion",
@@ -8998,6 +8999,7 @@ const OIS_AGENT_OIS_LANE_REQUEST_TYPES = [
 
 const OIS_AGENT_EXCEL_LANE_REQUEST_TYPES = [
   "cofiring_daily",
+  "cofiring_period",
   "daily_data_excel",
   "organic_silo_dataparc",
   "steam_status",
@@ -11656,6 +11658,7 @@ export async function onRequestGet(
         );
 
     if (action === "cofiring_daily") return await handleCofiringLiveGet(context, requestUrl);
+    if (action === "cofiring_period") return await handleCofiringPeriodGet(context, requestUrl);
     if (action === "cofiring_agent_idle") return await handleCofiringAgentIdle(context);
 
 /*
@@ -15003,6 +15006,7 @@ async function createUserRequest(
 
   // [COFIRING-WEB-BRIDGE-V1] Explicit authenticated desktop-only daily intent.
   if (requestType === "cofiring_daily") return await createCofiringLiveRequest(context, body, user);
+  if (requestType === "cofiring_period") return await createCofiringPeriodRequest(context, body, user);
 
   const forceRefresh =
     body.forceRefresh ===
@@ -16459,6 +16463,7 @@ async function completeAgentRequest(
 
 
   if (existingRequest.requestType === "cofiring_daily") return await completeCofiringLiveRequest(context, body, authentication, existingRequest);
+  if (existingRequest.requestType === "cofiring_period") return await completeCofiringPeriodRequest(context, body, authentication, existingRequest);
 
   if (existingRequest.requestType === ORGANIC_SILO_DATAPARC_REQUEST_TYPE) {
     if (!existingRequest.agentId || existingRequest.agentId !== authentication.agentId ||
@@ -17220,6 +17225,7 @@ export async function onRequestPost(
       회사 PC 조회 완료
     */
     if (action === "cofiring_progress") return await handleCofiringProgress(context, body);
+    if (action === "cofiring_period_progress") return await handleCofiringPeriodProgress(context, body);
     if (action === "cofiring_restart_guard") return await handleCofiringRestartGuard(context, body);
 
     if (
@@ -17571,7 +17577,66 @@ function createCofiringLiveContract() {
     if(new TextEncoder().encode(JSON.stringify(value)).length>MAX_BYTES)fail('결과 저장 용량 제한 초과');
     return value;
   }
-  return {TYPE,MAX_BYTES,definitions,uuid,good,noData,day,completedDay,validateReport,result};
+
+  const PERIOD_TYPE = 'cofiring_period';
+  function period(spec, now=Date.now()) {
+    const failPeriod = s => fail('기간 조회: '+s);
+    const x=spec||{},pattern=/^(20\d{2}-\d{2}-\d{2})T(\d{2}):(\d{2})$/;
+    const sm=pattern.exec(x.startLocal||''), em=pattern.exec(x.endLocal||'');
+    if(!sm||!em)failPeriod('시작·종료일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.');
+    const parse=v=>Date.parse(v+':00+09:00'),startMs=parse(x.startLocal),endMs=parse(x.endLocal);
+    if(!Number.isFinite(startMs)||!Number.isFinite(endMs)||new Date(startMs+32400000).toISOString().slice(0,16)!==x.startLocal||new Date(endMs+32400000).toISOString().slice(0,16)!==x.endLocal)failPeriod('유효한 한국 시간 날짜를 지정해 주세요.');
+    const durationMinutes=(endMs-startMs)/60000;
+    if(!Number.isInteger(durationMinutes)||durationMinutes<1||durationMinutes>44640)failPeriod('1분 이상 최대 31일까지 조회할 수 있습니다.');
+    const stepUnit=String(x.stepUnit||'').toLowerCase(),stepValue=Number(x.stepValue);
+    if(!['minute','hour','day'].includes(stepUnit)||!Number.isInteger(stepValue)||stepValue<1||stepValue>1440)failPeriod('계산 간격은 분/시간/일과 1 이상의 정수로 지정해 주세요.');
+    const stepMinutes=stepUnit==='minute'?stepValue:stepUnit==='hour'?stepValue*60:stepValue*1440;
+    if(stepMinutes>durationMinutes&&durationMinutes>1)failPeriod('계산 간격이 전체 기간보다 큽니다.');
+    if(endMs+60000>now+120000)failPeriod('종료 경계 다음 1분까지 완료된 시각만 조회할 수 있습니다.');
+    return {startLocal:x.startLocal,endLocal:x.endLocal,stepUnit,stepValue,stepMinutes,durationMinutes,startMs,endMs,targetDate:x.startLocal.slice(0,10),queryEndLocal:new Date(endMs+60000+32400000).toISOString().slice(0,16)};
+  }
+  function periodKey(spec) { const p=period(spec,Number.MAX_SAFE_INTEGER); return [p.startLocal,p.endLocal,p.stepUnit,p.stepValue].join('|'); }
+  function periodEnvelope(spec) { const p=period(spec); return {kind:'cofiring_period_request',schemaVersion:1,startLocal:p.startLocal,endLocal:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue,key:periodKey(p)}; }
+  function validatePeriodSummaryItem(item,def,p) {
+    if(!item||item.key!==def.id||item.unit!==def.unit||item.fuel!==def.fuel||item.tag!==def.queryTag)fail('기간 TAG 식별 불일치: '+def.id);
+    const keys=['startValue','endValue','min','max','delta','usageTon','durationGoodSeconds','durationBadSeconds'];
+    for(const k of keys)if(!number(item[k]))fail('기간 숫자 누락: '+def.id+' '+k);
+    if(item.startValue<0||item.endValue<0||item.min<0||item.max<0||item.usageTon<-0.001)fail('기간 누적값 음수: '+def.id);
+    if(!good(item.startQuality)||!good(item.endQuality))fail('기간 경계 품질 불량: '+def.id);
+    const st=Date.parse(item.startTime),et=Date.parse(item.endTime);
+    if(!Number.isFinite(st)||st<p.startMs||st>=p.startMs+60000||!Number.isFinite(et)||et<p.endMs||et>=p.endMs+60000)fail('기간 경계 반환시각 불일치: '+def.id);
+    const usage=item.endValue-item.startValue;
+    if(usage<-0.001||Math.abs(usage-item.usageTon)>0.001||Math.abs(usage-item.delta)>0.001)fail('기간 사용량/Delta 불일치: '+def.id);
+    if(item.min+0.001<item.startValue||item.max-0.001>item.endValue)fail('기간 Min/Max가 누적 경계와 모순됩니다: '+def.id);
+    const expected=p.durationMinutes*60;
+    if(item.durationGoodSeconds<0||item.durationBadSeconds<0||Math.abs(item.durationGoodSeconds+item.durationBadSeconds-expected)>2)fail('기간 품질 지속시간 불일치: '+def.id);
+    if(item.boundaryValid!==true||item.durationCoverageValid!==true)fail('기간 Worker 경계 검증 실패: '+def.id);
+    return {...item,dataComplete:item.durationBadSeconds<=0.001};
+  }
+  function validatePeriodReport(r,spec) {
+    const p=period(spec,Number.MAX_SAFE_INTEGER);
+    if(!r||r.kind!=='cofiring_dataparc_period_report'||r.schemaVersion!==1||!['PERIOD_READY','PERIOD_DATA_GAPS'].includes(r.status))fail('지원하는 기간 조회 결과가 아닙니다.');
+    if(r.executionSucceeded!==true||r.cleanupVerified!==true||r.processCleanupVerified!==true||r.timedOut!==false||r.workerExitCode!==0||!Array.isArray(r.cleanupErrors)||r.cleanupErrors.length)fail('기간 조회용 Excel 종료/실행 확인이 완료되지 않았습니다.');
+    if(typeof r.runId!=='string'||!/^[a-f0-9]{32}$/i.test(r.runId)||r.startLocal!==p.startLocal||r.endLocal!==p.endLocal||r.stepUnit!==p.stepUnit||r.stepValue!==p.stepValue||r.queryEndLocal!==p.queryEndLocal)fail('기간 요청과 결과 범위가 다릅니다.');
+    if(!Array.isArray(r.summaries)||r.summaries.length!==10)fail('기간 Coal/Bio 10개 TAG 요약이 필요합니다.');
+    const input=new Map(r.summaries.map(s=>[s?.key,s]));if(input.size!==10)fail('기간 TAG가 중복됐습니다.');
+    const summaries=definitions.map(def=>validatePeriodSummaryItem(input.get(def.id),def,p));
+    const hasGaps=summaries.some(s=>!s.dataComplete),status=hasGaps?'PERIOD_DATA_GAPS':'PERIOD_READY';
+    if(r.status!==status)fail('기간 데이터 상태와 결과 상태가 다릅니다.');
+    if(!Number.isFinite(Date.parse(r.completedAtUtc)))fail('기간 조회 완료시각이 없습니다.');
+    const calorifics={unit1:{coal:5868,bio:3237,organic:3487,manure:3487},unit2:{coal:5868,bio:3237,organic:3487,manure:3487}};
+    const coefficients={unit1:{coal:1,bio:1,organic:1,manure:1},unit2:{coal:1,bio:1,organic:1,manure:1}};
+    return {...r,status,summaries,reference:{kind:'cofiring_period_summary_v1',schemaVersion:1,startLocal:p.startLocal,endLocal:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue,summaries,calorifics,coefficients}};
+  }
+  function periodResult(raw,requestId,spec) {
+    const p=period(spec,Number.MAX_SAFE_INTEGER);
+    if(!uuid(requestId)||raw?.kind!=='cofiring_period_live_result'||raw.schemaVersion!==1||raw.requestId!==requestId)fail('기간 서버 요청 ID가 다릅니다.');
+    if(periodKey(raw.request)!==periodKey(p))fail('기간 서버 요청 범위가 다릅니다.');
+    const report=validatePeriodReport(raw.report,p),value={kind:'cofiring_period_live_result',schemaVersion:1,requestId,request:{startLocal:p.startLocal,endLocal:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue},report};
+    if(new TextEncoder().encode(JSON.stringify(value)).length>MAX_BYTES)fail('기간 결과 저장 용량 제한 초과');
+    return value;
+  }
+  return {TYPE,PERIOD_TYPE,MAX_BYTES,definitions,uuid,good,noData,day,completedDay,validateReport,result,period,periodKey,periodEnvelope,validatePeriodReport,periodResult};
 }
 
 // COFIRING_WEB_BRIDGE_V1_BEGIN: isolated request/result handling; no organic/Daily DATA writes.
@@ -17581,6 +17646,8 @@ async function ensureCofiringLiveIndexes(db) {
   if (!cofiringIndexPromises.has(db)) cofiringIndexPromises.set(db,(async()=>{
     await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_cofiring_one_active_day_v1 ON ois_data_requests(target_date) WHERE request_type='cofiring_daily' AND status IN ('pending','processing')").run();
     await db.prepare("CREATE INDEX IF NOT EXISTS idx_cofiring_day_history_v1 ON ois_data_requests(target_date,status,requested_at DESC) WHERE request_type='cofiring_daily'").run();
+    await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_cofiring_one_active_period_v1 ON ois_data_requests(target_date) WHERE request_type='cofiring_period' AND status IN ('pending','processing')").run();
+    await db.prepare("CREATE INDEX IF NOT EXISTS idx_cofiring_period_history_v1 ON ois_data_requests(target_date,status,requested_at DESC) WHERE request_type='cofiring_period'").run();
   })().catch(e=>{cofiringIndexPromises.delete(db);throw e;}));
   return cofiringIndexPromises.get(db);
 }
@@ -17677,7 +17744,7 @@ async function handleCofiringAgentIdle(context) {
   const auth=await authenticateOisAgent(context);if(auth.error)return auth.error;
   const rows=await context.env.DB.prepare("SELECT id,request_type,target_date FROM ois_data_requests WHERE status='processing' AND agent_id=?").bind(auth.agentId).all();
   const guard=await context.env.DB.prepare("SELECT id,requested_by_id,expires_at FROM ois_data_requests WHERE request_type='cofiring_restart_guard' AND status='guard' AND agent_id=? AND expires_at>? LIMIT 1").bind(auth.agentId,new Date().toISOString()).first();
-  return cofiringJson({ok:true,bridgeVersion:1,agentId:auth.agentId,busy:(rows.results||[]).length>0,items:rows.results||[],guard:guard?{token:guard.requested_by_id,expiresAt:guard.expires_at}:null});
+  return cofiringJson({ok:true,bridgeVersion:1,periodBridgeVersion:1,agentId:auth.agentId,busy:(rows.results||[]).length>0,items:rows.results||[],guard:guard?{token:guard.requested_by_id,expiresAt:guard.expires_at}:null});
 }
 
 // A short-lived control row only; never a plant value, pending request or new data table.
@@ -17701,5 +17768,102 @@ async function handleCofiringRestartGuard(context,body) {
   return cofiringJson({ok:true,bridgeVersion:1,agentId:auth.agentId,guardToken:body.guardToken,expiresAt:guard.expires_at});
 }
 
-export const __cofiringLiveTest = {contract:COFIRING_LIVE,createCofiringLiveRequest,completeCofiringLiveRequest,handleCofiringLiveGet,handleCofiringProgress};
+
+function parseCofiringPeriodRequestValue(value) {
+  if (!value || typeof value !== 'object') return null;
+  if (value.kind === 'cofiring_period_request') return value;
+  if (value.kind === 'cofiring_period_progress' && value.request) return value.request;
+  if (value.kind === 'cofiring_period_live_result' && value.request) return value.request;
+  return null;
+}
+function cofiringPeriodPublicRequest(row) {
+  if (!row) return null;
+  let request=null,progress=null;
+  try {
+    const parsed=JSON.parse(row.result_json||'null');
+    request=parseCofiringPeriodRequestValue(parsed);
+    if(parsed?.kind==='cofiring_period_progress') progress={phase:parsed.phase,completedTags:parsed.completedTags,updatedAt:parsed.updatedAt};
+  } catch (_) {}
+  return {id:row.id,targetDate:row.target_date,requestType:row.request_type,status:row.status,requestedAt:row.requested_at,startedAt:row.started_at,
+    completedAt:row.completed_at,expiresAt:row.expires_at,requestedByName:row.requested_by_name,errorMessage:row.error_message||'',request,progress};
+}
+async function expireCofiringPeriodRequests(db) {
+  const now=new Date().toISOString();
+  await db.prepare("UPDATE ois_data_requests SET status='failed',error_message='기간 DataPARC Agent 응답 시간이 초과되었습니다. 기존 저장 결과는 유지합니다.',completed_at=?,updated_at=? WHERE request_type='cofiring_period' AND status IN ('pending','processing') AND expires_at<=?").bind(now,now,now).run();
+}
+function specFromPeriodUrl(url) {
+  return {startLocal:url.searchParams.get('start')||'',endLocal:url.searchParams.get('end')||'',stepUnit:url.searchParams.get('stepUnit')||'',stepValue:Number(url.searchParams.get('stepValue'))};
+}
+async function findMatchingPeriodComplete(db,p) {
+  const rows=await db.prepare("SELECT * FROM ois_data_requests WHERE request_type='cofiring_period' AND target_date=? AND status='complete' ORDER BY requested_at DESC,id DESC LIMIT 20").bind(p.targetDate).all();
+  for(const row of rows.results||[]){
+    try { const parsed=JSON.parse(row.result_json||'null'); const validated=COFIRING_LIVE.periodResult(parsed,row.id,p); return {row,validated}; } catch (_) {}
+  }
+  return null;
+}
+async function findMatchingPeriodAttempt(db,p) {
+  const rows=await db.prepare("SELECT * FROM ois_data_requests WHERE request_type='cofiring_period' AND target_date=? ORDER BY requested_at DESC,id DESC LIMIT 20").bind(p.targetDate).all();
+  const wanted=COFIRING_LIVE.periodKey(p);
+  for(const row of rows.results||[]){
+    try { const parsed=JSON.parse(row.result_json||'null'),req=parseCofiringPeriodRequestValue(parsed); if(req&&COFIRING_LIVE.periodKey(req)===wanted)return row; } catch (_) {}
+  }
+  return null;
+}
+async function handleCofiringPeriodGet(context,url) {
+  const auth=await getAuthenticatedUser(context);if(auth.error)return auth.error;
+  let p;try{p=COFIRING_LIVE.period(specFromPeriodUrl(url));}catch(e){return cofiringJson({ok:false,message:e.message},400);}
+  const db=context.env.DB;await ensureCofiringLiveIndexes(db);await expireCofiringPeriodRequests(db);
+  const wanted=COFIRING_LIVE.periodKey(p);
+  const savedMatch=await findMatchingPeriodComplete(db,p),saved=savedMatch?.row||null;
+  const activeRows=await db.prepare("SELECT * FROM ois_data_requests WHERE request_type='cofiring_period' AND target_date=? AND status IN ('pending','processing') ORDER BY requested_at DESC,id DESC").bind(p.targetDate).all();
+  let active=null;for(const row of activeRows.results||[]){try{const req=parseCofiringPeriodRequestValue(JSON.parse(row.result_json||'null'));if(req&&COFIRING_LIVE.periodKey(req)===wanted){active=row;break;}}catch(_){}}
+  const last=await findMatchingPeriodAttempt(db,p);
+  let result=null;if(saved&&saved.id!==url.searchParams.get('knownResultId'))result=savedMatch.validated;
+  return cofiringJson({ok:true,bridgeVersion:2,periodKey:wanted,period:{start:p.startLocal,end:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue},saved:cofiringPeriodPublicRequest(saved),result,active:cofiringPeriodPublicRequest(active),lastAttempt:cofiringPeriodPublicRequest(last)});
+}
+async function createCofiringPeriodRequest(context,body,user) {
+  const req=context.request,origin=req.headers.get('Origin');
+  if(origin&&origin!==new URL(req.url).origin)return cofiringJson({ok:false,message:'같은 업무일지 화면에서 조회해 주세요.'},403);
+  if(req.headers.get('X-ShiftLog-Client')!=='desktop'||/Android|iPhone|iPad|iPod|Mobile/i.test(req.headers.get('User-Agent')||''))return cofiringJson({ok:false,message:'기간 DataPARC 조회는 로그인한 PC에서 가능합니다.'},403);
+  if(!/^application\/json(?:\s*;|$)/i.test(req.headers.get('Content-Type')||''))return cofiringJson({ok:false,message:'JSON 요청이 필요합니다.'},415);
+  if(new TextEncoder().encode(JSON.stringify(body)).length>4096)return cofiringJson({ok:false,message:'기간 조회 요청이 너무 큽니다.'},413);
+  const allowed=['action','requestType','start','end','stepUnit','stepValue','forceRefresh','clientRequestId','expectedResultId'];
+  if(Object.keys(body).some(k=>!allowed.includes(k))||body.requestType!=='cofiring_period'||body.action!=='create'||typeof body.forceRefresh!=='boolean'||!COFIRING_LIVE.uuid(body.clientRequestId)||(body.expectedResultId!==null&&!COFIRING_LIVE.uuid(body.expectedResultId)))return cofiringJson({ok:false,message:'기간 조회 요청 형식을 확인해 주세요.'},400);
+  let p,envelope;try{p=COFIRING_LIVE.period({startLocal:body.start,endLocal:body.end,stepUnit:body.stepUnit,stepValue:body.stepValue});envelope=COFIRING_LIVE.periodEnvelope(p);}catch(e){return cofiringJson({ok:false,message:e.message},400);}
+  const db=context.env.DB;await ensureCofiringLiveIndexes(db);await expireCofiringPeriodRequests(db);const wanted=COFIRING_LIVE.periodKey(p);
+  const reply=(r,reused=true)=>cofiringJson({ok:true,reused,bridgeVersion:2,periodKey:wanted,item:cofiringPeriodPublicRequest(r)},reused?200:201);
+  const repeated=await db.prepare('SELECT * FROM ois_data_requests WHERE id=?').bind(body.clientRequestId).first();
+  if(repeated){let same=false;try{const req0=parseCofiringPeriodRequestValue(JSON.parse(repeated.result_json||'null'));same=repeated.request_type==='cofiring_period'&&repeated.requested_by_id===user.employeeNo&&req0&&COFIRING_LIVE.periodKey(req0)===wanted;}catch(_){}if(!same)return cofiringJson({ok:false,message:'이미 다른 내용으로 처리된 요청입니다.'},409);return reply(repeated);}
+  const active=await db.prepare("SELECT * FROM ois_data_requests WHERE request_type='cofiring_period' AND target_date=? AND status IN ('pending','processing') LIMIT 1").bind(p.targetDate).first();
+  if(active){let activeKey='';try{const req0=parseCofiringPeriodRequestValue(JSON.parse(active.result_json||'null'));activeKey=req0?COFIRING_LIVE.periodKey(req0):'';}catch(_){}if(activeKey===wanted)return reply(active);return cofiringJson({ok:false,code:'COFIRING_PERIOD_BUSY',message:'같은 시작일의 다른 혼소율 기간 조회가 진행 중입니다. 완료 후 다시 실행해 주세요.'},409);}
+  const savedMatch=await findMatchingPeriodComplete(db,p),saved=savedMatch?.row||null;if(saved&&!body.forceRefresh)return reply(saved);
+  if(body.forceRefresh&&(saved?.id||null)!==body.expectedResultId)return cofiringJson({ok:false,code:'COFIRING_PERIOD_RESULT_CHANGED',message:'다른 화면에서 기간 조회 결과가 갱신됐습니다. 저장값을 다시 확인해 주세요.'},409);
+  const now=new Date().toISOString(),expires=new Date(Date.now()+3600000).toISOString();
+  await db.prepare(`INSERT INTO ois_data_requests(id,request_type,target_date,status,requested_by_id,requested_by_name,requested_at,started_at,completed_at,agent_id,result_json,error_message,expires_at,updated_at)
+    VALUES(?,'cofiring_period',?,'pending',?,?,?,NULL,NULL,'',?,'',?,?) ON CONFLICT DO NOTHING`).bind(body.clientRequestId,p.targetDate,user.employeeNo,user.name,now,JSON.stringify(envelope),expires,now).run();
+  const created=await db.prepare('SELECT * FROM ois_data_requests WHERE id=?').bind(body.clientRequestId).first();if(created)return reply(created,false);
+  return cofiringJson({ok:false,code:'COFIRING_PERIOD_RESULT_CHANGED',message:'기간 조회 상태가 변경됐습니다. 다시 확인해 주세요.'},409);
+}
+async function completeCofiringPeriodRequest(context,body,auth,existing) {
+  if(!existing.agentId||existing.agentId!==auth.agentId||!['processing','complete'].includes(existing.status)||(existing.status==='processing'&&Date.parse(existing.expiresAt)<=Date.now()))return cofiringJson({ok:false,code:'COFIRING_PERIOD_CLAIM_REQUIRED',message:'이 기간 요청을 가져간 Agent만 처리시간 안에 완료할 수 있습니다.'},409);
+  let requestSpec=parseCofiringPeriodRequestValue(existing.result);if(existing.status==='complete'&&existing.result?.request)requestSpec=existing.result.request;
+  if(!requestSpec)return cofiringJson({ok:false,message:'기간 요청 범위를 복원하지 못했습니다.'},409);
+  let result;try{result=COFIRING_LIVE.periodResult(body.result,existing.id,requestSpec);}catch(e){return cofiringJson({ok:false,message:e.message},400);}
+  const completed=Date.parse(result.report.completedAtUtc);if(!Number.isFinite(Date.parse(existing.startedAt))||completed<Date.parse(existing.startedAt)-120000||completed>Date.now()+120000)return cofiringJson({ok:false,message:'이번 기간 요청 이후에 완료된 결과가 아닙니다.'},400);
+  const canonical=JSON.stringify(result);if(existing.status==='complete'){if(canonical!==JSON.stringify(existing.result))return cofiringJson({ok:false,code:'COFIRING_PERIOD_RESULT_CONFLICT',message:'이미 완료된 기간 요청의 다른 결과는 저장할 수 없습니다.'},409);return cofiringJson({ok:true,replayed:true,requestId:existing.id,stored:true,status:result.report.status});}
+  const now=new Date().toISOString(),updated=await context.env.DB.prepare("UPDATE ois_data_requests SET status='complete',completed_at=?,result_json=?,error_message='',updated_at=? WHERE id=? AND request_type='cofiring_period' AND status='processing' AND agent_id=? AND expires_at>?").bind(now,canonical,now,existing.id,auth.agentId,now).run();
+  if(Number(updated?.meta?.changes)!==1)return cofiringJson({ok:false,message:'기간 요청 소유권 또는 처리시간이 변경되어 저장하지 않았습니다.'},409);
+  return cofiringJson({ok:true,requestId:existing.id,stored:true,status:result.report.status});
+}
+async function handleCofiringPeriodProgress(context,body) {
+  const auth=await authenticateOisAgent(context);if(auth.error)return auth.error;
+  if(!COFIRING_LIVE.uuid(body.requestId)||!['starting','reading','cleanup','uploading'].includes(body.phase)||!Number.isInteger(body.completedTags)||body.completedTags<0||body.completedTags>10)return cofiringJson({ok:false,message:'잘못된 기간 혼소율 진행 정보입니다.'},400);
+  const row=await context.env.DB.prepare("SELECT result_json FROM ois_data_requests WHERE id=? AND request_type='cofiring_period' AND status='processing' AND agent_id=?").bind(body.requestId,auth.agentId).first();if(!row)return cofiringJson({ok:false},409);
+  let request=null;try{request=parseCofiringPeriodRequestValue(JSON.parse(row.result_json||'null'));}catch(_){}if(!request)return cofiringJson({ok:false,message:'기간 요청 범위를 복원하지 못했습니다.'},409);
+  const now=new Date().toISOString(),p={kind:'cofiring_period_progress',schemaVersion:1,request,phase:body.phase,completedTags:body.completedTags,updatedAt:now};
+  const u=await context.env.DB.prepare("UPDATE ois_data_requests SET result_json=?,updated_at=? WHERE id=? AND request_type='cofiring_period' AND status='processing' AND agent_id=? AND expires_at>?").bind(JSON.stringify(p),now,body.requestId,auth.agentId,now).run();
+  return cofiringJson({ok:Number(u?.meta?.changes)===1},Number(u?.meta?.changes)===1?200:409);
+}
+
+export const __cofiringLiveTest = {contract:COFIRING_LIVE,createCofiringLiveRequest,completeCofiringLiveRequest,handleCofiringLiveGet,handleCofiringProgress,createCofiringPeriodRequest,completeCofiringPeriodRequest,handleCofiringPeriodGet,handleCofiringPeriodProgress};
 // COFIRING_WEB_BRIDGE_V1_END

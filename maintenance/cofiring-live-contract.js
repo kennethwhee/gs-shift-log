@@ -103,7 +103,66 @@ function createCofiringLiveContract() {
     if(new TextEncoder().encode(JSON.stringify(value)).length>MAX_BYTES)fail('결과 저장 용량 제한 초과');
     return value;
   }
-  return {TYPE,MAX_BYTES,definitions,uuid,good,noData,day,completedDay,validateReport,result};
+
+  const PERIOD_TYPE = 'cofiring_period';
+  function period(spec, now=Date.now()) {
+    const failPeriod = s => fail('기간 조회: '+s);
+    const x=spec||{},pattern=/^(20\d{2}-\d{2}-\d{2})T(\d{2}):(\d{2})$/;
+    const sm=pattern.exec(x.startLocal||''), em=pattern.exec(x.endLocal||'');
+    if(!sm||!em)failPeriod('시작·종료일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.');
+    const parse=v=>Date.parse(v+':00+09:00'),startMs=parse(x.startLocal),endMs=parse(x.endLocal);
+    if(!Number.isFinite(startMs)||!Number.isFinite(endMs)||new Date(startMs+32400000).toISOString().slice(0,16)!==x.startLocal||new Date(endMs+32400000).toISOString().slice(0,16)!==x.endLocal)failPeriod('유효한 한국 시간 날짜를 지정해 주세요.');
+    const durationMinutes=(endMs-startMs)/60000;
+    if(!Number.isInteger(durationMinutes)||durationMinutes<1||durationMinutes>44640)failPeriod('1분 이상 최대 31일까지 조회할 수 있습니다.');
+    const stepUnit=String(x.stepUnit||'').toLowerCase(),stepValue=Number(x.stepValue);
+    if(!['minute','hour','day'].includes(stepUnit)||!Number.isInteger(stepValue)||stepValue<1||stepValue>1440)failPeriod('계산 간격은 분/시간/일과 1 이상의 정수로 지정해 주세요.');
+    const stepMinutes=stepUnit==='minute'?stepValue:stepUnit==='hour'?stepValue*60:stepValue*1440;
+    if(stepMinutes>durationMinutes&&durationMinutes>1)failPeriod('계산 간격이 전체 기간보다 큽니다.');
+    if(endMs+60000>now+120000)failPeriod('종료 경계 다음 1분까지 완료된 시각만 조회할 수 있습니다.');
+    return {startLocal:x.startLocal,endLocal:x.endLocal,stepUnit,stepValue,stepMinutes,durationMinutes,startMs,endMs,targetDate:x.startLocal.slice(0,10),queryEndLocal:new Date(endMs+60000+32400000).toISOString().slice(0,16)};
+  }
+  function periodKey(spec) { const p=period(spec,Number.MAX_SAFE_INTEGER); return [p.startLocal,p.endLocal,p.stepUnit,p.stepValue].join('|'); }
+  function periodEnvelope(spec) { const p=period(spec); return {kind:'cofiring_period_request',schemaVersion:1,startLocal:p.startLocal,endLocal:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue,key:periodKey(p)}; }
+  function validatePeriodSummaryItem(item,def,p) {
+    if(!item||item.key!==def.id||item.unit!==def.unit||item.fuel!==def.fuel||item.tag!==def.queryTag)fail('기간 TAG 식별 불일치: '+def.id);
+    const keys=['startValue','endValue','min','max','delta','usageTon','durationGoodSeconds','durationBadSeconds'];
+    for(const k of keys)if(!number(item[k]))fail('기간 숫자 누락: '+def.id+' '+k);
+    if(item.startValue<0||item.endValue<0||item.min<0||item.max<0||item.usageTon<-0.001)fail('기간 누적값 음수: '+def.id);
+    if(!good(item.startQuality)||!good(item.endQuality))fail('기간 경계 품질 불량: '+def.id);
+    const st=Date.parse(item.startTime),et=Date.parse(item.endTime);
+    if(!Number.isFinite(st)||st<p.startMs||st>=p.startMs+60000||!Number.isFinite(et)||et<p.endMs||et>=p.endMs+60000)fail('기간 경계 반환시각 불일치: '+def.id);
+    const usage=item.endValue-item.startValue;
+    if(usage<-0.001||Math.abs(usage-item.usageTon)>0.001||Math.abs(usage-item.delta)>0.001)fail('기간 사용량/Delta 불일치: '+def.id);
+    if(item.min+0.001<item.startValue||item.max-0.001>item.endValue)fail('기간 Min/Max가 누적 경계와 모순됩니다: '+def.id);
+    const expected=p.durationMinutes*60;
+    if(item.durationGoodSeconds<0||item.durationBadSeconds<0||Math.abs(item.durationGoodSeconds+item.durationBadSeconds-expected)>2)fail('기간 품질 지속시간 불일치: '+def.id);
+    if(item.boundaryValid!==true||item.durationCoverageValid!==true)fail('기간 Worker 경계 검증 실패: '+def.id);
+    return {...item,dataComplete:item.durationBadSeconds<=0.001};
+  }
+  function validatePeriodReport(r,spec) {
+    const p=period(spec,Number.MAX_SAFE_INTEGER);
+    if(!r||r.kind!=='cofiring_dataparc_period_report'||r.schemaVersion!==1||!['PERIOD_READY','PERIOD_DATA_GAPS'].includes(r.status))fail('지원하는 기간 조회 결과가 아닙니다.');
+    if(r.executionSucceeded!==true||r.cleanupVerified!==true||r.processCleanupVerified!==true||r.timedOut!==false||r.workerExitCode!==0||!Array.isArray(r.cleanupErrors)||r.cleanupErrors.length)fail('기간 조회용 Excel 종료/실행 확인이 완료되지 않았습니다.');
+    if(typeof r.runId!=='string'||!/^[a-f0-9]{32}$/i.test(r.runId)||r.startLocal!==p.startLocal||r.endLocal!==p.endLocal||r.stepUnit!==p.stepUnit||r.stepValue!==p.stepValue||r.queryEndLocal!==p.queryEndLocal)fail('기간 요청과 결과 범위가 다릅니다.');
+    if(!Array.isArray(r.summaries)||r.summaries.length!==10)fail('기간 Coal/Bio 10개 TAG 요약이 필요합니다.');
+    const input=new Map(r.summaries.map(s=>[s?.key,s]));if(input.size!==10)fail('기간 TAG가 중복됐습니다.');
+    const summaries=definitions.map(def=>validatePeriodSummaryItem(input.get(def.id),def,p));
+    const hasGaps=summaries.some(s=>!s.dataComplete),status=hasGaps?'PERIOD_DATA_GAPS':'PERIOD_READY';
+    if(r.status!==status)fail('기간 데이터 상태와 결과 상태가 다릅니다.');
+    if(!Number.isFinite(Date.parse(r.completedAtUtc)))fail('기간 조회 완료시각이 없습니다.');
+    const calorifics={unit1:{coal:5868,bio:3237,organic:3487,manure:3487},unit2:{coal:5868,bio:3237,organic:3487,manure:3487}};
+    const coefficients={unit1:{coal:1,bio:1,organic:1,manure:1},unit2:{coal:1,bio:1,organic:1,manure:1}};
+    return {...r,status,summaries,reference:{kind:'cofiring_period_summary_v1',schemaVersion:1,startLocal:p.startLocal,endLocal:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue,summaries,calorifics,coefficients}};
+  }
+  function periodResult(raw,requestId,spec) {
+    const p=period(spec,Number.MAX_SAFE_INTEGER);
+    if(!uuid(requestId)||raw?.kind!=='cofiring_period_live_result'||raw.schemaVersion!==1||raw.requestId!==requestId)fail('기간 서버 요청 ID가 다릅니다.');
+    if(periodKey(raw.request)!==periodKey(p))fail('기간 서버 요청 범위가 다릅니다.');
+    const report=validatePeriodReport(raw.report,p),value={kind:'cofiring_period_live_result',schemaVersion:1,requestId,request:{startLocal:p.startLocal,endLocal:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue},report};
+    if(new TextEncoder().encode(JSON.stringify(value)).length>MAX_BYTES)fail('기간 결과 저장 용량 제한 초과');
+    return value;
+  }
+  return {TYPE,PERIOD_TYPE,MAX_BYTES,definitions,uuid,good,noData,day,completedDay,validateReport,result,period,periodKey,periodEnvelope,validatePeriodReport,periodResult};
 }
 
 (function(root){const api=createCofiringLiveContract();if(typeof module==='object'&&module.exports)module.exports=api;root.CofiringLiveContract=api;})(typeof globalThis==='object'?globalThis:this);

@@ -1,6 +1,12 @@
 "use strict";
 // [COFIRING-WEB-BRIDGE-V1] Shares the existing Excel lane; no startup query.
-const { COFIRING_REQUEST_TYPE, collectCofiringDailyValues, isCofiringExcelBlocked } = require("./cofiring-dataparc-agent");
+const {
+  COFIRING_REQUEST_TYPE,
+  COFIRING_PERIOD_REQUEST_TYPE,
+  collectCofiringDailyValues,
+  collectCofiringPeriodValues,
+  isCofiringExcelBlocked
+} = require("./cofiring-dataparc-agent");
 
 // [ORGANIC-SILO-DATAPARC-V1] Query-only hidden Excel collector.
 const { ORGANIC_SILO_REQUEST_TYPE, collectOrganicSiloDataParcValues } =
@@ -11038,6 +11044,7 @@ async function getNextOisAgentRequest(
 ) {
   const excelRequestTypes = [
     "cofiring_daily",
+    "cofiring_period",
     "daily_data_excel",
     "steam_status",
     BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
@@ -11061,6 +11068,7 @@ async function getNextOisAgentRequest(
 
   const backgroundRequestTypes = [
     "cofiring_daily",
+    "cofiring_period",
     "auxiliary_materials",
     "logsheet_approval",
     "fbhe_vibration",
@@ -11268,6 +11276,7 @@ async function getNextOisAgentLaneRequests(
 
   const excelRequestTypes = [
     "cofiring_daily",
+    "cofiring_period",
     "daily_data_excel",
     "steam_status",
     BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
@@ -11645,6 +11654,7 @@ function isExcelComRequestType(
 
   return (
     normalizedRequestType === "cofiring_daily" ||
+    normalizedRequestType === "cofiring_period" ||
     isDailyDataExcelRequestType(
       normalizedRequestType
     ) ||
@@ -11685,6 +11695,7 @@ function getOisAgentRequestLabel(
   requestType
 ) {
   if (requestType === "cofiring_daily") return "혼소율 하루 DataPARC";
+  if (requestType === "cofiring_period") return "혼소율 기간 DataPARC";
   if (requestType === ORGANIC_SILO_REQUEST_TYPE) {
     return "유기성 Silo DataPARC";
   }
@@ -19078,6 +19089,15 @@ if (
   }
 
 
+  if (requestType === "cofiring_period") {
+    return await collectCofiringPeriodValues(config, requestItem, {
+      postProgress: progress => requestOisAgentApi(config, getOisAgentApiUrl(config), {
+        method: "POST", timeoutMilliseconds: 8000,
+        body: { action: "cofiring_period_progress", requestId: requestItem.id, ...progress }
+      })
+    });
+  }
+
   if (requestType === "cofiring_daily") {
     return await collectCofiringDailyValues(config, requestItem, {
       postProgress: progress => requestOisAgentApi(config, getOisAgentApiUrl(config), {
@@ -19140,6 +19160,7 @@ function printOisAgentRequestResult(
   result
 ) {
   if (requestType === "cofiring_daily")  { console.log("혼소율 결과 서버 저장 완료 ·", result?.targetDate, result?.report?.status); return; }
+  if (requestType === "cofiring_period") { console.log("혼소율 기간 결과 서버 저장 완료 ·", result?.startLocal, "~", result?.endLocal, result?.report?.status); return; }
   if (requestType === ORGANIC_SILO_REQUEST_TYPE) {
     console.table({ "조회일": result.targetDate, "Day Silo": result.organicDaySilo, "Storage A": result.organicStorageSiloA, "Storage B": result.organicStorageSiloB, "총 재고량": result.organicSiloTotal });
     return;

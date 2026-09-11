@@ -296,5 +296,109 @@
     return { period: period, units: units, combined: { heats: combinedHeats, ratios: combinedRatios, fuelRatios: combinedFuelRatios }, warnings: warnings, sourceKind: reference.source && reference.source.kind || 'reference-data', qualityVerified: qualityVerified, productionReady: false, databaseWritten: false, calorifics: actualCalorifics, coefficients: actualCoefficients };
   }
 
-  return Object.freeze({ dailyRange: dailyRange, validateDailySource: validateDailySource, analyzeDay: analyzeDay, validateRange: validateRange, analyze: analyze, qualityGood: qualityGood, requiredSeries: REQUIRED_SERIES });
+
+  function periodRange(startLocal, endLocal, stepUnit, stepValue) {
+    const localPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
+    function zoned(value, label) {
+      if (typeof value !== 'string' || !localPattern.test(value)) throw new Error(label + '은 YYYY-MM-DD HH:mm 형식으로 지정해 주세요.');
+      return value + ':00+09:00';
+    }
+    const start = zoned(startLocal, '시작일시');
+    const end = zoned(endLocal, '종료일시');
+    const startMs = instant(start), endMs = instant(end);
+    const durationMinutes = (endMs - startMs) / MINUTE;
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 44640) {
+      throw new Error('기간 계산은 1분 이상, 최대 31일까지 지정해 주세요.');
+    }
+    const unit = String(stepUnit || '').toLowerCase();
+    if (!['minute','hour','day'].includes(unit)) throw new Error('계산 간격은 분/시간/일 중에서 선택해 주세요.');
+    const value = Number(stepValue);
+    if (!Number.isInteger(value) || value < 1 || value > 1440) throw new Error('계산 간격 값은 1 이상의 정수로 지정해 주세요.');
+    const stepMinutes = unit === 'minute' ? value : unit === 'hour' ? value * 60 : value * 1440;
+    if (stepMinutes > durationMinutes && durationMinutes > 1) throw new Error('계산 간격이 전체 조회 기간보다 큽니다.');
+    return {
+      mode: 'period', startLocal, endLocal, start, end, startMs, endMs,
+      durationMinutes, durationHours: durationMinutes / 60,
+      stepUnit: unit, stepValue: value, stepMinutes,
+      targetDate: startLocal.slice(0,10), timeZone: 'Asia/Seoul',
+      queryStart: start, queryEnd: new Date(endMs + MINUTE + 9*60*MINUTE).toISOString().slice(0,19) + '+09:00'
+    };
+  }
+
+  function periodSummaryCounter(definition, item, period) {
+    const issues = [];
+    if (!item || item.key !== definition.id || item.unit !== definition.unit || item.fuel !== definition.fuel || item.tag !== definition.queryTag) {
+      return { id: definition.id, quantity: null, referenceQuantity: null, complete: false, missingSamples: 1, observedSamples: 0, qualityVerified: false, issues: ['summary_identity_mismatch'] };
+    }
+    const n = function (value) { return typeof value === 'number' && Number.isFinite(value) ? value : null; };
+    const startValue=n(item.startValue), endValue=n(item.endValue), min=n(item.min), max=n(item.max), delta=n(item.delta), usage=n(item.usageTon);
+    if ([startValue,endValue,min,max,delta,usage].some(function(v){return v===null;})) issues.push('summary_number_missing');
+    if ([startValue,endValue,min,max].some(function(v){return v!==null&&v<0;})) issues.push('negative_counter');
+    if (!qualityGood(item.startQuality) || !qualityGood(item.endQuality)) issues.push('bad_quality');
+    const startAt=Date.parse(item.startTime), endAt=Date.parse(item.endTime);
+    if (!Number.isFinite(startAt) || startAt < period.startMs || startAt >= period.startMs + MINUTE) issues.push('start_time_invalid');
+    if (!Number.isFinite(endAt) || endAt < period.endMs || endAt >= period.endMs + MINUTE) issues.push('end_time_invalid');
+    if (startValue!==null&&endValue!==null&&endValue+0.001<startValue) issues.push('counter_reset');
+    const derived=startValue===null||endValue===null?null:endValue-startValue;
+    if (derived!==null&&usage!==null&&Math.abs(derived-usage)>0.001) issues.push('usage_mismatch');
+    if (derived!==null&&delta!==null&&Math.abs(derived-delta)>0.001) issues.push('delta_mismatch');
+    if (startValue!==null&&min!==null&&min+0.001<startValue) issues.push('range_below_start');
+    if (endValue!==null&&max!==null&&max-0.001>endValue) issues.push('range_above_end');
+    const good=n(item.durationGoodSeconds), bad=n(item.durationBadSeconds), expected=period.durationMinutes*60;
+    if (good===null||bad===null||good<0||bad<0||Math.abs((good||0)+(bad||0)-expected)>2) issues.push('duration_coverage_invalid');
+    if (bad!==null&&bad>0.001) issues.push('bad_duration');
+    if (item.boundaryValid !== true || item.durationCoverageValid !== true) issues.push('worker_validation_failed');
+    const complete=issues.length===0&&derived!==null&&derived>=-0.001;
+    return {
+      id: definition.id, tag: definition.tag, quantity: complete ? Math.max(0,derived) : null,
+      referenceQuantity: derived===null?null:Math.max(0,derived), complete,
+      missingSamples: complete?0:1, observedSamples: complete?2:0, qualityVerified: complete,
+      issues: Array.from(new Set(issues)), summary: item
+    };
+  }
+
+  function analyzePeriodSummary(reference, options) {
+    options = options || {};
+    if (!reference || reference.kind !== 'cofiring_period_summary_v1' || reference.schemaVersion !== 1) throw new Error('지원하는 기간 DataPARC 요약 자료가 아닙니다.');
+    const period = periodRange(reference.startLocal, reference.endLocal, reference.stepUnit, reference.stepValue);
+    if (options.startLocal && options.startLocal !== period.startLocal || options.endLocal && options.endLocal !== period.endLocal) throw new Error('선택한 기간과 조회 결과 기간이 다릅니다.');
+    if (!Array.isArray(reference.summaries) || reference.summaries.length !== REQUIRED_SERIES.length) throw new Error('기간 조회에는 Coal 8개와 Bio-SRF 2개 TAG 요약이 모두 필요합니다.');
+    const entries=new Map(reference.summaries.map(function(item){return [item && item.key,item];}));
+    if(entries.size!==REQUIRED_SERIES.length) throw new Error('기간 조회 TAG가 중복되거나 누락되었습니다.');
+    const counters=REQUIRED_SERIES.map(function(def){return periodSummaryCounter(def,entries.get(def.id),period);});
+    const units={},warnings=[],actualCalorifics={},actualCoefficients={};
+    UNIT_IDS.forEach(function(unit,index){
+      const calorifics={},coefficients={};
+      FUELS.forEach(function(fuel){
+        calorifics[fuel]=positiveSetting(options.calorifics, reference.calorifics, unit, fuel, '발열량');
+        coefficients[fuel]=positiveSetting(options.coefficients, reference.coefficients, unit, fuel, '보정계수');
+      });
+      actualCalorifics[unit]=calorifics;actualCoefficients[unit]=coefficients;
+      const coal=aggregateFuel(counters.filter(function(item){return item.id.startsWith(unit+'Coal');}),coefficients.coal,period.durationHours);
+      const bio=aggregateFuel(counters.filter(function(item){return item.id===unit+'Bio';}),coefficients.bio,period.durationHours);
+      const organic=manualFuel(options.organic,unit,period,coefficients.organic,'organic');
+      const manure=manualFuel(options.manure,unit,period,coefficients.manure,'manure');
+      const result=heatResult({coal:coal.quantity,bio:bio.quantity,organic:organic.quantity,manure:manure.quantity},calorifics);
+      units[unit]={coal,bio,organic,manure,calorifics,heats:result.heats,ratios:result.ratios,fuelRatios:result.fuelRatios,complete:coal.complete&&bio.complete&&organic.complete&&manure.complete,referenceOnly:true};
+      if(!coal.complete)warnings.push((index+1)+'호기 석탄: 기간 경계/품질/누적값 검증을 통과하지 못했습니다.');
+      if(!bio.complete)warnings.push((index+1)+'호기 바이오: 기간 경계/품질/누적값 검증을 통과하지 못했습니다.');
+      if(!organic.complete)warnings.push((index+1)+'호기 유기성 고형연료: 선택 기간 사용량 입력이 필요합니다.');
+      if(!manure.complete)warnings.push((index+1)+'호기 축분: 선택 기간 사용량 입력이 필요합니다.');
+    });
+    const combinedHeats={};
+    FUELS.concat(['total']).forEach(function(fuel){combinedHeats[fuel]=sumKnown(UNIT_IDS.map(function(unit){return units[unit].heats[fuel];}));});
+    const combinedRatios={bio:null,organic:null,total:null},combinedFuelRatios={bio:null,organic:null,manure:null,organicGroup:null,total:null};
+    if(combinedHeats.total!==null&&combinedHeats.total>0){
+      combinedFuelRatios.bio=combinedHeats.bio/combinedHeats.total*100;
+      combinedFuelRatios.organic=combinedHeats.organic/combinedHeats.total*100;
+      combinedFuelRatios.manure=combinedHeats.manure/combinedHeats.total*100;
+      combinedFuelRatios.organicGroup=(combinedHeats.organic+combinedHeats.manure)/combinedHeats.total*100;
+      combinedFuelRatios.total=(combinedHeats.bio+combinedHeats.organic+combinedHeats.manure)/combinedHeats.total*100;
+      combinedRatios.bio=combinedFuelRatios.bio;combinedRatios.organic=combinedFuelRatios.organicGroup;combinedRatios.total=combinedFuelRatios.total;
+    }
+    const qualityVerified=counters.every(function(c){return c.qualityVerified;});
+    return {period,units,combined:{heats:combinedHeats,ratios:combinedRatios,fuelRatios:combinedFuelRatios},warnings,sourceKind:'dataparc-period-summary',qualityVerified,productionReady:false,databaseWritten:false,calorifics:actualCalorifics,coefficients:actualCoefficients};
+  }
+
+  return Object.freeze({ dailyRange: dailyRange, validateDailySource: validateDailySource, analyzeDay: analyzeDay, validateRange: validateRange, analyze: analyze, periodRange: periodRange, analyzePeriodSummary: analyzePeriodSummary, qualityGood: qualityGood, requiredSeries: REQUIRED_SERIES });
 }));
