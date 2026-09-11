@@ -171,14 +171,15 @@
       queryButton.disabled=mobile||!s?.canQuery||busy;
       queryButton.textContent=busy?'조회·계산 중...':'계산하기';
       if(requery)requery.disabled=mobile||!s?.canQuery||!item?.saved||busy;
-      const stateText=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?'DataPARC 작업 중':item?.saved&&reference?'계산 완료':item?.saved?'결과 확인 중':'저장결과 없음';
+      const qualityGapSaved=!!(item?.saved&&reference?.summaries?.some?.(x=>x?.dataComplete===false));
+      const stateText=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?'DataPARC 작업 중':item?.saved&&reference?(qualityGapSaved?'경계값 계산 · 품질 공백':'계산 완료'):item?.saved?'결과 확인 중':'저장결과 없음';
       if(state)state.textContent=stateText;
       if(!s?.authenticated)setStatus(container,'로그인 후 기간 계산을 실행해 주세요.','error');
       else if(item?.error)setStatus(container,item.error,'error');
       else if(item?.submitting)setStatus(container,'기간 조회 요청을 등록하고 있습니다. 아직 계산 전입니다.','working');
       else if(active?.status==='pending')setStatus(container,'회사 PC Agent 대기 중입니다. 아직 계산 전입니다.','working');
       else if(active?.status==='processing')setStatus(container,'DataPARC 조회·Excel 정리 작업이 진행 중입니다. 서버에 저장 결과가 도착하면 숫자가 자동 표시됩니다. 아직 계산 완료가 아닙니다.','working');
-      else if(item?.saved&&reference)setStatus(container,lastResult?.warnings?.length?'DataPARC 값은 표시되었습니다. 유기성/축분 미입력 항목을 입력하면 최종 혼소율이 계산됩니다.':'저장된 DataPARC 결과를 불러와 혼소율 계산까지 완료했습니다.','success');
+      else if(item?.saved&&reference)setStatus(container,qualityGapSaved?'DataPARC 중간 품질 공백이 있어도 시작·종료 누적 경계가 정상인 사용량은 표시합니다. [자료 확인 내용]에서 품질 공백 시간을 확인해 주세요.':lastResult?.warnings?.length?'DataPARC 값은 표시되었습니다. 유기성/축분 미입력 항목을 입력하면 최종 혼소율이 계산됩니다.':'저장된 DataPARC 결과를 불러와 혼소율 계산까지 완료했습니다.','success');
     }
     function analyze(){if(!reference)return null;const p=periodSpec(container),setting=readSettings(container),mv=readManual(container),calorifics={unit1:{},unit2:{}},coefficients={unit1:{},unit2:{}};for(const u of UNITS)for(const fuel of FUEL_KEYS){calorifics[u][fuel]=setting[u][fuel].calorific;coefficients[u][fuel]=setting[u][fuel].coefficient;}return core.analyzePeriodSummary(reference,{startLocal:p.startLocal,endLocal:p.endLocal,calorifics,coefficients,organic:{start:p.start,end:p.end,unit1:mv.unit1.organic,unit2:mv.unit2.organic},manure:{start:p.start,end:p.end,unit1:mv.unit1.manure,unit2:mv.unit2.manure}});}
     function calculate(){

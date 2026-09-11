@@ -341,18 +341,20 @@
     if (startValue!==null&&endValue!==null&&endValue+0.001<startValue) issues.push('counter_reset');
     const derived=startValue===null||endValue===null?null:endValue-startValue;
     if (derived!==null&&usage!==null&&Math.abs(derived-usage)>0.001) issues.push('usage_mismatch');
-    if (derived!==null&&delta!==null&&Math.abs(derived-delta)>0.001) issues.push('delta_mismatch');
+    const spread=min===null||max===null?null:max-min;
+    if (spread!==null&&delta!==null&&Math.abs(spread-delta)>0.001) issues.push('delta_minmax_mismatch');
     if (startValue!==null&&min!==null&&min+0.001<startValue) issues.push('range_below_start');
     if (endValue!==null&&max!==null&&max-0.001>endValue) issues.push('range_above_end');
     const good=n(item.durationGoodSeconds), bad=n(item.durationBadSeconds), expected=period.durationMinutes*60;
     if (good===null||bad===null||good<0||bad<0||Math.abs((good||0)+(bad||0)-expected)>2) issues.push('duration_coverage_invalid');
-    if (bad!==null&&bad>0.001) issues.push('bad_duration');
     if (item.boundaryValid !== true || item.durationCoverageValid !== true) issues.push('worker_validation_failed');
     const complete=issues.length===0&&derived!==null&&derived>=-0.001;
+    const qualityGapSeconds=bad!==null&&bad>0.001?bad:0;
     return {
       id: definition.id, tag: definition.tag, quantity: complete ? Math.max(0,derived) : null,
       referenceQuantity: derived===null?null:Math.max(0,derived), complete,
-      missingSamples: complete?0:1, observedSamples: complete?2:0, qualityVerified: complete,
+      missingSamples: complete?0:1, observedSamples: complete?2:0,
+      qualityVerified: complete&&qualityGapSeconds<=0.001, qualityGapSeconds,
       issues: Array.from(new Set(issues)), summary: item
     };
   }
@@ -367,6 +369,8 @@
     if(entries.size!==REQUIRED_SERIES.length) throw new Error('기간 조회 TAG가 중복되거나 누락되었습니다.');
     const counters=REQUIRED_SERIES.map(function(def){return periodSummaryCounter(def,entries.get(def.id),period);});
     const units={},warnings=[],actualCalorifics={},actualCoefficients={};
+    const maxQualityGapSeconds=counters.reduce(function(max,c){return Math.max(max,c.qualityGapSeconds||0);},0);
+    if(maxQualityGapSeconds>0.001)warnings.push('DataPARC 중간 품질 공백이 최대 '+maxQualityGapSeconds.toFixed(1)+'초 확인됐습니다. 시작·종료 누적 경계와 Min/Max가 정상인 TAG는 경계값 차이로 사용량을 표시합니다.');
     UNIT_IDS.forEach(function(unit,index){
       const calorifics={},coefficients={};
       FUELS.forEach(function(fuel){

@@ -15,7 +15,8 @@ test('period supports minute/hour/day step with a 31-day guard',()=>{
 });
 test('period contract validates cumulative start/end summary and labels quality gaps',()=>{
  const clean=contract.validatePeriodReport(report(),spec);assert.equal(clean.status,'PERIOD_READY');assert.equal(clean.reference.kind,'cofiring_period_summary_v1');assert.equal(clean.reference.summaries.length,10);
- const gap=contract.validatePeriodReport(report({bad:true}),spec);assert.equal(gap.status,'PERIOD_DATA_GAPS');assert.equal(gap.summaries[0].dataComplete,false);
+ const gapSource=report({bad:true});gapSource.summaries[0].max=gapSource.summaries[0].endValue-0.125;gapSource.summaries[0].delta=gapSource.summaries[0].max-gapSource.summaries[0].min;
+ const gap=contract.validatePeriodReport(gapSource,spec);assert.equal(gap.status,'PERIOD_DATA_GAPS');assert.equal(gap.summaries[0].dataComplete,false);assert.notEqual(gap.summaries[0].usageTon,gap.summaries[0].delta);
  const bad=report();bad.summaries[0].endTime='2026-09-10T13:02:00+09:00';assert.throws(()=>contract.validatePeriodReport(bad,spec),/경계 반환시각/);
 });
 test('period calculation uses heat shares and period-bound manual organic/manure',()=>{
@@ -23,6 +24,10 @@ test('period calculation uses heat shares and period-bound manual organic/manure
  const result=core.analyzePeriodSummary(ref,{...spec,organic:{start:'2026-09-10T00:00:00+09:00',end:'2026-09-10T13:00:00+09:00',unit1:10,unit2:20},manure:{start:'2026-09-10T00:00:00+09:00',end:'2026-09-10T13:00:00+09:00',unit1:2,unit2:3}});
  assert.equal(result.period.durationHours,13);assert.equal(result.units.unit1.organic.enteredQuantity,10);assert.equal(result.units.unit2.manure.enteredQuantity,3);assert.ok(result.combined.ratios.total>0);assert.equal(result.qualityVerified,true);
  const stale=core.analyzePeriodSummary(ref,{...spec,organic:{start:'2026-09-10T00:00:00+09:00',end:'2026-09-10T12:59:00+09:00',unit1:10,unit2:20},manure:{start:'2026-09-10T00:00:00+09:00',end:'2026-09-10T13:00:00+09:00',unit1:0,unit2:0}});assert.equal(stale.units.unit1.organic.quantity,null);assert.equal(stale.units.unit1.ratios.total,null);
+ const gapSource=report({bad:true});gapSource.summaries[0].max=gapSource.summaries[0].endValue-0.125;gapSource.summaries[0].delta=gapSource.summaries[0].max-gapSource.summaries[0].min;
+ const gapRef=contract.validatePeriodReport(gapSource,spec).reference;
+ const gapResult=core.analyzePeriodSummary(gapRef,{...spec,organic:{start:'2026-09-10T00:00:00+09:00',end:'2026-09-10T13:00:00+09:00',unit1:0,unit2:0},manure:{start:'2026-09-10T00:00:00+09:00',end:'2026-09-10T13:00:00+09:00',unit1:0,unit2:0}});
+ assert.ok(gapResult.units.unit1.coal.quantity>0);assert.ok(gapResult.units.unit1.bio.quantity>0);assert.equal(gapResult.qualityVerified,false);assert.ok(gapResult.combined.ratios.total>0);assert.match(gapResult.warnings.join(' '),/품질 공백/);
 });
 test('V5.2 markup is compact by default while keeping Excel detail tables',()=>{
  const html=ui.markup();for(const text of ['Start date','End date','Step size','계산하기','Coal','Bio-SRF','유기성 고형연료','축분','계측 사용량','보정계수','실 사용량','주요 계산값','상세 계산표 보기'])assert.match(html,new RegExp(text));assert.match(html,/data-cfv52-summary-grid/);assert.match(html,/cfv52-manual-panel/);assert.doesNotMatch(html,/data-cfv5-load/);
@@ -30,7 +35,7 @@ test('V5.2 markup is compact by default while keeping Excel detail tables',()=>{
  const css=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.css'),'utf8');assert.match(css,/\.cfv5-input-yellow\{background:#fff200/);assert.match(css,/\.cfv5-input-blue\{background:#8ec9e6/);assert.match(css,/\.cfv5-ratio\{color:#f00000/);assert.match(css,/\.cfv52-summary-grid\{display:grid/);assert.match(css,/max-width:1180px/);
 });
 test('host loads V5 period assets instead of the old daily draft UI',()=>{
- const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-period-compact-v52/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260911-period-compact-v52/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
+ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(html,/cofiring-period-ui-v5\.css\?v=20260911-period-compact-v52/);assert.match(html,/cofiring-period-manual-storage\.js\?v=20260911-period-excel-v5/);assert.match(html,/cofiring-period-ui-v5\.js\?v=20260911-period-boundary-v53/);assert.doesNotMatch(html,/cofiring-draft\.js\?v=20260911-calc-layout-v4/);
 });
 
 test('V5.1 calculate action is one-click saved-first and surfaces query progress/errors',()=>{
@@ -49,6 +54,7 @@ test('V5.2 progress copy never calls an active period calculation complete',()=>
  assert.match(js,/아직 계산 완료가 아닙니다/);
  assert.match(js,/서버에 저장 결과가 도착하면 숫자가 자동 표시됩니다/);
  assert.match(js,/active\?\.status==='processing'\?'DataPARC 작업 중'/);
+ assert.match(js,/경계값 계산 · 품질 공백/);assert.match(js,/시작·종료 누적 경계가 정상인 사용량은 표시/);
 });
 
 test('V5.2 key view keeps manual fuel inputs visible and advanced sections folded',()=>{

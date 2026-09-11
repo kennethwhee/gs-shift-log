@@ -17605,8 +17605,10 @@ function createCofiringLiveContract() {
     if(!good(item.startQuality)||!good(item.endQuality))fail('기간 경계 품질 불량: '+def.id);
     const st=Date.parse(item.startTime),et=Date.parse(item.endTime);
     if(!Number.isFinite(st)||st<p.startMs||st>=p.startMs+60000||!Number.isFinite(et)||et<p.endMs||et>=p.endMs+60000)fail('기간 경계 반환시각 불일치: '+def.id);
-    const usage=item.endValue-item.startValue;
-    if(usage<-0.001||Math.abs(usage-item.usageTon)>0.001||Math.abs(usage-item.delta)>0.001)fail('기간 사용량/Delta 불일치: '+def.id);
+    const usage=item.endValue-item.startValue,spread=item.max-item.min;
+    if(usage<-0.001||Math.abs(usage-item.usageTon)>0.001)fail('기간 사용량/경계값 불일치: '+def.id);
+    if(spread<-0.001||Math.abs(spread-item.delta)>0.001)fail('기간 Delta/MinMax 불일치: '+def.id);
+    if(number(item.rangeSpread)&&Math.abs(spread-item.rangeSpread)>0.001)fail('기간 RangeSpread/MinMax 불일치: '+def.id);
     if(item.min+0.001<item.startValue||item.max-0.001>item.endValue)fail('기간 Min/Max가 누적 경계와 모순됩니다: '+def.id);
     const expected=p.durationMinutes*60;
     if(item.durationGoodSeconds<0||item.durationBadSeconds<0||Math.abs(item.durationGoodSeconds+item.durationBadSeconds-expected)>2)fail('기간 품질 지속시간 불일치: '+def.id);
@@ -17639,7 +17641,7 @@ function createCofiringLiveContract() {
   return {TYPE,PERIOD_TYPE,MAX_BYTES,definitions,uuid,good,noData,day,completedDay,validateReport,result,period,periodKey,periodEnvelope,validatePeriodReport,periodResult};
 }
 
-// COFIRING_WEB_BRIDGE_V1_BEGIN: isolated request/result handling; no organic/Daily DATA writes.
+
 const COFIRING_LIVE = createCofiringLiveContract();
 const cofiringIndexPromises = new WeakMap();
 async function ensureCofiringLiveIndexes(db) {

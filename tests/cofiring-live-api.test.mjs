@@ -127,4 +127,10 @@ test('period co-firing request is claimed on the Excel lane, validates summary b
  r=await call(d,{agent:true,body:{action:'complete',requestId:item.id,result:value}});assert.equal(r.status,200,JSON.stringify(r.data));
  r=await call(d,{get:'action=cofiring_period&start='+encodeURIComponent(spec.startLocal)+'&end='+encodeURIComponent(spec.endLocal)+'&stepUnit=hour&stepValue=1'});assert.equal(r.status,200,JSON.stringify(r.data));assert.equal(r.data.bridgeVersion,2);assert.equal(r.data.saved.id,item.id);assert.equal(r.data.result.report.status,'PERIOD_READY');assert.equal(r.data.result.report.reference.summaries.length,10);
  const reused=await call(d,{body:{...body,clientRequestId:crypto.randomUUID()}});assert.equal(reused.status,200);assert.equal(reused.data.item.id,item.id);
+ const d2=database(),gapBody={...body,clientRequestId:crypto.randomUUID()};let g=await call(d2,{body:gapBody});assert.equal(g.status,201,JSON.stringify(g.data));
+ g=await call(d2,{agent:true,get:'action=next_lanes&oisRequestTypes=water_environment&excelRequestTypes=cofiring_period'});const gapItem=g.data.items.excel;assert.ok(gapItem?.id);
+ const gapSummaries=summaries.map((s,i)=>i?{...s}:{...s,max:s.endValue-0.125,delta:(s.endValue-0.125)-s.min,durationGoodSeconds:duration-40.173,durationBadSeconds:40.173});
+ const gapValue={...value,requestId:gapItem.id,report:{...value.report,status:'PERIOD_DATA_GAPS',summaries:gapSummaries}};
+ g=await call(d2,{agent:true,body:{action:'complete',requestId:gapItem.id,result:gapValue}});assert.equal(g.status,200,JSON.stringify(g.data));
+ g=await call(d2,{get:'action=cofiring_period&start='+encodeURIComponent(spec.startLocal)+'&end='+encodeURIComponent(spec.endLocal)+'&stepUnit=hour&stepValue=1'});assert.equal(g.status,200,JSON.stringify(g.data));assert.equal(g.data.saved.id,gapItem.id);assert.equal(g.data.result.report.status,'PERIOD_DATA_GAPS');assert.notEqual(g.data.result.report.reference.summaries[0].usageTon,g.data.result.report.reference.summaries[0].delta);
 });
