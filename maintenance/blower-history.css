@@ -2921,11 +2921,8 @@ button.all-overview-card:hover { border-color: #9db8cf; box-shadow: 0 3px 10px r
   .overview-refresh-panel { align-items: stretch; flex-direction: column; gap: 9px; padding: 9px 10px; }
   .overview-refresh-latest > strong { font-size: 20px; }
   .overview-refresh-latest > small { font-size: 9px; }
-  .overview-refresh-action { width: 100%; min-width: 0; gap: 9px; }
-  .overview-refresh-button { flex-basis: 44px; width: 44px; height: 44px; border-radius: 13px; }
-  .overview-refresh-icon { width: 25px; height: 25px; }
-  .overview-refresh-progress-head strong { font-size: 17px; }
-  .overview-refresh-progress-head span { font-size: 9px; }
+  /* Mobile is monitoring-only: hide only the refresh action (button + progress). */
+  .overview-refresh-action { display: none !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
