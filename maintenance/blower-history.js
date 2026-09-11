@@ -1719,6 +1719,18 @@
         <div><span>확인 필요</span><strong>${needsCheck.toLocaleString("ko-KR")}대</strong></div>
         <div><span>교체 알림</span><strong>${replacementAlerts.toLocaleString("ko-KR")}대</strong></div>
       </section>`;
+    const unitGroupMeta = (item, blowerType) => {
+      const groupKey = String(item?.assetGroup || item?.groupKey || "").trim().toLowerCase();
+      const unitNo = String(item?.unitNo || "").trim().toLowerCase();
+      if (groupKey === "manure") return { key: "manure", label: "축분", kind: "manure", rank: 30 };
+      if (blowerType === "flyash_silo" || unitNo === "shared") {
+        return { key: "shared", label: "1·2호기 공용", kind: "shared", rank: 40 };
+      }
+      if (unitNo === "1") return { key: "unit-1", label: "1호기", kind: "unit-1", rank: 10 };
+      if (unitNo === "2") return { key: "unit-2", label: "2호기", kind: "unit-2", rank: 20 };
+      return { key: "other", label: "기타", kind: "other", rank: 90 };
+    };
+
     const groups = types.map(type => {
       const typeAssets = filteredAssets
         .filter(asset => asset.blowerType === type.key)
@@ -1726,12 +1738,40 @@
       const typeMissing = filteredMissing.filter(slot => slot.blowerType === type.key);
       const total = typeAssets.length + typeMissing.length;
       if (!total) return "";
+
+      const unitGroups = new Map();
+      const addEntry = (kind, item) => {
+        const meta = unitGroupMeta(item, type.key);
+        if (!unitGroups.has(meta.key)) unitGroups.set(meta.key, { meta, entries: [] });
+        unitGroups.get(meta.key).entries.push({ kind, item });
+      };
+      typeAssets.forEach(item => addEntry("asset", item));
+      typeMissing.forEach(item => addEntry("missing", item));
+
+      const unitPanels = [...unitGroups.values()]
+        .sort((left, right) => left.meta.rank - right.meta.rank)
+        .map(({ meta, entries }) => {
+          entries.sort(compareAssetDisplayEntries);
+          const cardCountClass = Math.max(1, Math.min(3, entries.length));
+          return `
+            <section class="all-overview-unit-panel" data-unit-kind="${escapeHtml(meta.kind)}">
+              <header class="all-overview-unit-header">
+                <strong>${escapeHtml(meta.label)}</strong>
+                <span>${entries.length.toLocaleString("ko-KR")}대</span>
+              </header>
+              <div class="all-overview-unit-card-grid" data-card-count="${cardCountClass}">
+                ${entries.map(entry => entry.kind === "asset"
+                  ? renderAllOverviewCard(entry.item)
+                  : renderAllOverviewMissingCard(entry.item)).join("")}
+              </div>
+            </section>`;
+        }).join("");
+
       return `
         <section class="all-overview-group" data-overview-type="${escapeHtml(type.key)}">
           <header><h3>${escapeHtml(type.label)}</h3><span>${total.toLocaleString("ko-KR")}대</span></header>
-          <div class="all-overview-grid">
-            ${typeAssets.map(renderAllOverviewCard).join("")}
-            ${typeMissing.map(renderAllOverviewMissingCard).join("")}
+          <div class="all-overview-unit-layout" data-unit-count="${unitGroups.size}">
+            ${unitPanels}
           </div>
         </section>`;
     }).join("");

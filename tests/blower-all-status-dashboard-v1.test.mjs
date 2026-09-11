@@ -60,10 +60,24 @@ test('dashboard keeps intermittent equipment out of instantaneous running/stoppe
   assert.doesNotMatch(flyash,/조회값 반영/);
 });
 
-test('dashboard styles use compact six-column grids and cache is bumped',()=>{
+test('dashboard separates blower types into visible 1호기/2호기 unit panels',()=>{
+  ui.renderAssets();
+  const out=ui.elements.assetGroups.innerHTML;
+  assert.match(out,/data-overview-type="fbhe"[\s\S]*?data-unit-kind="unit-1"[\s\S]*?<strong>1호기<\/strong>/);
+  assert.match(out,/data-overview-type="organic_fuel"[\s\S]*?data-unit-kind="unit-2"[\s\S]*?<strong>2호기<\/strong>/);
+  assert.match(out,/data-unit-count="/);
+  assert.match(source,/groupKey === "manure"[\s\S]*?label: "축분"/);
+  assert.match(source,/blowerType === "flyash_silo"[\s\S]*?label: "1·2호기 공용"/);
+});
+
+test('dashboard styles keep the six-item summary but group cards inside colored unit subpanels',()=>{
   assert.match(css,/\.all-overview-summary\s*\{[\s\S]*?grid-template-columns:\s*repeat\(6,/);
-  assert.match(css,/\.all-overview-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(6,/);
+  assert.match(css,/\.all-overview-unit-layout\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,/);
+  assert.match(css,/\.all-overview-unit-panel\[data-unit-kind="unit-1"\][\s\S]*?background:\s*#eef7ff/);
+  assert.match(css,/\.all-overview-unit-panel\[data-unit-kind="unit-2"\][\s\S]*?background:\s*#effaf3/);
+  assert.match(css,/\.all-overview-unit-panel\[data-unit-kind="shared"\][\s\S]*?background:\s*#f5f1ff/);
+  assert.match(css,/\.all-overview-unit-card-grid\[data-card-count="3"\][\s\S]*?repeat\(3,/);
   assert.match(css,/operation-mode-pill\.intermittent/);
-  assert.match(html,/blower-history\.css\?v=20260911-incremental-dashboard-v4/);
-  assert.match(html,/blower-history\.js\?v=20260911-incremental-dashboard-v4/);
+  assert.match(html,/blower-history\.css\?v=20260911-unit-grouping-v9/);
+  assert.match(html,/blower-history\.js\?v=20260911-unit-grouping-v9/);
 });
