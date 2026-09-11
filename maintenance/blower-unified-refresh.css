@@ -1,5 +1,6 @@
 /* BLOWER_UNIFIED_REFRESH_V1 — two card actions, one global refresh. */
-#refreshButton { min-width: 90px; font-weight: 800; }
+#refreshButton:not(.overview-refresh-button) { min-width: 90px; font-weight: 800; }
+#refreshButton.overview-refresh-button { min-width: 52px; font-weight: 800; }
 #blowerQueryActions { display: none !important; }
 .unified-refresh-status { margin: 0 0 12px; padding: 11px 14px; border: 1px solid #cfdbeb; border-radius: 10px; background: #fff; color: #244361; font-size: 13px; }
 .unified-refresh-status[hidden], .unified-refresh-status [hidden] { display: none !important; }

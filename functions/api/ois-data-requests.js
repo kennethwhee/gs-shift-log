@@ -14043,6 +14043,10 @@ async function createBlowerRuntimeProbeRequest(
     if (body.unifiedRefresh !== true) return jsonResponse({ ok: false, code: "BLOWER_INCREMENTAL_MODE_INVALID",
       message: "증분 조회는 상단 최신화에서만 실행할 수 있습니다." }, 400);
     appendBase = await loadAppendBase(database, asset, dataParcTag);
+    if (body.requireIncrementalAppend === true && !appendBase) {
+      return jsonResponse({ ok: false, code: "BLOWER_INCREMENTAL_BASE_REQUIRED",
+        message: "기존 조회값 보호를 위해 전체 재조회로 전환하지 않았습니다. 증분 이어조회 기준을 확인해 주세요." }, 409);
+    }
     if (appendBase) {
       requestedStartText = appendBase.observedAt;
       if (Date.parse(requestedStartText) >= parsedEndAt.timestamp) {

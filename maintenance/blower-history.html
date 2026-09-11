@@ -6,13 +6,13 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="GS Shift Log Blower V-Belt 교체 이력 관리">
   <title>Blower V-Belt 교체 이력 관리</title>
-  <link rel="stylesheet" href="blower-history.css?v=20260911-overview-state-v3">
+  <link rel="stylesheet" href="blower-history.css?v=20260911-incremental-dashboard-v4">
   <link rel="stylesheet" href="blower-history-mobile-dialog-close-v1.css?v=20260903-v1">
   <link rel="stylesheet" href="/maintenance/seal-pot-ois-shadow.css?v=20260901-v2">
   <script src="shift-log-navigation.js?v=20260828-navigation-public-v1" defer></script>
-  <link rel="stylesheet" href="blower-unified-refresh.css?v=20260909-fbhe-seal-run-reconcile-v1">
-  <script src="blower-unified-refresh.js?v=20260909-run-history-v1" defer></script>
-  <script src="blower-history.js?v=20260911-overview-state-v3" defer></script>
+  <link rel="stylesheet" href="blower-unified-refresh.css?v=20260911-incremental-dashboard-v4">
+  <script src="blower-unified-refresh.js?v=20260911-incremental-dashboard-v4" defer></script>
+  <script src="blower-history.js?v=20260911-incremental-dashboard-v4" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
 </head>
 <body>
@@ -31,14 +31,13 @@
           data-shift-log-return
           hidden
         >업무일지로 돌아가기</button>
-        <button type="button" class="button secondary" id="refreshButton" title="전체 Blower 업무일지·누적시간 최신화">최신화</button>
       </div>
     </header>
 
     <section class="notice-bar" id="authNotice" role="status" aria-live="polite" hidden></section>
-    <section class="unified-refresh-status" id="unifiedRefreshStatus" aria-label="전체 최신화 결과" hidden>
+    <section class="unified-refresh-status" id="unifiedRefreshStatus" aria-label="전체 통합조회 결과" hidden>
       <p id="unifiedRefreshText" role="status" aria-live="polite"></p>
-      <details id="unifiedRefreshDetails" hidden><summary id="unifiedRefreshSummary">최신화 결과</summary><div id="unifiedRefreshList"></div></details>
+      <details id="unifiedRefreshDetails" hidden><summary id="unifiedRefreshSummary">통합조회 결과</summary><div id="unifiedRefreshList"></div></details>
     </section>
     <nav class="type-tabs" id="typeTabs" aria-label="Blower 종류"></nav>
 
@@ -85,6 +84,28 @@
               <span id="overviewBackfillSummary">재구성 완료 전에는 기존 자동감지 이력을 확정값으로 표시하지 않습니다.</span>
             </div>
             <button type="button" class="button primary" id="overviewBackfillButton" data-mobile-write hidden>과거 이력 복구</button>
+          </section>
+
+          <section class="overview-refresh-panel" id="overviewRefreshPanel" aria-label="전체 Blower 통합조회" hidden>
+            <div class="overview-refresh-latest">
+              <span>최신 조회</span>
+              <strong id="overviewLatestQueryAt">조회 이력 확인 중</strong>
+              <small id="overviewLatestQueryDetail">저장된 마지막 조회 종료시각 이후 구간만 이어서 조회합니다.</small>
+            </div>
+            <div class="overview-refresh-action">
+              <button type="button" class="overview-refresh-button" id="refreshButton" title="전체 Blower를 저장된 마지막 조회시각 이후부터 통합조회" aria-label="전체 Blower 통합조회">
+                <span class="overview-refresh-icon" aria-hidden="true">↻</span>
+              </button>
+              <div class="overview-refresh-progress" aria-live="polite">
+                <div class="overview-refresh-progress-head">
+                  <strong id="overviewRefreshPercent">0%</strong>
+                  <span id="overviewRefreshProgressText">통합조회 대기</span>
+                </div>
+                <div class="overview-refresh-progress-track" role="progressbar" aria-label="전체 Blower 통합조회 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="overviewRefreshProgressTrack">
+                  <span id="overviewRefreshProgressBar"></span>
+                </div>
+              </div>
+            </div>
           </section>
 
           <section class="status-toolbar" aria-label="설비 상태 필터">

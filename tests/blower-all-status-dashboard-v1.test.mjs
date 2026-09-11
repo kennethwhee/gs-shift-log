@@ -64,6 +64,6 @@ test('dashboard styles use compact six-column grids and cache is bumped',()=>{
   assert.match(css,/\.all-overview-summary\s*\{[\s\S]*?grid-template-columns:\s*repeat\(6,/);
   assert.match(css,/\.all-overview-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(6,/);
   assert.match(css,/operation-mode-pill\.intermittent/);
-  assert.match(html,/blower-history\.css\?v=20260911-overview-state-v3/);
-  assert.match(html,/blower-history\.js\?v=20260911-overview-state-v3/);
+  assert.match(html,/blower-history\.css\?v=20260911-incremental-dashboard-v4/);
+  assert.match(html,/blower-history\.js\?v=20260911-incremental-dashboard-v4/);
 });

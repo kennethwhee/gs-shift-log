@@ -85,9 +85,14 @@
         skip('RUN TAG 설정 필요 · 이력 보기 → 조회 기준·상세'); continue;
       }
       const previous = a.dataParcRuntimeBasis || basisFor(a.tagNumber);
-      // Preserve the coverage baseline; only a server-verified owner can append at its end.
+      // Preserve every already-confirmed result. Once a basis exists, the integrated refresh may
+      // continue only from a server-verified append owner; it must never fall back to a full requery.
       const startAt = previous?.startAt || (a.cycleStartState === 'started' && a.cycleStartedAt) || a.lastReplacementAt;
       const incremental = previous?.appendReady === true && previous?.dataParcTag === dataParcTag;
+      if (previous && !incremental) {
+        skip('기존 조회값 보호 · 증분 이어조회 기준 확인 필요 · 전체 재조회하지 않음');
+        continue;
+      }
       const queryStartAt = incremental ? previous.observedAt : startAt;
       const start = time(startAt), queryStart = time(queryStartAt);
       if (incremental && Number.isFinite(queryStart) && Math.floor(end / 1000) <= Math.floor(queryStart / 1000)) {
@@ -138,7 +143,8 @@
     io.assertWritable?.();
     const s = task.snapshot;
     const created = await io.api({ method: 'POST', url: '/api/ois-data-requests', body: {
-      action: 'create_blower_runtime_probe', unifiedRefresh: true, incrementalRefresh: true, assetTag: s.tagNumber,
+      action: 'create_blower_runtime_probe', unifiedRefresh: true, incrementalRefresh: true,
+      requireIncrementalAppend: task.incremental === true, assetTag: s.tagNumber,
       dataParcTag: task.dataParcTag, confirmRunSignal: true, startAt: task.startAt,
       expectedLastReplacementAt: s.lastReplacementAt, expectedCycleStartState: s.cycleStartState,
       expectedCycleStartedAt: s.cycleStartedAt, expectedCycleStartRevision: s.cycleStartRevision,
