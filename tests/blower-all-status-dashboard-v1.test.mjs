@@ -78,6 +78,7 @@ test('dashboard styles keep the six-item summary but group cards inside colored 
   assert.match(css,/\.all-overview-unit-panel\[data-unit-kind="shared"\][\s\S]*?background:\s*#f5f1ff/);
   assert.match(css,/\.all-overview-unit-card-grid\[data-card-count="3"\][\s\S]*?repeat\(3,/);
   assert.match(css,/operation-mode-pill\.intermittent/);
-  assert.match(html,/blower-history\.css\?v=20260911-unit-grouping-v9/);
-  assert.match(html,/blower-history\.js\?v=20260911-unit-grouping-v9/);
+  assert.match(html,/blower-history\.css\?v=20260911-mobile-refresh-hide-only-v10-r1/);
+  assert.match(html,/blower-unified-refresh\.js\?v=20260911-fast-manual-resume-v11/);
+  assert.match(html,/blower-history\.js\?v=20260911-fast-manual-resume-v11/);
 });

@@ -65,14 +65,26 @@ function eventOrder(a, b) {
     String(b.id || '').localeCompare(String(a.id || ''));
 }
 
-/* BLOWER_INCREMENTAL_MANUAL_BOUNDARY_V1
- * A measured Blower may have a manual operation_start/operation_stop after the
- * last successful DataPARC sample. That boundary changes the asset runtime
- * revision/anchor but it does not change measured RUN seconds. In that narrow
- * case, resume from the last DataPARC observedAt instead of treating the manual
- * state marker as loss of provenance. Any manual runtime correction, startup,
- * different cumulative value, replacement/cycle change, or unknown intervening
- * event still fails closed.
+const sameManualRuntime = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 0.000001;
+
+function manualRuntimeOverlayState(row) {
+  if (row?.event_type === 'operation_start') return 'running';
+  if (row?.event_type === 'operation_stop') return 'stopped';
+  if (row?.event_type !== 'runtime_correction' || row?.source_type !== 'manual') return '';
+  const action = String(row.action_type || '').trim().toLowerCase();
+  if (action === '운전중' || action === 'running') return 'running';
+  if (action === '정지' || action === 'stopped') return 'stopped';
+  return '';
+}
+
+/* BLOWER_INCREMENTAL_MANUAL_BOUNDARY_V2
+ * A measured Blower may have a manual operation_start/operation_stop, or an
+ * exact-state manual runtime_correction that leaves the cumulative value
+ * unchanged, after the last successful DataPARC sample. Those boundaries change
+ * the asset runtime revision/anchor but not the verified RUN seconds. Resume from
+ * the last DataPARC observedAt only when every intervening runtime overlay is a
+ * parseable manual boundary with the same cumulative value. A changed total,
+ * startup, pending cycle, non-manual/unknown overlay, or cycle change fails closed.
  */
 function verifiedManualBoundaryAppendBase(asset, rows, dataParcTag) {
   if (!asset?.last_replacement_at || asset.cycle_start_state === 'pending') return null;
@@ -85,10 +97,9 @@ function verifiedManualBoundaryAppendBase(asset, rows, dataParcTag) {
 
   const relevant = (rows || []).filter(r => r.tag_number === asset.tag_number &&
     ['runtime_correction','startup','operation_start','operation_stop'].includes(r.event_type));
-  const currentOwner = relevant.filter(r => instant(r.event_date) === currentAnchor && near(number(r.runtime_hours), currentHours))
+  const currentOwner = relevant.filter(r => instant(r.event_date) === currentAnchor && sameManualRuntime(number(r.runtime_hours), currentHours))
     .sort(eventOrder)[0];
-  const ownerState = currentOwner?.event_type === 'operation_start' ? 'running' :
-    currentOwner?.event_type === 'operation_stop' ? 'stopped' : '';
+  const ownerState = manualRuntimeOverlayState(currentOwner);
   if (!currentOwner || currentOwner.source_type !== 'manual' || !ownerState || ownerState !== asset.cycle_runtime_state) return null;
 
   const candidates = relevant.filter(r => r.source_type === 'dataparc_runtime' && r.event_type === 'runtime_correction')
@@ -108,7 +119,7 @@ function verifiedManualBoundaryAppendBase(asset, rows, dataParcTag) {
       cycle_runtime_state: candidate.source?.endState || ''
     };
     const base = strictVerifiedAppendBase(shadow, [candidate.row], dataParcTag);
-    if (!base || !near(base.runtimeHours, currentHours)) continue;
+    if (!base || !sameManualRuntime(base.runtimeHours, currentHours)) continue;
 
     const overlays = relevant.filter(r => {
       const at = instant(r.event_date);
@@ -116,7 +127,7 @@ function verifiedManualBoundaryAppendBase(asset, rows, dataParcTag) {
     });
     if (!overlays.some(r => r.id === currentOwner.id)) continue;
     const manualOnly = overlays.every(r => r.source_type === 'manual' &&
-      ['operation_start','operation_stop'].includes(r.event_type) && near(number(r.runtime_hours), currentHours));
+      Boolean(manualRuntimeOverlayState(r)) && sameManualRuntime(number(r.runtime_hours), currentHours));
     if (!manualOnly) continue;
 
     return { ...base, cycleRuntimeRevision: asset.cycle_runtime_revision };
@@ -130,12 +141,14 @@ export function verifiedAppendBase(asset, rows, dataParcTag) {
 }
 
 export async function loadAppendBase(database, asset, dataParcTag) {
-  // Do not read only the current runtime anchor: a manual start/stop marker can
-  // legitimately sit after the last DataPARC success while preserving its RUN total.
+  // Read the current Cycle beyond its runtime anchor: a manual boundary can sit
+  // after the last DataPARC success while preserving its RUN total. Older Cycles
+  // are unrelated and can make this hot-path history scan grow without bound.
   const result = await database.prepare(`SELECT * FROM blower_history_events
     WHERE tag_number = ? AND event_type IN ('runtime_correction','startup','operation_start','operation_stop')
+      AND datetime(event_date) >= datetime(?)
     ORDER BY event_date DESC, updated_at DESC, created_at DESC, id DESC`)
-    .bind(asset.tag_number).all();
+    .bind(asset.tag_number, asset.last_replacement_at).all();
   return verifiedAppendBase(asset, result.results || [], dataParcTag);
 }
 export async function ensureAppendSchema(database) {

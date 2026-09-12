@@ -112,7 +112,7 @@
     const ids = [...map.keys()], clock = options.clock || Date.now, sleep = options.sleep || (ms => new Promise(r => setTimeout(r, ms)));
     const start = clock(), deadline = start + (options.timeoutMs || 2 * 3600000);
     const settleFailures = options.settleFailures === true;
-    let retry = 0;
+    let retry = 0, pollCount = 0;
     while (clock() < deadline) {
       io.assertWritable?.();
       const all = [...map.values()];
@@ -128,15 +128,24 @@
       }
       const terminal = all.filter(x => ['complete', 'failed'].includes(x.status)).length;
       io.progress?.(`${terminal}/${all.length} · ${all.some(x => x.status === 'processing') ? 'DataPARC 일괄 계산 중' : '조회 대기 중'}`);
-      await sleep(Math.min(2500, Math.max(0, deadline - clock())));
+      // The request rows already exist when this function starts, so the first
+      // status read can run immediately.  Poll quickly while a foreground
+      // Blower batch normally finishes, then taper to the legacy interval for
+      // a genuinely long DataPARC calculation.
+      if (pollCount > 0) {
+        const elapsed = Math.max(0, clock() - start);
+        const interval = elapsed < 10000 ? 400 : elapsed < 60000 ? 1000 : 2500;
+        await sleep(Math.min(interval, Math.max(0, deadline - clock())));
+      }
       let payloads;
       try {
         const groups = [];
-        for (let index = 0; index < ids.length; index += 12) groups.push(ids.slice(index, index + 12));
+        for (let index = 0; index < ids.length; index += 24) groups.push(ids.slice(index, index + 24));
         payloads = await Promise.all(groups.map((group, groupIndex) => io.api({
           url: `/api/ois-data-requests?action=status_batch&compact=1&ids=${encodeURIComponent(group.join(','))}&_=${clock() + groupIndex}`,
           timeoutMs: 20000
         })));
+        pollCount += 1;
         retry = 0;
       } catch (e) {
         if (![0,429,502,503,504].includes(Number(e?.status || 0)) || retry >= 4) throw e;

@@ -8070,13 +8070,13 @@ async function createAuxiliaryMaterialBatchRequest(
     ?action=status_batch
     &ids=요청ID1,요청ID2,...
 
-  - 한 번에 최대 12건
+  - 한 번에 최대 24건
   - 사용자 인증은 묶음 전체에서 한 번만 수행
   - 전달받은 요청 중 실제 만료된 활성 요청만 정리
 ========================================================= */
 
 const MAXIMUM_STATUS_BATCH_IDS =
-  12;
+  24;
 
 
 function parseStatusBatchRequestIds(
@@ -8121,7 +8121,7 @@ function parseStatusBatchRequestIds(
   ) {
     return {
       error:
-        "OIS 요청 상태는 한 번에 최대 12건까지 조회할 수 있습니다."
+        "OIS 요청 상태는 한 번에 최대 24건까지 조회할 수 있습니다."
     };
   }
 
@@ -8609,6 +8609,18 @@ async function ensureOisQueuePerformanceIndexes(
             expires_at,
             id
           )
+        `),
+
+        database.prepare(`
+          CREATE INDEX IF NOT EXISTS
+            idx_ois_data_requests_type_status_requested_v1
+
+          ON ois_data_requests (
+            request_type,
+            status,
+            requested_at,
+            id
+          )
         `)
       ])
       .catch(
@@ -8622,6 +8634,562 @@ async function ensureOisQueuePerformanceIndexes(
 
 
   return await oisQueuePerformanceIndexPromise;
+}
+
+/* =========================================================
+  회사 PC가 DataPARC Blower 요청을 묶음으로 가져오기
+
+  GET /api/ois-data-requests
+    ?action=next_blower_batch
+    &limit=1..23
+
+  - limit 생략 시 23건
+  - Blower read-only 요청만 오래된 순서로 claim
+  - 조건부 UPDATE와 restart guard는 단건 claim과 동일
+  - 다른 Agent와의 경쟁은 최대 3회 재조회
+========================================================= */
+
+const MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_CLAIMS =
+  23;
+
+
+const MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_CLAIM_ATTEMPTS =
+  3;
+
+
+function parseBlowerRuntimeProbeBatchLimit(
+  requestUrl
+) {
+  const rawLimit =
+    requestUrl.searchParams.get(
+      "limit"
+    );
+
+
+  if (
+    rawLimit ===
+      null
+  ) {
+    return {
+      limit:
+        MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_CLAIMS
+    };
+  }
+
+
+  const limitText =
+    normalizeText(
+      rawLimit
+    );
+
+
+  if (
+    !/^(?:[1-9]|1[0-9]|2[0-3])$/.test(
+      limitText
+    )
+  ) {
+    return {
+      error:
+        "DataPARC Blower 묶음 요청 limit은 1 이상 23 이하 정수여야 합니다."
+    };
+  }
+
+
+  return {
+    limit:
+      Number(
+        limitText
+      )
+  };
+}
+
+
+async function findPendingBlowerRuntimeProbeRows(
+  database,
+  pollingNow,
+  limit,
+  agentId
+) {
+  const queryResult =
+    await database
+      .prepare(`
+        SELECT
+          request.*,
+          intent.request_id AS probe_request_id,
+          intent.schema_version AS probe_schema_version,
+          intent.asset_tag AS probe_asset_tag,
+          intent.dataparc_tag AS probe_dataparc_tag,
+          intent.window_start AS probe_window_start,
+          intent.window_end AS probe_window_end,
+          intent.chunk_days AS probe_chunk_days,
+          intent.chunk_count AS probe_chunk_count,
+          intent.expected_last_replacement_at AS probe_expected_last_replacement_at,
+          intent.expected_cycle_start_state AS probe_expected_cycle_start_state,
+          intent.expected_cycle_started_at AS probe_expected_cycle_started_at,
+          intent.expected_cycle_start_revision AS probe_expected_cycle_start_revision,
+          intent.expected_cycle_runtime_revision AS probe_expected_cycle_runtime_revision
+
+        FROM ois_data_requests AS request
+        INNER JOIN blower_runtime_probe_intents_v4 AS intent
+          ON intent.request_id = request.id
+
+        WHERE
+          request.request_type = ?
+          AND request.status = 'pending'
+          AND request.expires_at >= ?
+          AND NOT EXISTS (
+            SELECT 1
+            FROM ois_data_requests AS restart_guard
+            WHERE
+              restart_guard.request_type = 'cofiring_restart_guard'
+              AND restart_guard.status = 'guard'
+              AND restart_guard.agent_id = ?
+              AND restart_guard.expires_at > ?
+          )
+
+        ORDER BY
+          request.requested_at ASC,
+          request.id ASC
+
+        LIMIT ?
+      `)
+      .bind(
+        BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+        pollingNow,
+        agentId,
+        pollingNow,
+        limit
+      )
+      .all();
+
+
+  const rows =
+    Array.isArray(
+      queryResult?.results
+    )
+      ? queryResult.results
+      : [];
+
+
+  return rows
+    .map(
+      pendingRow => {
+        const requestItem =
+          convertRequestRow(
+            pendingRow
+          );
+
+
+        const probe =
+          convertBlowerRuntimeProbeIntentRow({
+            request_id:
+              pendingRow.probe_request_id,
+            schema_version:
+              pendingRow.probe_schema_version,
+            asset_tag:
+              pendingRow.probe_asset_tag,
+            dataparc_tag:
+              pendingRow.probe_dataparc_tag,
+            window_start:
+              pendingRow.probe_window_start,
+            window_end:
+              pendingRow.probe_window_end,
+            chunk_days:
+              pendingRow.probe_chunk_days,
+            chunk_count:
+              pendingRow.probe_chunk_count,
+            expected_last_replacement_at:
+              pendingRow.probe_expected_last_replacement_at,
+            expected_cycle_start_state:
+              pendingRow.probe_expected_cycle_start_state,
+            expected_cycle_started_at:
+              pendingRow.probe_expected_cycle_started_at,
+            expected_cycle_start_revision:
+              pendingRow.probe_expected_cycle_start_revision,
+            expected_cycle_runtime_revision:
+              pendingRow.probe_expected_cycle_runtime_revision
+          });
+
+
+        return {
+          pendingRow,
+          probe,
+          valid:
+            isValidBlowerRuntimeProbeIntentIdentity(
+              probe,
+              requestItem.id,
+              requestItem.targetDate
+            )
+        };
+      }
+    )
+    .filter(
+      candidate => {
+        return candidate.valid;
+      }
+    );
+}
+
+
+function prepareBlowerRuntimeProbeBatchClaim(
+  database,
+  pendingCandidate,
+  agentId,
+  processingStartedAtText,
+  processingExpiresAtText
+) {
+  const pendingRow =
+    pendingCandidate?.pendingRow;
+
+
+  const requestId =
+    normalizeText(
+      pendingRow?.id
+    );
+
+
+  return {
+    requestId,
+    pendingRow,
+    probe:
+      pendingCandidate?.probe ||
+      null,
+    statement:
+      database
+        .prepare(`
+          UPDATE ois_data_requests
+
+          SET
+            status = 'processing',
+            started_at = ?,
+            agent_id = ?,
+            expires_at = ?,
+            updated_at = ?
+
+          WHERE
+            id = ?
+            AND request_type = ?
+            AND status = 'pending'
+            AND expires_at >= ?
+            AND NOT EXISTS (
+              SELECT 1
+              FROM ois_data_requests AS restart_guard
+              WHERE
+                restart_guard.request_type = 'cofiring_restart_guard'
+                AND restart_guard.status = 'guard'
+                AND restart_guard.agent_id = ?
+                AND restart_guard.expires_at > ?
+            )
+        `)
+        .bind(
+          processingStartedAtText,
+          agentId,
+          processingExpiresAtText,
+          processingStartedAtText,
+          requestId,
+          BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+          processingStartedAtText,
+          agentId,
+          processingStartedAtText
+        )
+  };
+}
+
+
+async function findBlowerRuntimeProbeIntentsByRequestIds(
+  database,
+  requestIds
+) {
+  if (
+    requestIds.length <
+      1
+  ) {
+    return new Map();
+  }
+
+
+  const placeholders =
+    requestIds
+      .map(
+        () => {
+          return "?";
+        }
+      )
+      .join(
+        ", "
+      );
+
+
+  const queryResult =
+    await database
+      .prepare(
+        [
+          "SELECT *",
+          "FROM blower_runtime_probe_intents_v4",
+          "WHERE request_id IN (" +
+            placeholders +
+            ")"
+        ].join(
+          "\n"
+        )
+      )
+      .bind(
+        ...requestIds
+      )
+      .all();
+
+
+  const rows =
+    Array.isArray(
+      queryResult?.results
+    )
+      ? queryResult.results
+      : [];
+
+
+  return new Map(
+    rows.map(
+      row => {
+        const probe =
+          convertBlowerRuntimeProbeIntentRow(
+            row
+          );
+
+
+        return [
+          probe?.requestId ||
+            "",
+          probe
+        ];
+      }
+    )
+  );
+}
+
+
+async function claimBlowerRuntimeProbeBatchRound(
+  database,
+  pendingRows,
+  agentId
+) {
+  const processingStartedAt =
+    new Date();
+
+
+  const processingStartedAtText =
+    processingStartedAt.toISOString();
+
+
+  const processingExpiresAtText =
+    new Date(
+      processingStartedAt.getTime() +
+      getRequestProcessingTimeoutMinutes(
+        BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+      ) *
+        60 *
+        1000
+    )
+      .toISOString();
+
+
+  const candidates =
+    pendingRows.map(
+      pendingCandidate => {
+        return prepareBlowerRuntimeProbeBatchClaim(
+          database,
+          pendingCandidate,
+          agentId,
+          processingStartedAtText,
+          processingExpiresAtText
+        );
+      }
+    );
+
+
+  const updateResults =
+    await database.batch(
+      candidates.map(
+        candidate => {
+          return candidate.statement;
+        }
+      )
+    );
+
+
+  const claimedCandidates =
+    candidates.filter(
+      (
+        candidate,
+        candidateIndex
+      ) => {
+        return Number(
+          updateResults?.[
+            candidateIndex
+          ]?.meta?.changes
+        ) ===
+          1;
+      }
+    );
+
+
+  const items =
+    claimedCandidates.map(
+      candidate => {
+        const requestItem =
+          convertRequestRow({
+            ...candidate.pendingRow,
+            status:
+              "processing",
+            started_at:
+              processingStartedAtText,
+            agent_id:
+              agentId,
+            expires_at:
+              processingExpiresAtText,
+            updated_at:
+              processingStartedAtText
+          });
+
+
+        return {
+          ...requestItem,
+          probe:
+            isValidBlowerRuntimeProbeIntentIdentity(
+              candidate.probe,
+              requestItem.id,
+              requestItem.targetDate
+            )
+              ? candidate.probe
+              : null
+        };
+      }
+    );
+
+
+  return {
+    items,
+    lostCompetition:
+      claimedCandidates.length !==
+        candidates.length
+  };
+}
+
+
+async function handleAgentNextBlowerRuntimeProbeBatch(
+  context,
+  requestUrl
+) {
+  const authentication =
+    await authenticateOisAgent(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const parsedLimit =
+    parseBlowerRuntimeProbeBatchLimit(
+      requestUrl
+    );
+
+
+  if (
+    parsedLimit.error
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+        message:
+          parsedLimit.error
+      },
+      400
+    );
+  }
+
+
+  await ensureOisQueuePerformanceIndexes(
+    context.env.DB
+  );
+
+
+  await ensureBlowerRuntimeProbeSchema(
+    context.env.DB
+  );
+
+
+  const claimedItems = [];
+
+
+  for (
+    let attempt = 0;
+    attempt <
+      MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_CLAIM_ATTEMPTS;
+    attempt +=
+      1
+  ) {
+    const remainingLimit =
+      parsedLimit.limit -
+      claimedItems.length;
+
+
+    if (
+      remainingLimit <
+        1
+    ) {
+      break;
+    }
+
+
+    const pendingRows =
+      await findPendingBlowerRuntimeProbeRows(
+        context.env.DB,
+        new Date().toISOString(),
+        remainingLimit,
+        authentication.agentId
+      );
+
+
+    if (
+      pendingRows.length <
+        1
+    ) {
+      break;
+    }
+
+
+    const roundResult =
+      await claimBlowerRuntimeProbeBatchRound(
+        context.env.DB,
+        pendingRows,
+        authentication.agentId
+      );
+
+
+    claimedItems.push(
+      ...roundResult.items
+    );
+
+
+    if (
+      !roundResult.lostCompetition
+    ) {
+      break;
+    }
+  }
+
+
+  return jsonResponse({
+    ok:
+      true,
+    items:
+      claimedItems
+  });
 }
 
 /* =========================================================
@@ -9352,7 +9920,9 @@ async function claimOisAgentLaneCandidate(
 
         WHERE
           id = ?
+          AND request_type = ?
           AND status = 'pending'
+          AND expires_at >= ?
           AND NOT EXISTS (SELECT 1 FROM ois_data_requests AS restart_guard
             WHERE restart_guard.request_type='cofiring_restart_guard' AND restart_guard.status='guard'
               AND restart_guard.agent_id=? AND restart_guard.expires_at>?)
@@ -9363,6 +9933,10 @@ async function claimOisAgentLaneCandidate(
         processingExpiresAtText,
         processingStartedAtText,
         requestId,
+        normalizeText(
+          pendingRow.request_type
+        ),
+        processingStartedAtText,
         agentId,
         processingStartedAtText
       )
@@ -11762,6 +12336,20 @@ if (
         "status_batch"
     ) {
       return await handleStatusBatchGet(
+        context,
+        requestUrl
+      );
+    }
+
+
+    /*
+      회사 PC DataPARC Blower 묶음 요청
+    */
+    if (
+      action ===
+        "next_blower_batch"
+    ) {
+      return await handleAgentNextBlowerRuntimeProbeBatch(
         context,
         requestUrl
       );
@@ -16399,6 +16987,600 @@ async function rebuildSolarHistoryOverridesFromDailyData(
 }
 
 
+const MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_COMPLETIONS =
+  24;
+
+
+function parseBlowerRuntimeProbeCompletionBatch(
+  body
+) {
+  const rawItems =
+    Array.isArray(
+      body?.items
+    )
+      ? body.items
+      : [];
+
+
+  if (
+    rawItems.length <
+      1 ||
+    rawItems.length >
+      MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_COMPLETIONS
+  ) {
+    return {
+      error:
+        "DataPARC Blower 완료 결과는 한 번에 1건 이상 24건 이하로 보내 주세요."
+    };
+  }
+
+
+  const requestIds =
+    new Set();
+
+
+  const items = [];
+
+
+  for (
+    const rawItem
+    of rawItems
+  ) {
+    if (
+      !isPlainJsonObject(
+        rawItem
+      )
+    ) {
+      return {
+        error:
+          "DataPARC Blower 완료 항목 형식이 올바르지 않습니다."
+      };
+    }
+
+
+    const requestId =
+      normalizeText(
+        rawItem.requestId
+      );
+
+
+    if (
+      typeof rawItem.requestId !==
+        "string" ||
+      rawItem.requestId !==
+        requestId ||
+      !requestId ||
+      requestId.length >
+        128 ||
+      !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(
+        requestId
+      )
+    ) {
+      return {
+        error:
+          "DataPARC Blower 완료 요청 ID 형식이 올바르지 않습니다."
+      };
+    }
+
+
+    if (
+      requestIds.has(
+        requestId
+      )
+    ) {
+      return {
+        error:
+          "DataPARC Blower 완료 요청 ID는 묶음 안에서 중복될 수 없습니다."
+      };
+    }
+
+
+    if (
+      !isPlainJsonObject(
+        rawItem.result
+      ) ||
+      rawItem.result.requestId !==
+        requestId
+    ) {
+      return {
+        error:
+          "DataPARC Blower 완료 항목과 결과의 requestId가 일치하지 않습니다."
+      };
+    }
+
+
+    if (
+      rawItem.result.requestType !==
+        BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+    ) {
+      return {
+        error:
+          "DataPARC Blower 완료 결과의 requestType을 확인해 주세요."
+      };
+    }
+
+
+    requestIds.add(
+      requestId
+    );
+
+
+    items.push({
+      requestId,
+      result:
+        rawItem.result
+    });
+  }
+
+
+  return {
+    items
+  };
+}
+
+
+async function completeAgentBlowerRuntimeProbeBatch(
+  context,
+  body
+) {
+  const authentication =
+    await authenticateOisAgent(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const parsedBatch =
+    parseBlowerRuntimeProbeCompletionBatch(
+      body
+    );
+
+
+  if (
+    parsedBatch.error
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+        message:
+          parsedBatch.error
+      },
+      400
+    );
+  }
+
+
+  const failureItem = (
+    requestId,
+    httpStatus,
+    message
+  ) => {
+    return {
+      requestId,
+      ok:
+        false,
+      status:
+        "failed",
+      httpStatus,
+      message:
+        normalizeText(
+          message
+        ) ||
+        "DataPARC Blower 완료 처리에 실패했습니다."
+    };
+  };
+
+
+  const requestIds =
+    parsedBatch.items.map(
+      item => {
+        return item.requestId;
+      }
+    );
+
+
+  let requestRows;
+  let intentsByRequestId;
+
+
+  try {
+    await ensureBlowerRuntimeProbeSchema(
+      context.env.DB
+    );
+
+
+    [
+      requestRows,
+      intentsByRequestId
+    ] = await Promise.all([
+      findRequestsByIds(
+        context.env.DB,
+        requestIds
+      ),
+      findBlowerRuntimeProbeIntentsByRequestIds(
+        context.env.DB,
+        requestIds
+      )
+    ]);
+  } catch (
+    error
+  ) {
+    const message =
+      error instanceof
+        Error
+        ? error.message
+        : error;
+
+
+    return jsonResponse({
+      ok:
+        true,
+      items:
+        requestIds.map(
+          requestId => {
+            return failureItem(
+              requestId,
+              500,
+              message
+            );
+          }
+        )
+    });
+  }
+
+
+  const requestRowsById =
+    new Map(
+      requestRows.map(
+        row => {
+          return [
+            normalizeText(
+              row?.id
+            ),
+            row
+          ];
+        }
+      )
+    );
+
+
+  const completedAt =
+    new Date();
+
+
+  const completedAtText =
+    completedAt.toISOString();
+
+
+  const items =
+    new Array(
+      parsedBatch.items.length
+    );
+
+
+  const updateCandidates = [];
+
+
+  for (
+    let itemIndex = 0;
+    itemIndex <
+      parsedBatch.items.length;
+    itemIndex +=
+      1
+  ) {
+    const batchItem =
+      parsedBatch.items[
+        itemIndex
+      ];
+
+
+    const requestRow =
+      requestRowsById.get(
+        batchItem.requestId
+      );
+
+
+    if (
+      !requestRow
+    ) {
+      items[itemIndex] =
+        failureItem(
+          batchItem.requestId,
+          404,
+          "완료할 OIS 요청을 찾을 수 없습니다."
+        );
+
+      continue;
+    }
+
+
+    const requestItem =
+      convertRequestRow(
+        requestRow
+      );
+
+
+    if (
+      requestItem.requestType !==
+        BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+    ) {
+      items[itemIndex] =
+        failureItem(
+          batchItem.requestId,
+          400,
+          "DataPARC Blower 완료 요청이 아닙니다."
+        );
+
+      continue;
+    }
+
+
+    const rawProbe =
+      intentsByRequestId.get(
+        batchItem.requestId
+      ) ||
+      null;
+
+
+    const probe =
+      isValidBlowerRuntimeProbeIntentIdentity(
+        rawProbe,
+        requestItem.id,
+        requestItem.targetDate
+      )
+        ? rawProbe
+        : null;
+
+
+    if (
+      requestItem.status ===
+        "complete"
+    ) {
+      const replayValidation =
+        normalizeBlowerRuntimeProbeResult(
+          batchItem.result,
+          probe,
+          batchItem.requestId,
+          completedAt
+        );
+
+
+      if (
+        replayValidation.error
+      ) {
+        items[itemIndex] =
+          failureItem(
+            batchItem.requestId,
+            400,
+            replayValidation.error
+          );
+
+        continue;
+      }
+
+
+      if (
+        JSON.stringify(
+          replayValidation.result
+        ) !==
+          JSON.stringify(
+            requestItem.result
+          )
+      ) {
+        items[itemIndex] =
+          failureItem(
+            batchItem.requestId,
+            409,
+            "이미 완료된 DataPARC Blower 요청과 다른 결과는 저장할 수 없습니다."
+          );
+
+        continue;
+      }
+
+
+      items[itemIndex] = {
+        requestId:
+          batchItem.requestId,
+        ok:
+          true,
+        status:
+          "complete",
+        replayed:
+          true
+      };
+
+      continue;
+    }
+
+
+    if (
+      requestItem.status !==
+        "processing" ||
+      !requestItem.agentId ||
+      requestItem.agentId !==
+        authentication.agentId ||
+      !Number.isFinite(
+        Date.parse(
+          requestItem.expiresAt
+        )
+      ) ||
+      Date.parse(
+        requestItem.expiresAt
+      ) <=
+        completedAt.getTime()
+    ) {
+      items[itemIndex] =
+        failureItem(
+          batchItem.requestId,
+          409,
+          "이 DataPARC Blower 요청을 가져간 Excel Agent만 처리시간 안에 완료할 수 있습니다."
+        );
+
+      continue;
+    }
+
+
+    const validation =
+      normalizeBlowerRuntimeProbeResult(
+        batchItem.result,
+        probe,
+        batchItem.requestId,
+        completedAt
+      );
+
+
+    if (
+      validation.error
+    ) {
+      items[itemIndex] =
+        failureItem(
+          batchItem.requestId,
+          400,
+          validation.error
+        );
+
+      continue;
+    }
+
+
+    updateCandidates.push({
+      itemIndex,
+      requestId:
+        batchItem.requestId,
+      statement:
+        context.env.DB
+          .prepare(`
+            UPDATE ois_data_requests
+
+            SET
+              status = 'complete',
+              completed_at = ?,
+              agent_id = ?,
+              result_json = ?,
+              error_message = '',
+              updated_at = ?
+
+            WHERE
+              id = ?
+              AND request_type = 'blower_runtime_probe'
+              AND status = 'processing'
+              AND agent_id = ?
+              AND expires_at > ?
+          `)
+          .bind(
+            completedAtText,
+            authentication.agentId,
+            JSON.stringify(
+              validation.result
+            ),
+            completedAtText,
+            batchItem.requestId,
+            authentication.agentId,
+            completedAtText
+          )
+    });
+  }
+
+
+  if (
+    updateCandidates.length >
+      0
+  ) {
+    let updateResults;
+
+
+    try {
+      updateResults =
+        await context.env.DB.batch(
+          updateCandidates.map(
+            candidate => {
+              return candidate.statement;
+            }
+          )
+        );
+    } catch (
+      error
+    ) {
+      const message =
+        error instanceof
+          Error
+          ? error.message
+          : error;
+
+
+      for (
+        const candidate
+        of updateCandidates
+      ) {
+        items[candidate.itemIndex] =
+          failureItem(
+            candidate.requestId,
+            500,
+            message
+          );
+      }
+
+
+      return jsonResponse({
+        ok:
+          true,
+        items
+      });
+    }
+
+
+    for (
+      let candidateIndex = 0;
+      candidateIndex <
+        updateCandidates.length;
+      candidateIndex +=
+        1
+    ) {
+      const candidate =
+        updateCandidates[
+          candidateIndex
+        ];
+
+
+      items[candidate.itemIndex] =
+        Number(
+          updateResults?.[
+            candidateIndex
+          ]?.meta?.changes
+        ) ===
+          1
+          ? {
+              requestId:
+                candidate.requestId,
+              ok:
+                true,
+              status:
+                "complete"
+            }
+          : failureItem(
+              candidate.requestId,
+              409,
+              "OIS 요청 상태가 변경되어 완료 처리하지 못했습니다."
+            );
+    }
+  }
+
+
+  return jsonResponse({
+    ok:
+      true,
+    items
+  });
+}
+
+
 async function completeAgentRequest(
   context,
   body
@@ -16894,10 +18076,23 @@ limestoneUsageRecords =
       .toISOString();
 
 
-  const organicClaimGuard = existingRequest.requestType === ORGANIC_SILO_DATAPARC_REQUEST_TYPE
-    ? "AND request_type = 'organic_silo_dataparc' AND status = 'processing' AND agent_id = ? AND expires_at > ?"
-    : "";
-  const organicClaimBindings = organicClaimGuard ? [authentication.agentId, now] : [];
+  const agentClaimGuard =
+    existingRequest.requestType ===
+      ORGANIC_SILO_DATAPARC_REQUEST_TYPE
+      ? "AND request_type = 'organic_silo_dataparc' AND status = 'processing' AND agent_id = ? AND expires_at > ?"
+      : existingRequest.requestType ===
+          BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+        ? "AND request_type = 'blower_runtime_probe' AND status = 'processing' AND agent_id = ? AND expires_at > ?"
+        : "";
+
+
+  const agentClaimBindings =
+    agentClaimGuard
+      ? [
+          authentication.agentId,
+          now
+        ]
+      : [];
 
 
   const updateResult =
@@ -16919,7 +18114,7 @@ limestoneUsageRecords =
             'pending',
             'processing'
           )
-          ${organicClaimGuard}
+          ${agentClaimGuard}
       `)
       .bind(
         now,
@@ -16929,7 +18124,7 @@ limestoneUsageRecords =
         ),
         now,
         requestId,
-        ...organicClaimBindings
+        ...agentClaimBindings
       )
       .run();
 
@@ -17230,6 +18425,16 @@ export async function onRequestPost(
 
     if (
       action ===
+        "complete_blower_runtime_probe_batch"
+    ) {
+      return await completeAgentBlowerRuntimeProbeBatch(
+        context,
+        body
+      );
+    }
+
+    if (
+      action ===
         "complete"
     ) {
       return await completeAgentRequest(
@@ -17464,6 +18669,10 @@ export const __oisDataRequestsTest = {
   resolveBlowerRuntimeProbeMapping,
   isValidBlowerRuntimeProbeMapping,
   ensureBlowerRuntimeProbeSchema,
+  parseBlowerRuntimeProbeBatchLimit,
+  handleAgentNextBlowerRuntimeProbeBatch,
+  parseBlowerRuntimeProbeCompletionBatch,
+  completeAgentBlowerRuntimeProbeBatch,
   normalizeOrganicSiloDataParcResult,
   isOrganicSiloQualityGood
 };

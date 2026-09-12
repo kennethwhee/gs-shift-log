@@ -1144,7 +1144,7 @@ const BLOWER_RUNTIME_PROBE_BATCH_MAX_REQUESTS =
 
 
 const BLOWER_RUNTIME_PROBE_BATCH_COALESCE_MS =
-  1200;
+  400;
 
 
 const BLOWER_RUNTIME_PROBE_BATCH_RESULT_MARKER =
@@ -12927,7 +12927,7 @@ try {
   [GC]::WaitForPendingFinalizers()
 
   if ($ownedExcelPid -gt 0) {
-    $excelExited = Wait-ProbeProcessExit $ownedExcelPid ([datetime]::UtcNow.AddSeconds(12))
+    $excelExited = Wait-ProbeProcessExit $ownedExcelPid ([datetime]::UtcNow.AddSeconds(2))
     if (-not $excelExited) {
       if (Test-OwnedProbeExcelIdentity $ownedExcelPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId) {
         try {
@@ -12957,7 +12957,7 @@ try {
   }
 
   if ($null -ne $ownedHostSnapshot) {
-    $hostExitDeadline = [datetime]::UtcNow.AddSeconds(25)
+    $hostExitDeadline = [datetime]::UtcNow.AddSeconds(2)
     do {
       if ($null -eq (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue)) { break }
       Start-Sleep -Milliseconds 500
@@ -14191,7 +14191,7 @@ try {
   [GC]::WaitForPendingFinalizers()
 
   if ($ownedExcelPid -gt 0) {
-    $excelExited = Wait-ProbeProcessExit $ownedExcelPid ([datetime]::UtcNow.AddSeconds(12))
+    $excelExited = Wait-ProbeProcessExit $ownedExcelPid ([datetime]::UtcNow.AddSeconds(2))
     if (-not $excelExited) {
       if (Test-OwnedProbeExcelIdentity $ownedExcelPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId) {
         try {
@@ -14221,7 +14221,7 @@ try {
   }
 
   if ($null -ne $ownedHostSnapshot) {
-    $hostExitDeadline = [datetime]::UtcNow.AddSeconds(25)
+    $hostExitDeadline = [datetime]::UtcNow.AddSeconds(2)
     do {
       if ($null -eq (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue)) { break }
       Start-Sleep -Milliseconds 500
@@ -17552,37 +17552,45 @@ async function collectSingleBlowerRuntimeProbeValues(
     ].join(" · ")
   );
 
-  const standardOutput = await runDataParcSteamPowerShell(
-    {
-      GS_BLOWER_STAGE_MARKER: BLOWER_RUNTIME_PROBE_STAGE_MARKER,
-      GS_BLOWER_RESULT_MARKER: BLOWER_RUNTIME_PROBE_RESULT_MARKER,
-      GS_BLOWER_REQUEST_ID: expected.requestId,
-      GS_BLOWER_ASSET_TAG: expected.assetTag,
-      GS_BLOWER_DATAPARC_TAG: expected.dataParcTag,
-      GS_BLOWER_START_AT: expected.startAt,
-      GS_BLOWER_END_AT: expected.endAt,
-      GS_BLOWER_EXPECTED_LAST_REPLACEMENT_AT:
-        expected.expectedLastReplacementAt,
-      GS_BLOWER_EXPECTED_CYCLE_START_STATE:
-        expected.expectedCycleStartState,
-      GS_BLOWER_EXPECTED_CYCLE_STARTED_AT:
-        expected.expectedCycleStartedAt,
-      GS_BLOWER_EXPECTED_CYCLE_START_REVISION:
-        expected.expectedCycleStartRevision,
-      GS_BLOWER_EXPECTED_CYCLE_RUNTIME_REVISION:
-        expected.expectedCycleRuntimeRevision,
-      GS_BLOWER_CHUNK_DAYS: String(expected.chunkDays)
-    },
-    {
-      powerShellScript: DATAPARC_BLOWER_RUNTIME_PROBE_POWERSHELL_SCRIPT,
-      resultMarker: BLOWER_RUNTIME_PROBE_RESULT_MARKER,
-      stageMarker: BLOWER_RUNTIME_PROBE_STAGE_MARKER,
-      processTimeout: BLOWER_RUNTIME_PROBE_PROCESS_TIMEOUT,
-      temporaryFilePrefix: "gs-shift-blower-runtime-probe",
-      operationLabel: `Blower ${expected.assetTag} DataPARC 운전시간 조회`,
-      resolveOnResultMarker: false
-    }
-  );
+  const excelStartedAt = Date.now();
+  let standardOutput;
+  try {
+    standardOutput = await runDataParcSteamPowerShell(
+      {
+        GS_BLOWER_STAGE_MARKER: BLOWER_RUNTIME_PROBE_STAGE_MARKER,
+        GS_BLOWER_RESULT_MARKER: BLOWER_RUNTIME_PROBE_RESULT_MARKER,
+        GS_BLOWER_REQUEST_ID: expected.requestId,
+        GS_BLOWER_ASSET_TAG: expected.assetTag,
+        GS_BLOWER_DATAPARC_TAG: expected.dataParcTag,
+        GS_BLOWER_START_AT: expected.startAt,
+        GS_BLOWER_END_AT: expected.endAt,
+        GS_BLOWER_EXPECTED_LAST_REPLACEMENT_AT:
+          expected.expectedLastReplacementAt,
+        GS_BLOWER_EXPECTED_CYCLE_START_STATE:
+          expected.expectedCycleStartState,
+        GS_BLOWER_EXPECTED_CYCLE_STARTED_AT:
+          expected.expectedCycleStartedAt,
+        GS_BLOWER_EXPECTED_CYCLE_START_REVISION:
+          expected.expectedCycleStartRevision,
+        GS_BLOWER_EXPECTED_CYCLE_RUNTIME_REVISION:
+          expected.expectedCycleRuntimeRevision,
+        GS_BLOWER_CHUNK_DAYS: String(expected.chunkDays)
+      },
+      {
+        powerShellScript: DATAPARC_BLOWER_RUNTIME_PROBE_POWERSHELL_SCRIPT,
+        resultMarker: BLOWER_RUNTIME_PROBE_RESULT_MARKER,
+        stageMarker: BLOWER_RUNTIME_PROBE_STAGE_MARKER,
+        processTimeout: BLOWER_RUNTIME_PROBE_PROCESS_TIMEOUT,
+        temporaryFilePrefix: "gs-shift-blower-runtime-probe",
+        operationLabel: `Blower ${expected.assetTag} DataPARC 운전시간 조회`,
+        resolveOnResultMarker: false
+      }
+    );
+  } finally {
+    console.log(
+      `Blower Runtime 단계 Excel(single) · ${Date.now() - excelStartedAt}ms`
+    );
+  }
 
   const resultLine = standardOutput
     .split(/\r?\n/)
@@ -17624,7 +17632,6 @@ async function claimAdditionalBlowerRuntimeProbeRequests(
   config,
   maxAdditional
 ) {
-  const claimed = [];
   const limit = Math.max(
     0,
     Math.min(
@@ -17633,6 +17640,84 @@ async function claimAdditionalBlowerRuntimeProbeRequests(
     )
   );
 
+  if (limit === 0) return [];
+
+  try {
+    const response = await requestOisAgentApi(
+      config,
+      getOisAgentApiUrl(
+        config,
+        {
+          action: "next_blower_batch",
+          limit,
+          _: Date.now()
+        }
+      )
+    );
+    if (
+      !response ||
+      typeof response !== "object" ||
+      Array.isArray(response) ||
+      response.ok !== true ||
+      !Array.isArray(response.items) ||
+      response.items.length > limit
+    ) {
+      throw createBlowerRuntimeBatchContractError(
+        "Blower Runtime 일괄 claim 응답 계약이 올바르지 않습니다."
+      );
+    }
+
+    const seen = new Set();
+    for (const item of response.items) {
+      const requestType = normalizeOisAgentText(
+        item.requestType || item.request_type
+      );
+      const requestId = normalizeOisAgentText(item.id);
+      if (
+        requestType !== BLOWER_RUNTIME_PROBE_REQUEST_TYPE ||
+        !requestId ||
+        seen.has(requestId)
+      ) {
+        throw createBlowerRuntimeBatchContractError(
+          `Blower Runtime 일괄 claim에 잘못된 요청이 반환되었습니다: ${requestType || "unknown"}`
+        );
+      }
+      seen.add(requestId);
+    }
+
+    return response.items;
+  } catch (error) {
+    if (!isBlowerRuntimeBatchCompatibilityError(error)) throw error;
+    console.warn(
+      "Blower Runtime 일괄 claim API가 준비되지 않아 기존 개별 claim으로 전환합니다.",
+      error instanceof Error ? error.message : error
+    );
+    return await claimAdditionalBlowerRuntimeProbeRequestsLegacy(
+      config,
+      limit
+    );
+  }
+}
+
+function createBlowerRuntimeBatchContractError(message) {
+  const error = new Error(message);
+  error.code = "BLOWER_RUNTIME_BATCH_CONTRACT_MISMATCH";
+  return error;
+}
+
+function isBlowerRuntimeBatchCompatibilityError(error) {
+  if (error?.status === 400 || error?.status === 404) return true;
+  if (error?.status === 401 && error?.message === "로그인이 필요합니다.") return true;
+  if (error?.code === "BLOWER_RUNTIME_BATCH_CONTRACT_MISMATCH") return true;
+  if (error instanceof SyntaxError) return true;
+  return error?.message === "업무일지 OIS API 응답 객체가 올바르지 않습니다.";
+}
+
+async function claimAdditionalBlowerRuntimeProbeRequestsLegacy(
+  config,
+  limit
+) {
+  const claimed = [];
   for (let index = 0; index < limit; index += 1) {
     const response = await requestOisAgentApi(
       config,
@@ -17652,12 +17737,11 @@ async function claimAdditionalBlowerRuntimeProbeRequests(
     );
     if (requestType !== BLOWER_RUNTIME_PROBE_REQUEST_TYPE || !item.id) {
       throw new Error(
-        `Blower Runtime 일괄 claim에 잘못된 요청이 반환되었습니다: ${requestType || "unknown"}`
+        `Blower Runtime 개별 claim에 잘못된 요청이 반환되었습니다: ${requestType || "unknown"}`
       );
     }
     claimed.push(item);
   }
-
   return claimed;
 }
 
@@ -17775,22 +17859,30 @@ async function collectBlowerRuntimeProbeBatchValues(
     console.log(
       `Blower DataPARC 일괄조회 시작 · ${items.length}대 · 숨김 Excel 1회`
     );
-    const standardOutput = await runDataParcSteamPowerShell(
-      {
-        GS_BLOWER_STAGE_MARKER: BLOWER_RUNTIME_PROBE_STAGE_MARKER,
-        GS_BLOWER_RESULT_MARKER: BLOWER_RUNTIME_PROBE_BATCH_RESULT_MARKER,
-        GS_BLOWER_BATCH_FILE: batchFilePath
-      },
-      {
-        powerShellScript: DATAPARC_BLOWER_RUNTIME_BATCH_POWERSHELL_SCRIPT,
-        resultMarker: BLOWER_RUNTIME_PROBE_BATCH_RESULT_MARKER,
-        stageMarker: BLOWER_RUNTIME_PROBE_STAGE_MARKER,
-        processTimeout: BLOWER_RUNTIME_PROBE_BATCH_PROCESS_TIMEOUT,
-        temporaryFilePrefix: "gs-shift-blower-runtime-batch",
-        operationLabel: `Blower ${items.length}대 DataPARC 일괄조회`,
-        resolveOnResultMarker: false
-      }
-    );
+    const excelStartedAt = Date.now();
+    let standardOutput;
+    try {
+      standardOutput = await runDataParcSteamPowerShell(
+        {
+          GS_BLOWER_STAGE_MARKER: BLOWER_RUNTIME_PROBE_STAGE_MARKER,
+          GS_BLOWER_RESULT_MARKER: BLOWER_RUNTIME_PROBE_BATCH_RESULT_MARKER,
+          GS_BLOWER_BATCH_FILE: batchFilePath
+        },
+        {
+          powerShellScript: DATAPARC_BLOWER_RUNTIME_BATCH_POWERSHELL_SCRIPT,
+          resultMarker: BLOWER_RUNTIME_PROBE_BATCH_RESULT_MARKER,
+          stageMarker: BLOWER_RUNTIME_PROBE_STAGE_MARKER,
+          processTimeout: BLOWER_RUNTIME_PROBE_BATCH_PROCESS_TIMEOUT,
+          temporaryFilePrefix: "gs-shift-blower-runtime-batch",
+          operationLabel: `Blower ${items.length}대 DataPARC 일괄조회`,
+          resolveOnResultMarker: false
+        }
+      );
+    } finally {
+      console.log(
+        `Blower Runtime 단계 Excel(batch) · ${Date.now() - excelStartedAt}ms`
+      );
+    }
 
     const resultLine = standardOutput
       .split(/\r?\n/)
@@ -17827,6 +17919,131 @@ async function collectBlowerRuntimeProbeBatchValues(
   }
 }
 
+async function completeBlowerRuntimeProbeBatchRequests(
+  config,
+  successfulOutcomes
+) {
+  const outcomes = Array.isArray(successfulOutcomes)
+    ? successfulOutcomes
+    : [];
+  if (
+    outcomes.length < 1 ||
+    outcomes.length > BLOWER_RUNTIME_PROBE_BATCH_MAX_REQUESTS
+  ) {
+    throw new Error("Blower Runtime 일괄 완료 요청 건수가 올바르지 않습니다.");
+  }
+
+  const expectedIds = new Set();
+  const items = outcomes.map(outcome => {
+    const requestId = normalizeOisAgentText(outcome?.requestId);
+    if (
+      outcome?.ok !== true ||
+      !requestId ||
+      expectedIds.has(requestId) ||
+      outcome?.result?.requestId !== requestId ||
+      outcome?.result?.requestType !== BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+    ) {
+      throw new Error("Blower Runtime 일괄 완료 요청 결과가 올바르지 않습니다.");
+    }
+    expectedIds.add(requestId);
+    return { requestId, result: outcome.result };
+  });
+
+  const response = await requestOisAgentApi(
+    config,
+    getOisAgentApiUrl(config),
+    {
+      method: "POST",
+      body: {
+        action: "complete_blower_runtime_probe_batch",
+        items
+      }
+    }
+  );
+
+  if (
+    !response ||
+    typeof response !== "object" ||
+    Array.isArray(response) ||
+    response.ok !== true ||
+    !Array.isArray(response.items) ||
+    response.items.length !== expectedIds.size
+  ) {
+    throw createBlowerRuntimeBatchContractError(
+      "Blower Runtime 일괄 완료 응답 계약이 올바르지 않습니다."
+    );
+  }
+
+  const seen = new Set();
+  const acknowledgements = [];
+  for (const item of response.items) {
+    const requestId = normalizeOisAgentText(item?.requestId);
+    if (!expectedIds.has(requestId) || seen.has(requestId)) {
+      throw createBlowerRuntimeBatchContractError(
+        "Blower Runtime 일괄 완료 응답 ID가 요청 목록과 다릅니다."
+      );
+    }
+    seen.add(requestId);
+
+    if (item?.ok === true && item?.status === "complete") {
+      if (
+        Object.prototype.hasOwnProperty.call(item, "replayed") &&
+        typeof item.replayed !== "boolean"
+      ) {
+        throw createBlowerRuntimeBatchContractError(
+          "Blower Runtime 일괄 완료 응답 replayed 값이 올바르지 않습니다."
+        );
+      }
+      acknowledgements.push(item);
+      continue;
+    }
+
+    const httpStatus = Number(item?.httpStatus);
+    const message = normalizeOisAgentText(item?.message);
+    if (
+      item?.ok !== false ||
+      item?.status !== "failed" ||
+      !Number.isInteger(httpStatus) ||
+      httpStatus < 400 ||
+      httpStatus > 599 ||
+      !message
+    ) {
+      throw createBlowerRuntimeBatchContractError(
+        "Blower Runtime 일괄 완료 응답의 ok/status가 올바르지 않습니다."
+      );
+    }
+    acknowledgements.push(item);
+  }
+
+  if (seen.size !== expectedIds.size) {
+    throw createBlowerRuntimeBatchContractError(
+      "Blower Runtime 일괄 완료 응답 건수가 요청과 다릅니다."
+    );
+  }
+  return acknowledgements;
+}
+
+async function completeClaimedBlowerRuntimeProbeRequestWithRetry(
+  config,
+  outcome
+) {
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await completeOisAgentRequest(
+        config,
+        outcome.requestId,
+        outcome.result
+      );
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 2) await waitOisAgent(500 * (attempt + 1));
+    }
+  }
+  throw lastError || new Error("Blower 일괄조회 완료 확인에 실패했습니다.");
+}
+
 async function settleClaimedBlowerRuntimeProbeRequest(
   config,
   outcome
@@ -17834,18 +18051,14 @@ async function settleClaimedBlowerRuntimeProbeRequest(
   if (!outcome?.requestId) return;
   if (outcome.ok) {
     let lastError;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      try {
-        await completeOisAgentRequest(
-          config,
-          outcome.requestId,
-          outcome.result
-        );
-        return;
-      } catch (error) {
-        lastError = error;
-        if (attempt < 2) await waitOisAgent(500 * (attempt + 1));
-      }
+    try {
+      await completeClaimedBlowerRuntimeProbeRequestWithRetry(
+        config,
+        outcome
+      );
+      return;
+    } catch (error) {
+      lastError = error;
     }
     console.error(
       `Blower 일괄조회 추가 요청 ${outcome.requestId} 완료 전송 실패:`,
@@ -17876,6 +18089,29 @@ async function settleClaimedBlowerRuntimeProbeRequest(
   }
 }
 
+async function retryRejectedBlowerRuntimeProbeCompletions(
+  config,
+  outcomes,
+  primaryId
+) {
+  const rejected = Array.isArray(outcomes) ? outcomes : [];
+  const primary = rejected.find(outcome => outcome.requestId === primaryId);
+  const extras = rejected.filter(outcome => outcome.requestId !== primaryId);
+  const [, primarySettlement] = await Promise.allSettled([
+    Promise.all(
+      extras.map(outcome =>
+        settleClaimedBlowerRuntimeProbeRequest(config, outcome)
+      )
+    ),
+    primary
+      ? completeClaimedBlowerRuntimeProbeRequestWithRetry(config, primary)
+      : Promise.resolve()
+  ]);
+  if (primarySettlement.status === "rejected") {
+    throw primarySettlement.reason;
+  }
+}
+
 async function collectBlowerRuntimeProbeValues(
   config,
   requestItem
@@ -17883,11 +18119,24 @@ async function collectBlowerRuntimeProbeValues(
   // The dashboard enqueues all Blower probes together. A short coalescing window
   // lets this Agent claim the rest before opening Excel, but a manual one-off
   // query still falls back to the already proven single-probe collector.
+  const coalesceStartedAt = Date.now();
   await waitOisAgent(BLOWER_RUNTIME_PROBE_BATCH_COALESCE_MS);
-  const additional = await claimAdditionalBlowerRuntimeProbeRequests(
-    config,
-    BLOWER_RUNTIME_PROBE_BATCH_MAX_REQUESTS - 1
+  console.log(
+    `Blower Runtime 단계 coalesce · ${Date.now() - coalesceStartedAt}ms`
   );
+
+  const claimStartedAt = Date.now();
+  let additional;
+  try {
+    additional = await claimAdditionalBlowerRuntimeProbeRequests(
+      config,
+      BLOWER_RUNTIME_PROBE_BATCH_MAX_REQUESTS - 1
+    );
+  } finally {
+    console.log(
+      `Blower Runtime 단계 claim · ${Date.now() - claimStartedAt}ms`
+    );
+  }
   if (!additional.length) {
     return await collectSingleBlowerRuntimeProbeValues(config, requestItem);
   }
@@ -17907,16 +18156,64 @@ async function collectBlowerRuntimeProbeValues(
 
   const primaryId = String(requestItem.id || "").trim();
   const primary = outcomes.find(outcome => outcome.requestId === primaryId);
-  const extraOutcomes = outcomes.filter(outcome => outcome.requestId !== primaryId);
-  await Promise.all(
-    extraOutcomes.map(outcome =>
-      settleClaimedBlowerRuntimeProbeRequest(config, outcome)
-    )
-  );
-
   if (!primary) {
     throw new Error("Blower Runtime 일괄조회에서 현재 요청 결과를 찾지 못했습니다.");
   }
+
+  const successfulOutcomes = outcomes.filter(outcome => outcome.ok);
+  const failedExtraOutcomes = outcomes.filter(
+    outcome => !outcome.ok && outcome.requestId !== primaryId
+  );
+  const completeStartedAt = Date.now();
+  try {
+    let rejectedCompletionOutcomes = [];
+    if (successfulOutcomes.length) {
+      try {
+        const acknowledgements =
+          await completeBlowerRuntimeProbeBatchRequests(
+            config,
+            successfulOutcomes
+          );
+        const rejectedIds = new Set(
+          acknowledgements
+            .filter(item => item.ok === false)
+            .map(item => normalizeOisAgentText(item.requestId))
+        );
+        rejectedCompletionOutcomes = successfulOutcomes.filter(
+          outcome => rejectedIds.has(outcome.requestId)
+        );
+      } catch (error) {
+        console.warn(
+          "Blower Runtime 일괄 완료 확인에 실패해 동일 결과를 개별 완료로 재확인합니다.",
+          error instanceof Error ? error.message : error
+        );
+        rejectedCompletionOutcomes = successfulOutcomes;
+      }
+    }
+
+    const [, completionSettlement] = await Promise.allSettled([
+      Promise.all(
+        failedExtraOutcomes.map(outcome =>
+          settleClaimedBlowerRuntimeProbeRequest(config, outcome)
+        )
+      ),
+      (async () => {
+        await retryRejectedBlowerRuntimeProbeCompletions(
+          config,
+          rejectedCompletionOutcomes,
+          primaryId
+        );
+      })()
+    ]);
+    if (completionSettlement.status === "rejected") {
+      throw completionSettlement.reason;
+    }
+  } finally {
+    console.log(
+      `Blower Runtime 단계 complete(batch) · ${Date.now() - completeStartedAt}ms`
+    );
+  }
+
   if (!primary.ok) {
     throw new Error(primary.error || "Blower DataPARC 일괄조회에 실패했습니다.");
   }
@@ -24900,11 +25197,23 @@ async function loginOis() {
         }
 
 
-        await completeOisAgentRequest(
-          config,
-          requestId,
-          result
-        );
+        const completeStartedAt =
+          requestType === BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+            ? Date.now()
+            : 0;
+        try {
+          await completeOisAgentRequest(
+            config,
+            requestId,
+            result
+          );
+        } finally {
+          if (completeStartedAt) {
+            console.log(
+              `Blower Runtime 단계 complete(primary replay) · ${Date.now() - completeStartedAt}ms`
+            );
+          }
+        }
 
 
         if (

@@ -10583,14 +10583,13 @@
               message: core.errorLabel(e) + " · 기존 값 유지"
             })));
           }
-          // One read-back after every independent append has been committed. This avoids
-          // reloading the whole Blower payload once per asset while keeping the stored
-          // append-only results as the single source of truth.
-          await io.reload();
           setOverviewRefreshProcessed(state.unifiedRefreshResults.length, planned.targetCount,
             `${state.unifiedRefreshResults.length}/${planned.targetCount}대 처리 · 일괄 조회 결과 반영`);
           renderUnifiedRefreshProgress(`${phase} · ${state.unifiedRefreshResults.length}/${planned.targetCount}대 처리`);
         }
+        // Read the committed append-only results exactly once.  The former
+        // in-branch read was immediately followed by this identical full
+        // payload read and added an avoidable render/API round trip.
         await io.reload();
         const counts = state.unifiedRefreshResults;
         const failures = counts.filter(x => x.status !== "complete").length;

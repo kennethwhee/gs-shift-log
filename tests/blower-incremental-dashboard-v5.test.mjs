@@ -30,7 +30,7 @@ test('dashboard calls one browser batch instead of serial execute/reload per Blo
   assert.match(refresh, /await io\.reload\(\);[\s\S]*?일괄 조회 결과 반영/);
 });
 
-test('23 queued probes are created before polling and status polling stays inside server 12-id limit', async () => {
+test('23 queued probes are created before one immediate status batch within the server 24-id limit', async () => {
   const events = [];
   const tasks = Array.from({ length: 23 }, (_, index) => {
     const tag = `TEST${String(index + 1).padStart(2, '0')}`;
@@ -66,7 +66,7 @@ test('23 queued probes are created before polling and status polling stays insid
         const parsed = new URL(`https://local${options.url}`);
         const group = decodeURIComponent(parsed.searchParams.get('ids') || '').split(',').filter(Boolean);
         events.push(`status:${group.length}`);
-        assert.ok(group.length <= 12, `status_batch exceeded 12 ids: ${group.length}`);
+        assert.ok(group.length <= 24, `status_batch exceeded 24 ids: ${group.length}`);
         return { items: group.map(id => ({ id, status: 'complete' })) };
       }
       if (options?.body?.action === 'dataparc_runtime_sync') {
@@ -82,6 +82,6 @@ test('23 queued probes are created before polling and status polling stays insid
   assert.ok(results.every(result => result.status === 'complete'));
   const firstStatus = events.findIndex(event => event.startsWith('status:'));
   assert.equal(events.slice(0, firstStatus).filter(event => event.startsWith('create:')).length, 23);
-  assert.deepEqual(events.filter(event => event.startsWith('status:')).sort(), ['status:11', 'status:12']);
+  assert.deepEqual(events.filter(event => event.startsWith('status:')), ['status:23']);
   assert.equal(events.filter(event => event.startsWith('apply:')).length, 23);
 });

@@ -20,9 +20,10 @@ function extractRawPowerShell(constName) {
 
 test('Agent coalesces up to 24 pending Blower probes before opening Excel', () => {
   assert.match(agent, /const\s+BLOWER_RUNTIME_PROBE_BATCH_MAX_REQUESTS\s*=\s*24\s*;/);
-  assert.match(agent, /const\s+BLOWER_RUNTIME_PROBE_BATCH_COALESCE_MS\s*=\s*1200\s*;/);
+  assert.match(agent, /const\s+BLOWER_RUNTIME_PROBE_BATCH_COALESCE_MS\s*=\s*400\s*;/);
   assert.match(agent, /async function claimAdditionalBlowerRuntimeProbeRequests/);
-  assert.match(agent, /action:\s*"next"[\s\S]*?requestTypes:\s*BLOWER_RUNTIME_PROBE_REQUEST_TYPE/);
+  assert.match(agent, /action:\s*"next_blower_batch"[\s\S]*?limit/);
+  assert.match(agent, /claimAdditionalBlowerRuntimeProbeRequestsLegacy[\s\S]*?action:\s*"next"[\s\S]*?requestTypes:\s*BLOWER_RUNTIME_PROBE_REQUEST_TYPE/);
   assert.match(agent, /const batchItems = \[requestItem, \.\.\.additional\]/);
   assert.match(agent, /collectBlowerRuntimeProbeBatchValues\(config, batchItems\)/);
   assert.match(agent, /if \(!additional\.length\)[\s\S]*?collectSingleBlowerRuntimeProbeValues/);
@@ -41,11 +42,12 @@ test('batch PowerShell uses one owned hidden Excel session for every probe in th
   assert.match(script, /기존 사용자 DataPARC Host가 조회 중 변경되거나 종료되었습니다/);
 });
 
-test('batch result keeps each original single-probe contract and settles extra claimed queue rows', () => {
+test('batch result keeps each single-probe contract and batches successful completion', () => {
   assert.match(agent, /normalizeBlowerRuntimeProbeResult\(item\.result, expected\)/);
-  assert.match(agent, /extraOutcomes\.map\(outcome =>[\s\S]*?settleClaimedBlowerRuntimeProbeRequest/);
-  assert.match(agent, /completeOisAgentRequest\([\s\S]*?outcome\.requestId[\s\S]*?outcome\.result/);
-  assert.match(agent, /failOisAgentRequest\([\s\S]*?outcome\.requestId/);
+  assert.match(agent, /action:\s*"complete_blower_runtime_probe_batch"[\s\S]*?items/);
+  assert.match(agent, /successfulOutcomes[\s\S]*?completeBlowerRuntimeProbeBatchRequests/);
+  assert.match(agent, /failedExtraOutcomes\.map\(outcome =>[\s\S]*?settleClaimedBlowerRuntimeProbeRequest/);
+  assert.match(agent, /rejectedCompletionOutcomes[\s\S]*?retryRejectedBlowerRuntimeProbeCompletions/);
   assert.match(agent, /GS_BLOWER_BATCH_FILE:\s*batchFilePath/);
   assert.match(agent, /fs\.unlinkSync\(batchFilePath\)/);
 });

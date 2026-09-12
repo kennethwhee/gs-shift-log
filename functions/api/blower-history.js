@@ -4244,6 +4244,13 @@ async function handleGet(context, user) {
     );
   }
 
+  // The default dashboard response owns its own settings/asset load.  Return
+  // before the action-specific preload below so every silent refresh does not
+  // execute the same full asset projection twice.
+  if (action === "data") {
+    return jsonResponse(await buildFullData(database, user));
+  }
+
   const settings = await loadSettings(database);
   const assets = await loadAssetStates(database, settings);
   const responseAssets = user

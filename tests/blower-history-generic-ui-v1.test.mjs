@@ -151,5 +151,7 @@ test('dialog fields use a compact responsive grid and distinct cache versions', 
     assert.equal((html.match(new RegExp(`id="${id}"`, 'g')) || []).length, 1);
   }
   assert.match(css, /@media \(min-width: 600px\)[\s\S]*?\.replacement-edit-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(html, /blower-history\.css\?v=20260911-unit-grouping-v9/); assert.match(html, /blower-history\.js\?v=20260911-unit-grouping-v9/);
+  assert.match(html, /blower-history\.css\?v=20260911-mobile-refresh-hide-only-v10-r1/);
+  assert.match(html, /blower-unified-refresh\.js\?v=20260911-fast-manual-resume-v11/);
+  assert.match(html, /blower-history\.js\?v=20260911-fast-manual-resume-v11/);
 });

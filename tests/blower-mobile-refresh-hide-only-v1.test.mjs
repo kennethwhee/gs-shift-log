@@ -21,5 +21,7 @@ test('refresh/progress markup remains for desktop and only mobile presentation h
   assert.match(html, /id="overviewRefreshProgressTrack"/);
   assert.match(html, /id="overviewLatestQueryDetail"/);
   assert.match(html, /blower-history\.css\?v=20260911-mobile-refresh-hide-only-v10-r1/);
+  assert.match(html, /blower-unified-refresh\.js\?v=20260911-fast-manual-resume-v11/);
+  assert.match(html, /blower-history\.js\?v=20260911-fast-manual-resume-v11/);
   assert.match(css, /\.overview-refresh-action\s*\{\s*display:\s*flex;/);
 });

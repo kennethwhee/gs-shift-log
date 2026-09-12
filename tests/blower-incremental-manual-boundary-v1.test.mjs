@@ -101,11 +101,11 @@ test('loadAppendBase reads history beyond the current manual anchor and returns 
   assert.ok(base);
   assert.equal(base.requestId, 'q-before-manual-stop');
   assert.match(sql, /WHERE tag_number = \? AND event_type IN/);
-  assert.doesNotMatch(sql, /AND event_date = \?/);
-  assert.deepEqual(params, [TAG]);
+  assert.match(sql, /datetime\(event_date\) >= datetime\(\?\)/);
+  assert.deepEqual(params, [TAG, REPLACEMENT]);
 });
 
-test('manual runtime correction or changed cumulative value still fails closed', () => {
+test('manual runtime correction with a changed cumulative value still fails closed', () => {
   const dp = dpRow({runningSeconds: 0, endState: 'running'});
   const correction = {
     ...manualStopRow(1),
