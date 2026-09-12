@@ -161,7 +161,9 @@ test('V5.6.1 rejects an expired session without leaving an auto-prep request per
 
 test('V5.6.1 keeps pending prep actionable and clearly labels expired authentication',()=>{
  const js=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8');
- assert.match(js,/active\?'상태 확인':'계산하기'/);
+ const {liveRequestPresentation}=require('../maintenance/cofiring-period-ui-v5.js');
+ for(const loading of [false,true])assert.equal(liveRequestPresentation({authenticated:true,item:{active:{status:'pending'},loading}}).buttonText,'상태 확인');
+ assert.equal(liveRequestPresentation({authenticated:true,item:{active:null,loading:false}}).buttonText,'계산하기');
  assert.match(js,/prepLabel\('로그인 필요','error'\)/);
  assert.match(js,/로그인 세션이 만료되었습니다\. 다시 로그인하면 고속 준비와 계산을 다시 시작할 수 있습니다/);
  const live=fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-live.js'),'utf8');

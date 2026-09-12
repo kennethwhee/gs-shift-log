@@ -22,6 +22,13 @@
     for(const key of ['startLocal','endLocal','stepUnit','stepValue'])if(state.period?.[key]!==spec?.[key]||reference[key]!==spec?.[key])return null;
     return reference;
   }
+  function liveRequestPresentation(state,{conflictRetrying=false}={}){
+    const item=state?.item,active=item?.active;
+    const busy=!!(item?.submitting||item?.loading||conflictRetrying);
+    const failure=!active&&item?.lastAttempt?.status==='failed'?item.lastAttempt:null;
+    const buttonText=!state?.authenticated?'로그인 필요':conflictRetrying?'이전 조회 대기...':item?.submitting?'요청 등록 중...':active?'상태 확인':item?.loading?'상태 확인 중...':'계산하기';
+    return {busy,buttonText,failureMessage:failure?(String(failure.errorMessage||'').trim()||'DataPARC 조회에 실패했습니다.'):''};
+  }
   function authHeaders(){return typeof root.getShiftLogAuthHeaders==='function'?root.getShiftLogAuthHeaders():{};}
   function isMobile(){try{return /^\/mobile(?:\/|$)/i.test(root.location?.pathname||'')||/Android|iPhone|iPad|iPod|Mobile/i.test(root.navigator?.userAgent||'')||(root.navigator?.platform==='MacIntel'&&Number(root.navigator?.maxTouchPoints)>0)||(typeof root.isShiftLogMobileView==='function'?root.isShiftLogMobileView():!!root.matchMedia?.('(max-width: 768px)').matches);}catch(_){return true;}}
   function kstNowMinute(offsetMinutes=0){const ms=Date.now()+9*3600000+offsetMinutes*60000;return new Date(ms).toISOString().slice(0,16);}
@@ -179,7 +186,7 @@
     function adjustmentContext(){return {result:lastResult,settings:readSettings(container),spec:currentSpec()};}
     let adjuster=null;
     function scheduleFastPrep(delay=900){if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}const epoch=++fastPrepGeneration;if(disposed||mobile||!visible()||!live)return;prepLabel('고속 준비 예약');fastPrepTimer=root.setTimeout?.(()=>{fastPrepTimer=null;void fastPrepare(epoch);},delay);}
-    async function fastPrepare(epoch){if(disposed||epoch!==fastPrepGeneration||mobile||!visible()||!live)return;try{prepLabel('저장값 확인','working');live.select(currentSpec());await live.load({force:true});if(disposed||epoch!==fastPrepGeneration)return;const s=live.state();if(s.item?.saved&&reference){prepLabel(storesReady()?'즉시 계산 가능':'입력 기준 확인 중',storesReady()?'ready':'working');return;}if(s.item?.active){prepLabel('동일기간 조회 진행중','working');return;}if(!s.canQuery){prepLabel(s.authenticated?'조회 준비 불가':'로그인 필요',s.authenticated?'':'error');return;}prepLabel('조회 준비 완료','ready');setStatus(container,'저장된 결과가 없습니다. 자동 DataPARC 조회는 시작하지 않습니다. [계산하기]를 누르면 현재 표시 기간으로 1회 조회합니다.','');}catch(e){prepLabel('저장값 확인 실패','error');}}
+    async function fastPrepare(epoch){if(disposed||epoch!==fastPrepGeneration||mobile||!visible()||!live)return;try{prepLabel('저장값 확인','working');live.select(currentSpec());await live.load({force:true});if(disposed||epoch!==fastPrepGeneration)return;const s=live.state();if(liveRequestPresentation(s).failureMessage){paintLive(s);return;}if(s.item?.saved&&reference){prepLabel(storesReady()?'즉시 계산 가능':'입력 기준 확인 중',storesReady()?'ready':'working');return;}if(s.item?.active){prepLabel('동일기간 조회 진행중','working');return;}if(!s.canQuery){prepLabel(s.authenticated?'조회 준비 불가':'로그인 필요',s.authenticated?'':'error');return;}prepLabel('조회 준비 완료','ready');setStatus(container,'저장된 결과가 없습니다. 자동 DataPARC 조회는 시작하지 않습니다. [계산하기]를 누르면 현재 표시 기간으로 1회 조회합니다.','');}catch(e){prepLabel('저장값 확인 실패','error');}}
     function waitMs(ms){return new Promise(resolve=>{if(root.setTimeout)root.setTimeout(resolve,ms);else resolve();});}
     async function queryWithBusyRetry({force=false,maxRetries=20}={}){
       const signature=JSON.stringify(currentSpec());let attempt=0;conflictRetrying=true;paintLive(live.state());
@@ -214,16 +221,16 @@
     function bindManualInputs(){for(const el of container.querySelectorAll('[data-cfv5-manual]'))if(el.dataset.cfv5Bound!=='1'){el.dataset.cfv5Bound='1';el.addEventListener('input',()=>{manualDirty=true;const label=container.querySelector('[data-cfv5-manual-state]');if(label)label.textContent='수정됨 · 미저장';if(reference&&storesReady()){try{readManual(container);calculate();}catch(_){}}});el.addEventListener('change',()=>{if(reference)calculate();});}}
     function paintLive(s){
       const item=s?.item,state=container.querySelector('[data-cfv5-live-state]'),active=item?.active,queryButton=container.querySelector('[data-cfv5-query]');
-      const hardBusy=!!(item?.submitting||item?.loading||conflictRetrying),requery=container.querySelector('[data-cfv5-requery]');
+      const presentation=liveRequestPresentation(s,{conflictRetrying}),hardBusy=presentation.busy,failureMessage=presentation.failureMessage,requery=container.querySelector('[data-cfv5-requery]');
       queryButton.disabled=mobile||!s?.canQuery||hardBusy;
-      queryButton.textContent=!s?.authenticated?'로그인 필요':conflictRetrying?'이전 조회 대기...':hardBusy?'상태 확인 중...':active?'상태 확인':'계산하기';
+      queryButton.textContent=presentation.buttonText;
       if(requery)requery.disabled=mobile||!s?.canQuery||!item?.saved||hardBusy||!!active;
       const qualityGapSaved=!!(item?.saved&&reference?.summaries?.some?.(x=>x?.dataComplete===false));
-      const stateText=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?'DataPARC 작업 중':item?.saved&&reference?(qualityGapSaved?'경계값 계산 · 품질 공백':'계산 완료'):item?.saved?'결과 확인 중':'저장결과 없음';
+      const stateText=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?'DataPARC 작업 중':failureMessage?(item?.saved&&reference?'재조회 실패 · 저장값 유지':'조회 실패'):item?.saved&&reference?(qualityGapSaved?'경계값 계산 · 품질 공백':'계산 완료'):item?.saved?'결과 확인 중':'저장결과 없음';
       if(state)state.textContent=stateText;
       const source=container.querySelector('[data-cfv6-data-source]');
       if(source){const completed=s?.item?.result?.report?.completedAtUtc,date=completed?new Date(completed):null;
-        source.textContent=date&&Number.isFinite(date.getTime())?`DataPARC 조회 완료 ${date.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false})} KST · 저장결과 기준${active?' · 최신조회 진행 중':''}`:active?'새 DataPARC 결과를 기다리고 있습니다.':'저장된 DataPARC 결과가 아직 없습니다.';
+        source.textContent=date&&Number.isFinite(date.getTime())?`DataPARC 조회 완료 ${date.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false})} KST · 저장결과 기준${active?' · 최신조회 진행 중':failureMessage?' · 최근 조회 실패':''}`:active?'새 DataPARC 결과를 기다리고 있습니다.':failureMessage?'DataPARC 조회에 실패했습니다. 저장된 결과가 아직 없습니다.':'저장된 DataPARC 결과가 아직 없습니다.';
       }
 
       if(!s?.authenticated){prepLabel('로그인 필요','error');setStatus(container,'로그인 세션이 만료되었습니다. 다시 로그인하면 고속 준비와 계산을 다시 시작할 수 있습니다.','error');}
@@ -231,7 +238,9 @@
       else if(item?.submitting)setStatus(container,'기간 조회 요청을 등록하고 있습니다. 아직 계산 전입니다.','working');
       else if(active?.status==='pending')setStatus(container,'회사 PC Agent 대기 중입니다. 아직 계산 전입니다.','working');
       else if(active?.status==='processing')setStatus(container,'DataPARC 조회·Excel 정리 작업이 진행 중입니다. 서버에 저장 결과가 도착하면 숫자가 자동 표시됩니다. 아직 계산 완료가 아닙니다.','working');
+      else if(failureMessage){prepLabel(item?.saved&&reference?'재조회 실패 · 저장값 유지':'조회 실패','error');setStatus(container,`${failureMessage} ${item?.saved&&reference?'이전 저장 결과를 표시합니다. 새 조회는 [재조회]를 눌러주세요.':'[계산하기]를 누르면 새 조회를 요청합니다.'}`,'error');}
       else if(item?.saved&&reference)setStatus(container,qualityGapSaved?'DataPARC 중간 품질 공백이 있어도 시작·종료 누적 경계가 정상인 사용량은 표시합니다. [자료 확인 내용]에서 품질 공백 시간을 확인해 주세요.':lastResult?.warnings?.length?'저장값으로 혼소율을 계산했습니다. 빈칸 유기성·축분은 0t로 계산하며 자료 품질 경고는 [자료 확인 내용]에서 확인해 주세요.':'저장된 DataPARC 결과를 불러와 혼소율 계산까지 완료했습니다. 빈칸 유기성·축분은 0t로 계산됩니다.','success');
+      else if(!item?.saved)setStatus(container,'저장된 결과가 없습니다. [계산하기]를 누르면 현재 표시 기간으로 조회합니다.','');
     }
     function analyze(){if(!reference)return null;const p=periodSpec(container),setting=readSettings(container),mv=manualForCalculation(readManual(container)),calorifics={unit1:{},unit2:{}},coefficients={unit1:{},unit2:{}};for(const u of UNITS)for(const fuel of FUEL_KEYS){calorifics[u][fuel]=setting[u][fuel].calorific;coefficients[u][fuel]=setting[u][fuel].coefficient;}return core.analyzePeriodSummary(reference,{startLocal:p.startLocal,endLocal:p.endLocal,calorifics,coefficients,organic:{start:p.start,end:p.end,unit1:mv.unit1.organic,unit2:mv.unit2.organic},manure:{start:p.start,end:p.end,unit1:mv.unit1.manure,unit2:mv.unit2.manure}});}
     function calculate(){
@@ -277,6 +286,6 @@
     updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();selectStores().catch(e=>setStatus(container,e.message,'error'));scheduleFastPrep(0);
     return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSpec:currentSpec,dispose(){disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
   }
-  root.CofiringPeriodV5={mount,periodSpec,markup,readSettings,readManual,manualForCalculation,coalBioHeat,coalBioRatio,combinedCoalBio,cachedReference};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
+  root.CofiringPeriodV5={mount,periodSpec,markup,readSettings,readManual,manualForCalculation,coalBioHeat,coalBioRatio,combinedCoalBio,cachedReference,liveRequestPresentation};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
   if(root.document){const init=()=>{const container=root.document.querySelector('[data-cofiring-draft-root]');if(container)mount(container);};if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init,{once:true});else init();}
 })(typeof globalThis==='object'?globalThis:this);
