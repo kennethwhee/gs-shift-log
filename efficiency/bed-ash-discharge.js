@@ -25,7 +25,8 @@
   const FILTERS = new Set(["all", "pending", "confirmed", "excluded"]);
   const RANGE_STALE_MS = 5 * 60 * 1000;
   const SUMMARY_REFRESH_MS = 10 * 60 * 1000;
-  const POLL_INTERVAL_MS = 5000;
+  const POLL_INTERVAL_MS = 2000;
+  const STATUS_BATCH_SIZE = 12;
   const POLL_TIMEOUT_MS = 10 * 60 * 1000;
   const REQUEST_TIMEOUT_MS = 30 * 1000;
   const SUMMARY_REQUEST_TIMEOUT_MS = 15 * 1000;
@@ -55,6 +56,7 @@
     loadedAt: 0,
     loadSequence: 0,
     loading: false,
+    activeRangeLoad: null,
     summarySequence: 0,
     summaryLoading: false,
     summaryRefreshQueued: false,
@@ -1722,79 +1724,177 @@
     return new Promise(resolve => window.setTimeout(resolve, milliseconds));
   }
 
+  // BED ASH FAST QUERY V1: only exact OIS job IDs are polled. Saved
+  // coverage can remain complete while a newer request is still processing.
+  function isCurrentRangeLoad(sequence, token, selectedRangeKey) {
+    return sequence === state.loadSequence && Boolean(token) &&
+      token === getSessionToken() &&
+      selectedRangeKey === rangeKey(calculatePeriod(
+        state.period, state.anchorDate || getKstToday()
+      ));
+  }
+
+  function addTrackedRequest(tracked, requestId, date) {
+    const id = text(requestId);
+    const targetDate = text(date);
+    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(id) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+      throw new Error("OIS 요청번호를 확인할 수 없습니다. 잠시 후 다시 조회해 주세요.");
+    }
+    const existing = tracked.get(id);
+    if (existing && existing.targetDate !== targetDate) {
+      throw new Error("OIS 요청번호와 조회 날짜가 일치하지 않습니다.");
+    }
+    if (!existing) {
+      tracked.set(id, { id, targetDate, status: "unknown", refreshed: false });
+    }
+  }
+
+  function trackCoverageRequests(tracked, coverage) {
+    const requests = Array.isArray(coverage?.requests) ? coverage.requests : [];
+    const pendingDates = new Set(coverage?.pendingDates || []);
+    for (const row of requests) {
+      if (["pending", "processing"].includes(text(row?.status))) {
+        addTrackedRequest(tracked, row.requestId, row.date);
+        pendingDates.delete(text(row.date));
+      }
+    }
+    if (pendingDates.size) {
+      throw new Error("처리 중인 OIS 요청번호가 누락되었습니다. 잠시 후 다시 조회해 주세요.");
+    }
+    for (const support of [coverage?.baseline, coverage?.lookahead]) {
+      if (support?.available !== false && support?.pending) {
+        addTrackedRequest(tracked, support.requestId, support.date);
+      }
+    }
+    return tracked;
+  }
+
+  function isTerminalRequest(request) {
+    return ["complete", "failed", "expired"].includes(request.status);
+  }
+
+  function collectionStatusMessage(tracked) {
+    const requests = [...tracked.values()];
+    const complete = requests.filter(row => row.status === "complete").length;
+    const failed = requests.filter(row => ["failed", "expired"].includes(row.status)).length;
+    return `저장된 자료 표시 중 · OIS 수집 ${complete}/${requests.length}건 완료` +
+      (failed ? ` · 실패 ${failed}건` : "");
+  }
+
+  async function fetchCompactStatuses(requests, isCurrent, timeoutMs) {
+    const batches = [];
+    for (let offset = 0; offset < requests.length; offset += STATUS_BATCH_SIZE) {
+      batches.push(requests.slice(offset, offset + STATUS_BATCH_SIZE));
+    }
+    return mapWithConcurrency(batches, OIS_REQUEST_CONCURRENCY, async batch => {
+      if (!isCurrent()) return null;
+      const query = new URLSearchParams({
+        action: "status_batch", compact: "1", ids: batch.map(row => row.id).join(",")
+      });
+      const data = await requestJson(`${OIS_REQUEST_API_URL}?${query}`, {
+        headers: getRequestHeaders(), timeoutMs
+      });
+      if (!isCurrent()) return null;
+      const items = Array.isArray(data?.items) ? data.items : [];
+      const received = new Map();
+      for (const item of items) {
+        if (received.has(text(item?.id))) {
+          throw new Error("OIS 요청 상태 응답에 중복된 요청번호가 있습니다.");
+        }
+        received.set(text(item?.id), item);
+      }
+      return batch.map(request => {
+        const row = received.get(request.id);
+        if (!row || (Array.isArray(data?.missingIds) && data.missingIds.includes(request.id))) {
+          throw new Error("OIS 요청 상태가 누락되었습니다. 잠시 후 다시 조회해 주세요.");
+        }
+        if (row.requestType !== "bed_ash_level" || row.targetDate !== request.targetDate ||
+            !["pending", "processing", "complete", "failed", "expired"].includes(row.status)) {
+          throw new Error("OIS 요청 상태의 종류 또는 날짜를 확인할 수 없습니다.");
+        }
+        return { request, status: row.status, errorMessage: text(row.errorMessage) };
+      });
+    });
+  }
+
   async function pollRange(
     range,
     sequence,
     requestedDates,
-    minimumPolls = 0,
-    waitForBaseline = false,
-    waitForLookahead = false,
-    preservedReviewedEvent = null
+    tracked = new Map(),
+    preservedReviewedEvent = null,
+    token = getSessionToken()
   ) {
     const deadline = Date.now() + POLL_TIMEOUT_MS;
-    let polls = 0;
+    const selectedRangeKey = rangeKey(range);
+    const isCurrent = () => isCurrentRangeLoad(sequence, token, selectedRangeKey);
     let consecutiveFailures = 0;
+    trackCoverageRequests(tracked, state.coverage);
 
-    while (sequence === state.loadSequence && Date.now() < deadline) {
-      const pendingCount = state.coverage?.pendingDates?.length || 0;
-      const baselineAwaiting = Boolean(
-        waitForBaseline &&
-        state.coverage?.baseline &&
-        state.coverage.baseline.pending
-      );
-      const lookaheadAwaiting = Boolean(
-        waitForLookahead &&
-        state.coverage?.lookahead?.available &&
-        state.coverage.lookahead.pending
-      );
-      if (
-        polls >= minimumPolls &&
-        pendingCount === 0 &&
-        !baselineAwaiting &&
-        !lookaheadAwaiting
-      ) {
-        return "complete";
-      }
-
-      await delay(POLL_INTERVAL_MS);
-      if (sequence !== state.loadSequence) {
-        return "cancelled";
-      }
-
-      let data;
-      try {
-        data = await fetchRangeData(
-          range,
+    while (isCurrent() && Date.now() < deadline) {
+      const pending = [...tracked.values()].filter(row => !isTerminalRequest(row));
+      let statusFailure = null;
+      if (pending.length) {
+        const results = await fetchCompactStatuses(
+          pending, isCurrent,
           Math.max(1000, Math.min(REQUEST_TIMEOUT_MS, deadline - Date.now()))
         );
-        consecutiveFailures = 0;
-      } catch (error) {
-        if (sequence !== state.loadSequence) {
-          return "cancelled";
+        if (!isCurrent()) return "cancelled";
+        const authFailure = results.find(result => [401, 403].includes(result.error?.status));
+        if (authFailure) throw authFailure.error;
+        for (const result of results) {
+          if (result.error) {
+            statusFailure = result.error;
+          } else {
+            for (const update of result.value || []) {
+              update.request.status = update.status;
+              update.request.errorMessage = update.errorMessage;
+            }
+          }
         }
-        if (error.status === 401 || error.status === 403) {
-          throw error;
+      }
+
+      // A terminal transition causes one coalesced range refresh. Unchanged
+      // pending jobs never re-run the expensive detector / history sync.
+      const newlyTerminal = [...tracked.values()].filter(row => isTerminalRequest(row) && !row.refreshed);
+      if (newlyTerminal.length) {
+        try {
+          const data = await fetchRangeData(
+            range, Math.max(1000, Math.min(REQUEST_TIMEOUT_MS, deadline - Date.now()))
+          );
+          if (!isCurrent()) return "cancelled";
+          renderData(preserveReviewedEventInRangeData(data, preservedReviewedEvent), requestedDates);
+          for (const row of newlyTerminal) row.refreshed = true;
+          trackCoverageRequests(tracked, state.coverage);
+        } catch (error) {
+          if (!isCurrent()) return "cancelled";
+          if ([401, 403].includes(error.status)) throw error;
+          statusFailure = error;
         }
+      }
+      if (!isCurrent()) return "cancelled";
+      if (statusFailure) {
         consecutiveFailures += 1;
         setStatus(
-          `OIS 처리 상태 확인이 지연되고 있습니다. 자동 재시도 ${consecutiveFailures}회`,
+          `저장된 자료 표시 중 · OIS 상태 확인 재시도 ${consecutiveFailures}회 · ${text(statusFailure.message)}`,
           "warning"
         );
-        continue;
+      } else {
+        consecutiveFailures = 0;
+        if ([...tracked.values()].every(row => isTerminalRequest(row) && row.refreshed)) {
+          if ([...tracked.values()].some(row => row.status !== "complete")) return "failed";
+          // Status completion does not by itself establish range readiness.
+          // A lagging/contradictory authoritative range must stay a warning.
+          if (state.coverage?.pendingDates?.length || state.coverage?.baseline?.pending ||
+              (state.coverage?.lookahead?.available && state.coverage.lookahead.pending)) return "unsettled";
+          return "complete";
+        }
+        setStatus(collectionStatusMessage(tracked), "loading");
       }
-      if (sequence !== state.loadSequence) {
-        return "cancelled";
-      }
-
-      renderData(
-        preserveReviewedEventInRangeData(data, preservedReviewedEvent),
-        requestedDates
-      );
-      setStatus(coverageStatusMessage(state.coverage, state.events.length), "loading");
-      polls += 1;
+      await delay(Math.min(POLL_INTERVAL_MS, Math.max(0, deadline - Date.now())));
     }
-
-    return sequence === state.loadSequence ? "timeout" : "cancelled";
+    return isCurrent() ? "timeout" : "cancelled";
   }
 
   function scheduleReviewRangePolling(options) {
@@ -1808,11 +1908,11 @@
       selectedRangeKey
     } = options;
 
+    const token = getSessionToken();
     window.setTimeout(() => {
       if (
-        sequence !== state.loadSequence ||
-        state.submittingEventKeys.size > 0 ||
-        !getSessionToken()
+        !isCurrentRangeLoad(sequence, token, selectedRangeKey) ||
+        state.submittingEventKeys.size > 0
       ) {
         return;
       }
@@ -1821,29 +1921,41 @@
         range,
         sequence,
         requestedDates,
-        0,
-        waitForBaseline,
-        waitForLookahead,
-        savedEvent
+        new Map(),
+        savedEvent,
+        token
       ).then(result => {
-        if (sequence !== state.loadSequence || result === "cancelled") {
+        if (!isCurrentRangeLoad(sequence, token, selectedRangeKey) || result === "cancelled") {
           return;
         }
         state.loadedRangeKey = selectedRangeKey;
         state.loadedAt = Date.now();
+        if (result === "unsettled") {
+          state.loadedAt = 0;
+          setStatus("확인은 저장됐지만 OIS 기간 자료 반영을 확인하지 못했습니다. 잠시 후 다시 조회해 주세요.", "warning");
+          return;
+        }
         if (result === "timeout") {
+          state.loadedAt = 0;
           setStatus(
             "확인은 저장됐지만 OIS 자료 수집이 10분 이상 지연되고 있습니다.",
             "warning"
           );
           return;
         }
+        const coverage = state.coverage;
+        const warning = result === "failed" || coverage.failedDates.length ||
+          coverage.missingDates.length ||
+          (coverage.baseline && !coverage.baseline.complete) ||
+          (coverage.lookahead?.available && !coverage.lookahead.complete);
         setStatus(
-          coverageStatusMessage(state.coverage, state.events.length),
-          "success"
+          result === "failed"
+            ? `OIS 수집 일부 실패 · ${coverageStatusMessage(coverage, state.events.length)}`
+            : coverageStatusMessage(coverage, state.events.length),
+          warning ? "warning" : "success"
         );
       }).catch(error => {
-        if (sequence !== state.loadSequence) {
+        if (!isCurrentRangeLoad(sequence, token, selectedRangeKey)) {
           return;
         }
         setStatus(
@@ -1882,174 +1994,108 @@
     const range = renderPeriodControls();
     const selectedRangeKey = rangeKey(range);
     const requestedDates = enumerateDates(range.queryStartDate, range.queryEndDate);
+    const token = getSessionToken();
+    if (state.activeRangeLoad?.sequence === state.loadSequence &&
+        state.activeRangeLoad.key === selectedRangeKey && state.activeRangeLoad.token === token) {
+      return;
+    }
     const sequence = ++state.loadSequence;
-
-    if (!getSessionToken()) {
+    const isCurrent = () => isCurrentRangeLoad(sequence, token, selectedRangeKey);
+    if (!token) {
+      setLoading(false);
       clearDetailData("로그인 후 Bed Ash 반출 내역을 확인할 수 있습니다.");
       clearSummaryAlert();
       return;
     }
-
     if (requestedDates.length === 0) {
+      setLoading(false);
       clearDetailData("미래 날짜는 OIS 자료를 조회하지 않습니다.");
       return;
     }
 
+    state.activeRangeLoad = { key: selectedRangeKey, token, sequence };
+    let detailLoaded = false;
     setLoading(true);
     renderEvents();
-    setStatus(
-      forceRefresh
-        ? "선택 기간의 OIS 최신 조회를 요청하고 있습니다."
-        : "저장된 Bed Ash Silo 자료를 불러오고 있습니다.",
-      "loading"
-    );
-
+    setStatus("저장된 Bed Ash Silo 자료를 불러오고 있습니다.", "loading");
     try {
-      let data = await fetchRangeData(range);
-      if (sequence !== state.loadSequence) {
-        return;
-      }
-
+      const data = await fetchRangeData(range);
+      if (!isCurrent()) return;
       renderData(data, requestedDates);
-
-      let requestPlans = [];
-      if (!isMobileClient()) {
-        requestPlans = buildOisRequestPlans(
-          state.coverage,
-          requestedDates,
-          forceRefresh
-        );
-      }
-
-      let minimumPolls = 0;
-      let successfulBaselineRequest = false;
-      let successfulLookaheadRequest = false;
-      if (requestPlans.length > 0) {
-        const selectedRequestCount = requestPlans.filter(plan => {
-          return !plan.baseline && !plan.lookahead;
-        }).length;
-        const baselineRequestCount = requestPlans.filter(plan => plan.baseline).length;
-        const lookaheadRequestCount = requestPlans.filter(plan => plan.lookahead).length;
-        setStatus(
-          `OIS 조회 요청 중 · 선택기간 ${selectedRequestCount}일${
-            baselineRequestCount ? " · 첫날 자정 기준 1건" : ""
-          }${lookaheadRequestCount ? " · 마지막 날 후속 1건" : ""}`,
-          "loading"
-        );
-        const results = await mapWithConcurrency(
-          requestPlans,
-          OIS_REQUEST_CONCURRENCY,
-          plan => createOisRequest(plan.date, plan.forceRefresh)
-        );
-
-        if (sequence !== state.loadSequence) {
-          return;
-        }
-
-        const authFailure = results.find(result => {
-          return result.error?.status === 401 || result.error?.status === 403;
-        });
-        if (authFailure) {
-          throw authFailure.error;
-        }
-
-        const failedRequests = results.filter(result => result.error);
-        successfulBaselineRequest = results.some(result => {
-          return result.item?.baseline === true && !result.error;
-        });
-        successfulLookaheadRequest = results.some(result => {
-          return result.item?.lookahead === true && !result.error;
-        });
-        if (failedRequests.length > 0) {
-          setStatus(
-            `OIS 조회 요청 일부 실패 · ${failedRequests.length}/${requestPlans.length}일`,
-            "warning"
-          );
-        }
-
-        minimumPolls = 2;
-        data = await fetchRangeData(range);
-        if (sequence !== state.loadSequence) {
-          return;
-        }
-        renderData(data, requestedDates);
-      }
-
-      const waitForBaseline = Boolean(
-        state.coverage.baseline?.pending || successfulBaselineRequest
-      );
-      const waitForLookahead = Boolean(
-        state.coverage.lookahead?.available &&
-        (
-          state.coverage.lookahead.pending || successfulLookaheadRequest
-        )
-      );
-      const shouldPoll =
-        state.coverage.pendingDates.length > 0 ||
-        waitForBaseline ||
-        waitForLookahead ||
-        requestPlans.length > 0;
-      if (shouldPoll) {
-        const pollResult = await pollRange(
-          range,
-          sequence,
-          requestedDates,
-          minimumPolls,
-          waitForBaseline,
-          waitForLookahead
-        );
-        if (pollResult === "cancelled") {
-          return;
-        }
-        if (pollResult === "timeout") {
-          setStatus(
-            "OIS 자료 수집이 10분 이상 지연되고 있습니다. 잠시 후 다시 조회해 주세요.",
-            "warning"
-          );
-        }
-      }
-
-      if (sequence !== state.loadSequence) {
-        return;
-      }
-
+      detailLoaded = true;
       state.loadedRangeKey = selectedRangeKey;
       state.loadedAt = Date.now();
-      if (
-        (state.coverage?.pendingDates?.length || 0) === 0 &&
-        !state.coverage?.baseline?.pending &&
-        !state.coverage?.lookahead?.pending
-      ) {
-        setStatus(
-          coverageStatusMessage(state.coverage, state.events.length),
-          state.coverage.failedDates.length ||
-              state.coverage.missingDates.length ||
-              (state.coverage.baseline && !state.coverage.baseline.complete) ||
-              (state.coverage.lookahead && !state.coverage.lookahead.complete)
-            ? "warning"
-            : "success"
-        );
+      // Reading saved data is finished. OIS collection continues in the status
+      // line while the displayed history and date controls remain usable.
+      setLoading(false);
+      renderEvents();
+      const tracked = trackCoverageRequests(new Map(), state.coverage);
+      const activeDates = new Set([...tracked.values()].map(row => row.targetDate));
+      const requestPlans = isMobileClient() ? [] : buildOisRequestPlans(
+        state.coverage, requestedDates, forceRefresh
+      ).filter(plan => !activeDates.has(plan.date));
+      const requestFailures = [];
+      if (requestPlans.length > 0) {
+        setStatus(`저장된 자료 표시 중 · OIS 조회 ${requestPlans.length}건 요청 중`, "loading");
+        let authenticationFailed = false;
+        const results = await mapWithConcurrency(requestPlans, OIS_REQUEST_CONCURRENCY, async plan => {
+          if (!isCurrent() || isMobileClient() || authenticationFailed) return null;
+          let response;
+          try {
+            response = await createOisRequest(plan.date, plan.forceRefresh);
+          } catch (error) {
+            if ([401, 403].includes(error.status)) authenticationFailed = true;
+            throw error;
+          }
+          if (!isCurrent()) return null;
+          const item = response?.item;
+          if (item?.requestType !== "bed_ash_level" || item?.targetDate !== plan.date) {
+            throw new Error("새 OIS 요청의 종류 또는 날짜를 확인할 수 없습니다.");
+          }
+          addTrackedRequest(tracked, item.id, plan.date);
+          return response;
+        });
+        if (!isCurrent()) return;
+        const authFailure = results.find(result => [401, 403].includes(result.error?.status));
+        if (authFailure) throw authFailure.error;
+        requestFailures.push(...results.filter(result => result.error));
       }
-
-      await refreshSummary({ silent: true });
+      const pollResult = tracked.size ? await pollRange(
+        range, sequence, requestedDates, tracked, null, token
+      ) : "complete";
+      if (!isCurrent() || pollResult === "cancelled") return;
+      state.loadedRangeKey = selectedRangeKey;
+      state.loadedAt = Date.now();
+      if (pollResult === "unsettled") {
+        state.loadedAt = 0;
+        setStatus("OIS 처리는 끝났지만 기간 자료 반영을 확인하지 못했습니다. 잠시 후 다시 조회해 주세요.", "warning");
+      } else if (pollResult === "timeout") {
+        state.loadedAt = 0;
+        setStatus("저장된 자료 표시 중 · OIS 수집 또는 상태 확인이 10분 이상 지연되고 있습니다. 잠시 후 다시 조회해 주세요.", "warning");
+      } else {
+        const coverage = state.coverage;
+        const warning = requestFailures.length || pollResult === "failed" ||
+          coverage.failedDates.length || coverage.missingDates.length ||
+          (coverage.baseline && !coverage.baseline.complete) ||
+          (coverage.lookahead?.available && !coverage.lookahead.complete);
+        const prefix = requestFailures.length
+          ? `OIS 조회 요청 ${requestFailures.length}건 실패 · `
+          : pollResult === "failed" ? "OIS 수집 일부 실패 · " : "";
+        setStatus(prefix + coverageStatusMessage(coverage, state.events.length), warning ? "warning" : "success");
+      }
+      // Summary has its own authenticated background refresh cycle. It must
+      // not delay detail completion or add another expensive GET on each poll.
     } catch (error) {
-      if (sequence !== state.loadSequence) {
-        return;
-      }
-
-      clearDetailData(
-        error.status === 401
-          ? "로그인 정보가 만료되었습니다. 다시 로그인해 주세요."
-          : `Bed Ash 반출 자료 조회 실패 · ${text(error.message)}`
-      );
-      clearSummaryAlert();
-      setStatus(
-        error.status === 401
-          ? "로그인 정보가 만료되었습니다. 다시 로그인해 주세요."
-          : `Bed Ash 반출 자료 조회 실패 · ${text(error.message)}`,
-        "error"
-      );
+      if (!isCurrent()) return;
+      const authFailure = [401, 403].includes(error.status);
+      const message = authFailure
+        ? "로그인 정보가 만료되었습니다. 다시 로그인해 주세요."
+        : `Bed Ash 반출 자료 조회 실패 · ${text(error.message)}`;
+      if (!detailLoaded || authFailure) clearDetailData(message);
+      if (authFailure) clearSummaryAlert();
+      setStatus(message, "error");
     } finally {
+      if (state.activeRangeLoad?.sequence === sequence) state.activeRangeLoad = null;
       if (sequence === state.loadSequence) {
         setLoading(false);
         renderPeriodControls();
@@ -2190,7 +2236,11 @@
     const range = renderPeriodControls();
     const currentRangeKey = rangeKey(range);
     const isStale = Date.now() - state.loadedAt >= RANGE_STALE_MS;
-    if (state.loading || (state.loadedRangeKey === currentRangeKey && !isStale)) {
+    if (state.loading ||
+        (state.activeRangeLoad?.sequence === state.loadSequence &&
+          state.activeRangeLoad.key === currentRangeKey &&
+          state.activeRangeLoad.token === getSessionToken()) ||
+        (state.loadedRangeKey === currentRangeKey && !isStale)) {
       return;
     }
 
@@ -2748,6 +2798,7 @@
     if (token !== state.lastSessionToken) {
       state.lastSessionToken = token;
       state.loadSequence += 1;
+      state.activeRangeLoad = null;
       state.summarySequence += 1;
       state.summaryLoading = false;
       state.summaryRefreshQueued = false;
