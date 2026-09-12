@@ -5,6 +5,7 @@
   const settingsApi=root.CofiringCalculationSettingsStorage;
   const manualApi=root.CofiringPeriodManualStorage;
   const adjustmentApi=root.CofiringPeriodAdjustmentV56||(typeof require==='function'?require('./cofiring-period-adjustment-v56.js'):null);
+  const targetReferenceApi=root.CofiringTargetReferenceV6||(typeof require==='function'?require('./cofiring-target-reference-v6.js'):null);
   const FUEL_LABEL={coal:'Coal',bio:'Bio',organic:'유기성',manure:'축분'};
   const FUEL_KEYS=['coal','bio','organic','manure'];
   const UNITS=['unit1','unit2'];
@@ -38,12 +39,11 @@
     const d=defaultPeriod();
     return `<div class="cfv5-sheet">
       <div class="cfv5-title-row">
-        <div class="cfv5-title-copy"><span class="cfv5-eyebrow">FUEL OPERATIONS</span><h2>혼소율 분석</h2><p>연료 사용량부터 혼소 조정까지, 한눈에.</p></div>
-        <span class="cfv5-version"><i aria-hidden="true"></i>연료 운전 분석</span>
+        <div class="cfv5-title-copy"><span class="cfv5-eyebrow">FUEL OPERATIONS</span><h2>혼소율 분석</h2></div>
+        <span class="cfv5-version"><i aria-hidden="true"></i>Bio 목표 <strong>25%</strong></span>
       </div>
 
       <div class="cfv5-query-box">
-        <div class="cfv5-query-heading"><strong>조회 기간</strong><span>선택한 기간의 누적 사용량을 계산합니다</span></div>
         <div class="cfv5-query-grid">
           <label>조회 시작<input data-cfv5-start type="datetime-local" value="${d.start}" step="60"></label>
           <label>조회 종료<input data-cfv5-end type="datetime-local" value="${d.end}" step="60"></label>
@@ -58,21 +58,23 @@
         <p data-cfv5-status role="status" aria-live="polite">기간을 지정한 뒤 [계산하기]를 누르세요. 저장결과가 없으면 DataPARC 조회 후 자동 계산합니다.</p>
       </div>
 
+      <div class="cfv52-manual-panel">
+        <div class="cfv52-manual-head">
+          <div><strong>유기성 · 축분 사용량 입력</strong><span>선택기간 누적량 · 빈칸=0t로 계산</span></div>
+          <div class="cfv52-manual-actions"><span data-cfv5-manual-state>저장값 없음</span><button type="button" data-cfv5-manual-save>사용량 저장</button></div>
+        </div>
+        <div class="cfv52-manual-grid">
+          ${UNITS.map((unit,i)=>`<fieldset class="cfv52-manual-unit"><legend><span class="cfv52-unit-dot" aria-hidden="true"></span>${i+1}호기</legend><label><span>유기성 <small>t</small></span>${manualInput(unit,'organic',null,false)}</label><label><span>축분 <small>t</small></span>${manualInput(unit,'manure',null,false)}</label></fieldset>`).join('')}
+        </div>
+      </div>
+
       <div class="cfv52-summary-head">
-        <div class="cfv52-summary-title"><span class="cfv5-eyebrow">CO-FIRING OVERVIEW</span><strong>주요 계산값</strong></div>
+        <div class="cfv52-summary-title"><strong>주요 계산값</strong><span class="cfv6-summary-caption">선택기간 · 보정계수 적용</span></div>
         <div class="cfv56-summary-actions"><span data-cfv52-summary-note>DataPARC 조회 전</span><button type="button" data-cfv56-adjust disabled>혼소 조정</button></div>
       </div>
       <div class="cfv52-summary-grid" data-cfv52-summary-grid>${summaryPlaceholder()}</div>
 
-      <div class="cfv52-manual-panel">
-        <div class="cfv52-manual-head">
-          <div><strong>유기성 · 축분 사용량 입력</strong><span>선택기간 기준 · 빈칸=0t로 계산</span></div>
-          <div class="cfv52-manual-actions"><span data-cfv5-manual-state>저장값 없음</span><button type="button" data-cfv5-manual-save>사용량 저장</button></div>
-        </div>
-        <div class="cfv52-manual-grid">
-          ${UNITS.map((unit,i)=>`<fieldset class="cfv52-manual-unit"><legend><span class="cfv52-unit-dot" aria-hidden="true"></span>${i+1}호기</legend><label><span>유기성 고형연료 <small>t</small></span>${manualInput(unit,'organic',null,false)}</label><label><span>축분 <small>t</small></span>${manualInput(unit,'manure',null,false)}</label></fieldset>`).join('')}
-        </div>
-      </div>
+      <details class="cfv6-target-basis"><summary>25% 투입 참고치 계산 기준</summary><p>선택기간의 평균 Coal+Bio 투입열량을 유지하며 Bio 열량 25%, Coal 열량 75%로 배분한 시간당 실사용량입니다. 호기별 발열량과 보정계수를 반영하며, 위 Coal 참고치와 함께 성립합니다. 현재 평균은 선택기간 누적 실사용량 ÷ 기간 시간입니다.</p><p>Bio 참고치(t/h) = (Coal+Bio 열량 Gcal ÷ 기간 시간) × 25% × 1,000 ÷ Bio 발열량(kcal/kg). 순간 투입 지시값이나 마감 시각까지 부족분을 보충하는 값은 아닙니다. 혼소 조정 적용 시 조정된 표시값을 기준으로 계산합니다.</p></details>
 
       <details class="cfv52-fold">
         <summary><span>발열량 · 보정계수 설정</span><small>연료별 계산 기준 관리</small></summary>
@@ -107,13 +109,21 @@
     </div>`;
   }
   function summaryPlaceholder(){
-    const cards=UNITS.map((unit,i)=>`<article class="cfv52-card" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><span class="cfv52-unit-kicker">BOILER UNIT</span><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status is-waiting">조회 전</span></header><div class="cfv52-metrics">
+    const cards=UNITS.map((unit,i)=>`<article class="cfv52-card" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status is-waiting">조회 전</span></header><div class="cfv52-metrics">
       ${summaryMetric('바이오 혼소율',null,{ratio:true})}
       ${summaryMetric('유기성 및 축분 혼소율',null,{ratio:true})}
       ${summaryMetric('종합혼소율',null,{ratio:true,emphasis:true})}
-      </div><div class="cfv52-fuel-grid">${FUEL_KEYS.map(f=>summaryMetric(FUEL_LABEL[f]+' 사용량',null,{suffix:'t'})).join('')}</div><p class="cfv52-card-caption">기간을 조회하면 혼소율과 사용량이 표시됩니다.</p></article>`);
-    cards.push(`<article class="cfv52-card cfv52-card-total"><header><strong>1·2호기 합산</strong><span>열량 가중 기준</span></header><div class="cfv52-total-ratios">${summaryMetric('바이오 혼소율',null,{ratio:true})}${summaryMetric('유기성 및 축분 혼소율',null,{ratio:true})}${summaryMetric('종합혼소율',null,{ratio:true,emphasis:true})}</div><div class="cfv52-total-fuels">${FUEL_KEYS.map(f=>`<span>${FUEL_LABEL[f]}<strong>—</strong><small>t</small></span>`).join('')}</div></article>`);
+      </div>${targetReferenceMarkup(null)}<div class="cfv52-fuel-grid">${FUEL_KEYS.map(f=>summaryMetric(FUEL_LABEL[f]+' 사용량',null,{suffix:'t'})).join('')}</div></article>`);
+    cards.push(`<article class="cfv52-card cfv52-card-total"><header><strong>1·2호기 합산</strong><span>열량 가중 기준</span></header><div class="cfv52-total-ratios">${summaryMetric('바이오 혼소율',null,{ratio:true})}${summaryMetric('유기성 및 축분 혼소율',null,{ratio:true})}${summaryMetric('종합혼소율',null,{ratio:true,emphasis:true})}</div></article>`);
     return cards.join('');
+  }
+  function targetReferenceMarkup(reference){
+    const ready=!!reference;
+    const target=reference?.targetBioTonPerHour,current=reference?.currentBioTonPerHour,difference=reference?.differenceBioTonPerHour;
+    const delta=typeof difference==='number'&&Number.isFinite(difference)?Math.abs(difference)<0.005?'현재 평균과 동일':`현재 평균 대비 ${num(Math.abs(difference))} t/h ${difference>0?'높음':'낮음'}`:'조회 후 참고치 표시';
+    const measured=reference?.targetMeasuredBioTonPerHour;
+    const measuredNote=typeof measured==='number'&&Math.abs(measured-target)>=0.005?` · Bio 계측 환산 ${num(measured)} t/h`:'';
+    return `<div class="cfv6-target" data-cfv6-target><div class="cfv6-target-main"><div><span class="cfv6-target-label">Bio 25% 목표 참고치</span><strong data-cfv6-target-bio>${ready?num(target):'—'} <small>t/h</small></strong></div><div class="cfv6-target-comparison"><span>현재 평균 <b data-cfv6-current-bio>${ready?num(current):'—'} t/h</b></span><span data-cfv6-target-delta>${delta}</span></div></div><p>동일 열량 기준 Coal <b data-cfv6-target-coal>${ready?num(reference.targetCoalTonPerHour):'—'} t/h</b>${measuredNote}</p></div>`;
   }
   function rowsPlaceholder(count,cols){return Array.from({length:count},(_,i)=>`<tr><th>${i<2?i+1+'호기':'계'}</th>${Array.from({length:cols-1},()=>'<td>—</td>').join('')}</tr>`).join('');}
   function manualRowsPlaceholder(){return `<tr data-cfv5-manual-row="unit1"><th>1호기</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr><tr data-cfv5-manual-row="unit2"><th>2호기</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr><tr data-cfv5-manual-row="sum"><th>계</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr>`;}
@@ -153,18 +163,17 @@
     const cards=[];
     for(const [i,unit] of UNITS.entries()){
       const u=result?.units?.[unit],manualComplete=!!(u?.organic?.complete&&u?.manure?.complete),bioReady=coalBioRatio(u)!==null;
-      cards.push(`<article class="cfv52-card" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><span class="cfv52-unit-kicker">BOILER UNIT</span><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status${manualComplete&&bioReady?'':' is-waiting'}">${manualComplete&&bioReady?'계산 완료':bioReady?'종합 계산 대기':'조회값 확인'}</span></header><div class="cfv52-metrics">
+      cards.push(`<article class="cfv52-card" data-cfv52-unit="${unit}"><header><div class="cfv52-unit-title"><span class="cfv52-unit-number" aria-hidden="true">0${i+1}</span><div><strong>${i+1}호기</strong></div></div><span class="cfv52-card-status${manualComplete&&bioReady?'':' is-waiting'}">${manualComplete&&bioReady?'계산 완료':bioReady?'종합 계산 대기':'조회값 확인'}</span></header><div class="cfv52-metrics">
         ${summaryMetric('바이오 혼소율',coalBioRatio(u),{ratio:true})}
         ${summaryMetric('유기성 및 축분 혼소율',u?.fuelRatios?.organicGroup,{ratio:true})}
         ${summaryMetric('종합혼소율',u?.fuelRatios?.total,{ratio:true,emphasis:true})}
-      </div><div class="cfv52-fuel-grid">${FUEL_KEYS.map(f=>summaryMetric(FUEL_LABEL[f]+' 사용량',u?.[f]?.quantity,{suffix:'t'})).join('')}</div><p class="cfv52-card-caption">선택기간 실사용량 · 보정계수 적용</p></article>`);
+      </div>${targetReferenceMarkup(targetReferenceApi?.forUnit(u,result?.period?.durationHours))}<div class="cfv52-fuel-grid">${FUEL_KEYS.map(f=>summaryMetric(FUEL_LABEL[f]+' 사용량',u?.[f]?.quantity,{suffix:'t'})).join('')}</div></article>`);
     }
-    const one=result?.units?.unit1,two=result?.units?.unit2;
     cards.push(`<article class="cfv52-card cfv52-card-total"><header><strong>1·2호기 합산</strong><span>열량 가중 기준</span></header><div class="cfv52-total-ratios">
       ${summaryMetric('바이오 혼소율',combinedCoalBio(result).ratio,{ratio:true})}
       ${summaryMetric('유기성 및 축분 혼소율',result?.combined?.fuelRatios?.organicGroup,{ratio:true})}
       ${summaryMetric('종합혼소율',result?.combined?.ratios?.total,{ratio:true,emphasis:true})}
-    </div><div class="cfv52-total-fuels">${FUEL_KEYS.map(f=>`<span>${FUEL_LABEL[f]}<strong>${num(sum([one?.[f]?.quantity,two?.[f]?.quantity]))}</strong><small>t</small></span>`).join('')}</div></article>`);
+    </div></article>`);
     host.innerHTML=cards.join('');
     if(note)note.textContent=result?.warnings?.length?'자료 확인 필요':'계산 완료';
   }
