@@ -28,7 +28,11 @@
     const busy=!!(item?.submitting||item?.loading||conflictRetrying);
     const failure=!active&&item?.lastAttempt?.status==='failed'?item.lastAttempt:null;
     const buttonText=!state?.authenticated?'로그인 필요':conflictRetrying?'이전 조회 대기...':item?.submitting?'요청 등록 중...':active?'상태 확인':item?.loading?'상태 확인 중...':'계산하기';
-    return {busy,buttonText,failureMessage:failure?(String(failure.errorMessage||'').trim()||'DataPARC 조회에 실패했습니다.'):''};
+    const labels={starting:'조회 환경 준비 중',reading:'DataPARC 계산 중',cleanup:'조회용 Excel 정리 중',uploading:'결과 저장 중'};
+    const details={starting:'회사 PC에서 조회 환경과 DataPARC 연결을 준비하고 있습니다.',reading:'선택 기간의 사용량과 데이터 품질을 확인하고 있습니다.',cleanup:'조회에 사용한 Excel의 종료를 확인하고 있습니다.',uploading:'검증된 조회 결과를 서버에 저장하고 있습니다.'};
+    const fallbackLabel=active?.status==='processing'?'DataPARC 작업 중':'';
+    const phase=active?.status==='processing'&&Object.hasOwn(labels,active.progress?.phase)?active.progress.phase:null;
+    return {busy,buttonText,failureMessage:failure?(String(failure.errorMessage||'').trim()||'DataPARC 조회에 실패했습니다.'):'',progressLabel:phase?labels[phase]:fallbackLabel,progressMessage:active?.status==='processing'?`${phase?details[phase]:'DataPARC 조회·Excel 정리 작업이 진행 중입니다.'} 서버에 저장 결과가 도착하면 숫자가 자동 표시됩니다. 아직 계산 완료가 아닙니다.`:''};
   }
   function authHeaders(){return typeof root.getShiftLogAuthHeaders==='function'?root.getShiftLogAuthHeaders():{};}
   function isMobile(){try{return /^\/mobile(?:\/|$)/i.test(root.location?.pathname||'')||/Android|iPhone|iPad|iPod|Mobile/i.test(root.navigator?.userAgent||'')||(root.navigator?.platform==='MacIntel'&&Number(root.navigator?.maxTouchPoints)>0)||(typeof root.isShiftLogMobileView==='function'?root.isShiftLogMobileView():!!root.matchMedia?.('(max-width: 768px)').matches);}catch(_){return true;}}
@@ -235,7 +239,7 @@
       queryButton.textContent=presentation.buttonText;
       if(requery)requery.disabled=mobile||!s?.canQuery||!item?.saved||hardBusy||!!active;
       const qualityGapSaved=!!(item?.saved&&reference?.summaries?.some?.(x=>x?.dataComplete===false));
-      const stateText=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?'DataPARC 작업 중':failureMessage?(item?.saved&&reference?'재조회 실패 · 저장값 유지':'조회 실패'):item?.saved&&reference?(qualityGapSaved?'경계값 계산 · 품질 공백':'계산 완료'):item?.saved?'결과 확인 중':'저장결과 없음';
+      const stateText=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?presentation.progressLabel:failureMessage?(item?.saved&&reference?'재조회 실패 · 저장값 유지':'조회 실패'):item?.saved&&reference?(qualityGapSaved?'경계값 계산 · 품질 공백':'계산 완료'):item?.saved?'결과 확인 중':'저장결과 없음';
       if(state)state.textContent=stateText;
       const source=container.querySelector('[data-cfv6-data-source]');
       if(source){const completed=s?.item?.result?.report?.completedAtUtc,date=completed?new Date(completed):null;
@@ -246,7 +250,7 @@
       else if(item?.error)setStatus(container,item.error,'error');
       else if(item?.submitting)setStatus(container,'기간 조회 요청을 등록하고 있습니다. 아직 계산 전입니다.','working');
       else if(active?.status==='pending')setStatus(container,'회사 PC Agent 대기 중입니다. 아직 계산 전입니다.','working');
-      else if(active?.status==='processing')setStatus(container,'DataPARC 조회·Excel 정리 작업이 진행 중입니다. 서버에 저장 결과가 도착하면 숫자가 자동 표시됩니다. 아직 계산 완료가 아닙니다.','working');
+      else if(active?.status==='processing')setStatus(container,presentation.progressMessage,'working');
       else if(failureMessage){prepLabel(item?.saved&&reference?'재조회 실패 · 저장값 유지':'조회 실패','error');setStatus(container,`${failureMessage} ${item?.saved&&reference?'이전 저장 결과를 표시합니다. 새 조회는 [재조회]를 눌러주세요.':'[계산하기]를 누르면 새 조회를 요청합니다.'}`,'error');}
       else if(item?.saved&&reference)setStatus(container,qualityGapSaved?'DataPARC 중간 품질 공백이 있어도 시작·종료 누적 경계가 정상인 사용량은 표시합니다. [자료 확인 내용]에서 품질 공백 시간을 확인해 주세요.':lastResult?.warnings?.length?'저장값으로 혼소율을 계산했습니다. 빈칸 유기성·축분은 0t로 계산하며 자료 품질 경고는 [자료 확인 내용]에서 확인해 주세요.':'저장된 DataPARC 결과를 불러와 혼소율 계산까지 완료했습니다. 빈칸 유기성·축분은 0t로 계산됩니다.','success');
       else if(!item?.saved)setStatus(container,'저장된 결과가 없습니다. [계산하기]를 누르면 현재 표시 기간으로 조회합니다.','');

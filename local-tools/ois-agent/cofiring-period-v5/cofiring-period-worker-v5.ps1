@@ -10,10 +10,31 @@ CONFIG BLOCK must set $stageMarker, $resultMarker and $probeWorkbookMarker, and 
 all query inputs before Excel launches. QUERY BLOCK must assign $finalResult.
 The wrapper must preserve the shared mutex string used by the Blower collector.
 #>
+$workerEntryUtc = [datetime]::UtcNow
+$workerClock = [Diagnostics.Stopwatch]::StartNew()
+$workerProcessStartUtc = $null
+$workerStartupDelaySeconds = $null
+$workerReadyUtc = $null
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $OutputEncoding = [Text.Encoding]::UTF8
+
+function Write-CofiringProgress([ValidateSet('WORKER_ENTERED','INITIALIZATION_COMPLETE','READY','EXCEL_START','QUERY_START','QUERY_COMPLETE','CLEANUP','COMPLETE')][string]$Phase) {
+  # Progress is best effort. In particular, a broken output pipe must not skip
+  # the existing ownership checks and Excel cleanup in the caller's finally.
+  try {
+    $elapsed = [double]$workerClock.Elapsed.TotalSeconds
+    if ([double]::IsNaN($elapsed) -or [double]::IsInfinity($elapsed) -or $elapsed -lt 0) { return }
+    $event = [ordered]@{
+      schemaVersion=1; runId=[string]$env:GS_COFIRING_RUN_ID; phase=$Phase
+      atUtc=[datetime]::UtcNow.ToString('o'); elapsedSeconds=[Math]::Round($elapsed,3)
+    }
+    [Console]::WriteLine('__COFIRING_PROGRESS__'+(ConvertTo-Json -InputObject $event -Compress))
+    [Console]::Out.Flush()
+  } catch { }
+}
+Write-CofiringProgress 'WORKER_ENTERED'
 
 $excel = $null
 $workbooks = $null
@@ -527,7 +548,7 @@ function Test-CofiringSnapshotEqual($Left, $Right, [int]$Rows) {
 }
 
 
-$workerClock=[Diagnostics.Stopwatch]::StartNew()
+Write-CofiringProgress 'INITIALIZATION_COMPLETE'
 function Write-ProbeStage([string]$Message) {
   [Console]::WriteLine($stageMarker + '['+[Math]::Round($workerClock.Elapsed.TotalSeconds,1)+'s] '+$Message)
   [Console]::Out.Flush()
@@ -1187,6 +1208,33 @@ function Write-ProbeOwnership {
   }
 }
 
+function Write-ProbeReadiness {
+  # The controller accepts this once, after the same baseline/ownership checks
+  # used by the query. It never uses wall-clock timestamps to extend a deadline.
+  Assert-CofiringNotCancelled
+  if (-not (Test-ProbeControllerParent)) { throw '준비 확인에 필요한 조회 관리 프로세스가 없습니다.' }
+  $readyPath = [string]$env:GS_COFIRING_READY_PATH
+  if ([string]::IsNullOrWhiteSpace($readyPath)) { throw '조회 준비 확인 파일 경로가 없습니다.' }
+  if ([IO.File]::Exists($readyPath) -or [IO.File]::Exists($readyPath+'.new')) { throw '조회 준비 확인 파일이 이미 존재합니다.' }
+  $selfProcess = Get-Process -Id $PID -ErrorAction Stop
+  try { $selfSignature = New-ProbeProcessSignature $selfProcess } finally { $selfProcess.Dispose() }
+  $parentSignature = ConvertFrom-Json -InputObject ([string]$env:GS_COFIRING_CONTROLLER_SIGNATURE)
+  $script:workerProcessStartUtc = [datetime]::new([long]$selfSignature.StartTicks,[DateTimeKind]::Utc)
+  $delay = [double]($workerEntryUtc-$workerProcessStartUtc).TotalSeconds
+  if ([double]::IsNaN($delay) -or [double]::IsInfinity($delay) -or $delay -lt 0) { $delay=$null }
+  $script:workerStartupDelaySeconds = $delay
+  $script:workerReadyUtc = [datetime]::UtcNow
+  $ready = [ordered]@{
+    schemaVersion=1; kind='cofiring_worker_ready'; runId=[string]$env:GS_COFIRING_RUN_ID
+    atUtc=$workerReadyUtc.ToString('o'); worker=$selfSignature; controller=$parentSignature
+    workerEntryUtc=$workerEntryUtc.ToString('o'); startupDelaySeconds=$workerStartupDelaySeconds
+  }
+  [IO.File]::WriteAllText($readyPath+'.new',(ConvertTo-Json -InputObject $ready -Depth 8),(New-Object Text.UTF8Encoding($false)))
+  [IO.File]::Move($readyPath+'.new',$readyPath)
+  Write-CofiringProgress 'READY'
+  Assert-CofiringNotCancelled
+}
+
 function Test-ProbeControllerParent {
   if ([string]::IsNullOrWhiteSpace([string]$env:GS_COFIRING_CONTROLLER_SIGNATURE)) { return $false }
   $controller = [string]$env:GS_COFIRING_CONTROLLER_SIGNATURE | ConvertFrom-Json
@@ -1284,7 +1332,10 @@ try {
   )
 
   $ownedExcelPath = Resolve-ProbeExcelExecutable
+  Write-ProbeReadiness
   Write-ProbeStage "별도 숨김 Excel 시작"
+  Write-CofiringProgress 'EXCEL_START'
+  Assert-CofiringNotCancelled
   $launchedExcelProcess = Start-Process -FilePath $ownedExcelPath -ArgumentList @("/x") -WindowStyle Hidden -PassThru
   [void]$launchedExcelProcess.Handle
   $ownedExcelPid = [int]$launchedExcelProcess.Id
@@ -1468,6 +1519,7 @@ try {
       $formulasFast[$r,10]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$fullEnd+'","DurationBad","Value")'
     }
     Write-ProbeStage ('고속 요약 조회 준비 · 10 TAG x 11 통계 = '+[string]($rowsFast*$columnsFast)+'개 수식 동시 계산')
+    Write-CofiringProgress 'QUERY_START'
     [void](Invoke-CofiringExcelCall -Operation 'Fast.Formula' -Action { $queryRange.Formula=$formulasFast })
     $formulasFast=$null
     $fastClock=[Diagnostics.Stopwatch]::StartNew()
@@ -1601,6 +1653,7 @@ try {
     }
     Write-CofiringJsonAtomic ([string]$env:GS_COFIRING_RESULT_PATH) $finalResult
     Write-CofiringJsonAtomic $cofiringDiagnosticsPath $diagnostics
+    Write-CofiringProgress 'QUERY_COMPLETE'
     Write-ProbeStage ('고속 요약 계산 완료 · DataPARC 계산 '+[string]$diagnostics.queryElapsedSeconds+'초 · V7 비교 '+[string]$referenceCompared+'/10, mismatch '+[string]$referenceMismatches+' · bad quality '+[string]$anyBadDuration)
   } catch {
     $diagnostics.failure=$_.Exception.Message
@@ -1620,6 +1673,7 @@ try {
 } finally {
   $script:cofiringInCleanup=$true
   Write-ProbeStage "조회용 Excel·DataPARC Host 정리"
+  Write-CofiringProgress 'CLEANUP'
 
   $canCloseOwnedCom=$false
   if ($excel -and $ownedExcelPid -gt 0) {
@@ -1763,8 +1817,16 @@ if ($null -ne $queryErrorRecord) {
   $finalResult['comFailure']=$queryComFailure
 }
 $finalResult['elapsedSeconds']=[Math]::Round($workerClock.Elapsed.TotalSeconds,3)
+$finalResult['timing']=[ordered]@{
+  workerEntryUtc=$workerEntryUtc.ToString('o')
+  workerProcessStartUtc=$(if($null -ne $workerProcessStartUtc){$workerProcessStartUtc.ToString('o')}else{$null})
+  startupDelaySeconds=$workerStartupDelaySeconds
+  readyAtUtc=$(if($null -ne $workerReadyUtc){$workerReadyUtc.ToString('o')}else{$null})
+  elapsedBasis='monotonic_since_first_worker_statement'
+}
 Write-CofiringJsonAtomic ([string]$env:GS_COFIRING_RESULT_PATH) $finalResult
 Write-ProbeStage ('조회 종료 · Excel 정리 확인 '+[string]$finalResult.cleanupVerified+' · 계산 유효 여부와 별도')
+Write-CofiringProgress 'COMPLETE'
 [Console]::WriteLine($resultMarker+'RESULT_FILE_WRITTEN')
 [Console]::Out.Flush()
 if ($cleanupErrors.Count -gt 0 -or $null -ne $queryFailure) { exit 1 }

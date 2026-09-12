@@ -22,7 +22,15 @@ $ProgressPreference='SilentlyContinue'
 $OutputEncoding=[Console]::OutputEncoding
 $runId=[guid]::NewGuid().ToString('N')
 $timeoutSeconds=150
+$startupTimeoutSeconds=120
+$outerTimeoutSeconds=270
 $cleanupGraceSeconds=60
+$executionClock=$null
+$readyObservedSeconds=$null
+$readyEvidence=$null
+$readyPath=$null
+$deadlinePhase=$null
+$controllerFailureCode=$null
 $cancelPath=$null
 $resultPath=$null
 $processCleanupVerified=$false
@@ -49,7 +57,7 @@ $cleanupErrors=New-Object 'System.Collections.Generic.List[string]'
 $cleanupActions=New-Object 'System.Collections.Generic.List[string]'
 $logOffsets=@{}
 $utf8=New-Object Text.UTF8Encoding($false)
-$expectedWorkerSha256='c0ecc7572b8d2704e23627eb9dad1bc97d2fa87ab2759ca57ae0a26944b01e35'
+$expectedWorkerSha256='e62c87a270b411f86ba6bcac98978b2f9ec2721160cd3431c6874a3468e744ec'
 $resultZipPath=$null
 function Resolve-CofiringPeriod([string]$StartText,[string]$EndText,[string]$Unit,[int]$Value) {
   $startValue=[datetime]::MinValue;$endValue=[datetime]::MinValue
@@ -215,6 +223,69 @@ function Show-ControllerLog([string]$Path, [switch]$Final) {
     if ($line.StartsWith('__COFIRING_PILOT_RESULT__')) { continue }
     [Console]::WriteLine($line.Replace('__COFIRING_PILOT_STAGE__', '[진행] '))
   }
+}
+
+function Get-CofiringDeadlineDecision {
+  param(
+    [double]$ElapsedSeconds,
+    $ReadyObservedSeconds=$null,
+    [int]$StartupSeconds=120,
+    [int]$ExecutionSeconds=150,
+    [int]$OuterSeconds=270
+  )
+  if ([double]::IsNaN($ElapsedSeconds) -or [double]::IsInfinity($ElapsedSeconds) -or $ElapsedSeconds -lt 0 -or
+      $StartupSeconds -le 0 -or $ExecutionSeconds -le 0 -or $OuterSeconds -le 0) { throw '조회 시간 예산 값이 올바르지 않습니다.' }
+  if ($null -ne $ReadyObservedSeconds) {
+    $ready=[double]$ReadyObservedSeconds
+    if ([double]::IsNaN($ready) -or [double]::IsInfinity($ready) -or $ready -lt 0 -or $ready -ge $StartupSeconds -or $ready -gt $ElapsedSeconds) {
+      throw '조회 준비 완료 경과시간이 올바르지 않습니다.'
+    }
+  }
+  if ($ElapsedSeconds -ge $OuterSeconds) { return [pscustomobject]@{Expired=$true;Phase='전체';Code='OVERALL_TIMEOUT';DeadlineSeconds=[double]$OuterSeconds} }
+  if ($null -eq $ReadyObservedSeconds) {
+    return [pscustomobject]@{Expired=($ElapsedSeconds -ge $StartupSeconds);Phase='시작';Code='STARTUP_TIMEOUT';DeadlineSeconds=[double][Math]::Min($StartupSeconds,$OuterSeconds)}
+  }
+  $deadline=[Math]::Min($ready+$ExecutionSeconds,[double]$OuterSeconds)
+  return [pscustomobject]@{Expired=($ElapsedSeconds -ge $deadline);Phase='조회';Code='EXECUTION_TIMEOUT';DeadlineSeconds=$deadline}
+}
+
+function Test-CofiringReadySignature($Actual,$Expected) {
+  if ($null -eq $Actual -or $null -eq $Expected) { return $false }
+  try {
+    return (
+      [int]$Actual.ProcessId -eq [int]$Expected.ProcessId -and [int]$Actual.ProcessId -gt 0 -and
+      [long]$Actual.StartTicks -eq [long]$Expected.StartTicks -and [long]$Actual.StartTicks -gt 0 -and
+      [int]$Actual.SessionId -eq [int]$Expected.SessionId -and
+      [string]$Actual.ProcessName -ieq [string]$Expected.ProcessName -and
+      -not [string]::IsNullOrWhiteSpace([string]$Actual.Path) -and [string]$Actual.Path -ieq [string]$Expected.Path
+    )
+  } catch { return $false }
+}
+
+function Read-CofiringReadyEvidence([string]$Path,[string]$ExpectedRunId,$ExpectedWorker,$ExpectedController) {
+  $file=Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+  if ($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or $file.Length -le 0 -or $file.Length -gt 8192) {
+    throw '조회 준비 확인 파일 형식이 올바르지 않습니다.'
+  }
+  try { $ready=ConvertFrom-Json -InputObject ([IO.File]::ReadAllText($file.FullName,[Text.Encoding]::UTF8)) -ErrorAction Stop }
+  catch { throw '조회 준비 확인 JSON을 읽을 수 없습니다.' }
+  if ($null -eq $ready -or [int]$ready.schemaVersion -ne 1 -or [string]$ready.kind -cne 'cofiring_worker_ready' -or
+      [string]$ready.runId -cne $ExpectedRunId -or
+      -not (Test-CofiringReadySignature $ready.worker $ExpectedWorker) -or
+      -not (Test-CofiringReadySignature $ready.controller $ExpectedController)) {
+    throw '조회 준비 확인의 runId 또는 프로세스 신원이 일치하지 않습니다.'
+  }
+  $stamp=[DateTimeOffset]::MinValue
+  $entry=[DateTimeOffset]::MinValue
+  if (-not [DateTimeOffset]::TryParse([string]$ready.atUtc,[Globalization.CultureInfo]::InvariantCulture,[Globalization.DateTimeStyles]::None,[ref]$stamp) -or
+      -not [DateTimeOffset]::TryParse([string]$ready.workerEntryUtc,[Globalization.CultureInfo]::InvariantCulture,[Globalization.DateTimeStyles]::None,[ref]$entry) -or
+      $stamp.Offset -ne [TimeSpan]::Zero -or $entry.Offset -ne [TimeSpan]::Zero) { throw '조회 준비 확인 UTC 시각이 올바르지 않습니다.' }
+  # UTC is diagnostic metadata. Only the controller Stopwatch governs budgets.
+  if ($null -ne $ready.startupDelaySeconds) {
+    $delay=[double]$ready.startupDelaySeconds
+    if ([double]::IsNaN($delay) -or [double]::IsInfinity($delay) -or $delay -lt 0) { throw '조회 시작 지연시간이 올바르지 않습니다.' }
+  }
+  return $ready
 }
 
 function Update-ControllerOwnership {
@@ -418,8 +489,9 @@ function Save-FastControllerReport {
       targetDate=$period.TargetDate;startLocal=$StartLocal;endLocal=$EndLocal;stepUnit=$StepUnit;stepValue=$StepValue;queryEndLocal=$period.QueryEnd.ToString('yyyy-MM-ddTHH:mm')
       diagnosticOnly=$true;dataValidated=$false;productionReady=$false;databaseWritten=$false;completedAtUtc=[datetime]::UtcNow.ToString('o')
       executionSucceeded=[bool]$executionSucceeded;cleanupVerified=[bool]$cleanupVerified;processCleanupVerified=[bool]$processCleanupVerified
-      timedOut=[bool]$timedOut;workerExitCode=$workerExitCode;controllerFailure=$controllerFailure;cleanupErrors=@($cleanupErrors.ToArray());cleanupActions=@($cleanupActions.ToArray())
+      timedOut=[bool]$timedOut;deadlinePhase=$deadlinePhase;controllerFailureCode=$controllerFailureCode;workerExitCode=$workerExitCode;controllerFailure=$controllerFailure;cleanupErrors=@($cleanupErrors.ToArray());cleanupActions=@($cleanupActions.ToArray())
       formulaCells=$(if($rawResult){$rawResult.formulaCells}else{110});queryElapsedSeconds=$(if($rawResult){$rawResult.queryElapsedSeconds}else{$null});workerElapsedSeconds=$workerElapsed
+      timing=[ordered]@{startupBudgetSeconds=$startupTimeoutSeconds;executionBudgetSeconds=$timeoutSeconds;outerBudgetSeconds=$outerTimeoutSeconds;cleanupGraceSeconds=$cleanupGraceSeconds;readyObservedSeconds=$readyObservedSeconds;controllerElapsedSeconds=$(if($executionClock){[Math]::Round($executionClock.Elapsed.TotalSeconds,3)}else{$null});workerProcessCreatedUtc=$(if($workerSignature){([datetime]::new([long]$workerSignature.StartTicks,[DateTimeKind]::Utc)).ToString('o')}else{$null});controllerProcessCreatedUtc=$(if($controllerSignature){([datetime]::new([long]$controllerSignature.StartTicks,[DateTimeKind]::Utc)).ToString('o')}else{$null});worker=$(if($rawResult){$rawResult.timing}else{$null})}
       summaryReady=$(if($rawResult){$rawResult.summaryReady}else{$false});anyBadDuration=$(if($rawResult){$rawResult.anyBadDuration}else{$null})
       referenceCompared=$(if($rawResult){$rawResult.referenceCompared}else{0});referenceMismatches=$(if($rawResult){$rawResult.referenceMismatches}else{0})
       unitUsage=$(if($rawResult){$rawResult.unitUsage}else{$null});summaries=$(if($rawResult){$rawResult.summaries}else{@()})
@@ -522,6 +594,7 @@ try {
   [IO.File]::WriteAllText($workerPath,$workerText,(New-Object Text.UTF8Encoding($true)))
   $ownershipPath=Join-Path $temporaryDirectory 'ownership.json'
   $cancelPath=Join-Path $temporaryDirectory 'cancel.request'
+  $readyPath=Join-Path $temporaryDirectory 'ready.json'
   $resultPath=Join-Path $OutputDirectory 'pilot-result.json'
   $stdoutPath=Join-Path $OutputDirectory 'worker-stdout.log'
   $stderrPath=Join-Path $OutputDirectory 'worker-stderr.log'
@@ -533,7 +606,7 @@ try {
   [Console]::WriteLine('읽기 전용 속도 시험입니다. DB/Git/Agent/기존 Excel 파일을 수정하지 않습니다.')
   $workerEnvironment=@{
     GS_COFIRING_START=$StartText;GS_COFIRING_END=$EndText;GS_COFIRING_STEP_UNIT=$StepUnit;GS_COFIRING_STEP_VALUE=$StepValue;GS_COFIRING_DIAGNOSTICS_PATH=(Join-Path $OutputDirectory 'raw-diagnostics.json')
-    GS_COFIRING_RUN_ID=$runId;GS_COFIRING_CANCEL_PATH=$cancelPath;GS_COFIRING_RESULT_PATH=$resultPath
+    GS_COFIRING_RUN_ID=$runId;GS_COFIRING_CANCEL_PATH=$cancelPath;GS_COFIRING_RESULT_PATH=$resultPath;GS_COFIRING_READY_PATH=$readyPath
     GS_COFIRING_COM_TRACE_PATH=(Join-Path $OutputDirectory 'com-calls.jsonl');GS_COFIRING_PARTIAL_PATH='';GS_COFIRING_OWNERSHIP_PATH=$ownershipPath
     GS_COFIRING_CONTROLLER_SIGNATURE=($controllerSignature | ConvertTo-Json -Compress)
     GS_COFIRING_COMPILER_TEMP=$compilerTempDirectory
@@ -543,16 +616,41 @@ try {
   $priorEnvironment=@{}
   try {
     foreach ($key in $workerEnvironment.Keys) { $priorEnvironment[$key]=[Environment]::GetEnvironmentVariable($key,'Process');[Environment]::SetEnvironmentVariable($key,[string]$workerEnvironment[$key],'Process') }
-    $deadline=[datetime]::UtcNow.AddSeconds($timeoutSeconds)
+    $executionClock=[Diagnostics.Stopwatch]::StartNew()
     $worker=Start-Process -FilePath $powerShellPath -ArgumentList @('-NoProfile','-STA','-ExecutionPolicy','Bypass','-File',('"'+$workerPath+'"')) -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
     $workerSignature=New-ControllerSignature $worker
     $workerSignature | Add-Member -NotePropertyName ParentProcessId -NotePropertyValue ([int]$controllerSignature.ProcessId)
   } finally {
     foreach ($key in $priorEnvironment.Keys) { [Environment]::SetEnvironmentVariable($key,$priorEnvironment[$key],'Process') }
   }
-  while (-not $worker.HasExited) {
-    $worker.Refresh();Show-ControllerLog $stdoutPath;Show-ControllerLog $stderrPath
-    if ([datetime]::UtcNow -ge $deadline) { $timedOut=$true;throw ('전체 '+$timeoutSeconds+'초 제한시간을 초과했습니다. 소유 프로세스를 정리합니다.') }
+  while ($true) {
+    $worker.Refresh()
+    # A completed worker with previously validated readiness goes through the
+    # existing result/cleanup gates. Log polling cannot retroactively time it out.
+    if ($worker.HasExited -and $null -ne $readyObservedSeconds) { break }
+    Show-ControllerLog $stdoutPath;Show-ControllerLog $stderrPath
+    $elapsed=[double]$executionClock.Elapsed.TotalSeconds
+    # Check before accepting readiness, so a late file cannot revive an expired run.
+    $budget=Get-CofiringDeadlineDecision $elapsed $readyObservedSeconds $startupTimeoutSeconds $timeoutSeconds $outerTimeoutSeconds
+    if ($budget.Expired) {
+      $timedOut=$true;$deadlinePhase=$budget.Phase;$controllerFailureCode=$budget.Code
+      throw ('혼소율 '+$budget.Phase+' 제한시간을 초과했습니다. 경과 '+[Math]::Round($elapsed,1)+'초. 소유 프로세스를 정리합니다.')
+    }
+    if ($null -eq $readyObservedSeconds -and [IO.File]::Exists($readyPath)) {
+      $readyEvidence=Read-CofiringReadyEvidence $readyPath $runId $workerSignature $controllerSignature
+      $elapsed=[double]$executionClock.Elapsed.TotalSeconds
+      $budget=Get-CofiringDeadlineDecision $elapsed $null $startupTimeoutSeconds $timeoutSeconds $outerTimeoutSeconds
+      if ($budget.Expired) {
+        $timedOut=$true;$deadlinePhase=$budget.Phase;$controllerFailureCode=$budget.Code
+        throw '조회 준비 확인 중 시작 제한시간이 만료되었습니다. 소유 프로세스를 정리합니다.'
+      }
+      $readyObservedSeconds=$elapsed
+      [Console]::WriteLine('[준비 완료] 프로세스 시작 후 '+[Math]::Round($elapsed,1)+'초 · 조회/정리 최대 '+$timeoutSeconds+'초 · 전체 최대 '+$outerTimeoutSeconds+'초')
+    }
+    if ($worker.HasExited) {
+      if ($null -eq $readyObservedSeconds) { throw '검증된 조회 준비 완료 기록 없이 작업 프로세스가 종료되었습니다.' }
+      break
+    }
     Start-Sleep -Milliseconds 300
   }
   [void]$worker.WaitForExit(1000)
@@ -568,6 +666,10 @@ try {
     }
     $script:processCleanupVerified=($cleanupErrors.Count -eq 0 -and $null -ne $workerSignature -and $null -ne $ownedExcel)
     if ($outputReady) {
+      if ($readyEvidence) {
+        try { [IO.File]::WriteAllText((Join-Path $OutputDirectory 'worker-ready.json'),(ConvertTo-Json -InputObject $readyEvidence -Depth 8),$utf8) }
+        catch { try { [Console]::WriteLine('[진단] 준비 확인 기록을 복사하지 못했습니다. 원본 조회 결과와 정리 검증은 유지합니다.') } catch { } }
+      }
       if ($ownershipPath -and [IO.File]::Exists($ownershipPath)) { [IO.File]::Copy($ownershipPath,(Join-Path $OutputDirectory 'ownership.json'),$true) }
       [IO.File]::WriteAllText((Join-Path $OutputDirectory 'process-cleanup.json'),([ordered]@{runId=$runId;processCleanupVerified=[bool]$processCleanupVerified;errors=@($cleanupErrors.ToArray());actions=@($cleanupActions.ToArray())} | ConvertTo-Json -Depth 10),$utf8)
     }

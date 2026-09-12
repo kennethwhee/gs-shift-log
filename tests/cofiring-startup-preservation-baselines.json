@@ -1,0 +1,32 @@
+[
+  {
+    "source": "worker",
+    "start": "function Wait-OwnedProbeExcelNativeObject {",
+    "end": "function Get-ProbeDataParcHosts {",
+    "sha256": "2f0ab33a2fe4e47dc4d251a9814db1f5d8ff3f12ba5f1b15c0e38161e9ace392"
+  },
+  {
+    "source": "worker",
+    "start": "function Complete-OwnedProbeExcelExit {",
+    "end": "function Write-ProbeOwnership {",
+    "sha256": "49338de4536bb87275fa4f0e607bf8f126162911d8b9fcbc1ead372c55c1f3b8"
+  },
+  {
+    "source": "controller",
+    "start": "function Update-ControllerOwnership {",
+    "end": "function Save-FastControllerReport {",
+    "sha256": "ae59cef59af849a13e400279636bdf2968c5a0fdc9288eeebd9e9b29a122a577"
+  },
+  {
+    "source": "worker",
+    "start": "    $columnNames=@(",
+    "end": "  } catch {\n    $diagnostics.failure=",
+    "sha256": "a4b33fcb09b0a16a46c5284ccc1af01fd6150b4ea3297154350831566559c06c"
+  },
+  {
+    "source": "worker",
+    "start": "  $canCloseOwnedCom=$false",
+    "end": "$finalResult['elapsedSeconds']",
+    "sha256": "691e20c099b1a9dc66d0bda276bccbf031dcfa4386c91d97572e07aee1429939"
+  }
+]
