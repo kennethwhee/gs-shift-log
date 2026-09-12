@@ -42,10 +42,16 @@ test("runtime probe preserves baseline Excel/DataPARC and only force-stops verif
   assert.match(bridge, /Test-ProbeProcessSignatureSet/);
   assert.match(bridge, /Test-OwnedProbeExcelIdentity/);
   assert.match(bridge, /Test-ProbeHostSignature/);
-  assert.match(bridge, /Stop-Process\s+-Id\s+\$ownedExcelPid\s+-Force/);
-  assert.match(bridge, /Stop-Process\s+-Id\s+\(\[int\]\$ownedHostSnapshot\.ProcessId\)\s+-Force/);
-  assert.match(bridge, /기존 사용자 Excel 프로세스가 조회 중 변경되거나 종료되었습니다/);
-  assert.match(bridge, /기존 사용자 DataPARC Host가 조회 중 변경되거나 종료되었습니다/);
+  assert.match(bridge, /\$launchedExcelProcess\.Kill\(\)/);
+  assert.match(bridge, /Wait-ProbePinnedProcessExit\s+\$launchedExcelProcess/);
+  assert.match(bridge, /\$launchedExcelProcess\.Dispose\(\)/);
+  assert.doesNotMatch(bridge, /Stop-Process\s+-Id\s+\$ownedExcelPid/);
+  assert.match(bridge, /\$ownedHostProcess\s*=\s*Get-Process[\s\S]*?\[void\]\$ownedHostProcess\.Handle/);
+  assert.match(bridge, /\$ownedHostProcess\.Kill\(\)/);
+  assert.match(bridge, /\$ownedHostProcess\.Dispose\(\)/);
+  assert.doesNotMatch(bridge, /Stop-Process\s+-Id\s+\(\[int\]\$ownedHostSnapshot\.ProcessId\)/);
+  assert.match(bridge, /기존 사용자 Excel 프로세스가 변경·종료됐거나 소유 불명 Excel이 새로 나타났습니다/);
+  assert.match(bridge, /기존 사용자 DataPARC Host가 변경·종료됐거나 소유 불명 Host가 새로 나타났습니다/);
 });
 
 test("runtime probe snapshots every existing Excel without a count-only gate", () => {

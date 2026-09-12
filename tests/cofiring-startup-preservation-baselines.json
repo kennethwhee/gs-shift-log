@@ -9,7 +9,7 @@
     "source": "worker",
     "start": "function Complete-OwnedProbeExcelExit {",
     "end": "function Write-ProbeOwnership {",
-    "sha256": "49338de4536bb87275fa4f0e607bf8f126162911d8b9fcbc1ead372c55c1f3b8"
+    "sha256": "cb9cca4913eccabd91a2bdb7142cb577bc8f36ab7c9cc99ac2f222d8720d71c4"
   },
   {
     "source": "controller",
@@ -27,6 +27,6 @@
     "source": "worker",
     "start": "  $canCloseOwnedCom=$false",
     "end": "$finalResult['elapsedSeconds']",
-    "sha256": "691e20c099b1a9dc66d0bda276bccbf031dcfa4386c91d97572e07aee1429939"
+    "sha256": "01c2604f293e5f6ff2d8af4bf7b01f13994cf477131b8bbd81d253b872b419ec"
   }
 ]

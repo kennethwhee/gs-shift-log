@@ -92,6 +92,11 @@ test('verified timeout categories explain the failed stage without exposing raw 
     await assert.rejects(h.run(),error=>{assert.ok(error.message.includes(label));assert.match(error.message,/정리는 확인됐습니다/);assert.doesNotMatch(error.message,/private|do-not-display/);return true;});
   }
 });
+test('a cleanup-certified timeout without an observed run ID remains blocked and never claims cleanup assurance',async t=>{
+  const h=harness(t,{chunks:[],result:report({status:'FAIL',executionSucceeded:false,timedOut:true,workerExitCode:1,controllerFailureCode:'STARTUP_TIMEOUT'}),code:1});
+  await assert.rejects(h.run(),error=>{assert.match(error.message,/프로세스 종료 오류/);assert.doesNotMatch(error.message,/정리는 확인됐습니다/);return true;});
+  assert.equal(fs.existsSync(path.join(h.root,'cleanup-blocked.json')),true);
+});
 test('foreign, unmatched and cleanup-unverified reports cannot add trusted timeout explanations',async t=>{
   for(const overrides of [{runId:'f'.repeat(32)},{kind:'other_report'},{startLocal:'2026-09-09T00:00'},{queryEndLocal:'2026-09-10T12:02'},{cleanupVerified:false},{processCleanupVerified:false},{cleanupErrors:['unverified']},{timedOut:false},{controllerFailureCode:'toString'},{controllerFailureCode:null,controllerFailure:'arbitrary timeout details'}]){
     const h=harness(t,{chunks:[event('WORKER_ENTERED',0)],result:report({status:'FAIL',executionSucceeded:false,timedOut:true,workerExitCode:1,controllerFailureCode:'STARTUP_TIMEOUT',...overrides}),code:1});

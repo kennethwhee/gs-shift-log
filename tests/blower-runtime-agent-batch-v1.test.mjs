@@ -38,8 +38,8 @@ test('batch PowerShell uses one owned hidden Excel session for every probe in th
   assert.ok(script.includes('1,"=",,"H",200,TRUE'));
   assert.ok(script.includes('1,"=",,"H")'));
   assert.match(script, /collectorRevision\s*=\s*"nativeom-batch-v2"/);
-  assert.match(script, /기존 사용자 Excel 프로세스가 조회 중 변경되거나 종료되었습니다/);
-  assert.match(script, /기존 사용자 DataPARC Host가 조회 중 변경되거나 종료되었습니다/);
+  assert.match(script, /기존 사용자 Excel 프로세스가 변경·종료됐거나 소유 불명 Excel이 새로 나타났습니다/);
+  assert.match(script, /기존 사용자 DataPARC Host가 변경·종료됐거나 소유 불명 Host가 새로 나타났습니다/);
 });
 
 test('batch result keeps each single-probe contract and batches successful completion', () => {

@@ -497,7 +497,7 @@ test('rejected extra completion may fail individually, while primary exhaustion 
   assert.deepEqual(primaryFailures, []);
 });
 
-test('single and batch PowerShell shorten only graceful waits and retain verified owned-process kills', () => {
+test('single and batch PowerShell shorten only graceful waits and retain verified pinned-process kills', () => {
   for (const name of [
     'DATAPARC_BLOWER_RUNTIME_PROBE_POWERSHELL_SCRIPT',
     'DATAPARC_BLOWER_RUNTIME_BATCH_POWERSHELL_SCRIPT'
@@ -506,14 +506,19 @@ test('single and batch PowerShell shorten only graceful waits and retain verifie
     assert.doesNotMatch(script, /AddSeconds\((?:12|25)\)/);
     assert.match(
       script,
-      /Wait-ProbeProcessExit\s+\$ownedExcelPid\s+\(\[datetime\]::UtcNow\.AddSeconds\(2\)\)[\s\S]*?Test-OwnedProbeExcelIdentity\s+\$ownedExcelPid\s+\$ownedExcelStartTicks\s+\$ownedExcelPath\s+\$ownedExcelSessionId[\s\S]*?Stop-Process\s+-Id\s+\$ownedExcelPid\s+-Force/
+      /Wait-ProbePinnedProcessExit\s+\$launchedExcelProcess\s+2000[\s\S]*?Test-OwnedProbeExcelIdentity\s+\$ownedExcelPid\s+\$ownedExcelStartTicks\s+\$ownedExcelPath\s+\$ownedExcelSessionId[\s\S]*?\$launchedExcelProcess\.Kill\(\)/
     );
+    assert.doesNotMatch(script, /Stop-Process\s+-Id\s+\$ownedExcelPid/);
+    assert.match(script, /Wait-ProbePinnedProcessExit\s+\$launchedExcelProcess\s+5000/);
+    assert.match(script, /\$launchedExcelProcess\.Dispose\(\)/);
     assert.match(
       script,
-      /\$hostExitDeadline\s*=\s*\[datetime\]::UtcNow\.AddSeconds\(2\)[\s\S]*?Test-ProbeHostSignature\s+\$ownedHostSnapshot[\s\S]*?Stop-Process\s+-Id\s+\(\[int\]\$ownedHostSnapshot\.ProcessId\)\s+-Force/
+      /\$hostExitDeadline\s*=\s*\[datetime\]::UtcNow\.AddSeconds\(2\)[\s\S]*?Test-ProbeHostSignature\s+\$ownedHostSnapshot[\s\S]*?\$ownedHostProcess\s*=\s*Get-Process[\s\S]*?\[void\]\$ownedHostProcess\.Handle[\s\S]*?\$ownedHostProcess\.Kill\(\)[\s\S]*?Wait-ProbePinnedProcessExit\s+\$ownedHostProcess\s+5000/
     );
-    assert.match(script, /Test-ProbeProcessSignatureSet\s+\$baselineExcelSignatures/);
-    assert.match(script, /Test-ProbeProcessSignatureSet\s+\$baselineHostSignatures/);
-    assert.match(script, /Wait-ProbeProcessExit[\s\S]*?AddSeconds\(5\)/);
+    assert.doesNotMatch(script, /Stop-Process\s+-Id\s+\(\[int\]\$ownedHostSnapshot\.ProcessId\)/);
+    assert.match(script, /Test-ProbeExactProcessUniverse\s+\$baselineExcelSignatures\s+\$finalExcelPids/);
+    assert.match(script, /Test-ProbeExactProcessUniverse\s+\$baselineHostSignatures\s+\$finalHostPids/);
+    assert.match(script, /Wait-ProbeProcessExit[\s\S]*?AddSeconds\(1\)/);
+    assert.match(script, /\$lateOwnedHosts\.Count\s+-gt\s+1[\s\S]*?DataPARC Host가 둘 이상/);
   }
 });

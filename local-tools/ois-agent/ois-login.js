@@ -11844,6 +11844,10 @@ $baselineHostPids = @()
 $finalResult = $null
 $queryFailure = $null
 $cleanupErrors = New-Object System.Collections.Generic.List[string]
+$deferredExcelTeardownErrors = New-Object System.Collections.Generic.List[string]
+$excelExitVerified = $false
+$excelUniverseVerified = $false
+$hostUniverseVerified = $false
 $probeMutex = $null
 $probeMutexAcquired = $false
 
@@ -12225,6 +12229,18 @@ function Test-ProbeProcessSignatureSet([object[]]$Signatures) {
   return $true
 }
 
+function Test-ProbeExactProcessUniverse([object[]]$Signatures, [int[]]$CurrentProcessIds) {
+  $expectedIds = @($Signatures | ForEach-Object { [int]$_.ProcessId } | Sort-Object -Unique)
+  $actualIds = @($CurrentProcessIds | ForEach-Object { [int]$_ } | Sort-Object -Unique)
+  if ($expectedIds.Count -ne @($Signatures).Count -or $actualIds.Count -ne $expectedIds.Count) {
+    return $false
+  }
+  foreach ($expectedId in $expectedIds) {
+    if ($actualIds -notcontains [int]$expectedId) { return $false }
+  }
+  return (Test-ProbeProcessSignatureSet $Signatures)
+}
+
 function Test-OwnedProbeExcelIdentity {
   param(
     [int]$ProcessId,
@@ -12264,7 +12280,10 @@ function Wait-OwnedProbeExcelNativeObject {
   )
 
   do {
-    $runningExcel = @(Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue)
+    $runningExcel = @(
+      Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue |
+        Where-Object { [int]$_.SessionId -eq $ownedExcelSessionId }
+    )
     $unexpected = @(
       $runningExcel | Where-Object {
         [int]$_.Id -ne $ExcelProcessId -and
@@ -12450,6 +12469,25 @@ function Wait-ProbeProcessExit([int]$ProcessId, [datetime]$Deadline) {
     Start-Sleep -Milliseconds 250
   } while ([datetime]::UtcNow -lt $Deadline)
   return ($null -eq (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue))
+}
+
+function Test-ProbePinnedProcessExited($Process) {
+  if ($null -eq $Process) { return $false }
+  try {
+    $Process.Refresh()
+    return [bool]$Process.HasExited
+  } catch {
+    return $false
+  }
+}
+
+function Wait-ProbePinnedProcessExit($Process, [int]$TimeoutMilliseconds) {
+  if (Test-ProbePinnedProcessExited $Process) { return $true }
+  try {
+    if ($Process.WaitForExit($TimeoutMilliseconds)) { return $true }
+  } catch {
+  }
+  return (Test-ProbePinnedProcessExited $Process)
 }
 
 $allowedProbeAssetTags = @(
@@ -12892,7 +12930,7 @@ try {
   }
   if ($queryWorkbook) {
     try { $queryWorkbook.Close($false) } catch {
-      $cleanupErrors.Add("임시 통합문서 종료: " + $_.Exception.Message)
+      $deferredExcelTeardownErrors.Add("임시 통합문서 종료: " + $_.Exception.Message)
     }
   }
 
@@ -12905,7 +12943,7 @@ try {
         $excel.Quit()
       }
     } catch {
-      $cleanupErrors.Add("자동조회용 Excel Quit: " + $_.Exception.Message)
+      $deferredExcelTeardownErrors.Add("자동조회용 Excel Quit: " + $_.Exception.Message)
     }
   }
 
@@ -12927,20 +12965,29 @@ try {
   [GC]::WaitForPendingFinalizers()
 
   if ($ownedExcelPid -gt 0) {
-    $excelExited = Wait-ProbeProcessExit $ownedExcelPid ([datetime]::UtcNow.AddSeconds(2))
+    $excelExited = Wait-ProbePinnedProcessExit $launchedExcelProcess 2000
     if (-not $excelExited) {
       if (Test-OwnedProbeExcelIdentity $ownedExcelPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId) {
         try {
-          Stop-Process -Id $ownedExcelPid -Force -ErrorAction Stop
-          $excelExited = Wait-ProbeProcessExit $ownedExcelPid ([datetime]::UtcNow.AddSeconds(5))
+          if (-not (Test-ProbePinnedProcessExited $launchedExcelProcess)) {
+            $launchedExcelProcess.Kill()
+          }
+          $excelExited = Wait-ProbePinnedProcessExit $launchedExcelProcess 5000
         } catch {
-          $cleanupErrors.Add("자동조회용 Excel 강제 종료: " + $_.Exception.Message)
+          $stopError = $_.Exception.Message
+          $excelExited = Wait-ProbePinnedProcessExit $launchedExcelProcess 1000
+          if (-not $excelExited) { $cleanupErrors.Add("자동조회용 Excel 강제 종료: " + $stopError) }
         }
       } else {
-        $cleanupErrors.Add("자동조회용 Excel PID 신원이 바뀌어 강제 종료하지 않았습니다.")
+        $excelExited = Wait-ProbePinnedProcessExit $launchedExcelProcess 1000
+        if (-not $excelExited) { $cleanupErrors.Add("자동조회용 Excel PID 신원이 바뀌어 강제 종료하지 않았습니다.") }
       }
     }
+    if (-not $excelExited) {
+      $excelExited = Wait-ProbePinnedProcessExit $launchedExcelProcess 1000
+    }
     if (-not $excelExited) { $cleanupErrors.Add("자동조회용 Excel이 종료되지 않았습니다.") }
+    $excelExitVerified = [bool]$excelExited
   }
 
   if ($null -eq $ownedHostSnapshot -and $ownedExcelPid -gt 0) {
@@ -12950,6 +12997,8 @@ try {
       )
       if ($lateOwnedHosts.Count -eq 1) {
         $ownedHostSnapshot = New-ProbeHostSignature $lateOwnedHosts[0] $ownedExcelPid $ownedExcelStartTicks $ownedExcelSessionId
+      } elseif ($lateOwnedHosts.Count -gt 1) {
+        throw "조회용 Excel 자식 DataPARC Host가 둘 이상이라 자동 정리를 중단합니다."
       }
     } catch {
       $cleanupErrors.Add("DataPARC Host 지연 신원확인: " + $_.Exception.Message)
@@ -12957,35 +13006,92 @@ try {
   }
 
   if ($null -ne $ownedHostSnapshot) {
+    $hostExited = $false
     $hostExitDeadline = [datetime]::UtcNow.AddSeconds(2)
     do {
       if ($null -eq (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue)) { break }
       Start-Sleep -Milliseconds 500
     } while ([datetime]::UtcNow -lt $hostExitDeadline)
 
-    if ($null -ne (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue)) {
+    $hostExited = ($null -eq (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue))
+    if (-not $hostExited) {
       if (Test-ProbeHostSignature $ownedHostSnapshot) {
+        $ownedHostProcess = $null
         try {
-          Stop-Process -Id ([int]$ownedHostSnapshot.ProcessId) -Force -ErrorAction Stop
-          [void](Wait-ProbeProcessExit ([int]$ownedHostSnapshot.ProcessId) ([datetime]::UtcNow.AddSeconds(5)))
+          $ownedHostProcess = Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction Stop
+          [void]$ownedHostProcess.Handle
+          if ([long]$ownedHostProcess.StartTime.ToUniversalTime().Ticks -ne [long]$ownedHostSnapshot.StartTicks -or
+              [int]$ownedHostProcess.SessionId -ne [int]$ownedHostSnapshot.SessionId -or
+              -not [string]::Equals([string]$ownedHostProcess.Path, [string]$ownedHostSnapshot.Path, [StringComparison]::OrdinalIgnoreCase) -or
+              -not (Test-ProbeHostSignature $ownedHostSnapshot)) {
+            throw "DataPARC Host 종료 직전 프로세스 신원이 일치하지 않습니다."
+          }
+          $ownedHostProcess.Kill()
+          $hostExited = Wait-ProbePinnedProcessExit $ownedHostProcess 5000
         } catch {
-          $cleanupErrors.Add("자동조회용 DataPARC Host 강제 종료: " + $_.Exception.Message)
+          $stopError = $_.Exception.Message
+          if ($ownedHostProcess) {
+            $hostExited = Wait-ProbePinnedProcessExit $ownedHostProcess 1000
+          } else {
+            $hostExited = Wait-ProbeProcessExit ([int]$ownedHostSnapshot.ProcessId) ([datetime]::UtcNow.AddSeconds(1))
+          }
+          if (-not $hostExited) { $cleanupErrors.Add("자동조회용 DataPARC Host 강제 종료: " + $stopError) }
+        } finally {
+          if ($ownedHostProcess) { $ownedHostProcess.Dispose() }
         }
       } else {
-        $cleanupErrors.Add("DataPARC Host PID 신원이 바뀌어 강제 종료하지 않았습니다.")
+        $hostExited = Wait-ProbeProcessExit ([int]$ownedHostSnapshot.ProcessId) ([datetime]::UtcNow.AddSeconds(1))
+        if (-not $hostExited) { $cleanupErrors.Add("DataPARC Host PID 신원이 바뀌어 강제 종료하지 않았습니다.") }
       }
     }
 
-    if ($null -ne (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue)) {
+    if (-not $hostExited) {
       $cleanupErrors.Add("자동조회용 DataPARC Host가 종료되지 않았습니다.")
     }
   }
 
-  if (-not (Test-ProbeProcessSignatureSet $baselineExcelSignatures)) {
-    $cleanupErrors.Add("기존 사용자 Excel 프로세스가 조회 중 변경되거나 종료되었습니다.")
+  try {
+    $finalExcelPids = @(
+      Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue |
+        Where-Object { [int]$_.SessionId -eq $currentSessionId } |
+        ForEach-Object { [int]$_.Id }
+    )
+    if (-not (Test-ProbeExactProcessUniverse $baselineExcelSignatures $finalExcelPids)) {
+      $cleanupErrors.Add("기존 사용자 Excel 프로세스가 변경·종료됐거나 소유 불명 Excel이 새로 나타났습니다.")
+    } else {
+      $excelUniverseVerified = $true
+    }
+  } catch {
+    $cleanupErrors.Add("최종 Excel 프로세스 전수 확인: " + $_.Exception.Message)
   }
-  if (-not (Test-ProbeProcessSignatureSet $baselineHostSignatures)) {
-    $cleanupErrors.Add("기존 사용자 DataPARC Host가 조회 중 변경되거나 종료되었습니다.")
+  try {
+    $finalHostPids = @(
+      Get-ProbeDataParcHosts |
+        Where-Object { [int]$_.SessionId -eq $currentSessionId } |
+        ForEach-Object { [int]$_.ProcessId }
+    )
+    if (-not (Test-ProbeExactProcessUniverse $baselineHostSignatures $finalHostPids)) {
+      $cleanupErrors.Add("기존 사용자 DataPARC Host가 변경·종료됐거나 소유 불명 Host가 새로 나타났습니다.")
+    } else {
+      $hostUniverseVerified = $true
+    }
+  } catch {
+    $cleanupErrors.Add("최종 DataPARC Host 전수 확인: " + $_.Exception.Message)
+  }
+
+  if ($deferredExcelTeardownErrors.Count -gt 0) {
+    if ($excelExitVerified -and $excelUniverseVerified -and $hostUniverseVerified) {
+      Write-ProbeStage "COM 종료 호출 오류 후에도 보관된 Excel 핸들 종료와 현재 세션 Excel/DataPARC 원상복구를 확인"
+    } else {
+      foreach ($deferredError in $deferredExcelTeardownErrors) {
+        $cleanupErrors.Add($deferredError)
+      }
+    }
+  }
+
+  if ($launchedExcelProcess) {
+    try { $launchedExcelProcess.Dispose() } catch {
+    }
   }
 
   if ($probeMutex) {
@@ -13049,6 +13155,10 @@ $baselineHostPids = @()
 $finalResult = $null
 $queryFailure = $null
 $cleanupErrors = New-Object System.Collections.Generic.List[string]
+$deferredExcelTeardownErrors = New-Object System.Collections.Generic.List[string]
+$excelExitVerified = $false
+$excelUniverseVerified = $false
+$hostUniverseVerified = $false
 $probeMutex = $null
 $probeMutexAcquired = $false
 
@@ -13421,6 +13531,18 @@ function Test-ProbeProcessSignatureSet([object[]]$Signatures) {
   return $true
 }
 
+function Test-ProbeExactProcessUniverse([object[]]$Signatures, [int[]]$CurrentProcessIds) {
+  $expectedIds = @($Signatures | ForEach-Object { [int]$_.ProcessId } | Sort-Object -Unique)
+  $actualIds = @($CurrentProcessIds | ForEach-Object { [int]$_ } | Sort-Object -Unique)
+  if ($expectedIds.Count -ne @($Signatures).Count -or $actualIds.Count -ne $expectedIds.Count) {
+    return $false
+  }
+  foreach ($expectedId in $expectedIds) {
+    if ($actualIds -notcontains [int]$expectedId) { return $false }
+  }
+  return (Test-ProbeProcessSignatureSet $Signatures)
+}
+
 function Test-OwnedProbeExcelIdentity {
   param(
     [int]$ProcessId,
@@ -13460,7 +13582,10 @@ function Wait-OwnedProbeExcelNativeObject {
   )
 
   do {
-    $runningExcel = @(Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue)
+    $runningExcel = @(
+      Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue |
+        Where-Object { [int]$_.SessionId -eq $ownedExcelSessionId }
+    )
     $unexpected = @(
       $runningExcel | Where-Object {
         [int]$_.Id -ne $ExcelProcessId -and
@@ -13646,6 +13771,25 @@ function Wait-ProbeProcessExit([int]$ProcessId, [datetime]$Deadline) {
     Start-Sleep -Milliseconds 250
   } while ([datetime]::UtcNow -lt $Deadline)
   return ($null -eq (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue))
+}
+
+function Test-ProbePinnedProcessExited($Process) {
+  if ($null -eq $Process) { return $false }
+  try {
+    $Process.Refresh()
+    return [bool]$Process.HasExited
+  } catch {
+    return $false
+  }
+}
+
+function Wait-ProbePinnedProcessExit($Process, [int]$TimeoutMilliseconds) {
+  if (Test-ProbePinnedProcessExited $Process) { return $true }
+  try {
+    if ($Process.WaitForExit($TimeoutMilliseconds)) { return $true }
+  } catch {
+  }
+  return (Test-ProbePinnedProcessExited $Process)
 }
 
 $allowedProbeAssetTags = @(
@@ -14156,7 +14300,7 @@ try {
   }
   if ($queryWorkbook) {
     try { $queryWorkbook.Close($false) } catch {
-      $cleanupErrors.Add("임시 통합문서 종료: " + $_.Exception.Message)
+      $deferredExcelTeardownErrors.Add("임시 통합문서 종료: " + $_.Exception.Message)
     }
   }
 
@@ -14169,7 +14313,7 @@ try {
         $excel.Quit()
       }
     } catch {
-      $cleanupErrors.Add("자동조회용 Excel Quit: " + $_.Exception.Message)
+      $deferredExcelTeardownErrors.Add("자동조회용 Excel Quit: " + $_.Exception.Message)
     }
   }
 
@@ -14191,20 +14335,29 @@ try {
   [GC]::WaitForPendingFinalizers()
 
   if ($ownedExcelPid -gt 0) {
-    $excelExited = Wait-ProbeProcessExit $ownedExcelPid ([datetime]::UtcNow.AddSeconds(2))
+    $excelExited = Wait-ProbePinnedProcessExit $launchedExcelProcess 2000
     if (-not $excelExited) {
       if (Test-OwnedProbeExcelIdentity $ownedExcelPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId) {
         try {
-          Stop-Process -Id $ownedExcelPid -Force -ErrorAction Stop
-          $excelExited = Wait-ProbeProcessExit $ownedExcelPid ([datetime]::UtcNow.AddSeconds(5))
+          if (-not (Test-ProbePinnedProcessExited $launchedExcelProcess)) {
+            $launchedExcelProcess.Kill()
+          }
+          $excelExited = Wait-ProbePinnedProcessExit $launchedExcelProcess 5000
         } catch {
-          $cleanupErrors.Add("자동조회용 Excel 강제 종료: " + $_.Exception.Message)
+          $stopError = $_.Exception.Message
+          $excelExited = Wait-ProbePinnedProcessExit $launchedExcelProcess 1000
+          if (-not $excelExited) { $cleanupErrors.Add("자동조회용 Excel 강제 종료: " + $stopError) }
         }
       } else {
-        $cleanupErrors.Add("자동조회용 Excel PID 신원이 바뀌어 강제 종료하지 않았습니다.")
+        $excelExited = Wait-ProbePinnedProcessExit $launchedExcelProcess 1000
+        if (-not $excelExited) { $cleanupErrors.Add("자동조회용 Excel PID 신원이 바뀌어 강제 종료하지 않았습니다.") }
       }
     }
+    if (-not $excelExited) {
+      $excelExited = Wait-ProbePinnedProcessExit $launchedExcelProcess 1000
+    }
     if (-not $excelExited) { $cleanupErrors.Add("자동조회용 Excel이 종료되지 않았습니다.") }
+    $excelExitVerified = [bool]$excelExited
   }
 
   if ($null -eq $ownedHostSnapshot -and $ownedExcelPid -gt 0) {
@@ -14214,6 +14367,8 @@ try {
       )
       if ($lateOwnedHosts.Count -eq 1) {
         $ownedHostSnapshot = New-ProbeHostSignature $lateOwnedHosts[0] $ownedExcelPid $ownedExcelStartTicks $ownedExcelSessionId
+      } elseif ($lateOwnedHosts.Count -gt 1) {
+        throw "조회용 Excel 자식 DataPARC Host가 둘 이상이라 자동 정리를 중단합니다."
       }
     } catch {
       $cleanupErrors.Add("DataPARC Host 지연 신원확인: " + $_.Exception.Message)
@@ -14221,35 +14376,92 @@ try {
   }
 
   if ($null -ne $ownedHostSnapshot) {
+    $hostExited = $false
     $hostExitDeadline = [datetime]::UtcNow.AddSeconds(2)
     do {
       if ($null -eq (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue)) { break }
       Start-Sleep -Milliseconds 500
     } while ([datetime]::UtcNow -lt $hostExitDeadline)
 
-    if ($null -ne (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue)) {
+    $hostExited = ($null -eq (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue))
+    if (-not $hostExited) {
       if (Test-ProbeHostSignature $ownedHostSnapshot) {
+        $ownedHostProcess = $null
         try {
-          Stop-Process -Id ([int]$ownedHostSnapshot.ProcessId) -Force -ErrorAction Stop
-          [void](Wait-ProbeProcessExit ([int]$ownedHostSnapshot.ProcessId) ([datetime]::UtcNow.AddSeconds(5)))
+          $ownedHostProcess = Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction Stop
+          [void]$ownedHostProcess.Handle
+          if ([long]$ownedHostProcess.StartTime.ToUniversalTime().Ticks -ne [long]$ownedHostSnapshot.StartTicks -or
+              [int]$ownedHostProcess.SessionId -ne [int]$ownedHostSnapshot.SessionId -or
+              -not [string]::Equals([string]$ownedHostProcess.Path, [string]$ownedHostSnapshot.Path, [StringComparison]::OrdinalIgnoreCase) -or
+              -not (Test-ProbeHostSignature $ownedHostSnapshot)) {
+            throw "DataPARC Host 종료 직전 프로세스 신원이 일치하지 않습니다."
+          }
+          $ownedHostProcess.Kill()
+          $hostExited = Wait-ProbePinnedProcessExit $ownedHostProcess 5000
         } catch {
-          $cleanupErrors.Add("자동조회용 DataPARC Host 강제 종료: " + $_.Exception.Message)
+          $stopError = $_.Exception.Message
+          if ($ownedHostProcess) {
+            $hostExited = Wait-ProbePinnedProcessExit $ownedHostProcess 1000
+          } else {
+            $hostExited = Wait-ProbeProcessExit ([int]$ownedHostSnapshot.ProcessId) ([datetime]::UtcNow.AddSeconds(1))
+          }
+          if (-not $hostExited) { $cleanupErrors.Add("자동조회용 DataPARC Host 강제 종료: " + $stopError) }
+        } finally {
+          if ($ownedHostProcess) { $ownedHostProcess.Dispose() }
         }
       } else {
-        $cleanupErrors.Add("DataPARC Host PID 신원이 바뀌어 강제 종료하지 않았습니다.")
+        $hostExited = Wait-ProbeProcessExit ([int]$ownedHostSnapshot.ProcessId) ([datetime]::UtcNow.AddSeconds(1))
+        if (-not $hostExited) { $cleanupErrors.Add("DataPARC Host PID 신원이 바뀌어 강제 종료하지 않았습니다.") }
       }
     }
 
-    if ($null -ne (Get-Process -Id ([int]$ownedHostSnapshot.ProcessId) -ErrorAction SilentlyContinue)) {
+    if (-not $hostExited) {
       $cleanupErrors.Add("자동조회용 DataPARC Host가 종료되지 않았습니다.")
     }
   }
 
-  if (-not (Test-ProbeProcessSignatureSet $baselineExcelSignatures)) {
-    $cleanupErrors.Add("기존 사용자 Excel 프로세스가 조회 중 변경되거나 종료되었습니다.")
+  try {
+    $finalExcelPids = @(
+      Get-Process -Name "EXCEL" -ErrorAction SilentlyContinue |
+        Where-Object { [int]$_.SessionId -eq $currentSessionId } |
+        ForEach-Object { [int]$_.Id }
+    )
+    if (-not (Test-ProbeExactProcessUniverse $baselineExcelSignatures $finalExcelPids)) {
+      $cleanupErrors.Add("기존 사용자 Excel 프로세스가 변경·종료됐거나 소유 불명 Excel이 새로 나타났습니다.")
+    } else {
+      $excelUniverseVerified = $true
+    }
+  } catch {
+    $cleanupErrors.Add("최종 Excel 프로세스 전수 확인: " + $_.Exception.Message)
   }
-  if (-not (Test-ProbeProcessSignatureSet $baselineHostSignatures)) {
-    $cleanupErrors.Add("기존 사용자 DataPARC Host가 조회 중 변경되거나 종료되었습니다.")
+  try {
+    $finalHostPids = @(
+      Get-ProbeDataParcHosts |
+        Where-Object { [int]$_.SessionId -eq $currentSessionId } |
+        ForEach-Object { [int]$_.ProcessId }
+    )
+    if (-not (Test-ProbeExactProcessUniverse $baselineHostSignatures $finalHostPids)) {
+      $cleanupErrors.Add("기존 사용자 DataPARC Host가 변경·종료됐거나 소유 불명 Host가 새로 나타났습니다.")
+    } else {
+      $hostUniverseVerified = $true
+    }
+  } catch {
+    $cleanupErrors.Add("최종 DataPARC Host 전수 확인: " + $_.Exception.Message)
+  }
+
+  if ($deferredExcelTeardownErrors.Count -gt 0) {
+    if ($excelExitVerified -and $excelUniverseVerified -and $hostUniverseVerified) {
+      Write-ProbeStage "COM 종료 호출 오류 후에도 보관된 Excel 핸들 종료와 현재 세션 Excel/DataPARC 원상복구를 확인"
+    } else {
+      foreach ($deferredError in $deferredExcelTeardownErrors) {
+        $cleanupErrors.Add($deferredError)
+      }
+    }
+  }
+
+  if ($launchedExcelProcess) {
+    try { $launchedExcelProcess.Dispose() } catch {
+    }
   }
 
   if ($probeMutex) {

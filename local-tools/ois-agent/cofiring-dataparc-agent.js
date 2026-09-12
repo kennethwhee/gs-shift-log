@@ -83,8 +83,8 @@ function createCofiringCollector(options={}) {
 const collectCofiringDailyValues=createCofiringCollector();
 
 const COFIRING_PERIOD_REQUEST_TYPE=contract.PERIOD_TYPE;
-const PERIOD_CONTROLLER_SHA256='a27d89fe21d947a0b4ac861901581ccef57f7d1a2972cb93f3205267feb184cb';
-const PERIOD_WORKER_SHA256='e62c87a270b411f86ba6bcac98978b2f9ec2721160cd3431c6874a3468e744ec';
+const PERIOD_CONTROLLER_SHA256='617cf3f1fa2a352964dfa714648e45517605dd518d5c004fb676331a75dacd33';
+const PERIOD_WORKER_SHA256='d64b4be4e8ce05b1465708c0435de57adcd49b8b56b6cf90e06e45c1ade032cb';
 // Leave room for the bounded startup/query watchdog, owned-process cleanup,
 // controller/report overhead and server delivery within the existing request lease.
 const PERIOD_MIN_REMAINING_MS=8*60000;
@@ -121,7 +121,8 @@ function createPeriodProgressReader() {
 }
 function periodTimeoutDetail(report,spec,observedRunId) {
   if(!report||report.kind!=='cofiring_dataparc_period_report'||report.schemaVersion!==1||report.status!=='FAIL'||
-     typeof report.runId!=='string'||!/^[a-f0-9]{32}$/i.test(report.runId)||(observedRunId&&report.runId.toLowerCase()!==observedRunId)||
+     typeof observedRunId!=='string'||!/^[a-f0-9]{32}$/i.test(observedRunId)||
+     typeof report.runId!=='string'||!/^[a-f0-9]{32}$/i.test(report.runId)||report.runId.toLowerCase()!==observedRunId||
      report.startLocal!==spec.startLocal||report.endLocal!==spec.endLocal||report.stepUnit!==spec.stepUnit||report.stepValue!==spec.stepValue||report.queryEndLocal!==spec.queryEndLocal||
      report.executionSucceeded!==false||report.timedOut!==true||report.cleanupVerified!==true||report.processCleanupVerified!==true||
      !Array.isArray(report.cleanupErrors)||report.cleanupErrors.length||!Number.isFinite(Date.parse(report.completedAtUtc)))return '';
@@ -193,7 +194,17 @@ function createCofiringPeriodCollector(options={}) {
     }catch(error){
       closed=true;clearInterval(heartbeat);
       let report=null;try{report=JSON.parse(fs.readFileSync(path.join(dir,'period-report.json'),'utf8').replace(/^\uFEFF/,''));}catch(_){}
-      if(launched&&!(report?.cleanupVerified===true&&report?.processCleanupVerified===true&&Array.isArray(report.cleanupErrors)&&report.cleanupErrors.length===0)){
+      // A report may suppress the global block only when its identity and both
+      // independent cleanup certificates match this exact request. A stale or
+      // foreign report must never reopen the shared Excel/DataPARC lane.
+      if(launched&&!(report?.kind==='cofiring_dataparc_period_report'&&report?.schemaVersion===1&&
+         report?.startLocal===spec.startLocal&&report?.endLocal===spec.endLocal&&
+         report?.stepUnit===spec.stepUnit&&report?.stepValue===spec.stepValue&&
+         report?.queryEndLocal===spec.queryEndLocal&&
+         progressReader.runId&&typeof report.runId==='string'&&/^[a-f0-9]{32}$/i.test(report.runId)&&
+         report.runId.toLowerCase()===progressReader.runId&&
+         report?.cleanupVerified===true&&report?.processCleanupVerified===true&&
+         Array.isArray(report.cleanupErrors)&&report.cleanupErrors.length===0)){
         fs.writeFileSync(blocked,JSON.stringify({requestId:id,period:{startLocal:spec.startLocal,endLocal:spec.endLocal},diagnosticDirectory:dir,at:new Date().toISOString(),message:'기간 조회용 Excel 종료를 확인한 후에만 수동 해제하세요.'},null,2),'utf8');
       }
       const detail=periodTimeoutDetail(report,spec,progressReader.runId);
