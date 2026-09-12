@@ -1094,6 +1094,60 @@ function Wait-ProbeProcessExit([int]$ProcessId, [datetime]$Deadline) {
   return ($null -eq (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue))
 }
 
+function Complete-OwnedProbeExcelExit {
+  param(
+    $ProcessObject,
+    [int]$ExpectedProcessId,
+    [long]$ExpectedStartTicks,
+    [string]$ExpectedPath,
+    [int]$ExpectedSessionId
+  )
+
+  # This is the Process object retained at our own Start-Process /x launch. Keep
+  # its open handle until Host cleanup ends; never reopen or terminate by PID.
+  if ($null -eq $ProcessObject -or [int]$ProcessObject.Id -ne $ExpectedProcessId) {
+    throw '자동조회용 Excel의 시작 시 보관한 프로세스 핸들을 확인할 수 없습니다.'
+  }
+  [void]$ProcessObject.Handle
+  if ($ProcessObject.WaitForExit(12000)) {
+    return [pscustomobject]@{ Exited=$true; Forced=$false }
+  }
+
+  try {
+    if ([string]$ProcessObject.ProcessName -ine 'EXCEL' -or
+        [long]$ProcessObject.StartTime.ToUniversalTime().Ticks -ne $ExpectedStartTicks -or
+        [int]$ProcessObject.SessionId -ne $ExpectedSessionId -or
+        [string]::IsNullOrWhiteSpace([string]$ProcessObject.Path) -or
+        [string]::IsNullOrWhiteSpace($ExpectedPath) -or
+        -not [string]::Equals([IO.Path]::GetFullPath([string]$ProcessObject.Path),
+          [IO.Path]::GetFullPath($ExpectedPath),[StringComparison]::OrdinalIgnoreCase)) {
+      throw '자동조회용 Excel PID 신원이 바뀌어 강제 종료하지 않았습니다.'
+    }
+  } catch {
+    # Property access can race with graceful exit. Only this exact retained
+    # process handle can prove exit; an error or a different PID never does.
+    if ($ProcessObject.HasExited) {
+      return [pscustomobject]@{ Exited=$true; Forced=$false }
+    }
+    throw
+  }
+
+  try {
+    $ProcessObject.Kill()
+  } catch {
+    # Quit can finish after identity validation but before Kill. This is a
+    # successful exit, not a cleanup failure or a reason to block the queue.
+    if ($ProcessObject.HasExited) {
+      return [pscustomobject]@{ Exited=$true; Forced=$false }
+    }
+    throw
+  }
+  if (-not $ProcessObject.WaitForExit(5000)) {
+    throw '자동조회용 Excel이 종료되지 않았습니다.'
+  }
+  return [pscustomobject]@{ Exited=$true; Forced=$true }
+}
+
 function Write-ProbeOwnership {
   $ownershipPath = [string]$env:GS_COFIRING_OWNERSHIP_PATH
   if ([string]::IsNullOrWhiteSpace($ownershipPath)) { return }
@@ -1610,22 +1664,17 @@ try {
   [GC]::WaitForPendingFinalizers()
 
   if ($ownedExcelPid -gt 0) {
-    $excelExited = Wait-ProbeProcessExit $ownedExcelPid ([datetime]::UtcNow.AddSeconds(12))
-    if (-not $excelExited) {
-      if (Test-OwnedProbeExcelIdentity $ownedExcelPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId) {
-        try {
-          Stop-Process -Id $ownedExcelPid -Force -ErrorAction Stop
-          $probeCleanupActions.Add("조회용 Excel 소유 PID " + [string]$ownedExcelPid + " 강제 종료")
-          Write-ProbeStage $probeCleanupActions[$probeCleanupActions.Count - 1]
-          $excelExited = Wait-ProbeProcessExit $ownedExcelPid ([datetime]::UtcNow.AddSeconds(5))
-        } catch {
-          $cleanupErrors.Add("자동조회용 Excel 강제 종료: " + $_.Exception.Message)
-        }
+    try {
+      $excelExit = Complete-OwnedProbeExcelExit $launchedExcelProcess $ownedExcelPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId
+      if ($excelExit.Forced) {
+        $probeCleanupActions.Add("조회용 Excel 소유 PID " + [string]$ownedExcelPid + " 강제 종료")
       } else {
-        $cleanupErrors.Add("자동조회용 Excel PID 신원이 바뀌어 강제 종료하지 않았습니다.")
+        $probeCleanupActions.Add("조회용 Excel 소유 PID " + [string]$ownedExcelPid + " 정상 종료 확인")
       }
+      Write-ProbeStage $probeCleanupActions[$probeCleanupActions.Count - 1]
+    } catch {
+      $cleanupErrors.Add("자동조회용 Excel 종료 확인: " + $_.Exception.Message)
     }
-    if (-not $excelExited) { $cleanupErrors.Add("자동조회용 Excel이 종료되지 않았습니다.") }
   }
 
   if ($null -eq $ownedHostSnapshot -and $ownedExcelPid -gt 0) {

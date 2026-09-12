@@ -83,8 +83,8 @@ function createCofiringCollector(options={}) {
 const collectCofiringDailyValues=createCofiringCollector();
 
 const COFIRING_PERIOD_REQUEST_TYPE=contract.PERIOD_TYPE;
-const PERIOD_CONTROLLER_SHA256='3a8f04ec6100417edf4979b1c58cf7140392d8e9bb62e2f094264c7010880eae';
-const PERIOD_WORKER_SHA256='de09bc440f942abe0ebac0fb629f594c143e9230f296312bd3b13c3e6273aad4';
+const PERIOD_CONTROLLER_SHA256='588742e9730285bbaad71b588002db570fcdbfd98db08794593115ff3c75f40d';
+const PERIOD_WORKER_SHA256='c0ecc7572b8d2704e23627eb9dad1bc97d2fa87ab2759ca57ae0a26944b01e35';
 function periodRequestSpec(request) {
   const value=request?.result;
   if(value?.kind==='cofiring_period_request')return value;
