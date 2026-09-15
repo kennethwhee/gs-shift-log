@@ -5,6 +5,23 @@
   else root.BlowerUnifiedRefresh = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
+  // Optional browser diagnostics are isolated from request/validation behavior.
+  // They receive bounded counts only; credentials, bodies and error text stay out.
+  async function measurePhase(name, metadata, operation) {
+    let measurement = null;
+    try { measurement = globalThis.BlowerRefreshTiming?.beginPhase(name, metadata); } catch (_) {}
+    const finish = (status, result) => {
+      try {
+        const counts = Array.isArray(result) ? {
+          completedCount: result.filter(item => item?.status === 'complete').length,
+          failedCount: result.filter(item => item?.status === 'failed').length
+        } : {};
+        measurement?.end(counts.failedCount ? 'partial' : status, counts);
+      } catch (_) {}
+    };
+    try { const result = await operation(); finish('complete', result); return result; }
+    catch (error) { finish('failed'); throw error; }
+  }
   const DAY = 86400000;
   const SIGNAL = 'GSPOGE.ABB_DCS.003ETH03AN602XB04';
   const DP_TAGS = new Set(['104ETH03AN601','104ETH03AN602','104ETG30AN601','104ETG30AN602',
@@ -80,6 +97,9 @@
       if (!Number.isFinite(replacement)) { skip('교체일 등록 필요 · 이력 보기 / V-Belt 교체 등록'); continue; }
       if (replacement >= end) { skip('교체일이 현재 시각 이후입니다.'); continue; }
       if (!DP_TAGS.has(a.tagNumber)) { skip('연결된 운전시간 조회 방식이 없습니다.'); continue; }
+      if (a.cycleStartState === 'pending' && !fbheSealRunAsset(a)) {
+        skip('기동 대기 Cycle은 최신화 대상에서 제외됩니다. 실제 기동 후 조회해 주세요.'); continue;
+      }
       const dataParcTag = a.tagNumber === '104ETH03AN602' ? SIGNAL : String(a.dataParcTag || '').trim();
       if (!/^GSPOGE\.ABB_DCS\.[A-Z0-9][A-Z0-9._-]*$/.test(dataParcTag) || dataParcTag.length > 200 || (a.tagNumber !== '104ETH03AN602' && dataParcTag === SIGNAL)) {
         skip('RUN TAG 설정 필요 · 이력 보기 → 조회 기준·상세'); continue;
@@ -176,17 +196,45 @@
     io.assertWritable?.();
     io.progress?.(`${source.length}대 증분 조회 요청 등록 중`);
 
-    // Enqueue every asset first.  The local Agent can then coalesce adjacent
-    // blower_runtime_probe requests into one hidden-Excel session instead of
-    // starting/stopping Excel once per Blower.
-    const createOutcomes = await Promise.all(source.map(async task => {
-      try {
-        const created = await io.api({ method: 'POST', url: '/api/ois-data-requests', body: dataParcCreateBody(task) });
-        return { task, created };
-      } catch (cause) {
-        return { task, cause };
+    // One authenticated server action validates every Cycle/append intent and
+    // publishes all new queue rows in one D1 transaction.  Never fall back to
+    // per-asset POSTs: the one-second Agent poll could observe a partial set
+    // and split one Latest click across several hidden-Excel startups.
+    if (source.length > 24) throw error('Blower 일괄 조회는 한 번에 최대 24대까지 가능합니다.', 'CREATE_BATCH_TOO_LARGE');
+    const sourceTags = source.map(task => String(task.snapshot.tagNumber));
+    if (new Set(sourceTags).size !== sourceTags.length) throw error('같은 Blower가 일괄 조회에 중복 포함되었습니다.', 'CREATE_BATCH_DUPLICATE_ASSET');
+
+    const createdBatch = await measurePhase('createRequests', { targetCount: source.length }, () => io.api({ method: 'POST', url: '/api/ois-data-requests', body: {
+      action: 'create_blower_runtime_probe_batch', requests: source.map(dataParcCreateBody)
+    }}));
+    const batchResults = Array.isArray(createdBatch?.results) ? createdBatch.results : [];
+    if (createdBatch?.ok !== true || createdBatch?.atomic !== true || createdBatch?.batchVersion !== 1 ||
+        Number(createdBatch?.requestedCount) !== source.length || batchResults.length !== source.length) {
+      throw error('Blower 일괄 요청 등록 결과를 확인할 수 없습니다. 개별 요청으로 전환하지 않았습니다.', 'CREATE_BATCH_RESPONSE_INVALID');
+    }
+    const createdByTag = new Map();
+    const requestIds = new Set();
+    for (const created of batchResults) {
+      const tag = String(created?.assetTag || '');
+      const item = created?.item;
+      const requestId = created?.upToDate === true ? '' : String(item?.id || '');
+      const requestShapeValid = created?.upToDate === true || (
+        item?.requestType === 'blower_runtime_probe' &&
+        String(item?.probe?.assetTag || '') === tag &&
+        String(item?.probe?.requestId || '') === requestId
+      );
+      if (!tag || !sourceTags.includes(tag) || createdByTag.has(tag) || created?.ok !== true ||
+          (created?.upToDate !== true && !requestId) || !requestShapeValid ||
+          (requestId && requestIds.has(requestId))) {
+        throw error('Blower 일괄 요청 설비 목록이 요청과 일치하지 않습니다. 개별 요청으로 전환하지 않았습니다.', 'CREATE_BATCH_RESPONSE_MISMATCH');
       }
-    }));
+      if (requestId) requestIds.add(requestId);
+      createdByTag.set(tag, created);
+    }
+    if (sourceTags.some(tag => !createdByTag.has(tag))) {
+      throw error('Blower 일괄 요청 결과에 누락된 설비가 있습니다. 개별 요청으로 전환하지 않았습니다.', 'CREATE_BATCH_RESPONSE_MISSING');
+    }
+    const createOutcomes = source.map(task => ({ task, created: createdByTag.get(String(task.snapshot.tagNumber)) }));
 
     const resultByTag = new Map();
     const pending = [];
@@ -214,12 +262,12 @@
 
     if (pending.length) {
       io.progress?.(`숨김 Excel 일괄 조회 준비 · ${pending.length}대`);
-      const settled = await waitRequests(pending.map(entry => entry.item), io, { settleFailures: true, sleep: io.sleep, clock: io.clock });
+      const settled = await measurePhase('waitResults', { requestCount: pending.length }, () => waitRequests(pending.map(entry => entry.item), io, { settleFailures: true, sleep: io.sleep, clock: io.clock }));
       const statusById = new Map(settled.map(item => [String(item.id), item]));
       io.assertWritable?.();
 
       let appliedCount = 0;
-      const applyResults = await Promise.all(pending.map(async entry => {
+      const applyResults = await measurePhase('applyResults', { requestCount: pending.length }, () => Promise.all(pending.map(async entry => {
         const task = entry.task, s = task.snapshot, request = statusById.get(String(entry.item.id));
         if (!request || request.status === 'failed') {
           return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'failed',
@@ -236,7 +284,7 @@
           return { tagNumber: s.tagNumber, displayName: task.asset.displayName || s.tagNumber, status: 'failed',
             message: cause?.message || '조회 결과 저장 실패 · 기존 값 유지' };
         }
-      }));
+      })));
       for (const item of applyResults) resultByTag.set(item.tagNumber, item);
     }
 
@@ -379,7 +427,7 @@
    * Authentication/protocol errors are not bypassed, and no failed page is skipped.
    */
   async function refreshLogsForRuntime(io, options = {}) {
-    try { return { complete: true, totals: await refreshLogs(io, options), warning: '' }; }
+    try { return { complete: true, totals: await measurePhase('workLogs', {}, () => refreshLogs(io, options)), warning: '' }; }
     catch (e) {
       if (!transient(e)) throw e;
       io.assertWritable?.();

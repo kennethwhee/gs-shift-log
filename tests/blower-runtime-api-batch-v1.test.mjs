@@ -241,6 +241,73 @@ class MockStatement {
   async all() {
     if (
       this.sql.includes(
+        "status = 'processing'"
+      ) &&
+      this.sql.includes(
+        "ORDER BY started_at DESC, id ASC"
+      ) &&
+      this.sql.includes(
+        "LIMIT 2"
+      )
+    ) {
+      const [
+        requestType,
+        agentId,
+        pollingNow
+      ] = this.bindings;
+
+      return {
+        results:
+          this.database.rows
+            .filter(
+              row => {
+                return row.request_type ===
+                    requestType &&
+                  row.status ===
+                    "processing" &&
+                  row.agent_id ===
+                    agentId &&
+                  row.expires_at >=
+                    pollingNow &&
+                  !row.id.startsWith(
+                    "brb1_"
+                  );
+              }
+            )
+            .sort(
+              (left, right) => {
+                return right.started_at.localeCompare(
+                  left.started_at
+                ) ||
+                  left.id.localeCompare(
+                    right.id
+                  );
+              }
+            )
+            .slice(
+              0,
+              2
+            )
+      };
+    }
+
+
+    if (
+      this.sql.includes(
+        "WITH grouped_requests AS"
+      ) &&
+      this.sql.includes(
+        "replay_group AS"
+      )
+    ) {
+      return {
+        results: []
+      };
+    }
+
+
+    if (
+      this.sql.includes(
         "FROM blower_runtime_probe_intents_v4"
       ) &&
       this.sql.includes(
@@ -319,10 +386,12 @@ class MockStatement {
         1;
 
       const [
-        requestType,
         pollingNow,
         agentId,
-        guardNow,
+        requestType,
+        emptyGroupOnly,
+        groupedMode,
+        primaryGroupId,
         limit
       ] = this.bindings;
 
@@ -337,8 +406,18 @@ class MockStatement {
       );
 
       assert.equal(
-        guardNow,
-        pollingNow
+        emptyGroupOnly,
+        ""
+      );
+
+      assert.equal(
+        groupedMode,
+        ""
+      );
+
+      assert.equal(
+        primaryGroupId,
+        ""
       );
 
       if (
@@ -419,7 +498,17 @@ class MockStatement {
                   probe_expected_cycle_start_revision:
                     intent.expected_cycle_start_revision,
                   probe_expected_cycle_runtime_revision:
-                    intent.expected_cycle_runtime_revision
+                    intent.expected_cycle_runtime_revision,
+                  probe_create_group_id:
+                    "",
+                  probe_group_pending_count:
+                    1,
+                  probe_group_owned_processing_count:
+                    0,
+                  probe_group_owned_leader_count:
+                    0,
+                  probe_group_foreign_processing_count:
+                    0
                 };
               }
             )
@@ -657,6 +746,44 @@ class MockDatabase {
   async batch(
     statements
   ) {
+    if (
+      statements.length >
+        1 &&
+      statements[0].sql.includes(
+        "BLOWER_RUNTIME_BATCH_CLAIM_CAS_V1"
+      ) &&
+      statements.slice(1).every(
+        statement => {
+          return statement.sql.includes(
+            "UPDATE ois_data_requests"
+          ) &&
+            statement.sql.includes(
+              "status = 'processing'"
+            );
+        }
+      )
+    ) {
+      this.claimBatchCount +=
+        1;
+
+      return [
+        {
+          meta: {
+            changes:
+              0
+          }
+        },
+        ...await Promise.all(
+          statements.slice(1).map(
+            statement => {
+              return statement.run();
+            }
+          )
+        )
+      ];
+    }
+
+
     if (
       statements.length >
         0 &&

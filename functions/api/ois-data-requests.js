@@ -1,4 +1,4 @@
-﻿import { loadAppendBase, ensureAppendSchema, appendIntentStatement } from "../_shared/blower-incremental.js";
+﻿import { loadAppendBase, verifiedAppendBase, ensureAppendSchema, appendIntentStatement } from "../_shared/blower-incremental.js";
 
 "use strict";
 
@@ -8657,6 +8657,125 @@ const MAXIMUM_BLOWER_RUNTIME_PROBE_BATCH_CLAIM_ATTEMPTS =
   3;
 
 
+/*
+  Atomic browser creates use an opaque request ID that also carries a durable
+  group identity. The underscore form intentionally stays inside the existing
+  request-ID alphabet used by status/completion endpoints.
+
+  brb1_<batch uuid>_<total 2 digits>_<item index 2 digits>
+*/
+const BRB1_INVALID_HEX_GLOB =
+  "*[^0-9A-Fa-f]*";
+
+
+const BRB1_TWO_DIGIT_GLOB =
+  "[0-9][0-9]";
+
+
+const BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH =
+  45;
+
+
+/*
+  Cloudflare D1 inherits SQLite's 50-byte LIKE/GLOB pattern limit. Keep the
+  actual patterns deliberately short and express the fixed layout with
+  length/substr checks instead of one long full-ID pattern.
+*/
+function blowerRuntimeProbeCreateGroupSql(
+  requestIdExpression
+) {
+  if (
+    !/^[A-Za-z_][A-Za-z0-9_.]*$/.test(
+      requestIdExpression
+    )
+  ) {
+    throw new Error(
+      "Invalid Blower batch request-ID SQL expression."
+    );
+  }
+
+
+  return `(
+    length(${requestIdExpression}) = 47
+    AND substr(${requestIdExpression}, 1, 5) = 'brb1_'
+    AND substr(${requestIdExpression}, 14, 1) = '-'
+    AND substr(${requestIdExpression}, 19, 1) = '-'
+    AND substr(${requestIdExpression}, 24, 1) = '-'
+    AND substr(${requestIdExpression}, 29, 1) = '-'
+    AND substr(${requestIdExpression}, 42, 1) = '_'
+    AND substr(${requestIdExpression}, 45, 1) = '_'
+    AND substr(${requestIdExpression}, 6, 8) NOT GLOB '${BRB1_INVALID_HEX_GLOB}'
+    AND substr(${requestIdExpression}, 15, 4) NOT GLOB '${BRB1_INVALID_HEX_GLOB}'
+    AND substr(${requestIdExpression}, 20, 4) NOT GLOB '${BRB1_INVALID_HEX_GLOB}'
+    AND substr(${requestIdExpression}, 25, 4) NOT GLOB '${BRB1_INVALID_HEX_GLOB}'
+    AND substr(${requestIdExpression}, 30, 12) NOT GLOB '${BRB1_INVALID_HEX_GLOB}'
+    AND substr(${requestIdExpression}, 43, 2) GLOB '${BRB1_TWO_DIGIT_GLOB}'
+    AND substr(${requestIdExpression}, 46, 2) GLOB '${BRB1_TWO_DIGIT_GLOB}'
+    AND CAST(substr(${requestIdExpression}, 43, 2) AS INTEGER) BETWEEN 1 AND ${MAXIMUM_STATUS_BATCH_IDS}
+    AND CAST(substr(${requestIdExpression}, 46, 2) AS INTEGER) < CAST(substr(${requestIdExpression}, 43, 2) AS INTEGER)
+  )`;
+}
+
+
+function parseBlowerRuntimeProbeCreateGroupRequestId(
+  requestId
+) {
+  const match =
+    /^brb1_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})_([0-9]{2})_([0-9]{2})$/i.exec(
+      normalizeText(
+        requestId
+      )
+    );
+
+
+  if (
+    !match
+  ) {
+    return null;
+  }
+
+
+  const expectedCount =
+    Number(
+      match[2]
+    );
+
+
+  const itemIndex =
+    Number(
+      match[3]
+    );
+
+
+  if (
+    !Number.isInteger(
+      expectedCount
+    ) ||
+    expectedCount <
+      1 ||
+    expectedCount >
+      MAXIMUM_STATUS_BATCH_IDS ||
+    !Number.isInteger(
+      itemIndex
+    ) ||
+    itemIndex <
+      0 ||
+    itemIndex >=
+      expectedCount
+  ) {
+    return null;
+  }
+
+
+  return {
+    groupId:
+      `brb1_${match[1].toLowerCase()}_${match[2]}_`,
+    expectedCount,
+    itemIndex
+  };
+}
+
+
 function parseBlowerRuntimeProbeBatchLimit(
   requestUrl
 ) {
@@ -8704,61 +8823,207 @@ function parseBlowerRuntimeProbeBatchLimit(
 }
 
 
+function convertJoinedBlowerRuntimeProbeIntentRow(
+  row
+) {
+  return convertBlowerRuntimeProbeIntentRow({
+    request_id:
+      row?.probe_request_id,
+    schema_version:
+      row?.probe_schema_version,
+    asset_tag:
+      row?.probe_asset_tag,
+    dataparc_tag:
+      row?.probe_dataparc_tag,
+    window_start:
+      row?.probe_window_start,
+    window_end:
+      row?.probe_window_end,
+    chunk_days:
+      row?.probe_chunk_days,
+    chunk_count:
+      row?.probe_chunk_count,
+    expected_last_replacement_at:
+      row?.probe_expected_last_replacement_at,
+    expected_cycle_start_state:
+      row?.probe_expected_cycle_start_state,
+    expected_cycle_started_at:
+      row?.probe_expected_cycle_started_at,
+    expected_cycle_start_revision:
+      row?.probe_expected_cycle_start_revision,
+    expected_cycle_runtime_revision:
+      row?.probe_expected_cycle_runtime_revision
+  });
+}
+
+
 async function findPendingBlowerRuntimeProbeRows(
   database,
   pollingNow,
   limit,
-  agentId
+  agentId,
+  primaryGroupId =
+    ""
 ) {
   const queryResult =
     await database
       .prepare(`
-        SELECT
-          request.*,
-          intent.request_id AS probe_request_id,
-          intent.schema_version AS probe_schema_version,
-          intent.asset_tag AS probe_asset_tag,
-          intent.dataparc_tag AS probe_dataparc_tag,
-          intent.window_start AS probe_window_start,
-          intent.window_end AS probe_window_end,
-          intent.chunk_days AS probe_chunk_days,
-          intent.chunk_count AS probe_chunk_count,
-          intent.expected_last_replacement_at AS probe_expected_last_replacement_at,
-          intent.expected_cycle_start_state AS probe_expected_cycle_start_state,
-          intent.expected_cycle_started_at AS probe_expected_cycle_started_at,
-          intent.expected_cycle_start_revision AS probe_expected_cycle_start_revision,
-          intent.expected_cycle_runtime_revision AS probe_expected_cycle_runtime_revision
+        WITH queue_poll AS (
+          SELECT
+            ? AS polling_now,
+            ? AS polling_agent
+        ),
 
-        FROM ois_data_requests AS request
-        INNER JOIN blower_runtime_probe_intents_v4 AS intent
-          ON intent.request_id = request.id
+        pending_candidates AS (
+          SELECT
+            request.*,
+            intent.request_id AS probe_request_id,
+            intent.schema_version AS probe_schema_version,
+            intent.asset_tag AS probe_asset_tag,
+            intent.dataparc_tag AS probe_dataparc_tag,
+            intent.window_start AS probe_window_start,
+            intent.window_end AS probe_window_end,
+            intent.chunk_days AS probe_chunk_days,
+            intent.chunk_count AS probe_chunk_count,
+            intent.expected_last_replacement_at AS probe_expected_last_replacement_at,
+            intent.expected_cycle_start_state AS probe_expected_cycle_start_state,
+            intent.expected_cycle_started_at AS probe_expected_cycle_started_at,
+            intent.expected_cycle_start_revision AS probe_expected_cycle_start_revision,
+            intent.expected_cycle_runtime_revision AS probe_expected_cycle_runtime_revision,
+            queue_poll.polling_now,
+            queue_poll.polling_agent,
+            CASE
+              WHEN length(request.id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("request.id")}
+                THEN substr(request.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH})
+              ELSE ''
+            END AS probe_create_group_id
+
+          FROM ois_data_requests AS request
+          INNER JOIN blower_runtime_probe_intents_v4 AS intent
+            ON intent.request_id = request.id
+          CROSS JOIN queue_poll
+
+          WHERE
+            request.request_type = ?
+            AND request.status = 'pending'
+            AND request.expires_at >= queue_poll.polling_now
+            AND (
+              substr(request.id, 1, 5) <> 'brb1_'
+              OR (
+                length(request.id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("request.id")}
+              )
+            )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM ois_data_requests AS restart_guard
+              WHERE
+                restart_guard.request_type = 'cofiring_restart_guard'
+                AND restart_guard.status = 'guard'
+                AND restart_guard.agent_id = queue_poll.polling_agent
+                AND restart_guard.expires_at > queue_poll.polling_now
+            )
+        ),
+
+        annotated_candidates AS (
+          SELECT
+            candidate.*,
+            CASE
+              WHEN candidate.probe_create_group_id = '' THEN 1
+              ELSE (
+                SELECT COUNT(*)
+                FROM ois_data_requests AS sibling
+                WHERE sibling.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+                  AND sibling.requested_by_id = candidate.requested_by_id
+                  AND length(sibling.id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("sibling.id")}
+                  AND substr(sibling.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) = candidate.probe_create_group_id
+                  AND sibling.status = 'pending'
+                  AND sibling.expires_at >= candidate.polling_now
+              )
+            END AS probe_group_pending_count,
+            CASE
+              WHEN candidate.probe_create_group_id = '' THEN 0
+              ELSE (
+                SELECT COUNT(*)
+                FROM ois_data_requests AS sibling
+                WHERE sibling.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+                  AND sibling.requested_by_id = candidate.requested_by_id
+                  AND length(sibling.id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("sibling.id")}
+                  AND substr(sibling.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) = candidate.probe_create_group_id
+                  AND sibling.status = 'processing'
+                  AND sibling.expires_at >= candidate.polling_now
+                  AND sibling.agent_id = candidate.polling_agent
+              )
+            END AS probe_group_owned_processing_count,
+            CASE
+              WHEN candidate.probe_create_group_id = '' THEN 0
+              ELSE (
+                SELECT COUNT(*)
+                FROM ois_data_requests AS sibling
+                WHERE sibling.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+                  AND sibling.requested_by_id = candidate.requested_by_id
+                  AND sibling.id = candidate.probe_create_group_id || '00'
+                  AND sibling.status = 'processing'
+                  AND sibling.expires_at >= candidate.polling_now
+                  AND sibling.agent_id = candidate.polling_agent
+              )
+            END AS probe_group_owned_leader_count,
+            CASE
+              WHEN candidate.probe_create_group_id = '' THEN 0
+              ELSE (
+                SELECT COUNT(*)
+                FROM ois_data_requests AS sibling
+                WHERE sibling.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+                  AND sibling.requested_by_id = candidate.requested_by_id
+                  AND length(sibling.id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("sibling.id")}
+                  AND substr(sibling.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) = candidate.probe_create_group_id
+                  AND sibling.status = 'processing'
+                  AND sibling.expires_at >= candidate.polling_now
+                  AND sibling.agent_id <> candidate.polling_agent
+              )
+            END AS probe_group_foreign_processing_count
+
+          FROM pending_candidates AS candidate
+        )
+
+        SELECT *
+        FROM annotated_candidates
 
         WHERE
-          request.request_type = ?
-          AND request.status = 'pending'
-          AND request.expires_at >= ?
-          AND NOT EXISTS (
-            SELECT 1
-            FROM ois_data_requests AS restart_guard
-            WHERE
-              restart_guard.request_type = 'cofiring_restart_guard'
-              AND restart_guard.status = 'guard'
-              AND restart_guard.agent_id = ?
-              AND restart_guard.expires_at > ?
+          (
+            (? = '' AND probe_create_group_id = '')
+            OR (? <> '' AND probe_create_group_id = ?)
+          )
+          AND (
+            probe_create_group_id = ''
+            OR probe_group_foreign_processing_count = 0
           )
 
         ORDER BY
-          request.requested_at ASC,
-          request.id ASC
+          CASE
+            WHEN probe_create_group_id <> ''
+              AND probe_group_owned_processing_count > 0
+              THEN 0
+            ELSE 1
+          END ASC,
+          requested_at ASC,
+          probe_create_group_id ASC,
+          id ASC
 
         LIMIT ?
       `)
       .bind(
-        BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
         pollingNow,
         agentId,
-        pollingNow,
-        limit
+        BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+        primaryGroupId,
+        primaryGroupId,
+        primaryGroupId,
+        limit + MAXIMUM_STATUS_BATCH_IDS
       )
       .all();
 
@@ -8771,7 +9036,7 @@ async function findPendingBlowerRuntimeProbeRows(
       : [];
 
 
-  return rows
+  const candidates = rows
     .map(
       pendingRow => {
         const requestItem =
@@ -8781,53 +9046,165 @@ async function findPendingBlowerRuntimeProbeRows(
 
 
         const probe =
-          convertBlowerRuntimeProbeIntentRow({
-            request_id:
-              pendingRow.probe_request_id,
-            schema_version:
-              pendingRow.probe_schema_version,
-            asset_tag:
-              pendingRow.probe_asset_tag,
-            dataparc_tag:
-              pendingRow.probe_dataparc_tag,
-            window_start:
-              pendingRow.probe_window_start,
-            window_end:
-              pendingRow.probe_window_end,
-            chunk_days:
-              pendingRow.probe_chunk_days,
-            chunk_count:
-              pendingRow.probe_chunk_count,
-            expected_last_replacement_at:
-              pendingRow.probe_expected_last_replacement_at,
-            expected_cycle_start_state:
-              pendingRow.probe_expected_cycle_start_state,
-            expected_cycle_started_at:
-              pendingRow.probe_expected_cycle_started_at,
-            expected_cycle_start_revision:
-              pendingRow.probe_expected_cycle_start_revision,
-            expected_cycle_runtime_revision:
-              pendingRow.probe_expected_cycle_runtime_revision
-          });
+          convertJoinedBlowerRuntimeProbeIntentRow(
+            pendingRow
+          );
+
+
+        const groupMetadata =
+          parseBlowerRuntimeProbeCreateGroupRequestId(
+            requestItem.id
+          );
+
+
+        const selectedGroupId =
+          normalizeText(
+            pendingRow.probe_create_group_id
+          );
 
 
         return {
           pendingRow,
           probe,
+          groupMetadata,
           valid:
-            isValidBlowerRuntimeProbeIntentIdentity(
-              probe,
-              requestItem.id,
-              requestItem.targetDate
-            )
+            (
+              !selectedGroupId ||
+              groupMetadata?.groupId ===
+                selectedGroupId
+            ) &&
+              isValidBlowerRuntimeProbeIntentIdentity(
+                probe,
+                requestItem.id,
+                requestItem.targetDate
+              )
         };
       }
-    )
-    .filter(
-      candidate => {
-        return candidate.valid;
-      }
     );
+
+
+  /* Only explicit brb1 IDs form a group. Every legacy ID is a singleton. */
+  const selected = [];
+  for (let index = 0; index < candidates.length && selected.length < limit;) {
+    const groupMetadata =
+      candidates[
+        index
+      ].groupMetadata;
+
+
+    if (
+      !groupMetadata
+    ) {
+      if (
+        candidates[
+          index
+        ].valid
+      ) {
+        selected.push(
+          candidates[
+            index
+          ]
+        );
+      }
+
+
+      index +=
+        1;
+
+
+      continue;
+    }
+
+
+    const group = [];
+    while (
+      index <
+        candidates.length &&
+      candidates[
+        index
+      ].groupMetadata?.groupId ===
+        groupMetadata.groupId
+    ) {
+      group.push(
+        candidates[
+          index
+        ]
+      );
+
+
+      index +=
+        1;
+    }
+
+
+    const valid = group.filter(candidate => candidate.valid);
+
+
+    const pendingCount =
+      Number(
+        group[0]?.pendingRow
+          ?.probe_group_pending_count
+      );
+
+
+    const ownedProcessingCount =
+      Number(
+        group[0]?.pendingRow
+          ?.probe_group_owned_processing_count
+      );
+
+
+    const foreignProcessingCount =
+      Number(
+        group[0]?.pendingRow
+          ?.probe_group_foreign_processing_count
+      );
+
+
+    const ownedLeaderCount =
+      Number(
+        group[0]?.pendingRow
+          ?.probe_group_owned_leader_count
+      );
+
+
+    if (
+      group.length !==
+        pendingCount ||
+      valid.length !==
+        group.length ||
+      pendingCount +
+        ownedProcessingCount !==
+          groupMetadata.expectedCount ||
+      ownedLeaderCount !==
+        1 ||
+      foreignProcessingCount !==
+        0
+    ) {
+      continue;
+    }
+
+
+    if (
+      selected.length +
+        group.length >
+          limit
+    ) {
+      break;
+    }
+
+
+    selected.push(
+      ...group
+    );
+
+
+    /* Never mix an owned durable group with unrelated legacy requests. */
+    break;
+  }
+
+
+  return selected;
 }
 
 
@@ -8851,6 +9228,9 @@ function prepareBlowerRuntimeProbeBatchClaim(
   return {
     requestId,
     pendingRow,
+    groupMetadata:
+      pendingCandidate?.groupMetadata ||
+      null,
     probe:
       pendingCandidate?.probe ||
       null,
@@ -8893,6 +9273,250 @@ function prepareBlowerRuntimeProbeBatchClaim(
           processingStartedAtText
         )
   };
+}
+
+
+function prepareBlowerRuntimeProbeBatchClaimGuard(
+  database,
+  candidates,
+  agentId,
+  pollingNow
+) {
+  const plans =
+    JSON.stringify(
+      candidates.map(
+        candidate => {
+          const probe =
+            candidate.probe;
+
+
+          return {
+            requestId:
+              candidate.requestId,
+            targetDate:
+              normalizeText(
+                candidate.pendingRow?.target_date
+              ),
+            requestedById:
+              normalizeText(
+                candidate.pendingRow?.requested_by_id
+              ),
+            groupId:
+              candidate.groupMetadata?.groupId ||
+              "",
+            expectedCount:
+              candidate.groupMetadata?.expectedCount ||
+              1,
+            assetTag:
+              probe?.assetTag ||
+              "",
+            dataParcTag:
+              probe?.dataParcTag ||
+              "",
+            startAt:
+              probe?.startAt ||
+              "",
+            endAt:
+              probe?.endAt ||
+              "",
+            chunkDays:
+              probe?.chunkDays ||
+              0,
+            chunkCount:
+              probe?.chunkCount ||
+              0,
+            expectedLastReplacementAt:
+              probe?.expectedLastReplacementAt ||
+              "",
+            expectedCycleStartState:
+              probe?.expectedCycleStartState ||
+              "",
+            expectedCycleStartedAt:
+              probe?.expectedCycleStartedAt ||
+              "",
+            expectedCycleStartRevision:
+              probe?.expectedCycleStartRevision ||
+              "",
+            expectedCycleRuntimeRevision:
+              probe?.expectedCycleRuntimeRevision ||
+              ""
+          };
+        }
+      )
+    );
+
+
+  /*
+    D1 batch() is transactional. This first statement deliberately violates a
+    NOT NULL constraint only when any selected row/group changed after the
+    look-ahead. That aborts every following sibling UPDATE in the same batch.
+  */
+  return database
+    .prepare(`
+      /* BLOWER_RUNTIME_BATCH_CLAIM_CAS_V1 */
+      WITH plans AS (
+        SELECT
+          json_extract(value, '$.requestId') AS request_id,
+          json_extract(value, '$.targetDate') AS target_date,
+          json_extract(value, '$.requestedById') AS requested_by_id,
+          json_extract(value, '$.groupId') AS group_id,
+          CAST(json_extract(value, '$.expectedCount') AS INTEGER) AS expected_count,
+          json_extract(value, '$.assetTag') AS asset_tag,
+          json_extract(value, '$.dataParcTag') AS dataparc_tag,
+          json_extract(value, '$.startAt') AS window_start,
+          json_extract(value, '$.endAt') AS window_end,
+          CAST(json_extract(value, '$.chunkDays') AS INTEGER) AS chunk_days,
+          CAST(json_extract(value, '$.chunkCount') AS INTEGER) AS chunk_count,
+          json_extract(value, '$.expectedLastReplacementAt') AS expected_last_replacement_at,
+          json_extract(value, '$.expectedCycleStartState') AS expected_cycle_start_state,
+          json_extract(value, '$.expectedCycleStartedAt') AS expected_cycle_started_at,
+          json_extract(value, '$.expectedCycleStartRevision') AS expected_cycle_start_revision,
+          json_extract(value, '$.expectedCycleRuntimeRevision') AS expected_cycle_runtime_revision
+        FROM json_each(?)
+      ),
+
+      invalid_plan AS (
+        SELECT 1
+        FROM plans AS plan
+        WHERE
+          NOT EXISTS (
+            SELECT 1
+            FROM ois_data_requests AS request
+            INNER JOIN blower_runtime_probe_intents_v4 AS intent
+              ON intent.request_id = request.id
+            WHERE request.id = plan.request_id
+              AND request.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+              AND request.target_date = plan.target_date
+              AND request.requested_by_id = plan.requested_by_id
+              AND request.status = 'pending'
+              AND request.expires_at >= ?
+              AND intent.schema_version = ${BLOWER_RUNTIME_PROBE_SCHEMA_VERSION}
+              AND intent.asset_tag = plan.asset_tag
+              AND intent.dataparc_tag = plan.dataparc_tag
+              AND intent.window_start = plan.window_start
+              AND intent.window_end = plan.window_end
+              AND intent.chunk_days = plan.chunk_days
+              AND intent.chunk_count = plan.chunk_count
+              AND intent.expected_last_replacement_at = plan.expected_last_replacement_at
+              AND COALESCE(intent.expected_cycle_start_state, '') = plan.expected_cycle_start_state
+              AND COALESCE(intent.expected_cycle_started_at, '') = plan.expected_cycle_started_at
+              AND COALESCE(intent.expected_cycle_start_revision, '') = plan.expected_cycle_start_revision
+              AND COALESCE(intent.expected_cycle_runtime_revision, '') = plan.expected_cycle_runtime_revision
+          )
+          OR (
+            plan.group_id <> ''
+            AND (
+              (SELECT COUNT(*) FROM plans AS selected
+                WHERE selected.group_id = plan.group_id
+                  AND selected.requested_by_id = plan.requested_by_id) <>
+                (SELECT COUNT(*) FROM ois_data_requests AS sibling
+                  WHERE sibling.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+                    AND sibling.requested_by_id = plan.requested_by_id
+                    AND length(sibling.id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("sibling.id")}
+                    AND substr(sibling.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) = plan.group_id
+                    AND sibling.status = 'pending'
+                    AND sibling.expires_at >= ?)
+              OR plan.expected_count <>
+                ((SELECT COUNT(*) FROM plans AS selected
+                    WHERE selected.group_id = plan.group_id
+                      AND selected.requested_by_id = plan.requested_by_id)
+                  + (SELECT COUNT(*) FROM ois_data_requests AS sibling
+                    WHERE sibling.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+                      AND sibling.requested_by_id = plan.requested_by_id
+                      AND length(sibling.id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("sibling.id")}
+                      AND substr(sibling.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) = plan.group_id
+                      AND sibling.status = 'processing'
+                      AND sibling.expires_at >= ?
+                      AND sibling.agent_id = ?))
+              OR EXISTS (
+                SELECT 1
+                FROM ois_data_requests AS sibling
+                WHERE sibling.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+                  AND sibling.requested_by_id = plan.requested_by_id
+                  AND length(sibling.id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("sibling.id")}
+                  AND substr(sibling.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) = plan.group_id
+                  AND sibling.status = 'processing'
+                  AND sibling.expires_at >= ?
+                  AND sibling.agent_id <> ?
+              )
+              OR NOT EXISTS (
+                SELECT 1
+                FROM ois_data_requests AS leader
+                WHERE leader.id = plan.group_id || '00'
+                  AND leader.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+                  AND leader.requested_by_id = plan.requested_by_id
+                  AND leader.status = 'processing'
+                  AND leader.expires_at >= ?
+                  AND leader.agent_id = ?
+              )
+            )
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM ois_data_requests AS restart_guard
+            WHERE restart_guard.request_type = 'cofiring_restart_guard'
+              AND restart_guard.status = 'guard'
+              AND restart_guard.agent_id = ?
+              AND restart_guard.expires_at > ?
+          )
+        LIMIT 1
+      )
+
+      INSERT INTO blower_runtime_probe_intents_v4 (
+        request_id,
+        reuse_key,
+        schema_version,
+        asset_tag,
+        dataparc_tag,
+        window_start,
+        window_end,
+        chunk_days,
+        chunk_count,
+        expected_last_replacement_at,
+        expected_cycle_start_state,
+        expected_cycle_started_at,
+        expected_cycle_start_revision,
+        expected_cycle_runtime_revision,
+        created_at,
+        updated_at
+      )
+      SELECT
+        'claim-cas-' || lower(hex(randomblob(16))),
+        NULL,
+        ${BLOWER_RUNTIME_PROBE_SCHEMA_VERSION},
+        'claim-cas',
+        NULL,
+        '',
+        '',
+        ${BLOWER_RUNTIME_PROBE_CHUNK_DAYS},
+        0,
+        '',
+        '',
+        '',
+        '',
+        '',
+        ?,
+        ?
+      FROM invalid_plan
+    `)
+    .bind(
+      plans,
+      pollingNow,
+      pollingNow,
+      pollingNow,
+      agentId,
+      pollingNow,
+      agentId,
+      pollingNow,
+      agentId,
+      agentId,
+      pollingNow,
+      pollingNow,
+      pollingNow
+    );
 }
 
 
@@ -9006,13 +9630,51 @@ async function claimBlowerRuntimeProbeBatchRound(
     );
 
 
-  const updateResults =
-    await database.batch(
-      candidates.map(
-        candidate => {
-          return candidate.statement;
-        }
+  let batchResults;
+
+
+  try {
+    batchResults =
+      await database.batch([
+        prepareBlowerRuntimeProbeBatchClaimGuard(
+          database,
+          candidates,
+          agentId,
+          processingStartedAtText
+        ),
+        ...candidates.map(
+          candidate => {
+            return candidate.statement;
+          }
+        )
+      ]);
+
+  } catch (
+    error
+  ) {
+    if (
+      /NOT NULL constraint failed:\s*blower_runtime_probe_intents_v4\.dataparc_tag/i.test(
+        String(
+          error?.message ||
+          error
+        )
       )
+    ) {
+      return {
+        items: [],
+        lostCompetition:
+          true
+      };
+    }
+
+
+    throw error;
+  }
+
+
+  const updateResults =
+    batchResults.slice(
+      1
     );
 
 
@@ -9075,6 +9737,324 @@ async function claimBlowerRuntimeProbeBatchRound(
 }
 
 
+async function findBlowerRuntimeProbeAgentPrimaryContext(
+  database,
+  pollingNow,
+  agentId
+) {
+  const queryResult =
+    await database
+      .prepare(`
+        SELECT
+          id,
+          requested_by_id,
+          requested_at,
+          started_at,
+          updated_at
+        FROM ois_data_requests
+        WHERE request_type = ?
+          AND status = 'processing'
+          AND agent_id = ?
+          AND expires_at >= ?
+          AND (
+            substr(id, 1, 5) <> 'brb1_'
+            OR (
+              length(id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("id")}
+              AND substr(id, 46, 2) = '00'
+            )
+          )
+        ORDER BY started_at DESC, id ASC
+        LIMIT 2
+      `)
+      .bind(
+        BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+        agentId,
+        pollingNow
+      )
+      .all();
+
+
+  const rows =
+    Array.isArray(
+      queryResult?.results
+    )
+      ? queryResult.results
+      : [];
+
+
+  if (
+    rows.length <
+      1
+  ) {
+    return {
+      ambiguous:
+        false,
+      row:
+        null,
+      groupMetadata:
+        null
+    };
+  }
+
+
+  const newestStartedAt =
+    normalizeText(
+      rows[0].started_at
+    );
+
+
+  if (
+    rows.length >
+      1 &&
+    normalizeText(
+      rows[1].started_at
+    ) ===
+      newestStartedAt
+  ) {
+    return {
+      ambiguous:
+        true,
+      row:
+        null,
+      groupMetadata:
+        null
+    };
+  }
+
+
+  const groupMetadata =
+    parseBlowerRuntimeProbeCreateGroupRequestId(
+      rows[0].id
+    );
+
+
+  if (
+    normalizeText(
+      rows[0].id
+    ).startsWith(
+      "brb1_"
+    ) &&
+    !groupMetadata
+  ) {
+    return {
+      ambiguous:
+        true,
+      row:
+        null,
+      groupMetadata:
+        null
+    };
+  }
+
+
+  return {
+    ambiguous:
+      false,
+    row:
+      rows[0],
+    groupMetadata
+  };
+}
+
+
+async function findReplayableBlowerRuntimeProbeBatch(
+  database,
+  pollingNow,
+  limit,
+  agentId,
+  primaryContext
+) {
+  const primaryGroupId =
+    primaryContext?.groupMetadata?.groupId ||
+    "";
+
+
+  const requestedById =
+    normalizeText(
+      primaryContext?.row?.requested_by_id
+    );
+
+
+  if (
+    !primaryGroupId ||
+    !requestedById
+  ) {
+    return [];
+  }
+
+
+  const queryResult =
+    await database
+      .prepare(`
+        WITH grouped_requests AS (
+          SELECT
+            request.*,
+            substr(request.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) AS probe_create_group_id,
+            CAST(substr(request.id, 43, 2) AS INTEGER) AS probe_create_group_count,
+            CAST(substr(request.id, 46, 2) AS INTEGER) AS probe_create_group_index
+          FROM ois_data_requests AS request
+          WHERE request.request_type = ?
+            AND length(request.id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("request.id")}
+        ),
+
+        replay_group AS (
+          SELECT
+            grouped.probe_create_group_id,
+            grouped.requested_by_id,
+            grouped.probe_create_group_count,
+            MIN(grouped.requested_at) AS first_requested_at
+          FROM grouped_requests AS grouped
+          WHERE grouped.probe_create_group_id = ?
+            AND grouped.requested_by_id = ?
+          GROUP BY
+            grouped.probe_create_group_id,
+            grouped.requested_by_id,
+            grouped.probe_create_group_count
+          HAVING COUNT(*) = grouped.probe_create_group_count
+            AND grouped.probe_create_group_count - 1 <= ?
+            AND SUM(
+              CASE
+                WHEN grouped.status = 'processing'
+                  AND grouped.expires_at >= ?
+                  AND grouped.agent_id = ?
+                  THEN 1
+                ELSE 0
+              END
+            ) = grouped.probe_create_group_count
+            AND SUM(
+              CASE
+                WHEN grouped.id = grouped.probe_create_group_id || '00'
+                  THEN 1
+                ELSE 0
+              END
+            ) = 1
+          ORDER BY first_requested_at ASC, grouped.probe_create_group_id ASC
+          LIMIT 1
+        )
+
+        SELECT
+          request.*,
+          intent.request_id AS probe_request_id,
+          intent.schema_version AS probe_schema_version,
+          intent.asset_tag AS probe_asset_tag,
+          intent.dataparc_tag AS probe_dataparc_tag,
+          intent.window_start AS probe_window_start,
+          intent.window_end AS probe_window_end,
+          intent.chunk_days AS probe_chunk_days,
+          intent.chunk_count AS probe_chunk_count,
+          intent.expected_last_replacement_at AS probe_expected_last_replacement_at,
+          intent.expected_cycle_start_state AS probe_expected_cycle_start_state,
+          intent.expected_cycle_started_at AS probe_expected_cycle_started_at,
+          intent.expected_cycle_start_revision AS probe_expected_cycle_start_revision,
+          intent.expected_cycle_runtime_revision AS probe_expected_cycle_runtime_revision
+        FROM grouped_requests AS request
+        INNER JOIN replay_group
+          ON replay_group.probe_create_group_id = request.probe_create_group_id
+          AND replay_group.requested_by_id = request.requested_by_id
+        INNER JOIN blower_runtime_probe_intents_v4 AS intent
+          ON intent.request_id = request.id
+        ORDER BY request.probe_create_group_index ASC
+      `)
+      .bind(
+        BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+        primaryGroupId,
+        requestedById,
+        limit,
+        pollingNow,
+        agentId
+      )
+      .all();
+
+
+  const rows =
+    Array.isArray(
+      queryResult?.results
+    )
+      ? queryResult.results
+      : [];
+
+
+  if (
+    rows.length <
+      2
+  ) {
+    return [];
+  }
+
+
+  const groupMetadata =
+    parseBlowerRuntimeProbeCreateGroupRequestId(
+      rows[0]?.id
+    );
+
+
+  if (
+    !groupMetadata ||
+    groupMetadata.groupId !==
+      primaryGroupId ||
+    rows.length !==
+      groupMetadata.expectedCount
+  ) {
+    return [];
+  }
+
+
+  const items = [];
+
+
+  for (
+    const row of
+      rows
+  ) {
+    const rowGroup =
+      parseBlowerRuntimeProbeCreateGroupRequestId(
+        row.id
+      );
+
+
+    const requestItem =
+      convertRequestRow(
+        row
+      );
+
+
+    const probe =
+      convertJoinedBlowerRuntimeProbeIntentRow(
+        row
+      );
+
+
+    if (
+      rowGroup?.groupId !==
+        groupMetadata.groupId ||
+      !isValidBlowerRuntimeProbeIntentIdentity(
+        probe,
+        requestItem.id,
+        requestItem.targetDate
+      )
+    ) {
+      return [];
+    }
+
+
+    if (
+      rowGroup.itemIndex >
+        0
+    ) {
+      items.push({
+        ...requestItem,
+        probe
+      });
+    }
+  }
+
+
+  return items;
+}
+
+
 async function handleAgentNextBlowerRuntimeProbeBatch(
   context,
   requestUrl
@@ -9123,6 +10103,61 @@ async function handleAgentNextBlowerRuntimeProbeBatch(
   );
 
 
+  const pollingNow =
+    new Date()
+      .toISOString();
+
+
+  const primaryContext =
+    await findBlowerRuntimeProbeAgentPrimaryContext(
+      context.env.DB,
+      pollingNow,
+      authentication.agentId
+    );
+
+
+  if (
+    primaryContext.ambiguous
+  ) {
+    return jsonResponse(
+      {
+        ok:
+          false,
+        code:
+          "BLOWER_RUNTIME_PROBE_PRIMARY_AMBIGUOUS",
+        message:
+          "Agent의 현재 Blower 기준 요청을 하나로 확정할 수 없어 단건 조회를 차단했습니다."
+      },
+      409
+    );
+  }
+
+
+  const replayItems =
+    await findReplayableBlowerRuntimeProbeBatch(
+      context.env.DB,
+      pollingNow,
+      parsedLimit.limit,
+      authentication.agentId,
+      primaryContext
+    );
+
+
+  if (
+    replayItems.length >
+      0
+  ) {
+    return jsonResponse({
+      ok:
+        true,
+      replayed:
+        true,
+      items:
+        replayItems
+    });
+  }
+
+
   const claimedItems = [];
 
 
@@ -9151,7 +10186,11 @@ async function handleAgentNextBlowerRuntimeProbeBatch(
         context.env.DB,
         new Date().toISOString(),
         remainingLimit,
-        authentication.agentId
+        authentication.agentId,
+        primaryContext
+          .groupMetadata
+          ?.groupId ||
+          ""
       );
 
 
@@ -9181,6 +10220,94 @@ async function handleAgentNextBlowerRuntimeProbeBatch(
     ) {
       break;
     }
+  }
+
+
+  const expectedGroupedAdditionalCount =
+    primaryContext
+      .groupMetadata
+      ? primaryContext
+          .groupMetadata
+          .expectedCount -
+        1
+      : null;
+
+
+  if (
+    expectedGroupedAdditionalCount !==
+      null &&
+    expectedGroupedAdditionalCount >
+      0 &&
+    claimedItems.length !==
+      expectedGroupedAdditionalCount
+  ) {
+    /*
+      A durable browser create group must never fall through to the Agent's
+      single-probe path. Recheck once for a concurrent same-Agent claim whose
+      HTTP response may have been lost; otherwise retire every still-active
+      member and return a non-compatibility status so the existing Agent stops.
+    */
+    const lateReplayItems =
+      await findReplayableBlowerRuntimeProbeBatch(
+        context.env.DB,
+        new Date()
+          .toISOString(),
+        parsedLimit.limit,
+        authentication.agentId,
+        primaryContext
+      );
+
+
+    if (
+      lateReplayItems.length ===
+        expectedGroupedAdditionalCount
+    ) {
+      return jsonResponse({
+        ok:
+          true,
+        replayed:
+          true,
+        items:
+          lateReplayItems
+      });
+    }
+
+
+    const failedAt =
+      new Date()
+        .toISOString();
+
+
+    const errorMessage =
+      "Blower 원자적 요청 묶음 상태가 변경되어 단건 조회를 차단했습니다.";
+
+
+    await failActiveBlowerRuntimeProbeCreateGroup(
+      context.env.DB,
+      {
+        requestId:
+          primaryContext.row.id,
+        groupMetadata:
+          primaryContext.groupMetadata,
+        agentId:
+          authentication.agentId,
+        errorMessage,
+        failedAt
+      }
+    );
+
+
+    return jsonResponse(
+      {
+        ok:
+          false,
+        code:
+          "BLOWER_RUNTIME_PROBE_GROUP_CONFLICT",
+        message:
+          errorMessage
+      },
+      409
+    );
   }
 
 
@@ -9397,6 +10524,11 @@ async function handleAgentNextRequest(
             ) >
               0
 
+            AND (
+              request_type <> '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+              OR substr(id, 1, 5) <> 'brb1_'
+            )
+
           ORDER BY
             instr(
               ?,
@@ -9481,6 +10613,10 @@ async function handleAgentNextRequest(
           WHERE
             id = ?
             AND status = 'pending'
+            AND (
+              request_type <> '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+              OR substr(id, 1, 5) <> 'brb1_'
+            )
             AND NOT EXISTS (SELECT 1 FROM ois_data_requests AS restart_guard
               WHERE restart_guard.request_type='cofiring_restart_guard' AND restart_guard.status='guard'
                 AND restart_guard.agent_id=? AND restart_guard.expires_at>?)
@@ -9787,13 +10923,24 @@ async function findNextOisAgentLaneCandidates(
               ) >
                 0
 
+              AND (
+                request.request_type <> '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+                OR substr(request.id, 1, 5) <> 'brb1_'
+                OR (
+                  length(request.id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("request.id")}
+                  AND substr(request.id, 46, 2) = '00'
+                )
+              )
+
             ORDER BY
               instr(
                 ?,
                 ',' || request.request_type || ','
               ) ASC,
 
-              request.requested_at ASC
+              request.requested_at ASC,
+              request.id ASC
 
             LIMIT 1
           )
@@ -9861,6 +11008,115 @@ async function findNextOisAgentLaneCandidates(
 }
 
 
+async function failInvalidBlowerRuntimeProbeClaimCandidate(
+  database,
+  pendingRow,
+  groupMetadata,
+  agentId,
+  failedAt
+) {
+  const requestId =
+    normalizeText(
+      pendingRow?.id
+    );
+
+
+  const requestedById =
+    normalizeText(
+      pendingRow?.requested_by_id
+    );
+
+
+  const groupId =
+    groupMetadata?.groupId ||
+    "";
+
+
+  const errorMessage =
+    "DataPARC Blower 요청 의도가 없거나 요청 스냅샷과 일치하지 않습니다.";
+
+
+  const results =
+    await database.batch([
+      database
+        .prepare(`
+          UPDATE ois_data_requests
+          SET
+            status = 'failed',
+            completed_at = ?,
+            agent_id = ?,
+            error_message = ?,
+            updated_at = ?
+          WHERE request_type = ?
+            AND status = 'pending'
+            AND (
+              (? = '' AND id = ?)
+              OR (
+                ? <> ''
+                AND requested_by_id = ?
+                AND length(id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("id")}
+                AND substr(id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) = ?
+                AND NOT EXISTS (
+                  SELECT 1
+                  FROM ois_data_requests AS active_sibling
+                  WHERE active_sibling.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+                    AND active_sibling.requested_by_id = ?
+                    AND length(active_sibling.id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("active_sibling.id")}
+                    AND substr(active_sibling.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) = ?
+                    AND active_sibling.status = 'processing'
+                    AND active_sibling.expires_at >= ?
+                )
+              )
+            )
+        `)
+        .bind(
+          failedAt,
+          agentId,
+          errorMessage,
+          failedAt,
+          BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+          groupId,
+          requestId,
+          groupId,
+          requestedById,
+          groupId,
+          requestedById,
+          groupId,
+          failedAt
+        ),
+      database
+        .prepare(`
+          UPDATE blower_runtime_probe_intents_v4
+          SET
+            reuse_key = NULL,
+            updated_at = ?
+          WHERE request_id IN (
+            SELECT id
+            FROM ois_data_requests
+            WHERE request_type = ?
+              AND status = 'failed'
+              AND error_message = ?
+              AND updated_at = ?
+          )
+        `)
+        .bind(
+          failedAt,
+          BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+          errorMessage,
+          failedAt
+        )
+    ]);
+
+
+  return Number(
+    results?.[0]?.meta?.changes
+  ) >
+    0;
+}
+
+
 async function claimOisAgentLaneCandidate(
   database,
   pendingRow,
@@ -9877,6 +11133,94 @@ async function claimOisAgentLaneCandidate(
     normalizeText(
       pendingRow.id
     );
+
+
+  const requestType =
+    normalizeText(
+      pendingRow.request_type
+    );
+
+
+  const reservedGroupNamespace =
+    requestId.startsWith(
+      "brb1_"
+    );
+
+
+  const groupMetadata =
+    parseBlowerRuntimeProbeCreateGroupRequestId(
+      requestId
+    );
+
+
+  let blowerProbe =
+    null;
+
+
+  if (
+    requestType ===
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+  ) {
+    if (
+      reservedGroupNamespace &&
+      (
+        !groupMetadata ||
+        groupMetadata.itemIndex !==
+          0
+      )
+    ) {
+      if (
+        !groupMetadata
+      ) {
+        await failInvalidBlowerRuntimeProbeClaimCandidate(
+          database,
+          pendingRow,
+          null,
+          agentId,
+          new Date()
+            .toISOString()
+        );
+      }
+
+
+      return null;
+    }
+
+
+    /* Read and validate the immutable intent before any queue mutation. */
+    blowerProbe =
+      await findBlowerRuntimeProbeIntent(
+        database,
+        requestId
+      );
+
+
+    const requestItem =
+      convertRequestRow(
+        pendingRow
+      );
+
+
+    if (
+      !isValidBlowerRuntimeProbeIntentIdentity(
+        blowerProbe,
+        requestItem.id,
+        requestItem.targetDate
+      )
+    ) {
+      await failInvalidBlowerRuntimeProbeClaimCandidate(
+        database,
+        pendingRow,
+        groupMetadata,
+        agentId,
+        new Date()
+          .toISOString()
+      );
+
+
+      return null;
+    }
+  }
 
 
   const processingStartedAt =
@@ -9901,6 +11245,73 @@ async function claimOisAgentLaneCandidate(
       .toISOString();
 
 
+  const blowerIntentClaimGuard =
+    requestType ===
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+      ? `AND EXISTS (
+          SELECT 1
+          FROM blower_runtime_probe_intents_v4 AS intent
+          WHERE intent.request_id = ois_data_requests.id
+            AND intent.schema_version = ?
+            AND intent.asset_tag = ?
+            AND intent.dataparc_tag = ?
+            AND intent.window_start = ?
+            AND intent.window_end = ?
+            AND intent.chunk_days = ?
+            AND intent.chunk_count = ?
+            AND intent.expected_last_replacement_at = ?
+            AND COALESCE(intent.expected_cycle_start_state, '') = ?
+            AND COALESCE(intent.expected_cycle_started_at, '') = ?
+            AND COALESCE(intent.expected_cycle_start_revision, '') = ?
+            AND COALESCE(intent.expected_cycle_runtime_revision, '') = ?
+        )`
+      : "";
+
+
+  const blowerIntentClaimBindings =
+    requestType ===
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+      ? [
+          blowerProbe.schemaVersion,
+          blowerProbe.assetTag,
+          blowerProbe.dataParcTag,
+          blowerProbe.startAt,
+          blowerProbe.endAt,
+          blowerProbe.chunkDays,
+          blowerProbe.chunkCount,
+          blowerProbe.expectedLastReplacementAt,
+          blowerProbe.expectedCycleStartState,
+          blowerProbe.expectedCycleStartedAt,
+          blowerProbe.expectedCycleStartRevision,
+          blowerProbe.expectedCycleRuntimeRevision
+        ]
+      : [];
+
+
+  const blowerExistingPrimaryGuard =
+    requestType ===
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+      ? `AND NOT EXISTS (
+          SELECT 1
+          FROM ois_data_requests AS active_agent_primary
+          WHERE active_agent_primary.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+            AND active_agent_primary.status = 'processing'
+            AND active_agent_primary.agent_id = ?
+            AND active_agent_primary.expires_at >= ?
+        )`
+      : "";
+
+
+  const blowerExistingPrimaryBindings =
+    requestType ===
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+      ? [
+          agentId,
+          processingStartedAtText
+        ]
+      : [];
+
+
   /*
     다른 에이전트와 동시에 실행되더라도
     status='pending' 조건부 UPDATE에 성공한 한 곳만
@@ -9923,6 +11334,37 @@ async function claimOisAgentLaneCandidate(
           AND request_type = ?
           AND status = 'pending'
           AND expires_at >= ?
+          AND (
+            ? = ''
+            OR (
+              id = ? || '00'
+              AND requested_by_id = ?
+              AND ? = (
+                SELECT COUNT(*)
+                FROM ois_data_requests AS group_pending
+                WHERE group_pending.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+                  AND group_pending.requested_by_id = ?
+                  AND length(group_pending.id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("group_pending.id")}
+                  AND substr(group_pending.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) = ?
+                  AND group_pending.status = 'pending'
+                  AND group_pending.expires_at >= ?
+              )
+              AND NOT EXISTS (
+                SELECT 1
+                FROM ois_data_requests AS group_processing
+                WHERE group_processing.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+                  AND group_processing.requested_by_id = ?
+                  AND length(group_processing.id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("group_processing.id")}
+                  AND substr(group_processing.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) = ?
+                  AND group_processing.status = 'processing'
+                  AND group_processing.expires_at >= ?
+              )
+            )
+          )
+          ${blowerExistingPrimaryGuard}
+          ${blowerIntentClaimGuard}
           AND NOT EXISTS (SELECT 1 FROM ois_data_requests AS restart_guard
             WHERE restart_guard.request_type='cofiring_restart_guard' AND restart_guard.status='guard'
               AND restart_guard.agent_id=? AND restart_guard.expires_at>?)
@@ -9933,10 +11375,31 @@ async function claimOisAgentLaneCandidate(
         processingExpiresAtText,
         processingStartedAtText,
         requestId,
-        normalizeText(
-          pendingRow.request_type
-        ),
+        requestType,
         processingStartedAtText,
+        groupMetadata?.groupId ||
+          "",
+        groupMetadata?.groupId ||
+          "",
+        normalizeText(
+          pendingRow.requested_by_id
+        ),
+        groupMetadata?.expectedCount ||
+          1,
+        normalizeText(
+          pendingRow.requested_by_id
+        ),
+        groupMetadata?.groupId ||
+          "",
+        processingStartedAtText,
+        normalizeText(
+          pendingRow.requested_by_id
+        ),
+        groupMetadata?.groupId ||
+          "",
+        processingStartedAtText,
+        ...blowerExistingPrimaryBindings,
+        ...blowerIntentClaimBindings,
         agentId,
         processingStartedAtText
       )
@@ -9960,8 +11423,7 @@ async function claimOisAgentLaneCandidate(
     응답하지 못하는 고아 처리 상태를 줄이기 위해,
     방금 선택한 행에 처리 정보를 반영해 즉시 반환한다.
   */
-  return await attachBlowerRuntimeProbeIntent(
-    database,
+  const claimedRequest =
     convertRequestRow({
       ...pendingRow,
 
@@ -9979,8 +11441,17 @@ async function claimOisAgentLaneCandidate(
 
       updated_at:
         processingStartedAtText
-    })
-  );
+    });
+
+
+  return requestType ===
+    BLOWER_RUNTIME_PROBE_REQUEST_TYPE
+    ? {
+        ...claimedRequest,
+        probe:
+          blowerProbe
+      }
+    : claimedRequest;
 }
 
 
@@ -14367,33 +15838,46 @@ function blowerRuntimeProbeCreateResponse(
   status = 200
 ) {
   return jsonResponse(
-    {
-      ok:
-        true,
-      reused:
-        disposition !==
-          "created",
-      disposition,
+    blowerRuntimeProbeCreatePayload(
       item,
-      message:
-        disposition ===
-          "created"
-          ? "선택한 기준시각 이후 Blower DataPARC read-only 조회를 요청했습니다."
-          : disposition ===
-              "reused_complete"
-            ? "같은 Blower Cycle·Revision의 완료된 DataPARC 조회를 재사용합니다."
-            : "진행 중인 Blower DataPARC 조회를 이어서 확인합니다."
-    },
+      disposition
+    ),
     status
   );
 }
 
 
+function blowerRuntimeProbeCreatePayload(
+  item,
+  disposition
+) {
+  return {
+    ok:
+      true,
+    reused:
+      disposition !==
+        "created",
+    disposition,
+    item,
+    message:
+      disposition ===
+        "created"
+        ? "선택한 기준시각 이후 Blower DataPARC read-only 조회를 요청했습니다."
+        : disposition ===
+            "reused_complete"
+          ? "같은 Blower Cycle·Revision의 완료된 DataPARC 조회를 재사용합니다."
+          : "진행 중인 Blower DataPARC 조회를 이어서 확인합니다."
+  };
+}
+
+
 async function createBlowerRuntimeProbeRequest(
   context,
-  body
+  body,
+  internalOptions = {}
 ) {
   const authentication =
+    internalOptions.authentication ||
     await getAuthenticatedUser(
       context
     );
@@ -14423,18 +15907,27 @@ async function createBlowerRuntimeProbeRequest(
     );
 
 
-  await ensureBlowerRuntimeProbeSchema(
-    database
-  );
+  if (
+    internalOptions.prepareOnly !==
+      true &&
+    internalOptions.preflightDone !==
+      true
+  ) {
+    await ensureBlowerRuntimeProbeSchema(
+      database
+    );
 
 
-  await expireOldRequests(
-    database
-  );
+    await expireOldRequests(
+      database
+    );
+  }
 
 
   const asset =
-    await database
+    internalOptions.assetsByTag instanceof Map
+      ? internalOptions.assetsByTag.get(assetTag) || null
+      : await database
       .prepare(`
         SELECT *
         FROM blower_history_assets
@@ -14497,6 +15990,15 @@ async function createBlowerRuntimeProbeRequest(
     normalizeText(
       asset.cycle_runtime_revision
     );
+
+
+  const assetSnapshot = {
+    lastReplacementAt: expectedLastReplacementAt,
+    cycleStartState: expectedCycleStartState,
+    cycleStartedAt: expectedCycleStartedAt,
+    cycleStartRevision: expectedCycleStartRevision,
+    cycleRuntimeRevision: expectedCycleRuntimeRevision
+  };
 
 
   const fbheSealBinaryRun =
@@ -14602,7 +16104,9 @@ async function createBlowerRuntimeProbeRequest(
 
 
   const now =
-    new Date();
+    internalOptions.now instanceof Date
+      ? internalOptions.now
+      : new Date();
 
 
   const endAt =
@@ -14633,7 +16137,9 @@ async function createBlowerRuntimeProbeRequest(
   if (body.incrementalRefresh === true) {
     if (body.unifiedRefresh !== true) return jsonResponse({ ok: false, code: "BLOWER_INCREMENTAL_MODE_INVALID",
       message: "증분 조회는 상단 최신화에서만 실행할 수 있습니다." }, 400);
-    appendBase = await loadAppendBase(database, asset, dataParcTag);
+    appendBase = internalOptions.appendBasesByTag instanceof Map
+      ? internalOptions.appendBasesByTag.get(assetTag) || null
+      : await loadAppendBase(database, asset, dataParcTag);
     if (body.requireIncrementalAppend === true && !appendBase) {
       return jsonResponse({ ok: false, code: "BLOWER_INCREMENTAL_BASE_REQUIRED",
         message: "기존 조회값 보호를 위해 전체 재조회로 전환하지 않았습니다. 증분 이어조회 기준을 확인해 주세요." }, 409);
@@ -14641,10 +16147,28 @@ async function createBlowerRuntimeProbeRequest(
     if (appendBase) {
       requestedStartText = appendBase.observedAt;
       if (Date.parse(requestedStartText) >= parsedEndAt.timestamp) {
+        if (internalOptions.prepareOnly === true) return {
+          preparedBlowerRuntimeProbe: true,
+          kind: "already_current",
+          assetTag,
+          dataParcTag,
+          requestedById,
+          assetSnapshot,
+          appendBase,
+          payload: { ok: true, upToDate: true, disposition: "already_current",
+            message: "새 조회 구간 없음 · 마지막 성공값 유지" }
+        };
         return jsonResponse({ ok: true, upToDate: true, disposition: "already_current",
           message: "새 조회 구간 없음 · 마지막 성공값 유지" });
       }
-      await ensureAppendSchema(database);
+      if (
+        internalOptions.prepareOnly !==
+          true &&
+        internalOptions.appendSchemaReady !==
+          true
+      ) {
+        await ensureAppendSchema(database);
+      }
     }
   }
 
@@ -14805,60 +16329,11 @@ async function createBlowerRuntimeProbeRequest(
     );
 
 
-  const activeRequest =
-    await findActiveBlowerRuntimeProbeRequest(
-      database,
-      reuseKey,
-      requestedById,
-      assetTag
-    );
-
-
-  if (
-    activeRequest &&
-    isFreshBlowerRuntimeProbeWindow(
-      activeRequest,
-      now
-    )
-  ) {
-    return blowerRuntimeProbeCreateResponse(
-      activeRequest,
-      "reused_active"
-    );
-  }
-
-
-  await retireStaleActiveBlowerRuntimeProbeRequests(
-    database,
-    reuseKey,
-    activeRequest?.id ||
-      "",
-    requestedById,
-    now.toISOString(),
-    assetTag
-  );
-
-
-  const completeRequest =
-    await findCompleteBlowerRuntimeProbeRequest(
-      database,
-      reuseKey,
-      requestedById,
-      assetTag
-    );
-
-
-  if (
-    isFreshCompleteBlowerRuntimeProbeRequest(
-      completeRequest,
-      now
-    )
-  ) {
-    return blowerRuntimeProbeCreateResponse(
-      completeRequest,
-      "reused_complete"
-    );
-  }
+  if (internalOptions.lookupOnly === true) return {
+    preparedBlowerRuntimeProbeLookup: true,
+    assetTag,
+    reuseKey
+  };
 
 
   const requestedAt =
@@ -14876,16 +16351,181 @@ async function createBlowerRuntimeProbeRequest(
       .toISOString();
 
 
-  const requestId =
-    crypto.randomUUID();
-
-
   const targetDate =
     buildBlowerRuntimeProbeTargetDate(
       startAt,
       endAt,
       assetTag
     );
+
+
+  const activeRequest =
+    internalOptions.requestsByReuseKey instanceof Map
+      ? (() => {
+          const item = internalOptions.requestsByReuseKey.get(reuseKey);
+          return ["pending", "processing"].includes(item?.status) ? item : null;
+        })()
+      : await findActiveBlowerRuntimeProbeRequest(
+          database,
+          reuseKey,
+          requestedById,
+          assetTag
+        );
+
+
+  if (
+    activeRequest &&
+    isFreshBlowerRuntimeProbeWindow(
+      activeRequest,
+      now
+    )
+  ) {
+    if (internalOptions.prepareOnly === true) return {
+      preparedBlowerRuntimeProbe: true,
+      kind: "reused_active",
+      assetTag,
+      dataParcTag,
+      requestedById,
+      reuseKey,
+      assetSnapshot,
+      requestedByName:
+        authentication.user.name,
+      requestedAt,
+      expiresAt,
+      targetDate,
+      startAt,
+      endAt,
+      chunkCount:
+        chunks.length,
+      expectedLastReplacementAt,
+      probeExpectedCycleStartState,
+      probeExpectedCycleStartedAt,
+      probeExpectedCycleStartRevision,
+      probeExpectedCycleRuntimeRevision:
+        appendBase
+          ? `append-v1:${expectedCycleRuntimeRevision}`
+          : expectedCycleRuntimeRevision,
+      appendBase,
+      item: activeRequest
+    };
+    return blowerRuntimeProbeCreateResponse(
+      activeRequest,
+      "reused_active"
+    );
+  }
+
+
+  if (
+    internalOptions.prepareOnly !==
+      true
+  ) {
+    await retireStaleActiveBlowerRuntimeProbeRequests(
+      database,
+      reuseKey,
+      activeRequest?.id ||
+        "",
+      requestedById,
+      now.toISOString(),
+      assetTag
+    );
+  }
+
+
+  const completeRequest =
+    internalOptions.requestsByReuseKey instanceof Map
+      ? (() => {
+          const item = internalOptions.requestsByReuseKey.get(reuseKey);
+          return item?.status === "complete" ? item : null;
+        })()
+      : await findCompleteBlowerRuntimeProbeRequest(
+          database,
+          reuseKey,
+          requestedById,
+          assetTag
+        );
+
+
+  if (
+    isFreshCompleteBlowerRuntimeProbeRequest(
+      completeRequest,
+      now
+    )
+  ) {
+    if (
+      internalOptions.prepareOnly ===
+        true
+    ) {
+      return {
+        preparedBlowerRuntimeProbe: true,
+        kind: "reused_complete",
+        assetTag,
+        requestedById,
+        reuseKey,
+        assetSnapshot,
+        staleRequestId:
+          activeRequest?.id ||
+          "",
+        hasStaleActiveRequest:
+          internalOptions.requestsByReuseKey?.activeAssetTags instanceof Set &&
+          internalOptions.requestsByReuseKey.activeAssetTags.has(
+            assetTag
+          ),
+        item:
+          completeRequest
+      };
+    }
+
+
+    return blowerRuntimeProbeCreateResponse(
+      completeRequest,
+      "reused_complete"
+    );
+  }
+
+
+  const requestId =
+    crypto.randomUUID();
+
+
+  if (
+    internalOptions.prepareOnly ===
+      true
+  ) {
+    return {
+      preparedBlowerRuntimeProbe: true,
+      kind: "created",
+      assetTag,
+      dataParcTag,
+      requestedById,
+      requestedByName:
+        authentication.user.name,
+      reuseKey,
+      assetSnapshot,
+      staleRequestId:
+        activeRequest?.id ||
+        "",
+      completeRequestId:
+        completeRequest?.id ||
+        "",
+      requestedAt,
+      expiresAt,
+      requestId,
+      targetDate,
+      startAt,
+      endAt,
+      chunkCount:
+        chunks.length,
+      expectedLastReplacementAt,
+      probeExpectedCycleStartState,
+      probeExpectedCycleStartedAt,
+      probeExpectedCycleStartRevision,
+      probeExpectedCycleRuntimeRevision:
+        appendBase
+          ? `append-v1:${expectedCycleRuntimeRevision}`
+          : expectedCycleRuntimeRevision,
+      appendBase
+    };
+  }
 
 
   await database
@@ -15073,6 +16713,719 @@ async function createBlowerRuntimeProbeRequest(
     "created",
     201
   );
+}
+
+
+/* =========================================================
+  Blower Latest atomic create batch
+
+  The Agent polls once per second. All per-asset intents are validated before
+  one D1 transaction makes any new queue row visible, so one Latest click
+  cannot be split across several hidden-Excel startups during request create.
+========================================================= */
+const MAXIMUM_BLOWER_RUNTIME_CREATE_BATCH_ITEMS = MAXIMUM_STATUS_BATCH_IDS;
+const MAXIMUM_BLOWER_RUNTIME_CREATE_BATCH_BYTES = 64 * 1024;
+
+function blowerRuntimeProbePreparedRequestItem(prepared) {
+  return {
+    id: prepared.requestId,
+    requestType: BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+    targetDate: prepared.targetDate,
+    status: "pending",
+    requestedById: prepared.requestedById,
+    requestedByName: prepared.requestedByName,
+    requestedAt: prepared.requestedAt,
+    startedAt: "",
+    completedAt: "",
+    agentId: "",
+    result: null,
+    errorMessage: "",
+    expiresAt: prepared.expiresAt,
+    updatedAt: prepared.requestedAt,
+    probe: {
+      requestId: prepared.requestId,
+      schemaVersion: BLOWER_RUNTIME_PROBE_SCHEMA_VERSION,
+      requestType: BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+      assetTag: prepared.assetTag,
+      dataParcTag: prepared.dataParcTag,
+      startAt: prepared.startAt,
+      endAt: prepared.endAt,
+      chunkDays: BLOWER_RUNTIME_PROBE_CHUNK_DAYS,
+      chunkCount: prepared.chunkCount,
+      expectedLastReplacementAt: prepared.expectedLastReplacementAt,
+      expectedCycleStartState: prepared.probeExpectedCycleStartState,
+      expectedCycleStartedAt: prepared.probeExpectedCycleStartedAt,
+      expectedCycleStartRevision: prepared.probeExpectedCycleStartRevision,
+      expectedCycleRuntimeRevision: prepared.probeExpectedCycleRuntimeRevision,
+      readOnly: true
+    }
+  };
+}
+
+async function loadBlowerRuntimeProbeBatchPreparation(database, mappings) {
+  const assetTags = [...new Set(mappings.filter(item => !item.error).map(item => item.assetTag))];
+  const tagsJson = JSON.stringify(assetTags);
+  const assetsResult = await database.prepare(`SELECT * FROM blower_history_assets
+    WHERE tag_number IN (SELECT value FROM json_each(?))`).bind(tagsJson).all();
+  const assetsByTag = new Map((assetsResult.results || []).map(asset => [normalizeText(asset.tag_number), asset]));
+  const eventsResult = await database.prepare(`SELECT event.* FROM blower_history_events AS event
+    INNER JOIN blower_history_assets AS asset ON asset.tag_number=event.tag_number
+    WHERE event.tag_number IN (SELECT value FROM json_each(?))
+      AND event.event_type IN ('runtime_correction','startup','operation_start','operation_stop')
+      AND datetime(event.event_date)>=datetime(asset.last_replacement_at)
+    ORDER BY event.event_date DESC,event.updated_at DESC,event.created_at DESC,event.id DESC`)
+    .bind(tagsJson).all();
+  const eventsByTag = new Map();
+  for (const event of eventsResult.results || []) {
+    const tag = normalizeText(event.tag_number);
+    if (!eventsByTag.has(tag)) eventsByTag.set(tag, []);
+    eventsByTag.get(tag).push(event);
+  }
+  const appendBasesByTag = new Map();
+  for (const mapping of mappings) {
+    if (mapping.error || appendBasesByTag.has(mapping.assetTag)) continue;
+    appendBasesByTag.set(mapping.assetTag, verifiedAppendBase(
+      assetsByTag.get(mapping.assetTag), eventsByTag.get(mapping.assetTag) || [], mapping.dataParcTag
+    ));
+  }
+  return {assetsByTag, appendBasesByTag};
+}
+
+async function loadBlowerRuntimeProbeBatchReuseRequests(
+  database,
+  reuseKeys,
+  requestedById,
+  assetTags = []
+) {
+  if (!reuseKeys.length && !assetTags.length) return new Map();
+  const requestedReuseKeys = new Set(reuseKeys);
+  const result = await database.prepare(`SELECT intent.*,request.*
+    FROM blower_runtime_probe_intents_v4 AS intent
+    INNER JOIN ois_data_requests AS request ON request.id=intent.request_id
+    WHERE (intent.reuse_key IN (SELECT value FROM json_each(?))
+      OR (intent.asset_tag IN (SELECT value FROM json_each(?))
+        AND request.status IN ('pending','processing')))
+      AND request.request_type=? AND request.requested_by_id=?
+      AND request.status IN ('pending','processing','complete')`)
+    .bind(JSON.stringify([...requestedReuseKeys]), JSON.stringify([...new Set(assetTags)]),
+      BLOWER_RUNTIME_PROBE_REQUEST_TYPE, requestedById).all();
+  const requestsByReuseKey = new Map();
+  const activeAssetTags = new Set();
+  const activeGroupIdsByAsset = new Map();
+  for (const row of result.results || []) {
+    const item = convertRequestRow(row);
+    const probe = convertBlowerRuntimeProbeIntentRow(row);
+    if (['pending','processing'].includes(item.status)) {
+      const activeAssetTag = normalizeText(row.asset_tag);
+      activeAssetTags.add(activeAssetTag);
+      const activeGroup = parseBlowerRuntimeProbeCreateGroupRequestId(item.id);
+      if (activeGroup) {
+        if (!activeGroupIdsByAsset.has(activeAssetTag)) {
+          activeGroupIdsByAsset.set(activeAssetTag, new Set());
+        }
+        activeGroupIdsByAsset.get(activeAssetTag).add(activeGroup.groupId);
+      }
+    }
+    const reuseKey = normalizeText(row.reuse_key);
+    if (!requestedReuseKeys.has(reuseKey)) continue;
+    requestsByReuseKey.set(reuseKey, {
+      ...item,
+      probe: isValidBlowerRuntimeProbeIntentIdentity(probe, item.id, item.targetDate) ? probe : null
+    });
+  }
+  requestsByReuseKey.activeAssetTags = activeAssetTags;
+  requestsByReuseKey.activeGroupIdsByAsset = activeGroupIdsByAsset;
+  return requestsByReuseKey;
+}
+
+function blowerRuntimeProbeBatchMutationStatements(database, preparedItems, requestedById, now) {
+  const prepared = preparedItems.filter(item => item?.preparedBlowerRuntimeProbe === true);
+  if (!prepared.length) return [];
+
+  const serializePlans = items => JSON.stringify(items.map(item => ({
+    assetTag: item.assetTag,
+    dataParcTag: item.dataParcTag || item.item?.probe?.dataParcTag || "",
+    reuseKey: item.reuseKey,
+    staleRequestId: item.staleRequestId || "",
+    staleGroupId:
+      parseBlowerRuntimeProbeCreateGroupRequestId(
+        item.staleRequestId
+      )?.groupId ||
+      "",
+    completeRequestId: item.kind === "created" ? item.completeRequestId || "" : "",
+    createNew: item.kind === "created" ? 1 : 0,
+    kind: item.kind,
+    queueGuardKind: item.reusedActiveGuard === true ? "reused_active" : item.kind,
+    itemId: item.item?.id || "",
+    lastReplacementAt: item.assetSnapshot.lastReplacementAt,
+    cycleStartState: item.assetSnapshot.cycleStartState,
+    cycleStartedAt: item.assetSnapshot.cycleStartedAt,
+    cycleStartRevision: item.assetSnapshot.cycleStartRevision,
+    cycleRuntimeRevision: item.assetSnapshot.cycleRuntimeRevision,
+    startAt: item.startAt || item.item?.probe?.startAt || "",
+    endAt: item.endAt || item.item?.probe?.endAt || "",
+    chunkCount: item.chunkCount || item.item?.probe?.chunkCount || 1,
+    probeCycleStartState: item.probeExpectedCycleStartState || item.item?.probe?.expectedCycleStartState || "legacy",
+    probeCycleStartedAt: item.probeExpectedCycleStartedAt || item.item?.probe?.expectedCycleStartedAt || "",
+    probeCycleStartRevision: item.probeExpectedCycleStartRevision || item.item?.probe?.expectedCycleStartRevision || "",
+    probeCycleRuntimeRevision: item.probeExpectedCycleRuntimeRevision || item.item?.probe?.expectedCycleRuntimeRevision || "",
+    requestedAt: item.requestedAt || item.item?.requestedAt || now
+  })));
+  const guardPlans = serializePlans(prepared);
+  const mutable = prepared.filter(item => ["created", "reused_complete"].includes(item.kind));
+  const plans = serializePlans(mutable);
+  const statements = [
+    // A mismatched row selects one deliberately invalid request_id. V4 declares
+    // it NOT NULL, so D1 aborts this entire batch before any retirement/insert.
+    database.prepare(`/* BLOWER_RUNTIME_BATCH_ASSET_CAS_V1 */
+      INSERT INTO blower_runtime_probe_intents_v4
+        (request_id,reuse_key,schema_version,asset_tag,dataparc_tag,window_start,window_end,chunk_days,chunk_count,
+         expected_last_replacement_at,expected_cycle_start_state,expected_cycle_started_at,expected_cycle_start_revision,
+         expected_cycle_runtime_revision,created_at,updated_at)
+      SELECT NULL,NULL,?,json_extract(plan.value,'$.assetTag'),json_extract(plan.value,'$.dataParcTag'),
+        json_extract(plan.value,'$.startAt'),json_extract(plan.value,'$.endAt'),?,
+        CAST(json_extract(plan.value,'$.chunkCount') AS INTEGER),json_extract(plan.value,'$.lastReplacementAt'),
+        json_extract(plan.value,'$.probeCycleStartState'),json_extract(plan.value,'$.probeCycleStartedAt'),
+        json_extract(plan.value,'$.probeCycleStartRevision'),json_extract(plan.value,'$.probeCycleRuntimeRevision'),
+        json_extract(plan.value,'$.requestedAt'),json_extract(plan.value,'$.requestedAt')
+      FROM json_each(?) AS plan
+      LEFT JOIN blower_history_assets AS asset ON asset.tag_number=json_extract(plan.value,'$.assetTag')
+      WHERE asset.tag_number IS NULL OR CAST(asset.enabled AS INTEGER)<>1
+        OR COALESCE(TRIM(asset.last_replacement_at),'')<>json_extract(plan.value,'$.lastReplacementAt')
+        OR COALESCE(NULLIF(TRIM(asset.cycle_start_state),''),'legacy')<>json_extract(plan.value,'$.cycleStartState')
+        OR COALESCE(TRIM(asset.cycle_started_at),'')<>json_extract(plan.value,'$.cycleStartedAt')
+        OR COALESCE(TRIM(asset.cycle_start_revision),'')<>json_extract(plan.value,'$.cycleStartRevision')
+        OR COALESCE(TRIM(asset.cycle_runtime_revision),'')<>json_extract(plan.value,'$.cycleRuntimeRevision')
+      LIMIT 1`).bind(BLOWER_RUNTIME_PROBE_SCHEMA_VERSION, BLOWER_RUNTIME_PROBE_CHUNK_DAYS, guardPlans)
+  ];
+  const guardedReuse = prepared.filter(item =>
+    ["reused_active", "reused_complete"].includes(item.kind) || item.reusedActiveGuard === true);
+  if (guardedReuse.length) statements.push(
+    database.prepare(`/* BLOWER_RUNTIME_BATCH_QUEUE_CAS_V1 */
+      INSERT INTO blower_runtime_probe_intents_v4
+        (request_id,reuse_key,schema_version,asset_tag,dataparc_tag,window_start,window_end,chunk_days,chunk_count,
+         expected_last_replacement_at,expected_cycle_start_state,expected_cycle_started_at,expected_cycle_start_revision,
+         expected_cycle_runtime_revision,created_at,updated_at)
+      SELECT 'queue-cas:'||json_extract(plan.value,'$.itemId'),NULL,?,NULL,
+        json_extract(plan.value,'$.dataParcTag'),json_extract(plan.value,'$.startAt'),json_extract(plan.value,'$.endAt'),?,
+        CAST(json_extract(plan.value,'$.chunkCount') AS INTEGER),json_extract(plan.value,'$.lastReplacementAt'),
+        json_extract(plan.value,'$.probeCycleStartState'),json_extract(plan.value,'$.probeCycleStartedAt'),
+        json_extract(plan.value,'$.probeCycleStartRevision'),json_extract(plan.value,'$.probeCycleRuntimeRevision'),
+        json_extract(plan.value,'$.requestedAt'),json_extract(plan.value,'$.requestedAt')
+      FROM json_each(?) AS plan
+      WHERE json_extract(plan.value,'$.queueGuardKind') IN ('reused_active','reused_complete')
+        AND NOT EXISTS (SELECT 1 FROM ois_data_requests AS request
+          INNER JOIN blower_runtime_probe_intents_v4 AS intent ON intent.request_id=request.id
+          WHERE request.id=json_extract(plan.value,'$.itemId') AND request.request_type=?
+            AND request.requested_by_id=? AND intent.asset_tag=json_extract(plan.value,'$.assetTag')
+            AND intent.reuse_key=json_extract(plan.value,'$.reuseKey')
+            AND ((json_extract(plan.value,'$.queueGuardKind')='reused_active' AND request.status IN ('pending','processing'))
+              OR (json_extract(plan.value,'$.queueGuardKind')='reused_complete' AND request.status='complete')))
+      LIMIT 1`).bind(BLOWER_RUNTIME_PROBE_SCHEMA_VERSION, BLOWER_RUNTIME_PROBE_CHUNK_DAYS, guardPlans,
+        BLOWER_RUNTIME_PROBE_REQUEST_TYPE, requestedById)
+  );
+  if (!mutable.length) return statements;
+  statements.push(
+      database.prepare(`/* BLOWER_RUNTIME_BATCH_RETIRE_GROUP_CAS_V1 */
+        WITH plans AS (
+          SELECT json_extract(value,'$.assetTag') asset_tag,
+                 json_extract(value,'$.reuseKey') reuse_key,
+                 json_extract(value,'$.staleRequestId') stale_request_id,
+                 CAST(json_extract(value,'$.createNew') AS INTEGER) create_new
+          FROM json_each(?)
+        ), initial_retire_ids AS (
+          SELECT intent.request_id
+          FROM blower_runtime_probe_intents_v4 AS intent
+          JOIN ois_data_requests AS request ON request.id=intent.request_id
+          JOIN plans ON plans.asset_tag=intent.asset_tag
+          WHERE request.request_type=? AND request.requested_by_id=?
+            AND (request.status IN ('pending','processing')
+              OR (request.status='complete' AND plans.create_new=1))
+            AND (COALESCE(intent.reuse_key,'')<>plans.reuse_key
+              OR intent.request_id=plans.stale_request_id)
+        ), retire_groups AS (
+          SELECT DISTINCT
+            substr(request.id,1,${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) group_id,
+            request.requested_by_id requested_by_id
+          FROM ois_data_requests AS request
+          WHERE request.id IN (SELECT request_id FROM initial_retire_ids)
+            AND length(request.id)=47
+                AND ${blowerRuntimeProbeCreateGroupSql("request.id")}
+        ), processing_conflicts AS (
+          SELECT 'request:' || request.id conflict_id
+          FROM ois_data_requests AS request
+          WHERE request.id IN (SELECT request_id FROM initial_retire_ids)
+            AND request.status='processing'
+          UNION
+          SELECT 'group:' || retire_group.group_id conflict_id
+          FROM retire_groups AS retire_group
+          WHERE EXISTS (SELECT 1 FROM ois_data_requests AS active_group
+              WHERE active_group.request_type=?
+                AND active_group.requested_by_id=retire_group.requested_by_id
+                AND length(active_group.id)=47
+                  AND ${blowerRuntimeProbeCreateGroupSql("active_group.id")}
+                AND substr(active_group.id,1,${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH})=
+                  retire_group.group_id
+                AND active_group.status='processing')
+        )
+        INSERT INTO blower_runtime_probe_intents_v4
+          (request_id,reuse_key,schema_version,asset_tag,dataparc_tag,window_start,window_end,chunk_days,chunk_count,
+           expected_last_replacement_at,expected_cycle_start_state,expected_cycle_started_at,expected_cycle_start_revision,
+           expected_cycle_runtime_revision,created_at,updated_at)
+        SELECT 'retire-group-cas:'||processing_conflict.conflict_id,NULL,?,NULL,
+          'retire-group-cas','','',?,1,'','legacy','','','',?,?
+        FROM processing_conflicts AS processing_conflict
+        LIMIT 1`)
+        .bind(plans, BLOWER_RUNTIME_PROBE_REQUEST_TYPE, requestedById,
+          BLOWER_RUNTIME_PROBE_REQUEST_TYPE,
+          BLOWER_RUNTIME_PROBE_SCHEMA_VERSION, BLOWER_RUNTIME_PROBE_CHUNK_DAYS,
+          now, now)
+  );
+  statements.push(
+    database.prepare(`WITH plans AS (
+        SELECT json_extract(value,'$.assetTag') asset_tag,
+               json_extract(value,'$.reuseKey') reuse_key,
+               json_extract(value,'$.staleRequestId') stale_request_id,
+               json_extract(value,'$.staleGroupId') stale_group_id,
+               CAST(json_extract(value,'$.createNew') AS INTEGER) create_new FROM json_each(?)
+      ), initial_retire_ids AS (
+        SELECT intent.request_id
+        FROM blower_runtime_probe_intents_v4 intent
+        JOIN ois_data_requests request ON request.id=intent.request_id
+        JOIN plans ON plans.asset_tag=intent.asset_tag
+        WHERE request.request_type=? AND request.requested_by_id=?
+          AND (request.status IN ('pending','processing')
+            OR (request.status='complete' AND plans.create_new=1))
+          AND (COALESCE(intent.reuse_key,'')<>plans.reuse_key OR intent.request_id=plans.stale_request_id)
+      ), retire_groups AS (
+        SELECT DISTINCT
+          substr(request.id,1,${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) group_id,
+          request.requested_by_id requested_by_id
+        FROM ois_data_requests request
+        WHERE request.id IN (SELECT request_id FROM initial_retire_ids)
+          AND length(request.id)=47
+                AND ${blowerRuntimeProbeCreateGroupSql("request.id")}
+      ), retire_ids AS (
+        SELECT request_id FROM initial_retire_ids
+        UNION
+        SELECT grouped.id
+        FROM ois_data_requests AS grouped
+        JOIN retire_groups ON retire_groups.requested_by_id=grouped.requested_by_id
+          AND length(grouped.id)=47
+                AND ${blowerRuntimeProbeCreateGroupSql("grouped.id")}
+          AND substr(grouped.id,1,${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH})=retire_groups.group_id
+        WHERE grouped.request_type='${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+          AND grouped.requested_by_id=?
+      ) UPDATE ois_data_requests
+      SET status='failed',completed_at=?,error_message=?,updated_at=?
+      WHERE request_type=? AND requested_by_id=? AND status IN ('pending','processing')
+        AND id IN (SELECT request_id FROM retire_ids)`)
+      .bind(plans, BLOWER_RUNTIME_PROBE_REQUEST_TYPE, requestedById, requestedById,
+        now, "Blower Cycle snapshot changed before DataPARC probe completion.", now,
+        BLOWER_RUNTIME_PROBE_REQUEST_TYPE, requestedById),
+    database.prepare(`WITH plans AS (
+        SELECT json_extract(value,'$.assetTag') asset_tag,
+               json_extract(value,'$.reuseKey') reuse_key,
+               json_extract(value,'$.staleRequestId') stale_request_id,
+               json_extract(value,'$.staleGroupId') stale_group_id,
+               json_extract(value,'$.completeRequestId') complete_request_id,
+               CAST(json_extract(value,'$.createNew') AS INTEGER) create_new FROM json_each(?)
+      ), initial_retire_ids AS (
+        SELECT intent.request_id
+        FROM blower_runtime_probe_intents_v4 intent
+        JOIN ois_data_requests request ON request.id=intent.request_id
+        JOIN plans ON plans.asset_tag=intent.asset_tag
+        WHERE request.request_type=? AND request.requested_by_id=?
+          AND (request.status IN ('pending','processing')
+            OR (request.status='complete' AND plans.create_new=1)
+            OR (request.status='failed' AND request.completed_at=? AND request.updated_at=?
+              AND request.error_message=?))
+          AND (COALESCE(intent.reuse_key,'')<>plans.reuse_key OR intent.request_id=plans.stale_request_id)
+      ), retire_groups AS (
+        SELECT DISTINCT
+          substr(request.id,1,${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) group_id,
+          request.requested_by_id requested_by_id
+        FROM ois_data_requests request
+        WHERE request.id IN (SELECT request_id FROM initial_retire_ids)
+          AND length(request.id)=47
+                AND ${blowerRuntimeProbeCreateGroupSql("request.id")}
+      ), retire_ids AS (
+        SELECT request_id FROM initial_retire_ids
+        UNION
+        SELECT grouped.id
+        FROM ois_data_requests grouped
+        JOIN retire_groups ON retire_groups.requested_by_id=grouped.requested_by_id
+          AND length(grouped.id)=47
+                AND ${blowerRuntimeProbeCreateGroupSql("grouped.id")}
+          AND substr(grouped.id,1,${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH})=retire_groups.group_id
+        WHERE grouped.request_type='${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+      ) UPDATE blower_runtime_probe_intents_v4 SET reuse_key=NULL,updated_at=?
+      WHERE request_id IN (SELECT request.id
+        FROM ois_data_requests request
+        INNER JOIN blower_runtime_probe_intents_v4 intent ON intent.request_id=request.id
+        WHERE request.requested_by_id=? AND (
+          (request.status='failed' AND (request.id IN (SELECT request_id FROM retire_ids)
+            OR EXISTS (SELECT 1 FROM plans WHERE plans.create_new=1 AND intent.reuse_key=plans.reuse_key)))
+          OR (request.status='complete' AND EXISTS (
+            SELECT 1 FROM plans WHERE plans.create_new=1 AND request.id=plans.complete_request_id))))`)
+      .bind(plans, BLOWER_RUNTIME_PROBE_REQUEST_TYPE, requestedById,
+        now, now, "Blower Cycle snapshot changed before DataPARC probe completion.",
+        now, requestedById)
+  );
+
+  const created = mutable.filter(item => item.kind === "created");
+  if (!created.length) return statements;
+  const requestRows = JSON.stringify(created.map(item => ({requestId:item.requestId,targetDate:item.targetDate,
+    requestedById:item.requestedById,requestedByName:item.requestedByName,requestedAt:item.requestedAt,expiresAt:item.expiresAt})));
+  statements.push(database.prepare(`INSERT INTO ois_data_requests
+      (id,request_type,target_date,status,requested_by_id,requested_by_name,requested_at,started_at,completed_at,
+       agent_id,result_json,error_message,expires_at,updated_at)
+    SELECT json_extract(value,'$.requestId'),?,json_extract(value,'$.targetDate'),'pending',
+      json_extract(value,'$.requestedById'),json_extract(value,'$.requestedByName'),json_extract(value,'$.requestedAt'),
+      NULL,NULL,'',NULL,'',json_extract(value,'$.expiresAt'),json_extract(value,'$.requestedAt') FROM json_each(?)`)
+    .bind(BLOWER_RUNTIME_PROBE_REQUEST_TYPE, requestRows));
+
+  const intentRows = JSON.stringify(created.map(item => ({requestId:item.requestId,reuseKey:item.reuseKey,
+    assetTag:item.assetTag,dataParcTag:item.dataParcTag,startAt:item.startAt,endAt:item.endAt,chunkCount:item.chunkCount,
+    expectedLastReplacementAt:item.expectedLastReplacementAt,expectedCycleStartState:item.probeExpectedCycleStartState,
+    expectedCycleStartedAt:item.probeExpectedCycleStartedAt,expectedCycleStartRevision:item.probeExpectedCycleStartRevision,
+    expectedCycleRuntimeRevision:item.probeExpectedCycleRuntimeRevision,requestedAt:item.requestedAt})));
+  statements.push(database.prepare(`INSERT INTO blower_runtime_probe_intents_v4
+      (request_id,reuse_key,schema_version,asset_tag,dataparc_tag,window_start,window_end,chunk_days,chunk_count,
+       expected_last_replacement_at,expected_cycle_start_state,expected_cycle_started_at,expected_cycle_start_revision,
+       expected_cycle_runtime_revision,created_at,updated_at)
+    SELECT json_extract(value,'$.requestId'),json_extract(value,'$.reuseKey'),?,json_extract(value,'$.assetTag'),
+      json_extract(value,'$.dataParcTag'),json_extract(value,'$.startAt'),json_extract(value,'$.endAt'),?,
+      CAST(json_extract(value,'$.chunkCount') AS INTEGER),json_extract(value,'$.expectedLastReplacementAt'),
+      json_extract(value,'$.expectedCycleStartState'),json_extract(value,'$.expectedCycleStartedAt'),
+      json_extract(value,'$.expectedCycleStartRevision'),json_extract(value,'$.expectedCycleRuntimeRevision'),
+      json_extract(value,'$.requestedAt'),json_extract(value,'$.requestedAt') FROM json_each(?)`)
+    .bind(BLOWER_RUNTIME_PROBE_SCHEMA_VERSION, BLOWER_RUNTIME_PROBE_CHUNK_DAYS, intentRows));
+
+  const appends = created.filter(item => item.appendBase);
+  if (appends.length) {
+    const appendRows = JSON.stringify(appends.map(item => ({requestId:item.requestId,baseEventId:item.appendBase.eventId,
+      baseRevision:item.appendBase.cycleRuntimeRevision,baseObservedAt:item.appendBase.observedAt,
+      coverageStartAt:item.appendBase.startAt,baseRunningSeconds:item.appendBase.runningSeconds,requestedAt:item.requestedAt})));
+    statements.push(database.prepare(`INSERT INTO blower_runtime_append_v1
+        (request_id,base_event_id,base_revision,base_observed_at,coverage_start_at,base_running_seconds,created_at)
+      SELECT json_extract(value,'$.requestId'),json_extract(value,'$.baseEventId'),json_extract(value,'$.baseRevision'),
+        json_extract(value,'$.baseObservedAt'),json_extract(value,'$.coverageStartAt'),
+        CAST(json_extract(value,'$.baseRunningSeconds') AS INTEGER),json_extract(value,'$.requestedAt') FROM json_each(?)`)
+      .bind(appendRows));
+  }
+  return statements;
+}
+
+async function createBlowerRuntimeProbeBatchRequest(context, body) {
+  const authentication = await getAuthenticatedUser(context);
+  if (authentication.error) return authentication.error;
+  let bodyBytes = Infinity;
+  try { bodyBytes = new TextEncoder().encode(JSON.stringify(body)).byteLength; } catch {}
+  const requests = Array.isArray(body.requests) ? body.requests : [];
+  const topKeysValid = Object.keys(body).every(key => ["action", "requests"].includes(key));
+  if (!topKeysValid || body.action !== "create_blower_runtime_probe_batch" ||
+      bodyBytes > MAXIMUM_BLOWER_RUNTIME_CREATE_BATCH_BYTES || !requests.length ||
+      requests.length > MAXIMUM_BLOWER_RUNTIME_CREATE_BATCH_ITEMS) {
+    return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_INVALID",
+      message:"Blower 최신화 요청은 한 번에 1~24대의 일괄 요청으로 보내 주세요."}, 400);
+  }
+  const invalidIndex = requests.findIndex(item => !isPlainJsonObject(item) ||
+    item.action !== "create_blower_runtime_probe" || item.unifiedRefresh !== true || item.incrementalRefresh !== true ||
+    typeof item.requireIncrementalAppend !== "boolean" || item.confirmRunSignal !== true);
+  if (invalidIndex >= 0) return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_ITEM_INVALID",failedIndex:invalidIndex,
+    message:"Blower 최신화 일괄 요청 항목 형식을 확인해 주세요. 개별 요청으로 전환하지 않았습니다."}, 400);
+
+  const mappings = requests.map(resolveBlowerRuntimeProbeMapping);
+  const seenAssets = new Set();
+  for (let index = 0; index < mappings.length; index += 1) {
+    const assetTag = mappings[index].assetTag;
+    if (!assetTag || !seenAssets.has(assetTag)) {
+      if (assetTag) seenAssets.add(assetTag);
+      continue;
+    }
+    return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_DUPLICATE_ASSET",failedIndex:index,assetTag,
+      message:"같은 Blower가 최신화 일괄 요청에 두 번 포함되어 아무 요청도 등록하지 않았습니다."}, 400);
+  }
+
+  const database = context.env.DB;
+  const requestedById = normalizeEmployeeNo(authentication.user.employeeNo);
+  // Schema/expiry writes happen once before preparation; prepareOnly itself is read-only.
+  await ensureBlowerRuntimeProbeSchema(database);
+  await ensureAppendSchema(database);
+  await expireOldRequests(database);
+
+  const batchGroupId = crypto.randomUUID();
+  let queueGuardRetrySignature = "";
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const now = new Date();
+    const batchPreparation = await loadBlowerRuntimeProbeBatchPreparation(database, mappings);
+    const lookupKeys = [];
+    for (let index = 0; index < requests.length; index += 1) {
+      const lookup = await createBlowerRuntimeProbeRequest(context, requests[index], {
+        authentication,preflightDone:true,appendSchemaReady:true,prepareOnly:true,lookupOnly:true,now,...batchPreparation
+      });
+      if (lookup?.preparedBlowerRuntimeProbeLookup === true) {
+        lookupKeys.push(lookup.reuseKey);
+        continue;
+      }
+      if (lookup?.preparedBlowerRuntimeProbe === true) continue;
+      const payload = await lookup.json();
+      if (lookup.status < 200 || lookup.status >= 300 || payload.ok === false) {
+        return jsonResponse({ok:false,code:payload.code || "BLOWER_RUNTIME_CREATE_BATCH_ITEM_REJECTED",failedIndex:index,
+          assetTag:normalizeText(requests[index].assetTag),message:payload.message ||
+            "Blower 최신화 일괄 요청을 검증하지 못했습니다. 아무 요청도 등록하지 않았습니다."}, lookup.status);
+      }
+    }
+    const requestsByReuseKey = await loadBlowerRuntimeProbeBatchReuseRequests(
+      database,
+      lookupKeys,
+      requestedById,
+      mappings.filter(item => !item.error).map(item => item.assetTag)
+    );
+    const preparedItems = [];
+    for (let index = 0; index < requests.length; index += 1) {
+      const requestBody = requests[index];
+      const prepared = await createBlowerRuntimeProbeRequest(context, requestBody, {
+        authentication,preflightDone:true,appendSchemaReady:true,prepareOnly:true,now,
+        ...batchPreparation,requestsByReuseKey
+      });
+      if (prepared?.preparedBlowerRuntimeProbe === true) {
+        preparedItems.push(prepared);
+      } else {
+        const payload = await prepared.json();
+        if (prepared.status < 200 || prepared.status >= 300 || payload.ok === false) {
+          return jsonResponse({ok:false,code:payload.code || "BLOWER_RUNTIME_CREATE_BATCH_ITEM_REJECTED",failedIndex:index,
+            assetTag:normalizeText(requestBody.assetTag),message:payload.message ||
+              "Blower 최신화 일괄 요청을 검증하지 못했습니다. 아무 요청도 등록하지 않았습니다."}, prepared.status);
+        }
+        preparedItems.push({preparedBlowerRuntimeProbe:false,kind:"immediate",
+          assetTag:mappings[index].assetTag,payload});
+      }
+    }
+
+    /*
+      A pure reuse response leaves an existing request/group intact. New work
+      absorbs every selected active request so this click still reaches one
+      Excel batch. For a durable request this retires omitted old siblings too;
+      keeping one member would otherwise split the click across Excel sessions.
+      If a stale plan forces one selected group to be rebuilt, that conversion
+      itself becomes new work and all other selected active requests converge
+      on the same new group. The mutation CAS blocks any processing member.
+    */
+    const hasNewQueueWork =
+      preparedItems.some(
+        item =>
+          item.kind ===
+            "created"
+      );
+
+
+    const touchedActiveGroupIds =
+      new Set();
+
+
+    for (
+      const item of
+        preparedItems
+    ) {
+      if (
+        item.kind !==
+          "created" &&
+        !(
+          item.kind ===
+            "reused_complete" &&
+          item.hasStaleActiveRequest ===
+            true
+        )
+      ) {
+        continue;
+      }
+
+
+      for (
+        const groupId of
+          requestsByReuseKey.activeGroupIdsByAsset?.get(
+            item.assetTag
+          ) ||
+          []
+      ) {
+        touchedActiveGroupIds.add(
+          groupId
+        );
+      }
+    }
+
+
+    const activeGroups =
+      new Map();
+
+
+    const activeLegacyItems =
+      [];
+
+
+    for (
+      const item of
+        preparedItems
+    ) {
+      if (
+        item.kind !==
+          "reused_active"
+      ) {
+        continue;
+      }
+
+
+      const group =
+        parseBlowerRuntimeProbeCreateGroupRequestId(
+          item.item?.id
+        );
+
+
+      if (
+        !group
+      ) {
+        activeLegacyItems.push(
+          item
+        );
+        continue;
+      }
+
+
+      if (
+        !activeGroups.has(
+          group.groupId
+        )
+      ) {
+        activeGroups.set(
+          group.groupId,
+          {
+            metadata:
+              group,
+            items: []
+          }
+        );
+      }
+
+
+      activeGroups.get(
+        group.groupId
+      ).items.push(
+        item
+      );
+    }
+
+
+    const mustRegroupSelectedActive =
+      hasNewQueueWork ||
+      [...activeGroups.keys()].some(
+        groupId =>
+          touchedActiveGroupIds.has(
+            groupId
+          )
+      );
+
+
+    if (
+      mustRegroupSelectedActive
+    ) {
+      for (
+        const item of
+          activeLegacyItems
+      ) {
+        item.reusedActiveGuard =
+          true;
+        item.kind =
+          "created";
+        item.staleRequestId =
+          item.item.id;
+      }
+    }
+
+
+    for (
+      const activeGroup of
+        activeGroups.values()
+    ) {
+      if (
+        !mustRegroupSelectedActive
+      ) {
+        continue;
+      }
+
+
+      for (
+        const item of
+          activeGroup.items
+      ) {
+        item.reusedActiveGuard =
+          true;
+        item.kind =
+          "created";
+        item.staleRequestId =
+          item.item.id;
+      }
+    }
+
+    const createdItems = preparedItems.filter(item => item.kind === "created");
+    createdItems.forEach((item, index) => {
+      item.requestId = `brb1_${batchGroupId}_${String(createdItems.length).padStart(2, "0")}_${String(index).padStart(2, "0")}`;
+    });
+    const preparedSignature = JSON.stringify(preparedItems.map(item => [
+      item.assetTag,item.kind,item.item?.id || "",item.reuseKey || ""
+    ]));
+    if (queueGuardRetrySignature && preparedSignature !== queueGuardRetrySignature) {
+      return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_QUEUE_CONFLICT",
+        message:"최신화 요청 등록 중 기존 Blower 조회 상태가 변경되어 아무 요청도 등록하지 않았습니다. 다시 최신화해 주세요."}, 409);
+    }
+
+    try {
+      const statements = blowerRuntimeProbeBatchMutationStatements(database, preparedItems, requestedById, now.toISOString());
+      if (statements.length) await database.batch(statements);
+    } catch (error) {
+      const assetSnapshotRace = /NOT NULL constraint failed:\s*blower_runtime_probe_intents_v4\.request_id/i
+        .test(String(error?.message || error));
+      if (assetSnapshotRace) return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_SNAPSHOT_CONFLICT",
+        message:"최신화 요청 등록 중 Blower 교체·운전 이력이 변경되어 아무 요청도 등록하지 않았습니다. 다시 최신화해 주세요."}, 409);
+      const queueStateRace = /NOT NULL constraint failed:\s*blower_runtime_probe_intents_v4\.asset_tag/i
+        .test(String(error?.message || error));
+      if (queueStateRace && attempt === 0) {
+        queueGuardRetrySignature = preparedSignature;
+        continue;
+      }
+      if (queueStateRace) return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_QUEUE_CONFLICT",
+        message:"최신화 요청 등록 중 기존 Blower 조회 상태가 변경되어 아무 요청도 등록하지 않았습니다. 다시 최신화해 주세요."}, 409);
+      const reuseRace = /UNIQUE constraint failed:\s*blower_runtime_probe_intents_v4\.reuse_key/i.test(String(error?.message || error));
+      if (reuseRace && attempt === 0) continue;
+      if (reuseRace) return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_CONFLICT",
+        message:"다른 화면의 Blower 최신화 요청과 겹쳐 일괄 등록하지 않았습니다. 잠시 후 다시 최신화해 주세요."}, 409);
+      throw error;
+    }
+
+    const results = [];
+    for (const prepared of preparedItems) {
+      let payload;
+      if (prepared.kind === "created") {
+        payload = blowerRuntimeProbeCreatePayload(blowerRuntimeProbePreparedRequestItem(prepared), "created");
+      } else if (prepared.kind === "reused_complete") {
+        payload = blowerRuntimeProbeCreatePayload(prepared.item, "reused_complete");
+      } else if (prepared.kind === "reused_active") {
+        payload = blowerRuntimeProbeCreatePayload(prepared.item, "reused_active");
+      } else if (prepared.kind === "already_current") {
+        payload = prepared.payload;
+      } else payload = prepared.payload;
+      results.push({assetTag:prepared.assetTag,...payload});
+    }
+    const createdCount = results.filter(result => result.disposition === "created").length;
+    const upToDateCount = results.filter(result => result.upToDate === true).length;
+    const reusedCount = results.length - createdCount - upToDateCount;
+    return jsonResponse({ok:true,atomic:true,batchVersion:1,requestedCount:requests.length,createdCount,reusedCount,
+      upToDateCount,results,message:`Blower ${requests.length}대 요청을 한 번에 검증했습니다. 신규 ${createdCount}대 · 재사용 ${reusedCount}대 · 최신 ${upToDateCount}대`},
+      createdCount ? 201 : 200);
+  }
+  return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_CONFLICT",
+    message:"Blower 최신화 일괄 요청 상태가 변경되어 등록하지 않았습니다."}, 409);
 }
 
 async function cancelSealPotRuntimeBatchRequests(context, body) {
@@ -18255,6 +20608,124 @@ return jsonResponse({
   회사 PC 처리 실패
 ========================================================= */
 
+async function failActiveBlowerRuntimeProbeCreateGroup(
+  database,
+  {
+    requestId,
+    groupMetadata,
+    agentId,
+    errorMessage,
+    failedAt
+  }
+) {
+  if (
+    !groupMetadata
+  ) {
+    return 0;
+  }
+
+
+  const updateResults =
+    await database.batch([
+      database
+        .prepare(`
+          UPDATE ois_data_requests
+          SET
+            status = 'failed',
+            completed_at = ?,
+            agent_id = ?,
+            error_message = ?,
+            updated_at = ?
+          WHERE request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+            AND length(id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("id")}
+            AND substr(id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) = ?
+            AND requested_by_id = (
+              SELECT requested_by_id
+              FROM ois_data_requests AS triggering_owner
+              WHERE triggering_owner.id = ?
+                AND triggering_owner.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+            )
+            AND (
+              status = 'pending'
+              OR (status = 'processing' AND agent_id = ?)
+            )
+            AND EXISTS (
+              SELECT 1
+              FROM ois_data_requests AS triggering_member
+              WHERE triggering_member.id = ?
+                AND triggering_member.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+                AND triggering_member.requested_by_id = ois_data_requests.requested_by_id
+                AND triggering_member.status = 'processing'
+                AND triggering_member.agent_id = ?
+                AND triggering_member.expires_at > ?
+            )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM ois_data_requests AS foreign_sibling
+              WHERE foreign_sibling.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+                AND length(foreign_sibling.id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("foreign_sibling.id")}
+                AND substr(foreign_sibling.id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) = ?
+                AND foreign_sibling.status = 'processing'
+                AND foreign_sibling.agent_id <> ?
+            )
+        `)
+        .bind(
+          failedAt,
+          agentId,
+          errorMessage,
+          failedAt,
+          groupMetadata.groupId,
+          requestId,
+          agentId,
+          requestId,
+          agentId,
+          failedAt,
+          groupMetadata.groupId,
+          agentId
+        ),
+      database
+        .prepare(`
+          UPDATE blower_runtime_probe_intents_v4
+          SET
+            reuse_key = NULL,
+            updated_at = ?
+          WHERE request_id IN (
+            SELECT id
+            FROM ois_data_requests
+            WHERE request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+              AND length(id) = 47
+                AND ${blowerRuntimeProbeCreateGroupSql("id")}
+              AND substr(id, 1, ${BLOWER_RUNTIME_PROBE_CREATE_GROUP_PREFIX_LENGTH}) = ?
+              AND status = 'failed'
+          )
+          AND EXISTS (
+            SELECT 1
+            FROM ois_data_requests AS failed_trigger
+            WHERE failed_trigger.id = ?
+              AND failed_trigger.request_type = '${BLOWER_RUNTIME_PROBE_REQUEST_TYPE}'
+              AND failed_trigger.status = 'failed'
+              AND failed_trigger.agent_id = ?
+              AND failed_trigger.updated_at = ?
+          )
+        `)
+        .bind(
+          failedAt,
+          groupMetadata.groupId,
+          requestId,
+          agentId,
+          failedAt
+        )
+    ]);
+
+
+  return Number(
+    updateResults?.[0]?.meta?.changes
+  );
+}
+
+
 async function failAgentRequest(
   context,
   body
@@ -18311,42 +20782,85 @@ async function failAgentRequest(
       .toISOString();
 
 
-  const updateResult =
-    await context.env.DB
-      .prepare(`
-        UPDATE ois_data_requests
+  const groupMetadata =
+    parseBlowerRuntimeProbeCreateGroupRequestId(
+      requestId
+    );
 
-        SET
-          status = 'failed',
-          completed_at = ?,
-          agent_id = ?,
-          error_message = ?,
-          updated_at = ?
 
-        WHERE
-          id = ?
-          AND status IN (
-            'pending',
-            'processing'
-          )
-          AND (request_type != 'cofiring_daily' OR (status = 'processing' AND agent_id = ?))
-      `)
-      .bind(
-        now,
-        authentication.agentId,
-        errorMessage,
-        now,
-        requestId,
-        authentication.agentId
-      )
-      .run();
+  const groupedFailure =
+    Boolean(
+      groupMetadata
+    );
+
+
+  let updateResult;
 
 
   if (
-    Number(
-      updateResult?.meta?.changes
-    ) !==
-      1
+    groupedFailure
+  ) {
+    updateResult = {
+      meta: {
+        changes:
+          await failActiveBlowerRuntimeProbeCreateGroup(
+            context.env.DB,
+            {
+              requestId,
+              groupMetadata,
+              agentId:
+                authentication.agentId,
+              errorMessage,
+              failedAt:
+                now
+            }
+          )
+      }
+    };
+
+  } else {
+    updateResult =
+      await context.env.DB
+        .prepare(`
+          UPDATE ois_data_requests
+
+          SET
+            status = 'failed',
+            completed_at = ?,
+            agent_id = ?,
+            error_message = ?,
+            updated_at = ?
+
+          WHERE
+            id = ?
+            AND status IN (
+              'pending',
+              'processing'
+            )
+            AND (request_type != 'cofiring_daily' OR (status = 'processing' AND agent_id = ?))
+        `)
+        .bind(
+          now,
+          authentication.agentId,
+          errorMessage,
+          now,
+          requestId,
+          authentication.agentId
+        )
+        .run();
+  }
+
+
+  if (
+    groupedFailure
+      ? Number(
+          updateResult?.meta?.changes
+        ) <
+          1
+      : Number(
+          updateResult?.meta?.changes
+        ) !==
+          1
   ) {
     return jsonResponse(
       {
@@ -18537,6 +21051,17 @@ if (
         confirmRunSignal: true
       }
     */
+    if (
+      action ===
+        "create_blower_runtime_probe_batch"
+    ) {
+      return await createBlowerRuntimeProbeBatchRequest(
+        context,
+        body
+      );
+    }
+
+
     if (
       action ===
         "create_blower_runtime_probe"

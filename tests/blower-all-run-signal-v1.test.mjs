@@ -19,9 +19,10 @@ test('FBHE and Seal with missing RUN tags are explicit skips, never OIS tasks or
 });
 for(const [i,tag] of EXTRA.entries())test(`${tag}: exact confirmed RUN queue path replaces the OIS group`,async()=>{
  const p=core.plan([asset(tag,{dataParcTag:signal(i)})],NOW);assert.equal(p.tasks.length,1);assert.equal(p.tasks[0].kind,'dataparc');
- const calls=[];await core.executeDataParc(p.tasks[0],{api:async o=>{calls.push(o);return o.body.action==='create_blower_runtime_probe'?{item:{id:'q',status:'complete'}}:{message:'test'};}});
- assert.deepEqual(calls.map(o=>o.body.action),['create_blower_runtime_probe','dataparc_runtime_sync']);
- assert.equal(calls[0].body.dataParcTag,signal(i));assert.equal(calls[0].body.assetTag,tag);assert.equal(calls[0].body.expectedCycleRuntimeRevision,'r1');
+ const calls=[];await core.executeDataParc(p.tasks[0],{api:async o=>{calls.push(o);return o.body.action==='create_blower_runtime_probe_batch'?
+  {ok:true,atomic:true,batchVersion:1,requestedCount:1,results:[{ok:true,assetTag:tag,item:{id:'q',status:'complete',requestType:'blower_runtime_probe',probe:{assetTag:tag,requestId:'q'}}}]}:{message:'test'};}});
+ assert.deepEqual(calls.map(o=>o.body.action),['create_blower_runtime_probe_batch','dataparc_runtime_sync']);
+ const nested=calls[0].body.requests[0];assert.equal(nested.dataParcTag,signal(i));assert.equal(nested.assetTag,tag);assert.equal(nested.expectedCycleRuntimeRevision,'r1');
 });
 for(const tag of [...OLD,...EXTRA])test(`${tag}: no wall-clock additions between successful binary queries`,()=>{
  const a={tag_number:tag,runtime_hours:42.5,is_running:1,runtime_anchor_at:'2026-09-08T06:00:00Z',cycle_runtime_hours:42.5,cycle_runtime_state:'running',cycle_runtime_anchor_at:'2026-09-08T06:00:00Z'};
@@ -77,7 +78,7 @@ test('additive V4 copies all eleven legacy intents intact and never restores ret
 test('a failed log scan is visibly partial and refresh/history paths do not call OIS bridges',()=>{
  const s=readFileSync(new URL('../maintenance/blower-history.js',import.meta.url),'utf8');
  const refresh=s.slice(s.indexOf('  async function refreshAllBlowers()'),s.indexOf('  async function refreshFbheForUnified('));
- assert.match(refresh,/core\.refreshLogsForRuntime/);assert.match(refresh,/phase = "현황 확인";\s*await io.reload\(\);\s*const planned = core.plan/);
+ assert.match(refresh,/core\.refreshLogsForRuntime/);assert.match(refresh,/phase = "조회 계획";\s*await io.reload\(\);\s*const planned = core.plan/);
  assert.doesNotMatch(refresh,/executeOis|create_fbhe_vibration_batch|create_seal_pot_runtime_batch/);assert.match(refresh,/업무일지 확인 미완료/);assert.match(refresh,/partial \? "partial"/);
  const details=s.slice(s.indexOf('if (action === "runtime_query_settings")'),s.indexOf('if (action === "history_event_delete")'));
  assert.match(details,/openDataParcRuntimeDialog/);assert.doesNotMatch(details,/handleFbheVibrationQuery|BlowerSealPotDetails/);

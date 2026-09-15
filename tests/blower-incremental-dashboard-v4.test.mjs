@@ -104,9 +104,10 @@ test('browser marks every append task as requiring the server-side append base',
     assertWritable() {},
     progress() {},
     api: async options => {
-      if (options?.body?.action === 'create_blower_runtime_probe') {
-        requestBody = options.body;
-        return { upToDate: true, message: 'test' };
+      if (options?.body?.action === 'create_blower_runtime_probe_batch') {
+        requestBody = options.body.requests[0];
+        return { ok: true, atomic: true, batchVersion: 1, requestedCount: 1,
+          results: [{ ok: true, assetTag: requestBody.assetTag, upToDate: true, message: 'test' }] };
       }
       throw new Error('unexpected API call');
     }
@@ -118,7 +119,7 @@ test('browser marks every append task as requiring the server-side append base',
 });
 
 test('server, not the browser, owns the append boundary and old cumulative value is combined with only the new RUN seconds', () => {
-  assert.match(requestApi, /if \(body\.incrementalRefresh === true\)[\s\S]*?appendBase = await loadAppendBase\(database, asset, dataParcTag\)[\s\S]*?requestedStartText = appendBase\.observedAt/);
+  assert.match(requestApi, /if \(body\.incrementalRefresh === true\)[\s\S]*?appendBasesByTag instanceof Map[\s\S]*?loadAppendBase\(database, asset, dataParcTag\)[\s\S]*?requestedStartText = appendBase\.observedAt/);
   assert.match(historyApi, /probe = combineAppendProbe\(probe, appendIntent\)/);
   assert.match(historyApi, /이전 조회값 보존/);
 
