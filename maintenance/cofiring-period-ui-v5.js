@@ -59,6 +59,7 @@
         </div>
         <div class="cfv5-query-meta"><span data-cfv5-range>—</span><span class="cfv56-query-state"><em data-cfv56-prep>조회 준비 대기</em><strong data-cfv5-live-state>조회 전</strong></span></div>
         <span class="cfv6-data-source" data-cfv6-data-source>저장된 조회 결과가 있으면 바로 계산합니다.</span>
+        <span class="cfv6-data-source" data-cfv7-click-timing hidden aria-live="off"></span>
         <p data-cfv5-status role="status" aria-live="polite">기간을 지정한 뒤 [계산하기]를 누르세요. 저장결과가 없으면 DataPARC 조회 후 자동 계산합니다.</p>
       </div>
 
@@ -189,9 +190,16 @@
   function mount(container){
     if(!container||container.dataset.cofiringV5Mounted==='true')return null;container.dataset.cofiringV5Mounted='true';container.classList.add('cofiring-period-v5');container.innerHTML=markup();
     const mobile=isMobile();let reference=null,lastResult=null,displayResult=null,periodGeneration=0,settingsDirty=false,manualDirty=false,disposed=false,fastPrepTimer=null,fastPrepGeneration=0,adjustmentActive=false,conflictRetrying=false,selectedStoreKey='';
+    let clickTiming=null,clickToken=null,clickContext=null,clickBusy=false,renderedRequestId=null;
     const settings=settingsApi?.create({getHeaders:authHeaders,canEdit:()=>!isMobile(),onChange:()=>paintSettings()})||null;
     const manual=manualApi?.create({getHeaders:authHeaders,canEdit:()=>!isMobile(),onChange:()=>paintManual()})||null;
     const live=liveApi?.createPeriod({getHeaders:authHeaders,canQuery:()=>!isMobile(),isVisible:()=>visible(),onChange:s=>paintLive(s),onResult:r=>{reference=r.report.reference;if(storesReady())calculate();}})||null;
+    clickTiming=root.CofiringClickTimingV1?.create({isCurrent:()=>clickIsCurrent(),onChange:s=>paintClickTiming(s)});
+    function clickIsCurrent(){try{return !!clickContext&&!disposed&&visible()&&clickContext.spec===JSON.stringify(currentSpec())&&clickContext.auth===String(authHeaders().Authorization||authHeaders().authorization||'');}catch(_){return false;}}
+    function paintClickTiming(s){const el=container.querySelector('[data-cfv7-click-timing]');if(!el)return;el.hidden=s.status==='idle';const seconds=(s.elapsedMs/1000).toFixed(1);const label=s.mode==='resume_existing'?'상태 확인부터':'계산 시간';if(s.status==='complete'){const source=s.source==='saved_recalculate'?'저장값 재계산':s.source==='resume_existing'?'진행 중 조회 결과':'새 DataPARC 결과';el.textContent=`${label} ${seconds}초 · ${source}`;}else if(s.status==='failed')el.textContent=`${label} ${seconds}초 · 완료되지 않음`;else if(s.status==='cancelled')el.textContent=`${label} ${seconds}초 · 측정 중단`;else el.textContent=`${label} ${seconds}초 · ${s.phase||'결과 확인 중'}`;}
+    function startClickTiming(mode){if(!clickTiming)return null;const old=clickTiming.state(),s=live.state();if(mode==='resume_existing'&&['running','finishing'].includes(old.status)&&clickIsCurrent()&&s.item?.active?.id===old.expectedRequestId)return clickToken;clickContext={spec:JSON.stringify(currentSpec()),auth:String(authHeaders().Authorization||authHeaders().authorization||'')};clickToken=clickTiming.start({mode,period:currentSpec(),previousRequestId:s.item?.saved?.id||null,activeRequestId:s.item?.active?.id||null});return clickToken;}
+    function finishClickTiming(){if(!clickTiming||!clickToken||!clickIsCurrent())return;const s=live.state(),item=s.item,id=item?.saved?.id;if(!id||id!==renderedRequestId||!displayResult||!cachedReference(s,currentSpec())||!storesReady())return;const state=clickTiming.state(),r=item.result.report;clickTiming.finish(clickToken,{requestId:id,source:state.mode==='resume_existing'?'resume_existing':state.expectedRequestId?'new_query':'saved_recalculate',querySeconds:r.queryElapsedSeconds,workerSeconds:r.workerElapsedSeconds,controllerSeconds:r.timing?.controllerElapsedSeconds},()=>clickIsCurrent()&&renderedRequestId===id&&live.state().item?.saved?.id===id&&!!cachedReference(live.state(),currentSpec())&&storesReady());}
+    function acceptClickRequest(token){const item=live.state().item,request=item?.active||item?.lastAttempt;if(request?.status==='failed'||(item?.error&&!item.active)){clickTiming?.fail(token,'조회 실패');return;}if(request?.id&&['pending','processing','complete'].includes(request.status))clickTiming?.acceptRequest(token,request.id);else clickTiming?.fail(token,'요청 상태 확인 실패');finishClickTiming();}
     function visible(){return !container.closest?.('[hidden], [aria-hidden="true"]');}
     function currentSpec(){const p=periodSpec(container);return {startLocal:p.startLocal,endLocal:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue};}
     function prepLabel(text,tone=''){const el=container.querySelector('[data-cfv56-prep]');if(el){el.textContent=text;el.dataset.tone=tone;}}
@@ -202,9 +210,9 @@
     async function fastPrepare(epoch){if(disposed||epoch!==fastPrepGeneration||mobile||!visible()||!live)return;try{prepLabel('저장값 확인','working');live.select(currentSpec());await live.load({force:true});if(disposed||epoch!==fastPrepGeneration)return;const s=live.state();if(liveRequestPresentation(s).failureMessage){paintLive(s);return;}if(s.item?.saved&&reference){prepLabel(storesReady()?'즉시 계산 가능':'입력 기준 확인 중',storesReady()?'ready':'working');return;}if(s.item?.active){prepLabel('동일기간 조회 진행중','working');return;}if(!s.canQuery){prepLabel(s.authenticated?'조회 준비 불가':'로그인 필요',s.authenticated?'':'error');return;}prepLabel('조회 준비 완료','ready');setStatus(container,'저장된 결과가 없습니다. 자동 DataPARC 조회는 시작하지 않습니다. [계산하기]를 누르면 현재 표시 기간으로 1회 조회합니다.','');}catch(e){prepLabel('저장값 확인 실패','error');}}
     function waitMs(ms){return new Promise(resolve=>{if(root.setTimeout)root.setTimeout(resolve,ms);else resolve();});}
     async function queryWithBusyRetry({force=false,maxRetries=20}={}){
-      const signature=JSON.stringify(currentSpec());let attempt=0;conflictRetrying=true;paintLive(live.state());
+      const signature=JSON.stringify(currentSpec()),authKey=String(authHeaders().Authorization||authHeaders().authorization||'');let attempt=0;conflictRetrying=true;paintLive(live.state());
       try{
-        while(!disposed&&visible()&&JSON.stringify(currentSpec())===signature){
+        while(!disposed&&visible()&&JSON.stringify(currentSpec())===signature&&String(authHeaders().Authorization||authHeaders().authorization||'')===authKey){
           const ok=await live.query({explicit:true,force}),state=live.state();
           if(ok||state.item?.active||(!force&&state.item?.saved))return true;
           const message=String(state.item?.error||'');
@@ -212,7 +220,7 @@
           attempt+=1;prepLabel('이전 조회 정리 대기','working');
           setStatus(container,`이전 자동 준비 조회가 아직 종료되지 않았습니다. 종료되는 즉시 현재 기간으로 자동 재시도합니다. (${attempt}/${maxRetries})`,'working');
           await waitMs(3000);
-          if(disposed||!visible()||JSON.stringify(currentSpec())!==signature)return false;
+          if(disposed||!visible()||JSON.stringify(currentSpec())!==signature||String(authHeaders().Authorization||authHeaders().authorization||'')!==authKey)return false;
           live.select(currentSpec());
         }
         return false;
@@ -241,6 +249,13 @@
       const qualityGapSaved=!!(item?.saved&&reference?.summaries?.some?.(x=>x?.dataComplete===false));
       const stateText=!s?.authenticated?'로그인 필요':item?.error?item.error:item?.submitting?'요청 등록 중':active?.status==='pending'?'Agent 대기':active?.status==='processing'?presentation.progressLabel:failureMessage?(item?.saved&&reference?'재조회 실패 · 저장값 유지':'조회 실패'):item?.saved&&reference?(qualityGapSaved?'경계값 계산 · 품질 공백':'계산 완료'):item?.saved?'결과 확인 중':'저장결과 없음';
       if(state)state.textContent=stateText;
+      if(clickTiming&&clickToken&&clickIsCurrent()){
+        clickTiming.phase(clickToken,item?.submitting?'요청 등록 중':active?.status==='pending'?'회사 PC 대기':active?.status==='processing'?(presentation.progressLabel||'조회 중'):item?.loading?'결과 확인 중':'화면 반영 중');
+        const expected=clickTiming.state().expectedRequestId;
+        if(!s?.authenticated)clickTiming.cancel('로그인 상태 변경');
+        else if(!active&&expected&&item?.lastAttempt?.id===expected&&item.lastAttempt.status==='failed')clickTiming.fail(clickToken,'조회 실패');
+        finishClickTiming();
+      }
       const source=container.querySelector('[data-cfv6-data-source]');
       if(source){const completed=s?.item?.result?.report?.completedAtUtc,date=completed?new Date(completed):null;
         source.textContent=date&&Number.isFinite(date.getTime())?`DataPARC 조회 완료 ${date.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false})} KST · 저장결과 기준${active?' · 최신조회 진행 중':failureMessage?' · 최근 조회 실패':''}`:active?'새 DataPARC 결과를 기다리고 있습니다.':failureMessage?'DataPARC 조회에 실패했습니다. 저장된 결과가 아직 없습니다.':'저장된 DataPARC 결과가 아직 없습니다.';
@@ -262,12 +277,14 @@
         let shown=lastResult,adjusted=false;
         if(adjuster){try{const stored=adjuster.resolve(lastResult,readSettings(container),currentSpec());if(stored?.ok){shown=stored.result;adjusted=true;}}catch(_){}}
         renderDisplay(shown,{adjusted});
+        renderedRequestId=live?.state()?.item?.saved?.id||null;
         const refreshing=!!live?.state()?.item?.active;prepLabel(refreshing?'저장값 재계산':'계산 완료',refreshing?'working':'ready');
         setStatus(container,refreshing?'저장된 결과와 현재 입력값으로 재계산했습니다. 최신 DataPARC 조회는 진행 중입니다.':adjusted?'선택 기간 혼소율 계산과 저장된 혼소 조정을 적용했습니다.':lastResult.warnings?.length?'혼소율을 계산했습니다. 자료 품질 경고는 [자료 확인 내용]에서 확인해 주세요. 빈칸 유기성·축분은 0t로 계산됩니다.':'선택 기간 혼소율 계산이 완료되었습니다. 빈칸 유기성·축분은 0t로 계산됩니다.','success');
-        return shown;
-      }catch(e){setStatus(container,e.message||'혼소율을 계산하지 못했습니다.','error');return null;}
+        finishClickTiming();return shown;
+      }catch(e){clickTiming?.fail(clickToken,'계산 오류');setStatus(container,e.message||'혼소율을 계산하지 못했습니다.','error');return null;}
     }
     async function periodChanged(){
+      clickTiming?.cancel('기간 변경');renderedRequestId=null;
       fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}reference=null;lastResult=null;displayResult=null;adjustmentActive=false;renderMain(container,null);renderOrganic(container,null,currentManualFromFields());renderSummary(container,null,currentManualFromFields());updateRange(container);renderWarnings(container,null);const ab=container.querySelector('[data-cfv56-adjust]');if(ab){ab.disabled=true;ab.classList.remove('is-active');ab.textContent='혼소 조정';}
       try{const pending=selectStores();setStatus(container,'기간이 변경되었습니다. 저장된 결과만 확인합니다. 새 DataPARC 조회는 [계산하기]를 눌렀을 때 시작합니다.','');scheduleFastPrep(0);await pending;}catch(e){setStatus(container,e.message,'error');}
     }
@@ -275,29 +292,41 @@
     for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]'))el.addEventListener('input',()=>{settingsDirty=true;paintSettings();if(reference&&storesReady())calculate();});
     container.querySelector('[data-cfv5-settings-save]').addEventListener('click',async()=>{try{const values=readSettings(container);const ok=await settings.save(values);if(ok){settingsDirty=false;paintSettings(true);if(reference)calculate();}}catch(e){setStatus(container,e.message,'error');}});
     container.querySelector('[data-cfv5-manual-save]').addEventListener('click',async()=>{try{const values=readManual(container),ok=await manual.save(values);if(ok){manualDirty=false;paintManual(true);if(reference)calculate();}}catch(e){setStatus(container,e.message,'error');}});
-    container.querySelector('[data-cfv5-query]').addEventListener('click',async()=>{try{
-      const spec=currentSpec();live.select(spec);const cached=cachedReference(live.state(),spec);
+    container.querySelector('[data-cfv5-query]').addEventListener('click',async()=>{if(clickBusy)return;clickBusy=true;let token=null;try{
+      const spec=currentSpec(),authKey=String(authHeaders().Authorization||authHeaders().authorization||''),signature=JSON.stringify(spec),stillSelected=()=>!disposed&&visible()&&JSON.stringify(currentSpec())===signature&&String(authHeaders().Authorization||authHeaders().authorization||'')===authKey;
+      token=startClickTiming(live.state().item?.active?'resume_existing':'calculate');live.select(spec);const cached=cachedReference(live.state(),spec);
       if(cached&&selectedStoreKey===storeKey()&&storesReady()){
         reference=cached;const result=calculate();
         if(result)setStatus(container,'저장된 DataPARC 결과와 현재 입력값으로 즉시 재계산했습니다. 최신 데이터 조회는 [재조회]를 사용하세요.','success');
         return;
       }
       setStatus(container,'저장된 기간 결과를 먼저 확인하고 있습니다.','working');
-      if(!await selectStores())return;const s=currentSpec();live.select(s);
-      const loaded=await live.load({force:true});let liveState=live.state();
+      const storesTask=selectStores(),resultTask=live.load({force:true});
+      const [storesLoaded,loaded]=await Promise.all([storesTask,resultTask]);
+      if(!stillSelected())return;
+      if(!storesLoaded){clickTiming?.fail(token,'계산 기준 확인 실패');return;}
+      let liveState=live.state();
       if(liveState.item?.saved&&reference&&!liveState.item?.active){calculate();return;}
-      if(liveState.item?.active){setStatus(container,'같은 기간의 DataPARC 요청 상태를 다시 확인했습니다. Agent 대기/작업 중이면 완료 후 자동 계산합니다.','working');return;}
-      if(!loaded&&liveState.item?.error){setStatus(container,liveState.item.error,'error');return;}
+      if(liveState.item?.active){clickTiming?.acceptRequest(token,liveState.item.active.id);setStatus(container,'같은 기간의 DataPARC 요청 상태를 다시 확인했습니다. Agent 대기/작업 중이면 완료 후 자동 계산합니다.','working');return;}
+      if(!loaded&&liveState.item?.error){clickTiming?.fail(token,'결과 확인 실패');setStatus(container,liveState.item.error,'error');return;}
       setStatus(container,'저장된 결과가 없어 현재 표시 기간으로 DataPARC 조회를 시작합니다. 완료되면 자동 계산합니다.','working');
+      clickTiming?.requireRequest(token);
       const ok=await queryWithBusyRetry({force:false});liveState=live.state();
-      if(!ok&&!liveState.item?.active&&!liveState.item?.saved&&!/같은 시작일의 다른 혼소율 기간 조회/.test(String(liveState.item?.error||'')))setStatus(container,liveState.item?.error||'기간 조회 요청을 시작하지 못했습니다. 로그인 상태와 조회 기간을 확인해 주세요.','error');
-    }catch(e){setStatus(container,e.message,'error');}});
-    container.querySelector('[data-cfv5-requery]').addEventListener('click',async()=>{try{if(!root.confirm||root.confirm('현재 저장 결과를 보존한 채 같은 기간을 다시 조회하시겠습니까?')){setStatus(container,'같은 기간을 다시 조회하도록 요청하고 있습니다.','working');if(!await selectStores())return;live.select(currentSpec());const ok=await queryWithBusyRetry({force:true});const liveState=live.state();if(!ok&&!liveState.item?.active)setStatus(container,liveState.item?.error||'재조회 요청을 시작하지 못했습니다.','error');}}catch(e){setStatus(container,e.message,'error');}});
+      if(!stillSelected())return;
+      if(ok||liveState.item?.active){acceptClickRequest(token);}
+      else{clickTiming?.fail(token,'조회 요청 확인 실패');if(!liveState.item?.saved)setStatus(container,liveState.item?.error||'기간 조회 요청을 시작하지 못했습니다. 로그인 상태와 조회 기간을 확인해 주세요.','error');}
+    }catch(e){clickTiming?.fail(token,'조회 오류');setStatus(container,e.message,'error');}finally{clickBusy=false;}});
+    container.querySelector('[data-cfv5-requery]').addEventListener('click',async()=>{if(clickBusy)return;clickBusy=true;let token=null;try{if(!root.confirm||root.confirm('현재 저장 결과를 보존한 채 같은 기간을 다시 조회하시겠습니까?')){
+      const spec=currentSpec(),authKey=String(authHeaders().Authorization||authHeaders().authorization||''),signature=JSON.stringify(spec),stillSelected=()=>!disposed&&visible()&&JSON.stringify(currentSpec())===signature&&String(authHeaders().Authorization||authHeaders().authorization||'')===authKey;
+      token=startClickTiming('forced_requery');clickTiming?.requireRequest(token);setStatus(container,'같은 기간을 다시 조회하도록 요청하고 있습니다.','working');
+      if(!await selectStores()){clickTiming?.fail(token,'계산 기준 확인 실패');return;}if(!stillSelected())return;live.select(spec);const ok=await queryWithBusyRetry({force:true});if(!stillSelected())return;const liveState=live.state();
+      if(ok||liveState.item?.active)acceptClickRequest(token);else{clickTiming?.fail(token,'재조회 요청 확인 실패');setStatus(container,liveState.item?.error||'재조회 요청을 시작하지 못했습니다.','error');}
+    }}catch(e){clickTiming?.fail(token,'재조회 오류');setStatus(container,e.message,'error');}finally{clickBusy=false;}});
     adjuster=adjustmentApi?.create({container,getHeaders:authHeaders,getContext:adjustmentContext,onMessage:m=>setStatus(container,m,'error'),onApply:(result)=>{renderDisplay(result,{adjusted:true});setStatus(container,'혼소 조정값을 선택기간 계산 화면에 적용했습니다. 원본 DataPARC 저장값은 변경하지 않습니다.','success');},onReset:()=>{if(lastResult){renderDisplay(lastResult,{adjusted:false});setStatus(container,'혼소 조정을 원복했습니다. DataPARC 원본 계산값을 표시합니다.','success');}}})||null;
     const adjustButton=container.querySelector('[data-cfv56-adjust]');if(adjustButton){adjustButton.disabled=true;adjustButton.addEventListener('click',()=>{try{Promise.resolve(adjuster?.open()).catch(e=>setStatus(container,e.message,'error'));}catch(e){setStatus(container,e.message,'error');}});}
-    const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){scheduleFastPrep(0);}else{fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
+    const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){scheduleFastPrep(0);}else{clickTiming?.cancel('화면 닫힘');fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
     updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();selectStores().catch(e=>setStatus(container,e.message,'error'));scheduleFastPrep(0);
-    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSpec:currentSpec,dispose(){disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
+    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSpec:currentSpec,dispose(){clickTiming?.dispose();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
   }
   root.CofiringPeriodV5={mount,periodSpec,markup,readSettings,readManual,manualForCalculation,coalBioHeat,coalBioRatio,combinedCoalBio,cachedReference,liveRequestPresentation};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
   if(root.document){const init=()=>{const container=root.document.querySelector('[data-cofiring-draft-root]');if(container)mount(container);};if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init,{once:true});else init();}
