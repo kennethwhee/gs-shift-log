@@ -150,13 +150,28 @@ function createCofiringPeriodCollector(options={}) {
     }
     fs.mkdirSync(root,{recursive:true});
     const safeStart=spec.startLocal.replace(/[:T]/g,'-'),dir=fs.mkdtempSync(path.join(root,'period-'+safeStart+'-'));
-    const progress={phase:'starting',completedTags:0},progressReader=createPeriodProgressReader();let progressTask=Promise.resolve(),closed=false,lastProgress='';
+    const progress={phase:'starting',completedTags:0},progressReader=createPeriodProgressReader();let progressTask=null,pendingProgress=null,closed=false,lastProgress='';
+    // Status snapshots must not build a delivery backlog behind the actual result.
+    // Keep one in-flight POST and only the latest unsent snapshot, in that order.
+    function startProgress(){
+      if(progressTask||closed||!pendingProgress)return;
+      const snapshot=pendingProgress;pendingProgress=null;
+      progressTask=Promise.resolve().then(()=>closed?undefined:callbacks.postProgress(snapshot))
+        .catch(error=>{try{log('[혼소율 기간] 진행상태 전송 보류: '+String(error?.message||error||'전송 오류').slice(0,160));}catch(_){}})
+        .finally(()=>{progressTask=null;startProgress();});
+    }
+    function finishProgress(){
+      closed=true;pendingProgress=null;
+      // Drain the real HTTP request before terminal delivery; never abandon it
+      // with Promise.race, which could send stale processing after complete/fail.
+      return progressTask||Promise.resolve();
+    }
     function sendProgress(force=false){
       if(typeof callbacks.postProgress!=='function'||closed)return;
       const snapshot={...progress},signature=JSON.stringify(snapshot);
       if(!force&&signature===lastProgress)return;
       lastProgress=signature;
-      progressTask=progressTask.then(()=>callbacks.postProgress(snapshot)).catch(e=>log('[혼소율 기간] 진행상태 전송 보류: '+String(e.message).slice(0,160)));
+      pendingProgress=snapshot;startProgress();
     }
     sendProgress();
     let stdout='',stderr='',carry='',heartbeat;
@@ -180,15 +195,14 @@ function createCofiringPeriodCollector(options={}) {
         };
         child.stdout?.on('data',chunk=>append(String(chunk),false));child.stderr?.on('data',chunk=>append(String(chunk),true));
         heartbeat=setInterval(()=>sendProgress(true),20000);heartbeat.unref?.();
-        child.once('error',error=>{if(!child.pid)launched=false;reject(error);});
+        child.once('error',error=>{closed=true;if(!child.pid)launched=false;reject(error);});
         child.once('close',(code,signal)=>{if(active===child)active=null;closed=true;if(signal||code!==0)reject(new Error(`혼소율 기간 조회 프로세스 종료 오류 (exit=${code}, signal=${signal||'none'})`));else resolve();});
       });
-      await progressTask;
+      await finishProgress();
       const report=JSON.parse(fs.readFileSync(path.join(dir,'period-report.json'),'utf8').replace(/^\uFEFF/,''));
       const raw={kind:'cofiring_period_live_result',schemaVersion:1,requestId:id,request:{startLocal:spec.startLocal,endLocal:spec.endLocal,stepUnit:spec.stepUnit,stepValue:spec.stepValue},report};
       const result=contract.periodResult(raw,id,spec);
       fs.writeFileSync(path.join(dir,'bridge-result.json'),JSON.stringify(result),'utf8');
-      if(typeof callbacks.postProgress==='function')await Promise.resolve().then(()=>callbacks.postProgress({phase:'uploading',completedTags:10})).catch(e=>log('[혼소율 기간] 진행상태 전송 보류: '+String(e.message).slice(0,160)));
       log(`[혼소율 기간] ${spec.startLocal} ~ ${spec.endLocal} 조회·정리 완료 · ${result.report.status} · 서버 저장 대기`);
       return result;
     }catch(error){
@@ -208,11 +222,12 @@ function createCofiringPeriodCollector(options={}) {
         fs.writeFileSync(blocked,JSON.stringify({requestId:id,period:{startLocal:spec.startLocal,endLocal:spec.endLocal},diagnosticDirectory:dir,at:new Date().toISOString(),message:'기간 조회용 Excel 종료를 확인한 후에만 수동 해제하세요.'},null,2),'utf8');
       }
       const detail=periodTimeoutDetail(report,spec,progressReader.runId);
-      // Finish already queued progress before the caller publishes terminal failure.
-      await progressTask;
       throw new Error((detail?detail+' ':'')+error.message+' · 혼소율 기간 진단 폴더: '+dir);
     }finally{
       clearInterval(heartbeat);closed=true;
+      // Preserve prompt cleanup blocking, but drain the real POST even when a
+      // diagnostic write fails before the caller publishes terminal failure.
+      await finishProgress();
       fs.writeFileSync(path.join(dir,'bridge-stdout.log'),stdout,'utf8');
       fs.writeFileSync(path.join(dir,'bridge-stderr.log'),stderr,'utf8');
     }

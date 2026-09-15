@@ -16,22 +16,22 @@ function event(phase,seconds,overrides={}){return '__COFIRING_PROGRESS__'+JSON.s
 function harness(t,{chunks=[],result=report(),code=0,progressError=false,onProgress,errorInsteadOfClose=false}={}){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'cofiring-progress-test-'));
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
-  let calls=0,lastChild;const progress=[],logs=[];
+  let calls=0,lastChild,resolveTerminal;const terminal=new Promise(resolve=>{resolveTerminal=resolve;});const progress=[],logs=[];
   const collect=createCofiringPeriodCollector({platform:'win32',runsDirectory:root,log:line=>logs.push(line),spawnProcess:(exe,args,options)=>{
     calls++;assert.match(exe,/WindowsPowerShell/);assert.equal(options.shell,false);assert.deepEqual(options.stdio,['ignore','pipe','pipe']);
     const dir=args[args.indexOf('-OutputDirectory')+1],child=new EventEmitter();lastChild=child;child.pid=777;child.stdout=new PassThrough();child.stderr=new PassThrough();
-    setImmediate(()=>{for(const chunk of chunks)child.stdout.write(chunk);if(result)fs.writeFileSync(path.join(dir,'period-report.json'),JSON.stringify(result));if(errorInsteadOfClose)child.emit('error',new Error('synthetic child stream failure'));else{child.stdout.end();child.stderr.end();child.emit('close',code,null);}});
+    setImmediate(async()=>{for(const chunk of chunks){child.stdout.write(chunk);await new Promise(resolve=>setImmediate(resolve));}if(result)fs.writeFileSync(path.join(dir,'period-report.json'),JSON.stringify(result));if(errorInsteadOfClose)child.emit('error',new Error('synthetic child stream failure'));else{child.stdout.end();child.stderr.end();child.emit('close',code,null);}resolveTerminal();});
     return child;
   }});
   const request={id,requestType:'cofiring_period',status:'processing',agentId:'test-agent',startedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+10*60000).toISOString(),result:contract.periodEnvelope(spec)};
-  return {root,progress,logs,request,get calls(){return calls;},get child(){return lastChild;},run:(changes={})=>collect({agentId:'test-agent'},{...request,...changes},{postProgress:async value=>{progress.push(value);if(onProgress)await onProgress(value);if(progressError)throw new Error('synthetic progress outage');}})};
+  return {root,progress,logs,request,terminal,get calls(){return calls;},get child(){return lastChild;},run:(changes={})=>collect({agentId:'test-agent'},{...request,...changes},{postProgress:async value=>{progress.push(value);if(onProgress)await onProgress(value);if(progressError)throw new Error('synthetic progress outage');}})};
 }
 
 test('verified period events advance stages while banners and cleanup preflight never imply completion',async t=>{
   const reading=event('QUERY_START',10);
   const h=harness(t,{chunks:['===== COFIRING DATAPARC PERIOD V5 =====\nExcel cleanup preflight\n고속 요약 계산 완료\n',event('WORKER_ENTERED',0),event('INITIALIZATION_COMPLETE',1),event('READY',2),event('EXCEL_START',3),reading.slice(0,31),reading.slice(31),event('QUERY_COMPLETE',11),event('CLEANUP',12),event('COMPLETE',13)]});
   const result=await h.run();assert.equal(result.report.status,'PERIOD_READY');
-  assert.deepEqual(h.progress,[{phase:'starting',completedTags:0},{phase:'reading',completedTags:0},{phase:'reading',completedTags:10},{phase:'cleanup',completedTags:10},{phase:'uploading',completedTags:10}]);
+  assert.deepEqual(h.progress,[{phase:'starting',completedTags:0},{phase:'reading',completedTags:0},{phase:'reading',completedTags:10},{phase:'cleanup',completedTags:10}]);
 });
 test('malformed, foreign and backwards progress events cannot falsify the active stage',async t=>{
   const h=harness(t,{chunks:[event('WORKER_ENTERED',0),event('QUERY_START',10),event('QUERY_COMPLETE',11,{schemaVersion:2}),event('QUERY_COMPLETE',11,{runId:'f'.repeat(32)}),event('QUERY_COMPLETE',11,{elapsedSeconds:'11'}),event('QUERY_COMPLETE',11,{atUtc:'not a date'}),event('QUERY_COMPLETE',11,{elapsedSeconds:-1}),event('QUERY_COMPLETE',11,{extra:'x'.repeat(2100)}),'__COFIRING_PROGRESS__{broken}\n','prefix '+event('QUERY_COMPLETE',11),event('READY',11),event('QUERY_COMPLETE',9),event('CLEANUP',12),event('QUERY_COMPLETE',13),event('COMPLETE',14)],result:report({status:'FAIL',executionSucceeded:false,workerExitCode:1}),code:1});
@@ -41,7 +41,7 @@ test('malformed, foreign and backwards progress events cannot falsify the active
 });
 test('a UTC clock correction does not freeze valid monotonic worker progress',async t=>{
   const h=harness(t,{chunks:[event('WORKER_ENTERED',0),event('QUERY_START',10),event('QUERY_COMPLETE',11,{atUtc:'2026-09-10T03:00:00Z'}),event('CLEANUP',12,{atUtc:'2026-09-10T03:00:01Z'})]});
-  await h.run();assert.deepEqual(h.progress,[{phase:'starting',completedTags:0},{phase:'reading',completedTags:0},{phase:'reading',completedTags:10},{phase:'cleanup',completedTags:10},{phase:'uploading',completedTags:10}]);
+  await h.run();assert.deepEqual(h.progress,[{phase:'starting',completedTags:0},{phase:'reading',completedTags:0},{phase:'reading',completedTags:10},{phase:'cleanup',completedTags:10}]);
 });
 test('COMPLETE stdout alone never marks ten tags complete or announces result upload',async t=>{
   const h=harness(t,{chunks:[event('WORKER_ENTERED',0),event('COMPLETE',1)],result:report({summaries:[]})});
@@ -72,14 +72,14 @@ test('terminal failure waits for in-flight progress so stale processing cannot f
   let release,settled=false;
   const h=harness(t,{chunks:[event('QUERY_START',1),event('CLEANUP',2)],result:report({status:'FAIL',executionSucceeded:false,workerExitCode:1}),code:1,onProgress:value=>value.phase==='reading'?new Promise(resolve=>{release=resolve;}):undefined});
   const outcome=h.run().then(()=>{throw new Error('failure was expected');},error=>{settled=true;return error;});
-  await new Promise(resolve=>setImmediate(resolve));assert.equal(typeof release,'function');assert.equal(settled,false);
-  release();assert.match((await outcome).message,/프로세스 종료 오류/);assert.deepEqual(h.progress.at(-1),{phase:'cleanup',completedTags:0});
+  await h.terminal;assert.equal(typeof release,'function');assert.equal(settled,false);
+  release();assert.match((await outcome).message,/프로세스 종료 오류/);assert.deepEqual(h.progress.at(-1),{phase:'reading',completedTags:0});
 });
 test('the error boundary stops producing progress before draining existing callbacks',async t=>{
   let release;
   const h=harness(t,{chunks:[event('QUERY_START',1)],errorInsteadOfClose:true,result:report({status:'FAIL',executionSucceeded:false,workerExitCode:1}),onProgress:value=>value.phase==='reading'?new Promise(resolve=>{release=resolve;}):undefined});
   const outcome=h.run().then(()=>{throw new Error('failure was expected');},error=>error);
-  await new Promise(resolve=>setImmediate(resolve));assert.equal(typeof release,'function');
+  await h.terminal;assert.equal(typeof release,'function');
   h.child.stdout.write(event('QUERY_COMPLETE',2));h.child.stdout.write(event('CLEANUP',3));
   release();assert.match((await outcome).message,/synthetic child stream failure/);
   await new Promise(resolve=>setImmediate(resolve));
