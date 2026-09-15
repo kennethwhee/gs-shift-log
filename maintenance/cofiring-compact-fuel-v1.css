@@ -1,0 +1,80 @@
+/* Scoped to co-firing result cards. Query, input and calculation behavior is unchanged. */
+.cofiring-period-v5.cfv10-summary-ui .cfv52-summary-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;
+}
+.cofiring-period-v5.cfv10-summary-ui .cfv52-card {
+  min-width: 0; padding: 14px; border: 1px solid #d8e4eb; border-radius: 12px; background: #fff;
+}
+.cofiring-period-v5.cfv10-summary-ui .cfv52-card > header {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 12px;
+}
+.cofiring-period-v5.cfv10-summary-ui .cfv52-unit-title { display: flex; align-items: center; gap: 8px; color: #14364b; font-size: 15px; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-unit-number { display: grid; place-items: center; min-width: 27px; height: 27px; border: 1px solid #d4e9e3; border-radius: 7px; background: #f0f8f5; color: #087d6d; font-size: 11px; font-weight: 700; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-card-status { border-radius: 20px; padding: 4px 8px; background: #eff8f3; color: #267458; font-size: 10px; line-height: 1.3; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-card-status.is-waiting { background: #f0f3f6; color: #607584; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin: 0; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-metrics > .cfv52-metric { min-width: 0; padding: 8px 0 5px; border-top: 1px solid #e9eff2; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-metric > span { display: block; color: #557083; font-size: 10px; line-height: 1.45; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-metric > strong { display: block; margin-top: 5px; color: #173a50; font-size: 23px; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-metrics > .cfv52-metric:first-child > strong { color: #008676; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-metrics > .cfv52-metric-emphasis { padding: 8px 10px; border: 0; border-radius: 8px; background: #145447; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-metric-emphasis > span,
+.cofiring-period-v5.cfv10-summary-ui .cfv52-metric-emphasis > strong { color: #fff; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuels { margin: 14px 0 12px; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuels-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 8px; margin-bottom: 7px; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuels-head > strong { color: #263f51; font-size: 12px; font-weight: 700; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuels-head > span { color: #647c8b; font-size: 10px; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuel-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; border: 0; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuel { min-width: 0; padding: 9px 12px; border: 1px solid #dfe7ed; border-left: 3px solid #6b7d91; border-radius: 8px; background: #f6f8fb; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuel-label { display: block; color: #425d71; font-size: 12px; line-height: 1.3; font-weight: 600; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuel-value { display: block; margin-top: 3px; color: #1d354c; font-size: clamp(21px, 2vw, 27px); font-weight: 750; line-height: 1.15; letter-spacing: -.4px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuel-value > small { color: #627b88; font-size: 12px; font-weight: 500; letter-spacing: 0; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuel-bio { border-color: #d5e9df; border-left-color: #2d967c; background: #f1f9f5; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuel-bio .cfv10-fuel-label,
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuel-bio .cfv10-fuel-value { color: #086d53; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuel-organic { border-color: #ece3cf; border-left-color: #b49b52; background: #fbf8f0; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuel-organic .cfv10-fuel-label,
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuel-organic .cfv10-fuel-value { color: #755b20; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuel-manure { border-color: #e7dfeb; border-left-color: #9f83b0; background: #f8f5fa; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuel-manure .cfv10-fuel-label,
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuel-manure .cfv10-fuel-value { color: #705880; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-fuel.is-unavailable .cfv10-fuel-value { color: #7d8e99; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target { margin: 0; padding: 9px 11px 5px; border: 1px solid #d8e9e2; border-radius: 8px; background: #f2f8f5; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 3px 10px; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-head .cfv6-target-label { color: #2c665a; font-size: 10px; font-weight: 600; line-height: 1.4; }
+.cofiring-period-v5.cfv10-summary-ui .cfv6-target-label > b { margin-left: 4px; font-weight: 750; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-deadline { color: #416f64; font-size: 10px; line-height: 1.4; white-space: nowrap; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-main { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; margin-top: 3px; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-value { display: block; color: #007b69; font-size: 24px; line-height: 1.15; letter-spacing: -.4px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-value > small { color: #406e64; font-size: 11px; font-weight: 500; letter-spacing: 0; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-value > small > span { font-size: 9px; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-assumption { color: #496d63; font-size: 10px; line-height: 1.45; text-align: right; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-state { max-width: 75%; color: #64776f; font-size: 11px; line-height: 1.5; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target.is-unavailable .cfv10-target-value { color: #64776f; font-size: 17px; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-warning { margin: 5px 0 0; padding: 0; border: 0; color: #855414; font-size: 11px; line-height: 1.5; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-details { margin-top: 1px; border: 0; padding: 0; background: transparent; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-details > summary { padding: 3px 0; color: #476a60; font-size: 10px; line-height: 1.2; text-align: right; cursor: pointer; user-select: none; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-details > summary:focus-visible { outline: 2px solid #168b75; outline-offset: 2px; border-radius: 2px; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-detail-body { border-top: 1px solid #d7e6df; margin-top: 4px; padding-top: 6px; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-detail-body p { margin: 0; padding: 0; border: 0; color: #4f6d62; font-size: 10px; line-height: 1.6; overflow-wrap: anywhere; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-detail-body dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; margin: 8px 0; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-detail-body dl > div { min-width: 0; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-detail-body dt { color: #577568; font-size: 10px; }
+.cofiring-period-v5.cfv10-summary-ui .cfv10-target-detail-body dd { margin: 2px 0 0; color: #204f41; font-size: 12px; font-weight: 600; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-card-total { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(120px, .7fr) minmax(0, 3fr); gap: 12px; align-items: center; background: #edf3f6; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-card-total > header { display: block; margin: 0; color: #234356; font-size: 12px; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-card-total > header > span { display: block; margin-top: 4px; color: #69818f; font-size: 10px; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-total-ratios { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-total-ratios .cfv52-metric { min-width: 0; padding-left: 12px; border-left: 1px solid #d5e1e8; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-total-ratios .cfv52-metric > strong { font-size: 20px; }
+.cofiring-period-v5.cfv10-summary-ui .cfv52-total-ratios .cfv52-metric:last-child > strong { color: #00816e; }
+@media (max-width: 760px) {
+  .cofiring-period-v5.cfv10-summary-ui .cfv52-summary-grid { grid-template-columns: minmax(0, 1fr); }
+  .cofiring-period-v5.cfv10-summary-ui .cfv52-card-total { grid-template-columns: minmax(0, 1fr); }
+  .cofiring-period-v5.cfv10-summary-ui .cfv52-total-ratios .cfv52-metric:first-child { padding-left: 0; border: 0; }
+}
+@media (max-width: 380px) {
+  .cofiring-period-v5.cfv10-summary-ui .cfv52-card { padding: 10px; }
+  .cofiring-period-v5.cfv10-summary-ui .cfv10-fuel { padding: 8px 9px; }
+  .cofiring-period-v5.cfv10-summary-ui .cfv52-metric > strong { font-size: 20px; }
+}
