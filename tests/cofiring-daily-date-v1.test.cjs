@@ -9,7 +9,7 @@ const core=require('../maintenance/cofiring-core.js');
 // Exercise the real mounted UI and real timing helper. Only remote stores/live
 // transport and the selector/event DOM are modeled; calculation uses the core.
 class Element {
-  constructor(attributes={}){this.attributes=attributes;this.dataset={};this.value=attributes.value||'';this.hidden=false;this.disabled=false;this.textContent='';this.children=[];this.listeners={};this.classList={add(){},remove(){},toggle(){}};}
+  constructor(attributes={}){this.attributes=attributes;this.dataset={};this.value=attributes.value||'';this.hidden=Object.hasOwn(attributes,'hidden');this.disabled=Object.hasOwn(attributes,'disabled');this.textContent='';this.children=[];this.listeners={};this.classList={add(){},remove(){},toggle(){}};}
   set innerHTML(value){this.html=value;this.children=[];for(const tag of value.matchAll(/<[a-z][^>]*\bdata-cfv[^>]*>/g)){const attrs={};for(const a of tag[0].matchAll(/([a-z][a-z0-9-]*)(?:="([^"]*)")?/g))attrs[a[1]]=a[2]||'';this.children.push(new Element(attrs));}}
   get innerHTML(){return this.html||'';}
   querySelectorAll(selector){const selectors=selector.split(',').map(s=>/^\[([^=\]]+)(?:="([^\"]+)")?\]$/.exec(s.trim())),out=[];for(const child of this.children){if(selectors.some(m=>m&&Object.hasOwn(child.attributes,m[1])&&(m[2]===undefined||child.attributes[m[1]]===m[2])))out.push(child);out.push(...child.querySelectorAll(selector));}return out;}
@@ -55,6 +55,7 @@ function mounted({savedId=null,now='2026-09-15T04:02:00Z'}={}){
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-click-timing-v1.js'),'utf8'),context);
   const createTiming=context.CofiringClickTimingV1.create;
   context.CofiringClickTimingV1={create:options=>(h.timing=createTiming(options))};
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-deadline-target-v1.js'),'utf8'),context);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8'),context);
   h.setHidden=value=>{h.hidden=value;h.visibilityChanged();};h.ui=context.CofiringPeriodV5;h.controller=context.CofiringPeriodV5.mount(container);h.find=key=>container.querySelector(`[data-${key}]`);
   h.frame=()=>{const entry=h.frames.entries().next().value;assert.ok(entry,'animation frame scheduled');h.frames.delete(entry[0]);h.clock+=16;entry[1]();};
@@ -64,6 +65,7 @@ function mounted({savedId=null,now='2026-09-15T04:02:00Z'}={}){
 }
 
 const exportedContext=vm.createContext({CofiringCore:core,CofiringPeriodAdjustmentV56:{},CofiringTargetReferenceV6:{}});
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-deadline-target-v1.js'),'utf8'),exportedContext);
 vm.runInContext(fs.readFileSync(path.join(__dirname,'../maintenance/cofiring-period-ui-v5.js'),'utf8'),exportedContext);
 const ui=exportedContext.CofiringPeriodV5;
 const contract=require('../maintenance/cofiring-live-contract.js');
@@ -95,9 +97,10 @@ test('daily readiness blocks 00:00:59.999 and allows exactly 00:01:00 KST',()=>{
   assert.equal(ui.defaultCalculationDate(a.readyAt-1),'2026-09-14');assert.equal(ui.defaultCalculationDate(a.readyAt),'2026-09-15');
   assert.equal(ui.defaultCalculationDate(Date.parse('2026-09-16T23:59:00+09:00')),'2026-09-15');
 });
-test('markup exposes only a date and automatically displayed window, with no time or step editors',()=>{
+test('daily mode exposes a date and displayed window with custom time fields hidden by default',()=>{
   const html=ui.markup();assert.match(html,/data-cfv7-date type="date"/);assert.match(html,/data-cfv7-daily-window/);
-  assert.doesNotMatch(html,/datetime-local|data-cfv5-start|data-cfv5-end|data-cfv5-step-value|data-cfv5-step-unit/);
+  assert.match(html,/<option value="daily" selected>/);assert.match(html,/<div[^>]*data-cfv8-period-fields[^>]*hidden/);
+  assert.doesNotMatch(html,/data-cfv5-step-value|data-cfv5-step-unit/);
 });
 test('old partial-day saved data cannot be reused as the daily result',()=>{
   const daily=spec('2026-09-15'),partial={...daily,endLocal:'2026-09-15T22:11'},reference=fixtureReference(partial);

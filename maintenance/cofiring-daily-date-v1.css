@@ -46,3 +46,20 @@
     justify-content: flex-end;
   }
 }
+.cfv7-daily-date [hidden] { display: none !important; }
+.cfv7-daily-date .cfv8-query-mode { display: flex; align-items: end; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 10px; }
+.cfv7-daily-date .cfv8-query-mode label { display: flex; align-items: center; gap: 10px; font-size: 11px; color: #557186; }
+.cfv7-daily-date .cfv8-query-mode select { border: 1px solid #cbdbe7; border-radius: 6px; padding: 7px 10px; background: #fff; color: #18364d; font: inherit; font-weight: 700; }
+.cfv7-daily-date .cfv8-query-mode > span { color: #557186; font-size: 11px; }
+.cfv7-daily-date .cfv8-period-fields { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(190px,1fr) minmax(190px,1fr) auto; align-items: end; gap: 10px; }
+.cfv7-daily-date .cfv8-period-fields label { display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: #557186; }
+.cfv7-daily-date .cfv8-period-fields input { width: 100%; box-sizing: border-box; min-height: 36px; padding: 7px 10px; border: 1px solid #cbdbe7; border-radius: 6px; background: #fff; color: #18364d; font: inherit; }
+.cfv7-daily-date .cfv8-period-fields button { min-height: 36px; padding: 7px 12px; border: 1px solid #b8d7cd; border-radius: 6px; background: #edf8f4; color: #086854; cursor: pointer; font-size: 12px; }
+.cfv7-daily-date .cfv8-period-fields:not([hidden]) ~ .cfv7-daily-range { grid-column: 1 / 3; }
+.cfv7-daily-date .cfv8-deadline-target p { overflow-wrap: anywhere; }
+.cfv7-daily-date .cfv8-deadline-target .cfv8-target-note { color: #526f73; }
+.cfv7-daily-date .cfv8-deadline-target .cfv6-target-main { gap: 8px; flex-wrap: wrap; }
+@media (max-width: 900px) {
+  .cfv7-daily-date .cfv8-period-fields { grid-template-columns: minmax(0,1fr); }
+  .cfv7-daily-date .cfv8-period-fields:not([hidden]) ~ .cfv7-daily-range { grid-column: 1 / -1; }
+}
