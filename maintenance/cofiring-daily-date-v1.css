@@ -1,0 +1,48 @@
+.cofiring-period-v5.cfv7-daily-date .cfv5-query-grid {
+  grid-template-columns: minmax(160px, 210px) minmax(280px, 1fr) auto;
+  align-items: end;
+}
+.cfv7-daily-date .cfv5-query-grid input[type="date"] {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #cbdbe7;
+  border-radius: 6px;
+  background: #fff;
+  color: #18364d;
+  font: inherit;
+  padding: 7px 10px;
+}
+.cfv7-daily-date .cfv7-daily-range {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.cfv7-daily-date .cfv7-daily-range > span {
+  color: #557186;
+  font-size: 11px;
+}
+.cfv7-daily-date .cfv7-daily-range output {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid #d7e6e2;
+  border-radius: 6px;
+  background: #f1f8f5;
+  color: #164f46;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 800px) {
+  .cofiring-period-v5.cfv7-daily-date .cfv5-query-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cfv7-daily-date .cfv5-query-actions {
+    justify-content: flex-end;
+  }
+}

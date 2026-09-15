@@ -90,7 +90,7 @@ test('saved data discovered by concurrent preflight calculates without a new req
 });
 test('changing selected period during click prerequisites cannot submit either stale or new period',async()=>{
   const h=mounted();await h.ready();h.loadGate=deferred();const click=h.find('cfv5-query').fire('click');await flush();
-  h.find('cfv5-end').value='2026-09-15T12:00';const changed=h.find('cfv5-end').fire('change');await flush();
+  h.find('cfv7-date').value='2026-09-13';const changed=h.find('cfv7-date').fire('change');await flush();
   h.loadGate.resolve();await Promise.all([click,changed]);assert.equal(h.posts.length,0);assert.equal(h.timing.state().status,'cancelled');h.controller.dispose();
 });
 test('changing authentication during click prerequisites cannot submit under the replacement user',async()=>{
