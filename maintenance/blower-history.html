@@ -13,8 +13,11 @@
   <link rel="stylesheet" href="blower-unified-refresh.css?v=20260911-incremental-dashboard-fast-v5">
   <script src="blower-refresh-timing.js?v=20260915-fast-timing-v12" defer></script>
   <script src="blower-unified-refresh.js?v=20260915-fast-timing-v12" defer></script>
-  <script src="blower-history.js?v=20260911-fast-manual-resume-v11" defer></script>
+  <script src="blower-history.js?v=20260916-scheduled-refresh-v1" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
+  <link rel="stylesheet" href="/maintenance/blower-schedule-v1.css?v=20260916-v1">
+  <script src="/maintenance/blower-schedule-v1.js?v=20260916-v1" defer></script>
+  <script src="/maintenance/blower-schedule-browser-v1.js?v=20260916-v1" defer></script>
 </head>
 <body>
   <div class="page-shell">
@@ -39,6 +42,20 @@
     <section class="unified-refresh-status" id="unifiedRefreshStatus" aria-label="전체 통합조회 결과" hidden>
       <p id="unifiedRefreshText" role="status" aria-live="polite"></p>
       <details id="unifiedRefreshDetails" hidden><summary id="unifiedRefreshSummary">통합조회 결과</summary><div id="unifiedRefreshList"></div></details>
+    </section>
+    <section class="blower-schedule-panel" id="blowerSchedulePanel" aria-label="BCO1 자동조회 설정" hidden>
+      <div class="blower-schedule-heading">
+        <strong>자동 조회</strong><span id="blowerScheduleState">설정 확인 중</span>
+        <div class="blower-schedule-actions">
+          <button type="button" id="blowerScheduleRegister" disabled>이 PC를 BCO1로 지정</button>
+          <button type="button" id="blowerScheduleDisable" hidden>자동조회 끄기</button>
+        </div>
+      </div>
+      <p>매일 <strong>00:00 · 04:00 · 08:00 · 12:00 · 16:00 · 20:00</strong> <span class="blower-schedule-help">한국시간</span></p>
+      <p id="blowerScheduleNext">BCO1 PC에서 한 번 지정해 주세요.</p>
+      <p class="blower-schedule-last" id="blowerScheduleLast">예약 실행 기록 없음</p>
+      <p class="blower-schedule-progress" id="blowerScheduleProgress" role="status" aria-live="polite"></p>
+      <p class="blower-schedule-help">지정한 브라우저에서 업무일지 또는 Blower 화면을 열고 로그인한 동안 실행합니다. 절전·브라우저 종료로 놓친 예약은 건너뜁니다.</p>
     </section>
     <nav class="type-tabs" id="typeTabs" aria-label="Blower 종류"></nav>
 

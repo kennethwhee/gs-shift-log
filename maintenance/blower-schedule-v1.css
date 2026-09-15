@@ -1,0 +1,14 @@
+.blower-schedule-panel { margin: 8px 0 12px; padding: 12px 14px; border: 1px solid #cbdcec; border-radius: 10px; background: #f7fbff; color: #173954; font-size: 13px; }
+.blower-schedule-panel[hidden], .blower-schedule-panel [hidden], .blower-schedule-menu-status[hidden] { display: none !important; }
+.blower-schedule-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.blower-schedule-heading strong { font-size: 14px; }
+.blower-schedule-panel p { margin: 6px 0 0; line-height: 1.5; }
+.blower-schedule-actions { margin-left: auto; display: flex; gap: 6px; }
+.blower-schedule-panel button { border: 1px solid #b3cce2; border-radius: 7px; background: white; color: #175994; padding: 7px 10px; font: inherit; font-weight: 600; cursor: pointer; }
+.blower-schedule-panel button:disabled { opacity: .5; cursor: default; }
+.blower-schedule-panel button:focus-visible { outline: 2px solid #1976d2; outline-offset: 2px; }
+.blower-schedule-help, .blower-schedule-last { color: #5b7286; font-size: 12px; }
+.blower-schedule-progress { color: #9a5200; }
+.blower-schedule-progress:empty { display: none; }
+.blower-schedule-menu-status { font-size: 11px; font-weight: 500; color: #267d57; }
+@media (max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse) { .blower-schedule-panel, .blower-schedule-menu-status { display: none !important; } }

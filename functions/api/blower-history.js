@@ -1,3 +1,4 @@
+import { handleBlowerSchedule } from "../_shared/blower-schedule-v1.js";
 import { incrementalEvidence, verifiedAppendBase, loadAppendBase, loadAppendIntent, combineAppendProbe } from "../_shared/blower-incremental.js";
 
 const FORCED_SUPER_ADMIN_EMPLOYEE_NO = "2014081";
@@ -14714,6 +14715,10 @@ export async function onRequestPost(context) {
     }
 
     const action = normalizeText(body?.action);
+
+    if (action === "scheduled_refresh") {
+      return await handleBlowerSchedule(context, authentication.user, body);
+    }
 
     if (action !== "historical_audit_step") {
       await ensureBlowerHistorySchemaReady(context.env.DB);

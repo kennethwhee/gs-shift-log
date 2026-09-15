@@ -10667,6 +10667,11 @@
         showToast("최신화 중에는 이력을 변경할 수 없습니다. 완료 후 수정해 주세요.");
       }
     }, true);
+    window.addEventListener("gs-blower-schedule-complete", () => {
+      if (!state.busy && !state.unifiedRefreshBusy && !state.dataparcRuntimeBusy && !document.querySelector("dialog[open]")) {
+        loadData({ silent: true, syncOperations: false }).catch(() => null);
+      }
+    });
     window.addEventListener?.("beforeunload", event => {
       if (state.unifiedRefreshBusy) { event.preventDefault(); event.returnValue = ""; }
     });

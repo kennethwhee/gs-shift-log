@@ -1,4 +1,5 @@
-﻿import { loadAppendBase, verifiedAppendBase, ensureAppendSchema, appendIntentStatement } from "../_shared/blower-incremental.js";
+﻿import { prepareScheduledBatch, scheduledBatchStatements, isScheduledBatchConflict } from "../_shared/blower-schedule-v1.js";
+import { loadAppendBase, verifiedAppendBase, ensureAppendSchema, appendIntentStatement } from "../_shared/blower-incremental.js";
 
 "use strict";
 
@@ -17946,7 +17947,7 @@ async function createBlowerRuntimeProbeBatchRequest(context, body) {
   let bodyBytes = Infinity;
   try { bodyBytes = new TextEncoder().encode(JSON.stringify(body)).byteLength; } catch {}
   const requests = Array.isArray(body.requests) ? body.requests : [];
-  const topKeysValid = Object.keys(body).every(key => ["action", "requests"].includes(key));
+  const topKeysValid = Object.keys(body).every(key => ["action", "requests", "scheduledRefresh"].includes(key));
   if (!topKeysValid || body.action !== "create_blower_runtime_probe_batch" ||
       bodyBytes > MAXIMUM_BLOWER_RUNTIME_CREATE_BATCH_BYTES || !requests.length ||
       requests.length > MAXIMUM_BLOWER_RUNTIME_CREATE_BATCH_ITEMS) {
@@ -17973,6 +17974,17 @@ async function createBlowerRuntimeProbeBatchRequest(context, body) {
 
   const database = context.env.DB;
   const requestedById = normalizeEmployeeNo(authentication.user.employeeNo);
+  let scheduledGuard = null;
+  if (Object.prototype.hasOwnProperty.call(body, "scheduledRefresh")) {
+    if (String(context.request.headers.get("X-GS-Client-Mode") || "").trim().toLowerCase() === "mobile-monitoring") {
+      return jsonResponse({ok:false,code:"SCHEDULE_DESKTOP_REQUIRED",message:"자동조회는 지정한 BCO1 PC에서만 실행합니다."}, 403);
+    }
+    try {
+      scheduledGuard = await prepareScheduledBatch(database, authentication.user, body.scheduledRefresh);
+    } catch (error) {
+      return jsonResponse({ok:false,code:error.code || "SCHEDULE_CREATE_REJECTED",message:"자동조회 실행 조건이 변경되어 새 요청을 등록하지 않았습니다."}, error.status || 409);
+    }
+  }
   // Schema/expiry writes happen once before preparation; prepareOnly itself is read-only.
   await ensureBlowerRuntimeProbeSchema(database);
   await ensureAppendSchema(database);
@@ -18205,8 +18217,20 @@ async function createBlowerRuntimeProbeBatchRequest(context, body) {
 
     try {
       const statements = blowerRuntimeProbeBatchMutationStatements(database, preparedItems, requestedById, now.toISOString());
+      if (scheduledGuard) {
+        const receipt = {version:1,requestedCount:preparedItems.length,items:[],upToDateTags:[]};
+        for (const item of preparedItems) {
+          if (item.kind === "created") receipt.items.push({id:item.requestId,assetTag:item.assetTag});
+          else if (item.item?.id) receipt.items.push({id:item.item.id,assetTag:item.assetTag});
+          else if (item.payload?.upToDate === true) receipt.upToDateTags.push(item.assetTag);
+          else throw new Error("Scheduled Blower batch receipt is incomplete.");
+        }
+        statements.unshift(...scheduledBatchStatements(database, scheduledGuard, receipt));
+      }
       if (statements.length) await database.batch(statements);
     } catch (error) {
+      if (isScheduledBatchConflict(error)) return jsonResponse({ok:false,code:"SCHEDULE_BATCH_CONFLICT",
+        message:"다른 탭에서 이미 실행했거나 자동조회 설정이 변경되어 중복 요청을 등록하지 않았습니다."}, 409);
       const assetSnapshotRace = /NOT NULL constraint failed:\s*blower_runtime_probe_intents_v4\.request_id/i
         .test(String(error?.message || error));
       if (assetSnapshotRace) return jsonResponse({ok:false,code:"BLOWER_RUNTIME_CREATE_BATCH_SNAPSHOT_CONFLICT",
