@@ -13369,96 +13369,6 @@ function Initialize-ProbeNativeOm([string]$TypeDefinition) {
   }
 }
 
-if (-not ("GsBlowerRuntimeNativeOmV1" -as [type])) {
-  $nativeOmTypeDefinition = @"
-using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Text;
-
-public static class GsBlowerRuntimeNativeOmV1
-{
-    private const uint OBJID_NATIVEOM = 0xFFFFFFF0;
-    private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-
-    [DllImport("user32.dll")]
-    private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
-
-    [DllImport("user32.dll")]
-    private static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
-
-    [DllImport("user32.dll")]
-    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
-
-    [DllImport("oleacc.dll", PreserveSig = true)]
-    private static extern int AccessibleObjectFromWindow(
-        IntPtr hwnd,
-        uint dwId,
-        ref Guid riid,
-        [MarshalAs(UnmanagedType.Interface)] out object ppvObject
-    );
-
-    private static string WindowClass(IntPtr hwnd)
-    {
-        StringBuilder builder = new StringBuilder(256);
-        int length = GetClassName(hwnd, builder, builder.Capacity);
-        return length <= 0 ? "" : builder.ToString();
-    }
-
-    public static IntPtr[] FindNativeObjectWindows(int processId)
-    {
-        List<IntPtr> result = new List<IntPtr>();
-
-        EnumWindows(
-            delegate(IntPtr top, IntPtr state)
-            {
-                uint topPid;
-                GetWindowThreadProcessId(top, out topPid);
-                if (topPid != (uint)processId) return true;
-
-                if (String.Equals(WindowClass(top), "XLMAIN", StringComparison.OrdinalIgnoreCase)) {
-                    result.Add(top);
-                }
-
-                EnumChildWindows(
-                    top,
-                    delegate(IntPtr child, IntPtr childState)
-                    {
-                        uint childPid;
-                        GetWindowThreadProcessId(child, out childPid);
-                        if (
-                            childPid == (uint)processId &&
-                            String.Equals(WindowClass(child), "EXCEL7", StringComparison.OrdinalIgnoreCase)
-                        ) {
-                            result.Add(child);
-                        }
-                        return true;
-                    },
-                    IntPtr.Zero
-                );
-
-                return true;
-            },
-            IntPtr.Zero
-        );
-
-        return result.ToArray();
-    }
-
-    public static object GetNativeObject(IntPtr hwnd)
-    {
-        Guid iidDispatch = new Guid("00020400-0000-0000-C000-000000000046");
-        object nativeObject;
-        int hr = AccessibleObjectFromWindow(hwnd, OBJID_NATIVEOM, ref iidDispatch, out nativeObject);
-        return hr == 0 ? nativeObject : null;
-    }
-}
-"@
-  Initialize-ProbeNativeOm $nativeOmTypeDefinition
-}
 
 function Get-ProbeExcelProcessId($ExcelApplication) {
   if ($null -eq $ExcelApplication) { return 0 }
@@ -13988,6 +13898,97 @@ try {
     throw "자동조회용 Excel 프로세스 신원을 확인하지 못했습니다."
   }
 
+if (-not ("GsBlowerRuntimeNativeOmV1" -as [type])) {
+  $nativeOmTypeDefinition = @"
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class GsBlowerRuntimeNativeOmV1
+{
+    private const uint OBJID_NATIVEOM = 0xFFFFFFF0;
+    private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("oleacc.dll", PreserveSig = true)]
+    private static extern int AccessibleObjectFromWindow(
+        IntPtr hwnd,
+        uint dwId,
+        ref Guid riid,
+        [MarshalAs(UnmanagedType.Interface)] out object ppvObject
+    );
+
+    private static string WindowClass(IntPtr hwnd)
+    {
+        StringBuilder builder = new StringBuilder(256);
+        int length = GetClassName(hwnd, builder, builder.Capacity);
+        return length <= 0 ? "" : builder.ToString();
+    }
+
+    public static IntPtr[] FindNativeObjectWindows(int processId)
+    {
+        List<IntPtr> result = new List<IntPtr>();
+
+        EnumWindows(
+            delegate(IntPtr top, IntPtr state)
+            {
+                uint topPid;
+                GetWindowThreadProcessId(top, out topPid);
+                if (topPid != (uint)processId) return true;
+
+                if (String.Equals(WindowClass(top), "XLMAIN", StringComparison.OrdinalIgnoreCase)) {
+                    result.Add(top);
+                }
+
+                EnumChildWindows(
+                    top,
+                    delegate(IntPtr child, IntPtr childState)
+                    {
+                        uint childPid;
+                        GetWindowThreadProcessId(child, out childPid);
+                        if (
+                            childPid == (uint)processId &&
+                            String.Equals(WindowClass(child), "EXCEL7", StringComparison.OrdinalIgnoreCase)
+                        ) {
+                            result.Add(child);
+                        }
+                        return true;
+                    },
+                    IntPtr.Zero
+                );
+
+                return true;
+            },
+            IntPtr.Zero
+        );
+
+        return result.ToArray();
+    }
+
+    public static object GetNativeObject(IntPtr hwnd)
+    {
+        Guid iidDispatch = new Guid("00020400-0000-0000-C000-000000000046");
+        object nativeObject;
+        int hr = AccessibleObjectFromWindow(hwnd, OBJID_NATIVEOM, ref iidDispatch, out nativeObject);
+        return hr == 0 ? nativeObject : null;
+    }
+}
+"@
+  Initialize-ProbeNativeOm $nativeOmTypeDefinition
+}
+
   Write-ProbeStage "PID 고유 창에서 Excel COM 직접 연결"
   $excel = Wait-OwnedProbeExcelNativeObject $ownedExcelPid ([datetime]::UtcNow.AddSeconds(45)) $baselineExcelPids
   if ($null -eq $excel) {
@@ -13999,12 +14000,14 @@ try {
     throw "연결한 Excel COM PID가 자동조회용 PID와 다릅니다."
   }
 
+  Write-ProbeStage "Excel COM 연결 완료"
   $excel.Visible = $false
   $excel.DisplayAlerts = $false
   $excel.AskToUpdateLinks = $false
   $excel.ScreenUpdating = $false
   $excel.EnableEvents = $false
 
+  Write-ProbeStage "Excel 옵션 설정 완료"
   $startupWorkbooks = $null
   try {
     $startupWorkbooks = $excel.Workbooks
@@ -14021,6 +14024,7 @@ try {
     Release-ProbeCom $startupWorkbooks
   }
 
+  Write-ProbeStage "초기 통합문서 정리 완료"
   Write-ProbeStage "DataPARC Add-In 자동 시작 확인"
   $ownedHostCim = Wait-OwnedProbeDataParcHost $ownedExcelPid $baselineExcelPids ([datetime]::UtcNow.AddSeconds(60))
   if ($null -eq $ownedHostCim) {
