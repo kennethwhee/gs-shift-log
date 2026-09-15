@@ -12022,6 +12022,16 @@ function Test-ProbeNativeOmCompileLock([object[]]$Records, [string]$CompileDirec
     }
   }
   $diagnostic = $messages -join " "
+  # A compiler resource file may report no CS number. Retry only a direct child
+  # of this attempt's private directory; never accept the shared temp root.
+  $resourcePrefix = [IO.Path]::GetFullPath($CompileDirectory).TrimEnd('\') + '\'
+  $resourcePattern = '(?i)\bcannot\s+open\s+["'']?' + [regex]::Escape($resourcePrefix) + 'RES[0-9a-f]{1,4}\.tmp["'']?\s+for\s+writing\b'
+  if ($diagnostic -match $resourcePattern) {
+    $resourceCodes = @([regex]::Matches($diagnostic, '(?i)\b(?:CS|CVT|AL)[0-9]{4}\b') | ForEach-Object { $_.Value.ToUpperInvariant() })
+    if (@($resourceCodes | Where-Object { $_ -ne "CS0016" }).Count -gt 0) { return $false }
+    if ($diagnostic -match '(?i)access\s+(?:is\s+)?denied|permission\s+denied|unauthori[sz]ed|액세스[^.]*거부|권한[^.]*없|권한[^.]*거부|disk\s+(?:is\s+)?full|not\s+enough\s+(?:space|disk)|no\s+space\s+left|디스크[^.]*부족|공간[^.]*부족') { return $false }
+    return $true
+  }
   $codes = @([regex]::Matches($diagnostic, '(?i)\bCS[0-9]{4}\b') | ForEach-Object { $_.Value.ToUpperInvariant() })
   if ($codes.Count -eq 0 -or @($codes | Where-Object { $_ -ne "CS0016" }).Count -gt 0) { return $false }
   if ($diagnostic -match '(?i)access\s+(?:is\s+)?denied|액세스[^.]*거부|권한[^.]*없') { return $false }
@@ -12031,11 +12041,12 @@ function Test-ProbeNativeOmCompileLock([object[]]$Records, [string]$CompileDirec
 }
 
 function Initialize-ProbeNativeOm([string]$TypeDefinition) {
+  $compileTempRoot = [IO.Path]::GetTempPath()
   $createdDirectories = New-Object System.Collections.Generic.List[string]
   $retryWaits = @(1000, 2000)
   try {
     for ($attempt = 0; $attempt -lt 3; $attempt += 1) {
-      $compileDirectory = Join-Path ([IO.Path]::GetTempPath()) ("gs-blower-nativeom-" + [Guid]::NewGuid().ToString("N"))
+      $compileDirectory = Join-Path $compileTempRoot ("gs-blower-nativeom-" + [Guid]::NewGuid().ToString("N"))
       if (Test-Path -LiteralPath $compileDirectory) { throw "Excel 연결모듈 임시 폴더가 이미 존재합니다." }
       [void][IO.Directory]::CreateDirectory($compileDirectory)
       $createdDirectories.Add($compileDirectory)
@@ -12048,11 +12059,25 @@ function Initialize-ProbeNativeOm([string]$TypeDefinition) {
       $compileErrors = @()
       try {
         Write-ProbeStage ("Excel 연결모듈 준비 · " + [string]($attempt + 1) + "/3")
-        Add-Type -TypeDefinition $TypeDefinition -CompilerParameters $parameters -ErrorVariable +compileErrors -ErrorAction Stop
+        # CodeDOM child tools inherit the PowerShell process environment.
+        # Scope both temp variables to compilation and restore before COM use.
+        $previousCompileTemp = [Environment]::GetEnvironmentVariable("TEMP", "Process")
+        $previousCompileTmp = [Environment]::GetEnvironmentVariable("TMP", "Process")
+        try {
+          [Environment]::SetEnvironmentVariable("TEMP", $compileDirectory, "Process")
+          [Environment]::SetEnvironmentVariable("TMP", $compileDirectory, "Process")
+          Add-Type -TypeDefinition $TypeDefinition -CompilerParameters $parameters -ErrorVariable +compileErrors -ErrorAction Stop
+        } finally {
+          try {
+            [Environment]::SetEnvironmentVariable("TEMP", $previousCompileTemp, "Process")
+          } finally {
+            [Environment]::SetEnvironmentVariable("TMP", $previousCompileTmp, "Process")
+          }
+        }
         return
       } catch {
         if ($attempt -ge 2 -or -not (Test-ProbeNativeOmCompileLock (@($compileErrors) + @($_)) $compileDirectory)) { throw }
-        Write-ProbeStage "Excel 연결모듈 임시 DLL 잠금 · 잠시 후 다시 준비"
+        Write-ProbeStage "Excel 연결모듈 임시 파일 준비 재시도 · 잠시 후 다시 준비"
         Start-Sleep -Milliseconds $retryWaits[$attempt]
       }
     }
@@ -13324,6 +13349,16 @@ function Test-ProbeNativeOmCompileLock([object[]]$Records, [string]$CompileDirec
     }
   }
   $diagnostic = $messages -join " "
+  # A compiler resource file may report no CS number. Retry only a direct child
+  # of this attempt's private directory; never accept the shared temp root.
+  $resourcePrefix = [IO.Path]::GetFullPath($CompileDirectory).TrimEnd('\') + '\'
+  $resourcePattern = '(?i)\bcannot\s+open\s+["'']?' + [regex]::Escape($resourcePrefix) + 'RES[0-9a-f]{1,4}\.tmp["'']?\s+for\s+writing\b'
+  if ($diagnostic -match $resourcePattern) {
+    $resourceCodes = @([regex]::Matches($diagnostic, '(?i)\b(?:CS|CVT|AL)[0-9]{4}\b') | ForEach-Object { $_.Value.ToUpperInvariant() })
+    if (@($resourceCodes | Where-Object { $_ -ne "CS0016" }).Count -gt 0) { return $false }
+    if ($diagnostic -match '(?i)access\s+(?:is\s+)?denied|permission\s+denied|unauthori[sz]ed|액세스[^.]*거부|권한[^.]*없|권한[^.]*거부|disk\s+(?:is\s+)?full|not\s+enough\s+(?:space|disk)|no\s+space\s+left|디스크[^.]*부족|공간[^.]*부족') { return $false }
+    return $true
+  }
   $codes = @([regex]::Matches($diagnostic, '(?i)\bCS[0-9]{4}\b') | ForEach-Object { $_.Value.ToUpperInvariant() })
   if ($codes.Count -eq 0 -or @($codes | Where-Object { $_ -ne "CS0016" }).Count -gt 0) { return $false }
   if ($diagnostic -match '(?i)access\s+(?:is\s+)?denied|액세스[^.]*거부|권한[^.]*없') { return $false }
@@ -13333,11 +13368,12 @@ function Test-ProbeNativeOmCompileLock([object[]]$Records, [string]$CompileDirec
 }
 
 function Initialize-ProbeNativeOm([string]$TypeDefinition) {
+  $compileTempRoot = [IO.Path]::GetTempPath()
   $createdDirectories = New-Object System.Collections.Generic.List[string]
   $retryWaits = @(1000, 2000)
   try {
     for ($attempt = 0; $attempt -lt 3; $attempt += 1) {
-      $compileDirectory = Join-Path ([IO.Path]::GetTempPath()) ("gs-blower-nativeom-" + [Guid]::NewGuid().ToString("N"))
+      $compileDirectory = Join-Path $compileTempRoot ("gs-blower-nativeom-" + [Guid]::NewGuid().ToString("N"))
       if (Test-Path -LiteralPath $compileDirectory) { throw "Excel 연결모듈 임시 폴더가 이미 존재합니다." }
       [void][IO.Directory]::CreateDirectory($compileDirectory)
       $createdDirectories.Add($compileDirectory)
@@ -13350,11 +13386,25 @@ function Initialize-ProbeNativeOm([string]$TypeDefinition) {
       $compileErrors = @()
       try {
         Write-ProbeStage ("Excel 연결모듈 준비 · " + [string]($attempt + 1) + "/3")
-        Add-Type -TypeDefinition $TypeDefinition -CompilerParameters $parameters -ErrorVariable +compileErrors -ErrorAction Stop
+        # CodeDOM child tools inherit the PowerShell process environment.
+        # Scope both temp variables to compilation and restore before COM use.
+        $previousCompileTemp = [Environment]::GetEnvironmentVariable("TEMP", "Process")
+        $previousCompileTmp = [Environment]::GetEnvironmentVariable("TMP", "Process")
+        try {
+          [Environment]::SetEnvironmentVariable("TEMP", $compileDirectory, "Process")
+          [Environment]::SetEnvironmentVariable("TMP", $compileDirectory, "Process")
+          Add-Type -TypeDefinition $TypeDefinition -CompilerParameters $parameters -ErrorVariable +compileErrors -ErrorAction Stop
+        } finally {
+          try {
+            [Environment]::SetEnvironmentVariable("TEMP", $previousCompileTemp, "Process")
+          } finally {
+            [Environment]::SetEnvironmentVariable("TMP", $previousCompileTmp, "Process")
+          }
+        }
         return
       } catch {
         if ($attempt -ge 2 -or -not (Test-ProbeNativeOmCompileLock (@($compileErrors) + @($_)) $compileDirectory)) { throw }
-        Write-ProbeStage "Excel 연결모듈 임시 DLL 잠금 · 잠시 후 다시 준비"
+        Write-ProbeStage "Excel 연결모듈 임시 파일 준비 재시도 · 잠시 후 다시 준비"
         Start-Sleep -Milliseconds $retryWaits[$attempt]
       }
     }

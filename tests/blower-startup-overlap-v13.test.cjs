@@ -5,7 +5,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 // Source/contract verification only: does not load or start the Agent, PowerShell or Excel.
-const source = fs.readFileSync(path.join(__dirname, '../local-tools/ois-agent/ois-login.js'), 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+const { restoreReviewedCompilerSource } = require('./helpers/blower-nativeom-temp-v14-baseline.cjs');
+const source = restoreReviewedCompilerSource(fs.readFileSync(path.join(__dirname, '../local-tools/ois-agent/ois-login.js'), 'utf8').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n'));
 // Reviewed original hash after BOM removal and CRLF normalization.
 const baseSha256 = '1d0cba1037c814b44abbc0d61c6048d985cd51e9b7fd04d2b90e5f57b0dfac44';
 const hash = text => crypto.createHash('sha256').update(text).digest('hex');
