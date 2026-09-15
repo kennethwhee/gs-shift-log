@@ -9,7 +9,7 @@ const style = read("style.css");
 const script = read("script.js");
 
 const CACHE_KEY =
-  "20260901-limestone-pc-entry-modal-v1";
+  "20260916-aux-edit-validation-v1";
 
 assert.match(
   desktopHtml,

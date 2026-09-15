@@ -92935,6 +92935,21 @@ tbody tr {
     rgba(23, 107, 196, 0.14);
 }
 
+
+/* [AUXILIARY-MATERIAL-EDIT-VALIDATION-V1] */
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-value-input.is-invalid,
+
+#efficiencyAuxiliaryMaterialsView
+.auxiliary-material-remarks-input.is-invalid {
+  border-color: #d92d20 !important;
+  background: #fff5f4 !important;
+  color: #8f1d16 !important;
+  box-shadow:
+    0 0 0 3px
+    rgba(217, 45, 32, 0.18) !important;
+}
+
 @media screen and (max-width: 700px) {
 
   #efficiencyAuxiliaryMaterialsView

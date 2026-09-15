@@ -5659,6 +5659,11 @@ function convertAuxiliaryMaterialRow(
         row.nox_ppm
       ),
 
+    remarks:
+      normalizeText(
+        row.remarks
+      ),
+
     sampleCount:
       Number(
         row.sample_count
@@ -6412,7 +6417,125 @@ function normalizeAuxiliaryMaterialManualValue(
   );
 }
 
-function normalizeAuxiliaryMaterialManualRecord(
+/*
+  [AUXILIARY-MATERIAL-EDIT-VALIDATION-V1]
+
+  최신 화면은 변경한 숫자 필드만 보낸다.
+  변경하지 않은 값은 브라우저 값을 신뢰하지 않고
+  현재 D1 행에서 다시 읽어 그대로 보존한다.
+*/
+const AUXILIARY_MATERIAL_MANUAL_FIELD_DEFINITIONS = [
+  {
+    key:
+      "soxPpm",
+
+    databaseColumn:
+      "sox_ppm",
+
+    label:
+      "SOx"
+  },
+
+  {
+    key:
+      "limestoneUsageTpd",
+
+    databaseColumn:
+      "limestone_usage_tpd",
+
+    label:
+      "Limestone 사용량"
+  },
+
+  {
+    key:
+      "limestoneReceiptTon",
+
+    databaseColumn:
+      "limestone_receipt_ton",
+
+    label:
+      "Limestone 입고량"
+  },
+
+  {
+    key:
+      "limeSlurryFlowM3h",
+
+    databaseColumn:
+      "lime_slurry_flow_m3h",
+
+    label:
+      "Lime Slurry 유량"
+  },
+
+  {
+    key:
+      "limeSlurryDensityKgm3",
+
+    databaseColumn:
+      "lime_slurry_density_kgm3",
+
+    label:
+      "Slurry 밀도",
+
+    options: {
+      minimum:
+        1000,
+
+      minimumExclusive:
+        true,
+
+      maximum:
+        2000
+    }
+  },
+
+  {
+    key:
+      "limePowderTpd",
+
+    databaseColumn:
+      "lime_powder_tpd",
+
+    label:
+      "Lime Powder"
+  },
+
+  {
+    key:
+      "noxPpm",
+
+    databaseColumn:
+      "nox_ppm",
+
+    label:
+      "NOx"
+  },
+
+  {
+    key:
+      "ammoniaM3d",
+
+    databaseColumn:
+      "ammonia_m3d",
+
+    label:
+      "Ammonia 일사용량"
+  }
+];
+
+
+const AUXILIARY_MATERIAL_MANUAL_FIELD_KEYS =
+  new Set(
+    AUXILIARY_MATERIAL_MANUAL_FIELD_DEFINITIONS.map(
+      definition =>
+        definition.key
+    )
+  );
+
+
+function normalizeAuxiliaryMaterialManualTarget(
   rawItem,
   itemIndex
 ) {
@@ -6443,6 +6566,7 @@ function normalizeAuxiliaryMaterialManualRecord(
   const prefix =
     `${recordDate} ${unitNo}호기`;
 
+
   const values =
     rawItem?.values &&
     typeof rawItem.values ===
@@ -6453,25 +6577,167 @@ function normalizeAuxiliaryMaterialManualRecord(
       ? rawItem.values
       : {};
 
-  /*
-    비고 정리 및 길이 검증
-  */
-  const remarks =
-    normalizeText(
-      rawItem?.remarks
+
+  const hasChangedFields =
+    Object.prototype.hasOwnProperty.call(
+      rawItem || {},
+      "changedFields"
     );
+
+
+  const hasRemarksChanged =
+    Object.prototype.hasOwnProperty.call(
+      rawItem || {},
+      "remarksChanged"
+    );
+
+
+  const isSparsePatch =
+    hasChangedFields ||
+    hasRemarksChanged;
+
+
+  let changedFields =
+    AUXILIARY_MATERIAL_MANUAL_FIELD_DEFINITIONS.map(
+      definition =>
+        definition.key
+    );
+
+
+  let remarksChanged =
+    Object.prototype.hasOwnProperty.call(
+      rawItem || {},
+      "remarks"
+    );
+
 
   if (
-    remarks.length > 1000
+    isSparsePatch
   ) {
-    throw new Error(
-      `${prefix} 비고는 1,000자 이하로 입력해 주세요.`
-    );
+    if (
+      !hasChangedFields ||
+      !hasRemarksChanged ||
+      !Array.isArray(
+        rawItem.changedFields
+      ) ||
+      typeof rawItem.remarksChanged !==
+        "boolean"
+    ) {
+      throw new Error(
+        `${prefix} 변경 필드 형식을 확인해 주세요.`
+      );
+    }
+
+
+    changedFields =
+      rawItem.changedFields.map(
+        fieldKey =>
+          typeof fieldKey ===
+            "string"
+            ? fieldKey
+            : ""
+      );
+
+
+    remarksChanged =
+      rawItem.remarksChanged;
+
+
+    if (
+      remarksChanged &&
+      !Object.prototype.hasOwnProperty.call(
+        rawItem || {},
+        "remarks"
+      )
+    ) {
+      throw new Error(
+        `${prefix} 변경한 비고 내용을 확인해 주세요.`
+      );
+    }
+
+
+    if (
+      changedFields.length >
+        AUXILIARY_MATERIAL_MANUAL_FIELD_DEFINITIONS.length ||
+      new Set(
+        changedFields
+      ).size !==
+        changedFields.length ||
+      changedFields.some(
+        fieldKey =>
+          !AUXILIARY_MATERIAL_MANUAL_FIELD_KEYS.has(
+            fieldKey
+          )
+      )
+    ) {
+      throw new Error(
+        `${prefix} 변경 필드 목록을 확인해 주세요.`
+      );
+    }
+
+
+    const submittedValueKeys =
+      Object.keys(
+        values
+      );
+
+
+    if (
+      submittedValueKeys.length !==
+        changedFields.length ||
+      submittedValueKeys.some(
+        fieldKey =>
+          !changedFields.includes(
+            fieldKey
+          )
+      ) ||
+      changedFields.some(
+        fieldKey =>
+          !Object.prototype.hasOwnProperty.call(
+            values,
+            fieldKey
+          )
+      )
+    ) {
+      throw new Error(
+        `${prefix} 변경값과 필드 목록이 일치하지 않습니다.`
+      );
+    }
+
+
+    if (
+      changedFields.length <
+        1 &&
+      !remarksChanged
+    ) {
+      throw new Error(
+        `${prefix} 변경된 부재료 수치가 없습니다.`
+      );
+    }
+
+
+    if (
+      !Number.isInteger(
+        rawItem?.revision
+      ) ||
+      rawItem.revision < 1
+    ) {
+      throw new Error(
+        `${prefix} 자료 버전을 확인해 주세요. 다시 조회한 뒤 수정해 주세요.`
+      );
+    }
   }
 
+
   return {
+    rawItem,
     recordDate,
     unitNo,
+    prefix,
+    values,
+    isSparsePatch,
+    changedFields,
+    remarksChanged,
 
     expectedRevision:
       Math.max(
@@ -6480,70 +6746,207 @@ function normalizeAuxiliaryMaterialManualRecord(
           rawItem?.revision
         ) ||
         0
-      ),
+      )
+  };
+}
+
+
+function normalizeAuxiliaryMaterialManualRecord(
+  rawItem,
+  itemIndex,
+  existingRow =
+    null
+) {
+  const target =
+    normalizeAuxiliaryMaterialManualTarget(
+      rawItem,
+      itemIndex
+    );
+
+
+  const changedFieldSet =
+    new Set(
+      target.changedFields
+    );
+
+
+  if (
+    target.isSparsePatch &&
+    !existingRow
+  ) {
+    throw new Error(
+      `${target.prefix} 기존 저장자료를 확인할 수 없습니다.`
+    );
+  }
+
+
+  const normalizedValues = {};
+
+
+  AUXILIARY_MATERIAL_MANUAL_FIELD_DEFINITIONS.forEach(
+    definition => {
+      if (
+        target.isSparsePatch &&
+        !changedFieldSet.has(
+          definition.key
+        )
+      ) {
+        normalizedValues[
+          definition.key
+        ] =
+          normalizeAuxiliaryMaterialNumber(
+            existingRow?.[
+              definition.databaseColumn
+            ]
+          );
+
+        return;
+      }
+
+
+      normalizedValues[
+        definition.key
+      ] =
+        normalizeAuxiliaryMaterialManualValue(
+          target.values[
+            definition.key
+          ],
+          `${target.prefix} ${definition.label}`,
+          definition.options ||
+            {}
+        );
+    }
+  );
+
+
+  const remarks =
+    target.remarksChanged
+      ? normalizeText(
+          rawItem?.remarks
+        )
+      : normalizeText(
+          existingRow?.remarks
+        );
+
+  if (
+    remarks.length > 1000 &&
+    target.remarksChanged
+  ) {
+    throw new Error(
+      `${target.prefix} 비고는 1,000자 이하로 입력해 주세요.`
+    );
+  }
+
+
+  return {
+    recordDate:
+      target.recordDate,
+
+    unitNo:
+      target.unitNo,
+
+    expectedRevision:
+      target.expectedRevision,
 
     remarks,
 
-    values: {
-      soxPpm:
-        normalizeAuxiliaryMaterialManualValue(
-          values.soxPpm,
-          `${prefix} SOx`
-        ),
+    values:
+      normalizedValues,
 
-      limestoneUsageTpd:
-        normalizeAuxiliaryMaterialManualValue(
-          values.limestoneUsageTpd,
-          `${prefix} Limestone 사용량`
-        ),
+    changedFields:
+      target.changedFields,
 
-      limestoneReceiptTon:
-        normalizeAuxiliaryMaterialManualValue(
-          values.limestoneReceiptTon,
-          `${prefix} Limestone 입고량`
-        ),
+    remarksChanged:
+      target.remarksChanged,
 
-      limeSlurryFlowM3h:
-        normalizeAuxiliaryMaterialManualValue(
-          values.limeSlurryFlowM3h,
-          `${prefix} Lime Slurry 유량`
-        ),
-
-      limeSlurryDensityKgm3:
-        normalizeAuxiliaryMaterialManualValue(
-          values.limeSlurryDensityKgm3,
-          `${prefix} Slurry 밀도`,
-          {
-            minimum:
-              1000,
-
-            minimumExclusive:
-              true,
-
-            maximum:
-              2000
-          }
-        ),
-
-      limePowderTpd:
-        normalizeAuxiliaryMaterialManualValue(
-          values.limePowderTpd,
-          `${prefix} Lime Powder`
-        ),
-
-      noxPpm:
-        normalizeAuxiliaryMaterialManualValue(
-          values.noxPpm,
-          `${prefix} NOx`
-        ),
-
-      ammoniaM3d:
-        normalizeAuxiliaryMaterialManualValue(
-          values.ammoniaM3d,
-          `${prefix} Ammonia 일사용량`
-        )
-    }
+    isSparsePatch:
+      target.isSparsePatch
   };
+}
+
+
+function prepareAuxiliaryMaterialManualRevisionGuard(
+  database,
+  items,
+  now
+) {
+  const expectedRows =
+    items.map(
+      item => ({
+        recordDate:
+          item.recordDate,
+
+        unitNo:
+          item.unitNo,
+
+        expectedRevision:
+          item.expectedRevision
+      })
+    );
+
+
+  /*
+    D1 batch()는 트랜잭션이다. SELECT 이후 저장 직전까지 다른 요청이
+    행을 바꿨으면 첫 문장이 의도적으로 NOT NULL 제약을 위반한다.
+    그러면 뒤의 모든 형제 UPDATE도 함께 롤백된다.
+  */
+  return database
+    .prepare(`
+      /* AUXILIARY_MATERIAL_MANUAL_REVISION_GUARD_V1 */
+      WITH expected_rows AS (
+        SELECT
+          json_extract(value, '$.recordDate') AS record_date,
+          CAST(json_extract(value, '$.unitNo') AS INTEGER) AS unit_no,
+          CAST(json_extract(value, '$.expectedRevision') AS INTEGER) AS expected_revision
+
+        FROM json_each(?)
+      ),
+
+      revision_conflict AS (
+        SELECT 1
+
+        FROM expected_rows AS expected
+
+        WHERE NOT EXISTS (
+          SELECT 1
+
+          FROM auxiliary_material_daily AS current_row
+
+          WHERE
+            current_row.record_date = expected.record_date
+            AND current_row.unit_no = expected.unit_no
+            AND (
+              expected.expected_revision < 1
+              OR current_row.revision = expected.expected_revision
+            )
+        )
+
+        LIMIT 1
+      )
+
+      INSERT INTO auxiliary_material_daily (
+        id,
+        record_date,
+        unit_no,
+        created_at,
+        updated_at
+      )
+      SELECT
+        'manual-revision-guard-' || lower(hex(randomblob(16))),
+        NULL,
+        0,
+        ?,
+        ?
+
+      FROM revision_conflict
+    `)
+    .bind(
+      JSON.stringify(
+        expectedRows
+      ),
+      now,
+      now
+    );
 }
 
 /* =========================================================
@@ -6572,39 +6975,20 @@ async function updateAuxiliaryMaterialManualRecords(context, body) {
     );
   }
 
-  let items;
+  let targets;
 
   try {
-    items = rawItems.map((rawItem, itemIndex) => {
-      const normalizedItem =
-        normalizeAuxiliaryMaterialManualRecord(
+    targets = rawItems.map((rawItem, itemIndex) => {
+      return {
+        ...normalizeAuxiliaryMaterialManualTarget(
           rawItem,
           itemIndex
-        );
+        ),
 
-      const remarks = normalizeText(rawItem?.remarks);
-
-      if (remarks.length > 1000) {
-        throw new Error(
-          `${normalizedItem.recordDate} ${normalizedItem.unitNo}호기 비고는 1,000자 이하로 입력해 주세요.`
-        );
-      }
-
-      return {
-        ...normalizedItem,
-        remarks,
-
-        /*
-          이전 화면처럼 remarks 자체를 보내지 않는 요청이면
-          기존 비고를 보존하기 위한 구분값
-        */
-        remarksProvided:
-          Object.prototype.hasOwnProperty.call(
-            rawItem || {},
-            "remarks"
-          )
+        itemIndex
       };
     });
+
   } catch (error) {
     return jsonResponse(
       {
@@ -6620,15 +7004,15 @@ async function updateAuxiliaryMaterialManualRecords(context, body) {
 
   const targetKeys = new Set();
 
-  for (const item of items) {
-    const key = `${item.recordDate}:${item.unitNo}`;
+  for (const target of targets) {
+    const key = `${target.recordDate}:${target.unitNo}`;
 
     if (targetKeys.has(key)) {
       return jsonResponse(
         {
           ok: false,
           message:
-            `${item.recordDate} ${item.unitNo}호기 수정자료가 중복되었습니다.`
+            `${target.recordDate} ${target.unitNo}호기 수정자료가 중복되었습니다.`
         },
         400
       );
@@ -6641,8 +7025,8 @@ async function updateAuxiliaryMaterialManualRecords(context, body) {
 
   await ensureAuxiliaryMaterialDailyTable(database);
 
-  const dates = items
-    .map(item => item.recordDate)
+  const dates = targets
+    .map(target => target.recordDate)
     .sort();
 
   const firstDate = dates[0];
@@ -6677,8 +7061,8 @@ async function updateAuxiliaryMaterialManualRecords(context, body) {
     ])
   );
 
-  for (const item of items) {
-    const key = `${item.recordDate}:${item.unitNo}`;
+  for (const target of targets) {
+    const key = `${target.recordDate}:${target.unitNo}`;
     const existing = existingByKey.get(key);
 
     if (!existing) {
@@ -6686,33 +7070,57 @@ async function updateAuxiliaryMaterialManualRecords(context, body) {
         {
           ok: false,
           message:
-            `${item.recordDate} ${item.unitNo}호기 저장자료가 없어 수정할 수 없습니다.`
+            `${target.recordDate} ${target.unitNo}호기 저장자료가 없어 수정할 수 없습니다.`
         },
         404
       );
     }
 
     if (
-      item.expectedRevision > 0 &&
-      Number(existing.revision) !== item.expectedRevision
+      target.expectedRevision > 0 &&
+      Number(existing.revision) !== target.expectedRevision
     ) {
       return jsonResponse(
         {
           ok: false,
           message:
-            `${item.recordDate} ${item.unitNo}호기 자료가 다른 사용자에 의해 변경되었습니다. 다시 조회한 뒤 수정해 주세요.`
+            `${target.recordDate} ${target.unitNo}호기 자료가 다른 사용자에 의해 변경되었습니다. 다시 조회한 뒤 수정해 주세요.`
         },
         409
       );
     }
+  }
 
-    /*
-      구버전 화면이 비고를 보내지 않은 경우에는
-      기존 비고를 그대로 유지
-    */
-    if (!item.remarksProvided) {
-      item.remarks = normalizeText(existing.remarks);
-    }
+
+  let items;
+
+
+  try {
+    items = targets.map(target => {
+      const key =
+        `${target.recordDate}:${target.unitNo}`;
+
+
+      return normalizeAuxiliaryMaterialManualRecord(
+        target.rawItem,
+        target.itemIndex,
+        existingByKey.get(
+          key
+        )
+      );
+    });
+
+  } catch (error) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "부재료 수정값을 확인해 주세요."
+      },
+      400
+    );
   }
 
   function normalizeComparableNumber(value) {
@@ -6752,7 +7160,13 @@ async function updateAuxiliaryMaterialManualRecords(context, body) {
   const user = authentication.user;
   const now = new Date().toISOString();
 
-  const statements = [];
+  const statements = [
+    prepareAuxiliaryMaterialManualRevisionGuard(
+      database,
+      items,
+      now
+    )
+  ];
   const limestoneSyncTargetKeys = new Set();
 
   for (const item of items) {
@@ -6805,6 +7219,10 @@ async function updateAuxiliaryMaterialManualRecords(context, body) {
           WHERE
             record_date = ?
             AND unit_no = ?
+            AND (
+              ? < 1
+              OR revision = ?
+            )
         `)
         .bind(
           values.limestoneReceiptTon,
@@ -6828,7 +7246,10 @@ async function updateAuxiliaryMaterialManualRecords(context, body) {
           now,
 
           item.recordDate,
-          item.unitNo
+          item.unitNo,
+
+          item.expectedRevision,
+          item.expectedRevision
         )
     );
 
@@ -6889,7 +7310,35 @@ async function updateAuxiliaryMaterialManualRecords(context, body) {
     }
   }
 
-  await database.batch(statements);
+  try {
+    await database.batch(
+      statements
+    );
+
+  } catch (
+    error
+  ) {
+    if (
+      /NOT NULL constraint failed:\s*auxiliary_material_daily\.record_date/i.test(
+        String(
+          error?.message ||
+          error
+        )
+      )
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          message:
+            "부재료 자료가 다른 사용자 또는 자동 수집에 의해 변경되었습니다. 다시 조회한 뒤 수정해 주세요."
+        },
+        409
+      );
+    }
+
+
+    throw error;
+  }
 
   const updatedResult = await database
     .prepare(`
@@ -21198,6 +21647,10 @@ export const __oisDataRequestsTest = {
   handleAgentNextBlowerRuntimeProbeBatch,
   parseBlowerRuntimeProbeCompletionBatch,
   completeAgentBlowerRuntimeProbeBatch,
+  ensureAuxiliaryMaterialDailyTable,
+  normalizeAuxiliaryMaterialManualTarget,
+  normalizeAuxiliaryMaterialManualRecord,
+  updateAuxiliaryMaterialManualRecords,
   normalizeOrganicSiloDataParcResult,
   isOrganicSiloQualityGood
 };

@@ -92213,7 +92213,213 @@ function areAuxiliaryMaterialEditNumbersEqual(
     0.0000001;
 }
 
+
+/*
+  [AUXILIARY-MATERIAL-EDIT-VALIDATION-V1]
+
+  기존 OIS/Excel 저장값은 현재 수동 입력 범위와 다를 수 있다.
+  저장 전에 화면 전체를 다시 검증하지 않고,
+  사용자가 실제로 바꾼 입력칸만 엄격하게 검증한다.
+*/
+function areAuxiliaryMaterialEditInputValuesEqual(
+  first,
+  second
+) {
+  function normalizeComparableValue(
+    value
+  ) {
+    const text =
+      String(
+        value ??
+        ""
+      )
+        .trim()
+        .replace(
+          /,/g,
+          ""
+        );
+
+
+    if (
+      !text ||
+      text ===
+        "-" ||
+      text ===
+        "—"
+    ) {
+      return {
+        type:
+          "empty",
+
+        value:
+          null
+      };
+    }
+
+
+    const numericValue =
+      Number(
+        text
+      );
+
+
+    if (
+      Number.isFinite(
+        numericValue
+      )
+    ) {
+      return {
+        type:
+          "number",
+
+        value:
+          numericValue
+      };
+    }
+
+
+    return {
+      type:
+        "text",
+
+      value:
+        text
+    };
+  }
+
+
+  const firstValue =
+    normalizeComparableValue(
+      first
+    );
+
+
+  const secondValue =
+    normalizeComparableValue(
+      second
+    );
+
+
+  if (
+    firstValue.type !==
+      secondValue.type
+  ) {
+    return false;
+  }
+
+
+  if (
+    firstValue.type ===
+      "number"
+  ) {
+    return areAuxiliaryMaterialEditNumbersEqual(
+      firstValue.value,
+      secondValue.value
+    );
+  }
+
+
+  return firstValue.value ===
+    secondValue.value;
+}
+
+
+function clearAuxiliaryMaterialInputValidation(
+  input
+) {
+  input?.classList?.remove(
+    "is-invalid"
+  );
+
+  input?.removeAttribute?.(
+    "aria-invalid"
+  );
+}
+
+
+function clearAuxiliaryMaterialEditValidation() {
+  document
+    .querySelectorAll(
+      (
+        "#auxiliaryMaterialTableBody " +
+        ".auxiliary-material-value-input.is-invalid, " +
+        "#auxiliaryMaterialTableBody " +
+        ".auxiliary-material-remarks-input.is-invalid"
+      )
+    )
+    .forEach(
+      clearAuxiliaryMaterialInputValidation
+    );
+}
+
+
+function attachAuxiliaryMaterialInvalidInput(
+  error,
+  input
+) {
+  if (
+    error &&
+    typeof error ===
+      "object"
+  ) {
+    error.auxiliaryMaterialInvalidInput =
+      input;
+  }
+
+
+  return error;
+}
+
+
+function focusAuxiliaryMaterialInvalidInput(
+  error
+) {
+  const input =
+    error?.auxiliaryMaterialInvalidInput;
+
+
+  if (
+    !input
+  ) {
+    return;
+  }
+
+
+  clearAuxiliaryMaterialEditValidation();
+
+
+  input.classList?.add(
+    "is-invalid"
+  );
+
+  input.setAttribute?.(
+    "aria-invalid",
+    "true"
+  );
+
+  input.focus?.({
+    preventScroll:
+      true
+  });
+
+  input.select?.();
+
+  input.scrollIntoView?.({
+    behavior:
+      "smooth",
+
+    block:
+      "center",
+
+    inline:
+      "center"
+  });
+}
+
 function collectAuxiliaryMaterialChangedRecords() {
+  clearAuxiliaryMaterialEditValidation();
+
+
   const grouped = new Map();
 
   const historyItems =
@@ -92238,8 +92444,8 @@ function collectAuxiliaryMaterialChangedRecords() {
   }
 
   /*
-    숫자 또는 비고 중 하나만 변경해도
-    서버에는 해당 날짜·호기의 전체 값을 전달한다.
+    숫자 또는 비고 중 하나만 변경해도 그룹을 만들되,
+    서버에는 실제로 변경한 필드만 전달한다.
   */
   function ensureGroup(
     recordDate,
@@ -92286,24 +92492,18 @@ function collectAuxiliaryMaterialChangedRecords() {
         ) ||
         0,
 
-      values:
-        Object.fromEntries(
-          AUXILIARY_MATERIAL_EDIT_FIELDS.map(
-            field => [
-              field.key,
+      values: {},
 
-              originalItem[
-                field.key
-              ] ??
-              null
-            ]
-          )
-        ),
+      changedFields:
+        new Set(),
 
       remarks:
         originalRemarks,
 
       originalRemarks,
+
+      remarksChanged:
+        false,
 
       changed:
         false
@@ -92367,19 +92567,35 @@ function collectAuxiliaryMaterialChangedRecords() {
         const label =
           `${recordDate} ${unitNo}호기 ${field.label}`;
 
-        const value =
-          parseAuxiliaryMaterialEditNumber(
+        if (
+          areAuxiliaryMaterialEditInputValuesEqual(
             input.value,
-            field,
-            label
-          );
+            input.dataset.originalValue
+          )
+        ) {
+          return;
+        }
 
-        const originalValue =
-          parseAuxiliaryMaterialEditNumber(
-            input.dataset.originalValue,
-            field,
-            label
+
+        let value;
+
+
+        try {
+          value =
+            parseAuxiliaryMaterialEditNumber(
+              input.value,
+              field,
+              label
+            );
+
+        } catch (
+          error
+        ) {
+          throw attachAuxiliaryMaterialInvalidInput(
+            error,
+            input
           );
+        }
 
         const group =
           ensureGroup(
@@ -92398,15 +92614,12 @@ function collectAuxiliaryMaterialChangedRecords() {
         ] =
           value;
 
-        if (
-          !areAuxiliaryMaterialEditNumbersEqual(
-            value,
-            originalValue
-          )
-        ) {
-          group.changed =
-            true;
-        }
+        group.changedFields.add(
+          fieldKey
+        );
+
+        group.changed =
+          true;
       }
     );
 
@@ -92480,14 +92693,6 @@ function collectAuxiliaryMaterialChangedRecords() {
             ""
           ).trim();
 
-        if (
-          remarks.length > 1000
-        ) {
-          throw new Error(
-            `${recordDate} 비고는 1,000자 이하로 입력해 주세요.`
-          );
-        }
-
         /*
           크게보기에서 1·2호기 비고가 서로 다르면
           화면에는 합쳐진 문구가 표시된다.
@@ -92500,6 +92705,18 @@ function collectAuxiliaryMaterialChangedRecords() {
           originalDisplayValue
         ) {
           return;
+        }
+
+
+        if (
+          remarks.length > 1000
+        ) {
+          throw attachAuxiliaryMaterialInvalidInput(
+            new Error(
+              `${recordDate} 비고는 1,000자 이하로 입력해 주세요.`
+            ),
+            input
+          );
         }
 
         unitNos.forEach(
@@ -92519,13 +92736,11 @@ function collectAuxiliaryMaterialChangedRecords() {
             group.remarks =
               remarks;
 
-            if (
-              remarks !==
-              group.originalRemarks
-            ) {
-              group.changed =
-                true;
-            }
+            group.remarksChanged =
+              true;
+
+            group.changed =
+              true;
           }
         );
       }
@@ -92543,10 +92758,29 @@ function collectAuxiliaryMaterialChangedRecords() {
         const {
           originalRemarks,
           changed,
+          changedFields,
           ...record
         } = item;
 
-        return record;
+        const result = {
+          ...record,
+
+          changedFields:
+            Array.from(
+              changedFields
+            )
+        };
+
+
+        if (
+          result.remarksChanged !==
+            true
+        ) {
+          delete result.remarks;
+        }
+
+
+        return result;
       }
     );
 }
@@ -92733,6 +92967,11 @@ async function saveAuxiliaryMaterialEditedValues() {
     }
 
 
+    focusAuxiliaryMaterialInvalidInput(
+      error
+    );
+
+
     return;
   }
 
@@ -92882,6 +93121,24 @@ async function saveAuxiliaryMaterialEditedValues() {
 function handleAuxiliaryMaterialValueInput(
   event
 ) {
+  const editedInput =
+    event.target;
+
+
+  if (
+    editedInput?.classList?.contains(
+      "auxiliary-material-value-input"
+    ) ||
+    editedInput?.classList?.contains(
+      "auxiliary-material-remarks-input"
+    )
+  ) {
+    clearAuxiliaryMaterialInputValidation(
+      editedInput
+    );
+  }
+
+
   const input =
     event.target instanceof
       HTMLInputElement &&
