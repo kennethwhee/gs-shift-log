@@ -79,10 +79,11 @@
     const fetcher=options.fetch||((...args)=>root.fetch(...args)),api=options.api||'/api/ois-data-requests';
     const setTimer=options.setTimeout||root.setTimeout?.bind(root),clearTimer=options.clearTimeout||root.clearTimeout?.bind(root);
     let selected=null,identity='',rejectedAuthKey='',generation=0,timer=null,disposed=false,loading=null,paused=false;
-    const periods=new Map(),activeStatuses=['pending','processing'],allStatuses=[...activeStatuses,'complete','failed'];
+    const periods=new Map(),latestReads=new Map(),activeStatuses=['pending','processing'],allStatuses=[...activeStatuses,'complete','failed'];
+    let latestReadGeneration=0;
     const maxStatusFailures=3,maxStatusPolls=900;
     function auth(){let h={};try{h=options.getHeaders?.()||{};}catch(_){}return {headers:h,key:String(h.Authorization||h.authorization||'')};}
-    function syncAuth(){const a=auth();if(a.key!==identity){identity=a.key;rejectedAuthKey='';generation++;periods.clear();loading=null;clearTimer?.(timer);timer=null;}return a;}
+    function syncAuth(){const a=auth();if(a.key!==identity){identity=a.key;rejectedAuthKey='';generation++;periods.clear();latestReads.clear();loading=null;clearTimer?.(timer);timer=null;}return a;}
     function key(){return selected?contract.periodKey(selected):'';}
     function entry(){const k=key();if(!k)return null;if(!periods.has(k))periods.set(k,{saved:null,result:null,active:null,lastAttempt:null,loading:false,submitting:false,error:'',clientRequestId:null,statusFailures:0,statusPolls:0,statusStopped:false});return periods.get(k);}
     function eligible(){try{if(!selected)return false;contract.period(selected);return true;}catch(_){return false;}}
@@ -107,9 +108,48 @@
         return data;
       }finally{clearTimer?.(timeout);}
     }
-    function rejectAuth(a,d){rejectedAuthKey=a.key;d.active=null;d.clientRequestId=null;d.statusStopped=true;clearTimer?.(timer);timer=null;}
+    function rejectAuth(a,d){rejectedAuthKey=a.key;if(d){d.active=null;d.clientRequestId=null;d.statusStopped=true;}clearTimer?.(timer);timer=null;}
     function errorText(e){return e.name==='AbortError'?'상태 확인 시간이 초과됐습니다. 진행 중인 회사 PC 조회를 다시 시작하지 않습니다.':e.message;}
-    function select(spec){syncAuth();const next=contract.period(spec,Number.MAX_SAFE_INTEGER),nextKey=contract.periodKey(next);if(nextKey!==key()){selected={startLocal:next.startLocal,endLocal:next.endLocal,stepUnit:next.stepUnit,stepValue:next.stepValue};generation++;loading=null;clearTimer?.(timer);timer=null;while(periods.size>4)periods.delete(periods.keys().next().value);}notify();}
+    function select(spec){syncAuth();const next=contract.period(spec,Number.MAX_SAFE_INTEGER),nextKey=contract.periodKey(next);if(nextKey!==key()){selected={startLocal:next.startLocal,endLocal:next.endLocal,stepUnit:next.stepUnit,stepValue:next.stepValue};generation++;latestReads.clear();loading=null;clearTimer?.(timer);timer=null;while(periods.size>4)periods.delete(periods.keys().next().value);}notify();}
+    // Discover the last completed midnight-to-cutoff result for a date without
+    // changing selection or emitting a result. The caller adopts the exact range
+    // and uses load() to populate its authoritative settings and result state.
+    async function readLatestDaily(targetDate){
+      if(disposed)return null;
+      const day=contract.day(targetDate),a=syncAuth();
+      if(!a.key||a.key===rejectedAuthKey){const e=new Error('로그인 세션을 확인한 뒤 다시 로그인해 주세요.');e.code='AUTH_EXPIRED';throw e;}
+      const cached=latestReads.get(targetDate);if(cached)return cached;
+      const k=key(),g=generation,readGeneration=latestReadGeneration;
+      const stillCurrent=()=>current(g,k,a.key)&&readGeneration===latestReadGeneration;
+      let task;
+      task=(async()=>{
+        try{
+          const q=new URLSearchParams({action:'cofiring_period_latest',targetDate});
+          const data=await request(api+'?'+q.toString(),{headers:a.headers});
+          if(!stillCurrent())return null;
+          if(data.bridgeVersion!==2||data.targetDate!==targetDate)throw new Error('최근 저장 결과의 날짜 또는 연결 버전이 다릅니다.');
+          if(data.periodKey===null&&data.period===null&&data.saved===null&&data.result===null)return null;
+          if(!data.period||!data.saved||!data.result)throw new Error('최근 저장 결과의 기간 또는 본문이 누락됐습니다.');
+          // Detach the returned snapshot: report validation intentionally retains
+          // some report metadata, which must not share a mutable response object.
+          const value=JSON.parse(JSON.stringify({period:data.period,saved:data.saved,result:data.result}));
+          const p=contract.period({startLocal:value.period.start,endLocal:value.period.end,stepUnit:value.period.stepUnit,stepValue:value.period.stepValue},Number.MAX_SAFE_INTEGER);
+          const now=typeof options.now==='function'?options.now():Date.now();
+          if(p.targetDate!==targetDate||p.startMs!==day.startMs||p.endMs>day.startMs+86400000||p.stepUnit!=='minute'||p.stepValue!==1||value.period.stepUnit!=='minute'||value.period.stepValue!==1||!Number.isFinite(now)||p.endMs+60000>now)throw new Error('최근 저장 결과가 선택일의 완료된 누적 조회 범위가 아닙니다.');
+          if(data.periodKey!==contract.periodKey(p))throw new Error('최근 저장 결과의 기간 식별자가 다릅니다.');
+          const saved=value.saved;
+          if(!contract.uuid(saved.id)||saved.requestType!=='cofiring_period'||saved.status!=='complete'||saved.targetDate!==targetDate||!saved.request||contract.periodKey(saved.request)!==data.periodKey)throw new Error('최근 저장 요청의 식별자 또는 완료 상태가 다릅니다.');
+          const result=contract.periodResult(value.result,saved.id,p);
+          return {period:{startLocal:p.startLocal,endLocal:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue},saved,result};
+        }catch(e){
+          if(!stillCurrent())return null;
+          if(e.code==='AUTH_EXPIRED'){rejectAuth(a,entry());notify();}
+          if(e.name==='AbortError')throw new Error('최근 저장 결과 확인 시간이 초과됐습니다. 다시 계산하기를 눌러 주세요.');
+          throw e;
+        }finally{if(latestReads.get(targetDate)===task)latestReads.delete(targetDate);}
+      })();
+      latestReads.set(targetDate,task);return task;
+    }
     // Full period reads remain authoritative for saved results. Status polling
     // only follows the exact accepted request; it never submits a replacement.
     async function load({force=false,terminal=null}={}){
@@ -208,9 +248,9 @@
       }catch(e){if(current(g,k,a.key)){if(e.code==='AUTH_EXPIRED')rejectAuth(a,d);d.error=errorText(e);}return false;}
       finally{if(current(g,k,a.key)){d.submitting=false;notify();schedule();}}
     }
-    function pause(){paused=true;clearTimer?.(timer);timer=null;}
+    function pause(){paused=true;latestReadGeneration++;latestReads.clear();clearTimer?.(timer);timer=null;}
     function dispose(){disposed=true;generation++;pause();periods.clear();}
-    return {state,select,load,query,pause,dispose};
+    return {state,select,load,readLatestDaily,query,pause,dispose};
   }
   root.CofiringLive={create,createPeriod};if(typeof module==='object'&&module.exports)module.exports=root.CofiringLive;
 })(typeof globalThis==='object'?globalThis:this);

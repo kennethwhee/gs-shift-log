@@ -14153,6 +14153,7 @@ export async function onRequestGet(
 
     if (action === "cofiring_daily") return await handleCofiringLiveGet(context, requestUrl);
     if (action === "cofiring_period") return await handleCofiringPeriodGet(context, requestUrl);
+    if (action === "cofiring_period_latest") return await handleCofiringPeriodLatestGet(context, requestUrl);
     if (action === "cofiring_agent_idle") return await handleCofiringAgentIdle(context);
 
 /*
@@ -21984,7 +21985,7 @@ function specFromPeriodUrl(url) {
   return {startLocal:url.searchParams.get('start')||'',endLocal:url.searchParams.get('end')||'',stepUnit:url.searchParams.get('stepUnit')||'',stepValue:Number(url.searchParams.get('stepValue'))};
 }
 async function findMatchingPeriodComplete(db,p) {
-  const rows=await db.prepare("SELECT * FROM ois_data_requests WHERE request_type='cofiring_period' AND target_date=? AND status='complete' ORDER BY requested_at DESC,id DESC LIMIT 20").bind(p.targetDate).all();
+  const rows=await db.prepare("SELECT * FROM ois_data_requests WHERE request_type='cofiring_period' AND target_date=? AND status='complete' AND CASE WHEN json_valid(result_json) THEN json_extract(result_json,'$.request.startLocal') END=? AND CASE WHEN json_valid(result_json) THEN json_extract(result_json,'$.request.endLocal') END=? AND CASE WHEN json_valid(result_json) THEN json_extract(result_json,'$.request.stepUnit') END=? AND CASE WHEN json_valid(result_json) THEN json_extract(result_json,'$.request.stepValue') END=? ORDER BY requested_at DESC,id DESC LIMIT 20").bind(p.targetDate,p.startLocal,p.endLocal,p.stepUnit,p.stepValue).all();
   for(const row of rows.results||[]){
     try { const parsed=JSON.parse(row.result_json||'null'); const validated=COFIRING_LIVE.periodResult(parsed,row.id,p); return {row,validated}; } catch (_) {}
   }
@@ -21998,6 +21999,58 @@ async function findMatchingPeriodAttempt(db,p) {
   }
   return null;
 }
+/* COFIRING_LATEST_DAY_READ_V1. Restore a validated saved midnight prefix without
+   creating requests, expiring work, or changing schemas/results. Authentication
+   keeps the existing session bookkeeping. Candidate reads/validation are bounded. */
+async function findLatestCofiringDayComplete(db,d,now) {
+  const startLocal=d.targetDate+'T00:00',endLocal=d.end.slice(0,16);
+  const pageSize=20,maxPages=10;
+  let cursor=null;
+  // A malformed JSON row must not abort discovery. The date/status index narrows
+  // history first; JSON guards omit unrelated hourly/custom periods before LIMIT.
+  const requestField=name=>`CASE WHEN json_valid(result_json) THEN json_extract(result_json,'$.request.${name}') END`;
+  const completion="COALESCE(completed_at,'')",requested="COALESCE(requested_at,'')";
+  const filters=`request_type='cofiring_period' AND target_date=? AND status='complete'
+    AND length(result_json)<=? AND ${requestField('startLocal')}=?
+    AND ${requestField('endLocal')}>? AND ${requestField('endLocal')}<=?
+    AND ${requestField('stepUnit')}='minute' AND ${requestField('stepValue')}=1`;
+  for(let page=0;page<maxPages;page++) {
+    const after=cursor?` AND (${completion}<? OR (${completion}=? AND (${requested}<? OR (${requested}=? AND id<?))))`:'';
+    const args=[d.targetDate,COFIRING_LIVE.MAX_BYTES,startLocal,startLocal,endLocal];
+    if(cursor)args.push(cursor.completed,cursor.completed,cursor.requested,cursor.requested,cursor.id);
+    const rows=await db.prepare(`SELECT * FROM ois_data_requests WHERE ${filters}${after}
+      ORDER BY ${completion} DESC,${requested} DESC,id DESC LIMIT ${pageSize+1}`).bind(...args).all();
+    const items=rows.results||[];
+    for(const row of items.slice(0,pageSize)) {
+      try {
+        if(!Number.isFinite(Date.parse(row.completed_at))||!Number.isFinite(Date.parse(row.requested_at)))continue;
+        const parsed=JSON.parse(row.result_json||'null'),p=COFIRING_LIVE.period(parsed?.request,now);
+        if(p.startLocal!==startLocal||p.endMs>d.startMs+86400000||p.endMs+60000>now||p.stepUnit!=='minute'||p.stepValue!==1)continue;
+        const validated=COFIRING_LIVE.periodResult(parsed,row.id,p);
+        return {row,validated,period:p};
+      } catch (_) { /* Invalid/unrelated saved rows cannot replace an authoritative result. */ }
+    }
+    if(items.length<=pageSize)return null;
+    const last=items[pageSize-1];
+    cursor={completed:last.completed_at||'',requested:last.requested_at||'',id:last.id};
+  }
+  const error=new Error('저장 이력이 많아 최신 결과 확인을 완료하지 못했습니다. 조회 기간을 지정해 저장 결과를 확인해 주세요.');
+  error.code='COFIRING_LATEST_SCAN_LIMIT';
+  throw error;
+}
+async function handleCofiringPeriodLatestGet(context,url) {
+  const auth=await getAuthenticatedUser(context);if(auth.error)return auth.error;
+  const targetDate=url.searchParams.get('targetDate'),now=Date.now();
+  let d;try{d=COFIRING_LIVE.day(targetDate);if(d.startMs>now)throw new Error('미래 날짜의 저장 결과는 조회할 수 없습니다.');}
+  catch(e){return cofiringJson({ok:false,message:e.message},400);}
+  let match;try{match=await findLatestCofiringDayComplete(context.env.DB,d,now);}
+  catch(e){if(e.code==='COFIRING_LATEST_SCAN_LIMIT')return cofiringJson({ok:false,code:e.code,message:e.message},503);throw e;}
+  if(!match)return cofiringJson({ok:true,bridgeVersion:2,targetDate,periodKey:null,period:null,saved:null,result:null});
+  const p=match.period,saved={...cofiringPeriodPublicRequest(match.row),request:match.validated.request,progress:null,errorMessage:''};
+  return cofiringJson({ok:true,bridgeVersion:2,targetDate,periodKey:COFIRING_LIVE.periodKey(p),
+    period:{start:p.startLocal,end:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue},saved,result:match.validated});
+}
+/* COFIRING_LATEST_DAY_READ_V1_END */
 async function handleCofiringPeriodGet(context,url) {
   const auth=await getAuthenticatedUser(context);if(auth.error)return auth.error;
   let p;try{p=COFIRING_LIVE.period(specFromPeriodUrl(url));}catch(e){return cofiringJson({ok:false,message:e.message},400);}

@@ -47,6 +47,7 @@
   }
   function currentDaySpec(now=Date.now()){const end=new Date(now+32400000-60000).toISOString().slice(0,16),date=new Date(now+32400000).toISOString().slice(0,10);return customSpec(date+'T00:00',end);}
   const dailySelections=new WeakMap();
+  const statusRefreshers=new WeakMap();
   function dailySelectionSpec(targetDate,now=Date.now()){
     const full=dailySpec(targetDate),today=defaultCalculationDate(now);
     if(targetDate<today)return full;
@@ -90,10 +91,12 @@
             <button type="button" class="cfv5-requery" data-cfv5-requery>재조회</button>
           </div>
         </div>
+        <div class="cfv11-status-row"><p data-cfv11-status-line role="status" aria-live="polite">저장 결과 확인 중</p><details class="cfv11-status-details" data-cfv11-status-details><summary>상세</summary><div class="cfv11-status-body">
         <div class="cfv5-query-meta"><span data-cfv5-range>—</span><span class="cfv56-query-state"><em data-cfv56-prep>조회 준비 대기</em><strong data-cfv5-live-state>조회 전</strong></span></div>
         <span class="cfv6-data-source" data-cfv6-data-source>저장된 조회 결과가 있으면 바로 계산합니다.</span>
         <span class="cfv6-data-source" data-cfv7-click-timing hidden aria-live="off"></span>
-        <p data-cfv5-status role="status" aria-live="polite">날짜를 선택한 뒤 [계산하기]를 누르세요. 오늘은 00시부터 현재까지, 지난 날짜는 하루 전체를 계산합니다.</p>
+        <p data-cfv5-status>날짜를 선택한 뒤 [계산하기]를 누르세요. 오늘은 00시부터 현재까지, 지난 날짜는 하루 전체를 계산합니다.</p>
+        </div></details></div>
       </div>
 
       <div class="cfv52-manual-panel">
@@ -226,19 +229,39 @@
   }
   function safeHours(container){try{return periodSpec(container).durationHours;}catch(_){return 0;}}
   function settingFactor(container,unit,fuel){const n=Number(container.querySelector(`[data-cfv5-coefficient="${unit}:${fuel}"]`)?.value);return Number.isFinite(n)?n:null;}
-  function setStatus(container,text,tone=''){const el=container.querySelector('[data-cfv5-status]');if(el){el.textContent=text;el.dataset.tone=tone;}}
+  function setStatus(container,text,tone=''){const el=container.querySelector('[data-cfv5-status]');if(el){el.textContent=text;el.dataset.tone=tone;}statusRefreshers.get(container)?.();}
   function updateRange(container){updateModeControls(container);try{const p=periodSpec(container);container.querySelector('[data-cfv5-range]').textContent=queryMode(container)==='daily'?(p.durationHours<24?`${p.targetDate} 현재까지 누적 · 자료 기준 ${p.endLocal.slice(11)} · 계산하기로 현재까지 갱신`:`${p.targetDate} 하루 혼소율 · 24시간 기준`):`선택 기간 ${num(p.durationHours,2)}시간 · 1분 기준 · 종료 누적값 확인을 위해 다음 1분까지 조회`;const out=container.querySelector('[data-cfv7-daily-window]');if(out)out.textContent=`${p.startLocal.replace('T',' ')} ~ ${p.queryEnd.slice(0,16).replace('T',' ')}`;return p;}catch(e){container.querySelector('[data-cfv5-range]').textContent=e.message;const out=container.querySelector('[data-cfv7-daily-window]');if(out)out.textContent=queryMode(container)==='daily'?'계산일을 선택해 주세요.':'시작·종료 날짜와 시간을 확인해 주세요.';return null;}}
   function renderWarnings(container,result){const box=container.querySelector('[data-cfv5-warning-box]'),list=container.querySelector('[data-cfv5-warnings]'),warnings=result?.warnings||[];box.hidden=!warnings.length;list.innerHTML=warnings.map(w=>`<li>${escapeHtml(w)}</li>`).join('');}
   function mount(container){
-    if(!container||container.dataset.cofiringV5Mounted==='true')return null;container.dataset.cofiringV5Mounted='true';container.classList.add('cofiring-period-v5','cfv7-daily-date','cfv10-summary-ui');container.innerHTML=markup();
+    if(!container||container.dataset.cofiringV5Mounted==='true')return null;container.dataset.cofiringV5Mounted='true';container.classList.add('cofiring-period-v5','cfv7-daily-date','cfv10-summary-ui','cfv11-status-ui');container.innerHTML=markup();
     const mobile=isMobile();let reference=null,lastResult=null,displayResult=null,periodGeneration=0,settingsDirty=false,manualDirty=false,disposed=false,fastPrepTimer=null,fastPrepGeneration=0,adjustmentActive=false,conflictRetrying=false,selectedStoreKey='';
-    let clickTiming=null,clickToken=null,clickContext=null,clickBusy=false,renderedRequestId=null,dayBoundaryTimer=null,deadlineRefreshTimer=null,selectionEpoch=0,deadlineInputError='',pendingDailyDraft=null;
+    let clickTiming=null,clickToken=null,clickContext=null,clickBusy=false,renderedRequestId=null,dayBoundaryTimer=null,deadlineRefreshTimer=null,selectionEpoch=0,deadlineInputError='',pendingDailyDraft=null,restoringSaved=false;
     const settings=settingsApi?.create({getHeaders:authHeaders,canEdit:()=>!isMobile(),onChange:()=>paintSettings()})||null;
     const manual=manualApi?.create({getHeaders:authHeaders,canEdit:()=>!isMobile(),onChange:()=>paintManual()})||null;
     const live=liveApi?.createPeriod({getHeaders:authHeaders,canQuery:()=>!isMobile()&&selectedDayAvailability().ready,isVisible:()=>visible(),onChange:s=>paintLive(s),onResult:r=>{if(!sameSelectedPeriod(r?.report?.reference)||!selectedDayAvailability().ready)return;reference=r.report.reference;if(storesReady())calculate();}})||null;
     clickTiming=root.CofiringClickTimingV1?.create({isCurrent:()=>clickIsCurrent(),onChange:s=>paintClickTiming(s)});
     function clickIsCurrent(){try{return !!clickContext&&!disposed&&visible()&&clickContext.epoch===selectionEpoch&&clickContext.spec===JSON.stringify(currentSpec())&&clickContext.auth===String(authHeaders().Authorization||authHeaders().authorization||'');}catch(_){return false;}}
-    function paintClickTiming(s){const el=container.querySelector('[data-cfv7-click-timing]');if(!el)return;if(!clickIsCurrent()){el.hidden=true;el.textContent='';return;}el.hidden=s.status==='idle';const seconds=(s.elapsedMs/1000).toFixed(1);const label=s.mode==='resume_existing'?'상태 확인부터':'계산 시간';if(s.status==='complete'){const source=s.source==='saved_recalculate'?'저장값 재계산':s.source==='resume_existing'?'진행 중 조회 결과':'새 DataPARC 결과';const backend=s.source==='new_query'&&Number.isFinite(s.controllerSeconds)?` · 회사 PC ${s.controllerSeconds.toFixed(1)}초${Number.isFinite(s.querySeconds)?` (DataPARC ${s.querySeconds.toFixed(1)}초 포함)`:''}`:'';el.textContent=`${label} ${seconds}초 · ${source}${backend}`;}else if(s.status==='failed')el.textContent=`${label} ${seconds}초 · 완료되지 않음`;else if(s.status==='cancelled')el.textContent=`${label} ${seconds}초 · 측정 중단`;else el.textContent=`${label} ${seconds}초 · ${s.phase||'결과 확인 중'}`;}
+    function paintClickTiming(s){const el=container.querySelector('[data-cfv7-click-timing]');if(!el)return;if(!clickIsCurrent()){el.hidden=true;el.textContent='';return;}el.hidden=s.status==='idle';const seconds=(s.elapsedMs/1000).toFixed(1);const label=s.mode==='resume_existing'?'상태 확인부터':'계산 시간';if(s.status==='complete'){const source=s.source==='saved_recalculate'?'저장값 재계산':s.source==='resume_existing'?'진행 중 조회 결과':'새 DataPARC 결과';const backend=s.source==='new_query'&&Number.isFinite(s.controllerSeconds)?` · 회사 PC ${s.controllerSeconds.toFixed(1)}초${Number.isFinite(s.querySeconds)?` (DataPARC ${s.querySeconds.toFixed(1)}초 포함)`:''}`:'';el.textContent=`${label} ${seconds}초 · ${source}${backend}`;}else if(s.status==='failed')el.textContent=`${label} ${seconds}초 · 완료되지 않음`;else if(s.status==='cancelled')el.textContent=`${label} ${seconds}초 · 측정 중단`;else el.textContent=`${label} ${seconds}초 · ${s.phase||'결과 확인 중'}`;refreshStatusLine();}
+    function refreshStatusLine(){
+      const line=container.querySelector('[data-cfv11-status-line]');if(!line||disposed)return;
+      const state=live?.state(),item=state?.item,active=item?.active,availability=selectedDayAvailability();
+      const failure=!!(!active&&item?.lastAttempt?.status==='failed'),hasResult=!!displayResult;
+      const timing=clickTiming?.state(),timingCurrent=clickIsCurrent(),parts=[];let tone='';
+      if(!state?.authenticated){parts.push('로그인 필요');tone='error';}
+      else if(!availability.ready)parts.push(availability.message);
+      else if(deadlineInputError){parts.push('입력값 확인 필요');tone='error';}
+      else if([settings,manual].some(store=>store?.state()?.error)){parts.push('계산 기준 확인 실패 · 상세 확인');tone='error';}
+      else if(restoringSaved)parts.push('저장 결과 확인 중');
+      else if(item?.submitting||active){parts.push(item?.submitting?'조회 요청 중':active.status==='pending'?'회사 PC 대기 중':liveRequestPresentation(state).progressLabel||'조회 중');tone='working';}
+      else if(item?.error||failure){parts.push(hasResult?'조회 실패 · 이전 결과 표시':'조회 실패 · 상세 확인');tone='error';}
+      else if(container.querySelector('[data-cfv5-status]')?.dataset.tone==='error'){parts.push('확인 필요 · 상세 확인');tone='error';}
+      else if(hasResult){parts.push(displayResult.warnings?.length?'계산 완료 · 자료 확인 필요':'계산 완료');tone='success';}
+      else if(item?.loading)parts.push('저장 결과 확인 중');
+      else parts.push('저장 결과 없음 · 계산하기를 누르세요');
+      if(hasResult&&state?.authenticated){const p=displayResult.period;parts.push(queryMode(container)==='daily'&&p.durationHours===24?'하루 전체':p.endLocal.slice(0,10)===defaultCalculationDate()?`${p.endLocal.slice(11)} 기준`:`${p.endLocal.replace('T',' ')} 기준`);}
+      if(timingCurrent&&timing&&['running','finishing','complete','failed'].includes(timing.status))parts.push(`${(timing.elapsedMs/1000).toFixed(1)}초`);
+      line.textContent=parts.join(' · ');line.dataset.tone=tone;
+    }
     function startClickTiming(mode){if(!clickTiming)return null;const old=clickTiming.state(),s=live.state();if(mode==='resume_existing'&&['running','finishing'].includes(old.status)&&clickIsCurrent()&&s.item?.active?.id===old.expectedRequestId)return clickToken;clickContext={epoch:selectionEpoch,spec:JSON.stringify(currentSpec()),auth:String(authHeaders().Authorization||authHeaders().authorization||'')};clickToken=clickTiming.start({mode,period:currentSpec(),previousRequestId:s.item?.saved?.id||null,activeRequestId:s.item?.active?.id||null});return clickToken;}
     function finishClickTiming(){if(!clickTiming||!clickToken||!clickIsCurrent())return;const s=live.state(),item=s.item,id=item?.saved?.id;if(!id||id!==renderedRequestId||!displayResult||!cachedReference(s,currentSpec())||!storesReady())return;const state=clickTiming.state(),r=item.result.report;clickTiming.finish(clickToken,{requestId:id,source:state.mode==='resume_existing'?'resume_existing':state.expectedRequestId?'new_query':'saved_recalculate',querySeconds:r.queryElapsedSeconds,workerSeconds:r.workerElapsedSeconds,controllerSeconds:r.timing?.controllerElapsedSeconds},()=>clickIsCurrent()&&renderedRequestId===id&&live.state().item?.saved?.id===id&&!!cachedReference(live.state(),currentSpec())&&storesReady());}
     function acceptClickRequest(token){const item=live.state().item,request=item?.active||item?.lastAttempt;if(request?.status==='failed'||(item?.error&&!item.active)){clickTiming?.fail(token,'조회 실패');return;}if(request?.id&&['pending','processing','complete'].includes(request.status))clickTiming?.acceptRequest(token,request.id);else clickTiming?.fail(token,'요청 상태 확인 실패');finishClickTiming();}
@@ -269,8 +292,39 @@
     function renderDisplay(result,{adjusted=false}={}){displayResult=result;const manualValues=readManual(container);renderMain(container,result);renderOrganic(container,result,manualValues);renderSummary(container,result,manualValues,deadlineInputError);renderWarnings(container,result);scheduleDeadlineRefresh();adjustmentActive=!!adjusted;const b=container.querySelector('[data-cfv56-adjust]');if(b){b.disabled=!lastResult||mobile;b.classList.toggle('is-active',adjustmentActive);b.textContent=adjustmentActive?'혼소 조정 적용중':'혼소 조정';}const note=container.querySelector('[data-cfv52-summary-note]');if(note&&adjusted)note.textContent='혼소 조정 적용';}
     function adjustmentContext(){return {result:lastResult,settings:readSettings(container),spec:currentSpec()};}
     let adjuster=null;
-    function scheduleFastPrep(delay=900){if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}const epoch=++fastPrepGeneration;if(disposed||mobile||!visible()||!live)return;prepLabel('고속 준비 예약');fastPrepTimer=root.setTimeout?.(()=>{fastPrepTimer=null;void fastPrepare(epoch);},delay);}
-    async function fastPrepare(epoch){if(disposed||epoch!==fastPrepGeneration||mobile||!visible()||!live)return;if(showDayUnavailable())return;try{prepLabel('저장값 확인','working');live.select(currentSpec());await live.load({force:true});if(disposed||epoch!==fastPrepGeneration)return;const s=live.state();if(liveRequestPresentation(s).failureMessage){paintLive(s);return;}if(s.item?.saved&&reference){prepLabel(storesReady()?'즉시 계산 가능':'입력 기준 확인 중',storesReady()?'ready':'working');return;}if(s.item?.active){prepLabel('동일기간 조회 진행중','working');return;}if(!s.canQuery){prepLabel(s.authenticated?'조회 준비 불가':'로그인 필요',s.authenticated?'':'error');return;}prepLabel('조회 준비 완료','ready');setStatus(container,'저장된 결과가 없습니다. [계산하기]를 누르면 표시된 범위로 조회합니다.','');}catch(e){prepLabel('저장값 확인 실패','error');}}
+    function scheduleFastPrep(delay=900){if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}const epoch=++fastPrepGeneration;restoringSaved=false;if(disposed||mobile||!visible()||!live)return;prepLabel('고속 준비 예약');fastPrepTimer=root.setTimeout?.(()=>{fastPrepTimer=null;void fastPrepare(epoch);},delay);}
+    async function restoreLatestDaily(epoch){
+      const date=container.querySelector('[data-cfv7-date]')?.value||'',item=live?.state()?.item;
+      if(!live?.readLatestDaily||queryMode(container)!=='daily'||date!==defaultCalculationDate()||reference||displayResult||item?.active||item?.submitting||manualDirty||settingsDirty||clickBusy)return true;
+      const auth=String(authHeaders().Authorization||authHeaders().authorization||''),selection=selectionEpoch;
+      const current=()=>!disposed&&visible()&&epoch===fastPrepGeneration&&selection===selectionEpoch&&!clickBusy&&!manualDirty&&!settingsDirty&&queryMode(container)==='daily'&&container.querySelector('[data-cfv7-date]')?.value===date&&date===defaultCalculationDate()&&String(authHeaders().Authorization||authHeaders().authorization||'')===auth;
+      if(!auth)return true;
+      restoringSaved=true;refreshStatusLine();
+      try{
+        const saved=await live.readLatestDaily(date);if(!current())return false;
+        if(saved){
+          const p=customSpec(saved.period.startLocal,saved.period.endLocal);
+          // The live reader validates the report; the UI also keeps its date/range contract explicit.
+          if(p.startLocal!==date+'T00:00'||p.stepUnit!=='minute'||p.stepValue!==1||Date.parse(p.queryEnd)>Date.now()||p.endMs>dailySpec(date).endMs)throw new Error('저장된 오늘 누적 결과의 범위를 확인하지 못했습니다.');
+          dailySelections.set(container,{date,period:p});clickTiming?.cancel('저장 결과 복원');if(clickTiming)paintClickTiming(clickTiming.state());updateRange(container);live.select(currentSpec());
+          const loaded=await selectStores();if(!current()||!loaded)return false;
+        }
+        return true;
+      }finally{if(epoch===fastPrepGeneration){restoringSaved=false;refreshStatusLine();}}
+    }
+    async function fastPrepare(epoch){
+      if(disposed||epoch!==fastPrepGeneration||mobile||!visible()||!live)return;if(showDayUnavailable())return;
+      try{
+        prepLabel('저장값 확인','working');if(!await restoreLatestDaily(epoch))return;
+        if(disposed||epoch!==fastPrepGeneration||!visible()||clickBusy)return;
+        live.select(currentSpec());await live.load({force:true});if(disposed||epoch!==fastPrepGeneration||!visible())return;
+        const s=live.state();if(liveRequestPresentation(s).failureMessage){paintLive(s);return;}
+        if(s.item?.saved&&reference){prepLabel(storesReady()?'즉시 계산 가능':'입력 기준 확인 중',storesReady()?'ready':'working');return;}
+        if(s.item?.active){prepLabel('동일기간 조회 진행중','working');return;}
+        if(!s.canQuery){prepLabel(s.authenticated?'조회 준비 불가':'로그인 필요',s.authenticated?'':'error');return;}
+        prepLabel('조회 준비 완료','ready');setStatus(container,'저장된 결과가 없습니다. [계산하기]를 누르면 표시된 범위로 조회합니다.','');
+      }catch(e){if(!disposed&&epoch===fastPrepGeneration){prepLabel('저장값 확인 실패','error');setStatus(container,e.message||'저장값 확인 실패','error');const line=container.querySelector('[data-cfv11-status-line]');if(line){line.textContent='저장 결과 확인 실패 · 상세 확인';line.dataset.tone='error';}}}
+    }
     function waitMs(ms){return new Promise(resolve=>{if(root.setTimeout)root.setTimeout(resolve,ms);else resolve();});}
     async function queryWithBusyRetry({force=false,maxRetries=20}={}){
       const epoch=selectionEpoch,signature=JSON.stringify(currentSpec()),authKey=String(authHeaders().Authorization||authHeaders().authorization||'');let attempt=0;conflictRetrying=true;paintLive(live.state());
@@ -354,7 +408,7 @@
       }catch(e){deadlineInputError=e.message||'계산 입력값을 확인해 주세요.';clearDeadlineRefresh();renderSummary(container,displayResult||lastResult,currentManualFromFields(),deadlineInputError);clickTiming?.fail(clickToken,'계산 오류');setStatus(container,deadlineInputError,'error');return null;}
     }
     async function periodChanged({deferReads=false,draft=null,capturedAt=Date.now()}={}){
-      pendingDailyDraft=draft;try{if(queryMode(container)==='daily')captureDailySelection(container,capturedAt);}catch(_){}
+      restoringSaved=false;pendingDailyDraft=draft;try{if(queryMode(container)==='daily')captureDailySelection(container,capturedAt);}catch(_){}
       selectionEpoch++;deadlineInputError='';clearDayBoundary();clearDeadlineRefresh();live?.pause();selectedStoreKey='';writeManual(container,manualApi.blank());
       clickTiming?.cancel('기간 변경');if(clickTiming)paintClickTiming(clickTiming.state());renderedRequestId=null;
       fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}reference=null;lastResult=null;displayResult=null;adjustmentActive=false;renderMain(container,null);renderOrganic(container,null,currentManualFromFields());renderSummary(container,null,currentManualFromFields());updateRange(container);renderWarnings(container,null);const ab=container.querySelector('[data-cfv56-adjust]');if(ab){ab.disabled=true;ab.classList.remove('is-active');ab.textContent='혼소 조정';}
@@ -378,7 +432,7 @@
     for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]'))el.addEventListener('input',()=>{settingsDirty=true;paintSettings();if(reference&&storesReady())calculate();});
     container.querySelector('[data-cfv5-settings-save]').addEventListener('click',async()=>{try{const values=readSettings(container);const ok=await settings.save(values);if(ok){settingsDirty=false;paintSettings(true);if(reference)calculate();}}catch(e){setStatus(container,e.message,'error');}});
     container.querySelector('[data-cfv5-manual-save]').addEventListener('click',async()=>{try{const values=readManual(container),ok=await manual.save(values);if(ok){manualDirty=false;paintManual(true);if(reference)calculate();}}catch(e){setStatus(container,e.message,'error');}});
-    container.querySelector('[data-cfv5-query]').addEventListener('click',async()=>{if(clickBusy)return;clickBusy=true;let token=null;try{
+    container.querySelector('[data-cfv5-query]').addEventListener('click',async()=>{if(clickBusy)return;clickBusy=true;fastPrepGeneration++;restoringSaved=false;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}let token=null;try{
       refreshDailyForClick();if(showDayUnavailable())return;
       const epoch=selectionEpoch,spec=currentSpec(),authKey=String(authHeaders().Authorization||authHeaders().authorization||''),signature=JSON.stringify(spec),stillSelected=()=>!disposed&&epoch===selectionEpoch&&visible()&&JSON.stringify(currentSpec())===signature&&String(authHeaders().Authorization||authHeaders().authorization||'')===authKey;
       token=startClickTiming(live.state().item?.active?'resume_existing':'calculate');live.select(spec);const cached=cachedReference(live.state(),spec);
@@ -403,7 +457,7 @@
       if(ok||liveState.item?.active){acceptClickRequest(token);}
       else{clickTiming?.fail(token,'조회 요청 확인 실패');if(!liveState.item?.saved)setStatus(container,liveState.item?.error||'기간 조회 요청을 시작하지 못했습니다. 로그인 상태와 조회 기간을 확인해 주세요.','error');}
     }catch(e){clickTiming?.fail(token,'조회 오류');setStatus(container,e.message,'error');}finally{clickBusy=false;}});
-    container.querySelector('[data-cfv5-requery]').addEventListener('click',async()=>{if(clickBusy)return;clickBusy=true;let token=null;try{if(!root.confirm||root.confirm('표시된 기간을 다시 조회하시겠습니까? 오늘 일별 계산은 현재까지로 갱신합니다.')){
+    container.querySelector('[data-cfv5-requery]').addEventListener('click',async()=>{if(clickBusy)return;clickBusy=true;fastPrepGeneration++;restoringSaved=false;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}let token=null;try{if(!root.confirm||root.confirm('표시된 기간을 다시 조회하시겠습니까? 오늘 일별 계산은 현재까지로 갱신합니다.')){
       refreshDailyForClick();if(showDayUnavailable())return;
       const epoch=selectionEpoch,spec=currentSpec(),authKey=String(authHeaders().Authorization||authHeaders().authorization||''),signature=JSON.stringify(spec),stillSelected=()=>!disposed&&epoch===selectionEpoch&&visible()&&JSON.stringify(currentSpec())===signature&&String(authHeaders().Authorization||authHeaders().authorization||'')===authKey;
       token=startClickTiming('forced_requery');clickTiming?.requireRequest(token);setStatus(container,'같은 기간을 다시 조회하도록 요청하고 있습니다.','working');
@@ -412,9 +466,10 @@
     }}catch(e){clickTiming?.fail(token,'재조회 오류');setStatus(container,e.message,'error');}finally{clickBusy=false;}});
     adjuster=adjustmentApi?.create({container,getHeaders:authHeaders,getContext:adjustmentContext,onMessage:m=>setStatus(container,m,'error'),onApply:(result)=>{renderDisplay(result,{adjusted:true});setStatus(container,'혼소 조정값을 선택기간 계산 화면에 적용했습니다. 원본 DataPARC 저장값은 변경하지 않습니다.','success');},onReset:()=>{if(lastResult){renderDisplay(lastResult,{adjusted:false});setStatus(container,'혼소 조정을 원복했습니다. DataPARC 원본 계산값을 표시합니다.','success');}}})||null;
     const adjustButton=container.querySelector('[data-cfv56-adjust]');if(adjustButton){adjustButton.disabled=true;adjustButton.addEventListener('click',()=>{try{Promise.resolve(adjuster?.open()).catch(e=>setStatus(container,e.message,'error'));}catch(e){setStatus(container,e.message,'error');}});}
-    const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){if(showDayUnavailable())return;if(selectedStoreKey!==storeKey())void periodChanged();else{if(displayResult)renderSummary(container,displayResult,currentManualFromFields(),deadlineInputError);scheduleDeadlineRefresh();scheduleFastPrep(0);}}else{clearDayBoundary();clearDeadlineRefresh();clickTiming?.cancel('화면 닫힘');fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
+    const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){if(showDayUnavailable())return;if(selectedStoreKey!==storeKey())void periodChanged();else{if(displayResult)renderSummary(container,displayResult,currentManualFromFields(),deadlineInputError);scheduleDeadlineRefresh();scheduleFastPrep(0);}}else{restoringSaved=false;clearDayBoundary();clearDeadlineRefresh();clickTiming?.cancel('화면 닫힘');fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
+    statusRefreshers.set(container,refreshStatusLine);
     updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();selectStores().catch(e=>setStatus(container,e.message,'error'));scheduleFastPrep(0);
-    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSpec:currentSpec,dispose(){clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
+    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSpec:currentSpec,dispose(){statusRefreshers.delete(container);clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
   }
   root.CofiringPeriodV5={mount,periodSpec,dailySpec,dailySelectionSpec,dayAvailability,defaultCalculationDate,queryMode,customSpec,currentDaySpec,selectedAvailability,targetReferenceMarkup,fuelUsageMarkup,markup,readSettings,readManual,manualForCalculation,coalBioHeat,coalBioRatio,combinedCoalBio,cachedReference,liveRequestPresentation};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
   if(root.document){const init=()=>{const container=root.document.querySelector('[data-cofiring-draft-root]');if(container)mount(container);};if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init,{once:true});else init();}
