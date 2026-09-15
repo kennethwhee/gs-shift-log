@@ -9,7 +9,7 @@ const style = read("style.css");
 const script = read("script.js");
 
 const CACHE_KEY =
-  "20260916-aux-edit-validation-v1";
+  "20260916-auto-history-blank-restore-v1";
 
 assert.match(
   desktopHtml,

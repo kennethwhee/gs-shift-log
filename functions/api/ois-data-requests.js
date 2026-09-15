@@ -12283,19 +12283,8 @@ async function ensureMorningMeetingAutoHistoryOverridesTable(
     .run();
 }
 
-/* =========================================================
-  오전회의 자동수치 수동 보정값 정리
-
-  - 허용된 19개 수치만 저장한다.
-  - 빈칸은 null로 저장한다.
-  - 쉼표가 포함된 숫자도 허용한다.
-  - 음수나 비정상적으로 큰 값은 차단한다.
-========================================================= */
-
-function normalizeMorningMeetingAutoHistoryOverrideValues(
-  rawValues
-) {
-  const allowedFieldNames = [
+const MORNING_MEETING_AUTO_HISTORY_OVERRIDE_FIELD_NAMES =
+  Object.freeze([
     "waterRawWaterInflow",
     "waterDemiProduction",
     "waterPureWaterUsage",
@@ -12319,20 +12308,27 @@ function normalizeMorningMeetingAutoHistoryOverrideValues(
     "powerProduction",
     "powerSales",
 
-    /*
-      태양광
-      - 일일 발전량
-      - 월간 누적
-      - 년간 누적
-    */
     "powerSolar",
     "powerSolarMonthly",
     "powerSolarYearly",
 
+    "organicTruckCount",
     "organicReceivedAmount",
     "organicStoredAmount"
-  ];
+  ]);
 
+/* =========================================================
+  오전회의 자동수치 수동 보정값 정리
+
+  - 화면에서 수정 가능한 수치만 저장한다.
+  - 빈칸은 null로 저장한다.
+  - 쉼표가 포함된 숫자도 허용한다.
+  - 음수나 비정상적으로 큰 값은 차단한다.
+========================================================= */
+
+function normalizeMorningMeetingAutoHistoryOverrideValues(
+  rawValues
+) {
   const maximumNumber =
     1000000000000;
 
@@ -12389,7 +12385,7 @@ function normalizeMorningMeetingAutoHistoryOverrideValues(
       : value;
   };
 
-  allowedFieldNames.forEach(
+  MORNING_MEETING_AUTO_HISTORY_OVERRIDE_FIELD_NAMES.forEach(
     fieldName => {
       if (
         !Object.prototype
@@ -12517,6 +12513,51 @@ function normalizeMorningMeetingAutoHistoryOverrideValues(
 }
 
 /* =========================================================
+  오전회의 자동수치 수정값 JSON 원문 읽기
+
+  - 저장/복원 시 현재 화면이 모르는 레거시·향후 키도
+    그대로 보존한다.
+  - API 응답에는 아래 convert 함수가 허용된 키만 노출한다.
+========================================================= */
+
+function parseMorningMeetingAutoHistoryOverrideRawValues(
+  row
+) {
+  if (
+    !row
+  ) {
+    return {};
+  }
+
+  const valuesText =
+    normalizeText(
+      row.values_json
+    );
+
+  const values =
+    valuesText
+      ? JSON.parse(
+          valuesText
+        )
+      : {};
+
+  if (
+    values === null ||
+    typeof values !==
+      "object" ||
+    Array.isArray(
+      values
+    )
+  ) {
+    throw new Error(
+      "저장된 자동수치 수정값 형식을 확인해 주세요."
+    );
+  }
+
+  return values;
+}
+
+/* =========================================================
   오전회의 자동수치 수동 보정 DB 행 → API 응답
 
   - 손상된 날짜나 JSON 행은 제외한다.
@@ -12552,18 +12593,10 @@ function convertMorningMeetingAutoHistoryOverrideRow(
 
 
   try {
-    const valuesText =
-      normalizeText(
-        row.values_json
-      );
-
-
     rawValues =
-      valuesText
-        ? JSON.parse(
-            valuesText
-          )
-        : {};
+      parseMorningMeetingAutoHistoryOverrideRawValues(
+        row
+      );
 
   } catch {
     return null;
@@ -12875,18 +12908,31 @@ async function saveMorningMeetingAutoHistoryOverride(
     기존에 수정했던 다른 항목은 유지하고
     이번에 바뀐 항목만 덮어쓴다.
   */
-  const mergedValues = {
-    ...(
-      existingItem?.values &&
-      typeof existingItem.values ===
-        "object" &&
-      !Array.isArray(
-        existingItem.values
-      )
-        ? existingItem.values
-        : {}
-    ),
+  let existingValues = {};
 
+  try {
+    existingValues =
+      parseMorningMeetingAutoHistoryOverrideRawValues(
+        existingRow
+      );
+
+  } catch (
+    error
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "저장된 자동수치 수정값을 확인해 주세요."
+      },
+      500
+    );
+  }
+
+  const mergedValues = {
+    ...existingValues,
     ...normalizedValues
   };
 
@@ -13067,6 +13113,333 @@ async function saveMorningMeetingAutoHistoryOverride(
 
     message:
       `${targetDate} 자동수치 수정값을 저장했습니다.`
+  });
+}
+
+/* =========================================================
+  오전회의 자동수치에서 빈칸으로 저장한 값 복원
+
+  - 원본 OIS·Excel·석회석 자료는 변경하지 않는다.
+  - 해당 날짜에서 현재 명시적으로 비운 필드만
+    values_json에서 제거한다.
+  - SMP·태양광 등 정상 자동 저장값은 지우지 않는다.
+  - 빈 객체가 되어도 행과 revision은 유지해
+    오래된 화면의 저장 요청과 충돌시킨다.
+========================================================= */
+
+async function restoreMorningMeetingAutoHistoryBlankOverrides(
+  context,
+  body
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+  const targetDate =
+    normalizeText(
+      body.targetDate ||
+      body.target_date
+    );
+
+  if (
+    !isValidIsoDate(
+      targetDate
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "복원할 자동수치 날짜를 확인해 주세요."
+      },
+      400
+    );
+  }
+
+  const expectedRevision =
+    body.expectedRevision ??
+    body.revision;
+
+  if (
+    typeof expectedRevision !==
+      "number" ||
+    !Number.isInteger(
+      expectedRevision
+    ) ||
+    expectedRevision < 1
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "자동수치 복원 버전을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+  const database =
+    context.env.DB;
+
+  await ensureMorningMeetingAutoHistoryOverridesTable(
+    database
+  );
+
+  const existingRow =
+    await database
+      .prepare(`
+        SELECT
+          *
+
+        FROM morning_meeting_auto_history_overrides
+
+        WHERE
+          target_date = ?
+
+        LIMIT 1
+      `)
+      .bind(
+        targetDate
+      )
+      .first();
+
+  const existingItem =
+    convertMorningMeetingAutoHistoryOverrideRow(
+      existingRow
+    );
+
+  const currentRevision =
+    existingRow
+      ? (
+          Number.isInteger(
+            Number(
+              existingRow.revision
+            )
+          ) &&
+          Number(
+            existingRow.revision
+          ) > 0
+            ? Number(
+                existingRow.revision
+              )
+            : 1
+        )
+      : 0;
+
+  if (
+    currentRevision !==
+      expectedRevision
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        currentItem:
+          existingItem,
+        message:
+          "다른 사용자가 먼저 수정했습니다. 최신 자료를 다시 확인해 주세요."
+      },
+      409
+    );
+  }
+
+  let existingValues;
+
+  try {
+    existingValues =
+      parseMorningMeetingAutoHistoryOverrideRawValues(
+        existingRow
+      );
+
+  } catch (
+    error
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "저장된 자동수치 수정값을 확인해 주세요."
+      },
+      500
+    );
+  }
+
+  const fieldNames =
+    MORNING_MEETING_AUTO_HISTORY_OVERRIDE_FIELD_NAMES.filter(
+      fieldName => {
+        if (
+          !Object.prototype
+          .hasOwnProperty
+          .call(
+            existingValues,
+            fieldName
+          )
+        ) {
+          return false;
+        }
+
+        const value =
+          existingValues[
+            fieldName
+          ];
+
+        return value === null ||
+          (
+            typeof value ===
+              "string" &&
+            value.trim() ===
+              ""
+          );
+      }
+    );
+
+  if (
+    fieldNames.length < 1
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "원본으로 복원할 빈칸 수정값이 없습니다."
+      },
+      400
+    );
+  }
+
+  const restoredValues = {
+    ...existingValues
+  };
+
+  fieldNames.forEach(
+    fieldName => {
+      delete restoredValues[
+        fieldName
+      ];
+    }
+  );
+
+  const user =
+    authentication.user;
+
+  const now =
+    new Date()
+      .toISOString();
+
+  const writeResult =
+    await database
+      .prepare(`
+        UPDATE
+          morning_meeting_auto_history_overrides
+
+        SET
+          values_json = ?,
+          updated_by_id = ?,
+          updated_by_name = ?,
+          updated_at = ?,
+          revision = revision + 1
+
+        WHERE
+          target_date = ?
+          AND revision = ?
+      `)
+      .bind(
+        JSON.stringify(
+          restoredValues
+        ),
+        user.employeeNo,
+        user.name,
+        now,
+        targetDate,
+        expectedRevision
+      )
+      .run();
+
+  if (
+    Number(
+      writeResult?.meta?.changes
+    ) !== 1
+  ) {
+    const latestRow =
+      await database
+        .prepare(`
+          SELECT
+            *
+
+          FROM morning_meeting_auto_history_overrides
+
+          WHERE
+            target_date = ?
+
+          LIMIT 1
+        `)
+        .bind(
+          targetDate
+        )
+        .first();
+
+    return jsonResponse(
+      {
+        ok: false,
+        currentItem:
+          convertMorningMeetingAutoHistoryOverrideRow(
+            latestRow
+          ),
+        message:
+          "다른 사용자가 먼저 수정했습니다. 최신 자료를 다시 확인해 주세요."
+      },
+      409
+    );
+  }
+
+  const savedRow =
+    await database
+      .prepare(`
+        SELECT
+          *
+
+        FROM morning_meeting_auto_history_overrides
+
+        WHERE
+          target_date = ?
+
+        LIMIT 1
+      `)
+      .bind(
+        targetDate
+      )
+      .first();
+
+  const savedItem =
+    convertMorningMeetingAutoHistoryOverrideRow(
+      savedRow
+    );
+
+  if (
+    !savedItem
+  ) {
+    throw new Error(
+      "복원된 자동수치 수정값을 확인하지 못했습니다."
+    );
+  }
+
+  return jsonResponse({
+    ok: true,
+    item:
+      savedItem,
+    restoredFields:
+      fieldNames,
+    restoredCount:
+      fieldNames.length,
+    message:
+      `${targetDate} 빈칸 ${fieldNames.length}개를 원본값으로 복원했습니다.`
   });
 }
 
@@ -21438,6 +21811,22 @@ if (
 }
 
 /*
+  오전회의 자동수치에서 빈칸으로 저장한 값 원복
+
+  - 원본 자료를 재조회하거나 변경하지 않음
+  - 해당 날짜의 null 보정 키만 제거
+*/
+if (
+  action ===
+    "restore_morning_meeting_auto_history_blanks"
+) {
+  return await restoreMorningMeetingAutoHistoryBlankOverrides(
+    context,
+    body
+  );
+}
+
+/*
   부재료 날짜·호기별 수치 수정
 */
 if (
@@ -21648,6 +22037,9 @@ export const __oisDataRequestsTest = {
   handleAgentNextBlowerRuntimeProbeBatch,
   parseBlowerRuntimeProbeCompletionBatch,
   completeAgentBlowerRuntimeProbeBatch,
+  ensureMorningMeetingAutoHistoryOverridesTable,
+  normalizeMorningMeetingAutoHistoryOverrideValues,
+  restoreMorningMeetingAutoHistoryBlankOverrides,
   ensureAuxiliaryMaterialDailyTable,
   normalizeAuxiliaryMaterialManualTarget,
   normalizeAuxiliaryMaterialManualRecord,

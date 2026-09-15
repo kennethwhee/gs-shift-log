@@ -234179,6 +234179,9 @@ if (
     saving:
       false,
 
+    restoringDate:
+      "",
+
     editing:
       false,
 
@@ -235430,6 +235433,42 @@ function hasOwnHistoryOverrideValue(
         values,
         key
       )
+  );
+}
+
+
+function getMorningMeetingAutoHistoryBlankOverrideFields(
+  row
+) {
+  const values =
+    row
+      ?.morningMeetingAutoHistoryOverride
+      ?.values;
+
+
+  if (
+    !values ||
+    typeof values !==
+      "object" ||
+    Array.isArray(
+      values
+    )
+  ) {
+    return [];
+  }
+
+
+  return Object.keys(
+    MORNING_MEETING_AUTO_HISTORY_OVERRIDE_TARGETS
+  ).filter(
+    key =>
+      hasOwnHistoryOverrideValue(
+        values,
+        key
+      ) &&
+      values[
+        key
+      ] === null
   );
 }
 
@@ -237539,6 +237578,11 @@ function renderRows(
     return;
   }
 
+  const isMobile =
+    window.matchMedia(
+      "(max-width: 768px)"
+    ).matches;
+
   tableBody.replaceChildren();
 
   rows.forEach(
@@ -237584,6 +237628,73 @@ function renderRows(
         dateStrong,
         weekdaySmall
       );
+
+      const blankOverrideFields =
+        getMorningMeetingAutoHistoryBlankOverrideFields(
+          row
+        );
+
+      /*
+        저장된 원본 위를 가리고 있는 null 수정값만
+        날짜별로 되돌린다.
+
+        모바일은 자동수치 기록 조회 전용이므로
+        복원 버튼도 표시하지 않는다.
+      */
+      if (
+        !isMobile &&
+        !state.editing &&
+        blankOverrideFields.length > 0
+      ) {
+        const restoreButton =
+          document.createElement(
+            "button"
+          );
+
+        const isRestoringThisDate =
+          state.restoringDate ===
+          row.date;
+
+        restoreButton.type =
+          "button";
+
+        restoreButton.className =
+          "auto-history-blank-restore-button";
+
+        restoreButton.textContent =
+          isRestoringThisDate
+            ? "복원 중"
+            : "지운 값 복원";
+
+        restoreButton.title =
+          `${row.date} 빈칸 수정값 ${blankOverrideFields.length}개를 저장된 원본으로 복원`;
+
+        restoreButton.setAttribute(
+          "aria-label",
+          restoreButton.title
+        );
+
+        restoreButton.dataset
+          .autoHistoryRestoreDate =
+          row.date;
+
+        restoreButton.dataset
+          .autoHistoryRestoreCount =
+          String(
+            blankOverrideFields.length
+          );
+
+        restoreButton.disabled =
+          Boolean(
+            state.loading ||
+            state.saving ||
+            state.restoringDate
+          );
+
+        dateCell.appendChild(
+          restoreButton
+        );
+      }
 
       const waterValues =
         getWaterValues(
@@ -238529,7 +238640,10 @@ function updateMonthControls() {
 
   const isBusy =
     state.loading ||
-    state.saving;
+    state.saving ||
+    Boolean(
+      state.restoringDate
+    );
 
   const hasRows =
     Array.isArray(
@@ -238712,6 +238826,12 @@ function updateMonthControls() {
     ) {
       elements.status.textContent =
         "수정값 저장 중";
+
+    } else if (
+      state.restoringDate
+    ) {
+      elements.status.textContent =
+        `${state.restoringDate} 지운 값 복원 중`;
 
     } else if (
       state.editing
@@ -238909,7 +239029,7 @@ function renderPayloads(
     if (
       !initialize()
     ) {
-      return;
+      return false;
     }
 
 
@@ -238941,14 +239061,14 @@ function renderPayloads(
       );
 
 
-      return;
+      return true;
     }
 
 
     if (
       state.loading
     ) {
-      return;
+      return false;
     }
 
 
@@ -238981,7 +239101,7 @@ function renderPayloads(
         requestSequence !==
         state.requestSequence
       ) {
-        return;
+        return false;
       }
 
 
@@ -239000,6 +239120,9 @@ function renderPayloads(
         monthValue
       );
 
+
+      return true;
+
     } catch (
       error
     ) {
@@ -239007,7 +239130,7 @@ function renderPayloads(
         requestSequence !==
         state.requestSequence
       ) {
-        return;
+        return false;
       }
 
 
@@ -239029,8 +239152,326 @@ function renderPayloads(
           ? error.message
           : "자동수치 기록을 불러오지 못했습니다."
       );
+
+
+      return false;
     }
   }
+
+/* =====================================================
+  날짜별 빈칸 수정값을 저장된 원본으로 복원
+
+  - 현재 null인 수정 키만 서버에서 제거한다.
+  - OIS·DataPARC·Excel 신규 조회는 실행하지 않는다.
+  - 충돌 시 자동 재시도하지 않고 최신 자료를 다시 읽는다.
+====================================================== */
+
+async function restoreMorningMeetingAutoHistoryBlankValues(
+  targetDate
+) {
+  if (
+    state.loading ||
+    state.saving ||
+    state.editing ||
+    state.restoringDate
+  ) {
+    return;
+  }
+
+  const normalizedTargetDate =
+    normalizeText(
+      targetDate
+    );
+
+  const row =
+    state.rows.find(
+      item =>
+        item?.date ===
+        normalizedTargetDate
+    );
+
+  const blankOverrideFields =
+    getMorningMeetingAutoHistoryBlankOverrideFields(
+      row
+    );
+
+  if (
+    !row ||
+    !isIsoDate(
+      normalizedTargetDate
+    ) ||
+    blankOverrideFields.length < 1
+  ) {
+    return;
+  }
+
+  const revision =
+    Number(
+      row
+        ?.morningMeetingAutoHistoryOverride
+        ?.revision ??
+      row?.overrideRevision ??
+      0
+    );
+
+  if (
+    !Number.isInteger(
+      revision
+    ) ||
+    revision < 1
+  ) {
+    return;
+  }
+
+  const confirmed =
+    window.confirm(
+      `${normalizedTargetDate}에 빈칸으로 저장한 ${blankOverrideFields.length}개 값을 저장된 원본으로 복원할까요?\n\nSMP·태양광 등 현재 정상 값은 그대로 유지됩니다.`
+    );
+
+  if (
+    !confirmed
+  ) {
+    return;
+  }
+
+  const elements =
+    getElements();
+
+  const showMessage =
+    message => {
+      if (
+        typeof window.showToast ===
+          "function"
+      ) {
+        window.showToast(
+          message,
+          2600
+        );
+
+      } else {
+        window.alert(
+          message
+        );
+      }
+    };
+
+  state.restoringDate =
+    normalizedTargetDate;
+
+  renderRows(
+    state.rows
+  );
+
+  updateMonthControls();
+
+  let restoredCount =
+    0;
+
+  try {
+    const response =
+      await fetch(
+        `${API_URL}?action=restore_morning_meeting_auto_history_blanks`,
+        {
+          method:
+            "POST",
+
+          headers:
+            typeof getShiftLogAuthHeaders ===
+              "function"
+              ? getShiftLogAuthHeaders({
+                  "Content-Type":
+                    "application/json"
+                })
+              : {
+                  Accept:
+                    "application/json",
+
+                  "Content-Type":
+                    "application/json"
+                },
+
+          cache:
+            "no-store",
+
+          body:
+            JSON.stringify({
+              action:
+                "restore_morning_meeting_auto_history_blanks",
+
+              targetDate:
+                normalizedTargetDate,
+
+              expectedRevision:
+                revision
+            })
+        }
+      );
+
+    let payload;
+
+    try {
+      payload =
+        await response.json();
+
+    } catch {
+      payload =
+        null;
+    }
+
+    if (
+      !response.ok ||
+      payload?.ok !==
+        true ||
+      !Number.isInteger(
+        Number(
+          payload?.restoredCount
+        )
+      ) ||
+      Number(
+        payload?.restoredCount
+      ) < 1
+    ) {
+      const restoreError =
+        new Error(
+          normalizeText(
+            payload?.message
+          ) ||
+          `${normalizedTargetDate} 빈칸 수정값을 복원하지 못했습니다.`
+        );
+
+      restoreError.shouldRefresh =
+        response.status ===
+        409;
+
+      throw restoreError;
+    }
+
+    restoredCount =
+      Number(
+        payload.restoredCount
+      );
+
+  } catch (
+    error
+  ) {
+    const shouldRefresh =
+      error?.shouldRefresh ===
+      true;
+
+    state.restoringDate =
+      "";
+
+    if (
+      shouldRefresh
+    ) {
+      state.cache.delete(
+        state.month
+      );
+
+      try {
+        await loadMonth({
+          forceRefresh:
+            true
+        });
+
+      } catch (
+        refreshError
+      ) {
+        console.error(
+          "오전회의 자동수치 충돌 후 조회 오류:",
+          refreshError
+        );
+      }
+
+    } else {
+      renderRows(
+        state.rows
+      );
+
+      updateMonthControls();
+    }
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : "빈칸 수정값을 복원하지 못했습니다.";
+
+    if (
+      elements.status
+    ) {
+      elements.status.textContent =
+        message;
+    }
+
+    console.error(
+      "오전회의 자동수치 빈칸 복원 오류:",
+      error
+    );
+
+    showMessage(
+      message
+    );
+
+    return;
+  }
+
+  state.restoringDate =
+    "";
+
+  state.cache.delete(
+    state.month
+  );
+
+  /*
+    기존 state.rows에는 null이 적용된 중첩 객체가 남아 있다.
+    저장 자료를 다시 GET하여 원본과 재병합해야 실제 값이 보인다.
+
+    복원 POST는 이미 확정됐으므로 이후 조회 실패를
+    복원 실패로 안내하지 않는다.
+  */
+  let refreshSucceeded =
+    false;
+
+  try {
+    refreshSucceeded =
+      await loadMonth({
+        forceRefresh:
+          true
+      }) === true;
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "오전회의 자동수치 복원 후 조회 오류:",
+      error
+    );
+  }
+
+  if (
+    !refreshSucceeded
+  ) {
+    const message =
+      `${normalizedTargetDate} 지운 값 ${restoredCount}개 복원은 완료됐지만 목록을 다시 불러오지 못했습니다. 목록 새로고침을 눌러 주세요.`;
+
+    if (
+      elements.status
+    ) {
+      elements.status.textContent =
+        "복원 완료 · 조회 실패";
+    }
+
+    showMessage(
+      message
+    );
+
+    return;
+  }
+
+  showMessage(
+    `${normalizedTargetDate} 지운 값 ${restoredCount}개를 원본으로 복원했습니다.`
+  );
+}
 
 async function saveMorningMeetingAutoHistoryDrafts() {
   if (
@@ -239231,6 +239672,9 @@ async function saveMorningMeetingAutoHistoryDrafts() {
 
   updateMonthControls();
 
+  let savedDateCount =
+    0;
+
   try {
     for (
       const pendingItem of
@@ -239266,19 +239710,19 @@ async function saveMorningMeetingAutoHistoryDrafts() {
       /*
         자동수치 수정 저장
 
-        현재 화면 revision으로 먼저 저장하고,
+        현재 화면 revision으로 한 번만 저장한다.
         다른 화면의 수정으로 409가 발생하면
-        서버 최신 revision으로 한 번만 자동 재시도한다.
+        사용자 입력은 유지하고 최신 자료를 다시 읽는다.
       */
 
       const revisionValue =
         Number(
-          row?.override
-            ?.revision ??
-          row?.overrideRevision ??
           row
             ?.morningMeetingAutoHistoryOverride
             ?.revision ??
+          row?.override
+            ?.revision ??
+          row?.overrideRevision ??
           0
         );
 
@@ -239358,126 +239802,17 @@ async function saveMorningMeetingAutoHistoryDrafts() {
 
 
       /*
-        409 응답의 최신 자료를
-        현재 행에 반영하고 revision을 반환한다.
+        저장 요청은 한 번만 보낸다.
+
+        충돌 응답을 최신 revision으로 자동 재시도하면
+        다른 화면에서 이미 복원한 빈칸을 오래된 화면이
+        다시 null로 덮어쓸 수 있다.
       */
 
-      const applyConflictCurrentItem =
-        conflictPayload => {
-          const currentItem =
-            conflictPayload?.currentItem;
-
-
-          if (
-            !currentItem ||
-            typeof currentItem !==
-            "object" ||
-            Array.isArray(
-              currentItem
-            )
-          ) {
-            return null;
-          }
-
-
-          const currentDate =
-            normalizeText(
-              currentItem.recordDate ||
-              currentItem.targetDate
-            );
-
-
-          const currentRevision =
-            Number(
-              currentItem.revision
-            );
-
-
-          if (
-            currentDate !==
-            targetDate ||
-            !currentItem.values ||
-            typeof currentItem.values !==
-            "object" ||
-            Array.isArray(
-              currentItem.values
-            ) ||
-            !Number.isInteger(
-              currentRevision
-            ) ||
-            currentRevision <
-            1
-          ) {
-            return null;
-          }
-
-
-          state.rows[
-            rowIndex
-          ] =
-            applyMorningMeetingAutoHistoryOverride(
-              state.rows[
-              rowIndex
-              ],
-              {
-                ...currentItem,
-
-                recordDate:
-                  currentDate
-              }
-            );
-
-
-          state.cache.delete(
-            state.month
-          );
-
-
-          return currentRevision;
-        };
-
-
-      /*
-        1차 저장
-      */
-
-      let saveResult =
+      const saveResult =
         await sendSaveRequest(
           expectedRevision
         );
-
-
-      /*
-        revision 충돌이면
-        서버 최신 revision으로 한 번만 재저장한다.
-
-        values는 사용자가 현재 입력한 수정값을
-        그대로 다시 보낸다.
-      */
-
-      if (
-        saveResult.response.status ===
-        409
-      ) {
-        const latestRevision =
-          applyConflictCurrentItem(
-            saveResult.payload
-          );
-
-
-        if (
-          Number.isInteger(
-            latestRevision
-          ) &&
-          latestRevision >=
-          1
-        ) {
-          saveResult =
-            await sendSaveRequest(
-              latestRevision
-            );
-        }
-      }
 
 
       const response =
@@ -239488,39 +239823,11 @@ async function saveMorningMeetingAutoHistoryDrafts() {
         saveResult.payload;
 
 
-      /*
-        재시도 후에도 실패했다면
-        그때만 실제 충돌 오류로 처리한다.
-      */
-
       if (
         !response.ok ||
         payload?.ok !==
-        true
+          true
       ) {
-        let latestItemApplied =
-          false;
-
-
-        if (
-          response.status ===
-          409
-        ) {
-          const latestRevision =
-            applyConflictCurrentItem(
-              payload
-            );
-
-
-          latestItemApplied =
-            Number.isInteger(
-              latestRevision
-            ) &&
-            latestRevision >=
-            1;
-        }
-
-
         const requestError =
           new Error(
             normalizeText(
@@ -239532,8 +239839,11 @@ async function saveMorningMeetingAutoHistoryDrafts() {
 
         requestError.shouldRefresh =
           response.status ===
-          409 &&
-          !latestItemApplied;
+          409;
+
+        requestError.isConflict =
+          response.status ===
+          409;
 
 
         throw requestError;
@@ -239608,6 +239918,9 @@ async function saveMorningMeetingAutoHistoryDrafts() {
         targetDate
       );
 
+      savedDateCount +=
+        1;
+
       state.cache.delete(
         state.month
       );
@@ -239667,6 +239980,9 @@ async function saveMorningMeetingAutoHistoryDrafts() {
 
     updateMonthControls();
 
+    let refreshSucceeded =
+      false;
+
     if (
       error?.shouldRefresh ===
         true
@@ -239675,16 +239991,55 @@ async function saveMorningMeetingAutoHistoryDrafts() {
         state.month
       );
 
-      await loadMonth({
-        forceRefresh:
-          true
-      });
+      try {
+        refreshSucceeded =
+          await loadMonth({
+            forceRefresh:
+              true
+          }) === true;
+
+      } catch (
+        refreshError
+      ) {
+        console.error(
+          "오전회의 자동수치 충돌 후 조회 오류:",
+          refreshError
+        );
+      }
     }
 
+    if (
+      error?.isConflict ===
+        true &&
+      !refreshSucceeded &&
+      state.rows.length > 0
+    ) {
+      /*
+        충돌 후 조회까지 실패해도 입력 화면과 draft는
+        그대로 보여 주어 사용자가 내용을 확인할 수 있게 한다.
+      */
+      renderScreen(
+        "ready",
+        state.rows
+      );
+    }
+
+    const savedPrefix =
+      savedDateCount > 0
+        ? `${savedDateCount}일 자료는 먼저 저장했습니다. `
+        : "";
+
     const message =
-      error instanceof Error
-        ? error.message
-        : "자동수치 수정값을 저장하지 못했습니다.";
+      error?.isConflict ===
+        true
+        ? refreshSucceeded
+          ? `${savedPrefix}다른 화면에서 자료가 변경되어 충돌한 날짜의 이번 입력은 저장하지 않았습니다. 취소하면 최신 값을 확인할 수 있으며, 입력 내용을 검토한 뒤 다시 저장할 수 있습니다.`
+          : `${savedPrefix}다른 화면에서 자료가 변경되어 충돌한 날짜의 이번 입력은 저장하지 않았습니다. 현재 입력을 확인한 뒤 수정 취소를 누르고 목록 새로고침을 해 주세요.`
+        : error instanceof Error
+          ? savedDateCount > 0
+            ? `${savedDateCount}일 자료는 저장했지만 나머지는 저장하지 못했습니다. ${error.message}`
+            : error.message
+          : "자동수치 수정값을 저장하지 못했습니다.";
 
     if (
       elements.status
@@ -239914,6 +240269,43 @@ elements
       }
 
       void saveMorningMeetingAutoHistoryDrafts();
+    }
+  );
+
+/*
+  날짜별 지운 값 복원
+
+  저장된 null 수정값이 있는 PC 행에서만
+  버튼이 만들어진다.
+*/
+elements
+  .tableBody
+  ?.addEventListener(
+    "click",
+    event => {
+      const restoreButton =
+        event.target
+          ?.closest
+          ?.(
+            "button[data-auto-history-restore-date]"
+          );
+
+      if (
+        !restoreButton ||
+        restoreButton.disabled
+      ) {
+        return;
+      }
+
+      const targetDate =
+        normalizeText(
+          restoreButton.dataset
+            .autoHistoryRestoreDate
+        );
+
+      void restoreMorningMeetingAutoHistoryBlankValues(
+        targetDate
+      );
     }
   );
 

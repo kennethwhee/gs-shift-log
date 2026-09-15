@@ -1789,11 +1789,11 @@ test(
 
     assert.match(
       html,
-      /style\.css\?v=20260916-aux-edit-validation-v1/
+      /style\.css\?v=20260916-auto-history-blank-restore-v1/
     );
     assert.match(
       html,
-      /script\.js\?v=20260916-aux-edit-validation-v1/
+      /script\.js\?v=20260916-auto-history-blank-restore-v1/
     );
     assert.match(
       css,
