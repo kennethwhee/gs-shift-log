@@ -330,12 +330,53 @@ function Assert-CofiringNotCancelled {
   }
 }
 
+function Test-CofiringAtomicSharingError([Exception]$Exception) {
+  for ($depth=0; $null -ne $Exception -and $depth -lt 16; $depth+=1) {
+    $code=[BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$Exception.HResult),0).ToString('X8')
+    if ($code -in @('80070020','80070021')) { return $true }
+    $Exception=$Exception.InnerException
+  }
+  return $false
+}
+
 function Write-CofiringJsonAtomic([string]$Path, $Value) {
   if ([string]::IsNullOrWhiteSpace($Path)) { throw '진단 결과 경로가 비어 있습니다.' }
-  $next=$Path+'.new'
-  [IO.File]::WriteAllText($next,($Value | ConvertTo-Json -Compress -Depth 20),(New-Object Text.UTF8Encoding($false)))
-  if ([IO.File]::Exists($Path)) { [IO.File]::Replace($next,$Path,$Path+'.previous') }
-  else { [IO.File]::Move($next,$Path) }
+  # Each write owns unique sibling files; a reader of an older backup must not
+  # prevent the next snapshot. Never delete or truncate the current destination.
+  $writeId=[Guid]::NewGuid().ToString('N')
+  $next=$Path+'.'+$writeId+'.new'
+  $previous=$Path+'.'+$writeId+'.previous'
+  $committed=$false
+  try {
+    $json=$Value | ConvertTo-Json -Compress -Depth 20
+    [IO.File]::WriteAllText($next,$json,(New-Object Text.UTF8Encoding($false)))
+    $retryClock=[Diagnostics.Stopwatch]::StartNew()
+    while ($true) {
+      try {
+        if ([IO.File]::Exists($Path)) { [IO.File]::Replace($next,$Path,$previous) }
+        else { [IO.File]::Move($next,$Path) }
+        $committed=$true
+        break
+      } catch {
+        # Only Windows sharing/lock violations may recover by waiting. Other
+        # failures remain failures, and the previous destination stays intact.
+        if (-not (Test-CofiringAtomicSharingError $_.Exception)) { throw }
+        $remainingMilliseconds=1500-$retryClock.ElapsedMilliseconds
+        if ($remainingMilliseconds -le 0) { throw }
+        Start-Sleep -Milliseconds ([int][Math]::Min(100,$remainingMilliseconds))
+      }
+    }
+  } finally {
+    # Only this call's GUID paths are eligible for cleanup. A cleanup error must
+    # not hide the original write failure or invalidate a committed snapshot.
+    # If Replace reports a partial failure, retain any backup it managed to
+    # create rather than removing a possible surviving copy of the old data.
+    $temporaryPaths=@($next)
+    if ($committed) { $temporaryPaths+=$previous }
+    foreach ($temporaryPath in $temporaryPaths) {
+      try { if ([IO.File]::Exists($temporaryPath)) { [IO.File]::Delete($temporaryPath) } } catch { }
+    }
+  }
 }
 
 function Get-CofiringTagSummary($Samples) {
@@ -1695,9 +1736,8 @@ try {
     $diagnostics.errorDetails=Get-CofiringExceptionInfo $_
     $diagnostics.comFailure=$script:cofiringLastComFailure
     $diagnostics.comCalls=$script:cofiringComStats
-    throw
-  } finally {
     Write-CofiringJsonAtomic $cofiringDiagnosticsPath $diagnostics
+    throw
   }
 
 
