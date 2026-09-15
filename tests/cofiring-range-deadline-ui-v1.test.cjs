@@ -60,7 +60,7 @@ function mounted({savedId=null,now='2026-09-15T04:02:00Z'}={}){
   h.setHidden=value=>{h.hidden=value;h.visibilityChanged();};h.ui=context.CofiringPeriodV5;h.controller=context.CofiringPeriodV5.mount(container);h.find=key=>container.querySelector(`[data-${key}]`);
   h.frame=()=>{const entry=h.frames.entries().next().value;assert.ok(entry,'animation frame scheduled');h.frames.delete(entry[0]);h.clock+=16;entry[1]();};
   h.tick=ms=>{const entry=[...h.timers].find(([,t])=>t.ms===ms);assert.ok(entry,'timer '+ms+' scheduled');h.timers.delete(entry[0]);h.clock+=ms;entry[1].f();};
-  h.ready=async()=>{await flush();h.tick(0);await flush();h.loads=[];h.events=[];};
+  h.ready=async()=>{await flush();if([...h.timers.values()].some(t=>t.ms===0))h.tick(0);await flush();h.loads=[];h.events=[];};
   return h;
 }
 
@@ -144,6 +144,7 @@ test('returning to daily mode restores the selected date with its full day and o
 });
 test('real partial-day calculation renders deadline Bio rate with a separate measured-feed conversion',async()=>{
   const h=mounted({savedId:'saved-partial',now:'2026-09-15T12:10:00+09:00'});await h.ready();
+  h.find('cfv7-date').value='2026-09-14';await h.find('cfv7-date').fire('change');
   const settings=comparable(h.controller.settings.defaults());settings.unit1.coal.coefficient=1.1;settings.unit1.bio.coefficient=1.2;h.settingsByDate['2026-09-15']=settings;
   await selectPeriod(h,'2026-09-15T00:00','2026-09-15T12:00');await h.find('cfv5-query').fire('click');
   const result=h.controller.getResult(),unit=result.units.unit1,ref=deadline.forUnit(unit,result.period,{now:h.now});
@@ -154,7 +155,7 @@ test('real partial-day calculation renders deadline Bio rate with a separate mea
   assert.match(html,/2026-09-16 00:01/);assert.match(html,/2026-09-15 12:00/);assert.doesNotMatch(html,/동일 열량 기준 Coal|Bio 25% 목표 참고치/);assert.equal(h.posts.length,0);h.controller.dispose();
 });
 test('closed daily result keeps the actual co-firing result but does not offer a remaining feed rate',async()=>{
-  const h=mounted({savedId:'closed-day',now:'2026-09-16T01:00:00+09:00'});await h.ready();await h.find('cfv5-query').fire('click');
+  const h=mounted({savedId:'closed-day',now:'2026-09-16T01:00:00+09:00'});await h.ready();h.find('cfv7-date').value='2026-09-15';await h.find('cfv7-date').fire('change');await h.find('cfv5-query').fire('click');
   assert.ok(h.controller.getResult());assert.equal(h.controller.getResult().period.durationHours,24);const html=summary(h);
   assert.match(html,/마감/);assert.doesNotMatch(html,/data-cfv6-target-bio>\s*\d/);assert.doesNotMatch(html,/Bio 25% 목표 참고치/);h.controller.dispose();
 });

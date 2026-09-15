@@ -60,7 +60,7 @@ function mounted({savedId=null,now='2026-09-15T04:02:00Z'}={}){
   h.setHidden=value=>{h.hidden=value;h.visibilityChanged();};h.ui=context.CofiringPeriodV5;h.controller=context.CofiringPeriodV5.mount(container);h.find=key=>container.querySelector(`[data-${key}]`);
   h.frame=()=>{const entry=h.frames.entries().next().value;assert.ok(entry,'animation frame scheduled');h.frames.delete(entry[0]);h.clock+=16;entry[1]();};
   h.tick=ms=>{const entry=[...h.timers].find(([,t])=>t.ms===ms);assert.ok(entry,'timer '+ms+' scheduled');h.timers.delete(entry[0]);h.clock+=ms;entry[1].f();};
-  h.ready=async()=>{await flush();h.tick(0);await flush();h.loads=[];h.events=[];};
+  h.ready=async()=>{await flush();if([...h.timers.values()].some(t=>t.ms===0))h.tick(0);await flush();h.loads=[];h.events=[];};
   return h;
 }
 
@@ -84,7 +84,7 @@ test('month end, year end and leap day always use the following calendar midnigh
   }
   assert.throws(()=>ui.dailySpec('2026-02-29'));assert.throws(()=>ui.dailySpec('2020-12-31'));assert.throws(()=>ui.dailySpec(''));
 });
-test('computer timezone cannot alter selected date, default completed date or query range',()=>{
+test('computer timezone cannot alter selected date, default Korean current date or query range',()=>{
   const {spawnSync}=require('node:child_process');
   const file=path.resolve(__dirname,'../maintenance/cofiring-period-ui-v5.js');
   const program=`const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');const c=vm.createContext({CofiringCore:require(path.join(path.dirname(${JSON.stringify(file)}),'cofiring-core.js')),CofiringPeriodAdjustmentV56:{},CofiringTargetReferenceV6:{}});vm.runInContext(fs.readFileSync(${JSON.stringify(file)},'utf8'),c);const ui=c.CofiringPeriodV5;console.log(JSON.stringify([ui.dailySpec('2026-09-15'),ui.defaultCalculationDate(Date.parse('2026-09-15T15:01:00Z'))]));`;
@@ -94,8 +94,8 @@ test('computer timezone cannot alter selected date, default completed date or qu
 test('daily readiness blocks 00:00:59.999 and allows exactly 00:01:00 KST',()=>{
   assert.equal(ui.dayAvailability('2026-09-15',Date.parse('2026-09-16T00:00:59.999+09:00')).ready,false);
   const a=ui.dayAvailability('2026-09-15',Date.parse('2026-09-16T00:01:00+09:00'));assert.equal(a.ready,true);
-  assert.equal(ui.defaultCalculationDate(a.readyAt-1),'2026-09-14');assert.equal(ui.defaultCalculationDate(a.readyAt),'2026-09-15');
-  assert.equal(ui.defaultCalculationDate(Date.parse('2026-09-16T23:59:00+09:00')),'2026-09-15');
+  assert.equal(ui.defaultCalculationDate(a.readyAt-1),'2026-09-16');assert.equal(ui.defaultCalculationDate(a.readyAt),'2026-09-16');
+  assert.equal(ui.defaultCalculationDate(Date.parse('2026-09-16T23:59:00+09:00')),'2026-09-16');
 });
 test('daily mode exposes a date and displayed window with custom time fields hidden by default',()=>{
   const html=ui.markup();assert.match(html,/data-cfv7-date type="date"/);assert.match(html,/data-cfv7-daily-window/);
@@ -108,7 +108,7 @@ test('old partial-day saved data cannot be reused as the daily result',()=>{
   assert.equal(ui.cachedReference(s,daily),null);
 });
 test('actual mounted calculation divides daily Coal and Bio usage by 24 hours',async()=>{
-  const h=mounted({savedId:'daily-saved'});await h.ready();await h.find('cfv5-query').fire('click');
+  const h=mounted({savedId:'daily-saved'});await h.ready();h.find('cfv7-date').value='2026-09-14';await h.find('cfv7-date').fire('change');await h.find('cfv5-query').fire('click');
   const r=h.controller.getResult();assert.equal(r.period.durationHours,24);assert.equal(r.units.unit1.coal.quantity,48);
   const fuel=r.units.unit1.coal;assert.equal(fuel.averageTonPerHour,2);assert.equal(r.units.unit1.bio.averageTonPerHour,0.5);
   h.controller.dispose();
@@ -121,24 +121,24 @@ test('clicking at different hours requests the same fixed daily spec',async()=>{
   }
   assert.deepEqual(sent[0],spec('2026-09-15'));assert.deepEqual(sent[0],sent[1]);
 });
-test('today and future selections preserve full-day window and issue no reads or query requests',async()=>{
+test('future selections issue no reads or requests and wait only for that date first available cumulative minute',async()=>{
   const h=mounted();await h.ready();
-  for(const date of ['2026-09-15','2026-09-20']){
+  for(const date of ['2026-09-16','2026-09-20']){
     h.events=[];h.loads=[];h.posts=[];h.find('cfv7-date').value=date;await h.find('cfv7-date').fire('change');
     await h.find('cfv5-query').fire('click');await h.find('cfv5-requery').fire('click');await flush();
     assert.equal(h.loads.length,0);assert.equal(h.posts.length,0);assert.deepEqual(h.events,[]);
-    assert.deepEqual(comparable(h.controller.getSpec()),spec(date));assert.equal(h.find('cfv5-query').disabled,true);
+    assert.deepEqual(comparable(h.controller.getSpec()),{startLocal:date+'T00:00',endLocal:date+'T00:01',stepUnit:'minute',stepValue:1});assert.equal(h.find('cfv5-query').disabled,true);
     assert.equal(h.find('cfv5-manual-save').disabled,true);assert.equal(h.find('cfv5-settings-save').disabled,true);
-    assert.match(h.find('cfv5-status').textContent,/00:01 이후 계산할 수 있습니다/);
+    assert.match(h.find('cfv5-status').textContent,/00:02/);
     assert.ok(h.find('cfv7-daily-window').textContent.startsWith(date+' 00:00 ~ '));
   }
   h.controller.dispose();
 });
-test('late prior-day data is ignored after switching to an unfinished day',async()=>{
+test('late prior-date data is ignored after switching to a future day',async()=>{
   const h=mounted({savedId:'daily-saved'});await h.ready();const old=fixtureReference(h.controller.getSpec());
-  h.find('cfv7-date').value='2026-09-15';await h.find('cfv7-date').fire('change');h.emitReference(old);
+  h.find('cfv7-date').value='2026-09-16';await h.find('cfv7-date').fire('change');h.emitReference(old);
   assert.equal(h.controller.getResult(),null);assert.equal(h.controller.getDisplayResult(),null);
-  assert.match(h.find('cfv5-status').textContent,/2026-09-16 00:01 이후/);h.controller.dispose();
+  assert.match(h.find('cfv5-status').textContent,/2026-09-16 00:02/);h.controller.dispose();
 });
 test('reaching midnight completion enables the selected date without starting a DataPARC request',async()=>{
   const h=mounted({now:'2026-09-16T00:00:59.999+09:00'});await h.ready();h.find('cfv7-date').value='2026-09-15';await h.find('cfv7-date').fire('change');
@@ -164,12 +164,11 @@ test('real live selection invalidates an in-flight completed result when switchi
   assert.deepEqual(comparable(h.live.state().period),future);assert.equal(h.live.state().item.saved,null);assert.equal(h.live.state().canQuery,false);
   assert.equal(await h.live.load(),false);assert.equal(await h.live.query({explicit:true}),false);assert.equal(h.calls.length,1);h.live.dispose();
 });
-test('reopening after the selected day closes reloads that day settings and manual values before calculation',async()=>{
-  const h=mounted({savedId:'saved-yesterday',now:'2026-09-15T23:59:00+09:00'});await h.ready();
+test('reopening after a past day query boundary is complete reloads that day stores before calculation',async()=>{
+  const h=mounted({savedId:'saved-yesterday',now:'2026-09-16T00:00:59.999+09:00'});await h.ready();
   const nextSettings=comparable(h.controller.settings.defaults());nextSettings.unit1.coal.calorific=6000;nextSettings.unit1.bio.calorific=3000;
   h.settingsByDate['2026-09-15']=nextSettings;
   h.manualByStart['2026-09-15T00:00']={unit1:{organic:3,manure:5},unit2:{organic:7,manure:11}};
-  assert.deepEqual(h.storeSelections.settings,['2026-09-14']);
   h.find('cfv7-date').value='2026-09-15';await h.find('cfv7-date').fire('change');
   assert.equal(h.find('cfv5-query').disabled,true);assert.equal(h.controller.getResult(),null);
   h.setHidden(true);assert.equal(h.timers.size,0);
