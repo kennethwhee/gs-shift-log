@@ -371,7 +371,273 @@
     }
   }
 
-  function renderAdjustedValues(result) {
+  /* MORNING-MEETING-COFIRING-MAX-COAL-REVIEW-CENTER-V1 */
+let morningMeetingCofiringCoalReviewTimerV1 = null;
+
+function hideMorningMeetingCofiringCoalReviewV1() {
+  if (
+    morningMeetingCofiringCoalReviewTimerV1 !== null
+  ) {
+    window.clearTimeout(
+      morningMeetingCofiringCoalReviewTimerV1
+    );
+
+    morningMeetingCofiringCoalReviewTimerV1 =
+      null;
+  }
+
+  document
+    .getElementById(
+      "morningMeetingCofiringCoalReviewNoticeV1"
+    )
+    ?.remove();
+}
+
+function showMorningMeetingCofiringCoalReviewV1() {
+  const modal =
+    document.getElementById(
+      "morningMeetingCofiringAdjustmentModal"
+    );
+
+  const dialog =
+    modal?.querySelector(
+      ".morning-meeting-cofiring-adjustment-dialog"
+    );
+
+  if (!modal || !dialog) {
+    return;
+  }
+
+  hideMorningMeetingCofiringCoalReviewV1();
+
+  if (
+    window.getComputedStyle(
+      dialog
+    ).position === "static"
+  ) {
+    dialog.style.position =
+      "relative";
+  }
+
+  const notice =
+    document.createElement(
+      "div"
+    );
+
+  notice.id =
+    "morningMeetingCofiringCoalReviewNoticeV1";
+
+  notice.setAttribute(
+    "role",
+    "status"
+  );
+
+  notice.setAttribute(
+    "aria-live",
+    "polite"
+  );
+
+  Object.assign(
+    notice.style,
+    {
+      position:
+        "absolute",
+
+      inset:
+        "0",
+
+      zIndex:
+        "10000",
+
+      display:
+        "flex",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      padding:
+        "24px",
+
+      pointerEvents:
+        "none"
+    }
+  );
+
+  const box =
+    document.createElement(
+      "div"
+    );
+
+  Object.assign(
+    box.style,
+    {
+      position:
+        "relative",
+
+      width:
+        "min(460px, calc(100% - 32px))",
+
+      padding:
+        "24px 52px 24px 24px",
+
+      border:
+        "1px solid #e4cf93",
+
+      borderRadius:
+        "14px",
+
+      background:
+        "#fffdf5",
+
+      boxShadow:
+        "0 18px 48px rgba(25, 35, 50, 0.30)",
+
+      color:
+        "#26394b",
+
+      textAlign:
+        "center",
+
+      pointerEvents:
+        "auto"
+    }
+  );
+
+  const text =
+    document.createElement(
+      "p"
+    );
+
+  text.textContent =
+    "1,2호기 석탄 사용량 검토 필요합니다.";
+
+  Object.assign(
+    text.style,
+    {
+      margin:
+        "0",
+
+      fontSize:
+        "18px",
+
+      fontWeight:
+        "700",
+
+      lineHeight:
+        "1.5",
+
+      letterSpacing:
+        "-0.3px",
+
+      wordBreak:
+        "keep-all"
+    }
+  );
+
+  const closeButton =
+    document.createElement(
+      "button"
+    );
+
+  closeButton.type =
+    "button";
+
+  closeButton.textContent =
+    "×";
+
+  closeButton.setAttribute(
+    "aria-label",
+    "안내 닫기"
+  );
+
+  closeButton.title =
+    "닫기";
+
+  Object.assign(
+    closeButton.style,
+    {
+      position:
+        "absolute",
+
+      top:
+        "10px",
+
+      right:
+        "10px",
+
+      width:
+        "30px",
+
+      height:
+        "30px",
+
+      padding:
+        "0",
+
+      border:
+        "0",
+
+      borderRadius:
+        "8px",
+
+      background:
+        "transparent",
+
+      color:
+        "#728495",
+
+      fontSize:
+        "21px",
+
+      lineHeight:
+        "1",
+
+      cursor:
+        "pointer"
+    }
+  );
+
+  closeButton.addEventListener(
+    "click",
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      hideMorningMeetingCofiringCoalReviewV1();
+    }
+  );
+
+  box.appendChild(
+    text
+  );
+
+  box.appendChild(
+    closeButton
+  );
+
+  notice.appendChild(
+    box
+  );
+
+  dialog.appendChild(
+    notice
+  );
+
+  morningMeetingCofiringCoalReviewTimerV1 =
+    window.setTimeout(
+      () => {
+        morningMeetingCofiringCoalReviewTimerV1 =
+          null;
+
+        notice.remove();
+      },
+      3000
+    );
+}
+function renderAdjustedValues(result) {
     if (!result?.ok) {
       return;
     }
@@ -993,6 +1259,7 @@
 
     const maxAuto = modal.querySelector("#morningMeetingCofiringMaxAuto");
     maxAuto?.addEventListener("click", () => {
+    showMorningMeetingCofiringCoalReviewV1();
       if (!currentContext?.baseFuelData || !currentContext?.settings) {
         return;
       }
