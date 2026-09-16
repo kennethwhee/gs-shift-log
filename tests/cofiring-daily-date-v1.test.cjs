@@ -121,24 +121,26 @@ test('clicking at different hours requests the same fixed daily spec',async()=>{
   }
   assert.deepEqual(sent[0],spec('2026-09-15'));assert.deepEqual(sent[0],sent[1]);
 });
-test('future selections issue no reads or requests and wait only for that date first available cumulative minute',async()=>{
+test('future selections issue no reads or requests and wait for the selected full-day boundary',async()=>{
   const h=mounted();await h.ready();
   for(const date of ['2026-09-16','2026-09-20']){
     h.events=[];h.loads=[];h.posts=[];h.find('cfv7-date').value=date;await h.find('cfv7-date').fire('change');
     await h.find('cfv5-query').fire('click');await h.find('cfv5-requery').fire('click');await flush();
     assert.equal(h.loads.length,0);assert.equal(h.posts.length,0);assert.deepEqual(h.events,[]);
-    assert.deepEqual(comparable(h.controller.getSpec()),{startLocal:date+'T00:00',endLocal:date+'T00:01',stepUnit:'minute',stepValue:1});assert.equal(h.find('cfv5-query').disabled,true);
+    const full=ui.dailySpec(date);
+    assert.deepEqual(comparable(h.controller.getSpec()),spec(date));assert.equal(h.find('cfv5-query').disabled,true);
     assert.equal(h.find('cfv5-manual-save').disabled,true);assert.equal(h.find('cfv5-settings-save').disabled,true);
-    assert.match(h.find('cfv5-status').textContent,/00:02/);
-    assert.ok(h.find('cfv7-daily-window').textContent.startsWith(date+' 00:00 ~ '));
+    assert.ok(h.find('cfv5-status').textContent.includes(full.queryEnd.slice(0,16).replace('T',' ')));
+    assert.equal(h.find('cfv7-daily-window').textContent,date+' 00:00 ~ '+full.queryEnd.slice(0,16).replace('T',' '));
   }
   h.controller.dispose();
 });
-test('late prior-date data is ignored after switching to a future day',async()=>{
+test('late prior-date data is ignored after switching to a future full day',async()=>{
   const h=mounted({savedId:'daily-saved'});await h.ready();const old=fixtureReference(h.controller.getSpec());
   h.find('cfv7-date').value='2026-09-16';await h.find('cfv7-date').fire('change');h.emitReference(old);
   assert.equal(h.controller.getResult(),null);assert.equal(h.controller.getDisplayResult(),null);
-  assert.match(h.find('cfv5-status').textContent,/2026-09-16 00:02/);h.controller.dispose();
+  const full=ui.dailySpec('2026-09-16');
+  assert.ok(h.find('cfv5-status').textContent.includes(full.queryEnd.slice(0,16).replace('T',' ')));h.controller.dispose();
 });
 test('reaching midnight completion enables the selected date without starting a DataPARC request',async()=>{
   const h=mounted({now:'2026-09-16T00:00:59.999+09:00'});await h.ready();h.find('cfv7-date').value='2026-09-15';await h.find('cfv7-date').fire('change');

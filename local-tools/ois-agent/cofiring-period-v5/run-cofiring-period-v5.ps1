@@ -127,6 +127,33 @@ function New-ControllerSignature($ProcessObject) {
   }
 }
 
+function Get-CofiringStableWorkerSignature($ProcessObject,[int]$TimeoutMilliseconds=5000) {
+  # Start-Process can return before Process.Path is populated. Readiness later
+  # compares the worker's own live executable path, so freeze the controller's
+  # worker signature only after the same path field is available.
+  $clock=[Diagnostics.Stopwatch]::StartNew()
+  $lastError=$null
+  while ($clock.ElapsedMilliseconds -lt $TimeoutMilliseconds) {
+    try {
+      $ProcessObject.Refresh()
+      if ($ProcessObject.HasExited) {
+        throw '조회 작업 PowerShell이 신원 확인 전에 종료되었습니다.'
+      }
+      $signature=New-ControllerSignature $ProcessObject
+      if (-not [string]::IsNullOrWhiteSpace([string]$signature.Path)) {
+        return $signature
+      }
+    } catch {
+      $lastError=$_.Exception
+    }
+    Start-Sleep -Milliseconds 25
+  }
+  if ($null -ne $lastError) {
+    throw ('조회 작업 PowerShell 신원 확인 실패: '+$lastError.Message)
+  }
+  throw '조회 작업 PowerShell 실행경로를 5초 안에 확인하지 못했습니다.'
+}
+
 function Test-ControllerProcessObject($ProcessObject, $Signature) {
   try {
     [void]$ProcessObject.Handle
@@ -618,7 +645,7 @@ try {
     foreach ($key in $workerEnvironment.Keys) { $priorEnvironment[$key]=[Environment]::GetEnvironmentVariable($key,'Process');[Environment]::SetEnvironmentVariable($key,[string]$workerEnvironment[$key],'Process') }
     $executionClock=[Diagnostics.Stopwatch]::StartNew()
     $worker=Start-Process -FilePath $powerShellPath -ArgumentList @('-NoProfile','-STA','-ExecutionPolicy','Bypass','-File',('"'+$workerPath+'"')) -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
-    $workerSignature=New-ControllerSignature $worker
+    $workerSignature=Get-CofiringStableWorkerSignature $worker
     $workerSignature | Add-Member -NotePropertyName ParentProcessId -NotePropertyValue ([int]$controllerSignature.ProcessId)
   } finally {
     foreach ($key in $priorEnvironment.Keys) { [Environment]::SetEnvironmentVariable($key,$priorEnvironment[$key],'Process') }

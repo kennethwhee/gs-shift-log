@@ -113,8 +113,9 @@ test('future custom query boundary blocks both Calculate and Requery without any
   assert.match(h.find('cfv5-status').textContent,/2026-09-15 13:01/);
   h.now=Date.parse('2026-09-15T13:01:00+09:00');assert.equal(h.ui.selectedAvailability({querySelector:sel=>({'[data-cfv8-mode]':h.find('cfv8-mode'),'[data-cfv8-start]':h.find('cfv8-start'),'[data-cfv8-end]':h.find('cfv8-end')})[sel]},h.now).ready,true);h.controller.dispose();
 });
-test('switching from daily to a custom period during click prerequisites cancels the original request',async()=>{
-  const h=mounted();await h.ready();h.loadGate=deferred();const click=h.find('cfv5-query').fire('click');await flush();
+test('switching from a completed daily day to a custom period during click prerequisites cancels the original request',async()=>{
+  const h=mounted();await h.ready();h.find('cfv7-date').value='2026-09-14';await h.find('cfv7-date').fire('change');await flush();h.loads=[];h.events=[];
+  h.loadGate=deferred();const click=h.find('cfv5-query').fire('click');await flush();
   h.find('cfv8-start').value='2026-09-14T07:00';h.find('cfv8-end').value='2026-09-14T19:00';h.find('cfv8-mode').value='period';
   const changed=h.find('cfv8-mode').fire('change');await flush();h.loadGate.resolve();await Promise.all([click,changed]);
   assert.equal(h.posts.length,0);assert.equal(h.timing.state().status,'cancelled');assert.deepEqual(comparable(h.controller.getSpec()),scope('2026-09-14T07:00','2026-09-14T19:00'));h.controller.dispose();
@@ -168,8 +169,9 @@ test('a non-midnight or multiple-day result computes selected usage without clai
   assert.equal(h.posts.length,0);h.controller.dispose();
 });
 
-test('changing calculation mode cancels prerequisites even when both modes describe the same endpoints',async()=>{
-  const h=mounted();await h.ready();const selected=h.controller.getSpec();h.loadGate=deferred();
+test('changing calculation mode cancels prerequisites even when both modes describe the same completed endpoints',async()=>{
+  const h=mounted();await h.ready();h.find('cfv7-date').value='2026-09-14';await h.find('cfv7-date').fire('change');await flush();h.loads=[];h.events=[];
+  const selected=h.controller.getSpec();h.loadGate=deferred();
   const click=h.find('cfv5-query').fire('click');await flush();h.find('cfv8-start').value=selected.startLocal;h.find('cfv8-end').value=selected.endLocal;h.find('cfv8-mode').value='period';
   const changed=h.find('cfv8-mode').fire('change');await flush();h.loadGate.resolve();await Promise.all([click,changed]);
   assert.deepEqual(comparable(h.controller.getSpec()),comparable(selected));assert.equal(h.posts.length,0);assert.equal(h.timing.state().status,'cancelled');h.controller.dispose();
@@ -184,8 +186,9 @@ test('the displayed partial-day feed target closes at midnight deadline without 
   assert.equal(h.loads.length,loads);assert.equal(h.posts.length,posts);assert.equal([...h.timers.values()].filter(t=>t.ms===60000).length,0);h.controller.dispose();
 });
 
-test('Calculate resumes a stopped active request with one full read and waits for its exact result ID',async()=>{
-  const h=mounted({savedId:'previous-saved'});await h.ready();const item=h.live.state().item;
+test('Calculate resumes a stopped active request on a completed daily day with one full read and waits for its exact result ID',async()=>{
+  const h=mounted({savedId:'previous-saved'});await h.ready();h.find('cfv7-date').value='2026-09-14';await h.find('cfv7-date').fire('change');await flush();h.loads=[];h.events=[];
+  const item=h.live.state().item;
   item.active={id:'accepted-active-request',status:'processing'};item.lastAttempt={...item.active};item.statusStopped=true;
   item.error='자동 상태 확인을 멈췄습니다.';h.emitOld();h.loadGate=deferred();
   const loadOptions=[],read=h.live.load;h.live.load=async options=>{loadOptions.push(comparable(options));const ok=await read(options);item.statusStopped=false;item.error='';return ok;};
