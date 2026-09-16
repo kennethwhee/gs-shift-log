@@ -4,6 +4,7 @@
   const INSTALL_MARKER = "MORNING_MEETING_RESET_DELETE_V2";
   const API_URL = "/api/morning-meeting-purge";
   const RESET_BUTTON_ID = "morningMeetingResetButton";
+  const RESET_LABELS = new Set(["초기화", "초기화 취소", "선택일 자료 초기화"]);
   const CACHE_KEYS = ["gsShiftLog.morningMeetingAutoDataCache.v1"];
 
   if (window.__morningMeetingResetDeleteV2Installed === true) return;
@@ -49,8 +50,51 @@
     return "";
   }
 
-  function resetButton() {
-    return document.getElementById(RESET_BUTTON_ID);
+  function isMorningMeetingResetButton(button) {
+    if (!button || String(button.tagName || "").toUpperCase() !== "BUTTON") return false;
+    if (button.dataset?.morningMeetingResetDeleteV2 === "true") return true;
+
+    const id = text(button.id);
+    const label = text(button.textContent);
+    if (id === RESET_BUTTON_ID) return true;
+    if (!RESET_LABELS.has(label)) return false;
+
+    const view = button.closest?.(
+      '#efficiencyMorningMeetingView, [data-efficiency-view="morning-meeting"]'
+    );
+    if (!view) return false;
+
+    // The selected-date reset lives in the compact source toolbar beside these
+    // three query-mode controls.  Match by stable neighbouring labels instead
+    // of depending on one historical button id.
+    const groupText = text(button.parentElement?.textContent);
+    if (
+      groupText.includes("전체자료") &&
+      groupText.includes("운영정보조회") &&
+      groupText.includes("엑셀 조회하기")
+    ) {
+      return true;
+    }
+
+    // Compatibility fallback for renamed ids/classes shipped by the original
+    // selected-date reset implementation.  Exact Korean label remains required.
+    const identity = `${id} ${text(button.className)} ${text(button.getAttribute?.("data-action"))}`.toLowerCase();
+    return identity.includes("morning") && identity.includes("reset");
+  }
+
+  function resetButtons() {
+    const exact = document.getElementById(RESET_BUTTON_ID);
+    const buttons = [];
+    if (isMorningMeetingResetButton(exact)) buttons.push(exact);
+
+    const view = document.getElementById("efficiencyMorningMeetingView") ||
+      document.querySelector?.('[data-efficiency-view="morning-meeting"]');
+    for (const button of view?.querySelectorAll?.("button") || []) {
+      if (isMorningMeetingResetButton(button) && !buttons.includes(button)) {
+        buttons.push(button);
+      }
+    }
+    return buttons;
   }
 
   function authHeaders(extra = {}) {
@@ -172,31 +216,58 @@
     try { window.morningMeetingQuerySources?.render?.(); } catch (_) {}
   }
 
-  function normalizeButton() {
-    const button = resetButton();
-    if (!button) return;
-    button.textContent = busy ? "삭제 중…" : "초기화";
-    button.title = busy
+  function normalizeButton(button) {
+    if (!isMorningMeetingResetButton(button)) return;
+    button.dataset.morningMeetingResetDeleteV2 = "true";
+    const nextText = busy ? "삭제 중…" : "초기화";
+    const nextTitle = busy
       ? "선택일 저장자료를 삭제하고 있습니다."
       : "선택일의 저장된 오전회의 조회자료를 삭제합니다. 삭제 후에는 복원할 수 없습니다.";
-    button.dataset.morningMeetingResetAction = "delete";
-    button.classList.remove("is-reset-active");
-    button.setAttribute("aria-pressed", "false");
-    if (busy) button.disabled = true;
+
+    if (text(button.textContent) !== nextText) button.textContent = nextText;
+    if (button.title !== nextTitle) button.title = nextTitle;
+    if (button.dataset.morningMeetingResetAction !== "delete") {
+      button.dataset.morningMeetingResetAction = "delete";
+    }
+    if (button.classList?.contains("is-reset-active")) {
+      button.classList.remove("is-reset-active");
+    }
+    if (button.getAttribute("aria-pressed") !== "false") {
+      button.setAttribute("aria-pressed", "false");
+    }
+    if (busy && !button.disabled) button.disabled = true;
   }
 
-  function watchButton() {
-    const button = resetButton();
-    if (!button) return;
-    normalizeButton();
+  function normalizeButtons() {
+    for (const button of resetButtons()) normalizeButton(button);
+  }
+
+  function scheduleNormalizeButtons() {
+    if (scheduleNormalizeButtons.pending) return;
+    scheduleNormalizeButtons.pending = true;
+    window.setTimeout(() => {
+      scheduleNormalizeButtons.pending = false;
+      normalizeButtons();
+    }, 0);
+  }
+  scheduleNormalizeButtons.pending = false;
+
+  function watchButtons() {
+    normalizeButtons();
     if (buttonObserver) buttonObserver.disconnect();
-    buttonObserver = new MutationObserver(() => normalizeButton());
-    buttonObserver.observe(button, {
+    buttonObserver = new MutationObserver(scheduleNormalizeButtons);
+    buttonObserver.observe(document.documentElement, {
       childList: true,
       subtree: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ["class", "aria-pressed", "data-morning-meeting-reset-action"]
+      attributeFilter: [
+        "class",
+        "aria-pressed",
+        "data-morning-meeting-reset-action",
+        "data-action",
+        "id"
+      ]
     });
   }
 
@@ -249,7 +320,7 @@
       await window.morningMeetingQuerySources?.loadResetStatus?.(date, { force: true });
     } catch (_) {}
     rerender();
-    normalizeButton();
+    normalizeButtons();
   }
 
   async function deleteSelectedDate() {
@@ -262,7 +333,7 @@
     if (!confirmDelete(date)) return;
 
     busy = true;
-    normalizeButton();
+    normalizeButtons();
     try {
       const expectedRevision = await getResetRevision(date);
       applyTemporaryBlankMask(date, expectedRevision);
@@ -310,24 +381,22 @@
       );
     } finally {
       busy = false;
-      normalizeButton();
+      normalizeButtons();
     }
   }
 
   function onClickCapture(event) {
     const target = event.target?.closest?.("button");
-    if (!target || target.id !== RESET_BUTTON_ID) return;
+    if (!isMorningMeetingResetButton(target)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     void deleteSelectedDate();
   }
 
   function start() {
-    watchButton();
+    watchButtons();
     document.addEventListener("click", onClickCapture, true);
-    const observer = new MutationObserver(() => watchButton());
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-    document.addEventListener("morningMeetingResetStateChanged", () => window.setTimeout(normalizeButton, 0));
+    document.addEventListener("morningMeetingResetStateChanged", scheduleNormalizeButtons);
   }
 
   if (document.readyState === "loading") {
