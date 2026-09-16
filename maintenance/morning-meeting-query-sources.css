@@ -86,3 +86,39 @@
   #efficiencyMorningMeetingAutoPreview .morning-meeting-daily-mini-refresh,
   #efficiencyMorningMeetingAutoPreview #morningMeetingCofiringRefreshButton { display: none; }
 }
+/* ===== MORNING MEETING RESET BUTTON COMPACT V1 R1 START ===== */
+#efficiencyMorningMeetingAutoPreview #morningMeetingResetButton {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+#efficiencyMorningMeetingAutoPreview #morningMeetingResetButton.is-danger {
+  border-color: #e2aaaa;
+  background: #fffafa;
+  color: #a82424;
+}
+
+#efficiencyMorningMeetingAutoPreview #morningMeetingResetButton.is-danger:hover:not(:disabled) {
+  border-color: #cc7777;
+  background: #fff3f2;
+  color: #941f1f;
+}
+
+#efficiencyMorningMeetingAutoPreview #morningMeetingResetButton.is-danger.is-reset-active {
+  border-color: #cf7f7f;
+  background: #fff0ee;
+  color: #8d1c1c;
+}
+/* ===== MORNING MEETING RESET BUTTON COMPACT V1 R1 END ===== */

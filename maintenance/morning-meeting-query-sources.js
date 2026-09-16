@@ -306,7 +306,7 @@
         });
         actions.append(button);
       }
-      const resetButton = makeElement("button", "morning-meeting-workbook-query__button is-danger", "선택일 자료 초기화");
+      const resetButton = makeElement("button", "morning-meeting-workbook-query__button is-danger", "초기화");
       resetButton.id = RESET_BUTTON_ID;
       resetButton.type = "button";
       resetButton.addEventListener("click", event => {
@@ -382,7 +382,7 @@
       resetButton.dataset.morningMeetingResetAction = resetActive ? "restore" : "reset";
       resetButton.classList.toggle("is-reset-active", resetActive);
       resetButton.setAttribute("aria-pressed", resetActive ? "true" : "false");
-      setText(resetButton, activeResetRequest?.date === date ? "처리 중…" : resetActive ? "초기화 취소" : "선택일 자료 초기화");
+      setText(resetButton, activeResetRequest?.date === date ? "처리 중…" : resetActive ? "초기화 취소" : "초기화");
       resetButton.title = !isDate(date) ? "자료 기준일을 선택해 주세요." : reset.loading ? "선택일의 초기화 상태를 확인하고 있습니다." :
         reset.error ? `${reset.error} 버튼을 누르면 상태를 다시 확인합니다.` : resetActive ? `${date} 자료 초기화를 취소하고 저장된 원본을 다시 표시합니다.` :
         `${date} 조회 자료를 비웁니다. 원본 자료와 다른 날짜는 삭제하지 않습니다.`;
