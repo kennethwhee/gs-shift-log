@@ -1441,10 +1441,26 @@ try {
 
   # NativeOM exposure can intermittently lag a freshly started /x instance.
   # Retry only with the exact Excel process started by this worker, once.
+  # COFIRING_NATIVEOM_BOOTSTRAP_WORKBOOK_V6
+  # A new Excel /x instance can remain on the Start screen with no EXCEL7
+  # workbook window. NativeOM is exposed from that workbook window, so open a
+  # tiny local CSV in the exact-owned instance before attempting NativeOM attach.
+  $nativeOmBootstrapPath = Join-Path ([string]$env:TEMP) (
+    'cofiring-nativeom-bootstrap-' + [string]$env:GS_COFIRING_RUN_ID + '.csv'
+  )
+  [IO.File]::WriteAllText(
+    $nativeOmBootstrapPath,
+    "GS Shift Log NativeOM Bootstrap`r`n",
+    (New-Object Text.UTF8Encoding($true))
+  )
+  if (-not [IO.File]::Exists($nativeOmBootstrapPath)) {
+    throw 'NativeOM 연결용 임시 통합문서를 만들지 못했습니다.'
+  }
+  $nativeOmBootstrapArgument = '"' + $nativeOmBootstrapPath + '"'
   for ($excelAttachAttempt = 1; $excelAttachAttempt -le 2 -and $null -eq $excel; $excelAttachAttempt += 1) {
     Assert-CofiringNotCancelled
     Write-ProbeStage $(if ($excelAttachAttempt -eq 1) { "별도 숨김 Excel 시작" } else { "별도 숨김 Excel 재시작 · 2/2" })
-    $launchedExcelProcess = Start-Process -FilePath $ownedExcelPath -ArgumentList @("/x") -WindowStyle Hidden -PassThru
+    $launchedExcelProcess = Start-Process -FilePath $ownedExcelPath -ArgumentList @("/x", $nativeOmBootstrapArgument) -WindowStyle Hidden -PassThru
     [void]$launchedExcelProcess.Handle
     $ownedExcelPid = [int]$launchedExcelProcess.Id
     $ownedExcelStartTicks = [long]$launchedExcelProcess.StartTime.ToUniversalTime().Ticks
@@ -1802,6 +1818,9 @@ try {
   Write-ProbeStage "조회용 Excel·DataPARC Host 정리"
   Write-CofiringProgress 'CLEANUP'
 
+  if ($nativeOmBootstrapPath -and [IO.File]::Exists($nativeOmBootstrapPath)) {
+    try { [IO.File]::Delete($nativeOmBootstrapPath) } catch { }
+  }
   $canCloseOwnedCom=$false
   if ($excel -and $ownedExcelPid -gt 0) {
     if (Test-OwnedProbeExcelIdentity $ownedExcelPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId) {
