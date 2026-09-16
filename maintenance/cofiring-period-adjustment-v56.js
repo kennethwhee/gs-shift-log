@@ -84,23 +84,77 @@
     const signature=ctx=>JSON.stringify([ctx?.spec,ctx?.settings,ctx?.result?.units]);
     const currentContext=()=>{try{return options.getContext?.()?.result===base&&signature(options.getContext?.())===contextSignature;}catch(_){return false;}};
     // COFIRING COAL REVIEW TOAST V1
+    // COFIRING CENTERED COAL REVIEW V2
     let coalReviewToastTimer=null;
     function hideCoalReviewToast(){
       if(coalReviewToastTimer){root.clearTimeout?.(coalReviewToastTimer);coalReviewToastTimer=null;}
-      const toast=q('[data-cfv56-coal-review-toast]');if(!toast)return;toast.hidden=true;toast.style.opacity='0';toast.style.transform='translateY(-4px)';
+      const toast=q('[data-cfv56-coal-review-toast]');if(!toast)return;
+      toast.hidden=true;toast.style.opacity='0';toast.style.transform='translateY(-3px)';
     }
     function showCoalReviewToast(){
       let toast=q('[data-cfv56-coal-review-toast]');
       if(!toast){
-        const dialog=q('.cfv56-adjust-dialog');if(!dialog)return;
-        const currentPosition=root.getComputedStyle?.(dialog)?.position;if(!currentPosition||currentPosition==='static')dialog.style.position='relative';
-        toast=root.document.createElement('div');toast.setAttribute('data-cfv56-coal-review-toast','');toast.setAttribute('role','status');toast.setAttribute('aria-live','polite');
-        Object.assign(toast.style,{position:'absolute',top:'12px',right:'52px',zIndex:'12',display:'flex',alignItems:'center',gap:'7px',maxWidth:'310px',padding:'7px 9px',border:'1px solid #d9cced',borderRadius:'9px',background:'#ffffff',color:'#5e4b7d',boxShadow:'0 6px 18px rgba(68,50,98,.14)',fontSize:'11px',fontWeight:'700',lineHeight:'1.35',letterSpacing:'-.1px',opacity:'0',transform:'translateY(-4px)',transition:'opacity .16s ease, transform .16s ease'});
-        const text=root.document.createElement('span');text.textContent='최대 혼소 조정 시, 1,2호기 석탄 사용량 검토 필요';text.style.whiteSpace='nowrap';toast.appendChild(text);
-        const closeButton=root.document.createElement('button');closeButton.type='button';closeButton.setAttribute('aria-label','안내 닫기');closeButton.textContent='×';Object.assign(closeButton.style,{border:'0',background:'transparent',color:'#7a6994',padding:'0 1px',margin:'0',fontSize:'15px',lineHeight:'1',cursor:'pointer'});closeButton.addEventListener('click',hideCoalReviewToast);toast.appendChild(closeButton);
-        dialog.appendChild(toast);
+        const body=q('.cfv56-adjust-body');if(!body)return;
+        toast=root.document.createElement('div');
+        toast.setAttribute('data-cfv56-coal-review-toast','');
+        toast.setAttribute('role','status');
+        toast.setAttribute('aria-live','polite');
+        Object.assign(toast.style,{
+          position:'relative',
+          width:'100%',
+          margin:'12px 0 2px',
+          padding:'11px 42px 11px 14px',
+          border:'1px solid #e3c66b',
+          borderRadius:'10px',
+          background:'#fff6d8',
+          color:'#5b4710',
+          boxShadow:'0 3px 10px rgba(91,71,16,.10)',
+          fontSize:'12px',
+          fontWeight:'800',
+          lineHeight:'1.45',
+          textAlign:'center',
+          boxSizing:'border-box',
+          opacity:'0',
+          transform:'translateY(-3px)',
+          transition:'opacity .16s ease, transform .16s ease'
+        });
+        const text=root.document.createElement('span');
+        text.textContent='최대 혼소 조정 시, 1,2호기 석탄 사용량 검토 필요';
+        text.style.display='block';
+        text.style.width='100%';
+        toast.appendChild(text);
+        const closeButton=root.document.createElement('button');
+        closeButton.type='button';
+        closeButton.setAttribute('aria-label','안내 닫기');
+        closeButton.textContent='×';
+        Object.assign(closeButton.style,{
+          position:'absolute',
+          top:'50%',
+          right:'10px',
+          transform:'translateY(-50%)',
+          display:'inline-flex',
+          alignItems:'center',
+          justifyContent:'center',
+          width:'23px',
+          height:'23px',
+          padding:'0',
+          border:'1px solid #d9bd63',
+          borderRadius:'999px',
+          background:'#fffaf0',
+          color:'#705a17',
+          fontSize:'14px',
+          fontWeight:'800',
+          lineHeight:'1',
+          cursor:'pointer'
+        });
+        closeButton.addEventListener('click',hideCoalReviewToast);
+        toast.appendChild(closeButton);
+        const autoSection=q('.cfv56-auto');
+        if(autoSection?.parentNode===body)autoSection.insertAdjacentElement('afterend',toast);
+        else body.prepend(toast);
       }
-      if(coalReviewToastTimer)root.clearTimeout?.(coalReviewToastTimer);toast.hidden=false;
+      if(coalReviewToastTimer)root.clearTimeout?.(coalReviewToastTimer);
+      toast.hidden=false;
       root.requestAnimationFrame?.(()=>{toast.style.opacity='1';toast.style.transform='translateY(0)';});
       coalReviewToastTimer=root.setTimeout?.(hideCoalReviewToast,3000)||null;
     }
