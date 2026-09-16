@@ -1,21 +1,16 @@
 (() => {
   "use strict";
 
-  const INSTALL_MARKER = "MORNING_MEETING_PERMANENT_PURGE_V1";
+  const INSTALL_MARKER = "MORNING_MEETING_RESET_DELETE_V2";
   const API_URL = "/api/morning-meeting-purge";
-  const CACHE_KEYS = [
-    "gsShiftLog.morningMeetingAutoDataCache.v1"
-  ];
+  const RESET_BUTTON_ID = "morningMeetingResetButton";
+  const CACHE_KEYS = ["gsShiftLog.morningMeetingAutoDataCache.v1"];
 
-  if (window.__morningMeetingPermanentPurgeV1Installed === true) {
-    return;
-  }
-  window.__morningMeetingPermanentPurgeV1Installed = true;
+  if (window.__morningMeetingResetDeleteV2Installed === true) return;
+  window.__morningMeetingResetDeleteV2Installed = true;
 
-  let purgeButton = null;
   let busy = false;
-  let observedResetButton = null;
-  const purgedDates = new Set();
+  let buttonObserver = null;
 
   function text(value) {
     return String(value ?? "").trim();
@@ -35,11 +30,14 @@
   }
 
   function selectedDate() {
+    const queryApi = window.morningMeetingQuerySources;
     const panel = document.getElementById("efficiencyMorningMeetingWaterPanel");
     const candidates = [
+      typeof queryApi?.targetDate === "function" ? queryApi.targetDate() : "",
       panel?.dataset?.morningMeetingAutoBaseDate,
       panel?.dataset?.waterTargetDate,
       panel?.dataset?.oisTargetDate,
+      document.getElementById("efficiencyMorningMeetingAutoDatePicker")?.value,
       document.getElementById("efficiencyMorningMeetingWorkDatePicker")?.value,
       document.getElementById("efficiencyMorningMeetingAutoWaterDate")?.textContent,
       document.getElementById("efficiencyMorningMeetingWaterDate")?.textContent
@@ -51,30 +49,8 @@
     return "";
   }
 
-  function buttonLabel(button) {
-    return text(button?.textContent).replace(/\s+/g, " ");
-  }
-
-  function findResetButton() {
-    const roots = [
-      document.getElementById("efficiencyMorningMeetingAutoPreview"),
-      document.getElementById("efficiencyMorningMeetingView"),
-      document
-    ].filter(Boolean);
-    for (const root of roots) {
-      const buttons = root.querySelectorAll?.("button") || [];
-      for (const button of buttons) {
-        const label = buttonLabel(button);
-        if (label === "초기화" || label === "초기화 취소") {
-          return button;
-        }
-      }
-    }
-    return null;
-  }
-
-  function isResetActive() {
-    return buttonLabel(findResetButton()) === "초기화 취소";
+  function resetButton() {
+    return document.getElementById(RESET_BUTTON_ID);
   }
 
   function authHeaders(extra = {}) {
@@ -100,7 +76,7 @@
 
   function notify(message, tone = "") {
     if (typeof window.showToast === "function") {
-      window.showToast(message);
+      window.showToast(message, tone);
       return;
     }
     const status = document.querySelector(
@@ -121,12 +97,12 @@
       try {
         data = JSON.parse(raw);
       } catch (_) {
-        throw new Error("완전삭제 서버 응답 형식이 올바르지 않습니다.");
+        throw new Error("초기화 서버 응답 형식이 올바르지 않습니다.");
       }
     }
     if (!response.ok || data.ok === false) {
       const error = new Error(
-        data.message || data.error || `완전삭제 요청에 실패했습니다. (HTTP ${response.status})`
+        data.message || data.error || `초기화 요청에 실패했습니다. (HTTP ${response.status})`
       );
       error.code = data.code || "";
       error.details = data;
@@ -171,6 +147,7 @@
         "waterTreatment",
         "gearPinion",
         "dailyData",
+        "steamStatus",
         "siloLevel",
         "limestoneValues",
         "limestone",
@@ -179,45 +156,118 @@
         const item = state[key];
         if (!item || typeof item !== "object") continue;
         const itemDate = validDate(item.targetDate) || validDate(item.sourceDate);
-        if (!itemDate || itemDate === date) {
-          delete state[key];
-        }
+        if (!itemDate || itemDate === date) delete state[key];
       }
     }
   }
 
-  function confirmPermanentDelete(date) {
-    const message = [
-      `${date} 오전회의 서버 저장 조회값을 완전히 삭제합니다.`,
-      "",
-      "삭제 대상:",
-      "수처리 · 석회석 · Turbine · Silo Level · 일일DATA Excel · 유기성 Silo",
-      "",
-      "삭제한 값은 [초기화 취소]로 복원할 수 없습니다.",
-      "이 작업은 다른 PC에서 완전히 새 조회를 시험하기 위한 기능입니다.",
-      "",
-      "계속하시겠습니까?"
-    ].join("\n");
-    return window.confirm ? window.confirm(message) : false;
+  function rerender() {
+    try { window.renderEfficiencyMorningMeetingAutoPreview?.(); } catch (_) {}
+    try { window.renderEfficiencyMorningMeetingSiloLevelPreview?.(); } catch (_) {}
+    try { window.renderEfficiencyMorningMeetingDailyData?.(); } catch (_) {}
+    try { window.renderEfficiencyMorningMeetingSmpPrice?.(); } catch (_) {}
+    try { window.renderEfficiencyMorningMeetingWeather?.(); } catch (_) {}
+    try { window.refreshMorningMeetingCofiringCard?.(); } catch (_) {}
+    try { window.updateEfficiencyMorningMeetingCreateButton?.(); } catch (_) {}
+    try { window.morningMeetingQuerySources?.render?.(); } catch (_) {}
   }
 
-  async function purgeSelectedDate() {
+  function normalizeButton() {
+    const button = resetButton();
+    if (!button) return;
+    button.textContent = busy ? "삭제 중…" : "초기화";
+    button.title = busy
+      ? "선택일 저장자료를 삭제하고 있습니다."
+      : "선택일의 저장된 오전회의 조회자료를 삭제합니다. 삭제 후에는 복원할 수 없습니다.";
+    button.dataset.morningMeetingResetAction = "delete";
+    button.classList.remove("is-reset-active");
+    button.setAttribute("aria-pressed", "false");
+    if (busy) button.disabled = true;
+  }
+
+  function watchButton() {
+    const button = resetButton();
+    if (!button) return;
+    normalizeButton();
+    if (buttonObserver) buttonObserver.disconnect();
+    buttonObserver = new MutationObserver(() => normalizeButton());
+    buttonObserver.observe(button, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["class", "aria-pressed", "data-morning-meeting-reset-action"]
+    });
+  }
+
+  function confirmDelete(date) {
+    const message = [
+      `${date} 오전회의 조회 데이터를 삭제하시겠습니까?`,
+      "",
+      "[확인]을 누르면 선택일의 저장된 조회 결과를 삭제합니다.",
+      "수처리 · 석회석 · Turbine · Silo Level · 일일DATA Excel · 유기성 Silo",
+      "",
+      "삭제 후에는 기존 값을 복원할 수 없습니다. 취소하려면 [취소]를 눌러주세요.",
+      "다른 날짜와 혼소율 기간 계산 이력은 삭제하지 않습니다."
+    ].join("\n");
+    return typeof window.confirm === "function" && window.confirm(message) === true;
+  }
+
+  async function getResetRevision(date) {
+    const api = window.morningMeetingQuerySources;
+    if (!api) return 0;
+    try {
+      if (typeof api.loadResetStatus === "function") {
+        await api.loadResetStatus(date, { force: true });
+      }
+      const state = typeof api.getResetState === "function" ? api.getResetState(date) : null;
+      const revision = Number(state?.revision);
+      return Number.isSafeInteger(revision) && revision >= 0 ? revision : 0;
+    } catch (error) {
+      console.warn(`[${INSTALL_MARKER}] reset revision read failed`, error);
+      return 0;
+    }
+  }
+
+  function applyTemporaryBlankMask(date, revision) {
+    const item = {
+      targetDate: date,
+      active: true,
+      resetAt: new Date().toISOString(),
+      resetById: "",
+      resetByName: "",
+      restoredAt: "",
+      revision
+    };
+    try { window.morningMeetingQuerySources?.applyResetState?.(item); } catch (_) {}
+    try { window.applyMorningMeetingSelectedDateResetState?.(item); } catch (_) {}
+    rerender();
+  }
+
+  async function refreshResetState(date) {
+    try {
+      await window.morningMeetingQuerySources?.loadResetStatus?.(date, { force: true });
+    } catch (_) {}
+    rerender();
+    normalizeButton();
+  }
+
+  async function deleteSelectedDate() {
     if (busy) return;
     const date = selectedDate();
     if (!date) {
-      notify("완전삭제할 오전회의 날짜를 확인하지 못했습니다.", "error");
+      notify("초기화할 오전회의 날짜를 확인하지 못했습니다.", "error");
       return;
     }
-    if (!isResetActive()) {
-      notify("먼저 [초기화]를 눌러 선택일을 비운 뒤 완전삭제해 주세요.", "error");
-      return;
-    }
-    if (!confirmPermanentDelete(date)) return;
+    if (!confirmDelete(date)) return;
 
     busy = true;
-    updateButton();
+    normalizeButton();
     try {
-      notify(`${date} 서버 저장 조회값 완전삭제 중…`);
+      const expectedRevision = await getResetRevision(date);
+      applyTemporaryBlankMask(date, expectedRevision);
+      notify(`${date} 저장된 오전회의 조회자료 삭제 중…`);
+
       const response = await fetch(API_URL, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
@@ -225,101 +275,59 @@
         credentials: "same-origin",
         body: JSON.stringify({
           targetDate: date,
+          expectedRevision,
           confirmPermanentDelete: true,
-          mode: "selected_date_morning_meeting"
+          mode: "selected_date_reset_delete_v2"
         })
       });
       const data = await parseResponse(response);
+
       clearBrowserDateCaches(date);
-      purgedDates.add(date);
+      await refreshResetState(date);
 
       document.dispatchEvent(new CustomEvent("morningMeetingPermanentPurgeCompleted", {
         detail: {
           targetDate: date,
           deletedRows: Number(data.deletedRows || 0),
-          deletedByType: data.deletedByType || {}
+          deletedByType: data.deletedByType || {},
+          source: "reset_button_v2"
         }
       }));
 
-      if (typeof window.renderEfficiencyMorningMeetingAutoPreview === "function") {
-        window.renderEfficiencyMorningMeetingAutoPreview();
-      }
       notify(
-        `${date} 서버 저장 조회값 ${Number(data.deletedRows || 0)}건을 완전 삭제했습니다. 이제 다른 PC에서 새로 조회하세요.`
+        `${date} 오전회의 저장자료 ${Number(data.deletedRows || 0)}건을 삭제했습니다. 이제 [전체자료] 또는 [엑셀 조회하기]로 새로 조회할 수 있습니다.`
       );
     } catch (error) {
+      await refreshResetState(date);
       const activeTypes = Array.isArray(error?.details?.activeRequestTypes)
         ? error.details.activeRequestTypes.join(", ")
         : "";
       notify(
         activeTypes
           ? `${error.message} (${activeTypes})`
-          : (error?.message || "완전삭제 중 오류가 발생했습니다."),
+          : (error?.message || "초기화 중 오류가 발생했습니다."),
         "error"
       );
     } finally {
       busy = false;
-      updateButton();
+      normalizeButton();
     }
   }
 
-  function ensureButton() {
-    const resetButton = findResetButton();
-    if (!resetButton) return null;
-    if (purgeButton && purgeButton.isConnected) return purgeButton;
-
-    purgeButton = document.createElement("button");
-    purgeButton.type = "button";
-    purgeButton.id = "morningMeetingPermanentPurgeButton";
-    purgeButton.textContent = "완전삭제";
-    purgeButton.title = "선택일의 서버 저장 오전회의 조회값을 완전히 삭제";
-    purgeButton.hidden = true;
-    purgeButton.style.cssText = [
-      "margin-left:4px",
-      "border:1px solid #dc2626",
-      "background:#fff7f7",
-      "color:#b91c1c",
-      "font-weight:800"
-    ].join(";");
-    purgeButton.addEventListener("click", () => void purgeSelectedDate());
-    resetButton.insertAdjacentElement("afterend", purgeButton);
-    return purgeButton;
-  }
-
-  function updateButton() {
-    const resetButton = findResetButton();
-    if (!resetButton) {
-      if (purgeButton) purgeButton.hidden = true;
-      return;
-    }
-    const button = ensureButton();
-    if (!button) return;
-    const date = selectedDate();
-    const active = buttonLabel(resetButton) === "초기화 취소";
-    button.hidden = !active;
-    button.disabled = busy || !active || !date || purgedDates.has(date);
-    button.textContent = purgedDates.has(date) ? "삭제완료" : (busy ? "삭제 중…" : "완전삭제");
-
-    if (observedResetButton !== resetButton) {
-      observedResetButton = resetButton;
-      const observer = new MutationObserver(updateButton);
-      observer.observe(resetButton, { childList: true, subtree: true, characterData: true, attributes: true });
-    }
+  function onClickCapture(event) {
+    const target = event.target?.closest?.("button");
+    if (!target || target.id !== RESET_BUTTON_ID) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    void deleteSelectedDate();
   }
 
   function start() {
-    updateButton();
-    const observer = new MutationObserver(updateButton);
+    watchButton();
+    document.addEventListener("click", onClickCapture, true);
+    const observer = new MutationObserver(() => watchButton());
     observer.observe(document.documentElement, { childList: true, subtree: true });
-    document.addEventListener("click", event => {
-      const target = event.target?.closest?.("button");
-      if (!target) return;
-      const label = buttonLabel(target);
-      if (label === "초기화" || label === "초기화 취소") {
-        window.setTimeout(updateButton, 0);
-        window.setTimeout(updateButton, 500);
-      }
-    }, true);
+    document.addEventListener("morningMeetingResetStateChanged", () => window.setTimeout(normalizeButton, 0));
   }
 
   if (document.readyState === "loading") {
