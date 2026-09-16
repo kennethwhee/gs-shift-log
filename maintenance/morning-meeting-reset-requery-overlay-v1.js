@@ -1,33 +1,39 @@
 /* =========================================================
-  MORNING MEETING RESET REQUERY OVERLAY V1
+  MORNING MEETING RESET REQUERY OVERLAY V1 R5
 
   Purpose
-  - When selected-date reset is active, the existing query-source
-    controller already calls runEfficiencyMorningMeetingBulkLookup
-    with forceRefresh:true.
-  - Some later script.js revisions no longer forward that option into
-    the individual operating-data loaders.
-  - This overlay replaces only the global bulk entry point for that
-    reset-active fresh-query case. Normal queries still use the
-    original implementation.
+  - A selected-date reset intentionally hides saved values.
+  - During a fresh full re-query, those same reset guards used to keep
+    freshly loading/completed values hidden as "조회 대기", so the
+    query-source coordinator could never observe a successful refresh.
+  - R5 temporarily bypasses only the UI/reset-suppression predicate for
+    the selected reset date while the fresh operating/Excel query runs.
+  - The query-source controller still owns the real reset marker and
+    releases it only after both sources succeed.
 
   No API/DB schema changes. No Agent/Excel process changes.
 ========================================================= */
-(function installMorningMeetingResetRequeryOverlayV1() {
+(function installMorningMeetingResetRequeryOverlayV1R5() {
   "use strict";
 
-  if (window.__morningMeetingResetRequeryOverlayV1Installed === true) {
+  if (window.__morningMeetingResetRequeryOverlayV1R5Installed === true) {
     return;
   }
-  window.__morningMeetingResetRequeryOverlayV1Installed = true;
+  window.__morningMeetingResetRequeryOverlayV1R5Installed = true;
 
-  const OVERLAY_MARKER = "MORNING_MEETING_RESET_REQUERY_OVERLAY_V1";
+  const OVERLAY_MARKER = "MORNING_MEETING_RESET_REQUERY_OVERLAY_V1_R5";
   const OPERATIONS_TIMEOUT_MS = 4 * 60 * 1000;
   const WORKBOOK_TIMEOUT_MS = 5 * 60 * 1000;
+  const BYPASS_GRACE_MS = 15 * 1000;
+
   let wrappedBulk = null;
   let wrappedWorkbook = null;
   let originalBulk = null;
   let originalWorkbook = null;
+  let wrappedResetPredicate = null;
+  let originalResetPredicate = null;
+
+  const resetBypassByDate = new Map();
 
   function normalizeText(value) {
     return String(value == null ? "" : value).trim();
@@ -51,7 +57,7 @@
     return candidates.map(normalizeText).find(isIsoDate) || "";
   }
 
-  function isResetActive(date) {
+  function querySourceResetActive(date) {
     if (!isIsoDate(date)) return false;
     try {
       const apiState = window.morningMeetingQuerySources?.getResetState?.(date);
@@ -59,12 +65,111 @@
     } catch (error) {
       console.warn(`${OVERLAY_MARKER}: query-source reset state read failed`, error);
     }
+    return false;
+  }
+
+  function underlyingResetActive(date) {
+    if (!isIsoDate(date)) return false;
     try {
-      return window.isMorningMeetingSelectedDateResetActive?.(date) === true;
+      const predicate = originalResetPredicate || window.isMorningMeetingSelectedDateResetActive;
+      return typeof predicate === "function" && predicate(date) === true;
     } catch (error) {
       console.warn(`${OVERLAY_MARKER}: selected-date reset state read failed`, error);
       return false;
     }
+  }
+
+  function isResetActive(date) {
+    return querySourceResetActive(date) || underlyingResetActive(date);
+  }
+
+  function isResetBypassActive(date) {
+    const entry = resetBypassByDate.get(date);
+    return Boolean(entry && (entry.pending > 0 || entry.holdUntil > Date.now()));
+  }
+
+  function currentBypassDate(argumentDate) {
+    const explicit = normalizeText(argumentDate);
+    if (isIsoDate(explicit)) return explicit;
+    return selectedDate({});
+  }
+
+  function installResetPredicateWrapper() {
+    const current = window.isMorningMeetingSelectedDateResetActive;
+    if (typeof current !== "function") return false;
+    if (current === wrappedResetPredicate) return true;
+
+    const delegate = current;
+    originalResetPredicate = delegate;
+    wrappedResetPredicate = function morningMeetingResetRequeryVisiblePredicate(dateValue) {
+      const date = currentBypassDate(dateValue);
+      if (isIsoDate(date) && isResetBypassActive(date)) {
+        return false;
+      }
+      return delegate.apply(this, arguments);
+    };
+    wrappedResetPredicate.__morningMeetingResetRequeryOverlayV1R5 = true;
+    window.isMorningMeetingSelectedDateResetActive = wrappedResetPredicate;
+    return true;
+  }
+
+  function rerenderSelectedDateAfterBypass(date) {
+    if (selectedDate({}) !== date) return;
+    try { window.renderEfficiencyMorningMeetingAutoPreview?.(); } catch {}
+    try { window.renderEfficiencyMorningMeetingSiloLevelPreview?.(); } catch {}
+    try { window.renderEfficiencyMorningMeetingDailyData?.(); } catch {}
+    try { window.renderEfficiencyMorningMeetingSmpPrice?.(); } catch {}
+    try { window.renderEfficiencyMorningMeetingWeather?.(); } catch {}
+    try { window.refreshMorningMeetingCofiringCard?.(); } catch {}
+    try { window.updateEfficiencyMorningMeetingCreateButton?.(); } catch {}
+    try { window.morningMeetingQuerySources?.render?.(); } catch {}
+  }
+
+  function clearResetBypass(date, rerender = true) {
+    const entry = resetBypassByDate.get(date);
+    if (!entry) return;
+    if (entry.timer !== null) window.clearTimeout(entry.timer);
+    resetBypassByDate.delete(date);
+    if (rerender) rerenderSelectedDateAfterBypass(date);
+  }
+
+  function scheduleResetBypassCleanup(date) {
+    const entry = resetBypassByDate.get(date);
+    if (!entry || entry.pending > 0) return;
+    entry.holdUntil = Date.now() + BYPASS_GRACE_MS;
+    if (entry.timer !== null) window.clearTimeout(entry.timer);
+    entry.timer = window.setTimeout(() => {
+      const latest = resetBypassByDate.get(date);
+      if (!latest || latest.pending > 0) return;
+      clearResetBypass(date, true);
+    }, BYPASS_GRACE_MS);
+  }
+
+  function acquireResetBypass(date) {
+    if (!isIsoDate(date)) return () => {};
+    installResetPredicateWrapper();
+
+    let entry = resetBypassByDate.get(date);
+    if (!entry) {
+      entry = { pending: 0, holdUntil: 0, timer: null };
+      resetBypassByDate.set(date, entry);
+    }
+    if (entry.timer !== null) {
+      window.clearTimeout(entry.timer);
+      entry.timer = null;
+    }
+    entry.pending += 1;
+    entry.holdUntil = Number.MAX_SAFE_INTEGER;
+
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const current = resetBypassByDate.get(date);
+      if (!current) return;
+      current.pending = Math.max(0, current.pending - 1);
+      scheduleResetBypassCleanup(date);
+    };
   }
 
   function timeoutError(label, timeoutMs) {
@@ -100,6 +205,7 @@
       const result = await withTimeout(
         loader({
           forceRefresh: true,
+          requireFresh: true,
           userInitiated: true,
           targetDate: date,
           cacheFirst: false
@@ -127,6 +233,7 @@
   }
 
   function runFreshOperations(date) {
+    const releaseBypass = acquireResetBypass(date);
     const items = [
       { key: "water", label: "수처리 현황", loader: "loadEfficiencyMorningMeetingWaterTreatment", required: true },
       { key: "limestone", label: "석회석 현황", loader: "loadLimestoneOisStock", required: true },
@@ -143,6 +250,7 @@
     window.__efficiencyMorningMeetingBulkLookupPromise = operationPromise;
 
     return operationPromise.finally(() => {
+      releaseBypass();
       if (window.__efficiencyMorningMeetingBulkLookupPromise === operationPromise) {
         delete window.__efficiencyMorningMeetingBulkLookupPromise;
       }
@@ -167,7 +275,7 @@
       console.log(`${OVERLAY_MARKER}: fresh operating query`, date);
       return runFreshOperations(date);
     };
-    wrappedBulk.__morningMeetingResetRequeryOverlayV1 = true;
+    wrappedBulk.__morningMeetingResetRequeryOverlayV1R5 = true;
     window.runEfficiencyMorningMeetingBulkLookup = wrappedBulk;
     return true;
   }
@@ -184,39 +292,59 @@
       const forceFreshReset = normalizedOptions.forceRefresh === true &&
         normalizedOptions.userInitiated === true && isResetActive(date);
 
-      const result = originalWorkbook.apply(this, arguments);
-      return forceFreshReset
-        ? withTimeout(result, "월간 일일 DATA", WORKBOOK_TIMEOUT_MS)
-        : result;
+      if (!forceFreshReset) {
+        return originalWorkbook.apply(this, arguments);
+      }
+
+      const releaseBypass = acquireResetBypass(date);
+      let result;
+      try {
+        result = originalWorkbook.apply(this, arguments);
+      } catch (error) {
+        releaseBypass();
+        throw error;
+      }
+
+      return withTimeout(result, "월간 일일 DATA", WORKBOOK_TIMEOUT_MS)
+        .finally(releaseBypass);
     };
-    wrappedWorkbook.__morningMeetingResetRequeryOverlayV1 = true;
+    wrappedWorkbook.__morningMeetingResetRequeryOverlayV1R5 = true;
     window.loadEfficiencyMorningMeetingDailyData = wrappedWorkbook;
     return true;
   }
 
+  function handleResetStateEvent(event) {
+    const date = normalizeText(event?.detail?.targetDate || event?.detail?.recordDate);
+    if (!isIsoDate(date)) return;
+    if (event?.detail?.active === false) {
+      clearResetBypass(date, false);
+    }
+  }
+
   function installWrappers() {
+    installResetPredicateWrapper();
     installBulkWrapper();
     installWorkbookWrapper();
   }
 
+  document.addEventListener("morningMeetingSelectedDateResetStateChanged", handleResetStateEvent);
+  document.addEventListener("morningMeetingResetStateChanged", handleResetStateEvent);
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
-      // Earlier deferred scripts register their DOMContentLoaded callbacks first.
-      // Defer one macrotask so their global entry points are finalized before wrapping.
       window.setTimeout(installWrappers, 0);
     }, { once: true });
   } else {
     window.setTimeout(installWrappers, 0);
   }
 
-  // A later maintenance adapter may replace one of the globals after DOM ready.
-  // Re-check briefly without keeping a permanent timer alive.
   let retryCount = 0;
   const retryTimer = window.setInterval(() => {
     retryCount += 1;
     installWrappers();
     if (retryCount >= 20 && typeof window.runEfficiencyMorningMeetingBulkLookup === "function" &&
-        typeof window.loadEfficiencyMorningMeetingDailyData === "function") {
+        typeof window.loadEfficiencyMorningMeetingDailyData === "function" &&
+        typeof window.isMorningMeetingSelectedDateResetActive === "function") {
       window.clearInterval(retryTimer);
     } else if (retryCount >= 60) {
       window.clearInterval(retryTimer);
