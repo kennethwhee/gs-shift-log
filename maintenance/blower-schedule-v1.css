@@ -12,3 +12,71 @@
 .blower-schedule-progress:empty { display: none; }
 .blower-schedule-menu-status { font-size: 11px; font-weight: 500; color: #267d57; }
 @media (max-width: 700px), (max-width: 1024px) and (hover: none) and (pointer: coarse) { .blower-schedule-panel, .blower-schedule-menu-status { display: none !important; } }
+
+/* BLOWER_SCHEDULE_COMPACT_UI_V1: presentation only; scheduling is unchanged. */
+.blower-schedule-panel.blower-schedule-compact {
+  position: relative;
+  padding: 8px 12px;
+}
+.blower-schedule-compact .blower-schedule-heading {
+  min-height: 30px;
+  padding-right: 58px;
+  gap: 6px 12px;
+}
+.blower-schedule-compact .blower-schedule-heading strong {
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.blower-schedule-compact .blower-schedule-actions {
+  flex-shrink: 0;
+}
+.blower-schedule-compact .blower-schedule-actions button {
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: 12px;
+}
+.blower-schedule-compact .blower-schedule-details {
+  margin: 0;
+}
+.blower-schedule-compact .blower-schedule-details > summary {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 0 4px;
+  color: #5b7286;
+  font-size: 12px;
+  line-height: 1.5;
+  list-style: none;
+  cursor: pointer;
+  border-radius: 5px;
+}
+.blower-schedule-compact .blower-schedule-details > summary::-webkit-details-marker {
+  display: none;
+}
+.blower-schedule-compact .blower-schedule-details > summary::after {
+  content: "▾";
+}
+.blower-schedule-compact .blower-schedule-details[open] > summary::after {
+  content: "▴";
+}
+.blower-schedule-compact .blower-schedule-details > summary:hover {
+  color: #175994;
+}
+.blower-schedule-compact .blower-schedule-details > summary:focus-visible {
+  outline: 2px solid #1976d2;
+  outline-offset: 2px;
+}
+.blower-schedule-compact .blower-schedule-detail-content {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #dce7f1;
+}
+.blower-schedule-compact .blower-schedule-progress:not(:empty) {
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}

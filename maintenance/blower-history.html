@@ -15,7 +15,7 @@
   <script src="blower-unified-refresh.js?v=20260915-fast-timing-v12" defer></script>
   <script src="blower-history.js?v=20260916-scheduled-refresh-v1" defer></script>
   <script src="/maintenance/seal-pot-ois-shadow.js?v=20260909-unified-refresh-v1" defer></script>
-  <link rel="stylesheet" href="/maintenance/blower-schedule-v1.css?v=20260916-v1">
+  <link rel="stylesheet" href="/maintenance/blower-schedule-v1.css?v=20260916-compact-ui-v1">
   <script src="/maintenance/blower-schedule-v1.js?v=20260916-v1" defer></script>
   <script src="/maintenance/blower-schedule-browser-v1.js?v=20260916-v1" defer></script>
 </head>
@@ -24,9 +24,6 @@
     <header class="page-header">
       <div>
         <h1>Blower V-Belt 교체 이력 관리</h1>
-        <p class="page-description">
-          전체 Blower 현황과 설비별 실제 운전시간·V-Belt 교체 이력을 확인합니다.
-        </p>
       </div>
       <div class="header-actions">
         <button
@@ -43,19 +40,24 @@
       <p id="unifiedRefreshText" role="status" aria-live="polite"></p>
       <details id="unifiedRefreshDetails" hidden><summary id="unifiedRefreshSummary">통합조회 결과</summary><div id="unifiedRefreshList"></div></details>
     </section>
-    <section class="blower-schedule-panel" id="blowerSchedulePanel" aria-label="BCO1 자동조회 설정" hidden>
+    <section class="blower-schedule-panel blower-schedule-compact" id="blowerSchedulePanel" aria-label="BCO1 자동조회 설정" hidden>
       <div class="blower-schedule-heading">
-        <strong>자동 조회</strong><span id="blowerScheduleState">설정 확인 중</span>
+        <strong id="blowerScheduleState">자동조회 확인 중</strong>
         <div class="blower-schedule-actions">
-          <button type="button" id="blowerScheduleRegister" disabled>이 PC를 BCO1로 지정</button>
-          <button type="button" id="blowerScheduleDisable" hidden>자동조회 끄기</button>
+          <button type="button" id="blowerScheduleRegister" title="이 PC를 BCO1로 지정" aria-label="이 PC를 BCO1 자동조회용으로 지정" disabled>BCO1 지정</button>
+          <button type="button" id="blowerScheduleDisable" title="자동조회 끄기" aria-label="자동조회 끄기" hidden>끄기</button>
         </div>
       </div>
-      <p>매일 <strong>00:00 · 04:00 · 08:00 · 12:00 · 16:00 · 20:00</strong> <span class="blower-schedule-help">한국시간</span></p>
-      <p id="blowerScheduleNext">BCO1 PC에서 한 번 지정해 주세요.</p>
-      <p class="blower-schedule-last" id="blowerScheduleLast">예약 실행 기록 없음</p>
+      <details class="blower-schedule-details" id="blowerScheduleDetails">
+        <summary aria-label="자동조회 상세 안내">상세</summary>
+        <div class="blower-schedule-detail-content">
+          <p><strong>매일 00 · 04 · 08 · 12 · 16 · 20시</strong> <span class="blower-schedule-help">한국시간</span></p>
+          <p id="blowerScheduleNext">BCO1 PC에서 지정해 주세요.</p>
+          <p class="blower-schedule-last" id="blowerScheduleLast">예약 실행 기록 없음</p>
+          <p class="blower-schedule-help">지정한 브라우저에서 업무일지 또는 Blower 화면을 열고 로그인한 동안 실행합니다.<br>절전·브라우저 종료로 놓친 예약은 건너뜁니다.</p>
+        </div>
+      </details>
       <p class="blower-schedule-progress" id="blowerScheduleProgress" role="status" aria-live="polite"></p>
-      <p class="blower-schedule-help">지정한 브라우저에서 업무일지 또는 Blower 화면을 열고 로그인한 동안 실행합니다. 절전·브라우저 종료로 놓친 예약은 건너뜁니다.</p>
     </section>
     <nav class="type-tabs" id="typeTabs" aria-label="Blower 종류"></nav>
 
