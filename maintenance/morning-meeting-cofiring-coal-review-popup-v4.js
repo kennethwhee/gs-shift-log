@@ -2,15 +2,15 @@
   "use strict";
 
   const MARKER =
-    "MORNING-MEETING-COFIRING-COAL-REVIEW-V11-MAX-TOAST";
+    "COFIRING-COAL-REVIEW-V12-MAX-TOAST-UNCONDITIONAL";
 
   if (
-    root.__mmCofiringCoalReviewV11Installed
+    root.__cofiringCoalReviewV12Installed
   ) {
     return;
   }
 
-  root.__mmCofiringCoalReviewV11Installed =
+  root.__cofiringCoalReviewV12Installed =
     true;
 
   const doc =
@@ -21,13 +21,10 @@
   }
 
   const STYLE_ID =
-    "mmCofiringCoalReviewV11Style";
+    "cofiringCoalReviewV12Style";
 
   const TOAST_ID =
-    "mmCofiringCoalReviewV11Toast";
-
-  let morningCardContext =
-    false;
+    "cofiringCoalReviewV12Toast";
 
   let autoDismissTimer =
     null;
@@ -85,55 +82,6 @@
         "button"
       ) ||
       null
-    );
-  }
-
-  function isMorningMeetingCardEntry(
-    button
-  ) {
-    if (
-      !button ||
-      normalizeText(
-        button.textContent
-      ) !==
-        "혼소 조정"
-    ) {
-      return false;
-    }
-
-    const view =
-      doc.getElementById(
-        "efficiencyMorningMeetingView"
-      );
-
-    if (
-      !view ||
-      !view.contains(
-        button
-      )
-    ) {
-      return false;
-    }
-
-    if (
-      button.closest?.(
-        "[data-cfv56-adjust-modal], .cfv56-adjust-modal"
-      )
-    ) {
-      return false;
-    }
-
-    return true;
-  }
-
-  function isAnalysisPageEntry(
-    button
-  ) {
-    return !!(
-      button &&
-      button.matches?.(
-        "[data-cfv56-adjust]"
-      )
     );
   }
 
@@ -233,7 +181,7 @@
         transform: translate(-50%, -8px);
       }
 
-      #${TOAST_ID} .mmcr11-card {
+      #${TOAST_ID} .cfcr12-card {
         display: grid;
         grid-template-columns: 34px minmax(0, 1fr) 28px;
         gap: 11px;
@@ -247,7 +195,7 @@
         color: #26394b;
       }
 
-      #${TOAST_ID} .mmcr11-icon {
+      #${TOAST_ID} .cfcr12-icon {
         display: flex;
         width: 34px;
         height: 34px;
@@ -260,7 +208,7 @@
         font-weight: 900;
       }
 
-      #${TOAST_ID} .mmcr11-copy {
+      #${TOAST_ID} .cfcr12-copy {
         min-width: 0;
         padding-top: 1px;
       }
@@ -404,10 +352,10 @@
     );
 
     toast.innerHTML = `
-      <div class="mmcr11-card">
-        <span class="mmcr11-icon" aria-hidden="true">!</span>
+      <div class="cfcr12-card">
+        <span class="cfcr12-icon" aria-hidden="true">!</span>
 
-        <div class="mmcr11-copy">
+        <div class="cfcr12-copy">
           <strong>1·2호기 석탄 사용량 검토 필요</strong>
           <p>
             최대혼소 조정으로 Bio 배분이 바뀌면 Coal 사용량도 함께 보정됩니다.
@@ -417,7 +365,7 @@
 
         <button
           type="button"
-          data-mmcr11-close
+          data-cfcr12-close
           aria-label="안내 닫기"
           title="닫기"
         >×</button>
@@ -430,7 +378,7 @@
 
     toast
       .querySelector(
-        "[data-mmcr11-close]"
+        "[data-cfcr12-close]"
       )
       ?.addEventListener(
         "click",
@@ -468,37 +416,11 @@
     }
 
     if (
-      isMorningMeetingCardEntry(
-        button
-      )
-    ) {
-      morningCardContext =
-        true;
-
-      return;
-    }
-
-    if (
-      isAnalysisPageEntry(
-        button
-      )
-    ) {
-      morningCardContext =
-        false;
-
-      return;
-    }
-
-    if (
       isMaximumAdjustment(
         button
       )
     ) {
-      if (
-        morningCardContext
-      ) {
-        showCoalReviewToast();
-      }
+      showCoalReviewToast();
 
       return;
     }
@@ -508,18 +430,15 @@
         button
       )
     ) {
-      morningCardContext =
-        false;
-
       dismissToast();
     }
   }
 
   /*
     Non-blocking behavior:
-    - Morning Meeting card "혼소 조정" opens normally.
-    - "최대혼소 조정" keeps its original calculation handler.
-    - This listener only shows a 3-second notice and never cancels the click.
+    - Every visible "최대혼소 조정" click keeps its original calculation handler.
+    - This listener only shows a 3-second notice and never cancels that click.
+    - The toast can also be closed immediately with X.
   */
   root.addEventListener(
     "click",
@@ -527,20 +446,14 @@
     true
   );
 
-  root.MorningMeetingCofiringCoalReviewV11 =
+  root.CofiringCoalReviewV12 =
     Object.freeze({
       marker:
         MARKER,
 
       showCoalReviewToast,
 
-      isMorningMeetingCardEntry,
-
-      isMaximumAdjustment,
-
-      getMorningCardContext:
-        () =>
-          morningCardContext
+      isMaximumAdjustment
     });
 }(
   typeof globalThis ===

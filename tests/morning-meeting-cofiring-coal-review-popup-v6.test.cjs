@@ -17,17 +17,7 @@ const overlay = fs.readFileSync(
 
 assert.match(
   overlay,
-  /MORNING-MEETING-COFIRING-COAL-REVIEW-V11-MAX-TOAST/
-);
-
-assert.match(
-  overlay,
-  /getElementById\(\s*["']efficiencyMorningMeetingView["']\s*\)/
-);
-
-assert.match(
-  overlay,
-  /normalizeText\([\s\S]*?button\.textContent[\s\S]*?\)\s*!==\s*["']혼소 조정["']/
+  /COFIRING-COAL-REVIEW-V12-MAX-TOAST-UNCONDITIONAL/
 );
 
 assert.match(
@@ -52,7 +42,7 @@ assert.match(
 
 assert.match(
   overlay,
-  /data-mmcr11-close/
+  /data-cfcr12-close/
 );
 
 assert.match(
@@ -63,6 +53,21 @@ assert.match(
 assert.match(
   overlay,
   /z-index:\s*20000/
+);
+
+assert.doesNotMatch(
+  overlay,
+  /morningCardContext/
+);
+
+assert.doesNotMatch(
+  overlay,
+  /isMorningMeetingCardEntry/
+);
+
+assert.doesNotMatch(
+  overlay,
+  /isAnalysisPageEntry/
 );
 
 assert.doesNotMatch(
@@ -80,11 +85,6 @@ assert.doesNotMatch(
   /stopImmediatePropagation/
 );
 
-/*
-  Only inspect the global click router.
-  The toast X button intentionally calls preventDefault/stopPropagation,
-  so a whole-file regex is too broad and caused V11's false failure.
-*/
 const onClickStart = overlay.indexOf('  function onClick(');
 const onClickEnd = overlay.indexOf(
   '  /*\n    Non-blocking behavior:',
@@ -113,9 +113,9 @@ assert.match(
 
 assert.match(
   overlay,
-  /Morning Meeting card "혼소 조정" opens normally/
+  /Every visible "최대혼소 조정" click keeps its original calculation handler/
 );
 
 console.log(
-  'PASS: V11 R1 shows a non-blocking 3-second Coal-review toast only on Morning Meeting maximum co-firing adjustment (17).'
+  'PASS: V12 always shows a non-blocking 3-second Coal-review toast on visible maximum co-firing adjustment clicks (17).'
 );
