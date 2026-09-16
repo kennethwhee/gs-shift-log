@@ -1,305 +1,457 @@
-(() => {
-  'use strict';
+(function () {
+  "use strict";
 
-  const MARKER = 'MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V5-TOP-LAYER';
-  const TITLE = '1·2호기 석탄 사용량 검토 필요';
-  const BODY = '최대혼소 조정 시 Bio 이동량에 따라 Coal 사용량이 열량 보정식으로 함께 변경됩니다. 적용 전 1호기·2호기 Coal 사용량을 반드시 확인하세요.';
-  const CONFIRM_LABEL = '확인 후 최대혼소 조정';
-  const CANCEL_LABEL = '취소';
-  const DIALOG_ID = 'morningMeetingCofiringCoalReviewPopupV5';
-  const STYLE_ID = 'morningMeetingCofiringCoalReviewPopupV5Style';
-  const V3_CONTEXT_ATTRIBUTE = 'data-mm-cofiring-coal-review-context';
-  const bypassButtons = new WeakSet();
+  const MARKER =
+    "MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V6-WINDOW-CAPTURE";
 
-  function attr(element, name) {
-    if (!element || typeof element.getAttribute !== 'function') return '';
-    return String(element.getAttribute(name) || '').trim();
+  if (window.__mmCofiringCoalReviewPopupV6Installed) {
+    return;
   }
 
-  function hasClass(element, className) {
-    return Boolean(element?.classList?.contains?.(className));
-  }
+  window.__mmCofiringCoalReviewPopupV6Installed = true;
 
-  function textIncludesMorningMeeting(element) {
-    return /오전\s*회의\s*자료/.test(String(element?.textContent || '').replace(/\s+/g, ' '));
-  }
+  const replayButtons = new WeakSet();
 
-  function isRendered(element, root = globalThis) {
-    if (!element || element.hidden === true || attr(element, 'aria-hidden').toLowerCase() === 'true') {
+  function isMorningMeetingActive() {
+    const tab =
+      document.querySelector(
+        '[data-efficiency-tab="morning-meeting"]'
+      ) ||
+      document.getElementById(
+        "efficiencyMorningMeetingTab"
+      );
+
+    if (!tab) {
       return false;
     }
 
-    try {
-      const style = root.getComputedStyle?.(element);
-      if (style && (style.display === 'none' || style.visibility === 'hidden')) return false;
-    } catch (_) {}
+    const tabActive =
+      tab.classList.contains("is-active") ||
+      tab.getAttribute("aria-selected") === "true";
 
-    try {
-      if (typeof element.getClientRects === 'function' && element.getClientRects().length === 0) {
-        return false;
-      }
-    } catch (_) {}
+    if (!tabActive) {
+      return false;
+    }
 
-    return true;
-  }
+    const view =
+      document.querySelector(
+        '[data-efficiency-view="morning-meeting"]'
+      ) ||
+      document.getElementById(
+        "efficiencyMorningMeetingView"
+      );
 
-  function isMorningMeetingContext(doc, root = globalThis) {
-    const tab = doc?.getElementById?.('efficiencyMorningMeetingTab') || null;
-    const view = doc?.getElementById?.('efficiencyMorningMeetingView') || null;
-
-    if (
-      hasClass(tab, 'is-active') ||
-      attr(tab, 'aria-selected').toLowerCase() === 'true' ||
-      hasClass(view, 'is-active')
-    ) {
+    if (!view) {
       return true;
     }
 
-    const activeCandidates = Array.from(
-      doc?.querySelectorAll?.(
-        '.efficiency-team-tab.is-active, [data-efficiency-tab].is-active, [aria-selected="true"]'
-      ) || []
+    return (
+      view.classList.contains("is-active") ||
+      view.hidden === false ||
+      view.getAttribute("aria-hidden") === "false"
     );
+  }
 
+  function ensureStyle() {
     if (
-      activeCandidates.some(element =>
-        attr(element, 'data-efficiency-tab') === 'morning-meeting' ||
-        element.id === 'efficiencyMorningMeetingTab' ||
-        textIncludesMorningMeeting(element)
+      document.getElementById(
+        "mmCofiringCoalReviewPopupV6Style"
       )
     ) {
-      return true;
+      return;
     }
 
-    return Boolean(
-      view &&
-      isRendered(view, root) &&
-      tab &&
-      isRendered(tab, root) &&
-      attr(tab, 'data-efficiency-tab') === 'morning-meeting'
-    );
-  }
+    const style =
+      document.createElement("style");
 
-  function findAutoButton(target) {
-    if (!target) return null;
-    if (typeof target.matches === 'function' && target.matches('[data-cfv56-auto]')) return target;
-    return typeof target.closest === 'function' ? target.closest('[data-cfv56-auto]') : null;
-  }
+    style.id =
+      "mmCofiringCoalReviewPopupV6Style";
 
-  function findAdjustmentModal(button) {
-    return button?.closest?.('[data-cfv56-adjust-modal], .cfv56-adjust-modal') || null;
-  }
-
-  function isMorningMeetingOrigin(doc, button, root = globalThis) {
-    const modal = findAdjustmentModal(button);
-    if (attr(modal, V3_CONTEXT_ATTRIBUTE) === 'morning-meeting') return true;
-    return isMorningMeetingContext(doc, root);
-  }
-
-  function ensureStyle(doc) {
-    if (doc.getElementById(STYLE_ID)) return;
-
-    const style = doc.createElement('style');
-    style.id = STYLE_ID;
     style.textContent = `
-      #${DIALOG_ID} {
-        width: min(470px, calc(100vw - 34px));
-        max-width: 470px;
+      dialog[data-mm-cofiring-coal-review-v6] {
+        width: min(520px, calc(100vw - 32px));
+        max-width: 520px;
         margin: auto;
         padding: 0;
-        overflow: hidden;
-        border: 1px solid #ead7a7;
+        border: 1px solid #e5d4a9;
         border-radius: 16px;
-        background: #fffdf7;
-        box-shadow: 0 28px 90px rgba(15, 27, 39, 0.34);
-        color: #3e4f5f;
-        font-family: inherit;
+        background: #ffffff;
+        color: #26394b;
+        box-shadow: 0 28px 90px rgba(9, 25, 42, 0.34);
+        font-family:
+          Inter,
+          "Pretendard Variable",
+          Pretendard,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          "Malgun Gothic",
+          "Noto Sans CJK KR",
+          sans-serif;
       }
-      #${DIALOG_ID}::backdrop {
-        background: rgba(18, 29, 41, 0.62);
-        backdrop-filter: blur(2px);
+
+      dialog[data-mm-cofiring-coal-review-v6]::backdrop {
+        background: rgba(8, 20, 33, 0.62);
+        backdrop-filter: blur(1.5px);
       }
-      #${DIALOG_ID} .mm-cf-coal-review-head {
+
+      dialog[data-mm-cofiring-coal-review-v6] * {
+        box-sizing: border-box;
+      }
+
+      dialog[data-mm-cofiring-coal-review-v6] .mmcr-v6-head {
         display: flex;
         align-items: flex-start;
-        gap: 12px;
-        padding: 21px 22px 12px;
+        gap: 13px;
+        padding: 22px 23px 16px;
       }
-      #${DIALOG_ID} .mm-cf-coal-review-icon {
-        display: grid;
-        flex: 0 0 auto;
-        width: 36px;
-        height: 36px;
-        place-items: center;
-        border-radius: 50%;
-        background: #fff0c5;
-        color: #986800;
-        font-size: 19px;
+
+      dialog[data-mm-cofiring-coal-review-v6] .mmcr-v6-icon {
+        display: flex;
+        flex: 0 0 38px;
+        width: 38px;
+        height: 38px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 11px;
+        background: #fff4cf;
+        color: #9c6d00;
+        font-size: 21px;
         font-weight: 900;
       }
-      #${DIALOG_ID} h3 {
-        margin: 2px 0 0;
-        color: #6c5008;
+
+      dialog[data-mm-cofiring-coal-review-v6] h3 {
+        margin: 1px 0 7px;
+        color: #24364a;
         font-size: 18px;
-        line-height: 1.4;
-        letter-spacing: -0.03em;
+        line-height: 1.3;
+        letter-spacing: -0.45px;
       }
-      #${DIALOG_ID} p {
+
+      dialog[data-mm-cofiring-coal-review-v6] p {
         margin: 0;
-        padding: 0 22px 21px 70px;
-        color: #685f4c;
+        color: #657789;
         font-size: 12px;
         line-height: 1.75;
         word-break: keep-all;
       }
-      #${DIALOG_ID} .mm-cf-coal-review-actions {
+
+      dialog[data-mm-cofiring-coal-review-v6] .mmcr-v6-note {
+        margin: 0 23px 18px;
+        padding: 12px 14px;
+        border: 1px solid #efdfb8;
+        border-radius: 10px;
+        background: #fffaf0;
+        color: #7b622c;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1.65;
+        word-break: keep-all;
+      }
+
+      dialog[data-mm-cofiring-coal-review-v6] footer {
         display: flex;
         justify-content: flex-end;
         gap: 9px;
-        padding: 14px 18px 18px;
-        border-top: 1px solid #f0e6ca;
-        background: #fffaf0;
+        padding: 15px 23px 19px;
+        border-top: 1px solid #e9eef2;
+        background: #fafcfd;
       }
-      #${DIALOG_ID} button {
-        min-height: 39px;
+
+      dialog[data-mm-cofiring-coal-review-v6] button {
+        min-height: 38px;
         padding: 0 15px;
-        border: 1px solid #d6dee5;
-        border-radius: 8px;
-        background: #fff;
-        color: #5d7182;
+        border: 1px solid #d5e0e8;
+        border-radius: 9px;
+        background: #ffffff;
+        color: #5e7386;
         font: inherit;
         font-size: 12px;
-        font-weight: 800;
+        font-weight: 750;
         cursor: pointer;
       }
-      #${DIALOG_ID} button[data-mm-cf-coal-review-confirm] {
-        border-color: #8b6815;
-        background: #8b6815;
-        color: #fff;
+
+      dialog[data-mm-cofiring-coal-review-v6]
+      button[data-mmcr-v6-confirm] {
+        border-color: #7c59b4;
+        background: #7c59b4;
+        color: #ffffff;
       }
-      @media (max-width: 560px) {
-        #${DIALOG_ID} { width: calc(100vw - 24px); }
-        #${DIALOG_ID} .mm-cf-coal-review-head { padding: 18px 17px 10px; }
-        #${DIALOG_ID} p { padding: 0 17px 17px 64px; font-size: 11px; }
-        #${DIALOG_ID} .mm-cf-coal-review-actions { flex-direction: column-reverse; }
-        #${DIALOG_ID} button { width: 100%; }
+
+      dialog[data-mm-cofiring-coal-review-v6]
+      button:focus-visible {
+        outline: 3px solid rgba(124, 89, 180, 0.28);
+        outline-offset: 2px;
       }
     `;
-    doc.head.appendChild(style);
-  }
 
-  function createDialog(doc) {
-    let dialog = doc.getElementById(DIALOG_ID);
-    if (dialog) return dialog;
-
-    ensureStyle(doc);
-    dialog = doc.createElement('dialog');
-    dialog.id = DIALOG_ID;
-    dialog.setAttribute('aria-labelledby', 'mmCfCoalReviewTitleV5');
-    dialog.setAttribute('aria-describedby', 'mmCfCoalReviewBodyV5');
-    dialog.innerHTML = `
-      <div class="mm-cf-coal-review-head">
-        <span class="mm-cf-coal-review-icon" aria-hidden="true">!</span>
-        <div><h3 id="mmCfCoalReviewTitleV5">${TITLE}</h3></div>
-      </div>
-      <p id="mmCfCoalReviewBodyV5">${BODY}</p>
-      <div class="mm-cf-coal-review-actions">
-        <button type="button" data-mm-cf-coal-review-cancel>${CANCEL_LABEL}</button>
-        <button type="button" data-mm-cf-coal-review-confirm>${CONFIRM_LABEL}</button>
-      </div>
-    `;
-    doc.body.appendChild(dialog);
-    return dialog;
-  }
-
-  function replayOriginalClick(button) {
-    bypassButtons.add(button);
-    globalThis.setTimeout(() => {
-      try {
-        button.click();
-      } finally {
-        queueMicrotask(() => bypassButtons.delete(button));
-      }
-    }, 0);
-  }
-
-  function openTopLayerReview(doc, button) {
-    const dialog = createDialog(doc);
-
-    // <dialog>.showModal() moves the element into the browser top layer,
-    // which is above every ordinary z-index/stacking context.
-    if (typeof dialog.showModal !== 'function') {
-      const approved = globalThis.confirm(`${TITLE}\n\n${BODY}`);
-      if (approved) replayOriginalClick(button);
-      return;
-    }
-
-    if (dialog.open) return;
-
-    const confirmButton = dialog.querySelector('[data-mm-cf-coal-review-confirm]');
-    const cancelButton = dialog.querySelector('[data-mm-cf-coal-review-cancel]');
-
-    const cleanup = () => {
-      confirmButton.onclick = null;
-      cancelButton.onclick = null;
-      dialog.onclick = null;
-      dialog.oncancel = null;
-    };
-
-    const close = approved => {
-      cleanup();
-      dialog.close();
-      if (approved) replayOriginalClick(button);
-      else button?.focus?.();
-    };
-
-    confirmButton.onclick = () => close(true);
-    cancelButton.onclick = () => close(false);
-    dialog.oncancel = event => {
-      event.preventDefault();
-      close(false);
-    };
-    dialog.onclick = event => {
-      if (event.target === dialog) close(false);
-    };
-
-    dialog.showModal();
-    confirmButton?.focus?.();
-  }
-
-  function install(doc) {
-    if (!doc || doc.documentElement?.dataset?.mmCofiringCoalReviewPopupV5 === '1') return;
-    if (doc.documentElement?.dataset) doc.documentElement.dataset.mmCofiringCoalReviewPopupV5 = '1';
-
-    doc.addEventListener(
-      'click',
-      event => {
-        const button = findAutoButton(event.target);
-        if (!button || bypassButtons.has(button)) return;
-        if (!isMorningMeetingOrigin(doc, button, globalThis)) return;
-
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        event.stopPropagation();
-        openTopLayerReview(doc, button);
-      },
-      true
+    document.head.appendChild(
+      style
     );
   }
 
-  const api = {
-    MARKER,
-    TITLE,
-    BODY,
-    CONFIRM_LABEL,
-    CANCEL_LABEL,
-    V3_CONTEXT_ATTRIBUTE,
-    isRendered,
-    isMorningMeetingContext,
-    isMorningMeetingOrigin,
-    findAutoButton
-  };
+  function showReviewDialog() {
+    ensureStyle();
 
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  if (typeof document !== 'undefined') install(document);
-})();
+    return new Promise(
+      resolve => {
+        const existing =
+          document.querySelector(
+            "dialog[data-mm-cofiring-coal-review-v6]"
+          );
+
+        if (
+          existing &&
+          typeof existing.close === "function"
+        ) {
+          try {
+            existing.close();
+          } catch (_) {
+          }
+
+          existing.remove();
+        }
+
+        const dialog =
+          document.createElement("dialog");
+
+        dialog.setAttribute(
+          "data-mm-cofiring-coal-review-v6",
+          MARKER
+        );
+
+        dialog.innerHTML = `
+          <div class="mmcr-v6-head">
+            <div class="mmcr-v6-icon" aria-hidden="true">!</div>
+            <div>
+              <h3>1·2호기 석탄 사용량 검토 필요</h3>
+              <p>
+                최대혼소 조정 시 Bio 이동량에 따라
+                Coal 사용량도 함께 보정됩니다.
+                조정 결과를 적용하기 전에 1호기와 2호기의
+                Coal 사용량을 반드시 확인해 주세요.
+              </p>
+            </div>
+          </div>
+
+          <div class="mmcr-v6-note">
+            확인을 누르면 기존 최대혼소 조정을 1회 실행합니다.
+            취소를 누르면 현재 값은 변경하지 않습니다.
+          </div>
+
+          <footer>
+            <button
+              type="button"
+              data-mmcr-v6-cancel
+            >
+              취소
+            </button>
+
+            <button
+              type="button"
+              data-mmcr-v6-confirm
+            >
+              확인 후 최대혼소 조정
+            </button>
+          </footer>
+        `;
+
+        document.body.appendChild(
+          dialog
+        );
+
+        let settled =
+          false;
+
+        const finish =
+          value => {
+            if (settled) {
+              return;
+            }
+
+            settled =
+              true;
+
+            dialog.removeEventListener(
+              "cancel",
+              handleCancel
+            );
+
+            if (
+              dialog.open &&
+              typeof dialog.close === "function"
+            ) {
+              try {
+                dialog.close();
+              } catch (_) {
+              }
+            }
+
+            dialog.remove();
+
+            resolve(
+              value
+            );
+          };
+
+        const handleCancel =
+          event => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            finish(
+              false
+            );
+          };
+
+        dialog.addEventListener(
+          "cancel",
+          handleCancel
+        );
+
+        dialog
+          .querySelector(
+            "[data-mmcr-v6-cancel]"
+          )
+          ?.addEventListener(
+            "click",
+            event => {
+              event.preventDefault();
+              event.stopPropagation();
+
+              finish(
+                false
+              );
+            }
+          );
+
+        const confirmButton =
+          dialog.querySelector(
+            "[data-mmcr-v6-confirm]"
+          );
+
+        confirmButton
+          ?.addEventListener(
+            "click",
+            event => {
+              event.preventDefault();
+              event.stopPropagation();
+
+              finish(
+                true
+              );
+            }
+          );
+
+        if (
+          typeof dialog.showModal !==
+            "function"
+        ) {
+          dialog.remove();
+
+          resolve(
+            window.confirm(
+              "1·2호기 석탄 사용량 검토 필요\n\n" +
+              "최대혼소 조정 시 Bio 이동량에 따라 " +
+              "Coal 사용량도 함께 보정됩니다.\n" +
+              "적용 전 1호기·2호기 Coal 사용량을 확인해 주세요."
+            )
+          );
+
+          return;
+        }
+
+        dialog.showModal();
+
+        window.setTimeout(
+          () => {
+            confirmButton?.focus();
+          },
+          0
+        );
+      }
+    );
+  }
+
+  async function interceptMaximumAdjustment(
+    event
+  ) {
+    const eventTarget =
+      event.target &&
+      event.target.nodeType === 1
+        ? event.target
+        : event.target?.parentElement;
+
+    const button =
+      eventTarget?.closest?.(
+        "[data-cfv56-auto]"
+      ) ||
+      null;
+
+    if (!button) {
+      return;
+    }
+
+    if (
+      replayButtons.has(
+        button
+      )
+    ) {
+      replayButtons.delete(
+        button
+      );
+
+      return;
+    }
+
+    if (
+      !isMorningMeetingActive()
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+
+    const confirmed =
+      await showReviewDialog();
+
+    if (!confirmed) {
+      return;
+    }
+
+    if (
+      !button.isConnected ||
+      button.disabled
+    ) {
+      return;
+    }
+
+    replayButtons.add(
+      button
+    );
+
+    button.click();
+  }
+
+  /*
+    Window capture is intentionally used.
+    It runs before document/target click handlers, so the existing
+    maximum-cofiring handler cannot run until the review dialog
+    has been confirmed.
+  */
+  window.addEventListener(
+    "click",
+    interceptMaximumAdjustment,
+    true
+  );
+
+  window.MorningMeetingCofiringCoalReviewPopupV6 =
+    Object.freeze({
+      marker:
+        MARKER,
+
+      isMorningMeetingActive
+    });
+}());
