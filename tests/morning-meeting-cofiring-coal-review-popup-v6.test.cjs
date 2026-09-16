@@ -40,16 +40,6 @@ assert.match(
 );
 
 assert.match(
-  overlay,
-  /showModal/
-);
-
-assert.doesNotMatch(
-  overlay,
-  /window\.addEventListener\(\s*["']click["']/
-);
-
-assert.match(
   ui,
   /const adjustButton=container\.querySelector\('\[data-cfv56-adjust\]'\)/
 );
@@ -61,12 +51,7 @@ assert.match(
 
 assert.match(
   ui,
-  /container\.closest\?\.\('\[data-efficiency-view="morning-meeting"\],#efficiencyMorningMeetingView'\)/
-);
-
-assert.match(
-  ui,
-  /root\.MorningMeetingCofiringCoalReviewPopupV8/
+  /const reviewApi=root\.MorningMeetingCofiringCoalReviewPopupV8/
 );
 
 assert.match(
@@ -76,12 +61,22 @@ assert.match(
 
 assert.match(
   ui,
-  /1·2호기 석탄 사용량 검토 필요/
+  /root\.confirm\('1·2호기 석탄 사용량 검토 필요/
+);
+
+assert.doesNotMatch(
+  ui,
+  /const morningView=container\.closest/
+);
+
+assert.doesNotMatch(
+  ui,
+  /if\(morningView\)/
 );
 
 assert.match(
   ui,
-  /await Promise\.resolve\(adjuster\?\.open\(\)\)/
+  /if\(!confirmed\)return;await Promise\.resolve\(adjuster\?\.open\(\)\)/
 );
 
 const confirmAt = ui.indexOf('await reviewApi.confirmBeforeOpen()');
@@ -93,5 +88,5 @@ assert.ok(
 );
 
 console.log(
-  'PASS: morning-meeting co-firing coal review V8 direct-handler contracts (13).'
+  'PASS: co-firing coal review V9 unconditional adjustment-entry contracts (12).'
 );
