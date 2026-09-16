@@ -29,12 +29,21 @@
     if(!Number.isFinite(n)||n<0)return null;
     return String(Math.round((n+Number.EPSILON)*1000)/1000);
   }
+  // COFIRING_ORGANIC_CURRENT_SELECTORS_V4
+function queryMode(container){
+    return container.querySelector('[data-cfv8-mode]')?.value==='period'?'period':'daily';
+  }
   function selectedDate(container){
-    const start=String(container.querySelector('[data-cfv5-start]')?.value||'');
+    if(queryMode(container)==='daily'){
+      const date=String(container.querySelector('[data-cfv7-date]')?.value||'');
+      return /^\d{4}-\d{2}-\d{2}$/.test(date)?date:'';
+    }
+    const start=String(container.querySelector('[data-cfv8-start]')?.value||'');
     return /^\d{4}-\d{2}-\d{2}T/.test(start)?start.slice(0,10):'';
   }
   function dailyStart(container){
-    return /T00:00$/.test(String(container.querySelector('[data-cfv5-start]')?.value||''));
+    if(queryMode(container)==='daily')return true;
+    return /T00:00$/.test(String(container.querySelector('[data-cfv8-start]')?.value||''));
   }
   function ensureStatus(container){
     let el=container.querySelector('[data-cfv5-organic-excel-state]');
@@ -192,7 +201,7 @@
     query.addEventListener('click',armAfterHostCalculation,true);
     requery?.addEventListener('click',armAfterHostCalculation,true);
 
-    for(const input of container.querySelectorAll('[data-cfv5-start],[data-cfv5-end]')){
+    for(const input of container.querySelectorAll('[data-cfv7-date],[data-cfv8-mode],[data-cfv8-start],[data-cfv8-end]')){
       input.addEventListener('change',()=>{
         state.pendingArm=null;
         state.generation+=1;

@@ -83,8 +83,8 @@ function createCofiringCollector(options={}) {
 const collectCofiringDailyValues=createCofiringCollector();
 
 const COFIRING_PERIOD_REQUEST_TYPE=contract.PERIOD_TYPE;
-const PERIOD_CONTROLLER_SHA256='2f6fa1149d755ac5e9084391ff2cbba351adecd096065a59274c23ec53bcffed';
-const PERIOD_WORKER_SHA256='fd2ce6ac37f4689501d5c322f7e4c25169a4443df4639c151f7323eeee36cea6';
+const PERIOD_CONTROLLER_SHA256='698aa42b7929ee841402c410ce06b61c8e82e4635f01fe4170b54f5f7066995b';
+const PERIOD_WORKER_SHA256='1ee74f7914d61d063fbb1a142715efd7975507aa123f501e6f2e9b8bc796bbb0';
 // Leave room for the bounded startup/query watchdog, owned-process cleanup,
 // controller/report overhead and server delivery within the existing request lease.
 const PERIOD_MIN_REMAINING_MS=8*60000;

@@ -48,8 +48,12 @@
   function currentDaySpec(now=Date.now()){const end=new Date(now+32400000-60000).toISOString().slice(0,16),date=new Date(now+32400000).toISOString().slice(0,10);return customSpec(date+'T00:00',end);}
   const dailySelections=new WeakMap();
   const statusRefreshers=new WeakMap();
-  function dailySelectionSpec(targetDate){
-    return dailySpec(targetDate);
+  // COFIRING_DAILY_CUMULATIVE_V4
+  function dailySelectionSpec(targetDate,now=Date.now()){
+    const full=dailySpec(targetDate),today=defaultCalculationDate(now);
+    if(targetDate<today)return full;
+    if(targetDate===today&&now>=full.startMs+120000)return currentDaySpec(now);
+    return customSpec(targetDate+'T00:00',targetDate+'T00:01');
   }
   function captureDailySelection(container,now=Date.now()){
     const date=container.querySelector('[data-cfv7-date]')?.value||'';
@@ -62,7 +66,7 @@
   }
   function availabilityFor(p,now,daily){
     const readyAt=Date.parse(p.queryEnd),ready=now>=readyAt;
-    return {ready,readyAt,period:p,message:ready?'':daily?`${p.targetDate} 하루 전체 자료는 ${p.queryEnd.slice(0,16).replace('T',' ')} 이후 조회할 수 있습니다.`:`${p.queryEnd.slice(0,16).replace('T',' ')} 이후 조회할 수 있습니다. 완료된 시간까지 선택해 주세요.`};
+    return {ready,readyAt,period:p,message:ready?'':daily&&p.durationHours<24?`${p.targetDate} 00:02 이후 해당일 00시부터 현재까지 누적 혼소율을 계산할 수 있습니다.`:`${p.queryEnd.slice(0,16).replace('T',' ')} 이후 조회할 수 있습니다. 완료된 시간까지 선택해 주세요.`};
   }
   function dayAvailability(targetDate,now=Date.now()){try{return availabilityFor(dailySelectionSpec(targetDate,now),now,true);}catch(e){return {ready:false,readyAt:null,period:null,message:e.message};}}
   function selectedAvailability(container,now=Date.now()){
@@ -78,7 +82,7 @@
       </div>
 
       <div class="cfv5-query-box">
-        <div class="cfv8-query-mode"><label>계산 방식<select data-cfv8-mode><option value="daily" selected>일별 계산</option><option value="period">시간 · 기간 지정</option></select></label><span>선택한 날짜의 하루 전체(00:00~다음 날 00:01)를 계산합니다.</span></div>
+        <div class="cfv8-query-mode"><label>계산 방식<select data-cfv8-mode><option value="daily" selected>일별 계산</option><option value="period">시간 · 기간 지정</option></select></label><span>오늘은 00:00부터 현재까지 누적, 지난 날짜는 00:00부터 다음 날 00:01까지 계산합니다.</span></div>
         <div class="cfv5-query-grid">
           <label data-cfv8-daily-fields>혼소율 계산일<input data-cfv7-date type="date" min="2021-01-01" value="${date}"></label>
           <div class="cfv8-period-fields" data-cfv8-period-fields hidden><label>계산 시작<input data-cfv8-start type="datetime-local" min="2021-01-01T00:00" step="60" value="${partial.startLocal}"></label><label>계산 종료<input data-cfv8-end type="datetime-local" min="2021-01-01T00:01" step="60" value="${partial.endLocal}"></label><button type="button" data-cfv8-today>오늘 00시~현재</button></div>
@@ -92,7 +96,7 @@
         <div class="cfv5-query-meta"><span data-cfv5-range>—</span><span class="cfv56-query-state"><em data-cfv56-prep>조회 준비 대기</em><strong data-cfv5-live-state>조회 전</strong></span></div>
         <span class="cfv6-data-source" data-cfv6-data-source>저장된 조회 결과가 있으면 바로 계산합니다.</span>
         <span class="cfv6-data-source" data-cfv7-click-timing hidden aria-live="off"></span>
-        <p data-cfv5-status>날짜를 선택한 뒤 [계산하기]를 누르세요. 일별 계산은 선택일 00:00부터 다음 날 00:01 경계까지 조회합니다.</p>
+        <p data-cfv5-status>날짜를 선택한 뒤 [계산하기]를 누르세요. 오늘은 00:00부터 현재 완료분까지, 지난 날짜는 다음 날 00:01 경계까지 조회합니다.</p>
         </div></details></div>
       </div>
 
@@ -112,7 +116,7 @@
       </div>
       <div class="cfv52-summary-grid" data-cfv52-summary-grid>${summaryPlaceholder()}</div>
 
-      <details class="cfv6-target-basis"><summary>마감까지 Bio 25% 필요 투입량 계산 기준</summary><p>해당일 00:00부터 조회한 누적 Coal·Bio 사용량을 기준으로, 다음 날 00:01에 Bio 열량이 Coal+Bio 열량의 25%가 되도록 환산합니다. 남은 시간의 Coal 투입량은 조회 구간의 시간당 평균이 유지된다고 가정합니다.</p><p>마감 예상 Coal = 누적 Coal + Coal 평균(t/h) × 자료 기준 시각부터 남은 시간. 추가 Bio 필요량 = 마감 예상 Coal × Coal 발열량 ÷ Bio 발열량 ÷ 3 − 누적 Bio. 이를 남은 시간으로 나누어 Bio t/h를 표시하며, 보정 전 계측 투입량도 함께 환산합니다.</p><p>시간 · 기간 지정에서 <strong>오늘 00시~현재</strong>를 사용하면 현재까지의 혼소율과 마감 목표를 함께 확인합니다. 00시부터 시작하지 않은 구간이나 여러 날의 결과는 하루 누적량이 없어 목표를 계산하지 않습니다. 자료 기준 시각 이후의 실제 사용량은 새 조회에서 반영됩니다. 혼소 조정을 적용하면 조정된 표시값 기준입니다.</p></details>
+      <details class="cfv6-target-basis"><summary>마감까지 Bio 25% 필요 투입량 계산 기준</summary><p>해당일 00:00부터 조회한 누적 Coal·Bio 사용량을 기준으로, 다음 날 00:01에 Bio 열량이 Coal+Bio 열량의 25%가 되도록 환산합니다. 남은 시간의 Coal 투입량은 조회 구간의 시간당 평균이 유지된다고 가정합니다.</p><p>마감 예상 Coal = 누적 Coal + Coal 평균(t/h) × 자료 기준 시각부터 남은 시간. 추가 Bio 필요량 = 마감 예상 Coal × Coal 발열량 ÷ Bio 발열량 ÷ 3 − 누적 Bio. 이를 남은 시간으로 나누어 Bio t/h를 표시하며, 보정 전 계측 투입량도 함께 환산합니다.</p><p>오늘 날짜의 <strong>일별 계산</strong>은 00:00부터 현재까지의 혼소율과 마감 목표를 함께 확인합니다. 00시부터 시작하지 않은 구간이나 여러 날의 결과는 하루 누적량이 없어 목표를 계산하지 않습니다. 자료 기준 시각 이후의 실제 사용량은 새 조회에서 반영됩니다. 혼소 조정을 적용하면 조정된 표시값 기준입니다.</p></details>
 
       <details class="cfv52-fold">
         <summary><span>발열량 · 보정계수 설정</span><small>연료별 계산 기준 관리</small></summary>
@@ -272,7 +276,7 @@
       const daily=queryMode(container)==='daily',waiting=a.period?'자료 대기':(daily?'날짜 선택':'기간 확인');
       prepLabel(a.period?'조회 가능 시각 대기':waiting);setStatus(container,a.message,'');
       const state=container.querySelector('[data-cfv5-live-state]');if(state)state.textContent=waiting;
-      const source=container.querySelector('[data-cfv6-data-source]');if(source)source.textContent=daily?'선택한 날짜의 하루 전체(00:00~다음 날 00:01)를 계산합니다.':'완료된 시간의 선택 구간을 기준으로 계산합니다.';
+      const source=container.querySelector('[data-cfv6-data-source]');if(source)source.textContent=daily?'오늘은 00:00부터 현재까지 누적, 지난 날짜는 00:00부터 다음 날 00:01까지 계산합니다.':'완료된 시간의 선택 구간을 기준으로 계산합니다.';
       const query=container.querySelector('[data-cfv5-query]');query.disabled=true;query.textContent=waiting;container.querySelector('[data-cfv5-requery]').disabled=true;
       for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient],[data-cfv5-manual],[data-cfv5-settings-save],[data-cfv5-manual-save],[data-cfv56-adjust]'))el.disabled=true;
       const settingsState=container.querySelector('[data-cfv5-settings-state]'),manualState=container.querySelector('[data-cfv5-manual-state]');if(settingsState)settingsState.textContent='조회 범위 확인 대기';if(manualState)manualState.textContent='조회 범위 확인 대기';
@@ -410,7 +414,7 @@
       selectionEpoch++;deadlineInputError='';clearDayBoundary();clearDeadlineRefresh();live?.pause();selectedStoreKey='';writeManual(container,manualApi.blank());
       clickTiming?.cancel('기간 변경');if(clickTiming)paintClickTiming(clickTiming.state());renderedRequestId=null;
       fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}reference=null;lastResult=null;displayResult=null;adjustmentActive=false;renderMain(container,null);renderOrganic(container,null,currentManualFromFields());renderSummary(container,null,currentManualFromFields());updateRange(container);renderWarnings(container,null);const ab=container.querySelector('[data-cfv56-adjust]');if(ab){ab.disabled=true;ab.classList.remove('is-active');ab.textContent='혼소 조정';}
-      try{const a=selectedDayAvailability();if(a.period)live?.select(currentSpec());if(showDayUnavailable()||deferReads)return;const pending=selectStores();setStatus(container,queryMode(container)==='daily'?'선택한 날짜의 하루 전체(00:00~다음 날 00:01)를 계산합니다. [계산하기]를 눌러주세요.':'조회 기간이 변경되었습니다. [계산하기]를 누르면 표시한 기간으로 계산합니다.','');scheduleFastPrep(0);await pending;}catch(e){setStatus(container,e.message,'error');}
+      try{const a=selectedDayAvailability();if(a.period)live?.select(currentSpec());if(showDayUnavailable()||deferReads)return;const pending=selectStores();setStatus(container,queryMode(container)==='daily'?'오늘은 00:00부터 현재까지 누적, 지난 날짜는 00:00부터 다음 날 00:01까지 계산합니다. [계산하기]를 눌러주세요.':'조회 기간이 변경되었습니다. [계산하기]를 누르면 표시한 기간으로 계산합니다.','');scheduleFastPrep(0);await pending;}catch(e){setStatus(container,e.message,'error');}
     }
     function refreshDailyForClick(){
       if(queryMode(container)!=='daily')return;

@@ -1226,6 +1226,34 @@ function Complete-OwnedProbeExcelExit {
   return [pscustomobject]@{ Exited=$true; Forced=$true }
 }
 
+# COFIRING_EXCEL_NATIVEOM_RETRY_V4
+function Stop-OwnedProbeExcelAttachAttempt {
+  param(
+    $ProcessObject,
+    [int]$ExpectedProcessId,
+    [long]$ExpectedStartTicks,
+    [string]$ExpectedPath,
+    [int]$ExpectedSessionId
+  )
+  if ($null -eq $ProcessObject -or [int]$ProcessObject.Id -ne $ExpectedProcessId) {
+    throw 'Excel COM 재시도 전 소유 프로세스 핸들을 확인할 수 없습니다.'
+  }
+  [void]$ProcessObject.Handle
+  if ($ProcessObject.HasExited) { return }
+  if (-not (Test-OwnedProbeExcelIdentity $ExpectedProcessId $ExpectedStartTicks $ExpectedPath $ExpectedSessionId)) {
+    throw 'Excel COM 재시도 전 소유 Excel 신원이 일치하지 않습니다.'
+  }
+  $lateHosts=@(Get-ProbeDataParcHosts | Where-Object { [int]$_.ParentProcessId -eq $ExpectedProcessId })
+  if ($lateHosts.Count -gt 0) {
+    throw 'Excel COM 연결 대기 중 DataPARC Host가 이미 시작되어 자동 재시도를 중단합니다.'
+  }
+  try { $ProcessObject.Kill() }
+  catch { if (-not $ProcessObject.HasExited) { throw } }
+  if (-not $ProcessObject.HasExited -and -not $ProcessObject.WaitForExit(5000)) {
+    throw 'Excel COM 재시도 전 소유 Excel을 종료하지 못했습니다.'
+  }
+}
+
 function Test-ProbePinnedProcessExited($Process) {
   if ($null -eq $Process) { return $false }
   try {
@@ -1409,25 +1437,49 @@ try {
 
   $ownedExcelPath = Resolve-ProbeExcelExecutable
   Write-ProbeReadiness
-  Write-ProbeStage "별도 숨김 Excel 시작"
   Write-CofiringProgress 'EXCEL_START'
-  Assert-CofiringNotCancelled
-  $launchedExcelProcess = Start-Process -FilePath $ownedExcelPath -ArgumentList @("/x") -WindowStyle Hidden -PassThru
-  [void]$launchedExcelProcess.Handle
-  $ownedExcelPid = [int]$launchedExcelProcess.Id
-  $ownedExcelStartTicks = [long]$launchedExcelProcess.StartTime.ToUniversalTime().Ticks
-  $ownedExcelSessionId = [int]$launchedExcelProcess.SessionId
 
-  if (-not (Test-OwnedProbeExcelIdentity $ownedExcelPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId)) {
-    throw "자동조회용 Excel 프로세스 신원을 확인하지 못했습니다."
+  # NativeOM exposure can intermittently lag a freshly started /x instance.
+  # Retry only with the exact Excel process started by this worker, once.
+  for ($excelAttachAttempt = 1; $excelAttachAttempt -le 2 -and $null -eq $excel; $excelAttachAttempt += 1) {
+    Assert-CofiringNotCancelled
+    Write-ProbeStage $(if ($excelAttachAttempt -eq 1) { "별도 숨김 Excel 시작" } else { "별도 숨김 Excel 재시작 · 2/2" })
+    $launchedExcelProcess = Start-Process -FilePath $ownedExcelPath -ArgumentList @("/x") -WindowStyle Hidden -PassThru
+    [void]$launchedExcelProcess.Handle
+    $ownedExcelPid = [int]$launchedExcelProcess.Id
+    $ownedExcelStartTicks = [long]$launchedExcelProcess.StartTime.ToUniversalTime().Ticks
+    $ownedExcelSessionId = [int]$launchedExcelProcess.SessionId
+    $ownedHostSnapshot = $null
+    $attachedExcelPid = 0
+
+    if (-not (Test-OwnedProbeExcelIdentity $ownedExcelPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId)) {
+      throw "자동조회용 Excel 프로세스 신원을 확인하지 못했습니다."
+    }
+
+    Write-ProbeOwnership
+    Write-ProbeStage ("PID 고유 창에서 Excel COM 직접 연결 · 시도 " + [string]$excelAttachAttempt + "/2")
+    $excel = Wait-OwnedProbeExcelNativeObject $ownedExcelPid ([datetime]::UtcNow.AddSeconds(20)) $baselineExcelPids
+    if ($null -ne $excel) { break }
+
+    if ($excelAttachAttempt -ge 2) {
+      throw ("자동조회용 Excel PID " + [string]$ownedExcelPid + "의 COM 객체를 2회 시도 후에도 얻지 못했습니다.")
+    }
+
+    Write-ProbeStage ("Excel COM 연결 1차 대기 초과 · 소유 PID " + [string]$ownedExcelPid + " 종료 후 1회 재시도")
+    Stop-OwnedProbeExcelAttachAttempt $launchedExcelProcess $ownedExcelPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId
+    $probeCleanupActions.Add("Excel COM 연결 재시도 전 소유 PID " + [string]$ownedExcelPid + " 종료")
+    try { $launchedExcelProcess.Dispose() } catch { }
+    $launchedExcelProcess = $null
+    $ownedExcelPid = 0
+    $ownedExcelStartTicks = 0L
+    $ownedExcelSessionId = -1
+    $attachedExcelPid = 0
+    $ownedHostSnapshot = $null
+    Write-ProbeOwnership
+    Start-Sleep -Milliseconds 500
   }
 
-  Write-ProbeOwnership
-  Write-ProbeStage "PID 고유 창에서 Excel COM 직접 연결"
-  $excel = Wait-OwnedProbeExcelNativeObject $ownedExcelPid ([datetime]::UtcNow.AddSeconds(45)) $baselineExcelPids
-  if ($null -eq $excel) {
-    throw ("자동조회용 Excel PID " + [string]$ownedExcelPid + "의 COM 객체를 얻지 못했습니다.")
-  }
+  if ($null -eq $excel) { throw "자동조회용 Excel COM 연결 결과가 없습니다." }
 
   $attachedExcelPid = Get-ProbeExcelProcessId $excel
   if ($attachedExcelPid -ne $ownedExcelPid) {
