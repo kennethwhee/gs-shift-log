@@ -12279,10 +12279,144 @@ async function ensureMorningMeetingAutoHistoryOverridesTable(
 
           revision INTEGER NOT NULL
             DEFAULT 1
+
+          ,reset_active INTEGER NOT NULL
+            DEFAULT 0
+
+          ,reset_at TEXT NOT NULL
+            DEFAULT ''
+
+          ,reset_by_id TEXT NOT NULL
+            DEFAULT ''
+
+          ,reset_by_name TEXT NOT NULL
+            DEFAULT ''
+
+          ,reset_snapshot_values_json TEXT NOT NULL
+            DEFAULT ''
+
+          ,reset_restored_at TEXT NOT NULL
+            DEFAULT ''
         )
     `)
     .run();
+
+
+  /*
+    기존 D1에는 위 CREATE TABLE이 다시 실행되어도 새 열이 생기지 않는다.
+    최초 접근 시 필요한 열만 추가하고, 여러 요청이 동시에 접근해
+    duplicate column 경쟁이 난 경우에는 이미 완료된 것으로 본다.
+  */
+  const tableInfo =
+    await database
+      .prepare(`
+        PRAGMA table_info(
+          morning_meeting_auto_history_overrides
+        )
+      `)
+      .all();
+
+
+  const columnNames =
+    new Set(
+      (
+        Array.isArray(
+          tableInfo.results
+        )
+          ? tableInfo.results
+          : []
+      ).map(
+        column =>
+          normalizeText(
+            column.name
+          )
+      )
+    );
+
+
+  const missingColumnDefinitions =
+    [
+      [
+        "reset_active",
+        "reset_active INTEGER NOT NULL DEFAULT 0"
+      ],
+      [
+        "reset_at",
+        "reset_at TEXT NOT NULL DEFAULT ''"
+      ],
+      [
+        "reset_by_id",
+        "reset_by_id TEXT NOT NULL DEFAULT ''"
+      ],
+      [
+        "reset_by_name",
+        "reset_by_name TEXT NOT NULL DEFAULT ''"
+      ],
+      [
+        "reset_snapshot_values_json",
+        "reset_snapshot_values_json TEXT NOT NULL DEFAULT ''"
+      ],
+      [
+        "reset_restored_at",
+        "reset_restored_at TEXT NOT NULL DEFAULT ''"
+      ]
+    ].filter(
+      ([columnName]) =>
+        !columnNames.has(
+          columnName
+        )
+    );
+
+
+  for (
+    const [
+      ,
+      columnDefinition
+    ] of missingColumnDefinitions
+  ) {
+    try {
+      await database
+        .prepare(`
+          ALTER TABLE
+            morning_meeting_auto_history_overrides
+          ADD COLUMN
+            ${columnDefinition}
+        `)
+        .run();
+
+    } catch (
+      error
+    ) {
+      const message =
+        normalizeText(
+          error instanceof Error
+            ? error.message
+            : error
+        );
+
+
+      if (
+        !/duplicate column name/i.test(
+          message
+        )
+      ) {
+        throw error;
+      }
+    }
+  }
 }
+
+
+const MORNING_MEETING_AUTO_HISTORY_RESET_REQUEST_TYPES =
+  Object.freeze([
+    "water_environment",
+    "limestone_stock",
+    "turbine_gear_pinion",
+    "silo_level",
+    "daily_data_excel",
+    "organic_silo_dataparc",
+    "steam_status"
+  ]);
 
 const MORNING_MEETING_AUTO_HISTORY_OVERRIDE_FIELD_NAMES =
   Object.freeze([
@@ -12671,6 +12805,173 @@ function convertMorningMeetingAutoHistoryOverrideRow(
 }
 
 
+function getMorningMeetingAutoHistoryOverrideRevision(
+  row
+) {
+  if (
+    !row
+  ) {
+    return 0;
+  }
+
+
+  const revision =
+    Number(
+      row.revision
+    );
+
+
+  return Number.isInteger(
+    revision
+  ) &&
+  revision >
+    0
+    ? revision
+    : 1;
+}
+
+
+/* =========================================================
+  오전회의 선택일 초기화 상태 공개 형태
+
+  - snapshot 원문은 서버 내부 복구용이므로 절대 응답하지 않는다.
+  - 행이 아직 없으면 revision 0의 비활성 상태를 반환한다.
+========================================================= */
+
+function convertMorningMeetingAutoHistoryResetRow(
+  row,
+  fallbackTargetDate = ""
+) {
+  const targetDate =
+    normalizeText(
+      row?.target_date ||
+      fallbackTargetDate
+    );
+
+
+  if (
+    !isValidIsoDate(
+      targetDate
+    )
+  ) {
+    return null;
+  }
+
+
+  return {
+    targetDate,
+
+    active:
+      Number(
+        row?.reset_active ||
+        0
+      ) === 1,
+
+    resetAt:
+      normalizeText(
+        row?.reset_at
+      ),
+
+    resetById:
+      normalizeText(
+        row?.reset_by_id
+      ),
+
+    resetByName:
+      normalizeText(
+        row?.reset_by_name
+      ),
+
+    restoredAt:
+      normalizeText(
+        row?.reset_restored_at
+      ),
+
+    revision:
+      getMorningMeetingAutoHistoryOverrideRevision(
+        row
+      )
+  };
+}
+
+
+async function findMorningMeetingAutoHistoryResets(
+  database,
+  startDate,
+  endDate
+) {
+  if (
+    !isValidIsoDate(
+      startDate
+    ) ||
+    !isValidIsoDate(
+      endDate
+    ) ||
+    startDate >
+      endDate
+  ) {
+    return [];
+  }
+
+
+  await ensureMorningMeetingAutoHistoryOverridesTable(
+    database
+  );
+
+
+  const queryResult =
+    await database
+      .prepare(`
+        SELECT
+          target_date,
+          reset_active,
+          reset_at,
+          reset_by_id,
+          reset_by_name,
+          reset_restored_at,
+          revision
+
+        FROM
+          morning_meeting_auto_history_overrides
+
+        WHERE
+          target_date >= ?
+          AND target_date <= ?
+          AND (
+            reset_active = 1
+            OR TRIM(reset_at) <> ''
+            OR TRIM(reset_restored_at) <> ''
+          )
+
+        ORDER BY
+          target_date DESC
+      `)
+      .bind(
+        startDate,
+        endDate
+      )
+      .all();
+
+
+  return (
+    Array.isArray(
+      queryResult.results
+    )
+      ? queryResult.results
+      : []
+  )
+    .map(
+      row =>
+        convertMorningMeetingAutoHistoryResetRow(
+          row
+        )
+    )
+    .filter(
+      Boolean
+    );
+}
+
+
 
 /* =========================================================
   오전회의 자동수치 수동 보정값 기간 조회
@@ -12900,6 +13201,32 @@ async function saveMorningMeetingAutoHistoryOverride(
 
         message:
           "다른 사용자가 먼저 수정했습니다. 최신 자료를 다시 확인해 주세요."
+      },
+      409
+    );
+  }
+
+
+  if (
+    Number(
+      existingRow?.reset_active ||
+      0
+    ) === 1
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        code:
+          "MORNING_MEETING_AUTO_HISTORY_RESET_ACTIVE",
+        currentItem:
+          existingItem,
+        reset:
+          convertMorningMeetingAutoHistoryResetRow(
+            existingRow,
+            targetDate
+          ),
+        message:
+          "선택일 자료가 초기화된 상태입니다. 먼저 원상복구하거나 전체조회를 완료해 주세요."
       },
       409
     );
@@ -13250,6 +13577,32 @@ async function restoreMorningMeetingAutoHistoryBlankOverrides(
     );
   }
 
+
+  if (
+    Number(
+      existingRow?.reset_active ||
+      0
+    ) === 1
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        code:
+          "MORNING_MEETING_AUTO_HISTORY_RESET_ACTIVE",
+        currentItem:
+          existingItem,
+        reset:
+          convertMorningMeetingAutoHistoryResetRow(
+            existingRow,
+            targetDate
+          ),
+        message:
+          "선택일 자료가 초기화된 상태이므로 빈칸 복원을 실행할 수 없습니다."
+      },
+      409
+    );
+  }
+
   let existingValues;
 
   try {
@@ -13441,6 +13794,1300 @@ async function restoreMorningMeetingAutoHistoryBlankOverrides(
       fieldNames.length,
     message:
       `${targetDate} 빈칸 ${fieldNames.length}개를 원본값으로 복원했습니다.`
+  });
+}
+
+
+function normalizeMorningMeetingAutoHistoryResetRevision(
+  rawRevision,
+  allowZero = false
+) {
+  if (
+    typeof rawRevision !==
+      "number" ||
+    !Number.isSafeInteger(
+      rawRevision
+    ) ||
+    rawRevision <
+      (
+        allowZero
+          ? 0
+          : 1
+      )
+  ) {
+    return null;
+  }
+
+
+  return rawRevision;
+}
+
+
+async function findMorningMeetingAutoHistoryResetRow(
+  database,
+  targetDate
+) {
+  return await database
+    .prepare(`
+      SELECT
+        *
+
+      FROM
+        morning_meeting_auto_history_overrides
+
+      WHERE
+        target_date = ?
+
+      LIMIT 1
+    `)
+    .bind(
+      targetDate
+    )
+    .first();
+}
+
+
+async function findMorningMeetingAutoHistoryActiveRequestTypes(
+  database,
+  targetDate,
+  activeAt = new Date().toISOString()
+) {
+  const queryResult =
+    await database
+      .prepare(`
+        SELECT DISTINCT
+          request_type
+
+        FROM
+          ois_data_requests
+
+        WHERE
+          target_date = ?
+          AND status IN (
+            'pending',
+            'processing'
+          )
+          AND request_type IN (
+            'water_environment',
+            'limestone_stock',
+            'turbine_gear_pinion',
+            'silo_level',
+            'daily_data_excel',
+            'organic_silo_dataparc',
+            'steam_status'
+          )
+          AND (
+            expires_at IS NULL
+            OR expires_at >= ?
+          )
+
+        ORDER BY
+          request_type ASC
+      `)
+      .bind(
+        targetDate,
+        activeAt
+      )
+      .all();
+
+
+  return (
+    Array.isArray(
+      queryResult.results
+    )
+      ? queryResult.results
+      : []
+  )
+    .map(
+      row =>
+        normalizeText(
+          row.request_type
+        )
+    )
+    .filter(
+      requestType =>
+        MORNING_MEETING_AUTO_HISTORY_RESET_REQUEST_TYPES.includes(
+          requestType
+        )
+    );
+}
+
+
+const MORNING_MEETING_AUTO_HISTORY_RESET_FRESH_GROUPS =
+  Object.freeze([
+    Object.freeze([
+      "water_environment"
+    ]),
+    Object.freeze([
+      "limestone_stock"
+    ]),
+    Object.freeze([
+      "turbine_gear_pinion"
+    ]),
+    Object.freeze([
+      "silo_level"
+    ]),
+    Object.freeze([
+      "daily_data_excel",
+      "steam_status"
+    ])
+  ]);
+
+
+async function findMorningMeetingAutoHistoryMissingFreshGroups(
+  database,
+  targetDate,
+  resetAt
+) {
+  const queryResult =
+    await database
+      .prepare(`
+        SELECT DISTINCT
+          request_type
+
+        FROM
+          ois_data_requests
+
+        WHERE
+          target_date = ?
+          AND status = 'complete'
+          AND request_type IN (
+            'water_environment',
+            'limestone_stock',
+            'turbine_gear_pinion',
+            'silo_level',
+            'daily_data_excel',
+            'steam_status'
+          )
+          AND COALESCE(
+            NULLIF(
+              completed_at,
+              ''
+            ),
+            updated_at,
+            ''
+          ) > ?
+          AND result_json IS NOT NULL
+          AND TRIM(result_json) <> ''
+          AND CASE
+            WHEN json_valid(result_json)
+              THEN json_type(result_json)
+            ELSE ''
+          END = 'object'
+          AND CASE
+            WHEN json_valid(result_json)
+              THEN json(result_json) <> '{}'
+            ELSE 0
+          END
+      `)
+      .bind(
+        targetDate,
+        resetAt
+      )
+      .all();
+
+
+  const completedTypes =
+    new Set(
+      (
+        Array.isArray(
+          queryResult.results
+        )
+          ? queryResult.results
+          : []
+      ).map(
+        row =>
+          normalizeText(
+            row.request_type
+          )
+      )
+    );
+
+
+  return MORNING_MEETING_AUTO_HISTORY_RESET_FRESH_GROUPS
+    .filter(
+      group =>
+        !group.some(
+          requestType =>
+            completedTypes.has(
+              requestType
+            )
+        )
+    )
+    .map(
+      group =>
+        group.join(
+          "|"
+        )
+    );
+}
+
+
+function morningMeetingAutoHistoryResetConflictResponse(
+  row,
+  targetDate,
+  message,
+  code = "MORNING_MEETING_AUTO_HISTORY_RESET_CONFLICT",
+  extra = {}
+) {
+  return jsonResponse(
+    {
+      ok: false,
+      code,
+      currentItem:
+        convertMorningMeetingAutoHistoryResetRow(
+          row,
+          targetDate
+        ),
+      ...extra,
+      message
+    },
+    409
+  );
+}
+
+
+/* =========================================================
+  오전회의 선택일 전체 초기화 상태 조회
+
+  - 원본 OIS·Excel·석회석 저장행은 조회만 한다.
+  - 복구 snapshot은 응답에 포함하지 않는다.
+========================================================= */
+
+async function handleMorningMeetingAutoHistoryResetStatusGet(
+  context,
+  requestUrl
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const targetDate =
+    normalizeText(
+      requestUrl.searchParams.get(
+        "targetDate"
+      ) ||
+      requestUrl.searchParams.get(
+        "target_date"
+      )
+    );
+
+
+  if (
+    !isValidIsoDate(
+      targetDate
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "초기화 상태를 확인할 날짜를 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  await ensureMorningMeetingAutoHistoryOverridesTable(
+    context.env.DB
+  );
+
+
+  const row =
+    await findMorningMeetingAutoHistoryResetRow(
+      context.env.DB,
+      targetDate
+    );
+
+
+  return jsonResponse({
+    ok: true,
+    item:
+      convertMorningMeetingAutoHistoryResetRow(
+        row,
+        targetDate
+      )
+  });
+}
+
+
+/* =========================================================
+  오전회의 선택일 전체 초기화
+
+  - 현재 수동 보정 JSON을 snapshot으로 보존한다.
+  - 보정값은 빈 객체로 만들고 reset_active를 켠다.
+  - 원본 테이블과 완료 요청은 삭제하지 않는다.
+  - 관련 조회가 진행 중이면 초기화하지 않는다.
+========================================================= */
+
+async function resetMorningMeetingAutoHistory(
+  context,
+  body
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const targetDate =
+    normalizeText(
+      body.targetDate ||
+      body.target_date
+    );
+
+
+  if (
+    !isValidIsoDate(
+      targetDate
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "초기화할 자동수치 날짜를 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const expectedRevision =
+    normalizeMorningMeetingAutoHistoryResetRevision(
+      body.expectedRevision ??
+      body.revision,
+      true
+    );
+
+
+  if (
+    expectedRevision ===
+      null
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "자동수치 초기화 버전을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const database =
+    context.env.DB;
+
+
+  await ensureMorningMeetingAutoHistoryOverridesTable(
+    database
+  );
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  const existingRow =
+    await findMorningMeetingAutoHistoryResetRow(
+      database,
+      targetDate
+    );
+
+
+  const currentRevision =
+    getMorningMeetingAutoHistoryOverrideRevision(
+      existingRow
+    );
+
+
+  if (
+    currentRevision !==
+      expectedRevision
+  ) {
+    return morningMeetingAutoHistoryResetConflictResponse(
+      existingRow,
+      targetDate,
+      "다른 사용자가 먼저 변경했습니다. 최신 자료를 다시 확인해 주세요."
+    );
+  }
+
+
+  if (
+    Number(
+      existingRow?.reset_active ||
+      0
+    ) === 1
+  ) {
+    return morningMeetingAutoHistoryResetConflictResponse(
+      existingRow,
+      targetDate,
+      "선택일 자료는 이미 초기화된 상태입니다.",
+      "MORNING_MEETING_AUTO_HISTORY_RESET_ALREADY_ACTIVE"
+    );
+  }
+
+
+  let snapshotValues;
+
+
+  try {
+    snapshotValues =
+      parseMorningMeetingAutoHistoryOverrideRawValues(
+        existingRow
+      );
+
+  } catch (
+    error
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "저장된 자동수치 수정값을 확인해 주세요."
+      },
+      500
+    );
+  }
+
+
+  const activeRequestTypes =
+    await findMorningMeetingAutoHistoryActiveRequestTypes(
+      database,
+      targetDate,
+      now
+    );
+
+
+  if (
+    activeRequestTypes.length >
+      0
+  ) {
+    return morningMeetingAutoHistoryResetConflictResponse(
+      existingRow,
+      targetDate,
+      "선택일 자료를 조회 중입니다. 조회가 끝난 뒤 다시 초기화해 주세요.",
+      "MORNING_MEETING_AUTO_HISTORY_QUERY_ACTIVE",
+      {
+        activeRequestTypes
+      }
+    );
+  }
+
+
+  const user =
+    authentication.user;
+
+
+  const snapshotValuesJson =
+    JSON.stringify(
+      snapshotValues
+    );
+
+
+  let writeResult;
+
+
+  if (
+    existingRow
+  ) {
+    writeResult =
+      await database
+        .prepare(`
+          UPDATE
+            morning_meeting_auto_history_overrides
+
+          SET
+            values_json = '{}',
+            reset_active = 1,
+            reset_at = ?,
+            reset_by_id = ?,
+            reset_by_name = ?,
+            reset_snapshot_values_json = ?,
+            reset_restored_at = '',
+            updated_by_id = ?,
+            updated_by_name = ?,
+            updated_at = ?,
+            revision = revision + 1
+
+          WHERE
+            target_date = ?
+            AND revision = ?
+            AND reset_active = 0
+            AND NOT EXISTS (
+              SELECT 1
+
+              FROM ois_data_requests
+
+              WHERE
+                target_date = ?
+                AND status IN (
+                  'pending',
+                  'processing'
+                )
+                AND request_type IN (
+                  'water_environment',
+                  'limestone_stock',
+                  'turbine_gear_pinion',
+                  'silo_level',
+                  'daily_data_excel',
+                  'organic_silo_dataparc',
+                  'steam_status'
+                )
+                AND (
+                  expires_at IS NULL
+                  OR expires_at >= ?
+                )
+            )
+        `)
+        .bind(
+          now,
+          user.employeeNo,
+          user.name,
+          snapshotValuesJson,
+          user.employeeNo,
+          user.name,
+          now,
+          targetDate,
+          expectedRevision,
+          targetDate,
+          now
+        )
+        .run();
+
+  } else {
+    writeResult =
+      await database
+        .prepare(`
+          INSERT OR IGNORE INTO
+            morning_meeting_auto_history_overrides (
+              target_date,
+              values_json,
+              created_by_id,
+              created_by_name,
+              created_at,
+              updated_by_id,
+              updated_by_name,
+              updated_at,
+              revision,
+              reset_active,
+              reset_at,
+              reset_by_id,
+              reset_by_name,
+              reset_snapshot_values_json,
+              reset_restored_at
+            )
+
+          SELECT
+            ?,
+            '{}',
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            1,
+            1,
+            ?,
+            ?,
+            ?,
+            '{}',
+            ''
+
+          WHERE NOT EXISTS (
+            SELECT 1
+
+            FROM ois_data_requests
+
+            WHERE
+              target_date = ?
+              AND status IN (
+                'pending',
+                'processing'
+              )
+              AND request_type IN (
+                'water_environment',
+                'limestone_stock',
+                'turbine_gear_pinion',
+                'silo_level',
+                'daily_data_excel',
+                'organic_silo_dataparc',
+                'steam_status'
+              )
+              AND (
+                expires_at IS NULL
+                OR expires_at >= ?
+              )
+          )
+        `)
+        .bind(
+          targetDate,
+          user.employeeNo,
+          user.name,
+          now,
+          user.employeeNo,
+          user.name,
+          now,
+          now,
+          user.employeeNo,
+          user.name,
+          targetDate,
+          now
+        )
+        .run();
+  }
+
+
+  if (
+    Number(
+      writeResult?.meta?.changes
+    ) !== 1
+  ) {
+    const [
+      latestRow,
+      latestActiveRequestTypes
+    ] =
+      await Promise.all([
+        findMorningMeetingAutoHistoryResetRow(
+          database,
+          targetDate
+        ),
+        findMorningMeetingAutoHistoryActiveRequestTypes(
+          database,
+          targetDate,
+          now
+        )
+      ]);
+
+
+    if (
+      latestActiveRequestTypes.length >
+        0
+    ) {
+      return morningMeetingAutoHistoryResetConflictResponse(
+        latestRow,
+        targetDate,
+        "선택일 자료 조회가 시작되어 초기화하지 않았습니다.",
+        "MORNING_MEETING_AUTO_HISTORY_QUERY_ACTIVE",
+        {
+          activeRequestTypes:
+            latestActiveRequestTypes
+        }
+      );
+    }
+
+
+    return morningMeetingAutoHistoryResetConflictResponse(
+      latestRow,
+      targetDate,
+      "다른 사용자가 먼저 변경했습니다. 최신 자료를 다시 확인해 주세요."
+    );
+  }
+
+
+  const savedRow =
+    await findMorningMeetingAutoHistoryResetRow(
+      database,
+      targetDate
+    );
+
+
+  return jsonResponse({
+    ok: true,
+    item:
+      convertMorningMeetingAutoHistoryResetRow(
+        savedRow,
+        targetDate
+      ),
+    message:
+      `${targetDate} 자동수치를 초기화했습니다. 원본 자료는 보존됩니다.`
+  });
+}
+
+
+/* =========================================================
+  초기화 원상복구
+
+  - 초기화 직전 snapshot을 values_json으로 되돌린다.
+  - 원본 자료나 OIS 요청은 변경하지 않는다.
+========================================================= */
+
+async function restoreMorningMeetingAutoHistoryReset(
+  context,
+  body
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const targetDate =
+    normalizeText(
+      body.targetDate ||
+      body.target_date
+    );
+
+
+  if (
+    !isValidIsoDate(
+      targetDate
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "원상복구할 자동수치 날짜를 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const expectedRevision =
+    normalizeMorningMeetingAutoHistoryResetRevision(
+      body.expectedRevision ??
+      body.revision
+    );
+
+
+  if (
+    expectedRevision ===
+      null
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "자동수치 원상복구 버전을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const database =
+    context.env.DB;
+
+
+  await ensureMorningMeetingAutoHistoryOverridesTable(
+    database
+  );
+
+
+  const existingRow =
+    await findMorningMeetingAutoHistoryResetRow(
+      database,
+      targetDate
+    );
+
+
+  if (
+    getMorningMeetingAutoHistoryOverrideRevision(
+      existingRow
+    ) !==
+      expectedRevision
+  ) {
+    return morningMeetingAutoHistoryResetConflictResponse(
+      existingRow,
+      targetDate,
+      "다른 사용자가 먼저 변경했습니다. 최신 자료를 다시 확인해 주세요."
+    );
+  }
+
+
+  if (
+    !existingRow ||
+    Number(
+      existingRow.reset_active ||
+      0
+    ) !== 1
+  ) {
+    return morningMeetingAutoHistoryResetConflictResponse(
+      existingRow,
+      targetDate,
+      "선택일 자료는 초기화된 상태가 아닙니다.",
+      "MORNING_MEETING_AUTO_HISTORY_RESET_NOT_ACTIVE"
+    );
+  }
+
+
+  const snapshotValuesText =
+    normalizeText(
+      existingRow
+        .reset_snapshot_values_json
+    );
+
+
+  let snapshotValues;
+
+
+  try {
+    snapshotValues =
+      parseMorningMeetingAutoHistoryOverrideRawValues({
+        values_json:
+          snapshotValuesText
+      });
+
+  } catch (
+    error
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "초기화 원상복구 자료를 확인해 주세요."
+      },
+      500
+    );
+  }
+
+
+  const user =
+    authentication.user;
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  const writeResult =
+    await database
+      .prepare(`
+        UPDATE
+          morning_meeting_auto_history_overrides
+
+        SET
+          values_json = ?,
+          reset_active = 0,
+          reset_snapshot_values_json = '',
+          reset_restored_at = ?,
+          updated_by_id = ?,
+          updated_by_name = ?,
+          updated_at = ?,
+          revision = revision + 1
+
+        WHERE
+          target_date = ?
+          AND revision = ?
+          AND reset_active = 1
+      `)
+      .bind(
+        JSON.stringify(
+          snapshotValues
+        ),
+        now,
+        user.employeeNo,
+        user.name,
+        now,
+        targetDate,
+        expectedRevision
+      )
+      .run();
+
+
+  if (
+    Number(
+      writeResult?.meta?.changes
+    ) !== 1
+  ) {
+    const latestRow =
+      await findMorningMeetingAutoHistoryResetRow(
+        database,
+        targetDate
+      );
+
+
+    return morningMeetingAutoHistoryResetConflictResponse(
+      latestRow,
+      targetDate,
+      "다른 사용자가 먼저 변경했습니다. 최신 자료를 다시 확인해 주세요."
+    );
+  }
+
+
+  const savedRow =
+    await findMorningMeetingAutoHistoryResetRow(
+      database,
+      targetDate
+    );
+
+
+  return jsonResponse({
+    ok: true,
+    item:
+      convertMorningMeetingAutoHistoryResetRow(
+        savedRow,
+        targetDate
+      ),
+    message:
+      `${targetDate} 자동수치를 초기화 직전 상태로 원상복구했습니다.`
+  });
+}
+
+
+/* =========================================================
+  전체 재조회 성공 후 초기화 상태 해제
+
+  - reset_at 이후 필수 자료군이 모두 complete인지 서버가 확인한다.
+  - snapshot은 폐기하고 빈 보정값을 유지한다.
+  - 이후 completed_history는 최신 완료자료를 다시 표시한다.
+========================================================= */
+
+async function releaseMorningMeetingAutoHistoryReset(
+  context,
+  body
+) {
+  const authentication =
+    await getAuthenticatedUser(
+      context
+    );
+
+
+  if (
+    authentication.error
+  ) {
+    return authentication.error;
+  }
+
+
+  const targetDate =
+    normalizeText(
+      body.targetDate ||
+      body.target_date
+    );
+
+
+  if (
+    !isValidIsoDate(
+      targetDate
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "초기화 상태를 해제할 자동수치 날짜를 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const expectedRevision =
+    normalizeMorningMeetingAutoHistoryResetRevision(
+      body.expectedRevision ??
+      body.revision
+    );
+
+
+  if (
+    expectedRevision ===
+      null
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "자동수치 초기화 해제 버전을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+
+  const database =
+    context.env.DB;
+
+
+  await ensureMorningMeetingAutoHistoryOverridesTable(
+    database
+  );
+
+
+  const existingRow =
+    await findMorningMeetingAutoHistoryResetRow(
+      database,
+      targetDate
+    );
+
+
+  if (
+    getMorningMeetingAutoHistoryOverrideRevision(
+      existingRow
+    ) !==
+      expectedRevision
+  ) {
+    return morningMeetingAutoHistoryResetConflictResponse(
+      existingRow,
+      targetDate,
+      "다른 사용자가 먼저 변경했습니다. 최신 자료를 다시 확인해 주세요."
+    );
+  }
+
+
+  if (
+    !existingRow ||
+    Number(
+      existingRow.reset_active ||
+      0
+    ) !== 1
+  ) {
+    return morningMeetingAutoHistoryResetConflictResponse(
+      existingRow,
+      targetDate,
+      "선택일 자료는 초기화된 상태가 아닙니다.",
+      "MORNING_MEETING_AUTO_HISTORY_RESET_NOT_ACTIVE"
+    );
+  }
+
+
+  const resetAt =
+    normalizeText(
+      existingRow.reset_at
+    );
+
+
+  if (
+    !resetAt ||
+    Number.isNaN(
+      new Date(
+        resetAt
+      ).getTime()
+    )
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "저장된 자동수치 초기화 시각을 확인하지 못했습니다."
+      },
+      500
+    );
+  }
+
+
+  const missingRequestTypes =
+    await findMorningMeetingAutoHistoryMissingFreshGroups(
+      database,
+      targetDate,
+      resetAt
+    );
+
+
+  if (
+    missingRequestTypes.length >
+      0
+  ) {
+    return morningMeetingAutoHistoryResetConflictResponse(
+      existingRow,
+      targetDate,
+      "선택일 전체조회가 아직 완료되지 않아 초기화 상태를 유지합니다.",
+      "MORNING_MEETING_AUTO_HISTORY_FRESH_QUERY_INCOMPLETE",
+      {
+        missingRequestTypes
+      }
+    );
+  }
+
+
+  const user =
+    authentication.user;
+
+
+  const now =
+    new Date()
+      .toISOString();
+
+
+  /*
+    아래 EXISTS도 UPDATE 안에서 다시 검사한다.
+    사전 확인과 CAS 사이에 상태가 달라져도 snapshot을 폐기하지 않는다.
+  */
+  const writeResult =
+    await database
+      .prepare(`
+        UPDATE
+          morning_meeting_auto_history_overrides
+
+        SET
+          reset_active = 0,
+          reset_snapshot_values_json = '',
+          reset_restored_at = ?,
+          updated_by_id = ?,
+          updated_by_name = ?,
+          updated_at = ?,
+          revision = revision + 1
+
+        WHERE
+          target_date = ?
+          AND revision = ?
+          AND reset_active = 1
+
+          AND EXISTS (
+            SELECT 1 FROM ois_data_requests
+            WHERE target_date = ?
+              AND status = 'complete'
+              AND request_type = 'water_environment'
+              AND COALESCE(NULLIF(completed_at, ''), updated_at, '') > ?
+              AND result_json IS NOT NULL
+              AND TRIM(result_json) <> ''
+              AND CASE WHEN json_valid(result_json)
+                THEN json_type(result_json) ELSE '' END = 'object'
+              AND CASE WHEN json_valid(result_json)
+                THEN json(result_json) <> '{}' ELSE 0 END
+          )
+
+          AND EXISTS (
+            SELECT 1 FROM ois_data_requests
+            WHERE target_date = ?
+              AND status = 'complete'
+              AND request_type = 'limestone_stock'
+              AND COALESCE(NULLIF(completed_at, ''), updated_at, '') > ?
+              AND result_json IS NOT NULL
+              AND TRIM(result_json) <> ''
+              AND CASE WHEN json_valid(result_json)
+                THEN json_type(result_json) ELSE '' END = 'object'
+              AND CASE WHEN json_valid(result_json)
+                THEN json(result_json) <> '{}' ELSE 0 END
+          )
+
+          AND EXISTS (
+            SELECT 1 FROM ois_data_requests
+            WHERE target_date = ?
+              AND status = 'complete'
+              AND request_type = 'turbine_gear_pinion'
+              AND COALESCE(NULLIF(completed_at, ''), updated_at, '') > ?
+              AND result_json IS NOT NULL
+              AND TRIM(result_json) <> ''
+              AND CASE WHEN json_valid(result_json)
+                THEN json_type(result_json) ELSE '' END = 'object'
+              AND CASE WHEN json_valid(result_json)
+                THEN json(result_json) <> '{}' ELSE 0 END
+          )
+
+          AND EXISTS (
+            SELECT 1 FROM ois_data_requests
+            WHERE target_date = ?
+              AND status = 'complete'
+              AND request_type = 'silo_level'
+              AND COALESCE(NULLIF(completed_at, ''), updated_at, '') > ?
+              AND result_json IS NOT NULL
+              AND TRIM(result_json) <> ''
+              AND CASE WHEN json_valid(result_json)
+                THEN json_type(result_json) ELSE '' END = 'object'
+              AND CASE WHEN json_valid(result_json)
+                THEN json(result_json) <> '{}' ELSE 0 END
+          )
+
+          AND EXISTS (
+            SELECT 1 FROM ois_data_requests
+            WHERE target_date = ?
+              AND status = 'complete'
+              AND request_type IN (
+                'daily_data_excel',
+                'steam_status'
+              )
+              AND COALESCE(NULLIF(completed_at, ''), updated_at, '') > ?
+              AND result_json IS NOT NULL
+              AND TRIM(result_json) <> ''
+              AND CASE WHEN json_valid(result_json)
+                THEN json_type(result_json) ELSE '' END = 'object'
+              AND CASE WHEN json_valid(result_json)
+                THEN json(result_json) <> '{}' ELSE 0 END
+          )
+
+      `)
+      .bind(
+        now,
+        user.employeeNo,
+        user.name,
+        now,
+        targetDate,
+        expectedRevision,
+        targetDate,
+        resetAt,
+        targetDate,
+        resetAt,
+        targetDate,
+        resetAt,
+        targetDate,
+        resetAt,
+        targetDate,
+        resetAt
+      )
+      .run();
+
+
+  if (
+    Number(
+      writeResult?.meta?.changes
+    ) !== 1
+  ) {
+    const latestRow =
+      await findMorningMeetingAutoHistoryResetRow(
+        database,
+        targetDate
+      );
+
+
+    return morningMeetingAutoHistoryResetConflictResponse(
+      latestRow,
+      targetDate,
+      "다른 변경 또는 조회 상태 충돌로 초기화 상태를 해제하지 않았습니다."
+    );
+  }
+
+
+  const savedRow =
+    await findMorningMeetingAutoHistoryResetRow(
+      database,
+      targetDate
+    );
+
+
+  return jsonResponse({
+    ok: true,
+    item:
+      convertMorningMeetingAutoHistoryResetRow(
+        savedRow,
+        targetDate
+      ),
+    message:
+      `${targetDate} 전체조회 완료자료를 적용했습니다.`
   });
 }
 
@@ -13707,24 +15354,41 @@ async function handleCompletedHistoryGet(
           AND TRIM(
             result_json
           ) <> ''
+          AND CASE
+            WHEN json_valid(result_json)
+              THEN json_type(result_json)
+            ELSE ''
+          END = 'object'
+          AND CASE
+            WHEN json_valid(result_json)
+              THEN json(result_json) <> '{}'
+            ELSE 0
+          END
 
         ORDER BY
           target_date DESC,
+
+          CASE
+            WHEN request_type = 'steam_status'
+              THEN 'daily_data_excel'
+            ELSE request_type
+          END ASC,
+
+          COALESCE(
+            NULLIF(
+              completed_at,
+              ''
+            ),
+            updated_at,
+            requested_at,
+            ''
+          ) DESC,
 
           CASE request_type
             WHEN 'daily_data_excel' THEN 0
             WHEN 'steam_status' THEN 1
             ELSE 0
           END ASC,
-
-          request_type ASC,
-
-          COALESCE(
-            completed_at,
-            updated_at,
-            requested_at,
-            ''
-          ) DESC,
 
           requested_at DESC,
           id DESC
@@ -13746,6 +15410,30 @@ async function handleCompletedHistoryGet(
     날짜와 자료 종류가 같은 자료는
     가장 최신 자료 하나만 남긴다.
   */
+  const resets =
+    await findMorningMeetingAutoHistoryResets(
+      context.env.DB,
+      startDate,
+      endDate
+    );
+
+
+  const activeResetByDate =
+    new Map(
+      resets
+        .filter(
+          item =>
+            item.active
+        )
+        .map(
+          item => [
+            item.targetDate,
+            item
+          ]
+        )
+    );
+
+
   const savedKeys =
     new Set();
 
@@ -13775,6 +15463,38 @@ async function handleCompletedHistoryGet(
         )
       ) {
         return;
+      }
+
+
+      const activeReset =
+        activeResetByDate.get(
+          convertedItem.targetDate
+        );
+
+
+      if (
+        activeReset
+      ) {
+        const completedAt =
+          normalizeText(
+            convertedItem.completedAt ||
+            convertedItem.updatedAt
+          );
+
+
+        /*
+          초기화 시점 전에 저장된 결과는 원본 테이블에 그대로 두되
+          reset_active 동안만 응답에서 감춘다. 초기화 이후 새로 완료된
+          자료는 재조회 진행 상황을 보여 줄 수 있도록 반환한다.
+        */
+        if (
+          !activeReset.resetAt ||
+          !completedAt ||
+          completedAt <=
+            activeReset.resetAt
+        ) {
+          return;
+        }
       }
 
       /*
@@ -13869,12 +15589,17 @@ async function handleCompletedHistoryGet(
         items.length,
 
       overrideCount:
-        overrides.length
+        overrides.length,
+
+      resetCount:
+        resets.length
     },
 
     items,
 
-    overrides
+    overrides,
+
+    resets
   });
 }
 
@@ -14538,6 +16263,19 @@ if (
     "morning_meeting_auto_history_overrides"
 ) {
   return await handleMorningMeetingAutoHistoryOverridesGet(
+    context,
+    requestUrl
+  );
+}
+
+/*
+  오전회의 선택일 전체 초기화 상태
+*/
+if (
+  action ===
+    "morning_meeting_auto_history_reset_status"
+) {
+  return await handleMorningMeetingAutoHistoryResetStatusGet(
     context,
     requestUrl
   );
@@ -19620,6 +21358,26 @@ async function rebuildSolarHistoryOverridesFromDailyData(
       validation.endDate
     );
 
+
+  const activeResetDates =
+    new Set(
+      (
+        await findMorningMeetingAutoHistoryResets(
+          database,
+          validation.startDate,
+          validation.endDate
+        )
+      )
+        .filter(
+          item =>
+            item.active
+        )
+        .map(
+          item =>
+            item.targetDate
+        )
+    );
+
   const existingByDate =
     new Map(
       existingItems.map(
@@ -19662,10 +21420,25 @@ async function rebuildSolarHistoryOverridesFromDailyData(
   let unchangedCount =
     0;
 
+  let resetActiveSkippedCount =
+    0;
+
   for (
     const row of
     validation.rows
   ) {
+    if (
+      activeResetDates.has(
+        row.date
+      )
+    ) {
+      resetActiveSkippedCount +=
+        1;
+
+      continue;
+    }
+
+
     const existingItem =
       existingByDate.get(
         row.date
@@ -19767,6 +21540,7 @@ async function rebuildSolarHistoryOverridesFromDailyData(
             WHERE
               target_date = ?
               AND revision = ?
+              AND reset_active = 0
           `)
           .bind(
             JSON.stringify(
@@ -19886,6 +21660,25 @@ async function rebuildSolarHistoryOverridesFromDailyData(
         validation.endDate
       );
 
+    const latestActiveResetDates =
+      new Set(
+        (
+          await findMorningMeetingAutoHistoryResets(
+            database,
+            validation.startDate,
+            validation.endDate
+          )
+        )
+          .filter(
+            item =>
+              item.active
+          )
+          .map(
+            item =>
+              item.targetDate
+          )
+      );
+
     const latestByDate =
       new Map(
         latestItems.map(
@@ -19956,6 +21749,18 @@ async function rebuildSolarHistoryOverridesFromDailyData(
       const date of
       pendingConflictDates
     ) {
+      if (
+        latestActiveResetDates.has(
+          date
+        )
+      ) {
+        resetActiveSkippedCount +=
+          1;
+
+        continue;
+      }
+
+
       const latestItem =
         latestByDate.get(
           date
@@ -20061,6 +21866,7 @@ async function rebuildSolarHistoryOverridesFromDailyData(
               WHERE
                 target_date = ?
                 AND revision = ?
+                AND reset_active = 0
             `)
             .bind(
               JSON.stringify(
@@ -20169,6 +21975,7 @@ async function rebuildSolarHistoryOverridesFromDailyData(
     updatedCount,
     unchangedCount,
     absentCount,
+    resetActiveSkippedCount,
     initialConflictCount,
 
     retryRoundCount,
@@ -21845,6 +23652,39 @@ if (
     "restore_morning_meeting_auto_history_blanks"
 ) {
   return await restoreMorningMeetingAutoHistoryBlankOverrides(
+    context,
+    body
+  );
+}
+
+/*
+  오전회의 선택일 전체 초기화 / 원상복구 / 재조회 적용
+*/
+if (
+  action ===
+    "reset_morning_meeting_auto_history"
+) {
+  return await resetMorningMeetingAutoHistory(
+    context,
+    body
+  );
+}
+
+if (
+  action ===
+    "restore_morning_meeting_auto_history_reset"
+) {
+  return await restoreMorningMeetingAutoHistoryReset(
+    context,
+    body
+  );
+}
+
+if (
+  action ===
+    "release_morning_meeting_auto_history_reset"
+) {
+  return await releaseMorningMeetingAutoHistoryReset(
     context,
     body
   );

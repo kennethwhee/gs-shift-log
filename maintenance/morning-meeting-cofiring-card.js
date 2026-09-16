@@ -159,6 +159,13 @@
     return "";
   }
 
+  function isSelectedDateResetActive(targetDate) {
+    return (
+      Boolean(targetDate) &&
+      window.isMorningMeetingSelectedDateResetActive?.(targetDate) === true
+    );
+  }
+
   function setValue(id, text) {
     const element = document.getElementById(id);
 
@@ -781,6 +788,12 @@
       return;
     }
 
+    if (isSelectedDateResetActive(targetDate)) {
+      clearAllValues();
+      setStatus("idle", "조회 대기");
+      return;
+    }
+
     try {
       const [dailyResult, settings] = await Promise.all([
         fetchDailyData(targetDate),
@@ -788,6 +801,12 @@
       ]);
 
       if (refreshToken !== activeRefreshToken) {
+        return;
+      }
+
+      if (isSelectedDateResetActive(targetDate)) {
+        clearAllValues();
+        setStatus("idle", "조회 대기");
         return;
       }
 
@@ -847,6 +866,33 @@
   function scheduleRefresh(delay = 180) {
     window.clearTimeout(refreshTimerId);
     refreshTimerId = window.setTimeout(refreshCard, delay);
+  }
+
+  function handleSelectedDateResetStateChanged(event) {
+    const targetDate = getTargetDate();
+    const changedDate = String(event?.detail?.targetDate || "").trim();
+
+    if (!targetDate || changedDate !== targetDate) {
+      return;
+    }
+
+    activeRefreshToken += 1;
+    window.clearTimeout(refreshTimerId);
+    refreshTimerId = null;
+
+    if (
+      event?.detail?.active === true ||
+      isSelectedDateResetActive(targetDate)
+    ) {
+      currentTargetDate = targetDate;
+      currentSettings = null;
+      setCardDate(targetDate);
+      clearAllValues();
+      setStatus("idle", "조회 대기");
+      return;
+    }
+
+    scheduleRefresh(0);
   }
 
   function bindWatchedElements() {
@@ -928,6 +974,11 @@
     document.addEventListener(
       "click",
       handleCofiringRefreshClick
+    );
+
+    document.addEventListener(
+      "morningMeetingSelectedDateResetStateChanged",
+      handleSelectedDateResetStateChanged
     );
 
     const card = ensureCard();

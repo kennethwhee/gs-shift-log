@@ -148760,6 +148760,12 @@ function updateMorningMeetingCreateButton() {
     );
 
 
+  const isSelectedDateResetActive =
+    window
+      .isMorningMeetingSelectedDateResetActive?.() ===
+    true;
+
+
   /* ===================================================
     1. 수처리 9개 값
   ==================================================== */
@@ -149104,7 +149110,8 @@ function updateMorningMeetingCreateButton() {
 const canCreate =
   hasTemplateFile &&
   hasAllTeamAnalysis &&
-  hasExpectedPreviousDate;
+  hasExpectedPreviousDate &&
+  !isSelectedDateResetActive;
 
 
   if (
@@ -149151,6 +149158,16 @@ const canCreate =
   ) {
     elements.message.textContent =
       "오전회의 기준일을 확인할 수 없습니다.";
+
+    return;
+  }
+
+
+  if (
+    isSelectedDateResetActive
+  ) {
+    elements.message.textContent =
+      "선택 날짜가 전체 초기화 상태입니다. 전체자료를 다시 조회하거나 초기화 취소 후 생성해 주세요.";
 
     return;
   }
@@ -156012,7 +156029,8 @@ function normalizeMorningMeetingRequiredNumber(
 
 function applyMorningMeetingWaterTreatmentValues(
   worksheetDocument,
-  waterTreatment
+  waterTreatment,
+  options = {}
 ) {
   const source =
     waterTreatment &&
@@ -156490,6 +156508,8 @@ function applyMorningMeetingWaterTreatmentValues(
   ====================================================== */
 
   const cachedCurrentSource =
+    options.suppressCurrentDate !==
+      true &&
     currentDate &&
     waterCache[
       currentDate
@@ -156508,6 +156528,8 @@ function applyMorningMeetingWaterTreatmentValues(
     ...cachedCurrentSource,
 
     ...(
+      options.suppressCurrentDate !==
+        true &&
       passedSourceDate &&
       currentDate &&
       passedSourceDate ===
@@ -157215,7 +157237,8 @@ function applyMorningMeetingBoilerTemperatureValues(
 
 function applyMorningMeetingCoalNumericValues(
   worksheetDocument,
-  rawValues
+  rawValues,
+  options = {}
 ) {
   const values =
     rawValues &&
@@ -157235,6 +157258,8 @@ function applyMorningMeetingCoalNumericValues(
 
 
   const siloLevel =
+    options.suppressAutomaticSilo !==
+      true &&
     state.siloLevel &&
     typeof state.siloLevel ===
       "object"
@@ -165318,6 +165343,16 @@ function applyMorningMeetingPreviewAutoValues(
         );
 
 
+      if (
+        options.suppressSelectedDateValues ===
+          true &&
+        normalizedDate ===
+          meetingDate
+      ) {
+        return null;
+      }
+
+
       const item =
         state
           .smpPriceByDate?.[
@@ -165880,6 +165915,9 @@ const maximumTemperature =
 
 const weatherValid =
   Boolean(
+    options.suppressSelectedDateValues !==
+      true &&
+
     weather &&
 
     weatherDate ===
@@ -167023,6 +167061,27 @@ const expectedWaterSourceDate =
     );
 
 
+const isSelectedAutomaticDateReset =
+  window
+    .isMorningMeetingSelectedDateResetActive?.(
+      expectedWaterSourceDate
+    ) ===
+  true;
+
+
+const mustSuppressSelectedAutomaticDate =
+  () => {
+    return (
+      isSelectedAutomaticDateReset ||
+      window
+        .isMorningMeetingSelectedDateResetActive?.(
+          expectedWaterSourceDate
+        ) ===
+        true
+    );
+  };
+
+
 
 /* ===================================================
   자동수치 최종 반영 대상 결정
@@ -167075,7 +167134,9 @@ const limestoneDate =
 =================================================== */
 
 const limestoneValuesForWorkbook =
-  limestoneValues;
+  isSelectedAutomaticDateReset
+    ? null
+    : limestoneValues;
 
 
 /* ===================================================
@@ -167085,7 +167146,9 @@ const limestoneValuesForWorkbook =
 =================================================== */
 
 const waterTreatmentForWorkbook =
-  waterTreatment;
+  isSelectedAutomaticDateReset
+    ? null
+    : waterTreatment;
 
 
 /* ===================================================
@@ -167106,7 +167169,9 @@ const boilerTemperaturesForWorkbook =
 =================================================== */
 
 const gearPinionForWorkbook =
-  gearPinion;
+  isSelectedAutomaticDateReset
+    ? null
+    : gearPinion;
 
   /* =====================================================
     버튼 진행 상태
@@ -167282,6 +167347,10 @@ console.log(
   ijkDashResult
 );
 
+
+let suppressAutomaticWorkbookValues =
+  mustSuppressSelectedAutomaticDate();
+
 /* ===================================================
   0차: 자동수치 일일DATA 최종 엑셀 반영
 
@@ -167292,6 +167361,7 @@ console.log(
 =================================================== */
 
 const dailyData =
+  !suppressAutomaticWorkbookValues &&
   state.steamStatus &&
   typeof state.steamStatus ===
     "object"
@@ -167313,11 +167383,14 @@ const dailyData =
 =================================================== */
 
 let dailyDataForWorkbook =
-  dailyData;
+  suppressAutomaticWorkbookValues
+    ? {}
+    : dailyData;
 
 
 if (
-  !dailyData
+  !dailyData &&
+  !suppressAutomaticWorkbookValues
 ) {
   const missingDailyDataMessage =
     "전력·태양광·증기·유기성 고형연료 자동수치가 없습니다.";
@@ -167399,6 +167472,22 @@ if (
 }
 
 
+/*
+  확인창을 기다리는 동안 초기화가 시작된 경우도
+  이후 자동수치 기록은 모두 빈칸으로 고정한다.
+*/
+suppressAutomaticWorkbookValues =
+  mustSuppressSelectedAutomaticDate();
+
+
+if (
+  suppressAutomaticWorkbookValues
+) {
+  dailyDataForWorkbook =
+    {};
+}
+
+
 const dailyDataResult =
   applyMorningMeetingDailyDataValues(
     worksheetDocument,
@@ -167424,7 +167513,11 @@ console.log(
       applyMorningMeetingCoalNumericValues(
         worksheetDocument,
         coalSelection.values ||
-        {}
+        {},
+        {
+          suppressAutomaticSilo:
+            suppressAutomaticWorkbookValues
+        }
       );
 
       /* ===================================================
@@ -167440,7 +167533,11 @@ console.log(
 const waterResult =
   applyMorningMeetingWaterTreatmentValues(
     worksheetDocument,
-    waterTreatmentForWorkbook
+    waterTreatmentForWorkbook,
+    {
+      suppressCurrentDate:
+        suppressAutomaticWorkbookValues
+    }
   );
 
 /* ===================================================
@@ -167466,7 +167563,9 @@ const boilerTemperatureResult =
 const gearPinionResult =
   applyMorningMeetingGearPinionValues(
     worksheetDocument,
-    gearPinionForWorkbook
+    suppressAutomaticWorkbookValues
+      ? null
+      : gearPinionForWorkbook
   );
 
 /* ===================================================
@@ -167476,7 +167575,9 @@ const gearPinionResult =
 const limestoneResult =
   applyMorningMeetingLimestoneValues(
     worksheetDocument,
-    limestoneValuesForWorkbook
+    suppressAutomaticWorkbookValues
+      ? null
+      : limestoneValuesForWorkbook
   );
 
     /* ===================================================
@@ -167680,7 +167781,9 @@ const previewAutoValueResult =
       isWeekendMode,
       weekendStartDateText,
       weekendEndDateText,
-      weekendSupplementResult
+      weekendSupplementResult,
+      suppressSelectedDateValues:
+        suppressAutomaticWorkbookValues
     }
   );
 
@@ -167715,6 +167818,34 @@ const cofiringFinalExcelResult =
     .applyMorningMeetingCofiringExcelValues(
       worksheetDocument
     );
+
+
+if (
+  suppressAutomaticWorkbookValues
+) {
+  [
+    "I7",
+    "I8",
+    "N7",
+    "N8",
+    "X7",
+    "X8",
+    "Z7",
+    "Z8",
+    "AE7",
+    "AE8",
+    "X9",
+    "AE9"
+  ].forEach(
+    address => {
+      setMorningMeetingNumericCellValue(
+        worksheetDocument,
+        address,
+        null
+      );
+    }
+  );
+}
 
 console.log(
   "최종 엑셀 혼소율·연료 사용량 최종 반영 완료:",
@@ -181314,6 +181445,9 @@ async function loadSavedLimestoneUsageRecords(
           "운영정보 데이터 불러오기";
       }
 
+
+      return completedItem;
+
     } catch (
       error
     ) {
@@ -186776,6 +186910,10 @@ async function loadWaterTreatment(
           targetDates.length
       }
     );
+
+
+    return state.waterTreatment ||
+      null;
 
   } catch (
     error
@@ -195177,6 +195315,28 @@ function getExpectedPreviousDate() {
       getElements();
 
 
+    const expectedDate =
+      getExpectedPreviousDate();
+
+
+    if (
+      window
+        .isMorningMeetingSelectedDateResetActive
+        ?.(
+          expectedDate
+        ) ===
+        true
+    ) {
+      return {
+        status:
+          "idle",
+
+        date:
+          expectedDate
+      };
+    }
+
+
     const water =
       state.waterTreatment &&
       typeof state.waterTreatment ===
@@ -195360,6 +195520,61 @@ function getExpectedPreviousDate() {
 function getLimestoneData() {
   const elements =
     getElements();
+
+
+  const resetDate =
+    getExpectedPreviousDate();
+
+
+  if (
+    window
+      .isMorningMeetingSelectedDateResetActive
+      ?.(
+        resetDate
+      ) ===
+      true
+  ) {
+    return {
+      status:
+        "idle",
+
+      isRestoringSaved:
+        false,
+
+      hasDateMismatch:
+        false,
+
+      expectedDate:
+        resetDate,
+
+      date:
+        resetDate,
+
+      unitOneStart:
+        null,
+
+      unitOneReceipt:
+        null,
+
+      unitOneEnd:
+        null,
+
+      unitOneUsage:
+        null,
+
+      unitTwoStart:
+        null,
+
+      unitTwoReceipt:
+        null,
+
+      unitTwoEnd:
+        null,
+
+      unitTwoUsage:
+        null
+    };
+  }
 
 
   const date =
@@ -195559,6 +195774,34 @@ function getLimestoneData() {
 
     const elements =
       getElements();
+
+
+    const expectedDate =
+      getExpectedPreviousDate();
+
+
+    if (
+      window
+        .isMorningMeetingSelectedDateResetActive
+        ?.(
+          expectedDate
+        ) ===
+        true
+    ) {
+      return {
+        status:
+          "idle",
+
+        date:
+          expectedDate,
+
+        gearWheel:
+          null,
+
+        pinion:
+          null
+      };
+    }
 
 
     const gearPinion =
@@ -197529,6 +197772,15 @@ function renderSiloPreview() {
     getCommonBaseDate();
 
 
+  const isResetActive =
+    window
+      .isMorningMeetingSelectedDateResetActive
+      ?.(
+        currentBaseDate
+      ) ===
+      true;
+
+
   const siloDate =
     normalizeText(
       siloLevel?.sourceDate ||
@@ -197612,6 +197864,14 @@ function renderSiloPreview() {
   ==================================================== */
 
   if (
+    isResetActive
+  ) {
+    setStatusBadge(
+      "idle",
+      "조회 대기"
+    );
+
+  } else if (
     hasDateMismatch
   ) {
     setStatusBadge(
@@ -197683,6 +197943,7 @@ function renderSiloPreview() {
     flyAshElement
   ) {
     flyAshElement.textContent =
+      isResetActive ||
       hasDateMismatch
         ? "-"
         : formatSiloValue(
@@ -197697,6 +197958,7 @@ function renderSiloPreview() {
     bioStorageElement
   ) {
     bioStorageElement.textContent =
+      isResetActive ||
       hasDateMismatch
         ? "-"
         : formatSiloValue(
@@ -197719,12 +197981,14 @@ function renderSiloPreview() {
 
 
   card.title =
-    errorMessage ||
-    (
-      siloDate
-        ? `${siloDate} 24시 OIS Silo Level`
-        : "OIS Silo Level"
-    );
+    isResetActive
+      ? `${currentBaseDate} 전체자료 초기화 상태`
+      : errorMessage ||
+        (
+          siloDate
+            ? `${siloDate} 24시 OIS Silo Level`
+            : "OIS Silo Level"
+        );
 }
 
 
@@ -201633,6 +201897,73 @@ async function restoreMorningMeetingSavedCompletedHistoryForDate(
         ? payload.items
         : [];
 
+
+    const resetItems =
+      Array.isArray(
+        payload.resets
+      )
+        ? payload.resets
+        : [];
+
+
+    const resetItem =
+      resetItems.find(
+        item => {
+          return String(
+            item?.targetDate ||
+            ""
+          ).trim() ===
+            normalizedDate;
+        }
+      ) ||
+      null;
+
+
+    let effectiveResetItem =
+      resetItem;
+
+
+    if (
+      resetItem &&
+      typeof window
+        .applyMorningMeetingSelectedDateResetState ===
+        "function"
+    ) {
+      effectiveResetItem =
+        window
+        .applyMorningMeetingSelectedDateResetState(
+          resetItem
+        ) ||
+        resetItem;
+    }
+
+
+    /*
+      해당 날짜가 전체 초기화 상태이면 저장 원본을
+      메인 카드에 다시 주입하지 않는다.
+
+      초기화 상태 적용 함수가 범위 안의 카드만
+      빈칸으로 다시 그리며, 보일러 온도와 업로드 등
+      범위 밖 자료는 그대로 유지한다.
+    */
+    if (
+      effectiveResetItem?.active ===
+        true ||
+      (
+        resetItem?.active ===
+          true &&
+        effectiveResetItem?.revision ===
+          resetItem?.revision
+      ) ||
+      window
+        .isMorningMeetingSelectedDateResetActive?.(
+          normalizedDate
+        ) ===
+        true
+    ) {
+      return true;
+    }
+
 /* =================================================
   자동수치 기록에 저장된 SMP 수정값 복원
 
@@ -202384,6 +202715,11 @@ const readSavedSmpNumber =
     return false;
   }
 }
+
+
+window
+  .restoreMorningMeetingSavedCompletedHistoryForDate =
+  restoreMorningMeetingSavedCompletedHistoryForDate;
 
 function applyCommonBaseDate(
   requestedDate,
@@ -206097,6 +206433,759 @@ function loadCache() {
   window
     .saveEfficiencyMorningMeetingGearPinionCache =
     saveGearPinionResult;
+})();
+
+/* =========================================================
+  오전회의 전체자료 날짜별 초기화 상태
+
+  원칙:
+  - 서버의 reset marker를 날짜별로 기억한다.
+  - 현재 선택 날짜가 초기화 상태이면 화면만 비운다.
+  - 석회석 계산 메뉴 원본과 BO 온도는 변경하지 않는다.
+  - 수처리/Gear 브라우저 캐시는 해당 날짜만 제거한다.
+========================================================= */
+
+(function installMorningMeetingSelectedDateResetState() {
+  "use strict";
+
+  if (
+    window.__morningMeetingSelectedDateResetStateInstalled ===
+      true
+  ) {
+    return;
+  }
+
+  window.__morningMeetingSelectedDateResetStateInstalled =
+    true;
+
+  const AUTO_DATA_CACHE_KEY =
+    "gsShiftLog.morningMeetingAutoDataCache.v1";
+
+  const resetByDate =
+    new Map();
+
+  let cofiringGuardObserver =
+    null;
+
+  let guardedCofiringCard =
+    null;
+
+  function normalizeText(
+    value
+  ) {
+    return String(
+      value ??
+      ""
+    ).trim();
+  }
+
+  function isIsoDate(
+    value
+  ) {
+    const dateText =
+      normalizeText(
+        value
+      );
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(
+        dateText
+      )
+    ) {
+      return false;
+    }
+
+    const parsedDate =
+      new Date(
+        `${dateText}T00:00:00.000Z`
+      );
+
+    return (
+      !Number.isNaN(
+        parsedDate.getTime()
+      ) &&
+      parsedDate
+        .toISOString()
+        .slice(
+          0,
+          10
+        ) ===
+        dateText
+    );
+  }
+
+  function addDateDays(
+    dateValue,
+    amount
+  ) {
+    if (
+      !isIsoDate(
+        dateValue
+      )
+    ) {
+      return "";
+    }
+
+    const parsedDate =
+      new Date(
+        `${dateValue}T00:00:00.000Z`
+      );
+
+    parsedDate.setUTCDate(
+      parsedDate.getUTCDate() +
+      Number(
+        amount ||
+        0
+      )
+    );
+
+    return parsedDate
+      .toISOString()
+      .slice(
+        0,
+        10
+      );
+  }
+
+  function getSelectedBaseDate() {
+    const panel =
+      document.getElementById(
+        "efficiencyMorningMeetingWaterPanel"
+      );
+
+    const candidates = [
+      panel?.dataset
+        ?.morningMeetingAutoBaseDate,
+
+      document.getElementById(
+        "efficiencyMorningMeetingAutoDatePicker"
+      )?.value
+    ];
+
+    return (
+      candidates
+        .map(
+          normalizeText
+        )
+        .find(
+          isIsoDate
+        ) ||
+      ""
+    );
+  }
+
+  function normalizeResetItem(
+    sourceItem
+  ) {
+    if (
+      !sourceItem ||
+      typeof sourceItem !==
+        "object" ||
+      Array.isArray(
+        sourceItem
+      )
+    ) {
+      return null;
+    }
+
+    const targetDate =
+      normalizeText(
+        sourceItem.targetDate ||
+        sourceItem.recordDate
+      );
+
+    if (
+      !isIsoDate(
+        targetDate
+      )
+    ) {
+      return null;
+    }
+
+    const revision =
+      Number(
+        sourceItem.revision
+      );
+
+    return {
+      targetDate,
+
+      active:
+        sourceItem.active ===
+        true,
+
+      resetAt:
+        normalizeText(
+          sourceItem.resetAt
+        ),
+
+      resetById:
+        normalizeText(
+          sourceItem.resetById
+        ),
+
+      resetByName:
+        normalizeText(
+          sourceItem.resetByName
+        ),
+
+      restoredAt:
+        normalizeText(
+          sourceItem.restoredAt
+        ),
+
+      revision:
+        Number.isInteger(
+          revision
+        ) &&
+        revision >=
+          0
+          ? revision
+          : 0
+    };
+  }
+
+  function isSameResetItem(
+    left,
+    right
+  ) {
+    return [
+      "targetDate",
+      "active",
+      "resetAt",
+      "resetById",
+      "resetByName",
+      "restoredAt",
+      "revision"
+    ].every(
+      key => {
+        return (
+          left?.[key] ===
+          right?.[key]
+        );
+      }
+    );
+  }
+
+  function invalidateAutoDataCacheForDate(
+    dateValue
+  ) {
+    const targetDate =
+      normalizeText(
+        dateValue
+      );
+
+    if (
+      !isIsoDate(
+        targetDate
+      )
+    ) {
+      return {
+        waterRemoved:
+          false,
+
+        gearPinionRemoved:
+          false
+      };
+    }
+
+    let savedCache;
+
+    try {
+      savedCache =
+        JSON.parse(
+          localStorage.getItem(
+            AUTO_DATA_CACHE_KEY
+          ) ||
+          "{}"
+        );
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "오전회의 자동자료 날짜 캐시를 읽지 못했습니다.",
+        error
+      );
+
+      return {
+        waterRemoved:
+          false,
+
+        gearPinionRemoved:
+          false
+      };
+    }
+
+    if (
+      !savedCache ||
+      typeof savedCache !==
+        "object" ||
+      Array.isArray(
+        savedCache
+      )
+    ) {
+      return {
+        waterRemoved:
+          false,
+
+        gearPinionRemoved:
+          false
+      };
+    }
+
+    const waterRemoved =
+      Boolean(
+        savedCache.water &&
+        typeof savedCache.water ===
+          "object" &&
+        Object.prototype
+          .hasOwnProperty
+          .call(
+            savedCache.water,
+            targetDate
+          )
+      );
+
+    const gearPinionRemoved =
+      Boolean(
+        savedCache.gearPinion &&
+        typeof savedCache.gearPinion ===
+          "object" &&
+        Object.prototype
+          .hasOwnProperty
+          .call(
+            savedCache.gearPinion,
+            targetDate
+          )
+      );
+
+    if (
+      waterRemoved
+    ) {
+      delete savedCache.water[
+        targetDate
+      ];
+    }
+
+    if (
+      gearPinionRemoved
+    ) {
+      delete savedCache.gearPinion[
+        targetDate
+      ];
+    }
+
+    if (
+      waterRemoved ||
+      gearPinionRemoved
+    ) {
+      try {
+        localStorage.setItem(
+          AUTO_DATA_CACHE_KEY,
+          JSON.stringify(
+            savedCache
+          )
+        );
+
+      } catch (
+        error
+      ) {
+        console.warn(
+          "오전회의 자동자료 날짜 캐시를 제거하지 못했습니다.",
+          error
+        );
+      }
+    }
+
+    return {
+      waterRemoved,
+      gearPinionRemoved
+    };
+  }
+
+  function getResetState(
+    dateValue
+  ) {
+    const targetDate =
+      normalizeText(
+        dateValue ||
+        getSelectedBaseDate()
+      );
+
+    if (
+      !isIsoDate(
+        targetDate
+      )
+    ) {
+      return null;
+    }
+
+    return (
+      resetByDate.get(
+        targetDate
+      ) ||
+      null
+    );
+  }
+
+  function isResetActive(
+    dateValue
+  ) {
+    return (
+      getResetState(
+        dateValue
+      )?.active ===
+      true
+    );
+  }
+
+  function clearCofiringPreview() {
+    [
+      "efficiencyMorningMeetingCofiringUnit1CoalUsage",
+      "efficiencyMorningMeetingCofiringUnit1BioUsage",
+      "efficiencyMorningMeetingCofiringUnit1BioRatio",
+      "efficiencyMorningMeetingCofiringUnit2CoalUsage",
+      "efficiencyMorningMeetingCofiringUnit2BioUsage",
+      "efficiencyMorningMeetingCofiringUnit2BioRatio",
+      "efficiencyMorningMeetingCofiringUnit1OrganicInput",
+      "efficiencyMorningMeetingCofiringUnit1OrganicRatio",
+      "efficiencyMorningMeetingCofiringUnit1TotalRatio",
+      "efficiencyMorningMeetingCofiringUnit2OrganicInput",
+      "efficiencyMorningMeetingCofiringUnit2OrganicRatio",
+      "efficiencyMorningMeetingCofiringUnit2TotalRatio"
+    ].forEach(
+      elementId => {
+        const element =
+          document.getElementById(
+            elementId
+          );
+
+        if (
+          element &&
+          element.textContent !==
+            "-"
+        ) {
+          element.textContent =
+            "-";
+        }
+      }
+    );
+
+    const status =
+      document.getElementById(
+        "efficiencyMorningMeetingCofiringStatus"
+      );
+
+    if (
+      status
+    ) {
+      status.classList.remove(
+        "is-loading",
+        "is-complete",
+        "is-error"
+      );
+
+      if (
+        status.textContent !==
+          "조회 대기"
+      ) {
+        status.textContent =
+          "조회 대기";
+      }
+    }
+  }
+
+  function bindCofiringResetGuard() {
+    const card =
+      document.getElementById(
+        "efficiencyMorningMeetingAutoCofiringCard"
+      );
+
+    if (
+      !card ||
+      guardedCofiringCard ===
+        card
+    ) {
+      return;
+    }
+
+    cofiringGuardObserver
+      ?.disconnect();
+
+    guardedCofiringCard =
+      card;
+
+    cofiringGuardObserver =
+      new MutationObserver(
+        () => {
+          const selectedDate =
+            getSelectedBaseDate();
+
+          if (
+            isResetActive(
+              selectedDate
+            )
+          ) {
+            clearCofiringPreview();
+          }
+        }
+      );
+
+    cofiringGuardObserver.observe(
+      card,
+      {
+        subtree:
+          true,
+
+        childList:
+          true,
+
+        characterData:
+          true,
+
+        attributes:
+          true,
+
+        attributeFilter: [
+          "class"
+        ]
+      }
+    );
+  }
+
+  function renderSelectedDateScope(
+    targetDate
+  ) {
+    if (
+      getSelectedBaseDate() !==
+        targetDate
+    ) {
+      return;
+    }
+
+    if (
+      isResetActive(
+        targetDate
+      )
+    ) {
+      const panel =
+        document.getElementById(
+          "efficiencyMorningMeetingWaterPanel"
+        );
+
+      if (
+        panel
+      ) {
+        [
+          "waterStatus",
+          "gearPinionStatus",
+          "siloLevelStatus",
+          "steamStatusStatus"
+        ].forEach(
+          key => {
+            panel.dataset[
+              key
+            ] =
+              "idle";
+          }
+        );
+      }
+
+      const state =
+        window.efficiencyMorningMeetingUploadState ||
+        {};
+
+      const meetingDate =
+        addDateDays(
+          targetDate,
+          1
+        );
+
+      if (
+        state.smpPriceMeetingDate ===
+          meetingDate
+      ) {
+        state.smpPriceMeeting =
+          null;
+
+        state.smpPrice =
+          null;
+
+        state.smpPriceLoadingDate =
+          "";
+
+        state.smpPriceError =
+          "";
+
+        state.smpPriceErrorDate =
+          "";
+      }
+
+      if (
+        state.morningWeatherDate ===
+          meetingDate
+      ) {
+        state.morningWeather =
+          null;
+
+        state.morningWeatherError =
+          "";
+      }
+
+      clearCofiringPreview();
+
+      bindCofiringResetGuard();
+    }
+
+    window
+      .renderEfficiencyMorningMeetingAutoPreview?.();
+
+    window
+      .renderEfficiencyMorningMeetingSiloLevelPreview?.();
+
+    window
+      .renderEfficiencyMorningMeetingDailyData?.();
+
+    window
+      .renderEfficiencyMorningMeetingSmpPrice?.();
+
+    window
+      .renderEfficiencyMorningMeetingWeather?.();
+
+    if (
+      !isResetActive(
+        targetDate
+      )
+    ) {
+      void window
+        .refreshMorningMeetingCofiringCard?.();
+    }
+
+    window
+      .updateEfficiencyMorningMeetingCreateButton?.();
+
+    window
+      .morningMeetingQuerySources
+      ?.render?.();
+  }
+
+  function applyResetState(
+    sourceItem
+  ) {
+    const item =
+      normalizeResetItem(
+        sourceItem
+      );
+
+    if (
+      !item
+    ) {
+      return null;
+    }
+
+
+    const currentItem =
+      resetByDate.get(
+        item.targetDate
+      ) ||
+      null;
+
+
+    /*
+      늦게 도착한 completed_history/status 응답이
+      더 최신 mutation 결과를 되돌리지 못하게 한다.
+    */
+    if (
+      currentItem &&
+      (
+        currentItem.revision >
+          item.revision ||
+
+        (
+          currentItem.revision ===
+            item.revision &&
+          !isSameResetItem(
+            currentItem,
+            item
+          )
+        )
+      )
+    ) {
+      return {
+        ...currentItem
+      };
+    }
+
+    resetByDate.set(
+      item.targetDate,
+      item
+    );
+
+    const state =
+      window.efficiencyMorningMeetingUploadState ||
+      (window.efficiencyMorningMeetingUploadState =
+        {});
+
+    if (
+      !state.morningMeetingResetByDate ||
+      typeof state.morningMeetingResetByDate !==
+        "object" ||
+      Array.isArray(
+        state.morningMeetingResetByDate
+      )
+    ) {
+      state.morningMeetingResetByDate =
+        {};
+    }
+
+    state.morningMeetingResetByDate[
+      item.targetDate
+    ] = {
+      ...item
+    };
+
+    if (
+      item.active &&
+      getSelectedBaseDate() ===
+        item.targetDate
+    ) {
+      invalidateAutoDataCacheForDate(
+        item.targetDate
+      );
+    }
+
+    renderSelectedDateScope(
+      item.targetDate
+    );
+
+    document.dispatchEvent(
+      new CustomEvent(
+        "morningMeetingSelectedDateResetStateChanged",
+        {
+          detail: {
+            ...item
+          }
+        }
+      )
+    );
+
+    return {
+      ...item
+    };
+  }
+
+  window.applyMorningMeetingSelectedDateResetState =
+    applyResetState;
+
+  window.getMorningMeetingSelectedDateResetState =
+    getResetState;
+
+  window.isMorningMeetingSelectedDateResetActive =
+    isResetActive;
+
+  window.invalidateMorningMeetingAutoDataCacheForDate =
+    invalidateAutoDataCacheForDate;
 })();
 
 /* =========================================================
@@ -216854,6 +217943,14 @@ function formatRate(
       resolveTargetDate();
 
 
+    const isResetActive =
+      window
+        .isMorningMeetingSelectedDateResetActive?.(
+          currentTargetDate
+        ) ===
+      true;
+
+
     const resultDate =
       normalizeText(
         result?.sourceDate ||
@@ -217039,6 +218136,14 @@ function formatRate(
     ==================================================== */
 
     if (
+      isResetActive
+    ) {
+      setStatusBadge(
+        "idle",
+        "조회 대기"
+      );
+
+    } else if (
       hasDateMismatch
     ) {
       setStatusBadge(
@@ -217087,6 +218192,7 @@ function formatRate(
 
 
     const hideValues =
+      isResetActive ||
       hasDateMismatch ||
       !hasCompleteValues;
 
@@ -217498,7 +218604,9 @@ if (
 
 
     const sourceTitle =
-      errorMessage ||
+      isResetActive
+        ? `${currentTargetDate} 전체 초기화 상태`
+        : errorMessage ||
       [
         resultDate,
         normalizeText(
@@ -220507,6 +221615,43 @@ const state =
   getState();
 
 
+const baseDate =
+  getBaseDate();
+
+
+const resetMeetingDate =
+  isIsoDate(
+    baseDate
+  )
+    ? addDays(
+        baseDate,
+        1
+      )
+    : "";
+
+
+if (
+  targetDate ===
+    resetMeetingDate &&
+  window
+    .isMorningMeetingSelectedDateResetActive?.(
+      baseDate
+    ) ===
+    true
+) {
+  return {
+    item:
+      null,
+
+    status:
+      "idle",
+
+    error:
+      ""
+  };
+}
+
+
 const item =
   state.smpPriceByDate[
     targetDate
@@ -220698,6 +221843,21 @@ let status =
     const state =
       getState();
 
+    const baseDate =
+      getBaseDate();
+
+    const suppressMeetingDate =
+      meetingDate ===
+        addDays(
+          baseDate,
+          1
+        ) &&
+      window
+        .isMorningMeetingSelectedDateResetActive?.(
+          baseDate
+        ) ===
+        true;
+
     const meetingStatus =
       text(
         state.smpPriceStatusByDate[
@@ -220725,24 +221885,30 @@ let status =
       meetingDate;
 
     state.smpPriceMeeting =
-      state.smpPriceByDate[
-        meetingDate
-      ] ||
-      null;
+      suppressMeetingDate
+        ? null
+        : state.smpPriceByDate[
+            meetingDate
+          ] ||
+          null;
 
     state.smpPrice =
       state.smpPriceMeeting;
 
     state.smpPriceLoadingDate =
+      !suppressMeetingDate &&
       meetingStatus ===
       "loading"
         ? meetingDate
         : "";
 
     state.smpPriceError =
-      meetingError;
+      suppressMeetingDate
+        ? ""
+        : meetingError;
 
     state.smpPriceErrorDate =
+      !suppressMeetingDate &&
       meetingError
         ? meetingDate
         : "";
@@ -221167,7 +222333,8 @@ function normalizeResult(
   async function loadDate(
     targetDate,
     forceRefresh,
-    sequence
+    sequence,
+    requireFresh = false
   ) {
     const state =
       getState();
@@ -221279,6 +222446,7 @@ function normalizeResult(
         state.smpPriceStatusByDate[
           targetDate
         ] =
+          !requireFresh &&
           cachedItem
             ? "complete"
             : "unavailable";
@@ -221290,6 +222458,16 @@ function normalizeResult(
             result?.message
           ) ||
           `${targetDate} 육지 SMP 자료가 아직 없습니다.`;
+
+        if (
+          requireFresh
+        ) {
+          throw new Error(
+            state.smpPriceErrorByDate[
+              targetDate
+            ]
+          );
+        }
 
         return cachedItem;
       }
@@ -221345,12 +222523,21 @@ function normalizeResult(
         sequence !==
           requestSequence
       ) {
+        if (
+          requireFresh
+        ) {
+          throw new Error(
+            `${targetDate} SMP 신규 조회가 중단되었습니다.`
+          );
+        }
+
         return null;
       }
 
       state.smpPriceStatusByDate[
         targetDate
       ] =
+        !requireFresh &&
         cachedItem
           ? "complete"
           : "error";
@@ -221367,6 +222554,12 @@ function normalizeResult(
         `오전회의 ${targetDate} SMP 조회 실패:`,
         error
       );
+
+      if (
+        requireFresh
+      ) {
+        throw error;
+      }
 
       return cachedItem;
 
@@ -221393,6 +222586,10 @@ async function load(
 ) {
   const forceRefresh =
     options.forceRefresh ===
+    true;
+
+  const requireFresh =
+    options.requireFresh ===
     true;
 
   const cacheFirst =
@@ -221450,7 +222647,8 @@ async function load(
           return loadDate(
             dateValue,
             forceRefresh,
-            sequence
+            sequence,
+            requireFresh
           );
         }
       )
@@ -221461,6 +222659,18 @@ async function load(
     requestSequence
   ) {
     return null;
+  }
+
+  if (
+    requireFresh &&
+    items.some(
+      item =>
+        !item
+    )
+  ) {
+    throw new Error(
+      "표시된 모든 SMP 날짜의 신규 조회를 완료하지 못했습니다."
+    );
   }
 
   render();
@@ -222690,6 +223900,35 @@ function render() {
     return;
   }
 
+
+  const baseDate =
+    getBaseDate();
+
+
+  if (
+    window
+      .isMorningMeetingSelectedDateResetActive?.(
+        baseDate
+      ) ===
+      true
+  ) {
+    setWaitingValues(
+      "조회 대기",
+      "#7c8799",
+      `${baseDate} 전체 초기화 상태`
+    );
+
+    card.title =
+      `${baseDate} 전체 초기화 상태`;
+
+    syncState(
+      meetingDate,
+      null
+    );
+
+    return;
+  }
+
   const item =
     weatherByDate.get(
       meetingDate
@@ -222975,6 +224214,10 @@ async function load(
 ) {
   const forceRefresh =
     options.forceRefresh ===
+    true;
+
+  const requireFresh =
+    options.requireFresh ===
     true;
 
   const userInitiated =
@@ -223404,6 +224647,14 @@ async function load(
         sequence !==
           requestSequence
       ) {
+        if (
+          requireFresh
+        ) {
+          throw new Error(
+            `${meetingDate} 신북 날씨 신규 조회가 중단되었습니다.`
+          );
+        }
+
         return null;
       }
 
@@ -223415,6 +224666,7 @@ async function load(
 
       statusByDate.set(
         meetingDate,
+        !requireFresh &&
         cachedItem
           ? "complete"
           : "error"
@@ -223430,6 +224682,12 @@ async function load(
         `${FORECAST_HOUR} 날씨누리 조회 실패:`,
         error
       );
+
+      if (
+        requireFresh
+      ) {
+        throw error;
+      }
 
       return cachedItem;
 
@@ -223984,6 +225242,84 @@ async function load(
   }
 
 
+  function addDays(
+    dateValue,
+    amount
+  ) {
+    if (
+      !isIsoDate(
+        dateValue
+      )
+    ) {
+      return "";
+    }
+
+    const parsedDate =
+      new Date(
+        `${dateValue}T00:00:00.000Z`
+      );
+
+    parsedDate.setUTCDate(
+      parsedDate.getUTCDate() +
+      Number(
+        amount ||
+        0
+      )
+    );
+
+    return parsedDate
+      .toISOString()
+      .slice(
+        0,
+        10
+      );
+  }
+
+
+  function getSelectedBaseDate() {
+    return clean(
+      document.getElementById(
+        "efficiencyMorningMeetingWaterPanel"
+      )?.dataset
+        ?.morningMeetingAutoBaseDate
+    );
+  }
+
+
+  function isSelectedResetActive() {
+    const baseDate =
+      getSelectedBaseDate();
+
+    return (
+      isIsoDate(
+        baseDate
+      ) &&
+      window
+        .isMorningMeetingSelectedDateResetActive?.(
+          baseDate
+        ) ===
+        true
+    );
+  }
+
+
+  function isResetMeetingDate(
+    targetDate
+  ) {
+    const baseDate =
+      getSelectedBaseDate();
+
+    return (
+      isSelectedResetActive() &&
+      targetDate ===
+        addDays(
+          baseDate,
+          1
+        )
+    );
+  }
+
+
   function getState() {
     if (
       !window.efficiencyMorningMeetingUploadState ||
@@ -224137,6 +225473,14 @@ async function load(
     targetDate,
     value
   ) {
+    if (
+      isResetMeetingDate(
+        targetDate
+      )
+    ) {
+      return false;
+    }
+
     const item =
       normalizeOverride(
         targetDate,
@@ -224574,6 +225918,16 @@ container.style.flexShrink = "0";
     refreshFrame =
       0;
 
+    const resetActive =
+      isSelectedResetActive();
+
+    if (
+      resetActive
+    ) {
+      editing =
+        false;
+    }
+
     ensureStyle();
     ensureButtons();
 
@@ -224598,6 +225952,9 @@ container.style.flexShrink = "0";
     );
 
     if (editButton) {
+      editButton.hidden =
+        resetActive;
+
       const nextText =
         editing
           ? "저장"
@@ -224657,6 +226014,12 @@ container.style.flexShrink = "0";
 
 
   function enterEditMode() {
+    if (
+      isSelectedResetActive()
+    ) {
+      return;
+    }
+
     if (
       getDisplayedDates().length ===
         0
@@ -224885,6 +226248,21 @@ container.style.flexShrink = "0";
 
 
   function saveEditedValues() {
+    if (
+      isSelectedResetActive()
+    ) {
+      editing =
+        false;
+
+      refreshEditorUi();
+
+      showMessage(
+        "초기화된 날짜의 SMP는 전체자료 재조회 후 수정해 주세요."
+      );
+
+      return;
+    }
+
     let items;
 
     try {
@@ -224910,6 +226288,12 @@ container.style.flexShrink = "0";
         "저장할 SMP 단가를 입력해 주세요."
       );
 
+      return;
+    }
+
+    if (
+      isSelectedResetActive()
+    ) {
       return;
     }
 
@@ -229036,6 +230420,46 @@ function initializeLimestoneSlipCameraPicker() {
   }
 
 
+  function hasBulkSourceCompleteStatus(
+    item
+  ) {
+    const panel =
+      document.getElementById(
+        "efficiencyMorningMeetingWaterPanel"
+      );
+
+    const sourceStatuses = {
+      water:
+        panel?.dataset
+          ?.waterStatus,
+
+      "gear-pinion":
+        panel?.dataset
+          ?.gearPinionStatus,
+
+      "silo-level":
+        panel?.dataset
+          ?.siloLevelStatus,
+
+      limestone:
+        document.getElementById(
+          "limestoneUsageCalculatorView"
+        )?.dataset
+          ?.limestoneUsageStatus
+    };
+
+    return String(
+      sourceStatuses[
+        item?.key
+      ] ||
+      ""
+    )
+      .trim()
+      .toLowerCase() ===
+      "complete";
+  }
+
+
   function getBulkCurrentBaseDate() {
     const panel =
       document.getElementById(
@@ -229561,7 +230985,13 @@ function initializeLimestoneSlipCameraPicker() {
   }
 
 
-  async function loadLimestoneForBulk() {
+  async function loadLimestoneForBulk(
+    options = {}
+  ) {
+    const forceRefresh =
+      options.forceRefresh ===
+      true;
+
     const targetDate =
       String(
         document.getElementById(
@@ -229576,6 +231006,7 @@ function initializeLimestoneSlipCameraPicker() {
 
 
     if (
+      !forceRefresh &&
       /^\d{4}-\d{2}-\d{2}$/.test(
         targetDate
       ) &&
@@ -229619,14 +231050,56 @@ function initializeLimestoneSlipCameraPicker() {
     }
 
 
-    return await window
-      .loadLimestoneOisStock?.({
-        forceRefresh:
-          false
-      });
+    const result =
+      await window
+        .loadLimestoneOisStock?.({
+          forceRefresh:
+            forceRefresh
+        });
+
+
+    if (
+      result !==
+        undefined &&
+      result !==
+        null
+    ) {
+      return result;
+    }
+
+
+    const limestoneSourceStatus =
+      String(
+        document.getElementById(
+          "limestoneUsageCalculatorView"
+        )?.dataset
+          ?.limestoneUsageStatus ||
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    return limestoneSourceStatus ===
+      "complete" ||
+      hasBulkCompleteStatus([
+        "efficiencyMorningMeetingAutoLimestoneStatus"
+      ])
+      ? true
+      : result;
   }
 
-  async function loadWeatherForBulk() {
+  async function loadWeatherForBulk(
+    options = {}
+  ) {
+    const forceRefresh =
+      options.forceRefresh ===
+      true;
+
+    const requireFresh =
+      options.requireFresh ===
+      true;
+
     const loader =
       window
         .loadEfficiencyMorningMeetingWeather;
@@ -229636,6 +231109,20 @@ function initializeLimestoneSlipCameraPicker() {
         "function"
     ) {
       return null;
+    }
+
+    if (
+      forceRefresh
+    ) {
+      return await loader({
+        forceRefresh:
+          true,
+
+        userInitiated:
+          true,
+
+        requireFresh
+      });
     }
 
     const restored =
@@ -229667,6 +231154,20 @@ function initializeLimestoneSlipCameraPicker() {
 
 
   function createBulkLookupItems() {
+    const options =
+      arguments[0] &&
+      typeof arguments[0] ===
+        "object"
+        ? arguments[0]
+        : {};
+
+    const forceRefresh =
+      options.forceRefresh ===
+      true;
+
+    const requireFresh =
+      forceRefresh;
+
     return [
       {
         key:
@@ -229674,6 +231175,8 @@ function initializeLimestoneSlipCameraPicker() {
 
         alwaysLoad:
           true,
+
+        forceRefresh,
 
         label:
           "수처리 현황",
@@ -229687,13 +231190,15 @@ function initializeLimestoneSlipCameraPicker() {
             window
               .loadEfficiencyMorningMeetingWaterTreatment?.({
                 forceRefresh:
-                  false
+                  forceRefresh
               })
       },
 
       {
         key:
           "limestone",
+
+        forceRefresh,
 
         label:
           "석회석 현황",
@@ -229703,7 +231208,10 @@ function initializeLimestoneSlipCameraPicker() {
         ],
 
         load:
-          loadLimestoneForBulk
+          () =>
+            loadLimestoneForBulk({
+              forceRefresh
+            })
       },
 
       {
@@ -229712,6 +231220,8 @@ function initializeLimestoneSlipCameraPicker() {
 
         requireCurrentDate:
           true,
+
+        forceRefresh,
 
         label:
           "Gear Wheel / Pinion",
@@ -229725,13 +231235,15 @@ function initializeLimestoneSlipCameraPicker() {
             window
               .loadEfficiencyMorningMeetingGearPinion?.({
                 forceRefresh:
-                  false
+                  forceRefresh
               })
       },
 
       {
         key:
           "silo-level",
+
+        forceRefresh,
 
         label:
           "Silo Level",
@@ -229745,7 +231257,7 @@ function initializeLimestoneSlipCameraPicker() {
             window
               .loadEfficiencyMorningMeetingSiloLevel?.({
                 forceRefresh:
-                  false
+                  forceRefresh
               })
       },
       {
@@ -229755,6 +231267,8 @@ function initializeLimestoneSlipCameraPicker() {
         alwaysLoad:
           true,
 
+        forceRefresh,
+
         label:
           "SMP 단가",
 
@@ -229763,10 +231277,12 @@ function initializeLimestoneSlipCameraPicker() {
             window
               .loadEfficiencyMorningMeetingSmpPrice?.({
                 forceRefresh:
-                  false,
+                  forceRefresh,
 
                 cacheFirst:
-                  true
+                  !forceRefresh,
+
+                requireFresh
               })
       },
 
@@ -229777,11 +231293,17 @@ function initializeLimestoneSlipCameraPicker() {
         alwaysLoad:
           true,
 
+        forceRefresh,
+
         label:
           "신북 날씨",
 
         load:
-          loadWeatherForBulk
+          () =>
+            loadWeatherForBulk({
+              forceRefresh,
+              requireFresh
+            })
       },
 
 
@@ -229800,12 +231322,17 @@ function initializeLimestoneSlipCameraPicker() {
       item?.alwaysLoad ===
         true;
 
+    const forceRefresh =
+      item?.forceRefresh ===
+        true;
+
     const currentDateMatches =
       isBulkItemCurrentDate(
         item
       );
 
     if (
+      !forceRefresh &&
       !shouldAlwaysLoad &&
       currentDateMatches &&
       hasBulkCompleteStatus(
@@ -229823,6 +231350,7 @@ function initializeLimestoneSlipCameraPicker() {
 
 
     if (
+      !forceRefresh &&
       !shouldAlwaysLoad &&
       currentDateMatches &&
       hasBulkLoadingStatus(
@@ -229871,13 +231399,30 @@ function initializeLimestoneSlipCameraPicker() {
         await item.load();
 
 
-      if (
-        item?.requireResult ===
-          true &&
+      const normalizedResult =
         (
           result ===
             null ||
           result ===
+            undefined
+        ) &&
+        hasBulkSourceCompleteStatus(
+          item
+        )
+          ? true
+          : result;
+
+
+      if (
+        (
+          item?.requireResult ===
+            true ||
+          forceRefresh
+        ) &&
+        (
+          normalizedResult ===
+            null ||
+          normalizedResult ===
             undefined
         )
       ) {
@@ -229898,7 +231443,8 @@ function initializeLimestoneSlipCameraPicker() {
         status:
           "fulfilled",
 
-        result
+        result:
+          normalizedResult
       };
 
     } finally {
@@ -229915,7 +231461,8 @@ function initializeLimestoneSlipCameraPicker() {
 
 
   function runBulkLookup(
-    button
+    button,
+    options = {}
   ) {
     if (
       bulkLookupPromise
@@ -229942,7 +231489,9 @@ function initializeLimestoneSlipCameraPicker() {
 
 
     const lookupPromises =
-      createBulkLookupItems()
+      createBulkLookupItems(
+        options
+      )
         .map(
           item =>
             runBulkLookupItem(
@@ -230526,7 +232075,8 @@ function initializeLimestoneSlipCameraPicker() {
 
         return button
           ? runBulkLookup(
-              button
+              button,
+              options
             )
           : Promise.resolve(
               []
@@ -234182,6 +235732,9 @@ if (
     restoringDate:
       "",
 
+    restoringResetDate:
+      "",
+
     editing:
       false,
 
@@ -234189,6 +235742,9 @@ if (
       0,
 
     initialized:
+      false,
+
+    applyingPayloadResets:
       false,
 
     rows:
@@ -234444,6 +236000,47 @@ if (
           10
         ) ===
         dateText
+    );
+  }
+
+
+  function canRestoreResetFromHistory() {
+    const navigatorValue =
+      window.navigator ||
+      {};
+
+    const isMobileViewport =
+      window
+        .matchMedia?.(
+          "(max-width: 900px)"
+        )
+        .matches ===
+      true;
+
+    const isMobileDevice =
+      /Android|iPhone|iPad|iPod|Mobile/i.test(
+        navigatorValue.userAgent ||
+        ""
+      ) ||
+      (
+        navigatorValue.platform ===
+          "MacIntel" &&
+        Number(
+          navigatorValue.maxTouchPoints
+        ) >
+          0
+      );
+
+    return (
+      !isMobileViewport &&
+      !isMobileDevice &&
+      typeof getShiftLogSessionToken ===
+        "function" &&
+      Boolean(
+        normalizeText(
+          getShiftLogSessionToken()
+        )
+      )
     );
   }
 
@@ -235750,6 +237347,160 @@ function mergeSavedRows(
       }
     };
 
+
+  /*
+    날짜별 전체 초기화 상태
+
+    초기화만 있고 원본 행이 없는 날짜도 기록 표에
+    표시해야 하므로 active 항목은 빈 행을 만든다.
+  */
+  const resetItems =
+    Array.isArray(
+      payloads
+        ?.completedPayload
+        ?.resets
+    )
+      ? payloads
+          .completedPayload
+          .resets
+      : [];
+
+
+  const resetByDate =
+    new Map();
+
+
+  const rememberResetItem =
+    item => {
+      const targetDate =
+        normalizeText(
+          item?.targetDate
+        );
+
+
+      if (
+        !isDateInRange(
+          targetDate
+        )
+      ) {
+        return;
+      }
+
+
+      const revision =
+        Number(
+          item?.revision
+        );
+
+
+      const normalizedReset = {
+        targetDate,
+
+        active:
+          item?.active ===
+          true,
+
+        resetAt:
+          normalizeText(
+            item?.resetAt
+          ),
+
+        resetById:
+          normalizeText(
+            item?.resetById
+          ),
+
+        resetByName:
+          normalizeText(
+            item?.resetByName
+          ),
+
+        restoredAt:
+          normalizeText(
+            item?.restoredAt
+          ),
+
+        revision:
+          Number.isInteger(
+            revision
+          ) &&
+          revision >=
+            0
+            ? revision
+            : 0
+      };
+
+
+      const currentReset =
+        resetByDate.get(
+          targetDate
+        );
+
+
+      if (
+        currentReset &&
+        currentReset.revision >
+          normalizedReset.revision
+      ) {
+        return;
+      }
+
+
+      resetByDate.set(
+        targetDate,
+        normalizedReset
+      );
+
+
+    };
+
+
+  resetItems.forEach(
+    rememberResetItem
+  );
+
+
+  /*
+    화면에서 이미 더 최신 reset mutation을 받은 경우
+    늦은 월 조회 응답보다 로컬의 revision을 우선한다.
+  */
+  const knownResetItems =
+    typeof window ===
+      "object"
+      ? window
+          .efficiencyMorningMeetingUploadState
+          ?.morningMeetingResetByDate
+      : null;
+
+
+  if (
+    knownResetItems &&
+    typeof knownResetItems ===
+      "object" &&
+    !Array.isArray(
+      knownResetItems
+    )
+  ) {
+    Object.values(
+      knownResetItems
+    ).forEach(
+      rememberResetItem
+    );
+  }
+
+
+  resetByDate.forEach(
+    item => {
+      if (
+        item.active
+      ) {
+        ensureRow(
+          item.targetDate
+        );
+      }
+    }
+  );
+
   /*
     기존 OIS 자동수치
   */
@@ -236099,18 +237850,86 @@ function mergeSavedRows(
         };
 
 
+        const resetItem =
+          resetByDate.get(
+            row.date
+          ) ||
+          null;
+
+
+        if (
+          resetItem?.active ===
+          true
+        ) {
+          return {
+            ...row,
+
+            water:
+              null,
+
+            limestone:
+              null,
+
+            gearPinion:
+              null,
+
+            silo:
+              null,
+
+            dailyData:
+              null,
+
+            smp:
+              null,
+
+            smpDate,
+
+            weather:
+              null,
+
+            weatherDate,
+
+            override:
+              null,
+
+            overrideRevision:
+              resetItem.revision,
+
+            hasOverride:
+              false,
+
+            morningMeetingAutoHistoryOverride:
+              null,
+
+            morningMeetingReset:
+              resetItem
+          };
+        }
+
+
         const overrideItem =
           overrideByDate.get(
             row.date
           );
 
 
-        return overrideItem
-          ? applyMorningMeetingAutoHistoryOverride(
-              rowWithSmp,
-              overrideItem
-            )
-          : rowWithSmp;
+        const mergedRow =
+          overrideItem
+            ? applyMorningMeetingAutoHistoryOverride(
+                rowWithSmp,
+                overrideItem
+              )
+            : rowWithSmp;
+
+
+        return resetItem
+          ? {
+              ...mergedRow,
+
+              morningMeetingReset:
+                resetItem
+            }
+          : mergedRow;
       }
     )
     .sort(
@@ -237168,6 +238987,8 @@ function createEditableValueCell(
     !state.editing ||
     isMobile ||
     !row ||
+    row?.morningMeetingReset?.active ===
+      true ||
     !isIsoDate(
       row.date
     ) ||
@@ -237595,6 +239416,18 @@ function renderRows(
       tableRow.dataset.recordDate =
         row.date;
 
+      const activeReset =
+        row
+          ?.morningMeetingReset
+          ?.active ===
+        true;
+
+
+      tableRow.classList.toggle(
+        "is-reset-active",
+        activeReset
+      );
+
       const dateCell =
         document.createElement(
           "td"
@@ -237644,6 +239477,75 @@ function renderRows(
       if (
         !isMobile &&
         !state.editing &&
+        activeReset &&
+        canRestoreResetFromHistory()
+      ) {
+        const restoreButton =
+          document.createElement(
+            "button"
+          );
+
+        const isRestoringThisDate =
+          state.restoringResetDate ===
+          row.date;
+
+        const resetRevision =
+          Number(
+            row
+              ?.morningMeetingReset
+              ?.revision
+          );
+
+        restoreButton.type =
+          "button";
+
+        restoreButton.className =
+          "auto-history-blank-restore-button is-reset-undo";
+
+        restoreButton.textContent =
+          isRestoringThisDate
+            ? "취소 중"
+            : "초기화 취소";
+
+        restoreButton.title =
+          `${row.date} 전체 초기화를 취소하고 저장된 원본을 복원`;
+
+        restoreButton.setAttribute(
+          "aria-label",
+          restoreButton.title
+        );
+
+        restoreButton.dataset
+          .autoHistoryResetRestoreDate =
+          row.date;
+
+        restoreButton.dataset
+          .autoHistoryResetRevision =
+          String(
+            Number.isInteger(
+              resetRevision
+            ) &&
+            resetRevision >=
+              0
+              ? resetRevision
+              : 0
+          );
+
+        restoreButton.disabled =
+          Boolean(
+            state.loading ||
+            state.saving ||
+            state.restoringDate ||
+            state.restoringResetDate
+          );
+
+        dateCell.appendChild(
+          restoreButton
+        );
+
+      } else if (
+        !isMobile &&
+        !state.editing &&
         blankOverrideFields.length > 0
       ) {
         const restoreButton =
@@ -237688,7 +239590,8 @@ function renderRows(
           Boolean(
             state.loading ||
             state.saving ||
-            state.restoringDate
+            state.restoringDate ||
+            state.restoringResetDate
           );
 
         dateCell.appendChild(
@@ -238643,6 +240546,9 @@ function updateMonthControls() {
     state.saving ||
     Boolean(
       state.restoringDate
+    ) ||
+    Boolean(
+      state.restoringResetDate
     );
 
   const hasRows =
@@ -238828,6 +240734,12 @@ function updateMonthControls() {
         "수정값 저장 중";
 
     } else if (
+      state.restoringResetDate
+    ) {
+      elements.status.textContent =
+        `${state.restoringResetDate} 초기화 취소 중`;
+
+    } else if (
       state.restoringDate
     ) {
       elements.status.textContent =
@@ -238986,6 +240898,43 @@ function renderPayloads(
   payloads,
   monthValue
 ) {
+  const resetItems =
+    Array.isArray(
+      payloads
+        ?.completedPayload
+        ?.resets
+    )
+      ? payloads
+          .completedPayload
+          .resets
+      : [];
+
+
+  if (
+    typeof window
+      .applyMorningMeetingSelectedDateResetState ===
+      "function"
+  ) {
+    state.applyingPayloadResets =
+      true;
+
+    try {
+      resetItems.forEach(
+        item => {
+          window
+            .applyMorningMeetingSelectedDateResetState(
+              item
+            );
+        }
+      );
+
+    } finally {
+      state.applyingPayloadResets =
+        false;
+    }
+  }
+
+
   const rows =
     mergeSavedRows(
       payloads,
@@ -239066,7 +241015,8 @@ function renderPayloads(
 
 
     if (
-      state.loading
+      state.loading &&
+      !forceRefresh
     ) {
       return false;
     }
@@ -239173,7 +241123,8 @@ async function restoreMorningMeetingAutoHistoryBlankValues(
     state.loading ||
     state.saving ||
     state.editing ||
-    state.restoringDate
+    state.restoringDate ||
+    state.restoringResetDate
   ) {
     return;
   }
@@ -239473,9 +241424,195 @@ async function restoreMorningMeetingAutoHistoryBlankValues(
   );
 }
 
+
+/* =====================================================
+  날짜별 전체 초기화 취소
+
+  실제 POST·확인·409 처리는 상단 조회 제어기가 전담한다.
+  여기서는 자동수치 기록 행을 잠그고, 성공한 응답만
+  월 캐시에 반영해 기존 원본을 즉시 다시 병합한다.
+====================================================== */
+
+async function restoreMorningMeetingAutoHistoryReset(
+  targetDate
+) {
+  if (
+    state.loading ||
+    state.saving ||
+    state.editing ||
+    state.restoringDate ||
+    state.restoringResetDate
+  ) {
+    return null;
+  }
+
+
+  const normalizedTargetDate =
+    normalizeText(
+      targetDate
+    );
+
+
+  const row =
+    state.rows.find(
+      item =>
+        item?.date ===
+        normalizedTargetDate
+    );
+
+
+  const resetItem =
+    row?.morningMeetingReset;
+
+
+  if (
+    !isIsoDate(
+      normalizedTargetDate
+    ) ||
+    resetItem?.active !==
+      true ||
+    typeof window
+      .morningMeetingQuerySources
+      ?.restoreReset !==
+      "function"
+  ) {
+    return null;
+  }
+
+
+  const revision =
+    Number(
+      resetItem.revision
+    );
+
+
+  if (
+    !Number.isInteger(
+      revision
+    ) ||
+    revision <
+      0
+  ) {
+    return null;
+  }
+
+
+  state.restoringResetDate =
+    normalizedTargetDate;
+
+
+  renderRows(
+    state.rows
+  );
+
+
+  updateMonthControls();
+
+
+  let restoredItem =
+    null;
+
+
+  try {
+    restoredItem =
+      await window
+        .morningMeetingQuerySources
+        .restoreReset(
+          normalizedTargetDate,
+          {
+            userInitiated:
+              true,
+
+            expectedRevision:
+              revision
+          }
+        );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "오전회의 자동수치 전체 초기화 취소 오류:",
+      error
+    );
+
+    if (
+      typeof window.showToast ===
+        "function"
+    ) {
+      window.showToast(
+        error instanceof Error
+          ? error.message
+          : "전체 초기화를 취소하지 못했습니다.",
+        2600
+      );
+    }
+  }
+
+
+  state.restoringResetDate =
+    "";
+
+
+  if (
+    !restoredItem ||
+    restoredItem.active ===
+      true
+  ) {
+    renderRows(
+      state.rows
+    );
+
+    updateMonthControls();
+
+    return null;
+  }
+
+
+  window
+    .applyMorningMeetingSelectedDateResetState?.(
+      restoredItem
+    );
+
+
+  /*
+    active 상태에서 받은 completed_history는 서버가
+    초기화 이전 원본을 숨긴 응답일 수 있다. 따라서
+    marker만 바꿔 재사용하지 않고 월 자료를 새로 읽는다.
+  */
+  state.cache.delete(
+    state.month
+  );
+
+
+  const refreshSucceeded =
+    await loadMonth({
+      forceRefresh:
+        true
+    });
+
+
+  if (
+    refreshSucceeded !==
+      true &&
+    typeof window.showToast ===
+      "function"
+  ) {
+    window.showToast(
+      `${normalizedTargetDate} 초기화 취소는 완료됐지만 자동수치 기록을 다시 불러오지 못했습니다. 목록 새로고침을 눌러 주세요.`,
+      3200
+    );
+  }
+
+
+  return restoredItem;
+}
+
 async function saveMorningMeetingAutoHistoryDrafts() {
   if (
     state.saving ||
+    state.restoringDate ||
+    state.restoringResetDate ||
     !state.editing ||
     !(state.drafts instanceof Map) ||
     state.drafts.size < 1
@@ -240283,6 +242420,31 @@ elements
   ?.addEventListener(
     "click",
     event => {
+      const resetRestoreButton =
+        event.target
+          ?.closest
+          ?.(
+            "button[data-auto-history-reset-restore-date]"
+          );
+
+      if (
+        resetRestoreButton &&
+        !resetRestoreButton.disabled
+      ) {
+        const targetDate =
+          normalizeText(
+            resetRestoreButton.dataset
+              .autoHistoryResetRestoreDate
+          );
+
+        void restoreMorningMeetingAutoHistoryReset(
+          targetDate
+        );
+
+        return;
+      }
+
+
       const restoreButton =
         event.target
           ?.closest
@@ -240787,6 +242949,160 @@ function initialize() {
 
     void loadMonth();
   }
+
+
+  /*
+    상단 초기화 버튼의 응답을 이미 읽어 둔 월 캐시에도
+    날짜 단위로 반영한다. 다른 월과 다른 날짜 캐시는
+    건드리지 않는다.
+  */
+  document.addEventListener(
+    "morningMeetingSelectedDateResetStateChanged",
+    event => {
+      if (
+        state.applyingPayloadResets
+      ) {
+        return;
+      }
+
+
+      const item =
+        event?.detail;
+
+
+      const targetDate =
+        normalizeText(
+          item?.targetDate
+        );
+
+
+      if (
+        !isIsoDate(
+          targetDate
+        )
+      ) {
+        return;
+      }
+
+
+      const targetMonth =
+        targetDate.slice(
+          0,
+          7
+        );
+
+
+      const cachedPayloads =
+        state.cache.get(
+          targetMonth
+        );
+
+
+      if (
+        !cachedPayloads ||
+        typeof cachedPayloads !==
+          "object"
+      ) {
+        if (
+          item?.active !==
+            true &&
+          state.month ===
+            targetMonth &&
+          state.initialized &&
+          !state.restoringResetDate
+        ) {
+          void loadMonth({
+            forceRefresh:
+              true
+          });
+        }
+
+        return;
+      }
+
+
+      const completedPayload =
+        cachedPayloads.completedPayload &&
+        typeof cachedPayloads.completedPayload ===
+          "object"
+          ? cachedPayloads.completedPayload
+          : {};
+
+
+      const currentResets =
+        Array.isArray(
+          completedPayload.resets
+        )
+          ? completedPayload.resets
+          : [];
+
+
+      const previousReset =
+        currentResets.find(
+          currentItem => {
+            return normalizeText(
+              currentItem?.targetDate
+            ) ===
+              targetDate;
+          }
+        ) ||
+        null;
+
+
+      if (
+        previousReset?.active ===
+          true &&
+        item?.active !==
+          true
+      ) {
+        state.cache.delete(
+          targetMonth
+        );
+
+        if (
+          state.month ===
+            targetMonth &&
+          state.initialized &&
+          !state.restoringResetDate
+        ) {
+          void loadMonth({
+            forceRefresh:
+              true
+          });
+        }
+
+        return;
+      }
+
+
+      cachedPayloads.completedPayload = {
+        ...completedPayload,
+
+        resets: [
+          ...currentResets.filter(
+            currentItem => {
+              return normalizeText(
+                currentItem?.targetDate
+              ) !==
+                targetDate;
+            }
+          ),
+          item
+        ]
+      };
+
+
+      if (
+        state.month ===
+          targetMonth
+      ) {
+        renderPayloads(
+          cachedPayloads,
+          targetMonth
+        );
+      }
+    }
+  );
 
 
   /* =====================================================
@@ -242589,6 +244905,12 @@ function initializeDailyControls() {
   const STORAGE_KEY =
     "gs-shift-log:morning-meeting:smp-manual-overrides:v1";
 
+  const deferredFreshItemsByRecordDate =
+    new Map();
+
+  const deferredPersistRequestsByRecordDate =
+    new Map();
+
   const clean =
     value =>
       String(
@@ -242751,6 +245073,110 @@ function initializeDailyControls() {
         item?.isManual ===
           true
     };
+  }
+
+
+  function isRecordDateResetActive(
+    recordDate
+  ) {
+    if (
+      !isIsoDate(
+        recordDate
+      )
+    ) {
+      return false;
+    }
+
+    try {
+      if (
+        window
+          .isMorningMeetingSelectedDateResetActive?.(
+            recordDate
+          ) ===
+        true
+      ) {
+        return true;
+      }
+
+      return (
+        window
+          .morningMeetingQuerySources
+          ?.resetState?.(
+            recordDate
+          )
+          ?.active ===
+        true
+      );
+
+    } catch (
+      error
+    ) {
+      console.warn(
+        "SMP D1 저장 전 초기화 상태 확인 실패:",
+        error
+      );
+
+      return true;
+    }
+  }
+
+
+  function synchronizeResetRevision(
+    recordDate,
+    savedItem
+  ) {
+    const revision =
+      Number(
+        savedItem?.revision
+      );
+
+    if (
+      !Number.isInteger(
+        revision
+      ) ||
+      revision <
+        1
+    ) {
+      return;
+    }
+
+    const controller =
+      window
+        .morningMeetingQuerySources;
+
+    if (
+      typeof controller
+        ?.applyResetState !==
+        "function"
+    ) {
+      return;
+    }
+
+    const currentItem =
+      controller
+        .resetState?.(
+          recordDate
+        ) ||
+      {};
+
+    if (
+      currentItem.active ===
+        true
+    ) {
+      return;
+    }
+
+    controller.applyResetState({
+      ...currentItem,
+
+      targetDate:
+        recordDate,
+
+      active:
+        false,
+
+      revision
+    });
   }
 
 
@@ -242925,17 +245351,21 @@ function initializeDailyControls() {
 
 
   async function persistItem(
-    rawItem
+    rawItem,
+    options = {}
   ) {
     const item =
-      applyAndStore(
+      normalizeItem(
         rawItem
       );
 
     if (
       !item
     ) {
-      return;
+      return {
+        status:
+          "invalid"
+      };
     }
 
     /*
@@ -242948,23 +245378,95 @@ function initializeDailyControls() {
         -1
       );
 
+    if (
+      !isIsoDate(
+        recordDate
+      )
+    ) {
+      return {
+        status:
+          "invalid"
+      };
+    }
+
+    /*
+      전체 초기화 중에는 fresh SMP를 화면 메모리에만 유지한다.
+      서버 보정값 저장은 release가 확정된 뒤 공개 flush에서 한 번 실행한다.
+    */
+    if (
+      isRecordDateResetActive(
+        recordDate
+      )
+    ) {
+      if (
+        item.isManual !==
+          true
+      ) {
+        deferredFreshItemsByRecordDate.set(
+          recordDate,
+          item
+        );
+      }
+
+      return {
+        status:
+          "deferred",
+
+        recordDate,
+
+        item
+      };
+    }
+
+    /*
+      초기화가 해제된 뒤에만 새 SMP를 로컬 보조 저장에도 확정한다.
+      loader가 만든 메모리 fresh 값은 위 deferred 경로에서도 그대로 유지된다.
+    */
+    const storedItem =
+      applyAndStore(
+        item
+      );
+
+    if (
+      !storedItem
+    ) {
+      return {
+        status:
+          "invalid"
+      };
+    }
+
     const values = {
       smpMinimum:
-        item.minimum,
+        storedItem.minimum,
 
       smpMaximum:
-        item.maximum,
+        storedItem.maximum,
 
       smpWeightedAverage:
-        item.weightedAverage
+        storedItem.weightedAverage
     };
+
+    const requestedRevision =
+      Number(
+        options.expectedRevision
+      );
+
+    const initialRevision =
+      Number.isInteger(
+        requestedRevision
+      ) &&
+      requestedRevision >=
+        0
+        ? requestedRevision
+        : 0;
 
     try {
       let result =
         await sendSaveRequest(
           recordDate,
           values,
-          0
+          initialRevision
         );
 
       /*
@@ -243011,6 +245513,25 @@ function initializeDailyControls() {
         );
       }
 
+      synchronizeResetRevision(
+        recordDate,
+        result.payload?.item
+      );
+
+      return {
+        status:
+          "saved",
+
+        recordDate,
+
+        item:
+          storedItem,
+
+        savedItem:
+          result.payload?.item ||
+          null
+      };
+
     } catch (
       error
     ) {
@@ -243019,10 +245540,137 @@ function initializeDailyControls() {
         error
       );
 
-      window.showToast?.(
-        "SMP는 표시했지만 D1 저장에 실패했습니다.",
-        3000
+      if (
+        options.reportFailure !==
+          false
+      ) {
+        window.showToast?.(
+          "SMP는 표시했지만 D1 저장에 실패했습니다.",
+          3000
+        );
+      }
+
+      return {
+        status:
+          "failed",
+
+        recordDate,
+
+        item:
+          storedItem,
+
+        error
+      };
+    }
+  }
+
+
+  async function persistDeferredFreshItem(
+    recordDate,
+    expectedRevision
+  ) {
+    const normalizedRecordDate =
+      clean(
+        recordDate
       );
+
+    const normalizedRevision =
+      Number(
+        expectedRevision
+      );
+
+    if (
+      !isIsoDate(
+        normalizedRecordDate
+      ) ||
+      !Number.isInteger(
+        normalizedRevision
+      ) ||
+      normalizedRevision <
+        1 ||
+      isRecordDateResetActive(
+        normalizedRecordDate
+      )
+    ) {
+      return false;
+    }
+
+    const existingRequest =
+      deferredPersistRequestsByRecordDate.get(
+        normalizedRecordDate
+      );
+
+    if (
+      existingRequest
+    ) {
+      return await existingRequest;
+    }
+
+    const item =
+      deferredFreshItemsByRecordDate.get(
+        normalizedRecordDate
+      );
+
+    if (
+      !item
+    ) {
+      return false;
+    }
+
+    const request =
+      (async () => {
+        const result =
+          await persistItem(
+            item,
+            {
+              reportFailure:
+                false,
+
+              expectedRevision:
+                normalizedRevision
+            }
+          );
+
+        if (
+          result?.status !==
+            "saved"
+        ) {
+          return false;
+        }
+
+        if (
+          deferredFreshItemsByRecordDate.get(
+            normalizedRecordDate
+          ) ===
+            item
+        ) {
+          deferredFreshItemsByRecordDate.delete(
+            normalizedRecordDate
+          );
+        }
+
+        return true;
+      })();
+
+    deferredPersistRequestsByRecordDate.set(
+      normalizedRecordDate,
+      request
+    );
+
+    try {
+      return await request;
+
+    } finally {
+      if (
+        deferredPersistRequestsByRecordDate.get(
+          normalizedRecordDate
+        ) ===
+          request
+      ) {
+        deferredPersistRequestsByRecordDate.delete(
+          normalizedRecordDate
+        );
+      }
     }
   }
 
@@ -243035,6 +245683,11 @@ function initializeDailyControls() {
       );
     }
   );
+
+
+  window
+    .persistEfficiencyMorningMeetingFreshSmpAfterReset =
+    persistDeferredFreshItem;
 })();
 
 /* =========================================================
