@@ -512,7 +512,7 @@ function showMorningMeetingCofiringCoalReviewV1() {
     );
 
   text.textContent =
-    "1,2호기 석탄 사용량 검토 필요합니다.";
+    "최대혼소 조정 시엔 1,2호기 석탄 사용량 재검토 필요 합니다.";
 
   Object.assign(
     text.style,
@@ -521,7 +521,7 @@ function showMorningMeetingCofiringCoalReviewV1() {
         "0",
 
       fontSize:
-        "18px",
+        "16px",
 
       fontWeight:
         "700",
