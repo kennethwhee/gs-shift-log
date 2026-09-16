@@ -13852,6 +13852,11 @@ async function findMorningMeetingAutoHistoryActiveRequestTypes(
   targetDate,
   activeAt = new Date().toISOString()
 ) {
+  /* MORNING_MEETING_RESET_BLOCKER_CORE_ONLY_V1
+    Reset is blocked only by foreground/core morning-meeting queries.
+    organic_silo_dataparc is a background inventory refresh and
+    steam_status is a legacy workbook alias; neither blocks reset.
+  */
   const queryResult =
     await database
       .prepare(`
@@ -13872,9 +13877,7 @@ async function findMorningMeetingAutoHistoryActiveRequestTypes(
             'limestone_stock',
             'turbine_gear_pinion',
             'silo_level',
-            'daily_data_excel',
-            'organic_silo_dataparc',
-            'steam_status'
+            'daily_data_excel'
           )
           AND (
             expires_at IS NULL
@@ -14287,7 +14290,7 @@ async function resetMorningMeetingAutoHistory(
     return morningMeetingAutoHistoryResetConflictResponse(
       existingRow,
       targetDate,
-      "선택일 자료를 조회 중입니다. 조회가 끝난 뒤 다시 초기화해 주세요.",
+      "선택일 핵심 자료를 조회 중입니다. 조회가 끝난 뒤 다시 초기화해 주세요.",
       "MORNING_MEETING_AUTO_HISTORY_QUERY_ACTIVE",
       {
         activeRequestTypes
@@ -14351,9 +14354,7 @@ async function resetMorningMeetingAutoHistory(
                   'limestone_stock',
                   'turbine_gear_pinion',
                   'silo_level',
-                  'daily_data_excel',
-                  'organic_silo_dataparc',
-                  'steam_status'
+                  'daily_data_excel'
                 )
                 AND (
                   expires_at IS NULL
@@ -14432,9 +14433,7 @@ async function resetMorningMeetingAutoHistory(
                 'limestone_stock',
                 'turbine_gear_pinion',
                 'silo_level',
-                'daily_data_excel',
-                'organic_silo_dataparc',
-                'steam_status'
+                'daily_data_excel'
               )
               AND (
                 expires_at IS NULL
@@ -14489,7 +14488,7 @@ async function resetMorningMeetingAutoHistory(
       return morningMeetingAutoHistoryResetConflictResponse(
         latestRow,
         targetDate,
-        "선택일 자료 조회가 시작되어 초기화하지 않았습니다.",
+        "선택일 핵심 자료 조회가 시작되어 초기화하지 않았습니다.",
         "MORNING_MEETING_AUTO_HISTORY_QUERY_ACTIVE",
         {
           activeRequestTypes:
