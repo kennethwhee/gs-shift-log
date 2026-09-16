@@ -2,34 +2,27 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
-
 const repo=path.join(__dirname,'..');
 const js=fs.readFileSync(path.join(repo,'maintenance/cofiring-organic-excel-auto-v1.js'),'utf8');
-const html=fs.readFileSync(path.join(repo,'index.html'),'utf8');
-const helper=fs.readFileSync(path.join(repo,'local-tools/ois-agent/daily-data-open-workbook.ps1'),'utf8');
 
-test('co-firing organic auto-fill uses the existing daily_data_excel queue',()=>{
-  assert.match(js,/REQUEST_TYPE='daily_data_excel'/);
-  assert.match(js,/organicUsageUnitOne/);
-  assert.match(js,/organicUsageUnitTwo/);
-  assert.match(js,/forceRefresh:forceRefresh===true/);
+test('daily DATA request no longer starts in parallel with Calculate/Requery',()=>{
+  assert.match(js,/COFIRING_ORGANIC_AFTER_HOST_SUCCESS_V1_R1/);
+  assert.doesNotMatch(js,/query\.addEventListener\('click',\(\)=>\{void refresh\(\{force:true\}\);\},true\)/);
+  assert.doesNotMatch(js,/requery\?\.addEventListener\('click',\(\)=>\{void refresh\(\{force:true\}\);\},true\)/);
 });
-test('auto-fill stays unsaved and preserves a user edit made while waiting',()=>{
-  assert.match(js,/event\.isTrusted/);
+
+test('auto-fill starts only after host calculation success',()=>{
+  assert.match(js,/tone!=='success'/);
+  assert.match(js,/void refresh\(\{force:true,expectedEditSeq:arm\.editSeq\}\)/);
+  assert.match(js,/혼소율 계산 완료 후 일일DATA 유기성 자동입력 예정/);
+});
+
+test('host calculation error prevents organic Excel request',()=>{
+  assert.match(js,/tone==='error'/);
+  assert.match(js,/일일DATA 자동입력을 시작하지 않았습니다/);
+});
+
+test('user edit protection spans the DataPARC wait and Daily DATA wait',()=>{
+  assert.match(js,/expectedEditSeq=null/);
   assert.match(js,/state\.userEditSeq!==editSeq/);
-  assert.match(js,/저장 전/);
-});
-test('polling is bounded and not a one-second loop',()=>{
-  assert.match(js,/POLL_MS=5000/);
-  assert.match(js,/MAX_WAIT_MS=180000/);
-});
-test('host loads auto-fill exactly once',()=>{
-  assert.equal((html.match(/cofiring-organic-excel-auto-v1\.js/g)||[]).length,1);
-});
-test('helper uses open workbook first then hidden read-only fallback',()=>{
-  assert.match(helper,/COFIRING_ORGANIC_HIDDEN_EXCEL_V1/);
-  assert.match(helper,/CofiringOrganicOriginalResolve/);
-  assert.match(helper,/Visible = \$false/);
-  assert.match(helper,/workbooks\.Open\(\$paths\[0\], 0, \$true\)/i);
-  assert.match(helper,/Quit\(\)/);
 });

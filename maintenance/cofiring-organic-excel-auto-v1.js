@@ -85,15 +85,15 @@
     const two=container.querySelector('[data-cfv5-manual="unit2:organic"]');
     if(!query||!one||!two)return;
 
-    const state={generation:0,userEditSeq:0};
+    const state={generation:0,userEditSeq:0,armSeq:0,pendingArm:null};
     containers.set(container,state);ensureStatus(container);
 
     for(const input of [one,two]){
       input.addEventListener('input',event=>{if(event.isTrusted)state.userEditSeq+=1;},true);
     }
 
-    async function refresh({force=true}={}){
-      const generation=++state.generation,editSeq=state.userEditSeq,date=selectedDate(container);
+    async function refresh({force=true,expectedEditSeq=null}={}){
+      const generation=++state.generation,editSeq=expectedEditSeq==null?state.userEditSeq:expectedEditSeq,date=selectedDate(container);
       if(!date)return;
       if(!dailyStart(container)){
         stateText(container,'일일DATA 자동입력은 00:00 시작 일별 계산에서만 사용','');
@@ -147,11 +147,56 @@
       }
     }
 
-    query.addEventListener('click',()=>{void refresh({force:true});},true);
-    requery?.addEventListener('click',()=>{void refresh({force:true});},true);
+    // COFIRING_ORGANIC_AFTER_HOST_SUCCESS_V1_R1
+    // Do NOT start daily_data_excel in parallel with the host DataPARC job.
+    // Both use the Agent's Excel lane. Arm on click, then start only after
+    // the host calculation actually reaches its success status.
+    const hostStatus=container.querySelector('[data-cfv5-status]');
+    function armAfterHostCalculation(){
+      const date=selectedDate(container);
+      if(!date)return;
+      if(!dailyStart(container)){
+        state.pendingArm=null;
+        stateText(container,'일일DATA 자동입력은 00:00 시작 일별 계산에서만 사용','');
+        return;
+      }
+      state.pendingArm={
+        id:++state.armSeq,
+        date,
+        editSeq:state.userEditSeq
+      };
+      stateText(container,'혼소율 계산 완료 후 일일DATA 유기성 자동입력 예정','');
+    }
+    function handleHostStatusMutation(){
+      const arm=state.pendingArm;
+      if(!arm||!hostStatus)return;
+      if(selectedDate(container)!==arm.date){
+        state.pendingArm=null;
+        return;
+      }
+      const tone=String(hostStatus.dataset.tone||'');
+      if(tone==='error'){
+        state.pendingArm=null;
+        stateText(container,'혼소율 계산이 완료되지 않아 일일DATA 자동입력을 시작하지 않았습니다.','error');
+        return;
+      }
+      if(tone!=='success')return;
+      state.pendingArm=null;
+      void refresh({force:true,expectedEditSeq:arm.editSeq});
+    }
+    if(hostStatus){
+      const statusObserver=new MutationObserver(handleHostStatusMutation);
+      statusObserver.observe(hostStatus,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['data-tone']});
+    }
+
+    query.addEventListener('click',armAfterHostCalculation,true);
+    requery?.addEventListener('click',armAfterHostCalculation,true);
+
     for(const input of container.querySelectorAll('[data-cfv5-start],[data-cfv5-end]')){
       input.addEventListener('change',()=>{
-        state.generation+=1;stateText(container,'일일DATA 자동입력 대기','');
+        state.pendingArm=null;
+        state.generation+=1;
+        stateText(container,'일일DATA 자동입력 대기','');
       });
     }
   }
