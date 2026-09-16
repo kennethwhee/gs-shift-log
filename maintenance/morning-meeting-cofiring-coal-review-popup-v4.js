@@ -2,13 +2,13 @@
   "use strict";
 
   const MARKER =
-    "MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V7-ADJUST-ENTRY";
+    "MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V8-DIRECT-HANDLER-API";
 
-  if (window.__mmCofiringCoalReviewPopupV7Installed) {
+  if (window.__mmCofiringCoalReviewPopupV8Installed) {
     return;
   }
 
-  window.__mmCofiringCoalReviewPopupV7Installed = true;
+  window.__mmCofiringCoalReviewPopupV8Installed = true;
 
   const replayButtons = new WeakSet();
 
@@ -55,7 +55,7 @@
   function ensureStyle() {
     if (
       document.getElementById(
-        "mmCofiringCoalReviewPopupV7Style"
+        "mmCofiringCoalReviewPopupV8Style"
       )
     ) {
       return;
@@ -65,10 +65,10 @@
       document.createElement("style");
 
     style.id =
-      "mmCofiringCoalReviewPopupV7Style";
+      "mmCofiringCoalReviewPopupV8Style";
 
     style.textContent = `
-      dialog[data-mm-cofiring-coal-review-v7] {
+      dialog[data-mm-cofiring-coal-review-v8] {
         width: min(520px, calc(100vw - 32px));
         max-width: 520px;
         margin: auto;
@@ -90,23 +90,23 @@
           sans-serif;
       }
 
-      dialog[data-mm-cofiring-coal-review-v7]::backdrop {
+      dialog[data-mm-cofiring-coal-review-v8]::backdrop {
         background: rgba(8, 20, 33, 0.62);
         backdrop-filter: blur(1.5px);
       }
 
-      dialog[data-mm-cofiring-coal-review-v7] * {
+      dialog[data-mm-cofiring-coal-review-v8] * {
         box-sizing: border-box;
       }
 
-      dialog[data-mm-cofiring-coal-review-v7] .mmcr-v7-head {
+      dialog[data-mm-cofiring-coal-review-v8] .mmcr-v8-head {
         display: flex;
         align-items: flex-start;
         gap: 13px;
         padding: 22px 23px 16px;
       }
 
-      dialog[data-mm-cofiring-coal-review-v7] .mmcr-v7-icon {
+      dialog[data-mm-cofiring-coal-review-v8] .mmcr-v8-icon {
         display: flex;
         flex: 0 0 38px;
         width: 38px;
@@ -120,7 +120,7 @@
         font-weight: 900;
       }
 
-      dialog[data-mm-cofiring-coal-review-v7] h3 {
+      dialog[data-mm-cofiring-coal-review-v8] h3 {
         margin: 1px 0 7px;
         color: #24364a;
         font-size: 18px;
@@ -128,7 +128,7 @@
         letter-spacing: -0.45px;
       }
 
-      dialog[data-mm-cofiring-coal-review-v7] p {
+      dialog[data-mm-cofiring-coal-review-v8] p {
         margin: 0;
         color: #657789;
         font-size: 12px;
@@ -136,7 +136,7 @@
         word-break: keep-all;
       }
 
-      dialog[data-mm-cofiring-coal-review-v7] .mmcr-v7-note {
+      dialog[data-mm-cofiring-coal-review-v8] .mmcr-v8-note {
         margin: 0 23px 18px;
         padding: 12px 14px;
         border: 1px solid #efdfb8;
@@ -149,7 +149,7 @@
         word-break: keep-all;
       }
 
-      dialog[data-mm-cofiring-coal-review-v7] footer {
+      dialog[data-mm-cofiring-coal-review-v8] footer {
         display: flex;
         justify-content: flex-end;
         gap: 9px;
@@ -158,7 +158,7 @@
         background: #fafcfd;
       }
 
-      dialog[data-mm-cofiring-coal-review-v7] button {
+      dialog[data-mm-cofiring-coal-review-v8] button {
         min-height: 38px;
         padding: 0 15px;
         border: 1px solid #d5e0e8;
@@ -171,14 +171,14 @@
         cursor: pointer;
       }
 
-      dialog[data-mm-cofiring-coal-review-v7]
-      button[data-mmcr-v7-confirm] {
+      dialog[data-mm-cofiring-coal-review-v8]
+      button[data-mmcr-v8-confirm] {
         border-color: #7c59b4;
         background: #7c59b4;
         color: #ffffff;
       }
 
-      dialog[data-mm-cofiring-coal-review-v7]
+      dialog[data-mm-cofiring-coal-review-v8]
       button:focus-visible {
         outline: 3px solid rgba(124, 89, 180, 0.28);
         outline-offset: 2px;
@@ -197,7 +197,7 @@
       resolve => {
         const existing =
           document.querySelector(
-            "dialog[data-mm-cofiring-coal-review-v7]"
+            "dialog[data-mm-cofiring-coal-review-v8]"
           );
 
         if (
@@ -216,13 +216,13 @@
           document.createElement("dialog");
 
         dialog.setAttribute(
-          "data-mm-cofiring-coal-review-v7",
+          "data-mm-cofiring-coal-review-v8",
           MARKER
         );
 
         dialog.innerHTML = `
-          <div class="mmcr-v7-head">
-            <div class="mmcr-v7-icon" aria-hidden="true">!</div>
+          <div class="mmcr-v8-head">
+            <div class="mmcr-v8-icon" aria-hidden="true">!</div>
             <div>
               <h3>1·2호기 석탄 사용량 검토 필요</h3>
               <p>
@@ -233,7 +233,7 @@
             </div>
           </div>
 
-          <div class="mmcr-v7-note">
+          <div class="mmcr-v8-note">
             확인을 누르면 혼소 조정 창을 엽니다.
             취소를 누르면 혼소 조정 창을 열지 않습니다.
           </div>
@@ -241,14 +241,14 @@
           <footer>
             <button
               type="button"
-              data-mmcr-v7-cancel
+              data-mmcr-v8-cancel
             >
               취소
             </button>
 
             <button
               type="button"
-              data-mmcr-v7-confirm
+              data-mmcr-v8-confirm
             >
               확인 후 혼소 조정 열기
             </button>
@@ -310,7 +310,7 @@
 
         dialog
           .querySelector(
-            "[data-mmcr-v7-cancel]"
+            "[data-mmcr-v8-cancel]"
           )
           ?.addEventListener(
             "click",
@@ -326,7 +326,7 @@
 
         const confirmButton =
           dialog.querySelector(
-            "[data-mmcr-v7-confirm]"
+            "[data-mmcr-v8-confirm]"
           );
 
         confirmButton
@@ -371,85 +371,14 @@
     );
   }
 
-  async function interceptAdjustmentEntry(
-    event
-  ) {
-    const eventTarget =
-      event.target &&
-      event.target.nodeType === 1
-        ? event.target
-        : event.target?.parentElement;
-
-    const button =
-      eventTarget?.closest?.(
-        "[data-cfv56-adjust]"
-      ) ||
-      null;
-
-    if (!button) {
-      return;
-    }
-
-    if (
-      replayButtons.has(
-        button
-      )
-    ) {
-      replayButtons.delete(
-        button
-      );
-
-      return;
-    }
-
-    if (
-      !isMorningMeetingActive()
-    ) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-
-    const confirmed =
-      await showReviewDialog();
-
-    if (!confirmed) {
-      return;
-    }
-
-    if (
-      !button.isConnected ||
-      button.disabled
-    ) {
-      return;
-    }
-
-    replayButtons.add(
-      button
-    );
-
-    button.click();
-  }
-
-  /*
-    Window capture is intentionally used.
-    It runs before document/target click handlers, so the existing
-    co-firing adjustment entry handler cannot open the adjustment
-    modal until the review dialog has been confirmed.
-  */
-  window.addEventListener(
-    "click",
-    interceptAdjustmentEntry,
-    true
-  );
-
-  window.MorningMeetingCofiringCoalReviewPopupV7 =
+  window.MorningMeetingCofiringCoalReviewPopupV8 =
     Object.freeze({
       marker:
         MARKER,
 
-      isMorningMeetingActive
+      isMorningMeetingActive,
+
+      confirmBeforeOpen:
+        showReviewDialog
     });
 }());

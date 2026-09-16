@@ -5,104 +5,93 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const repo = path.resolve(__dirname, '..');
-const overlayPath = path.join(
-  repo,
-  'maintenance',
-  'morning-meeting-cofiring-coal-review-popup-v4.js'
+
+const overlay = fs.readFileSync(
+  path.join(
+    repo,
+    'maintenance',
+    'morning-meeting-cofiring-coal-review-popup-v4.js'
+  ),
+  'utf8'
 );
 
-const source = fs.readFileSync(overlayPath, 'utf8');
-
-assert.match(
-  source,
-  /MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V7-ADJUST-ENTRY/
-);
-
-assert.match(
-  source,
-  /window\.addEventListener\(\s*["']click["'][\s\S]*?interceptAdjustmentEntry[\s\S]*?true\s*\)/
-);
-
-assert.match(
-  source,
-  /\[data-cfv56-adjust\]/
-);
-
-assert.doesNotMatch(
-  source,
-  /\[data-cfv56-auto\]/
+const ui = fs.readFileSync(
+  path.join(
+    repo,
+    'maintenance',
+    'cofiring-period-ui-v5.js'
+  ),
+  'utf8'
 );
 
 assert.match(
-  source,
-  /\[data-efficiency-tab="morning-meeting"\]/
+  overlay,
+  /MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V8-DIRECT-HANDLER-API/
 );
 
 assert.match(
-  source,
-  /classList\.contains\(\s*["']is-active["']\s*\)/
+  overlay,
+  /confirmBeforeOpen\s*:\s*showReviewDialog/
 );
 
 assert.match(
-  source,
-  /aria-selected/
-);
-
-assert.match(
-  source,
-  /stopImmediatePropagation\(\)/
-);
-
-assert.match(
-  source,
-  /showModal/
-);
-
-assert.match(
-  source,
-  /dialog\[data-mm-cofiring-coal-review-v7\]::backdrop/
-);
-
-assert.match(
-  source,
-  /WeakSet/
-);
-
-assert.match(
-  source,
-  /replayButtons\.add/
-);
-
-assert.match(
-  source,
-  /button\.click\(\)/
-);
-
-assert.match(
-  source,
+  overlay,
   /1·2호기 석탄 사용량 검토 필요/
 );
 
 assert.match(
-  source,
-  /확인 후 혼소 조정 열기/
+  overlay,
+  /showModal/
+);
+
+assert.doesNotMatch(
+  overlay,
+  /window\.addEventListener\(\s*["']click["']/
 );
 
 assert.match(
-  source,
-  /확인을 누르면 혼소 조정 창을 엽니다/
+  ui,
+  /const adjustButton=container\.querySelector\('\[data-cfv56-adjust\]'\)/
 );
 
-assert.doesNotMatch(
-  source,
-  /\bfetch\s*\(/
+assert.match(
+  ui,
+  /adjustButton\.addEventListener\('click',async\(\)=>/
 );
 
-assert.doesNotMatch(
-  source,
-  /\/api\//
+assert.match(
+  ui,
+  /container\.closest\?\.\('\[data-efficiency-view="morning-meeting"\],#efficiencyMorningMeetingView'\)/
+);
+
+assert.match(
+  ui,
+  /root\.MorningMeetingCofiringCoalReviewPopupV8/
+);
+
+assert.match(
+  ui,
+  /await reviewApi\.confirmBeforeOpen\(\)/
+);
+
+assert.match(
+  ui,
+  /1·2호기 석탄 사용량 검토 필요/
+);
+
+assert.match(
+  ui,
+  /await Promise\.resolve\(adjuster\?\.open\(\)\)/
+);
+
+const confirmAt = ui.indexOf('await reviewApi.confirmBeforeOpen()');
+const openAt = ui.indexOf('await Promise.resolve(adjuster?.open())');
+
+assert.ok(
+  confirmAt >= 0 && openAt > confirmAt,
+  'review confirmation must occur before adjuster.open()'
 );
 
 console.log(
-  'PASS: morning-meeting co-firing coal review V7 adjustment-entry contracts (18).'
+  'PASS: morning-meeting co-firing coal review V8 direct-handler contracts (13).'
 );
