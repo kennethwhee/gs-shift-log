@@ -4,118 +4,110 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const repo = path.resolve(__dirname, '..');
+const repo =
+  path.resolve(
+    __dirname,
+    '..'
+  );
 
-const overlay = fs.readFileSync(
-  path.join(
-    repo,
-    'maintenance',
-    'morning-meeting-cofiring-coal-review-popup-v4.js'
-  ),
-  'utf8'
-);
+const adjustment =
+  fs.readFileSync(
+    path.join(
+      repo,
+      'maintenance',
+      'cofiring-period-adjustment-v56.js'
+    ),
+    'utf8'
+  );
 
-assert.match(
-  overlay,
-  /COFIRING-COAL-REVIEW-V12-MAX-TOAST-UNCONDITIONAL/
-);
+const index =
+  fs.readFileSync(
+    path.join(
+      repo,
+      'index.html'
+    ),
+    'utf8'
+  );
 
-assert.match(
-  overlay,
-  /\[data-cfv56-auto\]/
-);
-
-assert.match(
-  overlay,
-  /cfv56-adjust-modal/
-);
-
-assert.match(
-  overlay,
-  /showCoalReviewToast\(\)/
-);
-
-assert.match(
-  overlay,
-  /3000/
-);
-
-assert.match(
-  overlay,
-  /data-cfcr12-close/
-);
-
-assert.match(
-  overlay,
-  /1·2호기 석탄 사용량 검토 필요/
-);
-
-assert.match(
-  overlay,
-  /z-index:\s*20000/
-);
-
-assert.doesNotMatch(
-  overlay,
-  /morningCardContext/
-);
-
-assert.doesNotMatch(
-  overlay,
-  /isMorningMeetingCardEntry/
-);
-
-assert.doesNotMatch(
-  overlay,
-  /isAnalysisPageEntry/
-);
-
-assert.doesNotMatch(
-  overlay,
-  /showModal/
-);
-
-assert.doesNotMatch(
-  overlay,
-  /window\.confirm|root\.confirm/
-);
-
-assert.doesNotMatch(
-  overlay,
-  /stopImmediatePropagation/
-);
-
-const onClickStart = overlay.indexOf('  function onClick(');
-const onClickEnd = overlay.indexOf(
-  '  /*\n    Non-blocking behavior:',
-  onClickStart
+assert.ok(
+  adjustment.includes(
+    'COFIRING-MAX-COAL-REVIEW-TOAST-DIRECT-V13-R1'
+  )
 );
 
 assert.ok(
-  onClickStart >= 0 && onClickEnd > onClickStart,
-  'onClick router section must be found'
+  adjustment.includes(
+    '1·2호기 석탄 사용량 검토 필요'
+  )
 );
 
-const onClickSource = overlay.slice(
-  onClickStart,
-  onClickEnd
+assert.ok(
+  adjustment.includes(
+    '3000'
+  )
 );
 
-assert.doesNotMatch(
-  onClickSource,
-  /preventDefault|stopPropagation|stopImmediatePropagation/
+assert.ok(
+  adjustment.includes(
+    'z-index:2147483000'
+  )
 );
 
-assert.match(
-  onClickSource,
-  /isMaximumAdjustment\([\s\S]*?showCoalReviewToast\(\)/
+const handlerRegex =
+  /q\s*\(\s*['"]\[data-cfv56-auto\]['"]\s*\)\s*\.addEventListener\s*\(\s*['"]click['"]\s*,\s*\(\s*\)\s*=>\s*\{\s*showCoalReviewToastV13R1\(\);/;
+
+const match =
+  handlerRegex.exec(
+    adjustment
+  );
+
+assert.ok(
+  match,
+  'maximum adjustment handler must call toast directly'
 );
 
-assert.match(
-  overlay,
-  /Every visible "최대혼소 조정" click keeps its original calculation handler/
+const handlerStart =
+  match.index;
+
+const toastIndex =
+  adjustment.indexOf(
+    'showCoalReviewToastV13R1();',
+    handlerStart
+  );
+
+const autoMaxIndex =
+  adjustment.indexOf(
+    'autoMax(',
+    toastIndex
+  );
+
+assert.ok(
+  toastIndex >= handlerStart
+);
+
+assert.ok(
+  autoMaxIndex > toastIndex,
+  'existing autoMax calculation must remain after toast call'
+);
+
+assert.ok(
+  index.includes(
+    'cofiring-period-adjustment-v56.js?v=20260917-coal-review-direct-v13-r1'
+  )
+);
+
+assert.ok(
+  !index.includes(
+    'morning-meeting-cofiring-coal-review-popup-v4.js'
+  )
+);
+
+assert.ok(
+  !index.includes(
+    'morning-meeting-permanent-purge-v1.js'
+  )
 );
 
 console.log(
-  'PASS: V12 always shows a non-blocking 3-second Coal-review toast on visible maximum co-firing adjustment clicks (17).'
+  'PASS: V13 R1 directly injects the 3-second Coal-review toast into the real maximum-cofiring button handler while preserving autoMax and login hotfix (10).'
 );
