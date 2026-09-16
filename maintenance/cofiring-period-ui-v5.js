@@ -382,7 +382,8 @@
       }
       const source=container.querySelector('[data-cfv6-data-source]');
       if(source){const completed=s?.item?.result?.report?.completedAtUtc,date=completed?new Date(completed):null;
-        source.textContent=date&&Number.isFinite(date.getTime())?`DataPARC 조회 완료 ${date.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false})} KST · 저장결과 기준${active?' · 최신조회 진행 중':failureMessage?' · 최근 조회 실패':''}`:active?'새 DataPARC 결과를 기다리고 있습니다.':failureMessage?'DataPARC 조회에 실패했습니다. 저장된 결과가 아직 없습니다.':'저장된 DataPARC 결과가 아직 없습니다.';
+        const basis=(()=>{try{const p=currentSpec(),start=String(p?.startLocal||''),end=String(p?.endLocal||''),m=end.match(/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})$/);if(!m)return '자료 기준 확인 필요';const d=new Date(Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3]),Number(m[4]),Number(m[5]))-60000),pad=n=>String(n).padStart(2,'0'),dateText=`${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`,timeText=`${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;return dateText!==start.slice(0,10)&&timeText==='00:00'?'자료 기준 하루 전체':`자료 기준 ${timeText}`;}catch(_){return '자료 기준 확인 필요';}})();
+        source.textContent=date&&Number.isFinite(date.getTime())?`저장된 DataPARC 결과 사용 · ${basis} · 조회 완료 ${date.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false})} KST${active?' · 최신조회 진행 중':failureMessage?' · 최근 조회 실패':''}`:active?'새 DataPARC 결과를 기다리고 있습니다.':failureMessage?'DataPARC 조회에 실패했습니다. 저장된 결과가 아직 없습니다.':'저장된 DataPARC 결과가 아직 없습니다.';
       }
 
       if(!s?.authenticated){prepLabel('로그인 필요','error');setStatus(container,'로그인 세션이 만료되었습니다. 다시 로그인하면 고속 준비와 계산을 다시 시작할 수 있습니다.','error');}
