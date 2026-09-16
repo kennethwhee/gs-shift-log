@@ -15,15 +15,20 @@ const source = fs.readFileSync(overlayPath, 'utf8');
 
 assert.match(
   source,
-  /MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V6-WINDOW-CAPTURE/
+  /MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V7-ADJUST-ENTRY/
 );
 
 assert.match(
   source,
-  /window\.addEventListener\(\s*["']click["'][\s\S]*?interceptMaximumAdjustment[\s\S]*?true\s*\)/
+  /window\.addEventListener\(\s*["']click["'][\s\S]*?interceptAdjustmentEntry[\s\S]*?true\s*\)/
 );
 
 assert.match(
+  source,
+  /\[data-cfv56-adjust\]/
+);
+
+assert.doesNotMatch(
   source,
   /\[data-cfv56-auto\]/
 );
@@ -55,7 +60,7 @@ assert.match(
 
 assert.match(
   source,
-  /dialog\[data-mm-cofiring-coal-review-v6\]::backdrop/
+  /dialog\[data-mm-cofiring-coal-review-v7\]::backdrop/
 );
 
 assert.match(
@@ -78,6 +83,16 @@ assert.match(
   /1·2호기 석탄 사용량 검토 필요/
 );
 
+assert.match(
+  source,
+  /확인 후 혼소 조정 열기/
+);
+
+assert.match(
+  source,
+  /확인을 누르면 혼소 조정 창을 엽니다/
+);
+
 assert.doesNotMatch(
   source,
   /\bfetch\s*\(/
@@ -89,5 +104,5 @@ assert.doesNotMatch(
 );
 
 console.log(
-  'PASS: morning-meeting co-firing coal review V6 window-capture/top-layer contracts (15).'
+  'PASS: morning-meeting co-firing coal review V7 adjustment-entry contracts (18).'
 );

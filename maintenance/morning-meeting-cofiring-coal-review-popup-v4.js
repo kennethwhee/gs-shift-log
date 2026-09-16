@@ -2,13 +2,13 @@
   "use strict";
 
   const MARKER =
-    "MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V6-WINDOW-CAPTURE";
+    "MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V7-ADJUST-ENTRY";
 
-  if (window.__mmCofiringCoalReviewPopupV6Installed) {
+  if (window.__mmCofiringCoalReviewPopupV7Installed) {
     return;
   }
 
-  window.__mmCofiringCoalReviewPopupV6Installed = true;
+  window.__mmCofiringCoalReviewPopupV7Installed = true;
 
   const replayButtons = new WeakSet();
 
@@ -55,7 +55,7 @@
   function ensureStyle() {
     if (
       document.getElementById(
-        "mmCofiringCoalReviewPopupV6Style"
+        "mmCofiringCoalReviewPopupV7Style"
       )
     ) {
       return;
@@ -65,10 +65,10 @@
       document.createElement("style");
 
     style.id =
-      "mmCofiringCoalReviewPopupV6Style";
+      "mmCofiringCoalReviewPopupV7Style";
 
     style.textContent = `
-      dialog[data-mm-cofiring-coal-review-v6] {
+      dialog[data-mm-cofiring-coal-review-v7] {
         width: min(520px, calc(100vw - 32px));
         max-width: 520px;
         margin: auto;
@@ -90,23 +90,23 @@
           sans-serif;
       }
 
-      dialog[data-mm-cofiring-coal-review-v6]::backdrop {
+      dialog[data-mm-cofiring-coal-review-v7]::backdrop {
         background: rgba(8, 20, 33, 0.62);
         backdrop-filter: blur(1.5px);
       }
 
-      dialog[data-mm-cofiring-coal-review-v6] * {
+      dialog[data-mm-cofiring-coal-review-v7] * {
         box-sizing: border-box;
       }
 
-      dialog[data-mm-cofiring-coal-review-v6] .mmcr-v6-head {
+      dialog[data-mm-cofiring-coal-review-v7] .mmcr-v7-head {
         display: flex;
         align-items: flex-start;
         gap: 13px;
         padding: 22px 23px 16px;
       }
 
-      dialog[data-mm-cofiring-coal-review-v6] .mmcr-v6-icon {
+      dialog[data-mm-cofiring-coal-review-v7] .mmcr-v7-icon {
         display: flex;
         flex: 0 0 38px;
         width: 38px;
@@ -120,7 +120,7 @@
         font-weight: 900;
       }
 
-      dialog[data-mm-cofiring-coal-review-v6] h3 {
+      dialog[data-mm-cofiring-coal-review-v7] h3 {
         margin: 1px 0 7px;
         color: #24364a;
         font-size: 18px;
@@ -128,7 +128,7 @@
         letter-spacing: -0.45px;
       }
 
-      dialog[data-mm-cofiring-coal-review-v6] p {
+      dialog[data-mm-cofiring-coal-review-v7] p {
         margin: 0;
         color: #657789;
         font-size: 12px;
@@ -136,7 +136,7 @@
         word-break: keep-all;
       }
 
-      dialog[data-mm-cofiring-coal-review-v6] .mmcr-v6-note {
+      dialog[data-mm-cofiring-coal-review-v7] .mmcr-v7-note {
         margin: 0 23px 18px;
         padding: 12px 14px;
         border: 1px solid #efdfb8;
@@ -149,7 +149,7 @@
         word-break: keep-all;
       }
 
-      dialog[data-mm-cofiring-coal-review-v6] footer {
+      dialog[data-mm-cofiring-coal-review-v7] footer {
         display: flex;
         justify-content: flex-end;
         gap: 9px;
@@ -158,7 +158,7 @@
         background: #fafcfd;
       }
 
-      dialog[data-mm-cofiring-coal-review-v6] button {
+      dialog[data-mm-cofiring-coal-review-v7] button {
         min-height: 38px;
         padding: 0 15px;
         border: 1px solid #d5e0e8;
@@ -171,14 +171,14 @@
         cursor: pointer;
       }
 
-      dialog[data-mm-cofiring-coal-review-v6]
-      button[data-mmcr-v6-confirm] {
+      dialog[data-mm-cofiring-coal-review-v7]
+      button[data-mmcr-v7-confirm] {
         border-color: #7c59b4;
         background: #7c59b4;
         color: #ffffff;
       }
 
-      dialog[data-mm-cofiring-coal-review-v6]
+      dialog[data-mm-cofiring-coal-review-v7]
       button:focus-visible {
         outline: 3px solid rgba(124, 89, 180, 0.28);
         outline-offset: 2px;
@@ -197,7 +197,7 @@
       resolve => {
         const existing =
           document.querySelector(
-            "dialog[data-mm-cofiring-coal-review-v6]"
+            "dialog[data-mm-cofiring-coal-review-v7]"
           );
 
         if (
@@ -216,42 +216,41 @@
           document.createElement("dialog");
 
         dialog.setAttribute(
-          "data-mm-cofiring-coal-review-v6",
+          "data-mm-cofiring-coal-review-v7",
           MARKER
         );
 
         dialog.innerHTML = `
-          <div class="mmcr-v6-head">
-            <div class="mmcr-v6-icon" aria-hidden="true">!</div>
+          <div class="mmcr-v7-head">
+            <div class="mmcr-v7-icon" aria-hidden="true">!</div>
             <div>
               <h3>1·2호기 석탄 사용량 검토 필요</h3>
               <p>
-                최대혼소 조정 시 Bio 이동량에 따라
-                Coal 사용량도 함께 보정됩니다.
-                조정 결과를 적용하기 전에 1호기와 2호기의
-                Coal 사용량을 반드시 확인해 주세요.
+                혼소 조정에서는 Bio 이동에 따라 Coal 사용량이
+                함께 보정될 수 있습니다. 혼소 조정 창을 열기 전에
+                1호기와 2호기의 Coal 사용량을 먼저 확인해 주세요.
               </p>
             </div>
           </div>
 
-          <div class="mmcr-v6-note">
-            확인을 누르면 기존 최대혼소 조정을 1회 실행합니다.
-            취소를 누르면 현재 값은 변경하지 않습니다.
+          <div class="mmcr-v7-note">
+            확인을 누르면 혼소 조정 창을 엽니다.
+            취소를 누르면 혼소 조정 창을 열지 않습니다.
           </div>
 
           <footer>
             <button
               type="button"
-              data-mmcr-v6-cancel
+              data-mmcr-v7-cancel
             >
               취소
             </button>
 
             <button
               type="button"
-              data-mmcr-v6-confirm
+              data-mmcr-v7-confirm
             >
-              확인 후 최대혼소 조정
+              확인 후 혼소 조정 열기
             </button>
           </footer>
         `;
@@ -311,7 +310,7 @@
 
         dialog
           .querySelector(
-            "[data-mmcr-v6-cancel]"
+            "[data-mmcr-v7-cancel]"
           )
           ?.addEventListener(
             "click",
@@ -327,7 +326,7 @@
 
         const confirmButton =
           dialog.querySelector(
-            "[data-mmcr-v6-confirm]"
+            "[data-mmcr-v7-confirm]"
           );
 
         confirmButton
@@ -352,9 +351,8 @@
           resolve(
             window.confirm(
               "1·2호기 석탄 사용량 검토 필요\n\n" +
-              "최대혼소 조정 시 Bio 이동량에 따라 " +
-              "Coal 사용량도 함께 보정됩니다.\n" +
-              "적용 전 1호기·2호기 Coal 사용량을 확인해 주세요."
+              "혼소 조정에서는 Bio 이동에 따라 Coal 사용량이 함께 보정될 수 있습니다.\n" +
+              "혼소 조정 창을 열기 전에 1호기·2호기 Coal 사용량을 확인해 주세요."
             )
           );
 
@@ -373,7 +371,7 @@
     );
   }
 
-  async function interceptMaximumAdjustment(
+  async function interceptAdjustmentEntry(
     event
   ) {
     const eventTarget =
@@ -384,7 +382,7 @@
 
     const button =
       eventTarget?.closest?.(
-        "[data-cfv56-auto]"
+        "[data-cfv56-adjust]"
       ) ||
       null;
 
@@ -438,16 +436,16 @@
   /*
     Window capture is intentionally used.
     It runs before document/target click handlers, so the existing
-    maximum-cofiring handler cannot run until the review dialog
-    has been confirmed.
+    co-firing adjustment entry handler cannot open the adjustment
+    modal until the review dialog has been confirmed.
   */
   window.addEventListener(
     "click",
-    interceptMaximumAdjustment,
+    interceptAdjustmentEntry,
     true
   );
 
-  window.MorningMeetingCofiringCoalReviewPopupV6 =
+  window.MorningMeetingCofiringCoalReviewPopupV7 =
     Object.freeze({
       marker:
         MARKER,
