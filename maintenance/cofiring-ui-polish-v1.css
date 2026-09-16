@@ -1,0 +1,269 @@
+/* =========================================================
+   COFIRING UI POLISH V1
+   Visual-only production polish for the Efficiency Team co-firing view.
+   No calculation / API / storage behavior.
+========================================================= */
+
+#efficiencyCofiringDraftView .cofiring-period-v5 {
+  max-width: none;
+  padding: 14px 16px 18px;
+  background: #f6f8fa;
+}
+
+/* Header: keep identity, reduce dead vertical space */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv5-title-row {
+  margin-bottom: 10px;
+  gap: 14px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv5-title-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv5-title-copy .cfv5-eyebrow {
+  margin: 0;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv5-title-copy h2 {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.15;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv5-version {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 10px;
+}
+
+/* Query area: compact but keep every control visible */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv5-query-box {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border-radius: 11px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv5-query-grid {
+  gap: 7px 9px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv5-query-grid label {
+  gap: 4px;
+  font-size: 9px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv5-query-grid input,
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv5-query-grid select,
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv5-query-actions button {
+  height: 32px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv5-query-actions {
+  gap: 6px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv5-query-meta {
+  margin-top: 5px;
+  gap: 8px;
+  min-height: 16px;
+  font-size: 9px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv6-data-source,
+#efficiencyCofiringDraftView .cofiring-period-v5 [data-cfv5-status] {
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+/* Manual organic/manure area: still editable, less dominant */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-manual-panel {
+  margin: 8px 0 9px;
+  padding: 9px 11px;
+  border-radius: 11px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-manual-head {
+  margin-bottom: 7px;
+  gap: 8px;
+  align-items: center;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-manual-head strong {
+  font-size: 11px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-manual-head span,
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-manual-actions > span {
+  font-size: 9px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-manual-actions button {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 10px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-manual-grid {
+  gap: 8px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-manual-unit {
+  min-height: 38px;
+  padding: 2px 8px 5px;
+  gap: 7px;
+  border-radius: 9px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-manual-unit legend,
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-manual-unit label {
+  font-size: 9px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv5-manual-input {
+  height: 30px;
+}
+
+/* Main result heading: make results visually primary */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-summary-head {
+  margin: 8px 0 7px;
+  padding: 0 2px;
+  align-items: center;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-summary-title > strong {
+  font-size: 14px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv6-summary-caption,
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv56-summary-actions > span {
+  font-size: 9px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv56-summary-actions button {
+  height: 31px;
+  min-width: 78px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+/* Unit cards: compact enough to show more on the first viewport */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-summary-grid {
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-card {
+  border-radius: 12px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-card > header {
+  padding: 10px 12px 8px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-unit-title strong {
+  font-size: 12px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-card-status {
+  font-size: 8px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-metrics {
+  padding: 0 12px;
+  gap: 7px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-metrics > .cfv52-metric > span {
+  min-height: 22px;
+  font-size: 9px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-metrics > .cfv52-metric > strong {
+  font-size: 22px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-metrics > .cfv52-metric-emphasis {
+  margin-bottom: 8px;
+  padding: 9px 10px;
+  border-radius: 8px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-metrics > .cfv52-metric-emphasis > strong {
+  font-size: 24px;
+}
+
+/* Target helper should read as secondary information */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv6-target {
+  margin: 7px 12px 8px;
+  padding: 7px 9px;
+  border-radius: 8px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv6-target-label,
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv6-target-comparison,
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv6-target p {
+  font-size: 8px;
+}
+
+/* Fuel quantities: keep large numbers, reduce card chrome */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-fuel-grid {
+  margin: 0 12px;
+  gap: 6px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-fuel-grid .cfv52-metric {
+  min-height: 52px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-fuel-grid .cfv52-metric > span {
+  font-size: 9px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-fuel-grid .cfv52-metric > strong {
+  font-size: 20px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-card-caption {
+  padding: 0 12px 10px;
+  font-size: 8px;
+}
+
+/* Folded detail sections should not compete with the results */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv6-target-basis,
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-fold {
+  margin-top: 8px;
+  border-radius: 9px;
+}
+
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv6-target-basis > summary,
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv52-fold > summary {
+  min-height: 34px;
+  padding: 8px 11px;
+  font-size: 10px;
+}
+
+/* Desktop modal: give the work area the visual priority */
+@media (min-width: 901px) {
+  #efficiencyCofiringDraftView .cofiring-period-v5 {
+    font-size: 12px;
+  }
+}
+
+/* Do not over-compress phones/tablets */
+@media (max-width: 900px) {
+  #efficiencyCofiringDraftView .cofiring-period-v5 {
+    padding: 12px 10px 16px;
+  }
+
+  #efficiencyCofiringDraftView .cofiring-period-v5 .cfv5-title-copy {
+    display: block;
+  }
+}
