@@ -478,7 +478,7 @@ function showMorningMeetingCofiringCoalReviewV1() {
         "relative",
 
       width:
-        "min(460px, calc(100% - 32px))",
+        "min(620px, calc(100% - 32px))",
 
       padding:
         "24px 52px 24px 24px",
@@ -521,7 +521,7 @@ function showMorningMeetingCofiringCoalReviewV1() {
         "0",
 
       fontSize:
-        "16px",
+        "14px",
 
       fontWeight:
         "700",
