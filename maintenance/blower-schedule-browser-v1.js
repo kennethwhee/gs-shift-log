@@ -109,9 +109,10 @@
       if (disable) { disable.hidden = !loggedIn || !here; disable.disabled = Boolean(snapshot.busy); }
       const menu = byId('blowerScheduleMenuStatus');
       if (menu) {
-        menu.hidden = !loggedIn;
+        /* 햄버거 메뉴 보조 문구는 자동조회가 실제 설정된 경우에만 표시한다. */
+        menu.hidden = !loggedIn || status.enabled !== true;
         menu.textContent = snapshot.busy ? '자동조회 진행 중' : errorText ? '자동조회 확인 필요' : here ?
-          '자동조회 예약 · ' + formatKst(status.nextSlotAt) : status.enabled ? 'BCO1 자동조회 사용 중' : '자동조회 설정';
+          '자동조회 예약 · ' + formatKst(status.nextSlotAt) : 'BCO1 자동조회 사용 중';
       }
       if (lastBusy && !snapshot.busy) changed();
       lastBusy = Boolean(snapshot.busy);
