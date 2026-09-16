@@ -741,17 +741,9 @@ function Assert-CofiringCompilerTemp {
   $expected = [IO.Path]::GetFullPath($expected).TrimEnd('\')
   [void][IO.Directory]::CreateDirectory($expected)
 
-  $actualTemp = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
-  $processTemp = [IO.Path]::GetFullPath([string]$env:TEMP).TrimEnd('\')
-  $processTmp = [IO.Path]::GetFullPath([string]$env:TMP).TrimEnd('\')
-
-  if (
-    -not [string]::Equals($actualTemp, $expected, [StringComparison]::OrdinalIgnoreCase) -or
-    -not [string]::Equals($processTemp, $expected, [StringComparison]::OrdinalIgnoreCase) -or
-    -not [string]::Equals($processTmp, $expected, [StringComparison]::OrdinalIgnoreCase)
-  ) {
-    throw ("Add-Type 전용 TEMP/TMP 격리가 적용되지 않았습니다. expected=" + $expected + " / actual=" + $actualTemp)
-  }
+  # COFIRING_RUNTIME_TEMP_PARITY_V7
+  # Validate only the private compiler directory here. TEMP/TMP are scoped around
+  # Add-Type below and restored before Excel is started, matching the proven Blower path.
 
   $probePath = Join-Path $expected ("compiler-write-test-" + [guid]::NewGuid().ToString("N") + ".tmp")
   try {
@@ -764,11 +756,21 @@ function Assert-CofiringCompilerTemp {
       try { [IO.File]::Delete($probePath) } catch { }
     }
   }
+  return $expected
 }
 
-Assert-CofiringCompilerTemp
+$compilerTempPath = Assert-CofiringCompilerTemp
+$runtimeTemp = [Environment]::GetEnvironmentVariable("TEMP", "Process")
+$runtimeTmp = [Environment]::GetEnvironmentVariable("TMP", "Process")
+try {
+  [Environment]::SetEnvironmentVariable("TEMP", $compilerTempPath, "Process")
+  [Environment]::SetEnvironmentVariable("TMP", $compilerTempPath, "Process")
+  $activeCompilerTemp = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
+  if (-not [string]::Equals($activeCompilerTemp, $compilerTempPath, [StringComparison]::OrdinalIgnoreCase)) {
+    throw ("Add-Type 전용 TEMP/TMP 격리가 적용되지 않았습니다. expected=" + $compilerTempPath + " / actual=" + $activeCompilerTemp)
+  }
 
-if (-not ("GsBlowerRuntimeNativeOmV1" -as [type])) {
+  if (-not ("GsBlowerRuntimeNativeOmV1" -as [type])) {
   try {
     Add-Type -TypeDefinition @"
 using System;
@@ -860,6 +862,19 @@ public static class GsBlowerRuntimeNativeOmV1
   } catch {
     throw ("NativeOM Add-Type 컴파일 실패: " + $_.Exception.Message + " / TEMP=" + [string]$env:TEMP)
   }
+  }
+} finally {
+  try {
+    [Environment]::SetEnvironmentVariable("TEMP", $runtimeTemp, "Process")
+  } finally {
+    [Environment]::SetEnvironmentVariable("TMP", $runtimeTmp, "Process")
+  }
+}
+$restoredTemp = [Environment]::GetEnvironmentVariable("TEMP", "Process")
+$restoredTmp = [Environment]::GetEnvironmentVariable("TMP", "Process")
+if (-not [string]::Equals([string]$restoredTemp, [string]$runtimeTemp, [StringComparison]::OrdinalIgnoreCase) -or
+    -not [string]::Equals([string]$restoredTmp, [string]$runtimeTmp, [StringComparison]::OrdinalIgnoreCase)) {
+  throw "NativeOM Add-Type 이후 TEMP/TMP 복원에 실패했습니다."
 }
 
 function Get-ProbeExcelProcessId($ExcelApplication) {
@@ -1441,26 +1456,13 @@ try {
 
   # NativeOM exposure can intermittently lag a freshly started /x instance.
   # Retry only with the exact Excel process started by this worker, once.
-  # COFIRING_NATIVEOM_BOOTSTRAP_WORKBOOK_V6
-  # A new Excel /x instance can remain on the Start screen with no EXCEL7
-  # workbook window. NativeOM is exposed from that workbook window, so open a
-  # tiny local CSV in the exact-owned instance before attempting NativeOM attach.
-  $nativeOmBootstrapPath = Join-Path ([string]$env:TEMP) (
-    'cofiring-nativeom-bootstrap-' + [string]$env:GS_COFIRING_RUN_ID + '.csv'
-  )
-  [IO.File]::WriteAllText(
-    $nativeOmBootstrapPath,
-    "GS Shift Log NativeOM Bootstrap`r`n",
-    (New-Object Text.UTF8Encoding($true))
-  )
-  if (-not [IO.File]::Exists($nativeOmBootstrapPath)) {
-    throw 'NativeOM 연결용 임시 통합문서를 만들지 못했습니다.'
-  }
-  $nativeOmBootstrapArgument = '"' + $nativeOmBootstrapPath + '"'
+  # COFIRING_BLOWER_STARTUP_PARITY_V7
+  # Match the currently successful Blower path: a plain /x launch after compiler
+  # TEMP/TMP have been restored. This preserves Excel's normal DataPARC OPEN startup.
   for ($excelAttachAttempt = 1; $excelAttachAttempt -le 2 -and $null -eq $excel; $excelAttachAttempt += 1) {
     Assert-CofiringNotCancelled
     Write-ProbeStage $(if ($excelAttachAttempt -eq 1) { "별도 숨김 Excel 시작" } else { "별도 숨김 Excel 재시작 · 2/2" })
-    $launchedExcelProcess = Start-Process -FilePath $ownedExcelPath -ArgumentList @("/x", $nativeOmBootstrapArgument) -WindowStyle Hidden -PassThru
+    $launchedExcelProcess = Start-Process -FilePath $ownedExcelPath -ArgumentList @("/x") -WindowStyle Hidden -PassThru
     [void]$launchedExcelProcess.Handle
     $ownedExcelPid = [int]$launchedExcelProcess.Id
     $ownedExcelStartTicks = [long]$launchedExcelProcess.StartTime.ToUniversalTime().Ticks
@@ -1501,12 +1503,14 @@ try {
   if ($attachedExcelPid -ne $ownedExcelPid) {
     throw "연결한 Excel COM PID가 자동조회용 PID와 다릅니다."
   }
+  Write-ProbeStage "Excel COM 연결 완료"
 
   [void](Invoke-CofiringExcelCall -Operation 'Application.Visible=False' -Action { $excel.Visible=$false })
   [void](Invoke-CofiringExcelCall -Operation 'Application.DisplayAlerts=False' -Action { $excel.DisplayAlerts=$false })
   [void](Invoke-CofiringExcelCall -Operation 'Application.AskToUpdateLinks=False' -Action { $excel.AskToUpdateLinks=$false })
   [void](Invoke-CofiringExcelCall -Operation 'Application.ScreenUpdating=False' -Action { $excel.ScreenUpdating=$false })
   [void](Invoke-CofiringExcelCall -Operation 'Application.EnableEvents=False' -Action { $excel.EnableEvents=$false })
+  Write-ProbeStage "Excel 옵션 설정 완료"
 
   $startupWorkbooks = $null
   try {
@@ -1525,6 +1529,7 @@ try {
   } finally {
     Release-ProbeCom $startupWorkbooks
   }
+  Write-ProbeStage "초기 통합문서 정리 완료"
 
   Write-ProbeStage "DataPARC Add-In 자동 시작 확인"
   $ownedHostCim = Wait-OwnedProbeDataParcHost $ownedExcelPid $baselineExcelPids ([datetime]::UtcNow.AddSeconds(60))
@@ -1818,9 +1823,6 @@ try {
   Write-ProbeStage "조회용 Excel·DataPARC Host 정리"
   Write-CofiringProgress 'CLEANUP'
 
-  if ($nativeOmBootstrapPath -and [IO.File]::Exists($nativeOmBootstrapPath)) {
-    try { [IO.File]::Delete($nativeOmBootstrapPath) } catch { }
-  }
   $canCloseOwnedCom=$false
   if ($excel -and $ownedExcelPid -gt 0) {
     if (Test-OwnedProbeExcelIdentity $ownedExcelPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId) {

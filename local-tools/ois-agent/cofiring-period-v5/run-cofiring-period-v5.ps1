@@ -57,7 +57,7 @@ $cleanupErrors=New-Object 'System.Collections.Generic.List[string]'
 $cleanupActions=New-Object 'System.Collections.Generic.List[string]'
 $logOffsets=@{}
 $utf8=New-Object Text.UTF8Encoding($false)
-$expectedWorkerSha256='c0a11c73e681b3245ea74ea9300f4adaf1fb1446fa6899364307ce5db84a373b'
+$expectedWorkerSha256='e391fea0da89caa64ab6d8eec01e0432e9fd37e4698c4be176804db2712ec2ca'
 $resultZipPath=$null
 function Resolve-CofiringPeriod([string]$StartText,[string]$EndText,[string]$Unit,[int]$Value) {
   $startValue=[datetime]::MinValue;$endValue=[datetime]::MinValue
@@ -636,9 +636,9 @@ try {
     GS_COFIRING_RUN_ID=$runId;GS_COFIRING_CANCEL_PATH=$cancelPath;GS_COFIRING_RESULT_PATH=$resultPath;GS_COFIRING_READY_PATH=$readyPath
     GS_COFIRING_COM_TRACE_PATH=(Join-Path $OutputDirectory 'com-calls.jsonl');GS_COFIRING_PARTIAL_PATH='';GS_COFIRING_OWNERSHIP_PATH=$ownershipPath
     GS_COFIRING_CONTROLLER_SIGNATURE=($controllerSignature | ConvertTo-Json -Compress)
+    # COFIRING_CONTROLLER_RUNTIME_TEMP_PARITY_V7
+    # Worker inherits its normal runtime TEMP/TMP. The worker scopes compiler-temp only around Add-Type.
     GS_COFIRING_COMPILER_TEMP=$compilerTempDirectory
-    TEMP=$compilerTempDirectory
-    TMP=$compilerTempDirectory
   }
   $priorEnvironment=@{}
   try {

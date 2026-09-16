@@ -51,7 +51,7 @@ test('Agent hash lock matches patched controller and worker',()=>{
   assert.match(agent,new RegExp("PERIOD_CONTROLLER_SHA256='"+sha(controllerPath)+"'"));
   assert.match(agent,new RegExp("PERIOD_WORKER_SHA256='"+sha(workerPath)+"'"));
 });
-test('index uses adaptive cumulative UI and current-selector organic cache tags',()=>{
+test('index uses adaptive cumulative UI while organic auto-fill stays disabled',()=>{
   assert.match(index,/cofiring-period-ui-v5\.js\?v=20260917-cumulative-nativeom-adaptive-v4/);
-  assert.match(index,/cofiring-organic-excel-auto-v1\.js\?v=20260917-selector-v4/);
+  assert.doesNotMatch(index,/cofiring-organic-excel-auto-v1\.js/);
 });
