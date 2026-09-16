@@ -83,6 +83,27 @@
     const q=s=>modal.querySelector(s),msg=(text,bad=false)=>{const e=q('[data-cfv56-msg]');e.textContent=text||'';e.dataset.bad=bad?'1':'0';};
     const signature=ctx=>JSON.stringify([ctx?.spec,ctx?.settings,ctx?.result?.units]);
     const currentContext=()=>{try{return options.getContext?.()?.result===base&&signature(options.getContext?.())===contextSignature;}catch(_){return false;}};
+    // COFIRING COAL REVIEW TOAST V1
+    let coalReviewToastTimer=null;
+    function hideCoalReviewToast(){
+      if(coalReviewToastTimer){root.clearTimeout?.(coalReviewToastTimer);coalReviewToastTimer=null;}
+      const toast=q('[data-cfv56-coal-review-toast]');if(!toast)return;toast.hidden=true;toast.style.opacity='0';toast.style.transform='translateY(-4px)';
+    }
+    function showCoalReviewToast(){
+      let toast=q('[data-cfv56-coal-review-toast]');
+      if(!toast){
+        const dialog=q('.cfv56-adjust-dialog');if(!dialog)return;
+        const currentPosition=root.getComputedStyle?.(dialog)?.position;if(!currentPosition||currentPosition==='static')dialog.style.position='relative';
+        toast=root.document.createElement('div');toast.setAttribute('data-cfv56-coal-review-toast','');toast.setAttribute('role','status');toast.setAttribute('aria-live','polite');
+        Object.assign(toast.style,{position:'absolute',top:'12px',right:'52px',zIndex:'12',display:'flex',alignItems:'center',gap:'7px',maxWidth:'310px',padding:'7px 9px',border:'1px solid #d9cced',borderRadius:'9px',background:'#ffffff',color:'#5e4b7d',boxShadow:'0 6px 18px rgba(68,50,98,.14)',fontSize:'11px',fontWeight:'700',lineHeight:'1.35',letterSpacing:'-.1px',opacity:'0',transform:'translateY(-4px)',transition:'opacity .16s ease, transform .16s ease'});
+        const text=root.document.createElement('span');text.textContent='최대 혼소 조정 시, 1,2호기 석탄 사용량 검토 필요';text.style.whiteSpace='nowrap';toast.appendChild(text);
+        const closeButton=root.document.createElement('button');closeButton.type='button';closeButton.setAttribute('aria-label','안내 닫기');closeButton.textContent='×';Object.assign(closeButton.style,{border:'0',background:'transparent',color:'#7a6994',padding:'0 1px',margin:'0',fontSize:'15px',lineHeight:'1',cursor:'pointer'});closeButton.addEventListener('click',hideCoalReviewToast);toast.appendChild(closeButton);
+        dialog.appendChild(toast);
+      }
+      if(coalReviewToastTimer)root.clearTimeout?.(coalReviewToastTimer);toast.hidden=false;
+      root.requestAnimationFrame?.(()=>{toast.style.opacity='1';toast.style.transform='translateY(0)';});
+      coalReviewToastTimer=root.setTimeout?.(hideCoalReviewToast,3000)||null;
+    }
     function controls(){
       for(const e of modal.querySelectorAll('.cfv56-adjust-body input,.cfv56-adjust-body button,[data-cfv56-reset]'))e.disabled=!ready||busy;
       q('[data-cfv56-apply]').disabled=!ready||busy||!preview?.ok;
@@ -120,7 +141,7 @@
     for(const el of modal.querySelectorAll('[data-cfv56-transfer],[data-cfv56-max],[data-cfv56-final1],[data-cfv56-final2]'))el.addEventListener('input',()=>{if(el.hasAttribute('data-cfv56-max'))cap();preview=null;controls();msg('입력값이 변경되었습니다. 미리보기 또는 최대혼소 조정을 다시 실행하세요.');});
     q('[data-cfv56-save-max]').addEventListener('click',async()=>{if(!validAction())return;busy=true;controls();try{const saved=await saveSharedMax(Number(q('[data-cfv56-max]').value),options.getHeaders);cap();msg(saved.shared?'Bio 최대량을 공용 설정으로 저장했습니다.':'서버 저장을 확인하지 못해 이 브라우저에만 저장했습니다.',!saved.shared);}catch(e){msg(e.message,true);}finally{busy=false;controls();}});
     q('[data-cfv56-preview-transfer]').addEventListener('click',()=>{if(validAction())showPreview(manualTransfer(base,settings,direction,q('[data-cfv56-transfer]').value),'수동 이동 미리보기입니다. 적용하면 계산 화면에 반영됩니다.');});
-    q('[data-cfv56-auto]').addEventListener('click',()=>{if(!validAction())return;const r=autoMax(base,settings,Number(q('[data-cfv56-max]').value));showPreview(r,r.ok&&r.adjustment.excludedBioTons>0?`최대량 초과 ${fmt(r.adjustment.excludedBioTons)} t를 혼소 계산에서 제외하는 미리보기입니다.`:'최대혼소 자동 조정 미리보기입니다.');});
+    q('[data-cfv56-auto]').addEventListener('click',()=>{if(!validAction())return;const r=autoMax(base,settings,Number(q('[data-cfv56-max]').value));showPreview(r,r.ok&&r.adjustment.excludedBioTons>0?`최대량 초과 ${fmt(r.adjustment.excludedBioTons)} t를 혼소 계산에서 제외하는 미리보기입니다.`:'최대혼소 자동 조정 미리보기입니다.');if(r?.ok)showCoalReviewToast();});
     q('[data-cfv56-edit]').addEventListener('click',()=>{if(!validAction())return;const e=q('[data-cfv56-final-edit]');e.hidden=!e.hidden;if(!e.hidden)q('[data-cfv56-final1]').focus();});
     q('[data-cfv56-preview-final]').addEventListener('click',()=>{if(!validAction())return;const v1=q('[data-cfv56-final1]').value,v2=q('[data-cfv56-final2]').value;if(v1.trim()===''||v2.trim()===''){preview=null;controls();msg('두 호기의 최종 Bio를 모두 입력해 주세요. 사용량이 없으면 0을 입력하세요.',true);return;}showPreview(adjustFinal(base,settings,Number(v1),Number(v2),{mode:'manual_final'}),'최종 Bio 직접수정 미리보기입니다.');});
     q('[data-cfv56-apply]').addEventListener('click',async()=>{if(!validAction()||!preview?.ok)return;busy=true;controls();try{msg('혼소 조정값을 저장하고 있습니다.');const saved=await saveServerAdjustment(spec,preview,serverRevision,options.getHeaders);serverRevision=Number(saved?.entry?.revision)||serverRevision+1;saveStored(spec,base,preview);options.onApply?.(preview.result,preview.adjustment);busy=false;close();}catch(e){msg(e.message||'혼소 조정 저장을 완료하지 못했습니다.',true);}finally{busy=false;controls();}});
