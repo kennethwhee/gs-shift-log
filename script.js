@@ -206470,6 +206470,13 @@ function loadCache() {
   let guardedCofiringCard =
     null;
 
+  /*
+    같은 reset revision이 history/status/event 경로에서 연속 전달되거나
+    카드 렌더 중 다시 들어와도 전체 화면 렌더를 중첩하지 않는다.
+  */
+  let renderingSelectedDateScope =
+    false;
+
   function normalizeText(
     value
   ) {
@@ -206964,7 +206971,18 @@ function loadCache() {
       return;
     }
 
+
     if (
+      renderingSelectedDateScope
+    ) {
+      return;
+    }
+
+    renderingSelectedDateScope =
+      true;
+
+    try {
+if (
       isResetActive(
         targetDate
       )
@@ -207035,7 +207053,18 @@ function loadCache() {
 
       clearCofiringPreview();
 
-      bindCofiringResetGuard();
+      /*
+        혼소 카드는 자체 reset 이벤트 처리기를 이미 가지고 있다.
+        같은 카드를 다시 관찰하며 clear 하는 두 번째 observer는 끊는다.
+      */
+      cofiringGuardObserver
+        ?.disconnect();
+
+      cofiringGuardObserver =
+        null;
+
+      guardedCofiringCard =
+        null;
     }
 
     window
@@ -207068,6 +207097,11 @@ function loadCache() {
     window
       .morningMeetingQuerySources
       ?.render?.();
+
+    } finally {
+      renderingSelectedDateScope =
+        false;
+    }
   }
 
   function applyResetState(
@@ -207110,6 +207144,23 @@ function loadCache() {
             item
           )
         )
+      )
+    ) {
+      return {
+        ...currentItem
+      };
+    }
+
+
+    /*
+      같은 revision과 같은 상태가 다시 도착하면 이미 화면에 반영된 값이다.
+      전체 카드 렌더와 reset 이벤트를 다시 발생시키지 않는다.
+    */
+    if (
+      currentItem &&
+      isSameResetItem(
+        currentItem,
+        item
       )
     ) {
       return {
