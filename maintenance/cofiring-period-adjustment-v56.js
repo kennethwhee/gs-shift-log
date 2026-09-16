@@ -75,97 +75,126 @@
   async function clearServerAdjustment(spec,expectedRevision,getHeaders){const r=await root.fetch(API,{method:'POST',headers:{...(getHeaders?.()||{}),'Content-Type':'application/json','X-ShiftLog-Client':'desktop'},cache:'no-store',credentials:'same-origin',body:JSON.stringify({action:'clear',start:spec.startLocal,end:spec.endLocal,expectedRevision,requestId:requestId()})}),p=await r.json();if(!r.ok||p?.ok!==true)throw new Error(p?.message||'혼소 조정 원복 저장 실패');return p;}
   function resolveStored(base,settings,spec){const saved=readStored(spec,base);if(!saved)return null;const r=adjustFinal(base,settings,saved.finalBioUnit1,saved.finalBioUnit2,saved.meta||{});return r.ok?r:null;}
   function ratioBio(unit){const c=unit?.heats?.coal,b=unit?.heats?.bio,t=Number(c)+Number(b);return Number.isFinite(t)&&t>0?Number(b)/t*100:null;}
-    const COAL_REVIEW_TOAST_MARKER_V13_R1='COFIRING-MAX-COAL-REVIEW-TOAST-DIRECT-V13-R1';
-  const COAL_REVIEW_TOAST_ID_V13_R1='cfv56CoalReviewToastV13R1';
-  const COAL_REVIEW_STYLE_ID_V13_R1='cfv56CoalReviewStyleV13R1';
-  let coalReviewTimerV13R1=null;
+  const COAL_REVIEW_TOAST_MARKER_V13_R1=
+    'COFIRING-MAX-INLINE-MODAL-MESSAGE-V14-R1';
 
-  function ensureCoalReviewStyleV13R1(){
+  const COAL_REVIEW_TOAST_ID_V13_R1=
+    'cfv56CoalReviewInlineV14R1';
+
+  const COAL_REVIEW_STYLE_ID_V13_R1=
+    'cfv56CoalReviewInlineStyleV14R1';
+
+  let coalReviewToastTimerV13R1=null;
+
+  function ensureCoalReviewToastStyleV13R1(){
     const doc=root.document;
-    if(!doc||doc.getElementById(COAL_REVIEW_STYLE_ID_V13_R1))return;
 
-    const style=doc.createElement('style');
-    style.id=COAL_REVIEW_STYLE_ID_V13_R1;
+    if(
+      !doc ||
+      doc.getElementById(
+        COAL_REVIEW_STYLE_ID_V13_R1
+      )
+    ){
+      return;
+    }
+
+    const style=
+      doc.createElement(
+        'style'
+      );
+
+    style.id=
+      COAL_REVIEW_STYLE_ID_V13_R1;
 
     style.textContent=`
       #${COAL_REVIEW_TOAST_ID_V13_R1}{
-        position:fixed;
-        top:24px;
-        left:50%;
-        z-index:2147483000;
-        width:min(480px,calc(100vw - 32px));
-        transform:translateX(-50%);
-        font-family:Inter,"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",sans-serif;
+        position:absolute;
+        inset:0;
+        z-index:100;
+        display:grid;
+        place-items:center;
+        padding:24px;
+        pointer-events:none;
       }
 
-      #${COAL_REVIEW_TOAST_ID_V13_R1} .coal-review-card{
-        display:grid;
-        grid-template-columns:36px minmax(0,1fr) 30px;
-        gap:12px;
-        align-items:start;
-        padding:16px;
-        border:1px solid #e7d39a;
+      #${COAL_REVIEW_TOAST_ID_V13_R1}
+      .cfv56-coal-review-center-box{
+        position:relative;
+        box-sizing:border-box;
+        width:min(440px,calc(100% - 32px));
+        padding:24px 48px 24px 24px;
+        border:1px solid #e6d198;
         border-radius:14px;
         background:#fffdf5;
-        box-shadow:0 18px 48px rgba(25,35,50,.28);
-        color:#26394b;
+        box-shadow:
+          0 18px 48px rgba(25,35,50,.30);
+        color:#293b4c;
+        text-align:center;
+        pointer-events:auto;
+        font-family:
+          Inter,
+          "Pretendard Variable",
+          Pretendard,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          "Malgun Gothic",
+          sans-serif;
       }
 
-      #${COAL_REVIEW_TOAST_ID_V13_R1} .coal-review-icon{
-        display:flex;
-        width:36px;
-        height:36px;
-        align-items:center;
-        justify-content:center;
-        border-radius:10px;
-        background:#ffefb8;
-        color:#8a6200;
-        font-size:20px;
-        font-weight:900;
-      }
-
-      #${COAL_REVIEW_TOAST_ID_V13_R1} strong{
-        display:block;
-        margin:1px 0 5px;
-        font-size:14px;
-        line-height:1.35;
-      }
-
-      #${COAL_REVIEW_TOAST_ID_V13_R1} p{
+      #${COAL_REVIEW_TOAST_ID_V13_R1}
+      .cfv56-coal-review-center-text{
         margin:0;
-        color:#66798b;
-        font-size:11px;
-        line-height:1.55;
+        font-size:18px;
+        font-weight:700;
+        line-height:1.5;
+        letter-spacing:-.3px;
         word-break:keep-all;
       }
 
-      #${COAL_REVIEW_TOAST_ID_V13_R1} button{
+      #${COAL_REVIEW_TOAST_ID_V13_R1}
+      .cfv56-coal-review-center-close{
+        position:absolute;
+        top:10px;
+        right:10px;
         display:flex;
         width:30px;
         height:30px;
         align-items:center;
         justify-content:center;
-        margin:-5px -5px 0 0;
         padding:0;
         border:0;
         border-radius:8px;
         background:transparent;
         color:#738596;
         font-size:21px;
+        line-height:1;
         cursor:pointer;
+      }
+
+      #${COAL_REVIEW_TOAST_ID_V13_R1}
+      .cfv56-coal-review-center-close:hover{
+        background:rgba(62,79,94,.08);
+        color:#33485b;
       }
     `;
 
-    doc.head.appendChild(style);
+    doc.head.appendChild(
+      style
+    );
   }
 
   function hideCoalReviewToastV13R1(){
-    if(coalReviewTimerV13R1!==null){
+    if(
+      coalReviewToastTimerV13R1 !==
+      null
+    ){
       root.clearTimeout?.(
-        coalReviewTimerV13R1
+        coalReviewToastTimerV13R1
       );
 
-      coalReviewTimerV13R1=null;
+      coalReviewToastTimerV13R1=
+        null;
     }
 
     root.document
@@ -176,62 +205,90 @@
   }
 
   function showCoalReviewToastV13R1(){
-    const doc=root.document;
+    const doc=
+      root.document;
 
-    if(!doc?.body)return;
+    if(!doc){
+      return;
+    }
 
-    ensureCoalReviewStyleV13R1();
+    const focusedDialog=
+      doc.activeElement
+        ?.closest?.(
+          '.cfv56-adjust-dialog'
+        );
+
+    const visibleDialog=
+      doc.querySelector(
+        '.cfv56-adjust-modal:not([hidden]) .cfv56-adjust-dialog'
+      );
+
+    const host=
+      focusedDialog ||
+      visibleDialog;
+
+    if(!host){
+      return;
+    }
+
+    ensureCoalReviewToastStyleV13R1();
     hideCoalReviewToastV13R1();
 
-    const toast=doc.createElement('div');
+    const computed=
+      root.getComputedStyle?.(
+        host
+      );
 
-    toast.id=
+    if(
+      computed &&
+      computed.position ===
+      'static'
+    ){
+      host.style.position=
+        'relative';
+    }
+
+    const wrap=
+      doc.createElement(
+        'div'
+      );
+
+    wrap.id=
       COAL_REVIEW_TOAST_ID_V13_R1;
 
-    toast.setAttribute(
+    wrap.setAttribute(
       'role',
       'status'
     );
 
-    toast.setAttribute(
+    wrap.setAttribute(
       'aria-live',
       'polite'
     );
 
-    toast.innerHTML=`
-      <div class="coal-review-card">
-        <span
-          class="coal-review-icon"
-          aria-hidden="true"
-        >!</span>
-
-        <div>
-          <strong>
-            1·2호기 석탄 사용량 검토 필요
-          </strong>
-
-          <p>
-            최대혼소 조정 후 1호기와 2호기의
-            Coal 사용량을 확인해 주세요.
-          </p>
-        </div>
-
+    wrap.innerHTML=`
+      <div class="cfv56-coal-review-center-box">
         <button
           type="button"
-          data-coal-review-close-v13-r1
+          class="cfv56-coal-review-center-close"
+          data-cfv56-coal-review-center-close
           aria-label="안내 닫기"
           title="닫기"
         >×</button>
+
+        <p class="cfv56-coal-review-center-text">
+          1,2호기 석탄 사용량 검토 필요합니다.
+        </p>
       </div>
     `;
 
-    doc.body.appendChild(
-      toast
+    host.appendChild(
+      wrap
     );
 
-    toast
+    wrap
       .querySelector(
-        '[data-coal-review-close-v13-r1]'
+        '[data-cfv56-coal-review-center-close]'
       )
       ?.addEventListener(
         'click',
@@ -243,15 +300,19 @@
         }
       );
 
-    coalReviewTimerV13R1=
+    coalReviewToastTimerV13R1=
       root.setTimeout?.(
         ()=>{
-          coalReviewTimerV13R1=null;
-          toast.remove();
+          coalReviewToastTimerV13R1=
+            null;
+
+          wrap.remove();
         },
         3000
-      )??null;
+      ) ??
+      null;
   }
+
 function modalHtml(){return `<div class="cfv56-adjust-modal" data-cfv56-adjust-modal hidden aria-hidden="true"><div class="cfv56-adjust-dialog" role="dialog" aria-modal="true" aria-label="혼소 조정"><header><div><span>CO-FIRING ADJUSTMENT</span><h3>혼소 조정</h3><p>Bio 이동과 최대혼소 조정 결과를 적용 전에 확인합니다.</p></div><button type="button" data-cfv56-close aria-label="닫기">×</button></header><div class="cfv56-adjust-body"><div class="cfv56-adjust-top"><strong data-cfv56-period>—</strong><label>호기당 Bio 최대량<input data-cfv56-max type="number" min="0.01" max="2000" step="0.01"><span>t/d</span></label><button type="button" data-cfv56-save-max>설정 저장</button></div><p class="cfv56-cap-note" data-cfv56-cap>—</p><section><h4>수동 이동 <small>호기 간 Bio 배분</small></h4><div class="cfv56-dir"><button type="button" class="is-selected" aria-pressed="true" data-cfv56-dir="1">1호기 → 2호기</button><button type="button" aria-pressed="false" data-cfv56-dir="2">2호기 → 1호기</button></div><label class="cfv56-transfer">Bio 이동량<input data-cfv56-transfer type="number" min="0" step="0.01"><span>t / 선택기간</span><button type="button" data-cfv56-preview-transfer>미리보기</button></label></section><section class="cfv56-auto"><div><h4>최대혼소 자동 조정</h4><p>일 최대량을 선택기간으로 환산해 초과분을 반대 호기로 이동합니다. 양쪽이 초과하면 최대량에 맞춰 조정합니다.</p></div><button type="button" data-cfv56-auto>최대혼소 조정</button></section><p class="cfv56-adjust-msg" data-cfv56-msg role="status" aria-live="polite"></p><section><div class="cfv56-final-head"><h4>최종 조정값</h4><button type="button" data-cfv56-edit>수정</button></div><div class="cfv56-final-scroll"><table><thead><tr><th>호기</th><th>Coal (t)</th><th>Bio (t)</th><th>바이오 혼소율</th><th>유기성 및 축분 혼소율</th><th>종합혼소율</th></tr></thead><tbody data-cfv56-final></tbody></table></div><div class="cfv56-final-edit" data-cfv56-final-edit hidden><label>1호기 최종 Bio (t)<input data-cfv56-final1 type="number" min="0" step="0.01"></label><label>2호기 최종 Bio (t)<input data-cfv56-final2 type="number" min="0" step="0.01"></label><button type="button" data-cfv56-preview-final>직접수정 미리보기</button></div><p class="cfv56-formula">Coal 자동 보정 = (실제 Bio − 최종 Bio) × Bio 발열량 ÷ Coal 발열량</p><p class="cfv56-formula">바이오: Coal+Bio 열량 기준 · 유기성 및 축분 / 종합: 전체 투입열량 기준</p></section></div><footer><button type="button" data-cfv56-reset>원복</button><span></span><button type="button" data-cfv56-cancel>취소</button><button type="button" class="primary" data-cfv56-apply>적용</button></footer></div></div>`;}
   function create(options){
     const container=options.container;if(!container)return null;

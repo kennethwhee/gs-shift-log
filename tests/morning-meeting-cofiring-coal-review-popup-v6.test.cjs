@@ -1,8 +1,13 @@
 'use strict';
 
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
+const assert =
+  require('node:assert/strict');
+
+const fs =
+  require('node:fs');
+
+const path =
+  require('node:path');
 
 const repo =
   path.resolve(
@@ -31,13 +36,37 @@ const index =
 
 assert.ok(
   adjustment.includes(
-    'COFIRING-MAX-COAL-REVIEW-TOAST-DIRECT-V13-R1'
+    'COFIRING-MAX-INLINE-MODAL-MESSAGE-V14-R1'
   )
 );
 
 assert.ok(
   adjustment.includes(
-    '1·2호기 석탄 사용량 검토 필요'
+    '1,2호기 석탄 사용량 검토 필요합니다.'
+  )
+);
+
+assert.ok(
+  adjustment.includes(
+    '.cfv56-adjust-dialog'
+  )
+);
+
+assert.ok(
+  adjustment.includes(
+    'host.appendChild'
+  )
+);
+
+assert.ok(
+  adjustment.includes(
+    'place-items:center'
+  )
+);
+
+assert.ok(
+  adjustment.includes(
+    'data-cfv56-coal-review-center-close'
   )
 );
 
@@ -49,30 +78,19 @@ assert.ok(
 
 assert.ok(
   adjustment.includes(
-    'z-index:2147483000'
+    'showCoalReviewToastV13R1();'
   )
 );
 
-const handlerRegex =
-  /q\s*\(\s*['"]\[data-cfv56-auto\]['"]\s*\)\s*\.addEventListener\s*\(\s*['"]click['"]\s*,\s*\(\s*\)\s*=>\s*\{\s*showCoalReviewToastV13R1\(\);/;
-
-const match =
-  handlerRegex.exec(
-    adjustment
+const handlerIndex =
+  adjustment.indexOf(
+    "q('[data-cfv56-auto]')"
   );
-
-assert.ok(
-  match,
-  'maximum adjustment handler must call toast directly'
-);
-
-const handlerStart =
-  match.index;
 
 const toastIndex =
   adjustment.indexOf(
     'showCoalReviewToastV13R1();',
-    handlerStart
+    handlerIndex
   );
 
 const autoMaxIndex =
@@ -82,23 +100,21 @@ const autoMaxIndex =
   );
 
 assert.ok(
-  toastIndex >= handlerStart
-);
-
-assert.ok(
+  handlerIndex >= 0 &&
+  toastIndex > handlerIndex &&
   autoMaxIndex > toastIndex,
-  'existing autoMax calculation must remain after toast call'
+  'maximum handler must show message and then continue existing autoMax'
 );
 
 assert.ok(
-  index.includes(
-    'cofiring-period-adjustment-v56.js?v=20260917-coal-review-direct-v13-r1'
+  !adjustment.includes(
+    'doc.body.appendChild(toast)'
   )
 );
 
 assert.ok(
-  !index.includes(
-    'morning-meeting-cofiring-coal-review-popup-v4.js'
+  index.includes(
+    'cofiring-period-adjustment-v56.js?v=20260917-inline-modal-center-v14-r1'
   )
 );
 
@@ -109,5 +125,5 @@ assert.ok(
 );
 
 console.log(
-  'PASS: V13 R1 directly injects the 3-second Coal-review toast into the real maximum-cofiring button handler while preserving autoMax and login hotfix (10).'
+  'PASS: V14 R1 shows the Coal-review message in the center of the active co-firing dialog for 3 seconds or until X, preserves autoMax, and keeps the login purge hotfix (12).'
 );
