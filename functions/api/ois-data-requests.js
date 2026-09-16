@@ -14133,6 +14133,60 @@ async function handleMorningMeetingAutoHistoryResetStatusGet(
   - 관련 조회가 진행 중이면 초기화하지 않는다.
 ========================================================= */
 
+
+/* MORNING_MEETING_RESET_STALE_ACTIVE_V1
+  The visible Morning Meeting may already be complete while an abandoned
+  queue row is still pending/processing. Only rows with no update for six
+  minutes are retired here. A genuinely recent/concurrent query still blocks
+  reset through the existing active-request check and final SQL CAS guards.
+*/
+async function retireStaleMorningMeetingAutoHistoryActiveRequests(
+  database,
+  targetDate,
+  nowText = new Date().toISOString()
+) {
+  const nowTime = Date.parse(nowText);
+  const cutoffText = new Date(
+    (Number.isFinite(nowTime) ? nowTime : Date.now()) -
+    6 * 60 * 1000
+  ).toISOString();
+
+  const result = await database
+    .prepare(`
+      UPDATE ois_data_requests
+
+      SET status = 'failed',
+          error_message = '선택일 초기화 준비 중 장시간 응답이 없던 오전회의 조회 요청을 종료했습니다.',
+          completed_at = CASE WHEN completed_at IS NULL OR completed_at = '' THEN ? ELSE completed_at END,
+          updated_at = ?
+
+      WHERE target_date = ?
+        AND status IN ('pending', 'processing')
+        AND request_type IN (
+          'water_environment',
+          'limestone_stock',
+          'turbine_gear_pinion',
+          'silo_level',
+          'daily_data_excel'
+        )
+        AND COALESCE(
+          NULLIF(updated_at, ''),
+          NULLIF(started_at, ''),
+          NULLIF(requested_at, ''),
+          ''
+        ) <= ?
+    `)
+    .bind(
+      nowText,
+      nowText,
+      targetDate,
+      cutoffText
+    )
+    .run();
+
+  return Number(result?.meta?.changes || 0);
+}
+
 async function resetMorningMeetingAutoHistory(
   context,
   body
@@ -14275,6 +14329,36 @@ async function resetMorningMeetingAutoHistory(
   }
 
 
+  /*
+    First expire normal queue timeouts, then retire only abandoned core
+    requests that have not changed for six minutes. This frees orphan rows
+    left behind by a timed-out browser/Agent run without bypassing a genuinely
+    current query from another user.
+  */
+  await expireOldRequests(
+    database
+  );
+
+
+  const retiredStaleRequestCount =
+    await retireStaleMorningMeetingAutoHistoryActiveRequests(
+      database,
+      targetDate,
+      now
+    );
+
+
+  if (
+    retiredStaleRequestCount >
+      0
+  ) {
+    console.warn(
+      "Morning Meeting reset retired stale active requests:",
+      targetDate,
+      retiredStaleRequestCount
+    );
+  }
+
   const activeRequestTypes =
     await findMorningMeetingAutoHistoryActiveRequestTypes(
       database,
@@ -14290,7 +14374,8 @@ async function resetMorningMeetingAutoHistory(
     return morningMeetingAutoHistoryResetConflictResponse(
       existingRow,
       targetDate,
-      "선택일 핵심 자료를 조회 중입니다. 조회가 끝난 뒤 다시 초기화해 주세요.",
+      `선택일 핵심 자료를 아직 조회 중입니다 (${activeRequestTypes.join(", ")}). ` +
+        "최근 시작된 조회가 끝난 뒤 다시 초기화해 주세요.",
       "MORNING_MEETING_AUTO_HISTORY_QUERY_ACTIVE",
       {
         activeRequestTypes
