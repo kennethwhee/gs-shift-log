@@ -1,378 +1,41 @@
-(function () {
+(function (root) {
   "use strict";
 
   const MARKER =
-    "MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V10-MORNING-CARD";
+    "MORNING-MEETING-COFIRING-COAL-REVIEW-V11-MAX-TOAST";
 
-  if (window.__mmCofiringCoalReviewPopupV10Installed) {
+  if (
+    root.__mmCofiringCoalReviewV11Installed
+  ) {
     return;
   }
 
-  window.__mmCofiringCoalReviewPopupV10Installed = true;
+  root.__mmCofiringCoalReviewV11Installed =
+    true;
 
-  const replayButtons = new WeakSet();
+  const doc =
+    root.document;
 
-  function isMorningMeetingActive() {
-    const tab =
-      document.querySelector(
-        '[data-efficiency-tab="morning-meeting"]'
-      ) ||
-      document.getElementById(
-        "efficiencyMorningMeetingTab"
-      );
-
-    if (!tab) {
-      return false;
-    }
-
-    const tabActive =
-      tab.classList.contains("is-active") ||
-      tab.getAttribute("aria-selected") === "true";
-
-    if (!tabActive) {
-      return false;
-    }
-
-    const view =
-      document.querySelector(
-        '[data-efficiency-view="morning-meeting"]'
-      ) ||
-      document.getElementById(
-        "efficiencyMorningMeetingView"
-      );
-
-    if (!view) {
-      return true;
-    }
-
-    return (
-      view.classList.contains("is-active") ||
-      view.hidden === false ||
-      view.getAttribute("aria-hidden") === "false"
-    );
+  if (!doc) {
+    return;
   }
 
-  function ensureStyle() {
-    if (
-      document.getElementById(
-        "mmCofiringCoalReviewPopupV10Style"
-      )
-    ) {
-      return;
-    }
+  const STYLE_ID =
+    "mmCofiringCoalReviewV11Style";
 
-    const style =
-      document.createElement("style");
+  const TOAST_ID =
+    "mmCofiringCoalReviewV11Toast";
 
-    style.id =
-      "mmCofiringCoalReviewPopupV10Style";
+  let morningCardContext =
+    false;
 
-    style.textContent = `
-      dialog[data-mm-cofiring-coal-review-v10] {
-        width: min(520px, calc(100vw - 32px));
-        max-width: 520px;
-        margin: auto;
-        padding: 0;
-        border: 1px solid #e5d4a9;
-        border-radius: 16px;
-        background: #ffffff;
-        color: #26394b;
-        box-shadow: 0 28px 90px rgba(9, 25, 42, 0.34);
-        font-family:
-          Inter,
-          "Pretendard Variable",
-          Pretendard,
-          -apple-system,
-          BlinkMacSystemFont,
-          "Segoe UI",
-          "Malgun Gothic",
-          "Noto Sans CJK KR",
-          sans-serif;
-      }
+  let autoDismissTimer =
+    null;
 
-      dialog[data-mm-cofiring-coal-review-v10]::backdrop {
-        background: rgba(8, 20, 33, 0.62);
-        backdrop-filter: blur(1.5px);
-      }
+  let removeTimer =
+    null;
 
-      dialog[data-mm-cofiring-coal-review-v10] * {
-        box-sizing: border-box;
-      }
-
-      dialog[data-mm-cofiring-coal-review-v10] .mmcr-v10-head {
-        display: flex;
-        align-items: flex-start;
-        gap: 13px;
-        padding: 22px 23px 16px;
-      }
-
-      dialog[data-mm-cofiring-coal-review-v10] .mmcr-v10-icon {
-        display: flex;
-        flex: 0 0 38px;
-        width: 38px;
-        height: 38px;
-        align-items: center;
-        justify-content: center;
-        border-radius: 11px;
-        background: #fff4cf;
-        color: #9c6d00;
-        font-size: 21px;
-        font-weight: 900;
-      }
-
-      dialog[data-mm-cofiring-coal-review-v10] h3 {
-        margin: 1px 0 7px;
-        color: #24364a;
-        font-size: 18px;
-        line-height: 1.3;
-        letter-spacing: -0.45px;
-      }
-
-      dialog[data-mm-cofiring-coal-review-v10] p {
-        margin: 0;
-        color: #657789;
-        font-size: 12px;
-        line-height: 1.75;
-        word-break: keep-all;
-      }
-
-      dialog[data-mm-cofiring-coal-review-v10] .mmcr-v10-note {
-        margin: 0 23px 18px;
-        padding: 12px 14px;
-        border: 1px solid #efdfb8;
-        border-radius: 10px;
-        background: #fffaf0;
-        color: #7b622c;
-        font-size: 11px;
-        font-weight: 700;
-        line-height: 1.65;
-        word-break: keep-all;
-      }
-
-      dialog[data-mm-cofiring-coal-review-v10] footer {
-        display: flex;
-        justify-content: flex-end;
-        gap: 9px;
-        padding: 15px 23px 19px;
-        border-top: 1px solid #e9eef2;
-        background: #fafcfd;
-      }
-
-      dialog[data-mm-cofiring-coal-review-v10] button {
-        min-height: 38px;
-        padding: 0 15px;
-        border: 1px solid #d5e0e8;
-        border-radius: 9px;
-        background: #ffffff;
-        color: #5e7386;
-        font: inherit;
-        font-size: 12px;
-        font-weight: 750;
-        cursor: pointer;
-      }
-
-      dialog[data-mm-cofiring-coal-review-v10]
-      button[data-mmcr-v10-confirm] {
-        border-color: #7c59b4;
-        background: #7c59b4;
-        color: #ffffff;
-      }
-
-      dialog[data-mm-cofiring-coal-review-v10]
-      button:focus-visible {
-        outline: 3px solid rgba(124, 89, 180, 0.28);
-        outline-offset: 2px;
-      }
-    `;
-
-    document.head.appendChild(
-      style
-    );
-  }
-
-  function showReviewDialog() {
-    ensureStyle();
-
-    return new Promise(
-      resolve => {
-        const existing =
-          document.querySelector(
-            "dialog[data-mm-cofiring-coal-review-v10]"
-          );
-
-        if (
-          existing &&
-          typeof existing.close === "function"
-        ) {
-          try {
-            existing.close();
-          } catch (_) {
-          }
-
-          existing.remove();
-        }
-
-        const dialog =
-          document.createElement("dialog");
-
-        dialog.setAttribute(
-          "data-mm-cofiring-coal-review-v10",
-          MARKER
-        );
-
-        dialog.innerHTML = `
-          <div class="mmcr-v10-head">
-            <div class="mmcr-v10-icon" aria-hidden="true">!</div>
-            <div>
-              <h3>1·2호기 석탄 사용량 검토 필요</h3>
-              <p>
-                혼소 조정에서는 Bio 이동에 따라 Coal 사용량이
-                함께 보정될 수 있습니다. 혼소 조정 창을 열기 전에
-                1호기와 2호기의 Coal 사용량을 먼저 확인해 주세요.
-              </p>
-            </div>
-          </div>
-
-          <div class="mmcr-v10-note">
-            확인을 누르면 혼소 조정 창을 엽니다.
-            취소를 누르면 혼소 조정 창을 열지 않습니다.
-          </div>
-
-          <footer>
-            <button
-              type="button"
-              data-mmcr-v10-cancel
-            >
-              취소
-            </button>
-
-            <button
-              type="button"
-              data-mmcr-v10-confirm
-            >
-              확인 후 혼소 조정 열기
-            </button>
-          </footer>
-        `;
-
-        document.body.appendChild(
-          dialog
-        );
-
-        let settled =
-          false;
-
-        const finish =
-          value => {
-            if (settled) {
-              return;
-            }
-
-            settled =
-              true;
-
-            dialog.removeEventListener(
-              "cancel",
-              handleCancel
-            );
-
-            if (
-              dialog.open &&
-              typeof dialog.close === "function"
-            ) {
-              try {
-                dialog.close();
-              } catch (_) {
-              }
-            }
-
-            dialog.remove();
-
-            resolve(
-              value
-            );
-          };
-
-        const handleCancel =
-          event => {
-            event.preventDefault();
-            event.stopPropagation();
-
-            finish(
-              false
-            );
-          };
-
-        dialog.addEventListener(
-          "cancel",
-          handleCancel
-        );
-
-        dialog
-          .querySelector(
-            "[data-mmcr-v10-cancel]"
-          )
-          ?.addEventListener(
-            "click",
-            event => {
-              event.preventDefault();
-              event.stopPropagation();
-
-              finish(
-                false
-              );
-            }
-          );
-
-        const confirmButton =
-          dialog.querySelector(
-            "[data-mmcr-v10-confirm]"
-          );
-
-        confirmButton
-          ?.addEventListener(
-            "click",
-            event => {
-              event.preventDefault();
-              event.stopPropagation();
-
-              finish(
-                true
-              );
-            }
-          );
-
-        if (
-          typeof dialog.showModal !==
-            "function"
-        ) {
-          dialog.remove();
-
-          resolve(
-            window.confirm(
-              "1·2호기 석탄 사용량 검토 필요\n\n" +
-              "혼소 조정에서는 Bio 이동에 따라 Coal 사용량이 함께 보정될 수 있습니다.\n" +
-              "혼소 조정 창을 열기 전에 1호기·2호기 Coal 사용량을 확인해 주세요."
-            )
-          );
-
-          return;
-        }
-
-        dialog.showModal();
-
-        window.setTimeout(
-          () => {
-            confirmButton?.focus();
-          },
-          0
-        );
-      }
-    );
-  }
-
-
-  function normalizeButtonText(
+  function normalizeText(
     value
   ) {
     return String(
@@ -386,15 +49,16 @@
       .trim();
   }
 
-  function findMorningCardAdjustmentButton(
+  function eventButton(
     event
   ) {
     const path =
-      typeof event.composedPath === "function"
+      typeof event.composedPath ===
+        "function"
         ? event.composedPath()
         : [];
 
-    let button =
+    const fromPath =
       path.find?.(
         node =>
           node &&
@@ -402,40 +66,53 @@
           String(
             node.tagName ||
             ""
-          ).toUpperCase() === "BUTTON"
+          ).toUpperCase() ===
+            "BUTTON"
+      );
+
+    if (fromPath) {
+      return fromPath;
+    }
+
+    const target =
+      event.target &&
+      event.target.nodeType === 1
+        ? event.target
+        : event.target?.parentElement;
+
+    return (
+      target?.closest?.(
+        "button"
       ) ||
-      null;
+      null
+    );
+  }
 
-    if (!button) {
-      const target =
-        event.target &&
-        event.target.nodeType === 1
-          ? event.target
-          : event.target?.parentElement;
-
-      button =
-        target?.closest?.(
-          "button"
-        ) ||
-        null;
+  function isMorningMeetingCardEntry(
+    button
+  ) {
+    if (
+      !button ||
+      normalizeText(
+        button.textContent
+      ) !==
+        "혼소 조정"
+    ) {
+      return false;
     }
 
-    if (!button) {
-      return null;
-    }
-
-    const morningView =
-      document.getElementById(
+    const view =
+      doc.getElementById(
         "efficiencyMorningMeetingView"
       );
 
     if (
-      !morningView ||
-      !morningView.contains(
+      !view ||
+      !view.contains(
         button
       )
     ) {
-      return null;
+      return false;
     }
 
     if (
@@ -443,26 +120,346 @@
         "[data-cfv56-adjust-modal], .cfv56-adjust-modal"
       )
     ) {
-      return null;
+      return false;
+    }
+
+    return true;
+  }
+
+  function isAnalysisPageEntry(
+    button
+  ) {
+    return !!(
+      button &&
+      button.matches?.(
+        "[data-cfv56-adjust]"
+      )
+    );
+  }
+
+  function isMaximumAdjustment(
+    button
+  ) {
+    if (
+      !button ||
+      !button.matches?.(
+        "[data-cfv56-auto]"
+      )
+    ) {
+      return false;
+    }
+
+    const modal =
+      button.closest?.(
+        "[data-cfv56-adjust-modal], .cfv56-adjust-modal"
+      );
+
+    if (!modal) {
+      return false;
     }
 
     if (
-      normalizeButtonText(
-        button.textContent
-      ) !==
-      "혼소 조정"
+      modal.hidden ||
+      modal.getAttribute(
+        "aria-hidden"
+      ) ===
+        "true"
     ) {
-      return null;
+      return false;
     }
 
-    return button;
+    return true;
   }
 
-  async function interceptMorningCardAdjustment(
+  function closesAdjustment(
+    button
+  ) {
+    return !!(
+      button &&
+      button.matches?.(
+        [
+          "[data-cfv56-close]",
+          "[data-cfv56-cancel]",
+          "[data-cfv56-apply]",
+          "[data-cfv56-reset]"
+        ].join(",")
+      )
+    );
+  }
+
+  function ensureStyle() {
+    if (
+      doc.getElementById(
+        STYLE_ID
+      )
+    ) {
+      return;
+    }
+
+    const style =
+      doc.createElement(
+        "style"
+      );
+
+    style.id =
+      STYLE_ID;
+
+    style.textContent = `
+      #${TOAST_ID} {
+        position: fixed;
+        top: 24px;
+        left: 50%;
+        z-index: 20000;
+        width: min(470px, calc(100vw - 32px));
+        transform: translate(-50%, 0);
+        opacity: 1;
+        transition:
+          opacity 160ms ease,
+          transform 160ms ease;
+        font-family:
+          Inter,
+          "Pretendard Variable",
+          Pretendard,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          "Malgun Gothic",
+          "Noto Sans CJK KR",
+          sans-serif;
+      }
+
+      #${TOAST_ID}.is-leaving {
+        opacity: 0;
+        transform: translate(-50%, -8px);
+      }
+
+      #${TOAST_ID} .mmcr11-card {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr) 28px;
+        gap: 11px;
+        align-items: start;
+        padding: 15px 15px 14px;
+        border: 1px solid #ead9ac;
+        border-radius: 13px;
+        background: #fffdf7;
+        box-shadow:
+          0 14px 42px rgba(24, 35, 47, 0.22);
+        color: #26394b;
+      }
+
+      #${TOAST_ID} .mmcr11-icon {
+        display: flex;
+        width: 34px;
+        height: 34px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        background: #fff0bf;
+        color: #916500;
+        font-size: 19px;
+        font-weight: 900;
+      }
+
+      #${TOAST_ID} .mmcr11-copy {
+        min-width: 0;
+        padding-top: 1px;
+      }
+
+      #${TOAST_ID} strong {
+        display: block;
+        margin: 0 0 5px;
+        color: #24364a;
+        font-size: 14px;
+        line-height: 1.35;
+        letter-spacing: -0.25px;
+      }
+
+      #${TOAST_ID} p {
+        margin: 0;
+        color: #67798b;
+        font-size: 11px;
+        line-height: 1.55;
+        word-break: keep-all;
+      }
+
+      #${TOAST_ID} button {
+        display: flex;
+        width: 28px;
+        height: 28px;
+        align-items: center;
+        justify-content: center;
+        margin: -4px -4px 0 0;
+        padding: 0;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: #7b8b99;
+        font-size: 20px;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      #${TOAST_ID} button:hover {
+        background: rgba(74, 91, 106, 0.08);
+        color: #394b5d;
+      }
+
+      #${TOAST_ID} button:focus-visible {
+        outline: 3px solid rgba(124, 89, 180, 0.25);
+        outline-offset: 1px;
+      }
+    `;
+
+    doc.head.appendChild(
+      style
+    );
+  }
+
+  function clearTimers() {
+    if (
+      autoDismissTimer !==
+        null
+    ) {
+      root.clearTimeout?.(
+        autoDismissTimer
+      );
+
+      autoDismissTimer =
+        null;
+    }
+
+    if (
+      removeTimer !==
+        null
+    ) {
+      root.clearTimeout?.(
+        removeTimer
+      );
+
+      removeTimer =
+        null;
+    }
+  }
+
+  function dismissToast(
+    immediate =
+      false
+  ) {
+    clearTimers();
+
+    const toast =
+      doc.getElementById(
+        TOAST_ID
+      );
+
+    if (!toast) {
+      return;
+    }
+
+    if (immediate) {
+      toast.remove();
+      return;
+    }
+
+    toast.classList.add(
+      "is-leaving"
+    );
+
+    removeTimer =
+      root.setTimeout?.(
+        () => {
+          removeTimer =
+            null;
+
+          toast.remove();
+        },
+        180
+      ) ??
+      null;
+  }
+
+  function showCoalReviewToast() {
+    ensureStyle();
+
+    dismissToast(
+      true
+    );
+
+    const toast =
+      doc.createElement(
+        "div"
+      );
+
+    toast.id =
+      TOAST_ID;
+
+    toast.setAttribute(
+      "role",
+      "status"
+    );
+
+    toast.setAttribute(
+      "aria-live",
+      "polite"
+    );
+
+    toast.innerHTML = `
+      <div class="mmcr11-card">
+        <span class="mmcr11-icon" aria-hidden="true">!</span>
+
+        <div class="mmcr11-copy">
+          <strong>1·2호기 석탄 사용량 검토 필요</strong>
+          <p>
+            최대혼소 조정으로 Bio 배분이 바뀌면 Coal 사용량도 함께 보정됩니다.
+            조정 후 1호기와 2호기의 Coal 사용량을 확인해 주세요.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          data-mmcr11-close
+          aria-label="안내 닫기"
+          title="닫기"
+        >×</button>
+      </div>
+    `;
+
+    doc.body.appendChild(
+      toast
+    );
+
+    toast
+      .querySelector(
+        "[data-mmcr11-close]"
+      )
+      ?.addEventListener(
+        "click",
+        event => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          dismissToast();
+        }
+      );
+
+    autoDismissTimer =
+      root.setTimeout?.(
+        () => {
+          autoDismissTimer =
+            null;
+
+          dismissToast();
+        },
+        3000
+      ) ??
+      null;
+  }
+
+  function onClick(
     event
   ) {
     const button =
-      findMorningCardAdjustmentButton(
+      eventButton(
         event
       );
 
@@ -471,60 +468,83 @@
     }
 
     if (
-      replayButtons.has(
+      isMorningMeetingCardEntry(
         button
       )
     ) {
-      replayButtons.delete(
-        button
-      );
+      morningCardContext =
+        true;
 
       return;
     }
-
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-
-    const confirmed =
-      await showReviewDialog();
 
     if (
-      !confirmed ||
-      !button.isConnected ||
-      button.disabled
+      isAnalysisPageEntry(
+        button
+      )
     ) {
+      morningCardContext =
+        false;
+
       return;
     }
 
-    replayButtons.add(
-      button
-    );
+    if (
+      isMaximumAdjustment(
+        button
+      )
+    ) {
+      if (
+        morningCardContext
+      ) {
+        showCoalReviewToast();
+      }
 
-    button.click();
+      return;
+    }
+
+    if (
+      closesAdjustment(
+        button
+      )
+    ) {
+      morningCardContext =
+        false;
+
+      dismissToast();
+    }
   }
 
   /*
-    This targets ONLY the "혼소 조정" button rendered inside
-    #efficiencyMorningMeetingView. It does not target the separate
-    co-firing analysis page and does not target "최대혼소 조정".
+    Non-blocking behavior:
+    - Morning Meeting card "혼소 조정" opens normally.
+    - "최대혼소 조정" keeps its original calculation handler.
+    - This listener only shows a 3-second notice and never cancels the click.
   */
-  window.addEventListener(
+  root.addEventListener(
     "click",
-    interceptMorningCardAdjustment,
+    onClick,
     true
   );
 
-  window.MorningMeetingCofiringCoalReviewPopupV10 =
+  root.MorningMeetingCofiringCoalReviewV11 =
     Object.freeze({
       marker:
         MARKER,
 
-      isMorningMeetingActive,
+      showCoalReviewToast,
 
-      confirmBeforeOpen:
-        showReviewDialog,
+      isMorningMeetingCardEntry,
 
-      findMorningCardAdjustmentButton
+      isMaximumAdjustment,
+
+      getMorningCardContext:
+        () =>
+          morningCardContext
     });
-}());
+}(
+  typeof globalThis ===
+    "object"
+    ? globalThis
+    : this
+));

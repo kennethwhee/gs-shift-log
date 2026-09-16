@@ -15,18 +15,9 @@ const overlay = fs.readFileSync(
   'utf8'
 );
 
-const ui = fs.readFileSync(
-  path.join(
-    repo,
-    'maintenance',
-    'cofiring-period-ui-v5.js'
-  ),
-  'utf8'
-);
-
 assert.match(
   overlay,
-  /MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V10-MORNING-CARD/
+  /MORNING-MEETING-COFIRING-COAL-REVIEW-V11-MAX-TOAST/
 );
 
 assert.match(
@@ -36,37 +27,32 @@ assert.match(
 
 assert.match(
   overlay,
-  /normalizeButtonText\([\s\S]*?button\.textContent[\s\S]*?\)\s*!==\s*["']혼소 조정["']/
+  /normalizeText\([\s\S]*?button\.textContent[\s\S]*?\)\s*!==\s*["']혼소 조정["']/
 );
 
 assert.match(
   overlay,
-  /morningView\.contains\([\s\S]*?button[\s\S]*?\)/
+  /\[data-cfv56-auto\]/
 );
 
 assert.match(
   overlay,
-  /button\.closest\?\.\([\s\S]*?cfv56-adjust-modal/
+  /cfv56-adjust-modal/
 );
 
 assert.match(
   overlay,
-  /window\.addEventListener\(\s*["']click["'][\s\S]*?interceptMorningCardAdjustment[\s\S]*?true\s*\)/
+  /showCoalReviewToast\(\)/
 );
 
 assert.match(
   overlay,
-  /stopImmediatePropagation\(\)/
+  /3000/
 );
 
 assert.match(
   overlay,
-  /showReviewDialog\(\)/
-);
-
-assert.match(
-  overlay,
-  /replayButtons\.add\([\s\S]*?button[\s\S]*?\)[\s\S]*?button\.click\(\)/
+  /data-mmcr11-close/
 );
 
 assert.match(
@@ -74,33 +60,62 @@ assert.match(
   /1·2호기 석탄 사용량 검토 필요/
 );
 
+assert.match(
+  overlay,
+  /z-index:\s*20000/
+);
+
 assert.doesNotMatch(
   overlay,
-  /\[data-cfv56-adjust\]/
+  /showModal/
 );
 
 assert.doesNotMatch(
   overlay,
-  /\[data-cfv56-auto\]/
-);
-
-/* V8/V9 mistakenly altered the separate co-firing analysis-page button.
-   V10 must restore its original direct open handler. */
-assert.doesNotMatch(
-  ui,
-  /MorningMeetingCofiringCoalReviewPopupV8/
+  /window\.confirm|root\.confirm/
 );
 
 assert.doesNotMatch(
-  ui,
-  /MorningMeetingCofiringCoalReviewPopupV10/
+  overlay,
+  /stopImmediatePropagation/
+);
+
+/*
+  Only inspect the global click router.
+  The toast X button intentionally calls preventDefault/stopPropagation,
+  so a whole-file regex is too broad and caused V11's false failure.
+*/
+const onClickStart = overlay.indexOf('  function onClick(');
+const onClickEnd = overlay.indexOf(
+  '  /*\n    Non-blocking behavior:',
+  onClickStart
+);
+
+assert.ok(
+  onClickStart >= 0 && onClickEnd > onClickStart,
+  'onClick router section must be found'
+);
+
+const onClickSource = overlay.slice(
+  onClickStart,
+  onClickEnd
+);
+
+assert.doesNotMatch(
+  onClickSource,
+  /preventDefault|stopPropagation|stopImmediatePropagation/
 );
 
 assert.match(
-  ui,
-  /const adjustButton=container\.querySelector\('\[data-cfv56-adjust\]'\);if\(adjustButton\)\{adjustButton\.disabled=true;adjustButton\.addEventListener\('click',\(\)=>\{try\{Promise\.resolve\(adjuster\?\.open\(\)\)\.catch/
+  onClickSource,
+  /isMaximumAdjustment\([\s\S]*?showCoalReviewToast\(\)/
+);
+
+assert.match(
+  overlay,
+  /Morning Meeting card "혼소 조정" opens normally/
 );
 
 console.log(
-  'PASS: V10 targets only the Morning Meeting "혼소 조정" card button and restores the separate analysis-page handler (15).'
+  'PASS: V11 R1 shows a non-blocking 3-second Coal-review toast only on Morning Meeting maximum co-firing adjustment (17).'
 );
