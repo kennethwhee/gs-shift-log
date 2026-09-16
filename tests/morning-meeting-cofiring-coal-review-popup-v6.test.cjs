@@ -26,12 +26,47 @@ const ui = fs.readFileSync(
 
 assert.match(
   overlay,
-  /MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V8-DIRECT-HANDLER-API/
+  /MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V10-MORNING-CARD/
 );
 
 assert.match(
   overlay,
-  /confirmBeforeOpen\s*:\s*showReviewDialog/
+  /getElementById\(\s*["']efficiencyMorningMeetingView["']\s*\)/
+);
+
+assert.match(
+  overlay,
+  /normalizeButtonText\([\s\S]*?button\.textContent[\s\S]*?\)\s*!==\s*["']혼소 조정["']/
+);
+
+assert.match(
+  overlay,
+  /morningView\.contains\([\s\S]*?button[\s\S]*?\)/
+);
+
+assert.match(
+  overlay,
+  /button\.closest\?\.\([\s\S]*?cfv56-adjust-modal/
+);
+
+assert.match(
+  overlay,
+  /window\.addEventListener\(\s*["']click["'][\s\S]*?interceptMorningCardAdjustment[\s\S]*?true\s*\)/
+);
+
+assert.match(
+  overlay,
+  /stopImmediatePropagation\(\)/
+);
+
+assert.match(
+  overlay,
+  /showReviewDialog\(\)/
+);
+
+assert.match(
+  overlay,
+  /replayButtons\.add\([\s\S]*?button[\s\S]*?\)[\s\S]*?button\.click\(\)/
 );
 
 assert.match(
@@ -39,54 +74,33 @@ assert.match(
   /1·2호기 석탄 사용량 검토 필요/
 );
 
-assert.match(
-  ui,
-  /const adjustButton=container\.querySelector\('\[data-cfv56-adjust\]'\)/
+assert.doesNotMatch(
+  overlay,
+  /\[data-cfv56-adjust\]/
 );
 
-assert.match(
-  ui,
-  /adjustButton\.addEventListener\('click',async\(\)=>/
+assert.doesNotMatch(
+  overlay,
+  /\[data-cfv56-auto\]/
 );
 
-assert.match(
+/* V8/V9 mistakenly altered the separate co-firing analysis-page button.
+   V10 must restore its original direct open handler. */
+assert.doesNotMatch(
   ui,
-  /const reviewApi=root\.MorningMeetingCofiringCoalReviewPopupV8/
-);
-
-assert.match(
-  ui,
-  /await reviewApi\.confirmBeforeOpen\(\)/
-);
-
-assert.match(
-  ui,
-  /root\.confirm\('1·2호기 석탄 사용량 검토 필요/
+  /MorningMeetingCofiringCoalReviewPopupV8/
 );
 
 assert.doesNotMatch(
   ui,
-  /const morningView=container\.closest/
-);
-
-assert.doesNotMatch(
-  ui,
-  /if\(morningView\)/
+  /MorningMeetingCofiringCoalReviewPopupV10/
 );
 
 assert.match(
   ui,
-  /if\(!confirmed\)return;await Promise\.resolve\(adjuster\?\.open\(\)\)/
-);
-
-const confirmAt = ui.indexOf('await reviewApi.confirmBeforeOpen()');
-const openAt = ui.indexOf('await Promise.resolve(adjuster?.open())');
-
-assert.ok(
-  confirmAt >= 0 && openAt > confirmAt,
-  'review confirmation must occur before adjuster.open()'
+  /const adjustButton=container\.querySelector\('\[data-cfv56-adjust\]'\);if\(adjustButton\)\{adjustButton\.disabled=true;adjustButton\.addEventListener\('click',\(\)=>\{try\{Promise\.resolve\(adjuster\?\.open\(\)\)\.catch/
 );
 
 console.log(
-  'PASS: co-firing coal review V9 unconditional adjustment-entry contracts (12).'
+  'PASS: V10 targets only the Morning Meeting "혼소 조정" card button and restores the separate analysis-page handler (15).'
 );

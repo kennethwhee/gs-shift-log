@@ -2,13 +2,13 @@
   "use strict";
 
   const MARKER =
-    "MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V8-DIRECT-HANDLER-API";
+    "MORNING-MEETING-COFIRING-COAL-REVIEW-POPUP-V10-MORNING-CARD";
 
-  if (window.__mmCofiringCoalReviewPopupV8Installed) {
+  if (window.__mmCofiringCoalReviewPopupV10Installed) {
     return;
   }
 
-  window.__mmCofiringCoalReviewPopupV8Installed = true;
+  window.__mmCofiringCoalReviewPopupV10Installed = true;
 
   const replayButtons = new WeakSet();
 
@@ -55,7 +55,7 @@
   function ensureStyle() {
     if (
       document.getElementById(
-        "mmCofiringCoalReviewPopupV8Style"
+        "mmCofiringCoalReviewPopupV10Style"
       )
     ) {
       return;
@@ -65,10 +65,10 @@
       document.createElement("style");
 
     style.id =
-      "mmCofiringCoalReviewPopupV8Style";
+      "mmCofiringCoalReviewPopupV10Style";
 
     style.textContent = `
-      dialog[data-mm-cofiring-coal-review-v8] {
+      dialog[data-mm-cofiring-coal-review-v10] {
         width: min(520px, calc(100vw - 32px));
         max-width: 520px;
         margin: auto;
@@ -90,23 +90,23 @@
           sans-serif;
       }
 
-      dialog[data-mm-cofiring-coal-review-v8]::backdrop {
+      dialog[data-mm-cofiring-coal-review-v10]::backdrop {
         background: rgba(8, 20, 33, 0.62);
         backdrop-filter: blur(1.5px);
       }
 
-      dialog[data-mm-cofiring-coal-review-v8] * {
+      dialog[data-mm-cofiring-coal-review-v10] * {
         box-sizing: border-box;
       }
 
-      dialog[data-mm-cofiring-coal-review-v8] .mmcr-v8-head {
+      dialog[data-mm-cofiring-coal-review-v10] .mmcr-v10-head {
         display: flex;
         align-items: flex-start;
         gap: 13px;
         padding: 22px 23px 16px;
       }
 
-      dialog[data-mm-cofiring-coal-review-v8] .mmcr-v8-icon {
+      dialog[data-mm-cofiring-coal-review-v10] .mmcr-v10-icon {
         display: flex;
         flex: 0 0 38px;
         width: 38px;
@@ -120,7 +120,7 @@
         font-weight: 900;
       }
 
-      dialog[data-mm-cofiring-coal-review-v8] h3 {
+      dialog[data-mm-cofiring-coal-review-v10] h3 {
         margin: 1px 0 7px;
         color: #24364a;
         font-size: 18px;
@@ -128,7 +128,7 @@
         letter-spacing: -0.45px;
       }
 
-      dialog[data-mm-cofiring-coal-review-v8] p {
+      dialog[data-mm-cofiring-coal-review-v10] p {
         margin: 0;
         color: #657789;
         font-size: 12px;
@@ -136,7 +136,7 @@
         word-break: keep-all;
       }
 
-      dialog[data-mm-cofiring-coal-review-v8] .mmcr-v8-note {
+      dialog[data-mm-cofiring-coal-review-v10] .mmcr-v10-note {
         margin: 0 23px 18px;
         padding: 12px 14px;
         border: 1px solid #efdfb8;
@@ -149,7 +149,7 @@
         word-break: keep-all;
       }
 
-      dialog[data-mm-cofiring-coal-review-v8] footer {
+      dialog[data-mm-cofiring-coal-review-v10] footer {
         display: flex;
         justify-content: flex-end;
         gap: 9px;
@@ -158,7 +158,7 @@
         background: #fafcfd;
       }
 
-      dialog[data-mm-cofiring-coal-review-v8] button {
+      dialog[data-mm-cofiring-coal-review-v10] button {
         min-height: 38px;
         padding: 0 15px;
         border: 1px solid #d5e0e8;
@@ -171,14 +171,14 @@
         cursor: pointer;
       }
 
-      dialog[data-mm-cofiring-coal-review-v8]
-      button[data-mmcr-v8-confirm] {
+      dialog[data-mm-cofiring-coal-review-v10]
+      button[data-mmcr-v10-confirm] {
         border-color: #7c59b4;
         background: #7c59b4;
         color: #ffffff;
       }
 
-      dialog[data-mm-cofiring-coal-review-v8]
+      dialog[data-mm-cofiring-coal-review-v10]
       button:focus-visible {
         outline: 3px solid rgba(124, 89, 180, 0.28);
         outline-offset: 2px;
@@ -197,7 +197,7 @@
       resolve => {
         const existing =
           document.querySelector(
-            "dialog[data-mm-cofiring-coal-review-v8]"
+            "dialog[data-mm-cofiring-coal-review-v10]"
           );
 
         if (
@@ -216,13 +216,13 @@
           document.createElement("dialog");
 
         dialog.setAttribute(
-          "data-mm-cofiring-coal-review-v8",
+          "data-mm-cofiring-coal-review-v10",
           MARKER
         );
 
         dialog.innerHTML = `
-          <div class="mmcr-v8-head">
-            <div class="mmcr-v8-icon" aria-hidden="true">!</div>
+          <div class="mmcr-v10-head">
+            <div class="mmcr-v10-icon" aria-hidden="true">!</div>
             <div>
               <h3>1·2호기 석탄 사용량 검토 필요</h3>
               <p>
@@ -233,7 +233,7 @@
             </div>
           </div>
 
-          <div class="mmcr-v8-note">
+          <div class="mmcr-v10-note">
             확인을 누르면 혼소 조정 창을 엽니다.
             취소를 누르면 혼소 조정 창을 열지 않습니다.
           </div>
@@ -241,14 +241,14 @@
           <footer>
             <button
               type="button"
-              data-mmcr-v8-cancel
+              data-mmcr-v10-cancel
             >
               취소
             </button>
 
             <button
               type="button"
-              data-mmcr-v8-confirm
+              data-mmcr-v10-confirm
             >
               확인 후 혼소 조정 열기
             </button>
@@ -310,7 +310,7 @@
 
         dialog
           .querySelector(
-            "[data-mmcr-v8-cancel]"
+            "[data-mmcr-v10-cancel]"
           )
           ?.addEventListener(
             "click",
@@ -326,7 +326,7 @@
 
         const confirmButton =
           dialog.querySelector(
-            "[data-mmcr-v8-confirm]"
+            "[data-mmcr-v10-confirm]"
           );
 
         confirmButton
@@ -371,7 +371,151 @@
     );
   }
 
-  window.MorningMeetingCofiringCoalReviewPopupV8 =
+
+  function normalizeButtonText(
+    value
+  ) {
+    return String(
+      value ||
+      ""
+    )
+      .replace(
+        /\s+/g,
+        " "
+      )
+      .trim();
+  }
+
+  function findMorningCardAdjustmentButton(
+    event
+  ) {
+    const path =
+      typeof event.composedPath === "function"
+        ? event.composedPath()
+        : [];
+
+    let button =
+      path.find?.(
+        node =>
+          node &&
+          node.nodeType === 1 &&
+          String(
+            node.tagName ||
+            ""
+          ).toUpperCase() === "BUTTON"
+      ) ||
+      null;
+
+    if (!button) {
+      const target =
+        event.target &&
+        event.target.nodeType === 1
+          ? event.target
+          : event.target?.parentElement;
+
+      button =
+        target?.closest?.(
+          "button"
+        ) ||
+        null;
+    }
+
+    if (!button) {
+      return null;
+    }
+
+    const morningView =
+      document.getElementById(
+        "efficiencyMorningMeetingView"
+      );
+
+    if (
+      !morningView ||
+      !morningView.contains(
+        button
+      )
+    ) {
+      return null;
+    }
+
+    if (
+      button.closest?.(
+        "[data-cfv56-adjust-modal], .cfv56-adjust-modal"
+      )
+    ) {
+      return null;
+    }
+
+    if (
+      normalizeButtonText(
+        button.textContent
+      ) !==
+      "혼소 조정"
+    ) {
+      return null;
+    }
+
+    return button;
+  }
+
+  async function interceptMorningCardAdjustment(
+    event
+  ) {
+    const button =
+      findMorningCardAdjustmentButton(
+        event
+      );
+
+    if (!button) {
+      return;
+    }
+
+    if (
+      replayButtons.has(
+        button
+      )
+    ) {
+      replayButtons.delete(
+        button
+      );
+
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+
+    const confirmed =
+      await showReviewDialog();
+
+    if (
+      !confirmed ||
+      !button.isConnected ||
+      button.disabled
+    ) {
+      return;
+    }
+
+    replayButtons.add(
+      button
+    );
+
+    button.click();
+  }
+
+  /*
+    This targets ONLY the "혼소 조정" button rendered inside
+    #efficiencyMorningMeetingView. It does not target the separate
+    co-firing analysis page and does not target "최대혼소 조정".
+  */
+  window.addEventListener(
+    "click",
+    interceptMorningCardAdjustment,
+    true
+  );
+
+  window.MorningMeetingCofiringCoalReviewPopupV10 =
     Object.freeze({
       marker:
         MARKER,
@@ -379,6 +523,8 @@
       isMorningMeetingActive,
 
       confirmBeforeOpen:
-        showReviewDialog
+        showReviewDialog,
+
+      findMorningCardAdjustmentButton
     });
 }());
