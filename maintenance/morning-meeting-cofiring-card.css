@@ -459,3 +459,20 @@
   white-space: nowrap;
 }
 /* MORNING_MEETING_COFIRING_HEADER_META_STACK_V1_END */
+
+/* MORNING_MEETING_COFIRING_FRAME_V1 */
+/*
+  오전회의자료 > 혼소율 현황
+  다른 오전회의 카드와 동일한 외곽 프레임을 사용하되
+  기존 보라색 포인트와 내부 혼소율 디자인은 유지한다.
+*/
+#efficiencyMorningMeetingAutoCofiringCard {
+  border: 1px solid #cbd6e2 !important;
+  border-radius: 10px !important;
+  background: #fbfcfe !important;
+}
+
+#efficiencyMorningMeetingAutoCofiringCard
+  > .efficiency-morning-meeting-auto-card__header {
+  border-bottom-color: #dfe7ef !important;
+}
