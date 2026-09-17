@@ -120958,3 +120958,135 @@ button[aria-controls="efficiencyCofiringPanel"] svg,
 button[aria-controls="cofiringPanel"] svg {
   flex: 0 0 auto !important;
 }
+
+/* EFFICIENCY_COFIRING_SIDEMENU_FRAME_V2 */
+/*
+  효율팀 좌측 "혼소율" 메뉴를 연한 파란색 테두리로 더 확실히 보이게 보정.
+  이전 패치보다 대상 선택자를 더 넓게 잡아 버튼/링크/탭 구조 차이를 모두 흡수한다.
+*/
+#efficiencySidebar button[data-efficiency-tab="cofiring"],
+#efficiencySidebar a[data-efficiency-tab="cofiring"],
+#efficiencySidebar [role="tab"][data-efficiency-tab="cofiring"],
+#efficiencySidebar button[data-efficiency-panel="cofiring"],
+#efficiencySidebar a[data-efficiency-panel="cofiring"],
+#efficiencySidebar [role="tab"][data-efficiency-panel="cofiring"],
+#efficiencySidebar button[data-menu="cofiring"],
+#efficiencySidebar a[data-menu="cofiring"],
+#efficiencySidebar [role="tab"][data-menu="cofiring"],
+#efficiencySidebar button[data-tab="cofiring"],
+#efficiencySidebar a[data-tab="cofiring"],
+#efficiencySidebar [role="tab"][data-tab="cofiring"],
+
+#efficiencyTeamSidebar button[data-efficiency-tab="cofiring"],
+#efficiencyTeamSidebar a[data-efficiency-tab="cofiring"],
+#efficiencyTeamSidebar [role="tab"][data-efficiency-tab="cofiring"],
+#efficiencyTeamSidebar button[data-efficiency-panel="cofiring"],
+#efficiencyTeamSidebar a[data-efficiency-panel="cofiring"],
+#efficiencyTeamSidebar [role="tab"][data-efficiency-panel="cofiring"],
+#efficiencyTeamSidebar button[data-menu="cofiring"],
+#efficiencyTeamSidebar a[data-menu="cofiring"],
+#efficiencyTeamSidebar [role="tab"][data-menu="cofiring"],
+#efficiencyTeamSidebar button[data-tab="cofiring"],
+#efficiencyTeamSidebar a[data-tab="cofiring"],
+#efficiencyTeamSidebar [role="tab"][data-tab="cofiring"],
+
+#efficiencyCofiringMenuButton,
+#cofiringMenuButton,
+a#efficiencyCofiringMenuButton,
+a#cofiringMenuButton,
+button[aria-controls="efficiencyCofiringPanel"],
+a[aria-controls="efficiencyCofiringPanel"],
+button[aria-controls="cofiringPanel"],
+a[aria-controls="cofiringPanel"] {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  width: 100% !important;
+  min-height: 44px !important;
+  padding: 12px 16px !important;
+  border: 1px solid #8ec5ff !important;
+  border-radius: 12px !important;
+  background: #f5faff !important;
+  color: #325b86 !important;
+  box-sizing: border-box !important;
+  box-shadow: inset 0 0 0 1px rgba(142, 197, 255, 0.15) !important;
+}
+
+#efficiencySidebar button[data-efficiency-tab="cofiring"]:hover,
+#efficiencySidebar a[data-efficiency-tab="cofiring"]:hover,
+#efficiencySidebar [role="tab"][data-efficiency-tab="cofiring"]:hover,
+#efficiencySidebar button[data-efficiency-panel="cofiring"]:hover,
+#efficiencySidebar a[data-efficiency-panel="cofiring"]:hover,
+#efficiencySidebar [role="tab"][data-efficiency-panel="cofiring"]:hover,
+#efficiencySidebar button[data-menu="cofiring"]:hover,
+#efficiencySidebar a[data-menu="cofiring"]:hover,
+#efficiencySidebar [role="tab"][data-menu="cofiring"]:hover,
+#efficiencySidebar button[data-tab="cofiring"]:hover,
+#efficiencySidebar a[data-tab="cofiring"]:hover,
+#efficiencySidebar [role="tab"][data-tab="cofiring"]:hover,
+
+#efficiencyTeamSidebar button[data-efficiency-tab="cofiring"]:hover,
+#efficiencyTeamSidebar a[data-efficiency-tab="cofiring"]:hover,
+#efficiencyTeamSidebar [role="tab"][data-efficiency-tab="cofiring"]:hover,
+#efficiencyTeamSidebar button[data-efficiency-panel="cofiring"]:hover,
+#efficiencyTeamSidebar a[data-efficiency-panel="cofiring"]:hover,
+#efficiencyTeamSidebar [role="tab"][data-efficiency-panel="cofiring"]:hover,
+#efficiencyTeamSidebar button[data-menu="cofiring"]:hover,
+#efficiencyTeamSidebar a[data-menu="cofiring"]:hover,
+#efficiencyTeamSidebar [role="tab"][data-menu="cofiring"]:hover,
+#efficiencyTeamSidebar button[data-tab="cofiring"]:hover,
+#efficiencyTeamSidebar a[data-tab="cofiring"]:hover,
+#efficiencyTeamSidebar [role="tab"][data-tab="cofiring"]:hover,
+
+#efficiencyCofiringMenuButton:hover,
+#cofiringMenuButton:hover,
+a#efficiencyCofiringMenuButton:hover,
+a#cofiringMenuButton:hover,
+button[aria-controls="efficiencyCofiringPanel"]:hover,
+a[aria-controls="efficiencyCofiringPanel"]:hover,
+button[aria-controls="cofiringPanel"]:hover,
+a[aria-controls="cofiringPanel"]:hover {
+  border-color: #66aef5 !important;
+  background: #eef7ff !important;
+}
+
+#efficiencySidebar button[data-efficiency-tab="cofiring"].active,
+#efficiencySidebar a[data-efficiency-tab="cofiring"].active,
+#efficiencySidebar [role="tab"][data-efficiency-tab="cofiring"].active,
+#efficiencySidebar button[data-efficiency-panel="cofiring"].active,
+#efficiencySidebar a[data-efficiency-panel="cofiring"].active,
+#efficiencySidebar [role="tab"][data-efficiency-panel="cofiring"].active,
+#efficiencySidebar button[data-menu="cofiring"].active,
+#efficiencySidebar a[data-menu="cofiring"].active,
+#efficiencySidebar [role="tab"][data-menu="cofiring"].active,
+#efficiencySidebar button[data-tab="cofiring"].active,
+#efficiencySidebar a[data-tab="cofiring"].active,
+#efficiencySidebar [role="tab"][data-tab="cofiring"].active,
+
+#efficiencyTeamSidebar button[data-efficiency-tab="cofiring"].active,
+#efficiencyTeamSidebar a[data-efficiency-tab="cofiring"].active,
+#efficiencyTeamSidebar [role="tab"][data-efficiency-tab="cofiring"].active,
+#efficiencyTeamSidebar button[data-efficiency-panel="cofiring"].active,
+#efficiencyTeamSidebar a[data-efficiency-panel="cofiring"].active,
+#efficiencyTeamSidebar [role="tab"][data-efficiency-panel="cofiring"].active,
+#efficiencyTeamSidebar button[data-menu="cofiring"].active,
+#efficiencyTeamSidebar a[data-menu="cofiring"].active,
+#efficiencyTeamSidebar [role="tab"][data-menu="cofiring"].active,
+#efficiencyTeamSidebar button[data-tab="cofiring"].active,
+#efficiencyTeamSidebar a[data-tab="cofiring"].active,
+#efficiencyTeamSidebar [role="tab"][data-tab="cofiring"].active,
+
+#efficiencyCofiringMenuButton.active,
+#cofiringMenuButton.active,
+a#efficiencyCofiringMenuButton.active,
+a#cofiringMenuButton.active,
+button[aria-controls="efficiencyCofiringPanel"][aria-selected="true"],
+a[aria-controls="efficiencyCofiringPanel"][aria-selected="true"],
+button[aria-controls="cofiringPanel"][aria-selected="true"],
+a[aria-controls="cofiringPanel"][aria-selected="true"] {
+  border-color: #4b9df0 !important;
+  background: #eaf4ff !important;
+  color: #1f5fae !important;
+  box-shadow: inset 0 0 0 1px rgba(75, 157, 240, 0.20) !important;
+}
