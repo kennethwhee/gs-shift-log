@@ -237,6 +237,9 @@
     if(!container||container.dataset.cofiringV5Mounted==='true')return null;container.dataset.cofiringV5Mounted='true';container.classList.add('cofiring-period-v5','cfv7-daily-date','cfv10-summary-ui','cfv11-status-ui');container.innerHTML=markup();
     const mobile=isMobile();let reference=null,lastResult=null,displayResult=null,periodGeneration=0,settingsDirty=false,manualDirty=false,disposed=false,fastPrepTimer=null,fastPrepGeneration=0,adjustmentActive=false,conflictRetrying=false,selectedStoreKey='';
     let clickTiming=null,clickToken=null,clickContext=null,clickBusy=false,renderedRequestId=null,dayBoundaryTimer=null,deadlineRefreshTimer=null,selectionEpoch=0,deadlineInputError='',pendingDailyDraft=null,restoringSaved=false;
+    // COFIRING_MORNING_MEETING_ORGANIC_AUTOFILL_V1
+    let morningOrganicSelection='',morningCardObserver=null,morningCardObserved=null,morningCardBindTimer=null,morningCardBindAttempts=0;
+    const morningOrganicTouched=new Set(),morningOrganicAuto=new Map();
     const settings=settingsApi?.create({getHeaders:authHeaders,canEdit:()=>!isMobile(),onChange:()=>paintSettings()})||null;
     const manual=manualApi?.create({getHeaders:authHeaders,canEdit:()=>!isMobile(),onChange:()=>paintManual()})||null;
     const live=liveApi?.createPeriod({getHeaders:authHeaders,canQuery:()=>!isMobile()&&selectedDayAvailability().ready,isVisible:()=>visible(),onChange:s=>paintLive(s),onResult:r=>{if(!sameSelectedPeriod(r?.report?.reference)||!selectedDayAvailability().ready)return;reference=r.report.reference;if(storesReady())calculate();}})||null;
@@ -358,12 +361,83 @@
       const epoch=periodGeneration;live?.select(currentSpec());
       await Promise.all([settings?.load({force})||true,manual?.load({force})||true]);
       if(disposed||epoch!==periodGeneration||next!==storeKey())return false;
-      paintSettings();paintManual();if(!storesReady()){prepLabel('입력 기준 확인 필요','error');setStatus(container,settings?.state()?.error||manual?.state()?.error||'발열량과 사용량 저장 상태를 확인하고 있습니다.','error');return false;}if(reference)calculate();return true;
+      paintSettings();paintManual();applyMorningMeetingOrganicDraft({recalculate:false});if(!storesReady()){prepLabel('입력 기준 확인 필요','error');setStatus(container,settings?.state()?.error||manual?.state()?.error||'발열량과 사용량 저장 상태를 확인하고 있습니다.','error');return false;}if(reference)calculate();return true;
     }
     function paintSettings(force=false){if(!settings||showDayUnavailable())return;const s=settings.state(),state=container.querySelector('[data-cfv5-settings-state]');if((force||!settingsDirty)&&s.loaded)writeSettings(container,s.settings);if(state)state.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':settingsDirty?'수정됨 · 미저장':s.source==='saved'?`${s.effectiveDate} 적용값${s.updatedByName?' · '+s.updatedByName:''}`:'기본값';for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]'))el.disabled=mobile||s.saving;container.querySelector('[data-cfv5-settings-save]').disabled=mobile||!s.canEdit||s.saving;}
     function currentManualFromFields(){try{return readManual(container);}catch(_){return manual?.state().values||manualApi.blank();}}
     function paintManual(force=false){if(!manual||showDayUnavailable())return;const s=manual.state(),label=container.querySelector('[data-cfv5-manual-state]');if((force||!manualDirty)&&s.loaded)writeManual(container,s.values);if(label)label.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':manualDirty?'수정됨 · 미저장':s.revision?`저장 v${s.revision}${s.updatedByName?' · '+s.updatedByName:''}`:'저장값 없음';container.querySelector('[data-cfv5-manual-save]').disabled=mobile||!s.canEdit||s.saving;for(const el of container.querySelectorAll('[data-cfv5-manual]'))el.disabled=mobile||s.saving;const values=currentManualFromFields();renderOrganic(container,displayResult||lastResult,values);renderSummary(container,displayResult||lastResult,values,deadlineInputError);bindManualInputs();}
-    function bindManualInputs(){for(const el of container.querySelectorAll('[data-cfv5-manual]'))if(el.dataset.cfv5Bound!=='1'){el.dataset.cfv5Bound='1';el.addEventListener('input',()=>{manualDirty=true;const label=container.querySelector('[data-cfv5-manual-state]');if(label)label.textContent='수정됨 · 미저장';if(reference&&storesReady())calculate();});el.addEventListener('change',()=>{if(reference)calculate();});}}
+    function morningOrganicSelectionKey(){
+      return queryMode(container)==='daily'?(container.querySelector('[data-cfv7-date]')?.value||''):'';
+    }
+    function syncMorningOrganicSelection(){
+      const next=morningOrganicSelectionKey();
+      if(next!==morningOrganicSelection){morningOrganicSelection=next;morningOrganicTouched.clear();morningOrganicAuto.clear();}
+      return next;
+    }
+    function parseMorningMeetingOrganicValue(id){
+      const text=String(root.document?.getElementById?.(id)?.textContent||'').replace(/,/g,'').trim();
+      if(!text||text==='-'||text==='—')return null;
+      const match=text.match(/-?\d+(?:\.\d+)?/);
+      if(!match)return null;
+      const value=Number(match[0]);
+      return Number.isFinite(value)&&value>=0?value:null;
+    }
+    function morningMeetingOrganicSource(){
+      const targetDate=syncMorningOrganicSelection();
+      if(!targetDate)return null;
+      const cardDateText=String(root.document?.getElementById?.('efficiencyMorningMeetingCofiringDate')?.textContent||'');
+      const cardDate=cardDateText.match(/20\d\d-\d\d-\d\d/)?.[0]||'';
+      if(cardDate!==targetDate)return null;
+      const values={
+        unit1:parseMorningMeetingOrganicValue('efficiencyMorningMeetingCofiringUnit1OrganicInput'),
+        unit2:parseMorningMeetingOrganicValue('efficiencyMorningMeetingCofiringUnit2OrganicInput')
+      };
+      return values.unit1===null&&values.unit2===null?null:{targetDate,values};
+    }
+    function applyMorningMeetingOrganicDraft({recalculate=true}={}){
+      if(disposed||!manual)return false;
+      const source=morningMeetingOrganicSource();
+      if(!source)return false;
+      let currentKey='';try{currentKey=storeKey();}catch(_){return false;}
+      if(selectedStoreKey!==currentKey)return false;
+      const state=manual.state();
+      if(!state?.loaded||state.loading||state.saving||state.error)return false;
+      let changed=false,hasAuto=false;
+      for(const unit of UNITS){
+        const value=source.values[unit];
+        if(typeof value!=='number'||!Number.isFinite(value))continue;
+        const key=`${unit}:organic`,input=container.querySelector(`[data-cfv5-manual="${key}"]`);
+        if(!input||morningOrganicTouched.has(key))continue;
+        const next=String(value),current=String(input.value??'').trim(),previous=morningOrganicAuto.get(key);
+        if(previous!==undefined&&current!==String(previous)&&current!==''){morningOrganicTouched.add(key);morningOrganicAuto.delete(key);continue;}
+        if(current!==next){input.value=next;changed=true;}
+        morningOrganicAuto.set(key,next);hasAuto=true;
+      }
+      if(!changed)return false;
+      manualDirty=true;
+      const label=container.querySelector('[data-cfv5-manual-state]');if(label)label.textContent=hasAuto?'오전회의자료 자동입력 · 미저장':'수정됨 · 미저장';
+      const values=currentManualFromFields();renderOrganic(container,displayResult||lastResult,values);renderSummary(container,displayResult||lastResult,values,deadlineInputError);
+      if(recalculate&&reference&&storesReady())calculate();
+      return true;
+    }
+    function bindMorningMeetingOrganicObserver(){
+      if(disposed||!root.document||!root.MutationObserver)return;
+      const card=root.document.getElementById('efficiencyMorningMeetingAutoCofiringCard');
+      if(!card){
+        if(morningCardBindAttempts>=40||morningCardBindTimer!==null)return;
+        morningCardBindAttempts++;
+        morningCardBindTimer=root.setTimeout?.(()=>{morningCardBindTimer=null;bindMorningMeetingOrganicObserver();},250)??null;
+        return;
+      }
+      morningCardBindAttempts=0;
+      if(card===morningCardObserved&&morningCardObserver){applyMorningMeetingOrganicDraft();return;}
+      morningCardObserver?.disconnect();morningCardObserved=card;
+      morningCardObserver=new root.MutationObserver(()=>{applyMorningMeetingOrganicDraft();});
+      morningCardObserver.observe(card,{subtree:true,childList:true,characterData:true});
+      applyMorningMeetingOrganicDraft();
+    }
+
+    function bindManualInputs(){for(const el of container.querySelectorAll('[data-cfv5-manual]'))if(el.dataset.cfv5Bound!=='1'){el.dataset.cfv5Bound='1';el.addEventListener('input',()=>{const manualKey=el.getAttribute('data-cfv5-manual')||'';if(/^unit[12]:organic$/.test(manualKey)){morningOrganicTouched.add(manualKey);morningOrganicAuto.delete(manualKey);}manualDirty=true;const label=container.querySelector('[data-cfv5-manual-state]');if(label)label.textContent='수정됨 · 미저장';if(reference&&storesReady())calculate();});el.addEventListener('change',()=>{if(reference)calculate();});}}
     function paintLive(s){
       if(showDayUnavailable()||!sameSelectedPeriod(s?.period))return;
       const item=s?.item,state=container.querySelector('[data-cfv5-live-state]'),active=item?.active,queryButton=container.querySelector('[data-cfv5-query]');
@@ -470,8 +544,8 @@
     const adjustButton=container.querySelector('[data-cfv56-adjust]');if(adjustButton){adjustButton.disabled=true;adjustButton.addEventListener('click',()=>{try{Promise.resolve(adjuster?.open()).catch(e=>setStatus(container,e.message,'error'));}catch(e){setStatus(container,e.message,'error');}});}
     const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){if(showDayUnavailable())return;if(selectedStoreKey!==storeKey())void periodChanged();else{if(displayResult)renderSummary(container,displayResult,currentManualFromFields(),deadlineInputError);scheduleDeadlineRefresh();scheduleFastPrep(0);}}else{restoringSaved=false;clearDayBoundary();clearDeadlineRefresh();clickTiming?.cancel('화면 닫힘');fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
     statusRefreshers.set(container,refreshStatusLine);
-    updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();selectStores().catch(e=>setStatus(container,e.message,'error'));scheduleFastPrep(0);
-    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSpec:currentSpec,dispose(){statusRefreshers.delete(container);clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
+    updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();bindMorningMeetingOrganicObserver();selectStores().catch(e=>setStatus(container,e.message,'error'));scheduleFastPrep(0);
+    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSpec:currentSpec,dispose(){statusRefreshers.delete(container);clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();morningCardObserver?.disconnect();if(morningCardBindTimer!==null)root.clearTimeout?.(morningCardBindTimer);adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
   }
   root.CofiringPeriodV5={mount,periodSpec,dailySpec,dailySelectionSpec,dayAvailability,defaultCalculationDate,queryMode,customSpec,currentDaySpec,selectedAvailability,targetReferenceMarkup,fuelUsageMarkup,markup,readSettings,readManual,manualForCalculation,coalBioHeat,coalBioRatio,combinedCoalBio,cachedReference,liveRequestPresentation};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
   if(root.document){const init=()=>{const container=root.document.querySelector('[data-cofiring-draft-root]');if(container)mount(container);};if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init,{once:true});else init();}
