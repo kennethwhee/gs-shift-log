@@ -120884,3 +120884,77 @@ html body
 }
 
 /* LIMESTONE_RECEIPT_PC_ENTRY_MODAL_V1_END */
+
+/* EFFICIENCY_COFIRING_SIDEMENU_FRAME_V1 */
+/*
+  효율팀 좌측 메뉴의 "혼소율" 항목만
+  다른 메뉴와 동일한 버튼형 박스 스타일로 보정한다.
+  기존 내부 기능/스크립트는 변경하지 않는다.
+*/
+#efficiencySidebar button[data-efficiency-tab="cofiring"],
+#efficiencySidebar button[data-efficiency-panel="cofiring"],
+#efficiencySidebar button[data-menu="cofiring"],
+#efficiencyTeamSidebar button[data-efficiency-tab="cofiring"],
+#efficiencyTeamSidebar button[data-efficiency-panel="cofiring"],
+#efficiencyTeamSidebar button[data-menu="cofiring"],
+#efficiencyCofiringMenuButton,
+#cofiringMenuButton,
+button[aria-controls="efficiencyCofiringPanel"],
+button[aria-controls="cofiringPanel"] {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  width: 100% !important;
+  min-height: 44px !important;
+  padding: 12px 16px !important;
+  border: 1px solid #d9e1ea !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  color: #3b4652 !important;
+  box-sizing: border-box !important;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03) !important;
+}
+
+#efficiencySidebar button[data-efficiency-tab="cofiring"]:hover,
+#efficiencySidebar button[data-efficiency-panel="cofiring"]:hover,
+#efficiencySidebar button[data-menu="cofiring"]:hover,
+#efficiencyTeamSidebar button[data-efficiency-tab="cofiring"]:hover,
+#efficiencyTeamSidebar button[data-efficiency-panel="cofiring"]:hover,
+#efficiencyTeamSidebar button[data-menu="cofiring"]:hover,
+#efficiencyCofiringMenuButton:hover,
+#cofiringMenuButton:hover,
+button[aria-controls="efficiencyCofiringPanel"]:hover,
+button[aria-controls="cofiringPanel"]:hover {
+  background: #f7fafc !important;
+  border-color: #c7d3e0 !important;
+}
+
+#efficiencySidebar button[data-efficiency-tab="cofiring"].active,
+#efficiencySidebar button[data-efficiency-panel="cofiring"].active,
+#efficiencySidebar button[data-menu="cofiring"].active,
+#efficiencyTeamSidebar button[data-efficiency-tab="cofiring"].active,
+#efficiencyTeamSidebar button[data-efficiency-panel="cofiring"].active,
+#efficiencyTeamSidebar button[data-menu="cofiring"].active,
+#efficiencyCofiringMenuButton.active,
+#cofiringMenuButton.active,
+button[aria-controls="efficiencyCofiringPanel"][aria-selected="true"],
+button[aria-controls="cofiringPanel"][aria-selected="true"] {
+  background: #eef6ff !important;
+  border-color: #66aef5 !important;
+  color: #1f5fae !important;
+  box-shadow: inset 0 0 0 1px rgba(102, 174, 245, 0.15) !important;
+}
+
+#efficiencySidebar button[data-efficiency-tab="cofiring"] svg,
+#efficiencySidebar button[data-efficiency-panel="cofiring"] svg,
+#efficiencySidebar button[data-menu="cofiring"] svg,
+#efficiencyTeamSidebar button[data-efficiency-tab="cofiring"] svg,
+#efficiencyTeamSidebar button[data-efficiency-panel="cofiring"] svg,
+#efficiencyTeamSidebar button[data-menu="cofiring"] svg,
+#efficiencyCofiringMenuButton svg,
+#cofiringMenuButton svg,
+button[aria-controls="efficiencyCofiringPanel"] svg,
+button[aria-controls="cofiringPanel"] svg {
+  flex: 0 0 auto !important;
+}
