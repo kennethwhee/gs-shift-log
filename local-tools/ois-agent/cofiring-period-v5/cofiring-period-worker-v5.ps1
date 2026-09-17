@@ -1736,15 +1736,31 @@ try {
       $deltaValue=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+8))
       $durationGood=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+9))
       $durationBad=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+10))
+      # COFIRING_START_BOUNDARY_NODATA_FALLBACK_V1
+      # A cumulative Bio tag can occasionally return #NODATA only for the exact start boundary
+      # while the full interval remains Good. In that narrow case, period Min is accepted as
+      # the effective start only when the interval proves monotonic-looking cumulative behavior.
       $startTimeValid=($null -ne $startTime -and $startTime -ge $cofiringStart -and $startTime -lt $cofiringStart.AddMinutes(1))
       $endTimeValid=($null -ne $endTime -and $endTime -ge $cofiringEnd -and $endTime -lt $cofiringEnd.AddMinutes(1))
-      $boundaryValid=($null -ne $startValue -and $null -ne $endValue -and $startValue -ge 0 -and $endValue -ge 0 -and (Test-OrganicQualityGood $startQuality) -and (Test-OrganicQualityGood $endQuality) -and $startTimeValid -and $endTimeValid)
       $durationCoverageValid=($null -ne $durationGood -and $null -ne $durationBad -and $durationGood -ge 0 -and $durationBad -ge 0 -and [Math]::Abs(($durationGood+$durationBad)-$durationExpected) -le 2.0)
-      $usage=$null
-      if ($null -ne $startValue -and $null -ne $endValue) { $usage=[double]$endValue-[double]$startValue }
-      $usageValid=($null -ne $usage -and $usage -ge -0.001)
       $rangeSpread=$null
       if ($null -ne $minValue -and $null -ne $maxValue) { $rangeSpread=[double]$maxValue-[double]$minValue }
+      $startBoundaryDirectValid=($null -ne $startValue -and $startValue -ge 0 -and (Test-OrganicQualityGood $startQuality) -and $startTimeValid)
+      $endBoundaryValid=($null -ne $endValue -and $endValue -ge 0 -and (Test-OrganicQualityGood $endQuality) -and $endTimeValid)
+      $startBoundaryFallbackApplied=$false
+      $startBoundaryFallbackValue=$null
+      $startBoundaryNoData=($null -eq $startValue -and $startTimeValid -and -not [string]::IsNullOrWhiteSpace([string]$startQuality) -and ([string]$startQuality -match '(?i)\bno\s*data\b'))
+      $spreadMatchesDelta=($null -ne $rangeSpread -and $null -ne $deltaValue -and [Math]::Abs([double]$rangeSpread-[double]$deltaValue) -le 0.01)
+      $fallbackCumulativeShape=($null -ne $minValue -and $null -ne $maxValue -and $minValue -ge 0 -and $maxValue -ge $minValue -and $endBoundaryValid -and [double]$endValue + 0.001 -ge [double]$maxValue -and $spreadMatchesDelta)
+      if ([string]$tag.fuel -eq 'bio' -and $startBoundaryNoData -and $durationCoverageValid -and $durationBad -le 0.001 -and $fallbackCumulativeShape) {
+        $startBoundaryFallbackApplied=$true
+        $startBoundaryFallbackValue=[double]$minValue
+      }
+      $effectiveStartValue=$(if($startBoundaryFallbackApplied){$startBoundaryFallbackValue}else{$startValue})
+      $boundaryValid=($endBoundaryValid -and ($startBoundaryDirectValid -or $startBoundaryFallbackApplied))
+      $usage=$null
+      if ($null -ne $effectiveStartValue -and $null -ne $endValue) { $usage=[double]$endValue-[double]$effectiveStartValue }
+      $usageValid=($null -ne $usage -and $usage -ge -0.001)
       $referenceExpected=$null;$referenceMatch=$null
       if ($null -ne $knownReference -and $knownReference.ContainsKey([string]$tag.key)) {
         $referenceExpected=[double]$knownReference[[string]$tag.key]
@@ -1759,7 +1775,9 @@ try {
         key=[string]$tag.key;unit=[string]$tag.unit;fuel=[string]$tag.fuel;tag=[string]$tag.tag
         startValue=$startValue;startQuality=$startQuality;startTime=$(if($null -ne $startTime){$startTime.ToString('yyyy-MM-ddTHH:mm:ss')+'+09:00'}else{$null})
         endValue=$endValue;endQuality=$endQuality;endTime=$(if($null -ne $endTime){$endTime.ToString('yyyy-MM-ddTHH:mm:ss')+'+09:00'}else{$null})
-        usageTon=$usage;min=$minValue;max=$maxValue;rangeSpread=$rangeSpread;delta=$deltaValue
+        usageTon=$usage;usageBasis=$(if($startBoundaryFallbackApplied){'end_minus_period_min_start_nodata_fallback'}else{'end_minus_start_boundary'})
+        startBoundaryFallbackApplied=[bool]$startBoundaryFallbackApplied;startBoundaryFallbackValue=$startBoundaryFallbackValue
+        min=$minValue;max=$maxValue;rangeSpread=$rangeSpread;delta=$deltaValue
         durationGoodSeconds=$durationGood;durationBadSeconds=$durationBad;durationCoverageValid=$durationCoverageValid
         boundaryValid=$boundaryValid;dataComplete=($boundaryValid -and $usageValid -and $durationCoverageValid -and $durationBad -le 0.001)
         referenceExpectedTon=$referenceExpected;referenceMatched=$referenceMatch
