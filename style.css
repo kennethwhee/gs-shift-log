@@ -121090,3 +121090,37 @@ a[aria-controls="cofiringPanel"][aria-selected="true"] {
   color: #1f5fae !important;
   box-shadow: inset 0 0 0 1px rgba(75, 157, 240, 0.20) !important;
 }
+
+/* EFFICIENCY_COFIRING_EXACT_FRAME_V3_START */
+/*
+  효율팀 > 혼소율
+  실제 DOM:
+    #efficiencyCofiringDraftTab
+    data-efficiency-tab="cofiring-draft"
+
+  기존 크기/배치/아이콘은 그대로 유지하고
+  다른 효율팀 메뉴처럼 카드 외곽선만 명확하게 표시한다.
+*/
+#efficiencyTeamModal #efficiencyCofiringDraftTab {
+  color: #315f89 !important;
+  background: #f4f9ff !important;
+  border-color: #9fc9ef !important;
+}
+
+#efficiencyTeamModal #efficiencyCofiringDraftTab:hover {
+  color: #245d91 !important;
+  background: #edf6ff !important;
+  border-color: #82b8e6 !important;
+}
+
+#efficiencyTeamModal #efficiencyCofiringDraftTab:is(
+  .is-active,
+  .active,
+  [aria-selected="true"]
+) {
+  color: #1f5f99 !important;
+  background: #e5f2ff !important;
+  border-color: #5ea5dd !important;
+}
+
+/* EFFICIENCY_COFIRING_EXACT_FRAME_V3_END */
