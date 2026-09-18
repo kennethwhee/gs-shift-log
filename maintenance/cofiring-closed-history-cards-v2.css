@@ -46,7 +46,7 @@
 .cfv15-detail-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:0}.cfv15-detail-meta>div{min-width:0;padding:6px 7px;border-radius:6px;background:#f6f9fb}.cfv15-detail-meta .is-wide{grid-column:1/-1}.cfv15-detail-meta dt{font-size:7px;color:#75879a}.cfv15-detail-meta dd{overflow:hidden;margin:2px 0 0;font-size:8px;font-weight:800;color:#294761;text-overflow:ellipsis;white-space:nowrap}.cfv15-detail-actions{display:flex;justify-content:flex-end;margin-top:8px}
 .cfv15-state{display:grid;gap:3px;padding:18px;border:1px dashed #cbd8e4;border-radius:9px;background:#fbfcfd;text-align:center;color:#61778d;font-size:10px}.cfv15-state strong{color:#244765}.cfv15-state.is-error{border-color:#e3bcbc;color:#a13f3f}
 @media(max-width:900px){.cfv15-month-toolbar{align-items:flex-start;flex-direction:column}.cfv15-detail-grid{grid-template-columns:1fr}.cfv15-history-table{min-width:940px}.cfv16-compact-table th:nth-child(2),.cfv16-compact-table td:nth-child(2),.cfv16-compact-table th:nth-child(4),.cfv16-compact-table td:nth-child(4){width:150px}.cfv16-compact-table th:nth-child(3),.cfv16-compact-table td:nth-child(3),.cfv16-compact-table th:nth-child(5),.cfv16-compact-table td:nth-child(5){width:138px}}
-/* ===== CFH_LAYOUT_V3 : readable balanced closed-history table ===== */
+/* ===== CFH_LAYOUT_V4 : readable balanced closed-history table ===== */
 
 @media screen and (min-width: 1101px) {
 
@@ -86,13 +86,13 @@ table[data-cfh-layout-v3] {
 }
 
 /*
-  Balanced column widths:
+  Balanced column widths V4:
   date        10
   U1 fuel     18.5
-  U1 ratio    18.5
+  U1 ratio    17
   U2 fuel     18.5
-  U2 ratio    18.5
-  combined    10
+  U2 ratio    17
+  combined    13
   actions      6
 */
 
@@ -111,7 +111,7 @@ col.cfh-col-u1-fuel {
 #efficiencyCofiringDraftView
 table[data-cfh-layout-v3]
 col.cfh-col-u1-ratio {
-  width: 18.5%;
+  width: 17%;
 }
 
 #efficiencyCofiringDraftView
@@ -123,13 +123,13 @@ col.cfh-col-u2-fuel {
 #efficiencyCofiringDraftView
 table[data-cfh-layout-v3]
 col.cfh-col-u2-ratio {
-  width: 18.5%;
+  width: 17%;
 }
 
 #efficiencyCofiringDraftView
 table[data-cfh-layout-v3]
 col.cfh-col-total {
-  width: 10%;
+  width: 13%;
 }
 
 #efficiencyCofiringDraftView
@@ -264,10 +264,10 @@ b {
 table[data-cfh-layout-v3]
 tbody td:nth-last-child(2) {
   padding-left:
-    8px !important;
+    10px !important;
 
   padding-right:
-    8px !important;
+    10px !important;
 }
 
 /* ---------------------------------------------------------
@@ -379,4 +379,4 @@ table[data-cfh-layout-v3]
 
 }
 
-/* ===== /CFH_LAYOUT_V3 ===== */
+/* ===== /CFH_LAYOUT_V4 ===== */
