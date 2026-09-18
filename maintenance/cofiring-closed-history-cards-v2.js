@@ -490,3 +490,208 @@
     else boot();
   }
 })(typeof globalThis==='object'?globalThis:this);
+/* ===== CFH_LAYOUT_V1 : closed history presentation only ===== */
+(function () {
+  'use strict';
+
+  const PATCH_ATTR = 'data-cfh-layout-v1';
+  const COLGROUP_ATTR = 'data-cfh-layout-cols-v1';
+  const META_LABEL = '\uB9C8\uAC10\uC815\uBCF4';
+
+  let queued = false;
+
+  function normalize(value) {
+    return String(value || '')
+      .replace(/\s+/g, '')
+      .trim();
+  }
+
+  function directCells(row) {
+    return Array.from(row.children || [])
+      .filter(function (node) {
+        return node &&
+          (node.tagName === 'TD' || node.tagName === 'TH');
+      });
+  }
+
+  function installColumns(table) {
+    Array.from(table.children || [])
+      .filter(function (node) {
+        return node && node.tagName === 'COLGROUP';
+      })
+      .forEach(function (node) {
+        node.remove();
+      });
+
+    const group = document.createElement('colgroup');
+    group.setAttribute(COLGROUP_ATTR, '');
+
+    [
+      'cfh-col-date',
+      'cfh-col-u1-fuel',
+      'cfh-col-u1-ratio',
+      'cfh-col-u2-fuel',
+      'cfh-col-u2-ratio',
+      'cfh-col-total',
+      'cfh-col-actions'
+    ].forEach(function (className) {
+      const col = document.createElement('col');
+      col.className = className;
+      group.appendChild(col);
+    });
+
+    table.insertBefore(group, table.firstChild);
+  }
+
+  function styleActionCell(cell) {
+    if (!cell) {
+      return;
+    }
+
+    cell.classList.add('cfh-layout-actions-cell');
+
+    const buttons = Array.from(cell.querySelectorAll('button'));
+
+    buttons.forEach(function (button) {
+      button.classList.add('cfh-layout-action-button');
+    });
+
+    if (buttons.length <= 1) {
+      return;
+    }
+
+    let stack = cell.querySelector('.cfh-layout-actions-stack');
+
+    if (!stack) {
+      stack = document.createElement('div');
+      stack.className = 'cfh-layout-actions-stack';
+
+      buttons.forEach(function (button) {
+        stack.appendChild(button);
+      });
+
+      cell.appendChild(stack);
+    }
+  }
+
+  function transform(table) {
+    const headerCells = Array.from(
+      table.querySelectorAll('thead th')
+    );
+
+    const metaHeader = headerCells.find(function (cell) {
+      return normalize(cell.textContent) === normalize(META_LABEL);
+    });
+
+    const alreadyPatched =
+      table.hasAttribute(PATCH_ATTR);
+
+    if (!metaHeader && !alreadyPatched) {
+      return false;
+    }
+
+    /*
+      Current body layout:
+      date / U1 fuel / U1 ratio / U2 fuel / U2 ratio /
+      combined / closing-info / actions
+
+      Remove only the second-to-last body cell.
+      The last cell remains the action column.
+    */
+    if (metaHeader) {
+      metaHeader.remove();
+
+      table.querySelectorAll('tbody tr').forEach(function (row) {
+        const cells = directCells(row);
+
+        if (cells.length >= 8) {
+          cells[cells.length - 2].remove();
+        }
+      });
+    }
+
+    table.setAttribute(PATCH_ATTR, '');
+
+    installColumns(table);
+
+    const firstHeaderRow =
+      table.querySelector('thead tr');
+
+    if (firstHeaderRow) {
+      const topCells = directCells(firstHeaderRow);
+      const actionHeader = topCells[topCells.length - 1];
+
+      if (actionHeader) {
+        actionHeader.classList.add(
+          'cfh-layout-actions-header'
+        );
+      }
+    }
+
+    table.querySelectorAll('tbody tr').forEach(function (row) {
+      const cells = directCells(row);
+
+      if (!cells.length) {
+        return;
+      }
+
+      styleActionCell(cells[cells.length - 1]);
+    });
+
+    return true;
+  }
+
+  function apply() {
+    queued = false;
+
+    document.querySelectorAll(
+      '#efficiencyCofiringDraftView table'
+    ).forEach(function (table) {
+      transform(table);
+    });
+  }
+
+  function schedule() {
+    if (queued) {
+      return;
+    }
+
+    queued = true;
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(apply);
+    } else {
+      setTimeout(apply, 0);
+    }
+  }
+
+  function start() {
+    apply();
+
+    const root =
+      document.getElementById('efficiencyCofiringDraftView') ||
+      document.body;
+
+    if (!root || typeof MutationObserver !== 'function') {
+      return;
+    }
+
+    const observer = new MutationObserver(schedule);
+
+    observer.observe(root, {
+      childList: true,
+      subtree: true
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener(
+      'DOMContentLoaded',
+      start,
+      { once: true }
+    );
+  } else {
+    start();
+  }
+})();
+/* ===== /CFH_LAYOUT_V1 ===== */

@@ -46,3 +46,147 @@
 .cfv15-detail-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:0}.cfv15-detail-meta>div{min-width:0;padding:6px 7px;border-radius:6px;background:#f6f9fb}.cfv15-detail-meta .is-wide{grid-column:1/-1}.cfv15-detail-meta dt{font-size:7px;color:#75879a}.cfv15-detail-meta dd{overflow:hidden;margin:2px 0 0;font-size:8px;font-weight:800;color:#294761;text-overflow:ellipsis;white-space:nowrap}.cfv15-detail-actions{display:flex;justify-content:flex-end;margin-top:8px}
 .cfv15-state{display:grid;gap:3px;padding:18px;border:1px dashed #cbd8e4;border-radius:9px;background:#fbfcfd;text-align:center;color:#61778d;font-size:10px}.cfv15-state strong{color:#244765}.cfv15-state.is-error{border-color:#e3bcbc;color:#a13f3f}
 @media(max-width:900px){.cfv15-month-toolbar{align-items:flex-start;flex-direction:column}.cfv15-detail-grid{grid-template-columns:1fr}.cfv15-history-table{min-width:940px}.cfv16-compact-table th:nth-child(2),.cfv16-compact-table td:nth-child(2),.cfv16-compact-table th:nth-child(4),.cfv16-compact-table td:nth-child(4){width:150px}.cfv16-compact-table th:nth-child(3),.cfv16-compact-table td:nth-child(3),.cfv16-compact-table th:nth-child(5),.cfv16-compact-table td:nth-child(5){width:138px}}
+/* ===== CFH_LAYOUT_V1 : closed history table proportions ===== */
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1] {
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+
+/*
+  Final logical columns:
+  1 date
+  2 U1 fuel
+  3 U1 ratio
+  4 U2 fuel
+  5 U2 ratio
+  6 combined
+  7 actions
+*/
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+col.cfh-col-date {
+  width: 10.5%;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+col.cfh-col-u1-fuel {
+  width: 19%;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+col.cfh-col-u1-ratio {
+  width: 16.5%;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+col.cfh-col-u2-fuel {
+  width: 19%;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+col.cfh-col-u2-ratio {
+  width: 16.5%;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+col.cfh-col-total {
+  width: 12.5%;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+col.cfh-col-actions {
+  width: 6%;
+}
+
+/* Give the useful data columns more breathing room. */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+th,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+td {
+  vertical-align: middle;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+tbody td:not(.cfh-layout-actions-cell) {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+/* Slightly enlarge the readable body content. */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+tbody td:not(.cfh-layout-actions-cell) {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+/* Combined column stays intentionally compact. */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+tbody td:nth-last-child(2) {
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
+
+/* Very narrow action column. */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+.cfh-layout-actions-header,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+.cfh-layout-actions-cell {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+  text-align: center !important;
+  white-space: nowrap;
+}
+
+/* [View] and [Delete] vertically stacked. */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+.cfh-layout-actions-stack {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+/* Keep every action button compact. */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+.cfh-layout-action-button {
+  display: block !important;
+  width: auto !important;
+  min-width: 42px !important;
+  max-width: 48px;
+  min-height: 28px;
+  margin: 0 auto !important;
+  padding: 4px 7px !important;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+/* The monthly-average action stays centered. */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v1]
+.cfh-layout-actions-cell
+> .cfh-layout-action-button:only-child {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* ===== /CFH_LAYOUT_V1 ===== */
