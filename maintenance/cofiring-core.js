@@ -326,27 +326,37 @@
   }
 
   function periodSummaryCounter(definition, item, period) {
+    // COFIRING_START_BOUNDARY_NODATA_CORE_V3
     const issues = [];
     if (!item || item.key !== definition.id || item.unit !== definition.unit || item.fuel !== definition.fuel || item.tag !== definition.queryTag) {
-      return { id: definition.id, quantity: null, referenceQuantity: null, complete: false, missingSamples: 1, observedSamples: 0, qualityVerified: false, issues: ['summary_identity_mismatch'] };
+      return { id: definition.id, quantity: null, referenceQuantity: null, complete: false, missingSamples: 1, observedSamples: 0, qualityVerified: false, issues: ['summary_identity_mismatch'], startBoundaryRecovered: false };
     }
     const n = function (value) { return typeof value === 'number' && Number.isFinite(value) ? value : null; };
+    const noDataQuality = function(value) { return typeof value === 'string' && /\bno\s*data\b/i.test(value); };
     const startValue=n(item.startValue), endValue=n(item.endValue), min=n(item.min), max=n(item.max), delta=n(item.delta), usage=n(item.usageTon);
-    if ([startValue,endValue,min,max,delta,usage].some(function(v){return v===null;})) issues.push('summary_number_missing');
-    if ([startValue,endValue,min,max].some(function(v){return v!==null&&v<0;})) issues.push('negative_counter');
-    if (!qualityGood(item.startQuality) || !qualityGood(item.endQuality)) issues.push('bad_quality');
+    const fallbackValue=n(item.startBoundaryFallbackValue), contractEffectiveStart=n(item.effectiveStartValue);
+    const fallback = definition.fuel === 'bio' && item.startBoundaryFallbackApplied === true && item.startBoundaryRecovered === true && item.usageBasis === 'end_minus_period_min_start_nodata_fallback' && startValue === null && fallbackValue !== null && contractEffectiveStart !== null && Math.abs(fallbackValue-contractEffectiveStart) <= 0.001 && noDataQuality(item.startQuality);
+    const direct = startValue !== null && item.startBoundaryFallbackApplied !== true && item.startBoundaryRecovered !== true;
+    const effectiveStart = direct ? startValue : (fallback ? fallbackValue : null);
+    if ([effectiveStart,endValue,min,max,delta,usage].some(function(v){return v===null;})) issues.push('summary_number_missing');
+    if ([effectiveStart,endValue,min,max].some(function(v){return v!==null&&v<0;})) issues.push('negative_counter');
+    if (direct && !qualityGood(item.startQuality)) issues.push('bad_quality');
+    if (!direct && !fallback) issues.push('bad_quality');
+    if (!qualityGood(item.endQuality)) issues.push('bad_quality');
     const startAt=Date.parse(item.startTime), endAt=Date.parse(item.endTime);
     if (!Number.isFinite(startAt) || startAt < period.startMs || startAt >= period.startMs + MINUTE) issues.push('start_time_invalid');
     if (!Number.isFinite(endAt) || endAt < period.endMs || endAt >= period.endMs + MINUTE) issues.push('end_time_invalid');
-    if (startValue!==null&&endValue!==null&&endValue+0.001<startValue) issues.push('counter_reset');
-    const derived=startValue===null||endValue===null?null:endValue-startValue;
+    if (effectiveStart!==null&&endValue!==null&&endValue+0.001<effectiveStart) issues.push('counter_reset');
+    const derived=effectiveStart===null||endValue===null?null:endValue-effectiveStart;
     if (derived!==null&&usage!==null&&Math.abs(derived-usage)>0.001) issues.push('usage_mismatch');
     const spread=min===null||max===null?null:max-min;
     if (spread!==null&&delta!==null&&Math.abs(spread-delta)>0.001) issues.push('delta_minmax_mismatch');
-    if (startValue!==null&&min!==null&&min+0.001<startValue) issues.push('range_below_start');
+    if (fallback && (min===null || fallbackValue===null || Math.abs(min-fallbackValue)>0.001)) issues.push('fallback_min_mismatch');
+    if (effectiveStart!==null&&min!==null&&min+0.001<effectiveStart) issues.push('range_below_start');
     if (endValue!==null&&max!==null&&max-0.001>endValue) issues.push('range_above_end');
     const good=n(item.durationGoodSeconds), bad=n(item.durationBadSeconds), expected=period.durationMinutes*60;
     if (good===null||bad===null||good<0||bad<0||Math.abs((good||0)+(bad||0)-expected)>2) issues.push('duration_coverage_invalid');
+    if (fallback && bad!==null && bad>0.001) issues.push('fallback_requires_full_good');
     if (item.boundaryValid !== true || item.durationCoverageValid !== true) issues.push('worker_validation_failed');
     const complete=issues.length===0&&derived!==null&&derived>=-0.001;
     const qualityGapSeconds=bad!==null&&bad>0.001?bad:0;
@@ -355,10 +365,9 @@
       referenceQuantity: derived===null?null:Math.max(0,derived), complete,
       missingSamples: complete?0:1, observedSamples: complete?2:0,
       qualityVerified: complete&&qualityGapSeconds<=0.001, qualityGapSeconds,
-      issues: Array.from(new Set(issues)), summary: item
+      issues: Array.from(new Set(issues)), summary: item, startBoundaryRecovered: fallback
     };
   }
-
   function analyzePeriodSummary(reference, options) {
     options = options || {};
     if (!reference || reference.kind !== 'cofiring_period_summary_v1' || reference.schemaVersion !== 1) throw new Error('지원하는 기간 DataPARC 요약 자료가 아닙니다.');
@@ -370,6 +379,8 @@
     const counters=REQUIRED_SERIES.map(function(def){return periodSummaryCounter(def,entries.get(def.id),period);});
     const units={},warnings=[],actualCalorifics={},actualCoefficients={};
     const maxQualityGapSeconds=counters.reduce(function(max,c){return Math.max(max,c.qualityGapSeconds||0);},0);
+    const recoveredStartCounters=counters.filter(function(c){return c.startBoundaryRecovered===true;});
+    if(recoveredStartCounters.length)warnings.push('Bio 시작 경계 #NODATA '+recoveredStartCounters.map(function(c){return c.id;}).join(', ')+'는 전체 Good 구간과 Min/Max/Delta 검증 후 기간 Min값으로 복구해 사용량을 계산했습니다.');
     if(maxQualityGapSeconds>0.001)warnings.push('DataPARC 중간 품질 공백이 최대 '+maxQualityGapSeconds.toFixed(1)+'초 확인됐습니다. 시작·종료 누적 경계와 Min/Max가 정상인 TAG는 경계값 차이로 사용량을 표시합니다.');
     UNIT_IDS.forEach(function(unit,index){
       const calorifics={},coefficients={};
