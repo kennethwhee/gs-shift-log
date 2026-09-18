@@ -178,8 +178,8 @@
   }
   function rowsPlaceholder(count,cols){return Array.from({length:count},(_,i)=>`<tr><th>${i<2?i+1+'호기':'계'}</th>${Array.from({length:cols-1},()=>'<td>—</td>').join('')}</tr>`).join('');}
   function manualRowsPlaceholder(){return `<tr data-cfv5-manual-row="unit1"><th>1호기</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr><tr data-cfv5-manual-row="unit2"><th>2호기</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr><tr data-cfv5-manual-row="sum"><th>계</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr>`;}
-  function readSettings(container){const output={unit1:{},unit2:{}};for(const unit of UNITS)for(const fuel of FUEL_KEYS){const c=Number(container.querySelector(`[data-cfv5-calorific="${unit}:${fuel}"]`)?.value),f=Number(container.querySelector(`[data-cfv5-coefficient="${unit}:${fuel}"]`)?.value);if(!Number.isFinite(c)||c<=0||c>50000||!Number.isFinite(f)||f<=0||f>100)throw new Error(`${unit==='unit1'?'1':'2'}호기 ${FUEL_LABEL[fuel]} 발열량·보정계수를 확인해 주세요.`);output[unit][fuel]={calorific:c,coefficient:f};}return output;}
-  function writeSettings(container,settings){if(!settings)return;for(const unit of UNITS)for(const fuel of FUEL_KEYS){const s=settings?.[unit]?.[fuel];if(!s)continue;const c=container.querySelector(`[data-cfv5-calorific="${unit}:${fuel}"]`),f=container.querySelector(`[data-cfv5-coefficient="${unit}:${fuel}"]`);if(c)c.value=String(s.calorific);if(f)f.value=String(s.coefficient);}}
+  function readSettings(container){const output={unit1:{},unit2:{}};for(const fuel of FUEL_KEYS){const c=Number(container.querySelector(`[data-cfv5-calorific="unit1:${fuel}"]`)?.value),f=Number(container.querySelector(`[data-cfv5-coefficient="unit1:${fuel}"]`)?.value);if(!Number.isFinite(c)||c<=0||c>50000||!Number.isFinite(f)||f<=0||f>100)throw new Error(`${FUEL_LABEL[fuel]} 발열량·보정계수를 확인해 주세요.`);output.unit1[fuel]={calorific:c,coefficient:f};output.unit2[fuel]={calorific:c,coefficient:f};}return output;}
+  function writeSettings(container,settings){if(!settings)return;for(const fuel of FUEL_KEYS){const s=settings?.unit1?.[fuel]||settings?.unit2?.[fuel];if(!s)continue;for(const unit of UNITS){const c=container.querySelector(`[data-cfv5-calorific="${unit}:${fuel}"]`),f=container.querySelector(`[data-cfv5-coefficient="${unit}:${fuel}"]`);if(c)c.value=String(s.calorific);if(f)f.value=String(s.coefficient);}}}
   function readManual(container){const out={unit1:{},unit2:{}};for(const unit of UNITS)for(const fuel of ['organic','manure'])out[unit][fuel]=manualApi.parseValue(container.querySelector(`[data-cfv5-manual="${unit}:${fuel}"]`)?.value??'');return out;}
   function manualForCalculation(values){const out={unit1:{},unit2:{}};for(const unit of UNITS)for(const fuel of ['organic','manure']){const value=values?.[unit]?.[fuel];out[unit][fuel]=typeof value==='number'&&Number.isFinite(value)?value:0;}return out;}
   function writeManual(container,values){for(const unit of UNITS)for(const fuel of ['organic','manure']){const input=container.querySelector(`[data-cfv5-manual="${unit}:${fuel}"]`);if(input)input.value=values?.[unit]?.[fuel]==null?'':String(values[unit][fuel]);}}
@@ -229,7 +229,7 @@
     if(note)note.textContent=result?.warnings?.length?'자료 확인 필요':'계산 완료';
   }
   function safeHours(container){try{return periodSpec(container).durationHours;}catch(_){return 0;}}
-  function settingFactor(container,unit,fuel){const n=Number(container.querySelector(`[data-cfv5-coefficient="${unit}:${fuel}"]`)?.value);return Number.isFinite(n)?n:null;}
+  function settingFactor(container,unit,fuel){const n=Number(container.querySelector(`[data-cfv5-coefficient="unit1:${fuel}"]`)?.value);return Number.isFinite(n)?n:null;}
   function setStatus(container,text,tone=''){const el=container.querySelector('[data-cfv5-status]');if(el){el.textContent=text;el.dataset.tone=tone;}statusRefreshers.get(container)?.();}
   function updateRange(container){updateModeControls(container);try{const p=periodSpec(container);container.querySelector('[data-cfv5-range]').textContent=queryMode(container)==='daily'?(p.durationHours<24?`${p.targetDate} 현재까지 누적 · 자료 기준 ${p.endLocal.slice(11)} · 계산하기로 현재까지 갱신`:`${p.targetDate} 하루 혼소율 · 24시간 기준`):`선택 기간 ${num(p.durationHours,2)}시간 · 1분 기준 · 종료 누적값 확인을 위해 다음 1분까지 조회`;const out=container.querySelector('[data-cfv7-daily-window]');if(out)out.textContent=`${p.startLocal.replace('T',' ')} ~ ${p.queryEnd.slice(0,16).replace('T',' ')}`;return p;}catch(e){container.querySelector('[data-cfv5-range]').textContent=e.message;const out=container.querySelector('[data-cfv7-daily-window]');if(out)out.textContent=queryMode(container)==='daily'?'계산일을 선택해 주세요.':'시작·종료 날짜와 시간을 확인해 주세요.';return null;}}
   function renderWarnings(container,result){const box=container.querySelector('[data-cfv5-warning-box]'),list=container.querySelector('[data-cfv5-warnings]'),warnings=result?.warnings||[];box.hidden=!warnings.length;list.innerHTML=warnings.map(w=>`<li>${escapeHtml(w)}</li>`).join('');}
@@ -778,3 +778,361 @@
   root.CofiringPeriodV5={mount,periodSpec,dailySpec,dailySelectionSpec,dayAvailability,defaultCalculationDate,queryMode,customSpec,currentDaySpec,selectedAvailability,targetReferenceMarkup,fuelUsageMarkup,markup,readSettings,readManual,manualForCalculation,coalBioHeat,coalBioRatio,combinedCoalBio,cachedReference,liveRequestPresentation};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
   if(root.document){const init=()=>{const container=root.document.querySelector('[data-cofiring-draft-root]');if(container)root.__cofiringPeriodV5Controller=mount(container);};if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init,{once:true});else init();}
 })(typeof globalThis==='object'?globalThis:this);
+/* ===== COFIRING_BASIS_DETAIL_COMPACT_V10 ===== */
+(function () {
+  'use strict';
+
+  let queued = false;
+
+  function cellText(cell) {
+    return String(cell?.textContent || '').trim() || '—';
+  }
+
+  function makeCell(tag, text, className) {
+    const cell = document.createElement(tag);
+    if (className) {
+      cell.className = className;
+    }
+    cell.textContent = text;
+    return cell;
+  }
+
+  function makePairCell(periodValue, averageValue) {
+    const td = document.createElement('td');
+    td.className = 'cfv10-detail-pair';
+
+    const period = document.createElement('span');
+    const periodLabel = document.createElement('small');
+    const periodStrong = document.createElement('strong');
+
+    periodLabel.textContent = '기간';
+    periodStrong.textContent = periodValue;
+
+    period.append(periodLabel, periodStrong);
+
+    const average = document.createElement('span');
+    const averageLabel = document.createElement('small');
+    const averageStrong = document.createElement('strong');
+
+    averageLabel.textContent = '평균';
+    averageStrong.textContent = averageValue;
+
+    average.append(averageLabel, averageStrong);
+
+    td.append(period, average);
+    return td;
+  }
+
+  function addCompactColgroup(table) {
+    if (table.querySelector(':scope > colgroup.cfv10-detail-cols')) {
+      return;
+    }
+
+    const group = document.createElement('colgroup');
+    group.className = 'cfv10-detail-cols';
+
+    const widths = [
+      '7%',
+      '10%',
+      '7%',
+      '10%',
+      '8%',
+      '10%',
+      '7%',
+      '10%',
+      '8%',
+      '11.5%',
+      '11.5%'
+    ];
+
+    widths.forEach(function (width) {
+      const col = document.createElement('col');
+      col.style.width = width;
+      group.appendChild(col);
+    });
+
+    table.insertBefore(group, table.firstChild);
+  }
+
+  function compactRow(row) {
+    const cells = Array.from(row.children || []);
+
+    /*
+      Original detailed calculation row:
+      0 unit
+      1 measured period
+      2 measured average
+      3 factor
+      4 actual period
+      5 actual average
+      6 heat
+      7 measured period
+      8 measured average
+      9 factor
+      10 actual period
+      11 actual average
+      12 heat
+      13 total heat
+      14 ratio
+    */
+    if (cells.length !== 15) {
+      return false;
+    }
+
+    const values = cells.map(cellText);
+
+    row.replaceChildren();
+
+    row.appendChild(
+      makeCell('th', values[0])
+    );
+
+    row.appendChild(
+      makePairCell(values[1], values[2])
+    );
+
+    row.appendChild(
+      makeCell('td', values[3], 'cfv10-detail-factor')
+    );
+
+    row.appendChild(
+      makePairCell(values[4], values[5])
+    );
+
+    row.appendChild(
+      makeCell('td', values[6], 'cfv10-detail-heat')
+    );
+
+    row.appendChild(
+      makePairCell(values[7], values[8])
+    );
+
+    row.appendChild(
+      makeCell('td', values[9], 'cfv10-detail-factor')
+    );
+
+    row.appendChild(
+      makePairCell(values[10], values[11])
+    );
+
+    row.appendChild(
+      makeCell('td', values[12], 'cfv10-detail-heat')
+    );
+
+    row.appendChild(
+      makeCell('td', values[13], 'cfv10-detail-total-heat')
+    );
+
+    row.appendChild(
+      makeCell('td', values[14], 'cfv10-detail-ratio')
+    );
+
+    return true;
+  }
+
+  function installDetailHeader(table, type) {
+    if (table.dataset.cfv10DetailHeader === '1') {
+      return;
+    }
+
+    table.dataset.cfv10DetailHeader = '1';
+    table.classList.add('cfv10-detail-compact');
+
+    addCompactColgroup(table);
+
+    const thead = table.querySelector('thead');
+    if (!thead) {
+      return;
+    }
+
+    if (type === 'coalBio') {
+      thead.innerHTML = `
+        <tr>
+          <th rowspan="2">설비</th>
+          <th colspan="4" class="cfv5-head-coal">Coal</th>
+          <th colspan="4" class="cfv5-head-bio">Bio-SRF</th>
+          <th colspan="2" class="cfv5-head-ratio">혼소율 산정</th>
+        </tr>
+        <tr>
+          <th>계측량<br><small>기간 / 평균</small></th>
+          <th>보정</th>
+          <th>실사용량<br><small>기간 / 평균</small></th>
+          <th>열량<br><small>Gcal</small></th>
+
+          <th>계측량<br><small>기간 / 평균</small></th>
+          <th>보정</th>
+          <th>실사용량<br><small>기간 / 평균</small></th>
+          <th>열량<br><small>Gcal</small></th>
+
+          <th>Coal+Bio<br>열량</th>
+          <th>Bio<br>혼소율</th>
+        </tr>
+      `;
+    } else {
+      thead.innerHTML = `
+        <tr>
+          <th rowspan="2">설비</th>
+          <th colspan="4" class="cfv5-head-organic">유기성 고형연료</th>
+          <th colspan="4" class="cfv5-head-manure">축분</th>
+          <th colspan="2" class="cfv5-head-ratio">혼소율 산정</th>
+        </tr>
+        <tr>
+          <th>사용량<br><small>기간 / 평균</small></th>
+          <th>보정</th>
+          <th>실사용량<br><small>기간 / 평균</small></th>
+          <th>열량<br><small>Gcal</small></th>
+
+          <th>사용량<br><small>기간 / 평균</small></th>
+          <th>보정</th>
+          <th>실사용량<br><small>기간 / 평균</small></th>
+          <th>열량<br><small>Gcal</small></th>
+
+          <th>총 열량</th>
+          <th>혼소율</th>
+        </tr>
+      `;
+    }
+  }
+
+  function compactDetailTable(table, type) {
+    if (!table) {
+      return;
+    }
+
+    installDetailHeader(table, type);
+
+    table
+      .querySelectorAll('tbody tr')
+      .forEach(compactRow);
+  }
+
+  function compactBasis(root) {
+    const table = root.querySelector('.cfv5-basis-table');
+
+    if (
+      !table ||
+      table.dataset.cfv10CommonBasis === '1'
+    ) {
+      return;
+    }
+
+    table.dataset.cfv10CommonBasis = '1';
+    table.classList.add('cfv10-common-basis');
+
+    const wrap = table.closest('.cfv5-basis-wrap');
+    if (wrap) {
+      wrap.classList.add('cfv10-common-basis-wrap');
+
+      const title = wrap.querySelector('.cfv5-basis-title');
+      if (title) {
+        title.textContent =
+          '공통 연료 발열량(Net Calorific Value) · 보정계수 · 1·2호기 동일 적용';
+      }
+    }
+
+    const rows = table.tHead?.rows;
+
+    if (rows?.[0]) {
+      const cells = rows[0].cells;
+
+      if (cells[1]) {
+        cells[1].textContent = '공통 기준';
+        cells[1].colSpan = 2;
+      }
+
+      if (cells[2]) {
+        cells[2].hidden = true;
+      }
+    }
+
+    if (rows?.[1]) {
+      if (rows[1].cells[3]) {
+        rows[1].cells[3].hidden = true;
+      }
+
+      if (rows[1].cells[4]) {
+        rows[1].cells[4].hidden = true;
+      }
+    }
+
+    table
+      .querySelectorAll('tbody tr')
+      .forEach(function (row) {
+        if (row.cells[3]) {
+          row.cells[3].hidden = true;
+        }
+
+        if (row.cells[4]) {
+          row.cells[4].hidden = true;
+        }
+      });
+  }
+
+  function apply() {
+    queued = false;
+
+    const root =
+      document.querySelector('[data-cofiring-draft-root]');
+
+    if (!root) {
+      return;
+    }
+
+    compactBasis(root);
+
+    compactDetailTable(
+      root.querySelector('.cfv5-coal-bio'),
+      'coalBio'
+    );
+
+    compactDetailTable(
+      root.querySelector('.cfv5-organic'),
+      'organic'
+    );
+  }
+
+  function schedule() {
+    if (queued) {
+      return;
+    }
+
+    queued = true;
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(apply);
+    } else {
+      setTimeout(apply, 0);
+    }
+  }
+
+  function start() {
+    apply();
+
+    const root =
+      document.querySelector('[data-cofiring-draft-root]');
+
+    if (
+      !root ||
+      typeof MutationObserver !== 'function'
+    ) {
+      return;
+    }
+
+    new MutationObserver(schedule)
+      .observe(root, {
+        childList: true,
+        subtree: true
+      });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener(
+      'DOMContentLoaded',
+      start,
+      { once: true }
+    );
+  } else {
+    start();
+  }
+})();
+/* ===== /COFIRING_BASIS_DETAIL_COMPACT_V10 ===== */

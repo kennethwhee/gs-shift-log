@@ -441,3 +441,250 @@
  .cofiring-period-v5 .cfv52-total-ratios>.cfv52-metric>strong{font-size:20px}
  .cofiring-period-v5 .cfv52-total-fuels{gap:5px 15px;margin-top:0}
 }
+/* ===== COFIRING_BASIS_DETAIL_COMPACT_V10 ===== */
+
+/* ---------------------------------------------------------
+   Common calorific / coefficient table
+--------------------------------------------------------- */
+
+.cofiring-period-v5
+.cfv10-common-basis-wrap {
+  max-width: 720px;
+  margin: 10px 14px 12px !important;
+  gap: 7px !important;
+}
+
+.cofiring-period-v5
+.cfv10-common-basis-wrap
+.cfv5-basis-title {
+  margin: 0;
+  font-size: 10.5px !important;
+  line-height: 1.3;
+}
+
+.cofiring-period-v5
+.cfv10-common-basis {
+  width: 100% !important;
+  table-layout: fixed !important;
+  font-size: 11px !important;
+}
+
+.cofiring-period-v5
+.cfv10-common-basis
+th,
+.cofiring-period-v5
+.cfv10-common-basis
+td {
+  height: 32px !important;
+  padding: 3px 6px !important;
+}
+
+.cofiring-period-v5
+.cfv10-common-basis
+thead
+th {
+  height: 30px !important;
+  font-size: 10.5px !important;
+}
+
+.cofiring-period-v5
+.cfv10-common-basis
+input {
+  height: 27px !important;
+  padding: 2px 6px !important;
+  font-size: 11.5px !important;
+}
+
+.cofiring-period-v5
+.cfv10-common-basis-wrap
+.cfv5-basis-actions {
+  gap: 8px !important;
+  margin-top: 1px;
+}
+
+
+/* ---------------------------------------------------------
+   Detail calculation tables
+--------------------------------------------------------- */
+
+.cofiring-period-v5
+.cfv52-detail
+.cfv5-section-label {
+  margin: 10px 12px 6px !important;
+  font-size: 11px !important;
+  line-height: 1.25;
+}
+
+.cofiring-period-v5
+.cfv52-detail
+.cfv5-table-scroll {
+  margin: 0 12px 12px !important;
+  max-width: calc(100% - 24px) !important;
+  overflow-x: hidden !important;
+  border-radius: 7px !important;
+}
+
+.cofiring-period-v5
+.cfv10-detail-compact {
+  min-width: 0 !important;
+  width: 100% !important;
+  table-layout: fixed !important;
+  font-size: 10.5px !important;
+}
+
+.cofiring-period-v5
+.cfv10-detail-compact
+th,
+.cofiring-period-v5
+.cfv10-detail-compact
+td {
+  height: 34px !important;
+  padding: 4px 4px !important;
+  line-height: 1.15 !important;
+  vertical-align: middle !important;
+  text-align: center !important;
+  white-space: normal !important;
+}
+
+.cofiring-period-v5
+.cfv10-detail-compact
+thead
+th {
+  font-size: 9.5px !important;
+  font-weight: 650 !important;
+}
+
+.cofiring-period-v5
+.cfv10-detail-compact
+thead
+tr:first-child
+th {
+  height: 30px !important;
+  font-size: 10.5px !important;
+}
+
+.cofiring-period-v5
+.cfv10-detail-compact
+thead
+small {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 8.5px !important;
+  line-height: 1.05 !important;
+  font-weight: 400 !important;
+}
+
+.cofiring-period-v5
+.cfv10-detail-compact
+tbody
+th {
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+}
+
+.cofiring-period-v5
+.cfv10-detail-compact
+tbody
+td {
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px !important;
+}
+
+
+/* 기간 / 평균을 한 셀 안에서 2줄 */
+.cofiring-period-v5
+.cfv10-detail-pair {
+  padding: 3px 5px !important;
+}
+
+.cofiring-period-v5
+.cfv10-detail-pair
+> span {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+}
+
+.cofiring-period-v5
+.cfv10-detail-pair
+> span
++ span {
+  margin-top: 3px;
+}
+
+.cofiring-period-v5
+.cfv10-detail-pair
+small {
+  color: #82919d;
+  font-size: 8.5px !important;
+  font-weight: 500;
+  text-align: left;
+}
+
+.cofiring-period-v5
+.cfv10-detail-pair
+strong {
+  color: #244b61;
+  font-size: 10.5px !important;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cofiring-period-v5
+.cfv10-detail-factor {
+  color: #526f82;
+}
+
+.cofiring-period-v5
+.cfv10-detail-heat,
+.cofiring-period-v5
+.cfv10-detail-total-heat {
+  color: #244b61;
+  font-weight: 650;
+}
+
+.cofiring-period-v5
+.cfv10-detail-ratio {
+  color: #00866d;
+  font-weight: 750;
+}
+
+.cofiring-period-v5
+.cfv10-detail-compact
+tr.cfv5-sum
+th,
+.cofiring-period-v5
+.cfv10-detail-compact
+tr.cfv5-sum
+td {
+  background: #eef4f7 !important;
+  font-weight: 700;
+}
+
+
+/* smaller detail section summary */
+.cofiring-period-v5
+.cfv52-detail
+> summary {
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+}
+
+
+/* On narrow screens allow horizontal scroll as fallback */
+@media screen and (max-width: 1000px) {
+  .cofiring-period-v5
+  .cfv52-detail
+  .cfv5-table-scroll {
+    overflow-x: auto !important;
+  }
+
+  .cofiring-period-v5
+  .cfv10-detail-compact {
+    min-width: 920px !important;
+  }
+}
+
+/* ===== /COFIRING_BASIS_DETAIL_COMPACT_V10 ===== */
