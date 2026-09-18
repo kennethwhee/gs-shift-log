@@ -94309,6 +94309,123 @@ function getValidAverageValues(
     );
   }  
 
+
+  /*
+    AUXILIARY_MONTHLY_AVERAGE_BOTTOM_V2
+
+    월 평균 계산/값은 그대로 유지하고
+    화면 표시 위치만 최신 날짜 뒤쪽으로 이동한다.
+
+    통합표:
+    - 월 평균 → tbody 맨 아래
+
+    분리표:
+    - 1호기 평균 → 1호기 마지막 날짜 아래
+    - 2호기 평균 → 2호기 마지막 날짜 아래
+  */
+  function moveAuxiliaryMaterialAverageRowsToBottom() {
+    const elements =
+      getAuxiliaryMaterialElements();
+
+
+    const tableBody =
+      elements?.tableBody;
+
+
+    if (
+      !tableBody
+    ) {
+      return;
+    }
+
+
+    const averageRows = [
+      ...Array.from(
+        tableBody.children
+      ).filter(
+        row =>
+          row.classList?.contains(
+            "auxiliary-material-average-row"
+          )
+      )
+    ];
+
+
+    if (
+      averageRows.length < 1
+    ) {
+      return;
+    }
+
+
+    const splitDataRows = [
+      ...tableBody.querySelectorAll(
+        ".auxiliary-material-split-data-row"
+      )
+    ];
+
+
+    /*
+      1호기 / 2호기 분리 화면
+    */
+    if (
+      splitDataRows.length > 0
+    ) {
+      averageRows.forEach(
+        averageRow => {
+          const unitClass =
+            averageRow.classList.contains(
+              "is-unit-two"
+            )
+              ? "is-unit-two"
+              : "is-unit-one";
+
+
+          const unitRows =
+            splitDataRows.filter(
+              row =>
+                row.classList.contains(
+                  unitClass
+                )
+            );
+
+
+          const lastUnitRow =
+            unitRows[
+              unitRows.length - 1
+            ];
+
+
+          if (
+            lastUnitRow
+          ) {
+            lastUnitRow.insertAdjacentElement(
+              "afterend",
+              averageRow
+            );
+          }
+        }
+      );
+
+
+      return;
+    }
+
+
+    /*
+      현재 PC 통합표
+      날짜 행이 최신순으로 이미 렌더되므로
+      평균행만 가장 마지막으로 이동한다.
+    */
+    averageRows.forEach(
+      averageRow => {
+        tableBody.appendChild(
+          averageRow
+        );
+      }
+    );
+  }
+
   const originalRenderAuxiliaryMaterialHistory =
     renderAuxiliaryMaterialHistory;
 
@@ -94323,6 +94440,8 @@ renderAuxiliaryMaterialHistory =
       renderUnitAverageSummary();
 
       renderAuxiliaryMaterialTableAverageRows();
+
+      moveAuxiliaryMaterialAverageRowsToBottom();
 
       renderAuxiliaryMaterialMobileMonitor();
     };
