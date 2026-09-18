@@ -490,13 +490,21 @@
     else boot();
   }
 })(typeof globalThis==='object'?globalThis:this);
-/* ===== CFH_LAYOUT_V1 : closed history presentation only ===== */
+/* ===== CFH_LAYOUT_V2 : closed history presentation ===== */
 (function () {
   'use strict';
 
-  const PATCH_ATTR = 'data-cfh-layout-v1';
-  const COLGROUP_ATTR = 'data-cfh-layout-cols-v1';
-  const META_LABEL = '\uB9C8\uAC10\uC815\uBCF4';
+  const PATCH_ATTR =
+    'data-cfh-layout-v2';
+
+  const COLGROUP_ATTR =
+    'data-cfh-layout-cols-v2';
+
+  const META_LABEL =
+    '\uB9C8\uAC10\uC815\uBCF4';
+
+  const AVERAGE_META_HINT =
+    '\uC800\uC7A5\uC77C\uAE30\uC900';
 
   let queued = false;
 
@@ -507,24 +515,43 @@
   }
 
   function directCells(row) {
-    return Array.from(row.children || [])
+    return Array
+      .from(row.children || [])
       .filter(function (node) {
-        return node &&
-          (node.tagName === 'TD' || node.tagName === 'TH');
+        return (
+          node &&
+          (
+            node.tagName === 'TD' ||
+            node.tagName === 'TH'
+          )
+        );
       });
   }
 
-  function installColumns(table) {
-    Array.from(table.children || [])
+  function removeOldColgroups(table) {
+    Array
+      .from(table.children || [])
       .filter(function (node) {
-        return node && node.tagName === 'COLGROUP';
+        return (
+          node &&
+          node.tagName === 'COLGROUP'
+        );
       })
       .forEach(function (node) {
         node.remove();
       });
+  }
 
-    const group = document.createElement('colgroup');
-    group.setAttribute(COLGROUP_ATTR, '');
+  function installColumns(table) {
+    removeOldColgroups(table);
+
+    const group =
+      document.createElement('colgroup');
+
+    group.setAttribute(
+      COLGROUP_ATTR,
+      ''
+    );
 
     [
       'cfh-col-date',
@@ -535,12 +562,96 @@
       'cfh-col-total',
       'cfh-col-actions'
     ].forEach(function (className) {
-      const col = document.createElement('col');
-      col.className = className;
+      const col =
+        document.createElement('col');
+
+      col.className =
+        className;
+
       group.appendChild(col);
     });
 
-    table.insertBefore(group, table.firstChild);
+    table.insertBefore(
+      group,
+      table.firstChild
+    );
+  }
+
+  function removeMetaHeader(table) {
+    const headerCells =
+      Array.from(
+        table.querySelectorAll(
+          'thead th'
+        )
+      );
+
+    const metaHeader =
+      headerCells.find(
+        function (cell) {
+          return (
+            normalize(cell.textContent) ===
+            normalize(META_LABEL)
+          );
+        }
+      );
+
+    if (metaHeader) {
+      metaHeader.remove();
+    }
+  }
+
+  /*
+    Important:
+    The average row can be rendered AFTER the first table pass.
+
+    V1 removed the closing-info body cell only while the
+    closing-info header still existed. Once the header had
+    already been removed, a later-rendered average row could
+    retain its "평균 / 저장일 기준" cell.
+
+    V2 cleans every tbody row on every observer pass.
+  */
+  function removeResidualMetaCell(row) {
+    let cells =
+      directCells(row);
+
+    if (!cells.length) {
+      return;
+    }
+
+    /*
+      Original daily rows have eight direct cells:
+      date / U1 fuel / U1 ratio /
+      U2 fuel / U2 ratio /
+      combined / closing info / action
+
+      Therefore the second-to-last cell is closing info.
+    */
+    if (cells.length >= 8) {
+      cells[cells.length - 2].remove();
+      cells = directCells(row);
+    }
+
+    /*
+      Average rows can have a different colspan structure.
+      Explicitly remove the cell containing "저장일 기준".
+    */
+    const hinted =
+      cells.find(function (cell, index) {
+        if (index === cells.length - 1) {
+          return false;
+        }
+
+        return normalize(
+          cell.textContent
+        ).includes(
+          normalize(AVERAGE_META_HINT)
+        );
+      });
+
+    if (hinted) {
+      hinted.remove();
+    }
   }
 
   function styleActionCell(cell) {
@@ -548,78 +659,123 @@
       return;
     }
 
-    cell.classList.add('cfh-layout-actions-cell');
+    cell.classList.add(
+      'cfh-layout-actions-cell'
+    );
 
-    const buttons = Array.from(cell.querySelectorAll('button'));
+    const buttons =
+      Array.from(
+        cell.querySelectorAll(
+          'button'
+        )
+      );
 
     buttons.forEach(function (button) {
-      button.classList.add('cfh-layout-action-button');
+      button.classList.add(
+        'cfh-layout-action-button'
+      );
     });
 
     if (buttons.length <= 1) {
       return;
     }
 
-    let stack = cell.querySelector('.cfh-layout-actions-stack');
+    let stack =
+      cell.querySelector(
+        '.cfh-layout-actions-stack'
+      );
 
     if (!stack) {
-      stack = document.createElement('div');
-      stack.className = 'cfh-layout-actions-stack';
+      stack =
+        document.createElement('div');
 
-      buttons.forEach(function (button) {
-        stack.appendChild(button);
-      });
+      stack.className =
+        'cfh-layout-actions-stack';
+
+      buttons.forEach(
+        function (button) {
+          stack.appendChild(button);
+        }
+      );
 
       cell.appendChild(stack);
     }
   }
 
-  function transform(table) {
-    const headerCells = Array.from(
-      table.querySelectorAll('thead th')
-    );
+  function markBodyCells(row) {
+    const cells =
+      directCells(row);
 
-    const metaHeader = headerCells.find(function (cell) {
-      return normalize(cell.textContent) === normalize(META_LABEL);
+    if (!cells.length) {
+      return;
+    }
+
+    cells.forEach(function (cell) {
+      cell.classList.remove(
+        'cfh-layout-data-cell'
+      );
     });
 
-    const alreadyPatched =
-      table.hasAttribute(PATCH_ATTR);
-
-    if (!metaHeader && !alreadyPatched) {
-      return false;
-    }
-
-    /*
-      Current body layout:
-      date / U1 fuel / U1 ratio / U2 fuel / U2 ratio /
-      combined / closing-info / actions
-
-      Remove only the second-to-last body cell.
-      The last cell remains the action column.
-    */
-    if (metaHeader) {
-      metaHeader.remove();
-
-      table.querySelectorAll('tbody tr').forEach(function (row) {
-        const cells = directCells(row);
-
-        if (cells.length >= 8) {
-          cells[cells.length - 2].remove();
+    cells.forEach(
+      function (cell, index) {
+        if (
+          index > 0 &&
+          index < cells.length - 1
+        ) {
+          cell.classList.add(
+            'cfh-layout-data-cell'
+          );
         }
-      });
-    }
+      }
+    );
 
-    table.setAttribute(PATCH_ATTR, '');
+    styleActionCell(
+      cells[cells.length - 1]
+    );
+  }
+
+  function markWrapper(table) {
+    const parent =
+      table.parentElement;
+
+    if (parent) {
+      parent.classList.add(
+        'cfh-layout-table-wrap'
+      );
+    }
+  }
+
+  function transform(table) {
+    removeMetaHeader(table);
+
+    table
+      .querySelectorAll(
+        'tbody tr'
+      )
+      .forEach(function (row) {
+        removeResidualMetaCell(row);
+        markBodyCells(row);
+      });
+
+    table.setAttribute(
+      PATCH_ATTR,
+      ''
+    );
 
     installColumns(table);
+    markWrapper(table);
 
     const firstHeaderRow =
-      table.querySelector('thead tr');
+      table.querySelector(
+        'thead tr'
+      );
 
     if (firstHeaderRow) {
-      const topCells = directCells(firstHeaderRow);
-      const actionHeader = topCells[topCells.length - 1];
+      const cells =
+        directCells(firstHeaderRow);
+
+      const actionHeader =
+        cells[cells.length - 1];
 
       if (actionHeader) {
         actionHeader.classList.add(
@@ -628,27 +784,19 @@
       }
     }
 
-    table.querySelectorAll('tbody tr').forEach(function (row) {
-      const cells = directCells(row);
-
-      if (!cells.length) {
-        return;
-      }
-
-      styleActionCell(cells[cells.length - 1]);
-    });
-
     return true;
   }
 
   function apply() {
     queued = false;
 
-    document.querySelectorAll(
-      '#efficiencyCofiringDraftView table'
-    ).forEach(function (table) {
-      transform(table);
-    });
+    document
+      .querySelectorAll(
+        '#efficiencyCofiringDraftView table'
+      )
+      .forEach(function (table) {
+        transform(table);
+      });
   }
 
   function schedule() {
@@ -658,7 +806,10 @@
 
     queued = true;
 
-    if (typeof requestAnimationFrame === 'function') {
+    if (
+      typeof requestAnimationFrame ===
+      'function'
+    ) {
       requestAnimationFrame(apply);
     } else {
       setTimeout(apply, 0);
@@ -669,22 +820,35 @@
     apply();
 
     const root =
-      document.getElementById('efficiencyCofiringDraftView') ||
+      document.getElementById(
+        'efficiencyCofiringDraftView'
+      ) ||
       document.body;
 
-    if (!root || typeof MutationObserver !== 'function') {
+    if (
+      !root ||
+      typeof MutationObserver !==
+        'function'
+    ) {
       return;
     }
 
-    const observer = new MutationObserver(schedule);
+    const observer =
+      new MutationObserver(schedule);
 
-    observer.observe(root, {
-      childList: true,
-      subtree: true
-    });
+    observer.observe(
+      root,
+      {
+        childList: true,
+        subtree: true
+      }
+    );
   }
 
-  if (document.readyState === 'loading') {
+  if (
+    document.readyState ===
+    'loading'
+  ) {
     document.addEventListener(
       'DOMContentLoaded',
       start,
@@ -694,4 +858,4 @@
     start();
   }
 })();
-/* ===== /CFH_LAYOUT_V1 ===== */
+/* ===== /CFH_LAYOUT_V2 ===== */
