@@ -593,3 +593,70 @@ input[data-cfv7-date]{
 #efficiencyCofiringDraftView .cfv52-card-total .cfv52-total-fuels strong{
   color:#ffffff !important;
 }
+
+/* COFIRING TOTAL SUMMARY SOFTEN V1 */
+
+/* 전체 카드 배경을 좀 더 부드럽게 */
+#efficiencyCofiringDraftView .cfv52-card-total{
+  border-color:#6f8eaa !important;
+  background:linear-gradient(
+    135deg,
+    #31597d 0%,
+    #3e678b 55%,
+    #4c7697 100%
+  ) !important;
+  box-shadow:0 3px 8px rgba(33,67,96,.10) !important;
+}
+
+/* 왼쪽 제목/설명은 조금만 부드럽게 */
+#efficiencyCofiringDraftView .cfv52-card-total > header strong{
+  color:#f5f9fc !important;
+  font-size:12px !important;
+}
+
+#efficiencyCofiringDraftView .cfv52-card-total > header span{
+  color:#d9e4ee !important;
+}
+
+/* 일반 지표 숫자는 살짝 축소 */
+#efficiencyCofiringDraftView .cfv52-card-total .cfv52-metric > strong{
+  font-size:18px !important;
+  font-weight:850 !important;
+}
+
+#efficiencyCofiringDraftView .cfv52-card-total .cfv52-metric > span{
+  color:#e0e8ef !important;
+}
+
+/* 핵심 종합혼소율 박스도 조금 덜 튀게 */
+#efficiencyCofiringDraftView
+.cfv52-card-total
+.cfv52-metric-emphasis{
+  margin:3px !important;
+  padding:7px 11px !important;
+  border:1px solid #e7d3a6 !important;
+  border-radius:8px !important;
+  background:#f7efde !important;
+  box-shadow:0 1px 4px rgba(28,51,74,.08) !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv52-card-total
+.cfv52-metric-emphasis > span{
+  color:#876327 !important;
+  font-size:10px !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv52-card-total
+.cfv52-metric-emphasis > strong{
+  color:#21496d !important;
+  font-size:22px !important;
+  line-height:1.05 !important;
+  font-weight:900 !important;
+}
+
+/* 구분선도 과하지 않게 */
+#efficiencyCofiringDraftView .cfv52-card-total .cfv52-metric{
+  border-color:rgba(255,255,255,.12) !important;
+}
