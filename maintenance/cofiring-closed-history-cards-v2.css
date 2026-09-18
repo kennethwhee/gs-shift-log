@@ -976,3 +976,162 @@ strong {
 }
 
 /* ===== /CFH_DATE_WEEKDAY_RATIO_V8 ===== */
+/* ===== CFH_TYPOGRAPHY_V9 ===== */
+
+/* ---------------------------------------------------------
+   Date
+--------------------------------------------------------- */
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+.cfh-date-main {
+  font-size: 15px !important;
+  line-height: 1.2 !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+.cfh-date-weekday {
+  font-size: 12px !important;
+  line-height: 1.15 !important;
+  font-weight: 600 !important;
+}
+
+
+/* ---------------------------------------------------------
+   Fuel usage values
+   Current display is slightly too large/bold.
+--------------------------------------------------------- */
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody
+td.cfh-layout-data-cell {
+  font-size: 13px !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody
+td.cfh-layout-data-cell
+strong,
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody
+td.cfh-layout-data-cell
+b {
+  font-size: 14px !important;
+  font-weight: 750 !important;
+}
+
+
+/* ---------------------------------------------------------
+   Bio / 유기성 / 축분 labels
+--------------------------------------------------------- */
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody
+.cfh-ratio-two-line-v8
+> span
+b {
+  font-size: 12px !important;
+  font-weight: 650 !important;
+  line-height: 1.1 !important;
+}
+
+
+/* ratio values */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody
+.cfh-ratio-two-line-v8
+> span
+strong {
+  font-size: 14px !important;
+  font-weight: 750 !important;
+  line-height: 1.1 !important;
+}
+
+
+/* total value: keep slightly emphasized, but not heavy */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody
+.cfh-ratio-two-line-v8
+> span.is-total
+strong {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+
+/* ---------------------------------------------------------
+   Monthly average
+--------------------------------------------------------- */
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-fuel-grid
+strong {
+  font-size: 14px !important;
+  font-weight: 750 !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfh-ratio-two-line-v8
+> span
+b {
+  font-size: 11px !important;
+  font-weight: 650 !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfh-ratio-two-line-v8
+> span
+strong {
+  font-size: 14px !important;
+  font-weight: 750 !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfh-ratio-two-line-v8
+> span.is-total
+strong {
+  font-size: 15px !important;
+  font-weight: 800 !important;
+}
+
+
+/* monthly average heading remains prominent */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> th:first-child
+strong,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> td:first-child
+strong {
+  font-size: 17px !important;
+  font-weight: 800 !important;
+}
+
+/* ===== /CFH_TYPOGRAPHY_V9 ===== */

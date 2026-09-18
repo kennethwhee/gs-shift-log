@@ -1114,3 +1114,81 @@
   }
 })();
 /* ===== /CFH_DATE_WEEKDAY_RATIO_V8 ===== */
+/* ===== CFH_TYPOGRAPHY_V9 ===== */
+(function () {
+  'use strict';
+
+  let queued = false;
+
+  function applyShortDates() {
+    queued = false;
+
+    document
+      .querySelectorAll(
+        '#efficiencyCofiringDraftView .cfh-date-v8 .cfh-date-main'
+      )
+      .forEach(function (element) {
+        const raw = String(element.textContent || '').trim();
+
+        if (/^20\d{2}-\d{2}-\d{2}$/.test(raw)) {
+          const wrapper = element.closest('.cfh-date-v8');
+
+          if (wrapper) {
+            wrapper.setAttribute(
+              'data-cfh-full-date',
+              raw
+            );
+          }
+
+          element.textContent = raw.slice(5);
+        }
+      });
+  }
+
+  function schedule() {
+    if (queued) {
+      return;
+    }
+
+    queued = true;
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(applyShortDates);
+    } else {
+      setTimeout(applyShortDates, 0);
+    }
+  }
+
+  function start() {
+    applyShortDates();
+
+    const root =
+      document.getElementById(
+        'efficiencyCofiringDraftView'
+      );
+
+    if (
+      !root ||
+      typeof MutationObserver !== 'function'
+    ) {
+      return;
+    }
+
+    new MutationObserver(schedule)
+      .observe(root, {
+        childList: true,
+        subtree: true
+      });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener(
+      'DOMContentLoaded',
+      start,
+      { once: true }
+    );
+  } else {
+    start();
+  }
+})();
+/* ===== /CFH_TYPOGRAPHY_V9 ===== */
