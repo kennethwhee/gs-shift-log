@@ -1,0 +1,396 @@
+/* COFIRING DATE NAV + CLOSED SNAPSHOT V1 */
+
+#efficiencyCofiringDraftView .cfv12-date-field{
+  display:grid!important;
+  gap:5px!important;
+  min-width:0;
+}
+
+#efficiencyCofiringDraftView .cfv12-date-label{
+  color:#587083;
+  font-size:10px;
+  font-weight:700;
+}
+
+#efficiencyCofiringDraftView .cfv12-date-nav{
+  display:grid;
+  grid-template-columns:36px minmax(0,1fr) 36px;
+  align-items:center;
+  gap:6px;
+  width:100%;
+  min-width:0;
+}
+
+#efficiencyCofiringDraftView .cfv12-date-arrow{
+  box-sizing:border-box;
+  width:36px;
+  min-width:36px;
+  height:36px;
+  padding:0;
+  border:1px solid #b8cee0;
+  border-radius:7px;
+  background:#f7fbff;
+  color:#285f8b;
+  font-size:21px;
+  font-weight:800;
+  line-height:1;
+}
+
+#efficiencyCofiringDraftView .cfv12-date-center{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 48px;
+  height:36px;
+  overflow:hidden;
+  border:1px solid #b8cee0;
+  border-radius:7px;
+  background:#fff;
+}
+
+#efficiencyCofiringDraftView .cfv12-date-center input[data-cfv7-date]{
+  box-sizing:border-box!important;
+  width:100%!important;
+  min-width:0!important;
+  height:34px!important;
+  min-height:34px!important;
+  padding:6px 8px!important;
+  border:0!important;
+  border-radius:0!important;
+  outline:0!important;
+  background:#fff!important;
+  color:#18374f!important;
+  font-size:13px!important;
+  font-weight:700!important;
+}
+
+#efficiencyCofiringDraftView .cfv12-date-today{
+  height:34px;
+  padding:0 7px;
+  border:0;
+  border-left:1px solid #d7e2ea;
+  border-radius:0;
+  background:#f3f8fc;
+  color:#285f8b;
+  font-size:11px;
+  font-weight:800;
+}
+
+#efficiencyCofiringDraftView .cfv12-date-arrow:hover:not(:disabled),
+#efficiencyCofiringDraftView .cfv12-date-today:hover:not(:disabled){
+  background:#edf7ff;
+}
+
+#efficiencyCofiringDraftView .cfv12-date-arrow:disabled,
+#efficiencyCofiringDraftView .cfv12-date-today:disabled{
+  opacity:.4;
+  cursor:default;
+}
+
+/* tabs */
+
+#efficiencyCofiringDraftView .cfv12-toolbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin:0 0 10px;
+}
+
+#efficiencyCofiringDraftView .cfv12-tabs{
+  display:inline-flex;
+  gap:4px;
+  padding:3px;
+  border:1px solid #d9e3eb;
+  border-radius:9px;
+  background:#eef3f7;
+}
+
+#efficiencyCofiringDraftView .cfv12-tab{
+  min-width:112px;
+  height:31px;
+  padding:0 12px;
+  border:1px solid transparent;
+  border-radius:7px;
+  background:transparent;
+  color:#607486;
+  font-size:11px;
+  font-weight:800;
+}
+
+#efficiencyCofiringDraftView .cfv12-tab[aria-selected="true"]{
+  border-color:#b9d0e2;
+  background:#fff;
+  color:#245e8b;
+  box-shadow:0 1px 4px rgba(30,70,100,.08);
+}
+
+#efficiencyCofiringDraftView .cfv12-close-save{
+  height:32px;
+  padding:0 13px;
+  border:1px solid #7fb69f;
+  border-radius:7px;
+  background:#eff8f4;
+  color:#176b53;
+  font-size:10px;
+  font-weight:800;
+}
+
+/* history mode */
+
+#efficiencyCofiringDraftView
+.cfv5-sheet.cfv12-history-mode
+> :not(.cfv5-title-row):not(.cfv12-toolbar):not(.cfv12-history-panel){
+  display:none!important;
+}
+
+#efficiencyCofiringDraftView .cfv12-history-panel{
+  min-height:430px;
+  padding:14px;
+  border:1px solid #dbe4eb;
+  border-radius:11px;
+  background:#fff;
+}
+
+#efficiencyCofiringDraftView .cfv12-history-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding-bottom:11px;
+  border-bottom:1px solid #edf1f4;
+}
+
+#efficiencyCofiringDraftView .cfv12-history-head>div{
+  display:grid;
+  gap:3px;
+}
+
+#efficiencyCofiringDraftView .cfv12-history-head strong{
+  color:#17374f;
+  font-size:15px;
+}
+
+#efficiencyCofiringDraftView .cfv12-history-head span{
+  color:#748797;
+  font-size:10px;
+}
+
+#efficiencyCofiringDraftView .cfv12-history-head button,
+#efficiencyCofiringDraftView .cfv12-row-actions button,
+#efficiencyCofiringDraftView .cfv12-detail-head button{
+  height:30px;
+  padding:0 10px;
+  border:1px solid #bdd2e1;
+  border-radius:6px;
+  background:#f7fbff;
+  color:#2d638a;
+  font-size:10px;
+  font-weight:800;
+}
+
+#efficiencyCofiringDraftView .cfv12-row-actions{
+  display:flex;
+  gap:5px;
+  justify-content:flex-end;
+}
+
+#efficiencyCofiringDraftView .cfv12-row-actions .danger{
+  border-color:#e3c2c2;
+  background:#fff7f7;
+  color:#a94c4c;
+}
+
+#efficiencyCofiringDraftView .cfv12-history-table-wrap{
+  margin-top:12px;
+  overflow:auto;
+  border:1px solid #e2e9ee;
+  border-radius:8px;
+}
+
+#efficiencyCofiringDraftView .cfv12-history-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:11px;
+}
+
+#efficiencyCofiringDraftView .cfv12-history-table th,
+#efficiencyCofiringDraftView .cfv12-history-table td{
+  padding:9px 10px;
+  border-bottom:1px solid #edf1f4;
+  text-align:left;
+  white-space:nowrap;
+}
+
+#efficiencyCofiringDraftView .cfv12-history-table th{
+  background:#f7f9fb;
+  color:#687b8b;
+  font-size:9px;
+}
+
+#efficiencyCofiringDraftView .cfv12-history-table tbody tr:last-child td{
+  border-bottom:0;
+}
+
+#efficiencyCofiringDraftView .cfv12-empty,
+#efficiencyCofiringDraftView .cfv12-loading,
+#efficiencyCofiringDraftView .cfv12-error{
+  display:grid;
+  place-items:center;
+  gap:5px;
+  min-height:220px;
+  color:#718493;
+  font-size:11px;
+  text-align:center;
+}
+
+#efficiencyCofiringDraftView .cfv12-error{
+  color:#ae4848;
+}
+
+/* detail */
+
+#efficiencyCofiringDraftView .cfv12-detail{
+  margin-top:14px;
+  padding:13px;
+  border:1px solid #dce6ed;
+  border-radius:9px;
+  background:#f9fbfc;
+}
+
+#efficiencyCofiringDraftView .cfv12-detail-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:11px;
+}
+
+#efficiencyCofiringDraftView .cfv12-detail-head>div{
+  display:grid;
+  gap:2px;
+}
+
+#efficiencyCofiringDraftView .cfv12-detail-head strong{
+  color:#193a52;
+  font-size:13px;
+}
+
+#efficiencyCofiringDraftView .cfv12-detail-head span{
+  color:#7b8d99;
+  font-size:9px;
+}
+
+#efficiencyCofiringDraftView .cfv12-detail-cards{
+  display:grid;
+  grid-template-columns:1fr 1fr .72fr;
+  gap:9px;
+}
+
+#efficiencyCofiringDraftView .cfv12-detail-cards section{
+  padding:11px;
+  border:1px solid #e0e8ee;
+  border-radius:8px;
+  background:#fff;
+}
+
+#efficiencyCofiringDraftView .cfv12-detail-cards section>strong{
+  color:#24465f;
+  font-size:11px;
+}
+
+#efficiencyCofiringDraftView .cfv12-detail-cards dl{
+  display:grid;
+  gap:5px;
+  margin:8px 0 0;
+}
+
+#efficiencyCofiringDraftView .cfv12-detail-cards dl div{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+}
+
+#efficiencyCofiringDraftView .cfv12-detail-cards dt{
+  color:#6c7f8e;
+  font-size:10px;
+}
+
+#efficiencyCofiringDraftView .cfv12-detail-cards dd{
+  margin:0;
+  color:#1d3c53;
+  font-size:10px;
+  font-weight:800;
+}
+
+#efficiencyCofiringDraftView .cfv12-detail-cards .overall{
+  display:grid;
+  place-items:center;
+  text-align:center;
+}
+
+#efficiencyCofiringDraftView .cfv12-total-ratio{
+  margin-top:8px;
+  color:#176a58;
+  font-size:25px;
+  font-weight:900;
+}
+
+#efficiencyCofiringDraftView .cfv12-detail-cards .overall span{
+  color:#738694;
+  font-size:9px;
+}
+
+#efficiencyCofiringDraftView .cfv12-basis{
+  margin-top:10px;
+  border-top:1px solid #e4eaef;
+  padding-top:9px;
+}
+
+#efficiencyCofiringDraftView .cfv12-basis summary{
+  cursor:pointer;
+  color:#506b7e;
+  font-size:10px;
+  font-weight:800;
+}
+
+#efficiencyCofiringDraftView .cfv12-basis table{
+  width:100%;
+  margin-top:8px;
+  border-collapse:collapse;
+  background:#fff;
+  font-size:9px;
+}
+
+#efficiencyCofiringDraftView .cfv12-basis th,
+#efficiencyCofiringDraftView .cfv12-basis td{
+  padding:7px 8px;
+  border:1px solid #e4e9ed;
+  text-align:center;
+}
+
+@media(max-width:900px){
+  #efficiencyCofiringDraftView .cfv12-toolbar{
+    align-items:stretch;
+    flex-direction:column;
+  }
+
+  #efficiencyCofiringDraftView .cfv12-tabs{
+    displaystretch;
+    flex-direction:column;
+  }
+
+  #efficiencyCofiringDraftView .cfv12-tabs{
+    display:flex;
+  }
+
+  #efficiencyCofiringDraftView .cfv12-tab{
+    flex:1;
+  }
+
+  #efficiencyCofiringDraftView .cfv12-detail-cards{
+    grid-template-columns:1fr;
+  }
+
+  #efficiencyCofiringDraftView .cfv12-history-table{
+    min-width:760px;
+  }
+}
