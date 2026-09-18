@@ -394,3 +394,49 @@
     min-width:760px;
   }
 }
+
+/* COFIRING DATE WIDTH FIX V1 */
+#efficiencyCofiringDraftView [data-cfv8-daily-fields]{
+  display:grid!important;
+  grid-template-columns:minmax(230px,270px) minmax(340px,1fr)!important;
+  gap:12px!important;
+  align-items:end!important;
+}
+
+#efficiencyCofiringDraftView [data-cfv8-daily-fields] > *{
+  min-width:0!important;
+}
+
+#efficiencyCofiringDraftView .cfv12-date-field{
+  min-width:230px!important;
+}
+
+#efficiencyCofiringDraftView .cfv12-date-nav{
+  grid-template-columns:36px minmax(155px,1fr) 36px!important;
+}
+
+#efficiencyCofiringDraftView .cfv12-date-center{
+  grid-template-columns:minmax(155px,1fr) 48px!important;
+}
+
+#efficiencyCofiringDraftView .cfv12-date-center input[data-cfv7-date]{
+  min-width:155px!important;
+  text-overflow:clip!important;
+}
+
+#efficiencyCofiringDraftView [data-cfv8-daily-fields] input[readonly],
+#efficiencyCofiringDraftView [data-cfv8-daily-fields] .cfv8-readonly,
+#efficiencyCofiringDraftView [data-cfv8-daily-fields] .cfv5-readonly{
+  width:100%!important;
+  max-width:none!important;
+}
+
+@media (max-width: 980px){
+  #efficiencyCofiringDraftView [data-cfv8-daily-fields]{
+    grid-template-columns:1fr!important;
+  }
+
+  #efficiencyCofiringDraftView .cfv12-date-field{
+    min-width:0!important;
+  }
+}
