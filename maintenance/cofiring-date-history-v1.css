@@ -660,3 +660,30 @@ input[data-cfv7-date]{
 #efficiencyCofiringDraftView .cfv52-card-total .cfv52-metric{
   border-color:rgba(255,255,255,.12) !important;
 }
+
+/* COFIRING METRIC FONT SIZE TUNE V1 */
+
+/* 가운데 2개 지표(바이오 / 유기성 및 축분 혼소율)만 가독성 강화 */
+#efficiencyCofiringDraftView
+.cfv52-card-total
+.cfv52-metric:not(.cfv52-metric-emphasis) > span{
+  font-size:11px !important;
+  font-weight:800 !important;
+  line-height:1.25 !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv52-card-total
+.cfv52-metric:not(.cfv52-metric-emphasis) > strong{
+  font-size:21px !important;
+  font-weight:900 !important;
+  line-height:1.08 !important;
+}
+
+/* 좁은 폭에서도 너무 답답해 보이지 않도록 내부 여백 약간 확보 */
+#efficiencyCofiringDraftView
+.cfv52-card-total
+.cfv52-metric:not(.cfv52-metric-emphasis){
+  padding-top:4px !important;
+  padding-bottom:4px !important;
+}
