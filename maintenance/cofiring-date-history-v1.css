@@ -403,7 +403,7 @@
   grid-template-columns:
     330px
     minmax(300px,380px)
-    auto !important;
+    minmax(max-content,1fr) !important;
 
   justify-content:start !important;
   align-items:end !important;
@@ -479,4 +479,15 @@ input[data-cfv7-date]{
     min-width:0 !important;
     max-width:none !important;
   }
+}
+
+/* COFIRING QUERY ACTION RIGHT ALIGN V1 */
+#efficiencyCofiringDraftView .cfv5-query-actions{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  justify-self:stretch !important;
+  width:100% !important;
+  min-width:max-content !important;
+  gap:7px !important;
 }
