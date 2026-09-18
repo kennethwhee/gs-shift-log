@@ -326,37 +326,40 @@
   }
 
   function periodSummaryCounter(definition, item, period) {
-    // COFIRING_START_BOUNDARY_NODATA_CORE_V3
+    // COFIRING_BIO_BOUNDARY_NODATA_CORE_V4
     const issues = [];
     if (!item || item.key !== definition.id || item.unit !== definition.unit || item.fuel !== definition.fuel || item.tag !== definition.queryTag) {
-      return { id: definition.id, quantity: null, referenceQuantity: null, complete: false, missingSamples: 1, observedSamples: 0, qualityVerified: false, issues: ['summary_identity_mismatch'], startBoundaryRecovered: false };
+      return { id: definition.id, quantity: null, referenceQuantity: null, complete: false, missingSamples: 1, observedSamples: 0, qualityVerified: false, issues: ['summary_identity_mismatch'], startBoundaryRecovered: false, endBoundaryRecovered: false };
     }
     const n = function (value) { return typeof value === 'number' && Number.isFinite(value) ? value : null; };
     const noDataQuality = function(value) { return typeof value === 'string' && /\bno\s*data\b/i.test(value); };
     const startValue=n(item.startValue), endValue=n(item.endValue), min=n(item.min), max=n(item.max), delta=n(item.delta), usage=n(item.usageTon);
-    const fallbackValue=n(item.startBoundaryFallbackValue), contractEffectiveStart=n(item.effectiveStartValue);
-    const fallback = definition.fuel === 'bio' && item.startBoundaryFallbackApplied === true && item.startBoundaryRecovered === true && item.usageBasis === 'end_minus_period_min_start_nodata_fallback' && startValue === null && fallbackValue !== null && contractEffectiveStart !== null && Math.abs(fallbackValue-contractEffectiveStart) <= 0.001 && noDataQuality(item.startQuality);
-    const direct = startValue !== null && item.startBoundaryFallbackApplied !== true && item.startBoundaryRecovered !== true;
-    const effectiveStart = direct ? startValue : (fallback ? fallbackValue : null);
-    if ([effectiveStart,endValue,min,max,delta,usage].some(function(v){return v===null;})) issues.push('summary_number_missing');
-    if ([effectiveStart,endValue,min,max].some(function(v){return v!==null&&v<0;})) issues.push('negative_counter');
-    if (direct && !qualityGood(item.startQuality)) issues.push('bad_quality');
-    if (!direct && !fallback) issues.push('bad_quality');
-    if (!qualityGood(item.endQuality)) issues.push('bad_quality');
+    const startFallbackValue=n(item.startBoundaryFallbackValue), endFallbackValue=n(item.endBoundaryFallbackValue);
+    const contractStart=n(item.effectiveStartValue), contractEnd=n(item.effectiveEndValue);
+    const startFallback = definition.fuel === 'bio' && item.startBoundaryFallbackApplied === true && item.startBoundaryRecovered === true && item.endBoundaryRecovered !== true && item.usageBasis === 'end_minus_period_min_start_nodata_fallback' && startValue === null && endValue !== null && startFallbackValue !== null && contractStart !== null && Math.abs(startFallbackValue-contractStart) <= 0.001 && noDataQuality(item.startQuality) && qualityGood(item.endQuality);
+    const endFallback = definition.fuel === 'bio' && item.endBoundaryFallbackApplied === true && item.endBoundaryRecovered === true && item.startBoundaryRecovered !== true && item.usageBasis === 'period_max_end_nodata_fallback_minus_start_boundary' && startValue !== null && endValue === null && endFallbackValue !== null && contractEnd !== null && Math.abs(endFallbackValue-contractEnd) <= 0.001 && qualityGood(item.startQuality) && noDataQuality(item.endQuality);
+    const direct = startValue !== null && endValue !== null && item.startBoundaryRecovered !== true && item.endBoundaryRecovered !== true;
+    const effectiveStart = contractStart !== null ? contractStart : (startFallback ? startFallbackValue : startValue);
+    const effectiveEnd = contractEnd !== null ? contractEnd : (endFallback ? endFallbackValue : endValue);
+    if ([effectiveStart,effectiveEnd,min,max,delta,usage].some(function(v){return v===null;})) issues.push('summary_number_missing');
+    if ([effectiveStart,effectiveEnd,min,max].some(function(v){return v!==null&&v<0;})) issues.push('negative_counter');
+    if (direct && (!qualityGood(item.startQuality) || !qualityGood(item.endQuality))) issues.push('bad_quality');
+    if (!direct && !startFallback && !endFallback) issues.push('bad_quality');
     const startAt=Date.parse(item.startTime), endAt=Date.parse(item.endTime);
     if (!Number.isFinite(startAt) || startAt < period.startMs || startAt >= period.startMs + MINUTE) issues.push('start_time_invalid');
     if (!Number.isFinite(endAt) || endAt < period.endMs || endAt >= period.endMs + MINUTE) issues.push('end_time_invalid');
-    if (effectiveStart!==null&&endValue!==null&&endValue+0.001<effectiveStart) issues.push('counter_reset');
-    const derived=effectiveStart===null||endValue===null?null:endValue-effectiveStart;
+    if (effectiveStart!==null&&effectiveEnd!==null&&effectiveEnd+0.001<effectiveStart) issues.push('counter_reset');
+    const derived=effectiveStart===null||effectiveEnd===null?null:effectiveEnd-effectiveStart;
     if (derived!==null&&usage!==null&&Math.abs(derived-usage)>0.001) issues.push('usage_mismatch');
     const spread=min===null||max===null?null:max-min;
     if (spread!==null&&delta!==null&&Math.abs(spread-delta)>0.001) issues.push('delta_minmax_mismatch');
-    if (fallback && (min===null || fallbackValue===null || Math.abs(min-fallbackValue)>0.001)) issues.push('fallback_min_mismatch');
+    if (startFallback && (min===null || startFallbackValue===null || Math.abs(min-startFallbackValue)>0.001)) issues.push('fallback_min_mismatch');
+    if (endFallback && (max===null || endFallbackValue===null || Math.abs(max-endFallbackValue)>0.001)) issues.push('fallback_max_mismatch');
     if (effectiveStart!==null&&min!==null&&min+0.001<effectiveStart) issues.push('range_below_start');
-    if (endValue!==null&&max!==null&&max-0.001>endValue) issues.push('range_above_end');
+    if (effectiveEnd!==null&&max!==null&&max-0.001>effectiveEnd) issues.push('range_above_end');
     const good=n(item.durationGoodSeconds), bad=n(item.durationBadSeconds), expected=period.durationMinutes*60;
     if (good===null||bad===null||good<0||bad<0||Math.abs((good||0)+(bad||0)-expected)>2) issues.push('duration_coverage_invalid');
-    if (fallback && bad!==null && bad>0.001) issues.push('fallback_requires_full_good');
+    if ((startFallback || endFallback) && bad!==null && bad>0.001) issues.push('fallback_requires_full_good');
     if (item.boundaryValid !== true || item.durationCoverageValid !== true) issues.push('worker_validation_failed');
     const complete=issues.length===0&&derived!==null&&derived>=-0.001;
     const qualityGapSeconds=bad!==null&&bad>0.001?bad:0;
@@ -365,7 +368,7 @@
       referenceQuantity: derived===null?null:Math.max(0,derived), complete,
       missingSamples: complete?0:1, observedSamples: complete?2:0,
       qualityVerified: complete&&qualityGapSeconds<=0.001, qualityGapSeconds,
-      issues: Array.from(new Set(issues)), summary: item, startBoundaryRecovered: fallback
+      issues: Array.from(new Set(issues)), summary: item, startBoundaryRecovered: startFallback, endBoundaryRecovered: endFallback
     };
   }
   function analyzePeriodSummary(reference, options) {
@@ -380,7 +383,9 @@
     const units={},warnings=[],actualCalorifics={},actualCoefficients={};
     const maxQualityGapSeconds=counters.reduce(function(max,c){return Math.max(max,c.qualityGapSeconds||0);},0);
     const recoveredStartCounters=counters.filter(function(c){return c.startBoundaryRecovered===true;});
+    const recoveredEndCounters=counters.filter(function(c){return c.endBoundaryRecovered===true;});
     if(recoveredStartCounters.length)warnings.push('Bio 시작 경계 #NODATA '+recoveredStartCounters.map(function(c){return c.id;}).join(', ')+'는 전체 Good 구간과 Min/Max/Delta 검증 후 기간 Min값으로 복구해 사용량을 계산했습니다.');
+    if(recoveredEndCounters.length)warnings.push('Bio 종료 경계 #NODATA '+recoveredEndCounters.map(function(c){return c.id;}).join(', ')+'는 전체 Good 구간과 Min/Max/Delta 검증 후 기간 Max값으로 복구해 사용량을 계산했습니다.');
     if(maxQualityGapSeconds>0.001)warnings.push('DataPARC 중간 품질 공백이 최대 '+maxQualityGapSeconds.toFixed(1)+'초 확인됐습니다. 시작·종료 누적 경계와 Min/Max가 정상인 TAG는 경계값 차이로 사용량을 표시합니다.');
     UNIT_IDS.forEach(function(unit,index){
       const calorifics={},coefficients={};
