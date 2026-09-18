@@ -760,3 +760,219 @@ th:first-child {
 }
 
 /* ===== /CFH_DATE_READABILITY_V7 ===== */
+/* ===== CFH_DATE_WEEKDAY_RATIO_V8 ===== */
+
+/* ---------------------------------------------------------
+   Daily date column: make date visibly larger
+--------------------------------------------------------- */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody
+> tr
+> td:first-child {
+  padding: 12px 8px !important;
+  vertical-align: middle !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody
+> tr
+> td:first-child,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody
+> tr
+> td:first-child * {
+  font-size: inherit !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+.cfh-date-v8 {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+  width: 100% !important;
+  text-align: center !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+.cfh-date-main {
+  font-size: 16px !important;
+  line-height: 1.2 !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.1px !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+.cfh-date-weekday {
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+  color: #5d7288 !important;
+}
+
+/* header "일자" */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+thead th:first-child {
+  font-size: 15px !important;
+  font-weight: 900 !important;
+}
+
+/* monthly average date cell */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> th:first-child,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> td:first-child {
+  padding: 12px 8px !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> th:first-child
+strong,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> td:first-child
+strong {
+  font-size: 18px !important;
+  line-height: 1.2 !important;
+  font-weight: 900 !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> th:first-child
+small,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> td:first-child
+small {
+  font-size: 12px !important;
+  line-height: 1.15 !important;
+  font-weight: 700 !important;
+}
+
+/* ---------------------------------------------------------
+   Two-line ratio layout:
+   Bio  유기성  축분
+   20%   3%     0%
+--------------------------------------------------------- */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+.cfh-ratio-two-line-v8 {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  column-gap: 8px !important;
+  row-gap: 0 !important;
+  align-items: stretch !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+.cfh-ratio-two-line-v8
+> span {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  padding: 6px 4px !important;
+  min-width: 0 !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody
+.cfh-ratio-two-line-v8
+> span
+b {
+  display: block !important;
+  font-size: 13px !important;
+  line-height: 1.1 !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody
+.cfh-ratio-two-line-v8
+> span
+strong {
+  display: block !important;
+  font-size: 15px !important;
+  line-height: 1.1 !important;
+  font-weight: 900 !important;
+  white-space: nowrap !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfh-ratio-two-line-v8
+> span
+b {
+  display: block !important;
+  font-size: 12px !important;
+  line-height: 1.1 !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfh-ratio-two-line-v8
+> span
+strong {
+  display: block !important;
+  font-size: 15px !important;
+  line-height: 1.1 !important;
+  font-weight: 900 !important;
+  white-space: nowrap !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfh-ratio-two-line-v8
+> span.is-total
+strong {
+  font-size: 17px !important;
+}
+
+/* combined column body values */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody
+.cfh-ratio-two-line-v8
+> span.is-total
+strong {
+  font-size: 16px !important;
+}
+
+/* ===== /CFH_DATE_WEEKDAY_RATIO_V8 ===== */

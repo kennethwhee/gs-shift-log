@@ -962,3 +962,155 @@
   }
 })();
 /* ===== /CFH_AVERAGE_V5 ===== */
+/* ===== CFH_DATE_WEEKDAY_RATIO_V8 ===== */
+(function () {
+  'use strict';
+
+  const WEEKDAYS = ['일','월','화','수','목','금','토'];
+  let queued = false;
+
+  function directCells(row) {
+    return Array.from(row.children || [])
+      .filter(function (node) {
+        return (
+          node &&
+          (
+            node.tagName === 'TD' ||
+            node.tagName === 'TH'
+          )
+        );
+      });
+  }
+
+  function weekdayOf(dateText) {
+    const m = String(dateText || '').match(/^(20\d{2})-(\d{2})-(\d{2})$/);
+    if (!m) {
+      return '';
+    }
+
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+
+    const dt = new Date(y, mo, d);
+    if (!Number.isFinite(dt.getTime())) {
+      return '';
+    }
+
+    return WEEKDAYS[dt.getDay()] || '';
+  }
+
+  function decorateDateCell(cell) {
+    if (!cell) {
+      return;
+    }
+
+    if (cell.getAttribute('data-cfh-date-v8') === '1') {
+      return;
+    }
+
+    const raw = String(cell.textContent || '')
+      .replace(/\s+/g, '')
+      .trim();
+
+    const m = raw.match(/(20\d{2}-\d{2}-\d{2})/);
+    if (!m) {
+      return;
+    }
+
+    const dateText = m[1];
+    const weekday = weekdayOf(dateText);
+    if (!weekday) {
+      return;
+    }
+
+    cell.innerHTML =
+      '<div class="cfh-date-v8">' +
+        '<span class="cfh-date-main">' + dateText + '</span>' +
+        '<span class="cfh-date-weekday">(' + weekday + ')</span>' +
+      '</div>';
+
+    cell.setAttribute('data-cfh-date-v8', '1');
+  }
+
+  function markAverageDateCell(table) {
+    const cell = table.querySelector(
+      'tfoot tr.cfv15-average-row > th:first-child, tfoot tr.cfv15-average-row > td:first-child'
+    );
+
+    if (cell) {
+      cell.classList.add('cfh-average-date-v8');
+    }
+  }
+
+  function markRatioGrids(table) {
+    table
+      .querySelectorAll(
+        '.cfv16-ratio-grid, .cfv16-combined-grid'
+      )
+      .forEach(function (grid) {
+        grid.classList.add('cfh-ratio-two-line-v8');
+      });
+  }
+
+  function apply() {
+    queued = false;
+
+    document
+      .querySelectorAll(
+        '#efficiencyCofiringDraftView table[data-cfh-layout-v3]'
+      )
+      .forEach(function (table) {
+        table
+          .querySelectorAll('tbody tr')
+          .forEach(function (row) {
+            const cells = directCells(row);
+            if (!cells.length) {
+              return;
+            }
+            decorateDateCell(cells[0]);
+          });
+
+        markAverageDateCell(table);
+        markRatioGrids(table);
+      });
+  }
+
+  function schedule() {
+    if (queued) {
+      return;
+    }
+
+    queued = true;
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(apply);
+    } else {
+      setTimeout(apply, 0);
+    }
+  }
+
+  function start() {
+    apply();
+
+    const root =
+      document.getElementById('efficiencyCofiringDraftView') ||
+      document.body;
+
+    if (!root || typeof MutationObserver !== 'function') {
+      return;
+    }
+
+    new MutationObserver(schedule).observe(root, {
+      childList: true,
+      subtree: true
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else {
+    start();
+  }
+})();
+/* ===== /CFH_DATE_WEEKDAY_RATIO_V8 ===== */
