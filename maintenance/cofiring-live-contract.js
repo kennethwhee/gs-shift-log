@@ -124,22 +124,33 @@ function createCofiringLiveContract() {
   function periodKey(spec) { const p=period(spec,Number.MAX_SAFE_INTEGER); return [p.startLocal,p.endLocal,p.stepUnit,p.stepValue].join('|'); }
   function periodEnvelope(spec) { const p=period(spec); return {kind:'cofiring_period_request',schemaVersion:1,startLocal:p.startLocal,endLocal:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue,key:periodKey(p)}; }
   function validatePeriodSummaryItem(item,def,p) {
+    // COFIRING_START_BOUNDARY_NODATA_CONTRACT_V2
     if(!item||item.key!==def.id||item.unit!==def.unit||item.fuel!==def.fuel||item.tag!==def.queryTag)fail('기간 TAG 식별 불일치: '+def.id);
-    const keys=['startValue','endValue','min','max','delta','usageTon','durationGoodSeconds','durationBadSeconds'];
-    for(const k of keys)if(!number(item[k]))fail('기간 숫자 누락: '+def.id+' '+k);
-    if(item.startValue<0||item.endValue<0||item.min<0||item.max<0||item.usageTon<-0.001)fail('기간 누적값 음수: '+def.id);
-    if(!good(item.startQuality)||!good(item.endQuality))fail('기간 경계 품질 불량: '+def.id);
+    const numericKeys=['endValue','min','max','delta','usageTon','durationGoodSeconds','durationBadSeconds'];
+    for(const k of numericKeys)if(!number(item[k]))fail('기간 숫자 누락: '+def.id+' '+k);
+    const fallbackApplied=item.startBoundaryFallbackApplied===true;
+    const fallback=(def.fuel==='bio'&&fallbackApplied&&item.usageBasis==='end_minus_period_min_start_nodata_fallback'&&!number(item.startValue)&&number(item.startBoundaryFallbackValue)&&item.startBoundaryFallbackValue>=0&&noData(item.startQuality));
+    const direct=number(item.startValue)&&!fallbackApplied;
+    if(fallbackApplied&&!fallback)fail('기간 시작 경계 fallback 메타데이터 불일치: '+def.id);
+    if(!direct&&!fallback)fail('기간 숫자 누락: '+def.id+' startValue');
+    const effectiveStart=direct?item.startValue:item.startBoundaryFallbackValue;
+    if(effectiveStart<0||item.endValue<0||item.min<0||item.max<0||item.usageTon<-0.001)fail('기간 누적값 음수: '+def.id);
+    if(direct&&!good(item.startQuality))fail('기간 경계 품질 불량: '+def.id);
+    if(fallback&&!noData(item.startQuality))fail('기간 시작 경계 fallback 품질 불일치: '+def.id);
+    if(!good(item.endQuality))fail('기간 경계 품질 불량: '+def.id);
     const st=Date.parse(item.startTime),et=Date.parse(item.endTime);
     if(!Number.isFinite(st)||st<p.startMs||st>=p.startMs+60000||!Number.isFinite(et)||et<p.endMs||et>=p.endMs+60000)fail('기간 경계 반환시각 불일치: '+def.id);
-    const usage=item.endValue-item.startValue,spread=item.max-item.min;
+    const usage=item.endValue-effectiveStart,spread=item.max-item.min;
     if(usage<-0.001||Math.abs(usage-item.usageTon)>0.001)fail('기간 사용량/경계값 불일치: '+def.id);
     if(spread<-0.001||Math.abs(spread-item.delta)>0.001)fail('기간 Delta/MinMax 불일치: '+def.id);
     if(number(item.rangeSpread)&&Math.abs(spread-item.rangeSpread)>0.001)fail('기간 RangeSpread/MinMax 불일치: '+def.id);
-    if(item.min+0.001<item.startValue||item.max-0.001>item.endValue)fail('기간 Min/Max가 누적 경계와 모순됩니다: '+def.id);
+    if(fallback&&Math.abs(item.startBoundaryFallbackValue-item.min)>0.001)fail('기간 시작 경계 fallback/Min 불일치: '+def.id);
+    if(item.min+0.001<effectiveStart||item.max-0.001>item.endValue)fail('기간 Min/Max가 누적 경계와 모순됩니다: '+def.id);
     const expected=p.durationMinutes*60;
     if(item.durationGoodSeconds<0||item.durationBadSeconds<0||Math.abs(item.durationGoodSeconds+item.durationBadSeconds-expected)>2)fail('기간 품질 지속시간 불일치: '+def.id);
+    if(fallback&&item.durationBadSeconds>0.001)fail('기간 시작 경계 fallback은 전체 Good 구간에서만 허용됩니다: '+def.id);
     if(item.boundaryValid!==true||item.durationCoverageValid!==true)fail('기간 Worker 경계 검증 실패: '+def.id);
-    return {...item,dataComplete:item.durationBadSeconds<=0.001};
+    return {...item,effectiveStartValue:effectiveStart,startBoundaryRecovered:fallback,dataComplete:item.durationBadSeconds<=0.001};
   }
   function validatePeriodReport(r,spec) {
     const p=period(spec,Number.MAX_SAFE_INTEGER);
