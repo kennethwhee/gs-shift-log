@@ -453,3 +453,226 @@ table[data-cfh-layout-v3]
 }
 
 /* ===== /CFH_LAYOUT_V5 ===== */
+/* ===== CFH_AVERAGE_TFOOT_V6 ===== */
+
+/*
+  Monthly average is rendered inside TFOOT,
+  not TBODY. Override the original compact
+  7~10px / 48px rules directly.
+*/
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row {
+  height: 84px !important;
+}
+
+/* all monthly-average cells */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> th,
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> td {
+  height: 84px !important;
+  padding: 12px 10px !important;
+  vertical-align: middle !important;
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+}
+
+/* 월 평균 / 저장일수 */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> th
+strong {
+  display: block !important;
+  font-size: 15px !important;
+  line-height: 1.25 !important;
+  font-weight: 900 !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> th
+small {
+  display: block !important;
+  margin-top: 5px !important;
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+}
+
+/* fuel grid */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-fuel-grid {
+  gap: 6px 10px !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-fuel-grid
+span {
+  gap: 7px !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-fuel-grid
+b {
+  width: 23px !important;
+  font-size: 11px !important;
+  line-height: 1.25 !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-fuel-grid
+strong {
+  font-size: 16px !important;
+  line-height: 1.25 !important;
+  font-weight: 900 !important;
+}
+
+/* 1호기 / 2호기 혼소율 */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-ratio-grid {
+  gap: 5px !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-ratio-grid
+span {
+  padding: 4px 7px !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-ratio-grid
+b {
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-ratio-grid
+strong {
+  font-size: 15px !important;
+  line-height: 1.2 !important;
+  font-weight: 900 !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-ratio-grid
+.is-total
+strong {
+  font-size: 17px !important;
+}
+
+/* 1·2호기 종합 */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-combined-grid {
+  gap: 5px !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-combined-grid
+span {
+  padding: 4px 8px !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-combined-grid
+b {
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-combined-grid
+strong {
+  font-size: 16px !important;
+  line-height: 1.2 !important;
+  font-weight: 900 !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-combined-grid
+.is-total
+strong {
+  font-size: 18px !important;
+}
+
+/*
+  The old average markup still contains the removed
+  closing-info cell. Do not let it consume a column.
+*/
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+td.is-meta {
+  display: none !important;
+}
+
+/* 관리 칸의 평균 배지 */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+.cfv16-average-note {
+  padding: 6px 8px !important;
+  font-size: 11px !important;
+  line-height: 1.1 !important;
+  font-weight: 900 !important;
+}
+
+/* ===== /CFH_AVERAGE_TFOOT_V6 ===== */
