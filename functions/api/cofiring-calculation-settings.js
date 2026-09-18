@@ -85,9 +85,31 @@ async function latest(db,date){
 export async function onRequestGet(context){
   try{
     const auth=await authenticate(context);if(auth.error)return auth.error;
-    const date=new URL(context.request.url).searchParams.get('targetDate');
-    if(!validDate(date))return json({ok:false,message:'계산일은 YYYY-MM-DD 형식의 날짜 하나로 선택해 주세요.'},400);
+    const params=new URL(context.request.url).searchParams;
     await ensureTable(context.env.DB);
+
+    // COFIRING_SETTINGS_HISTORY_LIST_V1
+    if(params.get('history')==='1'){
+      const parsed=Number.parseInt(params.get('limit')||'180',10);
+      const limit=Number.isFinite(parsed)?Math.min(Math.max(parsed,1),366):180;
+      const rows=await context.env.DB.prepare(`
+        SELECT history.*
+        FROM ${TABLE} AS history
+        INNER JOIN (
+          SELECT effective_date, MAX(id) AS id
+          FROM ${TABLE}
+          GROUP BY effective_date
+          ORDER BY effective_date DESC
+          LIMIT ?
+        ) AS latest_row ON latest_row.id = history.id
+        ORDER BY history.effective_date DESC, history.id DESC
+      `).bind(limit).all();
+      const items=(rows?.results||[]).map(convert).filter(Boolean);
+      return json({ok:true,items});
+    }
+
+    const date=params.get('targetDate');
+    if(!validDate(date))return json({ok:false,message:'계산일은 YYYY-MM-DD 형식의 날짜 하나로 선택해 주세요.'},400);
     const entry=await latest(context.env.DB,date);
     return json({ok:true,targetDate:date,source:entry?'saved':'default',effectiveDate:entry?.effectiveDate||null,
       settings:entry?.settings||cloneDefaults(),updatedById:entry?.updatedById||'',updatedByName:entry?.updatedByName||'',updatedAt:entry?.updatedAt||''});
