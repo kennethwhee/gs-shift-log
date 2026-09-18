@@ -156,7 +156,7 @@
       ${summaryMetric('유기성 및 축분 혼소율',null,{ratio:true})}
       ${summaryMetric('종합혼소율',null,{ratio:true,emphasis:true})}
       </div>${fuelUsageMarkup(null)}${targetReferenceMarkup(null)}</article>`);
-    cards.push(`<article class="cfv52-card cfv52-card-total"><header><strong>1·2호기 합산</strong><span>열량 가중 기준</span></header><div class="cfv52-total-ratios">${summaryMetric('바이오 혼소율',null,{ratio:true})}${summaryMetric('유기성 및 축분 혼소율',null,{ratio:true})}${summaryMetric('종합혼소율',null,{ratio:true,emphasis:true})}</div></article>`);
+    cards.push(`<article class="cfv52-card cfv52-card-total"><header><strong>1,2호기 종합 혼소율</strong><span>열량 가중 기준</span></header><div class="cfv52-total-ratios">${summaryMetric('바이오 혼소율',null,{ratio:true})}${summaryMetric('유기성 및 축분 혼소율',null,{ratio:true})}${summaryMetric('종합혼소율',null,{ratio:true,emphasis:true})}</div></article>`);
     return cards.join('');
   }
   function targetReferenceMarkup(reference,{open=false}={}){
@@ -220,7 +220,7 @@
         ${summaryMetric('종합혼소율',u?.fuelRatios?.total,{ratio:true,emphasis:true})}
       </div>${fuelUsageMarkup(u)}${targetReferenceMarkup(targetError?{status:'invalid_input',ready:false,message:targetError}:deadlineTargetApi?{...deadlineTargetApi.forUnit(u,result.period),ratioPercent:coalBioRatio(u)}:null,{open:host.querySelector?.('[data-cfv52-unit="'+unit+'"]')?.querySelector?.('[data-cfv10-target-details]')?.open===true})}</article>`);
     }
-    cards.push(`<article class="cfv52-card cfv52-card-total"><header><strong>1·2호기 합산</strong><span>열량 가중 기준</span></header><div class="cfv52-total-ratios">
+    cards.push(`<article class="cfv52-card cfv52-card-total"><header><strong>1,2호기 종합 혼소율</strong><span>열량 가중 기준</span></header><div class="cfv52-total-ratios">
       ${summaryMetric('바이오 혼소율',combinedCoalBio(result).ratio,{ratio:true})}
       ${summaryMetric('유기성 및 축분 혼소율',result?.combined?.fuelRatios?.organicGroup,{ratio:true})}
       ${summaryMetric('종합혼소율',result?.combined?.ratios?.total,{ratio:true,emphasis:true})}

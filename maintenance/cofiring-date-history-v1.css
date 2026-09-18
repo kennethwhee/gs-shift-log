@@ -491,3 +491,105 @@ input[data-cfv7-date]{
   min-width:max-content !important;
   gap:7px !important;
 }
+
+/* COFIRING TOTAL SUMMARY DESIGN V2 */
+
+/* 1,2호기 종합 카드 - 초록색 대신 네이비/블루 */
+#efficiencyCofiringDraftView .cfv52-card-total{
+  position:relative !important;
+  overflow:hidden !important;
+  border:1px solid #244d74 !important;
+  border-radius:12px !important;
+  background:linear-gradient(
+    135deg,
+    #173a5e 0%,
+    #234f78 55%,
+    #315f89 100%
+  ) !important;
+  box-shadow:
+    0 4px 12px rgba(24,58,94,.14) !important;
+  color:#fff !important;
+}
+
+/* 왼쪽 제목 */
+#efficiencyCofiringDraftView .cfv52-card-total > header{
+  background:transparent !important;
+}
+
+#efficiencyCofiringDraftView .cfv52-card-total > header strong{
+  color:#ffffff !important;
+  font-size:13px !important;
+  font-weight:900 !important;
+  letter-spacing:-.2px !important;
+}
+
+#efficiencyCofiringDraftView .cfv52-card-total > header span{
+  color:#c6d7e6 !important;
+  font-size:9px !important;
+  font-weight:700 !important;
+}
+
+/* 세 가지 혼소율 영역 */
+#efficiencyCofiringDraftView .cfv52-card-total .cfv52-total-ratios{
+  align-items:stretch !important;
+}
+
+#efficiencyCofiringDraftView .cfv52-card-total .cfv52-metric{
+  border-color:rgba(255,255,255,.16) !important;
+  background:transparent !important;
+}
+
+#efficiencyCofiringDraftView .cfv52-card-total .cfv52-metric > span{
+  color:#d7e4ef !important;
+  font-weight:700 !important;
+}
+
+#efficiencyCofiringDraftView .cfv52-card-total .cfv52-metric > strong{
+  color:#ffffff !important;
+  font-size:20px !important;
+  line-height:1.1 !important;
+  font-weight:900 !important;
+  font-variant-numeric:tabular-nums !important;
+}
+
+/* 핵심값: 종합혼소율 */
+#efficiencyCofiringDraftView
+.cfv52-card-total
+.cfv52-metric-emphasis{
+  margin:4px !important;
+  padding:8px 12px !important;
+  border:1px solid #f0cf91 !important;
+  border-radius:8px !important;
+  background:#fff4dc !important;
+  box-shadow:0 2px 6px rgba(20,42,65,.12) !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv52-card-total
+.cfv52-metric-emphasis > span{
+  color:#76541b !important;
+  font-weight:900 !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv52-card-total
+.cfv52-metric-emphasis > strong{
+  color:#173a5e !important;
+  font-size:25px !important;
+  line-height:1 !important;
+  font-weight:950 !important;
+}
+
+/* 합산 연료값이 표시되는 경우에도 흰색 계열 */
+#efficiencyCofiringDraftView .cfv52-card-total .cfv52-total-fuels{
+  border-color:rgba(255,255,255,.15) !important;
+}
+
+#efficiencyCofiringDraftView .cfv52-card-total .cfv52-total-fuels span,
+#efficiencyCofiringDraftView .cfv52-card-total .cfv52-total-fuels small{
+  color:#cad9e6 !important;
+}
+
+#efficiencyCofiringDraftView .cfv52-card-total .cfv52-total-fuels strong{
+  color:#ffffff !important;
+}
