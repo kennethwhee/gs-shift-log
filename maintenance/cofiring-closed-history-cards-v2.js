@@ -1,11 +1,13 @@
 (function(root){
   'use strict';
 
-  if(root.__cofiringClosedHistoryCardsV2Installed)return;
-  root.__cofiringClosedHistoryCardsV2Installed=true;
+  if(root.__cofiringClosedHistoryMonthlyV3Installed)return;
+  root.__cofiringClosedHistoryMonthlyV3Installed=true;
 
   const API='/api/cofiring-closed-history';
-  const VERSION='COFIRING_CLOSED_HISTORY_CARDS_V2_R1';
+  const VERSION='COFIRING_CLOSED_HISTORY_MONTHLY_V3';
+  const UNITS=['unit1','unit2'];
+  const FUELS=['coal','bio','organic','manure'];
 
   const number=value=>{
     const n=Number(value);
@@ -16,34 +18,25 @@
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[ch]));
 
-  const pct=value=>{
+  function fmtTon(value){
+    const n=number(value);
+    return n===null?'—':n.toLocaleString('ko-KR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+
+  function fmtPct(value){
     const n=number(value);
     return n===null?'—':n.toFixed(2)+'%';
-  };
+  }
 
-  const tons=value=>{
+  function scalar(value){
     const n=number(value);
-    return n===null?'—':n.toLocaleString('ko-KR',{
-      minimumFractionDigits:2,
-      maximumFractionDigits:2
-    })+' t';
-  };
-
-  const scalar=value=>{
-    const n=number(value);
-    return n===null?'—':n.toLocaleString('ko-KR',{
-      maximumFractionDigits:6
-    });
-  };
+    return n===null?'—':n.toLocaleString('ko-KR',{maximumFractionDigits:6});
+  }
 
   function authHeaders(){
     try{
-      return typeof root.getShiftLogAuthHeaders==='function'
-        ? root.getShiftLogAuthHeaders()
-        : {};
-    }catch(_){
-      return {};
-    }
+      return typeof root.getShiftLogAuthHeaders==='function'?root.getShiftLogAuthHeaders():{};
+    }catch(_){return {};}
   }
 
   async function api(path='',options={}){
@@ -51,16 +44,10 @@
       credentials:'same-origin',
       cache:'no-store',
       ...options,
-      headers:{
-        ...authHeaders(),
-        Accept:'application/json',
-        ...(options.headers||{})
-      }
+      headers:{...authHeaders(),Accept:'application/json',...(options.headers||{})}
     });
-
     let payload=null;
     try{payload=await response.json();}catch(_){}
-
     if(!response.ok||payload?.ok!==true){
       throw new Error(payload?.message||'마감 데이터를 불러오지 못했습니다.');
     }
@@ -77,18 +64,14 @@
   function combinedBioRatio(result){
     let coal=number(result?.combined?.heats?.coal);
     let bio=number(result?.combined?.heats?.bio);
-
     if(coal===null){
-      const a=number(result?.units?.unit1?.heats?.coal);
-      const b=number(result?.units?.unit2?.heats?.coal);
+      const a=number(result?.units?.unit1?.heats?.coal),b=number(result?.units?.unit2?.heats?.coal);
       if(a!==null&&b!==null)coal=a+b;
     }
     if(bio===null){
-      const a=number(result?.units?.unit1?.heats?.bio);
-      const b=number(result?.units?.unit2?.heats?.bio);
+      const a=number(result?.units?.unit1?.heats?.bio),b=number(result?.units?.unit2?.heats?.bio);
       if(a!==null&&b!==null)bio=a+b;
     }
-
     const total=(coal??0)+(bio??0);
     return coal===null||bio===null||total<=0?null:bio/total*100;
   }
@@ -101,14 +84,8 @@
       organic:number(unit?.organic?.quantity)??number(fallback?.organic),
       manure:number(unit?.manure?.quantity)??number(fallback?.manure),
       bioRatio:unitBioRatio(unit)??number(fallback?.bioRatio),
-      organicGroupRatio:
-        number(unit?.fuelRatios?.organicGroup)??
-        number(unit?.ratios?.organicGroup)??
-        number(fallback?.organicGroupRatio),
-      totalRatio:
-        number(unit?.fuelRatios?.total)??
-        number(unit?.ratios?.total)??
-        number(fallback?.totalRatio)
+      organicGroupRatio:number(unit?.fuelRatios?.organicGroup)??number(unit?.ratios?.organicGroup)??number(fallback?.organicGroupRatio),
+      totalRatio:number(unit?.fuelRatios?.total)??number(unit?.ratios?.total)??number(fallback?.totalRatio)
     };
   }
 
@@ -116,27 +93,48 @@
     const snapshot=item?.snapshot||{};
     const result=snapshot?.result||{};
     const fallback=snapshot?.summary||item?.summary||{};
-
     return {
+      targetDate:String(item?.targetDate||snapshot?.targetDate||''),
       unit1:unitSnapshot(result,'unit1',fallback?.unit1),
       unit2:unitSnapshot(result,'unit2',fallback?.unit2),
       combined:{
         bioRatio:combinedBioRatio(result)??number(fallback?.combined?.bioRatio),
-        organicGroupRatio:
-          number(result?.combined?.fuelRatios?.organicGroup)??
-          number(result?.combined?.ratios?.organicGroup)??
-          number(fallback?.combined?.organicGroupRatio),
-        totalRatio:
-          number(result?.combined?.fuelRatios?.total)??
-          number(result?.combined?.ratios?.total)??
-          number(fallback?.combined?.totalRatio)
+        organicGroupRatio:number(result?.combined?.fuelRatios?.organicGroup)??number(result?.combined?.ratios?.organicGroup)??number(fallback?.combined?.organicGroupRatio),
+        totalRatio:number(result?.combined?.fuelRatios?.total)??number(result?.combined?.ratios?.total)??number(fallback?.combined?.totalRatio)
       },
       settings:snapshot?.settings||{},
       manual:snapshot?.manual||{},
-      period:snapshot?.period||{},
       capturedAt:String(snapshot?.capturedAt||''),
-      sourceRequestId:String(item?.sourceRequestId||snapshot?.sourceRequestId||'')
+      sourceRequestId:String(item?.sourceRequestId||snapshot?.sourceRequestId||''),
+      savedByName:String(item?.savedByName||''),
+      updatedAt:String(item?.updatedAt||''),
+      revision:item?.revision??''
     };
+  }
+
+  function normalizeMonth(value){
+    const m=/^(20\d{2})-(\d{2})$/.exec(String(value||''));
+    if(!m)return '';
+    const month=Number(m[2]);
+    return month>=1&&month<=12?m[1]+'-'+m[2]:'';
+  }
+
+  function koreanCurrentMonth(){
+    return new Date(Date.now()+9*60*60*1000).toISOString().slice(0,7);
+  }
+
+  function shiftMonth(value,delta){
+    const valid=normalizeMonth(value)||koreanCurrentMonth();
+    const [y,m]=valid.split('-').map(Number);
+    const d=new Date(Date.UTC(y,m-1+delta,1));
+    return d.toISOString().slice(0,7);
+  }
+
+  function monthLabel(value){
+    const valid=normalizeMonth(value);
+    if(!valid)return '조회 월';
+    const [y,m]=valid.split('-');
+    return `${y}년 ${Number(m)}월`;
   }
 
   function dateTime(value){
@@ -144,225 +142,258 @@
     const d=new Date(value);
     if(!Number.isFinite(d.getTime()))return escapeHtml(value);
     return escapeHtml(d.toLocaleString('ko-KR',{
-      timeZone:'Asia/Seoul',
-      year:'numeric',month:'2-digit',day:'2-digit',
-      hour:'2-digit',minute:'2-digit',second:'2-digit'
+      timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'
     }));
   }
 
-  function summaryCardMarkup(item,index){
-    const summary=item?.summary||{};
-    const date=escapeHtml(item?.targetDate||'');
-    const closer=escapeHtml(item?.savedByName||'—');
-    const updated=dateTime(item?.updatedAt);
+  const NUMERIC_PATHS=[
+    ['unit1','coal'],['unit1','bio'],['unit1','organic'],['unit1','manure'],['unit1','bioRatio'],['unit1','organicGroupRatio'],['unit1','totalRatio'],
+    ['unit2','coal'],['unit2','bio'],['unit2','organic'],['unit2','manure'],['unit2','bioRatio'],['unit2','organicGroupRatio'],['unit2','totalRatio'],
+    ['combined','bioRatio'],['combined','organicGroupRatio'],['combined','totalRatio']
+  ];
 
-    return `
-      <article class="cfv14-history-card${index===0?' is-latest':''}" data-cfv14-card="${date}">
-        <header class="cfv14-history-card__header">
-          <div class="cfv14-history-card__date">
-            <span>${index===0?'LATEST CLOSED':'CLOSED SNAPSHOT'}</span>
-            <strong>${date}</strong>
-            <small>${closer} · ${updated}</small>
-          </div>
-          <div class="cfv14-history-card__quick">
-            <div><span>1호기 Bio</span><strong>${pct(summary?.unit1?.bioRatio)}</strong></div>
-            <div><span>2호기 Bio</span><strong>${pct(summary?.unit2?.bioRatio)}</strong></div>
-            <div class="is-total"><span>종합 혼소율</span><strong>${pct(summary?.combined?.totalRatio)}</strong></div>
-          </div>
-          <div class="cfv14-history-card__actions">
-            <button type="button" data-cfv14-expand="${date}" aria-expanded="false">전체값 보기</button>
-            <button type="button" class="danger" data-cfv14-delete="${date}">삭제</button>
-          </div>
-        </header>
-        <div class="cfv14-history-card__detail" data-cfv14-detail="${date}" hidden></div>
-      </article>
-    `;
+  function pathValue(row,path){
+    let value=row;
+    for(const key of path)value=value?.[key];
+    return number(value);
   }
 
-  function fuelCell(label,value,className=''){
-    return `
-      <div class="cfv14-fuel ${className}">
-        <span>${label}</span>
-        <strong>${tons(value)}</strong>
-      </div>
-    `;
-  }
-
-  function ratioCell(label,value,className=''){
-    return `
-      <div class="cfv14-ratio ${className}">
-        <span>${label}</span>
-        <strong>${pct(value)}</strong>
-      </div>
-    `;
-  }
-
-  function unitCardMarkup(label,unit){
-    return `
-      <section class="cfv14-unit-card">
-        <header><span>BOILER UNIT</span><strong>${label}</strong></header>
-        <div class="cfv14-ratio-grid">
-          ${ratioCell('바이오 혼소율',unit.bioRatio)}
-          ${ratioCell('유기성 및 축분 혼소율',unit.organicGroupRatio)}
-          ${ratioCell('종합혼소율',unit.totalRatio,'is-emphasis')}
-        </div>
-        <div class="cfv14-fuel-grid">
-          ${fuelCell('Coal',unit.coal,'is-coal')}
-          ${fuelCell('Bio',unit.bio,'is-bio')}
-          ${fuelCell('유기성',unit.organic,'is-organic')}
-          ${fuelCell('축분',unit.manure,'is-manure')}
-        </div>
-      </section>
-    `;
+  function averageRows(rows){
+    const out={unit1:{},unit2:{},combined:{}};
+    for(const path of NUMERIC_PATHS){
+      const values=rows.map(row=>pathValue(row,path)).filter(v=>v!==null);
+      const avg=values.length?values.reduce((a,b)=>a+b,0)/values.length:null;
+      out[path[0]][path[1]]=avg;
+    }
+    return out;
   }
 
   function settingsRows(settings){
     const labels={coal:'Coal',bio:'Bio',organic:'유기성',manure:'축분'};
-    return ['coal','bio','organic','manure'].map(fuel=>`
+    return FUELS.map(fuel=>`
       <tr>
         <th>${labels[fuel]}</th>
         <td>${scalar(settings?.unit1?.[fuel]?.calorific)}</td>
         <td>${scalar(settings?.unit1?.[fuel]?.coefficient)}</td>
         <td>${scalar(settings?.unit2?.[fuel]?.calorific)}</td>
         <td>${scalar(settings?.unit2?.[fuel]?.coefficient)}</td>
-      </tr>
-    `).join('');
+      </tr>`).join('');
   }
 
-  function manualRows(manual){
+  function detailMarkup(item,row){
     return `
-      <tr><th>1호기</th><td>${tons(manual?.unit1?.organic)}</td><td>${tons(manual?.unit1?.manure)}</td></tr>
-      <tr><th>2호기</th><td>${tons(manual?.unit2?.organic)}</td><td>${tons(manual?.unit2?.manure)}</td></tr>
-    `;
-  }
-
-  function detailMarkup(item){
-    const d=deriveSnapshot(item);
-    const date=escapeHtml(item?.targetDate||'');
-    const closer=escapeHtml(item?.savedByName||'—');
-
-    return `
-      <div class="cfv14-detail-shell">
-        <div class="cfv14-main-grid">
-          ${unitCardMarkup('1호기',d.unit1)}
-          ${unitCardMarkup('2호기',d.unit2)}
+      <div class="cfv15-detail-shell">
+        <div class="cfv15-detail-grid">
+          <section>
+            <h4>마감 당시 발열량 · 보정계수</h4>
+            <div class="cfv15-detail-table-wrap">
+              <table>
+                <thead><tr><th>연료</th><th>1호기 발열량</th><th>1호기 보정</th><th>2호기 발열량</th><th>2호기 보정</th></tr></thead>
+                <tbody>${settingsRows(row.settings)}</tbody>
+              </table>
+            </div>
+          </section>
+          <section>
+            <h4>마감 정보</h4>
+            <dl class="cfv15-detail-meta">
+              <div><dt>마감자</dt><dd>${escapeHtml(row.savedByName||'—')}</dd></div>
+              <div><dt>마감 시각</dt><dd>${dateTime(row.updatedAt)}</dd></div>
+              <div><dt>Revision</dt><dd>${escapeHtml(row.revision||'—')}</dd></div>
+              <div><dt>스냅샷 생성</dt><dd>${dateTime(row.capturedAt)}</dd></div>
+              <div class="is-wide"><dt>DataPARC 요청</dt><dd title="${escapeHtml(row.sourceRequestId)}">${escapeHtml(row.sourceRequestId||'—')}</dd></div>
+            </dl>
+            <div class="cfv15-detail-actions"><button type="button" data-cfv15-go="${escapeHtml(row.targetDate)}">계산일로 이동</button></div>
+          </section>
         </div>
+      </div>`;
+  }
 
-        <section class="cfv14-combined-card">
-          <div>
-            <span>1,2호기 종합</span>
-            <strong>마감 당시 최종 혼소율</strong>
-          </div>
-          <div class="cfv14-combined-ratios">
-            ${ratioCell('바이오 혼소율',d.combined.bioRatio)}
-            ${ratioCell('유기성 및 축분 혼소율',d.combined.organicGroupRatio)}
-            ${ratioCell('종합혼소율',d.combined.totalRatio,'is-final')}
-          </div>
-        </section>
+  function rowMarkup(row){
+    return `
+      <tr data-cfv15-row="${escapeHtml(row.targetDate)}">
+        <th scope="row">${escapeHtml(row.targetDate)}</th>
+        <td>${fmtTon(row.unit1.coal)}</td><td>${fmtTon(row.unit1.bio)}</td><td>${fmtTon(row.unit1.organic)}</td><td>${fmtTon(row.unit1.manure)}</td>
+        <td>${fmtPct(row.unit1.bioRatio)}</td><td>${fmtPct(row.unit1.organicGroupRatio)}</td><td class="is-total">${fmtPct(row.unit1.totalRatio)}</td>
+        <td>${fmtTon(row.unit2.coal)}</td><td>${fmtTon(row.unit2.bio)}</td><td>${fmtTon(row.unit2.organic)}</td><td>${fmtTon(row.unit2.manure)}</td>
+        <td>${fmtPct(row.unit2.bioRatio)}</td><td>${fmtPct(row.unit2.organicGroupRatio)}</td><td class="is-total">${fmtPct(row.unit2.totalRatio)}</td>
+        <td>${fmtPct(row.combined.bioRatio)}</td><td>${fmtPct(row.combined.organicGroupRatio)}</td><td class="is-combined-total">${fmtPct(row.combined.totalRatio)}</td>
+        <td class="is-text">${escapeHtml(row.savedByName||'—')}</td>
+        <td class="is-text">${dateTime(row.updatedAt)}</td>
+        <td class="is-actions"><button type="button" data-cfv15-view="${escapeHtml(row.targetDate)}">보기</button><button type="button" class="danger" data-cfv15-delete="${escapeHtml(row.targetDate)}">삭제</button></td>
+      </tr>`;
+  }
 
-        <details class="cfv14-basis">
-          <summary>마감 당시 계산 기준값</summary>
-          <div class="cfv14-basis-grid">
-            <section>
-              <h4>발열량 · 보정계수</h4>
-              <div class="cfv14-table-wrap">
-                <table>
-                  <thead><tr><th>연료</th><th>1호기 발열량</th><th>1호기 보정</th><th>2호기 발열량</th><th>2호기 보정</th></tr></thead>
-                  <tbody>${settingsRows(d.settings)}</tbody>
-                </table>
-              </div>
-            </section>
-            <section>
-              <h4>유기성 · 축분 저장값</h4>
-              <div class="cfv14-table-wrap">
-                <table>
-                  <thead><tr><th>호기</th><th>유기성</th><th>축분</th></tr></thead>
-                  <tbody>${manualRows(d.manual)}</tbody>
-                </table>
-              </div>
-            </section>
-          </div>
-        </details>
+  function averageMarkup(rows){
+    const a=averageRows(rows);
+    return `
+      <tr class="cfv15-average-row">
+        <th scope="row">월 평균 (${rows.length}일)</th>
+        <td>${fmtTon(a.unit1.coal)}</td><td>${fmtTon(a.unit1.bio)}</td><td>${fmtTon(a.unit1.organic)}</td><td>${fmtTon(a.unit1.manure)}</td>
+        <td>${fmtPct(a.unit1.bioRatio)}</td><td>${fmtPct(a.unit1.organicGroupRatio)}</td><td>${fmtPct(a.unit1.totalRatio)}</td>
+        <td>${fmtTon(a.unit2.coal)}</td><td>${fmtTon(a.unit2.bio)}</td><td>${fmtTon(a.unit2.organic)}</td><td>${fmtTon(a.unit2.manure)}</td>
+        <td>${fmtPct(a.unit2.bioRatio)}</td><td>${fmtPct(a.unit2.organicGroupRatio)}</td><td>${fmtPct(a.unit2.totalRatio)}</td>
+        <td>${fmtPct(a.combined.bioRatio)}</td><td>${fmtPct(a.combined.organicGroupRatio)}</td><td>${fmtPct(a.combined.totalRatio)}</td>
+        <td colspan="3">마감 ${rows.length}일 기준 · 값이 없는 항목은 평균에서 제외</td>
+      </tr>`;
+  }
 
-        <footer class="cfv14-meta">
-          <div><span>마감자</span><strong>${closer}</strong></div>
-          <div><span>마감 시각</span><strong>${dateTime(item?.updatedAt)}</strong></div>
-          <div><span>Revision</span><strong>${escapeHtml(item?.revision??'—')}</strong></div>
-          <div><span>DataPARC 요청</span><strong title="${escapeHtml(d.sourceRequestId)}">${escapeHtml(d.sourceRequestId||'—')}</strong></div>
-          <div><span>스냅샷 생성</span><strong>${dateTime(d.capturedAt)}</strong></div>
-          <div class="cfv14-meta__action"><button type="button" data-cfv14-go="${date}">계산일로 이동</button></div>
-        </footer>
-      </div>
-    `;
+  function tableMarkup(rows,month){
+    if(!rows.length){
+      return `<div class="cfv15-state"><strong>${escapeHtml(monthLabel(month))} 마감 데이터가 없습니다.</strong><span>해당 월에 마감 저장된 날짜가 생기면 일별 한 줄로 표시됩니다.</span></div>`;
+    }
+    return `
+      <div class="cfv15-table-wrap" tabindex="0">
+        <table class="cfv15-history-table" aria-label="${escapeHtml(monthLabel(month))} 혼소율 마감 데이터">
+          <thead>
+            <tr class="cfv15-group-head">
+              <th rowspan="2" class="is-date">일자</th>
+              <th colspan="7" class="is-unit1">1호기</th>
+              <th colspan="7" class="is-unit2">2호기</th>
+              <th colspan="3" class="is-combined">1·2호기 종합</th>
+              <th rowspan="2">마감자</th><th rowspan="2">마감 시각</th><th rowspan="2">관리</th>
+            </tr>
+            <tr class="cfv15-column-head">
+              <th>Coal<small>t</small></th><th>Bio<small>t</small></th><th>유기성<small>t</small></th><th>축분<small>t</small></th><th>Bio<small>%</small></th><th>유기성·축분<small>%</small></th><th>종합<small>%</small></th>
+              <th>Coal<small>t</small></th><th>Bio<small>t</small></th><th>유기성<small>t</small></th><th>축분<small>t</small></th><th>Bio<small>%</small></th><th>유기성·축분<small>%</small></th><th>종합<small>%</small></th>
+              <th>Bio<small>%</small></th><th>유기성·축분<small>%</small></th><th>종합<small>%</small></th>
+            </tr>
+          </thead>
+          <tbody>${rows.map(rowMarkup).join('')}</tbody>
+          <tfoot>${averageMarkup(rows)}</tfoot>
+        </table>
+      </div>`;
+  }
+
+  async function mapLimit(items,limit,worker){
+    const result=new Array(items.length);
+    let cursor=0;
+    async function run(){
+      while(cursor<items.length){
+        const index=cursor++;
+        result[index]=await worker(items[index],index);
+      }
+    }
+    await Promise.all(Array.from({length:Math.min(limit,items.length)},run));
+    return result;
   }
 
   function mount(){
     const panel=root.document?.querySelector?.('.cfv12-history-panel');
-    if(!panel||panel.dataset.cfv14Mounted==='1')return false;
-
-    panel.dataset.cfv14Mounted='1';
-    panel.classList.add('cfv14-enhanced');
-
+    if(!panel||panel.dataset.cfv15Mounted==='1')return false;
     const head=panel.querySelector('.cfv12-history-head');
     if(!head)return false;
 
+    panel.dataset.cfv15Mounted='1';
+    panel.classList.add('cfv15-monthly');
+
+    panel.querySelector('.cfv14-history-list')?.remove();
+
+    const toolbar=root.document.createElement('div');
+    toolbar.className='cfv15-month-toolbar';
+    toolbar.innerHTML=`
+      <div class="cfv15-month-nav">
+        <button type="button" data-cfv15-prev aria-label="이전 달">‹</button>
+        <label><span>조회 월</span><input type="month" data-cfv15-month></label>
+        <button type="button" data-cfv15-next aria-label="다음 달">›</button>
+      </div>
+      <div class="cfv15-month-status"><strong data-cfv15-month-label>조회 월</strong><span data-cfv15-count>0일 저장</span></div>`;
+
     const host=root.document.createElement('div');
-    host.className='cfv14-history-list';
-    host.setAttribute('data-cfv14-list','');
-    head.after(host);
+    host.className='cfv15-history-host';
+    host.setAttribute('data-cfv15-host','');
+    head.after(toolbar,host);
 
+    const monthInput=toolbar.querySelector('[data-cfv15-month]');
+    const monthText=toolbar.querySelector('[data-cfv15-month-label]');
+    const countText=toolbar.querySelector('[data-cfv15-count]');
+    const detailCache=new Map();
+    let listItems=[];
+    let selectedMonth='';
     let loadEpoch=0;
+    let openDate='';
 
-    async function loadList(){
+    async function getDetail(item){
+      const date=String(item?.targetDate||'');
+      if(detailCache.has(date))return detailCache.get(date);
+      const promise=api('?targetDate='+encodeURIComponent(date)).then(payload=>payload?.item||null);
+      detailCache.set(date,promise);
+      try{return await promise;}catch(error){detailCache.delete(date);throw error;}
+    }
+
+    function setMonth(month){
+      selectedMonth=normalizeMonth(month)||koreanCurrentMonth();
+      monthInput.value=selectedMonth;
+      monthText.textContent=monthLabel(selectedMonth);
+      void renderMonth();
+    }
+
+    async function loadList({keepMonth=true}={}){
       const epoch=++loadEpoch;
-      host.innerHTML='<div class="cfv14-state">마감 데이터 확인 중...</div>';
+      host.innerHTML='<div class="cfv15-state">마감 데이터 목록을 확인하는 중입니다...</div>';
       try{
-        const payload=await api('?limit=180');
+        const payload=await api('?limit=366');
         if(epoch!==loadEpoch)return;
-        const items=Array.isArray(payload?.items)?payload.items:[];
-        if(!items.length){
-          host.innerHTML='<div class="cfv14-state"><strong>마감 저장된 데이터가 없습니다.</strong><span>마감 저장 후 날짜별 스냅샷이 표시됩니다.</span></div>';
-          return;
-        }
-        host.innerHTML=items.map(summaryCardMarkup).join('');
-        const first=items[0]?.targetDate;
-        if(first)void expandDate(first,true);
+        listItems=Array.isArray(payload?.items)?payload.items:[];
+        const latestMonth=normalizeMonth(listItems[0]?.targetDate?.slice?.(0,7));
+        if(!keepMonth||!selectedMonth)selectedMonth=latestMonth||koreanCurrentMonth();
+        monthInput.value=selectedMonth;
+        monthText.textContent=monthLabel(selectedMonth);
+        await renderMonth(epoch);
       }catch(error){
         if(epoch!==loadEpoch)return;
-        host.innerHTML=`<div class="cfv14-state is-error">${escapeHtml(error.message)}</div>`;
+        host.innerHTML=`<div class="cfv15-state is-error">${escapeHtml(error.message)}</div>`;
       }
     }
 
-    async function expandDate(date,forceOpen=false){
-      const card=host.querySelector(`[data-cfv14-card="${CSS.escape(date)}"]`);
-      const detail=host.querySelector(`[data-cfv14-detail="${CSS.escape(date)}"]`);
-      const button=host.querySelector(`[data-cfv14-expand="${CSS.escape(date)}"]`);
-      if(!card||!detail||!button)return;
+    async function renderMonth(epoch=loadEpoch){
+      openDate='';
+      const items=listItems.filter(item=>String(item?.targetDate||'').slice(0,7)===selectedMonth);
+      countText.textContent=`${items.length}일 저장`;
+      monthText.textContent=monthLabel(selectedMonth);
+      if(!items.length){host.innerHTML=tableMarkup([],selectedMonth);return;}
 
-      const open=forceOpen||detail.hidden;
-      if(!open){
-        detail.hidden=true;
-        card.classList.remove('is-open');
-        button.setAttribute('aria-expanded','false');
-        button.textContent='전체값 보기';
-        return;
+      host.innerHTML=`<div class="cfv15-state"><strong>${escapeHtml(monthLabel(selectedMonth))}</strong><span>${items.length}일의 마감 스냅샷을 표로 정리하는 중입니다...</span></div>`;
+      const rows=await mapLimit(items,6,async item=>{
+        try{
+          const detail=await getDetail(item);
+          return deriveSnapshot(detail||item);
+        }catch(_){
+          return deriveSnapshot(item);
+        }
+      });
+      if(epoch!==loadEpoch||selectedMonth!==monthInput.value)return;
+      rows.sort((a,b)=>String(b.targetDate).localeCompare(String(a.targetDate)));
+      host.innerHTML=tableMarkup(rows,selectedMonth);
+    }
+
+    async function toggleDetail(date){
+      const row=host.querySelector(`[data-cfv15-row="${date}"]`);
+      if(!row)return;
+      const existing=host.querySelector('[data-cfv15-detail-row]');
+      if(existing){
+        const was=existing.getAttribute('data-cfv15-detail-row');
+        existing.remove();
+        host.querySelector(`[data-cfv15-view="${was}"]`)?.setAttribute('aria-expanded','false');
+        if(was===date){openDate='';return;}
       }
 
-      detail.hidden=false;
-      card.classList.add('is-open');
-      button.setAttribute('aria-expanded','true');
-      button.textContent='접기';
-
-      if(detail.dataset.loaded==='1')return;
-      detail.innerHTML='<div class="cfv14-state">마감 스냅샷 불러오는 중...</div>';
+      const button=host.querySelector(`[data-cfv15-view="${date}"]`);
+      button?.setAttribute('aria-expanded','true');
+      const detailRow=root.document.createElement('tr');
+      detailRow.className='cfv15-detail-row';
+      detailRow.setAttribute('data-cfv15-detail-row',date);
+      detailRow.innerHTML='<td colspan="21"><div class="cfv15-state">상세 기준값을 불러오는 중입니다...</div></td>';
+      row.after(detailRow);
+      openDate=date;
 
       try{
-        const payload=await api('?targetDate='+encodeURIComponent(date));
-        if(!payload?.item)throw new Error('저장된 마감 스냅샷을 찾을 수 없습니다.');
-        detail.innerHTML=detailMarkup(payload.item);
-        detail.dataset.loaded='1';
+        const item=listItems.find(x=>x.targetDate===date);
+        const detail=await getDetail(item||{targetDate:date});
+        if(openDate!==date||!detailRow.isConnected)return;
+        const derived=deriveSnapshot(detail);
+        detailRow.innerHTML=`<td colspan="21">${detailMarkup(detail,derived)}</td>`;
       }catch(error){
-        detail.innerHTML=`<div class="cfv14-state is-error">${escapeHtml(error.message)}</div>`;
+        if(detailRow.isConnected)detailRow.innerHTML=`<td colspan="21"><div class="cfv15-state is-error">${escapeHtml(error.message)}</div></td>`;
       }
     }
 
@@ -370,10 +401,9 @@
       if(!root.confirm?.(date+' 마감 데이터를 삭제하시겠습니까?'))return;
       try{
         await api('?targetDate='+encodeURIComponent(date),{method:'DELETE'});
-        await loadList();
-      }catch(error){
-        root.alert?.(error.message);
-      }
+        detailCache.delete(date);
+        await loadList({keepMonth:true});
+      }catch(error){root.alert?.(error.message);}
     }
 
     function goDate(date){
@@ -385,41 +415,42 @@
         input.value=date;
         input.dispatchEvent(new Event('change',{bubbles:true}));
       }
-      const calcTab=panel.parentElement?.querySelector?.('.cfv12-tabs .cfv12-tab');
-      calcTab?.click?.();
+      panel.parentElement?.querySelector?.('.cfv12-tabs .cfv12-tab')?.click?.();
     }
 
+    toolbar.addEventListener('click',event=>{
+      if(event.target.closest?.('[data-cfv15-prev]'))setMonth(shiftMonth(selectedMonth,-1));
+      if(event.target.closest?.('[data-cfv15-next]'))setMonth(shiftMonth(selectedMonth,1));
+    });
+    monthInput.addEventListener('change',()=>setMonth(monthInput.value));
+
     host.addEventListener('click',event=>{
-      const expand=event.target.closest?.('[data-cfv14-expand]');
-      const del=event.target.closest?.('[data-cfv14-delete]');
-      const go=event.target.closest?.('[data-cfv14-go]');
-      if(expand){void expandDate(expand.getAttribute('data-cfv14-expand')||'');return;}
-      if(del){void deleteDate(del.getAttribute('data-cfv14-delete')||'');return;}
-      if(go){goDate(go.getAttribute('data-cfv14-go')||'');}
+      const view=event.target.closest?.('[data-cfv15-view]');
+      const del=event.target.closest?.('[data-cfv15-delete]');
+      const go=event.target.closest?.('[data-cfv15-go]');
+      if(view){void toggleDetail(view.getAttribute('data-cfv15-view')||'');return;}
+      if(del){void deleteDate(del.getAttribute('data-cfv15-delete')||'');return;}
+      if(go)goDate(go.getAttribute('data-cfv15-go')||'');
     });
 
-    panel.querySelector('[data-cfv12-refresh]')?.addEventListener('click',()=>void loadList());
+    panel.querySelector('[data-cfv12-refresh]')?.addEventListener('click',()=>void loadList({keepMonth:true}));
 
-    const observer=root.MutationObserver?new root.MutationObserver(()=>{
-      if(!panel.hidden)void loadList();
-    }):null;
+    const observer=root.MutationObserver?new root.MutationObserver(()=>{if(!panel.hidden)void loadList({keepMonth:true});}):null;
     observer?.observe(panel,{attributes:true,attributeFilter:['hidden']});
 
-    if(!panel.hidden)void loadList();
+    if(!panel.hidden)void loadList({keepMonth:false});
     return true;
   }
 
   function boot(){
     if(mount())return;
     if(!root.document?.body||!root.MutationObserver)return;
-    const observer=new root.MutationObserver(()=>{
-      if(mount())observer.disconnect();
-    });
+    const observer=new root.MutationObserver(()=>{if(mount())observer.disconnect();});
     observer.observe(root.document.body,{childList:true,subtree:true});
   }
 
-  const exported={VERSION,deriveSnapshot,unitBioRatio,combinedBioRatio};
-  root.CofiringClosedHistoryCardsV2=exported;
+  const exported={VERSION,deriveSnapshot,averageRows,normalizeMonth,shiftMonth,unitBioRatio,combinedBioRatio};
+  root.CofiringClosedHistoryMonthlyV3=exported;
   if(typeof module==='object'&&module.exports)module.exports=exported;
 
   if(root.document){
