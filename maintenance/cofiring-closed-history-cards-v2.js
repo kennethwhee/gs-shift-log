@@ -5,7 +5,7 @@
   root.__cofiringClosedHistoryMonthlyV3Installed=true;
 
   const API='/api/cofiring-closed-history';
-  const VERSION='COFIRING_CLOSED_HISTORY_MONTHLY_V3';
+  const VERSION='COFIRING_CLOSED_HISTORY_COMPACT_V4_R3';
   const UNITS=['unit1','unit2'];
   const FUELS=['coal','bio','organic','manure'];
 
@@ -208,32 +208,62 @@
       </div>`;
   }
 
+  function fuelCell(unit){
+    return `<div class="cfv16-fuel-grid">
+      <span><b>C</b><strong>${fmtTon(unit.coal)}</strong></span>
+      <span><b>B</b><strong>${fmtTon(unit.bio)}</strong></span>
+      <span><b>유</b><strong>${fmtTon(unit.organic)}</strong></span>
+      <span><b>축</b><strong>${fmtTon(unit.manure)}</strong></span>
+    </div>`;
+  }
+
+  function ratioCell(unit){
+    return `<div class="cfv16-ratio-grid">
+      <span><b>Bio</b><strong>${fmtPct(unit.bioRatio)}</strong></span>
+      <span><b>유·축</b><strong>${fmtPct(unit.organicGroupRatio)}</strong></span>
+      <span class="is-total"><b>종합</b><strong>${fmtPct(unit.totalRatio)}</strong></span>
+    </div>`;
+  }
+
+  function combinedCell(row){
+    return `<div class="cfv16-combined-grid">
+      <span><b>Bio</b><strong>${fmtPct(row.combined.bioRatio)}</strong></span>
+      <span><b>유·축</b><strong>${fmtPct(row.combined.organicGroupRatio)}</strong></span>
+      <span class="is-total"><b>종합</b><strong>${fmtPct(row.combined.totalRatio)}</strong></span>
+    </div>`;
+  }
+
+  function closeMetaCell(row){
+    return `<div class="cfv16-meta"><strong>${escapeHtml(row.savedByName||'—')}</strong><span>${dateTime(row.updatedAt)}</span></div>`;
+  }
+
   function rowMarkup(row){
     return `
       <tr data-cfv15-row="${escapeHtml(row.targetDate)}">
-        <th scope="row">${escapeHtml(row.targetDate)}</th>
-        <td>${fmtTon(row.unit1.coal)}</td><td>${fmtTon(row.unit1.bio)}</td><td>${fmtTon(row.unit1.organic)}</td><td>${fmtTon(row.unit1.manure)}</td>
-        <td>${fmtPct(row.unit1.bioRatio)}</td><td>${fmtPct(row.unit1.organicGroupRatio)}</td><td class="is-total">${fmtPct(row.unit1.totalRatio)}</td>
-        <td>${fmtTon(row.unit2.coal)}</td><td>${fmtTon(row.unit2.bio)}</td><td>${fmtTon(row.unit2.organic)}</td><td>${fmtTon(row.unit2.manure)}</td>
-        <td>${fmtPct(row.unit2.bioRatio)}</td><td>${fmtPct(row.unit2.organicGroupRatio)}</td><td class="is-total">${fmtPct(row.unit2.totalRatio)}</td>
-        <td>${fmtPct(row.combined.bioRatio)}</td><td>${fmtPct(row.combined.organicGroupRatio)}</td><td class="is-combined-total">${fmtPct(row.combined.totalRatio)}</td>
-        <td class="is-text">${escapeHtml(row.savedByName||'—')}</td>
-        <td class="is-text">${dateTime(row.updatedAt)}</td>
-        <td class="is-actions"><button type="button" data-cfv15-view="${escapeHtml(row.targetDate)}">보기</button><button type="button" class="danger" data-cfv15-delete="${escapeHtml(row.targetDate)}">삭제</button></td>
+        <th scope="row"><strong>${escapeHtml(row.targetDate)}</strong></th>
+        <td class="is-fuel is-unit1">${fuelCell(row.unit1)}</td>
+        <td class="is-ratio is-unit1">${ratioCell(row.unit1)}</td>
+        <td class="is-fuel is-unit2">${fuelCell(row.unit2)}</td>
+        <td class="is-ratio is-unit2">${ratioCell(row.unit2)}</td>
+        <td class="is-combined">${combinedCell(row)}</td>
+        <td class="is-meta">${closeMetaCell(row)}</td>
+        <td class="is-actions"><button type="button" data-cfv15-view="${escapeHtml(row.targetDate)}" aria-expanded="false">보기</button><button type="button" class="danger" data-cfv15-delete="${escapeHtml(row.targetDate)}">삭제</button></td>
       </tr>`;
   }
 
   function averageMarkup(rows){
     const a=averageRows(rows);
+    const avgRow={combined:a.combined};
     return `
       <tr class="cfv15-average-row">
-        <th scope="row">월 평균 (${rows.length}일)</th>
-        <td>${fmtTon(a.unit1.coal)}</td><td>${fmtTon(a.unit1.bio)}</td><td>${fmtTon(a.unit1.organic)}</td><td>${fmtTon(a.unit1.manure)}</td>
-        <td>${fmtPct(a.unit1.bioRatio)}</td><td>${fmtPct(a.unit1.organicGroupRatio)}</td><td>${fmtPct(a.unit1.totalRatio)}</td>
-        <td>${fmtTon(a.unit2.coal)}</td><td>${fmtTon(a.unit2.bio)}</td><td>${fmtTon(a.unit2.organic)}</td><td>${fmtTon(a.unit2.manure)}</td>
-        <td>${fmtPct(a.unit2.bioRatio)}</td><td>${fmtPct(a.unit2.organicGroupRatio)}</td><td>${fmtPct(a.unit2.totalRatio)}</td>
-        <td>${fmtPct(a.combined.bioRatio)}</td><td>${fmtPct(a.combined.organicGroupRatio)}</td><td>${fmtPct(a.combined.totalRatio)}</td>
-        <td colspan="3">마감 ${rows.length}일 기준 · 값이 없는 항목은 평균에서 제외</td>
+        <th scope="row"><strong>월 평균</strong><small>${rows.length}일</small></th>
+        <td class="is-fuel is-unit1">${fuelCell(a.unit1)}</td>
+        <td class="is-ratio is-unit1">${ratioCell(a.unit1)}</td>
+        <td class="is-fuel is-unit2">${fuelCell(a.unit2)}</td>
+        <td class="is-ratio is-unit2">${ratioCell(a.unit2)}</td>
+        <td class="is-combined">${combinedCell(avgRow)}</td>
+        <td class="is-meta"><div class="cfv16-meta"><strong>평균</strong><span>저장일 기준</span></div></td>
+        <td class="is-actions"><span class="cfv16-average-note">평균</span></td>
       </tr>`;
   }
 
@@ -243,19 +273,21 @@
     }
     return `
       <div class="cfv15-table-wrap" tabindex="0">
-        <table class="cfv15-history-table" aria-label="${escapeHtml(monthLabel(month))} 혼소율 마감 데이터">
+        <table class="cfv15-history-table cfv16-compact-table" aria-label="${escapeHtml(monthLabel(month))} 혼소율 마감 데이터">
           <thead>
             <tr class="cfv15-group-head">
               <th rowspan="2" class="is-date">일자</th>
-              <th colspan="7" class="is-unit1">1호기</th>
-              <th colspan="7" class="is-unit2">2호기</th>
-              <th colspan="3" class="is-combined">1·2호기 종합</th>
-              <th rowspan="2">마감자</th><th rowspan="2">마감 시각</th><th rowspan="2">관리</th>
+              <th colspan="2" class="is-unit1">1호기</th>
+              <th colspan="2" class="is-unit2">2호기</th>
+              <th rowspan="2" class="is-combined">1·2호기 종합</th>
+              <th rowspan="2">마감정보</th>
+              <th rowspan="2">관리</th>
             </tr>
             <tr class="cfv15-column-head">
-              <th>Coal<small>t</small></th><th>Bio<small>t</small></th><th>유기성<small>t</small></th><th>축분<small>t</small></th><th>Bio<small>%</small></th><th>유기성·축분<small>%</small></th><th>종합<small>%</small></th>
-              <th>Coal<small>t</small></th><th>Bio<small>t</small></th><th>유기성<small>t</small></th><th>축분<small>t</small></th><th>Bio<small>%</small></th><th>유기성·축분<small>%</small></th><th>종합<small>%</small></th>
-              <th>Bio<small>%</small></th><th>유기성·축분<small>%</small></th><th>종합<small>%</small></th>
+              <th class="is-unit1">연료사용량<small>C / B / 유 / 축 · t</small></th>
+              <th class="is-unit1">혼소율<small>Bio / 유·축 / 종합 · %</small></th>
+              <th class="is-unit2">연료사용량<small>C / B / 유 / 축 · t</small></th>
+              <th class="is-unit2">혼소율<small>Bio / 유·축 / 종합 · %</small></th>
             </tr>
           </thead>
           <tbody>${rows.map(rowMarkup).join('')}</tbody>
@@ -382,7 +414,7 @@
       const detailRow=root.document.createElement('tr');
       detailRow.className='cfv15-detail-row';
       detailRow.setAttribute('data-cfv15-detail-row',date);
-      detailRow.innerHTML='<td colspan="21"><div class="cfv15-state">상세 기준값을 불러오는 중입니다...</div></td>';
+      detailRow.innerHTML='<td colspan="8"><div class="cfv15-state">상세 기준값을 불러오는 중입니다...</div></td>';
       row.after(detailRow);
       openDate=date;
 
@@ -391,9 +423,9 @@
         const detail=await getDetail(item||{targetDate:date});
         if(openDate!==date||!detailRow.isConnected)return;
         const derived=deriveSnapshot(detail);
-        detailRow.innerHTML=`<td colspan="21">${detailMarkup(detail,derived)}</td>`;
+        detailRow.innerHTML=`<td colspan="8">${detailMarkup(detail,derived)}</td>`;
       }catch(error){
-        if(detailRow.isConnected)detailRow.innerHTML=`<td colspan="21"><div class="cfv15-state is-error">${escapeHtml(error.message)}</div></td>`;
+        if(detailRow.isConnected)detailRow.innerHTML=`<td colspan="8"><div class="cfv15-state is-error">${escapeHtml(error.message)}</div></td>`;
       }
     }
 
