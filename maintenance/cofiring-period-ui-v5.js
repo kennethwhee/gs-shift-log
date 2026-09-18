@@ -349,6 +349,232 @@
     }
     function storeKey(){const p=periodSpec(container),h=authHeaders();return JSON.stringify([p.startLocal,p.endLocal,h.Authorization||h.authorization||'']);}
     function storesReady(){return [settings,manual].every(store=>{const s=store?.state();return !!s?.loaded&&!s.loading&&!s.saving&&!s.error;});}
+    // COFIRING_CLOSED_MANUAL_RESTORE_V1
+    async function restoreClosedManualSnapshot(){
+      /*
+        Explicit manual-usage storage remains authoritative.
+        Closed snapshot is used only when that period has
+        no separately saved manual revision.
+      */
+      if(
+        queryMode(container)!=='daily' ||
+        manualDirty ||
+        !manual
+      ){
+        return false;
+      }
+
+      const manualState=manual.state?.();
+
+      if(
+        !manualState?.loaded ||
+        manualState.loading ||
+        manualState.saving ||
+        manualState.error
+      ){
+        return false;
+      }
+
+      if(Number(manualState.revision)>0){
+        return false;
+      }
+
+      const date=String(
+        container.querySelector(
+          '[data-cfv7-date]'
+        )?.value||''
+      );
+
+      if(!/^20\d{2}-\d{2}-\d{2}$/.test(date)){
+        return false;
+      }
+
+      /*
+        Today's calculation must remain live/current.
+        Closed-snapshot restoration is only for past dates.
+      */
+      if(date>=defaultCalculationDate()){
+        return false;
+      }
+
+      const selectedSpec=currentSpec();
+      const selectedEpoch=periodGeneration;
+      const selectedStore=storeKey();
+
+      let response;
+      let payload;
+
+      try{
+        response=await root.fetch(
+          '/api/cofiring-closed-history?targetDate='+
+            encodeURIComponent(date),
+          {
+            method:'GET',
+            credentials:'same-origin',
+            cache:'no-store',
+            headers:{
+              ...authHeaders(),
+              Accept:'application/json'
+            }
+          }
+        );
+
+        payload=await response.json();
+      }catch(_){
+        return false;
+      }
+
+      /*
+        Ignore a late response if the operator changed date
+        while the request was in flight.
+      */
+      if(
+        disposed ||
+        selectedEpoch!==periodGeneration ||
+        selectedStore!==storeKey()
+      ){
+        return false;
+      }
+
+      if(
+        !response.ok ||
+        payload?.ok!==true ||
+        !payload?.item?.snapshot
+      ){
+        return false;
+      }
+
+      const snapshot=payload.item.snapshot;
+
+      /*
+        Never apply a snapshot from another date/period.
+      */
+      if(
+        snapshot.targetDate!==date ||
+        snapshot.period?.startLocal!==selectedSpec.startLocal ||
+        snapshot.period?.endLocal!==selectedSpec.endLocal ||
+        snapshot.period?.stepUnit!==selectedSpec.stepUnit ||
+        Number(snapshot.period?.stepValue)!==
+          Number(selectedSpec.stepValue)
+      ){
+        return false;
+      }
+
+      /*
+        Old/current closed snapshots may hold the finalized
+        quantity in slightly different places.
+
+        Priority:
+        1) snapshot.manual
+        2) snapshot.summary
+        3) snapshot.result.units.*.*.quantity
+
+        This also recovers a finalized closed result even if
+        the operator did not separately press [사용량 저장].
+      */
+      function closedQuantity(unit,fuel){
+        const candidates=[
+          snapshot?.manual?.[unit]?.[fuel],
+          snapshot?.summary?.[unit]?.[fuel],
+          snapshot?.result?.units?.[unit]?.[fuel]?.quantity
+        ];
+
+        for(const raw of candidates){
+          if(
+            raw===null ||
+            raw===undefined ||
+            String(raw).trim()===''
+          ){
+            continue;
+          }
+
+          const value=Number(raw);
+
+          if(
+            Number.isFinite(value) &&
+            value>=0
+          ){
+            return value;
+          }
+        }
+
+        return null;
+      }
+
+      const restored={
+        unit1:{
+          organic:closedQuantity('unit1','organic'),
+          manure:closedQuantity('unit1','manure')
+        },
+        unit2:{
+          organic:closedQuantity('unit2','organic'),
+          manure:closedQuantity('unit2','manure')
+        }
+      };
+
+      const quantities=[
+        restored.unit1.organic,
+        restored.unit1.manure,
+        restored.unit2.organic,
+        restored.unit2.manure
+      ];
+
+      /*
+        Require at least one finalized numeric quantity.
+        0 is valid and must be restored.
+      */
+      if(
+        !quantities.some(
+          value=>
+            typeof value==='number' &&
+            Number.isFinite(value)
+        )
+      ){
+        return false;
+      }
+
+      writeManual(
+        container,
+        restored
+      );
+
+      /*
+        Closed data is finalized data.
+        Prevent the Morning Meeting organic draft from
+        overwriting the restored finalized organic values.
+      */
+      for(const unit of UNITS){
+        const key=`${unit}:organic`;
+
+        morningOrganicTouched.add(key);
+        morningOrganicAuto.delete(key);
+      }
+
+      const label=container.querySelector(
+        '[data-cfv5-manual-state]'
+      );
+
+      if(label){
+        label.textContent='마감 데이터 복원';
+      }
+
+      const values=currentManualFromFields();
+
+      renderOrganic(
+        container,
+        displayResult||lastResult,
+        values
+      );
+
+      renderSummary(
+        container,
+        displayResult||lastResult,
+        values,
+        deadlineInputError
+      );
+
+      return true;
+    }
     async function selectStores({force=false}={}){
       if(showDayUnavailable())return false;
       const p=periodSpec(container),next=storeKey();
@@ -361,7 +587,7 @@
       const epoch=periodGeneration;live?.select(currentSpec());
       await Promise.all([settings?.load({force})||true,manual?.load({force})||true]);
       if(disposed||epoch!==periodGeneration||next!==storeKey())return false;
-      paintSettings();paintManual();applyMorningMeetingOrganicDraft({recalculate:false});if(!storesReady()){prepLabel('입력 기준 확인 필요','error');setStatus(container,settings?.state()?.error||manual?.state()?.error||'발열량과 사용량 저장 상태를 확인하고 있습니다.','error');return false;}if(reference)calculate();return true;
+      paintSettings();paintManual();const closedManualRestored=await restoreClosedManualSnapshot();if(!closedManualRestored)applyMorningMeetingOrganicDraft({recalculate:false});if(!storesReady()){prepLabel('입력 기준 확인 필요','error');setStatus(container,settings?.state()?.error||manual?.state()?.error||'발열량과 사용량 저장 상태를 확인하고 있습니다.','error');return false;}if(reference)calculate();return true;
     }
     function paintSettings(force=false){if(!settings||showDayUnavailable())return;const s=settings.state(),state=container.querySelector('[data-cfv5-settings-state]');if((force||!settingsDirty)&&s.loaded)writeSettings(container,s.settings);if(state)state.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':settingsDirty?'수정됨 · 미저장':s.source==='saved'?`${s.effectiveDate} 적용값${s.updatedByName?' · '+s.updatedByName:''}`:'기본값';for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]'))el.disabled=mobile||s.saving;container.querySelector('[data-cfv5-settings-save]').disabled=mobile||!s.canEdit||s.saving;}
     function currentManualFromFields(){try{return readManual(container);}catch(_){return manual?.state().values||manualApi.blank();}}
