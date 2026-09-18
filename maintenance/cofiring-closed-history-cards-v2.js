@@ -490,15 +490,15 @@
     else boot();
   }
 })(typeof globalThis==='object'?globalThis:this);
-/* ===== CFH_LAYOUT_V2 : closed history presentation ===== */
+/* ===== CFH_LAYOUT_V3 : closed history presentation ===== */
 (function () {
   'use strict';
 
   const PATCH_ATTR =
-    'data-cfh-layout-v2';
+    'data-cfh-layout-v3';
 
   const COLGROUP_ATTR =
-    'data-cfh-layout-cols-v2';
+    'data-cfh-layout-cols-v3';
 
   const META_LABEL =
     '\uB9C8\uAC10\uC815\uBCF4';
@@ -600,17 +600,6 @@
     }
   }
 
-  /*
-    Important:
-    The average row can be rendered AFTER the first table pass.
-
-    V1 removed the closing-info body cell only while the
-    closing-info header still existed. Once the header had
-    already been removed, a later-rendered average row could
-    retain its "평균 / 저장일 기준" cell.
-
-    V2 cleans every tbody row on every observer pass.
-  */
   function removeResidualMetaCell(row) {
     let cells =
       directCells(row);
@@ -619,23 +608,11 @@
       return;
     }
 
-    /*
-      Original daily rows have eight direct cells:
-      date / U1 fuel / U1 ratio /
-      U2 fuel / U2 ratio /
-      combined / closing info / action
-
-      Therefore the second-to-last cell is closing info.
-    */
     if (cells.length >= 8) {
       cells[cells.length - 2].remove();
       cells = directCells(row);
     }
 
-    /*
-      Average rows can have a different colspan structure.
-      Explicitly remove the cell containing "저장일 기준".
-    */
     const hinted =
       cells.find(function (cell, index) {
         if (index === cells.length - 1) {
@@ -858,4 +835,4 @@
     start();
   }
 })();
-/* ===== /CFH_LAYOUT_V2 ===== */
+/* ===== /CFH_LAYOUT_V3 ===== */

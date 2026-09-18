@@ -46,13 +46,8 @@
 .cfv15-detail-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:0}.cfv15-detail-meta>div{min-width:0;padding:6px 7px;border-radius:6px;background:#f6f9fb}.cfv15-detail-meta .is-wide{grid-column:1/-1}.cfv15-detail-meta dt{font-size:7px;color:#75879a}.cfv15-detail-meta dd{overflow:hidden;margin:2px 0 0;font-size:8px;font-weight:800;color:#294761;text-overflow:ellipsis;white-space:nowrap}.cfv15-detail-actions{display:flex;justify-content:flex-end;margin-top:8px}
 .cfv15-state{display:grid;gap:3px;padding:18px;border:1px dashed #cbd8e4;border-radius:9px;background:#fbfcfd;text-align:center;color:#61778d;font-size:10px}.cfv15-state strong{color:#244765}.cfv15-state.is-error{border-color:#e3bcbc;color:#a13f3f}
 @media(max-width:900px){.cfv15-month-toolbar{align-items:flex-start;flex-direction:column}.cfv15-detail-grid{grid-template-columns:1fr}.cfv15-history-table{min-width:940px}.cfv16-compact-table th:nth-child(2),.cfv16-compact-table td:nth-child(2),.cfv16-compact-table th:nth-child(4),.cfv16-compact-table td:nth-child(4){width:150px}.cfv16-compact-table th:nth-child(3),.cfv16-compact-table td:nth-child(3),.cfv16-compact-table th:nth-child(5),.cfv16-compact-table td:nth-child(5){width:138px}}
-/* ===== CFH_LAYOUT_V2 : readable wide closed-history table ===== */
+/* ===== CFH_LAYOUT_V3 : readable balanced closed-history table ===== */
 
-/*
-  Desktop only:
-  make the efficiency modal wider while the co-firing
-  view is open, giving the table real horizontal room.
-*/
 @media screen and (min-width: 1101px) {
 
   #efficiencyTeamModal:has(
@@ -60,21 +55,20 @@
   )
   .efficiency-team-panel {
     width:
-      min(96vw, 1700px) !important;
+      min(92vw, 1520px) !important;
 
     max-width:
-      min(96vw, 1700px) !important;
+      min(92vw, 1520px) !important;
   }
 
 }
-
 
 /* ---------------------------------------------------------
    Table itself
 --------------------------------------------------------- */
 
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2] {
+table[data-cfh-layout-v3] {
   width:
     100% !important;
 
@@ -91,126 +85,111 @@ table[data-cfh-layout-v2] {
     border-box;
 }
 
-
 /*
-  100% total
-
-  date        9.5
-  U1 fuel    20.5
-  U1 ratio   17
-  U2 fuel    20.5
-  U2 ratio   17
-  combined   11
-  actions     4.5
+  Balanced column widths:
+  date        10
+  U1 fuel     18.5
+  U1 ratio    18.5
+  U2 fuel     18.5
+  U2 ratio    18.5
+  combined    10
+  actions      6
 */
 
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
+table[data-cfh-layout-v3]
 col.cfh-col-date {
-  width:
-    9.5%;
+  width: 10%;
 }
 
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
+table[data-cfh-layout-v3]
 col.cfh-col-u1-fuel {
-  width:
-    20.5%;
+  width: 18.5%;
 }
 
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
+table[data-cfh-layout-v3]
 col.cfh-col-u1-ratio {
-  width:
-    17%;
+  width: 18.5%;
 }
 
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
+table[data-cfh-layout-v3]
 col.cfh-col-u2-fuel {
-  width:
-    20.5%;
+  width: 18.5%;
 }
 
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
+table[data-cfh-layout-v3]
 col.cfh-col-u2-ratio {
-  width:
-    17%;
+  width: 18.5%;
 }
 
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
+table[data-cfh-layout-v3]
 col.cfh-col-total {
-  width:
-    11%;
+  width: 10%;
 }
 
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
+table[data-cfh-layout-v3]
 col.cfh-col-actions {
-  width:
-    4.5%;
+  width: 6%;
 }
-
 
 /* ---------------------------------------------------------
-   Header readability
+   Consistent header / cell structure
 --------------------------------------------------------- */
 
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
+table[data-cfh-layout-v3]
+thead th,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody td {
+  text-align:
+    center !important;
+
+  vertical-align:
+    middle !important;
+}
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
 thead th {
   font-size:
-    12px !important;
+    13px !important;
 
   line-height:
-    1.3 !important;
+    1.35 !important;
 
   font-weight:
     800 !important;
 
   padding:
-    11px 7px !important;
-
-  vertical-align:
-    middle !important;
+    12px 8px !important;
 }
 
-
 /* ---------------------------------------------------------
-   Main data readability
+   General data readability
 --------------------------------------------------------- */
 
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
-tbody td {
-  vertical-align:
-    middle !important;
-}
-
-
-/*
-  Increase every data label/value inside the row.
-  Existing tiny 8~10px nested styles are overridden.
-*/
-
-#efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
+table[data-cfh-layout-v3]
 tbody td:not(.cfh-layout-actions-cell) {
   font-size:
-    13px !important;
+    14px !important;
 
   line-height:
-    1.42 !important;
+    1.5 !important;
 
   padding:
-    11px 10px !important;
+    13px 10px !important;
 }
 
-
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
+table[data-cfh-layout-v3]
 tbody td:not(.cfh-layout-actions-cell)
 * {
   font-size:
@@ -220,73 +199,92 @@ tbody td:not(.cfh-layout-actions-cell)
     inherit !important;
 }
 
-
-/*
-  Give highlighted / strong numbers a little more presence.
-*/
-
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
+table[data-cfh-layout-v3]
 tbody
 td.cfh-layout-data-cell
 strong,
-
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
+table[data-cfh-layout-v3]
 tbody
 td.cfh-layout-data-cell
 b {
   font-size:
-    14px !important;
+    16px !important;
 
   font-weight:
     850 !important;
 }
 
-
-/* Date / monthly-average title */
+/* 일자 / 월 평균 제목 */
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
+table[data-cfh-layout-v3]
 tbody td:first-child {
   font-size:
-    13px !important;
+    14px !important;
 
   font-weight:
     800 !important;
 }
 
-
 /* ---------------------------------------------------------
-   Combined column kept compact
+   Average row emphasis
 --------------------------------------------------------- */
 
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
-tbody td:nth-last-child(2) {
-  padding-left:
-    6px !important;
+table[data-cfh-layout-v3]
+tbody tr:last-child td:not(.cfh-layout-actions-cell) {
+  font-size:
+    15px !important;
 
-  padding-right:
-    6px !important;
+  line-height:
+    1.55 !important;
 }
 
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody tr:last-child td:not(.cfh-layout-actions-cell)
+strong,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody tr:last-child td:not(.cfh-layout-actions-cell)
+b {
+  font-size:
+    17px !important;
+
+  font-weight:
+    900 !important;
+}
 
 /* ---------------------------------------------------------
-   Narrow action column
+   Combined column
 --------------------------------------------------------- */
 
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
-.cfh-layout-actions-header,
-
-#efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
-.cfh-layout-actions-cell {
+table[data-cfh-layout-v3]
+tbody td:nth-last-child(2) {
   padding-left:
-    3px !important;
+    8px !important;
 
   padding-right:
-    3px !important;
+    8px !important;
+}
+
+/* ---------------------------------------------------------
+   Action column
+--------------------------------------------------------- */
+
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+.cfh-layout-actions-header,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+.cfh-layout-actions-cell {
+  padding-left:
+    4px !important;
+
+  padding-right:
+    4px !important;
 
   text-align:
     center !important;
@@ -295,9 +293,8 @@ table[data-cfh-layout-v2]
     nowrap !important;
 }
 
-
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
+table[data-cfh-layout-v3]
 .cfh-layout-actions-stack {
   display:
     flex !important;
@@ -318,30 +315,29 @@ table[data-cfh-layout-v2]
     100%;
 }
 
-
 #efficiencyCofiringDraftView
-table[data-cfh-layout-v2]
+table[data-cfh-layout-v3]
 .cfh-layout-action-button {
   display:
     block !important;
 
   width:
-    44px !important;
+    46px !important;
 
   min-width:
-    44px !important;
+    46px !important;
 
   max-width:
-    44px !important;
+    46px !important;
 
   min-height:
-    30px !important;
+    31px !important;
 
   margin:
     0 auto !important;
 
   padding:
-    4px 5px !important;
+    4px 6px !important;
 
   font-size:
     11px !important;
@@ -353,9 +349,8 @@ table[data-cfh-layout-v2]
     nowrap !important;
 }
 
-
 /* ---------------------------------------------------------
-   Desktop: no meaningless horizontal scrollbar
+   Wrapper overflow
 --------------------------------------------------------- */
 
 @media screen and (min-width: 1101px) {
@@ -368,16 +363,10 @@ table[data-cfh-layout-v2]
 
 }
 
-
-/*
-  On narrower screens horizontal scrolling remains available
-  instead of crushing the values.
-*/
-
 @media screen and (max-width: 1100px) {
 
   #efficiencyCofiringDraftView
-  table[data-cfh-layout-v2] {
+  table[data-cfh-layout-v3] {
     min-width:
       1050px !important;
   }
@@ -390,4 +379,4 @@ table[data-cfh-layout-v2]
 
 }
 
-/* ===== /CFH_LAYOUT_V2 ===== */
+/* ===== /CFH_LAYOUT_V3 ===== */
