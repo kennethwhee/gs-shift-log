@@ -836,3 +836,129 @@
   }
 })();
 /* ===== /CFH_LAYOUT_V3 ===== */
+/* ===== CFH_AVERAGE_V5 ===== */
+(function () {
+  'use strict';
+
+  let queued = false;
+
+  function normalize(value) {
+    return String(value || '')
+      .replace(/\s+/g, '')
+      .trim();
+  }
+
+  function directCells(row) {
+    return Array.from(row.children || [])
+      .filter(function (node) {
+        return (
+          node &&
+          (
+            node.tagName === 'TD' ||
+            node.tagName === 'TH'
+          )
+        );
+      });
+  }
+
+  function apply() {
+    queued = false;
+
+    document
+      .querySelectorAll(
+        '#efficiencyCofiringDraftView table[data-cfh-layout-v3] tbody tr'
+      )
+      .forEach(function (row) {
+        const cells = directCells(row);
+
+        if (!cells.length) {
+          return;
+        }
+
+        const firstText =
+          normalize(cells[0].textContent);
+
+        if (
+          firstText.includes(
+            '\uC6D4\uD3C9\uADE0'
+          )
+        ) {
+          row.classList.add(
+            'cfh-layout-average-row'
+          );
+        } else {
+          row.classList.remove(
+            'cfh-layout-average-row'
+          );
+        }
+
+        /*
+          마지막 칸은 관리,
+          그 앞 칸은 1·2호기 종합
+        */
+        if (cells.length >= 2) {
+          cells[cells.length - 2]
+            .classList.add(
+              'cfh-layout-total-cell'
+            );
+        }
+      });
+  }
+
+  function schedule() {
+    if (queued) {
+      return;
+    }
+
+    queued = true;
+
+    if (
+      typeof requestAnimationFrame ===
+      'function'
+    ) {
+      requestAnimationFrame(apply);
+    } else {
+      setTimeout(apply, 0);
+    }
+  }
+
+  function start() {
+    apply();
+
+    const root =
+      document.getElementById(
+        'efficiencyCofiringDraftView'
+      );
+
+    if (
+      !root ||
+      typeof MutationObserver !==
+        'function'
+    ) {
+      return;
+    }
+
+    new MutationObserver(schedule)
+      .observe(
+        root,
+        {
+          childList: true,
+          subtree: true
+        }
+      );
+  }
+
+  if (
+    document.readyState ===
+    'loading'
+  ) {
+    document.addEventListener(
+      'DOMContentLoaded',
+      start,
+      { once: true }
+    );
+  } else {
+    start();
+  }
+})();
+/* ===== /CFH_AVERAGE_V5 ===== */
