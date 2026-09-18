@@ -1,4 +1,4 @@
-/* Co-firing saved calorific-value history: compact common basis V2 */
+/* Co-firing saved calorific-value history: compact common basis V3 */
 
 #efficiencyCofiringDraftView .cfv13-settings-tab{
   min-width:142px;
@@ -6,7 +6,7 @@
 
 #efficiencyCofiringDraftView .cfv14-history-table{
   width:100%;
-  min-width:780px;
+  min-width:700px;
   table-layout:auto;
 }
 
@@ -35,12 +35,17 @@
   white-space:nowrap;
 }
 
+#efficiencyCofiringDraftView .cfv15-saved-time{
+  min-width:170px;
+  white-space:nowrap;
+}
+
 @media(max-width:900px){
   #efficiencyCofiringDraftView .cfv13-settings-tab{
     min-width:0;
   }
 
   #efficiencyCofiringDraftView .cfv14-history-table{
-    min-width:720px;
+    min-width:660px;
   }
 }

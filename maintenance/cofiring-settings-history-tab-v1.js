@@ -81,7 +81,6 @@
             <tr>
               <th>적용일</th>
               ${FUELS.map(([,label])=>`<th>${label}<small>kcal/kg</small></th>`).join('')}
-              <th>저장자</th>
               <th>저장 시각</th>
             </tr>
           </thead>
@@ -90,8 +89,7 @@
               <tr>
                 <td><strong>${escapeHtml(item.effectiveDate||'—')}</strong></td>
                 ${FUELS.map(([key])=>`<td class="cfv14-calorific">${calorific(item.settings,key)}</td>`).join('')}
-                <td>${escapeHtml(item.updatedByName||'—')}</td>
-                <td>${escapeHtml(formatTime(item.updatedAt))}</td>
+                <td class="cfv15-saved-time">${escapeHtml(formatTime(item.updatedAt))}</td>
               </tr>
             `).join('')}
           </tbody>
