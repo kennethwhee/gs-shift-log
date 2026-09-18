@@ -687,3 +687,58 @@ input[data-cfv7-date]{
   padding-top:4px !important;
   padding-bottom:4px !important;
 }
+
+/* COFIRING TOTAL SUMMARY VERTICAL CENTER V1 */
+
+/* 종합 카드의 모든 영역을 카드 높이 기준으로 세로 중앙 정렬 */
+#efficiencyCofiringDraftView .cfv52-card-total{
+  align-items:center !important;
+}
+
+/* 왼쪽 제목 */
+#efficiencyCofiringDraftView .cfv52-card-total > header{
+  align-self:stretch !important;
+  display:flex !important;
+  flex-direction:column !important;
+  justify-content:center !important;
+  align-items:flex-start !important;
+}
+
+/* 오른쪽 3개 지표 영역 */
+#efficiencyCofiringDraftView .cfv52-card-total .cfv52-total-ratios{
+  align-self:stretch !important;
+  align-items:stretch !important;
+}
+
+/* 바이오 / 유기성·축분 / 종합혼소율 모두 세로 중앙 */
+#efficiencyCofiringDraftView
+.cfv52-card-total
+.cfv52-total-ratios > .cfv52-metric{
+  display:flex !important;
+  flex-direction:column !important;
+  justify-content:center !important;
+  align-self:stretch !important;
+}
+
+/* 기존 라벨 최소높이가 위쪽 치우침을 만들지 않도록 해제 */
+#efficiencyCofiringDraftView
+.cfv52-card-total
+.cfv52-total-ratios > .cfv52-metric > span{
+  min-height:0 !important;
+}
+
+/* 라벨과 숫자 간격만 일정하게 */
+#efficiencyCofiringDraftView
+.cfv52-card-total
+.cfv52-total-ratios > .cfv52-metric > strong{
+  margin-top:4px !important;
+}
+
+/* 오른쪽 강조 박스도 가운데 기준 유지 */
+#efficiencyCofiringDraftView
+.cfv52-card-total
+.cfv52-total-ratios > .cfv52-metric-emphasis{
+  justify-content:center !important;
+  align-self:center !important;
+  width:calc(100% - 6px) !important;
+}
