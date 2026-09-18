@@ -676,3 +676,87 @@ tr.cfv15-average-row
 }
 
 /* ===== /CFH_AVERAGE_TFOOT_V6 ===== */
+/* ===== CFH_DATE_READABILITY_V7 ===== */
+
+/*
+  Closed-history date column is visually too small.
+  Enlarge daily dates and monthly-average date cell only.
+*/
+
+/* body date cells: 2026-09-18 / 2026-09-17 / 2026-09-16 ... */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody
+> tr
+> td:first-child {
+  font-size: 15px !important;
+  line-height: 1.3 !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.1px !important;
+  white-space: nowrap !important;
+}
+
+/* monthly average first cell */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> th:first-child,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> td:first-child {
+  font-size: 16px !important;
+  line-height: 1.3 !important;
+  font-weight: 850 !important;
+  white-space: nowrap !important;
+}
+
+/* 월 평균 */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> th:first-child
+strong,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> td:first-child
+strong {
+  font-size: 17px !important;
+  line-height: 1.2 !important;
+  font-weight: 900 !important;
+}
+
+/* 1일 / 2일 / 저장일수 */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> th:first-child
+small,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tfoot
+tr.cfv15-average-row
+> td:first-child
+small {
+  font-size: 11px !important;
+  line-height: 1.15 !important;
+  font-weight: 700 !important;
+  margin-top: 4px !important;
+}
+
+/* header "일자" */
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+thead
+th:first-child {
+  font-size: 14px !important;
+  font-weight: 850 !important;
+}
+
+/* ===== /CFH_DATE_READABILITY_V7 ===== */
