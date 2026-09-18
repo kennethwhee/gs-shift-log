@@ -29,12 +29,6 @@
     }[ch]));
   }
 
-  function validDate(value){
-    if(typeof value!=='string'||!/^20\d{2}-\d{2}-\d{2}$/.test(value))return false;
-    const d=new Date(value+'T00:00:00Z');
-    return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===value;
-  }
-
   function formatNumber(value){
     const n=Number(value);
     if(!Number.isFinite(n))return '—';
@@ -61,108 +55,47 @@
     let payload=null;
     try{payload=await response.json();}catch(_){}
     if(!response.ok||payload?.ok!==true){
-      throw new Error(payload?.message||'발열량·보정계수 저장 이력을 불러오지 못했습니다.');
+      throw new Error(payload?.message||'발열량 저장 이력을 불러오지 못했습니다.');
     }
     return payload;
   }
 
-  function unitSummary(settings,unit){
-    return `
-      <div class="cfv13-unit-summary">
-        ${FUELS.map(([key,label])=>`
-          <span>
-            <b>${label}</b>
-            <em>${formatNumber(settings?.[unit]?.[key]?.calorific)} / ${formatNumber(settings?.[unit]?.[key]?.coefficient)}</em>
-          </span>
-        `).join('')}
-      </div>
-    `;
+  function calorific(settings,key){
+    return formatNumber(settings?.unit1?.[key]?.calorific);
   }
 
   function listMarkup(items){
     if(!Array.isArray(items)||items.length===0){
       return `
         <div class="cfv12-empty">
-          <strong>저장된 발열량·보정계수 이력이 없습니다.</strong>
-          <span>혼소율 계산 화면에서 [발열량/보정계수 저장]을 누르면 적용일별로 여기에 기록됩니다.</span>
+          <strong>저장된 발열량 이력이 없습니다.</strong>
+          <span>혼소율 계산 화면에서 [발열량/보정계수 저장]을 누르면 적용일별 발열량이 여기에 기록됩니다.</span>
         </div>
       `;
     }
 
     return `
       <div class="cfv12-history-table-wrap">
-        <table class="cfv12-history-table cfv13-history-table">
+        <table class="cfv12-history-table cfv14-history-table">
           <thead>
             <tr>
               <th>적용일</th>
-              <th>1호기 기준 <small>발열량 / 보정</small></th>
-              <th>2호기 기준 <small>발열량 / 보정</small></th>
+              ${FUELS.map(([,label])=>`<th>${label}<small>kcal/kg</small></th>`).join('')}
               <th>저장자</th>
               <th>저장 시각</th>
-              <th></th>
             </tr>
           </thead>
           <tbody>
             ${items.map(item=>`
               <tr>
                 <td><strong>${escapeHtml(item.effectiveDate||'—')}</strong></td>
-                <td>${unitSummary(item.settings,'unit1')}</td>
-                <td>${unitSummary(item.settings,'unit2')}</td>
+                ${FUELS.map(([key])=>`<td class="cfv14-calorific">${calorific(item.settings,key)}</td>`).join('')}
                 <td>${escapeHtml(item.updatedByName||'—')}</td>
                 <td>${escapeHtml(formatTime(item.updatedAt))}</td>
-                <td>
-                  <div class="cfv12-row-actions">
-                    <button type="button" data-cfv13-view="${escapeHtml(item.effectiveDate||'')}">보기</button>
-                  </div>
-                </td>
               </tr>
             `).join('')}
           </tbody>
         </table>
-      </div>
-    `;
-  }
-
-  function detailMarkup(item){
-    if(!item)return '';
-    const settings=item.settings||{};
-    const rows=FUELS.map(([key,label])=>`
-      <tr>
-        <th>${label}</th>
-        <td>${formatNumber(settings?.unit1?.[key]?.calorific)}</td>
-        <td>${formatNumber(settings?.unit1?.[key]?.coefficient)}</td>
-        <td>${formatNumber(settings?.unit2?.[key]?.calorific)}</td>
-        <td>${formatNumber(settings?.unit2?.[key]?.coefficient)}</td>
-      </tr>
-    `).join('');
-
-    return `
-      <div class="cfv12-detail cfv13-detail">
-        <div class="cfv12-detail-head">
-          <div>
-            <strong>${escapeHtml(item.effectiveDate||'—')} 발열량 · 보정계수</strong>
-            <span>${escapeHtml(item.updatedByName||'—')} · ${escapeHtml(formatTime(item.updatedAt))}</span>
-          </div>
-          <button type="button" data-cfv13-go="${escapeHtml(item.effectiveDate||'')}">계산일로 이동</button>
-        </div>
-        <div class="cfv13-basis-table-wrap">
-          <table class="cfv13-basis-table">
-            <thead>
-              <tr>
-                <th rowspan="2">연료</th>
-                <th colspan="2">1호기</th>
-                <th colspan="2">2호기</th>
-              </tr>
-              <tr>
-                <th>발열량 <small>kcal/kg</small></th>
-                <th>보정계수</th>
-                <th>발열량 <small>kcal/kg</small></th>
-                <th>보정계수</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
       </div>
     `;
   }
@@ -174,7 +107,7 @@
     const toolbar=sheet?.querySelector?.('.cfv12-toolbar');
 
     if(!container||!sheet||!tabs||!toolbar)return false;
-    if(sheet.dataset.cfv13SettingsHistory==='1')return true;
+    if(sheet.dataset.cfv14SettingsHistory==='1')return true;
 
     const existingTabs=Array.from(tabs.querySelectorAll('.cfv12-tab'));
     const calc=existingTabs.find(button=>button.textContent.trim()==='혼소율 계산');
@@ -197,32 +130,27 @@
     panel.innerHTML=`
       <div class="cfv12-history-head">
         <div>
-          <strong>발열량 · 보정계수 저장 이력</strong>
-          <span>저장 버튼으로 등록한 값을 적용일별로 표시합니다. 같은 적용일은 가장 최근 저장값을 표시합니다.</span>
+          <strong>발열량 저장 이력</strong>
+          <span>1·2호기에 동일 적용되는 연료별 발열량만 표시합니다. 같은 적용일은 가장 최근 저장값을 표시합니다.</span>
         </div>
-        <button type="button" data-cfv13-refresh>새로고침</button>
+        <button type="button" data-cfv14-refresh>새로고침</button>
       </div>
-      <div class="cfv12-history-body" data-cfv13-body>
+      <div class="cfv12-history-body" data-cfv14-body>
         <div class="cfv12-loading">저장 이력 확인 중...</div>
       </div>
-      <div data-cfv13-detail></div>
     `;
     oldPanel.after(panel);
 
-    const body=panel.querySelector('[data-cfv13-body]');
-    const detail=panel.querySelector('[data-cfv13-detail]');
-    const refresh=panel.querySelector('[data-cfv13-refresh]');
-    let items=[];
+    const body=panel.querySelector('[data-cfv14-body]');
+    const refresh=panel.querySelector('[data-cfv14-refresh]');
 
     async function loadList(){
       body.innerHTML='<div class="cfv12-loading">저장 이력 확인 중...</div>';
-      detail.innerHTML='';
       try{
         const payload=await api('?history=1&limit=180');
-        items=Array.isArray(payload.items)?payload.items:[];
+        const items=Array.isArray(payload.items)?payload.items:[];
         body.innerHTML=listMarkup(items);
       }catch(error){
-        items=[];
         body.innerHTML=`<div class="cfv12-error">${escapeHtml(error.message)}</div>`;
       }
     }
@@ -248,32 +176,7 @@
     history.addEventListener('click',leaveSettingsTab);
     refresh?.addEventListener('click',()=>void loadList());
 
-    panel.addEventListener('click',event=>{
-      const view=event.target.closest?.('[data-cfv13-view]');
-      const go=event.target.closest?.('[data-cfv13-go]');
-
-      if(view){
-        const date=view.getAttribute('data-cfv13-view')||'';
-        const item=items.find(entry=>entry.effectiveDate===date);
-        detail.innerHTML=detailMarkup(item);
-        detail.scrollIntoView?.({behavior:'smooth',block:'nearest'});
-        return;
-      }
-
-      if(go){
-        const date=go.getAttribute('data-cfv13-go')||'';
-        const input=container.querySelector('[data-cfv7-date]');
-        const mode=container.querySelector('[data-cfv8-mode]');
-        if(mode)mode.value='daily';
-        if(input&&validDate(date)){
-          input.value=date;
-          input.dispatchEvent(new Event('change',{bubbles:true}));
-        }
-        calc.click();
-      }
-    });
-
-    sheet.dataset.cfv13SettingsHistory='1';
+    sheet.dataset.cfv14SettingsHistory='1';
     return true;
   }
 
@@ -286,7 +189,7 @@
     observer.observe(root.document.body,{childList:true,subtree:true});
   }
 
-  const exported={validDate,listMarkup,detailMarkup};
+  const exported={listMarkup};
   root.CofiringSettingsHistoryTabV1=exported;
 
   if(typeof module==='object'&&module.exports){
