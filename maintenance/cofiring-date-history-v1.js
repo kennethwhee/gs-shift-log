@@ -443,6 +443,219 @@
     `;
   }
 
+
+  // COFIRING_AUTO_CLOSE_AFTER_CALC_V1
+  // A completed past daily calculation is immediately persisted as the
+  // authoritative closed snapshot for that calendar day.
+  function bindAutoCloseAfterCalculation(container,refreshHistory){
+    if(!container||container.dataset.cfv12AutoClose==='1')return;
+
+    container.dataset.cfv12AutoClose='1';
+
+    const calculateButton=container.querySelector('[data-cfv5-query]');
+    const requeryButton=container.querySelector('[data-cfv5-requery]');
+    const dateInput=container.querySelector('[data-cfv7-date]');
+    const modeInput=container.querySelector('[data-cfv8-mode]');
+
+    let generation=0;
+    let saving=false;
+    let lastSavedKey='';
+    const waitMilliseconds=10*60*1000;
+    const retryMilliseconds=250;
+
+    function savedSourceId(){
+      try{
+        return String(
+          controller()?.live?.state?.()?.item?.saved?.id||''
+        );
+      }catch(_){
+        return '';
+      }
+    }
+
+    function cancel(){
+      generation+=1;
+    }
+
+    function schedule(
+      token,
+      targetDate,
+      deadline,
+      requireFreshSource,
+      previousSourceId
+    ){
+      root.setTimeout?.(
+        ()=>{
+          void attempt(
+            token,
+            targetDate,
+            deadline,
+            requireFreshSource,
+            previousSourceId
+          );
+        },
+        retryMilliseconds
+      );
+    }
+
+    async function attempt(
+      token,
+      targetDate,
+      deadline,
+      requireFreshSource,
+      previousSourceId
+    ){
+      if(token!==generation)return;
+
+      if(
+        modeInput?.value!=='daily'||
+        dateInput?.value!==targetDate
+      ){
+        return;
+      }
+
+      let packed=null;
+
+      try{
+        packed=buildSnapshot(container);
+      }catch(_){
+        if(Date.now()<deadline){
+          schedule(
+            token,
+            targetDate,
+            deadline,
+            requireFreshSource,
+            previousSourceId
+          );
+        }
+        return;
+      }
+
+      if(
+        token!==generation||
+        packed.targetDate!==targetDate||
+        !packed.sourceRequestId
+      ){
+        return;
+      }
+
+      // [재조회]는 기존 결과를 다시 저장하면 안 된다.
+      // 실제 새 DataPARC 결과 ID가 도착한 뒤에만 마감 갱신한다.
+      if(
+        requireFreshSource&&
+        previousSourceId&&
+        packed.sourceRequestId===previousSourceId
+      ){
+        if(Date.now()<deadline){
+          schedule(
+            token,
+            targetDate,
+            deadline,
+            requireFreshSource,
+            previousSourceId
+          );
+        }
+        return;
+      }
+
+      const saveKey=
+        packed.targetDate+':'+packed.sourceRequestId;
+
+      if(saveKey===lastSavedKey||saving)return;
+
+      saving=true;
+
+      try{
+        await api('',{
+          method:'POST',
+          headers:{
+            'Content-Type':'application/json'
+          },
+          body:JSON.stringify({
+            ...packed,
+            overwrite:true
+          })
+        });
+
+        if(token!==generation)return;
+
+        lastSavedKey=saveKey;
+
+        try{
+          if(typeof refreshHistory==='function'){
+            await refreshHistory();
+          }
+        }catch(_){}
+
+        root.console?.info?.(
+          '[혼소율] 마감 데이터 자동 저장 완료',
+          packed.targetDate,
+          packed.sourceRequestId
+        );
+
+      }catch(error){
+        root.console?.error?.(
+          '[혼소율] 마감 데이터 자동 저장 실패',
+          error
+        );
+
+      }finally{
+        saving=false;
+      }
+    }
+
+    function arm(requireFreshSource){
+      const targetDate=String(dateInput?.value||'');
+
+      // 오늘은 아직 마감된 하루가 아니므로 저장하지 않는다.
+      if(
+        modeInput?.value!=='daily'||
+        !validDate(targetDate)||
+        targetDate>=koreanToday()
+      ){
+        return;
+      }
+
+      const previousSourceId=savedSourceId();
+      const token=++generation;
+      const deadline=Date.now()+waitMilliseconds;
+
+      // click handler의 기존 계산 로직이 먼저 진행될 시간을 준 뒤
+      // 완료된 server result가 나타나는 즉시 저장한다.
+      root.setTimeout?.(
+        ()=>{
+          void attempt(
+            token,
+            targetDate,
+            deadline,
+            requireFreshSource===true,
+            previousSourceId
+          );
+        },
+        0
+      );
+    }
+
+    calculateButton?.addEventListener(
+      'click',
+      ()=>arm(false)
+    );
+
+    requeryButton?.addEventListener(
+      'click',
+      ()=>arm(true)
+    );
+
+    dateInput?.addEventListener(
+      'change',
+      cancel
+    );
+
+    modeInput?.addEventListener(
+      'change',
+      cancel
+    );
+  }
   function mountTabs(container){
     const sheet=container.querySelector('.cfv5-sheet');
 
@@ -594,6 +807,11 @@
     calc.addEventListener('click',()=>selectTab('calc'));
     history.addEventListener('click',()=>selectTab('history'));
     refresh.addEventListener('click',()=>void loadList());
+
+    bindAutoCloseAfterCalculation(
+      container,
+      loadList
+    );
 
     panel.addEventListener('click',event=>{
       const view=event.target.closest?.('[data-cfv12-view]');
