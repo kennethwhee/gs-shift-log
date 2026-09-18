@@ -991,6 +991,217 @@ function Test-OwnedProbeExcelIdentity {
   }
 }
 
+# COFIRING_OWNED_EXCEL_WINDOW_GUARD_V1
+$script:ownedExcelWindowGuard = $null
+$script:ownedExcelWindowGuardReady = $false
+$script:ownedExcelWindowGuardSource = @"
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Threading;
+
+public sealed class GsCofiringOwnedExcelWindowGuardV1 : IDisposable
+{
+    private const int SW_HIDE = 0;
+    private const uint SYNCHRONIZE = 0x00100000;
+    private const uint WAIT_TIMEOUT = 0x00000102;
+
+    private delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr state);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(
+        EnumWindowsProc callback,
+        IntPtr state
+    );
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(
+        IntPtr hwnd,
+        out uint processId
+    );
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindowAsync(
+        IntPtr hwnd,
+        int command
+    );
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(
+        uint desiredAccess,
+        bool inheritHandle,
+        uint processId
+    );
+
+    [DllImport("kernel32.dll")]
+    private static extern uint WaitForSingleObject(
+        IntPtr handle,
+        uint milliseconds
+    );
+
+    [DllImport("kernel32.dll")]
+    private static extern bool CloseHandle(
+        IntPtr handle
+    );
+
+    private readonly uint _processId;
+    private readonly IntPtr _processHandle;
+    private Timer _timer;
+    private int _busy;
+    private bool _disposed;
+
+    public GsCofiringOwnedExcelWindowGuardV1(int processId)
+    {
+        if (processId <= 0)
+            throw new ArgumentOutOfRangeException("processId");
+
+        _processId = checked((uint)processId);
+        _processHandle = OpenProcess(
+            SYNCHRONIZE,
+            false,
+            _processId
+        );
+
+        if (_processHandle == IntPtr.Zero)
+            throw new Win32Exception(
+                Marshal.GetLastWin32Error(),
+                "Owned Excel process handle could not be pinned."
+            );
+
+        _timer = new Timer(
+            delegate(object state)
+            {
+                HideNowSafe();
+            },
+            null,
+            0,
+            25
+        );
+    }
+
+    private bool OriginalProcessIsRunning()
+    {
+        return
+            _processHandle != IntPtr.Zero &&
+            WaitForSingleObject(_processHandle, 0) == WAIT_TIMEOUT;
+    }
+
+    private void HideNowSafe()
+    {
+        try
+        {
+            HideNow();
+        }
+        catch
+        {
+            // Never disturb the calculation because a UI hide attempt failed.
+        }
+    }
+
+    public void HideNow()
+    {
+        if (_disposed || !OriginalProcessIsRunning())
+            return;
+
+        if (Interlocked.Exchange(ref _busy, 1) != 0)
+            return;
+
+        try
+        {
+            EnumWindows(
+                delegate(IntPtr hwnd, IntPtr state)
+                {
+                    uint windowProcessId;
+
+                    GetWindowThreadProcessId(
+                        hwnd,
+                        out windowProcessId
+                    );
+
+                    if (windowProcessId == _processId)
+                        ShowWindowAsync(hwnd, SW_HIDE);
+
+                    return true;
+                },
+                IntPtr.Zero
+            );
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _busy, 0);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+
+        Timer timer = _timer;
+        _timer = null;
+
+        if (timer != null)
+            timer.Dispose();
+
+        if (_processHandle != IntPtr.Zero)
+            CloseHandle(_processHandle);
+    }
+}
+"@
+
+function Initialize-OwnedExcelWindowGuard {
+  if ($script:ownedExcelWindowGuardReady) { return }
+
+  try {
+    Add-Type `
+      -TypeDefinition $script:ownedExcelWindowGuardSource `
+      -Language CSharp `
+      -ErrorAction Stop
+  }
+  catch {
+    if (-not ('GsCofiringOwnedExcelWindowGuardV1' -as [type])) {
+      throw ('조회용 Excel 숨김 가드 초기화 실패: ' + $_.Exception.Message)
+    }
+  }
+
+  $script:ownedExcelWindowGuardReady = $true
+}
+
+function Stop-OwnedExcelWindowGuard {
+  if ($null -eq $script:ownedExcelWindowGuard) { return }
+
+  try {
+    $script:ownedExcelWindowGuard.Dispose()
+  }
+  catch {
+  }
+
+  $script:ownedExcelWindowGuard = $null
+}
+
+function Start-OwnedExcelWindowGuard([int]$ProcessId) {
+  Stop-OwnedExcelWindowGuard
+  Initialize-OwnedExcelWindowGuard
+
+  $script:ownedExcelWindowGuard =
+    New-Object `
+      GsCofiringOwnedExcelWindowGuardV1 `
+      -ArgumentList ([int]$ProcessId)
+
+  $script:ownedExcelWindowGuard.HideNow()
+}
+
+function Hide-OwnedExcelWindowNow {
+  if ($null -eq $script:ownedExcelWindowGuard) { return }
+
+  try {
+    $script:ownedExcelWindowGuard.HideNow()
+  }
+  catch {
+  }
+}
 function Wait-OwnedProbeExcelNativeObject {
   param(
     [int]$ExcelProcessId,
@@ -1489,7 +1700,9 @@ try {
       throw "자동조회용 Excel 프로세스 신원을 확인하지 못했습니다."
     }
 
-    Write-ProbeOwnership
+    Start-OwnedExcelWindowGuard $ownedExcelPid
+  Hide-OwnedExcelWindowNow
+  Write-ProbeOwnership
     Write-ProbeStage ("PID 고유 창에서 Excel COM 직접 연결 · 시도 " + [string]$excelAttachAttempt + "/2")
     $excel = Wait-OwnedProbeExcelNativeObject $ownedExcelPid ([datetime]::UtcNow.AddSeconds(20)) $baselineExcelPids
     if ($null -ne $excel) { break }
@@ -1499,6 +1712,7 @@ try {
     }
 
     Write-ProbeStage ("Excel COM 연결 1차 대기 초과 · 소유 PID " + [string]$ownedExcelPid + " 종료 후 1회 재시도")
+    Stop-OwnedExcelWindowGuard
     Stop-OwnedProbeExcelAttachAttempt $launchedExcelProcess $ownedExcelPid $ownedExcelStartTicks $ownedExcelPath $ownedExcelSessionId
     $probeCleanupActions.Add("Excel COM 연결 재시도 전 소유 PID " + [string]$ownedExcelPid + " 종료")
     try { $launchedExcelProcess.Dispose() } catch { }
@@ -1553,11 +1767,15 @@ try {
   }
   $ownedHostSnapshot = New-ProbeHostSignature $ownedHostCim $ownedExcelPid $ownedExcelStartTicks $ownedExcelSessionId
   Write-ProbeOwnership
+  [void](Invoke-CofiringExcelCall -Operation 'Application.Visible=False.AfterDataParcHost' -Action { $excel.Visible=$false })
+  Hide-OwnedExcelWindowNow
 
   Write-ProbeStage "조회용 임시 통합문서 생성"
   $workbooks = (Get-CofiringExcelProperty -Target $excel -Member 'Workbooks' -Operation 'Query.Workbooks').Value
   # Creation is non-idempotent; never blindly replay it.
   $queryWorkbook = (Invoke-CofiringExcelCall -Operation 'Query.Workbooks.Add' -NoRetry -Action { param($box) $box.Value=$workbooks.Add() }).Value
+  [void](Invoke-CofiringExcelCall -Operation 'Application.Visible=False.AfterWorkbookAdd' -Action { $excel.Visible=$false })
+  Hide-OwnedExcelWindowNow
   $worksheets = (Get-CofiringExcelProperty -Target $queryWorkbook -Member 'Worksheets' -Operation 'Query.Worksheets').Value
   $querySheet = (Invoke-CofiringExcelCall -Operation 'Query.Worksheet.Item1' -Action { param($box) $box.Value=$worksheets.Item(1) }).Value
   [void](Invoke-CofiringExcelCall -Operation 'Query.Worksheet.Name' -Action { $querySheet.Name='Cofiring Fast Summary V8' })

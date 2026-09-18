@@ -57,7 +57,7 @@ $cleanupErrors=New-Object 'System.Collections.Generic.List[string]'
 $cleanupActions=New-Object 'System.Collections.Generic.List[string]'
 $logOffsets=@{}
 $utf8=New-Object Text.UTF8Encoding($false)
-$expectedWorkerSha256='9a15e5eab7ecdb92a734cbb1c48344a59f107c968da87ec34371fe00a8096e62'
+$expectedWorkerSha256='6e1f831028cf74dd3b3dc9ff721c36cbbbb4d0083a172b6b923dac741353d8c5'
 $resultZipPath=$null
 function Resolve-CofiringPeriod([string]$StartText,[string]$EndText,[string]$Unit,[int]$Value) {
   $startValue=[datetime]::MinValue;$endValue=[datetime]::MinValue
