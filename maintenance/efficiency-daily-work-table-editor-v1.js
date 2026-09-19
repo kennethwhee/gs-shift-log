@@ -1689,31 +1689,32 @@
         100
       );
 
-    const observer =
-      new MutationObserver(
-        () => {
-          if (
-            !document.getElementById(
-              'efficiencyDailyWorkTableEditorButtonV1'
-            )
-          ) {
+    /*
+     * V1 R1
+     * Do NOT observe the whole document here.
+     *
+     * applyLayout() itself updates <style> / <colgroup>.
+     * A subtree MutationObserver would therefore observe its
+     * own changes and continuously call applyLayout again.
+     *
+     * The Daily Work editor keeps the same table DOM while
+     * switching dates, so persistence hooks are sufficient.
+     */
+    window.addEventListener(
+      'pageshow',
+      () => {
+        window.setTimeout(
+          () => {
             installToolbar();
-          }
-
-          applyLayout();
-        }
-      );
-
-    observer.observe(
-      document.documentElement,
-      {
-        childList: true,
-        subtree: true
+            applyLayout();
+          },
+          0
+        );
       }
     );
 
     console.info(
-      `[${VERSION}] ready`
+      `[${VERSION} R1] ready`
     );
   };
 
