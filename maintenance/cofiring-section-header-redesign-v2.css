@@ -1,0 +1,94 @@
+/* COFIRING SECTION HEADER REDESIGN V2
+   Fully redesigns the two foldable section headers so they share one clean visual system.
+*/
+
+[data-cofiring-draft-root] details.cfv6panel {
+  margin: 10px 0 !important;
+}
+
+[data-cofiring-draft-root] details.cfv6panel > summary.cfv6panel-summary {
+  list-style: none !important;
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  min-height: 40px !important;
+  padding: 0 14px 0 36px !important;
+  box-sizing: border-box !important;
+  border: 1px solid #d9e4ea !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 0 rgba(15, 63, 95, 0.02) !important;
+  cursor: pointer !important;
+}
+
+[data-cofiring-draft-root] details.cfv6panel > summary.cfv6panel-summary::-webkit-details-marker,
+[data-cofiring-draft-root] details.cfv6panel > summary.cfv6panel-summary::marker {
+  display: none !important;
+  content: '' !important;
+}
+
+[data-cofiring-draft-root] details.cfv6panel > summary.cfv6panel-summary::before {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid #6d8292;
+  border-bottom: 2px solid #6d8292;
+  transform: translateY(-65%) rotate(-45deg);
+  transition: transform 0.15s ease;
+  box-sizing: border-box;
+}
+
+[data-cofiring-draft-root] details.cfv6panel[open] > summary.cfv6panel-summary {
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+[data-cofiring-draft-root] details.cfv6panel[open] > summary.cfv6panel-summary::before {
+  transform: translateY(-50%) rotate(45deg);
+}
+
+[data-cofiring-draft-root] details.cfv6panel > summary .cfv6panel-summary-main {
+  min-width: 0;
+  color: #35576d !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+}
+
+[data-cofiring-draft-root] details.cfv6panel > summary .cfv6panel-summary-meta {
+  flex: 0 0 auto;
+  color: #8093a1 !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+  white-space: nowrap !important;
+  text-align: right !important;
+}
+
+[data-cofiring-draft-root] details.cfv6panel > summary + * {
+  border: 1px solid #d9e4ea !important;
+  border-top: 0 !important;
+  border-bottom-left-radius: 12px !important;
+  border-bottom-right-radius: 12px !important;
+  overflow: hidden !important;
+}
+
+@media (max-width: 900px) {
+  [data-cofiring-draft-root] details.cfv6panel > summary.cfv6panel-summary {
+    min-height: 38px !important;
+    padding: 0 12px 0 34px !important;
+  }
+
+  [data-cofiring-draft-root] details.cfv6panel > summary .cfv6panel-summary-main {
+    font-size: 11px !important;
+  }
+
+  [data-cofiring-draft-root] details.cfv6panel > summary .cfv6panel-summary-meta {
+    font-size: 9px !important;
+  }
+}
