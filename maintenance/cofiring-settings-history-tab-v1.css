@@ -49,3 +49,81 @@
     min-width:660px;
   }
 }
+
+/* ===== COFIRING_SETTINGS_HISTORY_TWOUP_V10 ===== */
+.cf-history-twoup-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.cf-history-twoup-card {
+  border: 1px solid #d7e0ea;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 14px 16px;
+  box-sizing: border-box;
+}
+
+.cf-history-twoup-card__date {
+  font-size: 15px;
+  font-weight: 800;
+  color: #163a63;
+  margin-bottom: 10px;
+  line-height: 1.25;
+}
+
+.cf-history-twoup-card__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cf-history-twoup-cell {
+  background: #f7f9fc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 10px 9px;
+  min-width: 0;
+}
+
+.cf-history-twoup-cell__label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #5f7591;
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+
+.cf-history-twoup-cell__value {
+  display: block;
+  font-size: 22px;
+  font-weight: 800;
+  color: #163a63;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.cf-history-twoup-cell__unit {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #7b8ea6;
+  line-height: 1.2;
+}
+
+@media (max-width: 1200px) {
+  .cf-history-twoup-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .cf-history-twoup-card__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* ===== /COFIRING_SETTINGS_HISTORY_TWOUP_V10 ===== */

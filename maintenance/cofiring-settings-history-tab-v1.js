@@ -328,3 +328,243 @@
   }
 })();
 /* ===== /COFIRING_SETTINGS_HISTORY_NO_SAVED_TIME_V4 ===== */
+
+/* ===== COFIRING_SETTINGS_HISTORY_TWOUP_V10 ===== */
+(function () {
+  "use strict";
+
+  const PANEL_TITLE = "발열량 저장 이력";
+  const MARKER_ATTR = "data-cf-history-twoup-v10";
+
+  function norm(value) {
+    return String(value || "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function normalizeDateText(text) {
+    const raw = norm(text);
+
+    if (!raw) {
+      return "-";
+    }
+
+    let match = raw.match(/(?:\d{2,4}-)?(\d{2})-(\d{2})\s*\(?([월화수목금토일])\)?/);
+    if (match) {
+      return match[1] + "-" + match[2] + " (" + match[3] + ")";
+    }
+
+    match = raw.match(/(\d{2})-(\d{2})/);
+    if (match) {
+      return match[1] + "-" + match[2];
+    }
+
+    return raw;
+  }
+
+  function findPanelRoots() {
+    return Array.from(document.querySelectorAll("div, section, article"))
+      .filter(function (el) {
+        const text = norm(el.textContent);
+        if (!text.includes(PANEL_TITLE)) {
+          return false;
+        }
+        return el.querySelector("table");
+      });
+  }
+
+  function findBestHeaderRow(table) {
+    const rows = Array.from(table.querySelectorAll("thead tr"));
+    return rows.find(function (row) {
+      const headers = Array.from(row.cells).map(function (cell) {
+        return norm(cell.textContent);
+      });
+
+      return headers.includes("적용일")
+        && headers.includes("Coal")
+        && headers.includes("Bio")
+        && headers.includes("유기성")
+        && headers.includes("축분");
+    }) || null;
+  }
+
+  function extractTableData(table) {
+    if (!(table instanceof HTMLTableElement)) {
+      return null;
+    }
+
+    const headerRow = findBestHeaderRow(table);
+    if (!(headerRow instanceof HTMLTableRowElement)) {
+      return null;
+    }
+
+    const headers = Array.from(headerRow.cells).map(function (cell) {
+      return norm(cell.textContent);
+    });
+
+    const indexMap = {
+      date: headers.indexOf("적용일"),
+      coal: headers.indexOf("Coal"),
+      bio: headers.indexOf("Bio"),
+      organic: headers.indexOf("유기성"),
+      manure: headers.indexOf("축분")
+    };
+
+    if (Object.values(indexMap).some(function (value) { return value < 0; })) {
+      return null;
+    }
+
+    const bodyRows = Array.from(table.querySelectorAll("tbody tr"))
+      .filter(function (row) {
+        return row.cells.length >= headers.length;
+      });
+
+    if (!bodyRows.length) {
+      return null;
+    }
+
+    const items = bodyRows.map(function (row) {
+      const cells = Array.from(row.cells);
+
+      return {
+        date: normalizeDateText(cells[indexMap.date] ? cells[indexMap.date].textContent : ""),
+        coal: norm(cells[indexMap.coal] ? cells[indexMap.coal].textContent : "-"),
+        bio: norm(cells[indexMap.bio] ? cells[indexMap.bio].textContent : "-"),
+        organic: norm(cells[indexMap.organic] ? cells[indexMap.organic].textContent : "-"),
+        manure: norm(cells[indexMap.manure] ? cells[indexMap.manure].textContent : "-")
+      };
+    });
+
+    return items;
+  }
+
+  function pickDataSet(panel) {
+    const tables = Array.from(panel.querySelectorAll("table"));
+    const candidates = tables
+      .map(function (table) {
+        return {
+          table: table,
+          items: extractTableData(table)
+        };
+      })
+      .filter(function (entry) {
+        return Array.isArray(entry.items) && entry.items.length > 0;
+      });
+
+    if (!candidates.length) {
+      return null;
+    }
+
+    candidates.sort(function (a, b) {
+      return a.items.length - b.items.length;
+    });
+
+    return {
+      sourceTables: tables,
+      items: candidates[candidates.length - 1].items
+    };
+  }
+
+  function buildCard(item) {
+    return [
+      '<article class="cf-history-twoup-card">',
+        '<div class="cf-history-twoup-card__date">', escapeHtml(item.date), " 데이터</div>",
+        '<div class="cf-history-twoup-card__grid">',
+          '<div class="cf-history-twoup-cell"><span class="cf-history-twoup-cell__label">Coal</span><strong class="cf-history-twoup-cell__value">', escapeHtml(item.coal), '</strong><span class="cf-history-twoup-cell__unit">kcal/kg</span></div>',
+          '<div class="cf-history-twoup-cell"><span class="cf-history-twoup-cell__label">Bio</span><strong class="cf-history-twoup-cell__value">', escapeHtml(item.bio), '</strong><span class="cf-history-twoup-cell__unit">kcal/kg</span></div>',
+          '<div class="cf-history-twoup-cell"><span class="cf-history-twoup-cell__label">유기성</span><strong class="cf-history-twoup-cell__value">', escapeHtml(item.organic), '</strong><span class="cf-history-twoup-cell__unit">kcal/kg</span></div>',
+          '<div class="cf-history-twoup-cell"><span class="cf-history-twoup-cell__label">축분</span><strong class="cf-history-twoup-cell__value">', escapeHtml(item.manure), '</strong><span class="cf-history-twoup-cell__unit">kcal/kg</span></div>',
+        '</div>',
+      '</article>'
+    ].join("");
+  }
+
+  function renderPanel(panel, items, tables) {
+    let mount = panel.querySelector("[" + MARKER_ATTR + "]");
+
+    if (!(mount instanceof HTMLElement)) {
+      mount = document.createElement("div");
+      mount.setAttribute(MARKER_ATTR, "true");
+
+      const firstTable = tables[0];
+      if (firstTable && firstTable.parentNode) {
+        firstTable.parentNode.insertBefore(mount, firstTable);
+      } else {
+        panel.appendChild(mount);
+      }
+    }
+
+    mount.className = "cf-history-twoup-list";
+    mount.innerHTML = items.map(buildCard).join("");
+
+    tables.forEach(function (table) {
+      table.style.display = "none";
+      table.setAttribute("aria-hidden", "true");
+      table.hidden = true;
+    });
+  }
+
+  function apply() {
+    findPanelRoots().forEach(function (panel) {
+      const picked = pickDataSet(panel);
+      if (!picked || !picked.items.length) {
+        return;
+      }
+
+      renderPanel(panel, picked.items, picked.sourceTables);
+    });
+  }
+
+  let queued = false;
+
+  function schedule() {
+    if (queued) {
+      return;
+    }
+
+    queued = true;
+
+    const run = function () {
+      queued = false;
+      apply();
+    };
+
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(run);
+    } else {
+      setTimeout(run, 0);
+    }
+  }
+
+  function boot() {
+    apply();
+
+    setTimeout(apply, 50);
+    setTimeout(apply, 200);
+    setTimeout(apply, 600);
+
+    if (typeof MutationObserver === "function") {
+      new MutationObserver(function () {
+        schedule();
+      }).observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
+})();
+/* ===== /COFIRING_SETTINGS_HISTORY_TWOUP_V10 ===== */
