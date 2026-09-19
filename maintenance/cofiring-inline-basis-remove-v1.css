@@ -1,0 +1,7 @@
+/* COFIRING INLINE BASIS REMOVE V1
+   The inline "발열량 · 보정계수 설정" block is removed from the visible calculation layout.
+*/
+
+[data-cofiring-draft-root] details.cfv-inline-basis-removed-v1 {
+  display: none !important;
+}
