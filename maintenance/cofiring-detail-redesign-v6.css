@@ -1,0 +1,263 @@
+/* COFIRING DETAIL REDESIGN V6
+   The legacy detail tables remain hidden only as calculation-data sources.
+   Users see a completely rebuilt compact 3-column grouped layout.
+*/
+
+.cofiring-period-v5 .cfv52-detail > .cfv6detail-source-hidden {
+  display: none !important;
+}
+
+.cofiring-period-v5 .cfv52-detail > summary {
+  min-height: 26px !important;
+  padding: 5px 9px !important;
+  gap: 7px !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+}
+
+.cofiring-period-v5 .cfv52-detail > summary small {
+  font-size: 8.5px !important;
+  line-height: 1 !important;
+}
+
+.cofiring-period-v5 .cfv6detail-host {
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+  background: #fbfcfd;
+}
+
+.cofiring-period-v5 .cfv6detail-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dde7ed;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.cofiring-period-v5 .cfv6detail-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  padding: 4px 8px;
+  border-bottom: 1px solid #e6edf1;
+  background: #fbfcfd;
+  color: #405e72;
+  line-height: 1;
+}
+
+.cofiring-period-v5 .cfv6detail-panel-title strong {
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.cofiring-period-v5 .cfv6detail-panel-title small {
+  color: #8495a1;
+  font-size: 7.5px;
+  font-weight: 500;
+}
+
+.cofiring-period-v5 .cfv6detail-grid {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) minmax(0, 1fr);
+  align-items: stretch;
+  min-width: 0;
+}
+
+.cofiring-period-v5 .cfv6detail-corner,
+.cofiring-period-v5 .cfv6detail-group-head {
+  min-height: 38px;
+  border-bottom: 1px solid #dfe8ed;
+}
+
+.cofiring-period-v5 .cfv6detail-corner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid #dfe8ed;
+  background: #f5f8fa;
+  color: #5f7788;
+  font-size: 8.5px;
+  font-weight: 700;
+}
+
+.cofiring-period-v5 .cfv6detail-group-head {
+  display: grid;
+  grid-template-rows: 17px 20px;
+  border-right: 1px solid #dfe8ed;
+}
+
+.cofiring-period-v5 .cfv6detail-group-head:last-child {
+  border-right: 0;
+}
+
+.cofiring-period-v5 .cfv6detail-group-head > strong {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9.5px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.cofiring-period-v5 .cfv6detail-group-head.is-coal > strong {
+  background: #e9eff3;
+  color: #526b7b;
+}
+
+.cofiring-period-v5 .cfv6detail-group-head.is-bio > strong {
+  background: #e7f3ec;
+  color: #36775b;
+}
+
+.cofiring-period-v5 .cfv6detail-group-head.is-organic > strong {
+  background: #edf3e8;
+  color: #657b50;
+}
+
+.cofiring-period-v5 .cfv6detail-group-head.is-manure > strong {
+  background: #f6f1e7;
+  color: #866f45;
+}
+
+.cofiring-period-v5 .cfv6detail-labels,
+.cofiring-period-v5 .cfv6detail-group-values {
+  display: grid;
+  grid-template-columns: 1.35fr .72fr 1.35fr .82fr;
+  min-width: 0;
+}
+
+.cofiring-period-v5 .cfv6detail-labels {
+  background: #f8fafb;
+}
+
+.cofiring-period-v5 .cfv6detail-labels > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 2px 3px;
+  border-right: 1px solid #e7edf1;
+  color: #687f8f;
+  font-size: 7.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.cofiring-period-v5 .cfv6detail-labels > span:last-child {
+  border-right: 0;
+}
+
+.cofiring-period-v5 .cfv6detail-unit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 2px 3px;
+  border-right: 1px solid #e1e9ee;
+  border-bottom: 1px solid #e1e9ee;
+  background: #f8fafb;
+  color: #526c7e;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.cofiring-period-v5 .cfv6detail-group-values {
+  min-height: 30px;
+  border-right: 1px solid #e1e9ee;
+  border-bottom: 1px solid #e1e9ee;
+}
+
+.cofiring-period-v5 .cfv6detail-group-values:nth-child(3n) {
+  border-right: 0;
+}
+
+.cofiring-period-v5 .cfv6detail-value {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  padding: 2px 7px;
+  border-right: 1px solid #edf1f4;
+  color: #103f5d;
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.cofiring-period-v5 .cfv6detail-value:last-child {
+  border-right: 0;
+}
+
+.cofiring-period-v5 .cfv6detail-value-factor {
+  justify-content: center;
+  color: #47677b;
+  font-weight: 550;
+}
+
+.cofiring-period-v5 .cfv6detail-value-actual {
+  background: #f7fafc;
+}
+
+.cofiring-period-v5 .cfv6detail-pair {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  min-width: 0;
+  gap: 3px;
+}
+
+.cofiring-period-v5 .cfv6detail-pair strong {
+  color: #083f62;
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.cofiring-period-v5 .cfv6detail-pair i {
+  color: #9aa8b2;
+  font-size: 7px;
+  font-style: normal;
+  line-height: 1;
+}
+
+.cofiring-period-v5 .cfv6detail-pair small {
+  color: #607d90;
+  font-size: 8px;
+  font-weight: 550;
+  line-height: 1;
+}
+
+.cofiring-period-v5 .cfv6detail-unit.is-sum,
+.cofiring-period-v5 .cfv6detail-group-values.is-sum {
+  background: #eef4f7;
+  font-weight: 750;
+  border-top: 1px solid #c8d7e0;
+}
+
+.cofiring-period-v5 .cfv6detail-grid > :nth-last-child(-n+3) {
+  border-bottom: 0;
+}
+
+.cofiring-period-v5 .cfv6detail-empty {
+  padding: 12px;
+  color: #82929d;
+  font-size: 9px;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .cofiring-period-v5 .cfv6detail-host {
+    overflow-x: auto;
+  }
+
+  .cofiring-period-v5 .cfv6detail-panel {
+    min-width: 760px;
+  }
+}
