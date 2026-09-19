@@ -1,370 +1,821 @@
-/* =========================================================
-  Morning Meeting Co-firing Calorific Value Settings API V1
+/*
+  MORNING_COFIRING_SHARED_SETTINGS_BRIDGE_V1
 
-  GET  /api/morning-meeting-cofiring-settings?targetDate=YYYY-MM-DD
-  POST /api/morning-meeting-cofiring-settings
+  Morning Meeting compatibility API.
 
-  Storage:
-  - D1 effective-dated calorific values
-  - any active logged-in user can read/save
-========================================================= */
+  Single source of truth:
+    /api/cofiring-calculation-settings
 
-function jsonResponse(payload, status = 200) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store"
+  The Morning Meeting UI keeps its existing contract:
+    GET  ?targetDate=YYYY-MM-DD
+    POST { effectiveDate, coalKcalPerKg, bioKcalPerKg, organicKcalPerKg }
+
+  Storage behavior:
+  - Coal / Bio / Organic calorific values are shared with Co-firing.
+  - Unit 1 / Unit 2 always use the same values.
+  - Existing correction coefficients are preserved.
+  - Existing manure calorific value and coefficient are preserved.
+  - Saving from Morning Meeting therefore creates the same
+    co-firing calculation-settings history used by the Co-firing menu.
+
+  Legacy table morning_meeting_cofiring_calorific_values is intentionally
+  not deleted. It is retained only as historical data and is no longer
+  the active source of truth.
+*/
+
+import * as SharedSettingsApi
+  from "./cofiring-calculation-settings.js";
+
+
+const SHARED_PATH =
+  "/api/cofiring-calculation-settings";
+
+
+const DEFAULT_UNIT = Object.freeze({
+  coal: Object.freeze({
+    calorific: 5868,
+    coefficient: 1
+  }),
+
+  bio: Object.freeze({
+    calorific: 3237,
+    coefficient: 1
+  }),
+
+  organic: Object.freeze({
+    calorific: 3487,
+    coefficient: 1
+  }),
+
+  manure: Object.freeze({
+    calorific: 3487,
+    coefficient: 1
+  })
+});
+
+
+function jsonResponse(
+  payload,
+  status = 200
+) {
+  return new Response(
+    JSON.stringify(payload),
+    {
+      status,
+
+      headers: {
+        "Content-Type":
+          "application/json; charset=utf-8",
+
+        "Cache-Control":
+          "no-store"
+      }
     }
+  );
+}
+
+
+function normalizeText(
+  value
+) {
+  return String(
+    value ?? ""
+  ).trim();
+}
+
+
+function isIsoDate(
+  value
+) {
+  const text =
+    normalizeText(value);
+
+  return (
+    /^\d{4}-\d{2}-\d{2}$/.test(
+      text
+    )
+  );
+}
+
+
+function positiveNumber(
+  value,
+  fallback
+) {
+  const number =
+    Number(value);
+
+  return (
+    Number.isFinite(number) &&
+    number > 0
+  )
+    ? number
+    : fallback;
+}
+
+
+function normalizeMorningCalorific(
+  value
+) {
+  const number =
+    Number(value);
+
+  if (
+    !Number.isFinite(number) ||
+    number <= 0 ||
+    number > 50000
+  ) {
+    return null;
+  }
+
+  return number;
+}
+
+
+function cloneUnit(
+  source
+) {
+  const candidate =
+    source &&
+    typeof source === "object" &&
+    !Array.isArray(source)
+      ? source
+      : {};
+
+  const output =
+    {};
+
+  for (
+    const fuel
+    of [
+      "coal",
+      "bio",
+      "organic",
+      "manure"
+    ]
+  ) {
+    const fallback =
+      DEFAULT_UNIT[fuel];
+
+    const item =
+      candidate[fuel] &&
+      typeof candidate[fuel] === "object" &&
+      !Array.isArray(candidate[fuel])
+        ? candidate[fuel]
+        : {};
+
+    output[fuel] = {
+      calorific:
+        positiveNumber(
+          item.calorific,
+          fallback.calorific
+        ),
+
+      coefficient:
+        positiveNumber(
+          item.coefficient,
+          fallback.coefficient
+        )
+    };
+  }
+
+  return output;
+}
+
+
+function normalizeSharedSettings(
+  source
+) {
+  const settings =
+    source &&
+    typeof source === "object" &&
+    !Array.isArray(source)
+      ? source
+      : {};
+
+  /*
+    1·2호기 동일 기준.
+    기존 공용 설정의 unit1을 우선 사용하고,
+    없으면 unit2를 사용한다.
+  */
+  const canonical =
+    cloneUnit(
+      settings.unit1 ||
+      settings.unit2 ||
+      DEFAULT_UNIT
+    );
+
+  return {
+    unit1:
+      cloneUnit(canonical),
+
+    unit2:
+      cloneUnit(canonical)
+  };
+}
+
+
+function extractSharedSettings(
+  payload
+) {
+  return normalizeSharedSettings(
+    payload?.entry?.settings ||
+    payload?.settings ||
+    null
+  );
+}
+
+
+function buildMorningSetting(
+  payload,
+  requestedDate
+) {
+  const sharedSettings =
+    extractSharedSettings(payload);
+
+  const unit =
+    sharedSettings.unit1;
+
+  const entry =
+    payload?.entry &&
+    typeof payload.entry === "object"
+      ? payload.entry
+      : null;
+
+  const effectiveDate =
+    normalizeText(
+      entry?.effectiveDate ||
+      payload?.effectiveDate ||
+      requestedDate
+    );
+
+  return {
+    effectiveDate,
+
+    coalKcalPerKg:
+      unit.coal.calorific,
+
+    bioKcalPerKg:
+      unit.bio.calorific,
+
+    organicKcalPerKg:
+      unit.organic.calorific,
+
+    updatedById:
+      normalizeText(
+        entry?.updatedById ||
+        payload?.updatedById
+      ),
+
+    updatedByName:
+      normalizeText(
+        entry?.updatedByName ||
+        payload?.updatedByName
+      ),
+
+    updatedAt:
+      normalizeText(
+        entry?.updatedAt ||
+        payload?.updatedAt
+      )
+  };
+}
+
+
+function sharedUrlFrom(
+  requestUrl,
+  targetDate
+) {
+  const url =
+    new URL(requestUrl);
+
+  url.pathname =
+    SHARED_PATH;
+
+  url.search =
+    "";
+
+  if (
+    targetDate
+  ) {
+    url.searchParams.set(
+      "targetDate",
+      targetDate
+    );
+  }
+
+  return url;
+}
+
+
+function copyHeaders(
+  sourceHeaders
+) {
+  const headers =
+    new Headers(
+      sourceHeaders || {}
+    );
+
+  headers.set(
+    "Accept",
+    "application/json"
+  );
+
+  return headers;
+}
+
+
+async function invokeSharedApi(
+  context,
+  request
+) {
+  const sharedContext = {
+    ...context,
+    request
+  };
+
+  const method =
+    request.method
+      .toUpperCase();
+
+  if (
+    typeof SharedSettingsApi.onRequest ===
+    "function"
+  ) {
+    return await SharedSettingsApi.onRequest(
+      sharedContext
+    );
+  }
+
+  if (
+    method === "GET" &&
+    typeof SharedSettingsApi.onRequestGet ===
+      "function"
+  ) {
+    return await SharedSettingsApi.onRequestGet(
+      sharedContext
+    );
+  }
+
+  if (
+    method === "POST" &&
+    typeof SharedSettingsApi.onRequestPost ===
+      "function"
+  ) {
+    return await SharedSettingsApi.onRequestPost(
+      sharedContext
+    );
+  }
+
+  if (
+    typeof SharedSettingsApi.default ===
+    "function"
+  ) {
+    return await SharedSettingsApi.default(
+      sharedContext
+    );
+  }
+
+  throw new Error(
+    "공용 혼소율 설정 API handler를 찾지 못했습니다."
+  );
+}
+
+
+async function readSharedResponse(
+  response
+) {
+  const text =
+    await response.text();
+
+  let payload =
+    {};
+
+  if (
+    text.trim()
+  ) {
+    try {
+      payload =
+        JSON.parse(text);
+
+    } catch {
+      payload = {
+        ok: false,
+        message:
+          "공용 발열량 설정 서버 응답 형식이 올바르지 않습니다."
+      };
+    }
+  }
+
+  return {
+    response,
+    payload
+  };
+}
+
+
+function forwardSharedError(
+  response,
+  payload
+) {
+  return jsonResponse(
+    {
+      ...payload,
+
+      ok:
+        false,
+
+      message:
+        normalizeText(
+          payload?.message ||
+          payload?.error
+        ) ||
+        "공용 발열량 설정 요청에 실패했습니다."
+    },
+
+    Number(response?.status) ||
+    500
+  );
+}
+
+
+async function loadSharedSetting(
+  context,
+  targetDate
+) {
+  const url =
+    sharedUrlFrom(
+      context.request.url,
+      targetDate
+    );
+
+  const request =
+    new Request(
+      url.toString(),
+      {
+        method:
+          "GET",
+
+        headers:
+          copyHeaders(
+            context.request.headers
+          )
+      }
+    );
+
+  const response =
+    await invokeSharedApi(
+      context,
+      request
+    );
+
+  const result =
+    await readSharedResponse(
+      response
+    );
+
+  return result;
+}
+
+
+async function handleGet(
+  context
+) {
+  const sourceUrl =
+    new URL(
+      context.request.url
+    );
+
+  const targetDate =
+    normalizeText(
+      sourceUrl.searchParams.get(
+        "targetDate"
+      )
+    );
+
+  if (
+    !isIsoDate(targetDate)
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "발열량 조회 날짜를 확인해 주세요."
+      },
+      400
+    );
+  }
+
+  const {
+    response,
+    payload
+  } =
+    await loadSharedSetting(
+      context,
+      targetDate
+    );
+
+  if (
+    !response.ok ||
+    payload?.ok === false
+  ) {
+    return forwardSharedError(
+      response,
+      payload
+    );
+  }
+
+  const setting =
+    buildMorningSetting(
+      payload,
+      targetDate
+    );
+
+  return jsonResponse({
+    ok: true,
+
+    targetDate:
+      normalizeText(
+        payload?.targetDate
+      ) ||
+      targetDate,
+
+    source:
+      normalizeText(
+        payload?.source
+      ) ||
+      "shared",
+
+    effectiveDate:
+      setting.effectiveDate,
+
+    /*
+      기존 오전회의 프런트 호환.
+      setting / settings / top-level 모두 제공한다.
+    */
+    setting,
+    settings:
+      setting,
+
+    ...setting
   });
 }
 
-function normalizeText(value) {
-  return String(value ?? "").trim();
-}
 
-function isValidIsoDate(value) {
-  const normalizedValue = normalizeText(value);
+async function handlePost(
+  context
+) {
+  let body =
+    {};
 
-  if (!/^20\d{2}-\d{2}-\d{2}$/.test(normalizedValue)) {
-    return false;
-  }
-
-  const parsed = new Date(`${normalizedValue}T00:00:00Z`);
-
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === normalizedValue;
-}
-
-function getBearerToken(request) {
-  const authorization = normalizeText(request.headers.get("Authorization"));
-
-  if (!authorization.toLowerCase().startsWith("bearer ")) {
-    return "";
-  }
-
-  return authorization.slice(7).trim();
-}
-
-function bytesToHex(bytes) {
-  return [...bytes]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function hashSessionToken(token) {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(normalizeText(token))
-  );
-
-  return bytesToHex(new Uint8Array(digest));
-}
-
-async function getAuthenticatedUser(context) {
-  if (!context.env.DB) {
-    return {
-      error: jsonResponse(
-        {
-          ok: false,
-          message: "D1 바인딩 DB가 등록되지 않았습니다."
-        },
-        500
-      )
-    };
-  }
-
-  const sessionToken = getBearerToken(context.request);
-
-  if (!sessionToken) {
-    return {
-      error: jsonResponse(
-        {
-          ok: false,
-          message: "로그인이 필요합니다."
-        },
-        401
-      )
-    };
-  }
-
-  const tokenHash = await hashSessionToken(sessionToken);
-  const session = await context.env.DB
-    .prepare(`
-      SELECT
-        session.employee_no,
-        session.expires_at,
-        user.name,
-        user.is_active
-      FROM shift_log_sessions AS session
-      INNER JOIN users AS user
-        ON user.employee_no = session.employee_no
-      WHERE session.token_hash = ?
-      LIMIT 1
-    `)
-    .bind(tokenHash)
-    .first();
-
-  const now = new Date();
-  const expiresAt = new Date(session?.expires_at || 0);
-  const isExpired = Number.isNaN(expiresAt.getTime()) || expiresAt <= now;
-
-  if (!session || Number(session.is_active) !== 1 || isExpired) {
-    await context.env.DB
-      .prepare("DELETE FROM shift_log_sessions WHERE token_hash = ?")
-      .bind(tokenHash)
-      .run();
-
-    return {
-      error: jsonResponse(
-        {
-          ok: false,
-          message: "로그인 세션이 만료되었습니다. 다시 로그인해 주세요."
-        },
-        401
-      )
-    };
-  }
-
-  await context.env.DB
-    .prepare("UPDATE shift_log_sessions SET last_used_at = ? WHERE token_hash = ?")
-    .bind(now.toISOString(), tokenHash)
-    .run();
-
-  return {
-    user: {
-      employeeNo: normalizeText(session.employee_no),
-      name: normalizeText(session.name)
-    }
-  };
-}
-
-async function ensureTable(database) {
-  await database
-    .prepare(`
-      CREATE TABLE IF NOT EXISTS morning_meeting_cofiring_calorific_values (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        effective_date TEXT NOT NULL UNIQUE,
-        coal_kcal_per_kg REAL NOT NULL,
-        bio_kcal_per_kg REAL NOT NULL,
-        organic_kcal_per_kg REAL NOT NULL,
-        updated_by_id TEXT NOT NULL DEFAULT '',
-        updated_by_name TEXT NOT NULL DEFAULT '',
-        updated_at TEXT NOT NULL
-      )
-    `)
-    .run();
-
-  await database
-    .prepare(`
-      CREATE INDEX IF NOT EXISTS idx_morning_meeting_cofiring_effective_date
-      ON morning_meeting_cofiring_calorific_values (effective_date DESC)
-    `)
-    .run();
-}
-
-function normalizeCalorificValue(value) {
-  const numericValue = Number(value);
-
-  if (!Number.isFinite(numericValue) || numericValue <= 0 || numericValue > 10000) {
-    return null;
-  }
-
-  return Math.round(numericValue * 100) / 100;
-}
-
-function convertRow(row) {
-  if (!row) {
-    return null;
-  }
-
-  return {
-    id: Number(row.id),
-    effectiveDate: normalizeText(row.effective_date),
-    coalKcalPerKg: Number(row.coal_kcal_per_kg),
-    bioKcalPerKg: Number(row.bio_kcal_per_kg),
-    organicKcalPerKg: Number(row.organic_kcal_per_kg),
-    updatedById: normalizeText(row.updated_by_id),
-    updatedByName: normalizeText(row.updated_by_name),
-    updatedAt: normalizeText(row.updated_at)
-  };
-}
-
-async function readEffectiveSetting(database, targetDate) {
-  const row = await database
-    .prepare(`
-      SELECT
-        id,
-        effective_date,
-        coal_kcal_per_kg,
-        bio_kcal_per_kg,
-        organic_kcal_per_kg,
-        updated_by_id,
-        updated_by_name,
-        updated_at
-      FROM morning_meeting_cofiring_calorific_values
-      WHERE effective_date <= ?
-      ORDER BY effective_date DESC, id DESC
-      LIMIT 1
-    `)
-    .bind(targetDate)
-    .first();
-
-  return convertRow(row);
-}
-
-export async function onRequestGet(context) {
   try {
-    const authentication = await getAuthenticatedUser(context);
+    body =
+      await context.request.json();
 
-    if (authentication.error) {
-      return authentication.error;
-    }
-
-    await ensureTable(context.env.DB);
-
-    const requestUrl = new URL(context.request.url);
-    const targetDate = normalizeText(requestUrl.searchParams.get("targetDate"));
-
-    if (!isValidIsoDate(targetDate)) {
-      return jsonResponse(
-        {
-          ok: false,
-          message: "발열량 적용 기준일을 확인해 주세요."
-        },
-        400
-      );
-    }
-
-    const setting = await readEffectiveSetting(context.env.DB, targetDate);
-
-    return jsonResponse({
-      ok: true,
-      targetDate,
-      setting
-    });
-  } catch (error) {
-    console.error("혼소율 발열량 조회 오류:", error);
-
+  } catch {
     return jsonResponse(
       {
         ok: false,
-        message: error instanceof Error ? error.message : "발열량 설정을 불러오지 못했습니다."
+        message:
+          "발열량 저장 요청 형식을 확인해 주세요."
       },
-      500
+      400
     );
   }
+
+  const effectiveDate =
+    normalizeText(
+      body?.effectiveDate
+    );
+
+  const coalKcalPerKg =
+    normalizeMorningCalorific(
+      body?.coalKcalPerKg
+    );
+
+  const bioKcalPerKg =
+    normalizeMorningCalorific(
+      body?.bioKcalPerKg
+    );
+
+  const organicKcalPerKg =
+    normalizeMorningCalorific(
+      body?.organicKcalPerKg
+    );
+
+  if (
+    !isIsoDate(effectiveDate) ||
+    coalKcalPerKg === null ||
+    bioKcalPerKg === null ||
+    organicKcalPerKg === null
+  ) {
+    return jsonResponse(
+      {
+        ok: false,
+        message:
+          "적용 시작일과 Coal · Bio · 유기성 발열량을 확인해 주세요."
+      },
+      400
+    );
+  }
+
+  /*
+    먼저 해당 적용일의 공용 설정을 읽는다.
+
+    오전회의 화면에는 보정계수와 축분 입력칸이 없으므로
+    그것들은 현재 공용값을 절대 변경하지 않는다.
+  */
+  const loaded =
+    await loadSharedSetting(
+      context,
+      effectiveDate
+    );
+
+  if (
+    !loaded.response.ok ||
+    loaded.payload?.ok === false
+  ) {
+    return forwardSharedError(
+      loaded.response,
+      loaded.payload
+    );
+  }
+
+  const settings =
+    extractSharedSettings(
+      loaded.payload
+    );
+
+  settings.unit1.coal.calorific =
+    coalKcalPerKg;
+
+  settings.unit1.bio.calorific =
+    bioKcalPerKg;
+
+  settings.unit1.organic.calorific =
+    organicKcalPerKg;
+
+  /*
+    사용자 운영 기준:
+    1·2호기는 같은 연료 기준값을 사용한다.
+  */
+  settings.unit2 =
+    cloneUnit(
+      settings.unit1
+    );
+
+  const requestId =
+    normalizeText(
+      body?.requestId
+    ) ||
+    (
+      globalThis.crypto?.randomUUID?.() ||
+      `morning-${Date.now()}-${Math.random()
+        .toString(16)
+        .slice(2)}`
+    );
+
+  const url =
+    sharedUrlFrom(
+      context.request.url,
+      ""
+    );
+
+  const headers =
+    copyHeaders(
+      context.request.headers
+    );
+
+  headers.set(
+    "Content-Type",
+    "application/json"
+  );
+
+  /*
+    공용 설정 API의 기존 desktop 저장 보호조건 유지.
+  */
+  headers.set(
+    "X-ShiftLog-Client",
+    "desktop"
+  );
+
+  const request =
+    new Request(
+      url.toString(),
+      {
+        method:
+          "POST",
+
+        headers,
+
+        body:
+          JSON.stringify({
+            effectiveDate,
+            settings,
+            requestId
+          })
+      }
+    );
+
+  const response =
+    await invokeSharedApi(
+      context,
+      request
+    );
+
+  const result =
+    await readSharedResponse(
+      response
+    );
+
+  if (
+    !response.ok ||
+    result.payload?.ok === false
+  ) {
+    return forwardSharedError(
+      response,
+      result.payload
+    );
+  }
+
+  const setting =
+    buildMorningSetting(
+      result.payload,
+      effectiveDate
+    );
+
+  return jsonResponse({
+    ok: true,
+
+    message:
+      "발열량을 공용 혼소율 계산 기준에 저장했습니다.",
+
+    source:
+      "shared",
+
+    effectiveDate:
+      setting.effectiveDate,
+
+    setting,
+    settings:
+      setting,
+
+    ...setting
+  });
 }
 
-export async function onRequestPost(context) {
+
+export async function onRequest(
+  context
+) {
   try {
-    const authentication = await getAuthenticatedUser(context);
-
-    if (authentication.error) {
-      return authentication.error;
-    }
-
-    await ensureTable(context.env.DB);
-
-    let body;
-
-    try {
-      body = await context.request.json();
-    } catch {
-      return jsonResponse(
-        {
-          ok: false,
-          message: "발열량 저장 요청 형식이 올바르지 않습니다."
-        },
-        400
-      );
-    }
-
-    const effectiveDate = normalizeText(body?.effectiveDate);
-    const coalKcalPerKg = normalizeCalorificValue(body?.coalKcalPerKg);
-    const bioKcalPerKg = normalizeCalorificValue(body?.bioKcalPerKg);
-    const organicKcalPerKg = normalizeCalorificValue(body?.organicKcalPerKg);
+    const method =
+      context.request.method
+        .toUpperCase();
 
     if (
-      !isValidIsoDate(effectiveDate) ||
-      coalKcalPerKg === null ||
-      bioKcalPerKg === null ||
-      organicKcalPerKg === null
+      method === "GET"
     ) {
-      return jsonResponse(
-        {
-          ok: false,
-          message: "적용 시작일과 Coal / Bio-SRF / 유기성 고형연료 발열량(kcal/kg)을 확인해 주세요."
-        },
-        400
+      return await handleGet(
+        context
       );
     }
 
-    const updatedAt = new Date().toISOString();
-
-    await context.env.DB
-      .prepare(`
-        INSERT INTO morning_meeting_cofiring_calorific_values (
-          effective_date,
-          coal_kcal_per_kg,
-          bio_kcal_per_kg,
-          organic_kcal_per_kg,
-          updated_by_id,
-          updated_by_name,
-          updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(effective_date) DO UPDATE SET
-          coal_kcal_per_kg = excluded.coal_kcal_per_kg,
-          bio_kcal_per_kg = excluded.bio_kcal_per_kg,
-          organic_kcal_per_kg = excluded.organic_kcal_per_kg,
-          updated_by_id = excluded.updated_by_id,
-          updated_by_name = excluded.updated_by_name,
-          updated_at = excluded.updated_at
-      `)
-      .bind(
-        effectiveDate,
-        coalKcalPerKg,
-        bioKcalPerKg,
-        organicKcalPerKg,
-        authentication.user.employeeNo,
-        authentication.user.name,
-        updatedAt
-      )
-      .run();
-
-    const setting = await readEffectiveSetting(context.env.DB, effectiveDate);
-
-    return jsonResponse({
-      ok: true,
-      setting
-    });
-  } catch (error) {
-    console.error("혼소율 발열량 저장 오류:", error);
+    if (
+      method === "POST"
+    ) {
+      return await handlePost(
+        context
+      );
+    }
 
     return jsonResponse(
       {
         ok: false,
-        message: error instanceof Error ? error.message : "발열량 설정을 저장하지 못했습니다."
+        message:
+          "지원하지 않는 요청 방식입니다."
+      },
+      405
+    );
+
+  } catch (
+    error
+  ) {
+    console.error(
+      "Morning Meeting shared calorific settings bridge failed:",
+      error
+    );
+
+    return jsonResponse(
+      {
+        ok: false,
+
+        message:
+          error instanceof Error
+            ? error.message
+            : "공용 발열량 설정 처리 중 오류가 발생했습니다."
       },
       500
     );
   }
-}
-
-export async function onRequest(context) {
-  if (context.request.method === "GET") {
-    return onRequestGet(context);
-  }
-
-  if (context.request.method === "POST") {
-    return onRequestPost(context);
-  }
-
-  return jsonResponse(
-    {
-      ok: false,
-      message: "지원하지 않는 요청 방식입니다."
-    },
-    405
-  );
 }
