@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  /* COFIRING SOLID FUEL MANAGEMENT TAB V2 R4 TAB ORDER */
+  /* COFIRING SOLID FUEL MANAGEMENT TAB V2 R5 MODE RESET */
   const ROOT_SELECTOR = "[data-cofiring-draft-root]";
   const TABS_SELECTOR = ".cfv12-tabs";
   const SHEET_SELECTOR = ".cfv5-sheet";
@@ -316,7 +316,38 @@
     }
   }
 
+  function clearForeignSheetModes(sheet) {
+    if (!sheet) return;
+
+    for (const className of Array.from(sheet.classList)) {
+      if (className === "cfv-solid-fuel-management-mode") continue;
+
+      if (
+        className.endsWith("-mode") ||
+        className.includes("history-mode") ||
+        className.includes("settings-mode")
+      ) {
+        sheet.classList.remove(className);
+      }
+    }
+
+    // Explicit compatibility with the currently deployed history/settings tabs.
+    sheet.classList.remove(
+      "cfv12-history-mode",
+      "cfv12-settings-history-mode",
+      "cfv-settings-history-mode",
+      "cfv-settings-mode"
+    );
+  }
+
   function setManagementMode(root, sheet, tabs, button, panel, enabled) {
+    if (enabled) {
+      // History/settings tabs leave their own *-mode class on the sheet.
+      // Those classes intentionally hide every non-owned panel, including
+      // Solid Fuel Management. Clear them before enabling management.
+      clearForeignSheetModes(sheet);
+    }
+
     sheet.classList.toggle("cfv-solid-fuel-management-mode", enabled);
     root.classList.toggle("cfv-solid-fuel-management-mode-active", enabled);
     panel.hidden = !enabled;
@@ -336,6 +367,18 @@
     if (enabled && frame) {
       prepareEmbeddedDocument(frame);
       scheduleFrameResize(frame);
+
+      // Re-assert after the current click stack in case an older delegated
+      // tab handler finishes later in the same event cycle.
+      window.setTimeout(() => {
+        clearForeignSheetModes(sheet);
+        sheet.classList.add("cfv-solid-fuel-management-mode");
+        root.classList.add("cfv-solid-fuel-management-mode-active");
+        panel.hidden = false;
+        button.setAttribute("aria-selected", "true");
+        toggleSheetSections(sheet, panel, true);
+        scheduleFrameResize(frame);
+      }, 0);
     }
   }
 
