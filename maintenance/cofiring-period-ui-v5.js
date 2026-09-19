@@ -1138,3 +1138,174 @@
 /* ===== /COFIRING_BASIS_DETAIL_COMPACT_V10 ===== */
 
 /* COFIRING_MANUAL_INPUT_UNIT_LAYOUT_V13 */
+
+/* ===== COFIRING_TOP_TAB_REDESIGN_V14 ===== */
+(() => {
+  'use strict';
+
+  const configs = [
+    {
+      match: '혼소율 계산',
+      label: '혼소율 계산',
+      kind: 'calculation'
+    },
+    {
+      match: '고형연료 관리',
+      label: '고형연료 관리',
+      kind: 'solid'
+    },
+    {
+      match: '마감 데이터',
+      label: '마감 데이터',
+      kind: 'closed'
+    },
+    {
+      match: '발열량/보정계수',
+      label: '발열량/보정계수',
+      kind: 'calorific'
+    }
+  ];
+
+  function normalize(value) {
+    return String(value || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function decorate() {
+    const tabs = document.querySelector(
+      '#efficiencyCofiringDraftView .cfv12-tabs'
+    );
+
+    if (!(tabs instanceof HTMLElement)) {
+      return false;
+    }
+
+    const buttons = Array.from(
+      tabs.children
+    ).filter(
+      element =>
+        element instanceof HTMLButtonElement
+    );
+
+    let found = 0;
+
+    configs.forEach(config => {
+      const button = buttons.find(
+        candidate =>
+          normalize(candidate.textContent)
+            .includes(config.match)
+      );
+
+      if (!(button instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      found += 1;
+
+      button.classList.add('cfv14-tab');
+
+      button.dataset.cfv14Kind =
+        config.kind;
+
+      button.setAttribute(
+        'aria-label',
+        config.label
+      );
+
+      if (
+        button.dataset.cfv14Label !==
+        '1'
+      ) {
+        /*
+          마감 데이터의 기존 count badge는
+          기능 보존을 위해 다시 붙인다.
+        */
+        const preserved = Array.from(
+          button.children
+        ).filter(
+          child =>
+            child.classList?.contains(
+              'cfv12-history-count'
+            )
+        );
+
+        const label =
+          document.createElement('span');
+
+        label.className =
+          'cfv14-tab-label';
+
+        label.textContent =
+          config.label;
+
+        button.replaceChildren(label);
+
+        preserved.forEach(
+          child => button.appendChild(child)
+        );
+
+        button.dataset.cfv14Label = '1';
+      }
+    });
+
+    if (found === 4) {
+      tabs.classList.add(
+        'cfv14-tabs'
+      );
+
+      return true;
+    }
+
+    return false;
+  }
+
+  function start() {
+    if (decorate()) {
+      return;
+    }
+
+    if (
+      typeof MutationObserver !==
+      'function'
+    ) {
+      return;
+    }
+
+    const observer =
+      new MutationObserver(() => {
+        if (decorate()) {
+          observer.disconnect();
+        }
+      });
+
+    observer.observe(
+      document.body,
+      {
+        childList: true,
+        subtree: true
+      }
+    );
+
+    setTimeout(() => {
+      decorate();
+
+      observer.disconnect();
+    }, 5000);
+  }
+
+  if (
+    document.readyState ===
+    'loading'
+  ) {
+    document.addEventListener(
+      'DOMContentLoaded',
+      start,
+      { once: true }
+    );
+  }
+  else {
+    start();
+  }
+})();
+/* ===== /COFIRING_TOP_TAB_REDESIGN_V14 ===== */

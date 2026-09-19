@@ -789,3 +789,421 @@ small {
 
 
 /* ===== /COFIRING_MANUAL_INPUT_UNIT_LAYOUT_V13 ===== */
+
+/* ===== COFIRING_TOP_TAB_REDESIGN_V14 ===== */
+
+/*
+  미리보기 디자인:
+  - 넓고 부드러운 컨테이너
+  - 4개 동일 폭
+  - 활성 탭 Blue Card
+*/
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs {
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr)) !important;
+
+  gap: 0 !important;
+
+  width: min(100%, 980px) !important;
+  max-width: 980px !important;
+
+  margin:
+    0 0 12px !important;
+
+  padding:
+    6px !important;
+
+  border:
+    1px solid #d7e3ed !important;
+
+  border-radius:
+    17px !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      #f7fafc 0%,
+      #f0f5f9 100%
+    ) !important;
+
+  box-shadow:
+    inset 0 1px 0
+    rgba(255,255,255,.92) !important;
+
+  overflow: hidden !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/*
+  공통 탭
+*/
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab {
+  position: relative !important;
+
+  display: flex !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  gap: 11px !important;
+
+  min-width: 0 !important;
+
+  height: 48px !important;
+
+  padding:
+    0 16px !important;
+
+  border:
+    1px solid transparent !important;
+
+  border-radius:
+    12px !important;
+
+  background:
+    transparent !important;
+
+  color:
+    #60758d !important;
+
+  font-family:
+    inherit !important;
+
+  font-size:
+    13px !important;
+
+  font-weight:
+    750 !important;
+
+  line-height:
+    1 !important;
+
+  letter-spacing:
+    -.01em !important;
+
+  white-space:
+    nowrap !important;
+
+  cursor:
+    pointer !important;
+
+  transition:
+    background .16s ease,
+    color .16s ease,
+    box-shadow .16s ease,
+    transform .16s ease !important;
+
+  box-shadow:
+    none !important;
+}
+
+
+/*
+  기존의 작은 아이콘/장식 대신
+  V14 아이콘 하나만 사용
+*/
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab::before {
+  content: "" !important;
+
+  display: block !important;
+
+  width: 20px !important;
+  height: 20px !important;
+
+  flex:
+    0 0 20px !important;
+
+  background:
+    currentColor !important;
+
+  -webkit-mask-repeat:
+    no-repeat !important;
+
+  mask-repeat:
+    no-repeat !important;
+
+  -webkit-mask-position:
+    center !important;
+
+  mask-position:
+    center !important;
+
+  -webkit-mask-size:
+    contain !important;
+
+  mask-size:
+    contain !important;
+}
+
+
+/* 계산기 */
+#efficiencyCofiringDraftView
+.cfv14-tab[data-cfv14-kind="calculation"]::before {
+  -webkit-mask-image:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20fill='black'%20d='M6%202h12a3%203%200%200%201%203%203v14a3%203%200%200%201-3%203H6a3%203%200%200%201-3-3V5a3%203%200%200%201%203-3Zm0%203v5h12V5H6Zm1%208h2v2H7v-2Zm4%200h2v2h-2v-2Zm4%200h2v2h-2v-2Zm-8%204h2v2H7v-2Zm4%200h2v2h-2v-2Zm4%200h2v2h-2v-2Z'/%3E%3C/svg%3E") !important;
+
+  mask-image:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20fill='black'%20d='M6%202h12a3%203%200%200%201%203%203v14a3%203%200%200%201-3%203H6a3%203%200%200%201-3-3V5a3%203%200%200%201%203-3Zm0%203v5h12V5H6Zm1%208h2v2H7v-2Zm4%200h2v2h-2v-2Zm4%200h2v2h-2v-2Zm-8%204h2v2H7v-2Zm4%200h2v2h-2v-2Zm4%200h2v2h-2v-2Z'/%3E%3C/svg%3E") !important;
+}
+
+
+/* 고형연료 / Database */
+#efficiencyCofiringDraftView
+.cfv14-tab[data-cfv14-kind="solid"]::before {
+  -webkit-mask-image:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20fill='black'%20d='M12%202C7.6%202%204%203.6%204%205.5v13C4%2020.4%207.6%2022%2012%2022s8-1.6%208-3.5v-13C20%203.6%2016.4%202%2012%202Zm0%202c3.9%200%206%201.1%206%201.5S15.9%207%2012%207%206%205.9%206%205.5%208.1%204%2012%204Zm-6%204c1.5.7%203.6%201%206%201s4.5-.3%206-1v3.5c0%20.4-2.1%201.5-6%201.5s-6-1.1-6-1.5V8Zm0%206c1.5.7%203.6%201%206%201s4.5-.3%206-1v4.5c0%20.4-2.1%201.5-6%201.5s-6-1.1-6-1.5V14Z'/%3E%3C/svg%3E") !important;
+
+  mask-image:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20fill='black'%20d='M12%202C7.6%202%204%203.6%204%205.5v13C4%2020.4%207.6%2022%2012%2022s8-1.6%208-3.5v-13C20%203.6%2016.4%202%2012%202Zm0%202c3.9%200%206%201.1%206%201.5S15.9%207%2012%207%206%205.9%206%205.5%208.1%204%2012%204Zm-6%204c1.5.7%203.6%201%206%201s4.5-.3%206-1v3.5c0%20.4-2.1%201.5-6%201.5s-6-1.1-6-1.5V8Zm0%206c1.5.7%203.6%201%206%201s4.5-.3%206-1v4.5c0%20.4-2.1%201.5-6%201.5s-6-1.1-6-1.5V14Z'/%3E%3C/svg%3E") !important;
+}
+
+
+/* 마감 데이터 / Document */
+#efficiencyCofiringDraftView
+.cfv14-tab[data-cfv14-kind="closed"]::before {
+  -webkit-mask-image:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20fill='black'%20d='M6%202h8l5%205v13a2%202%200%200%201-2%202H6a2%202%200%200%1-2-2V4a2%202%200%200%1%202-2Zm7%202H6v16h11V8h-4V4Zm2%201.4V6h.6L15%205.4ZM8%2011h7v2H8v-2Zm0%204h7v2H8v-2Z'/%3E%3C/svg%3E") !important;
+
+  mask-image:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20fill='black'%20d='M6%202h8l5%205v13a2%202%200%200%1-2%202H6a2%202%200%200%1-2-2V4a2%202%200%200%1%202-2Zm7%202H6v16h11V8h-4V4Zm2%201.4V6h.6L15%205.4ZM8%2011h7v2H8v-2Zm0%204h7v2H8v-2Z'/%3E%3C/svg%3E") !important;
+}
+
+
+/* 발열량/보정계수 / Chart */
+#efficiencyCofiringDraftView
+.cfv14-tab[data-cfv14-kind="calorific"]::before {
+  -webkit-mask-image:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20fill='black'%20d='M4%2019h16v2H4v-2Zm1-6h3v5H5v-5Zm5-5h3v10h-3V8Zm5-5h3v15h-3V3Z'/%3E%3C/svg%3E") !important;
+
+  mask-image:
+    url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20fill='black'%20d='M4%2019h16v2H4v-2Zm1-6h3v5H5v-5Zm5-5h3v10h-3V8Zm5-5h3v15h-3V3Z'/%3E%3C/svg%3E") !important;
+}
+
+
+/*
+  비활성 탭 사이 세로 구분선
+*/
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab:not(:first-child)::after {
+  content: "" !important;
+
+  position: absolute !important;
+
+  left: -1px !important;
+  top: 11px !important;
+  bottom: 11px !important;
+
+  width: 1px !important;
+
+  background:
+    #d6e0e9 !important;
+
+  opacity: .95 !important;
+}
+
+
+/*
+  활성 탭
+*/
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab[aria-selected="true"],
+
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab[aria-current="page"],
+
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab[aria-pressed="true"],
+
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab.is-active,
+
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab.active {
+  border-color:
+    #1e70c8 !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      #3487df 0%,
+      #1769bd 100%
+    ) !important;
+
+  color:
+    #ffffff !important;
+
+  box-shadow:
+    0 5px 12px
+      rgba(25,105,183,.20),
+    inset 0 1px 0
+      rgba(255,255,255,.22) !important;
+
+  transform:
+    translateY(-1px) !important;
+}
+
+
+/* 선택된 탭 왼쪽 구분선 제거 */
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab[aria-selected="true"]::after,
+
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab[aria-current="page"]::after,
+
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab[aria-pressed="true"]::after,
+
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab.is-active::after,
+
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab.active::after {
+  opacity:
+    0 !important;
+}
+
+
+/*
+  선택된 탭 바로 다음의 구분선도 제거
+*/
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab[aria-selected="true"]
++ button.cfv14-tab::after,
+
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab[aria-current="page"]
++ button.cfv14-tab::after,
+
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab.is-active
++ button.cfv14-tab::after {
+  opacity:
+    0 !important;
+}
+
+
+/*
+  비활성 Hover
+*/
+#efficiencyCofiringDraftView
+.cfv12-tabs.cfv14-tabs
+> button.cfv14-tab:not([aria-selected="true"]):hover {
+  background:
+    rgba(255,255,255,.72) !important;
+
+  color:
+    #345f85 !important;
+}
+
+
+/* Label */
+#efficiencyCofiringDraftView
+.cfv14-tab-label {
+  overflow: hidden !important;
+
+  text-overflow: ellipsis !important;
+
+  white-space: nowrap !important;
+}
+
+
+/* 기존 마감 count가 있다면 유지 */
+#efficiencyCofiringDraftView
+.cfv14-tab
+.cfv12-history-count {
+  margin-left:
+    2px !important;
+}
+
+
+/*
+  Tablet
+*/
+@media screen and (max-width: 900px) {
+
+  #efficiencyCofiringDraftView
+  .cfv12-tabs.cfv14-tabs {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr)) !important;
+
+    max-width:
+      100% !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cfv12-tabs.cfv14-tabs
+  > button.cfv14-tab {
+    height:
+      44px !important;
+
+    font-size:
+      12px !important;
+  }
+}
+
+
+/*
+  Mobile
+*/
+@media screen and (max-width: 520px) {
+
+  #efficiencyCofiringDraftView
+  .cfv12-tabs.cfv14-tabs {
+    padding:
+      5px !important;
+
+    border-radius:
+      13px !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cfv12-tabs.cfv14-tabs
+  > button.cfv14-tab {
+    gap:
+      7px !important;
+
+    height:
+      42px !important;
+
+    padding:
+      0 9px !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cfv12-tabs.cfv14-tabs
+  > button.cfv14-tab::before {
+    width:
+      17px !important;
+
+    height:
+      17px !important;
+
+    flex-basis:
+      17px !important;
+  }
+}
+
+/* ===== /COFIRING_TOP_TAB_REDESIGN_V14 ===== */
