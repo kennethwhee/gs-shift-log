@@ -647,3 +647,125 @@ small {
 }
 
 /* ===== /MORNING_CALORIFIC_NATIVE_4FIELD_V6_R2 ===== */
+
+/* ===== MORNING_CALORIFIC_FINAL_SPACING_V7 ===== */
+
+/*
+  발열량 팝업 자체를 기존보다 소폭 넓힌다.
+  form을 포함한 실제 dialog section만 대상으로 한다.
+*/
+body.is-morning-meeting-cofiring-settings-open
+section:has(#morningMeetingCofiringSettingsForm) {
+  width: min(650px, calc(100vw - 32px)) !important;
+  max-width: 650px !important;
+}
+
+
+/*
+  4개 연료 사이 여백을 줄여
+  각 input에 더 많은 폭을 배정.
+*/
+#morningMeetingCofiringSettingsForm
+.morning-meeting-cofiring-settings-grid-v6r2 {
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr)) !important;
+
+  column-gap: 8px !important;
+}
+
+
+/*
+  input + kcal/kg:
+  단위 영역 36px -> 29px
+*/
+#morningMeetingCofiringSettingsForm
+.morning-meeting-cofiring-fuel-v6r2
+> div {
+  grid-template-columns:
+    minmax(0, 1fr) 29px !important;
+
+  column-gap: 4px !important;
+}
+
+
+/*
+  숫자가 답답하지 않게 좌우 padding 소폭 축소.
+*/
+#morningMeetingCofiringSettingsForm
+.morning-meeting-cofiring-fuel-v6r2
+input {
+  height: 36px !important;
+
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+
+/*
+  kcal/kg 네 칸 완전 동일.
+*/
+#morningMeetingCofiringSettingsForm
+.morning-meeting-cofiring-fuel-v6r2
+small {
+  width: 29px !important;
+  min-width: 29px !important;
+  max-width: 29px !important;
+
+  height: 36px !important;
+
+  display: flex !important;
+  align-items: center !important;
+
+  font-size: 7.5px !important;
+  font-weight: 500 !important;
+
+  white-space: nowrap !important;
+}
+
+
+/*
+  네 라벨 기준선 유지.
+*/
+#morningMeetingCofiringSettingsForm
+.morning-meeting-cofiring-fuel-v6r2
+> span {
+  min-height: 26px !important;
+
+  margin-bottom: 6px !important;
+}
+
+
+/*
+  현재 적용값과 버튼 영역은 늘어난 모달 폭을 자연스럽게 사용.
+*/
+#morningMeetingCofiringSettingsForm
+.morning-meeting-cofiring-settings-current {
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+
+/*
+  작은 화면은 기존대로 2열.
+*/
+@media screen and (max-width: 540px) {
+
+  body.is-morning-meeting-cofiring-settings-open
+  section:has(#morningMeetingCofiringSettingsForm) {
+    width: calc(100vw - 24px) !important;
+  }
+
+  #morningMeetingCofiringSettingsForm
+  .morning-meeting-cofiring-settings-grid-v6r2 {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr)) !important;
+
+    column-gap: 10px !important;
+    row-gap: 10px !important;
+  }
+}
+
+/* ===== /MORNING_CALORIFIC_FINAL_SPACING_V7 ===== */
