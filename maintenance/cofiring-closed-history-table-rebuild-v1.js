@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  /* COFIRING CLOSED HISTORY TABLE REBUILD V1 */
+  /* COFIRING CLOSED HISTORY TABLE REBUILD V1 R2 AUTO WAIT */
   const ROOT = "#efficiencyCofiringDraftView";
   const TABLE = `${ROOT} .cfv12-history-panel .cfv15-history-table`;
 
@@ -112,24 +112,55 @@
     return rebuildTable(table);
   }
 
-  function scheduleEnhance() {
-    for (const delay of [0, 70, 180, 420]) {
-      window.setTimeout(enhance, delay);
+  let waitGeneration = 0;
+  let waitTimer = 0;
+
+  function startAutoWait() {
+    waitGeneration += 1;
+    const generation = waitGeneration;
+    const startedAt = Date.now();
+    const timeoutMs = 90000;
+
+    if (waitTimer) {
+      window.clearTimeout(waitTimer);
+      waitTimer = 0;
     }
+
+    const tick = () => {
+      if (generation !== waitGeneration) return;
+
+      const rebuilt = enhance();
+      if (rebuilt) {
+        waitTimer = 0;
+        return;
+      }
+
+      if (Date.now() - startedAt >= timeoutMs) {
+        waitTimer = 0;
+        return;
+      }
+
+      waitTimer = window.setTimeout(tick, 250);
+    };
+
+    tick();
+  }
+
+  function scheduleAutoWait() {
+    window.setTimeout(startAutoWait, 0);
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", scheduleEnhance, { once: true });
+    document.addEventListener("DOMContentLoaded", startAutoWait, { once: true });
   } else {
-    scheduleEnhance();
+    startAutoWait();
   }
 
-  document.addEventListener("click", scheduleEnhance, true);
-  document.addEventListener("change", scheduleEnhance, true);
-  window.addEventListener("focus", scheduleEnhance);
+  // Re-arm the bounded wait whenever a tab/month action can trigger an async
+  // closed-history render. No click is needed after the table finally appears.
+  document.addEventListener("click", scheduleAutoWait, true);
+  document.addEventListener("change", scheduleAutoWait, true);
+  window.addEventListener("focus", scheduleAutoWait);
 
-  // Bounded retries only. No MutationObserver.
-  for (const delay of [300, 800, 1500, 3000, 6000, 10000]) {
-    window.setTimeout(enhance, delay);
-  }
+  // Login-safe: bounded polling only, no MutationObserver.
 })();
