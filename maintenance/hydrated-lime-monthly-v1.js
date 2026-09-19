@@ -277,7 +277,7 @@
           <button type="button" class="hlr-date-arrow" data-hlr-prev aria-label="이전 달">‹</button>
 
           <label class="hlr-month-field">
-            <span>조회 월</span>
+
             <input type="month" data-hlr-month value="${month}">
           </label>
 
@@ -1003,3 +1003,5 @@
     window.setTimeout(enhance, delay);
   }
 })();
+
+/* HYDRATED_LIME_MONTH_LABEL_REMOVE_V2_R1 */
