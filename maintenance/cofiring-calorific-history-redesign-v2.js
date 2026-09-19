@@ -2,7 +2,7 @@
 (() => {
   "use strict";
 
-  /* COFIRING CALORIFIC HISTORY REDESIGN V2 */
+  /* COFIRING CALORIFIC HISTORY REDESIGN V2 R3 DATEFIX */
   const ROOT_SELECTOR = "[data-cofiring-draft-root]";
   const PANEL_CLASS = "cfv-history-redesign-panel-v2";
   const TABLE_CLASS = "cfv-history-redesign-source-v2";
@@ -46,6 +46,47 @@
     return filtered.slice(0, 6);
   }
 
+  function pad2(value) {
+    return String(value).padStart(2, '0');
+  }
+
+  function yearFromSavedAt(savedAt) {
+    const match = String(savedAt || '').match(/(20\d{2}|19\d{2})/);
+    if (match) return match[1].slice(-2);
+    return String(new Date().getFullYear()).slice(-2);
+  }
+
+  function formatDateLabel(dateText, savedAt) {
+    const raw = String(dateText || '').trim();
+    if (!raw) return '-';
+
+    const fullMatch = raw.match(/(\d{2,4})[./-]\s*(\d{1,2})[./-]\s*(\d{1,2})\s*\(?([월화수목금토일])\)?/);
+    if (fullMatch) {
+      const yy = fullMatch[1].slice(-2);
+      const mm = pad2(fullMatch[2]);
+      const dd = pad2(fullMatch[3]);
+      return `${yy}-${mm}-${dd}(${fullMatch[4]})`;
+    }
+
+    const mdwMatch = raw.match(/(\d{1,2})-(\d{1,2})\s*\(?([월화수목금토일])\)?/);
+    if (mdwMatch) {
+      const yy = yearFromSavedAt(savedAt);
+      const mm = pad2(mdwMatch[1]);
+      const dd = pad2(mdwMatch[2]);
+      return `${yy}-${mm}-${dd}(${mdwMatch[3]})`;
+    }
+
+    const mdMatch = raw.match(/(\d{1,2})-(\d{1,2})/);
+    if (mdMatch) {
+      const yy = yearFromSavedAt(savedAt);
+      const mm = pad2(mdMatch[1]);
+      const dd = pad2(mdMatch[2]);
+      return `${yy}-${mm}-${dd}`;
+    }
+
+    return raw;
+  }
+
   function buildCustomList(panel, rows) {
     let custom = panel.querySelector(`.${CUSTOM_CLASS}`);
     if (!custom) {
@@ -67,9 +108,10 @@
     const body = rows.length
       ? rows.map((cells) => {
           const [date, coal, bio, organic, manure, savedAt] = normalizeCells(cells);
+          const displayDate = formatDateLabel(date, savedAt);
           return `
             <div class="cfv-history-redesign-grid-v2 cfv-history-redesign-row-v2">
-              <div class="is-date">${date || '-'}</div>
+              <div class="is-date">${displayDate || '-'}</div>
               <div class="is-value">${coal || '-'}</div>
               <div class="is-value">${bio || '-'}</div>
               <div class="is-value">${organic || '-'}</div>

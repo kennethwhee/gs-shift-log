@@ -1,5 +1,5 @@
 
-/* COFIRING CALORIFIC HISTORY REDESIGN V2 */
+/* COFIRING CALORIFIC HISTORY REDESIGN V2 R3 DATEFIX */
 
 [data-cofiring-draft-root] .cfv-history-redesign-source-wrap-v2 {
   display: none !important;
@@ -20,7 +20,7 @@
 
 [data-cofiring-draft-root] .cfv-history-redesign-grid-v2 {
   display: grid !important;
-  grid-template-columns: 1.05fr 1fr 1fr 1fr 1fr 1.35fr !important;
+  grid-template-columns: 1.1fr 1fr 1fr 1fr 1fr 1.4fr !important;
   width: 100% !important;
   align-items: center !important;
 }
@@ -62,8 +62,11 @@
 }
 
 [data-cofiring-draft-root] .cfv-history-redesign-row-v2 .is-date {
+  font-size: 18px !important;
+  line-height: 1.2 !important;
   font-weight: 900 !important;
   color: #183854 !important;
+  letter-spacing: -0.02em !important;
 }
 
 [data-cofiring-draft-root] .cfv-history-redesign-row-v2 .is-value {
