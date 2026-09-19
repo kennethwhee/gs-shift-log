@@ -121124,3 +121124,24 @@ a[aria-controls="cofiringPanel"][aria-selected="true"] {
 }
 
 /* EFFICIENCY_COFIRING_EXACT_FRAME_V3_END */
+
+/* ARM ROLL BOX CORAL V1 START */
+.efficiency-arm-roll-coral {
+    background: #FCEBEC !important;
+    border-color: #E8B0B3 !important;
+    color: #7C4245 !important;
+}
+
+.efficiency-arm-roll-coral:hover {
+    background: #F7DDDF !important;
+    border-color: #DFA1A5 !important;
+    color: #703B3E !important;
+}
+
+.efficiency-arm-roll-coral svg,
+.efficiency-arm-roll-coral i,
+.efficiency-arm-roll-coral .icon {
+    color: inherit !important;
+    stroke: currentColor;
+}
+/* ARM ROLL BOX CORAL V1 END */
