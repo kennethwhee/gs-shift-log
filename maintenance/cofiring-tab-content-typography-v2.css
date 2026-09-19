@@ -1,0 +1,89 @@
+/* COFIRING TAB CONTENT TYPOGRAPHY V2
+   Reference: embedded Solid Fuel Management header typography.
+*/
+
+[data-cofiring-draft-root] {
+  --cfv-ref-eyebrow-font-family: inherit;
+  --cfv-ref-eyebrow-font-size: 11px;
+  --cfv-ref-eyebrow-font-weight: 900;
+  --cfv-ref-eyebrow-line-height: 1.2;
+  --cfv-ref-eyebrow-letter-spacing: 0.14em;
+  --cfv-ref-eyebrow-color: #607e96;
+
+  --cfv-ref-title-font-family: inherit;
+  --cfv-ref-title-font-size: 25px;
+  --cfv-ref-title-font-weight: 900;
+  --cfv-ref-title-line-height: 1.08;
+  --cfv-ref-title-letter-spacing: -0.03em;
+  --cfv-ref-title-color: #153654;
+
+  --cfv-ref-subtitle-font-family: inherit;
+  --cfv-ref-subtitle-font-size: 11px;
+  --cfv-ref-subtitle-font-weight: 700;
+  --cfv-ref-subtitle-line-height: 1.45;
+  --cfv-ref-subtitle-letter-spacing: -0.01em;
+  --cfv-ref-subtitle-color: #678095;
+}
+
+[data-cofiring-draft-root] .cfv-ref-eyebrow-v2 {
+  display: block !important;
+  margin: 0 0 6px !important;
+  font-family: var(--cfv-ref-eyebrow-font-family) !important;
+  font-size: var(--cfv-ref-eyebrow-font-size) !important;
+  font-weight: var(--cfv-ref-eyebrow-font-weight) !important;
+  line-height: var(--cfv-ref-eyebrow-line-height) !important;
+  letter-spacing: var(--cfv-ref-eyebrow-letter-spacing) !important;
+  color: var(--cfv-ref-eyebrow-color) !important;
+  text-transform: uppercase !important;
+}
+
+[data-cofiring-draft-root] .cfv-ref-title-v2 {
+  display: block !important;
+  margin: 0 !important;
+  font-family: var(--cfv-ref-title-font-family) !important;
+  font-size: var(--cfv-ref-title-font-size) !important;
+  font-weight: var(--cfv-ref-title-font-weight) !important;
+  line-height: var(--cfv-ref-title-line-height) !important;
+  letter-spacing: var(--cfv-ref-title-letter-spacing) !important;
+  color: var(--cfv-ref-title-color) !important;
+}
+
+[data-cofiring-draft-root] .cfv-ref-subtitle-v2 {
+  display: block !important;
+  margin: 7px 0 0 !important;
+  font-family: var(--cfv-ref-subtitle-font-family) !important;
+  font-size: var(--cfv-ref-subtitle-font-size) !important;
+  font-weight: var(--cfv-ref-subtitle-font-weight) !important;
+  line-height: var(--cfv-ref-subtitle-line-height) !important;
+  letter-spacing: var(--cfv-ref-subtitle-letter-spacing) !important;
+  color: var(--cfv-ref-subtitle-color) !important;
+}
+
+/* Calculation title block */
+[data-cofiring-draft-root] .cfv5-title-copy {
+  display: block !important;
+}
+
+[data-cofiring-draft-root] .cfv5-title-copy p.cfv-ref-subtitle-v2 {
+  max-width: 760px !important;
+}
+
+/* Closed Data header */
+[data-cofiring-draft-root] .cfv12-history-head > div:first-child {
+  display: block !important;
+}
+
+/* Calorific history header */
+[data-cofiring-draft-root] .cfv-cal-history-panel-v1 > div:first-child,
+[data-cofiring-draft-root] .cfv-history-redesign-panel-v2 > div:first-child {
+  min-width: 0 !important;
+}
+
+@media (max-width: 900px) {
+  [data-cofiring-draft-root] .cfv-ref-title-v2 {
+    font-size: min(
+      var(--cfv-ref-title-font-size),
+      23px
+    ) !important;
+  }
+}
