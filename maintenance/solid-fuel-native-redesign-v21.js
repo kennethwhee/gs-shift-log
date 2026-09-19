@@ -425,3 +425,305 @@
   }
 })();
 /* ===== /SOLID_FUEL_REAL_PAGE_REDESIGN_V21 ===== */
+
+/* ===== SOLID_FUEL_SILO_EQUAL_HEIGHT_V22 ===== */
+(() => {
+  "use strict";
+
+  const norm = value =>
+    String(value || "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  function all(root, selector = "*") {
+    return root?.querySelectorAll
+      ? Array.from(root.querySelectorAll(selector))
+      : [];
+  }
+
+  function exact(root, text, selector = "*") {
+    return (
+      all(root, selector)
+        .filter(
+          element =>
+            norm(element.textContent) === text
+        )
+        .sort(
+          (a, b) =>
+            a.querySelectorAll("*").length -
+            b.querySelectorAll("*").length
+        )[0] || null
+    );
+  }
+
+  function climb(element, predicate, max = 8) {
+    let node = element;
+
+    for (
+      let depth = 0;
+      node && depth < max;
+      depth += 1
+    ) {
+      if (predicate(node)) {
+        return node;
+      }
+
+      node = node.parentElement;
+    }
+
+    return null;
+  }
+
+  function common(elements) {
+    const list =
+      elements.filter(
+        element =>
+          element instanceof Element
+      );
+
+    if (!list.length) {
+      return null;
+    }
+
+    let node = list[0];
+
+    while (
+      node &&
+      node !== document.documentElement
+    ) {
+      if (
+        list.every(
+          element =>
+            node === element ||
+            node.contains(element)
+        )
+      ) {
+        return node;
+      }
+
+      node = node.parentElement;
+    }
+
+    return null;
+  }
+
+  function directChild(parent, descendant) {
+    if (!parent || !descendant) {
+      return null;
+    }
+
+    let node = descendant;
+
+    while (
+      node &&
+      node.parentElement !== parent
+    ) {
+      node = node.parentElement;
+    }
+
+    return (
+      node?.parentElement === parent
+        ? node
+        : null
+    );
+  }
+
+  function findCompanyTable() {
+    return (
+      all(document, "table")
+        .find(table => {
+          const text =
+            norm(table.textContent);
+
+          return (
+            text.includes("업체") &&
+            text.includes("건수") &&
+            text.includes("평균") &&
+            text.includes("최단") &&
+            text.includes("최장") &&
+            text.includes("이상")
+          );
+        }) || null
+    );
+  }
+
+  function decorate() {
+    const companyTitle =
+      exact(
+        document,
+        "업체별 하역시간",
+        "h1,h2,h3,h4,strong,b,div"
+      );
+
+    const siloTitle =
+      exact(
+        document,
+        "Silo별 평균",
+        "h1,h2,h3,h4,strong,b,div"
+      );
+
+    const companyTable =
+      findCompanyTable();
+
+    if (
+      !companyTitle ||
+      !siloTitle ||
+      !companyTable
+    ) {
+      return;
+    }
+
+    const grid =
+      common([
+        companyTitle,
+        siloTitle
+      ]);
+
+    if (!grid) {
+      return;
+    }
+
+    const companyPanel =
+      directChild(
+        grid,
+        companyTitle
+      );
+
+    const siloPanel =
+      directChild(
+        grid,
+        siloTitle
+      );
+
+    if (
+      !companyPanel ||
+      !siloPanel ||
+      companyPanel === siloPanel
+    ) {
+      return;
+    }
+
+    grid.classList.add(
+      "sfr22-reference-grid"
+    );
+
+    companyPanel.classList.add(
+      "sfr22-company-panel"
+    );
+
+    siloPanel.classList.add(
+      "sfr22-silo-panel"
+    );
+
+    companyTable.classList.add(
+      "sfr22-company-table"
+    );
+
+    const cards = [];
+
+    ["#A", "#B", "Day"].forEach(label => {
+      const labelNode =
+        exact(
+          siloPanel,
+          label,
+          "span,strong,b,div"
+        );
+
+      if (!labelNode) {
+        return;
+      }
+
+      const card =
+        climb(
+          labelNode,
+          node => {
+            if (node === siloPanel) {
+              return false;
+            }
+
+            const text =
+              norm(node.textContent);
+
+            return (
+              text.startsWith(label) &&
+              (
+                /\d+:\d+/.test(text) ||
+                text.includes("건")
+              ) &&
+              text.length < 70
+            );
+          },
+          5
+        );
+
+      if (
+        card &&
+        !cards.includes(card)
+      ) {
+        cards.push(card);
+
+        card.classList.add(
+          "sfr22-silo-card"
+        );
+      }
+    });
+
+    if (cards.length === 3) {
+
+      const cardParent =
+        common(cards);
+
+      if (
+        cardParent &&
+        siloPanel.contains(cardParent)
+      ) {
+        cardParent.classList.add(
+          "sfr22-silo-cards"
+        );
+      }
+    }
+
+    document.body.dataset.sfr22Ready = "1";
+  }
+
+  let timer = 0;
+
+  function queue() {
+    clearTimeout(timer);
+
+    timer =
+      setTimeout(
+        decorate,
+        50
+      );
+  }
+
+  function start() {
+    decorate();
+
+    const observer =
+      new MutationObserver(queue);
+
+    observer.observe(
+      document.body,
+      {
+        childList: true,
+        subtree: true
+      }
+    );
+  }
+
+  if (
+    document.readyState === "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      start,
+      { once: true }
+    );
+  }
+  else {
+    start();
+  }
+})();
+/* ===== /SOLID_FUEL_SILO_EQUAL_HEIGHT_V22 ===== */

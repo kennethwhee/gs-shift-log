@@ -335,3 +335,108 @@ body.sfr21-ready .sfr21-action-button {
 }
 
 /* ===== /SOLID_FUEL_REAL_PAGE_REDESIGN_V21 ===== */
+
+/* ===== SOLID_FUEL_SILO_EQUAL_HEIGHT_V22 ===== */
+
+/*
+  업체별 하역시간 / Silo별 평균
+  두 영역의 외곽 높이를 동일하게 유지
+*/
+
+body.sfr21-ready .sfr22-reference-grid {
+  display: grid !important;
+
+  grid-template-columns:
+    minmax(0, 2.25fr)
+    minmax(260px, .9fr) !important;
+
+  gap: 12px !important;
+
+  align-items: stretch !important;
+}
+
+
+body.sfr21-ready .sfr22-company-panel,
+body.sfr21-ready .sfr22-silo-panel {
+  height: 100% !important;
+  min-height: 100% !important;
+
+  align-self: stretch !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/*
+  오른쪽 패널:
+  제목 + 카드영역 구조로 세로 전체 높이 사용
+*/
+body.sfr21-ready .sfr22-silo-panel {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+
+/*
+  #A / #B / Day 부모영역이 남은 높이를 전부 사용
+*/
+body.sfr21-ready .sfr22-silo-cards {
+  display: grid !important;
+
+  grid-template-rows:
+    repeat(3, minmax(0, 1fr)) !important;
+
+  gap: 7px !important;
+
+  flex: 1 1 auto !important;
+
+  min-height: 0 !important;
+}
+
+
+/*
+  Silo 3개 카드 동일 높이
+*/
+body.sfr21-ready .sfr22-silo-card {
+  height: 100% !important;
+  min-height: 0 !important;
+
+  margin: 0 !important;
+
+  display: flex !important;
+
+  align-items: center !important;
+  justify-content: space-between !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/*
+  왼쪽 실제 표는 패널 폭을 가득 사용
+*/
+body.sfr21-ready .sfr22-company-table {
+  width: 100% !important;
+}
+
+
+/*
+  작은 화면에서는 기존 세로 구조 유지
+*/
+@media (max-width: 760px) {
+
+  body.sfr21-ready .sfr22-reference-grid {
+    grid-template-columns:
+      1fr !important;
+  }
+
+  body.sfr21-ready .sfr22-company-panel,
+  body.sfr21-ready .sfr22-silo-panel {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+}
+
+
+/* ===== /SOLID_FUEL_SILO_EQUAL_HEIGHT_V22 ===== */
