@@ -1,0 +1,337 @@
+/* ===== SOLID_FUEL_REAL_PAGE_REDESIGN_V21 ===== */
+
+body.sfr21-ready {
+  --sfr21-border: #cad8e7;
+  --sfr21-soft-border: #dce6f0;
+  --sfr21-text: #173e67;
+}
+
+body.sfr21-ready .sfr21-filter {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: flex-end !important;
+
+  gap: 10px !important;
+
+  width: 100% !important;
+
+  padding: 12px 13px !important;
+
+  border: 1px solid var(--sfr21-border) !important;
+  border-radius: 12px !important;
+
+  background: #f8fbff !important;
+
+  box-sizing: border-box !important;
+}
+
+body.sfr21-ready .sfr21-mode-button,
+body.sfr21-ready .sfr21-search-button,
+body.sfr21-ready .sfr21-reset-button {
+  height: 44px !important;
+  min-height: 44px !important;
+
+  padding: 0 13px !important;
+
+  border-radius: 8px !important;
+
+  font-size: 13px !important;
+  font-weight: 850 !important;
+}
+
+body.sfr21-ready .sfr21-field {
+  display: flex !important;
+  flex-direction: column !important;
+
+  gap: 5px !important;
+
+  min-width: 0 !important;
+}
+
+body.sfr21-ready .sfr21-field-label {
+  font-size: 13.5px !important;
+  font-weight: 850 !important;
+}
+
+body.sfr21-ready .sfr21-field input,
+body.sfr21-ready .sfr21-field select {
+  width: 100% !important;
+
+  height: 44px !important;
+  min-height: 44px !important;
+
+  padding: 0 12px !important;
+
+  border: 1px solid #b8cadd !important;
+  border-radius: 8px !important;
+
+  font-size: 14px !important;
+  font-weight: 700 !important;
+
+  box-sizing: border-box !important;
+}
+
+body.sfr21-ready
+.sfr21-field[data-sfr21-field="month"] {
+  flex: 0 1 150px !important;
+}
+
+body.sfr21-ready
+.sfr21-field[data-sfr21-field="company"] {
+  flex: 1 1 180px !important;
+}
+
+body.sfr21-ready
+.sfr21-field[data-sfr21-field="vehicle"] {
+  flex: 0 1 130px !important;
+}
+
+body.sfr21-ready
+.sfr21-field[data-sfr21-field="search"] {
+  flex: 2 1 290px !important;
+}
+
+body.sfr21-ready
+.sfr21-field[data-sfr21-field="sort"] {
+  flex: 0 1 135px !important;
+}
+
+body.sfr21-ready .sfr21-kpi-grid {
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(5, minmax(0, 1fr)) !important;
+
+  gap: 9px !important;
+
+  width: 100% !important;
+
+  margin: 10px 0 12px !important;
+  padding: 0 !important;
+
+  border: 0 !important;
+  background: transparent !important;
+
+  overflow: visible !important;
+}
+
+body.sfr21-ready .sfr21-kpi-card {
+  display: flex !important;
+
+  align-items: center !important;
+  justify-content: space-between !important;
+
+  gap: 7px !important;
+
+  height: 52px !important;
+  min-height: 52px !important;
+
+  margin: 0 !important;
+  padding: 7px 12px !important;
+
+  border: 1px solid var(--sfr21-soft-border) !important;
+  border-radius: 10px !important;
+
+  background: #f7fbff !important;
+
+  box-sizing: border-box !important;
+}
+
+body.sfr21-ready
+.sfr21-kpi-card[data-sfr21-kpi="2"] {
+  background: #f5fbf7 !important;
+}
+
+body.sfr21-ready
+.sfr21-kpi-card[data-sfr21-kpi="3"] {
+  background: #fff7f6 !important;
+}
+
+body.sfr21-ready
+.sfr21-kpi-card[data-sfr21-kpi="4"] {
+  background: #fff9f4 !important;
+}
+
+body.sfr21-ready
+.sfr21-kpi-card[data-sfr21-kpi="5"] {
+  background: #faf8ff !important;
+}
+
+body.sfr21-ready .sfr21-kpi-label {
+  font-size: 10px !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+}
+
+body.sfr21-ready .sfr21-kpi-value {
+  font-size: 18px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+body.sfr21-ready .sfr21-kpi-unit {
+  font-size: 8px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+}
+
+body.sfr21-ready .sfr21-company-table {
+  width: 100% !important;
+
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+
+body.sfr21-ready
+.sfr21-company-table thead tr {
+  height: 30px !important;
+}
+
+body.sfr21-ready
+.sfr21-company-table tbody tr {
+  height: 28px !important;
+}
+
+body.sfr21-ready
+.sfr21-company-table th {
+  height: 30px !important;
+  padding: 5px 8px !important;
+
+  font-size: 11px !important;
+  font-weight: 850 !important;
+}
+
+body.sfr21-ready
+.sfr21-company-table td {
+  height: 28px !important;
+  padding: 5px 8px !important;
+
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+
+body.sfr21-ready .sfr21-silo-card {
+  min-height: 40px !important;
+
+  margin: 0 !important;
+  padding: 6px 11px !important;
+
+  border-radius: 8px !important;
+
+  box-sizing: border-box !important;
+}
+
+body.sfr21-ready .sfr21-record-tabs {
+  display: flex !important;
+  align-items: center !important;
+
+  gap: 5px !important;
+
+  margin-top: 10px !important;
+}
+
+body.sfr21-ready .sfr21-record-tab {
+  height: 32px !important;
+  min-height: 32px !important;
+
+  padding: 0 12px !important;
+
+  font-size: 11px !important;
+  font-weight: 850 !important;
+}
+
+body.sfr21-ready .sfr21-records-table {
+  width: 100% !important;
+
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+
+body.sfr21-ready
+.sfr21-records-table thead tr {
+  height: 30px !important;
+}
+
+body.sfr21-ready
+.sfr21-records-table thead th {
+  height: 30px !important;
+
+  padding: 5px 6px !important;
+
+  font-size: 10px !important;
+  font-weight: 850 !important;
+}
+
+body.sfr21-ready
+.sfr21-records-table tbody tr {
+  height: 38px !important;
+  min-height: 38px !important;
+}
+
+body.sfr21-ready
+.sfr21-records-table tbody td {
+  height: 38px !important;
+  min-height: 0 !important;
+
+  padding: 4px 6px !important;
+
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+
+  vertical-align: middle !important;
+}
+
+body.sfr21-ready .sfr21-action-cell {
+  padding: 3px 4px !important;
+  white-space: nowrap !important;
+}
+
+body.sfr21-ready .sfr21-actions {
+  display: flex !important;
+
+  flex-direction: row !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  gap: 4px !important;
+
+  width: 100% !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body.sfr21-ready .sfr21-action-button {
+  display: inline-flex !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  min-width: 38px !important;
+
+  height: 26px !important;
+  min-height: 26px !important;
+
+  margin: 0 2px !important;
+  padding: 0 7px !important;
+
+  border-radius: 6px !important;
+
+  font-size: 9px !important;
+  font-weight: 850 !important;
+}
+
+@media (max-width: 760px) {
+
+  body.sfr21-ready .sfr21-filter {
+    flex-wrap: wrap !important;
+  }
+
+  body.sfr21-ready .sfr21-kpi-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* ===== /SOLID_FUEL_REAL_PAGE_REDESIGN_V21 ===== */
