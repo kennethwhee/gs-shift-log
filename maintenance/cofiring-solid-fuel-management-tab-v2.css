@@ -952,3 +952,284 @@ td:last-child {
 }
 
 /* ===== /SOLID_FUEL_FILTER_SIZE_V17 ===== */
+
+/* ===== SOLID_FUEL_FILTER_KPI_TUNE_V18 ===== */
+
+
+/* =========================================================
+   1. 조회/검색 영역
+   V17보다 한 단계 더 크게
+========================================================= */
+
+.sfux15-root
+.sfux15-query {
+  gap: 13px !important;
+
+  padding:
+    15px 17px !important;
+
+  min-height:
+    78px !important;
+}
+
+
+/* 조회 월 / 업체명 / 차량번호 / 통합 검색 / 정렬 */
+.sfux15-root
+.sfux15-query label > span,
+.sfux15-root
+.sfux15-query label > b,
+.sfux15-root
+.sfux15-query label > strong {
+  font-size:
+    16px !important;
+
+  font-weight:
+    900 !important;
+
+  line-height:
+    1.1 !important;
+}
+
+
+/* 입력/선택값 */
+.sfux15-root
+.sfux15-query input,
+.sfux15-root
+.sfux15-query select {
+  min-height:
+    50px !important;
+
+  height:
+    50px !important;
+
+  padding:
+    0 14px !important;
+
+  border-radius:
+    9px !important;
+
+  font-size:
+    16px !important;
+
+  font-weight:
+    750 !important;
+}
+
+
+/* placeholder */
+.sfux15-root
+.sfux15-query input::placeholder {
+  font-size:
+    14.5px !important;
+
+  font-weight:
+    600 !important;
+}
+
+
+/* 월별 / 기간 지정 / 전체 / 조회 / 초기화 */
+.sfux15-root
+.sfux15-query button {
+  min-height:
+    48px !important;
+
+  height:
+    48px !important;
+
+  padding:
+    0 16px !important;
+
+  border-radius:
+    9px !important;
+
+  font-size:
+    15px !important;
+
+  font-weight:
+    850 !important;
+}
+
+
+/* 토글 3개 */
+.sfux15-root
+.sfux15-query button:nth-of-type(1),
+.sfux15-root
+.sfux15-query button:nth-of-type(2),
+.sfux15-root
+.sfux15-query button:nth-of-type(3) {
+  min-width:
+    58px !important;
+}
+
+
+/* 월 선택 */
+.sfux15-root
+.sfux15-query input[type="month"] {
+  min-width:
+    165px !important;
+}
+
+
+/* 업체 / 정렬 */
+.sfux15-root
+.sfux15-query select {
+  min-width:
+    158px !important;
+}
+
+
+/* 차량 */
+.sfux15-root
+.sfux15-query input[placeholder*="4202"] {
+  min-width:
+    135px !important;
+}
+
+
+/* 통합검색 */
+.sfux15-root
+.sfux15-query input[placeholder*="Silo"] {
+  min-width:
+    315px !important;
+}
+
+
+/* =========================================================
+   2. KPI 5개
+   지금보다 작고 compact하게
+========================================================= */
+
+.sfux15-root
+.sfux15-kpi {
+  display:
+    grid !important;
+
+  grid-template-columns:
+    repeat(5, minmax(0, 1fr)) !important;
+
+  gap:
+    0 !important;
+
+  width:
+    88% !important;
+
+  max-width:
+    1040px !important;
+
+  min-height:
+    0 !important;
+
+  height:
+    auto !important;
+
+  margin-right:
+    auto !important;
+}
+
+
+/* 각 KPI 칸 */
+.sfux15-root
+.sfux15-kpi-card {
+  min-height:
+    46px !important;
+
+  height:
+    46px !important;
+
+  padding:
+    5px 11px !important;
+
+  box-sizing:
+    border-box !important;
+}
+
+
+/* 하역 / 평균 하역 / Trouble... */
+.sfux15-root
+.sfux15-kpi-card span,
+.sfux15-root
+.sfux15-kpi-card b {
+  font-size:
+    10px !important;
+
+  font-weight:
+    750 !important;
+
+  line-height:
+    1 !important;
+}
+
+
+/* 0 / 98 / 1:38 / 3:32 */
+.sfux15-root
+.sfux15-kpi-card strong {
+  font-size:
+    21px !important;
+
+  font-weight:
+    850 !important;
+
+  line-height:
+    1 !important;
+
+  letter-spacing:
+    -.025em !important;
+}
+
+
+/* 건 / 평균 / 최장 */
+.sfux15-root
+.sfux15-kpi-card small {
+  font-size:
+    8px !important;
+
+  font-weight:
+    650 !important;
+
+  line-height:
+    1 !important;
+}
+
+
+/*
+  KPI 내부 요소끼리 불필요한 여백 제거
+*/
+.sfux15-root
+.sfux15-kpi-card > * {
+  margin-top:
+    0 !important;
+
+  margin-bottom:
+    0 !important;
+}
+
+
+/* =========================================================
+   좁은 화면
+========================================================= */
+
+@media screen and (max-width: 1200px) {
+
+  .sfux15-root
+  .sfux15-query {
+    gap:
+      9px !important;
+  }
+
+  .sfux15-root
+  .sfux15-query input[placeholder*="Silo"] {
+    min-width:
+      245px !important;
+  }
+
+  .sfux15-root
+  .sfux15-kpi {
+    width:
+      100% !important;
+
+    max-width:
+      none !important;
+  }
+}
+
+/* ===== /SOLID_FUEL_FILTER_KPI_TUNE_V18 ===== */
