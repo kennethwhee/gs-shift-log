@@ -316,7 +316,10 @@
         border-radius: 0 !important;
 
         box-sizing: border-box !important;
-        overflow: hidden !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
 
         background: #eef3f8 !important;
         box-shadow: none !important;
@@ -400,8 +403,40 @@
       // Browser may restrict resizeTo.
     }
   };
+  const installStandaloneEscapeGuard = () => {
+    if (window.__gsEfficiencyDailyWorkEscapeGuardV4) {
+      return;
+    }
+
+    window.__gsEfficiencyDailyWorkEscapeGuardV4 = true;
+
+    /*
+     * This page was opened by window.open(), so Escape should close
+     * the standalone work window itself.
+     *
+     * Do not let the original Efficiency Team modal receive Escape.
+     * Otherwise it removes the modal while standalone CSS keeps the
+     * rest of the application hidden, leaving a blank page.
+     */
+    window.addEventListener(
+      'keydown',
+      (event) => {
+        if (!isChildWindow()) return;
+        if (event.key !== 'Escape') return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+
+        window.close();
+      },
+      true
+    );
+  };
   const initializeChildWindow = async () => {
     if (!isChildWindow()) return;
+
+    installStandaloneEscapeGuard();
 
     /*
      * 정상적으로 일일업무현황이 준비되면 위에서 즉시 해제됩니다.
