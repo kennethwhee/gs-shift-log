@@ -1,4 +1,4 @@
-/* COFIRING TOP TABS SKY V3 R2 LIVE PROXY
+/* COFIRING TOP TABS SKY V3 R3 ICON RESTORE
    Only the custom sky-blue navigation is visible.
    Original controls stay in their original DOM position for behavior.
 */
@@ -27,6 +27,7 @@
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
+  gap: 8px !important;
   min-width: 132px !important;
   height: 36px !important;
   margin: 0 !important;
@@ -73,6 +74,64 @@
   background: #d7efff !important;
   background-color: #d7efff !important;
   border-color: #7bb8df !important;
+}
+
+
+#efficiencyCofiringDraftView
+.cf-sky-tab__icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 16px !important;
+  height: 16px !important;
+  flex: 0 0 16px !important;
+  color: #5d7488 !important;
+}
+
+#efficiencyCofiringDraftView
+.cf-sky-tab__icon svg {
+  width: 16px !important;
+  height: 16px !important;
+  overflow: visible !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 1.8 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+
+/* Solid Fuel Management keeps the original gold database accent. */
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3:nth-child(2)
+.cf-sky-tab__icon {
+  color: #c68b00 !important;
+}
+
+/* Closed Data icon is intentionally filled like the previous wedge icon. */
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3:nth-child(3)
+.cf-sky-tab__icon svg {
+  fill: currentColor !important;
+  stroke: none !important;
+}
+
+/* Selected tab keeps the sky background; icon stays readable, not white. */
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3.is-selected
+.cf-sky-tab__icon,
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3[aria-selected="true"]
+.cf-sky-tab__icon {
+  color: #41677f !important;
+}
+
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3:nth-child(2).is-selected
+.cf-sky-tab__icon,
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3:nth-child(2)[aria-selected="true"]
+.cf-sky-tab__icon {
+  color: #b67d00 !important;
 }
 
 #efficiencyCofiringDraftView

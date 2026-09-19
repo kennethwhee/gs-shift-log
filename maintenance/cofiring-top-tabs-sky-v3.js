@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  /* COFIRING TOP TABS SKY V3 R2 LIVE PROXY
+  /* COFIRING TOP TABS SKY V3 R3 ICON RESTORE
      - Keep every original tab button in its original DOM position.
      - Hide originals visually only.
      - The visible sky-blue navigation forwards clicks to the latest live
@@ -18,6 +18,32 @@
     "마감 데이터",
     "발열량/보정계수"
   ];
+
+  const ICONS = {
+    "혼소율 계산": `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="5" y="4" width="14" height="16" rx="2"></rect>
+        <path d="M8 8h8M8 12h3M13 12h3M8 16h3M13 16h3"></path>
+      </svg>
+    `,
+    "고형연료 관리": `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <ellipse cx="12" cy="5.5" rx="5.5" ry="2.5"></ellipse>
+        <path d="M6.5 5.5v5c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5v-5"></path>
+        <path d="M6.5 10.5v5c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5v-5"></path>
+      </svg>
+    `,
+    "마감 데이터": `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 5h12l-6.5 6L17 19H5z"></path>
+      </svg>
+    `,
+    "발열량/보정계수": `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 19V12M10 19V8M15 19V5M20 19V14M3 19h19"></path>
+      </svg>
+    `
+  };
 
   const preferredOriginal = new Map();
   let currentLabel = "";
@@ -169,10 +195,15 @@
       button.setAttribute("role", "tab");
       button.setAttribute("aria-selected", "false");
 
+      const iconNode = document.createElement("span");
+      iconNode.className = "cf-sky-tab__icon";
+      iconNode.innerHTML = ICONS[label] || "";
+
       const labelNode = document.createElement("span");
       labelNode.className = "cf-sky-tab__label";
       labelNode.textContent = label;
-      button.append(labelNode);
+
+      button.append(iconNode, labelNode);
 
       button.addEventListener("click", () => {
         currentLabel = label;
