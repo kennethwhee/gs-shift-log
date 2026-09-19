@@ -1,0 +1,157 @@
+/* COFIRING DETAIL COMPACT V5 R1
+   Final detail-table presentation:
+   - removes the broken right-side result block in the rendered DOM
+   - combines period/average into one cell
+   - expands the remaining 9 columns to the full table width
+*/
+
+.cofiring-period-v5 .cfv52-detail > summary {
+  min-height: 24px !important;
+  padding: 4px 8px !important;
+  gap: 6px !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+}
+
+.cofiring-period-v5 .cfv52-detail > summary small {
+  font-size: 8px !important;
+  line-height: 1 !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-section-label {
+  margin: 4px 5px 2px !important;
+  font-size: 9.5px !important;
+  line-height: 1 !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-table-scroll {
+  width: calc(100% - 10px) !important;
+  max-width: calc(100% - 10px) !important;
+  margin: 0 5px 5px !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+  border-radius: 4px !important;
+}
+
+.cofiring-period-v5 .cfv52-detail table.cfv5-detail-compact-v5r1 {
+  width: 100% !important;
+  min-width: 0 !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+  font-size: 8.5px !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 col.cfv5-v5-unit {
+  width: 5% !important;
+}
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 col.cfv5-v5-pair {
+  width: 16% !important;
+}
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 col.cfv5-v5-factor {
+  width: 7% !important;
+}
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 col.cfv5-v5-heat {
+  width: 8.5% !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 th,
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 td {
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 1px 4px !important;
+  line-height: 1 !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 thead tr:first-child th {
+  height: 20px !important;
+  min-height: 20px !important;
+  padding: 1px 3px !important;
+  font-size: 9.5px !important;
+  line-height: 1 !important;
+  text-align: center !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 thead tr:nth-child(2) th {
+  height: 25px !important;
+  min-height: 25px !important;
+  padding: 1px 3px !important;
+  font-size: 8.5px !important;
+  line-height: 1 !important;
+  text-align: center !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 thead th small {
+  display: block !important;
+  margin-top: 2px !important;
+  font-size: 6.5px !important;
+  font-weight: 400 !important;
+  line-height: 1 !important;
+  color: #7f909d !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 tbody tr,
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 tbody th,
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 tbody td {
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 tbody th,
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 tbody td {
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+  font-size: 8.5px !important;
+  line-height: 1 !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 .cfv5-compact-pair {
+  text-align: right !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 .cfv5-compact-pair b {
+  font-size: 8.5px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 .cfv5-compact-pair span {
+  margin: 0 3px !important;
+  color: #9aa8b2 !important;
+  font-size: 7.5px !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 .cfv5-compact-pair small {
+  display: inline !important;
+  margin: 0 !important;
+  font-size: 8px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  color: #536e81 !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 .cfv5-factor {
+  text-align: center !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 .cfv5-sum th,
+.cofiring-period-v5 .cfv52-detail .cfv5-detail-compact-v5r1 .cfv5-sum td {
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+}
+
+@media (max-width: 900px) {
+  .cofiring-period-v5 .cfv52-detail .cfv5-table-scroll {
+    overflow-x: auto !important;
+  }
+
+  .cofiring-period-v5 .cfv52-detail table.cfv5-detail-compact-v5r1 {
+    min-width: 780px !important;
+  }
+}
