@@ -708,3 +708,51 @@ td:last-child {
 }
 
 /* ===== /SOLID_FUEL_MANAGEMENT_READABILITY_V15 ===== */
+
+/* ===== SOLID_FUEL_FILTER_FONT_V16 ===== */
+
+/*
+  고형연료 관리 조회/필터 영역
+  V15 Runtime class를 직접 대상으로 함.
+*/
+
+/* 상단 라벨 */
+.sfux15-root
+.sfux15-query label > span,
+.sfux15-root
+.sfux15-query label > b,
+.sfux15-root
+.sfux15-query label > strong {
+  font-size: 14px !important;
+  font-weight: 850 !important;
+  line-height: 1.15 !important;
+}
+
+
+/* 월별 / 기간 지정 / 전체 / 조회 / 초기화 */
+.sfux15-root
+.sfux15-query button {
+  font-size: 13px !important;
+  font-weight: 800 !important;
+}
+
+
+/* 조회 월 / 업체명 / 차량번호 / 통합 검색 / 정렬 */
+.sfux15-root
+.sfux15-query input,
+.sfux15-root
+.sfux15-query select {
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+}
+
+
+/* 예: 4202, Silo / Trouble / 비고 검색 */
+.sfux15-root
+.sfux15-query input::placeholder {
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  opacity: .82 !important;
+}
+
+/* ===== /SOLID_FUEL_FILTER_FONT_V16 ===== */
