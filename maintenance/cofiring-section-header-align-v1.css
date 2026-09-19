@@ -1,0 +1,60 @@
+/* COFIRING SECTION HEADER ALIGN V1
+   Make the two foldable section headers use the same visual language.
+   Targets:
+   - details containing .cfv5-basis-wrap  (발열량 · 보정계수 설정)
+   - details containing .cfv52-detail     (상세 계산표 보기)
+*/
+
+[data-cofiring-draft-root] details:has(.cfv5-basis-wrap) > summary,
+[data-cofiring-draft-root] details:has(.cfv52-detail) > summary {
+  min-height: 34px !important;
+  padding: 0 14px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  border: 1px solid #dbe5eb !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  color: #36556a !important;
+}
+
+[data-cofiring-draft-root] details:has(.cfv5-basis-wrap)[open] > summary,
+[data-cofiring-draft-root] details:has(.cfv52-detail)[open] > summary {
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+
+[data-cofiring-draft-root] details:has(.cfv5-basis-wrap) > summary > *,
+[data-cofiring-draft-root] details:has(.cfv52-detail) > summary > * {
+  min-width: 0;
+}
+
+[data-cofiring-draft-root] details:has(.cfv5-basis-wrap) > summary > :first-child,
+[data-cofiring-draft-root] details:has(.cfv52-detail) > summary > :first-child {
+  color: #36556a !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  line-height: 1.1 !important;
+}
+
+[data-cofiring-draft-root] details:has(.cfv5-basis-wrap) > summary > :last-child,
+[data-cofiring-draft-root] details:has(.cfv52-detail) > summary > :last-child {
+  flex: 0 0 auto;
+  color: #7e91a0 !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 1.1 !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
+[data-cofiring-draft-root] details:has(.cfv5-basis-wrap) > summary + *,
+[data-cofiring-draft-root] details:has(.cfv52-detail) > summary + * {
+  border: 1px solid #dbe5eb !important;
+  border-top: 0 !important;
+  border-bottom-left-radius: 10px !important;
+  border-bottom-right-radius: 10px !important;
+  overflow: hidden;
+}
