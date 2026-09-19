@@ -1,4 +1,4 @@
-/* COFIRING CALORIFIC HISTORY ADJUST V1 */
+/* COFIRING CALORIFIC HISTORY ADJUST V1 R1 */
 
 /* Full-width history list */
 [data-cofiring-draft-root] .cfv-cal-history-panel-v1 {
@@ -306,4 +306,22 @@ table.cfv-cal-history-fullwidth-v1
   [data-cofiring-draft-root] table.cfv-cal-history-fullwidth-v1 {
     min-width: 760px !important;
   }
+}
+
+
+/* R1: no residual action/blank strip at the right edge */
+[data-cofiring-draft-root] .cfv-cal-history-wrap-v1,
+[data-cofiring-draft-root] .cfv-cal-history-wrap-v1 > table.cfv-cal-history-fullwidth-v1 {
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+[data-cofiring-draft-root]
+.cfv-cal-history-wrap-v1
+> table.cfv-cal-history-fullwidth-v1
+> colgroup.cfv-cal-history-colgroup-v1
+> col {
+  width: calc(100% / 6) !important;
 }

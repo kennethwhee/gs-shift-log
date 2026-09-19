@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  /* COFIRING CALORIFIC HISTORY ADJUST V1 */
+  /* COFIRING CALORIFIC HISTORY ADJUST V1 R1 */
   const ROOT_SELECTOR = "[data-cofiring-draft-root]";
   const API = "/api/cofiring-calculation-settings";
   const BUTTON_ID = "cfvCalorificHistoryAdjustButton";
@@ -87,6 +87,47 @@
       .find((button) => textOf(button) === "새로고침") || null;
   }
 
+  function removeTrailingBlankColumn(table) {
+    const headerRow = table.tHead?.rows?.[table.tHead.rows.length - 1] || null;
+    if (!headerRow) return;
+
+    while (headerRow.cells.length > 6) {
+      const lastIndex = headerRow.cells.length - 1;
+      const lastHeader = headerRow.cells[lastIndex];
+      const headerText = textOf(lastHeader);
+
+      const bodyRows = Array.from(table.tBodies || [])
+        .flatMap((tbody) => Array.from(tbody.rows || []));
+
+      const trailingCells = bodyRows
+        .map((row) => row.cells?.[lastIndex] || null)
+        .filter(Boolean);
+
+      const hasVisibleContent = trailingCells.some((cell) => {
+        const text = textOf(cell);
+        const visibleControl = Array.from(
+          cell.querySelectorAll("button,a,input,select,textarea")
+        ).some((control) => {
+          const style = window.getComputedStyle(control);
+          return (
+            style.display !== "none" &&
+            style.visibility !== "hidden" &&
+            !control.hidden
+          );
+        });
+
+        return Boolean(text || visibleControl);
+      });
+
+      if (headerText || hasVisibleContent) break;
+
+      lastHeader.remove();
+      for (const cell of trailingCells) {
+        cell.remove();
+      }
+    }
+  }
+
   function normalizeHistoryTable(panel) {
     if (!panel) return;
 
@@ -97,14 +138,16 @@
     const wrap = table.parentElement;
     wrap?.classList.add("cfv-cal-history-wrap-v1");
 
+    removeTrailingBlankColumn(table);
+
     const headerRow = table.tHead?.rows?.[table.tHead.rows.length - 1] || null;
     const cellCount = headerRow?.cells?.length || 0;
 
-    if (cellCount === 6) {
-      for (const old of Array.from(table.querySelectorAll(":scope > colgroup"))) {
-        old.remove();
-      }
+    for (const old of Array.from(table.querySelectorAll(":scope > colgroup"))) {
+      old.remove();
+    }
 
+    if (cellCount === 6) {
       const colgroup = document.createElement("colgroup");
       colgroup.className = "cfv-cal-history-colgroup-v1";
 
@@ -114,6 +157,10 @@
 
       table.insertBefore(colgroup, table.firstChild);
     }
+
+    table.style.setProperty("width", "100%", "important");
+    table.style.setProperty("min-width", "100%", "important");
+    table.style.setProperty("max-width", "none", "important");
   }
 
   function createAdjustButton() {
