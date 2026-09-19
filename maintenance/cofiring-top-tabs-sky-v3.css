@@ -1,9 +1,13 @@
-/* COFIRING TOP TABS SKY V3 REDESIGN
+/* COFIRING TOP TABS SKY V3 R1 ORIGINAL CLEANUP
    New visible nav. Original behavior buttons are hidden, not removed.
 */
 
 #efficiencyCofiringDraftView
-.cf-sky-original-hidden-v3 {
+#cofiringTopTabsOriginalHostV3,
+#efficiencyCofiringDraftView
+#cofiringTopTabsOriginalHostV3[hidden],
+#efficiencyCofiringDraftView
+[data-cf-sky-original="1"] {
   display: none !important;
 }
 

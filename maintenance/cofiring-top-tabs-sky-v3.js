@@ -1,13 +1,14 @@
 (() => {
   "use strict";
 
-  /* COFIRING TOP TABS SKY V3 REDESIGN
+  /* COFIRING TOP TABS SKY V3 R1 ORIGINAL CLEANUP
      Rebuilds only the visible top navigation.
      Original buttons stay in the DOM (hidden) and keep all existing behavior.
   */
 
   const ROOT_ID = "efficiencyCofiringDraftView";
   const NAV_ID = "cofiringTopTabsSkyV3";
+  const HIDDEN_HOST_ID = "cofiringTopTabsOriginalHostV3";
   const LABELS = [
     "혼소율 계산",
     "고형연료 관리",
@@ -45,6 +46,42 @@
     }
 
     return found;
+  }
+
+  function hiddenHost(scope) {
+    let host = document.getElementById(HIDDEN_HOST_ID);
+
+    if (!host) {
+      host = document.createElement("div");
+      host.id = HIDDEN_HOST_ID;
+      host.hidden = true;
+      host.setAttribute("aria-hidden", "true");
+      host.style.setProperty("display", "none", "important");
+      scope.append(host);
+    }
+
+    return host;
+  }
+
+  function removeOriginalTabsFromLayout(originals) {
+    const scope = root();
+    if (!scope || originals.length !== LABELS.length) return false;
+
+    const host = hiddenHost(scope);
+
+    for (const original of originals) {
+      original.dataset.cfSkyOriginal = "1";
+      original.hidden = true;
+      original.setAttribute("aria-hidden", "true");
+      original.tabIndex = -1;
+      original.style.setProperty("display", "none", "important");
+
+      if (original.parentElement !== host) {
+        host.append(original);
+      }
+    }
+
+    return true;
   }
 
   function originalIsSelected(button) {
@@ -109,6 +146,7 @@
   function buildNav(originals) {
     const existing = document.getElementById(NAV_ID);
     if (existing) {
+      removeOriginalTabsFromLayout(originals);
       syncSelection(originals);
       return existing;
     }
@@ -124,9 +162,6 @@
     nav.setAttribute("aria-label", "혼소율 분석 메뉴");
 
     originals.forEach((original, index) => {
-      original.dataset.cfSkyOriginal = "1";
-      original.classList.add("cf-sky-original-hidden-v3");
-
       const custom = document.createElement("button");
       custom.type = "button";
       custom.className = "cf-sky-tab-v3";
@@ -154,6 +189,7 @@
     });
 
     parent.insertBefore(nav, first);
+    removeOriginalTabsFromLayout(originals);
     syncSelection(originals);
 
     return nav;
