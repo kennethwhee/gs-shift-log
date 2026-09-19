@@ -134,14 +134,14 @@
         <div class="cfv5-section-label">Coal &amp; Bio-SRF 상세</div>
         <div class="cfv5-table-scroll"><table class="cfv5-grid cfv5-coal-bio"><colgroup class="cfv5-detail-cols"><col class="cfv5-col-unit"><col span="2" class="cfv5-col-qty"><col class="cfv5-col-factor"><col span="2" class="cfv5-col-qty"><col class="cfv5-col-heat"><col span="2" class="cfv5-col-qty"><col class="cfv5-col-factor"><col span="2" class="cfv5-col-qty"><col class="cfv5-col-heat"><col class="cfv5-col-total"><col class="cfv5-col-ratio"></colgroup><thead>
           <tr><th rowspan="3">설비구분</th><th colspan="6" class="cfv5-head-coal">Coal</th><th colspan="6" class="cfv5-head-bio">Bio-SRF</th><th colspan="2" class="cfv5-head-ratio">혼소율 산정</th></tr>
-          <tr><th colspan="2">계측 사용량</th><th rowspan="2">계측기<br>보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th colspan="2">계측 사용량</th><th rowspan="2">계측기<br>보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th rowspan="2">총열량<br><small>Coal+Bio · Gcal</small></th><th rowspan="2">Bio 혼소율<br><small>Coal+Bio 기준 · %</small></th></tr>
+          <tr><th colspan="2">계측 사용량</th><th rowspan="2">계측기<br>보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th colspan="2">계측 사용량</th><th rowspan="2">계측기<br>보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th rowspan="2">총열량</th><th rowspan="2">혼소율</th></tr>
           <tr><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th></tr>
         </thead><tbody data-cfv5-main-body>${rowsPlaceholder(3,15)}</tbody></table></div>
 
         <div class="cfv5-section-label">유기성 고형연료 · 축분 상세</div>
         <div class="cfv5-table-scroll"><table class="cfv5-grid cfv5-organic"><colgroup class="cfv5-detail-cols"><col class="cfv5-col-unit"><col span="2" class="cfv5-col-qty"><col class="cfv5-col-factor"><col span="2" class="cfv5-col-qty"><col class="cfv5-col-heat"><col span="2" class="cfv5-col-qty"><col class="cfv5-col-factor"><col span="2" class="cfv5-col-qty"><col class="cfv5-col-heat"><col class="cfv5-col-total"><col class="cfv5-col-ratio"></colgroup><thead>
           <tr><th rowspan="3">설비구분</th><th colspan="6" class="cfv5-head-organic">유기성 고형연료</th><th colspan="6" class="cfv5-head-manure">축분</th><th colspan="2" class="cfv5-head-ratio">혼소율 산정</th></tr>
-          <tr><th colspan="2">사용량</th><th rowspan="2">보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th colspan="2">사용량</th><th rowspan="2">보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th rowspan="2">총열량<br><small>Gcal</small></th><th rowspan="2">유기성·축분<br>혼소율 <small>(%)</small></th></tr>
+          <tr><th colspan="2">사용량</th><th rowspan="2">보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th colspan="2">사용량</th><th rowspan="2">보정계수</th><th colspan="2">실 사용량</th><th rowspan="2">투입열량<br>(Gcal)</th><th rowspan="2">총열량</th><th rowspan="2">혼소율</th></tr>
           <tr><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th><th>기간(t)</th><th>평균(t/h)</th></tr>
         </thead><tbody data-cfv5-organic-body>${manualRowsPlaceholder()}</tbody></table></div>
       </details>

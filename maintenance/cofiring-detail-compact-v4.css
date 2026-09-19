@@ -1,0 +1,166 @@
+/* COFIRING DETAIL COMPACT V4
+   One final detail-table override.
+   V2/V3 stylesheet links are removed by the installer so this file owns the compact layout.
+*/
+
+.cofiring-period-v5 .cfv52-detail > summary {
+  min-height: 28px !important;
+  padding: 6px 10px !important;
+  gap: 8px !important;
+  font-size: 10.5px !important;
+  line-height: 1.1 !important;
+}
+
+.cofiring-period-v5 .cfv52-detail > summary small {
+  font-size: 9px !important;
+  line-height: 1 !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-section-label {
+  margin: 5px 6px 3px !important;
+  font-size: 10px !important;
+  line-height: 1.05 !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-table-scroll {
+  max-width: calc(100% - 12px) !important;
+  margin: 0 6px 6px !important;
+  border-radius: 5px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+
+/* Keep predictable geometry. The colgroup already exists from V3. */
+.cofiring-period-v5 .cfv52-detail .cfv5-grid {
+  width: 100% !important;
+  min-width: 1040px !important;
+  table-layout: fixed !important;
+  font-size: 9px !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-grid col.cfv5-col-unit {
+  width: 48px !important;
+}
+.cofiring-period-v5 .cfv52-detail .cfv5-grid col.cfv5-col-qty {
+  width: 66px !important;
+}
+.cofiring-period-v5 .cfv52-detail .cfv5-grid col.cfv5-col-factor {
+  width: 56px !important;
+}
+.cofiring-period-v5 .cfv52-detail .cfv5-grid col.cfv5-col-heat {
+  width: 66px !important;
+}
+.cofiring-period-v5 .cfv52-detail .cfv5-grid col.cfv5-col-total {
+  width: 82px !important;
+}
+.cofiring-period-v5 .cfv52-detail .cfv5-grid col.cfv5-col-ratio {
+  width: 82px !important;
+}
+
+/* Remove vertical bulk from every cell. */
+.cofiring-period-v5 .cfv52-detail .cfv5-grid th,
+.cofiring-period-v5 .cfv52-detail .cfv5-grid td {
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 2px 4px !important;
+  line-height: 1.05 !important;
+  vertical-align: middle !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-grid thead th {
+  text-align: center !important;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+  text-overflow: clip !important;
+}
+
+/* Three header bands: 22 + 25 + 14px. */
+.cofiring-period-v5 .cfv52-detail .cfv5-grid thead tr:first-child th {
+  height: 22px !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+}
+.cofiring-period-v5 .cfv52-detail .cfv5-grid thead tr:nth-child(2) th {
+  height: 25px !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  font-size: 9px !important;
+  line-height: 1 !important;
+}
+.cofiring-period-v5 .cfv52-detail .cfv5-grid thead tr:nth-child(3) th {
+  height: 14px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  font-size: 7.5px !important;
+  line-height: 1 !important;
+  color: #748694 !important;
+}
+
+/* Result headers are intentionally one short line each. */
+.cofiring-period-v5 .cfv52-detail .cfv5-grid .cfv5-head-ratio {
+  min-width: 164px !important;
+  white-space: nowrap !important;
+}
+.cofiring-period-v5 .cfv52-detail .cfv5-grid thead tr:nth-child(2) > th:nth-last-child(-n+2) {
+  width: auto !important;
+  min-width: 0 !important;
+  padding: 2px 3px !important;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow: hidden !important;
+  line-height: 1 !important;
+  background: #eef6f6 !important;
+}
+
+/* The data rows can fit the two-line period/average presentation in ~32px. */
+.cofiring-period-v5 .cfv52-detail .cfv5-grid tbody tr {
+  height: 32px !important;
+}
+.cofiring-period-v5 .cfv52-detail .cfv5-grid tbody th,
+.cofiring-period-v5 .cfv52-detail .cfv5-grid tbody td {
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+  font-size: 9px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+/* Kill inherited gaps/margins inside compact period/average cells. */
+.cofiring-period-v5 .cfv52-detail .cfv5-grid tbody td > *,
+.cofiring-period-v5 .cfv52-detail .cfv5-grid tbody th > * {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  line-height: 1 !important;
+}
+.cofiring-period-v5 .cfv52-detail .cfv5-grid tbody td > div,
+.cofiring-period-v5 .cfv52-detail .cfv5-grid tbody td > span {
+  row-gap: 0 !important;
+  column-gap: 3px !important;
+}
+
+/* Protect final values from any old compact rule. */
+.cofiring-period-v5 .cfv52-detail .cfv5-grid tbody tr > td:nth-last-child(2),
+.cofiring-period-v5 .cfv52-detail .cfv5-grid tbody tr > td:last-child {
+  min-width: 0 !important;
+  padding-left: 3px !important;
+  padding-right: 3px !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  background: #f7fbfb !important;
+}
+
+.cofiring-period-v5 .cfv52-detail .cfv5-grid .cfv5-sum th,
+.cofiring-period-v5 .cfv52-detail .cfv5-grid .cfv5-sum td {
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+}
+
+@media (max-width: 1080px) {
+  .cofiring-period-v5 .cfv52-detail .cfv5-grid {
+    min-width: 1040px !important;
+  }
+}
