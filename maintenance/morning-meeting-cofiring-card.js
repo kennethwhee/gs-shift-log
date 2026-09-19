@@ -1073,23 +1073,61 @@
 
 /* MORNING_MEETING_COFIRING_STABLE_REFRESH_V1_R2 */
 
-/* ===== MORNING_CALORIFIC_4COL_LAYOUT_V3 ===== */
+/* ===== MORNING_CALORIFIC_UNIFIED_FIELDS_V5 ===== */
 (function () {
   'use strict';
 
-  const IDS = [
-    'morningMeetingCofiringCoalHv',
-    'morningMeetingCofiringBioHv',
-    'morningMeetingCofiringOrganicHv',
-    'morningMeetingCofiringManureHv'
+  const FIELDS = [
+    {
+      id: 'morningMeetingCofiringCoalHv',
+      label: 'Coal'
+    },
+    {
+      id: 'morningMeetingCofiringBioHv',
+      label: 'Bio-SRF'
+    },
+    {
+      id: 'morningMeetingCofiringOrganicHv',
+      label: '유기성 고형연료'
+    },
+    {
+      id: 'morningMeetingCofiringManureHv',
+      label: '축분'
+    }
   ];
 
-  let scheduled = false;
+  let queued = false;
 
-  function inputs() {
-    return IDS.map(function (id) {
-      return document.getElementById(id);
+  function allInputs() {
+    return FIELDS.map(function (field) {
+      return document.getElementById(field.id);
     });
+  }
+
+  function commonAncestor(nodes) {
+    if (!nodes.length) {
+      return null;
+    }
+
+    let current = nodes[0].parentElement;
+
+    while (
+      current &&
+      current !== document.body
+    ) {
+      const containsAll =
+        nodes.every(function (node) {
+          return current.contains(node);
+        });
+
+      if (containsAll) {
+        return current;
+      }
+
+      current = current.parentElement;
+    }
+
+    return null;
   }
 
   function targetCount(node) {
@@ -1097,77 +1135,135 @@
       return 0;
     }
 
-    return IDS.reduce(function (count, id) {
-      return count + (
-        node.querySelector('#' + id)
-          ? 1
-          : 0
-      );
-    }, 0);
+    return FIELDS.reduce(
+      function (count, field) {
+        return count +
+          (
+            node.querySelector('#' + field.id)
+              ? 1
+              : 0
+          );
+      },
+      0
+    );
   }
 
   /*
-    해당 연료 input 하나만 포함하는
-    가장 바깥쪽 field wrapper를 찾는다.
+    input 하나만 포함하는 가장 큰 기존 필드 wrapper.
   */
-  function singleField(input) {
-    let current = input;
+  function oldFieldWrapper(input) {
+    let node = input;
     let best = input.parentElement;
 
     while (
-      current &&
-      current.parentElement &&
-      current.parentElement !== document.body
+      node &&
+      node.parentElement &&
+      node.parentElement !== document.body
     ) {
-      const parent = current.parentElement;
+      const parent = node.parentElement;
 
       if (targetCount(parent) !== 1) {
         break;
       }
 
       best = parent;
-      current = parent;
+      node = parent;
     }
 
     return best;
   }
 
-  function directChildContaining(parent, input) {
+  function directChildContaining(parent, node) {
     return Array.from(parent.children || [])
       .find(function (child) {
-        return child.contains(input);
+        return child.contains(node);
       }) || null;
   }
 
-  function findFuelParent(coal, bio, organic) {
-    /*
-      Coal field부터 위로 올라가면서
-      Coal + Bio + Organic이 함께 들어있는
-      첫 번째 부모를 찾는다.
-    */
-    let field = singleField(coal);
-    let parent = field?.parentElement || null;
+  function findInsertContext(inputs) {
+    const common = commonAncestor(inputs);
 
-    while (
-      parent &&
-      parent !== document.body
-    ) {
-      if (
-        parent.contains(coal) &&
-        parent.contains(bio) &&
-        parent.contains(organic)
-      ) {
-        return parent;
-      }
-
-      parent = parent.parentElement;
+    if (!common) {
+      return null;
     }
 
-    return null;
+    const topChildren = inputs
+      .map(function (input) {
+        return directChildContaining(
+          common,
+          input
+        );
+      })
+      .filter(Boolean);
+
+    if (!topChildren.length) {
+      return null;
+    }
+
+    return {
+      common,
+      anchor: topChildren[0]
+    };
   }
 
-  function markDialog(grid) {
-    let node = grid;
+  function makeField(field, input) {
+    const wrapper =
+      document.createElement('div');
+
+    wrapper.className =
+      'mm-cal-v5-field';
+
+    const label =
+      document.createElement('label');
+
+    label.className =
+      'mm-cal-v5-label';
+
+    label.htmlFor =
+      field.id;
+
+    label.textContent =
+      field.label;
+
+    const row =
+      document.createElement('div');
+
+    row.className =
+      'mm-cal-v5-input-row';
+
+    const unit =
+      document.createElement('span');
+
+    unit.className =
+      'mm-cal-v5-unit';
+
+    unit.textContent =
+      'kcal/kg';
+
+    /*
+      실제 기존 input을 그대로 이동.
+      value / listener / 저장 연결은 유지된다.
+    */
+    input.classList.add(
+      'mm-cal-v5-input'
+    );
+
+    row.append(
+      input,
+      unit
+    );
+
+    wrapper.append(
+      label,
+      row
+    );
+
+    return wrapper;
+  }
+
+  function findModal(grid) {
+    let node =
+      grid.parentElement;
 
     while (
       node &&
@@ -1176,160 +1272,169 @@
       const role =
         node.getAttribute?.('role');
 
-      const className =
-        String(node.className || '')
-          .toLowerCase();
-
       const id =
         String(node.id || '')
           .toLowerCase();
 
+      const cls =
+        String(node.className || '')
+          .toLowerCase();
+
       if (
         role === 'dialog' ||
-        className.includes('modal') ||
-        id.includes('modal')
+        id.includes('modal') ||
+        cls.includes('modal')
       ) {
-        node.classList.add(
-          'mm-calorific-modal-v3'
-        );
-
-        return;
+        return node;
       }
 
-      node = node.parentElement;
+      node =
+        node.parentElement;
     }
+
+    return null;
   }
 
   function apply() {
-    scheduled = false;
+    queued = false;
 
-    const list = inputs();
+    const inputs =
+      allInputs();
 
     if (
-      list.some(function (input) {
+      inputs.some(function (input) {
         return !input;
       })
     ) {
       return;
     }
 
-    const [
-      coal,
-      bio,
-      organic,
-      manure
-    ] = list;
-
-    const parent =
-      findFuelParent(
-        coal,
-        bio,
-        organic
-      );
-
-    if (!parent) {
-      return;
-    }
-
     /*
-      현재 정상 3열의 직접 자식:
-      Coal | Bio | Organic(+Manure nested)
-
-      여기서 Manure wrapper만 Organic 밖으로 꺼낸다.
+      이미 완성된 V5 구조면 종료.
     */
-    const coalField =
-      directChildContaining(
-        parent,
-        coal
-      );
-
-    const bioField =
-      directChildContaining(
-        parent,
-        bio
-      );
-
-    const organicField =
-      directChildContaining(
-        parent,
-        organic
+    const existing =
+      inputs[0].closest(
+        '.mm-cal-v5-grid'
       );
 
     if (
-      !coalField ||
-      !bioField ||
-      !organicField
+      existing &&
+      inputs.every(function (input) {
+        return existing.contains(input);
+      })
     ) {
       return;
     }
 
-    let manureField =
-      singleField(manure);
+    const context =
+      findInsertContext(inputs);
 
-    /*
-      manure가 organic column 안에 들어있으면
-      manure 전용 wrapper만 parent의 4번째 자식으로 이동.
-    */
-    if (
-      manureField &&
-      manureField !== organicField &&
-      manureField.parentElement !== parent
-    ) {
-      organicField.insertAdjacentElement(
-        'afterend',
-        manureField
-      );
-    }
-
-    manureField =
-      directChildContaining(
-        parent,
-        manure
-      );
-
-    if (!manureField) {
+    if (!context) {
       return;
     }
 
-    const fields = [
-      coalField,
-      bioField,
-      organicField,
-      manureField
-    ];
+    /*
+      기존 필드 wrapper는 input 이동 후 제거할 예정.
+    */
+    const oldWrappers =
+      inputs
+        .map(oldFieldWrapper)
+        .filter(Boolean);
 
-    parent.classList.add(
-      'mm-calorific-grid-v3'
+    const uniqueOldWrappers =
+      Array.from(
+        new Set(oldWrappers)
+      );
+
+    const grid =
+      document.createElement('div');
+
+    grid.className =
+      'mm-cal-v5-grid';
+
+    context.common.insertBefore(
+      grid,
+      context.anchor
     );
 
-    fields.forEach(function (field) {
-      field.classList.add(
-        'mm-calorific-field-v3'
-      );
-    });
+    FIELDS.forEach(
+      function (field, index) {
+        const input =
+          inputs[index];
+
+        grid.appendChild(
+          makeField(
+            field,
+            input
+          )
+        );
+      }
+    );
 
     /*
-      4개 연료 이외의 직접 자식이 있다면
-      한 줄 전체를 사용하게 해서 레이아웃 훼손 방지.
+      input을 빼낸 뒤 남은 기존 label/unit wrapper 제거.
+      동일한 wrapper가 중복되어도 한 번만 제거.
     */
-    Array.from(parent.children)
-      .forEach(function (child) {
-        if (!fields.includes(child)) {
-          child.classList.add(
-            'mm-calorific-grid-full-v3'
-          );
+    uniqueOldWrappers
+      .sort(function (a, b) {
+        /*
+          자식 wrapper부터 제거
+        */
+        if (a.contains(b)) {
+          return 1;
+        }
+
+        if (b.contains(a)) {
+          return -1;
+        }
+
+        return 0;
+      })
+      .forEach(function (wrapper) {
+        if (
+          wrapper &&
+          wrapper.isConnected &&
+          !wrapper.contains(
+            document.getElementById(
+              'morningMeetingCofiringCoalHv'
+            )
+          ) &&
+          !wrapper.contains(
+            document.getElementById(
+              'morningMeetingCofiringBioHv'
+            )
+          ) &&
+          !wrapper.contains(
+            document.getElementById(
+              'morningMeetingCofiringOrganicHv'
+            )
+          ) &&
+          !wrapper.contains(
+            document.getElementById(
+              'morningMeetingCofiringManureHv'
+            )
+          )
+        ) {
+          wrapper.remove();
         }
       });
 
-    markDialog(parent);
+    const modal =
+      findModal(grid);
+
+    if (modal) {
+      modal.classList.add(
+        'mm-cal-v5-modal'
+      );
+    }
   }
 
   function schedule() {
-    if (scheduled) {
+    if (queued) {
       return;
     }
 
-    scheduled = true;
+    queued = true;
 
     if (
       typeof requestAnimationFrame ===
@@ -1363,7 +1468,8 @@
   }
 
   if (
-    document.readyState === 'loading'
+    document.readyState ===
+    'loading'
   ) {
     document.addEventListener(
       'DOMContentLoaded',
@@ -1375,4 +1481,4 @@
     start();
   }
 })();
-/* ===== /MORNING_CALORIFIC_4COL_LAYOUT_V3 ===== */
+/* ===== /MORNING_CALORIFIC_UNIFIED_FIELDS_V5 ===== */
