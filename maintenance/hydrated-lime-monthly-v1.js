@@ -1,24 +1,23 @@
 (() => {
   "use strict";
 
-  /* HYDRATED LIME MONTHLY V1 R1 ICON FIX */
-  const API = "/api/hydrated-lime-monthly";
+  /* HYDRATED LIME RECEIPTS V2 */
+  const API = "/api/hydrated-lime-receipts";
   const PARENT_VIEW_ID = "efficiencyLimestoneView";
   const PARENT_TAB_ID = "efficiencyLimestoneTab";
   const SUBMENU_ID = "limestoneSubviewMenu";
   const RECEIPT_VIEW_ID = "limestoneDashboard";
   const USAGE_VIEW_ID = "limestoneUsageCalculatorView";
   const TAB_ID = "hydratedLimeSubviewButton";
-  const PANEL_ID = "hydratedLimeMonthlyView";
-  const REFRESH_ID = "refreshHydratedLimeMonthlyButton";
-  const OPEN_EDITOR_ID = "openHydratedLimeMonthlyEditorButton";
+  const PANEL_ID = "hydratedLimeReceiptView";
+  const REFRESH_ID = "refreshHydratedLimeReceiptsButton";
+  const OPEN_EDITOR_ID = "openHydratedLimeReceiptEditorButton";
   const STORAGE_KEY = "gsShiftLog.currentUser";
 
   const state = {
     month: "",
-    year: "",
     items: [],
-    loaded: false,
+    loadedMonth: "",
     loading: false
   };
 
@@ -30,20 +29,61 @@
     return String(value).padStart(2, "0");
   }
 
-  function currentMonthKst() {
+  function currentKstParts() {
     const parts = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Seoul",
       year: "numeric",
-      month: "2-digit"
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
     }).formatToParts(new Date());
 
-    const year = parts.find((part) => part.type === "year")?.value;
-    const month = parts.find((part) => part.type === "month")?.value;
-    return `${year}-${month}`;
+    const value = (type) =>
+      parts.find((part) => part.type === type)?.value || "";
+
+    return {
+      year: value("year"),
+      month: value("month"),
+      day: value("day"),
+      hour: value("hour"),
+      minute: value("minute")
+    };
+  }
+
+  function currentMonthKst() {
+    const p = currentKstParts();
+    return `${p.year}-${p.month}`;
+  }
+
+  function currentDateKst() {
+    const p = currentKstParts();
+    return `${p.year}-${p.month}-${p.day}`;
+  }
+
+  function currentTimeKst() {
+    const p = currentKstParts();
+    return `${p.hour}:${p.minute}`;
   }
 
   function validMonth(value) {
     return /^\d{4}-(0[1-9]|1[0-2])$/.test(text(value));
+  }
+
+  function validDate(value) {
+    return /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(text(value));
+  }
+
+  function validTime(value) {
+    return /^([01]\d|2[0-3]):[0-5]\d$/.test(text(value));
+  }
+
+  function moveMonth(value, amount) {
+    const normalized = validMonth(value) ? value : currentMonthKst();
+    const [year, month] = normalized.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 1 + amount, 1));
+    return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}`;
   }
 
   function monthLabel(value) {
@@ -52,11 +92,15 @@
     return `${year}년 ${month}월`;
   }
 
-  function moveMonth(value, amount) {
-    const normalized = validMonth(value) ? value : currentMonthKst();
-    const [year, month] = normalized.split("-").map(Number);
-    const date = new Date(Date.UTC(year, month - 1 + amount, 1, 0, 0, 0));
-    return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}`;
+  function monthDayLabel(value) {
+    if (!validDate(value)) return "-";
+    return value.slice(5);
+  }
+
+  function selectedMonthDefaultDate(month) {
+    const currentDate = currentDateKst();
+    if (currentDate.startsWith(`${month}-`)) return currentDate;
+    return `${month}-01`;
   }
 
   function escapeHtml(value) {
@@ -118,7 +162,7 @@
     if (!response.ok || payload?.ok === false) {
       throw new Error(
         payload?.message ||
-          `소석회 월별 기록 요청에 실패했습니다. (${response.status})`
+          `소석회 입고 기록 요청에 실패했습니다. (${response.status})`
       );
     }
 
@@ -143,6 +187,7 @@
 
   function headingParts() {
     const view = parentView();
+
     return {
       eyebrow: view?.querySelector(
         ".limestone-view-heading > div:first-child > span"
@@ -157,8 +202,6 @@
     const button = document.getElementById(PARENT_TAB_ID);
     if (!button) return false;
 
-    // Preserve the existing SVG icon. Replacing button.textContent would
-    // delete every child node inside the menu button, including the icon.
     const label = button.querySelector(".efficiency-team-tab__label");
 
     if (label) {
@@ -166,7 +209,6 @@
         label.textContent = "석회석/소석회";
       }
     } else {
-      // Legacy fallback only: create a label without touching existing children.
       const fallbackLabel = document.createElement("span");
       fallbackLabel.className = "efficiency-team-tab__label";
       fallbackLabel.textContent = "석회석/소석회";
@@ -184,93 +226,112 @@
 
     return `
       <section
-        class="hydrated-lime-monthly-v1"
+        class="hydrated-lime-receipts-v2"
         id="${PANEL_ID}"
         role="tabpanel"
         aria-labelledby="${TAB_ID}"
         hidden
       >
-        <div class="hlm-month-bar">
-          <button type="button" class="hlm-nav-button" data-hlm-prev aria-label="이전 달">‹</button>
-          <label class="hlm-month-field">
+        <section class="hlr-month-card">
+          <button type="button" class="hlr-date-arrow" data-hlr-prev aria-label="이전 달">‹</button>
+
+          <label class="hlr-month-field">
             <span>조회 월</span>
-            <input type="month" data-hlm-month value="${month}">
+            <input type="month" data-hlr-month value="${month}">
           </label>
-          <button type="button" class="hlm-nav-button" data-hlm-next aria-label="다음 달">›</button>
-          <button type="button" class="hlm-today-button" data-hlm-current>이번 달</button>
-          <span class="hlm-month-only-note">일·주 단위 없이 월 단위로만 기록합니다.</span>
-        </div>
 
-        <div class="hlm-summary-grid">
-          <article class="hlm-summary-card is-primary">
-            <span>선택 월 입고량</span>
-            <strong data-hlm-selected-quantity>0.00 <small>ton</small></strong>
-          </article>
-          <article class="hlm-summary-card is-green">
-            <span>연간 누적</span>
-            <strong data-hlm-year-total>0.00 <small>ton</small></strong>
-          </article>
-          <article class="hlm-summary-card is-purple">
-            <span>월 평균</span>
-            <strong data-hlm-year-average>0.00 <small>ton</small></strong>
-          </article>
-          <article class="hlm-summary-card is-orange">
-            <span>기록 월수</span>
-            <strong data-hlm-record-count>0 <small>개월</small></strong>
-          </article>
-        </div>
+          <button type="button" class="hlr-date-arrow" data-hlr-next aria-label="다음 달">›</button>
+          <button type="button" class="hlr-current-button" data-hlr-current>이번 달</button>
 
-        <section class="hlm-history-card">
-          <header class="hlm-history-head">
+          <span class="hlr-month-note">
+            월 단위로 조회하고, 입고 건은 월일·시간·톤수로 기록합니다.
+          </span>
+        </section>
+
+        <section class="hlr-summary-grid">
+          <article class="hlr-summary-card is-blue">
+            <span>전체 입고량</span>
+            <strong data-hlr-total>0.00 <small>ton</small></strong>
+          </article>
+
+          <article class="hlr-summary-card is-green">
+            <span>입고 횟수</span>
+            <strong data-hlr-count>0 <small>회</small></strong>
+          </article>
+
+          <article class="hlr-summary-card is-purple">
+            <span>평균 입고량</span>
+            <strong data-hlr-average>0.00 <small>ton</small></strong>
+          </article>
+
+          <article class="hlr-summary-card is-orange">
+            <span>최종 입고</span>
+            <strong data-hlr-latest>-</strong>
+          </article>
+        </section>
+
+        <section class="hlr-history-card">
+          <header class="hlr-history-head">
             <div>
-              <span>HYDRATED LIME HISTORY</span>
-              <strong>소석회 월별 기록</strong>
+              <span>HYDRATED LIME RECEIPT HISTORY</span>
+              <strong>입고기록 상세</strong>
             </div>
-            <em data-hlm-year-label>-</em>
+
+            <em data-hlr-count-badge>0건</em>
           </header>
 
-          <div class="hlm-table-wrap">
-            <table class="hlm-table">
+          <div class="hlr-table-wrap">
+            <table class="hlr-table">
               <thead>
                 <tr>
-                  <th>월</th>
+                  <th>월일</th>
+                  <th>시간</th>
                   <th>입고량</th>
+                  <th>당일 누적</th>
+                  <th>출처</th>
                   <th>비고</th>
-                  <th>수정자</th>
-                  <th>수정 시각</th>
                   <th>관리</th>
                 </tr>
               </thead>
-              <tbody data-hlm-body>
+
+              <tbody data-hlr-body>
                 <tr>
-                  <td colspan="6" class="hlm-empty">월별 기록을 불러오는 중입니다.</td>
+                  <td colspan="7" class="hlr-empty">소석회 입고 기록을 불러오는 중입니다.</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </section>
 
-        <div class="hlm-editor-backdrop" data-hlm-editor hidden>
-          <form class="hlm-editor" data-hlm-form>
+        <div class="hlr-editor-backdrop" data-hlr-editor hidden>
+          <form class="hlr-editor" data-hlr-form>
             <header>
               <div>
-                <span>MONTHLY RECORD</span>
-                <strong>소석회 월 기록</strong>
+                <span>HYDRATED LIME RECEIPT</span>
+                <strong data-hlr-editor-title>소석회 입고 기록</strong>
               </div>
-              <button type="button" class="hlm-editor-close" data-hlm-close aria-label="닫기">×</button>
+
+              <button type="button" class="hlr-editor-close" data-hlr-close aria-label="닫기">×</button>
             </header>
 
-            <div class="hlm-editor-body">
+            <div class="hlr-editor-body">
+              <input type="hidden" data-hlr-id>
+
               <label>
-                <span>기준 월</span>
-                <input type="month" data-hlm-edit-month required>
+                <span>입고 일자</span>
+                <input type="date" data-hlr-date required>
               </label>
 
               <label>
-                <span>월 입고량 (ton)</span>
+                <span>입고 시간</span>
+                <input type="time" data-hlr-time step="60" required>
+              </label>
+
+              <label>
+                <span>입고량 (ton)</span>
                 <input
                   type="number"
-                  data-hlm-quantity
+                  data-hlr-quantity
                   min="0"
                   max="1000000"
                   step="0.01"
@@ -283,7 +344,7 @@
               <label class="is-wide">
                 <span>비고</span>
                 <textarea
-                  data-hlm-note
+                  data-hlr-note
                   rows="3"
                   maxlength="500"
                   placeholder="필요한 내용만 간단히 기록"
@@ -291,11 +352,11 @@
               </label>
             </div>
 
-            <p class="hlm-editor-status" data-hlm-editor-status hidden></p>
+            <p class="hlr-editor-status" data-hlr-editor-status hidden></p>
 
             <footer>
-              <button type="button" class="secondary-button" data-hlm-cancel>취소</button>
-              <button type="submit" class="primary-button" data-hlm-save>저장</button>
+              <button type="button" class="secondary-button" data-hlr-cancel>취소</button>
+              <button type="submit" class="primary-button" data-hlr-save>저장</button>
             </footer>
           </form>
         </div>
@@ -336,6 +397,7 @@
     tab.textContent = "소석회";
 
     const usageTab = document.getElementById("limestoneUsageSubviewButton");
+
     if (usageTab?.parentElement === menu) {
       usageTab.insertAdjacentElement("afterend", tab);
     } else {
@@ -351,6 +413,7 @@
     if (!actions) return false;
 
     let refresh = document.getElementById(REFRESH_ID);
+
     if (!refresh) {
       refresh = document.createElement("button");
       refresh.type = "button";
@@ -358,19 +421,20 @@
       refresh.className = "secondary-button";
       refresh.textContent = "새로고침";
       refresh.hidden = true;
-      refresh.addEventListener("click", () => loadYear(true));
+      refresh.addEventListener("click", () => loadMonth(true));
       actions.append(refresh);
     }
 
     let add = document.getElementById(OPEN_EDITOR_ID);
+
     if (!add) {
       add = document.createElement("button");
       add.type = "button";
       add.id = OPEN_EDITOR_ID;
       add.className = "primary-button";
-      add.textContent = "+ 월 기록";
+      add.textContent = "+ 입고 기록";
       add.hidden = true;
-      add.addEventListener("click", () => openEditor(state.month));
+      add.addEventListener("click", () => openEditor());
       actions.append(add);
     }
 
@@ -380,11 +444,12 @@
   function setOwnActionsVisible(visible) {
     const refresh = document.getElementById(REFRESH_ID);
     const add = document.getElementById(OPEN_EDITOR_ID);
+
     if (refresh) refresh.hidden = !visible;
     if (add) add.hidden = !visible;
   }
 
-  function hideLegacyHeaderActionsForHydrated() {
+  function setLegacyActionsHidden(hidden) {
     const ids = [
       "refreshLimestoneReceiptsButton",
       "importLimestoneFromShiftLogsButton",
@@ -397,24 +462,27 @@
 
     for (const id of ids) {
       const node = document.getElementById(id);
-      if (node) node.hidden = true;
+      if (node) node.hidden = hidden;
     }
 
     const guide = headingParts().actions?.querySelector(
       ".limestone-slip-camera-guide"
     );
-    if (guide) guide.hidden = true;
+    if (guide && hidden) guide.hidden = true;
   }
 
   function setHeadingHydrated() {
-    const { eyebrow, title, description } = headingParts();
+    const { eyebrow, title, description, actions } = headingParts();
 
-    if (eyebrow) eyebrow.textContent = "HYDRATED LIME";
-    if (title) title.textContent = "소석회 월별 입고 현황";
+    if (eyebrow) eyebrow.textContent = "HYDRATED LIME RECEIPT";
+    if (title) title.textContent = "소석회 입고 현황";
     if (description) {
       description.textContent =
-        "소석회 입고량을 월 단위로 기록하고 연간 누계를 확인합니다.";
+        "소석회 입고량을 월 단위로 조회하고 입고 건별로 기록합니다.";
     }
+
+    // Usage view may leave this whole action area hidden.
+    if (actions) actions.hidden = false;
   }
 
   function setTabState(active) {
@@ -444,33 +512,33 @@
     const panel = ensurePanel();
     if (!view || !panel) return;
 
-    view.dataset.hydratedLimeMonthlyActive = "1";
+    view.dataset.hydratedLimeActive = "1";
 
     const receipt = receiptView();
     const usage = usageView();
+
     if (receipt) receipt.hidden = true;
     if (usage) usage.hidden = true;
     panel.hidden = false;
 
     setHeadingHydrated();
-    hideLegacyHeaderActionsForHydrated();
+    setLegacyActionsHidden(true);
     setOwnActionsVisible(true);
     setTabState(true);
 
     if (!state.month) state.month = currentMonthKst();
-    state.year = state.month.slice(0, 4);
 
-    const monthInput = panel.querySelector("[data-hlm-month]");
+    const monthInput = panel.querySelector("[data-hlr-month]");
     if (monthInput) monthInput.value = state.month;
 
-    loadYear(false);
+    loadMonth(false);
   }
 
   function deactivateHydratedView() {
     const view = parentView();
     const panel = document.getElementById(PANEL_ID);
 
-    if (view) delete view.dataset.hydratedLimeMonthlyActive;
+    if (view) delete view.dataset.hydratedLimeActive;
     if (panel) panel.hidden = true;
 
     setOwnActionsVisible(false);
@@ -484,38 +552,69 @@
     ].filter(Boolean);
 
     for (const button of buttons) {
-      if (button.dataset.hydratedLimeDeactivateBound === "1") continue;
-      button.dataset.hydratedLimeDeactivateBound = "1";
+      if (button.dataset.hydratedLimeV2DeactivateBound === "1") continue;
 
-      button.addEventListener("click", () => {
-        window.setTimeout(deactivateHydratedView, 0);
-      });
+      button.dataset.hydratedLimeV2DeactivateBound = "1";
+
+      // Synchronous target-capture cleanup is intentional.
+      // document's capture handler schedules enhance(), so we must clear the
+      // hydrated mode during the same click stack before that timer runs.
+      button.addEventListener(
+        "click",
+        () => {
+          deactivateHydratedView();
+        },
+        true
+      );
     }
   }
 
   function setMonth(month, load = true) {
     if (!validMonth(month)) return;
 
-    const oldYear = state.year;
     state.month = month;
-    state.year = month.slice(0, 4);
 
     const panel = document.getElementById(PANEL_ID);
-    const input = panel?.querySelector("[data-hlm-month]");
+    const input = panel?.querySelector("[data-hlr-month]");
+
     if (input && input.value !== month) input.value = month;
 
-    if (load && state.year !== oldYear) {
-      loadYear(false);
-    } else {
-      render();
-    }
+    if (load) loadMonth(false);
+    else render();
+  }
+
+  function computeRows() {
+    const ascending = state.items
+      .slice()
+      .sort((a, b) => {
+        const aKey = `${a.receiptDate} ${a.receiptTime} ${String(a.id).padStart(12, "0")}`;
+        const bKey = `${b.receiptDate} ${b.receiptTime} ${String(b.id).padStart(12, "0")}`;
+        return aKey.localeCompare(bKey);
+      });
+
+    const daily = new Map();
+    const withCumulative = ascending.map((item) => {
+      const previous = daily.get(item.receiptDate) || 0;
+      const cumulative = previous + (Number(item.quantityTon) || 0);
+      daily.set(item.receiptDate, cumulative);
+
+      return {
+        ...item,
+        dailyCumulative: cumulative
+      };
+    });
+
+    return withCumulative.sort((a, b) => {
+      const aKey = `${a.receiptDate} ${a.receiptTime} ${String(a.id).padStart(12, "0")}`;
+      const bKey = `${b.receiptDate} ${b.receiptTime} ${String(b.id).padStart(12, "0")}`;
+      return bKey.localeCompare(aKey);
+    });
   }
 
   function render() {
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
 
-    const selected = state.items.find((item) => item.month === state.month);
     const total = state.items.reduce(
       (sum, item) => sum + (Number(item.quantityTon) || 0),
       0
@@ -523,47 +622,57 @@
     const count = state.items.length;
     const average = count ? total / count : 0;
 
-    panel.querySelector("[data-hlm-selected-quantity]").innerHTML =
-      `${number(selected?.quantityTon)} <small>ton</small>`;
-    panel.querySelector("[data-hlm-year-total]").innerHTML =
-      `${number(total)} <small>ton</small>`;
-    panel.querySelector("[data-hlm-year-average]").innerHTML =
-      `${number(average)} <small>ton</small>`;
-    panel.querySelector("[data-hlm-record-count]").innerHTML =
-      `${count} <small>개월</small>`;
-    panel.querySelector("[data-hlm-year-label]").textContent =
-      `${state.year || state.month.slice(0, 4)}년`;
+    const latest = state.items
+      .slice()
+      .sort((a, b) =>
+        `${b.receiptDate} ${b.receiptTime}`.localeCompare(
+          `${a.receiptDate} ${a.receiptTime}`
+        )
+      )[0];
 
-    const body = panel.querySelector("[data-hlm-body]");
+    panel.querySelector("[data-hlr-total]").innerHTML =
+      `${number(total)} <small>ton</small>`;
+    panel.querySelector("[data-hlr-count]").innerHTML =
+      `${count} <small>회</small>`;
+    panel.querySelector("[data-hlr-average]").innerHTML =
+      `${number(average)} <small>ton</small>`;
+    panel.querySelector("[data-hlr-latest]").innerHTML =
+      latest
+        ? `${escapeHtml(monthDayLabel(latest.receiptDate))} <small>${escapeHtml(latest.receiptTime)}</small>`
+        : "-";
+    panel.querySelector("[data-hlr-count-badge]").textContent = `${count}건`;
+
+    const body = panel.querySelector("[data-hlr-body]");
     if (!body) return;
 
     if (state.loading) {
       body.innerHTML =
-        '<tr><td colspan="6" class="hlm-empty">월별 기록을 불러오는 중입니다.</td></tr>';
+        '<tr><td colspan="7" class="hlr-empty">소석회 입고 기록을 불러오는 중입니다.</td></tr>';
       return;
     }
 
-    if (!state.items.length) {
+    const rows = computeRows();
+
+    if (!rows.length) {
       body.innerHTML =
-        '<tr><td colspan="6" class="hlm-empty">등록된 소석회 월별 기록이 없습니다.</td></tr>';
+        '<tr><td colspan="7" class="hlr-empty">조회 월에 등록된 소석회 입고 기록이 없습니다.</td></tr>';
       return;
     }
 
-    body.innerHTML = state.items
-      .slice()
-      .sort((a, b) => b.month.localeCompare(a.month))
+    body.innerHTML = rows
       .map(
         (item) => `
-          <tr class="${item.month === state.month ? "is-selected" : ""}">
-            <td><strong>${escapeHtml(monthLabel(item.month))}</strong></td>
-            <td><strong class="hlm-ton">${number(item.quantityTon)} t</strong></td>
-            <td class="hlm-note">${escapeHtml(item.note || "-")}</td>
-            <td>${escapeHtml(item.updatedByName || "-")}</td>
-            <td>${escapeHtml(formatSavedAt(item.updatedAt))}</td>
+          <tr>
+            <td><strong>${escapeHtml(monthDayLabel(item.receiptDate))}</strong></td>
+            <td><strong>${escapeHtml(item.receiptTime)}</strong></td>
+            <td><strong class="hlr-ton">${number(item.quantityTon)} t</strong></td>
+            <td><strong class="hlr-cumulative">${number(item.dailyCumulative)} t</strong></td>
+            <td>${escapeHtml(item.sourceLabel || "직접 입력")}</td>
+            <td class="hlr-note">${escapeHtml(item.note || "-")}</td>
             <td>
-              <div class="hlm-actions">
-                <button type="button" data-hlm-edit="${escapeHtml(item.month)}">수정</button>
-                <button type="button" class="danger" data-hlm-delete="${escapeHtml(item.month)}">삭제</button>
+              <div class="hlr-actions">
+                <button type="button" data-hlr-edit="${Number(item.id)}">수정</button>
+                <button type="button" class="danger" data-hlr-delete="${Number(item.id)}">삭제</button>
               </div>
             </td>
           </tr>
@@ -572,31 +681,11 @@
       .join("");
   }
 
-  function formatSavedAt(value) {
-    const raw = text(value);
-    if (!raw) return "-";
-
-    const date = new Date(raw);
-    if (Number.isNaN(date.getTime())) return raw;
-
-    return new Intl.DateTimeFormat("ko-KR", {
-      timeZone: "Asia/Seoul",
-      year: "2-digit",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false
-    }).format(date);
-  }
-
-  async function loadYear(force) {
+  async function loadMonth(force) {
     if (state.loading) return;
-
     if (!state.month) state.month = currentMonthKst();
-    state.year = state.month.slice(0, 4);
 
-    if (!force && state.loaded && state.loadedYear === state.year) {
+    if (!force && state.loadedMonth === state.month) {
       render();
       return;
     }
@@ -606,14 +695,14 @@
 
     try {
       const payload = await api(
-        `${API}?year=${encodeURIComponent(state.year)}`
+        `${API}?month=${encodeURIComponent(state.month)}`
       );
 
       state.items = Array.isArray(payload.items) ? payload.items : [];
-      state.loaded = true;
-      state.loadedYear = state.year;
+      state.loadedMonth = state.month;
     } catch (error) {
       state.items = [];
+      state.loadedMonth = "";
       window.alert(error.message);
     } finally {
       state.loading = false;
@@ -623,24 +712,33 @@
 
   function editorElements() {
     const panel = document.getElementById(PANEL_ID);
+
     return {
-      backdrop: panel?.querySelector("[data-hlm-editor]"),
-      form: panel?.querySelector("[data-hlm-form]"),
-      month: panel?.querySelector("[data-hlm-edit-month]"),
-      quantity: panel?.querySelector("[data-hlm-quantity]"),
-      note: panel?.querySelector("[data-hlm-note]"),
-      status: panel?.querySelector("[data-hlm-editor-status]"),
-      save: panel?.querySelector("[data-hlm-save]")
+      backdrop: panel?.querySelector("[data-hlr-editor]"),
+      form: panel?.querySelector("[data-hlr-form]"),
+      title: panel?.querySelector("[data-hlr-editor-title]"),
+      id: panel?.querySelector("[data-hlr-id]"),
+      date: panel?.querySelector("[data-hlr-date]"),
+      time: panel?.querySelector("[data-hlr-time]"),
+      quantity: panel?.querySelector("[data-hlr-quantity]"),
+      note: panel?.querySelector("[data-hlr-note]"),
+      status: panel?.querySelector("[data-hlr-editor-status]"),
+      save: panel?.querySelector("[data-hlr-save]")
     };
   }
 
-  function openEditor(month) {
-    const targetMonth = validMonth(month) ? month : state.month || currentMonthKst();
-    const record = state.items.find((item) => item.month === targetMonth);
+  function openEditor(id = 0) {
+    const numericId = Number(id) || 0;
+    const record = state.items.find((item) => Number(item.id) === numericId);
     const e = editorElements();
+
     if (!e.backdrop) return;
 
-    e.month.value = targetMonth;
+    e.id.value = record ? String(record.id) : "";
+    e.title.textContent = record ? "소석회 입고 기록 수정" : "소석회 입고 기록";
+    e.date.value =
+      record?.receiptDate || selectedMonthDefaultDate(state.month || currentMonthKst());
+    e.time.value = record?.receiptTime || currentTimeKst();
     e.quantity.value =
       record && Number.isFinite(Number(record.quantityTon))
         ? String(record.quantityTon)
@@ -658,21 +756,28 @@
     if (e.backdrop) e.backdrop.hidden = true;
   }
 
-  async function saveRecord(event) {
+  async function saveReceipt(event) {
     event.preventDefault();
 
     const e = editorElements();
-    const month = text(e.month?.value);
+    const id = Number(e.id?.value) || 0;
+    const receiptDate = text(e.date?.value);
+    const receiptTime = text(e.time?.value);
     const quantity = Number(e.quantity?.value);
     const note = text(e.note?.value);
 
-    if (!validMonth(month)) {
-      window.alert("기준 월을 선택해 주세요.");
+    if (!validDate(receiptDate)) {
+      window.alert("입고 일자를 선택해 주세요.");
+      return;
+    }
+
+    if (!validTime(receiptTime)) {
+      window.alert("입고 시간을 선택해 주세요.");
       return;
     }
 
     if (!Number.isFinite(quantity) || quantity < 0) {
-      window.alert("월 입고량을 0 이상의 숫자로 입력해 주세요.");
+      window.alert("입고량을 0 이상의 숫자로 입력해 주세요.");
       return;
     }
 
@@ -689,17 +794,24 @@
           "X-ShiftLog-Client": "desktop"
         },
         body: JSON.stringify({
-          month,
+          id: id || undefined,
+          receiptDate,
+          receiptTime,
           quantityTon: quantity,
           note
         })
       });
 
       closeEditor();
-      state.month = month;
-      state.year = month.slice(0, 4);
-      state.loaded = false;
-      await loadYear(true);
+
+      state.month = receiptDate.slice(0, 7);
+      state.loadedMonth = "";
+
+      const panel = document.getElementById(PANEL_ID);
+      const monthInput = panel?.querySelector("[data-hlr-month]");
+      if (monthInput) monthInput.value = state.month;
+
+      await loadMonth(true);
     } catch (error) {
       if (e.status) {
         e.status.textContent = error.message;
@@ -715,68 +827,72 @@
     }
   }
 
-  async function deleteRecord(month) {
-    if (!validMonth(month)) return;
+  async function deleteReceipt(id) {
+    const numericId = Number(id);
+    if (!Number.isInteger(numericId) || numericId <= 0) return;
 
-    const record = state.items.find((item) => item.month === month);
-    const quantity = number(record?.quantityTon);
+    const record = state.items.find((item) => Number(item.id) === numericId);
+    if (!record) return;
 
     const confirmed = window.confirm(
-      `${monthLabel(month)} 소석회 기록 ${quantity} ton을 삭제하시겠습니까?`
+      `${monthDayLabel(record.receiptDate)} ${record.receiptTime} · ${number(record.quantityTon)} t 소석회 입고 기록을 삭제하시겠습니까?`
     );
+
     if (!confirmed) return;
 
     try {
-      await api(`${API}?month=${encodeURIComponent(month)}`, {
+      await api(`${API}?id=${numericId}`, {
         method: "DELETE",
-        headers: { "X-ShiftLog-Client": "desktop" }
+        headers: {
+          "X-ShiftLog-Client": "desktop"
+        }
       });
 
-      state.loaded = false;
-      await loadYear(true);
+      state.loadedMonth = "";
+      await loadMonth(true);
     } catch (error) {
       window.alert(error.message);
     }
   }
 
   function bindPanel(panel) {
-    if (!panel || panel.dataset.hydratedLimeBound === "1") return;
-    panel.dataset.hydratedLimeBound = "1";
+    if (!panel || panel.dataset.hydratedLimeV2Bound === "1") return;
+    panel.dataset.hydratedLimeV2Bound = "1";
 
-    panel.querySelector("[data-hlm-prev]")?.addEventListener("click", () => {
+    panel.querySelector("[data-hlr-prev]")?.addEventListener("click", () => {
       setMonth(moveMonth(state.month, -1));
     });
 
-    panel.querySelector("[data-hlm-next]")?.addEventListener("click", () => {
+    panel.querySelector("[data-hlr-next]")?.addEventListener("click", () => {
       setMonth(moveMonth(state.month, 1));
     });
 
-    panel.querySelector("[data-hlm-current]")?.addEventListener("click", () => {
+    panel.querySelector("[data-hlr-current]")?.addEventListener("click", () => {
       setMonth(currentMonthKst());
     });
 
-    panel.querySelector("[data-hlm-month]")?.addEventListener("change", (event) => {
+    panel.querySelector("[data-hlr-month]")?.addEventListener("change", (event) => {
       setMonth(event.target.value);
     });
 
-    panel.querySelector("[data-hlm-close]")?.addEventListener("click", closeEditor);
-    panel.querySelector("[data-hlm-cancel]")?.addEventListener("click", closeEditor);
-    panel.querySelector("[data-hlm-form]")?.addEventListener("submit", saveRecord);
+    panel.querySelector("[data-hlr-close]")?.addEventListener("click", closeEditor);
+    panel.querySelector("[data-hlr-cancel]")?.addEventListener("click", closeEditor);
+    panel.querySelector("[data-hlr-form]")?.addEventListener("submit", saveReceipt);
 
-    panel.querySelector("[data-hlm-editor]")?.addEventListener("click", (event) => {
-      if (event.target.matches("[data-hlm-editor]")) closeEditor();
+    panel.querySelector("[data-hlr-editor]")?.addEventListener("click", (event) => {
+      if (event.target.matches("[data-hlr-editor]")) closeEditor();
     });
 
     panel.addEventListener("click", (event) => {
-      const edit = event.target.closest("[data-hlm-edit]");
+      const edit = event.target.closest("[data-hlr-edit]");
       if (edit) {
-        openEditor(edit.dataset.hlmEdit);
+        openEditor(edit.dataset.hlrEdit);
         return;
       }
 
-      const del = event.target.closest("[data-hlm-delete]");
+      const del = event.target.closest("[data-hlr-delete]");
       if (del) {
-        deleteRecord(del.dataset.hlmDelete);
+        deleteReceipt(del.dataset.hlrDelete);
       }
     });
   }
@@ -789,6 +905,7 @@
 
     const menu = submenu();
     const receipt = receiptView();
+
     if (!menu || !receipt) return false;
 
     ensurePanel();
@@ -796,12 +913,9 @@
     ensureHeaderActions();
     bindStandardTabs();
 
-    if (!state.month) {
-      state.month = currentMonthKst();
-      state.year = state.month.slice(0, 4);
-    }
+    if (!state.month) state.month = currentMonthKst();
 
-    if (view.dataset.hydratedLimeMonthlyActive === "1") {
+    if (view.dataset.hydratedLimeActive === "1") {
       activateHydratedView();
     }
 

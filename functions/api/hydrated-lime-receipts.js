@@ -1,9 +1,9 @@
 "use strict";
 
-/* HYDRATED LIME MONTHLY API V1
-   GET    /api/hydrated-lime-monthly?year=YYYY
-   POST   /api/hydrated-lime-monthly
-   DELETE /api/hydrated-lime-monthly?month=YYYY-MM
+/* HYDRATED LIME RECEIPTS API V2
+   GET    /api/hydrated-lime-receipts?month=YYYY-MM
+   POST   /api/hydrated-lime-receipts
+   DELETE /api/hydrated-lime-receipts?id=N
 */
 
 const FORCED_SUPER_ADMIN_EMPLOYEE_NO = "2014081";
@@ -166,6 +166,7 @@ async function getAuthenticatedUser(context) {
 async function readJsonBody(request) {
   try {
     const body = await request.json();
+
     return body && typeof body === "object" && !Array.isArray(body)
       ? body
       : {};
@@ -178,8 +179,14 @@ function validMonth(value) {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(normalizeText(value));
 }
 
-function validYear(value) {
-  return /^(19|20)\d{2}$/.test(normalizeText(value));
+function validDate(value) {
+  return /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(
+    normalizeText(value)
+  );
+}
+
+function validTime(value) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(normalizeText(value));
 }
 
 function validateQuantity(value) {
@@ -188,7 +195,7 @@ function validateQuantity(value) {
   if (!Number.isFinite(number) || number < 0 || number > 1000000) {
     return {
       ok: false,
-      message: "소석회 월 입고량은 0 이상 1,000,000 이하의 숫자로 입력해 주세요."
+      message: "소석회 입고량은 0 이상 1,000,000 이하의 숫자로 입력해 주세요."
     };
   }
 
@@ -206,10 +213,13 @@ function normalizeNote(value) {
 async function ensureTable(db) {
   await db
     .prepare(`
-      CREATE TABLE IF NOT EXISTS hydrated_lime_monthly_records (
-        record_month TEXT PRIMARY KEY,
+      CREATE TABLE IF NOT EXISTS hydrated_lime_receipts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        receipt_date TEXT NOT NULL,
+        receipt_time TEXT NOT NULL,
         quantity_ton REAL NOT NULL DEFAULT 0,
         note TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT 'manual',
         created_by_id TEXT NOT NULL DEFAULT '',
         created_by_name TEXT NOT NULL DEFAULT '',
         updated_by_id TEXT NOT NULL DEFAULT '',
@@ -223,17 +233,23 @@ async function ensureTable(db) {
 
   await db
     .prepare(`
-      CREATE INDEX IF NOT EXISTS idx_hydrated_lime_monthly_updated
-      ON hydrated_lime_monthly_records(updated_at DESC)
+      CREATE INDEX IF NOT EXISTS idx_hydrated_lime_receipts_date_time
+      ON hydrated_lime_receipts(receipt_date DESC, receipt_time DESC, id DESC)
     `)
     .run();
 }
 
 function mapRow(row) {
+  const source = normalizeText(row?.source) || "manual";
+
   return {
-    month: normalizeText(row?.record_month),
+    id: Number(row?.id || 0),
+    receiptDate: normalizeText(row?.receipt_date),
+    receiptTime: normalizeText(row?.receipt_time),
     quantityTon: Number(row?.quantity_ton || 0),
     note: normalizeText(row?.note),
+    source,
+    sourceLabel: source === "manual" ? "직접 입력" : source,
     createdById: normalizeText(row?.created_by_id),
     createdByName: normalizeText(row?.created_by_name),
     updatedById: normalizeText(row?.updated_by_id),
@@ -253,42 +269,12 @@ export async function onRequestGet(context) {
 
     const url = new URL(context.request.url);
     const month = normalizeText(url.searchParams.get("month"));
-    const year = normalizeText(url.searchParams.get("year"));
 
-    if (month) {
-      if (!validMonth(month)) {
-        return jsonResponse(
-          {
-            ok: false,
-            message: "조회 월 형식이 올바르지 않습니다. YYYY-MM 형식으로 선택해 주세요."
-          },
-          400
-        );
-      }
-
-      const row = await context.env.DB
-        .prepare(`
-          SELECT *
-          FROM hydrated_lime_monthly_records
-          WHERE record_month = ?
-          LIMIT 1
-        `)
-        .bind(month)
-        .first();
-
-      return jsonResponse({
-        ok: true,
-        item: row ? mapRow(row) : null
-      });
-    }
-
-    const targetYear = year || String(new Date().getUTCFullYear());
-
-    if (!validYear(targetYear)) {
+    if (!validMonth(month)) {
       return jsonResponse(
         {
           ok: false,
-          message: "조회 연도 형식이 올바르지 않습니다."
+          message: "조회 월을 YYYY-MM 형식으로 선택해 주세요."
         },
         400
       );
@@ -297,12 +283,12 @@ export async function onRequestGet(context) {
     const result = await context.env.DB
       .prepare(`
         SELECT *
-        FROM hydrated_lime_monthly_records
-        WHERE record_month >= ?
-          AND record_month <= ?
-        ORDER BY record_month DESC
+        FROM hydrated_lime_receipts
+        WHERE receipt_date >= ?
+          AND receipt_date < ?
+        ORDER BY receipt_date DESC, receipt_time DESC, id DESC
       `)
-      .bind(`${targetYear}-01`, `${targetYear}-12`)
+      .bind(`${month}-01`, nextMonthStart(month))
       .all();
 
     const items = Array.isArray(result?.results)
@@ -311,20 +297,29 @@ export async function onRequestGet(context) {
 
     return jsonResponse({
       ok: true,
-      year: targetYear,
+      month,
       items
     });
   } catch (error) {
-    console.error("hydrated-lime-monthly GET failed", error);
+    console.error("hydrated-lime-receipts GET failed", error);
 
     return jsonResponse(
       {
         ok: false,
-        message: "소석회 월별 기록을 불러오지 못했습니다."
+        message: "소석회 입고 기록을 불러오지 못했습니다."
       },
       500
     );
   }
+}
+
+function nextMonthStart(month) {
+  const [year, value] = month.split("-").map(Number);
+  const next = value === 12
+    ? [year + 1, 1]
+    : [year, value + 1];
+
+  return `${next[0]}-${String(next[1]).padStart(2, "0")}-01`;
 }
 
 export async function onRequestPost(context) {
@@ -335,13 +330,25 @@ export async function onRequestPost(context) {
     await ensureTable(context.env.DB);
 
     const body = await readJsonBody(context.request);
-    const month = normalizeText(body.month);
+    const id = Number(body.id || 0);
+    const receiptDate = normalizeText(body.receiptDate);
+    const receiptTime = normalizeText(body.receiptTime);
 
-    if (!validMonth(month)) {
+    if (!validDate(receiptDate)) {
       return jsonResponse(
         {
           ok: false,
-          message: "기준 월을 YYYY-MM 형식으로 선택해 주세요."
+          message: "입고 일자를 올바르게 선택해 주세요."
+        },
+        400
+      );
+    }
+
+    if (!validTime(receiptTime)) {
+      return jsonResponse(
+        {
+          ok: false,
+          message: "입고 시간을 올바르게 선택해 주세요."
         },
         400
       );
@@ -372,64 +379,114 @@ export async function onRequestPost(context) {
     const user = authentication.user;
     const now = new Date().toISOString();
 
-    await context.env.DB
-      .prepare(`
-        INSERT INTO hydrated_lime_monthly_records (
-          record_month,
-          quantity_ton,
+    let savedId = id;
+
+    if (Number.isInteger(id) && id > 0) {
+      const existing = await context.env.DB
+        .prepare(`
+          SELECT id
+          FROM hydrated_lime_receipts
+          WHERE id = ?
+          LIMIT 1
+        `)
+        .bind(id)
+        .first();
+
+      if (!existing) {
+        return jsonResponse(
+          {
+            ok: false,
+            message: "수정할 소석회 입고 기록을 찾을 수 없습니다."
+          },
+          404
+        );
+      }
+
+      await context.env.DB
+        .prepare(`
+          UPDATE hydrated_lime_receipts
+          SET
+            receipt_date = ?,
+            receipt_time = ?,
+            quantity_ton = ?,
+            note = ?,
+            updated_by_id = ?,
+            updated_by_name = ?,
+            updated_at = ?,
+            revision = revision + 1
+          WHERE id = ?
+        `)
+        .bind(
+          receiptDate,
+          receiptTime,
+          quantity.value,
           note,
-          created_by_id,
-          created_by_name,
-          updated_by_id,
-          updated_by_name,
-          created_at,
-          updated_at,
-          revision
+          user.employeeNo,
+          user.name,
+          now,
+          id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-        ON CONFLICT(record_month) DO UPDATE SET
-          quantity_ton = excluded.quantity_ton,
-          note = excluded.note,
-          updated_by_id = excluded.updated_by_id,
-          updated_by_name = excluded.updated_by_name,
-          updated_at = excluded.updated_at,
-          revision = hydrated_lime_monthly_records.revision + 1
-      `)
-      .bind(
-        month,
-        quantity.value,
-        note,
-        user.employeeNo,
-        user.name,
-        user.employeeNo,
-        user.name,
-        now,
-        now
-      )
-      .run();
+        .run();
+    } else {
+      const result = await context.env.DB
+        .prepare(`
+          INSERT INTO hydrated_lime_receipts (
+            receipt_date,
+            receipt_time,
+            quantity_ton,
+            note,
+            source,
+            created_by_id,
+            created_by_name,
+            updated_by_id,
+            updated_by_name,
+            created_at,
+            updated_at,
+            revision
+          )
+          VALUES (?, ?, ?, ?, 'manual', ?, ?, ?, ?, ?, ?, 1)
+        `)
+        .bind(
+          receiptDate,
+          receiptTime,
+          quantity.value,
+          note,
+          user.employeeNo,
+          user.name,
+          user.employeeNo,
+          user.name,
+          now,
+          now
+        )
+        .run();
+
+      savedId = Number(result?.meta?.last_row_id || 0);
+    }
 
     const row = await context.env.DB
       .prepare(`
         SELECT *
-        FROM hydrated_lime_monthly_records
-        WHERE record_month = ?
+        FROM hydrated_lime_receipts
+        WHERE id = ?
         LIMIT 1
       `)
-      .bind(month)
+      .bind(savedId)
       .first();
 
     return jsonResponse({
       ok: true,
       item: row ? mapRow(row) : null,
-      message: `${month} 소석회 월 기록을 저장했습니다.`
+      message: id > 0
+        ? "소석회 입고 기록을 수정했습니다."
+        : "소석회 입고 기록을 저장했습니다."
     });
   } catch (error) {
-    console.error("hydrated-lime-monthly POST failed", error);
+    console.error("hydrated-lime-receipts POST failed", error);
 
     return jsonResponse(
       {
         ok: false,
-        message: "소석회 월 기록을 저장하지 못했습니다."
+        message: "소석회 입고 기록을 저장하지 못했습니다."
       },
       500
     );
@@ -444,13 +501,13 @@ export async function onRequestDelete(context) {
     await ensureTable(context.env.DB);
 
     const url = new URL(context.request.url);
-    const month = normalizeText(url.searchParams.get("month"));
+    const id = Number(url.searchParams.get("id"));
 
-    if (!validMonth(month)) {
+    if (!Number.isInteger(id) || id <= 0) {
       return jsonResponse(
         {
           ok: false,
-          message: "삭제할 기준 월이 올바르지 않습니다."
+          message: "삭제할 소석회 입고 기록 번호가 올바르지 않습니다."
         },
         400
       );
@@ -458,17 +515,17 @@ export async function onRequestDelete(context) {
 
     const result = await context.env.DB
       .prepare(`
-        DELETE FROM hydrated_lime_monthly_records
-        WHERE record_month = ?
+        DELETE FROM hydrated_lime_receipts
+        WHERE id = ?
       `)
-      .bind(month)
+      .bind(id)
       .run();
 
     if (Number(result?.meta?.changes || 0) !== 1) {
       return jsonResponse(
         {
           ok: false,
-          message: "삭제할 소석회 월 기록을 찾을 수 없습니다."
+          message: "삭제할 소석회 입고 기록을 찾을 수 없습니다."
         },
         404
       );
@@ -476,16 +533,16 @@ export async function onRequestDelete(context) {
 
     return jsonResponse({
       ok: true,
-      month,
-      message: `${month} 소석회 월 기록을 삭제했습니다.`
+      id,
+      message: "소석회 입고 기록을 삭제했습니다."
     });
   } catch (error) {
-    console.error("hydrated-lime-monthly DELETE failed", error);
+    console.error("hydrated-lime-receipts DELETE failed", error);
 
     return jsonResponse(
       {
         ok: false,
-        message: "소석회 월 기록을 삭제하지 못했습니다."
+        message: "소석회 입고 기록을 삭제하지 못했습니다."
       },
       500
     );
