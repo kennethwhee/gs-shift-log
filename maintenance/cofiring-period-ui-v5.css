@@ -688,3 +688,24 @@ td {
 }
 
 /* ===== /COFIRING_BASIS_DETAIL_COMPACT_V10 ===== */
+/* COFIRING DETAIL TABLE WIDTH FIX V1 */
+/* Keep the dense 15-column detail grids readable instead of squeezing ratio columns. */
+.cofiring-period-v5 .cfv5-grid.cfv5-coal-bio,
+.cofiring-period-v5 .cfv5-grid.cfv5-organic {
+  min-width: 1600px;
+}
+
+.cofiring-period-v5 .cfv5-grid.cfv5-coal-bio thead th,
+.cofiring-period-v5 .cfv5-grid.cfv5-organic thead th {
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.cofiring-period-v5 .cfv5-grid.cfv5-coal-bio thead tr:nth-child(2) > th:nth-last-child(-n+2),
+.cofiring-period-v5 .cfv5-grid.cfv5-organic thead tr:nth-child(2) > th:nth-last-child(-n+2) {
+  width: 118px;
+}
+
+.cofiring-period-v5 .cfv5-table-scroll {
+  scrollbar-gutter: stable;
+}
