@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  /* HYDRATED LIME MONTHLY V1 */
+  /* HYDRATED LIME MONTHLY V1 R1 ICON FIX */
   const API = "/api/hydrated-lime-monthly";
   const PARENT_VIEW_ID = "efficiencyLimestoneView";
   const PARENT_TAB_ID = "efficiencyLimestoneTab";
@@ -157,11 +157,24 @@
     const button = document.getElementById(PARENT_TAB_ID);
     if (!button) return false;
 
-    if (text(button.textContent) !== "석회석/소석회") {
-      button.textContent = "석회석/소석회";
-      button.setAttribute("aria-label", "석회석/소석회");
-      button.title = "석회석/소석회";
+    // Preserve the existing SVG icon. Replacing button.textContent would
+    // delete every child node inside the menu button, including the icon.
+    const label = button.querySelector(".efficiency-team-tab__label");
+
+    if (label) {
+      if (text(label.textContent) !== "석회석/소석회") {
+        label.textContent = "석회석/소석회";
+      }
+    } else {
+      // Legacy fallback only: create a label without touching existing children.
+      const fallbackLabel = document.createElement("span");
+      fallbackLabel.className = "efficiency-team-tab__label";
+      fallbackLabel.textContent = "석회석/소석회";
+      button.append(fallbackLabel);
     }
+
+    button.setAttribute("aria-label", "석회석/소석회");
+    button.title = "석회석/소석회";
 
     return true;
   }
