@@ -833,3 +833,58 @@ small {
 }
 
 /* ===== /MORNING_CALORIFIC_UNIT_IN_FIELD_V8 ===== */
+
+/* ===== MORNING_CALORIFIC_LABEL_SPACING_V9 ===== */
+
+/*
+  연료명을 입력칸 바로 위에 붙인다.
+  기존 V6/V8에서 확보했던 label 높이를 축소.
+*/
+#morningMeetingCofiringSettingsForm
+.morning-meeting-cofiring-fuel-v6r2
+> span {
+  display: block !important;
+
+  min-height: 0 !important;
+  height: auto !important;
+
+  margin-top: 0 !important;
+  margin-bottom: 4px !important;
+
+  padding: 0 !important;
+
+  font-size: 10px !important;
+  line-height: 1.15 !important;
+  font-weight: 700 !important;
+
+  vertical-align: bottom !important;
+}
+
+
+/*
+  field 내부에 불필요한 세로 여백이 생기지 않도록 정리
+*/
+#morningMeetingCofiringSettingsForm
+.morning-meeting-cofiring-fuel-v6r2 {
+  justify-content: flex-end !important;
+
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+
+/*
+  입력영역 바로 위에 label이 붙도록
+  input row의 상단 여백도 제거
+*/
+#morningMeetingCofiringSettingsForm
+.morning-meeting-cofiring-fuel-v6r2
+> div {
+  margin-top: 0 !important;
+}
+
+
+/* ===== /MORNING_CALORIFIC_LABEL_SPACING_V9 ===== */
