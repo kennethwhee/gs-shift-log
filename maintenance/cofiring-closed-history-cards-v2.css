@@ -1135,3 +1135,833 @@ strong {
 }
 
 /* ===== /CFH_TYPOGRAPHY_V9 ===== */
+
+/* ===== CFH_READABILITY_V10_R1 ===== */
+
+/*
+  마감 데이터 가독성 재설계
+  - 연료량 2 x 2
+  - 혼소율 3칸
+  - 종합 강조
+  - 월평균 요약 강조
+*/
+
+/* -------------------------------------------------------
+   TABLE / ROW
+------------------------------------------------------- */
+
+#efficiencyCofiringDraftView
+.cfv15-history-table {
+  width: 100% !important;
+  min-width: 1040px !important;
+
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+
+  table-layout: fixed !important;
+
+  font-variant-numeric: tabular-nums !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+tbody tr {
+  height: 76px !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+tbody th,
+#efficiencyCofiringDraftView
+.cfv15-history-table
+tbody td {
+  height: 76px !important;
+
+  padding:
+    8px 8px !important;
+
+  vertical-align:
+    middle !important;
+}
+
+
+/* -------------------------------------------------------
+   HEADER
+------------------------------------------------------- */
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+thead tr:first-child th {
+  height: 38px !important;
+
+  font-size: 13px !important;
+  font-weight: 850 !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+thead tr:nth-child(2) th {
+  height: 44px !important;
+
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+thead small {
+  margin-top: 3px !important;
+
+  font-size: 8px !important;
+  line-height: 1.1 !important;
+
+  font-weight: 600 !important;
+
+  color: #71869a !important;
+}
+
+
+/* 1호기 */
+#efficiencyCofiringDraftView
+.cfv15-history-table
+thead .is-unit1 {
+  background:
+    #eaf3fd !important;
+}
+
+/* 2호기 */
+#efficiencyCofiringDraftView
+.cfv15-history-table
+thead .is-unit2 {
+  background:
+    #edf8f4 !important;
+}
+
+/* 종합 */
+#efficiencyCofiringDraftView
+.cfv15-history-table
+thead .is-combined {
+  background:
+    #eff6e9 !important;
+}
+
+
+/* -------------------------------------------------------
+   DATE
+------------------------------------------------------- */
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+tbody th {
+  background:
+    #edf5fc !important;
+
+  color:
+    #114a7e !important;
+
+  font-size:
+    14px !important;
+
+  font-weight:
+    850 !important;
+
+  letter-spacing:
+    -.01em !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+tbody th strong {
+  font-size:
+    14px !important;
+
+  line-height:
+    1.15 !important;
+
+  font-weight:
+    850 !important;
+}
+
+
+/* -------------------------------------------------------
+   FUEL USAGE CARD
+------------------------------------------------------- */
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+td.is-fuel {
+  padding:
+    8px 7px !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv16-fuel-grid {
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr)) !important;
+
+  gap:
+    6px 12px !important;
+
+  width:
+    100% !important;
+
+  padding:
+    8px 10px !important;
+
+  border:
+    1px solid #dce6ef !important;
+
+  border-radius:
+    9px !important;
+
+  background:
+    #ffffff !important;
+
+  box-sizing:
+    border-box !important;
+
+  text-align:
+    left !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv16-fuel-grid span {
+  display: flex !important;
+
+  align-items: center !important;
+
+  justify-content:
+    space-between !important;
+
+  gap:
+    7px !important;
+
+  min-width:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  background:
+    transparent !important;
+}
+
+
+/*
+  기존 C / B / 유 / 축 텍스트는 숨기고
+  미리보기처럼 정식 이름으로 표시.
+*/
+#efficiencyCofiringDraftView
+.cfv16-fuel-grid b {
+  width:
+    auto !important;
+
+  min-width:
+    0 !important;
+
+  font-size:
+    0 !important;
+
+  color:
+    #647b93 !important;
+
+  font-weight:
+    700 !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv16-fuel-grid b::after {
+  display:
+    inline !important;
+
+  font-size:
+    10px !important;
+
+  line-height:
+    1.1 !important;
+
+  font-weight:
+    700 !important;
+
+  color:
+    #647b93 !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv16-fuel-grid
+span:nth-child(1) b::after {
+  content:
+    "Coal";
+}
+
+#efficiencyCofiringDraftView
+.cfv16-fuel-grid
+span:nth-child(2) b::after {
+  content:
+    "Bio";
+}
+
+#efficiencyCofiringDraftView
+.cfv16-fuel-grid
+span:nth-child(3) b::after {
+  content:
+    "유기성";
+}
+
+#efficiencyCofiringDraftView
+.cfv16-fuel-grid
+span:nth-child(4) b::after {
+  content:
+    "축분";
+}
+
+#efficiencyCofiringDraftView
+.cfv16-fuel-grid strong {
+  font-size:
+    12px !important;
+
+  line-height:
+    1.1 !important;
+
+  font-weight:
+    800 !important;
+
+  color:
+    #123d64 !important;
+
+  white-space:
+    nowrap !important;
+}
+
+
+/* -------------------------------------------------------
+   UNIT RATIO
+   Bio / 유·축 / 종합 = 한 줄 3칸
+------------------------------------------------------- */
+
+#efficiencyCofiringDraftView
+.cfv16-ratio-grid {
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr)) !important;
+
+  align-items:
+    stretch !important;
+
+  gap:
+    5px !important;
+
+  width:
+    100% !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv16-ratio-grid span {
+  display: flex !important;
+
+  flex-direction:
+    column !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    center !important;
+
+  gap:
+    3px !important;
+
+  min-width:
+    0 !important;
+
+  min-height:
+    48px !important;
+
+  padding:
+    5px 4px !important;
+
+  border-radius:
+    7px !important;
+
+  background:
+    #f4f8fc !important;
+
+  box-sizing:
+    border-box !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv16-ratio-grid b {
+  font-size:
+    9px !important;
+
+  line-height:
+    1 !important;
+
+  font-weight:
+    700 !important;
+
+  color:
+    #6b8096 !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv16-ratio-grid strong {
+  font-size:
+    12px !important;
+
+  line-height:
+    1.05 !important;
+
+  font-weight:
+    800 !important;
+
+  color:
+    #124b78 !important;
+}
+
+
+/* 종합 혼소율 */
+#efficiencyCofiringDraftView
+.cfv16-ratio-grid
+.is-total {
+  background:
+    #e9f6ee !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv16-ratio-grid
+.is-total b {
+  color:
+    #39735f !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv16-ratio-grid
+.is-total strong {
+  font-size:
+    16px !important;
+
+  font-weight:
+    900 !important;
+
+  color:
+    #087059 !important;
+}
+
+
+/* -------------------------------------------------------
+   1·2호기 COMBINED
+------------------------------------------------------- */
+
+#efficiencyCofiringDraftView
+td.is-combined {
+  padding:
+    8px 7px !important;
+
+  background:
+    #fbfdf8 !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv16-combined-grid {
+  display:
+    grid !important;
+
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr)) !important;
+
+  gap:
+    5px !important;
+
+  width:
+    100% !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv16-combined-grid span {
+  display:
+    flex !important;
+
+  flex-direction:
+    column !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    center !important;
+
+  gap:
+    3px !important;
+
+  min-width:
+    0 !important;
+
+  min-height:
+    50px !important;
+
+  padding:
+    5px 4px !important;
+
+  border-radius:
+    7px !important;
+
+  background:
+    #f3f8ef !important;
+
+  box-sizing:
+    border-box !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv16-combined-grid b {
+  font-size:
+    9px !important;
+
+  line-height:
+    1 !important;
+
+  color:
+    #607a70 !important;
+
+  font-weight:
+    700 !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv16-combined-grid strong {
+  font-size:
+    12px !important;
+
+  font-weight:
+    850 !important;
+
+  color:
+    #12516a !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv16-combined-grid
+.is-total {
+  background:
+    #def2e6 !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv16-combined-grid
+.is-total strong {
+  font-size:
+    17px !important;
+
+  line-height:
+    1.05 !important;
+
+  font-weight:
+    900 !important;
+
+  color:
+    #05634e !important;
+}
+
+
+/* -------------------------------------------------------
+   ACTIONS
+------------------------------------------------------- */
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+td.is-actions {
+  width:
+    58px !important;
+
+  padding:
+    5px !important;
+
+  white-space:
+    normal !important;
+
+  text-align:
+    center !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+td.is-actions button {
+  display:
+    block !important;
+
+  width:
+    44px !important;
+
+  height:
+    29px !important;
+
+  margin:
+    3px auto !important;
+
+  padding:
+    0 !important;
+
+  border-radius:
+    7px !important;
+
+  font-size:
+    10px !important;
+
+  font-weight:
+    800 !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+td.is-actions button:not(.danger) {
+  border-color:
+    #bad3e8 !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #15558a !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+td.is-actions button.danger {
+  border-color:
+    #efc2c2 !important;
+
+  background:
+    #fffafa !important;
+
+  color:
+    #b54242 !important;
+}
+
+
+/* -------------------------------------------------------
+   MONTH AVERAGE
+------------------------------------------------------- */
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+tfoot th,
+#efficiencyCofiringDraftView
+.cfv15-history-table
+tfoot td {
+  height:
+    82px !important;
+
+  padding:
+    9px 8px !important;
+
+  background:
+    #e9f0f8 !important;
+
+  border-top:
+    1px solid #cfdce8 !important;
+
+  color:
+    #163f65 !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+tfoot th {
+  background:
+    #dfebf6 !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+tfoot th strong {
+  font-size:
+    14px !important;
+
+  font-weight:
+    900 !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+tfoot th small {
+  margin-top:
+    4px !important;
+
+  font-size:
+    9px !important;
+
+  font-weight:
+    700 !important;
+
+  color:
+    #60778e !important;
+}
+
+
+/*
+  이전 V5 평균행의 과도한 글자 확대보다
+  미리보기 디자인을 우선.
+*/
+#efficiencyCofiringDraftView
+.cfv15-history-table
+tfoot .cfv16-fuel-grid strong {
+  font-size:
+    12px !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+tfoot .cfv16-ratio-grid strong,
+#efficiencyCofiringDraftView
+.cfv15-history-table
+tfoot .cfv16-combined-grid strong {
+  font-size:
+    12px !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+tfoot .cfv16-ratio-grid .is-total strong {
+  font-size:
+    16px !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+tfoot .cfv16-combined-grid .is-total strong {
+  font-size:
+    17px !important;
+}
+
+
+/* 평균 Badge */
+#efficiencyCofiringDraftView
+.cfv16-average-note {
+  display:
+    inline-flex !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    center !important;
+
+  min-width:
+    40px !important;
+
+  height:
+    26px !important;
+
+  padding:
+    0 8px !important;
+
+  border-radius:
+    999px !important;
+
+  background:
+    #d9e7f4 !important;
+
+  color:
+    #305d80 !important;
+
+  font-size:
+    9px !important;
+
+  font-weight:
+    900 !important;
+}
+
+
+/* -------------------------------------------------------
+   LEGACY META COLUMN SAFETY
+------------------------------------------------------- */
+
+#efficiencyCofiringDraftView
+.cfv15-history-table
+.is-meta {
+  display:
+    none !important;
+}
+
+
+/* -------------------------------------------------------
+   COLUMN BALANCE
+------------------------------------------------------- */
+
+@media screen and (min-width: 1101px) {
+
+  #efficiencyCofiringDraftView
+  .cfv16-compact-table
+  th:nth-child(1),
+  #efficiencyCofiringDraftView
+  .cfv16-compact-table
+  td:nth-child(1) {
+    width:
+      9% !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cfv16-compact-table
+  th:nth-child(2),
+  #efficiencyCofiringDraftView
+  .cfv16-compact-table
+  td:nth-child(2),
+
+  #efficiencyCofiringDraftView
+  .cfv16-compact-table
+  th:nth-child(4),
+  #efficiencyCofiringDraftView
+  .cfv16-compact-table
+  td:nth-child(4) {
+    width:
+      19% !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cfv16-compact-table
+  th:nth-child(3),
+  #efficiencyCofiringDraftView
+  .cfv16-compact-table
+  td:nth-child(3),
+
+  #efficiencyCofiringDraftView
+  .cfv16-compact-table
+  th:nth-child(5),
+  #efficiencyCofiringDraftView
+  .cfv16-compact-table
+  td:nth-child(5) {
+    width:
+      18% !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cfv16-compact-table
+  th.is-combined,
+  #efficiencyCofiringDraftView
+  .cfv16-compact-table
+  td.is-combined {
+    width:
+      15% !important;
+  }
+}
+
+
+/* -------------------------------------------------------
+   SMALL SCREEN
+------------------------------------------------------- */
+
+@media screen and (max-width: 1100px) {
+
+  #efficiencyCofiringDraftView
+  .cfv15-history-table {
+    min-width:
+      1120px !important;
+  }
+}
+
+/* ===== /CFH_READABILITY_V10_R1 ===== */
