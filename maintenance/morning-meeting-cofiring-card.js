@@ -1072,3 +1072,189 @@
 })();
 
 /* MORNING_MEETING_COFIRING_STABLE_REFRESH_V1_R2 */
+
+/* ===== MORNING_CALORIFIC_4COL_LAYOUT_V2 ===== */
+(function () {
+  'use strict';
+
+  const INPUT_IDS = [
+    'morningMeetingCofiringCoalHv',
+    'morningMeetingCofiringBioHv',
+    'morningMeetingCofiringOrganicHv',
+    'morningMeetingCofiringManureHv'
+  ];
+
+  let scheduled = false;
+
+  function targetCount(node) {
+    if (!node || !node.querySelector) {
+      return 0;
+    }
+
+    return INPUT_IDS.reduce(function (count, id) {
+      return count + (node.querySelector('#' + id) ? 1 : 0);
+    }, 0);
+  }
+
+  /*
+    각 input에서 위로 올라가면서
+    "해당 연료 input 하나만 포함하는 가장 큰 wrapper"를 찾는다.
+    기존 클래스명에 의존하지 않는다.
+  */
+  function findFieldWrapper(input) {
+    let node = input;
+    let best = input.parentElement;
+
+    while (
+      node &&
+      node.parentElement &&
+      node.parentElement !== document.body
+    ) {
+      const parent = node.parentElement;
+      const count = targetCount(parent);
+
+      if (count === 1) {
+        best = parent;
+        node = parent;
+        continue;
+      }
+
+      break;
+    }
+
+    return best;
+  }
+
+  function applyLayout() {
+    scheduled = false;
+
+    const inputs = INPUT_IDS.map(function (id) {
+      return document.getElementById(id);
+    });
+
+    if (inputs.some(function (input) { return !input; })) {
+      return;
+    }
+
+    /*
+      이미 V2 grid 안이면 중복 작업하지 않는다.
+    */
+    const existingGrid = inputs[0].closest(
+      '.mm-cofiring-calorific-grid-v2'
+    );
+
+    if (
+      existingGrid &&
+      inputs.every(function (input) {
+        return existingGrid.contains(input);
+      })
+    ) {
+      return;
+    }
+
+    const wrappers = inputs.map(findFieldWrapper);
+
+    if (
+      wrappers.some(function (wrapper) {
+        return !wrapper || !wrapper.parentElement;
+      })
+    ) {
+      return;
+    }
+
+    /*
+      가장 첫 필드 위치에 전용 Grid를 만들고
+      기존 4개 field wrapper 자체를 이동한다.
+      input/event listener는 그대로 유지된다.
+    */
+    const firstWrapper = wrappers[0];
+    const insertionParent = firstWrapper.parentElement;
+
+    const grid = document.createElement('div');
+    grid.className = 'mm-cofiring-calorific-grid-v2';
+
+    insertionParent.insertBefore(
+      grid,
+      firstWrapper
+    );
+
+    wrappers.forEach(function (wrapper) {
+      wrapper.classList.add(
+        'mm-cofiring-calorific-field-v2'
+      );
+
+      grid.appendChild(wrapper);
+    });
+
+    /*
+      발열량 설정 팝업 자체에도 식별 class 부여.
+    */
+    let shell = grid.parentElement;
+
+    while (
+      shell &&
+      shell !== document.body
+    ) {
+      const role = shell.getAttribute?.('role');
+      const id = String(shell.id || '').toLowerCase();
+      const cls = String(shell.className || '').toLowerCase();
+
+      if (
+        role === 'dialog' ||
+        id.includes('modal') ||
+        cls.includes('modal')
+      ) {
+        shell.classList.add(
+          'mm-cofiring-calorific-modal-v2'
+        );
+        break;
+      }
+
+      shell = shell.parentElement;
+    }
+  }
+
+  function schedule() {
+    if (scheduled) {
+      return;
+    }
+
+    scheduled = true;
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(applyLayout);
+    }
+    else {
+      setTimeout(applyLayout, 0);
+    }
+  }
+
+  function start() {
+    applyLayout();
+
+    if (typeof MutationObserver !== 'function') {
+      return;
+    }
+
+    new MutationObserver(schedule)
+      .observe(
+        document.body,
+        {
+          childList: true,
+          subtree: true
+        }
+      );
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener(
+      'DOMContentLoaded',
+      start,
+      { once: true }
+    );
+  }
+  else {
+    start();
+  }
+})();
+/* ===== /MORNING_CALORIFIC_4COL_LAYOUT_V2 ===== */
