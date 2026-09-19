@@ -1,0 +1,37 @@
+/* COFIRING DETAIL REDESIGN V6 R3
+   Make detail values slightly larger and bolder without changing layout structure.
+*/
+
+.cofiring-period-v5 .cfv6detail-value {
+  font-size: 9.6px !important;
+  font-weight: 700 !important;
+  color: #0f3f5d !important;
+}
+
+.cofiring-period-v5 .cfv6detail-value-factor {
+  font-size: 9.2px !important;
+  font-weight: 650 !important;
+  color: #49697c !important;
+}
+
+.cofiring-period-v5 .cfv6detail-pair strong {
+  font-size: 10.1px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+}
+
+.cofiring-period-v5 .cfv6detail-pair small {
+  font-size: 8.9px !important;
+  font-weight: 650 !important;
+  line-height: 1 !important;
+}
+
+.cofiring-period-v5 .cfv6detail-pair i {
+  font-size: 7.6px !important;
+  line-height: 1 !important;
+}
+
+.cofiring-period-v5 .cfv6detail-unit {
+  font-size: 8.3px !important;
+  font-weight: 750 !important;
+}
