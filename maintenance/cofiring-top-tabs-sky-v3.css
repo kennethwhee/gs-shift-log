@@ -1,11 +1,8 @@
-/* COFIRING TOP TABS SKY V3 R1 ORIGINAL CLEANUP
-   New visible nav. Original behavior buttons are hidden, not removed.
+/* COFIRING TOP TABS SKY V3 R2 LIVE PROXY
+   Only the custom sky-blue navigation is visible.
+   Original controls stay in their original DOM position for behavior.
 */
 
-#efficiencyCofiringDraftView
-#cofiringTopTabsOriginalHostV3,
-#efficiencyCofiringDraftView
-#cofiringTopTabsOriginalHostV3[hidden],
 #efficiencyCofiringDraftView
 [data-cf-sky-original="1"] {
   display: none !important;
@@ -30,7 +27,6 @@
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 8px !important;
   min-width: 132px !important;
   height: 36px !important;
   margin: 0 !important;
@@ -47,10 +43,6 @@
   font-weight: 800 !important;
   line-height: 1 !important;
   cursor: pointer !important;
-  transition:
-    background-color 120ms ease,
-    border-color 120ms ease,
-    box-shadow 120ms ease !important;
 }
 
 #efficiencyCofiringDraftView
@@ -59,9 +51,6 @@
   border-color: #c7ddeb !important;
 }
 
-/* Requested selected state:
-   very light sky-blue BUTTON BACKGROUND, not blue text.
-*/
 #efficiencyCofiringDraftView
 .cf-sky-tab-v3.is-selected,
 #efficiencyCofiringDraftView
@@ -103,7 +92,6 @@
   color: #263746 !important;
 }
 
-/* Never allow a dark-blue overlay from inherited pseudo-element styles. */
 #efficiencyCofiringDraftView
 .cf-sky-tab-v3::before,
 #efficiencyCofiringDraftView
@@ -111,29 +99,6 @@
   content: none !important;
   display: none !important;
   background: none !important;
-}
-
-/* Cloned icon only; preserve SVG shape while keeping a neutral dark tone. */
-#efficiencyCofiringDraftView
-.cf-sky-tab__icon,
-#efficiencyCofiringDraftView
-.cf-sky-tab__icon svg {
-  width: 16px !important;
-  height: 16px !important;
-  flex: 0 0 16px !important;
-  color: #587389 !important;
-  fill: none !important;
-  stroke: currentColor !important;
-}
-
-/* Gold accent for calorific-management icon, matching the existing visual language. */
-#efficiencyCofiringDraftView
-.cf-sky-tab-v3:nth-child(2)
-.cf-sky-tab__icon,
-#efficiencyCofiringDraftView
-.cf-sky-tab-v3:nth-child(2)
-.cf-sky-tab__icon svg {
-  color: #c58a00 !important;
 }
 
 #efficiencyCofiringDraftView
