@@ -1,0 +1,99 @@
+
+/* COFIRING CALORIFIC HISTORY REDESIGN V2 */
+
+[data-cofiring-draft-root] .cfv-history-redesign-source-wrap-v2 {
+  display: none !important;
+}
+
+[data-cofiring-draft-root] .cfv-history-redesign-custom-v2 {
+  width: 100% !important;
+  margin-top: 10px !important;
+}
+
+[data-cofiring-draft-root] .cfv-history-redesign-shell-v2 {
+  width: 100% !important;
+  border: 1px solid #d7dfea !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+}
+
+[data-cofiring-draft-root] .cfv-history-redesign-grid-v2 {
+  display: grid !important;
+  grid-template-columns: 1.05fr 1fr 1fr 1fr 1fr 1.35fr !important;
+  width: 100% !important;
+  align-items: center !important;
+}
+
+[data-cofiring-draft-root] .cfv-history-redesign-head-v2 {
+  min-height: 54px !important;
+  background: #f3f6fa !important;
+  color: #607589 !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+}
+
+[data-cofiring-draft-root] .cfv-history-redesign-head-v2 > div,
+[data-cofiring-draft-root] .cfv-history-redesign-row-v2 > div {
+  min-width: 0 !important;
+  padding: 10px 12px !important;
+  box-sizing: border-box !important;
+}
+
+[data-cofiring-draft-root] .cfv-history-redesign-head-v2 .unit {
+  margin-top: 2px !important;
+  color: #8a9aad !important;
+  font-size: 9px !important;
+  font-weight: 700 !important;
+}
+
+[data-cofiring-draft-root] .cfv-history-redesign-body-v2 {
+  width: 100% !important;
+}
+
+[data-cofiring-draft-root] .cfv-history-redesign-row-v2 {
+  min-height: 46px !important;
+  border-top: 1px solid #e5ebf2 !important;
+  background: #ffffff !important;
+  text-align: center !important;
+  color: #23445f !important;
+  font-size: 12px !important;
+}
+
+[data-cofiring-draft-root] .cfv-history-redesign-row-v2 .is-date {
+  font-weight: 900 !important;
+  color: #183854 !important;
+}
+
+[data-cofiring-draft-root] .cfv-history-redesign-row-v2 .is-value {
+  font-size: 14px !important;
+  font-weight: 900 !important;
+  font-variant-numeric: tabular-nums !important;
+  color: #0f3a63 !important;
+}
+
+[data-cofiring-draft-root] .cfv-history-redesign-row-v2 .is-time {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #39556f !important;
+}
+
+[data-cofiring-draft-root] .cfv-history-redesign-empty-v2 {
+  min-height: 62px !important;
+  display: grid !important;
+  place-items: center !important;
+  color: #8393a3 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+@media (max-width: 900px) {
+  [data-cofiring-draft-root] .cfv-history-redesign-custom-v2 {
+    overflow-x: auto !important;
+  }
+
+  [data-cofiring-draft-root] .cfv-history-redesign-shell-v2 {
+    min-width: 820px !important;
+  }
+}
