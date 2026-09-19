@@ -2,6 +2,45 @@
 <html lang="ko">
 
 <head>
+  <!-- Efficiency Daily Work standalone boot guard V3 -->
+  <script>
+    (() => {
+      try {
+        const url = new URL(window.location.href);
+
+        if (
+          url.searchParams.get('efficiencyDailyWorkWindow') !== '1'
+        ) {
+          return;
+        }
+
+        document.documentElement.classList.add(
+          'efficiency-daily-work-boot'
+        );
+
+        const style = document.createElement('style');
+
+        style.id = 'efficiencyDailyWorkBootStyleV3';
+
+        style.textContent = [
+          'html.efficiency-daily-work-boot{',
+          'background:#eef3f8!important;',
+          '}',
+          'html.efficiency-daily-work-boot body{',
+          'opacity:0!important;',
+          'pointer-events:none!important;',
+          '}'
+        ].join('');
+
+        (
+          document.head ||
+          document.documentElement
+        ).appendChild(style);
+      } catch (_) {
+        // Normal page startup must never be blocked.
+      }
+    })();
+  </script>
   <meta charset="UTF-8">
 
   <meta
@@ -14900,6 +14939,6 @@
   </section>
 </div>
 
-    <script src="./maintenance/efficiency-daily-work-popup-v1.js?v=20260920-02"></script>
+    <script src="./maintenance/efficiency-daily-work-popup-v1.js?v=20260920-03"></script>
 </body>
 </html>

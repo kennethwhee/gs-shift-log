@@ -4,6 +4,7 @@
   const VERSION = 'EFFICIENCY_DAILY_WORK_POPUP_V1';
   const PARAM = 'efficiencyDailyWorkWindow';
   const WINDOW_NAME = 'gsEfficiencyDailyWorkStatus';
+  const BOOT_CLASS = 'efficiency-daily-work-boot';
 
   if (window.__gsEfficiencyDailyWorkPopupV1) return;
   window.__gsEfficiencyDailyWorkPopupV1 = true;
@@ -385,6 +386,8 @@
 
     installStandaloneStyles();
 
+    document.documentElement.classList.remove(BOOT_CLASS);
+
     document.body.scrollTop = 0;
     document.documentElement.scrollTop = 0;
 
@@ -399,6 +402,15 @@
   };
   const initializeChildWindow = async () => {
     if (!isChildWindow()) return;
+
+    /*
+     * 정상적으로 일일업무현황이 준비되면 위에서 즉시 해제됩니다.
+     * 인증/네트워크 오류 등으로 준비되지 않을 경우
+     * 빈 화면에 갇히지 않도록 15초 뒤 원래 화면을 표시합니다.
+     */
+    window.setTimeout(() => {
+      document.documentElement.classList.remove(BOOT_CLASS);
+    }, 15000);
 
     document.documentElement.setAttribute(
       'data-efficiency-daily-work-window',
