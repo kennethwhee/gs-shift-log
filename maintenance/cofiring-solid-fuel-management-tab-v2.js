@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  /* COFIRING SOLID FUEL MANAGEMENT TAB V2 R1 LAYOUT FIX */
+  /* COFIRING SOLID FUEL MANAGEMENT TAB V2 R2 OUTER SCROLL */
   const ROOT_SELECTOR = "[data-cofiring-draft-root]";
   const TABS_SELECTOR = ".cfv12-tabs";
   const SHEET_SELECTOR = ".cfv5-sheet";
@@ -10,7 +10,7 @@
   const PANEL_ID = "cfvSolidFuelManagementPanel";
   const FRAME_ID = "cfvSolidFuelManagementFrame";
   const ROUTE = "/maintenance/solid-fuel-trouble?embed=cofiring";
-  const HIDDEN_CLASS = "cfv-sfm-hidden-by-v2r1";
+  const HIDDEN_CLASS = "cfv-sfm-hidden-by-v2r2";
 
   function textOf(node) {
     return String(node?.textContent || "").replace(/\s+/g, " ").trim();
@@ -20,6 +20,7 @@
     for (const item of Array.from(tabs.children)) {
       item.classList.add("cfv-top-tab-v2");
       const text = textOf(item);
+
       item.classList.toggle("is-calc", text.includes("혼소율 계산"));
       item.classList.toggle("is-history", text.includes("마감 데이터"));
       item.classList.toggle(
@@ -45,6 +46,108 @@
     return button;
   }
 
+  function embeddedDocumentHeight(frame) {
+    try {
+      const doc = frame.contentDocument;
+      if (!doc) return 0;
+      const html = doc.documentElement;
+      const body = doc.body;
+      return Math.max(
+        html?.scrollHeight || 0,
+        html?.offsetHeight || 0,
+        body?.scrollHeight || 0,
+        body?.offsetHeight || 0
+      );
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  function resizeFrameToContent(frame) {
+    if (!frame || frame.hidden) return;
+
+    // First collapse the old explicit height so scrollHeight is measured
+    // from document content rather than a previously oversized iframe.
+    frame.style.height = "1px";
+
+    window.requestAnimationFrame(() => {
+      const measured = embeddedDocumentHeight(frame);
+      const next = Math.max(720, measured + 8);
+      frame.style.height = `${next}px`;
+    });
+  }
+
+  function scheduleFrameResize(frame) {
+    for (const delay of [0, 80, 220, 500, 1000]) {
+      window.setTimeout(() => resizeFrameToContent(frame), delay);
+    }
+  }
+
+  function prepareEmbeddedDocument(frame) {
+    try {
+      const doc = frame.contentDocument;
+      if (!doc) return;
+
+      doc.documentElement.classList.add("cfv-cofiring-embedded");
+      doc.body?.classList.add("cfv-cofiring-embedded");
+
+      for (const node of Array.from(doc.querySelectorAll("a,button"))) {
+        const label = textOf(node);
+        if (label === "업무일지로 돌아가기") {
+          node.style.display = "none";
+        }
+      }
+
+      for (const heading of Array.from(doc.querySelectorAll("h1,h2"))) {
+        if (textOf(heading).includes("고형연료 Trouble")) {
+          heading.textContent = "고형연료 관리";
+        }
+      }
+
+      if (!doc.getElementById("cfvCofiringEmbeddedStyleR2")) {
+        const style = doc.createElement("style");
+        style.id = "cfvCofiringEmbeddedStyleR2";
+        style.textContent = `
+          html.cfv-cofiring-embedded,
+          body.cfv-cofiring-embedded {
+            min-width: 0 !important;
+            width: 100% !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+            background: #f7fafc !important;
+          }
+
+          body.cfv-cofiring-embedded {
+            margin: 0 !important;
+            padding: 12px !important;
+            box-sizing: border-box !important;
+          }
+
+          body.cfv-cofiring-embedded > * {
+            max-width: none !important;
+          }
+        `;
+        doc.head.append(style);
+      }
+
+      if (doc.documentElement.dataset.cfvOuterScrollBound !== "1") {
+        doc.documentElement.dataset.cfvOuterScrollBound = "1";
+
+        const resync = () => scheduleFrameResize(frame);
+        doc.addEventListener("click", resync, true);
+        doc.addEventListener("change", resync, true);
+        doc.addEventListener("input", resync, true);
+        doc.addEventListener("submit", resync, true);
+      }
+
+      scheduleFrameResize(frame);
+    } catch (_) {
+      // Same-origin is expected. If access fails, the page still renders.
+    }
+  }
+
   function createPanel() {
     const panel = document.createElement("section");
     panel.id = PANEL_ID;
@@ -58,55 +161,12 @@
     frame.className = "cfv-solid-fuel-management-frame";
     frame.title = "고형연료 관리";
     frame.loading = "lazy";
+    frame.scrolling = "no";
     frame.src = ROUTE;
 
     frame.addEventListener("load", () => {
-      try {
-        const doc = frame.contentDocument;
-        if (!doc) return;
-
-        doc.documentElement.classList.add("cfv-cofiring-embedded");
-        doc.body?.classList.add("cfv-cofiring-embedded");
-
-        for (const node of Array.from(doc.querySelectorAll("a,button"))) {
-          const label = textOf(node);
-          if (label === "업무일지로 돌아가기") {
-            node.style.display = "none";
-          }
-        }
-
-        for (const heading of Array.from(doc.querySelectorAll("h1,h2"))) {
-          if (textOf(heading).includes("고형연료 Trouble")) {
-            heading.textContent = "고형연료 관리";
-          }
-        }
-
-        if (!doc.getElementById("cfvCofiringEmbeddedStyle")) {
-          const style = doc.createElement("style");
-          style.id = "cfvCofiringEmbeddedStyle";
-          style.textContent = `
-            html.cfv-cofiring-embedded,
-            body.cfv-cofiring-embedded {
-              min-width: 0 !important;
-              width: 100% !important;
-              max-width: none !important;
-              overflow-x: hidden !important;
-              background: #f7fafc !important;
-            }
-            body.cfv-cofiring-embedded {
-              margin: 0 !important;
-              padding: 12px !important;
-              box-sizing: border-box !important;
-            }
-            body.cfv-cofiring-embedded > * {
-              max-width: none !important;
-            }
-          `;
-          doc.head.append(style);
-        }
-      } catch (_) {
-        // same-origin expected; iframe still works if document access is unavailable.
-      }
+      prepareEmbeddedDocument(frame);
+      scheduleFrameResize(frame);
     });
 
     panel.append(frame);
@@ -126,7 +186,9 @@
 
   function findCalcTab(tabs) {
     return (
-      Array.from(tabs.children).find((node) => textOf(node).includes("혼소율 계산")) || null
+      Array.from(tabs.children).find((node) =>
+        textOf(node).includes("혼소율 계산")
+      ) || null
     );
   }
 
@@ -139,28 +201,10 @@
   }
 
   function toggleSheetSections(sheet, panel, enabled) {
-    const children = Array.from(sheet.children);
-    for (const child of children) {
+    for (const child of Array.from(sheet.children)) {
       if (isPersistentSheetChild(child, panel)) continue;
       child.classList.toggle(HIDDEN_CLASS, enabled);
     }
-  }
-
-  function syncFrameHeight(root, panel, frame, enabled) {
-    if (!panel || !frame) return;
-    if (!enabled) {
-      frame.style.removeProperty("height");
-      panel.style.removeProperty("height");
-      return;
-    }
-
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 900;
-    const panelTop = panel.getBoundingClientRect().top;
-    const chromeBottomGap = 24;
-    const available = Math.max(540, Math.floor(viewportHeight - panelTop - chromeBottomGap));
-    panel.style.height = `${available}px`;
-    frame.style.height = `${available}px`;
-    root.classList.add("cfv-solid-fuel-management-mode-active");
   }
 
   function setManagementMode(root, sheet, tabs, button, panel, enabled) {
@@ -178,8 +222,12 @@
     }
 
     toggleSheetSections(sheet, panel, enabled);
+
     const frame = panel.querySelector(`#${FRAME_ID}`);
-    syncFrameHeight(root, panel, frame, enabled);
+    if (enabled && frame) {
+      prepareEmbeddedDocument(frame);
+      scheduleFrameResize(frame);
+    }
   }
 
   function bind(root, sheet, tabs, button, panel) {
@@ -200,15 +248,14 @@
     });
 
     window.addEventListener("resize", () => {
-      if (sheet.classList.contains("cfv-solid-fuel-management-mode")) {
-        const frame = panel.querySelector(`#${FRAME_ID}`);
-        syncFrameHeight(root, panel, frame, true);
-      }
+      if (!sheet.classList.contains("cfv-solid-fuel-management-mode")) return;
+      const frame = panel.querySelector(`#${FRAME_ID}`);
+      if (frame) scheduleFrameResize(frame);
     });
   }
 
   function enhance() {
-    // Login-safe: do nothing until the co-firing UI actually exists.
+    // Login-safe: no co-firing root means no work.
     const root = document.querySelector(ROOT_SELECTOR);
     if (!root) return false;
 
@@ -241,9 +288,11 @@
 
     bind(root, sheet, tabs, button, panel);
     classifyTabs(tabs);
+
     if (!sheet.classList.contains("cfv-solid-fuel-management-mode")) {
       toggleSheetSections(sheet, panel, false);
     }
+
     return true;
   }
 

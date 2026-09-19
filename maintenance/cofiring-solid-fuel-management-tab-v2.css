@@ -1,4 +1,4 @@
-/* COFIRING SOLID FUEL MANAGEMENT TAB V2 R1 LAYOUT FIX */
+/* COFIRING SOLID FUEL MANAGEMENT TAB V2 R2 OUTER SCROLL */
 
 #efficiencyCofiringDraftView .cfv12-tabs.cfv-top-tabs-v2,
 [data-cofiring-draft-root] .cfv12-tabs.cfv-top-tabs-v2 {
@@ -78,6 +78,8 @@
 [data-cofiring-draft-root] .cfv-solid-fuel-management-panel {
   width: 100% !important;
   min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
   margin-top: 10px !important;
   border: 1px solid #d8e3ea !important;
   border-radius: 12px !important;
@@ -89,22 +91,30 @@
 [data-cofiring-draft-root] .cfv-solid-fuel-management-frame {
   display: block !important;
   width: 100% !important;
-  min-height: 540px !important;
+  height: 900px;
+  min-height: 720px !important;
   border: 0 !important;
+  overflow: hidden !important;
   background: #f7fafc !important;
 }
 
-[data-cofiring-draft-root] .cfv-sfm-hidden-by-v2r1 {
+[data-cofiring-draft-root] .cfv-sfm-hidden-by-v2r2 {
   display: none !important;
 }
 
 [data-cofiring-draft-root] .cfv5-sheet.cfv-solid-fuel-management-mode {
+  overflow: visible !important;
   padding-bottom: 0 !important;
 }
 
-[data-cofiring-draft-root] .cfv5-sheet.cfv-solid-fuel-management-mode > #cfvSolidFuelManagementPanel {
+[data-cofiring-draft-root] .cfv5-sheet.cfv-solid-fuel-management-mode
+  > #cfvSolidFuelManagementPanel {
   display: block !important;
 }
+
+/* R2 intentionally removes any fixed viewport-height panel behavior.
+   The iframe grows to its document height, so the outer efficiency modal
+   becomes the single vertical scroll surface. */
 
 @media (max-width: 900px) {
   #efficiencyCofiringDraftView .cfv12-tabs.cfv-top-tabs-v2,
@@ -121,6 +131,6 @@
   }
 
   [data-cofiring-draft-root] .cfv-solid-fuel-management-frame {
-    min-height: 500px !important;
+    min-height: 640px !important;
   }
 }
