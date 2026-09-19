@@ -106,7 +106,7 @@
           <div class="cfv52-manual-actions"><span data-cfv5-manual-state>저장값 없음</span><button type="button" data-cfv5-manual-save>사용량 저장</button></div>
         </div>
         <div class="cfv52-manual-grid">
-          ${UNITS.map((unit,i)=>`<fieldset class="cfv52-manual-unit"><legend><span class="cfv52-unit-dot" aria-hidden="true"></span>${i+1}호기</legend><label><span>유기성 <small>t</small></span>${manualInput(unit,'organic',null,false)}</label><label><span>축분 <small>t</small></span>${manualInput(unit,'manure',null,false)}</label></fieldset>`).join('')}
+          ${UNITS.map((unit,i)=>`<fieldset class="cfv52-manual-unit"><legend><span class="cfv52-unit-dot" aria-hidden="true"></span>${i+1}호기</legend><label><span>유기성</span><div class="cfv13-manual-input-unit">${manualInput(unit,'organic',null,false)}<small>ton</small></div></label><label><span>축분</span><div class="cfv13-manual-input-unit">${manualInput(unit,'manure',null,false)}<small>ton</small></div></label></fieldset>`).join('')}
         </div>
       </div>
 
@@ -1136,3 +1136,5 @@
   }
 })();
 /* ===== /COFIRING_BASIS_DETAIL_COMPACT_V10 ===== */
+
+/* COFIRING_MANUAL_INPUT_UNIT_LAYOUT_V13 */
