@@ -217,3 +217,145 @@
 }
 
 /* ===== /COFIRING_SETTINGS_HISTORY_NATIVE_TWOUP_V11 ===== */
+
+/* ===== COFIRING_SETTINGS_HISTORY_COMPACT_V12 ===== */
+
+/*
+  날짜별 카드 간격
+*/
+.cfsh11-history-grid {
+  gap: 10px !important;
+
+  margin-top: 8px !important;
+}
+
+
+/*
+  날짜별 카드 자체 압축
+*/
+.cfsh11-history-card {
+  padding: 9px 10px !important;
+
+  border-radius: 10px !important;
+}
+
+
+/*
+  9/19 (토) 데이터 헤더
+*/
+.cfsh11-history-card-head {
+  gap: 5px !important;
+
+  min-height: 22px !important;
+
+  padding:
+    0 1px 7px !important;
+}
+
+.cfsh11-history-card-head strong {
+  font-size: 15px !important;
+
+  line-height: 1.1 !important;
+
+  font-weight: 800 !important;
+}
+
+.cfsh11-history-card-head span {
+  font-size: 11px !important;
+
+  line-height: 1.1 !important;
+}
+
+
+/*
+  4개 연료 박스 영역
+*/
+.cfsh11-history-values {
+  gap: 6px !important;
+
+  padding-top: 7px !important;
+}
+
+
+/*
+  Coal / Bio / 유기성 / 축분 개별 박스
+*/
+.cfsh11-history-value {
+  padding:
+    6px 5px 5px !important;
+
+  border-radius: 8px !important;
+}
+
+
+/*
+  연료명
+*/
+.cfsh11-history-value > span {
+  margin-bottom: 3px !important;
+
+  font-size: 10px !important;
+
+  line-height: 1.1 !important;
+}
+
+
+/*
+  발열량 숫자
+*/
+.cfsh11-history-value > strong {
+  font-size: 17px !important;
+
+  line-height: 1.05 !important;
+
+  font-weight: 800 !important;
+}
+
+
+/*
+  kcal/kg
+*/
+.cfsh11-history-value > small {
+  margin-top: 2px !important;
+
+  font-size: 8px !important;
+
+  line-height: 1 !important;
+}
+
+
+/*
+  카드의 불필요한 최소 높이를 만들지 않도록 함.
+*/
+.cfsh11-history-card,
+.cfsh11-history-values,
+.cfsh11-history-value {
+  min-height: 0 !important;
+}
+
+
+/*
+  데스크톱에서는 계속 한 줄에 2개 유지.
+*/
+@media screen and (min-width: 1051px) {
+
+  .cfsh11-history-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+
+/*
+  좁은 화면은 기존대로 1개씩.
+*/
+@media screen and (max-width: 1050px) {
+
+  .cfsh11-history-grid {
+    grid-template-columns:
+      1fr !important;
+  }
+}
+
+
+/* ===== /COFIRING_SETTINGS_HISTORY_COMPACT_V12 ===== */
