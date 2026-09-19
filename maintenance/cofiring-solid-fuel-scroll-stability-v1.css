@@ -1,0 +1,16 @@
+/* COFIRING SOLID FUEL SCROLL STABILITY V1 */
+
+#efficiencyCofiringDraftView
+iframe.cf-solid-frame-stability-v1 {
+  height: var(--cf-solid-stable-height) !important;
+  min-height: var(--cf-solid-stable-height) !important;
+  max-height: var(--cf-solid-stable-height) !important;
+  overflow-anchor: none !important;
+}
+
+/* Avoid browser scroll anchoring to the embedded frame while its real
+   document height is being reconciled. */
+#efficiencyCofiringDraftView
+iframe[data-cf-solid-scroll-stability="1"] {
+  overflow-anchor: none !important;
+}
