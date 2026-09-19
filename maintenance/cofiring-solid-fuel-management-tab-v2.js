@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  /* COFIRING SOLID FUEL MANAGEMENT TAB V2 R2 OUTER SCROLL */
+  /* COFIRING SOLID FUEL MANAGEMENT TAB V2 R3 COMPACT + UNLOADING FIRST */
   const ROOT_SELECTOR = "[data-cofiring-draft-root]";
   const TABS_SELECTOR = ".cfv12-tabs";
   const SHEET_SELECTOR = ".cfv5-sheet";
@@ -83,6 +83,26 @@
     }
   }
 
+  function activateDefaultUnloading(doc, frame) {
+    if (!doc?.documentElement) return;
+    if (doc.documentElement.dataset.cfvDefaultUnloadingActivated === "1") return;
+
+    const candidates = Array.from(
+      doc.querySelectorAll("button,[role='tab'],a")
+    );
+
+    const unloadingTab = candidates.find((node) => {
+      const label = textOf(node);
+      return label === "하역 기록" || label.startsWith("하역 기록 ");
+    });
+
+    if (!unloadingTab) return;
+
+    doc.documentElement.dataset.cfvDefaultUnloadingActivated = "1";
+    unloadingTab.click();
+    scheduleFrameResize(frame);
+  }
+
   function prepareEmbeddedDocument(frame) {
     try {
       const doc = frame.contentDocument;
@@ -121,12 +141,79 @@
 
           body.cfv-cofiring-embedded {
             margin: 0 !important;
-            padding: 12px !important;
+            padding: 9px !important;
             box-sizing: border-box !important;
+            font-size: 11px !important;
+            line-height: 1.28 !important;
           }
 
           body.cfv-cofiring-embedded > * {
             max-width: none !important;
+          }
+
+          body.cfv-cofiring-embedded h1 {
+            margin: 0 0 4px !important;
+            font-size: 25px !important;
+            line-height: 1.05 !important;
+            letter-spacing: -0.025em !important;
+          }
+
+          body.cfv-cofiring-embedded h2,
+          body.cfv-cofiring-embedded h3 {
+            margin-top: 0 !important;
+            margin-bottom: 6px !important;
+            font-size: 13px !important;
+            line-height: 1.15 !important;
+          }
+
+          body.cfv-cofiring-embedded p {
+            margin-top: 3px !important;
+            margin-bottom: 6px !important;
+            font-size: 10px !important;
+            line-height: 1.3 !important;
+          }
+
+          body.cfv-cofiring-embedded button,
+          body.cfv-cofiring-embedded input,
+          body.cfv-cofiring-embedded select,
+          body.cfv-cofiring-embedded textarea {
+            min-height: 31px !important;
+            padding: 5px 9px !important;
+            font-size: 10.5px !important;
+            line-height: 1.15 !important;
+            box-sizing: border-box !important;
+          }
+
+          body.cfv-cofiring-embedded label {
+            font-size: 9.5px !important;
+            line-height: 1.15 !important;
+          }
+
+          body.cfv-cofiring-embedded table {
+            width: 100% !important;
+            font-size: 10.5px !important;
+            line-height: 1.18 !important;
+            border-collapse: collapse !important;
+          }
+
+          body.cfv-cofiring-embedded table th,
+          body.cfv-cofiring-embedded table td {
+            height: auto !important;
+            padding: 6px 7px !important;
+            font-size: 10.5px !important;
+            line-height: 1.18 !important;
+            vertical-align: middle !important;
+          }
+
+          body.cfv-cofiring-embedded [role="tab"] {
+            min-height: 32px !important;
+            padding: 5px 12px !important;
+            font-size: 10.5px !important;
+          }
+
+          body.cfv-cofiring-embedded header,
+          body.cfv-cofiring-embedded section {
+            margin-top: 0 !important;
           }
         `;
         doc.head.append(style);
@@ -142,6 +229,7 @@
         doc.addEventListener("submit", resync, true);
       }
 
+      window.setTimeout(() => activateDefaultUnloading(doc, frame), 60);
       scheduleFrameResize(frame);
     } catch (_) {
       // Same-origin is expected. If access fails, the page still renders.
@@ -271,11 +359,9 @@
     let button = tabs.querySelector(`#${BUTTON_ID}`);
     if (!button) button = createButton();
 
-    const calc = findCalcTab(tabs);
-    if (calc && button.previousElementSibling !== calc) {
-      calc.insertAdjacentElement("afterend", button);
-    } else if (!button.isConnected) {
-      tabs.prepend(button);
+    // Management is intentionally the left-most co-firing top tab.
+    if (tabs.firstElementChild !== button) {
+      tabs.insertBefore(button, tabs.firstElementChild);
     }
 
     let panel = sheet.querySelector(`:scope > #${PANEL_ID}`);
