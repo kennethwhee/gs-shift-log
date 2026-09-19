@@ -20,14 +20,67 @@ function parseTons(value){
   const raw=String(value).trim();if(!/^\d+(?:\.\d{1,6})?$/.test(raw))return undefined;
   const n=Number(raw);return Number.isFinite(n)&&n>=0&&n<=MAX_TONS?n:undefined;
 }
-function normalizeValues(input){
-  if(!input||Array.isArray(input)||typeof input!=='object'||Object.keys(input).some(k=>!['unit1','unit2'].includes(k))||!['unit1','unit2'].every(k=>Object.hasOwn(input,k)))return null;
+function normalizeValues(input,fallbackReceipts=null){
+  if(
+    !input||
+    Array.isArray(input)||
+    typeof input!=='object'||
+    Object.keys(input).some(k=>!['unit1','unit2','receipts'].includes(k))||
+    !['unit1','unit2'].every(k=>Object.hasOwn(input,k))
+  )return null;
+
   const out={};
+
   for(const unit of ['unit1','unit2']){
-    const row=input[unit];if(!row||Array.isArray(row)||typeof row!=='object'||Object.keys(row).some(k=>!['organic','manure'].includes(k))||!['organic','manure'].every(k=>Object.hasOwn(row,k)))return null;
+    const row=input[unit];
+
+    if(
+      !row||
+      Array.isArray(row)||
+      typeof row!=='object'||
+      Object.keys(row).some(k=>!['organic','manure'].includes(k))||
+      !['organic','manure'].every(k=>Object.hasOwn(row,k))
+    )return null;
+
     out[unit]={};
-    for(const fuel of ['organic','manure']){const v=parseTons(row[fuel]);if(v===undefined)return null;out[unit][fuel]=v;}
+
+    for(const fuel of ['organic','manure']){
+      const v=parseTons(row[fuel]);
+      if(v===undefined)return null;
+      out[unit][fuel]=v;
+    }
   }
+
+  const fallback={organic:null,manure:null};
+
+  for(const fuel of ['organic','manure']){
+    const value=parseTons(fallbackReceipts?.[fuel]);
+    fallback[fuel]=value===undefined?null:value;
+  }
+
+  if(!Object.hasOwn(input,'receipts')){
+    out.receipts=fallback;
+    return out;
+  }
+
+  const receipts=input.receipts;
+
+  if(
+    !receipts||
+    Array.isArray(receipts)||
+    typeof receipts!=='object'||
+    Object.keys(receipts).some(k=>!['organic','manure'].includes(k))||
+    !['organic','manure'].every(k=>Object.hasOwn(receipts,k))
+  )return null;
+
+  out.receipts={};
+
+  for(const fuel of ['organic','manure']){
+    const v=parseTons(receipts[fuel]);
+    if(v===undefined)return null;
+    out.receipts[fuel]=v;
+  }
+
   return out;
 }
 function periodKey(start,end){return `${start}|${end}`;}
@@ -77,7 +130,7 @@ export async function onRequestGet(context){
     const url=new URL(context.request.url),start=url.searchParams.get('start'),end=url.searchParams.get('end');
     if(!validPeriod(start,end))return json({ok:false,message:'시작·종료 일시를 확인해 주세요. 최대 31일 범위입니다.'},400);
     await ensureTable(context.env.DB);const entry=await latest(context.env.DB,start,end);
-    return json({ok:true,start,end,entry,values:entry?.values||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}},revision:entry?.revision||0});
+    return json({ok:true,start,end,entry,values:entry?.values||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null},receipts:{organic:null,manure:null}},revision:entry?.revision||0});
   }catch(error){console.error('cofiring period manual read failed:',error instanceof Error?error.message:'unknown error');return json({ok:false,message:'선택 기간의 유기성·축분 저장값을 불러오지 못했습니다.'},500);}
 }
 export async function onRequestPost(context){
@@ -91,8 +144,9 @@ export async function onRequestPost(context){
     let body;try{body=JSON.parse(raw);}catch(_){return json({ok:false,message:'저장 요청 형식이 올바르지 않습니다.'},400);}
     const allowed=['start','end','values','expectedRevision','requestId'];
     if(!body||Array.isArray(body)||typeof body!=='object'||Object.keys(body).some(k=>!allowed.includes(k))||!validPeriod(body.start,body.end)||!Number.isSafeInteger(body.expectedRevision)||body.expectedRevision<0||typeof body.requestId!=='string'||!/^[a-f0-9-]{20,64}$/i.test(body.requestId))return json({ok:false,message:'기간·저장 요청 정보를 확인해 주세요.'},400);
-    const values=normalizeValues(body.values);if(!values)return json({ok:false,message:'유기성 고형연료·축분은 빈칸(null) 또는 0 이상의 ton 값으로 입력해 주세요.'},400);
     const db=context.env.DB;await ensureTable(db);
+    const previous=await latest(db,body.start,body.end);
+    const values=normalizeValues(body.values,previous?.values?.receipts);if(!values)return json({ok:false,message:'유기성·축분 사용량과 입고량은 빈칸(null) 또는 0 이상의 ton 값으로 입력해 주세요.'},400);
     const repeated=await db.prepare(`SELECT * FROM ${TABLE} WHERE request_id=? LIMIT 1`).bind(body.requestId).first();
     if(repeated){if(!sameWrite(repeated,body,auth.user,values))return json({ok:false,code:'REQUEST_CONFLICT',message:'이미 다른 내용으로 처리된 요청입니다.'},409);return json({ok:true,entry:convert(repeated),replayed:true});}
     const key=periodKey(body.start,body.end),at=new Date().toISOString();

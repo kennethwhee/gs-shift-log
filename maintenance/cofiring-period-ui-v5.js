@@ -103,7 +103,7 @@
       <div class="cfv52-manual-panel">
         <div class="cfv52-manual-head">
           <div><strong>유기성 · 축분 사용량 입력</strong><span>선택기간 누적량 · 빈칸=0t로 계산</span></div>
-          <div class="cfv52-manual-actions"><span data-cfv5-manual-state>저장값 없음</span><button type="button" data-cfv5-manual-save>사용량 저장</button></div>
+          <div class="cfv52-manual-actions"><div class="cfv14-receipt-inline" aria-label="입고량 입력"><strong>입고량</strong><label><span class="cfv14-receipt-label">유기성</span><span class="cfv14-receipt-field"><input class="cfv14-receipt-input" type="text" inputmode="decimal" data-cfv5-receipt="organic" placeholder="0"><small>ton</small></span></label><label><span class="cfv14-receipt-label">축분</span><span class="cfv14-receipt-field"><input class="cfv14-receipt-input" type="text" inputmode="decimal" data-cfv5-receipt="manure" placeholder="0"><small>ton</small></span></label></div><span data-cfv5-manual-state>저장값 없음</span><button type="button" data-cfv5-manual-save title="사용량과 입고량을 함께 저장합니다.">사용량 저장</button></div>
         </div>
         <div class="cfv52-manual-grid">
           ${UNITS.map((unit,i)=>`<fieldset class="cfv52-manual-unit"><legend><span class="cfv52-unit-dot" aria-hidden="true"></span>${i+1}호기</legend><label><span>유기성</span><div class="cfv13-manual-input-unit">${manualInput(unit,'organic',null,false)}<small>ton</small></div></label><label><span>축분</span><div class="cfv13-manual-input-unit">${manualInput(unit,'manure',null,false)}<small>ton</small></div></label></fieldset>`).join('')}
@@ -180,9 +180,33 @@
   function manualRowsPlaceholder(){return `<tr data-cfv5-manual-row="unit1"><th>1호기</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr><tr data-cfv5-manual-row="unit2"><th>2호기</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr><tr data-cfv5-manual-row="sum"><th>계</th>${Array.from({length:14},()=>'<td>—</td>').join('')}</tr>`;}
   function readSettings(container){const output={unit1:{},unit2:{}};for(const fuel of FUEL_KEYS){const c=Number(container.querySelector(`[data-cfv5-calorific="unit1:${fuel}"]`)?.value),f=Number(container.querySelector(`[data-cfv5-coefficient="unit1:${fuel}"]`)?.value);if(!Number.isFinite(c)||c<=0||c>50000||!Number.isFinite(f)||f<=0||f>100)throw new Error(`${FUEL_LABEL[fuel]} 발열량·보정계수를 확인해 주세요.`);output.unit1[fuel]={calorific:c,coefficient:f};output.unit2[fuel]={calorific:c,coefficient:f};}return output;}
   function writeSettings(container,settings){if(!settings)return;for(const fuel of FUEL_KEYS){const s=settings?.unit1?.[fuel]||settings?.unit2?.[fuel];if(!s)continue;for(const unit of UNITS){const c=container.querySelector(`[data-cfv5-calorific="${unit}:${fuel}"]`),f=container.querySelector(`[data-cfv5-coefficient="${unit}:${fuel}"]`);if(c)c.value=String(s.calorific);if(f)f.value=Number(s.coefficient).toFixed(2);}}}
-  function readManual(container){const out={unit1:{},unit2:{}};for(const unit of UNITS)for(const fuel of ['organic','manure'])out[unit][fuel]=manualApi.parseValue(container.querySelector(`[data-cfv5-manual="${unit}:${fuel}"]`)?.value??'');return out;}
+  function readManual(container){
+    const out={unit1:{},unit2:{},receipts:{organic:null,manure:null}};
+    for(const unit of UNITS){
+      for(const fuel of ['organic','manure']){
+        out[unit][fuel]=manualApi.parseValue(container.querySelector(`[data-cfv5-manual="${unit}:${fuel}"]`)?.value??'');
+      }
+    }
+    for(const fuel of ['organic','manure']){
+      out.receipts[fuel]=manualApi.parseValue(container.querySelector(`[data-cfv5-receipt="${fuel}"]`)?.value??'');
+    }
+    return out;
+  }
   function manualForCalculation(values){const out={unit1:{},unit2:{}};for(const unit of UNITS)for(const fuel of ['organic','manure']){const value=values?.[unit]?.[fuel];out[unit][fuel]=typeof value==='number'&&Number.isFinite(value)?value:0;}return out;}
-  function writeManual(container,values){for(const unit of UNITS)for(const fuel of ['organic','manure']){const input=container.querySelector(`[data-cfv5-manual="${unit}:${fuel}"]`);if(input)input.value=values?.[unit]?.[fuel]==null?'':String(values[unit][fuel]);}}
+  function writeManual(container,values){
+    for(const unit of UNITS){
+      for(const fuel of ['organic','manure']){
+        const input=container.querySelector(`[data-cfv5-manual="${unit}:${fuel}"]`);
+        if(input)input.value=values?.[unit]?.[fuel]==null?'':String(values[unit][fuel]);
+      }
+    }
+    if(values&&Object.hasOwn(values,'receipts')){
+      for(const fuel of ['organic','manure']){
+        const input=container.querySelector(`[data-cfv5-receipt="${fuel}"]`);
+        if(input)input.value=values?.receipts?.[fuel]==null?'':String(values.receipts[fuel]);
+      }
+    }
+  }
   function average(q,hours){return typeof q==='number'&&Number.isFinite(q)&&hours>0?q/hours:null;}
   function coefficientCell(values){const a=values[0],b=values[1];return typeof a==='number'&&typeof b==='number'&&Math.abs(a-b)<1e-12?num(a,4):'—';}
   function renderMain(container,result){const body=container.querySelector('[data-cfv5-main-body]');if(!body)return;const hours=result?.period?.durationHours||0,rows=[];
@@ -281,7 +305,7 @@
       const state=container.querySelector('[data-cfv5-live-state]');if(state)state.textContent=waiting;
       const source=container.querySelector('[data-cfv6-data-source]');if(source)source.textContent=daily?'오늘은 00:00부터 현재까지 누적, 지난 날짜는 00:00부터 다음 날 00:01까지 계산합니다.':'완료된 시간의 선택 구간을 기준으로 계산합니다.';
       const query=container.querySelector('[data-cfv5-query]');query.disabled=true;query.textContent=waiting;container.querySelector('[data-cfv5-requery]').disabled=true;
-      for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient],[data-cfv5-manual],[data-cfv5-settings-save],[data-cfv5-manual-save],[data-cfv56-adjust]'))el.disabled=true;
+      for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient],[data-cfv5-manual],[data-cfv5-receipt],[data-cfv5-settings-save],[data-cfv5-manual-save],[data-cfv56-adjust]'))el.disabled=true;
       const settingsState=container.querySelector('[data-cfv5-settings-state]'),manualState=container.querySelector('[data-cfv5-manual-state]');if(settingsState)settingsState.textContent='조회 범위 확인 대기';if(manualState)manualState.textContent='조회 범위 확인 대기';
       if(a.readyAt!==null&&dayBoundaryTimer===null&&!disposed&&visible()&&root.setTimeout){dayBoundaryTimer=root.setTimeout(()=>{dayBoundaryTimer=null;if(!disposed&&visible())void periodChanged();},Math.min(2147483000,Math.max(50,a.readyAt-Date.now()+10)));}return true;
     }
@@ -591,7 +615,7 @@
     }
     function paintSettings(force=false){if(!settings||showDayUnavailable())return;const s=settings.state(),state=container.querySelector('[data-cfv5-settings-state]');if((force||!settingsDirty)&&s.loaded)writeSettings(container,s.settings);if(state)state.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':settingsDirty?'수정됨 · 미저장':s.source==='saved'?`${s.effectiveDate} 적용값${s.updatedByName?' · '+s.updatedByName:''}`:'기본값';for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]'))el.disabled=mobile||s.saving;container.querySelector('[data-cfv5-settings-save]').disabled=mobile||!s.canEdit||s.saving;}
     function currentManualFromFields(){try{return readManual(container);}catch(_){return manual?.state().values||manualApi.blank();}}
-    function paintManual(force=false){if(!manual||showDayUnavailable())return;const s=manual.state(),label=container.querySelector('[data-cfv5-manual-state]');if((force||!manualDirty)&&s.loaded)writeManual(container,s.values);if(label)label.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':manualDirty?'수정됨 · 미저장':s.revision?`저장 v${s.revision}${s.updatedByName?' · '+s.updatedByName:''}`:'저장값 없음';container.querySelector('[data-cfv5-manual-save]').disabled=mobile||!s.canEdit||s.saving;for(const el of container.querySelectorAll('[data-cfv5-manual]'))el.disabled=mobile||s.saving;const values=currentManualFromFields();renderOrganic(container,displayResult||lastResult,values);renderSummary(container,displayResult||lastResult,values,deadlineInputError);bindManualInputs();}
+    function paintManual(force=false){if(!manual||showDayUnavailable())return;const s=manual.state(),label=container.querySelector('[data-cfv5-manual-state]');if((force||!manualDirty)&&s.loaded)writeManual(container,s.values);if(label)label.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':manualDirty?'수정됨 · 미저장':s.revision?`저장 v${s.revision}${s.updatedByName?' · '+s.updatedByName:''}`:'저장값 없음';container.querySelector('[data-cfv5-manual-save]').disabled=mobile||!s.canEdit||s.saving;for(const el of container.querySelectorAll('[data-cfv5-manual],[data-cfv5-receipt]'))el.disabled=mobile||s.saving;const values=currentManualFromFields();renderOrganic(container,displayResult||lastResult,values);renderSummary(container,displayResult||lastResult,values,deadlineInputError);bindManualInputs();}
     function morningOrganicSelectionKey(){
       return queryMode(container)==='daily'?(container.querySelector('[data-cfv7-date]')?.value||''):'';
     }
@@ -663,7 +687,7 @@
       applyMorningMeetingOrganicDraft();
     }
 
-    function bindManualInputs(){for(const el of container.querySelectorAll('[data-cfv5-manual]'))if(el.dataset.cfv5Bound!=='1'){el.dataset.cfv5Bound='1';el.addEventListener('input',()=>{const manualKey=el.getAttribute('data-cfv5-manual')||'';if(/^unit[12]:organic$/.test(manualKey)){morningOrganicTouched.add(manualKey);morningOrganicAuto.delete(manualKey);}manualDirty=true;const label=container.querySelector('[data-cfv5-manual-state]');if(label)label.textContent='수정됨 · 미저장';if(reference&&storesReady())calculate();});el.addEventListener('change',()=>{if(reference)calculate();});}}
+    function bindManualInputs(){for(const el of container.querySelectorAll('[data-cfv5-manual],[data-cfv5-receipt]'))if(el.dataset.cfv5Bound!=='1'){el.dataset.cfv5Bound='1';el.addEventListener('input',()=>{const manualKey=el.getAttribute('data-cfv5-manual')||'';if(/^unit[12]:organic$/.test(manualKey)){morningOrganicTouched.add(manualKey);morningOrganicAuto.delete(manualKey);}manualDirty=true;const label=container.querySelector('[data-cfv5-manual-state]');if(label)label.textContent='수정됨 · 미저장';if(reference&&storesReady())calculate();});el.addEventListener('change',()=>{if(reference)calculate();});}}
     // COFIRING_MANUAL_PROGRAMMATIC_RECALC_V1
     container.addEventListener('cofiring:manual-recalculate',()=>{if(reference)calculate();});
     function paintLive(s){
@@ -726,7 +750,7 @@
       if(JSON.stringify(old)===JSON.stringify(spec))return;
       const inputDraft=(attribute)=>Array.from(container.querySelectorAll('['+attribute+']')).map(el=>['['+attribute+'="'+el.getAttribute(attribute)+'"]',el.value]);
       const sameDay=old.startLocal===spec.startLocal&&selectedStoreKey===storeKey(),draft={signature:JSON.stringify(spec),auth:String(authHeaders().Authorization||authHeaders().authorization||''),manual:null,settings:null};
-      if(sameDay&&manualDirty)draft.manual=inputDraft('data-cfv5-manual');
+      if(sameDay&&manualDirty)draft.manual=[...inputDraft('data-cfv5-manual'),...inputDraft('data-cfv5-receipt')];
       if(sameDay&&settingsDirty)draft.settings=[...inputDraft('data-cfv5-calorific'),...inputDraft('data-cfv5-coefficient')];
       // Reset synchronously and defer all reads until the click timer is started.
       void periodChanged({deferReads:true,draft,capturedAt});

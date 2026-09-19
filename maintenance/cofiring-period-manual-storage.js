@@ -1,15 +1,30 @@
 (function(root){
   'use strict';
   const API='/api/cofiring-period-manual-usage';
-  const BLANK=()=>({unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}});
+  const BLANK=()=>({unit1:{organic:null,manure:null},unit2:{organic:null,manure:null},receipts:{organic:null,manure:null}});
   const clone=value=>JSON.parse(JSON.stringify(value));
   function localMinute(value){
     if(typeof value!=='string'||!/^20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value))return null;
     const [date,time]=value.split('T'),[y,m,d]=date.split('-').map(Number),[hh,mm]=time.split(':').map(Number),utc=Date.UTC(y,m-1,d,hh-9,mm),check=new Date(utc+9*3600000).toISOString().slice(0,16);return check===value?utc:null;
   }
   function validPeriod(start,end){const a=localMinute(start),b=localMinute(end);return a!==null&&b!==null&&b>a&&(b-a)/60000<=44640;}
-  function parseValue(value){const raw=String(value??'').trim();if(raw==='')return null;if(!/^\d+(?:\.\d{1,6})?$/.test(raw))throw new Error('0 이상, 소수점 6자리 이하의 사용량(ton)을 입력해 주세요.');const n=Number(raw);if(!Number.isFinite(n)||n<0||n>1000000)throw new Error('사용량 범위를 확인해 주세요.');return n;}
-  function validValues(values){try{return ['unit1','unit2'].every(unit=>['organic','manure'].every(fuel=>{const v=values?.[unit]?.[fuel];return v===null||(typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=1000000);}));}catch(_){return false;}}
+  function parseValue(value){const raw=String(value??'').trim();if(raw==='')return null;if(!/^\d+(?:\.\d{1,6})?$/.test(raw))throw new Error('0 이상, 소수점 6자리 이하의 수량(ton)을 입력해 주세요.');const n=Number(raw);if(!Number.isFinite(n)||n<0||n>1000000)throw new Error('사용량 범위를 확인해 주세요.');return n;}
+  function validValues(values){
+    try{
+      const unitsOk=['unit1','unit2'].every(unit=>['organic','manure'].every(fuel=>{
+        const v=values?.[unit]?.[fuel];
+        return v===null||(typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=1000000);
+      }));
+      if(!unitsOk)return false;
+      if(values?.receipts==null)return true;
+      return ['organic','manure'].every(fuel=>{
+        const v=values.receipts[fuel];
+        return v===null||(typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=1000000);
+      });
+    }catch(_){
+      return false;
+    }
+  }
   function create(options={}){
     let start='',end='',identity='',generation=0,disposed=false;
     let current={loaded:false,loading:false,saving:false,error:'',revision:0,values:BLANK(),updatedByName:'',updatedAt:'',pending:null};
