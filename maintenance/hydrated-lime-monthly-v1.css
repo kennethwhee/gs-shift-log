@@ -1,4 +1,4 @@
-/* HYDRATED LIME RECEIPTS V2 R1 SUMMARY */
+/* HYDRATED LIME RECEIPTS V2 R2 TIME INPUT */
 
 #efficiencyLimestoneTab {
   white-space: normal;
@@ -454,4 +454,11 @@
   .hlr-editor-body label.is-wide {
     grid-column: auto;
   }
+}
+
+
+/* R2: direct keyboard time entry */
+.hlr-editor-body input[data-hlr-time] {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
 }

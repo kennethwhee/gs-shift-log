@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  /* HYDRATED LIME RECEIPTS V2 R1 SUMMARY */
+  /* HYDRATED LIME RECEIPTS V2 R2 TIME INPUT */
   const API = "/api/hydrated-lime-receipts";
   const PARENT_VIEW_ID = "efficiencyLimestoneView";
   const PARENT_TAB_ID = "efficiencyLimestoneTab";
@@ -77,8 +77,47 @@
     return /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(text(value));
   }
 
+  function normalizeTimeInput(value) {
+    const raw = text(value)
+      .replace(/\s+/g, "")
+      .replace(/[^0-9:]/g, "");
+
+    if (!raw) return "";
+
+    const colonMatch = raw.match(/^(\d{1,2}):(\d{1,2})$/);
+    if (colonMatch) {
+      const hour = Number(colonMatch[1]);
+      const minute = Number(colonMatch[2]);
+
+      if (
+        Number.isInteger(hour) &&
+        Number.isInteger(minute) &&
+        hour >= 0 &&
+        hour <= 23 &&
+        minute >= 0 &&
+        minute <= 59
+      ) {
+        return `${pad2(hour)}:${pad2(minute)}`;
+      }
+
+      return "";
+    }
+
+    if (/^\d{3,4}$/.test(raw)) {
+      const digits = raw.padStart(4, "0");
+      const hour = Number(digits.slice(0, 2));
+      const minute = Number(digits.slice(2, 4));
+
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        return `${pad2(hour)}:${pad2(minute)}`;
+      }
+    }
+
+    return "";
+  }
+
   function validTime(value) {
-    return /^([01]\d|2[0-3]):[0-5]\d$/.test(text(value));
+    return Boolean(normalizeTimeInput(value));
   }
 
   function moveMonth(value, amount) {
@@ -326,7 +365,16 @@
 
               <label>
                 <span>입고 시간</span>
-                <input type="time" data-hlr-time step="60" required>
+                <input
+                  type="text"
+                  data-hlr-time
+                  inputmode="numeric"
+                  maxlength="5"
+                  autocomplete="off"
+                  placeholder="1530 또는 15:30"
+                  aria-label="입고 시간, 1530 또는 15:30 형식"
+                  required
+                >
               </label>
 
               <label>
@@ -755,7 +803,7 @@
     const e = editorElements();
     const id = Number(e.id?.value) || 0;
     const receiptDate = text(e.date?.value);
-    const receiptTime = text(e.time?.value);
+    const receiptTime = normalizeTimeInput(e.time?.value);
     const quantity = Number(e.quantity?.value);
     const note = text(e.note?.value);
 
@@ -765,8 +813,13 @@
     }
 
     if (!validTime(receiptTime)) {
-      window.alert("입고 시간을 선택해 주세요.");
+      window.alert("입고 시간은 1530 또는 15:30 형식으로 입력해 주세요.");
+      e.time?.focus();
       return;
+    }
+
+    if (e.time) {
+      e.time.value = receiptTime;
     }
 
     if (!Number.isFinite(quantity) || quantity < 0) {
@@ -867,6 +920,24 @@
     panel.querySelector("[data-hlr-month]")?.addEventListener("change", (event) => {
       setMonth(event.target.value);
     });
+
+    const timeInput = panel.querySelector("[data-hlr-time]");
+    if (timeInput) {
+      timeInput.addEventListener("input", () => {
+        const raw = text(timeInput.value).replace(/[^0-9:]/g, "");
+        timeInput.value = raw.slice(0, 5);
+
+        if (/^\d{4}$/.test(timeInput.value)) {
+          const normalized = normalizeTimeInput(timeInput.value);
+          if (normalized) timeInput.value = normalized;
+        }
+      });
+
+      timeInput.addEventListener("blur", () => {
+        const normalized = normalizeTimeInput(timeInput.value);
+        if (normalized) timeInput.value = normalized;
+      });
+    }
 
     panel.querySelector("[data-hlr-close]")?.addEventListener("click", closeEditor);
     panel.querySelector("[data-hlr-cancel]")?.addEventListener("click", closeEditor);
