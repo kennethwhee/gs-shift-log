@@ -65,35 +65,133 @@
   }
 
   function listMarkup(items){
+    /* COFIRING_SETTINGS_HISTORY_NATIVE_TWOUP_V11 */
+
     if(!Array.isArray(items)||items.length===0){
       return `
         <div class="cfv12-empty">
           <strong>저장된 발열량 이력이 없습니다.</strong>
-          <span>혼소율 계산 화면에서 [발열량/보정계수 저장]을 누르면 적용일별 발열량이 여기에 기록됩니다.</span>
+          <span>발열량을 저장하면 적용일별 이력이 표시됩니다.</span>
         </div>
       `;
     }
 
+    const weekdayNames=[
+      '일','월','화','수','목','금','토'
+    ];
+
+    function dateLabel(value){
+      const text=String(value||'').trim();
+      const match=text.match(
+        /^(\d{4})-(\d{2})-(\d{2})$/
+      );
+
+      if(!match)return text||'-';
+
+      const year=Number(match[1]);
+      const month=Number(match[2]);
+      const day=Number(match[3]);
+
+      const date=new Date(
+        Date.UTC(
+          year,
+          month-1,
+          day
+        )
+      );
+
+      const weekday=
+        weekdayNames[
+          date.getUTCDay()
+        ]||'';
+
+      return `${month}/${day} (${weekday})`;
+    }
+
+    function numberText(value){
+      const number=Number(value);
+
+      if(!Number.isFinite(number)){
+        return '-';
+      }
+
+      return number.toLocaleString(
+        'ko-KR',
+        {
+          maximumFractionDigits:2
+        }
+      );
+    }
+
+    function calorific(item,fuel){
+      const value=
+        item?.settings?.unit1?.[fuel]?.calorific ??
+        item?.settings?.unit2?.[fuel]?.calorific ??
+        null;
+
+      return numberText(value);
+    }
+
     return `
-      <div class="cfv12-history-table-wrap">
-        <table class="cfv12-history-table cfv14-history-table">
-          <thead>
-            <tr>
-              <th>적용일</th>
-              ${FUELS.map(([,label])=>`<th>${label}<small>kcal/kg</small></th>`).join('')}
-              <th>저장 시각</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${items.map(item=>`
-              <tr>
-                <td><strong>${escapeHtml(item.effectiveDate||'—')}</strong></td>
-                ${FUELS.map(([key])=>`<td class="cfv14-calorific">${calorific(item.settings,key)}</td>`).join('')}
-                <td class="cfv15-saved-time">${escapeHtml(formatTime(item.updatedAt))}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+      <div class="cfsh11-history-grid">
+        ${items.map(item=>`
+          <article class="cfsh11-history-card">
+            <header class="cfsh11-history-card-head">
+              <strong>
+                ${escapeHtml(
+                  dateLabel(
+                    item.effectiveDate
+                  )
+                )}
+              </strong>
+              <span>데이터</span>
+            </header>
+
+            <div class="cfsh11-history-values">
+
+              <div class="cfsh11-history-value">
+                <span>Coal</span>
+                <strong>
+                  ${escapeHtml(
+                    calorific(item,'coal')
+                  )}
+                </strong>
+                <small>kcal/kg</small>
+              </div>
+
+              <div class="cfsh11-history-value">
+                <span>Bio</span>
+                <strong>
+                  ${escapeHtml(
+                    calorific(item,'bio')
+                  )}
+                </strong>
+                <small>kcal/kg</small>
+              </div>
+
+              <div class="cfsh11-history-value">
+                <span>유기성</span>
+                <strong>
+                  ${escapeHtml(
+                    calorific(item,'organic')
+                  )}
+                </strong>
+                <small>kcal/kg</small>
+              </div>
+
+              <div class="cfsh11-history-value">
+                <span>축분</span>
+                <strong>
+                  ${escapeHtml(
+                    calorific(item,'manure')
+                  )}
+                </strong>
+                <small>kcal/kg</small>
+              </div>
+
+            </div>
+          </article>
+        `).join('')}
       </div>
     `;
   }
@@ -202,369 +300,3 @@
     }
   }
 })(typeof globalThis==='object'?globalThis:this);
-
-/* ===== COFIRING_SETTINGS_HISTORY_NO_SAVED_TIME_V4 ===== */
-(function () {
-  'use strict';
-
-  const HEADER_TEXT = '저장 시각';
-
-  function normalizedText(node) {
-    return String(node?.textContent || '')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-
-  function removeSavedTimeColumn(table) {
-    if (!(table instanceof HTMLTableElement)) {
-      return;
-    }
-
-    const headers =
-      Array.from(
-        table.querySelectorAll('thead th')
-      );
-
-    const header =
-      headers.find(function (th) {
-        return normalizedText(th) === HEADER_TEXT;
-      });
-
-    if (!header) {
-      return;
-    }
-
-    const headerRow = header.parentElement;
-
-    if (!(headerRow instanceof HTMLTableRowElement)) {
-      return;
-    }
-
-    const columnIndex =
-      Array.from(headerRow.cells)
-        .indexOf(header);
-
-    if (columnIndex < 0) {
-      return;
-    }
-
-    /*
-      Header + every body row:
-      remove only the column whose header is exactly "저장 시각".
-    */
-    Array.from(table.rows)
-      .forEach(function (row) {
-        const cell =
-          row.cells[columnIndex];
-
-        if (cell) {
-          cell.remove();
-        }
-      });
-
-    table.setAttribute(
-      'data-cf-settings-history-no-saved-time',
-      'true'
-    );
-  }
-
-  function apply() {
-    document
-      .querySelectorAll('table')
-      .forEach(removeSavedTimeColumn);
-  }
-
-  let queued = false;
-
-  function schedule() {
-    if (queued) {
-      return;
-    }
-
-    queued = true;
-
-    const run = function () {
-      queued = false;
-      apply();
-    };
-
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(run);
-    }
-    else {
-      setTimeout(run, 0);
-    }
-  }
-
-  function start() {
-    apply();
-
-    if (
-      typeof MutationObserver !==
-      'function'
-    ) {
-      return;
-    }
-
-    new MutationObserver(schedule)
-      .observe(
-        document.body,
-        {
-          childList: true,
-          subtree: true
-        }
-      );
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener(
-      'DOMContentLoaded',
-      start,
-      { once: true }
-    );
-  }
-  else {
-    start();
-  }
-})();
-/* ===== /COFIRING_SETTINGS_HISTORY_NO_SAVED_TIME_V4 ===== */
-
-/* ===== COFIRING_SETTINGS_HISTORY_TWOUP_V10 ===== */
-(function () {
-  "use strict";
-
-  const PANEL_TITLE = "발열량 저장 이력";
-  const MARKER_ATTR = "data-cf-history-twoup-v10";
-
-  function norm(value) {
-    return String(value || "")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  function escapeHtml(value) {
-    return String(value == null ? "" : value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
-  function normalizeDateText(text) {
-    const raw = norm(text);
-
-    if (!raw) {
-      return "-";
-    }
-
-    let match = raw.match(/(?:\d{2,4}-)?(\d{2})-(\d{2})\s*\(?([월화수목금토일])\)?/);
-    if (match) {
-      return match[1] + "-" + match[2] + " (" + match[3] + ")";
-    }
-
-    match = raw.match(/(\d{2})-(\d{2})/);
-    if (match) {
-      return match[1] + "-" + match[2];
-    }
-
-    return raw;
-  }
-
-  function findPanelRoots() {
-    return Array.from(document.querySelectorAll("div, section, article"))
-      .filter(function (el) {
-        const text = norm(el.textContent);
-        if (!text.includes(PANEL_TITLE)) {
-          return false;
-        }
-        return el.querySelector("table");
-      });
-  }
-
-  function findBestHeaderRow(table) {
-    const rows = Array.from(table.querySelectorAll("thead tr"));
-    return rows.find(function (row) {
-      const headers = Array.from(row.cells).map(function (cell) {
-        return norm(cell.textContent);
-      });
-
-      return headers.includes("적용일")
-        && headers.includes("Coal")
-        && headers.includes("Bio")
-        && headers.includes("유기성")
-        && headers.includes("축분");
-    }) || null;
-  }
-
-  function extractTableData(table) {
-    if (!(table instanceof HTMLTableElement)) {
-      return null;
-    }
-
-    const headerRow = findBestHeaderRow(table);
-    if (!(headerRow instanceof HTMLTableRowElement)) {
-      return null;
-    }
-
-    const headers = Array.from(headerRow.cells).map(function (cell) {
-      return norm(cell.textContent);
-    });
-
-    const indexMap = {
-      date: headers.indexOf("적용일"),
-      coal: headers.indexOf("Coal"),
-      bio: headers.indexOf("Bio"),
-      organic: headers.indexOf("유기성"),
-      manure: headers.indexOf("축분")
-    };
-
-    if (Object.values(indexMap).some(function (value) { return value < 0; })) {
-      return null;
-    }
-
-    const bodyRows = Array.from(table.querySelectorAll("tbody tr"))
-      .filter(function (row) {
-        return row.cells.length >= headers.length;
-      });
-
-    if (!bodyRows.length) {
-      return null;
-    }
-
-    const items = bodyRows.map(function (row) {
-      const cells = Array.from(row.cells);
-
-      return {
-        date: normalizeDateText(cells[indexMap.date] ? cells[indexMap.date].textContent : ""),
-        coal: norm(cells[indexMap.coal] ? cells[indexMap.coal].textContent : "-"),
-        bio: norm(cells[indexMap.bio] ? cells[indexMap.bio].textContent : "-"),
-        organic: norm(cells[indexMap.organic] ? cells[indexMap.organic].textContent : "-"),
-        manure: norm(cells[indexMap.manure] ? cells[indexMap.manure].textContent : "-")
-      };
-    });
-
-    return items;
-  }
-
-  function pickDataSet(panel) {
-    const tables = Array.from(panel.querySelectorAll("table"));
-    const candidates = tables
-      .map(function (table) {
-        return {
-          table: table,
-          items: extractTableData(table)
-        };
-      })
-      .filter(function (entry) {
-        return Array.isArray(entry.items) && entry.items.length > 0;
-      });
-
-    if (!candidates.length) {
-      return null;
-    }
-
-    candidates.sort(function (a, b) {
-      return a.items.length - b.items.length;
-    });
-
-    return {
-      sourceTables: tables,
-      items: candidates[candidates.length - 1].items
-    };
-  }
-
-  function buildCard(item) {
-    return [
-      '<article class="cf-history-twoup-card">',
-        '<div class="cf-history-twoup-card__date">', escapeHtml(item.date), " 데이터</div>",
-        '<div class="cf-history-twoup-card__grid">',
-          '<div class="cf-history-twoup-cell"><span class="cf-history-twoup-cell__label">Coal</span><strong class="cf-history-twoup-cell__value">', escapeHtml(item.coal), '</strong><span class="cf-history-twoup-cell__unit">kcal/kg</span></div>',
-          '<div class="cf-history-twoup-cell"><span class="cf-history-twoup-cell__label">Bio</span><strong class="cf-history-twoup-cell__value">', escapeHtml(item.bio), '</strong><span class="cf-history-twoup-cell__unit">kcal/kg</span></div>',
-          '<div class="cf-history-twoup-cell"><span class="cf-history-twoup-cell__label">유기성</span><strong class="cf-history-twoup-cell__value">', escapeHtml(item.organic), '</strong><span class="cf-history-twoup-cell__unit">kcal/kg</span></div>',
-          '<div class="cf-history-twoup-cell"><span class="cf-history-twoup-cell__label">축분</span><strong class="cf-history-twoup-cell__value">', escapeHtml(item.manure), '</strong><span class="cf-history-twoup-cell__unit">kcal/kg</span></div>',
-        '</div>',
-      '</article>'
-    ].join("");
-  }
-
-  function renderPanel(panel, items, tables) {
-    let mount = panel.querySelector("[" + MARKER_ATTR + "]");
-
-    if (!(mount instanceof HTMLElement)) {
-      mount = document.createElement("div");
-      mount.setAttribute(MARKER_ATTR, "true");
-
-      const firstTable = tables[0];
-      if (firstTable && firstTable.parentNode) {
-        firstTable.parentNode.insertBefore(mount, firstTable);
-      } else {
-        panel.appendChild(mount);
-      }
-    }
-
-    mount.className = "cf-history-twoup-list";
-    mount.innerHTML = items.map(buildCard).join("");
-
-    tables.forEach(function (table) {
-      table.style.display = "none";
-      table.setAttribute("aria-hidden", "true");
-      table.hidden = true;
-    });
-  }
-
-  function apply() {
-    findPanelRoots().forEach(function (panel) {
-      const picked = pickDataSet(panel);
-      if (!picked || !picked.items.length) {
-        return;
-      }
-
-      renderPanel(panel, picked.items, picked.sourceTables);
-    });
-  }
-
-  let queued = false;
-
-  function schedule() {
-    if (queued) {
-      return;
-    }
-
-    queued = true;
-
-    const run = function () {
-      queued = false;
-      apply();
-    };
-
-    if (typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(run);
-    } else {
-      setTimeout(run, 0);
-    }
-  }
-
-  function boot() {
-    apply();
-
-    setTimeout(apply, 50);
-    setTimeout(apply, 200);
-    setTimeout(apply, 600);
-
-    if (typeof MutationObserver === "function") {
-      new MutationObserver(function () {
-        schedule();
-      }).observe(document.body, {
-        childList: true,
-        subtree: true
-      });
-    }
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot, { once: true });
-  } else {
-    boot();
-  }
-})();
-/* ===== /COFIRING_SETTINGS_HISTORY_TWOUP_V10 ===== */
