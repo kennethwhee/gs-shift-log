@@ -896,3 +896,678 @@
   }
 })();
 /* ===== /SOLID_FUEL_MANAGEMENT_READABILITY_V15 ===== */
+
+/* ===== SOLID_FUEL_NATIVE_REDESIGN_V20_R3 ===== */
+(() => {
+  'use strict';
+
+  const PREFIX = 'sfm20';
+
+  function normalize(value) {
+    return String(value || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function exact(root, text, selector = '*') {
+    if (!root?.querySelectorAll) return null;
+
+    const matches = Array.from(
+      root.querySelectorAll(selector)
+    ).filter(
+      element =>
+        normalize(element.textContent) === text
+    );
+
+    matches.sort((a, b) => {
+      const aChildren =
+        a.querySelectorAll('*').length;
+
+      const bChildren =
+        b.querySelectorAll('*').length;
+
+      return aChildren - bChildren;
+    });
+
+    return matches[0] || null;
+  }
+
+  function commonAncestor(elements) {
+    const list = elements.filter(
+      element => element instanceof Element
+    );
+
+    if (!list.length) return null;
+
+    let node = list[0];
+
+    while (
+      node &&
+      node !== document.documentElement
+    ) {
+      if (
+        list.every(
+          element =>
+            node === element ||
+            node.contains(element)
+        )
+      ) {
+        return node;
+      }
+
+      node = node.parentElement;
+    }
+
+    return null;
+  }
+
+  function climb(
+    element,
+    predicate,
+    maxDepth = 14
+  ) {
+    let node = element;
+
+    for (
+      let i = 0;
+      node && i < maxDepth;
+      i += 1
+    ) {
+      if (predicate(node)) {
+        return node;
+      }
+
+      node = node.parentElement;
+    }
+
+    return null;
+  }
+
+  function childWithin(parent, element) {
+    let node = element;
+
+    while (
+      node &&
+      node.parentElement !== parent
+    ) {
+      node = node.parentElement;
+    }
+
+    return (
+      node &&
+      node.parentElement === parent
+    )
+      ? node
+      : null;
+  }
+
+  function findRoot() {
+    const titles = Array.from(
+      document.querySelectorAll(
+        'h1,h2,h3,h4,strong,b,span,div'
+      )
+    ).filter(
+      element =>
+        normalize(element.textContent) ===
+        '고형연료 관리'
+    );
+
+    for (const title of titles) {
+      const root = climb(
+        title,
+        node => {
+          const text =
+            normalize(node.textContent);
+
+          return (
+            text.includes(
+              '하역시간 참고 데이터'
+            ) &&
+            (
+              text.includes(
+                '하역시간 기록'
+              ) ||
+              text.includes(
+                'Trouble 내역'
+              )
+            )
+          );
+        },
+        16
+      );
+
+      if (root) {
+        return root;
+      }
+    }
+
+    return null;
+  }
+
+  function decorateFilter(root) {
+    const monthly =
+      exact(root, '월별', 'button');
+
+    const period =
+      exact(root, '기간 지정', 'button');
+
+    const all =
+      exact(root, '전체', 'button');
+
+    const labelTexts = [
+      '조회 월',
+      '업체명',
+      '차량번호',
+      '통합 검색',
+      '정렬'
+    ];
+
+    const labelNodes =
+      labelTexts
+        .map(
+          text =>
+            exact(
+              root,
+              text,
+              'label,span,b,strong,div'
+            )
+        )
+        .filter(Boolean);
+
+    if (
+      !monthly ||
+      !period ||
+      !all ||
+      labelNodes.length < 4
+    ) {
+      return;
+    }
+
+    const filter =
+      commonAncestor([
+        monthly,
+        period,
+        all,
+        ...labelNodes
+      ]);
+
+    if (!(filter instanceof Element)) {
+      return;
+    }
+
+    filter.classList.add(
+      `${PREFIX}-filter`
+    );
+
+    [monthly, period, all]
+      .forEach(button => {
+        button.classList.add(
+          `${PREFIX}-mode-button`
+        );
+      });
+
+    labelTexts.forEach(
+      (text, index) => {
+        const titleNode =
+          exact(
+            filter,
+            text,
+            'label,span,b,strong,div'
+          );
+
+        if (!titleNode) return;
+
+        const field =
+          climb(
+            titleNode,
+            node => {
+              if (
+                node === filter
+              ) {
+                return false;
+              }
+
+              return Boolean(
+                node.querySelector?.(
+                  'input,select'
+                )
+              );
+            },
+            5
+          );
+
+        if (!(field instanceof Element)) {
+          return;
+        }
+
+        field.classList.add(
+          `${PREFIX}-field`
+        );
+
+        field.dataset.sfm20Field =
+          [
+            'month',
+            'company',
+            'vehicle',
+            'search',
+            'sort'
+          ][index] || '';
+      }
+    );
+
+    const buttons =
+      Array.from(
+        filter.querySelectorAll(
+          'button'
+        )
+      );
+
+    buttons.forEach(button => {
+      const text =
+        normalize(button.textContent);
+
+      if (text === '조회') {
+        button.classList.add(
+          `${PREFIX}-search-button`
+        );
+      }
+
+      if (text === '초기화') {
+        button.classList.add(
+          `${PREFIX}-reset-button`
+        );
+      }
+    });
+  }
+
+  function decorateKpi(root) {
+    const labels = [
+      '하역',
+      '평균 하역',
+      'Trouble',
+      '이상·막힘',
+      '최장 하역'
+    ];
+
+    const nodes =
+      labels.map(
+        text =>
+          exact(
+            root,
+            text,
+            'span,b,strong,div'
+          )
+      );
+
+    if (
+      nodes.some(node => !node)
+    ) {
+      return;
+    }
+
+    const group =
+      commonAncestor(nodes);
+
+    if (!(group instanceof Element)) {
+      return;
+    }
+
+    group.classList.add(
+      `${PREFIX}-kpi`
+    );
+
+    nodes.forEach(
+      (node, index) => {
+        const card =
+          childWithin(
+            group,
+            node
+          );
+
+        if (!card) return;
+
+        card.classList.add(
+          `${PREFIX}-kpi-card`
+        );
+
+        card.dataset.sfm20Kpi =
+          String(index + 1);
+      }
+    );
+  }
+
+  function decorateReference(root) {
+    const refTitle =
+      exact(
+        root,
+        '하역시간 참고 데이터',
+        'h1,h2,h3,h4,strong,b,div'
+      );
+
+    if (!refTitle) return;
+
+    const section =
+      climb(
+        refTitle,
+        node => {
+          const text =
+            normalize(node.textContent);
+
+          return (
+            text.includes(
+              '업체별 하역시간'
+            ) &&
+            text.includes(
+              'Silo별 평균'
+            )
+          );
+        },
+        10
+      );
+
+    if (!(section instanceof Element)) {
+      return;
+    }
+
+    section.classList.add(
+      `${PREFIX}-reference`
+    );
+
+    const companyTitle =
+      exact(
+        section,
+        '업체별 하역시간',
+        'h1,h2,h3,h4,strong,b,div'
+      );
+
+    const companyTable =
+      companyTitle
+        ? climb(
+            companyTitle,
+            node =>
+              Boolean(
+                node.querySelector?.(
+                  'table'
+                )
+              ),
+            6
+          )?.querySelector('table')
+        : section.querySelector(
+            'table'
+          );
+
+    let companyPanel = null;
+
+    if (
+      companyTable instanceof
+      HTMLTableElement
+    ) {
+      companyTable.classList.add(
+        `${PREFIX}-company-table`
+      );
+
+      companyPanel =
+        companyTable.parentElement;
+
+      companyPanel?.classList.add(
+        `${PREFIX}-company-panel`
+      );
+    }
+
+    const siloTitle =
+      exact(
+        section,
+        'Silo별 평균',
+        'h1,h2,h3,h4,strong,b,div'
+      );
+
+    let siloPanel = null;
+
+    if (siloTitle) {
+      siloPanel =
+        climb(
+          siloTitle,
+          node => {
+            const text =
+              normalize(node.textContent);
+
+            return (
+              text.includes('#A') &&
+              text.includes('#B') &&
+              text.includes('Day')
+            );
+          },
+          7
+        );
+
+      siloPanel?.classList.add(
+        `${PREFIX}-silo-panel`
+      );
+    }
+
+    if (
+      companyPanel &&
+      siloPanel
+    ) {
+      const pair =
+        commonAncestor([
+          companyPanel,
+          siloPanel
+        ]);
+
+      pair?.classList.add(
+        `${PREFIX}-reference-grid`
+      );
+    }
+
+    if (siloPanel) {
+      const possible =
+        Array.from(
+          siloPanel.children
+        );
+
+      possible.forEach(child => {
+        const text =
+          normalize(child.textContent);
+
+        if (
+          text.includes('#A') ||
+          text.includes('#B') ||
+          /^Day\b/.test(text)
+        ) {
+          child.classList.add(
+            `${PREFIX}-silo-card`
+          );
+        }
+      });
+    }
+  }
+
+  function decorateRecords(root) {
+    const title =
+      exact(
+        root,
+        '하역시간 기록',
+        'h1,h2,h3,h4,strong,b,div'
+      );
+
+    if (!title) return;
+
+    const section =
+      climb(
+        title,
+        node => {
+          const text =
+            normalize(node.textContent);
+
+          return (
+            text.includes('날짜') &&
+            text.includes('입고') &&
+            text.includes('출고') &&
+            text.includes('소요') &&
+            text.includes('업체') &&
+            text.includes('차량')
+          );
+        },
+        10
+      );
+
+    if (!(section instanceof Element)) {
+      return;
+    }
+
+    section.classList.add(
+      `${PREFIX}-records`
+    );
+
+    const table =
+      section.querySelector(
+        'table'
+      );
+
+    if (!(table instanceof HTMLTableElement)) {
+      return;
+    }
+
+    table.classList.add(
+      `${PREFIX}-records-table`
+    );
+
+    Array.from(
+      table.tBodies
+    ).forEach(tbody => {
+      Array.from(
+        tbody.rows
+      ).forEach(row => {
+        const cell =
+          row.cells[
+            row.cells.length - 1
+          ];
+
+        if (!cell) return;
+
+        const buttons =
+          Array.from(
+            cell.querySelectorAll(
+              'button'
+            )
+          );
+
+        if (buttons.length < 2) {
+          return;
+        }
+
+        const actions =
+          commonAncestor(buttons);
+
+        if (
+          actions &&
+          cell.contains(actions)
+        ) {
+          actions.classList.add(
+            `${PREFIX}-actions`
+          );
+        }
+      });
+    });
+  }
+
+  function decorateTabs(root) {
+    const unload =
+      exact(
+        root,
+        '하역 기록',
+        'button'
+      );
+
+    const trouble =
+      exact(
+        root,
+        'Trouble 내역',
+        'button'
+      );
+
+    if (!unload || !trouble) {
+      return;
+    }
+
+    unload.classList.add(
+      `${PREFIX}-record-tab`
+    );
+
+    trouble.classList.add(
+      `${PREFIX}-record-tab`
+    );
+
+    const tabs =
+      commonAncestor([
+        unload,
+        trouble
+      ]);
+
+    tabs?.classList.add(
+      `${PREFIX}-record-tabs`
+    );
+  }
+
+  function decorate() {
+    const root = findRoot();
+
+    if (!(root instanceof Element)) {
+      return false;
+    }
+
+    root.classList.add(
+      `${PREFIX}-root`
+    );
+
+    decorateFilter(root);
+    decorateKpi(root);
+    decorateReference(root);
+    decorateRecords(root);
+    decorateTabs(root);
+
+    return true;
+  }
+
+  let timer = 0;
+
+  function queue() {
+    clearTimeout(timer);
+
+    timer = setTimeout(
+      decorate,
+      50
+    );
+  }
+
+  function start() {
+    decorate();
+
+    const observer =
+      new MutationObserver(queue);
+
+    observer.observe(
+      document.body,
+      {
+        childList: true,
+        subtree: true
+      }
+    );
+  }
+
+  if (
+    document.readyState ===
+    'loading'
+  ) {
+    document.addEventListener(
+      'DOMContentLoaded',
+      start,
+      { once: true }
+    );
+  }
+  else {
+    start();
+  }
+})();
+/* ===== /SOLID_FUEL_NATIVE_REDESIGN_V20_R3 ===== */

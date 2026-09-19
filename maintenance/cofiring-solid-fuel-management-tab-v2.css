@@ -135,168 +135,363 @@
   }
 }
 
-/* ===== SOLID_FUEL_MANAGEMENT_READABILITY_V15 ===== */
+/* ===== SOLID_FUEL_NATIVE_REDESIGN_V20_R3 ===== */
+
 
 /* =========================================================
-   1. 조회 / 필터 영역
-   - 기존보다 크게
-   - 글씨 굵게
+   ROOT
 ========================================================= */
 
-.sfux15-root
-.sfux15-query {
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-root {
+  --sf20-line: #cbd9e8;
+  --sf20-soft-line: #dce6f0;
+  --sf20-text: #143b64;
+  --sf20-muted: #708399;
+  --sf20-blue: #2878c9;
+  --sf20-blue-dark: #175d9f;
+  --sf20-soft-blue: #f3f8fd;
+  --sf20-white: #ffffff;
+
+  color:
+    var(--sf20-text) !important;
+}
+
+
+/* =========================================================
+   FILTER
+========================================================= */
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-filter {
+  display:
+    flex !important;
+
+  flex-wrap:
+    wrap !important;
+
   align-items:
     flex-end !important;
 
   gap:
     9px !important;
 
-  padding:
-    12px 13px !important;
-}
-
-.sfux15-root
-.sfux15-query label {
-  gap:
-    5px !important;
-}
-
-.sfux15-root
-.sfux15-query label > span,
-.sfux15-root
-.sfux15-query label > b,
-.sfux15-root
-.sfux15-query label > strong {
-  font-size:
-    13px !important;
-
-  line-height:
-    1.15 !important;
-
-  font-weight:
-    850 !important;
-
-  color:
-    #244765 !important;
-}
-
-.sfux15-root
-.sfux15-query input,
-.sfux15-root
-.sfux15-query select {
-  min-height:
-    40px !important;
-
-  height:
-    40px !important;
+  width:
+    100% !important;
 
   padding:
-    0 11px !important;
+    11px 12px !important;
+
+  border:
+    1px solid
+    var(--sf20-line) !important;
 
   border-radius:
-    7px !important;
-
-  font-size:
-    13px !important;
-
-  font-weight:
-    750 !important;
-
-  line-height:
-    1 !important;
-}
-
-.sfux15-root
-.sfux15-query button {
-  min-height:
-    38px !important;
-
-  height:
-    38px !important;
-
-  padding:
-    0 13px !important;
-
-  border-radius:
-    7px !important;
-
-  font-size:
     12px !important;
 
-  font-weight:
-    850 !important;
-
-  line-height:
-    1 !important;
-}
-
-.sfux15-root
-.sfux15-query button:first-of-type,
-.sfux15-root
-.sfux15-query button:nth-of-type(2),
-.sfux15-root
-.sfux15-query button:nth-of-type(3) {
-  min-width:
-    48px !important;
-}
-
-
-/* =========================================================
-   2. KPI 5개
-   - 불필요한 세로 공간 축소
-========================================================= */
-
-.sfux15-root
-.sfux15-kpi {
-  min-height:
-    0 !important;
-
-  height:
-    auto !important;
-}
-
-.sfux15-root
-.sfux15-kpi-card {
-  min-height:
-    56px !important;
-
-  height:
-    56px !important;
-
-  padding:
-    7px 14px !important;
+  background:
+    #ffffff !important;
 
   box-sizing:
     border-box !important;
 }
 
-.sfux15-root
-.sfux15-kpi-card > * {
-  margin-top:
-    0 !important;
 
-  margin-bottom:
-    0 !important;
+/* 월별/기간지정/전체 */
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-mode-button {
+  height:
+    46px !important;
+
+  min-height:
+    46px !important;
+
+  padding:
+    0 14px !important;
+
+  border-radius:
+    8px !important;
+
+  font-size:
+    14px !important;
+
+  font-weight:
+    800 !important;
 }
 
-.sfux15-root
-.sfux15-kpi-card span,
-.sfux15-root
-.sfux15-kpi-card b {
+
+/* field */
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-field {
+  display:
+    flex !important;
+
+  flex-direction:
+    column !important;
+
+  gap:
+    5px !important;
+
+  min-width:
+    120px !important;
+}
+
+
+/* labels */
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-field > span,
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-field > b,
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-field > strong,
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-field > label {
   font-size:
-    11px !important;
+    15px !important;
+
+  font-weight:
+    850 !important;
+
+  line-height:
+    1.05 !important;
+
+  color:
+    #244c73 !important;
+}
+
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-field input,
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-field select {
+  width:
+    100% !important;
+
+  height:
+    48px !important;
+
+  min-height:
+    48px !important;
+
+  padding:
+    0 13px !important;
+
+  border:
+    1px solid #b8cade !important;
+
+  border-radius:
+    8px !important;
+
+  background:
+    #ffffff !important;
+
+  color:
+    #163e68 !important;
+
+  font-size:
+    15px !important;
+
+  font-weight:
+    700 !important;
+
+  box-sizing:
+    border-box !important;
+}
+
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-field input::placeholder {
+  font-size:
+    13px !important;
+
+  color:
+    #8192a5 !important;
+}
+
+
+/* widths */
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-field[data-sfm20-field="month"] {
+  flex:
+    0 1 165px !important;
+}
+
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-field[data-sfm20-field="company"] {
+  flex:
+    1 1 170px !important;
+}
+
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-field[data-sfm20-field="vehicle"] {
+  flex:
+    0 1 135px !important;
+}
+
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-field[data-sfm20-field="search"] {
+  flex:
+    2 1 280px !important;
+}
+
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-field[data-sfm20-field="sort"] {
+  flex:
+    0 1 145px !important;
+}
+
+
+/* 조회 / 초기화 */
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-search-button,
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-reset-button {
+  height:
+    46px !important;
+
+  min-height:
+    46px !important;
+
+  padding:
+    0 14px !important;
+
+  border-radius:
+    8px !important;
+
+  font-size:
+    14px !important;
+
+  font-weight:
+    850 !important;
+}
+
+
+/* =========================================================
+   KPI
+========================================================= */
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-kpi {
+  display:
+    grid !important;
+
+  grid-template-columns:
+    repeat(5,minmax(0,1fr)) !important;
+
+  gap:
+    8px !important;
+
+  width:
+    100% !important;
+
+  margin:
+    10px 0 12px !important;
+
+  padding:
+    0 !important;
+
+  border:
+    0 !important;
+
+  background:
+    transparent !important;
+}
+
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-kpi-card {
+  display:
+    flex !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    space-between !important;
+
+  gap:
+    8px !important;
+
+  height:
+    52px !important;
+
+  min-height:
+    52px !important;
+
+  padding:
+    6px 12px !important;
+
+  border:
+    1px solid
+    var(--sf20-soft-line) !important;
+
+  border-radius:
+    9px !important;
+
+  background:
+    #f8fbff !important;
+
+  box-sizing:
+    border-box !important;
+}
+
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-kpi-card[data-sfm20-kpi="2"] {
+  background:
+    #f5fbf7 !important;
+}
+
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-kpi-card[data-sfm20-kpi="3"] {
+  background:
+    #fff7f6 !important;
+}
+
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-kpi-card[data-sfm20-kpi="4"] {
+  background:
+    #fff9f4 !important;
+}
+
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-kpi-card[data-sfm20-kpi="5"] {
+  background:
+    #faf8ff !important;
+}
+
+
+/* 기존 내부 typography 정리 */
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-kpi-card
+:is(span,b) {
+  font-size:
+    10px !important;
 
   font-weight:
     800 !important;
 
   line-height:
-    1.1 !important;
+    1 !important;
 }
 
-.sfux15-root
-.sfux15-kpi-card strong {
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-kpi-card strong {
   font-size:
-    25px !important;
+    17px !important;
 
   font-weight:
     900 !important;
@@ -305,13 +500,17 @@
     1 !important;
 
   letter-spacing:
-    -.035em !important;
+    -.02em !important;
 }
 
-.sfux15-root
-.sfux15-kpi-card small {
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-kpi-card small {
   font-size:
-    9px !important;
+    8px !important;
+
+  font-weight:
+    700 !important;
 
   line-height:
     1 !important;
@@ -319,56 +518,68 @@
 
 
 /* =========================================================
-   3. 하역시간 참고 데이터
-   좌: 업체 68%
-   우: Silo 32%
-
-   두 영역은 같은 높이.
+   REFERENCE
 ========================================================= */
 
-.sfux15-root
-.sfux15-reference-grid {
-  display:
-    grid !important;
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-reference {
+  padding:
+    0 !important;
 
-  grid-template-columns:
-    minmax(0, 2.15fr)
-    minmax(235px, 1fr) !important;
+  border:
+    1px solid
+    var(--sf20-line) !important;
 
-  align-items:
-    stretch !important;
-
-  gap:
+  border-radius:
     12px !important;
 
-  min-height:
-    0 !important;
-}
-
-.sfux15-root
-.sfux15-company-panel,
-.sfux15-root
-.sfux15-silo-panel {
-  min-height:
-    154px !important;
-
-  height:
-    154px !important;
-
-  box-sizing:
-    border-box !important;
+  background:
+    #ffffff !important;
 
   overflow:
     hidden !important;
 }
 
 
-/* ---------------------------------------------------------
-   업체별 하역시간
---------------------------------------------------------- */
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-reference-grid {
+  display:
+    grid !important;
 
-.sfux15-root
-.sfux15-company-table {
+  grid-template-columns:
+    minmax(0,2.25fr)
+    minmax(250px,.9fr) !important;
+
+  gap:
+    12px !important;
+
+  align-items:
+    stretch !important;
+
+  padding:
+    9px 10px 11px !important;
+}
+
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-company-panel,
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-silo-panel {
+  height:
+    158px !important;
+
+  min-height:
+    158px !important;
+
+  box-sizing:
+    border-box !important;
+}
+
+
+/* company table */
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-company-table {
   width:
     100% !important;
 
@@ -378,26 +589,35 @@
   table-layout:
     fixed !important;
 
+  border-collapse:
+    collapse !important;
+
   font-variant-numeric:
     tabular-nums !important;
 }
 
-.sfux15-root
-.sfux15-company-table thead tr {
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-company-table thead tr {
   height:
-    30px !important;
+    29px !important;
 }
 
-.sfux15-root
-.sfux15-company-table tbody tr {
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-company-table tbody tr {
   height:
     27px !important;
 }
 
-.sfux15-root
-.sfux15-company-table th {
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-company-table th {
   padding:
     5px 9px !important;
+
+  background:
+    #f1f6fb !important;
 
   font-size:
     11px !important;
@@ -406,11 +626,12 @@
     850 !important;
 
   line-height:
-    1.05 !important;
+    1 !important;
 }
 
-.sfux15-root
-.sfux15-company-table td {
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-company-table td {
   padding:
     5px 9px !important;
 
@@ -421,164 +642,160 @@
     700 !important;
 
   line-height:
-    1.05 !important;
-}
-
-.sfux15-root
-.sfux15-company-table th:first-child,
-.sfux15-root
-.sfux15-company-table td:first-child {
-  width:
-    22% !important;
-
-  text-align:
-    left !important;
-}
-
-.sfux15-root
-.sfux15-company-table th:not(:first-child),
-.sfux15-root
-.sfux15-company-table td:not(:first-child) {
-  width:
-    auto !important;
-
-  text-align:
-    center !important;
+    1 !important;
 }
 
 
-/* ---------------------------------------------------------
-   Silo별 평균
-   - 박스 자체를 작고 촘촘하게
---------------------------------------------------------- */
-
-.sfux15-root
-.sfux15-silo-panel {
+/* silo */
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-silo-panel {
   display:
     flex !important;
 
   flex-direction:
     column !important;
 
-  justify-content:
-    flex-start !important;
-
   gap:
     6px !important;
 }
 
-.sfux15-root
-.sfux15-silo-card {
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-silo-card {
   min-height:
-    35px !important;
+    38px !important;
 
   height:
-    35px !important;
-
-  padding:
-    5px 10px !important;
+    38px !important;
 
   margin:
     0 !important;
 
+  padding:
+    5px 10px !important;
+
+  border:
+    1px solid #d6e2ee !important;
+
   border-radius:
-    7px !important;
+    8px !important;
+
+  background:
+    #fbfdff !important;
 
   box-sizing:
     border-box !important;
 }
 
-.sfux15-root
-.sfux15-silo-card strong,
-.sfux15-root
-.sfux15-silo-card b {
-  font-size:
-    14px !important;
 
-  font-weight:
-    900 !important;
+/* =========================================================
+   RECORD TABS
+========================================================= */
 
-  line-height:
-    1 !important;
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-record-tabs {
+  display:
+    flex !important;
+
+  gap:
+    5px !important;
+
+  margin-top:
+    10px !important;
 }
 
-.sfux15-root
-.sfux15-silo-card span {
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-record-tab {
+  min-height:
+    32px !important;
+
+  height:
+    32px !important;
+
+  padding:
+    0 12px !important;
+
+  border-radius:
+    7px 7px 0 0 !important;
+
   font-size:
-    10px !important;
+    11px !important;
 
   font-weight:
-    700 !important;
-
-  line-height:
-    1 !important;
+    800 !important;
 }
 
 
 /* =========================================================
-   4. 하역시간 기록
-   - 행 높이 대폭 축소
-   - 글씨가 들어갈 만큼만 유지
+   RECORD TABLE
 ========================================================= */
 
-.sfux15-root
-.sfux15-records-table {
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-records-table {
   width:
     100% !important;
 
-  border-collapse:
-    collapse !important;
-
   table-layout:
     fixed !important;
+
+  border-collapse:
+    collapse !important;
 
   font-variant-numeric:
     tabular-nums !important;
 }
 
-.sfux15-root
-.sfux15-records-table thead tr {
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-records-table thead tr {
   height:
-    30px !important;
+    28px !important;
 }
 
-.sfux15-root
-.sfux15-records-table thead th {
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-records-table thead th {
   height:
-    30px !important;
+    28px !important;
 
   padding:
-    5px 7px !important;
+    4px 6px !important;
 
   font-size:
     10px !important;
 
+  line-height:
+    1 !important;
+
   font-weight:
     850 !important;
 
-  line-height:
-    1 !important;
+  background:
+    #edf3f9 !important;
 }
 
-.sfux15-root
-.sfux15-records-table tbody tr {
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-records-table tbody tr {
   height:
-    43px !important;
+    37px !important;
 
   min-height:
-    43px !important;
+    37px !important;
 }
 
-.sfux15-root
-.sfux15-records-table tbody td {
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-records-table tbody td {
   height:
-    43px !important;
+    37px !important;
 
   min-height:
     0 !important;
 
   padding:
-    5px 7px !important;
+    4px 6px !important;
 
   font-size:
     10.5px !important;
@@ -587,43 +804,67 @@
     700 !important;
 
   line-height:
-    1.15 !important;
+    1.05 !important;
 
   vertical-align:
     middle !important;
-
-  box-sizing:
-    border-box !important;
 }
 
 
-/* 소요시간 / Silo badge */
-.sfux15-root
-.sfux15-records-table
-td span {
-  min-height:
-    0 !important;
+/* action wrapper */
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-actions {
+  display:
+    flex !important;
 
-  line-height:
-    1.1 !important;
-}
+  flex-direction:
+    row !important;
 
+  align-items:
+    center !important;
 
-/* 수정 / 삭제 */
-.sfux15-root
-.sfux15-records-table
-button {
-  min-height:
-    27px !important;
+  justify-content:
+    center !important;
 
-  height:
-    27px !important;
-
-  padding:
-    0 11px !important;
+  gap:
+    4px !important;
 
   margin:
-    1px 2px !important;
+    0 !important;
+
+  padding:
+    0 !important;
+}
+
+
+:is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+.sfm20-actions button {
+  display:
+    inline-flex !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    center !important;
+
+  width:
+    auto !important;
+
+  min-width:
+    38px !important;
+
+  height:
+    26px !important;
+
+  min-height:
+    26px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 8px !important;
 
   border-radius:
     6px !important;
@@ -633,69 +874,32 @@ button {
 
   font-weight:
     800 !important;
-
-  line-height:
-    1 !important;
-}
-
-
-/*
-  관리칸에서 버튼이 세로로 잡혀 있어도
-  행 높이를 불필요하게 밀어내지 않도록 함.
-*/
-.sfux15-root
-.sfux15-records-table
-td:last-child {
-  padding-top:
-    3px !important;
-
-  padding-bottom:
-    3px !important;
 }
 
 
 /* =========================================================
-   5. 참고 데이터 제목 영역도 compact
+   RESPONSIVE
 ========================================================= */
 
-.sfux15-root
-.sfux15-reference {
-  padding-top:
-    0 !important;
-}
+@media screen and (max-width: 1100px) {
 
-.sfux15-root
-.sfux15-reference h1,
-.sfux15-root
-.sfux15-reference h2,
-.sfux15-root
-.sfux15-reference h3,
-.sfux15-root
-.sfux15-reference h4 {
-  margin-top:
-    0 !important;
+  :is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+  .sfm20-kpi {
+    grid-template-columns:
+      repeat(2,minmax(0,1fr)) !important;
+  }
 
-  margin-bottom:
-    6px !important;
-}
-
-
-/* =========================================================
-   좁은 화면
-========================================================= */
-
-@media screen and (max-width: 1050px) {
-
-  .sfux15-root
-  .sfux15-reference-grid {
+  :is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+  .sfm20-reference-grid {
     grid-template-columns:
       1fr !important;
   }
 
-  .sfux15-root
-  .sfux15-company-panel,
-  .sfux15-root
-  .sfux15-silo-panel {
+  :is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+  .sfm20-company-panel,
+
+  :is(#efficiencyCofiringDraftView,[data-cofiring-draft-root])
+  .sfm20-silo-panel {
     width:
       100% !important;
 
@@ -707,562 +911,5 @@ td:last-child {
   }
 }
 
-/* ===== /SOLID_FUEL_MANAGEMENT_READABILITY_V15 ===== */
 
-/* ===== SOLID_FUEL_FILTER_FONT_V16 ===== */
-
-/*
-  고형연료 관리 조회/필터 영역
-  V15 Runtime class를 직접 대상으로 함.
-*/
-
-/* 상단 라벨 */
-.sfux15-root
-.sfux15-query label > span,
-.sfux15-root
-.sfux15-query label > b,
-.sfux15-root
-.sfux15-query label > strong {
-  font-size: 14px !important;
-  font-weight: 850 !important;
-  line-height: 1.15 !important;
-}
-
-
-/* 월별 / 기간 지정 / 전체 / 조회 / 초기화 */
-.sfux15-root
-.sfux15-query button {
-  font-size: 13px !important;
-  font-weight: 800 !important;
-}
-
-
-/* 조회 월 / 업체명 / 차량번호 / 통합 검색 / 정렬 */
-.sfux15-root
-.sfux15-query input,
-.sfux15-root
-.sfux15-query select {
-  font-size: 13.5px !important;
-  font-weight: 700 !important;
-}
-
-
-/* 예: 4202, Silo / Trouble / 비고 검색 */
-.sfux15-root
-.sfux15-query input::placeholder {
-  font-size: 12.5px !important;
-  font-weight: 600 !important;
-  opacity: .82 !important;
-}
-
-/* ===== /SOLID_FUEL_FILTER_FONT_V16 ===== */
-
-/* ===== SOLID_FUEL_FILTER_SIZE_V17 ===== */
-
-/* 전체 검색바 */
-.sfux15-root
-.sfux15-query {
-  gap: 12px !important;
-
-  padding:
-    14px 16px !important;
-
-  min-height:
-    72px !important;
-
-  box-sizing:
-    border-box !important;
-}
-
-
-/* 조회 월 / 업체명 / 차량번호 / 통합 검색 / 정렬 */
-.sfux15-root
-.sfux15-query label {
-  gap:
-    7px !important;
-}
-
-
-/* 상단 항목명 */
-.sfux15-root
-.sfux15-query label > span,
-.sfux15-root
-.sfux15-query label > b,
-.sfux15-root
-.sfux15-query label > strong {
-  font-size:
-    15px !important;
-
-  font-weight:
-    900 !important;
-
-  line-height:
-    1.1 !important;
-
-  color:
-    #173f62 !important;
-}
-
-
-/* 입력칸 / select */
-.sfux15-root
-.sfux15-query input,
-.sfux15-root
-.sfux15-query select {
-  min-height:
-    46px !important;
-
-  height:
-    46px !important;
-
-  padding:
-    0 13px !important;
-
-  border-radius:
-    8px !important;
-
-  font-size:
-    15px !important;
-
-  font-weight:
-    750 !important;
-
-  line-height:
-    1 !important;
-
-  box-sizing:
-    border-box !important;
-}
-
-
-/* placeholder */
-.sfux15-root
-.sfux15-query input::placeholder {
-  font-size:
-    14px !important;
-
-  font-weight:
-    600 !important;
-
-  opacity:
-    .85 !important;
-}
-
-
-/* 모든 버튼 */
-.sfux15-root
-.sfux15-query button {
-  min-height:
-    44px !important;
-
-  height:
-    44px !important;
-
-  padding:
-    0 15px !important;
-
-  border-radius:
-    8px !important;
-
-  font-size:
-    14px !important;
-
-  font-weight:
-    850 !important;
-
-  line-height:
-    1 !important;
-}
-
-
-/* 월별 / 기간 지정 / 전체 */
-.sfux15-root
-.sfux15-query button:nth-of-type(1),
-.sfux15-root
-.sfux15-query button:nth-of-type(2),
-.sfux15-root
-.sfux15-query button:nth-of-type(3) {
-  min-width:
-    54px !important;
-}
-
-
-/* 조회 월 */
-.sfux15-root
-.sfux15-query input[type="month"] {
-  min-width:
-    155px !important;
-}
-
-
-/* 업체 / 정렬 select */
-.sfux15-root
-.sfux15-query select {
-  min-width:
-    150px !important;
-}
-
-
-/* 차량번호 */
-.sfux15-root
-.sfux15-query input[placeholder*="4202"] {
-  min-width:
-    130px !important;
-}
-
-
-/* 통합 검색 */
-.sfux15-root
-.sfux15-query input[placeholder*="Silo"] {
-  min-width:
-    300px !important;
-}
-
-
-/* 조회 / 초기화 */
-.sfux15-root
-.sfux15-query button:last-of-type,
-.sfux15-root
-.sfux15-query button:nth-last-of-type(2) {
-  min-width:
-    56px !important;
-}
-
-
-/* 좁은 화면에서는 강제 폭 완화 */
-@media screen and (max-width: 1200px) {
-
-  .sfux15-root
-  .sfux15-query {
-    gap:
-      9px !important;
-  }
-
-  .sfux15-root
-  .sfux15-query input[placeholder*="Silo"] {
-    min-width:
-      230px !important;
-  }
-
-  .sfux15-root
-  .sfux15-query select {
-    min-width:
-      125px !important;
-  }
-}
-
-/* ===== /SOLID_FUEL_FILTER_SIZE_V17 ===== */
-
-/* ===== SOLID_FUEL_FILTER_KPI_TUNE_V18 ===== */
-
-
-/* =========================================================
-   1. 조회/검색 영역
-   V17보다 한 단계 더 크게
-========================================================= */
-
-.sfux15-root
-.sfux15-query {
-  gap: 13px !important;
-
-  padding:
-    15px 17px !important;
-
-  min-height:
-    78px !important;
-}
-
-
-/* 조회 월 / 업체명 / 차량번호 / 통합 검색 / 정렬 */
-.sfux15-root
-.sfux15-query label > span,
-.sfux15-root
-.sfux15-query label > b,
-.sfux15-root
-.sfux15-query label > strong {
-  font-size:
-    16px !important;
-
-  font-weight:
-    900 !important;
-
-  line-height:
-    1.1 !important;
-}
-
-
-/* 입력/선택값 */
-.sfux15-root
-.sfux15-query input,
-.sfux15-root
-.sfux15-query select {
-  min-height:
-    50px !important;
-
-  height:
-    50px !important;
-
-  padding:
-    0 14px !important;
-
-  border-radius:
-    9px !important;
-
-  font-size:
-    16px !important;
-
-  font-weight:
-    750 !important;
-}
-
-
-/* placeholder */
-.sfux15-root
-.sfux15-query input::placeholder {
-  font-size:
-    14.5px !important;
-
-  font-weight:
-    600 !important;
-}
-
-
-/* 월별 / 기간 지정 / 전체 / 조회 / 초기화 */
-.sfux15-root
-.sfux15-query button {
-  min-height:
-    48px !important;
-
-  height:
-    48px !important;
-
-  padding:
-    0 16px !important;
-
-  border-radius:
-    9px !important;
-
-  font-size:
-    15px !important;
-
-  font-weight:
-    850 !important;
-}
-
-
-/* 토글 3개 */
-.sfux15-root
-.sfux15-query button:nth-of-type(1),
-.sfux15-root
-.sfux15-query button:nth-of-type(2),
-.sfux15-root
-.sfux15-query button:nth-of-type(3) {
-  min-width:
-    58px !important;
-}
-
-
-/* 월 선택 */
-.sfux15-root
-.sfux15-query input[type="month"] {
-  min-width:
-    165px !important;
-}
-
-
-/* 업체 / 정렬 */
-.sfux15-root
-.sfux15-query select {
-  min-width:
-    158px !important;
-}
-
-
-/* 차량 */
-.sfux15-root
-.sfux15-query input[placeholder*="4202"] {
-  min-width:
-    135px !important;
-}
-
-
-/* 통합검색 */
-.sfux15-root
-.sfux15-query input[placeholder*="Silo"] {
-  min-width:
-    315px !important;
-}
-
-
-/* =========================================================
-   2. KPI 5개
-   지금보다 작고 compact하게
-========================================================= */
-
-.sfux15-root
-.sfux15-kpi {
-  display:
-    grid !important;
-
-  grid-template-columns:
-    repeat(5, minmax(0, 1fr)) !important;
-
-  gap:
-    0 !important;
-
-  width:
-    88% !important;
-
-  max-width:
-    1040px !important;
-
-  min-height:
-    0 !important;
-
-  height:
-    auto !important;
-
-  margin-right:
-    auto !important;
-}
-
-
-/* 각 KPI 칸 */
-.sfux15-root
-.sfux15-kpi-card {
-  min-height:
-    46px !important;
-
-  height:
-    46px !important;
-
-  padding:
-    5px 11px !important;
-
-  box-sizing:
-    border-box !important;
-}
-
-
-/* 하역 / 평균 하역 / Trouble... */
-.sfux15-root
-.sfux15-kpi-card span,
-.sfux15-root
-.sfux15-kpi-card b {
-  font-size:
-    10px !important;
-
-  font-weight:
-    750 !important;
-
-  line-height:
-    1 !important;
-}
-
-
-/* 0 / 98 / 1:38 / 3:32 */
-.sfux15-root
-.sfux15-kpi-card strong {
-  font-size:
-    21px !important;
-
-  font-weight:
-    850 !important;
-
-  line-height:
-    1 !important;
-
-  letter-spacing:
-    -.025em !important;
-}
-
-
-/* 건 / 평균 / 최장 */
-.sfux15-root
-.sfux15-kpi-card small {
-  font-size:
-    8px !important;
-
-  font-weight:
-    650 !important;
-
-  line-height:
-    1 !important;
-}
-
-
-/*
-  KPI 내부 요소끼리 불필요한 여백 제거
-*/
-.sfux15-root
-.sfux15-kpi-card > * {
-  margin-top:
-    0 !important;
-
-  margin-bottom:
-    0 !important;
-}
-
-
-/* =========================================================
-   좁은 화면
-========================================================= */
-
-@media screen and (max-width: 1200px) {
-
-  .sfux15-root
-  .sfux15-query {
-    gap:
-      9px !important;
-  }
-
-  .sfux15-root
-  .sfux15-query input[placeholder*="Silo"] {
-    min-width:
-      245px !important;
-  }
-
-  .sfux15-root
-  .sfux15-kpi {
-    width:
-      100% !important;
-
-    max-width:
-      none !important;
-  }
-}
-
-/* ===== /SOLID_FUEL_FILTER_KPI_TUNE_V18 ===== */
-
-/* ===== SOLID_FUEL_KPI_TYPOGRAPHY_V19 ===== */
-
-/* KPI 제목 */
-.sfux15-root
-.sfux15-kpi-card span,
-.sfux15-root
-.sfux15-kpi-card b {
-  font-size: 9px !important;
-  font-weight: 750 !important;
-  line-height: 1 !important;
-}
-
-
-/* KPI 숫자 */
-.sfux15-root
-.sfux15-kpi-card strong {
-  font-size: 18px !important;
-  font-weight: 850 !important;
-  line-height: 1 !important;
-  letter-spacing: -.02em !important;
-}
-
-
-/* 건 / 평균 / 최장 */
-.sfux15-root
-.sfux15-kpi-card small {
-  font-size: 7px !important;
-  font-weight: 650 !important;
-  line-height: 1 !important;
-}
-
-/* ===== /SOLID_FUEL_KPI_TYPOGRAPHY_V19 ===== */
+/* ===== /SOLID_FUEL_NATIVE_REDESIGN_V20_R3 ===== */
