@@ -336,20 +336,21 @@ body.sfr21-ready .sfr21-action-button {
 
 /* ===== /SOLID_FUEL_REAL_PAGE_REDESIGN_V21 ===== */
 
-/* ===== SOLID_FUEL_SILO_COMPACT_V23_R2 ===== */
+/* ===== SOLID_FUEL_SILO_TABLE_V24 ===== */
 
 /*
-  업체별 하역시간 표와 시각적 높이/밀도를 맞춘다.
-  V22처럼 오른쪽을 왼쪽 외곽 높이까지 강제로 늘리지 않는다.
+  Silo별 평균을 카드가 아닌
+  업체별 하역시간과 동일한 mini-table 형태로 표시
 */
 
-/* 전체 좌우 비율 - 오른쪽 Silo 폭 축소 */
+
+/* 오른쪽 영역 폭 */
 body.sfr21-ready .sfr22-reference-grid {
   display: grid !important;
 
   grid-template-columns:
     minmax(0, 1fr)
-    240px !important;
+    290px !important;
 
   gap: 10px !important;
 
@@ -357,7 +358,6 @@ body.sfr21-ready .sfr22-reference-grid {
 }
 
 
-/* 두 패널 모두 내용 높이 기준 */
 body.sfr21-ready .sfr22-company-panel,
 body.sfr21-ready .sfr22-silo-panel {
   height: auto !important;
@@ -369,122 +369,310 @@ body.sfr21-ready .sfr22-silo-panel {
 }
 
 
-/* Silo 영역 */
 body.sfr21-ready .sfr22-silo-panel {
-  display: block !important;
-
-  width: 240px !important;
-  max-width: 240px !important;
+  width: 290px !important;
+  max-width: 290px !important;
 }
 
 
-/* Silo별 평균 제목 */
-body.sfr21-ready .sfr22-silo-panel h2 {
-  margin: 0 0 5px 0 !important;
+/* 제목 */
+body.sfr21-ready
+.sfr22-silo-panel h2 {
+  margin: 0 0 6px 0 !important;
 
-  font-size: 11px !important;
+  color: #173e67 !important;
+
+  font-size: 12px !important;
   font-weight: 850 !important;
 
   line-height: 1.1 !important;
 }
 
 
-/* #A / #B / Day 묶음 */
-body.sfr21-ready .sfr22-silo-cards {
+/* table 외곽 */
+body.sfr21-ready .sfr24-silo-table {
   display: grid !important;
 
   grid-template-rows:
-    repeat(3, 36px) !important;
-
-  gap: 5px !important;
-
-  height: auto !important;
-  min-height: 0 !important;
-
-  flex: none !important;
-}
-
-
-/* 개별 Silo 카드 */
-body.sfr21-ready .sfr22-silo-card {
-  display: flex !important;
-
-  align-items: center !important;
-  justify-content: space-between !important;
+    28px
+    repeat(3, 30px) !important;
 
   width: 100% !important;
 
-  height: 36px !important;
-  min-height: 36px !important;
-  max-height: 36px !important;
-
-  flex: none !important;
-
-  margin: 0 !important;
-
-  padding:
-    3px 8px !important;
+  border:
+    1px solid #d6e1ec !important;
 
   border-radius:
-    6px !important;
+    7px !important;
+
+  overflow:
+    hidden !important;
+
+  background:
+    #ffffff !important;
 
   box-sizing:
     border-box !important;
 }
 
 
+/* header */
+body.sfr21-ready .sfr24-silo-header {
+  display: grid !important;
+
+  grid-template-columns:
+    64px
+    minmax(90px, 1fr)
+    54px !important;
+
+  align-items:
+    center !important;
+
+  height:
+    28px !important;
+
+  min-height:
+    28px !important;
+
+  padding:
+    0 !important;
+
+  background:
+    #f1f6fb !important;
+
+  border-bottom:
+    1px solid #d6e1ec !important;
+
+  box-sizing:
+    border-box !important;
+}
+
+
+body.sfr21-ready
+.sfr24-silo-header > span {
+  display: flex !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    center !important;
+
+  height:
+    100% !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 5px !important;
+
+  color:
+    #244b72 !important;
+
+  font-size:
+    10px !important;
+
+  font-weight:
+    850 !important;
+
+  line-height:
+    1 !important;
+
+  text-align:
+    center !important;
+
+  box-sizing:
+    border-box !important;
+}
+
+
+body.sfr21-ready
+.sfr24-silo-header > span:not(:last-child) {
+  border-right:
+    1px solid #dce5ee !important;
+}
+
+
+/* 각 Silo 행 */
+body.sfr21-ready
+.sfr24-silo-table
+.sfr24-silo-row {
+  display: grid !important;
+
+  grid-template-columns:
+    64px
+    minmax(90px, 1fr)
+    54px !important;
+
+  align-items:
+    center !important;
+
+  width:
+    100% !important;
+
+  height:
+    30px !important;
+
+  min-height:
+    30px !important;
+
+  max-height:
+    30px !important;
+
+  margin:
+    0 !important;
+
+  padding:
+    0 !important;
+
+  border:
+    0 !important;
+
+  border-radius:
+    0 !important;
+
+  background:
+    #ffffff !important;
+
+  box-sizing:
+    border-box !important;
+}
+
+
+body.sfr21-ready
+.sfr24-silo-table
+.sfr24-silo-row:not(:last-child) {
+  border-bottom:
+    1px solid #e0e7ef !important;
+}
+
+
+/* 기존 card layout 무효화 */
+body.sfr21-ready
+.sfr24-silo-table
+.sfr24-silo-row > * {
+  margin:
+    0 !important;
+
+  padding:
+    0 5px !important;
+
+  min-width:
+    0 !important;
+
+  line-height:
+    1 !important;
+
+  box-sizing:
+    border-box !important;
+}
+
+
+/* 각 cell */
+body.sfr21-ready .sfr24-silo-label,
+body.sfr21-ready .sfr24-silo-time,
+body.sfr21-ready .sfr24-silo-count {
+  display: flex !important;
+
+  align-items:
+    center !important;
+
+  justify-content:
+    center !important;
+
+  width:
+    100% !important;
+
+  height:
+    30px !important;
+
+  position:
+    static !important;
+
+  transform:
+    none !important;
+
+  text-align:
+    center !important;
+}
+
+
+/* 세로 column 구분선 */
+body.sfr21-ready .sfr24-silo-label,
+body.sfr21-ready .sfr24-silo-time {
+  border-right:
+    1px solid #e0e7ef !important;
+}
+
+
 /* #A / #B / Day */
-body.sfr21-ready
-.sfr22-silo-card
-:is(strong,b):first-child {
-  font-size: 11px !important;
+body.sfr21-ready .sfr24-silo-label {
+  color:
+    #173e67 !important;
 
-  font-weight: 850 !important;
+  font-size:
+    10.5px !important;
 
-  line-height: 1 !important;
+  font-weight:
+    750 !important;
 }
 
 
-/* 시간 1:30 / 1:49 / 1:50 */
-body.sfr21-ready
-.sfr22-silo-card
-:is(strong,b) {
-  font-size: 12px !important;
+/* 평균 시간 */
+body.sfr21-ready .sfr24-silo-time {
+  color:
+    #0f5b9c !important;
 
-  font-weight: 900 !important;
+  font-size:
+    11px !important;
 
-  line-height: 1 !important;
+  font-weight:
+    850 !important;
+
+  font-variant-numeric:
+    tabular-nums !important;
 }
 
 
-/* 일반 텍스트 */
-body.sfr21-ready
-.sfr22-silo-card
-span,
-body.sfr21-ready
-.sfr22-silo-card
-div {
-  font-size: 9px !important;
+/* 건수 */
+body.sfr21-ready .sfr24-silo-count {
+  color:
+    #6f8297 !important;
 
-  line-height: 1 !important;
+  font-size:
+    9.5px !important;
+
+  font-weight:
+    700 !important;
+
+  font-variant-numeric:
+    tabular-nums !important;
 }
 
 
-/* 59건 / 34건 / 5건 */
+/* 기존 Silo card에서 남은 모든 padding/height 강제 제거 */
 body.sfr21-ready
-.sfr22-silo-card
-small {
-  font-size: 8px !important;
+.sfr24-silo-table
+.sfr22-silo-card {
+  padding:
+    0 !important;
 
-  font-weight: 700 !important;
+  min-height:
+    30px !important;
 
-  line-height: 1 !important;
+  height:
+    30px !important;
+
+  max-height:
+    30px !important;
 }
 
 
-/* 왼쪽 표 크기는 V21 그대로 */
+/* 왼쪽 업체 표 유지 */
 body.sfr21-ready .sfr22-company-table {
-  width: 100% !important;
+  width:
+    100% !important;
 }
 
 
@@ -497,11 +685,14 @@ body.sfr21-ready .sfr22-company-table {
   }
 
   body.sfr21-ready .sfr22-silo-panel {
-    width: 100% !important;
-    max-width: none !important;
+    width:
+      100% !important;
+
+    max-width:
+      none !important;
   }
 
 }
 
 
-/* ===== /SOLID_FUEL_SILO_COMPACT_V23_R2 ===== */
+/* ===== /SOLID_FUEL_SILO_TABLE_V24 ===== */

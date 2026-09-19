@@ -727,3 +727,208 @@
   }
 })();
 /* ===== /SOLID_FUEL_SILO_EQUAL_HEIGHT_V22 ===== */
+
+/* ===== SOLID_FUEL_SILO_TABLE_V24 ===== */
+(() => {
+  "use strict";
+
+  const norm = value =>
+    String(value || "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  function leaves(root) {
+    return Array.from(
+      root.querySelectorAll(
+        "span,strong,b,small,div"
+      )
+    ).filter(
+      element =>
+        element.children.length === 0
+    );
+  }
+
+  function common(elements) {
+    const list =
+      elements.filter(
+        element =>
+          element instanceof Element
+      );
+
+    if (!list.length) {
+      return null;
+    }
+
+    let node = list[0];
+
+    while (
+      node &&
+      node !== document.documentElement
+    ) {
+      if (
+        list.every(
+          element =>
+            node === element ||
+            node.contains(element)
+        )
+      ) {
+        return node;
+      }
+
+      node = node.parentElement;
+    }
+
+    return null;
+  }
+
+  function decorate() {
+    const cards = Array.from(
+      document.querySelectorAll(
+        ".sfr22-silo-card"
+      )
+    );
+
+    if (cards.length < 3) {
+      return;
+    }
+
+    const targetCards =
+      cards.slice(0, 3);
+
+    const table =
+      common(targetCards);
+
+    if (
+      !table ||
+      table === document.body
+    ) {
+      return;
+    }
+
+    table.classList.add(
+      "sfr24-silo-table"
+    );
+
+    let header =
+      table.querySelector(
+        ":scope > .sfr24-silo-header"
+      );
+
+    if (!header) {
+
+      header =
+        document.createElement("div");
+
+      header.className =
+        "sfr24-silo-header";
+
+      ["Silo", "평균", "건수"]
+        .forEach(text => {
+
+          const cell =
+            document.createElement("span");
+
+          cell.textContent = text;
+
+          header.appendChild(cell);
+        });
+
+      table.insertBefore(
+        header,
+        targetCards[0]
+      );
+    }
+
+    targetCards.forEach(card => {
+
+      card.classList.add(
+        "sfr24-silo-row"
+      );
+
+      const items =
+        leaves(card);
+
+      const label =
+        items.find(element => {
+          const text =
+            norm(element.textContent);
+
+          return (
+            text === "#A" ||
+            text === "#B" ||
+            text === "Day"
+          );
+        });
+
+      const time =
+        items.find(element =>
+          /^\d+:\d+$/.test(
+            norm(element.textContent)
+          )
+        );
+
+      const count =
+        items.find(element =>
+          /^\d+\s*건$/.test(
+            norm(element.textContent)
+          )
+        );
+
+      label?.classList.add(
+        "sfr24-silo-label"
+      );
+
+      time?.classList.add(
+        "sfr24-silo-time"
+      );
+
+      count?.classList.add(
+        "sfr24-silo-count"
+      );
+    });
+
+    document.body.dataset.sfr24Ready =
+      "1";
+  }
+
+  let timer = 0;
+
+  function queue() {
+    clearTimeout(timer);
+
+    timer =
+      setTimeout(
+        decorate,
+        40
+      );
+  }
+
+  function start() {
+    decorate();
+
+    const observer =
+      new MutationObserver(queue);
+
+    observer.observe(
+      document.body,
+      {
+        childList: true,
+        subtree: true
+      }
+    );
+  }
+
+  if (
+    document.readyState === "loading"
+  ) {
+    document.addEventListener(
+      "DOMContentLoaded",
+      start,
+      { once: true }
+    );
+  }
+  else {
+    start();
+  }
+})();
+/* ===== /SOLID_FUEL_SILO_TABLE_V24 ===== */
