@@ -1,0 +1,153 @@
+/* COFIRING TOP TABS SKY V3 REDESIGN
+   New visible nav. Original behavior buttons are hidden, not removed.
+*/
+
+#efficiencyCofiringDraftView
+.cf-sky-original-hidden-v3 {
+  display: none !important;
+}
+
+#efficiencyCofiringDraftView
+.cf-sky-tabs-v3 {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  min-height: 42px !important;
+  padding: 4px !important;
+  border: 1px solid #d2e0ea !important;
+  border-radius: 10px !important;
+  background: #eef4f8 !important;
+  box-sizing: border-box !important;
+}
+
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3 {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  min-width: 132px !important;
+  height: 36px !important;
+  margin: 0 !important;
+  padding: 0 15px !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  background-image: none !important;
+  color: #344b5d !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  font: inherit !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease !important;
+}
+
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3:hover {
+  background: #f5fbff !important;
+  border-color: #c7ddeb !important;
+}
+
+/* Requested selected state:
+   very light sky-blue BUTTON BACKGROUND, not blue text.
+*/
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3.is-selected,
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3[aria-selected="true"] {
+  background: #dff2ff !important;
+  background-color: #dff2ff !important;
+  background-image: none !important;
+  border-color: #8fc5e8 !important;
+  color: #263746 !important;
+  box-shadow:
+    0 1px 3px rgba(39, 93, 128, 0.09),
+    inset 0 0 0 1px rgba(255,255,255,0.55) !important;
+  text-shadow: none !important;
+}
+
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3.is-selected:hover,
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3[aria-selected="true"]:hover {
+  background: #d7efff !important;
+  background-color: #d7efff !important;
+  border-color: #7bb8df !important;
+}
+
+#efficiencyCofiringDraftView
+.cf-sky-tab__label {
+  color: #344b5d !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3.is-selected
+.cf-sky-tab__label,
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3[aria-selected="true"]
+.cf-sky-tab__label {
+  color: #263746 !important;
+}
+
+/* Never allow a dark-blue overlay from inherited pseudo-element styles. */
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3::before,
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3::after {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+}
+
+/* Cloned icon only; preserve SVG shape while keeping a neutral dark tone. */
+#efficiencyCofiringDraftView
+.cf-sky-tab__icon,
+#efficiencyCofiringDraftView
+.cf-sky-tab__icon svg {
+  width: 16px !important;
+  height: 16px !important;
+  flex: 0 0 16px !important;
+  color: #587389 !important;
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+/* Gold accent for calorific-management icon, matching the existing visual language. */
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3:nth-child(2)
+.cf-sky-tab__icon,
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3:nth-child(2)
+.cf-sky-tab__icon svg {
+  color: #c58a00 !important;
+}
+
+#efficiencyCofiringDraftView
+.cf-sky-tab-v3:focus-visible {
+  outline: 2px solid #7cb8df !important;
+  outline-offset: 2px !important;
+}
+
+@media (max-width: 900px) {
+  #efficiencyCofiringDraftView
+  .cf-sky-tabs-v3 {
+    width: 100% !important;
+    overflow-x: auto !important;
+    justify-content: flex-start !important;
+  }
+
+  #efficiencyCofiringDraftView
+  .cf-sky-tab-v3 {
+    min-width: 122px !important;
+  }
+}
