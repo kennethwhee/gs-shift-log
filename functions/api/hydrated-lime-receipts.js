@@ -1,6 +1,6 @@
 "use strict";
 
-/* HYDRATED LIME RECEIPTS API V2
+/* HYDRATED LIME RECEIPTS API V2 R1 SUMMARY
    GET    /api/hydrated-lime-receipts?month=YYYY-MM
    POST   /api/hydrated-lime-receipts
    DELETE /api/hydrated-lime-receipts?id=N
@@ -295,10 +295,46 @@ export async function onRequestGet(context) {
       ? result.results.map(mapRow)
       : [];
 
+    const year = month.slice(0, 4);
+    const nextYear = String(Number(year) + 1);
+
+    const yearResult = await context.env.DB
+      .prepare(`
+        SELECT
+          substr(receipt_date, 1, 7) AS record_month,
+          SUM(quantity_ton) AS month_total
+        FROM hydrated_lime_receipts
+        WHERE receipt_date >= ?
+          AND receipt_date < ?
+        GROUP BY substr(receipt_date, 1, 7)
+        ORDER BY record_month
+      `)
+      .bind(`${year}-01-01`, `${nextYear}-01-01`)
+      .all();
+
+    const monthlyTotals = Array.isArray(yearResult?.results)
+      ? yearResult.results.map((row) => Number(row?.month_total || 0))
+      : [];
+
+    const yearTotal = monthlyTotals.reduce(
+      (sum, value) => sum + (Number(value) || 0),
+      0
+    );
+
+    const recordedMonths = monthlyTotals.length;
+    const yearAverage = recordedMonths > 0
+      ? yearTotal / recordedMonths
+      : 0;
+
     return jsonResponse({
       ok: true,
       month,
-      items
+      items,
+      summary: {
+        yearTotal: Math.round(yearTotal * 1000) / 1000,
+        yearAverage: Math.round(yearAverage * 1000) / 1000,
+        recordedMonths
+      }
     });
   } catch (error) {
     console.error("hydrated-lime-receipts GET failed", error);

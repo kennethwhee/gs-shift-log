@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  /* HYDRATED LIME RECEIPTS V2 */
+  /* HYDRATED LIME RECEIPTS V2 R1 SUMMARY */
   const API = "/api/hydrated-lime-receipts";
   const PARENT_VIEW_ID = "efficiencyLimestoneView";
   const PARENT_TAB_ID = "efficiencyLimestoneTab";
@@ -18,6 +18,8 @@
     month: "",
     items: [],
     loadedMonth: "",
+    yearTotal: 0,
+    yearAverage: 0,
     loading: false
   };
 
@@ -250,23 +252,23 @@
 
         <section class="hlr-summary-grid">
           <article class="hlr-summary-card is-blue">
-            <span>전체 입고량</span>
+            <span>선택 월 입고량</span>
             <strong data-hlr-total>0.00 <small>ton</small></strong>
           </article>
 
           <article class="hlr-summary-card is-green">
-            <span>입고 횟수</span>
-            <strong data-hlr-count>0 <small>회</small></strong>
+            <span>연간 누적</span>
+            <strong data-hlr-year-total>0.00 <small>ton</small></strong>
           </article>
 
           <article class="hlr-summary-card is-purple">
-            <span>평균 입고량</span>
-            <strong data-hlr-average>0.00 <small>ton</small></strong>
+            <span>월 평균</span>
+            <strong data-hlr-year-average>0.00 <small>ton</small></strong>
           </article>
 
           <article class="hlr-summary-card is-orange">
-            <span>최종 입고</span>
-            <strong data-hlr-latest>-</strong>
+            <span>기록 횟수</span>
+            <strong data-hlr-count>0 <small>회</small></strong>
           </article>
         </section>
 
@@ -620,26 +622,15 @@
       0
     );
     const count = state.items.length;
-    const average = count ? total / count : 0;
-
-    const latest = state.items
-      .slice()
-      .sort((a, b) =>
-        `${b.receiptDate} ${b.receiptTime}`.localeCompare(
-          `${a.receiptDate} ${a.receiptTime}`
-        )
-      )[0];
 
     panel.querySelector("[data-hlr-total]").innerHTML =
       `${number(total)} <small>ton</small>`;
+    panel.querySelector("[data-hlr-year-total]").innerHTML =
+      `${number(state.yearTotal)} <small>ton</small>`;
+    panel.querySelector("[data-hlr-year-average]").innerHTML =
+      `${number(state.yearAverage)} <small>ton</small>`;
     panel.querySelector("[data-hlr-count]").innerHTML =
       `${count} <small>회</small>`;
-    panel.querySelector("[data-hlr-average]").innerHTML =
-      `${number(average)} <small>ton</small>`;
-    panel.querySelector("[data-hlr-latest]").innerHTML =
-      latest
-        ? `${escapeHtml(monthDayLabel(latest.receiptDate))} <small>${escapeHtml(latest.receiptTime)}</small>`
-        : "-";
     panel.querySelector("[data-hlr-count-badge]").textContent = `${count}건`;
 
     const body = panel.querySelector("[data-hlr-body]");
@@ -699,6 +690,8 @@
       );
 
       state.items = Array.isArray(payload.items) ? payload.items : [];
+      state.yearTotal = Number(payload.summary?.yearTotal || 0);
+      state.yearAverage = Number(payload.summary?.yearAverage || 0);
       state.loadedMonth = state.month;
     } catch (error) {
       state.items = [];

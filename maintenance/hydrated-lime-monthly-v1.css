@@ -1,4 +1,4 @@
-/* HYDRATED LIME RECEIPTS V2 */
+/* HYDRATED LIME RECEIPTS V2 R1 SUMMARY */
 
 #efficiencyLimestoneTab {
   white-space: normal;
@@ -86,8 +86,8 @@
 }
 
 .hlr-summary-card {
-  min-height: 56px;
-  padding: 9px 13px;
+  min-height: 62px;
+  padding: 10px 14px;
   box-sizing: border-box;
   border: 1px solid #cfddeb;
   border-left: 4px solid #2677bf;
@@ -112,14 +112,16 @@
 }
 
 .hlr-summary-card > span {
-  color: #5e7388;
-  font-size: 10px;
-  font-weight: 800;
+  color: #405c74;
+  font-size: 12.5px;
+  line-height: 1.2;
+  font-weight: 900;
+  letter-spacing: -0.015em;
 }
 
 .hlr-summary-card > strong {
   color: #155b9f;
-  font-size: 21px;
+  font-size: 25px;
   line-height: 1;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
@@ -139,10 +141,10 @@
 }
 
 .hlr-summary-card small {
-  margin-left: 2px;
-  color: #72879b;
-  font-size: 9px;
-  font-weight: 800;
+  margin-left: 3px;
+  color: #657d92;
+  font-size: 10.5px;
+  font-weight: 900;
 }
 
 .hlr-history-card {
