@@ -121125,23 +121125,23 @@ a[aria-controls="cofiringPanel"][aria-selected="true"] {
 
 /* EFFICIENCY_COFIRING_EXACT_FRAME_V3_END */
 
-/* ARM ROLL BOX CORAL V1 START */
-.efficiency-arm-roll-coral {
-    background: #FCEBEC !important;
-    border-color: #E8B0B3 !important;
-    color: #7C4245 !important;
+/* ARM ROLL BOX REAL CORAL V3 START */
+html body #efficiencyArmRollTab.efficiency-team-tab {
+    background: #FBE3E1 !important;
+    border-color: #E7AAA6 !important;
+    color: #8B4743 !important;
 }
 
-.efficiency-arm-roll-coral:hover {
-    background: #F7DDDF !important;
-    border-color: #DFA1A5 !important;
-    color: #703B3E !important;
+html body #efficiencyArmRollTab.efficiency-team-tab:hover {
+    background: #F8D5D2 !important;
+    border-color: #DC918B !important;
+    color: #7C3E3A !important;
 }
 
-.efficiency-arm-roll-coral svg,
-.efficiency-arm-roll-coral i,
-.efficiency-arm-roll-coral .icon {
-    color: inherit !important;
-    stroke: currentColor;
+html body #efficiencyArmRollTab.efficiency-team-tab svg,
+html body #efficiencyArmRollTab.efficiency-team-tab i,
+html body #efficiencyArmRollTab.efficiency-team-tab .icon {
+    color: #8B4743 !important;
+    stroke: currentColor !important;
 }
-/* ARM ROLL BOX CORAL V1 END */
+/* ARM ROLL BOX REAL CORAL V3 END */
