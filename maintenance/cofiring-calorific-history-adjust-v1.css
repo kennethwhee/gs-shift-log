@@ -1,0 +1,309 @@
+/* COFIRING CALORIFIC HISTORY ADJUST V1 */
+
+/* Full-width history list */
+[data-cofiring-draft-root] .cfv-cal-history-panel-v1 {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+}
+
+[data-cofiring-draft-root] .cfv-cal-history-wrap-v1 {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+  overflow-x: auto !important;
+}
+
+[data-cofiring-draft-root] table.cfv-cal-history-fullwidth-v1 {
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: none !important;
+  table-layout: fixed !important;
+  border-collapse: collapse !important;
+}
+
+[data-cofiring-draft-root]
+table.cfv-cal-history-fullwidth-v1
+> colgroup.cfv-cal-history-colgroup-v1
+> col {
+  width: 16.666666% !important;
+}
+
+[data-cofiring-draft-root] table.cfv-cal-history-fullwidth-v1 th,
+[data-cofiring-draft-root] table.cfv-cal-history-fullwidth-v1 td {
+  width: auto !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+[data-cofiring-draft-root] table.cfv-cal-history-fullwidth-v1 th {
+  height: 52px !important;
+  padding: 8px 10px !important;
+}
+
+[data-cofiring-draft-root] table.cfv-cal-history-fullwidth-v1 td {
+  height: 46px !important;
+  padding: 8px 10px !important;
+}
+
+[data-cofiring-draft-root] table.cfv-cal-history-fullwidth-v1 td strong {
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Header action group */
+[data-cofiring-draft-root] .cfv-cal-history-actions-v1 {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 7px !important;
+  flex: 0 0 auto !important;
+  color: inherit !important;
+}
+
+[data-cofiring-draft-root]
+.cfv-cal-history-actions-v1
+> button.cfv-cal-history-adjust-button-v1 {
+  height: 31px !important;
+  padding: 0 12px !important;
+  border: 1px solid #e1c17e !important;
+  border-radius: 7px !important;
+  background: #fff3d8 !important;
+  color: #805a17 !important;
+  font-size: 10px !important;
+  font-weight: 850 !important;
+  box-shadow: none !important;
+}
+
+[data-cofiring-draft-root]
+.cfv-cal-history-actions-v1
+> button.cfv-cal-history-adjust-button-v1:hover {
+  border-color: #d6aa50 !important;
+  background: #ffedc4 !important;
+}
+
+/* Modal: modeled after the Morning Meeting calorific-value dialog */
+.cfv-cal-adjust-backdrop-v1 {
+  position: fixed;
+  inset: 0;
+  z-index: 22000;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  box-sizing: border-box;
+  background: rgba(22, 39, 58, .48);
+}
+
+.cfv-cal-adjust-backdrop-v1[hidden] {
+  display: none !important;
+}
+
+.cfv-cal-adjust-dialog-v1 {
+  width: min(650px, calc(100vw - 32px));
+  max-height: calc(100dvh - 44px);
+  overflow: auto;
+  box-sizing: border-box;
+  border: 1px solid #d7dfea;
+  border-radius: 17px;
+  background: #fbfbfe;
+  box-shadow: 0 22px 60px rgba(21, 37, 56, .22);
+  color: #294258;
+}
+
+.cfv-cal-adjust-head-v1 {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 18px 15px;
+  border-bottom: 1px solid #dfe5ec;
+}
+
+.cfv-cal-adjust-head-v1 > div {
+  display: grid;
+  gap: 4px;
+}
+
+.cfv-cal-adjust-eyebrow-v1 {
+  color: #75609a;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.cfv-cal-adjust-head-v1 h3 {
+  margin: 0;
+  color: #273f57;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -.025em;
+}
+
+.cfv-cal-adjust-head-v1 p {
+  margin: 0;
+  color: #758596;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cfv-cal-adjust-close-v1 {
+  display: grid;
+  place-items: center;
+  width: 31px;
+  min-width: 31px;
+  height: 31px;
+  padding: 0;
+  border: 1px solid #d7e0e8;
+  border-radius: 8px;
+  background: #fff;
+  color: #6a7b8d;
+  font-size: 24px;
+  font-weight: 300;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cfv-cal-adjust-form-v1 {
+  display: grid;
+  gap: 14px;
+  padding: 17px 18px 18px;
+}
+
+.cfv-cal-adjust-date-v1,
+.cfv-cal-adjust-grid-v1 > label {
+  display: grid;
+  gap: 6px;
+  color: #526b7f;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.cfv-cal-adjust-date-v1 input {
+  width: 100%;
+  height: 36px;
+  padding: 6px 10px;
+  box-sizing: border-box;
+  border: 1px solid #c8d5e2;
+  border-radius: 7px;
+  background: #fff;
+  color: #2b465f;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.cfv-cal-adjust-grid-v1 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cfv-cal-adjust-input-wrap-v1 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  height: 36px;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid #c8d5e2;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.cfv-cal-adjust-input-wrap-v1 input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 6px 8px;
+  box-sizing: border-box;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #294660;
+  font-size: 13px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.cfv-cal-adjust-input-wrap-v1 small {
+  padding-right: 8px;
+  color: #8392a2;
+  font-size: 7px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.cfv-cal-adjust-current-v1 {
+  min-height: 30px;
+  padding: 8px 11px;
+  box-sizing: border-box;
+  border-radius: 7px;
+  background: #f0f3f7;
+  color: #667a8d;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.cfv-cal-adjust-error-v1 {
+  padding: 8px 11px;
+  border: 1px solid #efcaca;
+  border-radius: 7px;
+  background: #fff5f5;
+  color: #a64747;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.cfv-cal-adjust-actions-v1 {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 1px;
+}
+
+.cfv-cal-adjust-actions-v1 button {
+  min-width: 64px;
+  height: 35px;
+  padding: 0 14px;
+  border: 1px solid #cbd7e2;
+  border-radius: 7px;
+  background: #fff;
+  color: #5d7183;
+  font-size: 10px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.cfv-cal-adjust-actions-v1 button.is-primary {
+  border-color: #7d60a2;
+  background: #7d60a2;
+  color: #fff;
+}
+
+.cfv-cal-adjust-actions-v1 button.is-primary:hover {
+  border-color: #6f5294;
+  background: #6f5294;
+}
+
+.cfv-cal-adjust-backdrop-v1.is-busy {
+  cursor: progress;
+}
+
+.cfv-cal-adjust-backdrop-v1.is-busy button,
+.cfv-cal-adjust-backdrop-v1.is-busy input {
+  opacity: .66;
+}
+
+@media (max-width: 760px) {
+  .cfv-cal-adjust-grid-v1 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  [data-cofiring-draft-root] table.cfv-cal-history-fullwidth-v1 {
+    min-width: 760px !important;
+  }
+}
