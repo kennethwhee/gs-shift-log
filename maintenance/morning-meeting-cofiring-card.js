@@ -350,6 +350,20 @@
             <label>
               <span>유기성 고형연료</span>
               <div><input type="number" id="morningMeetingCofiringOrganicHv" min="1" max="10000" step="0.01" required><small>kcal/kg</small></div>
+          <div class="morning-meeting-cofiring-settings-field">
+            <label for="morningMeetingCofiringManureHv">축분</label>
+            <div class="morning-meeting-cofiring-settings-input-row">
+              <input
+                id="morningMeetingCofiringManureHv"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="1"
+                placeholder="축분 발열량"
+              >
+              <span>kcal/kg</span>
+            </div>
+          </div>
             </label>
           </div>
 
@@ -439,12 +453,27 @@
     }
 
     if (organicInput instanceof HTMLInputElement) {
-      organicInput.value = formatCalorificValue(settings?.organicKcalPerKg);
+      organicInput.value =
+      formatCalorificValue(
+        settings?.organicKcalPerKg
+      );
+
+    const manureInput =
+      document.getElementById(
+        "morningMeetingCofiringManureHv"
+      );
+
+    if (manureInput) {
+      manureInput.value =
+        formatCalorificValue(
+          settings?.manureKcalPerKg
+        );
+    }
     }
 
     if (currentText instanceof HTMLElement) {
       currentText.textContent = settings
-        ? `현재 적용값: ${settings.effectiveDate}부터 · Coal ${formatCalorificValue(settings.coalKcalPerKg)} / Bio ${formatCalorificValue(settings.bioKcalPerKg)} / 유기성 ${formatCalorificValue(settings.organicKcalPerKg)} kcal/kg`
+        ? `현재 적용값: ${settings.effectiveDate}부터 · Coal ${formatCalorificValue(settings.coalKcalPerKg)} / Bio ${formatCalorificValue(settings.bioKcalPerKg)} / 유기성 ${formatCalorificValue(settings.organicKcalPerKg)} / 축분 ${formatCalorificValue(settings.manureKcalPerKg)} kcal/kg`
         : "현재 적용값 없음";
     }
   }
@@ -496,12 +525,24 @@
       const effectiveDate = String(document.getElementById("morningMeetingCofiringEffectiveDate")?.value || "").trim();
       const coalKcalPerKg = normalizeNumber(document.getElementById("morningMeetingCofiringCoalHv")?.value);
       const bioKcalPerKg = normalizeNumber(document.getElementById("morningMeetingCofiringBioHv")?.value);
-      const organicKcalPerKg = normalizeNumber(document.getElementById("morningMeetingCofiringOrganicHv")?.value);
+      const organicKcalPerKg =
+      normalizeNumber(
+        document.getElementById(
+          "morningMeetingCofiringOrganicHv"
+        )?.value
+      );
+
+    const manureKcalPerKg =
+      normalizeNumber(
+        document.getElementById(
+          "morningMeetingCofiringManureHv"
+        )?.value
+      );
       const saveButton = document.getElementById("morningMeetingCofiringSettingsSaveButton");
 
       if (
         !/^20\d{2}-\d{2}-\d{2}$/.test(effectiveDate) ||
-        ![coalKcalPerKg, bioKcalPerKg, organicKcalPerKg].every(
+        ![coalKcalPerKg, bioKcalPerKg, organicKcalPerKg, manureKcalPerKg].every(
           (value) => value !== null && value > 0 && value <= 10000
         )
       ) {
@@ -523,8 +564,9 @@
             effectiveDate,
             coalKcalPerKg,
             bioKcalPerKg,
-            organicKcalPerKg
-          })
+            organicKcalPerKg,
+          manureKcalPerKg
+        })
         });
 
         await readJsonResponse(response, "발열량 설정을 저장하지 못했습니다.");
@@ -627,7 +669,15 @@
     const organicUsage = normalizeNumber(unitData?.organic);
     const coalHv = normalizeNumber(settings?.coalKcalPerKg);
     const bioHv = normalizeNumber(settings?.bioKcalPerKg);
-    const organicHv = normalizeNumber(settings?.organicKcalPerKg);
+    const organicHv =
+      normalizeNumber(
+        settings?.organicKcalPerKg
+      );
+
+    const manureHv =
+      normalizeNumber(
+        settings?.manureKcalPerKg
+      );
 
     if (
       [coalUsage, bioUsage, organicUsage, coalHv, bioHv, organicHv].some((value) => value === null) ||
@@ -849,7 +899,7 @@
 
       if (settingsButton instanceof HTMLButtonElement) {
         settingsButton.title =
-          `발열량 · ${settings.effectiveDate}부터 · Coal ${settings.coalKcalPerKg} / Bio ${settings.bioKcalPerKg} / 유기성 ${settings.organicKcalPerKg} kcal/kg`;
+          `발열량 · ${settings.effectiveDate}부터 · Coal ${settings.coalKcalPerKg} / Bio ${settings.bioKcalPerKg} / 유기성 ${settings.organicKcalPerKg} / 축분 ${settings.manureKcalPerKg} kcal/kg`;
       }
 
       setStatus("complete", "조회 완료");

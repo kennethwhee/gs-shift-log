@@ -149,7 +149,15 @@
     const organic = normalizeNumber(unitData?.organic);
     const coalHv = normalizeNumber(settings?.coalKcalPerKg);
     const bioHv = normalizeNumber(settings?.bioKcalPerKg);
-    const organicHv = normalizeNumber(settings?.organicKcalPerKg);
+    const organicHv =
+    normalizeNumber(
+      settings?.organicKcalPerKg
+    );
+
+  const manureHv =
+    normalizeNumber(
+      settings?.manureKcalPerKg
+    );
     if ([coal, bio, organic, coalHv, bioHv, organicHv].some((value) => value === null)) {
       return null;
     }

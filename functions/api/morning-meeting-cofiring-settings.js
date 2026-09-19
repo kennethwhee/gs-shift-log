@@ -261,6 +261,9 @@ function buildMorningSetting(
     organicKcalPerKg:
       unit.organic.calorific,
 
+    manureKcalPerKg:
+      unit.manure.calorific,
+
     updatedById:
       normalizeText(
         entry?.updatedById ||
@@ -603,17 +606,23 @@ async function handlePost(
       body?.organicKcalPerKg
     );
 
+  const manureKcalPerKg =
+    normalizeMorningCalorific(
+      body?.manureKcalPerKg
+    );
+
   if (
     !isIsoDate(effectiveDate) ||
     coalKcalPerKg === null ||
     bioKcalPerKg === null ||
-    organicKcalPerKg === null
+    organicKcalPerKg === null ||
+    manureKcalPerKg === null
   ) {
     return jsonResponse(
       {
         ok: false,
         message:
-          "적용 시작일과 Coal · Bio · 유기성 발열량을 확인해 주세요."
+          "적용 시작일과 Coal · Bio · 유기성 · 축분 발열량을 확인해 주세요."
       },
       400
     );
@@ -654,6 +663,9 @@ async function handlePost(
 
   settings.unit1.organic.calorific =
     organicKcalPerKg;
+
+  settings.unit1.manure.calorific =
+    manureKcalPerKg;
 
   /*
     사용자 운영 기준:
