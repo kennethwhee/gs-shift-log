@@ -1,0 +1,272 @@
+/* COFIRING CLOSED HISTORY TABLE REBUILD V1
+   Clean replacement for the previous layered fuel-label / compact-text overrides.
+*/
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv15-history-table {
+  min-width: 1080px !important;
+  table-layout: fixed !important;
+  font-size: 9px !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv15-history-table
+th,
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv15-history-table
+td {
+  padding: 6px 6px !important;
+  line-height: 1.2 !important;
+}
+
+/* Stable column widths */
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table th:nth-child(1),
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table td:nth-child(1) {
+  width: 90px !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table th:nth-child(2),
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table td:nth-child(2),
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table th:nth-child(4),
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table td:nth-child(4) {
+  width: 185px !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table th:nth-child(3),
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table td:nth-child(3),
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table th:nth-child(5),
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table td:nth-child(5) {
+  width: 150px !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table th:nth-child(6),
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table td:nth-child(6) {
+  width: 150px !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table th:nth-child(7),
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table td:nth-child(7) {
+  width: 96px !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table th:nth-child(8),
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv16-compact-table td:nth-child(8) {
+  width: 72px !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv15-column-head small {
+  display: block !important;
+  margin-top: 3px !important;
+  font-size: 7px !important;
+  line-height: 1.15 !important;
+  font-weight: 700 !important;
+  color: #74879b !important;
+  white-space: nowrap !important;
+}
+
+/* Fuel cell: complete new markup, no inherited C/B/유/축 labels. */
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-fuel-grid-v1 {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 5px !important;
+  width: 100% !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-fuel-item-v1 {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 5px !important;
+  min-width: 0 !important;
+  padding: 4px 6px !important;
+  border: 1px solid #dbe6ef !important;
+  border-radius: 7px !important;
+  background: #fbfdff !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-fuel-item-v1 small {
+  min-width: 0 !important;
+  color: #60768b !important;
+  font-size: 7.5px !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-fuel-item-v1 strong {
+  min-width: 0 !important;
+  color: #123f66 !important;
+  font-size: 9.5px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.02em !important;
+  white-space: nowrap !important;
+  text-align: right !important;
+}
+
+/* Ratio cells: three clean blocks so percentages never concatenate visually. */
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-ratio-grid-v1,
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-combined-grid-v1 {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 4px !important;
+  width: 100% !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-ratio-grid-v1 > span,
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-combined-grid-v1 > span {
+  display: grid !important;
+  justify-items: center !important;
+  gap: 3px !important;
+  min-width: 0 !important;
+  padding: 5px 3px !important;
+  border-radius: 7px !important;
+  background: #f4f8fb !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-combined-grid-v1 > span {
+  background: #f1f7ed !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-ratio-grid-v1 > span.is-total,
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-combined-grid-v1 > span.is-total {
+  background: #e3f3eb !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-ratio-grid-v1 small,
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-combined-grid-v1 small {
+  color: #64798d !important;
+  font-size: 7.5px !important;
+  line-height: 1 !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-ratio-grid-v1 strong,
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-combined-grid-v1 strong {
+  color: #174a70 !important;
+  font-size: 9.5px !important;
+  line-height: 1 !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.02em !important;
+  white-space: nowrap !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-ratio-grid-v1 > span.is-total strong,
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfhr-combined-grid-v1 > span.is-total strong {
+  color: #0d6655 !important;
+}
+
+/* Date and average row remain readable. */
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv15-history-table tbody th strong {
+  font-size: 10.5px !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv15-history-table tfoot th,
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv15-history-table tfoot td,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody tr.cfh-layout-average-row td:not(.cfh-layout-actions-cell) {
+  height: 58px !important;
+  padding: 7px 6px !important;
+  font-size: 9px !important;
+  line-height: 1.2 !important;
+}
+
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv15-history-table tfoot strong,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody tr.cfh-layout-average-row strong,
+#efficiencyCofiringDraftView
+table[data-cfh-layout-v3]
+tbody tr.cfh-layout-average-row b {
+  font-size: inherit !important;
+}
+
+/* Existing actions stay unchanged, just compact enough for the table. */
+#efficiencyCofiringDraftView
+.cfv12-history-panel
+.cfv15-history-table td.is-actions button {
+  height: 27px !important;
+  padding: 0 8px !important;
+  font-size: 8px !important;
+}
