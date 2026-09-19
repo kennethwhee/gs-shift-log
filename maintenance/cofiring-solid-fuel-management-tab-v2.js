@@ -473,3 +473,426 @@
     window.setTimeout(enhance, delay);
   }
 })();
+
+/* ===== SOLID_FUEL_MANAGEMENT_READABILITY_V15 ===== */
+(() => {
+  'use strict';
+
+  const MARK = 'sfux15';
+
+  const normalize = value =>
+    String(value || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  function exact(root, text, selector = '*') {
+    if (!(root instanceof Element || root instanceof Document)) {
+      return null;
+    }
+
+    return Array.from(
+      root.querySelectorAll(selector)
+    ).find(
+      element =>
+        normalize(element.textContent) === text
+    ) || null;
+  }
+
+  function commonAncestor(elements) {
+    const list = elements.filter(
+      element => element instanceof Element
+    );
+
+    if (!list.length) {
+      return null;
+    }
+
+    let node = list[0];
+
+    while (node && node !== document.body) {
+      if (
+        list.every(
+          element =>
+            node === element ||
+            node.contains(element)
+        )
+      ) {
+        return node;
+      }
+
+      node = node.parentElement;
+    }
+
+    return null;
+  }
+
+  function ancestorContaining(
+    element,
+    requiredTexts,
+    maxDepth = 10
+  ) {
+    let node = element;
+
+    for (
+      let depth = 0;
+      node && depth < maxDepth;
+      depth += 1, node = node.parentElement
+    ) {
+      const value = normalize(node.textContent);
+
+      if (
+        requiredTexts.every(
+          text => value.includes(text)
+        )
+      ) {
+        return node;
+      }
+    }
+
+    return null;
+  }
+
+  function findRoot() {
+    const title =
+      exact(
+        document,
+        '고형연료 관리',
+        'h1,h2,h3,h4,strong,div'
+      );
+
+    if (!(title instanceof Element)) {
+      return null;
+    }
+
+    return (
+      ancestorContaining(
+        title,
+        [
+          '하역시간 참고 데이터',
+          '하역시간 기록'
+        ],
+        14
+      ) ||
+      title.closest('section,article,div')
+    );
+  }
+
+  function decorateQuery(root) {
+    const monthly =
+      exact(root, '월별', 'button');
+
+    const period =
+      exact(root, '기간 지정', 'button');
+
+    const all =
+      exact(root, '전체', 'button');
+
+    if (!monthly || !period || !all) {
+      return;
+    }
+
+    const bar =
+      commonAncestor([
+        monthly,
+        period,
+        all
+      ]);
+
+    if (!(bar instanceof Element)) {
+      return;
+    }
+
+    bar.classList.add(
+      `${MARK}-query`
+    );
+
+    bar
+      .querySelectorAll(
+        'label,button,input,select'
+      )
+      .forEach(element => {
+        element.classList.add(
+          `${MARK}-query-control`
+        );
+      });
+  }
+
+  function decorateKpi(root) {
+    const names = [
+      '하역',
+      '평균 하역',
+      'Trouble',
+      '이상·막힘',
+      '최장 하역'
+    ];
+
+    const elements =
+      names.map(
+        name =>
+          exact(
+            root,
+            name,
+            'span,strong,b,div'
+          )
+      );
+
+    if (elements.some(element => !element)) {
+      return;
+    }
+
+    const group =
+      commonAncestor(elements);
+
+    if (!(group instanceof Element)) {
+      return;
+    }
+
+    group.classList.add(
+      `${MARK}-kpi`
+    );
+
+    Array.from(group.children)
+      .forEach(child => {
+        child.classList.add(
+          `${MARK}-kpi-card`
+        );
+      });
+  }
+
+  function decorateReference(root) {
+    const title =
+      exact(
+        root,
+        '하역시간 참고 데이터',
+        'h1,h2,h3,h4,strong,div'
+      );
+
+    if (!(title instanceof Element)) {
+      return;
+    }
+
+    const section =
+      ancestorContaining(
+        title,
+        [
+          '업체별 하역시간',
+          'Silo별 평균'
+        ],
+        10
+      );
+
+    if (!(section instanceof Element)) {
+      return;
+    }
+
+    section.classList.add(
+      `${MARK}-reference`
+    );
+
+    const companyTitle =
+      exact(
+        section,
+        '업체별 하역시간',
+        'h1,h2,h3,h4,strong,div'
+      );
+
+    const siloTitle =
+      exact(
+        section,
+        'Silo별 평균',
+        'h1,h2,h3,h4,strong,div'
+      );
+
+    const companyTable =
+      companyTitle
+        ?.parentElement
+        ?.querySelector('table') ||
+      section.querySelector('table');
+
+    if (companyTable instanceof HTMLTableElement) {
+      companyTable.classList.add(
+        `${MARK}-company-table`
+      );
+
+      let panel =
+        companyTable.parentElement;
+
+      if (panel) {
+        panel.classList.add(
+          `${MARK}-company-panel`
+        );
+      }
+    }
+
+    if (siloTitle instanceof Element) {
+      const siloPanel =
+        ancestorContaining(
+          siloTitle,
+          ['#A', '#B', 'Day'],
+          7
+        );
+
+      if (siloPanel instanceof Element) {
+        siloPanel.classList.add(
+          `${MARK}-silo-panel`
+        );
+
+        Array.from(
+          siloPanel.querySelectorAll(
+            'div'
+          )
+        ).forEach(element => {
+          const text =
+            normalize(element.textContent);
+
+          if (
+            (
+              text.includes('#A') ||
+              text.includes('#B') ||
+              text.includes('Day')
+            ) &&
+            element.children.length <= 4
+          ) {
+            element.classList.add(
+              `${MARK}-silo-card`
+            );
+          }
+        });
+      }
+    }
+
+    /*
+      실제 좌/우 panel의 공통 부모를 찾아
+      68 : 32 구조 적용
+    */
+    const companyPanel =
+      section.querySelector(
+        `.${MARK}-company-panel`
+      );
+
+    const siloPanel =
+      section.querySelector(
+        `.${MARK}-silo-panel`
+      );
+
+    if (companyPanel && siloPanel) {
+      const pair =
+        commonAncestor([
+          companyPanel,
+          siloPanel
+        ]);
+
+      if (pair instanceof Element) {
+        pair.classList.add(
+          `${MARK}-reference-grid`
+        );
+      }
+    }
+  }
+
+  function decorateRecords(root) {
+    const title =
+      exact(
+        root,
+        '하역시간 기록',
+        'h1,h2,h3,h4,strong,div'
+      );
+
+    if (!(title instanceof Element)) {
+      return;
+    }
+
+    const section =
+      ancestorContaining(
+        title,
+        [
+          '날짜',
+          '입고',
+          '출고',
+          '소요',
+          '업체',
+          '차량'
+        ],
+        10
+      );
+
+    if (!(section instanceof Element)) {
+      return;
+    }
+
+    section.classList.add(
+      `${MARK}-records`
+    );
+
+    const table =
+      section.querySelector('table');
+
+    if (table instanceof HTMLTableElement) {
+      table.classList.add(
+        `${MARK}-records-table`
+      );
+    }
+  }
+
+  function decorate() {
+    const root = findRoot();
+
+    if (!(root instanceof Element)) {
+      return false;
+    }
+
+    root.classList.add(
+      `${MARK}-root`
+    );
+
+    decorateQuery(root);
+    decorateKpi(root);
+    decorateReference(root);
+    decorateRecords(root);
+
+    return true;
+  }
+
+  let timer = 0;
+
+  function queue() {
+    clearTimeout(timer);
+
+    timer = window.setTimeout(
+      decorate,
+      40
+    );
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener(
+      'DOMContentLoaded',
+      () => {
+        decorate();
+
+        new MutationObserver(queue)
+          .observe(
+            document.body,
+            {
+              childList: true,
+              subtree: true
+            }
+          );
+      },
+      { once: true }
+    );
+  }
+  else {
+    decorate();
+
+    new MutationObserver(queue)
+      .observe(
+        document.body,
+        {
+          childList: true,
+          subtree: true
+        }
+      );
+  }
+})();
+/* ===== /SOLID_FUEL_MANAGEMENT_READABILITY_V15 ===== */
