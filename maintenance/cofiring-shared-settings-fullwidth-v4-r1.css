@@ -1,0 +1,56 @@
+/* COFIRING SHARED SETTINGS FULLWIDTH V4 R1
+   Fix right-edge clipping in the last fuel card header and center the card header content.
+*/
+
+.cfv6shared-v4-host {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+}
+
+.cfv6shared-v4-cards {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.cfv6shared-v4-card {
+  min-width: 0 !important;
+}
+
+.cfv6shared-v4-card-head {
+  justify-content: center !important;
+  align-items: center !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  min-height: 46px !important;
+  padding: 8px 8px !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+}
+
+.cfv6shared-v4-card-head strong,
+.cfv6shared-v4-card-head small {
+  display: block !important;
+  width: 100% !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.cfv6shared-v4-card-head strong {
+  line-height: 1.05 !important;
+}
+
+.cfv6shared-v4-card-head small {
+  margin: 0 !important;
+  line-height: 1 !important;
+}
+
+@media (max-width: 900px) {
+  .cfv6shared-v4-card-head {
+    min-height: 44px !important;
+    padding: 7px 6px !important;
+  }
+}
