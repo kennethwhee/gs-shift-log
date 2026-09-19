@@ -1,0 +1,49 @@
+/* HYDRATED LIME HISTORY TABLE TEXT V1
+   Increase readability of the Hydrated Lime receipt history table only.
+*/
+
+.hydrated-lime-receipts-v2 .hlr-history-card .hlr-table {
+  font-size: 12px !important;
+  line-height: 1.3 !important;
+}
+
+.hydrated-lime-receipts-v2 .hlr-history-card .hlr-table th {
+  height: 38px !important;
+  padding: 8px 10px !important;
+  font-size: 11.5px !important;
+  line-height: 1.2 !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.01em !important;
+}
+
+.hydrated-lime-receipts-v2 .hlr-history-card .hlr-table td {
+  height: 48px !important;
+  padding: 9px 10px !important;
+  font-size: 11.5px !important;
+  line-height: 1.25 !important;
+  font-weight: 700 !important;
+}
+
+.hydrated-lime-receipts-v2 .hlr-history-card .hlr-table td > strong,
+.hydrated-lime-receipts-v2 .hlr-history-card .hlr-table .hlr-ton,
+.hydrated-lime-receipts-v2 .hlr-history-card .hlr-table .hlr-cumulative {
+  font-size: 12.5px !important;
+  line-height: 1.15 !important;
+  font-weight: 900 !important;
+}
+
+.hydrated-lime-receipts-v2 .hlr-history-card .hlr-table .hlr-note {
+  font-size: 11.5px !important;
+}
+
+.hydrated-lime-receipts-v2 .hlr-history-card .hlr-actions button {
+  min-height: 30px !important;
+  padding: 4px 11px !important;
+  font-size: 10.5px !important;
+  font-weight: 900 !important;
+}
+
+.hydrated-lime-receipts-v2 .hlr-history-card .hlr-empty {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
