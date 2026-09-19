@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  /* COFIRING SOLID FUEL MANAGEMENT TAB V2 R3 COMPACT + UNLOADING FIRST */
+  /* COFIRING SOLID FUEL MANAGEMENT TAB V2 R4 TAB ORDER */
   const ROOT_SELECTOR = "[data-cofiring-draft-root]";
   const TABS_SELECTOR = ".cfv12-tabs";
   const SHEET_SELECTOR = ".cfv5-sheet";
@@ -83,25 +83,44 @@
     }
   }
 
+  function findEmbeddedTab(doc, label) {
+    return Array.from(doc.querySelectorAll("button,[role='tab'],a")).find((node) => {
+      const text = textOf(node);
+      return text === label || text.startsWith(`${label} `);
+    }) || null;
+  }
+
+  function normalizeEmbeddedTabOrder(doc) {
+    const unloadingTab = findEmbeddedTab(doc, "하역 기록");
+    const troubleTab = findEmbeddedTab(doc, "Trouble 내역");
+
+    if (
+      unloadingTab &&
+      troubleTab &&
+      unloadingTab.parentElement &&
+      unloadingTab.parentElement === troubleTab.parentElement &&
+      unloadingTab.nextElementSibling !== troubleTab
+    ) {
+      troubleTab.parentElement.insertBefore(unloadingTab, troubleTab);
+    }
+
+    return { unloadingTab, troubleTab };
+  }
+
   function activateDefaultUnloading(doc, frame) {
     if (!doc?.documentElement) return;
-    if (doc.documentElement.dataset.cfvDefaultUnloadingActivated === "1") return;
 
-    const candidates = Array.from(
-      doc.querySelectorAll("button,[role='tab'],a")
-    );
-
-    const unloadingTab = candidates.find((node) => {
-      const label = textOf(node);
-      return label === "하역 기록" || label.startsWith("하역 기록 ");
-    });
-
+    const { unloadingTab } = normalizeEmbeddedTabOrder(doc);
     if (!unloadingTab) return;
 
-    doc.documentElement.dataset.cfvDefaultUnloadingActivated = "1";
-    unloadingTab.click();
+    if (doc.documentElement.dataset.cfvDefaultUnloadingActivated !== "1") {
+      doc.documentElement.dataset.cfvDefaultUnloadingActivated = "1";
+      unloadingTab.click();
+    }
+
     scheduleFrameResize(frame);
   }
+
 
   function prepareEmbeddedDocument(frame) {
     try {
@@ -229,7 +248,9 @@
         doc.addEventListener("submit", resync, true);
       }
 
-      window.setTimeout(() => activateDefaultUnloading(doc, frame), 60);
+      for (const delay of [40, 160, 450, 900]) {
+        window.setTimeout(() => activateDefaultUnloading(doc, frame), delay);
+      }
       scheduleFrameResize(frame);
     } catch (_) {
       // Same-origin is expected. If access fails, the page still renders.
@@ -359,9 +380,18 @@
     let button = tabs.querySelector(`#${BUTTON_ID}`);
     if (!button) button = createButton();
 
-    // Management is intentionally the left-most co-firing top tab.
-    if (tabs.firstElementChild !== button) {
-      tabs.insertBefore(button, tabs.firstElementChild);
+    // Required order: Calculation first, Solid Fuel Management second.
+    const calc = findCalcTab(tabs);
+    if (calc && tabs.firstElementChild !== calc) {
+      tabs.insertBefore(calc, tabs.firstElementChild);
+    }
+
+    if (calc) {
+      if (calc.nextElementSibling !== button) {
+        calc.insertAdjacentElement("afterend", button);
+      }
+    } else if (!button.isConnected) {
+      tabs.prepend(button);
     }
 
     let panel = sheet.querySelector(`:scope > #${PANEL_ID}`);
