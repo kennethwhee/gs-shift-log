@@ -1,0 +1,148 @@
+/* COFIRING SHARED SETTINGS HORIZONTAL V1
+   Replace the old vertical shared calorific / correction table
+   with a new horizontal full-width design.
+*/
+
+.cfv6shared-source-hidden {
+  display: none !important;
+}
+
+.cfv6shared-host {
+  margin: 8px 0 12px !important;
+  border: 1px solid #d8e3ea;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.cfv6shared-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e4ebf0;
+  background: #f9fbfc;
+  color: #476679;
+  line-height: 1;
+}
+
+.cfv6shared-title strong {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.cfv6shared-title small {
+  font-size: 10px;
+  color: #7d909e;
+  font-weight: 600;
+}
+
+.cfv6shared-grid {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.cfv6shared-grid th,
+.cfv6shared-grid td {
+  border-right: 1px solid #e5edf2;
+  border-bottom: 1px solid #e5edf2;
+  padding: 0;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.cfv6shared-grid tr:last-child th,
+.cfv6shared-grid tr:last-child td {
+  border-bottom: 0;
+}
+
+.cfv6shared-grid th:last-child,
+.cfv6shared-grid td:last-child {
+  border-right: 0;
+}
+
+.cfv6shared-grid thead th {
+  height: 42px;
+  background: #eef4f7;
+  color: #4e6677;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.cfv6shared-grid thead th.is-label {
+  width: 120px;
+  background: #f5f8fa;
+}
+
+.cfv6shared-grid tbody th.is-label {
+  width: 120px;
+  background: #f7fafb;
+  color: #4d6779;
+}
+
+.cfv6shared-grid tbody th.is-label strong {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.cfv6shared-grid tbody th.is-label small {
+  display: block;
+  margin-top: 4px;
+  font-size: 9px;
+  color: #8093a1;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.cfv6shared-grid tbody td {
+  height: 56px;
+  background: #ffffff;
+}
+
+.cfv6shared-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 8px 10px;
+}
+
+.cfv6shared-control input,
+.cfv6shared-control select,
+.cfv6shared-control textarea {
+  width: 100% !important;
+  max-width: 150px;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid #d7e2e9;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #173f5c;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.cfv6shared-control input:focus,
+.cfv6shared-control select:focus,
+.cfv6shared-control textarea:focus {
+  outline: none;
+  border-color: #8fb4cc;
+  box-shadow: 0 0 0 2px rgba(143, 180, 204, 0.15);
+}
+
+@media (max-width: 900px) {
+  .cfv6shared-host {
+    overflow-x: auto;
+  }
+
+  .cfv6shared-grid {
+    min-width: 760px;
+  }
+}
