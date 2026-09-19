@@ -1,0 +1,225 @@
+/* COFIRING SHARED SETTINGS FULLWIDTH V4
+   Completely replaces the visible table with four equal-width fuel cards.
+*/
+
+.cfv6shared-v4-source-hidden {
+  display: none !important;
+}
+
+.cfv5-basis-wrap {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+}
+
+.cfv6shared-v4-host {
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid #d9e4eb;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.cfv6shared-v4-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  padding: 7px 12px;
+  box-sizing: border-box;
+  border-bottom: 1px solid #e5edf2;
+  background: #f9fbfc;
+}
+
+.cfv6shared-v4-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cfv6shared-v4-copy strong {
+  color: #3d5e73;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.cfv6shared-v4-copy span {
+  color: #7b8e9c;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.cfv6shared-v4-badge {
+  flex: 0 0 auto;
+  color: #6f8391;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cfv6shared-v4-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+  min-width: 0;
+}
+
+.cfv6shared-v4-card {
+  min-width: 0;
+  border-right: 1px solid #dfe8ed;
+  background: #fff;
+}
+
+.cfv6shared-v4-card:last-child {
+  border-right: 0;
+}
+
+.cfv6shared-v4-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  padding: 7px 12px;
+  box-sizing: border-box;
+  border-bottom: 1px solid #e3ebf0;
+}
+
+.cfv6shared-v4-card-head strong {
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.cfv6shared-v4-card-head small {
+  color: #81929e;
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.cfv6shared-v4-card.is-coal .cfv6shared-v4-card-head {
+  background: #e9eff3;
+  color: #365a70;
+}
+
+.cfv6shared-v4-card.is-bio .cfv6shared-v4-card-head {
+  background: #e7f3ec;
+  color: #317456;
+}
+
+.cfv6shared-v4-card.is-organic .cfv6shared-v4-card-head {
+  background: #edf3e8;
+  color: #64794f;
+}
+
+.cfv6shared-v4-card.is-manure .cfv6shared-v4-card-head {
+  background: #f6f1e7;
+  color: #846c43;
+}
+
+.cfv6shared-v4-card-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-width: 0;
+}
+
+.cfv6shared-v4-field {
+  min-width: 0;
+  background: #fff;
+}
+
+.cfv6shared-v4-field:first-child {
+  border-right: 1px solid #e5edf2;
+}
+
+.cfv6shared-v4-field.is-calorific {
+  background: #fffef9;
+}
+
+.cfv6shared-v4-field.is-coefficient {
+  background: #f7fbfd;
+}
+
+.cfv6shared-v4-field-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 5px 4px;
+  box-sizing: border-box;
+  border-bottom: 1px solid #e9eff3;
+  color: #5b7181;
+}
+
+.cfv6shared-v4-field-label strong {
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.cfv6shared-v4-field-label small {
+  color: #8b9aa5;
+  font-size: 7px;
+  font-weight: 500;
+}
+
+.cfv6shared-v4-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 58px;
+  padding: 9px 12px;
+  box-sizing: border-box;
+}
+
+.cfv6shared-v4-input {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  height: 38px !important;
+  margin: 0 !important;
+  padding: 6px 10px !important;
+  box-sizing: border-box !important;
+  border: 1px solid #d1dfe7 !important;
+  border-radius: 7px !important;
+  background: #fff !important;
+  color: #0d3f5f !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.cfv6shared-v4-input.is-coefficient {
+  color: #285c73 !important;
+}
+
+.cfv6shared-v4-input:focus {
+  outline: none !important;
+  border-color: #86aec5 !important;
+  box-shadow: 0 0 0 2px rgba(134,174,197,.15) !important;
+}
+
+.cfv6shared-v4-input:disabled {
+  opacity: .68;
+  cursor: not-allowed;
+}
+
+.cfv6shared-v4-missing {
+  color: #94a4ae;
+}
+
+@media (max-width: 900px) {
+  .cfv6shared-v4-host {
+    overflow-x: auto;
+  }
+
+  .cfv6shared-v4-cards {
+    min-width: 900px;
+  }
+}
