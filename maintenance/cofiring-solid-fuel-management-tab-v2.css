@@ -756,3 +756,199 @@ td:last-child {
 }
 
 /* ===== /SOLID_FUEL_FILTER_FONT_V16 ===== */
+
+/* ===== SOLID_FUEL_FILTER_SIZE_V17 ===== */
+
+/* 전체 검색바 */
+.sfux15-root
+.sfux15-query {
+  gap: 12px !important;
+
+  padding:
+    14px 16px !important;
+
+  min-height:
+    72px !important;
+
+  box-sizing:
+    border-box !important;
+}
+
+
+/* 조회 월 / 업체명 / 차량번호 / 통합 검색 / 정렬 */
+.sfux15-root
+.sfux15-query label {
+  gap:
+    7px !important;
+}
+
+
+/* 상단 항목명 */
+.sfux15-root
+.sfux15-query label > span,
+.sfux15-root
+.sfux15-query label > b,
+.sfux15-root
+.sfux15-query label > strong {
+  font-size:
+    15px !important;
+
+  font-weight:
+    900 !important;
+
+  line-height:
+    1.1 !important;
+
+  color:
+    #173f62 !important;
+}
+
+
+/* 입력칸 / select */
+.sfux15-root
+.sfux15-query input,
+.sfux15-root
+.sfux15-query select {
+  min-height:
+    46px !important;
+
+  height:
+    46px !important;
+
+  padding:
+    0 13px !important;
+
+  border-radius:
+    8px !important;
+
+  font-size:
+    15px !important;
+
+  font-weight:
+    750 !important;
+
+  line-height:
+    1 !important;
+
+  box-sizing:
+    border-box !important;
+}
+
+
+/* placeholder */
+.sfux15-root
+.sfux15-query input::placeholder {
+  font-size:
+    14px !important;
+
+  font-weight:
+    600 !important;
+
+  opacity:
+    .85 !important;
+}
+
+
+/* 모든 버튼 */
+.sfux15-root
+.sfux15-query button {
+  min-height:
+    44px !important;
+
+  height:
+    44px !important;
+
+  padding:
+    0 15px !important;
+
+  border-radius:
+    8px !important;
+
+  font-size:
+    14px !important;
+
+  font-weight:
+    850 !important;
+
+  line-height:
+    1 !important;
+}
+
+
+/* 월별 / 기간 지정 / 전체 */
+.sfux15-root
+.sfux15-query button:nth-of-type(1),
+.sfux15-root
+.sfux15-query button:nth-of-type(2),
+.sfux15-root
+.sfux15-query button:nth-of-type(3) {
+  min-width:
+    54px !important;
+}
+
+
+/* 조회 월 */
+.sfux15-root
+.sfux15-query input[type="month"] {
+  min-width:
+    155px !important;
+}
+
+
+/* 업체 / 정렬 select */
+.sfux15-root
+.sfux15-query select {
+  min-width:
+    150px !important;
+}
+
+
+/* 차량번호 */
+.sfux15-root
+.sfux15-query input[placeholder*="4202"] {
+  min-width:
+    130px !important;
+}
+
+
+/* 통합 검색 */
+.sfux15-root
+.sfux15-query input[placeholder*="Silo"] {
+  min-width:
+    300px !important;
+}
+
+
+/* 조회 / 초기화 */
+.sfux15-root
+.sfux15-query button:last-of-type,
+.sfux15-root
+.sfux15-query button:nth-last-of-type(2) {
+  min-width:
+    56px !important;
+}
+
+
+/* 좁은 화면에서는 강제 폭 완화 */
+@media screen and (max-width: 1200px) {
+
+  .sfux15-root
+  .sfux15-query {
+    gap:
+      9px !important;
+  }
+
+  .sfux15-root
+  .sfux15-query input[placeholder*="Silo"] {
+    min-width:
+      230px !important;
+  }
+
+  .sfux15-root
+  .sfux15-query select {
+    min-width:
+      125px !important;
+  }
+}
+
+/* ===== /SOLID_FUEL_FILTER_SIZE_V17 ===== */
