@@ -1233,3 +1233,36 @@ td:last-child {
 }
 
 /* ===== /SOLID_FUEL_FILTER_KPI_TUNE_V18 ===== */
+
+/* ===== SOLID_FUEL_KPI_TYPOGRAPHY_V19 ===== */
+
+/* KPI 제목 */
+.sfux15-root
+.sfux15-kpi-card span,
+.sfux15-root
+.sfux15-kpi-card b {
+  font-size: 9px !important;
+  font-weight: 750 !important;
+  line-height: 1 !important;
+}
+
+
+/* KPI 숫자 */
+.sfux15-root
+.sfux15-kpi-card strong {
+  font-size: 18px !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+  letter-spacing: -.02em !important;
+}
+
+
+/* 건 / 평균 / 최장 */
+.sfux15-root
+.sfux15-kpi-card small {
+  font-size: 7px !important;
+  font-weight: 650 !important;
+  line-height: 1 !important;
+}
+
+/* ===== /SOLID_FUEL_KPI_TYPOGRAPHY_V19 ===== */
