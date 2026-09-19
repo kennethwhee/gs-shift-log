@@ -607,3 +607,210 @@ input[id^="morningMeetingCofiring"]
 }
 
 /* ===== /MORNING_CALORIFIC_4COL_LAYOUT_V3 ===== */
+
+/* ===== MORNING_CALORIFIC_FIELD_ALIGN_V4 ===== */
+
+/*
+  Coal / Bio-SRF / 유기성 / 축분
+  모든 발열량 입력 구조를 동일하게 정렬한다.
+*/
+
+.mm-calorific-grid-v3 {
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr)) !important;
+
+  gap: 10px !important;
+
+  align-items: end !important;
+}
+
+
+/* 각 연료 칸 자체 */
+.mm-calorific-field-v3 {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-end !important;
+
+  min-width: 0 !important;
+}
+
+
+/* 연료명 */
+.mm-calorific-field-v3 label {
+  display: block !important;
+
+  min-height: 24px !important;
+
+  margin: 0 0 6px !important;
+
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+  font-weight: 700 !important;
+
+  color: #4e6075 !important;
+
+  white-space: normal !important;
+}
+
+
+/*
+  input을 직접 포함하는 row는
+  반드시 "입력칸 + kcal/kg" 가로 한 줄.
+*/
+.mm-calorific-field-v3
+*:has(> input[id^="morningMeetingCofiring"]) {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+
+  gap: 5px !important;
+
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+
+  margin: 0 !important;
+
+  box-sizing: border-box !important;
+}
+
+
+/*
+  혹시 input이 field의 직접 자식인 경우도 동일 처리.
+*/
+.mm-calorific-field-v3:has(
+  > input[id^="morningMeetingCofiring"]
+) {
+  align-items: stretch !important;
+}
+
+
+/* 숫자 입력칸 */
+.mm-calorific-field-v3
+input[id^="morningMeetingCofiring"] {
+  flex: 1 1 auto !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+
+  height: 36px !important;
+
+  margin: 0 !important;
+  padding: 0 9px !important;
+
+  box-sizing: border-box !important;
+
+  font-size: 13px !important;
+  line-height: 36px !important;
+  font-weight: 700 !important;
+
+  font-variant-numeric: tabular-nums !important;
+}
+
+
+/*
+  단위는 4개 모두 입력칸 우측.
+  V3의 display:block / margin-top 규칙을 덮어쓴다.
+*/
+.mm-calorific-field-v3
+input[id^="morningMeetingCofiring"]
+~ span,
+
+.mm-calorific-field-v3
+input[id^="morningMeetingCofiring"]
+~ small {
+  display: inline-flex !important;
+
+  flex: 0 0 auto !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: auto !important;
+  min-width: 34px !important;
+  max-width: none !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  font-size: 8px !important;
+  line-height: 1 !important;
+  font-weight: 500 !important;
+
+  color: #74879c !important;
+
+  white-space: nowrap !important;
+}
+
+
+/*
+  일부 기존 필드는 단위 span이 input sibling이 아니라
+  input row 내부 다른 element일 수 있으므로 같이 통일.
+*/
+.mm-calorific-field-v3
+*:has(> input[id^="morningMeetingCofiring"])
+> span,
+
+.mm-calorific-field-v3
+*:has(> input[id^="morningMeetingCofiring"])
+> small {
+  display: inline-flex !important;
+
+  flex: 0 0 auto !important;
+
+  align-items: center !important;
+
+  min-width: 34px !important;
+
+  margin: 0 !important;
+
+  font-size: 8px !important;
+  line-height: 1 !important;
+
+  color: #74879c !important;
+
+  white-space: nowrap !important;
+}
+
+
+/*
+  네 연료의 입력영역 세로 위치를 정확히 맞춘다.
+*/
+.mm-calorific-field-v3
+> *:last-child {
+  margin-bottom: 0 !important;
+}
+
+
+/*
+  현재 적용값은 4열 아래 전체 폭.
+*/
+.mm-calorific-grid-full-v3 {
+  grid-column: 1 / -1 !important;
+}
+
+
+/*
+  현재 모달에서는 560px 안에서 4칸 유지.
+*/
+.mm-calorific-modal-v3 {
+  width: min(
+    560px,
+    calc(100vw - 28px)
+  ) !important;
+
+  max-width: 560px !important;
+}
+
+
+/* 작은 화면만 2열 */
+@media screen and (max-width: 520px) {
+  .mm-calorific-grid-v3 {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+
+/* ===== /MORNING_CALORIFIC_FIELD_ALIGN_V4 ===== */
