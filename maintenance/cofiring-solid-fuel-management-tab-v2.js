@@ -897,56 +897,107 @@
 })();
 /* ===== /SOLID_FUEL_MANAGEMENT_READABILITY_V15 ===== */
 
-/* ===== SOLID_FUEL_NATIVE_REDESIGN_V20_R3 ===== */
+/* ===== SOLID_FUEL_NATIVE_REDESIGN_V20_R4 ===== */
 (() => {
   'use strict';
 
   const PREFIX = 'sfm20';
 
-  function normalize(value) {
-    return String(value || '')
+  const normalize = value =>
+    String(value || '')
       .replace(/\s+/g, ' ')
       .trim();
+
+  function candidates(root, selector = '*') {
+    if (!root?.querySelectorAll) {
+      return [];
+    }
+
+    return Array.from(
+      root.querySelectorAll(selector)
+    );
   }
 
   function exact(root, text, selector = '*') {
-    if (!root?.querySelectorAll) return null;
-
-    const matches = Array.from(
-      root.querySelectorAll(selector)
+    const list = candidates(
+      root,
+      selector
     ).filter(
       element =>
-        normalize(element.textContent) === text
+        normalize(element.textContent) ===
+        text
     );
 
-    matches.sort((a, b) => {
-      const aChildren =
-        a.querySelectorAll('*').length;
+    list.sort(
+      (a, b) =>
+        a.querySelectorAll('*').length -
+        b.querySelectorAll('*').length
+    );
 
-      const bChildren =
-        b.querySelectorAll('*').length;
+    return list[0] || null;
+  }
 
-      return aChildren - bChildren;
-    });
+  function starts(root, text, selector = '*') {
+    const list = candidates(
+      root,
+      selector
+    ).filter(
+      element =>
+        normalize(
+          element.textContent
+        ).startsWith(text)
+    );
 
-    return matches[0] || null;
+    list.sort(
+      (a, b) =>
+        a.querySelectorAll('*').length -
+        b.querySelectorAll('*').length
+    );
+
+    return list[0] || null;
+  }
+
+  function climb(
+    element,
+    predicate,
+    maxDepth = 18
+  ) {
+    let node = element;
+
+    for (
+      let depth = 0;
+      node && depth < maxDepth;
+      depth += 1
+    ) {
+      if (predicate(node)) {
+        return node;
+      }
+
+      node = node.parentElement;
+    }
+
+    return null;
   }
 
   function commonAncestor(elements) {
-    const list = elements.filter(
-      element => element instanceof Element
-    );
+    const valid =
+      elements.filter(
+        element =>
+          element instanceof Element
+      );
 
-    if (!list.length) return null;
+    if (!valid.length) {
+      return null;
+    }
 
-    let node = list[0];
+    let node = valid[0];
 
     while (
       node &&
       node !== document.documentElement
     ) {
       if (
-        list.every(
+        valid.every(
           element =>
             node === element ||
             node.contains(element)
@@ -961,80 +1012,74 @@
     return null;
   }
 
-  function climb(
-    element,
-    predicate,
-    maxDepth = 14
+  function directChildOf(
+    ancestor,
+    descendant
   ) {
-    let node = element;
-
-    for (
-      let i = 0;
-      node && i < maxDepth;
-      i += 1
+    if (
+      !(ancestor instanceof Element) ||
+      !(descendant instanceof Element)
     ) {
-      if (predicate(node)) {
-        return node;
-      }
-
-      node = node.parentElement;
+      return null;
     }
 
-    return null;
-  }
-
-  function childWithin(parent, element) {
-    let node = element;
+    let node = descendant;
 
     while (
       node &&
-      node.parentElement !== parent
+      node.parentElement !== ancestor
     ) {
       node = node.parentElement;
     }
 
     return (
-      node &&
-      node.parentElement === parent
-    )
-      ? node
-      : null;
+      node?.parentElement === ancestor
+        ? node
+        : null
+    );
   }
 
   function findRoot() {
-    const titles = Array.from(
-      document.querySelectorAll(
-        'h1,h2,h3,h4,strong,b,span,div'
-      )
-    ).filter(
-      element =>
-        normalize(element.textContent) ===
-        '고형연료 관리'
-    );
-
-    for (const title of titles) {
-      const root = climb(
-        title,
-        node => {
-          const text =
-            normalize(node.textContent);
-
-          return (
-            text.includes(
-              '하역시간 참고 데이터'
-            ) &&
-            (
-              text.includes(
-                '하역시간 기록'
-              ) ||
-              text.includes(
-                'Trouble 내역'
-              )
-            )
-          );
-        },
-        16
+    const titleCandidates =
+      candidates(
+        document,
+        'h1,h2,h3,h4,h5,strong,b,span,div'
+      ).filter(
+        element =>
+          normalize(
+            element.textContent
+          ) === '고형연료 관리'
       );
+
+    for (
+      const title of titleCandidates
+    ) {
+      const root =
+        climb(
+          title,
+          node => {
+            const text =
+              normalize(
+                node.textContent
+              );
+
+            return (
+              text.includes('조회 월') &&
+              text.includes('평균 하역') &&
+              text.includes(
+                '하역시간 참고 데이터'
+              ) &&
+              text.includes(
+                '업체별 하역시간'
+              ) &&
+              text.includes(
+                'Silo별 평균'
+              ) &&
+              text.includes('하역 기록')
+            );
+          },
+          20
+        );
 
       if (root) {
         return root;
@@ -1045,53 +1090,63 @@
   }
 
   function decorateFilter(root) {
-    const monthly =
-      exact(root, '월별', 'button');
+    const monthButton =
+      exact(
+        root,
+        '월별',
+        'button'
+      );
 
-    const period =
-      exact(root, '기간 지정', 'button');
+    const periodButton =
+      exact(
+        root,
+        '기간 지정',
+        'button'
+      );
 
-    const all =
-      exact(root, '전체', 'button');
-
-    const labelTexts = [
-      '조회 월',
-      '업체명',
-      '차량번호',
-      '통합 검색',
-      '정렬'
-    ];
-
-    const labelNodes =
-      labelTexts
-        .map(
-          text =>
-            exact(
-              root,
-              text,
-              'label,span,b,strong,div'
-            )
-        )
-        .filter(Boolean);
+    const allButton =
+      exact(
+        root,
+        '전체',
+        'button'
+      );
 
     if (
-      !monthly ||
-      !period ||
-      !all ||
-      labelNodes.length < 4
+      !monthButton ||
+      !periodButton ||
+      !allButton
     ) {
       return;
     }
 
     const filter =
-      commonAncestor([
-        monthly,
-        period,
-        all,
-        ...labelNodes
-      ]);
+      climb(
+        monthButton,
+        node => {
+          const text =
+            normalize(
+              node.textContent
+            );
 
-    if (!(filter instanceof Element)) {
+          return (
+            text.includes('월별') &&
+            text.includes('기간 지정') &&
+            text.includes('조회 월') &&
+            text.includes('업체명') &&
+            text.includes('차량번호') &&
+            text.includes('통합 검색') &&
+            text.includes('정렬') &&
+            text.includes('조회') &&
+            text.includes('초기화') &&
+            node.querySelectorAll(
+              'input,select'
+            ).length >= 4
+          );
+        },
+        12
+      );
+
+    if (!filter) {
       return;
     }
 
@@ -1099,31 +1154,47 @@
       `${PREFIX}-filter`
     );
 
-    [monthly, period, all]
-      .forEach(button => {
+    [
+      monthButton,
+      periodButton,
+      allButton
+    ].forEach(
+      button =>
         button.classList.add(
           `${PREFIX}-mode-button`
-        );
-      });
+        )
+    );
 
-    labelTexts.forEach(
-      (text, index) => {
-        const titleNode =
+    const fields = [
+      ['조회 월', 'month'],
+      ['업체명', 'company'],
+      ['차량번호', 'vehicle'],
+      ['통합 검색', 'search'],
+      ['정렬', 'sort']
+    ];
+
+    fields.forEach(
+      ([labelText, key]) => {
+        const label =
           exact(
             filter,
-            text,
+            labelText,
             'label,span,b,strong,div'
           );
 
-        if (!titleNode) return;
+        if (!label) {
+          return;
+        }
+
+        label.classList.add(
+          `${PREFIX}-field-label`
+        );
 
         const field =
           climb(
-            titleNode,
+            label,
             node => {
-              if (
-                node === filter
-              ) {
+              if (node === filter) {
                 return false;
               }
 
@@ -1133,10 +1204,10 @@
                 )
               );
             },
-            5
+            6
           );
 
-        if (!(field instanceof Element)) {
+        if (!field) {
           return;
         }
 
@@ -1145,26 +1216,18 @@
         );
 
         field.dataset.sfm20Field =
-          [
-            'month',
-            'company',
-            'vehicle',
-            'search',
-            'sort'
-          ][index] || '';
+          key;
       }
     );
 
-    const buttons =
-      Array.from(
-        filter.querySelectorAll(
-          'button'
-        )
-      );
-
-    buttons.forEach(button => {
+    candidates(
+      filter,
+      'button'
+    ).forEach(button => {
       const text =
-        normalize(button.textContent);
+        normalize(
+          button.textContent
+        );
 
       if (text === '조회') {
         button.classList.add(
@@ -1191,16 +1254,18 @@
 
     const nodes =
       labels.map(
-        text =>
+        label =>
           exact(
             root,
-            text,
+            label,
             'span,b,strong,div'
           )
       );
 
     if (
-      nodes.some(node => !node)
+      nodes.some(
+        node => !node
+      )
     ) {
       return;
     }
@@ -1208,7 +1273,7 @@
     const group =
       commonAncestor(nodes);
 
-    if (!(group instanceof Element)) {
+    if (!group) {
       return;
     }
 
@@ -1217,14 +1282,16 @@
     );
 
     nodes.forEach(
-      (node, index) => {
+      (labelNode, index) => {
         const card =
-          childWithin(
+          directChildOf(
             group,
-            node
+            labelNode
           );
 
-        if (!card) return;
+        if (!card) {
+          return;
+        }
 
         card.classList.add(
           `${PREFIX}-kpi-card`
@@ -1232,26 +1299,82 @@
 
         card.dataset.sfm20Kpi =
           String(index + 1);
+
+        labelNode.classList.add(
+          `${PREFIX}-kpi-label`
+        );
+
+        const leafNodes =
+          candidates(
+            card,
+            'span,strong,b,small,div'
+          ).filter(
+            element =>
+              element.children.length === 0
+          );
+
+        const value =
+          leafNodes.find(
+            element => {
+              const text =
+                normalize(
+                  element.textContent
+                );
+
+              return (
+                /^-?\d+$/.test(text) ||
+                /^\d+:\d+$/.test(text) ||
+                text === '-'
+              );
+            }
+          );
+
+        value?.classList.add(
+          `${PREFIX}-kpi-value`
+        );
+
+        leafNodes.forEach(
+          element => {
+            const text =
+              normalize(
+                element.textContent
+              );
+
+            if (
+              text === '건' ||
+              text === '평균' ||
+              text === '최장'
+            ) {
+              element.classList.add(
+                `${PREFIX}-kpi-unit`
+              );
+            }
+          }
+        );
       }
     );
   }
 
   function decorateReference(root) {
-    const refTitle =
+    const heading =
       exact(
         root,
         '하역시간 참고 데이터',
-        'h1,h2,h3,h4,strong,b,div'
+        'h1,h2,h3,h4,h5,strong,b,div'
       );
 
-    if (!refTitle) return;
+    if (!heading) {
+      return;
+    }
 
     const section =
       climb(
-        refTitle,
+        heading,
         node => {
           const text =
-            normalize(node.textContent);
+            normalize(
+              node.textContent
+            );
 
           return (
             text.includes(
@@ -1259,13 +1382,14 @@
             ) &&
             text.includes(
               'Silo별 평균'
-            )
+            ) &&
+            node.querySelector('table')
           );
         },
-        10
+        12
       );
 
-    if (!(section instanceof Element)) {
+    if (!section) {
       return;
     }
 
@@ -1277,217 +1401,132 @@
       exact(
         section,
         '업체별 하역시간',
-        'h1,h2,h3,h4,strong,b,div'
+        'h1,h2,h3,h4,h5,strong,b,div'
       );
-
-    const companyTable =
-      companyTitle
-        ? climb(
-            companyTitle,
-            node =>
-              Boolean(
-                node.querySelector?.(
-                  'table'
-                )
-              ),
-            6
-          )?.querySelector('table')
-        : section.querySelector(
-            'table'
-          );
-
-    let companyPanel = null;
-
-    if (
-      companyTable instanceof
-      HTMLTableElement
-    ) {
-      companyTable.classList.add(
-        `${PREFIX}-company-table`
-      );
-
-      companyPanel =
-        companyTable.parentElement;
-
-      companyPanel?.classList.add(
-        `${PREFIX}-company-panel`
-      );
-    }
 
     const siloTitle =
       exact(
         section,
         'Silo별 평균',
-        'h1,h2,h3,h4,strong,b,div'
+        'h1,h2,h3,h4,h5,strong,b,div'
       );
 
-    let siloPanel = null;
+    const table =
+      section.querySelector('table');
 
-    if (siloTitle) {
-      siloPanel =
-        climb(
-          siloTitle,
-          node => {
-            const text =
-              normalize(node.textContent);
-
-            return (
-              text.includes('#A') &&
-              text.includes('#B') &&
-              text.includes('Day')
-            );
-          },
-          7
-        );
-
-      siloPanel?.classList.add(
-        `${PREFIX}-silo-panel`
+    if (table) {
+      table.classList.add(
+        `${PREFIX}-company-table`
       );
     }
 
     if (
-      companyPanel &&
-      siloPanel
+      !companyTitle ||
+      !siloTitle ||
+      !table
     ) {
-      const pair =
-        commonAncestor([
-          companyPanel,
-          siloPanel
-        ]);
+      return;
+    }
 
-      pair?.classList.add(
+    let pair =
+      commonAncestor([
+        table,
+        siloTitle
+      ]);
+
+    if (
+      pair === section &&
+      section.children.length === 1
+    ) {
+      pair = section.firstElementChild;
+    }
+
+    if (pair) {
+      pair.classList.add(
         `${PREFIX}-reference-grid`
       );
     }
 
-    if (siloPanel) {
-      const possible =
-        Array.from(
-          siloPanel.children
-        );
+    const companyPanel =
+      pair
+        ? directChildOf(
+            pair,
+            table
+          )
+        : table.parentElement;
 
-      possible.forEach(child => {
-        const text =
-          normalize(child.textContent);
+    const siloPanel =
+      pair
+        ? directChildOf(
+            pair,
+            siloTitle
+          )
+        : siloTitle.parentElement;
 
-        if (
-          text.includes('#A') ||
-          text.includes('#B') ||
-          /^Day\b/.test(text)
-        ) {
-          child.classList.add(
-            `${PREFIX}-silo-card`
-          );
-        }
-      });
-    }
-  }
-
-  function decorateRecords(root) {
-    const title =
-      exact(
-        root,
-        '하역시간 기록',
-        'h1,h2,h3,h4,strong,b,div'
-      );
-
-    if (!title) return;
-
-    const section =
-      climb(
-        title,
-        node => {
-          const text =
-            normalize(node.textContent);
-
-          return (
-            text.includes('날짜') &&
-            text.includes('입고') &&
-            text.includes('출고') &&
-            text.includes('소요') &&
-            text.includes('업체') &&
-            text.includes('차량')
-          );
-        },
-        10
-      );
-
-    if (!(section instanceof Element)) {
-      return;
-    }
-
-    section.classList.add(
-      `${PREFIX}-records`
+    companyPanel?.classList.add(
+      `${PREFIX}-company-panel`
     );
 
-    const table =
-      section.querySelector(
-        'table'
-      );
-
-    if (!(table instanceof HTMLTableElement)) {
-      return;
-    }
-
-    table.classList.add(
-      `${PREFIX}-records-table`
+    siloPanel?.classList.add(
+      `${PREFIX}-silo-panel`
     );
 
-    Array.from(
-      table.tBodies
-    ).forEach(tbody => {
-      Array.from(
-        tbody.rows
-      ).forEach(row => {
-        const cell =
-          row.cells[
-            row.cells.length - 1
-          ];
-
-        if (!cell) return;
-
-        const buttons =
-          Array.from(
-            cell.querySelectorAll(
-              'button'
-            )
+    ['#A', '#B', 'Day']
+      .forEach(label => {
+        const labelNode =
+          exact(
+            section,
+            label,
+            'span,strong,b,div'
           );
 
-        if (buttons.length < 2) {
+        if (!labelNode) {
           return;
         }
 
-        const actions =
-          commonAncestor(buttons);
+        const card =
+          climb(
+            labelNode,
+            node => {
+              const text =
+                normalize(
+                  node.textContent
+                );
 
-        if (
-          actions &&
-          cell.contains(actions)
-        ) {
-          actions.classList.add(
-            `${PREFIX}-actions`
+              return (
+                text.startsWith(label) &&
+                text.length < 40 &&
+                node !== siloPanel
+              );
+            },
+            5
           );
-        }
+
+        card?.classList.add(
+          `${PREFIX}-silo-card`
+        );
       });
-    });
   }
 
-  function decorateTabs(root) {
+  function decorateRecordTabs(root) {
     const unload =
-      exact(
+      starts(
         root,
         '하역 기록',
         'button'
       );
 
     const trouble =
-      exact(
+      starts(
         root,
         'Trouble 내역',
         'button'
       );
 
-    if (!unload || !trouble) {
+    if (
+      !unload ||
+      !trouble
+    ) {
       return;
     }
 
@@ -1499,21 +1538,134 @@
       `${PREFIX}-record-tab`
     );
 
-    const tabs =
+    const group =
       commonAncestor([
         unload,
         trouble
       ]);
 
-    tabs?.classList.add(
+    group?.classList.add(
       `${PREFIX}-record-tabs`
     );
   }
 
-  function decorate() {
-    const root = findRoot();
+  function decorateRecords(root) {
+    const heading =
+      starts(
+        root,
+        '하역시간 기록',
+        'h1,h2,h3,h4,h5,strong,b,div'
+      );
 
-    if (!(root instanceof Element)) {
+    if (!heading) {
+      return;
+    }
+
+    const section =
+      climb(
+        heading,
+        node => {
+          const table =
+            node.querySelector?.(
+              'table'
+            );
+
+          if (!table) {
+            return false;
+          }
+
+          const text =
+            normalize(
+              table.textContent
+            );
+
+          return (
+            text.includes('No.') &&
+            text.includes('날짜') &&
+            text.includes('입고') &&
+            text.includes('출고') &&
+            text.includes('소요') &&
+            text.includes('업체') &&
+            text.includes('차량') &&
+            text.includes('관리')
+          );
+        },
+        12
+      );
+
+    if (!section) {
+      return;
+    }
+
+    section.classList.add(
+      `${PREFIX}-records`
+    );
+
+    const table =
+      section.querySelector('table');
+
+    if (!table) {
+      return;
+    }
+
+    table.classList.add(
+      `${PREFIX}-records-table`
+    );
+
+    Array.from(
+      table.tBodies || []
+    ).forEach(tbody => {
+      Array.from(
+        tbody.rows || []
+      ).forEach(row => {
+        if (!row.cells.length) {
+          return;
+        }
+
+        const cell =
+          row.cells[
+            row.cells.length - 1
+          ];
+
+        const buttons =
+          Array.from(
+            cell.querySelectorAll(
+              'button'
+            )
+          );
+
+        if (!buttons.length) {
+          return;
+        }
+
+        cell.classList.add(
+          `${PREFIX}-action-cell`
+        );
+
+        if (buttons.length >= 2) {
+          const wrapper =
+            commonAncestor(
+              buttons
+            );
+
+          if (
+            wrapper &&
+            cell.contains(wrapper)
+          ) {
+            wrapper.classList.add(
+              `${PREFIX}-actions`
+            );
+          }
+        }
+      });
+    });
+  }
+
+  function decorate() {
+    const root =
+      findRoot();
+
+    if (!root) {
       return false;
     }
 
@@ -1521,44 +1673,55 @@
       `${PREFIX}-root`
     );
 
+    root.dataset.sfm20Ready = '1';
+
     decorateFilter(root);
     decorateKpi(root);
     decorateReference(root);
+    decorateRecordTabs(root);
     decorateRecords(root);
-    decorateTabs(root);
 
     return true;
   }
 
-  let timer = 0;
-
-  function queue() {
-    clearTimeout(timer);
-
-    timer = setTimeout(
-      decorate,
-      50
-    );
+  function scheduleDecorate() {
+    [
+      0,
+      100,
+      300,
+      700,
+      1500,
+      3000
+    ].forEach(delay => {
+      setTimeout(
+        decorate,
+        delay
+      );
+    });
   }
 
   function start() {
-    decorate();
+    scheduleDecorate();
 
-    const observer =
-      new MutationObserver(queue);
+    document.addEventListener(
+      'click',
+      () => {
+        setTimeout(
+          decorate,
+          80
+        );
 
-    observer.observe(
-      document.body,
-      {
-        childList: true,
-        subtree: true
-      }
+        setTimeout(
+          decorate,
+          350
+        );
+      },
+      true
     );
   }
 
   if (
-    document.readyState ===
-    'loading'
+    document.readyState === 'loading'
   ) {
     document.addEventListener(
       'DOMContentLoaded',
@@ -1570,4 +1733,4 @@
     start();
   }
 })();
-/* ===== /SOLID_FUEL_NATIVE_REDESIGN_V20_R3 ===== */
+/* ===== /SOLID_FUEL_NATIVE_REDESIGN_V20_R4 ===== */
