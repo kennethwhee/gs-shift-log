@@ -1,6 +1,5 @@
-/* COFIRING SOLID FUEL MANAGEMENT TAB V2 */
+/* COFIRING SOLID FUEL MANAGEMENT TAB V2 R1 LAYOUT FIX */
 
-/* stronger, clearer top tabs */
 #efficiencyCofiringDraftView .cfv12-tabs.cfv-top-tabs-v2,
 [data-cofiring-draft-root] .cfv12-tabs.cfv-top-tabs-v2 {
   display: inline-flex !important;
@@ -76,7 +75,6 @@
   font-size: 10px !important;
 }
 
-/* tab-like embedded management view */
 [data-cofiring-draft-root] .cfv-solid-fuel-management-panel {
   width: 100% !important;
   min-width: 0 !important;
@@ -91,30 +89,21 @@
 [data-cofiring-draft-root] .cfv-solid-fuel-management-frame {
   display: block !important;
   width: 100% !important;
-  height: clamp(540px, calc(100dvh - 250px), 820px) !important;
   min-height: 540px !important;
   border: 0 !important;
   background: #f7fafc !important;
 }
 
-/* When management tab is active, keep title/tabs and replace the sheet body. */
-[data-cofiring-draft-root] .cfv5-sheet.cfv-solid-fuel-management-mode
-  > :not(.cfv5-title-row)
-  :not(.cfv12-toolbar)
-  :not(.cfv12-tabs)
-  :not(.cfv-solid-fuel-management-panel) {
+[data-cofiring-draft-root] .cfv-sfm-hidden-by-v2r1 {
   display: none !important;
 }
 
-/* direct-child-safe fallback for current markup */
-[data-cofiring-draft-root] .cfv5-sheet.cfv-solid-fuel-management-mode
-  > .cfv-solid-fuel-management-panel {
+[data-cofiring-draft-root] .cfv5-sheet.cfv-solid-fuel-management-mode {
+  padding-bottom: 0 !important;
+}
+
+[data-cofiring-draft-root] .cfv5-sheet.cfv-solid-fuel-management-mode > #cfvSolidFuelManagementPanel {
   display: block !important;
-}
-
-[data-cofiring-draft-root] .cfv5-sheet.cfv-solid-fuel-management-mode
-  > .cfv12-history-panel {
-  display: none !important;
 }
 
 @media (max-width: 900px) {
@@ -132,7 +121,6 @@
   }
 
   [data-cofiring-draft-root] .cfv-solid-fuel-management-frame {
-    height: calc(100dvh - 210px) !important;
     min-height: 500px !important;
   }
 }

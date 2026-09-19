@@ -1,14 +1,16 @@
 (() => {
   "use strict";
 
-  /* COFIRING SOLID FUEL MANAGEMENT TAB V2 */
+  /* COFIRING SOLID FUEL MANAGEMENT TAB V2 R1 LAYOUT FIX */
   const ROOT_SELECTOR = "[data-cofiring-draft-root]";
   const TABS_SELECTOR = ".cfv12-tabs";
   const SHEET_SELECTOR = ".cfv5-sheet";
+  const TOOLBAR_SELECTOR = ".cfv12-toolbar";
   const BUTTON_ID = "cfvSolidFuelManagementTab";
   const PANEL_ID = "cfvSolidFuelManagementPanel";
   const FRAME_ID = "cfvSolidFuelManagementFrame";
   const ROUTE = "/maintenance/solid-fuel-trouble?embed=cofiring";
+  const HIDDEN_CLASS = "cfv-sfm-hidden-by-v2r1";
 
   function textOf(node) {
     return String(node?.textContent || "").replace(/\s+/g, " ").trim();
@@ -18,14 +20,13 @@
     for (const item of Array.from(tabs.children)) {
       item.classList.add("cfv-top-tab-v2");
       const text = textOf(item);
-
       item.classList.toggle("is-calc", text.includes("혼소율 계산"));
       item.classList.toggle("is-history", text.includes("마감 데이터"));
       item.classList.toggle(
         "is-settings",
         text.includes("발열량/보정계수") ||
-        text.includes("발열량 · 보정계수") ||
-        text.includes("발열량 보정계수")
+          text.includes("발열량 · 보정계수") ||
+          text.includes("발열량 보정계수")
       );
       item.classList.toggle("is-management", text.includes("고형연료 관리"));
     }
@@ -67,8 +68,6 @@
         doc.documentElement.classList.add("cfv-cofiring-embedded");
         doc.body?.classList.add("cfv-cofiring-embedded");
 
-        // Embedded view keeps the management page in-place.
-        // Remove only the standalone "return to shift log" action.
         for (const node of Array.from(doc.querySelectorAll("a,button"))) {
           const label = textOf(node);
           if (label === "업무일지로 돌아가기") {
@@ -76,7 +75,6 @@
           }
         }
 
-        // Keep standalone and embedded naming consistent.
         for (const heading of Array.from(doc.querySelectorAll("h1,h2"))) {
           if (textOf(heading).includes("고형연료 Trouble")) {
             heading.textContent = "고형연료 관리";
@@ -107,18 +105,12 @@
           doc.head.append(style);
         }
       } catch (_) {
-        // Same-origin is expected; if unavailable, the frame still works.
+        // same-origin expected; iframe still works if document access is unavailable.
       }
     });
 
     panel.append(frame);
     return panel;
-  }
-
-  function findCalcTab(tabs) {
-    return Array.from(tabs.children).find((node) =>
-      textOf(node).includes("혼소율 계산")
-    ) || null;
   }
 
   function removeLegacyTroubleTab(tabs) {
@@ -132,21 +124,65 @@
     }
   }
 
-  function setManagementMode(sheet, tabs, button, panel, enabled) {
+  function findCalcTab(tabs) {
+    return (
+      Array.from(tabs.children).find((node) => textOf(node).includes("혼소율 계산")) || null
+    );
+  }
+
+  function isPersistentSheetChild(child, panel) {
+    if (!child || child === panel) return true;
+    if (child.matches?.(".cfv5-title-row")) return true;
+    if (child.matches?.(TOOLBAR_SELECTOR)) return true;
+    if (child.querySelector?.(`#${BUTTON_ID}`)) return true;
+    return false;
+  }
+
+  function toggleSheetSections(sheet, panel, enabled) {
+    const children = Array.from(sheet.children);
+    for (const child of children) {
+      if (isPersistentSheetChild(child, panel)) continue;
+      child.classList.toggle(HIDDEN_CLASS, enabled);
+    }
+  }
+
+  function syncFrameHeight(root, panel, frame, enabled) {
+    if (!panel || !frame) return;
+    if (!enabled) {
+      frame.style.removeProperty("height");
+      panel.style.removeProperty("height");
+      return;
+    }
+
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 900;
+    const panelTop = panel.getBoundingClientRect().top;
+    const chromeBottomGap = 24;
+    const available = Math.max(540, Math.floor(viewportHeight - panelTop - chromeBottomGap));
+    panel.style.height = `${available}px`;
+    frame.style.height = `${available}px`;
+    root.classList.add("cfv-solid-fuel-management-mode-active");
+  }
+
+  function setManagementMode(root, sheet, tabs, button, panel, enabled) {
     sheet.classList.toggle("cfv-solid-fuel-management-mode", enabled);
+    root.classList.toggle("cfv-solid-fuel-management-mode-active", enabled);
     panel.hidden = !enabled;
     button.setAttribute("aria-selected", enabled ? "true" : "false");
 
     if (enabled) {
       for (const tab of Array.from(tabs.children)) {
-        if (tab !== button && tab.matches("[aria-selected]")) {
+        if (tab !== button && tab.matches?.("[aria-selected]")) {
           tab.setAttribute("aria-selected", "false");
         }
       }
     }
+
+    toggleSheetSections(sheet, panel, enabled);
+    const frame = panel.querySelector(`#${FRAME_ID}`);
+    syncFrameHeight(root, panel, frame, enabled);
   }
 
-  function bind(tabs, sheet, button, panel) {
+  function bind(root, sheet, tabs, button, panel) {
     if (tabs.dataset.cfvSolidFuelManagementBound === "1") return;
     tabs.dataset.cfvSolidFuelManagementBound = "1";
 
@@ -156,12 +192,18 @@
 
       if (clicked === button) {
         event.preventDefault();
-        setManagementMode(sheet, tabs, button, panel, true);
+        setManagementMode(root, sheet, tabs, button, panel, true);
         return;
       }
 
-      // Any existing tab returns control to its original handler.
-      setManagementMode(sheet, tabs, button, panel, false);
+      setManagementMode(root, sheet, tabs, button, panel, false);
+    });
+
+    window.addEventListener("resize", () => {
+      if (sheet.classList.contains("cfv-solid-fuel-management-mode")) {
+        const frame = panel.querySelector(`#${FRAME_ID}`);
+        syncFrameHeight(root, panel, frame, true);
+      }
     });
   }
 
@@ -192,13 +234,16 @@
     let panel = sheet.querySelector(`:scope > #${PANEL_ID}`);
     if (!panel) {
       panel = createPanel();
-      const toolbar = tabs.closest(".cfv12-toolbar");
+      const toolbar = tabs.closest(TOOLBAR_SELECTOR);
       const anchor = toolbar || tabs;
       anchor.insertAdjacentElement("afterend", panel);
     }
 
-    bind(tabs, sheet, button, panel);
+    bind(root, sheet, tabs, button, panel);
     classifyTabs(tabs);
+    if (!sheet.classList.contains("cfv-solid-fuel-management-mode")) {
+      toggleSheetSections(sheet, panel, false);
+    }
     return true;
   }
 
