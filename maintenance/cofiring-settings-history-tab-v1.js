@@ -202,3 +202,129 @@
     }
   }
 })(typeof globalThis==='object'?globalThis:this);
+
+/* ===== COFIRING_SETTINGS_HISTORY_NO_SAVED_TIME_V4 ===== */
+(function () {
+  'use strict';
+
+  const HEADER_TEXT = '저장 시각';
+
+  function normalizedText(node) {
+    return String(node?.textContent || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function removeSavedTimeColumn(table) {
+    if (!(table instanceof HTMLTableElement)) {
+      return;
+    }
+
+    const headers =
+      Array.from(
+        table.querySelectorAll('thead th')
+      );
+
+    const header =
+      headers.find(function (th) {
+        return normalizedText(th) === HEADER_TEXT;
+      });
+
+    if (!header) {
+      return;
+    }
+
+    const headerRow = header.parentElement;
+
+    if (!(headerRow instanceof HTMLTableRowElement)) {
+      return;
+    }
+
+    const columnIndex =
+      Array.from(headerRow.cells)
+        .indexOf(header);
+
+    if (columnIndex < 0) {
+      return;
+    }
+
+    /*
+      Header + every body row:
+      remove only the column whose header is exactly "저장 시각".
+    */
+    Array.from(table.rows)
+      .forEach(function (row) {
+        const cell =
+          row.cells[columnIndex];
+
+        if (cell) {
+          cell.remove();
+        }
+      });
+
+    table.setAttribute(
+      'data-cf-settings-history-no-saved-time',
+      'true'
+    );
+  }
+
+  function apply() {
+    document
+      .querySelectorAll('table')
+      .forEach(removeSavedTimeColumn);
+  }
+
+  let queued = false;
+
+  function schedule() {
+    if (queued) {
+      return;
+    }
+
+    queued = true;
+
+    const run = function () {
+      queued = false;
+      apply();
+    };
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(run);
+    }
+    else {
+      setTimeout(run, 0);
+    }
+  }
+
+  function start() {
+    apply();
+
+    if (
+      typeof MutationObserver !==
+      'function'
+    ) {
+      return;
+    }
+
+    new MutationObserver(schedule)
+      .observe(
+        document.body,
+        {
+          childList: true,
+          subtree: true
+        }
+      );
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener(
+      'DOMContentLoaded',
+      start,
+      { once: true }
+    );
+  }
+  else {
+    start();
+  }
+})();
+/* ===== /COFIRING_SETTINGS_HISTORY_NO_SAVED_TIME_V4 ===== */
