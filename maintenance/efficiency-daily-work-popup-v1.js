@@ -404,11 +404,11 @@
     }
   };
   const installStandaloneEscapeGuard = () => {
-    if (window.__gsEfficiencyDailyWorkEscapeGuardV4) {
+    if (window.__gsEfficiencyDailyWorkEscapeGuardV5) {
       return;
     }
 
-    window.__gsEfficiencyDailyWorkEscapeGuardV4 = true;
+    window.__gsEfficiencyDailyWorkEscapeGuardV5 = true;
 
     /*
      * This page was opened by window.open(), so Escape should close
@@ -428,7 +428,14 @@
         event.stopPropagation();
         event.stopImmediatePropagation();
 
-        window.close();
+        /*
+         * Standalone work window:
+         * Escape must never close the window or the underlying
+         * Efficiency Team modal. The operator may have unsaved work.
+         *
+         * Window closing is left to the browser window X control.
+         */
+        return;
       },
       true
     );
