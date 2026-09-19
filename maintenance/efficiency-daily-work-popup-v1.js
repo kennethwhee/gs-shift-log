@@ -260,6 +260,143 @@
       check();
     });
 
+  const installStandaloneStyles = () => {
+    if (document.getElementById('efficiencyDailyWorkStandaloneV2Style')) {
+      return;
+    }
+
+    const style = document.createElement('style');
+
+    style.id = 'efficiencyDailyWorkStandaloneV2Style';
+
+    style.textContent = `
+      html[data-efficiency-daily-work-window="1"],
+      html[data-efficiency-daily-work-window="1"] body {
+        width: 100% !important;
+        height: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        background: #eef3f8 !important;
+      }
+
+      html[data-efficiency-daily-work-window="1"] body * {
+        visibility: hidden !important;
+      }
+
+      html[data-efficiency-daily-work-window="1"]
+      [data-efficiency-daily-work-standalone="1"],
+      html[data-efficiency-daily-work-window="1"]
+      [data-efficiency-daily-work-standalone="1"] * {
+        visibility: visible !important;
+      }
+
+      html[data-efficiency-daily-work-window="1"]
+      [data-efficiency-daily-work-standalone="1"] {
+        position: fixed !important;
+        inset: 0 !important;
+        z-index: 2147483647 !important;
+
+        display: block !important;
+
+        width: 100vw !important;
+        height: 100vh !important;
+        max-width: none !important;
+        max-height: none !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+
+        margin: 0 !important;
+        padding: 12px !important;
+
+        border: 0 !important;
+        border-radius: 0 !important;
+
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+
+        background: #eef3f8 !important;
+        box-shadow: none !important;
+      }
+    `;
+
+    document.head.appendChild(style);
+  };
+
+  const findStandaloneWorkspace = () => {
+    const requiredTexts = [
+      '일일업무현황',
+      '날짜별 보관함',
+      'PDF 미리보기',
+      '저장'
+    ];
+
+    const candidates = Array.from(
+      document.querySelectorAll(
+        'main, section, article, div'
+      )
+    ).filter((element) => {
+      if (!isVisible(element)) return false;
+
+      const text = elementText(element);
+
+      return requiredTexts.every(
+        (requiredText) => text.includes(requiredText)
+      );
+    });
+
+    if (!candidates.length) return null;
+
+    /*
+     * The page root and the efficiency dialog also contain the same text.
+     * Prefer the smallest visible container that contains every
+     * Daily Work control. This resolves to the actual work area.
+     */
+    candidates.sort((a, b) => {
+      const ar = a.getBoundingClientRect();
+      const br = b.getBoundingClientRect();
+
+      return (ar.width * ar.height) - (br.width * br.height);
+    });
+
+    return candidates[0];
+  };
+
+  const activateStandaloneWorkspace = async () => {
+    const workspace = await waitFor(
+      findStandaloneWorkspace,
+      12000,
+      80
+    );
+
+    if (!workspace) {
+      console.warn(
+        '[EFFICIENCY_DAILY_WORK_STANDALONE_V2] workspace not found.'
+      );
+      return;
+    }
+
+    workspace.setAttribute(
+      'data-efficiency-daily-work-standalone',
+      '1'
+    );
+
+    installStandaloneStyles();
+
+    document.body.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+
+    try {
+      window.resizeTo(
+        Math.min(screen.availWidth, 1700),
+        Math.min(screen.availHeight, 1000)
+      );
+    } catch (_) {
+      // Browser may restrict resizeTo.
+    }
+  };
   const initializeChildWindow = async () => {
     if (!isChildWindow()) return;
 
@@ -302,6 +439,8 @@
      * so this performs the application's original tab action.
      */
     dailyButton.click();
+
+    await activateStandaloneWorkspace();
 
     if (!document.title.startsWith('일일업무현황')) {
       document.title =
