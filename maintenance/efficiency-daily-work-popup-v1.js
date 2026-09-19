@@ -368,6 +368,121 @@
     return candidates[0];
   };
 
+  const installStandaloneWheelScroll = (workspace) => {
+    if (window.__gsEfficiencyDailyWorkWheelGuardV6) {
+      return;
+    }
+
+    window.__gsEfficiencyDailyWorkWheelGuardV6 = true;
+
+    const canScrollElement = (element, deltaY) => {
+      if (!(element instanceof HTMLElement)) return false;
+
+      const maxScroll =
+        element.scrollHeight - element.clientHeight;
+
+      if (maxScroll <= 1) return false;
+
+      if (deltaY < 0) {
+        return element.scrollTop > 0;
+      }
+
+      if (deltaY > 0) {
+        return element.scrollTop < maxScroll - 1;
+      }
+
+      return false;
+    };
+
+    const findNestedScrollable = (target, deltaY) => {
+      let current =
+        target instanceof Element
+          ? target
+          : null;
+
+      while (
+        current &&
+        current !== workspace
+      ) {
+        if (current instanceof HTMLElement) {
+          const style = window.getComputedStyle(current);
+
+          const allowsVerticalScroll =
+            style.overflowY === 'auto' ||
+            style.overflowY === 'scroll';
+
+          if (
+            allowsVerticalScroll &&
+            canScrollElement(current, deltaY)
+          ) {
+            return current;
+          }
+        }
+
+        current = current.parentElement;
+      }
+
+      return null;
+    };
+
+    window.addEventListener(
+      'wheel',
+      (event) => {
+        if (!isChildWindow()) return;
+
+        /*
+         * Keep Ctrl + wheel available for browser zoom.
+         */
+        if (event.ctrlKey) return;
+
+        if (!workspace.isConnected) return;
+
+        const deltaY = event.deltaY;
+
+        if (!deltaY) return;
+
+        /*
+         * If the pointer is over a real nested scroll area,
+         * let that element perform its native scroll.
+         * Stop the original application wheel handlers from
+         * cancelling the event.
+         */
+        const nestedScrollable =
+          findNestedScrollable(
+            event.target,
+            deltaY
+          );
+
+        if (nestedScrollable) {
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+          return;
+        }
+
+        /*
+         * Otherwise explicitly move the standalone workspace.
+         * This bypasses legacy page/modal wheel handlers.
+         */
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+
+        let amount = deltaY;
+
+        if (event.deltaMode === 1) {
+          amount *= 18;
+        } else if (event.deltaMode === 2) {
+          amount *= workspace.clientHeight;
+        }
+
+        workspace.scrollTop += amount;
+      },
+      {
+        capture: true,
+        passive: false
+      }
+    );
+  };
   const activateStandaloneWorkspace = async () => {
     const workspace = await waitFor(
       findStandaloneWorkspace,
@@ -388,6 +503,7 @@
     );
 
     installStandaloneStyles();
+    installStandaloneWheelScroll(workspace);
 
     document.documentElement.classList.remove(BOOT_CLASS);
 
