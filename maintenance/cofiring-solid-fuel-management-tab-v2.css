@@ -1,0 +1,138 @@
+/* COFIRING SOLID FUEL MANAGEMENT TAB V2 */
+
+/* stronger, clearer top tabs */
+#efficiencyCofiringDraftView .cfv12-tabs.cfv-top-tabs-v2,
+[data-cofiring-draft-root] .cfv12-tabs.cfv-top-tabs-v2 {
+  display: inline-flex !important;
+  align-items: stretch !important;
+  flex-wrap: wrap !important;
+  gap: 7px !important;
+  padding: 5px !important;
+  border: 1px solid #d4e0e8 !important;
+  border-radius: 11px !important;
+  background: #eef4f8 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.86) !important;
+}
+
+#efficiencyCofiringDraftView .cfv-top-tab-v2,
+[data-cofiring-draft-root] .cfv-top-tab-v2 {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 132px !important;
+  height: 38px !important;
+  padding: 0 16px !important;
+  box-sizing: border-box !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: #526f82 !important;
+  font-size: 11px !important;
+  font-weight: 850 !important;
+  line-height: 1 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+}
+
+#efficiencyCofiringDraftView .cfv-top-tab-v2:hover,
+[data-cofiring-draft-root] .cfv-top-tab-v2:hover {
+  border-color: #bfd3e1 !important;
+  background: rgba(255,255,255,.8) !important;
+  color: #214e6e !important;
+}
+
+#efficiencyCofiringDraftView .cfv-top-tab-v2[aria-selected="true"],
+[data-cofiring-draft-root] .cfv-top-tab-v2[aria-selected="true"] {
+  border-color: #9abeda !important;
+  background: #ffffff !important;
+  color: #175e8f !important;
+  box-shadow: 0 2px 7px rgba(28,78,113,.12) !important;
+}
+
+#efficiencyCofiringDraftView .cfv-top-tab-v2[aria-selected="true"]::after,
+[data-cofiring-draft-root] .cfv-top-tab-v2[aria-selected="true"]::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 22px !important;
+  right: 22px !important;
+  bottom: 3px !important;
+  height: 2px !important;
+  border-radius: 999px !important;
+  background: #2f7db6 !important;
+}
+
+#efficiencyCofiringDraftView .cfv-solid-fuel-management-tab,
+[data-cofiring-draft-root] .cfv-solid-fuel-management-tab {
+  color: #6f5e25 !important;
+}
+
+#efficiencyCofiringDraftView .cfv-solid-fuel-management-tab::before,
+[data-cofiring-draft-root] .cfv-solid-fuel-management-tab::before {
+  content: "▣" !important;
+  margin-right: 6px !important;
+  color: #b48a24 !important;
+  font-size: 10px !important;
+}
+
+/* tab-like embedded management view */
+[data-cofiring-draft-root] .cfv-solid-fuel-management-panel {
+  width: 100% !important;
+  min-width: 0 !important;
+  margin-top: 10px !important;
+  border: 1px solid #d8e3ea !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  background: #f7fafc !important;
+  box-sizing: border-box !important;
+}
+
+[data-cofiring-draft-root] .cfv-solid-fuel-management-frame {
+  display: block !important;
+  width: 100% !important;
+  height: clamp(540px, calc(100dvh - 250px), 820px) !important;
+  min-height: 540px !important;
+  border: 0 !important;
+  background: #f7fafc !important;
+}
+
+/* When management tab is active, keep title/tabs and replace the sheet body. */
+[data-cofiring-draft-root] .cfv5-sheet.cfv-solid-fuel-management-mode
+  > :not(.cfv5-title-row)
+  :not(.cfv12-toolbar)
+  :not(.cfv12-tabs)
+  :not(.cfv-solid-fuel-management-panel) {
+  display: none !important;
+}
+
+/* direct-child-safe fallback for current markup */
+[data-cofiring-draft-root] .cfv5-sheet.cfv-solid-fuel-management-mode
+  > .cfv-solid-fuel-management-panel {
+  display: block !important;
+}
+
+[data-cofiring-draft-root] .cfv5-sheet.cfv-solid-fuel-management-mode
+  > .cfv12-history-panel {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  #efficiencyCofiringDraftView .cfv12-tabs.cfv-top-tabs-v2,
+  [data-cofiring-draft-root] .cfv12-tabs.cfv-top-tabs-v2 {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    width: 100% !important;
+  }
+
+  #efficiencyCofiringDraftView .cfv-top-tab-v2,
+  [data-cofiring-draft-root] .cfv-top-tab-v2 {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  [data-cofiring-draft-root] .cfv-solid-fuel-management-frame {
+    height: calc(100dvh - 210px) !important;
+    min-height: 500px !important;
+  }
+}
