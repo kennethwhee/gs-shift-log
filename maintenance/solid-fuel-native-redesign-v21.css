@@ -336,93 +336,159 @@ body.sfr21-ready .sfr21-action-button {
 
 /* ===== /SOLID_FUEL_REAL_PAGE_REDESIGN_V21 ===== */
 
-/* ===== SOLID_FUEL_SILO_EQUAL_HEIGHT_V22 ===== */
+/* ===== SOLID_FUEL_SILO_COMPACT_V23_R2 ===== */
 
 /*
-  업체별 하역시간 / Silo별 평균
-  두 영역의 외곽 높이를 동일하게 유지
+  업체별 하역시간 표와 시각적 높이/밀도를 맞춘다.
+  V22처럼 오른쪽을 왼쪽 외곽 높이까지 강제로 늘리지 않는다.
 */
 
+/* 전체 좌우 비율 - 오른쪽 Silo 폭 축소 */
 body.sfr21-ready .sfr22-reference-grid {
   display: grid !important;
 
   grid-template-columns:
-    minmax(0, 2.25fr)
-    minmax(260px, .9fr) !important;
+    minmax(0, 1fr)
+    240px !important;
 
-  gap: 12px !important;
+  gap: 10px !important;
 
-  align-items: stretch !important;
+  align-items: start !important;
 }
 
 
+/* 두 패널 모두 내용 높이 기준 */
 body.sfr21-ready .sfr22-company-panel,
 body.sfr21-ready .sfr22-silo-panel {
-  height: 100% !important;
-  min-height: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
 
-  align-self: stretch !important;
+  align-self: start !important;
 
   box-sizing: border-box !important;
 }
 
 
-/*
-  오른쪽 패널:
-  제목 + 카드영역 구조로 세로 전체 높이 사용
-*/
+/* Silo 영역 */
 body.sfr21-ready .sfr22-silo-panel {
-  display: flex !important;
-  flex-direction: column !important;
+  display: block !important;
+
+  width: 240px !important;
+  max-width: 240px !important;
 }
 
 
-/*
-  #A / #B / Day 부모영역이 남은 높이를 전부 사용
-*/
+/* Silo별 평균 제목 */
+body.sfr21-ready .sfr22-silo-panel h2 {
+  margin: 0 0 5px 0 !important;
+
+  font-size: 11px !important;
+  font-weight: 850 !important;
+
+  line-height: 1.1 !important;
+}
+
+
+/* #A / #B / Day 묶음 */
 body.sfr21-ready .sfr22-silo-cards {
   display: grid !important;
 
   grid-template-rows:
-    repeat(3, minmax(0, 1fr)) !important;
+    repeat(3, 36px) !important;
 
-  gap: 7px !important;
+  gap: 5px !important;
 
-  flex: 1 1 auto !important;
-
+  height: auto !important;
   min-height: 0 !important;
+
+  flex: none !important;
 }
 
 
-/*
-  Silo 3개 카드 동일 높이
-*/
+/* 개별 Silo 카드 */
 body.sfr21-ready .sfr22-silo-card {
-  height: 100% !important;
-  min-height: 0 !important;
-
-  margin: 0 !important;
-
   display: flex !important;
 
   align-items: center !important;
   justify-content: space-between !important;
 
-  box-sizing: border-box !important;
+  width: 100% !important;
+
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+
+  flex: none !important;
+
+  margin: 0 !important;
+
+  padding:
+    3px 8px !important;
+
+  border-radius:
+    6px !important;
+
+  box-sizing:
+    border-box !important;
 }
 
 
-/*
-  왼쪽 실제 표는 패널 폭을 가득 사용
-*/
+/* #A / #B / Day */
+body.sfr21-ready
+.sfr22-silo-card
+:is(strong,b):first-child {
+  font-size: 11px !important;
+
+  font-weight: 850 !important;
+
+  line-height: 1 !important;
+}
+
+
+/* 시간 1:30 / 1:49 / 1:50 */
+body.sfr21-ready
+.sfr22-silo-card
+:is(strong,b) {
+  font-size: 12px !important;
+
+  font-weight: 900 !important;
+
+  line-height: 1 !important;
+}
+
+
+/* 일반 텍스트 */
+body.sfr21-ready
+.sfr22-silo-card
+span,
+body.sfr21-ready
+.sfr22-silo-card
+div {
+  font-size: 9px !important;
+
+  line-height: 1 !important;
+}
+
+
+/* 59건 / 34건 / 5건 */
+body.sfr21-ready
+.sfr22-silo-card
+small {
+  font-size: 8px !important;
+
+  font-weight: 700 !important;
+
+  line-height: 1 !important;
+}
+
+
+/* 왼쪽 표 크기는 V21 그대로 */
 body.sfr21-ready .sfr22-company-table {
   width: 100% !important;
 }
 
 
-/*
-  작은 화면에서는 기존 세로 구조 유지
-*/
+/* 좁은 화면 */
 @media (max-width: 760px) {
 
   body.sfr21-ready .sfr22-reference-grid {
@@ -430,13 +496,12 @@ body.sfr21-ready .sfr22-company-table {
       1fr !important;
   }
 
-  body.sfr21-ready .sfr22-company-panel,
   body.sfr21-ready .sfr22-silo-panel {
-    height: auto !important;
-    min-height: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
   }
 
 }
 
 
-/* ===== /SOLID_FUEL_SILO_EQUAL_HEIGHT_V22 ===== */
+/* ===== /SOLID_FUEL_SILO_COMPACT_V23_R2 ===== */
