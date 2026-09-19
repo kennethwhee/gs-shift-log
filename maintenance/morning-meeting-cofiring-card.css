@@ -477,38 +477,43 @@
   border-bottom-color: #dfe7ef !important;
 }
 
-/* ===== MORNING_CALORIFIC_UNIFIED_FIELDS_V5 ===== */
+/* ===== MORNING_CALORIFIC_NATIVE_4FIELD_V6_R2 ===== */
 
 /*
   Coal | Bio-SRF | 유기성 고형연료 | 축분
 */
-.mm-cal-v5-grid {
+.morning-meeting-cofiring-settings-grid-v6r2 {
   display: grid !important;
 
   grid-template-columns:
     repeat(4, minmax(0, 1fr)) !important;
 
-  gap: 12px !important;
+  column-gap: 12px !important;
+  row-gap: 0 !important;
 
   width: 100% !important;
-
-  margin: 0 !important;
-  padding: 0 !important;
-
-  box-sizing: border-box !important;
+  min-width: 0 !important;
 
   align-items: end !important;
+
+  box-sizing: border-box !important;
 }
 
 
-/* 모든 연료 field 완전 동일 */
-.mm-cal-v5-field {
+/*
+  4개 연료 field 동일 구조
+*/
+.morning-meeting-cofiring-settings-grid-v6r2
+> .morning-meeting-cofiring-fuel-v6r2 {
   display: flex !important;
 
   flex-direction: column !important;
 
-  min-width: 0 !important;
+  grid-column: auto !important;
+
   width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
 
   margin: 0 !important;
   padding: 0 !important;
@@ -518,15 +523,15 @@
 
 
 /* 연료명 */
-.mm-cal-v5-label {
+.morning-meeting-cofiring-fuel-v6r2
+> span {
   display: flex !important;
 
   align-items: flex-end !important;
 
-  min-height: 28px !important;
+  min-height: 26px !important;
 
   margin: 0 0 6px !important;
-
   padding: 0 !important;
 
   font-size: 10px !important;
@@ -540,28 +545,33 @@
 
 
 /*
-  입력칸 + 단위
+  input + kcal/kg
 */
-.mm-cal-v5-input-row {
+.morning-meeting-cofiring-fuel-v6r2
+> div {
   display: grid !important;
 
   grid-template-columns:
-    minmax(0, 1fr) auto !important;
+    minmax(0, 1fr) 36px !important;
 
   align-items: center !important;
 
-  gap: 5px !important;
+  column-gap: 5px !important;
 
   width: 100% !important;
-
   min-width: 0 !important;
+  max-width: none !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
 
   box-sizing: border-box !important;
 }
 
 
-/* 네 개 input 동일 */
-.mm-cal-v5-input {
+/* 네 입력창 완전히 동일 */
+.morning-meeting-cofiring-fuel-v6r2
+input {
   display: block !important;
 
   width: 100% !important;
@@ -584,18 +594,23 @@
 }
 
 
-/* 네 개 kcal/kg 동일 */
-.mm-cal-v5-unit {
+/* 단위도 완전히 동일 */
+.morning-meeting-cofiring-fuel-v6r2
+small {
   display: flex !important;
 
   align-items: center !important;
 
-  justify-content: flex-start !important;
+  width: 36px !important;
+  min-width: 36px !important;
+  max-width: 36px !important;
 
-  min-width: 34px !important;
+  height: 36px !important;
 
   margin: 0 !important;
   padding: 0 !important;
+
+  box-sizing: border-box !important;
 
   font-size: 8px !important;
   line-height: 1 !important;
@@ -608,38 +623,27 @@
 
 
 /*
-  4칸이 답답하지 않도록 모달 폭만 소폭 확보
+  기존 3열 CSS보다 우선 적용
 */
-.mm-cal-v5-modal {
-  width:
-    min(
-      600px,
-      calc(100vw - 28px)
-    ) !important;
-
-  max-width: 600px !important;
+#morningMeetingCofiringSettingsForm
+.morning-meeting-cofiring-settings-grid-v6r2 {
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr)) !important;
 }
 
 
 /*
-  작은 화면만 2열
+  아주 좁은 화면만 2열
 */
-@media screen and (max-width: 540px) {
-  .mm-cal-v5-grid {
+@media screen and (max-width: 520px) {
+
+  #morningMeetingCofiringSettingsForm
+  .morning-meeting-cofiring-settings-grid-v6r2 {
     grid-template-columns:
       repeat(2, minmax(0, 1fr)) !important;
+
+    row-gap: 10px !important;
   }
 }
 
-
-/*
-  아주 작은 화면
-*/
-@media screen and (max-width: 340px) {
-  .mm-cal-v5-grid {
-    grid-template-columns:
-      1fr !important;
-  }
-}
-
-/* ===== /MORNING_CALORIFIC_UNIFIED_FIELDS_V5 ===== */
+/* ===== /MORNING_CALORIFIC_NATIVE_4FIELD_V6_R2 ===== */
