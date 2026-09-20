@@ -1,0 +1,70 @@
+/* SOLID FUEL SILO CELL ALIGN V3
+   Make the Silo average row read like three table cells:
+   [Silo] [average] [count], centered horizontally and vertically. */
+
+.analytics-block--silo #siloStats,
+.analytics-block--silo .silo-summary{
+  width:100%!important;
+}
+
+.analytics-block--silo .silo-summary{
+  display:block!important;
+  gap:0!important;
+}
+
+.analytics-block--silo .silo-summary__row{
+  box-sizing:border-box!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  width:100%!important;
+  min-height:28px!important;
+  height:28px!important;
+  margin:0!important;
+  padding:0!important;
+  gap:0!important;
+  align-items:stretch!important;
+  border:1px solid #dbe4ed!important;
+  border-radius:6px!important;
+  background:#fff!important;
+  overflow:hidden!important;
+}
+
+.analytics-block--silo .silo-summary__row > span,
+.analytics-block--silo .silo-summary__row > strong,
+.analytics-block--silo .silo-summary__row > small{
+  box-sizing:border-box!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:100%!important;
+  height:100%!important;
+  min-width:0!important;
+  margin:0!important;
+  padding:0 6px!important;
+  text-align:center!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+  border-right:1px solid #dbe4ed!important;
+}
+
+.analytics-block--silo .silo-summary__row > small{
+  border-right:0!important;
+}
+
+.analytics-block--silo .silo-summary__row > span{
+  color:#294861!important;
+  font-size:11px!important;
+  font-weight:800!important;
+}
+
+.analytics-block--silo .silo-summary__row > strong{
+  color:#145a93!important;
+  font-size:12px!important;
+  font-weight:900!important;
+}
+
+.analytics-block--silo .silo-summary__row > small{
+  color:#8291a0!important;
+  font-size:11px!important;
+  font-weight:700!important;
+}
