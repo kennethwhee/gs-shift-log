@@ -49,8 +49,8 @@
 }
 
 #efficiencyCofiringDraftView .cfh-v5-strip-title{
-  flex:0 0 126px!important;
-  min-width:126px!important;
+  flex:0 0 150px!important;
+  min-width:150px!important;
   padding-right:12px!important;
   border-right:1px solid #dfe8ef!important;
 }
@@ -58,7 +58,7 @@
 #efficiencyCofiringDraftView .cfh-v5-strip-title-main{
   display:block!important;
   color:#173f63!important;
-  font-size:13px!important;
+  font-size:16px!important;
   line-height:1.2!important;
   font-weight:900!important;
   letter-spacing:-.02em!important;
@@ -69,7 +69,7 @@
   display:block!important;
   margin-top:3px!important;
   color:#81909d!important;
-  font-size:9.5px!important;
+  font-size:11px!important;
   line-height:1.2!important;
   font-weight:700!important;
   white-space:nowrap!important;
@@ -90,8 +90,8 @@
   align-items:center!important;
   gap:7px!important;
   min-width:0!important;
-  min-height:42px!important;
-  padding:6px 10px!important;
+  min-height:52px!important;
+  padding:8px 12px!important;
   border:1px solid #d8e4ee!important;
   border-radius:7px!important;
   background:#f8fbfd!important;
@@ -99,7 +99,7 @@
 
 #efficiencyCofiringDraftView .cfh-v5-fuel-name{
   color:#526c82!important;
-  font-size:10.5px!important;
+  font-size:13px!important;
   line-height:1.15!important;
   font-weight:850!important;
   white-space:nowrap!important;
@@ -108,7 +108,7 @@
 #efficiencyCofiringDraftView .cfh-v5-fuel-value{
   min-width:0!important;
   color:#173b5a!important;
-  font-size:15px!important;
+  font-size:19px!important;
   line-height:1!important;
   font-weight:900!important;
   text-align:right!important;
@@ -118,7 +118,7 @@
 #efficiencyCofiringDraftView .cfh-v5-fuel-split{
   min-width:0!important;
   color:#173b5a!important;
-  font-size:10.5px!important;
+  font-size:12px!important;
   line-height:1.2!important;
   font-weight:850!important;
   text-align:right!important;
@@ -128,7 +128,7 @@
 
 #efficiencyCofiringDraftView .cfh-v5-fuel-unit{
   color:#8091a0!important;
-  font-size:8.5px!important;
+  font-size:10px!important;
   line-height:1!important;
   font-weight:750!important;
   white-space:nowrap!important;
