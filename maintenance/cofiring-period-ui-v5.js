@@ -306,21 +306,40 @@
       const usage=raw<0?0:raw;
       const unit1Input=container.querySelector('[data-cfv5-manual="unit1:organic"]');
         const unit2Input=container.querySelector('[data-cfv5-manual="unit2:organic"]');
-        const unit1Raw=String(unit1Input?.value??'').trim();
-        const unit2Raw=String(unit2Input?.value??'').trim();
-        const unit1=unit1Raw===''?0:Number(unit1Raw);
-        const unit2=unit2Raw===''?0:Number(unit2Raw);
-        const allocated=(Number.isFinite(unit1)&&unit1>=0&&Number.isFinite(unit2)&&unit2>=0)?unit1+unit2:null;
-        const allocationDiff=allocated===null?null:usage-allocated;
-        const allocationOk=allocationDiff!==null&&Math.abs(allocationDiff)<=0.01;
+
+        // COFIRING_ORGANIC_EQUAL_SPLIT_V1
+        const half=Math.round((usage/2)*10000)/10000;
+        const halfText=half.toFixed(4);
+        let autoChanged=false;
+
+        for(const input of [unit1Input,unit2Input]){
+          if(!input)continue;
+          input.readOnly=true;
+          input.setAttribute('aria-readonly','true');
+
+          if(String(input.value??'').trim()!==halfText){
+            input.value=halfText;
+            autoChanged=true;
+          }
+        }
+
+        if(autoChanged){
+          manualDirty=true;
+          const label=container.querySelector('[data-cfv5-manual-state]');
+          if(label&&!manual?.state()?.saving){
+            label.textContent='유기성 50:50 자동배분 · 미저장';
+          }
+        }
+
+        const unit1=half;
+        const unit2=half;
+        const allocated=unit1+unit2;
+        const allocationDiff=usage-allocated;
+        const allocationOk=Math.abs(allocationDiff)<=0.01;
         const basis=anchoredStart?'9/20 00:00 기준재고 34.710t':`시작재고 ${num(startTotal,3)}t`;
-        const allocationText=allocated===null
-          ?'호기별 배분값 확인 필요'
-          :allocationOk
-            ?`호기별 배분 ${num(unit1,3)} + ${num(unit2,3)} = ${num(allocated,3)}t · 일치`
-            :`호기별 배분 ${num(allocated,3)}/${num(usage,3)}t · ${num(Math.abs(allocationDiff),3)}t ${allocationDiff>0?'미배분':'초과'}`;
+        const allocationText=`1호기 ${num(unit1,4)}t + 2호기 ${num(unit2,4)}t · 50:50 자동배분`;
         organicUsageSource(`유기성 총 사용량 ${num(usage,3)}t = ${basis} + 입고 ${num(receipt,3)} - 종료재고 ${num(endTotal,3)} · ${allocationText}`,allocationOk?'ready':'working');
-      return {ok:true,startTotal,inventoryStartTotal,anchoredStart,receipt,endTotal,usage,allocation:{unit1,unit2,total:allocated,diff:allocationDiff,ok:allocationOk}};
+      return {ok:true,startTotal,inventoryStartTotal,anchoredStart,receipt,endTotal,usage,allocation:{unit1,unit2,total:allocated,diff:allocationDiff,ok:allocationOk,mode:'equal-50-50'}};
     }
     function validateOrganicAllocationBeforeSave(values){
         const total=updateOrganicInventoryUsage();
