@@ -1168,6 +1168,559 @@
      명시적으로 표시한다.
   ========================================================= */
 
+  /* =========================================================
+     EFFICIENCY_DAILY_WORK_WORKLOG_PICKER_CONTENT_VISIBLE_V8
+
+     별도 일일업무현황 창의 기존 CSS가
+     Picker 내부의 텍스트 / 버튼 / 체크박스를 숨겨도
+     각 요소에 inline !important를 적용해 강제로 표시한다.
+  ========================================================= */
+
+  const forceWorklogPickerContentsVisibleV8 = overlay => {
+
+    if (!overlay) {
+      return false;
+    }
+
+
+    const dialog =
+      overlay.querySelector(
+        '.daily-work-worklog-dialog-v1'
+      );
+
+
+    if (!dialog) {
+      return false;
+    }
+
+
+    const important = (
+      element,
+      property,
+      value
+    ) => {
+
+      if (!element) {
+        return;
+      }
+
+
+      element.style.setProperty(
+        property,
+        value,
+        'important'
+      );
+    };
+
+
+    /*
+     * Dialog 전체 공통
+     */
+    important(
+      dialog,
+      'color',
+      '#243d55'
+    );
+
+    important(
+      dialog,
+      'font-family',
+      '"Malgun Gothic", "Noto Sans KR", Arial, sans-serif'
+    );
+
+    important(
+      dialog,
+      'font-size',
+      '12px'
+    );
+
+    important(
+      dialog,
+      '-webkit-text-fill-color',
+      'currentColor'
+    );
+
+
+    /*
+     * 혹시 상위 CSS가 모든 자식에 visibility/opacity/color 등을
+     * 강제로 주더라도 다시 복구
+     */
+    dialog
+      .querySelectorAll(
+        '*'
+      )
+      .forEach(
+        element => {
+
+          important(
+            element,
+            'visibility',
+            'visible'
+          );
+
+
+          important(
+            element,
+            'opacity',
+            '1'
+          );
+
+
+          important(
+            element,
+            'text-indent',
+            '0'
+          );
+
+
+          important(
+            element,
+            '-webkit-text-fill-color',
+            'currentColor'
+          );
+        }
+      );
+
+
+    /*
+     * 제목
+     */
+    const title =
+      dialog.querySelector(
+        '[data-daily-work-worklog-title-v1]'
+      );
+
+
+    important(
+      title,
+      'display',
+      'block'
+    );
+
+    important(
+      title,
+      'color',
+      '#173a5c'
+    );
+
+    important(
+      title,
+      'font-size',
+      '17px'
+    );
+
+    important(
+      title,
+      'font-weight',
+      '900'
+    );
+
+    important(
+      title,
+      'line-height',
+      '1.35'
+    );
+
+
+    /*
+     * 날짜 / 근무조 설명
+     */
+    const subtitle =
+      dialog.querySelector(
+        '[data-daily-work-worklog-subtitle-v1]'
+      );
+
+
+    important(
+      subtitle,
+      'display',
+      'block'
+    );
+
+    important(
+      subtitle,
+      'color',
+      '#71849a'
+    );
+
+    important(
+      subtitle,
+      'font-size',
+      '12px'
+    );
+
+    important(
+      subtitle,
+      'font-weight',
+      '600'
+    );
+
+    important(
+      subtitle,
+      'line-height',
+      '1.4'
+    );
+
+
+    /*
+     * 선택 개수
+     */
+    const count =
+      dialog.querySelector(
+        '[data-daily-work-worklog-count-v1]'
+      );
+
+
+    important(
+      count,
+      'display',
+      'inline-block'
+    );
+
+    important(
+      count,
+      'color',
+      '#5d738a'
+    );
+
+    important(
+      count,
+      'font-size',
+      '12px'
+    );
+
+    important(
+      count,
+      'font-weight',
+      '800'
+    );
+
+
+    /*
+     * 버튼
+     */
+    dialog
+      .querySelectorAll(
+        'button'
+      )
+      .forEach(
+        button => {
+
+          important(
+            button,
+            'display',
+            'inline-flex'
+          );
+
+
+          important(
+            button,
+            'align-items',
+            'center'
+          );
+
+
+          important(
+            button,
+            'justify-content',
+            'center'
+          );
+
+
+          important(
+            button,
+            'visibility',
+            'visible'
+          );
+
+
+          important(
+            button,
+            'font-size',
+            '12px'
+          );
+
+
+          important(
+            button,
+            'font-weight',
+            '800'
+          );
+
+
+          important(
+            button,
+            'line-height',
+            '1.2'
+          );
+
+
+          important(
+            button,
+            'text-indent',
+            '0'
+          );
+
+
+          important(
+            button,
+            '-webkit-text-fill-color',
+            'currentColor'
+          );
+        }
+      );
+
+
+    const closeButton =
+      dialog.querySelector(
+        '[data-daily-work-worklog-close-v1]'
+      );
+
+
+    important(
+      closeButton,
+      'color',
+      '#536b84'
+    );
+
+    important(
+      closeButton,
+      'width',
+      '31px'
+    );
+
+    important(
+      closeButton,
+      'height',
+      '31px'
+    );
+
+
+    const selectAllButton =
+      dialog.querySelector(
+        '[data-daily-work-worklog-select-all-v1]'
+      );
+
+
+    const clearButton =
+      dialog.querySelector(
+        '[data-daily-work-worklog-clear-v1]'
+      );
+
+
+    [
+      selectAllButton,
+      clearButton
+    ].forEach(
+      button => {
+
+        important(
+          button,
+          'color',
+          '#48617a'
+        );
+
+
+        important(
+          button,
+          'background',
+          '#ffffff'
+        );
+
+
+        important(
+          button,
+          'border',
+          '1px solid #cad7e4'
+        );
+      }
+    );
+
+
+    const cancelButton =
+      dialog.querySelector(
+        '[data-daily-work-worklog-cancel-v1]'
+      );
+
+
+    important(
+      cancelButton,
+      'color',
+      '#526b84'
+    );
+
+    important(
+      cancelButton,
+      'background',
+      '#ffffff'
+    );
+
+    important(
+      cancelButton,
+      'border',
+      '1px solid #cad7e4'
+    );
+
+
+    const applyButton =
+      dialog.querySelector(
+        '[data-daily-work-worklog-apply-v1]'
+      );
+
+
+    important(
+      applyButton,
+      'color',
+      '#ffffff'
+    );
+
+    important(
+      applyButton,
+      '-webkit-text-fill-color',
+      '#ffffff'
+    );
+
+    important(
+      applyButton,
+      'background',
+      '#2d74b7'
+    );
+
+    important(
+      applyButton,
+      'border',
+      '1px solid #2d74b7'
+    );
+
+
+    /*
+     * 목록 / 로딩 / 빈 상태
+     */
+    const list =
+      dialog.querySelector(
+        '[data-daily-work-worklog-list-v1]'
+      );
+
+
+    important(
+      list,
+      'display',
+      'block'
+    );
+
+    important(
+      list,
+      'color',
+      '#243d55'
+    );
+
+    important(
+      list,
+      'font-size',
+      '12px'
+    );
+
+    important(
+      list,
+      'line-height',
+      '1.5'
+    );
+
+
+    list
+      ?.querySelectorAll(
+        'div, span, p, label'
+      )
+      .forEach(
+        element => {
+
+          important(
+            element,
+            'visibility',
+            'visible'
+          );
+
+
+          important(
+            element,
+            'opacity',
+            '1'
+          );
+
+
+          important(
+            element,
+            'color',
+            '#243d55'
+          );
+
+
+          important(
+            element,
+            'font-size',
+            '12px'
+          );
+
+
+          important(
+            element,
+            '-webkit-text-fill-color',
+            '#243d55'
+          );
+        }
+      );
+
+
+    /*
+     * 체크박스
+     */
+    list
+      ?.querySelectorAll(
+        'input[type="checkbox"]'
+      )
+      .forEach(
+        checkbox => {
+
+          important(
+            checkbox,
+            'display',
+            'inline-block'
+          );
+
+
+          important(
+            checkbox,
+            'visibility',
+            'visible'
+          );
+
+
+          important(
+            checkbox,
+            'opacity',
+            '1'
+          );
+
+
+          important(
+            checkbox,
+            'width',
+            '16px'
+          );
+
+
+          important(
+            checkbox,
+            'height',
+            '16px'
+          );
+        }
+      );
+
+
+    return true;
+  };
+
   const forceWorklogPickerDialogVisibleV7 = overlay => {
 
     if (!overlay) {
@@ -1463,6 +2016,20 @@
 
         throw new Error(
           '업무내역 선택창 내부 Dialog를 찾지 못했습니다.'
+        );
+      }
+
+
+      const contentsVisible =
+        forceWorklogPickerContentsVisibleV8(
+          overlay
+        );
+
+
+      if (!contentsVisible) {
+
+        throw new Error(
+          '업무내역 선택창 내부 UI를 표시하지 못했습니다.'
         );
       }
 
@@ -1986,6 +2553,11 @@
 
 
     updatePickerSelectionState(
+      overlay
+    );
+
+
+    forceWorklogPickerContentsVisibleV8(
       overlay
     );
   };
