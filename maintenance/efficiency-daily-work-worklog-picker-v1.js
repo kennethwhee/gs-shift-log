@@ -1157,6 +1157,255 @@
   };
 
 
+  /* =========================================================
+     EFFICIENCY_DAILY_WORK_WORKLOG_PICKER_DIALOG_VISIBLE_V7
+
+     V6에서 Overlay 배경은 표시되지만
+     내부 Dialog가 일일업무현황 별도창의 기존 CSS에 의해
+     보이지 않는 현상을 방지한다.
+
+     Dialog 자체와 핵심 자식 UI를 inline !important로
+     명시적으로 표시한다.
+  ========================================================= */
+
+  const forceWorklogPickerDialogVisibleV7 = overlay => {
+
+    if (!overlay) {
+      return false;
+    }
+
+
+    const dialog =
+      overlay.querySelector(
+        '.daily-work-worklog-dialog-v1'
+      );
+
+
+    if (!dialog) {
+
+      console.error(
+        '[WORKLOG PICKER V7] dialog element not found'
+      );
+
+
+      return false;
+    }
+
+
+    const setImportant = (
+      element,
+      property,
+      value
+    ) => {
+
+      if (!element) {
+        return;
+      }
+
+
+      element.style.setProperty(
+        property,
+        value,
+        'important'
+      );
+    };
+
+
+    setImportant(
+      dialog,
+      'display',
+      'flex'
+    );
+
+
+    setImportant(
+      dialog,
+      'visibility',
+      'visible'
+    );
+
+
+    setImportant(
+      dialog,
+      'opacity',
+      '1'
+    );
+
+
+    setImportant(
+      dialog,
+      'position',
+      'relative'
+    );
+
+
+    setImportant(
+      dialog,
+      'z-index',
+      '2147483647'
+    );
+
+
+    setImportant(
+      dialog,
+      'width',
+      'min(760px, calc(100vw - 52px))'
+    );
+
+
+    setImportant(
+      dialog,
+      'max-width',
+      '760px'
+    );
+
+
+    setImportant(
+      dialog,
+      'min-width',
+      '420px'
+    );
+
+
+    setImportant(
+      dialog,
+      'max-height',
+      'min(720px, calc(100vh - 52px))'
+    );
+
+
+    setImportant(
+      dialog,
+      'overflow',
+      'hidden'
+    );
+
+
+    setImportant(
+      dialog,
+      'background',
+      '#ffffff'
+    );
+
+
+    setImportant(
+      dialog,
+      'border',
+      '1px solid #bdcede'
+    );
+
+
+    setImportant(
+      dialog,
+      'border-radius',
+      '15px'
+    );
+
+
+    setImportant(
+      dialog,
+      'box-shadow',
+      '0 20px 60px rgba(25, 46, 68, 0.32)'
+    );
+
+
+    [
+      '.daily-work-worklog-header-v1',
+      '.daily-work-worklog-toolbar-v1',
+      '.daily-work-worklog-list-v1',
+      '.daily-work-worklog-footer-v1'
+    ].forEach(
+      selector => {
+
+        const element =
+          dialog.querySelector(
+            selector
+          );
+
+
+        if (!element) {
+          return;
+        }
+
+
+        setImportant(
+          element,
+          'visibility',
+          'visible'
+        );
+
+
+        setImportant(
+          element,
+          'opacity',
+          '1'
+        );
+      }
+    );
+
+
+    const header =
+      dialog.querySelector(
+        '.daily-work-worklog-header-v1'
+      );
+
+
+    const toolbar =
+      dialog.querySelector(
+        '.daily-work-worklog-toolbar-v1'
+      );
+
+
+    const list =
+      dialog.querySelector(
+        '.daily-work-worklog-list-v1'
+      );
+
+
+    const footer =
+      dialog.querySelector(
+        '.daily-work-worklog-footer-v1'
+      );
+
+
+    setImportant(
+      header,
+      'display',
+      'flex'
+    );
+
+
+    setImportant(
+      toolbar,
+      'display',
+      'flex'
+    );
+
+
+    setImportant(
+      list,
+      'display',
+      'block'
+    );
+
+
+    setImportant(
+      list,
+      'flex',
+      '1 1 auto'
+    );
+
+
+    setImportant(
+      footer,
+      'display',
+      'flex'
+    );
+
+
+    return true;
+  };
+
   const setWorklogPickerOverlayVisibleV6 = (
     overlay,
     visible
@@ -1202,6 +1451,20 @@
         '2147483646',
         'important'
       );
+
+
+      const dialogVisible =
+        forceWorklogPickerDialogVisibleV7(
+          overlay
+        );
+
+
+      if (!dialogVisible) {
+
+        throw new Error(
+          '업무내역 선택창 내부 Dialog를 찾지 못했습니다.'
+        );
+      }
 
 
       return;
@@ -1381,6 +1644,46 @@
         'click',
         close
       );
+
+
+    overlay.addEventListener(
+      'pointerdown',
+      event => {
+
+        if (
+          event.target !==
+            overlay
+        ) {
+          return;
+        }
+
+
+        close();
+      }
+    );
+
+
+    window.addEventListener(
+      'keydown',
+      event => {
+
+        if (
+          event.key !==
+            'Escape' ||
+          overlay.hidden
+        ) {
+          return;
+        }
+
+
+        event.preventDefault();
+        event.stopPropagation();
+
+
+        close();
+      },
+      true
+    );
 
 
     overlay
