@@ -32966,6 +32966,378 @@ function getScheduledPart(
             - Loading중...
 ========================================================= */
 
+
+/* =========================================================
+  EFFICIENCY_DAILY_WORK_AUTO_SCHEDULED_PART_V1
+
+  일일업무현황 Day / Night 파트 자동 결정
+
+  기존 getScheduledPart()를 단일 기준으로 사용한다.
+
+  Day   = DS
+  Night = NS
+
+  화면에는 "3파트"처럼 표시하고
+  기존 저장 구조에는 "3"처럼 저장한다.
+
+  DB / API / schema 변경 없음.
+========================================================= */
+
+function getEfficiencyDailyWorkScheduledPartValues(
+  requestedDate = ""
+) {
+  const dateValue =
+    String(
+      requestedDate ||
+      ""
+    )
+      .trim()
+      .slice(
+        0,
+        10
+      );
+
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      dateValue
+    )
+  ) {
+    return null;
+  }
+
+
+  const targetDate =
+    new Date(
+      `${dateValue}T00:00:00`
+    );
+
+
+  if (
+    Number.isNaN(
+      targetDate.getTime()
+    )
+  ) {
+    return null;
+  }
+
+
+  const dayLabel =
+    String(
+      getScheduledPart(
+        targetDate,
+        "DS"
+      ) ||
+      ""
+    ).trim();
+
+
+  const nightLabel =
+    String(
+      getScheduledPart(
+        targetDate,
+        "NS"
+      ) ||
+      ""
+    ).trim();
+
+
+  const extractPartValue = label => {
+    const match =
+      String(
+        label ||
+        ""
+      ).match(
+        /^([1-4])파트$/
+      );
+
+
+    return (
+      match?.[1] ||
+      ""
+    );
+  };
+
+
+  return {
+    dateValue,
+
+    dayLabel,
+
+    nightLabel,
+
+    dayPart:
+      extractPartValue(
+        dayLabel
+      ),
+
+    nightPart:
+      extractPartValue(
+        nightLabel
+      )
+  };
+}
+
+
+function applyEfficiencyDailyWorkScheduledPartsToRecord(
+  record
+) {
+  if (
+    !record ||
+    typeof record !==
+      "object" ||
+    !Array.isArray(
+      record.rows
+    )
+  ) {
+    return record;
+  }
+
+
+  const scheduled =
+    getEfficiencyDailyWorkScheduledPartValues(
+      record.workDate
+    );
+
+
+  if (!scheduled) {
+    return record;
+  }
+
+
+  record.rows.forEach(
+    row => {
+
+      if (
+        row?.rowKey ===
+        "operation-day"
+      ) {
+        row.part =
+          scheduled.dayPart;
+
+      } else if (
+        row?.rowKey ===
+        "operation-night"
+      ) {
+        row.part =
+          scheduled.nightPart;
+      }
+    }
+  );
+
+
+  return record;
+}
+
+
+function syncEfficiencyDailyWorkScheduledParts(
+  requestedDate = ""
+) {
+  const dateInput =
+    document.getElementById(
+      "efficiencyDailyWorkDate"
+    );
+
+
+  const dateValue =
+    String(
+      requestedDate ||
+      dateInput?.value ||
+      ""
+    )
+      .trim()
+      .slice(
+        0,
+        10
+      );
+
+
+  const scheduled =
+    getEfficiencyDailyWorkScheduledPartValues(
+      dateValue
+    );
+
+
+  if (!scheduled) {
+    return null;
+  }
+
+
+  const definitions = [
+    {
+      rowKey:
+        "operation-day",
+
+      shift:
+        "DS",
+
+      part:
+        scheduled.dayPart,
+
+      label:
+        scheduled.dayLabel
+    },
+
+    {
+      rowKey:
+        "operation-night",
+
+      shift:
+        "NS",
+
+      part:
+        scheduled.nightPart,
+
+      label:
+        scheduled.nightLabel
+    }
+  ];
+
+
+  definitions.forEach(
+    definition => {
+
+      const row =
+        document.querySelector(
+          (
+            '[data-efficiency-daily-work-row-key="' +
+            definition.rowKey +
+            '"]'
+          )
+        );
+
+
+      if (!row) {
+        return;
+      }
+
+
+      const partControl =
+        row.querySelector(
+          '[data-efficiency-daily-work-field="part"]'
+        );
+
+
+      if (partControl) {
+        partControl.value =
+          definition.part;
+      }
+
+
+      const display =
+        row.querySelector(
+          (
+            '[data-efficiency-daily-work-auto-part-display="' +
+            definition.shift +
+            '"]'
+          )
+        );
+
+
+      if (display) {
+
+        display.textContent =
+          definition.label ||
+          "근무표 확인";
+
+
+        display.title =
+          definition.label
+            ? (
+                `${scheduled.dateValue} 자동 근무파트`
+              )
+            : (
+                `${scheduled.dateValue} 근무파트 계산 실패`
+              );
+      }
+    }
+  );
+
+
+  return scheduled;
+}
+
+
+function initializeEfficiencyDailyWorkScheduledPartAutoSync() {
+  const dateInput =
+    document.getElementById(
+      "efficiencyDailyWorkDate"
+    );
+
+
+  if (!dateInput) {
+    return false;
+  }
+
+
+  if (
+    dateInput.dataset
+      .efficiencyDailyWorkAutoPartBound ===
+    "1"
+  ) {
+
+    syncEfficiencyDailyWorkScheduledParts(
+      dateInput.value
+    );
+
+    return true;
+  }
+
+
+  dateInput.dataset
+    .efficiencyDailyWorkAutoPartBound =
+    "1";
+
+
+  const syncFromDate = () => {
+
+    syncEfficiencyDailyWorkScheduledParts(
+      dateInput.value
+    );
+  };
+
+
+  dateInput.addEventListener(
+    "input",
+    syncFromDate
+  );
+
+
+  dateInput.addEventListener(
+    "change",
+    syncFromDate
+  );
+
+
+  syncFromDate();
+
+
+  return true;
+}
+
+
+if (
+  document.readyState ===
+  "loading"
+) {
+
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeEfficiencyDailyWorkScheduledPartAutoSync,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+
+  window.setTimeout(
+    initializeEfficiencyDailyWorkScheduledPartAutoSync,
+    0
+  );
+}
+
 /* =========================================================
   LEGACY-OIS-TAG-CLASSIFICATION-V2
 
@@ -104146,6 +104518,10 @@ function populateEfficiencyDailyWorkEditorFromRecord(
       record
     );
 
+  applyEfficiencyDailyWorkScheduledPartsToRecord(
+    normalizedRecord
+  );
+
 
   if (
     !normalizedRecord?.id ||
@@ -104478,6 +104854,11 @@ function collectEfficiencyDailyWorkRows(
 function collectEfficiencyDailyWorkEditorData() {
   const elements =
     getEfficiencyDailyWorkElements();
+
+  syncEfficiencyDailyWorkScheduledParts(
+    elements.dateInput?.value ||
+    efficiencyDailyWorkState.selectedDate
+  );
 
 
   const activeRecord =

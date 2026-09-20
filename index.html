@@ -238,7 +238,7 @@
 ></script>
 
 <script
-  src="script.js?v=20260920-delete-finalize-v1-r2"
+  src="script.js?v=20260920-daily-auto-part-v1-r2"
   defer
 ></script>
   <script
@@ -5648,13 +5648,13 @@
                       <th class="efficiency-daily-work-table__role-cell" scope="row">
                         <span>Day 근무조</span>
 
-                        <select name="dayPart" data-efficiency-daily-work-field="part" aria-label="Day 실제 근무 파트">
+                        <select hidden tabindex="-1" aria-hidden="true" data-efficiency-daily-work-auto-part-input="DS" name="dayPart" data-efficiency-daily-work-field="part" aria-label="Day 실제 근무 파트">
                           <option value="">파트 선택</option>
                           <option value="1">1파트</option>
                           <option value="2">2파트</option>
                           <option value="3">3파트</option>
                           <option value="4">4파트</option>
-                        </select>
+                        </select><span data-efficiency-daily-work-auto-part-display="DS" aria-label="Day 자동 근무 파트" style="display:block;margin-top:6px;font-weight:800;color:#24496c;">자동 계산</span>
 
                         <input type="text" name="dayMembers" data-efficiency-daily-work-field="members" aria-label="Day 근무자" placeholder="[근무자]" />
                       </th>
@@ -5672,13 +5672,13 @@
                       <th class="efficiency-daily-work-table__role-cell" scope="row">
                         <span>Night 근무조</span>
 
-                        <select name="nightPart" data-efficiency-daily-work-field="part" aria-label="Night 실제 근무 파트">
+                        <select hidden tabindex="-1" aria-hidden="true" data-efficiency-daily-work-auto-part-input="NS" name="nightPart" data-efficiency-daily-work-field="part" aria-label="Night 실제 근무 파트">
                           <option value="">파트 선택</option>
                           <option value="1">1파트</option>
                           <option value="2">2파트</option>
                           <option value="3">3파트</option>
                           <option value="4">4파트</option>
-                        </select>
+                        </select><span data-efficiency-daily-work-auto-part-display="NS" aria-label="Night 자동 근무 파트" style="display:block;margin-top:6px;font-weight:800;color:#24496c;">자동 계산</span>
 
                         <input type="text" name="nightMembers" data-efficiency-daily-work-field="members" aria-label="Night 근무자" placeholder="[근무자]" />
                       </th>
