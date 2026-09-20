@@ -1964,4 +1964,109 @@
 
     initialize();
   }
+  /* =======================================================
+     EFFICIENCY_DAILY_WORK_ARCHIVE_DAY_FONT_V1
+     왼쪽 보관함의 일자 숫자(예: 20일)만 더 크게 표시
+  ======================================================= */
+
+  const applyEfficiencyDailyWorkArchiveDayFontSize = () => {
+
+    try {
+
+      const candidates =
+        document.querySelectorAll(
+          'button, span, div'
+        );
+
+
+      candidates.forEach(
+        element => {
+
+          if (!element) {
+            return;
+          }
+
+          if (element.children.length > 0) {
+            return;
+          }
+
+          const text =
+            String(
+              element.textContent ||
+              ''
+            ).trim();
+
+          if (!/^\d{1,2}일$/.test(text)) {
+            return;
+          }
+
+          if (
+            element.closest('table') ||
+            element.closest('.daily-work-sheet') ||
+            element.closest('.daily-work-page') ||
+            element.closest('.efficiency-daily-work-document')
+          ) {
+            return;
+          }
+
+          element.style.fontSize   = '16px';
+          element.style.fontWeight = '700';
+          element.style.lineHeight = '1.2';
+        }
+      );
+
+    } catch (error) {
+
+      console.error(
+        'Archive day font apply error:',
+        error
+      );
+    }
+  };
+
+
+  const queueApplyEfficiencyDailyWorkArchiveDayFontSize = () => {
+
+    window.requestAnimationFrame(
+      () => {
+        window.requestAnimationFrame(
+          applyEfficiencyDailyWorkArchiveDayFontSize
+        );
+      }
+    );
+  };
+
+
+  if (document.readyState === 'loading') {
+
+    document.addEventListener(
+      'DOMContentLoaded',
+      queueApplyEfficiencyDailyWorkArchiveDayFontSize,
+      { once: true }
+    );
+
+  } else {
+
+    queueApplyEfficiencyDailyWorkArchiveDayFontSize();
+  }
+
+
+  window.addEventListener(
+    'load',
+    queueApplyEfficiencyDailyWorkArchiveDayFontSize,
+    { once: true }
+  );
+
+  document.addEventListener(
+    'click',
+    queueApplyEfficiencyDailyWorkArchiveDayFontSize,
+    true
+  );
+
+  document.addEventListener(
+    'change',
+    queueApplyEfficiencyDailyWorkArchiveDayFontSize,
+    true
+  );
+
 })();
