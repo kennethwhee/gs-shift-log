@@ -634,43 +634,47 @@
 })();
 
 /* =========================================================
-   EFFICIENCY DAILY WORK ROW HEIGHT DRAG V2
+   EFFICIENCY DAILY WORK DIRECT RESIZE V3
 
-   Spreadsheet-like direct row resizing:
-   - no toolbar button
-   - no edit mode
-   - drag bottom border of a work row
-   - per-date local persistence
-   - PDF clone keeps inline row height
-   - no MutationObserver
+   Direct border drag:
+   1) Instruction box bottom border
+   2) Daily work table row bottom borders
+
+   No button / no edit mode / no MutationObserver
 ========================================================= */
 (() => {
   'use strict';
 
   const VERSION =
-    'EFFICIENCY_DAILY_WORK_ROW_HEIGHT_DRAG_V2';
+    'EFFICIENCY_DAILY_WORK_DIRECT_RESIZE_V3';
 
   const WINDOW_PARAM =
     'efficiencyDailyWorkWindow';
 
-  /*
-   * V1과 같은 저장 키를 사용하므로
-   * 이미 조절했던 높이도 그대로 이어받는다.
-   */
-  const STORAGE_PREFIX =
+  const ROW_STORAGE_PREFIX =
     'gs-efficiency-daily-work-row-height-v1:';
 
-  const MIN_HEIGHT = 32;
-  const MAX_HEIGHT = 360;
+  const INSTRUCTION_STORAGE_PREFIX =
+    'gs-efficiency-daily-work-instruction-height-v1:';
 
-  /*
-   * 행 아래 경계선 기준 ±6px 안쪽을
-   * 드래그 가능 영역으로 사용한다.
-   */
-  const EDGE_HOTSPOT = 6;
+  const ROW_MIN_HEIGHT = 32;
+  const ROW_MAX_HEIGHT = 360;
+
+  const INSTRUCTION_MIN_HEIGHT = 130;
+  const INSTRUCTION_MAX_HEIGHT = 560;
+
+  const EDGE_HOTSPOT = 7;
+
+  const ROW_SELECTOR =
+    '#efficiencyDailyWorkPaper ' +
+    '[data-efficiency-daily-work-row-key]';
+
+  const INSTRUCTION_SELECTOR =
+    '#efficiencyDailyWorkPaper ' +
+    '.efficiency-daily-work-instruction-box';
 
   if (
-    window.__gsEfficiencyDailyWorkRowHeightDragV2
+    window.__gsEfficiencyDailyWorkDirectResizeV3
   ) {
     return;
   }
@@ -691,10 +695,10 @@
     return;
   }
 
-  window.__gsEfficiencyDailyWorkRowHeightDragV2 =
+  window.__gsEfficiencyDailyWorkDirectResizeV3 =
     true;
 
-  let hoverRow = null;
+  let hoverTarget = null;
   let dragState = null;
   let lastDate = '';
 
@@ -705,15 +709,11 @@
       )?.value || ''
     ).trim();
 
-  const getStorageKey = dateValue =>
-    `${STORAGE_PREFIX}${dateValue || 'unknown'}`;
+  const getRowStorageKey = dateValue =>
+    `${ROW_STORAGE_PREFIX}${dateValue || 'unknown'}`;
 
-  const getRows = () => [
-    ...document.querySelectorAll(
-      '#efficiencyDailyWorkPaper ' +
-      '[data-efficiency-daily-work-row-key]'
-    )
-  ];
+  const getInstructionStorageKey = dateValue =>
+    `${INSTRUCTION_STORAGE_PREFIX}${dateValue || 'unknown'}`;
 
   const getRowKey = row =>
     String(
@@ -722,7 +722,7 @@
       ''
     ).trim();
 
-  const loadHeights = dateValue => {
+  const loadRowHeights = dateValue => {
     if (!dateValue) {
       return {};
     }
@@ -730,7 +730,7 @@
     try {
       const raw =
         localStorage.getItem(
-          getStorageKey(dateValue)
+          getRowStorageKey(dateValue)
         );
 
       if (!raw) {
@@ -761,9 +761,9 @@
           ) {
             result[rowKey] =
               Math.max(
-                MIN_HEIGHT,
+                ROW_MIN_HEIGHT,
                 Math.min(
-                  MAX_HEIGHT,
+                  ROW_MAX_HEIGHT,
                   Math.round(height)
                 )
               );
@@ -777,7 +777,7 @@
     }
   };
 
-  const saveHeights = (
+  const saveRowHeights = (
     dateValue,
     heights
   ) => {
@@ -787,11 +787,64 @@
 
     try {
       localStorage.setItem(
-        getStorageKey(dateValue),
+        getRowStorageKey(dateValue),
         JSON.stringify(heights)
       );
     } catch (_) {
-      // 로컬 저장 실패가 작업 자체를 막아서는 안 된다.
+      // Local layout backup must not break work.
+    }
+  };
+
+  const loadInstructionHeight = dateValue => {
+    if (!dateValue) {
+      return 0;
+    }
+
+    try {
+      const value =
+        Number(
+          localStorage.getItem(
+            getInstructionStorageKey(
+              dateValue
+            )
+          )
+        );
+
+      return Number.isFinite(value) &&
+        value > 0
+        ? Math.max(
+            INSTRUCTION_MIN_HEIGHT,
+            Math.min(
+              INSTRUCTION_MAX_HEIGHT,
+              Math.round(value)
+            )
+          )
+        : 0;
+
+    } catch {
+      return 0;
+    }
+  };
+
+  const saveInstructionHeight = (
+    dateValue,
+    height
+  ) => {
+    if (!dateValue) {
+      return;
+    }
+
+    try {
+      localStorage.setItem(
+        getInstructionStorageKey(
+          dateValue
+        ),
+        String(
+          Math.round(height)
+        )
+      );
+    } catch (_) {
+      // Ignore local storage failure.
     }
   };
 
@@ -800,9 +853,7 @@
       return;
     }
 
-    row.style.removeProperty(
-      'height'
-    );
+    row.style.removeProperty('height');
 
     row.querySelectorAll(
       'td, th'
@@ -839,13 +890,10 @@
 
     const normalized =
       Math.max(
-        MIN_HEIGHT,
+        ROW_MIN_HEIGHT,
         Math.min(
-          MAX_HEIGHT,
-          Math.round(
-            Number(height) ||
-            MIN_HEIGHT
-          )
+          ROW_MAX_HEIGHT,
+          Math.round(height)
         )
       );
 
@@ -894,12 +942,205 @@
     });
 
     row.setAttribute(
-      'data-row-height-v2-applied',
+      'data-direct-resize-row-v3',
       '1'
     );
   };
 
-  const applyStoredHeights = () => {
+  const clearInstructionHeight = box => {
+    if (!box) {
+      return;
+    }
+
+    [
+      'height',
+      'min-height',
+      'max-height',
+      'box-sizing',
+      'display',
+      'flex-direction',
+      'overflow'
+    ].forEach(property => {
+      box.style.removeProperty(
+        property
+      );
+    });
+
+    box.querySelectorAll(
+      '.efficiency-daily-work-instruction-field'
+    ).forEach(field => {
+      [
+        'display',
+        'flex-direction',
+        'flex',
+        'min-height'
+      ].forEach(property => {
+        field.style.removeProperty(
+          property
+        );
+      });
+    });
+
+    box.querySelectorAll(
+      'textarea'
+    ).forEach(control => {
+      [
+        'height',
+        'min-height',
+        'max-height',
+        'flex'
+      ].forEach(property => {
+        control.style.removeProperty(
+          property
+        );
+      });
+    });
+
+    box.removeAttribute(
+      'data-direct-resize-instruction-v3'
+    );
+  };
+
+  const applyInstructionHeight = (
+    box,
+    height
+  ) => {
+    if (!box) {
+      return;
+    }
+
+    const normalized =
+      Math.max(
+        INSTRUCTION_MIN_HEIGHT,
+        Math.min(
+          INSTRUCTION_MAX_HEIGHT,
+          Math.round(height)
+        )
+      );
+
+    box.style.setProperty(
+      'height',
+      `${normalized}px`,
+      'important'
+    );
+
+    box.style.setProperty(
+      'min-height',
+      `${normalized}px`,
+      'important'
+    );
+
+    box.style.setProperty(
+      'max-height',
+      `${normalized}px`,
+      'important'
+    );
+
+    box.style.setProperty(
+      'box-sizing',
+      'border-box',
+      'important'
+    );
+
+    box.style.setProperty(
+      'display',
+      'flex',
+      'important'
+    );
+
+    box.style.setProperty(
+      'flex-direction',
+      'column',
+      'important'
+    );
+
+    box.style.setProperty(
+      'overflow',
+      'hidden',
+      'important'
+    );
+
+    const fields = [
+      ...box.querySelectorAll(
+        '.efficiency-daily-work-instruction-field'
+      )
+    ];
+
+    fields.forEach(
+      (field, index) => {
+        field.style.setProperty(
+          'display',
+          'flex',
+          'important'
+        );
+
+        field.style.setProperty(
+          'flex-direction',
+          'column',
+          'important'
+        );
+
+        field.style.setProperty(
+          'min-height',
+          '0',
+          'important'
+        );
+
+        /*
+         * 공지사항은 원래 43px,
+         * TM/설비운영팀은 65px이므로
+         * 기존 비율을 대략 유지한다.
+         */
+        field.style.setProperty(
+          'flex',
+          index === 0
+            ? '0.72 1 0'
+            : '1 1 0',
+          'important'
+        );
+
+        const textarea =
+          field.querySelector(
+            'textarea'
+          );
+
+        if (!textarea) {
+          return;
+        }
+
+        textarea.style.setProperty(
+          'height',
+          'auto',
+          'important'
+        );
+
+        textarea.style.setProperty(
+          'min-height',
+          '0',
+          'important'
+        );
+
+        textarea.style.setProperty(
+          'max-height',
+          'none',
+          'important'
+        );
+
+        textarea.style.setProperty(
+          'flex',
+          '1 1 auto',
+          'important'
+        );
+      }
+    );
+
+    box.setAttribute(
+      'data-direct-resize-instruction-v3',
+      '1'
+    );
+  };
+
+  const applyStoredSizes = () => {
     if (dragState) {
       return;
     }
@@ -911,162 +1152,232 @@
       return;
     }
 
-    const heights =
-      loadHeights(
+    const rowHeights =
+      loadRowHeights(
         dateValue
       );
 
-    getRows().forEach(row => {
+    document.querySelectorAll(
+      ROW_SELECTOR
+    ).forEach(row => {
       const rowKey =
         getRowKey(row);
 
-      if (!rowKey) {
-        return;
-      }
-
-      const storedHeight =
+      const height =
         Number(
-          heights[rowKey]
+          rowHeights[rowKey]
         );
 
       if (
-        Number.isFinite(storedHeight) &&
-        storedHeight > 0
+        Number.isFinite(height) &&
+        height > 0
       ) {
-        const expected =
-          `${Math.round(storedHeight)}px`;
-
-        if (
-          row.style
-            .getPropertyValue('height') !==
-          expected
-        ) {
-          applyRowHeight(
-            row,
-            storedHeight
-          );
-        }
+        applyRowHeight(
+          row,
+          height
+        );
 
       } else if (
         row.hasAttribute(
-          'data-row-height-v2-applied'
+          'data-direct-resize-row-v3'
         )
       ) {
         clearRowHeight(row);
 
         row.removeAttribute(
-          'data-row-height-v2-applied'
+          'data-direct-resize-row-v3'
         );
       }
     });
-  };
 
-  const clearHoverRow = () => {
-    if (hoverRow) {
-      hoverRow.classList.remove(
-        'is-row-resize-hover-v2'
+    const box =
+      document.querySelector(
+        INSTRUCTION_SELECTOR
+      );
+
+    const instructionHeight =
+      loadInstructionHeight(
+        dateValue
+      );
+
+    if (
+      box &&
+      instructionHeight > 0
+    ) {
+      applyInstructionHeight(
+        box,
+        instructionHeight
+      );
+
+    } else if (
+      box?.hasAttribute(
+        'data-direct-resize-instruction-v3'
+      )
+    ) {
+      clearInstructionHeight(
+        box
       );
     }
+  };
 
-    hoverRow = null;
+  const targetEquals = (
+    left,
+    right
+  ) =>
+    Boolean(
+      left &&
+      right &&
+      left.kind === right.kind &&
+      left.element === right.element
+    );
+
+  const clearHoverTarget = () => {
+    if (hoverTarget?.element) {
+      hoverTarget.element
+        .classList.remove(
+          'is-direct-resize-hover-v3'
+        );
+    }
+
+    hoverTarget = null;
 
     if (!dragState) {
       document.documentElement
         .classList.remove(
-          'is-daily-work-row-resize-v2'
+          'is-daily-work-direct-resize-v3'
         );
     }
   };
 
-  const setHoverRow = row => {
-    if (hoverRow === row) {
+  const setHoverTarget = target => {
+    if (
+      targetEquals(
+        hoverTarget,
+        target
+      )
+    ) {
       return;
     }
 
-    clearHoverRow();
+    clearHoverTarget();
 
-    if (!row) {
+    if (!target) {
       return;
     }
 
-    hoverRow = row;
+    hoverTarget = target;
 
-    row.classList.add(
-      'is-row-resize-hover-v2'
+    target.element.classList.add(
+      'is-direct-resize-hover-v3'
     );
 
     document.documentElement
       .classList.add(
-        'is-daily-work-row-resize-v2'
+        'is-daily-work-direct-resize-v3'
       );
   };
 
-  const findResizeRow = event => {
+  const isNearBottomEdge = (
+    element,
+    event
+  ) => {
+    const rect =
+      element.getBoundingClientRect();
+
+    const horizontalMatch =
+      event.clientX >=
+        rect.left - EDGE_HOTSPOT &&
+      event.clientX <=
+        rect.right + EDGE_HOTSPOT;
+
+    const verticalMatch =
+      Math.abs(
+        event.clientY -
+        rect.bottom
+      ) <= EDGE_HOTSPOT;
+
+    return (
+      horizontalMatch &&
+      verticalMatch
+    );
+  };
+
+  const findResizeTarget = event => {
+    /*
+     * 1. 주요 전달 및 지시사항 박스
+     *
+     * border 바로 아래 요소가 event.target이 되는 경우도
+     * 있으므로 closest에 의존하지 않고 좌표로 검사한다.
+     */
+    const instructionBox =
+      document.querySelector(
+        INSTRUCTION_SELECTOR
+      );
+
+    if (
+      instructionBox &&
+      isNearBottomEdge(
+        instructionBox,
+        event
+      )
+    ) {
+      return {
+        kind: 'instruction',
+        element:
+          instructionBox,
+        key:
+          'instruction-box'
+      };
+    }
+
+    /*
+     * 2. 기존 업무표 행
+     */
     const target =
       event.target instanceof Element
         ? event.target
         : null;
 
-    if (!target) {
-      return null;
-    }
-
     const row =
-      target.closest(
-        '#efficiencyDailyWorkPaper ' +
-        '[data-efficiency-daily-work-row-key]'
+      target?.closest(
+        ROW_SELECTOR
       );
 
-    if (!row) {
-      return null;
+    if (
+      row &&
+      isNearBottomEdge(
+        row,
+        event
+      )
+    ) {
+      const rowKey =
+        getRowKey(row);
+
+      if (rowKey) {
+        return {
+          kind: 'row',
+          element: row,
+          key: rowKey
+        };
+      }
     }
 
-    const rowKey =
-      getRowKey(row);
-
-    if (!rowKey) {
-      return null;
-    }
-
-    const rect =
-      row.getBoundingClientRect();
-
-    /*
-     * 현재 행의 아래쪽 테두리만 resize edge로 사용한다.
-     */
-    const distance =
-      Math.abs(
-        event.clientY -
-        rect.bottom
-      );
-
-    return (
-      distance <= EDGE_HOTSPOT
-    )
-      ? row
-      : null;
+    return null;
   };
 
   const beginDrag = (
     event,
-    row
+    target
   ) => {
-    const rowKey =
-      getRowKey(row);
-
-    if (!rowKey) {
-      return;
-    }
-
     const startHeight =
       Math.round(
-        row.getBoundingClientRect()
+        target.element
+          .getBoundingClientRect()
           .height
       );
 
     dragState = {
-      row,
-      rowKey,
+      ...target,
       dateValue:
         getDateValue(),
       startY:
@@ -1078,21 +1389,22 @@
         event.pointerId
     };
 
-    row.classList.add(
-      'is-row-resizing-v2'
+    target.element.classList.add(
+      'is-direct-resizing-v3'
     );
 
     document.documentElement
       .classList.add(
-        'is-daily-work-row-resizing-v2'
+        'is-daily-work-direct-resizing-v3'
       );
 
     try {
-      row.setPointerCapture(
-        event.pointerId
-      );
+      target.element
+        .setPointerCapture(
+          event.pointerId
+        );
     } catch (_) {
-      // 브라우저가 capture를 제한해도 document listener로 계속 처리.
+      // document listener still handles dragging.
     }
 
     event.preventDefault();
@@ -1109,11 +1421,23 @@
       event.clientY -
       dragState.startY;
 
+    const minHeight =
+      dragState.kind ===
+      'instruction'
+        ? INSTRUCTION_MIN_HEIGHT
+        : ROW_MIN_HEIGHT;
+
+    const maxHeight =
+      dragState.kind ===
+      'instruction'
+        ? INSTRUCTION_MAX_HEIGHT
+        : ROW_MAX_HEIGHT;
+
     const next =
       Math.max(
-        MIN_HEIGHT,
+        minHeight,
         Math.min(
-          MAX_HEIGHT,
+          maxHeight,
           dragState.startHeight +
           delta
         )
@@ -1122,10 +1446,21 @@
     dragState.currentHeight =
       Math.round(next);
 
-    applyRowHeight(
-      dragState.row,
-      dragState.currentHeight
-    );
+    if (
+      dragState.kind ===
+      'instruction'
+    ) {
+      applyInstructionHeight(
+        dragState.element,
+        dragState.currentHeight
+      );
+
+    } else {
+      applyRowHeight(
+        dragState.element,
+        dragState.currentHeight
+      );
+    }
 
     event.preventDefault();
     event.stopPropagation();
@@ -1137,53 +1472,64 @@
       return;
     }
 
-    const {
-      row,
-      rowKey,
-      dateValue,
-      currentHeight,
-      pointerId
-    } = dragState;
+    const finished =
+      dragState;
 
-    const heights =
-      loadHeights(
-        dateValue
+    if (
+      finished.kind ===
+      'instruction'
+    ) {
+      saveInstructionHeight(
+        finished.dateValue,
+        finished.currentHeight
       );
 
-    heights[rowKey] =
-      currentHeight;
+    } else {
+      const heights =
+        loadRowHeights(
+          finished.dateValue
+        );
 
-    saveHeights(
-      dateValue,
-      heights
-    );
+      heights[
+        finished.key
+      ] =
+        finished.currentHeight;
 
-    row.classList.remove(
-      'is-row-resizing-v2'
-    );
+      saveRowHeights(
+        finished.dateValue,
+        heights
+      );
+    }
+
+    finished.element
+      .classList.remove(
+        'is-direct-resizing-v3'
+      );
 
     try {
       if (
-        row.hasPointerCapture?.(
-          pointerId
-        )
+        finished.element
+          .hasPointerCapture?.(
+            finished.pointerId
+          )
       ) {
-        row.releasePointerCapture(
-          pointerId
-        );
+        finished.element
+          .releasePointerCapture(
+            finished.pointerId
+          );
       }
     } catch (_) {
-      // Ignore capture release failure.
+      // Ignore release failure.
     }
 
     dragState = null;
 
     document.documentElement
       .classList.remove(
-        'is-daily-work-row-resizing-v2'
+        'is-daily-work-direct-resizing-v3'
       );
 
-    clearHoverRow();
+    clearHoverTarget();
 
     if (event) {
       event.preventDefault();
@@ -1195,7 +1541,7 @@
   const installStyle = () => {
     if (
       document.getElementById(
-        'efficiencyDailyWorkRowHeightDragStyleV2'
+        'efficiencyDailyWorkDirectResizeStyleV3'
       )
     ) {
       return;
@@ -1207,22 +1553,26 @@
       );
 
     style.id =
-      'efficiencyDailyWorkRowHeightDragStyleV2';
+      'efficiencyDailyWorkDirectResizeStyleV3';
 
     style.textContent = `
-      /*
-       * 버튼/패널 없음.
-       * 행 경계선에 올렸을 때만 resize cursor를 표시한다.
-       */
-      html.is-daily-work-row-resize-v2,
-      html.is-daily-work-row-resize-v2 * {
+      html.is-daily-work-direct-resize-v3,
+      html.is-daily-work-direct-resize-v3 * {
         cursor: ns-resize !important;
       }
 
-      html.is-daily-work-row-resizing-v2,
-      html.is-daily-work-row-resizing-v2 * {
+      html.is-daily-work-direct-resizing-v3,
+      html.is-daily-work-direct-resizing-v3 * {
         cursor: ns-resize !important;
         user-select: none !important;
+      }
+
+      #efficiencyDailyWorkPaper
+      [data-efficiency-daily-work-row-key]
+      .is-direct-resize-hover-v3 {
+        box-shadow:
+          inset 0 -2px 0
+          #2877d4 !important;
       }
 
       #efficiencyDailyWorkPaper
@@ -1236,10 +1586,30 @@
       }
 
       #efficiencyDailyWorkPaper
-      .is-row-resize-hover-v2
+      [data-efficiency-daily-work-row-key]
+      .is-direct-resizing-v3 {
+        box-shadow:
+          inset 0 -3px 0
+          #1765ba !important;
+      }
+
+      #efficiencyDailyWorkPaper
+      [data-efficiency-daily-work-row-key]
+      .is-direct-resize-hover-v3 {
+        outline: none !important;
+      }
+
+      #efficiencyDailyWorkPaper
+      [data-efficiency-daily-work-row-key]
+      .is-direct-resizing-v3 {
+        outline: none !important;
+      }
+
+      #efficiencyDailyWorkPaper
+      tr.is-direct-resize-hover-v3
       > td,
       #efficiencyDailyWorkPaper
-      .is-row-resize-hover-v2
+      tr.is-direct-resize-hover-v3
       > th {
         box-shadow:
           inset 0 -2px 0
@@ -1247,13 +1617,51 @@
       }
 
       #efficiencyDailyWorkPaper
-      .is-row-resizing-v2
+      tr.is-direct-resizing-v3
       > td,
       #efficiencyDailyWorkPaper
-      .is-row-resizing-v2
+      tr.is-direct-resizing-v3
       > th {
         box-shadow:
           inset 0 -3px 0
+          #1765ba !important;
+      }
+
+      #efficiencyDailyWorkPaper
+      .efficiency-daily-work-instruction-box
+      .efficiency-daily-work-instruction-field {
+        box-sizing: border-box;
+      }
+
+      #efficiencyDailyWorkPaper
+      .efficiency-daily-work-instruction-box
+      textarea {
+        box-sizing: border-box;
+      }
+
+      #efficiencyDailyWorkPaper
+      .efficiency-daily-work-instruction-box
+      .efficiency-daily-work-static-control {
+        min-height: 0;
+      }
+
+      #efficiencyDailyWorkPaper
+      .efficiency-daily-work-instruction-box
+      .is-direct-resize-hover-v3 {
+        outline: none !important;
+      }
+
+      #efficiencyDailyWorkPaper
+      .efficiency-daily-work-instruction-box.is-direct-resize-hover-v3 {
+        box-shadow:
+          inset 0 -3px 0
+          #2877d4 !important;
+      }
+
+      #efficiencyDailyWorkPaper
+      .efficiency-daily-work-instruction-box.is-direct-resizing-v3 {
+        box-shadow:
+          inset 0 -4px 0
           #1765ba !important;
       }
     `;
@@ -1265,9 +1673,6 @@
 
   installStyle();
 
-  /*
-   * Hover: 행 아래쪽 테두리를 찾는다.
-   */
   document.addEventListener(
     'pointermove',
     event => {
@@ -1276,10 +1681,9 @@
         return;
       }
 
-      const row =
-        findResizeRow(event);
-
-      setHoverRow(row);
+      setHoverTarget(
+        findResizeTarget(event)
+      );
     },
     {
       capture: true,
@@ -1287,28 +1691,23 @@
     }
   );
 
-  /*
-   * 행 아래 경계에서 누르면 바로 resize 시작.
-   */
   document.addEventListener(
     'pointerdown',
     event => {
-      if (
-        event.button !== 0
-      ) {
+      if (event.button !== 0) {
         return;
       }
 
-      const row =
-        findResizeRow(event);
+      const target =
+        findResizeTarget(event);
 
-      if (!row) {
+      if (!target) {
         return;
       }
 
       beginDrag(
         event,
-        row
+        target
       );
     },
     {
@@ -1335,37 +1734,6 @@
     }
   );
 
-  /*
-   * 표 밖으로 빠지면 hover만 제거한다.
-   * drag 중이면 document pointermove가 계속 resize를 담당한다.
-   */
-  document.addEventListener(
-    'pointerover',
-    event => {
-      if (dragState) {
-        return;
-      }
-
-      const target =
-        event.target instanceof Element
-          ? event.target
-          : null;
-
-      if (
-        !target?.closest(
-          '#efficiencyDailyWorkPaper'
-        )
-      ) {
-        clearHoverRow();
-      }
-    },
-    true
-  );
-
-  /*
-   * 초기 높이 및 날짜 변경 시 높이 복구.
-   * MutationObserver는 사용하지 않는다.
-   */
   let attempts = 0;
 
   const startupTimer =
@@ -1389,12 +1757,16 @@
           lastDate =
             getDateValue();
 
-          applyStoredHeights();
+          applyStoredSizes();
         }
       },
       100
     );
 
+  /*
+   * 날짜 변경만 가볍게 확인.
+   * MutationObserver는 사용하지 않는다.
+   */
   const dateTimer =
     window.setInterval(
       () => {
@@ -1405,13 +1777,13 @@
           currentDate !==
           lastDate
         ) {
-          clearHoverRow();
+          clearHoverTarget();
 
           lastDate =
             currentDate;
         }
 
-        applyStoredHeights();
+        applyStoredSizes();
       },
       1000
     );
