@@ -2335,6 +2335,280 @@
         ""
       );
   }
+  /* =========================================================
+    EFFICIENCY_DAILY_WORK_EXCEL_WORKBOOK_COMPAT_V3
+
+    Excel desktop compatibility guard:
+    - make the requested date sheet visible
+    - focus the requested date sheet when the workbook opens
+    - keep sheet tabs / scrollbars visible
+    - generate XLSX as Uint8Array, then validate the ZIP again
+      before starting the browser download
+  ========================================================= */
+
+  function prepareWorkbookCompatibilityV3(
+    zip,
+    workbookDocument,
+    workDate
+  ) {
+    const sheets =
+      getElementsByLocalName(
+        workbookDocument,
+        "sheet"
+      );
+
+    if (sheets.length === 0) {
+      throw new Error(
+        "Excel workbook에 Sheet 정보가 없습니다."
+      );
+    }
+
+    const sheetName =
+      String(
+        workDate ||
+        ""
+      ).slice(
+        8,
+        10
+      );
+
+    const activeSheetIndex =
+      sheets.findIndex(
+        sheet =>
+          sheet.getAttribute(
+            "name"
+          ) === sheetName
+      );
+
+    if (activeSheetIndex < 0) {
+      throw new Error(
+        `${workDate}에 해당하는 Excel Sheet(${sheetName})를 찾지 못했습니다.`
+      );
+    }
+
+    const activeSheet =
+      sheets[
+        activeSheetIndex
+      ];
+
+    activeSheet.removeAttribute(
+      "state"
+    );
+
+    const workbookView =
+      getElementsByLocalName(
+        workbookDocument,
+        "workbookView"
+      )[0];
+
+    if (workbookView) {
+      workbookView.removeAttribute(
+        "visibility"
+      );
+
+      workbookView.setAttribute(
+        "showSheetTabs",
+        "1"
+      );
+
+      workbookView.setAttribute(
+        "showHorizontalScroll",
+        "1"
+      );
+
+      workbookView.setAttribute(
+        "showVerticalScroll",
+        "1"
+      );
+
+      workbookView.setAttribute(
+        "activeTab",
+        String(
+          activeSheetIndex
+        )
+      );
+
+      workbookView.setAttribute(
+        "firstSheet",
+        String(
+          Math.max(
+            0,
+            activeSheetIndex - 2
+          )
+        )
+      );
+    }
+
+    zip.file(
+      "xl/workbook.xml",
+      serializeXml(
+        workbookDocument
+      )
+    );
+  }
+
+
+  async function validateGeneratedWorkbookV3(
+    generatedBytes,
+    workDate
+  ) {
+    if (
+      !(generatedBytes instanceof Uint8Array) ||
+      generatedBytes.length < 4 ||
+      generatedBytes[0] !== 0x50 ||
+      generatedBytes[1] !== 0x4b
+    ) {
+      throw new Error(
+        "생성된 Excel 파일이 정상적인 XLSX(ZIP) 형식이 아닙니다."
+      );
+    }
+
+    const verifyZip =
+      await withDailyWorkExcelTimeout(
+        globalThis.JSZip.loadAsync(
+          generatedBytes
+        ),
+        15000,
+        "생성된 Excel 파일을 재검증하는 시간이 너무 오래 걸립니다. 다시 시도해주세요."
+      );
+
+    const workbookFile =
+      verifyZip.file(
+        "xl/workbook.xml"
+      );
+
+    const workbookRelationshipsFile =
+      verifyZip.file(
+        "xl/_rels/workbook.xml.rels"
+      );
+
+    if (
+      !workbookFile ||
+      !workbookRelationshipsFile
+    ) {
+      throw new Error(
+        "생성된 Excel 파일의 workbook 연결정보가 누락되었습니다."
+      );
+    }
+
+    const workbookDocument =
+      parseXml(
+        await workbookFile.async(
+          "string"
+        )
+      );
+
+    const workbookRelationshipsDocument =
+      parseXml(
+        await workbookRelationshipsFile.async(
+          "string"
+        )
+      );
+
+    const sheets =
+      getElementsByLocalName(
+        workbookDocument,
+        "sheet"
+      );
+
+    const dailySheetNames =
+      new Set(
+        sheets
+          .map(
+            sheet =>
+              sheet.getAttribute(
+                "name"
+              ) ||
+              ""
+          )
+          .filter(
+            name =>
+              /^\d{2}$/.test(
+                name
+              )
+          )
+      );
+
+    if (dailySheetNames.size !== 31) {
+      throw new Error(
+        `생성된 Excel의 날짜 Sheet가 31개가 아닙니다. (${dailySheetNames.size}개)`
+      );
+    }
+
+    const sheetName =
+      String(
+        workDate ||
+        ""
+      ).slice(
+        8,
+        10
+      );
+
+    const targetSheet =
+      sheets.find(
+        sheet =>
+          sheet.getAttribute(
+            "name"
+          ) === sheetName
+      );
+
+    if (!targetSheet) {
+      throw new Error(
+        `생성된 Excel에서 대상 Sheet(${sheetName})를 찾지 못했습니다.`
+      );
+    }
+
+    if (
+      String(
+        targetSheet.getAttribute(
+          "state"
+        ) ||
+        ""
+      ).toLowerCase() === "hidden" ||
+      String(
+        targetSheet.getAttribute(
+          "state"
+        ) ||
+        ""
+      ).toLowerCase() === "veryhidden"
+    ) {
+      throw new Error(
+        `생성된 Excel의 대상 Sheet(${sheetName})가 숨김 상태입니다.`
+      );
+    }
+
+    const targetSheetPath =
+      findSheetZipPath(
+        workbookDocument,
+        workbookRelationshipsDocument,
+        sheetName
+      );
+
+    if (
+      !targetSheetPath ||
+      !verifyZip.file(
+        targetSheetPath
+      )
+    ) {
+      throw new Error(
+        `생성된 Excel의 대상 Sheet(${sheetName}) 연결이 손상되었습니다.`
+      );
+    }
+
+    parseXml(
+      await verifyZip
+        .file(
+          targetSheetPath
+        )
+        .async(
+          "string"
+        )
+    );
+
+    return true;
+  }
+
+
   async function downloadExcelWorkbook(
     currentRecord
   ) {
@@ -2553,14 +2827,17 @@
       );
     }
 
-    const blob =
+    prepareWorkbookCompatibilityV3(
+      zip,
+      workbookDocument,
+      workDate
+    );
+
+    const generatedBytes =
       await withDailyWorkExcelTimeout(
         zip.generateAsync({
           type:
-            "blob",
-
-          mimeType:
-            MIME_XLSX,
+            "uint8array",
 
           compression:
             "DEFLATE",
@@ -2572,6 +2849,22 @@
         }),
         30000,
         "Excel 파일 생성 시간이 너무 오래 걸립니다. 다시 시도해주세요."
+      );
+
+    await validateGeneratedWorkbookV3(
+      generatedBytes,
+      workDate
+    );
+
+    const blob =
+      new Blob(
+        [
+          generatedBytes
+        ],
+        {
+          type:
+            MIME_XLSX
+        }
       );
 
     const objectUrl =
@@ -2607,7 +2900,7 @@
         URL.revokeObjectURL(
           objectUrl
         ),
-      1500
+      60000
     );
 
     return patchedCount;
