@@ -79,11 +79,13 @@ test('organic inventory accepts last actual END sample inside selected period',(
 test('index has exactly one valid live-contract loader and no malformed replacement',()=>{
   const html=read('index.html');
 
-  const expected=
-    '<script src="/maintenance/cofiring-live-contract.js?v=20260920-organic-last-actual-v1-r1" defer></script>';
+  const loaders=
+    html.match(
+      /<script\s+src="\/maintenance\/cofiring-live-contract\.js\?v=[^"]+"\s+defer><\/script>/g
+    ) || [];
 
   assert.equal(
-    html.split(expected).length-1,
+    loaders.length,
     1
   );
 

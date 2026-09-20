@@ -160,7 +160,7 @@ function createCofiringLiveContract() {
     if(item.boundaryValid!==true||item.durationCoverageValid!==true)fail('기간 Worker 경계 검증 실패: '+def.id);
     return {...item,effectiveStartValue:effectiveStart,effectiveEndValue:effectiveEnd,startBoundaryRecovered:startFallback,endBoundaryRecovered:endFallback,dataComplete:item.durationBadSeconds<=0.001};
   }
-  function validateOrganicInventory(raw,p) {/* COFIRING_ORGANIC_LAST_ACTUAL_END_V1: allow the last actual inventory sample inside the selected period while retaining the existing legacy upper bound. */
+  function validateOrganicInventory(raw,p) {/* COFIRING_ORGANIC_START_BOUNDARY_2MIN_V1: Worker accepts the first valid inventory sample inside the first two minutes. *//* COFIRING_ORGANIC_LAST_ACTUAL_END_V1: allow the last actual inventory sample inside the selected period while retaining the existing legacy upper bound. */
     if(raw===null||raw===undefined)return null;
     if(!raw||typeof raw!=='object'||Array.isArray(raw)||raw.schemaVersion!==1||raw.basis!=='dataparc_period_boundary'||
        raw.startLocal!==p.startLocal||raw.endLocal!==p.endLocal)fail('유기성 재고 기간 계약이 다릅니다.');
@@ -175,7 +175,7 @@ function createCofiringLiveContract() {
       if(!number(sample.startValue)||sample.startValue<0||!number(sample.endValue)||sample.endValue<0)fail('유기성 재고 경계값 누락: '+def.key);
       if(!good(sample.startQuality)||!good(sample.endQuality))fail('유기성 재고 경계 품질 불량: '+def.key);
       const st=Date.parse(sample.startTime),et=Date.parse(sample.endTime);
-      if(!Number.isFinite(st)||st<p.startMs||st>=p.startMs+60000||!Number.isFinite(et)||et<p.startMs||et>=p.endMs+60000)fail('유기성 재고 반환시각 불일치: '+def.key);
+      if(!Number.isFinite(st)||st<p.startMs||st>=p.startMs+120000||!Number.isFinite(et)||et<p.startMs||et>=p.endMs+60000)fail('유기성 재고 반환시각 불일치: '+def.key);
       if(!number(sample.durationGoodSeconds)||sample.durationGoodSeconds<0||!number(sample.durationBadSeconds)||sample.durationBadSeconds<0||
          Math.abs(sample.durationGoodSeconds+sample.durationBadSeconds-expected)>2||sample.durationCoverageValid!==true)fail('유기성 재고 품질 지속시간 불일치: '+def.key);
       if(sample.boundaryValid!==true||sample.dataComplete!==true)fail('유기성 재고 경계 검증 실패: '+def.key);
