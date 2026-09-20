@@ -1139,6 +1139,212 @@ function getEfficiencyDailyWorkSourceRowMap(
   return sourceRowMap;
 }
 
+/* =========================================================
+  EFFICIENCY_DAILY_WORK_EXTRA_ROWS_API_V1
+
+  content_json 안의 extraRows만 정규화한다.
+  D1 schema 변경은 필요 없다.
+========================================================= */
+
+function normalizeEfficiencyDailyWorkExtraRows(
+  value
+) {
+  const sourceRows =
+    Array.isArray(
+      value
+    )
+      ? value
+      : [];
+
+
+  const seenKeys =
+    new Set();
+
+
+  const normalizeShort = (
+    source,
+    maxLength
+  ) => {
+    return normalizeText(
+      source
+    )
+      .trim()
+      .slice(
+        0,
+        maxLength
+      );
+  };
+
+
+  return sourceRows
+    .slice(
+      0,
+      30
+    )
+    .map(
+      (
+        sourceRow,
+        rowIndex
+      ) => {
+        if (
+          !sourceRow ||
+          typeof sourceRow !==
+            "object" ||
+          Array.isArray(
+            sourceRow
+          )
+        ) {
+          return null;
+        }
+
+
+        let extraKey =
+          normalizeShort(
+            sourceRow.extraKey ??
+            sourceRow.extra_key ??
+            sourceRow.key ??
+            "",
+            80
+          )
+            .replace(
+              /[^a-zA-Z0-9:_-]/g,
+              ""
+            );
+
+
+        if (
+          !extraKey ||
+          seenKeys.has(
+            extraKey
+          )
+        ) {
+          let suffix =
+            rowIndex +
+            1;
+
+          do {
+            extraKey =
+              `extra-${suffix}`;
+
+            suffix +=
+              1;
+          } while (
+            seenKeys.has(
+              extraKey
+            )
+          );
+        }
+
+
+        seenKeys.add(
+          extraKey
+        );
+
+
+        const group =
+          normalizeShort(
+            sourceRow.group ??
+            "",
+            20
+          )
+            .toLowerCase() ===
+            "operation"
+            ? "operation"
+            : "efficiency";
+
+
+        const allowedBeforeKeys =
+          group ===
+            "operation"
+            ? new Set([
+                "operation-day",
+                "operation-night"
+              ])
+            : new Set([
+                "efficiency-overall",
+                "efficiency-1",
+                "efficiency-2",
+                "efficiency-3",
+                "purchase-admin"
+              ]);
+
+
+        const rawBeforeKey =
+          normalizeShort(
+            sourceRow.beforeRowKey ??
+            sourceRow.before_row_key ??
+            "",
+            80
+          );
+
+
+        const beforeRowKey =
+          allowedBeforeKeys.has(
+            rawBeforeKey
+          )
+            ? rawBeforeKey
+            : "";
+
+
+        return {
+          extraKey,
+
+          group,
+
+          beforeRowKey,
+
+          title:
+            normalizeShort(
+              sourceRow.title ??
+              "",
+              120
+            ),
+
+          assignee:
+            normalizeShort(
+              sourceRow.assignee ??
+              "",
+              120
+            ),
+
+          part:
+            normalizeEfficiencyDailyWorkPartValue(
+              sourceRow.part ??
+              ""
+            ),
+
+          members:
+            normalizeShort(
+              sourceRow.members ??
+              "",
+              200
+            ),
+
+          tasks:
+            normalizeText(
+              sourceRow.tasks ??
+              ""
+            ).slice(
+              0,
+              8000
+            ),
+
+          remarks:
+            normalizeText(
+              sourceRow.remarks ??
+              ""
+            ).slice(
+              0,
+              8000
+            )
+        };
+      }
+    )
+    .filter(
+      Boolean
+    );
+}
+
 function normalizeEfficiencyDailyWorkContent(
   body
 ) {
@@ -1271,6 +1477,13 @@ function normalizeEfficiencyDailyWorkContent(
       ),
 
     rows,
+
+    extraRows:
+      normalizeEfficiencyDailyWorkExtraRows(
+        sourceContent.extraRows ??
+        sourceContent.extra_rows ??
+        []
+      ),
 
     otherNotes:
       normalizeEfficiencyDailyWorkLimitedText(

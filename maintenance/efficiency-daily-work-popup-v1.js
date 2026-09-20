@@ -6340,3 +6340,1403 @@
     `[${VERSION}] ready`
   );
 })();
+
+/* =========================================================
+   EFFICIENCY DAILY WORK EXTRA ROW UI V1
+
+   - right click any work row
+   - add above / add below
+   - persistent through script.js extraRows
+   - delete extra row
+   - height drag automatically works via row-key attribute
+   - no MutationObserver
+========================================================= */
+(() => {
+  'use strict';
+
+  const VERSION =
+    'EFFICIENCY_DAILY_WORK_EXTRA_ROW_UI_V1';
+
+  const MENU_ID =
+    'efficiencyDailyWorkRowContextMenuV1';
+
+  const PAPER_SELECTOR =
+    '#efficiencyDailyWorkPaper';
+
+  const ROW_SELECTOR =
+    `${PAPER_SELECTOR} [data-efficiency-daily-work-row-key]`;
+
+  const EXTRA_SELECTOR =
+    `${PAPER_SELECTOR} [data-efficiency-daily-work-extra-row="1"]`;
+
+  const MAX_EXTRA_ROWS =
+    30;
+
+
+  if (
+    window.__gsEfficiencyDailyWorkExtraRowUiV1
+  ) {
+    return;
+  }
+
+
+  window.__gsEfficiencyDailyWorkExtraRowUiV1 =
+    true;
+
+
+  const isStandaloneWindow = () => {
+    try {
+      return (
+        new URL(
+          window.location.href
+        )
+          .searchParams
+          .get(
+            'efficiencyDailyWorkWindow'
+          ) ===
+        '1'
+      );
+    } catch {
+      return false;
+    }
+  };
+
+
+  const getPaper = () =>
+    document.querySelector(
+      PAPER_SELECTOR
+    );
+
+
+  const getBody = group =>
+    document.querySelector(
+      group ===
+        'operation'
+        ? (
+          `${PAPER_SELECTOR} ` +
+          '.efficiency-daily-work-table__operation-body'
+        )
+        : (
+          `${PAPER_SELECTOR} ` +
+          '.efficiency-daily-work-table__efficiency-body'
+        )
+    );
+
+
+  const getGroupFromRow = row =>
+    row
+      ?.closest(
+        '.efficiency-daily-work-table__operation-body'
+      )
+      ? 'operation'
+      : 'efficiency';
+
+
+  const getExtraKey = row =>
+    String(
+      row?.dataset
+        ?.efficiencyDailyWorkExtraRowKey ||
+      ''
+    ).trim();
+
+
+  const generateExtraKey = () => {
+
+    if (
+      window.crypto
+        ?.randomUUID
+    ) {
+      return (
+        `extra-${window.crypto.randomUUID()}`
+      );
+    }
+
+    return (
+      `extra-${Date.now()}-` +
+      Math.random()
+        .toString(36)
+        .slice(2, 10)
+    );
+  };
+
+
+  const normalizeLocalRows = rows => {
+
+    if (
+      !Array.isArray(
+        rows
+      )
+    ) {
+      return [];
+    }
+
+
+    const seen =
+      new Set();
+
+
+    return rows
+      .slice(
+        0,
+        MAX_EXTRA_ROWS
+      )
+      .map(
+        (
+          source,
+          index
+        ) => {
+
+          if (
+            !source ||
+            typeof source !==
+              'object'
+          ) {
+            return null;
+          }
+
+
+          let extraKey =
+            String(
+              source.extraKey ||
+              ''
+            )
+              .replace(
+                /[^a-zA-Z0-9:_-]/g,
+                ''
+              )
+              .slice(
+                0,
+                80
+              );
+
+
+          if (
+            !extraKey ||
+            seen.has(
+              extraKey
+            )
+          ) {
+            extraKey =
+              `extra-${index + 1}`;
+
+            while (
+              seen.has(
+                extraKey
+              )
+            ) {
+              extraKey +=
+                '-x';
+            }
+          }
+
+
+          seen.add(
+            extraKey
+          );
+
+
+          return {
+            extraKey,
+
+            group:
+              source.group ===
+                'operation'
+                ? 'operation'
+                : 'efficiency',
+
+            beforeRowKey:
+              String(
+                source.beforeRowKey ||
+                ''
+              ).trim(),
+
+            title:
+              String(
+                source.title ||
+                ''
+              ),
+
+            assignee:
+              String(
+                source.assignee ||
+                ''
+              ),
+
+            part:
+              String(
+                source.part ||
+                ''
+              ),
+
+            members:
+              String(
+                source.members ||
+                ''
+              ),
+
+            tasks:
+              String(
+                source.tasks ||
+                ''
+              ),
+
+            remarks:
+              String(
+                source.remarks ||
+                ''
+              )
+          };
+        }
+      )
+      .filter(
+        Boolean
+      );
+  };
+
+
+  const createInput = (
+    field,
+    placeholder,
+    value = ''
+  ) => {
+
+    const input =
+      document.createElement(
+        'input'
+      );
+
+    input.type =
+      'text';
+
+    input.dataset
+      .efficiencyDailyWorkExtraField =
+      field;
+
+    input.placeholder =
+      placeholder;
+
+    input.value =
+      String(
+        value || ''
+      );
+
+    return input;
+  };
+
+
+  const createTextarea = (
+    field,
+    value = ''
+  ) => {
+
+    const textarea =
+      document.createElement(
+        'textarea'
+      );
+
+    textarea.rows =
+      4;
+
+    textarea.dataset
+      .efficiencyDailyWorkExtraField =
+      field;
+
+    textarea.value =
+      String(
+        value || ''
+      );
+
+    return textarea;
+  };
+
+
+  const createPartSelect = value => {
+
+    const select =
+      document.createElement(
+        'select'
+      );
+
+    select.dataset
+      .efficiencyDailyWorkExtraField =
+      'part';
+
+
+    [
+      ['', '파트 선택'],
+      ['1', '1파트'],
+      ['2', '2파트'],
+      ['3', '3파트'],
+      ['4', '4파트']
+    ].forEach(
+      (
+        [
+          optionValue,
+          label
+        ]
+      ) => {
+
+        const option =
+          document.createElement(
+            'option'
+          );
+
+        option.value =
+          optionValue;
+
+        option.textContent =
+          label;
+
+        select.append(
+          option
+        );
+      }
+    );
+
+
+    select.value =
+      String(
+        value || ''
+      );
+
+
+    return select;
+  };
+
+
+  const createExtraRow = data => {
+
+    const row =
+      document.createElement(
+        'tr'
+      );
+
+    row.dataset
+      .efficiencyDailyWorkExtraRow =
+      '1';
+
+    row.dataset
+      .efficiencyDailyWorkExtraRowKey =
+      data.extraKey;
+
+    /*
+     * 기존 행 높이 Drag 기능이
+     * 그대로 이 행도 인식하도록 한다.
+     */
+    row.dataset
+      .efficiencyDailyWorkRowKey =
+      `extra:${data.extraKey}`;
+
+
+    const roleCell =
+      document.createElement(
+        'th'
+      );
+
+    roleCell.scope =
+      'row';
+
+    roleCell.className =
+      'efficiency-daily-work-table__role-cell ' +
+      'efficiency-daily-work-extra-role-cell-v1';
+
+
+    roleCell.append(
+      createInput(
+        'title',
+        data.group ===
+          'operation'
+          ? '[근무조/업무명]'
+          : '[업무명]',
+        data.title
+      )
+    );
+
+
+    if (
+      data.group ===
+      'operation'
+    ) {
+
+      roleCell.append(
+        createPartSelect(
+          data.part
+        )
+      );
+
+      roleCell.append(
+        createInput(
+          'members',
+          '[근무자]',
+          data.members
+        )
+      );
+
+    } else {
+
+      roleCell.append(
+        createInput(
+          'assignee',
+          '[담당자]',
+          data.assignee
+        )
+      );
+    }
+
+
+    const taskCell =
+      document.createElement(
+        'td'
+      );
+
+    taskCell.append(
+      createTextarea(
+        'tasks',
+        data.tasks
+      )
+    );
+
+
+    const remarkCell =
+      document.createElement(
+        'td'
+      );
+
+    remarkCell.append(
+      createTextarea(
+        'remarks',
+        data.remarks
+      )
+    );
+
+
+    row.append(
+      roleCell,
+      taskCell,
+      remarkCell
+    );
+
+
+    return row;
+  };
+
+
+  const moveGroupCellToFixedRow = body => {
+
+    if (!body) {
+      return;
+    }
+
+    const groupCell =
+      body.querySelector(
+        '.efficiency-daily-work-table__group-cell'
+      );
+
+    if (!groupCell) {
+      return;
+    }
+
+
+    const fixedRow = [
+      ...body.querySelectorAll(
+        ':scope > tr'
+      )
+    ].find(
+      row =>
+        row.dataset
+          .efficiencyDailyWorkExtraRow !==
+        '1'
+    );
+
+
+    if (
+      fixedRow &&
+      groupCell.parentElement !==
+        fixedRow
+    ) {
+      fixedRow.insertBefore(
+        groupCell,
+        fixedRow.firstElementChild
+      );
+    }
+  };
+
+
+  const syncGroupCells = () => {
+
+    [
+      getBody(
+        'efficiency'
+      ),
+      getBody(
+        'operation'
+      )
+    ]
+      .filter(Boolean)
+      .forEach(
+        body => {
+
+          const rows = [
+            ...body.querySelectorAll(
+              ':scope > tr'
+            )
+          ];
+
+
+          const visibleRows =
+            rows.filter(
+              row =>
+                !row.hidden
+            );
+
+
+          if (
+            !visibleRows.length
+          ) {
+            return;
+          }
+
+
+          const groupCell =
+            body.querySelector(
+              '.efficiency-daily-work-table__group-cell'
+            );
+
+
+          if (!groupCell) {
+            return;
+          }
+
+
+          const firstRow =
+            visibleRows[0];
+
+
+          if (
+            groupCell.parentElement !==
+              firstRow
+          ) {
+            firstRow.insertBefore(
+              groupCell,
+              firstRow.firstElementChild
+            );
+          }
+
+
+          groupCell.rowSpan =
+            visibleRows.length;
+
+          groupCell.hidden =
+            false;
+        }
+      );
+  };
+
+
+  const findFixedAnchor = (
+    body,
+    rowKey
+  ) => {
+
+    if (
+      !body ||
+      !rowKey
+    ) {
+      return null;
+    }
+
+
+    return [
+      ...body.querySelectorAll(
+        ':scope > tr'
+      )
+    ].find(
+      row =>
+        row.dataset
+          .efficiencyDailyWorkExtraRow !==
+          '1' &&
+        String(
+          row.dataset
+            .efficiencyDailyWorkRowKey ||
+          ''
+        ) ===
+          rowKey
+    ) ||
+      null;
+  };
+
+
+  const renderExtraRows = rows => {
+
+    const normalized =
+      normalizeLocalRows(
+        rows
+      );
+
+
+    [
+      getBody(
+        'efficiency'
+      ),
+      getBody(
+        'operation'
+      )
+    ]
+      .filter(Boolean)
+      .forEach(
+        moveGroupCellToFixedRow
+      );
+
+
+    document
+      .querySelectorAll(
+        EXTRA_SELECTOR
+      )
+      .forEach(
+        row =>
+          row.remove()
+      );
+
+
+    normalized.forEach(
+      data => {
+
+        const body =
+          getBody(
+            data.group
+          );
+
+        if (!body) {
+          return;
+        }
+
+
+        const row =
+          createExtraRow(
+            data
+          );
+
+
+        const anchor =
+          findFixedAnchor(
+            body,
+            data.beforeRowKey
+          );
+
+
+        if (anchor) {
+          body.insertBefore(
+            row,
+            anchor
+          );
+        } else {
+          body.append(
+            row
+          );
+        }
+      }
+    );
+
+
+    syncGroupCells();
+  };
+
+
+  const getFieldValue = (
+    row,
+    field
+  ) => {
+
+    const control =
+      row.querySelector(
+        `[data-efficiency-daily-work-extra-field="${field}"]`
+      );
+
+    if (!control) {
+      return '';
+    }
+
+    return String(
+      control.value ||
+      ''
+    );
+  };
+
+
+  const getNextFixedRowKey = row => {
+
+    let next =
+      row.nextElementSibling;
+
+
+    while (next) {
+
+      if (
+        next.dataset
+          .efficiencyDailyWorkExtraRow !==
+          '1'
+      ) {
+        return String(
+          next.dataset
+            .efficiencyDailyWorkRowKey ||
+          ''
+        );
+      }
+
+
+      next =
+        next.nextElementSibling;
+    }
+
+
+    return '';
+  };
+
+
+  const collectExtraRows = () => {
+
+    return [
+      ...document.querySelectorAll(
+        EXTRA_SELECTOR
+      )
+    ].map(
+      row => {
+
+        return {
+          extraKey:
+            getExtraKey(
+              row
+            ),
+
+          group:
+            getGroupFromRow(
+              row
+            ),
+
+          beforeRowKey:
+            getNextFixedRowKey(
+              row
+            ),
+
+          title:
+            getFieldValue(
+              row,
+              'title'
+            ),
+
+          assignee:
+            getFieldValue(
+              row,
+              'assignee'
+            ),
+
+          part:
+            getFieldValue(
+              row,
+              'part'
+            ),
+
+          members:
+            getFieldValue(
+              row,
+              'members'
+            ),
+
+          tasks:
+            getFieldValue(
+              row,
+              'tasks'
+            ),
+
+          remarks:
+            getFieldValue(
+              row,
+              'remarks'
+            )
+        };
+      }
+    );
+  };
+
+
+  /*
+   * script.js와 연결되는 공식 hook.
+   * Standalone 여부와 관계없이 설치하여
+   * 메인 모달에서 다시 저장해도 extraRows를 잃지 않는다.
+   */
+  window.collectEfficiencyDailyWorkExtraRows =
+    collectExtraRows;
+
+  window.renderEfficiencyDailyWorkExtraRows =
+    renderExtraRows;
+
+
+  const signalDocumentChanged = preferredControl => {
+
+    const control =
+      preferredControl ||
+      getPaper()
+        ?.querySelector(
+          'textarea, input, select'
+        );
+
+
+    if (!control) {
+      return;
+    }
+
+
+    control.dispatchEvent(
+      new Event(
+        'input',
+        {
+          bubbles: true
+        }
+      )
+    );
+  };
+
+
+  const countExtraRows = () =>
+    document.querySelectorAll(
+      EXTRA_SELECTOR
+    ).length;
+
+
+  const insertExtraRow = (
+    targetRow,
+    placement
+  ) => {
+
+    if (!targetRow) {
+      return;
+    }
+
+
+    if (
+      countExtraRows() >=
+      MAX_EXTRA_ROWS
+    ) {
+      window.alert(
+        '추가 행은 최대 30개까지 만들 수 있습니다.'
+      );
+
+      return;
+    }
+
+
+    const group =
+      getGroupFromRow(
+        targetRow
+      );
+
+
+    const data = {
+      extraKey:
+        generateExtraKey(),
+
+      group,
+
+      beforeRowKey:
+        '',
+
+      title:
+        '',
+
+      assignee:
+        '',
+
+      part:
+        '',
+
+      members:
+        '',
+
+      tasks:
+        '',
+
+      remarks:
+        ''
+    };
+
+
+    const row =
+      createExtraRow(
+        data
+      );
+
+
+    if (
+      placement ===
+      'above'
+    ) {
+      targetRow.parentElement
+        ?.insertBefore(
+          row,
+          targetRow
+        );
+
+    } else {
+
+      targetRow.parentElement
+        ?.insertBefore(
+          row,
+          targetRow.nextElementSibling
+        );
+    }
+
+
+    syncGroupCells();
+
+
+    const titleInput =
+      row.querySelector(
+        '[data-efficiency-daily-work-extra-field="title"]'
+      );
+
+
+    signalDocumentChanged(
+      titleInput
+    );
+
+
+    titleInput?.focus({
+      preventScroll: true
+    });
+
+
+    titleInput?.scrollIntoView({
+      block: 'nearest'
+    });
+  };
+
+
+  const deleteExtraRow = row => {
+
+    if (
+      !row ||
+      row.dataset
+        .efficiencyDailyWorkExtraRow !==
+        '1'
+    ) {
+      return;
+    }
+
+
+    if (
+      !window.confirm(
+        '이 추가 행을 삭제하시겠습니까?\n입력한 내용도 함께 삭제됩니다.'
+      )
+    ) {
+      return;
+    }
+
+
+    const body =
+      row.parentElement;
+
+
+    const groupCell =
+      row.querySelector(
+        ':scope > .efficiency-daily-work-table__group-cell'
+      );
+
+
+    if (groupCell) {
+
+      const nextVisible =
+        [
+          ...body.querySelectorAll(
+            ':scope > tr'
+          )
+        ].find(
+          candidate =>
+            candidate !== row &&
+            !candidate.hidden
+        );
+
+
+      if (nextVisible) {
+        nextVisible.insertBefore(
+          groupCell,
+          nextVisible.firstElementChild
+        );
+      }
+    }
+
+
+    row.remove();
+
+    syncGroupCells();
+
+    signalDocumentChanged();
+  };
+
+
+  const createMenuButton = (
+    text,
+    handler,
+    danger = false
+  ) => {
+
+    const button =
+      document.createElement(
+        'button'
+      );
+
+    button.type =
+      'button';
+
+    button.className =
+      'daily-work-row-context-button-v1';
+
+    if (danger) {
+      button.classList.add(
+        'is-delete-v1'
+      );
+    }
+
+    button.textContent =
+      text;
+
+
+    button.addEventListener(
+      'click',
+      event => {
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+
+        handler();
+
+
+        const menu =
+          document.getElementById(
+            MENU_ID
+          );
+
+        if (menu) {
+          menu.hidden =
+            true;
+        }
+      }
+    );
+
+
+    return button;
+  };
+
+
+  const augmentFixedRowMenu = (
+    menu,
+    row
+  ) => {
+
+    if (
+      !menu ||
+      !row ||
+      menu.querySelector(
+        '[data-extra-row-add-actions-v1]'
+      )
+    ) {
+      return;
+    }
+
+
+    const title =
+      menu.querySelector(
+        '.daily-work-row-context-title-v1'
+      );
+
+
+    if (!title) {
+      return;
+    }
+
+
+    const wrapper =
+      document.createElement(
+        'div'
+      );
+
+    wrapper.dataset
+      .extraRowAddActionsV1 =
+      '1';
+
+
+    wrapper.append(
+      createMenuButton(
+        '위에 행 추가',
+        () =>
+          insertExtraRow(
+            row,
+            'above'
+          )
+      ),
+
+      createMenuButton(
+        '아래에 행 추가',
+        () =>
+          insertExtraRow(
+            row,
+            'below'
+          )
+      )
+    );
+
+
+    const divider =
+      document.createElement(
+        'div'
+      );
+
+    divider.className =
+      'daily-work-row-context-divider-v1';
+
+
+    wrapper.append(
+      divider
+    );
+
+
+    title.insertAdjacentElement(
+      'afterend',
+      wrapper
+    );
+  };
+
+
+  const replaceExtraRowMenu = (
+    menu,
+    row
+  ) => {
+
+    if (
+      !menu ||
+      !row
+    ) {
+      return;
+    }
+
+
+    menu.replaceChildren();
+
+
+    const title =
+      document.createElement(
+        'div'
+      );
+
+    title.className =
+      'daily-work-row-context-title-v1';
+
+    title.textContent =
+      '추가 행';
+
+
+    const divider =
+      document.createElement(
+        'div'
+      );
+
+    divider.className =
+      'daily-work-row-context-divider-v1';
+
+
+    menu.append(
+      title,
+
+      createMenuButton(
+        '위에 행 추가',
+        () =>
+          insertExtraRow(
+            row,
+            'above'
+          )
+      ),
+
+      createMenuButton(
+        '아래에 행 추가',
+        () =>
+          insertExtraRow(
+            row,
+            'below'
+          )
+      ),
+
+      divider,
+
+      createMenuButton(
+        '이 추가 행 삭제',
+        () =>
+          deleteExtraRow(
+            row
+          ),
+        true
+      )
+    );
+  };
+
+
+  const installStyle = () => {
+
+    if (
+      document.getElementById(
+        'efficiencyDailyWorkExtraRowStyleV1'
+      )
+    ) {
+      return;
+    }
+
+
+    const style =
+      document.createElement(
+        'style'
+      );
+
+    style.id =
+      'efficiencyDailyWorkExtraRowStyleV1';
+
+
+    style.textContent = `
+      #efficiencyDailyWorkPaper
+      tr[data-efficiency-daily-work-extra-row="1"]
+      .efficiency-daily-work-extra-role-cell-v1
+      > input:first-child {
+        font-weight: 900 !important;
+        color: #24384c !important;
+      }
+
+      #efficiencyDailyWorkPaper
+      tr[data-efficiency-daily-work-extra-row="1"]
+      .efficiency-daily-work-extra-role-cell-v1
+      > input:first-child::placeholder {
+        color: #64788c !important;
+        font-weight: 800 !important;
+      }
+    `;
+
+
+    document.head.append(
+      style
+    );
+  };
+
+
+  installStyle();
+
+
+  /*
+   * 행 추가 메뉴는 standalone 새 창에서만 표시.
+   * 데이터 collect/render hook은 위에서 이미
+   * 모든 화면에 설치했다.
+   */
+  if (
+    isStandaloneWindow()
+  ) {
+
+    document.addEventListener(
+      'contextmenu',
+      event => {
+
+        const target =
+          event.target instanceof Element
+            ? event.target
+            : null;
+
+
+        if (!target) {
+          return;
+        }
+
+
+        const row =
+          target.closest(
+            ROW_SELECTOR
+          );
+
+
+        if (!row) {
+          return;
+        }
+
+
+        /*
+         * 기존 Row Hide/Delete/Selected Delete가
+         * 메뉴 구성을 마친 다음 마지막에 보강한다.
+         */
+        queueMicrotask(
+          () => {
+
+            const menu =
+              document.getElementById(
+                MENU_ID
+              );
+
+
+            if (
+              !menu ||
+              menu.hidden
+            ) {
+              return;
+            }
+
+
+            if (
+              row.dataset
+                .efficiencyDailyWorkExtraRow ===
+              '1'
+            ) {
+
+              replaceExtraRowMenu(
+                menu,
+                row
+              );
+
+            } else {
+
+              augmentFixedRowMenu(
+                menu,
+                row
+              );
+            }
+          }
+        );
+      },
+      true
+    );
+  }
+
+
+  /*
+   * 기존 hide/delete 기능이 rowspan을
+   * 고정행 개수로 다시 계산하더라도
+   * 추가행까지 포함해 바로 보정한다.
+   *
+   * MutationObserver는 사용하지 않는다.
+   */
+  const groupSyncTimer =
+    window.setInterval(
+      syncGroupCells,
+      700
+    );
+
+
+  window.addEventListener(
+    'beforeunload',
+    () => {
+      window.clearInterval(
+        groupSyncTimer
+      );
+    },
+    {
+      once: true
+    }
+  );
+
+
+  console.info(
+    `[${VERSION}] ready`
+  );
+})();

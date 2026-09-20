@@ -102380,6 +102380,180 @@ function normalizeEfficiencyDailyWorkRows(
   저장 기록 1건 정리
 ========================================================= */
 
+/* =========================================================
+  EFFICIENCY_DAILY_WORK_EXTRA_ROWS_V1
+
+  기존 고정 7개 행은 그대로 유지하고
+  사용자가 추가한 행만 extraRows 배열로 별도 관리한다.
+========================================================= */
+
+function normalizeEfficiencyDailyWorkExtraRows(
+  sourceValue
+) {
+  const parsedRows =
+    parseEfficiencyDailyWorkStructuredValue(
+      sourceValue,
+      []
+    );
+
+
+  if (
+    !Array.isArray(
+      parsedRows
+    )
+  ) {
+    return [];
+  }
+
+
+  const seenKeys =
+    new Set();
+
+
+  return parsedRows
+    .slice(
+      0,
+      30
+    )
+    .map(
+      (
+        sourceRow,
+        rowIndex
+      ) => {
+        if (
+          !sourceRow ||
+          typeof sourceRow !==
+            "object" ||
+          Array.isArray(
+            sourceRow
+          )
+        ) {
+          return null;
+        }
+
+
+        let extraKey =
+          normalizeEfficiencyDailyWorkShortText(
+            sourceRow.extraKey ??
+            sourceRow.extra_key ??
+            sourceRow.key ??
+            ""
+          )
+            .replace(
+              /[^a-zA-Z0-9:_-]/g,
+              ""
+            )
+            .slice(
+              0,
+              80
+            );
+
+
+        if (
+          !extraKey ||
+          seenKeys.has(
+            extraKey
+          )
+        ) {
+          let suffix =
+            rowIndex +
+            1;
+
+          do {
+            extraKey =
+              `extra-${suffix}`;
+
+            suffix +=
+              1;
+          } while (
+            seenKeys.has(
+              extraKey
+            )
+          );
+        }
+
+
+        seenKeys.add(
+          extraKey
+        );
+
+
+        const rawGroup =
+          normalizeEfficiencyDailyWorkShortText(
+            sourceRow.group ??
+            sourceRow.section ??
+            ""
+          )
+            .toLowerCase();
+
+
+        const group =
+          rawGroup ===
+            "operation"
+            ? "operation"
+            : "efficiency";
+
+
+        const beforeRowKey =
+          normalizeEfficiencyDailyWorkRowKey(
+            sourceRow.beforeRowKey ??
+            sourceRow.before_row_key ??
+            ""
+          );
+
+
+        return {
+          extraKey,
+
+          group,
+
+          beforeRowKey,
+
+          title:
+            normalizeEfficiencyDailyWorkShortText(
+              sourceRow.title ??
+              sourceRow.role ??
+              sourceRow.name ??
+              ""
+            ),
+
+          assignee:
+            normalizeEfficiencyDailyWorkShortText(
+              sourceRow.assignee ??
+              ""
+            ),
+
+          part:
+            normalizeEfficiencyDailyWorkPart(
+              sourceRow.part ??
+              ""
+            ),
+
+          members:
+            normalizeEfficiencyDailyWorkShortText(
+              sourceRow.members ??
+              ""
+            ),
+
+          tasks:
+            normalizeEfficiencyDailyWorkText(
+              sourceRow.tasks ??
+              ""
+            ),
+
+          remarks:
+            normalizeEfficiencyDailyWorkText(
+              sourceRow.remarks ??
+              ""
+            )
+        };
+      }
+    )
+    .filter(
+      Boolean
+    );
+}
+
 function normalizeEfficiencyDailyWorkRecord(
   record
 ) {
@@ -102544,6 +102718,17 @@ function normalizeEfficiencyDailyWorkRecord(
       normalizeEfficiencyDailyWorkRows(
         sourceRecord,
         contentSource
+      ),
+
+    extraRows:
+      normalizeEfficiencyDailyWorkExtraRows(
+        getValue(
+          [
+            "extraRows",
+            "extra_rows"
+          ],
+          []
+        )
       ),
 
     otherNotes:
@@ -103820,6 +104005,16 @@ function clearEfficiencyDailyWorkEditorFieldValues(
     getEfficiencyDailyWorkElements()
 ) {
   if (
+    typeof window.renderEfficiencyDailyWorkExtraRows ===
+      "function"
+  ) {
+    window.renderEfficiencyDailyWorkExtraRows(
+      []
+    );
+  }
+
+
+  if (
     elements.form
   ) {
     elements.form.reset();
@@ -104032,6 +104227,17 @@ function populateEfficiencyDailyWorkEditorFromRecord(
         );
       }
     );
+
+
+  if (
+    typeof window.renderEfficiencyDailyWorkExtraRows ===
+      "function"
+  ) {
+    window.renderEfficiencyDailyWorkExtraRows(
+      normalizedRecord.extraRows ||
+      []
+    );
+  }
 
 
   setEfficiencyDailyWorkActiveRecord(
@@ -104358,6 +104564,14 @@ function collectEfficiencyDailyWorkEditorData() {
         elements
       ),
 
+    extraRows:
+      normalizeEfficiencyDailyWorkExtraRows(
+        typeof window.collectEfficiencyDailyWorkExtraRows ===
+          "function"
+          ? window.collectEfficiencyDailyWorkExtraRows()
+          : []
+      ),
+
     otherNotes:
       normalizeEfficiencyDailyWorkText(
         readEfficiencyDailyWorkControlValue(
@@ -104421,6 +104635,40 @@ function buildEfficiencyDailyWorkSavePayload(
             return {
               rowKey:
                 row.rowKey,
+
+              assignee:
+                row.assignee,
+
+              part:
+                row.part,
+
+              members:
+                row.members,
+
+              tasks:
+                row.tasks,
+
+              remarks:
+                row.remarks
+            };
+          }
+        ),
+
+      extraRows:
+        normalizedRecord.extraRows.map(
+          row => {
+            return {
+              extraKey:
+                row.extraKey,
+
+              group:
+                row.group,
+
+              beforeRowKey:
+                row.beforeRowKey,
+
+              title:
+                row.title,
 
               assignee:
                 row.assignee,
@@ -104516,6 +104764,43 @@ function getEfficiencyDailyWorkComparableContent(
           return {
             rowKey:
               row.rowKey,
+
+            assignee:
+              row.assignee,
+
+            part:
+              row.part,
+
+            members:
+              row.members,
+
+            tasks:
+              row.tasks,
+
+            remarks:
+              row.remarks
+          };
+        }
+      ),
+
+    extraRows:
+      (
+        record?.extraRows ||
+        []
+      ).map(
+        row => {
+          return {
+            extraKey:
+              row.extraKey,
+
+            group:
+              row.group,
+
+            beforeRowKey:
+              row.beforeRowKey,
+
+            title:
+              row.title,
 
             assignee:
               row.assignee,
