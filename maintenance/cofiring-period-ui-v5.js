@@ -260,7 +260,7 @@
   function renderWarnings(container,result){const box=container.querySelector('[data-cfv5-warning-box]'),list=container.querySelector('[data-cfv5-warnings]'),warnings=result?.warnings||[];box.hidden=!warnings.length;list.innerHTML=warnings.map(w=>`<li>${escapeHtml(w)}</li>`).join('');}
   function mount(container){
     if(!container||container.dataset.cofiringV5Mounted==='true')return null;container.dataset.cofiringV5Mounted='true';container.classList.add('cofiring-period-v5','cfv7-daily-date','cfv10-summary-ui','cfv11-status-ui');container.innerHTML=markup();
-    const mobile=isMobile();let reference=null,lastResult=null,displayResult=null,periodGeneration=0,settingsDirty=false,manualDirty=false,disposed=false,fastPrepTimer=null,fastPrepGeneration=0,adjustmentActive=false,conflictRetrying=false,selectedStoreKey='';
+    const mobile=isMobile();let reference=null,lastResult=null,displayResult=null,periodGeneration=0,settingsDirty=false,manualDirty=false,disposed=false,fastPrepTimer=null,fastPrepGeneration=0,inputRecalcTimer=null,adjustmentActive=false,conflictRetrying=false,selectedStoreKey='';
     let clickTiming=null,clickToken=null,clickContext=null,clickBusy=false,renderedRequestId=null,dayBoundaryTimer=null,deadlineRefreshTimer=null,selectionEpoch=0,deadlineInputError='',pendingDailyDraft=null,restoringSaved=false;
     // COFIRING_MORNING_MEETING_ORGANIC_AUTOFILL_V1
     let morningOrganicSelection='',morningCardObserver=null,morningCardObserved=null,morningCardBindTimer=null,morningCardBindAttempts=0;
@@ -747,9 +747,32 @@
       applyMorningMeetingOrganicDraft();
     }
 
-    function bindManualInputs(){for(const el of container.querySelectorAll('[data-cfv5-manual],[data-cfv5-receipt]'))if(el.dataset.cfv5Bound!=='1'){el.dataset.cfv5Bound='1';el.addEventListener('input',()=>{if(el.hasAttribute('data-cfv5-receipt')&&el.readOnly)return;const manualKey=el.getAttribute('data-cfv5-manual')||'';if(/^unit[12]:organic$/.test(manualKey)){morningOrganicTouched.add(manualKey);morningOrganicAuto.delete(manualKey);}manualDirty=true;const label=container.querySelector('[data-cfv5-manual-state]');if(label)label.textContent='수정됨 · 미저장';if(reference&&storesReady())calculate();});el.addEventListener('change',()=>{if(reference)calculate();});}}
+    // COFIRING_INPUT_RECALC_DEBOUNCE_V1
+    function clearInputRecalc(){
+      if(inputRecalcTimer!==null){
+        root.clearTimeout?.(inputRecalcTimer);
+        inputRecalcTimer=null;
+      }
+    }
+    function scheduleInputRecalc(){
+      clearInputRecalc();
+      if(!reference||!storesReady())return;
+      inputRecalcTimer=root.setTimeout?.(()=>{
+        inputRecalcTimer=null;
+        if(disposed||!reference||!storesReady())return;
+        calculate();
+      },250)??null;
+    }
+    function flushInputRecalc(){
+      if(inputRecalcTimer===null)return false;
+      clearInputRecalc();
+      if(disposed||!reference||!storesReady())return false;
+      calculate();
+      return true;
+    }
+    function bindManualInputs(){for(const el of container.querySelectorAll('[data-cfv5-manual],[data-cfv5-receipt]'))if(el.dataset.cfv5Bound!=='1'){el.dataset.cfv5Bound='1';el.addEventListener('input',()=>{if(el.hasAttribute('data-cfv5-receipt')&&el.readOnly)return;const manualKey=el.getAttribute('data-cfv5-manual')||'';if(/^unit[12]:organic$/.test(manualKey)){morningOrganicTouched.add(manualKey);morningOrganicAuto.delete(manualKey);}manualDirty=true;const label=container.querySelector('[data-cfv5-manual-state]');if(label)label.textContent='수정됨 · 미저장';scheduleInputRecalc();});el.addEventListener('change',()=>{flushInputRecalc();});el.addEventListener('keydown',event=>{if(event.key==='Enter')flushInputRecalc();});}}
     // COFIRING_MANUAL_PROGRAMMATIC_RECALC_V1
-    container.addEventListener('cofiring:manual-recalculate',()=>{if(reference)calculate();});
+    container.addEventListener('cofiring:manual-recalculate',()=>{clearInputRecalc();if(reference)calculate();});
     function paintLive(s){
       if(showDayUnavailable()||!sameSelectedPeriod(s?.period))return;
       const item=s?.item,state=container.querySelector('[data-cfv5-live-state]'),active=item?.active,queryButton=container.querySelector('[data-cfv5-query]');
@@ -796,7 +819,7 @@
       }catch(e){deadlineInputError=e.message||'계산 입력값을 확인해 주세요.';clearDeadlineRefresh();renderSummary(container,displayResult||lastResult,currentManualFromFields(),deadlineInputError);clickTiming?.fail(clickToken,'계산 오류');setStatus(container,deadlineInputError,'error');return null;}
     }
     async function periodChanged({deferReads=false,draft=null,capturedAt=Date.now()}={}){
-      restoringSaved=false;pendingDailyDraft=draft;try{if(queryMode(container)==='daily')captureDailySelection(container,capturedAt);}catch(_){}
+      clearInputRecalc();restoringSaved=false;pendingDailyDraft=draft;try{if(queryMode(container)==='daily')captureDailySelection(container,capturedAt);}catch(_){}
       selectionEpoch++;deadlineInputError='';clearDayBoundary();clearDeadlineRefresh();live?.pause();selectedStoreKey='';resetReceiptAuto();writeManual(container,manualApi.blank());
       clickTiming?.cancel('기간 변경');if(clickTiming)paintClickTiming(clickTiming.state());renderedRequestId=null;
       fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}reference=null;lastResult=null;displayResult=null;adjustmentActive=false;updateOrganicInventoryUsage();renderMain(container,null);renderOrganic(container,null,currentManualFromFields());renderSummary(container,null,currentManualFromFields());updateRange(container);renderWarnings(container,null);const ab=container.querySelector('[data-cfv56-adjust]');if(ab){ab.disabled=true;ab.classList.remove('is-active');ab.textContent='혼소 조정';}
@@ -817,7 +840,11 @@
     }
     for(const el of container.querySelectorAll('[data-cfv7-date],[data-cfv8-mode],[data-cfv8-start],[data-cfv8-end]'))el.addEventListener('change',periodChanged);
     container.querySelector('[data-cfv8-today]').addEventListener('click',async()=>{try{const p=currentDaySpec();container.querySelector('[data-cfv8-mode]').value='period';container.querySelector('[data-cfv8-start]').value=p.startLocal;container.querySelector('[data-cfv8-end]').value=p.endLocal;await periodChanged();}catch(_){setStatus(container,'오늘 누적 조회는 한국 시간 00:02 이후 사용할 수 있습니다.','');}});
-    for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]'))el.addEventListener('input',()=>{settingsDirty=true;paintSettings();if(reference&&storesReady())calculate();});
+    for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]')){
+      el.addEventListener('input',()=>{settingsDirty=true;paintSettings();scheduleInputRecalc();});
+      el.addEventListener('change',()=>{flushInputRecalc();});
+      el.addEventListener('keydown',event=>{if(event.key==='Enter')flushInputRecalc();});
+    }
     container.querySelector('[data-cfv5-settings-save]').addEventListener('click',async()=>{try{const values=readSettings(container);const ok=await settings.save(values);if(ok){settingsDirty=false;paintSettings(true);if(reference)calculate();}}catch(e){setStatus(container,e.message,'error');}});
     container.querySelector('[data-cfv5-manual-save]').addEventListener('click',async()=>{try{const values=readManual(container),ok=await manual.save(values);if(ok){manualDirty=false;paintManual(true);if(reference)calculate();}}catch(e){setStatus(container,e.message,'error');}});
     container.querySelector('[data-cfv5-query]').addEventListener('click',async()=>{if(clickBusy)return;clickBusy=true;fastPrepGeneration++;restoringSaved=false;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}let token=null;try{
@@ -859,7 +886,7 @@
     root.addEventListener?.('message',receiptMessageHandler);
     statusRefreshers.set(container,refreshStatusLine);
     updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();bindMorningMeetingOrganicObserver();selectStores().catch(e=>setStatus(container,e.message,'error'));scheduleFastPrep(0);
-    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSpec:currentSpec,dispose(){statusRefreshers.delete(container);root.removeEventListener?.('message',receiptMessageHandler);receiptSyncGeneration++;clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();morningCardObserver?.disconnect();if(morningCardBindTimer!==null)root.clearTimeout?.(morningCardBindTimer);adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
+    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSpec:currentSpec,dispose(){statusRefreshers.delete(container);root.removeEventListener?.('message',receiptMessageHandler);receiptSyncGeneration++;clearInputRecalc();clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();morningCardObserver?.disconnect();if(morningCardBindTimer!==null)root.clearTimeout?.(morningCardBindTimer);adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
   }
   root.CofiringPeriodV5={mount,periodSpec,dailySpec,dailySelectionSpec,dayAvailability,defaultCalculationDate,queryMode,customSpec,currentDaySpec,selectedAvailability,targetReferenceMarkup,fuelUsageMarkup,markup,readSettings,readManual,manualForCalculation,coalBioHeat,coalBioRatio,combinedCoalBio,cachedReference,liveRequestPresentation};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
   if(root.document){const init=()=>{const container=root.document.querySelector('[data-cofiring-draft-root]');if(container)root.__cofiringPeriodV5Controller=mount(container);};if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init,{once:true});else init();}
