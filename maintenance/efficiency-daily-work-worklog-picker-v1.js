@@ -3599,3 +3599,76 @@
     initialize();
   }
 })();
+/* =========================================================
+   EFFICIENCY_DAILY_WORK_WORKLOG_PICKER_LEFT_ALIGN_V9
+
+   업무내역 선택 팝업의 업무목록만 왼쪽 정렬한다.
+
+   - 역할/건수
+   - 작성자/시간
+   - 체크박스 행
+   - 실제 업무내용
+
+   팝업 제목 / 상단 제어 / 하단 버튼 정렬은 변경하지 않는다.
+========================================================= */
+
+(() => {
+
+  const STYLE_ID =
+    'efficiency-daily-work-worklog-left-align-v9';
+
+
+  if (
+    document.getElementById(
+      STYLE_ID
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    document.createElement(
+      'style'
+    );
+
+
+  style.id =
+    STYLE_ID;
+
+
+  style.textContent = `
+    .daily-work-worklog-dialog-v1
+    .daily-work-worklog-list-v1 {
+      text-align: left !important;
+    }
+
+    .daily-work-worklog-dialog-v1
+    .daily-work-worklog-list-v1 * {
+      text-align: left !important;
+    }
+
+    .daily-work-worklog-dialog-v1
+    .daily-work-worklog-list-v1 label {
+      justify-content: flex-start !important;
+    }
+
+    .daily-work-worklog-dialog-v1
+    .daily-work-worklog-list-v1 div,
+    .daily-work-worklog-dialog-v1
+    .daily-work-worklog-list-v1 p,
+    .daily-work-worklog-dialog-v1
+    .daily-work-worklog-list-v1 span {
+      text-align: left !important;
+    }
+  `;
+
+
+  (
+    document.head ||
+    document.documentElement
+  ).appendChild(
+    style
+  );
+
+})();
