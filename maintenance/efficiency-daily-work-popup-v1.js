@@ -2732,3 +2732,1073 @@
     `[${VERSION}] ready`
   );
 })();
+
+/* =========================================================
+   EFFICIENCY DAILY WORK ROW HIDE V1
+
+   - right click the role/title cell
+   - hide row without deleting data
+   - restore one / restore all
+   - keeps rowspan group cells valid
+   - per-date local persistence
+   - PDF clone follows current hidden state
+   - no MutationObserver
+========================================================= */
+(() => {
+  'use strict';
+
+  const VERSION =
+    'EFFICIENCY_DAILY_WORK_ROW_HIDE_V1';
+
+  const WINDOW_PARAM =
+    'efficiencyDailyWorkWindow';
+
+  const STORAGE_PREFIX =
+    'gs-efficiency-daily-work-hidden-rows-v1:';
+
+  const ROW_SELECTOR =
+    '#efficiencyDailyWorkPaper ' +
+    '[data-efficiency-daily-work-row-key]';
+
+  const ROLE_CELL_SELECTOR =
+    '.efficiency-daily-work-table__role-cell';
+
+  const ROW_LABELS = {
+    'efficiency-overall':
+      '효율업무 총괄',
+
+    'efficiency-1':
+      '효율업무1',
+
+    'efficiency-2':
+      '효율업무2',
+
+    'efficiency-3':
+      '효율업무3',
+
+    'purchase-admin':
+      '구매·행정업무',
+
+    'operation-day':
+      'Day 근무조',
+
+    'operation-night':
+      'Night 근무조'
+  };
+
+  if (
+    window.__gsEfficiencyDailyWorkRowHideV1
+  ) {
+    return;
+  }
+
+  const isStandaloneWindow = () => {
+    try {
+      return (
+        new URL(window.location.href)
+          .searchParams
+          .get(WINDOW_PARAM) === '1'
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  if (!isStandaloneWindow()) {
+    return;
+  }
+
+  window.__gsEfficiencyDailyWorkRowHideV1 =
+    true;
+
+
+  let lastDate = '';
+  let menu = null;
+
+  const groupStates = [];
+
+
+  const getDateValue = () =>
+    String(
+      document.getElementById(
+        'efficiencyDailyWorkDate'
+      )?.value || ''
+    ).trim();
+
+
+  const getStorageKey = dateValue =>
+    `${STORAGE_PREFIX}${dateValue || 'unknown'}`;
+
+
+  const getRowKey = row =>
+    String(
+      row?.dataset
+        ?.efficiencyDailyWorkRowKey ||
+      ''
+    ).trim();
+
+
+  const getRowLabel = rowKey =>
+    ROW_LABELS[rowKey] ||
+    rowKey ||
+    '업무행';
+
+
+  const getRows = () =>
+    [
+      ...document.querySelectorAll(
+        ROW_SELECTOR
+      )
+    ];
+
+
+  const loadHiddenRows = dateValue => {
+
+    if (!dateValue) {
+      return [];
+    }
+
+    try {
+
+      const raw =
+        localStorage.getItem(
+          getStorageKey(dateValue)
+        );
+
+      if (!raw) {
+        return [];
+      }
+
+      const parsed =
+        JSON.parse(raw);
+
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+
+      return [
+        ...new Set(
+          parsed
+            .map(value =>
+              String(
+                value || ''
+              ).trim()
+            )
+            .filter(value =>
+              Object.prototype
+                .hasOwnProperty.call(
+                  ROW_LABELS,
+                  value
+                )
+            )
+        )
+      ];
+
+    } catch {
+      return [];
+    }
+  };
+
+
+  const saveHiddenRows = (
+    dateValue,
+    hiddenRows
+  ) => {
+
+    if (!dateValue) {
+      return;
+    }
+
+    const normalized = [
+      ...new Set(
+        hiddenRows.filter(value =>
+          Object.prototype
+            .hasOwnProperty.call(
+              ROW_LABELS,
+              value
+            )
+        )
+      )
+    ];
+
+    try {
+      localStorage.setItem(
+        getStorageKey(dateValue),
+        JSON.stringify(normalized)
+      );
+    } catch (_) {
+      // Layout preference failure must not affect document work.
+    }
+  };
+
+
+  const showMessage = message => {
+
+    if (
+      typeof window.showToast ===
+      'function'
+    ) {
+      window.showToast(message);
+      return;
+    }
+
+    console.info(
+      `[${VERSION}] ${message}`
+    );
+  };
+
+
+  /*
+   * rowspan 셀을 최초 한 번만 확보한다.
+   *
+   * 효율파트:
+   *   efficiency-overall 행에 rowspan=5
+   *
+   * 운전파트:
+   *   operation-day 행에 rowspan=2
+   */
+  const captureGroupStates = () => {
+
+    if (groupStates.length) {
+      return true;
+    }
+
+    const table =
+      document.querySelector(
+        '#efficiencyDailyWorkPaper ' +
+        '.efficiency-daily-work-table'
+      );
+
+    if (!table) {
+      return false;
+    }
+
+    const bodies = [
+      table.querySelector(
+        '.efficiency-daily-work-table__efficiency-body'
+      ),
+
+      table.querySelector(
+        '.efficiency-daily-work-table__operation-body'
+      )
+    ].filter(Boolean);
+
+    for (const body of bodies) {
+
+      const rows = [
+        ...body.querySelectorAll(
+          ':scope > tr' +
+          '[data-efficiency-daily-work-row-key]'
+        )
+      ];
+
+      if (!rows.length) {
+        continue;
+      }
+
+      const groupCell =
+        body.querySelector(
+          '.efficiency-daily-work-table__group-cell'
+        );
+
+      if (!groupCell) {
+        continue;
+      }
+
+      groupStates.push({
+        body,
+        rows,
+        groupCell,
+        homeRow:
+          groupCell.closest('tr')
+      });
+    }
+
+    return (
+      groupStates.length > 0
+    );
+  };
+
+
+  /*
+   * 숨김 후에도 효율파트/운전파트 셀을
+   * 첫 번째 보이는 행으로 이동하고
+   * rowspan을 보이는 행 개수로 조정한다.
+   */
+  const syncGroupCells = () => {
+
+    if (!captureGroupStates()) {
+      return;
+    }
+
+    groupStates.forEach(group => {
+
+      const visibleRows =
+        group.rows.filter(
+          row => !row.hidden
+        );
+
+      if (!visibleRows.length) {
+        return;
+      }
+
+      const targetRow =
+        visibleRows[0];
+
+      if (
+        group.groupCell.parentElement !==
+        targetRow
+      ) {
+        targetRow.insertBefore(
+          group.groupCell,
+          targetRow.firstElementChild
+        );
+      }
+
+      group.groupCell.rowSpan =
+        visibleRows.length;
+
+      group.groupCell.hidden =
+        false;
+    });
+  };
+
+
+  const applyHiddenRows = () => {
+
+    const dateValue =
+      getDateValue();
+
+    if (!dateValue) {
+      return;
+    }
+
+    const hidden =
+      new Set(
+        loadHiddenRows(dateValue)
+      );
+
+    getRows().forEach(row => {
+
+      const rowKey =
+        getRowKey(row);
+
+      row.hidden =
+        hidden.has(rowKey);
+
+      row.setAttribute(
+        'data-row-hidden-v1',
+        row.hidden
+          ? '1'
+          : '0'
+      );
+    });
+
+    syncGroupCells();
+  };
+
+
+  const getGroupVisibleRows = row => {
+
+    const body =
+      row?.closest('tbody');
+
+    if (!body) {
+      return [];
+    }
+
+    return [
+      ...body.querySelectorAll(
+        ':scope > tr' +
+        '[data-efficiency-daily-work-row-key]'
+      )
+    ].filter(
+      item => !item.hidden
+    );
+  };
+
+
+  const hideRow = row => {
+
+    if (!row) {
+      return;
+    }
+
+    const rowKey =
+      getRowKey(row);
+
+    if (!rowKey) {
+      return;
+    }
+
+    /*
+     * 그룹의 마지막 보이는 행은 남겨둔다.
+     * 전체 그룹을 지우는 기능은 별도 기능으로 취급한다.
+     */
+    const visibleRows =
+      getGroupVisibleRows(row);
+
+    if (visibleRows.length <= 1) {
+
+      showMessage(
+        '각 파트에는 최소 1개의 업무행을 남겨야 합니다.'
+      );
+
+      closeMenu();
+
+      return;
+    }
+
+    const dateValue =
+      getDateValue();
+
+    const hiddenRows =
+      loadHiddenRows(
+        dateValue
+      );
+
+    if (
+      !hiddenRows.includes(rowKey)
+    ) {
+      hiddenRows.push(rowKey);
+    }
+
+    saveHiddenRows(
+      dateValue,
+      hiddenRows
+    );
+
+    applyHiddenRows();
+
+    closeMenu();
+  };
+
+
+  const restoreRow = rowKey => {
+
+    const dateValue =
+      getDateValue();
+
+    const hiddenRows =
+      loadHiddenRows(
+        dateValue
+      ).filter(
+        value =>
+          value !== rowKey
+      );
+
+    saveHiddenRows(
+      dateValue,
+      hiddenRows
+    );
+
+    applyHiddenRows();
+
+    closeMenu();
+  };
+
+
+  const restoreAll = () => {
+
+    const dateValue =
+      getDateValue();
+
+    saveHiddenRows(
+      dateValue,
+      []
+    );
+
+    applyHiddenRows();
+
+    closeMenu();
+  };
+
+
+  const closeMenu = () => {
+
+    if (menu) {
+      menu.hidden = true;
+      menu.replaceChildren();
+    }
+  };
+
+
+  const createMenuButton = (
+    label,
+    handler,
+    options = {}
+  ) => {
+
+    const button =
+      document.createElement(
+        'button'
+      );
+
+    button.type =
+      'button';
+
+    button.className =
+      'daily-work-row-context-button-v1';
+
+    if (options.danger) {
+      button.classList.add(
+        'is-danger'
+      );
+    }
+
+    button.textContent =
+      label;
+
+    button.addEventListener(
+      'click',
+      event => {
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        handler();
+      }
+    );
+
+    return button;
+  };
+
+
+  const ensureMenu = () => {
+
+    if (menu?.isConnected) {
+      return menu;
+    }
+
+    menu =
+      document.createElement(
+        'div'
+      );
+
+    menu.id =
+      'efficiencyDailyWorkRowContextMenuV1';
+
+    menu.hidden =
+      true;
+
+    /*
+     * Standalone mode hides normal body children.
+     * Put the menu inside the visible standalone workspace.
+     */
+    const host =
+      document.querySelector(
+        '[data-efficiency-daily-work-standalone="1"]'
+      ) ||
+      document.getElementById(
+        'efficiencyDailyWorkView'
+      ) ||
+      document.body;
+
+    host.append(
+      menu
+    );
+
+    return menu;
+  };
+
+
+  const positionMenu = (
+    menuElement,
+    x,
+    y
+  ) => {
+
+    menuElement.style.left =
+      `${x}px`;
+
+    menuElement.style.top =
+      `${y}px`;
+
+    const rect =
+      menuElement
+        .getBoundingClientRect();
+
+    const margin = 10;
+
+    if (
+      rect.right >
+      window.innerWidth - margin
+    ) {
+      menuElement.style.left =
+        `${Math.max(
+          margin,
+          window.innerWidth -
+          rect.width -
+          margin
+        )}px`;
+    }
+
+    if (
+      rect.bottom >
+      window.innerHeight - margin
+    ) {
+      menuElement.style.top =
+        `${Math.max(
+          margin,
+          window.innerHeight -
+          rect.height -
+          margin
+        )}px`;
+    }
+  };
+
+
+  const openMenu = (
+    row,
+    x,
+    y
+  ) => {
+
+    const menuElement =
+      ensureMenu();
+
+    menuElement.replaceChildren();
+
+    const rowKey =
+      getRowKey(row);
+
+    const title =
+      document.createElement(
+        'div'
+      );
+
+    title.className =
+      'daily-work-row-context-title-v1';
+
+    title.textContent =
+      getRowLabel(rowKey);
+
+    menuElement.append(
+      title
+    );
+
+
+    menuElement.append(
+      createMenuButton(
+        '이 행 숨기기',
+        () =>
+          hideRow(row),
+        {
+          danger: true
+        }
+      )
+    );
+
+
+    const hiddenRows =
+      loadHiddenRows(
+        getDateValue()
+      );
+
+    if (hiddenRows.length) {
+
+      const divider =
+        document.createElement(
+          'div'
+        );
+
+      divider.className =
+        'daily-work-row-context-divider-v1';
+
+      menuElement.append(
+        divider
+      );
+
+
+      const restoreTitle =
+        document.createElement(
+          'div'
+        );
+
+      restoreTitle.className =
+        'daily-work-row-context-subtitle-v1';
+
+      restoreTitle.textContent =
+        '숨긴 행 복원';
+
+      menuElement.append(
+        restoreTitle
+      );
+
+
+      hiddenRows.forEach(
+        hiddenRowKey => {
+
+          menuElement.append(
+            createMenuButton(
+              `${getRowLabel(
+                hiddenRowKey
+              )} 복원`,
+              () =>
+                restoreRow(
+                  hiddenRowKey
+                )
+            )
+          );
+        }
+      );
+
+
+      const divider2 =
+        document.createElement(
+          'div'
+        );
+
+      divider2.className =
+        'daily-work-row-context-divider-v1';
+
+      menuElement.append(
+        divider2
+      );
+
+
+      menuElement.append(
+        createMenuButton(
+          '숨긴 행 모두 복원',
+          restoreAll
+        )
+      );
+    }
+
+
+    menuElement.hidden =
+      false;
+
+    positionMenu(
+      menuElement,
+      x,
+      y
+    );
+  };
+
+
+  const installStyle = () => {
+
+    if (
+      document.getElementById(
+        'efficiencyDailyWorkRowHideStyleV1'
+      )
+    ) {
+      return;
+    }
+
+    const style =
+      document.createElement(
+        'style'
+      );
+
+    style.id =
+      'efficiencyDailyWorkRowHideStyleV1';
+
+    style.textContent = `
+      #efficiencyDailyWorkRowContextMenuV1 {
+        position: fixed;
+
+        z-index: 2147483647;
+
+        min-width: 180px;
+        max-width: 260px;
+
+        padding: 7px;
+
+        border:
+          1px solid #bdcad8;
+
+        border-radius: 8px;
+
+        background:
+          rgba(255,255,255,.99);
+
+        box-shadow:
+          0 10px 28px
+          rgba(27,48,71,.23);
+      }
+
+      #efficiencyDailyWorkRowContextMenuV1[hidden] {
+        display: none !important;
+      }
+
+      .daily-work-row-context-title-v1 {
+        padding:
+          5px 7px 7px;
+
+        color: #183754;
+
+        font-size: 11px;
+        font-weight: 900;
+      }
+
+      .daily-work-row-context-subtitle-v1 {
+        padding:
+          5px 7px 4px;
+
+        color: #73859a;
+
+        font-size: 9px;
+        font-weight: 800;
+      }
+
+      .daily-work-row-context-divider-v1 {
+        height: 1px;
+
+        margin:
+          5px 2px;
+
+        background:
+          #e1e7ee;
+      }
+
+      .daily-work-row-context-button-v1 {
+        display: block;
+
+        width: 100%;
+        min-height: 30px;
+
+        padding:
+          5px 8px;
+
+        border: 0;
+        border-radius: 5px;
+
+        background:
+          transparent;
+
+        color: #29455f;
+
+        text-align: left;
+
+        font-size: 10px;
+        font-weight: 800;
+
+        cursor: pointer;
+      }
+
+      .daily-work-row-context-button-v1:hover {
+        background:
+          #eef5fc;
+      }
+
+      .daily-work-row-context-button-v1.is-danger {
+        color: #b14444;
+      }
+
+      .daily-work-row-context-button-v1.is-danger:hover {
+        background:
+          #fff0f0;
+      }
+
+      #efficiencyDailyWorkPaper
+      .efficiency-daily-work-table__role-cell
+      > span {
+        cursor: context-menu;
+      }
+
+      @media print {
+        #efficiencyDailyWorkRowContextMenuV1 {
+          display: none !important;
+        }
+      }
+    `;
+
+    document.head.append(
+      style
+    );
+  };
+
+
+  installStyle();
+
+
+  /*
+   * 우클릭 대상:
+   * 업무명/담당자 열의 빈 영역 또는 업무명 span.
+   *
+   * input / select 자체를 우클릭하면
+   * 브라우저 기본 컨텍스트 메뉴를 유지한다.
+   */
+  document.addEventListener(
+    'contextmenu',
+    event => {
+
+      const target =
+        event.target instanceof Element
+          ? event.target
+          : null;
+
+      if (!target) {
+        return;
+      }
+
+      if (
+        target.closest(
+          'input, textarea, select'
+        )
+      ) {
+        return;
+      }
+
+      const roleCell =
+        target.closest(
+          ROLE_CELL_SELECTOR
+        );
+
+      if (!roleCell) {
+        return;
+      }
+
+      const row =
+        roleCell.closest(
+          ROW_SELECTOR
+        );
+
+      if (!row) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      openMenu(
+        row,
+        event.clientX,
+        event.clientY
+      );
+    },
+    true
+  );
+
+
+  /*
+   * 메뉴 밖 클릭 시 닫기.
+   */
+  document.addEventListener(
+    'pointerdown',
+    event => {
+
+      if (
+        menu &&
+        !menu.hidden &&
+        event.target instanceof Node &&
+        !menu.contains(
+          event.target
+        )
+      ) {
+        closeMenu();
+      }
+    },
+    true
+  );
+
+
+  window.addEventListener(
+    'resize',
+    closeMenu
+  );
+
+
+  /*
+   * Standalone workspace itself scrolls,
+   * so close context menu while wheel scrolling.
+   */
+  document.addEventListener(
+    'wheel',
+    () => {
+      if (
+        menu &&
+        !menu.hidden
+      ) {
+        closeMenu();
+      }
+    },
+    {
+      capture: true,
+      passive: true
+    }
+  );
+
+
+  /*
+   * Initial DOM readiness.
+   * No MutationObserver.
+   */
+  let attempts = 0;
+
+  const startupTimer =
+    window.setInterval(
+      () => {
+
+        attempts += 1;
+
+        if (
+          captureGroupStates() ||
+          attempts >= 150
+        ) {
+
+          window.clearInterval(
+            startupTimer
+          );
+
+          lastDate =
+            getDateValue();
+
+          applyHiddenRows();
+        }
+      },
+      100
+    );
+
+
+  /*
+   * Date switch reconciliation.
+   */
+  const dateTimer =
+    window.setInterval(
+      () => {
+
+        const currentDate =
+          getDateValue();
+
+        if (
+          currentDate !==
+          lastDate
+        ) {
+
+          closeMenu();
+
+          lastDate =
+            currentDate;
+
+          applyHiddenRows();
+        }
+      },
+      500
+    );
+
+
+  window.addEventListener(
+    'beforeunload',
+    () => {
+
+      window.clearInterval(
+        startupTimer
+      );
+
+      window.clearInterval(
+        dateTimer
+      );
+    },
+    {
+      once: true
+    }
+  );
+
+
+  console.info(
+    `[${VERSION}] ready`
+  );
+})();
