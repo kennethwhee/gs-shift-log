@@ -1907,13 +1907,15 @@ try {
       $tag=$cofiringQueryTags[$r]
       $safeTag=([string]$tag.tag).Replace('"','""')
       $startBoundaryEnd=$(if($r -ge $cofiringTags.Count){$cofiringStart.AddMinutes([Math]::Min(2.0,[double](($cofiringEnd-$cofiringStart).TotalMinutes))).ToString('yyyy-MM-dd HH:mm')}else{$firstEnd}) # COFIRING_ORGANIC_INVENTORY_BOUNDARY_V2_R7
-      $endBoundaryEnd=$(if($r -ge $cofiringTags.Count){$cofiringEnd.AddMinutes(2).ToString('yyyy-MM-dd HH:mm')}else{$lastEnd}) # COFIRING_ORGANIC_INVENTORY_END_BOUNDARY_V1_R1
+      $endBoundaryStart=$(if($r -ge $cofiringTags.Count){$fullStart}else{$fullEnd}) # COFIRING_ORGANIC_INVENTORY_END_STAT_V1_R1
+            $endBoundaryEnd=$(if($r -ge $cofiringTags.Count){$fullEnd}else{$lastEnd}) # COFIRING_ORGANIC_INVENTORY_END_STAT_V1_R1
+            $endBoundaryMethod=$(if($r -ge $cofiringTags.Count){'End'}else{'Start'}) # COFIRING_ORGANIC_INVENTORY_END_STAT_V1_R1
       $formulasFast[$r,0]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$startBoundaryEnd+'","Start","Value")'
       $formulasFast[$r,1]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$startBoundaryEnd+'","Start","QualStr")'
       $formulasFast[$r,2]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$startBoundaryEnd+'","Start","Time")'
-      $formulasFast[$r,3]='=fnTagStat("'+$safeTag+'","'+$fullEnd+'","'+$endBoundaryEnd+'","Start","Value")'
-      $formulasFast[$r,4]='=fnTagStat("'+$safeTag+'","'+$fullEnd+'","'+$endBoundaryEnd+'","Start","QualStr")'
-      $formulasFast[$r,5]='=fnTagStat("'+$safeTag+'","'+$fullEnd+'","'+$endBoundaryEnd+'","Start","Time")'
+      $formulasFast[$r,3]='=fnTagStat("'+$safeTag+'","'+$endBoundaryStart+'","'+$endBoundaryEnd+'","'+$endBoundaryMethod+'","Value")'
+      $formulasFast[$r,4]='=fnTagStat("'+$safeTag+'","'+$endBoundaryStart+'","'+$endBoundaryEnd+'","'+$endBoundaryMethod+'","QualStr")'
+      $formulasFast[$r,5]='=fnTagStat("'+$safeTag+'","'+$endBoundaryStart+'","'+$endBoundaryEnd+'","'+$endBoundaryMethod+'","Time")'
       $formulasFast[$r,6]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$fullEnd+'","Min","Value")'
       $formulasFast[$r,7]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$fullEnd+'","Max","Value")'
       $formulasFast[$r,8]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$fullEnd+'","Delta","Value")'
@@ -2069,7 +2071,7 @@ try {
       $durationGood=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+9))
       $durationBad=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+10))
       $startTimeValid=($null -ne $startTime -and $startTime -ge $cofiringStart -and $startTime -lt $cofiringStart.AddMinutes(2))
-      $endTimeValid=($null -ne $endTime -and $endTime -ge $cofiringEnd -and $endTime -lt $cofiringEnd.AddMinutes(2))
+      $endTimeValid=($null -ne $endTime -and $endTime -ge $cofiringStart -and $endTime -le $cofiringEnd) # COFIRING_ORGANIC_INVENTORY_END_STAT_V1_R1
       $startBoundaryValid=($null -ne $startValue -and $startValue -ge 0 -and (Test-OrganicQualityGood $startQuality) -and $startTimeValid)
       $endBoundaryValid=($null -ne $endValue -and $endValue -ge 0 -and (Test-OrganicQualityGood $endQuality) -and $endTimeValid)
       $durationCoverageValid=($null -ne $durationGood -and $null -ne $durationBad -and $durationGood -ge 0 -and $durationBad -ge 0 -and [Math]::Abs(($durationGood+$durationBad)-$inventoryExpectedSeconds) -le 2.0)
