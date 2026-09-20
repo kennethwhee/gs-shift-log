@@ -134214,6 +134214,30 @@ function initializeEfficiencyDailyWorkAutoRowHeight() {
       return;
     }
 
+    /*
+      EFFICIENCY_DAILY_WORK_STANDALONE_MANUAL_HEIGHT_LOCK_V1
+
+      새 창 일일업무현황에서는
+      사용자가 행 경계선을 직접 Drag하여 높이를 조절한다.
+
+      기존 textarea auto-height가 focus/input 때마다
+      height:auto -> scrollHeight 재계산을 하면
+      저장된 수동 행 높이와 충돌한다.
+
+      따라서 standalone child window에서만
+      기존 auto-height를 사용하지 않는다.
+    */
+    if (
+      new URLSearchParams(
+        window.location.search
+      ).get(
+        "efficiencyDailyWorkWindow"
+      ) ===
+        "1"
+    ) {
+      return;
+    }
+
 
     /*
       원래 크기 상태에서는
