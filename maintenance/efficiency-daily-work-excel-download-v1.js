@@ -2948,6 +2948,398 @@
   }
 
 
+  /* =========================================================
+    EFFICIENCY_DAILY_WORK_EXCEL_SERVER_VERIFY_V4
+
+    Save + Excel safety gate:
+    - capture the exact content that the core save request intends to write
+    - run the normal save flow
+    - GET the server records again without mutating the editor
+    - compare intended content with the fresh server record
+    - only generate Excel when the values match exactly
+  ========================================================= */
+
+  function cloneDailyWorkExcelVerificationValueV4(
+    value
+  ) {
+    return JSON.parse(
+      JSON.stringify(
+        value ?? null
+      )
+    );
+  }
+
+
+  function canonicalizeDailyWorkExcelVerificationValueV4(
+    value
+  ) {
+    if (
+      Array.isArray(
+        value
+      )
+    ) {
+      return value.map(
+        item =>
+          canonicalizeDailyWorkExcelVerificationValueV4(
+            item
+          )
+      );
+    }
+
+    if (
+      value &&
+      typeof value ===
+        "object"
+    ) {
+      const result =
+        {};
+
+      Object.keys(
+        value
+      )
+        .sort()
+        .forEach(
+          key => {
+            const nextValue =
+              value[
+                key
+              ];
+
+            if (
+              typeof nextValue ===
+                "undefined"
+            ) {
+              return;
+            }
+
+            result[
+              key
+            ] =
+              canonicalizeDailyWorkExcelVerificationValueV4(
+                nextValue
+              );
+          }
+        );
+
+      return result;
+    }
+
+    return value;
+  }
+
+
+  function createDailyWorkExcelVerificationSignatureV4(
+    value
+  ) {
+    return JSON.stringify(
+      canonicalizeDailyWorkExcelVerificationValueV4(
+        value
+      )
+    );
+  }
+
+
+  async function captureDailyWorkExcelSaveIntentV4() {
+    if (
+      typeof ensureEfficiencyDailyWorkTeamLeaderSelectionsForSave ===
+        "function"
+    ) {
+      const leaderCheck =
+        await ensureEfficiencyDailyWorkTeamLeaderSelectionsForSave();
+
+      if (
+        !leaderCheck?.ok
+      ) {
+        const message =
+          leaderCheck?.message ||
+          "Day/Night 근무조 정보를 확인해주세요.";
+
+        if (
+          typeof showEfficiencyDailyWorkSaveError ===
+            "function"
+        ) {
+          showEfficiencyDailyWorkSaveError(
+            message
+          );
+        }
+
+        if (
+          typeof showToast ===
+            "function"
+        ) {
+          showToast(
+            message
+          );
+        }
+
+        return null;
+      }
+    }
+
+    if (
+      typeof createEfficiencyDailyWorkWriteRequest !==
+        "function"
+    ) {
+      throw new Error(
+        "저장 전 검증용 요청정보를 만들 수 없습니다."
+      );
+    }
+
+    const writeRequest =
+      createEfficiencyDailyWorkWriteRequest();
+
+    const workDate =
+      normalizeText(
+        writeRequest?.payload?.workDate
+      );
+
+    const content =
+      writeRequest?.payload?.content;
+
+    if (
+      !workDate ||
+      !content ||
+      typeof content !==
+        "object"
+    ) {
+      throw new Error(
+        "저장 전 검증용 일지 내용을 구성하지 못했습니다."
+      );
+    }
+
+    return {
+      workDate,
+      content:
+        cloneDailyWorkExcelVerificationValueV4(
+          content
+        )
+    };
+  }
+
+
+  async function fetchDailyWorkServerRecordForVerificationV4(
+    workDate
+  ) {
+    if (
+      typeof requestEfficiencyDailyWorkApi !==
+        "function" ||
+      typeof normalizeEfficiencyDailyWorkApiItems !==
+        "function" ||
+      typeof getEfficiencyDailyWorkApiHeaders !==
+        "function" ||
+      typeof EFFICIENCY_DAILY_WORK_API_URL ===
+        "undefined"
+    ) {
+      throw new Error(
+        "서버 저장 검증에 필요한 일일업무현황 API 기능을 찾지 못했습니다."
+      );
+    }
+
+    const requestUrl =
+      new URL(
+        EFFICIENCY_DAILY_WORK_API_URL,
+        window.location.origin
+      );
+
+    requestUrl.searchParams.set(
+      "_excelSaveVerify",
+      `${Date.now()}`
+    );
+
+    const result =
+      await withDailyWorkExcelTimeout(
+        requestEfficiencyDailyWorkApi(
+          requestUrl.toString(),
+          {
+            method:
+              "GET",
+
+            headers:
+              getEfficiencyDailyWorkApiHeaders()
+          }
+        ),
+        20000,
+        "서버 저장본 재확인이 20초 안에 끝나지 않았습니다. Excel 다운로드를 중단했습니다."
+      );
+
+    const records =
+      normalizeEfficiencyDailyWorkApiItems(
+        result
+      );
+
+    const targetRecord =
+      (
+        Array.isArray(
+          records
+        )
+          ? records
+          : []
+      )
+        .map(
+          item =>
+            getNormalizedRecord(
+              item
+            )
+        )
+        .find(
+          item =>
+            normalizeText(
+              item?.workDate
+            ) ===
+            workDate
+        ) ||
+      null;
+
+    if (
+      !targetRecord?.id
+    ) {
+      throw new Error(
+        `${workDate} 저장 기록을 서버 재조회에서 찾지 못했습니다. Excel 다운로드를 중단했습니다.`
+      );
+    }
+
+    return targetRecord;
+  }
+
+
+  function getDailyWorkServerContentForVerificationV4(
+    serverRecord
+  ) {
+    if (
+      typeof buildEfficiencyDailyWorkSavePayload !==
+        "function"
+    ) {
+      throw new Error(
+        "서버 저장본 검증용 payload 변환 기능을 찾지 못했습니다."
+      );
+    }
+
+    const payload =
+      buildEfficiencyDailyWorkSavePayload(
+        serverRecord
+      );
+
+    if (
+      !payload?.content ||
+      typeof payload.content !==
+        "object"
+    ) {
+      throw new Error(
+        "서버 저장본의 일지 내용을 읽지 못했습니다."
+      );
+    }
+
+    return cloneDailyWorkExcelVerificationValueV4(
+      payload.content
+    );
+  }
+
+
+  function getDailyWorkExcelVerificationMismatchFieldsV4(
+    expectedContent,
+    actualContent
+  ) {
+    const keys =
+      [
+        ...new Set([
+          ...Object.keys(
+            expectedContent ||
+            {}
+          ),
+          ...Object.keys(
+            actualContent ||
+            {}
+          )
+        ])
+      ];
+
+    const labels = {
+      notice:
+        "공지사항",
+      tmMeeting:
+        "TM 회의",
+      teamInstruction:
+        "설비운영팀 전달사항",
+      generationReportCompleted:
+        "일일발전 운전현황작성",
+      rows:
+        "주요 업무 현황",
+      extraRows:
+        "추가 업무행",
+      otherNotes:
+        "기타사항"
+    };
+
+    return keys
+      .filter(
+        key =>
+          createDailyWorkExcelVerificationSignatureV4(
+            expectedContent?.[
+              key
+            ]
+          ) !==
+          createDailyWorkExcelVerificationSignatureV4(
+            actualContent?.[
+              key
+            ]
+          )
+      )
+      .map(
+        key =>
+          labels[
+            key
+          ] ||
+          key
+      );
+  }
+
+
+  async function verifyDailyWorkServerSaveV4(
+    saveIntent
+  ) {
+    const serverRecord =
+      await fetchDailyWorkServerRecordForVerificationV4(
+        saveIntent.workDate
+      );
+
+    const actualContent =
+      getDailyWorkServerContentForVerificationV4(
+        serverRecord
+      );
+
+    const expectedSignature =
+      createDailyWorkExcelVerificationSignatureV4(
+        saveIntent.content
+      );
+
+    const actualSignature =
+      createDailyWorkExcelVerificationSignatureV4(
+        actualContent
+      );
+
+    if (
+      expectedSignature !==
+        actualSignature
+    ) {
+      const mismatchFields =
+        getDailyWorkExcelVerificationMismatchFieldsV4(
+          saveIntent.content,
+          actualContent
+        );
+
+      throw new Error(
+        `서버 저장 검증 실패: 저장하려던 내용과 서버 저장본이 다릅니다${
+          mismatchFields.length
+            ? ` (${mismatchFields.join(", ")})`
+            : ""
+        }. Excel 다운로드를 중단했습니다.`
+      );
+    }
+
+    return serverRecord;
+  }
+
+
   async function handleExcelDownloadClick(
     event
   ) {
@@ -2981,6 +3373,13 @@
         );
       }
 
+      const saveIntent =
+        await captureDailyWorkExcelSaveIntentV4();
+
+      if (!saveIntent) {
+        return;
+      }
+
       const saveResult =
         await withDailyWorkExcelTimeout(
           handleEfficiencyDailyWorkSubmit(),
@@ -2994,15 +3393,22 @@
 
       setExcelButtonStage(
         button,
+        "서버 저장 검증 중..."
+      );
+
+      const verifiedServerRecord =
+        await verifyDailyWorkServerSaveV4(
+          saveIntent
+        );
+
+      setExcelButtonStage(
+        button,
         "Excel 생성 중..."
       );
 
-      const currentRecord =
-        collectCurrentRecord();
-
       const patchedCount =
         await downloadExcelWorkbook(
-          currentRecord
+          verifiedServerRecord
         );
 
       const message =
