@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const INSTALL_FLAG = "__cfhOperatorCloseDetailV3Installed";
+  const INSTALL_FLAG = "__cfhOperatorCloseDetailV4Installed";
   if (window[INSTALL_FLAG]) return;
   window[INSTALL_FLAG] = true;
 
@@ -89,27 +89,39 @@
   function parseBasisData(basisCard) {
     const table = basisCard.querySelector("table");
     if (!table) return null;
-    const headerCells = Array.from(table.querySelectorAll("thead th"))
+
+    const defaultHeaders = ["연료", "1호기 발열량", "1호기 보정", "2호기 발열량", "2호기 보정"];
+    const theadCells = Array.from(table.querySelectorAll("thead th"))
       .map((cell) => normalize(cell.textContent))
       .filter(Boolean);
+    const headers = theadCells.length >= 5 ? theadCells.slice(0, 5) : defaultHeaders;
 
     const rows = Array.from(table.querySelectorAll("tbody tr"))
-      .map((row) => {
-        const cells = Array.from(row.children).map((cell) => normalize(cell.textContent)).filter(Boolean);
-        if (cells.length < 5) return null;
-        const [fuel, unit1Heat, unit1Adj, unit2Heat, unit2Adj] = cells;
-        return { fuel, unit1Heat, unit1Adj, unit2Heat, unit2Adj };
+      .map((row) => Array.from(row.children).map((cell) => normalize(cell.textContent)))
+      .filter((cells) => {
+        if (cells.length < 5) return false;
+        const first = normalize(cells[0]);
+        if (!first || first === "연료") return false;
+        const joined = cells.slice(0, 5).map(normalize);
+        const isRepeatedHeader = joined.every((value, index) => value === headers[index]);
+        return !isRepeatedHeader;
       })
-      .filter(Boolean);
+      .map((cells) => ({
+        fuel: cells[0],
+        unit1Heat: cells[1],
+        unit1Adj: cells[2],
+        unit2Heat: cells[3],
+        unit2Adj: cells[4],
+      }));
 
-    if (!headerCells.length || !rows.length) return null;
+    if (!rows.length) return null;
     return {
       headers: {
-        fuel: headerCells[0] || "연료",
-        unit1Heat: headerCells[1] || "1호기 발열량",
-        unit1Adj: headerCells[2] || "1호기 보정",
-        unit2Heat: headerCells[3] || "2호기 발열량",
-        unit2Adj: headerCells[4] || "2호기 보정",
+        fuel: headers[0] || defaultHeaders[0],
+        unit1Heat: headers[1] || defaultHeaders[1],
+        unit1Adj: headers[2] || defaultHeaders[2],
+        unit2Heat: headers[3] || defaultHeaders[3],
+        unit2Adj: headers[4] || defaultHeaders[4],
       },
       rows,
     };
@@ -124,9 +136,10 @@
       data[key] = valueFromItem(item, key);
     }
 
-    const calcControl = Array.from(metaCard.querySelectorAll("button, a")).find((element) =>
-      normalize(element.textContent).includes("계산")
-    ) || null;
+    const calcControl =
+      Array.from(metaCard.querySelectorAll("button, a")).find((element) =>
+        normalize(element.textContent).includes("계산")
+      ) || null;
 
     return { data, calcControl };
   }
@@ -138,108 +151,103 @@
     const metaBranch = branchBelow(common, metaCard);
     if (!basisBranch || !metaBranch || basisBranch === metaBranch) return;
 
-    common.classList.add("cfh-v3-detail-grid");
-    basisBranch.classList.add("cfh-v3-detail-branch");
-    metaBranch.classList.add("cfh-v3-detail-branch");
+    common.classList.add("cfh-v4-detail-grid");
+    basisBranch.classList.add("cfh-v4-detail-branch");
+    metaBranch.classList.add("cfh-v4-detail-branch");
   }
 
-  function resetCard(card, titleElement, cardClass) {
-    card.classList.add("cfh-v3-card", cardClass);
-    titleElement.classList.add("cfh-v3-title");
-    if (cardClass === "cfh-v3-basis-card") {
-      titleElement.dataset.cfhV3Subtitle = "혼소율 마감 시 적용된 발열량 · 보정계수";
-      titleElement.textContent = "마감 계산 기준값";
-    } else {
-      titleElement.dataset.cfhV3Subtitle = "마감 이력 · 계산 추적 정보";
-      titleElement.textContent = "마감 정보";
-    }
+  function prepareCard(card, titleElement, cardClass, title, subtitle) {
+    card.classList.add("cfh-v4-card", cardClass);
+    titleElement.classList.add("cfh-v4-title");
+    titleElement.textContent = title;
+    titleElement.dataset.cfhV4Subtitle = subtitle;
 
     for (const child of Array.from(card.children)) {
       if (child === titleElement) continue;
-      child.classList.add("cfh-v3-hide-original");
+      if (child.classList.contains("cfh-v4-host")) continue;
+      child.classList.add("cfh-v4-hide-original");
     }
   }
 
   function renderBasisCard(card, titleElement, basisData) {
     if (!basisData) return;
-    resetCard(card, titleElement, "cfh-v3-basis-card");
+    prepareCard(
+      card,
+      titleElement,
+      "cfh-v4-basis-card",
+      "마감 계산 기준값",
+      "혼소율 마감 시 적용값"
+    );
 
-    let host = card.querySelector(".cfh-v3-basis-host");
+    let host = card.querySelector(".cfh-v4-basis-host");
     if (!host) {
       host = document.createElement("div");
-      host.className = "cfh-v3-basis-host";
+      host.className = "cfh-v4-host cfh-v4-basis-host";
       card.appendChild(host);
     }
 
     const h = basisData.headers;
     const rowHtml = basisData.rows.map((row) => `
-      <div class="cfh-v3-cell cfh-v3-cell--fuel">${row.fuel}</div>
-      <div class="cfh-v3-cell cfh-v3-cell--value">${row.unit1Heat}</div>
-      <div class="cfh-v3-cell cfh-v3-cell--value">${row.unit1Adj}</div>
-      <div class="cfh-v3-cell cfh-v3-cell--value">${row.unit2Heat}</div>
-      <div class="cfh-v3-cell cfh-v3-cell--value">${row.unit2Adj}</div>
+      <div class="cfh-v4-cell cfh-v4-cell--fuel">${row.fuel}</div>
+      <div class="cfh-v4-cell cfh-v4-cell--value">${row.unit1Heat}</div>
+      <div class="cfh-v4-cell cfh-v4-cell--value">${row.unit1Adj}</div>
+      <div class="cfh-v4-cell cfh-v4-cell--value">${row.unit2Heat}</div>
+      <div class="cfh-v4-cell cfh-v4-cell--value">${row.unit2Adj}</div>
     `).join("");
 
     host.innerHTML = `
-      <div class="cfh-v3-basis-grid" role="table" aria-label="마감 계산 기준값">
-        <div class="cfh-v3-cell cfh-v3-cell--head">${h.fuel}</div>
-        <div class="cfh-v3-cell cfh-v3-cell--head">${h.unit1Heat}</div>
-        <div class="cfh-v3-cell cfh-v3-cell--head">${h.unit1Adj}</div>
-        <div class="cfh-v3-cell cfh-v3-cell--head">${h.unit2Heat}</div>
-        <div class="cfh-v3-cell cfh-v3-cell--head">${h.unit2Adj}</div>
+      <div class="cfh-v4-basis-grid" role="table" aria-label="마감 계산 기준값">
+        <div class="cfh-v4-cell cfh-v4-cell--head">${h.fuel}</div>
+        <div class="cfh-v4-cell cfh-v4-cell--head">${h.unit1Heat}</div>
+        <div class="cfh-v4-cell cfh-v4-cell--head">${h.unit1Adj}</div>
+        <div class="cfh-v4-cell cfh-v4-cell--head">${h.unit2Heat}</div>
+        <div class="cfh-v4-cell cfh-v4-cell--head">${h.unit2Adj}</div>
         ${rowHtml}
       </div>
     `;
   }
 
   function renderMetaCard(card, titleElement, metaData) {
-    resetCard(card, titleElement, "cfh-v3-meta-card");
+    prepareCard(
+      card,
+      titleElement,
+      "cfh-v4-meta-card",
+      "마감 정보",
+      "마감 이력 · 계산 추적"
+    );
 
-    let host = card.querySelector(".cfh-v3-meta-host");
+    let host = card.querySelector(".cfh-v4-meta-host");
     if (!host) {
       host = document.createElement("div");
-      host.className = "cfh-v3-meta-host";
+      host.className = "cfh-v4-host cfh-v4-meta-host";
       card.appendChild(host);
     }
 
+    const rows = [
+      ["마감자", metaData.data["마감자"] || "-"],
+      ["마감 시각", metaData.data["마감 시각"] || "-"],
+      ["Revision", metaData.data["Revision"] || "-"],
+      ["스냅샷 생성", metaData.data["스냅샷 생성"] || "-"],
+      ["DataPARC 요청", metaData.data["DataPARC 요청"] || "-"],
+    ];
+
     host.innerHTML = `
-      <div class="cfh-v3-meta-grid">
-        <div class="cfh-v3-meta-tile">
-          <div class="cfh-v3-meta-label">마감자</div>
-          <div class="cfh-v3-meta-value">${metaData.data["마감자"] || "-"}</div>
-        </div>
-        <div class="cfh-v3-meta-tile">
-          <div class="cfh-v3-meta-label">마감 시각</div>
-          <div class="cfh-v3-meta-value">${metaData.data["마감 시각"] || "-"}</div>
-        </div>
-        <div class="cfh-v3-meta-tile">
-          <div class="cfh-v3-meta-label">Revision</div>
-          <div class="cfh-v3-meta-value">${metaData.data["Revision"] || "-"}</div>
-        </div>
-        <div class="cfh-v3-meta-tile">
-          <div class="cfh-v3-meta-label">스냅샷 생성</div>
-          <div class="cfh-v3-meta-value">${metaData.data["스냅샷 생성"] || "-"}</div>
-        </div>
+      <div class="cfh-v4-summary">
+        ${rows.map(([label, value]) => `
+          <div class="cfh-v4-summary-row${label === "DataPARC 요청" ? " cfh-v4-summary-row--request" : ""}">
+            <div class="cfh-v4-summary-label">${label}</div>
+            <div class="cfh-v4-summary-value">${value}</div>
+          </div>
+        `).join("")}
       </div>
-      <div class="cfh-v3-request-panel">
-        <div class="cfh-v3-meta-label">DataPARC 요청</div>
-        <div class="cfh-v3-request-value">${metaData.data["DataPARC 요청"] || "-"}</div>
-      </div>
-      <div class="cfh-v3-action-row"></div>
+      <div class="cfh-v4-action-row"></div>
     `;
 
-    const actionRow = host.querySelector(".cfh-v3-action-row");
-    let control = metaData.calcControl;
-    if (control) {
-      control.textContent = "계산 화면 보기";
-      control.classList.add("cfh-v3-action-button");
-      actionRow.appendChild(control);
-    } else {
-      const fallback = document.createElement("button");
-      fallback.type = "button";
-      fallback.className = "cfh-v3-action-button";
-      fallback.textContent = "계산 화면 보기";
-      actionRow.appendChild(fallback);
+    const actionRow = host.querySelector(".cfh-v4-action-row");
+    if (metaData.calcControl) {
+      metaData.calcControl.textContent = "계산 화면 보기";
+      metaData.calcControl.classList.add("cfh-v4-action-button");
+      actionRow.appendChild(metaData.calcControl);
     }
   }
 
@@ -262,12 +270,8 @@
     if (!basisCard || !metaCard || basisCard === metaCard) return false;
 
     ensureGridLayout(basisCard, metaCard);
-
-    const basisData = parseBasisData(basisCard);
-    const metaData = parseMetaData(metaCard);
-
-    renderBasisCard(basisCard, basisTitle, basisData);
-    renderMetaCard(metaCard, metaTitle, metaData);
+    renderBasisCard(basisCard, basisTitle, parseBasisData(basisCard));
+    renderMetaCard(metaCard, metaTitle, parseMetaData(metaCard));
     return true;
   }
 
