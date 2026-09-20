@@ -634,31 +634,44 @@
 })();
 
 /* =========================================================
-   EFFICIENCY DAILY WORK ROW HEIGHT V1
+   EFFICIENCY DAILY WORK ROW HEIGHT DRAG V2
 
-   - Standalone Daily Work window only
-   - No MutationObserver
-   - No wrapping/replacing Daily Work save functions
-   - No DB/API mutation
-   - Per-date browser-local row height backup
+   Spreadsheet-like direct row resizing:
+   - no toolbar button
+   - no edit mode
+   - drag bottom border of a work row
+   - per-date local persistence
+   - PDF clone keeps inline row height
+   - no MutationObserver
 ========================================================= */
 (() => {
   'use strict';
 
   const VERSION =
-    'EFFICIENCY_DAILY_WORK_ROW_HEIGHT_V1';
+    'EFFICIENCY_DAILY_WORK_ROW_HEIGHT_DRAG_V2';
 
   const WINDOW_PARAM =
     'efficiencyDailyWorkWindow';
 
+  /*
+   * V1과 같은 저장 키를 사용하므로
+   * 이미 조절했던 높이도 그대로 이어받는다.
+   */
   const STORAGE_PREFIX =
     'gs-efficiency-daily-work-row-height-v1:';
 
   const MIN_HEIGHT = 32;
   const MAX_HEIGHT = 360;
-  const STEP = 12;
 
-  if (window.__gsEfficiencyDailyWorkRowHeightV1) {
+  /*
+   * 행 아래 경계선 기준 ±6px 안쪽을
+   * 드래그 가능 영역으로 사용한다.
+   */
+  const EDGE_HOTSPOT = 6;
+
+  if (
+    window.__gsEfficiencyDailyWorkRowHeightDragV2
+  ) {
     return;
   }
 
@@ -678,26 +691,12 @@
     return;
   }
 
-  window.__gsEfficiencyDailyWorkRowHeightV1 = true;
+  window.__gsEfficiencyDailyWorkRowHeightDragV2 =
+    true;
 
-  let editMode = false;
-  let selectedRow = null;
-  let selectedRowKey = '';
+  let hoverRow = null;
+  let dragState = null;
   let lastDate = '';
-
-  let toggleButton = null;
-  let panel = null;
-  let selectedText = null;
-
-  const rowLabels = {
-    'efficiency-overall': '효율업무 총괄',
-    'efficiency-1': '효율업무1',
-    'efficiency-2': '효율업무2',
-    'efficiency-3': '효율업무3',
-    'purchase-admin': '구매·행정업무',
-    'operation-day': 'Day 근무조',
-    'operation-night': 'Night 근무조'
-  };
 
   const getDateValue = () =>
     String(
@@ -708,6 +707,20 @@
 
   const getStorageKey = dateValue =>
     `${STORAGE_PREFIX}${dateValue || 'unknown'}`;
+
+  const getRows = () => [
+    ...document.querySelectorAll(
+      '#efficiencyDailyWorkPaper ' +
+      '[data-efficiency-daily-work-row-key]'
+    )
+  ];
+
+  const getRowKey = row =>
+    String(
+      row?.dataset
+        ?.efficiencyDailyWorkRowKey ||
+      ''
+    ).trim();
 
   const loadHeights = dateValue => {
     if (!dateValue) {
@@ -778,24 +791,9 @@
         JSON.stringify(heights)
       );
     } catch (_) {
-      // Local layout backup must never break the editor.
+      // 로컬 저장 실패가 작업 자체를 막아서는 안 된다.
     }
   };
-
-  const getRows = () =>
-    [
-      ...document.querySelectorAll(
-        '#efficiencyDailyWorkPaper ' +
-        '[data-efficiency-daily-work-row-key]'
-      )
-    ];
-
-  const getRowKey = row =>
-    String(
-      row?.dataset
-        ?.efficiencyDailyWorkRowKey ||
-      ''
-    ).trim();
 
   const clearRowHeight = row => {
     if (!row) {
@@ -806,27 +804,29 @@
       'height'
     );
 
-    row.querySelectorAll('td, th')
-      .forEach(cell => {
-        cell.style.removeProperty(
-          'height'
-        );
-      });
+    row.querySelectorAll(
+      'td, th'
+    ).forEach(cell => {
+      cell.style.removeProperty(
+        'height'
+      );
+    });
 
-    row.querySelectorAll('textarea')
-      .forEach(control => {
-        control.style.removeProperty(
-          'height'
-        );
+    row.querySelectorAll(
+      'textarea'
+    ).forEach(control => {
+      control.style.removeProperty(
+        'height'
+      );
 
-        control.style.removeProperty(
-          'min-height'
-        );
+      control.style.removeProperty(
+        'min-height'
+      );
 
-        control.style.removeProperty(
-          'max-height'
-        );
-      });
+      control.style.removeProperty(
+        'max-height'
+      );
+    });
   };
 
   const applyRowHeight = (
@@ -855,14 +855,15 @@
       'important'
     );
 
-    row.querySelectorAll('td, th')
-      .forEach(cell => {
-        cell.style.setProperty(
-          'height',
-          `${normalized}px`,
-          'important'
-        );
-      });
+    row.querySelectorAll(
+      'td, th'
+    ).forEach(cell => {
+      cell.style.setProperty(
+        'height',
+        `${normalized}px`,
+        'important'
+      );
+    });
 
     const controlHeight =
       Math.max(
@@ -870,29 +871,39 @@
         normalized - 10
       );
 
-    row.querySelectorAll('textarea')
-      .forEach(control => {
-        control.style.setProperty(
-          'height',
-          `${controlHeight}px`,
-          'important'
-        );
+    row.querySelectorAll(
+      'textarea'
+    ).forEach(control => {
+      control.style.setProperty(
+        'height',
+        `${controlHeight}px`,
+        'important'
+      );
 
-        control.style.setProperty(
-          'min-height',
-          '0',
-          'important'
-        );
+      control.style.setProperty(
+        'min-height',
+        '0',
+        'important'
+      );
 
-        control.style.setProperty(
-          'max-height',
-          'none',
-          'important'
-        );
-      });
+      control.style.setProperty(
+        'max-height',
+        'none',
+        'important'
+      );
+    });
+
+    row.setAttribute(
+      'data-row-height-v2-applied',
+      '1'
+    );
   };
 
   const applyStoredHeights = () => {
+    if (dragState) {
+      return;
+    }
+
     const dateValue =
       getDateValue();
 
@@ -901,7 +912,9 @@
     }
 
     const heights =
-      loadHeights(dateValue);
+      loadHeights(
+        dateValue
+      );
 
     getRows().forEach(row => {
       const rowKey =
@@ -936,339 +949,256 @@
 
       } else if (
         row.hasAttribute(
-          'data-row-height-v1-applied'
+          'data-row-height-v2-applied'
         )
       ) {
         clearRowHeight(row);
 
         row.removeAttribute(
-          'data-row-height-v1-applied'
-        );
-      }
-
-      if (
-        Number.isFinite(storedHeight) &&
-        storedHeight > 0
-      ) {
-        row.setAttribute(
-          'data-row-height-v1-applied',
-          '1'
+          'data-row-height-v2-applied'
         );
       }
     });
   };
 
-  const clearSelection = () => {
-    if (selectedRow) {
-      selectedRow.classList.remove(
-        'is-row-height-selected-v1'
+  const clearHoverRow = () => {
+    if (hoverRow) {
+      hoverRow.classList.remove(
+        'is-row-resize-hover-v2'
       );
     }
 
-    selectedRow = null;
-    selectedRowKey = '';
+    hoverRow = null;
 
-    updatePanel();
+    if (!dragState) {
+      document.documentElement
+        .classList.remove(
+          'is-daily-work-row-resize-v2'
+        );
+    }
   };
 
-  const selectRow = row => {
+  const setHoverRow = row => {
+    if (hoverRow === row) {
+      return;
+    }
+
+    clearHoverRow();
+
     if (!row) {
       return;
     }
 
-    if (
-      selectedRow &&
-      selectedRow !== row
-    ) {
-      selectedRow.classList.remove(
-        'is-row-height-selected-v1'
-      );
-    }
-
-    selectedRow = row;
-    selectedRowKey =
-      getRowKey(row);
+    hoverRow = row;
 
     row.classList.add(
-      'is-row-height-selected-v1'
+      'is-row-resize-hover-v2'
     );
 
-    updatePanel();
+    document.documentElement
+      .classList.add(
+        'is-daily-work-row-resize-v2'
+      );
   };
 
-  const getCurrentSelectedHeight = () => {
-    if (
-      !selectedRow ||
-      !selectedRowKey
-    ) {
-      return 0;
+  const findResizeRow = event => {
+    const target =
+      event.target instanceof Element
+        ? event.target
+        : null;
+
+    if (!target) {
+      return null;
     }
 
-    const dateValue =
-      getDateValue();
-
-    const stored =
-      Number(
-        loadHeights(
-          dateValue
-        )[selectedRowKey]
+    const row =
+      target.closest(
+        '#efficiencyDailyWorkPaper ' +
+        '[data-efficiency-daily-work-row-key]'
       );
 
-    if (
-      Number.isFinite(stored) &&
-      stored > 0
-    ) {
-      return stored;
+    if (!row) {
+      return null;
     }
 
-    return Math.round(
-      selectedRow
-        .getBoundingClientRect()
-        .height || 0
-    );
+    const rowKey =
+      getRowKey(row);
+
+    if (!rowKey) {
+      return null;
+    }
+
+    const rect =
+      row.getBoundingClientRect();
+
+    /*
+     * 현재 행의 아래쪽 테두리만 resize edge로 사용한다.
+     */
+    const distance =
+      Math.abs(
+        event.clientY -
+        rect.bottom
+      );
+
+    return (
+      distance <= EDGE_HOTSPOT
+    )
+      ? row
+      : null;
   };
 
-  const changeSelectedHeight = delta => {
-    if (
-      !selectedRow ||
-      !selectedRowKey
-    ) {
+  const beginDrag = (
+    event,
+    row
+  ) => {
+    const rowKey =
+      getRowKey(row);
+
+    if (!rowKey) {
       return;
     }
 
-    const dateValue =
-      getDateValue();
+    const startHeight =
+      Math.round(
+        row.getBoundingClientRect()
+          .height
+      );
 
-    if (!dateValue) {
+    dragState = {
+      row,
+      rowKey,
+      dateValue:
+        getDateValue(),
+      startY:
+        event.clientY,
+      startHeight,
+      currentHeight:
+        startHeight,
+      pointerId:
+        event.pointerId
+    };
+
+    row.classList.add(
+      'is-row-resizing-v2'
+    );
+
+    document.documentElement
+      .classList.add(
+        'is-daily-work-row-resizing-v2'
+      );
+
+    try {
+      row.setPointerCapture(
+        event.pointerId
+      );
+    } catch (_) {
+      // 브라우저가 capture를 제한해도 document listener로 계속 처리.
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+  };
+
+  const moveDrag = event => {
+    if (!dragState) {
       return;
     }
 
-    const heights =
-      loadHeights(
-        dateValue
-      );
-
-    const current =
-      getCurrentSelectedHeight();
+    const delta =
+      event.clientY -
+      dragState.startY;
 
     const next =
       Math.max(
         MIN_HEIGHT,
         Math.min(
           MAX_HEIGHT,
-          current + delta
+          dragState.startHeight +
+          delta
         )
       );
 
-    heights[selectedRowKey] =
-      next;
-
-    saveHeights(
-      dateValue,
-      heights
-    );
+    dragState.currentHeight =
+      Math.round(next);
 
     applyRowHeight(
-      selectedRow,
-      next
+      dragState.row,
+      dragState.currentHeight
     );
 
-    selectedRow.setAttribute(
-      'data-row-height-v1-applied',
-      '1'
-    );
-
-    updatePanel();
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
   };
 
-  const resetSelectedHeight = () => {
-    if (
-      !selectedRow ||
-      !selectedRowKey
-    ) {
+  const finishDrag = event => {
+    if (!dragState) {
       return;
     }
 
-    const dateValue =
-      getDateValue();
+    const {
+      row,
+      rowKey,
+      dateValue,
+      currentHeight,
+      pointerId
+    } = dragState;
 
     const heights =
       loadHeights(
         dateValue
       );
 
-    delete heights[
-      selectedRowKey
-    ];
+    heights[rowKey] =
+      currentHeight;
 
     saveHeights(
       dateValue,
       heights
     );
 
-    clearRowHeight(
-      selectedRow
+    row.classList.remove(
+      'is-row-resizing-v2'
     );
-
-    selectedRow.removeAttribute(
-      'data-row-height-v1-applied'
-    );
-
-    updatePanel();
-  };
-
-  const resetAllHeights = () => {
-    const dateValue =
-      getDateValue();
-
-    if (!dateValue) {
-      return;
-    }
-
-    const confirmed =
-      window.confirm(
-        '현재 날짜의 행 높이를 모두 기본값으로 복원하시겠습니까?\n입력한 업무 내용은 삭제되지 않습니다.'
-      );
-
-    if (!confirmed) {
-      return;
-    }
 
     try {
-      localStorage.removeItem(
-        getStorageKey(dateValue)
-      );
-    } catch (_) {
-      // Ignore local storage failure.
-    }
-
-    getRows().forEach(row => {
-      clearRowHeight(row);
-
-      row.removeAttribute(
-        'data-row-height-v1-applied'
-      );
-    });
-
-    updatePanel();
-  };
-
-  const createActionButton = (
-    text,
-    onClick
-  ) => {
-    const button =
-      document.createElement(
-        'button'
-      );
-
-    button.type =
-      'button';
-
-    button.className =
-      'daily-work-row-height-action-v1';
-
-    button.textContent =
-      text;
-
-    button.addEventListener(
-      'click',
-      onClick
-    );
-
-    return button;
-  };
-
-  const updatePanel = () => {
-    if (!panel) {
-      return;
-    }
-
-    panel.hidden =
-      !editMode;
-
-    if (toggleButton) {
-      toggleButton.textContent =
-        editMode
-          ? '행 높이 편집 종료'
-          : '행 높이 조절';
-
-      toggleButton.classList.toggle(
-        'is-active',
-        editMode
-      );
-    }
-
-    if (!selectedText) {
-      return;
-    }
-
-    if (
-      !selectedRow ||
-      !selectedRowKey
-    ) {
-      selectedText.textContent =
-        '조절할 업무행을 클릭하세요.';
-
-      panel
-        .querySelectorAll(
-          '[data-requires-row="1"]'
+      if (
+        row.hasPointerCapture?.(
+          pointerId
         )
-        .forEach(button => {
-          button.disabled =
-            true;
-        });
-
-      return;
+      ) {
+        row.releasePointerCapture(
+          pointerId
+        );
+      }
+    } catch (_) {
+      // Ignore capture release failure.
     }
 
-    panel
-      .querySelectorAll(
-        '[data-requires-row="1"]'
-      )
-      .forEach(button => {
-        button.disabled =
-          false;
-      });
+    dragState = null;
 
-    const label =
-      rowLabels[
-        selectedRowKey
-      ] ||
-      selectedRowKey;
+    document.documentElement
+      .classList.remove(
+        'is-daily-work-row-resizing-v2'
+      );
 
-    const height =
-      getCurrentSelectedHeight();
+    clearHoverRow();
 
-    selectedText.textContent =
-      `선택: ${label} · 약 ${height}px`;
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    }
   };
 
-  const installUi = () => {
+  const installStyle = () => {
     if (
       document.getElementById(
-        'efficiencyDailyWorkRowHeightButtonV1'
+        'efficiencyDailyWorkRowHeightDragStyleV2'
       )
     ) {
-      return true;
-    }
-
-    const actions =
-      document.querySelector(
-        '#efficiencyDailyWorkView ' +
-        '.efficiency-daily-work-heading-actions'
-      ) ||
-      document.querySelector(
-        '.efficiency-daily-work-heading-actions'
-      );
-
-    if (
-      !actions ||
-      !document.getElementById(
-        'efficiencyDailyWorkPaper'
-      )
-    ) {
-      return false;
+      return;
     }
 
     const style =
@@ -1277,275 +1207,142 @@
       );
 
     style.id =
-      'efficiencyDailyWorkRowHeightStyleV1';
+      'efficiencyDailyWorkRowHeightDragStyleV2';
 
     style.textContent = `
-      #efficiencyDailyWorkRowHeightButtonV1 {
-        border-color: #7da8d7 !important;
+      /*
+       * 버튼/패널 없음.
+       * 행 경계선에 올렸을 때만 resize cursor를 표시한다.
+       */
+      html.is-daily-work-row-resize-v2,
+      html.is-daily-work-row-resize-v2 * {
+        cursor: ns-resize !important;
       }
 
-      #efficiencyDailyWorkRowHeightButtonV1.is-active {
-        border-color: #2269b2 !important;
-        background: #2269b2 !important;
-        color: #fff !important;
+      html.is-daily-work-row-resizing-v2,
+      html.is-daily-work-row-resizing-v2 * {
+        cursor: ns-resize !important;
+        user-select: none !important;
       }
 
       #efficiencyDailyWorkPaper
-      .is-row-height-selected-v1 > td,
+      [data-efficiency-daily-work-row-key]
+      > td,
       #efficiencyDailyWorkPaper
-      .is-row-height-selected-v1 > th {
+      [data-efficiency-daily-work-row-key]
+      > th {
+        transition:
+          background-color .08s ease;
+      }
+
+      #efficiencyDailyWorkPaper
+      .is-row-resize-hover-v2
+      > td,
+      #efficiencyDailyWorkPaper
+      .is-row-resize-hover-v2
+      > th {
         box-shadow:
-          inset 0 0 0 2px #2877d4 !important;
-        background-color:
-          rgba(40,119,212,.06) !important;
+          inset 0 -2px 0
+          #2877d4 !important;
       }
 
-      #efficiencyDailyWorkRowHeightPanelV1 {
-        position: fixed;
-        right: 26px;
-        top: 178px;
-        z-index: 2147483646;
-
-        width: 240px;
-        padding: 10px;
-
-        border:
-          1px solid #b9c9d9;
-        border-radius: 9px;
-
-        background:
-          rgba(255,255,255,.98);
-
+      #efficiencyDailyWorkPaper
+      .is-row-resizing-v2
+      > td,
+      #efficiencyDailyWorkPaper
+      .is-row-resizing-v2
+      > th {
         box-shadow:
-          0 10px 28px
-          rgba(23,49,77,.18);
-      }
-
-      #efficiencyDailyWorkRowHeightPanelV1[hidden] {
-        display: none !important;
-      }
-
-      #efficiencyDailyWorkRowHeightPanelV1
-      .row-height-panel-title-v1 {
-        margin-bottom: 7px;
-
-        color: #193a5c;
-        font-size: 11px;
-        font-weight: 900;
-      }
-
-      #efficiencyDailyWorkRowHeightPanelV1
-      .row-height-panel-selected-v1 {
-        margin-bottom: 8px;
-        padding: 7px 8px;
-
-        border-radius: 6px;
-
-        background: #edf5fd;
-
-        color: #31506f;
-        font-size: 10px;
-        font-weight: 800;
-      }
-
-      #efficiencyDailyWorkRowHeightPanelV1
-      .row-height-panel-actions-v1 {
-        display: grid;
-        grid-template-columns:
-          repeat(2, 1fr);
-        gap: 6px;
-      }
-
-      #efficiencyDailyWorkRowHeightPanelV1
-      .daily-work-row-height-action-v1 {
-        min-height: 31px;
-        padding: 5px 7px;
-
-        border:
-          1px solid #c7d4e1;
-        border-radius: 6px;
-
-        background: #fff;
-        color: #294660;
-
-        font-size: 10px;
-        font-weight: 800;
-
-        cursor: pointer;
-      }
-
-      #efficiencyDailyWorkRowHeightPanelV1
-      .daily-work-row-height-action-v1:hover:not(:disabled) {
-        border-color: #6397ce;
-        background: #f1f7fe;
-      }
-
-      #efficiencyDailyWorkRowHeightPanelV1
-      .daily-work-row-height-action-v1:disabled {
-        cursor: not-allowed;
-        opacity: .4;
-      }
-
-      #efficiencyDailyWorkRowHeightPanelV1
-      .is-wide-v1 {
-        grid-column: span 2;
+          inset 0 -3px 0
+          #1765ba !important;
       }
     `;
 
     document.head.append(
       style
     );
-
-    toggleButton =
-      document.createElement(
-        'button'
-      );
-
-    toggleButton.type =
-      'button';
-
-    toggleButton.id =
-      'efficiencyDailyWorkRowHeightButtonV1';
-
-    toggleButton.textContent =
-      '행 높이 조절';
-
-    toggleButton.addEventListener(
-      'click',
-      () => {
-        editMode =
-          !editMode;
-
-        if (!editMode) {
-          clearSelection();
-        }
-
-        updatePanel();
-      }
-    );
-
-    actions.prepend(
-      toggleButton
-    );
-
-    panel =
-      document.createElement(
-        'div'
-      );
-
-    panel.id =
-      'efficiencyDailyWorkRowHeightPanelV1';
-
-    panel.hidden =
-      true;
-
-    const title =
-      document.createElement(
-        'div'
-      );
-
-    title.className =
-      'row-height-panel-title-v1';
-
-    title.textContent =
-      '업무행 높이 조절';
-
-    selectedText =
-      document.createElement(
-        'div'
-      );
-
-    selectedText.className =
-      'row-height-panel-selected-v1';
-
-    const buttonArea =
-      document.createElement(
-        'div'
-      );
-
-    buttonArea.className =
-      'row-height-panel-actions-v1';
-
-    const minusButton =
-      createActionButton(
-        '− 12px',
-        () =>
-          changeSelectedHeight(
-            -STEP
-          )
-      );
-
-    minusButton.dataset
-      .requiresRow =
-      '1';
-
-    const plusButton =
-      createActionButton(
-        '+ 12px',
-        () =>
-          changeSelectedHeight(
-            STEP
-          )
-      );
-
-    plusButton.dataset
-      .requiresRow =
-      '1';
-
-    const resetRowButton =
-      createActionButton(
-        '선택 행 기본높이',
-        resetSelectedHeight
-      );
-
-    resetRowButton.dataset
-      .requiresRow =
-      '1';
-
-    resetRowButton.classList.add(
-      'is-wide-v1'
-    );
-
-    const resetAllButton =
-      createActionButton(
-        '현재 날짜 전체 기본높이',
-        resetAllHeights
-      );
-
-    resetAllButton.classList.add(
-      'is-wide-v1'
-    );
-
-    buttonArea.append(
-      minusButton,
-      plusButton,
-      resetRowButton,
-      resetAllButton
-    );
-
-    panel.append(
-      title,
-      selectedText,
-      buttonArea
-    );
-
-    document.body.append(
-      panel
-    );
-
-    updatePanel();
-
-    return true;
   };
 
+  installStyle();
+
   /*
-   * Event delegation only.
-   * No MutationObserver is used.
+   * Hover: 행 아래쪽 테두리를 찾는다.
    */
   document.addEventListener(
-    'click',
+    'pointermove',
     event => {
-      if (!editMode) {
+      if (dragState) {
+        moveDrag(event);
+        return;
+      }
+
+      const row =
+        findResizeRow(event);
+
+      setHoverRow(row);
+    },
+    {
+      capture: true,
+      passive: false
+    }
+  );
+
+  /*
+   * 행 아래 경계에서 누르면 바로 resize 시작.
+   */
+  document.addEventListener(
+    'pointerdown',
+    event => {
+      if (
+        event.button !== 0
+      ) {
+        return;
+      }
+
+      const row =
+        findResizeRow(event);
+
+      if (!row) {
+        return;
+      }
+
+      beginDrag(
+        event,
+        row
+      );
+    },
+    {
+      capture: true,
+      passive: false
+    }
+  );
+
+  document.addEventListener(
+    'pointerup',
+    finishDrag,
+    {
+      capture: true,
+      passive: false
+    }
+  );
+
+  document.addEventListener(
+    'pointercancel',
+    finishDrag,
+    {
+      capture: true,
+      passive: false
+    }
+  );
+
+  /*
+   * 표 밖으로 빠지면 hover만 제거한다.
+   * drag 중이면 document pointermove가 계속 resize를 담당한다.
+   */
+  document.addEventListener(
+    'pointerover',
+    event => {
+      if (dragState) {
         return;
       }
 
@@ -1554,41 +1351,21 @@
           ? event.target
           : null;
 
-      if (!target) {
-        return;
-      }
-
       if (
-        target.closest(
-          '#efficiencyDailyWorkRowHeightPanelV1'
-        ) ||
-        target.closest(
-          '#efficiencyDailyWorkRowHeightButtonV1'
+        !target?.closest(
+          '#efficiencyDailyWorkPaper'
         )
       ) {
-        return;
+        clearHoverRow();
       }
-
-      const row =
-        target.closest(
-          '#efficiencyDailyWorkPaper ' +
-          '[data-efficiency-daily-work-row-key]'
-        );
-
-      if (!row) {
-        return;
-      }
-
-      /*
-       * Selection only.
-       * Do not preventDefault / stopPropagation:
-       * existing text inputs remain usable.
-       */
-      selectRow(row);
     },
     true
   );
 
+  /*
+   * 초기 높이 및 날짜 변경 시 높이 복구.
+   * MutationObserver는 사용하지 않는다.
+   */
   let attempts = 0;
 
   const startupTimer =
@@ -1596,13 +1373,21 @@
       () => {
         attempts += 1;
 
+        const paper =
+          document.getElementById(
+            'efficiencyDailyWorkPaper'
+          );
+
         if (
-          installUi() ||
+          paper ||
           attempts >= 150
         ) {
           window.clearInterval(
             startupTimer
           );
+
+          lastDate =
+            getDateValue();
 
           applyStoredHeights();
         }
@@ -1610,10 +1395,6 @@
       100
     );
 
-  /*
-   * Lightweight date/layout reconciliation.
-   * 1 second interval only; no DOM mutation observer.
-   */
   const dateTimer =
     window.setInterval(
       () => {
@@ -1624,7 +1405,7 @@
           currentDate !==
           lastDate
         ) {
-          clearSelection();
+          clearHoverRow();
 
           lastDate =
             currentDate;
