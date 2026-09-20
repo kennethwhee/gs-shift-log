@@ -82,7 +82,7 @@ test('inventory contract rejects a total that does not equal Day + Storage A + S
   assert.throws(()=>contract.validatePeriodReport(report,spec),/총 재고량/);
 });
 
-test('source connects 13 DataPARC rows, completed-unloading receipt interval, and total-only UI',()=>{
+test('source connects 13 DataPARC rows, completed-unloading receipt interval, and allocation-aware UI',()=>{
   const root=path.join(__dirname,'..');
   const worker=fs.readFileSync(path.join(root,'local-tools','ois-agent','cofiring-period-v5','cofiring-period-worker-v5.ps1'),'utf8');
   for(const tag of [
@@ -102,7 +102,9 @@ test('source connects 13 DataPARC rows, completed-unloading receipt interval, an
   const ui=fs.readFileSync(path.join(root,'maintenance','cofiring-period-ui-v5.js'),'utf8');
   assert.match(ui,/data-cfv15-organic-usage/);
   assert.match(ui,/유기성 총 사용량/);
-  assert.match(ui,/호기별 배분 전/);
+  assert.match(ui,/호기별 배분/);
+  assert.match(ui,/COFIRING_ORGANIC_20260920_ANCHOR_3471_V1/);
+  assert.match(ui,/validateOrganicAllocationBeforeSave/);
   assert.match(ui,/receiptStart:p\.startLocal/);
   assert.doesNotMatch(ui,/data-cfv5-manual="unit1:organic"[^]*?data-cfv15-organic-auto-fill/);
 });

@@ -35,9 +35,19 @@ test('manual programmatic recalculation cancels a pending typing timer first', (
   );
 });
 
-test('web cache version points to debounce build', () => {
-  assert.match(
-    index,
-    /cofiring-period-ui-v5\.js\?v=20260920-input-debounce-v1/
+test('web loads exactly one versioned cofiring period UI build', () => {
+  const loaders = [
+    ...index.matchAll(
+      /<script\s+src="\/maintenance\/cofiring-period-ui-v5\.js\?v=([^"]+)"\s+defer><\/script>/g
+    )
+  ];
+
+  assert.equal(
+    loaders.length,
+    1
+  );
+
+  assert.ok(
+    loaders[0][1]
   );
 });

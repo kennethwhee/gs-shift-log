@@ -263,6 +263,8 @@
     const mobile=isMobile();let reference=null,lastResult=null,displayResult=null,periodGeneration=0,settingsDirty=false,manualDirty=false,disposed=false,fastPrepTimer=null,fastPrepGeneration=0,inputRecalcTimer=null,adjustmentActive=false,conflictRetrying=false,selectedStoreKey='';
     let clickTiming=null,clickToken=null,clickContext=null,clickBusy=false,renderedRequestId=null,dayBoundaryTimer=null,deadlineRefreshTimer=null,selectionEpoch=0,deadlineInputError='',pendingDailyDraft=null,restoringSaved=false;
     // COFIRING_MORNING_MEETING_ORGANIC_AUTOFILL_V1
+    // COFIRING_ORGANIC_SOURCE_DECOUPLE_V1
+    const COFIRING_EXTERNAL_ORGANIC_AUTOFILL_ENABLED=false;
     let morningOrganicSelection='',morningCardObserver=null,morningCardObserved=null,morningCardBindTimer=null,morningCardBindAttempts=0;
     const morningOrganicTouched=new Set(),morningOrganicAuto=new Map();
     const settings=settingsApi?.create({getHeaders:authHeaders,canEdit:()=>!isMobile(),onChange:()=>paintSettings()})||null;
@@ -286,7 +288,10 @@
         organicUsageSource('선택기간 누적량 · 유기성 자동사용량 · 최신 DataPARC 재조회 필요','working');
         return null;
       }
-      const startTotal=Number(inventory.start.total),endTotal=Number(inventory.end.total);
+      const inventoryStartTotal=Number(inventory.start.total),endTotal=Number(inventory.end.total);
+        const organicTargetDate=String(container.querySelector('[data-cfv7-date]')?.value||'');
+        const anchoredStart=(queryMode(container)==='daily'&&organicTargetDate==='2026-09-20');
+        const startTotal=anchoredStart?34.71:inventoryStartTotal; // COFIRING_ORGANIC_20260920_ANCHOR_3471_V1
       const receiptInput=container.querySelector('[data-cfv5-receipt="organic"]');
       const receiptRaw=String(receiptInput?.value??'').trim(),receipt=receiptRaw===''?0:Number(receiptRaw);
       if(!Number.isFinite(startTotal)||startTotal<0||!Number.isFinite(endTotal)||endTotal<0||!Number.isFinite(receipt)||receipt<0){
@@ -299,10 +304,56 @@
         return {ok:false,startTotal,receipt,endTotal,usage:raw};
       }
       const usage=raw<0?0:raw;
-      organicUsageSource(`유기성 총 사용량 ${num(usage,3)}t = 시작재고 ${num(startTotal,3)} + 입고 ${num(receipt,3)} - 종료재고 ${num(endTotal,3)} · 호기별 배분 전`,'ready');
-      return {ok:true,startTotal,receipt,endTotal,usage};
+      const unit1Input=container.querySelector('[data-cfv5-manual="unit1:organic"]');
+        const unit2Input=container.querySelector('[data-cfv5-manual="unit2:organic"]');
+        const unit1Raw=String(unit1Input?.value??'').trim();
+        const unit2Raw=String(unit2Input?.value??'').trim();
+        const unit1=unit1Raw===''?0:Number(unit1Raw);
+        const unit2=unit2Raw===''?0:Number(unit2Raw);
+        const allocated=(Number.isFinite(unit1)&&unit1>=0&&Number.isFinite(unit2)&&unit2>=0)?unit1+unit2:null;
+        const allocationDiff=allocated===null?null:usage-allocated;
+        const allocationOk=allocationDiff!==null&&Math.abs(allocationDiff)<=0.01;
+        const basis=anchoredStart?'9/20 00:00 기준재고 34.710t':`시작재고 ${num(startTotal,3)}t`;
+        const allocationText=allocated===null
+          ?'호기별 배분값 확인 필요'
+          :allocationOk
+            ?`호기별 배분 ${num(unit1,3)} + ${num(unit2,3)} = ${num(allocated,3)}t · 일치`
+            :`호기별 배분 ${num(allocated,3)}/${num(usage,3)}t · ${num(Math.abs(allocationDiff),3)}t ${allocationDiff>0?'미배분':'초과'}`;
+        organicUsageSource(`유기성 총 사용량 ${num(usage,3)}t = ${basis} + 입고 ${num(receipt,3)} - 종료재고 ${num(endTotal,3)} · ${allocationText}`,allocationOk?'ready':'working');
+      return {ok:true,startTotal,inventoryStartTotal,anchoredStart,receipt,endTotal,usage,allocation:{unit1,unit2,total:allocated,diff:allocationDiff,ok:allocationOk}};
     }
-    async function syncReceiptTotals(){
+    function validateOrganicAllocationBeforeSave(values){
+        const total=updateOrganicInventoryUsage();
+        if(!total?.ok)return true;
+
+        const one=Number(values?.unit1?.organic??0);
+        const two=Number(values?.unit2?.organic??0);
+
+        if(
+          !Number.isFinite(one) ||
+          one<0 ||
+          !Number.isFinite(two) ||
+          two<0
+        ){
+          throw new Error('유기성 1·2호기 배분량을 0 이상의 숫자로 입력해 주세요.');
+        }
+
+        const allocated=one+two;
+        const diff=total.usage-allocated;
+
+        if(Math.abs(diff)>0.01){
+          throw new Error(
+            `유기성 호기별 배분 합계가 총 사용량과 일치해야 합니다. `+
+            `총 ${total.usage.toFixed(3)}t / `+
+            `현재 ${allocated.toFixed(3)}t / `+
+            `차이 ${Math.abs(diff).toFixed(3)}t`
+          );
+        }
+
+        return true;
+      }
+
+      async function syncReceiptTotals(){
       const generation=++receiptSyncGeneration;
       if(queryMode(container)!=='daily'){resetReceiptAuto();receiptSource('기간 지정 · 수기','manual');updateOrganicInventoryUsage();paintManual();return false;}
       let p;try{p=periodSpec(container);}catch(_){resetReceiptAuto();receiptSource('조회 기간 확인 필요','error');updateOrganicInventoryUsage();return false;}
@@ -704,7 +755,7 @@
       };
       return values.unit1===null&&values.unit2===null?null:{targetDate,values};
     }
-    function applyMorningMeetingOrganicDraft({recalculate=true}={}){
+    function applyMorningMeetingOrganicDraft({recalculate=true}={}){if(!COFIRING_EXTERNAL_ORGANIC_AUTOFILL_ENABLED)return false;
       if(disposed||!manual)return false;
       const source=morningMeetingOrganicSource();
       if(!source)return false;
@@ -730,7 +781,7 @@
       if(recalculate&&reference&&storesReady())calculate();
       return true;
     }
-    function bindMorningMeetingOrganicObserver(){
+    function bindMorningMeetingOrganicObserver(){if(!COFIRING_EXTERNAL_ORGANIC_AUTOFILL_ENABLED)return;
       if(disposed||!root.document||!root.MutationObserver)return;
       const card=root.document.getElementById('efficiencyMorningMeetingAutoCofiringCard');
       if(!card){
@@ -811,7 +862,7 @@
         lastResult=analyze();if(!lastResult)return null;deadlineInputError='';
         let shown=lastResult,adjusted=false;
         if(adjuster){try{const stored=adjuster.resolve(lastResult,readSettings(container),currentSpec());if(stored?.ok){shown=stored.result;adjusted=true;}}catch(_){}}
-        renderDisplay(shown,{adjusted});
+        renderDisplay(shown,{adjusted});updateOrganicInventoryUsage();
         renderedRequestId=live?.state()?.item?.saved?.id||null;
         const refreshing=!!live?.state()?.item?.active;prepLabel(refreshing?'저장값 재계산':'계산 완료',refreshing?'working':'ready');
         setStatus(container,refreshing?'저장된 결과와 현재 입력값으로 재계산했습니다. 최신 DataPARC 조회는 진행 중입니다.':adjusted?'선택 기간 혼소율 계산과 저장된 혼소 조정을 적용했습니다.':lastResult.warnings?.length?'혼소율을 계산했습니다. 자료 품질 경고는 [자료 확인 내용]에서 확인해 주세요. 빈칸 유기성·축분은 0t로 계산됩니다.':'선택 기간 혼소율 계산이 완료되었습니다. 빈칸 유기성·축분은 0t로 계산됩니다.','success');
@@ -846,7 +897,7 @@
       el.addEventListener('keydown',event=>{if(event.key==='Enter')flushInputRecalc();});
     }
     container.querySelector('[data-cfv5-settings-save]').addEventListener('click',async()=>{try{const values=readSettings(container);const ok=await settings.save(values);if(ok){settingsDirty=false;paintSettings(true);if(reference)calculate();}}catch(e){setStatus(container,e.message,'error');}});
-    container.querySelector('[data-cfv5-manual-save]').addEventListener('click',async()=>{try{const values=readManual(container),ok=await manual.save(values);if(ok){manualDirty=false;paintManual(true);if(reference)calculate();}}catch(e){setStatus(container,e.message,'error');}});
+    container.querySelector('[data-cfv5-manual-save]').addEventListener('click',async()=>{try{const values=readManual(container);validateOrganicAllocationBeforeSave(values);const ok=await manual.save(values);if(ok){manualDirty=false;paintManual(true);if(reference)calculate();}}catch(e){setStatus(container,e.message,'error');}});
     container.querySelector('[data-cfv5-query]').addEventListener('click',async()=>{if(clickBusy)return;clickBusy=true;fastPrepGeneration++;restoringSaved=false;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}let token=null;try{
       refreshDailyForClick();if(showDayUnavailable())return;
       const epoch=selectionEpoch,spec=currentSpec(),authKey=String(authHeaders().Authorization||authHeaders().authorization||''),signature=JSON.stringify(spec),stillSelected=()=>!disposed&&epoch===selectionEpoch&&visible()&&JSON.stringify(currentSpec())===signature&&String(authHeaders().Authorization||authHeaders().authorization||'')===authKey;
