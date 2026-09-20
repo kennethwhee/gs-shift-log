@@ -7740,3 +7740,1556 @@
     `[${VERSION}] ready`
   );
 })();
+
+/* =========================================================
+   EFFICIENCY DAILY WORK STRUCTURAL UNDO V1
+
+   Ctrl+Z
+     - 행 삭제
+     - 항목 삭제
+     - 추가행 삭제
+     - 행 숨김 / 복원
+     - 위/아래 행 추가
+     를 되돌린다.
+
+   Ctrl+Y / Ctrl+Shift+Z
+     - 다시 실행
+
+   일반 textarea/input에서 사용자가 직접 글자를 수정한 뒤에는
+   브라우저 기본 텍스트 Undo를 우선한다.
+
+   No DB/API/schema changes.
+========================================================= */
+(() => {
+  'use strict';
+
+  const VERSION =
+    'EFFICIENCY_DAILY_WORK_STRUCTURAL_UNDO_V1';
+
+  const PAPER_SELECTOR =
+    '#efficiencyDailyWorkPaper';
+
+  const MENU_ID =
+    'efficiencyDailyWorkRowContextMenuV1';
+
+  const MAX_HISTORY =
+    30;
+
+  const HIDDEN_ROWS_PREFIX =
+    'gs-efficiency-daily-work-hidden-rows-v1:';
+
+  const DELETED_BLOCKS_PREFIX =
+    'gs-efficiency-daily-work-deleted-blocks-v2:';
+
+  const ROW_DELETE_SNAPSHOT_PREFIX =
+    'gs-efficiency-daily-work-row-delete-snapshot-v1:';
+
+  const BLOCK_DELETE_SNAPSHOT_PREFIX =
+    'gs-efficiency-daily-work-block-delete-snapshot-v2:';
+
+
+  const BLOCK_CONTROL_IDS = [
+    'efficiencyDailyWorkNotice',
+    'efficiencyDailyWorkTmMeeting',
+    'efficiencyDailyWorkTeamInstruction',
+    'efficiencyDailyWorkOtherNotes'
+  ];
+
+
+  if (
+    window.__gsEfficiencyDailyWorkStructuralUndoV1
+  ) {
+    return;
+  }
+
+
+  window.__gsEfficiencyDailyWorkStructuralUndoV1 =
+    true;
+
+
+  let undoStack = [];
+
+  let redoStack = [];
+
+  let structuralUndoArmed =
+    false;
+
+  let restoring =
+    false;
+
+  let pendingActionId =
+    0;
+
+
+  const getPaper = () =>
+    document.querySelector(
+      PAPER_SELECTOR
+    );
+
+
+  const getDateValue = () =>
+    String(
+      document.getElementById(
+        'efficiencyDailyWorkDate'
+      )?.value || ''
+    ).trim();
+
+
+  const cloneJson = value => {
+
+    try {
+      return JSON.parse(
+        JSON.stringify(
+          value
+        )
+      );
+    } catch {
+      return [];
+    }
+  };
+
+
+  const readStorageValue = (
+    storage,
+    key
+  ) => {
+
+    try {
+      return storage.getItem(
+        key
+      );
+    } catch {
+      return null;
+    }
+  };
+
+
+  const restoreStorageValue = (
+    storage,
+    key,
+    value
+  ) => {
+
+    try {
+
+      if (
+        value ===
+        null ||
+        value ===
+        undefined
+      ) {
+        storage.removeItem(
+          key
+        );
+
+      } else {
+        storage.setItem(
+          key,
+          value
+        );
+      }
+
+    } catch (_) {
+      // Storage failure must not break the editor.
+    }
+  };
+
+
+  const readStoragePrefixes = (
+    storage,
+    prefixes
+  ) => {
+
+    const result = [];
+
+
+    try {
+
+      for (
+        let index = 0;
+        index < storage.length;
+        index += 1
+      ) {
+
+        const key =
+          storage.key(
+            index
+          );
+
+
+        if (
+          !key ||
+          !prefixes.some(
+            prefix =>
+              key.startsWith(
+                prefix
+              )
+          )
+        ) {
+          continue;
+        }
+
+
+        result.push({
+          key,
+
+          value:
+            storage.getItem(
+              key
+            )
+        });
+      }
+
+    } catch (_) {
+      return [];
+    }
+
+
+    result.sort(
+      (
+        first,
+        second
+      ) =>
+        first.key.localeCompare(
+          second.key
+        )
+    );
+
+
+    return result;
+  };
+
+
+  const restoreStoragePrefixes = (
+    storage,
+    prefixes,
+    records
+  ) => {
+
+    try {
+
+      const removeKeys = [];
+
+
+      for (
+        let index = 0;
+        index < storage.length;
+        index += 1
+      ) {
+
+        const key =
+          storage.key(
+            index
+          );
+
+
+        if (
+          key &&
+          prefixes.some(
+            prefix =>
+              key.startsWith(
+                prefix
+              )
+          )
+        ) {
+          removeKeys.push(
+            key
+          );
+        }
+      }
+
+
+      removeKeys.forEach(
+        key =>
+          storage.removeItem(
+            key
+          )
+      );
+
+
+      (
+        Array.isArray(
+          records
+        )
+          ? records
+          : []
+      ).forEach(
+        record => {
+
+          if (
+            !record?.key
+          ) {
+            return;
+          }
+
+
+          storage.setItem(
+            record.key,
+            String(
+              record.value ?? ''
+            )
+          );
+        }
+      );
+
+    } catch (_) {
+      // Ignore.
+    }
+  };
+
+
+  const getControlState = control => {
+
+    const type =
+      String(
+        control.type || ''
+      ).toLowerCase();
+
+
+    return {
+      value:
+        String(
+          control.value ?? ''
+        ),
+
+      checked:
+        Boolean(
+          control.checked
+        ),
+
+      selectedIndex:
+        Number(
+          control.selectedIndex
+        ),
+
+      type
+    };
+  };
+
+
+  const getControlIdentity = control => {
+
+    const id =
+      String(
+        control.id || ''
+      ).trim();
+
+
+    if (id) {
+      return {
+        kind: 'id',
+        id
+      };
+    }
+
+
+    const row =
+      control.closest(
+        '[data-efficiency-daily-work-row-key]'
+      );
+
+
+    if (
+      row &&
+      row.dataset
+        .efficiencyDailyWorkExtraRow !==
+        '1'
+    ) {
+
+      const rowKey =
+        String(
+          row.dataset
+            .efficiencyDailyWorkRowKey ||
+          ''
+        ).trim();
+
+
+      const field =
+        String(
+          control.dataset
+            ?.efficiencyDailyWorkField ||
+          ''
+        ).trim();
+
+
+      if (
+        rowKey &&
+        field
+      ) {
+        return {
+          kind:
+            'row-field',
+
+          rowKey,
+
+          field
+        };
+      }
+    }
+
+
+    return null;
+  };
+
+
+  const captureControls = paper => {
+
+    if (!paper) {
+      return [];
+    }
+
+
+    return [
+      ...paper.querySelectorAll(
+        'input, textarea, select'
+      )
+    ]
+      .filter(
+        control =>
+          !control.closest(
+            '[data-efficiency-daily-work-extra-row="1"]'
+          )
+      )
+      .map(
+        control => {
+
+          const identity =
+            getControlIdentity(
+              control
+            );
+
+
+          if (!identity) {
+            return null;
+          }
+
+
+          return {
+            ...identity,
+
+            state:
+              getControlState(
+                control
+              )
+          };
+        }
+      )
+      .filter(
+        Boolean
+      );
+  };
+
+
+  const findControl = (
+    paper,
+    descriptor
+  ) => {
+
+    if (
+      !paper ||
+      !descriptor
+    ) {
+      return null;
+    }
+
+
+    if (
+      descriptor.kind ===
+      'id'
+    ) {
+      return document.getElementById(
+        descriptor.id
+      );
+    }
+
+
+    if (
+      descriptor.kind ===
+      'row-field'
+    ) {
+
+      const row = [
+        ...paper.querySelectorAll(
+          '[data-efficiency-daily-work-row-key]'
+        )
+      ].find(
+        candidate =>
+          candidate.dataset
+            .efficiencyDailyWorkExtraRow !==
+            '1' &&
+          String(
+            candidate.dataset
+              .efficiencyDailyWorkRowKey ||
+            ''
+          ) ===
+            descriptor.rowKey
+      );
+
+
+      return row?.querySelector(
+        `[data-efficiency-daily-work-field="${descriptor.field}"]`
+      ) ||
+        null;
+    }
+
+
+    return null;
+  };
+
+
+  const restoreControlState = (
+    control,
+    state
+  ) => {
+
+    if (
+      !control ||
+      !state
+    ) {
+      return;
+    }
+
+
+    const type =
+      String(
+        state.type || ''
+      ).toLowerCase();
+
+
+    if (
+      type ===
+        'checkbox' ||
+      type ===
+        'radio'
+    ) {
+
+      control.checked =
+        Boolean(
+          state.checked
+        );
+
+      return;
+    }
+
+
+    control.value =
+      String(
+        state.value ?? ''
+      );
+
+
+    if (
+      control instanceof
+        HTMLSelectElement &&
+      Number.isInteger(
+        state.selectedIndex
+      ) &&
+      state.selectedIndex >=
+        0 &&
+      control.value !==
+        String(
+          state.value ?? ''
+        )
+    ) {
+
+      control.selectedIndex =
+        state.selectedIndex;
+    }
+  };
+
+
+  const captureFixedRows = paper => {
+
+    if (!paper) {
+      return [];
+    }
+
+
+    return [
+      ...paper.querySelectorAll(
+        '[data-efficiency-daily-work-row-key]'
+      )
+    ]
+      .filter(
+        row =>
+          row.dataset
+            .efficiencyDailyWorkExtraRow !==
+          '1'
+      )
+      .map(
+        row => ({
+          rowKey:
+            String(
+              row.dataset
+                .efficiencyDailyWorkRowKey ||
+              ''
+            ),
+
+          hidden:
+            Boolean(
+              row.hidden
+            )
+        })
+      );
+  };
+
+
+  const captureBlocks = () => {
+
+    return BLOCK_CONTROL_IDS
+      .map(
+        id => {
+
+          const control =
+            document.getElementById(
+              id
+            );
+
+
+          const block =
+            control?.closest(
+              '.efficiency-daily-work-instruction-field,' +
+              '.efficiency-daily-work-other-field'
+            );
+
+
+          if (
+            !control ||
+            !block
+          ) {
+            return null;
+          }
+
+
+          return {
+            id,
+
+            deleteHidden:
+              block.getAttribute(
+                'data-selected-delete-v2-hidden'
+              ),
+
+            display:
+              block.style
+                .getPropertyValue(
+                  'display'
+                ),
+
+            displayPriority:
+              block.style
+                .getPropertyPriority(
+                  'display'
+                )
+          };
+        }
+      )
+      .filter(
+        Boolean
+      );
+  };
+
+
+  const captureState = () => {
+
+    const paper =
+      getPaper();
+
+    const dateValue =
+      getDateValue();
+
+
+    const extraRows =
+      typeof window
+        .collectEfficiencyDailyWorkExtraRows ===
+      'function'
+        ? cloneJson(
+            window
+              .collectEfficiencyDailyWorkExtraRows()
+          )
+        : [];
+
+
+    return {
+      dateValue,
+
+      controls:
+        captureControls(
+          paper
+        ),
+
+      fixedRows:
+        captureFixedRows(
+          paper
+        ),
+
+      blocks:
+        captureBlocks(),
+
+      extraRows,
+
+      localStorage: {
+        hiddenRows:
+          readStorageValue(
+            localStorage,
+            `${HIDDEN_ROWS_PREFIX}${dateValue}`
+          ),
+
+        deletedBlocks:
+          readStorageValue(
+            localStorage,
+            `${DELETED_BLOCKS_PREFIX}${dateValue}`
+          )
+      },
+
+      sessionStorage:
+        readStoragePrefixes(
+          sessionStorage,
+          [
+            `${ROW_DELETE_SNAPSHOT_PREFIX}${dateValue}:`,
+            `${BLOCK_DELETE_SNAPSHOT_PREFIX}${dateValue}:`
+          ]
+        )
+    };
+  };
+
+
+  const syncGroupCells = () => {
+
+    const paper =
+      getPaper();
+
+
+    if (!paper) {
+      return;
+    }
+
+
+    [
+      '.efficiency-daily-work-table__efficiency-body',
+      '.efficiency-daily-work-table__operation-body'
+    ].forEach(
+      selector => {
+
+        const body =
+          paper.querySelector(
+            selector
+          );
+
+
+        if (!body) {
+          return;
+        }
+
+
+        const rows = [
+          ...body.querySelectorAll(
+            ':scope > tr'
+          )
+        ];
+
+
+        const visibleRows =
+          rows.filter(
+            row =>
+              !row.hidden
+          );
+
+
+        if (
+          !visibleRows.length
+        ) {
+          return;
+        }
+
+
+        const groupCell =
+          body.querySelector(
+            '.efficiency-daily-work-table__group-cell'
+          );
+
+
+        if (!groupCell) {
+          return;
+        }
+
+
+        if (
+          groupCell.parentElement !==
+          visibleRows[0]
+        ) {
+
+          visibleRows[0]
+            .insertBefore(
+              groupCell,
+              visibleRows[0]
+                .firstElementChild
+            );
+        }
+
+
+        groupCell.rowSpan =
+          visibleRows.length;
+
+        groupCell.hidden =
+          false;
+      }
+    );
+  };
+
+
+  const restoreState = snapshot => {
+
+    if (!snapshot) {
+      return;
+    }
+
+
+    const currentDate =
+      getDateValue();
+
+
+    if (
+      snapshot.dateValue &&
+      currentDate &&
+      snapshot.dateValue !==
+        currentDate
+    ) {
+
+      window.alert(
+        '다른 날짜에서 만든 Undo 기록입니다. 같은 날짜에서 다시 시도해주세요.'
+      );
+
+      return;
+    }
+
+
+    restoring =
+      true;
+
+
+    try {
+
+      const hiddenKey =
+        `${HIDDEN_ROWS_PREFIX}${snapshot.dateValue}`;
+
+      const blockKey =
+        `${DELETED_BLOCKS_PREFIX}${snapshot.dateValue}`;
+
+
+      restoreStorageValue(
+        localStorage,
+        hiddenKey,
+        snapshot.localStorage
+          ?.hiddenRows
+      );
+
+
+      restoreStorageValue(
+        localStorage,
+        blockKey,
+        snapshot.localStorage
+          ?.deletedBlocks
+      );
+
+
+      restoreStoragePrefixes(
+        sessionStorage,
+        [
+          `${ROW_DELETE_SNAPSHOT_PREFIX}${snapshot.dateValue}:`,
+          `${BLOCK_DELETE_SNAPSHOT_PREFIX}${snapshot.dateValue}:`
+        ],
+        snapshot.sessionStorage
+      );
+
+
+      /*
+       * 추가 행은 먼저 복원한다.
+       */
+      if (
+        typeof window
+          .renderEfficiencyDailyWorkExtraRows ===
+        'function'
+      ) {
+
+        window
+          .renderEfficiencyDailyWorkExtraRows(
+            cloneJson(
+              snapshot.extraRows ||
+              []
+            )
+          );
+      }
+
+
+      const paper =
+        getPaper();
+
+
+      /*
+       * 기존 고정 입력값 복원.
+       */
+      (
+        snapshot.controls ||
+        []
+      ).forEach(
+        descriptor => {
+
+          const control =
+            findControl(
+              paper,
+              descriptor
+            );
+
+
+          restoreControlState(
+            control,
+            descriptor.state
+          );
+        }
+      );
+
+
+      /*
+       * 고정행 표시/숨김 상태 복원.
+       */
+      (
+        snapshot.fixedRows ||
+        []
+      ).forEach(
+        savedRow => {
+
+          const row = [
+            ...(
+              paper?.querySelectorAll(
+                '[data-efficiency-daily-work-row-key]'
+              ) ||
+              []
+            )
+          ].find(
+            candidate =>
+              candidate.dataset
+                .efficiencyDailyWorkExtraRow !==
+                '1' &&
+              String(
+                candidate.dataset
+                  .efficiencyDailyWorkRowKey ||
+                ''
+              ) ===
+                savedRow.rowKey
+          );
+
+
+          if (row) {
+            row.hidden =
+              Boolean(
+                savedRow.hidden
+              );
+          }
+        }
+      );
+
+
+      /*
+       * 공지/TM/설비운영팀/기타사항
+       * 삭제 숨김 상태까지 원래대로 복원한다.
+       */
+      (
+        snapshot.blocks ||
+        []
+      ).forEach(
+        savedBlock => {
+
+          const control =
+            document.getElementById(
+              savedBlock.id
+            );
+
+
+          const block =
+            control?.closest(
+              '.efficiency-daily-work-instruction-field,' +
+              '.efficiency-daily-work-other-field'
+            );
+
+
+          if (!block) {
+            return;
+          }
+
+
+          if (
+            savedBlock.deleteHidden ===
+            null ||
+            savedBlock.deleteHidden ===
+            undefined
+          ) {
+
+            block.removeAttribute(
+              'data-selected-delete-v2-hidden'
+            );
+
+          } else {
+
+            block.setAttribute(
+              'data-selected-delete-v2-hidden',
+              savedBlock.deleteHidden
+            );
+          }
+
+
+          if (
+            savedBlock.display
+          ) {
+
+            block.style.setProperty(
+              'display',
+              savedBlock.display,
+              savedBlock.displayPriority ||
+              ''
+            );
+
+          } else {
+
+            block.style.removeProperty(
+              'display'
+            );
+          }
+        }
+      );
+
+
+      syncGroupCells();
+
+
+      /*
+       * 기존 수정상태 판정이
+       * 전체 화면을 다시 읽도록 한 번 알린다.
+       */
+      const signalControl =
+        paper?.querySelector(
+          'textarea:not([disabled]),' +
+          'input:not([disabled]),' +
+          'select:not([disabled])'
+        );
+
+
+      if (signalControl) {
+
+        signalControl.dispatchEvent(
+          new Event(
+            'input',
+            {
+              bubbles: true
+            }
+          )
+        );
+
+        signalControl.dispatchEvent(
+          new Event(
+            'change',
+            {
+              bubbles: true
+            }
+          )
+        );
+      }
+
+
+      window.setTimeout(
+        syncGroupCells,
+        0
+      );
+
+
+      window.setTimeout(
+        syncGroupCells,
+        750
+      );
+
+    } finally {
+
+      restoring =
+        false;
+    }
+  };
+
+
+  const stateSignature = state => {
+
+    try {
+      return JSON.stringify(
+        state
+      );
+    } catch {
+      return '';
+    }
+  };
+
+
+  const showUndoMessage = message => {
+
+    if (
+      typeof window.showToast ===
+      'function'
+    ) {
+
+      window.showToast(
+        message
+      );
+
+      return;
+    }
+
+
+    console.info(
+      `[${VERSION}] ${message}`
+    );
+  };
+
+
+  const pushUndoEntry = (
+    before,
+    after,
+    actionLabel
+  ) => {
+
+    undoStack.push({
+      before,
+      after,
+      actionLabel
+    });
+
+
+    if (
+      undoStack.length >
+      MAX_HISTORY
+    ) {
+      undoStack =
+        undoStack.slice(
+          -MAX_HISTORY
+        );
+    }
+
+
+    redoStack =
+      [];
+
+
+    structuralUndoArmed =
+      true;
+  };
+
+
+  const undoStructuralAction = () => {
+
+    const entry =
+      undoStack.pop();
+
+
+    if (!entry) {
+      return false;
+    }
+
+
+    restoreState(
+      entry.before
+    );
+
+
+    redoStack.push(
+      entry
+    );
+
+
+    structuralUndoArmed =
+      true;
+
+
+    showUndoMessage(
+      `${entry.actionLabel} 실행 전으로 되돌렸습니다.`
+    );
+
+
+    return true;
+  };
+
+
+  const redoStructuralAction = () => {
+
+    const entry =
+      redoStack.pop();
+
+
+    if (!entry) {
+      return false;
+    }
+
+
+    restoreState(
+      entry.after
+    );
+
+
+    undoStack.push(
+      entry
+    );
+
+
+    structuralUndoArmed =
+      true;
+
+
+    showUndoMessage(
+      `${entry.actionLabel} 작업을 다시 적용했습니다.`
+    );
+
+
+    return true;
+  };
+
+
+  const getActionLabel = button => {
+
+    return String(
+      button?.textContent ||
+      ''
+    )
+      .replace(
+        /\s+/g,
+        ' '
+      )
+      .trim();
+  };
+
+
+  const shouldTrackAction = label => {
+
+    if (!label) {
+      return false;
+    }
+
+
+    if (
+      [
+        '위에 행 추가',
+        '아래에 행 추가',
+        '이 행 숨기기',
+        '이 행 삭제',
+        '이 항목 삭제',
+        '이 추가 행 삭제',
+        '숨긴 행 모두 복원'
+      ].includes(
+        label
+      )
+    ) {
+      return true;
+    }
+
+
+    if (
+      label.includes(
+        '삭제 취소'
+      ) ||
+      label.includes(
+        '행 복원'
+      )
+    ) {
+      return true;
+    }
+
+
+    return false;
+  };
+
+
+  /*
+   * 메뉴 버튼이 실제 동작하기 직전에
+   * 화면 전체 상태를 캡처한다.
+   *
+   * 확인창에서 취소하면 before/after가 같으므로
+   * Undo 기록은 생성하지 않는다.
+   */
+  document.addEventListener(
+    'click',
+    event => {
+
+      if (restoring) {
+        return;
+      }
+
+
+      const button =
+        event.target instanceof
+          Element
+          ? event.target.closest(
+              `#${MENU_ID} button`
+            )
+          : null;
+
+
+      if (!button) {
+        return;
+      }
+
+
+      const actionLabel =
+        getActionLabel(
+          button
+        );
+
+
+      if (
+        !shouldTrackAction(
+          actionLabel
+        )
+      ) {
+        return;
+      }
+
+
+      const before =
+        captureState();
+
+
+      const actionId =
+        ++pendingActionId;
+
+
+      window.setTimeout(
+        () => {
+
+          if (
+            restoring ||
+            actionId !==
+              pendingActionId
+          ) {
+            return;
+          }
+
+
+          const after =
+            captureState();
+
+
+          if (
+            stateSignature(
+              before
+            ) ===
+            stateSignature(
+              after
+            )
+          ) {
+            return;
+          }
+
+
+          pushUndoEntry(
+            before,
+            after,
+            actionLabel
+          );
+        },
+        0
+      );
+    },
+    true
+  );
+
+
+  /*
+   * 사용자가 글자를 직접 입력하기 시작하면
+   * 다음 Ctrl+Z는 우선 브라우저 기본 Text Undo에 맡긴다.
+   *
+   * 삭제 기능 내부에서 발생시키는 synthetic input은
+   * isTrusted=false 이므로 이 상태를 해제하지 않는다.
+   */
+  document.addEventListener(
+    'input',
+    event => {
+
+      if (
+        restoring ||
+        !event.isTrusted
+      ) {
+        return;
+      }
+
+
+      structuralUndoArmed =
+        false;
+    },
+    true
+  );
+
+
+  const isVisibleTextEditor = element => {
+
+    if (
+      !element ||
+      !element.isConnected
+    ) {
+      return false;
+    }
+
+
+    const isTextArea =
+      element instanceof
+        HTMLTextAreaElement;
+
+
+    const isTextInput =
+      element instanceof
+        HTMLInputElement &&
+      [
+        'text',
+        'search',
+        'email',
+        'tel',
+        'url',
+        'number'
+      ].includes(
+        String(
+          element.type ||
+          ''
+        ).toLowerCase()
+      );
+
+
+    const isContentEditable =
+      element.isContentEditable ===
+        true;
+
+
+    if (
+      !isTextArea &&
+      !isTextInput &&
+      !isContentEditable
+    ) {
+      return false;
+    }
+
+
+    /*
+     * 삭제되어 display:none/hidden 된 입력칸은
+     * 브라우저 Text Undo 대상이 아니다.
+     */
+    return (
+      element.getClientRects()
+        .length >
+      0
+    );
+  };
+
+
+  document.addEventListener(
+    'keydown',
+    event => {
+
+      if (
+        restoring ||
+        event.altKey
+      ) {
+        return;
+      }
+
+
+      const modifier =
+        event.ctrlKey ||
+        event.metaKey;
+
+
+      if (!modifier) {
+        return;
+      }
+
+
+      const key =
+        String(
+          event.key ||
+          ''
+        ).toLowerCase();
+
+
+      const isUndo =
+        key ===
+          'z' &&
+        !event.shiftKey;
+
+
+      const isRedo =
+        key ===
+          'y' ||
+        (
+          key ===
+            'z' &&
+          event.shiftKey
+        );
+
+
+      if (
+        !isUndo &&
+        !isRedo
+      ) {
+        return;
+      }
+
+
+      if (isRedo) {
+
+        if (
+          !redoStack.length
+        ) {
+          return;
+        }
+
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+
+
+        redoStructuralAction();
+
+        return;
+      }
+
+
+      if (
+        !undoStack.length
+      ) {
+        return;
+      }
+
+
+      /*
+       * 구조 변경 직후라면
+       * 입력칸에 포커스가 있어도 구조 Undo를 우선한다.
+       *
+       * 사용자가 이후 글자를 입력했다면
+       * visible textarea/input에서는 브라우저 기본 Undo 허용.
+       */
+      if (
+        !structuralUndoArmed &&
+        isVisibleTextEditor(
+          document.activeElement
+        )
+      ) {
+        return;
+      }
+
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+
+
+      undoStructuralAction();
+    },
+    true
+  );
+
+
+  console.info(
+    `[${VERSION}] ready`
+  );
+})();
