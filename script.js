@@ -109941,6 +109941,215 @@ async function handleEfficiencyDailyWorkWriteConflict(
 
 
 /* =========================================================
+  EFFICIENCY_DAILY_WORK_OVERWRITE_CONFIRM_V1
+
+  같은 날짜의 저장 기록이 이미 존재하면
+  저장을 차단하지 않고 사용자에게 확인한다.
+
+  확인:
+    현재 화면 내용으로 기존 record를 PUT 수정
+
+  취소:
+    현재 작성 내용 유지 / 서버 수정 없음
+
+  DB / API / schema 변경 없음
+========================================================= */
+
+function findEfficiencyDailyWorkExistingRecordForOverwriteV1(
+  workDate
+) {
+  const normalizedWorkDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      workDate
+    );
+
+
+  if (!normalizedWorkDate) {
+    return null;
+  }
+
+
+  const candidates =
+    Array.isArray(
+      efficiencyDailyWorkState.items
+    )
+      ? efficiencyDailyWorkState.items
+      : [];
+
+
+  return (
+    candidates
+      .map(
+        item =>
+          normalizeEfficiencyDailyWorkRecord(
+            item
+          )
+      )
+      .find(
+        item => {
+          return Boolean(
+            item?.id &&
+            item.workDate ===
+              normalizedWorkDate &&
+            Number.isInteger(
+              item.version
+            ) &&
+            item.version >= 1
+          );
+        }
+      ) ||
+    null
+  );
+}
+
+
+async function confirmEfficiencyDailyWorkOverwriteV1() {
+
+  const message =
+    "금일 일지가 저장되어있습니다. 덮어씌우시겠습니까?";
+
+
+  if (
+    typeof confirmEfficiencyDailyWorkDiscardChanges ===
+      "function"
+  ) {
+
+    return Boolean(
+      await confirmEfficiencyDailyWorkDiscardChanges({
+        title:
+          "기존 일지 저장",
+
+        message,
+
+        confirmText:
+          "덮어쓰기",
+
+        cancelText:
+          "취소"
+      })
+    );
+  }
+
+
+  return window.confirm(
+    message
+  );
+}
+
+
+async function prepareEfficiencyDailyWorkOverwriteRequestV1(
+  writeRequest
+) {
+  if (
+    !writeRequest ||
+    typeof writeRequest !==
+      "object"
+  ) {
+    return null;
+  }
+
+
+  const workDate =
+    normalizeEfficiencyDailyWorkDateValue(
+      writeRequest.payload?.workDate
+    );
+
+
+  if (!workDate) {
+    return writeRequest;
+  }
+
+
+  /*
+    이미 정상적인 기존 기록 PUT인 경우
+    activeRecord를 사용한다.
+  */
+  let existingRecord =
+    writeRequest.method ===
+      "PUT"
+      ? normalizeEfficiencyDailyWorkRecord(
+          efficiencyDailyWorkState.activeRecord
+        )
+      : null;
+
+
+  /*
+    새 기록 POST로 판단됐지만
+    왼쪽 보관함에 같은 날짜 기록이 이미 있으면
+    그 기록을 덮어쓰기 대상으로 사용한다.
+  */
+  if (
+    !existingRecord?.id ||
+    existingRecord.workDate !==
+      workDate
+  ) {
+
+    existingRecord =
+      findEfficiencyDailyWorkExistingRecordForOverwriteV1(
+        workDate
+      );
+  }
+
+
+  /*
+    정말 신규 날짜라면 그대로 POST
+  */
+  if (!existingRecord?.id) {
+    return writeRequest;
+  }
+
+
+  const confirmed =
+    await confirmEfficiencyDailyWorkOverwriteV1();
+
+
+  if (!confirmed) {
+    return null;
+  }
+
+
+  /*
+    화면 입력값은 절대 기존 저장자료로 교체하지 않는다.
+
+    메타데이터(recordId / version)만
+    기존 기록에 연결한다.
+  */
+  setEfficiencyDailyWorkActiveRecord(
+    existingRecord,
+    {
+      dateValue:
+        workDate,
+
+      isDirty:
+        true
+    }
+  );
+
+
+  const overwriteRequest =
+    createEfficiencyDailyWorkWriteRequest();
+
+
+  if (
+    overwriteRequest.method !==
+      "PUT" ||
+    !overwriteRequest.recordId ||
+    overwriteRequest.recordId !==
+      existingRecord.id ||
+    overwriteRequest.payload?.version !==
+      existingRecord.version
+  ) {
+
+    throw new Error(
+      "기존 일지를 덮어쓰기 위한 저장정보를 구성하지 못했습니다."
+    );
+  }
+
+
+  return overwriteRequest;
+}
+
+/* =========================================================
   저장 제출
 ========================================================= */
 
@@ -110032,6 +110241,62 @@ async function handleEfficiencyDailyWorkSubmit(
     writeRequest.method === "PUT" &&
     !refreshEfficiencyDailyWorkDirtyState()
   ) {
+    showEfficiencyDailyWorkSaveMessage(
+      "변경된 내용이 없습니다."
+    );
+
+
+    return true;
+  }
+
+
+  /*
+    =========================================================
+    EFFICIENCY_DAILY_WORK_OVERWRITE_CONFIRM_V1
+
+    기존 날짜 기록이 있으면 저장 전에 확인하고,
+    확인 시 현재 입력값을 기존 record의 PUT 요청으로 전환한다.
+    =========================================================
+  */
+
+  try {
+
+    writeRequest =
+      await prepareEfficiencyDailyWorkOverwriteRequestV1(
+        writeRequest
+      );
+
+  } catch (error) {
+
+    showEfficiencyDailyWorkSaveError(
+      error.message ||
+      "기존 일지 덮어쓰기 준비에 실패했습니다."
+    );
+
+
+    return false;
+  }
+
+
+  /*
+    사용자가 [취소]를 선택한 경우
+
+    현재 화면은 그대로 유지한다.
+  */
+  if (!writeRequest) {
+    return false;
+  }
+
+
+  /*
+    POST -> PUT으로 전환된 후
+    실제 차이가 없는 경우 불필요한 version 증가를 막는다.
+  */
+  if (
+    writeRequest.method === "PUT" &&
+    !refreshEfficiencyDailyWorkDirtyState()
+  ) {
+
     showEfficiencyDailyWorkSaveMessage(
       "변경된 내용이 없습니다."
     );
