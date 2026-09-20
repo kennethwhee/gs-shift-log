@@ -1157,6 +1157,81 @@
   };
 
 
+  const setWorklogPickerOverlayVisibleV6 = (
+    overlay,
+    visible
+  ) => {
+
+    if (!overlay) {
+      return;
+    }
+
+
+    if (visible) {
+
+      overlay.hidden =
+        false;
+
+
+      /*
+       * 별도 일일업무현황 창의 CSS보다 확실히 위에 표시한다.
+       */
+      overlay.style.setProperty(
+        'display',
+        'flex',
+        'important'
+      );
+
+
+      overlay.style.setProperty(
+        'visibility',
+        'visible',
+        'important'
+      );
+
+
+      overlay.style.setProperty(
+        'opacity',
+        '1',
+        'important'
+      );
+
+
+      overlay.style.setProperty(
+        'z-index',
+        '2147483646',
+        'important'
+      );
+
+
+      return;
+    }
+
+
+    overlay.style.removeProperty(
+      'display'
+    );
+
+
+    overlay.style.removeProperty(
+      'visibility'
+    );
+
+
+    overlay.style.removeProperty(
+      'opacity'
+    );
+
+
+    overlay.style.removeProperty(
+      'z-index'
+    );
+
+
+    overlay.hidden =
+      true;
+  };
+
   const ensureOverlay = () => {
 
     let overlay =
@@ -1287,8 +1362,10 @@
 
     const close = () => {
 
-      overlay.hidden =
-        true;
+      setWorklogPickerOverlayVisibleV6(
+        overlay,
+        false
+      );
 
 
       loadedItems =
@@ -1788,8 +1865,10 @@
     );
 
 
-    overlay.hidden =
-      true;
+    setWorklogPickerOverlayVisibleV6(
+      overlay,
+      false
+    );
 
 
     loadedItems =
@@ -1881,8 +1960,10 @@
     }
 
 
-    overlay.hidden =
-      false;
+    setWorklogPickerOverlayVisibleV6(
+      overlay,
+      true
+    );
 
 
     updatePickerSelectionState(
@@ -2354,13 +2435,53 @@
           }
 
 
-          menu.style.display =
-            'none';
+          /*
+           * =====================================================
+           * EFFICIENCY_DAILY_WORK_WORKLOG_PICKER_LAUNCH_FIX_V6
+           *
+           * 절대 기존 Daily Work 행 메뉴에
+           * style.display = "none"을 직접 넣지 않는다.
+           *
+           * 기존 메뉴는 Popup runtime이 자체적으로 관리한다.
+           * =====================================================
+           */
+
+          const launchPickerV6 =
+            async () => {
+
+              try {
+
+                await openPicker(
+                  activeContext
+                );
+
+              } catch (
+                error
+              ) {
+
+                console.error(
+                  '[WORKLOG PICKER V6] open failed',
+                  error
+                );
 
 
-          void openPicker(
-            activeContext
-          );
+                window.alert(
+                  (
+                    '업무내역 불러오기 창을 열지 못했습니다.\n\n' +
+                    (
+                      error?.message ||
+                      String(
+                        error ||
+                        '알 수 없는 오류'
+                      )
+                    )
+                  )
+                );
+              }
+            };
+
+
+          void launchPickerV6();
         },
         true
       );
