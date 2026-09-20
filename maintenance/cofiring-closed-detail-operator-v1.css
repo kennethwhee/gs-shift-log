@@ -200,3 +200,181 @@
     grid-template-columns:1fr!important;
   }
 }
+
+/* COFIRING CLOSED DETAIL OPERATOR V2
+   Final operator-facing compaction:
+   - basis table fills its card
+   - table rows do not stretch vertically
+   - right card follows the compact left-card height
+   - calculate button label is presented as one control */
+
+#efficiencyCofiringDraftView .cfh-operator-detail-grid{
+  height:auto!important;
+  min-height:0!important;
+  align-items:stretch!important;
+}
+
+#efficiencyCofiringDraftView .cfh-operator-detail-branch{
+  height:auto!important;
+  min-height:0!important;
+  align-self:stretch!important;
+}
+
+#efficiencyCofiringDraftView .cfh-operator-detail-card{
+  min-height:0!important;
+  height:100%!important;
+}
+
+#efficiencyCofiringDraftView .cfh-operator-basis-card .cfh-operator-basis-stretch{
+  box-sizing:border-box!important;
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:auto!important;
+  min-height:0!important;
+  grid-column:1 / -1!important;
+  align-self:start!important;
+}
+
+#efficiencyCofiringDraftView
+.cfh-operator-basis-card
+table.cfh-operator-basis-table{
+  box-sizing:border-box!important;
+  display:table!important;
+  width:100%!important;
+  min-width:100%!important;
+  max-width:100%!important;
+  height:auto!important;
+  min-height:0!important;
+  margin:0!important;
+  align-self:start!important;
+}
+
+#efficiencyCofiringDraftView
+.cfh-operator-basis-card
+table.cfh-operator-basis-table
+thead,
+#efficiencyCofiringDraftView
+.cfh-operator-basis-card
+table.cfh-operator-basis-table
+tbody{
+  height:auto!important;
+  min-height:0!important;
+}
+
+#efficiencyCofiringDraftView
+.cfh-operator-basis-card
+table.cfh-operator-basis-table
+thead
+tr{
+  height:40px!important;
+  min-height:0!important;
+}
+
+#efficiencyCofiringDraftView
+.cfh-operator-basis-card
+table.cfh-operator-basis-table
+tbody
+tr.cfh-operator-basis-row{
+  height:44px!important;
+  min-height:0!important;
+  max-height:44px!important;
+}
+
+#efficiencyCofiringDraftView
+.cfh-operator-basis-card
+table.cfh-operator-basis-table
+thead
+th{
+  box-sizing:border-box!important;
+  height:40px!important;
+  min-height:0!important;
+  padding:6px 8px!important;
+  line-height:1.2!important;
+  font-size:11px!important;
+}
+
+#efficiencyCofiringDraftView
+.cfh-operator-basis-card
+table.cfh-operator-basis-table
+tbody
+tr.cfh-operator-basis-row
+>th,
+#efficiencyCofiringDraftView
+.cfh-operator-basis-card
+table.cfh-operator-basis-table
+tbody
+tr.cfh-operator-basis-row
+>td{
+  box-sizing:border-box!important;
+  height:44px!important;
+  min-height:0!important;
+  max-height:44px!important;
+  padding:6px 9px!important;
+  line-height:1.2!important;
+  vertical-align:middle!important;
+}
+
+#efficiencyCofiringDraftView
+.cfh-operator-basis-card
+table.cfh-operator-basis-table
+tbody
+tr.cfh-operator-basis-row
+>td{
+  font-size:13px!important;
+  font-weight:900!important;
+}
+
+#efficiencyCofiringDraftView
+.cfh-operator-basis-card
+table.cfh-operator-basis-table
+tbody
+tr.cfh-operator-basis-row
+>th{
+  font-size:12px!important;
+  font-weight:900!important;
+}
+
+#efficiencyCofiringDraftView
+.cfh-operator-basis-card
+table.cfh-operator-basis-table
+th
+*,
+#efficiencyCofiringDraftView
+.cfh-operator-basis-card
+table.cfh-operator-basis-table
+td
+*{
+  margin:0!important;
+  padding-top:0!important;
+  padding-bottom:0!important;
+  min-height:0!important;
+  line-height:inherit!important;
+}
+
+#efficiencyCofiringDraftView .cfh-operator-meta-card{
+  justify-content:flex-start!important;
+  min-height:0!important;
+}
+
+#efficiencyCofiringDraftView .cfh-operator-meta-card .cfh-operator-meta-item{
+  min-height:52px!important;
+  padding:8px 11px!important;
+}
+
+#efficiencyCofiringDraftView .cfh-operator-meta-card .cfh-operator-meta-item--request{
+  min-height:48px!important;
+}
+
+#efficiencyCofiringDraftView .cfh-operator-calc-link{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:auto!important;
+  min-width:108px!important;
+  min-height:34px!important;
+  margin:10px auto 0!important;
+  padding:0 14px!important;
+  line-height:1.2!important;
+  white-space:nowrap!important;
+}

@@ -104,9 +104,25 @@
 
     for (const element of metaCard.querySelectorAll("button, a")) {
       const text = normalize(element.textContent);
-      if (text === "계산완료 이동" || text === "계산완료로 이동" || text === "계산 화면 보기") {
+      if (
+        text.includes("계산완료") ||
+        text === "계산 화면 보기"
+      ) {
         element.textContent = "계산 화면 보기";
         element.classList.add("cfh-operator-calc-link");
+
+        const parent = element.parentElement;
+        if (parent) {
+          for (const node of Array.from(parent.childNodes)) {
+            if (
+              node !== element &&
+              node.nodeType === Node.TEXT_NODE &&
+              normalize(node.nodeValue) === "이동"
+            ) {
+              node.nodeValue = "";
+            }
+          }
+        }
       }
     }
   }
@@ -115,6 +131,14 @@
     const table = basisCard.querySelector("table");
     if (!table) return;
     table.classList.add("cfh-operator-basis-table");
+
+    for (
+      let node = table.parentElement;
+      node && node !== basisCard;
+      node = node.parentElement
+    ) {
+      node.classList.add("cfh-operator-basis-stretch");
+    }
 
     const rows = Array.from(table.querySelectorAll("tbody tr"));
     rows.forEach((row) => row.classList.add("cfh-operator-basis-row"));
