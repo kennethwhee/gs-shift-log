@@ -2,6 +2,9 @@
 import { loadAppendBase, verifiedAppendBase, ensureAppendSchema, appendIntentStatement } from "../_shared/blower-incremental.js";
 
 "use strict";
+/* COFIRING_API_BUILD_FINGERPRINT_V1 */
+const COFIRING_API_BUILD_FINGERPRINT =
+  "organic-start2-endactual-20260920-v1";
 
 
 /* =========================================================
@@ -218,6 +221,11 @@ function jsonResponse(
       headers: {
         "Cache-Control":
           "no-store, no-cache, must-revalidate",
+
+        "X-GS-Cofiring-Api-Build":
+
+          COFIRING_API_BUILD_FINGERPRINT,
+
 
         "X-Content-Type-Options":
           "nosniff"
@@ -24241,7 +24249,7 @@ async function ensureCofiringLiveIndexes(db) {
   })().catch(e=>{cofiringIndexPromises.delete(db);throw e;}));
   return cofiringIndexPromises.get(db);
 }
-function cofiringJson(body,status=200){return new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});}
+function cofiringJson(body,status=200){return new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-GS-Cofiring-Api-Build':COFIRING_API_BUILD_FINGERPRINT,'X-Content-Type-Options':'nosniff'}});}
 function cofiringPublicRequest(row) {
   if (!row) return null;
   let progress=null;
