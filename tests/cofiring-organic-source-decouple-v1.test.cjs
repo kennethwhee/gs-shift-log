@@ -100,6 +100,6 @@ test('only the new cofiring UI build is loaded',()=>{
 
   assert.match(
     html,
-    /cofiring-period-ui-v5\.js\?v=20260920-organic-midnight-compact-v1/
+    /cofiring-period-ui-v5\.js\?v=20260920-organic-boundary-detail-v3/
   );
 });

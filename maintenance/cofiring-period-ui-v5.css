@@ -1218,3 +1218,123 @@ small {
   color:#64748b;
 }
 /* ===== /COFIRING_ORGANIC_COMPACT_SUMMARY_V1 ===== */
+
+
+/* ===== COFIRING_ORGANIC_BOUNDARY_DETAIL_V3 ===== */
+.cofiring-period-v5 .cfv16-organic-main{
+  line-height:1.35;
+}
+
+.cofiring-period-v5 .cfv16-organic-calc{
+  margin-top:1px;
+  line-height:1.35;
+}
+
+.cofiring-period-v5 .cfv16-organic-detail{
+  display:inline-block;
+  margin-top:3px;
+}
+
+.cofiring-period-v5 .cfv16-organic-detail>summary{
+  display:inline-flex;
+  align-items:center;
+  min-height:20px;
+  padding:1px 7px;
+  border:1px solid #cbd5e1;
+  border-radius:5px;
+  background:#fff;
+  color:#475569;
+  cursor:pointer;
+  list-style:none;
+  font-size:9px;
+  font-weight:700;
+}
+
+.cofiring-period-v5 .cfv16-organic-detail>summary::-webkit-details-marker{
+  display:none;
+}
+
+.cofiring-period-v5 .cfv16-organic-detail>summary::before{
+  content:'▸';
+  margin-right:4px;
+}
+
+.cofiring-period-v5 .cfv16-organic-detail[open]{
+  display:block;
+}
+
+.cofiring-period-v5 .cfv16-organic-detail[open]>summary::before{
+  content:'▾';
+}
+
+.cofiring-period-v5 .cfv16-organic-box{
+  max-width:630px;
+  margin-top:4px;
+  padding:5px 7px;
+  border:1px solid #dbe4ee;
+  border-radius:7px;
+  background:#f8fafc;
+}
+
+.cofiring-period-v5 .cfv16-organic-head,
+.cofiring-period-v5 .cfv16-organic-row,
+.cofiring-period-v5 .cfv16-organic-total{
+  display:grid;
+  grid-template-columns:
+    88px
+    minmax(155px,1fr)
+    minmax(155px,1fr);
+  gap:7px;
+  align-items:center;
+}
+
+.cofiring-period-v5 .cfv16-organic-head{
+  padding-bottom:3px;
+  color:#64748b;
+  font-size:8.5px;
+  font-weight:700;
+}
+
+.cofiring-period-v5 .cfv16-organic-row{
+  min-height:27px;
+  border-top:1px solid #edf2f7;
+  font-size:9.5px;
+}
+
+.cofiring-period-v5 .cfv16-organic-row span{
+  display:flex;
+  flex-direction:column;
+}
+
+.cofiring-period-v5 .cfv16-organic-row small{
+  color:#94a3b8;
+  font-size:8px;
+  line-height:1.15;
+}
+
+.cofiring-period-v5 .cfv16-organic-total{
+  min-height:24px;
+  border-top:1px solid #cbd5e1;
+  font-size:9.5px;
+  font-weight:700;
+}
+
+.cofiring-period-v5 .cfv16-organic-equation{
+  margin-top:3px;
+  padding-top:4px;
+  border-top:1px dashed #cbd5e1;
+  font-size:9px;
+}
+
+@media (max-width:760px){
+  .cofiring-period-v5 .cfv16-organic-head,
+  .cofiring-period-v5 .cfv16-organic-row,
+  .cofiring-period-v5 .cfv16-organic-total{
+    grid-template-columns:
+      68px
+      1fr
+      1fr;
+    gap:4px;
+  }
+}
+/* ===== /COFIRING_ORGANIC_BOUNDARY_DETAIL_V3 ===== */

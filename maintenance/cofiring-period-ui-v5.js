@@ -281,7 +281,181 @@
       const el=container.querySelector('[data-cfv15-organic-usage]');
       if(el){el.textContent=text;el.dataset.tone=tone;}
     }
-    function updateOrganicInventoryUsage(){
+
+    // COFIRING_ORGANIC_BOUNDARY_DETAIL_V3
+    function renderOrganicBoundaryDetail(
+      inventory,
+      usage,
+      startTotal,
+      receipt,
+      endTotal,
+      unit1,
+      unit2,
+      allocationOk
+    ){
+      const el=container.querySelector(
+        '[data-cfv15-organic-usage]'
+      );
+
+      if(!el)return;
+
+      const samples=
+        Array.isArray(inventory?.samples)
+          ?inventory.samples
+          :[];
+
+      const byKey=
+        new Map(
+          samples.map(item=>[
+            String(item?.key||''),
+            item||{}
+          ])
+        );
+
+      const fmtTime=value=>{
+        const text=
+          String(value||'');
+
+        const match=
+          /^20\d{2}-(\d{2})-(\d{2})T(\d{2}:\d{2}:\d{2})/.exec(
+            text
+          );
+
+        return match
+          ?match[1]+'/'+match[2]+' '+match[3]
+          :'-';
+      };
+
+      const row=(key,label)=>{
+        const sample=
+          byKey.get(key)||{};
+
+        const startValue=
+          Number(
+            inventory?.start?.[key]
+          );
+
+        const endValue=
+          Number(
+            inventory?.end?.[key]
+          );
+
+        return (
+          '<div class="cfv16-organic-row">'+
+            '<b>'+label+'</b>'+
+
+            '<span>'+
+              '<strong>'+
+                num(startValue,3)+'t'+
+              '</strong>'+
+              '<small>'+
+                escapeHtml(
+                  fmtTime(
+                    sample.startTime
+                  )
+                )+
+              '</small>'+
+            '</span>'+
+
+            '<span>'+
+              '<strong>'+
+                num(endValue,3)+'t'+
+              '</strong>'+
+              '<small>'+
+                escapeHtml(
+                  fmtTime(
+                    sample.endTime
+                  )
+                )+
+              '</small>'+
+            '</span>'+
+          '</div>'
+        );
+      };
+
+      el.dataset.tone=
+        allocationOk
+          ?'ready'
+          :'working';
+
+      el.innerHTML=
+        '<div class="cfv16-organic-main">'+
+          '<strong>유기성 총 '+
+            num(usage,3)+'t'+
+          '</strong>'+
+          ' · 1호기 <b>'+
+            num(unit1,4)+'t'+
+          '</b>'+
+          ' / 2호기 <b>'+
+            num(unit2,4)+'t'+
+          '</b>'+
+          ' · 50:50 자동배분'+
+        '</div>'+
+
+        '<div class="cfv16-organic-calc">'+
+          '계산: 시작재고 '+
+          '<b>'+num(startTotal,3)+'t</b>'+
+          ' + 입고 '+
+          '<b>'+num(receipt,3)+'t</b>'+
+          ' - 종료재고 '+
+          '<b>'+num(endTotal,3)+'t</b>'+
+          ' = <strong>'+
+            num(usage,3)+'t'+
+          '</strong>'+
+        '</div>'+
+
+        '<details class="cfv16-organic-detail">'+
+          '<summary>A/B/Day 상세</summary>'+
+
+          '<div class="cfv16-organic-box">'+
+
+            '<div class="cfv16-organic-head">'+
+              '<b>구분</b>'+
+              '<span>시작재고</span>'+
+              '<span>종료재고</span>'+
+            '</div>'+
+
+            row(
+              'organicStorageSiloA',
+              'Storage A'
+            )+
+
+            row(
+              'organicStorageSiloB',
+              'Storage B'
+            )+
+
+            row(
+              'organicDaySilo',
+              'Day Silo'
+            )+
+
+            '<div class="cfv16-organic-total">'+
+              '<b>합계</b>'+
+              '<span><strong>'+
+                num(startTotal,3)+'t'+
+              '</strong></span>'+
+              '<span><strong>'+
+                num(endTotal,3)+'t'+
+              '</strong></span>'+
+            '</div>'+
+
+            '<div class="cfv16-organic-equation">'+
+              '사용량 = '+
+              num(startTotal,3)+
+              ' + '+
+              num(receipt,3)+
+              ' - '+
+              num(endTotal,3)+
+              ' = <strong>'+
+                num(usage,3)+'t'+
+              '</strong>'+
+            '</div>'+
+          '</div>'+
+        '</details>';
+    }
+
+function updateOrganicInventoryUsage(){
       const inventory=reference?.organicInventory;
       if(!reference){organicUsageSource('선택기간 누적량 · 유기성 자동사용량은 DataPARC 조회 후 계산','');return null;}
       if(!inventory?.start||!inventory?.end){
@@ -340,7 +514,19 @@
 
         const dayLabel=/^\d{4}-\d{2}-\d{2}$/.test(organicTargetDate)?organicTargetDate.slice(5).replace('-','/'):'선택일';
         organicUsageSource(`유기성 총 ${num(usage,3)}t · 1호기 ${num(unit1,4)}t / 2호기 ${num(unit2,4)}t · 50:50 자동배분\n계산: 시작 ${num(startTotal,3)}t (${dayLabel} 00:00 기준 · DataPARC A+B+Day) + 입고 ${num(receipt,3)}t - 현재재고 ${num(endTotal,3)}t`,'ready');
-      return {ok:true,startTotal,receipt,endTotal,usage,allocation:{unit1,unit2,total:allocated,diff:allocationDiff,ok:allocationOk,mode:'equal-50-50'}};
+
+      renderOrganicBoundaryDetail(
+        inventory,
+        usage,
+        startTotal,
+        receipt,
+        endTotal,
+        unit1,
+        unit2,
+        allocationOk
+      ); // COFIRING_ORGANIC_BOUNDARY_DETAIL_V3_CALL
+
+return {ok:true,startTotal,receipt,endTotal,usage,allocation:{unit1,unit2,total:allocated,diff:allocationDiff,ok:allocationOk,mode:'equal-50-50'}};
     }
     function validateOrganicAllocationBeforeSave(values){
         const total=updateOrganicInventoryUsage();
