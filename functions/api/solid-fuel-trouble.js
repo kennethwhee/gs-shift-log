@@ -1,4 +1,5 @@
 /* GS Shift Log · 고형연료 Trouble + 하역시간 V3.1.3 */
+/* SOLID_FUEL_RECEIPT_LINK_V1 */
 const FORCED_SUPER_ADMIN_EMPLOYEE_NO = "2014081";
 const MAX_PHOTO_COUNT = 4;
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024;
@@ -225,6 +226,17 @@ function limited(v,n){ return text(v).slice(0,n); }
 function cleanCompany(v){ return limited(text(v).replace(/\s*\(추정\)\s*/g,"").trim(),80); }
 function optionalDate(v){ const s=text(v); return !s||isoDate(s)?s:null; }
 function optionalClock(v){ const s=text(v); return !s||clock(s)?s:null; }
+// SOLID_FUEL_RECEIPT_LINK_V1
+function receiptFuelType(v){ const s=text(v).toLowerCase(); return !s?"":(['organic','manure'].includes(s)?s:null); }
+function receiptTons(v){ if(v===null||v===undefined||text(v)==="")return null;const raw=text(v);if(!/^\d+(?:\.\d{1,6})?$/.test(raw))return undefined;const n=Number(raw);return Number.isFinite(n)&&n>0&&n<=1000000?n:undefined; }
+function receiptPair(body,{required=false}={}){
+  const fuelType=receiptFuelType(body?.fuelType),tons=receiptTons(body?.receiptTons);
+  if(fuelType===null)return {error:"연료 구분을 확인해 주세요."};
+  if(tons===undefined)return {error:"입고량은 0보다 큰 숫자로 입력해 주세요."};
+  if(required&&(!fuelType||tons===null))return {error:"연료 구분과 입고량을 입력해 주세요."};
+  if((fuelType&&tons===null)||(!fuelType&&tons!==null))return {error:"연료 구분과 입고량은 함께 입력해 주세요."};
+  return {fuelType,receiptTons:tons};
+}
 function ext(name){ const s=text(name),i=s.lastIndexOf("."); return i<0?"":s.slice(i+1).toLowerCase(); }
 function safeName(name){ return text(name).replace(/[\/\\:*?"<>|]/g,"_").replace(/\s+/g,"_")||"photo"; }
 function limitedPhotoName(name,n=255){
@@ -288,6 +300,7 @@ async function initialize(db){
       db.prepare(`CREATE TABLE IF NOT EXISTS solid_fuel_unloading_logs(
         id TEXT PRIMARY KEY,source_key TEXT UNIQUE,unloading_date TEXT NOT NULL,arrival_time TEXT NOT NULL,departure_time TEXT NOT NULL,
         duration_minutes INTEGER NOT NULL,company_name TEXT NOT NULL DEFAULT '',vehicle_no TEXT NOT NULL DEFAULT '',silo_route TEXT NOT NULL DEFAULT '',
+        fuel_type TEXT NOT NULL DEFAULT '',receipt_tons REAL,
         silo_a_company TEXT NOT NULL DEFAULT '',silo_a_vehicle TEXT NOT NULL DEFAULT '',silo_b_company TEXT NOT NULL DEFAULT '',
         silo_b_vehicle TEXT NOT NULL DEFAULT '',day_company TEXT NOT NULL DEFAULT '',day_vehicle TEXT NOT NULL DEFAULT '',
         note TEXT NOT NULL DEFAULT '',version INTEGER NOT NULL DEFAULT 1,created_by_id TEXT NOT NULL DEFAULT '',
@@ -318,11 +331,16 @@ async function initialize(db){
       db.prepare(`CREATE INDEX IF NOT EXISTS idx_sfu_vehicle ON solid_fuel_unloading_logs(vehicle_no)`)
     ]);
 
-    const unloadingColumns=await db.prepare(`PRAGMA table_info(solid_fuel_unloading_logs)`).all();
-    const hasDurationKnown=(unloadingColumns.results||[]).some(row=>text(row.name)==="duration_known");
-    if(!hasDurationKnown){
-      await db.prepare(`ALTER TABLE solid_fuel_unloading_logs ADD COLUMN duration_known INTEGER NOT NULL DEFAULT 1`).run();
-    }
+    const ensureUnloadingColumn=async(name,ddl)=>{
+      const current=await db.prepare(`PRAGMA table_info(solid_fuel_unloading_logs)`).all();
+      if((current.results||[]).some(row=>text(row.name)===name))return;
+      try{await db.prepare(ddl).run();}
+      catch(error){const after=await db.prepare(`PRAGMA table_info(solid_fuel_unloading_logs)`).all();if(!(after.results||[]).some(row=>text(row.name)===name))throw error;}
+    };
+    await ensureUnloadingColumn("duration_known",`ALTER TABLE solid_fuel_unloading_logs ADD COLUMN duration_known INTEGER NOT NULL DEFAULT 1`);
+    await ensureUnloadingColumn("fuel_type",`ALTER TABLE solid_fuel_unloading_logs ADD COLUMN fuel_type TEXT NOT NULL DEFAULT ''`);
+    await ensureUnloadingColumn("receipt_tons",`ALTER TABLE solid_fuel_unloading_logs ADD COLUMN receipt_tons REAL`);
+    await db.prepare(`CREATE INDEX IF NOT EXISTS idx_sfu_receipt_date_fuel ON solid_fuel_unloading_logs(unloading_date,fuel_type)`).run();
 
     const ensurePhotoUploadState=async()=>{
       const columns=await db.prepare(`PRAGMA table_info(solid_fuel_trouble_photos)`).all();
@@ -481,7 +499,7 @@ function troubleObj(r,map){
     updatedAt:text(r.updated_at)
   };
 }
-function unloadObj(r){ const known=Number(r.duration_known??1)===1; return {id:text(r.id),sourceKey:text(r.source_key),unloadingDate:text(r.unloading_date),arrivalTime:text(r.arrival_time),departureTime:text(r.departure_time),durationKnown:known,durationMinutes:known?Number(r.duration_minutes||0):null,companyName:text(r.company_name),vehicleNo:text(r.vehicle_no),siloRoute:text(r.silo_route),note:text(r.note),version:Number(r.version||1),abnormal:abnormalText(r.note),createdAt:text(r.created_at),updatedAt:text(r.updated_at)}; }
+function unloadObj(r){ const known=Number(r.duration_known??1)===1,receiptRaw=r.receipt_tons,receiptValue=receiptRaw===null||receiptRaw===undefined||receiptRaw===""?null:Number(receiptRaw); return {id:text(r.id),sourceKey:text(r.source_key),unloadingDate:text(r.unloading_date),arrivalTime:text(r.arrival_time),departureTime:text(r.departure_time),durationKnown:known,durationMinutes:known?Number(r.duration_minutes||0):null,fuelType:text(r.fuel_type),receiptTons:Number.isFinite(receiptValue)?receiptValue:null,companyName:text(r.company_name),vehicleNo:text(r.vehicle_no),siloRoute:text(r.silo_route),note:text(r.note),version:Number(r.version||1),abnormal:abnormalText(r.note),createdAt:text(r.created_at),updatedAt:text(r.updated_at)}; }
 
 function publicTroubleObj(item){
   return {
@@ -504,6 +522,8 @@ function publicUnloadObj(item){
     departureTime:text(item?.departureTime),
     durationKnown,
     durationMinutes:durationKnown&&item?.durationMinutes!==null?Number(item?.durationMinutes||0):null,
+    fuelType:text(item?.fuelType),
+    receiptTons:item?.receiptTons===null||item?.receiptTons===undefined?null:Number(item.receiptTons),
     companyName:text(item?.companyName),
     vehicleNo:text(item?.vehicleNo),
     siloRoute:text(item?.siloRoute),
@@ -542,6 +562,23 @@ async function listUnloadings(db,url){
   const stmt=db.prepare(q),res=f.binds.length?await stmt.bind(...f.binds).all():await stmt.all();
   return (Array.isArray(res?.results)?res.results:[]).map(unloadObj);
 }
+async function receiptSummary(db,date){
+  const row=await db.prepare(`
+    SELECT
+      COALESCE(SUM(CASE WHEN fuel_type='organic' AND receipt_tons IS NOT NULL THEN receipt_tons ELSE 0 END),0) AS organic_tons,
+      COALESCE(SUM(CASE WHEN fuel_type='manure' AND receipt_tons IS NOT NULL THEN receipt_tons ELSE 0 END),0) AS manure_tons,
+      SUM(CASE WHEN fuel_type='organic' AND receipt_tons IS NOT NULL THEN 1 ELSE 0 END) AS organic_count,
+      SUM(CASE WHEN fuel_type='manure' AND receipt_tons IS NOT NULL THEN 1 ELSE 0 END) AS manure_count
+    FROM solid_fuel_unloading_logs
+    WHERE deleted_at IS NULL AND unloading_date=?
+  `).bind(date).first();
+  return {
+    organic:Number(row?.organic_tons||0),
+    manure:Number(row?.manure_tons||0),
+    counts:{organic:Number(row?.organic_count||0),manure:Number(row?.manure_count||0)}
+  };
+}
+
 async function companyDirectory(db){
   const r=await db.prepare(`
     SELECT company_name,is_active
@@ -910,8 +947,15 @@ async function servePhoto(context,id,{publicAccess=false}={}){
 
 export async function onRequestGet(context){
   try{
-    const url=new URL(context.request.url),photoId=text(url.searchParams.get("photoId"));
+    const url=new URL(context.request.url),photoId=text(url.searchParams.get("photoId")),receiptDate=text(url.searchParams.get("receiptDate"));
     const a=await auth(context,{optional:true}); if(a.error) return a.error;
+    if(receiptDate){
+      if(!a.user)return json({ok:false,message:"로그인이 필요합니다."},401);
+      if(!isoDate(receiptDate))return json({ok:false,message:"입고량 조회 날짜를 확인해 주세요."},400);
+      await initialize(context.env.DB);
+      const summary=await receiptSummary(context.env.DB,receiptDate);
+      return json({ok:true,receiptDate,receipts:{organic:summary.organic,manure:summary.manure},counts:summary.counts,source:"solid-fuel-unloading"});
+    }
     if(photoId){
       if(a.user) await initialize(context.env.DB);
       return servePhoto(context,photoId,{publicAccess:!a.user});
@@ -1084,11 +1128,13 @@ export async function onRequestPost(context){
         company=cleanCompany(b.companyName),
         vehicle=limited(b.vehicleNo,40),
         silo=limited(b.siloRoute,80),
+        receipt=receiptPair(b,{required:true}),
         equipment=limited(b.equipment,500),
         note=limited(b.note,3000);
 
       if(date===null) return json({ok:false,message:"일자 형식을 확인해 주세요."},400);
       if(arrival===null||departure===null) return json({ok:false,message:"입고/출고 시간 형식을 확인해 주세요."},400);
+      if(receipt.error) return json({ok:false,message:receipt.error},400);
 
       const duration=durationMinutes(arrival,departure),
         durationKnown=Number.isFinite(duration)?1:0,
@@ -1102,11 +1148,11 @@ export async function onRequestPost(context){
       if(company) await ensureCompanyPresent(context.env.DB,company);
 
       const unloadingStatement=context.env.DB.prepare(`INSERT INTO solid_fuel_unloading_logs(
-        id,source_key,unloading_date,arrival_time,departure_time,duration_minutes,duration_known,company_name,vehicle_no,silo_route,
+        id,source_key,unloading_date,arrival_time,departure_time,duration_minutes,duration_known,company_name,vehicle_no,silo_route,fuel_type,receipt_tons,
         silo_a_company,silo_a_vehicle,silo_b_company,silo_b_vehicle,day_company,day_vehicle,note,version,
         created_by_id,created_by_name,updated_by_id,updated_by_name,created_at,updated_at
-      ) VALUES(?,NULL,?,?,?,?,?,?,?,?,'','','','','','',?,1,?,?,?,?,?,?)`)
-      .bind(unloadingId,date,arrival,departure,durationStored,durationKnown,company,vehicle,silo,unloadingNote,user.employeeNo,user.name,user.employeeNo,user.name,now,now);
+      ) VALUES(?,NULL,?,?,?,?,?,?,?,?,?,?,'','','','','','',?,1,?,?,?,?,?,?)`)
+      .bind(unloadingId,date,arrival,departure,durationStored,durationKnown,company,vehicle,silo,receipt.fuelType,receipt.receiptTons,unloadingNote,user.employeeNo,user.name,user.employeeNo,user.name,now,now);
 
       const troubleStatement=context.env.DB.prepare(`INSERT INTO solid_fuel_trouble_records(
         id,source_key,occurrence_date,company_name,vehicle_no,equipment,note,legacy_photo_path,version,
@@ -1135,10 +1181,12 @@ export async function onRequestPost(context){
       const date=optionalDate(b.unloadingDate),
         arrival=optionalClock(b.arrivalTime),
         departure=optionalClock(b.departureTime),
-        company=cleanCompany(b.companyName);
+        company=cleanCompany(b.companyName),
+        receipt=receiptPair(b,{required:true});
 
       if(date===null) return json({ok:false,message:"하역 일자 형식을 확인해 주세요."},400);
       if(arrival===null||departure===null) return json({ok:false,message:"입고/출고 시간 형식을 확인해 주세요."},400);
+      if(receipt.error) return json({ok:false,message:receipt.error},400);
 
       const duration=durationMinutes(arrival,departure),
         durationKnown=Number.isFinite(duration)?1:0,
@@ -1149,11 +1197,11 @@ export async function onRequestPost(context){
       if(company) await ensureCompanyPresent(context.env.DB,company);
 
       await context.env.DB.prepare(`INSERT INTO solid_fuel_unloading_logs(
-        id,source_key,unloading_date,arrival_time,departure_time,duration_minutes,duration_known,company_name,vehicle_no,silo_route,
+        id,source_key,unloading_date,arrival_time,departure_time,duration_minutes,duration_known,company_name,vehicle_no,silo_route,fuel_type,receipt_tons,
         silo_a_company,silo_a_vehicle,silo_b_company,silo_b_vehicle,day_company,day_vehicle,note,version,
         created_by_id,created_by_name,updated_by_id,updated_by_name,created_at,updated_at
-      ) VALUES(?,NULL,?,?,?,?,?,?,?,?,'','','','','','',?,1,?,?,?,?,?,?)`)
-      .bind(id,date,arrival,departure,durationStored,durationKnown,company,limited(b.vehicleNo,40),limited(b.siloRoute,80),limited(b.note,3000),user.employeeNo,user.name,user.employeeNo,user.name,now,now).run();
+      ) VALUES(?,NULL,?,?,?,?,?,?,?,?,?,?,'','','','','','',?,1,?,?,?,?,?,?)`)
+      .bind(id,date,arrival,departure,durationStored,durationKnown,company,limited(b.vehicleNo,40),limited(b.siloRoute,80),receipt.fuelType,receipt.receiptTons,limited(b.note,3000),user.employeeNo,user.name,user.employeeNo,user.name,now,now).run();
 
       return json({ok:true,id,recordId:id,version:1,durationKnown:Boolean(durationKnown),durationMinutes:durationKnown?duration:null},201);
     }
@@ -1253,10 +1301,12 @@ export async function onRequestPut(context){
       const date=optionalDate(b.unloadingDate),
         arrival=optionalClock(b.arrivalTime),
         departure=optionalClock(b.departureTime),
-        company=cleanCompany(b.companyName);
+        company=cleanCompany(b.companyName),
+        receipt=receiptPair(b,{required:false});
 
       if(date===null) return json({ok:false,message:"하역 일자 형식을 확인해 주세요."},400);
       if(arrival===null||departure===null) return json({ok:false,message:"입고/출고 시간 형식을 확인해 주세요."},400);
+      if(receipt.error) return json({ok:false,message:receipt.error},400);
 
       const duration=durationMinutes(arrival,departure),
         durationKnown=Number.isFinite(duration)?1:0,
@@ -1266,7 +1316,7 @@ export async function onRequestPut(context){
 
       const r=await context.env.DB.prepare(`
         UPDATE solid_fuel_unloading_logs
-        SET unloading_date=?,arrival_time=?,departure_time=?,duration_minutes=?,duration_known=?,company_name=?,vehicle_no=?,silo_route=?,note=?,
+        SET unloading_date=?,arrival_time=?,departure_time=?,duration_minutes=?,duration_known=?,company_name=?,vehicle_no=?,silo_route=?,fuel_type=?,receipt_tons=?,note=?,
             version=version+1,updated_by_id=?,updated_by_name=?,updated_at=?
         WHERE id=? AND version=? AND deleted_at IS NULL
       `)
@@ -1279,6 +1329,8 @@ export async function onRequestPut(context){
         company,
         limited(b.vehicleNo,40),
         limited(b.siloRoute,80),
+        receipt.fuelType,
+        receipt.receiptTons,
         limited(b.note,3000),
         u.employeeNo,
         u.name,

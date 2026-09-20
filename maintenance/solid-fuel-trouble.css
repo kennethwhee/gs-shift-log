@@ -1112,3 +1112,21 @@ body.solid-fuel-readonly #companyModal{
     display:none!important;
   }
 }
+
+
+/* SOLID_FUEL_RECEIPT_LINK_V1 */
+.record-grid.receipt-enabled-grid{grid-template-columns:130px 175px 125px minmax(150px,1fr) 120px!important;align-items:end}
+.unload-editor-grid.receipt-enabled-grid{grid-template-columns:130px 180px 130px 105px 105px!important;align-items:end}
+.receipt-ton-control{display:flex;align-items:center;gap:5px}
+.receipt-ton-control input{min-width:0;flex:1}
+.receipt-ton-control small{margin:0!important;color:#6f8496;font-size:10px;font-weight:800}
+.fuel-pill{display:inline-flex;align-items:center;justify-content:center;min-width:54px;padding:3px 7px;border:1px solid #d3dee7;border-radius:999px;background:#f5f8fa;color:#546b7e;font-size:10px;font-weight:900;white-space:nowrap}
+.fuel-pill.is-organic{border-color:#9fd5c9;background:#eaf8f4;color:#226b5c}
+.fuel-pill.is-manure{border-color:#d8c49c;background:#fbf5e9;color:#735b2f}
+.unload-table{min-width:1250px!important}
+.unload-table th.fuel-type,.unload-table td.fuel-type{min-width:78px;text-align:center}
+.unload-table th.receipt-ton,.unload-table td.receipt-ton{min-width:82px;text-align:right;white-space:nowrap}
+@media(max-width:1180px){.record-grid.receipt-enabled-grid,.unload-editor-grid.receipt-enabled-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
+@media(max-width:760px){.record-grid.receipt-enabled-grid,.unload-editor-grid.receipt-enabled-grid{grid-template-columns:1fr 1fr!important}}
+@media(max-width:450px){.record-grid.receipt-enabled-grid,.unload-editor-grid.receipt-enabled-grid{grid-template-columns:1fr!important}}
+/* SOLID_FUEL_RECEIPT_LINK_V1_END */

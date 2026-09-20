@@ -209,3 +209,11 @@
   }
 }
 /* COFIRING RECEIPT INLINE V1 END */
+
+
+/* SOLID_FUEL_RECEIPT_LINK_V1 */
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv14-receipt-auto{display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:999px;background:#edf6f3;color:#397361;font-size:8.5px;font-weight:800;white-space:nowrap}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv14-receipt-auto[data-tone="working"]{background:#eef4fb;color:#3f6f9c}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv14-receipt-auto[data-tone="error"]{background:#fff1f1;color:#9b4e4e}
+#efficiencyCofiringDraftView .cofiring-period-v5 .cfv14-receipt-input[readonly]{background:#f1f8f6;border-color:#bcded5;color:#245f52;cursor:default}
+/* SOLID_FUEL_RECEIPT_LINK_V1_END */

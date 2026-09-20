@@ -1,5 +1,6 @@
 (function(root){
   'use strict';
+  // SOLID_FUEL_RECEIPT_LINK_V1
   const core=root.CofiringCore||(typeof require==='function'?require('./cofiring-core.js'):null);
   const liveApi=root.CofiringLive;
   const settingsApi=root.CofiringCalculationSettingsStorage;
@@ -103,7 +104,7 @@
       <div class="cfv52-manual-panel">
         <div class="cfv52-manual-head">
           <div><strong>유기성 · 축분 사용량 입력</strong><span>선택기간 누적량 · 빈칸=0t로 계산</span></div>
-          <div class="cfv52-manual-actions"><div class="cfv14-receipt-inline" aria-label="입고량 입력"><strong>입고량</strong><label><span class="cfv14-receipt-label">유기성</span><span class="cfv14-receipt-field"><input class="cfv14-receipt-input" type="text" inputmode="decimal" data-cfv5-receipt="organic" placeholder="0"><small>ton</small></span></label><label><span class="cfv14-receipt-label">축분</span><span class="cfv14-receipt-field"><input class="cfv14-receipt-input" type="text" inputmode="decimal" data-cfv5-receipt="manure" placeholder="0"><small>ton</small></span></label></div><span data-cfv5-manual-state>저장값 없음</span><button type="button" data-cfv5-manual-save title="사용량과 입고량을 함께 저장합니다.">사용량 저장</button></div>
+          <div class="cfv52-manual-actions"><div class="cfv14-receipt-inline" aria-label="입고량 입력"><strong>입고량</strong><span class="cfv14-receipt-auto" data-cfv14-receipt-source>입고기록 자동</span><label><span class="cfv14-receipt-label">유기성</span><span class="cfv14-receipt-field"><input class="cfv14-receipt-input" type="text" inputmode="decimal" data-cfv5-receipt="organic" placeholder="0"><small>ton</small></span></label><label><span class="cfv14-receipt-label">축분</span><span class="cfv14-receipt-field"><input class="cfv14-receipt-input" type="text" inputmode="decimal" data-cfv5-receipt="manure" placeholder="0"><small>ton</small></span></label></div><span data-cfv5-manual-state>저장값 없음</span><button type="button" data-cfv5-manual-save title="사용량과 입고량을 함께 저장합니다.">사용량 저장</button></div>
         </div>
         <div class="cfv52-manual-grid">
           ${UNITS.map((unit,i)=>`<fieldset class="cfv52-manual-unit"><legend><span class="cfv52-unit-dot" aria-hidden="true"></span>${i+1}호기</legend><label><span>유기성</span><div class="cfv13-manual-input-unit">${manualInput(unit,'organic',null,false)}<small>ton</small></div></label><label><span>축분</span><div class="cfv13-manual-input-unit">${manualInput(unit,'manure',null,false)}<small>ton</small></div></label></fieldset>`).join('')}
@@ -203,7 +204,7 @@
     if(values&&Object.hasOwn(values,'receipts')){
       for(const fuel of ['organic','manure']){
         const input=container.querySelector(`[data-cfv5-receipt="${fuel}"]`);
-        if(input)input.value=values?.receipts?.[fuel]==null?'':String(values.receipts[fuel]);
+        if(input&&input.dataset.cfv14Auto!=='1')input.value=values?.receipts?.[fuel]==null?'':String(values.receipts[fuel]);
       }
     }
   }
@@ -269,6 +270,33 @@
     const live=liveApi?.createPeriod({getHeaders:authHeaders,canQuery:()=>!isMobile()&&selectedDayAvailability().ready,isVisible:()=>visible(),onChange:s=>paintLive(s),onResult:r=>{if(!sameSelectedPeriod(r?.report?.reference)||!selectedDayAvailability().ready)return;reference=r.report.reference;if(storesReady())calculate();}})||null;
     clickTiming=root.CofiringClickTimingV1?.create({isCurrent:()=>clickIsCurrent(),onChange:s=>paintClickTiming(s)});
     function clickIsCurrent(){try{return !!clickContext&&!disposed&&visible()&&clickContext.epoch===selectionEpoch&&clickContext.spec===JSON.stringify(currentSpec())&&clickContext.auth===String(authHeaders().Authorization||authHeaders().authorization||'');}catch(_){return false;}}
+    // SOLID_FUEL_RECEIPT_LINK_V1
+    let receiptSyncGeneration=0;
+    function receiptSource(text,tone=''){const el=container.querySelector('[data-cfv14-receipt-source]');if(el){el.textContent=text;el.dataset.tone=tone;}}
+    function resetReceiptAuto(){for(const input of container.querySelectorAll('[data-cfv5-receipt]')){delete input.dataset.cfv14Auto;input.readOnly=false;input.removeAttribute('aria-readonly');}}
+    function setReceiptAutoValues(receipts){for(const fuel of ['organic','manure']){const input=container.querySelector(`[data-cfv5-receipt="${fuel}"]`);if(!input)continue;const value=Number(receipts?.[fuel]||0);input.value=Number.isFinite(value)?String(value):'0';input.dataset.cfv14Auto='1';input.readOnly=true;input.setAttribute('aria-readonly','true');}}
+    async function syncReceiptTotals(){
+      const generation=++receiptSyncGeneration;
+      if(queryMode(container)!=='daily'){resetReceiptAuto();receiptSource('기간 지정 · 수기','manual');paintManual();return false;}
+      const date=container.querySelector('[data-cfv7-date]')?.value||'',epoch=selectionEpoch,auth=String(authHeaders().Authorization||authHeaders().authorization||'');
+      if(!date||!auth){resetReceiptAuto();receiptSource(auth?'날짜 선택 필요':'로그인 필요','error');return false;}
+      for(const input of container.querySelectorAll('[data-cfv5-receipt]')){input.readOnly=true;input.setAttribute('aria-readonly','true');}
+      receiptSource('입고기록 확인 중','working');
+      try{
+        const response=await root.fetch(`/api/solid-fuel-trouble?receiptDate=${encodeURIComponent(date)}`,{method:'GET',credentials:'same-origin',cache:'no-store',headers:{...authHeaders(),Accept:'application/json'}});
+        let payload=null;try{payload=await response.json();}catch(_){}
+        if(!response.ok||payload?.ok!==true)throw new Error(payload?.message||'입고기록을 불러오지 못했습니다.');
+        if(disposed||generation!==receiptSyncGeneration||epoch!==selectionEpoch||queryMode(container)!=='daily'||container.querySelector('[data-cfv7-date]')?.value!==date||String(authHeaders().Authorization||authHeaders().authorization||'')!==auth)return false;
+        setReceiptAutoValues(payload.receipts);
+        const oc=Number(payload.counts?.organic||0),mc=Number(payload.counts?.manure||0);receiptSource(`입고기록 자동 · 유기성 ${oc}건 · 축분 ${mc}건`,'ready');
+        if(reference&&storesReady())calculate();
+        return true;
+      }catch(error){
+        if(disposed||generation!==receiptSyncGeneration||epoch!==selectionEpoch)return false;
+        resetReceiptAuto();receiptSource('자동조회 실패 · 수기 가능','error');
+        return false;
+      }
+    }
     function paintClickTiming(s){const el=container.querySelector('[data-cfv7-click-timing]');if(!el)return;if(!clickIsCurrent()){el.hidden=true;el.textContent='';return;}el.hidden=s.status==='idle';const seconds=(s.elapsedMs/1000).toFixed(1);const label=s.mode==='resume_existing'?'상태 확인부터':'계산 시간';if(s.status==='complete'){const source=s.source==='saved_recalculate'?'저장값 재계산':s.source==='resume_existing'?'진행 중 조회 결과':'새 DataPARC 결과';const backend=s.source==='new_query'&&Number.isFinite(s.controllerSeconds)?` · 회사 PC ${s.controllerSeconds.toFixed(1)}초${Number.isFinite(s.querySeconds)?` (DataPARC ${s.querySeconds.toFixed(1)}초 포함)`:''}`:'';el.textContent=`${label} ${seconds}초 · ${source}${backend}`;}else if(s.status==='failed')el.textContent=`${label} ${seconds}초 · 완료되지 않음`;else if(s.status==='cancelled')el.textContent=`${label} ${seconds}초 · 측정 중단`;else el.textContent=`${label} ${seconds}초 · ${s.phase||'결과 확인 중'}`;refreshStatusLine();}
     function refreshStatusLine(){
       const line=container.querySelector('[data-cfv11-status-line]');if(!line||disposed)return;
@@ -605,13 +633,13 @@
       if(next!==selectedStoreKey){
         const draft=pendingDailyDraft?.signature===JSON.stringify(currentSpec())&&pendingDailyDraft.auth===String(authHeaders().Authorization||authHeaders().authorization||'')?pendingDailyDraft:null;pendingDailyDraft=null;
         selectedStoreKey=next;periodGeneration++;reference=null;lastResult=null;displayResult=null;adjustmentActive=false;settingsDirty=!!draft?.settings;manualDirty=!!draft?.manual;
-        settings?.select(p.targetDate);manual?.select(p.startLocal,p.endLocal);writeManual(container,manualApi.blank());
+        settings?.select(p.targetDate);manual?.select(p.startLocal,p.endLocal);resetReceiptAuto();writeManual(container,manualApi.blank());
         for(const [selector,value] of [...(draft?.manual||[]),...(draft?.settings||[])]){const input=container.querySelector(selector);if(input)input.value=value;}
       }
       const epoch=periodGeneration;live?.select(currentSpec());
       await Promise.all([settings?.load({force})||true,manual?.load({force})||true]);
       if(disposed||epoch!==periodGeneration||next!==storeKey())return false;
-      paintSettings();paintManual();const closedManualRestored=await restoreClosedManualSnapshot();if(!closedManualRestored)applyMorningMeetingOrganicDraft({recalculate:false});if(!storesReady()){prepLabel('입력 기준 확인 필요','error');setStatus(container,settings?.state()?.error||manual?.state()?.error||'발열량과 사용량 저장 상태를 확인하고 있습니다.','error');return false;}if(reference)calculate();return true;
+      paintSettings();paintManual();const closedManualRestored=await restoreClosedManualSnapshot();if(!closedManualRestored)applyMorningMeetingOrganicDraft({recalculate:false});await syncReceiptTotals();if(!storesReady()){prepLabel('입력 기준 확인 필요','error');setStatus(container,settings?.state()?.error||manual?.state()?.error||'발열량과 사용량 저장 상태를 확인하고 있습니다.','error');return false;}if(reference)calculate();return true;
     }
     function paintSettings(force=false){if(!settings||showDayUnavailable())return;const s=settings.state(),state=container.querySelector('[data-cfv5-settings-state]');if((force||!settingsDirty)&&s.loaded)writeSettings(container,s.settings);if(state)state.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':settingsDirty?'수정됨 · 미저장':s.source==='saved'?`${s.effectiveDate} 적용값${s.updatedByName?' · '+s.updatedByName:''}`:'기본값';for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]'))el.disabled=mobile||s.saving;container.querySelector('[data-cfv5-settings-save]').disabled=mobile||!s.canEdit||s.saving;}
     function currentManualFromFields(){try{return readManual(container);}catch(_){return manual?.state().values||manualApi.blank();}}
@@ -687,7 +715,7 @@
       applyMorningMeetingOrganicDraft();
     }
 
-    function bindManualInputs(){for(const el of container.querySelectorAll('[data-cfv5-manual],[data-cfv5-receipt]'))if(el.dataset.cfv5Bound!=='1'){el.dataset.cfv5Bound='1';el.addEventListener('input',()=>{const manualKey=el.getAttribute('data-cfv5-manual')||'';if(/^unit[12]:organic$/.test(manualKey)){morningOrganicTouched.add(manualKey);morningOrganicAuto.delete(manualKey);}manualDirty=true;const label=container.querySelector('[data-cfv5-manual-state]');if(label)label.textContent='수정됨 · 미저장';if(reference&&storesReady())calculate();});el.addEventListener('change',()=>{if(reference)calculate();});}}
+    function bindManualInputs(){for(const el of container.querySelectorAll('[data-cfv5-manual],[data-cfv5-receipt]'))if(el.dataset.cfv5Bound!=='1'){el.dataset.cfv5Bound='1';el.addEventListener('input',()=>{if(el.hasAttribute('data-cfv5-receipt')&&el.readOnly)return;const manualKey=el.getAttribute('data-cfv5-manual')||'';if(/^unit[12]:organic$/.test(manualKey)){morningOrganicTouched.add(manualKey);morningOrganicAuto.delete(manualKey);}manualDirty=true;const label=container.querySelector('[data-cfv5-manual-state]');if(label)label.textContent='수정됨 · 미저장';if(reference&&storesReady())calculate();});el.addEventListener('change',()=>{if(reference)calculate();});}}
     // COFIRING_MANUAL_PROGRAMMATIC_RECALC_V1
     container.addEventListener('cofiring:manual-recalculate',()=>{if(reference)calculate();});
     function paintLive(s){
@@ -737,7 +765,7 @@
     }
     async function periodChanged({deferReads=false,draft=null,capturedAt=Date.now()}={}){
       restoringSaved=false;pendingDailyDraft=draft;try{if(queryMode(container)==='daily')captureDailySelection(container,capturedAt);}catch(_){}
-      selectionEpoch++;deadlineInputError='';clearDayBoundary();clearDeadlineRefresh();live?.pause();selectedStoreKey='';writeManual(container,manualApi.blank());
+      selectionEpoch++;deadlineInputError='';clearDayBoundary();clearDeadlineRefresh();live?.pause();selectedStoreKey='';resetReceiptAuto();writeManual(container,manualApi.blank());
       clickTiming?.cancel('기간 변경');if(clickTiming)paintClickTiming(clickTiming.state());renderedRequestId=null;
       fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}reference=null;lastResult=null;displayResult=null;adjustmentActive=false;renderMain(container,null);renderOrganic(container,null,currentManualFromFields());renderSummary(container,null,currentManualFromFields());updateRange(container);renderWarnings(container,null);const ab=container.querySelector('[data-cfv56-adjust]');if(ab){ab.disabled=true;ab.classList.remove('is-active');ab.textContent='혼소 조정';}
       try{const a=selectedDayAvailability();if(a.period)live?.select(currentSpec());if(showDayUnavailable()||deferReads)return;const pending=selectStores();setStatus(container,queryMode(container)==='daily'?'오늘은 00:00부터 현재까지 누적, 지난 날짜는 00:00부터 다음 날 00:01까지 계산합니다. [계산하기]를 눌러주세요.':'조회 기간이 변경되었습니다. [계산하기]를 누르면 표시한 기간으로 계산합니다.','');scheduleFastPrep(0);await pending;}catch(e){setStatus(container,e.message,'error');}
@@ -794,10 +822,12 @@
     }}catch(e){clickTiming?.fail(token,'재조회 오류');setStatus(container,e.message,'error');}finally{clickBusy=false;}});
     adjuster=adjustmentApi?.create({container,getHeaders:authHeaders,getContext:adjustmentContext,onMessage:m=>setStatus(container,m,'error'),onApply:(result)=>{renderDisplay(result,{adjusted:true});setStatus(container,'혼소 조정값을 선택기간 계산 화면에 적용했습니다. 원본 DataPARC 저장값은 변경하지 않습니다.','success');},onReset:()=>{if(lastResult){renderDisplay(lastResult,{adjusted:false});setStatus(container,'혼소 조정을 원복했습니다. DataPARC 원본 계산값을 표시합니다.','success');}}})||null;
     const adjustButton=container.querySelector('[data-cfv56-adjust]');if(adjustButton){adjustButton.disabled=true;adjustButton.addEventListener('click',()=>{try{Promise.resolve(adjuster?.open()).catch(e=>setStatus(container,e.message,'error'));}catch(e){setStatus(container,e.message,'error');}});}
-    const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){if(showDayUnavailable())return;if(selectedStoreKey!==storeKey())void periodChanged();else{if(displayResult)renderSummary(container,displayResult,currentManualFromFields(),deadlineInputError);scheduleDeadlineRefresh();scheduleFastPrep(0);}}else{restoringSaved=false;clearDayBoundary();clearDeadlineRefresh();clickTiming?.cancel('화면 닫힘');fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
+    const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){if(showDayUnavailable())return;if(selectedStoreKey!==storeKey())void periodChanged();else{if(displayResult)renderSummary(container,displayResult,currentManualFromFields(),deadlineInputError);void syncReceiptTotals();scheduleDeadlineRefresh();scheduleFastPrep(0);}}else{restoringSaved=false;clearDayBoundary();clearDeadlineRefresh();clickTiming?.cancel('화면 닫힘');fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
+    const receiptMessageHandler=event=>{if(event.origin!==root.location?.origin||event.data?.type!=='solid-fuel:receipt-changed')return;const date=String(event.data?.date||'');if(queryMode(container)==='daily'&&container.querySelector('[data-cfv7-date]')?.value===date)void syncReceiptTotals();};
+    root.addEventListener?.('message',receiptMessageHandler);
     statusRefreshers.set(container,refreshStatusLine);
     updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();bindMorningMeetingOrganicObserver();selectStores().catch(e=>setStatus(container,e.message,'error'));scheduleFastPrep(0);
-    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSpec:currentSpec,dispose(){statusRefreshers.delete(container);clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();morningCardObserver?.disconnect();if(morningCardBindTimer!==null)root.clearTimeout?.(morningCardBindTimer);adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
+    return {calculate,periodChanged,settings,manual,live,getResult:()=>lastResult,getDisplayResult:()=>displayResult,getSpec:currentSpec,dispose(){statusRefreshers.delete(container);root.removeEventListener?.('message',receiptMessageHandler);receiptSyncGeneration++;clearDayBoundary();clearDeadlineRefresh();clickTiming?.dispose();disposed=true;fastPrepGeneration++;if(fastPrepTimer)root.clearTimeout?.(fastPrepTimer);observer?.disconnect();morningCardObserver?.disconnect();if(morningCardBindTimer!==null)root.clearTimeout?.(morningCardBindTimer);adjuster?.dispose?.();settings?.dispose();manual?.dispose();live?.dispose();}};
   }
   root.CofiringPeriodV5={mount,periodSpec,dailySpec,dailySelectionSpec,dayAvailability,defaultCalculationDate,queryMode,customSpec,currentDaySpec,selectedAvailability,targetReferenceMarkup,fuelUsageMarkup,markup,readSettings,readManual,manualForCalculation,coalBioHeat,coalBioRatio,combinedCoalBio,cachedReference,liveRequestPresentation};if(typeof module==='object'&&module.exports)module.exports=root.CofiringPeriodV5;
   if(root.document){const init=()=>{const container=root.document.querySelector('[data-cofiring-draft-root]');if(container)root.__cofiringPeriodV5Controller=mount(container);};if(root.document.readyState==='loading')root.document.addEventListener('DOMContentLoaded',init,{once:true});else init();}
