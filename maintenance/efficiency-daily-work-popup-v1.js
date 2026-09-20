@@ -3802,3 +3802,1278 @@
     `[${VERSION}] ready`
   );
 })();
+
+/* =========================================================
+   EFFICIENCY DAILY WORK ROW DELETE V1
+
+   Fixed-schema-safe destructive delete:
+   - right click role row
+   - clear row input values
+   - hide row
+   - normal Save persists blank values
+   - session undo restores previous values
+   - no DB/API/schema changes
+   - no MutationObserver
+========================================================= */
+(() => {
+  'use strict';
+
+  const VERSION =
+    'EFFICIENCY_DAILY_WORK_ROW_DELETE_V1';
+
+  const WINDOW_PARAM =
+    'efficiencyDailyWorkWindow';
+
+  const HIDDEN_STORAGE_PREFIX =
+    'gs-efficiency-daily-work-hidden-rows-v1:';
+
+  const SNAPSHOT_PREFIX =
+    'gs-efficiency-daily-work-row-delete-snapshot-v1:';
+
+  const ROW_SELECTOR =
+    '#efficiencyDailyWorkPaper ' +
+    '[data-efficiency-daily-work-row-key]';
+
+  const ROLE_CELL_SELECTOR =
+    '.efficiency-daily-work-table__role-cell';
+
+  const MENU_ID =
+    'efficiencyDailyWorkRowContextMenuV1';
+
+  const ROW_LABELS = {
+    'efficiency-overall':
+      '효율업무 총괄',
+
+    'efficiency-1':
+      '효율업무1',
+
+    'efficiency-2':
+      '효율업무2',
+
+    'efficiency-3':
+      '효율업무3',
+
+    'purchase-admin':
+      '구매·행정업무',
+
+    'operation-day':
+      'Day 근무조',
+
+    'operation-night':
+      'Night 근무조'
+  };
+
+
+  if (
+    window.__gsEfficiencyDailyWorkRowDeleteV1
+  ) {
+    return;
+  }
+
+
+  const isStandaloneWindow = () => {
+    try {
+      return (
+        new URL(window.location.href)
+          .searchParams
+          .get(WINDOW_PARAM) === '1'
+      );
+    } catch {
+      return false;
+    }
+  };
+
+
+  if (!isStandaloneWindow()) {
+    return;
+  }
+
+
+  window.__gsEfficiencyDailyWorkRowDeleteV1 =
+    true;
+
+
+  const getDateValue = () =>
+    String(
+      document.getElementById(
+        'efficiencyDailyWorkDate'
+      )?.value || ''
+    ).trim();
+
+
+  const getRowKey = row =>
+    String(
+      row?.dataset
+        ?.efficiencyDailyWorkRowKey ||
+      ''
+    ).trim();
+
+
+  const getRowLabel = rowKey =>
+    ROW_LABELS[rowKey] ||
+    rowKey ||
+    '업무행';
+
+
+  const getHiddenStorageKey = dateValue =>
+    `${HIDDEN_STORAGE_PREFIX}${dateValue || 'unknown'}`;
+
+
+  const getSnapshotKey = (
+    dateValue,
+    rowKey
+  ) =>
+    `${SNAPSHOT_PREFIX}${dateValue || 'unknown'}:${rowKey}`;
+
+
+  const loadHiddenRows = dateValue => {
+
+    try {
+
+      const raw =
+        localStorage.getItem(
+          getHiddenStorageKey(dateValue)
+        );
+
+      if (!raw) {
+        return [];
+      }
+
+      const parsed =
+        JSON.parse(raw);
+
+      return Array.isArray(parsed)
+        ? [
+            ...new Set(
+              parsed
+                .map(value =>
+                  String(
+                    value || ''
+                  ).trim()
+                )
+                .filter(value =>
+                  Object.prototype
+                    .hasOwnProperty.call(
+                      ROW_LABELS,
+                      value
+                    )
+                )
+            )
+          ]
+        : [];
+
+    } catch {
+      return [];
+    }
+  };
+
+
+  const saveHiddenRows = (
+    dateValue,
+    rows
+  ) => {
+
+    const normalized = [
+      ...new Set(
+        rows.filter(value =>
+          Object.prototype
+            .hasOwnProperty.call(
+              ROW_LABELS,
+              value
+            )
+        )
+      )
+    ];
+
+    try {
+      localStorage.setItem(
+        getHiddenStorageKey(dateValue),
+        JSON.stringify(normalized)
+      );
+    } catch (_) {
+      // Layout storage failure must not break document work.
+    }
+  };
+
+
+  const collectRowSnapshot = row => {
+
+    const controls = [
+      ...row.querySelectorAll(
+        'input, textarea, select'
+      )
+    ];
+
+    return controls.map(control => ({
+      tag:
+        control.tagName,
+
+      type:
+        String(
+          control.type || ''
+        ),
+
+      name:
+        String(
+          control.name || ''
+        ),
+
+      value:
+        String(
+          control.value ?? ''
+        ),
+
+      checked:
+        Boolean(
+          control.checked
+        ),
+
+      selectedIndex:
+        control instanceof
+        HTMLSelectElement
+          ? control.selectedIndex
+          : -1
+    }));
+  };
+
+
+  const saveSnapshot = (
+    dateValue,
+    rowKey,
+    snapshot
+  ) => {
+
+    try {
+      sessionStorage.setItem(
+        getSnapshotKey(
+          dateValue,
+          rowKey
+        ),
+        JSON.stringify(snapshot)
+      );
+
+      return true;
+
+    } catch {
+      return false;
+    }
+  };
+
+
+  const loadSnapshot = (
+    dateValue,
+    rowKey
+  ) => {
+
+    try {
+
+      const raw =
+        sessionStorage.getItem(
+          getSnapshotKey(
+            dateValue,
+            rowKey
+          )
+        );
+
+      if (!raw) {
+        return null;
+      }
+
+      const parsed =
+        JSON.parse(raw);
+
+      return Array.isArray(parsed)
+        ? parsed
+        : null;
+
+    } catch {
+      return null;
+    }
+  };
+
+
+  const removeSnapshot = (
+    dateValue,
+    rowKey
+  ) => {
+
+    try {
+      sessionStorage.removeItem(
+        getSnapshotKey(
+          dateValue,
+          rowKey
+        )
+      );
+    } catch (_) {
+      // Ignore.
+    }
+  };
+
+
+  const getDeletedRowKeys = dateValue =>
+    Object.keys(
+      ROW_LABELS
+    ).filter(
+      rowKey =>
+        Array.isArray(
+          loadSnapshot(
+            dateValue,
+            rowKey
+          )
+        )
+    );
+
+
+  const dispatchControlEvents = control => {
+
+    try {
+      control.dispatchEvent(
+        new Event(
+          'input',
+          {
+            bubbles: true
+          }
+        )
+      );
+
+      control.dispatchEvent(
+        new Event(
+          'change',
+          {
+            bubbles: true
+          }
+        )
+      );
+    } catch (_) {
+      // Existing editor will still collect values on Save.
+    }
+  };
+
+
+  const clearRowControls = row => {
+
+    const controls = [
+      ...row.querySelectorAll(
+        'input, textarea, select'
+      )
+    ];
+
+    controls.forEach(control => {
+
+      if (
+        control instanceof
+        HTMLInputElement
+      ) {
+
+        if (
+          control.type ===
+            'checkbox' ||
+          control.type ===
+            'radio'
+        ) {
+          control.checked =
+            false;
+        }
+        else {
+          control.value =
+            '';
+        }
+
+      }
+      else if (
+        control instanceof
+        HTMLSelectElement
+      ) {
+
+        control.selectedIndex =
+          0;
+
+      }
+      else if (
+        control instanceof
+        HTMLTextAreaElement
+      ) {
+
+        control.value =
+          '';
+      }
+
+      dispatchControlEvents(
+        control
+      );
+    });
+  };
+
+
+  const restoreRowControls = (
+    row,
+    snapshot
+  ) => {
+
+    const controls = [
+      ...row.querySelectorAll(
+        'input, textarea, select'
+      )
+    ];
+
+    controls.forEach(
+      (control, index) => {
+
+        const saved =
+          snapshot[index];
+
+        if (!saved) {
+          return;
+        }
+
+        if (
+          control instanceof
+          HTMLInputElement
+        ) {
+
+          if (
+            control.type ===
+              'checkbox' ||
+            control.type ===
+              'radio'
+          ) {
+
+            control.checked =
+              Boolean(
+                saved.checked
+              );
+          }
+          else {
+
+            control.value =
+              String(
+                saved.value ?? ''
+              );
+          }
+
+        }
+        else if (
+          control instanceof
+          HTMLSelectElement
+        ) {
+
+          const matchingValue =
+            String(
+              saved.value ?? ''
+            );
+
+          control.value =
+            matchingValue;
+
+          if (
+            control.value !==
+            matchingValue &&
+            Number.isInteger(
+              saved.selectedIndex
+            )
+          ) {
+            control.selectedIndex =
+              saved.selectedIndex;
+          }
+
+        }
+        else if (
+          control instanceof
+          HTMLTextAreaElement
+        ) {
+
+          control.value =
+            String(
+              saved.value ?? ''
+            );
+        }
+
+        dispatchControlEvents(
+          control
+        );
+      }
+    );
+  };
+
+
+  const syncGroupCells = () => {
+
+    const table =
+      document.querySelector(
+        '#efficiencyDailyWorkPaper ' +
+        '.efficiency-daily-work-table'
+      );
+
+    if (!table) {
+      return;
+    }
+
+    [
+      '.efficiency-daily-work-table__efficiency-body',
+      '.efficiency-daily-work-table__operation-body'
+    ].forEach(
+      bodySelector => {
+
+        const body =
+          table.querySelector(
+            bodySelector
+          );
+
+        if (!body) {
+          return;
+        }
+
+        const rows = [
+          ...body.querySelectorAll(
+            ':scope > tr' +
+            '[data-efficiency-daily-work-row-key]'
+          )
+        ];
+
+        const visibleRows =
+          rows.filter(
+            row => !row.hidden
+          );
+
+        if (!visibleRows.length) {
+          return;
+        }
+
+        const groupCell =
+          body.querySelector(
+            '.efficiency-daily-work-table__group-cell'
+          );
+
+        if (!groupCell) {
+          return;
+        }
+
+        const firstVisible =
+          visibleRows[0];
+
+        if (
+          groupCell.parentElement !==
+          firstVisible
+        ) {
+          firstVisible.insertBefore(
+            groupCell,
+            firstVisible.firstElementChild
+          );
+        }
+
+        groupCell.rowSpan =
+          visibleRows.length;
+
+        groupCell.hidden =
+          false;
+      }
+    );
+  };
+
+
+  const getVisibleRowsInGroup = row => {
+
+    const body =
+      row?.closest('tbody');
+
+    if (!body) {
+      return [];
+    }
+
+    return [
+      ...body.querySelectorAll(
+        ':scope > tr' +
+        '[data-efficiency-daily-work-row-key]'
+      )
+    ].filter(
+      item =>
+        !item.hidden
+    );
+  };
+
+
+  const hideRowAfterDelete = (
+    row,
+    rowKey,
+    dateValue
+  ) => {
+
+    const hiddenRows =
+      loadHiddenRows(
+        dateValue
+      );
+
+    if (
+      !hiddenRows.includes(
+        rowKey
+      )
+    ) {
+      hiddenRows.push(
+        rowKey
+      );
+    }
+
+    saveHiddenRows(
+      dateValue,
+      hiddenRows
+    );
+
+    row.hidden =
+      true;
+
+    row.setAttribute(
+      'data-row-hidden-v1',
+      '1'
+    );
+
+    row.setAttribute(
+      'data-row-deleted-v1',
+      '1'
+    );
+
+    syncGroupCells();
+  };
+
+
+  const showMessage = message => {
+
+    if (
+      typeof window.showToast ===
+      'function'
+    ) {
+      window.showToast(
+        message
+      );
+
+      return;
+    }
+
+    console.info(
+      `[${VERSION}] ${message}`
+    );
+  };
+
+
+  const confirmDelete = (
+    rowLabel,
+    hasContent
+  ) => {
+
+    const message =
+      hasContent
+        ? (
+          `${rowLabel} 행을 삭제하시겠습니까?\n\n` +
+          `담당자 / 주요 업무 / 비고 등의 입력값이 모두 삭제되고 행이 숨겨집니다.\n` +
+          `아직 [저장]을 누르기 전이라면 삭제 취소로 복구할 수 있습니다.`
+        )
+        : (
+          `${rowLabel} 빈 행을 삭제하고 숨기시겠습니까?`
+        );
+
+    return window.confirm(
+      message
+    );
+  };
+
+
+  const rowHasContent = row =>
+    [
+      ...row.querySelectorAll(
+        'input, textarea, select'
+      )
+    ].some(control => {
+
+      if (
+        control instanceof
+        HTMLInputElement &&
+        (
+          control.type ===
+            'checkbox' ||
+          control.type ===
+            'radio'
+        )
+      ) {
+        return control.checked;
+      }
+
+      return Boolean(
+        String(
+          control.value || ''
+        ).trim()
+      );
+    });
+
+
+  const deleteRow = row => {
+
+    if (!row) {
+      return;
+    }
+
+    const rowKey =
+      getRowKey(row);
+
+    if (!rowKey) {
+      return;
+    }
+
+    const visibleRows =
+      getVisibleRowsInGroup(
+        row
+      );
+
+    /*
+     * 효율파트/운전파트가 통째로 사라지지 않도록
+     * 각 그룹의 마지막 한 줄은 삭제 금지.
+     */
+    if (
+      visibleRows.length <= 1
+    ) {
+
+      showMessage(
+        '각 파트에는 최소 1개의 업무행을 남겨야 합니다.'
+      );
+
+      return;
+    }
+
+    const dateValue =
+      getDateValue();
+
+    if (!dateValue) {
+      return;
+    }
+
+    const label =
+      getRowLabel(
+        rowKey
+      );
+
+    if (
+      !confirmDelete(
+        label,
+        rowHasContent(row)
+      )
+    ) {
+      return;
+    }
+
+
+    /*
+     * 최초 삭제 전 값만 보존한다.
+     * 삭제 -> 메뉴 다시 열기 같은 동작으로
+     * 원본 snapshot이 덮이지 않게 한다.
+     */
+    if (
+      !loadSnapshot(
+        dateValue,
+        rowKey
+      )
+    ) {
+
+      const snapshot =
+        collectRowSnapshot(
+          row
+        );
+
+      if (
+        !saveSnapshot(
+          dateValue,
+          rowKey,
+          snapshot
+        )
+      ) {
+
+        const continueWithoutUndo =
+          window.confirm(
+            '삭제 취소용 임시 백업을 만들지 못했습니다.\n그래도 삭제를 계속하시겠습니까?'
+          );
+
+        if (
+          !continueWithoutUndo
+        ) {
+          return;
+        }
+      }
+    }
+
+
+    clearRowControls(
+      row
+    );
+
+    hideRowAfterDelete(
+      row,
+      rowKey,
+      dateValue
+    );
+
+    const menu =
+      document.getElementById(
+        MENU_ID
+      );
+
+    if (menu) {
+      menu.hidden =
+        true;
+    }
+
+    showMessage(
+      `${label} 행을 삭제했습니다. 최종 반영은 [저장] 후 적용됩니다.`
+    );
+  };
+
+
+  const undoDelete = rowKey => {
+
+    const dateValue =
+      getDateValue();
+
+    const snapshot =
+      loadSnapshot(
+        dateValue,
+        rowKey
+      );
+
+    if (!snapshot) {
+      return;
+    }
+
+    const row =
+      document.querySelector(
+        `${ROW_SELECTOR}[data-efficiency-daily-work-row-key="${rowKey}"]`
+      );
+
+    if (!row) {
+      return;
+    }
+
+
+    restoreRowControls(
+      row,
+      snapshot
+    );
+
+
+    const hiddenRows =
+      loadHiddenRows(
+        dateValue
+      ).filter(
+        value =>
+          value !== rowKey
+      );
+
+    saveHiddenRows(
+      dateValue,
+      hiddenRows
+    );
+
+
+    row.hidden =
+      false;
+
+    row.setAttribute(
+      'data-row-hidden-v1',
+      '0'
+    );
+
+    row.removeAttribute(
+      'data-row-deleted-v1'
+    );
+
+
+    syncGroupCells();
+
+    removeSnapshot(
+      dateValue,
+      rowKey
+    );
+
+
+    const menu =
+      document.getElementById(
+        MENU_ID
+      );
+
+    if (menu) {
+      menu.hidden =
+        true;
+    }
+
+
+    showMessage(
+      `${getRowLabel(rowKey)} 삭제를 취소했습니다.`
+    );
+  };
+
+
+  const createDeleteButton = (
+    text,
+    clickHandler,
+    className = ''
+  ) => {
+
+    const button =
+      document.createElement(
+        'button'
+      );
+
+    button.type =
+      'button';
+
+    button.className =
+      'daily-work-row-context-button-v1 ' +
+      className;
+
+    button.textContent =
+      text;
+
+    button.addEventListener(
+      'click',
+      event => {
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+
+        clickHandler();
+      }
+    );
+
+    return button;
+  };
+
+
+  const appendDeleteActions = row => {
+
+    const menu =
+      document.getElementById(
+        MENU_ID
+      );
+
+    if (
+      !menu ||
+      menu.hidden
+    ) {
+      return;
+    }
+
+
+    /*
+     * 같은 메뉴에 중복 삽입 방지.
+     */
+    menu.querySelectorAll(
+      '[data-row-delete-v1-ui]'
+    ).forEach(
+      element =>
+        element.remove()
+    );
+
+
+    const hideButton = [
+      ...menu.querySelectorAll(
+        'button'
+      )
+    ].find(
+      button =>
+        button.textContent
+          ?.trim() ===
+        '이 행 숨기기'
+    );
+
+
+    if (hideButton) {
+
+      const divider =
+        document.createElement(
+          'div'
+        );
+
+      divider.className =
+        'daily-work-row-context-divider-v1';
+
+      divider.dataset
+        .rowDeleteV1Ui =
+        '1';
+
+
+      const deleteButton =
+        createDeleteButton(
+          '이 행 삭제',
+          () =>
+            deleteRow(row),
+          'is-delete-v1'
+        );
+
+      deleteButton.dataset
+        .rowDeleteV1Ui =
+        '1';
+
+
+      const note =
+        document.createElement(
+          'div'
+        );
+
+      note.className =
+        'daily-work-row-delete-note-v1';
+
+      note.dataset
+        .rowDeleteV1Ui =
+        '1';
+
+      note.textContent =
+        '입력내용 삭제 + 행 숨김';
+
+
+      hideButton.insertAdjacentElement(
+        'afterend',
+        divider
+      );
+
+      divider.insertAdjacentElement(
+        'afterend',
+        deleteButton
+      );
+
+      deleteButton.insertAdjacentElement(
+        'afterend',
+        note
+      );
+    }
+
+
+    const dateValue =
+      getDateValue();
+
+    const deletedRows =
+      getDeletedRowKeys(
+        dateValue
+      );
+
+
+    if (deletedRows.length) {
+
+      const divider =
+        document.createElement(
+          'div'
+        );
+
+      divider.className =
+        'daily-work-row-context-divider-v1';
+
+      divider.dataset
+        .rowDeleteV1Ui =
+        '1';
+
+
+      const title =
+        document.createElement(
+          'div'
+        );
+
+      title.className =
+        'daily-work-row-context-subtitle-v1';
+
+      title.dataset
+        .rowDeleteV1Ui =
+        '1';
+
+      title.textContent =
+        '삭제 취소';
+
+
+      menu.append(
+        divider,
+        title
+      );
+
+
+      deletedRows.forEach(
+        deletedRowKey => {
+
+          const button =
+            createDeleteButton(
+              `${getRowLabel(
+                deletedRowKey
+              )} 삭제 취소`,
+              () =>
+                undoDelete(
+                  deletedRowKey
+                )
+            );
+
+          button.dataset
+            .rowDeleteV1Ui =
+            '1';
+
+          menu.append(
+            button
+          );
+        }
+      );
+    }
+
+
+    /*
+     * 항목 추가로 메뉴 높이가 커진 경우
+     * 화면 아래/오른쪽 밖으로 빠지지 않게 보정.
+     */
+    const rect =
+      menu.getBoundingClientRect();
+
+    const margin =
+      10;
+
+    if (
+      rect.right >
+      window.innerWidth -
+      margin
+    ) {
+      menu.style.left =
+        `${Math.max(
+          margin,
+          window.innerWidth -
+          rect.width -
+          margin
+        )}px`;
+    }
+
+    if (
+      rect.bottom >
+      window.innerHeight -
+      margin
+    ) {
+      menu.style.top =
+        `${Math.max(
+          margin,
+          window.innerHeight -
+          rect.height -
+          margin
+        )}px`;
+    }
+  };
+
+
+  const installStyle = () => {
+
+    if (
+      document.getElementById(
+        'efficiencyDailyWorkRowDeleteStyleV1'
+      )
+    ) {
+      return;
+    }
+
+    const style =
+      document.createElement(
+        'style'
+      );
+
+    style.id =
+      'efficiencyDailyWorkRowDeleteStyleV1';
+
+    style.textContent = `
+      #efficiencyDailyWorkRowContextMenuV1
+      .daily-work-row-context-button-v1.is-delete-v1 {
+        color: #b3261e !important;
+        font-weight: 900 !important;
+      }
+
+      #efficiencyDailyWorkRowContextMenuV1
+      .daily-work-row-context-button-v1.is-delete-v1:hover {
+        background: #fff0ef !important;
+      }
+
+      #efficiencyDailyWorkRowContextMenuV1
+      .daily-work-row-delete-note-v1 {
+        padding:
+          1px
+          8px
+          5px;
+
+        color: #9a6a67;
+
+        font-size: 8px;
+        font-weight: 700;
+      }
+    `;
+
+    document.head.append(
+      style
+    );
+  };
+
+
+  installStyle();
+
+
+  /*
+   * 기존 Row Hide V1 contextmenu listener가
+   * 메뉴를 생성한 직후 동일 document에서 실행된다.
+   *
+   * 기존 함수를 override하지 않고
+   * 열린 메뉴에 Delete 항목만 추가한다.
+   */
+  document.addEventListener(
+    'contextmenu',
+    event => {
+
+      const target =
+        event.target instanceof Element
+          ? event.target
+          : null;
+
+      if (!target) {
+        return;
+      }
+
+
+      if (
+        target.closest(
+          'input, textarea, select'
+        )
+      ) {
+        return;
+      }
+
+
+      const roleCell =
+        target.closest(
+          ROLE_CELL_SELECTOR
+        );
+
+      if (!roleCell) {
+        return;
+      }
+
+
+      const row =
+        roleCell.closest(
+          ROW_SELECTOR
+        );
+
+      if (!row) {
+        return;
+      }
+
+
+      /*
+       * Row Hide V1이 같은 이벤트에서 먼저 메뉴를 연다.
+       * 같은 dispatch 종료 직후 확실하게 항목을 보강.
+       */
+      queueMicrotask(
+        () =>
+          appendDeleteActions(
+            row
+          )
+      );
+    },
+    true
+  );
+
+
+  console.info(
+    `[${VERSION}] ready`
+  );
+})();
