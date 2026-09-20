@@ -107289,6 +107289,18 @@ async function handleEfficiencyDailyWorkArchiveClick(
       record:
         targetRecord,
 
+      /*
+        EFFICIENCY_DAILY_WORK_ARCHIVE_FORCE_RELOAD_V1
+
+        보관함의 날짜를 클릭했다는 것은
+        해당 날짜의 저장본을 다시 열겠다는 명시적 동작이다.
+
+        현재 선택 날짜/record/version이 같더라도
+        editor 재채우기를 생략하지 않는다.
+      */
+      forceReload:
+        true,
+
       confirmTitle:
         "저장 기록 열기",
 
