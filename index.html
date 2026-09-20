@@ -238,7 +238,7 @@
 ></script>
 
 <script
-  src="script.js?v=20260920-daily-auto-part-v1-r2"
+  src="script.js?v=20260920-daily-team-leader-v1"
   defer
 ></script>
   <script
@@ -5656,7 +5656,13 @@
                           <option value="4">4파트</option>
                         </select><span data-efficiency-daily-work-auto-part-display="DS" aria-label="Day 자동 근무 파트" style="display:block;margin-top:6px;font-weight:800;color:#24496c;">자동 계산</span>
 
-                        <input type="text" name="dayMembers" data-efficiency-daily-work-field="members" aria-label="Day 근무자" placeholder="[근무자]" />
+                        <input hidden tabindex="-1" aria-hidden="true" type="text" name="dayMembers" data-efficiency-daily-work-field="members" aria-label="Day 근무자" placeholder="[근무자]" /><select
+  class="efficiency-daily-work-team-leader-select-v1"
+  data-efficiency-daily-work-leader-select="operation-day"
+  aria-label="Day 근무조 파트장 선택"
+>
+  <option value="">[파트장 선택]</option>
+</select>
                       </th>
 
                       <td>
@@ -5680,7 +5686,13 @@
                           <option value="4">4파트</option>
                         </select><span data-efficiency-daily-work-auto-part-display="NS" aria-label="Night 자동 근무 파트" style="display:block;margin-top:6px;font-weight:800;color:#24496c;">자동 계산</span>
 
-                        <input type="text" name="nightMembers" data-efficiency-daily-work-field="members" aria-label="Night 근무자" placeholder="[근무자]" />
+                        <input hidden tabindex="-1" aria-hidden="true" type="text" name="nightMembers" data-efficiency-daily-work-field="members" aria-label="Night 근무자" placeholder="[근무자]" /><select
+  class="efficiency-daily-work-team-leader-select-v1"
+  data-efficiency-daily-work-leader-select="operation-night"
+  aria-label="Night 근무조 파트장 선택"
+>
+  <option value="">[파트장 선택]</option>
+</select>
                       </th>
 
                       <td>

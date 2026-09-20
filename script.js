@@ -33254,6 +33254,17 @@ function syncEfficiencyDailyWorkScheduledParts(
   );
 
 
+  if (
+    typeof syncEfficiencyDailyWorkLeaderSelectors ===
+      "function"
+  ) {
+    syncEfficiencyDailyWorkLeaderSelectors({
+      signalChange:
+        false
+    });
+  }
+
+
   return scheduled;
 }
 
@@ -33334,6 +33345,886 @@ if (
 
   window.setTimeout(
     initializeEfficiencyDailyWorkScheduledPartAutoSync,
+    0
+  );
+}
+
+
+/* =========================================================
+  EFFICIENCY_DAILY_WORK_TEAM_LEADER_SELECT_V1
+
+  운전파트 Day / Night 근무자는
+  회원관리에서 '파트장'으로 지정된 활성 사용자만 선택한다.
+
+  현재 파트장 기본 대응:
+  1파트 = 조용환
+  2파트 = 한만석
+  3파트 = 남정현
+  4파트 = 김광표
+
+  선택 가능 여부의 기준은 회원관리 데이터다.
+  위 이름표는 날짜별 자동파트의 기본 선택에만 사용한다.
+
+  DB / API / schema 변경 없음.
+========================================================= */
+
+const EFFICIENCY_DAILY_WORK_PART_LEADER_NAME_MAP = {
+  "1":
+    "조용환",
+
+  "2":
+    "한만석",
+
+  "3":
+    "남정현",
+
+  "4":
+    "김광표"
+};
+
+
+let efficiencyDailyWorkTeamLeaderCache =
+  null;
+
+
+let efficiencyDailyWorkTeamLeaderLoadPromise =
+  null;
+
+
+function isEfficiencyDailyWorkTeamLeaderUser(
+  user
+) {
+  if (
+    !user ||
+    typeof user !==
+      "object"
+  ) {
+    return false;
+  }
+
+
+  const isActive =
+    user.isActive ===
+      true ||
+    Number(
+      user.isActive ??
+      user.is_active
+    ) ===
+      1;
+
+
+  if (!isActive) {
+    return false;
+  }
+
+
+  if (
+    typeof getEmployeeManagementRoleLabel ===
+      "function"
+  ) {
+
+    return (
+      getEmployeeManagementRoleLabel(
+        user.role ||
+        user.defaultRole ||
+        user.default_role ||
+        ""
+      ) ===
+      "파트장"
+    );
+  }
+
+
+  const role =
+    String(
+      user.role ||
+      user.defaultRole ||
+      user.default_role ||
+      ""
+    )
+      .trim()
+      .toLowerCase()
+      .replace(
+        /[\s-]+/g,
+        "_"
+      );
+
+
+  return [
+    "admin",
+    "leader",
+    "파트장"
+  ].includes(
+    role
+  );
+}
+
+
+function normalizeEfficiencyDailyWorkTeamLeaders(
+  users
+) {
+  const source =
+    Array.isArray(
+      users
+    )
+      ? users
+      : [];
+
+
+  const uniqueNames =
+    new Set();
+
+
+  return source
+    .filter(
+      isEfficiencyDailyWorkTeamLeaderUser
+    )
+    .map(
+      user => ({
+        employeeNo:
+          String(
+            user.employeeNo ||
+            user.employee_no ||
+            ""
+          ).trim(),
+
+        name:
+          String(
+            user.name ||
+            ""
+          ).trim()
+      })
+    )
+    .filter(
+      leader => {
+
+        if (
+          !leader.name ||
+          uniqueNames.has(
+            leader.name
+          )
+        ) {
+          return false;
+        }
+
+
+        uniqueNames.add(
+          leader.name
+        );
+
+
+        return true;
+      }
+    )
+    .sort(
+      (
+        left,
+        right
+      ) => {
+
+        const getPartNumber =
+          name => {
+
+            const found =
+              Object.entries(
+                EFFICIENCY_DAILY_WORK_PART_LEADER_NAME_MAP
+              )
+                .find(
+                  (
+                    [
+                      ,
+                      leaderName
+                    ]
+                  ) =>
+                    leaderName ===
+                    name
+                );
+
+
+            return found
+              ? Number(
+                  found[0]
+                )
+              : 99;
+          };
+
+
+        const partDifference =
+          getPartNumber(
+            left.name
+          ) -
+          getPartNumber(
+            right.name
+          );
+
+
+        if (
+          partDifference !==
+          0
+        ) {
+          return partDifference;
+        }
+
+
+        return left.name.localeCompare(
+          right.name,
+          "ko"
+        );
+      }
+    );
+}
+
+
+async function loadEfficiencyDailyWorkTeamLeaders() {
+  if (
+    Array.isArray(
+      efficiencyDailyWorkTeamLeaderCache
+    )
+  ) {
+    return efficiencyDailyWorkTeamLeaderCache;
+  }
+
+
+  if (
+    efficiencyDailyWorkTeamLeaderLoadPromise
+  ) {
+    return efficiencyDailyWorkTeamLeaderLoadPromise;
+  }
+
+
+  efficiencyDailyWorkTeamLeaderLoadPromise =
+    (
+      async () => {
+
+        /*
+         * 메인 화면에서 이미 회원관리 목록을 불러왔다면
+         * 같은 데이터를 우선 재사용한다.
+         */
+        if (
+          typeof employeeManagementUsers !==
+            "undefined" &&
+          Array.isArray(
+            employeeManagementUsers
+          )
+        ) {
+
+          const existing =
+            normalizeEfficiencyDailyWorkTeamLeaders(
+              employeeManagementUsers
+            );
+
+
+          if (
+            existing.length >
+            0
+          ) {
+
+            efficiencyDailyWorkTeamLeaderCache =
+              existing;
+
+
+            return existing;
+          }
+        }
+
+
+        const response =
+          await fetch(
+            "/api/employees?type=users",
+            {
+              method:
+                "GET",
+
+              headers: {
+                Accept:
+                  "application/json"
+              },
+
+              cache:
+                "no-store"
+            }
+          );
+
+
+        const responseText =
+          await response.text();
+
+
+        let result =
+          {};
+
+
+        if (
+          responseText.trim()
+        ) {
+
+          try {
+            result =
+              JSON.parse(
+                responseText
+              );
+
+          } catch {
+
+            throw new Error(
+              "회원관리 사용자 응답 형식이 올바르지 않습니다."
+            );
+          }
+        }
+
+
+        if (
+          !response.ok ||
+          result.ok ===
+            false ||
+          result.success ===
+            false
+        ) {
+
+          throw new Error(
+            result.message ||
+            result.error ||
+            `파트장 목록 조회 실패 (HTTP ${response.status})`
+          );
+        }
+
+
+        const users =
+          Array.isArray(
+            result.approvedUsers
+          )
+            ? result.approvedUsers
+            : Array.isArray(
+                result.users
+              )
+              ? result.users
+              : [];
+
+
+        const leaders =
+          normalizeEfficiencyDailyWorkTeamLeaders(
+            users
+          );
+
+
+        efficiencyDailyWorkTeamLeaderCache =
+          leaders;
+
+
+        return leaders;
+      }
+    )();
+
+
+  try {
+
+    return await efficiencyDailyWorkTeamLeaderLoadPromise;
+
+  } finally {
+
+    efficiencyDailyWorkTeamLeaderLoadPromise =
+      null;
+  }
+}
+
+
+function getEfficiencyDailyWorkPartNumberForRow(
+  row
+) {
+  const partControl =
+    row?.querySelector(
+      '[data-efficiency-daily-work-field="part"]'
+    );
+
+
+  return String(
+    partControl?.value ||
+    ""
+  )
+    .trim()
+    .replace(
+      /[^1-4]/g,
+      ""
+    )
+    .slice(
+      0,
+      1
+    );
+}
+
+
+function getEfficiencyDailyWorkLeaderDisplayLabel(
+  leaderName
+) {
+  const matchedPart =
+    Object.entries(
+      EFFICIENCY_DAILY_WORK_PART_LEADER_NAME_MAP
+    )
+      .find(
+        (
+          [
+            ,
+            name
+          ]
+        ) =>
+          name ===
+          leaderName
+      );
+
+
+  return matchedPart
+    ? `${matchedPart[0]}파트 · ${leaderName}`
+    : leaderName;
+}
+
+
+async function syncEfficiencyDailyWorkLeaderSelectors(
+  options = {}
+) {
+  let leaders;
+
+
+  try {
+
+    leaders =
+      await loadEfficiencyDailyWorkTeamLeaders();
+
+  } catch (
+    error
+  ) {
+
+    console.error(
+      "일일업무현황 파트장 목록 조회 오류:",
+      error
+    );
+
+
+    document
+      .querySelectorAll(
+        "[data-efficiency-daily-work-leader-select]"
+      )
+      .forEach(
+        select => {
+
+          select.replaceChildren();
+
+
+          const option =
+            document.createElement(
+              "option"
+            );
+
+
+          option.value =
+            "";
+
+          option.textContent =
+            "[파트장 목록 확인 필요]";
+
+
+          select.append(
+            option
+          );
+
+
+          select.disabled =
+            true;
+        }
+      );
+
+
+    return false;
+  }
+
+
+  const leaderNames =
+    new Set(
+      leaders.map(
+        leader =>
+          leader.name
+      )
+    );
+
+
+  const rowDefinitions = [
+    {
+      rowKey:
+        "operation-day"
+    },
+
+    {
+      rowKey:
+        "operation-night"
+    }
+  ];
+
+
+  rowDefinitions.forEach(
+    definition => {
+
+      const row =
+        document.querySelector(
+          (
+            '[data-efficiency-daily-work-row-key="' +
+            definition.rowKey +
+            '"]'
+          )
+        );
+
+
+      const select =
+        document.querySelector(
+          (
+            '[data-efficiency-daily-work-leader-select="' +
+            definition.rowKey +
+            '"]'
+          )
+        );
+
+
+      const memberControl =
+        row?.querySelector(
+          '[data-efficiency-daily-work-field="members"]'
+        );
+
+
+      if (
+        !row ||
+        !select ||
+        !memberControl
+      ) {
+        return;
+      }
+
+
+      const currentValue =
+        String(
+          memberControl.value ||
+          ""
+        ).trim();
+
+
+      const partNumber =
+        getEfficiencyDailyWorkPartNumberForRow(
+          row
+        );
+
+
+      const scheduledLeader =
+        EFFICIENCY_DAILY_WORK_PART_LEADER_NAME_MAP[
+          partNumber
+        ] ||
+        "";
+
+
+      let selectedName =
+        leaderNames.has(
+          currentValue
+        )
+          ? currentValue
+          : "";
+
+
+      /*
+       * 신규/기존 잘못된 값은
+       * 해당 파트의 현재 파트장으로 기본 지정.
+       *
+       * 단, 그 사람이 실제 회원관리에서
+       * 활성 파트장으로 확인된 경우에만 가능하다.
+       */
+      if (
+        !selectedName &&
+        scheduledLeader &&
+        leaderNames.has(
+          scheduledLeader
+        )
+      ) {
+        selectedName =
+          scheduledLeader;
+      }
+
+
+      select.replaceChildren();
+
+
+      const placeholder =
+        document.createElement(
+          "option"
+        );
+
+
+      placeholder.value =
+        "";
+
+      placeholder.textContent =
+        "[파트장 선택]";
+
+
+      select.append(
+        placeholder
+      );
+
+
+      leaders.forEach(
+        leader => {
+
+          const option =
+            document.createElement(
+              "option"
+            );
+
+
+          option.value =
+            leader.name;
+
+
+          option.textContent =
+            getEfficiencyDailyWorkLeaderDisplayLabel(
+              leader.name
+            );
+
+
+          select.append(
+            option
+          );
+        }
+      );
+
+
+      select.disabled =
+        leaders.length ===
+        0;
+
+
+      select.value =
+        selectedName;
+
+
+      if (
+        memberControl.value !==
+        selectedName
+      ) {
+
+        memberControl.value =
+          selectedName;
+
+
+        if (
+          options.signalChange ===
+          true
+        ) {
+
+          memberControl.dispatchEvent(
+            new Event(
+              "input",
+              {
+                bubbles:
+                  true
+              }
+            )
+          );
+
+
+          memberControl.dispatchEvent(
+            new Event(
+              "change",
+              {
+                bubbles:
+                  true
+              }
+            )
+          );
+        }
+      }
+
+
+      if (
+        select.dataset
+          .efficiencyDailyWorkLeaderBound !==
+        "1"
+      ) {
+
+        select.dataset
+          .efficiencyDailyWorkLeaderBound =
+          "1";
+
+
+        select.addEventListener(
+          "change",
+          () => {
+
+            memberControl.value =
+              String(
+                select.value ||
+                ""
+              ).trim();
+
+
+            memberControl.dispatchEvent(
+              new Event(
+                "input",
+                {
+                  bubbles:
+                    true
+                }
+              )
+            );
+
+
+            memberControl.dispatchEvent(
+              new Event(
+                "change",
+                {
+                  bubbles:
+                    true
+                }
+              )
+            );
+          }
+        );
+      }
+    }
+  );
+
+
+  return true;
+}
+
+
+async function ensureEfficiencyDailyWorkTeamLeaderSelectionsForSave() {
+  const synchronized =
+    await syncEfficiencyDailyWorkLeaderSelectors({
+      signalChange:
+        false
+    });
+
+
+  if (!synchronized) {
+    return {
+      ok:
+        false,
+
+      message:
+        "회원관리의 파트장 목록을 불러오지 못했습니다."
+    };
+  }
+
+
+  const leaders =
+    Array.isArray(
+      efficiencyDailyWorkTeamLeaderCache
+    )
+      ? efficiencyDailyWorkTeamLeaderCache
+      : [];
+
+
+  const allowedNames =
+    new Set(
+      leaders.map(
+        leader =>
+          leader.name
+      )
+    );
+
+
+  for (
+    const definition of
+    [
+      {
+        rowKey:
+          "operation-day",
+
+        label:
+          "Day 근무조"
+      },
+
+      {
+        rowKey:
+          "operation-night",
+
+        label:
+          "Night 근무조"
+      }
+    ]
+  ) {
+
+    const row =
+      document.querySelector(
+        (
+          '[data-efficiency-daily-work-row-key="' +
+          definition.rowKey +
+          '"]'
+        )
+      );
+
+
+    const memberControl =
+      row?.querySelector(
+        '[data-efficiency-daily-work-field="members"]'
+      );
+
+
+    const value =
+      String(
+        memberControl?.value ||
+        ""
+      ).trim();
+
+
+    if (
+      !value ||
+      !allowedNames.has(
+        value
+      )
+    ) {
+
+      return {
+        ok:
+          false,
+
+        message:
+          `${definition.label} 파트장을 선택해주세요.`
+      };
+    }
+  }
+
+
+  return {
+    ok:
+      true
+  };
+}
+
+
+function initializeEfficiencyDailyWorkTeamLeaderSelectors() {
+  syncEfficiencyDailyWorkLeaderSelectors({
+    signalChange:
+      false
+  });
+
+
+  return true;
+}
+
+
+if (
+  document.readyState ===
+  "loading"
+) {
+
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeEfficiencyDailyWorkTeamLeaderSelectors,
+    {
+      once:
+        true
+    }
+  );
+
+} else {
+
+  window.setTimeout(
+    initializeEfficiencyDailyWorkTeamLeaderSelectors,
     0
   );
 }
@@ -104616,6 +105507,17 @@ function populateEfficiencyDailyWorkEditorFromRecord(
   }
 
 
+  if (
+    typeof syncEfficiencyDailyWorkLeaderSelectors ===
+      "function"
+  ) {
+    syncEfficiencyDailyWorkLeaderSelectors({
+      signalChange:
+        false
+    });
+  }
+
+
   setEfficiencyDailyWorkActiveRecord(
     normalizedRecord,
     {
@@ -109075,6 +109977,33 @@ async function handleEfficiencyDailyWorkSubmit(
     showEfficiencyDailyWorkSaveError(
       "필수 입력값을 확인해주세요."
     );
+
+
+    return false;
+  }
+
+
+  const leaderSelectionCheck =
+    await ensureEfficiencyDailyWorkTeamLeaderSelectionsForSave();
+
+
+  if (
+    !leaderSelectionCheck.ok
+  ) {
+
+    showEfficiencyDailyWorkSaveError(
+      leaderSelectionCheck.message
+    );
+
+
+    if (
+      typeof showToast ===
+      "function"
+    ) {
+      showToast(
+        leaderSelectionCheck.message
+      );
+    }
 
 
     return false;
