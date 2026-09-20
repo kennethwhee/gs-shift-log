@@ -1034,6 +1034,14 @@
      EFFICIENCY_DAILY_WORK_ARCHIVE_MANAGER_DELETE_FIX_V2
   ======================================================= */
 
+  /* =======================================================
+     EFFICIENCY_DAILY_WORK_ARCHIVE_MANAGER_CORE_DELETE_V3
+
+     별도 Compact Confirm 의존성을 제거한다.
+     관리창에서는 기본 브라우저 확인창을 사용해
+     클릭 -> 확인 -> DELETE 흐름을 명확하게 한다.
+  ======================================================= */
+
   const confirmBulkDelete = async (
     records,
     options = {}
@@ -1094,45 +1102,10 @@
       );
 
 
-    if (
-      typeof showCompactConfirm ===
-      'function'
-    ) {
-
-      try {
-
-        return Boolean(
-          await showCompactConfirm({
-            title:
-              '저장자료 선택 삭제',
-
-            message,
-
-            confirmText:
-              `${records.length}건 삭제`,
-
-            cancelText:
-              '취소'
-          })
-        );
-
-      } catch (
-        error
-      ) {
-
-        console.error(
-          'Archive manager confirm error:',
-          error
-        );
-      }
-    }
-
-
     return window.confirm(
       message
     );
   };
-
 
   const validateDeleteResult = (
     result,
@@ -1344,7 +1317,7 @@
       !manageMode ||
       busy
     ) {
-      return;
+      return false;
     }
 
 
@@ -1357,11 +1330,11 @@
       0
     ) {
 
-      showMessage(
+      window.alert(
         '삭제할 저장 기록을 선택해주세요.'
       );
 
-      return;
+      return false;
     }
 
 
@@ -1376,17 +1349,136 @@
       )
     ) {
 
-      showMessage(
-        '현재 저장 또는 조회가 진행 중입니다.'
+      window.alert(
+        '현재 저장 또는 조회가 진행 중입니다. 완료된 뒤 다시 삭제해주세요.'
       );
 
-      return;
+      return false;
     }
 
 
+    const activeRecord =
+      getActiveRecord();
+
+
+    const activeKey =
+      activeRecord?.id &&
+      activeRecord?.workDate
+        ? getRecordKey(
+            activeRecord.id,
+            activeRecord.workDate
+          )
+        : '';
+
+
+    const selectedActiveRecord =
+      records.find(
+        record =>
+          activeKey &&
+          getRecordKey(
+            record.id,
+            record.workDate
+          ) ===
+            activeKey
+      ) ||
+      null;
+
+
+    /*
+     * 가장 흔한 사용:
+     * 현재 열어둔 날짜 1건 선택 -> 삭제
+     *
+     * 이 경우 Archive Manager가 DELETE를 새로 구현하지 않고
+     * 기존 일일업무현황의 검증된 단일 삭제 경로를 그대로 사용한다.
+     */
+    if (
+      records.length ===
+        1 &&
+      selectedActiveRecord &&
+      typeof handleEfficiencyDailyWorkDelete ===
+        'function'
+    ) {
+
+      busy =
+        true;
+
+
+      updateToolbar();
+
+
+      let deleted =
+        false;
+
+
+      try {
+
+        deleted =
+          Boolean(
+            await handleEfficiencyDailyWorkDelete({
+              preventDefault() {}
+            })
+          );
+
+      } catch (
+        error
+      ) {
+
+        console.error(
+          'Archive Manager core delete error:',
+          error
+        );
+
+
+        window.alert(
+          error?.message ||
+          '저장 기록 삭제 중 오류가 발생했습니다.'
+        );
+
+      } finally {
+
+        busy =
+          false;
+      }
+
+
+      if (!deleted) {
+
+        decorateArchiveButtons();
+
+        return false;
+      }
+
+
+      selectedKeys.clear();
+
+
+      manageMode =
+        false;
+
+
+      if (
+        typeof loadEfficiencyDailyWorkRecords ===
+          'function'
+      ) {
+
+        await loadEfficiencyDailyWorkRecords();
+      }
+
+
+      decorateArchiveButtons();
+
+
+      return true;
+    }
+
+
+    /*
+     * 여러 건 또는 현재 열지 않은 저장자료:
+     * Archive Manager의 version 기반 일괄삭제 사용.
+     */
     const includesActiveRecord =
-      selectedContainsActiveRecord(
-        records
+      Boolean(
+        selectedActiveRecord
       );
 
 
@@ -1399,17 +1491,6 @@
       );
 
 
-    /*
-     * V1에서는 현재 열린 기록이 Dirty이면
-     * 삭제를 무조건 차단했다.
-     *
-     * 그러나 자동 파트/파트장 보정도 Dirty로 잡힐 수 있고,
-     * 기존 단일 삭제 기능 역시 미저장 상태를
-     * 경고 후 삭제할 수 있게 되어 있다.
-     *
-     * 따라서 V2부터는 삭제를 막지 않고
-     * 확인창에 미저장 내용 소실 경고를 추가한다.
-     */
     const confirmed =
       await confirmBulkDelete(
         records,
@@ -1420,7 +1501,7 @@
 
 
     if (!confirmed) {
-      return;
+      return false;
     }
 
 
@@ -1497,7 +1578,7 @@
         ) {
 
           console.error(
-            '보관함 선택 삭제 실패:',
+            'Archive Manager bulk delete failed:',
             {
               record,
               error
@@ -1526,17 +1607,46 @@
     }
 
 
-    const activeRecord =
-      getActiveRecord();
+    /*
+     * 현재 편집 중인 기록도 이번 일괄삭제에 포함됐다면
+     * 기존 core의 삭제완료 화면 초기화 함수를 사용한다.
+     */
+    if (
+      activeRecord?.id &&
+      deletedKeys.has(
+        activeKey
+      ) &&
+      typeof applyEfficiencyDailyWorkDeletedState ===
+        'function'
+    ) {
+
+      applyEfficiencyDailyWorkDeletedState(
+        {
+          recordId:
+            String(
+              activeRecord.id
+            ),
+
+          workDate:
+            String(
+              activeRecord.workDate
+            ),
+
+          version:
+            Number(
+              activeRecord.version
+            )
+        },
+
+        '선택한 저장 기록을 삭제했습니다.'
+      );
+    }
 
 
     if (
       activeRecord?.id &&
       deletedKeys.has(
-        getRecordKey(
-          activeRecord.id,
-          activeRecord.workDate
-        )
+        activeKey
       ) &&
       typeof window
         .commitEfficiencyDailyWorkStructuralEdits ===
@@ -1585,23 +1695,38 @@
           : '';
 
 
-      showMessage(
+      window.alert(
         `${successCount}건의 저장 기록을 삭제했습니다${suffix}.`
       );
 
-      return;
+
+      return true;
     }
 
 
-    showMessage(
+    const firstFailure =
+      failures[0]
+        ?.error;
+
+
+    window.alert(
       (
-        `저장 기록 ${successCount}건 삭제 완료 · ` +
-        `${failures.length}건 삭제 실패. ` +
-        `목록을 새로고침했습니다.`
+        `${successCount}건 삭제 완료 / ` +
+        `${failures.length}건 삭제 실패\n\n` +
+        (
+          firstFailure?.message ||
+          firstFailure?.result?.message ||
+          '실패한 기록은 서버 상태를 확인해주세요.'
+        )
       )
     );
-  };
 
+
+    return (
+      successCount >
+      0
+    );
+  };
 
   const bindEvents = () => {
 
@@ -1655,7 +1780,15 @@
     deleteSelectedButton
       ?.addEventListener(
         'click',
-        deleteSelectedRecords
+        event => {
+
+          event.preventDefault();
+          event.stopPropagation();
+
+
+          void deleteSelectedRecords();
+        },
+        true
       );
 
 
