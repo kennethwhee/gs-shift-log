@@ -108807,7 +108807,28 @@ async function handleEfficiencyDailyWorkSubmit(
     );
 
 
-    const successMessage =
+
+
+    /*
+      EFFICIENCY_DAILY_WORK_DELETE_FINALIZE_ON_SAVE_V1
+
+      서버 저장과 저장 응답 검증을 모두 통과한 뒤에만
+      삭제 복원 기록을 확정 폐기한다.
+
+      저장 실패 또는 409 충돌 시에는 호출되지 않는다.
+    */
+    if (
+      typeof window
+        .commitEfficiencyDailyWorkStructuralEdits ===
+      "function"
+    ) {
+      window
+        .commitEfficiencyDailyWorkStructuralEdits(
+          savedRecord.workDate
+        );
+    }
+
+const successMessage =
       writeRequest.method === "POST"
         ? "일일업무현황을 저장했습니다."
         : "일일업무현황 수정 내용을 저장했습니다.";

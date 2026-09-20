@@ -9289,6 +9289,90 @@
   );
 
 
+
+  /* =======================================================
+     EFFICIENCY_DAILY_WORK_DELETE_FINALIZE_ON_SAVE_V1
+
+     서버 저장이 실제 성공했을 때만 호출된다.
+
+     - Ctrl+Z 구조 Undo 기록 폐기
+     - Ctrl+Y Redo 기록 폐기
+     - 행 삭제 복원 snapshot 폐기
+     - 공지/TM/설비운영팀/기타사항 삭제 snapshot 폐기
+
+     숨김 상태 자체(localStorage)는 유지한다.
+     즉 저장 후 삭제된 행은 계속 숨겨져 있지만
+     삭제 전 입력내용을 다시 살릴 수는 없다.
+  ======================================================= */
+
+  const finalizeCommittedStructuralEdits = (
+    savedDateValue = ''
+  ) => {
+
+    const currentDate =
+      String(
+        savedDateValue ||
+        getDateValue() ||
+        ''
+      ).trim();
+
+
+    /*
+     * 이미 예약된 구조 작업 기록이
+     * 저장 성공 직후 뒤늦게 Undo stack에 들어오는 것을 막는다.
+     */
+    pendingActionId +=
+      1;
+
+
+    undoStack =
+      [];
+
+    redoStack =
+      [];
+
+    structuralUndoArmed =
+      false;
+
+
+    if (currentDate) {
+
+      restoreStoragePrefixes(
+        sessionStorage,
+        [
+          `${ROW_DELETE_SNAPSHOT_PREFIX}${currentDate}:`,
+          `${BLOCK_DELETE_SNAPSHOT_PREFIX}${currentDate}:`
+        ],
+        []
+      );
+    }
+
+
+    const menu =
+      document.getElementById(
+        MENU_ID
+      );
+
+    if (menu) {
+      menu.hidden =
+        true;
+    }
+
+
+    console.info(
+      `[${VERSION}] committed structural history cleared`,
+      currentDate
+    );
+
+
+    return true;
+  };
+
+
+  window
+    .commitEfficiencyDailyWorkStructuralEdits =
+    finalizeCommittedStructuralEdits;
+
   console.info(
     `[${VERSION}] ready`
   );
