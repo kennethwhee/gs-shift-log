@@ -260784,3 +260784,180 @@ async function restoreSolarCumulativeFromD1() {
 /* SHIFT_LOG_SEARCH_MATCHED_ITEMS_V1_END */
 
 /* DAILY_DATA_SOLAR_HISTORY_CORRECTION_V1_R1 */
+/* =========================================================
+  EFFICIENCY_DAILY_WORK_SAVE_BUTTON_RELIABLE_CLICK_V1
+
+  별도창 / 화면 재렌더 후 form submit listener가 끊겨도
+  #saveEfficiencyDailyWorkButton 클릭은 항상
+  handleEfficiencyDailyWorkSubmit()으로 전달한다.
+
+  - document capture listener 사용
+  - DOM 교체 후에도 유지
+  - 기본 form submit은 preventDefault로 중복 실행 방지
+  - 클릭 즉시 "저장 중..." 표시
+========================================================= */
+
+(function installEfficiencyDailyWorkSaveButtonReliableClickV1() {
+  if (
+    window
+      .__efficiencyDailyWorkSaveButtonReliableClickV1Installed
+  ) {
+    return;
+  }
+
+
+  window
+    .__efficiencyDailyWorkSaveButtonReliableClickV1Installed =
+    true;
+
+
+  let saveClickPending =
+    false;
+
+
+  async function handleReliableSaveClick(
+    event
+  ) {
+    const button =
+      event?.target
+        ?.closest?.(
+          "#saveEfficiencyDailyWorkButton"
+        );
+
+
+    if (!button) {
+      return;
+    }
+
+
+    /*
+      capture 단계에서 기존 기본 submit을 막고
+      저장 core 함수를 직접 한 번만 실행한다.
+    */
+    event.preventDefault();
+    event.stopPropagation();
+
+
+    if (saveClickPending) {
+      return;
+    }
+
+
+    if (
+      typeof handleEfficiencyDailyWorkSubmit !==
+        "function"
+    ) {
+      const message =
+        "일일업무현황 저장 기능을 찾지 못했습니다.";
+
+
+      if (
+        typeof showEfficiencyDailyWorkSaveError ===
+          "function"
+      ) {
+        showEfficiencyDailyWorkSaveError(
+          message
+        );
+
+      } else {
+        window.alert(
+          message
+        );
+      }
+
+
+      return;
+    }
+
+
+    saveClickPending =
+      true;
+
+
+    const originalLabel =
+      button.textContent ||
+      "저장";
+
+
+    button.dataset
+      .dailyWorkReliableSaveOriginalLabel =
+      originalLabel;
+
+
+    button.textContent =
+      "저장 중...";
+
+
+    button.setAttribute(
+      "aria-busy",
+      "true"
+    );
+
+
+    try {
+      await handleEfficiencyDailyWorkSubmit(
+        event
+      );
+
+    } catch (error) {
+      console.error(
+        "[DAILY WORK SAVE BUTTON] save failed",
+        error
+      );
+
+
+      const message =
+        error?.message ||
+        "일일업무현황 저장 중 오류가 발생했습니다.";
+
+
+      if (
+        typeof showEfficiencyDailyWorkSaveError ===
+          "function"
+      ) {
+        showEfficiencyDailyWorkSaveError(
+          message
+        );
+
+      } else {
+        window.alert(
+          message
+        );
+      }
+
+    } finally {
+      saveClickPending =
+        false;
+
+
+      const currentButton =
+        document.getElementById(
+          "saveEfficiencyDailyWorkButton"
+        );
+
+
+      if (currentButton) {
+        currentButton.textContent =
+          currentButton.dataset
+            .dailyWorkReliableSaveOriginalLabel ||
+          "저장";
+
+
+        currentButton.removeAttribute(
+          "aria-busy"
+        );
+
+
+        delete currentButton.dataset
+          .dailyWorkReliableSaveOriginalLabel;
+      }
+    }
+  }
+
+
+  document.addEventListener(
+    "click",
+    handleReliableSaveClick,
+    true
+  );
+})();
