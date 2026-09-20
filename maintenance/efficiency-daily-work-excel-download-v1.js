@@ -2267,6 +2267,74 @@
   }
 
 
+  /* =========================================================
+    EFFICIENCY_DAILY_WORK_EXCEL_DOWNLOAD_HANG_FIX_V2
+
+    - 저장 / template / unzip / zip 단계에 상한시간 적용
+    - 버튼에 현재 처리 단계를 표시
+    - 실패/시간초과 시 finally에서 버튼을 반드시 복구
+  ========================================================= */
+
+  function withDailyWorkExcelTimeout(
+    promise,
+    timeoutMs,
+    timeoutMessage
+  ) {
+    let timeoutId =
+      null;
+
+    return Promise.race([
+      Promise.resolve(
+        promise
+      ),
+
+      new Promise(
+        (
+          _,
+          reject
+        ) => {
+          timeoutId =
+            window.setTimeout(
+              () => {
+                reject(
+                  new Error(
+                    timeoutMessage
+                  )
+                );
+              },
+              timeoutMs
+            );
+        }
+      )
+    ]).finally(
+      () => {
+        if (
+          timeoutId !==
+            null
+        ) {
+          window.clearTimeout(
+            timeoutId
+          );
+        }
+      }
+    );
+  }
+
+
+  function setExcelButtonStage(
+    button,
+    label
+  ) {
+    if (!button) {
+      return;
+    }
+
+    button.textContent =
+      String(
+        label ||
+        ""
+      );
+  }
   async function downloadExcelWorkbook(
     currentRecord
   ) {
@@ -2306,12 +2374,16 @@
       );
 
     const response =
-      await fetch(
-        templateUrl.href,
-        {
-          cache:
-            "no-store"
-        }
+      await withDailyWorkExcelTimeout(
+        fetch(
+          templateUrl.href,
+          {
+            cache:
+              "no-store"
+          }
+        ),
+        15000,
+        "Excel 양식을 불러오는 시간이 너무 오래 걸립니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요."
       );
 
     if (!response.ok) {
@@ -2333,8 +2405,12 @@
       await response.arrayBuffer();
 
     const zip =
-      await globalThis.JSZip.loadAsync(
-        templateBuffer
+      await withDailyWorkExcelTimeout(
+        globalThis.JSZip.loadAsync(
+          templateBuffer
+        ),
+        15000,
+        "Excel 양식을 여는 시간이 너무 오래 걸립니다. 다시 시도해주세요."
       );
 
     const workbookFile =
@@ -2478,21 +2554,25 @@
     }
 
     const blob =
-      await zip.generateAsync({
-        type:
-          "blob",
+      await withDailyWorkExcelTimeout(
+        zip.generateAsync({
+          type:
+            "blob",
 
-        mimeType:
-          MIME_XLSX,
+          mimeType:
+            MIME_XLSX,
 
-        compression:
-          "DEFLATE",
+          compression:
+            "DEFLATE",
 
-        compressionOptions: {
-          level:
-            6
-        }
-      });
+          compressionOptions: {
+            level:
+              6
+          }
+        }),
+        30000,
+        "Excel 파일 생성 시간이 너무 오래 걸립니다. 다시 시도해주세요."
+      );
 
     const objectUrl =
       URL.createObjectURL(
@@ -2560,7 +2640,7 @@
         true;
 
       button.textContent =
-        "저장·엑셀 생성 중...";
+        "저장 확인 중...";
 
       return;
     }
@@ -2609,11 +2689,20 @@
       }
 
       const saveResult =
-        await handleEfficiencyDailyWorkSubmit();
+        await withDailyWorkExcelTimeout(
+          handleEfficiencyDailyWorkSubmit(),
+          45000,
+          "저장 처리가 45초 안에 끝나지 않았습니다. 확인창이 보이지 않거나 네트워크 응답이 지연되고 있습니다."
+        );
 
       if (!saveResult) {
         return;
       }
+
+      setExcelButtonStage(
+        button,
+        "Excel 생성 중..."
+      );
 
       const currentRecord =
         collectCurrentRecord();

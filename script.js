@@ -110009,6 +110009,35 @@ async function confirmEfficiencyDailyWorkOverwriteV1() {
     "금일 일지가 저장되어있습니다. 덮어씌우시겠습니까?";
 
 
+  /* =====================================================
+    EFFICIENCY_DAILY_WORK_OVERWRITE_STANDALONE_CONFIRM_V2
+
+    일일업무현황 별도창에서는 공통 compact confirm이
+    standalone 레이아웃 뒤에 가려져 Promise가 대기할 수 있다.
+
+    별도창에서는 브라우저 native confirm을 사용하여
+    반드시 사용자에게 확인창을 보이고 즉시 결과를 반환한다.
+  ====================================================== */
+
+  const isStandaloneDailyWorkWindow =
+    typeof window !== "undefined" &&
+    new URLSearchParams(
+      window.location.search
+    ).get(
+      "efficiencyDailyWorkWindow"
+    ) === "1";
+
+
+  if (
+    isStandaloneDailyWorkWindow &&
+    typeof window.confirm === "function"
+  ) {
+    return window.confirm(
+      message
+    );
+  }
+
+
   if (
     typeof confirmEfficiencyDailyWorkDiscardChanges ===
       "function"
