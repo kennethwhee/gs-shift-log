@@ -2054,6 +2054,23 @@
   };
 
 
+  /* =========================================================
+     EFFICIENCY_DAILY_WORK_WORKLOG_PICKER_CONTEXT_PRIORITY_V2
+
+     기존 Popup의 행/셀 우클릭 메뉴보다 먼저
+     Day/Night 주요업무 contextmenu 이벤트를 선점한다.
+
+     같은 callback을 initialize()에서 다시 등록해도
+     브라우저는 동일 listener 중복 등록을 무시한다.
+  ========================================================= */
+
+  window.addEventListener(
+    'contextmenu',
+    handleContextMenu,
+    true
+  );
+
+
   if (
     document.readyState ===
       'loading'
