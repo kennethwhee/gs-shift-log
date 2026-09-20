@@ -1,18 +1,17 @@
 (() => {
   "use strict";
 
-  const INSTALL_FLAG = "__cfhOperatorCloseDetailV1Installed";
+  const INSTALL_FLAG = "__cfhOperatorCloseDetailV3Installed";
   if (window[INSTALL_FLAG]) return;
   window[INSTALL_FLAG] = true;
 
   const ROOT_SELECTOR = "#efficiencyCofiringDraftView";
-  const BASIS_OLD_TITLE = "마감 당시 발열량 · 보정계수";
-  const BASIS_NEW_TITLE = "마감 계산 기준값";
-  const META_TITLE = "마감 정보";
-  const META_LABELS = ["마감자", "마감 시각", "Revision", "스냅샷 생성", "DataPARC 요청"];
+  const BASIS_TITLES = ["마감 계산 기준값", "마감 당시 발열량 · 보정계수"];
+  const META_TITLES = ["마감 정보"];
+  const META_KEYS = ["마감자", "마감 시각", "Revision", "스냅샷 생성", "DataPARC 요청"];
 
   const normalize = (value) =>
-    String(value || "")
+    String(value ?? "")
       .replace(/\s+/g, " ")
       .trim();
 
@@ -29,7 +28,6 @@
       if (!visibleElement(element)) continue;
       const text = normalize(element.textContent);
       if (!accepted.has(text)) continue;
-
       const childOwnsSameText = Array.from(element.children).some(
         (child) => normalize(child.textContent) === text
       );
@@ -43,7 +41,7 @@
     return texts.every((token) => text.includes(token));
   }
 
-  function closestSemanticCard(seed, predicate, maxDepth = 9) {
+  function closestSemanticCard(seed, predicate, maxDepth = 10) {
     let node = seed;
     for (let depth = 0; node && depth <= maxDepth; depth += 1, node = node.parentElement) {
       if (predicate(node)) return node;
@@ -72,88 +70,176 @@
 
   function smallestMetaItem(labelElement, metaCard) {
     let node = labelElement?.parentElement;
-    for (let depth = 0; node && node !== metaCard && depth < 5; depth += 1, node = node.parentElement) {
+    for (let depth = 0; node && node !== metaCard && depth < 6; depth += 1, node = node.parentElement) {
       const text = normalize(node.textContent);
       const label = normalize(labelElement.textContent);
-      if (
-        text.includes(label) &&
-        text.length <= 260 &&
-        node.children.length <= 6
-      ) {
+      if (text.includes(label) && text.length <= 280 && node.children.length <= 8) {
         return node;
       }
     }
     return labelElement?.parentElement || null;
   }
 
-  function markMetaItems(metaCard) {
-    for (const label of META_LABELS) {
-      const labelElement = exactTextElement(metaCard, [label]);
-      if (!labelElement) continue;
-
-      labelElement.classList.add("cfh-operator-meta-label");
-
-      const item = smallestMetaItem(labelElement, metaCard);
-      if (!item) continue;
-
-      item.classList.add("cfh-operator-meta-item");
-      if (label === "DataPARC 요청") {
-        item.classList.add("cfh-operator-meta-item--request");
-      }
-    }
-
-    for (const element of metaCard.querySelectorAll("button, a")) {
-      const text = normalize(element.textContent);
-      if (
-        text.includes("계산완료") ||
-        text === "계산 화면 보기"
-      ) {
-        element.textContent = "계산 화면 보기";
-        element.classList.add("cfh-operator-calc-link");
-
-        const parent = element.parentElement;
-        if (parent) {
-          for (const node of Array.from(parent.childNodes)) {
-            if (
-              node !== element &&
-              node.nodeType === Node.TEXT_NODE &&
-              normalize(node.nodeValue) === "이동"
-            ) {
-              node.nodeValue = "";
-            }
-          }
-        }
-      }
-    }
+  function valueFromItem(item, label) {
+    if (!item) return "";
+    const full = normalize(item.textContent);
+    return normalize(full.replace(label, ""));
   }
 
-  function markBasisTable(basisCard) {
+  function parseBasisData(basisCard) {
     const table = basisCard.querySelector("table");
-    if (!table) return;
-    table.classList.add("cfh-operator-basis-table");
+    if (!table) return null;
+    const headerCells = Array.from(table.querySelectorAll("thead th"))
+      .map((cell) => normalize(cell.textContent))
+      .filter(Boolean);
 
-    for (
-      let node = table.parentElement;
-      node && node !== basisCard;
-      node = node.parentElement
-    ) {
-      node.classList.add("cfh-operator-basis-stretch");
-    }
+    const rows = Array.from(table.querySelectorAll("tbody tr"))
+      .map((row) => {
+        const cells = Array.from(row.children).map((cell) => normalize(cell.textContent)).filter(Boolean);
+        if (cells.length < 5) return null;
+        const [fuel, unit1Heat, unit1Adj, unit2Heat, unit2Adj] = cells;
+        return { fuel, unit1Heat, unit1Adj, unit2Heat, unit2Adj };
+      })
+      .filter(Boolean);
 
-    const rows = Array.from(table.querySelectorAll("tbody tr"));
-    rows.forEach((row) => row.classList.add("cfh-operator-basis-row"));
+    if (!headerCells.length || !rows.length) return null;
+    return {
+      headers: {
+        fuel: headerCells[0] || "연료",
+        unit1Heat: headerCells[1] || "1호기 발열량",
+        unit1Adj: headerCells[2] || "1호기 보정",
+        unit2Heat: headerCells[3] || "2호기 발열량",
+        unit2Adj: headerCells[4] || "2호기 보정",
+      },
+      rows,
+    };
   }
 
-  function markTitle(element, kind) {
-    if (!element) return;
-    element.classList.add("cfh-operator-detail-title");
-    element.classList.add(`cfh-operator-detail-title--${kind}`);
+  function parseMetaData(metaCard) {
+    const data = {};
+    for (const key of META_KEYS) {
+      const labelElement = exactTextElement(metaCard, [key]);
+      if (!labelElement) continue;
+      const item = smallestMetaItem(labelElement, metaCard);
+      data[key] = valueFromItem(item, key);
+    }
 
-    if (kind === "basis") {
-      element.textContent = BASIS_NEW_TITLE;
-      element.dataset.cfhOperatorSubtitle = "혼소율 마감 시 적용된 발열량 · 보정계수";
+    const calcControl = Array.from(metaCard.querySelectorAll("button, a")).find((element) =>
+      normalize(element.textContent).includes("계산")
+    ) || null;
+
+    return { data, calcControl };
+  }
+
+  function ensureGridLayout(basisCard, metaCard) {
+    const common = lowestCommonAncestor(basisCard, metaCard);
+    if (!common) return;
+    const basisBranch = branchBelow(common, basisCard);
+    const metaBranch = branchBelow(common, metaCard);
+    if (!basisBranch || !metaBranch || basisBranch === metaBranch) return;
+
+    common.classList.add("cfh-v3-detail-grid");
+    basisBranch.classList.add("cfh-v3-detail-branch");
+    metaBranch.classList.add("cfh-v3-detail-branch");
+  }
+
+  function resetCard(card, titleElement, cardClass) {
+    card.classList.add("cfh-v3-card", cardClass);
+    titleElement.classList.add("cfh-v3-title");
+    if (cardClass === "cfh-v3-basis-card") {
+      titleElement.dataset.cfhV3Subtitle = "혼소율 마감 시 적용된 발열량 · 보정계수";
+      titleElement.textContent = "마감 계산 기준값";
     } else {
-      element.dataset.cfhOperatorSubtitle = "마감 이력 · 계산 추적 정보";
+      titleElement.dataset.cfhV3Subtitle = "마감 이력 · 계산 추적 정보";
+      titleElement.textContent = "마감 정보";
+    }
+
+    for (const child of Array.from(card.children)) {
+      if (child === titleElement) continue;
+      child.classList.add("cfh-v3-hide-original");
+    }
+  }
+
+  function renderBasisCard(card, titleElement, basisData) {
+    if (!basisData) return;
+    resetCard(card, titleElement, "cfh-v3-basis-card");
+
+    let host = card.querySelector(".cfh-v3-basis-host");
+    if (!host) {
+      host = document.createElement("div");
+      host.className = "cfh-v3-basis-host";
+      card.appendChild(host);
+    }
+
+    const h = basisData.headers;
+    const rowHtml = basisData.rows.map((row) => `
+      <div class="cfh-v3-cell cfh-v3-cell--fuel">${row.fuel}</div>
+      <div class="cfh-v3-cell cfh-v3-cell--value">${row.unit1Heat}</div>
+      <div class="cfh-v3-cell cfh-v3-cell--value">${row.unit1Adj}</div>
+      <div class="cfh-v3-cell cfh-v3-cell--value">${row.unit2Heat}</div>
+      <div class="cfh-v3-cell cfh-v3-cell--value">${row.unit2Adj}</div>
+    `).join("");
+
+    host.innerHTML = `
+      <div class="cfh-v3-basis-grid" role="table" aria-label="마감 계산 기준값">
+        <div class="cfh-v3-cell cfh-v3-cell--head">${h.fuel}</div>
+        <div class="cfh-v3-cell cfh-v3-cell--head">${h.unit1Heat}</div>
+        <div class="cfh-v3-cell cfh-v3-cell--head">${h.unit1Adj}</div>
+        <div class="cfh-v3-cell cfh-v3-cell--head">${h.unit2Heat}</div>
+        <div class="cfh-v3-cell cfh-v3-cell--head">${h.unit2Adj}</div>
+        ${rowHtml}
+      </div>
+    `;
+  }
+
+  function renderMetaCard(card, titleElement, metaData) {
+    resetCard(card, titleElement, "cfh-v3-meta-card");
+
+    let host = card.querySelector(".cfh-v3-meta-host");
+    if (!host) {
+      host = document.createElement("div");
+      host.className = "cfh-v3-meta-host";
+      card.appendChild(host);
+    }
+
+    host.innerHTML = `
+      <div class="cfh-v3-meta-grid">
+        <div class="cfh-v3-meta-tile">
+          <div class="cfh-v3-meta-label">마감자</div>
+          <div class="cfh-v3-meta-value">${metaData.data["마감자"] || "-"}</div>
+        </div>
+        <div class="cfh-v3-meta-tile">
+          <div class="cfh-v3-meta-label">마감 시각</div>
+          <div class="cfh-v3-meta-value">${metaData.data["마감 시각"] || "-"}</div>
+        </div>
+        <div class="cfh-v3-meta-tile">
+          <div class="cfh-v3-meta-label">Revision</div>
+          <div class="cfh-v3-meta-value">${metaData.data["Revision"] || "-"}</div>
+        </div>
+        <div class="cfh-v3-meta-tile">
+          <div class="cfh-v3-meta-label">스냅샷 생성</div>
+          <div class="cfh-v3-meta-value">${metaData.data["스냅샷 생성"] || "-"}</div>
+        </div>
+      </div>
+      <div class="cfh-v3-request-panel">
+        <div class="cfh-v3-meta-label">DataPARC 요청</div>
+        <div class="cfh-v3-request-value">${metaData.data["DataPARC 요청"] || "-"}</div>
+      </div>
+      <div class="cfh-v3-action-row"></div>
+    `;
+
+    const actionRow = host.querySelector(".cfh-v3-action-row");
+    let control = metaData.calcControl;
+    if (control) {
+      control.textContent = "계산 화면 보기";
+      control.classList.add("cfh-v3-action-button");
+      actionRow.appendChild(control);
+    } else {
+      const fallback = document.createElement("button");
+      fallback.type = "button";
+      fallback.className = "cfh-v3-action-button";
+      fallback.textContent = "계산 화면 보기";
+      actionRow.appendChild(fallback);
     }
   }
 
@@ -161,52 +247,27 @@
     const root = document.querySelector(ROOT_SELECTOR);
     if (!root || !visibleElement(root)) return false;
 
-    const basisTitle = exactTextElement(root, [BASIS_OLD_TITLE, BASIS_NEW_TITLE]);
-    const metaTitle = exactTextElement(root, [META_TITLE]);
+    const basisTitle = exactTextElement(root, BASIS_TITLES);
+    const metaTitle = exactTextElement(root, META_TITLES);
     if (!basisTitle || !metaTitle) return false;
 
     const basisCard = closestSemanticCard(
       basisTitle,
-      (node) =>
-        node.querySelector?.("table") &&
-        includesAll(node, ["Coal", "Bio", "유기성", "축분"])
+      (node) => node.querySelector?.("table") && includesAll(node, ["Coal", "Bio", "유기성", "축분"])
     );
-
     const metaCard = closestSemanticCard(
       metaTitle,
-      (node) =>
-        includesAll(node, ["마감자", "마감 시각", "Revision", "DataPARC 요청"]) &&
-        !node.querySelector?.(".cfh-operator-basis-table")
+      (node) => includesAll(node, ["마감자", "마감 시각", "Revision", "DataPARC 요청"])
     );
-
     if (!basisCard || !metaCard || basisCard === metaCard) return false;
 
-    basisCard.classList.add("cfh-operator-detail-card", "cfh-operator-basis-card");
-    metaCard.classList.add("cfh-operator-detail-card", "cfh-operator-meta-card");
+    ensureGridLayout(basisCard, metaCard);
 
-    markTitle(basisTitle, "basis");
-    markTitle(metaTitle, "meta");
-    markBasisTable(basisCard);
-    markMetaItems(metaCard);
+    const basisData = parseBasisData(basisCard);
+    const metaData = parseMetaData(metaCard);
 
-    const common = lowestCommonAncestor(basisCard, metaCard);
-    if (common) {
-      const basisBranch = branchBelow(common, basisCard);
-      const metaBranch = branchBelow(common, metaCard);
-      const directChildren = Array.from(common.children);
-
-      if (
-        basisBranch &&
-        metaBranch &&
-        basisBranch !== metaBranch &&
-        directChildren.length <= 4
-      ) {
-        common.classList.add("cfh-operator-detail-grid");
-        basisBranch.classList.add("cfh-operator-detail-branch");
-        metaBranch.classList.add("cfh-operator-detail-branch");
-      }
-    }
-
+    renderBasisCard(basisCard, basisTitle, basisData);
+    renderMetaCard(metaCard, metaTitle, metaData);
     return true;
   }
 
@@ -220,20 +281,16 @@
     });
   }
 
-  document.addEventListener(
-    "click",
-    (event) => {
-      const target = event.target instanceof Element ? event.target.closest("button,a") : null;
-      if (!target) return;
-      const text = normalize(target.textContent);
-      if (text === "보기" || text === "상세" || text === "상세보기") {
-        setTimeout(scheduleEnhance, 0);
-        setTimeout(scheduleEnhance, 60);
-        setTimeout(scheduleEnhance, 180);
-      }
-    },
-    true
-  );
+  document.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target.closest("button,a") : null;
+    if (!target) return;
+    const text = normalize(target.textContent);
+    if (text === "보기" || text === "상세" || text === "상세보기") {
+      setTimeout(scheduleEnhance, 0);
+      setTimeout(scheduleEnhance, 80);
+      setTimeout(scheduleEnhance, 220);
+    }
+  }, true);
 
   const observer = new MutationObserver((mutations) => {
     if (mutations.some((mutation) => mutation.addedNodes.length || mutation.removedNodes.length)) {
