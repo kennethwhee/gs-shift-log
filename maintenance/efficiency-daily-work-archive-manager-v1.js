@@ -1966,7 +1966,9 @@
   }
   /* =======================================================
      EFFICIENCY_DAILY_WORK_ARCHIVE_DAY_FONT_V1
-     왼쪽 보관함의 일자 숫자(예: 20일)만 더 크게 표시
+     EFFICIENCY_DAILY_WORK_ARCHIVE_DAY_WEEK_FONT_V2
+     왼쪽 보관함의 일자 숫자(예: 20일)는 약간 줄이고,
+     옆 요일(예: 일요일)도 같은 크기로 맞춘다.
   ======================================================= */
 
   const applyEfficiencyDailyWorkArchiveDayFontSize = () => {
@@ -1996,7 +1998,20 @@
               ''
             ).trim();
 
-          if (!/^\d{1,2}일$/.test(text)) {
+          const isDayLabel =
+            /^\d{1,2}일$/.test(
+              text
+            );
+
+          const isWeekLabel =
+            /^(월|화|수|목|금|토|일)요일$/.test(
+              text
+            );
+
+          if (
+            !isDayLabel &&
+            !isWeekLabel
+          ) {
             return;
           }
 
@@ -2009,16 +2024,21 @@
             return;
           }
 
-          element.style.fontSize   = '16px';
-          element.style.fontWeight = '700';
+          element.style.fontSize   = '14px';
           element.style.lineHeight = '1.2';
+
+          if (isDayLabel) {
+            element.style.fontWeight = '700';
+          } else {
+            element.style.fontWeight = '600';
+          }
         }
       );
 
     } catch (error) {
 
       console.error(
-        'Archive day font apply error:',
+        'Archive day/week font apply error:',
         error
       );
     }
