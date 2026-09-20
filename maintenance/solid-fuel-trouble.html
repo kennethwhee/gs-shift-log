@@ -9,6 +9,94 @@
   <link rel="stylesheet" href="/maintenance/solid-fuel-native-redesign-v21.css?v=20260919-silo-table-v24">
   <link rel="stylesheet" href="/maintenance/solid-fuel-silo-row-align-v2.css?v=20260920-silo-row-align-v2">
   <link rel="stylesheet" href="/maintenance/solid-fuel-silo-cell-align-v3.css?v=20260920-silo-cell-align-v3">
+  <style id="sf-silo-cell-hard-align-v4">
+    /* Final iframe-local override: exact 3-cell table row, centered on both axes. */
+    #siloStats{
+      width:100%!important;
+      min-height:0!important;
+      height:auto!important;
+      margin:0!important;
+      padding:0!important;
+    }
+
+    #siloStats .silo-summary{
+      display:block!important;
+      width:100%!important;
+      min-height:0!important;
+      height:auto!important;
+      margin:0!important;
+      padding:0!important;
+      gap:0!important;
+    }
+
+    #siloStats .silo-summary__row{
+      box-sizing:border-box!important;
+      display:grid!important;
+      grid-template-columns:repeat(3,minmax(0,1fr))!important;
+      align-items:stretch!important;
+      justify-items:stretch!important;
+      width:100%!important;
+      min-height:28px!important;
+      height:28px!important;
+      max-height:28px!important;
+      margin:0!important;
+      padding:0!important;
+      gap:0!important;
+      overflow:hidden!important;
+      border:1px solid #dbe4ed!important;
+      border-radius:6px!important;
+      background:#fff!important;
+    }
+
+    #siloStats .silo-summary__row > span,
+    #siloStats .silo-summary__row > strong,
+    #siloStats .silo-summary__row > small{
+      box-sizing:border-box!important;
+      display:flex!important;
+      align-items:center!important;
+      justify-content:center!important;
+      align-self:stretch!important;
+      justify-self:stretch!important;
+      width:100%!important;
+      min-width:0!important;
+      min-height:28px!important;
+      height:28px!important;
+      max-height:28px!important;
+      margin:0!important;
+      padding:0 4px!important;
+      position:static!important;
+      inset:auto!important;
+      transform:none!important;
+      line-height:1!important;
+      text-align:center!important;
+      vertical-align:middle!important;
+      white-space:nowrap!important;
+      border:0!important;
+      border-right:1px solid #dbe4ed!important;
+    }
+
+    #siloStats .silo-summary__row > small{
+      border-right:0!important;
+    }
+
+    #siloStats .silo-summary__row > span{
+      color:#294861!important;
+      font-size:11px!important;
+      font-weight:800!important;
+    }
+
+    #siloStats .silo-summary__row > strong{
+      color:#145a93!important;
+      font-size:12px!important;
+      font-weight:900!important;
+    }
+
+    #siloStats .silo-summary__row > small{
+      color:#8291a0!important;
+      font-size:11px!important;
+      font-weight:700!important;
+    }
+  </style>
 </head>
 <body>
   <main class="page">
