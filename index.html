@@ -180,7 +180,7 @@
   ====================================================== -->
   <link
     rel="stylesheet"
-    href="style.css?v=20260920081817"
+    href="style.css?v=20260920-daily-formal-recovery-v1-r2"
   >
   <!-- Morning meeting: TURBINE + SILO LEVEL merged card -->
   <link
@@ -238,7 +238,7 @@
 ></script>
 
 <script
-  src="script.js?v=20260920-daily-save-click-v1"
+  src="script.js?v=20260920-daily-formal-recovery-v1-r2"
   defer
 ></script>
 <script src="maintenance/efficiency-daily-work-worklog-picker-v1.js?v=20260920-11"></script>
@@ -4947,7 +4947,7 @@
 <!-- 일일업무현황 -->
   <button
     type="button"
-    class="efficiency-team-tab"
+    class="efficiency-team-tab daily-work-official-menu"
     id="efficiencyDailyWorkTab"
     data-efficiency-tab="daily-work"
     role="tab"
@@ -4964,7 +4964,7 @@
 
     <span class="efficiency-team-tab__label">
       일일업무현황
-      <small>(준비중)</small>
+
     </span>
   </button>
 
@@ -14969,99 +14969,6 @@
   defer
 ></script>
   <script src="/maintenance/cofiring-bio-target-label-emphasis-v1.js?v=20260920-bio-target-label-v1" defer></script>
-<!-- DAILY_WORK_OFFICIAL_MENU_V1 START -->
-<script>
-(function () {
-  function normalizeText(s) {
-    return (s || '').replace(/\s+/g, ' ').trim();
-  }
-
-  function isSidebarCandidate(el) {
-    if (!el || !el.getBoundingClientRect) return false;
-    var rect = el.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return false;
-    return rect.left < 380 && rect.width < 340;
-  }
-
-  function pickTarget() {
-    var nodes = Array.from(document.querySelectorAll('button, a, div'));
-    var candidates = nodes.filter(function (el) {
-      var text = normalizeText(el.innerText);
-      if (!text) return false;
-      if (!text.includes('일일업무현황')) return false;
-      if (!isSidebarCandidate(el)) return false;
-      return true;
-    });
-
-    if (!candidates.length) return null;
-
-    var preparing = candidates.filter(function (el) {
-      return normalizeText(el.innerText).includes('준비중');
-    });
-
-    var pool = preparing.length ? preparing : candidates;
-
-    pool.sort(function (a, b) {
-      var ta = normalizeText(a.innerText).length;
-      var tb = normalizeText(b.innerText).length;
-      return ta - tb;
-    });
-
-    return pool[0] || null;
-  }
-
-  function stripPreparing(target) {
-    if (!target) return;
-
-    Array.from(target.querySelectorAll('*')).forEach(function (node) {
-      var t = normalizeText(node.textContent);
-      if (t === '준비중' || t === '(준비중)') {
-        node.remove();
-      }
-    });
-
-    target.innerHTML = target.innerHTML
-      .replace(/\(\s*준비중\s*\)/g, '')
-      .replace(/준비중/g, '');
-
-    Array.from(target.querySelectorAll('*')).forEach(function (node) {
-      var t = normalizeText(node.textContent);
-      if (!t) return;
-
-      if (t.includes('일일업무현황')) {
-        node.classList.add('daily-work-official-label');
-      }
-    });
-  }
-
-  function activateOfficialMenu() {
-    var target = pickTarget();
-    if (!target) return false;
-
-    target.classList.add('daily-work-official-menu');
-    target.removeAttribute('disabled');
-    target.setAttribute('aria-disabled', 'false');
-
-    stripPreparing(target);
-    return true;
-  }
-
-  function boot() {
-    activateOfficialMenu();
-    setTimeout(activateOfficialMenu, 150);
-    setTimeout(activateOfficialMenu, 500);
-    setTimeout(activateOfficialMenu, 1200);
-    setTimeout(activateOfficialMenu, 2500);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
-  } else {
-    boot();
-  }
-})();
-</script>
-<!-- DAILY_WORK_OFFICIAL_MENU_V1 END -->
 </body>
 </html>
 

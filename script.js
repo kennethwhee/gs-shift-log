@@ -110039,36 +110039,33 @@ function findEfficiencyDailyWorkExistingRecordForOverwriteV1(
 
 
 async function confirmEfficiencyDailyWorkOverwriteV1() {
-
   const message =
     "금일 일지가 저장되어있습니다. 덮어씌우시겠습니까?";
 
 
-  /* =====================================================
-    EFFICIENCY_DAILY_WORK_OVERWRITE_STANDALONE_CONFIRM_V2
+  /*
+    EFFICIENCY_DAILY_WORK_OVERWRITE_CONFIRM_V3
 
-    일일업무현황 별도창에서는 공통 compact confirm이
-    standalone 레이아웃 뒤에 가려져 Promise가 대기할 수 있다.
-
-    별도창에서는 브라우저 native confirm을 사용하여
-    반드시 사용자에게 확인창을 보이고 즉시 결과를 반환한다.
-  ====================================================== */
-
-  const isStandaloneDailyWorkWindow =
-    typeof window !== "undefined" &&
-    new URLSearchParams(
-      window.location.search
-    ).get(
-      "efficiencyDailyWorkWindow"
-    ) === "1";
-
-
+    일반 화면 / 별도창 모두 동일한 커스텀 확인창을 사용한다.
+    별도창에서 가려지는 문제는 CSS z-index로 해결한다.
+  */
   if (
-    isStandaloneDailyWorkWindow &&
-    typeof window.confirm === "function"
+    typeof showCompactConfirm ===
+      "function"
   ) {
-    return window.confirm(
-      message
+    return Boolean(
+      await showCompactConfirm({
+        title:
+          "기존 일지 저장",
+
+        message,
+
+        confirmText:
+          "덮어쓰기",
+
+        cancelText:
+          "취소"
+      })
     );
   }
 
@@ -110077,7 +110074,6 @@ async function confirmEfficiencyDailyWorkOverwriteV1() {
     typeof confirmEfficiencyDailyWorkDiscardChanges ===
       "function"
   ) {
-
     return Boolean(
       await confirmEfficiencyDailyWorkDiscardChanges({
         title:
@@ -110095,11 +110091,13 @@ async function confirmEfficiencyDailyWorkOverwriteV1() {
   }
 
 
-  return window.confirm(
-    message
+  return (
+    typeof window !== "undefined" &&
+    typeof window.confirm === "function"
+      ? window.confirm(message)
+      : false
   );
 }
-
 
 async function prepareEfficiencyDailyWorkOverwriteRequestV1(
   writeRequest
@@ -110301,17 +110299,7 @@ async function handleEfficiencyDailyWorkSubmit(
   }
 
 
-  if (
-    writeRequest.method === "PUT" &&
-    !refreshEfficiencyDailyWorkDirtyState()
-  ) {
-    showEfficiencyDailyWorkSaveMessage(
-      "변경된 내용이 없습니다."
-    );
 
-
-    return true;
-  }
 
 
   /*
@@ -260784,180 +260772,3 @@ async function restoreSolarCumulativeFromD1() {
 /* SHIFT_LOG_SEARCH_MATCHED_ITEMS_V1_END */
 
 /* DAILY_DATA_SOLAR_HISTORY_CORRECTION_V1_R1 */
-/* =========================================================
-  EFFICIENCY_DAILY_WORK_SAVE_BUTTON_RELIABLE_CLICK_V1
-
-  별도창 / 화면 재렌더 후 form submit listener가 끊겨도
-  #saveEfficiencyDailyWorkButton 클릭은 항상
-  handleEfficiencyDailyWorkSubmit()으로 전달한다.
-
-  - document capture listener 사용
-  - DOM 교체 후에도 유지
-  - 기본 form submit은 preventDefault로 중복 실행 방지
-  - 클릭 즉시 "저장 중..." 표시
-========================================================= */
-
-(function installEfficiencyDailyWorkSaveButtonReliableClickV1() {
-  if (
-    window
-      .__efficiencyDailyWorkSaveButtonReliableClickV1Installed
-  ) {
-    return;
-  }
-
-
-  window
-    .__efficiencyDailyWorkSaveButtonReliableClickV1Installed =
-    true;
-
-
-  let saveClickPending =
-    false;
-
-
-  async function handleReliableSaveClick(
-    event
-  ) {
-    const button =
-      event?.target
-        ?.closest?.(
-          "#saveEfficiencyDailyWorkButton"
-        );
-
-
-    if (!button) {
-      return;
-    }
-
-
-    /*
-      capture 단계에서 기존 기본 submit을 막고
-      저장 core 함수를 직접 한 번만 실행한다.
-    */
-    event.preventDefault();
-    event.stopPropagation();
-
-
-    if (saveClickPending) {
-      return;
-    }
-
-
-    if (
-      typeof handleEfficiencyDailyWorkSubmit !==
-        "function"
-    ) {
-      const message =
-        "일일업무현황 저장 기능을 찾지 못했습니다.";
-
-
-      if (
-        typeof showEfficiencyDailyWorkSaveError ===
-          "function"
-      ) {
-        showEfficiencyDailyWorkSaveError(
-          message
-        );
-
-      } else {
-        window.alert(
-          message
-        );
-      }
-
-
-      return;
-    }
-
-
-    saveClickPending =
-      true;
-
-
-    const originalLabel =
-      button.textContent ||
-      "저장";
-
-
-    button.dataset
-      .dailyWorkReliableSaveOriginalLabel =
-      originalLabel;
-
-
-    button.textContent =
-      "저장 중...";
-
-
-    button.setAttribute(
-      "aria-busy",
-      "true"
-    );
-
-
-    try {
-      await handleEfficiencyDailyWorkSubmit(
-        event
-      );
-
-    } catch (error) {
-      console.error(
-        "[DAILY WORK SAVE BUTTON] save failed",
-        error
-      );
-
-
-      const message =
-        error?.message ||
-        "일일업무현황 저장 중 오류가 발생했습니다.";
-
-
-      if (
-        typeof showEfficiencyDailyWorkSaveError ===
-          "function"
-      ) {
-        showEfficiencyDailyWorkSaveError(
-          message
-        );
-
-      } else {
-        window.alert(
-          message
-        );
-      }
-
-    } finally {
-      saveClickPending =
-        false;
-
-
-      const currentButton =
-        document.getElementById(
-          "saveEfficiencyDailyWorkButton"
-        );
-
-
-      if (currentButton) {
-        currentButton.textContent =
-          currentButton.dataset
-            .dailyWorkReliableSaveOriginalLabel ||
-          "저장";
-
-
-        currentButton.removeAttribute(
-          "aria-busy"
-        );
-
-
-        delete currentButton.dataset
-          .dailyWorkReliableSaveOriginalLabel;
-      }
-    }
-  }
-
-
-  document.addEventListener(
-    "click",
-    handleReliableSaveClick,
-    true
-  );
-})();

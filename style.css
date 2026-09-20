@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg: #eef2f6;
   --surface: #ffffff;
   --surface-soft: #f8fafc;
@@ -121146,55 +121146,46 @@ html body #efficiencyArmRollTab.efficiency-team-tab .icon {
 }
 /* ARM ROLL BOX REAL CORAL V3 END */
 
-/* DAILY_WORK_OFFICIAL_MENU_V1 START */
-.daily-work-official-menu {
+
+/* DAILY_WORK_FORMAL_SERVICE_RECOVERY_V1 START */
+
+#efficiencyDailyWorkTab {
   background: #f2f4f7 !important;
-  border: 1px solid #d7dde5 !important;
-  color: #243447 !important;
+  border-color: #d5dbe3 !important;
+  color: #334155 !important;
   opacity: 1 !important;
   filter: none !important;
-  box-shadow: none !important;
-  transition: background-color .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease !important;
-}
-
-.daily-work-official-menu:hover {
-  background: #ebeff4 !important;
-  border-color: #c5d0dc !important;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(23, 43, 77, 0.08) !important;
-}
-
-.daily-work-official-menu:active {
-  background: #e3e8ee !important;
-  border-color: #b8c5d3 !important;
-  transform: translateY(0);
-}
-
-.daily-work-official-menu,
-.daily-work-official-menu * {
   cursor: pointer !important;
 }
 
-.daily-work-official-menu .daily-work-official-label {
-  color: #21364d !important;
+#efficiencyDailyWorkTab:hover {
+  background: #eceff3 !important;
+  border-color: #c4ccd6 !important;
+}
+
+#efficiencyDailyWorkTab .efficiency-team-tab__label {
+  color: #334155 !important;
   font-weight: 800 !important;
 }
 
-.daily-work-official-menu .daily-work-official-sub,
-.daily-work-official-menu .daily-work-ready-badge,
-.daily-work-official-menu .daily-work-preparing-badge {
-  display: none !important;
+#efficiencyDailyWorkTab .efficiency-team-tab__icon {
+  color: #64748b !important;
 }
 
-.daily-work-official-menu svg,
-.daily-work-official-menu i,
-.daily-work-official-menu [class*="icon"] {
-  color: #5f748b !important;
-  fill: #5f748b !important;
+.compact-confirm-backdrop {
+  z-index: 2147483000 !important;
 }
 
-.daily-work-official-menu[aria-disabled="false"] {
+.compact-confirm-backdrop.is-open {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
   pointer-events: auto !important;
 }
-/* DAILY_WORK_OFFICIAL_MENU_V1 END */
 
+.compact-confirm-backdrop.is-open .compact-confirm-dialog {
+  position: relative !important;
+  z-index: 2147483001 !important;
+}
+
+/* DAILY_WORK_FORMAL_SERVICE_RECOVERY_V1 END */
