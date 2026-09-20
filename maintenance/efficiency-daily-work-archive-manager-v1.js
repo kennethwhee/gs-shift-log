@@ -766,8 +766,22 @@
 
     if (deleteSelectedButton) {
 
+      const coreBusy =
+        Boolean(
+          typeof efficiencyDailyWorkState ===
+            'object' &&
+          (
+            efficiencyDailyWorkState
+              ?.isLoading ||
+            efficiencyDailyWorkState
+              ?.isSaving
+          )
+        );
+
+
       deleteSelectedButton.disabled =
         busy ||
+        coreBusy ||
         selectedCountValue ===
           0;
 
@@ -775,12 +789,14 @@
       deleteSelectedButton.textContent =
         busy
           ? '삭제 중...'
-          : (
-              selectedCountValue >
-                0
-                ? `선택 삭제 (${selectedCountValue})`
-                : '선택 삭제'
-            );
+          : coreBusy
+            ? '불러오는 중...'
+            : (
+                selectedCountValue >
+                  0
+                  ? `선택 삭제 (${selectedCountValue})`
+                  : '선택 삭제'
+              );
     }
 
 
@@ -1014,7 +1030,14 @@
   };
 
 
-  const confirmBulkDelete = async records => {
+  /* =======================================================
+     EFFICIENCY_DAILY_WORK_ARCHIVE_MANAGER_DELETE_FIX_V2
+  ======================================================= */
+
+  const confirmBulkDelete = async (
+    records,
+    options = {}
+  ) => {
 
     const dates =
       records
@@ -1052,11 +1075,22 @@
         : visibleDates;
 
 
+    const unsavedWarning =
+      options.hasActiveUnsavedChanges ===
+        true
+        ? (
+            '\n\n현재 열어둔 기록에 저장되지 않은 수정 내용이 있습니다.' +
+            '\n삭제하면 현재 수정 내용도 함께 사라집니다.'
+          )
+        : '';
+
+
     const message =
       (
         `선택한 ${records.length}건의 저장 기록을 삭제하시겠습니까?\n` +
         `${dateText}\n\n` +
-        `삭제 후에는 복구할 수 없습니다.`
+        `삭제 후에는 복구할 수 없습니다.` +
+        unsavedWarning
       );
 
 
@@ -1356,24 +1390,32 @@
       );
 
 
-    if (
-      includesActiveRecord &&
-      typeof refreshEfficiencyDailyWorkDirtyState ===
-        'function' &&
-      refreshEfficiencyDailyWorkDirtyState()
-    ) {
-
-      showMessage(
-        '현재 열어둔 저장 기록에 저장되지 않은 수정 내용이 있습니다. 먼저 저장한 뒤 삭제해주세요.'
+    const hasActiveUnsavedChanges =
+      Boolean(
+        includesActiveRecord &&
+        typeof refreshEfficiencyDailyWorkDirtyState ===
+          'function' &&
+        refreshEfficiencyDailyWorkDirtyState()
       );
 
-      return;
-    }
 
-
+    /*
+     * V1에서는 현재 열린 기록이 Dirty이면
+     * 삭제를 무조건 차단했다.
+     *
+     * 그러나 자동 파트/파트장 보정도 Dirty로 잡힐 수 있고,
+     * 기존 단일 삭제 기능 역시 미저장 상태를
+     * 경고 후 삭제할 수 있게 되어 있다.
+     *
+     * 따라서 V2부터는 삭제를 막지 않고
+     * 확인창에 미저장 내용 소실 경고를 추가한다.
+     */
     const confirmed =
       await confirmBulkDelete(
-        records
+        records,
+        {
+          hasActiveUnsavedChanges
+        }
       );
 
 
