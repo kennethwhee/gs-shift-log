@@ -1907,7 +1907,7 @@ try {
       $tag=$cofiringQueryTags[$r]
       $safeTag=([string]$tag.tag).Replace('"','""')
       $startBoundaryEnd=$(if($r -ge $cofiringTags.Count){$cofiringStart.AddMinutes([Math]::Min(2.0,[double](($cofiringEnd-$cofiringStart).TotalMinutes))).ToString('yyyy-MM-dd HH:mm')}else{$firstEnd}) # COFIRING_ORGANIC_INVENTORY_BOUNDARY_V2_R7
-      $endBoundaryEnd=$(if($r -ge $cofiringTags.Count){$cofiringEnd.AddMinutes(2).ToString('yyyy-MM-dd HH:mm')}else{$endBoundaryEnd}) # COFIRING_ORGANIC_INVENTORY_END_BOUNDARY_V1_R1
+      $endBoundaryEnd=$(if($r -ge $cofiringTags.Count){$cofiringEnd.AddMinutes(2).ToString('yyyy-MM-dd HH:mm')}else{$lastEnd}) # COFIRING_ORGANIC_INVENTORY_END_BOUNDARY_V1_R1
       $formulasFast[$r,0]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$startBoundaryEnd+'","Start","Value")'
       $formulasFast[$r,1]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$startBoundaryEnd+'","Start","QualStr")'
       $formulasFast[$r,2]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$startBoundaryEnd+'","Start","Time")'
