@@ -2057,6 +2057,355 @@
     };
   };
 
+  /* =========================================================
+     EFFICIENCY_DAILY_WORK_WORKLOG_PICKER_EXISTING_MENU_V5
+
+     별도 우클릭 메뉴를 만들지 않는다.
+
+     기존 일일업무현황 행 메뉴가 정상적으로 열린 뒤
+     그 메뉴 안에 [업무내역 불러오기]만 추가한다.
+
+     따라서:
+     - 위에 행 추가
+     - 아래에 행 추가
+     - 행 숨기기
+     - 행 삭제
+     - 복원
+
+     기존 기능을 모두 그대로 유지한다.
+  ========================================================= */
+
+  const isVisibleWorklogMenuElementV5 = element => {
+
+    if (
+      !element ||
+      !(element instanceof Element)
+    ) {
+      return false;
+    }
+
+
+    const style =
+      window.getComputedStyle(
+        element
+      );
+
+
+    if (
+      style.display ===
+        'none' ||
+      style.visibility ===
+        'hidden' ||
+      Number(
+        style.opacity
+      ) ===
+        0
+    ) {
+      return false;
+    }
+
+
+    const rect =
+      element.getBoundingClientRect();
+
+
+    return (
+      rect.width >
+        20 &&
+      rect.height >
+        20
+    );
+  };
+
+
+  const findExistingDailyWorkRowMenuV5 = targetContext => {
+
+    const buttons =
+      [
+        ...document.querySelectorAll(
+          'button'
+        )
+      ]
+        .filter(
+          button =>
+            isVisibleWorklogMenuElementV5(
+              button
+            )
+        );
+
+
+    const insertAboveButton =
+      buttons.find(
+        button =>
+          normalizeText(
+            button.textContent
+          ) ===
+            '위에 행 추가'
+      );
+
+
+    if (!insertAboveButton) {
+      return null;
+    }
+
+
+    let current =
+      insertAboveButton.parentElement;
+
+
+    while (
+      current &&
+      current !==
+        document.body
+    ) {
+
+      if (
+        !isVisibleWorklogMenuElementV5(
+          current
+        )
+      ) {
+
+        current =
+          current.parentElement;
+
+        continue;
+      }
+
+
+      const text =
+        normalizeText(
+          current.innerText ||
+          current.textContent
+        );
+
+
+      const hasAbove =
+        text.includes(
+          '위에 행 추가'
+        );
+
+
+      const hasBelow =
+        text.includes(
+          '아래에 행 추가'
+        );
+
+
+      const hasDelete =
+        text.includes(
+          '이 행 삭제'
+        );
+
+
+      const hasTargetTitle =
+        !targetContext?.rowLabel ||
+        text.includes(
+          targetContext.rowLabel
+        );
+
+
+      if (
+        hasAbove &&
+        hasBelow &&
+        hasDelete &&
+        hasTargetTitle
+      ) {
+        return current;
+      }
+
+
+      current =
+        current.parentElement;
+    }
+
+
+    return null;
+  };
+
+
+  const injectWorklogButtonIntoExistingMenuV5 =
+    targetContext => {
+
+      const menu =
+        findExistingDailyWorkRowMenuV5(
+          targetContext
+        );
+
+
+      if (!menu) {
+        return false;
+      }
+
+
+      let button =
+        menu.querySelector(
+          '[data-daily-work-existing-menu-worklog-v5]'
+        );
+
+
+      if (button) {
+
+        button.dataset
+          .dailyWorkRowKey =
+          targetContext.rowKey;
+
+
+        return true;
+      }
+
+
+      const referenceButton =
+        [
+          ...menu.querySelectorAll(
+            'button'
+          )
+        ]
+          .find(
+            candidate =>
+              normalizeText(
+                candidate.textContent
+              ) ===
+                '위에 행 추가'
+          );
+
+
+      if (!referenceButton) {
+        return false;
+      }
+
+
+      button =
+        document.createElement(
+          'button'
+        );
+
+
+      button.type =
+        'button';
+
+
+      button.textContent =
+        '업무내역 불러오기';
+
+
+      button.dataset
+        .dailyWorkExistingMenuWorklogV5 =
+        '1';
+
+
+      button.dataset
+        .dailyWorkRowKey =
+        targetContext.rowKey;
+
+
+      /*
+       * 기존 메뉴 버튼과 정확히 같은 디자인 사용
+       */
+      button.className =
+        referenceButton.className;
+
+
+      if (
+        referenceButton.getAttribute(
+          'style'
+        )
+      ) {
+
+        button.setAttribute(
+          'style',
+          referenceButton.getAttribute(
+            'style'
+          )
+        );
+      }
+
+
+      button.style.fontWeight =
+        '800';
+
+
+      button.addEventListener(
+        'pointerdown',
+        event => {
+
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+        },
+        true
+      );
+
+
+      button.addEventListener(
+        'click',
+        event => {
+
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+
+
+          const activeContext =
+            contextTarget ||
+            targetContext;
+
+
+          if (!activeContext) {
+            return;
+          }
+
+
+          menu.style.display =
+            'none';
+
+
+          void openPicker(
+            activeContext
+          );
+        },
+        true
+      );
+
+
+      referenceButton.insertAdjacentElement(
+        'beforebegin',
+        button
+      );
+
+
+      return true;
+    };
+
+
+  const queueExistingMenuInjectionV5 =
+    targetContext => {
+
+      /*
+       * 기존 Popup의 contextmenu 처리 직후 실행한다.
+       * 메뉴 렌더링 시점 차이를 위해 짧게 재확인한다.
+       *
+       * MutationObserver는 사용하지 않는다.
+       */
+      [
+        0,
+        25,
+        70
+      ].forEach(
+        delay => {
+
+          window.setTimeout(
+            () => {
+
+              injectWorklogButtonIntoExistingMenuV5(
+                targetContext
+              );
+            },
+            delay
+          );
+        }
+      );
+    };
+
+
   const handleContextMenu = event => {
 
     const targetContext =
@@ -2074,16 +2423,16 @@
 
 
     /*
-     * Day/Night 주요업무 셀에서는
-     * 기존 일반 행 메뉴 대신 이 메뉴를 우선 사용한다.
+     * 여기서는 절대 preventDefault / stopPropagation 하지 않는다.
+     *
+     * 기존 Daily Work 우클릭 메뉴를 먼저 정상 동작시킨 뒤
+     * 업무내역 버튼만 삽입한다.
      */
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
+    contextTarget =
+      targetContext;
 
 
-    showContextMenu(
-      event,
+    queueExistingMenuInjectionV5(
       targetContext
     );
   };
@@ -2216,38 +2565,14 @@
    * Day/Night 주요업무에서만 동작하므로
    * 다른 셀의 기존 우클릭 메뉴에는 영향 없음.
    */
-  const handleWorklogRightPointerDownV3 = event => {
+  const handleWorklogRightPointerDownV3 = () => {
 
-    if (
-      Number(
-        event?.button
-      ) !==
-        2
-    ) {
-      return;
-    }
-
-
-    const targetContext =
-      getDirectWorklogTargetContext(
-        event
-      );
-
-
-    if (!targetContext) {
-      return;
-    }
-
-
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-
-
-    showContextMenu(
-      event,
-      targetContext
-    );
+    /*
+     * V5:
+     * 기존 일일업무현황 메뉴를 사용하므로
+     * 오른쪽 버튼을 여기서 가로채지 않는다.
+     */
+    return;
   };
 
 
