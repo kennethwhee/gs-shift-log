@@ -24185,7 +24185,7 @@ function createCofiringLiveContract() {
       if(!number(sample.startValue)||sample.startValue<0||!number(sample.endValue)||sample.endValue<0)fail('유기성 재고 경계값 누락: '+def.key);
       if(!good(sample.startQuality)||!good(sample.endQuality))fail('유기성 재고 경계 품질 불량: '+def.key);
       const st=Date.parse(sample.startTime),et=Date.parse(sample.endTime);
-      if(!Number.isFinite(st)||st<p.startMs-120000||st>p.startMs||!Number.isFinite(et)||et<p.startMs||et>=p.endMs+60000)fail('유기성 재고 반환시각 불일치: '+def.key);
+      if(!Number.isFinite(st)||st<p.startMs-86400000||st>p.startMs||!Number.isFinite(et)||et<p.startMs||et>=p.endMs+60000)fail('유기성 재고 반환시각 불일치: '+def.key);
       if(!number(sample.durationGoodSeconds)||sample.durationGoodSeconds<0||!number(sample.durationBadSeconds)||sample.durationBadSeconds<0||
          Math.abs(sample.durationGoodSeconds+sample.durationBadSeconds-expected)>2||sample.durationCoverageValid!==true)fail('유기성 재고 품질 지속시간 불일치: '+def.key);
       if(sample.boundaryValid!==true||sample.dataComplete!==true)fail('유기성 재고 경계 검증 실패: '+def.key);

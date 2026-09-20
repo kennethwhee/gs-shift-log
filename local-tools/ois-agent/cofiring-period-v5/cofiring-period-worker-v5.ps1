@@ -1906,7 +1906,7 @@ try {
     for ($r=0;$r -lt $rowsFast;$r+=1) {
       $tag=$cofiringQueryTags[$r]
       $safeTag=([string]$tag.tag).Replace('"','""')
-      $startBoundaryStart=$(if($r -ge $cofiringTags.Count){$cofiringStart.AddMinutes(-2).ToString('yyyy-MM-dd HH:mm')}else{$fullStart}) # COFIRING_ORGANIC_INVENTORY_START_MIDNIGHT_V1
+      $startBoundaryStart=$(if($r -ge $cofiringTags.Count){$cofiringStart.AddDays(-1).ToString('yyyy-MM-dd HH:mm')}else{$fullStart}) # COFIRING_ORGANIC_INVENTORY_START_MIDNIGHT_V2
       $startBoundaryEnd=$(if($r -ge $cofiringTags.Count){$fullStart}else{$firstEnd}) # COFIRING_ORGANIC_INVENTORY_START_MIDNIGHT_V1
       $startBoundaryMethod=$(if($r -ge $cofiringTags.Count){'End'}else{'Start'}) # COFIRING_ORGANIC_INVENTORY_START_MIDNIGHT_V1
       $endBoundaryStart=$(if($r -ge $cofiringTags.Count){$fullStart}else{$fullEnd}) # COFIRING_ORGANIC_INVENTORY_END_STAT_V1_R1
@@ -2072,7 +2072,7 @@ try {
       $deltaValue=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+8))
       $durationGood=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+9))
       $durationBad=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+10))
-      $startTimeValid=($null -ne $startTime -and $startTime -ge $cofiringStart.AddMinutes(-2) -and $startTime -le $cofiringStart) # COFIRING_ORGANIC_INVENTORY_START_MIDNIGHT_V1
+      $startTimeValid=($null -ne $startTime -and $startTime -ge $cofiringStart.AddDays(-1) -and $startTime -le $cofiringStart) # COFIRING_ORGANIC_INVENTORY_START_MIDNIGHT_V2
       $endTimeValid=($null -ne $endTime -and $endTime -ge $cofiringStart -and $endTime -le $cofiringEnd) # COFIRING_ORGANIC_INVENTORY_END_STAT_V1_R1
       $startBoundaryValid=($null -ne $startValue -and $startValue -ge 0 -and (Test-OrganicQualityGood $startQuality) -and $startTimeValid)
       $endBoundaryValid=($null -ne $endValue -and $endValue -ge 0 -and (Test-OrganicQualityGood $endQuality) -and $endTimeValid)

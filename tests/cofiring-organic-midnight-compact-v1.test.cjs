@@ -19,12 +19,12 @@ const sha=p=>crypto
 test('organic start inventory uses last actual through midnight',()=>{
   assert.match(
     worker,
-    /COFIRING_ORGANIC_INVENTORY_START_MIDNIGHT_V1/
+    /COFIRING_ORGANIC_INVENTORY_START_MIDNIGHT_V2/
   );
 
   assert.match(
     worker,
-    /\$cofiringStart\.AddMinutes\(-2\)/
+    /\$cofiringStart\.AddDays\(-1\)/
   );
 
   assert.match(
@@ -34,7 +34,7 @@ test('organic start inventory uses last actual through midnight',()=>{
 
   assert.match(
     worker,
-    /\$startTime -ge \$cofiringStart\.AddMinutes\(-2\) -and \$startTime -le \$cofiringStart/
+    /\$startTime -ge \$cofiringStart\.AddDays\(-1\) -and \$startTime -le \$cofiringStart/
   );
 
   assert.doesNotMatch(
@@ -47,7 +47,7 @@ test('browser and API use midnight lookback contract',()=>{
   for(const source of [contract,api]){
     assert.match(
       source,
-      /st<p\.startMs-120000\|\|st>p\.startMs/
+      /st<p\.startMs-86400000\|\|st>p\.startMs/
     );
 
     assert.doesNotMatch(
