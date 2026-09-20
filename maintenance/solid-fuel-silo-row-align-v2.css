@@ -1,0 +1,49 @@
+/* SOLID FUEL SILO ROW ALIGN V2
+   Loaded inside the Solid Fuel iframe after its native redesign CSS. */
+
+.analytics-block--silo #siloStats,
+.analytics-block--silo .silo-summary{
+  width:100%!important;
+  display:block!important;
+}
+
+.analytics-block--silo .silo-summary{
+  gap:0!important;
+}
+
+.analytics-block--silo .silo-summary__row{
+  box-sizing:border-box!important;
+  width:100%!important;
+  min-height:28px!important;
+  height:28px!important;
+  margin:0!important;
+  padding:3px 9px!important;
+  display:grid!important;
+  grid-template-columns:22% 1fr auto!important;
+  align-items:center!important;
+  gap:8px!important;
+  border-radius:6px!important;
+}
+
+.analytics-block--silo .silo-summary__row span,
+.analytics-block--silo .silo-summary__row strong,
+.analytics-block--silo .silo-summary__row small{
+  line-height:1!important;
+}
+
+.analytics-block--silo .silo-summary__row span{
+  font-size:11px!important;
+  font-weight:700!important;
+}
+
+.analytics-block--silo .silo-summary__row strong{
+  font-size:12px!important;
+  font-weight:850!important;
+  text-align:center!important;
+}
+
+.analytics-block--silo .silo-summary__row small{
+  font-size:11px!important;
+  font-weight:700!important;
+  text-align:right!important;
+}
