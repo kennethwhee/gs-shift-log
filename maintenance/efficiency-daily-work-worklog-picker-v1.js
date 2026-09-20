@@ -1947,9 +1947,122 @@
   };
 
 
+  /* =========================================================
+     EFFICIENCY_DAILY_WORK_WORKLOG_PICKER_DIRECT_TARGET_V3
+
+     별도창의 실제 입력 컨트롤 이름을 직접 기준으로 삼는다.
+
+     dayTasks   -> D/S
+     nightTasks -> N/S
+
+     data-row-key 구조가 변경/복제돼도 동작한다.
+  ========================================================= */
+
+  const getDirectWorklogTargetContext = event => {
+
+    const rawTarget =
+      event?.target instanceof
+        Element
+        ? event.target
+        : null;
+
+
+    if (!rawTarget) {
+      return null;
+    }
+
+
+    let taskControl =
+      rawTarget.closest(
+        'textarea[name="dayTasks"], textarea[name="nightTasks"]'
+      );
+
+
+    /*
+     * textarea 자체가 아닌 TD 여백을 우클릭했을 경우도
+     * 같은 주요업무 칸으로 처리한다.
+     */
+    if (!taskControl) {
+
+      const cell =
+        rawTarget.closest(
+          'td'
+        );
+
+
+      taskControl =
+        cell?.querySelector(
+          'textarea[name="dayTasks"], textarea[name="nightTasks"]'
+        ) ||
+        null;
+    }
+
+
+    if (!taskControl) {
+      return null;
+    }
+
+
+    const controlName =
+      String(
+        taskControl.getAttribute(
+          'name'
+        ) ||
+        ''
+      ).trim();
+
+
+    if (
+      controlName !==
+        'dayTasks' &&
+      controlName !==
+        'nightTasks'
+    ) {
+      return null;
+    }
+
+
+    const isDay =
+      controlName ===
+        'dayTasks';
+
+
+    return {
+      row:
+        taskControl.closest(
+          'tr'
+        ),
+
+      rowKey:
+        isDay
+          ? 'operation-day'
+          : 'operation-night',
+
+      taskControl,
+
+      shift:
+        isDay
+          ? 'DS'
+          : 'NS',
+
+      shiftLabel:
+        isDay
+          ? 'D/S'
+          : 'N/S',
+
+      rowLabel:
+        isDay
+          ? 'Day 근무조'
+          : 'Night 근무조'
+    };
+  };
+
   const handleContextMenu = event => {
 
     const targetContext =
+      getDirectWorklogTargetContext(
+        event
+      ) ||
       getRowContextFromEvent(
         event
       );
@@ -2069,6 +2182,54 @@
     handleContextMenu,
     true
   );
+  /*
+   * 일부 브라우저/기존 편집기가 contextmenu를 먼저 막더라도
+   * 실제 오른쪽 마우스 버튼 down 시점에서 Picker 메뉴를 띄운다.
+   *
+   * Day/Night 주요업무에서만 동작하므로
+   * 다른 셀의 기존 우클릭 메뉴에는 영향 없음.
+   */
+  const handleWorklogRightPointerDownV3 = event => {
+
+    if (
+      Number(
+        event?.button
+      ) !==
+        2
+    ) {
+      return;
+    }
+
+
+    const targetContext =
+      getDirectWorklogTargetContext(
+        event
+      );
+
+
+    if (!targetContext) {
+      return;
+    }
+
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+
+
+    showContextMenu(
+      event,
+      targetContext
+    );
+  };
+
+
+  window.addEventListener(
+    'pointerdown',
+    handleWorklogRightPointerDownV3,
+    true
+  );
+
 
 
   if (
