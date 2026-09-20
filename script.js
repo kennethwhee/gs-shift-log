@@ -107260,6 +107260,29 @@ async function handleEfficiencyDailyWorkArchiveClick(
     );
 
 
+  /*
+    EFFICIENCY_DAILY_WORK_ARCHIVE_SERVER_REFRESH_V2
+
+    날짜별 보관함 클릭은 로컬 캐시를 신뢰하지 않고
+    서버의 최신 저장 기록을 먼저 다시 조회한다.
+
+    저장 + Excel 검증 이후 core state가 오래된 record를
+    가지고 있어도 여기서 최신 content로 교체된다.
+
+    미저장 작성내용이 있으면 load 함수는 보관함 record만
+    최신화하고 editor 내용은 유지한다.
+  */
+  const archiveServerRefreshResult =
+    await loadEfficiencyDailyWorkRecords();
+
+
+  if (
+    archiveServerRefreshResult ===
+      false
+  ) {
+    return;
+  }
+
   const targetRecord =
     efficiencyDailyWorkState
       .items.find(
