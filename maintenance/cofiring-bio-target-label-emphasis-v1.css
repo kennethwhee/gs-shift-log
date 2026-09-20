@@ -1,0 +1,10 @@
+/* COFIRING BIO TARGET LABEL EMPHASIS V1
+   Enlarge only the "마감까지 Bio 필요 투입량 ... 목표" label. */
+
+#efficiencyCofiringDraftView .cf-bio-target-label-emphasis-v1{
+  font-size:13px!important;
+  font-weight:850!important;
+  line-height:1.25!important;
+  letter-spacing:-.01em!important;
+  color:#31556f!important;
+}
