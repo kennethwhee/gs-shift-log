@@ -28,7 +28,7 @@
   height:auto!important;
   min-height:0!important;
   margin:0!important;
-  padding:10px 12px!important;
+  padding:7px 9px!important;
   border:1px solid #d9e4ed!important;
   border-radius:9px!important;
   background:#fff!important;
@@ -43,22 +43,22 @@
 #efficiencyCofiringDraftView .cfh-v5-strip-host{
   display:flex!important;
   align-items:center!important;
-  gap:14px!important;
+  gap:9px!important;
   width:100%!important;
   min-width:0!important;
 }
 
 #efficiencyCofiringDraftView .cfh-v5-strip-title{
-  flex:0 0 150px!important;
-  min-width:150px!important;
-  padding-right:12px!important;
+  flex:0 0 138px!important;
+  min-width:138px!important;
+  padding-right:9px!important;
   border-right:1px solid #dfe8ef!important;
 }
 
 #efficiencyCofiringDraftView .cfh-v5-strip-title-main{
   display:block!important;
   color:#173f63!important;
-  font-size:16px!important;
+  font-size:17px!important;
   line-height:1.2!important;
   font-weight:900!important;
   letter-spacing:-.02em!important;
@@ -69,7 +69,7 @@
   display:block!important;
   margin-top:3px!important;
   color:#81909d!important;
-  font-size:11px!important;
+  font-size:12px!important;
   line-height:1.2!important;
   font-weight:700!important;
   white-space:nowrap!important;
@@ -77,8 +77,9 @@
 
 #efficiencyCofiringDraftView .cfh-v5-fuel-row{
   display:grid!important;
-  grid-template-columns:repeat(4,minmax(0,1fr))!important;
-  gap:8px!important;
+  grid-template-columns:repeat(4,minmax(145px,180px))!important;
+  gap:6px!important;
+  justify-content:start!important;
   flex:1 1 auto!important;
   min-width:0!important;
 }
@@ -90,8 +91,8 @@
   align-items:center!important;
   gap:7px!important;
   min-width:0!important;
-  min-height:52px!important;
-  padding:8px 12px!important;
+  min-height:38px!important;
+  padding:5px 9px!important;
   border:1px solid #d8e4ee!important;
   border-radius:7px!important;
   background:#f8fbfd!important;
@@ -99,7 +100,7 @@
 
 #efficiencyCofiringDraftView .cfh-v5-fuel-name{
   color:#526c82!important;
-  font-size:13px!important;
+  font-size:14px!important;
   line-height:1.15!important;
   font-weight:850!important;
   white-space:nowrap!important;
@@ -108,7 +109,7 @@
 #efficiencyCofiringDraftView .cfh-v5-fuel-value{
   min-width:0!important;
   color:#173b5a!important;
-  font-size:19px!important;
+  font-size:20px!important;
   line-height:1!important;
   font-weight:900!important;
   text-align:right!important;
@@ -118,7 +119,7 @@
 #efficiencyCofiringDraftView .cfh-v5-fuel-split{
   min-width:0!important;
   color:#173b5a!important;
-  font-size:12px!important;
+  font-size:12.5px!important;
   line-height:1.2!important;
   font-weight:850!important;
   text-align:right!important;
@@ -128,7 +129,7 @@
 
 #efficiencyCofiringDraftView .cfh-v5-fuel-unit{
   color:#8091a0!important;
-  font-size:10px!important;
+  font-size:11px!important;
   line-height:1!important;
   font-weight:750!important;
   white-space:nowrap!important;
@@ -138,7 +139,7 @@
   #efficiencyCofiringDraftView .cfh-v5-strip-host{
     align-items:stretch!important;
     flex-direction:column!important;
-    gap:8px!important;
+    gap:6px!important;
   }
 
   #efficiencyCofiringDraftView .cfh-v5-strip-title{
