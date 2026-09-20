@@ -1,14 +1,13 @@
 (() => {
   "use strict";
 
-  const INSTALL_FLAG = "__cfhOperatorCloseDetailV4Installed";
+  const INSTALL_FLAG = "__cfhOperatorCloseDetailV5Installed";
   if (window[INSTALL_FLAG]) return;
   window[INSTALL_FLAG] = true;
 
   const ROOT_SELECTOR = "#efficiencyCofiringDraftView";
-  const BASIS_TITLES = ["마감 계산 기준값", "마감 당시 발열량 · 보정계수"];
+  const BASIS_TITLES = ["마감 계산 기준값", "마감 당시 발열량 · 보정계수", "계산 발열량 근거"];
   const META_TITLES = ["마감 정보"];
-  const META_KEYS = ["마감자", "마감 시각", "Revision", "스냅샷 생성", "DataPARC 요청"];
 
   const normalize = (value) =>
     String(value ?? "")
@@ -68,187 +67,75 @@
     return current?.parentElement === ancestor ? current : node;
   }
 
-  function smallestMetaItem(labelElement, metaCard) {
-    let node = labelElement?.parentElement;
-    for (let depth = 0; node && node !== metaCard && depth < 6; depth += 1, node = node.parentElement) {
-      const text = normalize(node.textContent);
-      const label = normalize(labelElement.textContent);
-      if (text.includes(label) && text.length <= 280 && node.children.length <= 8) {
-        return node;
-      }
-    }
-    return labelElement?.parentElement || null;
-  }
-
-  function valueFromItem(item, label) {
-    if (!item) return "";
-    const full = normalize(item.textContent);
-    return normalize(full.replace(label, ""));
-  }
-
-  function parseBasisData(basisCard) {
+  function parseHeatingValues(basisCard) {
     const table = basisCard.querySelector("table");
-    if (!table) return null;
-
-    const defaultHeaders = ["연료", "1호기 발열량", "1호기 보정", "2호기 발열량", "2호기 보정"];
-    const theadCells = Array.from(table.querySelectorAll("thead th"))
-      .map((cell) => normalize(cell.textContent))
-      .filter(Boolean);
-    const headers = theadCells.length >= 5 ? theadCells.slice(0, 5) : defaultHeaders;
+    if (!table) return [];
 
     const rows = Array.from(table.querySelectorAll("tbody tr"))
       .map((row) => Array.from(row.children).map((cell) => normalize(cell.textContent)))
-      .filter((cells) => {
-        if (cells.length < 5) return false;
-        const first = normalize(cells[0]);
-        if (!first || first === "연료") return false;
-        const joined = cells.slice(0, 5).map(normalize);
-        const isRepeatedHeader = joined.every((value, index) => value === headers[index]);
-        return !isRepeatedHeader;
-      })
+      .filter((cells) => cells.length >= 5)
+      .filter((cells) => normalize(cells[0]) && normalize(cells[0]) !== "연료")
       .map((cells) => ({
-        fuel: cells[0],
-        unit1Heat: cells[1],
-        unit1Adj: cells[2],
-        unit2Heat: cells[3],
-        unit2Adj: cells[4],
+        fuel: normalize(cells[0]),
+        unit1Heat: normalize(cells[1]),
+        unit2Heat: normalize(cells[3]),
       }));
 
-    if (!rows.length) return null;
-    return {
-      headers: {
-        fuel: headers[0] || defaultHeaders[0],
-        unit1Heat: headers[1] || defaultHeaders[1],
-        unit1Adj: headers[2] || defaultHeaders[2],
-        unit2Heat: headers[3] || defaultHeaders[3],
-        unit2Adj: headers[4] || defaultHeaders[4],
-      },
-      rows,
-    };
-  }
-
-  function parseMetaData(metaCard) {
-    const data = {};
-    for (const key of META_KEYS) {
-      const labelElement = exactTextElement(metaCard, [key]);
-      if (!labelElement) continue;
-      const item = smallestMetaItem(labelElement, metaCard);
-      data[key] = valueFromItem(item, key);
-    }
-
-    const calcControl =
-      Array.from(metaCard.querySelectorAll("button, a")).find((element) =>
-        normalize(element.textContent).includes("계산")
-      ) || null;
-
-    return { data, calcControl };
-  }
-
-  function ensureGridLayout(basisCard, metaCard) {
-    const common = lowestCommonAncestor(basisCard, metaCard);
-    if (!common) return;
-    const basisBranch = branchBelow(common, basisCard);
-    const metaBranch = branchBelow(common, metaCard);
-    if (!basisBranch || !metaBranch || basisBranch === metaBranch) return;
-
-    common.classList.add("cfh-v4-detail-grid");
-    basisBranch.classList.add("cfh-v4-detail-branch");
-    metaBranch.classList.add("cfh-v4-detail-branch");
-  }
-
-  function prepareCard(card, titleElement, cardClass, title, subtitle) {
-    card.classList.add("cfh-v4-card", cardClass);
-    titleElement.classList.add("cfh-v4-title");
-    titleElement.textContent = title;
-    titleElement.dataset.cfhV4Subtitle = subtitle;
-
-    for (const child of Array.from(card.children)) {
-      if (child === titleElement) continue;
-      if (child.classList.contains("cfh-v4-host")) continue;
-      child.classList.add("cfh-v4-hide-original");
-    }
-  }
-
-  function renderBasisCard(card, titleElement, basisData) {
-    if (!basisData) return;
-    prepareCard(
-      card,
-      titleElement,
-      "cfh-v4-basis-card",
-      "마감 계산 기준값",
-      "혼소율 마감 시 적용값"
-    );
-
-    let host = card.querySelector(".cfh-v4-basis-host");
-    if (!host) {
-      host = document.createElement("div");
-      host.className = "cfh-v4-host cfh-v4-basis-host";
-      card.appendChild(host);
-    }
-
-    const h = basisData.headers;
-    const rowHtml = basisData.rows.map((row) => `
-      <div class="cfh-v4-cell cfh-v4-cell--fuel">${row.fuel}</div>
-      <div class="cfh-v4-cell cfh-v4-cell--value">${row.unit1Heat}</div>
-      <div class="cfh-v4-cell cfh-v4-cell--value">${row.unit1Adj}</div>
-      <div class="cfh-v4-cell cfh-v4-cell--value">${row.unit2Heat}</div>
-      <div class="cfh-v4-cell cfh-v4-cell--value">${row.unit2Adj}</div>
-    `).join("");
-
-    host.innerHTML = `
-      <div class="cfh-v4-basis-grid" role="table" aria-label="마감 계산 기준값">
-        <div class="cfh-v4-cell cfh-v4-cell--head">${h.fuel}</div>
-        <div class="cfh-v4-cell cfh-v4-cell--head">${h.unit1Heat}</div>
-        <div class="cfh-v4-cell cfh-v4-cell--head">${h.unit1Adj}</div>
-        <div class="cfh-v4-cell cfh-v4-cell--head">${h.unit2Heat}</div>
-        <div class="cfh-v4-cell cfh-v4-cell--head">${h.unit2Adj}</div>
-        ${rowHtml}
-      </div>
-    `;
-  }
-
-  function renderMetaCard(card, titleElement, metaData) {
-    prepareCard(
-      card,
-      titleElement,
-      "cfh-v4-meta-card",
-      "마감 정보",
-      "마감 이력 · 계산 추적"
-    );
-
-    let host = card.querySelector(".cfh-v4-meta-host");
-    if (!host) {
-      host = document.createElement("div");
-      host.className = "cfh-v4-host cfh-v4-meta-host";
-      card.appendChild(host);
-    }
-
-    const rows = [
-      ["마감자", metaData.data["마감자"] || "-"],
-      ["마감 시각", metaData.data["마감 시각"] || "-"],
-      ["Revision", metaData.data["Revision"] || "-"],
-      ["스냅샷 생성", metaData.data["스냅샷 생성"] || "-"],
-      ["DataPARC 요청", metaData.data["DataPARC 요청"] || "-"],
+    const wanted = [
+      ["Coal", "Coal"],
+      ["Bio", "Bio-SRF"],
+      ["유기성", "유기성 고형연료"],
+      ["축분", "축분"],
     ];
 
+    return wanted.map(([sourceFuel, displayFuel]) => {
+      const row = rows.find((item) => item.fuel === sourceFuel);
+      if (!row) return null;
+
+      const same = row.unit1Heat === row.unit2Heat;
+      return {
+        fuel: displayFuel,
+        same,
+        value: same ? row.unit1Heat : "",
+        unit1Heat: row.unit1Heat,
+        unit2Heat: row.unit2Heat,
+      };
+    }).filter(Boolean);
+  }
+
+  function renderHeatingStrip(basisCard, values) {
+    for (const child of Array.from(basisCard.children)) {
+      if (child.classList.contains("cfh-v5-strip-host")) continue;
+      child.classList.add("cfh-v5-hide-original");
+    }
+
+    basisCard.classList.add("cfh-v5-basis-card");
+
+    let host = basisCard.querySelector(".cfh-v5-strip-host");
+    if (!host) {
+      host = document.createElement("div");
+      host.className = "cfh-v5-strip-host";
+      basisCard.appendChild(host);
+    }
+
     host.innerHTML = `
-      <div class="cfh-v4-summary">
-        ${rows.map(([label, value]) => `
-          <div class="cfh-v4-summary-row${label === "DataPARC 요청" ? " cfh-v4-summary-row--request" : ""}">
-            <div class="cfh-v4-summary-label">${label}</div>
-            <div class="cfh-v4-summary-value">${value}</div>
+      <div class="cfh-v5-strip-title">
+        <span class="cfh-v5-strip-title-main">계산 발열량 근거</span>
+        <span class="cfh-v5-strip-title-sub">마감 계산 적용값</span>
+      </div>
+      <div class="cfh-v5-fuel-row">
+        ${values.map((item) => `
+          <div class="cfh-v5-fuel-item">
+            <span class="cfh-v5-fuel-name">${item.fuel}</span>
+            ${
+              item.same
+                ? `<span class="cfh-v5-fuel-value">${item.value}</span><span class="cfh-v5-fuel-unit">kcal/kg</span>`
+                : `<span class="cfh-v5-fuel-split">1호기 ${item.unit1Heat} · 2호기 ${item.unit2Heat}</span><span class="cfh-v5-fuel-unit">kcal/kg</span>`
+            }
           </div>
         `).join("")}
       </div>
-      <div class="cfh-v4-action-row"></div>
     `;
-
-    const actionRow = host.querySelector(".cfh-v4-action-row");
-    if (metaData.calcControl) {
-      metaData.calcControl.textContent = "계산 화면 보기";
-      metaData.calcControl.classList.add("cfh-v4-action-button");
-      actionRow.appendChild(metaData.calcControl);
-    }
   }
 
   function enhance() {
@@ -269,9 +156,21 @@
     );
     if (!basisCard || !metaCard || basisCard === metaCard) return false;
 
-    ensureGridLayout(basisCard, metaCard);
-    renderBasisCard(basisCard, basisTitle, parseBasisData(basisCard));
-    renderMetaCard(metaCard, metaTitle, parseMetaData(metaCard));
+    const common = lowestCommonAncestor(basisCard, metaCard);
+    if (!common) return false;
+
+    const basisBranch = branchBelow(common, basisCard);
+    const metaBranch = branchBelow(common, metaCard);
+    if (!basisBranch || !metaBranch || basisBranch === metaBranch) return false;
+
+    common.classList.add("cfh-v5-detail-wrap");
+    basisBranch.classList.add("cfh-v5-basis-branch");
+    metaBranch.classList.add("cfh-v5-meta-branch-hidden");
+
+    const values = parseHeatingValues(basisCard);
+    if (!values.length) return false;
+
+    renderHeatingStrip(basisCard, values);
     return true;
   }
 
