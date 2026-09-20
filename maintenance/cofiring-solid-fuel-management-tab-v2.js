@@ -63,8 +63,20 @@
     }
   }
 
+  /* SOLID_FUEL_RECORD_MODAL_STABILITY_V1
+     Fixed overlays do not change the embedded document height.
+     Never collapse the iframe while any Solid Fuel modal is open. */
+  function embeddedModalOpen(frame) {
+    try {
+      const doc = frame?.contentDocument;
+      return Boolean(doc?.querySelector(".modal:not([hidden])"));
+    } catch (_) {
+      return false;
+    }
+  }
+
   function resizeFrameToContent(frame) {
-    if (!frame || frame.hidden) return;
+    if (!frame || frame.hidden || embeddedModalOpen(frame)) return;
 
     // First collapse the old explicit height so scrollHeight is measured
     // from document content rather than a previously oversized iframe.
@@ -241,10 +253,14 @@
       if (doc.documentElement.dataset.cfvOuterScrollBound !== "1") {
         doc.documentElement.dataset.cfvOuterScrollBound = "1";
 
-        const resync = () => scheduleFrameResize(frame);
+        const resync = (event) => {
+          // Typing inside a fixed modal cannot change page height. Re-measuring
+          // here used to collapse the iframe to 1px on every keystroke.
+          if (event?.target?.closest?.(".modal")) return;
+          scheduleFrameResize(frame);
+        };
         doc.addEventListener("click", resync, true);
         doc.addEventListener("change", resync, true);
-        doc.addEventListener("input", resync, true);
         doc.addEventListener("submit", resync, true);
       }
 
