@@ -1266,3 +1266,110 @@ td:last-child {
 }
 
 /* ===== /SOLID_FUEL_KPI_TYPOGRAPHY_V19 ===== */
+/* SOLID FUEL SILO REFERENCE ALIGN V1 START */
+.sfux15-root
+.sfux15-silo-panel {
+  gap:
+    0 !important;
+}
+
+.sfux15-root
+.sfux15-silo-panel #siloStats,
+.sfux15-root
+.sfux15-silo-panel .silo-summary {
+  width:
+    100% !important;
+
+  display:
+    flex !important;
+
+  flex-direction:
+    column !important;
+
+  gap:
+    0 !important;
+}
+
+.sfux15-root
+.sfux15-silo-panel .silo-summary__row,
+.sfux15-root
+.sfux15-silo-card {
+  width:
+    100% !important;
+
+  min-height:
+    27px !important;
+
+  height:
+    27px !important;
+
+  padding:
+    5px 9px !important;
+
+  margin:
+    0 !important;
+
+  box-sizing:
+    border-box !important;
+
+  display:
+    grid !important;
+
+  grid-template-columns:
+    22% 1fr auto !important;
+
+  align-items:
+    center !important;
+
+  column-gap:
+    8px !important;
+}
+
+.sfux15-root
+.sfux15-silo-panel .silo-summary__row span,
+.sfux15-root
+.sfux15-silo-card span {
+  font-size:
+    11px !important;
+
+  font-weight:
+    700 !important;
+
+  line-height:
+    1.05 !important;
+}
+
+.sfux15-root
+.sfux15-silo-panel .silo-summary__row strong,
+.sfux15-root
+.sfux15-silo-card strong,
+.sfux15-root
+.sfux15-silo-card b {
+  font-size:
+    11px !important;
+
+  font-weight:
+    800 !important;
+
+  line-height:
+    1.05 !important;
+
+  justify-self:
+    center !important;
+}
+
+.sfux15-root
+.sfux15-silo-panel .silo-summary__row small {
+  font-size:
+    11px !important;
+
+  font-weight:
+    700 !important;
+
+  line-height:
+    1.05 !important;
+
+  justify-self:
+    end !important;
+}
+/* SOLID FUEL SILO REFERENCE ALIGN V1 END */
