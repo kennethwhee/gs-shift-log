@@ -1130,3 +1130,46 @@ body.solid-fuel-readonly #companyModal{
 @media(max-width:760px){.record-grid.receipt-enabled-grid,.unload-editor-grid.receipt-enabled-grid{grid-template-columns:1fr 1fr!important}}
 @media(max-width:450px){.record-grid.receipt-enabled-grid,.unload-editor-grid.receipt-enabled-grid{grid-template-columns:1fr!important}}
 /* SOLID_FUEL_RECEIPT_LINK_V1_END */
+
+/* SOLID_FUEL_RECORD_SINGLE_ROW_V1
+   Desktop record registration form: keep all 9 vehicle/unloading fields on one line.
+   Narrow viewports keep the existing responsive multi-row fallbacks. */
+@media (min-width:1181px){
+  .record-editor-card{
+    width:min(1280px,calc(100vw - 40px));
+  }
+
+  .record-grid.receipt-enabled-grid{
+    grid-template-columns:
+      minmax(110px,.85fr)
+      minmax(145px,1.1fr)
+      minmax(105px,.8fr)
+      minmax(180px,1.45fr)
+      minmax(100px,.85fr)
+      minmax(105px,.85fr)
+      minmax(88px,.7fr)
+      minmax(88px,.7fr)
+      minmax(118px,.9fr)!important;
+    gap:8px!important;
+    align-items:end;
+  }
+
+  .record-grid.receipt-enabled-grid>label{
+    min-width:0;
+  }
+
+  .record-grid.receipt-enabled-grid input,
+  .record-grid.receipt-enabled-grid select{
+    min-width:0;
+    width:100%;
+  }
+
+  .record-grid.receipt-enabled-grid .receipt-ton-control{
+    min-width:0;
+  }
+
+  .record-grid.receipt-enabled-grid .receipt-ton-control input{
+    min-width:0;
+  }
+}
+/* SOLID_FUEL_RECORD_SINGLE_ROW_V1_END */
