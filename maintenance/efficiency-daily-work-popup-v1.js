@@ -1806,3 +1806,929 @@
     `[${VERSION}] ready`
   );
 })();
+
+/* =========================================================
+   EFFICIENCY DAILY WORK COLUMN WIDTH DRAG V1
+
+   Spreadsheet-like column resizing:
+   - no button
+   - no edit mode
+   - drag inner vertical column borders
+   - current row/instruction resize V3 remains untouched
+   - per-date local persistence
+   - cloned PDF keeps inline col widths
+   - no MutationObserver
+========================================================= */
+(() => {
+  'use strict';
+
+  const VERSION =
+    'EFFICIENCY_DAILY_WORK_COLUMN_WIDTH_DRAG_V1';
+
+  const WINDOW_PARAM =
+    'efficiencyDailyWorkWindow';
+
+  const STORAGE_PREFIX =
+    'gs-efficiency-daily-work-column-width-v1:';
+
+  const TABLE_SELECTOR =
+    '#efficiencyDailyWorkPaper ' +
+    '.efficiency-daily-work-table';
+
+  const EDGE_HOTSPOT = 6;
+
+  const MIN_COLUMN_PX = 30;
+
+  if (
+    window.__gsEfficiencyDailyWorkColumnWidthDragV1
+  ) {
+    return;
+  }
+
+  const isStandaloneWindow = () => {
+    try {
+      return (
+        new URL(window.location.href)
+          .searchParams
+          .get(WINDOW_PARAM) === '1'
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  if (!isStandaloneWindow()) {
+    return;
+  }
+
+  window.__gsEfficiencyDailyWorkColumnWidthDragV1 =
+    true;
+
+  let hoverBoundary = null;
+  let dragState = null;
+  let lastDate = '';
+
+  let guide = null;
+
+  const getDateValue = () =>
+    String(
+      document.getElementById(
+        'efficiencyDailyWorkDate'
+      )?.value || ''
+    ).trim();
+
+  const getStorageKey = dateValue =>
+    `${STORAGE_PREFIX}${dateValue || 'unknown'}`;
+
+  const getTable = () =>
+    document.querySelector(
+      TABLE_SELECTOR
+    );
+
+  const getCols = table =>
+    table
+      ? [
+          ...table.querySelectorAll(
+            ':scope > colgroup > col'
+          )
+        ]
+      : [];
+
+  const getHeaderCells = table =>
+    table
+      ? [
+          ...table.querySelectorAll(
+            ':scope > thead > tr:first-child > th'
+          )
+        ]
+      : [];
+
+  const normalizeWidths = values => {
+    if (!Array.isArray(values)) {
+      return [];
+    }
+
+    const widths =
+      values.map(Number);
+
+    if (
+      widths.length !== 4 ||
+      widths.some(value =>
+        !Number.isFinite(value) ||
+        value <= 0
+      )
+    ) {
+      return [];
+    }
+
+    const total =
+      widths.reduce(
+        (sum, value) =>
+          sum + value,
+        0
+      );
+
+    if (total <= 0) {
+      return [];
+    }
+
+    return widths.map(
+      value =>
+        Math.round(
+          (
+            value /
+            total *
+            100
+          ) * 1000
+        ) / 1000
+    );
+  };
+
+  const loadWidths = dateValue => {
+    if (!dateValue) {
+      return [];
+    }
+
+    try {
+      const raw =
+        localStorage.getItem(
+          getStorageKey(dateValue)
+        );
+
+      if (!raw) {
+        return [];
+      }
+
+      return normalizeWidths(
+        JSON.parse(raw)
+      );
+
+    } catch {
+      return [];
+    }
+  };
+
+  const saveWidths = (
+    dateValue,
+    widths
+  ) => {
+    if (!dateValue) {
+      return;
+    }
+
+    const normalized =
+      normalizeWidths(widths);
+
+    if (normalized.length !== 4) {
+      return;
+    }
+
+    try {
+      localStorage.setItem(
+        getStorageKey(dateValue),
+        JSON.stringify(normalized)
+      );
+    } catch (_) {
+      // Layout backup failure must not break document work.
+    }
+  };
+
+  const measureCurrentWidths = table => {
+    const cells =
+      getHeaderCells(table);
+
+    if (cells.length !== 4) {
+      return [];
+    }
+
+    const widths =
+      cells.map(
+        cell =>
+          cell.getBoundingClientRect().width
+      );
+
+    const total =
+      widths.reduce(
+        (sum, value) =>
+          sum + value,
+        0
+      );
+
+    if (total <= 0) {
+      return [];
+    }
+
+    return widths.map(
+      value =>
+        value / total * 100
+    );
+  };
+
+  const clearColumnWidths = table => {
+    if (!table) {
+      return;
+    }
+
+    table.style.removeProperty(
+      'table-layout'
+    );
+
+    table.style.removeProperty(
+      'width'
+    );
+
+    getCols(table)
+      .forEach(col => {
+        col.style.removeProperty(
+          'width'
+        );
+
+        col.style.removeProperty(
+          'min-width'
+        );
+
+        col.style.removeProperty(
+          'max-width'
+        );
+      });
+
+    table.removeAttribute(
+      'data-column-width-drag-v1-applied'
+    );
+  };
+
+  const applyColumnWidths = (
+    table,
+    widths
+  ) => {
+    const normalized =
+      normalizeWidths(widths);
+
+    const cols =
+      getCols(table);
+
+    if (
+      normalized.length !== 4 ||
+      cols.length !== 4
+    ) {
+      return false;
+    }
+
+    table.style.setProperty(
+      'table-layout',
+      'fixed',
+      'important'
+    );
+
+    table.style.setProperty(
+      'width',
+      '100%',
+      'important'
+    );
+
+    cols.forEach(
+      (col, index) => {
+        col.style.setProperty(
+          'width',
+          `${normalized[index]}%`,
+          'important'
+        );
+      }
+    );
+
+    table.setAttribute(
+      'data-column-width-drag-v1-applied',
+      '1'
+    );
+
+    return true;
+  };
+
+  const applyStoredWidths = () => {
+    if (dragState) {
+      return;
+    }
+
+    const table =
+      getTable();
+
+    const dateValue =
+      getDateValue();
+
+    if (
+      !table ||
+      !dateValue
+    ) {
+      return;
+    }
+
+    const widths =
+      loadWidths(
+        dateValue
+      );
+
+    if (widths.length === 4) {
+      applyColumnWidths(
+        table,
+        widths
+      );
+
+    } else if (
+      table.hasAttribute(
+        'data-column-width-drag-v1-applied'
+      )
+    ) {
+      clearColumnWidths(
+        table
+      );
+    }
+  };
+
+  const ensureGuide = () => {
+    if (guide?.isConnected) {
+      return guide;
+    }
+
+    guide =
+      document.createElement(
+        'div'
+      );
+
+    guide.id =
+      'efficiencyDailyWorkColumnResizeGuideV1';
+
+    guide.setAttribute(
+      'aria-hidden',
+      'true'
+    );
+
+    document.body.append(
+      guide
+    );
+
+    return guide;
+  };
+
+  const hideGuide = () => {
+    if (guide) {
+      guide.hidden = true;
+    }
+  };
+
+  const showGuide = (
+    x,
+    table
+  ) => {
+    const line =
+      ensureGuide();
+
+    const rect =
+      table.getBoundingClientRect();
+
+    line.hidden = false;
+
+    line.style.left =
+      `${Math.round(x)}px`;
+
+    line.style.top =
+      `${Math.round(rect.top)}px`;
+
+    line.style.height =
+      `${Math.round(rect.height)}px`;
+  };
+
+  const findBoundary = event => {
+    const table =
+      getTable();
+
+    if (!table) {
+      return null;
+    }
+
+    const tableRect =
+      table.getBoundingClientRect();
+
+    if (
+      event.clientX <
+        tableRect.left - EDGE_HOTSPOT ||
+      event.clientX >
+        tableRect.right + EDGE_HOTSPOT ||
+      event.clientY <
+        tableRect.top ||
+      event.clientY >
+        tableRect.bottom
+    ) {
+      return null;
+    }
+
+    const cells =
+      getHeaderCells(table);
+
+    if (cells.length !== 4) {
+      return null;
+    }
+
+    /*
+     * Outer table borders are not resized.
+     * Only the three internal column boundaries.
+     */
+    for (
+      let index = 0;
+      index < cells.length - 1;
+      index += 1
+    ) {
+      const boundaryX =
+        cells[index]
+          .getBoundingClientRect()
+          .right;
+
+      if (
+        Math.abs(
+          event.clientX -
+          boundaryX
+        ) <= EDGE_HOTSPOT
+      ) {
+        return {
+          table,
+          boundaryIndex: index,
+          x: boundaryX
+        };
+      }
+    }
+
+    return null;
+  };
+
+  const clearHover = () => {
+    hoverBoundary = null;
+
+    document.documentElement
+      .classList.remove(
+        'is-daily-work-column-resize-hover-v1'
+      );
+
+    if (!dragState) {
+      hideGuide();
+    }
+  };
+
+  const setHover = boundary => {
+    if (!boundary) {
+      clearHover();
+      return;
+    }
+
+    hoverBoundary =
+      boundary;
+
+    document.documentElement
+      .classList.add(
+        'is-daily-work-column-resize-hover-v1'
+      );
+
+    showGuide(
+      boundary.x,
+      boundary.table
+    );
+  };
+
+  const beginDrag = (
+    event,
+    boundary
+  ) => {
+    const table =
+      boundary.table;
+
+    const cells =
+      getHeaderCells(table);
+
+    if (cells.length !== 4) {
+      return;
+    }
+
+    const widthsPx =
+      cells.map(
+        cell =>
+          cell.getBoundingClientRect().width
+      );
+
+    const tableWidth =
+      table.getBoundingClientRect().width;
+
+    if (
+      tableWidth <= 0 ||
+      widthsPx.some(
+        width =>
+          !Number.isFinite(width) ||
+          width <= 0
+      )
+    ) {
+      return;
+    }
+
+    const leftIndex =
+      boundary.boundaryIndex;
+
+    const rightIndex =
+      leftIndex + 1;
+
+    dragState = {
+      table,
+      dateValue:
+        getDateValue(),
+      pointerId:
+        event.pointerId,
+      startX:
+        event.clientX,
+      tableWidth,
+      startWidthsPx:
+        [...widthsPx],
+      leftIndex,
+      rightIndex,
+      currentWidths:
+        normalizeWidths(
+          widthsPx
+        )
+    };
+
+    document.documentElement
+      .classList.add(
+        'is-daily-work-column-resizing-v1'
+      );
+
+    showGuide(
+      event.clientX,
+      table
+    );
+
+    try {
+      table.setPointerCapture(
+        event.pointerId
+      );
+    } catch (_) {
+      // document pointer listeners still continue the drag.
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+  };
+
+  const moveDrag = event => {
+    if (!dragState) {
+      return;
+    }
+
+    const {
+      table,
+      startX,
+      tableWidth,
+      startWidthsPx,
+      leftIndex,
+      rightIndex
+    } = dragState;
+
+    const pairTotal =
+      startWidthsPx[leftIndex] +
+      startWidthsPx[rightIndex];
+
+    let leftWidth =
+      startWidthsPx[leftIndex] +
+      (
+        event.clientX -
+        startX
+      );
+
+    leftWidth =
+      Math.max(
+        MIN_COLUMN_PX,
+        Math.min(
+          pairTotal -
+          MIN_COLUMN_PX,
+          leftWidth
+        )
+      );
+
+    const rightWidth =
+      pairTotal -
+      leftWidth;
+
+    const nextPx =
+      [...startWidthsPx];
+
+    nextPx[leftIndex] =
+      leftWidth;
+
+    nextPx[rightIndex] =
+      rightWidth;
+
+    const nextPercent =
+      nextPx.map(
+        width =>
+          width /
+          tableWidth *
+          100
+      );
+
+    dragState.currentWidths =
+      normalizeWidths(
+        nextPercent
+      );
+
+    applyColumnWidths(
+      table,
+      dragState.currentWidths
+    );
+
+    const currentCells =
+      getHeaderCells(table);
+
+    const currentBoundaryX =
+      currentCells[leftIndex]
+        ?.getBoundingClientRect()
+        .right;
+
+    showGuide(
+      Number.isFinite(
+        currentBoundaryX
+      )
+        ? currentBoundaryX
+        : event.clientX,
+      table
+    );
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+  };
+
+  const finishDrag = event => {
+    if (!dragState) {
+      return;
+    }
+
+    const finished =
+      dragState;
+
+    if (
+      finished.currentWidths
+        ?.length === 4
+    ) {
+      saveWidths(
+        finished.dateValue,
+        finished.currentWidths
+      );
+    }
+
+    try {
+      if (
+        finished.table
+          .hasPointerCapture?.(
+            finished.pointerId
+          )
+      ) {
+        finished.table
+          .releasePointerCapture(
+            finished.pointerId
+          );
+      }
+    } catch (_) {
+      // Ignore pointer capture release failure.
+    }
+
+    dragState = null;
+
+    document.documentElement
+      .classList.remove(
+        'is-daily-work-column-resizing-v1'
+      );
+
+    clearHover();
+
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    }
+  };
+
+  const installStyle = () => {
+    if (
+      document.getElementById(
+        'efficiencyDailyWorkColumnWidthDragStyleV1'
+      )
+    ) {
+      return;
+    }
+
+    const style =
+      document.createElement(
+        'style'
+      );
+
+    style.id =
+      'efficiencyDailyWorkColumnWidthDragStyleV1';
+
+    style.textContent = `
+      html.is-daily-work-column-resize-hover-v1,
+      html.is-daily-work-column-resize-hover-v1 * {
+        cursor: ew-resize !important;
+      }
+
+      html.is-daily-work-column-resizing-v1,
+      html.is-daily-work-column-resizing-v1 * {
+        cursor: ew-resize !important;
+        user-select: none !important;
+      }
+
+      #efficiencyDailyWorkColumnResizeGuideV1 {
+        position: fixed;
+        z-index: 2147483646;
+
+        width: 2px;
+
+        margin-left: -1px;
+
+        pointer-events: none;
+
+        background:
+          #2877d4;
+
+        box-shadow:
+          0 0 0 1px
+          rgba(40,119,212,.15);
+      }
+
+      #efficiencyDailyWorkColumnResizeGuideV1[hidden] {
+        display: none !important;
+      }
+    `;
+
+    document.head.append(
+      style
+    );
+  };
+
+  installStyle();
+
+  document.addEventListener(
+    'pointermove',
+    event => {
+      if (dragState) {
+        moveDrag(event);
+        return;
+      }
+
+      /*
+       * The existing horizontal-row resize V3 gets priority
+       * at exact row/column intersections.
+       */
+      if (
+        document.documentElement
+          .classList.contains(
+            'is-daily-work-direct-resizing-v3'
+          )
+      ) {
+        clearHover();
+        return;
+      }
+
+      setHover(
+        findBoundary(event)
+      );
+    },
+    {
+      capture: true,
+      passive: false
+    }
+  );
+
+  document.addEventListener(
+    'pointerdown',
+    event => {
+      if (
+        event.button !== 0 ||
+        dragState
+      ) {
+        return;
+      }
+
+      if (
+        document.documentElement
+          .classList.contains(
+            'is-daily-work-direct-resize-v3'
+          ) ||
+        document.documentElement
+          .classList.contains(
+            'is-daily-work-direct-resizing-v3'
+          )
+      ) {
+        return;
+      }
+
+      const boundary =
+        findBoundary(event);
+
+      if (!boundary) {
+        return;
+      }
+
+      beginDrag(
+        event,
+        boundary
+      );
+    },
+    {
+      capture: true,
+      passive: false
+    }
+  );
+
+  document.addEventListener(
+    'pointerup',
+    finishDrag,
+    {
+      capture: true,
+      passive: false
+    }
+  );
+
+  document.addEventListener(
+    'pointercancel',
+    finishDrag,
+    {
+      capture: true,
+      passive: false
+    }
+  );
+
+  /*
+   * Initial load + date changes.
+   * No MutationObserver.
+   */
+  let attempts = 0;
+
+  const startupTimer =
+    window.setInterval(
+      () => {
+        attempts += 1;
+
+        const table =
+          getTable();
+
+        if (
+          table ||
+          attempts >= 150
+        ) {
+          window.clearInterval(
+            startupTimer
+          );
+
+          lastDate =
+            getDateValue();
+
+          applyStoredWidths();
+        }
+      },
+      100
+    );
+
+  const dateTimer =
+    window.setInterval(
+      () => {
+        const currentDate =
+          getDateValue();
+
+        if (
+          currentDate !==
+          lastDate
+        ) {
+          clearHover();
+
+          lastDate =
+            currentDate;
+        }
+
+        applyStoredWidths();
+      },
+      1000
+    );
+
+  window.addEventListener(
+    'beforeunload',
+    () => {
+      window.clearInterval(
+        startupTimer
+      );
+
+      window.clearInterval(
+        dateTimer
+      );
+    },
+    { once: true }
+  );
+
+  console.info(
+    `[${VERSION}] ready`
+  );
+})();
