@@ -2108,9 +2108,36 @@
     );
 
 
+    /*
+     * =========================================================
+     * EFFICIENCY_DAILY_WORK_WORKLOG_PICKER_HIDE_CONFLICT_FIX_V4
+     *
+     * V3에서는 오른쪽 pointerdown에서 메뉴를 먼저 표시하지만,
+     * 기존 outside-click handler가 같은 이벤트에서 바로 메뉴를
+     * 닫아버리는 문제가 있었다.
+     *
+     * 오른쪽 버튼은 context menu 처리용이므로 여기서는 무시한다.
+     * 왼쪽 클릭으로 메뉴 바깥을 클릭할 때만 닫는다.
+     * =========================================================
+     */
+
     window.addEventListener(
       'pointerdown',
       event => {
+
+        /*
+         * Right mouse button:
+         * Worklog Picker가 처리하므로 여기서 닫지 않는다.
+         */
+        if (
+          Number(
+            event?.button
+          ) ===
+            2
+        ) {
+          return;
+        }
+
 
         const menu =
           document.getElementById(
