@@ -3350,7 +3350,16 @@
     }
 
     const button =
-      event?.currentTarget ||
+      event?.target
+        ?.closest?.(
+          `#${BUTTON_ID}`
+        ) ||
+      (
+        event?.currentTarget?.id ===
+          BUTTON_ID
+          ? event.currentTarget
+          : null
+      ) ||
       document.getElementById(
         BUTTON_ID
       );
@@ -3502,12 +3511,100 @@
   }
 
 
-  function installButton() {
+  /* =========================================================
+    EFFICIENCY_DAILY_WORK_EXCEL_CLICK_BIND_V5
+
+    The Daily Work view can replace button DOM nodes after the
+    Excel runtime has initially attached its click listener.
+
+    V5 keeps both protections:
+    - rebind an existing Save + Excel button directly
+    - delegated capture listener survives later DOM replacement
+  ========================================================= */
+
+  function bindDailyWorkExcelButtonV5(
+    button
+  ) {
+    if (!button) {
+      return false;
+    }
+
+    button.type =
+      "button";
+
+    button.dataset
+      .dailyWorkExcelDownload =
+      BUTTON_MARKER;
+
+    button.removeEventListener(
+      "click",
+      handleExcelDownloadClick
+    );
+
+    button.addEventListener(
+      "click",
+      handleExcelDownloadClick
+    );
+
+    return true;
+  }
+
+
+  function handleDailyWorkExcelDelegatedClickV5(
+    event
+  ) {
+    const button =
+      event?.target
+        ?.closest?.(
+          `#${BUTTON_ID}`
+        );
+
     if (
+      !button ||
+      button.dataset
+        .dailyWorkExcelDownload !==
+        BUTTON_MARKER
+    ) {
+      return;
+    }
+
+    handleExcelDownloadClick(
+      event
+    );
+  }
+
+
+  function installDailyWorkExcelDelegatedClickV5() {
+    if (
+      window.__efficiencyDailyWorkExcelDelegatedClickV5
+    ) {
+      return;
+    }
+
+    window.__efficiencyDailyWorkExcelDelegatedClickV5 =
+      true;
+
+    document.addEventListener(
+      "click",
+      handleDailyWorkExcelDelegatedClickV5,
+      true
+    );
+  }
+
+
+  function installButton() {
+    const existingButton =
       document.getElementById(
         BUTTON_ID
-      )
+      );
+
+    if (
+      existingButton
     ) {
+      bindDailyWorkExcelButtonV5(
+        existingButton
+      );
+
       return true;
     }
 
@@ -3542,9 +3639,8 @@
     button.title =
       "현재 일일업무현황을 저장한 뒤 기존 Excel 양식으로 다운로드합니다.";
 
-    button.addEventListener(
-      "click",
-      handleExcelDownloadClick
+    bindDailyWorkExcelButtonV5(
+      button
     );
 
     saveButton.insertAdjacentElement(
@@ -3557,6 +3653,8 @@
 
 
   function initialize() {
+    installDailyWorkExcelDelegatedClickV5();
+
     if (
       installButton()
     ) {
