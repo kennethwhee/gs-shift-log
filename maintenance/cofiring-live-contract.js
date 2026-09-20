@@ -5,6 +5,11 @@ function createCofiringLiveContract() {
   const TYPE = 'cofiring_daily';
   const MAX_BYTES = 1500000;
   const definitions = [{"id":"unit1CoalA1","unit":"unit1","fuel":"coal","queryTag":"GSPOGE.ABB_DCS.BLR1 COAL FEEDER A-1 REFERENSE","tag":"GSPOGE.ABB_DCS.BLR1 COAL FEEDER A-1 REFERENSE/PLOT"},{"id":"unit1CoalA2","unit":"unit1","fuel":"coal","queryTag":"GSPOGE.ABB_DCS.BLR1 COAL FEEDER A-2 REFERENSE","tag":"GSPOGE.ABB_DCS.BLR1 COAL FEEDER A-2 REFERENSE/PLOT"},{"id":"unit1CoalB1","unit":"unit1","fuel":"coal","queryTag":"GSPOGE.ABB_DCS.BLR1 COAL FEEDER B-1 REFERENSE","tag":"GSPOGE.ABB_DCS.BLR1 COAL FEEDER B-1 REFERENSE/PLOT"},{"id":"unit1CoalB2","unit":"unit1","fuel":"coal","queryTag":"GSPOGE.ABB_DCS.BLR1 COAL FEEDER B-2 REFERENSE","tag":"GSPOGE.ABB_DCS.BLR1 COAL FEEDER B-2 REFERENSE/PLOT"},{"id":"unit1Bio","unit":"unit1","fuel":"bio","queryTag":"GSPOGE.ABB_DCS.BLR1 BIO SRF REFERENCE","tag":"GSPOGE.ABB_DCS.BLR1 BIO SRF REFERENCE/PLOT"},{"id":"unit2CoalA1","unit":"unit2","fuel":"coal","queryTag":"GSPOGE.ABB_DCS.BLR2 COAL FEEDER A-1 REFERENSE","tag":"GSPOGE.ABB_DCS.BLR2 COAL FEEDER A-1 REFERENSE/PLOT"},{"id":"unit2CoalA2","unit":"unit2","fuel":"coal","queryTag":"GSPOGE.ABB_DCS.BLR2 COAL FEEDER A-2 REFERENSE","tag":"GSPOGE.ABB_DCS.BLR2 COAL FEEDER A-2 REFERENSE/PLOT"},{"id":"unit2CoalB1","unit":"unit2","fuel":"coal","queryTag":"GSPOGE.ABB_DCS.BLR2 COAL FEEDER B-1 REFERENSE","tag":"GSPOGE.ABB_DCS.BLR2 COAL FEEDER B-1 REFERENSE/PLOT"},{"id":"unit2CoalB2","unit":"unit2","fuel":"coal","queryTag":"GSPOGE.ABB_DCS.BLR2 COAL FEEDER B-2 REFERENSE","tag":"GSPOGE.ABB_DCS.BLR2 COAL FEEDER B-2 REFERENSE/PLOT"},{"id":"unit2Bio","unit":"unit2","fuel":"bio","queryTag":"GSPOGE.ABB_DCS.BLR2 BIO SRF REFERENCE","tag":"GSPOGE.ABB_DCS.BLR2 BIO SRF REFERENCE/PLOT"}];
+  const inventoryDefinitions = [
+    {key:'organicDaySilo',label:'Day Silo',tag:'GSPOGE.ABB_DCS.104SDF01CW001XQ01/PLOT'},
+    {key:'organicStorageSiloA',label:'Storage Silo A',tag:'GSPOGE.ABB_DCS.003SDF01CW001XQ01/PLOT'},
+    {key:'organicStorageSiloB',label:'Storage Silo B',tag:'GSPOGE.ABB_DCS.003SDF02CW001XQ01/PLOT'}
+  ];
   const good = q => typeof q === 'string' && /^(?:good|raw\s*,\s*good|good\s*,\s*raw)$/i.test(q.trim());
   const noData = q => typeof q === 'string' && ['bad,no data','no data,bad'].includes(q.toLowerCase().split(',').map(s=>s.trim()).join(','));
   const uuid = s => typeof s==='string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(s);
@@ -155,6 +160,38 @@ function createCofiringLiveContract() {
     if(item.boundaryValid!==true||item.durationCoverageValid!==true)fail('기간 Worker 경계 검증 실패: '+def.id);
     return {...item,effectiveStartValue:effectiveStart,effectiveEndValue:effectiveEnd,startBoundaryRecovered:startFallback,endBoundaryRecovered:endFallback,dataComplete:item.durationBadSeconds<=0.001};
   }
+  function validateOrganicInventory(raw,p) {
+    if(raw===null||raw===undefined)return null;
+    if(!raw||typeof raw!=='object'||Array.isArray(raw)||raw.schemaVersion!==1||raw.basis!=='dataparc_period_boundary'||
+       raw.startLocal!==p.startLocal||raw.endLocal!==p.endLocal)fail('유기성 재고 기간 계약이 다릅니다.');
+    if(!Array.isArray(raw.samples)||raw.samples.length!==inventoryDefinitions.length)fail('유기성 재고 3개 TAG 경계값이 필요합니다.');
+    const map=new Map(raw.samples.map(sample=>[sample?.key,sample]));
+    if(map.size!==inventoryDefinitions.length)fail('유기성 재고 TAG가 중복됐습니다.');
+    const canonical=[],start={},end={};let startTotal=0,endTotal=0;
+    const expected=p.durationMinutes*60;
+    for(const def of inventoryDefinitions){
+      const sample=map.get(def.key);
+      if(!sample||sample.key!==def.key||sample.label!==def.label||sample.tag!==def.tag)fail('유기성 재고 TAG 식별 불일치: '+def.key);
+      if(!number(sample.startValue)||sample.startValue<0||!number(sample.endValue)||sample.endValue<0)fail('유기성 재고 경계값 누락: '+def.key);
+      if(!good(sample.startQuality)||!good(sample.endQuality))fail('유기성 재고 경계 품질 불량: '+def.key);
+      const st=Date.parse(sample.startTime),et=Date.parse(sample.endTime);
+      if(!Number.isFinite(st)||st<p.startMs||st>=p.startMs+60000||!Number.isFinite(et)||et<p.endMs||et>=p.endMs+60000)fail('유기성 재고 반환시각 불일치: '+def.key);
+      if(!number(sample.durationGoodSeconds)||sample.durationGoodSeconds<0||!number(sample.durationBadSeconds)||sample.durationBadSeconds<0||
+         Math.abs(sample.durationGoodSeconds+sample.durationBadSeconds-expected)>2||sample.durationCoverageValid!==true)fail('유기성 재고 품질 지속시간 불일치: '+def.key);
+      if(sample.boundaryValid!==true||sample.dataComplete!==true)fail('유기성 재고 경계 검증 실패: '+def.key);
+      start[def.key]=sample.startValue;end[def.key]=sample.endValue;startTotal+=sample.startValue;endTotal+=sample.endValue;
+      canonical.push({...sample,min:number(sample.min)?sample.min:null,max:number(sample.max)?sample.max:null,delta:number(sample.delta)?sample.delta:null});
+    }
+    const validateSide=(side,values,total,label)=>{
+      if(!side||typeof side!=='object'||Array.isArray(side)||!number(side.total)||side.total<0)fail('유기성 '+label+' 재고 합계가 없습니다.');
+      for(const def of inventoryDefinitions)if(!number(side[def.key])||Math.abs(side[def.key]-values[def.key])>0.001)fail('유기성 '+label+' 재고와 TAG 값이 다릅니다: '+def.key);
+      if(Math.abs(side.total-total)>0.001)fail('유기성 '+label+' 총 재고량이 Silo 합계와 다릅니다.');
+    };
+    validateSide(raw.start,start,startTotal,'시작');
+    validateSide(raw.end,end,endTotal,'종료');
+    return {schemaVersion:1,basis:'dataparc_period_boundary',startLocal:p.startLocal,endLocal:p.endLocal,
+      start:{...start,total:startTotal},end:{...end,total:endTotal},samples:canonical};
+  }
   function validatePeriodReport(r,spec) {
     const p=period(spec,Number.MAX_SAFE_INTEGER);
     if(!r||r.kind!=='cofiring_dataparc_period_report'||r.schemaVersion!==1||!['PERIOD_READY','PERIOD_DATA_GAPS'].includes(r.status))fail('지원하는 기간 조회 결과가 아닙니다.');
@@ -166,9 +203,18 @@ function createCofiringLiveContract() {
     const hasGaps=summaries.some(s=>!s.dataComplete),status=hasGaps?'PERIOD_DATA_GAPS':'PERIOD_READY';
     if(r.status!==status)fail('기간 데이터 상태와 결과 상태가 다릅니다.');
     if(!Number.isFinite(Date.parse(r.completedAtUtc)))fail('기간 조회 완료시각이 없습니다.');
+    const hasInventoryFields=Object.prototype.hasOwnProperty.call(r,'organicInventory')||Object.prototype.hasOwnProperty.call(r,'organicInventoryReady');
+    let organicInventory=null;
+    if(hasInventoryFields){
+      if(r.organicInventoryReady===true)organicInventory=validateOrganicInventory(r.organicInventory,p);
+      else if(r.organicInventoryReady===false&&(r.organicInventory===null||r.organicInventory===undefined))organicInventory=null;
+      else fail('유기성 재고 준비 상태와 결과가 다릅니다.');
+    }
     const calorifics={unit1:{coal:5868,bio:3237,organic:3487,manure:3487},unit2:{coal:5868,bio:3237,organic:3487,manure:3487}};
     const coefficients={unit1:{coal:1,bio:1,organic:1,manure:1},unit2:{coal:1,bio:1,organic:1,manure:1}};
-    return {...r,status,summaries,reference:{kind:'cofiring_period_summary_v1',schemaVersion:1,startLocal:p.startLocal,endLocal:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue,summaries,calorifics,coefficients}};
+    const reference={kind:'cofiring_period_summary_v1',schemaVersion:1,startLocal:p.startLocal,endLocal:p.endLocal,stepUnit:p.stepUnit,stepValue:p.stepValue,summaries,calorifics,coefficients};
+    if(organicInventory)reference.organicInventory=organicInventory;
+    return hasInventoryFields?{...r,status,summaries,organicInventoryReady:organicInventory!==null,organicInventory,reference}:{...r,status,summaries,reference};
   }
   function periodResult(raw,requestId,spec) {
     const p=period(spec,Number.MAX_SAFE_INTEGER);
@@ -178,7 +224,7 @@ function createCofiringLiveContract() {
     if(new TextEncoder().encode(JSON.stringify(value)).length>MAX_BYTES)fail('기간 결과 저장 용량 제한 초과');
     return value;
   }
-  return {TYPE,PERIOD_TYPE,MAX_BYTES,definitions,uuid,good,noData,day,completedDay,validateReport,result,period,periodKey,periodEnvelope,validatePeriodReport,periodResult};
+  return {TYPE,PERIOD_TYPE,MAX_BYTES,definitions,inventoryDefinitions,uuid,good,noData,day,completedDay,validateReport,result,period,periodKey,periodEnvelope,validateOrganicInventory,validatePeriodReport,periodResult};
 }
 
 (function(root){const api=createCofiringLiveContract();if(typeof module==='object'&&module.exports)module.exports=api;root.CofiringLiveContract=api;})(typeof globalThis==='object'?globalThis:this);

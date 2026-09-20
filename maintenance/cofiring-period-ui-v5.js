@@ -103,7 +103,7 @@
 
       <div class="cfv52-manual-panel">
         <div class="cfv52-manual-head">
-          <div><strong>유기성 · 축분 사용량 입력</strong><span>선택기간 누적량 · 빈칸=0t로 계산</span></div>
+          <div><strong>유기성 · 축분 사용량 입력</strong><span data-cfv15-organic-usage>선택기간 누적량 · 빈칸=0t로 계산 · 유기성 자동사용량 대기</span></div>
           <div class="cfv52-manual-actions"><div class="cfv14-receipt-inline" aria-label="입고량 입력"><strong>입고량</strong><span class="cfv14-receipt-auto" data-cfv14-receipt-source>입고기록 자동</span><label><span class="cfv14-receipt-label">유기성</span><span class="cfv14-receipt-field"><input class="cfv14-receipt-input" type="text" inputmode="decimal" data-cfv5-receipt="organic" placeholder="0"><small>ton</small></span></label><label><span class="cfv14-receipt-label">축분</span><span class="cfv14-receipt-field"><input class="cfv14-receipt-input" type="text" inputmode="decimal" data-cfv5-receipt="manure" placeholder="0"><small>ton</small></span></label></div><span data-cfv5-manual-state>저장값 없음</span><button type="button" data-cfv5-manual-save title="사용량과 입고량을 함께 저장합니다.">사용량 저장</button></div>
         </div>
         <div class="cfv52-manual-grid">
@@ -267,7 +267,7 @@
     const morningOrganicTouched=new Set(),morningOrganicAuto=new Map();
     const settings=settingsApi?.create({getHeaders:authHeaders,canEdit:()=>!isMobile(),onChange:()=>paintSettings()})||null;
     const manual=manualApi?.create({getHeaders:authHeaders,canEdit:()=>!isMobile(),onChange:()=>paintManual()})||null;
-    const live=liveApi?.createPeriod({getHeaders:authHeaders,canQuery:()=>!isMobile()&&selectedDayAvailability().ready,isVisible:()=>visible(),onChange:s=>paintLive(s),onResult:r=>{if(!sameSelectedPeriod(r?.report?.reference)||!selectedDayAvailability().ready)return;reference=r.report.reference;if(storesReady())calculate();}})||null;
+    const live=liveApi?.createPeriod({getHeaders:authHeaders,canQuery:()=>!isMobile()&&selectedDayAvailability().ready,isVisible:()=>visible(),onChange:s=>paintLive(s),onResult:r=>{if(!sameSelectedPeriod(r?.report?.reference)||!selectedDayAvailability().ready)return;reference=r.report.reference;updateOrganicInventoryUsage();if(storesReady())calculate();}})||null;
     clickTiming=root.CofiringClickTimingV1?.create({isCurrent:()=>clickIsCurrent(),onChange:s=>paintClickTiming(s)});
     function clickIsCurrent(){try{return !!clickContext&&!disposed&&visible()&&clickContext.epoch===selectionEpoch&&clickContext.spec===JSON.stringify(currentSpec())&&clickContext.auth===String(authHeaders().Authorization||authHeaders().authorization||'');}catch(_){return false;}}
     // SOLID_FUEL_RECEIPT_LINK_V1
@@ -275,25 +275,57 @@
     function receiptSource(text,tone=''){const el=container.querySelector('[data-cfv14-receipt-source]');if(el){el.textContent=text;el.dataset.tone=tone;}}
     function resetReceiptAuto(){for(const input of container.querySelectorAll('[data-cfv5-receipt]')){delete input.dataset.cfv14Auto;input.readOnly=false;input.removeAttribute('aria-readonly');}}
     function setReceiptAutoValues(receipts){for(const fuel of ['organic','manure']){const input=container.querySelector(`[data-cfv5-receipt="${fuel}"]`);if(!input)continue;const value=Number(receipts?.[fuel]||0);input.value=Number.isFinite(value)?String(value):'0';input.dataset.cfv14Auto='1';input.readOnly=true;input.setAttribute('aria-readonly','true');}}
+    function organicUsageSource(text,tone=''){
+      const el=container.querySelector('[data-cfv15-organic-usage]');
+      if(el){el.textContent=text;el.dataset.tone=tone;}
+    }
+    function updateOrganicInventoryUsage(){
+      const inventory=reference?.organicInventory;
+      if(!reference){organicUsageSource('선택기간 누적량 · 유기성 자동사용량은 DataPARC 조회 후 계산','');return null;}
+      if(!inventory?.start||!inventory?.end){
+        organicUsageSource('선택기간 누적량 · 유기성 자동사용량 · 최신 DataPARC 재조회 필요','working');
+        return null;
+      }
+      const startTotal=Number(inventory.start.total),endTotal=Number(inventory.end.total);
+      const receiptInput=container.querySelector('[data-cfv5-receipt="organic"]');
+      const receiptRaw=String(receiptInput?.value??'').trim(),receipt=receiptRaw===''?0:Number(receiptRaw);
+      if(!Number.isFinite(startTotal)||startTotal<0||!Number.isFinite(endTotal)||endTotal<0||!Number.isFinite(receipt)||receipt<0){
+        organicUsageSource('선택기간 누적량 · 유기성 자동사용량 계산값 확인 필요','error');
+        return null;
+      }
+      const raw=startTotal+receipt-endTotal;
+      if(raw < -0.05){
+        organicUsageSource(`유기성 자동사용량 확인 필요 · ${num(startTotal,3)} + ${num(receipt,3)} - ${num(endTotal,3)} = ${num(raw,3)} ton`,'error');
+        return {ok:false,startTotal,receipt,endTotal,usage:raw};
+      }
+      const usage=raw<0?0:raw;
+      organicUsageSource(`유기성 총 사용량 ${num(usage,3)}t = 시작재고 ${num(startTotal,3)} + 입고 ${num(receipt,3)} - 종료재고 ${num(endTotal,3)} · 호기별 배분 전`,'ready');
+      return {ok:true,startTotal,receipt,endTotal,usage};
+    }
     async function syncReceiptTotals(){
       const generation=++receiptSyncGeneration;
-      if(queryMode(container)!=='daily'){resetReceiptAuto();receiptSource('기간 지정 · 수기','manual');paintManual();return false;}
+      if(queryMode(container)!=='daily'){resetReceiptAuto();receiptSource('기간 지정 · 수기','manual');updateOrganicInventoryUsage();paintManual();return false;}
+      let p;try{p=periodSpec(container);}catch(_){resetReceiptAuto();receiptSource('조회 기간 확인 필요','error');updateOrganicInventoryUsage();return false;}
       const date=container.querySelector('[data-cfv7-date]')?.value||'',epoch=selectionEpoch,auth=String(authHeaders().Authorization||authHeaders().authorization||'');
-      if(!date||!auth){resetReceiptAuto();receiptSource(auth?'날짜 선택 필요':'로그인 필요','error');return false;}
+      const specSignature=JSON.stringify({startLocal:p.startLocal,endLocal:p.endLocal});
+      if(!date||!auth){resetReceiptAuto();receiptSource(auth?'날짜 선택 필요':'로그인 필요','error');updateOrganicInventoryUsage();return false;}
       for(const input of container.querySelectorAll('[data-cfv5-receipt]')){input.readOnly=true;input.setAttribute('aria-readonly','true');}
       receiptSource('입고기록 확인 중','working');
       try{
-        const response=await root.fetch(`/api/solid-fuel-trouble?receiptDate=${encodeURIComponent(date)}`,{method:'GET',credentials:'same-origin',cache:'no-store',headers:{...authHeaders(),Accept:'application/json'}});
+        const query=new URLSearchParams({receiptStart:p.startLocal,receiptEnd:p.endLocal});
+        const response=await root.fetch(`/api/solid-fuel-trouble?${query.toString()}`,{method:'GET',credentials:'same-origin',cache:'no-store',headers:{...authHeaders(),Accept:'application/json'}});
         let payload=null;try{payload=await response.json();}catch(_){}
         if(!response.ok||payload?.ok!==true)throw new Error(payload?.message||'입고기록을 불러오지 못했습니다.');
-        if(disposed||generation!==receiptSyncGeneration||epoch!==selectionEpoch||queryMode(container)!=='daily'||container.querySelector('[data-cfv7-date]')?.value!==date||String(authHeaders().Authorization||authHeaders().authorization||'')!==auth)return false;
+        let current;try{const cp=periodSpec(container);current=JSON.stringify({startLocal:cp.startLocal,endLocal:cp.endLocal});}catch(_){current='';}
+        if(disposed||generation!==receiptSyncGeneration||epoch!==selectionEpoch||queryMode(container)!=='daily'||container.querySelector('[data-cfv7-date]')?.value!==date||current!==specSignature||String(authHeaders().Authorization||authHeaders().authorization||'')!==auth)return false;
         setReceiptAutoValues(payload.receipts);
-        const oc=Number(payload.counts?.organic||0),mc=Number(payload.counts?.manure||0);receiptSource(`입고기록 자동 · 유기성 ${oc}건 · 축분 ${mc}건`,'ready');
+        const oc=Number(payload.counts?.organic||0),mc=Number(payload.counts?.manure||0);receiptSource(`입고기록 자동 · 완료 하역 기준 · 유기성 ${oc}건 · 축분 ${mc}건`,'ready');
+        updateOrganicInventoryUsage();
         if(reference&&storesReady())calculate();
         return true;
       }catch(error){
         if(disposed||generation!==receiptSyncGeneration||epoch!==selectionEpoch)return false;
-        resetReceiptAuto();receiptSource('자동조회 실패 · 수기 가능','error');
+        resetReceiptAuto();receiptSource('자동조회 실패 · 수기 가능','error');updateOrganicInventoryUsage();
         return false;
       }
     }
@@ -643,7 +675,7 @@
     }
     function paintSettings(force=false){if(!settings||showDayUnavailable())return;const s=settings.state(),state=container.querySelector('[data-cfv5-settings-state]');if((force||!settingsDirty)&&s.loaded)writeSettings(container,s.settings);if(state)state.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':settingsDirty?'수정됨 · 미저장':s.source==='saved'?`${s.effectiveDate} 적용값${s.updatedByName?' · '+s.updatedByName:''}`:'기본값';for(const el of container.querySelectorAll('[data-cfv5-calorific],[data-cfv5-coefficient]'))el.disabled=mobile||s.saving;container.querySelector('[data-cfv5-settings-save]').disabled=mobile||!s.canEdit||s.saving;}
     function currentManualFromFields(){try{return readManual(container);}catch(_){return manual?.state().values||manualApi.blank();}}
-    function paintManual(force=false){if(!manual||showDayUnavailable())return;const s=manual.state(),label=container.querySelector('[data-cfv5-manual-state]');if((force||!manualDirty)&&s.loaded)writeManual(container,s.values);if(label)label.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':manualDirty?'수정됨 · 미저장':s.revision?`저장 v${s.revision}${s.updatedByName?' · '+s.updatedByName:''}`:'저장값 없음';container.querySelector('[data-cfv5-manual-save]').disabled=mobile||!s.canEdit||s.saving;for(const el of container.querySelectorAll('[data-cfv5-manual],[data-cfv5-receipt]'))el.disabled=mobile||s.saving;const values=currentManualFromFields();renderOrganic(container,displayResult||lastResult,values);renderSummary(container,displayResult||lastResult,values,deadlineInputError);bindManualInputs();}
+    function paintManual(force=false){if(!manual||showDayUnavailable())return;const s=manual.state(),label=container.querySelector('[data-cfv5-manual-state]');if((force||!manualDirty)&&s.loaded)writeManual(container,s.values);if(label)label.textContent=s.error?s.error:s.saving?'저장 중...':s.loading?'불러오는 중...':manualDirty?'수정됨 · 미저장':s.revision?`저장 v${s.revision}${s.updatedByName?' · '+s.updatedByName:''}`:'저장값 없음';container.querySelector('[data-cfv5-manual-save]').disabled=mobile||!s.canEdit||s.saving;for(const el of container.querySelectorAll('[data-cfv5-manual],[data-cfv5-receipt]'))el.disabled=mobile||s.saving;const values=currentManualFromFields();renderOrganic(container,displayResult||lastResult,values);renderSummary(container,displayResult||lastResult,values,deadlineInputError);updateOrganicInventoryUsage();bindManualInputs();}
     function morningOrganicSelectionKey(){
       return queryMode(container)==='daily'?(container.querySelector('[data-cfv7-date]')?.value||''):'';
     }
@@ -767,7 +799,7 @@
       restoringSaved=false;pendingDailyDraft=draft;try{if(queryMode(container)==='daily')captureDailySelection(container,capturedAt);}catch(_){}
       selectionEpoch++;deadlineInputError='';clearDayBoundary();clearDeadlineRefresh();live?.pause();selectedStoreKey='';resetReceiptAuto();writeManual(container,manualApi.blank());
       clickTiming?.cancel('기간 변경');if(clickTiming)paintClickTiming(clickTiming.state());renderedRequestId=null;
-      fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}reference=null;lastResult=null;displayResult=null;adjustmentActive=false;renderMain(container,null);renderOrganic(container,null,currentManualFromFields());renderSummary(container,null,currentManualFromFields());updateRange(container);renderWarnings(container,null);const ab=container.querySelector('[data-cfv56-adjust]');if(ab){ab.disabled=true;ab.classList.remove('is-active');ab.textContent='혼소 조정';}
+      fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}reference=null;lastResult=null;displayResult=null;adjustmentActive=false;updateOrganicInventoryUsage();renderMain(container,null);renderOrganic(container,null,currentManualFromFields());renderSummary(container,null,currentManualFromFields());updateRange(container);renderWarnings(container,null);const ab=container.querySelector('[data-cfv56-adjust]');if(ab){ab.disabled=true;ab.classList.remove('is-active');ab.textContent='혼소 조정';}
       try{const a=selectedDayAvailability();if(a.period)live?.select(currentSpec());if(showDayUnavailable()||deferReads)return;const pending=selectStores();setStatus(container,queryMode(container)==='daily'?'오늘은 00:00부터 현재까지 누적, 지난 날짜는 00:00부터 다음 날 00:01까지 계산합니다. [계산하기]를 눌러주세요.':'조회 기간이 변경되었습니다. [계산하기]를 누르면 표시한 기간으로 계산합니다.','');scheduleFastPrep(0);await pending;}catch(e){setStatus(container,e.message,'error');}
     }
     function refreshDailyForClick(){
@@ -793,7 +825,7 @@
       const epoch=selectionEpoch,spec=currentSpec(),authKey=String(authHeaders().Authorization||authHeaders().authorization||''),signature=JSON.stringify(spec),stillSelected=()=>!disposed&&epoch===selectionEpoch&&visible()&&JSON.stringify(currentSpec())===signature&&String(authHeaders().Authorization||authHeaders().authorization||'')===authKey;
       token=startClickTiming(live.state().item?.active?'resume_existing':'calculate');live.select(spec);const cached=cachedReference(live.state(),spec);
       if(cached&&!live.state().item?.active&&selectedStoreKey===storeKey()&&storesReady()){
-        reference=cached;const result=calculate();
+        reference=cached;updateOrganicInventoryUsage();const result=calculate();
         if(result)setStatus(container,'저장된 DataPARC 결과와 현재 입력값으로 즉시 재계산했습니다. 최신 데이터 조회는 [재조회]를 사용하세요.','success');
         return;
       }
@@ -823,7 +855,7 @@
     adjuster=adjustmentApi?.create({container,getHeaders:authHeaders,getContext:adjustmentContext,onMessage:m=>setStatus(container,m,'error'),onApply:(result)=>{renderDisplay(result,{adjusted:true});setStatus(container,'혼소 조정값을 선택기간 계산 화면에 적용했습니다. 원본 DataPARC 저장값은 변경하지 않습니다.','success');},onReset:()=>{if(lastResult){renderDisplay(lastResult,{adjusted:false});setStatus(container,'혼소 조정을 원복했습니다. DataPARC 원본 계산값을 표시합니다.','success');}}})||null;
     const adjustButton=container.querySelector('[data-cfv56-adjust]');if(adjustButton){adjustButton.disabled=true;adjustButton.addEventListener('click',()=>{try{Promise.resolve(adjuster?.open()).catch(e=>setStatus(container,e.message,'error'));}catch(e){setStatus(container,e.message,'error');}});}
     const observer=root.MutationObserver?new root.MutationObserver(()=>{if(visible()){if(showDayUnavailable())return;if(selectedStoreKey!==storeKey())void periodChanged();else{if(displayResult)renderSummary(container,displayResult,currentManualFromFields(),deadlineInputError);void syncReceiptTotals();scheduleDeadlineRefresh();scheduleFastPrep(0);}}else{restoringSaved=false;clearDayBoundary();clearDeadlineRefresh();clickTiming?.cancel('화면 닫힘');fastPrepGeneration++;if(fastPrepTimer){root.clearTimeout?.(fastPrepTimer);fastPrepTimer=null;}live?.pause();}}):null;const view=container.closest?.('[data-efficiency-view]'),modal=root.document?.getElementById?.('efficiencyTeamModal');for(const node of [view,modal])if(node&&observer)observer.observe(node,{attributes:true,attributeFilter:['hidden','aria-hidden']});
-    const receiptMessageHandler=event=>{if(event.origin!==root.location?.origin||event.data?.type!=='solid-fuel:receipt-changed')return;const date=String(event.data?.date||'');if(queryMode(container)==='daily'&&container.querySelector('[data-cfv7-date]')?.value===date)void syncReceiptTotals();};
+    const receiptMessageHandler=event=>{if(event.origin!==root.location?.origin||event.data?.type!=='solid-fuel:receipt-changed')return;if(queryMode(container)==='daily')void syncReceiptTotals();};
     root.addEventListener?.('message',receiptMessageHandler);
     statusRefreshers.set(container,refreshStatusLine);
     updateRange(container);writeSettings(container,settings?.defaults?.()||{unit1:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}},unit2:{coal:{calorific:5868,coefficient:1},bio:{calorific:3237,coefficient:1},organic:{calorific:3487,coefficient:1},manure:{calorific:3487,coefficient:1}}});const initialManual=manualApi?.blank?.()||{unit1:{organic:null,manure:null},unit2:{organic:null,manure:null}};renderMain(container,null);renderOrganic(container,null,initialManual);renderSummary(container,null,initialManual);bindManualInputs();bindMorningMeetingOrganicObserver();selectStores().catch(e=>setStatus(container,e.message,'error'));scheduleFastPrep(0);

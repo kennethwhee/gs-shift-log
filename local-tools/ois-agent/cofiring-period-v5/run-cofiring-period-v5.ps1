@@ -57,7 +57,7 @@ $cleanupErrors=New-Object 'System.Collections.Generic.List[string]'
 $cleanupActions=New-Object 'System.Collections.Generic.List[string]'
 $logOffsets=@{}
 $utf8=New-Object Text.UTF8Encoding($false)
-$expectedWorkerSha256='6e1f831028cf74dd3b3dc9ff721c36cbbbb4d0083a172b6b923dac741353d8c5'
+$expectedWorkerSha256='61614af15282d34b9d725e9dbc4c5634c3856d3bc1d9bda146c96b25c0d2fae8'
 $resultZipPath=$null
 function Resolve-CofiringPeriod([string]$StartText,[string]$EndText,[string]$Unit,[int]$Value) {
   $startValue=[datetime]::MinValue;$endValue=[datetime]::MinValue
@@ -517,12 +517,14 @@ function Save-FastControllerReport {
       diagnosticOnly=$true;dataValidated=$false;productionReady=$false;databaseWritten=$false;completedAtUtc=[datetime]::UtcNow.ToString('o')
       executionSucceeded=[bool]$executionSucceeded;cleanupVerified=[bool]$cleanupVerified;processCleanupVerified=[bool]$processCleanupVerified
       timedOut=[bool]$timedOut;deadlinePhase=$deadlinePhase;controllerFailureCode=$controllerFailureCode;workerExitCode=$workerExitCode;controllerFailure=$controllerFailure;cleanupErrors=@($cleanupErrors.ToArray());cleanupActions=@($cleanupActions.ToArray())
-      formulaCells=$(if($rawResult){$rawResult.formulaCells}else{110});queryElapsedSeconds=$(if($rawResult){$rawResult.queryElapsedSeconds}else{$null});workerElapsedSeconds=$workerElapsed
+      formulaCells=$(if($rawResult){$rawResult.formulaCells}else{143});queryElapsedSeconds=$(if($rawResult){$rawResult.queryElapsedSeconds}else{$null});workerElapsedSeconds=$workerElapsed
       timing=[ordered]@{startupBudgetSeconds=$startupTimeoutSeconds;executionBudgetSeconds=$timeoutSeconds;outerBudgetSeconds=$outerTimeoutSeconds;cleanupGraceSeconds=$cleanupGraceSeconds;readyObservedSeconds=$readyObservedSeconds;controllerElapsedSeconds=$(if($executionClock){[Math]::Round($executionClock.Elapsed.TotalSeconds,3)}else{$null});workerProcessCreatedUtc=$(if($workerSignature){([datetime]::new([long]$workerSignature.StartTicks,[DateTimeKind]::Utc)).ToString('o')}else{$null});controllerProcessCreatedUtc=$(if($controllerSignature){([datetime]::new([long]$controllerSignature.StartTicks,[DateTimeKind]::Utc)).ToString('o')}else{$null});worker=$(if($rawResult){$rawResult.timing}else{$null})}
       summaryReady=$(if($rawResult){$rawResult.summaryReady}else{$false});anyBadDuration=$(if($rawResult){$rawResult.anyBadDuration}else{$null})
       referenceCompared=$(if($rawResult){$rawResult.referenceCompared}else{0});referenceMismatches=$(if($rawResult){$rawResult.referenceMismatches}else{0})
       unitUsage=$(if($rawResult){$rawResult.unitUsage}else{$null});summaries=$(if($rawResult){$rawResult.summaries}else{@()})
-      note='기간 총사용량은 누적계 시작/끝 경계 차이와 Min/Max/Delta/Duration 품질 검증으로 계산합니다. 계산 간격은 화면 평균 표시 기준입니다.'
+      organicInventoryReady=$(if($rawResult){[bool]$rawResult.organicInventoryReady}else{$false})
+      organicInventory=$(if($rawResult){$rawResult.organicInventory}else{$null})
+      note='Coal/Bio는 누적계 시작/끝 경계 차이로 계산합니다. 유기성 재고는 Day Silo + Storage A + Storage B의 시작/종료 경계를 별도로 제공합니다.'
     }
     [IO.File]::WriteAllText((Join-Path $OutputDirectory 'period-report.json'),($report | ConvertTo-Json -Depth 12),$utf8)
     $lines=New-Object 'System.Collections.Generic.List[string]'
@@ -538,6 +540,11 @@ function Save-FastControllerReport {
     if ($report.unitUsage) {
       $lines.Add(('Unit1 coal/bio: '+[string]$report.unitUsage.unit1.coal+' / '+[string]$report.unitUsage.unit1.bio+' ton'))
       $lines.Add(('Unit2 coal/bio: '+[string]$report.unitUsage.unit2.coal+' / '+[string]$report.unitUsage.unit2.bio+' ton'))
+    }
+    if ($report.organicInventoryReady -and $report.organicInventory) {
+      $lines.Add(('Organic inventory start/end: '+[string]$report.organicInventory.start.total+' / '+[string]$report.organicInventory.end.total+' ton'))
+    } else {
+      $lines.Add('Organic inventory boundary: unavailable')
     }
     foreach ($item in @($report.summaries)) {
       $lines.Add(([string]$item.key+' usage='+[string]$item.usageTon+' ton / bad='+[string]$item.durationBadSeconds+' sec / ref='+[string]$item.referenceMatched))
@@ -566,7 +573,7 @@ try {
   $parseTokens=$null;$parseErrors=$null
   [void][System.Management.Automation.Language.Parser]::ParseInput($workerText,[ref]$parseTokens,[ref]$parseErrors)
   if (@($parseErrors).Count -gt 0) { throw ('Worker PowerShell 구문 오류: '+(($parseErrors | ForEach-Object { $_.Message }) -join ' | ')) }
-  foreach ($required in @('cofiring_dataparc_fast_summary_pilot','parallel-summary','DurationGood','DurationBad','formulaCells=110')) {
+  foreach ($required in @('cofiring_dataparc_fast_summary_pilot','parallel-summary','DurationGood','DurationBad','cofiringInventoryTags','organicInventoryReady')) {
     if (-not $workerText.Contains($required)) { throw ('Worker 고속 요약 계약 누락: '+$required) }
   }
   if ($workerText.Contains("queryMode='one-tag-at-a-time'")) { throw 'V7 순차 10-TAG 조회 블록이 남아 있습니다.' }
@@ -575,7 +582,7 @@ try {
     if (-not $workerText.Contains($requiredCompilerToken)) { throw ('Worker compiler-temp 격리 계약 누락: '+$requiredCompilerToken) }
   }
   if ($ValidateOnly) {
-    [Console]::WriteLine('PASS: COFIRING PERIOD V5 parser / hash / compiler-temp isolation / period boundary / 110-formula parallel-summary contract. Excel은 시작하지 않았습니다.')
+    [Console]::WriteLine('PASS: COFIRING PERIOD V5 parser / hash / compiler-temp isolation / period boundary / 143-formula + organic-inventory contract. Excel은 시작하지 않았습니다.')
     exit 0
   }
   if ($env:OS -ne 'Windows_NT') { throw '회사 Windows PC에서 실행해 주세요.' }

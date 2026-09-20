@@ -222,6 +222,13 @@ function json(data,status=200){ return Response.json(data,{status,headers:{"Cach
 function roleOf(v){ const r=text(v).toLowerCase().replace(/[\s-]+/g,"_"); if(["super_admin","superadmin"].includes(r)) return "super_admin"; if(["admin","leader"].includes(r)) return "admin"; return "user"; }
 function isoDate(v){ const s=text(v); if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false; const d=new Date(`${s}T00:00:00Z`); return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===s; }
 function clock(v){ const s=text(v); return /^([01]\d|2[0-3]):[0-5]\d$/.test(s); }
+function receiptLocalMinute(v){
+  const s=text(v);
+  if(!/^20\d{2}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d$/.test(s))return null;
+  const ms=Date.parse(`${s}:00+09:00`);
+  if(!Number.isFinite(ms))return null;
+  return new Date(ms+9*60*60*1000).toISOString().slice(0,16)===s?ms:null;
+}
 function limited(v,n){ return text(v).slice(0,n); }
 function cleanCompany(v){ return limited(text(v).replace(/\s*\(추정\)\s*/g,"").trim(),80); }
 function optionalDate(v){ const s=text(v); return !s||isoDate(s)?s:null; }
@@ -572,6 +579,41 @@ async function receiptSummary(db,date){
     FROM solid_fuel_unloading_logs
     WHERE deleted_at IS NULL AND unloading_date=?
   `).bind(date).first();
+  return {
+    organic:Number(row?.organic_tons||0),
+    manure:Number(row?.manure_tons||0),
+    counts:{organic:Number(row?.organic_count||0),manure:Number(row?.manure_count||0)}
+  };
+}
+
+async function receiptSummaryPeriod(db,startLocal,endLocal){
+  const startMs=receiptLocalMinute(startLocal),endMs=receiptLocalMinute(endLocal);
+  if(startMs===null||endMs===null||endMs<=startMs||endMs-startMs>31*24*60*60*1000)throw new Error("입고량 조회 기간을 확인해 주세요.");
+  const row=await db.prepare(`
+    WITH completed AS (
+      SELECT
+        fuel_type,
+        receipt_tons,
+        CASE
+          WHEN departure_time='' THEN NULL
+          WHEN arrival_time<>'' AND departure_time<arrival_time
+            THEN date(unloading_date,'+1 day')||'T'||departure_time
+          ELSE unloading_date||'T'||departure_time
+        END AS completed_local
+      FROM solid_fuel_unloading_logs
+      WHERE
+        deleted_at IS NULL
+        AND receipt_tons IS NOT NULL
+        AND fuel_type IN ('organic','manure')
+    )
+    SELECT
+      COALESCE(SUM(CASE WHEN fuel_type='organic' THEN receipt_tons ELSE 0 END),0) AS organic_tons,
+      COALESCE(SUM(CASE WHEN fuel_type='manure' THEN receipt_tons ELSE 0 END),0) AS manure_tons,
+      SUM(CASE WHEN fuel_type='organic' THEN 1 ELSE 0 END) AS organic_count,
+      SUM(CASE WHEN fuel_type='manure' THEN 1 ELSE 0 END) AS manure_count
+    FROM completed
+    WHERE completed_local>? AND completed_local<=?
+  `).bind(startLocal,endLocal).first();
   return {
     organic:Number(row?.organic_tons||0),
     manure:Number(row?.manure_tons||0),
@@ -947,8 +989,17 @@ async function servePhoto(context,id,{publicAccess=false}={}){
 
 export async function onRequestGet(context){
   try{
-    const url=new URL(context.request.url),photoId=text(url.searchParams.get("photoId")),receiptDate=text(url.searchParams.get("receiptDate"));
+    const url=new URL(context.request.url),photoId=text(url.searchParams.get("photoId")),receiptDate=text(url.searchParams.get("receiptDate")),
+      receiptStart=text(url.searchParams.get("receiptStart")),receiptEnd=text(url.searchParams.get("receiptEnd"));
     const a=await auth(context,{optional:true}); if(a.error) return a.error;
+    if(receiptStart||receiptEnd){
+      if(!a.user)return json({ok:false,message:"로그인이 필요합니다."},401);
+      const startMs=receiptLocalMinute(receiptStart),endMs=receiptLocalMinute(receiptEnd);
+      if(startMs===null||endMs===null||endMs<=startMs||endMs-startMs>31*24*60*60*1000)return json({ok:false,message:"입고량 조회 기간을 확인해 주세요."},400);
+      await initialize(context.env.DB);
+      const summary=await receiptSummaryPeriod(context.env.DB,receiptStart,receiptEnd);
+      return json({ok:true,receiptStart,receiptEnd,receipts:{organic:summary.organic,manure:summary.manure},counts:summary.counts,source:"solid-fuel-unloading",basis:"completed-unloading-departure"});
+    }
     if(receiptDate){
       if(!a.user)return json({ok:false,message:"로그인이 필요합니다."},401);
       if(!isoDate(receiptDate))return json({ok:false,message:"입고량 조회 날짜를 확인해 주세요."},400);

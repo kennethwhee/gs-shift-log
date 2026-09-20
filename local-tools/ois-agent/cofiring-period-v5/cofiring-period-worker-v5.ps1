@@ -141,6 +141,24 @@ $boundaryCount = $minuteCount + 1
 $cofiringManifest = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('eyJ0YWdzIjpbeyJrZXkiOiJ1bml0MUNvYWxBMSIsInVuaXQiOiJ1bml0MSIsImZ1ZWwiOiJjb2FsIiwidGFnIjoiR1NQT0dFLkFCQl9EQ1MuQkxSMSBDT0FMIEZFRURFUiBBLTEgUkVGRVJFTlNFIiwib3JpZ2luYWxUYWciOiJHU1BPR0UuQUJCX0RDUy5CTFIxIENPQUwgRkVFREVSIEEtMSBSRUZFUkVOU0UvUExPVCJ9LHsia2V5IjoidW5pdDFDb2FsQTIiLCJ1bml0IjoidW5pdDEiLCJmdWVsIjoiY29hbCIsInRhZyI6IkdTUE9HRS5BQkJfRENTLkJMUjEgQ09BTCBGRUVERVIgQS0yIFJFRkVSRU5TRSIsIm9yaWdpbmFsVGFnIjoiR1NQT0dFLkFCQl9EQ1MuQkxSMSBDT0FMIEZFRURFUiBBLTIgUkVGRVJFTlNFL1BMT1QifSx7ImtleSI6InVuaXQxQ29hbEIxIiwidW5pdCI6InVuaXQxIiwiZnVlbCI6ImNvYWwiLCJ0YWciOiJHU1BPR0UuQUJCX0RDUy5CTFIxIENPQUwgRkVFREVSIEItMSBSRUZFUkVOU0UiLCJvcmlnaW5hbFRhZyI6IkdTUE9HRS5BQkJfRENTLkJMUjEgQ09BTCBGRUVERVIgQi0xIFJFRkVSRU5TRS9QTE9UIn0seyJrZXkiOiJ1bml0MUNvYWxCMiIsInVuaXQiOiJ1bml0MSIsImZ1ZWwiOiJjb2FsIiwidGFnIjoiR1NQT0dFLkFCQl9EQ1MuQkxSMSBDT0FMIEZFRURFUiBCLTIgUkVGRVJFTlNFIiwib3JpZ2luYWxUYWciOiJHU1BPR0UuQUJCX0RDUy5CTFIxIENPQUwgRkVFREVSIEItMiBSRUZFUkVOU0UvUExPVCJ9LHsia2V5IjoidW5pdDFCaW8iLCJ1bml0IjoidW5pdDEiLCJmdWVsIjoiYmlvIiwidGFnIjoiR1NQT0dFLkFCQl9EQ1MuQkxSMSBCSU8gU1JGIFJFRkVSRU5DRSIsIm9yaWdpbmFsVGFnIjoiR1NQT0dFLkFCQl9EQ1MuQkxSMSBCSU8gU1JGIFJFRkVSRU5DRS9QTE9UIn0seyJrZXkiOiJ1bml0MkNvYWxBMSIsInVuaXQiOiJ1bml0MiIsImZ1ZWwiOiJjb2FsIiwidGFnIjoiR1NQT0dFLkFCQl9EQ1MuQkxSMiBDT0FMIEZFRURFUiBBLTEgUkVGRVJFTlNFIiwib3JpZ2luYWxUYWciOiJHU1BPR0UuQUJCX0RDUy5CTFIyIENPQUwgRkVFREVSIEEtMSBSRUZFUkVOU0UvUExPVCJ9LHsia2V5IjoidW5pdDJDb2FsQTIiLCJ1bml0IjoidW5pdDIiLCJmdWVsIjoiY29hbCIsInRhZyI6IkdTUE9HRS5BQkJfRENTLkJMUjIgQ09BTCBGRUVERVIgQS0yIFJFRkVSRU5TRSIsIm9yaWdpbmFsVGFnIjoiR1NQT0dFLkFCQl9EQ1MuQkxSMiBDT0FMIEZFRURFUiBBLTIgUkVGRVJFTlNFL1BMT1QifSx7ImtleSI6InVuaXQyQ29hbEIxIiwidW5pdCI6InVuaXQyIiwiZnVlbCI6ImNvYWwiLCJ0YWciOiJHU1BPR0UuQUJCX0RDUy5CTFIyIENPQUwgRkVFREVSIEItMSBSRUZFUkVOU0UiLCJvcmlnaW5hbFRhZyI6IkdTUE9HRS5BQkJfRENTLkJMUjIgQ09BTCBGRUVERVIgQi0xIFJFRkVSRU5TRS9QTE9UIn0seyJrZXkiOiJ1bml0MkNvYWxCMiIsInVuaXQiOiJ1bml0MiIsImZ1ZWwiOiJjb2FsIiwidGFnIjoiR1NQT0dFLkFCQl9EQ1MuQkxSMiBDT0FMIEZFRURFUiBCLTIgUkVGRVJFTlNFIiwib3JpZ2luYWxUYWciOiJHU1BPR0UuQUJCX0RDUy5CTFIyIENPQUwgRkVFREVSIEItMiBSRUZFUkVOU0UvUExPVCJ9LHsia2V5IjoidW5pdDJCaW8iLCJ1bml0IjoidW5pdDIiLCJmdWVsIjoiYmlvIiwidGFnIjoiR1NQT0dFLkFCQl9EQ1MuQkxSMiBCSU8gU1JGIFJFRkVSRU5DRSIsIm9yaWdpbmFsVGFnIjoiR1NQT0dFLkFCQl9EQ1MuQkxSMiBCSU8gU1JGIFJFRkVSRU5DRS9QTE9UIn1dLCJjYWxvcmlmaWNzIjp7InVuaXQxIjp7ImNvYWwiOjU4NjgsImJpbyI6MzIzNywib3JnYW5pYyI6MzQ4N30sInVuaXQyIjp7ImNvYWwiOjU4NjgsImJpbyI6MzIzNywib3JnYW5pYyI6MzQ4N319LCJjb2VmZmljaWVudHMiOnsidW5pdDEiOnsiY29hbCI6MSwiYmlvIjoxLCJvcmdhbmljIjoxfSwidW5pdDIiOnsiY29hbCI6MSwiYmlvIjoxLCJvcmdhbmljIjoxfX19')) | ConvertFrom-Json
 $cofiringTags = @($cofiringManifest.tags)
 if ($cofiringTags.Count -ne 10) { throw '원본 확인 TAG가 정확히 10개여야 합니다.' }
+
+# COFIRING_ORGANIC_INVENTORY_USAGE_V1
+# The three inventory tags share the same hidden-Excel/DataPARC lane as Coal/Bio,
+# so one period query yields both fuel counters and SDF silo boundary inventory.
+$cofiringInventoryTags = @(
+  [pscustomobject][ordered]@{
+    key='organicDaySilo';label='Day Silo';tag='GSPOGE.ABB_DCS.104SDF01CW001XQ01/PLOT'
+  },
+  [pscustomobject][ordered]@{
+    key='organicStorageSiloA';label='Storage Silo A';tag='GSPOGE.ABB_DCS.003SDF01CW001XQ01/PLOT'
+  },
+  [pscustomobject][ordered]@{
+    key='organicStorageSiloB';label='Storage Silo B';tag='GSPOGE.ABB_DCS.003SDF02CW001XQ01/PLOT'
+  }
+)
+$cofiringQueryTags = @($cofiringTags) + @($cofiringInventoryTags)
+if ($cofiringQueryTags.Count -ne 13) { throw '혼소율 기간 조회 TAG가 정확히 13개여야 합니다.' }
+
 $cofiringDiagnosticsPath = [string]$env:GS_COFIRING_DIAGNOSTICS_PATH
 if ([string]::IsNullOrWhiteSpace($cofiringDiagnosticsPath)) { throw '조회 진단 경로가 없습니다.' }
 
@@ -1872,7 +1890,7 @@ try {
 
     $columnNames=@('startValue','startQuality','startTime','endValue','endQuality','endTime','min','max','delta','durationGood','durationBad')
     $columnKinds=@('number','quality','time','number','quality','time','number','number','number','number','number')
-    $rowsFast=$cofiringTags.Count
+    $rowsFast=$cofiringQueryTags.Count
     $columnsFast=$columnNames.Count
     $startBucketEnd=$cofiringStart.AddMinutes(1)
     $endBucketEnd=$cofiringEnd.AddMinutes(1)
@@ -1881,12 +1899,12 @@ try {
     $firstEnd=$startBucketEnd.ToString('yyyy-MM-dd HH:mm:ss',[Globalization.CultureInfo]::InvariantCulture)
     $lastEnd=$endBucketEnd.ToString('yyyy-MM-dd HH:mm:ss',[Globalization.CultureInfo]::InvariantCulture)
 
-    $queryRange=(Invoke-CofiringExcelCall -Operation 'Fast.Range' -Action { param($box) $box.Value=$querySheet.Range('A1:K10') }).Value
+    $queryRange=(Invoke-CofiringExcelCall -Operation 'Fast.Range' -Action { param($box) $box.Value=$querySheet.Range('A1:K13') }).Value
     [void](Invoke-CofiringExcelCall -Operation 'Fast.EnableCalculation=False' -Action { $querySheet.EnableCalculation=$false })
     [void](Invoke-CofiringExcelCall -Operation 'Fast.ClearContents' -Action { $queryRange.ClearContents() })
     $formulasFast=New-Object 'object[,]' $rowsFast,$columnsFast
     for ($r=0;$r -lt $rowsFast;$r+=1) {
-      $tag=$cofiringTags[$r]
+      $tag=$cofiringQueryTags[$r]
       $safeTag=([string]$tag.tag).Replace('"','""')
       $formulasFast[$r,0]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$firstEnd+'","Start","Value")'
       $formulasFast[$r,1]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$firstEnd+'","Start","QualStr")'
@@ -1900,7 +1918,7 @@ try {
       $formulasFast[$r,9]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$fullEnd+'","DurationGood","Value")'
       $formulasFast[$r,10]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$fullEnd+'","DurationBad","Value")'
     }
-    Write-ProbeStage ('고속 요약 조회 준비 · 10 TAG x 11 통계 = '+[string]($rowsFast*$columnsFast)+'개 수식 동시 계산')
+    Write-ProbeStage ('고속 요약 조회 준비 · 13 TAG x 11 통계 = '+[string]($rowsFast*$columnsFast)+'개 수식 동시 계산')
     Write-CofiringProgress 'QUERY_START'
     [void](Invoke-CofiringExcelCall -Operation 'Fast.Formula' -Action { $queryRange.Formula=$formulasFast })
     $formulasFast=$null
@@ -1919,7 +1937,7 @@ try {
       $fastState=Get-CofiringFastMatrixState $matrix $rowsFast $columnsFast $columnKinds
       if (-not $fastState.shapeValid) {
         $shape=Get-CofiringReturnShape $matrix
-        throw ('고속 요약 배열 크기가 10x11이 아닙니다: '+($shape | ConvertTo-Json -Compress))
+        throw ('고속 요약 배열 크기가 '+[string]$rowsFast+'x'+[string]$columnsFast+'가 아닙니다: '+($shape | ConvertTo-Json -Compress))
       }
       if ($fastState.errorCells -gt 0) { throw ('고속 요약 수식 오류: '+[string]$fastState.firstProblem) }
       if ($fastState.complete) {
@@ -1956,7 +1974,7 @@ try {
     $summaries=New-Object 'System.Collections.Generic.List[object]'
     $allBoundaryValid=$true;$allDurationValid=$true;$anyBadDuration=$false;$referenceCompared=0;$referenceMismatches=0
     $rb=$matrix.GetLowerBound(0);$cb=$matrix.GetLowerBound(1)
-    for ($r=0;$r -lt $rowsFast;$r+=1) {
+    for ($r=0;$r -lt $cofiringTags.Count;$r+=1) {
       $tag=$cofiringTags[$r]
       $startValue=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+0))
       $startQuality=[string]($matrix.GetValue($rb+$r,$cb+1))
@@ -2026,6 +2044,76 @@ try {
         referenceExpectedTon=$referenceExpected;referenceMatched=$referenceMatch
       })
     }
+    # Organic SDF inventory is a stock level, not a cumulative counter.
+    # Only the two period boundaries are used for mass balance; an increase or
+    # decrease inside the interval is valid and must not be treated as counter reset.
+    $inventorySamples=New-Object 'System.Collections.Generic.List[object]'
+    $inventoryStartByKey=@{}
+    $inventoryEndByKey=@{}
+    $organicInventoryReady=$true
+    $inventoryExpectedSeconds=[double]($cofiringEnd-$cofiringStart).TotalSeconds
+    for ($ir=0;$ir -lt $cofiringInventoryTags.Count;$ir+=1) {
+      $r=$cofiringTags.Count+$ir
+      $tag=$cofiringInventoryTags[$ir]
+      $startValue=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+0))
+      $startQuality=[string]($matrix.GetValue($rb+$r,$cb+1))
+      $startTime=Convert-CofiringTimestamp ($matrix.GetValue($rb+$r,$cb+2))
+      $endValue=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+3))
+      $endQuality=[string]($matrix.GetValue($rb+$r,$cb+4))
+      $endTime=Convert-CofiringTimestamp ($matrix.GetValue($rb+$r,$cb+5))
+      $minValue=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+6))
+      $maxValue=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+7))
+      $deltaValue=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+8))
+      $durationGood=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+9))
+      $durationBad=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+10))
+      $startTimeValid=($null -ne $startTime -and $startTime -ge $cofiringStart -and $startTime -lt $cofiringStart.AddMinutes(1))
+      $endTimeValid=($null -ne $endTime -and $endTime -ge $cofiringEnd -and $endTime -lt $cofiringEnd.AddMinutes(1))
+      $startBoundaryValid=($null -ne $startValue -and $startValue -ge 0 -and (Test-OrganicQualityGood $startQuality) -and $startTimeValid)
+      $endBoundaryValid=($null -ne $endValue -and $endValue -ge 0 -and (Test-OrganicQualityGood $endQuality) -and $endTimeValid)
+      $durationCoverageValid=($null -ne $durationGood -and $null -ne $durationBad -and $durationGood -ge 0 -and $durationBad -ge 0 -and [Math]::Abs(($durationGood+$durationBad)-$inventoryExpectedSeconds) -le 2.0)
+      $boundaryValid=($startBoundaryValid -and $endBoundaryValid)
+      $inventoryDataComplete=($boundaryValid -and $durationCoverageValid)
+      if (-not $inventoryDataComplete) { $organicInventoryReady=$false }
+      if ($inventoryDataComplete) {
+        $inventoryStartByKey[[string]$tag.key]=[double]$startValue
+        $inventoryEndByKey[[string]$tag.key]=[double]$endValue
+      }
+      $inventorySamples.Add([pscustomobject][ordered]@{
+        key=[string]$tag.key;label=[string]$tag.label;tag=[string]$tag.tag
+        startValue=$startValue;startQuality=$startQuality;startTime=$(if($null -ne $startTime){$startTime.ToString('yyyy-MM-ddTHH:mm:ss')+'+09:00'}else{$null})
+        endValue=$endValue;endQuality=$endQuality;endTime=$(if($null -ne $endTime){$endTime.ToString('yyyy-MM-ddTHH:mm:ss')+'+09:00'}else{$null})
+        min=$minValue;max=$maxValue;delta=$deltaValue
+        durationGoodSeconds=$durationGood;durationBadSeconds=$durationBad;durationCoverageValid=$durationCoverageValid
+        boundaryValid=$boundaryValid;dataComplete=$inventoryDataComplete
+      })
+    }
+    $organicInventory=$null
+    if ($organicInventoryReady) {
+      $inventoryStartTotal=0.0
+      $inventoryEndTotal=0.0
+      foreach ($tag in $cofiringInventoryTags) {
+        $inventoryStartTotal+=[double]$inventoryStartByKey[[string]$tag.key]
+        $inventoryEndTotal+=[double]$inventoryEndByKey[[string]$tag.key]
+      }
+      $organicInventory=[ordered]@{
+        schemaVersion=1;basis='dataparc_period_boundary'
+        startLocal=$cofiringStart.ToString('yyyy-MM-ddTHH:mm');endLocal=$cofiringEnd.ToString('yyyy-MM-ddTHH:mm')
+        start=[ordered]@{
+          organicDaySilo=[double]$inventoryStartByKey['organicDaySilo']
+          organicStorageSiloA=[double]$inventoryStartByKey['organicStorageSiloA']
+          organicStorageSiloB=[double]$inventoryStartByKey['organicStorageSiloB']
+          total=[double]$inventoryStartTotal
+        }
+        end=[ordered]@{
+          organicDaySilo=[double]$inventoryEndByKey['organicDaySilo']
+          organicStorageSiloA=[double]$inventoryEndByKey['organicStorageSiloA']
+          organicStorageSiloB=[double]$inventoryEndByKey['organicStorageSiloB']
+          total=[double]$inventoryEndTotal
+        }
+        samples=@($inventorySamples.ToArray())
+      }
+    }
+
     $summariesArray=@($summaries.ToArray())
     function Get-CofiringFastUsageSum([string[]]$Keys) {
       $total=0.0
@@ -2045,6 +2133,8 @@ try {
     $summaryReady=($allBoundaryValid -and $allDurationValid)
     $diagnostics.summaries=$summariesArray
     $diagnostics.unitUsage=$unitUsage
+    $diagnostics.organicInventoryReady=[bool]$organicInventoryReady
+    $diagnostics.organicInventory=$organicInventory
     $diagnostics.allBoundaryValid=$allBoundaryValid
     $diagnostics.allDurationValid=$allDurationValid
     $diagnostics.anyBadDuration=$anyBadDuration
@@ -2056,10 +2146,12 @@ try {
       schemaVersion=1;pilotRevision='PERIOD-V5';kind='cofiring_dataparc_fast_summary_pilot';runId=[string]$env:GS_COFIRING_RUN_ID
       targetDate=$targetDate;start=$cofiringStartText;end=$cofiringEndText;queryEnd=$cofiringQueryEnd.ToString('yyyy-MM-dd HH:mm')
       summaryReady=[bool]$summaryReady;dataValidated=$false;diagnosticOnly=$true;productionReady=$false;databaseWritten=$false
-      queryMode='parallel-summary';formulaCells=110;queryElapsedSeconds=$diagnostics.queryElapsedSeconds
+      queryMode='parallel-summary';formulaCells=($rowsFast*$columnsFast);queryElapsedSeconds=$diagnostics.queryElapsedSeconds
       allBoundaryValid=[bool]$allBoundaryValid;allDurationValid=[bool]$allDurationValid;anyBadDuration=[bool]$anyBadDuration
       referenceCompared=$referenceCompared;referenceMismatches=$referenceMismatches;referenceMatched=$referenceMatched
-      summaries=$summariesArray;unitUsage=$unitUsage;failure=[string]$diagnostics.failure;cleanupVerified=$false
+      summaries=$summariesArray;unitUsage=$unitUsage
+      organicInventoryReady=[bool]$organicInventoryReady;organicInventory=$organicInventory
+      failure=[string]$diagnostics.failure;cleanupVerified=$false
     }
     Write-CofiringJsonAtomic ([string]$env:GS_COFIRING_RESULT_PATH) $finalResult
     Write-CofiringJsonAtomic $cofiringDiagnosticsPath $diagnostics
