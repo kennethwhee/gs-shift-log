@@ -1906,9 +1906,10 @@ try {
     for ($r=0;$r -lt $rowsFast;$r+=1) {
       $tag=$cofiringQueryTags[$r]
       $safeTag=([string]$tag.tag).Replace('"','""')
-      $formulasFast[$r,0]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$firstEnd+'","Start","Value")'
-      $formulasFast[$r,1]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$firstEnd+'","Start","QualStr")'
-      $formulasFast[$r,2]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$firstEnd+'","Start","Time")'
+      $startBoundaryEnd=$(if($r -ge $cofiringTags.Count){$cofiringStart.AddMinutes([Math]::Min(2.0,[double](($cofiringEnd-$cofiringStart).TotalMinutes))).ToString('yyyy-MM-dd HH:mm')}else{$firstEnd}) # COFIRING_ORGANIC_INVENTORY_BOUNDARY_V2_R7
+      $formulasFast[$r,0]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$startBoundaryEnd+'","Start","Value")'
+      $formulasFast[$r,1]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$startBoundaryEnd+'","Start","QualStr")'
+      $formulasFast[$r,2]='=fnTagStat("'+$safeTag+'","'+$fullStart+'","'+$startBoundaryEnd+'","Start","Time")'
       $formulasFast[$r,3]='=fnTagStat("'+$safeTag+'","'+$fullEnd+'","'+$lastEnd+'","Start","Value")'
       $formulasFast[$r,4]='=fnTagStat("'+$safeTag+'","'+$fullEnd+'","'+$lastEnd+'","Start","QualStr")'
       $formulasFast[$r,5]='=fnTagStat("'+$safeTag+'","'+$fullEnd+'","'+$lastEnd+'","Start","Time")'
@@ -2066,7 +2067,7 @@ try {
       $deltaValue=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+8))
       $durationGood=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+9))
       $durationBad=Convert-ProbeNumber ($matrix.GetValue($rb+$r,$cb+10))
-      $startTimeValid=($null -ne $startTime -and $startTime -ge $cofiringStart -and $startTime -lt $cofiringStart.AddMinutes(1))
+      $startTimeValid=($null -ne $startTime -and $startTime -ge $cofiringStart -and $startTime -lt $cofiringStart.AddMinutes(2))
       $endTimeValid=($null -ne $endTime -and $endTime -ge $cofiringEnd -and $endTime -lt $cofiringEnd.AddMinutes(1))
       $startBoundaryValid=($null -ne $startValue -and $startValue -ge 0 -and (Test-OrganicQualityGood $startQuality) -and $startTimeValid)
       $endBoundaryValid=($null -ne $endValue -and $endValue -ge 0 -and (Test-OrganicQualityGood $endQuality) -and $endTimeValid)

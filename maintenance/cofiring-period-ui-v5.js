@@ -18,7 +18,7 @@
   function coalBioRatio(unit){const total=coalBioHeat(unit),bio=unit?.heats?.bio;return total!==null&&total>0&&typeof bio==='number'&&Number.isFinite(bio)?bio/total*100:null;}
   function combinedCoalBio(result){const coal=result?.combined?.heats?.coal,bio=result?.combined?.heats?.bio;const total=typeof coal==='number'&&Number.isFinite(coal)&&typeof bio==='number'&&Number.isFinite(bio)?coal+bio:null;return {heat:total,ratio:total!==null&&total>0?bio/total*100:null};}
   function cachedReference(state,spec){
-    const item=state?.item,reference=item?.result?.report?.reference;
+    const item=state?.item,report=item?.result?.report,base=report?.reference,reference=base?{...base,organicInventoryReady:report?.organicInventoryReady===true,organicInventory:report?.organicInventory||null}:null;
     if(!state?.authenticated||!state.canQuery||!item?.saved||!reference||item.active||item.loading||item.submitting||item.error)return null;
     if(item.result.requestId!==item.saved.id||reference.kind!=='cofiring_period_summary_v1')return null;
     for(const key of ['startLocal','endLocal','stepUnit','stepValue'])if(state.period?.[key]!==spec?.[key]||reference[key]!==spec?.[key])return null;
@@ -267,7 +267,7 @@
     const morningOrganicTouched=new Set(),morningOrganicAuto=new Map();
     const settings=settingsApi?.create({getHeaders:authHeaders,canEdit:()=>!isMobile(),onChange:()=>paintSettings()})||null;
     const manual=manualApi?.create({getHeaders:authHeaders,canEdit:()=>!isMobile(),onChange:()=>paintManual()})||null;
-    const live=liveApi?.createPeriod({getHeaders:authHeaders,canQuery:()=>!isMobile()&&selectedDayAvailability().ready,isVisible:()=>visible(),onChange:s=>paintLive(s),onResult:r=>{if(!sameSelectedPeriod(r?.report?.reference)||!selectedDayAvailability().ready)return;reference=r.report.reference;updateOrganicInventoryUsage();if(storesReady())calculate();}})||null;
+    const live=liveApi?.createPeriod({getHeaders:authHeaders,canQuery:()=>!isMobile()&&selectedDayAvailability().ready,isVisible:()=>visible(),onChange:s=>paintLive(s),onResult:r=>{if(!sameSelectedPeriod(r?.report?.reference)||!selectedDayAvailability().ready)return;reference={...r.report.reference,organicInventoryReady:r.report.organicInventoryReady===true,organicInventory:r.report.organicInventory||null};updateOrganicInventoryUsage();if(storesReady())calculate();}})||null;
     clickTiming=root.CofiringClickTimingV1?.create({isCurrent:()=>clickIsCurrent(),onChange:s=>paintClickTiming(s)});
     function clickIsCurrent(){try{return !!clickContext&&!disposed&&visible()&&clickContext.epoch===selectionEpoch&&clickContext.spec===JSON.stringify(currentSpec())&&clickContext.auth===String(authHeaders().Authorization||authHeaders().authorization||'');}catch(_){return false;}}
     // SOLID_FUEL_RECEIPT_LINK_V1
@@ -851,7 +851,7 @@
       refreshDailyForClick();if(showDayUnavailable())return;
       const epoch=selectionEpoch,spec=currentSpec(),authKey=String(authHeaders().Authorization||authHeaders().authorization||''),signature=JSON.stringify(spec),stillSelected=()=>!disposed&&epoch===selectionEpoch&&visible()&&JSON.stringify(currentSpec())===signature&&String(authHeaders().Authorization||authHeaders().authorization||'')===authKey;
       token=startClickTiming(live.state().item?.active?'resume_existing':'calculate');live.select(spec);const cached=cachedReference(live.state(),spec);
-      if(cached&&!live.state().item?.active&&selectedStoreKey===storeKey()&&storesReady()){
+      if(cached?.organicInventory&&!live.state().item?.active&&selectedStoreKey===storeKey()&&storesReady()){
         reference=cached;updateOrganicInventoryUsage();const result=calculate();
         if(result)setStatus(container,'저장된 DataPARC 결과와 현재 입력값으로 즉시 재계산했습니다. 최신 데이터 조회는 [재조회]를 사용하세요.','success');
         return;
