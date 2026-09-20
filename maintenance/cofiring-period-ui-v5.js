@@ -288,10 +288,10 @@
         organicUsageSource('선택기간 누적량 · 유기성 자동사용량 · 최신 DataPARC 재조회 필요','working');
         return null;
       }
-      const inventoryStartTotal=Number(inventory.start.total),endTotal=Number(inventory.end.total);
+      const startTotal=Number(inventory.start.total),endTotal=Number(inventory.end.total); // COFIRING_ORGANIC_START_DATAPARC_SUM_V1
         const organicTargetDate=String(container.querySelector('[data-cfv7-date]')?.value||'');
-        const anchoredStart=(queryMode(container)==='daily'&&organicTargetDate==='2026-09-20');
-        const startTotal=anchoredStart?34.71:inventoryStartTotal; // COFIRING_ORGANIC_20260920_ANCHOR_3471_V1
+
+
       const receiptInput=container.querySelector('[data-cfv5-receipt="organic"]');
       const receiptRaw=String(receiptInput?.value??'').trim(),receipt=receiptRaw===''?0:Number(receiptRaw);
       if(!Number.isFinite(startTotal)||startTotal<0||!Number.isFinite(endTotal)||endTotal<0||!Number.isFinite(receipt)||receipt<0){
@@ -336,10 +336,11 @@
         const allocated=unit1+unit2;
         const allocationDiff=usage-allocated;
         const allocationOk=Math.abs(allocationDiff)<=0.01;
-        const basis=anchoredStart?'9/20 00:00 기준재고 34.710t':`시작재고 ${num(startTotal,3)}t`;
-        const allocationText=`1호기 ${num(unit1,4)}t + 2호기 ${num(unit2,4)}t · 50:50 자동배분`;
-        organicUsageSource(`유기성 총 사용량 ${num(usage,3)}t = ${basis} + 입고 ${num(receipt,3)} - 종료재고 ${num(endTotal,3)} · ${allocationText}`,allocationOk?'ready':'working');
-      return {ok:true,startTotal,inventoryStartTotal,anchoredStart,receipt,endTotal,usage,allocation:{unit1,unit2,total:allocated,diff:allocationDiff,ok:allocationOk,mode:'equal-50-50'}};
+
+
+        const dayLabel=/^\d{4}-\d{2}-\d{2}$/.test(organicTargetDate)?organicTargetDate.slice(5).replace('-','/'):'선택일';
+        organicUsageSource(`유기성 총 ${num(usage,3)}t · 1호기 ${num(unit1,4)}t / 2호기 ${num(unit2,4)}t · 50:50 자동배분\n계산: 시작 ${num(startTotal,3)}t (${dayLabel} 00:00 기준 · DataPARC A+B+Day) + 입고 ${num(receipt,3)}t - 현재재고 ${num(endTotal,3)}t`,'ready');
+      return {ok:true,startTotal,receipt,endTotal,usage,allocation:{unit1,unit2,total:allocated,diff:allocationDiff,ok:allocationOk,mode:'equal-50-50'}};
     }
     function validateOrganicAllocationBeforeSave(values){
         const total=updateOrganicInventoryUsage();

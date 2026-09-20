@@ -47,35 +47,11 @@ test('Morning Meeting and Daily DATA no longer auto-fill cofiring organic usage'
   );
 });
 
-test('2026-09-20 uses 34.71 ton midnight inventory anchor',()=>{
-  assert.match(
-    ui,
-    /COFIRING_ORGANIC_20260920_ANCHOR_3471_V1/
-  );
-
-  assert.match(
-    ui,
-    /organicTargetDate==='2026-09-20'/
-  );
-
-  assert.match(
-    ui,
-    /anchoredStart\?34\.71:inventoryStartTotal/
-  );
-
-  const receipt=59.3;
-  const endInventory=39.695;
-
-  assert.equal(
-    Number(
-      (
-        34.71+
-        receipt-
-        endInventory
-      ).toFixed(3)
-    ),
-    54.315
-  );
+test('organic start inventory uses DataPARC midnight three-silo total',()=>{
+  assert.doesNotMatch(ui,/COFIRING_ORGANIC_20260920_ANCHOR_3471_V1/);
+  assert.match(ui,/COFIRING_ORGANIC_START_DATAPARC_SUM_V1/);
+  assert.match(ui,/startTotal=Number\(inventory\.start\.total\)/);
+  assert.match(ui,/DataPARC A\+B\+Day/);
 });
 
 test('unit allocation must equal total organic usage before save',()=>{
@@ -124,6 +100,6 @@ test('only the new cofiring UI build is loaded',()=>{
 
   assert.match(
     html,
-    /cofiring-period-ui-v5\.js\?v=20260920-organic-decouple-anchor-v1-r1/
+    /cofiring-period-ui-v5\.js\?v=20260920-organic-midnight-compact-v1/
   );
 });

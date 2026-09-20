@@ -1207,3 +1207,14 @@ small {
 }
 
 /* ===== /COFIRING_TOP_TAB_REDESIGN_V14 ===== */
+
+/* ===== COFIRING_ORGANIC_COMPACT_SUMMARY_V1 ===== */
+.cofiring-period-v5 [data-cfv15-organic-usage][data-tone="ready"]{
+  display:block;
+  margin-top:1px;
+  white-space:pre-line;
+  line-height:1.22;
+  font-size:10px;
+  color:#64748b;
+}
+/* ===== /COFIRING_ORGANIC_COMPACT_SUMMARY_V1 ===== */

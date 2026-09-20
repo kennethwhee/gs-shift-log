@@ -101,9 +101,9 @@ test('source connects 13 DataPARC rows, completed-unloading receipt interval, an
 
   const ui=fs.readFileSync(path.join(root,'maintenance','cofiring-period-ui-v5.js'),'utf8');
   assert.match(ui,/data-cfv15-organic-usage/);
-  assert.match(ui,/유기성 총 사용량/);
+  assert.match(ui,/유기성 총/);
   assert.match(ui,/호기별 배분/);
-  assert.match(ui,/COFIRING_ORGANIC_20260920_ANCHOR_3471_V1/);
+  assert.match(ui,/COFIRING_ORGANIC_START_DATAPARC_SUM_V1/);
   assert.match(ui,/validateOrganicAllocationBeforeSave/);
   assert.match(ui,/receiptStart:p\.startLocal/);
   assert.doesNotMatch(ui,/data-cfv5-manual="unit1:organic"[^]*?data-cfv15-organic-auto-fill/);
