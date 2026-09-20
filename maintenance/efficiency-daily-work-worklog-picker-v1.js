@@ -2531,9 +2531,7 @@
 
                             <span
                               class="daily-work-worklog-item-content-v1"
-                            >
-                              ${escapeHtml(item.content)}
-                            </span>
+                            >${escapeHtml(item.content)}</span>
 
                           </span>
 
@@ -3753,7 +3751,7 @@
       justify-self: stretch !important;
       align-self: start !important;
       text-align: left !important;
-      white-space: pre-wrap !important;
+      white-space: pre-line !important;
     }
   `;
 
@@ -3766,3 +3764,16 @@
   );
 
 })();
+/* =========================================================
+   EFFICIENCY_DAILY_WORK_WORKLOG_PICKER_LEFT_ALIGN_V11
+
+   실제 원인:
+   item.content를 감싸는 template literal의 들여쓰기와
+   white-space: pre-wrap 조합이 공백을 그대로 렌더링했다.
+
+   처리:
+   1. content span 안의 template indentation 제거
+   2. pre-wrap -> pre-line
+   3. 실제 업무일지 줄바꿈은 유지
+   4. 불필요한 선행 공백은 접어서 왼쪽 시작
+========================================================= */
