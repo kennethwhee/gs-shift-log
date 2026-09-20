@@ -3672,3 +3672,97 @@
   );
 
 })();
+/* =========================================================
+   EFFICIENCY_DAILY_WORK_WORKLOG_PICKER_LEFT_ALIGN_V10
+
+   V9에서 text-align은 왼쪽이 되었지만
+   실제 업무내용 span 자체가 가운데 폭으로 남아있던 부분 수정.
+
+   작성자 줄과 실제 업무내용의 시작선을 맞춘다.
+========================================================= */
+
+(() => {
+
+  const STYLE_ID =
+    'efficiency-daily-work-worklog-left-align-v10';
+
+
+  if (
+    document.getElementById(
+      STYLE_ID
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    document.createElement(
+      'style'
+    );
+
+
+  style.id =
+    STYLE_ID;
+
+
+  style.textContent = `
+    .daily-work-worklog-dialog-v1
+    .daily-work-worklog-item-v1 {
+      grid-template-columns: 22px minmax(0, 1fr) !important;
+      justify-items: stretch !important;
+      text-align: left !important;
+    }
+
+    .daily-work-worklog-dialog-v1
+    .daily-work-worklog-item-v1 > span {
+      display: block !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      justify-self: stretch !important;
+      text-align: left !important;
+    }
+
+    .daily-work-worklog-dialog-v1
+    .daily-work-worklog-item-meta-v1 {
+      display: flex !important;
+      width: 100% !important;
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+      justify-content: flex-start !important;
+      text-align: left !important;
+    }
+
+    .daily-work-worklog-dialog-v1
+    .daily-work-worklog-item-content-v1 {
+      display: block !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: none !important;
+      margin: 0 !important;
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      padding: 0 !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+      justify-self: stretch !important;
+      align-self: start !important;
+      text-align: left !important;
+      white-space: pre-wrap !important;
+    }
+  `;
+
+
+  (
+    document.head ||
+    document.documentElement
+  ).appendChild(
+    style
+  );
+
+})();
