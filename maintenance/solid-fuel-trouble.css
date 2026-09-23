@@ -1621,3 +1621,89 @@ body.solid-fuel-readonly #companyModal{
   }
 }
 /* SOLID_FUEL_BOOKMARK_RANGE_UI_R2_END */
+/* SOLID_FUEL_UNLOAD_TABLE_ONE_SCREEN_R1
+   Fit every visible unloading column inside the desktop panel.
+   The remarks column receives the remaining width and wraps naturally. */
+@media (min-width:761px){
+  #unloadPanel .table-wrap{
+    width:100% !important;
+    overflow-x:hidden !important;
+  }
+
+  #unloadPanel .unload-table{
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
+    table-layout:fixed !important;
+  }
+
+  #unloadPanel .unload-table th,
+  #unloadPanel .unload-table td{
+    box-sizing:border-box !important;
+    padding-left:6px !important;
+    padding-right:6px !important;
+  }
+
+  /* Compact fixed columns */
+  #unloadPanel .unload-table .no{
+    width:46px !important;
+  }
+
+  #unloadPanel .unload-table .date{
+    width:96px !important;
+  }
+
+  #unloadPanel .unload-table .clock{
+    width:66px !important;
+  }
+
+  #unloadPanel .unload-table .duration{
+    width:72px !important;
+  }
+
+  #unloadPanel .unload-table .fuel-type{
+    width:74px !important;
+    min-width:0 !important;
+  }
+
+  #unloadPanel .unload-table .receipt-ton{
+    width:82px !important;
+    min-width:0 !important;
+  }
+
+  #unloadPanel .unload-table .company{
+    width:90px !important;
+  }
+
+  #unloadPanel .unload-table .vehicle{
+    width:82px !important;
+  }
+
+  #unloadPanel .unload-table .silo{
+    width:66px !important;
+  }
+
+  /* Remarks gets all remaining width. */
+  #unloadPanel .unload-table .unload-note{
+    width:auto !important;
+    min-width:0 !important;
+    white-space:pre-wrap !important;
+    word-break:keep-all !important;
+    overflow-wrap:anywhere !important;
+    line-height:1.45 !important;
+  }
+
+  #unloadPanel .unload-table td.unload-note{
+    text-align:left !important;
+    vertical-align:top !important;
+    font-size:12px !important;
+    padding-top:8px !important;
+    padding-bottom:8px !important;
+  }
+
+  /* When row actions are visible for an editor, keep them compact too. */
+  #unloadPanel .unload-table .actions{
+    width:62px !important;
+  }
+}
+/* SOLID_FUEL_UNLOAD_TABLE_ONE_SCREEN_R1_END */
