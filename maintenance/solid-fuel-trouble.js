@@ -867,3 +867,161 @@
     boot();
   }
 })();
+/* SOLID_FUEL_COMPACT_VERTICAL_TABS_V5 */
+(function(){
+  "use strict";
+  if(window.__solidFuelCompactVerticalTabsV5) return;
+  window.__solidFuelCompactVerticalTabsV5 = true;
+
+  function txt(node){
+    return String(node?.textContent||"").replace(/\s+/g," ").trim();
+  }
+
+  function findToolbar(){
+    return document.getElementById("solidFuelUnloadListQuickV4");
+  }
+
+  function findTabs(){
+    const toolbar = findToolbar();
+    return toolbar?.querySelector("nav.tabs") ||
+      [...document.querySelectorAll("nav.tabs")].find(nav=>{
+        const value = txt(nav).toLowerCase();
+        return value.includes("\uD558\uC5ED") && value.includes("trouble");
+      }) || null;
+  }
+
+  function findUnloadingTable(){
+    return [...document.querySelectorAll("table")].find(table=>{
+      const heads = [...table.querySelectorAll("thead th")].map(txt);
+      return heads.some(v=>v.includes("\uB0A0\uC9DC")) &&
+             heads.some(v=>v.includes("\uC785\uACE0")) &&
+             heads.some(v=>v.includes("\uCD9C\uACE0")) &&
+             heads.some(v=>v.includes("\uC18C\uC694")) &&
+             heads.some(v=>v.includes("\uC5F0\uB8CC")) &&
+             heads.some(v=>v.includes("Silo"));
+    }) || null;
+  }
+
+  function smallestPanelAround(table,needle){
+    if(!table) return null;
+    let node = table.parentElement;
+    while(node && node!==document.body){
+      const oneTable = node.querySelectorAll?.("table").length===1;
+      if(oneTable && txt(node).toLowerCase().includes(String(needle).toLowerCase())){
+        return node;
+      }
+      node = node.parentElement;
+    }
+    return table.closest("section,article") || table.parentElement;
+  }
+
+  function controlledPanels(tabs){
+    const result = [];
+    if(!tabs) return result;
+    tabs.querySelectorAll("button,[role=tab]").forEach(button=>{
+      const ids = [
+        button.getAttribute("aria-controls"),
+        button.getAttribute("data-target"),
+        button.getAttribute("data-tab-target")
+      ].filter(Boolean);
+      ids.forEach(raw=>{
+        const id = String(raw).replace(/^#/,"");
+        const panel = document.getElementById(id);
+        if(panel && !result.includes(panel)) result.push(panel);
+      });
+    });
+    return result;
+  }
+
+  function findTroublePanel(unloadPanel){
+    const tables = [...document.querySelectorAll("table")];
+    for(const table of tables){
+      if(unloadPanel?.contains(table)) continue;
+      let node = table.parentElement;
+      while(node && node!==document.body){
+        if(node.querySelectorAll?.("table").length===1 && /trouble/i.test(txt(node))){
+          return node;
+        }
+        node = node.parentElement;
+      }
+    }
+    return null;
+  }
+
+  function setCompactLabels(tabs){
+    const buttons = [...tabs.querySelectorAll("button,[role=tab]")];
+    if(buttons[0]){
+      buttons[0].dataset.verticalLabel = "\uD558\uC5ED\uAE30\uB85D";
+      buttons[0].setAttribute("aria-label","\uD558\uC5ED\uAE30\uB85D");
+    }
+    if(buttons[1]){
+      buttons[1].dataset.verticalLabel = "\uC774\uC288\uB0B4\uC5ED";
+      buttons[1].setAttribute("aria-label","\uC774\uC288\uB0B4\uC5ED");
+    }
+  }
+
+  function install(){
+    const toolbar = findToolbar();
+    const tabs = findTabs();
+    const quick = toolbar?.querySelector(".solid-fuel-inline-quick");
+    const unloadTable = findUnloadingTable();
+
+    if(!toolbar || !tabs || !quick || !unloadTable) return false;
+    if(toolbar.dataset.compactVerticalV5==="1") return true;
+
+    const unloadPanel = smallestPanelAround(unloadTable,"\uD558\uC5ED\uC2DC\uAC04 \uAE30\uB85D");
+    if(!unloadPanel || unloadPanel.contains(toolbar)) return false;
+
+    const originalParent = unloadPanel.parentElement;
+    if(!originalParent) return false;
+
+    toolbar.classList.add("solid-fuel-compact-vertical-v5");
+    toolbar.dataset.compactVerticalV5 = "1";
+
+    const contentRow = document.createElement("div");
+    contentRow.className = "solid-fuel-record-layout-v5";
+
+    const rail = document.createElement("div");
+    rail.className = "solid-fuel-record-rail-v5";
+
+    const content = document.createElement("div");
+    content.className = "solid-fuel-record-content-v5";
+
+    setCompactLabels(tabs);
+
+    rail.appendChild(tabs);
+    contentRow.appendChild(rail);
+    contentRow.appendChild(content);
+
+    toolbar.appendChild(contentRow);
+
+    const panels = controlledPanels(tabs);
+    if(!panels.includes(unloadPanel)) panels.unshift(unloadPanel);
+
+    const troublePanel = findTroublePanel(unloadPanel);
+    if(troublePanel && !panels.includes(troublePanel)) panels.push(troublePanel);
+
+    panels.forEach(panel=>{
+      if(panel && panel!==toolbar && !content.contains(panel)){
+        content.appendChild(panel);
+      }
+    });
+
+    return true;
+  }
+
+  function boot(){
+    if(install()) return;
+    let attempts = 0;
+    const timer = window.setInterval(()=>{
+      attempts++;
+      if(install() || attempts>=40) window.clearInterval(timer);
+    },100);
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",boot,{once:true});
+  }else{
+    boot();
+  }
+})();
