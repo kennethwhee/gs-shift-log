@@ -1,4 +1,4 @@
-"use strict";
+﻿"use strict";
 /* SOLID-FUEL-TROUBLE-V3.1.3 · simple time entry + current Silo choices + legacy route preservation */
 /* SOLID_FUEL_RECEIPT_LINK_V1 */
 (function(){
@@ -755,9 +755,15 @@
 
     view.applying = true;
     try{
-      body.querySelectorAll("tr.solid-fuel-inline-empty-row").forEach(row=>row.remove());
+      // SOLID_FUEL_UNLOAD_LIST_QUICK_FREEZE_FIX_R2
+      // MutationObserver watches tbody childList. If the synthetic empty row
+      // is removed and appended on every pass, that mutation retriggers the
+      // observer forever. Keep the row stable unless visibility really changes.
+      let empty = body.querySelector("tr.solid-fuel-inline-empty-row");
       const dateIndex = getDateColumn(table);
-      const rows = [...body.rows];
+      const rows = [...body.rows].filter(
+        row=>!row.classList.contains("solid-fuel-inline-empty-row")
+      );
       let visible = 0;
 
       rows.forEach(row=>{
@@ -768,13 +774,17 @@
       });
 
       if(visible===0 && rows.length){
-        const empty = document.createElement("tr");
-        empty.className = "solid-fuel-inline-empty-row";
-        const cell = document.createElement("td");
-        cell.colSpan = Math.max(1,table.querySelectorAll("thead th").length);
-        cell.textContent = labels.empty;
-        empty.appendChild(cell);
-        body.appendChild(empty);
+        if(!empty){
+          empty = document.createElement("tr");
+          empty.className = "solid-fuel-inline-empty-row";
+          const cell = document.createElement("td");
+          cell.colSpan = Math.max(1,table.querySelectorAll("thead th").length);
+          cell.textContent = labels.empty;
+          empty.appendChild(cell);
+          body.appendChild(empty);
+        }
+      }else if(empty){
+        empty.remove();
       }
     } finally {
       view.applying = false;
@@ -851,14 +861,6 @@
   function boot(){
     installToolbar();
     applyFilter();
-
-    if(window.MutationObserver){
-      const pageObserver = new MutationObserver(()=>{
-        if(!document.getElementById("solidFuelUnloadListQuickV4")) installToolbar();
-        applyFilter();
-      });
-      pageObserver.observe(document.body,{childList:true,subtree:true});
-    }
   }
 
   if(document.readyState==="loading"){
