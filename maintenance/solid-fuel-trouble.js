@@ -750,14 +750,15 @@
     });
   }
 
+  /* SOLID_FUEL_FILTERED_COUNT_FIX_R7 */
   function updateUnloadSummary(visible){
     const panel = document.getElementById("unloadPanel");
     const headerInfo = panel?.querySelector(".sheet-head > div");
     if(headerInfo){
       headerInfo.classList.add("solid-fuel-unload-summary-inline");
     }
-    if(ui.unloadStatus){
-      ui.unloadStatus.textContent = `${visible}건 조회 완료`;
+    if(e.unloadStatus){
+      e.unloadStatus.textContent = `${visible}건 조회 완료`;
     }
   }
 
