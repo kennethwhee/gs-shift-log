@@ -867,3 +867,113 @@
     boot();
   }
 })();
+/* SOLID_FUEL_SAFE_VERTICAL_LAYOUT_V7 */
+(function(){
+  "use strict";
+  if(window.__solidFuelSafeVerticalLayoutV7) return;
+  window.__solidFuelSafeVerticalLayoutV7 = true;
+
+  function text(node){
+    return String(node && node.textContent || "").replace(/\s+/g," ").trim();
+  }
+
+  function findRecordTabs(){
+    var row=document.getElementById("solidFuelUnloadListQuickV4");
+    if(!row) return null;
+    return row.querySelector("nav.tabs");
+  }
+
+  function classifyTables(){
+    var result={unload:null,issue:null};
+    Array.prototype.slice.call(document.querySelectorAll("table")).forEach(function(table){
+      var heads=Array.prototype.slice.call(table.querySelectorAll("thead th")).map(text);
+      if(!result.unload &&
+         heads.some(function(v){return v.indexOf("\uB0A0\uC9DC")>=0;}) &&
+         heads.some(function(v){return v.indexOf("\uC785\uACE0")>=0;}) &&
+         heads.some(function(v){return v.indexOf("\uCD9C\uACE0")>=0;}) &&
+         heads.some(function(v){return v.indexOf("\uC18C\uC694")>=0;}) &&
+         heads.some(function(v){return v.indexOf("Silo")>=0;})){
+        result.unload=table;
+      }
+      if(!result.issue &&
+         heads.some(function(v){return /Trouble/i.test(v);}) &&
+         heads.some(function(v){return v.indexOf("\uC5C5\uCCB4")>=0;}) &&
+         heads.some(function(v){return v.indexOf("\uCC28\uB7C9")>=0;})){
+        result.issue=table;
+      }
+    });
+    return result;
+  }
+
+  function findPanel(table){
+    if(!table) return null;
+    var node=table.parentElement;
+    while(node && node!==document.body){
+      if(node.tagName==="SECTION" || node.tagName==="ARTICLE") return node;
+      if(node.querySelectorAll && node.querySelectorAll("table").length===1){
+        var t=text(node);
+        if(t.indexOf("\uD558\uC5ED\uC2DC\uAC04 \uAE30\uB85D")>=0 || /Trouble\s*\uBC1C\uC0DD\s*\uB0B4\uC5ED/i.test(t)){
+          return node;
+        }
+      }
+      node=node.parentElement;
+    }
+    return table.parentElement;
+  }
+
+  function markTable(table,kind){
+    if(!table) return;
+    table.classList.add(kind==="unload" ? "solid-fuel-unload-fit-v7" : "solid-fuel-issue-fit-v7");
+
+    var parent=table.parentElement;
+    if(parent) parent.classList.add("solid-fuel-table-wrap-v7");
+
+    var panel=findPanel(table);
+    if(panel) panel.classList.add("solid-fuel-record-panel-v7");
+
+    Array.prototype.slice.call(table.querySelectorAll("tbody td")).forEach(function(cell){
+      var value=text(cell);
+      if(value && !cell.title) cell.title=value;
+    });
+  }
+
+  function install(){
+    var row=document.getElementById("solidFuelUnloadListQuickV4");
+    var tabs=findRecordTabs();
+    if(!row || !tabs) return false;
+
+    row.classList.add("solid-fuel-safe-vertical-v7");
+    tabs.classList.add("solid-fuel-tabs-vertical-v7");
+
+    var buttons=Array.prototype.slice.call(tabs.querySelectorAll("button,[role=tab]"));
+    if(buttons[0]){
+      buttons[0].classList.add("solid-fuel-tab-unload-v7");
+      buttons[0].setAttribute("aria-label","\uD558\uC5ED\uAE30\uB85D");
+    }
+    if(buttons[1]){
+      buttons[1].classList.add("solid-fuel-tab-issue-v7");
+      buttons[1].setAttribute("aria-label","\uC774\uC288\uB0B4\uC5ED");
+    }
+
+    var tables=classifyTables();
+    markTable(tables.unload,"unload");
+    markTable(tables.issue,"issue");
+
+    return true;
+  }
+
+  function boot(){
+    if(install()) return;
+    var tries=0;
+    var timer=window.setInterval(function(){
+      tries++;
+      if(install() || tries>=20) window.clearInterval(timer);
+    },100);
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",boot,{once:true});
+  }else{
+    boot();
+  }
+})();

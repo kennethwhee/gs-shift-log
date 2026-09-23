@@ -1230,3 +1230,232 @@ body.solid-fuel-readonly #companyModal{
     border-left:0;
   }
 }
+/* SOLID_FUEL_SAFE_VERTICAL_LAYOUT_V7 */
+
+/* Keep quick period buttons at the far left. */
+.solid-fuel-inline-tabs-row.solid-fuel-safe-vertical-v7{
+  position:relative;
+  display:block;
+  min-height:36px;
+  margin:10px 0 8px;
+}
+
+.solid-fuel-safe-vertical-v7 > .solid-fuel-inline-quick{
+  position:relative;
+  z-index:2;
+  display:flex;
+  justify-content:flex-start;
+  align-items:center;
+  width:max-content;
+  max-width:100%;
+  gap:6px;
+  margin:0;
+  padding:0;
+  border-left:0;
+}
+
+/* Existing real tab buttons: visual styling only. No node move. */
+.solid-fuel-safe-vertical-v7 > .solid-fuel-tabs-vertical-v7{
+  position:absolute !important;
+  top:42px;
+  left:0;
+  z-index:4;
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:stretch !important;
+  gap:6px !important;
+  width:42px !important;
+  margin:0 !important;
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+}
+
+.solid-fuel-tabs-vertical-v7 > button,
+.solid-fuel-tabs-vertical-v7 > [role="tab"]{
+  position:relative;
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:center !important;
+  justify-content:center !important;
+  width:42px !important;
+  min-width:42px !important;
+  height:86px !important;
+  min-height:86px !important;
+  margin:0 !important;
+  padding:5px 2px !important;
+  border:1px solid #cbd9e8 !important;
+  border-radius:8px !important;
+  background:#fff !important;
+  color:#294966 !important;
+  font-size:0 !important;
+  line-height:1 !important;
+  box-shadow:none !important;
+  overflow:hidden !important;
+}
+
+.solid-fuel-tabs-vertical-v7 > button::before,
+.solid-fuel-tabs-vertical-v7 > [role="tab"]::before{
+  display:block;
+  writing-mode:vertical-rl;
+  text-orientation:upright;
+  font-size:10.5px;
+  font-weight:850;
+  line-height:1;
+  letter-spacing:1px;
+  color:inherit;
+}
+
+.solid-fuel-tabs-vertical-v7 > .solid-fuel-tab-unload-v7::before{
+  content:"하역기록";
+}
+
+.solid-fuel-tabs-vertical-v7 > .solid-fuel-tab-issue-v7::before{
+  content:"이슈내역";
+}
+
+/* Preserve existing count badge if the tab already uses a span. */
+.solid-fuel-tabs-vertical-v7 > button span,
+.solid-fuel-tabs-vertical-v7 > [role="tab"] span{
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  min-width:20px !important;
+  height:18px !important;
+  margin-top:5px !important;
+  padding:0 5px !important;
+  border-radius:999px !important;
+  font-size:10px !important;
+  font-weight:850 !important;
+  line-height:18px !important;
+  writing-mode:horizontal-tb !important;
+  text-orientation:mixed !important;
+}
+
+.solid-fuel-tabs-vertical-v7 > button.is-active,
+.solid-fuel-tabs-vertical-v7 > button[aria-selected="true"],
+.solid-fuel-tabs-vertical-v7 > [role="tab"].is-active,
+.solid-fuel-tabs-vertical-v7 > [role="tab"][aria-selected="true"]{
+  border-color:#1678d2 !important;
+  background:linear-gradient(180deg,#1686e5 0%,#0870ce 100%) !important;
+  color:#fff !important;
+  box-shadow:0 2px 5px rgba(20,105,185,.13) !important;
+}
+
+/* Reserve a narrow left rail beside both record panels. */
+.solid-fuel-record-panel-v7{
+  width:calc(100% - 50px) !important;
+  max-width:calc(100% - 50px) !important;
+  margin-left:50px !important;
+  box-sizing:border-box !important;
+  min-width:0 !important;
+}
+
+/* Remove horizontal scrolling from the record tables. */
+.solid-fuel-table-wrap-v7{
+  width:100% !important;
+  max-width:100% !important;
+  min-width:0 !important;
+  overflow-x:hidden !important;
+}
+
+.solid-fuel-unload-fit-v7,
+.solid-fuel-issue-fit-v7{
+  width:100% !important;
+  min-width:0 !important;
+  max-width:100% !important;
+  table-layout:fixed !important;
+}
+
+.solid-fuel-unload-fit-v7 th,
+.solid-fuel-unload-fit-v7 td,
+.solid-fuel-issue-fit-v7 th,
+.solid-fuel-issue-fit-v7 td{
+  min-width:0 !important;
+  padding:6px 3px !important;
+  font-size:10px !important;
+  line-height:1.15 !important;
+  white-space:nowrap !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  box-sizing:border-box !important;
+}
+
+/* Unloading: No / date / in / out / duration / fuel / qty / company / vehicle / silo / note */
+.solid-fuel-unload-fit-v7 th:nth-child(1),
+.solid-fuel-unload-fit-v7 td:nth-child(1){width:4% !important;}
+.solid-fuel-unload-fit-v7 th:nth-child(2),
+.solid-fuel-unload-fit-v7 td:nth-child(2){width:10% !important;}
+.solid-fuel-unload-fit-v7 th:nth-child(3),
+.solid-fuel-unload-fit-v7 td:nth-child(3){width:7% !important;}
+.solid-fuel-unload-fit-v7 th:nth-child(4),
+.solid-fuel-unload-fit-v7 td:nth-child(4){width:7% !important;}
+.solid-fuel-unload-fit-v7 th:nth-child(5),
+.solid-fuel-unload-fit-v7 td:nth-child(5){width:8% !important;}
+.solid-fuel-unload-fit-v7 th:nth-child(6),
+.solid-fuel-unload-fit-v7 td:nth-child(6){width:11% !important;}
+.solid-fuel-unload-fit-v7 th:nth-child(7),
+.solid-fuel-unload-fit-v7 td:nth-child(7){width:13% !important;}
+.solid-fuel-unload-fit-v7 th:nth-child(8),
+.solid-fuel-unload-fit-v7 td:nth-child(8){width:11% !important;}
+.solid-fuel-unload-fit-v7 th:nth-child(9),
+.solid-fuel-unload-fit-v7 td:nth-child(9){width:9% !important;}
+.solid-fuel-unload-fit-v7 th:nth-child(10),
+.solid-fuel-unload-fit-v7 td:nth-child(10){width:8% !important;}
+.solid-fuel-unload-fit-v7 th:nth-child(11),
+.solid-fuel-unload-fit-v7 td:nth-child(11){width:12% !important;}
+
+/* Issue: No / date / company / vehicle / equipment-Trouble / photo / action-note / manage */
+.solid-fuel-issue-fit-v7 th:nth-child(1),
+.solid-fuel-issue-fit-v7 td:nth-child(1){width:5% !important;}
+.solid-fuel-issue-fit-v7 th:nth-child(2),
+.solid-fuel-issue-fit-v7 td:nth-child(2){width:10% !important;}
+.solid-fuel-issue-fit-v7 th:nth-child(3),
+.solid-fuel-issue-fit-v7 td:nth-child(3){width:11% !important;}
+.solid-fuel-issue-fit-v7 th:nth-child(4),
+.solid-fuel-issue-fit-v7 td:nth-child(4){width:9% !important;}
+.solid-fuel-issue-fit-v7 th:nth-child(5),
+.solid-fuel-issue-fit-v7 td:nth-child(5){width:28% !important;}
+.solid-fuel-issue-fit-v7 th:nth-child(6),
+.solid-fuel-issue-fit-v7 td:nth-child(6){width:13% !important;}
+.solid-fuel-issue-fit-v7 th:nth-child(7),
+.solid-fuel-issue-fit-v7 td:nth-child(7){width:18% !important;}
+.solid-fuel-issue-fit-v7 th:nth-child(8),
+.solid-fuel-issue-fit-v7 td:nth-child(8){width:6% !important;}
+
+.solid-fuel-issue-fit-v7 td:nth-child(5),
+.solid-fuel-issue-fit-v7 td:nth-child(7){
+  white-space:normal !important;
+  word-break:keep-all !important;
+}
+
+/* Any old scroll container must not force a minimum table width. */
+.solid-fuel-record-panel-v7 table{
+  min-width:0 !important;
+}
+.solid-fuel-record-panel-v7 [style*="min-width"]{
+  min-width:0 !important;
+}
+
+@media (max-width:900px){
+  .solid-fuel-record-panel-v7{
+    width:calc(100% - 46px) !important;
+    max-width:calc(100% - 46px) !important;
+    margin-left:46px !important;
+  }
+  .solid-fuel-safe-vertical-v7 > .solid-fuel-tabs-vertical-v7{
+    width:38px !important;
+  }
+  .solid-fuel-tabs-vertical-v7 > button,
+  .solid-fuel-tabs-vertical-v7 > [role="tab"]{
+    width:38px !important;
+    min-width:38px !important;
+  }
+  .solid-fuel-unload-fit-v7 th,
+  .solid-fuel-unload-fit-v7 td,
+  .solid-fuel-issue-fit-v7 th,
+  .solid-fuel-issue-fit-v7 td{
+    padding:5px 2px !important;
+    font-size:9px !important;
+  }
+}
