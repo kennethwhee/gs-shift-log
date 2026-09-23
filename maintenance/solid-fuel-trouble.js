@@ -1025,3 +1025,224 @@
     boot();
   }
 })();
+/* SOLID_FUEL_VERTICAL_TAB_TABLE_FIT_V6 */
+(function(){
+  "use strict";
+  if(window.__solidFuelVerticalTabTableFitV6) return;
+  window.__solidFuelVerticalTabTableFitV6 = true;
+
+  function text(node){
+    return String(node?.textContent||"").replace(/\s+/g," ").trim();
+  }
+
+  function originalTabs(){
+    const rail = document.querySelector(".solid-fuel-record-rail-v5");
+    return rail?.querySelector("nav.tabs") || null;
+  }
+
+  function originalButtons(){
+    const tabs = originalTabs();
+    return tabs ? [...tabs.querySelectorAll("button,[role=tab]")].slice(0,2) : [];
+  }
+
+  function findUnloadingTable(){
+    return [...document.querySelectorAll("table")].find(table=>{
+      const heads=[...table.querySelectorAll("thead th")].map(text);
+      return heads.some(v=>v.includes("\uB0A0\uC9DC")) &&
+             heads.some(v=>v.includes("\uC785\uACE0")) &&
+             heads.some(v=>v.includes("\uCD9C\uACE0")) &&
+             heads.some(v=>v.includes("\uC18C\uC694")) &&
+             heads.some(v=>v.includes("\uC5F0\uB8CC")) &&
+             heads.some(v=>v.includes("Silo"));
+    }) || null;
+  }
+
+  function findIssueTable(){
+    return [...document.querySelectorAll("table")].find(table=>{
+      const heads=[...table.querySelectorAll("thead th")].map(text);
+      return heads.some(v=>/Trouble/i.test(v)) &&
+             heads.some(v=>v.includes("\uC5C5\uCCB4")) &&
+             heads.some(v=>v.includes("\uCC28\uB7C9"));
+    }) || null;
+  }
+
+  function panelFor(table){
+    if(!table) return null;
+    let node=table.parentElement;
+    while(node && node!==document.body){
+      if(node.parentElement?.classList?.contains("solid-fuel-record-content-v5")) return node;
+      node=node.parentElement;
+    }
+    return table.closest("section,article") || table.parentElement;
+  }
+
+  function countFrom(button){
+    const match=text(button).match(/(\d+)/);
+    return match ? match[1] : "0";
+  }
+
+  function makeLetters(word){
+    const wrap=document.createElement("span");
+    wrap.className="solid-fuel-v6-letters";
+    [...word].forEach(ch=>{
+      const span=document.createElement("span");
+      span.textContent=ch;
+      wrap.appendChild(span);
+    });
+    return wrap;
+  }
+
+  function makeProxy(label,count,index){
+    const button=document.createElement("button");
+    button.type="button";
+    button.className="solid-fuel-v6-vertical-tab";
+    button.dataset.index=String(index);
+    button.setAttribute("aria-label",label);
+    button.appendChild(makeLetters(label));
+
+    const badge=document.createElement("span");
+    badge.className="solid-fuel-v6-tab-count";
+    badge.textContent=count;
+    button.appendChild(badge);
+    return button;
+  }
+
+  function isOriginalActive(button,index){
+    if(!button) return index===0;
+    if(button.classList.contains("is-active")) return true;
+    if(button.getAttribute("aria-selected")==="true") return true;
+    if(button.getAttribute("aria-current")==="page") return true;
+    return false;
+  }
+
+  function fitTable(table,kind){
+    if(!table) return;
+    table.classList.add(kind==="unload" ? "solid-fuel-unload-fit-v6" : "solid-fuel-issue-fit-v6");
+    table.style.width="100%";
+    table.style.minWidth="0";
+    table.style.tableLayout="fixed";
+
+    let node=table.parentElement;
+    for(let i=0;i<3 && node;i++,node=node.parentElement){
+      node.classList.add("solid-fuel-fit-wrap-v6");
+    }
+
+    [...table.querySelectorAll("tbody td")].forEach(cell=>{
+      const value=text(cell);
+      if(value && !cell.title) cell.title=value;
+    });
+  }
+
+  function applySelected(index){
+    const buttons=originalButtons();
+    const unloadTable=findUnloadingTable();
+    const issueTable=findIssueTable();
+    const unloadPanel=panelFor(unloadTable);
+    const issuePanel=panelFor(issueTable);
+
+    if(unloadPanel) unloadPanel.hidden = index!==0;
+    if(issuePanel) issuePanel.hidden = index!==1;
+
+    document.querySelectorAll(".solid-fuel-v6-vertical-tab").forEach((button,i)=>{
+      const active=i===index;
+      button.classList.toggle("is-active",active);
+      button.setAttribute("aria-pressed",active ? "true" : "false");
+    });
+
+    if(buttons[index]){
+      try{ buttons[index].click(); }catch(_){}
+    }
+
+    window.setTimeout(()=>{
+      if(unloadPanel) unloadPanel.hidden = index!==0;
+      if(issuePanel) issuePanel.hidden = index!==1;
+    },0);
+  }
+
+  function sync(){
+    const originals=originalButtons();
+    const proxies=[...document.querySelectorAll(".solid-fuel-v6-vertical-tab")];
+    if(proxies.length<2) return;
+
+    proxies[0].querySelector(".solid-fuel-v6-tab-count").textContent=countFrom(originals[0]);
+    proxies[1].querySelector(".solid-fuel-v6-tab-count").textContent=countFrom(originals[1]);
+
+    let active=0;
+    if(isOriginalActive(originals[1],1)) active=1;
+    else if(isOriginalActive(originals[0],0)) active=0;
+
+    proxies.forEach((button,index)=>{
+      button.classList.toggle("is-active",index===active);
+      button.setAttribute("aria-pressed",index===active ? "true" : "false");
+    });
+  }
+
+  function install(){
+    const rail=document.querySelector(".solid-fuel-record-rail-v5");
+    const tabs=originalTabs();
+    const content=document.querySelector(".solid-fuel-record-content-v5");
+    const unloadTable=findUnloadingTable();
+    const issueTable=findIssueTable();
+
+    if(!rail || !tabs || !content || !unloadTable) return false;
+    if(document.getElementById("solidFuelVerticalProxyV6")) return true;
+
+    tabs.classList.add("solid-fuel-original-tabs-hidden-v6");
+
+    const original=originalButtons();
+    const proxy=document.createElement("div");
+    proxy.id="solidFuelVerticalProxyV6";
+    proxy.className="solid-fuel-v6-tab-rail";
+    proxy.setAttribute("role","group");
+    proxy.setAttribute("aria-label","record view");
+
+    proxy.appendChild(makeProxy("\uD558\uC5ED\uAE30\uB85D",countFrom(original[0]),0));
+    proxy.appendChild(makeProxy("\uC774\uC288\uB0B4\uC5ED",countFrom(original[1]),1));
+    rail.appendChild(proxy);
+
+    proxy.addEventListener("click",event=>{
+      const button=event.target.closest(".solid-fuel-v6-vertical-tab");
+      if(!button) return;
+      applySelected(Number(button.dataset.index||0));
+    });
+
+    fitTable(unloadTable,"unload");
+    fitTable(issueTable,"issue");
+
+    const unloadPanel=panelFor(unloadTable);
+    const issuePanel=panelFor(issueTable);
+    if(unloadPanel) unloadPanel.classList.add("solid-fuel-record-panel-v6");
+    if(issuePanel) issuePanel.classList.add("solid-fuel-record-panel-v6");
+
+    let initial=0;
+    if(isOriginalActive(original[1],1)) initial=1;
+    applySelected(initial);
+    sync();
+
+    if(window.MutationObserver){
+      const observer=new MutationObserver(()=>{
+        fitTable(findUnloadingTable(),"unload");
+        fitTable(findIssueTable(),"issue");
+        sync();
+      });
+      observer.observe(content,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["class","aria-selected","hidden"]});
+    }
+    return true;
+  }
+
+  function boot(){
+    let tries=0;
+    const run=()=>{
+      tries++;
+      if(install() || tries>50) return;
+      window.setTimeout(run,100);
+    };
+    run();
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",boot,{once:true});
+  }else{
+    boot();
+  }
+})();
