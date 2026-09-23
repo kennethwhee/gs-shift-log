@@ -1,4 +1,4 @@
-(function(root){
+﻿(function(root){
   'use strict';
   // SOLID_FUEL_RECEIPT_LINK_V1
   const core=root.CofiringCore||(typeof require==='function'?require('./cofiring-core.js'):null);
@@ -562,21 +562,19 @@ return {ok:true,startTotal,receipt,endTotal,usage,allocation:{unit1,unit2,total:
       async function syncReceiptTotals(){
       const generation=++receiptSyncGeneration;
       if(queryMode(container)!=='daily'){resetReceiptAuto();receiptSource('기간 지정 · 수기','manual');updateOrganicInventoryUsage();paintManual();return false;}
-      let p;try{p=periodSpec(container);}catch(_){resetReceiptAuto();receiptSource('조회 기간 확인 필요','error');updateOrganicInventoryUsage();return false;}
       const date=container.querySelector('[data-cfv7-date]')?.value||'',epoch=selectionEpoch,auth=String(authHeaders().Authorization||authHeaders().authorization||'');
-      const specSignature=JSON.stringify({startLocal:p.startLocal,endLocal:p.endLocal});
       if(!date||!auth){resetReceiptAuto();receiptSource(auth?'날짜 선택 필요':'로그인 필요','error');updateOrganicInventoryUsage();return false;}
       for(const input of container.querySelectorAll('[data-cfv5-receipt]')){input.readOnly=true;input.setAttribute('aria-readonly','true');}
       receiptSource('입고기록 확인 중','working');
       try{
-        const query=new URLSearchParams({receiptStart:p.startLocal,receiptEnd:p.endLocal});
+        // COFIRING_DAILY_RECEIPT_CALENDAR_DATE_V17
+        const query=new URLSearchParams({receiptDate:date});
         const response=await root.fetch(`/api/solid-fuel-trouble?${query.toString()}`,{method:'GET',credentials:'same-origin',cache:'no-store',headers:{...authHeaders(),Accept:'application/json'}});
         let payload=null;try{payload=await response.json();}catch(_){}
         if(!response.ok||payload?.ok!==true)throw new Error(payload?.message||'입고기록을 불러오지 못했습니다.');
-        let current;try{const cp=periodSpec(container);current=JSON.stringify({startLocal:cp.startLocal,endLocal:cp.endLocal});}catch(_){current='';}
-        if(disposed||generation!==receiptSyncGeneration||epoch!==selectionEpoch||queryMode(container)!=='daily'||container.querySelector('[data-cfv7-date]')?.value!==date||current!==specSignature||String(authHeaders().Authorization||authHeaders().authorization||'')!==auth)return false;
+        if(disposed||generation!==receiptSyncGeneration||epoch!==selectionEpoch||queryMode(container)!=='daily'||container.querySelector('[data-cfv7-date]')?.value!==date||String(authHeaders().Authorization||authHeaders().authorization||'')!==auth)return false;
         setReceiptAutoValues(payload.receipts);
-        const oc=Number(payload.counts?.organic||0),mc=Number(payload.counts?.manure||0);receiptSource(`입고기록 자동 · 완료 하역 기준 · 유기성 ${oc}건 · 축분 ${mc}건`,'ready');
+        const oc=Number(payload.counts?.organic||0),mc=Number(payload.counts?.manure||0);receiptSource(`입고기록 자동 · 선택일 기록 기준 · 유기성 ${oc}건 · 축분 ${mc}건`,'ready');
         updateOrganicInventoryUsage();
         if(reference&&storesReady())calculate();
         return true;
