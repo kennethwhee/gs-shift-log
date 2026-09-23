@@ -636,6 +636,7 @@
 
 /* SOLID_FUEL_UNLOAD_LIST_QUICK_V4 */
 /* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R2 */
+/* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R3 */
 (function(){
   "use strict";
   if(window.__solidFuelUnloadListQuickV4) return;
@@ -815,7 +816,7 @@
     row.appendChild(tabs);
 
     const quick = document.createElement("div");
-    quick.className = "solid-fuel-inline-quick solid-fuel-inline-quick--below";
+    quick.className = "solid-fuel-inline-quick solid-fuel-inline-quick--above";
     quick.id = "solidFuelUnloadListQuickV4";
     quick.setAttribute("role","group");
     quick.setAttribute("aria-label","unloading list period");
@@ -826,8 +827,8 @@
     quick.appendChild(makeButton(labels.today,{"data-unload-list-mode":"day"}));
     quick.appendChild(makeButton(labels.next,{"data-unload-list-shift":"1","aria-label":"next day"}));
     const unloadPanel = document.getElementById("unloadPanel");
-    if(unloadPanel?.parentNode){
-      unloadPanel.insertAdjacentElement("afterend",quick);
+    if(unloadPanel){
+      unloadPanel.insertAdjacentElement("afterbegin",quick);
     }else{
       row.appendChild(quick);
     }

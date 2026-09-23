@@ -1771,3 +1771,114 @@ body.solid-fuel-readonly #companyModal{
   }
 }
 /* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R2_END */
+/* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R3
+   Latest approved preview:
+   quick-period controls above unloading history,
+   strict Remarks containment, one-screen desktop table. */
+@media (min-width:761px){
+
+  /* Quick period controls live INSIDE #unloadPanel, above its header. */
+  #unloadPanel > .solid-fuel-inline-quick--above{
+    display:flex !important;
+    align-items:center !important;
+    gap:5px !important;
+    width:max-content !important;
+    max-width:calc(100% - 20px) !important;
+    margin:8px 10px 6px !important;
+    padding:0 !important;
+    border:0 !important;
+  }
+
+  #unloadPanel > .solid-fuel-inline-quick--above .query-mode__button{
+    min-width:44px !important;
+    height:34px !important;
+    min-height:34px !important;
+    padding:0 10px !important;
+  }
+
+  /* Neutralize the old R2 below-table presentation. */
+  .solid-fuel-inline-quick--below{
+    display:none !important;
+  }
+
+  /* Keep the full unloading panel inside the available width. */
+  #unloadPanel{
+    box-sizing:border-box !important;
+    max-width:calc(100% - 44px) !important;
+    overflow:hidden !important;
+  }
+
+  #unloadPanel .table-wrap{
+    width:100% !important;
+    max-width:100% !important;
+    overflow-x:hidden !important;
+  }
+
+  #unloadPanel .unload-table{
+    width:100% !important;
+    min-width:0 !important;
+    max-width:100% !important;
+    table-layout:fixed !important;
+  }
+
+  /* Slightly tighter fixed columns to reserve more width for Remarks. */
+  #unloadPanel .unload-table .no{width:40px !important;}
+  #unloadPanel .unload-table .date{width:86px !important;}
+  #unloadPanel .unload-table .clock{width:58px !important;}
+  #unloadPanel .unload-table .duration{width:66px !important;}
+  #unloadPanel .unload-table .fuel-type{width:64px !important;}
+  #unloadPanel .unload-table .receipt-ton{width:76px !important;}
+  #unloadPanel .unload-table .company{width:82px !important;}
+  #unloadPanel .unload-table .vehicle{width:74px !important;}
+  #unloadPanel .unload-table .silo{width:58px !important;}
+  #unloadPanel .unload-table .actions{width:64px !important;}
+
+  /* Remarks must never draw into the Manage column. */
+  #unloadPanel .unload-table th.unload-note,
+  #unloadPanel .unload-table td.unload-note{
+    width:auto !important;
+    min-width:0 !important;
+    max-width:0 !important;
+    white-space:normal !important;
+    word-break:break-word !important;
+    overflow-wrap:anywhere !important;
+    overflow:hidden !important;
+    line-height:1.42 !important;
+  }
+
+  #unloadPanel .unload-table td.unload-note{
+    padding:7px 8px !important;
+    text-align:left !important;
+    vertical-align:middle !important;
+  }
+
+  #unloadPanel .unload-table td.actions{
+    position:relative !important;
+    z-index:1 !important;
+    background:inherit !important;
+    white-space:nowrap !important;
+    overflow:hidden !important;
+    padding:4px 3px !important;
+  }
+
+  #unloadPanel .unload-table td.actions .row-actions{
+    gap:3px !important;
+  }
+
+  #unloadPanel .unload-table td.actions .btn{
+    width:100% !important;
+    min-width:0 !important;
+    min-height:25px !important;
+    padding:0 4px !important;
+    font-size:9px !important;
+  }
+}
+
+@media (max-width:760px){
+  #unloadPanel > .solid-fuel-inline-quick--above{
+    display:flex;
+    gap:5px;
+    margin:8px 0;
+  }
+}
+/* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R3_END */
