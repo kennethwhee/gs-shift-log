@@ -2213,3 +2213,25 @@ body.solid-fuel-readonly #companyModal{
   }
 }
 /* SOLID_FUEL_UNLOAD_TABLE_CLEANUP_R11_1_END */
+/* SOLID_FUEL_BOOKMARK_FIT_R13 */
+/* Do not touch overflow/layout containers.
+   Fit the two bookmarks inside the existing visible rail height only. */
+@media (min-width:901px){
+  .solid-fuel-inline-tabs-row .tabs{
+    top:16px !important;
+    gap:4px !important;
+  }
+
+  .solid-fuel-inline-tabs-row .tab{
+    height:60px !important;
+    min-height:60px !important;
+    padding:5px 4px 11px !important;
+  }
+
+  .solid-fuel-inline-tabs-row .tab::before{
+    font-size:11px !important;
+    line-height:1 !important;
+    letter-spacing:.5px !important;
+  }
+}
+/* SOLID_FUEL_BOOKMARK_FIT_R13_END */
