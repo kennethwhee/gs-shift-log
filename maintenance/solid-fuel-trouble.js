@@ -757,15 +757,53 @@
 
   /* SOLID_FUEL_FILTERED_COUNT_FIX_R7 */
   /* SOLID_FUEL_FILTERED_COUNT_SCOPE_FIX_R9_1 */
-  function updateUnloadSummary(visible){
+  /* SOLID_FUEL_UNLOAD_TONNAGE_SUMMARY_R14 */
+  function updateUnloadSummary(visible,totalTonnage){
     const panel = document.getElementById("unloadPanel");
     const headerInfo = panel?.querySelector(".sheet-head > div");
     if(headerInfo){
       headerInfo.classList.add("solid-fuel-unload-summary-inline");
     }
+
     const status = document.getElementById("unloadStatusText");
     if(status){
       status.textContent = `${visible}건 조회 완료`;
+    }
+
+    const head = panel?.querySelector(".sheet-head");
+    if(!head) return;
+
+    let summary = document.getElementById("solidFuelUnloadTonnageSummary");
+    if(!summary){
+      summary = document.createElement("div");
+      summary.id = "solidFuelUnloadTonnageSummary";
+      summary.className = "solid-fuel-unload-tonnage-summary";
+      summary.setAttribute("aria-label","현재 하역 총 입고량");
+
+      const label = document.createElement("span");
+      label.textContent = "총 입고량";
+
+      const value = document.createElement("strong");
+      value.className = "solid-fuel-unload-tonnage-summary__value";
+
+      summary.appendChild(label);
+      summary.appendChild(value);
+
+      const keepNote = head.querySelector(":scope > small");
+      if(keepNote){
+        head.insertBefore(summary,keepNote);
+      }else{
+        head.appendChild(summary);
+      }
+    }
+
+    const value = summary.querySelector(".solid-fuel-unload-tonnage-summary__value");
+    if(value){
+      const safeTonnage = Number.isFinite(totalTonnage) ? totalTonnage : 0;
+      value.textContent = `${safeTonnage.toLocaleString("ko-KR",{
+        minimumFractionDigits:2,
+        maximumFractionDigits:2
+      })} t`;
     }
   }
 
@@ -778,6 +816,7 @@
 
     view.applying = true;
     let visible = 0;
+    let totalTonnage = 0;
     try{
       // SOLID_FUEL_UNLOAD_LIST_QUICK_FREEZE_FIX_R2
       // MutationObserver watches tbody childList. If the synthetic empty row
@@ -785,6 +824,9 @@
       // observer forever. Keep the row stable unless visibility really changes.
       let empty = body.querySelector("tr.solid-fuel-inline-empty-row");
       const dateIndex = getDateColumn(table);
+      const receiptIndex = [...table.querySelectorAll("thead th")].findIndex(
+        th=>String(th.textContent||"").trim()==="입고량"
+      );
       const rows = [...body.rows].filter(
         row=>!row.classList.contains("solid-fuel-inline-empty-row")
       );
@@ -793,7 +835,18 @@
         const dateValue = rowDate(row,dateIndex);
         const show = dateValue ? inView(dateValue) : true;
         row.hidden = !show;
-        if(show) visible++;
+        if(show){
+          visible++;
+
+          if(receiptIndex>=0){
+            const raw = String(row.cells?.[receiptIndex]?.textContent||"").replace(/,/g,"");
+            const match = raw.match(/-?\d+(?:\.\d+)?/);
+            const ton = match ? Number(match[0]) : NaN;
+            if(Number.isFinite(ton)){
+              totalTonnage += ton;
+            }
+          }
+        }
       });
 
       if(visible===0 && rows.length){
@@ -813,7 +866,7 @@
       view.applying = false;
     }
     updateButtons();
-    updateUnloadSummary(visible);
+    updateUnloadSummary(visible,totalTonnage);
   }
 
   function makeButton(label,attrs={}){

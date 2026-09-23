@@ -2285,3 +2285,72 @@ body.solid-fuel-readonly #companyModal{
   }
 }
 /* SOLID_FUEL_BOOKMARK_SINGLE_COLUMN_R13_2_END */
+/* SOLID_FUEL_UNLOAD_TONNAGE_SUMMARY_STYLE_R14
+   One compact value only; amount follows the currently visible quick-filter rows. */
+@media (min-width:761px){
+  #solidFuelUnloadTonnageSummary.solid-fuel-unload-tonnage-summary{
+    order:2 !important;
+    margin-left:auto !important;
+    display:inline-flex !important;
+    align-items:center !important;
+    gap:9px !important;
+    min-height:34px !important;
+    padding:5px 12px !important;
+    border:1px solid #bdd7f2 !important;
+    border-radius:9px !important;
+    background:#f4f9ff !important;
+    color:#486b8d !important;
+    white-space:nowrap !important;
+    flex:0 0 auto !important;
+  }
+
+  #solidFuelUnloadTonnageSummary > span{
+    font-size:11px !important;
+    font-weight:800 !important;
+    color:#5b7895 !important;
+  }
+
+  #solidFuelUnloadTonnageSummary .solid-fuel-unload-tonnage-summary__value{
+    margin:0 !important;
+    font-size:17px !important;
+    line-height:1 !important;
+    font-weight:900 !important;
+    color:#1769b6 !important;
+    font-variant-numeric:tabular-nums !important;
+    letter-spacing:-.02em !important;
+  }
+
+  #unloadPanel > .sheet-head > small{
+    order:3 !important;
+    margin-left:0 !important;
+  }
+}
+
+@media (max-width:760px){
+  #solidFuelUnloadTonnageSummary.solid-fuel-unload-tonnage-summary{
+    display:flex !important;
+    align-items:center !important;
+    justify-content:space-between !important;
+    gap:10px !important;
+    min-height:34px !important;
+    padding:6px 10px !important;
+    border:1px solid #bdd7f2 !important;
+    border-radius:9px !important;
+    background:#f4f9ff !important;
+    width:100% !important;
+  }
+
+  #solidFuelUnloadTonnageSummary > span{
+    font-size:11px !important;
+    font-weight:800 !important;
+    color:#5b7895 !important;
+  }
+
+  #solidFuelUnloadTonnageSummary .solid-fuel-unload-tonnage-summary__value{
+    font-size:16px !important;
+    font-weight:900 !important;
+    color:#1769b6 !important;
+    font-variant-numeric:tabular-nums !important;
+  }
+}
+/* SOLID_FUEL_UNLOAD_TONNAGE_SUMMARY_STYLE_R14_END */
