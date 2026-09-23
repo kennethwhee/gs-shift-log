@@ -1332,3 +1332,86 @@
     boot();
   }
 })();
+/* SOLID_FUEL_BOOKMARK_ACTIVE_STATE_FIX_V14 */
+(function(){
+  "use strict";
+  if(window.__solidFuelBookmarkActiveStateFixV14) return;
+  window.__solidFuelBookmarkActiveStateFixV14 = true;
+
+  function text(node){
+    return String(node && node.textContent || "").replace(/\s+/g," ").trim();
+  }
+
+  function panelType(panel){
+    if(!panel) return "";
+
+    var tables=Array.prototype.slice.call(panel.querySelectorAll("table"));
+    for(var i=0;i<tables.length;i++){
+      var heads=Array.prototype.slice.call(tables[i].querySelectorAll("thead th")).map(text);
+
+      var isUnload =
+        heads.some(function(v){return v.indexOf("\uB0A0\uC9DC")>=0;}) &&
+        heads.some(function(v){return v.indexOf("\uC785\uACE0")>=0;}) &&
+        heads.some(function(v){return v.indexOf("\uCD9C\uACE0")>=0;}) &&
+        heads.some(function(v){return v.indexOf("\uC18C\uC694")>=0;}) &&
+        heads.some(function(v){return v.indexOf("Silo")>=0;});
+
+      if(isUnload) return "unload";
+
+      var isIssue =
+        heads.some(function(v){return /Trouble/i.test(v);}) &&
+        heads.some(function(v){return v.indexOf("\uC5C5\uCCB4")>=0;}) &&
+        heads.some(function(v){return v.indexOf("\uCC28\uB7C9")>=0;});
+
+      if(isIssue) return "issue";
+    }
+
+    return "";
+  }
+
+  function syncRail(rail){
+    var panel=rail && rail.parentElement;
+    var type=panelType(panel);
+    if(!type) return;
+
+    var tabs=Array.prototype.slice.call(rail.querySelectorAll(".solid-fuel-v12-tab"));
+    if(tabs.length<2) return;
+
+    var activeIndex = type==="unload" ? 0 : 1;
+
+    tabs.forEach(function(tab,index){
+      var on=index===activeIndex;
+      tab.classList.toggle("is-active",on);
+      tab.setAttribute("aria-pressed",on ? "true" : "false");
+    });
+  }
+
+  function syncAll(){
+    Array.prototype.slice.call(document.querySelectorAll(".solid-fuel-v12-rail")).forEach(syncRail);
+  }
+
+  function boot(){
+    var tries=0;
+    function attempt(){
+      tries++;
+      syncAll();
+
+      var rails=document.querySelectorAll(".solid-fuel-v12-rail");
+      if(rails.length || tries>=20) return;
+      window.setTimeout(attempt,100);
+    }
+    attempt();
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",boot,{once:true});
+  }else{
+    boot();
+  }
+
+  document.addEventListener("click",function(event){
+    if(event.target.closest && event.target.closest(".solid-fuel-v12-tab")){
+      window.setTimeout(syncAll,0);
+    }
+  },true);
+})();
