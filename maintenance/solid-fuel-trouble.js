@@ -635,6 +635,7 @@
 })();
 
 /* SOLID_FUEL_UNLOAD_LIST_QUICK_V4 */
+/* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R2 */
 (function(){
   "use strict";
   if(window.__solidFuelUnloadListQuickV4) return;
@@ -808,13 +809,14 @@
 
     const row = document.createElement("div");
     row.className = "solid-fuel-inline-tabs-row";
-    row.id = "solidFuelUnloadListQuickV4";
+    row.id = "solidFuelUnloadBookmarkRailR2";
 
     tabs.parentNode.insertBefore(row,tabs);
     row.appendChild(tabs);
 
     const quick = document.createElement("div");
-    quick.className = "solid-fuel-inline-quick";
+    quick.className = "solid-fuel-inline-quick solid-fuel-inline-quick--below";
+    quick.id = "solidFuelUnloadListQuickV4";
     quick.setAttribute("role","group");
     quick.setAttribute("aria-label","unloading list period");
 
@@ -823,7 +825,12 @@
     quick.appendChild(makeButton(labels.prev,{"data-unload-list-shift":"-1","aria-label":"previous day"}));
     quick.appendChild(makeButton(labels.today,{"data-unload-list-mode":"day"}));
     quick.appendChild(makeButton(labels.next,{"data-unload-list-shift":"1","aria-label":"next day"}));
-    row.appendChild(quick);
+    const unloadPanel = document.getElementById("unloadPanel");
+    if(unloadPanel?.parentNode){
+      unloadPanel.insertAdjacentElement("afterend",quick);
+    }else{
+      row.appendChild(quick);
+    }
 
     quick.addEventListener("click",event=>{
       const button = event.target.closest("button");
