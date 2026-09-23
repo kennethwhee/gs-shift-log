@@ -2078,3 +2078,30 @@ body.solid-fuel-readonly #companyModal{
   }
 }
 /* SOLID_FUEL_QUERY_COMPACT_R5_END */
+/* SOLID_FUEL_SEARCH_PLACEHOLDER_R6
+   Approved preview:
+   the integrated search field gets a little more width so the full
+   guidance text "Silo / Trouble / 비고 검색" is visible on desktop. */
+@media (min-width:761px){
+
+  /* Free a little width from the vehicle field. */
+  #filterVehicle{
+    width:118px !important;
+    min-width:118px !important;
+  }
+
+  /* Give the search field enough width for the full placeholder. */
+  #filterForm .search{
+    width:194px !important;
+    min-width:194px !important;
+    flex-basis:194px !important;
+  }
+
+  #filterForm .search::placeholder,
+  #filterSearch::placeholder{
+    font-size:11px !important;
+    letter-spacing:-0.1px !important;
+    opacity:1 !important;
+  }
+}
+/* SOLID_FUEL_SEARCH_PLACEHOLDER_R6_END */
