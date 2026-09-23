@@ -1405,3 +1405,219 @@ body.solid-fuel-readonly #companyModal{
   }
 }
 /* SOLID_FUEL_SAFE_BOOKMARK_RANGE_UI_R1_END */
+/* SOLID_FUEL_BOOKMARK_RANGE_UI_R2
+   Previous R1 used wide desktop breakpoints. In the Efficiency modal/embedded
+   view the inner viewport is narrower, so the base <=1180px rules won.
+   R2 applies the requested desktop layout from 761px upward. */
+@media (min-width:761px){
+
+  /* ===== Query controls: one horizontal row ===== */
+  .query-card{
+    display:flex !important;
+    flex-direction:row !important;
+    flex-wrap:nowrap !important;
+    align-items:flex-end !important;
+    gap:8px !important;
+    padding:10px 12px !important;
+    overflow-x:auto !important;
+    overflow-y:hidden !important;
+  }
+
+  #queryMode.query-mode{
+    order:0 !important;
+    display:flex !important;
+    flex:0 0 auto !important;
+    align-items:flex-end !important;
+    gap:4px !important;
+    margin:0 !important;
+    white-space:nowrap !important;
+    overflow:visible !important;
+  }
+
+  #queryMode .query-mode__button{
+    min-width:auto !important;
+    height:38px !important;
+    min-height:38px !important;
+    padding:0 10px !important;
+    white-space:nowrap !important;
+  }
+
+  #filterForm.filters{
+    order:1 !important;
+    display:flex !important;
+    flex:1 0 auto !important;
+    flex-wrap:nowrap !important;
+    align-items:flex-end !important;
+    gap:7px !important;
+    min-width:max-content !important;
+  }
+
+  #monthFilterBox[hidden],
+  #rangeFilterBox[hidden]{
+    display:none !important;
+  }
+
+  #monthFilterBox{
+    flex:0 0 128px !important;
+    width:128px !important;
+  }
+
+  #rangeFilterBox{
+    display:flex !important;
+    flex:0 0 auto !important;
+    align-items:flex-end !important;
+    gap:6px !important;
+    width:auto !important;
+    min-width:0 !important;
+  }
+
+  #rangeFilterBox label{
+    flex:0 0 124px !important;
+    width:124px !important;
+    min-width:124px !important;
+  }
+
+  #filterForm.filters > label:not(#monthFilterBox):not(.search){
+    flex:0 0 auto !important;
+  }
+
+  #filterCompany{
+    width:112px !important;
+    min-width:112px !important;
+  }
+
+  #filterVehicle{
+    width:136px !important;
+    min-width:136px !important;
+  }
+
+  #filterForm .search{
+    flex:0 0 170px !important;
+    width:170px !important;
+    min-width:170px !important;
+  }
+
+  #filterSort{
+    width:102px !important;
+    min-width:102px !important;
+  }
+
+  #filterForm .filter-buttons{
+    display:flex !important;
+    flex:0 0 auto !important;
+    align-items:flex-end !important;
+    gap:5px !important;
+    grid-column:auto !important;
+    white-space:nowrap !important;
+  }
+
+  #filterForm .filter-buttons .btn{
+    min-width:52px !important;
+    padding:0 10px !important;
+  }
+
+  /* ===== Left vertical bookmark rail ===== */
+  .solid-fuel-inline-tabs-row{
+    position:relative !important;
+    display:block !important;
+    min-height:38px !important;
+    margin:10px 0 8px 44px !important;
+    overflow:visible !important;
+  }
+
+  .solid-fuel-inline-tabs-row > .tabs{
+    position:absolute !important;
+    left:-44px !important;
+    top:40px !important;
+    z-index:5 !important;
+    display:flex !important;
+    flex-direction:column !important;
+    flex-wrap:nowrap !important;
+    align-items:stretch !important;
+    gap:5px !important;
+    width:34px !important;
+    margin:0 !important;
+    overflow:visible !important;
+  }
+
+  .solid-fuel-inline-tabs-row > .tabs > .tab{
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    width:34px !important;
+    min-width:34px !important;
+    height:78px !important;
+    min-height:78px !important;
+    margin:0 !important;
+    padding:7px 4px 14px !important;
+    border:1px solid #cbd8e5 !important;
+    border-radius:5px 5px 1px 1px !important;
+    background:#fff !important;
+    color:#5a7087 !important;
+    box-shadow:0 1px 2px rgba(40,72,104,.06) !important;
+    clip-path:polygon(0 0,100% 0,100% 100%,50% 89%,0 100%) !important;
+    font-size:0 !important;
+    line-height:1 !important;
+    white-space:normal !important;
+    overflow:visible !important;
+  }
+
+  .solid-fuel-inline-tabs-row > .tabs > .tab::before{
+    display:block !important;
+    writing-mode:vertical-rl !important;
+    text-orientation:upright !important;
+    font-size:12px !important;
+    font-weight:900 !important;
+    line-height:1 !important;
+    letter-spacing:1px !important;
+  }
+
+  .solid-fuel-inline-tabs-row > .tabs > .tab[data-tab="unload"]::before{
+    content:"하역기록" !important;
+  }
+
+  .solid-fuel-inline-tabs-row > .tabs > .tab[data-tab="trouble"]::before{
+    content:"이슈내역" !important;
+  }
+
+  .solid-fuel-inline-tabs-row > .tabs > .tab > span{
+    display:none !important;
+  }
+
+  .solid-fuel-inline-tabs-row > .tabs > .tab.is-active{
+    border-color:#74a9dc !important;
+    background:#eaf4ff !important;
+    color:#1764aa !important;
+    box-shadow:0 2px 5px rgba(40,111,177,.14) !important;
+  }
+
+  /* Quick filters stay horizontal at the top-left of the content/table. */
+  .solid-fuel-inline-tabs-row > .solid-fuel-inline-quick{
+    display:flex !important;
+    width:max-content !important;
+    max-width:100% !important;
+    align-items:center !important;
+    gap:5px !important;
+    margin:0 !important;
+    padding-left:0 !important;
+    border-left:0 !important;
+  }
+
+  /* Shift the active panel so the bookmarks occupy their own left rail. */
+  .tab-panel{
+    width:calc(100% - 44px) !important;
+    margin-left:44px !important;
+  }
+}
+
+/* Small screens keep the original horizontal tabs. */
+@media (max-width:760px){
+  .solid-fuel-inline-tabs-row{
+    margin-left:0 !important;
+  }
+  .tab-panel{
+    width:auto !important;
+    margin-left:0 !important;
+  }
+}
+/* SOLID_FUEL_BOOKMARK_RANGE_UI_R2_END */
