@@ -1,4 +1,4 @@
-(function (root, factory) {
+﻿(function (root, factory) {
   'use strict';
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.CofiringCore = factory();
@@ -327,6 +327,7 @@
 
   function periodSummaryCounter(definition, item, period) {
     // COFIRING_BIO_BOUNDARY_NODATA_CORE_V4
+    // COFIRING_COAL_END_BOUNDARY_FALLBACK_CONTRACT_V6
     const issues = [];
     if (!item || item.key !== definition.id || item.unit !== definition.unit || item.fuel !== definition.fuel || item.tag !== definition.queryTag) {
       return { id: definition.id, quantity: null, referenceQuantity: null, complete: false, missingSamples: 1, observedSamples: 0, qualityVerified: false, issues: ['summary_identity_mismatch'], startBoundaryRecovered: false, endBoundaryRecovered: false };
@@ -337,7 +338,7 @@
     const startFallbackValue=n(item.startBoundaryFallbackValue), endFallbackValue=n(item.endBoundaryFallbackValue);
     const contractStart=n(item.effectiveStartValue), contractEnd=n(item.effectiveEndValue);
     const startFallback = definition.fuel === 'bio' && item.startBoundaryFallbackApplied === true && item.startBoundaryRecovered === true && item.endBoundaryRecovered !== true && item.usageBasis === 'end_minus_period_min_start_nodata_fallback' && startValue === null && endValue !== null && startFallbackValue !== null && contractStart !== null && Math.abs(startFallbackValue-contractStart) <= 0.001 && noDataQuality(item.startQuality) && qualityGood(item.endQuality);
-    const endFallback = definition.fuel === 'bio' && item.endBoundaryFallbackApplied === true && item.endBoundaryRecovered === true && item.startBoundaryRecovered !== true && item.usageBasis === 'period_max_end_nodata_fallback_minus_start_boundary' && startValue !== null && endValue === null && endFallbackValue !== null && contractEnd !== null && Math.abs(endFallbackValue-contractEnd) <= 0.001 && qualityGood(item.startQuality) && noDataQuality(item.endQuality);
+    const endFallback = (definition.fuel === 'bio' || definition.fuel === 'coal') && item.endBoundaryFallbackApplied === true && item.endBoundaryRecovered === true && item.startBoundaryRecovered !== true && item.usageBasis === 'period_max_end_nodata_fallback_minus_start_boundary' && startValue !== null && endValue === null && endFallbackValue !== null && contractEnd !== null && Math.abs(endFallbackValue-contractEnd) <= 0.001 && qualityGood(item.startQuality) && noDataQuality(item.endQuality);
     const direct = startValue !== null && endValue !== null && item.startBoundaryRecovered !== true && item.endBoundaryRecovered !== true;
     const effectiveStart = contractStart !== null ? contractStart : (startFallback ? startFallbackValue : startValue);
     const effectiveEnd = contractEnd !== null ? contractEnd : (endFallback ? endFallbackValue : endValue);
