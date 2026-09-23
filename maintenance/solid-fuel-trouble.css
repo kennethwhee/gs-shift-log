@@ -1876,3 +1876,125 @@ button.solid-fuel-v10-tab.is-active{
     line-height:10px !important;
   }
 }
+/* SOLID_FUEL_DIV_TAB_RAIL_V12 */
+
+/* Hide all prior visual rail implementations. */
+.solid-fuel-v10-rail,
+.solid-fuel-v9-rail,
+.solid-fuel-safe-vertical-v7 > .solid-fuel-tabs-vertical-v7{
+  display:none !important;
+  visibility:hidden !important;
+}
+
+.solid-fuel-v12-rail{
+  position:absolute !important;
+  top:0 !important;
+  left:-54px !important;
+  z-index:20 !important;
+  display:flex !important;
+  flex-direction:column !important;
+  gap:6px !important;
+  width:46px !important;
+  min-width:46px !important;
+  max-width:46px !important;
+  overflow:visible !important;
+}
+
+.solid-fuel-v12-tab{
+  box-sizing:border-box !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  width:46px !important;
+  min-width:46px !important;
+  max-width:46px !important;
+  height:76px !important;
+  min-height:76px !important;
+  max-height:76px !important;
+  margin:0 !important;
+  padding:8px 4px !important;
+  border:1px solid #cbd9e8 !important;
+  border-radius:9px !important;
+  background:#fff !important;
+  color:#294966 !important;
+  cursor:pointer !important;
+  user-select:none !important;
+  overflow:visible !important;
+  box-shadow:none !important;
+  font-family:inherit !important;
+}
+
+.solid-fuel-v12-tab:hover{
+  border-color:#9ebcda !important;
+  background:#f7fbff !important;
+}
+
+.solid-fuel-v12-tab.is-active{
+  border-color:#1179d7 !important;
+  background:linear-gradient(180deg,#1688e6 0%,#0870ce 100%) !important;
+  color:#fff !important;
+  box-shadow:0 2px 6px rgba(18,103,185,.15) !important;
+}
+
+.solid-fuel-v12-letters{
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:2px !important;
+  width:100% !important;
+  height:auto !important;
+  min-height:50px !important;
+  margin:0 !important;
+  padding:0 !important;
+  overflow:visible !important;
+  color:inherit !important;
+}
+
+.solid-fuel-v12-letter{
+  display:block !important;
+  width:100% !important;
+  height:11px !important;
+  min-height:11px !important;
+  max-height:11px !important;
+  margin:0 !important;
+  padding:0 !important;
+  color:inherit !important;
+  font-family:inherit !important;
+  font-size:11px !important;
+  font-weight:900 !important;
+  line-height:11px !important;
+  text-align:center !important;
+  white-space:nowrap !important;
+  overflow:visible !important;
+}
+
+.solid-fuel-v10-panel{
+  overflow:visible !important;
+}
+
+@media (max-width:900px){
+  .solid-fuel-v12-rail{
+    left:-50px !important;
+    width:42px !important;
+    min-width:42px !important;
+    max-width:42px !important;
+  }
+
+  .solid-fuel-v12-tab{
+    width:42px !important;
+    min-width:42px !important;
+    max-width:42px !important;
+    height:72px !important;
+    min-height:72px !important;
+    max-height:72px !important;
+  }
+
+  .solid-fuel-v12-letter{
+    height:10px !important;
+    min-height:10px !important;
+    max-height:10px !important;
+    font-size:10px !important;
+    line-height:10px !important;
+  }
+}

@@ -1237,3 +1237,98 @@
     boot();
   }
 })();
+/* SOLID_FUEL_DIV_TAB_RAIL_V12 */
+(function(){
+  "use strict";
+  if(window.__solidFuelDivTabRailV12) return;
+  window.__solidFuelDivTabRailV12 = true;
+
+  function originalButtons(){
+    var row=document.getElementById("solidFuelUnloadListQuickV4");
+    var tabs=row ? row.querySelector("nav.tabs") : null;
+    return tabs ? Array.prototype.slice.call(tabs.querySelectorAll("button,[role=tab]")).slice(0,2) : [];
+  }
+
+  function makeLetters(label){
+    var box=document.createElement("div");
+    box.className="solid-fuel-v12-letters";
+    Array.prototype.forEach.call(label,function(ch){
+      var s=document.createElement("div");
+      s.className="solid-fuel-v12-letter";
+      s.textContent=ch;
+      box.appendChild(s);
+    });
+    return box;
+  }
+
+  function makeTab(label,index,active){
+    var tab=document.createElement("div");
+    tab.className="solid-fuel-v12-tab" + (active ? " is-active" : "");
+    tab.dataset.index=String(index);
+    tab.setAttribute("role","button");
+    tab.setAttribute("tabindex","0");
+    tab.setAttribute("aria-label",label);
+    tab.setAttribute("aria-pressed",active ? "true" : "false");
+    tab.appendChild(makeLetters(label));
+    return tab;
+  }
+
+  function makeRail(activeIndex){
+    var rail=document.createElement("div");
+    rail.className="solid-fuel-v12-rail";
+    rail.appendChild(makeTab("\uD558\uC5ED\uAE30\uB85D",0,activeIndex===0));
+    rail.appendChild(makeTab("\uC774\uC288\uB0B4\uC5ED",1,activeIndex===1));
+
+    function activate(index){
+      var source=originalButtons()[index];
+      if(source) source.click();
+    }
+
+    rail.addEventListener("click",function(event){
+      var tab=event.target.closest(".solid-fuel-v12-tab");
+      if(!tab) return;
+      activate(Number(tab.dataset.index||0));
+    });
+
+    rail.addEventListener("keydown",function(event){
+      var tab=event.target.closest(".solid-fuel-v12-tab");
+      if(!tab) return;
+      if(event.key==="Enter" || event.key===" "){
+        event.preventDefault();
+        activate(Number(tab.dataset.index||0));
+      }
+    });
+
+    return rail;
+  }
+
+  function install(){
+    var panels=Array.prototype.slice.call(document.querySelectorAll(".solid-fuel-v10-panel"));
+    if(!panels.length) return false;
+
+    document.documentElement.classList.add("solid-fuel-v12-ready");
+
+    panels.forEach(function(panel,index){
+      if(panel.querySelector(":scope > .solid-fuel-v12-rail")) return;
+      panel.prepend(makeRail(index===0 ? 0 : 1));
+    });
+
+    return true;
+  }
+
+  function boot(){
+    var tries=0;
+    function attempt(){
+      tries++;
+      if(install() || tries>=20) return;
+      window.setTimeout(attempt,100);
+    }
+    attempt();
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",boot,{once:true});
+  }else{
+    boot();
+  }
+})();
