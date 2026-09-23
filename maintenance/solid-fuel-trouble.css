@@ -1998,3 +1998,94 @@ button.solid-fuel-v10-tab.is-active{
     line-height:10px !important;
   }
 }
+/* SOLID_FUEL_SLIM_BOOKMARK_TABS_V13 */
+
+/* Candidate #4: narrow, minimal bookmark rail. */
+.solid-fuel-v12-rail{
+  left:-42px !important;
+  width:34px !important;
+  min-width:34px !important;
+  max-width:34px !important;
+  gap:7px !important;
+}
+
+.solid-fuel-v12-tab{
+  width:34px !important;
+  min-width:34px !important;
+  max-width:34px !important;
+  height:78px !important;
+  min-height:78px !important;
+  max-height:78px !important;
+  padding:7px 2px 13px !important;
+  border:1px solid #cfdce8 !important;
+  border-radius:6px 6px 2px 2px !important;
+  background:#ffffff !important;
+  color:#36546f !important;
+  box-shadow:0 1px 3px rgba(41,74,103,.08) !important;
+  clip-path:polygon(0 0,100% 0,100% 100%,50% 89%,0 100%) !important;
+}
+
+.solid-fuel-v12-tab:hover{
+  border-color:#a9c8e5 !important;
+  background:#f5f9fd !important;
+}
+
+/* Selected = light blue, not dark blue. */
+.solid-fuel-v12-tab.is-active{
+  border-color:#78b7ed !important;
+  background:#e8f4ff !important;
+  color:#0b5fa8 !important;
+  box-shadow:0 2px 5px rgba(41,118,187,.14) !important;
+}
+
+.solid-fuel-v12-letters{
+  gap:2px !important;
+  min-height:50px !important;
+}
+
+.solid-fuel-v12-letter{
+  height:11px !important;
+  min-height:11px !important;
+  max-height:11px !important;
+  font-size:10px !important;
+  line-height:11px !important;
+  font-weight:900 !important;
+}
+
+/* Reclaim the width saved by the slim bookmark rail. */
+.solid-fuel-record-panel-v7,
+.solid-fuel-v10-panel{
+  width:calc(100% - 44px) !important;
+  max-width:calc(100% - 44px) !important;
+  margin-left:44px !important;
+}
+
+@media (max-width:900px){
+  .solid-fuel-v12-rail{
+    left:-39px !important;
+    width:32px !important;
+    min-width:32px !important;
+    max-width:32px !important;
+  }
+
+  .solid-fuel-v12-tab{
+    width:32px !important;
+    min-width:32px !important;
+    max-width:32px !important;
+    height:74px !important;
+    min-height:74px !important;
+    max-height:74px !important;
+  }
+
+  .solid-fuel-v12-letter{
+    font-size:9.5px !important;
+    line-height:10px !important;
+  }
+
+  .solid-fuel-record-panel-v7,
+  .solid-fuel-v10-panel{
+    width:calc(100% - 41px) !important;
+    max-width:calc(100% - 41px) !important;
+    margin-left:41px !important;
+  }
+}
