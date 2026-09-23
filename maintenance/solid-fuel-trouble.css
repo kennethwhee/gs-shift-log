@@ -1977,3 +1977,104 @@ body.solid-fuel-readonly #companyModal{
   }
 }
 /* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R4_END */
+/* SOLID_FUEL_QUERY_COMPACT_R5
+   Approved preview:
+   reduce oversized desktop query fields/buttons/text while preserving
+   the existing one-row monthly/range layouts. */
+@media (min-width:761px){
+
+  .query-card{
+    gap:7px !important;
+    padding:8px 10px !important;
+  }
+
+  #queryMode.query-mode{
+    gap:4px !important;
+  }
+
+  #queryMode .query-mode__button{
+    height:34px !important;
+    min-height:34px !important;
+    padding:0 9px !important;
+    font-size:12px !important;
+    line-height:1 !important;
+    border-radius:7px !important;
+  }
+
+  #filterForm.filters{
+    gap:7px !important;
+  }
+
+  #filterForm.filters label{
+    gap:3px !important;
+    font-size:11px !important;
+    line-height:1.1 !important;
+  }
+
+  #filterForm.filters label > span,
+  #filterForm.filters label > strong{
+    font-size:11px !important;
+    line-height:1.1 !important;
+  }
+
+  #filterForm.filters input,
+  #filterForm.filters select{
+    height:34px !important;
+    min-height:34px !important;
+    padding:0 10px !important;
+    font-size:12px !important;
+    line-height:1 !important;
+    border-radius:7px !important;
+  }
+
+  #monthFilterBox{
+    width:124px !important;
+    flex-basis:124px !important;
+  }
+
+  #rangeFilterBox{
+    gap:6px !important;
+  }
+
+  #rangeFilterBox label{
+    width:122px !important;
+    min-width:122px !important;
+    flex-basis:122px !important;
+  }
+
+  #filterCompany{
+    width:108px !important;
+    min-width:108px !important;
+  }
+
+  #filterVehicle{
+    width:132px !important;
+    min-width:132px !important;
+  }
+
+  #filterForm .search{
+    width:166px !important;
+    min-width:166px !important;
+    flex-basis:166px !important;
+  }
+
+  #filterSort{
+    width:98px !important;
+    min-width:98px !important;
+  }
+
+  #filterForm .filter-buttons{
+    gap:5px !important;
+  }
+
+  #filterForm .filter-buttons .btn{
+    height:34px !important;
+    min-height:34px !important;
+    min-width:48px !important;
+    padding:0 9px !important;
+    font-size:12px !important;
+    line-height:1 !important;
+    border-radius:7px !important;
+  }
+}
+/* SOLID_FUEL_QUERY_COMPACT_R5_END */
