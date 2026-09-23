@@ -1,4 +1,4 @@
-*{box-sizing:border-box}
+﻿*{box-sizing:border-box}
 :root{
   color-scheme:light;
   --bg:#f3f6f9;
@@ -1230,3 +1230,178 @@ body.solid-fuel-readonly #companyModal{
     border-left:0;
   }
 }
+/* SOLID_FUEL_SAFE_BOOKMARK_RANGE_UI_R1
+   CSS-only restoration after the V4 stability rollback.
+   No proxy tabs, DOM moving, MutationObserver, or runtime polling. */
+
+/* Hidden query controls must actually disappear.
+   The base .filters label { display:flex } rule otherwise makes #monthFilterBox
+   visible even while the range mode sets hidden=true. */
+#monthFilterBox[hidden],
+#rangeFilterBox[hidden]{
+  display:none !important;
+}
+
+/* Desktop query row: keep 월별 / 기간 지정 / 전체 + active fields + search controls
+   on one compact line where width allows it. */
+@media (min-width:1101px){
+  .query-card{
+    display:flex;
+    align-items:flex-end;
+    flex-wrap:nowrap;
+    gap:10px;
+    overflow-x:auto;
+    overflow-y:hidden;
+  }
+
+  .query-mode{
+    flex:0 0 auto;
+    white-space:nowrap;
+  }
+
+  .filters{
+    display:flex;
+    flex:1 0 auto;
+    align-items:flex-end;
+    gap:8px;
+    min-width:max-content;
+  }
+
+  #monthFilterBox{
+    flex:0 0 132px;
+    width:132px;
+  }
+
+  #rangeFilterBox{
+    flex:0 0 auto;
+    display:flex;
+    align-items:flex-end;
+    gap:7px;
+  }
+
+  #rangeFilterBox label{
+    flex:0 0 132px;
+    width:132px;
+  }
+
+  #filterCompany{
+    min-width:116px;
+  }
+
+  #filterVehicle{
+    min-width:138px;
+  }
+
+  .filters .search{
+    flex:1 1 210px;
+    min-width:190px;
+  }
+
+  #filterSort{
+    min-width:108px;
+  }
+
+  .filter-buttons{
+    flex:0 0 auto;
+    white-space:nowrap;
+  }
+}
+
+/* Slim bookmark rail using the ORIGINAL tab buttons.
+   The existing .is-active state remains the single source of truth. */
+@media (min-width:901px){
+  .solid-fuel-inline-tabs-row{
+    position:relative;
+    display:block;
+    min-height:34px;
+    margin:10px 0 8px 44px;
+  }
+
+  .solid-fuel-inline-tabs-row .solid-fuel-inline-quick{
+    width:max-content;
+    max-width:100%;
+    margin:0;
+    padding-left:0;
+    border-left:0;
+  }
+
+  .solid-fuel-inline-tabs-row .tabs{
+    position:absolute;
+    left:-44px;
+    top:40px;
+    z-index:4;
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    gap:5px;
+    width:34px;
+    margin:0;
+    overflow:visible;
+  }
+
+  .solid-fuel-inline-tabs-row .tab{
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:34px;
+    min-width:34px;
+    height:78px;
+    min-height:78px;
+    margin:0;
+    padding:7px 4px 14px;
+    border:1px solid #cbd8e5;
+    border-radius:5px 5px 1px 1px;
+    background:#fff;
+    color:#5a7087;
+    box-shadow:0 1px 2px rgba(40,72,104,.06);
+    clip-path:polygon(0 0,100% 0,100% 100%,50% 89%,0 100%);
+    font-size:0;
+    line-height:1;
+    white-space:normal;
+    overflow:visible;
+  }
+
+  .solid-fuel-inline-tabs-row .tab::before{
+    display:block;
+    writing-mode:vertical-rl;
+    text-orientation:upright;
+    font-size:12px;
+    font-weight:900;
+    line-height:1;
+    letter-spacing:1px;
+  }
+
+  .solid-fuel-inline-tabs-row .tab[data-tab="unload"]::before{
+    content:"하역기록";
+  }
+
+  .solid-fuel-inline-tabs-row .tab[data-tab="trouble"]::before{
+    content:"이슈내역";
+  }
+
+  .solid-fuel-inline-tabs-row .tab span{
+    display:none !important;
+  }
+
+  .solid-fuel-inline-tabs-row .tab.is-active{
+    border-color:#74a9dc;
+    background:#eaf4ff;
+    color:#1764aa;
+    box-shadow:0 2px 5px rgba(40,111,177,.14);
+  }
+
+  .tab-panel{
+    width:calc(100% - 44px);
+    margin-left:44px;
+  }
+}
+
+/* Mobile/tablet: keep the original horizontal tabs and quick filters. */
+@media (max-width:900px){
+  .tab-panel{
+    width:auto;
+    margin-left:0;
+  }
+}
+/* SOLID_FUEL_SAFE_BOOKMARK_RANGE_UI_R1_END */
