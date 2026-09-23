@@ -2258,3 +2258,30 @@ body.solid-fuel-readonly #companyModal{
   }
 }
 /* SOLID_FUEL_BOOKMARK_FIT_R13_1_END */
+/* SOLID_FUEL_BOOKMARK_SINGLE_COLUMN_R13_2 */
+@media (min-width:901px){
+  .solid-fuel-inline-tabs-row > .tabs{
+    top:6px !important;
+    gap:3px !important;
+  }
+
+  .solid-fuel-inline-tabs-row > .tabs > .tab{
+    height:62px !important;
+    min-height:62px !important;
+    max-height:62px !important;
+    padding:4px 3px 9px !important;
+  }
+
+  .solid-fuel-inline-tabs-row > .tabs > .tab::before{
+    display:block !important;
+    writing-mode:vertical-rl !important;
+    text-orientation:upright !important;
+    white-space:nowrap !important;
+    word-break:keep-all !important;
+    overflow-wrap:normal !important;
+    font-size:10px !important;
+    line-height:1 !important;
+    letter-spacing:0 !important;
+  }
+}
+/* SOLID_FUEL_BOOKMARK_SINGLE_COLUMN_R13_2_END */
