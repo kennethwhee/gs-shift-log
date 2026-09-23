@@ -1182,3 +1182,51 @@ body.solid-fuel-readonly #companyModal{
   }
 }
 /* SOLID_FUEL_RECORD_SINGLE_ROW_FIT_V1_END */
+
+/* SOLID_FUEL_UNLOAD_LIST_QUICK_V4 */
+.solid-fuel-inline-tabs-row{
+  display:flex;
+  align-items:center;
+  gap:18px;
+  flex-wrap:wrap;
+  margin:10px 0 8px;
+}
+.solid-fuel-inline-tabs-row .tabs{
+  margin:0;
+  flex:0 0 auto;
+}
+.solid-fuel-inline-quick{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding-left:18px;
+  border-left:1px solid #d8e2ee;
+}
+.solid-fuel-inline-quick .query-mode__button{
+  min-width:42px;
+  height:32px;
+  padding:0 12px;
+}
+.solid-fuel-inline-quick .query-mode__button.is-active{
+  border-color:#2b76c9;
+  color:#145da5;
+  background:#edf6ff;
+  box-shadow:inset 0 0 0 1px rgba(43,118,201,.08);
+}
+.solid-fuel-inline-empty-row td{
+  padding:20px 12px !important;
+  text-align:center !important;
+  color:#7890a6 !important;
+  background:#fbfdff !important;
+  font-weight:700 !important;
+}
+@media (max-width:900px){
+  .solid-fuel-inline-tabs-row{
+    gap:8px;
+  }
+  .solid-fuel-inline-quick{
+    width:100%;
+    padding-left:0;
+    border-left:0;
+  }
+}

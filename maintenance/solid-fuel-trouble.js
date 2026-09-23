@@ -1,12 +1,11 @@
 "use strict";
 /* SOLID-FUEL-TROUBLE-V3.1.3 · simple time entry + current Silo choices + legacy route preservation */
 /* SOLID_FUEL_RECEIPT_LINK_V1 */
-/* SOLID_FUEL_UNLOADING_QUICK_RANGE_V2 */
 (function(){
   const API="/api/solid-fuel-trouble",AUTH="gsShiftLog.currentUser";
   const MOBILE_READ_ONLY_QUERY="(max-width: 760px)";
   const SILO_OPTIONS=[["","선택 안 함"],["#A","Storage #A"],["#B","Storage #B"],["Day","Day Silo"]];
-  const state={troubles:[],unloads:[],companies:[],filterCompanies:[],companyDirectory:[],user:null,permissions:{canCreate:false,canEdit:false,canDelete:false,canUploadPhoto:false,canManageUnloading:false,canManageCompanies:false},loading:false,saving:false,mode:"day",anchorDate:"",tab:"trouble",photoScale:1};
+  const state={troubles:[],unloads:[],companies:[],filterCompanies:[],companyDirectory:[],user:null,permissions:{canCreate:false,canEdit:false,canDelete:false,canUploadPhoto:false,canManageUnloading:false,canManageCompanies:false},loading:false,saving:false,mode:"month",tab:"trouble",photoScale:1};
   const $=id=>document.getElementById(id);
   const e={
     refresh:$("refreshBtn"),createRecord:$("createRecordBtn"),companyManage:$("companyManageBtn"),
@@ -30,14 +29,6 @@
   function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
   function currentMonth(){return today().slice(0,7)}
   function monthBounds(month){if(!/^\d{4}-\d{2}$/.test(month))return {from:"",to:""};const [y,m]=month.split("-").map(Number),last=new Date(y,m,0).getDate();return {from:`${month}-01`,to:`${month}-${String(last).padStart(2,"0")}`}}
-  function parseLocalDate(value){const m=String(value||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(Number(m[1]),Number(m[2])-1,Number(m[3])):new Date()}
-  function localDateValue(date){return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`}
-  function addDays(value,amount){const d=parseLocalDate(value||today());d.setDate(d.getDate()+Number(amount||0));return localDateValue(d)}
-  function weekBounds(value=today()){const d=parseLocalDate(value),mondayOffset=(d.getDay()+6)%7,from=new Date(d),to=new Date(d);from.setDate(d.getDate()-mondayOffset);to.setDate(from.getDate()+6);return {from:localDateValue(from),to:localDateValue(to)}}
-  function shortDate(value){const v=String(value||"");return /^\d{4}-\d{2}-\d{2}$/.test(v)?v.slice(5).replace("-","."):v}
-  function queryBounds(){if(state.mode==="all")return {from:"",to:""};if(state.mode==="week")return weekBounds(today());const day=state.anchorDate||today();return {from:day,to:day}}
-  function queryPeriodLabel(){if(state.mode==="all")return "전체";if(state.mode==="week"){const b=weekBounds(today());return `이번주 · ${shortDate(b.from)}~${shortDate(b.to)}`}const day=state.anchorDate||today();return day===today()?`금일 · ${shortDate(day)}`:shortDate(day)}
-  function updateQueryPeriod(){const input=$("quickPeriodText");if(input)input.value=queryPeriodLabel()}
   function durationText(mins){if(mins===null||mins===undefined||mins==="")return "-";const n=Number(mins);if(!Number.isFinite(n))return "-";const h=Math.floor(n/60),m=n%60;return h?`${h}시간 ${m?`${m}분`:""}`.trim():`${m}분`}
   function durationShort(mins){if(mins===null||mins===undefined||mins==="")return "-";const n=Number(mins);if(!Number.isFinite(n))return "-";return `${Math.floor(n/60)}:${String(n%60).padStart(2,"0")}`}
   function normalizeTimeValue(value){
@@ -205,20 +196,12 @@
     input.addEventListener("blur",()=>{normalizeTimeInput(input);updateDuration()})
   }
 
-  function setMode(mode){
-    state.mode=["day","week","all"].includes(mode)?mode:"day";
-    if(!state.anchorDate)state.anchorDate=today();
-    document.querySelectorAll("[data-query-mode]").forEach(b=>{
-      const active=b.dataset.queryMode===state.mode&&(b.dataset.queryMode!=="day"||state.anchorDate===today());
-      b.classList.toggle("is-active",active)
-    });
-    if(e.monthBox)e.monthBox.hidden=true;
-    if(e.rangeBox)e.rangeBox.hidden=true;
-    updateQueryPeriod()
-  }
+  function setMode(mode){state.mode=mode;document.querySelectorAll("[data-query-mode]").forEach(b=>b.classList.toggle("is-active",b.dataset.queryMode===mode));e.monthBox.hidden=mode!=="month";e.rangeBox.hidden=mode!=="range";if(mode==="range"&&!e.from.value&&!e.to.value){const b=monthBounds(e.month.value||currentMonth());e.from.value=b.from;e.to.value=b.to}}
   function buildUrl(){
     const u=new URL(API,location.origin);
-    const {from,to}=queryBounds();
+    let from="",to="";
+    if(state.mode==="month"){const b=monthBounds(e.month.value||currentMonth());from=b.from;to=b.to}
+    if(state.mode==="range"){from=e.from.value;to=e.to.value}
     const v={from,to,company:e.company.value.trim(),vehicle:e.vehicle.value.trim(),search:e.search.value.trim(),sort:e.sort.value||"desc"};
     Object.entries(v).forEach(([k,x])=>{if(x)u.searchParams.set(k,x)});u.searchParams.set("_",Date.now());return u.toString()
   }
@@ -291,7 +274,7 @@
       `;
     }
 
-    setText(e.analyticsStatus,`${queryPeriodLabel()} · ${state.unloads.length}건 하역 기준`)
+    setText(e.analyticsStatus,`${state.unloads.length}건 하역 기준`)
   }
 
   function photoHtml(x){const p=Array.isArray(x.photos)?x.photos:[];if(!p.length)return `<span class="photo-empty">-</span>`;let h=p.slice(0,2).map(v=>`<button class="thumb" type="button" data-action="photo" data-url="${esc(v.url)}"><img src="${esc(v.url)}" alt="샘플 사진" loading="lazy"></button>`);if(p.length>2)h.push(`<span class="more">+${p.length-2}</span>`);return `<div class="photo-list">${h.join("")}</div>`}
@@ -315,7 +298,7 @@
     e.unloadBody.replaceChildren();if(!state.unloads.length){e.unloadBody.innerHTML=`<tr><td colspan="12" class="empty">조회 조건에 해당하는 하역시간 내역이 없습니다.</td></tr>`;return}
     state.unloads.forEach((x,i)=>{const tr=document.createElement("tr"),m=durationValue(x),cls=Number.isFinite(m)?(m>=180?"is-very-long":m>=120?"is-long":""):"";if(abnormal(x))tr.classList.add("abnormal-row");tr.innerHTML=`<td class="no">${i+1}</td><td class="date">${esc(String(x.unloadingDate||"").replace(/-/g,".")||"-")}</td><td class="clock">${esc(x.arrivalTime||"-")}</td><td class="clock">${esc(x.departureTime||"-")}</td><td class="duration"><span class="duration-badge ${cls}">${esc(durationShort(m))}</span></td><td class="fuel-type"><span class="fuel-pill ${x.fuelType?"is-"+esc(x.fuelType):""}">${esc(fuelTypeLabel(x.fuelType))}</span></td><td class="receipt-ton">${x.receiptTons==null?"-":esc(Number(x.receiptTons).toLocaleString("ko-KR",{maximumFractionDigits:6}))+" t"}</td><td class="company">${esc(x.companyName||"-")}</td><td class="vehicle">${esc(x.vehicleNo||"-")}</td><td class="silo"><span class="silo-pill">${esc(x.siloRoute||"-")}</span></td><td class="unload-note">${esc(x.note||"-")}</td><td class="actions">${unloadActionsHtml(x)}</td>`;e.unloadBody.append(tr)})
   }
-  function render(){syncAccessMode();companyLists();summary();groupStats();troubleTable();unloadTable();updateQueryPeriod();const period=queryPeriodLabel();setText(e.status,`${period} · ${state.troubles.length}건 조회 완료`);setText(e.unloadStatus,`${period} · ${state.unloads.length}건 조회 완료`);renderCompanyManager();setBusy()}
+  function render(){syncAccessMode();companyLists();summary();groupStats();troubleTable();unloadTable();setText(e.status,`${state.troubles.length}건 조회 완료`);setText(e.unloadStatus,`${state.unloads.length}건 조회 완료`);renderCompanyManager();setBusy()}
 
   async function load(){if(state.loading)return;state.loading=true;setBusy();setText(e.status,"조회 중...");setText(e.unloadStatus,"조회 중...");try{const r=await api(buildUrl(),{headers:headers()});state.troubles=Array.isArray(r.items)?r.items:[];state.unloads=Array.isArray(r.unloadingLogs)?r.unloadingLogs:[];state.companies=Array.isArray(r.companies)?r.companies:[];state.filterCompanies=Array.isArray(r.filterCompanies)?r.filterCompanies:state.companies;state.companyDirectory=Array.isArray(r.companyDirectory)?r.companyDirectory:state.companies.map(name=>({name,isActive:true}));state.user=r.user&&typeof r.user==="object"?r.user:null;state.permissions=normalizePermissions(r.permissions);render()}catch(err){console.error(err);state.troubles=[];state.unloads=[];state.user=null;state.permissions=normalizePermissions(null);render();setText(e.status,"조회 실패");setText(e.unloadStatus,"조회 실패");e.troubleBody.innerHTML=`<tr><td colspan="8" class="empty">${esc(err.message||"조회 실패")}</td></tr>`;e.unloadBody.innerHTML=`<tr><td colspan="12" class="empty">${esc(err.message||"조회 실패")}</td></tr>`}finally{state.loading=false;setBusy()}}
   function switchTab(tab){state.tab=tab;document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("is-active",b.dataset.tab===tab));document.querySelectorAll("[data-tab-panel]").forEach(p=>{const active=p.dataset.tabPanel===tab;p.classList.toggle("is-active",active);p.hidden=!active})}
@@ -563,22 +546,12 @@
     });
 
     e.mode.addEventListener("click",ev=>{
-      const shift=ev.target.closest("[data-day-shift]");
-      if(shift){
-        state.anchorDate=addDays(state.anchorDate||today(),Number(shift.dataset.dayShift||0));
-        setMode("day");
-        load();
-        return
-      }
       const b=ev.target.closest("[data-query-mode]");
-      if(!b)return;
-      state.anchorDate=today();
-      setMode(b.dataset.queryMode);
-      load()
+      if(b)setMode(b.dataset.queryMode)
     });
     e.form.addEventListener("submit",ev=>{ev.preventDefault();load()});
     e.reset.addEventListener("click",()=>{
-      e.form.reset();e.month.value=currentMonth();e.sort.value="desc";state.anchorDate=today();setMode("day");load()
+      e.form.reset();e.month.value=currentMonth();e.sort.value="desc";setMode("month");load()
     });
     e.tabs.addEventListener("click",ev=>{
       const b=ev.target.closest("[data-tab]");
@@ -646,8 +619,7 @@
   }
   async function init(){
     e.month.value=currentMonth();
-    state.anchorDate=today();
-    setMode("day");
+    setMode("month");
     syncAccessMode();
     bind();
     const mobileMedia=window.matchMedia?.(MOBILE_READ_ONLY_QUERY);
@@ -660,4 +632,238 @@
     await load()
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
+})();
+
+/* SOLID_FUEL_UNLOAD_LIST_QUICK_V4 */
+(function(){
+  "use strict";
+  if(window.__solidFuelUnloadListQuickV4) return;
+  window.__solidFuelUnloadListQuickV4 = true;
+
+  const DAY_MS = 86400000;
+  const labels = {
+    all: "\uC804\uCCB4",
+    week: "\uC774\uBC88\uC8FC",
+    prev: "<",
+    today: "\uAE08\uC77C",
+    next: ">",
+    empty: "\uD574\uB2F9 \uAE30\uAC04 \uD558\uC5ED\uAE30\uB85D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4."
+  };
+
+  const view = {
+    mode: "day",
+    anchor: localDateValue(new Date()),
+    applying: false,
+    observer: null
+  };
+
+  function localDateValue(date){
+    const y = date.getFullYear();
+    const m = String(date.getMonth()+1).padStart(2,"0");
+    const d = String(date.getDate()).padStart(2,"0");
+    return `${y}-${m}-${d}`;
+  }
+
+  function parseLocalDate(value){
+    const match = String(value||"").trim().replace(/\./g,"-").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(!match) return null;
+    const date = new Date(Number(match[1]),Number(match[2])-1,Number(match[3]));
+    return Number.isFinite(date.getTime()) ? date : null;
+  }
+
+  function addDays(value,amount){
+    const date = parseLocalDate(value) || new Date();
+    date.setDate(date.getDate()+Number(amount||0));
+    return localDateValue(date);
+  }
+
+  function weekBounds(){
+    const now = new Date();
+    const mondayOffset = (now.getDay()+6)%7;
+    const from = new Date(now);
+    from.setDate(now.getDate()-mondayOffset);
+    const to = new Date(from);
+    to.setDate(from.getDate()+6);
+    return {from:localDateValue(from),to:localDateValue(to)};
+  }
+
+  function text(node){
+    return String(node?.textContent||"").replace(/\s+/g," ").trim();
+  }
+
+  function findTabBar(){
+    const navs = [...document.querySelectorAll("nav.tabs")];
+    return navs.find(nav=>{
+      const t = text(nav);
+      return t.includes("\uD558\uC5ED") && t.toLowerCase().includes("trouble");
+    }) || null;
+  }
+
+  function findUnloadingTable(){
+    const tables = [...document.querySelectorAll("table")];
+    return tables.find(table=>{
+      const heads = [...table.querySelectorAll("thead th")].map(text);
+      return heads.some(v=>v.includes("\uB0A0\uC9DC")) &&
+             heads.some(v=>v.includes("\uC785\uACE0")) &&
+             heads.some(v=>v.includes("\uCD9C\uACE0")) &&
+             heads.some(v=>v.includes("\uC18C\uC694")) &&
+             heads.some(v=>v.includes("\uC5F0\uB8CC")) &&
+             heads.some(v=>v.includes("Silo"));
+    }) || null;
+  }
+
+  function getDateColumn(table){
+    const heads = [...table.querySelectorAll("thead th")].map(text);
+    return Math.max(0,heads.findIndex(v=>v.includes("\uB0A0\uC9DC")));
+  }
+
+  function rowDate(row,dateIndex){
+    const value = text(row.cells?.[dateIndex]);
+    const match = value.replace(/\./g,"-").match(/(\d{4}-\d{2}-\d{2})/);
+    return match ? match[1] : "";
+  }
+
+  function inView(dateValue){
+    if(view.mode==="all") return true;
+    if(view.mode==="week"){
+      const range = weekBounds();
+      return !!dateValue && dateValue>=range.from && dateValue<=range.to;
+    }
+    return dateValue===view.anchor;
+  }
+
+  function updateButtons(){
+    const toolbar = document.getElementById("solidFuelUnloadListQuickV4");
+    if(!toolbar) return;
+    toolbar.querySelectorAll("[data-unload-list-mode]").forEach(button=>{
+      const mode = button.dataset.unloadListMode;
+      const active = mode==="all"
+        ? view.mode==="all"
+        : mode==="week"
+          ? view.mode==="week"
+          : mode==="day" && view.mode==="day" && view.anchor===localDateValue(new Date());
+      button.classList.toggle("is-active",active);
+      button.setAttribute("aria-pressed",active ? "true" : "false");
+    });
+  }
+
+  function applyFilter(){
+    if(view.applying) return;
+    const table = findUnloadingTable();
+    const body = table?.tBodies?.[0];
+    if(!table || !body) return;
+
+    view.applying = true;
+    try{
+      body.querySelectorAll("tr.solid-fuel-inline-empty-row").forEach(row=>row.remove());
+      const dateIndex = getDateColumn(table);
+      const rows = [...body.rows];
+      let visible = 0;
+
+      rows.forEach(row=>{
+        const dateValue = rowDate(row,dateIndex);
+        const show = dateValue ? inView(dateValue) : true;
+        row.hidden = !show;
+        if(show) visible++;
+      });
+
+      if(visible===0 && rows.length){
+        const empty = document.createElement("tr");
+        empty.className = "solid-fuel-inline-empty-row";
+        const cell = document.createElement("td");
+        cell.colSpan = Math.max(1,table.querySelectorAll("thead th").length);
+        cell.textContent = labels.empty;
+        empty.appendChild(cell);
+        body.appendChild(empty);
+      }
+    } finally {
+      view.applying = false;
+    }
+    updateButtons();
+  }
+
+  function makeButton(label,attrs={}){
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "query-mode__button";
+    button.textContent = label;
+    Object.entries(attrs).forEach(([key,value])=>button.setAttribute(key,value));
+    return button;
+  }
+
+  function installToolbar(){
+    if(document.getElementById("solidFuelUnloadListQuickV4")) return;
+    const tabs = findTabBar();
+    if(!tabs || !tabs.parentNode) return;
+
+    const row = document.createElement("div");
+    row.className = "solid-fuel-inline-tabs-row";
+    row.id = "solidFuelUnloadListQuickV4";
+
+    tabs.parentNode.insertBefore(row,tabs);
+    row.appendChild(tabs);
+
+    const quick = document.createElement("div");
+    quick.className = "solid-fuel-inline-quick";
+    quick.setAttribute("role","group");
+    quick.setAttribute("aria-label","unloading list period");
+
+    quick.appendChild(makeButton(labels.all,{"data-unload-list-mode":"all"}));
+    quick.appendChild(makeButton(labels.week,{"data-unload-list-mode":"week"}));
+    quick.appendChild(makeButton(labels.prev,{"data-unload-list-shift":"-1","aria-label":"previous day"}));
+    quick.appendChild(makeButton(labels.today,{"data-unload-list-mode":"day"}));
+    quick.appendChild(makeButton(labels.next,{"data-unload-list-shift":"1","aria-label":"next day"}));
+    row.appendChild(quick);
+
+    quick.addEventListener("click",event=>{
+      const button = event.target.closest("button");
+      if(!button) return;
+
+      if(button.dataset.unloadListShift){
+        view.anchor = addDays(view.anchor,Number(button.dataset.unloadListShift));
+        view.mode = "day";
+        applyFilter();
+        return;
+      }
+
+      const mode = button.dataset.unloadListMode;
+      if(mode==="all"){
+        view.mode = "all";
+      }else if(mode==="week"){
+        view.mode = "week";
+      }else if(mode==="day"){
+        view.mode = "day";
+        view.anchor = localDateValue(new Date());
+      }
+      applyFilter();
+    });
+
+    const table = findUnloadingTable();
+    const body = table?.tBodies?.[0];
+    if(body && window.MutationObserver){
+      view.observer = new MutationObserver(()=>applyFilter());
+      view.observer.observe(body,{childList:true,subtree:false});
+    }
+
+    applyFilter();
+  }
+
+  function boot(){
+    installToolbar();
+    applyFilter();
+
+    if(window.MutationObserver){
+      const pageObserver = new MutationObserver(()=>{
+        if(!document.getElementById("solidFuelUnloadListQuickV4")) installToolbar();
+        applyFilter();
+      });
+      pageObserver.observe(document.body,{childList:true,subtree:true});
+    }
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",boot,{once:true});
+  }else{
+    boot();
+  }
 })();
