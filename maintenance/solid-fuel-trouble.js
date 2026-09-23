@@ -635,16 +635,20 @@
 })();
 
 /* SOLID_FUEL_UNLOAD_LIST_QUICK_V4 */
-/* SOLID_FUEL_UNLOAD_LIST_QUICK_R8 */
+/* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R2 */
+/* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R3 */
+/* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R4 */
 (function(){
   "use strict";
-  if(window.__solidFuelUnloadListQuickR8) return;
-  window.__solidFuelUnloadListQuickR8 = true;
+  if(window.__solidFuelUnloadListQuickV4) return;
+  window.__solidFuelUnloadListQuickV4 = true;
 
+  const DAY_MS = 86400000;
   const labels = {
     all: "\uC804\uCCB4",
     week: "\uC774\uBC88\uC8FC",
     prev: "<",
+    today: "\uAE08\uC77C",
     next: ">",
     empty: "\uD574\uB2F9 \uAE30\uAC04 \uD558\uC5ED\uAE30\uB85D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4."
   };
@@ -653,8 +657,7 @@
     mode: "day",
     anchor: localDateValue(new Date()),
     applying: false,
-    bodyObserver: null,
-    panelObserver: null
+    observer: null
   };
 
   function localDateValue(date){
@@ -665,8 +668,7 @@
   }
 
   function parseLocalDate(value){
-    const text = String(value||"").trim().replace(/\./g,"-");
-    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const match = String(value||"").trim().replace(/\./g,"-").match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if(!match) return null;
     const date = new Date(Number(match[1]),Number(match[2])-1,Number(match[3]));
     return Number.isFinite(date.getTime()) ? date : null;
@@ -676,13 +678,6 @@
     const date = parseLocalDate(value) || new Date();
     date.setDate(date.getDate()+Number(amount||0));
     return localDateValue(date);
-  }
-
-  function formatMonthDay(value){
-    const date = parseLocalDate(value) || new Date();
-    const m = String(date.getMonth()+1).padStart(2,"0");
-    const d = String(date.getDate()).padStart(2,"0");
-    return `${m}.${d}`;
   }
 
   function weekBounds(){
@@ -720,10 +715,6 @@
     }) || null;
   }
 
-  function findUnloadPanel(){
-    return document.getElementById("unloadPanel") || findUnloadingTable()?.closest(".sheet") || null;
-  }
-
   function getDateColumn(table){
     const heads = [...table.querySelectorAll("thead th")].map(text);
     return Math.max(0,heads.findIndex(v=>v.includes("\uB0A0\uC9DC")));
@@ -744,92 +735,30 @@
     return dateValue===view.anchor;
   }
 
-  function ensureQuickToolbar(){
-    let quick = document.getElementById("solidFuelUnloadListQuickV4");
-    if(quick) return quick;
-
-    const panel = findUnloadPanel();
-    if(!panel) return null;
-
-    const head = panel.querySelector(".sheet-head");
-    if(!head) return null;
-
-    quick = document.createElement("div");
-    quick.id = "solidFuelUnloadListQuickV4";
-    quick.className = "solid-fuel-inline-quick solid-fuel-inline-quick--above";
-    quick.setAttribute("role","group");
-    quick.setAttribute("aria-label","unloading list period");
-
-    const buttons = [
-      ["all", labels.all, {"data-unload-list-mode":"all"}],
-      ["week", labels.week, {"data-unload-list-mode":"week"}],
-      ["prev", labels.prev, {"data-unload-list-shift":"-1","aria-label":"previous day"}],
-      ["day", formatMonthDay(view.anchor), {"data-unload-list-mode":"day","data-unload-list-date":"true","aria-label":"selected day"}],
-      ["next", labels.next, {"data-unload-list-shift":"1","aria-label":"next day"}]
-    ];
-
-    buttons.forEach(([name,label,attrs])=>{
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "query-mode__button";
-      button.dataset.quickName = name;
-      button.textContent = label;
-      Object.entries(attrs).forEach(([key,value])=>button.setAttribute(key,value));
-      quick.appendChild(button);
-    });
-
-    quick.addEventListener("click",event=>{
-      const button = event.target.closest("button");
-      if(!button) return;
-
-      if(button.dataset.unloadListShift){
-        view.anchor = addDays(view.anchor,Number(button.dataset.unloadListShift));
-        view.mode = "day";
-        applyFilter();
-        return;
-      }
-
-      const mode = button.dataset.unloadListMode;
-      if(mode==="all"){
-        view.mode = "all";
-      }else if(mode==="week"){
-        view.mode = "week";
-      }else if(mode==="day"){
-        view.mode = "day";
-      }
-      applyFilter();
-    });
-
-    head.insertAdjacentElement("afterbegin",quick);
-    return quick;
-  }
-
   function updateButtons(){
-    const toolbar = ensureQuickToolbar();
+    const toolbar = document.getElementById("solidFuelUnloadListQuickV4");
     if(!toolbar) return;
-
-    const todayButton = toolbar.querySelector('[data-unload-list-date="true"]');
-    if(todayButton){
-      todayButton.textContent = formatMonthDay(view.anchor);
-      todayButton.setAttribute("aria-label",`selected day ${formatMonthDay(view.anchor)}`);
-    }
-
-    toolbar.querySelectorAll(".query-mode__button").forEach(button=>{
-      let active = false;
-      if(button.dataset.unloadListMode==="all") active = view.mode==="all";
-      else if(button.dataset.unloadListMode==="week") active = view.mode==="week";
-      else if(button.dataset.unloadListDate==="true") active = view.mode==="day";
+    toolbar.querySelectorAll("[data-unload-list-mode]").forEach(button=>{
+      const mode = button.dataset.unloadListMode;
+      const active = mode==="all"
+        ? view.mode==="all"
+        : mode==="week"
+          ? view.mode==="week"
+          : mode==="day" && view.mode==="day" && view.anchor===localDateValue(new Date());
       button.classList.toggle("is-active",active);
       button.setAttribute("aria-pressed",active ? "true" : "false");
     });
   }
 
-  function updateSummary(visible){
-    const panel = findUnloadPanel();
-    if(!panel) return;
-    const status = panel.querySelector("#unloadStatusText");
-    if(status){
-      status.textContent = `${visible}건 조회 완료`;
+  /* SOLID_FUEL_FILTERED_COUNT_FIX_R7 */
+  function updateUnloadSummary(visible){
+    const panel = document.getElementById("unloadPanel");
+    const headerInfo = panel?.querySelector(".sheet-head > div");
+    if(headerInfo){
+      headerInfo.classList.add("solid-fuel-unload-summary-inline");
+    }
+    if(e.unloadStatus){
+      e.unloadStatus.textContent = `${visible}건 조회 완료`;
     }
   }
 
@@ -841,9 +770,15 @@
 
     view.applying = true;
     try{
+      // SOLID_FUEL_UNLOAD_LIST_QUICK_FREEZE_FIX_R2
+      // MutationObserver watches tbody childList. If the synthetic empty row
+      // is removed and appended on every pass, that mutation retriggers the
+      // observer forever. Keep the row stable unless visibility really changes.
       let empty = body.querySelector("tr.solid-fuel-inline-empty-row");
       const dateIndex = getDateColumn(table);
-      const rows = [...body.rows].filter(row=>!row.classList.contains("solid-fuel-inline-empty-row"));
+      const rows = [...body.rows].filter(
+        row=>!row.classList.contains("solid-fuel-inline-empty-row")
+      );
       let visible = 0;
 
       rows.forEach(row=>{
@@ -866,48 +801,92 @@
       }else if(empty){
         empty.remove();
       }
-
-      updateSummary(visible);
     } finally {
       view.applying = false;
     }
-
     updateButtons();
+    updateUnloadSummary(visible);
   }
 
-  function installObservers(){
+  function makeButton(label,attrs={}){
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "query-mode__button";
+    button.textContent = label;
+    Object.entries(attrs).forEach(([key,value])=>button.setAttribute(key,value));
+    return button;
+  }
+
+  function installToolbar(){
+    if(document.getElementById("solidFuelUnloadListQuickV4")) return;
+    const tabs = findTabBar();
+    if(!tabs || !tabs.parentNode) return;
+
+    const row = document.createElement("div");
+    row.className = "solid-fuel-inline-tabs-row";
+    row.id = "solidFuelUnloadBookmarkRailR2";
+
+    tabs.parentNode.insertBefore(row,tabs);
+    row.appendChild(tabs);
+
+    const quick = document.createElement("div");
+    quick.className = "solid-fuel-inline-quick solid-fuel-inline-quick--above";
+    quick.id = "solidFuelUnloadListQuickV4";
+    quick.setAttribute("role","group");
+    quick.setAttribute("aria-label","unloading list period");
+
+    quick.appendChild(makeButton(labels.all,{"data-unload-list-mode":"all"}));
+    quick.appendChild(makeButton(labels.week,{"data-unload-list-mode":"week"}));
+    quick.appendChild(makeButton(labels.prev,{"data-unload-list-shift":"-1","aria-label":"previous day"}));
+    quick.appendChild(makeButton(labels.today,{"data-unload-list-mode":"day"}));
+    quick.appendChild(makeButton(labels.next,{"data-unload-list-shift":"1","aria-label":"next day"}));
+    const unloadPanel = document.getElementById("unloadPanel");
+    if(unloadPanel){
+      const head = unloadPanel.querySelector(".sheet-head");
+      if(head){
+        head.insertAdjacentElement("afterbegin",quick);
+      }else{
+        unloadPanel.insertAdjacentElement("afterbegin",quick);
+      }
+    }else{
+      row.appendChild(quick);
+    }
+
+    quick.addEventListener("click",event=>{
+      const button = event.target.closest("button");
+      if(!button) return;
+
+      if(button.dataset.unloadListShift){
+        view.anchor = addDays(view.anchor,Number(button.dataset.unloadListShift));
+        view.mode = "day";
+        applyFilter();
+        return;
+      }
+
+      const mode = button.dataset.unloadListMode;
+      if(mode==="all"){
+        view.mode = "all";
+      }else if(mode==="week"){
+        view.mode = "week";
+      }else if(mode==="day"){
+        view.mode = "day";
+        view.anchor = localDateValue(new Date());
+      }
+      applyFilter();
+    });
+
     const table = findUnloadingTable();
     const body = table?.tBodies?.[0];
-
-    if(view.bodyObserver){
-      view.bodyObserver.disconnect();
-      view.bodyObserver = null;
-    }
-
     if(body && window.MutationObserver){
-      view.bodyObserver = new MutationObserver(()=>{
-        applyFilter();
-      });
-      view.bodyObserver.observe(body,{childList:true});
+      view.observer = new MutationObserver(()=>applyFilter());
+      view.observer.observe(body,{childList:true,subtree:false});
     }
 
-    const panel = findUnloadPanel();
-    if(view.panelObserver){
-      view.panelObserver.disconnect();
-      view.panelObserver = null;
-    }
-    if(panel && window.MutationObserver){
-      view.panelObserver = new MutationObserver(()=>{
-        ensureQuickToolbar();
-        updateButtons();
-      });
-      view.panelObserver.observe(panel,{childList:true,subtree:true});
-    }
+    applyFilter();
   }
 
   function boot(){
-    ensureQuickToolbar();
-    installObservers();
+    installToolbar();
     applyFilter();
   }
 
