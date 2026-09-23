@@ -637,6 +637,7 @@
 /* SOLID_FUEL_UNLOAD_LIST_QUICK_V4 */
 /* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R2 */
 /* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R3 */
+/* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R4 */
 (function(){
   "use strict";
   if(window.__solidFuelUnloadListQuickV4) return;
@@ -749,6 +750,17 @@
     });
   }
 
+  function updateUnloadSummary(visible){
+    const panel = document.getElementById("unloadPanel");
+    const headerInfo = panel?.querySelector(".sheet-head > div");
+    if(headerInfo){
+      headerInfo.classList.add("solid-fuel-unload-summary-inline");
+    }
+    if(ui.unloadStatus){
+      ui.unloadStatus.textContent = `${visible}건 조회 완료`;
+    }
+  }
+
   function applyFilter(){
     if(view.applying) return;
     const table = findUnloadingTable();
@@ -792,6 +804,7 @@
       view.applying = false;
     }
     updateButtons();
+    updateUnloadSummary(visible);
   }
 
   function makeButton(label,attrs={}){
@@ -828,7 +841,12 @@
     quick.appendChild(makeButton(labels.next,{"data-unload-list-shift":"1","aria-label":"next day"}));
     const unloadPanel = document.getElementById("unloadPanel");
     if(unloadPanel){
-      unloadPanel.insertAdjacentElement("afterbegin",quick);
+      const head = unloadPanel.querySelector(".sheet-head");
+      if(head){
+        head.insertAdjacentElement("afterbegin",quick);
+      }else{
+        unloadPanel.insertAdjacentElement("afterbegin",quick);
+      }
     }else{
       row.appendChild(quick);
     }

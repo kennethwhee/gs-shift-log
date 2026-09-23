@@ -1882,3 +1882,98 @@ body.solid-fuel-readonly #companyModal{
   }
 }
 /* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R3_END */
+/* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R4
+   Approved preview:
+   quick period row and unload summary on one line above the table,
+   filtered count text, centered receipt-ton, contained remarks. */
+@media (min-width:761px){
+
+  /* Put quick buttons + title/status + note on one header row. */
+  #unloadPanel > .sheet-head{
+    display:flex !important;
+    align-items:center !important;
+    gap:12px !important;
+    flex-wrap:nowrap !important;
+  }
+
+  #unloadPanel > .sheet-head > .solid-fuel-inline-quick--above{
+    display:flex !important;
+    align-items:center !important;
+    gap:5px !important;
+    flex:0 0 auto !important;
+    max-width:none !important;
+    margin:0 !important;
+    padding:0 !important;
+    border:0 !important;
+    order:0 !important;
+  }
+
+  #unloadPanel > .sheet-head > .solid-fuel-inline-quick--above .query-mode__button{
+    min-width:44px !important;
+    height:34px !important;
+    min-height:34px !important;
+    padding:0 10px !important;
+  }
+
+  #unloadPanel > .sheet-head > div.solid-fuel-unload-summary-inline{
+    display:flex !important;
+    align-items:baseline !important;
+    gap:10px !important;
+    flex:0 1 auto !important;
+    white-space:nowrap !important;
+    min-width:0 !important;
+    order:1 !important;
+  }
+
+  #unloadPanel > .sheet-head > div.solid-fuel-unload-summary-inline strong{
+    margin:0 !important;
+  }
+
+  #unloadPanel > .sheet-head > div.solid-fuel-unload-summary-inline #unloadStatusText{
+    color:#6d8297 !important;
+    font-weight:700 !important;
+  }
+
+  #unloadPanel > .sheet-head > small{
+    margin-left:auto !important;
+    flex:0 0 auto !important;
+    white-space:nowrap !important;
+    order:2 !important;
+  }
+
+  /* Receipt-ton center alignment. */
+  #unloadPanel .unload-table th.receipt-ton,
+  #unloadPanel .unload-table td.receipt-ton{
+    text-align:center !important;
+  }
+
+  /* Fallback when td class is not present: 7th column is 입고량. */
+  #unloadPanel .unload-table th:nth-child(7),
+  #unloadPanel .unload-table td:nth-child(7){
+    text-align:center !important;
+  }
+
+  /* Keep remarks safely inside its own column. */
+  #unloadPanel .unload-table th.unload-note,
+  #unloadPanel .unload-table td.unload-note{
+    white-space:normal !important;
+    word-break:break-word !important;
+    overflow-wrap:anywhere !important;
+    overflow:hidden !important;
+  }
+
+  #unloadPanel .unload-table td.actions{
+    overflow:hidden !important;
+  }
+}
+
+@media (max-width:760px){
+  #unloadPanel > .sheet-head{
+    flex-wrap:wrap !important;
+  }
+  #unloadPanel > .sheet-head > .solid-fuel-inline-quick--above{
+    order:0;
+    margin:0 0 6px 0 !important;
+  }
+}
+/* SOLID_FUEL_APPROVED_PREVIEW_LAYOUT_R4_END */
