@@ -2213,3 +2213,37 @@ body.solid-fuel-readonly #companyModal{
   }
 }
 /* SOLID_FUEL_UNLOAD_TABLE_CLEANUP_R11_1_END */
+/* SOLID_FUEL_BOOKMARK_CLIP_FIX_R12 */
+/* Keep the slim vertical bookmarks fully visible even when the active panel
+   has very little content (for example, 0 Trouble rows). */
+@media (min-width:901px){
+  .solid-fuel-inline-tabs-row{
+    overflow:visible !important;
+  }
+
+  .solid-fuel-inline-tabs-row .tabs{
+    z-index:12 !important;
+    overflow:visible !important;
+  }
+
+  .solid-fuel-inline-tabs-row .tab{
+    z-index:2;
+  }
+
+  .solid-fuel-inline-tabs-row .tab.is-active{
+    z-index:3;
+  }
+
+  .sheet.tab-panel{
+    overflow:visible !important;
+    position:relative;
+    z-index:1;
+  }
+
+  /* Keep the table content itself neatly clipped inside the panel. */
+  .sheet.tab-panel .table-wrap{
+    overflow:hidden;
+    border-radius:0 0 10px 10px;
+  }
+}
+/* SOLID_FUEL_BOOKMARK_CLIP_FIX_R12_END */
