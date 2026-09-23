@@ -1633,3 +1633,125 @@ body.solid-fuel-readonly #companyModal{
     margin-left:50px !important;
   }
 }
+/* SOLID_FUEL_RECORD_RAIL_V10 */
+
+/* Hide every older tab visual. Keep the original buttons in the DOM for click logic. */
+.solid-fuel-v9-rail,
+.solid-fuel-safe-vertical-v7 > .solid-fuel-tabs-vertical-v7,
+.solid-fuel-v9-original-tabs-hidden,
+.solid-fuel-tabs-vertical-v7{
+  display:none !important;
+  visibility:hidden !important;
+}
+
+/* The record card keeps its full normal width; the new rail sits outside it. */
+.solid-fuel-record-panel-v7,
+.solid-fuel-v10-panel{
+  position:relative !important;
+  width:calc(100% - 56px) !important;
+  max-width:calc(100% - 56px) !important;
+  margin-left:56px !important;
+  overflow:visible !important;
+  box-sizing:border-box !important;
+}
+
+/* New dedicated rail. */
+.solid-fuel-v10-rail{
+  position:absolute;
+  top:0;
+  left:-54px;
+  z-index:10;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  width:46px;
+}
+
+.solid-fuel-v10-tab{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  width:46px;
+  min-width:46px;
+  height:78px;
+  min-height:78px;
+  padding:7px 3px;
+  margin:0;
+  border:1px solid #cbd9e8;
+  border-radius:9px;
+  background:#fff;
+  color:#294966;
+  cursor:pointer;
+  box-sizing:border-box;
+  box-shadow:none;
+  appearance:none;
+  -webkit-appearance:none;
+}
+
+.solid-fuel-v10-tab:hover{
+  border-color:#9ebcda;
+  background:#f7fbff;
+}
+
+.solid-fuel-v10-tab.is-active{
+  border-color:#1179d7;
+  background:linear-gradient(180deg,#1688e6 0%,#0870ce 100%);
+  color:#fff;
+  box-shadow:0 2px 6px rgba(18,103,185,.15);
+}
+
+.solid-fuel-v10-letters{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  width:100%;
+  font-size:11px;
+  font-weight:900;
+  line-height:1;
+  letter-spacing:0;
+}
+
+.solid-fuel-v10-letters > span{
+  display:block;
+  width:100%;
+  text-align:center;
+}
+
+/* Make sure old V7/V8 pseudo labels can never leak through. */
+.solid-fuel-v10-ready .solid-fuel-tabs-vertical-v7 > button::before,
+.solid-fuel-v10-ready .solid-fuel-tabs-vertical-v7 > [role="tab"]::before{
+  content:none !important;
+}
+
+/* Keep the table sizing that is already working. */
+.solid-fuel-v10-panel .solid-fuel-table-wrap-v7{
+  overflow-x:hidden !important;
+}
+
+@media (max-width:900px){
+  .solid-fuel-record-panel-v7,
+  .solid-fuel-v10-panel{
+    width:calc(100% - 50px) !important;
+    max-width:calc(100% - 50px) !important;
+    margin-left:50px !important;
+  }
+
+  .solid-fuel-v10-rail{
+    left:-48px;
+    width:40px;
+  }
+
+  .solid-fuel-v10-tab{
+    width:40px;
+    min-width:40px;
+    height:72px;
+    min-height:72px;
+  }
+
+  .solid-fuel-v10-letters{
+    font-size:10px;
+  }
+}

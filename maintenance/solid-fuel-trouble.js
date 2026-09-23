@@ -1105,3 +1105,135 @@
     boot();
   }
 })();
+/* SOLID_FUEL_RECORD_RAIL_V10 */
+(function(){
+  "use strict";
+  if(window.__solidFuelRecordRailV10) return;
+  window.__solidFuelRecordRailV10 = true;
+
+  function text(node){
+    return String(node && node.textContent || "").replace(/\s+/g," ").trim();
+  }
+
+  function originalButtons(){
+    var row=document.getElementById("solidFuelUnloadListQuickV4");
+    var tabs=row ? row.querySelector("nav.tabs") : null;
+    return tabs ? Array.prototype.slice.call(tabs.querySelectorAll("button,[role=tab]")).slice(0,2) : [];
+  }
+
+  function findTables(){
+    var result={unload:null,issue:null};
+    Array.prototype.slice.call(document.querySelectorAll("table")).forEach(function(table){
+      var heads=Array.prototype.slice.call(table.querySelectorAll("thead th")).map(text);
+
+      if(!result.unload &&
+         heads.some(function(v){return v.indexOf("\uB0A0\uC9DC")>=0;}) &&
+         heads.some(function(v){return v.indexOf("\uC785\uACE0")>=0;}) &&
+         heads.some(function(v){return v.indexOf("\uCD9C\uACE0")>=0;}) &&
+         heads.some(function(v){return v.indexOf("\uC18C\uC694")>=0;}) &&
+         heads.some(function(v){return v.indexOf("Silo")>=0;})){
+        result.unload=table;
+      }
+
+      if(!result.issue &&
+         heads.some(function(v){return /Trouble/i.test(v);}) &&
+         heads.some(function(v){return v.indexOf("\uC5C5\uCCB4")>=0;}) &&
+         heads.some(function(v){return v.indexOf("\uCC28\uB7C9")>=0;})){
+        result.issue=table;
+      }
+    });
+    return result;
+  }
+
+  function panelFor(table){
+    if(!table) return null;
+    var node=table.parentElement;
+    while(node && node!==document.body){
+      if(node.classList && node.classList.contains("solid-fuel-record-panel-v7")) return node;
+      if(node.tagName==="SECTION" || node.tagName==="ARTICLE") return node;
+      node=node.parentElement;
+    }
+    return table.parentElement;
+  }
+
+  function letters(label){
+    var box=document.createElement("span");
+    box.className="solid-fuel-v10-letters";
+    Array.prototype.forEach.call(label,function(ch){
+      var s=document.createElement("span");
+      s.textContent=ch;
+      box.appendChild(s);
+    });
+    return box;
+  }
+
+  function makeButton(label,index,active){
+    var button=document.createElement("button");
+    button.type="button";
+    button.className="solid-fuel-v10-tab" + (active ? " is-active" : "");
+    button.dataset.index=String(index);
+    button.setAttribute("aria-label",label);
+    button.setAttribute("aria-pressed",active ? "true" : "false");
+    button.appendChild(letters(label));
+    return button;
+  }
+
+  function createRail(activeIndex){
+    var rail=document.createElement("div");
+    rail.className="solid-fuel-v10-rail";
+    rail.setAttribute("role","group");
+    rail.setAttribute("aria-label","record view");
+
+    rail.appendChild(makeButton("\uD558\uC5ED\uAE30\uB85D",0,activeIndex===0));
+    rail.appendChild(makeButton("\uC774\uC288\uB0B4\uC5ED",1,activeIndex===1));
+
+    rail.addEventListener("click",function(event){
+      var button=event.target.closest(".solid-fuel-v10-tab");
+      if(!button) return;
+      var index=Number(button.dataset.index||0);
+      var source=originalButtons()[index];
+      if(source) source.click();
+    });
+
+    return rail;
+  }
+
+  function install(){
+    var originals=originalButtons();
+    var tables=findTables();
+    var unloadPanel=panelFor(tables.unload);
+    var issuePanel=panelFor(tables.issue);
+
+    if(originals.length<2 || !unloadPanel) return false;
+
+    document.documentElement.classList.add("solid-fuel-v10-ready");
+
+    if(unloadPanel && !unloadPanel.querySelector(":scope > .solid-fuel-v10-rail")){
+      unloadPanel.classList.add("solid-fuel-v10-panel");
+      unloadPanel.prepend(createRail(0));
+    }
+
+    if(issuePanel && !issuePanel.querySelector(":scope > .solid-fuel-v10-rail")){
+      issuePanel.classList.add("solid-fuel-v10-panel");
+      issuePanel.prepend(createRail(1));
+    }
+
+    return true;
+  }
+
+  function boot(){
+    var tries=0;
+    function attempt(){
+      tries++;
+      if(install() || tries>=25) return;
+      window.setTimeout(attempt,100);
+    }
+    attempt();
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",boot,{once:true});
+  }else{
+    boot();
+  }
+})();
