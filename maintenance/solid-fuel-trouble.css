@@ -1534,3 +1534,102 @@ body.solid-fuel-readonly #companyModal{
     margin-left:50px !important;
   }
 }
+/* SOLID_FUEL_NEW_PROXY_TABS_V9 */
+.solid-fuel-v9-original-tabs-hidden{
+  display:none !important;
+}
+
+.solid-fuel-inline-tabs-row.solid-fuel-safe-vertical-v7{
+  position:relative !important;
+}
+
+.solid-fuel-v9-rail{
+  position:absolute;
+  top:42px;
+  left:0;
+  z-index:5;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  width:44px;
+}
+
+.solid-fuel-v9-tab{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  width:44px;
+  min-width:44px;
+  height:76px;
+  min-height:76px;
+  padding:7px 3px;
+  border:1px solid #cbd9e8;
+  border-radius:9px;
+  background:#fff;
+  color:#2b4a67;
+  cursor:pointer;
+  box-sizing:border-box;
+  box-shadow:none;
+}
+
+.solid-fuel-v9-tab:hover{
+  border-color:#9fbddd;
+  background:#f8fbff;
+}
+
+.solid-fuel-v9-tab.is-active{
+  border-color:#147ad6;
+  background:linear-gradient(180deg,#1688e7 0%,#0870ce 100%);
+  color:#fff;
+  box-shadow:0 2px 6px rgba(15,105,190,.15);
+}
+
+.solid-fuel-v9-letters{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:1px;
+  font-size:11px;
+  font-weight:900;
+  line-height:1;
+}
+
+.solid-fuel-v9-letters > span{
+  display:block;
+  width:100%;
+  text-align:center;
+}
+
+/* Neutralize the old V7/V8 vertical-tab positioning. */
+.solid-fuel-safe-vertical-v7 > .solid-fuel-tabs-vertical-v7{
+  display:none !important;
+}
+
+/* Keep enough room for the new rail. */
+.solid-fuel-record-panel-v7{
+  width:calc(100% - 54px) !important;
+  max-width:calc(100% - 54px) !important;
+  margin-left:54px !important;
+}
+
+@media (max-width:900px){
+  .solid-fuel-v9-rail{
+    width:40px;
+  }
+  .solid-fuel-v9-tab{
+    width:40px;
+    min-width:40px;
+    height:72px;
+    min-height:72px;
+  }
+  .solid-fuel-v9-letters{
+    font-size:10px;
+  }
+  .solid-fuel-record-panel-v7{
+    width:calc(100% - 50px) !important;
+    max-width:calc(100% - 50px) !important;
+    margin-left:50px !important;
+  }
+}

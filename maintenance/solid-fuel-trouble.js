@@ -977,3 +977,131 @@
     boot();
   }
 })();
+/* SOLID_FUEL_NEW_PROXY_TABS_V9 */
+(function(){
+  "use strict";
+  if(window.__solidFuelNewProxyTabsV9) return;
+  window.__solidFuelNewProxyTabsV9 = true;
+
+  function text(node){
+    return String(node && node.textContent || "").replace(/\s+/g," ").trim();
+  }
+
+  function row(){
+    return document.getElementById("solidFuelUnloadListQuickV4");
+  }
+
+  function originalTabs(){
+    var root=row();
+    return root ? root.querySelector("nav.tabs") : null;
+  }
+
+  function originalButtons(){
+    var tabs=originalTabs();
+    return tabs ? Array.prototype.slice.call(tabs.querySelectorAll("button,[role=tab]")).slice(0,2) : [];
+  }
+
+  function isActive(button){
+    if(!button) return false;
+    return button.classList.contains("is-active") ||
+      button.getAttribute("aria-selected")==="true" ||
+      button.getAttribute("aria-current")==="page";
+  }
+
+  function makeLetters(label){
+    var box=document.createElement("span");
+    box.className="solid-fuel-v9-letters";
+    Array.prototype.forEach.call(label,function(ch){
+      var s=document.createElement("span");
+      s.textContent=ch;
+      box.appendChild(s);
+    });
+    return box;
+  }
+
+  function makeButton(label,index){
+    var button=document.createElement("button");
+    button.type="button";
+    button.className="solid-fuel-v9-tab";
+    button.dataset.index=String(index);
+    button.setAttribute("aria-label",label);
+    button.appendChild(makeLetters(label));
+    return button;
+  }
+
+  function sync(){
+    var originals=originalButtons();
+    var proxies=Array.prototype.slice.call(document.querySelectorAll(".solid-fuel-v9-tab"));
+    if(proxies.length<2) return;
+
+    var active=0;
+    if(isActive(originals[1])) active=1;
+    else if(isActive(originals[0])) active=0;
+
+    proxies.forEach(function(button,index){
+      var on=index===active;
+      button.classList.toggle("is-active",on);
+      button.setAttribute("aria-pressed",on ? "true" : "false");
+    });
+  }
+
+  function install(){
+    var root=row();
+    var tabs=originalTabs();
+    var originals=originalButtons();
+    if(!root || !tabs || originals.length<2) return false;
+    if(document.getElementById("solidFuelProxyTabsV9")) return true;
+
+    tabs.classList.add("solid-fuel-v9-original-tabs-hidden");
+
+    var rail=document.createElement("div");
+    rail.id="solidFuelProxyTabsV9";
+    rail.className="solid-fuel-v9-rail";
+    rail.setAttribute("role","group");
+    rail.setAttribute("aria-label","record view");
+
+    rail.appendChild(makeButton("\uD558\uC5ED\uAE30\uB85D",0));
+    rail.appendChild(makeButton("\uC774\uC288\uB0B4\uC5ED",1));
+
+    root.appendChild(rail);
+
+    rail.addEventListener("click",function(event){
+      var button=event.target.closest(".solid-fuel-v9-tab");
+      if(!button) return;
+      var index=Number(button.dataset.index||0);
+      var source=originalButtons()[index];
+      if(source){
+        source.click();
+        window.setTimeout(sync,0);
+      }
+    });
+
+    sync();
+
+    // Short, bounded sync only; no observer and no perpetual loop.
+    var n=0;
+    var timer=window.setInterval(function(){
+      n++;
+      sync();
+      if(n>=15) window.clearInterval(timer);
+    },200);
+
+    return true;
+  }
+
+  function boot(){
+    var tries=0;
+    function attempt(){
+      tries++;
+      if(install() || tries>=20) return;
+      window.setTimeout(attempt,100);
+    }
+    attempt();
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",boot,{once:true});
+  }else{
+    boot();
+  }
+})();
