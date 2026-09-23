@@ -2105,3 +2105,111 @@ body.solid-fuel-readonly #companyModal{
   }
 }
 /* SOLID_FUEL_SEARCH_PLACEHOLDER_R6_END */
+/* SOLID_FUEL_UNLOAD_TABLE_CLEANUP_R11_1 */
+@media (min-width:761px){
+  #unloadPanel > .sheet-head{
+    align-items:center !important;
+    min-height:52px !important;
+    gap:12px !important;
+  }
+
+  #unloadPanel > .sheet-head > .solid-fuel-inline-quick--above{
+    gap:8px !important;
+    margin:0 !important;
+  }
+
+  #unloadPanel > .sheet-head > .solid-fuel-inline-quick--above .query-mode__button{
+    height:34px !important;
+    min-width:48px !important;
+    padding:0 12px !important;
+  }
+
+  #unloadPanel > .sheet-head > .solid-fuel-inline-quick--above [data-unload-list-mode="day"]{
+    min-width:72px !important;
+    font-weight:800 !important;
+  }
+
+  #unloadPanel .table-wrap{
+    overflow-x:hidden !important;
+  }
+
+  #unloadPanel .unload-table{
+    width:100% !important;
+    table-layout:fixed !important;
+  }
+
+  #unloadPanel .unload-table th,
+  #unloadPanel .unload-table td{
+    vertical-align:middle !important;
+  }
+
+  #unloadPanel .unload-table thead th{
+    padding:9px 6px !important;
+    text-align:center !important;
+  }
+
+  #unloadPanel .unload-table tbody td{
+    padding:10px 7px !important;
+    text-align:center !important;
+  }
+
+  #unloadPanel .unload-table th:nth-child(1),
+  #unloadPanel .unload-table td:nth-child(1){ width:3.8% !important; }
+
+  #unloadPanel .unload-table th:nth-child(2),
+  #unloadPanel .unload-table td:nth-child(2){ width:8.4% !important; }
+
+  #unloadPanel .unload-table th:nth-child(3),
+  #unloadPanel .unload-table td:nth-child(3),
+  #unloadPanel .unload-table th:nth-child(4),
+  #unloadPanel .unload-table td:nth-child(4){ width:5.6% !important; }
+
+  #unloadPanel .unload-table th:nth-child(5),
+  #unloadPanel .unload-table td:nth-child(5){ width:6% !important; }
+
+  #unloadPanel .unload-table th:nth-child(6),
+  #unloadPanel .unload-table td:nth-child(6){ width:6.2% !important; }
+
+  #unloadPanel .unload-table th:nth-child(7),
+  #unloadPanel .unload-table td:nth-child(7){
+    width:6.8% !important;
+    text-align:center !important;
+  }
+
+  #unloadPanel .unload-table th:nth-child(8),
+  #unloadPanel .unload-table td:nth-child(8){ width:7.2% !important; }
+
+  #unloadPanel .unload-table th:nth-child(9),
+  #unloadPanel .unload-table td:nth-child(9){ width:6.4% !important; }
+
+  #unloadPanel .unload-table th:nth-child(10),
+  #unloadPanel .unload-table td:nth-child(10){ width:5% !important; }
+
+  #unloadPanel .unload-table th:nth-child(11),
+  #unloadPanel .unload-table td:nth-child(11){
+    text-align:left !important;
+  }
+
+  #unloadPanel .unload-table td:nth-child(11){
+    white-space:normal !important;
+    word-break:keep-all !important;
+    overflow-wrap:anywhere !important;
+    overflow:hidden !important;
+    line-height:1.4 !important;
+  }
+
+  #unloadPanel .unload-table th:nth-child(12),
+  #unloadPanel .unload-table td:nth-child(12){
+    width:7.5% !important;
+    text-align:center !important;
+    white-space:nowrap !important;
+  }
+
+  #unloadPanel .unload-table td:nth-child(12) button{
+    min-width:34px !important;
+    height:28px !important;
+    padding:0 5px !important;
+    margin:1px !important;
+  }
+}
+/* SOLID_FUEL_UNLOAD_TABLE_CLEANUP_R11_1_END */

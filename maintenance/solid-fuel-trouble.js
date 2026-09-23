@@ -735,16 +735,21 @@
     return dateValue===view.anchor;
   }
 
+  /* SOLID_FUEL_UNLOAD_MMDD_LABEL_R11_1 */
   function updateButtons(){
     const toolbar = document.getElementById("solidFuelUnloadListQuickV4");
     if(!toolbar) return;
+    const dayButton = toolbar.querySelector('[data-unload-list-mode="day"]');
+    if(dayButton){
+      dayButton.textContent = String(view.anchor).slice(5).replace("-",".");
+    }
     toolbar.querySelectorAll("[data-unload-list-mode]").forEach(button=>{
       const mode = button.dataset.unloadListMode;
       const active = mode==="all"
         ? view.mode==="all"
         : mode==="week"
           ? view.mode==="week"
-          : mode==="day" && view.mode==="day" && view.anchor===localDateValue(new Date());
+          : mode==="day" && view.mode==="day";
       button.classList.toggle("is-active",active);
       button.setAttribute("aria-pressed",active ? "true" : "false");
     });
@@ -841,7 +846,7 @@
     quick.appendChild(makeButton(labels.all,{"data-unload-list-mode":"all"}));
     quick.appendChild(makeButton(labels.week,{"data-unload-list-mode":"week"}));
     quick.appendChild(makeButton(labels.prev,{"data-unload-list-shift":"-1","aria-label":"previous day"}));
-    quick.appendChild(makeButton(labels.today,{"data-unload-list-mode":"day"}));
+    quick.appendChild(makeButton(String(view.anchor).slice(5).replace("-","."),{"data-unload-list-mode":"day"}));
     quick.appendChild(makeButton(labels.next,{"data-unload-list-shift":"1","aria-label":"next day"}));
     const unloadPanel = document.getElementById("unloadPanel");
     if(unloadPanel){
@@ -873,7 +878,6 @@
         view.mode = "week";
       }else if(mode==="day"){
         view.mode = "day";
-        view.anchor = localDateValue(new Date());
       }
       applyFilter();
     });
