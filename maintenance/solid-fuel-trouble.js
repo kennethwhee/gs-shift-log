@@ -764,6 +764,7 @@
     }
   }
 
+  /* SOLID_FUEL_FILTERED_COUNT_VISIBLE_SCOPE_FIX_R10 */
   function applyFilter(){
     if(view.applying) return;
     const table = findUnloadingTable();
@@ -771,6 +772,7 @@
     if(!table || !body) return;
 
     view.applying = true;
+    let visible = 0;
     try{
       // SOLID_FUEL_UNLOAD_LIST_QUICK_FREEZE_FIX_R2
       // MutationObserver watches tbody childList. If the synthetic empty row
@@ -781,7 +783,6 @@
       const rows = [...body.rows].filter(
         row=>!row.classList.contains("solid-fuel-inline-empty-row")
       );
-      let visible = 0;
 
       rows.forEach(row=>{
         const dateValue = rowDate(row,dateIndex);
