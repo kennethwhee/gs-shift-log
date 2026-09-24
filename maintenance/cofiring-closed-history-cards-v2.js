@@ -5,7 +5,7 @@
   root.__cofiringClosedHistoryMonthlyV3Installed=true;
 
   const API='/api/cofiring-closed-history';
-  const VERSION='COFIRING_CLOSED_HISTORY_COMPACT_V4_R3';
+  const VERSION='COFIRING_CLOSED_HISTORY_READABLE_V1';
   const UNITS=['unit1','unit2'];
   const FUELS=['coal','bio','organic','manure'];
 
@@ -183,6 +183,12 @@
 
   function detailMarkup(item,row){
     return `
+      <div class="cfh-readable-detail-head"><strong>${escapeHtml(row.targetDate)} 마감 상세</strong><button type="button" data-cfh-detail-close>접기</button></div>
+      <div class="cfh-readable-detail-units">${UNITS.map((key,index)=>`
+        <section class="cfh-readable-detail-unit"><h4>${index+1}호기</h4>
+          <dl class="cfh-readable-detail-ratios">${[['바이오',row[key].bioRatio],['유기성·축분',row[key].organicGroupRatio],['종합 혼소율',row[key].totalRatio]].map(([label,value])=>`<div><dt>${label}</dt><dd>${fmtPct(value)}</dd></div>`).join('')}</dl>
+          <dl class="cfh-readable-detail-fuels">${FUELS.map((fuel,i)=>`<div><dt>${['Coal','Bio','유기성','축분'][i]}</dt><dd>${fmtTon(row[key][fuel])} <small>t</small></dd></div>`).join('')}</dl>
+        </section>`).join('')}</div>
       <div class="cfv15-detail-shell">
         <div class="cfv15-detail-grid">
           <section>
@@ -209,92 +215,67 @@
       </div>`;
   }
 
-  function fuelCell(unit){
-    return `<div class="cfv16-fuel-grid">
-      <span><b>C</b><strong>${fmtTon(unit.coal)}</strong></span>
-      <span><b>B</b><strong>${fmtTon(unit.bio)}</strong></span>
-      <span><b>유</b><strong>${fmtTon(unit.organic)}</strong></span>
-      <span><b>축</b><strong>${fmtTon(unit.manure)}</strong></span>
-    </div>`;
+  function numericCells(unit,index){
+    const ratios=['bioRatio','organicGroupRatio','totalRatio'];
+    return `<th class="cfh-unit cfh-unit-${index+1}" scope="row">${index+1}호기</th>`+
+      FUELS.map(fuel=>`<td class="cfh-value${number(unit[fuel])===0?' cfh-zero':''}">${fmtTon(unit[fuel])}</td>`).join('')+
+      ratios.map((key,i)=>`<td class="cfh-value${i===0?' cfh-rate-start':''}${i===2?' cfh-unit-total':''}">${fmtPct(unit[key]).replace(/%$/,'')}</td>`).join('');
   }
 
-  function ratioCell(unit){
-    return `<div class="cfv16-ratio-grid">
-      <span><b>Bio</b><strong>${fmtPct(unit.bioRatio)}</strong></span>
-      <span><b>유·축</b><strong>${fmtPct(unit.organicGroupRatio)}</strong></span>
-      <span class="is-total"><b>종합</b><strong>${fmtPct(unit.totalRatio)}</strong></span>
-    </div>`;
-  }
-
-  function combinedCell(row){
-    return `<div class="cfv16-combined-grid">
-      <span><b>Bio</b><strong>${fmtPct(row.combined.bioRatio)}</strong></span>
-      <span><b>유·축</b><strong>${fmtPct(row.combined.organicGroupRatio)}</strong></span>
-      <span class="is-total"><b>종합</b><strong>${fmtPct(row.combined.totalRatio)}</strong></span>
-    </div>`;
-  }
-
-  function closeMetaCell(row){
-    return `<div class="cfv16-meta"><strong>${escapeHtml(row.savedByName||'—')}</strong><span>${dateTime(row.updatedAt)}</span></div>`;
+  function combinedCell(combined){
+    return `<td class="cfh-combined" rowspan="2">
+      <div class="cfh-combined-main"><span>종합</span><strong>${fmtPct(combined.totalRatio)}</strong></div>
+      <div class="cfh-combined-sub"><span>Bio</span><b>${fmtPct(combined.bioRatio)}</b></div>
+      <div class="cfh-combined-sub"><span>유·축</span><b>${fmtPct(combined.organicGroupRatio)}</b></div>
+    </td>`;
   }
 
   function rowMarkup(row){
-    return `
-      <tr data-cfv15-row="${escapeHtml(row.targetDate)}">
-        <th scope="row"><strong>${escapeHtml(row.targetDate)}</strong></th>
-        <td class="is-fuel is-unit1">${fuelCell(row.unit1)}</td>
-        <td class="is-ratio is-unit1">${ratioCell(row.unit1)}</td>
-        <td class="is-fuel is-unit2">${fuelCell(row.unit2)}</td>
-        <td class="is-ratio is-unit2">${ratioCell(row.unit2)}</td>
-        <td class="is-combined">${combinedCell(row)}</td>
-        <td class="is-meta">${closeMetaCell(row)}</td>
-        <td class="is-actions"><button type="button" data-cfv15-view="${escapeHtml(row.targetDate)}" aria-expanded="false">보기</button><button type="button" class="danger" data-cfv15-delete="${escapeHtml(row.targetDate)}">삭제</button></td>
-      </tr>`;
+    const date=String(row.targetDate||'');
+    const valid=/^20\d{2}-\d{2}-\d{2}$/.test(date);
+    const weekday=valid?['일','월','화','수','목','금','토'][new Date(date+'T00:00:00Z').getUTCDay()]:'';
+    return `<tbody class="cfh-day-group" data-cfh-date="${escapeHtml(date)}">
+      <tr data-cfv15-row="${escapeHtml(date)}">
+        <th class="cfh-date" scope="rowgroup" rowspan="2" aria-label="${escapeHtml(date)}"><strong>${escapeHtml(valid?date.slice(5).replace('-','.'):date)}</strong><small>${weekday?weekday+'요일':''}</small></th>
+        ${numericCells(row.unit1,0)}${combinedCell(row.combined)}
+        <td class="cfh-actions" rowspan="2"><button type="button" data-cfv15-view="${escapeHtml(date)}" aria-label="${escapeHtml(date)} 마감 상세 보기" aria-controls="cfh-readable-detail" aria-expanded="false">보기</button><button type="button" class="danger" data-cfv15-delete="${escapeHtml(date)}" aria-label="${escapeHtml(date)} 마감 데이터 삭제">삭제</button></td>
+      </tr><tr>${numericCells(row.unit2,1)}</tr>
+    </tbody>`;
   }
 
   function averageMarkup(rows){
     const a=averageRows(rows);
-    const avgRow={combined:a.combined};
-    return `
-      <tr class="cfv15-average-row" title="저장된 일별 값의 산술평균입니다. 항목별 누락값은 제외하고 실제 0은 포함합니다.">
-        <th scope="row"><strong>월 평균</strong><small>${rows.length}일</small></th>
-        <td class="is-fuel is-unit1">${fuelCell(a.unit1)}</td>
-        <td class="is-ratio is-unit1">${ratioCell(a.unit1)}</td>
-        <td class="is-fuel is-unit2">${fuelCell(a.unit2)}</td>
-        <td class="is-ratio is-unit2">${ratioCell(a.unit2)}</td>
-        <td class="is-combined">${combinedCell(avgRow)}</td>
-        <td class="is-meta"><div class="cfv16-meta"><strong>평균</strong><span>저장일 기준</span></div></td>
-        <td class="is-actions"><span class="cfv16-average-note">평균</span></td>
-      </tr>`;
+    return `<tfoot class="cfh-average-group">
+      <tr><th class="cfh-date" scope="rowgroup" rowspan="2"><strong>월평균</strong><small>${rows.length}일</small></th>
+        ${numericCells(a.unit1,0)}${combinedCell(a.combined)}<td class="cfh-average-label" rowspan="2">평균</td>
+      </tr><tr>${numericCells(a.unit2,1)}</tr>
+    </tfoot>`;
   }
 
   function tableMarkup(rows,month){
     if(!rows.length){
-      return `<div class="cfv15-state"><strong>${escapeHtml(monthLabel(month))} 마감 데이터가 없습니다.</strong><span>해당 월에 마감 저장된 날짜가 생기면 일별 한 줄로 표시됩니다.</span></div>`;
+      return `<div class="cfv15-state"><strong>${escapeHtml(monthLabel(month))} 마감 데이터가 없습니다.</strong><span>마감 저장 후 날짜별 1·2호기 수치를 확인할 수 있습니다.</span></div>`;
     }
     return `
-      <div class="cfv15-table-wrap" tabindex="0">
-        <table class="cfv15-history-table cfv16-compact-table" aria-label="${escapeHtml(monthLabel(month))} 혼소율 마감 데이터">
+      <div class="cfv15-table-wrap cfh-readable-wrap" tabindex="0" role="region" aria-label="날짜별 마감 데이터 비교 표">
+        <table class="cfv15-history-table cfh-readable-table" aria-label="${escapeHtml(monthLabel(month))} 혼소율 마감 데이터">
+          <colgroup><col class="cfh-date-col"><col class="cfh-unit-col"><col span="4" class="cfh-fuel-col"><col span="3" class="cfh-ratio-col"><col class="cfh-combined-col"><col class="cfh-actions-col"></colgroup>
           <thead>
-            <tr class="cfv15-group-head">
-              <th rowspan="2" class="is-date">일자</th>
-              <th colspan="2" class="is-unit1">1호기</th>
-              <th colspan="2" class="is-unit2">2호기</th>
-              <th rowspan="2" class="is-combined">1·2호기 종합</th>
-              <th rowspan="2">마감정보</th>
-              <th rowspan="2">관리</th>
+            <tr>
+              <th rowspan="2" scope="col">일자</th><th rowspan="2" scope="col">호기</th>
+              <th colspan="4" scope="colgroup">연료 실사용량 · t</th>
+              <th colspan="3" scope="colgroup" class="cfh-rate-start">혼소율 · %</th>
+              <th rowspan="2" scope="col" class="cfh-combined-head">1·2호기 종합</th>
+              <th rowspan="2" scope="col">관리</th>
             </tr>
-            <tr class="cfv15-column-head">
-              <th class="is-unit1">연료사용량<small>C / B / 유 / 축 · t</small></th>
-              <th class="is-unit1">혼소율<small>Bio / 유·축 / 종합 · %</small></th>
-              <th class="is-unit2">연료사용량<small>C / B / 유 / 축 · t</small></th>
-              <th class="is-unit2">혼소율<small>Bio / 유·축 / 종합 · %</small></th>
+            <tr>
+              <th scope="col">Coal</th><th scope="col">Bio</th><th scope="col">유기성</th><th scope="col">축분</th>
+              <th scope="col" class="cfh-rate-start">Bio</th><th scope="col">유·축</th><th scope="col">종합</th>
             </tr>
           </thead>
-          <tbody>${rows.map(rowMarkup).join('')}</tbody>
-          <tfoot>${averageMarkup(rows)}</tfoot>
+          ${rows.map(rowMarkup).join('')}${averageMarkup(rows)}
         </table>
-      </div>`;
+      </div><div class="cfh-readable-notes"><span>유·축 = 유기성·축분 혼소율 · 일별 종합: 열량 가중</span><span>월평균: 저장일별 산술평균 · 누락값 제외</span></div>`;
   }
 
   async function mapLimit(items,limit,worker){
@@ -317,7 +298,7 @@
     if(!head)return false;
 
     panel.dataset.cfv15Mounted='1';
-    panel.classList.add('cfv15-monthly');
+    panel.classList.add('cfv15-monthly','cfh-readable-panel');
 
     panel.querySelector('.cfv14-history-list')?.remove();
 
@@ -419,11 +400,13 @@
 
       const button=host.querySelector(`[data-cfv15-view="${date}"]`);
       button?.setAttribute('aria-expanded','true');
-      const detailRow=root.document.createElement('tr');
-      detailRow.className='cfv15-detail-row';
+      const detailRow=root.document.createElement('section');
+      detailRow.className='cfh-readable-detail';
+      detailRow.id='cfh-readable-detail';
       detailRow.setAttribute('data-cfv15-detail-row',date);
-      detailRow.innerHTML='<td colspan="8"><div class="cfv15-state">상세 기준값을 불러오는 중입니다...</div></td>';
-      row.after(detailRow);
+      detailRow.setAttribute('aria-label',date+' 마감 상세');
+      detailRow.innerHTML='<div class="cfv15-state" role="status">상세 기준값을 불러오는 중입니다...</div>';
+      host.append(detailRow);
       openDate=date;
 
       try{
@@ -431,9 +414,10 @@
         const detail=await getDetail(item||{targetDate:date});
         if(openDate!==date||!detailRow.isConnected)return;
         const derived=deriveSnapshot(detail);
-        detailRow.innerHTML=`<td colspan="8">${detailMarkup(detail,derived)}</td>`;
+        detailRow.innerHTML=detailMarkup(detail,derived);
+        detailRow.scrollIntoView?.({block:'nearest'});
       }catch(error){
-        if(detailRow.isConnected)detailRow.innerHTML=`<td colspan="8"><div class="cfv15-state is-error">${escapeHtml(error.message)}</div></td>`;
+        if(detailRow.isConnected)detailRow.innerHTML=`<div class="cfv15-state is-error" role="alert">${escapeHtml(error.message)}</div>`;
       }
     }
 
@@ -468,6 +452,15 @@
     monthInput.addEventListener('change',()=>setMonth(monthInput.value));
 
     host.addEventListener('click',event=>{
+      if(event.target.closest?.('[data-cfh-detail-close]')){
+        const date=openDate;
+        host.querySelector('[data-cfv15-detail-row]')?.remove();
+        const button=host.querySelector(`[data-cfv15-view="${date}"]`);
+        button?.setAttribute('aria-expanded','false');
+        button?.focus({preventScroll:true});
+        openDate='';
+        return;
+      }
       const view=event.target.closest?.('[data-cfv15-view]');
       const del=event.target.closest?.('[data-cfv15-delete]');
       const go=event.target.closest?.('[data-cfv15-go]');
@@ -504,709 +497,4 @@
     else boot();
   }
 })(typeof globalThis==='object'?globalThis:this);
-/* ===== CFH_LAYOUT_V3 : closed history presentation ===== */
-(function () {
-  'use strict';
-  if (typeof document === 'undefined') return;
-
-  const PATCH_ATTR =
-    'data-cfh-layout-v3';
-
-  const COLGROUP_ATTR =
-    'data-cfh-layout-cols-v3';
-
-  const META_LABEL =
-    '\uB9C8\uAC10\uC815\uBCF4';
-
-  const AVERAGE_META_HINT =
-    '\uC800\uC7A5\uC77C\uAE30\uC900';
-
-  let queued = false;
-
-  function normalize(value) {
-    return String(value || '')
-      .replace(/\s+/g, '')
-      .trim();
-  }
-
-  function directCells(row) {
-    return Array
-      .from(row.children || [])
-      .filter(function (node) {
-        return (
-          node &&
-          (
-            node.tagName === 'TD' ||
-            node.tagName === 'TH'
-          )
-        );
-      });
-  }
-
-  function removeOldColgroups(table) {
-    Array
-      .from(table.children || [])
-      .filter(function (node) {
-        return (
-          node &&
-          node.tagName === 'COLGROUP'
-        );
-      })
-      .forEach(function (node) {
-        node.remove();
-      });
-  }
-
-  function installColumns(table) {
-    removeOldColgroups(table);
-
-    const group =
-      document.createElement('colgroup');
-
-    group.setAttribute(
-      COLGROUP_ATTR,
-      ''
-    );
-
-    [
-      'cfh-col-date',
-      'cfh-col-u1-fuel',
-      'cfh-col-u1-ratio',
-      'cfh-col-u2-fuel',
-      'cfh-col-u2-ratio',
-      'cfh-col-total',
-      'cfh-col-actions'
-    ].forEach(function (className) {
-      const col =
-        document.createElement('col');
-
-      col.className =
-        className;
-
-      group.appendChild(col);
-    });
-
-    table.insertBefore(
-      group,
-      table.firstChild
-    );
-  }
-
-  function removeMetaHeader(table) {
-    const headerCells =
-      Array.from(
-        table.querySelectorAll(
-          'thead th'
-        )
-      );
-
-    const metaHeader =
-      headerCells.find(
-        function (cell) {
-          return (
-            normalize(cell.textContent) ===
-            normalize(META_LABEL)
-          );
-        }
-      );
-
-    if (metaHeader) {
-      metaHeader.remove();
-    }
-  }
-
-  function removeResidualMetaCell(row) {
-    let cells =
-      directCells(row);
-
-    if (!cells.length) {
-      return;
-    }
-
-    if (cells.length >= 8) {
-      cells[cells.length - 2].remove();
-      cells = directCells(row);
-    }
-
-    const hinted =
-      cells.find(function (cell, index) {
-        if (index === cells.length - 1) {
-          return false;
-        }
-
-        return normalize(
-          cell.textContent
-        ).includes(
-          normalize(AVERAGE_META_HINT)
-        );
-      });
-
-    if (hinted) {
-      hinted.remove();
-    }
-  }
-
-  function styleActionCell(cell) {
-    if (!cell) {
-      return;
-    }
-
-    cell.classList.add(
-      'cfh-layout-actions-cell'
-    );
-
-    const buttons =
-      Array.from(
-        cell.querySelectorAll(
-          'button'
-        )
-      );
-
-    buttons.forEach(function (button) {
-      button.classList.add(
-        'cfh-layout-action-button'
-      );
-    });
-
-    if (buttons.length <= 1) {
-      return;
-    }
-
-    let stack =
-      cell.querySelector(
-        '.cfh-layout-actions-stack'
-      );
-
-    if (!stack) {
-      stack =
-        document.createElement('div');
-
-      stack.className =
-        'cfh-layout-actions-stack';
-
-      buttons.forEach(
-        function (button) {
-          stack.appendChild(button);
-        }
-      );
-
-      cell.appendChild(stack);
-    }
-  }
-
-  function markBodyCells(row) {
-    const cells =
-      directCells(row);
-
-    if (!cells.length) {
-      return;
-    }
-
-    cells.forEach(function (cell) {
-      cell.classList.remove(
-        'cfh-layout-data-cell'
-      );
-    });
-
-    cells.forEach(
-      function (cell, index) {
-        if (
-          index > 0 &&
-          index < cells.length - 1
-        ) {
-          cell.classList.add(
-            'cfh-layout-data-cell'
-          );
-        }
-      }
-    );
-
-    styleActionCell(
-      cells[cells.length - 1]
-    );
-  }
-
-  function markWrapper(table) {
-    const parent =
-      table.parentElement;
-
-    if (parent) {
-      parent.classList.add(
-        'cfh-layout-table-wrap'
-      );
-    }
-  }
-
-  function transform(table) {
-    removeMetaHeader(table);
-
-    table
-      .querySelectorAll(
-        'tbody tr'
-      )
-      .forEach(function (row) {
-        removeResidualMetaCell(row);
-        markBodyCells(row);
-      });
-
-    table.setAttribute(
-      PATCH_ATTR,
-      ''
-    );
-
-    installColumns(table);
-    markWrapper(table);
-
-    const firstHeaderRow =
-      table.querySelector(
-        'thead tr'
-      );
-
-    if (firstHeaderRow) {
-      const cells =
-        directCells(firstHeaderRow);
-
-      const actionHeader =
-        cells[cells.length - 1];
-
-      if (actionHeader) {
-        actionHeader.classList.add(
-          'cfh-layout-actions-header'
-        );
-      }
-    }
-
-    return true;
-  }
-
-  function apply() {
-    queued = false;
-
-    document
-      .querySelectorAll(
-        '#efficiencyCofiringDraftView table'
-      )
-      .forEach(function (table) {
-        transform(table);
-      });
-  }
-
-  function schedule() {
-    if (queued) {
-      return;
-    }
-
-    queued = true;
-
-    if (
-      typeof requestAnimationFrame ===
-      'function'
-    ) {
-      requestAnimationFrame(apply);
-    } else {
-      setTimeout(apply, 0);
-    }
-  }
-
-  function start() {
-    apply();
-
-    const root =
-      document.getElementById(
-        'efficiencyCofiringDraftView'
-      ) ||
-      document.body;
-
-    if (
-      !root ||
-      typeof MutationObserver !==
-        'function'
-    ) {
-      return;
-    }
-
-    const observer =
-      new MutationObserver(schedule);
-
-    observer.observe(
-      root,
-      {
-        childList: true,
-        subtree: true
-      }
-    );
-  }
-
-  if (
-    document.readyState ===
-    'loading'
-  ) {
-    document.addEventListener(
-      'DOMContentLoaded',
-      start,
-      { once: true }
-    );
-  } else {
-    start();
-  }
-})();
-/* ===== /CFH_LAYOUT_V3 ===== */
-/* ===== CFH_AVERAGE_V5 ===== */
-(function () {
-  'use strict';
-  if (typeof document === 'undefined') return;
-
-  let queued = false;
-
-  function normalize(value) {
-    return String(value || '')
-      .replace(/\s+/g, '')
-      .trim();
-  }
-
-  function directCells(row) {
-    return Array.from(row.children || [])
-      .filter(function (node) {
-        return (
-          node &&
-          (
-            node.tagName === 'TD' ||
-            node.tagName === 'TH'
-          )
-        );
-      });
-  }
-
-  function apply() {
-    queued = false;
-
-    document
-      .querySelectorAll(
-        '#efficiencyCofiringDraftView table[data-cfh-layout-v3] tbody tr'
-      )
-      .forEach(function (row) {
-        const cells = directCells(row);
-
-        if (!cells.length) {
-          return;
-        }
-
-        const firstText =
-          normalize(cells[0].textContent);
-
-        if (
-          firstText.includes(
-            '\uC6D4\uD3C9\uADE0'
-          )
-        ) {
-          row.classList.add(
-            'cfh-layout-average-row'
-          );
-        } else {
-          row.classList.remove(
-            'cfh-layout-average-row'
-          );
-        }
-
-        /*
-          마지막 칸은 관리,
-          그 앞 칸은 1·2호기 종합
-        */
-        if (cells.length >= 2) {
-          cells[cells.length - 2]
-            .classList.add(
-              'cfh-layout-total-cell'
-            );
-        }
-      });
-  }
-
-  function schedule() {
-    if (queued) {
-      return;
-    }
-
-    queued = true;
-
-    if (
-      typeof requestAnimationFrame ===
-      'function'
-    ) {
-      requestAnimationFrame(apply);
-    } else {
-      setTimeout(apply, 0);
-    }
-  }
-
-  function start() {
-    apply();
-
-    const root =
-      document.getElementById(
-        'efficiencyCofiringDraftView'
-      );
-
-    if (
-      !root ||
-      typeof MutationObserver !==
-        'function'
-    ) {
-      return;
-    }
-
-    new MutationObserver(schedule)
-      .observe(
-        root,
-        {
-          childList: true,
-          subtree: true
-        }
-      );
-  }
-
-  if (
-    document.readyState ===
-    'loading'
-  ) {
-    document.addEventListener(
-      'DOMContentLoaded',
-      start,
-      { once: true }
-    );
-  } else {
-    start();
-  }
-})();
-/* ===== /CFH_AVERAGE_V5 ===== */
-/* ===== CFH_DATE_WEEKDAY_RATIO_V8 ===== */
-(function () {
-  'use strict';
-  if (typeof document === 'undefined') return;
-
-  const WEEKDAYS = ['일','월','화','수','목','금','토'];
-  let queued = false;
-
-  function directCells(row) {
-    return Array.from(row.children || [])
-      .filter(function (node) {
-        return (
-          node &&
-          (
-            node.tagName === 'TD' ||
-            node.tagName === 'TH'
-          )
-        );
-      });
-  }
-
-  function weekdayOf(dateText) {
-    const m = String(dateText || '').match(/^(20\d{2})-(\d{2})-(\d{2})$/);
-    if (!m) {
-      return '';
-    }
-
-    const y = Number(m[1]);
-    const mo = Number(m[2]) - 1;
-    const d = Number(m[3]);
-
-    const dt = new Date(y, mo, d);
-    if (!Number.isFinite(dt.getTime())) {
-      return '';
-    }
-
-    return WEEKDAYS[dt.getDay()] || '';
-  }
-
-  function decorateDateCell(cell) {
-    if (!cell) {
-      return;
-    }
-
-    if (cell.getAttribute('data-cfh-date-v8') === '1') {
-      return;
-    }
-
-    const raw = String(cell.textContent || '')
-      .replace(/\s+/g, '')
-      .trim();
-
-    const m = raw.match(/(20\d{2}-\d{2}-\d{2})/);
-    if (!m) {
-      return;
-    }
-
-    const dateText = m[1];
-    const weekday = weekdayOf(dateText);
-    if (!weekday) {
-      return;
-    }
-
-    cell.innerHTML =
-      '<div class="cfh-date-v8">' +
-        '<span class="cfh-date-main">' + dateText + '</span>' +
-        '<span class="cfh-date-weekday">(' + weekday + ')</span>' +
-      '</div>';
-
-    cell.setAttribute('data-cfh-date-v8', '1');
-  }
-
-  function markAverageDateCell(table) {
-    const cell = table.querySelector(
-      'tfoot tr.cfv15-average-row > th:first-child, tfoot tr.cfv15-average-row > td:first-child'
-    );
-
-    if (cell) {
-      cell.classList.add('cfh-average-date-v8');
-    }
-  }
-
-  function markRatioGrids(table) {
-    table
-      .querySelectorAll(
-        '.cfv16-ratio-grid, .cfv16-combined-grid'
-      )
-      .forEach(function (grid) {
-        grid.classList.add('cfh-ratio-two-line-v8');
-      });
-  }
-
-  function apply() {
-    queued = false;
-
-    document
-      .querySelectorAll(
-        '#efficiencyCofiringDraftView table[data-cfh-layout-v3]'
-      )
-      .forEach(function (table) {
-        table
-          .querySelectorAll('tbody tr')
-          .forEach(function (row) {
-            const cells = directCells(row);
-            if (!cells.length) {
-              return;
-            }
-            decorateDateCell(cells[0]);
-          });
-
-        markAverageDateCell(table);
-        markRatioGrids(table);
-      });
-  }
-
-  function schedule() {
-    if (queued) {
-      return;
-    }
-
-    queued = true;
-
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(apply);
-    } else {
-      setTimeout(apply, 0);
-    }
-  }
-
-  function start() {
-    apply();
-
-    const root =
-      document.getElementById('efficiencyCofiringDraftView') ||
-      document.body;
-
-    if (!root || typeof MutationObserver !== 'function') {
-      return;
-    }
-
-    new MutationObserver(schedule).observe(root, {
-      childList: true,
-      subtree: true
-    });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start, { once: true });
-  } else {
-    start();
-  }
-})();
-/* ===== /CFH_DATE_WEEKDAY_RATIO_V8 ===== */
-/* ===== CFH_TYPOGRAPHY_V9 ===== */
-(function () {
-  'use strict';
-  if (typeof document === 'undefined') return;
-
-  let queued = false;
-
-  function applyShortDates() {
-    queued = false;
-
-    document
-      .querySelectorAll(
-        '#efficiencyCofiringDraftView .cfh-date-v8 .cfh-date-main'
-      )
-      .forEach(function (element) {
-        const raw = String(element.textContent || '').trim();
-
-        if (/^20\d{2}-\d{2}-\d{2}$/.test(raw)) {
-          const wrapper = element.closest('.cfh-date-v8');
-
-          if (wrapper) {
-            wrapper.setAttribute(
-              'data-cfh-full-date',
-              raw
-            );
-          }
-
-          element.textContent = raw.slice(5);
-        }
-      });
-  }
-
-  function schedule() {
-    if (queued) {
-      return;
-    }
-
-    queued = true;
-
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(applyShortDates);
-    } else {
-      setTimeout(applyShortDates, 0);
-    }
-  }
-
-  function start() {
-    applyShortDates();
-
-    const root =
-      document.getElementById(
-        'efficiencyCofiringDraftView'
-      );
-
-    if (
-      !root ||
-      typeof MutationObserver !== 'function'
-    ) {
-      return;
-    }
-
-    new MutationObserver(schedule)
-      .observe(root, {
-        childList: true,
-        subtree: true
-      });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener(
-      'DOMContentLoaded',
-      start,
-      { once: true }
-    );
-  } else {
-    start();
-  }
-})();
-/* ===== /CFH_TYPOGRAPHY_V9 ===== */
+// Readable table markup owns its columns, dates and average rows directly.
