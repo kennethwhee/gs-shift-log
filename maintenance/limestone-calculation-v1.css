@@ -1,0 +1,15 @@
+/* Limestone calculation: primary action and honest recovery status. */
+#loadLimestoneUsageOisButton {
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
+  color: #fff !important;
+  font-weight: 800;
+  box-shadow: 0 2px 5px rgb(37 99 235 / 18%);
+}
+#loadLimestoneUsageOisButton:hover:not(:disabled) { background: #1d4ed8 !important; }
+#loadLimestoneUsageOisButton:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+#loadLimestoneUsageOisButton:disabled { opacity: .7; cursor: wait; }
+#limestoneUsageCalculatorView[data-limestone-usage-status="warning"] .limestone-usage-status__dot {
+  background: #d97706;
+  box-shadow: 0 0 0 4px rgb(217 119 6 / 12%);
+}

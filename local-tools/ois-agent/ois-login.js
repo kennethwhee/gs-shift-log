@@ -24016,9 +24016,11 @@ async function queryOisLimestonePreviousStock(
   targetDate
 ) {
   let frame =
-    await openOisLogSheetLookup(
-      page
-    );
+    await require("./limestone-navigation-v1.cjs").open(page, {
+      timeoutMs: OIS_QUERY_TIMEOUT,
+      isLogSheetFrame: isOisLogSheetFrame,
+      clickMenu: clickOisNavigationItem
+    });
 
 
   /*
