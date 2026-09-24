@@ -2926,7 +2926,7 @@ const AUTH_STORAGE_KEY =
 
   /*
   자동 로그인 체크 시
-  사번과 비밀번호를 저장하는 키
+  기억할 사번만 저장하는 키
 */
 const REMEMBER_LOGIN_STORAGE_KEY =
   "gsShiftLog.rememberedLogin";
@@ -12610,7 +12610,7 @@ function bindBrandManagementEvents() {
   - 사번·이름·권한 입력
   - D1 employees 저장
   - users 로그인 계정 자동 생성
-  - 초기 비밀번호는 사번과 동일
+  - 무작위 임시 비밀번호 발급 후 본인이 새 비밀번호 설정
 ========================================================= */
 
 
@@ -12885,7 +12885,7 @@ function closeShiftLogEmployeeAddPanel() {
   신규 등록 시:
   - employees 명단 생성
   - users 로그인 계정 생성
-  - 초기 비밀번호는 사번과 동일
+  - 무작위 임시 비밀번호 발급 후 본인이 새 비밀번호 설정
 ========================================================= */
 
 async function saveShiftLogEmployeeAdd() {
@@ -13019,6 +13019,7 @@ async function saveShiftLogEmployeeAdd() {
 
 
   try {
+    GSShiftLogLoginPreferences.requireCredentialDisplay();
     const response =
       await fetch(
         "/api/employees",
@@ -13037,6 +13038,7 @@ async function saveShiftLogEmployeeAdd() {
 
           body:
             JSON.stringify({
+              accountSecurityVersion: 6,
               employeeNo,
 
               name,
@@ -13108,26 +13110,20 @@ async function saveShiftLogEmployeeAdd() {
     /*
       가입 완료 직원 목록을 다시 불러온다.
     */
-    await loadEmployeeManagement();
+    await GSShiftLogLoginPreferences.showTemporaryCredentials(result);
+    try { await loadEmployeeManagement(); }
+    catch { showToast('직원 등록은 완료됐지만 목록을 다시 읽지 못했습니다. 새로고침해 주세요.'); }
 
 
     closeShiftLogEmployeeAddPanel();
 
 
     showToast(
-      `${name} 직원이 등록되었습니다. 초기 비밀번호는 사번과 동일합니다.`
+      `${name} 직원이 등록되었습니다.`
     );
 
 
-    console.log(
-      "직원 직접 등록 완료:",
-      {
-        employeeNo,
-        name,
-        defaultRole,
-        result
-      }
-    );
+
 
   } catch (
     error
@@ -57065,6 +57061,7 @@ async function handleEmployeeExcelUpload(event) {
     return;
   }
 
+  let employeesSaved = false;
   try {
     const arrayBuffer =
       await file.arrayBuffer();
@@ -57285,6 +57282,7 @@ async function handleEmployeeExcelUpload(event) {
       "직원 명단을 저장하고 있습니다."
     );
 
+    GSShiftLogLoginPreferences.requireCredentialDisplay();
     const response =
       await fetch(
         "/api/employees",
@@ -57305,6 +57303,7 @@ async function handleEmployeeExcelUpload(event) {
 
           body:
             JSON.stringify({
+              accountSecurityVersion: 6,
               employees
             })
         }
@@ -57330,6 +57329,9 @@ async function handleEmployeeExcelUpload(event) {
         "직원 명단 저장에 실패했습니다."
       );
     }
+
+    employeesSaved = true;
+    await GSShiftLogLoginPreferences.showTemporaryCredentials(result);
 
     window.pendingEmployeeExcelData =
       [];
@@ -57359,10 +57361,7 @@ async function handleEmployeeExcelUpload(event) {
       await loadEmployeeDirectory();
     }
 
-    console.log(
-      "직원 엑셀 저장 완료:",
-      result
-    );
+
 
     if (
       duplicateEmployeeNumbers.length >
@@ -57381,8 +57380,9 @@ async function handleEmployeeExcelUpload(event) {
     );
 
     showEmployeeUploadMessage(
-      error.message ||
-      "직원 엑셀 파일을 처리하지 못했습니다."
+      employeesSaved
+        ? '직원 명단 저장은 완료됐지만 목록을 다시 읽지 못했습니다. 새로고침해 주세요. 임시 비밀번호를 전달하지 못했다면 직원 임시 비밀번호 발급을 이용하세요.'
+        : error.message || "직원 엑셀 파일을 처리하지 못했습니다."
     );
 
   } finally {

@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import * as employees from '../functions/api/employees.js';
 import * as login from '../functions/api/login.js';
+import * as passwordApi from '../functions/api/account-password.js';
 import { ATTACHMENT_COOKIE, protectedRequest } from '../functions/_shared/attachment-access.js';
 
 const routes = {};
@@ -165,7 +166,7 @@ test('employee removal atomically deactivates login, revokes every session and p
   assert.equal(db.raw.prepare('SELECT count(*) n FROM employees WHERE employee_no=?').get('9000002').n,0);
   assert.equal(db.raw.prepare('SELECT count(*) n FROM shift_log_sessions WHERE employee_no=?').get('9000002').n,0);
   assert.equal(db.raw.prepare('SELECT count(*) n FROM shift_logs').get().n,1);
-  assert.equal((await login.onRequestPost(requestContext(db,'login',{method:'POST',body:{employeeNo:'9000002',password:'9000002'}}))).status,403);
+  assert.equal((await login.onRequestPost(requestContext(db,'login',{method:'POST',body:{employeeNo:'9000002',password:'9000002'}}))).status,401);
   assert.equal((await call(db,'legacy-attachment?id=1',{headers:{Cookie:`${ATTACHMENT_COOKIE}=user-token`}})).status,401);
 });
 
@@ -175,7 +176,7 @@ test('employee delete and multi-row save roll back completely on a mid-batch fai
     const db = fixture(t); db.failAt=2;
     const response = action==='delete'
       ? await employees.onRequestDelete(requestContext(db,'employees?employeeNo=9000002',{method:'DELETE',token:'admin-token'}))
-      : await employees.onRequestPost(requestContext(db,'employees',{method:'POST',token:'admin-token',body:{employees:[{...employee,isAllowed:false},{...employee,employeeNo:'9000099'}]}}));
+      : await employees.onRequestPost(requestContext(db,'employees',{method:'POST',token:'admin-token',body:{accountSecurityVersion:6,employees:[{...employee,isAllowed:false},{...employee,employeeNo:'9000099'}]}}));
     assert.equal(response.status,500); assert.doesNotMatch(await response.text(),/SQL|synthetic/);
     assert.equal(db.raw.prepare('SELECT is_active FROM users WHERE employee_no=?').get('9000002').is_active,1);
     assert.equal(db.raw.prepare('SELECT count(*) n FROM shift_log_sessions WHERE employee_no=?').get('9000002').n,1);
@@ -220,10 +221,15 @@ test('role changes revoke previous sessions while retaining the employee passwor
   assert.equal((await login.onRequestGet(requestContext(db,'login',{token:'user-token'}))).status,401);
 });
 
-test('new employee password login issues a working session and attachment cookies', async t => {
+test('new employee sets a private password before login issues a working session and attachment cookies', async t => {
   const db = fixture(t), employeeNo='9000099';
-  assert.equal((await employees.onRequestPost(requestContext(db,'employees',{method:'POST',token:'admin-token',body:{...employee,employeeNo}}))).status,201);
-  const response = await login.onRequestPost(requestContext(db,'login',{method:'POST',body:{employeeNo,password:employeeNo}}));
+  const created = await employees.onRequestPost(requestContext(db,'employees',{method:'POST',token:'admin-token',body:{...employee,employeeNo,accountSecurityVersion:6}}));
+  assert.equal(created.status,201);
+  const temporary = (await created.json()).temporaryCredentials[0].temporaryPassword;
+  assert.equal((await login.onRequestPost(requestContext(db,'login',{method:'POST',body:{employeeNo,password:temporary}}))).status,403);
+  const password='review-private-password-1234';
+  assert.equal((await passwordApi.onRequestPost(requestContext(db,'account-password',{method:'POST',body:{action:'change',employeeNo,currentPassword:temporary,newPassword:password}}))).status,200);
+  const response = await login.onRequestPost(requestContext(db,'login',{method:'POST',body:{employeeNo,password}}));
   assert.equal(response.status,200);
   const result = await response.json();
   assert.ok(result.user.sessionToken); assert.equal(result.user.password,undefined);

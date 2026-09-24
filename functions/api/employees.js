@@ -1,3 +1,4 @@
+import { hashPassword, randomSecret, ACCOUNT_SECURITY_VERSION } from '../_shared/account-security.js';
 import { authenticateEmployeeRequest } from "../_shared/employee-auth.js";
 
 /* ==================================================
@@ -717,113 +718,6 @@ export async function onRequestGet(
    바이트 배열 → Base64
 ================================================== */
 
-function bytesToBase64(bytes) {
-  let binaryText = "";
-
-  bytes.forEach(
-    byte => {
-      binaryText +=
-        String.fromCharCode(
-          byte
-        );
-    }
-  );
-
-  return btoa(
-    binaryText
-  );
-}
-
-
-/* ==================================================
-   초기 비밀번호 해시 생성
-
-   저장 형식:
-   pbkdf2$210000$salt$passwordHash
-
-   초기 비밀번호:
-   사번과 동일
-================================================== */
-
-async function createInitialPasswordHash(
-  employeeNo
-) {
-  const iterations =
-    100000;
-
-  const salt =
-    crypto.getRandomValues(
-      new Uint8Array(16)
-    );
-
-  const encoder =
-    new TextEncoder();
-
-  const passwordKey =
-    await crypto.subtle.importKey(
-      "raw",
-      encoder.encode(
-        employeeNo
-      ),
-      {
-        name:
-          "PBKDF2"
-      },
-      false,
-      [
-        "deriveBits"
-      ]
-    );
-
-  const derivedBits =
-    await crypto.subtle.deriveBits(
-      {
-        name:
-          "PBKDF2",
-
-        salt,
-
-        iterations,
-
-        hash:
-          "SHA-256"
-      },
-      passwordKey,
-      256
-    );
-
-  const passwordHash =
-    new Uint8Array(
-      derivedBits
-    );
-
-  return [
-    "pbkdf2",
-    iterations,
-    bytesToBase64(
-      salt
-    ),
-    bytesToBase64(
-      passwordHash
-    )
-  ].join("$");
-}
-
-
-/* ==================================================
-   직원 권한 → 로그인 권한 변환
-
-   employees:
-   - user
-   - leader
-   - super_admin
-
-   users:
-   - user
-   - admin
-   - super_admin
-================================================== */
-
 function convertEmployeeRoleToUserRole(
   defaultRole
 ) {
@@ -868,7 +762,7 @@ function convertEmployeeRoleToUserRole(
    - 이름과 권한만 갱신
 
    신규 계정이면:
-   - 초기 비밀번호 = 사번
+   - 무작위 임시 비밀번호 발급 후 본인이 새 비밀번호 설정
 ================================================== */
 
 // Prepare every row before a single atomic D1 batch. Existing passwords are never replaced.
@@ -876,7 +770,8 @@ async function prepareEmployeeSave(database, employee) {
   const existingUser = await database.prepare('SELECT employee_no FROM users WHERE employee_no = ?').bind(employee.employeeNo).first();
   const existingEmployee = await database.prepare('SELECT employee_no FROM employees WHERE employee_no = ?').bind(employee.employeeNo).first();
   const role = convertEmployeeRoleToUserRole(employee.defaultRole);
-  const passwordHash = existingUser ? '' : await createInitialPasswordHash(employee.employeeNo);
+  const temporaryPassword = existingUser ? '' : randomSecret();
+  const passwordHash = existingUser ? '' : await hashPassword(temporaryPassword, true);
   const now = new Date().toISOString();
   const statements = [
     database.prepare(`DELETE FROM shift_log_sessions WHERE employee_no = ? AND
@@ -899,7 +794,7 @@ async function prepareEmployeeSave(database, employee) {
     statements.push(database.prepare('UPDATE users SET name = ?, role = ?, is_active = CASE WHEN ? = 0 THEN 0 WHEN ? = 1 THEN 1 ELSE is_active END WHERE employee_no = ?')
       .bind(employee.name, role, employee.isAllowed, Number(employee.reactivateAccount), employee.employeeNo));
   }
-  return { statements, existingUser: Boolean(existingUser), existingEmployee: Boolean(existingEmployee) };
+  return { statements, temporaryPassword, existingUser: Boolean(existingUser), existingEmployee: Boolean(existingEmployee) };
 }
 
 
@@ -1053,17 +948,28 @@ export async function onRequestPost(
 
 
 const statements = [];
+    const issued = [];
     for (const employee of employees) {
       const protectedAccount = employee.employeeNo === authentication.user.employeeNo || employee.employeeNo === '2014081';
       if (protectedAccount && (employee.isAllowed !== 1 || convertEmployeeRoleToUserRole(employee.defaultRole) !== 'super_admin')) {
         return jsonResponse({ ok: false, message: '본인 또는 기본 최고관리자의 권한·로그인 허용은 해제할 수 없습니다.' }, 409);
       }
       const prepared = await prepareEmployeeSave(context.env.DB, employee);
+      if (!prepared.existingUser && body.accountSecurityVersion !== ACCOUNT_SECURITY_VERSION) {
+        return jsonResponse({ ok: false, message: '새 계정 등록을 위해 화면을 새로고침해 주세요.' }, 409);
+      }
+      if (prepared.temporaryPassword) issued.push({ employeeNo: employee.employeeNo, name: employee.name,
+        temporaryPassword: prepared.temporaryPassword, insertIndex: statements.length + 3 });
       statements.push(...prepared.statements);
       if (prepared.existingEmployee) updatedCount++; else createdCount++;
       if (prepared.existingUser) existingUserCount++; else createdUserCount++;
     }
-    await context.env.DB.batch(statements);
+    const batchResults = await context.env.DB.batch(statements);
+    // A concurrent creator may already have inserted the account. Never return an unused candidate password.
+    const temporaryCredentials = issued.filter(item => Number(batchResults[item.insertIndex]?.meta?.changes) === 1)
+      .map(({ employeeNo, name, temporaryPassword }) => ({ employeeNo, name, temporaryPassword }));
+    createdUserCount = temporaryCredentials.length;
+    existingUserCount = employees.length - createdUserCount;
 
 
     return jsonResponse(
@@ -1094,6 +1000,8 @@ const statements = [];
         createdUserCount,
 
         existingUserCount,
+
+        temporaryCredentials,
 
         totalCount:
           employees.length

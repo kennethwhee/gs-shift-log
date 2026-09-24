@@ -69,20 +69,20 @@ function fixture({ running = false, old = true } = {}) {
 }
 const use = async options => fixture(options).ready();
 
-test('preview is read-only and reports pending 0h for a wrongly entered first startup', async () => {
+test('preview is read-only and marks runtime unknown when first-start evidence is removed', async () => {
   const f=await use({running:true}); try {
     const before=f.state(), p=await f.preview('startup');
-    assert.equal(p.status,200,p.message); assert.equal(p.preview.operationState,'startup_pending');
-    assert.equal(p.preview.runtimeHours,0); assert.equal(p.preview.lastReplacementAt,DATE);
+    assert.equal(p.status,200,p.message); assert.equal(p.preview.operationState,'unknown');
+    assert.equal(p.preview.runtimeHours,null); assert.equal(p.preview.effect,'run_requery'); assert.equal(p.preview.lastReplacementAt,DATE);
     assert.match(p.previewToken,/^[a-f0-9]{64}$/); assert.equal(f.state(),before); assert.equal(f.db.writes,0);
   } finally { f.sqlite.close(); }
 });
 test('startup then replacement deletion preserves original evidence and audits each deletion', async () => {
   const f=await use({running:true}); try {
     const original={...f.row('startup')};
-    let p=await f.confirm(); assert.equal(p.code,'HISTORY_DELETE_DEPENDENT_EVENTS'); assert.equal(p.blockingEventId,'startup');
+    let p=await f.preview(); assert.equal(p.status,200); assert.equal(p.preview.effect,'run_requery');
     p=await f.confirm('startup'); assert.equal(p.status,200,p.message);
-    assert.equal(f.asset().cycle_start_state,'pending'); assert.equal(f.asset().cycle_runtime_hours,0); assert.equal(f.row('startup'),undefined);
+    assert.equal(f.asset().cycle_start_state,'legacy'); assert.equal(f.asset().cycle_runtime_state,'unknown'); assert.equal(p.preview.runtimeHours,null); assert.equal(f.row('startup').event_type,'_deleted');
     assert.notEqual(f.asset().cycle_runtime_revision,'runtime-r1');
     const audit=f.sqlite.prepare('SELECT * FROM blower_history_asset_history').get();
     assert.deepEqual(JSON.parse(audit.before_json).event,original);
@@ -100,7 +100,7 @@ test('last replacement removal clears the cycle without inventing a previous rep
     assert.equal(a.cycle_runtime_state,'unknown'); assert.equal(a.runtime_anchor_at,null); assert.equal(p.preview.runtimeHours,null);
   } finally {f.sqlite.close();}
 });
-test('backdated replacement does not absorb a pre-existing DataPARC row and restores its old-cycle state', async t=>{
+test('backdated replacement deletion preserves DataPARC evidence and requires fresh RUN coverage', async t=>{
   for(const running of [true,false]) await t.test(running?'running':'stopped',async()=>{
     const f=await use(); try {
       const observation='2026-09-08T14:00:00.000Z';
@@ -109,35 +109,35 @@ test('backdated replacement does not absorb a pre-existing DataPARC row and rest
         source_text:JSON.stringify({expectedLastReplacementAt:OLD,expectedCycleStartState:'legacy',observedAt:observation}),
         created_at:'2026-09-08T14:16:00.000Z',updated_at:'2026-09-08T14:16:00.000Z'});
       const p=await f.confirm(); assert.equal(p.status,200,p.message); assert.deepEqual({...f.row('old-query')},e);
-      assert.equal(f.asset().cycle_runtime_state,running?'running':'stopped');
-      assert.equal(f.asset().cycle_runtime_hours,1234.5);
+      assert.equal(f.asset().cycle_runtime_state,'unknown');
+      assert.equal(p.preview.runtimeHours,null);assert.equal(p.preview.effect,'run_requery');
       assert.equal(f.asset().last_replacement_at,OLD); assert.equal(f.asset().cycle_start_state,'legacy');
     } finally {f.sqlite.close();}
   });
 });
-test('intermittent stop deletion restores measured startup total without wall-clock addition', async()=>{
+test('intermittent stop deletion preserves startup evidence and requires RUN requery without fabricated hours', async()=>{
   const f=await use({running:true}); try {
     f.add({id:'stop',event_type:'operation_stop',event_date:'2026-09-08T14:45:00.000Z',runtime_hours:999,action_type:'정지',created_at:'2026-09-08T14:46:00.000Z',updated_at:'2026-09-08T14:46:00.000Z'});
     f.sqlite.prepare("UPDATE blower_history_assets SET cycle_runtime_state='stopped', cycle_runtime_hours=999, runtime_hours=999, is_running=0 WHERE tag_number=?").run(TAG);
-    const blocked=await f.confirm('startup'); assert.equal(blocked.code,'HISTORY_DELETE_LATEST_FIRST'); assert.equal(blocked.blockingEventId,'stop');
+    const firstPreview=await f.preview('startup'); assert.equal(firstPreview.status,200); assert.equal(firstPreview.preview.effect,'run_requery');
     const p=await f.confirm('stop'); assert.equal(p.status,200,p.message);
-    assert.equal(f.asset().cycle_runtime_hours,0); assert.equal(f.asset().is_running,1);
+    assert.equal(f.asset().cycle_runtime_state,'unknown'); assert.equal(p.preview.runtimeHours,null); assert.equal(f.row('startup').event_type,'startup');
   } finally{f.sqlite.close();}
 });
-test('latest restart removal restores the previous stopped total with no elapsed-time addition',async()=>{
+test('latest restart removal preserves previous stop evidence and invalidates the current RUN total',async()=>{
   const f=await use({running:true});try{
     f.add({id:'stop',event_type:'operation_stop',event_date:'2026-09-08T14:40:00.000Z',runtime_hours:0.16666666666666666,action_type:'정지',created_at:'2026-09-08T14:41:00.000Z',updated_at:'2026-09-08T14:41:00.000Z'});
     f.add({id:'restart',event_type:'operation_start',event_date:'2026-09-08T14:50:00.000Z',runtime_hours:0.16666666666666666,action_type:'재기동',created_at:'2026-09-08T14:51:00.000Z',updated_at:'2026-09-08T14:51:00.000Z'});
-    const p=await f.confirm('restart');assert.equal(p.status,200,p.message);assert.equal(f.asset().cycle_runtime_state,'stopped');
-    assert.equal(f.asset().cycle_runtime_hours,0.16666666666666666);
+    const p=await f.confirm('restart');assert.equal(p.status,200,p.message);assert.equal(f.asset().cycle_runtime_state,'unknown');
+    assert.equal(p.preview.runtimeHours,null);assert.equal(f.row('stop').runtime_hours,0.16666666666666666);
   }finally{f.sqlite.close();}
 });
-test('manual correction deletion restores its audited before-state even after a pending reset',async()=>{
+test('manual correction deletion preserves its before-snapshot as audit evidence but requires RUN requery',async()=>{
   const f=await use();try{
     f.add({id:'correction',event_type:'runtime_correction',event_date:'2026-09-08T14:50:00.000Z',runtime_hours:0,action_type:'교체 수정 · 미기동 정지 · 0시간',
       source_text:JSON.stringify({replacementEdit:true,replacementEventId:'replacement',before:{lastReplacementAt:DATE,cycleStartState:'started',cycleStartedAt:'2026-09-08T14:00:00.000Z',cycleRuntimeHours:2,cycleRuntimeAnchorAt:'2026-09-08T14:45:00.000Z',cycleRuntimeState:'stopped'}}),
       created_at:'2026-09-08T14:51:00.000Z',updated_at:'2026-09-08T14:51:00.000Z'});
-    const p=await f.confirm('correction');assert.equal(p.status,200,p.message);assert.equal(f.asset().cycle_start_state,'started');assert.equal(f.asset().cycle_runtime_hours,2);
+    const p=await f.confirm('correction');assert.equal(p.status,200,p.message);assert.equal(f.asset().cycle_start_state,'legacy');assert.equal(f.asset().cycle_runtime_state,'unknown');assert.equal(p.preview.runtimeHours,null);assert.equal(JSON.parse(f.row('correction').source_text).before.cycleRuntimeHours,2);
   }finally{f.sqlite.close();}
 });
 test('a replacement edit before-snapshot for a DIFFERENT replacement date is never reused',async()=>{
@@ -146,18 +146,18 @@ test('a replacement edit before-snapshot for a DIFFERENT replacement date is nev
     const p=await f.confirm('correction');assert.equal(p.status,200,p.message);assert.equal(f.asset().cycle_runtime_state,'unknown');assert.equal(p.preview.runtimeHours,null);assert.equal(f.asset().last_replacement_at,DATE);
   }finally{f.sqlite.close();}
 });
-test('automatic rows, linked rows, and unsupported event kinds cannot be deleted',async t=>{
+test('automatic, linked and legacy event kinds can be hidden with their original source and deletion audit preserved',async t=>{
   for(const changed of [{source_type:'dataparc_runtime'},{source_type:'shift_log_auto'},{source_type:'shift_log_operation_auto'},{source_log_id:'source-log'},{event_type:'unknown'}]) await t.test(JSON.stringify(changed),async()=>{
     const f=await use();try{
       f.sqlite.prepare(`UPDATE blower_history_events SET ${Object.keys(changed).map(k=>`${k}=?`).join(',')} WHERE id='replacement'`).run(...Object.values(changed));
-      const before=f.state(),p=await f.confirm();assert.equal(p.status,403);assert.equal(f.state(),before);
+      const original={...f.row('replacement')},p=await f.confirm();assert.equal(p.status,200);assert.equal(f.row('replacement').event_type,'_deleted');assert.deepEqual(JSON.parse(f.sqlite.prepare('SELECT before_json FROM blower_history_asset_history').get().before_json).event,original);
     }finally{f.sqlite.close();}
   });
 });
-test('a dependent automatic observation is preserved and blocks replacement deletion',async()=>{
+test('replacement deletion preserves dependent automatic observations and requests a fresh RUN calculation',async()=>{
   const f=await use();try{
     f.add({id:'new-query',event_type:'runtime_correction',event_date:'2026-09-08T14:40:00.000Z',source_type:'dataparc_runtime',action_type:'DataPARC 정지',source_text:JSON.stringify({expectedLastReplacementAt:DATE}),created_at:'2026-09-08T14:41:00.000Z'});
-    const before=f.state(),p=await f.confirm();assert.equal(p.code,'HISTORY_DELETE_DEPENDENT_EVENTS');assert.match(p.message,/\[수정\]/);assert.equal(f.state(),before);
+    const original={...f.row('new-query')},p=await f.confirm();assert.equal(p.status,200);assert.equal(p.preview.runtimeHours,null);assert.equal(p.preview.effect,'run_requery');assert.deepEqual({...f.row('new-query')},original);assert.equal(f.row('replacement').event_type,'_deleted');
   }finally{f.sqlite.close();}
 });
 test('historical manual replacement and problem deletion preserve every current asset field',async t=>{
@@ -165,7 +165,7 @@ test('historical manual replacement and problem deletion preserve every current 
     const f=await use({running:true});try{
       f.add({id:'historical',event_type:type,event_date:'2024-01-01T00:00:00.000Z',note:'과거 입력'});
       const before=JSON.stringify(f.asset()),p=await f.confirm('historical');assert.equal(p.status,200,p.message);
-      assert.equal(JSON.stringify(f.asset()),before);assert.equal(p.preview.currentCycleChanged,false);assert.equal(f.row('historical'),undefined);
+      assert.equal(JSON.stringify(f.asset()),before);assert.equal(p.preview.currentCycleChanged,false);assert.equal(f.row('historical').event_type,'_deleted');
     }finally{f.sqlite.close();}
   });
 });
@@ -197,7 +197,7 @@ test('atomic after-guard rolls back missing deletion, altered evidence, missing 
     const f=await use();try{
       const before=f.state(),original={...f.row('replacement')};let fired=false;
       f.db.afterStatement=({statement})=>{if(fired||!statement.sql.startsWith('INSERT INTO blower_history_asset_history'))return;fired=true;
-        if(mutation==='deleted-row')f.add(original);
+        if(mutation==='deleted-row')f.sqlite.prepare('UPDATE blower_history_events SET event_type=?,updated_at=? WHERE id=?').run(original.event_type,original.updated_at,original.id);
         if(mutation==='survivor')f.sqlite.exec("UPDATE blower_history_events SET note='clobber' WHERE id='old-replacement'");
         if(mutation==='audit')f.sqlite.exec('DELETE FROM blower_history_asset_history');
         if(mutation==='asset')f.sqlite.exec("UPDATE blower_history_assets SET cycle_runtime_hours=999 WHERE tag_number='104SDF01AN001'");

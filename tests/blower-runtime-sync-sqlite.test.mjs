@@ -756,7 +756,7 @@ test("rejects stale first-use probes, non-complete queue rows, and target-date t
 });
 
 
-test("rejects every stale cycle snapshot field and pending cycles with zero writes", async t => {
+test("rejects stale cycle snapshots, including a request made before the cycle became pending, with zero writes", async t => {
   const cases = [
     ["last replacement", "last_replacement_at", "2026-08-19T00:00:01.000Z"],
     ["cycle start state", "cycle_start_state", "legacy"],
@@ -794,7 +794,7 @@ test("rejects every stale cycle snapshot field and pending cycles with zero writ
       const before = readState(fixture.sqlite);
       const result = await invokeSync(fixture.database);
       assert.equal(result.status, 409);
-      assert.equal(result.body.code, "DATAPARC_RUNTIME_CYCLE_PENDING");
+      assert.equal(result.body.code, "DATAPARC_RUNTIME_CYCLE_CONFLICT");
       assert.deepEqual(readState(fixture.sqlite), before);
     } finally {
       fixture.database.close();

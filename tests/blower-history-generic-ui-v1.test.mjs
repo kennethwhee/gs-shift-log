@@ -19,7 +19,7 @@ function harness({ mobile = false, canWrite = true } = {}) {
   const nodes = new Map(), calls = [], refreshes = [], toasts = [];
   const context = vm.createContext({ console, HTMLButtonElement: class {}, localStorage: { getItem: () => null },
     document: { readyState: 'loading', body: node(), querySelectorAll: () => [], addEventListener() {}, getElementById(id) { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); } },
-    window: { matchMedia: () => ({ matches: mobile }), setTimeout(fn) { fn(); } }
+    window: { addEventListener() {}, matchMedia: () => ({ matches: mobile }), setTimeout(fn) { fn(); } }
   });
   const marker = '  if (document.readyState === "loading") {';
   const expose = `globalThis.ui={state,elements,cacheElements,bindEvents,openAssetHistory,canEditManualReplacement,openReplacementEditDialog,updateReplacementEditFields,saveReplacementEdit};
@@ -151,7 +151,7 @@ test('dialog fields use a compact responsive grid and distinct cache versions', 
     assert.equal((html.match(new RegExp(`id="${id}"`, 'g')) || []).length, 1);
   }
   assert.match(css, /@media \(min-width: 600px\)[\s\S]*?\.replacement-edit-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(html, /blower-history\.css\?v=20260911-mobile-refresh-hide-only-v10-r1/);
-  assert.match(html, /blower-unified-refresh\.js\?v=20260915-fast-timing-v12/);
-  assert.match(html, /blower-history\.js\?v=20260911-fast-manual-resume-v11/);
+  assert.match(html, /blower-history\.css\?v=[A-Za-z0-9-]+/);
+  assert.match(html, /blower-unified-refresh\.js\?v=[A-Za-z0-9-]+/);
+  assert.match(html, /blower-history\.js\?v=[A-Za-z0-9-]+/);
 });

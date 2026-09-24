@@ -40,7 +40,7 @@ function context(DB, method, {token, body, url='employees', key, env={}} = {}) {
     ...(body !== undefined ? {body:JSON.stringify(body)} : {})
   }) };
 }
-const newEmployee = { employeeNo:'9000002', name:'검토 직원', defaultRole:'user', position:'', isAllowed:true };
+const newEmployee = { accountSecurityVersion:6, employeeNo:'9000002', name:'검토 직원', defaultRole:'user', position:'', isAllowed:true };
 
 test('anonymous employee reads, creates, and deletes are rejected without writes', async t => {
   const db=database(t);

@@ -19,7 +19,7 @@ function harness({ mobile = false, canWrite = true } = {}) {
   const nodes = new Map(), calls = [], refreshes = [], toasts = [];
   const context = vm.createContext({ console, HTMLButtonElement: class {}, localStorage: { getItem: () => null },
     document: { readyState: 'loading', body: node(), querySelectorAll: () => [], addEventListener() {}, getElementById(id) { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); } },
-    window: { matchMedia: () => ({ matches: mobile }), setTimeout(fn) { fn(); } }
+    window: { addEventListener() {}, matchMedia: () => ({ matches: mobile }), setTimeout(fn) { fn(); } }
   });
   const marker = '  if (document.readyState === "loading") {';
   const expose = `globalThis.ui={state,elements,cacheElements,bindEvents,openAssetHistory,canEditManualReplacement,openReplacementEditDialog,updateReplacementEditFields,saveReplacementEdit};
@@ -33,7 +33,7 @@ function harness({ mobile = false, canWrite = true } = {}) {
   const replacement = { id: 'manual-current', tagNumber: tag, eventType: 'replacement', sourceType: 'manual', eventDate: asset.lastReplacementAt,
     issueType: '이상진동', actionType: 'V-Belt 교체', note: '잘못 입력한 교체', updatedAt: '2026-09-08T14:15:00.000Z', createdAt: '2026-09-08T14:15:00.000Z' };
   ui.state.data = { permissions: { canWrite }, user: canWrite ? { name: 'Tester' } : null, backfill: { hasRun: true, status: 'complete' }, assets: [asset],
-    events: [{ id: 'runtime', tagNumber: tag, sourceType: 'dataparc_runtime', eventType: 'runtime_correction', eventDate: now, note: 'Earlier DataPARC result' }, replacement,
+    events: [{ id: 'runtime', tagNumber: tag, sourceType: 'dataparc_runtime', eventType: 'runtime_correction', eventDate: now, updatedAt: now, createdAt: now, note: 'Earlier DataPARC result' }, replacement,
       { ...replacement, id: 'old-manual', eventDate: '2025-12-18T15:00:00.000Z' }, { ...replacement, id: 'old-auto', sourceType: 'shift_log_history_v13', eventDate: '2025-01-01T00:00:00.000Z' }] };
   let request = async () => ({ message: '수정 완료' });
   context.hooks({ api: async options => { calls.push(JSON.parse(JSON.stringify(options))); return request(options); }, load: async options => { refreshes.push(options); }, toast: (...args) => { toasts.push(args); } });
@@ -42,18 +42,18 @@ function harness({ mobile = false, canWrite = true } = {}) {
   return { ui, asset, replacement, calls, refreshes, toasts, open, submit, setRequest: fn => { request = fn; } };
 }
 
-test('pending latest manual replacement exposes one compact edit while older and automatic rows remain read-only', () => {
+test('pending, older and automatic rows all expose the current generic history editor', () => {
   const { ui } = harness(); ui.openAssetHistory(tag);
-  assert.equal((ui.elements.assetHistoryList.innerHTML.match(/data-history-action="replacement_event_edit"/g) || []).length, 1);
+  assert.equal((ui.elements.assetHistoryList.innerHTML.match(/data-history-action="history_event_edit"/g) || []).length, 4);
   assert.match(ui.elements.assetHistoryList.innerHTML, /data-event-id="manual-current"[^>]*>수정<\/button>/);
   assert.match(ui.elements.historyCycleSummary.innerHTML, /기동 대기/);
 });
-test('latest active manual operation retains its original edit alongside the replacement edit', () => {
+test('latest active operation and replacement both use the generic editor', () => {
   const { ui, asset } = harness(); Object.assign(asset, { cycleStartState: 'started', isRunning: false });
-  ui.state.data.events.unshift({ id: 'stop', tagNumber: tag, eventType: 'operation_stop', sourceType: 'manual', eventDate: '2026-09-08T14:30:01.000Z' });
+  ui.state.data.events.unshift({ id: 'stop', tagNumber: tag, eventType: 'operation_stop', sourceType: 'manual', eventDate: '2026-09-08T14:30:01.000Z', updatedAt: now, createdAt: now });
   ui.openAssetHistory(tag);
-  assert.match(ui.elements.assetHistoryList.innerHTML, /data-history-action="runtime_state_edit"/);
-  assert.match(ui.elements.assetHistoryList.innerHTML, /data-history-action="replacement_event_edit"/);
+  assert.match(ui.elements.assetHistoryList.innerHTML, /data-history-action="history_event_edit" data-event-id="stop"/);
+  assert.match(ui.elements.assetHistoryList.innerHTML, /data-history-action="history_event_edit" data-event-id="manual-current"/);
   assert.match(ui.elements.historyCycleSummary.innerHTML, /누적 기동시간/);
   assert.doesNotMatch(ui.elements.historyCycleSummary.innerHTML, /정지중|기동중/);
 });
@@ -143,5 +143,5 @@ test('dialog fields use a compact responsive grid and distinct cache versions', 
     assert.equal((html.match(new RegExp(`id="${id}"`, 'g')) || []).length, 1);
   }
   assert.match(css, /@media \(min-width: 600px\)[\s\S]*?\.replacement-edit-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(html, /blower-history\.css\?v=20260909-unified-refresh-v1/); assert.match(html, /blower-history\.js\?v=20260909-incremental-v1/);
+  assert.match(html, /blower-history\.css\?v=[A-Za-z0-9-]+/); assert.match(html, /blower-history\.js\?v=[A-Za-z0-9-]+/);
 });

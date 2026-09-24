@@ -19,7 +19,7 @@ function harness({ mobile = false, canWrite = true } = {}) {
   const nodes = new Map(), calls = [], refreshes = [], toasts = [];
   const context = vm.createContext({ console, HTMLButtonElement: class {}, localStorage: { getItem: () => null },
     document: { readyState: 'loading', body: node(), querySelectorAll: () => [], addEventListener() {}, getElementById(id) { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); } },
-    window: { matchMedia: () => ({ matches: mobile }), setTimeout(fn) { fn(); } }
+    window: { addEventListener() {}, matchMedia: () => ({ matches: mobile }), setTimeout(fn) { fn(); } }
   });
   const marker = '  if (document.readyState === "loading") {';
   const expose = `globalThis.ui={state,elements,cacheElements,bindEvents,openAssetHistory,canEditManualReplacement,openReplacementEditDialog,updateReplacementEditFields,saveReplacementEdit,canDeleteManualHistoryEvent,openHistoryDeleteDialog,submitHistoryDelete,renderAssetCard,applyMobileMonitoringMode,applyPublicMonitoringMode};
@@ -33,7 +33,7 @@ function harness({ mobile = false, canWrite = true } = {}) {
   const replacement = { id: 'manual-current', tagNumber: tag, eventType: 'replacement', sourceType: 'manual', eventDate: asset.lastReplacementAt,
     issueType: '이상진동', actionType: 'V-Belt 교체', note: '잘못 입력한 교체', updatedAt: '2026-09-08T14:15:00.000Z', createdAt: '2026-09-08T14:15:00.000Z' };
   ui.state.data = { permissions: { canWrite }, user: canWrite ? { name: 'Tester' } : null, backfill: { hasRun: true, status: 'complete' }, assets: [asset],
-    events: [{ id: 'runtime', tagNumber: tag, sourceType: 'dataparc_runtime', eventType: 'runtime_correction', eventDate: now, note: 'Earlier DataPARC result' }, replacement,
+    events: [{ id: 'runtime', tagNumber: tag, sourceType: 'dataparc_runtime', eventType: 'runtime_correction', eventDate: now, updatedAt: now, createdAt: now, note: 'Earlier DataPARC result' }, replacement,
       { ...replacement, id: 'old-manual', eventDate: '2025-12-18T15:00:00.000Z' }, { ...replacement, id: 'old-auto', sourceType: 'shift_log_history_v13', eventDate: '2025-01-01T00:00:00.000Z' }] };
   let request = async options => options.body.action === 'history_event_delete_preview'
     ? { previewToken: 'a'.repeat(64), preview: { detail: '기동 대기·누적 0시간으로 돌아갑니다.', lastReplacementAt: asset.lastReplacementAt, operationState: 'startup_pending', runtimeHours: 0, asOf: now } }
@@ -45,18 +45,24 @@ function harness({ mobile = false, canWrite = true } = {}) {
 }
 
 
-test('manual replacement rows get compact deletion controls without removing existing edit',()=>{
+test('manual and DataPARC rows expose deletion alongside generic edit',()=>{
  const h=harness();h.ui.openAssetHistory(tag);const markup=h.ui.elements.assetHistoryList.innerHTML;
- assert.equal((markup.match(/data-history-action="history_event_delete"/g)||[]).length,2);
- assert.match(markup,/data-history-action="replacement_event_edit"/);assert.doesNotMatch(markup,/data-history-action="history_event_delete" data-event-id="runtime"/);
+ assert.equal((markup.match(/data-history-action="history_event_delete"/g)||[]).length,4);
+ assert.match(markup,/data-history-action="history_event_edit"/);assert.match(markup,/data-history-action="history_event_delete" data-event-id="runtime"/);
 });
 test('all supported manual kinds can expose deletion, including problem records previously hidden in history',()=>{
  const h=harness();for(const eventType of ['startup','operation_start','operation_stop','runtime_correction','problem'])h.ui.state.data.events.unshift({...h.replacement,id:eventType,eventType});
  h.ui.openAssetHistory(tag);for(const eventType of ['startup','operation_start','operation_stop','runtime_correction','problem'])assert.match(h.ui.elements.assetHistoryList.innerHTML,new RegExp(`data-history-action="history_event_delete" data-event-id="${eventType}"`));
 });
-test('public, mobile, automatic, linked, disabled and unverifiable rows cannot force open deletion',async()=>{
+test('public, mobile, busy and unverifiable requests cannot force open deletion; automatic and linked rows can be previewed',async()=>{
  for(const options of [{mobile:true},{canWrite:false}]){const h=harness(options);h.ui.openAssetHistory(tag);assert.doesNotMatch(h.ui.elements.assetHistoryList.innerHTML,/data-history-action="history_event_delete"/);await h.deleteOpen();assert.equal(h.ui.elements.historyDeleteDialog.open,false);assert.equal(h.calls.length,0);}
- for(const change of [h=>h.replacement.sourceType='dataparc_runtime',h=>h.replacement.sourceLogId='log',h=>h.replacement.updatedAt='',h=>h.asset.cycleRuntimeRevision='',h=>h.ui.state.busy=true,h=>h.ui.state.dataparcRuntimeBusy=true]){const h=harness();change(h);await h.deleteOpen();assert.equal(h.calls.length,0);assert.equal(h.ui.elements.historyDeleteDialog.open,false);}
+ for(const change of [h=>h.replacement.updatedAt='',h=>h.ui.state.busy=true,h=>h.ui.state.dataparcRuntimeBusy=true]){const h=harness();change(h);await h.deleteOpen();assert.equal(h.calls.length,0);assert.equal(h.ui.elements.historyDeleteDialog.open,false);}
+});
+test('automatic and linked history deletion still requires a server preview',async()=>{
+ for(const mutate of [h=>h.replacement.sourceType='dataparc_runtime',h=>h.replacement.sourceLogId='log',h=>h.asset.cycleRuntimeRevision='']){
+  const h=harness();mutate(h);await h.deleteOpen();assert.equal(h.calls.length,1);
+  assert.equal(h.calls[0].body.action,'history_event_delete_preview');assert.equal(h.ui.elements.historyDeleteDialog.open,true);
+ }
 });
 test('opening deletion performs only read-only preview and displays server computed outcome',async()=>{
  const h=harness();h.ui.openAssetHistory(tag);await h.deleteOpen();assert.equal(h.calls.length,1);
@@ -103,5 +109,5 @@ test('unknown current runtime stays unknown in cards and history with no fabrica
 test('delete dialog ids are unique, errors accessible, cancel is default and cache versions match',()=>{
  for(const id of ['historyDeleteDialog','historyDeleteForm','historyDeleteAsset','historyDeleteTarget','historyDeletePreview','historyDeleteReason','historyDeleteError','historyDeleteConfirm','historyDeleteCancel'])assert.equal((html.match(new RegExp(`id="${id}"`,'g'))||[]).length,1);
  assert.match(html,/id="historyDeleteCancel"[^>]*autofocus/);assert.match(html,/id="historyDeleteConfirm"[^>]*disabled/);assert.match(html,/id="historyDeleteError" role="alert" hidden/);assert.match(css,/body\.mobile-monitoring #historyDeleteDialog/);assert.match(css,/body\.public-monitoring #historyDeleteDialog/);
- assert.match(html,/blower-history\.js\?v=20260909-incremental-v1/);
+ assert.match(html,/blower-history\.js\?v=[A-Za-z0-9-]+/);
 });

@@ -1,3 +1,4 @@
+import { hashPassword, newPasswordError, readSecurityBody } from '../_shared/account-security.js';
 // Initial setup is disabled unless the existing USER_SETUP_KEY is supplied.
 const json = (data, status = 200) => Response.json(data, {
   status, headers: { "Cache-Control": "no-store" }
@@ -19,14 +20,6 @@ async function matchesSetupKey(request, env) {
   return different === 0;
 }
 
-async function passwordHash(password) {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" }, key, 256);
-  const base64 = bytes => btoa(String.fromCharCode(...bytes));
-  return ["pbkdf2", 100000, base64(salt), base64(new Uint8Array(bits))].join("$");
-}
-
 export async function onRequestPost(context) {
   try {
     if (!await matchesSetupKey(context.request, context.env)) {
@@ -35,14 +28,14 @@ export async function onRequestPost(context) {
     const db = context.env?.DB;
     if (!db) return json({ ok: false, message: "DB 연결을 확인해 주세요." }, 503);
     let body;
-    try { body = await context.request.json(); } catch {
+    try { body = await readSecurityBody(context.request); } catch {
       return json({ ok: false, message: "요청 형식이 올바르지 않습니다." }, 400);
     }
-    const employeeNo = String(body?.employeeNo || "").trim();
-    const name = String(body?.name || "").trim();
-    const password = String(body?.password || "");
-    if (!/^\d{6,10}$/.test(employeeNo) || name.length < 2 || name.length > 30 || password.length < 8 || password.length > 100) {
-      return json({ ok: false, message: "사번 6~10자리, 이름 2~30자, 비밀번호 8~100자를 확인해 주세요." }, 400);
+    const employeeNo = typeof body?.employeeNo === "string" ? body.employeeNo.trim() : "";
+    const name = typeof body?.name === "string" ? body.name.trim() : "";
+    const password = body?.password;
+    if (!/^\d{6,10}$/.test(employeeNo) || name.length < 2 || name.length > 30 || newPasswordError(password, employeeNo)) {
+      return json({ ok: false, message: "사번 6~10자리, 이름 2~30자, 비밀번호 15~100자를 확인해 주세요." }, 400);
     }
     if (await db.prepare(`SELECT id FROM users WHERE ${ADMIN_PREDICATE} LIMIT 1`).first()) {
       return json({ ok: false, message: "최초 최고관리자는 이미 생성되었습니다." }, 409);
@@ -50,7 +43,7 @@ export async function onRequestPost(context) {
     if (await db.prepare("SELECT id FROM users WHERE employee_no = ? LIMIT 1").bind(employeeNo).first()) {
       return json({ ok: false, message: "이미 등록된 사번입니다." }, 409);
     }
-    const hash = await passwordHash(password);
+    const hash = await hashPassword(password);
     // A single conditional insert prevents concurrent setup requests creating two admins.
     const result = await db.prepare(`
       INSERT INTO users (employee_no, name, password_hash, role, is_active, approved_at, approved_by, created_at)
