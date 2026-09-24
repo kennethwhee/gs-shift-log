@@ -132,15 +132,17 @@
         <div class="cfv56-summary-actions"><span data-cfv-results-time></span><span data-cfv52-summary-note>DataPARC 조회 전</span><button type="button" data-cfv56-adjust disabled>혼소 조정</button></div>
       </div>
       <div data-cfv-target-home>
-      <div class="cfv-target-control" id="cfv-dark-target-editor" data-cfv-target-control hidden>
-        <label class="cfv-target-field">Bio 목표 <span><input type="number" inputmode="decimal" min="0.01" max="99.99" step="0.01" value="25" data-cfv-target-input aria-label="Bio 목표 비율" title="0.01%부터 99.99%까지 입력할 수 있습니다."><span>%</span></span></label>
-        <button type="button" data-cfv-target-apply>적용</button>
-        <button type="button" data-cfv-target-cancel>취소</button>
-        <span class="cfv-target-hint">1·2호기 공통 · 이 브라우저에 저장</span>
+      <div class="cfv-target-control" id="cfv-dark-target-editor" data-cfv-target-control role="group" aria-label="Bio 목표 수정, 1·2호기 공통" hidden>
+        <label class="cfv-target-field" for="cfv-bio-target-input" title="1·2호기 공통 · 이 브라우저에 저장">Bio 목표</label>
+        <div class="cfv-target-entry">
+          <span class="cfv-target-number"><input id="cfv-bio-target-input" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="25" data-cfv-target-input aria-label="Bio 목표 비율, 퍼센트" aria-describedby="cfv-bio-target-feedback" title="0.01%부터 99.99%까지 입력할 수 있습니다."><span aria-hidden="true">%</span></span>
+          <button type="button" data-cfv-target-apply aria-label="1·2호기 Bio 목표 적용" title="두 호기에 적용 · Enter">✓</button>
+          <button type="button" data-cfv-target-cancel aria-label="목표 수정 취소" title="취소 · Esc">×</button>
+        </div>
       </div>
       </div>
       <div class="cfv52-summary-grid" data-cfv52-summary-grid>${summaryPlaceholder()}</div>
-      <p class="cfv-target-feedback" data-cfv-target-feedback role="status" aria-live="polite"></p>
+      <p class="cfv-target-feedback" id="cfv-bio-target-feedback" data-cfv-target-feedback role="status" aria-live="polite"></p>
 
       <details class="cfv6-target-basis"><summary>마감까지 Bio <span data-cfv-target-label>25%</span> 필요 투입량 계산 기준</summary><p>해당일 00:00부터 조회한 누적 Coal·Bio 사용량을 기준으로, 다음 날 00:01에 Bio 열량이 Coal+Bio 열량의 목표 비율이 되도록 환산합니다. 남은 시간의 Coal 투입량은 조회 구간의 시간당 평균이 유지된다고 가정합니다.</p><p>마감 예상 Coal = 누적 Coal + Coal 평균(t/h) × 자료 기준 시각부터 남은 시간. 추가 Bio 필요량 = 마감 예상 Coal × Coal 발열량 ÷ Bio 발열량 × 목표비율 ÷ (100 − 목표비율) − 누적 Bio. 목표비율은 % 단위이며, 추가 필요량이 음수이면 0t로 표시합니다. 이를 남은 시간으로 나누어 Bio t/h를 표시하며, 보정 전 계측 투입량도 함께 환산합니다.</p><p>오늘 날짜의 <strong>일별 계산</strong>은 00:00부터 현재까지의 혼소율과 마감 목표를 함께 확인합니다. 00시부터 시작하지 않은 구간이나 여러 날의 결과는 하루 누적량이 없어 목표를 계산하지 않습니다. 자료 기준 시각 이후의 실제 사용량은 새 조회에서 반영됩니다. 혼소 조정을 적용하면 조정된 표시값 기준입니다.</p></details>
 
@@ -195,8 +197,7 @@
     const state=closed?'마감 완료':reference?.status==='invalid_input'?'입력 기준 확인 필요':ready?'':'당일 누적 조회 필요';
     const warning=reference?.status==='above_target'?`추가 Bio 없이 마감 예상 ${pct(reference.projectedRatioPercent)}`:'';
     return `<section class="cfv6-target cfv8-deadline-target cfv10-target${ready?'':' is-unavailable'}" data-cfv6-target>
-      <div class="cfv10-target-head"><button type="button" class="cfv-dark-target-edit" data-cfv-target-edit="${unit}" aria-expanded="false" aria-controls="cfv-dark-target-editor" aria-label="Bio ${goal}% 목표 수정, 1·2호기 공통"><span class="cfv6-target-label">Bio 목표 <b>${goal}%</b></span><span class="cfv-dark-edit-icon" aria-hidden="true">✎</span></button><span class="cfv10-target-deadline">마감까지 필요 투입량</span></div>
-      <div data-cfv-target-slot="${unit}"></div>
+      <div class="cfv10-target-head"><div class="cfv-target-inline" data-cfv-target-slot="${unit}"><button type="button" class="cfv-dark-target-edit" data-cfv-target-edit="${unit}" aria-expanded="false" aria-controls="cfv-dark-target-editor" aria-label="Bio ${goal}% 목표 수정, 1·2호기 공통" title="1·2호기 공통 · 이 브라우저에 저장"><span class="cfv6-target-label">Bio 목표 <b>${goal}%</b></span><span class="cfv-dark-edit-icon" aria-hidden="true">✎</span></button></div><span class="cfv10-target-deadline">마감까지 필요 투입량</span></div>
       <div class="cfv10-target-main"><strong class="cfv10-target-value" data-cfv6-target-bio>${ready?num(reference.targetBioTonPerHour):closed?'마감 완료':'—'}${ready?' <small>t/h</small>':''}</strong></div>
       <p class="cfv10-target-warning" role="status">${warning?escapeHtml(warning):ready?escapeHtml(deadlineShort)+' 마감 기준':escapeHtml(closed?'추가 투입 목표 없음':message||state)}</p>
       ${ready?`<details class="cfv10-target-details" data-cfv10-target-details${open?' open':''}><summary>계산 근거</summary><div class="cfv10-target-detail-body"><p data-cfv8-target-basis>자료 ${escapeHtml(basis)} → 마감 ${escapeHtml(deadline)} · ${num(reference.remainingHours,2)}시간 기준</p><dl><div><dt>조회 Bio 평균</dt><dd><b data-cfv6-current-bio>${num(reference.currentBioTonPerHour)} t/h</b></dd></div><div><dt>추가 Bio 필요량</dt><dd data-cfv6-target-delta>${num(reference.additionalBioTon)} t</dd></div><div><dt>Coal 유지 가정</dt><dd><b data-cfv6-target-coal>${num(reference.coalTonPerHour)} t/h</b></dd></div><div><dt>Bio 계측 투입 환산</dt><dd><b data-cfv8-target-measured>${num(reference.targetMeasuredBioTonPerHour)} t/h</b></dd></div></dl><p class="cfv8-target-note" data-cfv8-target-note>자료 이후 ${num(reference.lagHours*60,1)}분 경과 · 현재 구간을 다시 [계산하기]로 조회하면 최신 자료로 갱신합니다.</p></div></details>`:''}
@@ -658,7 +659,7 @@
       targetInput.value=String(targetPercentFor(container));
       targetInput.setAttribute?.('aria-invalid','false');
       const feedback=container.querySelector('[data-cfv-target-feedback]');if(feedback)feedback.textContent='';
-      if(visible){targetEditor.dataset.unit=unit;slot.appendChild?.(targetEditor);targetInput.focus?.({preventScroll:true});}
+      if(visible){targetEditor.dataset.unit=unit;slot.appendChild?.(targetEditor);targetInput.focus?.({preventScroll:true});targetInput.select?.();}
       else{delete targetEditor.dataset.unit;container.querySelector('[data-cfv-target-home]')?.appendChild?.(targetEditor);container.querySelector('[data-cfv-target-edit="'+unit+'"]')?.focus?.({preventScroll:true});}
     }
     container.addEventListener('click',event=>{
