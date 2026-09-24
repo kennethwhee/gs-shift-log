@@ -3023,143 +3023,21 @@ function isForcedShiftLogSuperAdmin(
   저장된 자동 로그인 정보 불러오기
 ========================================================= */
 
-function loadRememberedLoginCredentials() {
-  const savedCredentials =
-    localStorage.getItem(
-      REMEMBER_LOGIN_STORAGE_KEY
-    );
-
-
-  if (
-    !savedCredentials
-  ) {
-    return null;
-  }
-
-
-  try {
-    const parsedCredentials =
-      JSON.parse(
-        savedCredentials
-      );
-
-
-    if (
-      !parsedCredentials ||
-      typeof parsedCredentials !==
-        "object"
-    ) {
-      clearRememberedLoginCredentials();
-
-      return null;
-    }
-
-
-    const employeeId =
-      String(
-        parsedCredentials.employeeId ||
-        ""
-      ).trim();
-
-
-    const password =
-      String(
-        parsedCredentials.password ??
-        ""
-      );
-
-
-    if (
-      !employeeId ||
-      !password
-    ) {
-      clearRememberedLoginCredentials();
-
-      return null;
-    }
-
-
-    return {
-      employeeId,
-      password
-    };
-
-  } catch (
-    error
-  ) {
-    console.warn(
-      "저장된 자동 로그인 정보를 불러오지 못했습니다.",
-      error
-    );
-
-
-    clearRememberedLoginCredentials();
-
-
-    return null;
-  }
-}
+function loadRememberedLoginCredentials() { return GSShiftLogLoginPreferences.read(); }
 
 
 /* =========================================================
   자동 로그인 정보 저장
 ========================================================= */
 
-function saveRememberedLoginCredentials(
-  employeeId,
-  password
-) {
-  const normalizedEmployeeId =
-    String(
-      employeeId ||
-      ""
-    ).trim();
-
-
-  const normalizedPassword =
-    String(
-      password ??
-      ""
-    );
-
-
-  if (
-    !normalizedEmployeeId ||
-    !normalizedPassword
-  ) {
-    clearRememberedLoginCredentials();
-
-    return;
-  }
-
-
-  localStorage.setItem(
-    REMEMBER_LOGIN_STORAGE_KEY,
-
-    JSON.stringify({
-      employeeId:
-        normalizedEmployeeId,
-
-      password:
-        normalizedPassword,
-
-      savedAt:
-        new Date()
-          .toISOString()
-    })
-  );
-}
+function saveRememberedLoginCredentials(employeeId) { GSShiftLogLoginPreferences.remember(employeeId); }
 
 
 /* =========================================================
   자동 로그인 정보 삭제
 ========================================================= */
 
-function clearRememberedLoginCredentials() {
-  localStorage.removeItem(
-    REMEMBER_LOGIN_STORAGE_KEY
-  );
-}
+function clearRememberedLoginCredentials() { GSShiftLogLoginPreferences.clear(); }
 
 
 /* =========================================================
@@ -3167,59 +3045,13 @@ function clearRememberedLoginCredentials() {
 ========================================================= */
 
 function restoreRememberedLoginCredentials() {
-  const {
-    loginEmployeeId,
-    loginPassword,
-    loginRemember
-  } =
-    getLoginElements();
-
-
-  const savedCredentials =
-    loadRememberedLoginCredentials();
-
-
-  if (
-    !savedCredentials
-  ) {
-    if (
-      loginRemember
-    ) {
-      loginRemember.checked =
-        false;
-    }
-
-
-    return false;
+    const { loginEmployeeId, loginPassword, loginRemember } = getLoginElements();
+    const saved = loadRememberedLoginCredentials();
+    if (loginPassword) loginPassword.value = '';
+    if (loginRemember) loginRemember.checked = Boolean(saved);
+    if (saved && loginEmployeeId) loginEmployeeId.value = saved.employeeId;
+    return Boolean(saved);
   }
-
-
-  if (
-    loginEmployeeId
-  ) {
-    loginEmployeeId.value =
-      savedCredentials.employeeId;
-  }
-
-
-  if (
-    loginPassword
-  ) {
-    loginPassword.value =
-      savedCredentials.password;
-  }
-
-
-  if (
-    loginRemember
-  ) {
-    loginRemember.checked =
-      true;
-  }
-
-
-  return true;
-}
 
 
 /* =========================================================
@@ -4329,10 +4161,7 @@ async function handleShiftLogLogin(
     if (
       loginRemember?.checked
     ) {
-      saveRememberedLoginCredentials(
-        employeeId,
-        password
-      );
+      saveRememberedLoginCredentials(employeeId);
 
     } else {
       clearRememberedLoginCredentials();
@@ -5068,7 +4897,13 @@ function openEmployeeEditModal(
       targetRole;
   }
 
-  if (positionSelect) {
+  const activeSelect = document.getElementById('employeeEditActive');
+      if (activeSelect) {
+        activeSelect.value = Number(targetUser.isActive ?? targetUser.is_active ?? 1) === 1 ? '1' : '0';
+        activeSelect.dataset.initialActive = activeSelect.value;
+        activeSelect.disabled = targetEmployeeNo === '2014081' || targetEmployeeNo === getShiftLogUserEmployeeNo(loadCurrentUser());
+      }
+      if (positionSelect) {
     const positionExists =
       Array.from(
         positionSelect.options
@@ -5450,8 +5285,8 @@ async function saveEmployeeEdit() {
                 가입 완료 계정이므로
                 활성 상태를 유지한다.
               */
-              isAllowed:
-                true
+              isAllowed: document.getElementById('employeeEditActive')?.value !== '0',
+      reactivateAccount: document.getElementById('employeeEditActive')?.value === '1' && document.getElementById('employeeEditActive')?.dataset.initialActive === '0'
             })
         }
       );
@@ -7182,13 +7017,13 @@ async function runLegacyLogSync() {
             method:
               "POST",
 
-            headers: {
+            headers: getShiftLogAuthHeaders({
               "Content-Type":
                 "application/json",
 
               Accept:
                 "application/json"
-            },
+            }),
 
             cache:
               "no-store",
@@ -7617,13 +7452,13 @@ async function retryLegacySyncFailures() {
               method:
                 "POST",
 
-              headers: {
+              headers: getShiftLogAuthHeaders({
                 "Content-Type":
                   "application/json",
 
                 Accept:
                   "application/json"
-              },
+              }),
 
               cache:
                 "no-store",
@@ -8981,13 +8816,13 @@ async function runCurrentShiftLegacySync(
           method:
             "POST",
 
-          headers: {
+          headers: getShiftLogAuthHeaders({
             "Content-Type":
               "application/json",
 
             Accept:
               "application/json"
-          },
+          }),
 
           cache:
             "no-store",
@@ -15023,10 +14858,10 @@ async function loadLegacyLogsForSearchDate(
         method:
           "GET",
 
-        headers: {
+        headers: getShiftLogAuthHeaders({
           Accept:
             "application/json"
-        },
+        }),
 
         cache:
           "no-store"
@@ -15750,10 +15585,10 @@ async function loadLegacyLogsForOperationStatusDate(
         method:
           "GET",
 
-        headers: {
+        headers: getShiftLogAuthHeaders({
           Accept:
             "application/json"
-        },
+        }),
 
         cache:
           "no-store"
@@ -17838,10 +17673,10 @@ async function loadLegacyLogsForSelectedDate() {
           method:
             "GET",
 
-          headers: {
+          headers: getShiftLogAuthHeaders({
             Accept:
               "application/json"
-          },
+          }),
 
           cache:
             "no-store"

@@ -1,3 +1,4 @@
+import { protectedRequest } from "../_shared/attachment-access.js";
 "use strict";
 
 /* =========================================================
@@ -235,7 +236,7 @@ async function requestLegacyLogin(
   GET /api/legacy-login
 ========================================================= */
 
-export async function onRequestGet(
+async function handleGet(
   context
 ) {
   try {
@@ -316,4 +317,7 @@ export function onRequestPost() {
 
     405
   );
+}
+export async function onRequestGet(context) {
+  return protectedRequest(context, handleGet, 'admin');
 }

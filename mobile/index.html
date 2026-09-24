@@ -461,6 +461,7 @@
       }
     }
   </style>
+<script src="/assets/login-preferences.js?v=20260924-review-r2"></script>
 </head>
 
 <body>
@@ -617,7 +618,7 @@
           >
 
           <span>
-            자동 로그인
+            사번 기억
           </span>
         </label>
 
@@ -1696,65 +1697,11 @@
 
 
       function restoreRemembered() {
-        try {
-          const raw =
-            localStorage.getItem(
-              REMEMBER_KEY
-            );
-
-          if (!raw) {
-            return;
+            const saved = GSShiftLogLoginPreferences.read();
+            byId('mobileV6Password').value = '';
+            byId('mobileV6Remember').checked = Boolean(saved);
+            if (saved) byId('mobileV6EmployeeNo').value = saved.employeeId;
           }
-
-          const saved =
-            JSON.parse(raw);
-
-          const employeeNo =
-            String(
-              (
-                saved &&
-                saved.employeeId
-              ) ||
-              ""
-            ).trim();
-
-          const password =
-            String(
-              (
-                saved &&
-                saved.password
-              ) ||
-              ""
-            );
-
-          if (
-            !employeeNo ||
-            !password
-          ) {
-            return;
-          }
-
-          byId(
-            "mobileV6EmployeeNo"
-          ).value =
-            employeeNo;
-
-          byId(
-            "mobileV6Password"
-          ).value =
-            password;
-
-          byId(
-            "mobileV6Remember"
-          ).checked =
-            true;
-
-        } catch {
-          localStorage.removeItem(
-            REMEMBER_KEY
-          );
-        }
-      }
 
 
       function goToApp() {
@@ -1932,19 +1879,7 @@
             remember &&
             remember.checked
           ) {
-            localStorage.setItem(
-              REMEMBER_KEY,
-              JSON.stringify({
-                employeeId:
-                  employeeNo,
-
-                password,
-
-                savedAt:
-                  new Date()
-                    .toISOString()
-              })
-            );
+            GSShiftLogLoginPreferences.remember(employeeNo);
 
           } else {
             localStorage.removeItem(

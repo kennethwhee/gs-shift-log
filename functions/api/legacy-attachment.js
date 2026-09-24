@@ -1,3 +1,4 @@
+import { protectedRequest, attachmentDisposition } from "../_shared/attachment-access.js";
 "use strict";
 
 /* =========================================================
@@ -200,7 +201,7 @@ function sanitizeFileName(value) {
   GET /api/legacy-attachment
 ========================================================= */
 
-export async function onRequestGet(
+async function handleGet(
   context
 ) {
   try {
@@ -425,7 +426,7 @@ export async function onRequestGet(
 
     headers.set(
       "Content-Disposition",
-      `inline; filename="${fileName}"`
+      attachmentDisposition(fileName, requestUrl.searchParams.get('download') === '1' ? 'attachment' : 'inline')
     );
 
 
@@ -530,4 +531,7 @@ export function onRequestPost() {
     },
     405
   );
+}
+export async function onRequestGet(context) {
+  return protectedRequest(context, handleGet, 'attachment');
 }

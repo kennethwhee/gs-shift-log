@@ -1,3 +1,4 @@
+import { protectedRequest } from "../_shared/attachment-access.js";
 "use strict";
 
 /* =========================================================
@@ -1184,17 +1185,14 @@ async function fetchLegacyDiaries(
               method:
                 "GET",
 
-              headers: {
-                Accept:
-                  "application/json"
-              },
+              headers: { Accept: 'application/json', Authorization: request.headers.get('Authorization') || '' },
 
               cache:
                 "no-store",
 
               signal:
                 abortController.signal
-            }
+            , redirect: 'error'}
           );
 
       } finally {
@@ -1881,7 +1879,7 @@ async function importLegacyShift(
   POST /api/legacy-import
 ========================================================= */
 
-export async function onRequestPost(
+async function handlePost(
   context
 ) {
   try {
@@ -2749,4 +2747,7 @@ export function onRequestGet() {
     },
     405
   );
+}
+export async function onRequestPost(context) {
+  return protectedRequest(context, handlePost, 'legacy-import');
 }

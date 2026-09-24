@@ -1,3 +1,4 @@
+import { protectedRequest } from "../_shared/attachment-access.js";
 "use strict";
 
 /* =========================================================
@@ -239,7 +240,7 @@ async function fetchLegacyDiaries(
   GET /api/legacy-diaries
 ========================================================= */
 
-export async function onRequestGet(
+async function handleGet(
   context
 ) {
   try {
@@ -385,4 +386,7 @@ export function onRequestPost() {
 
     405
   );
+}
+export async function onRequestGet(context) {
+  return protectedRequest(context, handleGet, 'read');
 }

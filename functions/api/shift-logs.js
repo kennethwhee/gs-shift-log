@@ -1,3 +1,4 @@
+import { protectedRequest } from "../_shared/attachment-access.js";
 /* =========================================================
   GS Shift Log 신규 업무일지 공용 저장 API
 
@@ -12392,7 +12393,7 @@ async function updateLog(
 }
 
 
-export async function onRequestGet(
+async function handleGet(
   context
 ) {
   try {
@@ -14537,4 +14538,7 @@ return jsonResponse({
       500
     );
   }
+}
+export async function onRequestGet(context) {
+  return protectedRequest(context, handleGet, 'read-with-attachments');
 }

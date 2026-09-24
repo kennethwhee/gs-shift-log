@@ -570,7 +570,7 @@
   <link rel="stylesheet" href="/maintenance/bed-ash-mobile-week-month-nav-v1.css?v=20260903-v1">
   <link
     rel="preload"
-    href="/mobile-app/mobile-runtime-v14.js?v=20260924-review-r1"
+    href="/mobile-app/mobile-runtime-v14.js?v=20260924-review-r2"
     as="script"
   >
 
@@ -680,6 +680,7 @@
 
 
   <script src="/maintenance/limestone-receipt-manual-input-v1.js?v=20260903-v1.1-direct-weight" defer></script>
+<script src="/assets/login-preferences.js?v=20260924-review-r2"></script>
 </head>
 
 <body>
@@ -1021,11 +1022,11 @@
   </label>
 
 
-  <!-- 자동 로그인 -->
+  <!-- 사번 기억 -->
   <label
     class="login-remember"
     for="loginRemember"
-    title="체크하면 이 기기에 사번과 비밀번호가 저장됩니다."
+    title="체크하면 이 기기에 사번만 저장됩니다."
   >
 
     <input
@@ -1042,7 +1043,7 @@
     </span>
 
     <span class="login-remember__text">
-      자동 로그인
+      사번 기억
     </span>
 
   </label>
@@ -15223,12 +15224,19 @@
         </select>
 
         <small>
-          이번 단계에서는 화면에만 표시하며 저장은 다음 단계에서 연결합니다.
+          보직을 선택한 뒤 저장하면 반영됩니다.
         </small>
 
       </label>
 
 
+      <label class="employee-edit-field">
+        <span>로그인 허용</span>
+        <select id="employeeEditActive">
+          <option value="1">허용</option>
+          <option value="0">중지 · 기존 로그인 해제</option>
+        </select>
+      </label>
       <p
         class="employee-edit-message"
         id="employeeEditMessage"
@@ -15245,7 +15253,7 @@
       <div class="modal-footer__left">
 
         <span class="employee-management-footer-help">
-          변경한 이름·권한·보직을 저장합니다.
+          변경한 이름·권한·보직·로그인 허용을 저장합니다.
         </span>
 
       </div>
@@ -15421,7 +15429,7 @@
 </script>
 
 <script
-  src="/mobile-app/mobile-runtime-v14.js?v=20260924-review-r1"
+  src="/mobile-app/mobile-runtime-v14.js?v=20260924-review-r2"
   onload="window.__markMobileAppBootResourceV13?.('sharedScript',true)"
   onerror="window.__setMobileAppBootStageV13?.('shared-script-error','업무일지 프로그램을 불러오지 못했습니다.');window.__showMobileAppBootRecoveryV13?.('업무일지 프로그램을 불러오지 못했습니다. 다시 시도해 주세요.')"
 ></script>
@@ -16002,7 +16010,7 @@
 
 
                 showMessage(
-                  "휴가·대근 관리 자동 로그인 연결에 실패했습니다."
+                  "휴가·대근 관리 사번 기억 연결에 실패했습니다."
                 );
               }
             };

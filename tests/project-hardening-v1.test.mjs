@@ -23,7 +23,11 @@ function database(t, { role = 'user', active = 1, expires = '2099-01-01T00:00:00
     raw.prepare('INSERT INTO employees(employee_no,name,default_role) VALUES(?,?,?)').run('9000001','검토 사용자',role);
     raw.prepare('INSERT INTO shift_log_sessions VALUES(?,?,?,?)').run(hash('review-token'),'9000001',expires,'');
   }
-  return { raw, prepare(sql) { let args = []; return {
+  return { raw, async batch(statements) {
+    raw.exec('BEGIN');
+    try { const results = []; for (const statement of statements) results.push(await statement.run()); raw.exec('COMMIT'); return results; }
+    catch (error) { raw.exec('ROLLBACK'); throw error; }
+  }, prepare(sql) { let args = []; return {
     bind(...values) { args = values; return this; },
     async first() { return raw.prepare(sql).get(...args) || null; },
     async all() { return { results: raw.prepare(sql).all(...args) }; },

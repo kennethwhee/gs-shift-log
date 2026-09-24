@@ -1,3 +1,4 @@
+import { protectedRequest } from "../_shared/attachment-access.js";
 /* =========================================================
   GS Shift Log 신규 업무일지 첨부파일 API
 
@@ -1336,16 +1337,15 @@ function buildContentDisposition(
 
   id:
   실제 파일 조회
-  - UUID를 알아야만 접근 가능
-  - 이미지 <img src> / 파일 링크에서 사용하므로
-    Authorization 헤더 없이 조회 허용
+  - Bearer 또는 첨부파일 전용 쿠키로 로그인 세션 확인
+  - 이미지와 파일 링크도 서버에서 계정·세션 유효성 확인
 
   logId:
   첨부파일 목록 조회
   - 로그인 인증 필요
 ========================================================= */
 
-export async function onRequestGet(
+async function handleGet(
   context
 ) {
   try {
@@ -2357,4 +2357,7 @@ export async function onRequestDelete(
       500
     );
   }
+}
+export async function onRequestGet(context) {
+  return protectedRequest(context, handleGet, 'attachment');
 }

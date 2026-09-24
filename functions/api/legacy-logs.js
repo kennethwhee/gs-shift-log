@@ -1,3 +1,4 @@
+import { protectedRequest } from "../_shared/attachment-access.js";
 "use strict";
 
 /* =========================================================
@@ -644,7 +645,7 @@ async function ensureLegacyLogSuppressionTable(
   원본이 legacy_logs에 남아 있어도 다시 반환되지 않는다.
 ========================================================= */
 
-export async function onRequestGet(
+async function handleGet(
   context
 ) {
   try {
@@ -999,4 +1000,7 @@ export function onRequestPost() {
     },
     405
   );
+}
+export async function onRequestGet(context) {
+  return protectedRequest(context, handleGet, 'read-with-attachments');
 }

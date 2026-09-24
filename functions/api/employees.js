@@ -267,7 +267,7 @@ function normalizeEmployee(
         source.is_allowed ??
         true
       )
-  };
+  , reactivateAccount: source.reactivateAccount === true};
 }
 
 /* =========================
@@ -871,186 +871,35 @@ function convertEmployeeRoleToUserRole(
    - 초기 비밀번호 = 사번
 ================================================== */
 
-async function saveUserAccount(
-  database,
-  employee
-) {
-  const existingUser =
-    await database
-      .prepare(`
-        SELECT
-          id,
-          employee_no
-        FROM users
-        WHERE employee_no = ?
-        LIMIT 1
-      `)
-      .bind(
-        employee.employeeNo
-      )
-      .first();
-
-
-  const userRole =
-    convertEmployeeRoleToUserRole(
-      employee.defaultRole
-    );
-
-
-  /*
-    기존 사용자:
-    비밀번호는 절대 변경하지 않는다.
-  */
+// Prepare every row before a single atomic D1 batch. Existing passwords are never replaced.
+async function prepareEmployeeSave(database, employee) {
+  const existingUser = await database.prepare('SELECT employee_no FROM users WHERE employee_no = ?').bind(employee.employeeNo).first();
+  const existingEmployee = await database.prepare('SELECT employee_no FROM employees WHERE employee_no = ?').bind(employee.employeeNo).first();
+  const role = convertEmployeeRoleToUserRole(employee.defaultRole);
+  const passwordHash = existingUser ? '' : await createInitialPasswordHash(employee.employeeNo);
+  const now = new Date().toISOString();
+  const statements = [
+    database.prepare(`DELETE FROM shift_log_sessions WHERE employee_no = ? AND
+      (? = 0 OR ? = 1 OR EXISTS (SELECT 1 FROM users WHERE employee_no = ? AND role <> ?))`)
+      .bind(employee.employeeNo, employee.isAllowed, Number(employee.reactivateAccount), employee.employeeNo, role),
+    database.prepare(`INSERT INTO employees (employee_no, name, default_role, position, is_allowed)
+      SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM employees WHERE employee_no = ?)`)
+      .bind(employee.employeeNo, employee.name, employee.defaultRole, employee.position, employee.isAllowed, employee.employeeNo),
+    database.prepare('UPDATE employees SET name = ?, default_role = ?, position = ?, is_allowed = ? WHERE employee_no = ?')
+      .bind(employee.name, employee.defaultRole, employee.position, employee.isAllowed, employee.employeeNo)
+  ];
   if (existingUser) {
-    await database
-      .prepare(`
-        UPDATE users
-        SET
-          name = ?,
-          role = ?,
-          is_active = 1
-        WHERE employee_no = ?
-      `)
-      .bind(
-        employee.name,
-        userRole,
-        employee.employeeNo
-      )
-      .run();
-
-    return "existing";
+    statements.push(database.prepare('UPDATE users SET name = ?, role = ?, is_active = CASE WHEN ? = 0 THEN 0 WHEN ? = 1 THEN 1 ELSE is_active END WHERE employee_no = ?')
+      .bind(employee.name, role, employee.isAllowed, Number(employee.reactivateAccount), employee.employeeNo));
+  } else {
+    statements.push(database.prepare(`INSERT INTO users
+      (employee_no, name, password_hash, role, is_active, approved_at, approved_by, created_at)
+      SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM users WHERE employee_no = ?)`)
+      .bind(employee.employeeNo, employee.name, passwordHash, role, employee.isAllowed, now, 'excel-import', now, employee.employeeNo));
+    statements.push(database.prepare('UPDATE users SET name = ?, role = ?, is_active = CASE WHEN ? = 0 THEN 0 WHEN ? = 1 THEN 1 ELSE is_active END WHERE employee_no = ?')
+      .bind(employee.name, role, employee.isAllowed, Number(employee.reactivateAccount), employee.employeeNo));
   }
-
-
-  /*
-    신규 사용자:
-    초기 비밀번호는 사번과 동일
-  */
-  const passwordHash =
-    await createInitialPasswordHash(
-      employee.employeeNo
-    );
-
-
-  const now =
-    new Date()
-      .toISOString();
-
-
-  await database
-    .prepare(`
-      INSERT INTO users (
-        employee_no,
-        name,
-        password_hash,
-        role,
-        is_active,
-        approved_at,
-        approved_by,
-        created_at
-      )
-      VALUES (?, ?, ?, ?, 1, ?, ?, ?)
-    `)
-    .bind(
-      employee.employeeNo,
-      employee.name,
-      passwordHash,
-      userRole,
-      now,
-      "excel-import",
-      now
-    )
-    .run();
-
-
-  return "created";
-}
-
-/* ==================================================
-   직원 1명 저장
-
-   같은 사번이 없으면 INSERT
-   같은 사번이 있으면 UPDATE
-
-   저장 항목:
-   - 이름
-   - 권한
-   - 보직
-   - 가입 허용 여부
-================================================== */
-
-async function saveEmployee(
-  database,
-  employee
-) {
-  const existingEmployee =
-    await database
-      .prepare(`
-        SELECT
-          employee_no
-        FROM employees
-        WHERE employee_no = ?
-        LIMIT 1
-      `)
-      .bind(
-        employee.employeeNo
-      )
-      .first();
-
-
-  /*
-    기존 직원 수정
-  */
-  if (existingEmployee) {
-    await database
-      .prepare(`
-        UPDATE employees
-        SET
-          name = ?,
-          default_role = ?,
-          position = ?,
-          is_allowed = ?
-        WHERE employee_no = ?
-      `)
-      .bind(
-        employee.name,
-        employee.defaultRole,
-        employee.position,
-        employee.isAllowed,
-        employee.employeeNo
-      )
-      .run();
-
-
-    return "updated";
-  }
-
-
-  /*
-    신규 직원 등록
-  */
-  await database
-    .prepare(`
-      INSERT INTO employees (
-        employee_no,
-        name,
-        default_role,
-        position,
-        is_allowed
-      )
-      VALUES (?, ?, ?, ?, ?)
-    `)
-    .bind(
-      employee.employeeNo,
-      employee.name,
-      employee.defaultRole,
-      employee.position,
-      employee.isAllowed
-    )
-    .run();
-
-
-  return "created";
+  return { statements, existingUser: Boolean(existingUser), existingEmployee: Boolean(existingEmployee) };
 }
 
 
@@ -1067,6 +916,10 @@ export async function onRequestPost(
 
     const body =
       await context.request.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return jsonResponse({ok:false,message:'직원 정보 형식이 올바르지 않습니다.'},400);
+    }
+
 
 
     const isBulkRequest =
@@ -1199,60 +1052,18 @@ export async function onRequestPost(
     let existingUserCount = 0;
 
 
-for (
-  const employee of employees
-) {
-  /*
-    직원 명단 저장
-  */
-  const employeeResult =
-    await saveEmployee(
-      context.env.DB,
-      employee
-    );
-
-
-  if (
-    employeeResult ===
-    "created"
-  ) {
-    createdCount += 1;
-  }
-
-
-  if (
-    employeeResult ===
-    "updated"
-  ) {
-    updatedCount += 1;
-  }
-
-
-  /*
-    로그인 계정 생성 또는 갱신
-  */
-  const userResult =
-    await saveUserAccount(
-      context.env.DB,
-      employee
-    );
-
-
-  if (
-    userResult ===
-    "created"
-  ) {
-    createdUserCount += 1;
-  }
-
-
-  if (
-    userResult ===
-    "existing"
-  ) {
-    existingUserCount += 1;
-  }
-}
+const statements = [];
+    for (const employee of employees) {
+      const protectedAccount = employee.employeeNo === authentication.user.employeeNo || employee.employeeNo === '2014081';
+      if (protectedAccount && (employee.isAllowed !== 1 || convertEmployeeRoleToUserRole(employee.defaultRole) !== 'super_admin')) {
+        return jsonResponse({ ok: false, message: '본인 또는 기본 최고관리자의 권한·로그인 허용은 해제할 수 없습니다.' }, 409);
+      }
+      const prepared = await prepareEmployeeSave(context.env.DB, employee);
+      statements.push(...prepared.statements);
+      if (prepared.existingEmployee) updatedCount++; else createdCount++;
+      if (prepared.existingUser) existingUserCount++; else createdUserCount++;
+    }
+    await context.env.DB.batch(statements);
 
 
     return jsonResponse(
@@ -1325,14 +1136,10 @@ for (
         success: false,
 
         message:
-          error instanceof Error
-            ? error.message
-            : String(error),
+          "직원 정보 처리 중 오류가 발생했습니다. 다시 시도해 주세요.",
 
         error:
-          error instanceof Error
-            ? error.message
-            : String(error)
+          "직원 정보 처리 중 오류가 발생했습니다. 다시 시도해 주세요."
       },
       500
     );
@@ -1411,15 +1218,14 @@ export async function onRequestDelete(
     }
 
 
-    await context.env.DB
-      .prepare(`
-        DELETE FROM employees
-        WHERE employee_no = ?
-      `)
-      .bind(
-        employeeNo
-      )
-      .run();
+    if (employeeNo === authentication.user.employeeNo || employeeNo === '2014081') {
+      return jsonResponse({ ok: false, message: '본인 또는 기본 최고관리자는 삭제할 수 없습니다.' }, 409);
+    }
+    await context.env.DB.batch([
+      context.env.DB.prepare('UPDATE users SET is_active = 0 WHERE employee_no = ?').bind(employeeNo),
+      context.env.DB.prepare('DELETE FROM shift_log_sessions WHERE employee_no = ?').bind(employeeNo),
+      context.env.DB.prepare('DELETE FROM employees WHERE employee_no = ?').bind(employeeNo)
+    ]);
 
 
     return jsonResponse({
@@ -1428,7 +1234,7 @@ export async function onRequestDelete(
       success: true,
 
       message:
-        `${existingEmployee.name} 직원이 명단에서 삭제되었습니다.`,
+        `${existingEmployee.name} 직원의 계정과 로그인 세션이 해제되고 명단에서 삭제되었습니다.`,
 
       employee: {
         employeeNo:
@@ -1459,14 +1265,10 @@ export async function onRequestDelete(
         success: false,
 
         message:
-          error instanceof Error
-            ? error.message
-            : String(error),
+          "직원 정보 처리 중 오류가 발생했습니다. 다시 시도해 주세요.",
 
         error:
-          error instanceof Error
-            ? error.message
-            : String(error)
+          "직원 정보 처리 중 오류가 발생했습니다. 다시 시도해 주세요."
       },
       500
     );

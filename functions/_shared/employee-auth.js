@@ -32,5 +32,5 @@ export async function authenticateEmployeeRequest(context, { write = false } = {
   const administrator = text(session.employee_no) === "2014081" ||
     isSuperAdmin(session.role) || isSuperAdmin(session.default_role);
   if (write && !administrator) return error("최고관리자만 직원 정보를 변경할 수 있습니다.", 403);
-  return { user: { employeeNo: text(session.employee_no), isSuperAdmin: administrator } };
+  return { user: { employeeNo: text(session.employee_no), isSuperAdmin: administrator, expiresAt: session.expires_at } };
 }

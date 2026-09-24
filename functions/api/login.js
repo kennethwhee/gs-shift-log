@@ -1,3 +1,4 @@
+import { loginAttachmentResponse } from "../_shared/attachment-access.js";
 /* =========================================================
   GS Shift Log 로그인 API
 
@@ -725,7 +726,7 @@ function getBearerToken(
   POST /api/login
 ========================================================= */
 
-export async function onRequestPost(
+async function handlePost(
   context
 ) {
   try {
@@ -1212,7 +1213,7 @@ const responseUser = {
   현재 브라우저에서 사용한 세션만 삭제한다.
 ========================================================= */
 
-export async function onRequestDelete(
+async function handleDelete(
   context
 ) {
   try {
@@ -1277,7 +1278,7 @@ export async function onRequestDelete(
   현재 Bearer 세션 유효성 확인
 ========================================================= */
 
-export async function onRequestGet(
+async function handleGet(
   context
 ) {
   try {
@@ -1503,4 +1504,16 @@ export async function onRequestGet(
       500
     );
   }
+}
+
+export async function onRequestGet(context) {
+  return loginAttachmentResponse(context, handleGet);
+}
+
+export async function onRequestPost(context) {
+  return loginAttachmentResponse(context, handlePost);
+}
+
+export async function onRequestDelete(context) {
+  return loginAttachmentResponse(context, handleDelete);
 }
